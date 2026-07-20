@@ -78,11 +78,20 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if workloadID := safeStr(ctx, "id"); workloadID != "" {
+		// #5167 W3: the workload identity itself is already bound to the
+		// caller's grant (fetchServiceTraceContext -> fetchServiceWorkloadContext
+		// -> fetchWorkloadContextForOperation applies repositoryAccessFilterFromContext),
+		// but the enrichment below reads other repositories' deployment-source
+		// edges, so deploymentSources is independently bound to the grant and
+		// every downstream read that derives repo ids from it inherits the
+		// filtered set.
+		access := repositoryAccessFilterFromContext(r.Context())
 		deploymentSourceResult, err := h.fetchDeploymentSourceResult(r.Context(), workloadID, safeStr(ctx, "repo_id"))
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query deployment sources: %v", err))
 			return
 		}
+		deploymentSourceResult.rows = filterRowsByRepoIDForAccess(deploymentSourceResult.rows, access)
 		deploymentSources := deploymentSourceResult.rows
 		cloudResourceResult, err := h.fetchCloudResourceResult(r.Context(), workloadID)
 		if err != nil {
@@ -99,7 +108,12 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 				cloudResources = cloudResourceResult.rows
 			}
 		}
-		if len(cloudResources) == 0 && len(mapSliceValue(ctx, "uncorrelated_cloud_resources")) == 0 {
+		// The config-derived and "uncorrelated" cloud-resource fallbacks below
+		// are free-text CloudResource scans with no repo_id in their result rows
+		// at all (#5167 W3) -- there is no property to bind to the caller's
+		// grant, so a scoped caller never runs them and simply sees no fallback
+		// cloud resources rather than a cross-tenant free-text leak.
+		if len(cloudResources) == 0 && len(mapSliceValue(ctx, "uncorrelated_cloud_resources")) == 0 && !access.scoped() {
 			configRows, configTruncated, configErr := loadConfigDerivedCloudResourceDependenciesBounded(
 				r.Context(),
 				h.Neo4j,
@@ -120,7 +134,7 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		if len(cloudResources) > 0 {
 			ctx["cloud_resources"] = cloudResources
 			delete(ctx, "uncorrelated_cloud_resources")
-		} else if len(mapSliceValue(ctx, "uncorrelated_cloud_resources")) == 0 {
+		} else if len(mapSliceValue(ctx, "uncorrelated_cloud_resources")) == 0 && !access.scoped() {
 			cloudCandidates, cloudCandidatesTruncated, err := loadUncorrelatedCloudResourceCandidatesBounded(
 				r.Context(), h.Neo4j, safeStr(ctx, "name"), serviceStoryItemLimit,
 			)

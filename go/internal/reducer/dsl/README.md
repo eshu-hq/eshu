@@ -113,5 +113,4 @@ in `go/internal/telemetry/instruments.go`.
 
 - `docs/public/architecture.md`
 - `go/internal/reducer/README.md`
-- `go/internal/reducer/aws/README.md`
 - `go/internal/reducer/tfstate/README.md`

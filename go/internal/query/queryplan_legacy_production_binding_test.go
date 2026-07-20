@@ -115,6 +115,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 			"",
 			changeSurfaceLegacyDefaultDepth,
 			10,
+			repositoryAccessFilter{allScopes: true},
 		)
 		return err
 	})
@@ -154,7 +155,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		"QP-READINESS-HOSTED":                             hostedRepositoryCount,
 		"QP-IMPACT-CHANGE-SURFACE":                        changeSurface,
 		"QP-RELATIONSHIPS-CATALOG-COUNT":                  relationshipCountCypher(relationshipVerbByName["CALLS"]),
-		"QP-RELATIONSHIPS-EDGES":                          relationshipEdgesCypher(relationshipVerbByName["CALLS"]),
+		"QP-RELATIONSHIPS-EDGES":                          relationshipEdgesCypher(relationshipVerbByName["CALLS"], repositoryAccessFilter{allScopes: true}),
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY": sourceToolQueries[0],
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE":   sourceToolQueries[1],
 		"QP-INFRA-RESOURCE-SEARCH":                        infraSearch,

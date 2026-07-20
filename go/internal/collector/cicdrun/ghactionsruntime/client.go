@@ -24,58 +24,84 @@ type GitHubClient struct {
 	HTTPClient *http.Client
 }
 
-// FetchLatestRun returns the latest configured repository run plus bounded job
-// and artifact metadata.
-func (c GitHubClient) FetchLatestRun(ctx context.Context, target TargetConfig) (RunSnapshot, error) {
+// FetchRuns returns the configured repository's most recent runs (bounded by
+// target.MaxRuns) plus bounded job and artifact metadata for each, and a
+// truncation signal for whether GitHub reports additional runs beyond the
+// fetched window. Every run in the window is fully populated so callers can
+// emit one fact-set per run instead of discarding runs[1:] as the prior
+// single-run FetchLatestRun did.
+func (c GitHubClient) FetchRuns(ctx context.Context, target TargetConfig) (RunPage, error) {
 	target, err := validateTarget(target)
 	if err != nil {
-		return RunSnapshot{}, err
+		return RunPage{}, err
 	}
-	runs, err := c.fetchRunPage(ctx, target)
+	runs, totalCount, err := c.fetchRunPage(ctx, target)
 	if err != nil {
-		return RunSnapshot{}, err
+		return RunPage{}, err
 	}
 	if len(runs) == 0 {
-		return RunSnapshot{}, fmt.Errorf("github actions repository %q returned no workflow runs", target.Repository)
+		return RunPage{}, fmt.Errorf("github actions repository %q returned no workflow runs", target.Repository)
 	}
-	run := runs[0]
-	runID, err := numericProviderID(run["id"])
-	if err != nil {
-		return RunSnapshot{}, fmt.Errorf("github actions run.id: %w", err)
+	if len(runs) > target.MaxRuns {
+		runs = runs[:target.MaxRuns]
 	}
-	jobs, jobsPartial, err := c.fetchJobs(ctx, target, runID)
-	if err != nil {
-		return RunSnapshot{}, err
+	snapshots := make([]RunSnapshot, 0, len(runs))
+	for _, run := range runs {
+		runID, err := numericProviderID(run["id"])
+		if err != nil {
+			return RunPage{}, fmt.Errorf("github actions run.id: %w", err)
+		}
+		jobs, jobsPartial, err := c.fetchJobs(ctx, target, runID)
+		if err != nil {
+			return RunPage{}, err
+		}
+		artifacts, err := c.fetchArtifacts(ctx, target, runID)
+		if err != nil {
+			return RunPage{}, err
+		}
+		snapshots = append(snapshots, RunSnapshot{
+			Workflow:    workflowMap(run),
+			Run:         run,
+			Jobs:        jobs,
+			JobsPartial: jobsPartial,
+			Artifacts:   artifacts,
+		})
 	}
-	artifacts, err := c.fetchArtifacts(ctx, target, runID)
-	if err != nil {
-		return RunSnapshot{}, err
-	}
-	workflow := workflowMap(run)
-	return RunSnapshot{
-		Workflow:    workflow,
-		Run:         run,
-		Jobs:        jobs,
-		JobsPartial: jobsPartial,
-		Artifacts:   artifacts,
+	return RunPage{
+		Snapshots: snapshots,
+		Truncated: runsPageTruncated(totalCount, len(runs), target.MaxRuns),
 	}, nil
 }
 
-func (c GitHubClient) fetchRunPage(ctx context.Context, target TargetConfig) ([]map[string]any, error) {
+// runsPageTruncated reports whether more workflow runs exist beyond the
+// fetched window. It prefers GitHub's exact total_count signal when the
+// provider returned one (total_count > 0, which is always true whenever the
+// repository has at least one run); otherwise it falls back to the
+// full-page heuristic (the fetched page exactly filled the requested
+// per_page/MaxRuns bound, so more runs may exist beyond it).
+func runsPageTruncated(totalCount, fetchedLen, maxRuns int) bool {
+	if totalCount > 0 {
+		return totalCount > fetchedLen
+	}
+	return fetchedLen == maxRuns
+}
+
+func (c GitHubClient) fetchRunPage(ctx context.Context, target TargetConfig) ([]map[string]any, int, error) {
 	path := fmt.Sprintf("/repos/%s/actions/runs", target.Repository)
 	endpoint, err := targetURL(target, path, map[string]string{
 		"per_page": strconv.Itoa(target.MaxRuns),
 	})
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	var decoded struct {
+		TotalCount   int              `json:"total_count"`
 		WorkflowRuns []map[string]any `json:"workflow_runs"`
 	}
 	if err := c.getJSON(ctx, target, endpoint, &decoded); err != nil {
-		return nil, fmt.Errorf("fetch github actions workflow runs: %w", err)
+		return nil, 0, fmt.Errorf("fetch github actions workflow runs: %w", err)
 	}
-	return decoded.WorkflowRuns, nil
+	return decoded.WorkflowRuns, decoded.TotalCount, nil
 }
 
 func (c GitHubClient) fetchJobs(

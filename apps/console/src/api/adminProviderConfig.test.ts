@@ -14,6 +14,7 @@ import {
   toFormKind,
   newClientProviderConfigId,
   oidcRedirectUri,
+  githubCallbackUri,
   samlAcsUrl,
   samlServiceProviderEntityId,
   deriveProviderLabel,
@@ -132,6 +133,31 @@ describe("toWireBody", () => {
     });
   });
 
+  it("maps a GitHub form input to the exact backend field names (issue #5166)", () => {
+    const body = toWireBody({
+      kind: "github",
+      providerConfigId: "pc_gh",
+      clientId: "gh-client-1",
+      clientSecret: "gh-s3cret",
+      baseUrl: "",
+      apiBaseUrl: "",
+      scopes: ["read:org", "user:email"],
+      allowedOrgs: ["my-org"],
+      redirectUrl: "https://eshu.example.test/api/v0/auth/github/callback",
+    });
+    expect(body).toEqual({
+      provider_kind: "github",
+      provider_config_id: "pc_gh",
+      client_id: "gh-client-1",
+      client_secret: "gh-s3cret",
+      base_url: "",
+      api_base_url: "",
+      scopes: ["read:org", "user:email"],
+      allowed_orgs: ["my-org"],
+      redirect_url: "https://eshu.example.test/api/v0/auth/github/callback",
+    });
+  });
+
   it("omits provider_config_id when absent (update path relies on the URL id)", () => {
     const body = toWireBody({
       kind: "oidc",
@@ -147,10 +173,19 @@ describe("toWireBody", () => {
 });
 
 describe("toFormKind", () => {
-  it("maps external_saml to saml and everything else to oidc", () => {
+  it("maps external_saml to saml, external_github to github, and everything else to oidc", () => {
     expect(toFormKind("external_saml")).toBe("saml");
+    expect(toFormKind("external_github")).toBe("github");
     expect(toFormKind("external_oidc")).toBe("oidc");
     expect(toFormKind(undefined)).toBe("oidc");
+  });
+});
+
+describe("githubCallbackUri", () => {
+  it("builds the fixed deployment-wide GitHub callback path", () => {
+    expect(githubCallbackUri("https://eshu.example.test/")).toBe(
+      "https://eshu.example.test/api/v0/auth/github/callback",
+    );
   });
 });
 
@@ -333,6 +368,25 @@ describe("deriveProviderLabel", () => {
         }),
       ),
     ).toBe("https://idp.example.test/entity");
+  });
+
+  it("uses the base URL for a GitHub Enterprise Server provider (issue #5166)", () => {
+    expect(
+      deriveProviderLabel(
+        item({
+          provider_kind: "external_github",
+          configuration: { base_url: "https://github.example.com" },
+        }),
+      ),
+    ).toBe("https://github.example.com");
+  });
+
+  it("falls back to the opaque id for a github.com provider with a blank base URL", () => {
+    expect(
+      deriveProviderLabel(
+        item({ provider_kind: "external_github", configuration: { base_url: "" } }),
+      ),
+    ).toBe("pc_1");
   });
 
   it("falls back to the opaque id when configuration carries no usable label", () => {

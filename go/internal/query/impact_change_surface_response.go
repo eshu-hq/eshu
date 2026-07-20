@@ -5,9 +5,17 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 )
+
+// errChangeSurfaceRepoNotGranted is returned by changeSurfaceCodeSurface when
+// the caller supplied an explicit repo_id (required alongside changed_paths)
+// that is outside their scoped-token/browser-session grant. Callers translate
+// it to a not-found response rather than a 503/500 so a repository outside
+// the grant renders identically to an unknown repository.
+var errChangeSurfaceRepoNotGranted = errors.New("repository is outside the caller's grant")
 
 func changeSurfaceNoTargetResolution(req changeSurfaceInvestigationRequest) map[string]any {
 	return map[string]any{
@@ -57,6 +65,15 @@ func (h *ImpactHandler) changeSurfaceImpactRows(
 	req changeSurfaceInvestigationRequest,
 	target changeSurfaceTargetCandidate,
 ) ([]map[string]any, bool, error) {
+	// #5167 W3: the start target was already bound to the grant by
+	// resolveChangeSurfaceTarget, but the traversal reaches nodes several hops
+	// away and impacted.repo_id is projected below, so every impacted row is
+	// re-bound to the caller's grant independently -- an in-grant target can
+	// still transitively impact a repository the caller does not hold.
+	access := repositoryAccessFilterFromContext(ctx)
+	if access.empty() {
+		return nil, false, nil
+	}
 	startPattern, err := changeSurfaceTraversalStartPattern(target)
 	if err != nil {
 		return nil, false, err
@@ -90,6 +107,9 @@ func (h *ImpactHandler) changeSurfaceImpactRows(
 		if req.Environment != "" && env != "" && env != req.Environment {
 			continue
 		}
+		if !impactRepoIDAllowed(changeSurfaceImpactedRowRepoID(row), access) {
+			continue
+		}
 		seen[id] = struct{}{}
 		filtered = append(filtered, row)
 	}
@@ -98,6 +118,24 @@ func (h *ImpactHandler) changeSurfaceImpactRows(
 		filtered = filtered[:req.Limit]
 	}
 	return filtered, truncated, nil
+}
+
+// changeSurfaceImpactedRowRepoID resolves the owning repository id for an
+// impacted row projected by changeSurfaceInvestigateCypher/
+// changeSurfaceLegacyCypher. A Repository-labeled impacted node carries no
+// repo_id property of its own (its id IS the repository id), so the
+// Repository label is checked as a fallback before treating the row as
+// repo-less.
+func changeSurfaceImpactedRowRepoID(row map[string]any) string {
+	if repoID := StringVal(row, "repo_id"); repoID != "" {
+		return repoID
+	}
+	for _, label := range StringSliceVal(row, "labels") {
+		if label == "Repository" {
+			return StringVal(row, "id")
+		}
+	}
+	return ""
 }
 
 // changeSurfaceTraversalStartPattern returns the label-anchored start node
@@ -131,127 +169,6 @@ func (c changeSurfaceTargetCandidate) hasLabel(label string) bool {
 		}
 	}
 	return false
-}
-
-func (h *ImpactHandler) changeSurfaceCodeSurface(
-	ctx context.Context,
-	req changeSurfaceInvestigationRequest,
-) (map[string]any, error) {
-	files := changeSurfaceFileMaps(req.ChangedPaths, req.RepoID)
-	symbols := make([]map[string]any, 0)
-	evidenceGroups := make([]map[string]any, 0)
-	truncated := false
-	sourceBackends := []string{}
-
-	if req.Topic != "" {
-		rows, err := h.changeSurfaceTopicRows(ctx, req)
-		if err != nil {
-			return nil, err
-		}
-		truncated = len(rows) > req.Limit
-		if truncated {
-			rows = rows[:req.Limit]
-		}
-		sourceBackends = append(sourceBackends, "postgres_content_store")
-		for index, row := range rows {
-			files = appendMatchedFile(files, row)
-			if row.EntityID != "" {
-				symbols = append(symbols, codeTopicSymbol(row, index+1))
-			}
-			evidenceGroups = append(evidenceGroups, codeTopicEvidenceGroup(row, index+1))
-		}
-	}
-	pathSymbolsTruncated := false
-	if len(req.ChangedPaths) > 0 && h != nil && h.Content != nil {
-		pathSymbols, symbolsTruncated, err := h.changeSurfacePathSymbols(ctx, req)
-		if err != nil {
-			return nil, err
-		}
-		symbols = appendUniqueSymbolMaps(symbols, pathSymbols)
-		pathSymbolsTruncated = symbolsTruncated
-		sourceBackends = append(sourceBackends, "postgres_content_store")
-	}
-	truncated = truncated || pathSymbolsTruncated
-
-	return map[string]any{
-		"topic":              req.Topic,
-		"changed_files":      files,
-		"matched_file_count": len(files),
-		"touched_symbols":    symbols,
-		"symbol_count":       len(symbols),
-		"evidence_groups":    evidenceGroups,
-		"truncated":          truncated,
-		"source_backends":    uniqueStrings(sourceBackends),
-		"coverage": map[string]any{
-			"query_shape":         "content_topic_and_changed_path_surface",
-			"changed_path_count":  len(req.ChangedPaths),
-			"changed_path_lookup": "path_scoped",
-			"returned_symbols":    len(symbols),
-			"limit":               req.Limit,
-			"offset":              req.Offset,
-			"truncated":           truncated,
-		},
-	}, nil
-}
-
-func (h *ImpactHandler) changeSurfaceTopicRows(
-	ctx context.Context,
-	req changeSurfaceInvestigationRequest,
-) ([]codeTopicEvidenceRow, error) {
-	if h == nil || h.Content == nil {
-		return nil, errCodeTopicBackendUnavailable
-	}
-	investigator, ok := h.Content.(codeTopicContentInvestigator)
-	if !ok {
-		return nil, errCodeTopicBackendUnavailable
-	}
-	topicReq := codeTopicInvestigationRequest{
-		Topic:  req.Topic,
-		RepoID: req.RepoID,
-		Limit:  req.Limit + 1,
-		Offset: req.Offset,
-		Intent: "change_surface",
-		Terms:  codeTopicSearchTerms(req.Topic, "change_surface", nil),
-	}
-	rows, err := investigator.investigateCodeTopic(ctx, topicReq)
-	if err != nil {
-		return nil, fmt.Errorf("investigate code topic: %w", err)
-	}
-	return rows, nil
-}
-
-func (h *ImpactHandler) changeSurfacePathSymbols(
-	ctx context.Context,
-	req changeSurfaceInvestigationRequest,
-) ([]map[string]any, bool, error) {
-	entities, err := h.Content.ListRepoEntitiesByPaths(ctx, req.RepoID, req.ChangedPaths, req.Limit+1)
-	if err != nil {
-		return nil, false, fmt.Errorf("list repo entities by changed paths: %w", err)
-	}
-	symbols := make([]map[string]any, 0)
-	for _, entity := range entities {
-		symbols = append(symbols, map[string]any{
-			"entity_id":     entity.EntityID,
-			"entity_name":   entity.EntityName,
-			"entity_type":   entity.EntityType,
-			"repo_id":       entity.RepoID,
-			"relative_path": entity.RelativePath,
-			"language":      entity.Language,
-			"start_line":    entity.StartLine,
-			"end_line":      entity.EndLine,
-			"source_handle": map[string]any{
-				"repo_id":       entity.RepoID,
-				"relative_path": entity.RelativePath,
-				"start_line":    entity.StartLine,
-				"end_line":      entity.EndLine,
-			},
-		})
-	}
-	truncated := len(symbols) > req.Limit
-	if truncated {
-		symbols = symbols[:req.Limit]
-	}
-	return symbols, truncated, nil
 }
 
 func (h *ImpactHandler) changeSurfaceResponse(

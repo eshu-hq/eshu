@@ -51,6 +51,58 @@ const openAPIPathsSupplyChainSBOMAttestations = `
                           "missing_evidence": {"type": "array", "items": {"type": "string"}},
                           "canonical_writes": {"type": "integer"},
                           "component_count": {"type": "integer"},
+                          "dependency_relationships": {
+                            "type": "array",
+                            "description": "Bounded, deduplicated sbom.dependency_relationship evidence rows for this document (write-time capped at 100 per document).",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "from_component_id": {"type": "string"},
+                                "to_component_id": {"type": "string"},
+                                "relationship_type": {"type": "string"},
+                                "relationship_origin": {"type": "string"},
+                                "fact_id": {"type": "string"}
+                              }
+                            }
+                          },
+                          "dependency_relationship_count": {
+                            "type": "integer",
+                            "description": "Full distinct dependency-relationship tuple count before the write-time cap."
+                          },
+                          "dependency_relationships_truncated": {
+                            "type": "boolean",
+                            "description": "True when dependency_relationship_count exceeds the number of rows in dependency_relationships."
+                          },
+                          "external_references": {
+                            "type": "array",
+                            "description": "Bounded, deduplicated sbom.external_reference evidence rows for this document (write-time capped at 50 per document).",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "component_id": {"type": "string"},
+                                "reference_type": {"type": "string"},
+                                "reference_url": {"type": "string"},
+                                "reference_locator": {"type": "string"},
+                                "fact_id": {"type": "string"}
+                              }
+                            }
+                          },
+                          "external_reference_count": {
+                            "type": "integer",
+                            "description": "Full distinct external-reference tuple count before the write-time cap."
+                          },
+                          "external_references_truncated": {
+                            "type": "boolean",
+                            "description": "True when external_reference_count exceeds the number of rows in external_references."
+                          },
+                          "slsa_provenance_predicate_type": {
+                            "type": "string",
+                            "description": "SLSA predicate type URI decoded from the joined attestation.slsa_provenance fact for this statement (for example https://slsa.dev/provenance/v1). Empty when no such fact joined this statement_id."
+                          },
+                          "slsa_provenance_builder_id": {
+                            "type": "string",
+                            "description": "SLSA provenance builder identity decoded from the joined attestation.slsa_provenance fact for this statement. Empty when absent from a well-formed predicate, or when no such fact joined this statement_id."
+                          },
                           "warning_summaries": {
                             "type": "array",
                             "maxItems": 10,

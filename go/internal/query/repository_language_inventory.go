@@ -15,6 +15,16 @@ const (
 	repositoryLanguageMaxLimit     = 500
 )
 
+// listRepositoriesByLanguage serves GET /api/v0/repositories/by-language.
+//
+// Access scoping (#5167 Group B): content_files aggregates over the whole
+// corpus with no grant of its own, so a scoped caller with no granted
+// repository or ingestion scope never reaches the store at all -- the
+// response renders as a bounded empty page without a query, mirroring the
+// #5137 LiveActivityStore precedent. A scoped caller WITH grants only ever
+// sees repositories/counts intersected with AllowedRepositoryIDs/
+// AllowedScopeIDs (repository_language_inventory.go passes the grant through
+// to ContentStore; see its interface doc comment in ports.go).
 func (h *RepositoryHandler) listRepositoriesByLanguage(w http.ResponseWriter, r *http.Request) {
 	language := strings.ToLower(strings.TrimSpace(QueryParam(r, "language")))
 	if language == "" {
@@ -26,9 +36,20 @@ func (h *RepositoryHandler) listRepositoriesByLanguage(w http.ResponseWriter, r 
 		return
 	}
 
+	access := repositoryAccessFilterFromContext(r.Context())
 	languages := repositoryLanguageFamily(language)
 	page := repositoryLanguagePageFromRequest(r, true)
-	aggregate, err := h.Content.CountRepositoriesByLanguage(r.Context(), languages)
+
+	if access.empty() {
+		h.writeEmptyRepositoryLanguagePage(w, r, language, languages, page)
+		return
+	}
+
+	allScopes := !access.scoped()
+	allowedRepositoryIDs := access.grantedRepositoryIDs()
+	allowedScopeIDs := access.grantedScopeIDs()
+
+	aggregate, err := h.Content.CountRepositoriesByLanguage(r.Context(), languages, allScopes, allowedRepositoryIDs, allowedScopeIDs)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("count repositories by language: %v", err))
 		return
@@ -37,7 +58,9 @@ func (h *RepositoryHandler) listRepositoriesByLanguage(w http.ResponseWriter, r 
 	rows := []RepositoryLanguageRepository{}
 	truncated := false
 	if page.Limit > 0 {
-		rows, err = h.Content.ListRepositoriesByLanguage(r.Context(), languages, page.Limit+1, page.Offset)
+		rows, err = h.Content.ListRepositoriesByLanguage(
+			r.Context(), languages, page.Limit+1, page.Offset, allScopes, allowedRepositoryIDs, allowedScopeIDs,
+		)
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list repositories by language: %v", err))
 			return
@@ -66,14 +89,28 @@ func (h *RepositoryHandler) listRepositoriesByLanguage(w http.ResponseWriter, r 
 	))
 }
 
+// getRepositoryLanguageInventory serves GET /api/v0/repositories/language-inventory.
+// Access scoping mirrors listRepositoriesByLanguage: content_files carries no
+// grant of its own, so a scoped caller with no grants never reaches the store
+// (#5167 Group B, #5137 LiveActivityStore precedent), and a granted scoped
+// caller only sees per-language counts intersected with its grant.
 func (h *RepositoryHandler) getRepositoryLanguageInventory(w http.ResponseWriter, r *http.Request) {
 	if h == nil || h.Content == nil {
 		WriteError(w, http.StatusServiceUnavailable, "repository language content store is unavailable")
 		return
 	}
 
+	access := repositoryAccessFilterFromContext(r.Context())
 	page := repositoryLanguagePageFromRequest(r, false)
-	rows, err := h.Content.RepositoryLanguageInventory(r.Context(), page.Limit+1, page.Offset)
+
+	if access.empty() {
+		h.writeEmptyRepositoryLanguageInventoryPage(w, r, page)
+		return
+	}
+
+	rows, err := h.Content.RepositoryLanguageInventory(
+		r.Context(), page.Limit+1, page.Offset, !access.scoped(), access.grantedRepositoryIDs(), access.grantedScopeIDs(),
+	)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("repository language inventory: %v", err))
 		return
@@ -93,6 +130,54 @@ func (h *RepositoryHandler) getRepositoryLanguageInventory(w http.ResponseWriter
 		"platform_impact.catalog",
 		TruthBasisContentIndex,
 		"resolved from indexed repository language inventory",
+	))
+}
+
+// writeEmptyRepositoryLanguagePage returns the bounded empty by-language page
+// for a scoped caller with no granted repository or ingestion scope, without
+// querying Postgres (#5167 Group B, #5137 LiveActivityStore precedent).
+func (h *RepositoryHandler) writeEmptyRepositoryLanguagePage(
+	w http.ResponseWriter,
+	r *http.Request,
+	language string,
+	languages []string,
+	page repositoryListPage,
+) {
+	WriteSuccess(w, r, http.StatusOK, map[string]any{
+		"language":             language,
+		"normalized_languages": languages,
+		"repository_count":     0,
+		"file_count":           0,
+		"last_indexed_at":      "",
+		"repositories":         []map[string]any{},
+		"limit":                page.Limit,
+		"offset":               page.Offset,
+		"truncated":            false,
+	}, BuildTruthEnvelope(
+		h.profile(),
+		"platform_impact.catalog",
+		TruthBasisContentIndex,
+		"scoped token grants authorize no repositories; repository language coverage is empty",
+	))
+}
+
+// writeEmptyRepositoryLanguageInventoryPage is the language-inventory
+// counterpart of writeEmptyRepositoryLanguagePage.
+func (h *RepositoryHandler) writeEmptyRepositoryLanguageInventoryPage(
+	w http.ResponseWriter,
+	r *http.Request,
+	page repositoryListPage,
+) {
+	WriteSuccess(w, r, http.StatusOK, map[string]any{
+		"languages": []map[string]any{},
+		"limit":     page.Limit,
+		"offset":    page.Offset,
+		"truncated": false,
+	}, BuildTruthEnvelope(
+		h.profile(),
+		"platform_impact.catalog",
+		TruthBasisContentIndex,
+		"scoped token grants authorize no repositories; repository language inventory is empty",
 	))
 }
 

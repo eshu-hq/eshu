@@ -81,8 +81,15 @@ func validateCICDRunTargetConfiguration(target cicdRunTargetConfiguration) error
 	if !cicdRepositoryAllowed(repository, target.AllowedRepositories) {
 		return fmt.Errorf("repository must be listed in allowed_repositories")
 	}
-	if target.MaxRuns <= 0 || target.MaxRuns > maxCICDRunLimit {
-		return fmt.Errorf("max_runs must be between 1 and %d", maxCICDRunLimit)
+	// An omitted/zero max_runs is valid here: the ghactionsruntime collector
+	// resolves it to its own default (10, see defaultMaxRuns in
+	// go/internal/collector/cicdrun/ghactionsruntime/source.go) rather than
+	// requiring every target config to spell out a limit. Only an explicit
+	// out-of-range value (negative, or above the hard cap) is rejected.
+	if target.MaxRuns < 0 || target.MaxRuns > maxCICDRunLimit {
+		// The default of 10 is owned by ghactionsruntime.defaultMaxRuns; this
+		// validation layer only bounds the range and accepts 0 to defer to it.
+		return fmt.Errorf("max_runs must be between 0 and %d (0 uses the default of 10)", maxCICDRunLimit)
 	}
 	if target.MaxJobs <= 0 || target.MaxJobs > maxCICDJobLimit {
 		return fmt.Errorf("max_jobs must be between 1 and %d", maxCICDJobLimit)

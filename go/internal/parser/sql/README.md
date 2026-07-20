@@ -84,9 +84,13 @@ prior regex behavior:
   bounded `CREATE FUNCTION` rewrite above. A procedure whose header the rewrite
   cannot locate (no balanced argument list) is still parsed for its body but may
   miss the `RETURNS`-shim insertion.
-- DML mentions inside routine and view bodies materialize as `READS_FROM`
-  relationships rather than mutation-specific relationship types (`WRITES_TO`,
-  and similar). This preserves the prior contract.
+- Only `select` mentions inside routine and view bodies materialize as
+  `READS_FROM` relationships (and are stamped onto the entity's
+  `source_tables` metadata, #5345); `INSERT`/`UPDATE`/`DELETE` mutation
+  targets inside a routine body are captured for migration-target purposes
+  (`sql_migrations`/`tableMentions`) but are never emitted as a `READS_FROM`
+  edge — a write mislabeled as a read would be wrong graph truth. There is no
+  mutation-specific relationship type (`WRITES_TO` and similar) yet.
 - Highly dialect-specific statements outside the extracted construct set
   (sequences, types, policies, grants, vendor pragmas) are not extracted, the
   same as before.

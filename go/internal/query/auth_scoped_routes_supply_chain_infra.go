@@ -130,10 +130,16 @@ func scopedVulnerabilityScannerContractRoute(r *http.Request) bool {
 // scopedSupplyChainImpactRoute reports whether the request targets one of the
 // reducer-owned vulnerability impact read routes that compute counts, limits,
 // truncation, aggregate grouping, and offsets over only the scoped-token's
-// granted repositories. Adjacent supply-chain routes (impact explain, advisory
-// detail, SBOM attestation attachments, container-image identities, and
-// security-alert reconciliations) stay fail-closed for scoped tokens until each
-// is separately proven tenant-filtered.
+// granted repositories. impact/explain (#5167 W5) intersects the matched
+// finding's repository_id/scope_id with the same granted set before a finding
+// is ever returned -- see explainSupplyChainImpactFindingQuery's $11/$12
+// predicate -- so an out-of-grant finding_id, or a bare advisory/CVE plus
+// package/image/workload/service anchor that would otherwise resolve to
+// another tenant's finding, returns no_finding instead of leaking it. Adjacent
+// supply-chain routes (advisory detail, SBOM attestation attachments,
+// container-image identities, and security-alert reconciliations) stay
+// fail-closed for scoped tokens until each is separately proven
+// tenant-filtered.
 func scopedSupplyChainImpactRoute(r *http.Request) bool {
 	if r.Method != http.MethodGet {
 		return false
@@ -141,7 +147,8 @@ func scopedSupplyChainImpactRoute(r *http.Request) bool {
 	switch r.URL.Path {
 	case "/api/v0/supply-chain/impact/findings",
 		"/api/v0/supply-chain/impact/findings/count",
-		"/api/v0/supply-chain/impact/inventory":
+		"/api/v0/supply-chain/impact/inventory",
+		"/api/v0/supply-chain/impact/explain":
 		return true
 	default:
 		return false
@@ -152,15 +159,21 @@ func scopedSupplyChainImpactRoute(r *http.Request) bool {
 // investigation packet route whose handler intersects scoped-token grants before
 // data reads. Supply-chain packets require a granted repository selector before
 // the impact explanation store is read; deployable-unit packets reuse the
-// admission-decision scope/repository grant filter. Drift packets stay
-// fail-closed for scoped tokens until drift rows carry repository-grant proof.
+// admission-decision scope/repository grant filter. Drift packets (#5167 W5)
+// bind the scoped token's exact AllowedScopeIDs grant against the requested
+// cloud ingestion scope_id (getDriftPacket) -- drift findings have no
+// repository dimension at all, the same reason GET /api/v0/replatforming/
+// selectors binds AllowedScopeIDs directly instead of a repository map -- so
+// an empty grant or an out-of-grant scope_id returns a scope_not_found
+// refusal packet without a drift finding store read.
 func scopedInvestigationPacketRoute(r *http.Request) bool {
 	if r.Method != http.MethodGet {
 		return false
 	}
 	switch r.URL.Path {
 	case "/api/v0/investigations/supply-chain/impact/packet",
-		"/api/v0/investigations/deployable-unit/packet":
+		"/api/v0/investigations/deployable-unit/packet",
+		"/api/v0/investigations/drift/packet":
 		return true
 	default:
 		return false
@@ -184,6 +197,42 @@ func scopedServiceCatalogCorrelationRoute(r *http.Request) bool {
 
 func scopedPackageRegistryCorrelationRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/package-registry/correlations"
+}
+
+// scopedPackageRegistryIdentityRoute reports whether the request targets one
+// of the 5 graph-backed package-registry identity/aggregate read routes
+// (#5167 W5b). Unlike the correlation and dependency-chain routes (which
+// anchor on a repository), these routes anchor on package identity or
+// nothing at all -- (:Package)/(:PackageVersion)/(:PackageDependency) carry
+// no repository/tenant property (package_registry_canonical.go). The
+// handlers gate scoped callers on package visibility instead:
+// visibility='public' rows are served (registry identity metadata is
+// world-readable, the same class of global data the advisory-evidence
+// precedent already exposes to scoped tokens), and private/unknown rows
+// require a bounded LIMIT-1 correlation-grant probe reusing the exact
+// predicate the already-shipped scoped correlations route exposes
+// (package_registry_correlations.go, including the
+// candidate_repository_ids ?| branch) before ever being returned; a probe
+// miss returns the same empty page as a nonexistent package (no existence
+// oracle). The aggregate routes (count, inventory) instead force
+// visibility='public' onto the caller's filter, or return an empty envelope
+// without a store read if the caller explicitly asked for private/unknown.
+// See go/internal/query/package_registry_scoped_access.go for the gate
+// implementation.
+func scopedPackageRegistryIdentityRoute(r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	switch r.URL.Path {
+	case "/api/v0/package-registry/packages",
+		"/api/v0/package-registry/versions",
+		"/api/v0/package-registry/dependencies",
+		"/api/v0/package-registry/packages/count",
+		"/api/v0/package-registry/packages/inventory":
+		return true
+	default:
+		return false
+	}
 }
 
 // scopedPackageRegistryDependencyChainsRoute reports whether the request

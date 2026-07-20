@@ -1,0 +1,75 @@
+# scripts/docs-contradiction-baseline.txt
+#
+# Burn-down baseline for scripts/verify-docs-contradiction.sh (#5340).
+# Every docs/public/**/*.md page is scanned for a self-contradiction:
+# modal-polarity findings (a shared subject anchor near both a positive and
+# a negative implementation-status phrase) and duplicate markdown table-row
+# keys. A finding NOT listed below fails the gate under enforcement, passes
+# one that is, and treats a baselined pair whose page gets fixed as burn-down
+# progress (shrinking the file is fine; a pair is either a finding or removed).
+#
+# Regenerate with:
+#   bash scripts/verify-docs-contradiction.sh -update
+#
+# <doc-page-relpath> <kind>:<slug>
+languages/csharp.md polarity:csharp-route-semantics
+languages/csharp.md polarity:internal-parser-csharp
+languages/csharp.md polarity:parser-csharp-route
+languages/csharp.md polarity:route-semantics-test
+languages/csharp.md polarity:route-truth-aspnet
+languages/feature-matrix.md duplicate-row:c
+languages/javascript.md polarity:engine-javascript-semantics
+languages/javascript.md polarity:go-internal-parser-engine-javascript-semantics-test-go
+languages/python.md polarity:parser-python-semantics
+languages/python.md polarity:python-semantics-test
+languages/support-maturity.md duplicate-row:c
+languages/support-maturity.md polarity:language-page-update
+languages/typescript.md polarity:parser-engine-javascript
+observability/telemetry-coverage.md duplicate-row:c-parser
+observability/telemetry-coverage.md duplicate-row:typed-payload-decode-observability-metadata-view-converters-
+reference/collector-performance-envelope.md duplicate-row:git
+reference/collector-reducer-readiness.md duplicate-row:concrete-scanner-analyzers
+reference/dead-code-language-maturity.md duplicate-row:c
+reference/dependency-coverage.md duplicate-row:cargo
+reference/dependency-coverage.md duplicate-row:composer
+reference/dependency-coverage.md duplicate-row:go
+reference/dependency-coverage.md duplicate-row:gradle
+reference/dependency-coverage.md duplicate-row:hex
+reference/dependency-coverage.md duplicate-row:npm
+reference/dependency-coverage.md duplicate-row:nuget
+reference/dependency-coverage.md duplicate-row:pub
+reference/dependency-coverage.md duplicate-row:pypi
+reference/dependency-coverage.md duplicate-row:rubygems
+reference/dependency-coverage.md polarity:memory-reducer-version
+reference/dependency-coverage.md polarity:reducer-version-matching
+reference/docs-contradiction.md polarity:api-v0
+reference/http-api/evidence-and-supply-chain.md duplicate-row:npm-registry-npmjs-org-left-pad
+reference/investigation-workflows.md duplicate-row:http
+reference/investigation-workflows.md duplicate-row:mcp
+reference/mcp-tool-contract-matrix.md polarity:core-fact-kind
+reference/mcp-tool-contract-matrix.md polarity:fact-schema-version
+reference/mcp-tool-contract-matrix.md polarity:prompt-ready-read
+reference/mcp-tool-contract-matrix.md polarity:scope-account-required
+reference/mcp-tool-contract-matrix.md polarity:scope-limit-max
+reference/parse-scale-evidence.md duplicate-row:1-000-synthetic-repos
+reference/parse-scale-evidence.md duplicate-row:10-000-synthetic-repos
+reference/parse-scale-evidence.md duplicate-row:2-000-synthetic-repos-4-000-python-files
+reference/parse-scale-evidence.md duplicate-row:4-generated-python-scip-subtrees
+reference/parse-scale-evidence.md duplicate-row:96-generated-python-files
+reference/query-playbooks.md duplicate-row:http
+reference/query-playbooks.md duplicate-row:mcp
+reference/reading-answers.md polarity:cannot-answer-correctly
+reference/reading-answers.md polarity:unsupported-capability
+reference/relationship-mapping-evidence.md polarity:full-resource-names
+reference/security-intelligence-release-gate.md polarity:eshu-release-gate
+reference/security-intelligence-release-gate.md polarity:failed-dead-letter
+reference/security-intelligence-release-gate.md polarity:json-file-passed
+reference/security-intelligence-release-gate.md polarity:operator-local-aggregate
+reference/telemetry/shared-write-operations.md duplicate-row:4
+reference/vulnerability-scanner-confidence.md polarity:dependency-paths-fixture
+reference/vulnerability-scanner-confidence.md polarity:lock-fixture-proven
+reference/vulnerability-scanner-confidence.md polarity:manifests-fixture-proven
+reference/vulnerability-scanner-confidence.md polarity:paths-fixture-proven
+reference/vulnerability-scanner-confidence.md polarity:source-format-preserves
+services/collector-aws-cloud-scanners.md duplicate-row:acm
+services/collector-aws-cloud-scanners.md duplicate-row:appmesh

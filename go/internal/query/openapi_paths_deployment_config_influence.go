@@ -8,8 +8,9 @@ const openAPIPathDeploymentConfigInfluence = `
       "post": {
         "tags": ["impact"],
         "summary": "Investigate deployment configuration influence",
-        "description": "Returns a bounded service deployment configuration story with influencing repositories, values layers, image tag sources, runtime setting sources, resource limit sources, rendered targets, and portable file handles.",
+        "description": "Returns a bounded service deployment configuration story with influencing repositories, values layers, image tag sources, runtime setting sources, resource limit sources, rendered targets, and portable file handles. Scoped tokens receive the same shape; a service outside the caller's grant 404s and cross-repository evidence outside the grant is withheld.",
         "operationId": "investigateDeploymentConfigInfluence",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

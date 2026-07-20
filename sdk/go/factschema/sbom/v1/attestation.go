@@ -123,15 +123,17 @@ type SignatureVerification struct {
 // "attestation.slsa_provenance" fact kind: one SLSA provenance predicate
 // extracted from an in-toto attestation statement.
 //
-// This kind is TYPED-BUT-NOT-YET-EMITTED: no collector in this repository
-// constructs an attestation.slsa_provenance envelope today (SLSA provenance
-// is currently observed only as the PredicateType field on a generic
-// Statement, never decoded into its own predicate-specific fact). No
-// reducer or storage read path decodes it either. StatementID is required,
-// matching the join-key discipline every other kind in this family uses, so
-// that when a SLSA-provenance-specific emitter and consumer are added, the
-// identity contract is already in place; every other field is left
-// deliberately minimal pending that emitter's real payload shape.
+// The SBOM runtime collector emits this kind
+// (sbomruntime.attestationSLSAProvenanceEnvelopes) for a statement whose
+// predicateType is in the closed set of known SLSA provenance URIs
+// (https://slsa.dev/provenance/{v1,v0.2,v0.1}); PredicateType and BuilderID
+// are decoded from the predicate at the field path each version defines (v1:
+// runDetails.builder.id; v0.2/v0.1: builder.id). The reducer's
+// buildSBOMAttachmentIndex decodes and joins this kind onto its owning
+// statement's attachment decision by StatementID, surfacing
+// SLSAProvenancePredicateType/SLSAProvenanceBuilderID on the attachments read
+// surface. StatementID is required, matching the join-key discipline every
+// other kind in this family uses.
 type SLSAProvenance struct {
 	// StatementID is the owning attestation statement's identifier.
 	// Required — matches the join-key convention Statement and

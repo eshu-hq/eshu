@@ -111,6 +111,16 @@ func deploymentFactSummaryLimitations(instances []map[string]any, configEnvironm
 	return limitations
 }
 
+// cloudResourceResult holds the workload's materialized USES cloud
+// dependencies plus bounded-collection metadata.
+//
+// The query below is anchored on the grant-verified workload id, so no
+// per-row grant predicate is needed here. The free-text CloudResource
+// fallbacks that cannot bind to a repo_id at all (the config-derived and
+// uncorrelated candidate scans) are gated by the caller's !access.scoped()
+// checks in the handler instead (#5167 W3), so a scoped caller never
+// reaches them and this fetch only ever returns the materialized USES
+// edges of the caller's own grant-verified workload.
 type cloudResourceResult struct {
 	rows   []map[string]any
 	limits map[string]any

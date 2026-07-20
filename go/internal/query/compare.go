@@ -76,6 +76,24 @@ func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Requ
 	ctx := r.Context()
 	limit := normalizeImpactListLimit(req.Limit)
 
+	// #5167 W3: fetchWorkload resolves by bare workload id with no repo scoping
+	// in the Cypher itself, so the grant check happens here on the resolved
+	// repo_id before any environment/cloud-resource evidence is read. A workload
+	// outside the caller's grant renders identically to a workload that does not
+	// exist -- the same missing-workload response the unfiltered lookup already
+	// used -- so a scoped caller cannot distinguish "not found" from "not yours".
+	access := repositoryAccessFilterFromContext(ctx)
+	missingWorkloadResponse := func() {
+		leftSnap := missingEnvironmentSnapshot(req.Left)
+		rightSnap := missingEnvironmentSnapshot(req.Right)
+		resp := environmentCompareResponse(req, nil, leftSnap, rightSnap, nil, 0.0, "Workload '"+req.WorkloadID+"' not found", limit, false, false)
+		WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(h.profile(), "platform_impact.environment_compare", TruthBasisHybrid, "compared environment state from workload and cloud-resource evidence"))
+	}
+	if access.empty() {
+		missingWorkloadResponse()
+		return
+	}
+
 	// Fetch workload
 	workload, err := h.fetchWorkload(ctx, req.WorkloadID)
 	if err != nil {
@@ -85,10 +103,11 @@ func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Requ
 
 	// If workload not found, return missing response
 	if workload == nil {
-		leftSnap := missingEnvironmentSnapshot(req.Left)
-		rightSnap := missingEnvironmentSnapshot(req.Right)
-		resp := environmentCompareResponse(req, nil, leftSnap, rightSnap, nil, 0.0, "Workload '"+req.WorkloadID+"' not found", limit, false, false)
-		WriteSuccess(w, r, http.StatusOK, resp, BuildTruthEnvelope(h.profile(), "platform_impact.environment_compare", TruthBasisHybrid, "compared environment state from workload and cloud-resource evidence"))
+		missingWorkloadResponse()
+		return
+	}
+	if !impactRepoIDAllowed(compareStringVal(workload, "repo_id"), access) {
+		missingWorkloadResponse()
 		return
 	}
 

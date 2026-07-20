@@ -119,6 +119,18 @@ type KubernetesHandlers struct {
 	KubernetesCorrelationEdgeWriter KubernetesCorrelationEdgeWriter
 }
 
+// CrossplaneHandlers groups the Crossplane Claim -> XRD SATISFIED_BY edge
+// writer (issue #5347).
+type CrossplaneHandlers struct {
+	// CrossplaneSatisfiedByEdgeWriter projects resolved Crossplane
+	// classification decisions into canonical SATISFIED_BY edges between a
+	// K8sResource node (the Claim) and the CrossplaneXRD node it resolved
+	// against. It must be non-nil alongside FactLoader for the registry to
+	// register DomainCrossplaneSatisfiedByMaterialization; missing either one
+	// would drop every classification intent before it reaches the graph.
+	CrossplaneSatisfiedByEdgeWriter CrossplaneSatisfiedByEdgeWriter
+}
+
 // SupplyChainSecurityHandlers groups the supply-chain, secrets/IAM, and
 // endpoint-presence adapters. The presence members back the cross-scope
 // projection gates and stay nil unless their feature is enabled.

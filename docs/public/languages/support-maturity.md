@@ -32,11 +32,46 @@ behavior is not supported query behavior.
 | Framework or root evidence increase | Positive, negative, and ambiguous fixtures for the exact framework root, callback, route, lifecycle hook, package export, or public API shape. |
 | Source-language relationship resolution | Resolver contract entrypoint, source-authored golden audit fixtures, no self-comparison goldens, reducer admission proof, read-surface proof, and explicit ambiguity behavior. |
 | Dead-code maturity increase | Parser root proof, query suppression or candidate proof, [Dead Code Language Maturity](../reference/dead-code-language-maturity.md) update, and exactness blockers reviewed. |
+| `fixture-backed` to `real-repo-validated` to `supported` | `fixture-backed`: parser `go test` against the language's `*_comprehensive` fixture. `real-repo-validated`: a committed dogfood script under `scripts/` plus a checked-in expected-output snapshot or cassette, with any external repo and pinned SHA recorded as provenance metadata only. `supported`: the fixture is staged in `corpus_fixtures` in `scripts/verify-golden-corpus-gate.sh` and asserted by at least one language-attributed `required_correlations` or `query_shapes` entry in the B-12 snapshot (`testdata/golden/e2e-20repo-snapshot.json`). |
 
 Dynamic imports, plugin loading, reflection, generated code, and
 framework-specific roots remain blockers until the exact pattern has parser and
 query proof. Unsupported framework/root rows must not claim query surfacing,
 canonical relationship resolution, or end-to-end indexing.
+
+## Grade Definitions
+
+The `Real-Repo Validation` and `End-to-End Indexing` columns of the matrix below
+use a three-grade scale. The grades are defined mechanically against the live
+B-7 golden-corpus gate, not asserted by hand:
+
+- **`supported`** — the language is routed through the full live pipeline
+  (`discover -> reduce -> project -> query`) by the golden-corpus gate. A
+  language earns `supported` only when it is BOTH staged as a `corpus_fixtures`
+  entry in `scripts/verify-golden-corpus-gate.sh` AND asserted by at least one
+  language-attributed `required_correlations` or `query_shapes` entry in the
+  B-12 snapshot (`testdata/golden/e2e-20repo-snapshot.json`). The two columns
+  read this same live bar through different lenses:
+    - *End-to-End Indexing* `supported` = the fixture is staged in B-7 and its
+      projected graph or query truth is asserted in B-12.
+    - *Real-Repo Validation* `supported` = a whole corpus repository of that
+      language clears the same live gate — an app-shaped source repo (for
+      example `lib-common`, `orders-api`, or `api-svc`) for programming
+      languages, or a comprehensive infrastructure/config corpus (for example
+      `terraform_comprehensive`, `terragrunt_comprehensive`) for IaC languages,
+      as opposed to a hand-authored single-feature parser fixture. Eshu's "real
+      repos" are in-repo synthetic corpora, not external third-party checkouts;
+      the bar here is the full-pipeline gate, not third-party provenance.
+- **`real-repo-validated`** — an intermediate grade for a language that has a
+  committed, offline-reproducible dogfood artifact but is not yet wired into the
+  live gate: a script under `scripts/` PLUS a checked-in expected-output
+  snapshot or cassette. Any external repository and pinned commit SHA is
+  recorded only as provenance metadata, never as a CI-fetched dependency. This
+  grade currently has **zero members** — that is the honest launch state, and it
+  defines the promotion path off `fixture-backed`.
+- **`fixture-backed`** — parser-level `go test` against a `*_comprehensive`
+  fixture only. The parser is proven, but the language is never routed through
+  the live pipeline gate.
 
 ## Framework Support Boundary
 
@@ -92,35 +127,35 @@ feature supported with deterministic proof.
 | Parser | Parser Class | Grammar Routing | Normalization | Framework Or Root Evidence | Modeled Evidence | Query Surfacing | Real-Repo Validation | End-to-End Indexing |
 |--------|--------------|-----------------|---------------|----------------------------|------------------|-----------------|----------------------|---------------------|
 | ArgoCD | `DefaultEngine (yaml)` | - | - | unsupported | Application manifests and sync metadata only | - | - | - |
-| C | `DefaultEngine (c)` | supported | supported | derived roots | `main`, local header API, signal handlers, callback arguments, function-pointer targets | supported | fixture-backed | supported |
+| C | `DefaultEngine (c)` | supported | supported | derived roots | `main`, local header API, signal handlers, callback arguments, function-pointer targets | supported | fixture-backed | fixture-backed |
 | CloudFormation | `DefaultEngine (yaml)` | - | - | unsupported | template/resource evidence only | - | - | - |
-| C++ | `DefaultEngine (cpp)` | supported | supported | derived roots | `main`, local header API, virtual/override methods, callbacks, function pointers, Node native add-ons | supported | fixture-backed | supported |
+| C++ | `DefaultEngine (cpp)` | supported | supported | derived roots | `main`, local header API, virtual/override methods, callbacks, function pointers, Node native add-ons | supported | fixture-backed | fixture-backed |
 | Crossplane | `DefaultEngine (yaml)` | - | - | unsupported | composition and resource evidence only | - | - | - |
-| C# | `DefaultEngine (c_sharp)` | supported | supported | derived roots plus exact ASP.NET route entries | ASP.NET controller actions, hosted-service callbacks, tests, serialization, constructors, overrides, same-file interfaces, literal ASP.NET attributes, literal minimal API handlers | supported | fixture-backed | supported |
-| Dart | `DefaultEngine (dart)` | supported | supported | derived roots | Flutter `build`/`createState`, public `lib/` API, constructors, overrides | supported | supported | supported |
-| Elixir | `DefaultEngine (elixir)` | supported | supported | derived roots | Phoenix, LiveView, GenServer, Supervisor, Mix, protocols, behaviours, public macros/guards | supported | fixture-backed | supported |
+| C# | `DefaultEngine (c_sharp)` | supported | supported | derived roots plus exact ASP.NET route entries | ASP.NET controller actions, hosted-service callbacks, tests, serialization, constructors, overrides, same-file interfaces, literal ASP.NET attributes, literal minimal API handlers | supported | fixture-backed | fixture-backed |
+| Dart | `DefaultEngine (dart)` | supported | supported | derived roots | Flutter `build`/`createState`, public `lib/` API, constructors, overrides | supported | fixture-backed | fixture-backed |
+| Elixir | `DefaultEngine (elixir)` | supported | supported | derived roots | Phoenix, LiveView, GenServer, Supervisor, Mix, protocols, behaviours, public macros/guards | supported | fixture-backed | fixture-backed |
 | Go | `DefaultEngine (go)` | supported | supported | derived roots | `net/http`, Cobra, controller-runtime `Reconcile`, package exports, interfaces, function values, dependency-injection callbacks | supported | supported | supported |
-| Groovy | `DefaultEngine (groovy)` | supported | supported | derived roots | Jenkins Pipeline entrypoints, shared-library calls, deployment hints | supported | fixture-backed | supported |
-| Haskell | `DefaultEngine (haskell)` | supported | supported | derived roots | module exports, typeclasses, instances, `main` | supported | fixture-backed | supported |
+| Groovy | `DefaultEngine (groovy)` | supported | supported | derived roots | Jenkins Pipeline entrypoints, shared-library calls, deployment hints | supported | fixture-backed | fixture-backed |
+| Haskell | `DefaultEngine (haskell)` | supported | supported | derived roots | module exports, typeclasses, instances, `main` | supported | fixture-backed | fixture-backed |
 | Helm | `DefaultEngine (yaml)` | - | - | unsupported | chart/template evidence only | - | - | - |
-| Java | `DefaultEngine (java)` | supported | supported | derived roots plus exact Spring MVC/WebFlux, JAX-RS, and Micronaut route entries | Spring, Gradle, JUnit, Jenkins, Stapler, ServiceLoader, serialization, bounded reflection | supported | supported | supported |
-| JavaScript | `DefaultEngine (javascript)` | supported | supported | derived roots | React/TSX evidence, Next.js routes/app exports, Express, Koa, Fastify, NestJS, Hapi, AMQP consumers, package/bin/exports, migrations, seeds, AWS/GCP SDK evidence | supported | supported | supported |
+| Java | `DefaultEngine (java)` | supported | supported | derived roots plus exact Spring MVC/WebFlux, JAX-RS, and Micronaut route entries | Spring, Gradle, JUnit, Jenkins, Stapler, ServiceLoader, serialization, bounded reflection | supported | fixture-backed | fixture-backed |
+| JavaScript | `DefaultEngine (javascript)` | supported | supported | derived roots | React/TSX evidence, Next.js routes/app exports, Express, Koa, Fastify, NestJS, Hapi, AMQP consumers, package/bin/exports, migrations, seeds, AWS/GCP SDK evidence | supported | fixture-backed | fixture-backed |
 | JSON Config | `DefaultEngine (json)` | - | - | unsupported | JSON metadata/config evidence only | - | - | - |
-| Kotlin | `DefaultEngine (kotlin)` | supported | supported | derived roots | Spring, Gradle, JUnit, lifecycle callbacks, interfaces, overrides, constructors | supported | fixture-backed | supported |
+| Kotlin | `DefaultEngine (kotlin)` | supported | supported | derived roots | Spring, Gradle, JUnit, lifecycle callbacks, interfaces, overrides, constructors | supported | fixture-backed | fixture-backed |
 | Kubernetes | `DefaultEngine (yaml)` | - | - | unsupported | workload and resource evidence only | - | - | - |
 | Kustomize | `DefaultEngine (yaml)` | - | - | unsupported | overlay/resource evidence only | - | - | - |
-| Perl | `DefaultEngine (perl)` | supported | supported | derived roots | Exporter, package namespaces, constructors, special blocks, `AUTOLOAD`, `DESTROY` | supported | supported | supported |
-| PHP | `DefaultEngine (php)` | supported | supported | derived roots plus exact Symfony attribute route entries | Symfony route attributes, exact literal Symfony `route_entries`, route-backed controller actions, magic methods, interfaces, traits, WordPress hooks (dead-code suppression only, not `route_entries`) | supported | fixture-backed | supported |
+| Perl | `DefaultEngine (perl)` | supported | supported | derived roots | Exporter, package namespaces, constructors, special blocks, `AUTOLOAD`, `DESTROY` | supported | fixture-backed | fixture-backed |
+| PHP | `DefaultEngine (php)` | supported | supported | derived roots plus exact Symfony attribute route entries | Symfony route attributes, exact literal Symfony `route_entries`, route-backed controller actions, magic methods, interfaces, traits, WordPress hooks (dead-code suppression only, not `route_entries`) | supported | fixture-backed | fixture-backed |
 | Python | `DefaultEngine (python)` | supported | supported | derived roots | FastAPI, Flask, bounded Django/DRF/aiohttp/Tornado route entries, Celery, Click, Typer, AWS Lambda, dataclasses, properties, dunder protocols, `__all__`, package reexports | supported | supported | supported |
-| Ruby | `DefaultEngine (ruby)` | supported | supported | derived roots plus exact Rails/Sinatra route entries | Rails controller actions, Rails callbacks, script guards, literal method-reference targets, dynamic dispatch hooks, literal Rails `to: "controller#action"` route entries, named Sinatra `&method(:handler)` routes | supported | fixture-backed | supported |
-| Rust | `DefaultEngine (rust)` | supported | supported | derived roots plus exact Axum/Actix/Rocket route entries | Cargo entrypoints, tests, Tokio, Criterion, `pub` API, trait implementations, exact literal Axum/Actix/Rocket `route_entries` | supported | fixture-backed | supported |
-| Scala | `DefaultEngine (scala)` | supported | supported | derived roots plus exact Play/http4s route entries | Play, Akka, JUnit, ScalaTest, lifecycle callbacks, traits, `App` objects, literal Play route files, literal http4s `HttpRoutes.of` routes | supported | fixture-backed | supported |
-| SQL | `DefaultEngine (sql)` | supported | supported | derived roots | stored routines and trigger-to-function evidence | supported | supported | supported |
-| Swift | `DefaultEngine (swift)` | supported | supported | derived roots | SwiftUI, UIKit, Vapor, XCTest, Swift Testing, protocols, constructors, overrides | supported | fixture-backed | supported |
+| Ruby | `DefaultEngine (ruby)` | supported | supported | derived roots plus exact Rails/Sinatra route entries | Rails controller actions, Rails callbacks, script guards, literal method-reference targets, dynamic dispatch hooks, literal Rails `to: "controller#action"` route entries, named Sinatra `&method(:handler)` routes | supported | fixture-backed | fixture-backed |
+| Rust | `DefaultEngine (rust)` | supported | supported | derived roots plus exact Axum/Actix/Rocket route entries | Cargo entrypoints, tests, Tokio, Criterion, `pub` API, trait implementations, exact literal Axum/Actix/Rocket `route_entries` | supported | fixture-backed | fixture-backed |
+| Scala | `DefaultEngine (scala)` | supported | supported | derived roots plus exact Play/http4s route entries | Play, Akka, JUnit, ScalaTest, lifecycle callbacks, traits, `App` objects, literal Play route files, literal http4s `HttpRoutes.of` routes | supported | fixture-backed | fixture-backed |
+| SQL | `DefaultEngine (sql)` | supported | supported | derived roots | stored routines and trigger-to-function evidence | supported | fixture-backed | fixture-backed |
+| Swift | `DefaultEngine (swift)` | supported | supported | derived roots | SwiftUI, UIKit, Vapor, XCTest, Swift Testing, protocols, constructors, overrides | supported | fixture-backed | fixture-backed |
 | Terraform | `DefaultEngine (hcl)` | supported | supported | non-code evidence | resources, modules, variables, outputs, providers, backend and state evidence | supported | supported | supported |
 | Terragrunt | `DefaultEngine (hcl)` | supported | supported | non-code evidence | includes, dependency blocks, remote state, Terraform source evidence | supported | supported | supported |
-| TypeScript | `DefaultEngine (typescript)` | supported | supported | derived roots | JavaScript-family framework roots plus interface implementations, module-contract exports, public API exports/reexports, type references | supported | supported | supported |
-| TypeScript JSX | `DefaultEngine (tsx)` | supported | supported | derived roots | React component evidence, component wrappers, Next.js routes/app exports, generated/test exclusions | supported | supported | supported |
+| TypeScript | `DefaultEngine (typescript)` | supported | supported | derived roots | JavaScript-family framework roots plus interface implementations, module-contract exports, public API exports/reexports, type references | supported | fixture-backed | fixture-backed |
+| TypeScript JSX | `DefaultEngine (tsx)` | supported | supported | derived roots | React component evidence, component wrappers, Next.js routes/app exports, generated/test exclusions | supported | fixture-backed | fixture-backed |
 
 ## Reading The Matrix
 

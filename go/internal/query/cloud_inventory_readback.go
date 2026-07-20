@@ -84,6 +84,18 @@ type cloudInventoryFilter struct {
 	ManagementOrigin string
 	Limit            int
 	Offset           int
+	// AllScopes, AllowedRepositoryIDs, and AllowedScopeIDs carry the #5167
+	// access-scoping bound: AllScopes selects the admin/all-scopes path (no
+	// row filtering, byte-identical to the pre-#5167 query). When AllScopes is
+	// false, rows are restricted to fact_records.scope_id matching
+	// AllowedRepositoryIDs or AllowedScopeIDs -- reducer_cloud_resource_identity
+	// facts are keyed by ingestion scope (cloud account/project/subscription),
+	// the same identifier space repositoryAccessFilter grants bind. listInventory
+	// short-circuits to an empty page without a query when a scoped caller holds
+	// no grants, matching the #5137 LiveActivityStore precedent.
+	AllScopes            bool
+	AllowedRepositoryIDs []string
+	AllowedScopeIDs      []string
 }
 
 // cloudInventoryListReadModel is the bounded page of canonical identity payloads
@@ -136,6 +148,21 @@ func (h *CloudInventoryHandler) listInventory(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
+
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		WriteSuccess(w, r, http.StatusOK, cloudInventoryResponse(cloudInventoryListReadModel{}, filter), BuildTruthEnvelope(
+			h.profile(),
+			cloudInventoryReadbackCapability,
+			TruthBasisSemanticFacts,
+			"scoped token grants authorize no repositories; cloud inventory is empty",
+		))
+		return
+	}
+	filter.AllScopes = !access.scoped()
+	filter.AllowedRepositoryIDs = access.grantedRepositoryIDs()
+	filter.AllowedScopeIDs = access.grantedScopeIDs()
+
 	store, ok := h.store(w, r)
 	if !ok {
 		return

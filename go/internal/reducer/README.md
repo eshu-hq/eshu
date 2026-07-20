@@ -2200,7 +2200,6 @@ surface changes.
 - `go/internal/reducer/code-call-materialization.md`
 - `go/internal/reducer/shared-projection.md`
 - `go/internal/reducer/dsl/README.md`
-- `go/internal/reducer/aws/README.md`
 - `go/internal/reducer/tags/README.md`
 - `go/internal/reducer/tfstate/README.md`
 

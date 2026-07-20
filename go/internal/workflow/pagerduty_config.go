@@ -13,6 +13,12 @@ import (
 
 const maxPagerDutyPageLimit = 100
 
+// maxPagerDutyPaginationRecords bounds the pagination_max_records target
+// field. PagerDuty's classic offset pagination stops reliably serving pages
+// past offset 10000; this ceiling stays below that so a configured bound
+// always trips before the provider itself would refuse the request.
+const maxPagerDutyPaginationRecords = 5000
+
 type pagerDutyCollectorConfiguration struct {
 	Targets []pagerDutyTargetConfiguration `json:"targets"`
 }
@@ -31,6 +37,8 @@ type pagerDutyTargetConfiguration struct {
 	AllowedServiceIDs       []string `json:"allowed_service_ids"`
 	ConfigValidationEnabled bool     `json:"config_validation_enabled"`
 	ConfigResourceLimit     int      `json:"config_resource_limit"`
+	PaginationMaxPages      int      `json:"pagination_max_pages"`
+	PaginationMaxRecords    int      `json:"pagination_max_records"`
 }
 
 // ValidatePagerDutyCollectorConfiguration checks bounded PagerDuty collector
@@ -84,6 +92,12 @@ func validatePagerDutyTargetConfiguration(target pagerDutyTargetConfiguration) e
 	}
 	if target.ConfigResourceLimit < 0 || target.ConfigResourceLimit > maxPagerDutyPageLimit {
 		return fmt.Errorf("config_resource_limit must be between 0 and %d", maxPagerDutyPageLimit)
+	}
+	if target.PaginationMaxPages < 0 || target.PaginationMaxPages > maxPagerDutyPageLimit {
+		return fmt.Errorf("pagination_max_pages must be between 0 and %d", maxPagerDutyPageLimit)
+	}
+	if target.PaginationMaxRecords < 0 || target.PaginationMaxRecords > maxPagerDutyPaginationRecords {
+		return fmt.Errorf("pagination_max_records must be between 0 and %d", maxPagerDutyPaginationRecords)
 	}
 	if strings.TrimSpace(target.IncidentLookback) != "" {
 		value, err := time.ParseDuration(strings.TrimSpace(target.IncidentLookback))

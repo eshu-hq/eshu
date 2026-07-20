@@ -37,7 +37,9 @@ func TestLoadClaimedRuntimeConfigSelectsPagerDutyInstanceAndLoadsTokenEnv(t *tes
 						"change_event_limit": 25,
 						"allowed_service_ids": ["SVC1"],
 						"config_validation_enabled": true,
-						"config_resource_limit": 25
+						"config_resource_limit": 25,
+						"pagination_max_pages": 20,
+						"pagination_max_records": 2000
 					}]
 				}
 			}]`
@@ -69,6 +71,12 @@ func TestLoadClaimedRuntimeConfigSelectsPagerDutyInstanceAndLoadsTokenEnv(t *tes
 	}
 	if got, want := target.ConfigResourceLimit, 25; got != want {
 		t.Fatalf("ConfigResourceLimit = %d, want %d", got, want)
+	}
+	if got, want := target.PaginationMaxPages, 20; got != want {
+		t.Fatalf("PaginationMaxPages = %d, want %d", got, want)
+	}
+	if got, want := target.PaginationMaxRecords, 2000; got != want {
+		t.Fatalf("PaginationMaxRecords = %d, want %d", got, want)
 	}
 }
 

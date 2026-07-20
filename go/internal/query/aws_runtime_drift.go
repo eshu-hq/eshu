@@ -76,6 +76,24 @@ func (h *IaCHandler) handleAWSRuntimeDriftFindings(w http.ResponseWriter, r *htt
 		return
 	}
 
+	// Access scoping (#5167 Group B): IaCManagementStore/IaCManagementFilter
+	// are shared with the iac/* and replatforming/* route families (owned by
+	// other #5167 workstreams: iac_management.go, iac_management_surface.go,
+	// iac_import_plan.go, replatforming_*_handler.go), so the fix here is a
+	// caller-side grant precheck on this handler's own resolved filter rather
+	// than a store/filter-level change that would also alter those routes'
+	// behavior. A scoped caller must supply an exact scope_id (an account_id-
+	// only filter fans out via a LIKE prefix scan across every region/service
+	// scope under that account, which this precheck cannot safely narrow
+	// without a store change); a scoped caller with no grants, no scope_id, or
+	// a scope_id outside its granted repositories/ingestion scopes gets the
+	// same zero-finding page a real empty result would produce.
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() || (access.scoped() && (filter.ScopeID == "" || !access.allowsRepositoryID(filter.ScopeID))) {
+		writeAWSRuntimeDriftFindings(w, r, h, filter, nil, 0)
+		return
+	}
+
 	totalFindings, err := h.Management.CountUnmanagedCloudResources(r.Context(), filter)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
@@ -88,7 +106,22 @@ func (h *IaCHandler) handleAWSRuntimeDriftFindings(w http.ResponseWriter, r *htt
 	}
 	findings = normalizeIaCManagementFindingsSafety(findings)
 	driftFindings := awsRuntimeDriftFindingRows(findings)
+	writeAWSRuntimeDriftFindings(w, r, h, filter, driftFindings, totalFindings)
+}
 
+// writeAWSRuntimeDriftFindings renders the bounded findings-page response.
+// Passing nil driftFindings and totalFindings 0 renders the same
+// zero-finding shape a real empty result would, used by both the
+// genuine-empty-result path and the #5167 access-scoping precheck in
+// handleAWSRuntimeDriftFindings.
+func writeAWSRuntimeDriftFindings(
+	w http.ResponseWriter,
+	r *http.Request,
+	h *IaCHandler,
+	filter IaCManagementFilter,
+	driftFindings []AWSRuntimeDriftFindingRow,
+	totalFindings int,
+) {
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"scope_id":             filter.ScopeID,
 		"account_id":           filter.AccountID,

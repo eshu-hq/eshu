@@ -59,6 +59,14 @@ func TestSupportedEntityTypes(t *testing.T) {
 			t.Errorf("expected entity type %q not found", want)
 		}
 	}
+	// Atlantis entities carry language "yaml", which supportedLanguages does not
+	// accept, so they must NOT be advertised in the language-query entity_type
+	// enum (they resolve via resolve_entity/get_entity_context instead). #5369.
+	for _, absent := range []string{"atlantis_project", "atlantis_workflow"} {
+		if typeSet[absent] {
+			t.Errorf("entity type %q must not be language-queryable (no yaml language)", absent)
+		}
+	}
 }
 
 func TestBuildExtensionFilter(t *testing.T) {

@@ -154,6 +154,41 @@ export function beginOidcLogin(
   return url;
 }
 
+// GithubLoginOptions selects the provider and optional workspace context.
+// Query param names confirmed from go/internal/query/github_login_handler.go
+// (issue #5166, F-5): provider_config_id, tenant_id, workspace_id,
+// return_to — the same shape OidcLoginOptions uses, since GitHub login
+// starts identically (an opaque provider_config_id plus tenant/workspace
+// context); the difference is entirely server-side (plain OAuth2, not
+// OIDC — no nonce).
+export interface GithubLoginOptions {
+  readonly providerConfigId: string;
+  readonly tenantId?: string;
+  readonly workspaceId?: string;
+  readonly returnTo: string;
+}
+
+// beginGithubLogin builds the GitHub login redirect URL and optionally
+// performs the redirect via redirectFn (defaults to location.assign).
+// Returns the URL so tests can verify it without triggering navigation.
+export function beginGithubLogin(
+  baseUrl: string,
+  opts: GithubLoginOptions,
+  redirectFn?: (url: string) => void,
+): string {
+  const normalizedBase = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+  const params = new URLSearchParams();
+  params.set("provider_config_id", opts.providerConfigId);
+  if (opts.tenantId) params.set("tenant_id", opts.tenantId);
+  if (opts.workspaceId) params.set("workspace_id", opts.workspaceId);
+  params.set("return_to", opts.returnTo);
+  const url = `${normalizedBase}/api/v0/auth/github/login?${params.toString()}`;
+  if (redirectFn) {
+    redirectFn(url);
+  }
+  return url;
+}
+
 // SamlLoginOptions selects the SAML provider by ID.
 // Path param: provider_id (from GET /api/v0/auth/saml/providers/{provider_id}/login)
 // NOTE: No provider-discovery endpoint exists in Slice A (#3682). The UI
@@ -181,15 +216,19 @@ export function beginSamlLogin(
 }
 
 // AuthLoginProvider is the pre-auth view of one configured SSO provider.
-// Only the opaque provider_config_id, a safe generic display_label, the
-// protocol class (provider_kind), and a generic icon_hint are ever returned —
-// no secrets, metadata URLs, IdP hostnames, org names, or group names. Shape
-// matches go/internal/query/auth_providers_handler.go AuthProviderItem.
+// Only the opaque provider_config_id, a display_label, the protocol class
+// (provider_kind), and an icon_hint are ever returned — no secrets, metadata
+// URLs, IdP hostnames, org names, or group names. Shape matches
+// go/internal/query/auth_providers_handler.go AuthProviderItem. "github"
+// (issue #5166, F-5) is the one kind whose display_label/icon_hint
+// deliberately names the brand ("GitHub" / "github") rather than a generic
+// protocol-class label — see AuthProviderItem's doc comment. LoginPage.tsx's
+// SSO button composes this into "Continue with GitHub".
 export interface AuthLoginProvider {
   readonly provider_config_id: string;
   readonly display_label: string;
-  readonly provider_kind: "oidc" | "saml";
-  readonly icon_hint: "oidc" | "saml";
+  readonly provider_kind: "oidc" | "saml" | "github";
+  readonly icon_hint: "oidc" | "saml" | "github";
 }
 
 // AuthPosture is the tenant's derived pre-auth sign-in posture (issue #5165,

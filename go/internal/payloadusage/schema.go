@@ -114,17 +114,21 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	"FactKindPackageRegistryPackageDependency": "package_registry.package_dependency.v1.schema.json",
 	// sbom_attestation family: only the kinds a reducer decode seam wrapper
 	// actually decodes (factschema_decode_sbom.go) are mapped, so the gate
-	// covers exactly what the reducer reads through the typed seam.
-	// sbom.dependency_relationship, sbom.external_reference, and
-	// attestation.slsa_provenance carry a schema but no reducer decode call
-	// (typed-but-not-yet-consumed, sbom/v1/doc.go), so they are intentionally
-	// absent here — mapping them would assert a gate contract for a kind no
-	// handler reads.
+	// covers exactly what the reducer reads through the typed seam. Every
+	// kind in this family now has a wired decode call: sbom.dependency_relationship
+	// and sbom.external_reference feed buildSBOMAttachmentIndex's dependency
+	// and external-reference evidence rows (#5370), and
+	// attestation.slsa_provenance feeds the SLSA provenance evidence
+	// buildSBOMAttachmentIndex joins onto a statement's attachment decision
+	// (#5371).
 	"FactKindSBOMDocument":                     "sbom.document.v1.schema.json",
 	"FactKindSBOMComponent":                    "sbom.component.v1.schema.json",
+	"FactKindSBOMDependencyRelationship":       "sbom.dependency_relationship.v1.schema.json",
+	"FactKindSBOMExternalReference":            "sbom.external_reference.v1.schema.json",
 	"FactKindSBOMWarning":                      "sbom.warning.v1.schema.json",
 	"FactKindAttestationStatement":             "attestation.statement.v1.schema.json",
 	"FactKindAttestationSignatureVerification": "attestation.signature_verification.v1.schema.json",
+	"FactKindAttestationSLSAProvenance":        "attestation.slsa_provenance.v1.schema.json",
 	// vulnerability_intelligence family: the eight kinds a reducer decode seam
 	// wrapper actually decodes (factschema_decode_vulnerability.go). The three
 	// unwired kinds (reference, source_snapshot, warning) carry a schema but no

@@ -8,8 +8,9 @@ const openAPIPathsEvidence = `
       "get": {
         "tags": ["evidence"],
         "summary": "Get relationship evidence",
-        "description": "Dereferences a compact relationship evidence pointer from repository context by resolved_id and returns the durable Postgres evidence row, preview details, and source/target metadata.",
+        "description": "Dereferences a compact relationship evidence pointer from repository context by resolved_id and returns the durable Postgres evidence row, preview details, and source/target metadata. Scoped tokens always require the source repository to be attributable to a granted repository/ingestion scope. The target repository is required too UNLESS the relationship's verb has a shared/global target with no tenant attribution of its own (IMPORTS -> Module, RUNS_ON -> Platform, QUERIES_TABLE -> SqlTable, INVOKES_CLOUD_ACTION -> CloudAction; see relationshipVerbEntry.targetAttributable), in which case an in-grant source alone is sufficient. Otherwise the relationship is served as not_found, disclosing neither its existence nor either endpoint's identity.",
         "operationId": "getRelationshipEvidence",
+        "x-scoped-token-support": true,
         "parameters": [
           {
             "name": "resolved_id",

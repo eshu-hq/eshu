@@ -199,7 +199,16 @@ func TestPackageRegistryCorrelationSQLAppliesScopedAuthorizationBeforeOrder(t *t
 	}
 }
 
-func TestAuthMiddlewareWithScopedTokensRejectsPackageRegistryAdjacentRoutes(t *testing.T) {
+// TestAuthMiddlewareWithScopedTokensAllowsPackageRegistryIdentityRoutes
+// proves the 5 package-registry identity/aggregate routes (#5167 W5b) clear
+// AuthMiddlewareWithScopedTokens for a scoped bearer token and reach the
+// inner handler -- these routes were previously blocked with a middleware
+// 403 (see the removed
+// TestAuthMiddlewareWithScopedTokensRejectsPackageRegistryAdjacentRoutes)
+// because they sat in pendingRowFilteringRoutes; each handler now applies
+// its own visibility/correlation-grant gate (package_registry_scoped_access.go)
+// on top of this middleware allowlist entry.
+func TestAuthMiddlewareWithScopedTokensAllowsPackageRegistryIdentityRoutes(t *testing.T) {
 	t.Parallel()
 
 	resolver := &fakeScopedTokenResolver{
@@ -211,16 +220,19 @@ func TestAuthMiddlewareWithScopedTokensRejectsPackageRegistryAdjacentRoutes(t *t
 		},
 		ok: true,
 	}
-	handler := AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := AuthContextFromContext(r.Context()); !ok {
+			t.Fatal("AuthContextFromContext() ok = false, want true")
+		}
 		w.WriteHeader(http.StatusNoContent)
 	}))
 
 	for _, target := range []string{
-		"/api/v0/package-registry/packages?repository_id=repo-team-a&limit=10",
+		"/api/v0/package-registry/packages?ecosystem=npm&limit=10",
 		"/api/v0/package-registry/versions?package_id=pkg:npm://registry.example/team-api&limit=10",
 		"/api/v0/package-registry/dependencies?package_id=pkg:npm://registry.example/team-api&limit=10",
-		"/api/v0/package-registry/packages/count?repository_id=repo-team-a",
-		"/api/v0/package-registry/packages/inventory?repository_id=repo-team-a&limit=10",
+		"/api/v0/package-registry/packages/count",
+		"/api/v0/package-registry/packages/inventory?limit=10",
 	} {
 		target := target
 		t.Run(target, func(t *testing.T) {
@@ -231,7 +243,7 @@ func TestAuthMiddlewareWithScopedTokensRejectsPackageRegistryAdjacentRoutes(t *t
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, req)
 
-			if got, want := rec.Code, http.StatusForbidden; got != want {
+			if got, want := rec.Code, http.StatusNoContent; got != want {
 				t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 			}
 		})

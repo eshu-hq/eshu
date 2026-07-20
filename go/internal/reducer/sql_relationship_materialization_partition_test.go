@@ -158,7 +158,7 @@ func sqlRelationshipFenceConfig(partitionID, partitionCount int) PartitionProces
 //
 // Edges produced (4 total):
 //   - schema.sql:    SqlTable users HAS_COLUMN id      (source = users table)
-//   - views.sql:     SqlView active REFERENCES_TABLE users
+//   - views.sql:     SqlView active READS_FROM users
 //   - triggers.sql:  SqlTrigger audit TRIGGERS users
 //   - triggers.sql:  SqlTrigger audit EXECUTES log_fn  (same source file as TRIGGERS,
 //     proving same-file multi-edge survival and EXECUTES preservation)
@@ -185,7 +185,7 @@ func sqlRelationshipConvergenceFixture(repoID, repoPath string, delta bool, chan
 		entity("ent:users_id", "SqlColumn", "public.users.id", "schema.sql", map[string]any{
 			"table_name": "public.users",
 		}),
-		// views.sql: a view referencing the table -> REFERENCES_TABLE (source = view).
+		// views.sql: a view reading the table -> READS_FROM (source = view).
 		entity("ent:active", "SqlView", "public.active_users", "views.sql", map[string]any{
 			"source_tables": []any{"public.users"},
 		}),
@@ -252,7 +252,7 @@ func TestSQLRelationshipPartitionConvergesFullReprojection(t *testing.T) {
 	const repoPath = "/repo"
 
 	envelopes := sqlRelationshipConvergenceFixture(repoID, repoPath, false, nil)
-	repoIDs, rows := ExtractSQLRelationshipRows(envelopes)
+	repoIDs, rows, _ := ExtractSQLRelationshipRows(envelopes)
 	deltaScope := buildSQLRelationshipDeltaScope(envelopes)
 	contextByRepoID := buildCodeCallProjectionContexts(envelopes, "gen-1")
 
@@ -307,7 +307,7 @@ func TestSQLRelationshipPartitionConvergesDelta(t *testing.T) {
 	// TRIGGERS and EXECUTES edges (source = the trigger in triggers.sql) must
 	// survive in both paths.
 	envelopes := sqlRelationshipConvergenceFixture(repoID, repoPath, true, []string{"schema.sql", "views.sql"})
-	repoIDs, rows := ExtractSQLRelationshipRows(envelopes)
+	repoIDs, rows, _ := ExtractSQLRelationshipRows(envelopes)
 	deltaScope := buildSQLRelationshipDeltaScope(envelopes)
 	contextByRepoID := buildCodeCallProjectionContexts(envelopes, "gen-1")
 	if !deltaScope.hasDelta {

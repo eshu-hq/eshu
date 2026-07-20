@@ -130,8 +130,9 @@ const openAPIPathsInfrastructure = `
       "get": {
         "tags": ["infrastructure"],
         "summary": "Get ecosystem overview",
-        "description": "Returns high-level entity counts from the graph.",
+        "description": "Returns high-level entity counts from the graph. Scoped tokens receive counts restricted to entities reachable from the caller's granted repositories via DEFINES/INSTANCE_OF/RUNS_ON; a scoped caller with no grants receives all-zero counts without a graph read.",
         "operationId": "getEcosystemOverview",
+        "x-scoped-token-support": true,
         "responses": {
           "200": {
             "description": "Ecosystem overview",
@@ -157,8 +158,9 @@ const openAPIPathsInfrastructure = `
       "post": {
         "tags": ["infrastructure"],
         "summary": "Get graph summary packet",
-        "description": "Returns a bounded, summary-first graph packet: hot entities (most-connected functions by call degree), key relationship type counts, and a per-scope ecosystem map. With repo_id the packet is repo-scoped; without repo_id only bounded ecosystem-wide label counts plus a needs-repo note are returned. Never runs a whole-graph hot-entity scan.",
+        "description": "Returns a bounded, summary-first graph packet: hot entities (most-connected functions by call degree), key relationship type counts, and a per-scope ecosystem map. With repo_id the packet is repo-scoped; without repo_id only bounded ecosystem-wide label counts plus a needs-repo note are returned. Never runs a whole-graph hot-entity scan. Scoped tokens must supply a granted repo_id (not_found otherwise); the ecosystem-wide packet's counts are restricted to the caller's granted repositories, matching getEcosystemOverview.",
         "operationId": "getGraphSummaryPacket",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -255,8 +257,9 @@ const openAPIPathsInfrastructure = `
       "post": {
         "tags": ["infrastructure"],
         "summary": "List concrete edges for one relationship verb",
-        "description": "Returns a bounded slice of concrete typed edges for one catalog verb, each with its source and target endpoints plus evidence. The verb must be one of the catalog verbs; the query is anchored on that verb's source-node label, ordered by the indexed source-anchor property, and always carries a LIMIT, so the index-ordered scan short-circuits at the page boundary and the slice is bounded.",
+        "description": "Returns a bounded slice of concrete typed edges for one catalog verb, each with its source and target endpoints plus evidence. The verb must be one of the catalog verbs; the query is anchored on that verb's source-node label, ordered by the indexed source-anchor property, and always carries a LIMIT, so the index-ordered scan short-circuits at the page boundary and the slice is bounded. Scoped tokens receive edges whose source endpoint is attributable to a granted repository/ingestion scope, and whose target endpoint is additionally grant-checked for verbs whose target carries its own tenant attribution (repository-to-repository and workload-family verbs); a scoped caller with no grants receives an empty page without a graph read.",
         "operationId": "getRelationshipEdges",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -266,7 +269,7 @@ const openAPIPathsInfrastructure = `
                 "required": ["verb"],
                 "properties": {
                   "verb": {"type": "string", "description": "A relationship verb from the catalog, e.g. CALLS, IMPORTS, RUNS_ON."},
-                  "source_tool": {"type": "string", "description": "Filter edges to one source tool (canonical vocabulary).", "enum": ["terraform", "terragrunt", "helm", "kustomize", "argocd", "ansible", "puppet", "chef", "salt", "jenkins", "github_actions", "docker", "docker_compose", "gcp", "atlantis", "gitlab", "gomod", "npm", "pip", "maven", "cargo", "aws", "azure", "kubernetes", "unknown"]},
+                  "source_tool": {"type": "string", "description": "Filter edges to one source tool (canonical vocabulary). Only Tier-2 shared verbs (DEPLOYS_FROM, USES_MODULE, and similar) stamp source_tool, so only those relationships are filterable this way. Tier-1 self-labeling tools — e.g. atlantis — attribute by edge TYPE and never carry this stamp, so they never match this filter; query those relationships by verb instead, and use the catalog endpoint's source_tools breakdown to see which tokens actually occur for a verb. See the edge-source-tool-provenance reference for the full per-token tier table.", "enum": ["terraform", "terragrunt", "helm", "kustomize", "argocd", "ansible", "puppet", "chef", "salt", "jenkins", "github_actions", "docker", "docker_compose", "gcp", "atlantis", "gitlab", "gomod", "npm", "pip", "maven", "cargo", "aws", "azure", "kubernetes", "unknown"]},
                   "limit": {"type": "integer", "default": 50, "minimum": 1, "maximum": 200}
                 }
               }

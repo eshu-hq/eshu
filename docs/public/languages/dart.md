@@ -63,10 +63,16 @@ imports and exports, package export surfaces, dynamic dispatch, Flutter route
 and lifecycle wiring, generated code, reflection/mirrors, and broad public API
 surfaces.
 
-Dogfood evidence for Issue #98 used isolated Docker Compose project names
-against `flutter/flutter` and `dart-lang/http`. Both runs returned
-`truth.level=derived`, `dead_code_language_maturity.dart=derived`, and the six
-modeled Dart root kinds through `/api/v0/code/dead-code`.
+Historical note (not current grade evidence): an Issue #98 dogfood run used
+isolated Docker Compose project names against `flutter/flutter` and
+`dart-lang/http` and reported `truth.level=derived`,
+`dead_code_language_maturity.dart=derived`, and the six modeled Dart root kinds
+through `/api/v0/code/dead-code`. That run left no committed, offline-reproducible
+artifact, so it does not back a `real-repo-validated` or `supported` grade. Dart's
+Real-Repo Validation and End-to-End Indexing grades are `fixture-backed` (see
+[Parser Support Matrix](support-maturity.md#grade-definitions)); earning
+`real-repo-validated` requires a committed `scripts/` dogfood script plus a
+checked-in expected-output snapshot.
 
 ## Framework And Library Support
 

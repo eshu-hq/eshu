@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query //nolint:filelength // 585 lines of OpenAPI path fragments for auth-protected routes. Per internal/query/AGENTS.md, each openapi_paths_*.go file is a single string literal that contributes to the assembled OpenAPI spec; splitting the string across files breaks the per-fragment review boundary.
+package query //nolint:filelength // ~800 lines of OpenAPI path fragments for auth-protected routes. Per internal/query/AGENTS.md, each openapi_paths_*.go file is a single string literal that contributes to the assembled OpenAPI spec; splitting the string across files breaks the per-fragment review boundary.
 
-// 580 lines of OpenAPI path fragments for auth-protected routes. Per
+// ~800 lines of OpenAPI path fragments for auth-protected routes. Per
 // internal/query/AGENTS.md, each openapi_paths_*.go file is a single
 // string literal that contributes to the assembled OpenAPI spec; splitting
 // the string across files breaks the per-fragment review boundary.
@@ -56,13 +56,13 @@ const openAPIPathsAuth = `
                           },
                           "provider_kind": {
                             "type": "string",
-                            "enum": ["oidc", "saml"],
-                            "description": "Protocol class: oidc or saml. Used by the console to select the correct redirect helper."
+                            "enum": ["oidc", "saml", "github"],
+                            "description": "Protocol class: oidc, saml, or github. Used by the console to select the correct redirect helper. Unlike oidc/saml (a protocol class only), github additionally identifies the specific connector (issue #5166) since a GitHub provider IS github.com or a GitHub Enterprise Server instance by construction."
                           },
                           "icon_hint": {
                             "type": "string",
-                            "enum": ["oidc", "saml"],
-                            "description": "Generic icon selector for the login button, derived from provider_kind. Carries no IdP brand information — only the protocol class."
+                            "enum": ["oidc", "saml", "github"],
+                            "description": "Generic icon selector for the login button, derived from provider_kind. For oidc/saml this carries no IdP brand information — only the protocol class; github is the one exception (see provider_kind's description)."
                           }
                         }
                       }
@@ -137,6 +137,72 @@ const openAPIPathsAuth = `
           },
           "303": {
             "description": "OIDC login completed and browser session cookies were set before redirecting to the stored same-origin return path.",
+            "headers": {
+              "Location": {"description": "Stored same-origin return path.", "schema": {"type": "string"}},
+              "Set-Cookie": {"description": "Sets __Host-eshu_session and __Host-eshu_csrf.", "schema": {"type": "string"}}
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
+    "/api/v0/auth/github/login": {
+      "get": {
+        "tags": ["auth"],
+        "summary": "Start a dashboard GitHub login (issue #5166, F-5)",
+        "description": "Starts the backend GitHub Authorization Code (plain OAuth2) flow for dashboard users. Unlike /api/v0/auth/oidc/login, this is NOT OpenID Connect: github.com publishes no discovery document, issues no ID token, and has no JWKS — identity is resolved entirely by calling the GitHub REST API with the exchanged access token (see internal/githublogin's doc.go). The server stores only a SHA-256 hash of the state parameter (no nonce: plain OAuth2 has none) and a hash of the redirect URI, then redirects the browser to the configured GitHub (or GitHub Enterprise Server) authorization endpoint.",
+        "operationId": "startGitHubLogin",
+        "parameters": [
+          {"name": "provider_config_id", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Optional opaque provider config id. Defaults to the configured default provider."},
+          {"name": "tenant_id", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Optional tenant id; must match the selected provider config."},
+          {"name": "workspace_id", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Optional workspace id; must match the selected provider config."},
+          {"name": "return_to", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Optional same-origin return path after callback. Absolute URLs and protocol-relative paths are ignored."}
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to the configured GitHub authorization endpoint.",
+            "headers": {
+              "Location": {"description": "Provider authorization URL with state.", "schema": {"type": "string"}}
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
+    "/api/v0/auth/github/callback": {
+      "get": {
+        "tags": ["auth"],
+        "summary": "Complete a dashboard GitHub login (issue #5166, F-5)",
+        "description": "Completes the GitHub Authorization Code callback: validates the one-time state, exchanges the code for an access token, resolves the caller's verified primary email, active GitHub org memberships, and team memberships from the GitHub REST API, denies login (with an audited server-side reason; no session created) when the caller has no verified email or no active membership in the provider's configured allowed_orgs, then maps hashed team handles (\"org/team-slug\") to Eshu role grants through the SAME group-to-role resolver an OIDC login's group claims use, before issuing the same hash-only browser-session cookies used by explicit session creation.",
+        "operationId": "completeGitHubLogin",
+        "parameters": [
+          {"name": "state", "in": "query", "required": true, "schema": {"type": "string"}},
+          {"name": "code", "in": "query", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "201": {
+            "description": "GitHub login completed and browser session created. Returned when no return path was stored.",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Sets __Host-eshu_session and __Host-eshu_csrf with the same browser-session security attributes.",
+                "schema": {"type": "string"}
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/BrowserSessionResponse"}
+              }
+            }
+          },
+          "303": {
+            "description": "GitHub login completed and browser session cookies were set before redirecting to the stored same-origin return path.",
             "headers": {
               "Location": {"description": "Stored same-origin return path.", "schema": {"type": "string"}},
               "Set-Cookie": {"description": "Sets __Host-eshu_session and __Host-eshu_csrf.", "schema": {"type": "string"}}

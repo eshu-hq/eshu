@@ -206,6 +206,12 @@ func validateTarget(target TargetConfig) (TargetConfig, error) {
 	if target.ConfigResourceLimit < 0 || target.ConfigResourceLimit > 100 {
 		return TargetConfig{}, fmt.Errorf("config_resource_limit must be between 0 and 100")
 	}
+	if target.PaginationMaxPages < 0 || target.PaginationMaxPages > 100 {
+		return TargetConfig{}, fmt.Errorf("pagination_max_pages must be between 0 and 100")
+	}
+	if target.PaginationMaxRecords < 0 || target.PaginationMaxRecords > defaultMaxPaginationRecordsBound {
+		return TargetConfig{}, fmt.Errorf("pagination_max_records must be between 0 and %d", defaultMaxPaginationRecordsBound)
+	}
 	if target.ConfigValidationEnabled && target.ConfigResourceLimit == 0 {
 		target.ConfigResourceLimit = 100
 	}

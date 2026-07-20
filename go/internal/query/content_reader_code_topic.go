@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -126,8 +127,8 @@ func (cr *ContentReader) investigateCodeTopic(
 }
 
 func codeTopicFilters(req codeTopicInvestigationRequest) ([]string, []any, int) {
-	filters := make([]string, 0, 2)
-	args := make([]any, 0, 2)
+	filters := make([]string, 0, 3)
+	args := make([]any, 0, 3)
 	nextArg := 1
 	if strings.TrimSpace(req.RepoID) != "" {
 		filters = append(filters, fmt.Sprintf("repo_id = $%d", nextArg))
@@ -135,6 +136,16 @@ func codeTopicFilters(req codeTopicInvestigationRequest) ([]string, []any, int) 
 		nextArg++
 	} else {
 		filters = append(filters, "eshu_require_content_substring_indexes_ready()")
+		// #5167 W3 P1: bind a corpus-wide search to the caller's grant at the SQL
+		// WHERE so the LIMIT/OFFSET page is taken from the granted set, not a
+		// cross-tenant-polluted page that could push authorized rows past the
+		// limit. Only set for a scoped caller (populated by the change-surface
+		// caller); a nil/empty list leaves the search unrestricted.
+		if len(req.AllowedRepositoryIDs) > 0 {
+			filters = append(filters, fmt.Sprintf("repo_id = ANY($%d)", nextArg))
+			args = append(args, pq.Array(req.AllowedRepositoryIDs))
+			nextArg++
+		}
 	}
 	if strings.TrimSpace(req.Language) != "" {
 		filters = append(filters, fmt.Sprintf("coalesce(language, '') = $%d", nextArg))

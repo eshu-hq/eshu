@@ -22,7 +22,7 @@ const PROVIDER_CONFIGS_PATH = "/api/v0/auth/admin/provider-configs";
 // AdminProviderConfigKind is the vocabulary the GET responses use for
 // provider_kind. Distinct from ProviderConfigFormKind (the create/update
 // request vocabulary) — see toFormKind below for why the two differ.
-export type AdminProviderConfigKind = "external_oidc" | "external_saml";
+export type AdminProviderConfigKind = "external_oidc" | "external_saml" | "external_github";
 
 // AdminProviderConfigConfiguration is the non-secret settings blob. Only the
 // fields relevant to the provider's kind are populated by the backend; the
@@ -39,6 +39,12 @@ export interface AdminProviderConfigConfiguration {
   readonly group_attribute?: string;
   readonly service_provider_entity_id?: string;
   readonly service_provider_acs_url?: string;
+  // GitHub (issue #5166, F-5): base_url/api_base_url identify a GitHub
+  // Enterprise Server host (absent/empty for github.com); allowed_orgs is the
+  // provider's org allow-list. client_id/scopes above are shared with OIDC.
+  readonly base_url?: string;
+  readonly api_base_url?: string;
+  readonly allowed_orgs?: readonly string[];
 }
 
 export interface AdminProviderConfigItem {
@@ -130,10 +136,12 @@ export async function loadProviderConfigRevisions(
 // vocabulary on read (AdminProviderConfigKind, "external_oidc" | "external_saml"
 // — see admin_provider_config_build.go buildProviderConfigWrite's builtKind).
 // toFormKind bridges the two so the same value can drive an edit form.
-export type ProviderConfigFormKind = "oidc" | "saml";
+export type ProviderConfigFormKind = "oidc" | "saml" | "github";
 
 export function toFormKind(kind: string | undefined): ProviderConfigFormKind {
-  return kind === "external_saml" ? "saml" : "oidc";
+  if (kind === "external_saml") return "saml";
+  if (kind === "external_github") return "github";
+  return "oidc";
 }
 
 export interface OIDCProviderConfigInput {
@@ -160,7 +168,29 @@ export interface SAMLProviderConfigInput {
   readonly spCertificate: string;
 }
 
-export type ProviderConfigInput = OIDCProviderConfigInput | SAMLProviderConfigInput;
+// GitHubProviderConfigInput is one GitHub provider's typed create/update
+// input (issue #5166, F-5). allowedOrgs is required and non-empty — a GitHub
+// OAuth App can authenticate any GitHub account, so the org allow-list is the
+// connector's only tenant boundary (mirrors githublogin.ProviderConfig).
+// baseUrl/apiBaseUrl are blank for github.com and set only for a GitHub
+// Enterprise Server host. redirectUrl is the fixed, deployment-wide GitHub
+// callback (see githubCallbackUri), sent like OIDC's redirectUrl.
+export interface GitHubProviderConfigInput {
+  readonly kind: "github";
+  readonly providerConfigId?: string;
+  readonly clientId: string;
+  readonly clientSecret: string;
+  readonly baseUrl: string;
+  readonly apiBaseUrl: string;
+  readonly scopes: readonly string[];
+  readonly allowedOrgs: readonly string[];
+  readonly redirectUrl: string;
+}
+
+export type ProviderConfigInput =
+  | OIDCProviderConfigInput
+  | SAMLProviderConfigInput
+  | GitHubProviderConfigInput;
 
 // OIDCProviderConfigWireBody / SAMLProviderConfigWireBody are the exact JSON
 // shapes adminProviderConfigWriteRequest expects (go/internal/query/
@@ -190,7 +220,28 @@ export interface SAMLProviderConfigWireBody {
   readonly sp_certificate: string;
 }
 
-export type ProviderConfigWireBody = OIDCProviderConfigWireBody | SAMLProviderConfigWireBody;
+// GitHubProviderConfigWireBody is the exact JSON shape
+// adminProviderConfigWriteRequest expects for a GitHub provider (issue
+// #5166; see go/internal/query/admin_provider_config_build.go's
+// buildGitHubProviderConfigWrite / githubConfigurationFields). base_url and
+// api_base_url are always sent (empty string for github.com — the backend
+// defaults them); allowed_orgs must be non-empty.
+export interface GitHubProviderConfigWireBody {
+  readonly provider_kind: "github";
+  readonly provider_config_id?: string;
+  readonly client_id: string;
+  readonly client_secret: string;
+  readonly base_url: string;
+  readonly api_base_url: string;
+  readonly scopes: readonly string[];
+  readonly allowed_orgs: readonly string[];
+  readonly redirect_url: string;
+}
+
+export type ProviderConfigWireBody =
+  | OIDCProviderConfigWireBody
+  | SAMLProviderConfigWireBody
+  | GitHubProviderConfigWireBody;
 
 // toWireBody maps a typed form input to the exact JSON field names
 // adminProviderConfigWriteRequest expects. Exported for direct unit testing
@@ -208,6 +259,19 @@ export function toWireBody(input: ProviderConfigInput): ProviderConfigWireBody {
       client_secret: input.clientSecret,
       scopes: input.scopes,
       group_claim: input.groupClaim,
+      redirect_url: input.redirectUrl,
+    };
+  }
+  if (input.kind === "github") {
+    return {
+      provider_kind: "github",
+      ...idField,
+      client_id: input.clientId,
+      client_secret: input.clientSecret,
+      base_url: input.baseUrl,
+      api_base_url: input.apiBaseUrl,
+      scopes: input.scopes,
+      allowed_orgs: input.allowedOrgs,
       redirect_url: input.redirectUrl,
     };
   }
@@ -359,60 +423,16 @@ export async function testProviderConfigConnection(
 // Client-side id + IdP-facing endpoint URI helpers
 // ---------------------------------------------------------------------------
 
-// newClientProviderConfigId generates an opaque id in the Add drawer, BEFORE
-// the first Save, so the SAML ACS URL / SP entity id (both path-scoped by
-// provider_config_id — go/internal/samlauth/db_provider_config_test.go) can be
-// rendered read-only for the operator to copy into their IdP immediately, not
-// only after a round trip. The backend's create route accepts a caller-
-// supplied provider_config_id verbatim (adminProviderConfigWriteRequest's
-// ProviderConfigID doc comment), so this id is sent as-is on create.
-//
-// Entropy comes from crypto.getRandomValues() only — never Math.random(),
-// which is not cryptographically secure and is flagged by CodeQL in any
-// security-relevant path (this id becomes part of a URL registered with an
-// external IdP, so collisions/predictability matter). getRandomValues is
-// used directly (not crypto.randomUUID(), which wraps the same primitive)
-// so there is a single, unconditional entropy source with no fallback
-// branch that could silently degrade to a weaker one.
-export function newClientProviderConfigId(): string {
-  const bytes = new Uint8Array(16);
-  globalThis.crypto.getRandomValues(bytes);
-  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-  return `pc_${hex}`;
-}
-
-function normalizeBase(baseUrl: string): string {
-  return baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
-}
-
-// oidcRedirectUri is the single, deployment-wide OIDC callback every DB-backed
-// OIDC provider config must register with its IdP — confirmed as a fixed
-// route (not per-provider) in go/internal/oidclogin/service.go /
-// db_provider_config_test.go, which set the same callback URL across
-// providers. This is the exact value submitted as `redirect_url`.
-export function oidcRedirectUri(baseUrl: string): string {
-  return `${normalizeBase(baseUrl)}/api/v0/auth/oidc/callback`;
-}
-
-// samlAcsUrl is Eshu's per-provider SAML Assertion Consumer Service URL —
-// confirmed path shape in go/internal/samlauth/db_provider_config_test.go
-// ("/api/v0/auth/saml/providers/{id}/acs"). This is the exact value submitted
-// as `service_provider_acs_url`.
-export function samlAcsUrl(baseUrl: string, providerConfigId: string): string {
-  return `${normalizeBase(baseUrl)}/api/v0/auth/saml/providers/${encodeURIComponent(providerConfigId)}/acs`;
-}
-
-// samlServiceProviderEntityId derives a stable, deterministic SP entity id
-// from the same per-provider path as samlAcsUrl (minus the /acs suffix). The
-// backend does not compute or validate this value server-side — it is a
-// free-text admin-supplied field (go/internal/samlauth/db_provider_config.go
-// only requires it be non-empty) — so this is a UI convention chosen to keep
-// the field read-only and copy-pasteable per #4967's acceptance criteria,
-// not a backend-enforced identifier. An operator who needs a different SP
-// entity id can still register a DB row directly against the API.
-export function samlServiceProviderEntityId(baseUrl: string, providerConfigId: string): string {
-  return `${normalizeBase(baseUrl)}/api/v0/auth/saml/providers/${encodeURIComponent(providerConfigId)}`;
-}
+// Re-exported from adminProviderConfigEndpoints.ts (split out to keep this
+// file under the 500-line cap). Every existing import site continues to
+// import these from "adminProviderConfig" unchanged.
+export {
+  newClientProviderConfigId,
+  oidcRedirectUri,
+  githubCallbackUri,
+  samlAcsUrl,
+  samlServiceProviderEntityId,
+} from "./adminProviderConfigEndpoints";
 
 // deriveProviderLabel renders a human-readable label from the provider's own
 // non-secret configuration — the backend has no dedicated `label` field
@@ -422,7 +442,17 @@ export function samlServiceProviderEntityId(baseUrl: string, providerConfigId: s
 // entered data reused for display — never a fabricated value.
 export function deriveProviderLabel(item: AdminProviderConfigItem): string {
   const cfg = item.configuration ?? {};
-  const raw = item.provider_kind === "external_saml" ? cfg.entity_id : cfg.issuer;
+  let raw: string | undefined;
+  if (item.provider_kind === "external_saml") {
+    raw = cfg.entity_id;
+  } else if (item.provider_kind === "external_github") {
+    // GitHub (issue #5166) has no issuer/entity_id; the base_url identifies a
+    // GitHub Enterprise Server host. It is blank for github.com, so those rows
+    // fall back to the opaque id — never a fabricated "github.com" label.
+    raw = cfg.base_url;
+  } else {
+    raw = cfg.issuer;
+  }
   const trimmed = raw?.trim() ?? "";
   return trimmed.length > 0 ? trimmed : item.provider_config_id;
 }

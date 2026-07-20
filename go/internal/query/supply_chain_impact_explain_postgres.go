@@ -79,6 +79,8 @@ func (s PostgresSupplyChainImpactFindingStore) ExplainSupplyChainImpact(
 		filter.WorkloadID,
 		filter.ServiceID,
 		filter.ImageRef,
+		pq.Array(filter.AllowedRepositoryIDs),
+		pq.Array(filter.AllowedScopeIDs),
 	)
 	if err != nil {
 		return SupplyChainImpactExplanationRow{}, fmt.Errorf("explain supply chain impact finding: %w", err)
@@ -206,6 +208,11 @@ WHERE fact.fact_kind = $1
   AND ($8 = '' OR fact.payload->'workload_ids' ? $8)
   AND ($9 = '' OR fact.payload->'service_ids' ? $9)
   AND ($10 = '' OR fact.payload->>'image_ref' = $10)
+  AND (
+    (COALESCE(cardinality($11::text[]), 0) = 0 AND COALESCE(cardinality($12::text[]), 0) = 0)
+    OR fact.payload->>'repository_id' = ANY($11::text[])
+    OR fact.scope_id = ANY($12::text[])
+  )
 ),
 scoped_facts AS (
 SELECT *

@@ -626,38 +626,72 @@ response includes `complete` (bool) and `coverage` (array of
 `{edge_type, materialized, reason}`), which report whether the affected set is
 known-complete for the query surface: for `sql_table`, `coverage` lists every
 graph relationship type the surface conceptually covers (`CONTAINS`,
-`QUERIES_TABLE`, `REFERENCES_TABLE`, `TRIGGERS`, `INDEXES`, `READS_FROM`,
+`QUERIES_TABLE`, `READS_FROM`, `TRIGGERS`, `INDEXES`, `REFERENCES_TABLE`,
 `MIGRATES`, `MAPS_TO_TABLE`) with its current materialization status, and
 `complete` is `false` whenever any of them has no graph writer — so a table
 reachable only through an unmaterialized edge type is surfaced as a known gap
-instead of a silent zero. `READS_FROM` and `MIGRATES` are parsed but not
+instead of a silent zero. `REFERENCES_TABLE` and `MIGRATES` are parsed but not
 materialized (see [SQL parser](../../languages/sql.md) and
 [Edge Source-Tool Provenance](../edge-source-tool-provenance.md)).
 
 For `crossplane_xrd`, `coverage` lists `CONTAINS` (materialized) and
-`SATISFIED_BY` (claim -> XRD; **not** materialized — no graph writer emits
-it). `complete` is therefore always `false` for `crossplane_xrd` today: the
-query still returns whatever it can reach through `CONTAINS`/`REPO_CONTAINS`,
-but the claim -> XRD hop it also needs is unmaterialized, so `affected_count`
-must not be read as a complete answer (see
+`SATISFIED_BY` (Claim -> XRD; materialized as of issue #5347 —
+`cypher.CrossplaneSatisfiedByEdgeWriter` MERGEs it). `complete` is therefore
+`true` for `crossplane_xrd`: both edge types the surface conceptually covers
+now have a real writer (see
 [Crossplane parser](../../languages/crossplane.md#known-limitations) and
-[Edge Source-Tool Provenance](../edge-source-tool-provenance.md)). Wiring a
-`SATISFIED_BY` writer is tracked in eshu-hq/eshu#5347.
+[Edge Source-Tool Provenance](../edge-source-tool-provenance.md)).
 
 Other `target_type` values (`repository`, `terraform_module`) have no
 registered coverage gap in this contract and report `complete: true` with an
 empty `coverage` array.
 
-No-Regression Evidence: the `crossplane_xrd` coverage fix (#5331) does not
-touch `blastRadiusCrossplaneCypher` — the Cypher statement text is byte-for-byte
-unchanged. It adds `crossplaneXrdBlastRadiusCoverage()`, a Go-side registry
-lookup over a fixed 2-element edge-type slice (`CONTAINS`, `SATISFIED_BY`),
-O(1) in practice, called once per `blastRadiusAffected` invocation alongside
-the existing sql_table coverage lookup this same function already performs.
-No new query, traversal, or write is introduced.
-No-Observability-Change: the `complete`/`coverage` response fields already
-existed (#5330); this change only corrects the value `crossplane_xrd` reports
-through them. No new metric, span, or log was added or removed.
+Performance Evidence (issue #5347): `blastRadiusCrossplaneCypher`'s claim-side
+match changed from `(claim:CrossplaneClaim)` to `(claim:K8sResource)` — same
+uid-anchored MATCH shape and hop count (`xrd` -> `claim` via `SATISFIED_BY` ->
+`f:File` via `CONTAINS` -> `repo:Repository` via `REPO_CONTAINS`), same
+`xrd.kind CONTAINS $target_name OR xrd.name CONTAINS $target_name` anchor
+predicate (unindexed `CONTAINS` was already the query's pre-existing
+selectivity shape, not introduced by this change), same `min(claim.name)`
+dedup-before-`LIMIT`. K8sResource is a materialized-entity label already
+carrying the same uid property CrossplaneClaim would have, so the label swap
+changes zero index/anchor behavior — a pure correctness fix (the old label
+matched zero nodes under the edge-only SATISFIED_BY model), not a shape
+change, so no before/after benchmark applies.
+`CrossplaneSatisfiedByEdgeWriter.WriteCrossplaneSatisfiedByEdges` mirrors
+`KubernetesCorrelationEdgeWriter.WriteKubernetesCorrelationEdges`'s proven
+`UNWIND $rows AS row MATCH ... MATCH ... MERGE` batched-write shape
+byte-for-byte (fixed relationship type, two uid-indexed MATCHes before the
+MERGE, `DefaultBatchSize` batching); `RetractCrossplaneSatisfiedByEdges`
+mirrors `RetractKubernetesCorrelationEdges`'s scope_id+evidence_source-scoped
+DELETE dispatched through sequential `Execute` (never `ExecuteGroup`, per the
+NornicDB v1.1.11 managed-transaction-DELETE pitfall). The reducer-side
+resolution (`ExtractCrossplaneSatisfiedByEdgeRows`) is a single-pass in-memory
+hash join keyed by `(group, kind)`, the same O(n) complexity class as the
+proven `kubernetesCorrelationEdgeRows`/`BuildSourceImageDigestJoinIndex`
+digest join it mirrors — no nested loop over candidates x XRDs.
+No-Regression Evidence: `BenchmarkExtractCrossplaneSatisfiedByEdgeRows`
+(`go/internal/reducer/crossplane_satisfied_by_edge_rows_bench_test.go`)
+measures the in-memory hash join alone (no graph I/O) over a synthetic
+5,100-candidate corpus — 5,000 generic K8sResource rows (never a Claim, the
+noise a real k8s-heavy scope carries) plus 50 distinct Claim/XRD pairs, wider
+than RUNS_IMAGE's pod-template-only candidate set. `go test
+./internal/reducer/ -run '^$' -bench
+'^BenchmarkExtractCrossplaneSatisfiedByEdgeRows$' -benchmem -count=3` on an
+Apple M4 Pro: 988µs–2.4ms/op, ~1.0 MB/op, 20,887 allocs/op — sub-3ms for the
+whole corpus, confirming the pass is not a per-generation bottleneck relative
+to sibling handler durations (workload_materialization and deployment_mapping
+complete in single-digit milliseconds on the same corpus). This measures the
+extraction function directly, not an end-to-end reducer-handler or live-graph
+run; the graph-write half (`WriteCrossplaneSatisfiedByEdges`) is unmeasured
+here and mirrors the already-proven `KubernetesCorrelationEdgeWriter` shape
+byte-for-byte, which is the basis for not separately benchmarking it.
+Observability Evidence: the new `eshu_dp_crossplane_satisfied_by_edges_total`
+counter (resolution_mode-dimensioned) and the
+`reducer.crossplane_satisfied_by_materialization` span are registered in
+`go/internal/telemetry/instruments.go` and `contract.go` and documented in
+`docs/public/observability/telemetry-coverage.md`; the completion log records
+`edge_count` and `ambiguous_skipped` per generation.
 
 `/impact/change-surface/investigate` accepts one graph target family
 (`target` + `target_type`, `service_name`, `workload_id`, `resource_id`, or
@@ -792,8 +826,9 @@ empty `source_tool` as "not yet stamped", not as an error.
 
 The canonical vocabulary is defined in
 [Edge Source-Tool Provenance](../edge-source-tool-provenance.md).
-`source_tool` values are always one of the 24 canonical tokens listed there
-(`terraform`, `helm`, `kubernetes`, `unknown`, …).
+A `source_tool` value is always one of the canonical tokens enumerated there;
+that reference is the authoritative list (this page does not restate a count or
+subset of it, which would drift).
 
 ### source_tools breakdown (per verb tile)
 
@@ -837,13 +872,21 @@ the request body:
 ```
 
 When present, only edges whose `r.source_tool` property equals the requested
-token are returned. The token must be one of the 24 canonical values; an
+token are returned. The token must be one of the canonical values; an
 unrecognized value returns `400 Bad Request`. When absent, all edges for the
 verb are returned regardless of their source tool.
 
-The canonical vocabulary is the closed enum in
-[Edge Source-Tool Provenance](../edge-source-tool-provenance.md):
-`terraform`, `terragrunt`, `helm`, `kustomize`, `argocd`, `ansible`, `puppet`,
-`chef`, `jenkins`, `github_actions`, `docker`, `docker_compose`, `gcp`,
-`atlantis`, `gitlab`, `gomod`, `npm`, `pip`, `maven`, `cargo`, `aws`, `azure`,
-`kubernetes`, `unknown`.
+Passing a syntactically valid token does not guarantee matches. Only Tier-2
+shared verbs (`DEPLOYS_FROM`, `USES_MODULE`, and similar) stamp `source_tool`,
+so only those relationships are filterable this way. Tier-1 self-labeling tools
+— for example `atlantis` — attribute by edge TYPE and never carry the
+`source_tool` stamp, so filtering a verb by such a token returns an empty page;
+query those relationships by verb instead. Consult the per-token tier table in
+[Edge Source-Tool Provenance](../edge-source-tool-provenance.md) to see which
+tokens are stamped (and which are Tier-1 only, or dual-tier like `gcp`).
+
+The canonical vocabulary is the closed enum enumerated in
+[Edge Source-Tool Provenance](../edge-source-tool-provenance.md), which lists
+every valid `source_tool` token and is kept in lockstep with the
+`sourcetool.Canonical` set the API validates against. (This page deliberately
+does not duplicate that list — a second copy drifts out of date.)

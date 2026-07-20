@@ -81,5 +81,4 @@ canonical-write stage.
 
 - `docs/public/architecture.md`
 - `go/internal/reducer/README.md`
-- `go/internal/reducer/aws/README.md`
 - `go/internal/reducer/dsl/README.md`

@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+
+	"github.com/lib/pq"
 )
 
 const observabilityCoverageCorrelationFactKind = "reducer_observability_coverage_correlation"
@@ -37,6 +39,19 @@ type ObservabilityCoverageCorrelationFilter struct {
 	ResourceClass          string
 	AfterCorrelationID     string
 	Limit                  int
+	// AllScopes, AllowedRepositoryIDs, and AllowedScopeIDs carry the #5167
+	// access-scoping bound. reducer_observability_coverage_correlation facts
+	// are keyed by ingestion scope_id; hasScope() only requires SOME anchor
+	// (provider, coverage_signal, target_uid, ...), so an unscoped filter
+	// would otherwise fan out across every tenant's scope. When AllScopes is
+	// false, rows are additionally restricted to
+	// fact.scope_id = ANY(AllowedRepositoryIDs) OR
+	// fact.scope_id = ANY(AllowedScopeIDs); listCorrelations short-circuits to
+	// an empty page without a query when a scoped caller holds no grants,
+	// matching the #5137 LiveActivityStore precedent.
+	AllScopes            bool
+	AllowedRepositoryIDs []string
+	AllowedScopeIDs      []string
 }
 
 // ObservabilityCoverageCorrelationRow is one durable observability coverage
@@ -101,10 +116,16 @@ func (s PostgresObservabilityCoverageCorrelationStore) ListObservabilityCoverage
 	if filter.Limit <= 0 || filter.Limit > observabilityCoverageCorrelationMaxLimit+1 {
 		return nil, fmt.Errorf("limit must be between 1 and %d", observabilityCoverageCorrelationMaxLimit)
 	}
+	// Defense in depth (#5167, mirrors #5137 ReadLiveActivity): a scoped
+	// caller with no granted repository or ingestion scope gets zero rows
+	// without a query, even if a caller forgot the empty-grant short-circuit
+	// in listCorrelations.
+	if !filter.AllScopes && len(filter.AllowedRepositoryIDs) == 0 && len(filter.AllowedScopeIDs) == 0 {
+		return nil, nil
+	}
 
-	rows, err := s.DB.QueryContext(
-		ctx,
-		listObservabilityCoverageCorrelationsQuery,
+	query := listObservabilityCoverageCorrelationsQuery
+	args := []any{
 		observabilityCoverageCorrelationFactKind,
 		filter.ScopeID,
 		filter.Provider,
@@ -118,7 +139,12 @@ func (s PostgresObservabilityCoverageCorrelationStore) ListObservabilityCoverage
 		filter.ResourceClass,
 		filter.AfterCorrelationID,
 		filter.Limit,
-	)
+	}
+	if !filter.AllScopes {
+		query = listObservabilityCoverageCorrelationsScopedQuery
+		args = append(args, pq.Array(filter.AllowedRepositoryIDs), pq.Array(filter.AllowedScopeIDs))
+	}
+	rows, err := s.DB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list observability coverage correlations: %w", err)
 	}
@@ -166,6 +192,39 @@ WHERE fact.fact_kind = $1
   AND ($10 = '' OR fact.payload->>'source_class' = $10 OR fact.payload->'source_classes' ? $10)
   AND ($11 = '' OR fact.payload->>'resource_class' = $11)
   AND ($12 = '' OR fact.fact_id > $12)
+ORDER BY fact.fact_id ASC
+LIMIT $13
+`
+
+// listObservabilityCoverageCorrelationsScopedQuery is
+// listObservabilityCoverageCorrelationsQuery with an additional #5167
+// access-scoping predicate: rows are restricted to the scoped caller's
+// granted repositories/ingestion scopes. Bound only when filter.AllScopes is
+// false (see ObservabilityCoverageCorrelationFilter's doc comment).
+const listObservabilityCoverageCorrelationsScopedQuery = `
+SELECT fact.fact_id, fact.payload
+FROM fact_records AS fact
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = fact.scope_id
+ AND scope.active_generation_id = fact.generation_id
+JOIN scope_generations AS generation
+  ON generation.scope_id = fact.scope_id
+ AND generation.generation_id = fact.generation_id
+WHERE fact.fact_kind = $1
+  AND fact.is_tombstone = FALSE
+  AND generation.status = 'active'
+  AND ($2 = '' OR fact.scope_id = $2)
+  AND ($3 = '' OR fact.payload->>'provider' = $3)
+  AND ($4 = '' OR fact.payload->>'coverage_signal' = $4)
+  AND ($5 = '' OR fact.payload->>'observability_object_ref' = $5)
+  AND ($6 = '' OR fact.payload->>'target_uid' = $6)
+  AND ($7 = '' OR fact.payload->>'target_service_ref' = $7)
+  AND ($8 = '' OR fact.payload->>'outcome' = $8)
+  AND ($9 = '' OR fact.payload->>'coverage_status' = $9)
+  AND ($10 = '' OR fact.payload->>'source_class' = $10 OR fact.payload->'source_classes' ? $10)
+  AND ($11 = '' OR fact.payload->>'resource_class' = $11)
+  AND ($12 = '' OR fact.fact_id > $12)
+  AND (fact.scope_id = ANY($14) OR fact.scope_id = ANY($15))
 ORDER BY fact.fact_id ASC
 LIMIT $13
 `

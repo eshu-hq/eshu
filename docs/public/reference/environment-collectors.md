@@ -263,11 +263,24 @@ for org targets), and reports only sanitized failure classes.
 
 The CI/CD run collector is claim-only. It selects an enabled `ci_cd_run`
 instance from `ESHU_COLLECTOR_INSTANCES_JSON`. GitHub Actions targets must
-include `token_env`, `repository`, `allowed_repositories`, and bounded
+include `token_env`, `repository`, and `allowed_repositories`, plus bounded
 `max_runs`, `max_jobs`, and `max_artifacts` limits. The runtime resolves the
 credential from the named environment variable and emits only `ci.*` source
 facts. Optional `api_base_url` overrides must use HTTPS because the runtime
 sends the bearer token to that endpoint.
+
+Every claim cycle collects the target's most recent runs, one fully
+populated fact-set per run, up to `max_runs` (an omitted or zero `max_runs`
+defaults to 10; the hard cap is 100). Each run's facts are keyed by provider
+run ID, so re-collecting the same window on a later cycle is an idempotent
+upsert at projection rather than requiring a persistent watermark or cursor.
+When the fetched runs page is full — meaning GitHub may have additional runs
+beyond the window `max_runs` bounds — the collector emits a `ci.warning` fact
+with `reason: "runs_truncated"` (mirroring the existing
+`partial_jobs_payload` warning for a truncated jobs page) and increments
+`eshu_dp_ci_cd_run_partial_generations_total{reason="runs_truncated"}`.
+Widening `max_runs` (up to the 100 cap) shrinks the window between
+collection cycles that a single `runs_truncated` warning can span.
 
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |
@@ -293,8 +306,22 @@ source facts plus coverage warnings.
 Optional `api_base_url` overrides must use HTTPS because the runtime sends the
 PagerDuty token to that endpoint. Optional target fields bound collection with
 `incident_lookback`, `incident_limit`, `log_entry_limit`,
-`change_event_limit`, `allowed_service_ids`, `config_validation_enabled`, and
-`config_resource_limit`.
+`change_event_limit`, `allowed_service_ids`, `config_validation_enabled`,
+`config_resource_limit`, `pagination_max_pages`, and
+`pagination_max_records`.
+
+Every PagerDuty list endpoint (incidents, incident log entries, incident
+related-change events, services, service integrations) follows PagerDuty's
+classic offset pagination using the response's `more` field, not just the
+first page. `pagination_max_pages` (default `10`) and `pagination_max_records`
+(default `1000`, hard ceiling `5000`) triple-bound that follow: a page-count
+ceiling, a record-count ceiling, and the request context deadline. A target
+that hits either bound while the provider still reports `more:true` sets
+`Truncated` on the collection result and emits one
+`incident_routing.coverage_warning` fact with `reason=truncated` for the
+resource that was cut short; pagination that exhausts `more` naturally never
+sets `Truncated` and never emits that warning, even though it now observes
+more incidents/services/integrations than a single-page read would have.
 
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |

@@ -16,8 +16,9 @@ const openAPIPathsCloudRuntimeDrift = `
       "post": {
         "tags": ["cloud"],
         "summary": "List provider-neutral multi-cloud runtime drift findings",
-        "description": "Lists active reducer-materialized provider-neutral runtime drift findings for a bounded canonical scope across aws, gcp, and azure. Filterable by provider, canonical cloud_resource_uid, and finding_kind. Each finding carries its provider-neutral source_state and safety gate; unsafe findings are reported as rejected with a refused action rather than omitted. local_lightweight returns unsupported_capability.",
+        "description": "Lists active reducer-materialized provider-neutral runtime drift findings for a bounded canonical scope across aws, gcp, and azure. Filterable by provider, canonical cloud_resource_uid, and finding_kind. Each finding carries its provider-neutral source_state and safety gate; unsafe findings are reported as rejected with a refused action rather than omitted. local_lightweight returns unsupported_capability. Scoped tokens must supply a scope_id (or account_id/project_id/subscription_id alias) that resolves to a granted repository or ingestion scope; a scoped caller with no grants or an out-of-grant scope_id receives an empty page.",
         "operationId": "listCloudRuntimeDriftFindings",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

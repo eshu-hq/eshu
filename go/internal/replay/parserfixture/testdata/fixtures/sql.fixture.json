@@ -182,6 +182,9 @@
                 "name": "open_invoices",
                 "qualified_name": "open_invoices",
                 "schema": "",
+                "source_tables": [
+                  "invoices"
+                ],
                 "sql_entity_type": "SqlView",
                 "type": "content_entity"
               }

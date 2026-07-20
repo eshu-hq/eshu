@@ -100,6 +100,7 @@ parser_backing:
       - go/internal/parser/yaml/gitlab_ci_test.go
       - go/internal/parser/yaml/helm_template_values_test.go
       - go/internal/parser/engine_yaml_semantics_test.go
+      - go/internal/parser/engine_yaml_semantics_crossplane_test.go
     # flux_kustomizations is deliberately absent from this list: it captures
     # Flux CD Kustomization spec.sourceRef/path/targetNamespace as typed
     # evidence only and is not registered in materialize_tables.go's

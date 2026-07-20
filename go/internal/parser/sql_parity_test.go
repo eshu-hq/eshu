@@ -47,7 +47,12 @@ FOR EACH ROW EXECUTE PROCEDURE public.sync_user_segment();
 
 	assertNamedBucketContains(t, got, "sql_functions", "public.sync_user_segment")
 	assertNamedBucketContains(t, got, "sql_triggers", "users_sync_segment")
-	assertSQLRelationship(t, got, "READS_FROM", "public.sync_user_segment", "public.users")
+	// public.users is the UPDATE target (UPDATE public.users ... FROM
+	// public.segments), a write — it must NOT be a READS_FROM edge even though
+	// the generic relation walk shadow-tags it "select" at the update target's
+	// offset (#5345, codex P1). public.segments IS a genuine read via the FROM
+	// clause and keeps its READS_FROM.
+	assertSQLRelationshipMissing(t, got, "READS_FROM", "public.sync_user_segment", "public.users")
 	assertSQLRelationship(t, got, "READS_FROM", "public.sync_user_segment", "public.segments")
 	assertSQLRelationship(t, got, "TRIGGERS_ON", "users_sync_segment", "public.users")
 	assertSQLRelationship(t, got, "EXECUTES", "users_sync_segment", "public.sync_user_segment")

@@ -67,9 +67,10 @@ func wireAPI(
 		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("resolve api key: %w", err)
 	}
 	// fileScopedTokenResolver is the raw ESHU_SCOPED_TOKENS_FILE registry
-	// resolver, kept separate (not yet merged with identity/OIDC) so
-	// requireMCPHTTPCredentialSource below can see whether THIS specific
-	// knob was configured, distinct from the always-wired Postgres identity
+	// resolver, kept separate (not yet merged with identity/OIDC) so both
+	// requireMCPHTTPCredentialSource below and the enforcement predicate
+	// (auth_enforcement.go) can see whether THIS specific knob was
+	// configured, distinct from the always-wired Postgres identity
 	// resolver added to the chain further down.
 	fileScopedTokenResolver, err := scopedtoken.ResolverFromEnv(getenv)
 	if err != nil {
@@ -148,13 +149,19 @@ func wireAPI(
 		}
 		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("construct oidc bearer resolver: %w", err)
 	}
-	// credentialSourceConfigured feeds requireMCPHTTPCredentialSource's "no
-	// silent open mode over HTTP" gate (issue #5168): true when at least one
-	// of the three explicit, operator-facing credential knobs is set. See
-	// mcpAuthWiring's doc comment for why the always-wired identityResolver
-	// itself is deliberately excluded from this signal.
-	credentialSourceConfigured := apiKey != "" || fileScopedTokenResolver != nil || oidcBearerResolver != nil
+	// authSourceConfigured is the single wiring-time predicate (see
+	// authEnforcementConfigured, auth_enforcement.go) feeding BOTH gates that
+	// used to compute this independently: requireMCPHTTPCredentialSource's "no
+	// silent open mode over HTTP" startup gate (issue #5168) below, and the
+	// per-request headerless-dev-open gate inside authMiddleware (the
+	// auth-headerless-bypass hardening) via authedHandler and transportAuth
+	// further down. True when at least one of the three explicit,
+	// operator-facing credential knobs is set. See mcpAuthWiring's doc comment
+	// for why the always-wired identityResolver itself is deliberately
+	// excluded from this signal.
+	authSourceConfigured := authEnforcementConfigured(apiKey, fileScopedTokenResolver, oidcBearerResolver)
 	scopedTokenResolver := scopedtoken.ChainResolvers(identityResolver, oidcBearerResolver, fileScopedTokenResolver)
+	logAuthEnforcementPosture(logger, authSourceConfigured)
 
 	// Build query layer
 	neo4jReader := query.NewNeo4jReader(driver, neo4jDB)
@@ -210,7 +217,7 @@ func wireAPI(
 	// with auth middleware (shared token + optional scoped-token registry;
 	// protects all /api/v0/* routes when mounted by MCP server)
 	instrumentedMux := query.RequestMetricsMiddleware(mux)
-	authedHandler := query.AuthMiddlewareWithScopedTokensAndGovernanceAudit(apiKey, scopedTokenResolver, instrumentedMux, governanceAudit)
+	authedHandler := buildTransportAuthMiddleware(apiKey, scopedTokenResolver, governanceAudit, authSourceConfigured)(instrumentedMux)
 
 	adminMux, err := mountRuntimeSurface("mcp-server", statusReader, prometheusHandler, db, driver)
 	if err != nil {
@@ -229,14 +236,36 @@ func wireAPI(
 	}
 
 	// authWiring lets main.go authenticate the MCP HTTP transport (GET /sse,
-	// POST /mcp/message) with the SAME credential chain protecting
-	// /api/v0/* and tools/call's internal dispatch (issue #5168).
+	// POST /mcp/message) with the SAME credential chain AND the SAME
+	// authSourceConfigured predicate protecting /api/v0/* and tools/call's
+	// internal dispatch (issue #5168, closed for the transport by the
+	// auth-headerless-bypass hardening): a scoped-token-file-only or
+	// OIDC-only deployment with no ESHU_API_KEY now denies a headerless
+	// initialize/tools/list/ping/SSE-establishment request instead of serving
+	// it open.
 	authWiring := mcpAuthWiring{
-		transportAuth: func(next http.Handler) http.Handler {
-			return query.AuthMiddlewareWithScopedTokensAndGovernanceAudit(apiKey, scopedTokenResolver, next, governanceAudit)
-		},
-		credentialSourceConfigured: credentialSourceConfigured,
+		transportAuth:              buildTransportAuthMiddleware(apiKey, scopedTokenResolver, governanceAudit, authSourceConfigured),
+		credentialSourceConfigured: authSourceConfigured,
 	}
 
 	return authedHandler, adminMux, cleanup, authWiring, nil
+}
+
+// buildTransportAuthMiddleware constructs the enforcement-aware credential
+// middleware used for both wireAPI's own /api/v0/* authedHandler and
+// mcpAuthWiring.transportAuth (GET /sse, POST /mcp/message). Factored out so
+// tests can exercise the SAME production composition wireAPI uses without
+// standing up a real Postgres connection (see
+// cmd/mcp-server/auth_enforcement_wiring_test.go).
+func buildTransportAuthMiddleware(
+	apiKey string,
+	scopedTokenResolver query.ScopedTokenResolver,
+	governanceAudit query.GovernanceAuditAppender,
+	authSourceConfigured bool,
+) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return query.AuthMiddlewareWithScopedTokensGovernanceAuditAndEnforcement(
+			apiKey, scopedTokenResolver, next, governanceAudit, authSourceConfigured,
+		)
+	}
 }

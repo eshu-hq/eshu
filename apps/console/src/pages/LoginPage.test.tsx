@@ -390,5 +390,36 @@ describe("LoginPage", () => {
       expect(new URL(url, "http://localhost").searchParams.get("tenant_id")).toBe("tenant_a");
       expect(new URL(url, "http://localhost").searchParams.get("provider_config_id")).toBe("pc_1");
     });
+
+    // Issue #5166 (F-5): a "github" provider_kind must hit
+    // /api/v0/auth/github/login, not /api/v0/auth/oidc/login — proving
+    // handleSSOClick's kind dispatch actually branches by provider_kind
+    // rather than defaulting every non-SAML kind to the OIDC redirect
+    // helper. The button text composes display_label "GitHub" into
+    // "Continue with GitHub" (auth_providers.go's displayLabelForKind doc
+    // comment).
+    it("routes a github provider_kind to the GitHub login redirect, forwarding tenant_id", async () => {
+      window.history.pushState({}, "", "/login?tenant_id=tenant_a");
+      const client = makeClientWithProvidersAndPolicy(
+        [{ provider_config_id: "gh_1", display_label: "GitHub", provider_kind: "github" }],
+        false,
+      );
+      const redirectFn = vi.fn();
+      render(
+        <MemoryRouter>
+          <LoginPage client={client} onSuccess={vi.fn()} redirectFn={redirectFn} />
+        </MemoryRouter>,
+      );
+
+      const ssoButton = await screen.findByRole("button", { name: /continue with github/i });
+      fireEvent.click(ssoButton);
+
+      expect(redirectFn).toHaveBeenCalledTimes(1);
+      const [url] = redirectFn.mock.calls[0] as [string];
+      expect(url).toContain("/api/v0/auth/github/login");
+      expect(url).not.toContain("/api/v0/auth/oidc/login");
+      expect(new URL(url, "http://localhost").searchParams.get("tenant_id")).toBe("tenant_a");
+      expect(new URL(url, "http://localhost").searchParams.get("provider_config_id")).toBe("gh_1");
+    });
   });
 });

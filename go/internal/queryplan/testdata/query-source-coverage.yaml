@@ -155,27 +155,39 @@ source_coverage:
         count: 5
         non_hot:
           class: keyed_support
-          source_sha256: 25ed6186e4a509a7e86155ec344a80fc94c257922ccae909d0d40fdb90470b15
+          source_sha256: d0be042ff05c2ae938d81981ba1aa90e33427db04a53e34ea3f453eb6cd7ec24
           key_bound: single_key
           max_results: 1005
       - {symbol: "(*ImpactHandler).enrichBlastRadiusTiers", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: impact_change_surface_investigation.go
     calls:
-      - {symbol: "(*ImpactHandler).resolveChangeSurfaceTarget", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "(*ImpactHandler).resolveChangeSurfaceTarget"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: 6c11a10a13d084edbdbebef92d32a252203fca108300e249f33c3af524f4c618
+          key_bound: single_key
+          max_results: 1212
   - file: impact_change_surface_legacy.go
     calls:
-      - {symbol: "(*ImpactHandler).findChangeSurfaceImpactRows", count: 1, source_sha256: 588becf80571c7da65b565341a59fcd56e6fa4ce336ff6e69c85abe012235f82, entry_ids: [QP-IMPACT-CHANGE-SURFACE]}
+      - {symbol: "(*ImpactHandler).findChangeSurfaceImpactRows", count: 1, source_sha256: c5f2f7defb9741fa0877b4d8238f228692e461cd75179a746c78fedd7128ccdc, entry_ids: [QP-IMPACT-CHANGE-SURFACE]}
   - file: impact_change_surface_response.go
     calls:
       - {symbol: "(*ImpactHandler).changeSurfaceImpactRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: impact_resource_investigation.go
     calls:
-      - {symbol: "(*ImpactHandler).resolveResourceInvestigationTarget", count: 1, non_hot_reason: "multi-label resolver remains owned by issue 5269 and cannot be admitted until its production start anchor is plan-safe"}
+      - symbol: "(*ImpactHandler).resolveResourceInvestigationTarget"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: 9b80900bf531a72f8e3afffa042686cced99595d50fc51bdef11f11ff9d8bd07
+          key_bound: single_key
+          max_results: 101
   - file: impact_resource_investigation_reads.go
     calls:
-      - {symbol: "(*ImpactHandler).resourceInvestigationInstanceWorkloads", count: 1, source_sha256: 2fd9f8b87204123d1db73f2d7d15b01007dde0b0e3a75e5f9e53af0a4384c7cf, entry_ids: [QP-RESOURCE-INVESTIGATION-INSTANCE-WORKLOADS]}
-      - {symbol: "(*ImpactHandler).resourceInvestigationRepoPaths", count: 1, source_sha256: 466f2d536aa176592ad902ebda945f0b2c5f66047589e97e7f79c29daf5a6869, entry_ids: [QP-RESOURCE-INVESTIGATION-REPO-PATHS]}
-      - {symbol: "(*ImpactHandler).resourceInvestigationWorkloads", count: 1, source_sha256: 26765d4aad64c69b9de78b95fef02d0a95377a5ae4c7eddced413144d9c28935, entry_ids: [QP-RESOURCE-INVESTIGATION-WORKLOADS]}
+      - {symbol: "(*ImpactHandler).resourceInvestigationInstanceWorkloads", count: 1, source_sha256: 3c3cae8c5c8b8822f10a0e68fe0eb89a7e24c8a4febd5699e88e3dcf2867a442, entry_ids: [QP-RESOURCE-INVESTIGATION-INSTANCE-WORKLOADS]}
+      - {symbol: "(*ImpactHandler).resourceInvestigationRepoPaths", count: 1, source_sha256: 2eb5d9a7bfdb90837012816f3440ae1ecbab98430307b41d93f72ab94adf1b09, entry_ids: [QP-RESOURCE-INVESTIGATION-REPO-PATHS]}
+      - {symbol: "(*ImpactHandler).resourceInvestigationWorkloads", count: 1, source_sha256: 00c5f56bc81d1adf4ea1db1cbd2dbcad1e5a3b569ca26440ae4495f87956b2f4, entry_ids: [QP-RESOURCE-INVESTIGATION-WORKLOADS]}
   - file: impact_trace_deployment_sources.go
     calls:
       - symbol: "fetchCanonicalDeploymentSourceRows"
@@ -209,10 +221,15 @@ source_coverage:
       - {symbol: "(*InfraHandler).searchArgoCDCategoryRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: infra_ecosystem_overview.go
     calls:
-      - {symbol: "(*InfraHandler).getEcosystemOverview", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "runEcosystemOverviewCounts"
+        count: 1
+        non_hot:
+          class: label_inventory
+          source_sha256: 6311683657b320929b4f23e30c3d2324a53221a71f227f226b8236c6b4c0952f
+          label: "Repository|Workload|Platform|WorkloadInstance"
+          max_results: 1
   - file: infra_graph_summary_packet.go
     calls:
-      - {symbol: "(*InfraHandler).graphSummaryEcosystemPacket", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*InfraHandler).graphSummaryHotEntities", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*InfraHandler).graphSummaryRelationshipCounts", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*InfraHandler).graphSummaryRepoEcosystemMap", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -243,22 +260,51 @@ source_coverage:
           key_bound: bounded_key_batch
           max_keys: 200
           max_results: 200
-      - {symbol: "(*PackageRegistryHandler).listDependencies", count: 1, source_sha256: a3cb8fcb033c0a00bd4adc48b17d4966b91bff376c4b19f1a49e1c9a57c36740, entry_ids: [QP-SC-PKGREG-DEPS]}
+      - {symbol: "(*PackageRegistryHandler).listDependencies", count: 1, source_sha256: 395a805e56c42221f797df08b75705035805605c1affac9e783b3216a4c1b87f, entry_ids: [QP-SC-PKGREG-DEPS]}
       - symbol: "(*PackageRegistryHandler).listPackages"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: b652cf897e7da042e885ea6cbdc0844282c836b404fa85ba8308bb1957841ab4
+          source_sha256: b6cc6cff14dba78264c8433a6f0deed1481a6844a8fc46d2285ae0b9efc7051b
           key_bound: single_key
           max_results: 201
-      - {symbol: "(*PackageRegistryHandler).listVersions", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "(*PackageRegistryHandler).listVersions"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: f687a82428c6e120dce940aab0386d36b6c19df0d0cef6bd3027ff6f0cd45890
+          key_bound: single_key
+          max_results: 201
   - file: package_registry_aggregates.go
     calls:
       - {symbol: "(GraphPackageRegistryAggregateStore).CountPackageRegistryPackages", count: 2, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(GraphPackageRegistryAggregateStore).PackageRegistryPackageInventory", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+  - file: package_registry_scoped_access.go
+    calls:
+      - symbol: "packageRegistryAnchorVisibility"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: 67d07c3840993985ca66c3d7754c65b717f58e4cf18a7e451f1b40ce2ff83fb5
+          key_bound: single_key
+          max_results: 1
+      - symbol: "packageRegistryNameAnchorCandidates"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: d47ab5e072dff4fb7fa11c73f912e9f2db350ac012da77f498b67fd36a2d4c00
+          key_bound: single_key
+          max_results: 50
+      - symbol: "packageRegistryVersionAnchorPackageID"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: c087948c1bce642afe88e4410e6d3485d98ea44ccd95764068a90b56bbbb8368
+          key_bound: single_key
+          max_results: 1
   - file: relationships_catalog.go
     calls:
-      - {symbol: "(*InfraHandler).relationshipEdges", count: 1, source_sha256: 56fa1d3da0fcd50a5a8f61e5fe980e955350a487f2846d33ffef102253ad2b1d, entry_ids: [QP-RELATIONSHIPS-EDGES]}
+      - {symbol: "(*InfraHandler).relationshipEdges", count: 1, source_sha256: 0b98f807263105d3d47d130ba91b6cfea244ecd98fcb69aae3943473e024bf98, entry_ids: [QP-RELATIONSHIPS-EDGES]}
       - {symbol: "(*InfraHandler).relationshipSourceToolBreakdown", count: 1, source_sha256: d854d833cdc75c1e250b0d049ca0733a5429bb3580360bcbf958cf46aee39441, entry_ids: [QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY, QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE]}
       - {symbol: "(*InfraHandler).relationshipVerbTiles", count: 1, source_sha256: 594369a3bf0dfd685853cec025547e41cf1b7929f913b208021bba627a3e3376, entry_ids: [QP-RELATIONSHIPS-CATALOG-COUNT]}
   - file: repository.go

@@ -16,25 +16,38 @@ import (
 const defaultConfigResourceLimit = 100
 
 // CollectConfigEvidence fetches optional live PagerDuty configuration
-// evidence for no-IaC fallback and freshness validation.
+// evidence for no-IaC fallback and freshness validation. The services and
+// service-integrations list endpoints each follow PagerDuty's classic offset
+// pagination up to the target's configured page/record bound;
+// ConfigCollectionResult.Truncated and a ConfigWarningTruncated coverage
+// warning are set only when that bound was hit while the provider still had
+// more pages ("more":true), never when pagination exhausted naturally.
 func (c *HTTPClient) CollectConfigEvidence(ctx context.Context, target TargetConfig) (ConfigCollectionResult, error) {
 	limit := boundedConfigResourceLimit(target.ConfigResourceLimit)
+	bounds := paginationBoundsForTarget(target)
 	result := ConfigCollectionResult{ObservedAt: time.Now().UTC()}
 
 	if len(target.AllowedServiceIDs) > 0 {
-		if err := c.collectAllowedServices(ctx, target.AllowedServiceIDs, limit, &result); err != nil {
+		if err := c.collectAllowedServices(ctx, target.AllowedServiceIDs, limit, bounds, &result); err != nil {
 			return ConfigCollectionResult{}, err
 		}
 		return result, nil
 	}
-	services, err := c.listServices(ctx, limit)
+	services, pages, truncated, err := c.listServices(ctx, limit, bounds)
 	if err != nil {
 		return ConfigCollectionResult{}, err
 	}
-	result.PagesFetched++
+	result.PagesFetched += pages
+	if truncated {
+		result.Truncated = true
+		result.Warnings = append(result.Warnings, ConfigWarning{
+			ResourceClass: ConfigResourceClassService,
+			Reason:        ConfigWarningTruncated,
+		})
+	}
 	result.Services = append(result.Services, normalizeConfigServices(services, ConfigMatchStateNotCompared)...)
 	for _, service := range result.Services {
-		if err := c.collectServiceIntegrations(ctx, service.ID, limit, ConfigMatchStateNotCompared, &result); err != nil {
+		if err := c.collectServiceIntegrations(ctx, service.ID, limit, bounds, ConfigMatchStateNotCompared, &result); err != nil {
 			return ConfigCollectionResult{}, err
 		}
 	}
@@ -45,6 +58,7 @@ func (c *HTTPClient) collectAllowedServices(
 	ctx context.Context,
 	serviceIDs []string,
 	limit int,
+	bounds paginationBounds,
 	result *ConfigCollectionResult,
 ) error {
 	for _, serviceID := range serviceIDs {
@@ -69,7 +83,7 @@ func (c *HTTPClient) collectAllowedServices(
 		if normalized.ID != "" {
 			result.Services = append(result.Services, normalized)
 		}
-		if err := c.collectServiceIntegrations(ctx, trimmed, limit, ConfigMatchStateNotCompared, result); err != nil {
+		if err := c.collectServiceIntegrations(ctx, trimmed, limit, bounds, ConfigMatchStateNotCompared, result); err != nil {
 			return err
 		}
 	}
@@ -80,11 +94,12 @@ func (c *HTTPClient) collectServiceIntegrations(
 	ctx context.Context,
 	serviceID string,
 	limit int,
+	bounds paginationBounds,
 	matchState string,
 	result *ConfigCollectionResult,
 ) error {
-	integrations, err := c.listServiceIntegrations(ctx, serviceID, limit)
-	result.PagesFetched++
+	integrations, pages, truncated, err := c.listServiceIntegrations(ctx, serviceID, limit, bounds)
+	result.PagesFetched += pages
 	if err != nil {
 		if retryableConfigError(err) {
 			return err
@@ -96,22 +111,45 @@ func (c *HTTPClient) collectServiceIntegrations(
 		}
 		return err
 	}
+	if truncated {
+		result.Truncated = true
+		result.Warnings = append(result.Warnings, ConfigWarning{
+			ResourceClass: ConfigResourceClassServiceIntegration,
+			ResourceID:    serviceID,
+			Reason:        ConfigWarningTruncated,
+		})
+	}
 	normalized, redactions := normalizeConfigIntegrations(serviceID, integrations, matchState)
 	result.Integrations = append(result.Integrations, normalized...)
 	result.Redactions += redactions
 	return nil
 }
 
-func (c *HTTPClient) listServices(ctx context.Context, limit int) ([]serviceJSON, error) {
-	values := url.Values{}
-	if limit > 0 {
-		values.Set("limit", strconv.Itoa(limit))
+func (c *HTTPClient) listServices(
+	ctx context.Context,
+	limit int,
+	bounds paginationBounds,
+) ([]serviceJSON, int, bool, error) {
+	var all []serviceJSON
+	pages, records, truncated, err := paginateOffset(ctx, bounds, func(ctx context.Context, offset int, requestLimit int) (int, bool, error) {
+		values := url.Values{}
+		if effective := paginationRequestLimit(limit, requestLimit); effective > 0 {
+			values.Set("limit", strconv.Itoa(effective))
+		}
+		if offset > 0 {
+			values.Set("offset", strconv.Itoa(offset))
+		}
+		var decoded serviceListResponse
+		if err := c.getJSON(ctx, "/services", values, &decoded); err != nil {
+			return 0, false, err
+		}
+		all = append(all, decoded.Services...)
+		return len(decoded.Services), decoded.More, nil
+	})
+	if err == nil && records < len(all) {
+		all = all[:records]
 	}
-	var decoded serviceListResponse
-	if err := c.getJSON(ctx, "/services", values, &decoded); err != nil {
-		return nil, err
-	}
-	return decoded.Services, nil
+	return all, pages, truncated, err
 }
 
 func (c *HTTPClient) getService(ctx context.Context, serviceID string) (serviceJSON, error) {
@@ -127,17 +165,29 @@ func (c *HTTPClient) listServiceIntegrations(
 	ctx context.Context,
 	serviceID string,
 	limit int,
-) ([]integrationJSON, error) {
-	values := url.Values{}
-	if limit > 0 {
-		values.Set("limit", strconv.Itoa(limit))
-	}
-	var decoded integrationListResponse
+	bounds paginationBounds,
+) ([]integrationJSON, int, bool, error) {
+	var all []integrationJSON
 	path := "/services/" + url.PathEscape(serviceID) + "/integrations"
-	if err := c.getJSON(ctx, path, values, &decoded); err != nil {
-		return nil, err
+	pages, records, truncated, err := paginateOffset(ctx, bounds, func(ctx context.Context, offset int, requestLimit int) (int, bool, error) {
+		values := url.Values{}
+		if effective := paginationRequestLimit(limit, requestLimit); effective > 0 {
+			values.Set("limit", strconv.Itoa(effective))
+		}
+		if offset > 0 {
+			values.Set("offset", strconv.Itoa(offset))
+		}
+		var decoded integrationListResponse
+		if err := c.getJSON(ctx, path, values, &decoded); err != nil {
+			return 0, false, err
+		}
+		all = append(all, decoded.Integrations...)
+		return len(decoded.Integrations), decoded.More, nil
+	})
+	if err == nil && records < len(all) {
+		all = all[:records]
 	}
-	return decoded.Integrations, nil
+	return all, pages, truncated, err
 }
 
 func boundedConfigResourceLimit(limit int) int {

@@ -95,6 +95,7 @@ var routerFieldsNotWiredByNewMCPQueryRouter = map[string]string{
 	"Setup":                        "the MCP server has no first-run setup wizard surface",
 	"OIDCLogin":                    "the MCP server has no SSO login surface",
 	"SAML":                         "the MCP server has no SSO login surface",
+	"GitHubLogin":                  "the MCP server has no SSO login surface",
 	"AuthProviders":                "the MCP server has no SSO login surface",
 	"AdminProviderConfigReads":     "the MCP server has no SSO admin config surface",
 	"AdminProviderConfigMutations": "the MCP server has no SSO admin config surface",

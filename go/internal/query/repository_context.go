@@ -40,6 +40,17 @@ func (h *RepositoryHandler) getRepositoryContext(w http.ResponseWriter, r *http.
 			relationshipReadModel,
 			queryRepoDeployableUnitRelationshipOverview(ctx, h.Neo4j, params),
 		)
+		// #5167 W3 P0 (fourth vector): bind the merged read-model relationship
+		// rows and consumers to the caller's grant before result["relationships"],
+		// result["relationship_overview"], and result["consumers"] derive from
+		// them. This is the production-primary path and it (plus the unfiltered
+		// deployable-unit graph supplement merged just above) otherwise bypasses
+		// the grant filter the graph helpers apply.
+		relationshipReadModel = filterRepositoryRelationshipReadModelForAccess(
+			relationshipReadModel,
+			repoID,
+			repositoryAccessFilterFromContext(ctx),
+		)
 	}
 
 	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "summary_counts")

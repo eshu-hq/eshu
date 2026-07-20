@@ -86,6 +86,23 @@ func loadRepositoryControllerArtifacts(
 	return buildRepositoryControllerArtifacts(repoName, contentFiles), nil
 }
 
+// queryRelatedRepositoryArtifactSources walks every DEPENDS_ON/USES_MODULE/...
+// relationship touching repoID and returns each related repository as a
+// candidate config/controller artifact source. This traversal has no anchor
+// label predicate, so an unfiltered related repository can belong to a
+// different tenant than the caller's grant.
+//
+// #5167 W3 P0 (third round): loadSharedRepositoryConfigArtifacts fetches and
+// merges each returned source's files (source_repo names, config paths) into
+// deployment_evidence/deployment_artifacts/infrastructure_overview whenever
+// loadServiceDeploymentEvidence falls through to the
+// loadDeploymentArtifactOverview fallback -- which happens exactly when the
+// grant-bound EvidenceArtifact evidence set (filterDeploymentEvidenceRowsForAccess)
+// comes back empty. Binding the caller's grant here, before any related
+// source's files are ever fetched, is the single point that closes that
+// fallback leak for every loadDeploymentArtifactOverview caller (config,
+// controller; the workflow/runtime/cloudformation loaders never leave the
+// anchor repo, so they need no filter of their own).
 func queryRelatedRepositoryArtifactSources(
 	ctx context.Context,
 	graph GraphQuery,
@@ -119,7 +136,29 @@ func queryRelatedRepositoryArtifactSources(
 			RepoName: name,
 		})
 	}
-	return sources, nil
+	return filterRepositoryArtifactSourcesForAccess(sources, repositoryAccessFilterFromContext(ctx)), nil
+}
+
+// filterRepositoryArtifactSourcesForAccess drops related-repository artifact
+// sources outside the caller's grant (#5167 W3 P0, third round). repoID is
+// always non-empty here (queryRelatedRepositoryArtifactSources already
+// requires both repo_id and repo_name to be non-empty before building a
+// source), so the deny-by-default empty-repoID case the other #5167 W3
+// filters apply never arises for this row shape.
+func filterRepositoryArtifactSourcesForAccess(
+	sources []repositoryArtifactSource,
+	access repositoryAccessFilter,
+) []repositoryArtifactSource {
+	if !access.scoped() {
+		return sources
+	}
+	filtered := make([]repositoryArtifactSource, 0, len(sources))
+	for _, source := range sources {
+		if access.allowsRepositoryID(source.RepoID) {
+			filtered = append(filtered, source)
+		}
+	}
+	return filtered
 }
 
 func loadRepositoryConfigArtifactsForSources(

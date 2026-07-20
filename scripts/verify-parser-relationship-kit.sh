@@ -112,6 +112,15 @@ go/internal/mcp/language*.go) ;;
   esac
   case "$path" in
     *_test.go|*_bench_test.go) return 1 ;;
+    # Repositories-by-language inventory handlers (for example
+    # content_reader_language_inventory.go and repository_language_inventory.go)
+    # aggregate repository/file counts per language family for the
+    # GET /api/v0/repositories/by-language and /language-inventory routes. They
+    # only share the "language" filename token with the code-entity Language
+    # Query DSL (execute_language_query / POST /api/v0/code/language-query) that
+    # language-query-dsl.md documents; they are not that DSL's source, so a
+    # change to them does not require a language-query-dsl.md update.
+    *language_inventory.go) return 1 ;;
     *) return 0 ;;
   esac
 }

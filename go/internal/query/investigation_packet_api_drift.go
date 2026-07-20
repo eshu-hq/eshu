@@ -41,6 +41,26 @@ func (h *CloudRuntimeDriftHandler) getDriftPacket(w http.ResponseWriter, r *http
 		h.writeContractError(w, r, http.StatusBadRequest, err.Error(), ErrorCodeInvalidArgument)
 		return
 	}
+	// Drift findings key on a cloud ingestion scope_id (AWS account, GCP
+	// project, or Azure subscription), not a git repository (#5167 W5): there
+	// is no repository-to-cloud-scope map on this path, the same reason
+	// GET /api/v0/replatforming/selectors binds AllowedScopeIDs directly
+	// (replatforming_selectors_handler.go). A scoped token must carry an
+	// exact grant for filter.ScopeID; an empty grant or a scope_id outside
+	// the grant returns the same scope_not_found refusal packet the sibling
+	// investigation packet routes use for an unresolved anchor
+	// (getImpactPacket, getDeployableUnitPacket), without reading the drift
+	// finding store.
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.scoped() && !access.allowsDirectScopeID(filter.ScopeID) {
+		packet, err := refusalPacketForAPI(InvestigationFamilyDrift, PacketRefusalScopeNotFound)
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeInvestigationPacket(w, r, packet)
+		return
+	}
 	if h == nil || h.Store == nil {
 		h.writeContractError(
 			w, r,

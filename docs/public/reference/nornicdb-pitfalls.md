@@ -384,6 +384,19 @@ from every ecosystem-scoped list read, and an exact `package_id` lookup for a
 zero-version package returned an empty page — indistinguishable from "package
 does not exist."
 
+The F-6/W5b tenant-scoped ecosystem-browse variant,
+`packageRegistryPackagesScopedEcosystemCypher`, reused the identical
+`OPTIONAL MATCH (p)-[:HAS_VERSION]->(v) ... count(v)` composition (with the
+combined `WHERE p.ecosystem = $ecosystem AND p.visibility = 'public'`
+predicate from the pitfall below) and was exposed to the same row-collapse:
+a public, zero-version package would silently vanish from a scoped caller's
+ecosystem browse. It was rewritten to the same anchor-only + `UNWIND`
+version-count split before it shipped, confirmed live: the pre-fix scoped
+shape collapsed a 2-public-package fixture (one zero-version, one
+two-version) to a single row, with the two-version package's count leaking
+onto the zero-version package's id — the same wrong-id/count pairing as the
+unscoped shape's evidence above.
+
 Two candidate single-statement replacements were tried and also rejected —
 each looked correct in isolation but broke as soon as a non-zero-count row was
 added to the fixture:
@@ -424,16 +437,139 @@ correct on a same-cardinality-only fixture.
 
 ### Validation
 
-`go test ./internal/query -run TestLivePackageRegistryListPackagesReturnsZeroVersionPackages
+`go test ./internal/query -run
+'TestLivePackageRegistry(ListPackagesReturnsZeroVersionPackages|ScopedEcosystemBrowseReturnsZeroVersionPackages)'
 -count=1 -v` (env-gated on `ESHU_PKG_REGISTRY_PROVE_LIVE=1` and
-`ESHU_NEO4J_URI`) is the backend-required live proof: it captures the OLD
-`OPTIONAL MATCH`+`count(v)` shape's output for evidence, then asserts the
-shipped handler returns every package (including zero-version ones with
-`version_count: 0`) and resolves a zero-version package by exact
-`package_id`. See
+`ESHU_NEO4J_URI`) is the backend-required live proof for both the unscoped
+and scoped-ecosystem branches: each captures its OLD `OPTIONAL MATCH`+
+`count(v)` shape's output for evidence, then asserts the shipped handler
+returns every package (including zero-version ones with `version_count: 0`,
+and, for the scoped variant, excluding the private package) and, for the
+unscoped branch, resolves a zero-version package by exact `package_id`. See
 `docs/internal/evidence/5167-package-registry-version-count-nornicdb.md` for
-full before/after tables including the rejected candidates and the
-200-package corpus timing.
+full before/after tables including the rejected candidates, the
+200-package corpus timing, and the scoped-ecosystem before/after.
+
+## Pitfall: Inline `MATCH` Property Pattern Silently Dropped By A Trailing `WHERE`
+
+### Observed shape
+
+On the pinned PR261/compose-default NornicDB image, combining an inline
+property pattern on a `MATCH` with a `WHERE` clause that filters a DIFFERENT
+property silently drops the inline pattern's filter -- the query falls back to
+an unfiltered label scan instead of erroring or returning an unfiltered-but-
+still-labelled result:
+
+```cypher
+-- BROKEN: $ecosystem is silently ignored. Returns the SAME total for every
+-- $ecosystem value (verified: a 120k-node "npm-shimb" partition and a
+-- disjoint "npm-shima" partition both returned the count of ALL
+-- visibility='public' Package nodes across BOTH partitions, not just the
+-- $ecosystem-matching partition).
+MATCH (p:Package {ecosystem: $ecosystem})
+WHERE p.visibility = 'public'
+RETURN count(p) AS c
+```
+
+```cypher
+-- CORRECT: combine both predicates in one WHERE clause; do not mix an inline
+-- MATCH property with a trailing WHERE on an unrelated property.
+MATCH (p:Package)
+WHERE p.ecosystem = $ecosystem AND p.visibility = 'public'
+RETURN count(p) AS c
+```
+
+Reproduced identically via the HTTP tx/commit endpoint (`/db/nornic/tx/commit`)
+AND the real Bolt protocol via `github.com/neo4j/neo4j-go-driver/v5` (the same
+driver `go/internal/query/neo4j.go`'s `Neo4jReader.Run` uses in production) --
+this is not an HTTP-transport artifact.
+
+### Eshu implications
+
+This is both a correctness bug (a cross-partition/cross-tenant leak: a query
+meant to be anchored on one label-property value instead scans and returns
+matches from every value of that property) and a latent performance
+regression (the intended selective anchor is defeated, forcing a full label
+scan). Found while proving the F-6/W5b (#5167) tenant-scoping theory for
+`packageRegistryPackagesCypher`'s ecosystem-browse branch
+(`go/internal/query/package_registry_cypher.go`,
+`packageRegistryPackagesScopedEcosystemCypher`), which was designed against
+this exact composition and had to be rewritten to the WHERE-only combined form
+before it could ship. Never append a `WHERE` clause referencing a different
+property onto a `MATCH` that carries an inline pattern property; move ALL
+selectivity predicates into one `WHERE` clause instead.
+
+### Validation
+
+`go test ./internal/query -run
+'TestPackageRegistryPackagesScopedEcosystemBrowseUsesVisibilityFilteredCypher'
+-count=1` asserts the shipped scoped-ecosystem-browse Cypher text uses the
+combined-`WHERE` form and explicitly rejects the inline-pattern-plus-trailing-
+`WHERE` shape.
+
+## Pitfall: `EXISTS {}` Subquery Correctness Depends On Anchor Direction And Hop Count
+
+### Observed shape
+
+On the pinned PR261/compose-default NornicDB image, `EXISTS { MATCH (pattern)
+WHERE (filter on the far variable) }` evaluates correctly only for one specific
+shape. Measured against representative and worst-case fixture data (500-1000
+row fan-out) while redesigning the infra scoped-token authorization predicate
+(#5384):
+
+- **Correct:** a forward, single-hop `EXISTS` anchored on the bound node `n`,
+  filtering the far variable with an `IN $array` comparison:
+  `EXISTS { MATCH (n)-[:DEPLOYMENT_SOURCE]->(r:Repository) WHERE r.id IN $g }`.
+  TRUE case matches, FALSE case does not -- this is the only `EXISTS` shape
+  proven reliable on this backend.
+- **Broken -- always TRUE (whole-graph leak):** an `n`-first `EXISTS` with the
+  arrow pointing backward into `n`, filtering the far variable:
+  `EXISTS { MATCH (n)<-[:USES]-(i:WorkloadInstance) WHERE i.repo_id IN $g }`.
+  This matches every node regardless of whether the filter is satisfied,
+  silently authorizing every row it is meant to gate.
+- **Broken -- always FALSE (dead code / under-authorization):** an `n`-last
+  multi-hop `EXISTS` bridge, filtering the near variable instead of `n`:
+  `EXISTS { MATCH (r:Repository)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(:WorkloadInstance)-[:USES]->(n) WHERE r.id IN $g }`.
+  This matches nothing, ever, even for genuinely in-grant nodes -- the
+  predicate silently drops every row it should admit.
+
+Both broken shapes were reproduced identically via the HTTP `tx/commit`
+endpoint and the real Bolt protocol via `github.com/neo4j/neo4j-go-driver/v5`
+(the production driver), so this is not an HTTP-transport artifact.
+
+### Eshu implications
+
+Do not use an `EXISTS {}` subquery to express "is `n` reachable from a granted
+node" unless the shape is forward-anchored, single-hop, with the `IN $array`
+filter on the far variable (the one correct shape above). For every other
+reachability direction or hop count, use a pattern-predicate evaluated
+directly as a boolean -- not wrapped in `EXISTS {}` -- with an inline-map
+property term per candidate value, for example
+`(n)<-[:USES]-(:WorkloadInstance {repo_id:$g})`. This form is correct on both
+NornicDB and Neo4j and trades reliability for O(grant) fan-out (one term per
+candidate value) instead of O(1).
+
+The infra scoped-token authorization predicate
+(`go/internal/query/infra_scope_grant.go`, `infraResourceScopePredicate`) is
+built this way: `scopeGrantInlineMapDisjunction` renders the inline-map
+OR-chain for the CloudResource-via-USES and Workload-via-DEFINES admission
+paths (both previously shipped as the always-FALSE `n`-last bridge shape
+above, which silently under-authorized every scoped CloudResource and
+name-collision Workload), while the WorkloadInstance-via-DEPLOYMENT_SOURCE
+admission path keeps the one correct forward-anchored `EXISTS` shape.
+`maxScopeGrantInlineTerms` caps the inline-map fan-out with fail-closed
+degradation: past the cap, a token still sees every resource it directly owns
+(O(1) flat `repo_id` / `id` disjuncts), and only loses collision/bridge
+admission for grants beyond the cap -- an under-authorization, never a leak.
+
+### Validation
+
+`go test ./internal/query -run
+'TestInfraResourceScopePredicateRendersOnlyWhenScoped' -count=1` asserts the
+shipped predicate text contains the inline-map disjuncts and the one correct
+forward `EXISTS` disjunct, and explicitly rejects both broken `EXISTS` shapes
+(the `n`-last `DEFINES`/`INSTANCE_OF` bridge and the `n`-first backward `USES`
+form) from ever reappearing in the rendered Cypher.
 
 ## When To Patch NornicDB
 

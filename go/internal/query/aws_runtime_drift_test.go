@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -102,6 +103,165 @@ func TestHandleAWSRuntimeDriftFindingsReturnsOutcomes(t *testing.T) {
 	groups := data["outcome_groups"].([]any)
 	if got, want := len(groups), 2; got != want {
 		t.Fatalf("outcome_groups len = %d, want %d", got, want)
+	}
+}
+
+// awsRuntimeDriftScopedFixtureRows returns the two-finding fixture keyed to a
+// single exact scope_id, matching what a scoped caller's grant would need to
+// contain for TestHandleAWSRuntimeDriftFindingsScopedInGrantReturnsRealRowData.
+func awsRuntimeDriftScopedFixtureRows() []IaCManagementFindingRow {
+	return []IaCManagementFindingRow{
+		{
+			ID:               "fact:aws-lambda-tenant-a",
+			Provider:         "aws",
+			AccountID:        "123456789012",
+			Region:           "us-east-1",
+			ResourceType:     "lambda",
+			ResourceID:       "function:tenant-a-payments-api",
+			ARN:              "arn:aws:lambda:us-east-1:123456789012:function:tenant-a-payments-api",
+			FindingKind:      "unmanaged_cloud_resource",
+			ManagementStatus: "terraform_state_only",
+			Confidence:       0.91,
+			ScopeID:          "aws:123456789012:us-east-1:lambda",
+			GenerationID:     "generation:aws-1",
+			SourceSystem:     "aws",
+		},
+	}
+}
+
+// TestHandleAWSRuntimeDriftFindingsScopedAccountOnlyNeverCallsStore proves the
+// #5167 handler-side precheck (IaCManagementStore/IaCManagementFilter are
+// shared with the iac/* and replatforming/* route families owned by other
+// workstreams, so the fix is a caller-side grant check rather than a
+// store/filter change): a scoped caller supplying only account_id (no exact
+// scope_id) must never reach the store, because the underlying LIKE-prefix
+// scan would otherwise fan out across every region/service scope under that
+// account without this precheck being able to narrow it to the grant.
+func TestHandleAWSRuntimeDriftFindingsScopedAccountOnlyNeverCallsStore(t *testing.T) {
+	t.Parallel()
+
+	var observed IaCManagementFilter
+	handler := &IaCHandler{
+		Profile: ProfileLocalAuthoritative,
+		Management: fakeIaCManagementStore{
+			observedFilter: &observed,
+			rows:           awsRuntimeDriftScopedFixtureRows(),
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/aws/runtime-drift/findings", bytes.NewBufferString(`{
+		"account_id": "123456789012",
+		"region": "us-east-1",
+		"limit": 10
+	}`))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:                 AuthModeScoped,
+		TenantID:             "tenant-a",
+		AllowedRepositoryIDs: []string{"aws:123456789012:us-east-1:lambda"},
+	}))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	if observed.AccountID != "" {
+		t.Fatalf("store was called for an account_id-only scoped request: observed filter = %#v", observed)
+	}
+	if strings.Contains(w.Body.String(), "tenant-a-payments-api") {
+		t.Fatalf("account_id-only scoped response leaked fixture row data: %s", w.Body.String())
+	}
+}
+
+// TestHandleAWSRuntimeDriftFindingsScopedOutOfGrantScopeNeverCallsStore covers
+// the exact-scope_id case: a scoped caller whose requested scope_id is
+// outside its grant must never reach the store.
+func TestHandleAWSRuntimeDriftFindingsScopedOutOfGrantScopeNeverCallsStore(t *testing.T) {
+	t.Parallel()
+
+	var observed IaCManagementFilter
+	handler := &IaCHandler{
+		Profile: ProfileLocalAuthoritative,
+		Management: fakeIaCManagementStore{
+			observedFilter: &observed,
+			rows:           awsRuntimeDriftScopedFixtureRows(),
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/aws/runtime-drift/findings", bytes.NewBufferString(`{
+		"scope_id": "aws:123456789012:us-east-1:lambda",
+		"limit": 10
+	}`))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:                 AuthModeScoped,
+		TenantID:             "tenant-a",
+		AllowedRepositoryIDs: []string{"aws:999999999999:us-east-1:lambda"}, // different account
+	}))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	if observed.ScopeID != "" {
+		t.Fatalf("store was called for an out-of-grant scope_id: observed filter = %#v", observed)
+	}
+}
+
+// TestHandleAWSRuntimeDriftFindingsScopedInGrantReturnsRealRowData proves the
+// paired positive case: a scoped caller whose requested exact scope_id IS
+// granted reaches the store and gets the real fixture rows back.
+func TestHandleAWSRuntimeDriftFindingsScopedInGrantReturnsRealRowData(t *testing.T) {
+	t.Parallel()
+
+	var observed IaCManagementFilter
+	handler := &IaCHandler{
+		Profile: ProfileLocalAuthoritative,
+		Management: fakeIaCManagementStore{
+			observedFilter: &observed,
+			rows:           awsRuntimeDriftScopedFixtureRows(),
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/aws/runtime-drift/findings", bytes.NewBufferString(`{
+		"scope_id": "aws:123456789012:us-east-1:lambda",
+		"limit": 10
+	}`))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:                 AuthModeScoped,
+		TenantID:             "tenant-a",
+		AllowedRepositoryIDs: []string{"aws:123456789012:us-east-1:lambda"},
+	}))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	if got, want := observed.ScopeID, "aws:123456789012:us-east-1:lambda"; got != want {
+		t.Fatalf("store was not called for an in-grant scoped request: observed.ScopeID = %q, want %q", got, want)
+	}
+	var resp ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	data := resp.Data.(map[string]any)
+	findings := data["drift_findings"].([]any)
+	if len(findings) != 1 {
+		t.Fatalf("drift_findings len = %d, want 1; body = %s", len(findings), w.Body.String())
+	}
+	first := findings[0].(map[string]any)
+	if got, want := first["arn"], "arn:aws:lambda:us-east-1:123456789012:function:tenant-a-payments-api"; got != want {
+		t.Fatalf("first arn = %q, want %q (real row data)", got, want)
 	}
 }
 

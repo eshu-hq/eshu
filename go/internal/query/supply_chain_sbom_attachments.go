@@ -15,32 +15,51 @@ import (
 // SBOMAttestationAttachmentResult is one reducer-owned SBOM or attestation
 // attachment row returned by the public API.
 type SBOMAttestationAttachmentResult struct {
-	AttachmentID              string                 `json:"attachment_id"`
-	SubjectDigest             string                 `json:"subject_digest,omitempty"`
-	DocumentID                string                 `json:"document_id,omitempty"`
-	DocumentDigest            string                 `json:"document_digest,omitempty"`
-	AttachmentStatus          string                 `json:"attachment_status"`
-	ParseStatus               string                 `json:"parse_status,omitempty"`
-	VerificationStatus        string                 `json:"verification_status,omitempty"`
-	VerificationPolicy        string                 `json:"verification_policy,omitempty"`
-	ArtifactKind              string                 `json:"artifact_kind,omitempty"`
-	Format                    string                 `json:"format,omitempty"`
-	SpecVersion               string                 `json:"spec_version,omitempty"`
-	Reason                    string                 `json:"reason,omitempty"`
-	AttachmentScope           string                 `json:"attachment_scope,omitempty"`
-	CanonicalWrites           int                    `json:"canonical_writes"`
-	ComponentCount            int                    `json:"component_count"`
-	ComponentEvidence         []ComponentEvidenceRow `json:"component_evidence,omitempty"`
-	RepositoryIDs             []string               `json:"repository_ids,omitempty"`
-	WorkloadIDs               []string               `json:"workload_ids,omitempty"`
-	ServiceIDs                []string               `json:"service_ids,omitempty"`
-	WarningSummaries          []string               `json:"warning_summaries,omitempty"`
-	WarningSummaryCount       int                    `json:"warning_summary_count"`
-	WarningSummariesTruncated bool                   `json:"warning_summaries_truncated"`
-	EvidenceFactIDs           []string               `json:"evidence_fact_ids,omitempty"`
-	MissingEvidence           []string               `json:"missing_evidence,omitempty"`
-	SourceFreshness           string                 `json:"source_freshness,omitempty"`
-	SourceConfidence          string                 `json:"source_confidence,omitempty"`
+	AttachmentID       string                 `json:"attachment_id"`
+	SubjectDigest      string                 `json:"subject_digest,omitempty"`
+	DocumentID         string                 `json:"document_id,omitempty"`
+	DocumentDigest     string                 `json:"document_digest,omitempty"`
+	AttachmentStatus   string                 `json:"attachment_status"`
+	ParseStatus        string                 `json:"parse_status,omitempty"`
+	VerificationStatus string                 `json:"verification_status,omitempty"`
+	VerificationPolicy string                 `json:"verification_policy,omitempty"`
+	ArtifactKind       string                 `json:"artifact_kind,omitempty"`
+	Format             string                 `json:"format,omitempty"`
+	SpecVersion        string                 `json:"spec_version,omitempty"`
+	Reason             string                 `json:"reason,omitempty"`
+	AttachmentScope    string                 `json:"attachment_scope,omitempty"`
+	CanonicalWrites    int                    `json:"canonical_writes"`
+	ComponentCount     int                    `json:"component_count"`
+	ComponentEvidence  []ComponentEvidenceRow `json:"component_evidence,omitempty"`
+	// DependencyRelationships, DependencyRelationshipCount, and
+	// DependencyRelationshipsTruncated mirror ComponentEvidence's evidence
+	// contract for sbom.dependency_relationship evidence: bounded rows plus
+	// an honest full count and truncation flag. See
+	// SBOMAttestationAttachmentRow for the shared field documentation.
+	DependencyRelationships          []DependencyRelationshipRow `json:"dependency_relationships,omitempty"`
+	DependencyRelationshipCount      int                         `json:"dependency_relationship_count"`
+	DependencyRelationshipsTruncated bool                        `json:"dependency_relationships_truncated"`
+	// ExternalReferences mirrors DependencyRelationships for
+	// sbom.external_reference evidence.
+	ExternalReferences          []ExternalReferenceRow `json:"external_references,omitempty"`
+	ExternalReferenceCount      int                    `json:"external_reference_count"`
+	ExternalReferencesTruncated bool                   `json:"external_references_truncated"`
+	// SLSAProvenancePredicateType and SLSAProvenanceBuilderID mirror
+	// SBOMAttestationAttachmentRow's fields of the same name: the joined
+	// attestation.slsa_provenance evidence for this statement, empty when no
+	// such fact joined.
+	SLSAProvenancePredicateType string   `json:"slsa_provenance_predicate_type,omitempty"`
+	SLSAProvenanceBuilderID     string   `json:"slsa_provenance_builder_id,omitempty"`
+	RepositoryIDs               []string `json:"repository_ids,omitempty"`
+	WorkloadIDs                 []string `json:"workload_ids,omitempty"`
+	ServiceIDs                  []string `json:"service_ids,omitempty"`
+	WarningSummaries            []string `json:"warning_summaries,omitempty"`
+	WarningSummaryCount         int      `json:"warning_summary_count"`
+	WarningSummariesTruncated   bool     `json:"warning_summaries_truncated"`
+	EvidenceFactIDs             []string `json:"evidence_fact_ids,omitempty"`
+	MissingEvidence             []string `json:"missing_evidence,omitempty"`
+	SourceFreshness             string   `json:"source_freshness,omitempty"`
+	SourceConfidence            string   `json:"source_confidence,omitempty"`
 }
 
 func (h *SupplyChainHandler) listSBOMAttachments(w http.ResponseWriter, r *http.Request) {

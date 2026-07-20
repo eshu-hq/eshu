@@ -452,6 +452,9 @@ func (mcpNoopContentStore) RepositoryCoverage(context.Context, string) (query.Re
 func (mcpNoopContentStore) CountRepositoriesByLanguage(
 	context.Context,
 	[]string,
+	bool,
+	[]string,
+	[]string,
 ) (query.RepositoryLanguageAggregate, error) {
 	return query.RepositoryLanguageAggregate{}, nil
 }
@@ -461,6 +464,9 @@ func (mcpNoopContentStore) ListRepositoriesByLanguage(
 	[]string,
 	int,
 	int,
+	bool,
+	[]string,
+	[]string,
 ) ([]query.RepositoryLanguageRepository, error) {
 	return nil, nil
 }
@@ -469,6 +475,9 @@ func (mcpNoopContentStore) RepositoryLanguageInventory(
 	context.Context,
 	int,
 	int,
+	bool,
+	[]string,
+	[]string,
 ) ([]query.RepositoryLanguageInventoryRow, error) {
 	return nil, nil
 }

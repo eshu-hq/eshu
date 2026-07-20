@@ -105,6 +105,12 @@ func (h *ImpactHandler) enrichDeploymentConfigInfluenceContext(ctx context.Conte
 	if k8sResult.err != nil {
 		return fmt.Errorf("query k8s resources: %w", k8sResult.err)
 	}
+	// #5167 W3: the anchor workload is already bound to the caller's grant
+	// (fetchServiceTraceContext), but deployment sources name OTHER
+	// repositories (DEPLOYS_FROM edges can cross tenants), so they are bound to
+	// the grant here before feeding the influencing-repositories and gitops
+	// enrichment below.
+	sourceResult.result.rows = filterRowsByRepoIDForAccess(sourceResult.result.rows, repositoryAccessFilterFromContext(ctx))
 	controllerEntities, deploymentRepoK8s, _, deploymentRepoLowerBound, err := h.fetchDeploymentSourceGitOps(ctx, safeStr(workload, "name"), sourceResult.result.rows)
 	if err != nil {
 		return fmt.Errorf("query deployment source gitops evidence: %w", err)

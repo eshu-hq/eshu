@@ -105,6 +105,21 @@ func (h *KubernetesHandler) listCorrelations(w http.ResponseWriter, r *http.Requ
 		WriteError(w, http.StatusBadRequest, "scope_id, cluster_id, workload_object_id, namespace, image_ref, or source_digest is required")
 		return
 	}
+	// Access scoping (#5167 Group B): reducer_kubernetes_correlation facts
+	// carry no repository grant of their own, and hasScope() above accepts
+	// any single anchor (e.g. namespace alone), so an unscoped filter could
+	// otherwise fan out across every tenant's ingestion scope. A scoped
+	// caller with no granted repository or ingestion scope never reaches the
+	// store (#5137 LiveActivityStore precedent); a granted scoped caller's
+	// rows are additionally bound to its grant in ListKubernetesCorrelations.
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		h.writeEmptyKubernetesCorrelations(w, r, limit)
+		return
+	}
+	filter.AllScopes = !access.scoped()
+	filter.AllowedRepositoryIDs = access.grantedRepositoryIDs()
+	filter.AllowedScopeIDs = access.grantedScopeIDs()
 	if h.Correlations == nil {
 		WriteContractError(
 			w,
@@ -148,6 +163,23 @@ func (h *KubernetesHandler) listCorrelations(w http.ResponseWriter, r *http.Requ
 		kubernetesCorrelationsCapability,
 		TruthBasisSemanticFacts,
 		"resolved from reducer-owned Kubernetes correlation facts; a live workload stays provenance-only unless the image digest or owner edge is exact",
+	))
+}
+
+// writeEmptyKubernetesCorrelations returns the bounded empty correlations page
+// for a scoped caller with no granted repository or ingestion scope, without
+// querying Postgres (#5167 Group B, #5137 LiveActivityStore precedent).
+func (h *KubernetesHandler) writeEmptyKubernetesCorrelations(w http.ResponseWriter, r *http.Request, limit int) {
+	WriteSuccess(w, r, http.StatusOK, map[string]any{
+		"correlations": []KubernetesCorrelationResult{},
+		"count":        0,
+		"limit":        limit,
+		"truncated":    false,
+	}, BuildTruthEnvelope(
+		h.profile(),
+		kubernetesCorrelationsCapability,
+		TruthBasisSemanticFacts,
+		"scoped token grants authorize no repositories; kubernetes correlations are empty",
 	))
 }
 

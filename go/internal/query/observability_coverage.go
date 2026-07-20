@@ -109,6 +109,21 @@ func (h *ObservabilityCoverageHandler) listCorrelations(w http.ResponseWriter, r
 		WriteError(w, http.StatusBadRequest, "scope_id, provider, coverage_signal, observability_object_ref, target_uid, or target_service_ref is required")
 		return
 	}
+	// Access scoping (#5167 Group B): reducer_observability_coverage_correlation
+	// facts carry no repository grant of their own, and hasScope() above
+	// accepts any single anchor, so an unscoped filter could otherwise fan out
+	// across every tenant's ingestion scope. A scoped caller with no granted
+	// repository or ingestion scope never reaches the store (#5137
+	// LiveActivityStore precedent); a granted scoped caller's rows are
+	// additionally bound to its grant in ListObservabilityCoverageCorrelations.
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		h.writeEmptyObservabilityCoverageCorrelations(w, r, limit)
+		return
+	}
+	filter.AllScopes = !access.scoped()
+	filter.AllowedRepositoryIDs = access.grantedRepositoryIDs()
+	filter.AllowedScopeIDs = access.grantedScopeIDs()
 	if h.Correlations == nil {
 		WriteContractError(
 			w,
@@ -152,6 +167,24 @@ func (h *ObservabilityCoverageHandler) listCorrelations(w http.ResponseWriter, r
 		observabilityCoverageCorrelationsCapability,
 		TruthBasisSemanticFacts,
 		"resolved from reducer-owned observability coverage correlation facts; coverage is structural correlation, not a health assertion from telemetry values",
+	))
+}
+
+// writeEmptyObservabilityCoverageCorrelations returns the bounded empty
+// correlations page for a scoped caller with no granted repository or
+// ingestion scope, without querying Postgres (#5167 Group B, #5137
+// LiveActivityStore precedent).
+func (h *ObservabilityCoverageHandler) writeEmptyObservabilityCoverageCorrelations(w http.ResponseWriter, r *http.Request, limit int) {
+	WriteSuccess(w, r, http.StatusOK, map[string]any{
+		"correlations": []ObservabilityCoverageCorrelationResult{},
+		"count":        0,
+		"limit":        limit,
+		"truncated":    false,
+	}, BuildTruthEnvelope(
+		h.profile(),
+		observabilityCoverageCorrelationsCapability,
+		TruthBasisSemanticFacts,
+		"scoped token grants authorize no repositories; observability coverage correlations are empty",
 	))
 }
 

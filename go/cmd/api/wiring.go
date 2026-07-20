@@ -71,7 +71,11 @@ func wireAPI(
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("resolve api key: %w", err)
 	}
-	scopedTokenResolver, err := scopedtoken.ResolverFromEnv(getenv)
+	// fileScopedTokenResolver is captured in its own variable (not reused as
+	// scopedTokenResolver) so it survives the ChainResolvers merge below and
+	// can feed the authEnforcementConfigured predicate. Renamed to mirror
+	// F-7's cmd/mcp-server rename (#5168) for a trivial future merge.
+	fileScopedTokenResolver, err := scopedtoken.ResolverFromEnv(getenv)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("resolve scoped token registry: %w", err)
 	}
@@ -174,7 +178,10 @@ func wireAPI(
 		}
 		return nil, nil, nil, fmt.Errorf("construct oidc bearer resolver: %w", err)
 	}
-	scopedTokenResolver = scopedtoken.ChainResolvers(identityResolver, oidcBearerResolver, scopedTokenResolver)
+	// Headerless dev-open vs. enforced posture; see auth_enforcement.go.
+	enforcement := authEnforcementConfigured(apiKey, fileScopedTokenResolver, oidcBearerResolver)
+	scopedTokenResolver := scopedtoken.ChainResolvers(identityResolver, oidcBearerResolver, fileScopedTokenResolver)
+	logAuthEnforcementPosture(logger, enforcement)
 
 	// Bootstrap identity seeding (epic #4962, issue #4963): seed the first
 	// local owner/admin identity exactly once before the router mounts any
@@ -332,8 +339,17 @@ func wireAPI(
 		// and LocalIdentityHandler do.
 		samlHandler.SignInPolicy = browserSessionAdapter
 	}
+	githubLoginHandler, err := newGitHubLoginHandler(getenv, db, instruments, providerSecretKeyring)
+	if err != nil {
+		_ = db.Close()
+		if driver != nil {
+			_ = driver.Close(ctx)
+		}
+		return nil, nil, nil, fmt.Errorf("configure github login: %w", err)
+	}
+	router.GitHubLogin = githubLoginHandler
 	authProviders := &query.AuthProviderListHandler{
-		Store: newAuthProviderListStore(db, samlHandler, oidcLoginHandler),
+		Store: newAuthProviderListStore(db, samlHandler, oidcLoginHandler, githubLoginHandler),
 	}
 	if browserSessionAdapter != nil {
 		// browserSessionAdapter already implements query.SignInPolicyReadStore
@@ -416,6 +432,7 @@ func wireAPI(
 		mux,
 		adminRecoveryAuditAppender(governanceAudit),
 		governanceStatus,
+		enforcement,
 	)
 
 	// Rewrite /api/v1/* to /api/v0/* before auth so scoped-token and

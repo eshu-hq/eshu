@@ -131,6 +131,7 @@ type DefaultHandlers struct {
 	CloudInventoryHandlers
 	SearchDocumentHandlers
 	KubernetesHandlers
+	CrossplaneHandlers
 	SupplyChainSecurityHandlers
 	IncidentRoutingHandlers
 	CodeEvidenceHandlers

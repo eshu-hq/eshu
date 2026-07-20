@@ -119,6 +119,8 @@ Supported today:
   calls emit `framework_semantics.slim.route_entries` when the file imports a
   Slim namespace. Detection is phase-1 `member_call_expression` candidate
   gathering gated on a Slim `use` import, with no dedicated second tree walk.
+  `$app->group()` prefix concatenation is implemented: inner routes registered
+  under a group (including nested groups) emit the full prefixed path.
 - Laravel `Route::get()`, `Route::post()`, `Route::match()`, and related scoped
   call expressions emit `framework_semantics.laravel.route_entries` when the
   scope resolves to the `Illuminate\Support\Facades\Route` facade. Detection is
@@ -147,10 +149,6 @@ Not claimed today:
   public surfaces, include/require resolution, namespace alias breadth, broader
   framework route resolution, and arbitrary whole-program alias flow remain
   outside the documented contract.
-- Slim `$app->group()` prefix concatenation is not yet implemented: inner
-  routes registered under a group emit their exact registered paths without
-  the group prefix. A route `$group->get('/tasks', ...)` inside
-  `$app->group('/api', ...)` currently emits `/tasks` rather than `/api/tasks`.
 - A PHP file larger than 1 MiB has its tree-sitter parse skipped entirely in
   the normal parse stage, to bound superlinear tree-sitter parse cost on very
   large generated files such as CID font maps or bundled library sources

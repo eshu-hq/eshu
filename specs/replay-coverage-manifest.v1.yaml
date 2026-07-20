@@ -88,7 +88,7 @@ coverage:
   - {surface: "read_surface:GET /api/v0/package-registry/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/package-registry/correlations?package_id=github.com/acme/lib-common&limit=50", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/incidents/{incident_id}/context", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/incidents/PSCD1/context", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/work-items/evidence", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/work-items/evidence?limit=50&scope_id=jira:supply-chain-demo:SCD", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:GET /api/v0/supply-chain/sbom-attestations/attachments", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&document_id=scd-sbom", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/supply-chain/sbom-attestations/attachments", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&subject_digest=sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/supply-chain/impact/findings", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:POST /api/v0/aws/runtime-drift/findings", scenario: api_mcp_golden, scenario_type: baseline, ref: "POST /api/v0/aws/runtime-drift/findings", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:POST /api/v0/cloud/runtime-drift/findings", scenario: api_mcp_golden, scenario_type: baseline, ref: "POST /api/v0/cloud/runtime-drift/findings", proof_gate: golden-corpus-gate}
@@ -594,11 +594,17 @@ coverage:
   - {surface: retractable_edge:SECRETS_IAM_USES_SERVICE_ACCOUNT, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_secrets_iam_edge_retract_live_test.go, proof_gate: replay-tier}
   # Reducer-materialized SQL relationships (#5116): all six source-label query
   # shapes are proven through the live production EdgeWriter for both repository
-  # and delta-file retract scopes. REFERENCES_TABLE is exercised from SqlView
-  # and SqlFunction sources by the same test. INDEXES (#5330) was added to the
-  # same fixture table and retract disjunction (SqlIndex -[:INDEXES]-> SqlTable).
+  # and delta-file retract scopes. READS_FROM is exercised from SqlView and
+  # SqlFunction sources by the same test (#5345 renamed this from
+  # REFERENCES_TABLE: the parser now stamps source_tables on the view/function
+  # entity and the reducer emits READS_FROM instead -- REFERENCES_TABLE is no
+  # longer produced by any writer, so it is no longer a retractable-edge
+  # requirement here; the retract Cypher disjunction still lists it as cheap
+  # hygiene for any pre-#5345 edge, but that is not something the write path
+  # can prove round-trip anymore). INDEXES (#5330) was added to the same
+  # fixture table and retract disjunction (SqlIndex -[:INDEXES]-> SqlTable).
   - {surface: retractable_edge:QUERIES_TABLE, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
-  - {surface: retractable_edge:REFERENCES_TABLE, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:READS_FROM, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:HAS_COLUMN, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:TRIGGERS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:EXECUTES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
@@ -636,6 +642,15 @@ coverage:
   # CodeInterprocEvidenceWriter.dispatchRetract.
   - {surface: retractable_edge:USES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_workload_uses_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:USES_PROFILE, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_workload_uses_edge_retract_live_test.go, proof_gate: replay-tier}
+  # Crossplane Claim -> XRD classification edge (issue #5347). SATISFIED_BY
+  # was added to edgetype.RetractableEdgeTypes when
+  # cypher.CrossplaneSatisfiedByEdgeWriter landed but had no delta_tombstone
+  # replay scenario proving the retract Cypher actually deletes on a real
+  # backend. Two independently-scoped write+retract pairs cover the two ways
+  # a Claim stops resolving to an XRD (claim removed from its repo; XRD
+  # claimNames changed so the join key no longer matches), both asserted by
+  # rel.scope_id + evidence_source, never by endpoint-node properties.
+  - {surface: retractable_edge:SATISFIED_BY, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_crossplane_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: reducer_drain:reducer-projection-drain, scenario: go_test, scenario_type: crash, ref: go/internal/replay/crashreplay/scenario_test.go, proof_gate: go-test-race}
   # C-14 (#4367) projection-COST pilot slice: R-16 deterministic cost-counting
   # scenarios (go/internal/replay/costcounting) for three of the C-13-derived

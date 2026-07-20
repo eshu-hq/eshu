@@ -67,8 +67,8 @@ Modeled roots and evidence include:
 | Normalization | `supported` |
 | Framework packs | Spring, Gradle, JUnit, Jenkins, Stapler, ServiceLoader, serialization, bounded reflection |
 | Query surfacing | `supported` |
-| Real-repo validation | `supported` |
-| End-to-end indexing | `supported` |
+| Real-repo validation | `fixture-backed` |
+| End-to-end indexing | `fixture-backed` |
 | Dead-code exactness | `derived`, not cleanup-safe exact truth |
 
 ## Framework And Library Support

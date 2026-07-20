@@ -254,7 +254,6 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `go/internal/recovery/README.md`
 - `go/internal/reducer/AGENTS.md`
 - `go/internal/reducer/README.md`
-- `go/internal/reducer/aws/README.md`
 - `go/internal/reducer/dsl/README.md`
 - `go/internal/reducer/tags/README.md`
 - `go/internal/reducer/tfstate/README.md`

@@ -120,6 +120,16 @@ func buildReducerKubernetesHandlers(
 	}
 }
 
+// buildReducerCrossplaneHandlers assembles the Crossplane Claim -> XRD
+// SATISFIED_BY edge writer (issue #5347).
+func buildReducerCrossplaneHandlers(
+	graphWriters canonicalGraphWriters,
+) reducer.CrossplaneHandlers {
+	return reducer.CrossplaneHandlers{
+		CrossplaneSatisfiedByEdgeWriter: graphWriters.crossplaneSatisfiedByEdge,
+	}
+}
+
 // buildReducerSupplyChainSecurityHandlers assembles the SBOM attestation,
 // supply-chain impact, security-alert reconciliation, and secrets-IAM trust/graph
 // adapters, plus the endpoint-presence writers/lookups they share.

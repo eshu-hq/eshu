@@ -8,8 +8,9 @@ const openAPIPathsAWSRuntimeDrift = `
       "post": {
         "tags": ["aws"],
         "summary": "List AWS runtime drift findings",
-        "description": "Lists active reducer-materialized AWS runtime drift findings for a bounded AWS scope or account. The response preserves evidence, missing/stale/ambiguous/unknown status, and rejected promotion state without exposing raw Cypher.",
+        "description": "Lists active reducer-materialized AWS runtime drift findings for a bounded AWS scope or account. The response preserves evidence, missing/stale/ambiguous/unknown status, and rejected promotion state without exposing raw Cypher. Scoped tokens must supply an exact scope_id that resolves to a granted repository or ingestion scope; an account_id-only request (which fans out across every region/service scope under that account) or an out-of-grant scope_id receives an empty page.",
         "operationId": "listAWSRuntimeDriftFindings",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

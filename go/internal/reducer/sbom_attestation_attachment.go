@@ -45,29 +45,56 @@ const (
 
 // SBOMAttestationAttachmentDecision records one reducer attachment decision.
 type SBOMAttestationAttachmentDecision struct {
-	DocumentID          string
-	DocumentDigest      string
-	SubjectDigest       string
-	AttachmentStatus    SBOMAttachmentStatus
-	ParseStatus         string
-	VerificationStatus  string
-	VerificationPolicy  string
-	ArtifactKind        string
-	Format              string
-	SpecVersion         string
-	Reason              string
-	AttachmentScope     string
-	CanonicalWrites     int
-	ComponentCount      int
-	ComponentEvidence   []map[string]string
-	RepositoryIDs       []string
-	WorkloadIDs         []string
-	ServiceIDs          []string
-	WarningSummaries    []string
-	WarningSummaryCount int
-	EvidenceFactIDs     []string
-	MissingEvidence     []string
-	SourceLayerKinds    []string
+	DocumentID         string
+	DocumentDigest     string
+	SubjectDigest      string
+	AttachmentStatus   SBOMAttachmentStatus
+	ParseStatus        string
+	VerificationStatus string
+	VerificationPolicy string
+	ArtifactKind       string
+	Format             string
+	SpecVersion        string
+	Reason             string
+	AttachmentScope    string
+	CanonicalWrites    int
+	ComponentCount     int
+	ComponentEvidence  []map[string]string
+	// DependencyRelationshipCount is the full distinct-tuple count of
+	// sbom.dependency_relationship evidence for this document, computed
+	// BEFORE the write-time cap (maxSBOMAttachmentDependencyRelationshipRows)
+	// so a caller can detect truncation even though
+	// DependencyRelationshipEvidence is bounded.
+	DependencyRelationshipCount int
+	// DependencyRelationshipEvidence is the bounded, deduplicated, and
+	// deterministically sorted set of dependency relationship rows for this
+	// document (see dependencyRelationshipEvidenceRows).
+	DependencyRelationshipEvidence []map[string]string
+	// ExternalReferenceCount is the full distinct-tuple count of
+	// sbom.external_reference evidence for this document, computed BEFORE
+	// the write-time cap (maxSBOMAttachmentExternalReferenceRows).
+	ExternalReferenceCount int
+	// ExternalReferenceEvidence is the bounded, deduplicated, and
+	// deterministically sorted set of external reference rows for this
+	// document (see externalReferenceEvidenceRows).
+	ExternalReferenceEvidence []map[string]string
+	// SLSAProvenancePredicateType and SLSAProvenanceBuilderID carry the
+	// joined attestation.slsa_provenance evidence for this statement, keyed
+	// by statement_id in sbomAttachmentIndex.slsaProvenance. Presence is
+	// equivalent to SLSAProvenancePredicateType != "": a statement with no
+	// joined SLSA provenance fact leaves both fields empty rather than
+	// reporting a count or a truncated array, since at most one provenance
+	// predicate is ever expected per statement.
+	SLSAProvenancePredicateType string
+	SLSAProvenanceBuilderID     string
+	RepositoryIDs               []string
+	WorkloadIDs                 []string
+	ServiceIDs                  []string
+	WarningSummaries            []string
+	WarningSummaryCount         int
+	EvidenceFactIDs             []string
+	MissingEvidence             []string
+	SourceLayerKinds            []string
 }
 
 // SBOMAttestationAttachmentWrite carries decisions for durable publication.
@@ -363,6 +390,10 @@ func sbomAttachmentActiveKeys(envelopes []facts.Envelope) []string {
 			)
 		case facts.SBOMComponentFactKind:
 			keys = append(keys, payloadString(envelope.Payload, "document_id"))
+		case facts.SBOMDependencyRelationshipFactKind:
+			keys = append(keys, payloadString(envelope.Payload, "document_id"))
+		case facts.SBOMExternalReferenceFactKind:
+			keys = append(keys, payloadString(envelope.Payload, "document_id"))
 		case facts.AttestationStatementFactKind:
 			keys = append(keys, payloadStrings(envelope.Payload, "subject_digest", "subject_digests")...)
 			keys = append(
@@ -377,6 +408,8 @@ func sbomAttachmentActiveKeys(envelopes []facts.Envelope) []string {
 				payloadString(envelope.Payload, "statement_id"),
 				payloadString(envelope.Payload, "document_id"),
 			)
+		case facts.AttestationSLSAProvenanceFactKind:
+			keys = append(keys, payloadString(envelope.Payload, "statement_id"))
 		case facts.SBOMWarningFactKind:
 			keys = append(
 				keys,

@@ -88,6 +88,15 @@ func (f repositoryAccessFilter) graphParams(params map[string]any) map[string]an
 	}
 	params["allowed_repository_ids"] = append([]string(nil), f.allowedRepositoryIDs...)
 	params["allowed_scope_ids"] = append([]string(nil), f.allowedScopeIDs...)
+	// Bind the per-grant SHAPE-A inline-map scalars (scope_grant_0..N) referenced
+	// by infraResourceScopePredicate / workloadScopePredicate. Binding here keeps
+	// the scoped scope-predicate consumers' query-owner source unchanged and
+	// guarantees the params and predicate derive the same deterministically
+	// ordered, capped slice. Queries that bind graphParams but never render an
+	// inline-map disjunct simply carry unused scalar params, which the backend
+	// ignores.
+	scalars, _ := scopeGrantInlineScalars(f.allowedRepositoryIDs, f.allowedScopeIDs)
+	bindScopeGrantInlineScalars(params, scalars)
 	return params
 }
 
@@ -106,7 +115,43 @@ func (f repositoryAccessFilter) graphWhereClause(alias string) string {
 }
 
 func (f repositoryAccessFilter) graphCondition(alias string) string {
-	return "(" + alias + ".id IN $allowed_repository_ids OR " + alias + ".id IN $allowed_scope_ids)"
+	return f.graphConditionOnProperty(alias, "id")
+}
+
+// graphConditionOnProperty binds an arbitrary node property (not only the
+// node's own id) to the caller's grant, for graph nodes whose grant key is a
+// repository reference held on a different property -- e.g. a Workload,
+// WorkloadInstance, CloudResource, TerraformModule, or DataAsset binds to the
+// grant through its repo_id, while a Repository binds through its own id. It
+// returns the raw condition text unconditionally; callers gate on scoped() (via
+// graphPredicateOnProperty) and pass graphParams so $allowed_repository_ids /
+// $allowed_scope_ids are bound.
+func (f repositoryAccessFilter) graphConditionOnProperty(alias, property string) string {
+	return "(" + alias + "." + property + " IN $allowed_repository_ids OR " + alias + "." + property + " IN $allowed_scope_ids)"
+}
+
+// graphPredicateOnProperty returns a leading-AND grant predicate on the given
+// node property when the caller is scoped, and "" otherwise. It lets a resolver
+// query push the caller's grant into its WHERE (before the LIMIT) so the LIMIT
+// applies to the granted set, rather than filtering after the query where a
+// cross-tenant-polluted page can drop authorized rows (#5167 W3 P1
+// filter-before-limit).
+func (f repositoryAccessFilter) graphPredicateOnProperty(alias, property string) string {
+	if !f.scoped() {
+		return ""
+	}
+	return " AND " + f.graphConditionOnProperty(alias, property)
+}
+
+// graphWhereClauseOnProperty returns a leading "\nWHERE <grant condition>" on
+// the given node property when the caller is scoped, and "" otherwise. Used to
+// push the grant onto an affected/matched repository node that has no existing
+// WHERE of its own, before a query's LIMIT (#5167 W3 P1 filter-before-limit).
+func (f repositoryAccessFilter) graphWhereClauseOnProperty(alias, property string) string {
+	if !f.scoped() {
+		return ""
+	}
+	return "\nWHERE " + f.graphConditionOnProperty(alias, property)
 }
 
 func (f repositoryAccessFilter) filterCatalogEntries(entries []RepositoryCatalogEntry) []RepositoryCatalogEntry {

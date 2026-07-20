@@ -17,7 +17,8 @@ const openAPIPathsCloudInventory = `
       "get": {
         "summary": "List canonical multi-cloud resource identities (bounded, filterable, paginated, truth-labeled)",
         "operationId": "listCloudResourceInventory",
-        "description": "Reads the reducer-owned canonical CloudResource identity rows (reducer_cloud_resource_identity). Filterable by provider (aws/gcp/azure), canonical scope, and management_origin. local_lightweight returns unsupported_capability.",
+        "x-scoped-token-support": true,
+        "description": "Reads the reducer-owned canonical CloudResource identity rows (reducer_cloud_resource_identity). Filterable by provider (aws/gcp/azure), canonical scope, and management_origin. local_lightweight returns unsupported_capability. Scoped tokens receive rows intersected with the caller's granted repositories/ingestion scopes (fact_records.scope_id); a scoped caller with no grants receives an empty page without a query.",
         "parameters": [
           {"name": "provider", "in": "query", "description": "Filter by cloud provider: aws, gcp, or azure.", "schema": {"type": "string", "enum": ["aws", "gcp", "azure"]}},
           {"name": "scope_id", "in": "query", "description": "Filter by canonical scope id. account_id, project_id, and subscription_id are accepted aliases that target the same canonical scope.", "schema": {"type": "string"}},

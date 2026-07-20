@@ -165,3 +165,141 @@ func TestLivePackageRegistryListPackagesReturnsZeroVersionPackages(t *testing.T)
 		t.Errorf("by-id lookup version_count = %d, want 0", got)
 	}
 }
+
+// TestLivePackageRegistryScopedEcosystemBrowseReturnsZeroVersionPackages is
+// the scoped-caller mirror of
+// TestLivePackageRegistryListPackagesReturnsZeroVersionPackages: it proves
+// packageRegistryPackagesScopedEcosystemCypher (the F-6/W5b tenant-scoped
+// ecosystem-browse branch) does not reintroduce the OPTIONAL MATCH +
+// count(v) row-collapse bug that packageRegistryPackagesCypher had. A
+// public, zero-version package must survive a scoped caller's
+// ecosystem-only browse with version_count: 0, not vanish from the page.
+//
+// Run: ESHU_PKG_REGISTRY_PROVE_LIVE=1 ESHU_NEO4J_URI=bolt://localhost:7687 \
+//
+//	go test ./internal/query -run TestLivePackageRegistryScopedEcosystemBrowseReturnsZeroVersionPackages -count=1 -v
+func TestLivePackageRegistryScopedEcosystemBrowseReturnsZeroVersionPackages(t *testing.T) {
+	if strings.TrimSpace(os.Getenv("ESHU_PKG_REGISTRY_PROVE_LIVE")) == "" {
+		t.Skip("set ESHU_PKG_REGISTRY_PROVE_LIVE=1 to run the live package-registry version-count proof")
+	}
+	uri := strings.TrimSpace(os.Getenv("ESHU_NEO4J_URI"))
+	if uri == "" {
+		t.Fatal("ESHU_NEO4J_URI is required (e.g. bolt://localhost:7687)")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	driver, err := neo4jdriver.NewDriverWithContext(uri, neo4jdriver.NoAuth())
+	if err != nil {
+		t.Fatalf("open driver: %v", err)
+	}
+	defer func() { _ = driver.Close(context.Background()) }()
+
+	write := func(cypher string, params map[string]any) {
+		s := driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: "nornic"})
+		defer func() { _ = s.Close(ctx) }()
+		if _, err := s.Run(ctx, cypher, params); err != nil {
+			t.Fatalf("seed write failed: %v\ncypher=%s", err, cypher)
+		}
+	}
+	reader := NewNeo4jReader(driver, "nornic")
+
+	const ecosystem = "npm-live-5167-scoped-count-fix"
+	const (
+		pkgPublicNoVersions  = "pkg:live5167:scoped-no-versions"
+		pkgPublicTwoVersions = "pkg:live5167:scoped-two-versions"
+		pkgPrivateNoVersions = "pkg:live5167:scoped-private-no-versions"
+	)
+	cleanup := func() {
+		write(`MATCH (p:Package {ecosystem: $ecosystem})-[:HAS_VERSION]->(v:PackageVersion) DETACH DELETE v`,
+			map[string]any{"ecosystem": ecosystem})
+		write(`MATCH (p:Package {ecosystem: $ecosystem}) DETACH DELETE p`,
+			map[string]any{"ecosystem": ecosystem})
+	}
+	cleanup()
+	defer cleanup()
+
+	write(`CREATE (a:Package {uid: $a, ecosystem: $ecosystem, normalized_name: 'a', visibility: 'public'})
+	       CREATE (b:Package {uid: $b, ecosystem: $ecosystem, normalized_name: 'b', visibility: 'public'})
+	       CREATE (v1:PackageVersion {uid: $b1})
+	       CREATE (v2:PackageVersion {uid: $b2})
+	       CREATE (b)-[:HAS_VERSION]->(v1)
+	       CREATE (b)-[:HAS_VERSION]->(v2)
+	       CREATE (c:Package {uid: $c, ecosystem: $ecosystem, normalized_name: 'c', visibility: 'private'})`,
+		map[string]any{
+			"a": pkgPublicNoVersions, "b": pkgPublicTwoVersions, "c": pkgPrivateNoVersions,
+			"ecosystem": ecosystem,
+			"b1":        pkgPublicTwoVersions + ":1.0.0",
+			"b2":        pkgPublicTwoVersions + ":2.0.0",
+		})
+
+	// Capture the OLD broken shape directly for evidence: the exact
+	// OPTIONAL MATCH + count(v) composition
+	// packageRegistryPackagesScopedEcosystemCypher used before this fix,
+	// with the same combined-WHERE ecosystem+visibility predicate. Expected
+	// (openCypher-correct): 2 rows (the 2 public packages), one with vc=0.
+	// Observed on the pinned NornicDB build: collapses to 1 row, mirroring
+	// the sibling unscoped-shape probe above.
+	oldRows, err := reader.Run(ctx,
+		`MATCH (p:Package) WHERE p.ecosystem = $ecosystem AND p.visibility = 'public' OPTIONAL MATCH (p)-[:HAS_VERSION]->(v:PackageVersion) RETURN p.uid AS id, count(v) AS vc ORDER BY p.uid`,
+		map[string]any{"ecosystem": ecosystem})
+	if err != nil {
+		t.Fatalf("old-shape scoped-ecosystem probe query failed: %v", err)
+	}
+	t.Logf("OLD scoped-ecosystem OPTIONAL-MATCH+count(v) shape returned %d row(s) (want 2 — broken when < 2): %#v", len(oldRows), oldRows)
+	if len(oldRows) >= 2 {
+		t.Logf("NOTE: pinned NornicDB build no longer reproduces the group-collapse bug for this shape; the anchor-only + UNWIND-count fix remains correct and is still the shipped contract")
+	}
+
+	handler := &PackageRegistryHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative}
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages?ecosystem="+ecosystem+"&limit=50", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:                 AuthModeScoped,
+		TenantID:             "tenant-live-5167",
+		WorkspaceID:          "workspace-live-5167",
+		AllowedScopeIDs:      []string{ecosystem},
+		AllowedRepositoryIDs: []string{ecosystem},
+	}))
+	rec := httptest.NewRecorder()
+	handler.listPackages(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var env ResponseEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode envelope: %v", err)
+	}
+	data, _ := env.Data.(map[string]any)
+	rawPackages, _ := data["packages"].([]any)
+
+	// Only the 2 PUBLIC packages must appear; the private one stays excluded
+	// by the visibility='public' predicate.
+	if got, want := len(rawPackages), 2; got != want {
+		t.Fatalf("count = %d, want %d (a zero-version public package was dropped, or a private package leaked); packages = %#v", got, want, rawPackages)
+	}
+	versionCountByID := make(map[string]int, len(rawPackages))
+	seenIDs := make(map[string]bool, len(rawPackages))
+	for _, raw := range rawPackages {
+		row, _ := raw.(map[string]any)
+		id := StringVal(row, "package_id")
+		seenIDs[id] = true
+		versionCountByID[id] = IntVal(row, "version_count")
+	}
+	if seenIDs[pkgPrivateNoVersions] {
+		t.Fatalf("scoped ecosystem browse leaked the private package: %#v", rawPackages)
+	}
+	vc, ok := versionCountByID[pkgPublicNoVersions]
+	if !ok {
+		t.Fatalf("public zero-version package %s missing from scoped browse (the exact bug: OPTIONAL MATCH + count(v) drops zero-match rows); packages = %#v", pkgPublicNoVersions, rawPackages)
+	}
+	if vc != 0 {
+		t.Errorf("package %s version_count = %d, want 0", pkgPublicNoVersions, vc)
+	}
+	vc, ok = versionCountByID[pkgPublicTwoVersions]
+	if !ok {
+		t.Fatalf("public package %s missing from scoped browse; packages = %#v", pkgPublicTwoVersions, rawPackages)
+	}
+	if vc != 2 {
+		t.Errorf("package %s version_count = %d, want 2", pkgPublicTwoVersions, vc)
+	}
+}

@@ -19,6 +19,12 @@ type BrowserSessionRoutePolicy struct {
 // wraps every supported authentication mode and applies the explicit browser
 // session route policy. Callers must leave the zero-value policy in place
 // unless their runtime is provably local or single-tenant.
+//
+// This constructor derives dev-mode-open from the shared key only. Production
+// wiring that may configure a scoped-token file or OIDC bearer audience
+// without a shared key MUST use
+// AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditRoutePolicyAndEnforcement
+// instead.
 func AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditAndRoutePolicy(
 	token string,
 	resolver ScopedTokenResolver,
@@ -27,7 +33,29 @@ func AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditAndRoutePolicy(
 	audit GovernanceAuditAppender,
 	policy BrowserSessionRoutePolicy,
 ) http.Handler {
-	return authMiddlewareWithRoutePolicy(token, resolver, sessionResolver, next, audit, policy)
+	return authMiddlewareWithRoutePolicy(token, resolver, sessionResolver, next, audit, policy, token != "")
+}
+
+// AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditRoutePolicyAndEnforcement
+// is the production variant used by cmd/api. Unlike the constructor above —
+// which derives dev-mode-open from the shared key alone — it takes the
+// explicit wiring-computed authEnforcementConfigured predicate (shared key OR
+// scoped-token file OR OIDC bearer audience configured) so a
+// scoped-token-file-only or OIDC-bearer-only deployment, with no shared
+// ESHU_API_KEY, still denies headerless requests. The browser-session resolver
+// is deliberately not part of that predicate: the cookie path self-enforces
+// before the dev-open branch, so a cookieless headerless request in the open
+// posture stays open. See cmd/api/wiring.go and cmd/api/browser_sessions.go.
+func AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditRoutePolicyAndEnforcement(
+	token string,
+	resolver ScopedTokenResolver,
+	sessionResolver BrowserSessionResolver,
+	next http.Handler,
+	audit GovernanceAuditAppender,
+	policy BrowserSessionRoutePolicy,
+	authEnforcementConfigured bool,
+) http.Handler {
+	return authMiddlewareWithRoutePolicy(token, resolver, sessionResolver, next, audit, policy, authEnforcementConfigured)
 }
 
 func browserSessionRouteAllowed(

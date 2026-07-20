@@ -13,7 +13,13 @@ import (
 	"testing"
 )
 
-func TestEvidenceHandlerBuildsCitationPacketFromFileAndEntityHandles(t *testing.T) {
+// TestEvidenceHandlerBuildEvidenceCitationsPacketFromFileAndEntityHandles
+// exercises the buildEvidenceCitations handler (POST /api/v0/evidence/citations)
+// happy path. The name intentionally carries the handler method identifier so
+// verify-route-coverage.sh's name-match gate finds this route's coverage; #5167
+// F-6 W6 touched evidence.go for an unrelated handler (getRelationshipEvidence),
+// which subjects every route in the file to that gate.
+func TestEvidenceHandlerBuildEvidenceCitationsPacketFromFileAndEntityHandles(t *testing.T) {
 	t.Parallel()
 
 	store := &citationPacketContentStore{

@@ -49,6 +49,25 @@ func (h *SupplyChainHandler) writeEmptyImpactFindingsPage(
 	))
 }
 
+// writeEmptyImpactExplanation returns the bounded no-evidence explanation
+// shape used when a scoped token grants no repositories, without reading the
+// reducer impact-explanation or readiness stores (#5167 W5). It mirrors
+// writeEmptyImpactFindingsPage: the response shape matches a real "no
+// evidence" outcome so a caller cannot distinguish an empty grant from a
+// scope that legitimately has no findings, and readiness is reported
+// unavailable rather than falsely clean.
+func (h *SupplyChainHandler) writeEmptyImpactExplanation(w http.ResponseWriter, r *http.Request) {
+	filter := SupplyChainImpactExplanationFilter{}
+	readiness := BuildSupplyChainImpactReadinessUnavailable(SupplyChainImpactTargetScope{}, nil, false)
+	body := BuildSupplyChainImpactNoEvidenceExplanation(filter, readiness)
+	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
+		h.profile(),
+		supplyChainImpactExplanationCapability,
+		TruthBasisSemanticFacts,
+		"scoped token grants authorize no repositories; readiness cannot be classified without an authorized scope",
+	))
+}
+
 // writeEmptyImpactCount returns the zero-count aggregate shape for an
 // empty-grant scoped token without reading the aggregate store.
 func (h *SupplyChainHandler) writeEmptyImpactCount(w http.ResponseWriter, r *http.Request) {

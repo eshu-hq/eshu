@@ -44,8 +44,8 @@ type sqlRetractFixture struct {
 
 var sqlRetractInScopeFixtures = []sqlRetractFixture{
 	{"queries-table", "Function", "sql-retract:fn", "SqlTable", "sql-retract:qt", "QUERIES_TABLE", sqlRetractInRepoID, sqlRetractInPath, sqlRetractEvidence},
-	{"view-references-table", "SqlView", "sql-retract:view", "SqlTable", "sql-retract:vrt", "REFERENCES_TABLE", sqlRetractInRepoID, sqlRetractInPath, sqlRetractEvidence},
-	{"function-references-table", "SqlFunction", "sql-retract:sql-fn", "SqlTable", "sql-retract:frt", "REFERENCES_TABLE", sqlRetractInRepoID, sqlRetractInPath, sqlRetractEvidence},
+	{"view-reads-from-table", "SqlView", "sql-retract:view", "SqlTable", "sql-retract:vrt", "READS_FROM", sqlRetractInRepoID, sqlRetractInPath, sqlRetractEvidence},
+	{"function-reads-from-table", "SqlFunction", "sql-retract:sql-fn", "SqlTable", "sql-retract:frt", "READS_FROM", sqlRetractInRepoID, sqlRetractInPath, sqlRetractEvidence},
 	{"has-column", "SqlTable", "sql-retract:table", "SqlColumn", "sql-retract:column", "HAS_COLUMN", sqlRetractInRepoID, sqlRetractInPath, sqlRetractEvidence},
 	{"triggers", "SqlTrigger", "sql-retract:trigger-table", "SqlTable", "sql-retract:triggered-table", "TRIGGERS", sqlRetractInRepoID, sqlRetractInPath, sqlRetractEvidence},
 	{"executes", "SqlTrigger", "sql-retract:trigger-fn", "SqlFunction", "sql-retract:executed-fn", "EXECUTES", sqlRetractInRepoID, sqlRetractInPath, sqlRetractEvidence},

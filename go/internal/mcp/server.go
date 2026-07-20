@@ -159,6 +159,17 @@ func (s *Server) RunHTTP(ctx context.Context, addr string, base *http.ServeMux) 
 	return nil
 }
 
+// Handler returns the full HTTP mux RunHTTP would serve -- GET /sse,
+// POST /mcp/message, GET /health, and (via base) the shared runtime admin
+// routes and /api/v0/* query passthrough -- without binding a real listener.
+// It lets a caller (an embedding host, or a test exercising the real
+// transport-auth composition end-to-end with httptest.NewServer) drive the
+// transport surface directly instead of going through RunHTTP's blocking
+// http.Server.ListenAndServe.
+func (s *Server) Handler(base *http.ServeMux) http.Handler {
+	return s.httpMux(base)
+}
+
 func (s *Server) httpMux(base *http.ServeMux) *http.ServeMux {
 	httpMux := base
 	if httpMux == nil {

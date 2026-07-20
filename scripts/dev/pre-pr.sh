@@ -47,11 +47,18 @@ changed_go_files() {
 }
 
 # changed_go_dirs: ./-relative package dirs (under go/) for the changed files.
+# Directories that no longer exist on disk are dropped: a fully deleted package
+# still appears in `git diff --name-only` (as removed files), so its dir would
+# otherwise be handed to `go test`, which errors with "directory not found
+# [setup failed]". CI's authoritative whole-module `go test ./...` skips absent
+# dirs naturally; this focused selector must do the same.
 changed_go_dirs() {
-	local f
+	local f d
 	changed_go_files | while IFS= read -r f; do
 		printf './%s\n' "$(dirname "${f#go/}")"
-	done | sort -u
+	done | sort -u | while IFS= read -r d; do
+		[[ -d "${go_dir}/${d#./}" ]] && printf '%s\n' "${d}"
+	done
 }
 
 # changed_all_files: every changed path (committed vs base + staged + unstaged),
@@ -246,6 +253,10 @@ step_race() {
 	while IFS= read -r f; do
 		[[ -n "${f}" ]] || continue
 		rel="./$(dirname "${f#go/}")"
+		# Skip packages whose directory no longer exists (a fully deleted
+		# race-uncovered package), for the same reason step_test filters them:
+		# `go test -race ./deleted/pkg` fails with "directory not found".
+		[[ -d "${go_dir}/${rel#./}" ]] || continue
 		case "${seen}" in *" ${rel} "*) continue ;; esac
 		seen="${seen}${rel} "
 		dirs+=("${rel}")

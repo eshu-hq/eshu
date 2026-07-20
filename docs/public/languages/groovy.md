@@ -8,7 +8,6 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 - Family: `language`
 - Parser: `DefaultEngine (groovy)`
 - Entrypoint: `go/internal/parser/groovy_language.go`
-- Fixture repo: `tests/fixtures/ecosystems/groovy_comprehensive/`
 - Unit test suite: `go/internal/parser/groovy_language_test.go`
 - Integration validation: compose-backed fixture verification (see [Local Testing Runbook](../reference/local-testing.md))
 

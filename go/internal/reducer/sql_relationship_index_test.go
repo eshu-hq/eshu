@@ -40,7 +40,7 @@ func TestExtractSQLRelationshipRowsFromIndexOnTable(t *testing.T) {
 		},
 	}
 
-	repoIDs, rows := ExtractSQLRelationshipRows(envelopes)
+	repoIDs, rows, _ := ExtractSQLRelationshipRows(envelopes)
 	if len(repoIDs) != 1 || repoIDs[0] != "repo-123" {
 		t.Fatalf("repoIDs = %v, want [repo-123]", repoIDs)
 	}
@@ -87,7 +87,7 @@ func TestExtractSQLRelationshipRowsIndexUnresolvedTableIsSkipped(t *testing.T) {
 		},
 	}
 
-	_, rows := ExtractSQLRelationshipRows(envelopes)
+	_, rows, _ := ExtractSQLRelationshipRows(envelopes)
 	if len(rows) != 0 {
 		t.Fatalf("len(rows) = %d, want 0 (unresolved table_name must not fabricate an edge): %#v", len(rows), rows)
 	}
@@ -124,7 +124,7 @@ func TestExtractSQLRelationshipRowsIndexDeduplicates(t *testing.T) {
 		{FactKind: "content_entity", Payload: indexPayload},
 	}
 
-	_, rows := ExtractSQLRelationshipRows(envelopes)
+	_, rows, _ := ExtractSQLRelationshipRows(envelopes)
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (deduplication)", len(rows))
 	}

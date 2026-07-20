@@ -15,6 +15,109 @@ import (
 
 const repositoryDeploymentEvidenceArtifactLimit = 50
 
+// deploymentEvidenceEndpointIdentitySuffixes is the full set of per-endpoint
+// repository identity keys a deployment-evidence artifact row can carry, for
+// either endpoint prefix ("source"/"target"). The graph path projects
+// _repo_name/_repo_remote_url/_repo_scope_id (canonical_id/scope_key are then
+// derived by attachRepositoryObservationIdentity); the read-model scan projects
+// the already-derived _repo_canonical_id/_repo_scope_key. Blanking all of them
+// on an unverifiable endpoint is safe regardless of which path built the row.
+var deploymentEvidenceEndpointIdentitySuffixes = []string{
+	"_repo_name",
+	"_repo_remote_url",
+	"_repo_scope_id",
+	"_repo_canonical_id",
+	"_repo_scope_key",
+}
+
+// blankDeploymentEvidenceEndpointIdentity strips every recovered repository
+// identity field for one endpoint ("source"/"target") of an evidence row so a
+// scoped caller cannot see the identity of a repository whose grant could not
+// be verified. It leaves the artifact's own evidence fields (path, kind,
+// relationship_type, ...) intact -- only the cross-repo endpoint identity is
+// removed.
+func blankDeploymentEvidenceEndpointIdentity(row map[string]any, endpoint string) {
+	for _, suffix := range deploymentEvidenceEndpointIdentitySuffixes {
+		delete(row, endpoint+suffix)
+	}
+}
+
+// redactDeploymentEvidenceRowForAccess enforces the caller's grant on both
+// repository endpoints of one deployment-evidence artifact and reports whether
+// the row may survive. Each artifact ties an anchor repository (the grant-
+// verified repo_id this evidence was queried for) to a second repository via
+// EVIDENCES_REPOSITORY_RELATIONSHIP, so the non-anchor endpoint can belong to a
+// different tenant. Per endpoint:
+//
+//   - repo_id present and outside the grant: a known cross-tenant repository --
+//     the whole row is DROPPED (return false).
+//   - repo_id empty: the grant cannot be verified, yet the read-model LATERAL
+//     join still recovers this endpoint's name / remote_url / scope_id (and the
+//     derived canonical_id / scope_key) from the relationship generation's
+//     source scope. Those recovered identity fields are BLANKED (deny-by-default
+//     on empty) so they never leak, and the row survives with its own evidence.
+//   - repo_id == anchorRepoID, or present and in-grant: the endpoint's identity
+//     stays intact (a fully-owned row is fully visible).
+func redactDeploymentEvidenceRowForAccess(row map[string]any, anchorRepoID string, access repositoryAccessFilter) bool {
+	for _, endpoint := range []string{"source", "target"} {
+		repoID := StringVal(row, endpoint+"_repo_id")
+		switch {
+		case repoID == "":
+			blankDeploymentEvidenceEndpointIdentity(row, endpoint)
+		case repoID == anchorRepoID:
+			// Anchor endpoint: the grant-verified repo this evidence was queried
+			// for. Keep its identity.
+		case !access.allowsRepositoryID(repoID):
+			return false
+		}
+	}
+	return true
+}
+
+// filterDeploymentEvidenceRowsForAccess binds every deployment-evidence
+// EvidenceArtifact row to the caller's grant (#5167 W3 P0 cross-tenant
+// disclosure): it drops rows naming a cross-tenant repository on a non-anchor
+// endpoint and blanks the recovered identity of any endpoint whose repo_id is
+// empty (unverifiable). It is the single shared choke point for that
+// EvidenceArtifact surface specifically -- queryRepoDeploymentEvidence's graph
+// path and loadRepositoryDeploymentEvidence's Postgres read-model path (the
+// production-primary path, since ImpactHandler/EntityHandler are wired with a
+// real ContentReader) both call it -- so every caller (service/workload/
+// repository context and story, plus the #5167 W3 impact routes) is bound
+// identically, closing the pre-existing leak through the already-allowlisted
+// GET /services/{name}/context and repository routes at the source.
+// buildGraphDeploymentEvidence's aggregates (source_repo_ids, target_repo_ids,
+// artifact_count, evidence_index) are all derived from the filtered/redacted
+// rows because this runs before the build.
+//
+// It is NOT the only path that contributes to a caller's deployment_evidence /
+// deployment_artifacts / infrastructure_overview output. When this
+// EvidenceArtifact set comes back empty for a repository (every artifact named
+// an out-of-grant endpoint, or none exist), loadServiceDeploymentEvidence and
+// the repository context/story handlers fall through to
+// loadDeploymentArtifactOverview, which fans out to a second, independent
+// cross-repository read: queryRelatedRepositoryArtifactSources
+// (repository_config_artifacts_loader.go) walks DEPENDS_ON/USES_MODULE/...
+// edges to related repositories and fetches their config/controller artifact
+// files. That fallback surface is bound by its own filter,
+// filterRepositoryArtifactSourcesForAccess, applied before any related
+// source's files are fetched (#5167 W3 P0, third round) -- not by this
+// function. The workflow/runtime/cloudformation artifact loaders reached from
+// the same fallback never leave the anchor repository, so they need no filter
+// of their own.
+func filterDeploymentEvidenceRowsForAccess(rows []map[string]any, anchorRepoID string, access repositoryAccessFilter) []map[string]any {
+	if !access.scoped() {
+		return rows
+	}
+	filtered := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		if redactDeploymentEvidenceRowForAccess(row, anchorRepoID, access) {
+			filtered = append(filtered, row)
+		}
+	}
+	return filtered
+}
+
 // queryRepoDeploymentEvidence reads compact graph evidence pointers for
 // repository relationships without embedding raw Postgres evidence payloads.
 func queryRepoDeploymentEvidence(ctx context.Context, reader GraphQuery, content ContentStore, params map[string]any) (map[string]any, error) {
@@ -91,6 +194,13 @@ func queryRepoDeploymentEvidence(ctx context.Context, reader GraphQuery, content
 		ORDER BY path, artifact_id
 	`)
 	rows := append(outgoing, incoming...)
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	// #5167 W3 P0: bind each cross-repo evidence artifact to the caller's grant
+	// before building the evidence map so a scoped caller never sees a
+	// cross-tenant repository on the non-anchor endpoint.
+	rows = filterDeploymentEvidenceRowsForAccess(rows, StringVal(params, "repo_id"), repositoryAccessFilterFromContext(ctx))
 	if len(rows) == 0 {
 		return nil, nil
 	}

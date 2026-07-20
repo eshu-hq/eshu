@@ -44,6 +44,12 @@ func (e preChangeCodeSurfaceError) Unwrap() error {
 }
 
 func preChangeImpactErrorStatus(err error) int {
+	// #5167 W3: a repo_id outside the caller's grant renders as not-found, the
+	// same as every other cross-tenant selector in this family, rather than the
+	// operational-failure statuses below.
+	if errors.Is(err, errChangeSurfaceRepoNotGranted) {
+		return http.StatusNotFound
+	}
 	var codeSurfaceErr preChangeCodeSurfaceError
 	if errors.As(err, &codeSurfaceErr) {
 		return http.StatusServiceUnavailable

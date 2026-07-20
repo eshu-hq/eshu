@@ -110,7 +110,7 @@ func TestOIDCLoginHandlerRegisteredProvidersNilSafe(t *testing.T) {
 func TestNewAuthProviderListStoreOIDCHandlerNilSafe(t *testing.T) {
 	t.Parallel()
 
-	store := newAuthProviderListStore(nil, nil, nil)
+	store := newAuthProviderListStore(nil, nil, nil, nil)
 	if store == nil {
 		t.Fatal("newAuthProviderListStore() = nil, want non-nil store")
 	}
@@ -141,20 +141,22 @@ func (f *authProvidersFakeDB) ExecContext(context.Context, string, ...any) (sql.
 
 func (f *authProvidersFakeDB) QueryContext(_ context.Context, query string, args ...any) (pgstatus.Rows, error) {
 	switch {
-	case strings.Contains(query, "provider_kind IN ('external_oidc', 'external_saml')"):
+	case strings.Contains(query, "provider_kind IN ('external_oidc', 'external_saml', 'external_github')"):
 		data := make([][]any, 0, len(f.dbRows))
 		for _, row := range f.dbRows {
 			data = append(data, []any{row.ProviderConfigID, row.ProviderKind})
 		}
 		return &authProvidersFakeRows{data: data}, nil
-	case strings.Contains(query, "provider_kind = 'external_saml'"), strings.Contains(query, "provider_kind = 'external_oidc'"):
+	case strings.Contains(query, "provider_kind = 'external_saml'"),
+		strings.Contains(query, "provider_kind = 'external_oidc'"),
+		strings.Contains(query, "provider_kind = 'external_github'"):
 		providerConfigID, _ := args[0].(string)
 		if f.activeForTenant[providerConfigID] {
 			return &authProvidersFakeRows{data: [][]any{{providerConfigID}}}, nil
 		}
 		return &authProvidersFakeRows{}, nil
 	default:
-		return nil, nil
+		return &authProvidersFakeRows{}, nil
 	}
 }
 
@@ -384,6 +386,8 @@ func TestIconHintForKind(t *testing.T) {
 		{"oidc", "oidc"},
 		{"external_saml", "saml"},
 		{"saml", "saml"},
+		{"external_github", "github"},
+		{"github", "github"},
 		{"local", ""},
 		{"", ""},
 	}
@@ -395,13 +399,12 @@ func TestIconHintForKind(t *testing.T) {
 }
 
 // TestListLoginProvidersPopulatesIconHint proves ListLoginProviders sets
-// IconHint on every returned item across all three surfacing paths — the
-// DB-sourced row (auth_providers.go:150), the env-SAML entry
-// (auth_providers.go:172), and the env-OIDC entry (auth_providers.go:199) —
-// so the console login picker never has to fall back to deriving its own
-// icon from provider_kind. Each path is exercised with a distinct id so a
-// gap in any one path fails a specific assertion below rather than being
-// masked by another path's item.
+// IconHint on every returned item across all four surfacing paths — the
+// DB-sourced row, the env-SAML entry, the env-OIDC entry, and the env-GitHub
+// entry (issue #5166, F-5) — so the console login picker never has to fall
+// back to deriving its own icon from provider_kind. Each path is exercised
+// with a distinct id so a gap in any one path fails a specific assertion
+// below rather than being masked by another path's item.
 func TestListLoginProvidersPopulatesIconHint(t *testing.T) {
 	t.Parallel()
 
@@ -410,12 +413,13 @@ func TestListLoginProvidersPopulatesIconHint(t *testing.T) {
 		dbRows: []pgstatus.LoginProviderItem{
 			{ProviderConfigID: "db-oidc", ProviderKind: "external_oidc"},
 		},
-		// Both env-registered ids report active for the tenant so the env
+		// Every env-registered id reports active for the tenant so the env
 		// paths surface them (env entries are gated by their own per-tenant
 		// active check, unlike the DB row).
 		activeForTenant: map[string]bool{
-			"env-saml": true,
-			"env-oidc": true,
+			"env-saml":   true,
+			"env-oidc":   true,
+			"env-github": true,
 		},
 	}
 	store := &authProviderListStore{
@@ -427,6 +431,9 @@ func TestListLoginProvidersPopulatesIconHint(t *testing.T) {
 		oidcProviders: []query.OIDCRegisteredProvider{
 			{ProviderConfigID: "env-oidc", TenantID: "tenant_a"},
 		},
+		githubProviders: []query.GitHubRegisteredProvider{
+			{ProviderConfigID: "env-github", TenantID: "tenant_a"},
+		},
 	}
 	items, err := store.ListLoginProviders(context.Background(), "tenant_a")
 	if err != nil {
@@ -434,23 +441,32 @@ func TestListLoginProvidersPopulatesIconHint(t *testing.T) {
 	}
 
 	iconByID := make(map[string]string, len(items))
+	kindByID := make(map[string]string, len(items))
 	for _, item := range items {
 		iconByID[item.ProviderConfigID] = item.IconHint
+		kindByID[item.ProviderConfigID] = item.ProviderKind
 	}
 
-	// DB-sourced OIDC path (auth_providers.go:150).
+	// DB-sourced OIDC path.
 	if got := iconByID["db-oidc"]; got != "oidc" {
 		t.Errorf("db-oidc (DB path) IconHint = %q, want %q", got, "oidc")
 	}
-	// env-SAML path (auth_providers.go:172).
+	// env-SAML path.
 	if got := iconByID["env-saml"]; got != "saml" {
 		t.Errorf("env-saml (env-SAML path) IconHint = %q, want %q", got, "saml")
 	}
-	// env-OIDC path (auth_providers.go:199).
+	// env-OIDC path.
 	if got := iconByID["env-oidc"]; got != "oidc" {
 		t.Errorf("env-oidc (env-OIDC path) IconHint = %q, want %q", got, "oidc")
 	}
-	if len(items) != 3 {
-		t.Fatalf("items = %#v, want exactly 3 (one per surfacing path)", items)
+	// env-GitHub path (issue #5166, F-5).
+	if got := iconByID["env-github"]; got != "github" {
+		t.Errorf("env-github (env-GitHub path) IconHint = %q, want %q", got, "github")
+	}
+	if got := kindByID["env-github"]; got != "github" {
+		t.Errorf("env-github (env-GitHub path) ProviderKind = %q, want %q (not \"external_github\")", got, "github")
+	}
+	if len(items) != 4 {
+		t.Fatalf("items = %#v, want exactly 4 (one per surfacing path)", items)
 	}
 }

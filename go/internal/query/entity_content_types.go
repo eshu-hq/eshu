@@ -20,6 +20,19 @@ var resolverOnlyGraphEntityTypes = map[string]string{
 	"workload": "Workload",
 }
 
+// graphResolvableNotLanguageQueryableEntityTypes maps entity types that
+// resolve_entity filters by graph label but that are deliberately excluded from
+// the language-query entity_type enum: their entities carry language "yaml",
+// which supportedLanguages does not accept, so no language/entity_type pair
+// could ever return rows. They are NOT in resolverOnlyGraphEntityTypes because
+// these types ARE content-backed — that map's resolveEntityFromContent
+// short-circuit would break their content fallback. Keep each entry paired with
+// a resolveContentBackedEntityTypes entry (entity_content_types_atlantis_test.go).
+var graphResolvableNotLanguageQueryableEntityTypes = map[string]string{
+	"atlantis_project":  "AtlantisProject",
+	"atlantis_workflow": "AtlantisWorkflow",
+}
+
 var globalGraphOnlyEntityTypes = map[string]struct{}{
 	"repository": {},
 	"directory":  {},
@@ -252,6 +265,9 @@ func resolveGraphEntityType(typeName string) (string, string, string, bool) {
 	if graphLabel, ok := graphFirstContentBackedEntityTypes[typeName]; ok {
 		return graphLabel, "", "", true
 	}
+	if graphLabel, ok := graphResolvableNotLanguageQueryableEntityTypes[typeName]; ok {
+		return graphLabel, "", "", true
+	}
 	return "", "", "", false
 }
 
@@ -260,6 +276,8 @@ var resolveContentBackedEntityTypes = map[string]string{
 	"annotation":               "Annotation",
 	"argocd_application":       "ArgoCDApplication",
 	"argocd_applicationset":    "ArgoCDApplicationSet",
+	"atlantis_project":         "AtlantisProject",
+	"atlantis_workflow":        "AtlantisWorkflow",
 	"component":                "Component",
 	"cloudformation_condition": "CloudFormationCondition",
 	"cloudformation_export":    "CloudFormationExport",

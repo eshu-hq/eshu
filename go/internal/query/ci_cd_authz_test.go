@@ -295,6 +295,18 @@ func TestCICDRunCorrelationSQLAppliesScopedAuthorizationBeforeOrderAndGrouping(t
 	}
 }
 
+// TestAuthMiddlewareWithScopedTokensRejectsAdjacentCorrelationRoutes proves
+// scopedCICDRunCorrelationRoute's exact-path match doesn't over-match
+// prefix/typo-adjacent paths. GET /api/v0/kubernetes/correlations and
+// GET /api/v0/observability/coverage/correlations were dropped from this
+// negative list: the #5167 F-6 W6 cloud/aws family workstream gave both
+// routes their own real grant-filtered allowlist matchers
+// (scopedKubernetesCorrelationsRoute, scopedObservabilityCoverageCorrelationsRoute,
+// auth_scoped_routes_cloud.go), so asserting a 403 for them here would now be
+// asserting a regression, not a boundary proof. See
+// TestKubernetesListCorrelationsScopedGrantHitsRealStoreAndReturnsRowData and
+// TestObservabilityCoverageListCorrelationsScopedGrantHitsRealStoreAndReturnsRowData
+// for their own scoped-token proof.
 func TestAuthMiddlewareWithScopedTokensRejectsAdjacentCorrelationRoutes(t *testing.T) {
 	t.Parallel()
 
@@ -312,8 +324,9 @@ func TestAuthMiddlewareWithScopedTokensRejectsAdjacentCorrelationRoutes(t *testi
 	}))
 
 	for _, target := range []string{
-		"/api/v0/kubernetes/correlations?cluster_id=cluster-prod&limit=10",
-		"/api/v0/observability/coverage/correlations?target_uid=resource-1&limit=10",
+		"/api/v0/ci-cd/run-correlation?limit=10",        // singular typo, not the real route
+		"/api/v0/ci-cd/run-correlations/extra?limit=10", // extra path segment
+		"/api/v0/ci-cd/run-correlations-other?limit=10", // prefix-adjacent, not a path segment boundary
 	} {
 		target := target
 		t.Run(target, func(t *testing.T) {

@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+
+	"github.com/lib/pq"
 )
 
 const kubernetesCorrelationFactKind = "reducer_kubernetes_correlation"
@@ -35,6 +37,19 @@ type KubernetesCorrelationFilter struct {
 	DriftKind          string
 	AfterCorrelationID string
 	Limit              int
+	// AllScopes, AllowedRepositoryIDs, and AllowedScopeIDs carry the #5167
+	// access-scoping bound. reducer_kubernetes_correlation facts are keyed by
+	// ingestion scope_id; hasScope() only requires SOME anchor (cluster_id,
+	// namespace, image_ref, ...), so an unscoped filter (e.g. namespace only,
+	// no scope_id) would otherwise fan out across every tenant's scope. When
+	// AllScopes is false, rows are additionally restricted to
+	// fact.scope_id = ANY(AllowedRepositoryIDs) OR
+	// fact.scope_id = ANY(AllowedScopeIDs); listCorrelations short-circuits to
+	// an empty page without a query when a scoped caller holds no grants,
+	// matching the #5137 LiveActivityStore precedent.
+	AllScopes            bool
+	AllowedRepositoryIDs []string
+	AllowedScopeIDs      []string
 }
 
 // KubernetesCorrelationRow is one durable Kubernetes correlation fact. The
@@ -99,10 +114,16 @@ func (s PostgresKubernetesCorrelationStore) ListKubernetesCorrelations(
 	if filter.Limit <= 0 || filter.Limit > kubernetesCorrelationMaxLimit+1 {
 		return nil, fmt.Errorf("limit must be between 1 and %d", kubernetesCorrelationMaxLimit)
 	}
+	// Defense in depth (#5167, mirrors #5137 ReadLiveActivity): a scoped
+	// caller with no granted repository or ingestion scope gets zero rows
+	// without a query, even if a caller forgot the empty-grant short-circuit
+	// in listCorrelations.
+	if !filter.AllScopes && len(filter.AllowedRepositoryIDs) == 0 && len(filter.AllowedScopeIDs) == 0 {
+		return nil, nil
+	}
 
-	rows, err := s.DB.QueryContext(
-		ctx,
-		listKubernetesCorrelationsQuery,
+	query := listKubernetesCorrelationsQuery
+	args := []any{
 		kubernetesCorrelationFactKind,
 		filter.ScopeID,
 		filter.ClusterID,
@@ -114,7 +135,12 @@ func (s PostgresKubernetesCorrelationStore) ListKubernetesCorrelations(
 		filter.DriftKind,
 		filter.AfterCorrelationID,
 		filter.Limit,
-	)
+	}
+	if !filter.AllScopes {
+		query = listKubernetesCorrelationsScopedQuery
+		args = append(args, pq.Array(filter.AllowedRepositoryIDs), pq.Array(filter.AllowedScopeIDs))
+	}
+	rows, err := s.DB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list kubernetes correlations: %w", err)
 	}
@@ -160,6 +186,36 @@ WHERE fact.fact_kind = $1
   AND ($8 = '' OR fact.payload->>'outcome' = $8)
   AND ($9 = '' OR fact.payload->>'drift_kind' = $9)
   AND ($10 = '' OR fact.fact_id > $10)
+ORDER BY fact.fact_id ASC
+LIMIT $11
+`
+
+// listKubernetesCorrelationsScopedQuery is listKubernetesCorrelationsQuery with
+// an additional #5167 access-scoping predicate: rows are restricted to the
+// scoped caller's granted repositories/ingestion scopes. Bound only when
+// filter.AllScopes is false (see KubernetesCorrelationFilter's doc comment).
+const listKubernetesCorrelationsScopedQuery = `
+SELECT fact.fact_id, fact.payload
+FROM fact_records AS fact
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = fact.scope_id
+ AND scope.active_generation_id = fact.generation_id
+JOIN scope_generations AS generation
+  ON generation.scope_id = fact.scope_id
+ AND generation.generation_id = fact.generation_id
+WHERE fact.fact_kind = $1
+  AND fact.is_tombstone = FALSE
+  AND generation.status = 'active'
+  AND ($2 = '' OR fact.scope_id = $2)
+  AND ($3 = '' OR fact.payload->>'cluster_id' = $3)
+  AND ($4 = '' OR fact.payload->>'workload_object_id' = $4)
+  AND ($5 = '' OR fact.payload->>'namespace' = $5)
+  AND ($6 = '' OR fact.payload->>'image_ref' = $6)
+  AND ($7 = '' OR fact.payload->>'source_digest' = $7)
+  AND ($8 = '' OR fact.payload->>'outcome' = $8)
+  AND ($9 = '' OR fact.payload->>'drift_kind' = $9)
+  AND ($10 = '' OR fact.fact_id > $10)
+  AND (fact.scope_id = ANY($12) OR fact.scope_id = ANY($13))
 ORDER BY fact.fact_id ASC
 LIMIT $11
 `

@@ -36,7 +36,18 @@ func loadRepositoryDeploymentEvidence(ctx context.Context, content ContentStore,
 	if !readModel.Available || len(readModel.Rows) == 0 {
 		return nil, nil
 	}
-	result := buildGraphDeploymentEvidence(readModel.Rows)
+	// #5167 W3 P0: bind each cross-repo evidence artifact to the caller's grant
+	// before building the evidence map (same shared filter the graph-traversal
+	// path in queryRepoDeploymentEvidence applies) so a scoped caller never sees
+	// a cross-tenant repository on the non-anchor endpoint. Dropping cross-tenant
+	// rows never makes the set MORE truncated -- an untruncated read-model stays
+	// the complete in-grant set -- so readModel.Truncated is carried through
+	// unchanged.
+	filteredRows := filterDeploymentEvidenceRowsForAccess(readModel.Rows, repoID, repositoryAccessFilterFromContext(ctx))
+	if len(filteredRows) == 0 {
+		return nil, nil
+	}
+	result := buildGraphDeploymentEvidence(filteredRows)
 	result["artifact_limit"] = readModel.Limit
 	result["artifacts_truncated"] = readModel.Truncated
 	return result, nil

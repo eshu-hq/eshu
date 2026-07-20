@@ -224,6 +224,72 @@ func TestDispatchToolSBOMAttestationAttachmentsReturnsBoundedWarningPreview(t *t
 	}
 }
 
+// TestDispatchToolSBOMAttestationAttachmentsSurfacesSLSAProvenance proves the
+// MCP tool response surfaces the joined attestation.slsa_provenance evidence
+// (#5371) through the same query.SBOMAttestationAttachmentResult conversion
+// the HTTP route uses, so the MCP and HTTP surfaces agree on this field.
+func TestDispatchToolSBOMAttestationAttachmentsSurfacesSLSAProvenance(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeSBOMAttestationAttachmentStore{
+		rows: []query.SBOMAttestationAttachmentRow{
+			{
+				AttachmentID:                "attachment-slsa",
+				DocumentID:                  "stmt-slsa",
+				AttachmentStatus:            "attached_verified",
+				ArtifactKind:                "attestation",
+				SLSAProvenancePredicateType: "https://slsa.dev/provenance/v1",
+				SLSAProvenanceBuilderID:     "https://github.com/actions/runner/v1",
+			},
+		},
+	}
+	mux := http.NewServeMux()
+	handler := &query.SupplyChainHandler{
+		SBOMAttachments: store,
+		Profile:         query.ProfileProduction,
+	}
+	handler.Mount(mux)
+
+	result, err := dispatchTool(
+		context.Background(),
+		mux,
+		"list_sbom_attestation_attachments",
+		map[string]any{
+			"document_id": "stmt-slsa",
+			"limit":       float64(1),
+		},
+		"",
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	if err != nil {
+		t.Fatalf("dispatchTool() error = %v, want nil", err)
+	}
+	if result.Envelope == nil {
+		t.Fatal("dispatchTool() envelope is nil, want SBOM attachment envelope")
+	}
+	data, ok := result.Envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope.Data = %T, want map[string]any", result.Envelope.Data)
+	}
+	attachments, ok := data["attachments"].([]any)
+	if !ok {
+		t.Fatalf("attachments = %T, want []any", data["attachments"])
+	}
+	if got, want := len(attachments), 1; got != want {
+		t.Fatalf("len(attachments) = %d, want %d", got, want)
+	}
+	row, ok := attachments[0].(map[string]any)
+	if !ok {
+		t.Fatalf("attachment = %T, want map[string]any", attachments[0])
+	}
+	if got, want := row["slsa_provenance_predicate_type"], "https://slsa.dev/provenance/v1"; got != want {
+		t.Fatalf("slsa_provenance_predicate_type = %#v, want %#v", got, want)
+	}
+	if got, want := row["slsa_provenance_builder_id"], "https://github.com/actions/runner/v1"; got != want {
+		t.Fatalf("slsa_provenance_builder_id = %#v, want %#v", got, want)
+	}
+}
+
 func TestResolveRouteMapsContainerImageIdentitiesToBoundedQuery(t *testing.T) {
 	t.Parallel()
 

@@ -40,6 +40,34 @@ func decodeSBOMComponent(env facts.Envelope) (sbomv1.Component, error) {
 	return component, nil
 }
 
+// decodeSBOMDependencyRelationship decodes one sbom.dependency_relationship
+// envelope into the typed sbomv1.DependencyRelationship struct through the
+// contracts seam, returning a self-classifying *factDecodeError when the
+// payload is missing its required document_id field or is otherwise
+// malformed. It is the single decode site for the WIRED
+// sbom.dependency_relationship consumer (sbomAttachmentIndex).
+func decodeSBOMDependencyRelationship(env facts.Envelope) (sbomv1.DependencyRelationship, error) {
+	relationship, err := factschema.DecodeSBOMDependencyRelationship(factschemaEnvelope(env))
+	if err != nil {
+		return sbomv1.DependencyRelationship{}, newFactDecodeError(factschema.FactKindSBOMDependencyRelationship, err)
+	}
+	return relationship, nil
+}
+
+// decodeSBOMExternalReference decodes one sbom.external_reference envelope
+// into the typed sbomv1.ExternalReference struct through the contracts seam,
+// returning a self-classifying *factDecodeError when the payload is missing
+// its required document_id field or is otherwise malformed. It is the single
+// decode site for the WIRED sbom.external_reference consumer
+// (sbomAttachmentIndex).
+func decodeSBOMExternalReference(env facts.Envelope) (sbomv1.ExternalReference, error) {
+	reference, err := factschema.DecodeSBOMExternalReference(factschemaEnvelope(env))
+	if err != nil {
+		return sbomv1.ExternalReference{}, newFactDecodeError(factschema.FactKindSBOMExternalReference, err)
+	}
+	return reference, nil
+}
+
 // decodeSBOMWarning decodes one sbom.warning envelope into the typed
 // sbomv1.Warning struct through the contracts seam. sbomv1.Warning has zero
 // required fields (two collector paths emit mutually-exclusive identity
@@ -79,4 +107,17 @@ func decodeAttestationSignatureVerification(env facts.Envelope) (sbomv1.Signatur
 		return sbomv1.SignatureVerification{}, newFactDecodeError(factschema.FactKindAttestationSignatureVerification, err)
 	}
 	return verification, nil
+}
+
+// decodeAttestationSLSAProvenance decodes one attestation.slsa_provenance
+// envelope into the typed sbomv1.SLSAProvenance struct through the contracts
+// seam, returning a self-classifying *factDecodeError when the payload is
+// missing its required statement_id field or is otherwise malformed. It is
+// the single decode site for this kind on the reducer side.
+func decodeAttestationSLSAProvenance(env facts.Envelope) (sbomv1.SLSAProvenance, error) {
+	provenance, err := factschema.DecodeAttestationSLSAProvenance(factschemaEnvelope(env))
+	if err != nil {
+		return sbomv1.SLSAProvenance{}, newFactDecodeError(factschema.FactKindAttestationSLSAProvenance, err)
+	}
+	return provenance, nil
 }

@@ -20,8 +20,7 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Compositions | `compositions` | supported | `crossplane_compositions` | `name, line_number` | `node:CrossplaneComposition` | `go/internal/parser/engine_yaml_semantics_test.go::TestDefaultEngineParsePathYAMLCrossplaneResources` | Compose-backed fixture verification | - |
 | Composition composite type ref | `composition-composite-type-ref` | supported | `crossplane_compositions` | `name, line_number, composite_api_version, composite_kind` | `property:Composition.composite_ref` | `go/internal/parser/engine_yaml_semantics_test.go::TestDefaultEngineParsePathYAMLCrossplaneResources` | Compose-backed fixture verification | - |
 | Composition resources list | `composition-resources-list` | supported | `crossplane_compositions` | `name, line_number, resource_count, resource_names` | `property:Composition.resources` | `go/internal/parser/engine_yaml_semantics_test.go::TestDefaultEngineParsePathYAMLCrossplaneResources` | Compose-backed fixture verification | - |
-| Claims | `claims` | supported | `crossplane_claims` | `name, line_number` | `node:CrossplaneClaim` | `go/internal/parser/engine_yaml_semantics_test.go::TestDefaultEngineParsePathYAMLCrossplaneResources` | Compose-backed fixture verification | - |
-| Claim API version | `claim-api-version` | supported | `crossplane_claims` | `name, line_number, api_version` | `property:Claim.api_version` | `go/internal/parser/engine_yaml_semantics_test.go::TestDefaultEngineParsePathYAMLCrossplaneResources` | Compose-backed fixture verification | - |
+| Claims | `claims` | supported | `k8s_resources` | `name, line_number, api_version, kind` | `node:K8sResource` + `edge:SATISFIED_BY -> CrossplaneXRD` | `go/internal/parser/engine_yaml_semantics_crossplane_test.go::TestDefaultEngineParsePathYAMLCrossplaneResources`, `go/internal/reducer/crossplane_satisfied_by_edge_rows_test.go` | Compose-backed fixture verification | A Claim is never parser-labeled (issue #5347): it parses as a generic K8sResource row and the reducer correlation layer classifies it by resolving (group, kind) against exactly one CrossplaneXRD's (spec.group, spec.claimNames.kind), materializing the SATISFIED_BY edge. |
 
 ## Framework And Library Support
 
@@ -40,12 +39,38 @@ Not claimed today:
 - Composition patch transforms are not modeled as graph edges
 - XRD validation schema details are not extracted
 - Usage of Composition Functions (pipeline steps) is not captured as structured nodes
-- The `SATISFIED_BY` relationship (Claim -> XRD) has no graph writer: no
-  reducer or edge-writer path emits it, so it is registered but never
-  materialized (see [Edge Source-Tool Provenance](../reference/edge-source-tool-provenance.md)).
+- A Claim is edge-only (issue #5347): it stays a `K8sResource` node — the
+  `SATISFIED_BY` edge to its `CrossplaneXRD` IS the classification, never a
+  `CrossplaneClaim` graph label. Relabeling would collide with the per-label
+  generation-retract in the canonical node writer and risk deleting live
+  `K8sResource` nodes, so no node ever carries the `CrossplaneClaim` label.
+  `cypher.CrossplaneSatisfiedByEdgeWriter` MERGEs the edge when a
+  `K8sResource` row's (group, kind) — derived from its `api_version`/`kind`,
+  not a parse-time label — resolves against exactly one `CrossplaneXRD`'s
+  (`spec.group`, `spec.claimNames.kind`); a zero-match row is an ordinary
+  Kubernetes object and a 2+ match is ambiguous, and both produce no edge
+  (see [Edge Source-Tool Provenance](../reference/edge-source-tool-provenance.md)).
   `POST /api/v0/impact/blast-radius` with `target_type: crossplane_xrd`
-  therefore always reports `complete: false` with `SATISFIED_BY` listed as
-  `materialized: false` in `coverage` — treat its `affected_count` as a
-  known-incomplete lower bound, not a confirmed zero (see
-  [HTTP API reference](../reference/http-api/iac-content-infra.md)). Wiring a
-  writer is tracked in eshu-hq/eshu#5347.
+  reports `complete: true` with `SATISFIED_BY` listed as `materialized: true`
+  in `coverage` (see
+  [HTTP API reference](../reference/http-api/iac-content-infra.md)).
+- Cross-scope XRD-lag false-negative window: the SATISFIED_BY correlation is
+  intentionally ungated within a repo (the Claim and any same-repo XRD are
+  projector-canonical nodes committed before the correlation intent is
+  enqueued, so no same-scope race exists), but a Claim resolving against an
+  XRD from a *different* repo depends on that platform repo's XRD already
+  being active by the time the Claim's own generation runs its correlation.
+  If the XRD's repo is ingested for the first time *after* the Claim repo's
+  latest generation, the edge does not materialize until the Claim repo's
+  next sync generation — an unbounded window for a Claim repo that stops
+  changing. This is a false negative (the edge is real but not yet
+  observable), not a wrong answer, and no reducer-side gate can close it
+  without reproducing full cross-repo readiness tracking; tracked in
+  [#5476](https://github.com/eshu-hq/eshu/issues/5476) for a periodic
+  re-drive of stale cross-scope Claims. This does not contradict the
+  blast-radius `coverage` fields: `materialized:true`/`complete` report that a
+  writer produces the SATISFIED_BY edge type (the writer-existence contract from
+  #5330), not that every possible edge instance is currently present — the same
+  eventual-consistency property every cross-repo correlation edge (e.g.
+  RUNS_IMAGE) has, since no correlation edge can form until both endpoints are
+  ingested.

@@ -302,6 +302,40 @@ func repositoryRelationshipStringSliceFromAny(value any) []string {
 	}
 }
 
+// filterRepositoryRelationshipReadModelForAccess binds every related-repository
+// endpoint carried by the read-model relationship rows and consumers to the
+// caller's grant (#5167 W3 P0, fourth vector). The Postgres read-model path is
+// the production-primary source for GET /repositories/{id}/context's
+// relationships, relationship_overview, and consumers -- the read-model SQL
+// anchors only on source_repo_id/target_repo_id = $anchor and applies no
+// predicate to the FAR endpoint, and the deployable-unit merge
+// (mergeRepositoryDeployableUnitRelationships) folds in graph rows through the
+// unfiltered inner queryRepoRelationshipOverviewDirection. Filtering the merged
+// read model here, before repository_context.go derives any result[] field from
+// it, closes all three emit sites at once: relationship_overview and the
+// legacy dependencies both derive from the filtered Relationships (anchor-aware
+// -- the grant-verified anchor endpoint stays, the far endpoint must be in
+// grant), and Consumers are filtered by their sole repository id. Deny-by-
+// default when scoped; an all-scopes/shared/admin caller is unaffected
+// (returned unchanged), so non-scoped callers see no regression. Available is
+// carried through unchanged: an in-grant read model stays authoritative even
+// when every cross-tenant row is dropped, so the handler does not fall back to
+// the graph and re-run the (already grant-bound) helpers.
+func filterRepositoryRelationshipReadModelForAccess(
+	readModel *repositoryRelationshipReadModel,
+	anchorRepoID string,
+	access repositoryAccessFilter,
+) *repositoryRelationshipReadModel {
+	if readModel == nil || !access.scoped() {
+		return readModel
+	}
+	return &repositoryRelationshipReadModel{
+		Available:     readModel.Available,
+		Relationships: filterRepoRelationshipOverviewRowsForAccess(readModel.Relationships, anchorRepoID, access),
+		Consumers:     filterRepoRelationshipTargetRowsForAccess(readModel.Consumers, "id", access),
+	}
+}
+
 // repositoryReadModelDependencies returns outgoing rows in the legacy
 // repository dependency shape.
 func repositoryReadModelDependencies(readModel *repositoryRelationshipReadModel) []map[string]any {

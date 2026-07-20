@@ -62,34 +62,46 @@ func sbomAttachmentDecision(
 	index sbomAttachmentIndex,
 ) SBOMAttestationAttachmentDecision {
 	components := componentEvidenceRows(index.components[doc.documentID])
+	dependencyRows, dependencyCount := dependencyRelationshipEvidenceRows(index.dependencies[doc.documentID])
+	externalReferenceRows, externalReferenceCount := externalReferenceEvidenceRows(index.externalReferences[doc.documentID])
 	warnings := warningSummaryRollup(index.warnings[doc.documentID])
 	anchors := sbomAttachmentAnchorsForDocument(doc, index)
 	scope, missing := sbomAttachmentScope(status, hasImageReferrer, anchors.hasUsableAnchor())
 	reason = sbomAttachmentAnchoredReason(status, reason, hasImageReferrer, anchors.hasUsableAnchor())
+	slsaProvenance, hasSLSAProvenance := index.slsaProvenance[doc.documentID]
+	if hasSLSAProvenance {
+		evidence = append(evidence, slsaProvenance.factID)
+	}
 	return SBOMAttestationAttachmentDecision{
-		DocumentID:          doc.documentID,
-		DocumentDigest:      doc.documentDigest,
-		SubjectDigest:       doc.subjectDigest,
-		AttachmentStatus:    status,
-		ParseStatus:         doc.parseStatus,
-		VerificationStatus:  defaultStatus(verificationStatus, "not_configured"),
-		VerificationPolicy:  verificationPolicy,
-		ArtifactKind:        doc.artifactKind,
-		Format:              doc.format,
-		SpecVersion:         doc.specVersion,
-		Reason:              reason,
-		AttachmentScope:     scope,
-		CanonicalWrites:     sbomAttachmentCanonicalWriteCount(status, hasImageReferrer),
-		ComponentCount:      len(components),
-		ComponentEvidence:   components,
-		RepositoryIDs:       anchors.repositories,
-		WorkloadIDs:         anchors.workloads,
-		ServiceIDs:          anchors.services,
-		WarningSummaries:    warnings.summaries,
-		WarningSummaryCount: warnings.count,
-		EvidenceFactIDs:     uniqueSortedStrings(append(evidence, anchors.evidenceFactIDs...)),
-		MissingEvidence:     uniqueSortedStrings(append(missing, anchors.missingEvidence...)),
-		SourceLayerKinds:    sbomAttachmentSourceLayerKinds(hasImageReferrer, anchors.hasUsableAnchor()),
+		DocumentID:                     doc.documentID,
+		DocumentDigest:                 doc.documentDigest,
+		SubjectDigest:                  doc.subjectDigest,
+		AttachmentStatus:               status,
+		ParseStatus:                    doc.parseStatus,
+		VerificationStatus:             defaultStatus(verificationStatus, "not_configured"),
+		VerificationPolicy:             verificationPolicy,
+		ArtifactKind:                   doc.artifactKind,
+		Format:                         doc.format,
+		SpecVersion:                    doc.specVersion,
+		Reason:                         reason,
+		AttachmentScope:                scope,
+		CanonicalWrites:                sbomAttachmentCanonicalWriteCount(status, hasImageReferrer),
+		ComponentCount:                 len(components),
+		ComponentEvidence:              components,
+		DependencyRelationshipCount:    dependencyCount,
+		DependencyRelationshipEvidence: dependencyRows,
+		ExternalReferenceCount:         externalReferenceCount,
+		ExternalReferenceEvidence:      externalReferenceRows,
+		SLSAProvenancePredicateType:    slsaProvenance.predicateType,
+		SLSAProvenanceBuilderID:        slsaProvenance.builderID,
+		RepositoryIDs:                  anchors.repositories,
+		WorkloadIDs:                    anchors.workloads,
+		ServiceIDs:                     anchors.services,
+		WarningSummaries:               warnings.summaries,
+		WarningSummaryCount:            warnings.count,
+		EvidenceFactIDs:                uniqueSortedStrings(append(evidence, anchors.evidenceFactIDs...)),
+		MissingEvidence:                uniqueSortedStrings(append(missing, anchors.missingEvidence...)),
+		SourceLayerKinds:               sbomAttachmentSourceLayerKinds(hasImageReferrer, anchors.hasUsableAnchor()),
 	}
 }
 

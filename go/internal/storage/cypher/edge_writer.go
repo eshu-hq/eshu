@@ -250,7 +250,11 @@ func (w *EdgeWriter) recordCodeCallBatch(ctx context.Context, duration float64) 
 }
 
 // batchCypherForDomain returns the batched UNWIND Cypher template for the
-// given shared projection domain.
+// given shared projection domain. WriteEdges uses it only as a
+// domain-recognition gate (its returned template is discarded there; each row's
+// Cypher comes from buildRowMap). The DomainSQLRelationships case returns an
+// empty template on purpose — that domain is dispatched per relationship type,
+// with no single-template batch (see the case comment).
 func batchCypherForDomain(domain string) (string, error) {
 	switch domain {
 	case reducer.DomainRepoDependency:
@@ -266,7 +270,19 @@ func batchCypherForDomain(domain string) (string, error) {
 	case reducer.DomainRationaleEdges:
 		return batchCanonicalRationaleExplainsEdgeCypher, nil
 	case reducer.DomainSQLRelationships:
-		return batchCanonicalSQLRelationshipUpsertCypher, nil
+		// SQL relationship edges have no single-template batch: each row is
+		// dispatched per relationship type by buildSQLRelationshipRowMap — a
+		// label-scoped MERGE for SqlView/SqlFunction/SqlTable/... endpoints
+		// (READS_FROM, INDEXES, HAS_COLUMN, TRIGGERS, ...) or the
+		// QUERIES_TABLE/HAS_COLUMN/TRIGGERS/EXECUTES fallback templates for
+		// mixed-label endpoints. This case exists only to satisfy WriteEdges'
+		// domain-recognition gate. It deliberately returns an empty template
+		// rather than a single stale rel-type Cypher (it used to hardcode
+		// REFERENCES_TABLE, which #5345 renamed to READS_FROM): a future caller
+		// that misused this return value would then write nothing — an obvious,
+		// loud failure — instead of silently MERGE-ing every SQL edge under one
+		// wrong relationship type.
+		return "", nil
 	case reducer.DomainShellExec:
 		return batchCanonicalShellExecUpsertCypher, nil
 	case reducer.DomainDeployableUnitEdges:

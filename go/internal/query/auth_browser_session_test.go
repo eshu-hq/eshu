@@ -57,6 +57,15 @@ func TestAuthMiddlewareWithBrowserSessionsAttachesAuthContextFromCookie(t *testi
 	}
 }
 
+// TestAuthMiddlewareWithBrowserSessionsDevModeSkipsAuthWhenTokenEmpty proves
+// that a browser-session-resolver-only deployment (no shared key, no
+// scoped-token file, no OIDC bearer audience) keeps headerless reads OPEN.
+// The legacy AuthMiddlewareWithBrowserSessionsAndScopedTokens constructor
+// derives enforcement from the shared key alone, and the enforcement
+// predicate deliberately excludes the browser-session resolver: the cookie
+// path self-enforces before the dev-open branch, so a cookieless headerless
+// request in the open posture stays open. See #5161/#5168 and
+// auth_enforcement_wiring_test.go in cmd/api for the real-composition proof.
 func TestAuthMiddlewareWithBrowserSessionsDevModeSkipsAuthWhenTokenEmpty(t *testing.T) {
 	t.Parallel()
 
