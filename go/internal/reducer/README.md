@@ -4108,15 +4108,17 @@ real extraction path, not a re-implementation.
 ## #5421 — one URL normalizer for git remote keys
 
 Benchmark Evidence: `go test ./internal/repositoryidentity -bench
-BenchmarkNormalizedRemoteKey -benchmem -count=5 -benchtime=500ms` (Apple M5 Max,
-darwin/arm64, 12 representative input shapes per op): ~2,465 ns/op, 2,273 B/op,
-55 allocs/op (~206 ns/input, ~4.6 allocs/input). Not a hot-loop function — runs
-once per hint/repository pair during correlation.
+BenchmarkNormalizedRemoteKey -benchmem -count=3 -benchtime=500ms` (Apple M5 Max,
+darwin/arm64, 12 representative input shapes per op): ~3,772 ns/op, 3,947 B/op,
+69 allocs/op (~315 ns/input, ~5.8 allocs/input). The re-parse validation guard
+added ~60% over the pre-guard shape (~2,465 ns/op, 2,273 B/op, 55 allocs/op) —
+the price of rejecting control-character and bad-encoding garbage keys. Not a
+hot-loop function — runs once per hint/repository pair during correlation.
 
 No-Regression Evidence: `go test ./internal/repositoryidentity ./internal/reducer
 -count=1` (39 value-pinning cases, all green); `go test ./internal/query
 ./internal/mcp ./internal/payloadusage -count=1` (all green); `golangci-lint run`
-(0 issues); `scripts/verify-golden-corpus-gate.sh` (423 pass, 0 fail — 32s
+(0 issues); `scripts/verify-golden-corpus-gate.sh` (431 pass, 0 fail — 34s
 elapsed); `scripts/verify-package-docs.sh` (present).
 
 No-Observability-Change: no route, graph query shape, queue table, worker, lease,
@@ -4124,5 +4126,5 @@ runtime knob, metric instrument, metric label, span, or log key is added, remove
 or changed. `canonicalPackageSourceURLKey` is a pure in-process value function;
 operators diagnose correlation outcomes through existing reducer run spans,
 execution counters, and `eshu_dp_reducer_*` metrics. The normalization path
-produces the same graph truth (423/0 golden gate), so existing query/MCP/test
+produces the same graph truth (431/0 golden gate), so existing query/MCP/test
 surface observability is unaffected.
