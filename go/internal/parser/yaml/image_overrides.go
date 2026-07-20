@@ -429,6 +429,20 @@ func helmValuesEnvironment(filename string) string {
 // this change.
 func imageOverrideDirectoryEnvironment(path string) string {
 	parts := strings.Split(filepath.ToSlash(path), "/")
+	// Scan every "environments" occurrence left to right rather than
+	// returning on the first one (issue #5440 P2-1, round-2 independent
+	// review). The first marker can satisfy the directory guard below
+	// without being the real declaration -- "modules/environments/scripts/
+	// environments/prod/values.yaml" has a guard-passing "scripts" segment
+	// right after its FIRST "environments", so an early return there yields
+	// "scripts" instead of the closer, more specific "prod". Continuing to
+	// overwrite env on every later guard-passing occurrence, instead of
+	// stopping at the first one, means the LAST valid marker -- the one
+	// closest to the file -- wins. A guard-FAILING later marker (the file
+	// sitting directly inside a nested "environments/" dir) is skipped
+	// rather than clearing env: it carries no information of its own, so an
+	// earlier, still-valid declaration is preferred over discarding it.
+	env := ""
 	for index, part := range parts {
 		if part != "environments" {
 			continue
@@ -437,11 +451,10 @@ func imageOverrideDirectoryEnvironment(path string) string {
 		// segment after THAT (the file, or a deeper directory) for <env> to
 		// be a real directory rather than the file's own basename.
 		if index+2 < len(parts) {
-			return strings.ToLower(strings.TrimSpace(parts[index+1]))
+			env = strings.ToLower(strings.TrimSpace(parts[index+1]))
 		}
-		return ""
 	}
-	return ""
+	return env
 }
 
 // helmImageOverrideEnvironment resolves the environment for a Helm values

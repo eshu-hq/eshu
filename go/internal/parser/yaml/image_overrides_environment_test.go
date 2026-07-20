@@ -93,6 +93,53 @@ func TestParseHelmValuesImageOverridesEnvironmentFromPath(t *testing.T) {
 			relPath: "environments/Prod/values.yaml",
 			wantEnv: "prod",
 		},
+		{
+			// P2-1 accuracy defect (round-2 independent review): the FIRST
+			// "environments" marker ("modules/environments/") satisfies the
+			// directory guard (a "scripts" segment follows it), so a
+			// first-marker-wins scan wrongly stops there and returns "scripts".
+			// The LAST marker ("scripts/environments/prod/") is the more
+			// specific, closest-to-the-file declaration and must win instead.
+			name:    "later_more_specific_environments_marker_wins_over_an_earlier_valid_one",
+			relPath: "modules/environments/scripts/environments/prod/values.yaml",
+			wantEnv: "prod",
+		},
+		{
+			// Same defect class, reviewer's second repro: the FIRST marker's
+			// captured segment happens to be the literal string "environments"
+			// (the name of the SECOND marker directory), which is a
+			// syntactically plausible but wrong answer -- exactly the "worse
+			// than empty" case the fix must eliminate.
+			name:    "later_environments_marker_wins_even_when_earlier_capture_looks_like_a_real_word",
+			relPath: "charts/environments/environments/prod/values.yaml",
+			wantEnv: "prod",
+		},
+		{
+			// Three nested "environments" markers: the LAST one (closest to
+			// the file) must win, not the first or the middle one.
+			name:    "three_nested_environments_markers_last_one_wins",
+			relPath: "a/environments/b/environments/c/environments/prod/values.yaml",
+			wantEnv: "prod",
+		},
+		{
+			// Judgment call (round-2 independent review, documented here per
+			// the coordinator's request): the LAST "environments" marker sits
+			// directly against the file (charts/environments/values.yaml
+			// shape, fails the directory guard on its own), but an EARLIER
+			// marker ("environments/prod/") is a fully valid, independent
+			// directory declaration. The earlier valid declaration is real
+			// information -- an author genuinely laid this repo out with a
+			// "prod" environment directory -- while the later invalid
+			// occurrence carries none (it fails the same guard that rejects
+			// environments/values.yaml on its own, so it must be skipped, not
+			// blindly preferred for being "closer to the file"). The correct
+			// behavior is therefore "last VALID marker wins", which falls
+			// back to this earlier one rather than emitting "" and discarding
+			// a real author declaration.
+			name:    "last_marker_fails_the_guard_earlier_valid_marker_still_wins",
+			relPath: "environments/prod/subdir/environments/values.yaml",
+			wantEnv: "prod",
+		},
 	}
 
 	for _, tc := range cases {
