@@ -247,7 +247,37 @@ func (s ClaimedSource) buildRunEnvelopes(
 		}
 		envelopes = append(envelopes, runEnvelopes...)
 	}
-	return envelopes, nil
+	// Collapse workflow-identity-keyed facts across the run window. The fixture
+	// normalizer already dedups within a single run, but a WORKFLOW-level fact
+	// (ci.pipeline_definition, whose FactID is keyed by
+	// provider+repository+workflow identity, not run id) is emitted once per
+	// run, so two runs of the SAME workflow in the window produce the identical
+	// FactID twice. Postgres masks this on FactID, but the emitted-fact
+	// count/metric would be inflated and a non-Postgres committer would receive
+	// duplicate envelopes. Deduping the combined slice by FactID (first
+	// occurrence wins, order preserved) collapses those workflow-identity facts
+	// to one while leaving every run-level fact (keyed by run_id:run_attempt)
+	// untouched.
+	return dedupeEnvelopesByFactID(envelopes), nil
+}
+
+// dedupeEnvelopesByFactID returns envelopes with duplicate FactID values
+// removed, keeping the first occurrence and preserving order. It is the
+// cross-run analogue of the fixture normalizer's own within-run dedup: it
+// collapses the workflow-identity-keyed facts (ci.pipeline_definition) that
+// repeat across runs of the same workflow in one claim window, so the source's
+// emitted-fact count and any non-Postgres committer see each unique fact once.
+func dedupeEnvelopesByFactID(envelopes []facts.Envelope) []facts.Envelope {
+	seen := make(map[string]struct{}, len(envelopes))
+	out := envelopes[:0]
+	for _, envelope := range envelopes {
+		if _, ok := seen[envelope.FactID]; ok {
+			continue
+		}
+		seen[envelope.FactID] = struct{}{}
+		out = append(out, envelope)
+	}
+	return out
 }
 
 // attachRunsTruncatedWarning returns page.Snapshots unchanged when the page

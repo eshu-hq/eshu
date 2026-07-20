@@ -284,66 +284,82 @@ func TestNewClaimedSourceRejectsNegativeMaxRuns(t *testing.T) {
 	}
 }
 
-// recordingClient is a fakeClient variant that captures the exact
-// TargetConfig FetchRuns received, so a test can observe the value
-// validateTarget resolved (e.g. a defaulted MaxRuns) without re-implementing
-// validateTarget's own logic.
-type recordingClient struct {
-	page      RunPage
-	err       error
-	gotTarget TargetConfig
-}
+// TestClaimedSourceDeduplicatesWorkflowIdentityFactsAcrossRuns is the
+// RED->GREEN proof for the codex P2 review finding: with multi-run
+// collection, WORKFLOW-level facts (ci.pipeline_definition, whose FactID is
+// keyed by provider+repository+workflow identity, NOT run id) were emitted
+// once per run, so two runs of the SAME workflow in the window streamed the
+// identical ci.pipeline_definition FactID twice per generation. The dedup in
+// buildRunEnvelopes must collapse that workflow-identity fact to exactly one
+// while every run-level fact (keyed by run_id:run_attempt) still appears per
+// run. The emitted-fact count metric must reflect the deduped total.
+func TestClaimedSourceDeduplicatesWorkflowIdentityFactsAcrossRuns(t *testing.T) {
+	t.Parallel()
 
-func (c *recordingClient) FetchRuns(_ context.Context, target TargetConfig) (RunPage, error) {
-	c.gotTarget = target
-	return c.page, c.err
-}
-
-// minimalRunSnapshot builds the smallest RunSnapshot the cicdrun fixture
-// normalizer accepts: a run ID plus the repository/commit anchors that keep
-// GitHubActionsFixtureEnvelopes from also emitting a
-// run_missing_repository_or_commit warning envelope, which would otherwise
-// pollute run-count/warning assertions in the multi-run tests above.
-func minimalRunSnapshot(runID string) RunSnapshot {
-	return RunSnapshot{
-		Run: map[string]any{
-			"id":       runID,
-			"head_sha": "0123456789abcdef0123456789abcdef01234567",
-			"repository": map[string]any{
-				"full_name": "example/repo",
-			},
-		},
+	reader := sdkmetric.NewManualReader()
+	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	instruments, err := telemetry.NewInstruments(meterProvider.Meter("ci-cd-run-dedup-test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v, want nil", err)
 	}
-}
-
-// cicdRunFactRunIDs collects the distinct run_id payload values across every
-// facts.CICDRunFactKind envelope, so a test can assert exactly which runs a
-// claim cycle emitted independently of envelope ordering.
-func cicdRunFactRunIDs(envelopes []facts.Envelope) map[string]bool {
-	out := map[string]bool{}
-	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.CICDRunFactKind {
-			continue
-		}
-		if runID, ok := envelope.Payload["run_id"].(string); ok {
-			out[runID] = true
-		}
+	// Two runs of the SAME workflow (identical workflow id/name/path and
+	// repository); only the run id differs.
+	client := fakeClient{page: RunPage{Snapshots: []RunSnapshot{
+		sameWorkflowRunSnapshot("2002"),
+		sameWorkflowRunSnapshot("1001"),
+	}}}
+	source, err := NewClaimedSource(SourceConfig{
+		CollectorInstanceID: "ci-cd-primary",
+		Client:              client,
+		Instruments:         instruments,
+		Targets: []TargetConfig{{
+			ScopeID:             "ci-cd:github-actions:example/repo",
+			Repository:          "example/repo",
+			Token:               "token",
+			AllowedRepositories: []string{"example/repo"},
+			MaxRuns:             10,
+			MaxJobs:             10,
+			MaxArtifacts:        10,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("NewClaimedSource() error = %v, want nil", err)
 	}
-	return out
-}
 
-// cicdRunFactStableKeysByRunID maps each facts.CICDRunFactKind envelope's
-// run_id payload value to its StableFactKey, so a test can assert the key
-// stays identical across two separate claim cycles for the same run.
-func cicdRunFactStableKeysByRunID(envelopes []facts.Envelope) map[string]string {
-	out := map[string]string{}
-	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.CICDRunFactKind {
-			continue
-		}
-		if runID, ok := envelope.Payload["run_id"].(string); ok {
-			out[runID] = envelope.StableFactKey
-		}
+	collected, ok, err := source.NextClaimed(context.Background(), workflow.WorkItem{
+		CollectorKind:       scope.CollectorCICDRun,
+		CollectorInstanceID: "ci-cd-primary",
+		ScopeID:             "ci-cd:github-actions:example/repo",
+		GenerationID:        "generation-1",
+		CurrentFencingToken: 7,
+	})
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
 	}
-	return out
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+
+	envelopes := drainFacts(t, collected.Facts)
+
+	// The workflow-identity fact collapses to exactly one across both runs.
+	if got := factKindCount(envelopes, facts.CICDPipelineDefinitionFactKind); got != 1 {
+		t.Fatalf("ci.pipeline_definition count = %d, want exactly 1 (deduped across 2 same-workflow runs)", got)
+	}
+	// No duplicate FactIDs remain anywhere in the emitted slice.
+	if dupe := firstDuplicateFactID(envelopes); dupe != "" {
+		t.Fatalf("duplicate FactID %q survived dedup", dupe)
+	}
+	// Run-level facts are untouched: one ci.run per run id.
+	runIDs := cicdRunFactRunIDs(envelopes)
+	if len(runIDs) != 2 || !runIDs["2002"] || !runIDs["1001"] {
+		t.Fatalf("ci.run run_ids = %v, want exactly {2002, 1001} (run-level facts unaffected by dedup)", runIDs)
+	}
+
+	// The emitted-fact count metric reflects the deduped total, not the
+	// pre-dedup inflated count.
+	rm := collectCICDRunMetrics(t, reader)
+	if got := cicdRunFactsEmittedTotal(t, rm); got != len(envelopes) {
+		t.Fatalf("eshu_dp_ci_cd_run_facts_emitted_total = %d, want deduped emitted-fact count %d", got, len(envelopes))
+	}
 }
