@@ -56,9 +56,11 @@ type EdgeCoverage struct {
 // authoritative source for READS_FROM, HAS_COLUMN, TRIGGERS, EXECUTES,
 // QUERIES_TABLE, and INDEXES — see cypher.SQLRelationshipMaterializedEdgeTypes)
 // with the always-on structural CONTAINS edge and structuralEdgeTypes
-// (DEPENDS_ON, REPO_CONTAINS). Because it reads the writer whitelist
-// directly, a new SQL relationship type added to that whitelist flips this
-// registry automatically without a second edit here.
+// (DEPENDS_ON, REPO_CONTAINS), plus the Crossplane (cypher.CrossplaneRelationship
+// MaterializedEdgeTypes) and Flux (cypher.FluxRelationshipMaterializedEdgeTypes)
+// canonical edge writers. Because it reads the writer whitelists directly, a
+// new SQL relationship type or canonical edge type added to one of those
+// whitelists flips this registry automatically without a second edit here.
 func materializedEdgeTypes() map[string]string {
 	out := cypher.SQLRelationshipMaterializedEdgeTypes()
 	out[contentContainmentEdgeType] = contentContainmentEdgeReason
@@ -66,6 +68,9 @@ func materializedEdgeTypes() map[string]string {
 		out[edgeType] = reason
 	}
 	for edgeType, reason := range cypher.CrossplaneRelationshipMaterializedEdgeTypes() {
+		out[edgeType] = reason
+	}
+	for edgeType, reason := range cypher.FluxRelationshipMaterializedEdgeTypes() {
 		out[edgeType] = reason
 	}
 	return out

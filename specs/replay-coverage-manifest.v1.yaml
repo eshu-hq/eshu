@@ -642,6 +642,14 @@ coverage:
   - {surface: retractable_edge:MANAGES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:ATLANTIS_DEPENDS_ON, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:USES_WORKFLOW, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go, proof_gate: replay-tier}
+  # Flux Kustomization RECONCILES_FROM edge (issue #5360 PR B): a
+  # projector-canonical structural edge mirroring the Atlantis governance
+  # triad above (same file/phase, same MATCH-MATCH-MERGE shape). Drain-marked
+  # from its first commit (canonical_flux_edges.go), so this is a live-claim
+  # proof rather than a production fix, but it gets its own delta_tombstone
+  # scenario file (not folded into the governance test) so a future Flux-only
+  # regression is isolated from Atlantis/Helm/GitLab structural-edge coverage.
+  - {surface: retractable_edge:RECONCILES_FROM, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_canonical_flux_edge_retract_live_test.go, proof_gate: replay-tier}
   # Workload/cloud usage edges (#4367 sibling, #5152): both
   # WorkloadCloudRelationshipWriter.RetractWorkloadCloudRelationshipEdges (USES)
   # and EC2UsesProfileEdgeWriter.RetractEC2UsesProfileEdges (USES_PROFILE)

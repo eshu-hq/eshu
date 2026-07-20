@@ -105,3 +105,21 @@ func TestMaterializedEdgeTypeSetIsRegistryDerived(t *testing.T) {
 		}
 	}
 }
+
+// TestEdgeMaterializationCoverageReportsFluxReconcilesFromMaterialized proves
+// the registry reports materialized:true for RECONCILES_FROM (issue #5360 PR
+// B) now that cypher.FluxRelationshipMaterializedEdgeTypes merges it in: a
+// FluxKustomization row resolved against exactly one FluxGitRepository/
+// FluxOCIRepository/FluxBucket source CR via the deterministic same-repo
+// namespace/name tiers.
+func TestEdgeMaterializationCoverageReportsFluxReconcilesFromMaterialized(t *testing.T) {
+	t.Parallel()
+
+	got := EdgeMaterializationCoverage("RECONCILES_FROM")
+	if !got.Materialized {
+		t.Error("EdgeMaterializationCoverage(\"RECONCILES_FROM\").Materialized = false, want true (cypher.FluxRelationshipMaterializedEdgeTypes merges it)")
+	}
+	if got.Reason == "" || got.Reason == "no_writer" {
+		t.Errorf("EdgeMaterializationCoverage(\"RECONCILES_FROM\").Reason = %q, want a real reason", got.Reason)
+	}
+}

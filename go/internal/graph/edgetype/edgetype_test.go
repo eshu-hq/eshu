@@ -65,6 +65,7 @@ func TestEdgeTypeStringParity(t *testing.T) {
 		QueriesTable:                       "QUERIES_TABLE",
 		ReadsConfigFrom:                    "READS_CONFIG_FROM",
 		ReadsFrom:                          "READS_FROM",
+		ReconcilesFrom:                     "RECONCILES_FROM",
 		References:                         "REFERENCES",
 		ReferencesTable:                    "REFERENCES_TABLE",
 		RepoContains:                       "REPO_CONTAINS",

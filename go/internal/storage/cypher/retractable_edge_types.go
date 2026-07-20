@@ -50,6 +50,7 @@ var retractableGraphEdgeTypes = []edgetype.EdgeType{
 	edgetype.QueriesTable,
 	edgetype.ReadsConfigFrom,
 	edgetype.ReadsFrom,
+	edgetype.ReconcilesFrom,
 	edgetype.References,
 	edgetype.RunsImage,
 	edgetype.RunsIn,
