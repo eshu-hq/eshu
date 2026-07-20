@@ -53,6 +53,8 @@ var graphFirstContentBackedEntityTypes = map[string]string{
 	"protocol":                "Protocol",
 	"protocol_implementation": "ProtocolImplementation",
 	"module_attribute":        "Variable",
+	"atlantis_project":        "AtlantisProject",
+	"atlantis_workflow":       "AtlantisWorkflow",
 	"terraform_backend":       "TerraformBackend",
 	"terraform_check":         "TerraformCheck",
 	"terraform_import":        "TerraformImport",

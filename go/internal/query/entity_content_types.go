@@ -260,6 +260,8 @@ var resolveContentBackedEntityTypes = map[string]string{
 	"annotation":               "Annotation",
 	"argocd_application":       "ArgoCDApplication",
 	"argocd_applicationset":    "ArgoCDApplicationSet",
+	"atlantis_project":         "AtlantisProject",
+	"atlantis_workflow":        "AtlantisWorkflow",
 	"component":                "Component",
 	"cloudformation_condition": "CloudFormationCondition",
 	"cloudformation_export":    "CloudFormationExport",
