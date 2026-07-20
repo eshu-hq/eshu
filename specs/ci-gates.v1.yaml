@@ -881,7 +881,7 @@ gates:
 
   - id: docs-contradiction
     name: Docs self-contradiction advisory
-    category: docs
+    category: exactness
     tier: pre-pr
     blocking: false
     triggers:
@@ -900,7 +900,7 @@ gates:
       job: ""
     requirements: []
     ci_only_reason: ""
-    local_only_reason: "Advisory baseline for #5340; flip DOCS_CONTRADICTION_ENFORCE=true and blocking=true once the burn-down baseline is clean, mirroring the docs-prose-quality rollout plan."
+    local_only_reason: "Advisory baseline for #5340; runs locally via pre-pr's exactness lane (category exactness + tier pre-pr + blocking false, the code-coverage-report precedent). Flip DOCS_CONTRADICTION_ENFORCE=true + blocking=true and wire the static-contract-gates.yml CI job (docs-refs pattern) once the burn-down baseline is clean."
 
   - id: docs-refs
     name: Docs script reference existence
