@@ -54,11 +54,14 @@ B-7 golden-corpus gate, not asserted by hand:
   read this same live bar through different lenses:
     - *End-to-End Indexing* `supported` = the fixture is staged in B-7 and its
       projected graph or query truth is asserted in B-12.
-    - *Real-Repo Validation* `supported` = an app-shaped corpus repository
-      (for example `lib-common`, `orders-api`, or `api-svc`) clears the same
-      live gate. Eshu's "real repos" are in-repo synthetic application corpora,
-      not external third-party checkouts; the bar here is the full-pipeline
-      gate, not third-party provenance.
+    - *Real-Repo Validation* `supported` = a whole corpus repository of that
+      language clears the same live gate — an app-shaped source repo (for
+      example `lib-common`, `orders-api`, or `api-svc`) for programming
+      languages, or a comprehensive infrastructure/config corpus (for example
+      `terraform_comprehensive`, `terragrunt_comprehensive`) for IaC languages,
+      as opposed to a hand-authored single-feature parser fixture. Eshu's "real
+      repos" are in-repo synthetic corpora, not external third-party checkouts;
+      the bar here is the full-pipeline gate, not third-party provenance.
 - **`real-repo-validated`** — an intermediate grade for a language that has a
   committed, offline-reproducible dogfood artifact but is not yet wired into the
   live gate: a script under `scripts/` PLUS a checked-in expected-output

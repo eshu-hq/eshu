@@ -84,8 +84,8 @@ Focused coverage lives in
 | Normalization | `supported` |
 | Framework and root evidence | React/TSX evidence, Next.js routes/app exports, Express, Koa, Fastify (including typed-parameter autoload/plugin patterns), NestJS, Hapi, AMQP consumers, package/bin/exports, migrations, seeds |
 | Query surfacing | `supported` |
-| Real-repo validation | `supported` |
-| End-to-end indexing | `supported` |
+| Real-repo validation | `fixture-backed` |
+| End-to-end indexing | `fixture-backed` |
 | Dead-code exactness | `derived`, not cleanup-safe exact truth |
 
 ## Framework And Library Support
