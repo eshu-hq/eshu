@@ -148,9 +148,9 @@ Bidirectional: `TestImpactBlastRadiusCoverageEdgeTypesAreStillTraversed`
 fails a coverage-edge-type list entry that is neither traversed by any
 audited query nor a registered relationship type
 (`internal/graph/edgetype.IsRegistered`) — distinguishing the deliberate
-`sql_table` honesty pattern (`READS_FROM`, `MIGRATES`, `MAPS_TO_TABLE` are
-listed as conceptually covered even though no UNION branch queries them, so
-the response can disclose the gap) from a genuinely stale or fake entry.
+`sql_table` honesty pattern (`REFERENCES_TABLE`, `MIGRATES`, `MAPS_TO_TABLE`
+are listed as conceptually covered even though no UNION branch queries them,
+so the response can disclose the gap) from a genuinely stale or fake entry.
 
 Two anti-false-green mitigations:
 

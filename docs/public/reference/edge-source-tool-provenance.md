@@ -223,7 +223,7 @@ and written through the canonical relationship upserts
 **Code edges** — tool is the node `language`; they carry `resolution_method`:
 `CALLS`, `REFERENCES`, `INHERITS`, `INSTANTIATES`, `USES_METACLASS`,
 `IMPLEMENTS`, `ALIASES`, `OVERRIDES`, `IMPORTS`, and the SQL parser edges
-(`HAS_COLUMN`, `REFERENCES_TABLE`, `INDEXES`, `QUERIES_TABLE`, `EXECUTES`,
+(`HAS_COLUMN`, `READS_FROM`, `INDEXES`, `QUERIES_TABLE`, `EXECUTES`,
 `TRIGGERS`).
 
 **Structural edges** — no tool concept: `REPO_CONTAINS`, `CONTAINS`, `DEFINES`,
@@ -233,12 +233,16 @@ and written through the canonical relationship upserts
 (workload→cloud-resource).
 
 **Registered but not currently materialized:** `MAPS_TO_TABLE`, `MIGRATES`,
-`READS_FROM`, `TRIGGERS_ON`, and `SATISFIED_BY` appear in the edge-type
+`REFERENCES_TABLE`, `TRIGGERS_ON`, and `SATISFIED_BY` appear in the edge-type
 registry, but no emitter MERGEs any of them in the current code.
 `MAPS_TO_TABLE`/`MIGRATES` are read by `query/impact.go` despite having no
-writer (#5330 audited every SQL reducer/edge-writer path). `TRIGGERS_ON` is a
-distinct dead registry entry from the live `TRIGGERS` edge the SQL trigger
-writer actually emits — do not conflate the two names. `SATISFIED_BY`
+writer (#5330 audited every SQL reducer/edge-writer path). `REFERENCES_TABLE`
+joined this list in #5345: the only prior producer was the SqlView/SqlFunction
+source_tables case, which the parser/reducer bridge now emits as `READS_FROM`
+instead — `REFERENCES_TABLE` is reserved for a future table-level FK edge, not
+currently wired to any writer. `TRIGGERS_ON` is a distinct dead registry entry
+from the live `TRIGGERS` edge the SQL trigger writer actually emits — do not
+conflate the two names. `SATISFIED_BY`
 (Crossplane Claim -> XRD) was previously miscategorized above as a
 materialized structural edge; auditing every reducer/edge-writer path found
 no emitter for it either (#5331) — `query/impact_blast_radius.go` reads it

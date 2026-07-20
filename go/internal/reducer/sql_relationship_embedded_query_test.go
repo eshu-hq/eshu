@@ -20,7 +20,7 @@ func TestExtractSQLRelationshipRowsFromEmbeddedQueryOnKnownTable(t *testing.T) {
 		sqlRelationshipFileWithEmbeddedQuery("public.users"),
 	}
 
-	repoIDs, rows := ExtractSQLRelationshipRows(envelopes)
+	repoIDs, rows, _ := ExtractSQLRelationshipRows(envelopes)
 	if len(repoIDs) != 1 || repoIDs[0] != "repo-123" {
 		t.Fatalf("repoIDs = %v, want [repo-123]", repoIDs)
 	}
@@ -57,7 +57,7 @@ func TestExtractSQLRelationshipRowsSkipsAmbiguousEmbeddedQueryTable(t *testing.T
 		sqlRelationshipFileWithEmbeddedQuery("public.users"),
 	}
 
-	_, rows := ExtractSQLRelationshipRows(envelopes)
+	_, rows, _ := ExtractSQLRelationshipRows(envelopes)
 	if len(rows) != 0 {
 		t.Fatalf("len(rows) = %d, want 0 for ambiguous table reference; rows=%+v", len(rows), rows)
 	}
@@ -73,7 +73,7 @@ func TestExtractSQLRelationshipRowsSkipsEmbeddedQueryWithoutSourcePath(t *testin
 		fileFact,
 	}
 
-	_, rows := ExtractSQLRelationshipRows(envelopes)
+	_, rows, _ := ExtractSQLRelationshipRows(envelopes)
 	if len(rows) != 0 {
 		t.Fatalf("len(rows) = %d, want 0 without repo-qualified source path; rows=%+v", len(rows), rows)
 	}
@@ -91,7 +91,7 @@ func TestExtractSQLRelationshipRowsReadsEmbeddedQueryPathFromParsedFileData(t *t
 		fileFact,
 	}
 
-	_, rows := ExtractSQLRelationshipRows(envelopes)
+	_, rows, _ := ExtractSQLRelationshipRows(envelopes)
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 from parsed_file_data.path; rows=%+v", len(rows), rows)
 	}

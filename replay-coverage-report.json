@@ -2843,6 +2843,16 @@
     },
     {
       "registry": "retractable_edge_type",
+      "key": "retractable_edge:READS_FROM",
+      "scenario_type": "delta_tombstone",
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go"
+    },
+    {
+      "registry": "retractable_edge_type",
       "key": "retractable_edge:REFERENCES",
       "scenario_type": "delta_tombstone",
       "status": "covered",
@@ -2850,16 +2860,6 @@
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
       "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go"
-    },
-    {
-      "registry": "retractable_edge_type",
-      "key": "retractable_edge:REFERENCES_TABLE",
-      "scenario_type": "delta_tombstone",
-      "status": "covered",
-      "scenario": "go_test",
-      "ref": "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go",
-      "proof_gate": "replay-tier",
-      "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go"
     },
     {
       "registry": "retractable_edge_type",

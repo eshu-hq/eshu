@@ -166,14 +166,6 @@ SET rel.confidence = 0.95,
     rel.reason = 'Parser embedded SQL evidence resolved a function table query edge',
     rel.evidence_source = row.evidence_source`
 
-const batchCanonicalSQLRelationshipUpsertCypher = `UNWIND $rows AS row
-MATCH (source:SqlTable|SqlView|SqlFunction|SqlTrigger|SqlIndex|SqlColumn {uid: row.source_entity_id})
-MATCH (target:SqlTable|SqlView|SqlFunction|SqlTrigger|SqlIndex|SqlColumn {uid: row.target_entity_id})
-MERGE (source)-[rel:REFERENCES_TABLE]->(target)
-SET rel.confidence = 0.95,
-    rel.reason = 'SQL entity metadata resolved a table reference edge',
-    rel.evidence_source = row.evidence_source`
-
 const batchCanonicalSQLHasColumnUpsertCypher = `UNWIND $rows AS row
 MATCH (source:SqlTable|SqlView|SqlFunction|SqlTrigger|SqlIndex|SqlColumn {uid: row.source_entity_id})
 MATCH (target:SqlTable|SqlView|SqlFunction|SqlTrigger|SqlIndex|SqlColumn {uid: row.target_entity_id})

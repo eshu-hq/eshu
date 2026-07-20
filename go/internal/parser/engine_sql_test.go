@@ -268,7 +268,12 @@ $$;
 
 	procedure := assertBucketItemByName(t, got, "sql_functions", "public.refresh_users")
 	assertStringFieldValue(t, procedure, "routine_kind", "procedure")
-	assertSQLRelationship(t, got, "READS_FROM", "public.refresh_users", "public.users")
+	// refresh_users' only statement is UPDATE public.users — a write, not a
+	// read. The generic relation-read walk tags the UPDATE target as "select"
+	// at the same offset it is recorded as a write; that spurious read is
+	// dropped, so refresh_users has NO READS_FROM edge (#5345, codex P1). This
+	// assertion previously encoded the latent write-as-read bug.
+	assertSQLRelationshipMissing(t, got, "READS_FROM", "public.refresh_users", "public.users")
 }
 
 func TestDefaultEngineParsePathSQLPartialRecovery(t *testing.T) {
@@ -331,4 +336,31 @@ func assertSQLRelationship(
 		targetName,
 		items,
 	)
+}
+
+// assertSQLRelationshipMissing asserts no relationship of relationshipType
+// from sourceName to targetName was emitted.
+func assertSQLRelationshipMissing(
+	t *testing.T,
+	payload map[string]any,
+	relationshipType string,
+	sourceName string,
+	targetName string,
+) {
+	t.Helper()
+
+	items, _ := payload["sql_relationships"].([]map[string]any)
+	for _, item := range items {
+		itemType, _ := item["type"].(string)
+		itemSource, _ := item["source_name"].(string)
+		itemTarget, _ := item["target_name"].(string)
+		if itemType == relationshipType && itemSource == sourceName && itemTarget == targetName {
+			t.Fatalf(
+				"sql_relationships unexpectedly contained type=%q source_name=%q target_name=%q",
+				relationshipType,
+				sourceName,
+				targetName,
+			)
+		}
+	}
 }

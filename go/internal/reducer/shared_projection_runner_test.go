@@ -319,7 +319,7 @@ func TestSharedProjectionRunnerProcessesNewDomainIntents(t *testing.T) {
 					"source_entity_id":  "entity:sql_view:v1",
 					"target_entity_id":  "entity:sql_table:t1",
 					"repo_id":           "repo-a",
-					"relationship_type": "REFERENCES_TABLE",
+					"relationship_type": "READS_FROM",
 				},
 				CreatedAt: time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC),
 			},

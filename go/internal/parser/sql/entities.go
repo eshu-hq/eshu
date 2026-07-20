@@ -4,10 +4,18 @@
 package sql
 
 import (
+	"sort"
 	"strings"
 
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
+
+// sqlSourceTablesCap bounds the number of source tables stamped onto a
+// view/function entity's source_tables metadata. Kept consistent with the
+// other bounded-collection caps in the parser package (e.g.
+// interproc.maxFindingTrailPorts = 64) so payloads and golden-corpus fixtures
+// stay stable for pathological fan-out queries.
+const sqlSourceTablesCap = 64
 
 // sqlExtractor carries the mutable extraction state shared across the
 // per-statement handlers for one SQL file.
@@ -144,9 +152,18 @@ func (x *sqlExtractor) parseView(node *tree_sitter.Node, src []byte, kind string
 	if kind != "view" {
 		item["view_kind"] = kind
 	}
+
+	mentions := collectMentionsFromNode(node, src, true)
+	if sourceTables := selectReadTargets(mentions); len(sourceTables) > 0 {
+		// source_tables bridges the parser to the reducer's view/function
+		// READS_FROM derivation, which keys on entity_metadata.source_tables
+		// (#5345). Without this stamp the edge dies between parser and
+		// reducer even though the READS_FROM relationship below is emitted.
+		item["source_tables"] = sourceTables
+	}
 	x.appendEntity("sql_views", name, item, node, src)
 
-	for _, mention := range collectMentionsFromNode(node, src, true) {
+	for _, mention := range mentions {
 		if mention.operation != "select" {
 			continue
 		}
@@ -174,16 +191,56 @@ func (x *sqlExtractor) parseRoutine(node *tree_sitter.Node, src []byte) {
 	if routineKind != "function" {
 		item["routine_kind"] = routineKind
 	}
-	x.appendEntity("sql_functions", name, item, node, src)
 
 	body := firstChildByKind(node, "function_body")
+	var mentions []sqlMention
+	if body != nil {
+		mentions = collectMentionsFromNode(body, src, true)
+	}
+	if sourceTables := selectReadTargets(mentions); len(sourceTables) > 0 {
+		// See the matching comment in parseView: this stamp is the bridge the
+		// reducer's READS_FROM derivation reads (#5345).
+		item["source_tables"] = sourceTables
+	}
+	x.appendEntity("sql_functions", name, item, node, src)
+
 	if body == nil {
 		return
 	}
-	for _, mention := range collectMentionsFromNode(body, src, true) {
+	for _, mention := range mentions {
+		// A routine body mixes reads with INSERT/UPDATE/DELETE mutation
+		// targets. Only "select" mentions are genuine reads; a write target
+		// mislabeled as a read would be wrong graph truth (#5345).
+		if mention.operation != "select" {
+			continue
+		}
 		x.appendRelationship("READS_FROM", name, mention.name,
 			x.originalLineForOffset(mention.offset))
 	}
+}
+
+// selectReadTargets returns the deduplicated, sorted, capped set of names
+// mentioned as "select" (read) targets. Used to stamp view/function entity
+// metadata with source_tables so the reducer can derive READS_FROM edges
+// without re-parsing SQL (#5345).
+func selectReadTargets(mentions []sqlMention) []string {
+	seen := make(map[string]struct{}, len(mentions))
+	names := make([]string, 0, len(mentions))
+	for _, mention := range mentions {
+		if mention.operation != "select" {
+			continue
+		}
+		if _, ok := seen[mention.name]; ok {
+			continue
+		}
+		seen[mention.name] = struct{}{}
+		names = append(names, mention.name)
+	}
+	sort.Strings(names)
+	if len(names) > sqlSourceTablesCap {
+		names = names[:sqlSourceTablesCap]
+	}
+	return names
 }
 
 func (x *sqlExtractor) parseIndex(node *tree_sitter.Node, src []byte) {
