@@ -5,6 +5,7 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -88,6 +89,10 @@ func (h *ImpactHandler) investigateChangeSurface(w http.ResponseWriter, r *http.
 
 	codeSurface, err := h.changeSurfaceCodeSurface(r.Context(), req)
 	if err != nil {
+		if errors.Is(err, errChangeSurfaceRepoNotGranted) {
+			WriteError(w, http.StatusNotFound, "repository not found")
+			return
+		}
 		WriteError(w, http.StatusServiceUnavailable, err.Error())
 		return
 	}
@@ -232,6 +237,20 @@ func normalizeChangedPaths(paths []string) []string {
 	return normalized
 }
 
+// changeSurfaceEmptyGrantResolution builds the "no match" resolution envelope
+// for a scoped caller with an empty grant, mirroring
+// changeSurfaceNoTargetResolution's shape so an empty-grant caller cannot
+// distinguish "no such target" from "no granted repositories".
+func changeSurfaceEmptyGrantResolution(req changeSurfaceInvestigationRequest) map[string]any {
+	return map[string]any{
+		"input":       req.graphTarget(),
+		"target_type": req.graphTargetType(),
+		"status":      "no_match",
+		"candidates":  []map[string]any{},
+		"truncated":   false,
+	}
+}
+
 func (h *ImpactHandler) resolveChangeSurfaceTarget(
 	ctx context.Context,
 	req changeSurfaceInvestigationRequest,
@@ -239,16 +258,26 @@ func (h *ImpactHandler) resolveChangeSurfaceTarget(
 	if h == nil || h.Neo4j == nil {
 		return nil, nil, fmt.Errorf("graph backend is unavailable")
 	}
+	// #5167 W3: every changeSurfaceResolverQueries probe now pushes the caller's
+	// grant predicate into its WHERE before the LIMIT (P1 filter-before-limit),
+	// so the LIMIT bounds the GRANTED set rather than a cross-tenant-polluted
+	// page that could hide an authorized row past the limit. An empty grant
+	// short-circuits to "no match" without running any resolver query, and the
+	// post-query filter below stays as defense-in-depth.
+	access := repositoryAccessFilterFromContext(ctx)
+	if access.empty() {
+		return nil, changeSurfaceEmptyGrantResolution(req), nil
+	}
 	target := req.graphTarget()
 	candidates := make([]changeSurfaceTargetCandidate, 0, req.Limit+1)
 	// Keep resolver probes separate so each graph read stays label/property
 	// anchored and avoids backend-sensitive OR or UNION planning.
-	for _, query := range changeSurfaceResolverQueries(req, req.Limit+1) {
+	for _, query := range changeSurfaceResolverQueries(req, req.Limit+1, access) {
 		rows, err := h.Neo4j.Run(ctx, query.cypher, query.params)
 		if err != nil {
 			return nil, nil, fmt.Errorf("resolve change surface target: %w", err)
 		}
-		candidates = appendChangeSurfaceCandidates(candidates, changeSurfaceCandidates(rows), req.Limit+1)
+		candidates = appendChangeSurfaceCandidates(candidates, filterChangeSurfaceCandidatesForAccess(changeSurfaceCandidates(rows), access), req.Limit+1)
 		if len(candidates) > 0 {
 			break
 		}

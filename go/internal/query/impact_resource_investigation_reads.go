@@ -87,7 +87,7 @@ LIMIT $limit`, resourceInvestigationResourceRef(selected), anchor)
 func resourceInvestigationInstanceWorkloadsCypher() string {
 	return `MATCH (instance:WorkloadInstance)-[:INSTANCE_OF]->(workload:Workload)
 WHERE instance.id IN $instance_ids
-RETURN instance.id AS instance_id, workload.id AS workload_id, workload.name AS workload_name`
+RETURN instance.id AS instance_id, workload.id AS workload_id, workload.name AS workload_name, workload.repo_id AS workload_repo_id`
 }
 
 func resourceInvestigationRepoPathsCypher(
@@ -122,6 +122,7 @@ func (h *ImpactHandler) resourceInvestigationWorkloads(
 	ctx context.Context,
 	req resourceInvestigationRequest,
 	selected *resourceInvestigationCandidate,
+	access repositoryAccessFilter,
 ) ([]map[string]any, bool, error) {
 	instancesCypher := resourceInvestigationWorkloadsCypher(selected)
 	rows, err := h.Neo4j.Run(ctx, instancesCypher, resourceInvestigationAnchorParams(selected, map[string]any{
@@ -131,8 +132,14 @@ func (h *ImpactHandler) resourceInvestigationWorkloads(
 	if err != nil {
 		return nil, false, fmt.Errorf("load resource workloads: %w", err)
 	}
-	rows, truncated := trimImpactRows(rows, req.Limit)
 
+	// #5167 W3 P1: resolve and grant-filter the FULL fetched row set BEFORE
+	// trimming to the limit. Trimming first (the prior order) let a cross-tenant
+	// workload sorted ahead of a granted one consume a limit slot and drop the
+	// granted row that fell past the boundary, so a scoped caller saw fewer rows
+	// than entitled and the truncated flag reflected the raw set, not the
+	// granted set. The grant key (workload.repo_id) is only known after the
+	// INSTANCE_OF resolution, so that resolution now runs over every fetched row.
 	workloadByInstance, err := h.resourceInvestigationInstanceWorkloads(ctx, rows)
 	if err != nil {
 		return nil, false, err
@@ -143,6 +150,13 @@ func (h *ImpactHandler) resourceInvestigationWorkloads(
 		instanceID := StringVal(row, "instance_id")
 		workloadIDRaw := StringVal(row, "workload_id_raw")
 		resolved := workloadByInstance[instanceID]
+		// The resolved resource anchor is already grant-checked (its candidate was
+		// filtered in resolveResourceInvestigationTarget), but a resource can be
+		// USEd by a workload in a different repository, so each dependent workload
+		// is bound to the grant independently here.
+		if !impactRepoIDAllowed(resolved.repoID, access) {
+			continue
+		}
 		workload := compactStringMap(map[string]any{
 			"workload_id":         firstNonEmpty(resolved.id, workloadIDRaw, instanceID),
 			"workload_name":       firstNonEmpty(resolved.name, StringVal(row, "instance_name"), workloadIDRaw),
@@ -162,13 +176,17 @@ func (h *ImpactHandler) resourceInvestigationWorkloads(
 	sort.SliceStable(workloads, func(i, j int) bool {
 		return resourceInvestigationWorkloadSortKey(workloads[i]) < resourceInvestigationWorkloadSortKey(workloads[j])
 	})
+	// Trim the grant-filtered, sorted set so truncated reflects the rows the
+	// caller may actually see.
+	workloads, truncated := trimImpactRows(workloads, req.Limit)
 	return workloads, truncated, nil
 }
 
 // resourceInvestigationWorkloadRef is a resolved INSTANCE_OF workload identity.
 type resourceInvestigationWorkloadRef struct {
-	id   string
-	name string
+	id     string
+	name   string
+	repoID string
 }
 
 // resourceInvestigationInstanceWorkloads resolves the INSTANCE_OF workload for
@@ -202,8 +220,9 @@ func (h *ImpactHandler) resourceInvestigationInstanceWorkloads(
 	}
 	for _, row := range rows {
 		resolved[StringVal(row, "instance_id")] = resourceInvestigationWorkloadRef{
-			id:   StringVal(row, "workload_id"),
-			name: StringVal(row, "workload_name"),
+			id:     StringVal(row, "workload_id"),
+			name:   StringVal(row, "workload_name"),
+			repoID: StringVal(row, "workload_repo_id"),
 		}
 	}
 	return resolved, nil
@@ -230,6 +249,7 @@ func (h *ImpactHandler) resourceInvestigationRepoPaths(
 	req resourceInvestigationRequest,
 	selected *resourceInvestigationCandidate,
 	direction string,
+	access repositoryAccessFilter,
 ) ([]map[string]any, bool, error) {
 	cypher := resourceInvestigationRepoPathsCypher(req, selected, direction)
 	rows, err := h.Neo4j.Run(ctx, cypher, resourceInvestigationAnchorParams(selected, map[string]any{
@@ -238,7 +258,6 @@ func (h *ImpactHandler) resourceInvestigationRepoPaths(
 	if err != nil {
 		return nil, false, fmt.Errorf("load resource repository paths: %w", err)
 	}
-	rows, truncated := trimImpactRows(rows, req.Limit)
 	paths := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		paths = append(paths, map[string]any{
@@ -249,5 +268,12 @@ func (h *ImpactHandler) resourceInvestigationRepoPaths(
 			"hops":      resourceInvestigationHopList(row["rels"]),
 		})
 	}
+	// #5167 W3 P1: each path terminates at a Repository node; bind every one to
+	// the caller's grant so a resource that traces to a cross-tenant repo does
+	// not surface that repo's id/name. The grant filter runs on the FULL fetched
+	// set BEFORE the trim so a cross-tenant path sorted ahead of a granted one
+	// cannot consume a limit slot and drop the granted path past the boundary;
+	// truncated then reflects the granted set the caller may actually see.
+	paths, truncated := trimImpactRows(filterRowsByRepoIDForAccess(paths, access), req.Limit)
 	return paths, truncated, nil
 }

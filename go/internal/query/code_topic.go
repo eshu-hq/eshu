@@ -37,6 +37,14 @@ type codeTopicInvestigationRequest struct {
 	Terms    []string `json:"terms"`
 	Limit    int      `json:"limit"`
 	Offset   int      `json:"offset"`
+	// AllowedRepositoryIDs, when set, restricts a corpus-wide (RepoID == "")
+	// topic search to the caller's granted repositories at the SQL WHERE, before
+	// the LIMIT/OFFSET page boundary (#5167 W3 P1 filter-before-limit). It is
+	// never populated from the request body: callers that fan a scoped token's
+	// grant into the content query set it internally. Empty leaves the search
+	// unrestricted (the code/topics/investigate route's own behavior is
+	// unchanged).
+	AllowedRepositoryIDs []string `json:"-"`
 }
 
 type codeTopicEvidenceRow struct {

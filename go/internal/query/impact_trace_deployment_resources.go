@@ -111,7 +111,14 @@ func deploymentFactSummaryLimitations(instances []map[string]any, configEnvironm
 	return limitations
 }
 
-func (h *ImpactHandler) fetchCloudResources(ctx context.Context, workloadID string) ([]map[string]any, error) {
+// fetchCloudResources returns the cloud resources the workload's instances use,
+// anchored on the grant-verified workload. The access parameter carries the
+// caller's repository grant: it gates the free-text CloudResource fallbacks a
+// scoped caller must not reach (those name-similarity scans have no repo_id to
+// bind), so a scoped caller only sees the materialized USES edges of its own
+// workload. It is passed rather than re-derived from ctx so the caller's single
+// grant resolution flows through the whole trace-deployment path.
+func (h *ImpactHandler) fetchCloudResources(ctx context.Context, workloadID string, access repositoryAccessFilter) ([]map[string]any, error) {
 	rows, err := h.Neo4j.Run(ctx, `
 		MATCH (w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:USES]->(c:CloudResource)
 		RETURN DISTINCT c.id as id, c.name as name, c.kind as kind, c.provider as provider,
@@ -128,6 +135,16 @@ func (h *ImpactHandler) fetchCloudResources(ctx context.Context, workloadID stri
 		return nil, err
 	}
 	if len(rows) == 0 {
+		// The materialized USES cloud dependencies are anchored on the
+		// grant-verified workload and are safe. The config-derived fallback is a
+		// free-text CloudResource scan (fetchConfigDerivedCloudResources) with no
+		// repo_id to bind to a grant (#5167 W3), so a scoped caller skips it
+		// rather than risk surfacing a cross-tenant cloud resource matched only
+		// by a service-name substring -- the same posture as the config-derived
+		// and uncorrelated fallbacks in traceDeploymentChain.
+		if access.scoped() {
+			return nil, nil
+		}
 		return h.fetchConfigDerivedCloudResources(ctx, workloadID)
 	}
 	return deploymentTraceCloudResourcesFromRows(rows, "")

@@ -144,6 +144,7 @@ func OpenAPISpec() string {
 			openAPIPathsAuthSignInPolicy+
 			openAPIPathsAsk+
 			openAPIPathsStatusAndCompare+
+			openAPIPathsCompare+
 			openAPIComponents,
 		"__ESHU_VERSION__",
 		buildinfo.AppVersion(),

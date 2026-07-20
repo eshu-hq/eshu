@@ -115,6 +115,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 			"",
 			changeSurfaceLegacyDefaultDepth,
 			10,
+			repositoryAccessFilter{allScopes: true},
 		)
 		return err
 	})

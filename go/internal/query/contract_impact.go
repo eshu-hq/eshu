@@ -147,6 +147,16 @@ func (h *ImpactHandler) contractImpactResponse(
 	if h == nil || h.Neo4j == nil {
 		return nil, errContractImpactGraphUnavailable
 	}
+	// #5167 W3: the only implemented family (http) is anchored on an exact
+	// provider_repo_id (required by normalizeContractImpactRequest), so this is
+	// the repo-scoped-selector pattern -- deny-by-default when the requested
+	// repo is outside the caller's grant, mirroring an unknown/nonexistent
+	// provider_repo_id (empty providers, no query issued) rather than
+	// distinguishing "not found" from "not yours" to a scoped caller.
+	access := repositoryAccessFilterFromContext(ctx)
+	if !impactRepoIDAllowed(req.ProviderRepoID, access) {
+		return resp, nil
+	}
 	rows, err := h.Neo4j.Run(ctx, contractImpactHTTPProviderCypher(), map[string]any{
 		"provider_repo_id": req.ProviderRepoID,
 		"route":            req.Route,

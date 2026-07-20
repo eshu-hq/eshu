@@ -23,69 +23,91 @@ import (
 func TestBlastRadiusQueriesAreNornicDBSafe(t *testing.T) {
 	t.Parallel()
 
-	affected := map[string]string{
-		"repository":       blastRadiusRepositoryCypher,
-		"terraform_source": blastRadiusTerraformSourceReposCypher,
-		"terraform_deps":   blastRadiusDependentsByIDCypher,
-		"crossplane":       blastRadiusCrossplaneCypher,
-		"sql_table":        blastRadiusSqlTableCypher,
+	// #5167 W3 P1: the affected queries now take an access filter and inject a
+	// grant predicate on the affected node when scoped. Assert the NornicDB-safe
+	// shape holds for BOTH the non-scoped base (byte-identical to the pre-#5167
+	// const) AND the scoped variant (which adds only a bound-node `id IN $list`
+	// property WHERE, never an OPTIONAL MATCH / RETURN DISTINCT / post-CALL
+	// clause / untyped or zero-length traversal). unscoped is the base shape;
+	// scoped exercises the injected predicate.
+	unscoped := repositoryAccessFilter{allScopes: true}
+	scoped := repositoryAccessFilter{
+		allowedRepositoryIDs: []string{"repo-a"},
+		allowedScopeIDs:      []string{"scope-a"},
+		allowed:              map[string]struct{}{"repo-a": {}, "scope-a": {}},
 	}
+	for _, tc := range []struct {
+		label  string
+		access repositoryAccessFilter
+	}{{"unscoped", unscoped}, {"scoped", scoped}} {
+		affected := map[string]string{
+			"repository":       blastRadiusRepositoryQuery(tc.access),
+			"terraform_source": blastRadiusTerraformSourceReposQuery(tc.access),
+			"terraform_deps":   blastRadiusDependentsByIDQuery(tc.access),
+			"crossplane":       blastRadiusCrossplaneQuery(tc.access),
+			"sql_table":        blastRadiusSqlTableQuery(tc.access),
+		}
 
-	// The terraform_module dependents traversal must anchor on the concrete
-	// source-repo id, not name, so a same-named unrelated repo cannot pull its
-	// dependents into the blast radius (PR #5288 P1).
-	if !strings.Contains(blastRadiusDependentsByIDCypher, "s.id IN $repo_ids") {
-		t.Errorf("terraform dependents query must anchor on s.id IN $repo_ids, not name: %s", blastRadiusDependentsByIDCypher)
-	}
+		// The terraform_module dependents traversal must anchor on the concrete
+		// source-repo id, not name, so a same-named unrelated repo cannot pull its
+		// dependents into the blast radius (PR #5288 P1).
+		if !strings.Contains(affected["terraform_deps"], "s.id IN $repo_ids") {
+			t.Errorf("[%s] terraform dependents query must anchor on s.id IN $repo_ids, not name: %s", tc.label, affected["terraform_deps"])
+		}
 
-	// crossplane_xrd must collapse a multi-claim repo to one row IN-query
-	// (min(claim.name)) so LIMIT bounds unique repos, not (repo, claim) pairs
-	// (PR #5288 F1 — the sql_table dedup-before-LIMIT defect class).
-	if !strings.Contains(blastRadiusCrossplaneCypher, "min(claim.name) AS claim") {
-		t.Errorf("crossplane query must dedup repos in-query via min(claim.name): %s", blastRadiusCrossplaneCypher)
+		// crossplane_xrd must collapse a multi-claim repo to one row IN-query
+		// (min(claim.name)) so LIMIT bounds unique repos, not (repo, claim) pairs
+		// (PR #5288 F1 — the sql_table dedup-before-LIMIT defect class).
+		if !strings.Contains(affected["crossplane"], "min(claim.name) AS claim") {
+			t.Errorf("[%s] crossplane query must dedup repos in-query via min(claim.name): %s", tc.label, affected["crossplane"])
+		}
+
+		for name, q := range affected {
+			if strings.Contains(q, "OPTIONAL MATCH") {
+				t.Errorf("[%s] %s query must not use OPTIONAL MATCH (multi-clause literal-text / row-drop on NornicDB): %s", tc.label, name, q)
+			}
+			if strings.Contains(q, "RETURN DISTINCT") {
+				t.Errorf("[%s] %s query must not use RETURN DISTINCT (multi-clause returns literal alias text on NornicDB): %s", tc.label, name, q)
+			}
+			if strings.Contains(q, "all(rel IN rels") {
+				t.Errorf("[%s] %s query must not use untyped rels + all(type(rel)=...) (matches zero rows on NornicDB): %s", tc.label, name, q)
+			}
+			if strings.Contains(q, "*0..") {
+				t.Errorf("[%s] %s query must not use a zero-length var-length path (*0.. projects literal text on NornicDB): %s", tc.label, name, q)
+			}
+		}
+
+		// The dependent traversals must be TYPED DEPENDS_ON var-length with an
+		// in-clause min(length(path)) hop metric.
+		for _, name := range []string{"repository", "terraform_deps"} {
+			q := affected[name]
+			if !strings.Contains(q, ":DEPENDS_ON*1..5") {
+				t.Errorf("[%s] %s query must use typed :DEPENDS_ON*1..5 traversal: %s", tc.label, name, q)
+			}
+			if !strings.Contains(q, "min(length(path)) AS hops") {
+				t.Errorf("[%s] %s query must compute hops via min(length(path)) in the single clause: %s", tc.label, name, q)
+			}
+		}
+
+		// sql_table must keep the CALL{UNION} core but have NOTHING except the
+		// plain outer RETURN/ORDER BY/LIMIT after the closing brace (a trailing
+		// OPTIONAL MATCH there hard-errors with "unsupported clause after CALL
+		// {}"). The scoped grant lives INSIDE the branches, so the tail stays
+		// clean.
+		sqlTable := affected["sql_table"]
+		closeBrace := strings.LastIndex(sqlTable, "}")
+		if closeBrace < 0 {
+			t.Fatalf("[%s] sql_table query lost its CALL {} block", tc.label)
+		}
+		tail := sqlTable[closeBrace+1:]
+		if strings.Contains(tail, "MATCH") || strings.Contains(tail, "WITH") {
+			t.Errorf("[%s] sql_table query must have only RETURN/ORDER BY/LIMIT after CALL {}, got tail: %s", tc.label, tail)
+		}
 	}
 
 	// Tier lookup must key on repo id, not name (names are not unique).
 	if !strings.Contains(blastRadiusTierLookupCypher, "a.id IN $repo_ids") {
 		t.Errorf("tier lookup must key on a.id IN $repo_ids, not name: %s", blastRadiusTierLookupCypher)
-	}
-	for name, q := range affected {
-		if strings.Contains(q, "OPTIONAL MATCH") {
-			t.Errorf("%s query must not use OPTIONAL MATCH (multi-clause literal-text / row-drop on NornicDB): %s", name, q)
-		}
-		if strings.Contains(q, "RETURN DISTINCT") {
-			t.Errorf("%s query must not use RETURN DISTINCT (multi-clause returns literal alias text on NornicDB): %s", name, q)
-		}
-		if strings.Contains(q, "all(rel IN rels") {
-			t.Errorf("%s query must not use untyped rels + all(type(rel)=...) (matches zero rows on NornicDB): %s", name, q)
-		}
-		if strings.Contains(q, "*0..") {
-			t.Errorf("%s query must not use a zero-length var-length path (*0.. projects literal text on NornicDB): %s", name, q)
-		}
-	}
-
-	// The dependent traversals must be TYPED DEPENDS_ON var-length with an
-	// in-clause min(length(path)) hop metric.
-	for _, name := range []string{"repository", "terraform_deps"} {
-		q := affected[name]
-		if !strings.Contains(q, ":DEPENDS_ON*1..5") {
-			t.Errorf("%s query must use typed :DEPENDS_ON*1..5 traversal: %s", name, q)
-		}
-		if !strings.Contains(q, "min(length(path)) AS hops") {
-			t.Errorf("%s query must compute hops via min(length(path)) in the single clause: %s", name, q)
-		}
-	}
-
-	// sql_table must keep the CALL{UNION} core but have NOTHING except the plain
-	// outer RETURN/ORDER BY/LIMIT after the closing brace (a trailing OPTIONAL
-	// MATCH there hard-errors with "unsupported clause after CALL {}").
-	closeBrace := strings.LastIndex(blastRadiusSqlTableCypher, "}")
-	if closeBrace < 0 {
-		t.Fatal("sql_table query lost its CALL {} block")
-	}
-	tail := blastRadiusSqlTableCypher[closeBrace+1:]
-	if strings.Contains(tail, "MATCH") || strings.Contains(tail, "WITH") {
-		t.Errorf("sql_table query must have only RETURN/ORDER BY/LIMIT after CALL {}, got tail: %s", tail)
 	}
 
 	// Tier enrichment must be a separate single-clause lookup, not folded in.

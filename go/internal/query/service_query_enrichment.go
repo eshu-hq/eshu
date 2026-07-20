@@ -122,10 +122,24 @@ func enrichServiceQueryContextWithOptions(
 		if !opts.DirectOnly || opts.IncludeRelatedModuleUsage {
 			timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "graph_provisioning_candidates")
 			candidates, err = queryProvisioningRepositoryCandidates(ctx, graph, repoID, traceLimit)
-			timer.Done(ctx, slog.Int("row_count", len(candidates)))
 			if err != nil {
+				timer.Done(ctx, slog.Int("row_count", len(candidates)))
 				return fmt.Errorf("load graph provisioning candidates: %w", err)
 			}
+			// #5167 W3 P0 (fifth vector): queryProvisioningRepositoryCandidates
+			// anchors on the service's own grant-verified repo and traverses to the
+			// FAR provisioning/consuming repository with no grant predicate, so a
+			// scoped caller could otherwise read a cross-tenant repo's id/name.
+			// Bind the candidates to the caller's grant here -- the single point
+			// every route that runs this enrichment (service/workload context and
+			// story, /investigations/services/{name}, and
+			// /impact/trace-deployment-chain) shares -- before buildGraphDependents,
+			// loadConsumerRepositoryEnrichmentFromCandidates, and
+			// loadProvisioningSourceChainsFromCandidates derive the dependents,
+			// consumer_repositories, and provisioning_source_chains fields from it.
+			// Deny-by-default when scoped; all-scopes/shared/admin unaffected.
+			candidates = filterProvisioningRepositoryCandidatesForAccess(candidates, repositoryAccessFilterFromContext(ctx))
+			timer.Done(ctx, slog.Int("row_count", len(candidates)))
 		}
 		if !opts.DirectOnly {
 			timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "graph_dependents")

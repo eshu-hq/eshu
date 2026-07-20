@@ -8,8 +8,9 @@ const openAPIPathsImpact = `
       "post": {
         "tags": ["impact"],
         "summary": "Trace deployment chain",
-        "description": "Returns a story-first deployment trace for a service, including deployment overview and normalized deployment fact summary.",
+        "description": "Returns a story-first deployment trace for a service, including deployment overview and normalized deployment fact summary. Scoped tokens receive the same shape; a service outside the caller's grant 404s and cross-repository deployment-source evidence outside the grant is withheld.",
         "operationId": "traceDeploymentChain",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -96,8 +97,9 @@ const openAPIPathsImpact = `
       "post": {
         "tags": ["impact"],
         "summary": "Investigate deployment configuration influence",
-        "description": "Returns a bounded service deployment configuration story with influencing repositories, values layers, image tag sources, runtime setting sources, resource limit sources, rendered targets, and portable file handles.",
+        "description": "Returns a bounded service deployment configuration story with influencing repositories, values layers, image tag sources, runtime setting sources, resource limit sources, rendered targets, and portable file handles. Scoped tokens receive the same shape; a service outside the caller's grant 404s and cross-repository evidence outside the grant is withheld.",
         "operationId": "investigateDeploymentConfigInfluence",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -157,8 +159,9 @@ const openAPIPathsImpact = `
       "post": {
         "tags": ["impact"],
         "summary": "Find blast radius",
-        "description": "Analyzes the blast radius for a target entity.",
+        "description": "Analyzes the blast radius for a target entity. Scoped tokens receive the same shape; affected repositories outside the caller's grant are withheld.",
         "operationId": "findBlastRadius",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -223,8 +226,9 @@ const openAPIPathsImpact = `
       "post": {
         "tags": ["impact"],
         "summary": "Find change surface",
-        "description": "Analyzes the change surface for a target entity. The start node is resolved through label-anchored indexed lookups (optionally hinted by kind) and the impact traversal is bounded by max_depth, so dense service-kind targets stay within the repo-scale traversal budget. Results beyond limit set truncated.",
+        "description": "Analyzes the change surface for a target entity. The start node is resolved through label-anchored indexed lookups (optionally hinted by kind) and the impact traversal is bounded by max_depth, so dense service-kind targets stay within the repo-scale traversal budget. Results beyond limit set truncated. Scoped tokens receive the same shape; a resolved target and every impacted row outside the caller's grant are withheld.",
         "operationId": "findChangeSurface",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {
@@ -272,8 +276,9 @@ const openAPIPathsImpact = `
       "post": {
         "tags": ["impact"],
         "summary": "Investigate change surface",
-        "description": "Resolves a service, workload, resource, module, code topic, or changed path set into one bounded change-surface response with ambiguity metadata, code handles, direct impact, transitive impact, limits, and truncation.",
+        "description": "Resolves a service, workload, resource, module, code topic, or changed path set into one bounded change-surface response with ambiguity metadata, code handles, direct impact, transitive impact, limits, and truncation. Scoped tokens receive the same shape; a resolved target, an explicit repo_id, and every impacted row outside the caller's grant are withheld.",
         "operationId": "investigateChangeSurface",
+        "x-scoped-token-support": true,
         "requestBody": {
           "required": true,
           "content": {

@@ -216,9 +216,9 @@ entries:
     domain: impact
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/impact_resource_investigation_reads.go, symbol: resourceInvestigationInstanceWorkloadsCypher, source_sha256: e2cec14b6edfaa7ad6c976f2ba973a7d576c76a06962592627c64508c0f4962f}
+    source: {file: go/internal/query/impact_resource_investigation_reads.go, symbol: resourceInvestigationInstanceWorkloadsCypher, source_sha256: 82e9daa127faf7733d092cb55f5c8109ca4b5cd93ff81c20ecc3fbcb95610776}
     query_fragment: 'MATCH (instance:WorkloadInstance)-[:INSTANCE_OF]->(workload:Workload)'
-    cypher_sha256: 1cb55f9bca8f9fead028b9408fda479a84e189e9f7568f8701e2bee1445357a0
+    cypher_sha256: 2463d998139bb2f60b10bdac64b62cc655d1e67d5ad9862c450ef317f6ae557e
     required_anchors: [{label: WorkloadInstance, property: id}]
     required_schema: [workload_instance_id]
     plan: *indexed_plan
