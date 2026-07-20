@@ -35,25 +35,73 @@ func TestDocumentationFindingsIndexRestartSafetyLive(t *testing.T) {
 		2*time.Minute,
 	)
 	exec := SQLDB{DB: db}
+	preUpgrade, createReplacement, dropLegacy := documentationFindingsUpgradeDefinitions(t)
 
-	if err := ApplyBootstrap(ctx, exec); err != nil {
-		t.Fatalf("initial ApplyBootstrap() error = %v", err)
+	if err := ApplyDefinitions(ctx, exec, preUpgrade); err != nil {
+		t.Fatalf("apply populated pre-064 schema: %v", err)
 	}
 	seedDocumentationFindingsIndexProof(t, ctx, db)
+	createDocumentationFindingsLegacyIndex(t, ctx, db)
+	legacyBefore := readDocumentationIndexState(t, ctx, db, documentationFindingsLegacyIndexName)
+	assertIndexReady(t, documentationFindingsLegacyIndexName, legacyBefore)
+	assertDocumentationFindingsLegacyIndexDefinition(t, legacyBefore.definition)
+	rowsBefore := countDocumentationFindingsProofRows(t, ctx, db)
+
+	if err := ApplyDefinitionsWithLockTimeout(
+		ctx,
+		exec,
+		[]Definition{createReplacement},
+		5*time.Second,
+	); err != nil {
+		t.Fatalf("apply migration 064 replacement create: %v", err)
+	}
 	first := readDocumentationIndexState(t, ctx, db, documentationFindingsReadIndexName)
 	assertDocumentationIndexReady(t, first)
+	legacyAfterCreate := readDocumentationIndexState(t, ctx, db, documentationFindingsLegacyIndexName)
+	assertIndexReady(t, documentationFindingsLegacyIndexName, legacyAfterCreate)
+	if legacyAfterCreate.oid != legacyBefore.oid {
+		t.Fatalf(
+			"replacement create rebuilt legacy index: before OID=%d after OID=%d",
+			legacyBefore.oid,
+			legacyAfterCreate.oid,
+		)
+	}
+	if rowsAfterCreate := countDocumentationFindingsProofRows(t, ctx, db); rowsAfterCreate != rowsBefore {
+		t.Fatalf("replacement create changed findings: before=%d after=%d", rowsBefore, rowsAfterCreate)
+	}
+
+	if err := ApplyDefinitionsWithLockTimeout(
+		ctx,
+		exec,
+		[]Definition{dropLegacy},
+		5*time.Second,
+	); err != nil {
+		t.Fatalf("apply migration 065 legacy drop: %v", err)
+	}
 	assertIndexAbsent(t, ctx, db, documentationFindingsLegacyIndexName)
+	if rowsAfterDrop := countDocumentationFindingsProofRows(t, ctx, db); rowsAfterDrop != rowsBefore {
+		t.Fatalf("legacy drop changed findings: before=%d after=%d", rowsBefore, rowsAfterDrop)
+	}
 
 	if err := ApplyBootstrap(ctx, exec); err != nil {
-		t.Fatalf("second ApplyBootstrap() error = %v", err)
+		t.Fatalf("first post-upgrade ApplyBootstrap() error = %v", err)
 	}
 	second := readDocumentationIndexState(t, ctx, db, documentationFindingsReadIndexName)
 	assertDocumentationIndexReady(t, second)
 	if second.oid != first.oid {
-		t.Fatalf("second bootstrap rebuilt index: first OID=%d second OID=%d", first.oid, second.oid)
+		t.Fatalf("post-upgrade bootstrap rebuilt index: first OID=%d second OID=%d", first.oid, second.oid)
 	}
 	if second.definition != first.definition {
-		t.Fatalf("second bootstrap changed index definition:\nfirst:  %s\nsecond: %s", first.definition, second.definition)
+		t.Fatalf("post-upgrade bootstrap changed index definition:\nfirst:  %s\nsecond: %s", first.definition, second.definition)
+	}
+
+	if err := ApplyBootstrap(ctx, exec); err != nil {
+		t.Fatalf("second post-upgrade ApplyBootstrap() error = %v", err)
+	}
+	third := readDocumentationIndexState(t, ctx, db, documentationFindingsReadIndexName)
+	assertDocumentationIndexReady(t, third)
+	if third != second {
+		t.Fatalf("repeated bootstrap changed stable index: second=%+v third=%+v", second, third)
 	}
 
 	proveDocumentationIndexInvalidBuildRecovery(t, ctx, db)
@@ -70,6 +118,62 @@ func TestDocumentationFindingsIndexRestartSafetyLive(t *testing.T) {
 		t.Fatalf("concurrent bootstrap changed stable index: before=%+v after=%+v", beforeConcurrent, afterConcurrent)
 	}
 	assertIndexAbsent(t, ctx, db, documentationFindingsLegacyIndexName)
+}
+
+func documentationFindingsUpgradeDefinitions(
+	t *testing.T,
+) ([]Definition, Definition, Definition) {
+	t.Helper()
+	definitions := BootstrapDefinitions()
+	createPosition := -1
+	dropPosition := -1
+	for i, definition := range definitions {
+		switch definition.Name {
+		case "create_documentation_findings_read_idx":
+			createPosition = i
+		case "drop_documentation_findings_visible_idx":
+			dropPosition = i
+		}
+	}
+	if createPosition < 0 || dropPosition < 0 {
+		t.Fatalf(
+			"documentation findings upgrade definitions missing: create=%d drop=%d",
+			createPosition,
+			dropPosition,
+		)
+	}
+	if createPosition >= dropPosition {
+		t.Fatalf(
+			"documentation findings upgrade order is unsafe: create=%d drop=%d",
+			createPosition,
+			dropPosition,
+		)
+	}
+	return definitions[:createPosition], definitions[createPosition], definitions[dropPosition]
+}
+
+func createDocumentationFindingsLegacyIndex(t *testing.T, ctx context.Context, db *sql.DB) {
+	t.Helper()
+	if _, err := db.ExecContext(ctx, `
+CREATE INDEX fact_records_documentation_findings_visible_idx
+ON fact_records (
+  (payload->>'finding_type'),
+  (payload->>'source_id'),
+  (payload->>'document_id'),
+  (payload->>'status'),
+  (payload->>'truth_level'),
+  (payload->>'freshness_state'),
+  observed_at DESC,
+  fact_id DESC
+)
+WHERE fact_kind = 'documentation_finding'
+  AND is_tombstone = FALSE
+  AND (payload->'permissions'->>'viewer_can_read_source') = 'true'
+  AND LOWER(COALESCE(payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'
+  AND LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied'
+`); err != nil {
+		t.Fatalf("create populated legacy documentation findings index: %v", err)
+	}
 }
 
 func seedDocumentationFindingsIndexProof(t *testing.T, ctx context.Context, db *sql.DB) {
@@ -109,12 +213,33 @@ SELECT
     'document_id', 'document:index-proof:' || n,
     'status', 'open',
     'truth_level', 'observed',
-    'freshness_state', 'fresh'
+    'freshness_state', 'fresh',
+    'permissions', jsonb_build_object(
+      'viewer_can_read_source', n % 2 = 0,
+      'source_acl_evaluated', n % 2 = 0
+    ),
+    'states', jsonb_build_object(
+      'permission_decision', CASE WHEN n % 2 = 0 THEN 'allowed' ELSE 'denied' END
+    )
   )
 FROM generate_series(1, 2000) AS n;
 `); err != nil {
 		t.Fatalf("seed populated documentation findings: %v", err)
 	}
+}
+
+func countDocumentationFindingsProofRows(t *testing.T, ctx context.Context, db *sql.DB) int {
+	t.Helper()
+	var count int
+	if err := db.QueryRowContext(ctx, `
+SELECT count(*)
+FROM fact_records
+WHERE fact_kind = 'documentation_finding'
+  AND is_tombstone = FALSE
+`).Scan(&count); err != nil {
+		t.Fatalf("count documentation findings proof rows: %v", err)
+	}
+	return count
 }
 
 func proveDocumentationIndexInvalidBuildRecovery(
@@ -137,21 +262,15 @@ WHERE fact_kind = 'documentation_finding' AND is_tombstone = FALSE`
 		t.Fatal("failed concurrent index is valid, want invalid")
 	}
 
-	definition, ok := definitionByNameForDocumentationIndexTest(
-		BootstrapDefinitions(),
-		"create_documentation_findings_read_idx",
-	)
-	if !ok {
-		t.Fatal("corrected documentation findings index migration is missing")
+	if err := ApplyBootstrap(ctx, SQLDB{DB: db}); err != nil {
+		t.Fatalf("recover invalid documentation findings index through bootstrap: %v", err)
 	}
-	if err := ApplyDefinitionsWithLockTimeout(
-		ctx,
-		SQLDB{DB: db},
-		[]Definition{definition},
-		5*time.Second,
-	); err != nil {
-		t.Fatalf("recover invalid documentation findings index: %v", err)
+	recovered := readDocumentationIndexState(t, ctx, db, documentationFindingsReadIndexName)
+	assertDocumentationIndexReady(t, recovered)
+	if recovered.oid == invalid.oid {
+		t.Fatalf("bootstrap retained invalid documentation index OID %d", invalid.oid)
 	}
+	assertIndexAbsent(t, ctx, db, documentationFindingsLegacyIndexName)
 }
 
 func runConcurrentDocumentationBootstraps(t *testing.T, ctx context.Context, db *sql.DB) {
@@ -188,7 +307,9 @@ func readDocumentationIndexState(
 SELECT c.oid::bigint, pg_get_indexdef(c.oid), i.indisvalid, i.indisready
 FROM pg_class c
 JOIN pg_index i ON i.indexrelid = c.oid
-WHERE c.relname = $1
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relname = $1
 `, indexName).Scan(&state.oid, &state.definition, &state.valid, &state.ready); err != nil {
 		t.Fatalf("read index state for %s: %v", indexName, err)
 	}
@@ -197,10 +318,24 @@ WHERE c.relname = $1
 
 func assertDocumentationIndexReady(t *testing.T, state documentationIndexState) {
 	t.Helper()
-	if !state.valid || !state.ready {
-		t.Fatalf("documentation index is not ready: %+v", state)
-	}
+	assertIndexReady(t, documentationFindingsReadIndexName, state)
 	assertDocumentationFindingsIndexDefinition(t, state.definition)
+}
+
+func assertIndexReady(t *testing.T, indexName string, state documentationIndexState) {
+	t.Helper()
+	if !state.valid || !state.ready {
+		t.Fatalf("index %s is not ready: %+v", indexName, state)
+	}
+}
+
+func assertDocumentationFindingsLegacyIndexDefinition(t *testing.T, definition string) {
+	t.Helper()
+	for _, want := range documentationFindingACLIndexPredicatesForTest() {
+		if !strings.Contains(definition, want) {
+			t.Fatalf("legacy documentation findings index missing %q: %s", want, definition)
+		}
+	}
 }
 
 func assertDocumentationFindingsIndexDefinition(t *testing.T, definition string) {
@@ -237,16 +372,4 @@ func assertIndexAbsent(t *testing.T, ctx context.Context, db *sql.DB, indexName 
 	if present {
 		t.Fatalf("legacy index %s is still present", indexName)
 	}
-}
-
-func definitionByNameForDocumentationIndexTest(
-	definitions []Definition,
-	name string,
-) (Definition, bool) {
-	for _, definition := range definitions {
-		if definition.Name == name {
-			return definition, true
-		}
-	}
-	return Definition{}, false
 }

@@ -161,35 +161,34 @@ High-signal invariants for this package:
   `(repo_id, ref_kind, name)` and default-ref index; writers replace only a
   fresh ref set carried by the current materialization so content-only
   generations do not erase branch metadata.
-- Documentation fact readbacks stay bounded by visible finding/source/packet
-  indexes plus `fact_records_documentation_target_refs_idx`, a partial JSONB GIN
-  index over documentation target-reference payloads. The findings index uses
-  the current disclosure predicate (`documentation_finding` and active rows),
-  not the source-ACL predicates removed from the read in #2164. Free-text fact
-  search uses `fact_records_documentation_facts_search_trgm_idx`, a partial
-  trigram GIN over the same five-field lowercase expression as the query.
+- Documentation finding reads use a partial index that matches the current
+  disclosure predicate: active `documentation_finding` rows are indexed without
+  the source-ACL predicates removed in #2164. Migration 064 creates the corrected
+  replacement before migration 065 removes the legacy index. Source, packet, and
+  target-reference reads retain their existing indexes. Free-text
+  `list_documentation_facts` search remains unchanged and has no dedicated
+  expression index because the measured candidates imposed too much write cost.
 
-Performance Evidence: on 200,000 representative finding rows, the stale partial
-index predicate produced a 26.286 ms sequential scan; the corrected predicate
-completed in 0.129 ms with the same 66 rows and digest
-`e0030a0775056615341dae6a6bea1ea6`. On 500,000 representative documentation
-rows, the exact free-text expression improved from 459.618 ms to 4.314 ms with
-the same 500 rows and digest `54e5e384cf36348c1e6a54f8a2e1d227`. The retained
-1.59 million-row documentation corpus measured 2.826 s before the index; that
-total is a baseline, not a same-cardinality before/after comparison. Building
-the expression index took 6.240 s and 21 MB for 500,000 rows. Inserting 100,000
-documentation rows into an isolated table increased from 241.916 ms to 2.042 s,
-so this read win carries a measured 1.800 s write cost for that batch.
+Performance Evidence: on 200,000 representative finding rows, the stale index
+predicate required 26.286 ms; the corrected index completed the same read in
+0.129 ms. Search-index candidates for the five-field documentation-fact query
+were rejected because the best retained-data read shape increased a
+production-shaped 10,000-row write from 85.396 ms to 570.137 ms on repeat runs.
+The slowest retained search completed in 620.585 ms, within the 2-3 second
+interactive target, so the accepted change does not alter free-text search.
+The full measurements and rejected-candidate ledger are in
+[`docs/internal/evidence/5275-documentation-query-plans.md`](../../../../docs/internal/evidence/5275-documentation-query-plans.md).
 
-No-Regression Evidence: the old and new reads returned identical ordered row
-sets in both representative proofs. Focused schema and query tests keep the
-five search fields, seven documentation fact kinds, partial predicates, three
-isolated concurrent migrations, and production query expression in lockstep.
+No-Regression Evidence: the findings query returned the same 66 rows and the
+same result digest before and after the index correction. The live migration
+test starts from a populated legacy schema, creates the replacement before
+dropping the old index, retries after an invalid concurrent build, and proves
+repeated and concurrent bootstrap calls leave the replacement unchanged.
 
 No-Observability-Change: no metric, span, route, worker, queue, lease, or runtime
-setting changes. Operators still see both reads through existing
-`postgres.query` spans and `eshu_dp_postgres_query_duration_seconds`; the query
-operations remain `list_documentation_findings` and `list_documentation_facts`.
+setting changes. Operators continue to see both reads through `postgres.query`
+spans and `eshu_dp_postgres_query_duration_seconds`, with `db.operation` set to
+`list_documentation_findings` or `list_documentation_facts`.
 - Eshu search-document projection writes derived document facts and a persisted
   BM25 read index in the same reducer retry path. `eshu_search_index_documents`
   stores active-generation document payloads and lengths,
