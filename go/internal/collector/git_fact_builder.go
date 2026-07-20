@@ -33,8 +33,9 @@ func buildStreamingGeneration(
 	observedAt time.Time,
 	snapshot RepositorySnapshot,
 	isDependency bool,
+	ref string,
 ) CollectedGeneration {
-	return buildStreamingGenerationWithContext(context.Background(), repoPath, repo, sourceRunID, observedAt, snapshot, isDependency)
+	return buildStreamingGenerationWithContext(context.Background(), repoPath, repo, sourceRunID, observedAt, snapshot, isDependency, ref)
 }
 
 func buildStreamingGenerationWithContext(
@@ -45,11 +46,12 @@ func buildStreamingGenerationWithContext(
 	observedAt time.Time,
 	snapshot RepositorySnapshot,
 	isDependency bool,
+	ref string,
 ) CollectedGeneration {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	scopeValue := buildScope(repo)
+	scopeValue := buildScope(repo, ref)
 	// A reconciliation snapshot carries an empty freshness hint so the
 	// commit-time skip never elides it: the sweep must re-project the full
 	// observation to retract drift even when the content hash is unchanged.
@@ -108,6 +110,7 @@ func buildStreamingGenerationWithContext(
 		&snapshot,
 		isDependency,
 		factCountAtomic,
+		ref,
 	)
 
 	return CollectedGeneration{
@@ -144,10 +147,11 @@ func streamFacts(
 	snapshot *RepositorySnapshot,
 	isDependency bool,
 	count *atomic.Int64,
+	ref string,
 ) {
 	defer close(ch)
 
-	w := factStreamWriter{ch: ch, count: count}
+	w := factStreamWriter{ch: ch, count: count, ref: ref}
 
 	// Repository fact
 	w.send(repositoryFactEnvelope(
@@ -386,9 +390,16 @@ var streamContentBodyReadFile = os.ReadFile
 type factStreamWriter struct {
 	ch    chan<- facts.Envelope
 	count *atomic.Int64
+	ref   string
 }
 
 func (w factStreamWriter) send(env facts.Envelope) {
+	if w.ref != "" {
+		if env.Payload == nil {
+			env.Payload = map[string]any{}
+		}
+		env.Payload["ref"] = w.ref
+	}
 	w.count.Add(1)
 	w.ch <- env
 }

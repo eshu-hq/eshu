@@ -94,7 +94,7 @@ func TestGitScopeIDForManagedRepoMatchesSnapshotScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MetadataFor() error = %v", err)
 	}
-	want := buildScope(metadata).ScopeID
+	want := buildScope(metadata, "").ScopeID
 	if got != want {
 		t.Fatalf("scope id = %q, want %q", got, want)
 	}

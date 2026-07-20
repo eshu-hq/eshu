@@ -111,7 +111,7 @@ func (s NativeRepositorySelector) SelectRepositories(
 		}
 		return SelectionBatch{
 			ObservedAt:   observedAt,
-			Repositories: buildSelectedRepositories(s.Config, repoPaths, nil, nil, nil, collectLocalRefs(ctx, s.Logger, s.Config, selection.RepositoryIDs, repoPaths)),
+			Repositories: buildSelectedRepositories(s.Config, repoPaths, nil, nil, nil, collectLocalRefs(ctx, s.Logger, s.Config, selection.RepositoryIDs, repoPaths), nil, nil),
 		}, nil
 	case "explicit", "githubOrg":
 		syncGitFn := s.SyncGit
@@ -138,6 +138,8 @@ func (s NativeRepositorySelector) SelectRepositories(
 				synced.ReconcileByRepoPath,
 				synced.SourceCommitSHAByRepoPath,
 				synced.RefsByRepoPath,
+				nil,
+				synced.RefWorktreesByRepoPath,
 			),
 		}, nil
 	default:
@@ -151,12 +153,10 @@ func buildSelectedRepositories(
 	deltaByRepoPath map[string]GitSyncDelta,
 	reconcileByRepoPath map[string]bool,
 	sourceCommitSHAByRepoPath map[string]string,
-	refsByRepoPath ...map[string][]GitRef,
+	refsByRepoPath map[string][]GitRef,
+	_ map[string][]RefWorktreeEntry, // ignored (past v1), kept for signature stability
+	refWorktreesByRepoPath map[string][]RefWorktreeEntry,
 ) []SelectedRepository {
-	var refsByPath map[string][]GitRef
-	if len(refsByRepoPath) > 0 {
-		refsByPath = refsByRepoPath[0]
-	}
 	repositories := make([]SelectedRepository, 0, len(repoPaths))
 	for _, repoPath := range repoPaths {
 		if strings.TrimSpace(repoPath) == "" {
@@ -204,9 +204,9 @@ func buildSelectedRepositories(
 		} else if sha, ok := sourceCommitSHAByRepoPath[absolutePath]; ok {
 			repository.SourceCommitSHA = sha
 		}
-		if refs, ok := refsByPath[repoPath]; ok {
+		if refs, ok := refsByRepoPath[repoPath]; ok {
 			repository.GitRefs = cloneGitRefs(refs)
-		} else if refs, ok := refsByPath[absolutePath]; ok {
+		} else if refs, ok := refsByRepoPath[absolutePath]; ok {
 			repository.GitRefs = cloneGitRefs(refs)
 		}
 		if config.SourceMode != "filesystem" {
@@ -222,6 +222,29 @@ func buildSelectedRepositories(
 			repository.RemoteURL = repoRemoteURL(config, filepath.Base(absolutePath))
 		}
 		repositories = append(repositories, repository)
+
+		// Append ref-scoped worktree entries as separate SelectedRepository
+		// entries with Ref populated, so each pinned ref snapshots as its own
+		// isolated scope (epic #5393, enabler #5417). Lookups mirror the
+		// repoPath/absolutePath fallback pattern used by the other maps
+		// (delta, sourceSHA, gitRefs, reconcile) above.
+		entries := refWorktreesByRepoPath[repoPath]
+		if len(entries) == 0 {
+			entries = refWorktreesByRepoPath[absolutePath]
+		}
+		for _, entry := range entries {
+			repositories = append(repositories, SelectedRepository{
+				RepoPath:        entry.WorktreePath,
+				RemoteURL:       repository.RemoteURL,
+				IsDependency:    repository.IsDependency,
+				DisplayName:     repository.DisplayName,
+				Language:        repository.Language,
+				GitRefs:         repository.GitRefs,
+				Reconcile:       repository.Reconcile,
+				SourceCommitSHA: entry.HeadSHA,
+				Ref:             entry.Ref,
+			})
+		}
 	}
 	return repositories
 }

@@ -122,7 +122,7 @@ func TestGitEmittedFactEnvelopeSchemaVersionGuardAllRegistered(t *testing.T) {
 		}},
 	}
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-schema-guard", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-schema-guard", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
 	var violations []string
@@ -160,7 +160,7 @@ func emitCICDWorkflowImageFacts(t *testing.T) []facts.Envelope {
 			Language:     "yaml",
 		}},
 	}
-	collected := buildStreamingGeneration(repoPath, repo, "run-cicd", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-cicd", observedAt, snapshot, false, "")
 	return drainFactChannel(collected.Facts)
 }
 
@@ -181,7 +181,7 @@ func emitDocumentationFacts(t *testing.T) []facts.Envelope {
 			Language:     "markdown",
 		}},
 	}
-	collected := buildStreamingGeneration(repoPath, repo, "run-doc", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-doc", observedAt, snapshot, false, "")
 	return drainFactChannel(collected.Facts)
 }
 
@@ -218,7 +218,7 @@ func emitObservabilityFacts(t *testing.T) []facts.Envelope {
 			}},
 		}},
 	}
-	collected := buildStreamingGeneration(repoPath, repo, "run-obs", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-obs", observedAt, snapshot, false, "")
 	return drainFactChannel(collected.Facts)
 }
 

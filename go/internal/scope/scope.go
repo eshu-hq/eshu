@@ -48,6 +48,12 @@ const (
 	// KindVaultCluster represents a HashiCorp Vault cluster (and namespace)
 	// metadata scope for the secrets/IAM posture lane.
 	KindVaultCluster ScopeKind = "vault_cluster"
+	// KindRepositoryRef represents a non-default-branch repository snapshot scope
+	// isolated from canonical graph projection. Ref-scoped scopes carry identity
+	// repo_id@ref and their facts never reach the canonical graph (epic #5393,
+	// enabler #5417). The projector gate rejects this kind by default; it is only
+	// processed by ref-overlay consumers that explicitly opt in.
+	KindRepositoryRef ScopeKind = "repository_ref"
 )
 
 // CollectorKind identifies the collector family that owns the scope.

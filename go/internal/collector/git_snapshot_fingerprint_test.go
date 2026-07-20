@@ -23,8 +23,8 @@ func TestBuildCollectedGenerationDerivesStableFreshnessHintForEquivalentSnapshot
 	snapshotA := testCollectorSnapshot(repoPath, "def handler():\n    return 1\n", "digest-1")
 	snapshotB := testCollectorSnapshot(repoPath, "def handler():\n    return 1\n", "digest-1")
 
-	collectedA := buildStreamingGeneration(repoPath, repo, sourceRunID, observedAt, snapshotA, false)
-	collectedB := buildStreamingGeneration(repoPath, repo, sourceRunID, observedAt, snapshotB, false)
+	collectedA := buildStreamingGeneration(repoPath, repo, sourceRunID, observedAt, snapshotA, false, "")
+	collectedB := buildStreamingGeneration(repoPath, repo, sourceRunID, observedAt, snapshotB, false, "")
 
 	if got, want := collectedA.Generation.FreshnessHint, collectedB.Generation.FreshnessHint; got != want {
 		t.Fatalf("FreshnessHint mismatch for equivalent snapshots: got %q, want %q", got, want)
@@ -47,8 +47,8 @@ func TestBuildCollectedGenerationChangesFreshnessHintForMateriallyDifferentSnaps
 	snapshotA := testCollectorSnapshot(repoPath, "def handler():\n    return 1\n", "digest-1")
 	snapshotB := testCollectorSnapshot(repoPath, "def handler():\n    return 2\n", "digest-2")
 
-	collectedA := buildStreamingGeneration(repoPath, repo, sourceRunID, observedAt, snapshotA, false)
-	collectedB := buildStreamingGeneration(repoPath, repo, sourceRunID, observedAt, snapshotB, false)
+	collectedA := buildStreamingGeneration(repoPath, repo, sourceRunID, observedAt, snapshotA, false, "")
+	collectedB := buildStreamingGeneration(repoPath, repo, sourceRunID, observedAt, snapshotB, false, "")
 
 	if got, want := collectedA.Generation.FreshnessHint, collectedB.Generation.FreshnessHint; got == want {
 		t.Fatalf("FreshnessHint = %q for materially different snapshots, want different values", got)
@@ -71,8 +71,8 @@ func TestBuildCollectedGenerationChangesFreshnessHintWhenImportsMapChanges(t *te
 		"Handler": {repoPath + "/handlers.py"},
 	}
 
-	collectedA := buildStreamingGeneration(repoPath, repo, sourceRunID, observedAt, snapshotA, false)
-	collectedB := buildStreamingGeneration(repoPath, repo, sourceRunID, observedAt, snapshotB, false)
+	collectedA := buildStreamingGeneration(repoPath, repo, sourceRunID, observedAt, snapshotA, false, "")
+	collectedB := buildStreamingGeneration(repoPath, repo, sourceRunID, observedAt, snapshotB, false, "")
 
 	if got, want := collectedA.Generation.FreshnessHint, collectedB.Generation.FreshnessHint; got == want {
 		t.Fatalf("FreshnessHint = %q for changed imports_map, want different values", got)
@@ -144,8 +144,8 @@ func TestBuildCollectedGenerationDerivesStableFreshnessHintForEquivalentMetaSnap
 	snapshotA := testCollectorSnapshotWithMetas(repoPath, "def handler():\n    return 1\n", "digest-1")
 	snapshotB := testCollectorSnapshotWithMetas(repoPath, "def handler():\n    return 1\n", "digest-1")
 
-	collectedA := buildStreamingGeneration(repoPath, repo, sourceRunID, observedAt, snapshotA, false)
-	collectedB := buildStreamingGeneration(repoPath, repo, sourceRunID, observedAt, snapshotB, false)
+	collectedA := buildStreamingGeneration(repoPath, repo, sourceRunID, observedAt, snapshotA, false, "")
+	collectedB := buildStreamingGeneration(repoPath, repo, sourceRunID, observedAt, snapshotB, false, "")
 
 	if got, want := collectedA.Generation.FreshnessHint, collectedB.Generation.FreshnessHint; got != want {
 		t.Fatalf("FreshnessHint mismatch for equivalent meta snapshots: got %q, want %q", got, want)
@@ -163,8 +163,8 @@ func TestBuildCollectedGenerationChangesFreshnessHintForDifferentMetaSnapshots(t
 	snapshotA := testCollectorSnapshotWithMetas(repoPath, "def handler():\n    return 1\n", "digest-1")
 	snapshotB := testCollectorSnapshotWithMetas(repoPath, "def handler():\n    return 2\n", "digest-2")
 
-	collectedA := buildStreamingGeneration(repoPath, repo, sourceRunID, observedAt, snapshotA, false)
-	collectedB := buildStreamingGeneration(repoPath, repo, sourceRunID, observedAt, snapshotB, false)
+	collectedA := buildStreamingGeneration(repoPath, repo, sourceRunID, observedAt, snapshotA, false, "")
+	collectedB := buildStreamingGeneration(repoPath, repo, sourceRunID, observedAt, snapshotB, false, "")
 
 	if got, want := collectedA.Generation.FreshnessHint, collectedB.Generation.FreshnessHint; got == want {
 		t.Fatalf("FreshnessHint = %q for materially different meta snapshots, want different values", got)
@@ -182,7 +182,7 @@ func TestStreamFactsReReadsBodyFromDisk(t *testing.T) {
 	repo := testCollectorRepositoryMetadata(repoPath)
 	snapshot := testCollectorSnapshotWithMetas(repoPath, body, "digest-1")
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	allFacts := drainFactChannel(collected.Facts)
 
 	// Facts: 1 repo + 1 file + 1 content + 1 entity + 10 followups = 14
@@ -213,7 +213,7 @@ func TestBuildStreamingGenerationTagsGitFactsAsObserved(t *testing.T) {
 	repo := testCollectorRepositoryMetadata(repoPath)
 	snapshot := testCollectorSnapshot(repoPath, "def handler():\n    return 1\n", "digest-1")
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	allFacts := drainFactChannel(collected.Facts)
 
 	if len(allFacts) == 0 {
@@ -252,7 +252,7 @@ func TestStreamFactsSkipsMissingFile(t *testing.T) {
 		}},
 	}
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	allFacts := drainFactChannel(collected.Facts)
 
 	// With missing file: 1 repo + 1 file + 0 content (skipped) + 0 entities + 10 followups = 12

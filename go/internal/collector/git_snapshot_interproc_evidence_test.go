@@ -245,10 +245,10 @@ func TestInterprocEvidenceCountedStreamedAndFreshness(t *testing.T) {
 		SinkKind: "sql", SourceKind: "http_request", Confidence: 0.6,
 	}}
 
-	baseCollected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, base, false)
+	baseCollected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, base, false, "")
 	baseFacts := drainFactChannel(baseCollected.Facts)
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, withEvidence, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, withEvidence, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
 	if got, want := len(envelopes), collected.FactCount(); got != want {

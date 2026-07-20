@@ -49,7 +49,7 @@ func TestGitSourceEmitsRepoHostedBackstageCatalogFacts(t *testing.T) {
 		}},
 	}
 
-	collected := buildStreamingGeneration(repoRoot, repo, "run-1", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoRoot, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 	if got, want := collected.FactCount(), len(envelopes); got != want {
 		t.Fatalf("FactCount = %d, want emitted fact count %d", got, want)
@@ -138,7 +138,7 @@ func TestGitSourceEmitsRepoHostedServiceCatalogFactsFromLegacyContentFiles(t *te
 		}},
 	}
 
-	collected := buildStreamingGeneration(repoRoot, repo, "run-1", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoRoot, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 	if got, want := collected.FactCount(), len(envelopes); got != want {
 		t.Fatalf("FactCount = %d, want emitted fact count %d", got, want)

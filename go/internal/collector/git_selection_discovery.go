@@ -42,6 +42,20 @@ type GitSyncSelection struct {
 	// selectors. The snapshot code uses this to skip a redundant git rev-parse
 	// HEAD subprocess.
 	SourceCommitSHAByRepoPath map[string]string
+	// RefWorktreeByRepoPath maps the main repo path to a list of pinned-ref
+	// worktree metadata. Each entry carries a worktree path and the ref name.
+	// Populated only when ESHU_PINNED_REFS_JSON is configured. Enabler for
+	// epic #5393 / issue #5417.
+	RefWorktreesByRepoPath map[string][]RefWorktreeEntry
+}
+
+// RefWorktreeEntry describes one pinned-ref git worktree checkout created
+// alongside the default-branch checkout during a sync cycle.
+type RefWorktreeEntry struct {
+	WorktreePath string
+	Ref          string
+	RefKind      string // "branch" or "tag"
+	HeadSHA      string
 }
 
 // GitSyncDelta carries the file-scoped change set for an updated Git checkout.

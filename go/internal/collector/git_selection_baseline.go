@@ -211,7 +211,7 @@ func gitScopeIDForManagedRepo(config RepoSyncConfig, repoPath string) string {
 	if err != nil {
 		return ""
 	}
-	return buildScope(metadata).ScopeID
+	return buildScope(metadata, "").ScopeID
 }
 
 // isGitCommitReachable reports whether sha resolves to a commit object present

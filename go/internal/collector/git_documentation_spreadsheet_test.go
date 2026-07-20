@@ -42,6 +42,7 @@ func TestStreamFactsEmitsDelimitedSpreadsheetDocumentation(t *testing.T) {
 			},
 		},
 		false,
+		"",
 	)
 	envelopes := drainFactChannel(collected.Facts)
 
@@ -214,6 +215,7 @@ func streamSpreadsheetFacts(t *testing.T, repoPath string, relativePath string) 
 			}},
 		},
 		false,
+		"",
 	)
 	return drainFactChannel(collected.Facts)
 }

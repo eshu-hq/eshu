@@ -168,6 +168,7 @@ func TestStreamFactsHandlesMalformedAndLegacyXLSWorkbooks(t *testing.T) {
 			},
 		},
 		false,
+		"",
 	)
 	envelopes := drainFactChannel(collected.Facts)
 

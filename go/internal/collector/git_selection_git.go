@@ -38,6 +38,9 @@ func syncGitRepositoriesWithLogger(
 	refsByRepoPath := make(map[string][]GitRef)
 	reconcileByRepoPath := make(map[string]bool)
 	sourceSHAByRepoPath := make(map[string]string)
+	refWorktreesByRepoPath := make(map[string][]RefWorktreeEntry)
+	fleetRefCount := 0
+	fleetCap := config.PinnedRefFleetCap
 	reconciledThisCycle := 0
 	for i, repoID := range repositoryIDs {
 		if err := ctx.Err(); err != nil {
@@ -59,6 +62,15 @@ func syncGitRepositoriesWithLogger(
 					return GitSyncSelection{}, refsErr
 				}
 				refsByRepoPath[repoPath] = refs
+				// Create isolated worktrees for pinned refs (enabler #5417).
+				entries, newCount, wtErr := createRefWorktrees(ctx, config, repoPath, repoID, token, logger, event, fleetRefCount, fleetCap)
+				if wtErr != nil {
+					return GitSyncSelection{}, wtErr
+				}
+				fleetRefCount = newCount
+				if len(entries) > 0 {
+					refWorktreesByRepoPath[repoPath] = entries
+				}
 			}
 			continue
 		}
@@ -84,6 +96,15 @@ func syncGitRepositoriesWithLogger(
 				reconciledThisCycle++
 				baseline.recordReconciliation(ctx)
 			}
+			// Create isolated worktrees for pinned refs (enabler #5417).
+			entries, newCount, wtErr := createRefWorktrees(ctx, config, repoPath, repoID, token, logger, event, fleetRefCount, fleetCap)
+			if wtErr != nil {
+				return GitSyncSelection{}, wtErr
+			}
+			fleetRefCount = newCount
+			if len(entries) > 0 {
+				refWorktreesByRepoPath[repoPath] = entries
+			}
 		}
 	}
 	return GitSyncSelection{
@@ -92,6 +113,7 @@ func syncGitRepositoriesWithLogger(
 		RefsByRepoPath:            refsByRepoPath,
 		ReconcileByRepoPath:       reconcileByRepoPath,
 		SourceCommitSHAByRepoPath: sourceSHAByRepoPath,
+		RefWorktreesByRepoPath:    refWorktreesByRepoPath,
 	}, nil
 }
 
@@ -474,27 +496,4 @@ func gitCommandEnv(config RepoSyncConfig, token string) []string {
 		}
 	}
 	return env
-}
-
-func buildSSHCommand(config RepoSyncConfig) string {
-	privateKeyPath := strings.TrimSpace(config.SSHPrivateKeyPath)
-	if privateKeyPath == "" {
-		privateKeyPath = "/var/run/secrets/eshu-ssh/id_rsa"
-	}
-	knownHostsPath := strings.TrimSpace(config.SSHKnownHostsPath)
-	if knownHostsPath == "" {
-		knownHostsPath = "/var/run/secrets/eshu-ssh/known_hosts"
-	}
-	strictHosts := "no"
-	knownHostsOpt := ""
-	if _, err := os.Stat(knownHostsPath); err == nil {
-		strictHosts = "yes"
-		knownHostsOpt = fmt.Sprintf("-o UserKnownHostsFile=%s", knownHostsPath)
-	}
-	return strings.TrimSpace(fmt.Sprintf(
-		"ssh -i %s %s -o StrictHostKeyChecking=%s",
-		privateKeyPath,
-		knownHostsOpt,
-		strictHosts,
-	))
 }

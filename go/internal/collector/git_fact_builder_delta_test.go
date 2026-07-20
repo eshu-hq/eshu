@@ -23,7 +23,7 @@ func TestBuildStreamingGenerationEmitsDeltaMetadataAndDeletedTombstones(t *testi
 	snapshot.DeltaRelativePaths = []string{"app.py", "old/deleted.py"}
 	snapshot.DeletedRelativePaths = []string{"old/deleted.py"}
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-delta", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-delta", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 	if got, want := len(envelopes), collected.FactCount(); got != want {
 		t.Fatalf("streamed facts = %d, FactCount = %d", got, want)
@@ -77,7 +77,7 @@ func TestBuildStreamingGenerationPreservesDeltaPathWhitespace(t *testing.T) {
 		DeletedRelativePaths: []string{"dir/deleted .go"},
 	}
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-delta", time.Now().UTC(), snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-delta", time.Now().UTC(), snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
 	var repositoryPayload map[string]any
@@ -172,8 +172,8 @@ func TestBuildStreamingGenerationDeltaChangedFileFactsMatchFullSnapshot(t *testi
 		ContentEntities:    []ContentEntitySnapshot{fullSnapshot.ContentEntities[0]},
 	}
 
-	fullFacts := drainFactChannel(buildStreamingGeneration(repoPath, repo, "run-full", observedAt, fullSnapshot, false).Facts)
-	deltaFacts := drainFactChannel(buildStreamingGeneration(repoPath, repo, "run-delta", observedAt, deltaSnapshot, false).Facts)
+	fullFacts := drainFactChannel(buildStreamingGeneration(repoPath, repo, "run-full", observedAt, fullSnapshot, false, "").Facts)
+	deltaFacts := drainFactChannel(buildStreamingGeneration(repoPath, repo, "run-delta", observedAt, deltaSnapshot, false, "").Facts)
 
 	for _, kind := range []string{"file", "content", "content_entity"} {
 		fullPayload, ok := factPayloadForRelativePath(fullFacts, kind, "changed.go")
@@ -202,7 +202,7 @@ func TestBuildStreamingGenerationDeltaEmitsShellExecFollowupOnly(t *testing.T) {
 	snapshot.Delta = true
 	snapshot.DeltaRelativePaths = []string{"app.py"}
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-delta", time.Now().UTC(), snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-delta", time.Now().UTC(), snapshot, false, "")
 	var followups []facts.Envelope
 	for _, envelope := range drainFactChannel(collected.Facts) {
 		if envelope.FactKind == "shared_followup" {

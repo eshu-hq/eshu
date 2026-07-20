@@ -24,7 +24,7 @@ func TestDataflowScannedMarkerEmittedWithoutFindings(t *testing.T) {
 	snapshot := testCollectorSnapshot(repoPath, "package main\n", "digest-1")
 	snapshot.DataflowScanned = true // gate on, zero findings
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
 	if got, want := len(envelopes), collected.FactCount(); got != want {
@@ -53,7 +53,7 @@ func TestDataflowScannedMarkerAbsentWhenGateOff(t *testing.T) {
 	snapshot := testCollectorSnapshot(repoPath, "package main\n", "digest-1")
 	// DataflowScanned defaults to false.
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
 	if got, want := len(envelopes), collected.FactCount(); got != want {
@@ -81,7 +81,7 @@ func TestDataflowScannedMarkerAbsentOnDelta(t *testing.T) {
 	snapshot.DataflowScanned = true
 	snapshot.Delta = true // partial generation
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
 	if got, want := len(envelopes), collected.FactCount(); got != want {
