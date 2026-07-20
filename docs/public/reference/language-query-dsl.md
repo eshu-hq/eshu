@@ -86,6 +86,16 @@ graph labels and return their outgoing governance edges) and by
 `list_relationship_edges` for the MANAGES / ATLANTIS_DEPENDS_ON / USES_WORKFLOW
 verbs. See [Atlantis Parser](../languages/atlantis.md#query-surfacing).
 
+`flux_kustomization`/`flux_git_repository`/`flux_oci_repository`/`flux_bucket`
+are likewise **not** language-queryable and are deliberately absent from the enum
+above: Flux CRs carry language `yaml`, which `language-query` does not accept.
+They are served by `get_entity_context`, which resolves the `FluxKustomization` /
+`FluxGitRepository` / `FluxOCIRepository` / `FluxBucket` graph labels and
+surfaces their typed fields (`url`, `source_ref_*`, `ref_*`, `bucket_name`,
+`endpoint`, `provider`, `source_path`, `target_namespace`, `generate_name`)
+through content-metadata enrichment. `resolve_entity` by name is a deferred
+follow-up (PR B). See [Flux Parser](../languages/flux.md).
+
 `guard` is a semantic filter over `function` entities and returns
 guard-classified functions only.
 

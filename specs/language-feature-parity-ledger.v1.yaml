@@ -107,7 +107,7 @@ language_features:
     docs_claim: docs/public/languages/flux.md
     parser_backing: structured-parser-backed-exception
     no_provider_required: true
-    supported_features: [flux-kustomizations, flux-kustomization-source-ref, flux-kustomization-source-path, flux-kustomization-target-namespace, flux-git-repositories, flux-git-repository-url, flux-git-repository-ref, flux-oci-repositories, flux-oci-repository-url, flux-oci-repository-ref, flux-buckets, flux-bucket-coordinates]
+    supported_features: [flux-kustomizations, flux-kustomization-source-ref, flux-kustomization-source-path, flux-kustomization-target-namespace, flux-git-repositories, flux-git-repository-url, flux-git-repository-ref, flux-oci-repositories, flux-oci-repository-url, flux-oci-repository-ref, flux-buckets, flux-bucket-coordinates, flux-generate-name]
     partial_features: []
     derived_features: []
     source_files: [go/internal/parser/yaml/flux.go, go/internal/parser/yaml/flux_source.go, go/internal/parser/yaml/language.go]
