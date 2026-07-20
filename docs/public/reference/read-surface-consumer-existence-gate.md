@@ -187,3 +187,141 @@ Two anti-false-green mitigations:
 - [Cypher Performance](cypher-performance.md) — hot-path Cypher discipline.
 - `go/internal/queryplan/grandfathered_non_hot.go` — the grandfather landing
   mechanism this gate mirrors.
+
+## GATE 3 — route-serves-data consistency (#5474 D1)
+
+`go/internal/mcp/read_surface_route_serves_data.go` adds a new gate that
+closes the #5480 defect class: a registry family's `read_surface` route can be
+live and mounted (so the #5359 gate stays green) while serving data from an
+entirely different reducer domain — the `kubernetes_live` → `cloud/resources`
+mis-mapping is the canonical example.
+
+### Backing map
+
+`routeServesDataBackingMap` is a closed, hand-maintained, digest-pinned map
+from each distinct `read_surface` route literal to the `reducer_domain`
+values whose data that route surfaces. It covers all 17 distinct route
+literals the registry uses today. A route missing from the map fails closed.
+
+Entry discipline:
+- **Add an entry** for every distinct `read_surface` the registry uses.
+- **ServedDomains** lists every `reducer_domain` whose produced data is
+  surfaced through that route. When a new family shares an existing route,
+  add its `reducer_domain` here.
+- **read_surface_overrides** (per-kind route substitutions) are excluded from
+  v1 scope. A family that uses overrides passes as long as its family-level
+  route is consistent.
+
+### Consistency rule
+
+For each family in `specs/fact-kind-registry.v1.yaml`, the gate asserts:
+
+> The family's `reducer_domain` must be in the route's `ServedDomains`.
+
+A failure names BOTH fix paths:
+
+1. Fix `specs/fact-kind-registry.v1.yaml`'s `read_surface` (point the family
+   at the correct route).
+2. Fix `routeServesDataBackingMap` (add the missing `reducer_domain` to the
+   route's `ServedDomains`).
+
+### BITES proof
+
+`TestRouteServesDataBITES_KubernetesLiveCloudResourcesMismatch`
+(`go/internal/mcp/read_surface_route_serves_data_test.go`) reproduces the
+#5480 defect class on purpose:
+
+1. **Baseline-green:** `kubernetes_live`'s real route
+   (`GET /api/v0/kubernetes/correlations`, serves `kubernetes_correlation`)
+   passes.
+2. **Seeded-RED:** Re-point `kubernetes_live` at `GET /api/v0/cloud/resources`
+   — a live, mounted route that serves `CloudResource` nodes — and assert the
+   gate goes RED with a message naming both fix paths.
+3. **Production stays GREEN:** The backing map's actual entry for
+   `kubernetes/correlations` still includes `kubernetes_correlation`.
+
+Follows the baseline-green-then-break pattern from the #5359 BITES precedent.
+
+### Mount
+
+Rides `go test ./internal/mcp`, the same credential-free floor as every other
+package test. No separate workflow.
+
+## GATE 4 — per-kind consumer existence (#5474 D2)
+
+`go/internal/mcp/kind_disclosure_ledger.go` and
+`go/internal/mcp/kind_consumer_existence_test.go` add a new gate walking every
+fact kind in the generated registry (`facts.FactKindRegistry()`) and asserting
+each kind either has a detectable consumer or an explicit disclosure entry.
+
+### Consumer taxonomy (v1)
+
+A kind passes if it has at least one of these signals:
+
+1. **PayloadSchema non-empty** — the kind has a typed decode seam (a
+   `sdk/go/factschema` struct + decode wrapper, consumed at the reducer
+   level).
+2. **AdmissionExempt** — legacy code kinds (`file`, `repository`) are
+   deliberately outside the versioned-admission regime but still consumed.
+3. **Pipeline consumer** — the kind has a non-empty `ReducerDomain`,
+   `ProjectionHook`, and a real (non-`"none"`) `AdmissionHook`, meaning it
+   flows through the full admission→projection→read pipeline and is consumed
+   at the pre-typing raw-payload level.
+4. **Disclosure ledger** — the kind is pinned in
+   `grandfatheredUnconsumedKinds` with a code-anchor citation. This covers
+   kinds that are legitimately registered but intentionally unconsumed (e.g.
+   `terraform_state_candidate`, consumed by the projector but not by the
+   reducer's decode seam; `package_registry.vulnerability_hint`, join-key-only
+   with no decode-side consumer).
+
+### Disclosure ledger
+
+`kind_disclosure_ledger.go` mirrors `read_surface_grandfather.go`: a closed
+map from exact fact kind to a SHA-256 digest of `family:kind:reason`. Changing
+the kind, family, or disclosure reason changes the digest and un-grandfathers
+the entry, forcing re-evaluation.
+
+Seed entries (from #5475):
+- `terraform_state_candidate`, `_provider_binding`, `_warning` — intentionally
+  not consumed by the reducer decode seam
+  (`projector/tfstate_canonical.go:104-106`).
+- `package_registry.vulnerability_hint` — join-key-only evidence; no reducer
+  decode seam or query read-model consumer.
+- Five `service_catalog` kinds (`api_link`, `dependency`, `scorecard_definition`,
+  `scorecard_result`, `warning`) — no decode-side consumer today.
+- `vulnerability.warning` — no reducer decode, no query reader (#5462 owns).
+- Three `ci_cd_run` kinds (`ci.job`, `ci.pipeline_definition`, `ci.warning`) —
+  emitted by collector, no reducer decode call (Wave 4d deferred).
+
+### Fail-closed enumeration
+
+`TestEveryRegistryKindHasConsumerOrDisclosure` walks all 176 fact kinds in the
+generated registry. A NEW kind with no consumer and no disclosure entry fails
+the gate — this is the point. The RED message names the kind, the family
+(`reducer_domain`), and the three legal exits:
+
+1. Add a consumer (typed decode seam, reducer handler, or query read model).
+2. Add the kind to `grandfatheredUnconsumedKinds` with code-anchor evidence.
+3. Remove the kind from `specs/fact-kind-registry.v1.yaml`.
+
+### BITES proof
+
+`TestKindConsumerExistenceBITES_UnconsumedKindMustFail` constructs a synthetic
+kind with no `PayloadSchema`, not `AdmissionExempt`, no pipeline consumer, and
+not in the disclosure ledger → the gate goes RED with a message naming all
+three exits. A disclosed kind (`terraform_state_candidate`) is proven to pass
+via the disclosure path.
+
+### Mount
+
+Rides `go test ./internal/mcp`, the same credential-free floor as every other
+package test. No separate workflow.
+
+## Related gates
+
+- [C-1/C-8/C-9/C-10 replay coverage manifest](local-testing.md) — checks the
+  same two ledgers for non-emptiness and replay-scenario coverage; this gate
+  is the consumer-existence check the replay-coverage gate does not perform.
+- [Cypher Performance](cypher-performance.md) — hot-path Cypher discipline.
+- `go/internal/queryplan/grandfathered_non_hot.go` — the grandfather landing
+  mechanism this gate mirrors.
