@@ -167,6 +167,90 @@ func TestParseFluxOCIRepositoryCapturesURLAndRef(t *testing.T) {
 	}
 }
 
+func TestParseFluxGitRepositoryGenerateNameOnly(t *testing.T) {
+	t.Parallel()
+
+	document := map[string]any{"spec": map[string]any{"url": "https://github.com/acme/repo"}}
+	metadata := map[string]any{"generateName": "flux-system-"}
+
+	row := parseFluxGitRepository(document, metadata, "/repo/gen.yaml", 1)
+
+	if name, ok := row["name"]; !ok {
+		t.Fatal("name key must be present (base-identity field), even when empty")
+	} else if name != "" {
+		t.Fatalf("name = %#v, want empty string when metadata.name absent (never fabricated as \"<nil>\")", name)
+	}
+	if row["generate_name"] != "flux-system-" {
+		t.Fatalf("generate_name = %#v, want flux-system- (the literal metadata.generateName)", row["generate_name"])
+	}
+}
+
+func TestParseFluxGitRepositoryWhollyNamelessOmitsGenerateName(t *testing.T) {
+	t.Parallel()
+
+	document := map[string]any{"spec": map[string]any{"url": "https://github.com/acme/repo"}}
+	metadata := map[string]any{}
+
+	row := parseFluxGitRepository(document, metadata, "/repo/nameless.yaml", 1)
+
+	if name, ok := row["name"]; !ok {
+		t.Fatal("name key must be present (base-identity field), even when empty")
+	} else if name != "" {
+		t.Fatalf("name = %#v, want empty string when metadata has no name (never \"<nil>\")", name)
+	}
+	if _, present := row["generate_name"]; present {
+		t.Fatalf("generate_name = %#v, want absent when metadata.generateName is absent (omit-when-absent)", row["generate_name"])
+	}
+}
+
+func TestParseFluxOCIRepositoryGenerateNameOnly(t *testing.T) {
+	t.Parallel()
+
+	document := map[string]any{"spec": map[string]any{"url": "oci://ghcr.io/acme/manifests"}}
+	metadata := map[string]any{"generateName": "app-manifests-"}
+
+	row := parseFluxOCIRepository(document, metadata, "/repo/gen.yaml", 1)
+
+	if name, ok := row["name"]; !ok || name != "" {
+		t.Fatalf("name = %#v (present=%v), want empty string, never \"<nil>\"", row["name"], ok)
+	}
+	if row["generate_name"] != "app-manifests-" {
+		t.Fatalf("generate_name = %#v, want app-manifests-", row["generate_name"])
+	}
+}
+
+func TestParseFluxBucketGenerateNameOnly(t *testing.T) {
+	t.Parallel()
+
+	document := map[string]any{"spec": map[string]any{"bucketName": "artifacts"}}
+	metadata := map[string]any{"generateName": "flux-artifacts-"}
+
+	row := parseFluxBucket(document, metadata, "/repo/gen.yaml", 1)
+
+	if name, ok := row["name"]; !ok || name != "" {
+		t.Fatalf("name = %#v (present=%v), want empty string, never \"<nil>\"", row["name"], ok)
+	}
+	if row["generate_name"] != "flux-artifacts-" {
+		t.Fatalf("generate_name = %#v, want flux-artifacts-", row["generate_name"])
+	}
+}
+
+func TestParseFluxBucketWhollyNamelessOmitsGenerateName(t *testing.T) {
+	t.Parallel()
+
+	document := map[string]any{"spec": map[string]any{"bucketName": "artifacts"}}
+	metadata := map[string]any{}
+
+	row := parseFluxBucket(document, metadata, "/repo/nameless.yaml", 1)
+
+	if name, ok := row["name"]; !ok || name != "" {
+		t.Fatalf("name = %#v (present=%v), want empty string, never \"<nil>\"", row["name"], ok)
+	}
+	if _, present := row["generate_name"]; present {
+		t.Fatalf("generate_name = %#v, want absent when metadata.generateName absent", row["generate_name"])
+	}
+}
+
 func TestParseFluxOCIRepositoryOmitsAbsentNamespace(t *testing.T) {
 	t.Parallel()
 

@@ -66,6 +66,89 @@ spec:
 	assertBucketContainsFieldValue(t, got, "flux_kustomizations", "target_namespace", "production")
 }
 
+// TestDefaultEngineParsePathYAMLFluxSourceReposGenerateNameStayDistinct is the
+// #5360 PR A codex P2 identity proof: two generateName-only GitRepository docs
+// in one multi-document file must produce TWO distinct flux_git_repositories
+// rows, each with an empty name (never fabricated "<nil>") and its own
+// generate_name, distinguished by the distinct document start line the `---`
+// separator forces. This is the identity boundary the constructor doc comments
+// rely on: (repo_id, path, label, name="", start_line) is unique because two
+// same-label entities cannot share a start line in one file.
+func TestDefaultEngineParsePathYAMLFluxSourceReposGenerateNameStayDistinct(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "sources.yaml")
+	writeTestFile(
+		t,
+		filePath,
+		`apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  generateName: repo-a-
+  namespace: flux-system
+spec:
+  url: https://github.com/acme/repo-a
+  ref:
+    branch: main
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  generateName: repo-b-
+  namespace: flux-system
+spec:
+  url: https://github.com/acme/repo-b
+  ref:
+    branch: release
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	repos, ok := got["flux_git_repositories"].([]map[string]any)
+	if !ok {
+		t.Fatalf("flux_git_repositories = %T, want []map[string]any", got["flux_git_repositories"])
+	}
+	if len(repos) != 2 {
+		t.Fatalf("flux_git_repositories count = %d, want 2 distinct entities from two generateName docs; rows=%#v", len(repos), repos)
+	}
+
+	seenLines := make(map[int]struct{}, len(repos))
+	seenGenerateNames := make(map[string]struct{}, len(repos))
+	for _, repo := range repos {
+		if name, ok := repo["name"]; !ok || name != "" {
+			t.Fatalf("name = %#v (present=%v), want empty string, never \"<nil>\"", repo["name"], ok)
+		}
+		line, _ := repo["line_number"].(int)
+		if line <= 0 {
+			t.Fatalf("line_number = %#v, want a positive document start line", repo["line_number"])
+		}
+		if _, dup := seenLines[line]; dup {
+			t.Fatalf("two flux_git_repositories share line_number %d; the --- separator must force distinct document start lines", line)
+		}
+		seenLines[line] = struct{}{}
+		generateName, _ := repo["generate_name"].(string)
+		if generateName == "" {
+			t.Fatalf("generate_name empty for a generateName doc; row=%#v", repo)
+		}
+		seenGenerateNames[generateName] = struct{}{}
+	}
+	for _, want := range []string{"repo-a-", "repo-b-"} {
+		if _, ok := seenGenerateNames[want]; !ok {
+			t.Fatalf("generate_name %q missing; got %#v", want, seenGenerateNames)
+		}
+	}
+}
+
 // TestDefaultEngineParsePathYAMLFluxKustomizationFilenameVeto covers the
 // critical edge case from issue #5342: a Flux Kustomization CR saved under
 // the exact file name "kustomization.yaml" must still route to the Flux

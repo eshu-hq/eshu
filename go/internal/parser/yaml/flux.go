@@ -4,7 +4,6 @@
 package yaml
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -44,6 +43,12 @@ func isFluxKustomization(apiVersion string, kind string) bool {
 // from the row, never fabricated (a missing spec.path is recorded as absent,
 // not defaulted to "./").
 //
+// Identity boundary: a Kustomization that uses metadata.generateName instead
+// of metadata.name has an empty name here (never a fabricated "<nil>"), so its
+// row identity is (repo_id, path, label, name="", start_line). That is unique
+// because two same-label entities cannot share a start line in one file --
+// multi-document YAML forces a distinct `---` document start line per entity.
+//
 // This bucket is registered in
 // go/internal/content/shape/materialize_tables.go's contentEntityBuckets as
 // the typed FluxKustomization content entity (issue #5360 PR A), making it
@@ -56,10 +61,15 @@ func parseFluxKustomization(document map[string]any, metadata map[string]any, pa
 	sourceRef, _ := spec["sourceRef"].(map[string]any)
 
 	row := map[string]any{
-		"name":        strings.TrimSpace(fmt.Sprint(metadata["name"])),
+		// name kept present for row-shape stability; "" (not "<nil>") when the
+		// manifest uses metadata.generateName instead of metadata.name.
+		"name":        cleanYAMLString(metadata["name"]),
 		"line_number": lineNumber,
 		"path":        path,
 		"lang":        "yaml",
+	}
+	if generateName := cleanYAMLString(metadata["generateName"]); generateName != "" {
+		row["generate_name"] = generateName
 	}
 	// metadata.namespace is injected at apply-time far more often than it is
 	// written in the manifest, so an absent namespace is the common case: omit

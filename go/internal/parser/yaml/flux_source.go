@@ -4,7 +4,6 @@
 package yaml
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -65,15 +64,33 @@ func parseFluxOCIRepository(document map[string]any, metadata map[string]any, pa
 // GitRepository and OCIRepository -- both nest an identical url/ref shape
 // under spec, differing only in what the url scheme and ref fields mean
 // semantically (git branch/tag/commit vs. OCI tag/semver/digest).
+//
+// Identity boundary: a source CR that uses metadata.generateName instead of
+// metadata.name has an empty name here (never a fabricated "<nil>"), so its
+// row identity is (repo_id, path, label, name="", start_line). That is unique
+// because two same-label entities cannot share a start line in one file --
+// multi-document YAML forces a distinct `---` document start line per entity.
+// This breaks only if a kind:List item-expansion ever reused the parent
+// document's line for its items, which this parser does not do.
 func parseFluxSourceRepository(document map[string]any, metadata map[string]any, path string, lineNumber int) map[string]any {
 	spec, _ := document["spec"].(map[string]any)
 	ref, _ := spec["ref"].(map[string]any)
 
 	row := map[string]any{
-		"name":        strings.TrimSpace(fmt.Sprint(metadata["name"])),
+		// name is a base-identity field, kept present for row-shape stability
+		// (goldens/cassettes) even when empty. metadata.name is absent whenever
+		// the manifest uses metadata.generateName; cleanYAMLString yields ""
+		// rather than the "<nil>" that fmt.Sprint(nil) would fabricate.
+		"name":        cleanYAMLString(metadata["name"]),
 		"line_number": lineNumber,
 		"path":        path,
 		"lang":        "yaml",
+	}
+	// generateName is emitted as evidence only when present (omit-when-absent),
+	// so an empty name is honestly explained by the literal manifest field
+	// rather than looking like dropped data.
+	if generateName := cleanYAMLString(metadata["generateName"]); generateName != "" {
+		row["generate_name"] = generateName
 	}
 	// metadata.namespace is injected at apply-time far more often than it is
 	// written in the manifest, so an absent namespace is the common case: omit
@@ -118,10 +135,15 @@ func parseFluxBucket(document map[string]any, metadata map[string]any, path stri
 	spec, _ := document["spec"].(map[string]any)
 
 	row := map[string]any{
-		"name":        strings.TrimSpace(fmt.Sprint(metadata["name"])),
+		// name kept present for row-shape stability; "" (not "<nil>") when the
+		// manifest uses metadata.generateName instead of metadata.name.
+		"name":        cleanYAMLString(metadata["name"]),
 		"line_number": lineNumber,
 		"path":        path,
 		"lang":        "yaml",
+	}
+	if generateName := cleanYAMLString(metadata["generateName"]); generateName != "" {
+		row["generate_name"] = generateName
 	}
 	// metadata.namespace is injected at apply-time far more often than it is
 	// written in the manifest, so an absent namespace is the common case: omit

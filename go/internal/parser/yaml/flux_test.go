@@ -126,6 +126,52 @@ func TestParseFluxKustomizationCapturesSourceRefAndOmitsAbsentFields(t *testing.
 	}
 }
 
+func TestParseFluxKustomizationGenerateNameOnly(t *testing.T) {
+	t.Parallel()
+
+	document := map[string]any{
+		"spec": map[string]any{
+			"path": "clusters/production",
+			"sourceRef": map[string]any{
+				"kind": "GitRepository",
+				"name": "flux-system",
+			},
+		},
+	}
+	metadata := map[string]any{"generateName": "apps-"}
+
+	row := parseFluxKustomization(document, metadata, "/repo/gen.yaml", 1)
+
+	if name, ok := row["name"]; !ok {
+		t.Fatal("name key must be present (base-identity field), even when empty")
+	} else if name != "" {
+		t.Fatalf("name = %#v, want empty string when metadata.name absent (never fabricated as \"<nil>\")", name)
+	}
+	if row["generate_name"] != "apps-" {
+		t.Fatalf("generate_name = %#v, want apps- (the literal metadata.generateName)", row["generate_name"])
+	}
+	// sourceRef and path must still be captured for a generateName Kustomization.
+	if row["source_ref_kind"] != "GitRepository" {
+		t.Fatalf("source_ref_kind = %#v, want GitRepository", row["source_ref_kind"])
+	}
+}
+
+func TestParseFluxKustomizationWhollyNamelessOmitsGenerateName(t *testing.T) {
+	t.Parallel()
+
+	document := map[string]any{"spec": map[string]any{}}
+	metadata := map[string]any{}
+
+	row := parseFluxKustomization(document, metadata, "/repo/nameless.yaml", 1)
+
+	if name, ok := row["name"]; !ok || name != "" {
+		t.Fatalf("name = %#v (present=%v), want empty string, never \"<nil>\"", row["name"], ok)
+	}
+	if _, present := row["generate_name"]; present {
+		t.Fatalf("generate_name = %#v, want absent when metadata.generateName absent", row["generate_name"])
+	}
+}
+
 func TestParseFluxKustomizationOmitsSourceRefWhenAbsent(t *testing.T) {
 	t.Parallel()
 
