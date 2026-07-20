@@ -141,9 +141,12 @@ collector — `deploy/helm/eshu/templates/deployment-kubernetes-live-collector.y
 `rbac-kubernetes-live-collector.yaml`, and the ServiceMonitor entry in
 `deploy/helm/eshu/templates/servicemonitor.yaml` — but the entire lane is gated
 off by default behind `kubernetesLiveCollector.enabled: false`
-(`deploy/helm/eshu/values.yaml`), so an operator must explicitly opt in; the
-service and ServiceMonitor also require `observability.prometheus.enabled`, and
-the in-cluster RBAC additionally requires `kubernetesLiveCollector.rbac.create`.
+(`deploy/helm/eshu/values.yaml`), so an operator must explicitly opt in. The
+metrics Service additionally requires `observability.prometheus.enabled` (it is
+gated on both flags), whereas the ServiceMonitor renders whenever the collector
+is enabled — it is gated only on `kubernetesLiveCollector.enabled`, so opting in
+without the Prometheus-operator CRDs present will fail to install that resource.
+The in-cluster RBAC additionally requires `kubernetesLiveCollector.rbac.create`.
 It is still NOT added to any Compose service. Per the readiness doc, the
 claim-driven deployed lane remains deferred until the claim runtime, reducer
 projection, status path, and proof exist (#388 follow-ups).

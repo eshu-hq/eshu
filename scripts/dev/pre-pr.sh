@@ -253,6 +253,10 @@ step_race() {
 	while IFS= read -r f; do
 		[[ -n "${f}" ]] || continue
 		rel="./$(dirname "${f#go/}")"
+		# Skip packages whose directory no longer exists (a fully deleted
+		# race-uncovered package), for the same reason step_test filters them:
+		# `go test -race ./deleted/pkg` fails with "directory not found".
+		[[ -d "${go_dir}/${rel#./}" ]] || continue
 		case "${seen}" in *" ${rel} "*) continue ;; esac
 		seen="${seen}${rel} "
 		dirs+=("${rel}")
