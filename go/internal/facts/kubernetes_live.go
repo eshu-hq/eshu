@@ -26,7 +26,9 @@ const (
 	KubernetesWarningFactKind = "kubernetes_live.warning"
 
 	// KubernetesPodTemplateSchemaVersion is the first pod-template fact schema.
-	KubernetesPodTemplateSchemaVersion = "1.0.0"
+	// Bumped 1.0.0 -> 1.1.0 for the additive optional resolved_image_digest field
+	// on PodTemplateContainer (issue #5432).
+	KubernetesPodTemplateSchemaVersion = "1.1.0"
 	// KubernetesRelationshipSchemaVersion is the first relationship fact schema.
 	KubernetesRelationshipSchemaVersion = "1.0.0"
 	// KubernetesWarningSchemaVersion is the first warning fact schema.

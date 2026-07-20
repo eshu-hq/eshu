@@ -110,4 +110,12 @@ type PodTemplateContainer struct {
 	// EnvFromSecret reports whether the container references secret-backed
 	// env without collecting any value. Optional.
 	EnvFromSecret *bool `json:"env_from_secret,omitempty"`
+
+	// ResolvedImageDigest is the CRI-resolved digest for this container,
+	// normalized from pod.Status.ContainerStatuses[].ImageID into the bare
+	// repo@sha256:<digest> form. It is present only when the pod status has been
+	// observed and the ImageID normalizes to a joinable digest. Deployments and
+	// ReplicaSets carry pod spec only (no status) so this field is absent for
+	// them. Optional.
+	ResolvedImageDigest *string `json:"resolved_image_digest,omitempty"`
 }

@@ -328,3 +328,102 @@ func TestAuthConfigRequiresKubeconfigPath(t *testing.T) {
 		t.Fatalf("expected error for unsupported auth mode")
 	}
 }
+
+// TestAdapterMapsPodContainerStatusDigest proves that ListPods reads
+// pod.Status.ContainerStatuses[].ImageID and normalizes it via
+// kuberneteslive.NormalizeCRIImageID to set ResolvedImageDigest on the
+// corresponding container. A Deployment object carries no status, so its
+// containers have no resolved digests (#5432).
+func TestAdapterMapsPodContainerStatusDigest(t *testing.T) {
+	t.Parallel()
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "app", Name: "web-abc123", UID: "uid-pod"},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{
+				Name:  "web",
+				Image: "docker.io/myapp/web:v1.2.3",
+			}},
+			InitContainers: []corev1.Container{{
+				Name:  "init-setup",
+				Image: "docker.io/myapp/init:latest",
+			}},
+		},
+		Status: corev1.PodStatus{
+			ContainerStatuses: []corev1.ContainerStatus{{
+				Name:    "web",
+				ImageID: "docker-pullable://docker.io/myapp/web@sha256:aaaabbbbccccddddeeeeffff1111222233334444555566667777888899990000",
+			}},
+			InitContainerStatuses: []corev1.ContainerStatus{{
+				Name:    "init-setup",
+				ImageID: "docker://docker.io/myapp/init@sha256:1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff",
+			}},
+		},
+	}
+	adapter := NewAdapter(fake.NewClientset(pod))
+
+	result, err := adapter.ListPods(context.Background())
+	if err != nil {
+		t.Fatalf("ListPods() error = %v", err)
+	}
+	if len(result.Items) != 1 {
+		t.Fatalf("pod count = %d, want 1", len(result.Items))
+	}
+	workload := result.Items[0]
+	if len(workload.Containers) != 2 {
+		t.Fatalf("container count = %d, want 2 (1 init + 1 regular)", len(workload.Containers))
+	}
+
+	// Init container should have a resolved digest.
+	initContainer := workload.Containers[0]
+	if !initContainer.Init {
+		t.Fatalf("first container should be init container")
+	}
+	if got, want := initContainer.ResolvedImageDigest, "docker.io/myapp/init@sha256:1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff"; got != want {
+		t.Fatalf("init container ResolvedImageDigest = %q, want %q", got, want)
+	}
+
+	// Regular container should have a resolved digest from docker-pullable://.
+	webContainer := workload.Containers[1]
+	if webContainer.Init {
+		t.Fatalf("second container should be regular (not init)")
+	}
+	if got, want := webContainer.ResolvedImageDigest, "docker.io/myapp/web@sha256:aaaabbbbccccddddeeeeffff1111222233334444555566667777888899990000"; got != want {
+		t.Fatalf("web container ResolvedImageDigest = %q, want %q", got, want)
+	}
+}
+
+// TestAdapterDeploymentHasNoResolvedDigest proves that a Deployment (which
+// carries only the pod template spec, no status) maps containers with no
+// resolved digests — byte-identical to today (#5432 non-regression).
+func TestAdapterDeploymentHasNoResolvedDigest(t *testing.T) {
+	t.Parallel()
+
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "app", Name: "web", UID: "uid-d"},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "web"}},
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name:  "web",
+						Image: "docker.io/myapp/web:v1.2.3",
+					}},
+				},
+			},
+		},
+	}
+	adapter := NewAdapter(fake.NewClientset(deployment))
+
+	result, err := adapter.ListDeployments(context.Background())
+	if err != nil {
+		t.Fatalf("ListDeployments() error = %v", err)
+	}
+	if len(result.Items) != 1 {
+		t.Fatalf("deployment count = %d, want 1", len(result.Items))
+	}
+	container := result.Items[0].Containers[0]
+	if container.ResolvedImageDigest != "" {
+		t.Fatalf("Deployment container ResolvedImageDigest = %q, want empty (Deployments carry no status)", container.ResolvedImageDigest)
+	}
+}

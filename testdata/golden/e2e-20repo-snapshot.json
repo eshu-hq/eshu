@@ -41,9 +41,9 @@
         "note": "logical workload-instance nodes correlated from kubernetes_live facts"
       },
       "KubernetesWorkload": {
-        "min": 1,
+        "min": 3,
         "max": 20,
-        "note": "raw k8s Deployment/Service workload nodes; source of RUNS_IMAGE edges"
+        "note": "raw k8s Deployment/ReplicaSet/Pod workload nodes; source of RUNS_IMAGE edges; +1 pod from #5432"
       },
       "Workload": {
         "min": 1,
@@ -158,9 +158,9 @@
         "note": "Function\u2192Workload code-to-workload binding (not WorkloadInstance\u2192CloudResource)"
       },
       "RUNS_IMAGE": {
-        "min": 1,
+        "min": 3,
         "max": 30,
-        "note": "KubernetesWorkload\u2192OciImageManifest supply-chain image correlation"
+        "note": "KubernetesWorkload\u2192OciImageManifest supply-chain image correlation; +1 from #5432 CRI-resolved-digest pod"
       },
       "HANDLES_ROUTE": {
         "min": 1,
@@ -1542,6 +1542,14 @@
         "from_label": "FluxKustomization",
         "to_label": "FluxGitRepository",
         "minimum_count": 1
+      },
+      {
+        "id": "rc-153",
+        "description": "At least 3 RUNS_IMAGE edges; the +1 over digest-pinned Deployment+ReplicaSet comes from the tag-referenced Pod (supply-chain-demo-pod) promoting via its CRI-resolved ImageID digest (issue #5432). Without the CRI-digest feature, the tag-referenced pod produces no edge and count stays at 2.",
+        "relationship": "RUNS_IMAGE",
+        "from_label": "KubernetesWorkload",
+        "to_label": "OciImageManifest",
+        "minimum_count": 3
       }
     ],
     "required_nodes": [

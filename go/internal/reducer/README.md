@@ -912,6 +912,25 @@ PR2) and `DomainObservabilityCoverageMaterialization` (#391 PR3):
   `SourceDigest` and is naturally excluded from this image-edge slice. An exact
   decision whose digest resolves no canonical node (tag-only evidence) is counted
   skipped, never written as a dangling edge.
+- **CRI-resolved digest promotion (#5432)**: When a pod_template container
+  declares a tag-form image ref (e.g. `nginx:1.25`) AND carries a CRI-resolved
+  `resolved_image_digest` (from `pod.Status.ContainerStatuses[].ImageID`
+  normalized to `repo@sha256:<digest>` form), the classifier routes through
+  `classifyImageByCRIDigest` — parsing the resolved digest as a repository+digest
+  pair and resolving against the source digest index via the DIGEST path, never
+  falling through to the weaker tag classification. When the resolved digest
+  matches an active deployment-source observation, the outcome is `exact` /
+  `JoinMode=digest` / `ProvenanceOnly=false` (edge-eligible). When the resolved
+  digest has NO source observation, the outcome is `unresolved` /
+  `driftMissingSource` / provenance-only — the CRI digest is ground truth of what
+  is running, and a missing source is unresolved, not tag-derived. Without a
+  CRI-resolved digest (Deployments, ReplicaSets, pending pods), behavior stays
+  byte-identical to today: tag-form refs fall through to `classifyImageByTag`
+  which is always provenance-only `Derived` / `Ambiguous` / `Unresolved`.
+  When two containers share a declared tag ref with differing resolved digests,
+  `resolvedImageDigestsFromTemplate` applies a first-wins policy — tracked
+  follow-up #5517 proposes classifying this as ambiguous rather than picking
+  one.
 - The write is idempotent on `(workload_uid, RUNS_IMAGE, source_uid)`; rows are
   deduplicated and sorted so retries and reprojections produce a byte-stable
   batch. The conflict key is per-edge, so no serialization workaround is
