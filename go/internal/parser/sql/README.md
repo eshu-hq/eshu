@@ -86,11 +86,17 @@ prior regex behavior:
   miss the `RETURNS`-shim insertion.
 - Only `select` mentions inside routine and view bodies materialize as
   `READS_FROM` relationships (and are stamped onto the entity's
-  `source_tables` metadata, #5345); `INSERT`/`UPDATE`/`DELETE` mutation
-  targets inside a routine body are captured for migration-target purposes
-  (`sql_migrations`/`tableMentions`) but are never emitted as a `READS_FROM`
-  edge — a write mislabeled as a read would be wrong graph truth. There is no
-  mutation-specific relationship type (`WRITES_TO` and similar) yet.
+  `source_tables` metadata, #5345); `INSERT`/`UPDATE`/`DELETE`/`ALTER`/
+  `REFERENCES` mutation targets inside a recognized migration file are instead
+  nested under a single `SqlMigration` entity's `migration_targets` metadata
+  (`sql_migrations` bucket, #5346), which the reducer resolves into `MIGRATES`
+  edges — but they are never emitted as a `READS_FROM` edge; a write
+  mislabeled as a read would be wrong graph truth. There is no
+  mutation-specific relationship type (`WRITES_TO` and similar) yet. A target
+  reached ONLY via a `select` mention inside a migration file is excluded from
+  `migration_targets` for the same reason (a read-only backfill migration does
+  not "migrate" its source table). Migration DROP targets and migration-order
+  reachability are not parsed at all yet (tracked as a #5346 follow-up).
 - Highly dialect-specific statements outside the extracted construct set
   (sequences, types, policies, grants, vendor pragmas) are not extracted, the
   same as before.
@@ -109,6 +115,13 @@ name-compatible fallback before returning.
 
 Migration metadata is path-sensitive. Keep detection rules deterministic and
 covered by package-local tests when adding support for another migration tool.
+`buildSQLMigrationEntries` (`migrations.go`) emits exactly one `SqlMigration`
+entity per recognized migration file, never one row per touched target — a
+nameless row would mint a garbage uid through the generic content-entity
+pipeline (#5346). Prisma names every migration file `migration.sql`, so its
+stamped identifier is the migration's parent directory name instead of the
+basename; every other supported tool's filename is already a meaningful
+identifier.
 
 SQL relationship extraction is conservative. Table constraints such as
 `PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `CHECK`, and `EXCLUDE` are not SQL column
