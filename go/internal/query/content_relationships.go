@@ -188,28 +188,35 @@ func buildOutgoingArgoCDRelationships(entity EntityContent) ([]map[string]any, b
 
 // buildOutgoingGitHubActionsRelationships derives DEPLOYS_FROM,
 // DISCOVERS_CONFIG_IN, and DEPENDS_ON edges for a GitHub Actions workflow or
-// composite-action file from two sources, merged and deduped:
+// composite-action file from a single source:
 //
 //   - githubActionsSourceRelationships: a structured YAML decode of
-//     entity.SourceCache (the real production signal path -- SourceCache is
-//     populated, entity.Metadata is not; see #5377). This replaced the former
-//     YAML-unaware raw-text line scanner (issue #5337 Detector 4), which
-//     mistook a `uses:` line inside a `run: |` block scalar for a real step
-//     key and fabricated edges.
-//   - githubActionsMetadataRelationships: the structured entity.Metadata path.
-//     Kept for forward compatibility; a harmless no-op while Metadata is
-//     empty, additive (and deduped) once #5377 populates it.
+//     entity.SourceCache (the only production signal path -- SourceCache is
+//     populated). This replaced the former YAML-unaware raw-text line scanner
+//     (issue #5337 Detector 4), which mistook a `uses:` line inside a `run: |`
+//     block scalar for a real step key and fabricated edges.
 //
-// Edges are deduped by (type, target, reason).
+// A parallel entity.Metadata decode (githubActionsMetadataRelationships)
+// existed alongside the source path but read structured keys no production
+// path ever wrote into content_entities.metadata, so it emitted nothing while
+// duplicating the source decode and risking stale-JSONB resurrection of
+// fabricated edges. #5377 removed that dead path; SourceCache is now the sole
+// source.
+//
+// The single source path still emits duplicate (type, target, reason) tuples
+// when a reference recurs in a file (the same action used in two steps, the
+// same repository checked out in two jobs), so edges are deduped by
+// (type, target, reason). When the source path yields nothing this returns
+// (nil, false, nil) so the classifier chain proceeds to later classifiers
+// (issue #5337, codex P1 on PR #5379).
 func buildOutgoingGitHubActionsRelationships(entity EntityContent) ([]map[string]any, bool, error) {
 	sourceRelationships := githubActionsSourceRelationships(entity)
-	metadataRelationships := githubActionsMetadataRelationships(entity.Metadata)
-	if len(sourceRelationships)+len(metadataRelationships) == 0 {
+	if len(sourceRelationships) == 0 {
 		return nil, false, nil
 	}
 
-	relationships := make([]map[string]any, 0, len(sourceRelationships)+len(metadataRelationships))
-	seen := make(map[string]struct{}, len(sourceRelationships)+len(metadataRelationships))
+	relationships := make([]map[string]any, 0, len(sourceRelationships))
+	seen := make(map[string]struct{}, len(sourceRelationships))
 	add := func(relationship githubActionsRelationship) {
 		key := relationship.relationshipType + "|" + relationship.targetName + "|" + relationship.reason
 		if _, ok := seen[key]; ok {
@@ -224,9 +231,6 @@ func buildOutgoingGitHubActionsRelationships(entity EntityContent) ([]map[string
 	}
 
 	for _, relationship := range sourceRelationships {
-		add(relationship)
-	}
-	for _, relationship := range metadataRelationships {
 		add(relationship)
 	}
 
