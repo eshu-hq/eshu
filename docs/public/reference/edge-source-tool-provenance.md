@@ -95,6 +95,7 @@ addition, never by free-form values.
 | `docker_compose` | `DOCKER_COMPOSE_*` evidence kinds | Tier 2 |
 | `gcp` | `GCP_CLOUD_RELATIONSHIP`; GCP cloud writers | Tier 2 / Tier 1 |
 | `atlantis` | `MANAGES`, `ATLANTIS_DEPENDS_ON`, `USES_WORKFLOW` edge types | Tier 1 |
+| `flux` | `RECONCILES_FROM` edge type | Tier 1 |
 | `gitlab` | `DEFINES_JOB`, `NEEDS` edge types | Tier 1 |
 | `gomod` | `HAS_VERSION`/`DECLARES_DEPENDENCY`/`DEPENDS_ON_PACKAGE` (Go ecosystem) | Tier 1 |
 | `npm` | package-registry edges (npm ecosystem) | Tier 1 |
@@ -164,8 +165,8 @@ kind) to split them. Pending that decision, treat `USES_MODULE` /
 ## Per-edge-type coverage matrix
 
 Edge types are enumerated from the registry `go/internal/graph/edgetype/edgetype.go`
-(`registered` slice, 75 types). The table below classifies each by tier; only
-Tier-1/Tier-2 carry a tool.
+(`registered` slice, 76 types as of #5360 PR B). The table below classifies
+each by tier; only Tier-1/Tier-2 carry a tool.
 
 ### Tier 1 — self-labeling by edge type
 
@@ -174,6 +175,7 @@ Tier-1/Tier-2 carry a tool.
 | `MANAGES` | `atlantis` | `storage/cypher/canonical_atlantis_edges.go:23` |
 | `ATLANTIS_DEPENDS_ON` | `atlantis` | `canonical_atlantis_edges.go:35` |
 | `USES_WORKFLOW` | `atlantis` | `canonical_atlantis_edges.go:46` |
+| `RECONCILES_FROM` | `flux` | `storage/cypher/canonical_flux_edges.go:21` (GitRepository), `:32` (OCIRepository), `:43` (Bucket) |
 | `DEFINES_JOB` | `gitlab` | `canonical_gitlab_edges.go:22` |
 | `NEEDS` | `gitlab` | `canonical_gitlab_edges.go:34` |
 | `HAS_VERSION` | package ecosystem (`gomod`/`npm`/`pip`/`maven`/`cargo`) | `package_registry_edge_writer.go:25` |

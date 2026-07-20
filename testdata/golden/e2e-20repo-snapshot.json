@@ -1534,6 +1534,14 @@
         "from_label": "K8sResource",
         "to_label": "CrossplaneXRD",
         "minimum_count": 1
+      },
+      {
+        "id": "rc-152",
+        "description": "FluxKustomization RECONCILES_FROM its resolved source CR: kubernetes_comprehensive/flux-kustomization.yaml (apps, sourceRef kind GitRepository name flux-system namespace flux-system) resolves against kubernetes_comprehensive/flux-gitrepository.yaml (flux-system, namespace flux-system) via the deterministic same-repo namespace-exact tier (issue #5360 PR B). Zero if the sourceRef/source-CR namespace or name join drifts.",
+        "relationship": "RECONCILES_FROM",
+        "from_label": "FluxKustomization",
+        "to_label": "FluxGitRepository",
+        "minimum_count": 1
       }
     ],
     "required_nodes": [
@@ -1576,7 +1584,7 @@
       },
       {
         "id": "rn-flux-kustomization-source-ref",
-        "description": "At least 1 FluxKustomization node carries source_ref_kind; kubernetes_comprehensive/flux-kustomization.yaml (apps, kustomize.toolkit.fluxcd.io) proves the typed Flux Kustomization walker captures spec.sourceRef instead of falling through to the generic K8sResource parser (issue #5360 PR A). No RECONCILES_FROM edge yet -- that correlation lands in a later PR.",
+        "description": "At least 1 FluxKustomization node carries source_ref_kind; kubernetes_comprehensive/flux-kustomization.yaml (apps, kustomize.toolkit.fluxcd.io) proves the typed Flux Kustomization walker captures spec.sourceRef instead of falling through to the generic K8sResource parser (issue #5360 PR A). The RECONCILES_FROM correlation edge to its resolved source CR is asserted separately as rc-152 (issue #5360 PR B).",
         "label": "FluxKustomization",
         "minimum_count": 1,
         "required_node_properties": [

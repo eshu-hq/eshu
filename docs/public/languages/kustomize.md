@@ -76,7 +76,8 @@ fabricated -- into a dedicated `flux_kustomizations` payload bucket.
 This bucket is now registered as the typed `FluxKustomization` content
 entity and reachable through `get_entity_context` (issue #5360 PR A). See
 [Flux](flux.md) for the full Flux capability set, including the source CRs
-(`GitRepository`, `OCIRepository`, `Bucket`) it reconciles against. The
-`RECONCILES_FROM` correlation edge from a `FluxKustomization` to its source
-CR is not yet materialized -- that lands in a later change; see
-[Flux](flux.md#known-limitations).
+(`GitRepository`, `OCIRepository`, `Bucket`) it reconciles against, and the
+`RECONCILES_FROM` correlation edge from a `FluxKustomization` to its
+resolved source CR (issue #5360 PR B, browsable through
+`list_relationship_edges`); see [Flux](flux.md#known-limitations) for what
+that edge does and does not resolve.
