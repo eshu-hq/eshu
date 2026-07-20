@@ -38,6 +38,11 @@ no runtime state.
   (`git@host:org/repo.git`) and HTTPS (`https://host/org/repo`) forms to
   lowercase `https://host/org/repo`. Strips trailing `.git` and trailing
   slashes.
+- `NormalizedRemoteKey(raw string) string` — returns a canonical `host/path`
+  key for git remote URLs. Handles the same input classes as
+  `NormalizeRemoteURL` plus the `git+` prefix (npm-style) and SCP syntax
+  with any `user@` prefix. Returns `""` for empty, unparseable, bare-host,
+  and garbage-host inputs. (#5421)
 - `RepoSlugFromRemoteURL(remoteURL string) string` — returns the `org/repo`
   path from the normalized HTTPS form. Returns empty string when the URL is
   empty or cannot be parsed.
@@ -59,10 +64,10 @@ fact payloads.
 
 ## Gotchas / invariants
 
-- `CanonicalRepositoryID` (`identity.go:105`) requires a non-empty `localPath`
+- `CanonicalRepositoryID` (`identity.go:198`) requires a non-empty `localPath`
   when `remoteURL` is absent. Passing both empty returns an error rather than
   an empty or zero-value ID.
-- `NormalizeRemoteURL` (`identity.go:51`) lowercases the host and path, strips
+- `NormalizeRemoteURL` (`identity.go:54`) lowercases the host and path, strips
   `.git` suffix, and drops trailing slashes. SSH `git@github.com:org/repo.git`
   and HTTPS `https://github.com/org/repo.git` produce the same canonical URL.
 - The hash is SHA-1 truncated to 8 hex characters. It is identity-stable
