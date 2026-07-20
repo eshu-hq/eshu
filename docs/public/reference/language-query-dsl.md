@@ -70,7 +70,7 @@ Accepted values in the current `entity_type` enum:
 `annotation`, `class`, `component`,
 `directory`, `enum`, `file`, `function`, `guard`, `impl_block`, `macro`,
 `module`, `module_attribute`, `protocol`, `protocol_implementation`,
-`repository`, `sql_column`, `sql_function`, `sql_index`, `sql_table`,
+`repository`, `sql_column`, `sql_function`, `sql_index`, `sql_migration`, `sql_table`,
 `sql_trigger`, `sql_view`, `struct`, `terraform_backend`, `terraform_check`,
 `terraform_import`, `terraform_lock_provider`, `terraform_module`,
 `terraform_moved_block`, `terraform_removed_block`, `terragrunt_config`,

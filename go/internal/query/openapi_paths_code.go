@@ -90,6 +90,7 @@ const openAPIPathsCode = `
                       "sql_function",
                       "sql_trigger",
                       "sql_index",
+                      "sql_migration",
                       "sql_column"
                     ]
                   },
