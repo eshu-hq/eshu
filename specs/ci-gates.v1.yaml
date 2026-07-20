@@ -954,6 +954,36 @@ gates:
     # a test-file split or fixture move must re-run this gate in the SAME PR that
     # causes the drift, not wait for someone to notice a stale citation later.
 
+  - id: maturity-drift-guard
+    name: Support-maturity matrix live-gate drift guard
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/verify-golden-corpus-gate.sh"
+      - "testdata/golden/e2e-20repo-snapshot.json"
+      - "docs/public/languages/support-maturity.md"
+      - "specs/language-feature-parity-ledger.v1.yaml"
+      - "scripts/verify-maturity-drift-guard.sh"
+      - "scripts/test-verify-maturity-drift-guard.sh"
+      - "scripts/lib/maturity-drift-guard-language-extensions.sh"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "bash scripts/verify-maturity-drift-guard.sh"
+      test_command: "bash scripts/test-verify-maturity-drift-guard.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify maturity-drift-guard gate"
+    requirements: []
+    ci_only_reason: ""
+    # Wired into CI (static-contract-gates.yml, same lane as doc-citations)
+    # because this is the blocking recurrence-prevention gate for the exact
+    # class of drift #5336 fixed by hand: the "Real-Repo Validation" /
+    # "End-to-End Indexing" columns of support-maturity.md silently rotting
+    # the next time scripts/verify-golden-corpus-gate.sh's corpus_fixtures
+    # array or the B-12 snapshot changes. category is exactness (not docs --
+    # #5340: category:docs is never run by any lane) so it actually blocks.
+
   - id: mcp-client-auth-doc
     name: MCP client-auth doc lockstep guard
     category: exactness
