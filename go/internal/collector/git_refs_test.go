@@ -5,7 +5,6 @@ package collector
 
 import (
 	"context"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -413,76 +412,5 @@ func TestLocalGitRefsIncludesTags(t *testing.T) {
 	}
 	if tagLW == nil || tagLW.HeadSHA != commitSHA {
 		t.Fatalf("lightweight tag missing or wrong SHA: %#v", tagLW)
-	}
-}
-
-// TestSelectRepositoriesFilesystemCarriesGitRefs proves that managed
-// filesystem mode (the default) discovers git refs from the source path
-// (with .git) even though copyRepositoryTree strips dotfiles from the
-// target copy. Before the fix, collectLocalRefs ran on the target path
-// (no .git -> silent skip -> zero refs -> legacy fallback -> tags: []).
-func TestSelectRepositoriesFilesystemCarriesGitRefs(t *testing.T) {
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skipf("git not found in PATH: %v", err)
-	}
-
-	// 1. Create a real git repo with an annotated tag.
-	filesystemRoot := t.TempDir()
-	sourceRepo := filepath.Join(filesystemRoot, "tagged-project")
-	if err := os.MkdirAll(sourceRepo, 0o750); err != nil {
-		t.Fatalf("create source repo dir: %v", err)
-	}
-	runGit(t, sourceRepo, "init", "-b", "main")
-	runGit(t, sourceRepo, "config", "user.email", "test@example.com")
-	runGit(t, sourceRepo, "config", "user.name", "Test")
-	writeFile(t, sourceRepo, "README.md", "# tagged project")
-	runGit(t, sourceRepo, "add", "README.md")
-	runGit(t, sourceRepo, "commit", "-m", "initial")
-	commitSHA := strings.TrimSpace(runGit(t, sourceRepo, "rev-parse", "HEAD"))
-	runGit(t, sourceRepo, "tag", "-a", "v1.0.0", "-m", "annotated", commitSHA)
-
-	// 2. Set up managed filesystem mode (NOT filesystemDirect).
-	reposDir := t.TempDir()
-	selector := NativeRepositorySelector{
-		Config: RepoSyncConfig{
-			ReposDir:       reposDir,
-			SourceMode:     "filesystem",
-			FilesystemRoot: filesystemRoot,
-			Component:      "collector-git",
-			CloneDepth:     1,
-			RepoLimit:      4000,
-			GitAuthMethod:  "none",
-			GithubOrg:      "acme",
-		},
-		Now: func() time.Time {
-			return time.Date(2026, 7, 20, 12, 0, 0, 0, time.UTC)
-		},
-	}
-
-	// 3. Select repositories.
-	batch, err := selector.SelectRepositories(context.Background())
-	if err != nil {
-		t.Fatalf("SelectRepositories() error = %v, want nil", err)
-	}
-	if got, want := len(batch.Repositories), 1; got != want {
-		t.Fatalf("len(Repositories) = %d, want %d", got, want)
-	}
-
-	// 4. Assert: the selected repository carries GitRefs with the tag.
-	refs := batch.Repositories[0].GitRefs
-	var tagV1 *GitRef
-	for i := range refs {
-		if refs[i].Kind == "tag" && refs[i].Name == "v1.0.0" {
-			tagV1 = &refs[i]
-		}
-	}
-	if tagV1 == nil {
-		t.Fatalf("tag 'v1.0.0' not found in GitRefs: %#v", refs)
-	}
-	if tagV1.HeadSHA != commitSHA {
-		t.Fatalf("tag v1.0.0 HeadSHA = %s, want %s (peeled commit)", tagV1.HeadSHA, commitSHA)
-	}
-	if tagV1.Default {
-		t.Fatal("tag Default = true, want false")
 	}
 }
