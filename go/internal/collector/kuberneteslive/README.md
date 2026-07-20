@@ -148,8 +148,12 @@ is enabled — it is gated only on `kubernetesLiveCollector.enabled`, so opting 
 without the Prometheus-operator CRDs present will fail to install that resource.
 The in-cluster RBAC additionally requires `kubernetesLiveCollector.rbac.create`.
 It is still NOT added to any Compose service. Per the readiness doc, the
-claim-driven deployed lane remains deferred until the claim runtime, reducer
-projection, status path, and proof exist (#388 follow-ups).
+claim-driven deployed lane remains deferred until the claim runtime, status
+path, and proof exist (#388 follow-ups). The reducer `kubernetes_correlation`
+domain (`go/internal/reducer/kubernetes_correlation.go`), the drift read
+model (`GET /api/v0/kubernetes/correlations`, `go/internal/query/kubernetes.go`),
+and the MCP tool (`list_kubernetes_correlations`) have landed; graph edges
+remain provenance-only by design (gated graph write pending).
 
 ## Deferred to follow-up PRs (#388 and beyond)
 
@@ -160,4 +164,3 @@ projection, status path, and proof exist (#388 follow-ups).
   endpoints, CRDs) and the richer ADR fact families.
 - Effective RBAC interpretation, AWS IAM joins, Vault joins, stale-generation
   handling, and secrets/IAM posture read models.
-- The reducer projection and the Git/runtime correlation and drift read model.
