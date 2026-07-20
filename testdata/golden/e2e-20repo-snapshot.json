@@ -2432,7 +2432,7 @@
         }
       },
       "trace_deployment_chain": {
-        "description": "MCP tool coverage shape for trace_deployment_chain; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for trace_deployment_chain; asserted live through the MCP tool layer. deployment_truth_tier pinned to config_only because the api-svc fixture k8s image (ghcr.io/acme/api-svc:1.0.0) does not match the kuberneteslive cassette image that produces exact correlation rows. The HTTP deployable-config shape pins runtime_confirmed — that is the primary live-tier proof.",
         "required_response_fields": [
           "api_surface",
           "cloud_resources",
