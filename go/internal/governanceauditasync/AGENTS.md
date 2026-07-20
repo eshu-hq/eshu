@@ -57,6 +57,11 @@
 
 - Do not add a retry queue for failed batches; the design addendum explicitly
   rejects retry for this best-effort class (allowed-read events are
-  corroborating evidence, not the durable security-critical class).
+  corroborating evidence, not the durable security-critical class). The
+  per-event fallback in `flush` is NOT a retry queue: it is a single
+  isolation pass that appends a failed batch's events individually so one
+  poison event does not drop its well-formed siblings (the durable store's
+  Append is all-or-nothing). Keep it a single pass — do not re-enqueue or
+  loop failed events.
 - Do not make `Append`'s return value carry drop/failure information; callers
   must read the counters.

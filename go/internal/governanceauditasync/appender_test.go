@@ -282,7 +282,14 @@ func TestAsyncAppender_CloseIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestAsyncAppender_PersistFailureIncrementsMetricAndDropsBatch(t *testing.T) {
+// TestAsyncAppender_PersistFailureIncrementsMetricForEveryFailedEvent proves
+// a sink that rejects every event counts one persist failure per event.
+// (Fault-isolation of a single poison event among well-formed siblings — the
+// F-9 (#5170) P1 defense — is covered by
+// TestAsyncAppender_MalformedEventDoesNotDropBatchSiblings in
+// appender_fault_isolation_test.go; this test guards the total-outage
+// counting the per-event fallback must not under-count.)
+func TestAsyncAppender_PersistFailureIncrementsMetricForEveryFailedEvent(t *testing.T) {
 	t.Parallel()
 
 	sink := &fakeSink{err: errors.New("insert failed")}

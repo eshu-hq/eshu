@@ -235,16 +235,46 @@ func (a *AsyncAppender) drainRemaining() {
 
 // flush persists one batch to the sink using a fresh bounded-timeout context
 // (never the request context of the original caller, which may already be
-// gone). A persist failure drops the whole batch after recording it.
+// gone).
+//
+// On the happy path this is exactly one sink.Append per batch. On a batch
+// error it falls back to appending each event individually: the durable
+// GovernanceAuditStore.Append is all-or-nothing (it normalizes every event
+// and returns before any INSERT if one is invalid), so a single malformed
+// event would otherwise take up to batchMax-1 well-formed sibling events down
+// with it. The per-event fallback isolates a genuinely-bad event so its batch
+// siblings still persist, and counts as PersistFailures only the events that
+// actually fail their own append — never their innocent siblings. It is a
+// single isolation pass, not a retry queue: a transiently-failing sink still
+// fails every event and every failure is counted (no under-count).
 func (a *AsyncAppender) flush(batch []governanceaudit.Event) {
 	if len(batch) == 0 {
 		return
 	}
+	if a.appendOK(batch) {
+		return
+	}
+	if len(batch) == 1 {
+		// Already isolated; retrying the same single event would be a
+		// redundant second append with no fault-isolation benefit.
+		a.countPersistFailures(1)
+		return
+	}
+	for i := range batch {
+		if !a.appendOK(batch[i : i+1]) {
+			a.countPersistFailures(1)
+		}
+	}
+}
+
+// appendOK persists one slice of events to the sink under a fresh
+// bounded-timeout context and reports whether it succeeded. The sink error
+// itself is intentionally not surfaced: this is a best-effort path whose only
+// observable signal is the PersistFailures counter (see the package README).
+func (a *AsyncAppender) appendOK(events []governanceaudit.Event) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), a.cfg.flushTimeout)
 	defer cancel()
-	if err := a.sink.Append(ctx, batch); err != nil {
-		a.countPersistFailures(len(batch))
-	}
+	return a.sink.Append(ctx, events) == nil
 }
 
 // Close stops accepting new events, drains the buffer, performs a final

@@ -49,10 +49,18 @@ See `doc.go` for the godoc contract.
   enqueued by a single caller are flushed to the sink in the order they were
   enqueued. Cross-goroutine ordering across concurrent callers is not
   guaranteed (never was, for audit events — see `Event.OccurredAt`).
-- **Best-effort persistence.** A batch the sink fails to persist is dropped
-  after incrementing `Metrics.PersistFailures`; there is no retry queue.
-  Allowed-read events are corroborating evidence, not the security-critical
-  durable class (denials remain synchronous elsewhere).
+- **Best-effort persistence with per-event fault isolation.** On the happy
+  path the worker persists one batch per `sink.Append`. If a batch append
+  fails, the worker falls back to appending each event individually and
+  counts as `Metrics.PersistFailures` only the events that actually fail
+  their own append. This matters because the durable
+  `GovernanceAuditStore.Append` is all-or-nothing (it normalizes every event
+  and returns before any INSERT if one is invalid), so without isolation a
+  single malformed event would silently destroy up to `batchMax - 1`
+  well-formed sibling records. The fallback is a single isolation pass, not a
+  retry queue: a transiently-down sink still fails every event and every
+  failure is counted. Allowed-read events are corroborating evidence, not the
+  security-critical durable class (denials remain synchronous elsewhere).
 - **Bounded shutdown.** `Close()` is safe to call once or many times. It
   returns within `WithShutdownTimeout` (default 5s) regardless of sink
   behavior, so a stuck sink cannot hang process shutdown.
