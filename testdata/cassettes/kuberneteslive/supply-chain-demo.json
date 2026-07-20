@@ -49,8 +49,7 @@
                   "NODE_ENV",
                   "VAULT_ADDR"
                 ],
-                "env_from_secret": true,
-                "resolved_image_digest": "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
+                "env_from_secret": true
               }
             ],
             "image_refs": [
@@ -98,8 +97,7 @@
                   "NODE_ENV",
                   "VAULT_ADDR"
                 ],
-                "env_from_secret": true,
-                "resolved_image_digest": "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
+                "env_from_secret": true
               }
             ],
             "image_refs": [

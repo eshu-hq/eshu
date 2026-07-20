@@ -26,8 +26,13 @@ func TestKubernetesLiveFactKindRegistry(t *testing.T) {
 		if !ok {
 			t.Fatalf("KubernetesLiveSchemaVersion(%q) ok = false, want true", want)
 		}
-		if version != "1.0.0" {
-			t.Fatalf("KubernetesLiveSchemaVersion(%q) = %q, want 1.0.0", want, version)
+		wantVersions := map[string]string{
+			KubernetesPodTemplateFactKind:  KubernetesPodTemplateSchemaVersion,
+			KubernetesRelationshipFactKind: KubernetesRelationshipSchemaVersion,
+			KubernetesWarningFactKind:      KubernetesWarningSchemaVersion,
+		}
+		if version != wantVersions[want] {
+			t.Fatalf("KubernetesLiveSchemaVersion(%q) = %q, want %s", want, version, wantVersions[want])
 		}
 	}
 

@@ -927,6 +927,10 @@ PR2) and `DomainObservabilityCoverageMaterialization` (#391 PR3):
   CRI-resolved digest (Deployments, ReplicaSets, pending pods), behavior stays
   byte-identical to today: tag-form refs fall through to `classifyImageByTag`
   which is always provenance-only `Derived` / `Ambiguous` / `Unresolved`.
+  When two containers share a declared tag ref with differing resolved digests,
+  `resolvedImageDigestsFromTemplate` applies a first-wins policy — tracked
+  follow-up #5517 proposes classifying this as ambiguous rather than picking
+  one.
 - The write is idempotent on `(workload_uid, RUNS_IMAGE, source_uid)`; rows are
   deduplicated and sorted so retries and reprojections produce a byte-stable
   batch. The conflict key is per-edge, so no serialization workaround is

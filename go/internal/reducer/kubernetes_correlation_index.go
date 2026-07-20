@@ -332,7 +332,9 @@ func kubernetesSourceTagKey(repositoryKey, tag string) string {
 // the running state of all containers sharing that spec entry, and K8s does not
 // run the same container image at two different digests in a single pod; a
 // discrepancy would indicate a bug upstream and the first-win policy is safe
-// because exact is stronger than missing).
+// because exact is stronger than missing). Tracked follow-up #5517: classify
+// differing-digest duplicate refs as ambiguous rather than picking one. See
+// also go/internal/reducer/README.md §CRI-resolved digest promotion.
 func resolvedImageDigestsFromTemplate(podTemplate kuberneteslivev1.PodTemplate) map[string]string {
 	var out map[string]string
 	for _, container := range podTemplate.Containers {
