@@ -197,7 +197,7 @@ retractable_edge_types:
   - HAS_COLUMN
   - INDEXES
   - QUERIES_TABLE
-  - REFERENCES_TABLE
+  - READS_FROM
   - TRIGGERS
 
 # The single reducer projection drain path. A mid-run crash must recover

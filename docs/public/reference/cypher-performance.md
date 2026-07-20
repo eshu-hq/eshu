@@ -1062,7 +1062,7 @@ Issue #2257 also scopes SQL relationship cleanup for delta generations to the
 changed or deleted SQL source files. The SQL reducer now loads repository delta
 metadata with a bounded repository fact query while preserving the existing
 payload-filtered `content_entity` query for SQL entity types. Deleted-only
-delta generations can therefore retract stale `REFERENCES_TABLE`, `HAS_COLUMN`,
+delta generations can therefore retract stale `READS_FROM`, `HAS_COLUMN`,
 `TRIGGERS`, and `EXECUTES` edges without requiring current SQL entity rows, and
 ordinary full refreshes keep the existing repository-wide retract path.
 
@@ -1625,6 +1625,68 @@ runtime knob, or queue behavior was added. The response gained the `complete`/
 [HTTP API — IaC, content, and infra routes](http-api/iac-content-infra.md)),
 which are computed in Go from the existing `EdgeMaterializationCoverage`
 registry and add no graph read.
+
+### SQL Table Blast-Radius READS_FROM Branch Addition (#5345)
+
+`blastRadiusSqlTableCypher` grew from five `CALL {...UNION...}` branches back
+to six: the dead `(:SqlTable)-[:REFERENCES_TABLE]->(table)` branch (never had
+a writer — the parser never stamped `source_tables` onto the SqlView/
+SqlFunction entity, so the reducer's derivation had nothing to key on) was
+replaced with two endpoint-label-constrained branches,
+`(:SqlView)-[:READS_FROM]->(table)` and `(:SqlFunction)-[:READS_FROM]->
+(table)` — two branches, not one, because NornicDB matches zero rows on a
+node-label disjunction (#5116), so `(:SqlView|SqlFunction)` cannot cover both
+source labels in a single `MATCH`. `blastRadiusSqlTableBranches` moved 5->6 to
+track the new branch count.
+
+This is a correctness fix (the SqlView/SqlFunction read edge was silently
+returning zero via `REFERENCES_TABLE`, which no writer ever produced), not a
+claimed speedup, so per `cypher-query-rigor`'s "pure correctness fixes can
+trade a full bench for a no-measurable-regression check" allowance, the
+required proof here is same-shape no-regression, not a full before/after
+optimization write-up.
+
+No-Regression Evidence: theory shim (throwaway `_test.go` in
+`go/internal/replay/offlinetier`, deleted after capture) against an isolated
+NornicDB (same pinned build as the #5330 evidence above,
+`eshu-nornicdb-pr261:149245885258`, Bolt driver, database `nornic`, schema
+bootstrapped first). Seeded 200 `Repository`/`File`/`SqlTable` triples (all
+named `target_table`, so one `CONTAINS` query name-matches every row) plus 50
+each of `QUERIES_TABLE`, `TRIGGERS`, `INDEXES`, and the two new
+`READS_FROM` sources (`SqlView`, `SqlFunction`) into the matched table, using
+the same `UNWIND ... CREATE` write shape as the #5330 evidence. Ran the exact
+pre-#5345 OLD query text (five branches, `REFERENCES_TABLE` present) and the
+current NEW query text (six branches, `READS_FROM` x2) through the same `Run`
+adapter production uses, with the same `$limit` for both shapes so row output
+is directly comparable, 50 reps each after a warmup rep, repeated across 5
+independent test runs (the first 3 at 20 reps, the last 2 at 50 reps, all
+after a warmup rep):
+
+| Run | OLD (5 branches, ms/op) | NEW (6 branches, ms/op) | Delta |
+| --- | ---: | ---: | ---: |
+| 1 | 1.039 | 1.197 | +15.2% |
+| 2 | 0.962 | 1.003 | +4.2% |
+| 3 | 1.102 | 1.040 | -5.6% |
+| 4 | 1.123 | 1.070 | -4.8% |
+| 5 | 0.964 | 0.933 | -3.3% |
+
+Delta straddles zero across runs (mean +1.1%) with no consistent direction,
+consistent with run-to-run scheduling/GC noise dominating a sub-millisecond
+query rather than a real per-branch cost — unlike the #5330 evidence above
+(which removed one large combined `EXISTS {...}` subquery branch and showed a
+consistent, one-directional 17-30% improvement), this change adds two cheap
+single-hop endpoint-labeled `MATCH` branches, and 5 independent runs found no
+consistent regression. Row counts matched on both shapes at every run (306
+rows each, both capped by the shared `$limit`), confirming neither shape
+errored or silently truncated on this dataset.
+
+No-Observability-Change: the query still runs through the existing
+`h.Neo4j.Run` adapter and per-query graph telemetry; no new span, metric,
+runtime knob, or queue behavior was added. The response's `complete`/
+`coverage` fields already existed from #5330; only which edge types they
+report as materialized changed (`sqlTableBlastRadiusEdgeTypes`), computed in
+Go from the existing `EdgeMaterializationCoverage` registry with no new graph
+read.
 
 ## Related Docs
 

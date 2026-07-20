@@ -318,8 +318,8 @@ None. Every supported surface has a replay scenario.
 | `retractable_edge:PROVISIONS_DEPENDENCY_FOR` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
 | `retractable_edge:QUERIES_TABLE` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go` |
 | `retractable_edge:READS_CONFIG_FROM` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
+| `retractable_edge:READS_FROM` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go` |
 | `retractable_edge:REFERENCES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go` |
-| `retractable_edge:REFERENCES_TABLE` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go` |
 | `retractable_edge:RUNS_IMAGE` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go` |
 | `retractable_edge:RUNS_IN` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go` |
 | `retractable_edge:RUNS_ON` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
