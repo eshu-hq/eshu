@@ -149,6 +149,21 @@ func TestExtractOverlayEnvironmentsDeduplicates(t *testing.T) {
 	}
 }
 
+func TestExtractOverlayEnvironmentsMergesAliasesToOneCanonical(t *testing.T) {
+	t.Parallel()
+	paths := []string{
+		"deploy/overlays/production/kustomization.yaml",
+		"deploy/overlays/prod/kustomization.yaml",
+	}
+	got := ExtractOverlayEnvironments(paths)
+	if len(got) != 1 {
+		t.Fatalf("ExtractOverlayEnvironments() len = %d, want 1 (alias merge per the environment-alias contract)", len(got))
+	}
+	if got[0] != "prod" {
+		t.Fatalf("got[0] = %q, want prod", got[0])
+	}
+}
+
 func TestExtractOverlayEnvironmentsSupportsJenkinsAndTerraformPathConventions(t *testing.T) {
 	t.Parallel()
 	paths := []string{

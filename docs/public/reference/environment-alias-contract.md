@@ -64,7 +64,10 @@ them by constant; their producers land in follow-on work.
 vocabulary for a workload with no resolved environment. This PR defines the
 constant; existing `'unknown'` buckets, `missing_environment` tallies, and
 compare-handler messages are **not** rewired to this value and remain
-wire-compatible.
+wire-compatible. The constant's runtime wiring lands with the consumers that
+emit the new evidence classes: #5434 (namespace labels) and #5444 (ArgoCD
+destination), which surface unbindable evidence as `environment-unbound`
+instead of dropping it silently.
 
 ## Comparison semantics
 
@@ -72,7 +75,8 @@ wire-compatible.
 | --- | --- |
 | Graph joins (USES edge, exact match) | Case-sensitive string equality on the Cypher property. See documented follow-on below. |
 | Canonical alias compare | `environment.Canonical()` — trim+lowercase+alias. Used by `compare_evidence.go`, `service_contract_helpers.go`. |
-| EqualFold compare | Case-insensitive string equality. Used by `deployment_config_influence.go` for row filtering. |
+| EqualFold compare | Case-insensitive string equality, **not alias-aware** (`"production"` ≠ `"prod"`). Used by `deployment_config_influence.go:250` for row filtering. Follow-on, not migrated in this PR. |
+| Exact selector match | Case-sensitive equality (`i.environment = $environment`). Used by `service_workload_resolution.go:292-293` Cypher filters. A caller passing an alias (`"production"`) does not match a canonicalized graph value (`"prod"`). Follow-on, not migrated in this PR. |
 | Artifact-path token detection | Normalized (lowercase) token lookup via `environment.IsKnownToken`. |
 
 The USES edge exact-join in `go/internal/storage/cypher/workload_cloud_relationship_writer.go:22,25`
@@ -100,3 +104,17 @@ not invent environment truth.
 | `ExtractOverlayEnvironments` (reducer/projection.go) | Raw capture | `environment.Canonical(captured)` | Expected-delta: alias→canonical |
 | CI env decision (reducer/ci_cd_run_correlation.go) | `trimmedCICDPtr` only | `environment.Canonical(trimmedCICDPtr(...))` | Expected-delta: alias→canonical |
 | USES edge exact-join (storage/cypher) | Exact string match | Documented follow-on | Not in this PR |
+| `deployment_config_influence.go:250` (query) | `strings.EqualFold` | Documented follow-on (alias-aware compare) | Not in this PR |
+| `service_workload_resolution.go:292-293` (query) | Exact Cypher match | Documented follow-on (canonical compare) | Not in this PR |
+
+## One-time identity shift note
+
+Canonicalizing `ExtractOverlayEnvironments` changes `WorkloadInstance` identity
+keys for alias or mixed-case inputs (`workload-instance:api:production` becomes
+`workload-instance:api:prod`). The workload materializer is MERGE-based and has
+no stale-instance retraction, so a pre-change instance with an alias-cased ID
+becomes an orphan on first regeneration. This is a pre-existing condition of
+the materializer, not a new hazard class: the orphan carries no edges the new
+projection would write differently, and no cleanup mechanism existed before
+this contract either. Deployments that never used alias or mixed-case overlay
+directories are unaffected.
