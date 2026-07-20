@@ -151,17 +151,16 @@ func TestFindBlastRadiusSqlTableReportsUnmaterializedCoverage(t *testing.T) {
 	}
 }
 
-// TestFindBlastRadiusCrossplaneXrdReportsUnmaterializedCoverage proves the
-// crossplane_xrd blast-radius response is honest (#5331): SATISFIED_BY
-// (claim -> xrd) has no graph writer anywhere in the codebase — the constant
-// is orphaned, only ever read by blastRadiusCrossplaneCypher — so the
-// response must report complete:false and list SATISFIED_BY in coverage as
-// materialized:false/reason:"no_writer" instead of silently presenting
-// affected_count as a complete answer. CONTAINS (claim -> file, the generic
-// content-containment edge) does have a writer and must report
-// materialized:true. Mirrors
+// TestFindBlastRadiusCrossplaneXrdReportsMaterializedCoverage proves the
+// crossplane_xrd blast-radius response is complete now that a SATISFIED_BY
+// writer exists (issue #5347, cypher.CrossplaneSatisfiedByEdgeWriter): the
+// response must report complete:true and list both CONTAINS and
+// SATISFIED_BY in coverage as materialized:true. The mock Cypher matcher
+// binds the claim side to :K8sResource, not :CrossplaneClaim — the SATISFIED_BY
+// node model is edge-only, so no node ever carries the CrossplaneClaim label
+// (relabeling would collide with the per-label generation-retract). Mirrors
 // TestFindBlastRadiusSqlTableReportsUnmaterializedCoverage (#5330).
-func TestFindBlastRadiusCrossplaneXrdReportsUnmaterializedCoverage(t *testing.T) {
+func TestFindBlastRadiusCrossplaneXrdReportsMaterializedCoverage(t *testing.T) {
 	t.Parallel()
 
 	handler := &ImpactHandler{
@@ -169,7 +168,7 @@ func TestFindBlastRadiusCrossplaneXrdReportsUnmaterializedCoverage(t *testing.T)
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
-				case strings.Contains(cypher, "CrossplaneClaim)-[:SATISFIED_BY]->(xrd)"):
+				case strings.Contains(cypher, "K8sResource)-[:SATISFIED_BY]->(xrd)"):
 					return []map[string]any{{"repo": "platform-infra", "repo_id": "repo-platform-infra", "claim": "database-claim"}}, nil
 				case strings.Contains(cypher, "CONTAINS]-(tier:Tier)"):
 					return nil, nil
@@ -196,10 +195,10 @@ func TestFindBlastRadiusCrossplaneXrdReportsUnmaterializedCoverage(t *testing.T)
 		t.Fatalf("decode: %v", err)
 	}
 	if resp.AffectedCount != 1 {
-		t.Fatalf("affected_count = %d, want 1 (the query still returns rows; only completeness honesty changed)", resp.AffectedCount)
+		t.Fatalf("affected_count = %d, want 1", resp.AffectedCount)
 	}
-	if resp.Complete {
-		t.Fatal("complete = true, want false (SATISFIED_BY has no writer; affected_count:0 would be a silent false negative)")
+	if !resp.Complete {
+		t.Fatal("complete = false, want true (both CONTAINS and SATISFIED_BY now have writers)")
 	}
 
 	byType := map[string]struct {
@@ -217,11 +216,11 @@ func TestFindBlastRadiusCrossplaneXrdReportsUnmaterializedCoverage(t *testing.T)
 	if !ok {
 		t.Fatal("coverage missing entry for \"SATISFIED_BY\"")
 	}
-	if satisfiedBy.Materialized {
-		t.Error("coverage[\"SATISFIED_BY\"].materialized = true, want false (no emitter MERGEs this edge)")
+	if !satisfiedBy.Materialized {
+		t.Error("coverage[\"SATISFIED_BY\"].materialized = false, want true (cypher.CrossplaneSatisfiedByEdgeWriter MERGEs this edge)")
 	}
-	if satisfiedBy.Reason != "no_writer" {
-		t.Errorf("coverage[\"SATISFIED_BY\"].reason = %q, want %q", satisfiedBy.Reason, "no_writer")
+	if satisfiedBy.Reason == "" || satisfiedBy.Reason == "no_writer" {
+		t.Errorf("coverage[\"SATISFIED_BY\"].reason = %q, want a real reason", satisfiedBy.Reason)
 	}
 
 	contains, ok := byType["CONTAINS"]

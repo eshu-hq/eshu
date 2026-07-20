@@ -65,6 +65,9 @@ func materializedEdgeTypes() map[string]string {
 	for edgeType, reason := range structuralEdgeTypes {
 		out[edgeType] = reason
 	}
+	for edgeType, reason := range cypher.CrossplaneRelationshipMaterializedEdgeTypes() {
+		out[edgeType] = reason
+	}
 	return out
 }
 

@@ -92,9 +92,18 @@ func blastRadiusDependentsByIDQuery(access repositoryAccessFilter) string {
 // count rather than the (repo, claim) pair count — the same dedup-before-LIMIT
 // concern the sql_table branch handles with over-fetch, closed here in-query
 // because crossplane has no `CALL {}` blocking the aggregation.
+//
+// The claim side matches :K8sResource, not :CrossplaneClaim (issue #5347): a
+// Crossplane Claim is edge-only under the SATISFIED_BY writer's node model —
+// it stays a K8sResource node and the SATISFIED_BY edge IS the
+// classification, never a parse-time relabel (relabeling would collide with
+// the per-label generation-retract in
+// canonical_node_writer_retract_labels.go). No node ever carries the
+// CrossplaneClaim label, so matching it here would silently return zero rows
+// forever even after the writer landed.
 const blastRadiusCrossplaneCypher = `MATCH (xrd:CrossplaneXRD)
 WHERE xrd.kind CONTAINS $target_name OR xrd.name CONTAINS $target_name
-MATCH (claim:CrossplaneClaim)-[:SATISFIED_BY]->(xrd)
+MATCH (claim:K8sResource)-[:SATISFIED_BY]->(xrd)
 MATCH (f:File)-[:CONTAINS]->(claim)
 MATCH (repo:Repository)-[:REPO_CONTAINS]->(f)%s
 RETURN repo.name AS repo, repo.id AS repo_id, min(claim.name) AS claim
@@ -228,9 +237,10 @@ func sqlTableBlastRadiusCoverage() (bool, []blastRadiusEdgeCoverage) {
 // sqlTableBlastRadiusEdgeTypes (#5330). CONTAINS is the generic File->entity
 // containment edge blastRadiusCrossplaneCypher traverses (file -> claim) and
 // has a real writer (cypher.buildEntityStatementsWithContainment). SATISFIED_BY
-// (claim -> xrd) has none: no emitter anywhere in the codebase MERGEs it — the
-// internal/graph/edgetype.SatisfiedBy constant is orphaned, only ever read by
-// blastRadiusCrossplaneCypher (#5331; wiring a writer is tracked in #5347).
+// (claim -> xrd) is written by
+// cypher.CrossplaneSatisfiedByEdgeWriter/CrossplaneRelationshipMaterializedEdgeTypes
+// (issue #5347): a K8sResource row resolved against exactly one CrossplaneXRD
+// by (group, kind) == (spec.group, spec.claimNames.kind).
 // REPO_CONTAINS (repo -> file), also traversed by the query, is deliberately
 // excluded here, matching sqlTableBlastRadiusEdgeTypes: it is a universal
 // structural edge outside the materialized-edge registry's scope (see
@@ -240,11 +250,10 @@ var crossplaneXrdBlastRadiusEdgeTypes = []string{"CONTAINS", "SATISFIED_BY"}
 
 // crossplaneXrdBlastRadiusCoverage evaluates crossplaneXrdBlastRadiusEdgeTypes
 // against the materialized-edge registry, mirroring sqlTableBlastRadiusCoverage
-// (#5330). SATISFIED_BY has no writer, so complete is always false today and
-// coverage always reports it as materialized:false/reason:"no_writer" — this
-// flips to true automatically once a SATISFIED_BY writer lands and registers
-// itself in the materialized-edge registry (#5347); the coverage-function
-// code path here needs no edit.
+// (#5330). Both CONTAINS and SATISFIED_BY have real writers as of #5347, so
+// complete is true and coverage reports both materialized:true — this
+// function needed no edit when the SATISFIED_BY writer landed and registered
+// itself in the materialized-edge registry (cypher.CrossplaneRelationshipMaterializedEdgeTypes).
 func crossplaneXrdBlastRadiusCoverage() (bool, []blastRadiusEdgeCoverage) {
 	complete := true
 	coverage := make([]blastRadiusEdgeCoverage, 0, len(crossplaneXrdBlastRadiusEdgeTypes))
@@ -381,10 +390,10 @@ func (h *ImpactHandler) findBlastRadius(w http.ResponseWriter, r *http.Request) 
 // (hops, repo). complete and coverage report the #5330/#5331 honesty
 // contract: for sql_table and crossplane_xrd, coverage lists every edge type
 // the surface conceptually covers with its materialization status, and
-// complete is false whenever any of them has no writer (crossplane_xrd is
-// always false today — SATISFIED_BY has no writer; see
-// crossplaneXrdBlastRadiusCoverage); other target_types have no coverage gaps
-// registered against them and report complete:true with empty coverage.
+// complete is false whenever any of them has no writer. crossplane_xrd is
+// complete:true as of #5347 (both CONTAINS and SATISFIED_BY have writers;
+// see crossplaneXrdBlastRadiusCoverage); other target_types have no coverage
+// gaps registered against them and report complete:true with empty coverage.
 func (h *ImpactHandler) blastRadiusAffected(ctx context.Context, targetType, target string, limit int, access repositoryAccessFilter) ([]map[string]any, bool, bool, []blastRadiusEdgeCoverage, error) {
 	// graphParams binds $allowed_repository_ids / $allowed_scope_ids for the
 	// grant predicate the query builders inject when the caller is scoped; it is

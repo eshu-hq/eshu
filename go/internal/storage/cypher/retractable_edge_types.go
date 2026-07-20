@@ -53,6 +53,7 @@ var retractableGraphEdgeTypes = []edgetype.EdgeType{
 	edgetype.RunsImage,
 	edgetype.RunsIn,
 	edgetype.RunsOn,
+	edgetype.SatisfiedBy,
 	edgetype.SecretsIamUsesServiceAccount,
 	edgetype.TaintFlowsTo,
 	edgetype.TargetsEnvironment,

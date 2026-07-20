@@ -48,20 +48,20 @@ func TestEdgeMaterializationCoverageReportsDeadBranches(t *testing.T) {
 	}
 }
 
-// TestEdgeMaterializationCoverageReportsSatisfiedByUnmaterialized proves the
-// registry reports materialized:false/reason:"no_writer" for SATISFIED_BY
-// (Crossplane claim -> XRD): no emitter in the codebase MERGEs this edge —
-// the constant exists (internal/graph/edgetype.SatisfiedBy) but is only ever
-// read, by blastRadiusCrossplaneCypher (#5331).
-func TestEdgeMaterializationCoverageReportsSatisfiedByUnmaterialized(t *testing.T) {
+// TestEdgeMaterializationCoverageReportsSatisfiedByMaterialized proves the
+// registry reports materialized:true for SATISFIED_BY (Crossplane claim ->
+// XRD) now that cypher.CrossplaneSatisfiedByEdgeWriter MERGEs it (issue
+// #5347): a K8sResource row resolved against exactly one CrossplaneXRD by
+// (group, kind) == (spec.group, spec.claimNames.kind).
+func TestEdgeMaterializationCoverageReportsSatisfiedByMaterialized(t *testing.T) {
 	t.Parallel()
 
 	got := EdgeMaterializationCoverage("SATISFIED_BY")
-	if got.Materialized {
-		t.Error("EdgeMaterializationCoverage(\"SATISFIED_BY\").Materialized = true, want false (no writer exists)")
+	if !got.Materialized {
+		t.Error("EdgeMaterializationCoverage(\"SATISFIED_BY\").Materialized = false, want true (cypher.CrossplaneSatisfiedByEdgeWriter MERGEs it)")
 	}
-	if got.Reason != "no_writer" {
-		t.Errorf("EdgeMaterializationCoverage(\"SATISFIED_BY\").Reason = %q, want %q", got.Reason, "no_writer")
+	if got.Reason == "" || got.Reason == "no_writer" {
+		t.Errorf("EdgeMaterializationCoverage(\"SATISFIED_BY\").Reason = %q, want a real reason", got.Reason)
 	}
 }
 
