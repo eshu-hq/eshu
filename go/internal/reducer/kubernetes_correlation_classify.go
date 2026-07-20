@@ -70,7 +70,8 @@ func classifyWorkloadImages(
 }
 
 // classifyImageRef joins one parsed live image reference to the deployment
-// source index using digest-first, then repository+tag precedence.
+// source index using digest-first, then CRI-resolved digest, then
+// repository+tag precedence.
 func classifyImageRef(
 	workload kubernetesWorkload,
 	parsed parsedContainerImageRef,
@@ -84,7 +85,70 @@ func classifyImageRef(
 	if parsed.digest != "" {
 		return classifyImageByDigest(base, parsed, index)
 	}
+
+	// When the declared ref is tag-form AND the workload carries a CRI-resolved
+	// digest for this ref, classify via the DIGEST path using the resolved
+	// digest's repository+digest. The CRI-resolved digest is ground truth of
+	// what is running; it promotes a tag-referenced deployment to exact when the
+	// source index matches, and classifies as unresolved when it does not —
+	// without falling through to the weaker tag classification.
+	if digest, hasCRI := workload.resolvedImageDigests[parsed.raw]; hasCRI && digest != "" {
+		return classifyImageByCRIDigest(base, digest, index)
+	}
+
 	return classifyImageByTag(base, parsed, index)
+}
+
+// classifyImageByCRIDigest resolves a CRI-resolved digest (from pod status)
+// against the source digest index. It mirrors classifyImageByDigest but parses
+// the resolved digest string into repositoryKey+digest first, since the
+// resolved digest is in repo@sha256:<digest> form rather than already split.
+func classifyImageByCRIDigest(
+	base KubernetesCorrelationDecision,
+	resolvedDigest string,
+	index kubernetesCorrelationIndex,
+) KubernetesCorrelationDecision {
+	parsed, ok := parseContainerImageRef(resolvedDigest)
+	if !ok || parsed.digest == "" {
+		// The resolved digest could not be parsed (e.g. it lost its repository
+		// through normalization). Fall through to tag classification.
+		// This should be rare — NormalizeCRIImageID already rejects bare sha256.
+		base.Outcome = KubernetesCorrelationUnresolved
+		base.DriftKind = driftMissingSource
+		base.ProvenanceOnly = true
+		base.Reason = "CRI-resolved digest could not be parsed to a repository@sha256 reference"
+		return base
+	}
+	if parsed.repositoryKey == "" {
+		base.Outcome = KubernetesCorrelationUnresolved
+		base.DriftKind = driftMissingSource
+		base.ProvenanceOnly = true
+		base.Reason = "CRI-resolved digest has no repository; not joinable"
+		return base
+	}
+	source, ok := index.resolveDigest(parsed.repositoryKey, parsed.digest)
+	if !ok {
+		base.Outcome = KubernetesCorrelationUnresolved
+		base.DriftKind = driftMissingSource
+		base.ProvenanceOnly = true
+		base.Reason = "CRI-resolved digest has no deployment-source observation in this generation"
+		return base
+	}
+	base.SourceDigest = parsed.digest
+	base.EvidenceFactIDs = appendEvidence(base.EvidenceFactIDs, source.factIDs...)
+	if source.tombstone {
+		base.Outcome = KubernetesCorrelationStale
+		base.DriftKind = driftStaleSource
+		base.ProvenanceOnly = true
+		base.Reason = "CRI-resolved digest matches only a tombstoned deployment-source observation"
+		return base
+	}
+	base.Outcome = KubernetesCorrelationExact
+	base.DriftKind = driftInSync
+	base.ProvenanceOnly = false
+	base.JoinMode = joinModeDigest
+	base.Reason = "CRI-resolved digest matches an active deployment-source digest"
+	return base
 }
 
 // classifyImageByDigest resolves a digest-named live reference against the

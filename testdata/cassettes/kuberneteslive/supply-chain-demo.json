@@ -19,7 +19,7 @@
         {
           "fact_kind": "kubernetes_live.pod_template",
           "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:deployment:default:supply-chain-demo",
-          "schema_version": "1.0.0",
+          "schema_version": "1.1.0",
           "collector_kind": "kubernetes_live",
           "fencing_token": 1,
           "source_confidence": "observed",
@@ -41,9 +41,16 @@
                 "name": "app",
                 "image": "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
                 "init": false,
-                "ports": [3000],
-                "env_keys": ["DATABASE_URL", "NODE_ENV", "VAULT_ADDR"],
-                "env_from_secret": true
+                "ports": [
+                  3000
+                ],
+                "env_keys": [
+                  "DATABASE_URL",
+                  "NODE_ENV",
+                  "VAULT_ADDR"
+                ],
+                "env_from_secret": true,
+                "resolved_image_digest": "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
               }
             ],
             "image_refs": [
@@ -61,7 +68,7 @@
         {
           "fact_kind": "kubernetes_live.pod_template",
           "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:replicaset:default:supply-chain-demo-7f8d9",
-          "schema_version": "1.0.0",
+          "schema_version": "1.1.0",
           "collector_kind": "kubernetes_live",
           "fencing_token": 1,
           "source_confidence": "observed",
@@ -83,9 +90,16 @@
                 "name": "app",
                 "image": "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
                 "init": false,
-                "ports": [3000],
-                "env_keys": ["DATABASE_URL", "NODE_ENV", "VAULT_ADDR"],
-                "env_from_secret": true
+                "ports": [
+                  3000
+                ],
+                "env_keys": [
+                  "DATABASE_URL",
+                  "NODE_ENV",
+                  "VAULT_ADDR"
+                ],
+                "env_from_secret": true,
+                "resolved_image_digest": "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
               }
             ],
             "image_refs": [

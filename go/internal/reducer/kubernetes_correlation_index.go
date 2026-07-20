@@ -39,6 +39,11 @@ type kubernetesWorkload struct {
 	uid       string
 	imageRefs []string
 	factID    string
+	// resolvedImageDigests maps a container's declared raw image reference to
+	// its CRI-resolved normalized digest (repo@sha256:<digest> form), populated
+	// from PodTemplateContainer.ResolvedImageDigest. Deployments/ReplicaSets
+	// (pod spec only) carry no resolved digests so this map is empty for them.
+	resolvedImageDigests map[string]string
 }
 
 // kubernetesIdentityEdge is one directed kubernetes_live.relationship pre-parsed
@@ -146,13 +151,14 @@ func (index *kubernetesCorrelationIndex) ingestPodTemplate(env facts.Envelope) e
 		return nil
 	}
 	index.workloads = append(index.workloads, kubernetesWorkload{
-		objectID:  objectID,
-		clusterID: derefString(podTemplate.ClusterID),
-		namespace: derefString(podTemplate.Namespace),
-		name:      derefString(podTemplate.Name),
-		uid:       derefString(podTemplate.WorkloadUID),
-		imageRefs: workloadImageRefs(podTemplate),
-		factID:    env.FactID,
+		objectID:             objectID,
+		clusterID:            derefString(podTemplate.ClusterID),
+		namespace:            derefString(podTemplate.Namespace),
+		name:                 derefString(podTemplate.Name),
+		uid:                  derefString(podTemplate.WorkloadUID),
+		imageRefs:            workloadImageRefs(podTemplate),
+		factID:               env.FactID,
+		resolvedImageDigests: resolvedImageDigestsFromTemplate(podTemplate),
 	})
 	return nil
 }
@@ -317,4 +323,33 @@ func kubernetesSourceDigestKey(repositoryKey, digest string) string {
 
 func kubernetesSourceTagKey(repositoryKey, tag string) string {
 	return strings.ToLower(strings.TrimSpace(repositoryKey)) + ":" + strings.TrimSpace(tag)
+}
+
+// resolvedImageDigestsFromTemplate extracts a map from a container's declared
+// raw image reference to its CRI-resolved normalized digest, populated from
+// PodTemplateContainer.ResolvedImageDigest. When two containers share a declared
+// ref with differing resolved digests, the first wins (the pod status reflects
+// the running state of all containers sharing that spec entry, and K8s does not
+// run the same container image at two different digests in a single pod; a
+// discrepancy would indicate a bug upstream and the first-win policy is safe
+// because exact is stronger than missing).
+func resolvedImageDigestsFromTemplate(podTemplate kuberneteslivev1.PodTemplate) map[string]string {
+	var out map[string]string
+	for _, container := range podTemplate.Containers {
+		digest := derefString(container.ResolvedImageDigest)
+		if digest == "" {
+			continue
+		}
+		ref := strings.TrimSpace(derefString(container.Image))
+		if ref == "" {
+			continue
+		}
+		if out == nil {
+			out = make(map[string]string, len(podTemplate.Containers))
+		}
+		if _, exists := out[ref]; !exists {
+			out[ref] = digest
+		}
+	}
+	return out
 }

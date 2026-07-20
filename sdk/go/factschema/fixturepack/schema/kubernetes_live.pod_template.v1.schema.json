@@ -54,6 +54,12 @@
               "array",
               "null"
             ]
+          },
+          "resolved_image_digest": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "type": "object"

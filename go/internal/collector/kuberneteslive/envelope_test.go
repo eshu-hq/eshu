@@ -264,3 +264,67 @@ func valueContains(value any, needle string) bool {
 	}
 	return false
 }
+
+func TestNormalizeCRIImageID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{
+			name: "docker-pullable with repo@sha256",
+			raw:  "docker-pullable://docker.io/library/nginx@sha256:abc123456789",
+			want: "docker.io/library/nginx@sha256:abc123456789",
+		},
+		{
+			name: "docker scheme with repo@sha256",
+			raw:  "docker://docker.io/library/nginx@sha256:abc123456789",
+			want: "docker.io/library/nginx@sha256:abc123456789",
+		},
+		{
+			name: "bare repo@sha256 no scheme",
+			raw:  "docker.io/library/nginx@sha256:abc123456789",
+			want: "docker.io/library/nginx@sha256:abc123456789",
+		},
+		{
+			name: "bare sha256 no repo",
+			raw:  "sha256:abc123456789",
+			want: "",
+		},
+		{
+			name: "docker-pullable sha256 no repo",
+			raw:  "docker-pullable://sha256:abc123456789",
+			want: "",
+		},
+		{
+			name: "docker scheme sha256 no repo",
+			raw:  "docker://sha256:abc123456789",
+			want: "",
+		},
+		{
+			name: "empty string",
+			raw:  "",
+			want: "",
+		},
+		{
+			name: "cri-o scheme",
+			raw:  "cri-o://docker.io/myapp@sha256:def456789abc",
+			want: "docker.io/myapp@sha256:def456789abc",
+		},
+		{
+			name: "containerd tag ref (no digest)",
+			raw:  "docker.io/library/nginx:1.25",
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := NormalizeCRIImageID(tt.raw)
+			if got != tt.want {
+				t.Fatalf("NormalizeCRIImageID(%q) = %q, want %q", tt.raw, got, tt.want)
+			}
+		})
+	}
+}

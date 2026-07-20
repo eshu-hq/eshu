@@ -32,6 +32,13 @@ type ContainerSummary struct {
 	// without collecting any value. It records the existence of a reference for
 	// drift evidence only.
 	EnvFromSecret bool
+	// ResolvedImageDigest is the CRI-resolved digest for this container,
+	// normalized from pod.Status.ContainerStatuses[].ImageID into the bare
+	// repo@sha256:<digest> form. It is empty when the pod status has not been
+	// observed (e.g. for Deployments and ReplicaSets, which carry pod spec only)
+	// or when the ImageID cannot be normalized to a repo@sha256:<digest> form.
+	// It is metadata-only — a digest is a content fingerprint, never a secret.
+	ResolvedImageDigest string
 }
 
 // PodTemplateObservation is the input for one kubernetes_live.pod_template fact.
@@ -246,7 +253,7 @@ func typedContainer(container ContainerSummary) kuberneteslivev1.PodTemplateCont
 	image := strings.TrimSpace(container.Image)
 	init := container.Init
 	envFromSecret := container.EnvFromSecret
-	return kuberneteslivev1.PodTemplateContainer{
+	pc := kuberneteslivev1.PodTemplateContainer{
 		Name:          &name,
 		Image:         &image,
 		Init:          &init,
@@ -254,6 +261,12 @@ func typedContainer(container ContainerSummary) kuberneteslivev1.PodTemplateCont
 		EnvKeys:       envKeys,
 		EnvFromSecret: &envFromSecret,
 	}
+	if digest := strings.TrimSpace(container.ResolvedImageDigest); digest != "" {
+		resolvedImageDigest := new(string)
+		*resolvedImageDigest = digest
+		pc.ResolvedImageDigest = resolvedImageDigest
+	}
+	return pc
 }
 
 func sortedStringMap(input map[string]string) map[string]string {
@@ -365,4 +378,48 @@ func isSensitiveQueryKey(key string) bool {
 	default:
 		return false
 	}
+}
+
+// NormalizeCRIImageID normalizes a CRI container runtime ImageID string into the
+// bare repo@sha256:<digest> form. It strips any container runtime scheme prefix
+// (e.g. docker-pullable://, docker://, cri-o://) and returns only values that
+// parse to a repository@sha256:digest form. A bare sha256: digest with no
+// repository, a tag reference, or an unparseable string returns "".
+//
+// Kubernetes publishes the CRI-resolved digest at
+// pod.Status.ContainerStatuses[].ImageID (and InitContainerStatuses) for every
+// container, even for tag-referenced images, in forms like
+// docker-pullable://repo@sha256:... or bare repo@sha256:... .
+//
+// The normalization mirrors the reducer's parseContainerImageRef semantics so
+// the resolved digest is joinable against the source digest index: the scheme
+// prefix is stripped, then the remainder is checked for the @sha256:<hex>
+// pattern; if the part before the @ contains no repository (bare sha256:), the
+// value is unjoinable and returns "".
+func NormalizeCRIImageID(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	// Strip any scheme:// prefix (docker-pullable://, docker://, cri-o://, etc.).
+	if idx := strings.Index(trimmed, "://"); idx >= 0 {
+		trimmed = trimmed[idx+3:]
+	}
+	trimmed = strings.TrimSpace(trimmed)
+	if trimmed == "" {
+		return ""
+	}
+	// Only accept repo@sha256:<digest> forms. Mirror parseContainerImageRef:
+	// split on "@" and require the digest part to start with "sha256:".
+	before, digest, ok := strings.Cut(trimmed, "@")
+	if !ok || !strings.HasPrefix(digest, "sha256:") {
+		return ""
+	}
+	// The part before "@" must be non-empty (a bare sha256: has no repository
+	// and is not joinable).
+	repo := strings.Trim(strings.TrimSpace(before), "/")
+	if repo == "" {
+		return ""
+	}
+	return repo + "@" + digest
 }

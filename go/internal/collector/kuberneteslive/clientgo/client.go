@@ -63,7 +63,10 @@ func (a *Adapter) ListNamespaces(ctx context.Context) (kuberneteslive.ListResult
 	return kuberneteslive.ListResult[kuberneteslive.ObjectMeta]{Items: items, Partial: partial, Reason: reason}, nil
 }
 
-// ListPods lists pods across all namespaces.
+// ListPods lists pods across all namespaces. For each pod, it reads
+// pod.Status.ContainerStatuses and InitContainerStatuses to resolve the
+// CRI-resolved digest (ImageID) for each container, normalized into the
+// repo@sha256:<digest> form.
 func (a *Adapter) ListPods(ctx context.Context) (kuberneteslive.ListResult[kuberneteslive.WorkloadObject], error) {
 	var items []kuberneteslive.WorkloadObject
 	partial, reason, err := a.paginate(ctx, func(opts metav1.ListOptions) (string, error) {
@@ -73,9 +76,9 @@ func (a *Adapter) ListPods(ctx context.Context) (kuberneteslive.ListResult[kuber
 		}
 		for i := range list.Items {
 			pod := &list.Items[i]
-			items = append(items, workloadFromPodSpec(
+			items = append(items, workloadFromPod(
 				objectMeta("", "v1", "pods", pod.ObjectMeta),
-				pod.Spec, nil,
+				pod,
 			))
 		}
 		return list.Continue, nil
@@ -248,6 +251,41 @@ func workloadFromPodSpec(meta kuberneteslive.ObjectMeta, spec corev1.PodSpec, se
 		Selector:                     selectorLabels(selector),
 		Containers:                   containers,
 	}
+}
+
+// workloadFromPod maps a full Pod object into the neutral workload view. Only
+// Pods carry container statuses, so this function reads
+// pod.Status.ContainerStatuses and pod.Status.InitContainerStatuses to resolve
+// the CRI-resolved digest (ImageID) for each container, normalized via
+// kuberneteslive.NormalizeCRIImageID. Deployments and ReplicaSets carry only
+// the pod template spec (no status), so they use workloadFromPodSpec instead.
+func workloadFromPod(meta kuberneteslive.ObjectMeta, pod *corev1.Pod) kuberneteslive.WorkloadObject {
+	workload := workloadFromPodSpec(meta, pod.Spec, nil)
+	// Build a name->normalized-digest index from container statuses.
+	statusDigests := make(map[string]string, len(pod.Status.ContainerStatuses)+len(pod.Status.InitContainerStatuses))
+	for i := range pod.Status.ContainerStatuses {
+		cs := &pod.Status.ContainerStatuses[i]
+		if digest := kuberneteslive.NormalizeCRIImageID(cs.ImageID); digest != "" {
+			statusDigests[cs.Name] = digest
+		}
+	}
+	for i := range pod.Status.InitContainerStatuses {
+		cs := &pod.Status.InitContainerStatuses[i]
+		if digest := kuberneteslive.NormalizeCRIImageID(cs.ImageID); digest != "" {
+			statusDigests[cs.Name] = digest
+		}
+	}
+	if len(statusDigests) == 0 {
+		return workload
+	}
+	// Patch resolved digests onto the corresponding spec containers by name.
+	for i := range workload.Containers {
+		name := workload.Containers[i].Name
+		if digest, ok := statusDigests[name]; ok {
+			workload.Containers[i].ResolvedImageDigest = digest
+		}
+	}
+	return workload
 }
 
 func containerSummary(container *corev1.Container, init bool) kuberneteslive.ContainerSummary {
