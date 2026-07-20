@@ -147,9 +147,19 @@ type DockerfileStage struct {
 // pass-through -- unlike DockerfileStage above, no third producer can add an
 // unlisted field to this key.
 type ImageOverride struct {
-	// Name is the image identity as declared by the source producer: a Helm
-	// values image.repository string (which may itself carry an inline
-	// tag/digest, e.g. "repo:v1"), or a Kustomize images[].name match target.
+	// Name's meaning is SOURCE-DEPENDENT -- do not read it as "the image"
+	// without checking Source first. For a Helm row, Name is the declared
+	// repository (which may itself carry an inline tag/digest, e.g.
+	// "repo:v1"). For a Kustomize row, Name is the images[].name MATCH
+	// TARGET -- the image reference Kustomize is patching, NOT the image
+	// that actually gets deployed. When a Kustomize row's newName is set
+	// (Repository != Name), Name is the REPLACED image, not the deployed
+	// one; Repository is what actually ships. Repository is the only field
+	// safe to use for image identity across BOTH sources -- use it, not
+	// Name, unless the caller has already branched on Source and
+	// specifically wants the Kustomize match target. This is a one-bucket,
+	// two-meaning field by construction (issue #5440 review); splitting it
+	// into source-specific fields is a design decision issue #5441 owns.
 	Name string `json:"name,omitempty"`
 	// Repository is the resolved, version-stripped image repository: Helm's
 	// repository with any inline tag/digest removed
