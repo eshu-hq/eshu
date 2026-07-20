@@ -340,6 +340,12 @@ func TestRelationshipCountCypherIsTypeIndexed(t *testing.T) {
 // a deterministic tie-breaker so that rows tied on the primary source key are
 // ordered consistently across requests (prevents nondeterministic sampling when
 // the page boundary falls inside one source node's outgoing edges).
+//
+// The tie-breaker expression is per-entry: every verb that leaves
+// targetIdentityProperty unset keeps the default coalesce(t.id, t.uid), but
+// MANAGES (target label Directory, which has only path) appends t.path as a
+// third fallback so ties still resolve deterministically for a target that
+// has neither id nor uid (see targetOrderTiebreakerProperties).
 func TestRelationshipEdgesCypherIsSourceAnchoredAndIndexOrdered(t *testing.T) {
 	t.Parallel()
 
@@ -359,8 +365,9 @@ func TestRelationshipEdgesCypherIsSourceAnchoredAndIndexOrdered(t *testing.T) {
 		// Tie-breaker: rows with the same source key must have a deterministic
 		// secondary sort so page boundaries inside one node's outgoing edges
 		// do not produce nondeterministic or repeated rows across requests.
-		if !strings.Contains(edges, "coalesce(t.id, t.uid)") {
-			t.Fatalf("edge cypher for %s missing deterministic tie-breaker coalesce(t.id, t.uid): %s", entry.verb, edges)
+		wantTiebreaker := coalesceExpr("t", targetOrderTiebreakerProperties(entry))
+		if !strings.Contains(edges, wantTiebreaker) {
+			t.Fatalf("edge cypher for %s missing deterministic tie-breaker %s: %s", entry.verb, wantTiebreaker, edges)
 		}
 		// source_tool must be projected from the relationship.
 		if !strings.Contains(edges, "r.source_tool AS source_tool") {
