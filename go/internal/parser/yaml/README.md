@@ -298,6 +298,40 @@ path. The whole feature (allowlist gate + dedupe) buys a P1 accuracy fix (no
 fabricated `values.schema.yaml`/`values.example.yaml` environments) plus
 phantom-duplicate-row elimination for effectively free allocation cost.
 
+Determinism-fix follow-up (same issue, same benchmarks): a second
+independent review found `image_overrides` row order was nondeterministic
+for Helm -- two rows tied on `line_number` (Helm hardcodes it to 1) and
+`name` (the same repository declared under two different tags) fell through
+to `collectHelmImageOverrides`'s map-walk arrival order, and Go deliberately
+randomizes map iteration per call (reviewer reproduction: 300 parses of
+byte-identical input, 5 different orderings). `sortImageOverrideRowsByContent`
+(image_overrides.go) now content-sorts both producers' rows before dedupe,
+using the same `imageOverrideRowFields` list dedupe compares on
+(`slices.SortFunc`). The same round also skips a Kustomize no-op
+`images[]` entry (only `name`, no `newName`/`newTag`/`digest`) rather than
+emitting a phantom override row (issue #5440 review P2) -- the 20/200-image
+Kustomize fixtures below each have roughly 1-in-3 such entries by
+construction, so this round's numbers include that legitimate row-count
+reduction alongside the sort's own cost. `-count=5`, same session:
+
+| Fixture | ns/op (prev -> now) | B/op (prev -> now) | allocs/op (prev -> now) |
+| --- | --- | --- | --- |
+| Helm 20 images | 397.2us -> ~410.4us (+3.3%) | 266,848 -> 266,844 (flat) | 3,945 -> 3,945 (+0) |
+| Helm 200 images | ~4.06ms -> ~4.20ms (+3.4%) | 2,427,953 -> 2,427,990 (flat) | 37,173 -> 37,174 (+1) |
+| Kustomize 20 images | ~123.4us -> ~116.5us (-5.6%, P2 fewer rows) | 84,989 -> 80,266 (-5.6%, P2) | 1,136 -> 1,087 (-49, P2) |
+| Kustomize 200 images | ~1.25ms -> ~1.03ms (-17.6%, P2 fewer rows) | 666,084 -> 614,540 (-7.7%, P2) | 9,126 -> 8,597 (-5.8%, P2) |
+
+The sort itself adds zero measurable allocations (`slices.SortFunc` sorts a
+slice already in memory) and a small, expected CPU cost on Helm, where the
+fixture has no no-op entries to mask it (+3.3-3.4%, an `O(n log n)`
+content-comparison sort over 15-20 already-in-memory rows). Kustomize's
+numbers move in the OPPOSITE direction -- faster, less memory -- because its
+representative fixture's 1-in-3 no-op entries are now skipped entirely
+(P2), a real, intended reduction in work, not noise. No fixture shows a
+regression that would concern the repo-scale performance contract; the sort
+runs once per file, over a small in-memory row count, inside the same async
+parse stage as everything else in this package.
+
 ## Gotchas / invariants
 
 Output ordering is part of the parser fact contract. Parse sorts every emitted

@@ -266,8 +266,12 @@ images:
 	if !ok {
 		t.Fatalf("image_overrides = %T, want []map[string]any", payload["image_overrides"])
 	}
-	if len(overrides) != 3 {
-		t.Fatalf("len(image_overrides) = %d, want 3: %#v", len(overrides), overrides)
+	// 2, not 3: "unpatched-app" declares no newName/newTag/digest -- a no-op
+	// match-target entry with no version override -- and is skipped (issue
+	// #5440 review P2). See TestDefaultEngineParsePathYAMLKustomizeImageOverridesNoOpEntry
+	// below for the dedicated regression guard.
+	if len(overrides) != 2 {
+		t.Fatalf("len(image_overrides) = %d, want 2: %#v", len(overrides), overrides)
 	}
 
 	nginx := findNamedItem(t, payload, "image_overrides", "nginx")
@@ -283,8 +287,64 @@ images:
 		t.Fatalf("sidecar override = %#v", sidecar)
 	}
 
-	unpatched := findNamedItem(t, payload, "image_overrides", "unpatched-app")
-	if unpatched["repository"] != "unpatched-app" || unpatched["tag"] != "" || unpatched["digest"] != "" {
-		t.Fatalf("unpatched-app override = %#v", unpatched)
+	for _, row := range overrides {
+		if row["name"] == "unpatched-app" {
+			t.Fatalf("image_overrides contains a row for the no-op match-target entry \"unpatched-app\": %#v", row)
+		}
+	}
+}
+
+// TestDefaultEngineParsePathYAMLKustomizeImageOverridesNoOpEntry is a
+// dedicated regression guard for issue #5440 review P2: a Kustomize
+// images[] entry with only `name` and none of `newName`/`newTag`/`digest`
+// declares NO version override -- Kustomize itself performs no image
+// substitution for it. Emitting a row for it would tell a consumer "yes, a
+// version override is declared for this image" when the honest answer is
+// "no version was declared." An entry with only `newTag` set (no newName,
+// no digest) still IS a real override and must still emit a row.
+func TestDefaultEngineParsePathYAMLKustomizeImageOverridesNoOpEntry(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "kustomization.yaml")
+	writeTestFile(
+		t,
+		filePath,
+		`apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+images:
+  - name: name-only-no-op
+  - name: tag-only-override
+    newTag: "2.0.0"
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	payload, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(%q) error = %v, want nil", filePath, err)
+	}
+
+	overrides, ok := payload["image_overrides"].([]map[string]any)
+	if !ok {
+		t.Fatalf("image_overrides = %T, want []map[string]any", payload["image_overrides"])
+	}
+	if len(overrides) != 1 {
+		t.Fatalf("len(image_overrides) = %d, want 1 (only the newTag entry declares an override): %#v", len(overrides), overrides)
+	}
+
+	for _, row := range overrides {
+		if row["name"] == "name-only-no-op" {
+			t.Fatalf("image_overrides contains a row for the name-only no-op entry: %#v", row)
+		}
+	}
+
+	tagOnly := findNamedItem(t, payload, "image_overrides", "tag-only-override")
+	if tagOnly["repository"] != "tag-only-override" || tagOnly["tag"] != "2.0.0" || tagOnly["digest"] != "" {
+		t.Fatalf("tag-only-override = %#v, want repository=tag-only-override tag=2.0.0 digest=\"\"", tagOnly)
 	}
 }

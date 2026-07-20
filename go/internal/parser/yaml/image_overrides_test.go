@@ -74,6 +74,25 @@ image:
 			wantDigest:     "sha256:def789abc012",
 		},
 		{
+			// P3 (independent review): inline digest AND a sibling tag together
+			// -- an untested combination distinct from
+			// sibling_digest_key_plus_sibling_tag above (that case has a
+			// SIBLING digest key; this one has the digest embedded IN the
+			// repository string). Both fields must populate: the sibling `tag:`
+			// key for Tag, the inline "@sha256:..." for Digest.
+			name:     "inline_digest_plus_sibling_tag",
+			filename: "values.yaml",
+			body: `
+image:
+  repository: ghcr.io/example/checkout-service@sha256:abc123def456
+  tag: "v1"
+`,
+			wantName:       "ghcr.io/example/checkout-service@sha256:abc123def456",
+			wantRepository: "ghcr.io/example/checkout-service",
+			wantTag:        "v1",
+			wantDigest:     "sha256:abc123def456",
+		},
+		{
 			name:     "filename_env_dash_form",
 			filename: "values-prod.yaml",
 			body: `
@@ -227,69 +246,15 @@ image:
 	}
 }
 
-// TestParseHelmValuesImageOverridesEnvironmentFromPath proves the
-// ".../environments/<env>/..." directory signal (environmentFromPath,
-// observability_helpers.go) takes priority over the values-<env>.yaml
-// filename inference, and that a bare directory segment with no
-// "environments" marker is NOT treated as an environment signal. Issue #5440
-// stays conservative on purpose; broader keyword-based environment detection
-// is issue #5444's scope.
-func TestParseHelmValuesImageOverridesEnvironmentFromPath(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name    string
-		relPath string
-		wantEnv string
-	}{
-		{
-			name:    "environments_directory_signal",
-			relPath: "environments/staging/values.yaml",
-			wantEnv: "staging",
-		},
-		{
-			name:    "environments_directory_overrides_filename_inference",
-			relPath: "environments/staging/values-prod.yaml",
-			wantEnv: "staging",
-		},
-		{
-			name:    "bare_directory_name_is_not_an_environment_signal",
-			relPath: "prod/values.yaml",
-			wantEnv: "",
-		},
-		{
-			// The .../environments/<env>/... path segment is an explicit author
-			// declaration, not an inference -- it is intentionally UNGATED by the
-			// filename allowlist and returns whatever the author wrote, even a
-			// name outside the known deployment-environment token set. This is
-			// the deliberate asymmetry: only the filename fallback is gated.
-			name:    "environments_directory_signal_bypasses_the_filename_allowlist",
-			relPath: "environments/weirdname/values.yaml",
-			wantEnv: "weirdname",
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			filePath := writeYAMLTestFile(t, tc.relPath, `
-image:
-  repository: ghcr.io/example/checkout-service
-  tag: "1.2.3"
-`)
-			got, err := Parse(filePath, false, Options{})
-			if err != nil {
-				t.Fatalf("Parse() error = %v, want nil", err)
-			}
-			rows := yamlBucketForTest(t, got, "image_overrides")
-			if len(rows) != 1 {
-				t.Fatalf("len(image_overrides) = %d, want 1: %#v", len(rows), rows)
-			}
-			assertYAMLField(t, rows[0], "environment", tc.wantEnv)
-		})
-	}
-}
+// TestParseHelmValuesImageOverridesEnvironmentFromPath and
+// TestParseHelmValuesImageOverridesEnvironmentCaseAgreement moved to
+// image_overrides_environment_test.go to keep this file under the repo's
+// 500-line package-file cap (issue #5440).
+//
+// TestParseHelmValuesImageOverridesDedupesExactDuplicateRows,
+// TestImageOverrideKeyStaysInSyncWithRowShape, and
+// TestParseHelmValuesImageOverridesRowOrderIsDeterministic moved to
+// image_overrides_ordering_test.go for the same reason.
 
 // TestParseHelmValuesImageOverridesEmptyWhenNoImages proves a values file
 // with no "image:" block yields an empty image_overrides bucket rather than
@@ -341,94 +306,5 @@ sidecar:
 	overrides := yamlBucketForTest(t, got, "image_overrides")
 	if len(overrides) != 2 {
 		t.Fatalf("len(image_overrides) = %d, want 2: %#v", len(overrides), overrides)
-	}
-}
-
-// TestParseHelmValuesImageOverridesDedupesExactDuplicateRows decides and pins
-// the duplicate-row question (issue #5440 review): when a Helm values file
-// declares the SAME repository under two different "image:" blocks with an
-// identical tag/digest, the two resulting rows are byte-for-byte identical --
-// image_overrides carries no "declared under" field to distinguish them, so
-// shipping both would be pure phantom noise. helm_values[].image_repositories
-// already dedupes (deduplicateStrings, helm.go); image_overrides follows the
-// same principle: dedupe exact-identical rows, but keep rows that differ in
-// ANY field (a second block declaring the same repository under a different
-// tag is a genuinely distinct declaration, not noise).
-func TestParseHelmValuesImageOverridesDedupesExactDuplicateRows(t *testing.T) {
-	t.Parallel()
-
-	filePath := writeYAMLTestFile(t, "values.yaml", `
-serviceA:
-  image:
-    repository: ghcr.io/example/shared-sidecar
-    tag: "1.0.0"
-serviceB:
-  image:
-    repository: ghcr.io/example/shared-sidecar
-    tag: "1.0.0"
-serviceC:
-  image:
-    repository: ghcr.io/example/shared-sidecar
-    tag: "2.0.0"
-`)
-	got, err := Parse(filePath, false, Options{})
-	if err != nil {
-		t.Fatalf("Parse() error = %v, want nil", err)
-	}
-
-	overrides := yamlBucketForTest(t, got, "image_overrides")
-	// Exactly 2 rows: the serviceA/serviceB pair collapses to one (identical
-	// repository AND tag), serviceC survives as a distinct row (same
-	// repository, different tag).
-	if len(overrides) != 2 {
-		t.Fatalf("len(image_overrides) = %d, want 2 (exact duplicate collapsed, differing tag kept): %#v", len(overrides), overrides)
-	}
-	tags := map[string]int{}
-	for _, row := range overrides {
-		name, _ := row["name"].(string)
-		if name != "ghcr.io/example/shared-sidecar" {
-			t.Fatalf("unexpected row name = %q in %#v", name, overrides)
-		}
-		tag, _ := row["tag"].(string)
-		tags[tag]++
-	}
-	if tags["1.0.0"] != 1 {
-		t.Fatalf("tag 1.0.0 count = %d, want 1 (deduped): %#v", tags["1.0.0"], overrides)
-	}
-	if tags["2.0.0"] != 1 {
-		t.Fatalf("tag 2.0.0 count = %d, want 1 (kept, distinct tag): %#v", tags["2.0.0"], overrides)
-	}
-}
-
-// TestImageOverrideKeyStaysInSyncWithRowShape is a structural drift guard
-// (issue #5440 review): dedupeImageOverrideRows detects an exact-duplicate
-// row by comparing every field named in imageOverrideRowFields
-// (image_overrides.go), read individually rather than formatted into a
-// string. If a row builder ever grows a new field with no matching addition
-// to that list, dedup would silently ignore the new field and could wrongly
-// collapse two rows that actually differ. This test cannot catch a field
-// RENAME, but it catches the far more common drift: a field ADDED to a row
-// with no matching addition to imageOverrideRowFields, by asserting the two
-// field counts stay equal.
-func TestImageOverrideKeyStaysInSyncWithRowShape(t *testing.T) {
-	t.Parallel()
-
-	row := helmImageOverrideRow(
-		map[string]any{"repository": "ghcr.io/example/checkout-service", "tag": "1.2.3"},
-		"values.yaml",
-		"prod",
-	)
-	if row == nil {
-		t.Fatal("helmImageOverrideRow() = nil, want a row for a valid image map")
-	}
-
-	if got, want := len(imageOverrideRowFields), len(row); got != want {
-		t.Fatalf(
-			"imageOverrideRowFields has %d entries but an image_overrides row has %d keys -- "+
-				"dedupeImageOverrideRows's field list (image_overrides.go) is out of sync with "+
-				"the row shape; add the missing field to imageOverrideRowFields or a new row "+
-				"field will silently escape duplicate-row comparison",
-			got, want,
-		)
 	}
 }

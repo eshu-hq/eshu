@@ -268,7 +268,12 @@ func appendYAMLDocument(payload map[string]any, path string, filename string, do
 
 	if isKustomization(apiVersion, filename) {
 		shared.AppendBucket(payload, "kustomize_overlays", parseKustomization(document, path, lineNumber))
-		environment := environmentFromPath(path)
+		// imageOverrideDirectoryEnvironment (image_overrides.go), not
+		// environmentFromPath directly: it requires <env> to be a real
+		// directory and lowercases the result, matching the guards
+		// helmImageOverrideEnvironment applies for the Helm producer
+		// (issue #5440 P1, independent review).
+		environment := imageOverrideDirectoryEnvironment(path)
 		for _, row := range collectKustomizeImageOverrides(document, path, environment, lineNumber) {
 			shared.AppendBucket(payload, "image_overrides", row)
 		}

@@ -5,6 +5,7 @@ package yaml
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -22,10 +23,14 @@ import (
 // collectHelmImageOverrides walks a Helm values document for maps nested
 // under an "image" parent key, mirroring collectHelmImageRepositories's walk
 // exactly (helm.go), and emits one image_overrides row per declared image.
-// Row order is caller-visible only after the caller sorts the appended
-// bucket (shared.SortNamedBucket) -- Go map iteration order is
-// nondeterministic, so this function's own return order is not stable
-// across calls.
+//
+// The walk itself visits map keys via Go's `for key, item := range typed`,
+// whose iteration order Go deliberately randomizes per call -- so the raw
+// walk order is NOT stable across repeated parses of the identical file.
+// sortImageOverrideRowsByContent below fixes that before returning: see its
+// doc comment for why an unstable pre-sort input defeats determinism even
+// though the caller's own final bucket sort (shared.SortNamedBucket) is a
+// deterministic algorithm.
 func collectHelmImageOverrides(document map[string]any, path string, environment string) []map[string]any {
 	var rows []map[string]any
 
@@ -49,6 +54,7 @@ func collectHelmImageOverrides(document map[string]any, path string, environment
 	}
 
 	walk("", document)
+	sortImageOverrideRowsByContent(rows)
 	return dedupeImageOverrideRows(rows)
 }
 
@@ -117,14 +123,24 @@ func parseInlineImageVersion(raw string) (tag string, digest string) {
 }
 
 // collectKustomizeImageOverrides builds one image_overrides row per entry in
-// a kustomization document's images[] list, capturing the newTag/digest
-// fields collectKustomizeObjectRefs (kustomize_semantics.go) never reads. This
-// function's own return preserves the source images[] list order, but -- like
-// every parser payload bucket (see the package README's "Output ordering is
-// part of the parser fact contract" invariant) -- the caller sorts the
-// appended bucket (shared.SortNamedBucket, by line_number then name) before
-// Parse() returns, so the final image_overrides rows are NOT in declaration
-// order; do not rely on list-declaration order downstream.
+// a kustomization document's images[] list that actually declares a version
+// override, capturing the newTag/digest fields collectKustomizeObjectRefs
+// (kustomize_semantics.go) never reads.
+//
+// An entry with only `name` and none of `newName`/`newTag`/`digest` is a
+// no-op match-target declaration -- Kustomize itself performs no image
+// substitution for it -- so it is skipped rather than emitting a row that
+// would tell a consumer "yes, a version override is declared" when the
+// honest answer is "no version was declared" (issue #5440 review).
+//
+// This function's own build order follows the source images[] list order
+// (a real list, not a randomized map walk like the Helm producer), but
+// sortImageOverrideRowsByContent below is still applied for symmetry with
+// collectHelmImageOverrides: relying on stable list-order input for one
+// producer and content order for the other is a trap for the next reader,
+// and two Kustomize entries sharing a `name` (a repository declared twice
+// with different overrides) would hit the identical shared.SortNamedBucket
+// tie the Helm producer can hit.
 func collectKustomizeImageOverrides(document map[string]any, path string, environment string, lineNumber int) []map[string]any {
 	items, ok := document["images"].([]any)
 	if !ok {
@@ -140,15 +156,21 @@ func collectKustomizeImageOverrides(document map[string]any, path string, enviro
 		if name == "" {
 			continue
 		}
-		repository := cleanString(object["newName"])
+		newName := cleanString(object["newName"])
+		newTag := cleanString(object["newTag"])
+		digest := cleanString(object["digest"])
+		if newName == "" && newTag == "" && digest == "" {
+			continue
+		}
+		repository := newName
 		if repository == "" {
 			repository = name
 		}
 		rows = append(rows, map[string]any{
 			"name":        name,
 			"repository":  repository,
-			"tag":         cleanString(object["newTag"]),
-			"digest":      cleanString(object["digest"]),
+			"tag":         newTag,
+			"digest":      digest,
 			"environment": environment,
 			"source":      "kustomize",
 			"path":        path,
@@ -156,6 +178,7 @@ func collectKustomizeImageOverrides(document map[string]any, path string, enviro
 			"lang":        "yaml",
 		})
 	}
+	sortImageOverrideRowsByContent(rows)
 	return dedupeImageOverrideRows(rows)
 }
 
@@ -187,6 +210,50 @@ func imageOverrideRowsEqual(a, b map[string]any) bool {
 		}
 	}
 	return true
+}
+
+// compareImageOverrideRows orders two image_overrides rows by comparing
+// every field in imageOverrideRowFields, in that order -- reusing the same
+// list dedupeImageOverrideRows compares on, rather than hardcoding a second
+// field list that could silently drift from it.
+func compareImageOverrideRows(a, b map[string]any) int {
+	for _, field := range imageOverrideRowFields {
+		if field == "line_number" {
+			if delta := rowInt(a, field) - rowInt(b, field); delta != 0 {
+				return delta
+			}
+			continue
+		}
+		if delta := strings.Compare(rowString(a, field), rowString(b, field)); delta != 0 {
+			return delta
+		}
+	}
+	return 0
+}
+
+// sortImageOverrideRowsByContent sorts rows in place so their order is a
+// pure function of ROW CONTENT (via compareImageOverrideRows) rather than of
+// however they arrived from their producer -- specifically, Go's
+// `for key, item := range typed` map walk in collectHelmImageOverrides,
+// whose iteration order Go deliberately randomizes per call (issue #5440
+// review: 300 parses of the byte-identical Helm input produced 5 different
+// row orderings before this fix).
+//
+// This matters even though the caller (language.go) re-sorts the whole
+// bucket afterward via shared.SortNamedBucket, which only compares
+// (line_number, name): Helm rows hardcode line_number to 1, so two rows
+// declaring the SAME repository under two different tags tie on both of
+// shared.SortNamedBucket's keys. slices.SortFunc (shared.SortNamedMaps) is
+// documented as NOT stable, so it does not resolve that tie itself -- Go's
+// sort algorithms are deterministic FUNCTIONS OF THEIR INPUT, not sources of
+// randomness on their own, so an unstable sort still produces a repeatable
+// output for a repeatable input. The randomness was never in the sort; it
+// was in the un-sorted map-walk order feeding it. Content-sorting here first
+// removes that randomness before shared.SortNamedBucket ever runs, so the
+// same file parsed any number of times always resolves the tie the same
+// way.
+func sortImageOverrideRowsByContent(rows []map[string]any) {
+	slices.SortFunc(rows, compareImageOverrideRows)
 }
 
 // dedupeImageOverrideRows removes exact-duplicate image_overrides rows --
@@ -291,7 +358,9 @@ var helmImageOverrideEnvironmentTokens = map[string]struct{}{
 // helmValuesEnvironment infers a Helm values override file's environment
 // from its filename -- "values-prod.yaml" or "values.prod.yaml" -> "prod" --
 // returning "" for the base values.yaml/values.yml and for any name it
-// cannot confidently parse.
+// cannot confidently parse. The returned value is already lowercase (it is
+// extracted from `lower`, the lowercased filename) -- see
+// helmImageOverrideEnvironment's doc comment for why that matters.
 //
 // Accuracy guardrail (#5440 P1): a bare "values-<X>.yaml"/"values.<X>.yaml"
 // split is not enough -- "values.schema.yaml" (a values-schema convention),
@@ -322,21 +391,76 @@ func helmValuesEnvironment(filename string) string {
 	return ""
 }
 
+// imageOverrideDirectoryEnvironment resolves the
+// ".../environments/<env>/..." path-segment signal shared by both
+// image_overrides producers (helmImageOverrideEnvironment below, and the
+// Kustomize call site in language.go), applying two guards on top of what
+// environmentFromPath (observability_helpers.go) itself provides:
+//
+//  1. <env> must be a real DIRECTORY: at least one further path segment
+//     (the values/kustomization file itself, or a deeper directory) must
+//     follow it. A file sitting directly inside a directory literally named
+//     "environments/" -- "environments/values.yaml",
+//     "charts/foo/environments/values.yaml" -- has no author-declared
+//     environment at all. environmentFromPath would otherwise return the
+//     FILE'S OWN BASENAME as the "environment": the identical
+//     invented-environment defect class already fixed above for the
+//     values.schema.yaml filename case, just reached through the path
+//     signal instead (issue #5440 P1, independent review).
+//  2. The result is lowercased. environmentFromPath returns the segment's
+//     raw case, while helmValuesEnvironment above always returns lowercase
+//     (it works off an already-lowercased filename). Without this,
+//     "environments/Prod/values.yaml" and "values-PROD.yaml" would resolve
+//     the SAME declared environment to two different strings -- a case
+//     fragmentation issue #5441 is about to turn into two different graph
+//     join-key values instead of one (issue #5440 P1, independent review).
+//
+// This re-walks path segments locally rather than calling
+// environmentFromPath and validating its result, and the guard is
+// intentionally NOT added to that shared helper: environmentFromPath has six
+// callers of its own (observability.go:102,149, observability_applied.go:155,
+// observability_log_routes.go:16, observability_metric_routes.go:16,
+// observability_trace_routes.go:16) whose existing behavior and tests are
+// out of scope for #5440 and must not change here -- the image_overrides
+// Kustomize call site (language.go) no longer calls environmentFromPath
+// directly at all; it calls this function instead. Those six callers have
+// the identical directory-guard and case-fragmentation defects; that is
+// reported to issue #5444, which owns environment detection, not fixed in
+// this change.
+func imageOverrideDirectoryEnvironment(path string) string {
+	parts := strings.Split(filepath.ToSlash(path), "/")
+	for index, part := range parts {
+		if part != "environments" {
+			continue
+		}
+		// Need the candidate <env> segment (parts[index+1]) AND at least one
+		// segment after THAT (the file, or a deeper directory) for <env> to
+		// be a real directory rather than the file's own basename.
+		if index+2 < len(parts) {
+			return strings.ToLower(strings.TrimSpace(parts[index+1]))
+		}
+		return ""
+	}
+	return ""
+}
+
 // helmImageOverrideEnvironment resolves the environment for a Helm values
 // file. The two signals are deliberately asymmetric:
 //
-//   - The ".../environments/<env>/..." path segment (environmentFromPath,
-//     observability_helpers.go) is an explicit AUTHOR DECLARATION -- someone
-//     chose to lay the repo out with an "environments" directory naming this
-//     environment -- so it takes priority and stays UNGATED: it returns
-//     whatever the author wrote, even a name outside
-//     helmImageOverrideEnvironmentTokens.
+//   - The ".../environments/<env>/..." path segment
+//     (imageOverrideDirectoryEnvironment above) is an explicit AUTHOR
+//     DECLARATION -- someone chose to lay the repo out with an
+//     "environments" directory naming this environment -- so it takes
+//     priority and is NOT gated by helmImageOverrideEnvironmentTokens: it
+//     returns whatever directory name the author wrote, even one outside
+//     that allowlist. It IS still required to be a real directory and is
+//     still lowercased, per imageOverrideDirectoryEnvironment's own guards.
 //   - The values-<env>.yaml/values.<env>.yaml filename fallback is an
 //     INFERENCE from a filename convention that also matches non-environment
 //     files (values.schema.yaml, values.example.yaml), so it is GATED by the
 //     token allowlist above and answers "" rather than guessing.
 func helmImageOverrideEnvironment(path string) string {
-	if env := environmentFromPath(path); env != "" {
+	if env := imageOverrideDirectoryEnvironment(path); env != "" {
 		return env
 	}
 	return helmValuesEnvironment(filepath.Base(path))
