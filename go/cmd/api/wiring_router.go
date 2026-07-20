@@ -165,10 +165,11 @@ func newRouterWithSemanticEmbedding(
 			Profile:      queryProfile,
 		},
 		Impact: &query.ImpactHandler{
-			Neo4j:   neo4jReader,
-			Content: contentReader,
-			Profile: queryProfile,
-			Logger:  logger,
+			Neo4j:       neo4jReader,
+			Content:     contentReader,
+			Profile:     queryProfile,
+			Logger:      logger,
+			Instruments: instruments,
 		},
 		Evidence: &query.EvidenceHandler{
 			Content:            contentReader,

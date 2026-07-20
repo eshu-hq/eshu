@@ -161,6 +161,9 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 		"deployment_source_observed_count_is_lower_bound",
 		"truncated",
 		"ordering",
+		"k8s_select_candidate_sentinel_limit",
+		"k8s_relationships_complete",
+		"k8s_relationships_incomplete_reason",
 	} {
 		if _, ok := k8sResourceLimitProperties[field]; !ok {
 			t.Fatalf("impact trace k8s_resource_limits schema missing %s", field)
