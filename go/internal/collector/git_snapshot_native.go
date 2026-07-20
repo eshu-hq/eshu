@@ -96,6 +96,13 @@ var snapshotEntityBuckets = []struct {
 	{bucket: "helm_value_definitions", label: "HelmValueDefinition"},
 	{bucket: "helm_template_value_usages", label: "HelmTemplateValueUsage"},
 	{bucket: "sql_migrations", label: "SqlMigration"},
+	// Flux typed entities: appended at the end to mirror
+	// content/shape/materialize_tables.go's frozen contentEntityBuckets order
+	// (issue #5360 PR A).
+	{bucket: "flux_kustomizations", label: "FluxKustomization"},
+	{bucket: "flux_git_repositories", label: "FluxGitRepository"},
+	{bucket: "flux_oci_repositories", label: "FluxOCIRepository"},
+	{bucket: "flux_buckets", label: "FluxBucket"},
 }
 
 // NativeRepositorySnapshotter builds repository snapshots without Python bridge code.

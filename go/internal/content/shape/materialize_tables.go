@@ -101,6 +101,15 @@ var contentEntityBuckets = []entityBucketMapping{
 	// file, with its forward touches nested under migration_targets metadata.
 	// Appended at the end per the frozen-table invariant.
 	{bucket: "sql_migrations", label: "SqlMigration"},
+	// Flux typed entities: the source.toolkit.fluxcd.io source CRs
+	// (GitRepository/OCIRepository/Bucket) plus the previously
+	// evidence-only FluxKustomization bucket, now promoted to graph nodes
+	// (issue #5360 PR A). Appended at the end per the frozen-table
+	// invariant.
+	{bucket: "flux_kustomizations", label: "FluxKustomization"},
+	{bucket: "flux_git_repositories", label: "FluxGitRepository"},
+	{bucket: "flux_oci_repositories", label: "FluxOCIRepository"},
+	{bucket: "flux_buckets", label: "FluxBucket"},
 }
 
 // sourceFieldContainsCode is the set of entity labels whose Source field holds
@@ -146,6 +155,10 @@ var trailingNewlineLabels = map[string]struct{}{
 	"CrossplaneXRD":           {},
 	"Enum":                    {},
 	"Function":                {},
+	"FluxBucket":              {},
+	"FluxGitRepository":       {},
+	"FluxKustomization":       {},
+	"FluxOCIRepository":       {},
 	"GitlabJob":               {},
 	"GitlabPipeline":          {},
 	"HelmChart":               {},
