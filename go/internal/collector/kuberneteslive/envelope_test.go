@@ -328,3 +328,36 @@ func TestNormalizeCRIImageID(t *testing.T) {
 		})
 	}
 }
+
+// TestNewPodTemplateEnvelopeEmitsResolvedImageDigest locks the wire contract
+// for #5432: a container's CRI-resolved digest must survive the typed
+// EncodeKubernetesLivePodTemplate seam into the emitted payload. The encoder
+// enumerates fields by hand, so a field added to the struct but not the
+// encoder is silently dropped — this test fails in that case.
+func TestNewPodTemplateEnvelopeEmitsResolvedImageDigest(t *testing.T) {
+	t.Parallel()
+
+	digest := "ghcr.io/acme/checkout@sha256:deadbeef"
+	envelope, err := NewPodTemplateEnvelope(PodTemplateObservation{
+		Identity: sampleIdentity(),
+		Containers: []ContainerSummary{
+			{Name: "app", Image: "ghcr.io/acme/checkout:1.2.3", ResolvedImageDigest: digest},
+			{Name: "sidecar", Image: "ghcr.io/acme/sidecar@sha256:abc"},
+		},
+		GenerationID:        "gen-1",
+		CollectorInstanceID: "k8s-prod",
+	})
+	if err != nil {
+		t.Fatalf("NewPodTemplateEnvelope() error = %v", err)
+	}
+	containers, ok := envelope.Payload["containers"].([]map[string]any)
+	if !ok || len(containers) != 2 {
+		t.Fatalf("payload containers = %#v, want 2 entries", envelope.Payload["containers"])
+	}
+	if got := containers[0]["resolved_image_digest"]; got != digest {
+		t.Fatalf("containers[0].resolved_image_digest = %#v, want %q", got, digest)
+	}
+	if _, present := containers[1]["resolved_image_digest"]; present {
+		t.Fatalf("containers[1].resolved_image_digest present = %#v, want key omitted when no digest observed", containers[1]["resolved_image_digest"])
+	}
+}
