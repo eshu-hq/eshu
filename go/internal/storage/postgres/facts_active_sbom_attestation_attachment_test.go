@@ -17,6 +17,8 @@ func TestListActiveSBOMAttestationAttachmentFactsQueryIsDigestBoundedAndPaged(t 
 		"'reducer_container_image_identity'",
 		"'sbom.document'",
 		"'sbom.component'",
+		"'sbom.dependency_relationship'",
+		"'sbom.external_reference'",
 		"'attestation.statement'",
 		"scope.active_generation_id = fact.generation_id",
 		"generation.status = 'active'",

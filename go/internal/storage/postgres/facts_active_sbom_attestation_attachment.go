@@ -40,6 +40,8 @@ WHERE fact.fact_kind IN (
     'reducer_container_image_identity',
     'sbom.document',
     'sbom.component',
+    'sbom.dependency_relationship',
+    'sbom.external_reference',
     'attestation.statement',
     'attestation.signature_verification',
     'sbom.warning'
