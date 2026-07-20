@@ -191,8 +191,10 @@ func TestBuildCodeRootVerdicts(t *testing.T) {
 // TEST-SHAPE RULE: every impostor case uses UNEQUAL-length names where the
 // shorter is a STRICT segment suffix of the longer, so the proper-suffix path is
 // actually exercised (the earlier equal-length guard could not suffix-match and
-// was false-green). Tests 1, 2, 4, 7b, 8b are the RED-first cases against the
-// pre-rev-2 walk.
+// was false-green). Tests 1, 2, 4, and 8b are the genuine RED-first cases: each
+// downgraded a real controller on the pre-rev-2 walk. Test 7b is a green
+// invariant guard (the pre-rev-2 union already F1-kept that specific shape); it
+// still pins the per-candidate recursion that replaces the union.
 func TestBuildCodeRootVerdictsP0Rev2(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -271,8 +273,10 @@ func TestBuildCodeRootVerdictsP0Rev2(t *testing.T) {
 			wantReason:  "accepted",
 		},
 		{
-			// Test 7b (RED): exact impostor Base<ActiveRecord::Base beaten by a
-			// suffix candidate that F1-KEEPS (Api::V1::Base < SomeGem::Thing).
+			// Test 7b (green invariant guard): exact impostor Base<ActiveRecord::Base
+			// beaten by a suffix candidate that F1-KEEPS (Api::V1::Base <
+			// SomeGem::Thing). Pins the per-candidate recursion; the pre-rev-2 union
+			// already kept this shape, so it was not RED-first.
 			name: "exact impostor beaten by F1-keeping suffix candidate",
 			input: verdictInput("m:index", "OrdersController", []RubyClassEntity{
 				{Name: "OrdersController", QualifiedName: "OrdersController", QualifiedBases: []string{"Base"}},
