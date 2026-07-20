@@ -440,6 +440,17 @@ backend-specific adapters.
   (`canonical_builder.go:191`).
 - `ReducerIntent` values are sorted by `Domain`, `EntityKey`, and `FactID`
   before enqueue to produce a stable queue order.
+- `buildContentEntityRecord`'s `entity_id` fallback (`runtime.go`) only fires
+  for a `content_entity` fact that arrives without a collector-minted
+  `entity_id` — version skew, a replayed old cassette, or a non-git producer.
+  That fallback and `internal/content/shape`'s per-file mint MUST stay in
+  lockstep on `content.CanonicalEntityIDWithMetadata`, including its
+  dependency-identity gate over `entity_metadata`'s `config_kind`,
+  `package_manager`, `lockfile`, and `section` keys. The fallback is exactly
+  the path where a divergent minting scheme would silently corrupt identity,
+  so both call sites compute `entityMetadataFromPayload`/`content.EntityRecord
+  .Metadata` once and pass the same map into the mint call. See
+  `internal/content/README.md`'s Identity section.
 
 - Schema-version admission is centralized in `schema_version_admission.go`:
   `validateFactSchemaVersion` calls `facts.ValidateSchemaVersion` once per fact,
