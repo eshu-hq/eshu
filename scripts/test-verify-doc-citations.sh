@@ -353,6 +353,47 @@ test_real_baseline_matches_fresh_regeneration() {
   fi
 }
 
+# Case 14: citation-floor guard against the gate silently breaking ITSELF.
+# case12 proves the real tree PASSES, but a PASS is also what a regex
+# regression that scanned zero citations would produce (0 dead -> OK), so a
+# broken scan would leave the gate green while it quietly stopped policing
+# drift -- with no signal. This case parses the real-tree OK summary line
+# and asserts the scan actually FOUND a floor of citations. The floors are
+# set well below the current counts (247 test / 63 fixture) so ordinary doc
+# pruning does not trip them, but far enough above zero that a
+# regex/glob/scan regression that decimates coverage fails loudly here. The
+# `verify-doc-citations: OK: N test citation(s) checked (... M fixture
+# citation(s) checked ...` summary is the parse target.
+test_real_tree_meets_citation_floor() {
+  local out="${tmp_root}/case14.out"
+  local test_floor=200 fixture_floor=50
+  if ! "${BASH:-bash}" "${verifier}" >"${out}" 2>&1; then
+    record_fail "case14: real tree must pass before the floor can be checked"
+    cat "${out}" >&2
+    return
+  fi
+  local summary
+  summary="$(rg -o 'OK: [0-9]+ test citation\(s\) checked .* [0-9]+ fixture citation\(s\) checked' "${out}" | head -1)"
+  local test_n fixture_n
+  test_n="$(printf '%s\n' "${summary}" | awk '{ print $2 }')"
+  fixture_n="$(printf '%s\n' "${summary}" | rg -o '([0-9]+) fixture' -r '$1' | head -1)"
+  if [[ -z "${test_n}" || -z "${fixture_n}" ]]; then
+    record_fail "case14: could not parse citation counts from the OK summary"
+    cat "${out}" >&2
+    return
+  fi
+  if [[ "${test_n}" -ge "${test_floor}" ]]; then
+    record_pass "case14: real-tree test-citation count (${test_n}) meets floor (>= ${test_floor})"
+  else
+    record_fail "case14: real-tree test-citation count (${test_n}) BELOW floor (>= ${test_floor}) -- the scan may be silently broken"
+  fi
+  if [[ "${fixture_n}" -ge "${fixture_floor}" ]]; then
+    record_pass "case14: real-tree fixture-citation count (${fixture_n}) meets floor (>= ${fixture_floor})"
+  else
+    record_fail "case14: real-tree fixture-citation count (${fixture_n}) BELOW floor (>= ${fixture_floor}) -- the scan may be silently broken"
+  fi
+}
+
 test_existing_test_citation_passes
 test_phantom_test_citation_fails
 test_missing_file_citation_fails
@@ -366,6 +407,7 @@ test_update_is_idempotent
 test_fails_closed_on_bad_baseline
 test_real_tree_passes_with_committed_baseline
 test_real_baseline_matches_fresh_regeneration
+test_real_tree_meets_citation_floor
 
 if [[ "${FAIL}" -ne 0 ]]; then
   printf 'test-verify-doc-citations FAILED: %d/%d\n' "${FAIL}" "$((PASS + FAIL))" >&2

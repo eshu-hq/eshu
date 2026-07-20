@@ -27,7 +27,6 @@
 FIXTURE tests/fixtures/ecosystems/argocd_comprehensive/
 FIXTURE tests/fixtures/ecosystems/cpp_comprehensive/
 FIXTURE tests/fixtures/ecosystems/crossplane_comprehensive/
-FIXTURE tests/fixtures/ecosystems/flux_comprehensive/
 FIXTURE tests/fixtures/ecosystems/helm_comprehensive/
 FIXTURE tests/fixtures/ecosystems/json_comprehensive/
 FIXTURE tests/fixtures/ecosystems/kustomize_comprehensive/

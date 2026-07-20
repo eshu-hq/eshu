@@ -5,9 +5,13 @@
 # spun off from #5339/#5402 as its named second deliverable: #5402 fixed the
 # drifted citations, this gate prevents the class from recurring).
 #
-# Scope: every docs/public/languages/*.md page (this glob already covers
+# Scope: every docs/public/languages/**/*.md page (this glob already covers
 # feature-matrix.md and support-maturity.md, both of which live in that
-# directory) plus docs/public/reference/parity-closure-matrix.md.
+# directory, and matches recursively so a future nested
+# languages/<sub>/foo.md page is scanned too — deliberately kept in lockstep
+# with this gate's ci-gates trigger `docs/public/languages/**`, so a page
+# that TRIGGERS the gate is always a page the gate actually SCANS) plus
+# docs/public/reference/parity-closure-matrix.md.
 #
 # Two independent citation kinds are scanned, each with its own resolution
 # rule:
@@ -107,7 +111,7 @@ command -v rg >/dev/null 2>&1 || {
 # a format error.
 scan_test_citations() {
   (cd "${docs_root}" && rg --no-heading --no-line-number -o \
-    -g 'languages/*.md' -g 'reference/parity-closure-matrix.md' \
+    -g 'languages/**/*.md' -g 'reference/parity-closure-matrix.md' \
     '[A-Za-z0-9_./-]+\.go::[A-Za-z0-9_]+(/[A-Za-z0-9_]+)*' . 2>/dev/null || true) \
     | LC_ALL=C awk '{
         idx = index($0, ":"); if (idx == 0) next
@@ -128,7 +132,7 @@ scan_test_citations() {
 # path).
 scan_fixture_citations() {
   (cd "${docs_root}" && rg --no-heading --no-line-number -o \
-    -g 'languages/*.md' -g 'reference/parity-closure-matrix.md' \
+    -g 'languages/**/*.md' -g 'reference/parity-closure-matrix.md' \
     '(tests/fixtures|testdata)/[A-Za-z0-9_./-]+' . 2>/dev/null || true) \
     | LC_ALL=C awk '{
         idx = index($0, ":"); if (idx == 0) next
@@ -385,7 +389,7 @@ cmd_check() {
 
   dead_test_citations "${tmp_dir}/test-ok.txt" >"${tmp_dir}/test-dead.txt"
   baseline_test_pairs "${baseline_path}" >"${tmp_dir}/test-baseline.txt"
-  comm -23 "${tmp_dir}/test-dead.txt" "${tmp_dir}/test-baseline.txt" >"${tmp_dir}/test-new.txt" || true
+  LC_ALL=C comm -23 "${tmp_dir}/test-dead.txt" "${tmp_dir}/test-baseline.txt" >"${tmp_dir}/test-new.txt" || true
   local test_new_count
   test_new_count="$(awk 'NF' "${tmp_dir}/test-new.txt" | wc -l | tr -d ' ')"
   if [[ "${test_new_count}" -gt 0 ]]; then
@@ -400,7 +404,7 @@ cmd_check() {
   dead_fixture_citations "${tmp_dir}/fixture-citations.txt" >"${tmp_dir}/fixture-dead-detail.txt"
   awk '{ print $2 }' "${tmp_dir}/fixture-dead-detail.txt" | LC_ALL=C sort -u >"${tmp_dir}/fixture-dead-values.txt"
   baseline_fixture_values "${baseline_path}" >"${tmp_dir}/fixture-baseline.txt"
-  comm -23 "${tmp_dir}/fixture-dead-values.txt" "${tmp_dir}/fixture-baseline.txt" >"${tmp_dir}/fixture-new.txt" || true
+  LC_ALL=C comm -23 "${tmp_dir}/fixture-dead-values.txt" "${tmp_dir}/fixture-baseline.txt" >"${tmp_dir}/fixture-new.txt" || true
   local fixture_new_count
   fixture_new_count="$(awk 'NF' "${tmp_dir}/fixture-new.txt" | wc -l | tr -d ' ')"
   if [[ "${fixture_new_count}" -gt 0 ]]; then
