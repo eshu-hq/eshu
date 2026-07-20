@@ -102,7 +102,24 @@ func Parse(
 
 	languageName := "json"
 	if cloudformation.IsTemplate(object) {
-		result := cloudformation.Parse(object, path, 1, languageName)
+		// Build the position-aware walk ONLY inside the IsTemplate branch so
+		// generic JSON files never pay for it. sourceIndex/normalizedBytes MUST
+		// be the exact pair the generic ordered-entry path uses above
+		// (buildTranslatedNewlineIndex over the real on-disk source, feeding the
+		// normalized buffer) -- feeding raw bytes or an untranslated index would
+		// bake wrong lines into the CloudFormation entity's canonical identity
+		// (issue #5358, #5348).
+		sourceIndex := buildTranslatedNewlineIndex(source, translate)
+		positions, positionFallbacks := cloudformationPositionsFromDocument(normalizedBytes, sourceIndex, object)
+		for _, fallback := range positionFallbacks {
+			shared.AppendBucket(payload, "cloudformation_position_fallbacks", map[string]any{
+				"path":        path,
+				"section":     fallback.Section,
+				"reason":      fallback.Reason,
+				"line_number": firstPositiveInt(fallback.Line, 1),
+			})
+		}
+		result := cloudformation.ParseWithPositions(object, path, 1, languageName, positions)
 		payload["cloudformation_resources"] = result.Resources
 		payload["cloudformation_parameters"] = result.Params
 		payload["cloudformation_outputs"] = result.Outputs
