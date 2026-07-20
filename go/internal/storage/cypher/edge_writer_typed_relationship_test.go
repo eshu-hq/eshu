@@ -23,17 +23,19 @@ func TestEdgeWriterWriteEdgesTypedRepoRelationshipDispatch(t *testing.T) {
 			IntentID:     "i1",
 			RepositoryID: "repo-a",
 			Payload: map[string]any{
-				"repo_id":           "repo-a",
-				"target_repo_id":    "repo-b",
-				"relationship_type": "DEPLOYS_FROM",
-				"evidence_type":     "argocd_application_source",
-				"resolved_id":       "resolved-1",
-				"generation_id":     "gen-1",
-				"evidence_count":    3,
-				"evidence_kinds":    []string{"ARGOCD_APPLICATION_SOURCE", "HELM_VALUES_REFERENCE"},
-				"resolution_source": "inferred",
-				"confidence":        0.93,
-				"rationale":         "deployment config references service repository",
+				"repo_id":               "repo-a",
+				"target_repo_id":        "repo-b",
+				"relationship_type":     "DEPLOYS_FROM",
+				"evidence_type":         "argocd_application_source",
+				"resolved_id":           "resolved-1",
+				"generation_id":         "gen-1",
+				"evidence_count":        3,
+				"evidence_kinds":        []string{"ARGOCD_APPLICATION_SOURCE", "HELM_VALUES_REFERENCE"},
+				"resolution_source":     "inferred",
+				"confidence":            0.93,
+				"rationale":             "deployment config references service repository",
+				"source_revision":       "main",
+				"destination_namespace": "prod",
 			},
 		},
 		{
@@ -60,10 +62,11 @@ func TestEdgeWriterWriteEdgesTypedRepoRelationshipDispatch(t *testing.T) {
 			IntentID:     "i4",
 			RepositoryID: "repo-a",
 			Payload: map[string]any{
-				"repo_id":           "repo-a",
-				"target_repo_id":    "repo-e",
-				"relationship_type": "USES_MODULE",
-				"evidence_type":     "terraform_module_source",
+				"repo_id":                 "repo-a",
+				"target_repo_id":          "repo-e",
+				"relationship_type":       "USES_MODULE",
+				"evidence_type":           "terraform_module_source",
+				"first_party_ref_version": "v1.2.3",
 			},
 		},
 		{
@@ -115,14 +118,37 @@ func TestEdgeWriterWriteEdgesTypedRepoRelationshipDispatch(t *testing.T) {
 		if rowsOut[0]["evidence_type"] == nil || rowsOut[0]["evidence_type"] == "" {
 			t.Fatalf("row missing evidence_type: %#v", rowsOut[0])
 		}
-		if relType == "DEPLOYS_FROM" {
+		// #5441: every one of the five canonical edge templates carries the
+		// three allowlisted properties unconditionally, so a row with no
+		// Details signal still round-trips a uniform "" (never a dropped key,
+		// never Go nil/Cypher null — see the absent-value research note in
+		// the PR evidence).
+		for _, fragment := range []string{
+			"rel.source_revision = row.source_revision",
+			"rel.destination_namespace = row.destination_namespace",
+			"rel.first_party_ref_version = row.first_party_ref_version",
+		} {
+			if !strings.Contains(call.Cypher, fragment) {
+				t.Fatalf("cypher for %s missing %q: %s", relType, fragment, call.Cypher)
+			}
+		}
+		for _, key := range []string{"source_revision", "destination_namespace", "first_party_ref_version"} {
+			if _, ok := rowsOut[0][key]; !ok {
+				t.Fatalf("row for %s missing key %s entirely (must default to \"\", not be omitted): %#v", relType, key, rowsOut[0])
+			}
+		}
+		switch relType {
+		case "DEPLOYS_FROM":
 			for key, want := range map[string]any{
-				"resolved_id":       "resolved-1",
-				"generation_id":     "gen-1",
-				"evidence_count":    3,
-				"resolution_source": "inferred",
-				"confidence":        0.93,
-				"rationale":         "deployment config references service repository",
+				"resolved_id":             "resolved-1",
+				"generation_id":           "gen-1",
+				"evidence_count":          3,
+				"resolution_source":       "inferred",
+				"confidence":              0.93,
+				"rationale":               "deployment config references service repository",
+				"source_revision":         "main",
+				"destination_namespace":   "prod",
+				"first_party_ref_version": "",
 			} {
 				if got := rowsOut[0][key]; got != want {
 					t.Fatalf("row %s = %#v, want %#v", key, got, want)
@@ -131,6 +157,22 @@ func TestEdgeWriterWriteEdgesTypedRepoRelationshipDispatch(t *testing.T) {
 			wantKinds := []string{"ARGOCD_APPLICATION_SOURCE", "HELM_VALUES_REFERENCE"}
 			if got := rowsOut[0]["evidence_kinds"]; !reflect.DeepEqual(got, wantKinds) {
 				t.Fatalf("row evidence_kinds = %#v, want %#v", got, wantKinds)
+			}
+		case "USES_MODULE":
+			for key, want := range map[string]any{
+				"source_revision":         "",
+				"destination_namespace":   "",
+				"first_party_ref_version": "v1.2.3",
+			} {
+				if got := rowsOut[0][key]; got != want {
+					t.Fatalf("row %s = %#v, want %#v", key, got, want)
+				}
+			}
+		case "DISCOVERS_CONFIG_IN", "PROVISIONS_DEPENDENCY_FOR", "READS_CONFIG_FROM":
+			for _, key := range []string{"source_revision", "destination_namespace", "first_party_ref_version"} {
+				if got := rowsOut[0][key]; got != "" {
+					t.Fatalf("row %s[%s] = %#v, want \"\" (no Details signal supplied)", relType, key, got)
+				}
 			}
 		}
 		seen[relType] = true

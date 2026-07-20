@@ -156,6 +156,38 @@ func normalizeAnsibleReference(candidate ansibleRoleCandidate) (kind, name, norm
 	return kind, name, normalized
 }
 
+// ExtractTerraformRefPin reads the go-getter style `ref=` query parameter off
+// a raw Terraform/Terragrunt module source string (e.g.
+// "git::https://host/mod.git?ref=v1.2.3" -> "v1.2.3"). It is the counterpart
+// to normalizeTerraformFirstPartyRef that recovers the pin value instead of
+// stripping it; normalizeTerraformFirstPartyRef's behavior is intentionally
+// left untouched (it has pinned consumers) since edges now carry the pin as
+// its own first_party_ref_version property alongside the existing stripped
+// first_party_ref_normalized value. Returns "" when the source has no query
+// string, no ref parameter, or an empty ref value. Exported so the reducer's
+// cross-repo intent chokepoint (cross_repo_intent_row.go) can derive the
+// first_party_ref_version edge property from Details["source_ref"] without
+// duplicating the parsing rule.
+func ExtractTerraformRefPin(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	idx := strings.Index(trimmed, "?")
+	if idx < 0 {
+		return ""
+	}
+	query := trimmed[idx+1:]
+	for _, param := range strings.Split(query, "&") {
+		key, value, ok := strings.Cut(param, "=")
+		if !ok || key != "ref" {
+			continue
+		}
+		return strings.TrimSpace(value)
+	}
+	return ""
+}
+
 func normalizeTerraformFirstPartyRef(raw string) string {
 	trimmed := strings.TrimSpace(raw)
 	trimmed = strings.Trim(trimmed, `"`)
