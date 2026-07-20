@@ -77,13 +77,34 @@ edge are matched by canonical key (uid), like the other Atlantis edges.
 ## Query surfacing
 
 `AtlantisProject`/`AtlantisWorkflow` and the `MANAGES`/`ATLANTIS_DEPENDS_ON`/
-`USES_WORKFLOW` edges above are graph-written and **retrievable via the generic
-entity-context surface**: `resolve_entity` returns a node's id by name and
-`get_entity_context` returns that node together with its outgoing edges
-(`OPTIONAL MATCH (e)-[rel]->(target)`), so an `AtlantisProject`/`AtlantisWorkflow`
-and its `MANAGES`/`ATLANTIS_DEPENDS_ON`/`USES_WORKFLOW` edges can be read back
-today. What is **not** yet available is a *typed*, Atlantis-aware surface — no
-`execute_language_query` dispatch case, `content_relationships` branch, or
-`source_tool=atlantis` relationship-verb-catalog entry interprets these edges as
-governance relationships. That richer typed surfacing is tracked in
-[#5369](https://github.com/eshu-hq/eshu/issues/5369).
+`USES_WORKFLOW` edges above are graph-written and retrievable through two
+surfaces:
+
+- **Generic entity-context surface**: `resolve_entity` returns a node's id by
+  name and `get_entity_context` returns that node together with its outgoing
+  edges (`OPTIONAL MATCH (e)-[rel]->(target)`), so an
+  `AtlantisProject`/`AtlantisWorkflow` and its
+  `MANAGES`/`ATLANTIS_DEPENDS_ON`/`USES_WORKFLOW` edges can be read back this
+  way. `atlantis_project`/`atlantis_workflow` are registered for entity-context
+  resolution in `go/internal/query/entity_content_types.go`
+  (`resolveContentBackedEntityTypes` for the content-store fallback,
+  `graphResolvableNotLanguageQueryableEntityTypes` for graph-label filtering).
+  They are deliberately **not** language-queryable — Atlantis entities carry
+  language `yaml`, which `language-query` does not accept — so they are absent
+  from the `language-query` `entity_type` enum.
+- **Typed relationships catalog**: `MANAGES`, `ATLANTIS_DEPENDS_ON`, and
+  `USES_WORKFLOW` are registered verbs in the fixed relationships catalog
+  (`go/internal/query/relationships_catalog_cypher.go`, `layer: infra`), so
+  they are browsable and countable through `POST /api/v0/relationships/catalog`,
+  `POST /api/v0/relationships/edges`, and the `list_relationship_edges` MCP
+  tool -- the same surface `CALLS`, `IMPORTS`, and the other Terraform-family
+  verbs (`PROVISIONS_DEPENDENCY_FOR`, `USES_MODULE`, `DISCOVERS_CONFIG_IN`)
+  use. `MANAGES` targets a `Directory` node, which has no `id`/`uid`, only a
+  canonical `path`; its edge-slice `target_id` resolves to that path (not the
+  directory basename) so two same-named directories in different repositories
+  stay distinguishable.
+
+These edges do not carry a `source_tool` (Atlantis governance edges are
+self-labeling, not cross-tool-correlated), so they do not appear in the
+catalog's per-verb `source_tools` breakdown. This closes the query-surface gap
+tracked in [#5369](https://github.com/eshu-hq/eshu/issues/5369).

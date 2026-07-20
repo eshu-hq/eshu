@@ -24,6 +24,16 @@ type relationshipVerbEntry struct {
 	// property whose schema index makes the label scan bounded; it is recorded
 	// so the query-plan gate can assert the supporting index exists.
 	sourceProperty string
+	// targetIdentityProperty overrides the default target_id/tie-breaker
+	// coalesce() order when the target label's canonical identity is not
+	// id/uid/name (e.g. MANAGES targets Directory, which has only path). When
+	// set, the builder moves this property to the front of the target_id
+	// projection and appends it to the ORDER BY tie-breaker. When empty
+	// (the default for every other verb), the emitted Cypher for both
+	// relationshipEdgesCypher and relationshipEdgesCypherFiltered is
+	// byte-identical to the pre-#5369 shape, preserving the query-plan gate's
+	// pinned cypher_sha256 for every unaffected entry.
+	targetIdentityProperty string
 	// evidence is the human-facing source/evidence label shown on the verb tile.
 	evidence string
 	// detail is a one-line description of what the edge means.
@@ -63,6 +73,9 @@ var relationshipVerbCatalog = []relationshipVerbEntry{
 	{verb: "PROVISIONS_DEPENDENCY_FOR", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Terraform", detail: "Repository provisions infrastructure for a target", carriesSourceTool: true, sourceToolSourceLabel: "Repository"},
 	{verb: "USES_MODULE", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Terraform modules", detail: "Repository consumes a module repository", carriesSourceTool: true, sourceToolSourceLabel: "Repository"},
 	{verb: "DISCOVERS_CONFIG_IN", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Config discovery", detail: "Repository discovers configuration in a target", carriesSourceTool: true, sourceToolSourceLabel: "Repository"},
+	{verb: "MANAGES", layer: "infra", sourceLabel: "AtlantisProject", sourceProperty: "uid", targetIdentityProperty: "path", evidence: "Atlantis governance", detail: "Atlantis project manages a Terraform directory"},
+	{verb: "ATLANTIS_DEPENDS_ON", layer: "infra", sourceLabel: "AtlantisProject", sourceProperty: "uid", evidence: "Atlantis governance", detail: "Atlantis project applies after another project"},
+	{verb: "USES_WORKFLOW", layer: "infra", sourceLabel: "AtlantisProject", sourceProperty: "uid", evidence: "Atlantis governance", detail: "Atlantis project uses a custom workflow"},
 	// runtime layer
 	{verb: "RUNS_ON", layer: "runtime", sourceLabel: "WorkloadInstance", sourceProperty: "id", evidence: "Runtime placement", detail: "Workload instance runs on a platform", carriesSourceTool: true, sourceToolSourceLabel: "WorkloadInstance"},
 	{verb: "DEPENDS_ON", layer: "runtime", sourceLabel: "Workload", sourceProperty: "id", evidence: "Runtime dependency", detail: "Workload depends on another workload", carriesSourceTool: true, sourceToolSourceLabel: "Repository"},
@@ -132,24 +145,91 @@ func relationshipCountCypher(entry relationshipVerbEntry) string {
 // purpose: on NornicDB a bare-type edge match with bound, unlabeled endpoints is
 // dramatically slower than the source-label-anchored expand.
 //
-// The secondary ORDER BY clause `coalesce(t.id, t.uid)` is a deterministic
-// tie-breaker for rows that share the same source key (e.g. one function with
-// many outgoing CALLS edges). Without it, rows tied on the primary key are
-// returned in an unspecified order, so a page boundary falling inside one
-// source node's outgoing edges can produce nondeterministic or repeated rows
-// across requests. The tie-breaker is a coalesce expression over the target's
-// two most common identity properties and does not require an index because it
-// only resolves within the already-bounded first-page set.
+// The secondary ORDER BY clause is a deterministic tie-breaker for rows that
+// share the same source key (e.g. one function with many outgoing CALLS
+// edges). Without it, rows tied on the primary key are returned in an
+// unspecified order, so a page boundary falling inside one source node's
+// outgoing edges can produce nondeterministic or repeated rows across
+// requests. The tie-breaker is a coalesce expression over the target's most
+// common identity properties (`coalesce(t.id, t.uid)` by default) and does
+// not require an index because it only resolves within the already-bounded
+// first-page set. entry.targetIdentityProperty appends a verb-specific
+// fallback (see targetOrderTiebreakerProperties) for target labels whose
+// canonical identity is not id/uid/name, e.g. MANAGES -> Directory (path
+// only). Leaving targetIdentityProperty empty keeps this function's output
+// byte-identical to the pre-#5369 shape.
 func relationshipEdgesCypher(entry relationshipVerbEntry) string {
 	return "MATCH (s:" + entry.sourceLabel + ")-[r:" + entry.verb + "]->(t)\n" +
 		"RETURN coalesce(s.id, s.uid, s.name, s.path) AS source_id,\n" +
 		"       coalesce(s.name, s.path, s.id, s.uid) AS source_name,\n" +
-		"       coalesce(t.id, t.uid, t.name, t.path) AS target_id,\n" +
+		"       " + targetIdentityCoalesce(entry) + " AS target_id,\n" +
 		"       coalesce(t.name, t.path, t.id, t.uid) AS target_name,\n" +
 		"       r.rationale AS evidence,\n" +
 		"       r.source_tool AS source_tool\n" +
-		"ORDER BY s." + entry.sourceProperty + ", coalesce(t.id, t.uid)\n" +
+		"ORDER BY s." + entry.sourceProperty + ", " + targetOrderTiebreaker(entry) + "\n" +
 		"LIMIT $limit"
+}
+
+// targetIdentityCoalesceProperties returns the coalesce() property order for
+// the target_id projection. The default order (id, uid, name, path) is
+// identical for every catalog entry that leaves targetIdentityProperty unset,
+// which is what keeps their emitted Cypher byte-identical to the pre-#5369
+// shape. When targetIdentityProperty is set, it is moved to the front so the
+// target's canonical identity resolves before the generic fallbacks (e.g.
+// MANAGES needs t.path first because its Directory target has no id/uid).
+func targetIdentityCoalesceProperties(entry relationshipVerbEntry) []string {
+	order := []string{"id", "uid", "name", "path"}
+	if entry.targetIdentityProperty == "" {
+		return order
+	}
+	out := make([]string, 0, len(order))
+	out = append(out, entry.targetIdentityProperty)
+	for _, property := range order {
+		if property == entry.targetIdentityProperty {
+			continue
+		}
+		out = append(out, property)
+	}
+	return out
+}
+
+// targetOrderTiebreakerProperties returns the coalesce() property order for
+// the ORDER BY tie-breaker. The default (id, uid) is identical for every
+// catalog entry that leaves targetIdentityProperty unset. When set, the
+// property is appended as an extra fallback so ties still resolve
+// deterministically for target labels whose identity properties do not
+// include id/uid (e.g. MANAGES -> Directory, which only has path).
+func targetOrderTiebreakerProperties(entry relationshipVerbEntry) []string {
+	order := []string{"id", "uid"}
+	if entry.targetIdentityProperty == "" {
+		return order
+	}
+	for _, property := range order {
+		if property == entry.targetIdentityProperty {
+			return order
+		}
+	}
+	out := make([]string, 0, len(order)+1)
+	out = append(out, order...)
+	return append(out, entry.targetIdentityProperty)
+}
+
+func coalesceExpr(variable string, properties []string) string {
+	parts := make([]string, 0, len(properties))
+	for _, property := range properties {
+		parts = append(parts, variable+"."+property)
+	}
+	return "coalesce(" + strings.Join(parts, ", ") + ")"
+}
+
+// targetIdentityCoalesce builds the target_id RETURN projection expression.
+func targetIdentityCoalesce(entry relationshipVerbEntry) string {
+	return coalesceExpr("t", targetIdentityCoalesceProperties(entry))
+}
+
+// targetOrderTiebreaker builds the ORDER BY tie-breaker expression.
+func targetOrderTiebreaker(entry relationshipVerbEntry) string {
+	return coalesceExpr("t", targetOrderTiebreakerProperties(entry))
 }
 
 // relationshipEdgesCypherFiltered is the source_tool-filtered variant of
@@ -165,11 +245,11 @@ func relationshipEdgesCypherFiltered(entry relationshipVerbEntry) string {
 		"WHERE r.source_tool = $source_tool\n" +
 		"RETURN coalesce(s.id, s.uid, s.name, s.path) AS source_id,\n" +
 		"       coalesce(s.name, s.path, s.id, s.uid) AS source_name,\n" +
-		"       coalesce(t.id, t.uid, t.name, t.path) AS target_id,\n" +
+		"       " + targetIdentityCoalesce(entry) + " AS target_id,\n" +
 		"       coalesce(t.name, t.path, t.id, t.uid) AS target_name,\n" +
 		"       r.rationale AS evidence,\n" +
 		"       r.source_tool AS source_tool\n" +
-		"ORDER BY s." + entry.sourceProperty + ", coalesce(t.id, t.uid)\n" +
+		"ORDER BY s." + entry.sourceProperty + ", " + targetOrderTiebreaker(entry) + "\n" +
 		"LIMIT $limit"
 }
 

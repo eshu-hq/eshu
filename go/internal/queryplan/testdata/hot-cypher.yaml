@@ -485,9 +485,9 @@ entries:
       file: go/internal/query/relationships_catalog_cypher.go
       symbol: relationshipCountCypher
       source_sha256: 63519160be931a2d2ad003745bc30e11d08bfe26122c643f22c3e148ad1abff8
-      line_hint: 84
+      line_hint: 127
     caveats:
-      - "One bounded count per fixed catalog verb, each a bare relationship-type aggregate answered by the NornicDB relationship-type index (this entry is the CALLS representative of the 16-verb family in relationshipVerbCatalog). The endpoints are anonymous () nodes, not bound unlabeled nodes, so this is not an unlabeled-node all-node scan; it is the relationship-type-indexed whole-graph edge count the catalog contract promises. The count is intentionally whole-graph: when a relationship type is written by more than one source label (e.g. DEPENDS_ON is written for both Repository and Workload sources), the count includes all source labels combined while the companion edge-slice endpoint is anchored on the catalog entry's sourceLabel; the two numbers can legitimately differ. NornicDB has no composite relationship-type+label index, so a source-label-scoped count would require a full label-population scan (measured at 30s+ for 16 verbs at ~900k-edge scale); the whole-graph count is the only index-served option (issue #3429)."
+      - "One bounded count per fixed catalog verb, each a bare relationship-type aggregate answered by the NornicDB relationship-type index (this entry is the CALLS representative of the 19-verb family in relationshipVerbCatalog). The endpoints are anonymous () nodes, not bound unlabeled nodes, so this is not an unlabeled-node all-node scan; it is the relationship-type-indexed whole-graph edge count the catalog contract promises. The count is intentionally whole-graph: when a relationship type is written by more than one source label (e.g. DEPENDS_ON is written for both Repository and Workload sources), the count includes all source labels combined while the companion edge-slice endpoint is anchored on the catalog entry's sourceLabel; the two numbers can legitimately differ. NornicDB has no composite relationship-type+label index, so a source-label-scoped count would require a full label-population scan (measured at 30s+ for 16 verbs at ~900k-edge scale, pre-#5369); the whole-graph count is the only index-served option (issue #3429)."
     plan:
       operators:
         - RelationshipTypeScan
@@ -503,8 +503,8 @@ entries:
     source:
       file: go/internal/query/relationships_catalog_cypher.go
       symbol: relationshipEdgesCypher
-      source_sha256: bc5afa1307496b4b2173cadd3a990fd5181072fad6f586ac21057820c039fc16
-      line_hint: 96
+      source_sha256: 2306cb9c5118099172e1390b80f2555715649796dce410e90ccc63965e8ee14f
+      line_hint: 161
     required_schema:
       - function_uid_unique
       - nornicdb_function_uid_lookup
@@ -512,7 +512,7 @@ entries:
       - $limit
     requires_order: true
     caveats:
-      - Bounded per-verb concrete edge slice, anchored on the verb's source-node label (CALLS/Function representative of the 16-verb family). The ORDER BY targets the indexed source-anchor property (s.uid here, s.<sourceProperty> per verb) so the LIMIT short-circuits the index-ordered scan rather than materializing and sorting the verb's full edge set on a non-indexed coalesce() expression (issue #3429). The secondary coalesce(t.id, t.uid) tie-breaker makes the ordering deterministic when the page boundary falls inside one source node's outgoing edges. Callers over-fetch $limit+1 to flag truncation.
+      - Bounded per-verb concrete edge slice, anchored on the verb's source-node label (CALLS/Function representative of the 19-verb family). The ORDER BY targets the indexed source-anchor property (s.uid here, s.<sourceProperty> per verb) so the LIMIT short-circuits the index-ordered scan rather than materializing and sorting the verb's full edge set on a non-indexed coalesce() expression (issue #3429). The secondary coalesce(t.id, t.uid) tie-breaker (per-entry; MANAGES appends t.path since its Directory target has no id/uid, see targetIdentityProperty) makes the ordering deterministic when the page boundary falls inside one source node's outgoing edges. Callers over-fetch $limit+1 to flag truncation.
     plan:
       operators:
         - LabelScan
@@ -530,7 +530,7 @@ entries:
       file: go/internal/query/relationships_catalog_cypher.go
       symbol: relationshipSourceToolBreakdownCyphers
       source_sha256: 1c0b5add35cf4e5b2c2a296e9972b03d4c99d09a4a763b468b886f148632d55b
-      line_hint: 180
+      line_hint: 260
     required_schema:
       - repository_id
       - nornicdb_repository_id_lookup
@@ -553,7 +553,7 @@ entries:
       file: go/internal/query/relationships_catalog_cypher.go
       symbol: relationshipSourceToolBreakdownCyphers
       source_sha256: 1c0b5add35cf4e5b2c2a296e9972b03d4c99d09a4a763b468b886f148632d55b
-      line_hint: 180
+      line_hint: 260
     required_schema:
       - workload_instance_id
       - nornicdb_workload_instance_id_lookup

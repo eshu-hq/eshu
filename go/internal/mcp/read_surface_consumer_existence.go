@@ -38,7 +38,7 @@ const (
 	readSurfaceBackingGoSymbol readSurfaceBackingKind = "go_symbol"
 	// readSurfaceBackingAPIRoute means Ref is a "METHOD /path" surface
 	// matched positionally against the live route inventory. No language-
-	// parity label uses this kind today (all eight resolve to an MCP tool or
+	// parity label uses this kind today (all nine resolve to an MCP tool or
 	// a Go symbol); it exists so a future label can be added as data rather
 	// than requiring a new resolution code path.
 	readSurfaceBackingAPIRoute readSurfaceBackingKind = "api_route"
@@ -58,9 +58,12 @@ type readSurfaceBacking struct {
 // (read_surface_consumer_existence_test.go) fails closed for any label not in
 // this map, and fails for any label whose Ref is not confirmed live.
 //
-// Six labels are literal MCP dispatch case strings (dispatch.go,
-// dispatch_impact.go) that are also registered tool names, so Ref equals the
-// label. Two are aliases the label text does not name directly:
+// Seven labels equal a registered tool name directly, so Ref equals the
+// label: six are literal MCP dispatch case strings (dispatch.go,
+// dispatch_impact.go), and "list_relationship_edges" (#5369) is routed
+// through its own dispatch function (dispatch_relationship_edges.go) rather
+// than the shared case-string switch, but its label still equals its tool
+// name. Two labels are aliases the label text does not name directly:
 // "entity_context" is served by the get_entity_context MCP tool, and
 // "content_relationships" is served by the unexported
 // query.buildContentRelationshipSet Go symbol (there is no MCP tool wrapping
@@ -71,6 +74,7 @@ var languageParityReadSurfaceBacking = map[string]readSurfaceBacking{
 	"content_relationships":       {Kind: readSurfaceBackingGoSymbol, Ref: "content_relationships.go:buildContentRelationshipSet"},
 	"find_dead_code":              {Kind: readSurfaceBackingMCPTool, Ref: "find_dead_code"},
 	"get_code_relationship_story": {Kind: readSurfaceBackingMCPTool, Ref: "get_code_relationship_story"},
+	"list_relationship_edges":     {Kind: readSurfaceBackingMCPTool, Ref: "list_relationship_edges"},
 	"trace_deployment_chain":      {Kind: readSurfaceBackingMCPTool, Ref: "trace_deployment_chain"},
 	"trace_resource_to_code":      {Kind: readSurfaceBackingMCPTool, Ref: "trace_resource_to_code"},
 	"trace_route_callers":         {Kind: readSurfaceBackingMCPTool, Ref: "trace_route_callers"},

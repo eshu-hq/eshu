@@ -134,7 +134,7 @@ func grandfatheredLanguageParityRowOK(language, label string, readSurfaces []str
 // ledger row's read_surfaces. An entry no language row uses anymore is dead
 // backing-map weight -- the mirror image of assertLedgerNotStale in
 // dispatch_scoped_route_exhaustiveness_test.go. Scope note: this checks
-// staleness of the eight-label backing map, not the full universe of
+// staleness of the nine-label backing map, not the full universe of
 // ReadOnlyTools()/served routes -- see the fact-kind-registry-scoped route
 // check and the gate's package doc for what GATE 1 does not cover.
 func assertLanguageParityBackingNotStale(t *testing.T, used map[string]bool) {
