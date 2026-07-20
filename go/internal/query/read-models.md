@@ -587,10 +587,11 @@ status, truth_level, or freshness_state scope.
 one of the dimensions `status`, `truth_level`, `freshness_state`,
 `finding_type`, or `source_id`. The aggregate replaces the
 page-and-iterate caller workflow for ecosystem-level questions exposed by
-`list_documentation_findings`. Migrations 064 and 065 replace the retired
-ACL-filtered index with the broader findings read index. Its predicate matches
-the shared `fact_kind` and tombstone boundary, while its ordered keys cover all
-five grouping dimensions used here plus `document_id`.
+`list_documentation_findings`. Migration 064 adds the broader findings list
+index; the final schema and migration 003 retain the distinct ACL-filtered
+aggregate-visible index. Its predicate exactly matches these total and grouped
+aggregate scans, while the ordered keys cover all five grouping dimensions plus
+`document_id`.
 
 The `/documentation/facts` free-text surface was evaluated in this issue. Valid
 GIN candidates improved read latency, but the fastest option more than doubled

@@ -167,6 +167,61 @@ func TestDocumentationFactsSearchIndexWriteTaxLive(t *testing.T) {
 	}
 }
 
+func TestDocumentationFindingIndexWriteTaxLive(t *testing.T) {
+	ctx, db := postgresproof.OpenDisposableDatabase(
+		t,
+		os.Getenv("ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DSN"),
+		os.Getenv("ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DISPOSABLE"),
+		2*time.Minute,
+	)
+	if _, err := db.ExecContext(ctx, documentationAggregateWriteProofSetupSQL); err != nil {
+		t.Fatalf("create aggregate write proof schema: %v", err)
+	}
+	batch := documentationFindingWriteProofBatchForTest("aggregate-write:")
+	oldOnly := measureDocumentationWriteProofBatch(t, ctx, db, batch, "old_only")
+	if _, err := db.ExecContext(ctx, documentationAggregateWriteProofListIndexSQL); err != nil {
+		t.Fatalf("create broad list index: %v", err)
+	}
+	dual := measureDocumentationWriteProofBatch(t, ctx, db, batch, "dual_final")
+	oldMedian := medianDocumentationWriteProof(oldOnly).ExecutionMS
+	dualMedian := medianDocumentationWriteProof(dual).ExecutionMS
+	ratio := dualMedian / oldMedian
+	logDocumentationWriteProof(t, "old_only", oldOnly)
+	logDocumentationWriteProof(t, "dual_final", dual)
+	t.Logf("WRITE_PROOF_RATIO candidate=dual_final median_ratio=%.3fx", ratio)
+	if ratio > 1.5 {
+		t.Fatalf("dual final median write ratio = %.3fx, want <= 1.50x", ratio)
+	}
+}
+
+const documentationAggregateWriteProofSetupSQL = `
+CREATE TABLE fact_records (
+  fact_id TEXT PRIMARY KEY, scope_id TEXT NOT NULL, generation_id TEXT NOT NULL,
+  fact_kind TEXT NOT NULL, stable_fact_key TEXT NOT NULL,
+  schema_version TEXT NOT NULL DEFAULT '0.0.0', collector_kind TEXT NOT NULL,
+  fencing_token BIGINT NOT NULL DEFAULT 0, source_confidence TEXT NOT NULL,
+  source_system TEXT NOT NULL, source_fact_key TEXT NOT NULL, source_uri TEXT,
+  source_record_id TEXT, observed_at TIMESTAMPTZ NOT NULL, ingested_at TIMESTAMPTZ NOT NULL,
+  is_tombstone BOOLEAN NOT NULL DEFAULT FALSE, payload JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE INDEX fact_records_documentation_findings_visible_idx ON fact_records
+((payload->>'finding_type'), (payload->>'source_id'), (payload->>'document_id'),
+ (payload->>'status'), (payload->>'truth_level'), (payload->>'freshness_state'),
+ observed_at DESC, fact_id DESC)
+WHERE fact_kind = 'documentation_finding' AND is_tombstone = FALSE
+  AND (payload->'permissions'->>'viewer_can_read_source') = 'true'
+  AND LOWER(COALESCE(payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'
+  AND LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied';
+`
+
+const documentationAggregateWriteProofListIndexSQL = `
+CREATE INDEX fact_records_documentation_findings_read_idx ON fact_records
+((payload->>'finding_type'), (payload->>'source_id'), (payload->>'document_id'),
+ (payload->>'status'), (payload->>'truth_level'), (payload->>'freshness_state'),
+ observed_at DESC, fact_id DESC)
+WHERE fact_kind = 'documentation_finding' AND is_tombstone = FALSE;
+`
+
 func documentationWriteProofBatchForTest(prefix string) []facts.Envelope {
 	observedAt := time.Date(2026, time.February, 1, 0, 0, 0, 0, time.UTC)
 	batch := make([]facts.Envelope, 0, factBatchSize)
@@ -200,6 +255,27 @@ func documentationWriteProofBatchForTest(prefix string) []facts.Envelope {
 	return batch
 }
 
+func documentationFindingWriteProofBatchForTest(prefix string) []facts.Envelope {
+	batch := documentationWriteProofBatchForTest(prefix)
+	for index := range batch {
+		batch[index].FactKind = "documentation_finding"
+		batch[index].Payload = map[string]any{
+			"finding_type":    "documentation_drift",
+			"source_id":       "source:aggregate-write",
+			"document_id":     batch[index].FactID,
+			"status":          "open",
+			"truth_level":     "observed",
+			"freshness_state": "fresh",
+			"permissions": map[string]any{
+				"viewer_can_read_source": true,
+				"source_acl_evaluated":   true,
+			},
+			"states": map[string]any{"permission_decision": "allowed"},
+		}
+	}
+	return batch
+}
+
 func measureDocumentationWriteProof(
 	t *testing.T,
 	ctx context.Context,
@@ -212,6 +288,37 @@ func measureDocumentationWriteProof(
 	for sample := 1; sample <= 3; sample++ {
 		prefix := fmt.Sprintf("%s:sample:%d:", name, sample)
 		samples = append(samples, explainDocumentationWriteBatch(t, ctx, db, prefix))
+	}
+	return samples
+}
+
+func measureDocumentationWriteProofBatch(
+	t *testing.T,
+	ctx context.Context,
+	db *sql.DB,
+	batch []facts.Envelope,
+	name string,
+) []documentationWriteProofSample {
+	t.Helper()
+	samples := make([]documentationWriteProofSample, 0, 3)
+	for sample := 1; sample <= 3; sample++ {
+		query, args, err := buildDocumentationStreamingWriteProofQuery(batch)
+		if err != nil {
+			t.Fatalf("build %s production write batch: %v", name, err)
+		}
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatalf("begin %s production write batch: %v", name, err)
+		}
+		var raw []byte
+		err = tx.QueryRowContext(ctx, "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "+query, args...).Scan(&raw)
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && err == nil {
+			t.Fatalf("rollback %s production write batch: %v", name, rollbackErr)
+		}
+		if err != nil {
+			t.Fatalf("explain %s production write batch: %v", name, err)
+		}
+		samples = append(samples, decodeDocumentationWriteProofSample(t, raw))
 	}
 	return samples
 }
@@ -270,6 +377,11 @@ func explainDocumentationWriteBatch(
 	if err := tx.Rollback(); err != nil {
 		t.Fatalf("rollback documentation write proof: %v", err)
 	}
+	return decodeDocumentationWriteProofSample(t, raw)
+}
+
+func decodeDocumentationWriteProofSample(t *testing.T, raw []byte) documentationWriteProofSample {
+	t.Helper()
 	var plans []struct {
 		Plan          documentationWriteProofPlanNode `json:"Plan"`
 		PlanningTime  float64                         `json:"Planning Time"`

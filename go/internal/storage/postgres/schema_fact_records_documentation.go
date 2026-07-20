@@ -8,6 +8,8 @@ CREATE INDEX IF NOT EXISTS fact_records_documentation_sources_observed_idx ON fa
 
 CREATE INDEX IF NOT EXISTS fact_records_documentation_findings_read_idx ON fact_records ((payload->>'finding_type'), (payload->>'source_id'), (payload->>'document_id'), (payload->>'status'), (payload->>'truth_level'), (payload->>'freshness_state'), observed_at DESC, fact_id DESC) WHERE fact_kind = 'documentation_finding' AND is_tombstone = FALSE;
 
+CREATE INDEX IF NOT EXISTS fact_records_documentation_findings_visible_idx ON fact_records ((payload->>'finding_type'), (payload->>'source_id'), (payload->>'document_id'), (payload->>'status'), (payload->>'truth_level'), (payload->>'freshness_state'), observed_at DESC, fact_id DESC) WHERE fact_kind = 'documentation_finding' AND is_tombstone = FALSE AND (payload->'permissions'->>'viewer_can_read_source') = 'true' AND LOWER(COALESCE(payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false' AND LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied';
+
 CREATE INDEX IF NOT EXISTS fact_records_documentation_packets_finding_idx ON fact_records (COALESCE(payload->>'finding_id', payload->'finding'->>'finding_id'), observed_at DESC, fact_id DESC) WHERE fact_kind = 'documentation_evidence_packet' AND is_tombstone = FALSE;
 
 CREATE INDEX IF NOT EXISTS fact_records_documentation_packets_packet_idx ON fact_records ((payload->>'packet_id'), observed_at DESC, fact_id DESC) WHERE fact_kind = 'documentation_evidence_packet' AND is_tombstone = FALSE;

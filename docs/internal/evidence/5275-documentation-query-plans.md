@@ -2,7 +2,7 @@
 
 ## Decision
 
-This work accepts the documentation-findings partial-index correction and
+This work retains both documentation-findings partial indexes and
 rejects a dedicated free-text documentation-facts search index. The findings
 change fixes a stale predicate and preserves the result set. The search indexes
 made reads faster, but the fastest candidate made the returning-aware
@@ -16,7 +16,7 @@ No free-text query or search index ships from this investigation.
 | Issue acceptance item | Disposition | Evidence |
 | --- | --- | --- |
 | Capture `EXPLAIN (ANALYZE, BUFFERS)` for both reads | Proved | The findings and production-shaped search reads were measured on PostgreSQL 18.4. Sanitized plan nodes, rows, loops, buffers, and timings are below; the exact disposable shim is checked in beside this note. |
-| Restore or replace the findings partial index | Implemented | Migration 064 creates the replacement index with the active `documentation_finding` predicate before migration 065 drops the stale legacy index. |
+| Retain the findings partial indexes | Implemented | Migration 064 creates the broad list index. The final schema and migration 003 retain `fact_records_documentation_findings_visible_idx` for ACL-filtered aggregate total, group, and inventory scans; migration 065 is removed. |
 | Redesign free-text search around an indexable column | Superseded by measurement | Three index hypotheses were tested. The fastest plan added a 2.22x median write cost, while the complete production search stayed below the local interactive target. No search schema or query change lands. |
 | Preserve exact results | Proved | The findings read returned the same 66 rows and digest before and after the correction. The accepted patch does not change free-text search behavior. |
 | Record before and after plans and wall times | Proved | The accepted findings result and every rejected search candidate are recorded below. |
@@ -76,14 +76,18 @@ guard. The source hashes for this run are:
   `02825515bd6b620cc5c4fa63e4a8d7cb60066b8fa2f6bde46e59099e5b48a1cb`;
 - `go/internal/storage/postgres/facts_streaming.go`:
   `daf07fe4672a0b4d914a690d639852370836e4086f2cd98cdff55e0790c967e3`;
+- exact aggregate-plan live proof:
+  `4b3ad332201d26862efe682c33044fb7fe5149178cbaeb127fbac9e367e1dbfe`;
 - exact write-batch live proof:
-  `a1d545c4aa802338a7a7cd5fed2ad4b385a46efb0575f37a6953bf1a3a9f0b65`;
+  `ff98aca0b5a8d35e7c61ef8569ae0a2662552d03f4d17d1c80dc2f208a8d47ae`;
 - `go/internal/storage/postgres/schema_fact_records_documentation.go`:
-  `1fc54258126f280a177c3dee7aa4bce7d833bf05a1efd179802dec0b945674a5`;
+  `6ba7c49457b2b79e04da38da8f4de3560681ddcd6a2e4a3158a03fb5e54a6853`;
+- migration 003:
+  `17e98ba4f72588f0913d2ed631e6699c24e52958674b367ca4b9218c1f2a47d1`;
 - migration 064:
   `2a352323a4c01d16d020f35cca6099888790c1930a1d6ee76bde3beb74703fe3`.
 
-## Accepted findings-index result
+## Accepted findings-list index result
 
 | Measure | Stale predicate | Corrected predicate | Result |
 | --- | ---: | ---: | --- |
@@ -99,6 +103,24 @@ guard. The source hashes for this run are:
 The stale partial predicate forced a sequential scan. The corrected predicate
 made the current disclosure read eligible for its replacement partial index.
 The result identity shows that the speedup did not change disclosure behavior.
+
+## Aggregate-visible index retention proof
+
+`CountDocumentationFindings` executes one total plus status, truth-level, and
+freshness-state grouped scans; inventory executes one additional grouped scan.
+Their shared ACL predicate exactly matches
+`fact_records_documentation_findings_visible_idx`, so the broad list index does
+not replace it. The retained 200,000-row planner timing and 500-row
+`INSERT ... SELECT` write timing remain theory-shim evidence only. The opt-in
+live proof executed the production total, grouped, and inventory builders with
+the aggregate-visible index selected: total 7.912 ms, grouped status 6.997 ms,
+and inventory status 8.837 ms. Each index scan returned 10,000 rows with 10,351
+shared hits and zero shared reads; the live test completed in 5.94 s. The
+broad-only comparator remains theory-shim evidence only.
+
+The exact returning-aware production 500-row write proof recorded old-only
+samples 4.091/4.195/4.264 ms and dual-final samples 4.538/4.954/4.993 ms:
+medians 4.195 and 4.954 ms, ratio 1.181x, below the 1.50x rejection threshold.
 
 ## Current search baseline
 
@@ -157,12 +179,12 @@ repository's accuracy-then-performance decision order.
 The lifecycle proof starts from the populated pre-064 schema and checks these
 boundaries:
 
-- migration 064 creates the replacement before migration 065 drops the legacy
-  index;
+- migration 003 and final schema retain the ACL-filtered aggregate-visible
+  index while migration 064 creates the separate broad list index;
 - the 2,000 fixture rows remain unchanged throughout the migration;
-- a repeated bootstrap keeps the same replacement index definition and object;
+- a repeated bootstrap keeps both index definitions and objects unchanged;
 - an invalid index left by a failed concurrent build is removed and rebuilt;
-- two concurrent bootstrap calls converge on one stable replacement index.
+- two concurrent bootstrap calls converge on the same two stable indexes.
 
 This proof separates schema lifecycle safety from the 200,000-row query-plan
 fixture so a small concurrency test is not presented as performance evidence.
@@ -171,7 +193,10 @@ fixture so a small concurrency test is not presented as performance evidence.
 
 Performance Evidence: the accepted findings index changed a 13.964 ms parallel
 sequential scan into a 0.300 ms index scan with the same 66 rows and digest. The
-complete production 1.6-million-row search completed in 1,251.792 ms. The
+production aggregate builders selected the retained ACL index in
+7.912/6.997/8.837 ms, and the exact production write-batch ratio for the dual
+index shape was 1.181x. The complete production 1.6-million-row search completed
+in 1,251.792 ms. The
 fastest rejected search index reduced it to 7.689 ms but increased the median
 exact returning-aware 500-row production batch from 4.292 ms to 9.543 ms, so it
 did not land.
@@ -196,14 +221,15 @@ psql -X -d "$proof_db" \
 dropdb "$proof_db"
 
 cd go
-go test ./internal/query -run 'TestDocumentationQueryPlanShim' -count=1
+go test ./internal/query \
+  -run 'TestDocumentation(QueryPlanShim|FindingAggregate)' -count=1
 go test ./internal/storage/postgres \
-  -run 'TestDocumentation(WriteProofUsesCompleteProductionBatch|ReadIndexFinalSchemaMatchesCurrentQueries|ReadIndexContractRejectsEveryMissingKey|ReadIndexConcurrentMigrationsAreIsolated|RejectedAndLegacyIndexesAreNotReplayed)' \
+  -run 'TestDocumentation(WriteProofUsesCompleteProductionBatch|ReadIndexFinalSchemaMatchesCurrentQueries|ReadIndexContractRejectsEveryMissingKey|ReadIndexConcurrentMigrationIsIsolated|AggregateVisibleIndexAndRejectedIndexesAreReplayed|AggregateVisibleIndexIsRetainedAcrossBootstrapPaths)' \
   -count=1
 ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DSN=<admin-postgres-dsn> \
 ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DISPOSABLE=1 \
-  go test ./internal/storage/postgres \
-    -run 'TestDocumentation(FindingsIndexRestartSafety|FactsSearchIndexWriteTax)Live' \
+  go test ./internal/query ./internal/storage/postgres \
+    -run 'TestDocumentation(FindingsIndexRestartSafety|FactsSearchIndexWriteTax|FindingIndexWriteTax|FindingAggregateBuildersUseVisibleIndex)Live$' \
     -count=1 -v
 go test ./internal/storage/postgres -count=1
 go test ./internal/testutil/postgresproof -count=1

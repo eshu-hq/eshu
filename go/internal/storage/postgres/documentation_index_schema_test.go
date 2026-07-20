@@ -42,13 +42,44 @@ func TestDocumentationReadIndexFinalSchemaMatchesCurrentQueries(t *testing.T) {
 		t.Errorf("replacement migration and final schema differ\nmigration: %s\nfinal:     %s", got, want)
 	}
 
-	for _, forbidden := range []string{
-		"fact_records_documentation_findings_visible_idx",
-		"fact_records_documentation_facts_search_trgm_idx",
-	} {
+	for _, forbidden := range []string{"fact_records_documentation_facts_search_trgm_idx"} {
 		if strings.Contains(documentationFactRecordReadIndexesSQL, forbidden) {
-			t.Errorf("final documentation schema keeps rejected or legacy index %q", forbidden)
+			t.Errorf("final documentation schema keeps rejected index %q", forbidden)
 		}
+	}
+}
+
+func TestDocumentationAggregateVisibleIndexIsRetainedAcrossBootstrapPaths(t *testing.T) {
+	t.Parallel()
+
+	finalDDL := indexStatementForTest(
+		t,
+		documentationFactRecordReadIndexesSQL,
+		"fact_records_documentation_findings_visible_idx",
+	)
+	if err := validateDocumentationFindingAggregateVisibleIndexForTest(finalDDL); err != nil {
+		t.Errorf("final aggregate-visible documentation findings index: %v", err)
+	}
+
+	definitions := BootstrapDefinitions()
+	facts, ok := definitionByPathForTest(
+		definitions,
+		"go/internal/storage/postgres/migrations/003_fact_records.sql",
+	)
+	if !ok {
+		t.Fatal("fact records migration is missing")
+	}
+	migrationDDL := indexStatementForTest(
+		t,
+		facts.SQL,
+		"fact_records_documentation_findings_visible_idx",
+	)
+	if err := validateDocumentationFindingAggregateVisibleIndexForTest(migrationDDL); err != nil {
+		t.Errorf("fact records migration aggregate-visible documentation findings index: %v", err)
+	}
+	if got, want := documentationFindingReadIndexShapeForTest(migrationDDL),
+		documentationFindingReadIndexShapeForTest(finalDDL); got != want {
+		t.Errorf("fact records migration and final aggregate-visible schema differ\nmigration: %s\nfinal:     %s", got, want)
 	}
 }
 
@@ -76,7 +107,7 @@ func TestDocumentationReadIndexContractRejectsEveryMissingKey(t *testing.T) {
 	}
 }
 
-func TestDocumentationReadIndexConcurrentMigrationsAreIsolated(t *testing.T) {
+func TestDocumentationReadIndexConcurrentMigrationIsIsolated(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -95,14 +126,6 @@ func TestDocumentationReadIndexConcurrentMigrationsAreIsolated(t *testing.T) {
 				"is_tombstone = FALSE",
 			},
 			forbidden:  documentationFindingACLIndexPredicatesForTest(),
-			statements: 1,
-		},
-		{
-			name: "drop stale findings index second",
-			path: "go/internal/storage/postgres/migrations/065_drop_documentation_findings_visible_idx.sql",
-			want: []string{
-				"DROP INDEX CONCURRENTLY IF EXISTS fact_records_documentation_findings_visible_idx",
-			},
 			statements: 1,
 		},
 	}
@@ -131,7 +154,7 @@ func TestDocumentationReadIndexConcurrentMigrationsAreIsolated(t *testing.T) {
 	}
 }
 
-func TestDocumentationRejectedAndLegacyIndexesAreNotReplayed(t *testing.T) {
+func TestDocumentationAggregateVisibleIndexAndRejectedIndexesAreReplayed(t *testing.T) {
 	t.Parallel()
 
 	definitions := BootstrapDefinitions()
@@ -142,8 +165,13 @@ func TestDocumentationRejectedAndLegacyIndexesAreNotReplayed(t *testing.T) {
 	if !ok {
 		t.Fatal("fact records migration is missing")
 	}
-	if strings.Contains(facts.SQL, "fact_records_documentation_findings_visible_idx") {
-		t.Fatal("fact records migration still recreates the legacy findings index")
+	visibleDDL := indexStatementForTest(
+		t,
+		facts.SQL,
+		"fact_records_documentation_findings_visible_idx",
+	)
+	if err := validateDocumentationFindingAggregateVisibleIndexForTest(visibleDDL); err != nil {
+		t.Fatalf("fact records migration aggregate-visible index: %v", err)
 	}
 	for _, definition := range definitions {
 		if strings.Contains(definition.SQL, "fact_records_documentation_facts_search_trgm_idx") {
@@ -178,6 +206,23 @@ func documentationFindingReadIndexOrderedTermsForTest() []string {
 		"observed_at desc",
 		"fact_id desc",
 	}
+}
+
+func validateDocumentationFindingAggregateVisibleIndexForTest(definition string) error {
+	if err := validateDocumentationFindingReadIndexForTest(definition); err != nil {
+		return err
+	}
+	normalized := strings.ToLower(strings.Join(strings.Fields(definition), " "))
+	for _, predicate := range []string{
+		"viewer_can_read_source",
+		"source_acl_evaluated",
+		"permission_decision",
+	} {
+		if !strings.Contains(normalized, predicate) {
+			return fmt.Errorf("missing aggregate ACL predicate %q", predicate)
+		}
+	}
+	return nil
 }
 
 func validateDocumentationFindingReadIndexForTest(definition string) error {

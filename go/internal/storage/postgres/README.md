@@ -161,17 +161,20 @@ High-signal invariants for this package:
   `(repo_id, ref_kind, name)` and default-ref index; writers replace only a
   fresh ref set carried by the current materialization so content-only
   generations do not erase branch metadata.
-- Documentation finding reads use a partial index that matches the current
-  disclosure predicate: active `documentation_finding` rows are indexed without
-  the source-ACL predicates removed in #2164. Migration 064 creates the corrected
-  replacement before migration 065 removes the legacy index. Source, packet, and
-  target-reference reads retain their existing indexes. Free-text
+- Documentation finding reads retain two distinct partial indexes. Migration 064
+  creates the broad list index, while the final schema and migration 003 retain
+  `fact_records_documentation_findings_visible_idx` for the ACL-filtered total
+  and grouped aggregate scans. Source, packet, and target-reference reads retain
+  their existing indexes. Free-text
   `list_documentation_facts` search remains unchanged and has no dedicated
   expression index because the measured candidates imposed too much write cost.
 
-Performance Evidence: on 200,000 representative finding rows, the stale index
-predicate required 13.964 ms; the corrected index completed the same read in
-0.300 ms with the same 66 rows and result digest. Search-index candidates for
+Performance Evidence: the checked-in aggregate planner proof executes the
+production total, grouped, and inventory builders against a 200,000-row,
+5%-ACL-visible fixture and requires the aggregate-visible index. The opt-in
+live run selected it for total/grouped/inventory in 7.912/6.997/8.837 ms with
+10,000 rows, 10,351 shared hits, and zero shared reads per builder.
+Search-index candidates for
 the five-field documentation-fact query were rejected because the fastest
 candidate increased the exact 500-row production batch median from 4.292 ms to
 9.543 ms (2.22x); the scoped candidate reached 9.595 ms (2.24x). The complete
@@ -180,11 +183,12 @@ local proof profile, so the accepted change does not alter free-text search.
 The full measurements and rejected-candidate ledger are in
 [`docs/internal/evidence/5275-documentation-query-plans.md`](../../../../docs/internal/evidence/5275-documentation-query-plans.md).
 
-No-Regression Evidence: the findings query returned the same 66 rows and the
-same result digest before and after the index correction. The live migration
-test starts from a populated legacy schema, creates the replacement before
-dropping the old index, retries after an invalid concurrent build, and proves
-repeated and concurrent bootstrap calls leave the replacement unchanged.
+No-Regression Evidence: the 50%-visibility theory shim had bidirectional set
+difference 0/0 and digest `c693401e0c0734fe0d227ea3821521ee`; the live
+production-builder proof independently returned the expected 10,000 visible
+rows. The live migration test keeps both indexes valid through invalid-build
+recovery and proves repeated and concurrent bootstrap calls leave both index
+definitions unchanged.
 
 No-Observability-Change: no metric, span, route, worker, queue, lease, or runtime
 setting changes. Operators continue to see both reads through `postgres.query`
