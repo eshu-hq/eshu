@@ -77,3 +77,54 @@ No-Observability-Change: this package is a deterministic normalizer and does
 not mount a runtime. `ghactionsruntime` owns the hosted provider API request,
 rate-limit, fact-emission, partial-generation, redaction, and status signals
 for live collection.
+
+### Canonical repository_id (#5418)
+
+Benchmark Evidence: canonicalizing `repository_id` from a raw host/Org/Repo
+string to `repository:r_<hex>` via `repositoryidentity.CanonicalRepositoryID`
+adds one `NormalizeRemoteURL` + SHA1 per CI fact at emission. Measured on
+Apple M5 Max (darwin/arm64, `-count=5`), `BenchmarkRepositoryID`:
+
+| Metric | OLD (`host + "/" + FullName`) | NEW (`NormalizeRemoteURL + SHA1`) |
+|--------|------|------|
+| ns/op | ~115 ns | ~407 ns |
+| B/op | 168 B | 536 B |
+| allocs/op | 2 | 11 |
+
+The full envelope-build benchmark (`BenchmarkGitHubActionsEnvelopesEndToEnd`)
+runs at ~34 µs/op for a realistic success fixture (run + 1 job + 1 step +
+1 artifact + 1 trigger). The canonicalization cost (~400 ns) is ~1.2%
+of total envelope-build time — a bounded, measured per-fact cost well within
+acceptable bounds for the CI-fact emission path. The old function
+(`repositoryID`) is replaced entirely; the raw provider-level string is still
+emitted as `provider_repository_id` through a separate helper
+(`providerRepositoryID`) that preserves the same O(1) string-concat cost.
+
+No-Regression Evidence: the existing fixture normalization tests
+(`TestGitHubActionsFixtureBuildsReducerConsumableFacts`,
+`TestGitHubActionsFixturePreservesAttemptsInFactIdentity`,
+`TestGitHubActionsFixtureEmitsPartialWarnings`,
+`TestGitHubActionsFixturePreservesLargeNumericIDs`,
+`TestGitHubActionsFixtureWarnsAndSkipsMalformedChildRecords`,
+`TestGitHubActionsFixtureDeduplicatesDuplicateRecords`,
+`TestGitHubActionsFixtureRedactsCredentialBearingURLsAndWarningText`,
+`TestGitHubActionsFixtureWarnsWhenRunAnchorsMissing`,
+`TestGitHubActionsFixtureEmitsWorkflowDefinitionFromProviderIDOnly`) stay
+green with only their `repository_id`→`provider_repository_id` assertion
+changes. Four new regression tests lock the canonical-id contract:
+`TestGitHubActionsFixtureEmitsCanonicalRepositoryID`,
+`TestGitHubActionsFixtureCanonicalRepositoryIDMatchesGitCollector`,
+`TestGitHubActionsFixtureCanonicalIDHandlesGHESHost`, and
+`TestGitHubActionsFixtureCanonicalIDFallsBackWhenNoHTMLURL`. The reducer
+end-to-end path is locked by
+`TestBuildCICDRunCorrelationDecisionsPassesThroughCanonicalRepositoryID`
+(go/internal/reducer), and the query readback path by
+`TestLoadRepositoryScopedCICDEvidenceResolvesByCanonicalRepositoryID`
+(go/internal/query). Queue behavior is unchanged (no new enqueue shape).
+
+No-Observability-Change: the change adds no route, graph query shape, queue
+table, worker, lease, runtime knob, metric instrument, or metric label. The
+existing `eshu_dp_reducer_executions_total` and
+`eshu_dp_reducer_run_duration_seconds` counters, plus the CI/CD run
+correlation query handler spans (`query.ci_cd_run_correlations`), diagnose
+the end-to-end path unchanged.

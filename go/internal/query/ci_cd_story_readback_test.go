@@ -47,3 +47,53 @@ func TestLoadRepositoryScopedCICDEvidenceUsesBoundedRepositoryScope(t *testing.T
 		t.Fatalf("live_run_correlations.truncated = %#v, want %#v", got, want)
 	}
 }
+
+func TestLoadRepositoryScopedCICDEvidenceResolvesByCanonicalRepositoryID(t *testing.T) {
+	t.Parallel()
+
+	canonicalRepoID := "repository:r_008329d6"
+	rawRepoID := "github.com/eshu-hq/eshu"
+
+	// Seed the store with rows carrying the canonical repository_id.
+	rows := []CICDRunCorrelationRow{
+		{
+			CorrelationID: "corr-1",
+			RepositoryID:  canonicalRepoID,
+			Provider:      "github_actions",
+			RunID:         "123",
+			Outcome:       "exact",
+		},
+	}
+	store := &recordingCICDRunCorrelationStore{rows: rows}
+
+	// Positive case: querying by the canonical id returns the row.
+	summary, err := loadRepositoryScopedCICDEvidence(
+		context.Background(),
+		fakePortContentStore{},
+		store,
+		canonicalRepoID,
+	)
+	if err != nil {
+		t.Fatalf("loadRepositoryScopedCICDEvidence(canonical) error = %v, want nil", err)
+	}
+	live := mustMapField(t, summary, "live_run_correlations")
+	if got, want := live["count"], 1; got != want {
+		t.Fatalf("live_run_correlations.count = %#v, want 1 (canonical repo id must resolve)", got)
+	}
+
+	// Negative case: querying by the old raw provider namespace must NOT
+	// cross-join into the canonical repo's story.
+	summaryRaw, err := loadRepositoryScopedCICDEvidence(
+		context.Background(),
+		fakePortContentStore{},
+		store,
+		rawRepoID,
+	)
+	if err != nil {
+		t.Fatalf("loadRepositoryScopedCICDEvidence(raw) error = %v, want nil", err)
+	}
+	liveRaw := mustMapField(t, summaryRaw, "live_run_correlations")
+	if got, want := liveRaw["count"], 0; got != want {
+		t.Fatalf("live_run_correlations.count = %#v, want 0 (raw provider id must not cross-join into canonical namespace)", got)
+	}
+}

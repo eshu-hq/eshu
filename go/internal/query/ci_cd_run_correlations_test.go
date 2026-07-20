@@ -25,6 +25,19 @@ func (s *recordingCICDRunCorrelationStore) ListCICDRunCorrelations(
 	filter CICDRunCorrelationFilter,
 ) ([]CICDRunCorrelationRow, error) {
 	s.lastFilter = filter
+	// Filter by RepositoryID when set (simulating the real Postgres store's
+	// WHERE payload->>'repository_id' = $3 predicate). When the filter does
+	// not constrain RepositoryID, return all rows — matching the pre-existing
+	// behavior every existing test caller relies on.
+	if filter.RepositoryID != "" {
+		out := make([]CICDRunCorrelationRow, 0, len(s.rows))
+		for _, row := range s.rows {
+			if row.RepositoryID == filter.RepositoryID {
+				out = append(out, row)
+			}
+		}
+		return out, nil
+	}
 	return append([]CICDRunCorrelationRow(nil), s.rows...), nil
 }
 
@@ -85,7 +98,7 @@ func TestCICDListRunCorrelationsUsesBoundedPostgresStore(t *testing.T) {
 				Reason:          "artifact digest matches one container image identity row",
 				CanonicalWrites: 1,
 			},
-			{CorrelationID: "correlation-2", Provider: "github_actions", RunID: "run-2"},
+			{CorrelationID: "correlation-2", Provider: "github_actions", RunID: "run-2", RepositoryID: "repo-api"},
 		},
 	}
 	handler := &CICDHandler{Correlations: store}
