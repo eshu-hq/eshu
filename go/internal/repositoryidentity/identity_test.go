@@ -60,6 +60,18 @@ func TestNormalizedRemoteKey(t *testing.T) {
 		{name: "https collision safety", raw: "https:///a/b", want: ""},
 		{name: "scp with percent host", raw: "user@%41zure.com:org/repo.git", want: ""},
 
+		// Regression: control chars and bad percent-encoding surviving NormalizeRemoteURL passthrough (#5421 N1)
+		// url.Parse re-validation at the mechanism layer catches all of these.
+		{name: "tab in host", raw: "https://git\thub.com/org/repo.git", want: ""},
+		{name: "newline in host", raw: "https://git\nhub.com/org/repo.git", want: ""},
+		{name: "cr in host", raw: "https://git\rhub.com/org/repo.git", want: ""},
+		{name: "bad percent zz", raw: "https://github.com/org/repo%zz", want: ""},
+		{name: "bad percent incomplete", raw: "https://github.com/org/repo%2", want: ""},
+		{name: "bad percent dot git", raw: "https://github.com/org/repo%.git", want: ""},
+		{name: "tab in path", raw: "https://github.com\t/org/repo", want: ""},
+		{name: "git+ prefix with tab", raw: "git+https://git\thub.com/org/repo.git", want: ""},
+		{name: "scp with tab in host", raw: "user@git\thub.com:org/repo.git", want: ""},
+
 		// F2 additional divergence classes — value-pinned intended behavior
 		// Percent-encoded paths: url.Parse decodes %20→space, %2E→. in Path.
 		// The decoded form is canonical and consistent with raw input.
@@ -67,10 +79,15 @@ func TestNormalizedRemoteKey(t *testing.T) {
 		// %2Egit → .git → stripped (it is the literal .git suffix).
 		{name: "percent-encoded git suffix", raw: "https://github.com/org/repo%2Egit", want: "github.com/org/repo"},
 		{name: "percent-encoded git suffix with literal git", raw: "https://github.com/org/repo%2Egit.git", want: "github.com/org/repo.git"},
-		// Duplicate-slashes: url.Parse collapses //→/ in Path.
+		// Duplicate-slashes: NormalizeRemoteURL's FieldsFunc collapses //→/.
 		{name: "duplicate slashes", raw: "https://github.com//org//repo.git", want: "github.com/org/repo"},
-		// Scheme-relative: rejected (no scheme → unparseable)
+		// Scheme-relative: url.Parse accepts //host/path, but NormalizedRemoteKey
+		// routes the no-"://" form to scpKey which requires ":" → rejected.
 		{name: "scheme relative", raw: "//github.com/org/repo", want: ""},
+		// IPv6 bracket drop: url.Parse's Hostname() strips [ ] from IPv6 hosts.
+		{name: "ipv6 brackets", raw: "https://[::1]/org/repo.git", want: "::1/org/repo"},
+		// Double-encoding: url.Parse decodes one level; the decoded path is stable.
+		{name: "double-encoded space", raw: "https://github.com/org/repo%2520name", want: "github.com/org/repo%20name"},
 		// Spaces and non-ASCII in path: url.Parse decodes %20→space, %C3%A9→é.
 		// The decoded representation is consistent across literal and encoded
 		// inputs, so these are legitimate (not rejected).

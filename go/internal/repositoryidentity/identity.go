@@ -131,6 +131,26 @@ func NormalizedRemoteKey(raw string) string {
 	if normalized == "" {
 		return ""
 	}
+	// Re-parse the normalized URL to reject control characters, bad
+	// percent-encoding, and hostless passthrough from NormalizeRemoteURL.
+	// This closes the leak class where NormalizeRemoteURL passes through
+	// garbage untouched because it starts with "https://".
+	//
+	// NormalizeRemoteURL strips brackets from IPv6 hosts (e.g. [::1]→::1);
+	// url.Parse rejects bare "::1" as an invalid port. Re-bracket IPv6
+	// hosts before the validation parse so legitimate IPv6 keys are not
+	// rejected.
+	reparseURL := normalized
+	if key := strings.TrimPrefix(normalized, "https://"); key != normalized {
+		if host, _, hasSlash := strings.Cut(key, "/"); hasSlash && strings.Contains(host, ":") {
+			// Bare : in the host means IPv6 (ports are already stripped
+			// by NormalizeRemoteURL's Hostname()).
+			reparseURL = "https://[" + host + "]" + key[len(host):]
+		}
+	}
+	if _, err := url.Parse(reparseURL); err != nil {
+		return ""
+	}
 	key := strings.TrimPrefix(normalized, "https://")
 	if key == normalized || key == "" {
 		return ""
@@ -175,6 +195,12 @@ func scpKey(raw string) string {
 		return ""
 	}
 	key := host + "/" + strings.ToLower(pathValue)
+
+	// Re-parse as https:// URL to reject control characters and bad
+	// percent-encoding in the resulting key.
+	if _, err := url.Parse("https://" + key); err != nil {
+		return ""
+	}
 	if !isValidRemoteKey(key) {
 		return ""
 	}
