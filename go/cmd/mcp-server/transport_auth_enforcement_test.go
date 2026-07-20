@@ -49,7 +49,7 @@ func buildMCPTransportServer(apiKey string, fileResolver, oidcResolver query.Sco
 	)
 	authSourceConfigured := authEnforcementConfigured(apiKey, fileResolver, oidcResolver)
 	scopedTokenResolver := scopedtoken.ChainResolvers(identityResolver, oidcResolver, fileResolver)
-	transportAuth := buildTransportAuthMiddleware(apiKey, scopedTokenResolver, nil, authSourceConfigured)
+	transportAuth := buildTransportAuthMiddleware(apiKey, scopedTokenResolver, nil, authSourceConfigured, nil)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v0/repositories", func(w http.ResponseWriter, _ *http.Request) {

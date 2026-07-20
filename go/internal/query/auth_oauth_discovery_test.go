@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -299,6 +300,62 @@ func TestOAuthProtectedResourceHandler_NoPathResource_AnySuffix404(t *testing.T)
 		if rec.Code != http.StatusNotFound {
 			t.Fatalf("GET %s status = %d, want 404 for a no-path resource", path, rec.Code)
 		}
+	}
+}
+
+// TestOAuthProtectedResourceHandler_ExtensionFields proves the config-fed
+// resource_documentation (RFC 9728 OPTIONAL) and eshu_preregistered_client_id
+// (RFC 9728 §2 extension member) serialize into the served document when set,
+// and that both omitempty tags drop them when unset.
+func TestOAuthProtectedResourceHandler_ExtensionFields(t *testing.T) {
+	t.Parallel()
+
+	handler := &OAuthProtectedResourceHandler{
+		Providers: &fakeAuthProviderStore{byTenant: map[string][]AuthProviderItem{
+			"default": {{ProviderConfigID: "okta-oidc", ProviderKind: "oidc"}},
+		}},
+		TenantID:              "default",
+		Resource:              "https://eshu.example.test",
+		Issuers:               &fakeOAuthIssuerLister{issuers: []string{"https://idp.example.test"}},
+		ResourceName:          "Eshu MCP Server",
+		ResourceDocumentation: "https://docs.example.test/mcp",
+		PreregisteredClientID: "0oaPreRegClientId",
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	var doc OAuthProtectedResourceMetadata
+	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if doc.ResourceDocumentation != "https://docs.example.test/mcp" {
+		t.Errorf("resource_documentation = %q, want the config-fed URL", doc.ResourceDocumentation)
+	}
+	if doc.EshuPreregisteredClientID != "0oaPreRegClientId" {
+		t.Errorf("eshu_preregistered_client_id = %q, want the config-fed client id", doc.EshuPreregisteredClientID)
+	}
+
+	// omitempty: a handler without those fields must not emit the JSON keys.
+	bare := &OAuthProtectedResourceHandler{
+		Providers: handler.Providers,
+		TenantID:  "default",
+		Resource:  "https://eshu.example.test",
+		Issuers:   handler.Issuers,
+	}
+	bareMux := http.NewServeMux()
+	bare.Mount(bareMux)
+	bareRec := httptest.NewRecorder()
+	bareMux.ServeHTTP(bareRec, httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil))
+	body := bareRec.Body.String()
+	if strings.Contains(body, "resource_documentation") || strings.Contains(body, "eshu_preregistered_client_id") {
+		t.Errorf("unset extension fields leaked into document: %s", body)
 	}
 }
 

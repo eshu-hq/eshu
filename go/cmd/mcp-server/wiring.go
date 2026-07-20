@@ -163,6 +163,26 @@ func wireAPI(
 	scopedTokenResolver := scopedtoken.ChainResolvers(identityResolver, oidcBearerResolver, fileScopedTokenResolver)
 	logAuthEnforcementPosture(logger, authSourceConfigured)
 
+	// F-2 (issue #5163) OAuth 2.1 discovery. The provider/policy stores feed the
+	// SAME DeriveAuthPosture the login picker uses; the issuer lister is the
+	// bearer resolver itself (it structurally implements
+	// query.OAuthAuthorizationServerLister). oauthChallengePolicy is threaded
+	// into the credential middleware below (a nil interface when discovery is
+	// disabled, keeping 401s byte-identical), and oauthDiscoveryHandler is
+	// mounted unauthenticated on adminMux after mountRuntimeSurface.
+	identitySubjectStore := pgstatus.NewIdentitySubjectStore(pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db}))
+	var oauthIssuerLister query.OAuthAuthorizationServerLister
+	if lister, ok := oidcBearerResolver.(query.OAuthAuthorizationServerLister); ok {
+		oauthIssuerLister = lister
+	}
+	oauthDiscoveryHandler, oauthChallengePolicy := buildMCPOAuthDiscovery(
+		getenv,
+		&mcpAuthProviderStore{identity: identitySubjectStore},
+		&mcpSignInPolicyStore{identity: identitySubjectStore},
+		oauthIssuerLister,
+		logger,
+	)
+
 	// Build query layer
 	neo4jReader := query.NewNeo4jReader(driver, neo4jDB)
 	contentReader := query.NewContentReader(db)
@@ -217,7 +237,7 @@ func wireAPI(
 	// with auth middleware (shared token + optional scoped-token registry;
 	// protects all /api/v0/* routes when mounted by MCP server)
 	instrumentedMux := query.RequestMetricsMiddleware(mux)
-	authedHandler := buildTransportAuthMiddleware(apiKey, scopedTokenResolver, governanceAudit, authSourceConfigured)(instrumentedMux)
+	authedHandler := buildTransportAuthMiddleware(apiKey, scopedTokenResolver, governanceAudit, authSourceConfigured, oauthChallengePolicy)(instrumentedMux)
 
 	adminMux, err := mountRuntimeSurface("mcp-server", statusReader, prometheusHandler, db, driver)
 	if err != nil {
@@ -226,6 +246,15 @@ func wireAPI(
 			_ = driver.Close(ctx)
 		}
 		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("mount runtime surface: %w", err)
+	}
+
+	// Mount the unauthenticated RFC 9728 discovery route(s) on the base
+	// adminMux, which server.httpMux serves directly (unlike /sse, /mcp/message,
+	// and /api/, which are credential-gated). An anonymous MCP client must be
+	// able to fetch this document to learn where to authenticate. Nil when
+	// discovery is disabled (ESHU_AUTH_RESOURCE_URI unset or invalid).
+	if oauthDiscoveryHandler != nil {
+		oauthDiscoveryHandler.Mount(adminMux)
 	}
 
 	cleanup := func() {
@@ -244,7 +273,7 @@ func wireAPI(
 	// initialize/tools/list/ping/SSE-establishment request instead of serving
 	// it open.
 	authWiring := mcpAuthWiring{
-		transportAuth:              buildTransportAuthMiddleware(apiKey, scopedTokenResolver, governanceAudit, authSourceConfigured),
+		transportAuth:              buildTransportAuthMiddleware(apiKey, scopedTokenResolver, governanceAudit, authSourceConfigured, oauthChallengePolicy),
 		credentialSourceConfigured: authSourceConfigured,
 	}
 
@@ -262,10 +291,11 @@ func buildTransportAuthMiddleware(
 	scopedTokenResolver query.ScopedTokenResolver,
 	governanceAudit query.GovernanceAuditAppender,
 	authSourceConfigured bool,
+	oauthChallenge query.OAuthChallengePolicy,
 ) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		return query.AuthMiddlewareWithScopedTokensGovernanceAuditAndEnforcement(
-			apiKey, scopedTokenResolver, next, governanceAudit, authSourceConfigured,
+		return query.AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementAndOAuthChallenge(
+			apiKey, scopedTokenResolver, next, governanceAudit, authSourceConfigured, oauthChallenge,
 		)
 	}
 }

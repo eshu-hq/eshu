@@ -61,6 +61,18 @@ type OAuthProtectedResourceMetadata struct {
 	// ResourceName is the RFC 9728 RECOMMENDED human-readable name shown by
 	// a client's consent/connection UI.
 	ResourceName string `json:"resource_name,omitempty"`
+	// ResourceDocumentation is the RFC 9728 OPTIONAL URL of human-readable
+	// documentation for this resource. Config-fed (ESHU_AUTH_RESOURCE_DOCUMENTATION);
+	// omitted when unset.
+	ResourceDocumentation string `json:"resource_documentation,omitempty"`
+	// EshuPreregisteredClientID is an RFC 9728 section 2 extension member
+	// (extension members are explicitly permitted): the OAuth client_id a
+	// deployment has pre-registered with its authorization server for MCP
+	// clients that cannot perform dynamic client registration (an Okta custom
+	// authorization server offers no anonymous DCR). Informational only — a
+	// client copies it into its own client-registration field. Config-fed
+	// (ESHU_AUTH_PREREGISTERED_CLIENT_ID); omitted when unset.
+	EshuPreregisteredClientID string `json:"eshu_preregistered_client_id,omitempty"`
 }
 
 // OAuthChallengePolicy supplies the per-request RFC 9728/RFC 6750 OAuth
@@ -129,11 +141,14 @@ type OAuthProtectedResourceHandler struct {
 	// feature), so the route answers 404 even if legacy OIDC/SAML browser
 	// login providers exist without bearer-token support wired.
 	Resource string
-	// ScopesSupported and ResourceName are copied verbatim into the served
-	// document when non-empty; see their identically named
-	// OAuthProtectedResourceMetadata fields.
-	ScopesSupported []string
-	ResourceName    string
+	// ScopesSupported, ResourceName, ResourceDocumentation, and
+	// PreregisteredClientID are copied verbatim into the served document when
+	// non-empty; see their identically named OAuthProtectedResourceMetadata
+	// fields (PreregisteredClientID maps to eshu_preregistered_client_id).
+	ScopesSupported       []string
+	ResourceName          string
+	ResourceDocumentation string
+	PreregisteredClientID string
 }
 
 // Mount registers the discovery routes. Both a root route and an RFC 9728
@@ -216,11 +231,13 @@ func (h *OAuthProtectedResourceHandler) serveMetadata(w http.ResponseWriter, r *
 
 	w.Header().Set("Cache-Control", "public, max-age=60")
 	WriteJSON(w, http.StatusOK, OAuthProtectedResourceMetadata{
-		Resource:               h.Resource,
-		AuthorizationServers:   issuers,
-		BearerMethodsSupported: []string{"header"},
-		ScopesSupported:        h.ScopesSupported,
-		ResourceName:           h.ResourceName,
+		Resource:                  h.Resource,
+		AuthorizationServers:      issuers,
+		BearerMethodsSupported:    []string{"header"},
+		ScopesSupported:           h.ScopesSupported,
+		ResourceName:              h.ResourceName,
+		ResourceDocumentation:     h.ResourceDocumentation,
+		EshuPreregisteredClientID: h.PreregisteredClientID,
 	})
 }
 
