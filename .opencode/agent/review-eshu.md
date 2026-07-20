@@ -116,7 +116,7 @@ permission:
     "bash scripts/test-verify-*": allow
     "scripts/verify-*": allow
     "scripts/test-verify-*": allow
-    "./scripts/verify-*": allow
+    "gh api graphql *": allow
     "./scripts/test-verify-*": allow
     "uv run --with mkdocs*mkdocs build *": allow
     "npx prettier --check *": allow
