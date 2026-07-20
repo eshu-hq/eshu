@@ -5,12 +5,15 @@
 # phantom/renamed/moved Go test function, a subtest-form citation, or an
 # unresolved fixture path (#5406).
 #
-# Cases 1-8 build a scratch repo_root under mktemp and point the verifier at
+# Cases 1-11 build a scratch repo_root under mktemp and point the verifier at
 # it via ESHU_DOC_CITATIONS_REPO_ROOT (repo root, docs root, and existence-
 # check root all derive from it) so a real-tree regeneration never touches
-# the committed baseline. Cases 9-10 run against the actual repo tree to
-# prove the committed scripts/docs-citations-baseline.txt is both sufficient
-# and not stale.
+# the committed baseline. Cases 12-14 run against the actual repo tree: 12
+# proves it passes with the committed scripts/docs-citations-baseline.txt, 13
+# proves that baseline is not stale (byte-identical to a fresh regeneration,
+# via ESHU_DOC_CITATIONS_BASELINE_PATH redirecting only the write target), and
+# 14 asserts the real-tree scan meets a citation floor so a regex/glob
+# regression that silently zeroes the scan cannot pass unnoticed.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"

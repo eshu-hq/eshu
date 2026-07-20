@@ -941,11 +941,18 @@ gates:
       command: "bash scripts/verify-doc-citations.sh"
       test_command: "bash scripts/test-verify-doc-citations.sh"
     ci:
-      workflow: ""
-      job: ""
+      workflow: static-contract-gates.yml
+      job: "Verify doc-citations gate"
     requirements: []
     ci_only_reason: ""
-    local_only_reason: "New gate for issue #5406; not yet wired into a CI workflow job. Follows the docs-contradiction/mcp-client-auth-doc precedent: register local-first (category exactness + tier pre-pr, so make pre-pr runs it -- the #5340 lesson that category:docs is never run by any lane), then wire a static-contract-gates.yml job (the docs-refs pattern) once proven stable. The go/internal/**/*_test.go and tests/fixtures/** triggers (beyond the doc pages themselves) are deliberate: a test-file split or fixture move must re-run this gate in the SAME PR that causes the drift, not wait for someone to notice a stale citation later."
+    # Wired into CI (static-contract-gates.yml, the same lane as docs-refs)
+    # because this is a blocking recurrence-prevention gate: a PR that edits a
+    # cited doc, renames a Go test, or moves a fixture MUST run this gate in CI,
+    # or a phantom citation could merge with all required checks green (CLAUDE.md:
+    # CI is the non-bypassable source of truth). The go/internal/**/*_test.go and
+    # tests/fixtures/** triggers (beyond the doc pages themselves) are deliberate:
+    # a test-file split or fixture move must re-run this gate in the SAME PR that
+    # causes the drift, not wait for someone to notice a stale citation later.
 
   - id: mcp-client-auth-doc
     name: MCP client-auth doc lockstep guard
