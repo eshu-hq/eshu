@@ -59,3 +59,15 @@ func TestValidateAdminDSNAcceptsExplicitPostgresAdminTarget(t *testing.T) {
 		t.Fatalf("database = %q, want postgres", config.Database)
 	}
 }
+
+func TestMissingAdminDSNSkipMessageIsGeneric(t *testing.T) {
+	t.Parallel()
+
+	message := missingAdminDSNSkipMessage()
+	if strings.Contains(message, "ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN") {
+		t.Fatalf("skip message keeps a caller-specific environment variable: %q", message)
+	}
+	if !strings.Contains(message, "disposable PostgreSQL proof DSN") {
+		t.Fatalf("skip message = %q, want generic disposable proof guidance", message)
+	}
+}

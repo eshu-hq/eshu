@@ -4,6 +4,7 @@
 package postgres
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -16,21 +17,29 @@ func TestDocumentationReadIndexFinalSchemaMatchesCurrentQueries(t *testing.T) {
 		documentationFactRecordReadIndexesSQL,
 		"fact_records_documentation_findings_read_idx",
 	)
-	for _, want := range []string{
-		"fact_kind = 'documentation_finding'",
-		"is_tombstone = FALSE",
-		"(payload->>'finding_type')",
-		"observed_at DESC",
-		"fact_id DESC",
-	} {
-		if !strings.Contains(findingsDDL, want) {
-			t.Errorf("documentation findings index missing %q:\n%s", want, findingsDDL)
-		}
+	if err := validateDocumentationFindingReadIndexForTest(findingsDDL); err != nil {
+		t.Errorf("final documentation findings index: %v", err)
 	}
 	for _, stale := range documentationFindingACLIndexPredicatesForTest() {
 		if strings.Contains(findingsDDL, stale) {
 			t.Errorf("documentation findings index keeps stale ACL predicate %q:\n%s", stale, findingsDDL)
 		}
+	}
+
+	definitions := BootstrapDefinitions()
+	create, ok := definitionByPathForTest(
+		definitions,
+		"go/internal/storage/postgres/migrations/064_create_documentation_findings_read_idx.sql",
+	)
+	if !ok {
+		t.Fatal("documentation findings replacement migration is missing")
+	}
+	if err := validateDocumentationFindingReadIndexForTest(create.SQL); err != nil {
+		t.Errorf("replacement migration documentation findings index: %v", err)
+	}
+	if got, want := documentationFindingReadIndexShapeForTest(create.SQL),
+		documentationFindingReadIndexShapeForTest(findingsDDL); got != want {
+		t.Errorf("replacement migration and final schema differ\nmigration: %s\nfinal:     %s", got, want)
 	}
 
 	for _, forbidden := range []string{
@@ -40,6 +49,30 @@ func TestDocumentationReadIndexFinalSchemaMatchesCurrentQueries(t *testing.T) {
 		if strings.Contains(documentationFactRecordReadIndexesSQL, forbidden) {
 			t.Errorf("final documentation schema keeps rejected or legacy index %q", forbidden)
 		}
+	}
+}
+
+func TestDocumentationReadIndexContractRejectsEveryMissingKey(t *testing.T) {
+	t.Parallel()
+
+	findingsDDL := indexStatementForTest(
+		t,
+		documentationFactRecordReadIndexesSQL,
+		"fact_records_documentation_findings_read_idx",
+	)
+	for _, term := range documentationFindingReadIndexOrderedTermsForTest() {
+		term := term
+		t.Run(term, func(t *testing.T) {
+			t.Parallel()
+			normalized := strings.ToLower(findingsDDL)
+			mutated := strings.Replace(normalized, term, "'removed_index_term'", 1)
+			if mutated == normalized {
+				t.Fatalf("test fixture does not contain ordered term %q", term)
+			}
+			if err := validateDocumentationFindingReadIndexForTest(mutated); err == nil {
+				t.Fatalf("index contract accepted definition without %q", term)
+			}
+		})
 	}
 }
 
@@ -132,6 +165,57 @@ func documentationFindingACLIndexPredicatesForTest() []string {
 		"source_acl_evaluated",
 		"permission_decision",
 	}
+}
+
+func documentationFindingReadIndexOrderedTermsForTest() []string {
+	return []string{
+		"'finding_type'",
+		"'source_id'",
+		"'document_id'",
+		"'status'",
+		"'truth_level'",
+		"'freshness_state'",
+		"observed_at desc",
+		"fact_id desc",
+	}
+}
+
+func validateDocumentationFindingReadIndexForTest(definition string) error {
+	normalized := strings.ToLower(strings.Join(strings.Fields(definition), " "))
+	previous := -1
+	for _, term := range documentationFindingReadIndexOrderedTermsForTest() {
+		position := strings.Index(normalized, term)
+		if position < 0 {
+			return fmt.Errorf("missing ordered term %q", term)
+		}
+		if position <= previous {
+			return fmt.Errorf("ordered term %q appears out of order", term)
+		}
+		previous = position
+	}
+	for _, predicate := range []string{
+		"fact_kind = 'documentation_finding'",
+		"is_tombstone = false",
+	} {
+		if !strings.Contains(normalized, predicate) {
+			return fmt.Errorf("missing partial-index predicate %q", predicate)
+		}
+	}
+	return nil
+}
+
+func documentationFindingReadIndexShapeForTest(definition string) string {
+	normalized := strings.ToLower(strings.Join(strings.Fields(definition), " "))
+	start := strings.Index(normalized, " on fact_records ")
+	if start < 0 {
+		return normalized
+	}
+	shape := strings.TrimSuffix(normalized[start:], ";")
+	return strings.NewReplacer(
+		"( ", "(",
+		" )", ")",
+		", ", ",",
+	).Replace(shape)
 }
 
 func indexStatementForTest(t *testing.T, ddl string, indexName string) string {

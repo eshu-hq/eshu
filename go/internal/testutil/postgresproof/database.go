@@ -30,7 +30,7 @@ func OpenDisposableDatabase(
 ) (context.Context, *sql.DB) {
 	t.Helper()
 	if strings.TrimSpace(adminDSN) == "" {
-		t.Skip("ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN is not set")
+		t.Skip(missingAdminDSNSkipMessage())
 	}
 	config, err := validateAdminDSN(adminDSN, optIn)
 	if err != nil {
@@ -75,6 +75,10 @@ func OpenDisposableDatabase(
 		_ = adminDB.Close()
 	})
 	return ctx, targetDB
+}
+
+func missingAdminDSNSkipMessage() string {
+	return "disposable PostgreSQL proof DSN is not set; see the calling test for its environment variable"
 }
 
 func validateAdminDSN(dsn, optIn string) (*pgx.ConnConfig, error) {

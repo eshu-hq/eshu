@@ -170,12 +170,12 @@ High-signal invariants for this package:
   expression index because the measured candidates imposed too much write cost.
 
 Performance Evidence: on 200,000 representative finding rows, the stale index
-predicate required 26.286 ms; the corrected index completed the same read in
-0.129 ms. Search-index candidates for the five-field documentation-fact query
-were rejected because the best retained-data read shape increased a
-production-shaped 10,000-row write from 85.396 ms to 570.137 ms on repeat runs.
-The slowest retained search completed in 620.585 ms, within the 2-3 second
-interactive target, so the accepted change does not alter free-text search.
+predicate required 13.745 ms; the corrected index completed the same read in
+0.319 ms. Search-index candidates for the five-field documentation-fact query
+were rejected because the fastest 1.6-million-row read shape increased a
+production-shaped 10,000-row write from 91.946 ms to 423.593 ms on repeat runs.
+The production-shaped search completed in 1,121.505 ms on the named local proof
+profile, so the accepted change does not alter free-text search.
 The full measurements and rejected-candidate ledger are in
 [`docs/internal/evidence/5275-documentation-query-plans.md`](../../../../docs/internal/evidence/5275-documentation-query-plans.md).
 
