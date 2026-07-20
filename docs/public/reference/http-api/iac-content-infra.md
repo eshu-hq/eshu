@@ -635,29 +635,55 @@ materialized (see [SQL parser](../../languages/sql.md) and
 [Edge Source-Tool Provenance](../edge-source-tool-provenance.md)).
 
 For `crossplane_xrd`, `coverage` lists `CONTAINS` (materialized) and
-`SATISFIED_BY` (claim -> XRD; **not** materialized — no graph writer emits
-it). `complete` is therefore always `false` for `crossplane_xrd` today: the
-query still returns whatever it can reach through `CONTAINS`/`REPO_CONTAINS`,
-but the claim -> XRD hop it also needs is unmaterialized, so `affected_count`
-must not be read as a complete answer (see
+`SATISFIED_BY` (Claim -> XRD; materialized as of issue #5347 —
+`cypher.CrossplaneSatisfiedByEdgeWriter` MERGEs it). `complete` is therefore
+`true` for `crossplane_xrd`: both edge types the surface conceptually covers
+now have a real writer (see
 [Crossplane parser](../../languages/crossplane.md#known-limitations) and
-[Edge Source-Tool Provenance](../edge-source-tool-provenance.md)). Wiring a
-`SATISFIED_BY` writer is tracked in eshu-hq/eshu#5347.
+[Edge Source-Tool Provenance](../edge-source-tool-provenance.md)).
 
 Other `target_type` values (`repository`, `terraform_module`) have no
 registered coverage gap in this contract and report `complete: true` with an
 empty `coverage` array.
 
-No-Regression Evidence: the `crossplane_xrd` coverage fix (#5331) does not
-touch `blastRadiusCrossplaneCypher` — the Cypher statement text is byte-for-byte
-unchanged. It adds `crossplaneXrdBlastRadiusCoverage()`, a Go-side registry
-lookup over a fixed 2-element edge-type slice (`CONTAINS`, `SATISFIED_BY`),
-O(1) in practice, called once per `blastRadiusAffected` invocation alongside
-the existing sql_table coverage lookup this same function already performs.
-No new query, traversal, or write is introduced.
-No-Observability-Change: the `complete`/`coverage` response fields already
-existed (#5330); this change only corrects the value `crossplane_xrd` reports
-through them. No new metric, span, or log was added or removed.
+Performance Evidence (issue #5347): `blastRadiusCrossplaneCypher`'s claim-side
+match changed from `(claim:CrossplaneClaim)` to `(claim:K8sResource)` — same
+uid-anchored MATCH shape and hop count (`xrd` -> `claim` via `SATISFIED_BY` ->
+`f:File` via `CONTAINS` -> `repo:Repository` via `REPO_CONTAINS`), same
+`xrd.kind CONTAINS $target_name OR xrd.name CONTAINS $target_name` anchor
+predicate (unindexed `CONTAINS` was already the query's pre-existing
+selectivity shape, not introduced by this change), same `min(claim.name)`
+dedup-before-`LIMIT`. K8sResource is a materialized-entity label already
+carrying the same uid property CrossplaneClaim would have, so the label swap
+changes zero index/anchor behavior — a pure correctness fix (the old label
+matched zero nodes under the edge-only SATISFIED_BY model), not a shape
+change, so no before/after benchmark applies.
+`CrossplaneSatisfiedByEdgeWriter.WriteCrossplaneSatisfiedByEdges` mirrors
+`KubernetesCorrelationEdgeWriter.WriteKubernetesCorrelationEdges`'s proven
+`UNWIND $rows AS row MATCH ... MATCH ... MERGE` batched-write shape
+byte-for-byte (fixed relationship type, two uid-indexed MATCHes before the
+MERGE, `DefaultBatchSize` batching); `RetractCrossplaneSatisfiedByEdges`
+mirrors `RetractKubernetesCorrelationEdges`'s scope_id+evidence_source-scoped
+DELETE dispatched through sequential `Execute` (never `ExecuteGroup`, per the
+NornicDB v1.1.11 managed-transaction-DELETE pitfall). The reducer-side
+resolution (`ExtractCrossplaneSatisfiedByEdgeRows`) is a single-pass in-memory
+hash join keyed by `(group, kind)`, the same O(n) complexity class as the
+proven `kubernetesCorrelationEdgeRows`/`BuildSourceImageDigestJoinIndex`
+digest join it mirrors — no nested loop over candidates x XRDs.
+No-Regression Evidence: no wall-clock measurement against a live k8s-heavy
+corpus was captured in this change (tracked as an open item; see the PR
+description for the specific gap). The complexity argument above (O(n)
+hash-join, identical MATCH-MATCH-MERGE shape to the already-proven RUNS_IMAGE
+writer) is the basis for shipping without one; a follow-up should capture the
+actual correlation-pass duration on the worst-case k8s-heavy scope (the
+candidate set here is every generic k8s_resources row in a generation, wider
+than RUNS_IMAGE's pod-template-only candidate set).
+Observability Evidence: the new `eshu_dp_crossplane_satisfied_by_edges_total`
+counter (resolution_mode-dimensioned) and the
+`reducer.crossplane_satisfied_by_materialization` span are registered in
+`go/internal/telemetry/instruments.go` and `contract.go` and documented in
+`docs/public/observability/telemetry-coverage.md`; the completion log records
+`edge_count` and `ambiguous_skipped` per generation.
 
 `/impact/change-surface/investigate` accepts one graph target family
 (`target` + `target_type`, `service_name`, `workload_id`, `resource_id`, or
