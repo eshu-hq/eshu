@@ -201,9 +201,81 @@ BenchmarkShim5363AllPairs-12             5 4548448725 ns/op  1231801737 B/op 125
 | T2b: directed via k8sSelectMatch as-is | Go bench | — | 16.13 ms/op | matches=3 asserted | pure CPU | proven-but-must-hoist-parse |
 | T2c: all-pairs Option A | Go bench, 5003 rows | 4548 ms/op | — | ≥3 rels asserted | pure CPU | **rejected** (on-file disproof) |
 
-## No-Observability-Change
+## No-Observability-Change (theory-proof phase)
 
-No-Observability-Change: this is a measurement-only theory-proof artifact. No
-production spans/metrics/logs added or removed; no production code changed. The
-throwaway shim container and `zz_shim5363_bench_test.go` were removed; the
-committed diff is this evidence file only.
+No-Observability-Change: the SHIM phase above is a measurement-only theory-proof
+artifact. No production spans/metrics/logs were added or removed while proving
+the theory; no production code changed. The throwaway shim container and
+`zz_shim5363_bench_test.go` were removed; that phase's committed diff was this
+evidence file only.
+
+---
+
+## Finished-change local proof (#5363 implementation)
+
+This section records the proof of the *implemented* change (production code now
+written), separate from the theory proof above, per Mandatory Pre-PR Local Proof.
+
+### Correctness — failing-then-green regression
+
+- `TestImpactTraceK8sSelectWideningUnderLinkingRegression` FAILS on `origin/main`
+  (proven by copying the test into a throwaway `git worktree` at `origin/main`:
+  the differently-named selector-matching Service `web-svc` is never surfaced —
+  `rows` contains only the anchored Deployment) and PASSES on this branch. The
+  full proof matrix (widening, #5343 false-positive non-regression, namespace
+  strictness, pool purity at 5000 candidates, selector-absent + mixed-vintage
+  tri-state safety, frozen sub-surface, truncation disclosure + counter) is green
+  in `go test ./internal/query`.
+
+### Performance Evidence — final narrow SQL + hydration + matcher
+
+Same machine/backend profile as SHIM 1/2 above (Apple M4 Pro, `postgres:16` in
+Docker, throwaway container `eshu-5363-explain-shim` on host port `55433`, no
+persistent volume, `docker rm -f` after the run; same 18,000-row seed:
+`repo-1` = 6,000 K8sResource (3,000 Service + 3,000 Deployment with a 22-pair
+`pod_template_labels`) + 4,000 filler, plus `repo-2`/`repo-3` noise).
+
+Benchmark Evidence:
+
+- **Final `ListRepoK8sSelectCandidates` SQL** (the exact production query,
+  including the `coalesce(jsonb_typeof(metadata->'key') = 'string', false)`
+  tri-state presence columns), `LIMIT 5001`, 10 warm runs on the 6,000-K8s
+  worst-case partition: **p50 ≈ 7.6 ms, p95 ≈ 9.16 ms** server `Execution Time`.
+  Plan: `Index Scan using content_entities_repo_idx` (6,000 rows, 4,000 removed
+  by the `entity_type` filter, 2.2 ms) → `quicksort` of narrow 166-byte-width
+  rows (2,102 kB). This is the narrow-projection win the shim predicted: the
+  wide-projection variant top-N heapsorted the metadata JSONB at ~25 ms; the
+  final narrow shape is **≤ 15 ms p95** as required (no index added — #5490).
+- **Hydration `ListRepoEntitiesByIDs` SQL** (`entity_id = ANY($2)`, 5 matched
+  IDs), 5 warm runs: **≈ 0.07 ms** server `Execution Time` — well under the
+  ≤ 2 ms bar (PK/`content_entities_repo_entity_idx` lookup, no sort cost).
+- **Committed matcher benchmark** `BenchmarkK8sWorkloadMatchTargetDirectedScan`
+  (prepared target parsed ONCE, 5,000 candidate Services, 20-label workload, all
+  same namespace — matcher worst case): **1.57 ms/op**, 15,005 allocs/op on
+  `go1.26 darwin/arm64`, Apple M4 Pro — under the 10 ms/op bar and consistent
+  with the shim's 5.57 ms/op directed-pre-parsed result (the shim carried three
+  workloads; this loop carries one). This is the enforcement of the D2 pre-parse
+  requirement; there is no CI wall-clock assert (flake generator).
+
+No-Regression Evidence: the change is additive on the surfaced pool. For a repo
+with no new selector match the surfaced `rows`, `image_refs`, and every
+pre-existing `k8s_resource_limits` value are byte-identical (asserted by
+`TestImpactTraceK8sSelectWideningFrozenSubSurfaceOnNoMatch`); the directed scan
+is skipped entirely when the anchored pool has no Deployment target, so the
+common path pays nothing.
+
+### Observability Evidence
+
+Observability Evidence: the truncation of the directed SELECTS candidate scan is
+now disclosed on the impact-trace surface. On a sentinel hit,
+`fetchK8sSelectMatchedServiceIDs` sets `k8s_relationships_complete=false` with
+reason `k8s_select_candidate_pool_truncated` in the `k8s_resource_limits` map
+(both `k8s_relationships_complete` and `k8s_select_candidate_sentinel_limit` are
+always present so clients can read completeness on every response), emits a
+`WarnContext` log carrying `repo_id`, and increments the existing
+`eshu_dp_query_k8s_select_candidate_scan_truncated_total` counter with the single
+bounded `reason` attribute (`repo_id` is deliberately kept out of the metric to
+stay low-cardinality). Asserted end-to-end by
+`TestImpactTraceK8sSelectWideningTruncationDisclosure` via a manual metric
+reader. Concurrency: both new reads are read-only; no lock/lease/queue path is
+touched, so no concurrency proof is required.

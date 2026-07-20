@@ -527,6 +527,7 @@ catalog; per-route variants share the same `route` label dimension.
 | Webhooks | go/cmd/webhook-listener/handler.go:368 | `eshu_dp_webhook_requests_total`, `eshu_dp_webhook_trigger_decisions_total`, `eshu_dp_webhook_store_operations_total`, `eshu_dp_webhook_request_duration_seconds`, `eshu_dp_webhook_store_duration_seconds` | webhook surface |
 | Infra relationships and relationship-catalog breakdown limiter | go/internal/query/relationships_catalog.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total`, `eshu_dp_relationship_breakdown_permit_wait_seconds`, `eshu_dp_relationship_breakdown_queued`, `eshu_dp_relationship_breakdown_in_flight` | query infra |
 | Entity context k8s SELECTS candidate-scan truncation disclosure (#5343 follow-up #5367) | go/internal/query/entity_context_content.go:54 | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total`, `eshu_dp_query_k8s_select_candidate_scan_truncated_total` | query content |
+| Impact-trace directed k8s SELECTS candidate-pool truncation disclosure (#5363 follow-up #5367) | go/internal/query/impact_trace_deployment_k8s_select.go:166 | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total`, `eshu_dp_query_k8s_select_candidate_scan_truncated_total` | query impact |
 | MCP transport auth denials -- initialize/tools/list/tools/call/ping/SSE session establishment/SSE session-hijack rejection (#5168) | go/internal/mcp/transport_auth.go | `eshu_dp_mcp_transport_auth_denied_total` | mcp transport |
 
 <!-- eshu:metric:section=otel-span-names -->

@@ -19,6 +19,9 @@ const openAPIImpactK8sResourceLimits = `
                         "deployment_source_observed_count": {"type": "integer"},
                         "deployment_source_observed_count_is_lower_bound": {"type": "boolean"},
                         "truncated": {"type": "boolean"},
-                        "ordering": {"type": "array", "items": {"type": "string"}}
+                        "ordering": {"type": "array", "items": {"type": "string"}},
+                        "k8s_select_candidate_sentinel_limit": {"type": "integer", "description": "Directed SELECTS candidate-scan limit, including the one-row truncation probe (issue #5363). Always present."},
+                        "k8s_relationships_complete": {"type": "boolean", "description": "Always present. False only when the directed SELECTS candidate scan hit the repository entity ceiling (issue #5363 follow-up #5367), so some selector-matching Services may be missing from the surfaced pool; true otherwise."},
+                        "k8s_relationships_incomplete_reason": {"type": "string", "description": "Machine-readable reason paired with k8s_relationships_complete=false. Present only when the candidate scan truncated.", "enum": ["k8s_select_candidate_pool_truncated"]}
                       }
                     },`
