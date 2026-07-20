@@ -25,8 +25,12 @@ import "fmt"
 // predicate (source label + repo/path anchor + rel.evidence_source) already
 // bounds each statement to this domain's edges, so the broad rel-type list
 // cannot over-delete — it exists so every (source label, relationship type)
-// pair the write path can create is retractable.
-const sqlRelationshipRetractRelTypes = "QUERIES_TABLE|REFERENCES_TABLE|HAS_COLUMN|TRIGGERS|EXECUTES|INDEXES"
+// pair the write path can create is retractable. READS_FROM was added and
+// REFERENCES_TABLE was kept (#5345): the write path no longer produces
+// REFERENCES_TABLE (see sqlRelationshipWriteReasons), but a superset retract
+// is legal and cheap hygiene that also reaps any pre-#5345 REFERENCES_TABLE
+// edges still in the graph from the SqlView/SqlFunction source_tables writer.
+const sqlRelationshipRetractRelTypes = "QUERIES_TABLE|REFERENCES_TABLE|READS_FROM|HAS_COLUMN|TRIGGERS|EXECUTES|INDEXES"
 
 // sqlRelationshipRetractSourceLabels lists the source node labels a SQL
 // relationship edge retract must cover. It MUST include every label the write
@@ -87,12 +91,12 @@ var sqlRelationshipEntityLabels = map[string]struct{}{
 // TestSQLRelationshipRetractCoversEveryWriteRelationshipType — or its edges
 // would be written but never retracted.
 var sqlRelationshipWriteReasons = map[string]string{
-	"QUERIES_TABLE":    "Parser embedded SQL evidence resolved a function table query edge",
-	"REFERENCES_TABLE": "SQL entity metadata resolved a table reference edge",
-	"HAS_COLUMN":       "SQL entity metadata resolved a table-column containment edge",
-	"TRIGGERS":         "SQL entity metadata resolved a trigger edge",
-	"EXECUTES":         "SQL trigger metadata resolved a routine execution edge",
-	"INDEXES":          "SQL entity metadata resolved an index-to-table edge",
+	"QUERIES_TABLE": "Parser embedded SQL evidence resolved a function table query edge",
+	"READS_FROM":    "SQL view/function metadata resolved a table read edge",
+	"HAS_COLUMN":    "SQL entity metadata resolved a table-column containment edge",
+	"TRIGGERS":      "SQL entity metadata resolved a trigger edge",
+	"EXECUTES":      "SQL trigger metadata resolved a routine execution edge",
+	"INDEXES":       "SQL entity metadata resolved an index-to-table edge",
 }
 
 // SQLRelationshipMaterializedEdgeTypes returns a defensive copy of
@@ -143,8 +147,6 @@ func buildSQLRelationshipRowMap(
 	switch relationshipType {
 	case "QUERIES_TABLE":
 		return batchCanonicalSQLQueriesTableUpsertCypher, rowMap, true
-	case "REFERENCES_TABLE":
-		return batchCanonicalSQLRelationshipUpsertCypher, rowMap, true
 	case "HAS_COLUMN":
 		return batchCanonicalSQLHasColumnUpsertCypher, rowMap, true
 	case "TRIGGERS":

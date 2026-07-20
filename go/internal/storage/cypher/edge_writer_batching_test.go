@@ -299,7 +299,7 @@ func TestEdgeWriterWriteEdgesSQLRelationshipsChunkManagedGroups(t *testing.T) {
 				"source_entity_id":  "entity:sql:view:1",
 				"target_entity_id":  "entity:sql:table:1",
 				"repo_id":           "repo-a",
-				"relationship_type": "REFERENCES_TABLE",
+				"relationship_type": "HAS_COLUMN",
 			},
 		},
 		{
@@ -309,7 +309,7 @@ func TestEdgeWriterWriteEdgesSQLRelationshipsChunkManagedGroups(t *testing.T) {
 				"source_entity_id":  "entity:sql:view:2",
 				"target_entity_id":  "entity:sql:table:2",
 				"repo_id":           "repo-a",
-				"relationship_type": "REFERENCES_TABLE",
+				"relationship_type": "HAS_COLUMN",
 			},
 		},
 		{
@@ -319,7 +319,7 @@ func TestEdgeWriterWriteEdgesSQLRelationshipsChunkManagedGroups(t *testing.T) {
 				"source_entity_id":  "entity:sql:view:3",
 				"target_entity_id":  "entity:sql:table:3",
 				"repo_id":           "repo-a",
-				"relationship_type": "REFERENCES_TABLE",
+				"relationship_type": "HAS_COLUMN",
 			},
 		},
 	}

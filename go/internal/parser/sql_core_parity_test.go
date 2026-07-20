@@ -99,6 +99,8 @@ LANGUAGE plpgsql;
 	procedure := assertBucketItemByName(t, got, "sql_functions", "public.archive_audit")
 	assertStringFieldValue(t, procedure, "routine_kind", "procedure")
 	assertStringFieldValue(t, procedure, "function_language", "plpgsql")
-	assertSQLRelationship(t, got, "READS_FROM", "public.archive_audit", "public.audit_archive")
+	// public.audit_archive is the INSERT target, not a read; a write must
+	// never be stamped as a READS_FROM edge (#5345).
+	assertSQLRelationshipMissing(t, got, "READS_FROM", "public.archive_audit", "public.audit_archive")
 	assertSQLRelationship(t, got, "READS_FROM", "public.archive_audit", "public.audit_logs")
 }

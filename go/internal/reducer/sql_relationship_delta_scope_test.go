@@ -52,7 +52,7 @@ func TestSQLRelationshipMaterializationHandlerScopesDeltaRetractToFiles(t *testi
 	if !reflect.DeepEqual(gotPaths, wantPaths) {
 		t.Fatalf("delta_file_paths = %#v, want %#v", gotPaths, wantPaths)
 	}
-	// The changed file's REFERENCES_TABLE edge still projects.
+	// The changed file's READS_FROM edge still projects.
 	if len(writer.edgeRows()) != 1 {
 		t.Fatalf("per-edge intents = %d, want 1", len(writer.edgeRows()))
 	}

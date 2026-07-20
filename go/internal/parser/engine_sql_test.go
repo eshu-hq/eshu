@@ -332,3 +332,30 @@ func assertSQLRelationship(
 		items,
 	)
 }
+
+// assertSQLRelationshipMissing asserts no relationship of relationshipType
+// from sourceName to targetName was emitted.
+func assertSQLRelationshipMissing(
+	t *testing.T,
+	payload map[string]any,
+	relationshipType string,
+	sourceName string,
+	targetName string,
+) {
+	t.Helper()
+
+	items, _ := payload["sql_relationships"].([]map[string]any)
+	for _, item := range items {
+		itemType, _ := item["type"].(string)
+		itemSource, _ := item["source_name"].(string)
+		itemTarget, _ := item["target_name"].(string)
+		if itemType == relationshipType && itemSource == sourceName && itemTarget == targetName {
+			t.Fatalf(
+				"sql_relationships unexpectedly contained type=%q source_name=%q target_name=%q",
+				relationshipType,
+				sourceName,
+				targetName,
+			)
+		}
+	}
+}

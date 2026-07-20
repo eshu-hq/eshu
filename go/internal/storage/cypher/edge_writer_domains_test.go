@@ -146,7 +146,7 @@ func TestEdgeWriterWriteEdgesSQLRelationshipDispatch(t *testing.T) {
 				"source_entity_type": "SqlView",
 				"target_entity_type": "SqlTable",
 				"repo_id":            "repo-a",
-				"relationship_type":  "REFERENCES_TABLE",
+				"relationship_type":  "READS_FROM",
 			},
 		},
 	}
@@ -158,8 +158,8 @@ func TestEdgeWriterWriteEdgesSQLRelationshipDispatch(t *testing.T) {
 	if got, want := len(executor.calls), 1; got != want {
 		t.Fatalf("executor calls = %d, want %d", got, want)
 	}
-	if !strings.Contains(executor.calls[0].Cypher, "REFERENCES_TABLE") {
-		t.Fatalf("cypher missing REFERENCES_TABLE: %s", executor.calls[0].Cypher)
+	if !strings.Contains(executor.calls[0].Cypher, "READS_FROM") {
+		t.Fatalf("cypher missing READS_FROM: %s", executor.calls[0].Cypher)
 	}
 	if !strings.Contains(executor.calls[0].Cypher, "MATCH (source:SqlView {uid: row.source_entity_id})") {
 		t.Fatalf("cypher missing exact source label match: %s", executor.calls[0].Cypher)
@@ -180,11 +180,16 @@ func TestEdgeWriterWriteEdgesSQLRelationshipDispatch(t *testing.T) {
 	if got, want := batchRows[0]["source_entity_id"], "entity:sql_view:my_view"; got != want {
 		t.Fatalf("source_entity_id = %v, want %v", got, want)
 	}
-	if got, want := batchRows[0]["relationship_type"], "REFERENCES_TABLE"; got != want {
+	if got, want := batchRows[0]["relationship_type"], "READS_FROM"; got != want {
 		t.Fatalf("relationship_type = %v, want %v", got, want)
 	}
 }
 
+// TestEdgeWriterWriteEdgesSQLRelationshipFallsBackForRowsWithoutEntityTypes
+// uses HAS_COLUMN (not READS_FROM) to exercise the entity-typeless fallback
+// path: after #5345, READS_FROM's only producer (the reducer) always sets
+// source_entity_type/target_entity_type, so it always hits the label-scoped
+// path and, like INDEXES, deliberately has no switch fallback case.
 func TestEdgeWriterWriteEdgesSQLRelationshipFallsBackForRowsWithoutEntityTypes(t *testing.T) {
 	t.Parallel()
 
@@ -199,7 +204,7 @@ func TestEdgeWriterWriteEdgesSQLRelationshipFallsBackForRowsWithoutEntityTypes(t
 				"source_entity_id":  "entity:sql_view:my_view",
 				"target_entity_id":  "entity:sql_table:users",
 				"repo_id":           "repo-a",
-				"relationship_type": "REFERENCES_TABLE",
+				"relationship_type": "HAS_COLUMN",
 			},
 		},
 	}
@@ -365,7 +370,7 @@ func TestBatchedWriteEdgesUsesUNWINDCypherIncludesNewDomains(t *testing.T) {
 		},
 		{
 			domain:   reducer.DomainSQLRelationships,
-			payload:  map[string]any{"source_entity_id": "s1", "target_entity_id": "t1", "relationship_type": "REFERENCES_TABLE"},
+			payload:  map[string]any{"source_entity_id": "s1", "target_entity_id": "t1", "relationship_type": "HAS_COLUMN"},
 			contains: "UNWIND $rows AS row",
 		},
 	}
