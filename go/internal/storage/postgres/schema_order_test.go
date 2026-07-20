@@ -86,4 +86,6 @@ var orderedBootstrapDefinitionNames = []string{
 	"content_entity_name_trgm_index",
 	"identity_github_login",
 	"code_root_verdicts",
+	"create_documentation_findings_read_idx",
+	"create_documentation_findings_filter_idx",
 }

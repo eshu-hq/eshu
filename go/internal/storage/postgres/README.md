@@ -161,9 +161,48 @@ High-signal invariants for this package:
   `(repo_id, ref_kind, name)` and default-ref index; writers replace only a
   fresh ref set carried by the current materialization so content-only
   generations do not erase branch metadata.
-- Documentation fact readbacks stay bounded by visible finding/source/packet
-  indexes plus `fact_records_documentation_target_refs_idx`, a partial JSONB GIN
-  index over documentation target-reference payloads.
+- Documentation finding reads retain three distinct partial indexes. Migration
+  065 creates the order-first index for the ordinary unfiltered page, migration
+  066 creates the filter-first index for fully selective six-filter pages, and the final schema
+  plus migration 003 retain `fact_records_documentation_findings_visible_idx`
+  for ACL-filtered total and grouped aggregate scans. Source, packet, and
+  target-reference reads retain their existing indexes. Free-text
+  `list_documentation_facts` search remains unchanged and has no dedicated
+  expression index because the measured candidates imposed too much write cost.
+
+Performance Evidence: the checked-in aggregate planner proof executes the
+production total, grouped, and inventory builders against a 200,000-row,
+5%-ACL-visible fixture and requires the aggregate-visible index. The opt-in
+live run selected it for total/grouped/inventory in 7.123/5.524/5.311 ms with
+10,000 rows, 10,351 shared hits, and zero shared reads per builder.
+On the same 200,000-row theory fixture, the production no-filter page moved
+from a 200.842 ms parallel scan and sort to a 0.202 ms order-index scan; the
+fully selective six-filter page moved from 19.229 ms to a 0.360 ms filter-index scan.
+Their 51-row and 66-row digests stayed identical. The exact 500-row production
+finding batch measured a 1.243x median write ratio for the final three-index
+shape, below the 1.50x rejection threshold.
+Search-index candidates for
+the five-field documentation-fact query were rejected because the fastest
+candidate increased the exact 500-row production batch median from 4.207 ms to
+9.257 ms (2.20x); the scoped candidate reached 9.786 ms (2.33x). The complete
+production search over 1.6 million rows completed in 1,503.519 ms on the named
+local proof profile, so the accepted change does not alter free-text search.
+The full measurements and rejected-candidate ledger are in
+[`docs/internal/evidence/5275-documentation-query-plans.md`](../../../../docs/internal/evidence/5275-documentation-query-plans.md).
+
+No-Regression Evidence: the unfiltered and fully selective list shapes return
+the same 51-row and 66-row digests before and after their indexes. The
+5%-visibility theory shim had bidirectional set difference 0/0 and digest
+`1f713158f4cc5b3d724244b56cbeb292`; the live production-builder proof
+independently returned the expected 10,000 visible rows. The live migration
+test keeps all three findings indexes valid through invalid-build recovery and
+proves repeated and concurrent bootstrap calls leave their definitions
+unchanged.
+
+No-Observability-Change: no metric, span, route, worker, queue, lease, or runtime
+setting changes. Operators continue to see both reads through `postgres.query`
+spans and `eshu_dp_postgres_query_duration_seconds`, with `db.operation` set to
+`list_documentation_findings` or `list_documentation_facts`.
 - Eshu search-document projection writes derived document facts and a persisted
   BM25 read index in the same reducer retry path. `eshu_search_index_documents`
   stores active-generation document payloads and lengths,

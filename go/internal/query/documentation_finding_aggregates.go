@@ -16,13 +16,12 @@ import (
 // status?" or "which sources have the most authoritative documentation?"
 // exposed by list_documentation_findings.
 //
-// All reads inherit the same permission predicates the list endpoint uses
-// (`viewer_can_read_source`, `source_acl_evaluated`,
-// `permission_decision`) so an aggregate cannot leak counts from documents
-// the caller is not allowed to read. The constants are mirrored verbatim
-// from `buildDocumentationFindingsSQL` (documentation_read_model.go) and
-// from the partial index in
-// `go/internal/storage/postgres/schema_fact_records.go`.
+// All reads apply `viewer_can_read_source`, `source_acl_evaluated`, and
+// `permission_decision` predicates in SQL so an aggregate cannot leak counts
+// from documents the caller is not allowed to read. The list route
+// intentionally differs: it retrieves those rows and applies honest redaction
+// and access disposition in Go. Both routes independently enforce caller
+// repository and scope authorization.
 type DocumentationFindingAggregateStore interface {
 	CountDocumentationFindings(context.Context, DocumentationFindingAggregateFilter) (DocumentationFindingAggregateCount, error)
 	DocumentationFindingInventory(

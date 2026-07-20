@@ -573,13 +573,13 @@ metric instrument.
 `DocumentationHandler` (`documentation.go`) also exposes cheap-summary
 aggregates over durable documentation finding facts through a separate
 Postgres aggregate read model (`documentation_finding_aggregates.go`). The
-aggregate scopes to `fact_kind = 'documentation_finding'` and inherits the
-same permission predicates the list endpoint uses
-(`viewer_can_read_source = true`, `source_acl_evaluated <> false`,
-`permission_decision <> denied`); skipping them would (a) miss the
-permission-gated partial index in
-`go/internal/storage/postgres/schema_fact_records.go` and (b) leak counts
-from documents the caller cannot read. `CountDocumentationFindings`
+aggregate scopes to `fact_kind = 'documentation_finding'` and applies
+`viewer_can_read_source = true`, `source_acl_evaluated <> false`, and
+`permission_decision <> denied` in SQL so grouped counts cannot disclose
+protected findings. The list route intentionally differs: it retrieves those
+rows and applies honest redaction and access disposition in Go rather than
+silently presenting them as absent. Both routes separately enforce the
+caller's repository and scope authorization. `CountDocumentationFindings`
 answers total + per-status + per-truth-level + per-freshness-state
 questions over an optional scope, finding_type, source_id, document_id,
 status, truth_level, or freshness_state scope.
@@ -587,12 +587,17 @@ status, truth_level, or freshness_state scope.
 one of the dimensions `status`, `truth_level`, `freshness_state`,
 `finding_type`, or `source_id`. The aggregate replaces the
 page-and-iterate caller workflow for ecosystem-level questions exposed by
-`list_documentation_findings`. No schema migration is needed; the
-existing partial index already covers all five grouping dimensions.
+`list_documentation_findings`. Migration 065 adds the order-first partial index
+for the ordinary unfiltered page, and migration 066 adds the filter-first
+partial index for fully selective six-filter pages. The final schema and migration 003 retain
+the distinct ACL-filtered aggregate-visible index. Its predicate exactly
+matches these total and grouped aggregate scans, while the ordered keys cover
+all five grouping dimensions plus `document_id`.
 
-The `/documentation/facts` surface — which fans out across multiple raw
-collected `fact_kind` values — is intentionally out of scope for this PR;
-its caller pain is on filtered retrieval rather than ecosystem totals.
+The `/documentation/facts` free-text surface was evaluated in this issue. Valid
+GIN candidates improved read latency, but the fastest option more than doubled
+the exact production streaming-write cost. The unchanged 1.6-million-row local
+search finished in 1.504 seconds, so no free-text index ships.
 
 No-Regression Evidence: `go test ./internal/query -run
 'TestDocumentationFindingAggregate|TestDocumentationFindingInventoryGroupExpression|TestNextDocumentationFindingAggregateOffset|TestDocumentationFindingAggregateSQLIncludesPermissionPredicates'

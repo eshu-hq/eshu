@@ -414,10 +414,9 @@ func TestDocumentationFindingAggregateBackendErrorsDoNotLeakDetails(t *testing.T
 
 // TestDocumentationFindingAggregateSQLIncludesPermissionPredicates is the
 // regression guard against a future refactor accidentally dropping the
-// permission predicates baked into the partial index. The aggregate must
-// inherit the same gates the list endpoint uses
-// (`viewer_can_read_source`, `source_acl_evaluated`, `permission_decision`),
-// otherwise it would surface counts from documents the caller cannot read.
+// aggregate-only SQL permission predicates. Unlike the list endpoint, which
+// retrieves protected rows and discloses them honestly with content withheld,
+// the aggregate must exclude those rows or it would leak protected counts.
 func TestDocumentationFindingAggregateSQLIncludesPermissionPredicates(t *testing.T) {
 	t.Parallel()
 
