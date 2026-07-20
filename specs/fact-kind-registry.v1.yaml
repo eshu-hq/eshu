@@ -202,7 +202,7 @@ families:
     reducer_domain: kubernetes_correlation
     projection_hook: kubernetes_correlation
     admission_hook: facts.ValidateSchemaVersion
-    read_surface: "GET /api/v0/cloud/resources"
+    read_surface: "GET /api/v0/kubernetes/correlations"
     truth_profile: provider_gated
     provider_key_independent: false
     payload_schema_overrides:

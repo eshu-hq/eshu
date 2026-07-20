@@ -2,8 +2,8 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 405,
-    "covered": 395,
+    "total": 406,
+    "covered": 396,
     "uncovered": 0,
     "unresolved": 0,
     "exempt": 10,
@@ -39,8 +39,8 @@
     },
     {
       "registry": "fact_kind_registry",
-      "total": 22,
-      "covered": 21,
+      "total": 23,
+      "covered": 22,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 1,
@@ -113,8 +113,8 @@
   "scenario_type_summaries": [
     {
       "scenario_type": "baseline",
-      "total": 215,
-      "covered": 210,
+      "total": 216,
+      "covered": 211,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 5,
@@ -1886,6 +1886,16 @@
       "ref": "GET /api/v0/incidents/PSCD1/context",
       "proof_gate": "golden-corpus-gate",
       "detail": "snapshot HTTP query shape \"GET /api/v0/incidents/PSCD1/context\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:GET /api/v0/kubernetes/correlations",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "GET /api/v0/kubernetes/correlations?cluster_id=supply-chain-demo\u0026limit=50",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"GET /api/v0/kubernetes/correlations?cluster_id=supply-chain-demo\u0026limit=50\""
     },
     {
       "registry": "fact_kind_registry",
