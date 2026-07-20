@@ -33,6 +33,24 @@ No-Observability-Change: pure string functions with no new I/O. All consumers
 surface their environment results through existing pipeline signals
 (reducer execution counters, query handler spans, HTTP route attribution).
 
+## Performance
+
+Benchmark Evidence: `BenchmarkWorkloadMaterializationSubDurations` (M5 Max,
+darwin/arm64, `-count=3`, NornicDB/Postgres not exercised by the benchmark)
+measured 121.8-162.4 ns/op, 256 B/op, 2 allocs/op with this package on the
+projection path — `Normalize`/`Canonical` are trim+lowercase+map-lookup and sit
+inside the existing per-row projection work.
+
+No-Regression Evidence: the full B-7 golden-corpus gate
+(`scripts/verify-golden-corpus-gate.sh`, 2026-07-20, branch
+5473-environment-alias-contract) passed 432/0 with the B-12 snapshot
+byte-identical to `origin/main`, proving corpus row-set equivalence; pipeline
+wall time 33s against the 900s budget (baseline 15s, ceiling 2x). Input shape:
+the 21-repo minimal corpus with B-10 cassettes; terminal state: snapshot diff
+empty. Safe because every migrated consumer delegates to the same alias data
+it used before (table-equality unit tests) and the two expected-delta sites
+(alias merge, case-fold) are pinned by dedicated regression tests.
+
 ## Gotchas / invariants
 
 - Unknown values pass through normalized — never rejected, never invented.
