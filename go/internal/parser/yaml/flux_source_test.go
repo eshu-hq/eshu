@@ -297,6 +297,100 @@ func TestParseFluxBucketCapturesBucketFields(t *testing.T) {
 	}
 }
 
+func TestIsFluxHelmRepository(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		apiVersion string
+		kind       string
+		want       bool
+	}{
+		{"flux v1 helm repository", "source.toolkit.fluxcd.io/v1", "HelmRepository", true},
+		{"flux v1beta2 helm repository", "source.toolkit.fluxcd.io/v1beta2", "HelmRepository", true},
+		{"flux group wrong kind", "source.toolkit.fluxcd.io/v1", "GitRepository", false},
+		{"generic group is not flux source", "example.com/v1", "HelmRepository", false},
+		{"empty apiVersion", "", "HelmRepository", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := isFluxHelmRepository(tc.apiVersion, tc.kind); got != tc.want {
+				t.Fatalf("isFluxHelmRepository(%q, %q) = %v, want %v", tc.apiVersion, tc.kind, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestParseFluxHelmRepositoryCapturesURLAndType proves the common case:
+// spec.url (required) and spec.type (default|oci, captured under repo_type --
+// deliberately NOT the generic key "type").
+func TestParseFluxHelmRepositoryCapturesURLAndType(t *testing.T) {
+	t.Parallel()
+
+	document := map[string]any{
+		"spec": map[string]any{
+			"url":  "oci://ghcr.io/acme/charts",
+			"type": "oci",
+		},
+	}
+	metadata := map[string]any{
+		"name":      "podinfo",
+		"namespace": "flux-system",
+	}
+
+	row := parseFluxHelmRepository(document, metadata, "/repo/helmrepository.yaml", 4)
+
+	if row["url"] != "oci://ghcr.io/acme/charts" {
+		t.Fatalf("url = %#v, want the oci url", row["url"])
+	}
+	if row["repo_type"] != "oci" {
+		t.Fatalf("repo_type = %#v, want oci", row["repo_type"])
+	}
+	if _, present := row["type"]; present {
+		t.Fatalf("row[type] = %#v, want absent; the generic \"type\" key must never be used (repo_type only)", row["type"])
+	}
+}
+
+// TestParseFluxHelmRepositoryOmitsAbsentFields proves an absent spec.type
+// (Flux defaults to "default" server-side, but the parser never fabricates
+// the default) and absent spec.url are both omitted, never fabricated.
+func TestParseFluxHelmRepositoryOmitsAbsentFields(t *testing.T) {
+	t.Parallel()
+
+	document := map[string]any{"spec": map[string]any{}}
+	metadata := map[string]any{"name": "bare"}
+
+	row := parseFluxHelmRepository(document, metadata, "/repo/bare.yaml", 1)
+
+	for _, key := range []string{"url", "repo_type"} {
+		if _, present := row[key]; present {
+			t.Fatalf("row[%q] = %#v, want absent when spec has no matching field", key, row[key])
+		}
+	}
+	if _, present := row["namespace"]; present {
+		t.Fatalf("namespace = %#v, want absent when metadata has no namespace (never fabricated)", row["namespace"])
+	}
+}
+
+// TestParseFluxHelmRepositoryGenerateNameOnly mirrors the sibling Flux
+// source-CR generateName invariant.
+func TestParseFluxHelmRepositoryGenerateNameOnly(t *testing.T) {
+	t.Parallel()
+
+	document := map[string]any{"spec": map[string]any{"url": "https://acme.github.io/charts"}}
+	metadata := map[string]any{"generateName": "podinfo-"}
+
+	row := parseFluxHelmRepository(document, metadata, "/repo/gen.yaml", 1)
+
+	if name, ok := row["name"]; !ok || name != "" {
+		t.Fatalf("name = %#v (present=%v), want empty string, never \"<nil>\"", row["name"], ok)
+	}
+	if row["generate_name"] != "podinfo-" {
+		t.Fatalf("generate_name = %#v, want podinfo-", row["generate_name"])
+	}
+}
+
 func TestParseFluxBucketOmitsAbsentFields(t *testing.T) {
 	t.Parallel()
 

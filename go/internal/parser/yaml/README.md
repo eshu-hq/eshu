@@ -56,6 +56,23 @@ registered content entities reachable through `get_entity_context` (issue
 `FluxKustomization` to its source CR is not materialized by this package --
 see `docs/public/languages/flux.md`.
 
+`flux_helm.go` owns the Flux HelmRelease custom resource
+(`helm.toolkit.fluxcd.io/*` apiVersion group, kind `HelmRelease`), captured in
+its own file rather than folded into `flux.go` to keep both files well under
+the package line limit. It captures `spec.chart.spec` (chart/version/sourceRef,
+the same `source_ref_kind/name/namespace` keys `flux.go` uses for
+Kustomization) OR `spec.chartRef` (kind/name/namespace, under DISTINCT
+`chart_ref_*` keys -- never folded into `source_ref_*`). `flux_source.go` also
+owns the Flux HelmRepository custom resource
+(`source.toolkit.fluxcd.io/*` apiVersion group, kind `HelmRepository`),
+capturing `spec.url` and `spec.type` (under `repo_type`, deliberately not the
+generic `type` key). Both new buckets (`flux_helm_releases`,
+`flux_helm_repositories`) are registered content entities reachable through
+`get_entity_context` (issue #5483 C1). The `RECONCILES_FROM` correlation edge
+extension from a `FluxHelmRelease` to its resolved source/chart CR is
+materialized in `go/internal/storage/cypher/canonical_flux_helm_edges.go`, not
+by this package -- see `docs/public/languages/flux.md`.
+
 ## Exported surface
 
 The godoc contract is in doc.go. Current exports are Parse, Options,

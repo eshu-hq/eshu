@@ -126,6 +126,54 @@ func parseFluxSourceRepository(document map[string]any, metadata map[string]any,
 	return row
 }
 
+// isFluxHelmRepository reports whether a document is a Flux CD HelmRepository
+// custom resource: apiVersion group "source.toolkit.fluxcd.io" (any version)
+// with kind "HelmRepository".
+func isFluxHelmRepository(apiVersion string, kind string) bool {
+	return strings.HasPrefix(apiVersion, fluxSourceToolkitGroup) && kind == "HelmRepository"
+}
+
+// parseFluxHelmRepository captures a Flux HelmRepository CR's chart-index
+// coordinates: spec.url (required) and spec.type (default|oci). spec.type is
+// captured under the "repo_type" row key, deliberately NOT the generic "type"
+// key other buckets may use for an unrelated purpose, to avoid an accidental
+// collision at the content-metadata/query layer.
+//
+// Fields are parsed defensively: an absent or empty field is omitted from the
+// row, never fabricated -- an absent spec.type is NOT defaulted to "default"
+// here even though Flux applies that default server-side.
+func parseFluxHelmRepository(document map[string]any, metadata map[string]any, path string, lineNumber int) map[string]any {
+	spec, _ := document["spec"].(map[string]any)
+
+	row := map[string]any{
+		// name kept present for row-shape stability; "" (not "<nil>") when the
+		// manifest uses metadata.generateName instead of metadata.name.
+		"name":        cleanYAMLString(metadata["name"]),
+		"line_number": lineNumber,
+		"path":        path,
+		"lang":        "yaml",
+	}
+	if generateName := cleanYAMLString(metadata["generateName"]); generateName != "" {
+		row["generate_name"] = generateName
+	}
+	// metadata.namespace is injected at apply-time far more often than it is
+	// written in the manifest, so an absent namespace is the common case: omit
+	// it, never fabricate "<nil>" (fmt.Sprint(nil)) or an empty string.
+	if namespace := cleanYAMLString(metadata["namespace"]); namespace != "" {
+		row["namespace"] = namespace
+	}
+	if url := cleanYAMLString(spec["url"]); url != "" {
+		row["url"] = url
+	}
+	if repoType := cleanYAMLString(spec["type"]); repoType != "" {
+		row["repo_type"] = repoType
+	}
+	if labels := collectMetadataLabels(metadata); labels != "" {
+		row["labels"] = labels
+	}
+	return row
+}
+
 // parseFluxBucket captures a Flux Bucket CR's object-storage coordinates:
 // spec.bucketName, spec.endpoint, spec.provider.
 //

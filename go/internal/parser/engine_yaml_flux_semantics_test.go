@@ -191,6 +191,96 @@ spec:
 	assertBucketContainsFieldValue(t, got, "flux_kustomizations", "source_ref_name", "infra-repo")
 }
 
+// TestDefaultEngineParsePathYAMLFluxHelmReleaseDoesNotMisrouteToK8sResource is
+// the issue #5483 C1 sibling of the Kustomization misroute regression: a Flux
+// HelmRelease (apiVersion helm.toolkit.fluxcd.io/*) must never fall through to
+// the generic k8s_resources bucket (which drops every nested spec field except
+// a handful of well-known ones); it must land as typed evidence in the
+// dedicated flux_helm_releases bucket instead.
+func TestDefaultEngineParsePathYAMLFluxHelmReleaseDoesNotMisrouteToK8sResource(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "helmrelease.yaml")
+	writeTestFile(
+		t,
+		filePath,
+		`apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: podinfo
+  namespace: flux-system
+spec:
+  chart:
+    spec:
+      chart: podinfo
+      version: 6.x
+      sourceRef:
+        kind: HelmRepository
+        name: podinfo
+        namespace: flux-system
+  targetNamespace: production
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertEmptyNamedBucket(t, got, "k8s_resources")
+	assertNamedBucketContains(t, got, "flux_helm_releases", "podinfo")
+	assertBucketContainsFieldValue(t, got, "flux_helm_releases", "chart", "podinfo")
+	assertBucketContainsFieldValue(t, got, "flux_helm_releases", "chart_version", "6.x")
+	assertBucketContainsFieldValue(t, got, "flux_helm_releases", "source_ref_kind", "HelmRepository")
+	assertBucketContainsFieldValue(t, got, "flux_helm_releases", "source_ref_name", "podinfo")
+	assertBucketContainsFieldValue(t, got, "flux_helm_releases", "target_namespace", "production")
+}
+
+// TestDefaultEngineParsePathYAMLFluxHelmRepositoryDoesNotMisrouteToK8sResource
+// is the FluxHelmRepository sibling: apiVersion source.toolkit.fluxcd.io/*
+// kind HelmRepository must land in flux_helm_repositories, never
+// k8s_resources.
+func TestDefaultEngineParsePathYAMLFluxHelmRepositoryDoesNotMisrouteToK8sResource(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "helmrepository.yaml")
+	writeTestFile(
+		t,
+		filePath,
+		`apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: podinfo
+  namespace: flux-system
+spec:
+  url: https://stefanprodan.github.io/podinfo
+  type: default
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	assertEmptyNamedBucket(t, got, "k8s_resources")
+	assertNamedBucketContains(t, got, "flux_helm_repositories", "podinfo")
+	assertBucketContainsFieldValue(t, got, "flux_helm_repositories", "url", "https://stefanprodan.github.io/podinfo")
+	assertBucketContainsFieldValue(t, got, "flux_helm_repositories", "repo_type", "default")
+}
+
 // TestDefaultEngineParsePathYAMLKustomizeGenericGroupNonRegression is the
 // exact-equivalence proof for issue #5342's dispatcher fix: every existing
 // generic-Kustomize routing path (any kustomize.config.k8s.io version, and
