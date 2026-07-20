@@ -44,11 +44,17 @@ tag normalization before passing a decoded document to that package.
 kept a dedicated path rather than reusing `parseKustomization` because a Flux
 Kustomization nests its declarative fields under `spec` (`sourceRef`, `path`,
 `targetNamespace`) instead of carrying them at the document root like a
-`kustomization.yaml` build manifest (issue #5342). The resulting
-`flux_kustomizations` bucket is evidence-only: it is not registered for
-content-entity materialization and is not wired into relationship-evidence
-extraction, so it never becomes a graph node or a queryable surface. Modeling
-Flux as a queryable deployment platform is tracked separately (issue #5360).
+`kustomization.yaml` build manifest (issue #5342). `flux_source.go` owns the
+Flux CD source-of-truth custom resources it reconciles against
+(`source.toolkit.fluxcd.io/*` apiVersion group: `GitRepository`,
+`OCIRepository`, `Bucket`), which previously fell through to the generic
+`k8s_resources`/`parseK8sResource` path and lost `spec.url`/`spec.ref`/
+`spec.bucketName`. All four buckets (`flux_kustomizations`,
+`flux_git_repositories`, `flux_oci_repositories`, `flux_buckets`) are
+registered content entities reachable through `get_entity_context` (issue
+#5360 PR A). The `RECONCILES_FROM` correlation edge from a
+`FluxKustomization` to its source CR is not materialized by this package --
+see `docs/public/languages/flux.md`.
 
 ## Exported surface
 
