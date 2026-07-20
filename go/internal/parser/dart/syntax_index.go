@@ -62,7 +62,14 @@ func dartSourceAndSyntax(path string, parser *tree_sitter.Parser) ([]byte, dartS
 
 	index := dartSyntaxIndex{}
 	lines := strings.Split(string(source), "\n")
-	index.collect(tree.RootNode(), source, lines, dartTypeSpan{}, false)
+	// One TreeCursor is created here and reused for the entire traversal
+	// (GotoFirstChild/GotoNextSibling/GotoParent), so collect allocates a single
+	// cgo cursor total instead of one node.Walk() plus a NamedChildren []Node
+	// materialization at every node (#5332 mechanism, applied to the merged
+	// #5350 pass).
+	cursor := tree.RootNode().Walk()
+	defer cursor.Close()
+	index.collect(cursor, source, lines, dartTypeSpan{}, false)
 	return source, index, nil
 }
 
@@ -83,7 +90,14 @@ func dartSourceAndSyntax(path string, parser *tree_sitter.Parser) ([]byte, dartS
 // extracted before the flag is set, so nothing is dropped; function bodies are
 // siblings of the signature (reached from the parent frame with callsOnly
 // unchanged), so local-function extraction inside bodies is untouched.
-func (i *dartSyntaxIndex) collect(node *tree_sitter.Node, source []byte, lines []string, scope dartTypeSpan, callsOnly bool) {
+//
+// cursor is shared across the whole traversal and MUST be positioned at the
+// node being collected on entry; collect leaves it at that same node on return
+// (GotoFirstChild/GotoNextSibling to visit children, GotoParent to restore).
+// Anonymous token children (punctuation, keywords) are skipped via IsNamed() so
+// the visitation set and emission order stay identical to a NamedChildren walk.
+func (i *dartSyntaxIndex) collect(cursor *tree_sitter.TreeCursor, source []byte, lines []string, scope dartTypeSpan, callsOnly bool) {
+	node := cursor.Node()
 	if node == nil {
 		return
 	}
@@ -146,12 +160,20 @@ func (i *dartSyntaxIndex) collect(node *tree_sitter.Node, source []byte, lines [
 	}
 
 	chain := dartCallChain{allowDotIdentifierContinuation: dartIsObjectCreationNode(node)}
-	children := dartNamedChildren(node)
-	for index := range children {
-		child := &children[index]
-		chain.observe(child, source, &i.calls)
-		i.collect(child, source, lines, nextScope, nextCallsOnly)
+	if !cursor.GotoFirstChild() {
+		return
 	}
+	for {
+		child := cursor.Node()
+		if child.IsNamed() {
+			chain.observe(child, source, &i.calls)
+			i.collect(cursor, source, lines, nextScope, nextCallsOnly)
+		}
+		if !cursor.GotoNextSibling() {
+			break
+		}
+	}
+	cursor.GotoParent()
 }
 
 func dartTypeFromNode(node *tree_sitter.Node, source []byte) dartTypeSpan {

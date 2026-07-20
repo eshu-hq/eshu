@@ -147,7 +147,9 @@ func oracleWalkDartCallSites(node *tree_sitter.Node, source []byte, sites *[]dar
 func dartMergedCallSites(root *tree_sitter.Node, source []byte) []dartCallSite {
 	lines := strings.Split(string(source), "\n")
 	index := &dartSyntaxIndex{}
-	index.collect(root, source, lines, dartTypeSpan{}, false)
+	cursor := root.Walk()
+	defer cursor.Close()
+	index.collect(cursor, source, lines, dartTypeSpan{}, false)
 	return index.calls
 }
 

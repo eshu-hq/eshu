@@ -69,20 +69,25 @@ func benchmarkDartFixture(b *testing.B) string {
 // separate collectDartCallSites walk for call sites (two cursor allocations and
 // two NamedChildren materializations per node). The fold removes the second
 // full walk by folding call detection into collect (dartCallChain.observe on
-// each named child before recursing). Measured on this fixture, same machine
-// (Apple M4 Pro, 12 logical CPUs, 64 GiB), back-to-back OLD(two-pass) vs
-// NEW(merged), go test -bench BenchmarkParseDartCallSites -benchmem
-// -benchtime=300x -count=12, benchstat:
+// each named child before recursing), and collect reuses one TreeCursor for the
+// whole traversal (GotoFirstChild/GotoNextSibling/GotoParent, #5332 mechanism)
+// instead of node.Walk()+NamedChildren per node. Measured on this fixture, same
+// machine (Apple M4 Pro, 12 logical CPUs, 64 GiB), back-to-back OLD(two-pass)
+// vs NEW(merged, cursor-reuse), go test -bench BenchmarkParseDartCallSites
+// -benchmem -benchtime=300x -count=12, benchstat:
 //
-//	end-to-end Parse(): 12.92ms -> 11.66ms sec/op (-9.75%, p=0.000, n=12),
-//	                    2.405MiB -> 2.034MiB B/op (-15.44%, p=0.000),
-//	                    84125 -> 71564 allocs/op (-14.93%, p=0.000).
+//	end-to-end Parse(): 12.92ms -> 11.08ms sec/op (-14.26%, p=0.000, n=12),
+//	                    2.405MiB -> 1.793MiB B/op (-25.43%, p=0.000),
+//	                    84125 -> 65614 allocs/op (-22.00%, p=0.000).
 //
-// A prove-theory cost-floor shim (second walk deleted, output wrong/throwaway)
-// measured the two-pass-minus-second-walk floor at ~10.35ms/op on this machine;
-// the merged pass lands between that floor and the two-pass baseline, as
-// expected. An extraction-step-only benchmark is no longer separable after the
-// fold (call detection has no standalone entry point).
+// The fold alone (merged pass still using per-node NamedChildren) measured
+// 11.66ms (-9.75%); the cursor-reuse step added -4.99% sec/op (11.66ms ->
+// 11.08ms), -11.82% B/op, -8.31% allocs on top. A prove-theory cost-floor shim
+// (second walk deleted, output wrong/throwaway) measured the
+// two-pass-minus-second-walk floor at ~10.35ms/op on this machine; the merged
+// cursor-reuse pass lands just above that floor, as expected. An
+// extraction-step-only benchmark is no longer separable after the fold (call
+// detection has no standalone entry point).
 //
 // No-Regression Evidence. This is output-preserving: function_calls rows are
 // byte-identical to the two-pass walk (same names, full_names, line numbers,
