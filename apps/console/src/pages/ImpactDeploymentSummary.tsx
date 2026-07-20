@@ -16,7 +16,7 @@ export function ImpactGraphProvenance({
   readonly presentation: ImpactGraphPresentation;
 }): React.JSX.Element {
   return (
-    <div className="impact-graph-provenance" aria-label="Graph composition evidence">
+    <div className="impact-graph-provenance" role="group" aria-label="Graph composition evidence">
       <div className="impact-mini-stats">
         <span>{presentation.mode.replace(/_/g, " ")}</span>
         {presentation.truthLevel ? <span>truth {presentation.truthLevel}</span> : null}
@@ -95,7 +95,7 @@ export function DeploymentTraceSummary({
         </p>
       ) : null}
 
-      <div className="impact-pivots" aria-label="Deployment pivots">
+      <div className="impact-pivots" role="group" aria-label="Deployment pivots">
         {trace.serviceName ? (
           <Link to={`/service-story/${encodeURIComponent(trace.serviceName)}`}>Service story</Link>
         ) : null}
