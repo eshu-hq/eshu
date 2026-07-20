@@ -29,9 +29,10 @@ func unqualifiedSQLRelationshipName(name string) string {
 	return strings.TrimSpace(parts[len(parts)-1])
 }
 
-// SQLRelationshipRowStats reports READS_FROM target resolution outcomes that
-// ExtractSQLRelationshipRows could not turn into an edge, so the caller can
-// log them for operator visibility instead of silently dropping them (#5345).
+// SQLRelationshipRowStats reports READS_FROM/MIGRATES target resolution
+// outcomes that ExtractSQLRelationshipRows could not turn into an edge, so the
+// caller can log them for operator visibility instead of silently dropping
+// them (#5345, #5346).
 type SQLRelationshipRowStats struct {
 	// UnresolvedReadTargets counts source_tables entries that matched no
 	// in-repo SqlTable or SqlView, even after the unqualified-name fallback.
@@ -40,6 +41,15 @@ type SQLRelationshipRowStats struct {
 	// SqlTable and a SqlView under the same name; the resolver refuses to
 	// guess which one the read targets and skips the edge.
 	AmbiguousReadTargets int
+	// UnresolvedMigrationTargets counts migration_targets entries that matched
+	// no in-repo entity of the stamped kind (#5346).
+	UnresolvedMigrationTargets int
+	// AmbiguousMigrationTargets counts migration_targets entries that matched
+	// more than one same-kind, same-name entity (e.g. a repo with both
+	// schema.sql and a migration defining the same table name) with none of
+	// them in the migration's own file; the resolver refuses to guess which
+	// one the migration targets and skips the edge (#5346 Trap 1).
+	AmbiguousMigrationTargets int
 }
 
 // resolveSQLReadTarget resolves one READS_FROM target name for a SqlView or
@@ -129,4 +139,59 @@ func resolveSQLRelationshipTarget(
 		return matching[0], true
 	}
 	return sqlRelationshipEntity{}, false
+}
+
+// resolveSQLMigrationTarget resolves one MIGRATES target name+kind for a
+// SqlMigration source. It mirrors resolveSQLRelationshipTarget's same-repo,
+// prefer-same-file matching, but exposes the reason a match failed:
+// genuinely missing (no candidate of the stamped kind exists) versus
+// ambiguous (more than one same-kind, same-name candidate exists and none is
+// in the migration's own file). A repo with both schema.sql and a migration
+// defining the same table name is a real same-name collision the resolver
+// must never guess between (#5346 Trap 1); resolveSQLRelationshipTarget's
+// plain bool cannot distinguish that case from "never existed", so this
+// function is kept separate rather than widening that one's signature and
+// blast radius across its other callers (TRIGGERS/EXECUTES/HAS_COLUMN/
+// INDEXES).
+func resolveSQLMigrationTarget(
+	entityByName map[string][]sqlRelationshipEntity,
+	name string,
+	entityType string,
+	repoID string,
+	relativePath string,
+) (target sqlRelationshipEntity, ambiguous bool, ok bool) {
+	candidates := entityByName[name]
+	if len(candidates) == 0 {
+		return sqlRelationshipEntity{}, false, false
+	}
+
+	matching := make([]sqlRelationshipEntity, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.repoID == repoID && candidate.entityType == entityType {
+			matching = append(matching, candidate)
+		}
+	}
+	if len(matching) == 0 {
+		return sqlRelationshipEntity{}, false, false
+	}
+
+	if relativePath != "" {
+		sameFile := make([]sqlRelationshipEntity, 0, len(matching))
+		for _, candidate := range matching {
+			if candidate.relativePath == relativePath {
+				sameFile = append(sameFile, candidate)
+			}
+		}
+		if len(sameFile) == 1 {
+			return sameFile[0], false, true
+		}
+		if len(sameFile) > 1 {
+			return sqlRelationshipEntity{}, true, false
+		}
+	}
+
+	if len(matching) == 1 {
+		return matching[0], false, true
+	}
+	return sqlRelationshipEntity{}, true, false
 }

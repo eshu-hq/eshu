@@ -125,7 +125,7 @@ func TestSQLRelationshipHandlerUsesPayloadFilteredContentEntities(t *testing.T) 
 	if got, want := call.payloadKey, "entity_type"; got != want {
 		t.Fatalf("payload key = %q, want %q", got, want)
 	}
-	if got, want := strings.Join(call.payloadValues, ","), "SqlTable,SqlColumn,SqlView,SqlFunction,SqlTrigger,SqlIndex"; got != want {
+	if got, want := strings.Join(call.payloadValues, ","), "SqlTable,SqlColumn,SqlView,SqlFunction,SqlTrigger,SqlIndex,SqlMigration"; got != want {
 		t.Fatalf("payload entity types = %q, want %q", got, want)
 	}
 }

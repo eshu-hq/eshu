@@ -97,6 +97,10 @@ var contentEntityBuckets = []entityBucketMapping{
 	// frozen-table invariant.
 	{bucket: "helm_value_definitions", label: "HelmValueDefinition"},
 	{bucket: "helm_template_value_usages", label: "HelmTemplateValueUsage"},
+	// sql_migrations (SqlMigration, #5346): one entity per recognized migration
+	// file, with its forward touches nested under migration_targets metadata.
+	// Appended at the end per the frozen-table invariant.
+	{bucket: "sql_migrations", label: "SqlMigration"},
 }
 
 // sourceFieldContainsCode is the set of entity labels whose Source field holds
@@ -158,6 +162,7 @@ var trailingNewlineLabels = map[string]struct{}{
 	"SqlColumn":               {},
 	"SqlFunction":             {},
 	"SqlIndex":                {},
+	"SqlMigration":            {},
 	"SqlTable":                {},
 	"SqlTrigger":              {},
 	"SqlView":                 {},
