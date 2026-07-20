@@ -247,6 +247,39 @@ changed but the per-query telemetry surface did not.
 
 ### Relationships Verb Catalog Live Scaling Fix
 
+Current contract note: `relationshipVerbCatalog` holds 19 verbs as of #5369
+(the historical measurements below were taken at 16 verbs, before the three
+Atlantis governance verbs -- `MANAGES`, `ATLANTIS_DEPENDS_ON`,
+`USES_WORKFLOW` -- were added; the type-indexed count and index-ordered edge
+slice shapes below are unchanged by the addition, so the measured
+per-verb costs still apply). The verb count itself is not restated
+elsewhere in this doc; `relationshipVerbCatalog`
+(`go/internal/query/relationships_catalog_cypher.go`) is the source of truth.
+
+No-Regression Evidence (#5369): the three added verbs use the exact same
+`relationshipCountCypher`/`relationshipEdgesCypher` builder functions as every
+other catalog entry -- `relationshipCountCypher` is unmodified, and
+`relationshipEdgesCypher`'s only change is an additive per-entry
+`targetIdentityProperty` override (empty for every non-MANAGES verb) that
+keeps the emitted Cypher byte-identical for the `QP-RELATIONSHIPS-EDGES`
+`CALLS` representative (`cypher_sha256` unchanged in
+`go/internal/queryplan/testdata/hot-cypher.yaml`). Each new verb's count is
+one bare `MATCH ()-[r:VERB]->() RETURN count(r)` relationship-type-index
+lookup (O(1) per verb, the same shape measured above), so the catalog
+sequentially issues 19 type-indexed counts instead of 16 -- three more calls
+on an already-sub-second (0.42s for 16, per the table above) type-indexed
+path, not three more source-label scans. `MANAGES`'s edge slice keeps the
+same source-label-anchored, index-ordered, `LIMIT`-bounded shape as every
+other verb; only its `target_id` coalesce order changed (to resolve the
+`Directory` target's canonical `path` instead of falling through to the
+non-unique basename), which does not add a traversal, index lookup, or sort
+pass.
+
+No-Observability-Change (#5369): the three new verbs reuse the existing
+`getRelationshipsCatalog`/`getRelationshipEdges` handler telemetry
+(`WriteSuccess`/`BuildTruthEnvelope`, the shared `GraphQuery.Run`/`RunSingle`
+spans) with no new metric, span, log line, or runtime knob.
+
 Performance Evidence: issue #3429. At post-merge E2E scale (~900k typed edges /
 ~500k nodes) `POST /api/v0/relationships/catalog` timed out warm (>30s, HTTP
 000), and `POST /api/v0/relationships/edges` ran 5-8.5s. Live profiling against
