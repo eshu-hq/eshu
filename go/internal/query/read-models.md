@@ -573,13 +573,13 @@ metric instrument.
 `DocumentationHandler` (`documentation.go`) also exposes cheap-summary
 aggregates over durable documentation finding facts through a separate
 Postgres aggregate read model (`documentation_finding_aggregates.go`). The
-aggregate scopes to `fact_kind = 'documentation_finding'` and inherits the
-same permission predicates the list endpoint uses
-(`viewer_can_read_source = true`, `source_acl_evaluated <> false`,
-`permission_decision <> denied`); skipping them would (a) miss the
-permission-gated partial index in
-`go/internal/storage/postgres/schema_fact_records.go` and (b) leak counts
-from documents the caller cannot read. `CountDocumentationFindings`
+aggregate scopes to `fact_kind = 'documentation_finding'` and applies
+`viewer_can_read_source = true`, `source_acl_evaluated <> false`, and
+`permission_decision <> denied` in SQL so grouped counts cannot disclose
+protected findings. The list route intentionally differs: it retrieves those
+rows and applies honest redaction and access disposition in Go rather than
+silently presenting them as absent. Both routes separately enforce the
+caller's repository and scope authorization. `CountDocumentationFindings`
 answers total + per-status + per-truth-level + per-freshness-state
 questions over an optional scope, finding_type, source_id, document_id,
 status, truth_level, or freshness_state scope.
@@ -587,8 +587,10 @@ status, truth_level, or freshness_state scope.
 one of the dimensions `status`, `truth_level`, `freshness_state`,
 `finding_type`, or `source_id`. The aggregate replaces the
 page-and-iterate caller workflow for ecosystem-level questions exposed by
-`list_documentation_findings`. No schema migration is needed; the
-existing partial index already covers all five grouping dimensions.
+`list_documentation_findings`. Migrations 064 and 065 replace the retired
+ACL-filtered index with the broader findings read index. Its predicate matches
+the shared `fact_kind` and tombstone boundary, while its ordered keys cover all
+five grouping dimensions used here plus `document_id`.
 
 The `/documentation/facts` surface — which fans out across multiple raw
 collected `fact_kind` values — is intentionally out of scope for this PR;
