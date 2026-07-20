@@ -107,6 +107,71 @@ same work, and a scoped caller seeing fewer candidate rows is the intended,
 observable behavior. No dashboard, alert, or status surface depends on the
 pre-filter count.
 
+## Filter-before-limit fix (#5167 W3 P1)
+
+The five fixes above filter the caller's grant AFTER the query. On four
+paginated routes that is not sufficient: the query's own `LIMIT` runs before the
+Go filter, so when more than `limit` cross-tenant rows sort ahead of a granted
+row, the granted row falls off the page and the post-fetch filter returns an
+incomplete (sometimes empty) page with `truncated:false`. The affected routes:
+
+- `impact/blast-radius` — the five affected-repo Cypher consts in
+  `impact_blast_radius.go` (repository, terraform source/dependents, crossplane,
+  sql_table CALL{} branches).
+- `impact/change-surface` investigation and `impact/resource-investigation`
+  resolvers — the grant is threaded into the resolver Cypher WHERE.
+- `impact/change-surface` code-search (`impact_change_surface_code.go`) — a
+  corpus-wide scoped search binds `repo_id = ANY($n)` (pq.Array) into the
+  Postgres WHERE before `ORDER BY / LIMIT / OFFSET`.
+
+This is a **behavior change, not output-preserving**: the pre-fix scoped page
+could OMIT a row the caller is entitled to. The corrected page contains the
+granted row the old shape dropped.
+
+No-Observability-Change:
+
+The grant push-down renders inside the existing blast-radius / change-surface /
+resource-investigation graph reads and the code-search Postgres read. It adds no
+new span, metric, runtime knob, queue behavior, or graph write; the handlers
+keep their existing `GraphQuery.Run` / content-store adapters and per-query
+duration/error telemetry. `filterRowsByRepoIDForAccess` stays as
+defense-in-depth after the query, so a non-scoped caller's query is
+byte-identical to the pre-#5167 shape (the grant fragment is empty) and the page
+is unchanged.
+
+No-Regression Evidence:
+
+- Change class: correctness fix on the scoped read path; the grant fragment is a
+  bound-node property predicate (`a.id IN $allowed_repository_ids OR
+  a.id IN $allowed_scope_ids`) injected into an existing single-clause /
+  CALL{UNION}-plain-outer WHERE. It adds NO relationship traversal — proven by
+  `TestBlastRadiusGrantFragmentAddsNoEdgeTokens`
+  (`extractRelationshipTypeTokens` returns empty for every grant fragment), so
+  the #5335 edge-materialization gate and the NornicDB-safe shape contract
+  (`TestBlastRadiusQueriesAreNornicDBSafe`) both still hold for the scoped
+  variant.
+- Non-scoped callers: the grant fragment is `""` when `!access.scoped()`, so the
+  blast-radius consts render byte-identical to their pre-#5167 text and the
+  query plan is unchanged. The blast-radius consts stay literal `BasicLit`
+  templates so the #5335 gate can AST-parse each one
+  (`TestImpactBlastRadiusGateQueriesAreLiteralConstants`).
+- Bounded input: the grant predicate only ADDS a WHERE conjunct on an
+  already-anchored, already-`LIMIT`-bounded match. It filters the granted set
+  before the same `LIMIT`, so terminal row count is filtered ≤ unfiltered and
+  the graph/Postgres work can only shrink (the backend evaluates the extra
+  property predicate on rows it already visits for the anchor match).
+- Regression proof: `TestBlastRadiusGrantBoundBeforeLimit` drives the production
+  `blastRadiusAffected` builder against an honest in-memory graph that applies
+  the grant iff the Cypher carries the `IN $allowed_repository_ids` marker, sorts
+  per `ORDER BY hops, repo`, then truncates to `limit`. Its RED companion runs
+  the grant-free (pre-fix) shape through the same fake and asserts the granted
+  row is LOST after truncation; the GREEN assertion proves the shipped query
+  keeps it. The `queryplan` `source_sha256` for `blastRadiusAffected` was
+  refreshed in `query-source-coverage.yaml` because the enclosing Go function
+  now threads `access` into the builders; the two resolver entries
+  (`resolveChangeSurfaceTarget`, `resolveResourceInvestigationTarget`) moved from
+  grandfathered prose to typed `non_hot` dispositions.
+
 ## Why the change is safe
 
 - Tenant isolation: each filter binds the FAR repository endpoint (the one that
