@@ -83,7 +83,11 @@ type CodeReachabilityProjectionResult struct {
 	// VerdictsInconclusiveMissingContext counts controller-action roots skipped
 	// because they carried no class_context bridge (kept, no row written).
 	VerdictsInconclusiveMissingContext int
-	DurationSeconds                    float64
+	// VerdictsSuffixAmbiguousKept counts controller-action roots kept by the
+	// #5376 P0 rev-2 suffix-ambiguity floor (a base resolved only by a proper
+	// namespace suffix, or a conventional ambiguous simple name).
+	VerdictsSuffixAmbiguousKept int
+	DurationSeconds             float64
 }
 
 // CodeReachabilityProjectionRunner maintains code_reachability_rows from the
@@ -148,6 +152,7 @@ func (r *CodeReachabilityProjectionRunner) ProcessOnce(
 		VerdictsWritten:                    int(agg.verdictsWritten),
 		VerdictsDowngraded:                 int(agg.verdictsDowngraded),
 		VerdictsInconclusiveMissingContext: int(agg.verdictsInconclusiveMissingContext),
+		VerdictsSuffixAmbiguousKept:        int(agg.verdictsSuffixAmbiguousKept),
 		DurationSeconds:                    time.Since(start).Seconds(),
 	}
 	if r.Logger != nil {
@@ -161,6 +166,7 @@ func (r *CodeReachabilityProjectionRunner) ProcessOnce(
 			slog.Int("verdicts_written", result.VerdictsWritten),
 			slog.Int("verdicts_downgraded", result.VerdictsDowngraded),
 			slog.Int("verdicts_inconclusive_missing_context", result.VerdictsInconclusiveMissingContext),
+			slog.Int("verdicts_suffix_ambiguous_kept", result.VerdictsSuffixAmbiguousKept),
 			slog.Float64("duration_seconds", result.DurationSeconds),
 		)
 	}
@@ -214,6 +220,7 @@ type codeReachabilityProjectionAggregate struct {
 	verdictsWritten                    int64
 	verdictsDowngraded                 int64
 	verdictsInconclusiveMissingContext int64
+	verdictsSuffixAmbiguousKept        int64
 }
 
 // projectPartitions projects each conflict partition, running up to
@@ -298,6 +305,7 @@ func (r *CodeReachabilityProjectionRunner) projectInput(
 	atomic.AddInt64(&agg.verdictsWritten, int64(len(verdicts)))
 	atomic.AddInt64(&agg.verdictsDowngraded, int64(verdictStats.Downgraded))
 	atomic.AddInt64(&agg.verdictsInconclusiveMissingContext, int64(verdictStats.InconclusiveMissingContext))
+	atomic.AddInt64(&agg.verdictsSuffixAmbiguousKept, int64(verdictStats.SuffixAmbiguousKept))
 	if stats.Truncated {
 		atomic.AddInt64(&agg.truncated, 1)
 		if r.Logger != nil {

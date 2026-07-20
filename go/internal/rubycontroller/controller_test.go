@@ -4,144 +4,184 @@
 package rubycontroller_test
 
 import (
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/rubycontroller"
 )
 
-// fakeRegistry is a repo-wide-style multimap registry: a class name maps to a
-// set (slice) of declared qualified bases, unioned across reopened definitions.
-// A class present with a nil/empty base slice is known but declares no
-// superclass.
+// fakeRegistry is a repo-wide-style registry keyed by qualified class name
+// (classKey). A nil base slice marks a base-less known class. It implements the
+// identity-carrying Registry with real offset-0 (exact) vs offset>0 (strict
+// suffix) matching so the #5376 P0 rev-2 semantics can be exercised directly.
 type fakeRegistry struct {
-	bases map[string][]string
+	classes map[string][]string
 }
 
-func (r fakeRegistry) DeclaredBases(className string) ([]string, bool) {
-	bases, ok := r.bases[className]
-	if !ok || len(bases) == 0 {
+func fakeSegs(s string) []string { return strings.Split(s, "::") }
+
+func fakeTailEq(a, b []string) bool {
+	off := len(a) - len(b)
+	if off < 0 {
+		return false
+	}
+	for i := range b {
+		if a[off+i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (r fakeRegistry) ExactMatches(ref string) []string {
+	rs := fakeSegs(ref)
+	var out []string
+	for k := range r.classes {
+		if ks := fakeSegs(k); len(ks) == len(rs) && fakeTailEq(ks, rs) {
+			out = append(out, k)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func (r fakeRegistry) SuffixMatches(ref string) []string {
+	rs := fakeSegs(ref)
+	var out []string
+	for k := range r.classes {
+		if ks := fakeSegs(k); len(ks) > len(rs) && fakeTailEq(ks, rs) {
+			out = append(out, k)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func (r fakeRegistry) EntryMatches(ctx string) []string {
+	cs := fakeSegs(ctx)
+	var out []string
+	for k := range r.classes {
+		if ks := fakeSegs(k); len(ks) >= len(cs) && fakeTailEq(ks, cs) {
+			out = append(out, k)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func (r fakeRegistry) DeclaredBasesOf(classKey string) ([]string, bool) {
+	b, ok := r.classes[classKey]
+	if !ok || len(b) == 0 {
 		return nil, false
 	}
-	return bases, true
-}
-
-func (r fakeRegistry) IsKnownClass(className string) bool {
-	_, ok := r.bases[className]
-	return ok
+	return b, true
 }
 
 func TestDecide(t *testing.T) {
 	tests := []struct {
 		name       string
 		class      string
-		reg        map[string][]string
+		classes    map[string][]string
 		wantKeep   bool
 		wantReason string
 	}{
 		{
-			// #5376 P1: a genuine controller whose base is a namespaced class
-			// that resolves in-corpus to an accepted Rails base. The old code
-			// downgraded this (registry keyed by simple name, base kept its
-			// qualifier, so IsKnownClass failed and it fell to the downgrade
-			// branch). It must CONFIRM.
-			name:       "namespaced base resolves in-corpus to accepted base",
-			class:      "OrdersController",
-			reg:        map[string][]string{"OrdersController": {"Admin::Base"}, "Admin::Base": {"ActionController::Base"}},
+			name:       "direct accepted base",
+			class:      "WidgetsController",
+			classes:    map[string][]string{"WidgetsController": {"ApplicationController"}},
 			wantKeep:   true,
 			wantReason: rubycontroller.ReasonAccepted,
 		},
 		{
-			name:       "chain resolves in-corpus onward to a rejected framework base",
+			name:       "exact chain resolves to accepted base",
 			class:      "OrdersController",
-			reg:        map[string][]string{"OrdersController": {"BaseController"}, "BaseController": {"ApplicationRecord"}, "ApplicationRecord": {"ActiveRecord::Base"}},
+			classes:    map[string][]string{"OrdersController": {"Admin::Base"}, "Admin::Base": {"ActionController::Base"}},
+			wantKeep:   true,
+			wantReason: rubycontroller.ReasonAccepted,
+		},
+		{
+			name:       "exact chain resolves onward to rejected framework base",
+			class:      "FooController",
+			classes:    map[string][]string{"FooController": {"ApplicationRecord"}, "ApplicationRecord": {"ActiveRecord::Base"}},
 			wantKeep:   false,
 			wantReason: rubycontroller.ReasonRejectedFrameworkBase,
 		},
 		{
-			name:       "direct accepted base",
-			class:      "WidgetsController",
-			reg:        map[string][]string{"WidgetsController": {"ApplicationController"}},
+			// #5376 P0: Api::Base (real gem base) has NO exact corpus match, only a
+			// proper-suffix impostor Internal::Api::Base < ActiveRecord::Base. The
+			// suffix match may not feed a downgrade -> KEEP.
+			name:       "suffix-only impostor keeps (no probe confirm)",
+			class:      "OrdersController",
+			classes:    map[string][]string{"OrdersController": {"Api::Base"}, "Internal::Api::Base": {"ActiveRecord::Base"}},
+			wantKeep:   true,
+			wantReason: rubycontroller.ReasonSuffixOnlyAmbiguous,
+		},
+		{
+			name:       "suffix-only probe confirms to accepted",
+			class:      "OrdersController",
+			classes:    map[string][]string{"OrdersController": {"Base"}, "Admin::Base": {"ActionController::Base"}},
 			wantKeep:   true,
 			wantReason: rubycontroller.ReasonAccepted,
 		},
 		{
-			name:       "unresolved simple Controller-suffixed base keeps",
+			name:       "unresolved qualified base keeps (F1 floor)",
 			class:      "OrdersController",
-			reg:        map[string][]string{"OrdersController": {"BaseController"}},
-			wantKeep:   true,
-			wantReason: rubycontroller.ReasonUnresolvedController,
-		},
-		{
-			// F1: a qualified base we cannot resolve and that is not a curated
-			// reject terminal must KEEP, never downgrade.
-			name:       "unresolved qualified gem base keeps (F1 floor)",
-			class:      "OrdersController",
-			reg:        map[string][]string{"OrdersController": {"Sinatra::Base"}},
+			classes:    map[string][]string{"OrdersController": {"Sinatra::Base"}},
 			wantKeep:   true,
 			wantReason: rubycontroller.ReasonUnresolvedQualified,
 		},
 		{
-			// F2: an exact curated non-controller framework terminal downgrades,
-			// even reached directly as an unresolved base.
-			name:       "simple rejected framework base downgrades",
-			class:      "OrdersController",
-			reg:        map[string][]string{"OrdersController": {"ApplicationRecord"}},
-			wantKeep:   false,
-			wantReason: rubycontroller.ReasonRejectedFrameworkBase,
-		},
-		{
-			name:       "qualified rejected framework base downgrades",
-			class:      "OrdersController",
-			reg:        map[string][]string{"OrdersController": {"ActiveRecord::Base"}},
-			wantKeep:   false,
-			wantReason: rubycontroller.ReasonRejectedFrameworkBase,
+			name:       "conventional simple base with zero candidates keeps",
+			class:      "FooController",
+			classes:    map[string][]string{"FooController": {"Base"}},
+			wantKeep:   true,
+			wantReason: rubycontroller.ReasonSuffixOnlyAmbiguous,
 		},
 		{
 			name:       "unresolved simple non-controller base downgrades",
 			class:      "ReportController",
-			reg:        map[string][]string{"ReportController": {"Thor"}},
+			classes:    map[string][]string{"ReportController": {"Thor"}},
 			wantKeep:   false,
 			wantReason: rubycontroller.ReasonUnresolvedNonController,
 		},
 		{
-			name:       "fizzle with controller-suffix name keeps",
+			name:       "unresolved simple Controller-suffixed base keeps",
 			class:      "OrdersController",
-			reg:        map[string][]string{"OrdersController": nil},
+			classes:    map[string][]string{"OrdersController": {"BaseController"}},
 			wantKeep:   true,
-			wantReason: rubycontroller.ReasonFizzled,
+			wantReason: rubycontroller.ReasonUnresolvedController,
 		},
 		{
-			name:       "fizzle without controller-suffix name downgrades",
-			class:      "OrderService",
-			reg:        map[string][]string{"OrderService": nil},
-			wantKeep:   false,
-			wantReason: rubycontroller.ReasonFizzled,
+			// step 3 (suffix probe) is checked BEFORE step 4 (reject-set): a corpus
+			// Legacy::ActiveRecord::Base shadows the literal ActiveRecord::Base ref.
+			name:       "reject-set shadowed by suffix candidate keeps",
+			class:      "FooController",
+			classes:    map[string][]string{"FooController": {"ActiveRecord::Base"}, "Legacy::ActiveRecord::Base": {"SomeGem::Thing"}},
+			wantKeep:   true,
+			wantReason: rubycontroller.ReasonSuffixOnlyAmbiguous,
 		},
 		{
-			name:       "reopened-class union reaches accepted base",
+			// exact-match contamination: the offset-0 impostor Base<ActiveRecord::Base
+			// is beaten by the suffix candidate Api::V1::Base<ActionController::API
+			// via any-path-keeps.
+			name:       "exact impostor beaten by confirming suffix candidate",
 			class:      "OrdersController",
-			reg:        map[string][]string{"OrdersController": {"ActionController::Base", "OrderConcern"}, "OrderConcern": {"Thor"}},
+			classes:    map[string][]string{"OrdersController": {"Base"}, "Base": {"ActiveRecord::Base"}, "Api::V1::Base": {"ActionController::API"}},
 			wantKeep:   true,
 			wantReason: rubycontroller.ReasonAccepted,
 		},
 		{
-			name:       "collision conflict all paths downgrade",
+			name:       "collision all candidate paths downgrade",
 			class:      "BaseController",
-			reg:        map[string][]string{"BaseController": {"ApplicationRecord", "Thor"}},
+			classes:    map[string][]string{"BaseController": {"ApplicationRecord", "Thor"}},
 			wantKeep:   false,
 			wantReason: rubycontroller.ReasonCollision,
 		},
 		{
-			name:       "collision but one path confirms keeps",
-			class:      "BaseController",
-			reg:        map[string][]string{"BaseController": {"ApplicationController", "Thor"}},
-			wantKeep:   true,
-			wantReason: rubycontroller.ReasonAccepted,
-		},
-		{
 			name:       "cycle is keep-biased for controller name",
 			class:      "FooController",
-			reg:        map[string][]string{"FooController": {"BarController"}, "BarController": {"FooController"}},
+			classes:    map[string][]string{"FooController": {"BarController"}, "BarController": {"FooController"}},
 			wantKeep:   true,
 			wantReason: rubycontroller.ReasonCycle,
 		},
@@ -149,32 +189,30 @@ func TestDecide(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := rubycontroller.Decide(tt.class, fakeRegistry{bases: tt.reg})
+			got := rubycontroller.Decide(tt.class, fakeRegistry{classes: tt.classes})
 			if got.Keep != tt.wantKeep {
 				t.Fatalf("Decide(%q).Keep = %v, want %v (decision=%+v)", tt.class, got.Keep, tt.wantKeep, got)
 			}
 			if got.Reason != tt.wantReason {
 				t.Fatalf("Decide(%q).Reason = %q, want %q (decision=%+v)", tt.class, got.Reason, tt.wantReason, got)
 			}
-			if rubycontroller.IsRailsController(tt.class, fakeRegistry{bases: tt.reg}) != tt.wantKeep {
+			if rubycontroller.IsRailsController(tt.class, fakeRegistry{classes: tt.classes}) != tt.wantKeep {
 				t.Fatalf("IsRailsController(%q) disagrees with Decide().Keep", tt.class)
 			}
 		})
 	}
 }
 
-// TestDecideDepthCapIsKeepBiased builds a chain longer than MaxWalkDepth that
-// would resolve to a non-controller reject if fully walked, and proves the
-// depth cap falls back to the keep-biased residual instead of downgrading.
+// TestDecideDepthCapIsKeepBiased builds an exact chain longer than MaxWalkDepth
+// that would resolve to a reject-set base if fully walked, and proves the depth
+// cap falls back to the keep-biased residual instead of downgrading.
 func TestDecideDepthCapIsKeepBiased(t *testing.T) {
-	reg := map[string][]string{}
-	// C0Controller < C1 < C2 < ... < C11 < Sinatra::Base (12 hops > cap of 10).
-	reg["C0Controller"] = []string{"C1"}
+	classes := map[string][]string{"C0Controller": {"C1"}}
 	for i := 1; i <= 11; i++ {
-		reg[itoa("C", i)] = []string{itoa("C", i+1)}
+		classes[itoa("C", i)] = []string{itoa("C", i+1)}
 	}
-	reg["C12"] = []string{"ActiveRecord::Base"}
-	got := rubycontroller.Decide("C0Controller", fakeRegistry{bases: reg})
+	classes["C12"] = []string{"ActiveRecord::Base"}
+	got := rubycontroller.Decide("C0Controller", fakeRegistry{classes: classes})
 	if !got.Keep {
 		t.Fatalf("deep chain from a *Controller must keep at the depth cap, got %+v", got)
 	}

@@ -187,6 +187,205 @@ func TestBuildCodeRootVerdicts(t *testing.T) {
 	}
 }
 
+// TestBuildCodeRootVerdictsP0Rev2 is the #5376 P0 rev-2 regression suite. Its
+// TEST-SHAPE RULE: every impostor case uses UNEQUAL-length names where the
+// shorter is a STRICT segment suffix of the longer, so the proper-suffix path is
+// actually exercised (the earlier equal-length guard could not suffix-match and
+// was false-green). Tests 1, 2, 4, 7b, 8b are the RED-first cases against the
+// pre-rev-2 walk.
+func TestBuildCodeRootVerdictsP0Rev2(t *testing.T) {
+	tests := []struct {
+		name             string
+		input            CodeReachabilityProjectionInput
+		wantVerdict      string
+		wantReason       string
+		chainMustExclude string
+	}{
+		{
+			// Test 1 (RED): the proven P0 — Api::Base is a gem base with NO exact
+			// corpus match, only a proper-suffix impostor Internal::Api::Base <
+			// ActiveRecord::Base. Must KEEP, and the impostor hop must NOT be
+			// attributed to Api::Base.
+			name: "proven P0 suffix-only impostor keeps",
+			input: verdictInput("m:index", "OrdersController", []RubyClassEntity{
+				{Name: "OrdersController", QualifiedName: "OrdersController", QualifiedBases: []string{"Api::Base"}},
+				{Name: "Base", QualifiedName: "Internal::Api::Base", QualifiedBases: []string{"ActiveRecord::Base"}},
+			}),
+			wantVerdict:      CodeRootVerdictConfirmed,
+			wantReason:       "suffix_only_ambiguous",
+			chainMustExclude: "Internal::Api::Base",
+		},
+		{
+			// Test 2 (RED): unqualified suffix-only ref "Base" must terminate at
+			// ambiguous-KEEP, never slip to the simple-name downgrade.
+			name: "k=1 unqualified suffix-only ref keeps",
+			input: verdictInput("m:index", "OrdersController", []RubyClassEntity{
+				{Name: "OrdersController", QualifiedName: "OrdersController", QualifiedBases: []string{"Base"}},
+				{Name: "Base", QualifiedName: "Foo::Base", QualifiedBases: []string{"ActiveRecord::Base"}},
+			}),
+			wantVerdict: CodeRootVerdictConfirmed,
+			wantReason:  "suffix_only_ambiguous",
+		},
+		{
+			// Test 3 (GREEN): a suffix candidate that confirms promotes to accepted.
+			name: "suffix-only ref probe-confirms to accepted",
+			input: verdictInput("m:index", "OrdersController", []RubyClassEntity{
+				{Name: "OrdersController", QualifiedName: "OrdersController", QualifiedBases: []string{"Base"}},
+				{Name: "Base", QualifiedName: "Admin::Base", QualifiedBases: []string{"ActionController::Base"}},
+			}),
+			wantVerdict: CodeRootVerdictConfirmed,
+			wantReason:  "accepted",
+		},
+		{
+			// Test 4 (RED): a suffix impostor mid-chain (Core::Base ->
+			// Legacy::Core::Base < ApplicationRecord) must not downgrade the chain.
+			name: "mid-chain suffix impostor keeps",
+			input: verdictInput("m:index", "OrdersController", []RubyClassEntity{
+				{Name: "OrdersController", QualifiedName: "OrdersController", QualifiedBases: []string{"Admin::Base"}},
+				{Name: "Base", QualifiedName: "Admin::Base", QualifiedBases: []string{"Core::Base"}},
+				{Name: "Base", QualifiedName: "Legacy::Core::Base", QualifiedBases: []string{"ApplicationRecord"}},
+			}),
+			wantVerdict: CodeRootVerdictConfirmed,
+			wantReason:  "suffix_only_ambiguous",
+		},
+		{
+			// Test 5 (GREEN): true-positive downgrade preserved.
+			name: "true-positive reject-set downgrade preserved",
+			input: verdictInput("m:index", "FooController", []RubyClassEntity{
+				{Name: "FooController", QualifiedName: "FooController", QualifiedBases: []string{"ApplicationRecord"}},
+				{Name: "ApplicationRecord", QualifiedName: "ApplicationRecord", QualifiedBases: []string{"ActiveRecord::Base"}},
+			}),
+			wantVerdict: CodeRootVerdictDowngraded,
+			wantReason:  "rejected_framework_base",
+		},
+		{
+			// Test 7a (GREEN): exact impostor Base<ActiveRecord::Base beaten by a
+			// confirming suffix candidate Api::V1::Base<ActionController::API.
+			name: "exact impostor beaten by confirming suffix candidate",
+			input: verdictInput("m:index", "OrdersController", []RubyClassEntity{
+				{Name: "OrdersController", QualifiedName: "OrdersController", QualifiedBases: []string{"Base"}},
+				{Name: "Base", QualifiedName: "Base", QualifiedBases: []string{"ActiveRecord::Base"}},
+				{Name: "Base", QualifiedName: "Api::V1::Base", QualifiedBases: []string{"ActionController::API"}},
+			}),
+			wantVerdict: CodeRootVerdictConfirmed,
+			wantReason:  "accepted",
+		},
+		{
+			// Test 7b (RED): exact impostor Base<ActiveRecord::Base beaten by a
+			// suffix candidate that F1-KEEPS (Api::V1::Base < SomeGem::Thing).
+			name: "exact impostor beaten by F1-keeping suffix candidate",
+			input: verdictInput("m:index", "OrdersController", []RubyClassEntity{
+				{Name: "OrdersController", QualifiedName: "OrdersController", QualifiedBases: []string{"Base"}},
+				{Name: "Base", QualifiedName: "Base", QualifiedBases: []string{"ActiveRecord::Base"}},
+				{Name: "Base", QualifiedName: "Api::V1::Base", QualifiedBases: []string{"SomeGem::Thing"}},
+			}),
+			wantVerdict: CodeRootVerdictConfirmed,
+		},
+		{
+			// Test 8a (GREEN): a simple non-controller base with zero candidates
+			// downgrades.
+			name: "simple non-controller base with zero candidates downgrades",
+			input: verdictInput("m:index", "FooController", []RubyClassEntity{
+				{Name: "FooController", QualifiedName: "FooController", QualifiedBases: []string{"Thor"}},
+			}),
+			wantVerdict: CodeRootVerdictDowngraded,
+			wantReason:  "unresolved_non_controller",
+		},
+		{
+			// Test 8b (RED): conventional simple base "Base" with zero corpus
+			// candidates keeps (the conventional-name guard).
+			name: "conventional simple base with zero candidates keeps",
+			input: verdictInput("m:index", "FooController", []RubyClassEntity{
+				{Name: "FooController", QualifiedName: "FooController", QualifiedBases: []string{"Base"}},
+			}),
+			wantVerdict: CodeRootVerdictConfirmed,
+			wantReason:  "suffix_only_ambiguous",
+		},
+		{
+			// Test 9 (GREEN): a corpus Legacy::ActiveRecord::Base shadows a literal
+			// ActiveRecord::Base ref; the suffix step is checked before the
+			// reject-set, so it keeps.
+			name: "reject-set literal shadowed by suffix candidate keeps",
+			input: verdictInput("m:index", "FooController", []RubyClassEntity{
+				{Name: "FooController", QualifiedName: "FooController", QualifiedBases: []string{"ActiveRecord::Base"}},
+				{Name: "Base", QualifiedName: "Legacy::ActiveRecord::Base", QualifiedBases: []string{"SomeGem::Thing"}},
+			}),
+			wantVerdict: CodeRootVerdictConfirmed,
+			wantReason:  "suffix_only_ambiguous",
+		},
+		{
+			// Test 11a (GREEN): homonym defining classes; one confirms -> confirmed.
+			name: "entry homonyms one confirms keeps",
+			input: verdictInput("m:index", "OrdersController", []RubyClassEntity{
+				{Name: "OrdersController", QualifiedName: "Shop::OrdersController", QualifiedBases: []string{"ApplicationController"}},
+				{Name: "OrdersController", QualifiedName: "Admin::OrdersController", QualifiedBases: []string{"ApplicationRecord"}},
+			}),
+			wantVerdict: CodeRootVerdictConfirmed,
+			wantReason:  "accepted",
+		},
+		{
+			// Test 11b (GREEN): homonym defining classes; every candidate
+			// authoritatively downgrades -> downgraded (entry multimap authoritative).
+			name: "entry homonyms all downgrade downgrades",
+			input: verdictInput("m:index", "OrdersController", []RubyClassEntity{
+				{Name: "OrdersController", QualifiedName: "Shop::OrdersController", QualifiedBases: []string{"ApplicationRecord"}},
+				{Name: "OrdersController", QualifiedName: "Admin::OrdersController", QualifiedBases: []string{"ApplicationRecord"}},
+				{Name: "ApplicationRecord", QualifiedName: "ApplicationRecord", QualifiedBases: []string{"ActiveRecord::Base"}},
+			}),
+			wantVerdict: CodeRootVerdictDowngraded,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rows, _, _ := BuildCodeRootVerdicts(tt.input)
+			row, ok := verdictByEntity(rows, "m:index")
+			if !ok {
+				t.Fatalf("expected a verdict row, got none (rows=%+v)", rows)
+			}
+			if row.Verdict != tt.wantVerdict {
+				t.Fatalf("verdict = %q, want %q (basis=%+v)", row.Verdict, tt.wantVerdict, row.Basis)
+			}
+			if tt.wantReason != "" && row.Basis.Reason != tt.wantReason {
+				t.Fatalf("basis.reason = %q, want %q (basis=%+v)", row.Basis.Reason, tt.wantReason, row.Basis)
+			}
+			if tt.chainMustExclude != "" {
+				for _, hop := range row.Basis.Chain {
+					if hop == tt.chainMustExclude {
+						t.Fatalf("chain must not attribute impostor hop %q: %+v", tt.chainMustExclude, row.Basis.Chain)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestSuffixAmbiguousNeverEntersBFSRemoval proves the D1/D6 safety property: a
+// suffix_only_ambiguous verdict is CONFIRMED, so it is never in the downgraded
+// set and removeDowngradedRailsControllerRoots keeps its BFS root — a
+// suffix-ambiguous controller can never have its reachability suppressed.
+func TestSuffixAmbiguousNeverEntersBFSRemoval(t *testing.T) {
+	input := verdictInput("m:index", "OrdersController", []RubyClassEntity{
+		{Name: "OrdersController", QualifiedName: "OrdersController", QualifiedBases: []string{"Api::Base"}},
+		{Name: "Base", QualifiedName: "Internal::Api::Base", QualifiedBases: []string{"ActiveRecord::Base"}},
+	})
+	rows, downgraded, stats := BuildCodeRootVerdicts(input)
+	row, ok := verdictByEntity(rows, "m:index")
+	if !ok || row.Verdict != CodeRootVerdictConfirmed || row.Basis.Reason != "suffix_only_ambiguous" {
+		t.Fatalf("want confirmed suffix_only_ambiguous, got ok=%v row=%+v", ok, row)
+	}
+	if len(downgraded) != 0 {
+		t.Fatalf("suffix_only_ambiguous must not be in the downgraded set, got %v", downgraded)
+	}
+	if stats.SuffixAmbiguousKept != 1 {
+		t.Fatalf("SuffixAmbiguousKept = %d, want 1", stats.SuffixAmbiguousKept)
+	}
+	kept := removeDowngradedRailsControllerRoots(input.Roots, downgraded)
+	if _, ok := findRoot(kept, "m:index"); !ok {
+		t.Fatalf("suffix-ambiguous controller root must be retained in the BFS root set")
+	}
+}
+
 // TestBuildCodeRootVerdictsDepthCapKept builds a chain longer than the shared
 // walk's cap and proves the resulting verdict is confirmed (keep-biased), never
 // a downgrade, even though the deep tail resolves to a non-controller base.

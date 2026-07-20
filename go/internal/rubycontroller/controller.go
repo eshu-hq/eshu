@@ -36,6 +36,13 @@ const (
 	// we cannot resolve could be a controller base defined in a gem or a
 	// namespace we do not see, so it must never downgrade a genuine controller.
 	ReasonUnresolvedQualified = "unresolved_qualified"
+	// ReasonSuffixOnlyAmbiguous: a base ref matched an in-corpus class ONLY by a
+	// proper (offset>0) segment suffix, or is a conventional ambiguous simple
+	// name ("Base"/"API") with zero corpus candidates. A proper-suffix match may
+	// never feed a downgrade (#5376 P0 rev-2): the true referent may be a gem
+	// class the suffix candidate merely shadows. Keep-biased; a confirm-only
+	// probe of the suffix candidates could still promote it to accepted.
+	ReasonSuffixOnlyAmbiguous = "suffix_only_ambiguous"
 	// ReasonUnresolvedController: the chain left the corpus at a
 	// Controller-suffixed base (very likely a Rails base defined in a gem) —
 	// keep-biased.
@@ -81,20 +88,38 @@ var rejectedFrameworkBases = map[string]struct{}{
 	"ApplicationMailer":  {},
 }
 
-// Registry provides class-ancestry lookups for the decision walk. The parser
-// backs it with a same-file, single-valued view; the reducer backs it with a
-// repo-wide multimap that unions declared bases across reopened and
-// short-name-colliding class definitions.
+// Registry provides IDENTITY-CARRYING class-ancestry resolution for the walk
+// (#5376 P0 rev-2). The walk operates on RESOLVED CLASS IDENTITIES (class keys),
+// never on ref strings after the first resolution, so an impostor's ancestry can
+// never masquerade as a ref's. The parser backs it with a same-file table
+// (SuffixMatches always empty, making same-file behavior provably unchanged);
+// the reducer backs it with a repo-wide qualified-name registry.
 type Registry interface {
-	// DeclaredBases returns the declared qualified superclass names for
-	// className and whether className declares any superclass at all. A class
-	// that exists but declares no superclass returns (nil, false); an
-	// unknown class also returns (nil, false). The walk distinguishes the two
-	// via IsKnownClass, never by base absence alone (#5376 D0: base absence is
-	// ambiguous and must never itself drive a downgrade).
-	DeclaredBases(className string) ([]string, bool)
-	// IsKnownClass reports whether className is defined anywhere in scope.
-	IsKnownClass(className string) bool
+	// ExactMatches returns the class keys whose full segment list equals ref
+	// (offset-0). Only an exact in-corpus match makes a ref downgrade-eligible.
+	ExactMatches(ref string) []string
+	// SuffixMatches returns the class keys for which ref is a STRICT trailing
+	// segment suffix (offset>0). A proper-suffix match may participate only in
+	// the keep/confirm direction, never in a downgrade.
+	SuffixMatches(ref string) []string
+	// EntryMatches returns the candidate defining classes for a method's simple
+	// class_context, by last-segment multimap. Used ONLY for the entry hop,
+	// where the true referent is in-corpus by construction so the multimap stays
+	// authoritative (any-path-keeps, downgrade only if every candidate does).
+	EntryMatches(ctx string) []string
+	// DeclaredBasesOf returns the declared superclass names for the EXACT class
+	// key (no re-matching) and whether it declares any. A base-less class
+	// returns (nil, false).
+	DeclaredBasesOf(classKey string) ([]string, bool)
+}
+
+// conventionalAmbiguousBases are the Rails-conventional simple names for
+// namespaced controller bases. With zero corpus candidates they must KEEP:
+// step-6's "simple non-Controller name = positive non-controller evidence" is
+// false for them (#5376 P0 rev-2, step 7).
+var conventionalAmbiguousBases = map[string]struct{}{
+	"Base": {},
+	"API":  {},
 }
 
 // Decision is the outcome of the controller superclass-chain walk. Keep is the
@@ -122,55 +147,96 @@ func IsRailsController(className string, reg Registry) bool {
 	return Decide(className, reg).Keep
 }
 
-// Decide walks className's declared superclass chain through reg and returns
-// the keep/downgrade decision plus provenance. The outcomes are intentionally
-// asymmetric and keep-biased: a false negative ("still call it live") is far
-// cheaper than a false positive that recommends deleting reachable code, so
-// ties resolve toward keeping the root. A downgrade is returned only on
-// positive evidence — every resolved path from className ends at a declared
-// base that is neither accepted nor Controller-suffixed.
+// Decide resolves className's method-defining class and walks its superclass
+// chain through reg, returning the keep/downgrade decision plus provenance. The
+// walk operates on resolved class identities (class keys) and is keep-biased: a
+// downgrade is returned only on positive evidence reached through EXACT
+// resolution doors (a literal reject-set ref with zero corpus suffix matches, or
+// the terminal of a fully exact-resolved chain). A proper-suffix match never
+// feeds a downgrade (#5376 P0 rev-2).
 func Decide(className string, reg Registry) Decision {
-	name := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(className), "::"))
+	name := normalizeRef(className)
 	if name == "" {
 		return Decision{Keep: false, Reason: ReasonUnresolvedNonController}
 	}
-	// legacyResidual is the pre-existing name-suffix signal for the method's
-	// own enclosing class, used only when the chain cannot prove or disprove
-	// Rails ancestry (fizzle, cycle, depth cap). It is computed once from the
-	// original className and never from an intermediate hop.
 	legacyResidual := strings.HasSuffix(name, "Controller")
-	return decideWalk(name, legacyResidual, reg, []string{name}, map[string]struct{}{}, 0)
+
+	// Entry hop: the method's defining class is in-corpus by construction, so
+	// the last-segment multimap stays authoritative. Any-path-keeps; downgrade
+	// only if every candidate defining class votes downgrade.
+	candidates := reg.EntryMatches(name)
+	if len(candidates) == 0 {
+		// The defining class was not loaded (A1 violated: stale/missing data).
+		// Keep — the reducer proved nothing (lag-safety).
+		return Decision{Keep: true, Chain: []string{name}, Terminal: "no_entry_candidate:" + name, Reason: ReasonFizzled}
+	}
+	return aggregateClassWalks(candidates, name, reg, legacyResidual, []string{}, map[string]struct{}{}, 0)
 }
 
-// decideWalk is the recursive, cycle-safe, depth-capped, multi-path chain walk.
-// It evaluates every declared base of a class; if ANY path keeps or confirms,
-// the class keeps (the collision rule). Only when every resolved path votes
-// downgrade does it return Keep=false. visited is copied per branch so sibling
-// paths of a colliding name do not falsely trip the cycle guard.
-func decideWalk(
-	current string,
-	legacyResidual bool,
+// aggregateClassWalks walks each candidate class key and applies any-path-keeps:
+// the first keeping walk wins; a downgrade is returned only if every candidate
+// votes downgrade. chainPrefix is the chain accumulated up to (but not
+// including) these candidates; each candidate's identity is appended before its
+// walk. When more than one candidate votes downgrade the reason is relabeled
+// ReasonCollision.
+func aggregateClassWalks(
+	candidates []string,
+	label string,
 	reg Registry,
+	legacyResidual bool,
+	chainPrefix []string,
+	visited map[string]struct{},
+	depth int,
+) Decision {
+	var (
+		downgrade     Decision
+		haveDowngrade bool
+	)
+	for _, classKey := range candidates {
+		branchChain := append(cloneChain(chainPrefix), classKey)
+		sub := walkClass(classKey, reg, legacyResidual, branchChain, cloneVisited(visited), depth)
+		if sub.Keep {
+			return sub
+		}
+		if !haveDowngrade {
+			downgrade, haveDowngrade = sub, true
+		}
+	}
+	if !haveDowngrade {
+		return Decision{Keep: legacyResidual, Chain: append(cloneChain(chainPrefix), label), Terminal: "fizzled:" + label, Reason: ReasonFizzled}
+	}
+	if len(candidates) > 1 {
+		downgrade.Reason = ReasonCollision
+	}
+	return downgrade
+}
+
+// walkClass walks a RESOLVED class identity: it reads that exact class key's
+// declared bases and evaluates each with the onward-hop rule. chain already ends
+// with classKey (the caller appended it). visited keys on resolved class keys.
+func walkClass(
+	classKey string,
+	reg Registry,
+	legacyResidual bool,
 	chain []string,
 	visited map[string]struct{},
 	depth int,
 ) Decision {
-	if _, seen := visited[current]; seen {
-		return Decision{Keep: legacyResidual, Chain: chain, Terminal: "cycle:" + current, Reason: ReasonCycle}
+	if _, seen := visited[classKey]; seen {
+		return Decision{Keep: legacyResidual, Chain: chain, Terminal: "cycle:" + classKey, Reason: ReasonCycle}
 	}
 	if depth >= MaxWalkDepth {
-		return Decision{Keep: legacyResidual, Chain: chain, Terminal: "depth_cap:" + current, Reason: ReasonDepthCap}
+		return Decision{Keep: legacyResidual, Chain: chain, Terminal: "depth_cap:" + classKey, Reason: ReasonDepthCap}
 	}
-	visited[current] = struct{}{}
+	visited[classKey] = struct{}{}
 
-	bases, declared := reg.DeclaredBases(current)
+	bases, declared := reg.DeclaredBasesOf(classKey)
 	if !declared {
-		return Decision{Keep: legacyResidual, Chain: chain, Terminal: "fizzled:" + current, Reason: ReasonFizzled}
+		return Decision{Keep: legacyResidual, Chain: chain, Terminal: "fizzled:" + classKey, Reason: ReasonFizzled}
 	}
 	bases = normalizeBases(bases)
 	if len(bases) == 0 {
-		// Declared but every base normalized away to empty: treat as fizzle.
-		return Decision{Keep: legacyResidual, Chain: chain, Terminal: "fizzled:" + current, Reason: ReasonFizzled}
+		return Decision{Keep: legacyResidual, Chain: chain, Terminal: "fizzled:" + classKey, Reason: ReasonFizzled}
 	}
 
 	multi := len(bases) > 1
@@ -179,60 +245,140 @@ func decideWalk(
 		haveDowngrade bool
 	)
 	for _, base := range bases {
-		branchChain := append(cloneChain(chain), base)
-		// 1. Accepted Rails controller base -> confirmed.
-		if _, accepted := acceptedControllerBases[base]; accepted {
-			return Decision{Keep: true, Chain: branchChain, Terminal: "accepted:" + base, Reason: ReasonAccepted}
+		sub := onwardHop(base, reg, legacyResidual, append(cloneChain(chain), base), cloneVisited(visited), depth)
+		if sub.Keep {
+			return sub // any-path-keeps
 		}
-		// 2. Resolvable in-corpus -> recurse. Checked BEFORE the reject-set so a
-		//    perverse in-corpus class that reopens a framework name still
-		//    resolves onward first.
-		if reg.IsKnownClass(base) {
-			sub := decideWalk(base, legacyResidual, reg, branchChain, cloneVisited(visited), depth+1)
-			if sub.Keep {
-				return sub
-			}
-			if !haveDowngrade {
-				downgrade, haveDowngrade = sub, true
-			}
-			continue
-		}
-		// 3. Curated non-controller framework terminal -> positive downgrade.
-		//    This is the ONLY way a qualified base downgrades (F2).
-		if _, rejected := rejectedFrameworkBases[base]; rejected {
-			if !haveDowngrade {
-				downgrade = Decision{Keep: false, Chain: branchChain, Terminal: "rejected_base:" + base, Reason: ReasonRejectedFrameworkBase}
-				haveDowngrade = true
-			}
-			continue
-		}
-		// 4. F1 safety floor: a QUALIFIED base we cannot resolve and that is not
-		//    a curated reject terminal must NEVER downgrade — it could be a
-		//    controller base in a gem or namespace we do not see. Keep-biased.
-		if strings.Contains(base, "::") {
-			return Decision{Keep: true, Chain: branchChain, Terminal: "unresolved_qualified:" + base, Reason: ReasonUnresolvedQualified}
-		}
-		// 5. Unresolved SIMPLE name ending in "Controller" -> very likely a Rails
-		//    controller base defined elsewhere. Keep.
-		if strings.HasSuffix(base, "Controller") {
-			return Decision{Keep: true, Chain: branchChain, Terminal: "unresolved_base:" + base, Reason: ReasonUnresolvedController}
-		}
-		// 6. Unresolved SIMPLE non-controller name (< Thor, < StandardError) ->
-		//    positive downgrade.
 		if !haveDowngrade {
-			downgrade = Decision{Keep: false, Chain: branchChain, Terminal: "unresolved_base:" + base, Reason: ReasonUnresolvedNonController}
-			haveDowngrade = true
+			downgrade, haveDowngrade = sub, true
 		}
 	}
-
 	if !haveDowngrade {
-		return Decision{Keep: legacyResidual, Chain: chain, Terminal: "fizzled:" + current, Reason: ReasonFizzled}
+		return Decision{Keep: legacyResidual, Chain: chain, Terminal: "fizzled:" + classKey, Reason: ReasonFizzled}
 	}
 	if multi {
-		// Every resolved path of a colliding name voted downgrade.
 		downgrade.Reason = ReasonCollision
 	}
 	return downgrade
+}
+
+// onwardHop applies the #5376 P0 rev-2 ordered rule to a single base ref R. The
+// returned Decision either keeps/confirms (Keep=true) or is a downgrade vote
+// (Keep=false). branchChain already ends with R.
+func onwardHop(
+	ref string,
+	reg Registry,
+	legacyResidual bool,
+	branchChain []string,
+	visited map[string]struct{},
+	depth int,
+) Decision {
+	// 1. Literal accepted controller base -> confirm.
+	if _, accepted := acceptedControllerBases[ref]; accepted {
+		return Decision{Keep: true, Chain: branchChain, Terminal: "accepted:" + ref, Reason: ReasonAccepted}
+	}
+
+	exact := reg.ExactMatches(ref)
+	suffix := reg.SuffixMatches(ref)
+
+	// 2. EXACT resolution: R is downgrade-eligible. Recurse PER CANDIDATE class
+	//    key over ExactMatches ∪ SuffixMatches (never re-unioned by ref string);
+	//    any candidate that keeps/confirms rescues via any-path-keeps. Checked
+	//    BEFORE the reject-set.
+	if len(exact) > 0 {
+		candidates := unionKeys(exact, suffix)
+		return aggregateClassWalks(candidates, ref, reg, legacyResidual, branchChain[:len(branchChain)-1], visited, depth+1)
+	}
+
+	// 3. SUFFIX-ONLY ambiguity: a proper-suffix match may only confirm, never
+	//    downgrade. Run a confirm-only probe whose downgrade evidence is
+	//    structurally discarded. Checked BEFORE the reject-set (a corpus
+	//    Legacy::ActiveRecord::Base shadows a literal ActiveRecord::Base ref).
+	if len(suffix) > 0 {
+		for _, classKey := range suffix {
+			if probeClassConfirm(classKey, reg, cloneVisited(visited), depth+1) {
+				return Decision{Keep: true, Chain: branchChain, Terminal: "accepted_via_suffix:" + ref, Reason: ReasonAccepted}
+			}
+		}
+		return Decision{Keep: true, Chain: branchChain, Terminal: "suffix_only_ambiguous:" + ref, Reason: ReasonSuffixOnlyAmbiguous}
+	}
+
+	// 4. Literal reject-set (reachable only with zero segment-suffix matches of
+	//    R) -> downgrade vote.
+	if _, rejected := rejectedFrameworkBases[ref]; rejected {
+		return Decision{Keep: false, Chain: branchChain, Terminal: "rejected_base:" + ref, Reason: ReasonRejectedFrameworkBase}
+	}
+	// 5. Unresolved qualified base -> KEEP (F1 floor).
+	if strings.Contains(ref, "::") {
+		return Decision{Keep: true, Chain: branchChain, Terminal: "unresolved_qualified:" + ref, Reason: ReasonUnresolvedQualified}
+	}
+	// 6. Unresolved simple name ending in "Controller" -> KEEP.
+	if strings.HasSuffix(ref, "Controller") {
+		return Decision{Keep: true, Chain: branchChain, Terminal: "unresolved_base:" + ref, Reason: ReasonUnresolvedController}
+	}
+	// 7. Conventional ambiguous simple name ("Base"/"API") with zero candidates
+	//    -> KEEP (these are the Rails-conventional namespaced-base names).
+	if _, conventional := conventionalAmbiguousBases[ref]; conventional {
+		return Decision{Keep: true, Chain: branchChain, Terminal: "suffix_only_ambiguous:" + ref, Reason: ReasonSuffixOnlyAmbiguous}
+	}
+	// 8. Unresolved simple non-controller name with zero candidates (< Thor,
+	//    < StandardError) -> downgrade vote.
+	return Decision{Keep: false, Chain: branchChain, Terminal: "unresolved_base:" + ref, Reason: ReasonUnresolvedNonController}
+}
+
+// probeClassConfirm walks a suffix-candidate class in CONFIRM-ONLY mode: it
+// returns true only if some path reaches the accepted controller-base set. Its
+// downgrade evidence is structurally discarded (there is no downgrade return),
+// so a proper-suffix match can never contribute a downgrade. It respects
+// MaxWalkDepth and a resolved-class-key cycle guard.
+func probeClassConfirm(classKey string, reg Registry, visited map[string]struct{}, depth int) bool {
+	if _, seen := visited[classKey]; seen {
+		return false
+	}
+	if depth >= MaxWalkDepth {
+		return false
+	}
+	visited[classKey] = struct{}{}
+
+	bases, declared := reg.DeclaredBasesOf(classKey)
+	if !declared {
+		return false
+	}
+	for _, base := range normalizeBases(bases) {
+		if _, accepted := acceptedControllerBases[base]; accepted {
+			return true
+		}
+		for _, candidate := range unionKeys(reg.ExactMatches(base), reg.SuffixMatches(base)) {
+			if probeClassConfirm(candidate, reg, cloneVisited(visited), depth+1) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// normalizeRef trims whitespace and a leading "::" (absolute-constant marker)
+// from a ref or class name.
+func normalizeRef(ref string) string {
+	return strings.TrimPrefix(strings.TrimSpace(ref), "::")
+}
+
+// unionKeys returns the deduplicated union of two class-key slices, preserving
+// a deterministic sorted order.
+func unionKeys(a, b []string) []string {
+	seen := make(map[string]struct{}, len(a)+len(b))
+	out := make([]string, 0, len(a)+len(b))
+	for _, keys := range [][]string{a, b} {
+		for _, key := range keys {
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			out = append(out, key)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // normalizeBases trims the "::" prefix and whitespace from each base, drops
@@ -241,7 +387,7 @@ func normalizeBases(bases []string) []string {
 	seen := make(map[string]struct{}, len(bases))
 	out := make([]string, 0, len(bases))
 	for _, base := range bases {
-		base = strings.TrimPrefix(strings.TrimSpace(base), "::")
+		base = normalizeRef(base)
 		if base == "" {
 			continue
 		}

@@ -303,25 +303,42 @@ func rubyIsRailsController(contextName string, registry rubyClassRegistry) bool 
 }
 
 // rubySameFileControllerRegistry adapts the parser's single-valued, same-file
-// rubyClassRegistry to the shared rubycontroller.Registry contract. Each class
-// has at most one declared superclass in the same-file registry, so
-// DeclaredBases returns a singleton slice — behavior-identical to the original
-// same-file walk.
+// rubyClassRegistry to the shared rubycontroller.Registry contract. Class keys
+// are the parser's simple (last-segment) class names. SuffixMatches is ALWAYS
+// empty, which makes the parser's same-file behavior provably unchanged by the
+// #5376 P0 rev-2 identity-carrying walk: with no proper-suffix matches, the
+// suffix-only probe and ambiguity steps never fire, so a qualified base the file
+// cannot resolve exactly still lands on the F1 keep-biased floor exactly as
+// before. Each class has at most one declared superclass same-file.
 type rubySameFileControllerRegistry struct {
 	registry rubyClassRegistry
 }
 
-func (r rubySameFileControllerRegistry) DeclaredBases(className string) ([]string, bool) {
-	base, declared := r.registry.superclass[className]
+func (r rubySameFileControllerRegistry) ExactMatches(ref string) []string {
+	if _, ok := r.registry.known[ref]; ok {
+		return []string{ref}
+	}
+	return nil
+}
+
+// SuffixMatches is always empty for the same-file parser registry.
+func (r rubySameFileControllerRegistry) SuffixMatches(string) []string {
+	return nil
+}
+
+func (r rubySameFileControllerRegistry) EntryMatches(ctx string) []string {
+	if _, ok := r.registry.known[ctx]; ok {
+		return []string{ctx}
+	}
+	return nil
+}
+
+func (r rubySameFileControllerRegistry) DeclaredBasesOf(classKey string) ([]string, bool) {
+	base, declared := r.registry.superclass[classKey]
 	if !declared {
 		return nil, false
 	}
 	return []string{base}, true
-}
-
-func (r rubySameFileControllerRegistry) IsKnownClass(className string) bool {
-	_, ok := r.registry.known[className]
-	return ok
 }
 
 func rubyIsRailsControllerActionName(name string) bool {

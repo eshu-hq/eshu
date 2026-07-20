@@ -85,6 +85,12 @@ type CodeRootVerdictStats struct {
 	// InconclusiveMissingContext counts rails_controller_action roots with no
 	// class_context; they write no row and are therefore kept (lag-safety).
 	InconclusiveMissingContext int
+	// SuffixAmbiguousKept counts confirmed roots kept specifically because a base
+	// ref resolved ONLY by a proper (offset>0) segment suffix (or a conventional
+	// ambiguous simple name) — the #5376 P0 rev-2 keep-biased outcome. An
+	// operator watching this rise knows how many controllers are being held live
+	// by the suffix-ambiguity floor rather than a positive confirm.
+	SuffixAmbiguousKept int
 }
 
 // BuildCodeRootVerdicts computes per-root-method Rails controller verdicts from
@@ -131,6 +137,9 @@ func BuildCodeRootVerdicts(input CodeReachabilityProjectionInput) ([]CodeRootVer
 		verdict := CodeRootVerdictConfirmed
 		if decision.Keep {
 			stats.Confirmed++
+			if decision.Reason == rubycontroller.ReasonSuffixOnlyAmbiguous {
+				stats.SuffixAmbiguousKept++
+			}
 		} else {
 			verdict = CodeRootVerdictDowngraded
 			downgraded[entityID] = struct{}{}
@@ -264,61 +273,97 @@ func rubyRegistryQualifiedName(class RubyClassEntity) string {
 	return strings.TrimSpace(class.Name)
 }
 
-func (r rubyRepoWideControllerRegistry) DeclaredBases(ref string) ([]string, bool) {
-	matches := r.matchingQualifiedNames(ref)
-	if len(matches) == 0 {
-		return nil, false
+// ExactMatches returns the qualified name equal to ref (offset-0). Since
+// qualified names are the registry keys, there is at most one.
+func (r rubyRepoWideControllerRegistry) ExactMatches(ref string) []string {
+	ref = strings.TrimPrefix(strings.TrimSpace(ref), "::")
+	if ref == "" {
+		return nil
 	}
-	union := make(map[string]struct{})
-	for _, qualified := range matches {
-		for base := range r.basesByQualified[qualified] {
-			union[base] = struct{}{}
-		}
+	if _, ok := r.basesByQualified[ref]; ok {
+		return []string{ref}
 	}
-	if len(union) == 0 {
-		return nil, false
-	}
-	out := make([]string, 0, len(union))
-	for base := range union {
-		out = append(out, base)
-	}
-	sort.Strings(out)
-	return out, true
+	return nil
 }
 
-func (r rubyRepoWideControllerRegistry) IsKnownClass(ref string) bool {
-	return len(r.matchingQualifiedNames(ref)) > 0
-}
-
-// matchingQualifiedNames returns every registered qualified name whose trailing
-// segments equal ref's segments (segment-aligned suffix match).
-func (r rubyRepoWideControllerRegistry) matchingQualifiedNames(ref string) []string {
+// SuffixMatches returns qualified names for which ref is a STRICT (offset>0)
+// trailing-segment suffix: "Api::Base" matches "Internal::Api::Base" but never
+// the exact "Api::Base" (that is an ExactMatch) and never "Reporting::Base".
+func (r rubyRepoWideControllerRegistry) SuffixMatches(ref string) []string {
 	ref = strings.TrimPrefix(strings.TrimSpace(ref), "::")
 	if ref == "" {
 		return nil
 	}
 	refSegments := strings.Split(ref, "::")
 	candidates := r.namesByLastSegment[refSegments[len(refSegments)-1]]
-	if len(candidates) == 0 {
+	matched := make([]string, 0, len(candidates))
+	for _, qualified := range candidates {
+		if rubyQualifiedNameHasStrictSuffix(qualified, refSegments) {
+			matched = append(matched, qualified)
+		}
+	}
+	sort.Strings(matched)
+	return matched
+}
+
+// EntryMatches returns candidate defining classes for a method's simple
+// class_context by last-segment multimap (offset>=0). Used only for the entry
+// hop, where the true referent is in-corpus by construction.
+func (r rubyRepoWideControllerRegistry) EntryMatches(ctx string) []string {
+	ctx = strings.TrimPrefix(strings.TrimSpace(ctx), "::")
+	if ctx == "" {
 		return nil
 	}
+	refSegments := strings.Split(ctx, "::")
+	candidates := r.namesByLastSegment[refSegments[len(refSegments)-1]]
 	matched := make([]string, 0, len(candidates))
 	for _, qualified := range candidates {
 		if rubyQualifiedNameHasSuffix(qualified, refSegments) {
 			matched = append(matched, qualified)
 		}
 	}
+	sort.Strings(matched)
 	return matched
 }
 
+// DeclaredBasesOf returns the unioned declared bases for the EXACT qualified
+// name classKey (no re-matching).
+func (r rubyRepoWideControllerRegistry) DeclaredBasesOf(classKey string) ([]string, bool) {
+	set, ok := r.basesByQualified[classKey]
+	if !ok || len(set) == 0 {
+		return nil, false
+	}
+	out := make([]string, 0, len(set))
+	for base := range set {
+		out = append(out, base)
+	}
+	sort.Strings(out)
+	return out, true
+}
+
 // rubyQualifiedNameHasSuffix reports whether qualified's trailing segments equal
-// refSegments exactly (so "Shop::Admin::Base" matches ["Admin","Base"] but
-// "Reporting::Base" does not match ["Admin","Base"]).
+// refSegments (offset>=0): "Shop::Admin::Base" and "Admin::Base" both match
+// ["Admin","Base"]; "Reporting::Base" does not.
 func rubyQualifiedNameHasSuffix(qualified string, refSegments []string) bool {
 	qnSegments := strings.Split(qualified, "::")
 	if len(qnSegments) < len(refSegments) {
 		return false
 	}
+	return rubySegmentsEqualTail(qnSegments, refSegments)
+}
+
+// rubyQualifiedNameHasStrictSuffix is rubyQualifiedNameHasSuffix but requires a
+// PROPER suffix (offset>0): the qualified name must have MORE segments than the
+// ref, so an exact match is excluded.
+func rubyQualifiedNameHasStrictSuffix(qualified string, refSegments []string) bool {
+	qnSegments := strings.Split(qualified, "::")
+	if len(qnSegments) <= len(refSegments) {
+		return false
+	}
+	return rubySegmentsEqualTail(qnSegments, refSegments)
+}
+
+func rubySegmentsEqualTail(qnSegments, refSegments []string) bool {
 	offset := len(qnSegments) - len(refSegments)
 	for i := range refSegments {
 		if qnSegments[offset+i] != refSegments[i] {

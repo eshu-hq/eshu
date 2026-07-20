@@ -12,8 +12,12 @@ builder (`go/internal/reducer`).
   decision.
 - NEVER add a downgrade path that fires on inconclusive evidence. Downgrade
   (`Keep == false`) is allowed only when every resolved path lands on a
-  declared non-controller reject branch. Fizzle, cycle, depth cap, and
-  unresolved Controller-suffixed bases MUST stay keep-biased.
+  declared non-controller reject branch through an EXACT (offset-0) door.
+  Fizzle, cycle, depth cap, unresolved Controller-suffixed bases, unresolved
+  qualified bases, and suffix-only matches MUST stay keep-biased.
+- NEVER let a proper-suffix (offset>0) match feed a downgrade (#5376 P0 rev-2).
+  Suffix candidates participate only via the confirm-only probe. The walk MUST
+  operate on resolved class identities, never re-union by ref string per hop.
 - Keep this package a leaf: `strings` and `sort` only. No parser, reducer,
   storage, or telemetry imports. Both callers import it; it imports neither.
 - Changing `acceptedControllerBases`, `MaxWalkDepth`, the suffix rule, or the
