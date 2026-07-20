@@ -19,7 +19,7 @@ import (
 // entities -- no facts, no graph nodes -- even though the parser produces the
 // bucket and the projector knows the label. Before this test the two new Flux
 // Helm buckets were registered in the parser and content/shape but NOT in the
-// collector list, so the golden-corpus gate's rc-153 / rn-flux-helm-* graph
+// collector list, so the golden-corpus gate's rc-154 / rn-flux-helm-* graph
 // assertions all resolved count=0.
 //
 // This drives the REAL YAML parser over the SAME kubernetes_comprehensive
