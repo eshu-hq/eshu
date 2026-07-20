@@ -92,7 +92,9 @@ $proc$;
 	assertSQLBucketContainsName(t, got, "sql_functions", "public.archive_users")
 	assertSQLRelationshipExists(t, got, "READS_FROM", "public.active_users", "public.users")
 	assertSQLRelationshipExists(t, got, "READS_FROM", "public.count_users", "public.users")
-	assertSQLRelationshipExists(t, got, "READS_FROM", "public.archive_users", "public.user_archive")
+	// public.user_archive is the INSERT target, not a read; a write must never
+	// be stamped as a READS_FROM edge (#5345).
+	assertSQLRelationshipMissing(t, got, "READS_FROM", "public.archive_users", "public.user_archive")
 	assertSQLRelationshipExists(t, got, "READS_FROM", "public.archive_users", "public.users")
 	assertSQLMigrationExists(t, got, "prisma", "SqlTable", "public.user_archive")
 }
@@ -151,6 +153,46 @@ func TestParseMigrationTargetsFromAlterAndReferences(t *testing.T) {
 	)
 	gotReferences := parseSQLTestFile(t, referencesPath)
 	assertSQLMigrationExists(t, gotReferences, "prisma", "SqlTable", "public.orders")
+}
+
+// TestParseViewAndFunctionStampSourceTablesMetadata guards #5345: the view and
+// function entity items must carry entity_metadata.source_tables (the bridge
+// the reducer's view/function READS_FROM derivation keys on), deduped and
+// sorted, restricted to "select" mentions. A function whose body writes to a
+// table via INSERT must not stamp that write target as a read.
+func TestParseViewAndFunctionStampSourceTablesMetadata(t *testing.T) {
+	t.Parallel()
+
+	path := writeSQLTestFile(t, "views_and_functions.sql", `CREATE TABLE public.users (
+  id BIGSERIAL PRIMARY KEY
+);
+
+CREATE TABLE public.orders (
+  id BIGSERIAL PRIMARY KEY
+);
+
+CREATE OR REPLACE VIEW public.recent_orders AS
+SELECT o.id
+FROM public.orders o
+JOIN public.users u ON u.id = o.id;
+
+CREATE OR REPLACE FUNCTION public.archive_orders() RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  INSERT INTO public.order_archive
+  SELECT id FROM public.orders;
+END;
+$$;
+`)
+
+	got := parseSQLTestFile(t, path)
+
+	assertSQLBucketStringSlice(t, got, "sql_views", "public.recent_orders", "source_tables",
+		[]string{"public.orders", "public.users"})
+	assertSQLBucketStringSlice(t, got, "sql_functions", "public.archive_orders", "source_tables",
+		[]string{"public.orders"})
+	assertSQLRelationshipMissing(t, got, "READS_FROM", "public.archive_orders", "public.order_archive")
 }
 
 func TestParseMySQLBacktickQuotedIdentifiers(t *testing.T) {
@@ -338,6 +380,65 @@ func assertSQLRelationshipExists(
 		targetName,
 		items,
 	)
+}
+
+// assertSQLBucketStringSlice asserts the named entity in bucket carries the
+// exact (order-sensitive) string slice under key.
+func assertSQLBucketStringSlice(
+	t *testing.T,
+	payload map[string]any,
+	bucket string,
+	name string,
+	key string,
+	want []string,
+) {
+	t.Helper()
+
+	items, _ := payload[bucket].([]map[string]any)
+	for _, item := range items {
+		gotName, _ := item["name"].(string)
+		if gotName != name {
+			continue
+		}
+		got, _ := item[key].([]string)
+		if len(got) != len(want) {
+			t.Fatalf("%s[%q][%q] = %#v, want %#v", bucket, name, key, got, want)
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Fatalf("%s[%q][%q] = %#v, want %#v", bucket, name, key, got, want)
+			}
+		}
+		return
+	}
+	t.Fatalf("%s missing name %q in %#v", bucket, name, items)
+}
+
+// assertSQLRelationshipMissing asserts no relationship of relationshipType
+// from sourceName to targetName was emitted.
+func assertSQLRelationshipMissing(
+	t *testing.T,
+	payload map[string]any,
+	relationshipType string,
+	sourceName string,
+	targetName string,
+) {
+	t.Helper()
+
+	items, _ := payload["sql_relationships"].([]map[string]any)
+	for _, item := range items {
+		gotType, _ := item["type"].(string)
+		gotSource, _ := item["source_name"].(string)
+		gotTarget, _ := item["target_name"].(string)
+		if gotType == relationshipType && gotSource == sourceName && gotTarget == targetName {
+			t.Fatalf(
+				"sql_relationships unexpectedly contained type=%q source_name=%q target_name=%q",
+				relationshipType,
+				sourceName,
+				targetName,
+			)
+		}
+	}
 }
 
 func assertSQLMigrationExists(
