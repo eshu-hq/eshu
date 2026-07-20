@@ -246,8 +246,8 @@ for fixture in "${corpus_fixtures[@]}"; do
 	cp -R "${src}" "${corpus_dir}/${fixture}"
 	# deployable-config needs a git repo so localGitRefs can discover tags
 	# for the B-12 query_shape.http branches endpoint assertion.
-	if [[ "${fixture}" = "deployable-config" ]]; then
-		git -C "${corpus_dir}/${fixture}" init -b main >/dev/null 2>&1
+		if [[ "${fixture}" = "deployable-config" ]]; then
+		git -C "${corpus_dir}/${fixture}" -c init.defaultBranch=main init >/dev/null 2>&1
 		git -C "${corpus_dir}/${fixture}" config user.email "gate@eshu.local" >/dev/null 2>&1
 		git -C "${corpus_dir}/${fixture}" config user.name "Golden Gate" >/dev/null 2>&1
 		git -C "${corpus_dir}/${fixture}" add -A >/dev/null 2>&1

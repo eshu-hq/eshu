@@ -6,6 +6,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os/exec"
 	"sort"
 	"strings"
@@ -349,20 +350,32 @@ func normalizeGitTagName(tag string) (string, error) {
 	return tag, nil
 }
 
-// collectLocalRefs calls localGitRefs on each repo path and returns a map
-// suitable for buildSelectedRepositories. Errors are silently skipped —
-// localGitRefs fails when the directory is not a git repo (no .git), which
-// is normal for plain-directory fixtures in filesystem mode. The failures
-// are non-fatal: a repo without git refs still snapshots its content.
-func collectLocalRefs(ctx context.Context, repoPaths []string) map[string][]GitRef {
-	refsByRepoPath := make(map[string][]GitRef, len(repoPaths))
-	for _, repoPath := range repoPaths {
-		refs, err := localGitRefs(ctx, repoPath)
+// collectLocalRefs runs localGitRefs on the SOURCE path for each repository ID
+// (the original checkout which carries .git) and stores results keyed by the
+// TARGET path (the managed copy in filesystem mode). This is necessary because
+// copyRepositoryTree strips dotfiles, so the target path has no .git directory.
+// Errors are logged and skipped — localGitRefs fails when the source is not a git
+// repo, which is normal for plain-directory fixtures.
+func collectLocalRefs(ctx context.Context, logger *slog.Logger, config RepoSyncConfig, repoIDs []string, targetPaths []string) map[string][]GitRef {
+	refsByRepoPath := make(map[string][]GitRef, len(targetPaths))
+	for _, repoID := range repoIDs {
+		sourcePath, targetPath, err := filesystemRepoPaths(config, repoID)
 		if err != nil {
 			continue
 		}
+		refs, err := localGitRefs(ctx, sourcePath)
+		if err != nil {
+			if logger != nil {
+				logger.Debug("local git refs skipped (not a git repo or ref parse failed)",
+					"source_path", sourcePath,
+					"repo_id", repoID,
+					"error", err,
+				)
+			}
+			continue
+		}
 		if len(refs) > 0 {
-			refsByRepoPath[repoPath] = refs
+			refsByRepoPath[targetPath] = refs
 		}
 	}
 	return refsByRepoPath

@@ -111,7 +111,7 @@ func (s NativeRepositorySelector) SelectRepositories(
 		}
 		return SelectionBatch{
 			ObservedAt:   observedAt,
-			Repositories: buildSelectedRepositories(s.Config, repoPaths, nil, nil, nil, collectLocalRefs(ctx, repoPaths)),
+			Repositories: buildSelectedRepositories(s.Config, repoPaths, nil, nil, nil, collectLocalRefs(ctx, s.Logger, s.Config, selection.RepositoryIDs, repoPaths)),
 		}, nil
 	case "explicit", "githubOrg":
 		syncGitFn := s.SyncGit
