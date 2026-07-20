@@ -14,13 +14,13 @@ For audited family-level closure status, see
 
 | Parser | Parser Class | Functions | Classes | Interfaces | Traits | Imports | Calls | Variables | Structs | Enums | Macros | Unit Coverage | Integration Coverage | Fixture |
 |--------|--------------|-----------|---------|------------|--------|---------|-------|-----------|---------|-------|--------|---------------|----------------------|---------|
-| C | `DefaultEngine (c)` | Y | - | - | - | Y | Y | Y | Y | Y | Y | 9/9 | 9/9 | `tests/fixtures/ecosystems/c_comprehensive/` |
+| C | `DefaultEngine (c)` | Y | - | - | - | Y | Y | Y | Y | Y | Y | 9/9 | 9/9 | - |
 | C++ | `DefaultEngine (cpp)` | Y | Y | - | - | Y | Y | Y | Y | Y | Y | 12/12 | 12/12 | `tests/fixtures/ecosystems/cpp_comprehensive/` |
 | C# | `DefaultEngine (c_sharp)` | Y | Y | Y | - | Y | Y | - | Y | Y | - | 13/13 | 13/13 | `tests/fixtures/ecosystems/csharp_comprehensive/` |
 | Dart | `DefaultEngine (dart)` | Y | Y | - | - | Y | Y | Y | - | Y | - | 11/11 | 11/11 | `tests/fixtures/ecosystems/dart_comprehensive/` |
 | Elixir | `DefaultEngine (elixir)` | Y | Y | - | - | Y | Y | P | - | - | - | 7/7 | 7/7 | `tests/fixtures/ecosystems/elixir_comprehensive/` |
 | Go | `DefaultEngine (go)` | Y | - | Y | - | Y | Y | Y | Y | - | - | 9/9 | 9/9 | `tests/fixtures/ecosystems/go_comprehensive/` |
-| Groovy | `DefaultEngine (groovy)` | - | - | - | - | - | - | - | - | - | - | 6/6 | 6/6 | `tests/fixtures/ecosystems/groovy_comprehensive/` |
+| Groovy | `DefaultEngine (groovy)` | - | - | - | - | - | - | - | - | - | - | 6/6 | 6/6 | - |
 | Haskell | `DefaultEngine (haskell)` | Y | - | - | Y | Y | Y | Y | Y | Y | - | 9/9 | 9/9 | `tests/fixtures/ecosystems/haskell_comprehensive/` |
 | Java | `DefaultEngine (java)` | Y | Y | Y | - | Y | Y | Y | - | Y | - | 11/11 | 11/11 | `tests/fixtures/ecosystems/java_comprehensive/` |
 | JavaScript | `DefaultEngine (javascript)` | Y | Y | - | - | Y | Y | Y | - | - | - | 9/9 | 9/9 | `tests/fixtures/ecosystems/javascript_comprehensive/` |
