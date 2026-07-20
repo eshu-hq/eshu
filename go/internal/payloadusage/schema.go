@@ -122,6 +122,8 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	// handler reads.
 	"FactKindSBOMDocument":                     "sbom.document.v1.schema.json",
 	"FactKindSBOMComponent":                    "sbom.component.v1.schema.json",
+	"FactKindSBOMDependencyRelationship":       "sbom.dependency_relationship.v1.schema.json",
+	"FactKindSBOMExternalReference":            "sbom.external_reference.v1.schema.json",
 	"FactKindSBOMWarning":                      "sbom.warning.v1.schema.json",
 	"FactKindAttestationStatement":             "attestation.statement.v1.schema.json",
 	"FactKindAttestationSignatureVerification": "attestation.signature_verification.v1.schema.json",
