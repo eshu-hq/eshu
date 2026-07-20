@@ -35,6 +35,9 @@ queue, or graph-write evidence.
 | `ESHU_LARGE_REPO_MAX_CONCURRENT` | `2` | collector | Concurrent large repo snapshots. |
 | `ESHU_REPO_RECONCILE_INTERVAL_HOURS` | `24` | collector | Hours a git scope may go without a full observation before the sweep forces one to retract delta drift; `0` disables reconciliation. |
 | `ESHU_REPO_RECONCILE_MAX_PER_CYCLE` | `10` | collector | Max scopes forced to a full reconciliation snapshot per selection cycle; `0` removes the per-cycle cap. |
+| `ESHU_PINNED_REFS_JSON` | unset | collector (githubOrg, explicit modes) | Per-repository pinned ref map. JSON object mapping repository IDs (config-form after `normalizeRepositoryID`, e.g. `"org/repo"`, NOT `repository:r_<hash>`) to an array of ref names (branches or tags, e.g. `["feature-x", "v1.0"]`). Empty means feature-off. Both branches (heads-first lookup) and tags (fallback) are supported. Filesystem mode is inert (the feature only operates on git-synced repositories). Enabler for epic #5393, issue #5417. |
+| `ESHU_PINNED_REF_PER_REPO_CAP` | `3` | collector | Maximum pinned refs per repository. Counts exceeding the cap are truncated with a warning log at sync time (not rejected at parse time). |
+| `ESHU_PINNED_REF_FLEET_CAP` | `0` (unlimited) | collector | Absolute maximum total pinned-ref worktree entries per sync cycle across the entire fleet. Zero means unlimited. Set after measuring the true per-ref cost on your corpus (deferred to #5393 Phase 0). |
 | `ESHU_DISCOVERY_REPORT` | unset | `eshu index`, bootstrap-index | Writes per-repo discovery advisory JSON. |
 | `ESHU_DISCOVERY_IGNORED_PATH_GLOBS` | unset | bootstrap-index, collector-git, ingester | Operator ignore overlay. Entries may use `pattern=reason`. |
 | `ESHU_DISCOVERY_PRESERVED_PATH_GLOBS` | unset | bootstrap-index, collector-git, ingester | Preserved globs that override broader ignored ancestors. |
