@@ -192,14 +192,24 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		ctx["controller_entities"] = deploymentSourceGitOps.controllers
 		ctx["controller_entity_limits"] = deploymentSourceGitOps.controllerLimits
 
-		// D2 (#5471): probe for live runtime observation binding the
-		// workload to a KubernetesWorkload with a RUNS_IMAGE edge. The
-		// result promotes the deployment truth tier from config_only to
-		// runtime_confirmed.
-		liveEvidence, err := h.fetchWorkloadLiveEvidence(r.Context(), workloadID)
+		// D2 (#5471): probe for exact-outcome kubernetes correlation
+		// rows matching the workload's config-declared image refs.
+		// An exact match (outcome=exact, image_ref matches) means a
+		// live cluster observably runs the workload's declared image
+		// — that promotes the deployment truth tier from config_only
+		// to runtime_confirmed.
+		liveEvidence, err := h.fetchWorkloadLiveEvidence(r.Context(), imageRefs, access)
 		if err != nil {
-			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query live evidence: %v", err))
-			return
+			// Store errors fail closed to the config tier.
+			// Record the live-evidence probe failed but do not
+			// 500 the whole trace.
+			if h.Logger != nil {
+				h.Logger.Warn(
+					"impact handler: live evidence probe failed, falling back to config tier",
+					"service_name", req.ServiceName,
+					"error", err.Error(),
+				)
+			}
 		}
 		ctx["_has_live_evidence"] = liveEvidence
 	}

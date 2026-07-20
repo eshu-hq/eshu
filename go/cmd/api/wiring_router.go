@@ -165,11 +165,12 @@ func newRouterWithSemanticEmbedding(
 			Profile:      queryProfile,
 		},
 		Impact: &query.ImpactHandler{
-			Neo4j:       neo4jReader,
-			Content:     contentReader,
-			Profile:     queryProfile,
-			Logger:      logger,
-			Instruments: instruments,
+			Neo4j:                  neo4jReader,
+			Content:                contentReader,
+			Profile:                queryProfile,
+			Logger:                 logger,
+			Instruments:            instruments,
+			KubernetesCorrelations: query.NewPostgresKubernetesCorrelationStore(db),
 		},
 		Evidence: &query.EvidenceHandler{
 			Content:            contentReader,

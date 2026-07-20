@@ -25,6 +25,13 @@ type ImpactHandler struct {
 	// skipped) so tests can construct ImpactHandler without wiring the full
 	// telemetry stack.
 	Instruments *telemetry.Instruments
+	// KubernetesCorrelations is the Postgres-backed exact-outcome
+	// kubernetes correlation read model. When non-nil, trace_deployment_chain
+	// probes it for exact live-evidence rows to promote the deployment truth
+	// tier from config_only to runtime_confirmed (#5471). Nil is tolerated
+	// (tests, unwired profiles) and degrades gracefully to config-only
+	// classification.
+	KubernetesCorrelations KubernetesCorrelationStore
 }
 
 // Mount registers impact analysis routes on the given mux.

@@ -24,9 +24,14 @@ consumer reads through the same `ClassifyDeploymentTruthTier` helper.
 ### `runtime_confirmed`
 
 QUALIFIES:
-- An exact kubernetes_live correlation producing a `RUNS_IMAGE` edge from a
-  `KubernetesWorkload` to an `OciImageManifest`, reachable through the
-  workload's `INSTANCE_OF → RUNS_ON → OBSERVED_ON` topology.
+- An exact-outcome kubernetes correlation row (`outcome: "exact"`) from the
+  Postgres active-fact read model (`reducer_kubernetes_correlation`) whose
+  `image_ref` matches a config-declared image reference from the workload's
+  deployment-source controllers. The match means a live cluster observably
+  runs the workload's declared image, and the reducer's image-identity
+  evidence confirmed the digest or fixed-tag exact match. `RUNS_IMAGE` is
+  the graph-side projection of the same exact outcomes, read through the
+  same Postgres read model.
 - A cloud-observed instance that confirms the workload runs in a measurable
   environment.
 

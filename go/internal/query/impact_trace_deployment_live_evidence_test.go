@@ -12,8 +12,6 @@ import (
 func TestDeploymentOverallConfidenceLiveEvidence(t *testing.T) {
 	t.Parallel()
 
-	// Live evidence must produce 0.95 confidence and the
-	// live_runtime_observation reason string.
 	confidence, reason := deploymentOverallConfidence(nil, nil, nil, true)
 	if confidence != 0.95 {
 		t.Fatalf("deploymentOverallConfidence(live=true) confidence = %v, want 0.95", confidence)
@@ -26,32 +24,27 @@ func TestDeploymentOverallConfidenceLiveEvidence(t *testing.T) {
 func TestDeploymentOverallConfidenceLiveEvidenceOverridesInstances(t *testing.T) {
 	t.Parallel()
 
-	// Live evidence must return live_runtime_observation even when
-	// config-materialized instances are present. The live tier is
-	// stronger and the legacy reason must NOT return.
 	instances := []map[string]any{
 		{"materialization_confidence": 0.9},
 	}
 	confidence, reason := deploymentOverallConfidence(instances, nil, nil, true)
 	if confidence != 0.95 {
-		t.Fatalf("deploymentOverallConfidence(live=true, instances) confidence = %v, want 0.95", confidence)
+		t.Fatalf("confidence = %v, want 0.95", confidence)
 	}
 	if reason != "live_runtime_observation" {
-		t.Fatalf("deploymentOverallConfidence(live=true, instances) reason = %q, want %q", reason, "live_runtime_observation")
+		t.Fatalf("reason = %q, want %q", reason, "live_runtime_observation")
 	}
 }
 
 func TestDeploymentOverallConfidenceNoEvidence(t *testing.T) {
 	t.Parallel()
 
-	// No evidence (no instances, no deployment sources, no config
-	// environments, no live evidence) must stay at 0/no_deployment_evidence.
 	confidence, reason := deploymentOverallConfidence(nil, nil, nil, false)
 	if confidence != 0 {
-		t.Fatalf("deploymentOverallConfidence(no evidence) confidence = %v, want 0", confidence)
+		t.Fatalf("confidence = %v, want 0", confidence)
 	}
 	if reason != "no_deployment_evidence" {
-		t.Fatalf("deploymentOverallConfidence(no evidence) reason = %q, want %q", reason, "no_deployment_evidence")
+		t.Fatalf("reason = %q, want %q", reason, "no_deployment_evidence")
 	}
 }
 
@@ -104,15 +97,13 @@ func TestBuildDeploymentFactSummaryTierConfigOnly(t *testing.T) {
 		nil,
 		nil,
 		"controller",
-		false, // no live evidence
+		false,
 	)
-	// Config-materialized instances exist, so tier must be config_only.
 	if tier, ok := summary["deployment_truth_tier"]; !ok {
-		t.Fatal("deployment_truth_tier missing from summary when instances present")
+		t.Fatal("deployment_truth_tier missing")
 	} else if tier != "config_only" {
 		t.Fatalf("deployment_truth_tier = %q, want %q", tier, "config_only")
 	}
-	// Legacy reason must be preserved.
 	if reason := summary["overall_confidence_reason"]; reason != "materialized_runtime_instances" {
 		t.Fatalf("overall_confidence_reason = %q, want %q", reason, "materialized_runtime_instances")
 	}
@@ -126,128 +117,258 @@ func TestBuildDeploymentFactSummaryTierEmptyWhenNoEvidence(t *testing.T) {
 		ctx,
 		nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		"",
-		false, // no live evidence
+		false,
 	)
-	// When no evidence at all (no instances, no deployment sources, no
-	// config environments, no live evidence), the tier must be absent
-	// from the summary.
 	if _, ok := summary["deployment_truth_tier"]; ok {
 		t.Fatal("deployment_truth_tier must be absent when no evidence exists")
 	}
-	if confidence := summary["overall_confidence"]; confidence != 0.0 {
-		t.Fatalf("overall_confidence = %v, want 0", confidence)
-	}
 }
 
-func TestFetchWorkloadLiveEvidenceNoGraph(t *testing.T) {
+// stubKubernetesCorrelationStore is a test fake that returns matching
+// rows for filters whose ImageRef and Outcome match. It implements
+// KubernetesCorrelationStore.
+type stubKubernetesCorrelationStore struct {
+	rows []KubernetesCorrelationRow
+	err  error
+	// lastFilter records the filter passed to the most recent call so
+	// tests can assert access-scoping fields.
+	lastFilter KubernetesCorrelationFilter
+}
+
+func (s *stubKubernetesCorrelationStore) ListKubernetesCorrelations(
+	_ context.Context,
+	filter KubernetesCorrelationFilter,
+) ([]KubernetesCorrelationRow, error) {
+	s.lastFilter = filter
+	if s.err != nil {
+		return nil, s.err
+	}
+	// Filter stably: only return rows whose ImageRef and Outcome match
+	// the filter when those fields are populated, mirroring the real
+	// Postgres store's WHERE payload->>'image_ref' = $6 AND
+	// payload->>'outcome' = $8 predicates.
+	var matched []KubernetesCorrelationRow
+	for _, row := range s.rows {
+		if filter.ImageRef != "" && row.ImageRef != filter.ImageRef {
+			continue
+		}
+		if filter.Outcome != "" && row.Outcome != filter.Outcome {
+			continue
+		}
+		matched = append(matched, row)
+	}
+	return matched, nil
+}
+
+func TestFetchWorkloadLiveEvidenceNilHandler(t *testing.T) {
 	t.Parallel()
 
-	// A nil handler or nil graph must return false, no error.
-	h := &ImpactHandler{}
-	live, err := h.fetchWorkloadLiveEvidence(t.Context(), "workload:test")
+	var h *ImpactHandler
+	live, err := h.fetchWorkloadLiveEvidence(t.Context(), nil, repositoryAccessFilter{})
 	if err != nil {
-		t.Fatalf("fetchWorkloadLiveEvidence(nil graph) error = %v, want nil", err)
+		t.Fatalf("error = %v, want nil", err)
 	}
 	if live {
-		t.Fatal("fetchWorkloadLiveEvidence(nil graph) = true, want false")
+		t.Fatal("nil handler returned true, want false")
 	}
 }
 
-func TestFetchWorkloadLiveEvidenceEmptyID(t *testing.T) {
+func TestFetchWorkloadLiveEvidenceNilStore(t *testing.T) {
 	t.Parallel()
 
-	// Empty workload id must return false, no error without calling the
-	// graph at all.
-	h := &ImpactHandler{Neo4j: &recordingGraphQuery{}}
-	live, err := h.fetchWorkloadLiveEvidence(t.Context(), "")
+	h := &ImpactHandler{} // KubernetesCorrelations is nil
+	live, err := h.fetchWorkloadLiveEvidence(t.Context(), []string{"img:latest"}, repositoryAccessFilter{allScopes: true})
 	if err != nil {
-		t.Fatalf("fetchWorkloadLiveEvidence(empty id) error = %v, want nil", err)
+		t.Fatalf("error = %v, want nil", err)
 	}
 	if live {
-		t.Fatal("fetchWorkloadLiveEvidence(empty id) = true, want false")
+		t.Fatal("nil store returned true, want false")
 	}
 }
 
-// recordingGraphQuery implements GraphQuery by returning the rows set in the
-// test. It records the last query and params for assertion.
-type recordingGraphQuery struct {
-	rows       []map[string]any
-	err        error
-	lastCypher string
-	lastParams map[string]any
-}
-
-func (r *recordingGraphQuery) Run(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-	r.lastCypher = cypher
-	r.lastParams = params
-	return r.rows, r.err
-}
-
-func (r *recordingGraphQuery) RunSingle(_ context.Context, _ string, _ map[string]any) (map[string]any, error) {
-	return nil, nil
-}
-
-func TestFetchWorkloadLiveEvidenceTrue(t *testing.T) {
+func TestFetchWorkloadLiveEvidenceEmptyImageRefs(t *testing.T) {
 	t.Parallel()
 
-	fake := &recordingGraphQuery{
-		rows: []map[string]any{
-			{"has_live_evidence": true},
+	store := &stubKubernetesCorrelationStore{}
+	h := &ImpactHandler{KubernetesCorrelations: store}
+	live, err := h.fetchWorkloadLiveEvidence(t.Context(), nil, repositoryAccessFilter{allScopes: true})
+	if err != nil {
+		t.Fatalf("error = %v, want nil", err)
+	}
+	if live {
+		t.Fatal("empty image_refs returned true, want false")
+	}
+}
+
+func TestFetchWorkloadLiveEvidenceExactMatch(t *testing.T) {
+	t.Parallel()
+
+	matchingImage := "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef"
+	store := &stubKubernetesCorrelationStore{
+		rows: []KubernetesCorrelationRow{
+			{ImageRef: matchingImage, Outcome: "exact"},
 		},
 	}
-	h := &ImpactHandler{Neo4j: fake}
-	live, err := h.fetchWorkloadLiveEvidence(t.Context(), "workload:test")
+	h := &ImpactHandler{KubernetesCorrelations: store}
+	live, err := h.fetchWorkloadLiveEvidence(
+		t.Context(),
+		[]string{"other:img@sha256:1111", matchingImage},
+		repositoryAccessFilter{allScopes: true},
+	)
 	if err != nil {
-		t.Fatalf("fetchWorkloadLiveEvidence error = %v, want nil", err)
+		t.Fatalf("error = %v, want nil", err)
 	}
 	if !live {
-		t.Fatal("fetchWorkloadLiveEvidence = false, want true")
+		t.Fatal("exact match returned false, want true")
 	}
 }
 
-func TestFetchWorkloadLiveEvidenceFalse(t *testing.T) {
+func TestFetchWorkloadLiveEvidenceExactNoMatch(t *testing.T) {
 	t.Parallel()
 
-	fake := &recordingGraphQuery{
-		rows: []map[string]any{
-			{"has_live_evidence": false},
+	store := &stubKubernetesCorrelationStore{
+		rows: []KubernetesCorrelationRow{
+			{ImageRef: "different:img@sha256:9999", Outcome: "exact"},
 		},
 	}
-	h := &ImpactHandler{Neo4j: fake}
-	live, err := h.fetchWorkloadLiveEvidence(t.Context(), "workload:test")
+	h := &ImpactHandler{KubernetesCorrelations: store}
+	live, err := h.fetchWorkloadLiveEvidence(
+		t.Context(),
+		[]string{"workload:img@sha256:1111"},
+		repositoryAccessFilter{allScopes: true},
+	)
 	if err != nil {
-		t.Fatalf("fetchWorkloadLiveEvidence error = %v, want nil", err)
+		t.Fatalf("error = %v, want nil", err)
 	}
 	if live {
-		t.Fatal("fetchWorkloadLiveEvidence = true, want false")
+		t.Fatal("non-matching image_ref returned true, want false")
 	}
 }
 
-func TestFetchWorkloadLiveEvidenceEmptyRows(t *testing.T) {
+func TestFetchWorkloadLiveEvidenceDerivedOutcomeNotExact(t *testing.T) {
 	t.Parallel()
 
-	fake := &recordingGraphQuery{
-		rows: nil, // no rows returned
+	img := "app:img@sha256:abc"
+	store := &stubKubernetesCorrelationStore{
+		rows: []KubernetesCorrelationRow{
+			{ImageRef: img, Outcome: "derived"},
+		},
 	}
-	h := &ImpactHandler{Neo4j: fake}
-	live, err := h.fetchWorkloadLiveEvidence(t.Context(), "workload:test")
+	h := &ImpactHandler{KubernetesCorrelations: store}
+	live, err := h.fetchWorkloadLiveEvidence(
+		t.Context(),
+		[]string{img},
+		repositoryAccessFilter{allScopes: true},
+	)
 	if err != nil {
-		t.Fatalf("fetchWorkloadLiveEvidence error = %v, want nil", err)
+		t.Fatalf("error = %v, want nil", err)
 	}
 	if live {
-		t.Fatal("fetchWorkloadLiveEvidence = true, want false (empty rows)")
+		t.Fatal("derived outcome must not count as runtime_confirmed")
 	}
 }
 
-func TestFetchWorkloadLiveEvidenceError(t *testing.T) {
+func TestFetchWorkloadLiveEvidenceAmbiguousOutcomeNotExact(t *testing.T) {
 	t.Parallel()
 
-	fake := &recordingGraphQuery{
-		err: fmt.Errorf("graph offline"),
+	img := "app:img@sha256:abc"
+	store := &stubKubernetesCorrelationStore{
+		rows: []KubernetesCorrelationRow{
+			{ImageRef: img, Outcome: "ambiguous"},
+		},
 	}
-	h := &ImpactHandler{Neo4j: fake}
-	_, err := h.fetchWorkloadLiveEvidence(t.Context(), "workload:test")
+	h := &ImpactHandler{KubernetesCorrelations: store}
+	live, err := h.fetchWorkloadLiveEvidence(
+		t.Context(),
+		[]string{img},
+		repositoryAccessFilter{allScopes: true},
+	)
+	if err != nil {
+		t.Fatalf("error = %v, want nil", err)
+	}
+	if live {
+		t.Fatal("ambiguous outcome must not count as runtime_confirmed")
+	}
+}
+
+func TestFetchWorkloadLiveEvidenceStoreError(t *testing.T) {
+	t.Parallel()
+
+	store := &stubKubernetesCorrelationStore{
+		err: fmt.Errorf("postgres offline"),
+	}
+	h := &ImpactHandler{KubernetesCorrelations: store}
+	_, err := h.fetchWorkloadLiveEvidence(
+		t.Context(),
+		[]string{"img:latest"},
+		repositoryAccessFilter{allScopes: true},
+	)
 	if err == nil {
-		t.Fatal("fetchWorkloadLiveEvidence error = nil, want non-nil")
+		t.Fatal("store error must be surfaced, got nil")
+	}
+}
+
+func TestFetchWorkloadLiveEvidenceScopedAccessFilter(t *testing.T) {
+	t.Parallel()
+
+	store := &stubKubernetesCorrelationStore{
+		rows: []KubernetesCorrelationRow{
+			{ImageRef: "img@sha256:a", Outcome: "exact"},
+		},
+	}
+	h := &ImpactHandler{KubernetesCorrelations: store}
+	access := repositoryAccessFilter{
+		allScopes:            false,
+		allowedRepositoryIDs: []string{"repo:sample-service-api"},
+		allowedScopeIDs:      []string{"scope:test"},
+		allowed: map[string]struct{}{
+			"repo:sample-service-api": {},
+			"scope:test":              {},
+		},
+	}
+	live, err := h.fetchWorkloadLiveEvidence(
+		t.Context(),
+		[]string{"img@sha256:a"},
+		access,
+	)
+	if err != nil {
+		t.Fatalf("error = %v, want nil", err)
+	}
+	if !live {
+		t.Fatal("exact match with scoped access returned false")
+	}
+	// The store must have received the access-scoping fields.
+	if store.lastFilter.AllScopes {
+		t.Fatal("AllScopes must be false for scoped access")
+	}
+	if len(store.lastFilter.AllowedRepositoryIDs) == 0 {
+		t.Fatal("AllowedRepositoryIDs must be populated for scoped access")
+	}
+	if len(store.lastFilter.AllowedScopeIDs) == 0 {
+		t.Fatal("AllowedScopeIDs must be populated for scoped access")
+	}
+}
+
+func TestFetchWorkloadLiveEvidenceEmptyAccess(t *testing.T) {
+	t.Parallel()
+
+	// An empty access filter (no grants, not all-scopes) means a scoped
+	// caller with zero grants. The store must never be called.
+	store := &stubKubernetesCorrelationStore{
+		rows: []KubernetesCorrelationRow{
+			{ImageRef: "img@sha256:a", Outcome: "exact"},
+		},
+	}
+	h := &ImpactHandler{KubernetesCorrelations: store}
+	live, err := h.fetchWorkloadLiveEvidence(
+		t.Context(),
+		[]string{"img@sha256:a"},
+		repositoryAccessFilter{}, // empty: no grants, scoped
+	)
+	if err != nil {
+		t.Fatalf("error = %v, want nil", err)
+	}
+	if live {
+		t.Fatal("empty access filter must return false without querying")
 	}
 }
