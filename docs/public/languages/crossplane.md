@@ -67,4 +67,10 @@ Not claimed today:
   observable), not a wrong answer, and no reducer-side gate can close it
   without reproducing full cross-repo readiness tracking; tracked in
   [#5476](https://github.com/eshu-hq/eshu/issues/5476) for a periodic
-  re-drive of stale cross-scope Claims.
+  re-drive of stale cross-scope Claims. This does not contradict the
+  blast-radius `coverage` fields: `materialized:true`/`complete` report that a
+  writer produces the SATISFIED_BY edge type (the writer-existence contract from
+  #5330), not that every possible edge instance is currently present — the same
+  eventual-consistency property every cross-repo correlation edge (e.g.
+  RUNS_IMAGE) has, since no correlation edge can form until both endpoints are
+  ingested.
