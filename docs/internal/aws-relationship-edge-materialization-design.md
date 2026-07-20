@@ -375,8 +375,8 @@ After the node write succeeds (including a legitimate no-op for an empty
 generation), the handler publishes the
 `GraphProjectionKeyspaceCloudResourceUID` /
 `GraphProjectionPhaseCanonicalNodesCommitted` readiness phase via the wired
-`GraphProjectionPhasePublisher` (matching the AWS runtime contract checkpoint in
-`go/internal/reducer/aws/contract.go`). Stage B (PR #2) gates its edge projection
+`GraphProjectionPhasePublisher` (matching the AWS runtime contract checkpoint
+defined by the shared reducer graph-projection phase constants). Stage B (PR #2) gates its edge projection
 on this phase. The phase is **not** published when the node write fails, so the
 edge build can never resolve against nodes that did not commit; it **is**
 published for an empty generation so Stage B is not blocked forever on a scan

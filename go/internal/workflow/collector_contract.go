@@ -89,9 +89,9 @@ var collectorContracts = map[scope.CollectorKind]CollectorContract{
 		},
 	},
 	scope.CollectorAWS: {
-		// AWS currently publishes fact-backed scan and drift read models. The
-		// cloud-resource graph projection contract is scaffolded in
-		// internal/reducer/aws, but no live runtime publishes its phase rows yet.
+		// AWS currently publishes fact-backed scan and drift read models. It
+		// has no cloud-resource graph-readiness phase requirements because no
+		// live runtime publishes its cloud-resource projection phase rows yet.
 		CollectorKind:      scope.CollectorAWS,
 		CanonicalKeyspaces: nil,
 		RequiredPhases:     nil,

@@ -338,10 +338,10 @@ None. The coordinator (`internal/coordinator`) and storage
   `canonical_nodes_committed` checkpoints. `cross_source_anchor_ready` belongs
   to the DSL layer and must not be required for Terraform-state run completion
   unless that runtime starts publishing it.
-- AWS readiness currently has no operational workflow completeness phases. The
-  `internal/reducer/aws` package is scaffold-only; until a live AWS reducer or
-  projector publishes `cloud_resource_uid` phase rows, completed AWS workflow
-  work items must not wait on those future checkpoints.
+- AWS readiness currently has no operational workflow completeness phases.
+  Until a live AWS reducer or projector publishes `cloud_resource_uid` phase
+  rows, completed AWS workflow work items must not wait on those future
+  checkpoints.
 - GCP readiness currently has no operational workflow completeness phases. GCP
   may be planned by the coordinator only through explicit live opt-in, and
   completed GCP workflow work items must not wait on future graph checkpoints.
