@@ -104,8 +104,8 @@ search side break the corresponding guard. The source hashes for this run are:
 
 The route has two production-reachable shapes that need different leading
 keys. The ordinary page has no optional payload predicate and orders newest
-first; a fully selective six-filter page constrains all six optional payload fields and
-then uses the same ordering.
+first; a fully selective six-filter page constrains all six optional payload
+fields and then uses the same ordering.
 
 | Shape | Baseline | Accepted plan | Terminal result |
 | --- | --- | --- | --- |
@@ -158,7 +158,7 @@ samples 3.675/3.812/3.959 ms and final-three-index samples
 | Input | 1,600,000 synthetic documentation rows across the seven production kinds |
 | Plan | `Parallel Seq Scan on fact_records` |
 | Actual rows / loops | 533.33 rows x 3 worker loops; 532,800 rows filtered per loop |
-| Buffers | 144,712 shared hits at the scan; 144,818 for the whole plan |
+| Buffers | 144,712 shared hits at the scan; 144,808 for the whole plan |
 | Planning / execution | 0.260 ms / 1,503.519 ms |
 | Terminal result | 51 rows; digest `2c5a286517da306b3461ba075696a3fa` |
 
@@ -213,7 +213,8 @@ boundaries:
   creates the filter-first list index;
 - the 2,000 fixture rows remain unchanged throughout the migration;
 - a repeated bootstrap keeps all three index definitions and objects unchanged;
-- an invalid index left by a failed concurrent build is removed and rebuilt;
+- each list index is removed and rebuilt after a failed concurrent build leaves
+  it invalid;
 - two concurrent bootstrap calls converge on the same three stable indexes.
 
 This proof separates schema lifecycle safety from the 200,000-row query-plan
@@ -223,8 +224,8 @@ fixture so a small concurrency test is not presented as performance evidence.
 
 Performance Evidence: the accepted order-first index changed the ordinary page
 from a 200.842 ms parallel scan and sort to a 0.202 ms index scan with the same
-51 rows and digest. The filter-first companion changed the fully selective six-filter page from
-19.229 ms to 0.360 ms with the same 66 rows and digest. The
+51 rows and digest. The filter-first companion changed the fully selective
+six-filter page from 19.229 ms to 0.360 ms with the same 66 rows and digest. The
 production aggregate builders selected the retained ACL index in
 7.123/5.524/5.311 ms, and the exact production write-batch ratio for the final
 three-index shape was 1.243x. The complete production 1.6-million-row search
