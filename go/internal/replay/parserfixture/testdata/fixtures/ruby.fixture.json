@@ -19,6 +19,7 @@
                 "lang": "ruby",
                 "line_number": 2,
                 "name": "OrderService",
+                "qualified_name": "Example::OrderService",
                 "type": "class"
               }
             ],
@@ -211,6 +212,7 @@
                 "qualified_bases": [
                   "ActionController::Base"
                 ],
+                "qualified_name": "OrdersController",
                 "type": "class"
               }
             ],
