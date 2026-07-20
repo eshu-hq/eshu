@@ -879,6 +879,29 @@ gates:
     ci_only_reason: ""
     local_only_reason: "Advisory baseline for #5016; flip DOCS_PROSE_ENFORCE=true and blocking=true after the human-doc baseline is clean."
 
+  - id: docs-contradiction
+    name: Docs self-contradiction advisory
+    category: exactness
+    tier: pre-pr
+    blocking: false
+    triggers:
+      - "docs/public/**"
+      - "docs/mkdocs.yml"
+      - "scripts/verify-docs-contradiction.sh"
+      - "scripts/test-verify-docs-contradiction.sh"
+      - "scripts/lib/docs-contradiction-checks.awk"
+      - "scripts/docs-contradiction-baseline.txt"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "bash scripts/verify-docs-contradiction.sh"
+      test_command: "bash scripts/test-verify-docs-contradiction.sh"
+    ci:
+      workflow: ""
+      job: ""
+    requirements: []
+    ci_only_reason: ""
+    local_only_reason: "Advisory baseline for #5340; runs locally via pre-pr's exactness lane (category exactness + tier pre-pr + blocking false, the code-coverage-report precedent). Flip DOCS_CONTRADICTION_ENFORCE=true + blocking=true and wire the static-contract-gates.yml CI job (docs-refs pattern) once the burn-down baseline is clean."
+
   - id: docs-refs
     name: Docs script reference existence
     category: exactness
