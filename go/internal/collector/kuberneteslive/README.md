@@ -135,11 +135,18 @@ completion logs. Fake-client tests exercise the resources-listed, facts-emitted,
 warning, and partial paths.
 
 Collector Deployment Evidence: this foundation ships the binary and its build
-registration in `scripts/install-local-binaries.sh` only. It is intentionally
-NOT added to any Compose service, Helm Deployment, chart value, or ServiceMonitor
-in this PR. Per the readiness doc, a charted workload and a claim-driven deployed
-lane are deferred until the claim runtime, reducer projection, status path, and
-proof exist (#388 follow-ups). No deployment surface changes here.
+registration in `scripts/install-local-binaries.sh`. The Helm chart now wires the
+collector — `deploy/helm/eshu/templates/deployment-kubernetes-live-collector.yaml`,
+`service-kubernetes-live-collector-metrics.yaml`,
+`rbac-kubernetes-live-collector.yaml`, and the ServiceMonitor entry in
+`deploy/helm/eshu/templates/servicemonitor.yaml` — but the entire lane is gated
+off by default behind `kubernetesLiveCollector.enabled: false`
+(`deploy/helm/eshu/values.yaml`), so an operator must explicitly opt in; the
+service and ServiceMonitor also require `observability.prometheus.enabled`, and
+the in-cluster RBAC additionally requires `kubernetesLiveCollector.rbac.create`.
+It is still NOT added to any Compose service. Per the readiness doc, the
+claim-driven deployed lane remains deferred until the claim runtime, reducer
+projection, status path, and proof exist (#388 follow-ups).
 
 ## Deferred to follow-up PRs (#388 and beyond)
 
