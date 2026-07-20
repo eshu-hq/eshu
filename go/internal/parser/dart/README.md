@@ -43,11 +43,15 @@ declarations outside `lib/src/`. Annotations attached to class declarations are
 consumed at the declaration boundary so they do not become member decorators.
 Constructor detection comes from constructor signature nodes inside class
 bodies; constructor calls inside method bodies must remain call evidence, not
-constructor declarations. `function_calls` rows come from an AST call-site
-walk (`calls.go`, `collectDartCallSites`) over call-expression grammar shapes
-(`selector`/`argument_part`, cascades, `new`/`const` object creation), not a
-byte scan, so a declaration signature can never be misclassified as a call
-site (eshu-hq/eshu#5332). Rows carry both `name` (bare callee) and
+constructor declarations. `function_calls` rows come from AST call-site
+detection (`calls.go`, `dartCallChain.observe`) over call-expression grammar
+shapes (`selector`/`argument_part`, cascades, `new`/`const` object creation),
+not a byte scan, so a declaration signature can never be misclassified as a
+call site (eshu-hq/eshu#5332). Call detection is folded into the single
+`dartSyntaxIndex.collect` traversal (eshu-hq/eshu#5350) rather than run as a
+separate second full tree walk; collect uses calls-only descent into signature
+subtrees so parameter-default and annotation call sites are captured without
+emitting spurious declaration rows. Rows carry both `name` (bare callee) and
 `full_name` (dotted qualified chain, e.g. `f.build`), deduplicated by
 `full_name` so distinct receivers sharing a method name (`a.foo()` vs
 `b.foo()`) both survive. Import collection must avoid double-counting

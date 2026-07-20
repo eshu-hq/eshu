@@ -19,190 +19,145 @@ type dartCallSite struct {
 	line     int
 }
 
-// collectDartCallSites walks the whole Dart syntax tree and returns one
-// dartCallSite per call expression found.
+// dartCallChain reconstructs the dotted callee chain of one Dart expression as
+// its enclosing node's named children are visited in source order, emitting a
+// dartCallSite whenever the chain is closed by an argument list.
 //
-// tree-sitter-dart has no single `invocation_expression` node kind (unlike
-// the C# grammar this package mirrors). A call site is instead a primary
-// node (an `identifier`/`type_identifier`/`super`) followed by zero or more
-// chained `selector` siblings, where a `selector` wrapping an
-// `argument_part` (or, for cascades and object-creation expressions, a bare
-// `argument_part`/`arguments` sibling) marks the call. Declarations use
-// entirely disjoint node kinds (`function_signature`, `method_signature`,
-// `constructor_signature` and its factory/const/redirecting variants, all of
-// which wrap a `formal_parameter_list`, never an `arguments`/`argument_part`
-// node), so a declaration can never be misclassified as a call here.
-func collectDartCallSites(root *tree_sitter.Node, source []byte) []dartCallSite {
-	var sites []dartCallSite
-	if root == nil {
-		return sites
-	}
-	// One TreeCursor is created here and reused for the entire tree walk.
-	// walkDartCallSites used to call node.Walk() (a cgo tree-sitter cursor
-	// allocation) plus NamedChildren (a cgo call per child, materializing a
-	// throwaway []Node) at every single node in the tree. Reusing one cursor
-	// for the whole traversal (GotoFirstChild/GotoNextSibling/GotoParent) cuts
-	// that to one cgo cursor allocation total: measured -33.8% on the
-	// isolated extraction step and -7.5% end-to-end Parse() (#5332 recovery),
-	// output byte-identical — see calls_bench_test.go's Performance Evidence
-	// note and TestWalkDartCallSitesMatchesOracle's 0/0 equivalence proof.
-	cursor := root.Walk()
-	defer cursor.Close()
-	walkDartCallSites(cursor, source, &sites)
-	return sites
+// tree-sitter-dart has no single `invocation_expression` node kind (unlike the
+// C# grammar this package mirrors). A call site is instead a primary node (an
+// `identifier`/`type_identifier`/`super`) followed by zero or more chained
+// `selector` siblings, where a `selector` wrapping an `argument_part` (or, for
+// cascades and object-creation expressions, a bare `argument_part`/`arguments`
+// sibling) marks the call. Declarations use entirely disjoint node kinds
+// (`function_signature`, `method_signature`, `constructor_signature` and its
+// factory/const/redirecting variants, all of which wrap a
+// `formal_parameter_list`, never an `arguments`/`argument_part` node), so a
+// declaration name identifier starts a chain that is discarded, never emitted.
+//
+// One dartCallChain is a frame-local of a single dartSyntaxIndex.collect
+// invocation (see syntax_index.go): call-site detection is folded into that
+// single declaration+call traversal (#5350) rather than run as a separate
+// second full tree walk. Each collect frame owns a fresh chain for its node's
+// own named children, since nested expressions (call arguments, lambda bodies,
+// cascade sections) form their own independent chains when collect recurses.
+type dartCallChain struct {
+	chain     []string
+	chainLine int
+	// previousWasPrimary tracks whether the last named child was a primary
+	// identifier, so a following bare identifier can be recognized as a
+	// dotted-name continuation (see allowDotIdentifierContinuation).
+	previousWasPrimary bool
+	// allowDotIdentifierContinuation is true only when the enclosing node is
+	// an object-creation shape (`new Foo.bar()`, `const Foo.bar()`,
+	// `@Foo.bar(...)`), where two adjacent identifiers are a dotted callee
+	// separated by an unnamed `.` token. In every other parent (e.g.
+	// `var result = compute(a, b);`, where `result` is the declared name and
+	// `compute` starts the unrelated initializer) two adjacent identifiers are
+	// unrelated and must not be joined into one dotted chain.
+	allowDotIdentifierContinuation bool
 }
 
-// walkDartCallSites scans the node at cursor's current position's own named
-// children in source order, reconstructing the dotted callee chain
-// (identifier / `.name` selectors / cascade selectors) and emitting a call
-// whenever the chain is closed by an argument list. It then recurses into
-// every named child with a fresh local chain, since nested expressions (call
-// arguments, lambda bodies, cascade sections) form their own independent
-// chains.
-//
-// cursor is shared across the whole tree walk (see collectDartCallSites) and
-// MUST be positioned at the node being scanned on entry, and IS repositioned
-// back to that same node on return (GotoFirstChild/GotoNextSibling to visit
-// children, GotoParent to restore). Only named children are visited —
-// GotoNextSibling also lands on anonymous token nodes (punctuation,
-// keywords), which are skipped via IsNamed() so the visitation set stays
-// identical to the previous NamedChildren-based walk: anonymous nodes never
-// entered the switch or the recursion before, and still don't.
-func walkDartCallSites(cursor *tree_sitter.TreeCursor, source []byte, sites *[]dartCallSite) {
-	node := cursor.Node()
-	if node == nil {
+func (c *dartCallChain) emit(sites *[]dartCallSite) {
+	if len(c.chain) == 0 {
 		return
 	}
+	*sites = append(*sites, dartCallSite{
+		name:     c.chain[len(c.chain)-1],
+		fullName: strings.Join(c.chain, "."),
+		line:     c.chainLine,
+	})
+}
 
-	// A bare identifier immediately following another bare identifier is
-	// only a dotted-name continuation (the `_dot_identifier` shape used by
-	// `new`/`const`/annotation object-creation expressions, e.g.
-	// `const Foo.bar()`) when the enclosing node is one of those shapes.
-	// In every other parent (e.g. `var result = compute(a, b);`, where
-	// `result` is the declared name and `compute` starts the unrelated
-	// initializer expression) two adjacent identifiers are unrelated and
-	// must not be joined into one dotted chain.
-	allowDotIdentifierContinuation := dartIsObjectCreationNode(node)
+func (c *dartCallChain) reset() {
+	c.chain = nil
+	c.chainLine = 0
+	c.previousWasPrimary = false
+}
 
-	var chain []string
-	var chainLine int
-	previousWasPrimary := false
+func (c *dartCallChain) extend(name string, line int) {
+	c.chain = append(c.chain, name)
+	c.chainLine = line
+}
 
-	emit := func() {
-		if len(chain) == 0 {
-			return
-		}
-		*sites = append(*sites, dartCallSite{
-			name:     chain[len(chain)-1],
-			fullName: strings.Join(chain, "."),
-			line:     chainLine,
-		})
-	}
-	reset := func() {
-		chain = nil
-		chainLine = 0
-		previousWasPrimary = false
-	}
-	extend := func(name string, line int) {
-		chain = append(chain, name)
-		chainLine = line
-	}
-	// extendOrStart appends name to an in-progress chain, or starts a fresh
-	// one-element chain if the previous call boundary cleared it (e.g. the
-	// `.then` in `fetch().then(process)`: the qualifier "fetch" is lost at
-	// the `fetch()` call boundary, but `.then` must still start its own
-	// chain rather than being dropped because the chain was empty).
-	extendOrStart := func(name string, line int) {
-		if name == "" {
-			reset()
-			return
-		}
-		if len(chain) > 0 {
-			extend(name, line)
-			return
-		}
-		chain = []string{name}
-		chainLine = line
-	}
-
-	if !cursor.GotoFirstChild() {
+// extendOrStart appends name to an in-progress chain, or starts a fresh
+// one-element chain if the previous call boundary cleared it (e.g. the
+// `.then` in `fetch().then(process)`: the qualifier "fetch" is lost at the
+// `fetch()` call boundary, but `.then` must still start its own chain rather
+// than being dropped because the chain was empty).
+func (c *dartCallChain) extendOrStart(name string, line int) {
+	if name == "" {
+		c.reset()
 		return
 	}
-	for {
-		child := cursor.Node()
-		if !child.IsNamed() {
-			if !cursor.GotoNextSibling() {
-				break
-			}
-			continue
-		}
+	if len(c.chain) > 0 {
+		c.extend(name, line)
+		return
+	}
+	c.chain = []string{name}
+	c.chainLine = line
+}
 
-		switch child.Kind() {
-		case "identifier", "type_identifier":
-			text := strings.TrimSpace(shared.NodeText(child, source))
-			// A bare identifier immediately after another primary
-			// identifier only occurs for the `_dot_identifier` shape used
-			// by `new`/`const`/annotation object-creation expressions
-			// (`const Foo.bar()`), where the "." is an unnamed token. Any
-			// other adjacency between two primaries cannot occur in valid
-			// Dart, so treating this as a dotted continuation is safe.
-			if allowDotIdentifierContinuation && previousWasPrimary && len(chain) > 0 {
-				extend(text, shared.NodeLine(child))
-			} else {
-				reset()
-				if text != "" {
-					extend(text, shared.NodeLine(child))
-				}
+// observe advances the chain state for one named child and appends a call site
+// to sites when the child closes the chain on an argument list. It is the
+// per-child call-detection switch, run on each named child before collect
+// recurses into it, so emission order matches a pre-order full-tree walk.
+func (c *dartCallChain) observe(child *tree_sitter.Node, source []byte, sites *[]dartCallSite) {
+	switch child.Kind() {
+	case "identifier", "type_identifier":
+		text := strings.TrimSpace(shared.NodeText(child, source))
+		// A bare identifier immediately after another primary identifier only
+		// occurs for the `_dot_identifier` shape used by
+		// `new`/`const`/annotation object-creation expressions
+		// (`const Foo.bar()`), where the "." is an unnamed token. Any other
+		// adjacency between two primaries cannot occur in valid Dart, so
+		// treating this as a dotted continuation is safe.
+		if c.allowDotIdentifierContinuation && c.previousWasPrimary && len(c.chain) > 0 {
+			c.extend(text, shared.NodeLine(child))
+		} else {
+			c.reset()
+			if text != "" {
+				c.extend(text, shared.NodeLine(child))
 			}
-			previousWasPrimary = true
-		case "super":
-			reset()
-			extend("super", shared.NodeLine(child))
-			previousWasPrimary = true
-		case "cascade_selector":
-			reset()
-			if name := dartSelectorIdentifier(child, source); name != "" {
-				extend(name, shared.NodeLine(child))
-			}
-		case "unconditional_assignable_selector", "conditional_assignable_selector":
-			// Direct sibling shape used by `super.m()`; the general
-			// `o.m()` shape wraps the same node kinds inside a `selector`
-			// (handled below).
-			extendOrStart(dartSelectorIdentifier(child, source), shared.NodeLine(child))
-		case "selector":
-			inner := dartFirstNamedChild(child)
-			switch {
-			case inner == nil:
-				reset()
-			case inner.Kind() == "unconditional_assignable_selector" || inner.Kind() == "conditional_assignable_selector":
-				extendOrStart(dartSelectorIdentifier(inner, source), shared.NodeLine(inner))
-			case inner.Kind() == "argument_part":
-				emit()
-				reset()
-			case inner.Kind() == "type_arguments":
-				// Generic-args selector (`f<int>()`): keep the chain: the
-				// call-completing `argument_part` selector still follows.
-			default:
-				reset()
-			}
-		case "argument_part", "arguments":
-			// Direct (non-`selector`-wrapped) call completion: cascade
-			// sections (`o..m()`) and `new`/`const`/annotation
-			// object-creation expressions (`new Foo()`, `const Foo()`,
-			// `@Foo(...)`).
-			emit()
-			reset()
+		}
+		c.previousWasPrimary = true
+	case "super":
+		c.reset()
+		c.extend("super", shared.NodeLine(child))
+		c.previousWasPrimary = true
+	case "cascade_selector":
+		c.reset()
+		if name := dartSelectorIdentifier(child, source); name != "" {
+			c.extend(name, shared.NodeLine(child))
+		}
+	case "unconditional_assignable_selector", "conditional_assignable_selector":
+		// Direct sibling shape used by `super.m()`; the general `o.m()` shape
+		// wraps the same node kinds inside a `selector` (handled below).
+		c.extendOrStart(dartSelectorIdentifier(child, source), shared.NodeLine(child))
+	case "selector":
+		inner := dartFirstNamedChild(child)
+		switch {
+		case inner == nil:
+			c.reset()
+		case inner.Kind() == "unconditional_assignable_selector" || inner.Kind() == "conditional_assignable_selector":
+			c.extendOrStart(dartSelectorIdentifier(inner, source), shared.NodeLine(inner))
+		case inner.Kind() == "argument_part":
+			c.emit(sites)
+			c.reset()
+		case inner.Kind() == "type_arguments":
+			// Generic-args selector (`f<int>()`): keep the chain: the
+			// call-completing `argument_part` selector still follows.
 		default:
-			reset()
+			c.reset()
 		}
-
-		walkDartCallSites(cursor, source, sites)
-
-		if !cursor.GotoNextSibling() {
-			break
-		}
+	case "argument_part", "arguments":
+		// Direct (non-`selector`-wrapped) call completion: cascade sections
+		// (`o..m()`) and `new`/`const`/annotation object-creation expressions
+		// (`new Foo()`, `const Foo()`, `@Foo(...)`).
+		c.emit(sites)
+		c.reset()
+	default:
+		c.reset()
 	}
-	cursor.GotoParent()
 }
 
 // dartSelectorIdentifier returns the identifier named by an

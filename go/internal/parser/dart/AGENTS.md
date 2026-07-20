@@ -6,7 +6,8 @@
 2. doc.go - godoc contract for the Dart adapter
 3. parser.go - public parser and pre-scan entrypoints
 4. syntax_index.go - tree-sitter declaration extraction
-5. calls.go - AST call-site extraction (function_calls rows)
+5. calls.go - AST call-site detection (dartCallChain, function_calls rows),
+   folded into syntax_index.go's single collect traversal (#5350)
 6. parser_test.go - behavior coverage for payload shape
 
 ## Invariants this package enforces
@@ -37,7 +38,10 @@
   `appendUniqueDartCall` or bucket sorting changed.
 - A missing call site or a call misclassified as a declaration (or vice
   versa) usually means a new Dart grammar shape needs a case in
-  `walkDartCallSites` (see calls.go's node-kind switch).
+  `dartCallChain.observe` (see calls.go's node-kind switch). Call detection
+  runs inside `dartSyntaxIndex.collect`; a call site that only appears inside a
+  parameter default or annotation depends on collect's calls-only descent into
+  signature subtrees.
 - Duplicate import rows usually mean wrapper and concrete import/export nodes
   are both being emitted.
 
