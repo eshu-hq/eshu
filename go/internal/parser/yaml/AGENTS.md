@@ -8,8 +8,8 @@
 4. semantics.go - Kubernetes, Crossplane, Kustomize, and shared YAML metadata helpers
 5. argocd.go - Argo CD Application and ApplicationSet extraction
 6. helm.go - Helm chart, values, and template-manifest handling
-7. image_overrides.go - image_overrides bucket: per-image tag/digest overrides from Helm values image: blocks and Kustomize images[] entries
-8. image_overrides_environment.go - environment resolution for image_overrides rows (directory signal, gated filename inference)
+7. image_overrides.go - image_overrides bucket: per-image tag/digest overrides from Helm values image: blocks and Kustomize images[] entries, row ordering, and dedupe
+8. image_overrides_environment.go - image_overrides `environment` field resolution: the environments/<env>/ path signal and the values-<env>.yaml filename inference, split from image_overrides.go to stay under the 500-line cap
 9. flux.go - Flux CD Kustomization custom resource detection and capture
 10. flux_source.go - Flux CD source-of-truth custom resource (GitRepository/OCIRepository/Bucket/HelmRepository) detection and capture
 11. flux_helm.go - Flux CD HelmRelease custom resource detection and capture (chart/chartRef resolution evidence)
@@ -38,9 +38,10 @@
   cases separate enough that generator and template evidence remain visible.
 - Add Helm behavior in helm.go and include path-sensitive coverage for chart,
   values, or template-manifest classification.
-- Add image_overrides fields or a new environment signal in image_overrides.go
-  only -- never in environmentFromPath (observability_helpers.go), which has
-  six unrelated observability callers this package must not change. Keep
+- Add image_overrides row/field changes in image_overrides.go and environment
+  signal changes in image_overrides_environment.go only -- never in
+  environmentFromPath (observability_helpers.go), which has six unrelated
+  observability callers this package must not change. Keep
   imageOverrideRowFields (the dedupe/sort/drift-guard field list) and every
   row builder in sync; TestImageOverrideKeyStaysInSyncWithRowShape fails loud
   when they drift.

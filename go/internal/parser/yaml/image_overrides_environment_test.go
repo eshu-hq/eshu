@@ -140,6 +140,47 @@ func TestParseHelmValuesImageOverridesEnvironmentFromPath(t *testing.T) {
 			relPath: "environments/prod/subdir/environments/values.yaml",
 			wantEnv: "prod",
 		},
+		{
+			// P2 accuracy defect (round-3 independent review): the captured
+			// <env> segment can itself BE the marker keyword "environments"
+			// when two markers sit back to back -- at index 0 the directory
+			// guard passes because parts[1] is the START of the next marker,
+			// not a real environment name. That phantom value must not
+			// survive as the final answer; there is no other valid marker
+			// here, so the correct result is "".
+			name:    "adjacent_environments_markers_capture_the_keyword_itself_is_not_an_environment",
+			relPath: "environments/environments/values.yaml",
+			wantEnv: "",
+		},
+		{
+			// Same defect, nested: proves the keyword-capture rejection
+			// applies regardless of where in the path the adjacent markers
+			// sit, not just at index 0.
+			name:    "nested_adjacent_environments_markers_capture_the_keyword_itself_is_not_an_environment",
+			relPath: "a/environments/environments/values.yaml",
+			wantEnv: "",
+		},
+		{
+			// The important case: with the keyword-capture correctly
+			// rejected, the path signal is empty and
+			// helmImageOverrideEnvironment must fall through to the
+			// values-<env>.yaml filename inference, which fires correctly.
+			// Before the fix, the phantom "environments" path value
+			// suppressed this entirely -- a wrong answer masking a right
+			// one, worse than either alone.
+			name:    "adjacent_environments_markers_do_not_suppress_the_filename_fallback",
+			relPath: "environments/environments/values-prod.yaml",
+			wantEnv: "prod",
+		},
+		{
+			// Three ADJACENT "environments" markers followed by a real
+			// environment directory: the first two captures are each the
+			// keyword itself (rejected), the third capture is "prod" (a
+			// real directory, since a file segment follows it) and wins.
+			name:    "three_adjacent_environments_markers_then_a_real_environment",
+			relPath: "environments/environments/environments/prod/values.yaml",
+			wantEnv: "prod",
+		},
 	}
 
 	for _, tc := range cases {

@@ -4,7 +4,6 @@
 package yaml
 
 import (
-	"path/filepath"
 	"slices"
 	"strings"
 )
@@ -19,6 +18,12 @@ import (
 // kustomize_overlays[].image_refs (collectKustomizeObjectRefs,
 // kustomize_semantics.go) never reads newTag/digest at all. image_overrides
 // is additive and must never change either bucket's existing output.
+//
+// The `environment` field's resolution logic (helmImageOverrideEnvironment,
+// imageOverrideDirectoryEnvironment, helmValuesEnvironment, and the token
+// allowlist) lives in image_overrides_environment.go, split out to keep
+// both files under the repo's 500-line package-file cap (issue #5440
+// round-3 review).
 
 // collectHelmImageOverrides walks a Helm values document for maps nested
 // under an "image" parent key, mirroring collectHelmImageRepositories's walk
@@ -327,154 +332,4 @@ func rowString(row map[string]any, key string) string {
 func rowInt(row map[string]any, key string) int {
 	n, _ := row[key].(int)
 	return n
-}
-
-// helmImageOverrideEnvironmentTokens is the closed set of filename suffixes
-// helmValuesEnvironment accepts as a real deployment environment. It mirrors
-// isDeploymentEnvironmentToken
-// (go/internal/query/repository_deployment_evidence_read_model.go:331-338)
-// so the two "which words mean environment" answers agree.
-//
-// The token set is deliberately duplicated here rather than imported: the
-// query package imports internal/parser, so importing query from this
-// package would be an import cycle. This duplication is accepted for #5440;
-// issue #5444 owns hoisting both call sites onto one shared implementation.
-// Keep any edit to the query-side list mirrored here by hand until then.
-var helmImageOverrideEnvironmentTokens = map[string]struct{}{
-	"dev":         {},
-	"development": {},
-	"test":        {},
-	"qa":          {},
-	"stage":       {},
-	"staging":     {},
-	"uat":         {},
-	"preprod":     {},
-	"prod":        {},
-	"production":  {},
-	"sandbox":     {},
-	"preview":     {},
-}
-
-// helmValuesEnvironment infers a Helm values override file's environment
-// from its filename -- "values-prod.yaml" or "values.prod.yaml" -> "prod" --
-// returning "" for the base values.yaml/values.yml and for any name it
-// cannot confidently parse. The returned value is already lowercase (it is
-// extracted from `lower`, the lowercased filename) -- see
-// helmImageOverrideEnvironment's doc comment for why that matters.
-//
-// Accuracy guardrail (#5440 P1): a bare "values-<X>.yaml"/"values.<X>.yaml"
-// split is not enough -- "values.schema.yaml" (a values-schema convention),
-// "values.example.yaml" (documentation), and "values.template.yaml"
-// (scaffolding) all match that shape without being an environment. The
-// parsed suffix is therefore accepted ONLY when it is a member of
-// helmImageOverrideEnvironmentTokens; an unrecognized suffix returns "",
-// never a guess. This is a deliberately narrow, filename-only inference on
-// top of that gate: it does not scan arbitrary path segments for
-// environment-like keywords. Issue #5444 owns broader environment detection;
-// this stays the conservative #5440 subset.
-func helmValuesEnvironment(filename string) string {
-	lower := strings.ToLower(filename)
-	ext := filepath.Ext(lower)
-	if ext != ".yaml" && ext != ".yml" {
-		return ""
-	}
-	base := strings.TrimSuffix(lower, ext)
-	for _, sep := range []string{"values-", "values."} {
-		env, cut := strings.CutPrefix(base, sep)
-		if !cut || env == "" {
-			continue
-		}
-		if _, known := helmImageOverrideEnvironmentTokens[env]; known {
-			return env
-		}
-	}
-	return ""
-}
-
-// imageOverrideDirectoryEnvironment resolves the
-// ".../environments/<env>/..." path-segment signal shared by both
-// image_overrides producers (helmImageOverrideEnvironment below, and the
-// Kustomize call site in language.go), applying two guards on top of what
-// environmentFromPath (observability_helpers.go) itself provides:
-//
-//  1. <env> must be a real DIRECTORY: at least one further path segment
-//     (the values/kustomization file itself, or a deeper directory) must
-//     follow it. A file sitting directly inside a directory literally named
-//     "environments/" -- "environments/values.yaml",
-//     "charts/foo/environments/values.yaml" -- has no author-declared
-//     environment at all. environmentFromPath would otherwise return the
-//     FILE'S OWN BASENAME as the "environment": the identical
-//     invented-environment defect class already fixed above for the
-//     values.schema.yaml filename case, just reached through the path
-//     signal instead (issue #5440 P1, independent review).
-//  2. The result is lowercased. environmentFromPath returns the segment's
-//     raw case, while helmValuesEnvironment above always returns lowercase
-//     (it works off an already-lowercased filename). Without this,
-//     "environments/Prod/values.yaml" and "values-PROD.yaml" would resolve
-//     the SAME declared environment to two different strings -- a case
-//     fragmentation issue #5441 is about to turn into two different graph
-//     join-key values instead of one (issue #5440 P1, independent review).
-//
-// This re-walks path segments locally rather than calling
-// environmentFromPath and validating its result, and the guard is
-// intentionally NOT added to that shared helper: environmentFromPath has six
-// callers of its own (observability.go:102,149, observability_applied.go:155,
-// observability_log_routes.go:16, observability_metric_routes.go:16,
-// observability_trace_routes.go:16) whose existing behavior and tests are
-// out of scope for #5440 and must not change here -- the image_overrides
-// Kustomize call site (language.go) no longer calls environmentFromPath
-// directly at all; it calls this function instead. Those six callers have
-// the identical directory-guard and case-fragmentation defects; that is
-// reported to issue #5444, which owns environment detection, not fixed in
-// this change.
-func imageOverrideDirectoryEnvironment(path string) string {
-	parts := strings.Split(filepath.ToSlash(path), "/")
-	// Scan every "environments" occurrence left to right rather than
-	// returning on the first one (issue #5440 P2-1, round-2 independent
-	// review). The first marker can satisfy the directory guard below
-	// without being the real declaration -- "modules/environments/scripts/
-	// environments/prod/values.yaml" has a guard-passing "scripts" segment
-	// right after its FIRST "environments", so an early return there yields
-	// "scripts" instead of the closer, more specific "prod". Continuing to
-	// overwrite env on every later guard-passing occurrence, instead of
-	// stopping at the first one, means the LAST valid marker -- the one
-	// closest to the file -- wins. A guard-FAILING later marker (the file
-	// sitting directly inside a nested "environments/" dir) is skipped
-	// rather than clearing env: it carries no information of its own, so an
-	// earlier, still-valid declaration is preferred over discarding it.
-	env := ""
-	for index, part := range parts {
-		if part != "environments" {
-			continue
-		}
-		// Need the candidate <env> segment (parts[index+1]) AND at least one
-		// segment after THAT (the file, or a deeper directory) for <env> to
-		// be a real directory rather than the file's own basename.
-		if index+2 < len(parts) {
-			env = strings.ToLower(strings.TrimSpace(parts[index+1]))
-		}
-	}
-	return env
-}
-
-// helmImageOverrideEnvironment resolves the environment for a Helm values
-// file. The two signals are deliberately asymmetric:
-//
-//   - The ".../environments/<env>/..." path segment
-//     (imageOverrideDirectoryEnvironment above) is an explicit AUTHOR
-//     DECLARATION -- someone chose to lay the repo out with an
-//     "environments" directory naming this environment -- so it takes
-//     priority and is NOT gated by helmImageOverrideEnvironmentTokens: it
-//     returns whatever directory name the author wrote, even one outside
-//     that allowlist. It IS still required to be a real directory and is
-//     still lowercased, per imageOverrideDirectoryEnvironment's own guards.
-//   - The values-<env>.yaml/values.<env>.yaml filename fallback is an
-//     INFERENCE from a filename convention that also matches non-environment
-//     files (values.schema.yaml, values.example.yaml), so it is GATED by the
-//     token allowlist above and answers "" rather than guessing.
-func helmImageOverrideEnvironment(path string) string {
-	if env := imageOverrideDirectoryEnvironment(path); env != "" {
-		return env
-	}
-	return helmValuesEnvironment(filepath.Base(path))
 }

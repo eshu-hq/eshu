@@ -28,8 +28,11 @@ deterministic payload buckets. The parent internal/parser package still owns
 registry lookup, engine dispatch, repository path resolution, and content
 metadata inference.
 
-`image_overrides.go` builds the `image_overrides` bucket (issue #5440): one
-row per declared container image version override, carrying the tag/digest
+`image_overrides.go` builds the `image_overrides` bucket (issue #5440;
+`environment` field resolution split into the sibling
+`image_overrides_environment.go` to keep both files under the 500-line
+package-file cap): one row per declared container image version override,
+carrying the tag/digest
 version truth that `helm_values[].image_repositories` and
 `kustomize_overlays[].image_refs` intentionally discard from their own
 tag-less identity buckets. It is purely additive -- adding it does not
@@ -60,7 +63,15 @@ marker the LAST one that satisfies the directory guard wins -- the
 declaration closest to the file, not the first one encountered in the path
 (issue #5440 P1 and P2-1, independent review; a later marker that fails the
 directory guard is skipped, not treated as clearing an earlier valid one).
-This path signal is an explicit author declaration and is NOT gated by an
+A captured `<env>` segment that is itself the marker keyword
+`"environments"` (two markers back to back, e.g.
+`environments/environments/values.yaml`) is ALSO treated as guard-failing,
+never recorded as a value (issue #5440 P2, round-3 independent review) --
+recording it would be worse than `""`: `helmImageOverrideEnvironment` only
+falls through to the filename inference when the path signal is empty, so a
+phantom `"environments"` path result would silently suppress a correct
+`values-prod.yaml` -> `"prod"` filename match. This path signal is an
+explicit author declaration and is NOT gated by an
 environment-token allowlist: an author who laid a repo out with an
 "environments" directory chose that name deliberately, whatever it is. A
 `values-<env>.yaml`/`values.<env>.yaml` filename match for Helm is a
@@ -379,6 +390,33 @@ Confirmed, not assumed: B/op and allocs/op are unchanged (within a few
 bytes -- normal small map-growth variance) on every fixture, and ns/op
 deltas are within the same few-percent run-to-run band this session has
 shown throughout, not a directional regression.
+
+Keyword-collision-fix follow-up (same issue, same benchmarks): a fourth
+independent review found the captured `<env>` segment could itself be the
+marker keyword `"environments"` when two markers sit back to back
+(`environments/environments/values.yaml` -> `"environments"`), and that this
+phantom value silently suppressed a correct filename-inferred fallback
+(`environments/environments/values-prod.yaml` -> `"environments"` instead of
+`"prod"`) -- issue #5440 P2, round-3 independent review. The fix adds one
+more string comparison per marker occurrence (reject a captured segment
+equal to `"environments"`, case-insensitively). No benchmark fixture
+contains an `environments/` path segment, so again no cost is expected;
+re-measured to confirm:
+
+| Fixture | ns/op (prev -> now) | B/op (prev -> now) | allocs/op (prev -> now) |
+| --- | --- | --- | --- |
+| Helm 20 images | ~392.2us -> ~394.9us (noise) | 266,840 -> 266,844 (flat) | 3,945 -> 3,945 (+0) |
+| Helm 200 images | ~4.16ms -> ~4.33ms (noise) | 2,427,970 -> 2,427,968 (flat) | ~37,174 -> ~37,174 (flat) |
+| Kustomize 20 images | ~113.9us -> ~128.6us (noise, elevated jitter this run) | 80,266 -> 80,266 (flat) | 1,087 -> 1,087 (+0) |
+| Kustomize 200 images | ~1.03ms -> ~1.02ms (flat) | 614,544 -> 614,539 (flat) | 8,597 -> 8,597 (+0) |
+
+B/op and allocs/op -- the reliable, deterministic signal -- are unchanged on
+every fixture, exactly as expected for a branch that only executes when a
+captured segment equals the literal marker keyword, which none of these
+fixtures' paths ever produce. The Kustomize 20-image ns/op figure is the
+noisiest measurement across this whole session (it has shown a wide spread
+independent of any code change since round 3); it is reported as-is rather
+than smoothed over.
 
 ## Gotchas / invariants
 
