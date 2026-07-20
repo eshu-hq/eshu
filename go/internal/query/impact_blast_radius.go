@@ -119,7 +119,7 @@ func blastRadiusCrossplaneQuery(access repositoryAccessFilter) string {
 // caller over-fetches by this factor before the app-side min-hop dedup and
 // trim, ensuring the requested unique-repo limit is met. MUST track the exact
 // branch count below (guarded by TestBlastRadiusSqlTableCypherDropsDeadBranchesKeepsLiveOnes).
-const blastRadiusSqlTableBranches = 6
+const blastRadiusSqlTableBranches = 7
 
 // blastRadiusSqlTableCypher resolves repositories touching the matched SqlTable
 // through any of the code/schema relationship kinds that have a real graph
@@ -148,12 +148,18 @@ const blastRadiusSqlTableBranches = 6
 // closure), so this UNION gets two endpoint-label-constrained branches
 // (SqlView and SqlFunction are different source labels, so this is NOT a
 // node-label disjunction, which NornicDB matches zero rows for, #5116) rather
-// than one. MIGRATES and MAPS_TO_TABLE still have no writer at all (confirmed
-// by auditing every reducer/edge-writer path) and are intentionally NOT
-// UNIONed here — reporting them as a silent zero would be a correctness bug.
-// blastRadiusAffected reports their absence honestly via the
-// coverage/complete response fields instead (sqlTableBlastRadiusEdgeTypes,
-// sqlTableBlastRadiusCoverage).
+// than one.
+//
+// #5346: the SqlMigration MIGRATES branch is wired the same way -- the parser
+// now emits one SqlMigration entity per recognized migration file with its
+// resolved forward targets nested under migration_targets metadata, and the
+// reducer resolves each target directly (see
+// reducer/sql_relationship_materialization.go's SqlMigration case). MAPS_TO_TABLE
+// still has no writer at all (confirmed by auditing every reducer/edge-writer
+// path) and is intentionally NOT UNIONed here — reporting it as a silent zero
+// would be a correctness bug. blastRadiusAffected reports its absence honestly
+// via the coverage/complete response fields instead
+// (sqlTableBlastRadiusEdgeTypes, sqlTableBlastRadiusCoverage).
 // blastRadiusSqlTableQuery applies the caller's grant on the affected repo node
 // inside EACH CALL{} UNION branch (a bound-node property WHERE, not a post-CALL
 // clause) so the outer LIMIT bounds the granted set. When the caller is not
@@ -171,7 +177,9 @@ const blastRadiusSqlTableCypher = `CALL {
 	MATCH (table:SqlTable) WHERE table.name CONTAINS $target_name
 	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:SqlView)-[:READS_FROM]->(table)%[1]s RETURN repo, 1 AS hops UNION
 	MATCH (table:SqlTable) WHERE table.name CONTAINS $target_name
-	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:SqlFunction)-[:READS_FROM]->(table)%[1]s RETURN repo, 1 AS hops
+	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:SqlFunction)-[:READS_FROM]->(table)%[1]s RETURN repo, 1 AS hops UNION
+	MATCH (table:SqlTable) WHERE table.name CONTAINS $target_name
+	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:SqlMigration)-[:MIGRATES]->(table)%[1]s RETURN repo, 1 AS hops
 }
 RETURN repo.name AS repo, repo.id AS repo_id, hops
 ORDER BY hops, repo
@@ -190,17 +198,18 @@ func blastRadiusSqlTableQuery(access repositoryAccessFilter) string {
 // ones currently have a UNION branch in blastRadiusSqlTableCypher. Each is
 // checked against the materialized-edge registry (EdgeMaterializationCoverage,
 // #5330 Task 1) to build the response's honest coverage/complete fields:
-// CONTAINS, QUERIES_TABLE, READS_FROM, TRIGGERS, and INDEXES are the live
-// UNION branches above (#5345 moved READS_FROM here from the no-writer list
-// once the parser/reducer bridge was wired). MIGRATES and MAPS_TO_TABLE still
-// have no writer. REFERENCES_TABLE joined them in #5345: the only prior
-// producer was the SqlView/SqlFunction case, which now writes READS_FROM
-// instead, so REFERENCES_TABLE is honestly reserved for a future table-level
-// FK edge rather than claimed as materialized. All three are reported as
-// unmaterialized rather than silently contributing a zero to affected_count.
+// CONTAINS, QUERIES_TABLE, READS_FROM, TRIGGERS, INDEXES, and MIGRATES are the
+// live UNION branches above (#5345 moved READS_FROM here once the
+// parser/reducer bridge was wired; #5346 added MIGRATES the same way).
+// MAPS_TO_TABLE still has no writer. REFERENCES_TABLE joined the unmaterialized
+// set in #5345: the only prior producer was the SqlView/SqlFunction case,
+// which now writes READS_FROM instead, so REFERENCES_TABLE is honestly
+// reserved for a future table-level FK edge rather than claimed as
+// materialized. Both are reported as unmaterialized rather than silently
+// contributing a zero to affected_count.
 var sqlTableBlastRadiusEdgeTypes = []string{
-	"CONTAINS", "QUERIES_TABLE", "READS_FROM", "TRIGGERS", "INDEXES",
-	"REFERENCES_TABLE", "MIGRATES", "MAPS_TO_TABLE",
+	"CONTAINS", "QUERIES_TABLE", "READS_FROM", "TRIGGERS", "INDEXES", "MIGRATES",
+	"REFERENCES_TABLE", "MAPS_TO_TABLE",
 }
 
 // blastRadiusEdgeCoverage reports one graph relationship type's
