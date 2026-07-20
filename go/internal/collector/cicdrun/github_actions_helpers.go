@@ -28,30 +28,41 @@ func repositoryID(repository githubRepository, ctx FixtureContext) string {
 }
 
 // repositoryCanonicalURL returns the URL string used to derive the canonical
-// repository ID. It prefers the repository's HTML URL, then the fixture
-// SourceURI, then falls back to the host/FullName URL pattern.
+// repository ID. Precedence:
+//  1. repository.HTMLURL (validated: must parse with a scheme and host).
+//  2. Constructed https://<host>/<FullName> where host comes from
+//     repositoryHost with an api. prefix stripped, and FullName is the
+//     repository's provider-level name.
+//
+// Never hashes a per-run SourceURI verbatim — that would embed the run ID
+// or an api. host and mint a different canonical id per run, permanently
+// breaking the backbone join with the git collector.
 func repositoryCanonicalURL(repository githubRepository, ctx FixtureContext) string {
-	// Prefer repository.HTMLURL (the canonical GitHub API URL).
+	// Tier 1: repository.HTMLURL (the canonical provider URL).
 	if trimmed := strings.TrimSpace(repository.HTMLURL); trimmed != "" {
-		if _, err := url.Parse(trimmed); err == nil {
+		if parsed, err := url.Parse(trimmed); err == nil && parsed.Host != "" && parsed.Scheme != "" {
 			return trimmed
 		}
 	}
-	// Next: SourceURI (the API URL the fixture or runtime harvested from).
-	if trimmed := strings.TrimSpace(ctx.SourceURI); trimmed != "" {
-		if parsed, err := url.Parse(trimmed); err == nil && parsed.Host != "" {
-			return trimmed
-		}
-	}
-	// Last: host + "/" + FullName fallback (preserving repositoryHost semantics).
+	// Tier 2: construct from host + FullName.
 	host := repositoryHost(repository, ctx)
+	host = canonicalGitHubHost(host)
 	fullName := strings.Trim(strings.TrimSpace(repository.FullName), "/")
-	if fullName == "" {
+	if fullName == "" || host == "" {
 		return ""
 	}
-	// Build an HTTPS URL from host + FullName. This is the same pattern
-	// repositoryID used before canonicalization: host + "/" + FullName.
 	return "https://" + host + "/" + fullName
+}
+
+// canonicalGitHubHost strips the api. subdomain prefix from github.com and
+// GitHub Enterprise Server API hosts so the canonical repository_id matches
+// what the git collector computes from the repo's SSH/HTTPS remote URL.
+// For example:
+//   - api.github.com → github.com
+//   - api.github.example.com → github.example.com
+//   - ghes.example.com → ghes.example.com (no api. prefix, unchanged)
+func canonicalGitHubHost(host string) string {
+	return strings.TrimPrefix(host, "api.")
 }
 
 // providerRepositoryID returns the raw provider-level repository locator

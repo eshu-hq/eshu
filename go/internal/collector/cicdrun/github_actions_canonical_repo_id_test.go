@@ -138,10 +138,16 @@ func TestGitHubActionsFixtureCanonicalIDHandlesGHESHost(t *testing.T) {
 	assertPayload(t, run.Payload, "provider_repository_id", "github.example.com/eshu-hq/eshu")
 }
 
+// TestGitHubActionsFixtureCanonicalIDFallsBackWhenNoHTMLURL verifies that
+// when the repository has no html_url, the canonical repository_id is
+// derived from the host+FullName pattern (NOT from the per-run SourceURI
+// verbatim, which would embed the run ID and mint a different id per run).
+//
+// tier: strengthened from the original false-green prefix check to exact-equality.
 func TestGitHubActionsFixtureCanonicalIDFallsBackWhenNoHTMLURL(t *testing.T) {
 	t.Parallel()
 
-	// No html_url on repository, but SourceURI provides the host for fallback.
+	// No html_url on repository; SourceURI is a per-run API URL.
 	raw := []byte(`{
 		"run": {
 			"id": 123,
@@ -154,7 +160,8 @@ func TestGitHubActionsFixtureCanonicalIDFallsBackWhenNoHTMLURL(t *testing.T) {
 		ScopeID:             "github-actions://github.com/eshu-hq/eshu/ci.yml",
 		GenerationID:        "123:1",
 		CollectorInstanceID: "fixture-gh-actions",
-		SourceURI:           "https://api.github.com/repos/eshu-hq/eshu/actions/runs/123",
+		// Per-run API URL: must NOT be hashed verbatim (would embed run ID).
+		SourceURI: "https://api.github.com/repos/eshu-hq/eshu/actions/runs/123",
 	})
 	if err != nil {
 		t.Fatalf("GitHubActionsFixtureEnvelopes() error = %v", err)
@@ -163,21 +170,97 @@ func TestGitHubActionsFixtureCanonicalIDFallsBackWhenNoHTMLURL(t *testing.T) {
 	byKind := envelopesByKind(envelopes)
 	run := byKind[facts.CICDRunFactKind][0]
 
-	// repository_id must be canonical (not empty, not raw)
+	// The canonical id must be derived from https://github.com/eshu-hq/eshu
+	// (api.github.com mapped to github.com, run-id-bearing path discarded),
+	// NOT from the verbatim SourceURI.
+	expectedCanonicalID, err := repositoryidentity.CanonicalRepositoryID("https://github.com/eshu-hq/eshu", "")
+	if err != nil {
+		t.Fatalf("CanonicalRepositoryID() error = %v", err)
+	}
 	gotRepoID, ok := run.Payload["repository_id"].(string)
-	if !ok || gotRepoID == "" {
-		t.Fatalf("repository_id = %q, want non-empty canonical", gotRepoID)
+	if !ok || gotRepoID != expectedCanonicalID {
+		t.Fatalf("repository_id = %q, want exact canonical %q (must not hash per-run SourceURI)", gotRepoID, expectedCanonicalID)
 	}
-	if !strings.HasPrefix(gotRepoID, "repository:r_") {
-		t.Fatalf("repository_id %q does not start with repository:r_", gotRepoID)
+}
+
+// TestGitHubActionsFixtureCanonicalIDStableAcrossRunURLs proves that two
+// different per-run SourceURIs of the same repo produce the SAME canonical
+// repository_id — the backbone join depends on this.
+func TestGitHubActionsFixtureCanonicalIDStableAcrossRunURLs(t *testing.T) {
+	t.Parallel()
+
+	noHTMLURLFixture := []byte(`{
+		"run": {
+			"id": 100,
+			"run_attempt": 1,
+			"repository": {"full_name": "eshu-hq/eshu"},
+			"head_sha": "0123456789abcdef0123456789abcdef01234567"
+		}
+	}`)
+
+	ctx1 := FixtureContext{
+		ScopeID:             "github-actions://github.com/eshu-hq/eshu/ci.yml",
+		GenerationID:        "100:1",
+		CollectorInstanceID: "fixture-gh-actions",
+		SourceURI:           "https://api.github.com/repos/eshu-hq/eshu/actions/runs/100",
 	}
-	// provider_repository_id preserves the raw host/fullName.
-	// Since html_url is missing, repositoryHost falls back to SourceURI,
-	// whose host is "api.github.com".
-	providerID, ok := run.Payload["provider_repository_id"].(string)
-	if !ok || providerID != "api.github.com/eshu-hq/eshu" {
-		t.Fatalf("provider_repository_id = %q, want api.github.com/eshu-hq/eshu", providerID)
+	ctx2 := FixtureContext{
+		ctx1.ScopeID, "200:1", ctx1.CollectorInstanceID, 0, ctx1.ObservedAt,
+		"https://api.github.com/repos/eshu-hq/eshu/actions/runs/200",
 	}
+
+	run1, err := GitHubActionsFixtureEnvelopes(noHTMLURLFixture, ctx1)
+	if err != nil {
+		t.Fatalf("run1: %v", err)
+	}
+	run2, err := GitHubActionsFixtureEnvelopes(noHTMLURLFixture, ctx2)
+	if err != nil {
+		t.Fatalf("run2: %v", err)
+	}
+
+	id1, _ := envelopesByKind(run1)[facts.CICDRunFactKind][0].Payload["repository_id"].(string)
+	id2, _ := envelopesByKind(run2)[facts.CICDRunFactKind][0].Payload["repository_id"].(string)
+
+	if id1 != id2 || id1 == "" {
+		t.Fatalf("run 100 id = %q, run 200 id = %q; want identical non-empty canonical id", id1, id2)
+	}
+}
+
+// TestGitHubActionsFixtureCanonicalIDHandlesGHESAPIPath proves the GHES
+// case: when SourceURI is https://ghes.example.com/api/v3/repos/org/repo/...,
+// the canonical id must derive from https://ghes.example.com/org/repo (the
+// GHES host itself, not api.ghes.example.com).
+func TestGitHubActionsFixtureCanonicalIDHandlesGHESAPIPath(t *testing.T) {
+	t.Parallel()
+
+	// GHES with no html_url, SourceURI containing /api/v3 path
+	raw := []byte(`{
+		"run": {
+			"id": 123,
+			"run_attempt": 1,
+			"repository": {"full_name": "eshu-hq/eshu"},
+			"head_sha": "0123456789abcdef0123456789abcdef01234567"
+		}
+	}`)
+	envelopes, err := GitHubActionsFixtureEnvelopes(raw, FixtureContext{
+		ScopeID:             "github-actions://ghes.example.com/eshu-hq/eshu/ci.yml",
+		GenerationID:        "123:1",
+		CollectorInstanceID: "fixture-gh-actions",
+		SourceURI:           "https://ghes.example.com/api/v3/repos/eshu-hq/eshu/actions/runs/123",
+	})
+	if err != nil {
+		t.Fatalf("GitHubActionsFixtureEnvelopes() error = %v", err)
+	}
+
+	byKind := envelopesByKind(envelopes)
+	run := byKind[facts.CICDRunFactKind][0]
+
+	// The canonical id must derive from https://ghes.example.com/eshu-hq/eshu
+	expectedID, err := repositoryidentity.CanonicalRepositoryID("https://ghes.example.com/eshu-hq/eshu", "")
+	if err != nil {
+		t.Fatalf("CanonicalRepositoryID() error = %v", err)
+	}
+	assertPayload(t, run.Payload, "repository_id", expectedID)
 }
 
 // BenchmarkRepositoryID measures the canonical repositoryID path used at
@@ -194,5 +277,72 @@ func BenchmarkRepositoryID(b *testing.B) {
 	b.ResetTimer()
 	for range b.N {
 		_ = repositoryID(repo, ctx)
+	}
+}
+
+// BenchmarkGitHubActionsEnvelopesEndToEnd measures the full envelope-build
+// path for a realistic success fixture to capture the one-off canonicalization
+// cost per run.
+func BenchmarkGitHubActionsEnvelopesEndToEnd(b *testing.B) {
+	raw := []byte(`{
+		"workflow": {"id": 314159, "name": "CI", "path": ".github/workflows/ci.yml", "state": "active", "trigger": "push"},
+		"run": {
+			"id": 123456789, "run_attempt": 2, "run_number": 42,
+			"name": "CI", "event": "push", "status": "completed", "conclusion": "success",
+			"head_branch": "main", "head_sha": "0123456789abcdef0123456789abcdef01234567",
+			"run_started_at": "2026-05-16T03:00:00Z", "updated_at": "2026-05-16T03:20:00Z",
+			"html_url": "https://github.com/eshu-hq/eshu/actions/runs/123456789",
+			"repository": {"full_name": "eshu-hq/eshu", "html_url": "https://github.com/eshu-hq/eshu"},
+			"actor": {"login": "linuxdynasty"}
+		},
+		"jobs": [{"id": 9001, "name": "build", "status": "completed", "conclusion": "success", "started_at": "2026-05-16T03:01:00Z", "completed_at": "2026-05-16T03:10:00Z", "labels": ["ubuntu-latest"], "steps": [{"name": "Run actions/checkout@v4", "number": 1, "status": "completed", "conclusion": "success", "started_at": "2026-05-16T03:01:01Z", "completed_at": "2026-05-16T03:01:04Z"}]}],
+		"artifacts": [{"id": 7001, "name": "image-digest", "size_in_bytes": 128, "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "artifact_type": "container_image", "archive_download_url": "https://api.github.com/repos/eshu-hq/eshu/actions/artifacts/7001/zip?token=secret", "expired": false, "created_at": "2026-05-16T03:09:00Z", "expires_at": "2026-06-16T03:09:00Z", "workflow_run": {"id": 123456789, "head_sha": "0123456789abcdef0123456789abcdef01234567"}}],
+		"triggers": [{"trigger_kind": "workflow_call", "source_run_id": "555", "source_provider": "github_actions"}]
+	}`)
+	ctx := FixtureContext{
+		ScopeID:             "github-actions://github.com/eshu-hq/eshu/ci.yml",
+		GenerationID:        "123456789:2",
+		CollectorInstanceID: "fixture-gh-actions",
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		envelopes, err := GitHubActionsFixtureEnvelopes(raw, ctx)
+		if err != nil {
+			b.Fatalf("GitHubActionsFixtureEnvelopes error: %v", err)
+		}
+		_ = envelopes
+	}
+}
+
+// TestRepositoryCanonicalURLRejectsHostlessHTMLURL proves finding 3: tier-1
+// HTMLURL acceptance requires a real host, not just any parseable string.
+func TestRepositoryCanonicalURLRejectsHostlessHTMLURL(t *testing.T) {
+	t.Parallel()
+
+	// "notaurl" parses without error in url.Parse but has no Host.
+	// To test hostless rejection: HTMLURL has no host, FullName is empty.
+	repoNoHost := githubRepository{HTMLURL: "notaurl"}
+	ctx := FixtureContext{}
+
+	url2 := repositoryCanonicalURL(repoNoHost, ctx)
+	if url2 != "" {
+		t.Fatalf("repositoryCanonicalURL(hostless HTMLURL, no FullName) = %q, want \"\"", url2)
+	}
+
+	// With a valid HTMLURL, it must still work.
+	repo3 := githubRepository{
+		FullName: "eshu-hq/eshu",
+		HTMLURL:  "https://github.com/eshu-hq/eshu",
+	}
+	url3 := repositoryCanonicalURL(repo3, ctx)
+	if url3 != "https://github.com/eshu-hq/eshu" {
+		t.Fatalf("repositoryCanonicalURL(valid HTMLURL) = %q, want https://github.com/eshu-hq/eshu", url3)
+	}
+
+	// Verify the full path: hostless HTMLURL + empty FullName → empty repository_id.
+	id := repositoryID(repoNoHost, ctx)
+	if id != "" {
+		t.Fatalf("repositoryID(hostless HTMLURL, no FullName) = %q, want \"\"", id)
 	}
 }

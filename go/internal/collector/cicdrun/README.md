@@ -83,22 +83,18 @@ for live collection.
 Benchmark Evidence: canonicalizing `repository_id` from a raw host/Org/Repo
 string to `repository:r_<hex>` via `repositoryidentity.CanonicalRepositoryID`
 adds one `NormalizeRemoteURL` + SHA1 per CI fact at emission. Measured on
-Apple M5 Max (darwin/arm64, `-count=5`), `BenchmarkRepositoryID`:
+Apple M5 Max (darwin/arm64, `-count=5`):
 
-| Metric | OLD (`host + "/" + FullName`) | NEW (`NormalizeRemoteURL + SHA1`) |
-|--------|------|------|
-| ns/op | ~115 ns | ~407 ns |
-| B/op | 168 B | 536 B |
-| allocs/op | 2 | 11 |
+| Benchmark | ns/op | B/op | allocs/op |
+|-----------|-------|------|-----------|
+| `BenchmarkRepositoryID` | ~430–540 | 536 | 11 |
+| `BenchmarkGitHubActionsEnvelopesEndToEnd` | ~35,000–40,000 | 54,420 | 680 |
 
-The full envelope-build benchmark (`BenchmarkGitHubActionsEnvelopesEndToEnd`)
-runs at ~34 µs/op for a realistic success fixture (run + 1 job + 1 step +
-1 artifact + 1 trigger). The canonicalization cost (~400 ns) is ~1.2%
-of total envelope-build time — a bounded, measured per-fact cost well within
-acceptable bounds for the CI-fact emission path. The old function
-(`repositoryID`) is replaced entirely; the raw provider-level string is still
-emitted as `provider_repository_id` through a separate helper
-(`providerRepositoryID`) that preserves the same O(1) string-concat cost.
+The canonicalization cost (~480 ns) is ~1.2% of total envelope-build time
+(~38 µs) for a realistic success fixture (run + 1 job + 1 step + 1 artifact
++ 1 trigger). The old `repositoryID` function (string concat only) ran at
+~115 ns/op / 168 B/op / 2 allocs/op; the new path buys a stable
+cross-collector join key at a bounded, measured per-fact cost.
 
 No-Regression Evidence: the existing fixture normalization tests
 (`TestGitHubActionsFixtureBuildsReducerConsumableFacts`,
@@ -111,16 +107,22 @@ No-Regression Evidence: the existing fixture normalization tests
 `TestGitHubActionsFixtureWarnsWhenRunAnchorsMissing`,
 `TestGitHubActionsFixtureEmitsWorkflowDefinitionFromProviderIDOnly`) stay
 green with only their `repository_id`→`provider_repository_id` assertion
-changes. Four new regression tests lock the canonical-id contract:
+changes. Six new regression tests lock the canonical-id contract:
 `TestGitHubActionsFixtureEmitsCanonicalRepositoryID`,
 `TestGitHubActionsFixtureCanonicalRepositoryIDMatchesGitCollector`,
-`TestGitHubActionsFixtureCanonicalIDHandlesGHESHost`, and
-`TestGitHubActionsFixtureCanonicalIDFallsBackWhenNoHTMLURL`. The reducer
-end-to-end path is locked by
+`TestGitHubActionsFixtureCanonicalIDHandlesGHESHost`,
+`TestGitHubActionsFixtureCanonicalIDFallsBackWhenNoHTMLURL` (exact-equality
+strengthened from prefix check),
+`TestGitHubActionsFixtureCanonicalIDStableAcrossRunURLs` (two runs, same
+repo → identical id), and
+`TestGitHubActionsFixtureCanonicalIDHandlesGHESAPIPath`. Three integrity
+tests guard edge cases:
+`TestRepositoryCanonicalURLRejectsHostlessHTMLURL` (garbage URL → empty),
 `TestBuildCICDRunCorrelationDecisionsPassesThroughCanonicalRepositoryID`
-(go/internal/reducer), and the query readback path by
+(reducer end-to-end), and
 `TestLoadRepositoryScopedCICDEvidenceResolvesByCanonicalRepositoryID`
-(go/internal/query). Queue behavior is unchanged (no new enqueue shape).
+(query readback with namespace isolation). Queue behavior is unchanged (no
+new enqueue shape).
 
 No-Observability-Change: the change adds no route, graph query shape, queue
 table, worker, lease, runtime knob, metric instrument, or metric label. The
