@@ -32,8 +32,8 @@ Two additive, SET-clause-only changes:
 
 Absent-value semantics for the three new edge properties (source_revision,
 destination_namespace, first_party_ref_version — most edges carry none of
-them) were decided against the pinned NornicDB-New checkout
-(`/Users/asanabria/os-repos/NornicDB-New`), not by assumption. NornicDB
+them) were decided against the pinned NornicDB-New fork checkout (path per
+user-local config), not by assumption. NornicDB
 v1.1.11's per-property `SET rel.x = row.x` path resolves the batch row
 reference and stores the result directly into `edge.Properties[propName]`
 without a nil-removal branch:
