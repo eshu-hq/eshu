@@ -16,9 +16,8 @@
 // with its own real line_number and end_line from a caller-measured Positions
 // value, instead of the single document-root lineNumber every entity gets
 // from Parse. Positions and its SectionPositions/EntityPosition fields exist
-// so a caller with real per-entity source positions -- currently only the
-// YAML adapter, via a gopkg.in/yaml.v3 node walk -- can report them; JSON
-// callers keep calling Parse because JSON decoding does not preserve per-key
-// positions (issue #5348). Parse itself is defined as ParseWithPositions
-// called with a zero Positions, so the two never drift.
+// so a caller with real per-entity source positions -- the YAML adapter via a
+// gopkg.in/yaml.v3 node walk (issue #5328) and the JSON adapter via an
+// ordered-entry walk (issue #5348) -- can report them. Parse itself is defined
+// as ParseWithPositions called with a zero Positions, so the two never drift.
 package cloudformation

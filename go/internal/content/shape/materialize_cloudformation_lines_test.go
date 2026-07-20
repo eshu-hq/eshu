@@ -94,9 +94,11 @@ func TestMaterializeCloudFormationEntityUsesRealEndLineNotStartPlus24(t *testing
 // (EndLine 0, which is < LineNumber and so treated as absent): with no
 // subsequent entity to bound it, materialize.go's entityEndLine falls back
 // to startLine+24. This is the exact degraded shape every CloudFormation
-// entity had before the fix (and the shape JSON CloudFormation entities still
-// have today, per issue #5348), kept as a regression pin so the fallback path
-// itself is not accidentally removed.
+// entity had before the fix; both the YAML (#5328) and JSON (#5348) adapters
+// now supply a real EndLine on the happy path, but the fallback path still
+// runs for any entity that reaches materialize without one (a document-level
+// position walk failure in either adapter), so it is kept as a regression pin
+// so the fallback path itself is not accidentally removed.
 func TestMaterializeCloudFormationEntityFallsBackWithoutEndLine(t *testing.T) {
 	t.Parallel()
 
@@ -113,8 +115,10 @@ func TestMaterializeCloudFormationEntityFallsBackWithoutEndLine(t *testing.T) {
 							Name:       "VPC",
 							LineNumber: 3,
 							// EndLine intentionally left at the zero value,
-							// matching the JSON contract (Parse never sets
-							// end_line).
+							// matching an entity that reached materialize with
+							// no measured span (the zero-Positions Parse path,
+							// or a document-level walk failure in either
+							// adapter).
 						},
 					},
 				},
