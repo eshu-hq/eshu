@@ -31,6 +31,14 @@ type ContentStore interface {
 	ListRepoEntities(ctx context.Context, repoID string, limit int) ([]EntityContent, error)
 	ListRepoEntitiesByType(ctx context.Context, repoID, entityType string, limit int) ([]EntityContent, error)
 	ListRepoEntitiesByPaths(ctx context.Context, repoID string, relativePaths []string, limit int) ([]EntityContent, error)
+	// ListRepoEntitiesByIDs hydrates the wide EntityContent rows for a bounded
+	// entity-ID set (the impact-trace directed SELECTS scan re-fetches only the
+	// Services that actually selector-match the traced Deployment; #5363).
+	ListRepoEntitiesByIDs(ctx context.Context, repoID string, entityIDs []string, limit int) ([]EntityContent, error)
+	// ListRepoK8sSelectCandidates returns the narrow, matcher-only projection of
+	// a repository's K8sResource rows for the impact-trace directed SELECTS
+	// candidate scan (#5363); it never carries the wide metadata JSONB.
+	ListRepoK8sSelectCandidates(ctx context.Context, repoID string, limit int) ([]K8sSelectCandidate, error)
 	SearchEntitiesByLanguageAndType(ctx context.Context, repoID, language, entityType, query string, limit int) ([]EntityContent, error)
 	ListFrameworkRoutes(ctx context.Context, repoID string) ([]FrameworkRouteEvidence, error)
 	RepositoryCoverage(ctx context.Context, repoID string) (RepositoryContentCoverage, error)

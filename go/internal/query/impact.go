@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // ImpactHandler serves HTTP endpoints for impact analysis queries including
@@ -16,6 +18,13 @@ type ImpactHandler struct {
 	Content ContentStore
 	Profile QueryProfile
 	Logger  *slog.Logger
+	// Instruments backs operator-facing metrics for degraded-but-successful
+	// impact reads, e.g. QueryK8sSelectCandidateScanTruncated when a
+	// deployment-trace directed SELECTS candidate scan is truncated at the
+	// repository entity limit (#5363). Nil is tolerated (metric emission is
+	// skipped) so tests can construct ImpactHandler without wiring the full
+	// telemetry stack.
+	Instruments *telemetry.Instruments
 }
 
 // Mount registers impact analysis routes on the given mux.

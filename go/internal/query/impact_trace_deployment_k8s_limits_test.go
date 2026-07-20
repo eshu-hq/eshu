@@ -171,7 +171,7 @@ func TestBoundedK8sResourceResultCapsMergedGitOpsRows(t *testing.T) {
 		{"entity_id": "gitops-b", "repo_id": "repo-deploy", "relative_path": "apps/b.yaml"},
 	}
 
-	result := boundedK8sResourceResult(contentRows, false, gitOpsRows, false)
+	result := boundedK8sResourceResult(contentRows, false, gitOpsRows, false, false)
 	if got, want := len(result.rows), serviceStoryItemLimit; got != want {
 		t.Fatalf("len(boundedK8sResourceResult().rows) = %d, want %d", got, want)
 	}
@@ -199,7 +199,7 @@ func TestBoundedK8sResourceResultPropagatesDeploymentSourceLowerBound(t *testing
 		"entity_id":     "gitops-a",
 		"repo_id":       "repo-deploy",
 		"relative_path": "apps/a.yaml",
-	}}, true)
+	}}, true, false)
 	if !BoolVal(result.limits, "observed_count_is_lower_bound") || !BoolVal(result.limits, "truncated") {
 		t.Fatalf("k8s_resource_limits = %#v, deployment-source saturation must fail completeness closed", result.limits)
 	}

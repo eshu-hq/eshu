@@ -168,6 +168,7 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 			k8sResourceResult.contentLowerBound,
 			deploymentSourceGitOps.k8sResources,
 			deploymentSourceGitOps.k8sObservedCountIsLowerBound,
+			k8sResourceResult.selectCandidatePoolTruncated,
 		)
 		k8sResources := k8sResourceResult.rows
 		imageRefs := k8sResourceResult.imageRefs

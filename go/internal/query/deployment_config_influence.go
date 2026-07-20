@@ -120,6 +120,7 @@ func (h *ImpactHandler) enrichDeploymentConfigInfluenceContext(ctx context.Conte
 		k8sResult.result.contentLowerBound,
 		deploymentRepoK8s,
 		deploymentRepoLowerBound,
+		k8sResult.result.selectCandidatePoolTruncated,
 	)
 	workload["deployment_sources"] = sourceResult.result.rows
 	workload["deployment_source_limits"] = sourceResult.result.limits

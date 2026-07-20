@@ -265,6 +265,14 @@ type k8sResourceResult struct {
 	limits            map[string]any
 	candidates        []map[string]any
 	contentLowerBound bool
+	// selectCandidatePoolTruncated is true when the directed SELECTS candidate
+	// scan (ListRepoK8sSelectCandidates) hit the repositorySemanticEntityLimit
+	// ceiling, so some selector-matching Services may be missing from the
+	// surfaced pool. It drives the k8s_relationships_complete=false disclosure
+	// (see boundedK8sResourceResult) and must be threaded back through any
+	// re-merge (the handler and deployment-config-influence re-call
+	// boundedK8sResourceResult with deployment-source rows).
+	selectCandidatePoolTruncated bool
 }
 
 func (h *ImpactHandler) fetchK8sResources(
@@ -282,7 +290,7 @@ func (h *ImpactHandler) fetchK8sResourceResult(
 	workloadName string,
 ) (k8sResourceResult, error) {
 	if h == nil || h.Content == nil || repoID == "" || workloadName == "" {
-		return boundedK8sResourceResult(nil, false, nil, false), nil
+		return boundedK8sResourceResult(nil, false, nil, false, false), nil
 	}
 
 	queryLimit := serviceStoryItemLimit + 1
@@ -291,37 +299,53 @@ func (h *ImpactHandler) fetchK8sResourceResult(
 		return k8sResourceResult{}, err
 	}
 
+	// Phase 1: the name-anchored surfaced pool. This IS the historical wire
+	// response (rows whose entity_name equals the traced workload's name), kept
+	// unchanged. While building it, prepare a directed match target for each
+	// anchored Deployment so the phase-2 candidate scan parses each workload's
+	// pod-template labels exactly once.
 	resources := make([]map[string]any, 0, len(rows))
+	surfaced := make(map[string]struct{}, len(rows))
+	targets := make([]anchoredDeploymentTarget, 0, 1)
 	for _, row := range rows {
 		if row.EntityName != workloadName {
 			continue
 		}
-		kind, _ := metadataNonEmptyString(row.Metadata, "kind")
-		qualifiedName, _ := metadataNonEmptyString(row.Metadata, "qualified_name")
-		images := metadataStringSlice(row.Metadata, "container_images")
-		resource := map[string]any{
-			"entity_id":        row.EntityID,
-			"repo_id":          row.RepoID,
-			"entity_name":      row.EntityName,
-			"kind":             kind,
-			"qualified_name":   qualifiedName,
-			"relative_path":    row.RelativePath,
-			"container_images": images,
-			"namespace":        k8sNamespace(row.Metadata),
+		resources = append(resources, k8sResourceWireRow(row))
+		surfaced[row.EntityID] = struct{}{}
+		if isK8sResourceKind(row, "Deployment") {
+			targets = append(targets, anchoredDeploymentTarget{
+				entityID: row.EntityID,
+				target:   newK8sWorkloadMatchTarget(k8sSelectMatchInputFromEntity(row)),
+			})
 		}
-		// selector/pod_template_labels presence carries tri-state meaning
-		// for k8sSelectMatch (see content_relationships_k8s_match.go): the
-		// key must be omitted entirely, not set to "", when the source
-		// content row lacks it.
-		if selector, ok := row.Metadata["selector"].(string); ok {
-			resource["selector"] = selector
-		}
-		if podTemplateLabels, ok := row.Metadata["pod_template_labels"].(string); ok {
-			resource["pod_template_labels"] = podTemplateLabels
-		}
-		resources = append(resources, resource)
 	}
-	return boundedK8sResourceResult(resources, len(rows) >= queryLimit, nil, false), nil
+	contentLowerBound := len(rows) >= queryLimit
+
+	// Phase 2: the directed, matcher-only candidate scan. Only Services that
+	// ACTUALLY selector-match an anchored Deployment are hydrated (by ID, wide
+	// shape) and joined to the surfaced pool -- a differently-named Service is
+	// discovered here (the #5363 under-linking fix) without any unmatched
+	// candidate ever touching the wire.
+	matchedIDs, candidatePoolTruncated, err := h.fetchK8sSelectMatchedServiceIDs(ctx, repoID, targets, surfaced)
+	if err != nil {
+		return k8sResourceResult{}, err
+	}
+	if len(matchedIDs) > 0 {
+		hydrated, err := h.Content.ListRepoEntitiesByIDs(ctx, repoID, matchedIDs, len(matchedIDs))
+		if err != nil {
+			return k8sResourceResult{}, err
+		}
+		for _, row := range hydrated {
+			if _, ok := surfaced[row.EntityID]; ok {
+				continue
+			}
+			resources = append(resources, k8sResourceWireRow(row))
+			surfaced[row.EntityID] = struct{}{}
+		}
+	}
+
+	return boundedK8sResourceResult(resources, contentLowerBound, nil, false, candidatePoolTruncated), nil
 }
 
 func boundedK8sResourceResult(
@@ -329,6 +353,7 @@ func boundedK8sResourceResult(
 	contentLowerBound bool,
 	deploymentSourceRows []map[string]any,
 	deploymentSourceLowerBound bool,
+	selectCandidatePoolTruncated bool,
 ) k8sResourceResult {
 	merged := mergeDeploymentTraceRows(contentRows, deploymentSourceRows)
 	sortDeploymentTraceMaps(merged)
@@ -347,25 +372,40 @@ func boundedK8sResourceResult(
 	}
 	sort.Strings(imageRefs)
 	observedCountIsLowerBound := contentLowerBound || deploymentSourceLowerBound
+	limits := map[string]any{
+		"limit":                                           serviceStoryItemLimit,
+		"query_sentinel_limit":                            serviceStoryItemLimit + 1,
+		"deployment_source_query_sentinel_limit":          repositorySemanticEntityLimit + 1,
+		"returned_count":                                  len(rows),
+		"observed_count":                                  observedCount,
+		"observed_count_is_lower_bound":                   observedCountIsLowerBound,
+		"content_observed_count":                          len(contentRows),
+		"content_observed_count_is_lower_bound":           contentLowerBound,
+		"deployment_source_observed_count":                len(deploymentSourceRows),
+		"deployment_source_observed_count_is_lower_bound": deploymentSourceLowerBound,
+		"truncated":                                       observedCountIsLowerBound || mergedTruncated,
+		"ordering":                                        []string{"repo_id", "relative_path", "entity_id"},
+		// Directed SELECTS candidate-scan completeness (#5363). These two keys
+		// are always present so operators and clients can read the SELECTS
+		// completeness of every response, not only the truncated ones; they are
+		// additive (existing keys and their values are unchanged), so a repo
+		// that surfaces no new match stays byte-identical on every pre-existing
+		// key. When the candidate pool truncated at the ceiling, the
+		// machine-readable reason is added and k8s_relationships_complete is
+		// false.
+		"k8s_select_candidate_sentinel_limit": repositorySemanticEntityLimit + 1,
+		"k8s_relationships_complete":          !selectCandidatePoolTruncated,
+	}
+	if selectCandidatePoolTruncated {
+		limits["k8s_relationships_incomplete_reason"] = k8sSelectCandidatePoolTruncationReason
+	}
 	return k8sResourceResult{
-		rows:              rows,
-		imageRefs:         imageRefs,
-		candidates:        merged,
-		contentLowerBound: contentLowerBound,
-		limits: map[string]any{
-			"limit":                                           serviceStoryItemLimit,
-			"query_sentinel_limit":                            serviceStoryItemLimit + 1,
-			"deployment_source_query_sentinel_limit":          repositorySemanticEntityLimit + 1,
-			"returned_count":                                  len(rows),
-			"observed_count":                                  observedCount,
-			"observed_count_is_lower_bound":                   observedCountIsLowerBound,
-			"content_observed_count":                          len(contentRows),
-			"content_observed_count_is_lower_bound":           contentLowerBound,
-			"deployment_source_observed_count":                len(deploymentSourceRows),
-			"deployment_source_observed_count_is_lower_bound": deploymentSourceLowerBound,
-			"truncated":                                       observedCountIsLowerBound || mergedTruncated,
-			"ordering":                                        []string{"repo_id", "relative_path", "entity_id"},
-		},
+		rows:                         rows,
+		imageRefs:                    imageRefs,
+		candidates:                   merged,
+		contentLowerBound:            contentLowerBound,
+		selectCandidatePoolTruncated: selectCandidatePoolTruncated,
+		limits:                       limits,
 	}
 }
 

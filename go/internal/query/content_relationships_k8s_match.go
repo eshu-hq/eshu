@@ -66,16 +66,68 @@ type k8sSelectMatchInput struct {
 // signal, not a Warn.
 //
 // Namespace scoping is strict in both the fallback and authoritative cases.
+//
+// k8sSelectMatch is the shared single-call entry point used by the
+// entity-context relationship builders (content_relationships_k8s.go) and the
+// impact-trace all-pairs builder (impact_trace_deployment_k8s.go). Its
+// signature and behavior are frozen: callers that evaluate one Service against
+// one workload rely on it unchanged. It is now a thin wrapper that constructs
+// a k8sWorkloadMatchTarget and delegates to the single tri-state decision tree
+// in k8sWorkloadMatchTarget.Match, so there is exactly one implementation of
+// the tri-state semantics. A caller that evaluates MANY Services against the
+// SAME workload (the #5363 impact-trace directed candidate scan) must build one
+// k8sWorkloadMatchTarget per workload and reuse it, because the target parses
+// the workload's pod-template labels ONCE; calling k8sSelectMatch per candidate
+// re-parses that label map on every call (measured 16.13 ms/op vs 5.57 ms/op on
+// a 5000-candidate worst case -- see evidence-5363-impact-trace-k8s-fetch.md).
 func k8sSelectMatch(service, workload k8sSelectMatchInput) (matched bool, reason string, mixedVintageDrop bool) {
-	if !strings.EqualFold(workload.kind, "Deployment") {
+	return newK8sWorkloadMatchTarget(workload).Match(service)
+}
+
+// k8sWorkloadMatchTarget is a workload (Deployment) prepared once for repeated
+// SELECTS evaluation against many candidate Services. It holds the workload's
+// k8sSelectMatchInput plus its pod-template labels parsed a single time into a
+// map, so a directed scan of N candidate Services against one workload parses
+// the workload label map once instead of N times. parsedPodTemplateLabels is
+// nil when the workload row carries no pod_template_labels key
+// (podTemplateLabelsPresent == false), which the tri-state decision tree in
+// Match treats as the mixed-vintage case, exactly as the pre-refactor
+// k8sSelectMatch did.
+type k8sWorkloadMatchTarget struct {
+	workload                k8sSelectMatchInput
+	parsedPodTemplateLabels map[string]string
+}
+
+// newK8sWorkloadMatchTarget prepares workload for repeated Match calls, parsing
+// its pod-template labels once. The parse is skipped entirely when the workload
+// row predates pod_template_labels capture (podTemplateLabelsPresent == false),
+// so a mixed-vintage workload allocates no label map.
+func newK8sWorkloadMatchTarget(workload k8sSelectMatchInput) k8sWorkloadMatchTarget {
+	var parsed map[string]string
+	if workload.podTemplateLabelsPresent {
+		parsed = parseK8sLabelPairs(workload.podTemplateLabels)
+	}
+	return k8sWorkloadMatchTarget{workload: workload, parsedPodTemplateLabels: parsed}
+}
+
+// Match evaluates whether service SELECTS this prepared workload, returning the
+// same (matched, reason, mixedVintageDrop) triple as the historical
+// k8sSelectMatch. This is the single tri-state decision tree; see the
+// k8sSelectMatch doc comment above for the full selector-present/empty/absent
+// and mixed-vintage semantics. Behavior is byte-for-byte identical to the
+// pre-#5363 k8sSelectMatch body: the only change is that the workload's
+// pod-template labels come from the once-parsed t.parsedPodTemplateLabels
+// instead of being re-parsed from the raw string on every call.
+func (t k8sWorkloadMatchTarget) Match(service k8sSelectMatchInput) (matched bool, reason string, mixedVintageDrop bool) {
+	if !strings.EqualFold(t.workload.kind, "Deployment") {
 		return false, "", false
 	}
-	if !strings.EqualFold(service.namespace, workload.namespace) {
+	if !strings.EqualFold(service.namespace, t.workload.namespace) {
 		return false, "", false
 	}
 
 	if !service.selectorPresent {
-		if service.name != "" && service.name == workload.name {
+		if service.name != "" && service.name == t.workload.name {
 			return true, k8sSelectReasonNameNamespace, false
 		}
 		return false, "", false
@@ -85,11 +137,11 @@ func k8sSelectMatch(service, workload k8sSelectMatchInput) (matched bool, reason
 		return false, "", false
 	}
 
-	if !workload.podTemplateLabelsPresent {
+	if !t.workload.podTemplateLabelsPresent {
 		return false, "", true
 	}
 
-	if k8sSelectorSubsetOf(service.selector, workload.podTemplateLabels) {
+	if k8sSelectorSubsetOfParsed(service.selector, t.parsedPodTemplateLabels) {
 		return true, k8sSelectReasonSelectorMatch, false
 	}
 	return false, "", false
@@ -105,9 +157,21 @@ func k8sSelectorSubsetOf(selector, labels string) bool {
 	if selector == "" {
 		return false
 	}
-	selectorPairs := parseK8sLabelPairs(selector)
-	labelPairs := parseK8sLabelPairs(labels)
-	for key, value := range selectorPairs {
+	return k8sSelectorSubsetOfParsed(selector, parseK8sLabelPairs(labels))
+}
+
+// k8sSelectorSubsetOfParsed is k8sSelectorSubsetOf with the label side already
+// parsed, so a directed scan of many selectors against one prepared workload
+// (k8sWorkloadMatchTarget.Match) parses the workload label map once. An empty
+// selector is never a subset of anything (the emptiness rule, guarded here as
+// well as by the caller). labelPairs may be nil (a workload whose
+// pod_template_labels key is present but empty): a non-empty selector then has
+// no matching pair and is correctly not a subset.
+func k8sSelectorSubsetOfParsed(selector string, labelPairs map[string]string) bool {
+	if selector == "" {
+		return false
+	}
+	for key, value := range parseK8sLabelPairs(selector) {
 		if labelPairs[key] != value {
 			return false
 		}
