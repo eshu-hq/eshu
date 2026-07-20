@@ -54,7 +54,7 @@ func TestGetWorkloadContextGraphAppliesScopedAuthBeforeReturn(t *testing.T) {
 	}
 }
 
-func TestFetchWorkloadContextBindsSharedWorkloadTopologyToSelectedAuthorizedRepository(t *testing.T) {
+func TestFetchWorkloadContextOmitsRepositoryUnownedRuntimeForScopedCaller(t *testing.T) {
 	t.Parallel()
 
 	reader := fakeWorkloadGraphReader{
@@ -146,12 +146,8 @@ func TestFetchWorkloadContextBindsSharedWorkloadTopologyToSelectedAuthorizedRepo
 		t.Fatalf("repo_id = %q, want deterministically selected repo-team-a", gotRepo)
 	}
 	instances := mapSliceValue(got, "instances")
-	if len(instances) != 1 || StringVal(instances[0], "instance_id") != "instance:payments:prod" {
-		t.Fatalf("instances = %#v, want only authorized prod instance", instances)
-	}
-	platforms := mapSliceValue(instances[0], "platforms")
-	if len(platforms) != 1 || StringVal(platforms[0], "platform_id") != "platform:allowed" {
-		t.Fatalf("platforms = %#v, want only authorized platform", platforms)
+	if len(instances) != 0 {
+		t.Fatalf("instances = %#v, want repository-unowned runtime evidence omitted", instances)
 	}
 	definesSources := make([]string, 0, 2)
 	for _, edge := range mapSliceValue(got, "topology_edges") {
@@ -159,8 +155,8 @@ func TestFetchWorkloadContextBindsSharedWorkloadTopologyToSelectedAuthorizedRepo
 			definesSources = append(definesSources, StringVal(edge, "source_id"))
 		}
 	}
-	if len(definesSources) != 1 || definesSources[0] != "repo-team-a" {
-		t.Fatalf("DEFINES topology sources = %#v, want only selected repo-team-a", definesSources)
+	if len(definesSources) != 0 {
+		t.Fatalf("DEFINES topology sources = %#v, want runtime topology omitted", definesSources)
 	}
 	provisioned := mapSliceValue(got, "provisioned_platforms")
 	if len(provisioned) != 1 || StringVal(provisioned[0], "platform_id") != "platform:allowed" {

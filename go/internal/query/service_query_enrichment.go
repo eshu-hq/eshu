@@ -173,7 +173,13 @@ func enrichServiceQueryContextWithOptions(
 		if len(mapSliceValue(workloadContext, "cloud_resources")) == 0 {
 			timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "cloud_resource_dependencies")
 			workloadID := safeStr(workloadContext, "id")
-			cloudResources, err := loadMaterializedServiceCloudResourceDependencies(ctx, graph, workloadID, serviceStoryItemLimit)
+			cloudResources, err := loadMaterializedServiceCloudResourceDependencies(
+				ctx,
+				graph,
+				repoID,
+				workloadID,
+				serviceStoryItemLimit,
+			)
 			timer.Done(ctx, slog.Int("row_count", len(cloudResources)))
 			if err != nil {
 				return fmt.Errorf("load service cloud resource dependencies: %w", err)

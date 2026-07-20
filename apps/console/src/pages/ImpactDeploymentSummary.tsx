@@ -72,6 +72,8 @@ export function DeploymentTraceSummary({
   readonly onInspectEntity: (entityId: string) => void;
   readonly trace: DeploymentTraceResult;
 }): React.JSX.Element {
+  const hasPivots = Boolean(trace.serviceName || trace.workloadId || trace.repoId);
+
   return (
     <div className="impact-summary-block">
       <div className="impact-mini-stats">
@@ -95,21 +97,25 @@ export function DeploymentTraceSummary({
         </p>
       ) : null}
 
-      <div className="impact-pivots" role="group" aria-label="Deployment pivots">
-        {trace.serviceName ? (
-          <Link to={`/service-story/${encodeURIComponent(trace.serviceName)}`}>Service story</Link>
-        ) : null}
-        {trace.workloadId ? (
-          <Link to={`/workspace/services/${encodeURIComponent(trace.workloadId)}`}>
-            Workload context
-          </Link>
-        ) : null}
-        {trace.repoId ? (
-          <Link to={`/repositories/${encodeURIComponent(trace.repoId)}/source`}>
-            Repository source
-          </Link>
-        ) : null}
-      </div>
+      {hasPivots ? (
+        <nav className="impact-pivots" aria-label="Deployment pivots">
+          {trace.serviceName ? (
+            <Link to={`/service-story/${encodeURIComponent(trace.serviceName)}`}>
+              Service story
+            </Link>
+          ) : null}
+          {trace.workloadId ? (
+            <Link to={`/workspace/services/${encodeURIComponent(trace.workloadId)}`}>
+              Workload context
+            </Link>
+          ) : null}
+          {trace.repoId ? (
+            <Link to={`/repositories/${encodeURIComponent(trace.repoId)}/source`}>
+              Repository source
+            </Link>
+          ) : null}
+        </nav>
+      ) : null}
 
       <details className="impact-narrative" open>
         <summary>Full deployment narrative</summary>

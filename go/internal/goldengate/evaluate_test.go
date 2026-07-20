@@ -313,6 +313,37 @@ func TestEvaluateQuerySurfaceParity(t *testing.T) {
 	}
 }
 
+func TestEvaluateQueryShapeRequiredJSONObjectMatches(t *testing.T) {
+	t.Parallel()
+
+	shape := QueryShape{
+		RequiredResponseFields: []string{"data"},
+		RequiredJSONObjectMatches: map[string][]map[string]any{
+			"data.topology_edges[]": {
+				{
+					"relationship_type": "DEFINES",
+					"source_id":         "repository:r_fixture",
+					"target_id":         "workload:fixture",
+				},
+				{
+					"relationship_type": "INSTANCE_OF",
+					"source_id":         "instance:fixture:prod",
+					"target_id":         "workload:fixture",
+				},
+			},
+		},
+	}
+	body := []byte(`{"data":{"topology_edges":[{"relationship_type":"DEFINES","source_id":"repository:r_fixture","target_id":"workload:fixture","confidence":0.98},{"relationship_type":"INSTANCE_OF","source_id":"instance:fixture:prod","target_id":"workload:fixture","confidence":0.98}]}}`)
+	if finding := EvaluateQueryShape("deployment-topology", shape, body); !finding.OK {
+		t.Fatalf("exact endpoint objects failed: %s", finding.Detail)
+	}
+
+	mutated := []byte(`{"data":{"topology_edges":[{"relationship_type":"DEFINES","source_id":"workload:fixture","target_id":"repository:r_fixture"},{"relationship_type":"INSTANCE_OF","source_id":"instance:other:prod","target_id":"workload:fixture"}]}}`)
+	if finding := EvaluateQueryShape("deployment-topology", shape, mutated); finding.OK {
+		t.Fatalf("reversed or unrelated endpoint objects passed unexpectedly: %s", finding.Detail)
+	}
+}
+
 func TestEvaluateTiming(t *testing.T) {
 	baseline := 100 * time.Second
 	t.Run("within 2x", func(t *testing.T) {

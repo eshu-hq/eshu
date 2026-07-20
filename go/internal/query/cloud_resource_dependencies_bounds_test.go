@@ -106,3 +106,94 @@ func TestConfigDerivedCloudResourceDependenciesPropagateUpstreamArtifactTruncati
 		t.Fatalf("graph calls = %d, want zero without usable config anchors", calls)
 	}
 }
+
+func TestConfigDerivedCloudResourceDependenciesOmitUnownedCandidatesForScopedTokens(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	ctx := ContextWithAuthContext(t.Context(), AuthContext{
+		Mode:                 AuthModeScoped,
+		AllowedRepositoryIDs: []string{"repository:allowed"},
+	})
+	got, truncated, err := loadConfigDerivedCloudResourceDependenciesBounded(
+		ctx,
+		fakeGraphReader{run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+			calls++
+			return []map[string]any{{"id": "cloud:out-of-grant", "config_path": "/config/orders/db"}}, nil
+		}},
+		map[string]any{"artifacts": []map[string]any{{
+			"relationship_type": "READS_CONFIG_FROM",
+			"matched_value":     "/config/orders/*",
+		}}},
+		2,
+	)
+	if err != nil {
+		t.Fatalf("loadConfigDerivedCloudResourceDependenciesBounded() error = %v", err)
+	}
+	if len(got) != 0 || truncated {
+		t.Fatalf("resources = %#v, truncated = %v, want no unowned candidates", got, truncated)
+	}
+	if calls != 0 {
+		t.Fatalf("graph calls = %d, want zero because CloudResource has no repository ownership", calls)
+	}
+}
+
+func TestMaterializedCloudResourceDependenciesBindExactRepository(t *testing.T) {
+	t.Parallel()
+
+	got, err := loadMaterializedServiceCloudResourceDependencies(
+		t.Context(),
+		fakeGraphReader{run: func(_ context.Context, query string, params map[string]any) ([]map[string]any, error) {
+			for _, want := range []string{
+				"MATCH (repo:Repository)-[:DEFINES]->(workload:Workload {id: $workload_id})",
+				"repo.id = $repo_id",
+			} {
+				if !strings.Contains(query, want) {
+					t.Fatalf("materialized dependency query missing exact repository anchor %q: %s", want, query)
+				}
+			}
+			if got, want := StringVal(params, "repo_id"), "repository:allowed"; got != want {
+				t.Fatalf("repo_id = %q, want %q", got, want)
+			}
+			return []map[string]any{{"id": "cloud:allowed"}}, nil
+		}},
+		"repository:allowed",
+		"workload:orders",
+		2,
+	)
+	if err != nil {
+		t.Fatalf("loadMaterializedServiceCloudResourceDependencies() error = %v", err)
+	}
+	if gotCount, want := len(got), 1; gotCount != want {
+		t.Fatalf("resources = %#v, want %d resource", got, want)
+	}
+}
+
+func TestMaterializedCloudResourceDependenciesOmitUnownedEvidenceForScopedTokens(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	ctx := ContextWithAuthContext(t.Context(), AuthContext{
+		Mode:                 AuthModeScoped,
+		AllowedRepositoryIDs: []string{"repository:allowed"},
+	})
+	got, err := loadMaterializedServiceCloudResourceDependencies(
+		ctx,
+		fakeGraphReader{run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+			calls++
+			return []map[string]any{{"id": "cloud:unowned"}}, nil
+		}},
+		"repository:allowed",
+		"workload:orders",
+		2,
+	)
+	if err != nil {
+		t.Fatalf("loadMaterializedServiceCloudResourceDependencies() error = %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("resources = %#v, want no repository-unowned cloud evidence", got)
+	}
+	if calls != 0 {
+		t.Fatalf("graph calls = %d, want zero for scoped token", calls)
+	}
+}

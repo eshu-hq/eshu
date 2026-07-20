@@ -74,10 +74,20 @@ export function boundedCollectionGraphAccounting(
   if (!limits.truncated) {
     return { limitations: [], omittedEdges: 0, omittedNodes: 0, truncated: false };
   }
-  const omitted = Math.max(1, limits.observedCount - limits.returnedCount);
+  const omitted = Math.max(0, limits.observedCount - limits.returnedCount);
   const observed = limits.observedCountIsLowerBound
     ? `at least ${limits.observedCount}`
     : String(limits.observedCount);
+  if (limits.observedCountIsLowerBound && omitted === 0) {
+    return {
+      limitations: [
+        `${options.family} input truncated upstream; showing ${limits.returnedCount} of ${observed} observed ${limits.observedCount === 1 ? options.family : (options.familyPlural ?? plural(options.family, limits.observedCount))}; additional ${plural(options.item, 2)} may exist, but their count is unknown`,
+      ],
+      omittedEdges: 0,
+      omittedNodes: 0,
+      truncated: true,
+    };
+  }
   const missing = limits.observedCountIsLowerBound ? `at least ${omitted}` : String(omitted);
   return {
     limitations: [

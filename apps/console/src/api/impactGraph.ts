@@ -1,5 +1,6 @@
 import type { ChangeSurfaceImpactNode, ChangeSurfaceInvestigation } from "./changeSurface";
 import { deploymentTraceGraph } from "./impactDeploymentGraph";
+import { boundedGraph } from "./impactGraphSelection";
 import type {
   BlastRadiusResult,
   DeploymentTraceResult,
@@ -14,9 +15,6 @@ import {
   type GraphModel,
   type GraphNode,
 } from "../console/types";
-
-const nodeLimit = 60;
-const edgeLimit = 120;
 
 export function selectImpactGraph(
   target: string,
@@ -167,28 +165,23 @@ function existingGraph(
   } | null,
   limitations: readonly string[] = [],
   completeness: ImpactGraphPresentation["completeness"] = "complete",
-  truncated = completeness === "truncated",
+  upstreamTruncated = completeness === "truncated",
 ): { readonly graph: GraphModel; readonly presentation: ImpactGraphPresentation } {
   const activeLimitations = new Set(limitations);
-  if (truncated) activeLimitations.add(`${title.toLowerCase()} input truncated upstream`);
+  if (upstreamTruncated) activeLimitations.add(`${title.toLowerCase()} input truncated upstream`);
+  const bounded = boundedGraph(graph.nodes, graph.edges, 0, 0, activeLimitations);
+  if (bounded.presentation.truncated) {
+    activeLimitations.add(`${title.toLowerCase()} exceeds graph presentation bounds`);
+  }
+  const truncated = upstreamTruncated || bounded.presentation.truncated;
   return {
-    graph,
+    graph: bounded.graph,
     presentation: {
-      completeness,
-      compositionDurationMs: 0,
-      duplicateEdges: 0,
-      duplicateNodes: 0,
-      edgeLimit,
+      ...bounded.presentation,
+      completeness: boundedSourceCompleteness(truncated, completeness),
       freshness: truth?.freshness.state,
-      inputEdges: graph.edges.length,
-      inputNodes: graph.nodes.length,
       limitations: [...activeLimitations],
       mode,
-      nodeLimit,
-      omittedEdges: 0,
-      omittedNodes: 0,
-      renderedEdges: graph.edges.length,
-      renderedNodes: graph.nodes.length,
       sourceApis,
       title,
       truncated,

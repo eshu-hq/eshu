@@ -47,6 +47,26 @@ describe("impact deployment-source coverage normalization", () => {
     expect(result.graphPresentation.completeness).toBe("unverified");
   });
 
+  it("does not invent omitted deployment-source edges when sentinel rows deduplicate", async () => {
+    const result = await loadImpactReview(
+      clientWithDeploymentSourceLimits({
+        ...validDeploymentSourceLimits(),
+        observed_count: 50,
+        returned_count: 50,
+      }),
+      { target: "catalog-api", targetKind: "service" },
+    );
+
+    expect(result.graphPresentation).toMatchObject({
+      completeness: "truncated",
+      omittedEdges: 0,
+      truncated: true,
+    });
+    expect(result.graphPresentation.limitations).toContain(
+      "deployment-source input truncated upstream; additional relationships may exist, but their count is unknown",
+    );
+  });
+
   it.each([
     ["returned count differs from the response rows", { returned_count: 49 }],
     ["returned count exceeds the response limit", { limit: 49 }],
@@ -116,7 +136,7 @@ function clientWithDeploymentSourceLimits(
       if (path === "/api/v0/impact/trace-deployment-chain") {
         return {
           data: {
-            cloud_resource_limits: completeRuntimeLimits(),
+            cloud_resource_limits: completeCloudResourceLimits(),
             deployment_source_limits: deploymentSourceLimits,
             deployment_sources: Array.from({ length: 50 }, (_, index) => ({
               relationship_type: "DEPLOYS_FROM",
@@ -168,6 +188,16 @@ function completeRuntimeLimits(): Record<string, unknown> {
     query_sentinel_limit: 51,
     returned_count: 0,
     truncated: false,
+  };
+}
+
+function completeCloudResourceLimits(): Record<string, unknown> {
+  return {
+    ...completeRuntimeLimits(),
+    observation_count: 0,
+    observation_count_is_lower_bound: false,
+    observation_limit: 2500,
+    observation_query_sentinel_limit: 2501,
   };
 }
 

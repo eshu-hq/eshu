@@ -5,6 +5,7 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 )
@@ -111,152 +112,107 @@ func deploymentFactSummaryLimitations(instances []map[string]any, configEnvironm
 	return limitations
 }
 
-// cloudResourceResult holds the workload's materialized USES cloud
-// dependencies plus bounded-collection metadata.
-//
-// The query below is anchored on the grant-verified workload id, so no
-// per-row grant predicate is needed here. The free-text CloudResource
-// fallbacks that cannot bind to a repo_id at all (the config-derived and
-// uncorrelated candidate scans) are gated by the caller's !access.scoped()
-// checks in the handler instead (#5167 W3), so a scoped caller never
-// reaches them and this fetch only ever returns the materialized USES
-// edges of the caller's own grant-verified workload.
 type cloudResourceResult struct {
 	rows   []map[string]any
 	limits map[string]any
 }
 
-func (h *ImpactHandler) fetchCloudResourceResult(ctx context.Context, workloadID string) (cloudResourceResult, error) {
+const cloudResourceObservationLimit = serviceStoryItemLimit * serviceStoryItemLimit
+
+func (h *ImpactHandler) fetchCloudResourceResult(
+	ctx context.Context,
+	repoID string,
+	workloadID string,
+) (cloudResourceResult, error) {
 	queryLimit := serviceStoryItemLimit + 1
-	rows, err := h.Neo4j.Run(ctx, `
-		MATCH (w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:USES]->(c:CloudResource)
-		WITH c, collect({
-		     environment: coalesce(rel.environment, c.environment, i.environment, ''),
-		     confidence: coalesce(rel.confidence, 0.0),
-		     reason: coalesce(rel.reason, ''),
-		     relationship_basis: coalesce(rel.relationship_basis, ''),
-		     resolution_mode: coalesce(rel.resolution_mode, ''),
-		     evidence_source: coalesce(rel.evidence_source, ''),
-		     service_anchor_source: coalesce(rel.service_anchor_source, ''),
-		     service_anchor_reason: coalesce(rel.service_anchor_reason, ''),
-		     source_fact_id: coalesce(rel.source_fact_id, ''),
-		     stable_fact_key: coalesce(rel.stable_fact_key, ''),
-		     source_system: coalesce(rel.source_system, ''),
-		     source_record_id: coalesce(rel.source_record_id, ''),
-		     collector_kind: coalesce(rel.collector_kind, '')
-		}) as observations
-		RETURN c.id as id, c.name as name, c.kind as kind, c.provider as provider, observations
-		ORDER BY name, id
-		LIMIT $cloud_resource_limit
-	`, map[string]any{"workload_id": workloadID, "cloud_resource_limit": queryLimit})
+	repoID = strings.TrimSpace(repoID)
+	workloadID = strings.TrimSpace(workloadID)
+	if h == nil || h.Neo4j == nil || repoID == "" || workloadID == "" {
+		return boundedCloudResourceResult(nil, queryLimit), nil
+	}
+	access := repositoryAccessFilterFromContext(ctx)
+	// WorkloadInstance and USES relationships are global today and do not
+	// carry repository ownership. A repository-scoped token therefore cannot
+	// prove that a reachable cloud observation belongs to its grant. Omit the
+	// limits with the rows so consumers cannot misread withheld evidence as an
+	// exact empty collection.
+	if access.scoped() {
+		return cloudResourceResult{rows: []map[string]any{}}, nil
+	}
+	params := access.graphParams(map[string]any{
+		"repo_id":                 repoID,
+		"workload_id":             workloadID,
+		"cloud_observation_limit": cloudResourceObservationLimit + 1,
+	})
+	rows, err := h.Neo4j.Run(ctx, fmt.Sprintf(`
+		MATCH (repo:Repository)-[:DEFINES]->(w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:USES]->(c:CloudResource)
+		WHERE repo.id = $repo_id%s
+		WITH c, i, rel,
+		     c.name AS sort_name, c.id AS sort_id,
+		     rel.confidence AS sort_confidence,
+		     rel.stable_fact_key AS sort_stable_fact_key,
+		     rel.source_fact_id AS sort_source_fact_id,
+		     rel.source_system AS sort_source_system,
+		     rel.source_record_id AS sort_source_record_id,
+		     i.environment AS sort_instance_environment
+		ORDER BY sort_name, sort_id, sort_confidence DESC,
+		         sort_stable_fact_key, sort_source_fact_id,
+		         sort_source_system, sort_source_record_id,
+		         sort_instance_environment
+		LIMIT $cloud_observation_limit
+		RETURN c.id as id, c.name as name, c.kind as kind, c.provider as provider,
+		       properties(rel) as observation,
+		       i.environment as instance_environment,
+		       c.environment as resource_environment
+	`, access.graphPredicate("repo")), params)
 	if err != nil {
 		return cloudResourceResult{}, err
+	}
+	observationCount := 0
+	for _, row := range rows {
+		if observations := mapSliceValue(row, "observations"); len(observations) > 0 {
+			observationCount += IntVal(row, "observation_count")
+			continue
+		}
+		observationCount++
 	}
 	resources, err := deploymentTraceCloudResourcesFromRows(rows, "")
 	if err != nil {
 		return cloudResourceResult{}, err
 	}
-	return boundedCloudResourceResult(resources, queryLimit), nil
+	return boundedCloudResourceResultWithObservationState(
+		resources,
+		queryLimit,
+		observationCount,
+		observationCount > cloudResourceObservationLimit ||
+			len(rows) > cloudResourceObservationLimit || len(resources) >= queryLimit,
+	), nil
 }
 
 func boundedCloudResourceResult(rows []map[string]any, queryLimit int) cloudResourceResult {
+	return boundedCloudResourceResultWithObservationState(rows, queryLimit, 0, false)
+}
+
+func boundedCloudResourceResultWithObservationState(
+	rows []map[string]any,
+	queryLimit int,
+	observationCount int,
+	observationsTruncated bool,
+) cloudResourceResult {
 	returned, truncated := capMapRows(rows, serviceStoryItemLimit)
+	truncated = truncated || observationsTruncated
+	limits := boundedCollectionMetadata(
+		serviceStoryItemLimit, queryLimit, len(returned), len(rows), truncated,
+		[]string{"name", "id"},
+	)
+	limits["observation_limit"] = cloudResourceObservationLimit
+	limits["observation_query_sentinel_limit"] = cloudResourceObservationLimit + 1
+	limits["observation_count"] = observationCount
+	limits["observation_count_is_lower_bound"] = observationsTruncated
 	return cloudResourceResult{
-		rows: returned,
-		limits: boundedCollectionMetadata(
-			serviceStoryItemLimit, queryLimit, len(returned), len(rows), truncated,
-			[]string{"name", "id"},
-		),
+		rows:   returned,
+		limits: limits,
 	}
-}
-
-func deploymentTraceCloudResourcesFromRows(rows []map[string]any, defaultRelationshipBasis string) ([]map[string]any, error) {
-	resources := make([]map[string]any, 0, len(rows))
-	for _, row := range rows {
-		row = cloudResourceRowWithSelectedObservation(row)
-		resources = append(resources, map[string]any{
-			"id":                    StringVal(row, "id"),
-			"name":                  StringVal(row, "name"),
-			"kind":                  StringVal(row, "kind"),
-			"resource_type":         StringVal(row, "resource_type"),
-			"provider":              StringVal(row, "provider"),
-			"environment":           StringVal(row, "environment"),
-			"confidence":            floatVal(row, "confidence"),
-			"reason":                StringVal(row, "reason"),
-			"relationship_basis":    firstNonEmptyString(StringVal(row, "relationship_basis"), defaultRelationshipBasis),
-			"resolution_mode":       StringVal(row, "resolution_mode"),
-			"evidence_source":       StringVal(row, "evidence_source"),
-			"service_anchor_source": StringVal(row, "service_anchor_source"),
-			"service_anchor_reason": StringVal(row, "service_anchor_reason"),
-			"source_fact_id":        StringVal(row, "source_fact_id"),
-			"stable_fact_key":       StringVal(row, "stable_fact_key"),
-			"source_system":         StringVal(row, "source_system"),
-			"source_record_id":      StringVal(row, "source_record_id"),
-			"collector_kind":        StringVal(row, "collector_kind"),
-		})
-	}
-	return resources, nil
-}
-
-func cloudResourceRowWithSelectedObservation(row map[string]any) map[string]any {
-	observations := mapSliceValue(row, "observations")
-	if len(observations) == 0 {
-		return row
-	}
-	selected := append([]map[string]any(nil), observations...)
-	sort.SliceStable(selected, func(left, right int) bool {
-		leftConfidence := floatVal(selected[left], "confidence")
-		rightConfidence := floatVal(selected[right], "confidence")
-		if leftConfidence != rightConfidence {
-			return leftConfidence > rightConfidence
-		}
-		return cloudResourceObservationKey(selected[left]) < cloudResourceObservationKey(selected[right])
-	})
-	merged := make(map[string]any, len(row)+len(selected[0]))
-	for key, value := range row {
-		if key != "observations" {
-			merged[key] = value
-		}
-	}
-	for key, value := range selected[0] {
-		merged[key] = value
-	}
-	return merged
-}
-
-func cloudResourceObservationKey(observation map[string]any) string {
-	return strings.Join([]string{
-		StringVal(observation, "stable_fact_key"),
-		StringVal(observation, "source_fact_id"),
-		StringVal(observation, "source_system"),
-		StringVal(observation, "source_record_id"),
-		StringVal(observation, "relationship_basis"),
-		StringVal(observation, "resolution_mode"),
-		StringVal(observation, "evidence_source"),
-		StringVal(observation, "service_anchor_source"),
-		StringVal(observation, "service_anchor_reason"),
-		StringVal(observation, "collector_kind"),
-		StringVal(observation, "environment"),
-		StringVal(observation, "reason"),
-	}, "\x00")
-}
-
-func deploymentTraceCloudCandidates(rows []map[string]any) []map[string]any {
-	candidates := make([]map[string]any, 0, len(rows))
-	for _, row := range rows {
-		candidate := make(map[string]any, len(row)+3)
-		for key, value := range row {
-			candidate[key] = value
-		}
-		candidate["candidate_status"] = "uncorrelated"
-		candidate["match_basis"] = firstNonEmptyString(
-			StringVal(row, "relationship_basis"),
-			"deployment_config_read_evidence",
-		)
-		candidate["missing_relationship"] = "workload_cloud_relationship"
-		candidates = append(candidates, candidate)
-	}
-	return candidates
 }
 
 type k8sResourceResult struct {

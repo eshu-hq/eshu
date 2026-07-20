@@ -50,8 +50,12 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 				case strings.Contains(cypher, "<-[rel:PROVISIONS_DEPENDENCY_FOR]-"):
 					return nil, nil
 				case strings.Contains(cypher, "-[runsOn:RUNS_ON]->(p:Platform)"):
-					if !strings.Contains(cypher, "WHERE i.id IN $instance_ids") {
-						t.Fatalf("cypher = %q, want exact instance id batch lookup", cypher)
+					for _, predicate := range []string{
+						"repo.id = $repo_id", "w.id = $workload_id", "i.id IN $instance_ids",
+					} {
+						if !strings.Contains(cypher, predicate) {
+							t.Fatalf("cypher = %q, want exact predicate %q", cypher, predicate)
+						}
 					}
 					wantIDs := []string{
 						"workload-instance:svc-orders:example-prod",
@@ -59,6 +63,9 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 					}
 					if got := StringSliceVal(params, "instance_ids"); !reflect.DeepEqual(got, wantIDs) {
 						t.Fatalf("params[instance_ids] = %#v, want %#v", got, wantIDs)
+					}
+					if got, want := StringVal(params, "repo_id"), "repository:datax"; got != want {
+						t.Fatalf("params[repo_id] = %q, want %q", got, want)
 					}
 					return []map[string]any{
 						{
@@ -202,8 +209,12 @@ func TestFetchWorkloadContextPrefersInstanceRunsOnTruthOverProvisionedPlatformSh
 					if strings.Contains(cypher, "MATCH (i)-[runsOn:RUNS_ON]->") {
 						t.Fatalf("cypher = %q, want exact instance and RUNS_ON traversal in one MATCH", cypher)
 					}
-					if !strings.Contains(cypher, "WHERE i.id IN $instance_ids") {
-						t.Fatalf("cypher = %q, want exact instance id batch lookup", cypher)
+					for _, predicate := range []string{
+						"repo.id = $repo_id", "w.id = $workload_id", "i.id IN $instance_ids",
+					} {
+						if !strings.Contains(cypher, predicate) {
+							t.Fatalf("cypher = %q, want exact predicate %q", cypher, predicate)
+						}
 					}
 					wantIDs := []string{
 						"workload-instance:sample-service:example-prod",
@@ -211,6 +222,9 @@ func TestFetchWorkloadContextPrefersInstanceRunsOnTruthOverProvisionedPlatformSh
 					}
 					if got := StringSliceVal(params, "instance_ids"); !reflect.DeepEqual(got, wantIDs) {
 						t.Fatalf("params[instance_ids] = %#v, want %#v", got, wantIDs)
+					}
+					if got, want := StringVal(params, "repo_id"), "repository:r_fdb82379"; got != want {
+						t.Fatalf("params[repo_id] = %q, want %q", got, want)
 					}
 					return []map[string]any{
 						{
@@ -413,65 +427,5 @@ func TestFetchDeploymentTraceKeepsProvisionedPlatformSeparateWhenInstanceRunsOnM
 	}
 	if got, want := StringVal(fallbackRelationships[1], "target_id"), "platform:ecs:shared-runtime-cluster"; got != want {
 		t.Fatalf("fallback platform target_id = %#v, want %#v", got, want)
-	}
-}
-
-func TestFetchWorkloadPlatformRowsBatchesExactInstanceIDs(t *testing.T) {
-	t.Parallel()
-
-	runCalls := 0
-	handler := &EntityHandler{
-		Neo4j: fakeWorkloadGraphReader{
-			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				runCalls++
-				if !strings.Contains(cypher, "WHERE i.id IN $instance_ids") {
-					t.Fatalf("cypher = %q, want indexed instance id batch lookup", cypher)
-				}
-				if strings.Contains(cypher, "MATCH (i)-[runsOn:RUNS_ON]->") {
-					t.Fatalf("cypher = %q, want WorkloadInstance label and RUNS_ON traversal in one MATCH", cypher)
-				}
-				if !strings.Contains(cypher, "p.id as platform_id") {
-					t.Fatalf("cypher = %q, want canonical Platform id projection", cypher)
-				}
-				gotIDs := StringSliceVal(params, "instance_ids")
-				wantIDs := []string{
-					"workload-instance:sample-service:example-prod",
-					"workload-instance:sample-service:platform-qa",
-				}
-				if !reflect.DeepEqual(gotIDs, wantIDs) {
-					t.Fatalf("params[instance_ids] = %#v, want %#v", gotIDs, wantIDs)
-				}
-				return []map[string]any{
-					{
-						"instance_id":         "workload-instance:sample-service:example-prod",
-						"platform_name":       "example-prod",
-						"platform_kind":       "kubernetes",
-						"platform_confidence": 0.99,
-						"platform_reason":     "resolved_deployment_evidence",
-					},
-					{
-						"instance_id":         "workload-instance:sample-service:platform-qa",
-						"platform_name":       "platform-qa",
-						"platform_kind":       "kubernetes",
-						"platform_confidence": 0.98,
-						"platform_reason":     "resolved_deployment_evidence",
-					},
-				}, nil
-			},
-		},
-	}
-
-	rows, err := handler.fetchWorkloadPlatformRows(context.Background(), []map[string]any{
-		{"instance_id": "workload-instance:sample-service:example-prod"},
-		{"instance_id": "workload-instance:sample-service:platform-qa"},
-	})
-	if err != nil {
-		t.Fatalf("fetchWorkloadPlatformRows() error = %v, want nil", err)
-	}
-	if runCalls != 1 {
-		t.Fatalf("graph calls = %d, want 1", runCalls)
-	}
-	if got, want := len(rows), 2; got != want {
-		t.Fatalf("len(rows) = %d, want %d", got, want)
 	}
 }

@@ -310,17 +310,34 @@ type workloadPlatformResult struct {
 	limits map[string]any
 }
 
-// fetchWorkloadPlatformRows anchors platform lookup by exact instance ids so
-// NornicDB can use indexed WorkloadInstance ids without one Bolt round trip per
-// instance.
-func (h *EntityHandler) fetchWorkloadPlatformRows(ctx context.Context, instances []map[string]any) ([]map[string]any, error) {
-	result, err := h.fetchWorkloadPlatformResult(ctx, instances)
+// fetchWorkloadPlatformRows anchors platform lookup through the selected
+// repository and workload before batching exact instance ids.
+func (h *EntityHandler) fetchWorkloadPlatformRows(
+	ctx context.Context,
+	repoID string,
+	workloadID string,
+	instances []map[string]any,
+) ([]map[string]any, error) {
+	result, err := h.fetchWorkloadPlatformResult(ctx, repoID, workloadID, instances)
 	return result.rows, err
 }
 
-func (h *EntityHandler) fetchWorkloadPlatformResult(ctx context.Context, instances []map[string]any) (workloadPlatformResult, error) {
-	if h == nil || h.Neo4j == nil || len(instances) == 0 {
-		return workloadPlatformResult{rows: []map[string]any{}}, nil
+func (h *EntityHandler) fetchWorkloadPlatformResult(
+	ctx context.Context,
+	repoID string,
+	workloadID string,
+	instances []map[string]any,
+) (workloadPlatformResult, error) {
+	repoID = strings.TrimSpace(repoID)
+	workloadID = strings.TrimSpace(workloadID)
+	if h == nil || h.Neo4j == nil || repoID == "" || workloadID == "" || len(instances) == 0 {
+		return emptyWorkloadPlatformResult(), nil
+	}
+	access := repositoryAccessFilterFromContext(ctx)
+	// WorkloadInstance and RUNS_ON relationships are global today and do not
+	// carry repository ownership, so scoped callers cannot safely consume them.
+	if access.scoped() {
+		return emptyWorkloadPlatformResult(), nil
 	}
 	instanceIDs := make([]string, 0, len(instances))
 	for _, instance := range instances {
@@ -330,27 +347,35 @@ func (h *EntityHandler) fetchWorkloadPlatformResult(ctx context.Context, instanc
 	}
 	instanceIDs = sortedUniqueStrings(instanceIDs)
 	if len(instanceIDs) == 0 {
-		return workloadPlatformResult{rows: []map[string]any{}}, nil
+		return emptyWorkloadPlatformResult(), nil
 	}
 	queryLimit := workloadPlatformEdgeLimit + 1
-	const platformCypher = `
-		MATCH (i:WorkloadInstance)-[runsOn:RUNS_ON]->(p:Platform)
-		WHERE i.id IN $instance_ids
+	platformCypher := fmt.Sprintf(`
+		MATCH (repo:Repository)-[:DEFINES]->(w:Workload)<-[:INSTANCE_OF]-(i:WorkloadInstance)-[runsOn:RUNS_ON]->(p:Platform)
+		WHERE repo.id = $repo_id AND w.id = $workload_id AND i.id IN $instance_ids%s
 		RETURN i.id as instance_id, p.id as platform_id, p.name as platform_name, p.kind as platform_kind,
 		       collect(DISTINCT properties(runsOn)) as platform_edges
 		ORDER BY instance_id, platform_name, platform_id
 		LIMIT $platform_edge_limit
-	`
-	rows, err := h.Neo4j.Run(ctx, platformCypher, map[string]any{
-		"instance_ids": instanceIDs, "platform_edge_limit": queryLimit,
+	`, access.graphPredicate("repo"))
+	params := access.graphParams(map[string]any{
+		"instance_ids":        instanceIDs,
+		"platform_edge_limit": queryLimit,
+		"repo_id":             repoID,
+		"workload_id":         workloadID,
 	})
+	rows, err := h.Neo4j.Run(ctx, platformCypher, params)
 	if err != nil {
 		return workloadPlatformResult{}, err
 	}
 	returned, truncated := capMapRows(rows, workloadPlatformEdgeLimit)
 	for _, row := range returned {
 		if len(mapValue(row, "platform_edge")) == 0 {
-			row["platform_edge"] = deterministicEvidenceProperties(row, "platform_edges")
+			properties, err := deterministicEvidenceProperties(row, "platform_edges")
+			if err != nil {
+				return workloadPlatformResult{}, fmt.Errorf("select RUNS_ON edge evidence: %w", err)
+			}
+			row["platform_edge"] = properties
 		}
 	}
 	return workloadPlatformResult{
