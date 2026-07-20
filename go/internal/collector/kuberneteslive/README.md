@@ -152,8 +152,9 @@ claim-driven deployed lane remains deferred until the claim runtime, status
 path, and proof exist (#388 follow-ups). The reducer `kubernetes_correlation`
 domain (`go/internal/reducer/kubernetes_correlation.go`), the drift read
 model (`GET /api/v0/kubernetes/correlations`, `go/internal/query/kubernetes.go`),
-and the MCP tool (`list_kubernetes_correlations`) have landed; graph edges
-remain provenance-only by design (gated graph write pending).
+and the MCP tool (`list_kubernetes_correlations`) have landed, including the
+readiness-gated `RUNS_IMAGE` graph edge
+(`go/internal/reducer/kubernetes_correlation_materialization.go`).
 
 ## Deferred to follow-up PRs (#388 and beyond)
 
