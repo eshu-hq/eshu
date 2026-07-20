@@ -54,41 +54,45 @@ func benchmarkDartFixture(b *testing.B) string {
 }
 
 // BenchmarkParseDartCallSites measures Parse() end-to-end (tree-sitter parse
-// plus the full declaration/call-site walk) on a call-site-dense fixture.
+// plus the merged declaration+call-site traversal) on a call-site-dense
+// fixture.
 //
 // Background (#5332). The AST call-site walk replaced a retired raw byte
 // scanner. The scanner was faster (~10.48ms/op, 1.89MB/op, 59347 allocs/op on
 // this fixture) but WRONG: it recorded every declaration as a self-call. The
 // AST walk is a correctness fix (accuracy outranks performance), so the
-// scanner is not a valid comparison point — its answer was wrong.
+// scanner is not a valid comparison point — its answer was wrong. #5332 then
+// recovered the AST-walk traversal mechanism to a single reused TreeCursor.
 //
-// Performance Evidence (traversal-mechanism recovery, this commit). The first
-// AST walk allocated a fresh tree-sitter cursor and materialized a []Node via
-// NamedChildren at every node in the tree (~14.11ms/op, 2.645MiB/op, 90075
-// allocs/op end-to-end here). collectDartCallSites now reuses a single
-// TreeCursor for the whole traversal
-// (GotoFirstChild/GotoNextSibling/GotoParent), skipping anonymous nodes via
-// IsNamed() to keep the visitation set and emission order byte-identical (see
-// TestWalkDartCallSitesMatchesOracle, 0/0 differential-oracle equivalence).
-// Measured on this fixture, same machine, back-to-back OLD(NamedChildren) vs
-// NEW(cursor), go test -bench BenchmarkParseDartCallSites -benchmem
+// Performance Evidence (#5350 single-pass fold, this commit). Before the fold,
+// Parse() walked the tree TWICE: dartSyntaxIndex.collect for declarations and a
+// separate collectDartCallSites walk for call sites (two cursor allocations and
+// two NamedChildren materializations per node). The fold removes the second
+// full walk by folding call detection into collect (dartCallChain.observe on
+// each named child before recursing). Measured on this fixture, same machine
+// (Apple M4 Pro, 12 logical CPUs, 64 GiB), back-to-back OLD(two-pass) vs
+// NEW(merged), go test -bench BenchmarkParseDartCallSites -benchmem
 // -benchtime=300x -count=12, benchstat:
 //
-//	end-to-end Parse(): 14.11ms -> 13.06ms sec/op (-7.47%, p=0.000, n=12),
-//	                    2.645MiB -> 2.405MiB B/op (-9.09%),
-//	                    90075 -> 84118 allocs/op (-6.61%).
-//	extraction step only (oracle NamedChildren vs cursor, -benchtime=500x
-//	                    -count=10): 4.167ms -> 2.758ms (-33.80%, p=0.000),
-//	                    883.3KiB -> 642.8KiB (-27.23%), 31994 -> 26224
-//	                    allocs/op (-18.03%).
+//	end-to-end Parse(): 12.92ms -> 11.66ms sec/op (-9.75%, p=0.000, n=12),
+//	                    2.405MiB -> 2.034MiB B/op (-15.44%, p=0.000),
+//	                    84125 -> 71564 allocs/op (-14.93%, p=0.000).
+//
+// A prove-theory cost-floor shim (second walk deleted, output wrong/throwaway)
+// measured the two-pass-minus-second-walk floor at ~10.35ms/op on this machine;
+// the merged pass lands between that floor and the two-pass baseline, as
+// expected. An extraction-step-only benchmark is no longer separable after the
+// fold (call detection has no standalone entry point).
 //
 // No-Regression Evidence. This is output-preserving: function_calls rows are
-// byte-identical to the pre-recovery walk (same names, full_names, line
-// numbers, order), proven 0/0 across the dart_comprehensive corpus, the
-// calls_ast_test.go regression cases, and this dense fixture by
-// TestWalkDartCallSitesMatchesOracle. The recovery closes ~29% of the
-// AST-walk-vs-byte-scanner gap; the remainder is the inherent cost of walking
-// the whole AST (the price of the correctness fix), and absolute per-file cost
+// byte-identical to the two-pass walk (same names, full_names, line numbers,
+// order), proven 0/0 across the dart_comprehensive corpus (including
+// parameter_defaults.dart, whose call sites live inside the signature subtrees
+// the pre-fold collect pruned), the calls_ast_test.go regression cases, and
+// this dense fixture by TestDartCallSitesMatchOracle. A one-shot full-index
+// differential (old two-pass vs merged, DeepEqual over
+// types/functions/variables/imports/calls) found 0 field mismatches across the
+// corpus, so the declaration side is unchanged too. Absolute per-file cost
 // stays in the low-single-digit-millisecond range even on this deliberately
 // dense synthetic fixture (real dart_comprehensive files are 1-55 lines).
 func BenchmarkParseDartCallSites(b *testing.B) {
