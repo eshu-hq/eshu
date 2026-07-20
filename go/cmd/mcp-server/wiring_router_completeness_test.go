@@ -8,9 +8,60 @@ import (
 	"reflect"
 	"testing"
 
+	"go.opentelemetry.io/otel"
+
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// TestNewMCPQueryRouterWiresImpactInstruments guards the #5363 observability
+// gap: trace_deployment_chain routes to the same query.ImpactHandler on the
+// standalone MCP server, so a candidate-pool truncation must increment
+// eshu_dp_query_k8s_select_candidate_scan_truncated_total from that transport
+// too. The reflective completeness sweep below only checks nil *interface*
+// fields, so a missing *telemetry.Instruments pointer on a fully-wired handler
+// slips past it -- hence this dedicated assertion. Fails when the MCP router's
+// ImpactHandler literal omits Instruments (the counter would silently never
+// fire on the MCP transport).
+func TestNewMCPQueryRouterWiresImpactInstruments(t *testing.T) {
+	t.Parallel()
+
+	db, err := sql.Open("pgx", "postgres://example.invalid/eshu")
+	if err != nil {
+		t.Fatalf("sql.Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	instruments, err := telemetry.NewInstruments(otel.Meter("eshu-mcp-test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v, want nil", err)
+	}
+
+	router := newMCPQueryRouter(
+		db,
+		query.NewNeo4jReader(nil, ""),
+		query.NewContentReader(db),
+		staticStatusReader{},
+		query.ProfileLocalFullStack,
+		query.GraphBackendNornicDB,
+		nil,
+		instruments,
+		"",
+		"",
+		component.Policy{},
+		query.GovernanceStatusConfig{},
+		nil,
+		false,
+	)
+
+	if router.Impact == nil {
+		t.Fatalf("newMCPQueryRouter().Impact = nil, want wired")
+	}
+	if router.Impact.Instruments != instruments {
+		t.Errorf("newMCPQueryRouter().Impact.Instruments = %p, want the passed instruments %p (the k8s SELECTS truncation counter would never fire on the MCP transport)", router.Impact.Instruments, instruments)
+	}
+}
 
 // TestNewMCPQueryRouterWiresEveryFieldOrDocumentsWhyNot is the #5148
 // dual-main structural fix (issue review on #5150), mirroring
