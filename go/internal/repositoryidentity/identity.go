@@ -92,12 +92,20 @@ func NormalizeRemoteURL(remoteURL string) string {
 }
 
 // NormalizedRemoteKey returns the canonical host/path key for a git remote URL.
-// It is an idempotent aggregation of NormalizeRemoteURL with two extra input
-// classes: the git+ prefix (npm-style git dependency URLs) and SCP syntax with
-// any user@ prefix (not only git@). The result is a lowercase host/path key
-// with the .git suffix dropped. Ports are stripped (matching the git
-// collector's identity hashing). Empty input, unparseable input, bare-host
-// URLs, and protocols without a path all produce "".
+// It is an aggregation of NormalizeRemoteURL with two extra input classes: the
+// git+ prefix (npm-style git dependency URLs) and SCP syntax with any user@
+// prefix (not only git@). The result is a lowercase host/path key with the .git
+// suffix dropped. Ports are stripped (matching the git collector's identity
+// hashing).
+//
+// The result is idempotent when composed with NormalizeRemoteURL:
+//
+//	NormalizedRemoteKey(NormalizeRemoteURL(x)) == NormalizedRemoteKey(x)
+//
+// for every input x that NormalizeRemoteURL accepts.
+//
+// Empty input, unparseable input, bare-host URLs, and any input whose extracted
+// host segment contains %, @, or spaces all produce "".
 func NormalizedRemoteKey(raw string) string {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -127,11 +135,25 @@ func NormalizedRemoteKey(raw string) string {
 	if key == normalized || key == "" {
 		return ""
 	}
-	// A bare host (no "/" separator) is not a useful repo identity key.
-	if !strings.Contains(key, "/") {
+	// Reject keys whose extracted host segment is malformed.
+	if !isValidRemoteKey(key) {
 		return ""
 	}
 	return key
+}
+
+// isValidRemoteKey reports whether key has the form host/path with a non-empty
+// host segment free of %, @, and spaces. The host segment is validated strictly
+// because % (un-decoded percent), @ (residual userinfo), and spaces are never
+// legitimate in a hostname. The path segment is not validated beyond non-emptiness;
+// url.Parse decodes percent-encoding (e.g. %20 → space, %C3%A9 → é) into the
+// path, so spaces and non-ASCII in the path are legitimate decoded representations.
+func isValidRemoteKey(key string) bool {
+	if key == "" {
+		return false
+	}
+	host, _, hasSlash := strings.Cut(key, "/")
+	return hasSlash && host != "" && !strings.ContainsAny(host, "%@ ")
 }
 
 // scpKey extracts a host/path key from SCP-style syntax (user@host:path).
@@ -152,7 +174,11 @@ func scpKey(raw string) string {
 	if host == "" || pathValue == "" {
 		return ""
 	}
-	return host + "/" + strings.ToLower(pathValue)
+	key := host + "/" + strings.ToLower(pathValue)
+	if !isValidRemoteKey(key) {
+		return ""
+	}
+	return key
 }
 
 // RepoSlugFromRemoteURL returns the org/repo slug derived from a remote URL.

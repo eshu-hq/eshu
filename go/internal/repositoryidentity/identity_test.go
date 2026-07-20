@@ -52,6 +52,33 @@ func TestNormalizedRemoteKey(t *testing.T) {
 
 		// Already-normalized key (no :// scheme) — returns ""
 		{name: "already normalized key", raw: "github.com/eshu-hq/eshu", want: ""},
+
+		// Regression: garbage leaking through NormalizeRemoteURL passthrough (#5421 F1)
+		{name: "https with empty host", raw: "https:///pathonly", want: ""},
+		{name: "https with percent host", raw: "https://%41zure.com/org/repo", want: ""},
+		{name: "https with userinfo portless", raw: "https://user@:8080/path", want: ""},
+		{name: "https collision safety", raw: "https:///a/b", want: ""},
+		{name: "scp with percent host", raw: "user@%41zure.com:org/repo.git", want: ""},
+
+		// F2 additional divergence classes — value-pinned intended behavior
+		// Percent-encoded paths: url.Parse decodes %20→space, %2E→. in Path.
+		// The decoded form is canonical and consistent with raw input.
+		{name: "percent-encoded path", raw: "https://github.com/org/my%20repo", want: "github.com/org/my repo"},
+		// %2Egit → .git → stripped (it is the literal .git suffix).
+		{name: "percent-encoded git suffix", raw: "https://github.com/org/repo%2Egit", want: "github.com/org/repo"},
+		{name: "percent-encoded git suffix with literal git", raw: "https://github.com/org/repo%2Egit.git", want: "github.com/org/repo.git"},
+		// Duplicate-slashes: url.Parse collapses //→/ in Path.
+		{name: "duplicate slashes", raw: "https://github.com//org//repo.git", want: "github.com/org/repo"},
+		// Scheme-relative: rejected (no scheme → unparseable)
+		{name: "scheme relative", raw: "//github.com/org/repo", want: ""},
+		// Spaces and non-ASCII in path: url.Parse decodes %20→space, %C3%A9→é.
+		// The decoded representation is consistent across literal and encoded
+		// inputs, so these are legitimate (not rejected).
+		{name: "literal space in path", raw: "https://github.com/org/my repo", want: "github.com/org/my repo"},
+		{name: "non-ASCII path", raw: "https://github.com/org/r%C3%A9po", want: "github.com/org/répo"},
+		{name: "non-ASCII raw path", raw: "https://github.com/org/répo", want: "github.com/org/répo"},
+		// Trailing .git with percent-encoded path components
+		{name: "trailing git after percent path", raw: "https://github.com/eshu-hq/eshu.git.git", want: "github.com/eshu-hq/eshu.git"},
 	}
 
 	for _, tt := range tests {
