@@ -13,7 +13,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | authorization_catalog | 24 | 24 | 100.00% | 0 | 0 |
 | Capability claims | 134 | 134 | 100.00% | 0 | 0 |
 | Read surfaces (CLI) | 7 | 7 | 100.00% | 0 | 0 |
-| Read surfaces (API/MCP) | 22 | 22 | 100.00% | 0 | 1 |
+| Read surfaces (API/MCP) | 23 | 23 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
 | Projections (cost/ordering) | 27 | 27 | 100.00% | 0 | 1 |
@@ -27,7 +27,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 215 | 215 | 100.00% | 0 | 5 |
+| baseline | 216 | 216 | 100.00% | 0 | 5 |
 | cost | 26 | 26 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 142 | 142 | 100.00% | 0 | 0 |
@@ -222,6 +222,7 @@ None. Every supported surface has a replay scenario.
 | `read_surface:GET /api/v0/iac/resources` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/iac/resources?limit=50` |
 | `read_surface:GET /api/v0/images` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/images` |
 | `read_surface:GET /api/v0/incidents/{incident_id}/context` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/incidents/PSCD1/context` |
+| `read_surface:GET /api/v0/kubernetes/correlations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/kubernetes/correlations?cluster_id=supply-chain-demo&limit=50` |
 | `read_surface:GET /api/v0/observability/coverage/correlations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50` |
 | `read_surface:GET /api/v0/package-registry/correlations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/package-registry/correlations?package_id=github.com/acme/lib-common&limit=50` |
 | `read_surface:GET /api/v0/package-registry/packages` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/package-registry/packages?ecosystem=go&limit=50` |

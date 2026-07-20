@@ -4692,6 +4692,17 @@
         ],
         "minimum_results": 1
       },
+      "GET /api/v0/kubernetes/correlations?cluster_id=supply-chain-demo&limit=50": {
+        "description": "Kubernetes workload ownership/drift correlations for the demo cluster; confirms the kubernetes reducer read surface is mounted and queryable through the HTTP route (mirrors the already-proven list_kubernetes_correlations MCP shape).",
+        "required_response_fields": [
+          "correlations",
+          "count"
+        ],
+        "required_json_paths": [
+          "correlations[].outcome"
+        ],
+        "minimum_results": 1
+      },
       "GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo": {
         "description": "Secrets/IAM posture summary (governed projection, default-off per ADR #1314); confirms the read surface is mounted and returns a valid summary object.",
         "required_response_fields": [
