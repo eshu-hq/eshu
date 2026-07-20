@@ -84,10 +84,14 @@ var relationshipVerbCatalog = []relationshipVerbEntry{
 	// RECONCILES_FROM (issue #5360 PR B) anchors on the source FluxKustomization;
 	// its target (FluxGitRepository/FluxOCIRepository/FluxBucket) is a generic
 	// canonical entity carrying repo_id like every CALLS/INHERITS/REFERENCES/
-	// OVERRIDES target, so targetAttributable is true here -- unlike the
-	// Atlantis governance verbs below, whose non-AtlantisProject targets
-	// (Directory/AtlantisWorkflow) are treated as ungoverned by that #5167
-	// scoped-grant boundary for an unrelated reason (targetIdentityProperty).
+	// OVERRIDES target, so targetAttributable is true here: the #5167 scoped-grant
+	// predicate can bind the target endpoint's repo_id, so binding it is the
+	// more-restrictive (correct) choice. This differs from the Atlantis
+	// governance verbs below precisely because their targets (Directory,
+	// AtlantisWorkflow) carry no repo_id a #5167 grant could bind, which is
+	// why those stay targetAttributable=false -- the distinction is repo_id
+	// bindability, not the unrelated targetIdentityProperty override MANAGES
+	// uses for its non-standard Directory identity key.
 	{verb: "RECONCILES_FROM", layer: "deploy", sourceLabel: "FluxKustomization", sourceProperty: "uid", evidence: "Flux GitOps", detail: "Flux Kustomization reconciles manifests from its source", targetAttributable: true},
 	// infra layer
 	{verb: "PROVISIONS_DEPENDENCY_FOR", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Terraform", detail: "Repository provisions infrastructure for a target", carriesSourceTool: true, sourceToolSourceLabel: "Repository", targetAttributable: true},
