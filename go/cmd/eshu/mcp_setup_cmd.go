@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -140,6 +141,11 @@ func mcpSetupWrite(platform *mcpPlatform, req mcpSetupRequest, target string) er
 
 // mcpSetupVerify runs the staged verification, reusing the API client for hosted
 // reachability and the embedded read-only MCP tool surface for tool visibility.
+// In token posture, when no --api-key/ESHU_API_KEY was resolved, the client
+// falls back to ESHU_MCP_TOKEN so verification exercises the same credential
+// the emitted snippet actually wires -- otherwise a token-posture --verify run
+// would silently probe unauthenticated even though the real client will
+// authenticate.
 func mcpSetupVerify(cmd *cobra.Command, platform *mcpPlatform, req mcpSetupRequest) error {
 	snippet, err := renderSetupSnippet(platform, req)
 	if err != nil {
@@ -150,14 +156,40 @@ func mcpSetupVerify(cmd *cobra.Command, platform *mcpPlatform, req mcpSetupReque
 	var query queryProber
 	if req.Mode == modeHostedHTTP {
 		client := apiClientFromCmd(cmd)
+		if req.Posture == postureToken && strings.TrimSpace(client.APIKey) == "" {
+			if token := strings.TrimSpace(os.Getenv(mcpTokenEnvVar)); token != "" {
+				client.APIKey = token
+			}
+		}
 		health = apiHealthProber{client: client}
 		query = apiQueryProber{client: client}
 	}
 
 	report := runVerification(snippet, mcp.ReadOnlyTools, health, query)
-	fmt.Print(renderVerifyReport(report))
+	fmt.Print(postureVerifyHeader(req) + renderVerifyReport(report))
 	if !report.allOK() {
 		return fmt.Errorf("mcp setup verification failed")
 	}
 	return nil
+}
+
+// postureVerifyHeader names the detected auth posture and probe outcome as a
+// leading line before the staged verification report, so `--verify` output is
+// self-explanatory about which credential story it exercised. Empty for local
+// stdio mode, which carries no credential to name.
+func postureVerifyHeader(req mcpSetupRequest) string {
+	if req.Mode != modeHostedHTTP {
+		return ""
+	}
+	switch req.Posture {
+	case postureSSO:
+		if len(req.Issuers) > 0 {
+			return fmt.Sprintf("Auth posture: sso (issuer: %s)\n", req.Issuers[0])
+		}
+		return "Auth posture: sso\n"
+	case postureSharedKey:
+		return "Auth posture: shared-key (admin/dev " + apiKeyEnvVar + ")\n"
+	default: // postureToken
+		return "Auth posture: token (per-user " + mcpTokenEnvVar + ")\n"
+	}
 }

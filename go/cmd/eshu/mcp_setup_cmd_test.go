@@ -369,4 +369,97 @@ func TestRunMCPSetupVerifyHostedReachable(t *testing.T) {
 			t.Fatalf("verify output missing stage %q:\n%s", want, out)
 		}
 	}
+	if !strings.Contains(out, "Auth posture: token") {
+		t.Fatalf("verify output missing leading posture line:\n%s", out)
+	}
+}
+
+// TestRunMCPSetupVerifyTokenPostureUsesEnvFallback proves --verify exercises
+// the same credential the token-posture snippet wires: when no --api-key is
+// resolved, the health/first-query probes fall back to ESHU_MCP_TOKEN so
+// verification actually authenticates the way a real client would.
+func TestRunMCPSetupVerifyTokenPostureUsesEnvFallback(t *testing.T) {
+	const envToken = "eshu_pat_verify_fallback_TESTONLY" // #nosec G101 -- test-only fixture value
+	t.Setenv(mcpTokenEnvVar, envToken)
+	t.Setenv("ESHU_API_KEY", "")
+
+	var gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/health":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("ok"))
+		case strings.HasPrefix(r.URL.Path, "/api/v0/index-status"):
+			gotAuth = r.Header.Get("Authorization")
+			_, _ = w.Write([]byte(`{"status":"ready"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	cmd := newSetupCmd()
+	setCmdFlags(t, cmd, map[string]string{
+		"hosted":      "true",
+		"verify":      "true",
+		"service-url": server.URL,
+		"auth":        "token",
+	})
+
+	out := captureStdout(t, func() {
+		if err := runMCPSetup(cmd, nil); err != nil {
+			t.Fatalf("runMCPSetup --verify error = %v, want nil", err)
+		}
+	})
+	if gotAuth != "Bearer "+envToken {
+		t.Fatalf("index-status probe Authorization = %q, want %q", gotAuth, "Bearer "+envToken)
+	}
+	if !strings.Contains(out, "Auth posture: token") {
+		t.Fatalf("verify output missing posture line:\n%s", out)
+	}
+}
+
+// TestRunMCPSetupVerifyPostureLineByPosture pins the leading posture line's
+// content for each of the three postures.
+func TestRunMCPSetupVerifyPostureLineByPosture(t *testing.T) {
+	tests := []struct {
+		name string
+		auth string
+		want string
+	}{
+		{"token", "token", "Auth posture: token"},
+		{"sso", "sso", "Auth posture: sso"},
+		{"shared-key", "shared-key", "Auth posture: shared-key"},
+	}
+	for _, tt := range tests {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.URL.Path == "/health":
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("ok"))
+			case strings.HasPrefix(r.URL.Path, "/api/v0/index-status"):
+				_, _ = w.Write([]byte(`{"status":"ready"}`))
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}))
+
+		cmd := newSetupCmd()
+		setCmdFlags(t, cmd, map[string]string{
+			"hosted":      "true",
+			"verify":      "true",
+			"service-url": server.URL,
+			"auth":        tt.auth,
+		})
+
+		out := captureStdout(t, func() {
+			if err := runMCPSetup(cmd, nil); err != nil {
+				t.Fatalf("[%s] runMCPSetup --verify error = %v, want nil", tt.name, err)
+			}
+		})
+		server.Close()
+		if !strings.Contains(out, tt.want) {
+			t.Fatalf("[%s] verify output missing %q:\n%s", tt.name, tt.want, out)
+		}
+	}
 }
