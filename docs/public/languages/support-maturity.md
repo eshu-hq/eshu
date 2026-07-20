@@ -43,7 +43,13 @@ canonical relationship resolution, or end-to-end indexing.
 
 The `Real-Repo Validation` and `End-to-End Indexing` columns of the matrix below
 use a three-grade scale. The grades are defined mechanically against the live
-B-7 golden-corpus gate, not asserted by hand:
+B-7 golden-corpus gate, not asserted by hand, and `scripts/verify-maturity-drift-guard.sh`
+mechanically re-derives the `supported` set on every CI run and fails when
+these two columns drift from it in either direction (#5400) — a language
+whose fixture leaves `corpus_fixtures` or loses its B-12 attribution, or one
+that gains both without a matching matrix update. This is the same class of
+drift #5336 fixed by hand-grading the matrix once; the gate exists so the
+next drift is caught mechanically instead of by another manual re-grade.
 
 - **`supported`** — the language is routed through the full live pipeline
   (`discover -> reduce -> project -> query`) by the golden-corpus gate. A
