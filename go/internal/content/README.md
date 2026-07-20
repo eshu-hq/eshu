@@ -30,7 +30,7 @@ This package owns:
 
 - `Writer` — the narrow per-scope-generation write interface
 - `Materialization`, `Record`, `EntityRecord`, `RepositoryRef`, `Result` — value types
-- `CanonicalEntityID` — stable entity hash
+- `CanonicalEntityID`, `CanonicalEntityIDWithMetadata`, `CanonicalDependencyEntityID` — stable entity hashes
 - `WriterConfig`, `LoadWriterConfig` — batch-width tunable
 - `MemoryWriter` — in-process test double
 
@@ -66,6 +66,24 @@ Identity:
 
 - `CanonicalEntityID(repoID, relativePath, entityType, entityName string, lineNumber int) string`
   — hashes the five-field key with BLAKE2s and returns `"content-entity:e_<12-hex>"`.
+- `CanonicalEntityIDWithMetadata(repoID, relativePath, entityType, entityName string, lineNumber int, metadata map[string]any) string`
+  — the entry point both mint sites (`internal/content/shape.Materialize` and
+  the `internal/projector` `entity_id`-fallback path) call. Routes to
+  `CanonicalDependencyEntityID` when `entityType` is `"variable"` and
+  `metadata` marks an in-scope manifest dependency row (`config_kind ==
+  "dependency"`, `package_manager` in `{"npm", "composer"}`, `lockfile` not
+  true, `section` a non-empty string); otherwise returns `CanonicalEntityID`
+  unchanged. The gate excludes lockfile-sourced rows on purpose — see
+  `CanonicalDependencyEntityID` below.
+- `CanonicalDependencyEntityID(repoID, relativePath, section, name string) string`
+  — hashes a six-component, `"eshu-dep-v1"`-tagged key
+  (`repoID`, `relativePath`, the constant `"variable"`, `section`, `name`) with
+  BLAKE2s and returns `"content-entity:e_<12-hex>"`. Line-independent: this id
+  does not change when a dependency's source line moves, so reordering
+  dependencies within one manifest section (e.g. `package.json`'s
+  `dependencies`) does not churn its content-entity id. The domain tag and
+  six-component shape make collision with `CanonicalEntityID`'s five-component
+  untagged output structurally impossible.
 
 Config:
 
@@ -89,6 +107,22 @@ contract.
 - `CanonicalEntityID` lower-cases `entityType` and trims whitespace from every
   input before hashing. Callers that pre-trim or pre-lower differently will
   produce divergent IDs.
+- `CanonicalEntityIDWithMetadata`'s dependency gate is narrow on purpose:
+  `config_kind == "dependency"` alone is also emitted by lockfile parsers
+  (`package-lock.json`, `composer.lock`, and other npm lockfile flavors),
+  which legitimately repeat a package name multiple times per section (nested
+  `node_modules` can carry the same name at different versions). Widening the
+  gate to `config_kind` alone would collapse those distinct dependency
+  versions into one identity — an accuracy violation, not a refactor. Do not
+  extend the `package_manager` allow-list without proving the target format's
+  parser guarantees per-section name uniqueness the way `package.json` and
+  `composer.json` manifests do.
+- Both mint sites — `internal/content/shape.Materialize` and
+  `internal/projector`'s `buildContentEntityRecord` `entity_id` fallback —
+  MUST call `CanonicalEntityIDWithMetadata` with the same metadata view. The
+  projector fallback only fires without a collector-minted `entity_id`
+  (version skew, replayed cassettes, non-git producers); divergent minting on
+  that path would silently corrupt identity.
 - `Clone` methods (`Record.Clone`, `EntityRecord.Clone`, `Materialization.Clone`)
   must be called before retaining inputs across async boundaries. `MemoryWriter`
   always stores a clone, not the raw input.

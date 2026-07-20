@@ -26,7 +26,9 @@ The ingester or projector builds a `shape.Input` from parser output, calls
 This package owns content shaping only:
 
 - translating parser buckets into `content.EntityRecord` values
-- deriving `content.CanonicalEntityID` for each entity
+- deriving each entity's id via `content.CanonicalEntityIDWithMetadata` (which
+  falls back to `content.CanonicalEntityID` outside its narrow manifest
+  dependency gate)
 - extracting `source_cache` snippets from parser source or file body
 - preserving per-entity line, language, artifact, template, IaC, and metadata
   fields for the content store
@@ -61,8 +63,9 @@ Entry point:
 
 ## Dependencies
 
-- `internal/content` — `Materialization`, `EntityRecord`, `CanonicalEntityID`.
-  No other internal imports. No external imports beyond the standard library.
+- `internal/content` — `Materialization`, `EntityRecord`, `CanonicalEntityID`,
+  `CanonicalEntityIDWithMetadata`. No other internal imports. No external
+  imports beyond the standard library.
 
 ## Telemetry
 
@@ -95,6 +98,34 @@ around the `Materialize` call.
   parser output get a bounded snippet rather than the rest of the file.
 - Output ordering is deterministic: entities are sorted by line number, then
   label, then name before writing. Storage diffs stay stable across re-runs.
+- `Materialize` mints each entity's id via
+  `content.CanonicalEntityIDWithMetadata`, passing the cloned per-entity
+  `Metadata` map used for the entity's other fields. For an in-scope manifest
+  dependency Variable (npm/composer, non-lockfile, non-empty `section` in
+  metadata) this mints a section-keyed, line-independent id via
+  `content.CanonicalDependencyEntityID` instead of the legacy line-keyed
+  `content.CanonicalEntityID` — see `internal/content/README.md`'s Gotchas
+  section for the full gate and why it must not be widened casually.
+
+## Dependency identity (#5357)
+
+`Materialize` and `internal/projector`'s `buildContentEntityRecord`
+`entity_id` fallback share one identity rule via
+`content.CanonicalEntityIDWithMetadata` so a manifest dependency Variable's
+content-entity id is keyed by `(repoID, path, "variable", section, name)`
+instead of the source line. This makes reordering dependencies within a
+`package.json`/`composer.json` section a no-op for identity — the previous
+line-keyed scheme churned every dependency's id whenever an unrelated edit
+shifted lines in the same section.
+
+The gate is intentionally narrow: `metadata["config_kind"] ==
+"dependency"` alone is also set by lockfile parsers
+(`package-lock.json`, `composer.lock`, and other npm lockfile flavors),
+which legitimately repeat a package name multiple times per section — nested
+`node_modules` can carry the same name at different versions. Collapsing
+those under `(path, section, name)` would silently merge distinct dependency
+versions into one identity. See `content.CanonicalEntityIDWithMetadata`'s doc
+comment in `internal/content/writer.go` for the exact five conditions.
 
 ## Related docs
 

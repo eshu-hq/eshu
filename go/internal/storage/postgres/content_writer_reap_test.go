@@ -217,6 +217,114 @@ func TestContentWriterReapDoesNotLabelFilter(t *testing.T) {
 	mustContain(t, freshIDs, "repo-1:app.js:Variable:config:41")
 }
 
+// TestContentWriterReapsStaleLineKeyedDependencyIDOnSectionKeyedMigration is
+// test (c) from the #5357 locked spec: the section-keyed dependency identity
+// migration is the same id-churn shape TestContentWriterReapsStaleEntityOnIDChurn
+// already proves for #5329's line_number fix, applied to the section-keyed
+// migration itself. A repo's package.json was ingested under the pre-#5357
+// line-keyed scheme (content.CanonicalEntityID); this Write() call represents
+// the FIRST re-ingest after the fix lands, so its fresh set carries only the
+// new content.CanonicalDependencyEntityID for "react" — the old line-keyed id
+// is absent from this call entirely, exactly how a real re-sync observes it.
+// A dependency in an unrelated file (composer.json) is included to prove the
+// reap stays scoped to the touched path and does not touch other paths' rows.
+func TestContentWriterReapsStaleLineKeyedDependencyIDOnSectionKeyedMigration(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{}
+	writer := NewContentWriter(db)
+	writer.Now = func() time.Time { return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) }
+
+	const repoID = "repository:r_12345678"
+
+	// The pre-#5357 line-keyed id this repo's package.json "react" row was
+	// stored under before this migration. It is intentionally NOT part of
+	// this Write() call's fresh set — a real re-sync never re-mints the old
+	// scheme, it only ever produces the new one.
+	staleLineKeyedID := content.CanonicalEntityID(repoID, "package.json", "Variable", "react", 12)
+
+	// The fresh section-keyed id this Write() call actually upserts for the
+	// same logical dependency.
+	freshSectionKeyedID := content.CanonicalDependencyEntityID(repoID, "package.json", "dependencies", "react")
+
+	// An unrelated dependency in a different file, untouched by the
+	// migration in this call — proves reap scoping stays per-path.
+	unrelatedID := content.CanonicalDependencyEntityID(repoID, "composer.json", "require", "monolog/monolog")
+
+	entities := []content.EntityRecord{
+		{
+			EntityID:   freshSectionKeyedID,
+			Path:       "package.json",
+			EntityType: "Variable",
+			EntityName: "react",
+			StartLine:  12,
+			Metadata: map[string]any{
+				"section":         "dependencies",
+				"config_kind":     "dependency",
+				"package_manager": "npm",
+			},
+		},
+		{
+			EntityID:   unrelatedID,
+			Path:       "composer.json",
+			EntityType: "Variable",
+			EntityName: "monolog/monolog",
+			StartLine:  5,
+			Metadata: map[string]any{
+				"section":         "require",
+				"config_kind":     "dependency",
+				"package_manager": "composer",
+			},
+		},
+	}
+
+	mat := content.Materialization{
+		RepoID:       repoID,
+		ScopeID:      "test-scope",
+		GenerationID: "test-gen",
+		Entities:     entities,
+	}
+
+	if _, err := writer.Write(context.Background(), mat); err != nil {
+		t.Fatalf("Write() error = %v, want nil", err)
+	}
+
+	reapQuery, reapArgs := findReapExec(t, db)
+	if !strings.Contains(reapQuery, "DELETE FROM content_entities") {
+		t.Fatalf("reap query = %q, want a DELETE FROM content_entities", reapQuery)
+	}
+
+	paths, ok := reapArgs[1].(pq.StringArray)
+	if !ok {
+		t.Fatalf("reap path arg type = %T, want pq.StringArray", reapArgs[1])
+	}
+	if len(paths) != 2 {
+		t.Fatalf("reap paths = %v, want both package.json and composer.json", []string(paths))
+	}
+
+	freshIDs, ok := reapArgs[2].(pq.StringArray)
+	if !ok {
+		t.Fatalf("reap fresh-id arg type = %T, want pq.StringArray", reapArgs[2])
+	}
+
+	// The new section-keyed id and the unrelated path's id are both in the
+	// keep-set, so neither is reaped.
+	mustContain(t, freshIDs, freshSectionKeyedID)
+	mustContain(t, freshIDs, unrelatedID)
+
+	// The stale line-keyed id is NOT in the fresh set — proving that if a
+	// row for it still exists in content_entities from before this
+	// migration, this anti-join correctly reaps it (entity_id <> ALL(freshIDs)
+	// is true for it).
+	mustNotContain(t, freshIDs, staleLineKeyedID)
+
+	// The new and old ids for the same logical dependency must actually
+	// differ — otherwise this test would not exercise the migration at all.
+	if freshSectionKeyedID == staleLineKeyedID {
+		t.Fatalf("fresh section-keyed id (%q) unexpectedly equals the stale line-keyed id; the migration did not change the identity", freshSectionKeyedID)
+	}
+}
+
 // findReapExec locates the single stale-entity reap DELETE among db.execs
 // and returns its query text and bound args, failing the test if it is
 // missing or duplicated.

@@ -204,7 +204,7 @@ func materializeEntities(repoID string, path string, file File) ([]content.Entit
 		metadata := cloneAnyMap(indexed.item.Metadata)
 		sourceCache, metadata = limitEntitySourceCache(indexed.label, sourceCache, metadata)
 		entities = append(entities, content.EntityRecord{
-			EntityID:        content.CanonicalEntityID(repoID, path, indexed.label, indexed.item.Name, startLine),
+			EntityID:        content.CanonicalEntityIDWithMetadata(repoID, path, indexed.label, indexed.item.Name, startLine, metadata),
 			Path:            path,
 			EntityType:      indexed.label,
 			EntityName:      indexed.item.Name,

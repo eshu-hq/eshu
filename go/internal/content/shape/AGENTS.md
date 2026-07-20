@@ -36,6 +36,14 @@
 - **No storage dependency** — this package must not import `database/sql`,
   `pgx`, or any `internal/storage` sub-package. It produces a
   `content.Materialization`; storage is the caller's concern.
+- **Dependency identity gate is narrow** — `Materialize` mints entity ids via
+  `content.CanonicalEntityIDWithMetadata`, which only routes an npm/composer
+  manifest dependency `Variable` (non-lockfile, non-empty `section`) to the
+  section-keyed `content.CanonicalDependencyEntityID`. Everything else,
+  including lockfile-sourced `Variable` rows, keeps the legacy line-keyed
+  `content.CanonicalEntityID`. Do not widen the gate without proving the
+  target format's per-section name uniqueness — see
+  `internal/content/AGENTS.md`.
 
 ## Common changes and how to scope them
 
@@ -61,6 +69,15 @@
   `materialize_labels.go`. Include a `materialize_test.go` case that confirms
   the rewrite fires and that non-matching entities keep their original label.
 
+- **Widen the dependency identity gate** → do not add a `package_manager`
+  value, or relax the `lockfile`/`section` conditions, without proving the
+  target manifest format's parser guarantees per-section name uniqueness (see
+  `internal/content/AGENTS.md`). Update
+  `content.dependencyIdentityPackageManagers` in `internal/content/writer.go`
+  and add scoping-guard cases to `internal/content/writer_test.go`; this
+  package's call site (`materialize.go`) needs no change since it always
+  passes the full metadata map through to `CanonicalEntityIDWithMetadata`.
+
 ## Failure modes and how to debug
 
 - Symptom: entities appear in wrong order in content-store rows → likely cause:
@@ -80,6 +97,14 @@
 - Symptom: `Materialize` returns error on empty `RepoID` → this is expected
   behavior. All callers must supply a non-empty `RepoID`.
 
+- Symptom: an npm/composer manifest dependency's entity id churns across
+  syncs even though the dependency did not move → likely cause: `Metadata` on
+  the `Entity` passed to `Materialize` is missing `section`, `config_kind`, or
+  `package_manager`, so `CanonicalEntityIDWithMetadata` falls through to the
+  legacy line-keyed `CanonicalEntityID`. Confirm the parser row carries those
+  three keys (see `dependencyVariablesWithScope` in
+  `internal/parser/json/language.go`).
+
 ## Testing
 
 Gate: `cd go && go test ./internal/content/shape -count=1`
@@ -87,6 +112,8 @@ Gate: `cd go && go test ./internal/content/shape -count=1`
 Key test files:
 
 - `materialize_test.go` — bucket coverage, entity ordering, label rewrites
+- `materialize_dependency_identity_test.go` — section-keyed dependency
+  identity: reorder-no-churn and cross-section distinctness (#5357)
 - `materialize_analytics_test.go` — analytics model bucket entities
 - `materialize_sql_test.go` — SQL entity buckets
 - `source_cache_test.go` — `Variable` byte cap, UTF-8 truncation safety,

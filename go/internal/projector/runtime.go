@@ -385,9 +385,19 @@ func buildContentEntityRecord(repoID string, fact facts.Envelope) (content.Entit
 	artifactType, _ := payloadString(fact.Payload, "artifact_type")
 	templateDialect, _ := payloadString(fact.Payload, "template_dialect")
 	iacRelevant := payloadBoolPtr(fact.Payload, "iac_relevant")
+	// metadata is computed once and shared by the entity_id mint fallback
+	// below and the record's Metadata field, so both agree on exactly the
+	// same view of the payload's dependency-identity keys (section,
+	// config_kind, package_manager, lockfile) that
+	// content.CanonicalEntityIDWithMetadata gates on. This fallback only
+	// fires for facts without a collector-minted entity_id (version skew,
+	// replayed old cassettes, non-git producers) — precisely the path where
+	// divergent minting between here and the shape.Materialize mint site
+	// would silently corrupt identity, so the two MUST stay in lockstep.
+	metadata := entityMetadataFromPayload(fact.Payload)
 	entityID, ok := payloadString(fact.Payload, "entity_id")
 	if !ok {
-		entityID = content.CanonicalEntityID(repoID, relativePath, entityType, entityName, startLine)
+		entityID = content.CanonicalEntityIDWithMetadata(repoID, relativePath, entityType, entityName, startLine, metadata)
 	}
 	sourceCache, _ := payloadString(fact.Payload, "source_cache")
 
@@ -405,7 +415,7 @@ func buildContentEntityRecord(repoID string, fact facts.Envelope) (content.Entit
 		TemplateDialect: templateDialect,
 		IACRelevant:     iacRelevant,
 		SourceCache:     sourceCache,
-		Metadata:        entityMetadataFromPayload(fact.Payload),
+		Metadata:        metadata,
 		Deleted:         fact.IsTombstone,
 	}, true
 }
