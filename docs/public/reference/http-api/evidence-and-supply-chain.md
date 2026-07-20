@@ -1145,6 +1145,45 @@ has no admissible image identity, callers see
 `service_to_image_evidence_missing`; when an image exists without an attachment,
 callers see `image_to_sbom_evidence_missing`.
 
+Each row also carries `dependency_relationships` (declared `sbom.dependency_relationship`
+edges between components: `from_component_id`, `to_component_id`,
+`relationship_type`, `relationship_origin`, `fact_id`) and `external_references`
+(declared `sbom.external_reference` rows: `component_id`, `reference_type`,
+`reference_url`, `reference_locator`, `fact_id`). Both are declared-evidence
+rows, not resolved graph truth: a `from`/`to`/`component_id` value is not
+validated against the document's indexed components, so it may be dangling.
+The reducer bounds each document to 100 dependency-relationship rows and 50
+external-reference rows (deduplicated on the full field tuple, sorted
+lexicographically with `fact_id` as the final tiebreaker before the cap so the
+kept rows are deterministic across replays); `dependency_relationship_count`
+and `external_reference_count` report the full distinct-tuple count computed
+before that cap, and `dependency_relationships_truncated` /
+`external_references_truncated` are `true` when the count exceeds the number
+of rows returned.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'Test(BuildSBOMAttestationAttachmentDecisionsSurfacesDependencyAndExternalReferenceEvidence|BuildSBOMAttestationAttachmentDecisionsAllowsDanglingComponentIDs|DependencyRelationshipEvidenceRowsDedupesCapsAndCountsBeforeCap|ExternalReferenceEvidenceRowsDedupesCapsAndCountsBeforeCap|BuildSBOMAttestationAttachmentDecisionsQuarantinesDependencyMissingDocumentID|SBOMAttestationAttachmentHandlerLoadsActiveDependencyAndExternalReferenceEvidence)'
+-count=1` and `go test ./internal/query -run
+'Test(DecodeSBOMAttestationAttachmentRowSurfacesDependencyAndExternalReferenceEvidence|SupplyChainListSBOMAttestationAttachmentsSurfacesDependencyAndExternalReferenceWire)'
+-count=1` and `go test ./internal/storage/postgres -run
+'TestListActiveSBOMAttestationAttachmentFactsQueryIsDigestBoundedAndPaged'
+-count=1` failed before `sbom.dependency_relationship` and
+`sbom.external_reference` facts had a decode case in
+`buildSBOMAttachmentIndex` (issue #5370: the kinds were queue-routed but
+silently dropped), then passed after the reducer index, decision payload,
+Postgres active-evidence loader allowlist, and HTTP/MCP read model all carried
+the bounded evidence through.
+
+No-Observability-Change: this wires two already-typed, already-queue-routed
+fact kinds into the existing SBOM attachment decode/write/read path. It adds
+no new reducer domain, worker, queue, graph write, metric instrument, span, or
+runtime flag. Operators continue to diagnose the path through the existing
+`sbom_attestation_attachment` reducer counter by status,
+`query.sbom_attestation_attachments` span, and Postgres fact-read
+instrumentation; the new evidence is bounded (100/50 rows per document) at
+reducer write time, so it does not change the fact payload's operating size
+class.
+
 No-Regression Evidence: `go test ./internal/reducer -run
 'Test(BuildSBOMAttestationAttachmentDecisionsClassifiesSubjectsAndTrust|ScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment|PostgresSBOMAttestationAttachmentWriterPersistsAllStatuses)'
 -count=1` and `go test ./internal/query -run
