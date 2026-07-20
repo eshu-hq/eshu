@@ -37,11 +37,20 @@ rows come from every nested `image:` map in a values file (mirroring
 `collectHelmImageRepositories`'s own walk); Kustomize rows come from a
 `kustomization.yaml`'s `images[]` list. `environment` is inferred
 conservatively: the existing `.../environments/<env>/...` path signal
-(`environmentFromPath`), else a `values-<env>.yaml`/`values.<env>.yaml`
-filename match for Helm, else `""`. It does not scan arbitrary path segments
-for environment-like keywords -- broader environment detection is issue
-#5444's scope. Graph projection of this bucket (a node label and reducer
-materialization) is issue #5441's scope, not this package's.
+(`environmentFromPath`) is an author declaration and is returned as-is; a
+`values-<env>.yaml`/`values.<env>.yaml` filename match for Helm is an
+INFERENCE and is gated behind `helmImageOverrideEnvironmentTokens`, a closed
+allowlist mirroring `isDeploymentEnvironmentToken`
+(`go/internal/query/repository_deployment_evidence_read_model.go`), so a
+non-environment suffix such as `values.schema.yaml` or `values.example.yaml`
+resolves to `""` rather than a fabricated environment. It does not scan
+arbitrary path segments for environment-like keywords -- broader environment
+detection is issue #5444's scope. Both producers dedupe exact-duplicate rows
+(`dedupeImageOverrideRows`): two declarations identical on every field carry
+no distinguishing information, so they collapse to one; a row differing in
+any field (the same repository under a different tag) is kept. Graph
+projection of this bucket (a node label and reducer materialization) is issue
+#5441's scope, not this package's.
 
 Argo CD Application rows preserve the existing singular `source_repo`,
 `source_path`, `source_revision`, and `source_root` fields from the primary
@@ -201,6 +210,35 @@ B/op and allocs/op deltas are the real, expected cost of populating the new
 bucket's per-image rows and are not compounding: they hold on both the modest
 (20-image) representative fixture and the empty/no-image case, which adds zero
 rows (`TestParseHelmValuesImageOverridesEmptyWhenNoImages`).
+
+Accuracy-fix follow-up (same issue, same benchmarks): a review found
+`helmValuesEnvironment` was inventing environments from any
+`values-<X>.yaml`/`values.<X>.yaml` suffix (`values.schema.yaml` ->
+`"schema"`), and that two Helm `image:` blocks or Kustomize `images[]`
+entries declaring the exact same repository/tag/digest produced duplicate
+rows with no field to distinguish them. The fix gates the filename inference
+behind a closed environment-token allowlist (one map lookup per Helm values
+file) and adds an exact-duplicate-row dedupe pass to both producers (one
+`fmt.Sprintf`-built key per row). Re-measured with the same benchmarks,
+`-count=5`, immediately after the row above (same machine, same session):
+
+| Fixture (20 images) | Before-fix ns/op | After-fix ns/op | Δ ns/op | Before-fix B/op | After-fix B/op | Δ B/op | Before-fix allocs/op | After-fix allocs/op | Δ allocs/op |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Helm values.yaml | 360.7us | 391.0us (388.4-394.2us, tight) | +8.4% | 266,682 | 272,855 | +2.3% | 3,944 | 3,968 | +24 (+0.6%) |
+| Kustomize kustomization.yaml | 107.4us | ~122.5us typical (120.4-123.5us, 4/5 runs; one 219.2us outlier excluded as scheduler jitter -- B/op and allocs/op stayed flat on that same run, confirming it was not extra work) | +14.1% (typical) | 84,827 | 90,385 | +6.6% | 1,135 | 1,159 | +24 (+2.1%) |
+
+This is NOT noise-level on B/op and allocs/op -- both are deterministic
+counts, stable within a few bytes/zero allocs across every repeat run, and
+both moved by a small, real, bounded amount: +24 allocs/op on both fixtures
+(one `fmt.Sprintf` key allocation per row, plus the `seen` map and `deduped`
+slice), consistent with a 20-image fixture. ns/op is noisier (Kustomize saw
+one clear scheduler-jitter outlier) but the non-outlier cluster still shows a
+real single-digit-to-low-double-digit percent increase, not a regression to
+be alarmed about: the cost is O(n) in declared images, not superlinear, and
+buys a P1 accuracy fix (no fabricated `values.schema.yaml`/`values.example.
+yaml` environments) plus phantom-duplicate-row elimination. Both changes stay
+inside the same async parse stage, never a query-serving or graph-write hot
+path.
 
 ## Gotchas / invariants
 

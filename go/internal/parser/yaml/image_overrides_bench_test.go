@@ -24,7 +24,7 @@ func buildRepresentativeHelmValues(images int) string {
 	var b strings.Builder
 	b.WriteString("replicaCount: 2\n")
 	b.WriteString("service:\n  type: ClusterIP\n  port: 8080\n")
-	for i := 0; i < images; i++ {
+	for i := range images {
 		fmt.Fprintf(&b, "component%02d:\n", i)
 		switch i % 3 {
 		case 0:
@@ -50,7 +50,7 @@ func buildRepresentativeKustomization(images int) string {
 	b.WriteString("kind: Kustomization\n")
 	b.WriteString("resources:\n  - ../base\n")
 	b.WriteString("images:\n")
-	for i := 0; i < images; i++ {
+	for i := range images {
 		fmt.Fprintf(&b, "  - name: service-%02d\n", i)
 		switch i % 3 {
 		case 0:
@@ -77,8 +77,7 @@ func BenchmarkParseHelmValuesRepresentativeImages(b *testing.B) {
 	}
 
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		payload, err := Parse(path, false, Options{})
 		if err != nil {
 			b.Fatalf("Parse() error = %v", err)
@@ -102,8 +101,7 @@ func BenchmarkParseKustomizationRepresentativeImages(b *testing.B) {
 	}
 
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		payload, err := Parse(path, false, Options{})
 		if err != nil {
 			b.Fatalf("Parse() error = %v", err)

@@ -112,6 +112,92 @@ image:
 			wantTag:        "1.2.3",
 			wantEnv:        "",
 		},
+		{
+			// Regression guard for a P1 accuracy defect: values.schema.yaml is a
+			// values-schema convention, not an environment. Any filename suffix
+			// outside the known deployment-environment token allowlist must
+			// resolve to "", never a fabricated environment.
+			name:     "filename_suffix_schema_is_not_an_environment",
+			filename: "values.schema.yaml",
+			body: `
+image:
+  repository: ghcr.io/example/checkout-service
+  tag: "1.2.3"
+`,
+			wantName:       "ghcr.io/example/checkout-service",
+			wantRepository: "ghcr.io/example/checkout-service",
+			wantTag:        "1.2.3",
+			wantEnv:        "",
+		},
+		{
+			// values.example.yaml is documentation, not an environment.
+			name:     "filename_suffix_example_is_not_an_environment",
+			filename: "values.example.yaml",
+			body: `
+image:
+  repository: ghcr.io/example/checkout-service
+  tag: "1.2.3"
+`,
+			wantName:       "ghcr.io/example/checkout-service",
+			wantRepository: "ghcr.io/example/checkout-service",
+			wantTag:        "1.2.3",
+			wantEnv:        "",
+		},
+		{
+			// values.template.yaml is a scaffolding template, not an environment.
+			name:     "filename_suffix_template_is_not_an_environment",
+			filename: "values.template.yaml",
+			body: `
+image:
+  repository: ghcr.io/example/checkout-service
+  tag: "1.2.3"
+`,
+			wantName:       "ghcr.io/example/checkout-service",
+			wantRepository: "ghcr.io/example/checkout-service",
+			wantTag:        "1.2.3",
+			wantEnv:        "",
+		},
+		{
+			// "ci" is not in the known deployment-environment token set.
+			name:     "filename_suffix_ci_is_not_an_environment",
+			filename: "values-ci.yaml",
+			body: `
+image:
+  repository: ghcr.io/example/checkout-service
+  tag: "1.2.3"
+`,
+			wantName:       "ghcr.io/example/checkout-service",
+			wantRepository: "ghcr.io/example/checkout-service",
+			wantTag:        "1.2.3",
+			wantEnv:        "",
+		},
+		{
+			// "local" is not in the known deployment-environment token set.
+			name:     "filename_suffix_local_is_not_an_environment",
+			filename: "values.local.yaml",
+			body: `
+image:
+  repository: ghcr.io/example/checkout-service
+  tag: "1.2.3"
+`,
+			wantName:       "ghcr.io/example/checkout-service",
+			wantRepository: "ghcr.io/example/checkout-service",
+			wantTag:        "1.2.3",
+			wantEnv:        "",
+		},
+		{
+			name:     "filename_env_uat",
+			filename: "values-uat.yaml",
+			body: `
+image:
+  repository: ghcr.io/example/checkout-service
+  tag: "1.2.3"
+`,
+			wantName:       "ghcr.io/example/checkout-service",
+			wantRepository: "ghcr.io/example/checkout-service",
+			wantTag:        "1.2.3",
+			wantEnv:        "uat",
+		},
 	}
 
 	for _, tc := range cases {
@@ -170,6 +256,16 @@ func TestParseHelmValuesImageOverridesEnvironmentFromPath(t *testing.T) {
 			name:    "bare_directory_name_is_not_an_environment_signal",
 			relPath: "prod/values.yaml",
 			wantEnv: "",
+		},
+		{
+			// The .../environments/<env>/... path segment is an explicit author
+			// declaration, not an inference -- it is intentionally UNGATED by the
+			// filename allowlist and returns whatever the author wrote, even a
+			// name outside the known deployment-environment token set. This is
+			// the deliberate asymmetry: only the filename fallback is gated.
+			name:    "environments_directory_signal_bypasses_the_filename_allowlist",
+			relPath: "environments/weirdname/values.yaml",
+			wantEnv: "weirdname",
 		},
 	}
 
@@ -245,5 +341,61 @@ sidecar:
 	overrides := yamlBucketForTest(t, got, "image_overrides")
 	if len(overrides) != 2 {
 		t.Fatalf("len(image_overrides) = %d, want 2: %#v", len(overrides), overrides)
+	}
+}
+
+// TestParseHelmValuesImageOverridesDedupesExactDuplicateRows decides and pins
+// the duplicate-row question (issue #5440 review): when a Helm values file
+// declares the SAME repository under two different "image:" blocks with an
+// identical tag/digest, the two resulting rows are byte-for-byte identical --
+// image_overrides carries no "declared under" field to distinguish them, so
+// shipping both would be pure phantom noise. helm_values[].image_repositories
+// already dedupes (deduplicateStrings, helm.go); image_overrides follows the
+// same principle: dedupe exact-identical rows, but keep rows that differ in
+// ANY field (a second block declaring the same repository under a different
+// tag is a genuinely distinct declaration, not noise).
+func TestParseHelmValuesImageOverridesDedupesExactDuplicateRows(t *testing.T) {
+	t.Parallel()
+
+	filePath := writeYAMLTestFile(t, "values.yaml", `
+serviceA:
+  image:
+    repository: ghcr.io/example/shared-sidecar
+    tag: "1.0.0"
+serviceB:
+  image:
+    repository: ghcr.io/example/shared-sidecar
+    tag: "1.0.0"
+serviceC:
+  image:
+    repository: ghcr.io/example/shared-sidecar
+    tag: "2.0.0"
+`)
+	got, err := Parse(filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	overrides := yamlBucketForTest(t, got, "image_overrides")
+	// Exactly 2 rows: the serviceA/serviceB pair collapses to one (identical
+	// repository AND tag), serviceC survives as a distinct row (same
+	// repository, different tag).
+	if len(overrides) != 2 {
+		t.Fatalf("len(image_overrides) = %d, want 2 (exact duplicate collapsed, differing tag kept): %#v", len(overrides), overrides)
+	}
+	tags := map[string]int{}
+	for _, row := range overrides {
+		name, _ := row["name"].(string)
+		if name != "ghcr.io/example/shared-sidecar" {
+			t.Fatalf("unexpected row name = %q in %#v", name, overrides)
+		}
+		tag, _ := row["tag"].(string)
+		tags[tag]++
+	}
+	if tags["1.0.0"] != 1 {
+		t.Fatalf("tag 1.0.0 count = %d, want 1 (deduped): %#v", tags["1.0.0"], overrides)
+	}
+	if tags["2.0.0"] != 1 {
+		t.Fatalf("tag 2.0.0 count = %d, want 1 (kept, distinct tag): %#v", tags["2.0.0"], overrides)
 	}
 }
