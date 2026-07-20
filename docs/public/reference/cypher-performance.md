@@ -909,11 +909,13 @@ being promoted into canonical cloud-resource truth.
 The covered backend/version contract is the existing NornicDB/Neo4j
 `GraphQuery.Run` deployment-trace read path. The input shape starts from one
 resolved workload or service context and issues config-derived CloudResource
-reads only for explicit `READS_CONFIG_FROM` deployment artifacts. The negative
-guard proves zero graph reads and zero rows when the artifact relationship is
-not `READS_CONFIG_FROM`; positive reads are capped by the existing
-service-story item limit, with each config anchor consuming only the remaining
-result budget plus one truncation probe.
+reads only for explicit `READS_CONFIG_FROM` deployment artifacts. It collects
+at most 50 distinct anchors, escapes them into one regex-union query, applies
+one global `LIMIT 51` sentinel, and orders the bounded result by resource name
+and canonical ID. The response reports truncation when upstream artifacts or
+the 50-anchor input cap omit anchors, or when the global result sentinel
+saturates. The negative guard proves zero graph reads and zero rows when the
+artifact relationship is not `READS_CONFIG_FROM`.
 
 No-Observability-Change: the helper uses the existing `GraphQuery.Run` adapter,
 `neo4j.query` spans, query-duration metrics, and deployment-trace response
@@ -1252,12 +1254,13 @@ rejecting unlabeled anchors:
 ```cypher
 MATCH (n:CloudResource)
 WHERE (coalesce(n.name,'') CONTAINS $query OR ... )
-ORDER BY n.name
+ORDER BY n.name, n.id
 LIMIT $limit
 ```
 
-The result set is byte-identical (same predicates, same projection, same
-ordering, same bound); only the anchor changed, so candidate truth is preserved.
+The predicates, projection, and bound are unchanged. The canonical `id`
+tie-breaker makes the capped subset deterministic when resources in different
+accounts or regions share a name; the uncapped matching set is unchanged.
 The query now over-fetches one row beyond the service-story item limit (50) so
 the handler can set `uncorrelated_cloud_resources_truncated` when the backend
 held more matches than the bound, instead of silently capping.

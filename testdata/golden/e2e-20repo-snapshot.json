@@ -4608,9 +4608,41 @@
           "data.k8s_resource_limits.k8s_relationships_complete"
         ],
         "required_json_values": {
+          "data.repo_id": "repository:r_217415d9",
+          "data.workload_id": "workload:deployable-config",
+          "data.instances[].instance_id": "workload-instance:deployable-config:production",
+          "data.instances[].platforms[].platform_id": "platform:kubernetes:none:production:production:none",
           "data.instances[].platforms[].topology_edges[].relationship_type": "RUNS_ON",
           "truth.level": "derived",
           "truth.basis": "hybrid"
+        },
+        "required_json_object_matches": {
+          "data.instances[].platforms[].topology_edges[]": [
+            {
+              "relationship_type": "RUNS_ON",
+              "source_id": "workload-instance:deployable-config:production",
+              "target_id": "platform:kubernetes:none:production:production:none"
+            }
+          ],
+          "data.topology_edges[]": [
+            {
+              "relationship_type": "DEFINES",
+              "source_id": "repository:r_217415d9",
+              "target_id": "workload:deployable-config"
+            },
+            {
+              "relationship_type": "INSTANCE_OF",
+              "source_id": "workload-instance:deployable-config:production",
+              "target_id": "workload:deployable-config"
+            }
+          ],
+          "data.deployment_sources[]": [
+            {
+              "relationship_type": "DEPLOYMENT_SOURCE",
+              "source_id": "workload-instance:deployable-config:production",
+              "target_id": "repository:r_1f68383d"
+            }
+          ]
         }
       },
       "GET /api/v0/repositories": {

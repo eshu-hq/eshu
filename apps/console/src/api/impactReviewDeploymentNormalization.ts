@@ -1,4 +1,4 @@
-import { normalizeBoundedCollectionLimits } from "./impactBoundedCollectionLimits";
+import { normalizeCloudResourceLimits } from "./impactCloudResourceLimits";
 import { normalizeK8sResourceLimits } from "./impactK8sResourceLimits";
 import type {
   DeploymentSourceLimits,
@@ -64,7 +64,7 @@ export function normalizeDeploymentTrace(response: DeploymentTraceResponse): Dep
       0,
     );
   return {
-    cloudResourceLimits: normalizeBoundedCollectionLimits(
+    cloudResourceLimits: normalizeCloudResourceLimits(
       response.cloud_resource_limits,
       cloudResources.length,
     ),

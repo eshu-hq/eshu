@@ -47,6 +47,11 @@ func loadUncorrelatedCloudResourceCandidatesBounded(
 	if graph == nil || serviceName == "" {
 		return nil, false, nil
 	}
+	// CloudResource nodes do not carry repository ownership. Free-text matches
+	// are uncorrelated candidates, so scoped tokens cannot safely authorize them.
+	if repositoryAccessFilterFromContext(ctx).scoped() {
+		return nil, false, nil
+	}
 	if limit <= 0 || limit > uncorrelatedCloudResourceCandidateLimit {
 		limit = uncorrelatedCloudResourceCandidateLimit
 	}
@@ -73,7 +78,7 @@ RETURN coalesce(n.id, '') AS id,
        coalesce(n.service_kind, '') AS service_kind,
        coalesce(n.service_anchor_status, '') AS service_anchor_status,
        coalesce(n.service_anchor_reason, '') AS service_anchor_reason
-ORDER BY n.name
+ORDER BY n.name, n.id
 LIMIT $limit`, map[string]any{
 		"query":               serviceName,
 		"resource_type_query": serviceName,

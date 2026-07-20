@@ -172,6 +172,7 @@ const openAPIPathsImpact = `
                     "deployment_source_limits": {
                       "type": "object",
                       "description": "Coverage and deterministic bound metadata for deployment_sources. When observed_count_is_lower_bound is true, observed_count is the number seen through the per-query sentinel rather than an exact total.",
+                      "required": ["limit", "query_sentinel_limit", "returned_count", "observed_count", "observed_count_is_lower_bound", "canonical_observed_count", "repository_observed_count", "truncated", "ordering"],
                       "properties": {
                         "limit": {"type": "integer"},
                         "query_sentinel_limit": {"type": "integer"},
@@ -184,16 +185,21 @@ const openAPIPathsImpact = `
                         "ordering": {"type": "array", "items": {"type": "string"}}
                       }
                     },
-                    "cloud_resources": {"type": "array", "description": "CloudResource dependencies admitted only from materialized WorkloadInstance USES CloudResource relationships.", "items": {"type": "object"}},
+                    "cloud_resources": {"type": "array", "description": "CloudResource dependencies admitted only from materialized WorkloadInstance USES CloudResource relationships. Repository-scoped callers receive none until those global relationships carry repository ownership.", "items": {"type": "object"}},
                     "cloud_resource_limits": {
                       "type": "object",
-                      "description": "Deterministic bound and sentinel completeness metadata for cloud_resources.",
+                      "description": "Deterministic resource and relationship-observation bounds for cloud_resources. observation_count_is_lower_bound is true when either the bounded pre-aggregation row probe or the resource-row probe reached its sentinel. Observation-only truncation does not prove that a whole resource identity was omitted.",
+                      "required": ["limit", "query_sentinel_limit", "returned_count", "observed_count", "observed_count_is_lower_bound", "observation_limit", "observation_query_sentinel_limit", "observation_count", "observation_count_is_lower_bound", "truncated", "ordering"],
                       "properties": {
                         "limit": {"type": "integer"},
                         "query_sentinel_limit": {"type": "integer"},
                         "returned_count": {"type": "integer"},
                         "observed_count": {"type": "integer"},
                         "observed_count_is_lower_bound": {"type": "boolean"},
+                        "observation_limit": {"type": "integer"},
+                        "observation_query_sentinel_limit": {"type": "integer"},
+                        "observation_count": {"type": "integer"},
+                        "observation_count_is_lower_bound": {"type": "boolean"},
                         "truncated": {"type": "boolean"},
                         "ordering": {"type": "array", "items": {"type": "string"}}
                       }

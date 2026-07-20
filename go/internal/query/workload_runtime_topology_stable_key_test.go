@@ -4,8 +4,6 @@
 package query
 
 import (
-	"bytes"
-	"log/slog"
 	"strings"
 	"testing"
 )
@@ -16,55 +14,49 @@ func unmarshalableProperties() map[string]any {
 	return map[string]any{"bad": make(chan int)}
 }
 
-// TestStablePropertiesKeyMarshalErrorReturnsSentinel proves an unmarshalable
-// property set returns the distinct sentinel (never the empty string that would
-// collide with a real empty-properties key) and logs via the provided logger.
-func TestStablePropertiesKeyMarshalErrorReturnsSentinel(t *testing.T) {
-	var buf bytes.Buffer
-	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-
-	got := stablePropertiesKey(logger, unmarshalableProperties())
-
-	if got != stablePropertiesKeyMarshalErrorSentinel {
-		t.Fatalf("stablePropertiesKey() = %q, want sentinel %q", got, stablePropertiesKeyMarshalErrorSentinel)
+// TestStablePropertiesKeyMarshalErrorFailsClosed proves invalid relationship
+// properties cannot silently participate in deterministic edge selection.
+func TestStablePropertiesKeyMarshalErrorFailsClosed(t *testing.T) {
+	got, err := stablePropertiesKey(unmarshalableProperties())
+	if err == nil {
+		t.Fatal("stablePropertiesKey() error = nil, want marshal failure")
 	}
-	if got == "" {
-		t.Fatal("stablePropertiesKey() returned empty string, which collides with a real empty-properties key")
+	if got != "" {
+		t.Fatalf("stablePropertiesKey() = %q on error, want empty key", got)
 	}
-	if buf.Len() == 0 {
-		t.Fatal("stablePropertiesKey() did not log the marshal error")
+	if !strings.Contains(err.Error(), "marshal graph relationship properties") {
+		t.Fatalf("stablePropertiesKey() error = %q, want relationship-property context", err)
 	}
 }
 
-// TestStablePropertiesKeyMarshalErrorNilLoggerSafe proves the marshal-error
-// branch never panics when no logger is threaded through the call site.
-func TestStablePropertiesKeyMarshalErrorNilLoggerSafe(t *testing.T) {
-	got := stablePropertiesKey(nil, unmarshalableProperties())
-
-	if got != stablePropertiesKeyMarshalErrorSentinel {
-		t.Fatalf("stablePropertiesKey(nil, ...) = %q, want sentinel %q", got, stablePropertiesKeyMarshalErrorSentinel)
+// TestStablePropertiesKeyValidInputsAreDeterministic proves valid property
+// sets retain canonical JSON ordering for stable edge tie-breaking.
+func TestStablePropertiesKeyValidInputsAreDeterministic(t *testing.T) {
+	tests := []struct {
+		name       string
+		properties map[string]any
+		want       string
+	}{
+		{name: "nil", properties: nil, want: "null"},
+		{name: "empty", properties: map[string]any{}, want: "{}"},
+		{
+			name: "sorted keys",
+			properties: map[string]any{
+				"reason":     "helm",
+				"confidence": 0.99,
+			},
+			want: `{"confidence":0.99,"reason":"helm"}`,
+		},
 	}
-}
-
-// TestStablePropertiesKeySentinelCannotCollide proves the sentinel is distinct
-// from every real JSON key stablePropertiesKey emits for valid input, including
-// the empty and nil property sets, and sorts after them so a marshal-error edge
-// never wins the deterministic "smallest key" tie-break over real evidence.
-func TestStablePropertiesKeySentinelCannotCollide(t *testing.T) {
-	realKeys := []string{
-		stablePropertiesKey(nil, nil),
-		stablePropertiesKey(nil, map[string]any{}),
-		stablePropertiesKey(nil, map[string]any{"confidence": 0.99, "reason": "helm"}),
-	}
-	for _, key := range realKeys {
-		if key == stablePropertiesKeyMarshalErrorSentinel {
-			t.Fatalf("real key %q collides with the marshal-error sentinel", key)
-		}
-		if key >= stablePropertiesKeyMarshalErrorSentinel {
-			t.Fatalf("real key %q does not sort before the sentinel; sentinel could win a tie-break", key)
-		}
-	}
-	if !strings.HasPrefix(stablePropertiesKeyMarshalErrorSentinel, "￿") {
-		t.Fatalf("sentinel %q must start with U+FFFF so it cannot equal real JSON", stablePropertiesKeyMarshalErrorSentinel)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := stablePropertiesKey(test.properties)
+			if err != nil {
+				t.Fatalf("stablePropertiesKey() error = %v", err)
+			}
+			if got != test.want {
+				t.Fatalf("stablePropertiesKey() = %q, want %q", got, test.want)
+			}
+		})
 	}
 }

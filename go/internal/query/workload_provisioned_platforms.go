@@ -23,12 +23,12 @@ type orderedProvisionedPlatform struct {
 
 func (h *EntityHandler) fetchProvisionedPlatformResult(ctx context.Context, repoID string) (provisionedPlatformResult, error) {
 	if h == nil || h.Neo4j == nil || strings.TrimSpace(repoID) == "" {
-		return provisionedPlatformResult{rows: []map[string]any{}}, nil
+		return emptyProvisionedPlatformResult(), nil
 	}
 	queryLimit := contextStoryItemLimit + 1
 	access := repositoryAccessFilterFromContext(ctx)
 	if access.empty() || !access.allowsRepositoryID(repoID) {
-		return provisionedPlatformResult{rows: []map[string]any{}}, nil
+		return emptyProvisionedPlatformResult(), nil
 	}
 	scopeClause := ""
 	if access.scoped() {
@@ -56,7 +56,10 @@ func (h *EntityHandler) fetchProvisionedPlatformResult(ctx context.Context, repo
 	ordered := make([]orderedProvisionedPlatform, 0, min(len(rows), contextStoryItemLimit))
 	seen := make(map[string]struct{}, len(rows))
 	for _, row := range rows {
-		platform := normalizeProvisionedPlatform(row)
+		platform, err := normalizeProvisionedPlatform(row)
+		if err != nil {
+			return provisionedPlatformResult{}, err
+		}
 		sourceID := StringVal(row, "platform_source_id")
 		targetID := StringVal(row, "platform_dependency_target_id")
 		key := StringVal(platform, "platform_id") + "\x00" + sourceID + "\x00" + targetID
@@ -89,6 +92,16 @@ func (h *EntityHandler) fetchProvisionedPlatformResult(ctx context.Context, repo
 	}, nil
 }
 
+func emptyProvisionedPlatformResult() provisionedPlatformResult {
+	return provisionedPlatformResult{
+		rows: []map[string]any{},
+		limits: emptyBoundedCollectionMetadata(
+			contextStoryItemLimit,
+			[]string{"platform_name", "platform_id", "source_repository_id", "target_repository_id"},
+		),
+	}
+}
+
 func provisionedPlatformOrderKey(entry orderedProvisionedPlatform) string {
 	return strings.Join([]string{
 		StringVal(entry.platform, "platform_name"),
@@ -98,13 +111,21 @@ func provisionedPlatformOrderKey(entry orderedProvisionedPlatform) string {
 	}, "\x00")
 }
 
-func normalizeProvisionedPlatform(row map[string]any) map[string]any {
+func normalizeProvisionedPlatform(row map[string]any) (map[string]any, error) {
 	row = copyStringAnyMap(row)
 	if len(mapValue(row, "dependency_edge")) == 0 {
-		row["dependency_edge"] = deterministicEvidenceProperties(row, "dependency_edges")
+		properties, err := deterministicEvidenceProperties(row, "dependency_edges")
+		if err != nil {
+			return nil, fmt.Errorf("select dependency edge evidence: %w", err)
+		}
+		row["dependency_edge"] = properties
 	}
 	if len(mapValue(row, "platform_edge")) == 0 {
-		row["platform_edge"] = deterministicEvidenceProperties(row, "platform_edges")
+		properties, err := deterministicEvidenceProperties(row, "platform_edges")
+		if err != nil {
+			return nil, fmt.Errorf("select platform edge evidence: %w", err)
+		}
+		row["platform_edge"] = properties
 	}
 	dependencyEdge := mapValue(row, "dependency_edge")
 	platformEdge := mapValue(row, "platform_edge")
@@ -123,18 +144,28 @@ func normalizeProvisionedPlatform(row map[string]any) map[string]any {
 		"platform_reason":     firstNonEmptyString(StringVal(row, "platform_edge_reason"), StringVal(row, "dependency_reason")),
 		"topology_basis":      "provisioning_fallback",
 		"topology_edges":      provisionedPlatformTopologyEdges(row),
-	}
+	}, nil
 }
 
-func deterministicEvidenceProperties(row map[string]any, field string) map[string]any {
+func deterministicEvidenceProperties(row map[string]any, field string) (map[string]any, error) {
 	candidates := mapSliceValue(row, field)
 	if len(candidates) == 0 {
-		return nil
+		return nil, nil
 	}
-	// No logger is threaded to this deterministic-ordering helper; a marshal
-	// failure still yields the non-colliding sentinel from stablePropertiesKey.
-	sort.Slice(candidates, func(i, j int) bool {
-		return stablePropertiesKey(nil, candidates[i]) < stablePropertiesKey(nil, candidates[j])
-	})
-	return copyStringAnyMap(candidates[0])
+	best := candidates[0]
+	bestKey, err := stablePropertiesKey(best)
+	if err != nil {
+		return nil, err
+	}
+	for _, candidate := range candidates[1:] {
+		key, err := stablePropertiesKey(candidate)
+		if err != nil {
+			return nil, err
+		}
+		if key < bestKey {
+			best = candidate
+			bestKey = key
+		}
+	}
+	return copyStringAnyMap(best), nil
 }

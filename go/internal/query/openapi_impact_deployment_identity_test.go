@@ -132,7 +132,7 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 	for _, collection := range []string{"instances", "platform_edges", "provisioned_platforms"} {
 		collectionLimits := mustMapField(t, runtimeTopologyProperties, collection)
 		collectionLimitProperties := mustMapField(t, collectionLimits, "properties")
-		for _, field := range []string{
+		collectionFields := []string{
 			"limit",
 			"query_sentinel_limit",
 			"returned_count",
@@ -140,15 +140,38 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 			"observed_count_is_lower_bound",
 			"truncated",
 			"ordering",
-		} {
+		}
+		for _, field := range collectionFields {
 			if _, ok := collectionLimitProperties[field]; !ok {
 				t.Fatalf("impact trace runtime_topology_limits.%s schema missing %s", collection, field)
 			}
 		}
+		assertRequiredProperties(t, collectionLimits, collectionFields, "impact trace runtime_topology_limits."+collection)
 	}
+	cloudResourceLimits := mustMapField(t, properties, "cloud_resource_limits")
+	cloudResourceLimitProperties := mustMapField(t, cloudResourceLimits, "properties")
+	cloudResourceFields := []string{
+		"limit",
+		"query_sentinel_limit",
+		"returned_count",
+		"observed_count",
+		"observed_count_is_lower_bound",
+		"observation_limit",
+		"observation_query_sentinel_limit",
+		"observation_count",
+		"observation_count_is_lower_bound",
+		"truncated",
+		"ordering",
+	}
+	for _, field := range cloudResourceFields {
+		if _, ok := cloudResourceLimitProperties[field]; !ok {
+			t.Fatalf("impact trace cloud_resource_limits schema missing %s", field)
+		}
+	}
+	assertRequiredProperties(t, cloudResourceLimits, cloudResourceFields, "impact trace cloud_resource_limits")
 	k8sResourceLimits := mustMapField(t, properties, "k8s_resource_limits")
 	k8sResourceLimitProperties := mustMapField(t, k8sResourceLimits, "properties")
-	for _, field := range []string{
+	k8sRequiredFields := []string{
 		"limit",
 		"query_sentinel_limit",
 		"deployment_source_query_sentinel_limit",
@@ -163,12 +186,17 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 		"ordering",
 		"k8s_select_candidate_sentinel_limit",
 		"k8s_relationships_complete",
+	}
+	k8sResourceFields := append(
+		append([]string(nil), k8sRequiredFields...),
 		"k8s_relationships_incomplete_reason",
-	} {
+	)
+	for _, field := range k8sResourceFields {
 		if _, ok := k8sResourceLimitProperties[field]; !ok {
 			t.Fatalf("impact trace k8s_resource_limits schema missing %s", field)
 		}
 	}
+	assertRequiredProperties(t, k8sResourceLimits, k8sRequiredFields, "impact trace k8s_resource_limits")
 	for _, field := range []string{
 		"relationship_type",
 		"source_id",
@@ -194,7 +222,7 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 	}
 	deploymentSourceLimits := mustMapField(t, properties, "deployment_source_limits")
 	deploymentSourceLimitProperties := mustMapField(t, deploymentSourceLimits, "properties")
-	for _, field := range []string{
+	deploymentSourceFields := []string{
 		"limit",
 		"query_sentinel_limit",
 		"returned_count",
@@ -204,10 +232,19 @@ func TestOpenAPIImpactDeploymentTraceDocumentsCanonicalPlatformIdentity(t *testi
 		"repository_observed_count",
 		"truncated",
 		"ordering",
-	} {
+	}
+	for _, field := range deploymentSourceFields {
 		if _, ok := deploymentSourceLimitProperties[field]; !ok {
 			t.Fatalf("impact trace deployment_source_limits schema missing %s", field)
 		}
+	}
+	assertRequiredProperties(t, deploymentSourceLimits, deploymentSourceFields, "impact trace deployment_source_limits")
+}
+
+func assertRequiredProperties(t *testing.T, schema map[string]any, fields []string, context string) {
+	t.Helper()
+	for _, field := range fields {
+		assertRequiredProperty(t, schema, field, context)
 	}
 }
 

@@ -6,6 +6,7 @@ package query
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 )
@@ -68,6 +69,24 @@ func TestFetchProvisionedPlatformsKeepsRepositoryTopologySeparate(t *testing.T) 
 	edges := mapSliceValue(result.rows[0], "topology_edges")
 	assertExactTopologyEdge(t, edges, "PROVISIONS_DEPENDENCY_FOR", "repository:infra", "repository:orders", "fact-dependency")
 	assertExactTopologyEdge(t, edges, "PROVISIONS_PLATFORM", "repository:infra", "platform:eks:prod", "fact-platform")
+}
+
+func TestFetchProvisionedPlatformsRejectsNonJSONRelationshipProperties(t *testing.T) {
+	t.Parallel()
+
+	reader := fakeGraphReader{run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+		return []map[string]any{{
+			"platform_source_id": "repository:infra", "platform_dependency_target_id": "repository:orders",
+			"platform_id": "platform:eks:prod", "platform_name": "prod",
+			"dependency_edges": []map[string]any{{"confidence": math.Inf(1)}},
+			"platform_edge":    map[string]any{"source_fact_id": "fact-platform"},
+		}}, nil
+	}}
+
+	_, err := (&EntityHandler{Neo4j: reader}).fetchProvisionedPlatformResult(t.Context(), "repository:orders")
+	if err == nil || !strings.Contains(err.Error(), "marshal graph relationship properties") {
+		t.Fatalf("fetchProvisionedPlatformResult() error = %v, want non-JSON relationship-property error", err)
+	}
 }
 
 func TestFetchProvisionedPlatformsOrdersSamePlatformByRepositoryEndpoints(t *testing.T) {

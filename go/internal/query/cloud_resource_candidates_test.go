@@ -64,6 +64,12 @@ func TestCloudResourceCandidatesUseInfraSearchSourceFields(t *testing.T) {
 	if arnIndex, resourceIDIndex := strings.Index(seenCypher, arnPredicate), strings.Index(seenCypher, resourceIDPredicate); arnIndex < 0 || resourceIDIndex < 0 || arnIndex > resourceIDIndex {
 		t.Fatalf("candidate cypher must preserve infra-search predicate order for NornicDB compatibility: %s", seenCypher)
 	}
+	// Names are not unique across accounts or regions. The canonical ID must
+	// break name ties so LIMIT retains the same candidates for identical graph
+	// state instead of depending on backend traversal order.
+	if !strings.Contains(seenCypher, "ORDER BY n.name, n.id") {
+		t.Fatalf("candidate cypher must use canonical ID to break duplicate-name ties before LIMIT: %s", seenCypher)
+	}
 }
 
 func TestCloudResourceCandidatesOverfetchToDetectTruncation(t *testing.T) {
@@ -94,6 +100,31 @@ func TestCloudResourceCandidatesOverfetchToDetectTruncation(t *testing.T) {
 	}
 	if len(got) != 5 {
 		t.Fatalf("candidate count = %d, want 5 (trimmed to limit)", len(got))
+	}
+}
+
+func TestCloudResourceCandidatesOmitUnownedRowsForScopedTokens(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	ctx := ContextWithAuthContext(t.Context(), AuthContext{
+		Mode:                 AuthModeScoped,
+		AllowedRepositoryIDs: []string{"repository:allowed"},
+	})
+	got, truncated, err := loadUncorrelatedCloudResourceCandidatesBounded(ctx, fakeRepoGraphReader{
+		run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+			calls++
+			return []map[string]any{{"id": "cloud:out-of-grant"}}, nil
+		},
+	}, "orders", 5)
+	if err != nil {
+		t.Fatalf("loadUncorrelatedCloudResourceCandidatesBounded() error = %v", err)
+	}
+	if len(got) != 0 || truncated {
+		t.Fatalf("candidates = %#v, truncated = %v, want no unowned candidates", got, truncated)
+	}
+	if calls != 0 {
+		t.Fatalf("graph calls = %d, want zero because CloudResource has no repository ownership", calls)
 	}
 }
 

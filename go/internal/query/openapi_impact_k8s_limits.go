@@ -7,6 +7,7 @@ const openAPIImpactK8sResourceLimits = `
                     "k8s_resource_limits": {
                       "type": "object",
                       "description": "Deterministic bound and sentinel completeness metadata for k8s_resources after content and deployment-source rows are merged and deduplicated.",
+                      "required": ["limit", "query_sentinel_limit", "deployment_source_query_sentinel_limit", "returned_count", "observed_count", "observed_count_is_lower_bound", "content_observed_count", "content_observed_count_is_lower_bound", "deployment_source_observed_count", "deployment_source_observed_count_is_lower_bound", "truncated", "ordering", "k8s_select_candidate_sentinel_limit", "k8s_relationships_complete"],
                       "properties": {
                         "limit": {"type": "integer"},
                         "query_sentinel_limit": {"type": "integer", "description": "Service-repository content entity search limit, including the one-row truncation probe."},

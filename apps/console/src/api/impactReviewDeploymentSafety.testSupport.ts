@@ -26,7 +26,7 @@ export async function loadReview(trace: Record<string, unknown>, unavailableIden
 
 export function deploymentTrace(overrides: Record<string, unknown>): Record<string, unknown> {
   return {
-    cloud_resource_limits: completeCollectionLimits(0),
+    cloud_resource_limits: completeCloudResourceLimits(0),
     cloud_resources: [],
     deployment_source_limits: {
       canonical_observed_count: 0,
@@ -90,6 +90,16 @@ function completeCollectionLimits(returnedCount: number): Record<string, unknown
     query_sentinel_limit: 51,
     returned_count: returnedCount,
     truncated: false,
+  };
+}
+
+function completeCloudResourceLimits(returnedCount: number): Record<string, unknown> {
+  return {
+    ...completeCollectionLimits(returnedCount),
+    observation_count: returnedCount,
+    observation_count_is_lower_bound: false,
+    observation_limit: 2500,
+    observation_query_sentinel_limit: 2501,
   };
 }
 

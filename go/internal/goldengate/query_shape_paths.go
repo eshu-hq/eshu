@@ -12,7 +12,8 @@ import (
 )
 
 func evaluateJSONPathRequirements(shape QueryShape, body []byte) (bool, string) {
-	if len(shape.RequiredJSONPaths) == 0 && len(shape.RequiredJSONValues) == 0 {
+	if len(shape.RequiredJSONPaths) == 0 && len(shape.RequiredJSONValues) == 0 &&
+		len(shape.RequiredJSONObjectMatches) == 0 {
 		return true, ""
 	}
 	var root any
@@ -38,8 +39,22 @@ func evaluateJSONPathRequirements(shape QueryShape, body []byte) (bool, string) 
 			return false, fmt.Sprintf("required JSON value %q did not equal %v", path, expected)
 		}
 	}
-	return true, fmt.Sprintf("json paths %v and values %v present",
-		shape.RequiredJSONPaths, sortedJSONValuePaths(shape.RequiredJSONValues))
+	for _, path := range sortedJSONObjectMatchPaths(shape.RequiredJSONObjectMatches) {
+		values, err := resolveJSONPath(root, path)
+		if err != nil {
+			return false, fmt.Sprintf("required JSON object match %q failed: %v", path, err)
+		}
+		for _, expected := range shape.RequiredJSONObjectMatches[path] {
+			if !hasMatchingJSONObject(values, expected) {
+				return false, fmt.Sprintf("required JSON object match %q did not contain %v", path, expected)
+			}
+		}
+	}
+	return true, fmt.Sprintf("json paths %v, values %v, and object matches %v present",
+		shape.RequiredJSONPaths,
+		sortedJSONValuePaths(shape.RequiredJSONValues),
+		sortedJSONObjectMatchPaths(shape.RequiredJSONObjectMatches),
+	)
 }
 
 func resolveJSONPath(root any, path string) ([]any, error) {
@@ -125,7 +140,39 @@ func hasMatchingJSONValue(values []any, expected any) bool {
 	return false
 }
 
+func hasMatchingJSONObject(values []any, expected map[string]any) bool {
+	if len(expected) == 0 {
+		return false
+	}
+	for _, value := range values {
+		candidate, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+		matches := true
+		for key, expectedValue := range expected {
+			if actual, exists := candidate[key]; !exists || !reflect.DeepEqual(actual, expectedValue) {
+				matches = false
+				break
+			}
+		}
+		if matches {
+			return true
+		}
+	}
+	return false
+}
+
 func sortedJSONValuePaths(values map[string]any) []string {
+	paths := make([]string, 0, len(values))
+	for path := range values {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+func sortedJSONObjectMatchPaths(values map[string][]map[string]any) []string {
 	paths := make([]string, 0, len(values))
 	for path := range values {
 		paths = append(paths, path)
