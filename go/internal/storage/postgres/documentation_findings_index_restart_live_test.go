@@ -39,7 +39,7 @@ func TestDocumentationFindingsIndexRestartSafetyLive(t *testing.T) {
 	preUpgrade, createListIndexes := documentationFindingsUpgradeDefinitions(t)
 
 	if err := ApplyDefinitions(ctx, exec, preUpgrade); err != nil {
-		t.Fatalf("apply populated pre-064 schema: %v", err)
+		t.Fatalf("apply populated pre-065 schema: %v", err)
 	}
 	seedDocumentationFindingsIndexProof(t, ctx, db)
 	aggregateBefore := readDocumentationIndexState(t, ctx, db, documentationFindingsAggregateIndexName)
@@ -109,19 +109,44 @@ func TestDocumentationFindingsIndexRestartSafetyLive(t *testing.T) {
 		t.Fatalf("repeated bootstrap changed aggregate-visible index: second=%+v third=%+v", aggregateSecond, aggregateThird)
 	}
 
-	proveDocumentationIndexInvalidBuildRecovery(t, ctx, db)
+	proveDocumentationIndexInvalidBuildRecovery(
+		t,
+		ctx,
+		db,
+		documentationFindingsReadIndexName,
+		assertDocumentationIndexReady,
+	)
 	recovered := readDocumentationIndexState(t, ctx, db, documentationFindingsReadIndexName)
 	assertDocumentationIndexReady(t, recovered)
-	assertDocumentationFindingsIndexDefinition(t, recovered.definition)
+	filterAfterReadRecovery := readDocumentationIndexState(t, ctx, db, documentationFindingsFilterIndexName)
+	assertDocumentationFilterIndexReady(t, filterAfterReadRecovery)
+	if filterAfterReadRecovery != thirdFilter {
+		t.Fatalf("read-index recovery changed filter index: before=%+v after=%+v", thirdFilter, filterAfterReadRecovery)
+	}
+	aggregateAfterReadRecovery := readDocumentationIndexState(t, ctx, db, documentationFindingsAggregateIndexName)
+	assertDocumentationAggregateIndexReady(t, aggregateAfterReadRecovery)
+	if aggregateAfterReadRecovery != aggregateThird {
+		t.Fatalf("read-index recovery changed aggregate-visible index: before=%+v after=%+v", aggregateThird, aggregateAfterReadRecovery)
+	}
+
+	proveDocumentationIndexInvalidBuildRecovery(
+		t,
+		ctx,
+		db,
+		documentationFindingsFilterIndexName,
+		assertDocumentationFilterIndexReady,
+	)
+	readAfterFilterRecovery := readDocumentationIndexState(t, ctx, db, documentationFindingsReadIndexName)
+	assertDocumentationIndexReady(t, readAfterFilterRecovery)
+	if readAfterFilterRecovery != recovered {
+		t.Fatalf("filter-index recovery changed read index: before=%+v after=%+v", recovered, readAfterFilterRecovery)
+	}
 	filterRecovered := readDocumentationIndexState(t, ctx, db, documentationFindingsFilterIndexName)
 	assertDocumentationFilterIndexReady(t, filterRecovered)
-	if filterRecovered != thirdFilter {
-		t.Fatalf("read-index recovery changed filter index: before=%+v after=%+v", thirdFilter, filterRecovered)
-	}
 	aggregateRecovered := readDocumentationIndexState(t, ctx, db, documentationFindingsAggregateIndexName)
 	assertDocumentationAggregateIndexReady(t, aggregateRecovered)
 	if aggregateRecovered != aggregateThird {
-		t.Fatalf("read-index recovery changed aggregate-visible index: before=%+v after=%+v", aggregateThird, aggregateRecovered)
+		t.Fatalf("filter-index recovery changed aggregate-visible index: before=%+v after=%+v", aggregateThird, aggregateRecovered)
 	}
 
 	beforeConcurrentRead, beforeConcurrentFilter, aggregateBeforeConcurrent := recovered, filterRecovered, aggregateRecovered
@@ -235,29 +260,31 @@ func proveDocumentationIndexInvalidBuildRecovery(
 	t *testing.T,
 	ctx context.Context,
 	db *sql.DB,
+	indexName string,
+	assertReady func(*testing.T, documentationIndexState),
 ) {
 	t.Helper()
-	if _, err := db.ExecContext(ctx, "DROP INDEX "+documentationFindingsReadIndexName); err != nil {
-		t.Fatalf("drop valid documentation findings index: %v", err)
+	if _, err := db.ExecContext(ctx, "DROP INDEX "+indexName); err != nil {
+		t.Fatalf("drop valid documentation findings index %s: %v", indexName, err)
 	}
-	invalidDDL := `CREATE UNIQUE INDEX CONCURRENTLY ` + documentationFindingsReadIndexName + `
+	invalidDDL := `CREATE UNIQUE INDEX CONCURRENTLY ` + indexName + `
 ON fact_records ((payload->>'finding_type'))
 WHERE fact_kind = 'documentation_finding' AND is_tombstone = FALSE`
 	if _, err := db.ExecContext(ctx, invalidDDL); err == nil {
-		t.Fatal("duplicate concurrent unique index build error = nil, want non-nil")
+		t.Fatalf("duplicate concurrent unique index build %s error = nil, want non-nil", indexName)
 	}
-	invalid := readDocumentationIndexState(t, ctx, db, documentationFindingsReadIndexName)
+	invalid := readDocumentationIndexState(t, ctx, db, indexName)
 	if invalid.valid {
-		t.Fatal("failed concurrent index is valid, want invalid")
+		t.Fatalf("failed concurrent index %s is valid, want invalid", indexName)
 	}
 
 	if err := ApplyBootstrap(ctx, SQLDB{DB: db}); err != nil {
 		t.Fatalf("recover invalid documentation findings index through bootstrap: %v", err)
 	}
-	recovered := readDocumentationIndexState(t, ctx, db, documentationFindingsReadIndexName)
-	assertDocumentationIndexReady(t, recovered)
+	recovered := readDocumentationIndexState(t, ctx, db, indexName)
+	assertReady(t, recovered)
 	if recovered.oid == invalid.oid {
-		t.Fatalf("bootstrap retained invalid documentation index OID %d", invalid.oid)
+		t.Fatalf("bootstrap retained invalid documentation index %s OID %d", indexName, invalid.oid)
 	}
 }
 

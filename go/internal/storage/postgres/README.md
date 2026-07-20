@@ -163,7 +163,7 @@ High-signal invariants for this package:
   generations do not erase branch metadata.
 - Documentation finding reads retain three distinct partial indexes. Migration
   065 creates the order-first index for the ordinary unfiltered page, migration
-  066 creates the filter-first index for selective pages, and the final schema
+  066 creates the filter-first index for fully selective six-filter pages, and the final schema
   plus migration 003 retain `fact_records_documentation_findings_visible_idx`
   for ACL-filtered total and grouped aggregate scans. Source, packet, and
   target-reference reads retain their existing indexes. Free-text
@@ -176,8 +176,8 @@ production total, grouped, and inventory builders against a 200,000-row,
 live run selected it for total/grouped/inventory in 7.123/5.524/5.311 ms with
 10,000 rows, 10,351 shared hits, and zero shared reads per builder.
 On the same 200,000-row theory fixture, the production no-filter page moved
-from a 151.750 ms parallel scan and sort to a 0.175 ms order-index scan; the
-fully selective page moved from 11.625 ms to a 0.292 ms filter-index scan.
+from a 200.842 ms parallel scan and sort to a 0.202 ms order-index scan; the
+fully selective six-filter page moved from 19.229 ms to a 0.360 ms filter-index scan.
 Their 51-row and 66-row digests stayed identical. The exact 500-row production
 finding batch measured a 1.243x median write ratio for the final three-index
 shape, below the 1.50x rejection threshold.
@@ -185,7 +185,7 @@ Search-index candidates for
 the five-field documentation-fact query were rejected because the fastest
 candidate increased the exact 500-row production batch median from 4.207 ms to
 9.257 ms (2.20x); the scoped candidate reached 9.786 ms (2.33x). The complete
-production search over 1.6 million rows completed in 1,169.485 ms on the named
+production search over 1.6 million rows completed in 1,503.519 ms on the named
 local proof profile, so the accepted change does not alter free-text search.
 The full measurements and rejected-candidate ledger are in
 [`docs/internal/evidence/5275-documentation-query-plans.md`](../../../../docs/internal/evidence/5275-documentation-query-plans.md).

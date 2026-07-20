@@ -589,7 +589,7 @@ one of the dimensions `status`, `truth_level`, `freshness_state`,
 page-and-iterate caller workflow for ecosystem-level questions exposed by
 `list_documentation_findings`. Migration 065 adds the order-first partial index
 for the ordinary unfiltered page, and migration 066 adds the filter-first
-partial index for selective pages. The final schema and migration 003 retain
+partial index for fully selective six-filter pages. The final schema and migration 003 retain
 the distinct ACL-filtered aggregate-visible index. Its predicate exactly
 matches these total and grouped aggregate scans, while the ordered keys cover
 all five grouping dimensions plus `document_id`.
@@ -597,7 +597,7 @@ all five grouping dimensions plus `document_id`.
 The `/documentation/facts` free-text surface was evaluated in this issue. Valid
 GIN candidates improved read latency, but the fastest option more than doubled
 the exact production streaming-write cost. The unchanged 1.6-million-row local
-search finished in 1.252 seconds, so no free-text index ships.
+search finished in 1.504 seconds, so no free-text index ships.
 
 No-Regression Evidence: `go test ./internal/query -run
 'TestDocumentationFindingAggregate|TestDocumentationFindingInventoryGroupExpression|TestNextDocumentationFindingAggregateOffset|TestDocumentationFindingAggregateSQLIncludesPermissionPredicates'

@@ -106,6 +106,15 @@ LIMIT 51 OFFSET 0;
 
 \echo FINDINGS_UNFILTERED_BASELINE_RESULT
 EXPLAIN (ANALYZE, BUFFERS, SUMMARY, FORMAT TEXT) EXECUTE findings_unfiltered_read;
+SELECT count(*) AS rows,
+       md5(string_agg(fact_id, '|' ORDER BY observed_at DESC, fact_id DESC)) AS digest
+FROM (
+  SELECT fact_id, observed_at
+  FROM fact_records
+  WHERE fact_kind = 'documentation_finding' AND is_tombstone = FALSE
+  ORDER BY observed_at DESC, fact_id DESC
+  LIMIT 51 OFFSET 0
+) AS selected;
 
 PREPARE findings_read AS
 SELECT fact_records.payload

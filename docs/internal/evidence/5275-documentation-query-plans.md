@@ -5,11 +5,11 @@
 This work retains three complementary documentation-findings partial indexes
 and rejects a dedicated free-text documentation-facts search index. The
 order-first index serves the ordinary unfiltered page, the filter-first index
-serves selective pages, and the ACL-visible index serves aggregate reads. Both
+serves fully selective six-filter pages, and the ACL-visible index serves aggregate reads. Both
 list shapes preserve their result sets. The search indexes made reads faster,
 but the fastest candidate made the returning-aware production streaming write
 2.20 times slower while the complete production 1.6-million-row search
-completed in 1.169 seconds without it.
+completed in 1.504 seconds without it.
 
 No free-text query or search index ships from this investigation.
 
@@ -18,9 +18,9 @@ No free-text query or search index ships from this investigation.
 | Issue acceptance item | Disposition | Evidence |
 | --- | --- | --- |
 | Capture `EXPLAIN (ANALYZE, BUFFERS)` for both reads | Proved | The findings and production-shaped search reads were measured on PostgreSQL 18.4. Sanitized plan nodes, rows, loops, buffers, and timings are below; the exact disposable shim is checked in beside this note. |
-| Retain the findings partial indexes | Implemented | Migration 065 creates the order-first unfiltered-list index, migration 066 creates the filter-first selective-list index, and the final schema plus migration 003 retain `fact_records_documentation_findings_visible_idx` for ACL-filtered aggregate total, group, and inventory scans. |
+| Retain the findings partial indexes | Implemented | Migration 065 creates the order-first unfiltered-list index, migration 066 creates the filter-first fully selective six-filter index, and the final schema plus migration 003 retain `fact_records_documentation_findings_visible_idx` for ACL-filtered aggregate total, group, and inventory scans. |
 | Redesign free-text search around an indexable column | Superseded by measurement | Three index hypotheses were tested. The fastest plan added a 2.20x median write cost, while the complete production search stayed below the local interactive target. No search schema or query change lands. |
-| Preserve exact results | Proved | The ordinary page returned the same 51 rows and digest, and the fully selective page returned the same 66 rows and digest. The accepted patch does not change free-text search behavior. |
+| Preserve exact results | Proved | The ordinary page returned the same 51 rows and digest, and the fully selective six-filter page returned the same 66 rows and digest. The accepted patch does not change free-text search behavior. |
 | Record before and after plans and wall times | Proved | The accepted findings result and every rejected search candidate are recorded below. |
 
 The third acceptance item is intentionally closed by a measured rejection, not
@@ -64,7 +64,7 @@ queries, and candidate DDL are in
 the returning-aware write probe is in
 `go/internal/storage/postgres/documentation_facts_write_index_live_test.go`.
 The verified SQL shim SHA-256 is
-`6d11e61ab057088621b2f4e829a281c7f11375393ee8986fdba8d43cc285c76d`.
+`65140120c723c1512b6cd0a19e448d63eb9dae6643b8fc559133dab72e6d7a1e`.
 The complete current shim was rerun successfully after the two list shapes and
 aggregate comparator were bound to production. The findings, aggregate, and
 search plan results below come from that run; the returning-aware write-tax
@@ -98,23 +98,23 @@ search side break the corresponding guard. The source hashes for this run are:
 - migration 065:
   `3c6aaf70f96f6bbbc71543bfd71ee8be4aaf0a5d66587d07f6fefe4063da95d9`;
 - migration 066:
-  `c6c1c8b8193d97f6a0d8eca5b07d54f8ad1943b25b5d1df3d7f893f723f9e8f6`.
+  `00bcc63e21741bd1f8144a7d92d4732e707c1773ea642ada6cf54f04aaf99186`.
 
 ## Accepted findings-list index results
 
 The route has two production-reachable shapes that need different leading
 keys. The ordinary page has no optional payload predicate and orders newest
-first; a fully selective page constrains all six optional payload fields and
+first; a fully selective six-filter page constrains all six optional payload fields and
 then uses the same ordering.
 
 | Shape | Baseline | Accepted plan | Terminal result |
 | --- | --- | --- | --- |
-| Unfiltered, limit 51 | 151.750 ms; parallel scan + top-N sort; 13,373 shared hits | 0.175 ms; `fact_records_documentation_findings_read_idx`; 7 hits + 3 reads | 51 rows; digest `d74da658d3ef55feb49974eb8c8af836` |
-| Six-filter, limit 67 | 11.625 ms; parallel scan + sort; 13,400 shared hits | 0.292 ms; `fact_records_documentation_findings_filter_idx`; 198 hits + 4 reads | 66 rows; digest `b99ca6f196274d3a9b33333c686878a8` |
+| Unfiltered, limit 51 | 200.842 ms; parallel scan + top-N sort; 13,373 shared hits | 0.202 ms; `fact_records_documentation_findings_read_idx`; 7 hits + 3 reads | 51 rows; digest `d74da658d3ef55feb49974eb8c8af836` |
+| Six-filter, limit 67 | 19.229 ms; parallel scan + sort; 13,400 shared hits | 0.360 ms; `fact_records_documentation_findings_filter_idx`; 198 hits + 4 reads | 66 rows; digest `b99ca6f196274d3a9b33333c686878a8` |
 
 The theory shim explicitly proves that the order-first index alone does not
-fix the selective shape: it still took 12.453 ms and selected the parallel
-scan. The filter-first companion then reduced that query to 0.292 ms. Conversely,
+fix the selective shape: it still took 16.921 ms and selected the parallel
+scan. The filter-first companion then reduced that query to 0.360 ms. Conversely,
 the unfiltered query cannot use a filter-first index for its ordering. Keeping
 the concerns under distinct stable names gives each actual route shape an
 eligible index without changing disclosure behavior or terminal rows.
@@ -138,8 +138,8 @@ and without the ACL-visible index on the same 5%-visible fixture:
 
 | Builder | Final-index execution | Final-index buffers / plan | List-only execution | List-only buffers / plan |
 | --- | ---: | --- | ---: | --- |
-| Total | 0.863 ms | 1,551 shared hits; `fact_records_documentation_findings_visible_idx` | 13.091 ms | 13,334 shared hits; `Parallel Seq Scan` |
-| Grouped status | 4.271 ms | 10,161 shared hits; `fact_records_documentation_findings_visible_idx` | 12.588 ms | 13,412 shared hits; `Parallel Seq Scan` |
+| Total | 6.593 ms | 10,162 shared hits; `fact_records_documentation_findings_visible_idx` | 17.101 ms | 13,334 shared hits; `Parallel Seq Scan` |
+| Grouped status | 9.430 ms | 10,161 shared hits; `fact_records_documentation_findings_visible_idx` | 20.738 ms | 13,412 shared hits; `Parallel Seq Scan` |
 
 The final-index and list-only aggregate results have bidirectional set
 difference 0/0 and the same digest,
@@ -159,10 +159,10 @@ samples 3.675/3.812/3.959 ms and final-three-index samples
 | Plan | `Parallel Seq Scan on fact_records` |
 | Actual rows / loops | 533.33 rows x 3 worker loops; 532,800 rows filtered per loop |
 | Buffers | 144,712 shared hits at the scan; 144,818 for the whole plan |
-| Planning / execution | 0.209 ms / 1,169.485 ms |
+| Planning / execution | 0.260 ms / 1,503.519 ms |
 | Terminal result | 51 rows; digest `2c5a286517da306b3461ba075696a3fa` |
 
-The 1.169-second result is below the 2-3 second target on this named local
+The 1.504-second result is below the 2-3 second target on this named local
 profile. Because this machine is not the accepted cross-machine reference,
 that does not establish a universal SLO. It does establish that a new write-heavy
 index is not justified by the current local path.
@@ -171,9 +171,9 @@ index is not justified by the current local path.
 
 | Candidate | Build result | Read result | Disposition |
 | --- | --- | --- | --- |
-| Broad expression GIN with `gin_trgm_ops` | 16.353 s, 315 MB | `Bitmap Index Scan`, 1,600 rows x 1 loop, 22 index hits; whole plan 1,622 hits; 7.558 ms execution | Fastest read, but its exact returning-aware 500-row production batch had a 2.20x median write cost. |
+| Broad expression GIN with `gin_trgm_ops` | 22.880 s, 315 MB | `Bitmap Index Scan`, 1,600 rows x 1 loop, 22 index hits; whole plan 1,622 hits; 9.359 ms execution | Fastest read, but its exact returning-aware 500-row production batch had a 2.20x median write cost. |
 | GiST with `gist_trgm_ops(siglen=64)` | Failed: one index row required 11,912 bytes; PostgreSQL maximum was 8,191 bytes | No valid plan | Rejected for this expression and fixture shape; this is not a general rejection of GiST. |
-| Scoped multicolumn GIN using `btree_gin` | 16.420 s, 320 MB | `Bitmap Index Scan`, 1,600 rows x 1 loop, 476 index hits; whole plan 2,076 hits; 11.212 ms execution | Slower and larger than the broad GIN; its exact returning-aware 500-row production batch had a 2.33x median write cost. |
+| Scoped multicolumn GIN using `btree_gin` | 24.045 s, 320 MB | `Bitmap Index Scan`, 1,600 rows x 1 loop, 476 index hits; whole plan 2,076 hits; 17.621 ms execution | Slower and larger than the broad GIN; its exact returning-aware 500-row production batch had a 2.33x median write cost. |
 
 All candidate indexes and the candidate `btree_gin` extension were removed
 after the proof. None is part of the accepted schema.
@@ -222,14 +222,14 @@ fixture so a small concurrency test is not presented as performance evidence.
 ## Evidence markers
 
 Performance Evidence: the accepted order-first index changed the ordinary page
-from a 151.750 ms parallel scan and sort to a 0.175 ms index scan with the same
-51 rows and digest. The filter-first companion changed the selective page from
-11.625 ms to 0.292 ms with the same 66 rows and digest. The
+from a 200.842 ms parallel scan and sort to a 0.202 ms index scan with the same
+51 rows and digest. The filter-first companion changed the fully selective six-filter page from
+19.229 ms to 0.360 ms with the same 66 rows and digest. The
 production aggregate builders selected the retained ACL index in
 7.123/5.524/5.311 ms, and the exact production write-batch ratio for the final
 three-index shape was 1.243x. The complete production 1.6-million-row search
-completed in 1,169.485 ms. The fastest rejected search index reduced it to
-7.558 ms but increased the median
+completed in 1,503.519 ms. The fastest rejected search index reduced it to
+9.359 ms but increased the median
 exact returning-aware 500-row production batch from 4.207 ms to 9.257 ms, so it
 did not land.
 
