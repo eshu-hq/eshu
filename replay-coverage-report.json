@@ -2,8 +2,8 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 410,
-    "covered": 400,
+    "total": 412,
+    "covered": 402,
     "uncovered": 0,
     "unresolved": 0,
     "exempt": 10,
@@ -84,8 +84,8 @@
     },
     {
       "registry": "retractable_edge_type",
-      "total": 54,
-      "covered": 54,
+      "total": 55,
+      "covered": 55,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -93,8 +93,8 @@
     },
     {
       "registry": "retractable_type",
-      "total": 91,
-      "covered": 91,
+      "total": 92,
+      "covered": 92,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -140,8 +140,8 @@
     },
     {
       "scenario_type": "delta_tombstone",
-      "total": 146,
-      "covered": 146,
+      "total": 148,
+      "covered": 148,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -2803,6 +2803,16 @@
     },
     {
       "registry": "retractable_edge_type",
+      "key": "retractable_edge:MIGRATES",
+      "scenario_type": "delta_tombstone",
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go"
+    },
+    {
+      "registry": "retractable_edge_type",
       "key": "retractable_edge:NEEDS",
       "scenario_type": "delta_tombstone",
       "status": "covered",
@@ -3644,6 +3654,16 @@
     {
       "registry": "retractable_type",
       "key": "retractable_node:SqlIndex",
+      "scenario_type": "delta_tombstone",
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:SqlMigration",
       "scenario_type": "delta_tombstone",
       "status": "covered",
       "scenario": "cassette",
