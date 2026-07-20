@@ -53,6 +53,63 @@ end
 	assertBucketField(t, payload, "function_calls", "full_name", "task.call")
 }
 
+// TestParseEmitsQualifiedBasesForClassSuperclass pins issue #5376 D0: the Ruby
+// parser emits qualified_bases (the full, module-qualified base) additively
+// next to the last-segment bases fact. The reducer's repo-wide code-root
+// verdict builder needs the qualification — bases collapses
+// "ActionController::Base" to "Base", which would conflate a real controller
+// base with an unrelated class sharing the same last segment.
+func TestParseEmitsQualifiedBasesForClassSuperclass(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "orders_controller.rb", `class OrdersController < ActionController::Base
+  def index
+    true
+  end
+end
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	classItem := assertBucketName(t, payload, "classes", "OrdersController")
+	if got := classItem["bases"]; !reflect.DeepEqual(got, []string{"Base"}) {
+		t.Fatalf("classes[OrdersController][bases] = %#v, want [Base] (last-segment)", got)
+	}
+	if got := classItem["qualified_bases"]; !reflect.DeepEqual(got, []string{"ActionController::Base"}) {
+		t.Fatalf("classes[OrdersController][qualified_bases] = %#v, want [ActionController::Base]", got)
+	}
+}
+
+// TestParseOmitsQualifiedBasesForSuperclasslessClass proves qualified_bases is
+// additive and absent when a class declares no superclass, so the fact stays a
+// minor, optional payload field.
+func TestParseOmitsQualifiedBasesForSuperclasslessClass(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "poro.rb", `class OrderService
+  def call
+    true
+  end
+end
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	classItem := assertBucketName(t, payload, "classes", "OrderService")
+	if _, ok := classItem["qualified_bases"]; ok {
+		t.Fatalf("classes[OrderService] must not carry qualified_bases, got %#v", classItem["qualified_bases"])
+	}
+	if _, ok := classItem["bases"]; ok {
+		t.Fatalf("classes[OrderService] must not carry bases, got %#v", classItem["bases"])
+	}
+}
+
 func TestParseCapturesConstantsAndKeepsContextAcrossNestedBlocks(t *testing.T) {
 	t.Parallel()
 

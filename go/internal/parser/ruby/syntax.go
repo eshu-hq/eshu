@@ -217,6 +217,15 @@ func (s *rubySyntax) visitClass(
 		}
 		if qualified := s.superclassQualifiedName(superclass); qualified != "" {
 			s.classRegistry.superclass[name] = qualified
+			// qualified_bases is the full, possibly module-qualified base
+			// (e.g. "ActionController::Base"), emitted additively next to the
+			// last-segment "bases" fact. The reducer's repo-wide #5376
+			// code-root verdict builder needs the qualification: the persisted
+			// "bases" fact collapses "ActionController::Base" to "Base", which
+			// would make a reducer walk conflate a real controller base with an
+			// unrelated class sharing the same last segment. Kept in-memory-only
+			// before #5376; now persisted so cross-file resolution is possible.
+			item["qualified_bases"] = []string{qualified}
 		}
 	}
 	s.classes = append(s.classes, item)
