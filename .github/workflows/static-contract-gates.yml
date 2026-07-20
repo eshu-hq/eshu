@@ -43,6 +43,7 @@ jobs:
       ifareplaydrive: ${{ steps.filter.outputs.ifareplaydrive }}
       heredoc: ${{ steps.filter.outputs.heredoc }}
       docsrefs: ${{ steps.filter.outputs.docsrefs }}
+      doccitations: ${{ steps.filter.outputs.doccitations }}
       matrix: ${{ steps.gate-matrix.outputs.matrix }}
       any: ${{ steps.gate-matrix.outputs.any }}
     steps:
@@ -173,6 +174,16 @@ jobs:
               - 'scripts/verify-docs-refs.sh'
               - 'scripts/test-verify-docs-refs.sh'
               - 'scripts/docs-refs-baseline.txt'
+            doccitations:
+              - '.github/workflows/static-contract-gates.yml'
+              - 'specs/ci-gates.v1.yaml'
+              - 'docs/public/languages/**'
+              - 'docs/public/reference/parity-closure-matrix.md'
+              - 'go/internal/**/*_test.go'
+              - 'tests/fixtures/**'
+              - 'scripts/verify-doc-citations.sh'
+              - 'scripts/test-verify-doc-citations.sh'
+              - 'scripts/docs-citations-baseline.txt'
       - name: Build selected gate matrix
         id: gate-matrix
         run: |
@@ -211,6 +222,7 @@ jobs:
           append_gate "${{ steps.filter.outputs.ifareplaydrive }}" "ifareplaydrive" "Verify Ifa replay-drive mirror gate" "bash scripts/test-verify-ifa-replay-drive.sh" "bash scripts/test-verify-ifa-replay-drive.sh"
           append_gate "${{ steps.filter.outputs.heredoc }}" "heredoc" "Verify heredoc budget gate" "cd go && go test ./cmd/heredoc-budget -count=1" "cd go && go run ./cmd/heredoc-budget -baseline ../scripts/heredoc-budget-baseline.txt"
           append_gate "${{ steps.filter.outputs.docsrefs }}" "docsrefs" "Verify docs-refs gate" "bash scripts/test-verify-docs-refs.sh" "bash scripts/verify-docs-refs.sh"
+          append_gate "${{ steps.filter.outputs.doccitations }}" "doccitations" "Verify doc-citations gate" "bash scripts/test-verify-doc-citations.sh" "bash scripts/verify-doc-citations.sh"
 
           printf 'matrix={"include":[%s]}\n' "${matrix_items}" >>"${GITHUB_OUTPUT}"
           printf 'any=%s\n' "${any}" >>"${GITHUB_OUTPUT}"

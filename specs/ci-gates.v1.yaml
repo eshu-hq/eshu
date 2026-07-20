@@ -923,6 +923,37 @@ gates:
     requirements: []
     ci_only_reason: ""
 
+  - id: doc-citations
+    name: Doc test/fixture citation existence
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "docs/public/languages/**"
+      - "docs/public/reference/parity-closure-matrix.md"
+      - "go/internal/**/*_test.go"
+      - "tests/fixtures/**"
+      - "scripts/verify-doc-citations.sh"
+      - "scripts/test-verify-doc-citations.sh"
+      - "scripts/docs-citations-baseline.txt"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "bash scripts/verify-doc-citations.sh"
+      test_command: "bash scripts/test-verify-doc-citations.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify doc-citations gate"
+    requirements: []
+    ci_only_reason: ""
+    # Wired into CI (static-contract-gates.yml, the same lane as docs-refs)
+    # because this is a blocking recurrence-prevention gate: a PR that edits a
+    # cited doc, renames a Go test, or moves a fixture MUST run this gate in CI,
+    # or a phantom citation could merge with all required checks green (CLAUDE.md:
+    # CI is the non-bypassable source of truth). The go/internal/**/*_test.go and
+    # tests/fixtures/** triggers (beyond the doc pages themselves) are deliberate:
+    # a test-file split or fixture move must re-run this gate in the SAME PR that
+    # causes the drift, not wait for someone to notice a stale citation later.
+
   - id: mcp-client-auth-doc
     name: MCP client-auth doc lockstep guard
     category: exactness
