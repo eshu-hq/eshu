@@ -95,6 +95,14 @@ const openAPIPathsSupplyChainSBOMAttestations = `
                             "type": "boolean",
                             "description": "True when external_reference_count exceeds the number of rows in external_references."
                           },
+                          "slsa_provenance_predicate_type": {
+                            "type": "string",
+                            "description": "SLSA predicate type URI decoded from the joined attestation.slsa_provenance fact for this statement (for example https://slsa.dev/provenance/v1). Empty when no such fact joined this statement_id."
+                          },
+                          "slsa_provenance_builder_id": {
+                            "type": "string",
+                            "description": "SLSA provenance builder identity decoded from the joined attestation.slsa_provenance fact for this statement. Empty when absent from a well-formed predicate, or when no such fact joined this statement_id."
+                          },
                           "warning_summaries": {
                             "type": "array",
                             "maxItems": 10,

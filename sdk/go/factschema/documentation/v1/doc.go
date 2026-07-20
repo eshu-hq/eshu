@@ -35,8 +35,9 @@
 // fact_records.payload->>'field' SQL, which is out of scope for this
 // migration (see the reducer AGENTS.md's documentation-family caveat). They
 // are typed anyway so their identity join key is already established for a
-// future consumer, matching how the sbom_attestation family left
-// DependencyRelationship/ExternalReference/SLSAProvenance typed-but-deferred.
+// future consumer, matching how the sbom_attestation family staged
+// DependencyRelationship/ExternalReference/SLSAProvenance typed-but-deferred
+// before each was wired to its own consumer (#5370, #5371).
 //
 // documentation_section carries its OWN schema version
 // (facts.DocumentationSectionFactSchemaVersion, "1.1.0") distinct from every

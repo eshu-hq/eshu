@@ -314,11 +314,11 @@ families:
     # buildSBOMAttachmentIndex (go/internal/reducer/sbom_attestation_attachment_index.go)
     # and surfaced on the attachments read surface as bounded, write-time
     # capped dependency_relationships/external_references evidence (#5370).
-    # attestation.slsa_provenance has the same shape of gap this kind used to
-    # have plus a collector gap: no collector emits this kind today (grep
-    # confirms zero producers under go/internal/collector). Tracked in #5371.
-    # See docs/public/supply-chain-traceability.md#what-is-gated-or-preview.
-    read_surface_overrides: {attestation.slsa_provenance: "none"}
+    # attestation.slsa_provenance is emitted by the SBOM runtime collector
+    # (go/internal/collector/sbomruntime/attestation.go), decoded and joined
+    # by statement_id in buildSBOMAttachmentIndex, and surfaced as the
+    # attachments read surface's slsa_provenance_predicate_type and
+    # slsa_provenance_builder_id fields (#5371).
     truth_profile: provider_gated
     provider_key_independent: false
     payload_schema_overrides:

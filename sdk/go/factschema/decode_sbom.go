@@ -116,9 +116,9 @@ func EncodeAttestationSignatureVerification(verification sbomv1.SignatureVerific
 
 // DecodeAttestationSLSAProvenance decodes env.Payload into the latest
 // sbomv1.SLSAProvenance struct for the "attestation.slsa_provenance" fact
-// kind. See DecodeSBOMDocument for the dispatch and error contract. This kind
-// is typed but not yet consumed by any reducer handler, nor emitted by any
-// collector today (sbom/v1/doc.go).
+// kind. See DecodeSBOMDocument for the dispatch and error contract. The SBOM
+// runtime collector emits this kind and the reducer's
+// buildSBOMAttachmentIndex decodes and joins it by StatementID (sbom/v1/doc.go).
 func DecodeAttestationSLSAProvenance(env Envelope) (sbomv1.SLSAProvenance, error) {
 	return decodeLatestMajor[sbomv1.SLSAProvenance](FactKindAttestationSLSAProvenance, env)
 }
