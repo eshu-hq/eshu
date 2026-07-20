@@ -163,15 +163,8 @@ func authMiddleware(
 	authEnforcementConfigured bool,
 	oauthChallenge OAuthChallengePolicy,
 ) http.Handler {
-	return authMiddlewareWithRoutePolicy(
-		token,
-		resolver,
-		sessionResolver,
-		next,
-		audit,
-		BrowserSessionRoutePolicy{},
-		authEnforcementConfigured,
-		oauthChallenge,
+	return authMiddlewareWithAllowedReadAudit(
+		token, resolver, sessionResolver, next, audit, authEnforcementConfigured, oauthChallenge, nil,
 	)
 }
 
@@ -184,6 +177,7 @@ func authMiddlewareWithRoutePolicy(
 	policy BrowserSessionRoutePolicy,
 	authEnforcementConfigured bool,
 	oauthChallenge OAuthChallengePolicy,
+	allowedAudit GovernanceAuditAppender,
 ) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Public paths: skip auth.
@@ -269,6 +263,13 @@ func authMiddlewareWithRoutePolicy(
 					scopedRouteDeniedResponse(w, r)
 					return
 				}
+				// F-9 (#5170): record the ALLOWED decision for this scoped-token
+				// or OIDC-bearer read, immediately before dispatch, mirroring the
+				// denial recording above. recordScopedReadAuthorized no-ops when
+				// allowedAudit is nil (every caller except the mcp-server
+				// transport middleware), so this is byte-identical to today for
+				// every other constructor.
+				recordScopedReadAuthorized(r, allowedAudit, auth)
 				next.ServeHTTP(w, r.WithContext(ContextWithAuthContext(r.Context(), auth)))
 				return
 			}
