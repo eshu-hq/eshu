@@ -28,6 +28,21 @@ deterministic payload buckets. The parent internal/parser package still owns
 registry lookup, engine dispatch, repository path resolution, and content
 metadata inference.
 
+`image_overrides.go` builds the `image_overrides` bucket (issue #5440): one
+row per declared container image, carrying the tag/digest version truth that
+`helm_values[].image_repositories` and `kustomize_overlays[].image_refs`
+intentionally discard from their own tag-less identity buckets. It is purely
+additive -- adding it does not change either existing bucket's output. Helm
+rows come from every nested `image:` map in a values file (mirroring
+`collectHelmImageRepositories`'s own walk); Kustomize rows come from a
+`kustomization.yaml`'s `images[]` list. `environment` is inferred
+conservatively: the existing `.../environments/<env>/...` path signal
+(`environmentFromPath`), else a `values-<env>.yaml`/`values.<env>.yaml`
+filename match for Helm, else `""`. It does not scan arbitrary path segments
+for environment-like keywords -- broader environment detection is issue
+#5444's scope. Graph projection of this bucket (a node label and reducer
+materialization) is issue #5441's scope, not this package's.
+
 Argo CD Application rows preserve the existing singular `source_repo`,
 `source_path`, `source_revision`, and `source_root` fields from the primary
 source while also emitting positional `source_repos`, `source_paths`,
@@ -157,6 +172,35 @@ through `eshu_dp_cloudformation_position_fallback_total`
 `docs/public/observability/telemetry-coverage.md`. An operator can use this
 counter to see how often the position walk is not paying for a real
 per-entity line gain.
+
+Performance Evidence (`image_overrides`, issue #5440): this is additive new
+extraction, not a rewrite, so there is no output-equivalence claim to prove --
+only the added cost. `BenchmarkParseHelmValuesRepresentativeImages` (20 nested
+`image:` blocks) and `BenchmarkParseKustomizationRepresentativeImages` (20
+`images[]` entries), both in `image_overrides_bench_test.go`, drive the stable
+public `Parse()` entrypoint unchanged, so the identical benchmark body ran on
+origin/main commit `6f780442a` (before, via a `git worktree add --detach`
+scratch copy, removed after measurement) and on this branch (after). `go test
+./internal/parser/yaml -run '^$' -bench
+'BenchmarkParseHelmValuesRepresentativeImages|BenchmarkParseKustomizationRepresentativeImages'
+-benchmem -count=3` on darwin/arm64 (Apple M1 Max), mean of 3 runs:
+
+| Fixture (20 images) | Before ns/op | After ns/op | Δ ns/op | Before B/op | After B/op | Δ B/op | Before allocs/op | After allocs/op | Δ allocs/op |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Helm values.yaml | 367.2us | 360.7us | -1.8% (noise) | 248,979 | 266,682 | +7.1% | 3,689 | 3,944 | +255 (+6.9%) |
+| Kustomize kustomization.yaml | 101.5us | 107.4us | +5.8% | 67,594 | 84,827 | +25.5% | 871 | 1,135 | +264 (+30.3%) |
+
+No-Regression Evidence: the added cost is bounded, proportional to the number
+of declared images in the file (a second small map built per image, no new
+document decode or tree walk beyond the existing `collectHelmImageRepositories`
+walk for Helm and the existing `images[]` list iteration for Kustomize), and
+stays inside the same async collector snapshot/parse stage as the rest of this
+package -- never a query-serving or graph-write hot path. The Helm ns/op delta
+is within run-to-run noise (both directions observed across repeat runs); the
+B/op and allocs/op deltas are the real, expected cost of populating the new
+bucket's per-image rows and are not compounding: they hold on both the modest
+(20-image) representative fixture and the empty/no-image case, which adds zero
+rows (`TestParseHelmValuesImageOverridesEmptyWhenNoImages`).
 
 ## Gotchas / invariants
 

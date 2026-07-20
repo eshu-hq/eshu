@@ -51,6 +51,15 @@ func Parse(
 		if item := parseHelmValues(path, documents); item != nil {
 			shared.AppendBucket(payload, "helm_values", item)
 		}
+		if len(documents) > 0 {
+			if document, ok := documents[0].(map[string]any); ok {
+				environment := helmImageOverrideEnvironment(path)
+				for _, row := range collectHelmImageOverrides(document, path, environment) {
+					shared.AppendBucket(payload, "image_overrides", row)
+				}
+				shared.SortNamedBucket(payload, "image_overrides")
+			}
+		}
 		// Only the base values.yaml defines the chart's canonical values; emitting
 		// HelmValueDefinition nodes from environment overrides (values-prod.yaml)
 		// would let a template usage resolve to an override instead of the base.
@@ -153,6 +162,7 @@ func Parse(
 		"crossplane_compositions",
 		"crossplane_claims",
 		"kustomize_overlays",
+		"image_overrides",
 		"flux_kustomizations",
 		"flux_git_repositories",
 		"flux_oci_repositories",
@@ -192,6 +202,7 @@ func yamlBasePayload(path string, isDependency bool) map[string]any {
 	payload["crossplane_compositions"] = []map[string]any{}
 	payload["crossplane_claims"] = []map[string]any{}
 	payload["kustomize_overlays"] = []map[string]any{}
+	payload["image_overrides"] = []map[string]any{}
 	payload["flux_kustomizations"] = []map[string]any{}
 	payload["flux_git_repositories"] = []map[string]any{}
 	payload["flux_oci_repositories"] = []map[string]any{}
@@ -257,6 +268,10 @@ func appendYAMLDocument(payload map[string]any, path string, filename string, do
 
 	if isKustomization(apiVersion, filename) {
 		shared.AppendBucket(payload, "kustomize_overlays", parseKustomization(document, path, lineNumber))
+		environment := environmentFromPath(path)
+		for _, row := range collectKustomizeImageOverrides(document, path, environment, lineNumber) {
+			shared.AppendBucket(payload, "image_overrides", row)
+		}
 		return
 	}
 	if isFluxKustomization(apiVersion, kind) {
