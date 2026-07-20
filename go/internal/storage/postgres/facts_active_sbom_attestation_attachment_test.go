@@ -20,6 +20,8 @@ func TestListActiveSBOMAttestationAttachmentFactsQueryIsDigestBoundedAndPaged(t 
 		"'sbom.dependency_relationship'",
 		"'sbom.external_reference'",
 		"'attestation.statement'",
+		"'attestation.slsa_provenance'",
+		"fact.payload->>'statement_id' = ANY($1::text[])",
 		"scope.active_generation_id = fact.generation_id",
 		"generation.status = 'active'",
 		"fact.payload->>'subject_digest' = ANY($1::text[])",
