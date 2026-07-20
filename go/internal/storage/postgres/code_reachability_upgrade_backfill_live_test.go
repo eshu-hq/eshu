@@ -113,7 +113,10 @@ func openUpgradeBackfillLiveDB(t *testing.T) (context.Context, *sql.DB) {
 
 func loadedRepoIDs(t *testing.T, ctx context.Context, store *CodeReachabilityStore) map[string]bool {
 	t.Helper()
-	inputs, err := store.LoadPendingCodeReachabilityInputs(ctx, 100)
+	// A large limit so a shared test DB that has accumulated many pending repos
+	// cannot truncate this test's repo out of the result (the loader applies the
+	// limit as a SQL LIMIT ordered by completed_at, repository_id).
+	inputs, err := store.LoadPendingCodeReachabilityInputs(ctx, 1_000_000)
 	if err != nil {
 		t.Fatalf("LoadPendingCodeReachabilityInputs: %v", err)
 	}
