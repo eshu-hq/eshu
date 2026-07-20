@@ -642,6 +642,15 @@ coverage:
   # CodeInterprocEvidenceWriter.dispatchRetract.
   - {surface: retractable_edge:USES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_workload_uses_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:USES_PROFILE, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_workload_uses_edge_retract_live_test.go, proof_gate: replay-tier}
+  # Crossplane Claim -> XRD classification edge (issue #5347). SATISFIED_BY
+  # was added to edgetype.RetractableEdgeTypes when
+  # cypher.CrossplaneSatisfiedByEdgeWriter landed but had no delta_tombstone
+  # replay scenario proving the retract Cypher actually deletes on a real
+  # backend. Two independently-scoped write+retract pairs cover the two ways
+  # a Claim stops resolving to an XRD (claim removed from its repo; XRD
+  # claimNames changed so the join key no longer matches), both asserted by
+  # rel.scope_id + evidence_source, never by endpoint-node properties.
+  - {surface: retractable_edge:SATISFIED_BY, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_crossplane_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: reducer_drain:reducer-projection-drain, scenario: go_test, scenario_type: crash, ref: go/internal/replay/crashreplay/scenario_test.go, proof_gate: go-test-race}
   # C-14 (#4367) projection-COST pilot slice: R-16 deterministic cost-counting
   # scenarios (go/internal/replay/costcounting) for three of the C-13-derived
