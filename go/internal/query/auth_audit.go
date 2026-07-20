@@ -91,9 +91,22 @@ func recordScopedReadAuthorized(r *http.Request, allowedAudit GovernanceAuditApp
 	if allowedAudit == nil {
 		return
 	}
+	// Mirror recordScopedRouteAuthorizationDenied's empty-hash guard exactly:
+	// a scoped token can resolve ok=true with an empty SubjectIDHash
+	// (scopedtoken/registry.go's validOptionalAuditHash accepts empty, and
+	// normalizeAuthContext never fills it). ActorClassScopedToken with an
+	// empty ActorIDHash fails NormalizeEvent's actor_identity check, and
+	// because the durable store Append is all-or-nothing that one invalid
+	// event would take its whole flush batch of well-formed allowed-read
+	// events down with it in the async appender's drain. Downgrading to
+	// anonymous keeps the event valid.
+	actorClass := governanceaudit.ActorClassScopedToken
+	if auth.SubjectIDHash == "" {
+		actorClass = governanceaudit.ActorClassAnonymous
+	}
 	event := governanceaudit.Event{
 		Type:               governanceaudit.EventTypeReadAuthorization,
-		ActorClass:         governanceaudit.ActorClassScopedToken,
+		ActorClass:         actorClass,
 		ActorIDHash:        auth.SubjectIDHash,
 		ScopeClass:         governanceaudit.ScopeClassAdmin,
 		Decision:           governanceaudit.DecisionAllowed,

@@ -85,6 +85,64 @@ func TestAuthMiddleware_AllowedScopedReadEmitsExactlyOneEvent(t *testing.T) {
 	}
 }
 
+// TestAuthMiddleware_AllowedScopedReadEmptySubjectHashNormalizes is the
+// F-9 (#5170) P1 governance data-loss regression: a scoped token can resolve
+// ok=true with an EMPTY SubjectIDHash (scopedtoken/registry.go's
+// validOptionalAuditHash accepts an empty hash, and normalizeAuthContext
+// never fills it). recordScopedReadAuthorized must mirror its denial sibling
+// recordScopedRouteAuthorizationDenied and downgrade ActorClass to anonymous
+// when the subject hash is empty, so the emitted event ALWAYS passes
+// NormalizeEvent. Before the guard, the event carried ActorClass=scoped_token
+// with an empty ActorIDHash and failed NormalizeEvent's actor_identity check
+// (governanceaudit/audit.go:176-178) — which, because the durable store
+// Append is all-or-nothing, would take up to batchMax-1 well-formed sibling
+// events down with it in the async appender's drain.
+func TestAuthMiddleware_AllowedScopedReadEmptySubjectHashNormalizes(t *testing.T) {
+	t.Parallel()
+
+	resolver := &fakeScopedTokenResolver{
+		context: AuthContext{
+			Mode:      AuthModeScoped,
+			TenantID:  "tenant_a",
+			AllScopes: true,
+			// SubjectIDHash deliberately empty: a scoped token registry entry
+			// with no subject_id_hash resolves ok=true here.
+		},
+		ok: true,
+	}
+	allowedAudit := &fakeGovernanceAuditAppender{}
+	handler := AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementOAuthChallengeAndAllowedReadAudit(
+		"", resolver, mockHandler(), nil, false, nil, allowedAudit,
+	)
+
+	req := httptest.NewRequest("GET", "/api/v0/repositories", nil)
+	req.Header.Set("Authorization", "Bearer scoped-token")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	if got, want := len(allowedAudit.events), 1; got != want {
+		t.Fatalf("len(allowedAudit.events) = %d, want %d", got, want)
+	}
+	event := allowedAudit.events[0]
+	// The core assertion: the emitted event MUST be valid. Before the guard,
+	// ActorClass=scoped_token + empty ActorIDHash fails this.
+	if _, err := governanceaudit.NormalizeEvent(event); err != nil {
+		t.Fatalf("NormalizeEvent(event) error = %v, want nil — a subject-less allowed read must still emit a valid event", err)
+	}
+	if got, want := event.ActorClass, governanceaudit.ActorClassAnonymous; got != want {
+		t.Errorf("event.ActorClass = %q, want %q (downgraded because SubjectIDHash is empty)", got, want)
+	}
+	if event.ActorIDHash != "" {
+		t.Errorf("event.ActorIDHash = %q, want empty", event.ActorIDHash)
+	}
+	if got, want := event.Decision, governanceaudit.DecisionAllowed; got != want {
+		t.Errorf("event.Decision = %q, want %q", got, want)
+	}
+}
+
 // TestAuthMiddleware_DeniedScopedRouteStillOnlyEmitsDenial proves the two
 // event streams stay disjoint: a scoped-route denial (auth.Mode ==
 // AuthModeScoped but the route does not support the tenant filter) must
