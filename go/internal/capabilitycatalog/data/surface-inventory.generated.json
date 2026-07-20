@@ -3519,6 +3519,11 @@
     },
     {
       "category": "reducer_domain",
+      "name": "crossplane_satisfied_by_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
       "name": "data_lineage",
       "readiness": "implemented"
     },
