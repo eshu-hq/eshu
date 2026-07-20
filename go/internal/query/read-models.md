@@ -592,9 +592,10 @@ ACL-filtered index with the broader findings read index. Its predicate matches
 the shared `fact_kind` and tombstone boundary, while its ordered keys cover all
 five grouping dimensions used here plus `document_id`.
 
-The `/documentation/facts` surface — which fans out across multiple raw
-collected `fact_kind` values — is intentionally out of scope for this PR;
-its caller pain is on filtered retrieval rather than ecosystem totals.
+The `/documentation/facts` free-text surface was evaluated in this issue. Valid
+GIN candidates improved read latency, but the fastest option more than doubled
+the exact production streaming-write cost. The unchanged 1.6-million-row local
+search finished in 1.252 seconds, so no free-text index ships.
 
 No-Regression Evidence: `go test ./internal/query -run
 'TestDocumentationFindingAggregate|TestDocumentationFindingInventoryGroupExpression|TestNextDocumentationFindingAggregateOffset|TestDocumentationFindingAggregateSQLIncludesPermissionPredicates'

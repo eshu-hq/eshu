@@ -94,6 +94,120 @@ func TestDocumentationQueryPlanShimRejectsProductionSearchDrift(t *testing.T) {
 	}
 }
 
+func TestDocumentationFindingsQueryPlanShimMatchesProductionRead(t *testing.T) {
+	t.Parallel()
+
+	query, args := buildDocumentationFindingsSQL(documentationFindingFilter{
+		FindingType:    "target_type",
+		SourceID:       "target_source",
+		DocumentID:     "target_document",
+		Status:         "open",
+		TruthLevel:     "observed",
+		FreshnessState: "fresh",
+		Limit:          66,
+		Offset:         0,
+	})
+	shim := documentationQueryPlanShimForTest(t)
+	if err := validateDocumentationFindingsShimForTest(query, args, shim); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDocumentationFindingsQueryPlanShimRejectsProductionReadDrift(t *testing.T) {
+	t.Parallel()
+
+	query, args := buildDocumentationFindingsSQL(documentationFindingFilter{
+		FindingType:    "target_type",
+		SourceID:       "target_source",
+		DocumentID:     "target_document",
+		Status:         "open",
+		TruthLevel:     "observed",
+		FreshnessState: "fresh",
+		Limit:          66,
+		Offset:         0,
+	})
+	shim := documentationQueryPlanShimForTest(t)
+	tests := []struct {
+		name  string
+		query string
+		args  []any
+	}{
+		{
+			name:  "projection",
+			query: strings.Replace(query, "'generation_id', fact_records.generation_id", "'generation_id', NULL", 1),
+			args:  args,
+		},
+		{
+			name:  "ingestion scopes join",
+			query: strings.Replace(query, "LEFT JOIN ingestion_scopes", "INNER JOIN ingestion_scopes", 1),
+			args:  args,
+		},
+		{
+			name:  "finding kind",
+			query: strings.Replace(query, "fact_records.fact_kind = 'documentation_finding'", "fact_records.fact_kind = 'changed'", 1),
+			args:  args,
+		},
+		{
+			name:  "tombstone predicate",
+			query: strings.Replace(query, "fact_records.is_tombstone = FALSE", "fact_records.is_tombstone = TRUE", 1),
+			args:  args,
+		},
+		{
+			name:  "finding type filter",
+			query: strings.Replace(query, "payload->>'finding_type'", "payload->>'finding_type_changed'", 1),
+			args:  args,
+		},
+		{
+			name:  "source id filter",
+			query: strings.Replace(query, "payload->>'source_id'", "payload->>'source_id_changed'", 1),
+			args:  args,
+		},
+		{
+			name:  "document id filter",
+			query: strings.Replace(query, "payload->>'document_id'", "payload->>'document_id_changed'", 1),
+			args:  args,
+		},
+		{
+			name:  "status filter",
+			query: strings.Replace(query, "payload->>'status'", "payload->>'status_changed'", 1),
+			args:  args,
+		},
+		{
+			name:  "truth level filter",
+			query: strings.Replace(query, "payload->>'truth_level'", "payload->>'truth_level_changed'", 1),
+			args:  args,
+		},
+		{
+			name:  "freshness state filter",
+			query: strings.Replace(query, "payload->>'freshness_state'", "payload->>'freshness_state_changed'", 1),
+			args:  args,
+		},
+		{
+			name:  "ordering",
+			query: strings.Replace(query, "fact_records.observed_at DESC", "fact_records.observed_at ASC", 1),
+			args:  args,
+		},
+		{
+			name:  "limit",
+			query: query,
+			args:  replaceDocumentationProofArgForTest(args, 6, 68),
+		},
+		{
+			name:  "offset",
+			query: query,
+			args:  replaceDocumentationProofArgForTest(args, 7, 1),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if err := validateDocumentationFindingsShimForTest(tt.query, tt.args, shim); err == nil {
+				t.Fatal("production drift did not break the checked-in findings proof binding")
+			}
+		})
+	}
+}
+
 func validateDocumentationSearchShimForTest(query string, args []any, shim string) error {
 	productionStatement, err := renderDocumentationProofArgsForTest(query, args)
 	if err != nil {
@@ -112,6 +226,28 @@ func validateDocumentationSearchShimForTest(query string, args []any, shim strin
 	want := normalizeDocumentationProofSQLForTest(productionStatement)
 	if got != want {
 		return fmt.Errorf("checked-in search proof drifted from production\nshim:       %s\nproduction: %s", got, want)
+	}
+	return nil
+}
+
+func validateDocumentationFindingsShimForTest(query string, args []any, shim string) error {
+	productionStatement, err := renderDocumentationProofArgsForTest(query, args)
+	if err != nil {
+		return fmt.Errorf("render production documentation findings query: %w", err)
+	}
+
+	shimStatement, err := documentationSQLBetweenForTest(
+		shim,
+		"PREPARE findings_read AS",
+		`\echo FINDINGS_BASELINE_RESULT`,
+	)
+	if err != nil {
+		return fmt.Errorf("checked-in documentation shim: %w", err)
+	}
+	got := normalizeDocumentationProofSQLForTest(shimStatement)
+	want := normalizeDocumentationProofSQLForTest(productionStatement)
+	if got != want {
+		return fmt.Errorf("checked-in findings proof drifted from production\nshim:       %s\nproduction: %s", got, want)
 	}
 	return nil
 }
