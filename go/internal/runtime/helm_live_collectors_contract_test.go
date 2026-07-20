@@ -162,6 +162,110 @@ vaultLiveCollector:
 	}
 }
 
+// TestHelmKubernetesLiveCollectorServiceMonitorGatingMatchesService proves the
+// kubernetes-live ServiceMonitor can never render without its backing metrics
+// Service. #5405 reported the ServiceMonitor block in servicemonitor.yaml as
+// dangling when observability.prometheus.enabled is false, because the block
+// is guarded locally by only `kubernetesLiveCollector.enabled` while the
+// sibling Service (service-kubernetes-live-collector-metrics.yaml) requires
+// `and kubernetesLiveCollector.enabled observability.prometheus.enabled`. That
+// local read misses the file's top-level guard: servicemonitor.yaml opens
+// with `{{- if and .Values.observability.prometheus.enabled
+// .Values.observability.prometheus.serviceMonitor.enabled }}` once and does
+// not close it until the final `{{- end }}`, so every per-collector block in
+// the file -- including kubernetesLiveCollector's -- already requires
+// prometheus.enabled before its own enabled flag is even reached. The
+// ServiceMonitor's effective condition (kubernetesLiveCollector.enabled AND
+// prometheus.enabled AND serviceMonitor.enabled) is therefore a strict subset
+// of the Service's (kubernetesLiveCollector.enabled AND prometheus.enabled):
+// it cannot render when the Service does not. This test locks that invariant
+// in so a future template edit cannot silently reopen the gap.
+func TestHelmKubernetesLiveCollectorServiceMonitorGatingMatchesService(t *testing.T) {
+	t.Parallel()
+
+	const baseValues = `
+contentStore:
+  dsn: postgresql://eshu:secret@postgres:5432/eshu
+neo4j:
+  auth:
+    secretName: ""
+    username: example-user
+    password: example-pass
+kubernetesLiveCollector:
+  enabled: true
+  instanceId: kubernetes-live-primary
+  clusters:
+    - cluster_id: example-cluster
+      auth_mode: in_cluster
+`
+
+	t.Run("prometheus disabled omits both Service and ServiceMonitor", func(t *testing.T) {
+		t.Parallel()
+
+		valuesPath := filepath.Join(t.TempDir(), "klc-no-prometheus-values.yaml")
+		values := baseValues + `
+observability:
+  prometheus:
+    enabled: false
+    serviceMonitor:
+      enabled: true
+`
+		if err := os.WriteFile(valuesPath, []byte(values), 0o600); err != nil {
+			t.Fatalf("write values: %v", err)
+		}
+
+		manifests := renderHelmChart(t, "-f", valuesPath)
+		if helmManifestExists(manifests, "Service", "eshu-kubernetes-live-collector-metrics") {
+			t.Fatal("prometheus-disabled render included kubernetes-live metrics Service")
+		}
+		if helmManifestExists(manifests, "ServiceMonitor", "eshu-kubernetes-live-collector-metrics") {
+			t.Fatal("prometheus-disabled render included kubernetes-live ServiceMonitor")
+		}
+	})
+
+	t.Run("prometheus enabled, serviceMonitor disabled renders Service only", func(t *testing.T) {
+		t.Parallel()
+
+		valuesPath := filepath.Join(t.TempDir(), "klc-no-servicemonitor-values.yaml")
+		values := baseValues + `
+observability:
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: false
+`
+		if err := os.WriteFile(valuesPath, []byte(values), 0o600); err != nil {
+			t.Fatalf("write values: %v", err)
+		}
+
+		manifests := renderHelmChart(t, "-f", valuesPath)
+		requireHelmManifest(t, manifests, "Service", "eshu-kubernetes-live-collector-metrics")
+		if helmManifestExists(manifests, "ServiceMonitor", "eshu-kubernetes-live-collector-metrics") {
+			t.Fatal("serviceMonitor-disabled render included kubernetes-live ServiceMonitor")
+		}
+	})
+
+	t.Run("prometheus and serviceMonitor enabled renders both", func(t *testing.T) {
+		t.Parallel()
+
+		valuesPath := filepath.Join(t.TempDir(), "klc-full-observability-values.yaml")
+		values := baseValues + `
+observability:
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+`
+		if err := os.WriteFile(valuesPath, []byte(values), 0o600); err != nil {
+			t.Fatalf("write values: %v", err)
+		}
+
+		manifests := renderHelmChart(t, "-f", valuesPath)
+		requireHelmManifest(t, manifests, "Service", "eshu-kubernetes-live-collector-metrics")
+		requireHelmManifest(t, manifests, "ServiceMonitor", "eshu-kubernetes-live-collector-metrics")
+	})
+}
+
 // TestHelmKubernetesLiveCollectorKubeconfigOnlyOmitsRBAC proves the read-only
 // ClusterRole/ClusterRoleBinding render only when at least one configured
 // cluster uses in_cluster auth. Kubeconfig-only targets authenticate through a
