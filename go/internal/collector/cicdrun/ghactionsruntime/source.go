@@ -351,7 +351,7 @@ func validateTarget(target TargetConfig) (TargetConfig, error) {
 		target.MaxRuns = defaultMaxRuns
 	}
 	if target.MaxRuns < 0 || target.MaxRuns > maxRunPages {
-		return TargetConfig{}, fmt.Errorf("max_runs must be between 1 and %d", maxRunPages)
+		return TargetConfig{}, fmt.Errorf("max_runs must be between 0 and %d (0 uses the default of %d)", maxRunPages, defaultMaxRuns)
 	}
 	if target.MaxJobs <= 0 || target.MaxJobs > maxJobPages {
 		return TargetConfig{}, fmt.Errorf("max_jobs must be between 1 and %d", maxJobPages)

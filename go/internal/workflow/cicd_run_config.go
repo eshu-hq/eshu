@@ -87,7 +87,9 @@ func validateCICDRunTargetConfiguration(target cicdRunTargetConfiguration) error
 	// requiring every target config to spell out a limit. Only an explicit
 	// out-of-range value (negative, or above the hard cap) is rejected.
 	if target.MaxRuns < 0 || target.MaxRuns > maxCICDRunLimit {
-		return fmt.Errorf("max_runs must be between 1 and %d", maxCICDRunLimit)
+		// The default of 10 is owned by ghactionsruntime.defaultMaxRuns; this
+		// validation layer only bounds the range and accepts 0 to defer to it.
+		return fmt.Errorf("max_runs must be between 0 and %d (0 uses the default of 10)", maxCICDRunLimit)
 	}
 	if target.MaxJobs <= 0 || target.MaxJobs > maxCICDJobLimit {
 		return fmt.Errorf("max_jobs must be between 1 and %d", maxCICDJobLimit)
