@@ -30,7 +30,30 @@ command -v awk >/dev/null 2>&1 || {
 }
 
 tmp_root="$(mktemp -d)"
-trap 'rm -rf "${tmp_root}"' EXIT
+
+# case9 mutates two REAL tracked docs in place and restores them explicitly on
+# its happy path. These globals plus the EXIT trap below guarantee both docs
+# are restored even if the suite crashes or exits early mid-case9, so a failed
+# run never leaves the tracked tree reverted. Empty until case9 records a
+# backup. A process-global EXIT trap (not a per-function RETURN trap, which
+# would fire on every later return under set -u) is the right hook here.
+case9_php_doc=""
+case9_php_backup=""
+case9_readiness_doc=""
+case9_readiness_backup=""
+
+restore_case9_docs() {
+  if [[ -n "${case9_php_doc}" && -n "${case9_php_backup}" && -f "${case9_php_backup}" ]]; then
+    cp "${case9_php_backup}" "${case9_php_doc}"
+  fi
+  if [[ -n "${case9_readiness_doc}" && -n "${case9_readiness_backup}" && -f "${case9_readiness_backup}" ]]; then
+    cp "${case9_readiness_backup}" "${case9_readiness_doc}"
+  fi
+  return 0
+}
+
+# Restore the tracked docs BEFORE removing tmp_root (the backups live under it).
+trap 'restore_case9_docs; rm -rf "${tmp_root}"' EXIT
 
 PASS=0
 FAIL=0
@@ -262,16 +285,14 @@ test_real_baseline_matches_fresh_regeneration() {
   fi
 }
 
-# Case 9: RED->GREEN proof against the REAL repo tree. Temporarily reverts
-# each of the two #5340 doc fixes (php.md's Slim group-prefix contradiction,
-# collector-reducer-readiness.md's duplicate Kubernetes-live row) to their
-# committed HEAD~0 pre-fix... actually to the state git HEAD holds now would
-# BE the fix, so this reverts to the ORIGINAL (pre-fix) text captured as a
-# literal string replacement, runs the gate (expect a new, un-baselined
-# finding), then restores the working tree file exactly. The working tree is
-# restored via `git checkout` on the tracked path, which is safe here because
-# the fix is the tracked (committed-pending) content, not an unstaged change
-# this test would need to preserve.
+# Case 9: RED->GREEN proof against the REAL repo tree. Reverts each of the two
+# #5340 doc fixes in place (php.md's Slim group-prefix contradiction and
+# collector-reducer-readiness.md's duplicate Kubernetes-live row), asserts the
+# gate flags the reintroduced contradiction under enforcement, then restores
+# the fixed file byte-for-byte and asserts the gate is clean again. Each doc is
+# backed up before mutation and registered with the EXIT trap (via the case9_*
+# globals) so both are restored even if the suite crashes mid-case, never
+# leaving the tracked tree reverted.
 test_red_green_proof() {
   local php_doc="${repo_root}/docs/public/languages/php.md"
   local readiness_doc="${repo_root}/docs/public/reference/collector-reducer-readiness.md"
@@ -285,6 +306,10 @@ test_red_green_proof() {
 
   local php_backup="${tmp_root}/php-fixed-backup.md"
   cp "${php_doc}" "${php_backup}"
+  # Register with the EXIT trap so a crash between here and the explicit
+  # restore below still puts the fixed doc back.
+  case9_php_doc="${php_doc}"
+  case9_php_backup="${php_backup}"
 
   # Revert php.md to the pre-#5340-fix shape: re-insert the stale Known
   # Limitations bullet and drop the group-prefix mention from the Supported
@@ -334,6 +359,8 @@ test_red_green_proof() {
 
   local readiness_backup="${tmp_root}/readiness-fixed-backup.md"
   cp "${readiness_doc}" "${readiness_backup}"
+  case9_readiness_doc="${readiness_doc}"
+  case9_readiness_backup="${readiness_backup}"
   awk '
     /^\| Source family \| Current state \|$/ { header = 1; print; next }
     header == 1 && /^\| --- \| --- \|$/ {

@@ -58,10 +58,13 @@ drift gates own that content instead.
    (`not yet implemented`, `not implemented`, `planned`, `unsupported`). Bare
    co-occurrence of a positive and a negative word in the same file is never
    enough — the anchor requirement is the deliberate false-positive guard.
-   php.md's Laravel capability row pairs "implemented"/"supported" with
-   "deferred" (not a tracked negative phrase) for a different capability than
-   the one graded "implemented"; the gate does not flag it, because the two
-   claims share no anchor.
+   php.md's Laravel capability row is unflagged for two reasons, either of
+   which is sufficient: (a) it pairs "implemented"/"supported" with
+   "deferred", and "deferred" is not one of the tracked negative-trigger
+   phrases, so no line on that row is ever classified negative; and (b) the
+   "implemented" and "deferred" claims sit on the SAME line, which the
+   same-line guard (a finding requires the positive and negative matches to
+   be on different lines) spares regardless of vocabulary.
 2. **Duplicate table-row key.** Within one contiguous markdown table block
    (reset at a blank line or a line that does not start with `|`), the same
    first-column cell value must not repeat. Two rows sharing a label inside
@@ -91,3 +94,15 @@ The tracked switch for making the gate blocking is
 `DOCS_CONTRADICTION_ENFORCE=true`. Once the advisory baseline is clean enough,
 flip the CI/local gate command to set that variable and change the gate from
 advisory to blocking in `specs/ci-gates.v1.yaml`.
+
+Before flipping, note that the modal-polarity check cannot tell a genuine
+self-contradiction from a legitimate base-versus-sub-feature refinement that
+shares an anchor: a page that says "`api-v0` reads are supported" in one place
+and "`api-v0` streaming is not yet implemented" in another will hard-fail the
+blocking gate even though both statements are true. (That `api-v0` example is
+itself flagged on this very page and carried in the burn-down baseline —
+concrete proof of the false positive.) Flipping therefore requires either
+tightening the heuristic (for example, requiring the two polarity phrases to
+be adjacent to the shared anchor rather than merely on the same line) or
+baselining such statements, and the burn-down baseline must be walked for that
+class of finding first.

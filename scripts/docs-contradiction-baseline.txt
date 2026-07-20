@@ -42,6 +42,7 @@ reference/dependency-coverage.md duplicate-row:pypi
 reference/dependency-coverage.md duplicate-row:rubygems
 reference/dependency-coverage.md polarity:memory-reducer-version
 reference/dependency-coverage.md polarity:reducer-version-matching
+reference/docs-contradiction.md polarity:api-v0
 reference/http-api/evidence-and-supply-chain.md duplicate-row:npm-registry-npmjs-org-left-pad
 reference/investigation-workflows.md duplicate-row:http
 reference/investigation-workflows.md duplicate-row:mcp
