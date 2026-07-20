@@ -167,6 +167,28 @@ CREATE TABLE fact_records (
 	if len(historical) != 0 {
 		t.Fatalf("historical inventory leaked: %#v", historical)
 	}
+	unauthorized, err := store.SearchActive(ctx, iacInventorySearch{
+		Kind:  iacResourceKindResource,
+		Query: "private",
+		Limit: 10,
+	}, access)
+	if err != nil {
+		t.Fatalf("search out-of-grant inventory: %v", err)
+	}
+	if len(unauthorized) != 0 {
+		t.Fatalf("out-of-grant inventory leaked: %#v", unauthorized)
+	}
+	literalWildcard, err := store.SearchActive(ctx, iacInventorySearch{
+		Kind:  iacResourceKindResource,
+		Query: "%",
+		Limit: 10,
+	}, access)
+	if err != nil {
+		t.Fatalf("search literal wildcard: %v", err)
+	}
+	if len(literalWildcard) != 0 {
+		t.Fatalf("literal wildcard search matched inventory: %#v", literalWildcard)
+	}
 
 	cancelled, cancelNow := context.WithCancel(ctx)
 	cancelNow()
@@ -275,5 +297,8 @@ INSERT INTO fact_records (
 		"aws_s3_bucket", "aws", true)
 	insertIaCFact("fact:replacement", "scope:s2", "generation:other", "content-entity:resource-app",
 		"aws_s3_bucket.replacement", "TerraformResource", "repository:r2", "replacement.tf",
+		"aws_s3_bucket", "aws", false)
+	insertIaCFact("fact:private", "scope:s2", "generation:other", "content-entity:private",
+		"aws_s3_bucket.private", "TerraformResource", "repository:r2", "private.tf",
 		"aws_s3_bucket", "aws", false)
 }

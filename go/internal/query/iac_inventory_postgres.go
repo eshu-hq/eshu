@@ -80,14 +80,14 @@ FROM current_iac
 WHERE current_iac.entity_type = $4
   AND (
     $6::text = ''
-    OR lower(current_iac.entity_name) LIKE '%' || lower($6) || '%'
-    OR lower(current_iac.relative_path) LIKE '%' || lower($6) || '%'
-    OR lower(current_iac.item_type) LIKE '%' || lower($6) || '%'
-    OR lower(current_iac.provider) LIKE '%' || lower($6) || '%'
-    OR lower(current_iac.module_name) LIKE '%' || lower($6) || '%'
-    OR lower(current_iac.repo_id) LIKE '%' || lower($6) || '%'
-    OR lower(current_iac.entity_type) LIKE '%' || lower($6) || '%'
-    OR lower($5) LIKE '%' || lower($6) || '%'
+    OR strpos(lower(current_iac.entity_name), lower($6)) > 0
+    OR strpos(lower(current_iac.relative_path), lower($6)) > 0
+    OR strpos(lower(current_iac.item_type), lower($6)) > 0
+    OR strpos(lower(current_iac.provider), lower($6)) > 0
+    OR strpos(lower(current_iac.module_name), lower($6)) > 0
+    OR strpos(lower(current_iac.repo_id), lower($6)) > 0
+    OR strpos(lower(current_iac.entity_type), lower($6)) > 0
+    OR strpos(lower($5), lower($6)) > 0
   )
   AND ($7::text = '' OR current_iac.item_type = $7)
   AND ($8::text = '' OR current_iac.provider = $8)

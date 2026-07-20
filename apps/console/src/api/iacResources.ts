@@ -173,35 +173,64 @@ export async function loadIacResourcesPage(
 function iacInventorySummary(
   record: IacInventorySummaryRecord | undefined,
 ): IacInventorySummary | null {
-  if (!record) return null;
+  if (
+    !record ||
+    !isInventoryCount(record.total) ||
+    !isInventoryCount(record.facet_limit) ||
+    !record.by_kind ||
+    !isInventoryCount(record.by_kind.resource) ||
+    !isInventoryCount(record.by_kind.module) ||
+    !isInventoryCount(record.by_kind["data-source"]) ||
+    !record.truncated ||
+    !validIacInventoryFacets(record.types) ||
+    !validIacInventoryFacets(record.providers) ||
+    !validIacInventoryFacets(record.modules) ||
+    !validIacInventoryFacets(record.repositories)
+  ) {
+    return null;
+  }
   return {
-    total: numberOrZero(record.total),
+    total: record.total,
     byKind: {
-      "data-source": numberOrZero(record.by_kind?.["data-source"]),
-      module: numberOrZero(record.by_kind?.module),
-      resource: numberOrZero(record.by_kind?.resource),
+      "data-source": record.by_kind["data-source"],
+      module: record.by_kind.module,
+      resource: record.by_kind.resource,
     },
     types: iacInventoryFacets(record.types),
     providers: iacInventoryFacets(record.providers),
     modules: iacInventoryFacets(record.modules),
     repositories: iacInventoryFacets(record.repositories),
-    facetLimit: numberOrZero(record.facet_limit),
-    truncated: record.truncated ?? {},
+    facetLimit: record.facet_limit,
+    truncated: record.truncated,
   };
 }
 
-function iacInventoryFacets(
+function validIacInventoryFacets(
   records: readonly IacInventoryFacetRecord[] | undefined,
-): IacInventoryFacet[] {
-  return (records ?? []).flatMap((record) => {
-    const value = str(record.value);
-    if (!value) return [];
+): records is readonly IacInventoryFacetRecord[] {
+  return (
+    Array.isArray(records) &&
+    records.every(
+      (record) =>
+        typeof record.value === "string" &&
+        record.value !== "" &&
+        isInventoryCount(record.count) &&
+        (record.kind === undefined ||
+          record.kind === "resource" ||
+          record.kind === "module" ||
+          record.kind === "data-source"),
+    )
+  );
+}
+
+function iacInventoryFacets(records: readonly IacInventoryFacetRecord[]): IacInventoryFacet[] {
+  return records.map((record) => {
     const rawKind = record.kind;
     const kind =
       rawKind === "resource" || rawKind === "module" || rawKind === "data-source"
         ? rawKind
         : undefined;
-    return [{ count: numberOrZero(record.count), kind, value }];
+    return { count: record.count as number, kind, value: record.value as string };
   });
 }
 
@@ -244,6 +273,6 @@ function numberOrNull(value: number | undefined): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function numberOrZero(value: number | undefined): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+function isInventoryCount(value: number | undefined): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
 }

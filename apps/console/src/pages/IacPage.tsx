@@ -54,7 +54,7 @@ export function IacPage({
       ? all.length > 0
         ? "live"
         : "empty"
-      : model.provenance.iacResources;
+      : "empty";
   const truthLevel = localRows ? model.truth.iacResources?.level : livePage?.truth?.level;
   const freshnessState = localRows
     ? model.truth.iacResources?.freshness.state
@@ -72,10 +72,11 @@ export function IacPage({
     setPage(0);
   }, [applied, appliedQuery]);
 
-  // Clear stale live state when entering demo mode so private workspace rows
-  // never render under the demo banner (privacy guarantee).
+  // Clear stale live state when entering any local/model-only mode so private
+  // workspace rows never render after the live client is removed.
   useEffect(() => {
-    if (isDemo) {
+    if (localRows) {
+      requestSequence.current += 1;
       requestController.current?.abort();
       requestController.current = null;
       setLivePage(null);
@@ -83,13 +84,14 @@ export function IacPage({
       setErr("");
       setStack([null]);
     }
-  }, [isDemo]);
+  }, [localRows]);
 
   // Pagination requests are launched from button handlers, so the URL-owned
   // request effect does not own their cleanup. Abort whichever request is
   // current when the page itself unmounts.
   useEffect(
     () => () => {
+      requestSequence.current += 1;
       requestController.current?.abort();
       requestController.current = null;
     },

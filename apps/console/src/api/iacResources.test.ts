@@ -136,6 +136,30 @@ describe("iacResources", () => {
     });
   });
 
+  it("does not fabricate authoritative zero counts from a partial summary", async () => {
+    const client = {
+      get: vi.fn(async () => ({
+        ...envelope([]),
+        data: {
+          ...envelope([]).data,
+          summary: {
+            by_kind: { resource: 10, module: 6, "data-source": 2 },
+            types: [],
+            providers: [],
+            modules: [],
+            repositories: [],
+            facet_limit: 200,
+            truncated: {},
+          },
+        },
+      })),
+    } as unknown as EshuApiClient;
+
+    const page = await loadIacResourcesPage(client, { includeFacets: true, limit: 50 });
+
+    expect(page.summary).toBeNull();
+  });
+
   it("does not fabricate hybrid inventory truth when metadata is absent", async () => {
     const client = {
       get: vi.fn(async () => ({ ...envelope([]), truth: null })),

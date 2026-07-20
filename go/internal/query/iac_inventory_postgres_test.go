@@ -34,19 +34,22 @@ func TestIaCInventorySearchSQLIsServerBackedBoundedAndStable(t *testing.T) {
 
 	for _, want := range []string{
 		"current_iac.generation_id",
-		"lower(current_iac.entity_name)",
-		"lower(current_iac.relative_path)",
-		"lower(current_iac.item_type)",
-		"lower(current_iac.provider)",
-		"lower(current_iac.module_name)",
-		"lower(current_iac.repo_id)",
-		"lower(current_iac.entity_type)",
+		"strpos(lower(current_iac.entity_name), lower($6)) > 0",
+		"strpos(lower(current_iac.relative_path), lower($6)) > 0",
+		"strpos(lower(current_iac.item_type), lower($6)) > 0",
+		"strpos(lower(current_iac.provider), lower($6)) > 0",
+		"strpos(lower(current_iac.module_name), lower($6)) > 0",
+		"strpos(lower(current_iac.repo_id), lower($6)) > 0",
+		"strpos(lower(current_iac.entity_type), lower($6)) > 0",
 		"ORDER BY current_iac.entity_name, current_iac.entity_id",
 		"LIMIT $13",
 	} {
 		if !strings.Contains(iacInventorySearchSQL, want) {
 			t.Fatalf("search SQL missing %q:\n%s", want, iacInventorySearchSQL)
 		}
+	}
+	if strings.Contains(iacInventorySearchSQL, "LIKE '%' || lower($6)") {
+		t.Fatalf("search SQL interprets user search as LIKE wildcards:\n%s", iacInventorySearchSQL)
 	}
 }
 

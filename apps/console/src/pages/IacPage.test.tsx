@@ -1,105 +1,20 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
 
 import { IacPage } from "./IacPage";
+import {
+  authoritativeIacEnvelope as authoritativeEnvelope,
+  BackButton,
+  iacEnvelope as envelope,
+  iacRow as row,
+  LocationProbe,
+  NavigateArchiveButton,
+  renderIacPage,
+} from "./iacPageTestSupport";
 import type { EshuApiClient } from "../api/client";
 import { demoModel } from "../console/demoModel";
 import type { ConsoleModel } from "../console/types";
-
-function envelope(
-  resources: readonly Record<string, unknown>[],
-  opts: {
-    readonly truncated?: boolean;
-    readonly afterName?: string;
-    readonly afterId?: string;
-  } = {},
-) {
-  return {
-    data: {
-      count: resources.length,
-      kind: "resource",
-      limit: 25,
-      resources,
-      truncated: opts.truncated === true,
-      next_cursor:
-        opts.truncated === true
-          ? { after_name: opts.afterName ?? "next", after_id: opts.afterId ?? "id-next" }
-          : undefined,
-    },
-    error: null,
-    truth: {
-      capability: "iac_inventory.resources.list",
-      freshness: { state: "fresh" },
-      level: "derived",
-      profile: "production",
-    },
-  };
-}
-
-function authoritativeEnvelope(resources: readonly Record<string, unknown>[]) {
-  const base = envelope(resources);
-  return {
-    ...base,
-    data: {
-      ...base.data,
-      summary: {
-        total: 24610,
-        by_kind: { resource: 17117, module: 612, "data-source": 6881 },
-        types: [{ kind: "resource", value: "aws_s3_bucket", count: 500 }],
-        providers: [{ kind: "resource", value: "aws", count: 1000 }],
-        modules: [{ value: "audit", count: 25 }],
-        repositories: [{ value: "repository:r1", count: 100 }],
-        facet_limit: 200,
-        truncated: { types: true },
-      },
-    },
-  };
-}
-
-function row(id: string, name: string) {
-  return {
-    id,
-    kind: "resource",
-    name,
-    resource_name: name.split(".").at(-1),
-    type: "aws_s3_bucket",
-    provider: "aws",
-    resource_service: "s3",
-    resource_category: "storage",
-    module: "audit",
-    repo_id: "repository:r1",
-    relative_path: "logging.tf",
-    line_number: 12,
-  };
-}
-
-function renderIacPage(
-  page: React.ReactElement,
-  initialEntries: string[] = ["/iac"],
-  initialIndex?: number,
-) {
-  return render(
-    <MemoryRouter initialEntries={initialEntries} initialIndex={initialIndex}>
-      {page}
-    </MemoryRouter>,
-  );
-}
-
-function LocationProbe(): React.JSX.Element {
-  const location = useLocation();
-  return <span data-testid="iac-location">{location.pathname + location.search}</span>;
-}
-
-function BackButton(): React.JSX.Element {
-  const navigate = useNavigate();
-  return <button onClick={() => navigate(-1)}>Browser back</button>;
-}
-
-function NavigateArchiveButton(): React.JSX.Element {
-  const navigate = useNavigate();
-  return <button onClick={() => navigate("/iac?q=archive")}>Navigate to archive</button>;
-}
 
 describe("IacPage", () => {
   it("renders the IaC inventory from the model", () => {
@@ -166,6 +81,26 @@ describe("IacPage", () => {
     expect(screen.queryByText('module."checkout".aws_iam_role.this')).not.toBeInTheDocument();
     expect(screen.queryByText("aws_s3_bucket.assets")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Loading…" })).toBeDisabled();
+  });
+
+  it("does not inherit unavailable bootstrap provenance while a live read is pending", async () => {
+    const get = vi.fn(() => new Promise(() => undefined));
+    const client = { get } as unknown as EshuApiClient;
+    const model: ConsoleModel = {
+      ...demoModel,
+      iacResources: [],
+      provenance: { ...demoModel.provenance, iacResources: "unavailable" },
+    };
+
+    renderIacPage(<IacPage client={client} sourceLabel="live" model={model} />);
+
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("Loading current IaC inventory…")).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "IaC inventory is not available from this API (it requires the authoritative graph profile).",
+      ),
+    ).not.toBeInTheDocument();
   });
 
   it("does not fall back to bootstrap truth when a live response has no truth metadata", async () => {
@@ -389,6 +324,84 @@ describe("IacPage", () => {
     );
 
     expect(liveSignal?.aborted).toBe(true);
+    expect(screen.getByRole("button", { name: "Apply" })).toBeEnabled();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByText(/Failed to load IaC resources:/)).not.toBeInTheDocument();
+  });
+
+  it("does not surface an aborted pagination error after switching to demo", async () => {
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce(
+        envelope([row("r1", "aws_s3_bucket.logs")], {
+          truncated: true,
+          afterName: "aws_s3_bucket.logs",
+          afterId: "r1",
+        }),
+      )
+      .mockImplementationOnce(
+        (_path: string, options?: { readonly signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            options?.signal?.addEventListener("abort", () => reject(options.signal?.reason));
+          }),
+      );
+    const client = { get } as unknown as EshuApiClient;
+    const rendered = renderIacPage(
+      <IacPage client={client} sourceLabel="live" model={{ ...demoModel, iacResources: [] }} />,
+    );
+
+    await waitFor(() => expect(screen.getByText("aws_s3_bucket.logs")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+
+    rendered.rerender(
+      <MemoryRouter>
+        <IacPage client={client} sourceLabel="demo fixtures" model={demoModel} />
+      </MemoryRouter>,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText(/Failed to load IaC resources:/)).not.toBeInTheDocument();
+    expect(screen.getByText("aws_s3_bucket.assets")).toBeInTheDocument();
+  });
+
+  it("aborts pagination when the page switches to model-only mode", async () => {
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce(
+        envelope([row("r1", "aws_s3_bucket.logs")], {
+          truncated: true,
+          afterName: "aws_s3_bucket.logs",
+          afterId: "r1",
+        }),
+      )
+      .mockImplementationOnce(
+        (_path: string, options?: { readonly signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            options?.signal?.addEventListener("abort", () => reject(options.signal?.reason));
+          }),
+      );
+    const client = { get } as unknown as EshuApiClient;
+    const rendered = renderIacPage(
+      <IacPage client={client} sourceLabel="live" model={{ ...demoModel, iacResources: [] }} />,
+    );
+
+    await waitFor(() => expect(screen.getByText("aws_s3_bucket.logs")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+    const pageSignal = get.mock.calls[1][1]?.signal as AbortSignal | undefined;
+
+    rendered.rerender(
+      <MemoryRouter>
+        <IacPage model={demoModel} />
+      </MemoryRouter>,
+    );
+
+    expect(pageSignal?.aborted).toBe(true);
     expect(screen.getByRole("button", { name: "Apply" })).toBeEnabled();
   });
 
