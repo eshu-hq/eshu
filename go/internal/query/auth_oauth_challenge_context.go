@@ -5,9 +5,26 @@ package query
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 )
+
+// ErrBearerCredentialUnrecognized marks a bearer-credential denial where the
+// presented credential was never a recognized issued token for this deployment
+// — a JWT whose issuer is not in the active bearer-validation snapshot, or a
+// pre-verify unparseable JWT (issue #5163, F-2). A ScopedTokenResolver wraps it
+// with %w at exactly those PRE-match outcomes (see
+// internal/oidcbearer.Resolver.deny) and never at a POST-match denial (expired,
+// bad signature, wrong audience, malformed verified claims, no grants): a
+// post-match denial means the credential WAS understood, so steering it to the
+// discovery document would be noise. authMiddlewareWithRoutePolicy tests this
+// sentinel with errors.Is to decide whether a resolver-error 401 augments its
+// WWW-Authenticate challenge (rows 6/7) or stays bare (rows 5/11). An infra
+// error from the resolver chain never carries this sentinel, so it fails safe
+// to the bare challenge — the deliberate fail-safe against the
+// anthropics/claude-code#59467 challenge-on-every-401 bug.
+var ErrBearerCredentialUnrecognized = errors.New("query: bearer credential not a recognized issued token")
 
 // oauthChallengeContextKey is the unexported context key carrying an
 // OAuthChallengePolicy across exactly one call boundary: from

@@ -246,7 +246,19 @@ func authMiddlewareWithRoutePolicy(
 		if resolver != nil {
 			auth, ok, err := resolver.ResolveScopedToken(r.Context(), credentials)
 			if err != nil {
+				// Rows 5/6/7/11: augment ONLY when the resolver signals the
+				// credential was never a recognized issued token
+				// (ErrBearerCredentialUnrecognized — a JWT whose issuer is not
+				// in the active snapshot, or a pre-verify unparseable JWT). A
+				// post-match denial (expired, bad signature, wrong audience,
+				// malformed verified claims, no grants) or an infra error stays
+				// bare: that credential WAS understood, so pointing it at
+				// discovery is noise, and a bare 401 on an infra error is the
+				// fail-safe against anthropics/claude-code#59467.
 				recordReadAuthorizationDenied(r, audit)
+				if errors.Is(err, ErrBearerCredentialUnrecognized) {
+					r = requestWithOAuthChallenge(r, oauthChallenge)
+				}
 				unauthorizedResponse(w, r)
 				return
 			}
@@ -263,8 +275,15 @@ func authMiddlewareWithRoutePolicy(
 		}
 
 		if token == "" || !constantTimeEqual(credentials, token) {
+			// Row 9: the credential matched no resolver and is not the shared
+			// token — an unrecognized opaque (or IdP-less JWT-shaped)
+			// credential — so augment. A correct shared token never reaches
+			// here; it matches and serves below. (Documented residual
+			// #59467 risk: a client that presents a genuinely invalid token
+			// still gets steered to discovery here, but that client had no
+			// working credential anyway.)
 			recordReadAuthorizationDenied(r, audit)
-			unauthorizedResponse(w, r)
+			unauthorizedResponse(w, requestWithOAuthChallenge(r, oauthChallenge))
 			return
 		}
 

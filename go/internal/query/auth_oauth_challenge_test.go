@@ -5,10 +5,115 @@ package query
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
+
+// augmentedChallenge is the exact WWW-Authenticate value a gated 401 carries
+// when the fake policy reports OAuth enabled. Kept as one constant so the
+// decision-table rows assert against a single source of truth.
+const augmentedChallenge = `Bearer resource_metadata="https://eshu.example.test/.well-known/oauth-protected-resource", scope="openid profile email groups"`
+
+// enabledChallengePolicy returns a policy that reports OAuth enabled with the
+// augmentedChallenge parameters.
+func enabledChallengePolicy() *fakeOAuthChallengePolicy {
+	return &fakeOAuthChallengePolicy{
+		metadataURL: "https://eshu.example.test/.well-known/oauth-protected-resource",
+		scope:       DefaultOAuthChallengeScope,
+		ok:          true,
+	}
+}
+
+// TestAuthMiddlewareOAuthChallenge_DecisionTable exercises the issue #5163 §C
+// security-critical predicate end to end through the real production entry
+// point (AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementAndOAuthChallenge)
+// with a fake ScopedTokenResolver standing in for the composite
+// scoped-token/oidcbearer chain. Each row asserts the EXACT WWW-Authenticate
+// header, proving the augment-vs-bare decision for every credential shape the
+// design table enumerates. Rows 1, 8, and 10 (headerless, malformed-scheme,
+// browser-cookie) are covered by the dedicated tests above; this table covers
+// the resolver-outcome-dependent rows 5, 6, 7, 9, and 11.
+func TestAuthMiddlewareOAuthChallenge_DecisionTable(t *testing.T) {
+	t.Parallel()
+
+	sentinelWrapped := fmt.Errorf("oidcbearer: bearer token denied: unknown_issuer: %w", ErrBearerCredentialUnrecognized)
+
+	cases := []struct {
+		name          string
+		resolver      *fakeScopedTokenResolver
+		authorization string
+		wantChallenge string
+	}{
+		{
+			// Row 5: a recognized issuer's token that failed verification
+			// (expired/bad-sig/wrong-aud/no-grants) — resolver denies with a
+			// NON-sentinel error. Stays bare.
+			name:          "row5_post_match_denial_bare",
+			resolver:      &fakeScopedTokenResolver{err: errors.New("oidcbearer: bearer token denied: expired")},
+			authorization: "Bearer expired.jwt.token",
+			wantChallenge: "Bearer",
+		},
+		{
+			// Row 6: a JWT-shaped credential whose issuer is not in the active
+			// snapshot — resolver denies with the sentinel-wrapped error.
+			// Augments.
+			name:          "row6_unknown_issuer_augments",
+			resolver:      &fakeScopedTokenResolver{err: sentinelWrapped},
+			authorization: "Bearer eyJ.unknown.issuer",
+			wantChallenge: augmentedChallenge,
+		},
+		{
+			// Row 7: a JWT-shaped credential unparseable before verification —
+			// resolver denies with the sentinel (pre-parse malformed). Augments.
+			name:          "row7_preparse_malformed_augments",
+			resolver:      &fakeScopedTokenResolver{err: fmt.Errorf("oidcbearer: bearer token denied: malformed: %w", ErrBearerCredentialUnrecognized)},
+			authorization: "Bearer eyJ.broken",
+			wantChallenge: augmentedChallenge,
+		},
+		{
+			// Row 9: an opaque credential that matched no resolver (ok=false,
+			// no error) and is not the shared token. Augments at the
+			// token-mismatch site.
+			name:          "row9_invalid_opaque_augments",
+			resolver:      &fakeScopedTokenResolver{ok: false},
+			authorization: "Bearer opaque-not-a-jwt",
+			wantChallenge: augmentedChallenge,
+		},
+		{
+			// Row 11: a resolver infra error (DB down) surfaced as a
+			// NON-sentinel error. Fails safe to bare (never steer a client to
+			// discovery on our own outage).
+			name:          "row11_infra_error_bare",
+			resolver:      &fakeScopedTokenResolver{err: errors.New("scopedtoken: identity store unavailable")},
+			authorization: "Bearer opaque-cred",
+			wantChallenge: "Bearer",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			handler := AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementAndOAuthChallenge(
+				"shared-token", tc.resolver, mockHandler(), nil, true, enabledChallengePolicy(),
+			)
+			req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories", nil)
+			req.Header.Set("Authorization", tc.authorization)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusUnauthorized {
+				t.Fatalf("status = %d, want 401; body = %s", rec.Code, rec.Body.String())
+			}
+			if got := rec.Header().Get("WWW-Authenticate"); got != tc.wantChallenge {
+				t.Fatalf("WWW-Authenticate = %q, want %q", got, tc.wantChallenge)
+			}
+		})
+	}
+}
 
 // fakeOAuthChallengePolicy implements OAuthChallengePolicy with a fixed
 // return value for unit tests exercising the 401 WWW-Authenticate wiring in
