@@ -6,6 +6,7 @@ package ruby
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/rubycontroller"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -279,46 +280,18 @@ func rubyCollectScriptBodyNames(syntax *rubySyntax, body *tree_sitter.Node, name
 	}
 }
 
-// rubyRailsControllerAcceptedBases is the set of exact, fully-qualified Rails
-// controller base classes that terminate a superclass chain as a genuine
-// Rails controller.
-var rubyRailsControllerAcceptedBases = map[string]struct{}{
-	"ApplicationController":    {},
-	"ActionController::Base":   {},
-	"ActionController::API":    {},
-	"ActionController::Metal":  {},
-	"AbstractController::Base": {},
-}
-
 // rubyIsRailsController reports whether contextName's declared superclass
 // chain, walked transitively through registry (classes defined earlier in
 // the same file — Ruby source is top-down, so the registry is always
 // complete for the current position), terminates in an accepted Rails
 // controller base.
 //
-// The outcomes are intentionally asymmetric:
-//   - The chain fizzles out inside the file without ever reaching a
-//     resolved, non-local name — either contextName itself declares no
-//     superclass at all, or a same-file intermediate in the chain doesn't:
-//     KEEP exactly when contextName's own name ends in "Controller" (the
-//     pre-existing name-suffix signal, preserved as a deliberate residual
-//     for the common real-world shape of `class FooController` with its
-//     Rails base defined in a gem this file never sees), REJECT otherwise.
-//     This is what stops every ordinary superclass-less Ruby class (e.g. a
-//     plain PORO named OrderService) from being newly swept into this root
-//     kind — only classes that already look like a controller by name keep
-//     rooting when the chain can't prove or disprove Rails ancestry.
-//   - A chain that leaves the file (resolves to a name the registry does
-//     not know) ending in "Controller": KEEP, since that unresolved name is
-//     very likely itself a Rails controller base defined elsewhere
-//     (Api::BaseController, Admin::BaseController).
-//   - Otherwise: REJECT only on positive evidence — a declared superclass
-//     that resolves (locally or by name) to something neither accepted nor
-//     Controller-suffixed (< Thor, < StandardError, < Sinatra::Base).
-//
-// For a dead-code tool, a false negative ("still call it live") is far
-// cheaper than a false positive that recommends deleting reachable code, so
-// ties resolve toward keeping the root.
+// The decision itself — accepted-base set, suffix fallbacks, and the
+// keep-biased asymmetries — lives in the shared rubycontroller package so the
+// reducer's repo-wide code-root verdict builder (#5376) re-runs the identical
+// logic and can never drift from the parser. This function only adapts the
+// same-file rubyClassRegistry to the shared rubycontroller.Registry contract;
+// see rubycontroller.Decide for the documented outcomes.
 //
 // contextName and every registry key are simple (last-segment) class names, so
 // two same-file classes whose short names collide across namespaces share one
@@ -326,37 +299,46 @@ var rubyRailsControllerAcceptedBases = map[string]struct{}{
 // for why the qualified name is not keyed here and why repo-wide resolution is
 // deferred to #5376.
 func rubyIsRailsController(contextName string, registry rubyClassRegistry) bool {
-	className := strings.TrimPrefix(strings.TrimSpace(contextName), "::")
-	if className == "" {
-		return false
+	return rubycontroller.IsRailsController(contextName, rubySameFileControllerRegistry{registry: registry})
+}
+
+// rubySameFileControllerRegistry adapts the parser's single-valued, same-file
+// rubyClassRegistry to the shared rubycontroller.Registry contract. Class keys
+// are the parser's simple (last-segment) class names. SuffixMatches is ALWAYS
+// empty, which makes the parser's same-file behavior provably unchanged by the
+// #5376 P0 rev-2 identity-carrying walk: with no proper-suffix matches, the
+// suffix-only probe and ambiguity steps never fire, so a qualified base the file
+// cannot resolve exactly still lands on the F1 keep-biased floor exactly as
+// before. Each class has at most one declared superclass same-file.
+type rubySameFileControllerRegistry struct {
+	registry rubyClassRegistry
+}
+
+func (r rubySameFileControllerRegistry) ExactMatches(ref string) []string {
+	if _, ok := r.registry.known[ref]; ok {
+		return []string{ref}
 	}
-	// legacyResidual is the pre-existing name-suffix signal for the method's
-	// own enclosing class (not any intermediate hop), used only once the
-	// chain fails to reach a conclusive resolved name.
-	legacyResidual := strings.HasSuffix(className, "Controller")
-	current := className
-	visited := make(map[string]struct{})
-	for {
-		if _, seen := visited[current]; seen {
-			// A same-file superclass cycle should not happen, but if it
-			// does, fall back to the same residual as an unresolved chain.
-			return legacyResidual
-		}
-		visited[current] = struct{}{}
-		base, declared := registry.superclass[current]
-		if !declared {
-			return legacyResidual
-		}
-		base = strings.TrimPrefix(strings.TrimSpace(base), "::")
-		if _, accepted := rubyRailsControllerAcceptedBases[base]; accepted {
-			return true
-		}
-		if _, isLocalClass := registry.known[base]; isLocalClass {
-			current = base
-			continue
-		}
-		return strings.HasSuffix(base, "Controller")
+	return nil
+}
+
+// SuffixMatches is always empty for the same-file parser registry.
+func (r rubySameFileControllerRegistry) SuffixMatches(string) []string {
+	return nil
+}
+
+func (r rubySameFileControllerRegistry) EntryMatches(ctx string) []string {
+	if _, ok := r.registry.known[ctx]; ok {
+		return []string{ctx}
 	}
+	return nil
+}
+
+func (r rubySameFileControllerRegistry) DeclaredBasesOf(classKey string) ([]string, bool) {
+	base, declared := r.registry.superclass[classKey]
+	if !declared {
+		return nil, false
+	}
+	return []string{base}, true
 }
 
 func rubyIsRailsControllerActionName(name string) bool {

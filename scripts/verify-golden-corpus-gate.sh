@@ -79,6 +79,7 @@ corpus_fixtures=(
 	helm-umbrella-chart
 	helm-template-chart
 	api-svc
+	ruby_rails_app
 )
 
 # 9 credentialed collectors and their B-10 cassette directories.

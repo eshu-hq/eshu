@@ -19,6 +19,7 @@
                 "lang": "ruby",
                 "line_number": 2,
                 "name": "OrderService",
+                "qualified_name": "Example::OrderService",
                 "type": "class"
               }
             ],
@@ -189,6 +190,130 @@
         "source_confidence": "observed",
         "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/ruby/order_service.rb",
         "stable_fact_key": "file:ruby:order_service.rb"
+      },
+      {
+        "collector_kind": "git",
+        "fact_kind": "file",
+        "payload": {
+          "graph_id": "ruby:orders_controller.rb",
+          "graph_kind": "file",
+          "is_dependency": false,
+          "language": "ruby",
+          "parsed_file_data": {
+            "classes": [
+              {
+                "bases": [
+                  "Base"
+                ],
+                "end_line": 9,
+                "lang": "ruby",
+                "line_number": 1,
+                "name": "OrdersController",
+                "qualified_bases": [
+                  "ActionController::Base"
+                ],
+                "qualified_name": "OrdersController",
+                "type": "class"
+              }
+            ],
+            "framework_semantics": {
+              "frameworks": []
+            },
+            "function_calls": [
+              {
+                "args": [],
+                "class_context": "OrdersController",
+                "context": "index",
+                "context_type": "def",
+                "full_name": "Order.all",
+                "inferred_obj_type": null,
+                "is_dependency": false,
+                "lang": "ruby",
+                "line_number": 3,
+                "name": "all"
+              },
+              {
+                "args": [],
+                "class_context": "OrdersController",
+                "context": "show",
+                "context_type": "def",
+                "full_name": "Order.find",
+                "inferred_obj_type": null,
+                "is_dependency": false,
+                "lang": "ruby",
+                "line_number": 7,
+                "name": "find"
+              }
+            ],
+            "functions": [
+              {
+                "args": [],
+                "class_context": "OrdersController",
+                "context": "OrdersController",
+                "context_type": "class",
+                "cyclomatic_complexity": 1,
+                "dead_code_root_kinds": [
+                  "ruby.rails_controller_action"
+                ],
+                "decorators": [],
+                "end_line": 4,
+                "lang": "ruby",
+                "line_number": 2,
+                "name": "index",
+                "type": "instance"
+              },
+              {
+                "args": [],
+                "class_context": "OrdersController",
+                "context": "OrdersController",
+                "context_type": "class",
+                "cyclomatic_complexity": 1,
+                "dead_code_root_kinds": [
+                  "ruby.rails_controller_action"
+                ],
+                "decorators": [],
+                "end_line": 8,
+                "lang": "ruby",
+                "line_number": 6,
+                "name": "show",
+                "type": "instance"
+              }
+            ],
+            "iac_relevant": false,
+            "imports": [],
+            "is_dependency": false,
+            "lang": "ruby",
+            "module_inclusions": [],
+            "modules": [],
+            "path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/ruby/orders_controller.rb",
+            "repo_path": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/ruby",
+            "variables": [
+              {
+                "context": "index",
+                "context_type": "def",
+                "end_line": 3,
+                "lang": "ruby",
+                "line_number": 3,
+                "name": "@orders",
+                "type": "Order.all"
+              },
+              {
+                "context": "show",
+                "context_type": "def",
+                "end_line": 7,
+                "lang": "ruby",
+                "line_number": 7,
+                "name": "@order",
+                "type": "Order.find(params[:id])"
+              }
+            ]
+          },
+          "relative_path": "orders_controller.rb",
+          "repo_id": "ruby"
+        },
+        "source_confidence": "observed",
+        "source_uri": "{{REPO_ROOT}}/go/internal/replay/parserfixture/testdata/trees/ruby/orders_controller.rb",
+        "stable_fact_key": "file:ruby:orders_controller.rb"
       }
     ],
     "generation_id": "canonical-generation-9401218d6797a4e9",

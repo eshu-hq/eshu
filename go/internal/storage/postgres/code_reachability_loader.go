@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -20,7 +21,8 @@ WITH candidate AS (
            acceptance.source_run_id,
            acceptance.generation_id,
            max(intent.completed_at) AS completed_at,
-           max(watermark.updated_at) AS reach_updated_at
+           max(watermark.updated_at) AS reach_updated_at,
+           max(watermark.verdict_schema_epoch) AS reach_verdict_epoch
     FROM shared_projection_acceptance AS acceptance
     JOIN ingestion_scopes AS scope
       ON scope.scope_id = acceptance.scope_id
@@ -44,18 +46,40 @@ WITH candidate AS (
 )
 SELECT scope_id, repository_id, source_run_id, generation_id, completed_at
 FROM candidate
-WHERE reach_updated_at IS NULL OR completed_at > reach_updated_at
+WHERE reach_updated_at IS NULL
+   OR completed_at > reach_updated_at
+   OR coalesce(reach_verdict_epoch, 0) < $2
 ORDER BY completed_at ASC, repository_id ASC
 LIMIT $1
 `
 
 const listCodeReachabilityRootsSQL = `
-SELECT entity_id, metadata->'dead_code_root_kinds' AS root_kinds
+SELECT entity_id, metadata->'dead_code_root_kinds' AS root_kinds,
+       metadata->>'class_context' AS class_context
 FROM content_entities
 WHERE repo_id = $1
   AND jsonb_typeof(metadata->'dead_code_root_kinds') = 'array'
   AND jsonb_array_length(metadata->'dead_code_root_kinds') > 0
 ORDER BY entity_id ASC
+`
+
+// listCodeReachabilityRubyClassesSQL loads the repo-wide Ruby class ancestry the
+// #5376 controller verdict builder walks: every Ruby class entity's simple name,
+// its namespace-qualified name (F3, the registry key), and its declared
+// qualified_bases. It loads ALL Ruby classes (including base-less ones) so the
+// walk can resolve an intermediate hop to an in-corpus class that itself
+// declares no base. qualified_name is NULL for pre-upgrade rows; the reducer
+// registry falls back to entity_name (simple-key + F1 floor, lag-safe).
+// Index-backed on repo_id/entity_type (evidence-5376-code-root-verdicts.md,
+// Q1 = 0.46 ms at 505 classes).
+const listCodeReachabilityRubyClassesSQL = `
+SELECT entity_name, metadata->>'qualified_name' AS qualified_name,
+       metadata->'qualified_bases' AS qualified_bases
+FROM content_entities
+WHERE repo_id = $1
+  AND entity_type = 'Class'
+  AND language = 'ruby'
+ORDER BY entity_name ASC
 `
 
 const listCodeReachabilityEdgesSQL = `
@@ -99,7 +123,7 @@ func (s *CodeReachabilityStore) LoadPendingCodeReachabilityInputs(
 	if limit <= 0 {
 		limit = 10
 	}
-	rows, err := s.db.QueryContext(ctx, listPendingCodeReachabilityInputsSQL, limit)
+	rows, err := s.db.QueryContext(ctx, listPendingCodeReachabilityInputsSQL, limit, CodeReachabilityVerdictSchemaEpoch)
 	if err != nil {
 		return nil, fmt.Errorf("query pending code reachability inputs: %w", err)
 	}
@@ -140,16 +164,41 @@ func (s *CodeReachabilityStore) LoadPendingCodeReachabilityInputs(
 		if err != nil {
 			return nil, err
 		}
+		// Only pay for the repo-wide Ruby class-registry load when this
+		// repository actually has a controller-action root to evaluate; a
+		// non-Ruby or controller-free repository loads no classes.
+		var rubyClasses []reducer.RubyClassEntity
+		if codeReachabilityRootsHaveRailsController(roots) {
+			rubyClasses, err = s.loadCodeReachabilityRubyClasses(ctx, candidate.repositoryID)
+			if err != nil {
+				return nil, err
+			}
+		}
 		inputs = append(inputs, reducer.CodeReachabilityProjectionInput{
 			ScopeID:      candidate.scopeID,
 			GenerationID: candidate.generationID,
 			RepositoryID: candidate.repositoryID,
 			Roots:        roots,
 			Edges:        edges,
+			RubyClasses:  rubyClasses,
 			UpdatedAt:    candidate.completedAt,
 		})
 	}
 	return inputs, nil
+}
+
+// codeReachabilityRootsHaveRailsController reports whether any loaded root
+// carries the ruby.rails_controller_action kind, gating the repo-wide Ruby
+// class-registry load to Ruby repositories with controller roots.
+func codeReachabilityRootsHaveRailsController(roots []reducer.CodeReachabilityRoot) bool {
+	for _, root := range roots {
+		for _, kind := range root.RootKinds {
+			if kind == reducer.CodeRootKindRubyRailsControllerAction {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (s *CodeReachabilityStore) loadCodeReachabilityRoots(
@@ -166,15 +215,50 @@ func (s *CodeReachabilityStore) loadCodeReachabilityRoots(
 	for rows.Next() {
 		var root reducer.CodeReachabilityRoot
 		var rootKindsRaw []byte
-		if err := rows.Scan(&root.EntityID, &rootKindsRaw); err != nil {
+		var classContext sql.NullString
+		if err := rows.Scan(&root.EntityID, &rootKindsRaw, &classContext); err != nil {
 			return nil, fmt.Errorf("scan code reachability root: %w", err)
 		}
 		if err := json.Unmarshal(rootKindsRaw, &root.RootKinds); err != nil {
 			return nil, fmt.Errorf("unmarshal code reachability root kinds: %w", err)
 		}
+		root.ClassContext = strings.TrimSpace(classContext.String)
 		roots = append(roots, root)
 	}
 	return roots, rows.Err()
+}
+
+// loadCodeReachabilityRubyClasses loads the repo-wide Ruby class ancestry
+// (name + declared qualified_bases). A class with no declared superclass carries
+// a nil/absent qualified_bases and is still returned so it is a known class the
+// verdict walk can resolve an intermediate hop to.
+func (s *CodeReachabilityStore) loadCodeReachabilityRubyClasses(
+	ctx context.Context,
+	repositoryID string,
+) ([]reducer.RubyClassEntity, error) {
+	rows, err := s.db.QueryContext(ctx, listCodeReachabilityRubyClassesSQL, repositoryID)
+	if err != nil {
+		return nil, fmt.Errorf("query code reachability ruby classes: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	classes := make([]reducer.RubyClassEntity, 0)
+	for rows.Next() {
+		var class reducer.RubyClassEntity
+		var qualifiedName sql.NullString
+		var qualifiedBasesRaw []byte
+		if err := rows.Scan(&class.Name, &qualifiedName, &qualifiedBasesRaw); err != nil {
+			return nil, fmt.Errorf("scan code reachability ruby class: %w", err)
+		}
+		class.QualifiedName = strings.TrimSpace(qualifiedName.String)
+		if len(qualifiedBasesRaw) > 0 {
+			if err := json.Unmarshal(qualifiedBasesRaw, &class.QualifiedBases); err != nil {
+				return nil, fmt.Errorf("unmarshal code reachability ruby class qualified bases: %w", err)
+			}
+		}
+		classes = append(classes, class)
+	}
+	return classes, rows.Err()
 }
 
 func (s *CodeReachabilityStore) loadCodeReachabilityEdges(

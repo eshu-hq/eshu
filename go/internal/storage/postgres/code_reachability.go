@@ -17,6 +17,16 @@ import (
 const (
 	codeReachabilityBatchSize = 500
 	codeReachabilityColumns   = 13
+	codeRootVerdictColumns    = 9
+
+	// CodeReachabilityVerdictSchemaEpoch is the current #5376 verdict schema
+	// epoch stamped onto every repository watermark the projection runner writes.
+	// The loader re-schedules any watermark stamped with a LOWER epoch exactly
+	// once, so an upgraded deployment re-projects verdicts for every
+	// already-indexed repo (whose watermark defaults to epoch 0) without a
+	// watermark reset. BUMP this whenever verdict semantics change so every
+	// projected repo re-projects exactly once.
+	CodeReachabilityVerdictSchemaEpoch = 1
 )
 
 const codeReachabilitySchemaSQL = `
@@ -57,6 +67,25 @@ CREATE TABLE IF NOT EXISTS code_reachability_repository_watermarks (
 
 ALTER TABLE code_reachability_repository_watermarks
     ADD COLUMN IF NOT EXISTS truncated BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE code_reachability_repository_watermarks
+    ADD COLUMN IF NOT EXISTS verdict_schema_epoch INTEGER NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS code_root_verdicts (
+    scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
+    generation_id TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE,
+    repository_id TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    root_kind TEXT NOT NULL,
+    verdict TEXT NOT NULL,
+    basis JSONB NOT NULL,
+    observed_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (scope_id, generation_id, repository_id, entity_id, root_kind)
+);
+
+CREATE INDEX IF NOT EXISTS code_root_verdicts_repo_entity_verdict_idx
+    ON code_root_verdicts (repository_id, entity_id, verdict);
 `
 
 const upsertCodeReachabilityBatchPrefix = `
@@ -85,13 +114,35 @@ WHERE scope_id = $1
   AND repository_id = $3
 `
 
+const deleteCodeRootVerdictsRepositoryRowsSQL = `
+DELETE FROM code_root_verdicts
+WHERE scope_id = $1
+  AND generation_id = $2
+  AND repository_id = $3
+`
+
+const upsertCodeRootVerdictBatchPrefix = `
+INSERT INTO code_root_verdicts (
+    scope_id, generation_id, repository_id, entity_id, root_kind,
+    verdict, basis, observed_at, updated_at
+) VALUES `
+
+const upsertCodeRootVerdictBatchSuffix = `
+ON CONFLICT (scope_id, generation_id, repository_id, entity_id, root_kind) DO UPDATE
+SET verdict = EXCLUDED.verdict,
+    basis = EXCLUDED.basis,
+    observed_at = EXCLUDED.observed_at,
+    updated_at = EXCLUDED.updated_at
+`
+
 const upsertCodeReachabilityRepositoryWatermarkSQL = `
 INSERT INTO code_reachability_repository_watermarks (
-    scope_id, generation_id, repository_id, truncated, updated_at
-) VALUES ($1, $2, $3, $4, $5)
+    scope_id, generation_id, repository_id, truncated, updated_at, verdict_schema_epoch
+) VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (scope_id, generation_id, repository_id) DO UPDATE
 SET truncated = EXCLUDED.truncated,
-    updated_at = EXCLUDED.updated_at
+    updated_at = EXCLUDED.updated_at,
+    verdict_schema_epoch = EXCLUDED.verdict_schema_epoch
 `
 
 // CodeReachabilitySchemaSQL returns the DDL for code reachability rows and
@@ -133,15 +184,20 @@ func (s *CodeReachabilityStore) Upsert(ctx context.Context, rows []reducer.CodeR
 	return nil
 }
 
-// ReplaceRepositoryRows replaces all reachability rows for one active
-// repository generation with a freshly rebuilt deterministic snapshot and
-// records the source-intent completion watermark that the snapshot covers.
+// ReplaceRepositoryRows replaces all reachability rows AND the co-owned #5376
+// code-root verdict rows for one active repository generation with a freshly
+// rebuilt deterministic snapshot, and records the source-intent completion
+// watermark that the snapshot covers. Both row sets are replaced in one
+// transaction: a downgraded controller verdict and the reachability rows built
+// from the downgraded-filtered root set are committed atomically, so a reader
+// never sees a verdict that contradicts the materialized reachability.
 func (s *CodeReachabilityStore) ReplaceRepositoryRows(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
 	repositoryID string,
 	rows []reducer.CodeReachabilityRow,
+	verdicts []reducer.CodeRootVerdictRow,
 	watermark time.Time,
 	truncated bool,
 ) error {
@@ -159,7 +215,7 @@ func (s *CodeReachabilityStore) ReplaceRepositoryRows(
 		if err != nil {
 			return fmt.Errorf("begin code reachability replacement: %w", err)
 		}
-		if err := replaceCodeReachabilityRepositoryRows(ctx, tx, scopeID, generationID, repositoryID, rows, watermark.UTC(), truncated); err != nil {
+		if err := replaceCodeReachabilityRepositoryRows(ctx, tx, scopeID, generationID, repositoryID, rows, verdicts, watermark.UTC(), truncated); err != nil {
 			_ = tx.Rollback()
 			return err
 		}
@@ -168,7 +224,7 @@ func (s *CodeReachabilityStore) ReplaceRepositoryRows(
 		}
 		return nil
 	}
-	return replaceCodeReachabilityRepositoryRows(ctx, s.db, scopeID, generationID, repositoryID, rows, watermark.UTC(), truncated)
+	return replaceCodeReachabilityRepositoryRows(ctx, s.db, scopeID, generationID, repositoryID, rows, verdicts, watermark.UTC(), truncated)
 }
 
 // ListLatestByEntities returns the strongest active-generation reachability row
@@ -256,11 +312,19 @@ func replaceCodeReachabilityRepositoryRows(
 	generationID string,
 	repositoryID string,
 	rows []reducer.CodeReachabilityRow,
+	verdicts []reducer.CodeRootVerdictRow,
 	watermark time.Time,
 	truncated bool,
 ) error {
+	// Fixed order within the txn: delete reachability -> delete verdicts ->
+	// insert reachability -> insert verdicts -> upsert watermark. The delete
+	// pair fully clears the partition before re-insert so a shrinking snapshot
+	// (fewer roots after a downgrade) never leaves stale rows behind.
 	if _, err := db.ExecContext(ctx, deleteCodeReachabilityRepositoryRowsSQL, scopeID, generationID, repositoryID); err != nil {
 		return fmt.Errorf("delete code reachability rows: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, deleteCodeRootVerdictsRepositoryRowsSQL, scopeID, generationID, repositoryID); err != nil {
+		return fmt.Errorf("delete code root verdicts: %w", err)
 	}
 	if len(rows) > 0 {
 		for i := 0; i < len(rows); i += codeReachabilityBatchSize {
@@ -273,8 +337,58 @@ func replaceCodeReachabilityRepositoryRows(
 			}
 		}
 	}
-	if _, err := db.ExecContext(ctx, upsertCodeReachabilityRepositoryWatermarkSQL, scopeID, generationID, repositoryID, truncated, watermark); err != nil {
+	if len(verdicts) > 0 {
+		for i := 0; i < len(verdicts); i += codeReachabilityBatchSize {
+			end := i + codeReachabilityBatchSize
+			if end > len(verdicts) {
+				end = len(verdicts)
+			}
+			if err := upsertCodeRootVerdictBatch(ctx, db, verdicts[i:end]); err != nil {
+				return err
+			}
+		}
+	}
+	// Stamp the current verdict schema epoch in the SAME transaction as the
+	// reachability + verdict replacement. A crash before commit leaves the
+	// pre-upgrade epoch (0) in place, so the repo is re-scheduled — "epoch
+	// stamped but verdicts absent" is impossible.
+	if _, err := db.ExecContext(ctx, upsertCodeReachabilityRepositoryWatermarkSQL, scopeID, generationID, repositoryID, truncated, watermark, CodeReachabilityVerdictSchemaEpoch); err != nil {
 		return fmt.Errorf("upsert code reachability watermark: %w", err)
+	}
+	return nil
+}
+
+func upsertCodeRootVerdictBatch(ctx context.Context, db ExecQueryer, verdicts []reducer.CodeRootVerdictRow) error {
+	values := make([]string, 0, len(verdicts))
+	args := make([]any, 0, len(verdicts)*codeRootVerdictColumns)
+	for _, verdict := range verdicts {
+		basis, err := json.Marshal(verdict.Basis)
+		if err != nil {
+			return fmt.Errorf("marshal code root verdict basis: %w", err)
+		}
+		base := len(args)
+		placeholders := make([]string, 0, codeRootVerdictColumns)
+		for i := 1; i <= codeRootVerdictColumns; i++ {
+			placeholders = append(placeholders, fmt.Sprintf("$%d", base+i))
+		}
+		values = append(values, "("+strings.Join(placeholders, ", ")+")")
+		args = append(
+			args,
+			verdict.ScopeID,
+			verdict.GenerationID,
+			verdict.RepositoryID,
+			verdict.EntityID,
+			verdict.RootKind,
+			verdict.Verdict,
+			basis,
+			verdict.ObservedAt,
+			verdict.UpdatedAt,
+		)
+	}
+
+	query := upsertCodeRootVerdictBatchPrefix + strings.Join(values, ", ") + upsertCodeRootVerdictBatchSuffix
+	if _, err := db.ExecContext(ctx, query, args...); err != nil {
+		return fmt.Errorf("upsert code root verdicts: %w", err)
 	}
 	return nil
 }

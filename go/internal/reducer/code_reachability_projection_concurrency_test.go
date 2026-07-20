@@ -150,6 +150,7 @@ func (w *barrierCodeReachabilityRowWriter) ReplaceRepositoryRows(
 	generationID string,
 	repositoryID string,
 	_ []CodeReachabilityRow,
+	_ []CodeRootVerdictRow,
 	watermark time.Time,
 	_ bool,
 ) error {

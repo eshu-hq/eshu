@@ -188,10 +188,12 @@ func (h *CodeHandler) scanDeadCodeInvestigation(
 		if err != nil {
 			return scan, err
 		}
+		downgraded := h.loadDeadCodeDowngradedRoots(ctx, results)
 		active, suppressed, stats := partitionDeadCodeInvestigationResults(
 			results,
 			contentByID,
 			req.ExcludeDecoratedWith,
+			downgraded,
 		)
 		addDeadCodePolicyStats(&scan.PolicyStats, stats)
 		scan.addSuppressed(suppressed)
@@ -211,6 +213,7 @@ func partitionDeadCodeInvestigationResults(
 	results []map[string]any,
 	contentByID map[string]*EntityContent,
 	excludedDecorators []string,
+	downgraded deadCodeDowngradedRoots,
 ) ([]map[string]any, []map[string]any, deadCodePolicyStats) {
 	active := make([]map[string]any, 0, len(results))
 	suppressed := make([]map[string]any, 0)
@@ -219,7 +222,7 @@ func partitionDeadCodeInvestigationResults(
 
 	for _, result := range results {
 		entity := contentByID[StringVal(result, "entity_id")]
-		if deadCodeResultExcludedByDefault(result, entity, &stats) {
+		if deadCodeResultExcludedByDefault(result, entity, &stats, downgraded) {
 			result["classification"] = deadCodeClassificationExcluded
 			result["suppression_reasons"] = deadCodeSuppressionReasons(result, "default_root_policy")
 			attachDeadCodeSourceHandle(result)

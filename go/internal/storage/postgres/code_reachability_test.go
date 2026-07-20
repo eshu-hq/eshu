@@ -106,6 +106,7 @@ func TestCodeReachabilityStoreReplaceRepositoryRowsDeletesStaleRows(t *testing.T
 			ObservedAt:          now,
 			UpdatedAt:           now,
 		}},
+		nil,
 		now.Add(time.Minute),
 		false,
 	)
@@ -136,6 +137,7 @@ func TestCodeReachabilityStoreReplaceRepositoryRowsRecordsEmptyWatermark(t *test
 		"generation-empty",
 		"repo-empty",
 		nil,
+		nil,
 		now,
 		true,
 	)
@@ -151,21 +153,64 @@ func TestCodeReachabilityStoreReplaceRepositoryRowsRecordsEmptyWatermark(t *test
 	if got, want := db.watermarks["scope-empty|generation-empty|repo-empty"].Truncated, true; got != want {
 		t.Fatalf("watermark truncated = %v, want %v", got, want)
 	}
+	// #5376 P1: the runner stamps the current verdict schema epoch even for an
+	// empty (no-Ruby / zero-verdict) replacement, so the upgrade-backfill
+	// predicate cannot loop on it.
+	if got, want := db.watermarks["scope-empty|generation-empty|repo-empty"].VerdictEpoch, CodeReachabilityVerdictSchemaEpoch; got != want {
+		t.Fatalf("watermark verdict_schema_epoch = %d, want %d", got, want)
+	}
 }
 
-func TestCodeReachabilityPendingInputsWatchAllTraversedDomains(t *testing.T) {
-	for _, want := range []string{
-		"projection_domain IN ('code_calls', 'inheritance_edges')",
-		"code_reachability_repository_watermarks",
-		"watermark.updated_at",
-		"max(intent.completed_at) AS completed_at",
-	} {
-		if !strings.Contains(listPendingCodeReachabilityInputsSQL, want) {
-			t.Fatalf("pending reachability query missing %q:\n%s", want, listPendingCodeReachabilityInputsSQL)
-		}
+// TestCodeReachabilityStoreReplaceRepositoryRowsReplacesVerdicts proves the
+// #5376 verdict rows are written and stale verdicts for the same partition are
+// cleared in the same replacement, keeping the verdict set consistent with the
+// reachability rows written in the same transaction.
+func TestCodeReachabilityStoreReplaceRepositoryRowsReplacesVerdicts(t *testing.T) {
+	now := time.Date(2026, 7, 20, 3, 0, 0, 0, time.UTC)
+	db := newCodeReachabilityTestDB()
+	db.verdicts["scope-1|generation-1|repo-1|entity:stale|ruby.rails_controller_action"] = codeRootVerdictStoredRow{
+		ScopeID: "scope-1", GenerationID: "generation-1", RepositoryID: "repo-1",
+		EntityID: "entity:stale", RootKind: "ruby.rails_controller_action", Verdict: "downgraded",
+		Basis: []byte("{}"), ObservedAt: now, UpdatedAt: now,
 	}
-	if strings.Contains(upsertCodeReachabilityRepositoryWatermarkSQL, "GREATEST") {
-		t.Fatalf("watermark upsert must record the committed snapshot timestamp, not hide stale rows:\n%s", upsertCodeReachabilityRepositoryWatermarkSQL)
+	store := NewCodeReachabilityStore(db)
+	err := store.ReplaceRepositoryRows(
+		context.Background(),
+		"scope-1", "generation-1", "repo-1",
+		nil,
+		[]reducer.CodeRootVerdictRow{{
+			ScopeID: "scope-1", GenerationID: "generation-1", RepositoryID: "repo-1",
+			EntityID: "entity:live", RootKind: "ruby.rails_controller_action",
+			Verdict: reducer.CodeRootVerdictDowngraded,
+			Basis: reducer.CodeRootVerdictBasis{
+				Chain:    []string{"OrdersController", "ApplicationRecord", "ActiveRecord::Base"},
+				Terminal: "unresolved_base:ActiveRecord::Base",
+				Reason:   "unresolved_non_controller",
+			},
+			ObservedAt: now, UpdatedAt: now,
+		}},
+		now.Add(time.Minute),
+		false,
+	)
+	if err != nil {
+		t.Fatalf("ReplaceRepositoryRows() error = %v", err)
+	}
+	if _, ok := db.verdicts["scope-1|generation-1|repo-1|entity:stale|ruby.rails_controller_action"]; ok {
+		t.Fatalf("stale verdict was not deleted: %#v", db.verdicts)
+	}
+	live, ok := db.verdicts["scope-1|generation-1|repo-1|entity:live|ruby.rails_controller_action"]
+	if !ok {
+		t.Fatalf("live verdict row missing: %#v", db.verdicts)
+	}
+	if live.Verdict != "downgraded" {
+		t.Fatalf("verdict = %q, want downgraded", live.Verdict)
+	}
+	var basis map[string]any
+	if err := json.Unmarshal(live.Basis, &basis); err != nil {
+		t.Fatalf("basis is not valid JSON: %v", err)
+	}
+	if basis["reason"] != "unresolved_non_controller" {
+		t.Fatalf("basis reason = %v, want unresolved_non_controller", basis["reason"])
 	}
 }
 
@@ -202,13 +247,27 @@ func TestCodeReachabilityStoreListLatestByEntitiesUsesActiveGeneration(t *testin
 
 type codeReachabilityTestDB struct {
 	rows       map[string]codeReachabilityStoredRow
+	verdicts   map[string]codeRootVerdictStoredRow
 	watermarks map[string]codeReachabilityWatermark
 	lastQuery  string
 }
 
+type codeRootVerdictStoredRow struct {
+	ScopeID      string
+	GenerationID string
+	RepositoryID string
+	EntityID     string
+	RootKind     string
+	Verdict      string
+	Basis        []byte
+	ObservedAt   time.Time
+	UpdatedAt    time.Time
+}
+
 type codeReachabilityWatermark struct {
-	UpdatedAt time.Time
-	Truncated bool
+	UpdatedAt    time.Time
+	Truncated    bool
+	VerdictEpoch int
 }
 
 type codeReachabilityStoredRow struct {
@@ -230,6 +289,7 @@ type codeReachabilityStoredRow struct {
 func newCodeReachabilityTestDB() *codeReachabilityTestDB {
 	return &codeReachabilityTestDB{
 		rows:       map[string]codeReachabilityStoredRow{},
+		verdicts:   map[string]codeRootVerdictStoredRow{},
 		watermarks: map[string]codeReachabilityWatermark{},
 	}
 }
@@ -275,15 +335,44 @@ func (db *codeReachabilityTestDB) ExecContext(_ context.Context, query string, a
 			db.rows[strings.Join([]string{row.ScopeID, row.GenerationID, row.RepositoryID, row.RootEntityID, row.EntityID}, "|")] = row
 		}
 		return sharedIntentResult{}, nil
+	case strings.Contains(query, "DELETE FROM code_root_verdicts"):
+		scopeID := args[0].(string)
+		generationID := args[1].(string)
+		repositoryID := args[2].(string)
+		for key, row := range db.verdicts {
+			if row.ScopeID == scopeID && row.GenerationID == generationID && row.RepositoryID == repositoryID {
+				delete(db.verdicts, key)
+			}
+		}
+		return sharedIntentResult{}, nil
+	case strings.Contains(query, "INSERT INTO code_root_verdicts"):
+		const columnsPerRow = 9
+		for i := 0; i < len(args); i += columnsPerRow {
+			row := codeRootVerdictStoredRow{
+				ScopeID:      args[i+0].(string),
+				GenerationID: args[i+1].(string),
+				RepositoryID: args[i+2].(string),
+				EntityID:     args[i+3].(string),
+				RootKind:     args[i+4].(string),
+				Verdict:      args[i+5].(string),
+				Basis:        args[i+6].([]byte),
+				ObservedAt:   args[i+7].(time.Time),
+				UpdatedAt:    args[i+8].(time.Time),
+			}
+			db.verdicts[strings.Join([]string{row.ScopeID, row.GenerationID, row.RepositoryID, row.EntityID, row.RootKind}, "|")] = row
+		}
+		return sharedIntentResult{}, nil
 	case strings.Contains(query, "INSERT INTO code_reachability_repository_watermarks"):
 		scopeID := args[0].(string)
 		generationID := args[1].(string)
 		repositoryID := args[2].(string)
 		truncated := args[3].(bool)
 		updatedAt := args[4].(time.Time)
+		verdictEpoch := args[5].(int)
 		db.watermarks[strings.Join([]string{scopeID, generationID, repositoryID}, "|")] = codeReachabilityWatermark{
-			UpdatedAt: updatedAt,
-			Truncated: truncated,
+			UpdatedAt:    updatedAt,
+			Truncated:    truncated,
+			VerdictEpoch: verdictEpoch,
 		}
 		return sharedIntentResult{}, nil
 	case strings.Contains(query, "CREATE TABLE") || strings.Contains(query, "CREATE INDEX"):

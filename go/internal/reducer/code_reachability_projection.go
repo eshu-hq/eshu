@@ -39,7 +39,14 @@ type CodeReachabilityProjectionInput struct {
 	Roots             []CodeReachabilityRoot
 	Edges             []CodeReachabilityEdge
 	AffectedEntityIDs []string
-	MaxDepth          int
+	// RubyClasses is the repo-wide Ruby class-ancestry snapshot used by the
+	// #5376 code-root verdict builder to downgrade over-kept Rails controller
+	// actions whose real base lives in another file. It is loaded from the same
+	// content_entities latest-state as Roots, so verdict inputs stay mutually
+	// consistent mid-re-parse. Empty for non-Ruby repositories or repositories
+	// with no controller roots.
+	RubyClasses []RubyClassEntity
+	MaxDepth    int
 	// MaxVisited bounds the distinct reachable entities materialized for this
 	// snapshot. Zero selects defaultCodeReachabilityMaxVisited.
 	MaxVisited int
@@ -61,6 +68,11 @@ type CodeReachabilityProjectionStats struct {
 type CodeReachabilityRoot struct {
 	EntityID  string
 	RootKinds []string
+	// ClassContext is the simple name of the root method's enclosing class,
+	// stamped by the Ruby parser (metadata->>'class_context'). It bridges a
+	// root METHOD entity to its class for the #5376 controller verdict; empty
+	// for roots without a class context (which are never downgraded).
+	ClassContext string
 }
 
 // CodeReachabilityEdge is one modeled code relationship the reachable-set

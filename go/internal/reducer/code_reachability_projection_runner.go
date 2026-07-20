@@ -33,7 +33,10 @@ type CodeReachabilityInputLoader interface {
 	LoadPendingCodeReachabilityInputs(ctx context.Context, limit int) ([]CodeReachabilityProjectionInput, error)
 }
 
-// CodeReachabilityRowWriter writes materialized code reachability rows.
+// CodeReachabilityRowWriter writes materialized code reachability rows and the
+// co-owned #5376 code-root verdict rows. Both are replaced in one transaction
+// per partition so a downgraded controller root and the reachability rows built
+// from the downgraded-filtered root set can never disagree.
 type CodeReachabilityRowWriter interface {
 	ReplaceRepositoryRows(
 		ctx context.Context,
@@ -41,6 +44,7 @@ type CodeReachabilityRowWriter interface {
 		generationID string,
 		repositoryID string,
 		rows []CodeReachabilityRow,
+		verdicts []CodeRootVerdictRow,
 		watermark time.Time,
 		truncated bool,
 	) error
@@ -70,7 +74,20 @@ type CodeReachabilityProjectionResult struct {
 	// bound; the dead-code query falls back to the legacy lookup for entities
 	// omitted from a truncated slice.
 	SnapshotsTruncated int
-	DurationSeconds    float64
+	// VerdictsWritten is the total #5376 code-root verdict rows written
+	// (confirmed + downgraded) across the cycle.
+	VerdictsWritten int
+	// VerdictsDowngraded counts controller-action roots the repo-wide decision
+	// positively resolved onward to a reject branch this cycle.
+	VerdictsDowngraded int
+	// VerdictsInconclusiveMissingContext counts controller-action roots skipped
+	// because they carried no class_context bridge (kept, no row written).
+	VerdictsInconclusiveMissingContext int
+	// VerdictsSuffixAmbiguousKept counts controller-action roots kept by the
+	// #5376 P0 rev-2 suffix-ambiguity floor (a base resolved only by a proper
+	// namespace suffix, or a conventional ambiguous simple name).
+	VerdictsSuffixAmbiguousKept int
+	DurationSeconds             float64
 }
 
 // CodeReachabilityProjectionRunner maintains code_reachability_rows from the
@@ -123,16 +140,20 @@ func (r *CodeReachabilityProjectionRunner) ProcessOnce(
 	}
 
 	partitions := r.partitionInputsByConflictKey(inputs, now)
-	totalRows, truncated, err := r.projectPartitions(ctx, partitions)
+	agg, err := r.projectPartitions(ctx, partitions)
 	if err != nil {
 		return CodeReachabilityProjectionResult{}, err
 	}
 
 	result := CodeReachabilityProjectionResult{
-		InputsProcessed:    len(inputs),
-		RowsWritten:        int(totalRows),
-		SnapshotsTruncated: int(truncated),
-		DurationSeconds:    time.Since(start).Seconds(),
+		InputsProcessed:                    len(inputs),
+		RowsWritten:                        int(agg.totalRows),
+		SnapshotsTruncated:                 int(agg.truncated),
+		VerdictsWritten:                    int(agg.verdictsWritten),
+		VerdictsDowngraded:                 int(agg.verdictsDowngraded),
+		VerdictsInconclusiveMissingContext: int(agg.verdictsInconclusiveMissingContext),
+		VerdictsSuffixAmbiguousKept:        int(agg.verdictsSuffixAmbiguousKept),
+		DurationSeconds:                    time.Since(start).Seconds(),
 	}
 	if r.Logger != nil {
 		r.Logger.Info(
@@ -142,6 +163,10 @@ func (r *CodeReachabilityProjectionRunner) ProcessOnce(
 			slog.Int("partition_count", len(partitions)),
 			slog.Int("concurrency", r.concurrency()),
 			slog.Int("snapshots_truncated", result.SnapshotsTruncated),
+			slog.Int("verdicts_written", result.VerdictsWritten),
+			slog.Int("verdicts_downgraded", result.VerdictsDowngraded),
+			slog.Int("verdicts_inconclusive_missing_context", result.VerdictsInconclusiveMissingContext),
+			slog.Int("verdicts_suffix_ambiguous_kept", result.VerdictsSuffixAmbiguousKept),
 			slog.Float64("duration_seconds", result.DurationSeconds),
 		)
 	}
@@ -187,23 +212,32 @@ func (r *CodeReachabilityProjectionRunner) partitionInputsByConflictKey(
 	return partitions
 }
 
+// codeReachabilityProjectionAggregate accumulates per-cycle counters across the
+// concurrent partition workers.
+type codeReachabilityProjectionAggregate struct {
+	totalRows                          int64
+	truncated                          int64
+	verdictsWritten                    int64
+	verdictsDowngraded                 int64
+	verdictsInconclusiveMissingContext int64
+	verdictsSuffixAmbiguousKept        int64
+}
+
 // projectPartitions projects each conflict partition, running up to
-// r.concurrency() partitions at once. It returns total rows written and the
-// count of truncated snapshots, or the first write error after canceling
-// in-flight workers.
+// r.concurrency() partitions at once. It returns the aggregated cycle counters,
+// or the first write error after canceling in-flight workers.
 func (r *CodeReachabilityProjectionRunner) projectPartitions(
 	ctx context.Context,
 	partitions [][]CodeReachabilityProjectionInput,
-) (int64, int64, error) {
+) (codeReachabilityProjectionAggregate, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	var (
-		totalRows int64
-		truncated int64
-		wg        sync.WaitGroup
-		errOnce   sync.Once
-		firstErr  error
+		agg      codeReachabilityProjectionAggregate
+		wg       sync.WaitGroup
+		errOnce  sync.Once
+		firstErr error
 	)
 	sem := make(chan struct{}, r.concurrency())
 	for _, partition := range partitions {
@@ -227,37 +261,75 @@ func (r *CodeReachabilityProjectionRunner) projectPartitions(
 				if ctx.Err() != nil {
 					return
 				}
-				rows, stats := BuildCodeReachabilityRowsWithStats(input)
-				if err := r.RowWriter.ReplaceRepositoryRows(
-					ctx, input.ScopeID, input.GenerationID, input.RepositoryID, rows, input.UpdatedAt, stats.Truncated,
-				); err != nil {
+				if err := r.projectInput(ctx, input, &agg); err != nil {
 					errOnce.Do(func() {
-						firstErr = fmt.Errorf("write code reachability rows: %w", err)
+						firstErr = err
 						cancel()
 					})
 					return
-				}
-				atomic.AddInt64(&totalRows, int64(len(rows)))
-				if stats.Truncated {
-					atomic.AddInt64(&truncated, 1)
-					if r.Logger != nil {
-						r.Logger.Warn(
-							"code reachability snapshot truncated at max visited bound",
-							log.ScopeID(input.ScopeID),
-							log.GenerationID(input.GenerationID),
-							log.RepositoryID(input.RepositoryID),
-							slog.Int("visited", stats.Visited),
-						)
-					}
 				}
 			}
 		}(partition)
 	}
 	wg.Wait()
 	if firstErr != nil {
-		return 0, 0, firstErr
+		return codeReachabilityProjectionAggregate{}, firstErr
 	}
-	return totalRows, truncated, nil
+	return agg, nil
+}
+
+// projectInput computes and atomically persists one repository-generation
+// snapshot: the #5376 controller verdicts, the reachability rows built from the
+// downgraded-filtered root set, and both writes in one transaction. Filtering
+// the roots BEFORE the BFS is what keeps the materialized reachability rows from
+// asserting everything under a downgraded controller reachable while the query
+// calls those actions dead.
+func (r *CodeReachabilityProjectionRunner) projectInput(
+	ctx context.Context,
+	input CodeReachabilityProjectionInput,
+	agg *codeReachabilityProjectionAggregate,
+) error {
+	verdicts, downgraded, verdictStats := BuildCodeRootVerdicts(input)
+
+	reachabilityInput := input
+	reachabilityInput.Roots = removeDowngradedRailsControllerRoots(input.Roots, downgraded)
+	rows, stats := BuildCodeReachabilityRowsWithStats(reachabilityInput)
+
+	if err := r.RowWriter.ReplaceRepositoryRows(
+		ctx, input.ScopeID, input.GenerationID, input.RepositoryID, rows, verdicts, input.UpdatedAt, stats.Truncated,
+	); err != nil {
+		return fmt.Errorf("write code reachability rows: %w", err)
+	}
+
+	atomic.AddInt64(&agg.totalRows, int64(len(rows)))
+	atomic.AddInt64(&agg.verdictsWritten, int64(len(verdicts)))
+	atomic.AddInt64(&agg.verdictsDowngraded, int64(verdictStats.Downgraded))
+	atomic.AddInt64(&agg.verdictsInconclusiveMissingContext, int64(verdictStats.InconclusiveMissingContext))
+	atomic.AddInt64(&agg.verdictsSuffixAmbiguousKept, int64(verdictStats.SuffixAmbiguousKept))
+	if stats.Truncated {
+		atomic.AddInt64(&agg.truncated, 1)
+		if r.Logger != nil {
+			r.Logger.Warn(
+				"code reachability snapshot truncated at max visited bound",
+				log.ScopeID(input.ScopeID),
+				log.GenerationID(input.GenerationID),
+				log.RepositoryID(input.RepositoryID),
+				slog.Int("visited", stats.Visited),
+			)
+		}
+	}
+	if verdictStats.Downgraded > 0 && r.Logger != nil {
+		r.Logger.Info(
+			"code root controller verdicts downgraded",
+			log.ScopeID(input.ScopeID),
+			log.GenerationID(input.GenerationID),
+			log.RepositoryID(input.RepositoryID),
+			slog.Int("downgraded", verdictStats.Downgraded),
+			slog.Int("confirmed", verdictStats.Confirmed),
+			slog.Int("inconclusive_missing_context", verdictStats.InconclusiveMissingContext),
+		)
+	}
+	return nil
 }
 
 // codeReachabilityConflictKey is the durable per-partition claim fence for the

@@ -210,6 +210,17 @@ func (s *rubySyntax) visitClass(
 		"lang":        "ruby",
 		"type":        "class",
 	}
+	// qualified_name is the class's namespace-qualified name (#5376 F3), built
+	// from the enclosing module/class scope prefix plus the raw name-node text
+	// (which itself carries any compact "Admin::Base" spelling); a leading "::"
+	// marks an absolute name and ignores the enclosing path. The reducer's
+	// repo-wide controller registry keys on it so a base reference like
+	// "Admin::Base" resolves to the right class instead of a same-last-segment
+	// impostor. Emitted additively next to name; the last-segment name is kept
+	// for existing consumers.
+	if qualified := s.qualifiedClassName(node, scopeStack); qualified != "" {
+		item["qualified_name"] = qualified
+	}
 	s.classRegistry.known[name] = struct{}{}
 	if superclass := node.ChildByFieldName("superclass"); superclass != nil {
 		if base := s.superclassName(superclass); base != "" {
@@ -217,6 +228,15 @@ func (s *rubySyntax) visitClass(
 		}
 		if qualified := s.superclassQualifiedName(superclass); qualified != "" {
 			s.classRegistry.superclass[name] = qualified
+			// qualified_bases is the full, possibly module-qualified base
+			// (e.g. "ActionController::Base"), emitted additively next to the
+			// last-segment "bases" fact. The reducer's repo-wide #5376
+			// code-root verdict builder needs the qualification: the persisted
+			// "bases" fact collapses "ActionController::Base" to "Base", which
+			// would make a reducer walk conflate a real controller base with an
+			// unrelated class sharing the same last segment. Kept in-memory-only
+			// before #5376; now persisted so cross-file resolution is possible.
+			item["qualified_bases"] = []string{qualified}
 		}
 	}
 	s.classes = append(s.classes, item)

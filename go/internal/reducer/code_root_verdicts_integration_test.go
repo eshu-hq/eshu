@@ -1,0 +1,174 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package reducer_test
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/ruby"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
+	"github.com/eshu-hq/eshu/go/internal/reducer"
+)
+
+// parseRubyCorpus parses each source file with the REAL Ruby parser and returns
+// the class entities and controller-action roots exactly as the collector would
+// derive them from the parser payload — no fabricated entities. This is the
+// #5376 anti-masking harness: the original P1 false positive was hidden by
+// hand-built RubyClassEntity.Name values (e.g. "Admin::BaseController") that the
+// parser's constantName can never emit. This test feeds genuine parser output.
+func parseRubyCorpus(t *testing.T, files map[string]string) ([]reducer.RubyClassEntity, []reducer.CodeReachabilityRoot) {
+	t.Helper()
+	dir := t.TempDir()
+	var classes []reducer.RubyClassEntity
+	var roots []reducer.CodeReachabilityRoot
+	for name, src := range files {
+		path := filepath.Join(dir, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(path, []byte(src), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+		payload, err := ruby.Parse(path, false, shared.Options{})
+		if err != nil {
+			t.Fatalf("parse %s: %v", name, err)
+		}
+		classes = append(classes, rubyClassEntitiesFromPayload(t, payload)...)
+		roots = append(roots, rubyControllerRootsFromPayload(t, name, payload)...)
+	}
+	return classes, roots
+}
+
+func rubyClassEntitiesFromPayload(t *testing.T, payload map[string]any) []reducer.RubyClassEntity {
+	t.Helper()
+	items, _ := payload["classes"].([]map[string]any)
+	out := make([]reducer.RubyClassEntity, 0, len(items))
+	for _, item := range items {
+		name, _ := item["name"].(string)
+		qualifiedName, _ := item["qualified_name"].(string)
+		qualifiedBases, _ := item["qualified_bases"].([]string)
+		out = append(out, reducer.RubyClassEntity{
+			Name:           name,
+			QualifiedName:  qualifiedName,
+			QualifiedBases: qualifiedBases,
+		})
+	}
+	return out
+}
+
+func rubyControllerRootsFromPayload(t *testing.T, file string, payload map[string]any) []reducer.CodeReachabilityRoot {
+	t.Helper()
+	items, _ := payload["functions"].([]map[string]any)
+	out := make([]reducer.CodeReachabilityRoot, 0)
+	for _, item := range items {
+		kinds, _ := item["dead_code_root_kinds"].([]string)
+		if len(kinds) == 0 {
+			continue
+		}
+		classContext, _ := item["class_context"].(string)
+		name, _ := item["name"].(string)
+		out = append(out, reducer.CodeReachabilityRoot{
+			EntityID:     file + ":" + name,
+			RootKinds:    kinds,
+			ClassContext: classContext,
+		})
+	}
+	return out
+}
+
+// TestBuildCodeRootVerdictsFromRealParserEmissions parses a real multi-file Ruby
+// corpus and feeds the actual parser emissions into BuildCodeRootVerdicts. It
+// proves the #5376 P1 fix end-to-end across the parser->reducer seam:
+//
+//   - WidgetsController < Admin::Base, with Admin::Base < ActionController::Base
+//     in another file: the parser roots the action (F1 keep-biased on the
+//     unresolved namespaced base), and the reducer CONFIRMS it repo-wide (the
+//     genuine controller the old code flagged dead).
+//   - OrdersController < BaseController, with BaseController < ApplicationRecord
+//     in another file: the parser roots the action (unresolved *Controller
+//     suffix), and the reducer DOWNGRADES it (resolves onward to the rejected
+//     framework base) — the true cross-file downgrade the fix must preserve.
+func TestBuildCodeRootVerdictsFromRealParserEmissions(t *testing.T) {
+	t.Parallel()
+
+	classes, roots := parseRubyCorpus(t, map[string]string{
+		"app/controllers/widgets_controller.rb": `class WidgetsController < Admin::Base
+  def index
+    true
+  end
+end
+`,
+		"app/controllers/admin/base.rb": `module Admin
+  class Base < ActionController::Base
+  end
+end
+`,
+		"app/controllers/orders_controller.rb": `class OrdersController < BaseController
+  def list
+    true
+  end
+end
+`,
+		"app/models/base_controller.rb": `class BaseController < ApplicationRecord
+end
+`,
+	})
+
+	// Sanity: the parser must actually have rooted BOTH controller actions, or
+	// the test proves nothing.
+	if !hasRoot(roots, "index") || !hasRoot(roots, "list") {
+		t.Fatalf("parser did not root both controller actions; roots=%+v", roots)
+	}
+
+	rows, downgraded, _ := reducer.BuildCodeRootVerdicts(reducer.CodeReachabilityProjectionInput{
+		ScopeID:      "scope-1",
+		GenerationID: "gen-1",
+		RepositoryID: "repo-1",
+		Roots:        roots,
+		RubyClasses:  classes,
+	})
+
+	confirmed := verdictForAction(rows, "index")
+	if confirmed == nil || confirmed.Verdict != reducer.CodeRootVerdictConfirmed {
+		t.Fatalf("WidgetsController#index must be CONFIRMED (genuine controller via namespaced base), got %+v", confirmed)
+	}
+	if _, isDown := downgraded[confirmed.EntityID]; isDown {
+		t.Fatalf("confirmed controller must not be in the downgraded set")
+	}
+
+	downgradedRow := verdictForAction(rows, "list")
+	if downgradedRow == nil || downgradedRow.Verdict != reducer.CodeRootVerdictDowngraded {
+		t.Fatalf("OrdersController#list must be DOWNGRADED (resolves onward to ApplicationRecord), got %+v", downgradedRow)
+	}
+	if _, isDown := downgraded[downgradedRow.EntityID]; !isDown {
+		t.Fatalf("downgraded controller action must be in the downgraded set")
+	}
+	if downgradedRow.Basis.Reason != "rejected_framework_base" {
+		t.Fatalf("downgrade basis reason = %q, want rejected_framework_base (basis=%+v)", downgradedRow.Basis.Reason, downgradedRow.Basis)
+	}
+}
+
+func hasRoot(roots []reducer.CodeReachabilityRoot, action string) bool {
+	for _, r := range roots {
+		if endsWith(r.EntityID, ":"+action) {
+			return true
+		}
+	}
+	return false
+}
+
+func verdictForAction(rows []reducer.CodeRootVerdictRow, action string) *reducer.CodeRootVerdictRow {
+	for i := range rows {
+		if endsWith(rows[i].EntityID, ":"+action) {
+			return &rows[i]
+		}
+	}
+	return nil
+}
+
+func endsWith(s, suffix string) bool {
+	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
+}

@@ -55,6 +55,46 @@ func (s *rubySyntax) constantName(node *tree_sitter.Node) string {
 	return shared.LastPathSegment(s.text(node), "::")
 }
 
+// qualifiedClassName returns the class's namespace-qualified name (#5376 F3):
+// the enclosing module/class scope prefix joined to the class's own declared
+// name. The raw name-node text is used (not the last-segment collapse) so a
+// compact "class Admin::Base" spelling keeps its qualifier. A leading "::"
+// marks an absolute constant and ignores the enclosing path. Returns "" when
+// the name node is absent.
+func (s *rubySyntax) qualifiedClassName(node *tree_sitter.Node, scopeStack []rubyScope) string {
+	nameNode := node.ChildByFieldName("name")
+	if nameNode == nil {
+		return ""
+	}
+	raw := strings.TrimSpace(s.text(nameNode))
+	if raw == "" {
+		return ""
+	}
+	if strings.HasPrefix(raw, "::") {
+		return strings.TrimPrefix(raw, "::")
+	}
+	prefix := rubyScopeQualifiedPrefix(scopeStack)
+	if prefix == "" {
+		return raw
+	}
+	return prefix + "::" + raw
+}
+
+// rubyScopeQualifiedPrefix joins the names of the enclosing module and class
+// scopes with "::" to form the namespace prefix for a nested definition. Method
+// and singleton-class scopes are skipped: they are not part of a constant path.
+func rubyScopeQualifiedPrefix(scopeStack []rubyScope) string {
+	segments := make([]string, 0, len(scopeStack))
+	for _, scope := range scopeStack {
+		if scope.kind == rubyScopeModule || scope.kind == rubyScopeClass {
+			if name := strings.TrimSpace(scope.name); name != "" {
+				segments = append(segments, name)
+			}
+		}
+	}
+	return strings.Join(segments, "::")
+}
+
 // superclassName returns the base constant name from a (superclass) node.
 func (s *rubySyntax) superclassName(node *tree_sitter.Node) string {
 	cursor := node.Walk()

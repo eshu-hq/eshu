@@ -211,10 +211,12 @@ func (h *CodeHandler) scanCrossRepoDeadCodeCandidates(
 		if err != nil {
 			return scan, err
 		}
+		downgraded := h.loadDeadCodeDowngradedRoots(ctx, results)
 		active, suppressed, stats := partitionDeadCodeInvestigationResults(
 			results,
 			contentByID,
 			req.ExcludeDecoratedWith,
+			downgraded,
 		)
 		addDeadCodePolicyStats(&scan.PolicyStats, stats)
 		scan.Suppressed = append(scan.Suppressed, suppressed...)

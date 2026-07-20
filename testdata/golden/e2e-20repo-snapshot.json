@@ -4,7 +4,7 @@
   "description": "Golden graph and query truth snapshot for the B-7 end-to-end corpus gate. B-7 diffs a live run against this file. Update this file under review when intentional graph behaviour changes; never update silently.",
   "tolerance_policy": "count ranges are [min, max] inclusive; a live run outside the range fails B-7(b). required_correlations assertions must all pass; a missing edge fails B-7(b). query_shapes define required response fields; a missing field fails B-7(c).",
   "corpus_composition": {
-    "git_repos": 20,
+    "git_repos": 21,
     "credentialed_collectors": [
       "kubernetes_live",
       "aws_cloud",

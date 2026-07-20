@@ -85,4 +85,5 @@ var orderedBootstrapDefinitionNames = []string{
 	"identity_token_metadata_display_label",
 	"content_entity_name_trgm_index",
 	"identity_github_login",
+	"code_root_verdicts",
 }
