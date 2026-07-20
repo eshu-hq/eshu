@@ -10,7 +10,9 @@ import "testing"
 // content-backed (materialize_tables.go registers them under the
 // terraform_backend shape), so "atlantis_project"/"atlantis_workflow" must
 // resolve to the same PascalCase label whether the caller reaches the graph
-// first (resolveGraphEntityType, backed by graphFirstContentBackedEntityTypes)
+// first (resolveGraphEntityType, backed by
+// graphResolvableNotLanguageQueryableEntityTypes -- atlantis is graph-resolvable
+// but deliberately excluded from the language-query enum, #5369)
 // or the content-store name-search fallback
 // (contentEntityTypeForResolve, backed by resolveContentBackedEntityTypes).
 //

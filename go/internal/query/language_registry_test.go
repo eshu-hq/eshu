@@ -34,8 +34,8 @@ func TestSupportedLanguages(t *testing.T) {
 
 func TestSupportedEntityTypes(t *testing.T) {
 	types := SupportedEntityTypes()
-	if len(types) != 40 {
-		t.Errorf("expected 40 supported entity types, got %d: %v", len(types), types)
+	if len(types) != 38 {
+		t.Errorf("expected 38 supported entity types, got %d: %v", len(types), types)
 	}
 	expected := map[string]bool{
 		"repository": true, "directory": true, "file": true,
@@ -43,7 +43,6 @@ func TestSupportedEntityTypes(t *testing.T) {
 		"type_alias": true, "type_annotation": true, "typedef": true, "component": true,
 		"annotation": true, "protocol": true, "impl_block": true,
 		"guard": true, "protocol_implementation": true, "module_attribute": true,
-		"atlantis_project": true, "atlantis_workflow": true,
 		"terraform_module": true, "terragrunt_config": true,
 		"terraform_backend": true, "terraform_import": true, "terraform_moved_block": true,
 		"terraform_removed_block": true, "terraform_check": true, "terraform_lock_provider": true,
@@ -58,6 +57,14 @@ func TestSupportedEntityTypes(t *testing.T) {
 	for want := range expected {
 		if !typeSet[want] {
 			t.Errorf("expected entity type %q not found", want)
+		}
+	}
+	// Atlantis entities carry language "yaml", which supportedLanguages does not
+	// accept, so they must NOT be advertised in the language-query entity_type
+	// enum (they resolve via resolve_entity/get_entity_context instead). #5369.
+	for _, absent := range []string{"atlantis_project", "atlantis_workflow"} {
+		if typeSet[absent] {
+			t.Errorf("entity type %q must not be language-queryable (no yaml language)", absent)
 		}
 	}
 }

@@ -85,10 +85,13 @@ surfaces:
   edges (`OPTIONAL MATCH (e)-[rel]->(target)`), so an
   `AtlantisProject`/`AtlantisWorkflow` and its
   `MANAGES`/`ATLANTIS_DEPENDS_ON`/`USES_WORKFLOW` edges can be read back this
-  way. `atlantis_project`/`atlantis_workflow` are registered as content-backed
-  entity types (`go/internal/query/language_query_entities.go`,
-  `go/internal/query/entity_content_types.go`), matching the other
-  content-materialized IaC entity types.
+  way. `atlantis_project`/`atlantis_workflow` are registered for entity-context
+  resolution in `go/internal/query/entity_content_types.go`
+  (`resolveContentBackedEntityTypes` for the content-store fallback,
+  `graphResolvableNotLanguageQueryableEntityTypes` for graph-label filtering).
+  They are deliberately **not** language-queryable — Atlantis entities carry
+  language `yaml`, which `language-query` does not accept — so they are absent
+  from the `language-query` `entity_type` enum.
 - **Typed relationships catalog**: `MANAGES`, `ATLANTIS_DEPENDS_ON`, and
   `USES_WORKFLOW` are registered verbs in the fixed relationships catalog
   (`go/internal/query/relationships_catalog_cypher.go`, `layer: infra`), so

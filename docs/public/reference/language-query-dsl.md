@@ -67,7 +67,7 @@ Entity types are resolved against three backing stores:
 
 Accepted values in the current `entity_type` enum:
 
-`annotation`, `atlantis_project`, `atlantis_workflow`, `class`, `component`,
+`annotation`, `class`, `component`,
 `directory`, `enum`, `file`, `function`, `guard`, `impl_block`, `macro`,
 `module`, `module_attribute`, `protocol`, `protocol_implementation`,
 `repository`, `sql_column`, `sql_function`, `sql_index`, `sql_table`,
@@ -77,11 +77,14 @@ Accepted values in the current `entity_type` enum:
 `terragrunt_dependency`, `terragrunt_input`, `terragrunt_local`, `type_alias`,
 `type_annotation`, `typedef`, `union`, `variable`.
 
-`atlantis_project`/`atlantis_workflow` are graph-first with content fallback
-(same shape as the `terraform_*` entity types): they resolve to the
-`AtlantisProject`/`AtlantisWorkflow` graph labels first, falling back to the
-Postgres content store when the graph is empty for that language/type. See
-[Atlantis Parser](../languages/atlantis.md#query-surfacing).
+`atlantis_project`/`atlantis_workflow` are **not** language-queryable and are
+deliberately absent from the enum above: Atlantis entities carry language
+`yaml`, which `language-query` does not accept, so no language/entity_type pair
+could return rows. They are served instead by `resolve_entity` /
+`get_entity_context` (which resolve the `AtlantisProject`/`AtlantisWorkflow`
+graph labels and return their outgoing governance edges) and by
+`list_relationship_edges` for the MANAGES / ATLANTIS_DEPENDS_ON / USES_WORKFLOW
+verbs. See [Atlantis Parser](../languages/atlantis.md#query-surfacing).
 
 `guard` is a semantic filter over `function` entities and returns
 guard-classified functions only.
