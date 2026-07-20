@@ -4,7 +4,6 @@
 package yaml
 
 import (
-	"fmt"
 	"path/filepath"
 	"strings"
 )
@@ -160,6 +159,36 @@ func collectKustomizeImageOverrides(document map[string]any, path string, enviro
 	return dedupeImageOverrideRows(rows)
 }
 
+// imageOverrideRowFields lists every key an image_overrides row carries.
+// imageOverrideRowsEqual below iterates it to compare two rows field by
+// field, and TestImageOverrideKeyStaysInSyncWithRowShape
+// (image_overrides_test.go) asserts its length matches a real row's key
+// count -- both derive from this single list, so a row field added to
+// helmImageOverrideRow/collectKustomizeImageOverrides with no matching
+// addition here fails that test instead of silently escaping comparison.
+// "line_number" is the only int; every other field is a string.
+var imageOverrideRowFields = []string{
+	"name", "repository", "tag", "digest", "environment",
+	"source", "path", "lang", "line_number",
+}
+
+// imageOverrideRowsEqual reports whether two image_overrides rows are
+// identical on every field in imageOverrideRowFields.
+func imageOverrideRowsEqual(a, b map[string]any) bool {
+	for _, field := range imageOverrideRowFields {
+		if field == "line_number" {
+			if rowInt(a, field) != rowInt(b, field) {
+				return false
+			}
+			continue
+		}
+		if rowString(a, field) != rowString(b, field) {
+			return false
+		}
+	}
+	return true
+}
+
 // dedupeImageOverrideRows removes exact-duplicate image_overrides rows --
 // identical on every field -- while preserving the first occurrence's
 // position, and is applied by both producers above (issue #5440 review).
@@ -174,26 +203,63 @@ func collectKustomizeImageOverrides(document map[string]any, path string, enviro
 // (deduplicateStrings, helm.go). A row that differs in ANY field (the same
 // repository declared under a different tag, for example) is a genuinely
 // distinct declaration and is kept.
+//
+// This scans deduped-so-far linearly for each row rather than hashing into a
+// map (issue #5440 review, second pass). The first version built a
+// fmt.Sprintf string key (reflection-based, allocates every call); the
+// second version replaced it with a flat 9-field comparable struct key --
+// but that struct measured 136 bytes, over the Go runtime's 128-byte
+// map-key threshold for in-bucket storage, so the runtime silently fell
+// back to indirect (pointer-boxed) key storage and allocs/op did not
+// improve at all (measured: identical allocs/op to the Sprintf version).
+// Bucketing on a small map key (for example just name+repository) and
+// falling back to a per-bucket scan for the remaining fields would work
+// around the threshold, but adds a map plus a growing per-bucket slice
+// (itself an allocation per distinct key) for no real gain at this scale.
+// A plain O(n^2) scan against the small, pre-sized deduped slice needs
+// exactly ONE allocation total (deduped's own backing array, sized len(rows)
+// up front) regardless of row count. image_overrides rows are scoped to one
+// file's declared images -- realistically single-to-low-double-digits, never
+// the file-count or repo-count scale this repo's performance contract
+// actually governs -- so trading an unmeasurable quadratic constant for
+// zero per-row allocations is the right tradeoff here. See the package
+// README's Performance Evidence for the measured numbers backing this
+// choice, including a larger (200-image) fixture confirming no superlinear
+// blowup.
 func dedupeImageOverrideRows(rows []map[string]any) []map[string]any {
 	if len(rows) < 2 {
 		return rows
 	}
-	seen := make(map[string]struct{}, len(rows))
 	deduped := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
-		key := fmt.Sprintf(
-			"%v\x00%v\x00%v\x00%v\x00%v\x00%v\x00%v\x00%v\x00%v",
-			row["name"], row["repository"], row["tag"], row["digest"],
-			row["environment"], row["source"], row["path"],
-			row["line_number"], row["lang"],
-		)
-		if _, ok := seen[key]; ok {
-			continue
+		duplicate := false
+		for _, existing := range deduped {
+			if imageOverrideRowsEqual(existing, row) {
+				duplicate = true
+				break
+			}
 		}
-		seen[key] = struct{}{}
-		deduped = append(deduped, row)
+		if !duplicate {
+			deduped = append(deduped, row)
+		}
 	}
 	return deduped
+}
+
+// rowString and rowInt read one image_overrides row field as its known
+// concrete type (helmImageOverrideRow and collectKustomizeImageOverrides
+// always store a string, or for line_number an int). The comma-ok form is
+// defensive, not load-bearing: a type mismatch here would be a bug in this
+// file's own row builders, never a real runtime input, so it degrades to the
+// zero value rather than panicking on a value this package fully controls.
+func rowString(row map[string]any, key string) string {
+	s, _ := row[key].(string)
+	return s
+}
+
+func rowInt(row map[string]any, key string) int {
+	n, _ := row[key].(int)
+	return n
 }
 
 // helmImageOverrideEnvironmentTokens is the closed set of filename suffixes

@@ -399,3 +399,36 @@ serviceC:
 		t.Fatalf("tag 2.0.0 count = %d, want 1 (kept, distinct tag): %#v", tags["2.0.0"], overrides)
 	}
 }
+
+// TestImageOverrideKeyStaysInSyncWithRowShape is a structural drift guard
+// (issue #5440 review): dedupeImageOverrideRows detects an exact-duplicate
+// row by comparing every field named in imageOverrideRowFields
+// (image_overrides.go), read individually rather than formatted into a
+// string. If a row builder ever grows a new field with no matching addition
+// to that list, dedup would silently ignore the new field and could wrongly
+// collapse two rows that actually differ. This test cannot catch a field
+// RENAME, but it catches the far more common drift: a field ADDED to a row
+// with no matching addition to imageOverrideRowFields, by asserting the two
+// field counts stay equal.
+func TestImageOverrideKeyStaysInSyncWithRowShape(t *testing.T) {
+	t.Parallel()
+
+	row := helmImageOverrideRow(
+		map[string]any{"repository": "ghcr.io/example/checkout-service", "tag": "1.2.3"},
+		"values.yaml",
+		"prod",
+	)
+	if row == nil {
+		t.Fatal("helmImageOverrideRow() = nil, want a row for a valid image map")
+	}
+
+	if got, want := len(imageOverrideRowFields), len(row); got != want {
+		t.Fatalf(
+			"imageOverrideRowFields has %d entries but an image_overrides row has %d keys -- "+
+				"dedupeImageOverrideRows's field list (image_overrides.go) is out of sync with "+
+				"the row shape; add the missing field to imageOverrideRowFields or a new row "+
+				"field will silently escape duplicate-row comparison",
+			got, want,
+		)
+	}
+}

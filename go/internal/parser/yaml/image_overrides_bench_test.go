@@ -111,3 +111,53 @@ func BenchmarkParseKustomizationRepresentativeImages(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkParseHelmValuesLargeImages measures Parse() over a values.yaml
+// with 200 nested "image:" blocks -- a worst-case-partition fixture (issue
+// #5440 review) proving dedupeImageOverrideRows's O(n^2) linear-scan dedupe
+// (image_overrides.go) does not blow up superlinearly at 10x the
+// representative fixture's image count. Every image in this fixture is
+// distinct (no real duplicates), so the scan always runs its full worst-case
+// length per row.
+func BenchmarkParseHelmValuesLargeImages(b *testing.B) {
+	dir := b.TempDir()
+	path := filepath.Join(dir, "values.yaml")
+	source := buildRepresentativeHelmValues(200)
+	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+		b.Fatalf("write values.yaml: %v", err)
+	}
+
+	b.ReportAllocs()
+	for b.Loop() {
+		payload, err := Parse(path, false, Options{})
+		if err != nil {
+			b.Fatalf("Parse() error = %v", err)
+		}
+		if got := len(payload["helm_values"].([]map[string]any)); got != 1 {
+			b.Fatalf("helm_values rows = %d, want 1", got)
+		}
+	}
+}
+
+// BenchmarkParseKustomizationLargeImages is BenchmarkParseKustomizationRepresentativeImages
+// at 200 images[] entries -- the same worst-case-partition proof as
+// BenchmarkParseHelmValuesLargeImages, for the Kustomize producer.
+func BenchmarkParseKustomizationLargeImages(b *testing.B) {
+	dir := b.TempDir()
+	path := filepath.Join(dir, "kustomization.yaml")
+	source := buildRepresentativeKustomization(200)
+	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+		b.Fatalf("write kustomization.yaml: %v", err)
+	}
+
+	b.ReportAllocs()
+	for b.Loop() {
+		payload, err := Parse(path, false, Options{})
+		if err != nil {
+			b.Fatalf("Parse() error = %v", err)
+		}
+		if got := len(payload["kustomize_overlays"].([]map[string]any)); got != 1 {
+			b.Fatalf("kustomize_overlays rows = %d, want 1", got)
+		}
+	}
+}

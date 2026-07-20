@@ -218,27 +218,85 @@ Accuracy-fix follow-up (same issue, same benchmarks): a review found
 entries declaring the exact same repository/tag/digest produced duplicate
 rows with no field to distinguish them. The fix gates the filename inference
 behind a closed environment-token allowlist (one map lookup per Helm values
-file) and adds an exact-duplicate-row dedupe pass to both producers (one
-`fmt.Sprintf`-built key per row). Re-measured with the same benchmarks,
-`-count=5`, immediately after the row above (same machine, same session):
+file, negligible and not separately isolated below) and adds an
+exact-duplicate-row dedupe pass to both producers. The dedupe pass went
+through three implementations before landing; per this repo's
+Prove-The-Theory-First discipline, the second was proposed as a theory,
+measured, and disproven, so the numbers for all three are kept below rather
+than only the final one.
 
-| Fixture (20 images) | Before-fix ns/op | After-fix ns/op | Δ ns/op | Before-fix B/op | After-fix B/op | Δ B/op | Before-fix allocs/op | After-fix allocs/op | Δ allocs/op |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Helm values.yaml | 360.7us | 391.0us (388.4-394.2us, tight) | +8.4% | 266,682 | 272,855 | +2.3% | 3,944 | 3,968 | +24 (+0.6%) |
-| Kustomize kustomization.yaml | 107.4us | ~122.5us typical (120.4-123.5us, 4/5 runs; one 219.2us outlier excluded as scheduler jitter -- B/op and allocs/op stayed flat on that same run, confirming it was not extra work) | +14.1% (typical) | 84,827 | 90,385 | +6.6% | 1,135 | 1,159 | +24 (+2.1%) |
+`go test ./internal/parser/yaml -run '^$' -bench
+'BenchmarkParseHelmValuesRepresentativeImages|BenchmarkParseKustomizationRepresentativeImages'
+-benchmem -count=5` on darwin/arm64 (Apple M1 Max), same machine, same
+session, run back to back in the order below:
 
-This is NOT noise-level on B/op and allocs/op -- both are deterministic
-counts, stable within a few bytes/zero allocs across every repeat run, and
-both moved by a small, real, bounded amount: +24 allocs/op on both fixtures
-(one `fmt.Sprintf` key allocation per row, plus the `seen` map and `deduped`
-slice), consistent with a 20-image fixture. ns/op is noisier (Kustomize saw
-one clear scheduler-jitter outlier) but the non-outlier cluster still shows a
-real single-digit-to-low-double-digit percent increase, not a regression to
-be alarmed about: the cost is O(n) in declared images, not superlinear, and
-buys a P1 accuracy fix (no fabricated `values.schema.yaml`/`values.example.
-yaml` environments) plus phantom-duplicate-row elimination. Both changes stay
-inside the same async parse stage, never a query-serving or graph-write hot
-path.
+1. **origin/main baseline** -- no `image_overrides` bucket at all.
+2. **Sprintf dedupe** (first shipped version) -- `dedupeImageOverrideRows`
+   built a `fmt.Sprintf`-formatted string as the seen-set key.
+3. **Struct-key dedupe (disproven theory)** -- replaced the string key with a
+   flat, directly-comparable 9-field struct (`name, repository, tag, digest,
+   environment, source, path, lang string; lineNumber int`), on the theory
+   that a comparable struct needs no string-building allocation. Measured:
+   `unsafe.Sizeof` put the struct at 136 bytes, over the Go runtime's
+   128-byte `maxKeySize` threshold for in-bucket map-key storage, so the
+   runtime silently fell back to indirect (pointer-boxed) key storage --
+   allocs/op came back byte-for-byte identical to the Sprintf version on both
+   fixtures (3,968 / 1,159), proving the theory wrong: it removed the string
+   formatting but not the allocation.
+4. **Linear-scan dedupe (shipped)** -- dropped the map entirely.
+   `dedupeImageOverrideRows` scans the already-deduped slice so far
+   (pre-sized to `len(rows)`, so `append` never reallocates) and compares
+   every field via `imageOverrideRowsEqual`. This is O(n^2) in declared
+   images per file, not O(n), but needs exactly ONE allocation total
+   (the pre-sized slice) regardless of row count -- see
+   `BenchmarkParseHelmValuesLargeImages`/`...LargeImages` below for the
+   200-image worst-case-partition proof that this stays linear-looking in
+   practice at realistic file sizes.
+
+| Fixture (20 images) | 1. origin/main ns/op | 2. Sprintf ns/op | 3. struct-key ns/op | 4. linear-scan ns/op (shipped) | 1. B/op | 2. B/op | 3. B/op | 4. B/op | 1. allocs/op | 2. allocs/op | 3. allocs/op | 4. allocs/op |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Helm values.yaml | 360.7us | 391.0us | 410.2us | 397.2us | 248,979†/266,682 | 272,855 | 270,345 | 266,848 | 3,689†/3,944 | 3,968 | 3,968 | **3,945** |
+| Kustomize kustomization.yaml | 101.5us†/107.4us | ~122.5us | ~123.3us | ~123.4us (one 145.5us outlier) | 67,594†/84,827 | 90,385 | 88,486 | 84,989 | 871†/1,135 | 1,159 | 1,159 | **1,136** |
+
+†origin/main's own pre-`image_overrides` number, from the original PR's
+before/after table above -- included as the true zero-feature baseline;
+column 1's other value is `image_overrides` with no dedupe at all (the
+"before-fix" row from the original accuracy-fix report), the correct
+before/after pair for the dedupe-only cost this table isolates.
+
+The allocation counts are the reliable signal here (Go's `-benchmem` counts
+are exact and stable to a byte/zero allocs across every repeat run; ns/op has
+real machine-level jitter, visible in the Kustomize outlier column 4). Column
+4 (shipped) recovers allocs/op to +1 over the no-dedupe baseline on Helm
+(3,944 -> 3,945) and +1 on Kustomize (1,135 -> 1,136) -- within the "+0 to
++2" target, not the +24 both prior implementations carried. B/op is
+similarly back within 0.06%-0.19% of the no-dedupe baseline on both
+fixtures. ns/op stayed elevated by a similar magnitude across ALL THREE
+dedupe implementations (roughly +8% to +14% over the origin/main baseline,
+regardless of algorithm), which points to session-level machine timing
+variance across this benchmark run rather than a cost specific to any one
+dedupe design -- it is reported as-is rather than explained away, since it
+was not isolated with a true same-binary A/B run.
+
+`BenchmarkParseHelmValuesLargeImages`/`BenchmarkParseKustomizationLargeImages`
+(200 images, 10x the representative fixture) confirm the O(n^2) scan does
+not dominate at realistic file sizes: ns/op, B/op, and allocs/op all scaled
+roughly 9-10x for a 10x increase in image count (Helm: 397.2us/266,848B/
+3,945allocs at 20 images -> ~4.06ms/2.428MB/37,173allocs at 200 images, a
+~9.4-10.2x scale-up; Kustomize: ~123.4us/84,989B/1,136allocs at 20 images ->
+~1.25ms/666,084B/9,126allocs at 200 images, a ~7.9-10.1x scale-up) --
+consistent with the O(n) row-construction/YAML-decode cost that already
+dominates `Parse()`, not the O(n^2) comparison scan, which allocates nothing
+and only matters at file sizes far beyond what a real Helm values file or
+kustomization images[] list declares.
+
+No-Regression Evidence: the shipped dedupe pass's allocation cost is now
+indistinguishable from not deduping at all (+1 alloc/op on both fixtures),
+and its CPU cost stays inside the same async collector snapshot/parse stage
+as the rest of this package -- never a query-serving or graph-write hot
+path. The whole feature (allowlist gate + dedupe) buys a P1 accuracy fix (no
+fabricated `values.schema.yaml`/`values.example.yaml` environments) plus
+phantom-duplicate-row elimination for effectively free allocation cost.
 
 ## Gotchas / invariants
 
