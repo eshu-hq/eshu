@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 404/404 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 404/405 surfaces satisfied (99.75%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -18,10 +18,10 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
 | Projections (cost/ordering) | 27 | 27 | 100.00% | 0 | 1 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
-| Retractable edge types (delta) | 53 | 53 | 100.00% | 0 | 0 |
+| Retractable edge types (delta) | 53 | 54 | 98.15% | 1 | 0 |
 | Retractable node types (delta) | 87 | 87 | 100.00% | 0 | 0 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **404** | **404** | **100.00%** | **0** | **10** |
+| **Total** | **404** | **405** | **99.75%** | **1** | **10** |
 
 ## Coverage by scenario type
 
@@ -30,7 +30,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | baseline | 215 | 215 | 100.00% | 0 | 5 |
 | cost | 26 | 26 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
-| delta_tombstone | 141 | 141 | 100.00% | 0 | 0 |
+| delta_tombstone | 141 | 142 | 99.30% | 1 | 0 |
 | fault | 17 | 17 | 100.00% | 0 | 4 |
 | ordering | 3 | 3 | 100.00% | 0 | 0 |
 
@@ -44,7 +44,11 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 ## Gaps — surfaces still needing a replay scenario
 
-None. Every supported surface has a replay scenario.
+1 surface(s) uncovered or unresolved:
+
+### Retractable edge types (delta) (1)
+
+- `retractable_edge:SATISFIED_BY` (delta_tombstone)
 
 ## Covered surfaces (404)
 
