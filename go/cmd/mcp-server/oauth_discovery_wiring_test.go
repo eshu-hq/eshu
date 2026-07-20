@@ -53,6 +53,8 @@ func TestOAuthMetadataURL_ValidationTable(t *testing.T) {
 		{"query rejected", "https://eshu.example.test/mcp?x=1", "", false},
 		{"fragment rejected", "https://eshu.example.test/mcp#frag", "", false},
 		{"quote rejected", `https://eshu.example.test/m"cp`, "", false},
+		{"percent-encoded quote rejected", "https://eshu.example.test/m%22cp", "", false},
+		{"percent-encoded CRLF rejected", "https://eshu.example.test/a%0d%0ab", "", false},
 		{"missing scheme rejected", "eshu.example.test/mcp", "", false},
 		{"empty rejected", "", "", false},
 		{"non-http scheme rejected", "ftp://eshu.example.test/mcp", "", false},

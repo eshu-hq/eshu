@@ -131,8 +131,13 @@ type OAuthProtectedResourceHandler struct {
 	// configured under. See the type doc comment.
 	TenantID string
 	// Issuers lists the currently active bearer-token issuers for
-	// AuthorizationServers. Nil is safe: the document is still served (once
-	// a provider is configured) with an empty AuthorizationServers list.
+	// AuthorizationServers. RFC 9728 requires at least one authorization
+	// server, so the route 404s whenever this reports zero active issuers
+	// (a nil lister, or a non-nil one that currently returns none): a
+	// provider row can exist while no bearer issuer is active (browser-login-
+	// only providers, a shared-issuer fail-closed exclusion, a verifier-build
+	// failure, or the snapshot-TTL startup window). It is never served with an
+	// empty AuthorizationServers list.
 	Issuers OAuthAuthorizationServerLister
 	// Resource is the canonical resource identifier (RFC 8707,
 	// ESHU_AUTH_RESOURCE_URI). Empty means "IdP bearer validation is not

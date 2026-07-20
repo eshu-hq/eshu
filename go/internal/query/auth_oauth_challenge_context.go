@@ -79,11 +79,31 @@ func oauthWWWAuthenticateChallenge(ctx context.Context, policy OAuthChallengePol
 	if !ok || strings.TrimSpace(metadataURL) == "" {
 		return bare
 	}
+	// Defense in depth: the metadata URL is already validated at wiring time
+	// (oauthMetadataURL rejects quotes and control chars, including
+	// percent-encoded ones). Re-check here so a future policy that mints an
+	// unvalidated URL can never inject a quote/CRLF into this header value; on
+	// any delimiter, degrade to a bare challenge rather than emit a broken one.
+	if headerValueHasDelimiter(metadataURL) || headerValueHasDelimiter(scope) {
+		return bare
+	}
 	challenge := bare + ` resource_metadata="` + metadataURL + `"`
 	if strings.TrimSpace(scope) != "" {
 		challenge += `, scope="` + scope + `"`
 	}
 	return challenge
+}
+
+// headerValueHasDelimiter reports whether s contains a double quote or an ASCII
+// control character (CR, LF, NUL, DEL, etc.) that would break out of a quoted
+// HTTP header parameter value or split the header.
+func headerValueHasDelimiter(s string) bool {
+	for _, r := range s {
+		if r == '"' || r < 0x20 || r == 0x7f {
+			return true
+		}
+	}
+	return false
 }
 
 // oauthWWWAuthenticateChallengeForRequest resolves the OAuthChallengePolicy

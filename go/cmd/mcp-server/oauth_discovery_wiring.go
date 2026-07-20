@@ -169,6 +169,16 @@ func oauthMetadataURL(resource string) (string, bool) {
 	if err != nil || u.Host == "" || u.RawQuery != "" || u.Fragment != "" {
 		return "", false
 	}
+	// The raw-string scan above misses percent-encoded delimiters (e.g.
+	// /m%22cp or %0D%0A), which url.Parse decodes into u.Host/u.Path and which
+	// would then land in the header value. Re-scan the decoded components.
+	for _, part := range []string{u.Host, u.Path} {
+		for _, r := range part {
+			if r == '"' || r < 0x20 || r == 0x7f {
+				return "", false
+			}
+		}
+	}
 	switch u.Scheme {
 	case "https":
 	case "http":

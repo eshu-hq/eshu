@@ -161,6 +161,36 @@ func TestOAuthWWWAuthenticateChallenge_PolicyOK_AddsResourceMetadataAndScope(t *
 	}
 }
 
+func TestOAuthWWWAuthenticateChallenge_DelimiterInPolicyValue_BareBearer(t *testing.T) {
+	t.Parallel()
+
+	// Defense in depth: a policy that (contrary to wiring-time validation)
+	// hands back a metadata URL or scope carrying a quote or CRLF must degrade
+	// to a bare challenge, never inject the delimiter into the header value.
+	for _, tc := range []struct {
+		name        string
+		metadataURL string
+		scope       string
+	}{
+		{"quoted metadata url", `https://eshu.example.test/.well-known/oauth-protected-resource"`, "openid"},
+		{"crlf metadata url", "https://eshu.example.test/.well-known/oauth-protected-resource\r\nX-Injected: 1", "openid"},
+		{"quoted scope", "https://eshu.example.test/.well-known/oauth-protected-resource", `openid"`},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := oauthWWWAuthenticateChallenge(context.Background(), &fakeOAuthChallengePolicy{
+				metadataURL: tc.metadataURL,
+				scope:       tc.scope,
+				ok:          true,
+			})
+			if got != "Bearer" {
+				t.Fatalf("oauthWWWAuthenticateChallenge() = %q, want bare %q when a policy value carries a header delimiter", got, "Bearer")
+			}
+		})
+	}
+}
+
 func TestOAuthWWWAuthenticateChallenge_PolicyOK_EmptyScopeOmitsScopeParam(t *testing.T) {
 	t.Parallel()
 
