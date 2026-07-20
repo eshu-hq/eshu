@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 405/405 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 406/406 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -21,7 +21,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Retractable edge types (delta) | 54 | 54 | 100.00% | 0 | 0 |
 | Retractable node types (delta) | 87 | 87 | 100.00% | 0 | 0 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **405** | **405** | **100.00%** | **0** | **10** |
+| **Total** | **406** | **406** | **100.00%** | **0** | **10** |
 
 ## Coverage by scenario type
 
@@ -46,7 +46,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 None. Every supported surface has a replay scenario.
 
-## Covered surfaces (405)
+## Covered surfaces (406)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
