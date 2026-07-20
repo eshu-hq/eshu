@@ -72,9 +72,14 @@ func parseFluxSourceRepository(document map[string]any, metadata map[string]any,
 	row := map[string]any{
 		"name":        strings.TrimSpace(fmt.Sprint(metadata["name"])),
 		"line_number": lineNumber,
-		"namespace":   strings.TrimSpace(fmt.Sprint(metadata["namespace"])),
 		"path":        path,
 		"lang":        "yaml",
+	}
+	// metadata.namespace is injected at apply-time far more often than it is
+	// written in the manifest, so an absent namespace is the common case: omit
+	// it, never fabricate "<nil>" (fmt.Sprint(nil)) or an empty string.
+	if namespace := cleanYAMLString(metadata["namespace"]); namespace != "" {
+		row["namespace"] = namespace
 	}
 	if url := cleanYAMLString(spec["url"]); url != "" {
 		row["url"] = url
@@ -115,9 +120,14 @@ func parseFluxBucket(document map[string]any, metadata map[string]any, path stri
 	row := map[string]any{
 		"name":        strings.TrimSpace(fmt.Sprint(metadata["name"])),
 		"line_number": lineNumber,
-		"namespace":   strings.TrimSpace(fmt.Sprint(metadata["namespace"])),
 		"path":        path,
 		"lang":        "yaml",
+	}
+	// metadata.namespace is injected at apply-time far more often than it is
+	// written in the manifest, so an absent namespace is the common case: omit
+	// it, never fabricate "<nil>" (fmt.Sprint(nil)) or an empty string.
+	if namespace := cleanYAMLString(metadata["namespace"]); namespace != "" {
+		row["namespace"] = namespace
 	}
 	if bucketName := cleanYAMLString(spec["bucketName"]); bucketName != "" {
 		row["bucket_name"] = bucketName

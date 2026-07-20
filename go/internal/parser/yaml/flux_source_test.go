@@ -128,6 +128,12 @@ func TestParseFluxGitRepositoryOmitsAbsentFields(t *testing.T) {
 			t.Fatalf("row[%q] = %#v, want absent when spec has no matching field", key, row[key])
 		}
 	}
+	// namespace is injected at apply-time far more often than it is written in
+	// the manifest; an absent metadata.namespace must be OMITTED, never
+	// fabricated as "<nil>" (fmt.Sprint(nil)) or an empty string.
+	if _, present := row["namespace"]; present {
+		t.Fatalf("namespace = %#v, want absent when metadata has no namespace (never fabricated)", row["namespace"])
+	}
 }
 
 func TestParseFluxOCIRepositoryCapturesURLAndRef(t *testing.T) {
@@ -157,6 +163,24 @@ func TestParseFluxOCIRepositoryCapturesURLAndRef(t *testing.T) {
 	for _, key := range []string{"ref_branch", "ref_semver", "ref_commit"} {
 		if _, present := row[key]; present {
 			t.Fatalf("row[%q] = %#v, want absent (not fabricated)", key, row[key])
+		}
+	}
+}
+
+func TestParseFluxOCIRepositoryOmitsAbsentNamespace(t *testing.T) {
+	t.Parallel()
+
+	document := map[string]any{"spec": map[string]any{}}
+	metadata := map[string]any{"name": "bare"}
+
+	row := parseFluxOCIRepository(document, metadata, "/repo/bare.yaml", 1)
+
+	if _, present := row["namespace"]; present {
+		t.Fatalf("namespace = %#v, want absent when metadata has no namespace (never fabricated)", row["namespace"])
+	}
+	for _, key := range []string{"url", "ref_branch", "ref_tag", "ref_semver", "ref_commit"} {
+		if _, present := row[key]; present {
+			t.Fatalf("row[%q] = %#v, want absent when spec has no matching field", key, row[key])
 		}
 	}
 }
@@ -201,5 +225,8 @@ func TestParseFluxBucketOmitsAbsentFields(t *testing.T) {
 		if _, present := row[key]; present {
 			t.Fatalf("row[%q] = %#v, want absent when spec has no matching field", key, row[key])
 		}
+	}
+	if _, present := row["namespace"]; present {
+		t.Fatalf("namespace = %#v, want absent when metadata has no namespace (never fabricated)", row["namespace"])
 	}
 }

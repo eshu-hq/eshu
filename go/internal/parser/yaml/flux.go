@@ -58,9 +58,17 @@ func parseFluxKustomization(document map[string]any, metadata map[string]any, pa
 	row := map[string]any{
 		"name":        strings.TrimSpace(fmt.Sprint(metadata["name"])),
 		"line_number": lineNumber,
-		"namespace":   strings.TrimSpace(fmt.Sprint(metadata["namespace"])),
 		"path":        path,
 		"lang":        "yaml",
+	}
+	// metadata.namespace is injected at apply-time far more often than it is
+	// written in the manifest, so an absent namespace is the common case: omit
+	// it, never fabricate "<nil>" (fmt.Sprint(nil)) or an empty string. This is
+	// distinct from spec.sourceRef.namespace (source_ref_namespace) captured
+	// below; the Flux default that fills an empty sourceRef namespace from the
+	// Kustomization's own namespace is a reducer rule, not a parser fabrication.
+	if namespace := cleanYAMLString(metadata["namespace"]); namespace != "" {
+		row["namespace"] = namespace
 	}
 	if kind := cleanYAMLString(sourceRef["kind"]); kind != "" {
 		row["source_ref_kind"] = kind

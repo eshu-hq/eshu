@@ -141,4 +141,9 @@ func TestParseFluxKustomizationOmitsSourceRefWhenAbsent(t *testing.T) {
 			t.Fatalf("row[%q] = %#v, want absent when spec has no matching field", key, row[key])
 		}
 	}
+	// metadata.namespace is absent here too: it must be OMITTED, never
+	// fabricated as "<nil>" (fmt.Sprint(nil)) or an empty string.
+	if _, present := row["namespace"]; present {
+		t.Fatalf("namespace = %#v, want absent when metadata has no namespace (never fabricated)", row["namespace"])
+	}
 }
