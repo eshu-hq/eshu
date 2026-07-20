@@ -122,7 +122,38 @@ func collectMentionsFromNode(node *tree_sitter.Node, source []byte, includeReads
 	collectDeleteTargets(node, source, add)
 	collectReferencesTargets(node, add)
 	visit(node, "")
-	return mentions
+	return dropShadowedReads(mentions)
+}
+
+// dropShadowedReads removes "select" mentions that are actually mutation
+// targets. The generic relation/from read walk in collectMentionsFromNode tags
+// the object_reference of an UPDATE or DELETE target as a "select" read, at the
+// SAME byte offset the update/delete clause already recorded it as a write. That
+// spurious read tag must not survive: an UPDATE/DELETE target is a write, not a
+// read, and a stamped "select" mention now materializes a READS_FROM edge
+// (#5345) — a write mislabeled as a read is wrong graph truth. A table that is
+// genuinely both read and written in the same routine (e.g. INSERT INTO t SELECT
+// FROM t) keeps a distinct read offset, so its real read survives.
+func dropShadowedReads(mentions []sqlMention) []sqlMention {
+	mutatedAt := make(map[string]struct{})
+	for _, m := range mentions {
+		if m.operation != "select" {
+			mutatedAt[m.name+"|"+strconv.Itoa(m.offset)] = struct{}{}
+		}
+	}
+	if len(mutatedAt) == 0 {
+		return mentions
+	}
+	filtered := make([]sqlMention, 0, len(mentions))
+	for _, m := range mentions {
+		if m.operation == "select" {
+			if _, shadowed := mutatedAt[m.name+"|"+strconv.Itoa(m.offset)]; shadowed {
+				continue
+			}
+		}
+		filtered = append(filtered, m)
+	}
+	return filtered
 }
 
 // collectReferencesTargets records the target table of every REFERENCES (foreign
