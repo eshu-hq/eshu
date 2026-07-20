@@ -41,6 +41,8 @@
               }
             ],
             "flux_git_repositories": [],
+            "flux_helm_releases": [],
+            "flux_helm_repositories": [],
             "flux_kustomizations": [],
             "flux_oci_repositories": [],
             "function_calls": [],
@@ -116,6 +118,8 @@
                 "url": "https://github.com/acme/flux-system"
               }
             ],
+            "flux_helm_releases": [],
+            "flux_helm_repositories": [],
             "flux_kustomizations": [],
             "flux_oci_repositories": [],
             "function_calls": [],
@@ -181,6 +185,8 @@
             "crossplane_xrds": [],
             "flux_buckets": [],
             "flux_git_repositories": [],
+            "flux_helm_releases": [],
+            "flux_helm_repositories": [],
             "flux_kustomizations": [
               {
                 "lang": "yaml",
@@ -259,6 +265,8 @@
             "crossplane_xrds": [],
             "flux_buckets": [],
             "flux_git_repositories": [],
+            "flux_helm_releases": [],
+            "flux_helm_repositories": [],
             "flux_kustomizations": [],
             "flux_oci_repositories": [
               {
@@ -334,6 +342,8 @@
             "crossplane_xrds": [],
             "flux_buckets": [],
             "flux_git_repositories": [],
+            "flux_helm_releases": [],
+            "flux_helm_repositories": [],
             "flux_kustomizations": [],
             "flux_oci_repositories": [],
             "function_calls": [],
@@ -411,6 +421,8 @@
             "crossplane_xrds": [],
             "flux_buckets": [],
             "flux_git_repositories": [],
+            "flux_helm_releases": [],
+            "flux_helm_repositories": [],
             "flux_kustomizations": [],
             "flux_oci_repositories": [],
             "function_calls": [],
