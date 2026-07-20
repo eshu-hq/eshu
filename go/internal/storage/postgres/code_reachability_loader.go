@@ -61,13 +61,17 @@ ORDER BY entity_id ASC
 `
 
 // listCodeReachabilityRubyClassesSQL loads the repo-wide Ruby class ancestry the
-// #5376 controller verdict builder walks: every Ruby class entity's simple name
-// plus its declared qualified_bases. It loads ALL Ruby classes (including
-// base-less ones) so the walk can resolve an intermediate hop to an in-corpus
-// class that itself declares no base. Index-backed on repo_id/entity_type
-// (evidence-5376-code-root-verdicts.md, Q1 = 0.46 ms at 505 classes).
+// #5376 controller verdict builder walks: every Ruby class entity's simple name,
+// its namespace-qualified name (F3, the registry key), and its declared
+// qualified_bases. It loads ALL Ruby classes (including base-less ones) so the
+// walk can resolve an intermediate hop to an in-corpus class that itself
+// declares no base. qualified_name is NULL for pre-upgrade rows; the reducer
+// registry falls back to entity_name (simple-key + F1 floor, lag-safe).
+// Index-backed on repo_id/entity_type (evidence-5376-code-root-verdicts.md,
+// Q1 = 0.46 ms at 505 classes).
 const listCodeReachabilityRubyClassesSQL = `
-SELECT entity_name, metadata->'qualified_bases' AS qualified_bases
+SELECT entity_name, metadata->>'qualified_name' AS qualified_name,
+       metadata->'qualified_bases' AS qualified_bases
 FROM content_entities
 WHERE repo_id = $1
   AND entity_type = 'Class'
@@ -238,10 +242,12 @@ func (s *CodeReachabilityStore) loadCodeReachabilityRubyClasses(
 	classes := make([]reducer.RubyClassEntity, 0)
 	for rows.Next() {
 		var class reducer.RubyClassEntity
+		var qualifiedName sql.NullString
 		var qualifiedBasesRaw []byte
-		if err := rows.Scan(&class.Name, &qualifiedBasesRaw); err != nil {
+		if err := rows.Scan(&class.Name, &qualifiedName, &qualifiedBasesRaw); err != nil {
 			return nil, fmt.Errorf("scan code reachability ruby class: %w", err)
 		}
+		class.QualifiedName = strings.TrimSpace(qualifiedName.String)
 		if len(qualifiedBasesRaw) > 0 {
 			if err := json.Unmarshal(qualifiedBasesRaw, &class.QualifiedBases); err != nil {
 				return nil, fmt.Errorf("unmarshal code reachability ruby class qualified bases: %w", err)

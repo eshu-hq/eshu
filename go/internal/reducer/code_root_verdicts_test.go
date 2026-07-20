@@ -41,67 +41,92 @@ func TestBuildCodeRootVerdicts(t *testing.T) {
 		input          CodeReachabilityProjectionInput
 		wantVerdict    string // "" means no row expected
 		wantDowngraded bool
+		wantReason     string
 		wantMissingCtx int
 	}{
 		{
-			name: "cross-file confirmed through intermediate to accepted base",
+			// #5376 P1 REGRESSION: the base "Admin::Base" resolves via qualified
+			// name to the same-repo Base@Admin::Base < ActionController::Base. The
+			// old simple-name registry keyed Base as "Base" so this qualified
+			// reference never resolved and the GENUINE controller was downgraded.
+			name: "namespaced base resolves via qualified name to accepted base",
 			input: verdictInput("m:index", "OrdersController", []RubyClassEntity{
-				{Name: "OrdersController", QualifiedBases: []string{"Admin::BaseController"}},
-				{Name: "Admin::BaseController", QualifiedBases: []string{"ActionController::Base"}},
+				{Name: "OrdersController", QualifiedName: "OrdersController", QualifiedBases: []string{"Admin::Base"}},
+				{Name: "Base", QualifiedName: "Admin::Base", QualifiedBases: []string{"ActionController::Base"}},
 			}),
-			wantVerdict:    CodeRootVerdictConfirmed,
-			wantDowngraded: false,
+			wantVerdict: CodeRootVerdictConfirmed,
+			wantReason:  "accepted",
 		},
 		{
-			name: "cross-file downgraded resolves onward to ActiveRecord",
+			name: "chain resolves in-corpus onward to a rejected framework base",
 			input: verdictInput("m:index", "OrdersController", []RubyClassEntity{
-				{Name: "OrdersController", QualifiedBases: []string{"BaseController"}},
-				{Name: "BaseController", QualifiedBases: []string{"ApplicationRecord"}},
-				{Name: "ApplicationRecord", QualifiedBases: []string{"ActiveRecord::Base"}},
+				{Name: "OrdersController", QualifiedName: "OrdersController", QualifiedBases: []string{"BaseController"}},
+				{Name: "BaseController", QualifiedName: "BaseController", QualifiedBases: []string{"ApplicationRecord"}},
+				{Name: "ApplicationRecord", QualifiedName: "ApplicationRecord", QualifiedBases: []string{"ActiveRecord::Base"}},
 			}),
 			wantVerdict:    CodeRootVerdictDowngraded,
 			wantDowngraded: true,
+			wantReason:     "rejected_framework_base",
+		},
+		{
+			// F1 impostor guard: the gem base "Payments::Base" must NOT resolve to
+			// the same-last-segment corpus class "Reporting::Base"; it stays
+			// unresolved-qualified and KEEPS.
+			name: "impostor qualified gem base does not resolve to same-segment corpus class",
+			input: verdictInput("m:index", "OrdersController", []RubyClassEntity{
+				{Name: "OrdersController", QualifiedName: "OrdersController", QualifiedBases: []string{"Payments::Base"}},
+				{Name: "Base", QualifiedName: "Reporting::Base", QualifiedBases: []string{"ActionController::Base"}},
+			}),
+			wantVerdict: CodeRootVerdictConfirmed,
+			wantReason:  "unresolved_qualified",
+		},
+		{
+			name: "unresolved qualified base keeps (F1 floor)",
+			input: verdictInput("m:index", "AuthBase", []RubyClassEntity{
+				{Name: "AuthBase", QualifiedName: "AuthBase", QualifiedBases: []string{"SomeGem::Railsy"}},
+			}),
+			wantVerdict: CodeRootVerdictConfirmed,
+			wantReason:  "unresolved_qualified",
+		},
+		{
+			// Unqualified base ref "Base" resolves to the namespaced class
+			// Admin::Base (k=1 last-segment suffix match).
+			name: "unqualified ref resolves to namespaced class",
+			input: verdictInput("m:index", "OrdersController", []RubyClassEntity{
+				{Name: "OrdersController", QualifiedName: "OrdersController", QualifiedBases: []string{"Base"}},
+				{Name: "Base", QualifiedName: "Admin::Base", QualifiedBases: []string{"ActionController::Base"}},
+			}),
+			wantVerdict: CodeRootVerdictConfirmed,
+			wantReason:  "accepted",
 		},
 		{
 			name: "reopened-class union reaches accepted base",
-			input: func() CodeReachabilityProjectionInput {
-				in := verdictInput("m:index", "OrdersController", []RubyClassEntity{
-					// One reopening declares the real base, another declares none.
-					{Name: "OrdersController", QualifiedBases: []string{"ActionController::Base"}},
-					{Name: "OrdersController", QualifiedBases: nil},
-				})
-				return in
-			}(),
-			wantVerdict:    CodeRootVerdictConfirmed,
-			wantDowngraded: false,
-		},
-		{
-			name: "unresolved controller-suffixed gem base kept",
 			input: verdictInput("m:index", "OrdersController", []RubyClassEntity{
-				{Name: "OrdersController", QualifiedBases: []string{"SomeEngine::BaseController"}},
+				{Name: "OrdersController", QualifiedName: "OrdersController", QualifiedBases: []string{"ActionController::Base"}},
+				{Name: "OrdersController", QualifiedName: "OrdersController", QualifiedBases: nil},
 			}),
-			wantVerdict:    CodeRootVerdictConfirmed,
-			wantDowngraded: false,
+			wantVerdict: CodeRootVerdictConfirmed,
+			wantReason:  "accepted",
 		},
 		{
 			name: "collision conflict kept when any path confirms",
 			input: verdictInput("m:list_users", "UsersController", []RubyClassEntity{
-				{Name: "UsersController", QualifiedBases: []string{"BaseController"}},
+				{Name: "UsersController", QualifiedName: "UsersController", QualifiedBases: []string{"BaseController"}},
 				// BaseController reopened/colliding: one path to Rails, one to Thor.
-				{Name: "BaseController", QualifiedBases: []string{"ActionController::Base"}},
-				{Name: "BaseController", QualifiedBases: []string{"Thor"}},
+				{Name: "BaseController", QualifiedName: "BaseController", QualifiedBases: []string{"ActionController::Base"}},
+				{Name: "BaseController", QualifiedName: "BaseController", QualifiedBases: []string{"Thor"}},
 			}),
-			wantVerdict:    CodeRootVerdictConfirmed,
-			wantDowngraded: false,
+			wantVerdict: CodeRootVerdictConfirmed,
+			wantReason:  "accepted",
 		},
 		{
 			name: "cycle is keep-biased for controller name",
 			input: verdictInput("m:show", "FooController", []RubyClassEntity{
-				{Name: "FooController", QualifiedBases: []string{"BarController"}},
-				{Name: "BarController", QualifiedBases: []string{"FooController"}},
+				{Name: "FooController", QualifiedName: "FooController", QualifiedBases: []string{"BarController"}},
+				{Name: "BarController", QualifiedName: "BarController", QualifiedBases: []string{"FooController"}},
 			}),
-			wantVerdict:    CodeRootVerdictConfirmed,
-			wantDowngraded: false,
+			wantVerdict: CodeRootVerdictConfirmed,
+			wantReason:  "cycle",
 		},
 		{
 			name:           "missing class_context writes no row and counts inconclusive",
@@ -140,6 +165,9 @@ func TestBuildCodeRootVerdicts(t *testing.T) {
 			if row.Verdict != tt.wantVerdict {
 				t.Fatalf("verdict = %q, want %q (basis=%+v)", row.Verdict, tt.wantVerdict, row.Basis)
 			}
+			if tt.wantReason != "" && row.Basis.Reason != tt.wantReason {
+				t.Fatalf("basis.reason = %q, want %q (basis=%+v)", row.Basis.Reason, tt.wantReason, row.Basis)
+			}
 			if row.RootKind != CodeRootKindRubyRailsControllerAction {
 				t.Fatalf("root_kind = %q, want %q", row.RootKind, CodeRootKindRubyRailsControllerAction)
 			}
@@ -167,7 +195,7 @@ func TestBuildCodeRootVerdictsDepthCapKept(t *testing.T) {
 	for i := 1; i <= 11; i++ {
 		classes = append(classes, RubyClassEntity{Name: itoaN("C", i), QualifiedBases: []string{itoaN("C", i+1)}})
 	}
-	classes = append(classes, RubyClassEntity{Name: "C12", QualifiedBases: []string{"Sinatra::Base"}})
+	classes = append(classes, RubyClassEntity{Name: "C12", QualifiedBases: []string{"ActiveRecord::Base"}})
 	rows, downgraded, _ := BuildCodeRootVerdicts(verdictInput("m:index", "C0Controller", classes))
 	row, ok := verdictByEntity(rows, "m:index")
 	if !ok || row.Verdict != CodeRootVerdictConfirmed {

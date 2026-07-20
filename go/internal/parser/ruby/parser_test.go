@@ -83,6 +83,88 @@ end
 	}
 }
 
+// TestParseEmitsQualifiedNameForNamespacedClass pins #5376 F3: the parser emits
+// qualified_name for a namespaced class in BOTH the nested `module Admin; class
+// Base` spelling and the compact `class Admin::Base` spelling, while name stays
+// the last segment. The reducer keys its repo-wide registry on qualified_name so
+// a base reference like "Admin::Base" resolves to the right class.
+func TestParseEmitsQualifiedNameForNamespacedClass(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nested module spelling", func(t *testing.T) {
+		t.Parallel()
+		path := writeSource(t, "nested.rb", `module Admin
+  class Base < ActionController::Base
+  end
+end
+`)
+		payload, err := Parse(path, false, shared.Options{})
+		if err != nil {
+			t.Fatalf("Parse() error = %v, want nil", err)
+		}
+		classItem := assertBucketName(t, payload, "classes", "Base")
+		if got := classItem["qualified_name"]; got != "Admin::Base" {
+			t.Fatalf("classes[Base][qualified_name] = %#v, want Admin::Base", got)
+		}
+		if got := classItem["qualified_bases"]; !reflect.DeepEqual(got, []string{"ActionController::Base"}) {
+			t.Fatalf("classes[Base][qualified_bases] = %#v, want [ActionController::Base]", got)
+		}
+	})
+
+	t.Run("compact spelling", func(t *testing.T) {
+		t.Parallel()
+		path := writeSource(t, "compact.rb", `class Admin::Base < ActionController::Base
+end
+`)
+		payload, err := Parse(path, false, shared.Options{})
+		if err != nil {
+			t.Fatalf("Parse() error = %v, want nil", err)
+		}
+		classItem := assertBucketName(t, payload, "classes", "Base")
+		if got := classItem["qualified_name"]; got != "Admin::Base" {
+			t.Fatalf("classes[Base][qualified_name] = %#v, want Admin::Base", got)
+		}
+	})
+}
+
+// TestParseRootsControllerActionThroughNamespacedSameFileBase is the #5376 P1
+// parse-time regression: a genuine controller whose base is a namespaced class
+// defined in the SAME file (module Admin; class Base < ActionController::Base)
+// must still root its actions. The old same-file walk keyed the registry by the
+// simple name "Base" but the base reference "Admin::Base" kept its qualifier, so
+// IsKnownClass failed and the action was silently NOT rooted — a parse-time
+// false positive the F1 floor now rescues (qualified unresolved base keeps).
+func TestParseRootsControllerActionThroughNamespacedSameFileBase(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "namespaced_controller.rb", `module Admin
+  class Base < ActionController::Base
+  end
+end
+
+class OrdersController < Admin::Base
+  def index
+    true
+  end
+end
+`)
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	fn := assertBucketName(t, payload, "functions", "index")
+	kinds, _ := fn["dead_code_root_kinds"].([]string)
+	found := false
+	for _, k := range kinds {
+		if k == "ruby.rails_controller_action" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("OrdersController#index must root as ruby.rails_controller_action through a namespaced same-file base, got %#v", kinds)
+	}
+}
+
 // TestParseOmitsQualifiedBasesForSuperclasslessClass proves qualified_bases is
 // additive and absent when a class declares no superclass, so the fact stays a
 // minor, optional payload field.

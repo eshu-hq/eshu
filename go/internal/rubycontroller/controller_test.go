@@ -39,18 +39,23 @@ func TestDecide(t *testing.T) {
 		wantReason string
 	}{
 		{
-			name:       "cross-file confirmed via intermediate to accepted base",
+			// #5376 P1: a genuine controller whose base is a namespaced class
+			// that resolves in-corpus to an accepted Rails base. The old code
+			// downgraded this (registry keyed by simple name, base kept its
+			// qualifier, so IsKnownClass failed and it fell to the downgrade
+			// branch). It must CONFIRM.
+			name:       "namespaced base resolves in-corpus to accepted base",
 			class:      "OrdersController",
-			reg:        map[string][]string{"OrdersController": {"Admin::BaseController"}, "Admin::BaseController": {"ActionController::Base"}},
+			reg:        map[string][]string{"OrdersController": {"Admin::Base"}, "Admin::Base": {"ActionController::Base"}},
 			wantKeep:   true,
 			wantReason: rubycontroller.ReasonAccepted,
 		},
 		{
-			name:       "cross-file downgraded resolves onward to ActiveRecord",
+			name:       "chain resolves in-corpus onward to a rejected framework base",
 			class:      "OrdersController",
 			reg:        map[string][]string{"OrdersController": {"BaseController"}, "BaseController": {"ApplicationRecord"}, "ApplicationRecord": {"ActiveRecord::Base"}},
 			wantKeep:   false,
-			wantReason: rubycontroller.ReasonUnresolvedNonController,
+			wantReason: rubycontroller.ReasonRejectedFrameworkBase,
 		},
 		{
 			name:       "direct accepted base",
@@ -60,16 +65,41 @@ func TestDecide(t *testing.T) {
 			wantReason: rubycontroller.ReasonAccepted,
 		},
 		{
-			name:       "unresolved gem base but Controller-suffixed keeps",
+			name:       "unresolved simple Controller-suffixed base keeps",
 			class:      "OrdersController",
-			reg:        map[string][]string{"OrdersController": {"Api::V2::BaseController"}},
+			reg:        map[string][]string{"OrdersController": {"BaseController"}},
 			wantKeep:   true,
 			wantReason: rubycontroller.ReasonUnresolvedController,
 		},
 		{
-			name:       "unresolved non-controller gem base downgrades",
+			// F1: a qualified base we cannot resolve and that is not a curated
+			// reject terminal must KEEP, never downgrade.
+			name:       "unresolved qualified gem base keeps (F1 floor)",
 			class:      "OrdersController",
 			reg:        map[string][]string{"OrdersController": {"Sinatra::Base"}},
+			wantKeep:   true,
+			wantReason: rubycontroller.ReasonUnresolvedQualified,
+		},
+		{
+			// F2: an exact curated non-controller framework terminal downgrades,
+			// even reached directly as an unresolved base.
+			name:       "simple rejected framework base downgrades",
+			class:      "OrdersController",
+			reg:        map[string][]string{"OrdersController": {"ApplicationRecord"}},
+			wantKeep:   false,
+			wantReason: rubycontroller.ReasonRejectedFrameworkBase,
+		},
+		{
+			name:       "qualified rejected framework base downgrades",
+			class:      "OrdersController",
+			reg:        map[string][]string{"OrdersController": {"ActiveRecord::Base"}},
+			wantKeep:   false,
+			wantReason: rubycontroller.ReasonRejectedFrameworkBase,
+		},
+		{
+			name:       "unresolved simple non-controller base downgrades",
+			class:      "ReportController",
+			reg:        map[string][]string{"ReportController": {"Thor"}},
 			wantKeep:   false,
 			wantReason: rubycontroller.ReasonUnresolvedNonController,
 		},
@@ -90,21 +120,21 @@ func TestDecide(t *testing.T) {
 		{
 			name:       "reopened-class union reaches accepted base",
 			class:      "OrdersController",
-			reg:        map[string][]string{"OrdersController": {"ActionController::Base", "OrderConcern"}, "OrderConcern": {"Sinatra::Base"}},
+			reg:        map[string][]string{"OrdersController": {"ActionController::Base", "OrderConcern"}, "OrderConcern": {"Thor"}},
 			wantKeep:   true,
 			wantReason: rubycontroller.ReasonAccepted,
 		},
 		{
 			name:       "collision conflict all paths downgrade",
 			class:      "BaseController",
-			reg:        map[string][]string{"BaseController": {"ApplicationRecord", "Grape::API"}, "ApplicationRecord": {"ActiveRecord::Base"}},
+			reg:        map[string][]string{"BaseController": {"ApplicationRecord", "Thor"}},
 			wantKeep:   false,
 			wantReason: rubycontroller.ReasonCollision,
 		},
 		{
 			name:       "collision but one path confirms keeps",
 			class:      "BaseController",
-			reg:        map[string][]string{"BaseController": {"ApplicationController", "Grape::API"}},
+			reg:        map[string][]string{"BaseController": {"ApplicationController", "Thor"}},
 			wantKeep:   true,
 			wantReason: rubycontroller.ReasonAccepted,
 		},
@@ -143,7 +173,7 @@ func TestDecideDepthCapIsKeepBiased(t *testing.T) {
 	for i := 1; i <= 11; i++ {
 		reg[itoa("C", i)] = []string{itoa("C", i+1)}
 	}
-	reg["C12"] = []string{"Sinatra::Base"}
+	reg["C12"] = []string{"ActiveRecord::Base"}
 	got := rubycontroller.Decide("C0Controller", fakeRegistry{bases: reg})
 	if !got.Keep {
 		t.Fatalf("deep chain from a *Controller must keep at the depth cap, got %+v", got)

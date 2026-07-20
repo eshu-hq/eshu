@@ -210,6 +210,17 @@ func (s *rubySyntax) visitClass(
 		"lang":        "ruby",
 		"type":        "class",
 	}
+	// qualified_name is the class's namespace-qualified name (#5376 F3), built
+	// from the enclosing module/class scope prefix plus the raw name-node text
+	// (which itself carries any compact "Admin::Base" spelling); a leading "::"
+	// marks an absolute name and ignores the enclosing path. The reducer's
+	// repo-wide controller registry keys on it so a base reference like
+	// "Admin::Base" resolves to the right class instead of a same-last-segment
+	// impostor. Emitted additively next to name; the last-segment name is kept
+	// for existing consumers.
+	if qualified := s.qualifiedClassName(node, scopeStack); qualified != "" {
+		item["qualified_name"] = qualified
+	}
 	s.classRegistry.known[name] = struct{}{}
 	if superclass := node.ChildByFieldName("superclass"); superclass != nil {
 		if base := s.superclassName(superclass); base != "" {

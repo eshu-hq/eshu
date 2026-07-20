@@ -30,13 +30,21 @@ const (
 )
 
 // RubyClassEntity is one Ruby class definition's ancestry, loaded per
-// repository from content_entities. Reopened or short-name-colliding classes
-// appear as multiple entries with the same Name; the verdict builder unions
-// their QualifiedBases.
+// repository from content_entities. Reopened or namespace-colliding classes
+// appear as multiple entries with the same QualifiedName; the verdict builder
+// unions their QualifiedBases.
 type RubyClassEntity struct {
 	// Name is the class's simple (last-segment) name, matching the class_context
 	// stamped on method entities.
 	Name string
+	// QualifiedName is the class's namespace-qualified name (e.g. "Admin::Base",
+	// #5376 F3). It is the registry key: a base reference is resolved by
+	// segment-aligned suffix match over qualified names, so "Admin::Base"
+	// resolves to this class and never to a same-last-segment impostor like
+	// "Reporting::Base". Empty for pre-upgrade rows; the registry falls back to
+	// Name (simple-key behavior) so stale data degrades safely under the F1
+	// floor rather than producing a false positive.
+	QualifiedName string
 	// QualifiedBases holds the declared, possibly module-qualified superclass
 	// names (e.g. "ActionController::Base"). Empty for a class with no declared
 	// superclass.
@@ -205,56 +213,122 @@ func codeRootKindsContain(values []string, target string) bool {
 	return false
 }
 
-// rubyRepoWideControllerRegistry is the repo-wide, multimap-backed
-// rubycontroller.Registry. It unions declared bases across every class
-// definition sharing a simple name (reopened and short-name-colliding classes),
-// so the shared decision walk can evaluate all conflicting ancestry paths.
+// rubyRepoWideControllerRegistry is the repo-wide, qualified-name-keyed
+// rubycontroller.Registry (#5376 F3). A base or class reference is resolved by
+// SEGMENT-ALIGNED SUFFIX MATCH over qualified names: "Admin::Base" matches
+// "Admin::Base" and "Shop::Admin::Base" but never "Reporting::Base"; a simple
+// ref "Base" matches any qualified name ending in the "Base" segment (the k=1
+// generalization of the old simple-name multimap). All matched classes' bases
+// are unioned so the shared decision walk evaluates every conflicting ancestry
+// path (any-path-keeps). namesByLastSegment indexes qualified names by their
+// last segment so resolution is O(candidates), not O(all classes).
 type rubyRepoWideControllerRegistry struct {
-	known map[string]struct{}
-	bases map[string]map[string]struct{}
+	basesByQualified   map[string]map[string]struct{}
+	namesByLastSegment map[string][]string
 }
 
 func newRubyRepoWideControllerRegistry(classes []RubyClassEntity) rubyRepoWideControllerRegistry {
 	reg := rubyRepoWideControllerRegistry{
-		known: make(map[string]struct{}, len(classes)),
-		bases: make(map[string]map[string]struct{}, len(classes)),
+		basesByQualified:   make(map[string]map[string]struct{}, len(classes)),
+		namesByLastSegment: make(map[string][]string, len(classes)),
 	}
 	for _, class := range classes {
-		name := strings.TrimSpace(class.Name)
-		if name == "" {
+		qualified := rubyRegistryQualifiedName(class)
+		if qualified == "" {
 			continue
 		}
-		reg.known[name] = struct{}{}
+		if _, seen := reg.basesByQualified[qualified]; !seen {
+			reg.basesByQualified[qualified] = make(map[string]struct{})
+			last := rubyLastSegment(qualified)
+			reg.namesByLastSegment[last] = append(reg.namesByLastSegment[last], qualified)
+		}
 		for _, base := range class.QualifiedBases {
 			base = strings.TrimSpace(base)
 			if base == "" {
 				continue
 			}
-			set := reg.bases[name]
-			if set == nil {
-				set = make(map[string]struct{})
-				reg.bases[name] = set
-			}
-			set[base] = struct{}{}
+			reg.basesByQualified[qualified][base] = struct{}{}
 		}
 	}
 	return reg
 }
 
-func (r rubyRepoWideControllerRegistry) DeclaredBases(className string) ([]string, bool) {
-	set, ok := r.bases[className]
-	if !ok || len(set) == 0 {
+// rubyRegistryQualifiedName returns the class's qualified name, falling back to
+// its simple name for pre-upgrade rows with no qualified_name (lag-safety: a
+// stale simple-only registry degrades to simple-key resolution + the F1 floor,
+// so it cannot produce a false positive).
+func rubyRegistryQualifiedName(class RubyClassEntity) string {
+	if qualified := strings.TrimSpace(class.QualifiedName); qualified != "" {
+		return strings.TrimPrefix(qualified, "::")
+	}
+	return strings.TrimSpace(class.Name)
+}
+
+func (r rubyRepoWideControllerRegistry) DeclaredBases(ref string) ([]string, bool) {
+	matches := r.matchingQualifiedNames(ref)
+	if len(matches) == 0 {
 		return nil, false
 	}
-	out := make([]string, 0, len(set))
-	for base := range set {
+	union := make(map[string]struct{})
+	for _, qualified := range matches {
+		for base := range r.basesByQualified[qualified] {
+			union[base] = struct{}{}
+		}
+	}
+	if len(union) == 0 {
+		return nil, false
+	}
+	out := make([]string, 0, len(union))
+	for base := range union {
 		out = append(out, base)
 	}
 	sort.Strings(out)
 	return out, true
 }
 
-func (r rubyRepoWideControllerRegistry) IsKnownClass(className string) bool {
-	_, ok := r.known[className]
-	return ok
+func (r rubyRepoWideControllerRegistry) IsKnownClass(ref string) bool {
+	return len(r.matchingQualifiedNames(ref)) > 0
+}
+
+// matchingQualifiedNames returns every registered qualified name whose trailing
+// segments equal ref's segments (segment-aligned suffix match).
+func (r rubyRepoWideControllerRegistry) matchingQualifiedNames(ref string) []string {
+	ref = strings.TrimPrefix(strings.TrimSpace(ref), "::")
+	if ref == "" {
+		return nil
+	}
+	refSegments := strings.Split(ref, "::")
+	candidates := r.namesByLastSegment[refSegments[len(refSegments)-1]]
+	if len(candidates) == 0 {
+		return nil
+	}
+	matched := make([]string, 0, len(candidates))
+	for _, qualified := range candidates {
+		if rubyQualifiedNameHasSuffix(qualified, refSegments) {
+			matched = append(matched, qualified)
+		}
+	}
+	return matched
+}
+
+// rubyQualifiedNameHasSuffix reports whether qualified's trailing segments equal
+// refSegments exactly (so "Shop::Admin::Base" matches ["Admin","Base"] but
+// "Reporting::Base" does not match ["Admin","Base"]).
+func rubyQualifiedNameHasSuffix(qualified string, refSegments []string) bool {
+	qnSegments := strings.Split(qualified, "::")
+	if len(qnSegments) < len(refSegments) {
+		return false
+	}
+	offset := len(qnSegments) - len(refSegments)
+	for i := range refSegments {
+		if qnSegments[offset+i] != refSegments[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func rubyLastSegment(qualified string) string {
+	segments := strings.Split(qualified, "::")
+	return segments[len(segments)-1]
 }

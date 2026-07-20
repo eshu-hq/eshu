@@ -20,10 +20,22 @@ const MaxWalkDepth = 10
 const (
 	// ReasonAccepted: the chain reached a known Rails controller base.
 	ReasonAccepted = "accepted"
-	// ReasonUnresolvedNonController: the chain resolved to a declared base that
-	// is neither an accepted Rails base nor a Controller-suffixed name — the
-	// only positive downgrade signal.
+	// ReasonUnresolvedNonController: the chain resolved to a declared, SIMPLE
+	// (unqualified) base that is neither an accepted Rails base nor a
+	// Controller-suffixed name (e.g. < Thor, < StandardError) — a positive
+	// downgrade signal for simple names only.
 	ReasonUnresolvedNonController = "unresolved_non_controller"
+	// ReasonRejectedFrameworkBase: the chain reached an exact, curated
+	// non-controller Rails framework terminal (rejectedFrameworkBases, e.g.
+	// ActiveRecord::Base, ApplicationRecord). This is the only way a QUALIFIED
+	// base yields a downgrade — positive, unambiguous non-controller evidence.
+	ReasonRejectedFrameworkBase = "rejected_framework_base"
+	// ReasonUnresolvedQualified: the chain reached a QUALIFIED base (contains
+	// "::") that is not accepted, not resolvable in-corpus, and not in the
+	// curated reject-set. Keep-biased safety floor (#5376 P1): a namespaced base
+	// we cannot resolve could be a controller base defined in a gem or a
+	// namespace we do not see, so it must never downgrade a genuine controller.
+	ReasonUnresolvedQualified = "unresolved_qualified"
 	// ReasonUnresolvedController: the chain left the corpus at a
 	// Controller-suffixed base (very likely a Rails base defined in a gem) —
 	// keep-biased.
@@ -51,6 +63,22 @@ var acceptedControllerBases = map[string]struct{}{
 	"ActionController::API":    {},
 	"ActionController::Metal":  {},
 	"AbstractController::Base": {},
+}
+
+// rejectedFrameworkBases is the mirror of acceptedControllerBases: exact,
+// fully-qualified, unambiguous non-controller Rails framework terminals.
+// Reaching one (only after in-corpus resolution fails) is positive
+// non-controller evidence under single inheritance, so the chain DOWNGRADES.
+// This is the only qualified-base downgrade path (#5376 P1 F2); it replaces the
+// old accidental-and-unsafe qualified-suffix downgrade branch that flagged a
+// genuine `OrdersController < Admin::Base` dead.
+var rejectedFrameworkBases = map[string]struct{}{
+	"ActiveRecord::Base": {},
+	"ActiveJob::Base":    {},
+	"ActionMailer::Base": {},
+	"ApplicationRecord":  {},
+	"ApplicationJob":     {},
+	"ApplicationMailer":  {},
 }
 
 // Registry provides class-ancestry lookups for the decision walk. The parser
@@ -152,9 +180,13 @@ func decideWalk(
 	)
 	for _, base := range bases {
 		branchChain := append(cloneChain(chain), base)
+		// 1. Accepted Rails controller base -> confirmed.
 		if _, accepted := acceptedControllerBases[base]; accepted {
 			return Decision{Keep: true, Chain: branchChain, Terminal: "accepted:" + base, Reason: ReasonAccepted}
 		}
+		// 2. Resolvable in-corpus -> recurse. Checked BEFORE the reject-set so a
+		//    perverse in-corpus class that reopens a framework name still
+		//    resolves onward first.
 		if reg.IsKnownClass(base) {
 			sub := decideWalk(base, legacyResidual, reg, branchChain, cloneVisited(visited), depth+1)
 			if sub.Keep {
@@ -165,9 +197,28 @@ func decideWalk(
 			}
 			continue
 		}
+		// 3. Curated non-controller framework terminal -> positive downgrade.
+		//    This is the ONLY way a qualified base downgrades (F2).
+		if _, rejected := rejectedFrameworkBases[base]; rejected {
+			if !haveDowngrade {
+				downgrade = Decision{Keep: false, Chain: branchChain, Terminal: "rejected_base:" + base, Reason: ReasonRejectedFrameworkBase}
+				haveDowngrade = true
+			}
+			continue
+		}
+		// 4. F1 safety floor: a QUALIFIED base we cannot resolve and that is not
+		//    a curated reject terminal must NEVER downgrade — it could be a
+		//    controller base in a gem or namespace we do not see. Keep-biased.
+		if strings.Contains(base, "::") {
+			return Decision{Keep: true, Chain: branchChain, Terminal: "unresolved_qualified:" + base, Reason: ReasonUnresolvedQualified}
+		}
+		// 5. Unresolved SIMPLE name ending in "Controller" -> very likely a Rails
+		//    controller base defined elsewhere. Keep.
 		if strings.HasSuffix(base, "Controller") {
 			return Decision{Keep: true, Chain: branchChain, Terminal: "unresolved_base:" + base, Reason: ReasonUnresolvedController}
 		}
+		// 6. Unresolved SIMPLE non-controller name (< Thor, < StandardError) ->
+		//    positive downgrade.
 		if !haveDowngrade {
 			downgrade = Decision{Keep: false, Chain: branchChain, Terminal: "unresolved_base:" + base, Reason: ReasonUnresolvedNonController}
 			haveDowngrade = true

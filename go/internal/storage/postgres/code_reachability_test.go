@@ -233,6 +233,7 @@ func TestCodeReachabilityRootsQueryLoadsClassContext(t *testing.T) {
 	for _, want := range []string{
 		"entity_type = 'Class'",
 		"language = 'ruby'",
+		"metadata->>'qualified_name' AS qualified_name",
 		"metadata->'qualified_bases' AS qualified_bases",
 	} {
 		if !strings.Contains(listCodeReachabilityRubyClassesSQL, want) {

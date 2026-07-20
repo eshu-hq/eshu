@@ -207,17 +207,19 @@ end
 }
 
 // TestDefaultEngineParsePathRubyGatesControllerActionOnSuperclassChain
-// characterizes issue #5337 Detector 1: rubyIsRailsController must gate on a
-// same-file transitive superclass walk, not a "*Controller" name suffix. A
-// class whose superclass chain resolves to something other than an accepted
-// Rails base (< Thor, < Sinatra::Base) must NOT root its actions, even
-// though the class name ends in "Controller" and even though the rejected
-// base's own last path segment ("Base") collides with an accepted
-// fully-qualified base (ActionController::Base). A class with no declared
-// superclass keeps rooting (deliberate residual: per-file parsing cannot
-// distinguish a reopened Rails controller from a bare PORO). A transitive
-// chain through a same-file intermediate class, and an unresolved
-// "*Controller"-suffixed chain that leaves the file, must both still root.
+// characterizes issue #5337 Detector 1 as amended by the #5376 P1 safety floor:
+// rubyIsRailsController gates on a same-file transitive superclass walk, not a
+// "*Controller" name suffix. A class whose superclass chain resolves to an
+// unresolved SIMPLE non-controller name (< Thor) must NOT root its actions. But
+// a QUALIFIED base the file cannot resolve (< Sinatra::Base) must KEEP rooting
+// under the #5376 F1 floor: a namespaced base could be a controller base in a
+// gem or namespace this file never sees, so it must never be treated as a
+// positive non-controller downgrade (the old behavior flagged a genuine
+// `OrdersController < Admin::Base` dead). A class with no declared superclass
+// keeps rooting (deliberate residual: per-file parsing cannot distinguish a
+// reopened Rails controller from a bare PORO). A transitive chain through a
+// same-file intermediate class, and an unresolved "*Controller"-suffixed chain
+// that leaves the file, must both still root.
 func TestDefaultEngineParsePathRubyGatesControllerActionOnSuperclassChain(t *testing.T) {
 	t.Parallel()
 
@@ -277,9 +279,13 @@ end
 		t.Fatalf("ParsePath(%s) error = %v, want nil", filePath, err)
 	}
 
-	// Reject: declared superclass resolves to something not accepted.
+	// Reject: declared superclass is an unresolved SIMPLE non-controller name.
 	assertParserStringSliceNotContains(t, assertFunctionByName(t, got, "run_report"), "dead_code_root_kinds", "ruby.rails_controller_action")
-	assertParserStringSliceNotContains(t, assertFunctionByName(t, got, "route_handler"), "dead_code_root_kinds", "ruby.rails_controller_action")
+
+	// Keep (#5376 F1): an unresolved QUALIFIED base (< Sinatra::Base) is
+	// keep-biased — it could be a controller base defined elsewhere, so it must
+	// never be treated as a positive non-controller downgrade.
+	assertParserStringSliceContains(t, assertFunctionByName(t, got, "route_handler"), "dead_code_root_kinds", "ruby.rails_controller_action")
 
 	// Keep: no declared superclass at all.
 	assertParserStringSliceContains(t, assertFunctionByName(t, got, "show_widget"), "dead_code_root_kinds", "ruby.rails_controller_action")
