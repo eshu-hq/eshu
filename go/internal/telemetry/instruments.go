@@ -4545,9 +4545,10 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	inst.CloudFormationPositionFallbacks, err = meter.Int64Counter(
 		"eshu_dp_cloudformation_position_fallback_total",
 		metric.WithDescription(
-			"Total CloudFormation entities the YAML adapter's per-entity "+
-				"Node.Line position walk could not resolve, by bounded "+
-				"cloudformation_section and skip_reason (issue #5328).",
+			"Total CloudFormation entities either format adapter's per-entity "+
+				"position walk could not resolve — the YAML yaml.v3 Node.Line "+
+				"walk (#5328) or the JSON ordered-entry walk (#5348) — by bounded "+
+				"cloudformation_section and skip_reason.",
 		),
 	)
 	if err != nil {
