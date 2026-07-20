@@ -83,9 +83,21 @@ an INFERENCE, not a declaration -- and IS gated behind
 non-environment suffix such as `values.schema.yaml` or `values.example.yaml`
 resolves to `""` rather than a fabricated environment. Neither signal scans
 arbitrary path segments for environment-like keywords -- broader
-environment detection is issue #5444's scope. Graph projection of this
-bucket (a node label and reducer materialization) is issue #5441's scope,
-not this package's.
+environment detection is issue #5444's scope.
+
+This bucket has no consumer yet (round-4 review corrected an earlier,
+inaccurate #5441 citation here and at seven other sites -- #5441 is "iac:
+persist relationship Details and Terraform attributes at the graph write"
+and has nothing to do with image_overrides). Issue #5445 ("contract the
+extraction surface: registry entries + typed accessors") governs the
+typed-accessor CONTRACT this bucket follows. Issue #5469 ("vuln: tiered
+deployed-version resolution") aims to judge a vulnerability finding's
+version from the strongest available tier, including branch-resolved
+manifest evidence -- a Helm/Kustomize declared image tag/digest is the kind
+of evidence that tier would use, though #5469 does not yet name this bucket
+explicitly. Graph projection of this bucket (a node label and reducer
+materialization) has no assigned issue; it is not this package's scope
+regardless.
 
 Argo CD Application rows preserve the existing singular `source_repo`,
 `source_path`, `source_revision`, and `source_root` fields from the primary

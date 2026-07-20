@@ -99,9 +99,11 @@ func helmValuesEnvironment(filename string) string {
 //     raw case, while helmValuesEnvironment above always returns lowercase
 //     (it works off an already-lowercased filename). Without this,
 //     "environments/Prod/values.yaml" and "values-PROD.yaml" would resolve
-//     the SAME declared environment to two different strings -- a case
-//     fragmentation issue #5441 is about to turn into two different graph
-//     join-key values instead of one (issue #5440 P1, independent review).
+//     the SAME declared environment to two different strings -- case
+//     fragmentation that would matter the moment any consumer treats this
+//     field as a graph join key (issue #5440 P1, independent review; see
+//     image_overrides.go's file comment for this bucket's current,
+//     verified consumer routing -- it has no consumer yet).
 //  3. When a path contains more than one "environments" marker, the LAST
 //     one that satisfies the guards below wins -- the declaration closest
 //     to the file, not the first one encountered (issue #5440 P2-1, round-2
@@ -109,6 +111,14 @@ func helmValuesEnvironment(filename string) string {
 //     than clearing an earlier valid one: it carries no information of its
 //     own, so an earlier, still-valid declaration is preferred over
 //     discarding it.
+//  4. The captured segment itself must be a structurally plausible
+//     environment name (isValidImageOverrideEnvironmentCapture below):
+//     non-empty, not composed solely of dots, and not the literal marker
+//     keyword "environments" (issue #5440 P2 and round-4 review; the
+//     keyword case is reachable, the empty/dot-only cases are defensive --
+//     see that function's doc comment for which is which). This guard uses
+//     the identical skip-don't-clear semantics as guard 3: an invalid
+//     capture never overwrites an earlier valid one.
 //
 // This re-walks path segments locally rather than calling
 // environmentFromPath and validating its result, and the guard is
@@ -136,27 +146,53 @@ func imageOverrideDirectoryEnvironment(path string) string {
 			continue
 		}
 		candidate := strings.ToLower(strings.TrimSpace(parts[index+1]))
-		// The captured segment can itself BE the marker keyword when two
-		// "environments" markers sit back to back
-		// ("environments/environments/values.yaml"): at this index the
-		// directory guard above passes only because parts[index+1] is the
-		// START of the NEXT marker, not a real environment name -- the
-		// identical "syntactically plausible but wrong" defect class guard
-		// (3) above was written to eliminate, reached through a different
-		// path (issue #5440 P2, round-3 independent review). Recording it
-		// would be worse than "": a values-prod.yaml sibling would have its
-		// correct filename-inferred "prod" silently discarded, since
-		// helmImageOverrideEnvironment only falls through to that inference
-		// when the path signal is empty. Treat this occurrence as
-		// guard-failing (skip, do not record) so a real marker elsewhere in
-		// the path -- earlier or later -- still wins, and the filename
-		// fallback can still fire when none exists.
-		if candidate == "environments" {
+		if !isValidImageOverrideEnvironmentCapture(candidate) {
 			continue
 		}
 		env = candidate
 	}
 	return env
+}
+
+// isValidImageOverrideEnvironmentCapture reports whether a lowercased,
+// trimmed captured <env> segment is structurally plausible as a declared
+// environment: non-empty, and not composed solely of dots.
+//
+// This generalizes what was originally a single keyword-only check (reject
+// exactly "environments") into the broader class it is one instance of
+// (issue #5440 round-4 review). The keyword case is real and reachable: two
+// "environments" markers sitting back to back
+// ("environments/environments/values.yaml") make the directory guard above
+// pass only because parts[index+1] is the START of the NEXT marker, not a
+// real environment name -- recording it would be worse than "": a
+// values-prod.yaml sibling would have its correct filename-inferred "prod"
+// silently discarded, since helmImageOverrideEnvironment only falls
+// through to that inference when the path signal is empty.
+//
+// The empty-segment and dot-only cases this also rejects ("//" producing an
+// empty parts element, or a literal "."/".." segment) are DEFENSIVE, not a
+// fix for a reachable production bug: every real path reaching this
+// function comes from the collector's file discovery, which cleans every
+// path via filepath.ToSlash(filepath.Clean(...))
+// (go/internal/collector/discovery, 8 call sites, verified) before the
+// parser ever sees it, so those shapes cannot occur in a real
+// collector-produced path. They are included because an invalid LATER
+// marker must not CLEAR an earlier valid one -- recording "" for a
+// dot/empty capture would erase a real "prod" declaration found earlier in
+// the same path, the identical "skip, don't clear" failure mode the
+// keyword case above already had to get right, so generalizing removes the
+// whole class instead of leaving it as one fixed instance among others.
+func isValidImageOverrideEnvironmentCapture(candidate string) bool {
+	if candidate == "" {
+		return false
+	}
+	if strings.Trim(candidate, ".") == "" {
+		return false
+	}
+	if candidate == "environments" {
+		return false
+	}
+	return true
 }
 
 // helmImageOverrideEnvironment resolves the environment for a Helm values

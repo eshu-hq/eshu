@@ -87,8 +87,9 @@ func TestParseHelmValuesImageOverridesEnvironmentFromPath(t *testing.T) {
 			// P1-b accuracy defect (independent review): the path signal returned
 			// raw case ("Prod"), fragmenting the same environment into two
 			// distinct strings against the filename signal's lowercase output.
-			// #5441 is about to project this field onto graph edges as a join
-			// key, so it must be canonicalized to lowercase.
+			// Case fragmentation would matter the moment any consumer treats
+			// this field as a join key, so it must be canonicalized to
+			// lowercase now.
 			name:    "environments_directory_signal_is_lowercased",
 			relPath: "environments/Prod/values.yaml",
 			wantEnv: "prod",
@@ -205,13 +206,83 @@ image:
 	}
 }
 
+// TestImageOverrideDirectoryEnvironmentRejectsInvalidCapturedSegments is a
+// defense-in-depth regression guard (issue #5440 round-4 review) for
+// imageOverrideDirectoryEnvironment's general validity check on a captured
+// <env> segment: it must be non-empty after trimming and must not be
+// composed solely of dots (a generalization of the existing marker-keyword
+// rejection, same skip-don't-clear semantics).
+//
+// This is NOT a fix for a reachable production defect. Every real path
+// reaching this function comes from the collector's file discovery, which
+// cleans every path via filepath.ToSlash(filepath.Clean(...)) in
+// go/internal/collector/discovery (verified: 8 call sites) before the
+// parser ever sees it, so "//" (an empty segment) and "."/".." segments
+// cannot occur in a real collector-produced path. This test calls
+// imageOverrideDirectoryEnvironment directly with raw, uncleaned path
+// strings specifically to bypass that cleaning -- writeYAMLTestFile's
+// filepath.Join (used by the table above) would clean "." and ".." away
+// before they ever reached the function, the same as the real collector
+// does, so this cannot be tested through the normal Parse() pipeline. The
+// point is robustness for any future caller that does NOT pre-clean, not
+// proof of a bug in the current pipeline.
+func TestImageOverrideDirectoryEnvironmentRejectsInvalidCapturedSegments(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		path    string
+		wantEnv string
+	}{
+		{
+			name:    "dot_dot_segment_is_not_a_valid_environment",
+			path:    "environments/../values.yaml",
+			wantEnv: "",
+		},
+		{
+			name:    "dot_segment_is_not_a_valid_environment",
+			path:    "environments/./values.yaml",
+			wantEnv: "",
+		},
+		{
+			// The important case: an invalid LATER marker (an empty segment
+			// from a double slash) must not CLEAR an earlier valid one --
+			// skip-don't-clear semantics, same as the existing guard-failing
+			// and keyword-collision cases.
+			name:    "empty_segment_from_a_double_slash_does_not_clear_an_earlier_valid_marker",
+			path:    "environments/prod/environments//values.yaml",
+			wantEnv: "prod",
+		},
+		{
+			// Not part of the rejected class: a segment that merely LOOKS
+			// like a filename is still a structurally valid directory
+			// capture. This function only checks structural plausibility
+			// (non-empty, not dot-only), never semantic plausibility --
+			// judging whether a string "looks like" a real environment name
+			// is issue #5444's broader-detection scope, not this guard's.
+			name:    "a_filename_shaped_directory_segment_is_still_a_valid_capture",
+			path:    "environments/config.yaml/subdir/values.yaml",
+			wantEnv: "config.yaml",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := imageOverrideDirectoryEnvironment(tc.path); got != tc.wantEnv {
+				t.Fatalf("imageOverrideDirectoryEnvironment(%q) = %q, want %q", tc.path, got, tc.wantEnv)
+			}
+		})
+	}
+}
+
 // TestParseHelmValuesImageOverridesEnvironmentCaseAgreement is a direct
 // regression guard for the P1-b case-fragmentation defect (independent
 // review): the ".../environments/<env>/..." path signal and the
 // values-<env>.yaml filename signal must resolve the SAME declared
 // environment to the SAME string, not two different-cased strings that
-// would silently fragment one environment into two once #5441 projects this
-// field onto graph edges as a join key.
+// would silently fragment one environment into two the moment any consumer
+// treats this field as a join key.
 func TestParseHelmValuesImageOverridesEnvironmentCaseAgreement(t *testing.T) {
 	t.Parallel()
 

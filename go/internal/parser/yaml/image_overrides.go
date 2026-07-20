@@ -24,6 +24,24 @@ import (
 // allowlist) lives in image_overrides_environment.go, split out to keep
 // both files under the repo's 500-line package-file cap (issue #5440
 // round-3 review).
+//
+// Consumer routing (verified against live issue bodies, round-4 review; an
+// earlier round of this work cited issue #5441 here and at seven other
+// sites -- #5441 is "iac: persist relationship Details and Terraform
+// attributes at the graph write" and has nothing to do with this bucket, a
+// misattribution corrected across all eight sites in the same commit as
+// this comment): this bucket has no consumer yet. Issue #5445 ("contract
+// the extraction surface: registry entries + typed accessors") governs the
+// typed-accessor CONTRACT this bucket follows -- registering Helm/
+// Kustomize/Terraform/ArgoCD parsed_file_data shapes behind typed
+// accessors instead of raw map reads. Issue #5469 ("vuln: tiered
+// deployed-version resolution") aims to judge a vulnerability finding's
+// version from the strongest available tier, including branch-resolved
+// manifest evidence; a Helm/Kustomize declared image tag/digest (this
+// bucket's data) is the kind of evidence that tier would use, though #5469
+// does not yet name this bucket explicitly -- do not read that as a
+// commitment. Graph projection of this bucket (a node label and reducer
+// materialization) has no assigned issue.
 
 // collectHelmImageOverrides walks a Helm values document for maps nested
 // under an "image" parent key, mirroring collectHelmImageRepositories's walk
