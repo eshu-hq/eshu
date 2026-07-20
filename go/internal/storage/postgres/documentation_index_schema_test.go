@@ -8,31 +8,13 @@ import (
 	"testing"
 )
 
-const documentationSearchExpressionSQLForTest = `LOWER(
-	COALESCE(payload->>'display_name', '') || ' ' ||
-	COALESCE(payload->>'title', '') || ' ' ||
-	COALESCE(payload->>'heading_text', '') || ' ' ||
-	COALESCE(payload->>'content', '') || ' ' ||
-	COALESCE(payload->>'target_uri', '')
-)`
-
-const documentationCollectedFactKindsSQLForTest = `fact_kind IN (
-	'documentation_source',
-	'documentation_document',
-	'documentation_section',
-	'documentation_link',
-	'documentation_entity_mention',
-	'documentation_claim_candidate',
-	'semantic.documentation_observation'
-)`
-
 func TestDocumentationReadIndexFinalSchemaMatchesCurrentQueries(t *testing.T) {
 	t.Parallel()
 
 	findingsDDL := indexStatementForTest(
 		t,
 		documentationFactRecordReadIndexesSQL,
-		"fact_records_documentation_findings_visible_idx",
+		"fact_records_documentation_findings_read_idx",
 	)
 	for _, want := range []string{
 		"fact_kind = 'documentation_finding'",
@@ -51,20 +33,12 @@ func TestDocumentationReadIndexFinalSchemaMatchesCurrentQueries(t *testing.T) {
 		}
 	}
 
-	searchDDL := indexStatementForTest(
-		t,
-		documentationFactRecordReadIndexesSQL,
+	for _, forbidden := range []string{
+		"fact_records_documentation_findings_visible_idx",
 		"fact_records_documentation_facts_search_trgm_idx",
-	)
-	for _, want := range []string{
-		"USING GIN",
-		"gin_trgm_ops",
-		documentationSearchExpressionSQLForTest,
-		documentationCollectedFactKindsSQLForTest,
-		"is_tombstone = FALSE",
 	} {
-		if !containsNormalizedSQLForTest(searchDDL, want) {
-			t.Errorf("documentation facts search index missing %q:\n%s", want, searchDDL)
+		if strings.Contains(documentationFactRecordReadIndexesSQL, forbidden) {
+			t.Errorf("final documentation schema keeps rejected or legacy index %q", forbidden)
 		}
 	}
 }
@@ -80,18 +54,10 @@ func TestDocumentationReadIndexConcurrentMigrationsAreIsolated(t *testing.T) {
 		statements int
 	}{
 		{
-			name: "drop stale findings index",
-			path: "go/internal/storage/postgres/migrations/064_drop_documentation_findings_visible_idx.sql",
+			name: "create corrected findings index first",
+			path: "go/internal/storage/postgres/migrations/064_create_documentation_findings_read_idx.sql",
 			want: []string{
-				"DROP INDEX CONCURRENTLY IF EXISTS fact_records_documentation_findings_visible_idx",
-			},
-			statements: 1,
-		},
-		{
-			name: "create corrected findings index",
-			path: "go/internal/storage/postgres/migrations/065_create_documentation_findings_visible_idx.sql",
-			want: []string{
-				"CREATE INDEX CONCURRENTLY IF NOT EXISTS fact_records_documentation_findings_visible_idx",
+				"CREATE INDEX CONCURRENTLY IF NOT EXISTS fact_records_documentation_findings_read_idx",
 				"fact_kind = 'documentation_finding'",
 				"is_tombstone = FALSE",
 			},
@@ -99,15 +65,10 @@ func TestDocumentationReadIndexConcurrentMigrationsAreIsolated(t *testing.T) {
 			statements: 1,
 		},
 		{
-			name: "create documentation search index",
-			path: "go/internal/storage/postgres/migrations/066_create_documentation_facts_search_trgm_idx.sql",
+			name: "drop stale findings index second",
+			path: "go/internal/storage/postgres/migrations/065_drop_documentation_findings_visible_idx.sql",
 			want: []string{
-				"CREATE INDEX CONCURRENTLY IF NOT EXISTS fact_records_documentation_facts_search_trgm_idx",
-				"USING GIN",
-				"gin_trgm_ops",
-				documentationSearchExpressionSQLForTest,
-				documentationCollectedFactKindsSQLForTest,
-				"is_tombstone = FALSE",
+				"DROP INDEX CONCURRENTLY IF EXISTS fact_records_documentation_findings_visible_idx",
 			},
 			statements: 1,
 		},
@@ -134,6 +95,27 @@ func TestDocumentationReadIndexConcurrentMigrationsAreIsolated(t *testing.T) {
 				t.Errorf("migration %q has %d SQL terminators, want %d; concurrent DDL must remain isolated", tt.path, got, tt.statements)
 			}
 		})
+	}
+}
+
+func TestDocumentationRejectedAndLegacyIndexesAreNotReplayed(t *testing.T) {
+	t.Parallel()
+
+	definitions := BootstrapDefinitions()
+	facts, ok := definitionByPathForTest(
+		definitions,
+		"go/internal/storage/postgres/migrations/003_fact_records.sql",
+	)
+	if !ok {
+		t.Fatal("fact records migration is missing")
+	}
+	if strings.Contains(facts.SQL, "fact_records_documentation_findings_visible_idx") {
+		t.Fatal("fact records migration still recreates the legacy findings index")
+	}
+	for _, definition := range definitions {
+		if strings.Contains(definition.SQL, "fact_records_documentation_facts_search_trgm_idx") {
+			t.Fatalf("bootstrap definition %q keeps rejected documentation search GIN", definition.Path)
+		}
 	}
 }
 

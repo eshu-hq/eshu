@@ -207,29 +207,7 @@ explicit target reference before falling back to repo-scoped facts. A
 target selector, and documentation fact reads name every accepted scope or
 target anchor in invalid-argument responses. Documentation fact list responses
 return bounded page metadata alongside `facts` so HTTP and MCP callers do not
-infer completeness from row count alone. A `q` filter keeps its existing
-case-insensitive substring behavior across `display_name`, `title`,
-`heading_text`, `content`, and `target_uri`; a partial trigram expression index
-now serves that exact query shape.
-
-Performance Evidence: the five-field search measured 459.618 ms before and
-4.314 ms after on the same 500,000 representative documentation rows, with the
-same 500 rows and digest `54e5e384cf36348c1e6a54f8a2e1d227`. The retained
-1.59 million-row baseline was 2.826 s before the index and is recorded
-separately because its cardinality does not match the 500,000-row comparison.
-The index took 6.240 s to build, occupied 21 MB, and increased an isolated
-100,000-row insert from 241.916 ms to 2.042 s.
-
-No-Regression Evidence: the query still uses the same five payload fields in
-the same order, the same lowercase substring parameter, the same seven fact
-kinds, authorization clauses, ordering, limit, and offset. Focused lockstep
-tests compare the production query expression with both final schema DDL and
-migration 066.
-
-No-Observability-Change: the route, response, authorization behavior, and
-telemetry contract are unchanged. The existing `query.documentation_facts` and
-`postgres.query` spans still identify the handler and
-`list_documentation_facts` database operation.
+infer completeness from row count alone.
 Documentation finding aggregate count and inventory reads summarize the same
 durable finding facts. They keep the per-document permission predicates, apply
 scoped-token repository and scope grants before grouping, ordering, limits, and

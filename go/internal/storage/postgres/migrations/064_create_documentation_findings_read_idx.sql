@@ -1,6 +1,6 @@
--- Match the documentation findings read after denied evidence became an honest
--- disclosed row instead of a SQL-filtered row.
-CREATE INDEX CONCURRENTLY IF NOT EXISTS fact_records_documentation_findings_visible_idx
+-- Create the corrected read index under a new name before retiring the legacy
+-- ACL-filtered index. The distinct name makes bootstrap replay a stable no-op.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS fact_records_documentation_findings_read_idx
     ON fact_records (
         (payload->>'finding_type'),
         (payload->>'source_id'),

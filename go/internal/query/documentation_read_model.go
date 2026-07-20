@@ -14,14 +14,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const documentationFactSearchExpressionTemplate = `LOWER(
-	COALESCE(%[1]s.payload->>'display_name', '') || ' ' ||
-	COALESCE(%[1]s.payload->>'title', '') || ' ' ||
-	COALESCE(%[1]s.payload->>'heading_text', '') || ' ' ||
-	COALESCE(%[1]s.payload->>'content', '') || ' ' ||
-	COALESCE(%[1]s.payload->>'target_uri', '')
-)`
-
 // documentationFindings returns durable documentation findings from fact_records.
 func (cr *ContentReader) documentationFindings(
 	ctx context.Context,
@@ -315,11 +307,13 @@ func buildDocumentationFactsSQL(filter documentationFactFilter) (string, []any) 
 	addPayloadFilter("section_id", filter.SectionID)
 	if strings.TrimSpace(filter.Query) != "" {
 		args = append(args, "%"+strings.ToLower(strings.TrimSpace(filter.Query))+"%")
-		clauses = append(clauses, fmt.Sprintf(
-			"%s LIKE $%d",
-			documentationFactSearchExpressionSQL("fact_records"),
-			len(args),
-		))
+		clauses = append(clauses, fmt.Sprintf(`LOWER(
+			COALESCE(fact_records.payload->>'display_name', '') || ' ' ||
+			COALESCE(fact_records.payload->>'title', '') || ' ' ||
+			COALESCE(fact_records.payload->>'heading_text', '') || ' ' ||
+			COALESCE(fact_records.payload->>'content', '') || ' ' ||
+			COALESCE(fact_records.payload->>'target_uri', '')
+		) LIKE $%d`, len(args)))
 	}
 	if filter.UpdatedSince != nil {
 		args = append(args, *filter.UpdatedSince)
@@ -360,10 +354,6 @@ WHERE %s
 ORDER BY fact_records.observed_at DESC, fact_records.fact_id DESC
 LIMIT $%d OFFSET $%d
 `, scopeJoin, strings.Join(clauses, " AND "), len(args)-1, len(args)), args
-}
-
-func documentationFactSearchExpressionSQL(tableAlias string) string {
-	return fmt.Sprintf(documentationFactSearchExpressionTemplate, tableAlias)
 }
 
 func documentationCollectedFactKindSQLList() string {
