@@ -141,11 +141,23 @@ func mcpSetupWrite(platform *mcpPlatform, req mcpSetupRequest, target string) er
 
 // mcpSetupVerify runs the staged verification, reusing the API client for hosted
 // reachability and the embedded read-only MCP tool surface for tool visibility.
-// In token posture, when no --api-key/ESHU_API_KEY was resolved, the client
-// falls back to ESHU_MCP_TOKEN so verification exercises the same credential
-// the emitted snippet actually wires -- otherwise a token-posture --verify run
-// would silently probe unauthenticated even though the real client will
-// authenticate.
+//
+// The authenticated first-query stage must exercise the SAME credential the
+// emitted snippet wires, and must be skipped -- never probed with the wrong
+// key, never failed -- when the CLI holds no such credential:
+//
+//   - token posture: prefer the per-user ESHU_MCP_TOKEN the snippet references,
+//     overriding any resolved shared ESHU_API_KEY/--api-key so --verify cannot
+//     give false confidence in the admin/dev key. With no ESHU_MCP_TOKEN, run
+//     only the public health stage and skip the query rather than fall back to
+//     the shared key.
+//   - SSO posture: OAuth is interactive and the CLI holds no bearer, so the
+//     auth-enforced query would 401. Skip it (health still runs against the
+//     public /health route) so --verify does not spuriously fail.
+//   - shared-key posture: the shared key is the intended credential, so both
+//     health and the query run against it.
+//
+// The public /health reachability probe runs under every hosted posture.
 func mcpSetupVerify(cmd *cobra.Command, platform *mcpPlatform, req mcpSetupRequest) error {
 	snippet, err := renderSetupSnippet(platform, req)
 	if err != nil {
@@ -154,18 +166,29 @@ func mcpSetupVerify(cmd *cobra.Command, platform *mcpPlatform, req mcpSetupReque
 
 	var health healthProber
 	var query queryProber
+	var querySkipReason string
 	if req.Mode == modeHostedHTTP {
 		client := apiClientFromCmd(cmd)
-		if req.Posture == postureToken && strings.TrimSpace(client.APIKey) == "" {
+		switch req.Posture {
+		case postureSSO:
+			querySkipReason = "OAuth is interactive; complete sign-in via your client (e.g. Claude Code /mcp)"
+		case postureSharedKey:
+			query = apiQueryProber{client: client}
+		default: // postureToken
 			if token := strings.TrimSpace(os.Getenv(mcpTokenEnvVar)); token != "" {
 				client.APIKey = token
+				query = apiQueryProber{client: client}
+			} else {
+				querySkipReason = "set " + mcpTokenEnvVar + " to verify the personal credential"
 			}
 		}
+		// Built after any credential override so the public health probe uses
+		// the same resolved client (the *APIClient pointer the query prober
+		// also holds).
 		health = apiHealthProber{client: client}
-		query = apiQueryProber{client: client}
 	}
 
-	report := runVerification(snippet, mcp.ReadOnlyTools, health, query)
+	report := runVerification(snippet, mcp.ReadOnlyTools, health, query, querySkipReason)
 	fmt.Print(postureVerifyHeader(req) + renderVerifyReport(report))
 	if !report.allOK() {
 		return fmt.Errorf("mcp setup verification failed")

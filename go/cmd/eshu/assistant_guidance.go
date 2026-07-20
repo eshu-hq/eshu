@@ -401,7 +401,7 @@ func assistantRitualVerification(results []platformResult) (verifyReport, error)
 	if err != nil {
 		return verifyReport{}, err
 	}
-	mcpReport := runVerification(snippet, mcp.ReadOnlyTools, nil, nil)
+	mcpReport := runVerification(snippet, mcp.ReadOnlyTools, nil, nil, "")
 	report.Stages = append(report.Stages, mcpReport.Stages...)
 	return report, nil
 }

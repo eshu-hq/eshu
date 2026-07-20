@@ -409,7 +409,7 @@ func (e *fakeErr) Error() string { return e.msg }
 
 func TestVerificationLocalStdioSkipsEndpointStages(t *testing.T) {
 	t.Parallel()
-	report := runVerification("snippet", mcp.ReadOnlyTools, nil, nil)
+	report := runVerification("snippet", mcp.ReadOnlyTools, nil, nil, "")
 	byStage := stageMap(report)
 	if !byStage[stageConfigGenerated].OK {
 		t.Fatal("config generated stage should pass")
@@ -430,7 +430,7 @@ func TestVerificationLocalStdioSkipsEndpointStages(t *testing.T) {
 
 func TestVerificationHostedAllStages(t *testing.T) {
 	t.Parallel()
-	report := runVerification("snippet", mcp.ReadOnlyTools, okHealth{}, okQuery{})
+	report := runVerification("snippet", mcp.ReadOnlyTools, okHealth{}, okQuery{}, "")
 	if !report.allOK() {
 		t.Fatalf("hosted verification should pass, got %+v", report.Stages)
 	}
@@ -438,7 +438,7 @@ func TestVerificationHostedAllStages(t *testing.T) {
 
 func TestVerificationUnreachableFails(t *testing.T) {
 	t.Parallel()
-	report := runVerification("snippet", mcp.ReadOnlyTools, failingHealth{}, okQuery{})
+	report := runVerification("snippet", mcp.ReadOnlyTools, failingHealth{}, okQuery{}, "")
 	byStage := stageMap(report)
 	if byStage[stageClientReachable].OK {
 		t.Fatal("reachable stage should fail when health probe errors")
@@ -451,7 +451,7 @@ func TestVerificationUnreachableFails(t *testing.T) {
 func TestVerificationHealthIsNotQuerySuccess(t *testing.T) {
 	t.Parallel()
 	// Reachable but the first query fails: report must distinguish the two.
-	report := runVerification("snippet", mcp.ReadOnlyTools, okHealth{}, failQuery{})
+	report := runVerification("snippet", mcp.ReadOnlyTools, okHealth{}, failQuery{}, "")
 	byStage := stageMap(report)
 	if !byStage[stageClientReachable].OK {
 		t.Fatal("reachable stage should pass")
@@ -466,7 +466,7 @@ func TestVerificationHealthIsNotQuerySuccess(t *testing.T) {
 
 func TestVerificationEmptySnippetFails(t *testing.T) {
 	t.Parallel()
-	report := runVerification("", mcp.ReadOnlyTools, nil, nil)
+	report := runVerification("", mcp.ReadOnlyTools, nil, nil, "")
 	byStage := stageMap(report)
 	if byStage[stageConfigGenerated].OK {
 		t.Fatal("config generated stage must fail when snippet is empty")
