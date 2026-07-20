@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package reducer //nolint:filelength // 934 lines: projection row builder and overlay extraction test suite.
 
 import (
 	"testing"
@@ -126,11 +126,11 @@ func TestExtractOverlayEnvironmentsBasic(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("ExtractOverlayEnvironments() len = %d, want 2", len(got))
 	}
-	if got[0] != "production" {
-		t.Fatalf("got[0] = %q, want production", got[0])
+	if got[0] != "prod" {
+		t.Fatalf("got[0] = %q, want prod", got[0])
 	}
-	if got[1] != "staging" {
-		t.Fatalf("got[1] = %q, want staging", got[1])
+	if got[1] != "stage" {
+		t.Fatalf("got[1] = %q, want stage", got[1])
 	}
 }
 
@@ -160,8 +160,8 @@ func TestExtractOverlayEnvironmentsSupportsJenkinsAndTerraformPathConventions(t 
 	if len(got) != 3 {
 		t.Fatalf("ExtractOverlayEnvironments() len = %d, want 3", len(got))
 	}
-	if got[0] != "staging" {
-		t.Fatalf("got[0] = %q, want staging", got[0])
+	if got[0] != "stage" {
+		t.Fatalf("got[0] = %q, want stage", got[0])
 	}
 	if got[1] != "monitoring" {
 		t.Fatalf("got[1] = %q, want monitoring", got[1])
@@ -253,10 +253,10 @@ func TestBuildProjectionRowsSingleCandidate(t *testing.T) {
 		t.Fatalf("Stats.Instances = %d, want 1", result.Stats.Instances)
 	}
 	inst := result.InstanceRows[0]
-	if inst.InstanceID != "workload-instance:my-api:production" {
+	if inst.InstanceID != "workload-instance:my-api:prod" {
 		t.Fatalf("InstanceID = %q", inst.InstanceID)
 	}
-	if inst.Environment != "production" {
+	if inst.Environment != "prod" {
 		t.Fatalf("Environment = %q", inst.Environment)
 	}
 
@@ -480,11 +480,11 @@ func TestBuildProjectionRowsRuntimePlatformFromResourceKinds(t *testing.T) {
 	if plat.PlatformKind != "kubernetes" {
 		t.Fatalf("PlatformKind = %q, want kubernetes", plat.PlatformKind)
 	}
-	if plat.InstanceID != "workload-instance:my-api:production" {
+	if plat.InstanceID != "workload-instance:my-api:prod" {
 		t.Fatalf("InstanceID = %q", plat.InstanceID)
 	}
-	if plat.PlatformName != "production" {
-		t.Fatalf("PlatformName = %q, want production", plat.PlatformName)
+	if plat.PlatformName != "prod" {
+		t.Fatalf("PlatformName = %q, want prod", plat.PlatformName)
 	}
 }
 
