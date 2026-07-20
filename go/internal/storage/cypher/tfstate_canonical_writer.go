@@ -37,7 +37,8 @@ SET r.id = row.uid,
     r.tag_key_hashes = row.tag_key_hashes,
     r.scope_id = row.scope_id,
     r.generation_id = row.generation_id,
-    r.evidence_source = 'projector/tfstate'`
+    r.evidence_source = 'projector/tfstate',
+    r += row.attrs`
 
 const canonicalTerraformStateModuleUpsertCypher = `UNWIND $rows AS row
 MERGE (m:TerraformModule {uid: row.uid})
@@ -143,6 +144,20 @@ func tfstateBatchedStatements(
 func terraformStateResourceRows(mat projector.CanonicalMaterialization) []map[string]any {
 	rows := make([]map[string]any, 0, len(mat.TerraformStateResources))
 	for _, row := range mat.TerraformStateResources {
+		// #5441: reduce the raw classified Attributes object to a bounded,
+		// allowlisted, redaction-safe subset of prefixed scalar node
+		// properties. attrs is always a non-nil map (never Go nil / Cypher
+		// null) so the additive `r += row.attrs` merge in
+		// canonicalTerraformStateResourceUpsertCypher is always a well-typed
+		// map-merge — an empty map is a safe no-op on the pinned NornicDB
+		// executor (pkg/cypher/set_helpers.go applySetMapMergeToNode ranges
+		// over the resolved map's entries), matching the same
+		// always-present-map convention canonicalEntityProperties already
+		// uses for the code-entity `SET n += row.props` writer.
+		attrs := promoteTerraformResourceAttributes(row.ResourceType, row.Attributes)
+		if attrs == nil {
+			attrs = map[string]any{}
+		}
 		rows = append(rows, map[string]any{
 			"uid":                 row.UID,
 			"address":             row.Address,
@@ -166,6 +181,7 @@ func terraformStateResourceRows(mat projector.CanonicalMaterialization) []map[st
 			"tag_key_hashes":      row.TagKeyHashes,
 			"scope_id":            mat.ScopeID,
 			"generation_id":       mat.GenerationID,
+			"attrs":               attrs,
 		})
 	}
 	return rows

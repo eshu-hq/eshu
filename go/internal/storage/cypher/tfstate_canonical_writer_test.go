@@ -39,6 +39,11 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 			CollectorKind:      "terraform_state",
 			CorrelationAnchors: []string{"arn:anchor-hash-1"},
 			TagKeyHashes:       []string{"tag-key-hash-1"},
+			Attributes: map[string]any{
+				"instance_type": "t3.micro",
+				"ami":           "ami-0abcdef1234567890",
+				"user_data":     "#!/bin/bash\necho hello",
+			},
 		}},
 		TerraformStateModules: []projector.TerraformStateModuleRow{{
 			UID:              "tf-module-uid-1",
@@ -88,6 +93,22 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 	}
 	if got, want := rows[0]["tag_key_hashes"].([]string)[0], "tag-key-hash-1"; got != want {
 		t.Fatalf("tag_key_hashes[0] = %q, want %q", got, want)
+	}
+	if !strings.Contains(resource.Cypher, "r += row.attrs") {
+		t.Fatalf("resource Cypher = %q, want an additive row.attrs merge", resource.Cypher)
+	}
+	attrs, ok := rows[0]["attrs"].(map[string]any)
+	if !ok {
+		t.Fatalf("rows[0][attrs] type = %T, want map[string]any", rows[0]["attrs"])
+	}
+	if got, want := attrs["tf_attr_instance_type"], "t3.micro"; got != want {
+		t.Fatalf("attrs[tf_attr_instance_type] = %#v, want %q", got, want)
+	}
+	if got, want := attrs["tf_attr_ami"], "ami-0abcdef1234567890"; got != want {
+		t.Fatalf("attrs[tf_attr_ami] = %#v, want %q", got, want)
+	}
+	if _, ok := attrs["tf_attr_user_data"]; ok {
+		t.Fatalf("non-allowlisted user_data attribute was promoted: %#v", attrs)
 	}
 
 	if !strings.Contains(statements[1].Cypher, "MERGE (m:TerraformModule {uid: row.uid})") {

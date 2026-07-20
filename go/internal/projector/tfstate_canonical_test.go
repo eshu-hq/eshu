@@ -78,6 +78,46 @@ func TestBuildCanonicalMaterializationExtractsTerraformStateRows(t *testing.T) {
 	}
 }
 
+// TestBuildCanonicalMaterializationCarriesTerraformStateResourceAttributes
+// proves the #5441 producer-side plumbing: the collector's classified
+// Attributes object (tfstatev1.Resource.Attributes) already flows onto the
+// terraform_state_resource fact payload; this test proves it survives the
+// projector's typed decode onto TerraformStateResourceRow.Attributes
+// unmodified, so the cypher package's promotion allowlist
+// (promoteTerraformResourceAttributes) has a raw producer input to read.
+func TestBuildCanonicalMaterializationCarriesTerraformStateResourceAttributes(t *testing.T) {
+	t.Parallel()
+
+	sc := terraformStateScope()
+	gen := terraformStateGeneration()
+	input := terraformStateFacts()
+	for i := range input {
+		if input[i].FactKind != facts.TerraformStateResourceFactKind {
+			continue
+		}
+		input[i].Payload["attributes"] = map[string]any{
+			"instance_type": "t3.micro",
+			"ami":           "ami-0abcdef1234567890",
+		}
+	}
+
+	result, _ := buildCanonicalMaterialization(sc, gen, input)
+
+	if got, want := len(result.TerraformStateResources), 1; got != want {
+		t.Fatalf("len(TerraformStateResources) = %d, want %d", got, want)
+	}
+	resource := result.TerraformStateResources[0]
+	if got, want := len(resource.Attributes), 2; got != want {
+		t.Fatalf("len(resource.Attributes) = %d, want %d: %#v", got, want, resource.Attributes)
+	}
+	if got, want := resource.Attributes["instance_type"], "t3.micro"; got != want {
+		t.Fatalf("resource.Attributes[instance_type] = %#v, want %q", got, want)
+	}
+	if got, want := resource.Attributes["ami"], "ami-0abcdef1234567890"; got != want {
+		t.Fatalf("resource.Attributes[ami] = %#v, want %q", got, want)
+	}
+}
+
 func TestBuildCanonicalMaterializationAggregatesTerraformStateModuleObservations(t *testing.T) {
 	t.Parallel()
 
