@@ -1591,6 +1591,24 @@
         "required_node_properties": [
           "url"
         ]
+      },
+      {
+        "id": "rn-flux-oci-repository-url",
+        "description": "At least 1 FluxOCIRepository node carries url; kubernetes_comprehensive/flux-ocirepository.yaml (app-manifests, source.toolkit.fluxcd.io) proves the typed Flux OCIRepository walker captures spec.url instead of dropping it on the generic K8sResource path (issue #5360 PR A).",
+        "label": "FluxOCIRepository",
+        "minimum_count": 1,
+        "required_node_properties": [
+          "url"
+        ]
+      },
+      {
+        "id": "rn-flux-bucket-name",
+        "description": "At least 1 FluxBucket node carries bucket_name; kubernetes_comprehensive/flux-bucket.yaml (flux-artifacts, source.toolkit.fluxcd.io) proves the typed Flux Bucket walker captures spec.bucketName instead of dropping it on the generic K8sResource path (issue #5360 PR A).",
+        "label": "FluxBucket",
+        "minimum_count": 1,
+        "required_node_properties": [
+          "bucket_name"
+        ]
       }
     ]
   },
