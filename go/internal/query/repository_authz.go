@@ -88,6 +88,15 @@ func (f repositoryAccessFilter) graphParams(params map[string]any) map[string]an
 	}
 	params["allowed_repository_ids"] = append([]string(nil), f.allowedRepositoryIDs...)
 	params["allowed_scope_ids"] = append([]string(nil), f.allowedScopeIDs...)
+	// Bind the per-grant SHAPE-A inline-map scalars (scope_grant_0..N) referenced
+	// by infraResourceScopePredicate / workloadScopePredicate. Binding here keeps
+	// the scoped scope-predicate consumers' query-owner source unchanged and
+	// guarantees the params and predicate derive the same deterministically
+	// ordered, capped slice. Queries that bind graphParams but never render an
+	// inline-map disjunct simply carry unused scalar params, which the backend
+	// ignores.
+	scalars, _ := scopeGrantInlineScalars(f.allowedRepositoryIDs, f.allowedScopeIDs)
+	bindScopeGrantInlineScalars(params, scalars)
 	return params
 }
 

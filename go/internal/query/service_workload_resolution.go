@@ -308,10 +308,32 @@ func (h *EntityHandler) queryServiceInstanceCandidates(
 	return h.serviceWorkloadCandidatesFromQuery(ctx, cypher, params, matchBasis)
 }
 
+// workloadScopePredicate bounds a Workload node `alias` to a scoped token's
+// granted repositories. It is a fail-closed disjunction of:
+//
+//  1. direct ownership: the workload's materialized `repo_id` is granted (flat
+//     O(1) array compare), and
+//  2. SHAPE-A DEFINES admission: a granted Repository DEFINES the workload
+//     (inline-map, O(grant)). This is required in addition to (1) because a
+//     name-collision workload defined by two repositories materializes only ONE
+//     `repo_id`, so a grant for its OTHER defining repository is missed by the
+//     flat compare but caught here.
+//
+// The previously shipped form used an n-last `EXISTS { (scopeRepo)-[:DEFINES]->
+// (alias) ... }` subquery, which is dead code on the pinned NornicDB build (it
+// evaluated unconditionally false), silently under-authorizing collision-defined
+// workloads. Callers MUST bind the scope_grant_* scalars with
+// bindScopeGrantInlineScalars(params, access.scopeGrantInlineScalars()).
 func workloadScopePredicate(alias string, access repositoryAccessFilter) string {
-	return "(" + alias + ".repo_id IN $allowed_repository_ids OR " +
-		alias + ".repo_id IN $allowed_scope_ids OR EXISTS { MATCH (scopeRepo:Repository)-[:DEFINES]->(" +
-		alias + ") WHERE " + access.graphCondition("scopeRepo") + " })"
+	scalars, _ := access.scopeGrantInlineScalars()
+	disjuncts := []string{
+		alias + ".repo_id IN $allowed_repository_ids",
+		alias + ".repo_id IN $allowed_scope_ids",
+	}
+	if defines := scopeGrantInlineMapDisjunction(alias, scopeHopInbound, "DEFINES", "Repository", "id", scalars); defines != "" {
+		disjuncts = append(disjuncts, defines)
+	}
+	return "(" + strings.Join(disjuncts, " OR ") + ")"
 }
 
 func (h *EntityHandler) serviceWorkloadCandidatesFromQuery(

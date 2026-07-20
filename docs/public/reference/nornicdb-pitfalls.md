@@ -507,6 +507,70 @@ selectivity predicates into one `WHERE` clause instead.
 combined-`WHERE` form and explicitly rejects the inline-pattern-plus-trailing-
 `WHERE` shape.
 
+## Pitfall: `EXISTS {}` Subquery Correctness Depends On Anchor Direction And Hop Count
+
+### Observed shape
+
+On the pinned PR261/compose-default NornicDB image, `EXISTS { MATCH (pattern)
+WHERE (filter on the far variable) }` evaluates correctly only for one specific
+shape. Measured against representative and worst-case fixture data (500-1000
+row fan-out) while redesigning the infra scoped-token authorization predicate
+(#5384):
+
+- **Correct:** a forward, single-hop `EXISTS` anchored on the bound node `n`,
+  filtering the far variable with an `IN $array` comparison:
+  `EXISTS { MATCH (n)-[:DEPLOYMENT_SOURCE]->(r:Repository) WHERE r.id IN $g }`.
+  TRUE case matches, FALSE case does not -- this is the only `EXISTS` shape
+  proven reliable on this backend.
+- **Broken -- always TRUE (whole-graph leak):** an `n`-first `EXISTS` with the
+  arrow pointing backward into `n`, filtering the far variable:
+  `EXISTS { MATCH (n)<-[:USES]-(i:WorkloadInstance) WHERE i.repo_id IN $g }`.
+  This matches every node regardless of whether the filter is satisfied,
+  silently authorizing every row it is meant to gate.
+- **Broken -- always FALSE (dead code / under-authorization):** an `n`-last
+  multi-hop `EXISTS` bridge, filtering the near variable instead of `n`:
+  `EXISTS { MATCH (r:Repository)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(:WorkloadInstance)-[:USES]->(n) WHERE r.id IN $g }`.
+  This matches nothing, ever, even for genuinely in-grant nodes -- the
+  predicate silently drops every row it should admit.
+
+Both broken shapes were reproduced identically via the HTTP `tx/commit`
+endpoint and the real Bolt protocol via `github.com/neo4j/neo4j-go-driver/v5`
+(the production driver), so this is not an HTTP-transport artifact.
+
+### Eshu implications
+
+Do not use an `EXISTS {}` subquery to express "is `n` reachable from a granted
+node" unless the shape is forward-anchored, single-hop, with the `IN $array`
+filter on the far variable (the one correct shape above). For every other
+reachability direction or hop count, use a pattern-predicate evaluated
+directly as a boolean -- not wrapped in `EXISTS {}` -- with an inline-map
+property term per candidate value, for example
+`(n)<-[:USES]-(:WorkloadInstance {repo_id:$g})`. This form is correct on both
+NornicDB and Neo4j and trades reliability for O(grant) fan-out (one term per
+candidate value) instead of O(1).
+
+The infra scoped-token authorization predicate
+(`go/internal/query/infra_scope_grant.go`, `infraResourceScopePredicate`) is
+built this way: `scopeGrantInlineMapDisjunction` renders the inline-map
+OR-chain for the CloudResource-via-USES and Workload-via-DEFINES admission
+paths (both previously shipped as the always-FALSE `n`-last bridge shape
+above, which silently under-authorized every scoped CloudResource and
+name-collision Workload), while the WorkloadInstance-via-DEPLOYMENT_SOURCE
+admission path keeps the one correct forward-anchored `EXISTS` shape.
+`maxScopeGrantInlineTerms` caps the inline-map fan-out with fail-closed
+degradation: past the cap, a token still sees every resource it directly owns
+(O(1) flat `repo_id` / `id` disjuncts), and only loses collision/bridge
+admission for grants beyond the cap -- an under-authorization, never a leak.
+
+### Validation
+
+`go test ./internal/query -run
+'TestInfraResourceScopePredicateRendersOnlyWhenScoped' -count=1` asserts the
+shipped predicate text contains the inline-map disjuncts and the one correct
+forward `EXISTS` disjunct, and explicitly rejects both broken `EXISTS` shapes
+(the `n`-last `DEFINES`/`INSTANCE_OF` bridge and the `n`-first backward `USES`
+form) from ever reappearing in the rendered Cypher.
+
 ## When To Patch NornicDB
 
 Patch NornicDB only when evidence supports one of these:
