@@ -376,6 +376,26 @@
         "minimum_count": 1
       },
       {
+        "id": "rc-153",
+        "description": "#5441 P1 finding 3 regression guard: the helm_argocd_platform fixture's application.yaml declares source.targetRevision: v1.4.0 pointing at the in-corpus deployable-source repository (github.com/acme/deployable-source.git), which the relationships engine emits as ARGOCD_APPLICATION_SOURCE evidence resolving a DEPLOYS_FROM edge. DEPLOYS_FROM is a tool-agnostic edge also emitted by Kustomize (rc-29) and a Helm chart dependency (rc-34), so this correlation filters on evidence_kinds=[ARGOCD_APPLICATION_SOURCE] to isolate the ArgoCD deployment-source verb, and additionally requires the edge to carry a non-empty source_revision property -- the exact regression this issue fixed: buildResolvedEdgeIntentRow previously read the wrong Details map and always wrote source_revision as \"\" for every ArgoCD-sourced edge in production. The count and the property are both provably zero/empty without the fix.",
+        "relationship": "DEPLOYS_FROM",
+        "from_label": "Repository",
+        "to_label": "Repository",
+        "minimum_count": 1,
+        "evidence_kinds": [
+          "ARGOCD_APPLICATION_SOURCE"
+        ],
+        "required_edge_properties": [
+          "source_tool",
+          "source_revision"
+        ],
+        "allowed_edge_property_values": {
+          "source_tool": [
+            "argocd"
+          ]
+        }
+      },
+      {
         "id": "rc-20",
         "description": "A WorkloadInstance DEPLOYMENT_SOURCE a Repository; runtime-to-source correlation (workload materialization).",
         "relationship": "DEPLOYMENT_SOURCE",
@@ -1561,6 +1581,15 @@
       }
     ],
     "required_nodes": [
+      {
+        "id": "rn-terraform-resource-attribute-promotion",
+        "description": "#5441 P1 finding 3 regression guard: at least 1 TerraformResource node carries a non-empty tf_attr_instance_type property. The terraformstate supply-chain-demo cassette's module.ecs.aws_instance.supply-chain-demo resource declares attributes.instance_type = \"t3.micro\", which promoteTerraformResourceAttributes (go/internal/storage/cypher/terraform_attribute_promotion.go) flattens onto the node as tf_attr_instance_type via the additive `r += row.attrs` merge in the TerraformResource upsert template. Zero without the fix (the property did not exist before #5441) and zero without the new cassette resource (the pre-existing aws_ecs_cluster/aws_ecs_service resources are not in the promotion allowlist).",
+        "label": "TerraformResource",
+        "minimum_count": 1,
+        "required_node_properties": [
+          "tf_attr_instance_type"
+        ]
+      },
       {
         "id": "rn-file-language",
         "description": "At least 10 File nodes carry a non-empty language (source_type); proves per-file language extraction (#4003) is operational. Presence-positive floor \u2014 legitimately language-less files (LICENSE, .gitignore) do not fail it, but a regression that stops populating language drops the count below the floor.",

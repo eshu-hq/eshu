@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package relationships //nolint:filelength // 502 lines: YAML IaC evidence relationship resolver. Tracked for split in audit § T8.
+package relationships //nolint:filelength // 511 lines: YAML IaC evidence relationship resolver. Tracked for split in audit § T8; grew from 502 lines in #5441 (a call-site comment plus a source-revision lookup call in discoverArgoCDDocumentEvidence; the extracted helper itself lives in argocd_document_source_revision.go, not here).
 
 import (
 	"io"
@@ -20,13 +20,22 @@ func discoverArgoCDDocumentEvidence(
 ) []EvidenceFact {
 	var evidence []EvidenceFact
 
+	// #5441 second-P0 fix: this document-level path (not
+	// discoverStructuredArgoCDEvidence) is the one that actually fires for a
+	// bare top-level ArgoCD Application YAML manifest, so it must carry
+	// source_revision itself rather than relying on the structured path's
+	// Details. Found via the live golden-corpus gate: rc-153 failed with
+	// "2/2 matching edges offending" even after the reducer-side P0 fix
+	// landed, because both corpus DEPLOYS_FROM edges came through here with
+	// no source_revision key at all (extraDetails was a hard-coded nil).
+	sourceRevisionDetails := argocdApplicationSourceRevisionDetails(document)
 	for _, repoURL := range argocdApplicationRepoURLs(document) {
 		for _, deployedRepo := range matchingCatalogEntries(repoURL, matcher) {
 			evidence = append(evidence, matchCatalog(
 				controlRepoID, repoURL, filePath,
 				EvidenceKindArgoCDAppSource, RelDeploysFrom, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindArgoCDAppSource),
 				"ArgoCD Application source references the target repository",
-				"argocd", matcher, seen, nil,
+				"argocd", matcher, seen, sourceRevisionDetails,
 			)...)
 			for _, destination := range argocdDocumentDestinations(document) {
 				evidence = append(evidence, appendDestinationPlatformEvidence(
