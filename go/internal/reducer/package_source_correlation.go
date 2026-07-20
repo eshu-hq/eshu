@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
 // PackageSourceCorrelationOutcome names the reducer decision for one package
@@ -253,50 +254,11 @@ func normalizePackageSourceExactURL(raw string) string {
 	return strings.TrimRight(parsed.String(), "/")
 }
 
+// canonicalPackageSourceURLKey returns the canonical host/path key for a git
+// remote URL. It delegates to repositoryidentity.NormalizedRemoteKey so the
+// reducer and the git collector share one normalization path.
 func canonicalPackageSourceURLKey(raw string) string {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return ""
-	}
-	trimmed = strings.TrimPrefix(trimmed, "git+")
-	if scpKey := canonicalPackageSourceSCPKey(trimmed); scpKey != "" {
-		return scpKey
-	}
-	parsed, err := url.Parse(trimmed)
-	if err != nil || parsed.Host == "" {
-		return ""
-	}
-	host := strings.ToLower(parsed.Host)
-	if at := strings.LastIndex(host, "@"); at >= 0 && at < len(host)-1 {
-		host = host[at+1:]
-	}
-	pathValue := strings.Trim(parsed.EscapedPath(), "/")
-	pathValue = strings.TrimSuffix(pathValue, ".git")
-	if pathValue == "" {
-		return ""
-	}
-	return host + "/" + strings.ToLower(pathValue)
-}
-
-func canonicalPackageSourceSCPKey(raw string) string {
-	if strings.Contains(raw, "://") {
-		return ""
-	}
-	beforeColon, afterColon, ok := strings.Cut(raw, ":")
-	if !ok || strings.TrimSpace(afterColon) == "" {
-		return ""
-	}
-	host := beforeColon
-	if at := strings.LastIndex(host, "@"); at >= 0 && at < len(host)-1 {
-		host = host[at+1:]
-	}
-	host = strings.ToLower(strings.TrimSpace(host))
-	pathValue := strings.Trim(strings.TrimSpace(afterColon), "/")
-	pathValue = strings.TrimSuffix(pathValue, ".git")
-	if host == "" || pathValue == "" {
-		return ""
-	}
-	return host + "/" + strings.ToLower(pathValue)
+	return repositoryidentity.NormalizedRemoteKey(raw)
 }
 
 func firstPackageSourceURL(values ...string) string {

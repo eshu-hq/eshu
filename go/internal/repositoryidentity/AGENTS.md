@@ -5,22 +5,22 @@
 1. `go/internal/repositoryidentity/README.md` — purpose, exported surface,
    invariants
 2. `go/internal/repositoryidentity/identity.go` — `Metadata`, `MetadataFor`,
-   `NormalizeRemoteURL`, `RepoSlugFromRemoteURL`, `CanonicalRepositoryID`;
-   the entire surface fits in one file
+   `NormalizeRemoteURL`, `NormalizedRemoteKey`, `RepoSlugFromRemoteURL`,
+   `CanonicalRepositoryID`; the entire surface fits in one file
 3. `go/internal/collector/git_fact_builder.go` — main caller; shows how
    `MetadataFor` feeds fact emission
 
 ## Invariants this package enforces
 
-- **Remote-first identity** — `CanonicalRepositoryID` at `identity.go:105`
+- **Remote-first identity** — `CanonicalRepositoryID` at `identity.go:198`
   hashes the remote URL when present. The local path is a fallback only. This
   means two checkouts of the same remote produce the same ID even if the local
   paths differ.
-- **Both fields empty is an error** — `identity.go:108` returns an error when
+- **Both fields empty is an error** — `identity.go:200` returns an error when
   both `remoteURL` (after normalization) and `localPath` are empty. Never
   construct an ID silently from a zero-value input.
 - **`repository:r_` prefix is canonical** — the `fmt.Sprintf` at
-  `identity.go:115` always produces `repository:r_<8-hex>`. Graph node
+  `identity.go:208` always produces `repository:r_<8-hex>`. Graph node
   MERGE keys and fact payload consumers depend on this prefix.
 - **Normalization is one-way** — `NormalizeRemoteURL` is idempotent on
   already-normalized URLs but destructive on non-URL inputs (e.g., bare paths).
@@ -28,13 +28,13 @@
 
 ## Common changes and how to scope them
 
-- **Change the ID prefix** — update the `fmt.Sprintf` at `identity.go:115`
+- **Change the ID prefix** — update the `fmt.Sprintf` at `identity.go:208`
   and update every downstream fact schema, graph constraint, and test that
   asserts on the `repository:r_` prefix. This is a breaking change; check all
   callers before proceeding.
 
 - **Add normalization for a new remote protocol** — extend the switch in
-  `NormalizeRemoteURL` (`identity.go:60`). Add a test case in the table-driven
+  `NormalizeRemoteURL` (`identity.go:63`). Add a test case in the table-driven
   test before implementing.
 
 - **Add a field to `Metadata`** — add to the struct at `identity.go:13`,
