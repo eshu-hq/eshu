@@ -49,8 +49,8 @@ type SQLRelationshipIntentWriter interface {
 }
 
 // SQLRelationshipMaterializationHandler reduces one SQL relationship follow-up
-// into durable shared-projection intent emission for REFERENCES_TABLE,
-// HAS_COLUMN, TRIGGERS, EXECUTES, and INDEXES edges. Each repository gets one
+// into durable shared-projection intent emission for READS_FROM, HAS_COLUMN,
+// TRIGGERS, EXECUTES, and INDEXES edges. Each repository gets one
 // whole-scope refresh intent that owns the retract, and each edge gets a write-only per-edge
 // intent under a file-scoped partition key fenced behind that refresh (#2868).
 type SQLRelationshipMaterializationHandler struct {
@@ -89,7 +89,7 @@ func (h SQLRelationshipMaterializationHandler) Handle(
 	}
 
 	deltaScope := buildSQLRelationshipDeltaScope(envelopes)
-	repositoryIDs, edgeRows := ExtractSQLRelationshipRows(envelopes)
+	repositoryIDs, edgeRows, rowStats := ExtractSQLRelationshipRows(envelopes)
 	repositoryIDs = mergeSQLRelationshipRepositoryIDs(repositoryIDs, deltaScope.repositoryIDs)
 	contextByRepoID := buildCodeCallProjectionContexts(envelopes, intent.GenerationID)
 	if len(repositoryIDs) == 0 || len(contextByRepoID) == 0 {
@@ -120,6 +120,12 @@ func (h SQLRelationshipMaterializationHandler) Handle(
 		slog.Int("intent_count", len(intentRows)),
 		slog.Int("edge_count", len(edgeRows)),
 		slog.Int("repo_count", len(repositoryIDs)),
+		// unresolved/ambiguous_read_targets surface READS_FROM source_tables
+		// entries that resolveSQLReadTarget could not (or refused to) turn
+		// into an edge, so an operator can see silent-empty risk without
+		// re-deriving it from the graph (#5345).
+		slog.Int("unresolved_read_targets", rowStats.UnresolvedReadTargets),
+		slog.Int("ambiguous_read_targets", rowStats.AmbiguousReadTargets),
 	)
 
 	return Result{
@@ -148,10 +154,14 @@ func isSQLEntityType(entityType string) bool {
 // ExtractSQLRelationshipRows builds canonical SQL relationship edge rows from
 // content_entity fact envelopes. It builds an entity index from SQL entities,
 // then derives edges from entity metadata (source_tables, table_name,
-// function_name).
-func ExtractSQLRelationshipRows(envelopes []facts.Envelope) ([]string, []map[string]any) {
+// function_name). The returned SQLRelationshipRowStats reports READS_FROM
+// target resolutions that were skipped (unresolved or ambiguous) rather than
+// silently dropped, so callers can log them (#5345).
+func ExtractSQLRelationshipRows(
+	envelopes []facts.Envelope,
+) ([]string, []map[string]any, SQLRelationshipRowStats) {
 	if len(envelopes) == 0 {
-		return nil, nil
+		return nil, nil, SQLRelationshipRowStats{}
 	}
 	repoSet := make(map[string]struct{})
 	entityByName := make(map[string][]sqlRelationshipEntity)
@@ -185,7 +195,7 @@ func ExtractSQLRelationshipRows(envelopes []facts.Envelope) ([]string, []map[str
 	}
 
 	if len(repoSet) == 0 {
-		return nil, nil
+		return nil, nil, SQLRelationshipRowStats{}
 	}
 
 	repoIDs := make([]string, 0, len(repoSet))
@@ -197,6 +207,7 @@ func ExtractSQLRelationshipRows(envelopes []facts.Envelope) ([]string, []map[str
 	// Pass 2: derive edges from entity metadata.
 	seenEdges := make(map[string]struct{})
 	var rows []map[string]any
+	var stats SQLRelationshipRowStats
 
 	for _, env := range envelopes {
 		if env.FactKind != "content_entity" {
@@ -207,7 +218,7 @@ func ExtractSQLRelationshipRows(envelopes []facts.Envelope) ([]string, []map[str
 		entityID := semanticPayloadString(env.Payload, "entity_id")
 		relativePath := semanticPayloadString(env.Payload, "relative_path")
 		// entityPath is the repo-qualified path of THIS entity. It is the edge
-		// source for REFERENCES_TABLE/TRIGGERS/EXECUTES (the iterated entity is the
+		// source for READS_FROM/TRIGGERS/EXECUTES (the iterated entity is the
 		// source), so it anchors the file-scoped partition key and the source.path
 		// delta retract for those edges (#2868). HAS_COLUMN's source is the resolved
 		// table, so that edge takes its source_path from the table instead.
@@ -221,14 +232,22 @@ func ExtractSQLRelationshipRows(envelopes []facts.Envelope) ([]string, []map[str
 
 		switch entityType {
 		case "SqlView", "SqlFunction":
-			// source_tables metadata -> REFERENCES_TABLE edges
+			// source_tables metadata -> READS_FROM edges. Resolution tries a
+			// SqlTable target first, then a SqlView target (so a view-on-view
+			// direct read resolves), and is direct-only: no transitive closure
+			// (#5345).
 			sourceTables := sqlMetadataStringSlice(metadata, "source_tables")
 			for _, tableName := range sourceTables {
-				target, ok := resolveSQLRelationshipTarget(entityByName, tableName, "SqlTable", repoID, relativePath)
-				if !ok {
+				target, ambiguous, ok := resolveSQLReadTarget(entityByName, tableName, repoID, relativePath)
+				if ambiguous {
+					stats.AmbiguousReadTargets++
 					continue
 				}
-				edgeKey := entityID + "->REFERENCES_TABLE->" + target.entityID
+				if !ok {
+					stats.UnresolvedReadTargets++
+					continue
+				}
+				edgeKey := entityID + "->READS_FROM->" + target.entityID
 				if _, seen := seenEdges[edgeKey]; seen {
 					continue
 				}
@@ -240,7 +259,7 @@ func ExtractSQLRelationshipRows(envelopes []facts.Envelope) ([]string, []map[str
 					"target_entity_type": target.entityType,
 					"source_path":        entityPath,
 					"repo_id":            repoID,
-					"relationship_type":  "REFERENCES_TABLE",
+					"relationship_type":  "READS_FROM",
 				})
 			}
 
@@ -360,7 +379,7 @@ func ExtractSQLRelationshipRows(envelopes []facts.Envelope) ([]string, []map[str
 		return left < right
 	})
 
-	return repoIDs, rows
+	return repoIDs, rows, stats
 }
 
 // sqlMetadataString extracts a string value from SQL entity metadata.
