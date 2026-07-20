@@ -53,7 +53,7 @@ type EdgeCoverage struct {
 // registry knows to be written by a real edge writer, keyed by edge type name
 // and mapping to a short human-readable reason. It is registry-derived, not a
 // graph probe: it merges the SQL relationship edge-writer whitelist (the
-// authoritative source for REFERENCES_TABLE, HAS_COLUMN, TRIGGERS, EXECUTES,
+// authoritative source for READS_FROM, HAS_COLUMN, TRIGGERS, EXECUTES,
 // QUERIES_TABLE, and INDEXES — see cypher.SQLRelationshipMaterializedEdgeTypes)
 // with the always-on structural CONTAINS edge and structuralEdgeTypes
 // (DEPENDS_ON, REPO_CONTAINS). Because it reads the writer whitelist

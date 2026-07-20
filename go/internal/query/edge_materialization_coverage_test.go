@@ -7,12 +7,13 @@ import "testing"
 
 // TestEdgeMaterializationCoverageReportsKnownWriters proves the registry
 // reports materialized:true with a real reason for edge types this task wires
-// (CONTAINS, QUERIES_TABLE, REFERENCES_TABLE, TRIGGERS, INDEXES) — the
-// blast-radius SqlTable branches this task keeps live (#5330 Task 1/2).
+// (CONTAINS, QUERIES_TABLE, READS_FROM, TRIGGERS, INDEXES) — the
+// blast-radius SqlTable branches this task keeps live (#5330 Task 1/2,
+// #5345 Task 4).
 func TestEdgeMaterializationCoverageReportsKnownWriters(t *testing.T) {
 	t.Parallel()
 
-	for _, edgeType := range []string{"CONTAINS", "QUERIES_TABLE", "REFERENCES_TABLE", "TRIGGERS", "INDEXES"} {
+	for _, edgeType := range []string{"CONTAINS", "QUERIES_TABLE", "READS_FROM", "TRIGGERS", "INDEXES"} {
 		got := EdgeMaterializationCoverage(edgeType)
 		if !got.Materialized {
 			t.Errorf("EdgeMaterializationCoverage(%q).Materialized = false, want true", edgeType)
@@ -29,11 +30,14 @@ func TestEdgeMaterializationCoverageReportsKnownWriters(t *testing.T) {
 // TestEdgeMaterializationCoverageReportsDeadBranches proves the registry
 // reports materialized:false with reason "no_writer" for the blast-radius
 // SqlTable branches this task drops because no writer ever produces them
-// (#5330 Task 2).
+// (#5330 Task 2). REFERENCES_TABLE joined this list in #5345: the only prior
+// producer was the SqlView/SqlFunction case, which now writes READS_FROM
+// instead, so REFERENCES_TABLE is honestly fenced (reserved for a future
+// table-level FK edge, not yet wired).
 func TestEdgeMaterializationCoverageReportsDeadBranches(t *testing.T) {
 	t.Parallel()
 
-	for _, edgeType := range []string{"READS_FROM", "MIGRATES", "MAPS_TO_TABLE"} {
+	for _, edgeType := range []string{"REFERENCES_TABLE", "MIGRATES", "MAPS_TO_TABLE"} {
 		got := EdgeMaterializationCoverage(edgeType)
 		if got.Materialized {
 			t.Errorf("EdgeMaterializationCoverage(%q).Materialized = true, want false (no writer exists)", edgeType)
@@ -89,12 +93,12 @@ func TestMaterializedEdgeTypeSetIsRegistryDerived(t *testing.T) {
 	t.Parallel()
 
 	set := MaterializedEdgeTypeSet()
-	for _, want := range []string{"CONTAINS", "QUERIES_TABLE", "REFERENCES_TABLE", "HAS_COLUMN", "TRIGGERS", "EXECUTES", "INDEXES", "DEPENDS_ON", "REPO_CONTAINS"} {
+	for _, want := range []string{"CONTAINS", "QUERIES_TABLE", "READS_FROM", "HAS_COLUMN", "TRIGGERS", "EXECUTES", "INDEXES", "DEPENDS_ON", "REPO_CONTAINS"} {
 		if _, ok := set[want]; !ok {
 			t.Errorf("MaterializedEdgeTypeSet() missing %q", want)
 		}
 	}
-	for _, notWant := range []string{"READS_FROM", "MIGRATES", "MAPS_TO_TABLE", "TRIGGERS_ON"} {
+	for _, notWant := range []string{"REFERENCES_TABLE", "MIGRATES", "MAPS_TO_TABLE", "TRIGGERS_ON"} {
 		if _, ok := set[notWant]; ok {
 			t.Errorf("MaterializedEdgeTypeSet() unexpectedly contains %q (no writer produces it)", notWant)
 		}
