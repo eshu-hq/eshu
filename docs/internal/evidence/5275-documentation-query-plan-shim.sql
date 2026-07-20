@@ -184,7 +184,17 @@ CROSS JOIN oversized;
 ANALYZE fact_records;
 
 PREPARE scoped_search AS
-SELECT fact_id
+SELECT jsonb_build_object(
+  'fact_id', fact_records.fact_id,
+  'fact_kind', fact_records.fact_kind,
+  'scope_id', fact_records.scope_id,
+  'generation_id', fact_records.generation_id,
+  'source_system', fact_records.source_system,
+  'source_uri', fact_records.source_uri,
+  'source_record_id', fact_records.source_record_id,
+  'observed_at', fact_records.observed_at,
+  'payload', fact_records.payload
+) AS payload
 FROM fact_records
 WHERE fact_records.is_tombstone = FALSE
   AND fact_records.fact_kind IN (
@@ -202,39 +212,6 @@ WHERE fact_records.is_tombstone = FALSE
   ) LIKE '%needle%'
 ORDER BY fact_records.observed_at DESC, fact_records.fact_id DESC
 LIMIT 51 OFFSET 0;
-
-PREPARE write_probe(TEXT) AS
-INSERT INTO fact_records (
-  fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
-  schema_version, collector_kind, fencing_token, source_confidence,
-  source_system, source_fact_key, source_uri, source_record_id,
-  observed_at, ingested_at, is_tombstone, payload
-)
-SELECT $1 || n, 'scope:largest-search-proof', 'generation:search-proof',
-       'documentation_document', $1 || n, '1.0.0', 'proof', 0, 'high',
-       'proof', $1 || n, NULL, NULL, clock_timestamp(), clock_timestamp(), FALSE,
-       jsonb_build_object(
-         'display_name', 'Write ' || n, 'title', 'Write title ' || n,
-         'heading_text', 'Write heading', 'content', repeat(md5(n::text) || ' ', 8),
-         'target_uri', 'https://example.invalid/write/' || n
-       )
-FROM generate_series(1, 10000) AS n
-ON CONFLICT (fact_id) DO UPDATE SET
-  fact_kind = EXCLUDED.fact_kind,
-  stable_fact_key = EXCLUDED.stable_fact_key,
-  schema_version = EXCLUDED.schema_version,
-  collector_kind = EXCLUDED.collector_kind,
-  fencing_token = EXCLUDED.fencing_token,
-  source_confidence = EXCLUDED.source_confidence,
-  source_system = EXCLUDED.source_system,
-  source_fact_key = EXCLUDED.source_fact_key,
-  source_uri = EXCLUDED.source_uri,
-  source_record_id = EXCLUDED.source_record_id,
-  observed_at = EXCLUDED.observed_at,
-  ingested_at = EXCLUDED.ingested_at,
-  is_tombstone = EXCLUDED.is_tombstone,
-  payload = EXCLUDED.payload
-WHERE fact_records.fencing_token <= EXCLUDED.fencing_token;
 
 \echo SEARCH_BASELINE_PLAN_AND_RESULT
 EXPLAIN (ANALYZE, BUFFERS, SUMMARY, FORMAT TEXT) EXECUTE scoped_search;
@@ -259,13 +236,6 @@ FROM (
   ORDER BY observed_at DESC, fact_id DESC
   LIMIT 51 OFFSET 0
 ) AS selected;
-BEGIN;
-EXECUTE write_probe('baseline-warm:');
-ROLLBACK;
-BEGIN;
-EXPLAIN (ANALYZE, BUFFERS, SUMMARY, FORMAT TEXT) EXECUTE write_probe('baseline-repeat:');
-ROLLBACK;
-
 \echo BROAD_GIN_CANDIDATE
 CREATE INDEX fact_records_documentation_facts_search_trgm_candidate
 ON fact_records USING GIN ((
@@ -308,12 +278,6 @@ FROM (
   ORDER BY observed_at DESC, fact_id DESC
   LIMIT 51 OFFSET 0
 ) AS selected;
-BEGIN;
-EXECUTE write_probe('broad-warm:');
-ROLLBACK;
-BEGIN;
-EXPLAIN (ANALYZE, BUFFERS, SUMMARY, FORMAT TEXT) EXECUTE write_probe('broad-repeat:');
-ROLLBACK;
 DROP INDEX fact_records_documentation_facts_search_trgm_candidate;
 
 \echo GIST_CANDIDATE_EXPECTED_FAILURE
@@ -379,12 +343,4 @@ FROM (
   ORDER BY observed_at DESC, fact_id DESC
   LIMIT 51 OFFSET 0
 ) AS selected;
-BEGIN;
-EXECUTE write_probe('scoped-warm:');
-ROLLBACK;
-BEGIN;
-EXPLAIN (ANALYZE, BUFFERS, SUMMARY, FORMAT TEXT) EXECUTE write_probe('scoped-repeat:');
-ROLLBACK;
-
 DEALLOCATE scoped_search;
-DEALLOCATE write_probe;

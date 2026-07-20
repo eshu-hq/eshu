@@ -44,6 +44,16 @@ func TestDocumentationQueryPlanShimRejectsProductionSearchDrift(t *testing.T) {
 		args  []any
 	}{
 		{
+			name:  "projection",
+			query: strings.Replace(query, "'source_uri', fact_records.source_uri", "'source_uri', NULL", 1),
+			args:  args,
+		},
+		{
+			name:  "from shape",
+			query: strings.Replace(query, "FROM fact_records", "FROM fact_records AS changed", 1),
+			args:  args,
+		},
+		{
 			name:  "search expression",
 			query: strings.Replace(query, "fact_records.payload->>'content'", "fact_records.payload->>'body'", 1),
 			args:  args,
@@ -85,11 +95,7 @@ func TestDocumentationQueryPlanShimRejectsProductionSearchDrift(t *testing.T) {
 }
 
 func validateDocumentationSearchShimForTest(query string, args []any, shim string) error {
-	productionTail, err := documentationSQLTailForTest(query, "WHERE ")
-	if err != nil {
-		return fmt.Errorf("production documentation query: %w", err)
-	}
-	productionTail, err = renderDocumentationProofArgsForTest(productionTail, args)
+	productionStatement, err := renderDocumentationProofArgsForTest(query, args)
 	if err != nil {
 		return fmt.Errorf("render production documentation query: %w", err)
 	}
@@ -97,18 +103,13 @@ func validateDocumentationSearchShimForTest(query string, args []any, shim strin
 	shimStatement, err := documentationSQLBetweenForTest(
 		shim,
 		"PREPARE scoped_search AS",
-		"PREPARE write_probe(TEXT) AS",
+		`\echo SEARCH_BASELINE_PLAN_AND_RESULT`,
 	)
 	if err != nil {
 		return fmt.Errorf("checked-in documentation shim: %w", err)
 	}
-	shimTail, err := documentationSQLTailForTest(shimStatement, "WHERE ")
-	if err != nil {
-		return fmt.Errorf("checked-in documentation search: %w", err)
-	}
-
-	got := normalizeDocumentationProofSQLForTest(shimTail)
-	want := normalizeDocumentationProofSQLForTest(productionTail)
+	got := normalizeDocumentationProofSQLForTest(shimStatement)
+	want := normalizeDocumentationProofSQLForTest(productionStatement)
 	if got != want {
 		return fmt.Errorf("checked-in search proof drifted from production\nshim:       %s\nproduction: %s", got, want)
 	}
@@ -143,14 +144,6 @@ func documentationSQLBetweenForTest(sqlText string, start string, end string) (s
 		return "", fmt.Errorf("missing end marker %q", end)
 	}
 	return strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(remaining[:endAt]), ";")), nil
-}
-
-func documentationSQLTailForTest(sqlText string, start string) (string, error) {
-	startAt := strings.Index(sqlText, start)
-	if startAt < 0 {
-		return "", fmt.Errorf("missing SQL marker %q", start)
-	}
-	return strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(sqlText[startAt:]), ";")), nil
 }
 
 func renderDocumentationProofArgsForTest(sqlText string, args []any) (string, error) {
