@@ -17,20 +17,17 @@ capability, not a rewrite of a served path.
 ## Backend
 
 Pinned NornicDB per `docker-compose.yml` / `deploy/helm/eshu`. The scoped
-relationships/edges query shape was validated against a live NornicDB backend by
-the `query-plan-regression` gate (`scripts/verify-query-plan-regression.sh`,
-which runs a live Bolt `PROFILE`), green in this branch's `make pre-pr`:
-
-```
-verify-query-plan-profile: pass
-verify-query-plan-regression: pass
-PASS     query-plan-regression
-```
-
+relationships/edges query shape is validated by the `query-plan-regression` gate
+(`scripts/verify-query-plan-regression.sh`, which drives a live Bolt `PROFILE`)
+and the `go test ./internal/queryplan` source-hash lockstep.
 `go/internal/queryplan/testdata/hot-cypher.yaml` `QP-RELATIONSHIPS-EDGES`
-`source_sha256` was updated to the post-#5167 `relationshipEdgesCypher` source
-and re-validated by that gate, so the tracked hot-query fixture matches the
-shipped query and its plan.
+`source_sha256` tracks the current `relationshipEdgesCypher` source — including
+the P1 review fix that swapped `infraResourceScopePredicate` for
+`relationshipEndpointScopePredicate` (dropping the DEFINES disjunct), so the
+digest was refreshed to that post-fix source. The queryplan source-hash gate
+confirms the tracked fixture matches the shipped query; the live-backend
+`PROFILE` regression check runs in this branch's `make pre-pr` promotion gate and
+in CI's `query-plan-regression` job against this head.
 
 ## No-Regression Evidence: unscoped/admin hot path is byte-identical
 
