@@ -39,3 +39,11 @@ func printError(msg string) {
 func printSuccess(msg string) {
 	fmt.Printf("OK %s\n", msg)
 }
+
+// printWarning prints a non-fatal warning to stderr. Unlike printError, a
+// warning does not indicate command failure -- `eshu mcp setup`'s
+// auto-detected posture fallback uses this to tell the operator detection
+// could not be positively confirmed while still emitting a working config.
+func printWarning(msg string) {
+	fmt.Fprintf(os.Stderr, "warning: %s\n", msg)
+}

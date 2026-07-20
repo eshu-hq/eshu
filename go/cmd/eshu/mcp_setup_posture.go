@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // mcpAuthPosture selects which credential story the emitted MCP client
@@ -61,6 +62,21 @@ type postureProbeResult struct {
 	// SSO and fell back to token posture. Empty on an explicit resolution or
 	// on a clean 404 (the F-2-documented "no SSO here" signal).
 	Warning string
+}
+
+// newPostureProbeClient returns a dedicated short-timeout HTTP client for the
+// auth-posture probe. An offline `eshu mcp setup --hosted` run must not hang
+// for the APIClient's 30s default, so this is a separate 3s-timeout client,
+// never a reused APIClient.HTTPClient.
+func newPostureProbeClient() *http.Client {
+	return &http.Client{Timeout: 3 * time.Second}
+}
+
+// hostedPostureProbe adapts probeAuthPosture to the func(string)
+// postureProbeResult shape resolveAuthPosture calls for "auto" in hosted
+// mode, binding it to the dedicated short-timeout probe client.
+func hostedPostureProbe(baseURL string) postureProbeResult {
+	return probeAuthPosture(newPostureProbeClient(), baseURL)
 }
 
 // probeAuthPosture GETs {baseURL}/.well-known/oauth-protected-resource with

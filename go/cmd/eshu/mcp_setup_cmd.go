@@ -12,12 +12,20 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/mcp"
 )
 
-// mcpSetupLongHelp is the `eshu mcp setup` (and `eshu m`) long help text.
+// mcpSetupLongHelp is the `eshu mcp setup` (and `eshu m`) long help text. It
+// describes the three auth postures (issue #5169, F-8) rather than
+// advertising the shared ${ESHU_API_KEY} as the hosted default: that
+// credential is now the shared-key posture, opt-in only.
 const mcpSetupLongHelp = "Print platform-specific MCP client config and optionally install it.\n\n" +
 	"By default this prints a safe snippet and writes nothing. Use --write to\n" +
 	"merge the eshu server entry into the platform config, preserving existing\n" +
-	"servers and keys. Use --hosted with --service-url for an HTTP endpoint;\n" +
-	"the bearer token is emitted as a ${ESHU_API_KEY} reference, never inline."
+	"servers and keys. Use --hosted with --service-url for an HTTP endpoint.\n\n" +
+	"--auth selects the credential story for hosted setup: auto (default)\n" +
+	"probes the server's RFC 9728 discovery route and resolves per-user token\n" +
+	"or SSO; sso forces the OAuth flow; token forces the per-user\n" +
+	"${ESHU_MCP_TOKEN} reference; shared-key (or --shared-key) forces the\n" +
+	"legacy admin/dev ${ESHU_API_KEY} credential, never emitted by default.\n" +
+	"No posture ever prints a raw secret."
 
 // addMCPSetupFlags registers the flags shared by `eshu mcp setup` and its `eshu
 // m` alias on cmd. Both commands must expose the identical flag set: a command
@@ -30,6 +38,8 @@ func addMCPSetupFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("write", false, "Merge the config into the platform's file instead of printing it")
 	cmd.Flags().String("target", "", "Override the file path used by --write")
 	cmd.Flags().Bool("verify", false, "Run staged verification (config, reachable, tools, first query)")
+	cmd.Flags().String("auth", "auto", "MCP auth posture for hosted setup: auto, sso, token, or shared-key")
+	cmd.Flags().Bool("shared-key", false, "Force the legacy shared ESHU_API_KEY credential (admin/dev only)")
 	addRemoteFlags(cmd)
 }
 
@@ -63,6 +73,8 @@ func runMCPSetup(cmd *cobra.Command, args []string) error {
 	write, _ := cmd.Flags().GetBool("write")
 	target, _ := cmd.Flags().GetString("target")
 	verify, _ := cmd.Flags().GetBool("verify")
+	authFlag, _ := cmd.Flags().GetString("auth")
+	sharedKey, _ := cmd.Flags().GetBool("shared-key")
 
 	platform, err := resolvePlatform(platformName)
 	if err != nil {
@@ -75,6 +87,17 @@ func runMCPSetup(cmd *cobra.Command, args []string) error {
 		client := apiClientFromCmd(cmd)
 		req.ServiceURL = client.BaseURL
 		req.APIKey = client.APIKey
+	}
+
+	posture, err := resolveAuthPosture(authFlag, sharedKey, hosted, hostedPostureProbe, req.ServiceURL)
+	if err != nil {
+		return err
+	}
+	req.Posture = posture.Posture
+	req.Issuers = posture.Issuers
+	req.PreregisteredClientID = posture.PreregisteredClientID
+	if posture.Warning != "" {
+		printWarning(posture.Warning)
 	}
 
 	if write {
