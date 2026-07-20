@@ -94,6 +94,32 @@ impostor (`Reporting::Base < ActiveRecord::Base`):
 - Red-then-green: on the pre-fix commit the same namespaced controller is
   DOWNGRADED (flagged dead); post-fix it is CONFIRMED.
 
+## P1 upgrade-backfill (Option C) loader-plan proof
+
+The verdict schema epoch column adds one aggregate + one WHERE disjunct to the
+existing pending-inputs loader; it reuses the watermark LEFT JOIN already present
+for `reach_updated_at` (NO new join). EXPLAIN (ANALYZE, BUFFERS) on a
+representative 500-repo steady state (each with an acceptance + a completed
+code_calls intent + a watermark newer than the intent; 5 stamped epoch 0):
+
+- OLD loader (no epoch clause): `rows=0` returned — every already-indexed repo
+  is skipped; **Buffers: shared hit=4541**, Execution Time 2.40 ms.
+- NEW loader (epoch aggregate + `coalesce(reach_verdict_epoch,0) < $2` disjunct):
+  `rows=5` — exactly the 5 epoch-0 backfill repos are re-scheduled; **Buffers:
+  shared hit=4541 (identical)**, Execution Time ~2.4 ms.
+
+Same node tree (Limit → Sort → GroupAggregate → Nested Loop Left Join over
+acceptance ⋈ ingestion_scopes / scope_generations / intents / watermark),
+identical buffers, no new join. Red-then-green: on the pre-P1 loader the same
+already-indexed repo is SKIPPED (proven live); after the predicate it is
+re-scheduled exactly once, then the runner stamps epoch 1 and it is never
+re-scheduled (anti-loop, including the zero-verdict no-Ruby repo the naive
+count==0 fix could never satisfy).
+
+No-Regression Evidence: the loader plan and buffers are unchanged from the
+shipped query; the only new work is a self-extinguishing one-time re-projection
+per already-indexed repo on upgrade (bounded by batch limit).
+
 ## Runner-wiring performance / observability
 
 Performance Evidence: the runner adds one index-backed repo-scoped SQL load per

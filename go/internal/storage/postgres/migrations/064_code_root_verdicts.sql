@@ -23,3 +23,18 @@ CREATE TABLE IF NOT EXISTS code_root_verdicts (
 
 CREATE INDEX IF NOT EXISTS code_root_verdicts_repo_entity_verdict_idx
     ON code_root_verdicts (repository_id, entity_id, verdict);
+
+-- Upgrade-backfill epoch (Option C). On an upgraded deployment the verdicts
+-- table is created empty but code_reachability_repository_watermarks already
+-- carries a row per already-indexed repo, and the loader schedules a repo only
+-- when a completed code intent is newer than that watermark. Without a nudge,
+-- BuildCodeRootVerdicts never runs for existing repos and #5376 silently does
+-- nothing until a re-index. This column records the verdict schema epoch the
+-- watermark was projected under; pre-upgrade rows keep the DEFAULT 0 ("projected
+-- before verdicts existed"), so the loader re-schedules each such repo exactly
+-- once until the runner re-stamps it with the current epoch. Idempotent under
+-- re-execution (schema.go re-runs migrations on every boot; this repo has no
+-- migration version ledger), mirroring the `truncated` column in
+-- 027_code_reachability.sql.
+ALTER TABLE code_reachability_repository_watermarks
+    ADD COLUMN IF NOT EXISTS verdict_schema_epoch INTEGER NOT NULL DEFAULT 0;

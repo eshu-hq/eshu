@@ -18,6 +18,15 @@ const (
 	codeReachabilityBatchSize = 500
 	codeReachabilityColumns   = 13
 	codeRootVerdictColumns    = 9
+
+	// CodeReachabilityVerdictSchemaEpoch is the current #5376 verdict schema
+	// epoch stamped onto every repository watermark the projection runner writes.
+	// The loader re-schedules any watermark stamped with a LOWER epoch exactly
+	// once, so an upgraded deployment re-projects verdicts for every
+	// already-indexed repo (whose watermark defaults to epoch 0) without a
+	// watermark reset. BUMP this whenever verdict semantics change so every
+	// projected repo re-projects exactly once.
+	CodeReachabilityVerdictSchemaEpoch = 1
 )
 
 const codeReachabilitySchemaSQL = `
@@ -58,6 +67,9 @@ CREATE TABLE IF NOT EXISTS code_reachability_repository_watermarks (
 
 ALTER TABLE code_reachability_repository_watermarks
     ADD COLUMN IF NOT EXISTS truncated BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE code_reachability_repository_watermarks
+    ADD COLUMN IF NOT EXISTS verdict_schema_epoch INTEGER NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS code_root_verdicts (
     scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
@@ -125,11 +137,12 @@ SET verdict = EXCLUDED.verdict,
 
 const upsertCodeReachabilityRepositoryWatermarkSQL = `
 INSERT INTO code_reachability_repository_watermarks (
-    scope_id, generation_id, repository_id, truncated, updated_at
-) VALUES ($1, $2, $3, $4, $5)
+    scope_id, generation_id, repository_id, truncated, updated_at, verdict_schema_epoch
+) VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (scope_id, generation_id, repository_id) DO UPDATE
 SET truncated = EXCLUDED.truncated,
-    updated_at = EXCLUDED.updated_at
+    updated_at = EXCLUDED.updated_at,
+    verdict_schema_epoch = EXCLUDED.verdict_schema_epoch
 `
 
 // CodeReachabilitySchemaSQL returns the DDL for code reachability rows and
@@ -335,7 +348,11 @@ func replaceCodeReachabilityRepositoryRows(
 			}
 		}
 	}
-	if _, err := db.ExecContext(ctx, upsertCodeReachabilityRepositoryWatermarkSQL, scopeID, generationID, repositoryID, truncated, watermark); err != nil {
+	// Stamp the current verdict schema epoch in the SAME transaction as the
+	// reachability + verdict replacement. A crash before commit leaves the
+	// pre-upgrade epoch (0) in place, so the repo is re-scheduled — "epoch
+	// stamped but verdicts absent" is impossible.
+	if _, err := db.ExecContext(ctx, upsertCodeReachabilityRepositoryWatermarkSQL, scopeID, generationID, repositoryID, truncated, watermark, CodeReachabilityVerdictSchemaEpoch); err != nil {
 		return fmt.Errorf("upsert code reachability watermark: %w", err)
 	}
 	return nil

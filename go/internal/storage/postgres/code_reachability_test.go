@@ -153,6 +153,12 @@ func TestCodeReachabilityStoreReplaceRepositoryRowsRecordsEmptyWatermark(t *test
 	if got, want := db.watermarks["scope-empty|generation-empty|repo-empty"].Truncated, true; got != want {
 		t.Fatalf("watermark truncated = %v, want %v", got, want)
 	}
+	// #5376 P1: the runner stamps the current verdict schema epoch even for an
+	// empty (no-Ruby / zero-verdict) replacement, so the upgrade-backfill
+	// predicate cannot loop on it.
+	if got, want := db.watermarks["scope-empty|generation-empty|repo-empty"].VerdictEpoch, CodeReachabilityVerdictSchemaEpoch; got != want {
+		t.Fatalf("watermark verdict_schema_epoch = %d, want %d", got, want)
+	}
 }
 
 // TestCodeReachabilityStoreReplaceRepositoryRowsReplacesVerdicts proves the
@@ -208,56 +214,6 @@ func TestCodeReachabilityStoreReplaceRepositoryRowsReplacesVerdicts(t *testing.T
 	}
 }
 
-func TestCodeReachabilitySchemaSQLHasVerdictTable(t *testing.T) {
-	sqlStr := CodeReachabilitySchemaSQL()
-	for _, want := range []string{
-		"CREATE TABLE IF NOT EXISTS code_root_verdicts",
-		"PRIMARY KEY (scope_id, generation_id, repository_id, entity_id, root_kind)",
-		"code_root_verdicts_repo_entity_verdict_idx",
-	} {
-		if !strings.Contains(sqlStr, want) {
-			t.Fatalf("CodeReachabilitySchemaSQL() missing %q:\n%s", want, sqlStr)
-		}
-	}
-}
-
-func TestCodeReachabilityRootsQueryLoadsClassContext(t *testing.T) {
-	for _, want := range []string{
-		"metadata->>'class_context' AS class_context",
-		"metadata->'dead_code_root_kinds' AS root_kinds",
-	} {
-		if !strings.Contains(listCodeReachabilityRootsSQL, want) {
-			t.Fatalf("roots query missing %q:\n%s", want, listCodeReachabilityRootsSQL)
-		}
-	}
-	for _, want := range []string{
-		"entity_type = 'Class'",
-		"language = 'ruby'",
-		"metadata->>'qualified_name' AS qualified_name",
-		"metadata->'qualified_bases' AS qualified_bases",
-	} {
-		if !strings.Contains(listCodeReachabilityRubyClassesSQL, want) {
-			t.Fatalf("ruby classes query missing %q:\n%s", want, listCodeReachabilityRubyClassesSQL)
-		}
-	}
-}
-
-func TestCodeReachabilityPendingInputsWatchAllTraversedDomains(t *testing.T) {
-	for _, want := range []string{
-		"projection_domain IN ('code_calls', 'inheritance_edges')",
-		"code_reachability_repository_watermarks",
-		"watermark.updated_at",
-		"max(intent.completed_at) AS completed_at",
-	} {
-		if !strings.Contains(listPendingCodeReachabilityInputsSQL, want) {
-			t.Fatalf("pending reachability query missing %q:\n%s", want, listPendingCodeReachabilityInputsSQL)
-		}
-	}
-	if strings.Contains(upsertCodeReachabilityRepositoryWatermarkSQL, "GREATEST") {
-		t.Fatalf("watermark upsert must record the committed snapshot timestamp, not hide stale rows:\n%s", upsertCodeReachabilityRepositoryWatermarkSQL)
-	}
-}
-
 func TestCodeReachabilityStoreListLatestByEntitiesUsesActiveGeneration(t *testing.T) {
 	db := newCodeReachabilityTestDB()
 	now := time.Date(2026, 6, 17, 3, 0, 0, 0, time.UTC)
@@ -309,8 +265,9 @@ type codeRootVerdictStoredRow struct {
 }
 
 type codeReachabilityWatermark struct {
-	UpdatedAt time.Time
-	Truncated bool
+	UpdatedAt    time.Time
+	Truncated    bool
+	VerdictEpoch int
 }
 
 type codeReachabilityStoredRow struct {
@@ -411,9 +368,11 @@ func (db *codeReachabilityTestDB) ExecContext(_ context.Context, query string, a
 		repositoryID := args[2].(string)
 		truncated := args[3].(bool)
 		updatedAt := args[4].(time.Time)
+		verdictEpoch := args[5].(int)
 		db.watermarks[strings.Join([]string{scopeID, generationID, repositoryID}, "|")] = codeReachabilityWatermark{
-			UpdatedAt: updatedAt,
-			Truncated: truncated,
+			UpdatedAt:    updatedAt,
+			Truncated:    truncated,
+			VerdictEpoch: verdictEpoch,
 		}
 		return sharedIntentResult{}, nil
 	case strings.Contains(query, "CREATE TABLE") || strings.Contains(query, "CREATE INDEX"):

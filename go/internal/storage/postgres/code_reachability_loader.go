@@ -21,7 +21,8 @@ WITH candidate AS (
            acceptance.source_run_id,
            acceptance.generation_id,
            max(intent.completed_at) AS completed_at,
-           max(watermark.updated_at) AS reach_updated_at
+           max(watermark.updated_at) AS reach_updated_at,
+           max(watermark.verdict_schema_epoch) AS reach_verdict_epoch
     FROM shared_projection_acceptance AS acceptance
     JOIN ingestion_scopes AS scope
       ON scope.scope_id = acceptance.scope_id
@@ -45,7 +46,9 @@ WITH candidate AS (
 )
 SELECT scope_id, repository_id, source_run_id, generation_id, completed_at
 FROM candidate
-WHERE reach_updated_at IS NULL OR completed_at > reach_updated_at
+WHERE reach_updated_at IS NULL
+   OR completed_at > reach_updated_at
+   OR coalesce(reach_verdict_epoch, 0) < $2
 ORDER BY completed_at ASC, repository_id ASC
 LIMIT $1
 `
@@ -120,7 +123,7 @@ func (s *CodeReachabilityStore) LoadPendingCodeReachabilityInputs(
 	if limit <= 0 {
 		limit = 10
 	}
-	rows, err := s.db.QueryContext(ctx, listPendingCodeReachabilityInputsSQL, limit)
+	rows, err := s.db.QueryContext(ctx, listPendingCodeReachabilityInputsSQL, limit, CodeReachabilityVerdictSchemaEpoch)
 	if err != nil {
 		return nil, fmt.Errorf("query pending code reachability inputs: %w", err)
 	}
