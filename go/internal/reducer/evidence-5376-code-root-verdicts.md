@@ -69,6 +69,31 @@ downgrade count is expected to be near zero; a near-zero count is a recorded
 finding, not a defect (the behavior proof is the failing-then-green fixtures and
 the reducer verdict tests, not a large downgrade volume).
 
+## P1 fix (F1/F2/F3) live re-proof
+
+The initial implementation keyed the repo-wide registry by simple entity_name,
+which downgraded a genuine `OrdersController < Admin::Base` (Admin::Base <
+ActionController::Base) as dead — a proven P1 false positive. The Fable-locked
+fix adds an F1 keep-biased floor for unresolvable qualified bases, an F2 curated
+reject-set, and an F3 qualified_name registry with segment-aligned suffix
+resolution. Re-seeded representative corpus (508 Ruby classes, 2,432 controller
+roots) including the namespaced regression (`NamespacedController < Admin::Base`,
+`module Admin; class Base < ActionController::Base`) and a same-last-segment
+impostor (`Reporting::Base < ActiveRecord::Base`):
+
+- Q1 class-registry load with the added `metadata->>'qualified_name'` column:
+  same Index Scan plan, 508 rows, **0.368 ms** — the column is free.
+- Real `BuildCodeRootVerdicts` over the loaded emissions: **2,408 confirmed /
+  24 downgraded**; the 8 `NamespacedController` actions are **CONFIRMED**
+  (chain `NamespacedController -> Admin::Base -> ActionController::Base`,
+  terminal `accepted:ActionController::Base`) — the P1 regression is fixed live;
+  the impostor `Reporting::Base` did not mis-resolve it. The 24 `Legacy*`
+  actions **DOWNGRADE** (chain `-> ApplicationRecord -> ActiveRecord::Base`,
+  terminal `rejected_base:ActiveRecord::Base`, reason `rejected_framework_base`).
+  **Zero correctly-based (`App*`) controllers downgraded.**
+- Red-then-green: on the pre-fix commit the same namespaced controller is
+  DOWNGRADED (flagged dead); post-fix it is CONFIRMED.
+
 ## Runner-wiring performance / observability
 
 Performance Evidence: the runner adds one index-backed repo-scoped SQL load per
