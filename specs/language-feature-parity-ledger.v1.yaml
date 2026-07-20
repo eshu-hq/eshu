@@ -187,7 +187,7 @@ language_features:
     docs_claim: docs/public/languages/json.md
     parser_backing: content-metadata-exception
     no_provider_required: true
-    supported_features: [package-json-dependencies, package-json-scripts, composer-json-dependencies, tsconfig-targeted-metadata, cloudformation-json-delegation]
+    supported_features: [package-json-dependencies, package-json-scripts, composer-json-dependencies, tsconfig-targeted-metadata, cloudformation-json-delegation, dbt-manifest-lineage]
     partial_features: [generic-json-metadata-only]
     derived_features: []
     source_files: [go/internal/parser/json_language.go, go/internal/parser/json/language.go]
