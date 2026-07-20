@@ -103,3 +103,38 @@ func AllDeploymentTruthTiers() []DeploymentTruthTier {
 		TierConfigOnly,
 	}
 }
+
+// ClassifyDeploymentTruthTier determines the strongest deployment truth
+// tier from the available evidence signals. It is the single shared
+// classification helper used by trace_deployment_chain,
+// supply_chain_impact, and service story so the tier vocabulary is applied
+// consistently across all surfaces.
+//
+// Evidence is checked in descending strength order:
+//
+//   - hasLiveEvidence (runtime_confirmed): an exact kubernetes_live
+//     RUNS_IMAGE edge or equivalent live observation binds to the workload.
+//   - hasInstances (config_only): config-materialized WorkloadInstance
+//     rows exist. Despite the legacy "materialized_runtime_instances"
+//     confidence reason string, these are config-derived, not live.
+//   - hasDeploymentSources (config_only): DEPLOYMENT_SOURCE or DEPLOYS_FROM
+//     edges connect the workload to a repository.
+//   - hasConfigEnvironments (config_only): config files declare
+//     environments for the workload.
+//
+// When none of the signals are present the function returns the zero value
+// (""), meaning no classified tier.
+func ClassifyDeploymentTruthTier(
+	hasLiveEvidence bool,
+	hasInstances bool,
+	hasDeploymentSources bool,
+	hasConfigEnvironments bool,
+) DeploymentTruthTier {
+	if hasLiveEvidence {
+		return TierRuntimeConfirmed
+	}
+	if hasInstances || hasDeploymentSources || hasConfigEnvironments {
+		return TierConfigOnly
+	}
+	return ""
+}

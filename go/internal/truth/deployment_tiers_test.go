@@ -124,3 +124,58 @@ func TestParseDeploymentTruthTierWhitespace(t *testing.T) {
 		t.Fatalf("ParseDeploymentTruthTier() = %q, want %q", parsed, TierRuntimeConfirmed)
 	}
 }
+
+func TestClassifyDeploymentTruthTierLiveEvidenceWins(t *testing.T) {
+	t.Parallel()
+
+	// Live evidence must produce runtime_confirmed even when config signals are present.
+	tier := ClassifyDeploymentTruthTier(true, true, true, true)
+	if tier != TierRuntimeConfirmed {
+		t.Fatalf("ClassifyDeploymentTruthTier(live=true,...) = %q, want %q", tier, TierRuntimeConfirmed)
+	}
+}
+
+func TestClassifyDeploymentTruthTierInstancesAreConfigOnly(t *testing.T) {
+	t.Parallel()
+
+	// Config-materialized instances are config_only despite the legacy
+	// "materialized_runtime_instances" reason name.
+	tests := []struct {
+		name              string
+		hasInstances      bool
+		hasDeploymentSrcs bool
+		hasConfigEnvs     bool
+	}{
+		{"instances only", true, false, false},
+		{"deployment sources only", false, true, false},
+		{"config environments only", false, false, true},
+		{"instances + deployment sources", true, true, false},
+		{"instances + config environments", true, false, true},
+		{"deployment sources + config environments", false, true, true},
+		{"all three config signals", true, true, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tier := ClassifyDeploymentTruthTier(false, tt.hasInstances, tt.hasDeploymentSrcs, tt.hasConfigEnvs)
+			if tier != TierConfigOnly {
+				t.Fatalf("ClassifyDeploymentTruthTier(live=false, instances=%v, sources=%v, envs=%v) = %q, want %q",
+					tt.hasInstances, tt.hasDeploymentSrcs, tt.hasConfigEnvs, tier, TierConfigOnly)
+			}
+		})
+	}
+}
+
+func TestClassifyDeploymentTruthTierNoEvidence(t *testing.T) {
+	t.Parallel()
+
+	tier := ClassifyDeploymentTruthTier(false, false, false, false)
+	if tier != "" {
+		t.Fatalf("ClassifyDeploymentTruthTier(no evidence) = %q, want empty", tier)
+	}
+
+	// Also test with live=false, no config signals
+	tier = ClassifyDeploymentTruthTier(false, false, false, false)
+	if tier != "" {
+		t.Fatalf("ClassifyDeploymentTruthTier(no evidence) = %q, want empty", tier)
+	}
+}
