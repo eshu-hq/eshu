@@ -923,6 +923,29 @@ gates:
     requirements: []
     ci_only_reason: ""
 
+  - id: mcp-client-auth-doc
+    name: MCP client-auth doc lockstep guard
+    category: exactness
+    tier: pre-pr
+    blocking: false
+    triggers:
+      - "docs/public/operate/mcp-client-auth.md"
+      - "go/cmd/eshu/mcp_setup_doc_lockstep_test.go"
+      - "go/cmd/eshu/mcp_setup_snippet.go"
+      - "go/cmd/eshu/mcp_setup.go"
+      - "scripts/verify-mcp-client-auth-doc.sh"
+      - "scripts/test-verify-mcp-client-auth-doc.sh"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "bash scripts/verify-mcp-client-auth-doc.sh"
+      test_command: "bash scripts/test-verify-mcp-client-auth-doc.sh"
+    ci:
+      workflow: ""
+      job: ""
+    requirements: []
+    ci_only_reason: ""
+    local_only_reason: "New gate for issue #5169 (F-8); not yet wired into a CI workflow job. Follows the docs-contradiction precedent: register local-first, then wire a static-contract-gates.yml job (the docs-refs pattern) once proven stable."
+
   - id: docs-build-changed
     name: Verify Docs Build (changed)
     category: docs

@@ -62,7 +62,9 @@ snippet.
 | stdio local | no credential | no credential | n/a |
 
 No posture ever prints a raw secret: every shape above is an environment
-variable *reference*, never an inlined value.
+variable *reference*, never an inlined value. In every hosted posture the
+emitted URL is the service base plus the fixed MCP endpoint path,
+`/mcp/message` — only the credential wiring changes between postures.
 
 ## Token-only org: first five minutes
 
