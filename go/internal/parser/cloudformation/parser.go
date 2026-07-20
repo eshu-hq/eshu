@@ -67,9 +67,11 @@ func IsTemplate(document map[string]any) bool {
 // Parse extracts CloudFormation buckets from a JSON or YAML template
 // document. Every entity is stamped with the single document-root
 // lineNumber (end_line is omitted) because Parse has no per-entity position
-// evidence. JSON callers always use Parse: JSON decoding does not preserve
-// per-key positions (issue #5348). YAML callers with a measured Positions
-// value should call ParseWithPositions instead.
+// evidence. It is ParseWithPositions called with a zero Positions, kept for
+// callers that cannot supply real positions. Both the YAML adapter (issue
+// #5328) and the JSON adapter (issue #5348) now measure real per-entity
+// positions and call ParseWithPositions instead; Parse remains the
+// zero-Positions fallback shape.
 func Parse(
 	document map[string]any,
 	path string,

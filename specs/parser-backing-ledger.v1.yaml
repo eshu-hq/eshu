@@ -11,6 +11,7 @@ parser_backing:
       - go/internal/parser/cloudformation/conditions.go
       - go/internal/parser/yaml/language.go
       - go/internal/parser/json/language.go
+      - go/internal/parser/json/cloudformation_positions.go
     test_files:
       - go/internal/parser/cloudformation/parser_test.go
       - go/internal/parser/cloudformation/conditions_test.go

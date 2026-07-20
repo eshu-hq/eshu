@@ -184,9 +184,9 @@ resource) is never mistaken for a template section. Anchors, aliases, and
 unresolvable section, or an entity the walk could not attribute) degrades to
 the section header's own line rather than a fabricated per-entity guess, and
 records a `cloudformation_position_fallbacks` payload row so the collector
-layer can turn it into telemetry. JSON CloudFormation templates keep the
-single document-root line_number and never get an end_line: JSON decoding
-does not preserve per-key positions, tracked separately in issue #5348.
+layer can turn it into telemetry. The JSON adapter performs the equivalent
+ordered-entry walk for JSON CloudFormation templates (issue #5348), so JSON
+CFN entities now carry the same real per-entity `line_number`/`end_line`.
 
 SanitizeTemplating is parser hygiene only. Do not treat it as a general
 template evaluator.

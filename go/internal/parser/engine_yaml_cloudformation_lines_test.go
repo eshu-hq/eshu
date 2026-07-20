@@ -214,15 +214,23 @@ Outputs:
 	assertCFNLines(t, cfnRow(t, got, "cloudformation_resources", "RealBucket"), 10, 11)
 }
 
-// TestDefaultEngineParsePathJSONCloudFormationPinsDocumentRootLines pins the
-// documented, unfixed JSON CloudFormation behavior (issue #5348, deferred):
-// JSON decoding does not preserve per-key positions, so every entity in a
-// JSON CloudFormation template still reports the single document-root
-// line_number (1) and never sets end_line. This test is the ready red test
-// for #5348 -- it must start failing the moment JSON gains real per-entity
-// positions, so that fix does not silently drift from its own documented
-// contract.
-func TestDefaultEngineParsePathJSONCloudFormationPinsDocumentRootLines(t *testing.T) {
+// TestDefaultEngineParsePathJSONCloudFormationStackFixtureRealLines proves
+// issue #5348's fix against the JSON stack.json fixture: every CloudFormation
+// entity in a JSON template now carries its own real, distinct source
+// line_number and a real end_line spanning its value, mirroring the YAML fix
+// (#5328). Before #5348 the JSON adapter reached cloudformation.Parse with a
+// flattened map and no position evidence, so every entity shared the single
+// document-root line (1) and never set end_line at all. This is the flipped
+// former pin: it must stay green only while JSON preserves real per-entity
+// positions, so a regression to the old document-root fallback fails here.
+//
+// end_line follows the JSON syntax rule (the on-disk line of the value's
+// final byte, i.e. the closing brace's own line), which is one line past the
+// deepest property -- pretty-printed JSON puts the closing "}" on its own
+// line. This is the correct span for JSON and is deliberately not forced to
+// YAML's deepest-content-line convention (see cloudformation/positions.go and
+// issue #5348).
+func TestDefaultEngineParsePathJSONCloudFormationStackFixtureRealLines(t *testing.T) {
 	t.Parallel()
 
 	fixtureDir, err := filepath.Abs(filepath.Join("..", "..", "..", "tests", "fixtures", "ecosystems", "cloudformation_comprehensive"))
@@ -240,6 +248,16 @@ func TestDefaultEngineParsePathJSONCloudFormationPinsDocumentRootLines(t *testin
 		t.Fatalf("ParsePath() error = %v, want nil", err)
 	}
 
+	// stack.json lines: Parameters.InstanceType key@5 value-close@9,
+	// Resources.WebServer key@12 value-close@18, Outputs.InstanceId key@21
+	// value-close@23.
+	assertCFNLines(t, cfnRow(t, got, "cloudformation_parameters", "InstanceType"), 5, 9)
+	assertCFNLines(t, cfnRow(t, got, "cloudformation_resources", "WebServer"), 12, 18)
+	assertCFNLines(t, cfnRow(t, got, "cloudformation_outputs", "InstanceId"), 21, 23)
+
+	// Every entity's line_number must be distinct: the pre-#5348 bug stamped
+	// the same document-root line (1) on all of them across all sections.
+	seen := map[int]bool{}
 	for _, tc := range []struct {
 		bucket string
 		name   string
@@ -248,12 +266,10 @@ func TestDefaultEngineParsePathJSONCloudFormationPinsDocumentRootLines(t *testin
 		{bucket: "cloudformation_resources", name: "WebServer"},
 		{bucket: "cloudformation_outputs", name: "InstanceId"},
 	} {
-		row := cfnRow(t, got, tc.bucket, tc.name)
-		if got, want := row["line_number"], 1; got != want {
-			t.Fatalf("%s[%s].line_number = %#v, want %d (document-root fallback, JSON positions tracked in #5348)", tc.bucket, tc.name, got, want)
+		line := cfnRow(t, got, tc.bucket, tc.name)["line_number"].(int)
+		if seen[line] {
+			t.Fatalf("%s[%s] reused line_number %d already claimed by another entity", tc.bucket, tc.name, line)
 		}
-		if _, hasEndLine := row["end_line"]; hasEndLine {
-			t.Fatalf("%s[%s] has end_line = %#v, want no end_line field (JSON Parse never sets one)", tc.bucket, tc.name, row["end_line"])
-		}
+		seen[line] = true
 	}
 }

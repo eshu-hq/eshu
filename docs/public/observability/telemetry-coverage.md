@@ -392,7 +392,7 @@ parser emits evidence facts.
 | stage | file:line | required metric name(s) | category |
 | --- | --- | --- | --- |
 | parser entry (all languages) | go/internal/collector/git_snapshot_parse_partitions.go:237 | `eshu_dp_file_parse_duration_seconds`, `eshu_dp_files_parsed_total`, `eshu_dp_fact_emit_duration_seconds`, `eshu_dp_facts_emitted_total` | parser chokepoint |
-| CloudFormation YAML entity position fallback (issue #5328) | go/internal/collector/git_snapshot_parse_partitions.go:451 | `eshu_dp_cloudformation_position_fallback_total` | parser chokepoint |
+| CloudFormation entity position fallback, YAML (issue #5328) and JSON (issue #5348) | go/internal/collector/git_snapshot_parse_partitions.go:451 | `eshu_dp_cloudformation_position_fallback_total` | parser chokepoint |
 | evidence discovery | go/internal/parser/evidence_discovery.go | `eshu_dp_evidence_facts_discovered_total` | parser evidence |
 | Go parser | go/internal/parser/golang/*.go | `eshu_dp_file_parse_duration_seconds`, `eshu_dp_facts_emitted_total` | parser language |
 | JavaScript parser | go/internal/parser/javascript/*.go | `eshu_dp_file_parse_duration_seconds`, `eshu_dp_facts_emitted_total` | parser language |

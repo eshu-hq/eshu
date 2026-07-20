@@ -5,8 +5,10 @@ package cloudformation
 
 // EntityPosition captures the real start and end line of one CloudFormation
 // entity, measured directly from a parsed source tree by a caller that has
-// one (currently only the YAML adapter, via gopkg.in/yaml.v3 Node.Line
-// values -- see internal/parser/yaml/cloudformation_positions.go).
+// real source positions -- the YAML adapter via gopkg.in/yaml.v3 Node.Line
+// values, and the JSON adapter via the ordered-entry walk (see
+// internal/parser/yaml/cloudformation_positions.go and
+// internal/parser/json/cloudformation_positions.go).
 // StartLine is the entity's own key line; EndLine is the highest line number
 // touched by the entity's value subtree. A zero EntityPosition (StartLine
 // <= 0) means "unmeasured": SectionPositions.linesFor falls back instead of
@@ -33,9 +35,10 @@ type SectionPositions struct {
 }
 
 // Positions groups per-section SectionPositions for one CloudFormation
-// document. JSON callers never populate Positions -- JSON decoding does not
-// preserve per-key positions, a gap tracked in issue #5348 -- so calling
-// Parse (which passes a zero Positions) keeps their documented,
+// document. Both adapters populate it with real per-entity positions: the
+// YAML adapter via a gopkg.in/yaml.v3 node walk (issue #5328) and the JSON
+// adapter via the ordered-entry JSON walk (issue #5348). A caller with no
+// position evidence passes a zero Positions (what Parse does), which keeps the
 // single-document-root-line behavior for line_number and omits end_line
 // entirely, unchanged from before this type existed.
 type Positions struct {
@@ -52,12 +55,13 @@ type Positions struct {
 // known; (3) otherwise documentFallback (the document-root lineNumber the
 // caller passed to ParseWithPositions), with known=false. Case (3) is the
 // only known=false case -- it fires only when neither (1) nor (2) resolved,
-// which happens for the JSON contract (a zero SectionPositions, tracked
-// separately in issue #5348) and a YAML document-level walk failure (root
-// node unavailable). ParseWithPositions uses known to decide whether to emit
-// an end_line field at all: Parse's zero-Positions callers must keep their
-// original line_number-only row shape verbatim, and a total-failure fallback
-// must not fabricate a same-as-start end_line that would collapse
+// which happens for a caller that passes a zero Positions (Parse) or a
+// document-level walk failure in either adapter (the YAML root node
+// unavailable, or the JSON ordered walk failing on bytes stdjson already
+// accepted -- issue #5348). ParseWithPositions uses known to decide whether to
+// emit an end_line field at all: Parse's zero-Positions callers must keep
+// their original line_number-only row shape verbatim, and a total-failure
+// fallback must not fabricate a same-as-start end_line that would collapse
 // materialize.go's snippet window to one line when its own
 // next-entity/+24 heuristic would do better. The returned end is never lower
 // than the returned start.

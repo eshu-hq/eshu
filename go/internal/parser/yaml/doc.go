@@ -55,7 +55,7 @@
 // section or an entity the walk could not attribute -- falls back to the
 // section header's own line (never a fabricated per-entity guess) and is
 // recorded as a cloudformation_position_fallbacks row for the collector layer
-// to turn into telemetry; the entity itself is never dropped. JSON
-// CloudFormation templates are unaffected: JSON decoding does not preserve
-// per-key positions, a gap tracked separately in issue #5348.
+// to turn into telemetry; the entity itself is never dropped. The JSON adapter
+// performs the equivalent ordered-entry walk for JSON CloudFormation templates
+// (issue #5348), feeding the same fallback counter.
 package yaml

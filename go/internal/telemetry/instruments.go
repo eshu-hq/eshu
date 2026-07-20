@@ -1373,19 +1373,20 @@ type Instruments struct {
 	// with the raw token, issuer, or subject — those go to the paired
 	// structured log only.
 	OIDCBearerValidationTotal metric.Int64Counter
-	// CloudFormationPositionFallbacks counts every degraded-position row the
-	// YAML CloudFormation adapter records (issue #5328) when its
-	// gopkg.in/yaml.v3 Node.Line walk cannot attribute a real per-entity
-	// line_number/end_line to a Parameters/Conditions/Resources/Outputs
-	// entity and falls back to the section header line or the document-root
-	// line instead. Labeled with the bounded cloudformation_section
-	// (Parameters, Conditions, Resources, Outputs) and skip_reason
-	// (unresolved_section_mapping, entity_position_missing,
-	// root_node_unavailable) the fallback occurred under. JSON CloudFormation
-	// templates never populate this counter — JSON decoding does not
-	// preserve per-key positions, tracked separately in issue #5348 — every
-	// JSON CFN entity is a fixed, disclosed, non-fallback document-root
-	// position.
+	// CloudFormationPositionFallbacks counts every degraded-position row a
+	// CloudFormation adapter records when it cannot attribute a real
+	// per-entity line_number/end_line to a Parameters/Conditions/Resources/
+	// Outputs entity and falls back to the section header line or the
+	// document-root line instead. Both adapters feed it: the YAML
+	// gopkg.in/yaml.v3 Node.Line walk (issue #5328) and the JSON ordered-entry
+	// walk (issue #5348). Labeled with the bounded cloudformation_section
+	// (Parameters, Conditions, Resources, Outputs) and skip_reason the fallback
+	// occurred under — YAML: unresolved_section_mapping, entity_position_missing,
+	// root_node_unavailable, root_not_mapping; JSON: ordered_walk_failed,
+	// section_entry_missing, unresolved_section_object, entity_position_missing.
+	// Both adapters measure real per-entity positions on the happy path; a JSON
+	// fallback is unreachable in practice because stdjson.Unmarshal already
+	// accepted the same bytes the ordered walk re-reads.
 	CloudFormationPositionFallbacks metric.Int64Counter
 }
 
@@ -4544,9 +4545,10 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	inst.CloudFormationPositionFallbacks, err = meter.Int64Counter(
 		"eshu_dp_cloudformation_position_fallback_total",
 		metric.WithDescription(
-			"Total CloudFormation entities the YAML adapter's per-entity "+
-				"Node.Line position walk could not resolve, by bounded "+
-				"cloudformation_section and skip_reason (issue #5328).",
+			"Total CloudFormation entities either format adapter's per-entity "+
+				"position walk could not resolve — the YAML yaml.v3 Node.Line "+
+				"walk (#5328) or the JSON ordered-entry walk (#5348) — by bounded "+
+				"cloudformation_section and skip_reason.",
 		),
 	)
 	if err != nil {
