@@ -129,6 +129,9 @@ func buildMCPOAuthDiscovery(
 		TenantID:    pgstatus.BootstrapAdminTenantID,
 		MetadataURL: metadataURL,
 		Scope:       query.DefaultOAuthChallengeScope,
+		// Same lister the handler serves, so the augmented challenge is minted
+		// only when the metadata route would actually resolve (>=1 issuer).
+		Issuers: issuers,
 	}
 	if logger != nil {
 		logger.Info(

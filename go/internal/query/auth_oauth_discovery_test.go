@@ -417,6 +417,36 @@ func TestPostureOAuthChallengePolicy_ProvidersConfigured_ReturnsChallengeParams(
 	}
 }
 
+// TestPostureOAuthChallengePolicy_ProvidersButNoActiveIssuers_NotOK proves the
+// challenge gate agrees with OAuthProtectedResourceHandler's §D active-issuer
+// 404 gate: a provider row can exist while zero bearer issuers are active
+// (browser-login-only providers, a shared-issuer fail-closed exclusion, a
+// verifier-build failure, or the snapshot-TTL startup window). In that state
+// the metadata route 404s, so OAuthChallenge must NOT mint a challenge pointing
+// a client at a URL that would itself 404.
+func TestPostureOAuthChallengePolicy_ProvidersButNoActiveIssuers_NotOK(t *testing.T) {
+	t.Parallel()
+
+	policy := &PostureOAuthChallengePolicy{
+		Providers: &fakeAuthProviderStore{byTenant: map[string][]AuthProviderItem{
+			"default": {{ProviderConfigID: "okta-oidc", ProviderKind: "oidc"}},
+		}},
+		TenantID:    "default",
+		MetadataURL: "https://eshu.example.test/.well-known/oauth-protected-resource",
+		Scope:       DefaultOAuthChallengeScope,
+		Issuers:     &fakeOAuthIssuerLister{}, // reports zero active issuers
+	}
+	if _, _, ok := policy.OAuthChallenge(context.Background()); ok {
+		t.Fatal("OAuthChallenge() ok = true with a provider but zero active issuers; want false (route would 404)")
+	}
+
+	// Control: the same provider posture WITH an active issuer challenges.
+	policy.Issuers = &fakeOAuthIssuerLister{issuers: []string{"https://acme.okta.com/oauth2/default"}}
+	if _, _, ok := policy.OAuthChallenge(context.Background()); !ok {
+		t.Fatal("OAuthChallenge() ok = false with a provider and an active issuer; want true")
+	}
+}
+
 func TestPostureOAuthChallengePolicy_DeriveError_FailsSafeToNotOK(t *testing.T) {
 	t.Parallel()
 

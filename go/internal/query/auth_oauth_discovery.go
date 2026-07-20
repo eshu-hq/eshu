@@ -274,6 +274,15 @@ type PostureOAuthChallengePolicy struct {
 	MetadataURL string
 	// Scope is copied verbatim into OAuthChallenge's return value.
 	Scope string
+	// Issuers lists the currently active bearer-token issuers, the same
+	// source OAuthProtectedResourceHandler serves in authorization_servers.
+	// It MUST be the identical lister wired into the handler so the challenge
+	// and the served document agree: when it reports zero active issuers the
+	// handler 404s the metadata route, so OAuthChallenge must also return
+	// ok=false rather than mint a challenge pointing a client at a URL that
+	// would itself 404 (RFC 9728 requires >=1 authorization_servers). Nil
+	// preserves the pre-issuer-gate behavior for callers that do not wire it.
+	Issuers OAuthAuthorizationServerLister
 }
 
 // OAuthChallenge implements OAuthChallengePolicy.
@@ -289,6 +298,15 @@ func (p *PostureOAuthChallengePolicy) OAuthChallenge(ctx context.Context) (metad
 		// must never itself become a second failure mode, and must never
 		// mint a challenge pointing at a route that DeriveAuthPosture could
 		// not currently prove is enabled.
+		return "", "", false
+	}
+	// Mirror OAuthProtectedResourceHandler's active-issuer 404 gate: a
+	// provider row can exist while zero bearer issuers are active (browser-
+	// login-only OIDC/SAML providers, two providers sharing one issuer which
+	// the routing table fail-closed excludes, a verifier-build failure, or the
+	// snapshot-TTL startup window). In that state the metadata route 404s, so
+	// the challenge must NOT point a client at it.
+	if p.Issuers != nil && len(p.Issuers.ActiveIssuers(ctx)) == 0 {
 		return "", "", false
 	}
 	return p.MetadataURL, p.Scope, true
