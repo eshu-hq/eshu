@@ -62,7 +62,7 @@ spec:
 	assertBucketContainsFieldValue(t, got, "flux_kustomizations", "source_ref_kind", "GitRepository")
 	assertBucketContainsFieldValue(t, got, "flux_kustomizations", "source_ref_name", "flux-system")
 	assertBucketContainsFieldValue(t, got, "flux_kustomizations", "source_ref_namespace", "flux-system")
-	assertBucketContainsFieldValue(t, got, "flux_kustomizations", "spec_path", "./clusters/production/apps")
+	assertBucketContainsFieldValue(t, got, "flux_kustomizations", "source_path", "./clusters/production/apps")
 	assertBucketContainsFieldValue(t, got, "flux_kustomizations", "target_namespace", "production")
 }
 

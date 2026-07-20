@@ -118,8 +118,8 @@ func TestParseFluxKustomizationCapturesSourceRefAndOmitsAbsentFields(t *testing.
 	if _, present := row["source_ref_namespace"]; present {
 		t.Fatalf("source_ref_namespace = %#v, want absent (not fabricated)", row["source_ref_namespace"])
 	}
-	if row["spec_path"] != "clusters/production" {
-		t.Fatalf("spec_path = %#v, want clusters/production", row["spec_path"])
+	if row["source_path"] != "clusters/production" {
+		t.Fatalf("source_path = %#v, want clusters/production", row["source_path"])
 	}
 	if _, present := row["target_namespace"]; present {
 		t.Fatalf("target_namespace = %#v, want absent (not fabricated)", row["target_namespace"])
@@ -136,7 +136,7 @@ func TestParseFluxKustomizationOmitsSourceRefWhenAbsent(t *testing.T) {
 
 	row := parseFluxKustomization(document, metadata, "/repo/bare.yaml", 1)
 
-	for _, key := range []string{"source_ref_kind", "source_ref_name", "source_ref_namespace", "spec_path", "target_namespace"} {
+	for _, key := range []string{"source_ref_kind", "source_ref_name", "source_ref_namespace", "source_path", "target_namespace"} {
 		if _, present := row[key]; present {
 			t.Fatalf("row[%q] = %#v, want absent when spec has no matching field", key, row[key])
 		}

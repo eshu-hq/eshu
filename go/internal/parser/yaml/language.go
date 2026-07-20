@@ -154,6 +154,9 @@ func Parse(
 		"crossplane_claims",
 		"kustomize_overlays",
 		"flux_kustomizations",
+		"flux_git_repositories",
+		"flux_oci_repositories",
+		"flux_buckets",
 		"helm_charts",
 		"helm_values",
 		"helm_value_definitions",
@@ -188,6 +191,9 @@ func yamlBasePayload(path string, isDependency bool) map[string]any {
 	payload["crossplane_claims"] = []map[string]any{}
 	payload["kustomize_overlays"] = []map[string]any{}
 	payload["flux_kustomizations"] = []map[string]any{}
+	payload["flux_git_repositories"] = []map[string]any{}
+	payload["flux_oci_repositories"] = []map[string]any{}
+	payload["flux_buckets"] = []map[string]any{}
 	payload["helm_charts"] = []map[string]any{}
 	payload["helm_values"] = []map[string]any{}
 	payload["helm_value_definitions"] = []map[string]any{}
@@ -251,6 +257,18 @@ func appendYAMLDocument(payload map[string]any, path string, filename string, do
 	}
 	if isFluxKustomization(apiVersion, kind) {
 		shared.AppendBucket(payload, "flux_kustomizations", parseFluxKustomization(document, metadata, path, lineNumber))
+		return
+	}
+	if isFluxGitRepository(apiVersion, kind) {
+		shared.AppendBucket(payload, "flux_git_repositories", parseFluxGitRepository(document, metadata, path, lineNumber))
+		return
+	}
+	if isFluxOCIRepository(apiVersion, kind) {
+		shared.AppendBucket(payload, "flux_oci_repositories", parseFluxOCIRepository(document, metadata, path, lineNumber))
+		return
+	}
+	if isFluxBucket(apiVersion, kind) {
+		shared.AppendBucket(payload, "flux_buckets", parseFluxBucket(document, metadata, path, lineNumber))
 		return
 	}
 	if strings.TrimSpace(apiVersion) == "" || strings.TrimSpace(kind) == "" {

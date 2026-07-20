@@ -33,16 +33,24 @@ func isFluxKustomization(apiVersion string, kind string) bool {
 // source as typed deployment evidence: spec.sourceRef (kind/name/namespace),
 // spec.path, and spec.targetNamespace.
 //
+// spec.path is emitted under the "source_path" row key (not "spec_path") so
+// it lines up with the key deployment-trace helpers already read for other
+// GitOps controllers (e.g. impact_trace_deployment_gitops_helpers.go reading
+// metadataNonEmptyStringValue(entity.Metadata, "source_path") for ArgoCD).
+// This bucket had zero consumers before #5360 PR A, so the rename is free;
+// renaming after a consumer exists would not be.
+//
 // Fields are parsed defensively: an absent or empty field is simply omitted
 // from the row, never fabricated (a missing spec.path is recorded as absent,
 // not defaulted to "./").
 //
-// This bucket is evidence only. It is deliberately NOT registered in
-// go/internal/content/shape/materialize_tables.go's contentEntityBuckets and
-// is NOT wired into go/internal/relationships/structured_family_evidence.go,
-// so it does not become a graph node or a queryable relationship-evidence
-// surface -- there is no read surface backing it. Modeling Flux as a
-// queryable deployment platform is tracked separately (#5360).
+// This bucket is registered in
+// go/internal/content/shape/materialize_tables.go's contentEntityBuckets as
+// the typed FluxKustomization content entity (issue #5360 PR A), making it
+// reachable through get_entity_context. It is still NOT wired into
+// go/internal/relationships/structured_family_evidence.go: the
+// RECONCILES_FROM correlation edge to its source CR (FluxGitRepository /
+// FluxOCIRepository / FluxBucket) is a separate, later change.
 func parseFluxKustomization(document map[string]any, metadata map[string]any, path string, lineNumber int) map[string]any {
 	spec, _ := document["spec"].(map[string]any)
 	sourceRef, _ := spec["sourceRef"].(map[string]any)
@@ -64,7 +72,7 @@ func parseFluxKustomization(document map[string]any, metadata map[string]any, pa
 		row["source_ref_namespace"] = namespace
 	}
 	if specPath := cleanYAMLString(spec["path"]); specPath != "" {
-		row["spec_path"] = specPath
+		row["source_path"] = specPath
 	}
 	if targetNamespace := cleanYAMLString(spec["targetNamespace"]); targetNamespace != "" {
 		row["target_namespace"] = targetNamespace
