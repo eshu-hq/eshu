@@ -44,7 +44,7 @@ func TestGitHubActionsFixtureBuildsReducerConsumableFacts(t *testing.T) {
 	assertPayload(t, run.Payload, "provider", string(ProviderGitHubActions))
 	assertPayload(t, run.Payload, "run_id", "123456789")
 	assertPayload(t, run.Payload, "run_attempt", "2")
-	assertPayload(t, run.Payload, "repository_id", "github.com/eshu-hq/eshu")
+	assertPayload(t, run.Payload, "provider_repository_id", "github.com/eshu-hq/eshu")
 	assertPayload(t, run.Payload, "commit_sha", "0123456789abcdef0123456789abcdef01234567")
 	assertPayload(t, run.Payload, "status", "completed")
 	assertPayload(t, run.Payload, "result", "success")
@@ -206,7 +206,8 @@ func TestGitHubActionsFixturePreservesLargeNumericIDs(t *testing.T) {
 	assertPayload(t, byKind[facts.CICDJobFactKind][0].Payload, "job_id", "9223372036854775806")
 	assertPayload(t, byKind[facts.CICDArtifactFactKind][0].Payload, "artifact_id", "9223372036854775805")
 	assertPayload(t, byKind[facts.CICDTriggerEdgeFactKind][0].Payload, "source_run_id", "9223372036854775804")
-	assertPayload(t, byKind[facts.CICDRunFactKind][0].Payload, "repository_id", "github.example.com/eshu-hq/eshu")
+	// repository_id is now canonical (repository:r_<hex>); assert provider_repository_id instead
+	assertPayload(t, byKind[facts.CICDRunFactKind][0].Payload, "provider_repository_id", "github.example.com/eshu-hq/eshu")
 }
 
 func TestGitHubActionsFixtureWarnsAndSkipsMalformedChildRecords(t *testing.T) {

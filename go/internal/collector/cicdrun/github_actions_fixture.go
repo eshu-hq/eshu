@@ -177,6 +177,7 @@ func pipelineDefinitionEnvelope(ctx FixtureContext, fixture githubActionsFixture
 	payload["workflow_state"] = trim(workflow.State)
 	payload["trigger"] = trim(workflow.Trigger)
 	payload["repository_id"] = repositoryID(run.Repository, ctx)
+	payload["provider_repository_id"] = providerRepositoryID(run.Repository, ctx)
 	payload["definition_kind"] = "workflow"
 	stableKey := facts.StableID(facts.CICDPipelineDefinitionFactKind, map[string]any{
 		"provider":      ProviderGitHubActions,
@@ -207,33 +208,37 @@ func runEnvelope(ctx FixtureContext, run githubRun) (facts.Envelope, error) {
 	payload["result"] = trim(run.Conclusion)
 	payload["branch"] = trim(run.HeadBranch)
 	payload["commit_sha"] = trim(run.HeadSHA)
-	payload["repository_id"] = repositoryID(run.Repository, ctx)
+	canonicalRepoID := repositoryID(run.Repository, ctx)
+	providerRepoID := providerRepositoryID(run.Repository, ctx)
+	payload["repository_id"] = canonicalRepoID
+	payload["provider_repository_id"] = providerRepoID
 	payload["repository_url"] = trim(run.Repository.HTMLURL)
 	payload["actor"] = trim(run.Actor.Login)
 	payload["started_at"] = trim(run.RunStartedAt)
 	payload["updated_at"] = trim(run.UpdatedAt)
 	payload["url"] = stripSensitiveURL(run.HTMLURL)
-	payload["correlation_anchors"] = nonEmptyStrings(repositoryID(run.Repository, ctx), trim(run.HeadSHA), runID)
+	payload["correlation_anchors"] = nonEmptyStrings(canonicalRepoID, trim(run.HeadSHA), runID)
 	if err := mergeContractPayload(payload, func() (map[string]any, error) {
 		return factschema.EncodeCICDRun(cicdrunv1.Run{
-			Provider:            string(ProviderGitHubActions),
-			RunID:               runID,
-			RunAttempt:          stringPtr(payload["run_attempt"].(string)),
-			RunNumber:           stringPtr(runNumber),
-			WorkflowName:        stringPtr(trim(run.Name)),
-			Event:               stringPtr(trim(run.Event)),
-			Status:              stringPtr(trim(run.Status)),
-			Result:              stringPtr(trim(run.Conclusion)),
-			Branch:              stringPtr(trim(run.HeadBranch)),
-			CommitSHA:           stringPtr(trim(run.HeadSHA)),
-			RepositoryID:        stringPtr(repositoryID(run.Repository, ctx)),
-			RepositoryURL:       stringPtr(trim(run.Repository.HTMLURL)),
-			Actor:               stringPtr(trim(run.Actor.Login)),
-			StartedAt:           stringPtr(trim(run.RunStartedAt)),
-			UpdatedAt:           stringPtr(trim(run.UpdatedAt)),
-			URL:                 stringPtr(stripSensitiveURL(run.HTMLURL)),
-			CorrelationAnchors:  nonEmptyStrings(repositoryID(run.Repository, ctx), trim(run.HeadSHA), runID),
-			CollectorInstanceID: stringPtr(ctx.CollectorInstanceID),
+			Provider:             string(ProviderGitHubActions),
+			RunID:                runID,
+			RunAttempt:           stringPtr(payload["run_attempt"].(string)),
+			RunNumber:            stringPtr(runNumber),
+			WorkflowName:         stringPtr(trim(run.Name)),
+			Event:                stringPtr(trim(run.Event)),
+			Status:               stringPtr(trim(run.Status)),
+			Result:               stringPtr(trim(run.Conclusion)),
+			Branch:               stringPtr(trim(run.HeadBranch)),
+			CommitSHA:            stringPtr(trim(run.HeadSHA)),
+			RepositoryID:         stringPtr(canonicalRepoID),
+			ProviderRepositoryID: stringPtr(providerRepoID),
+			RepositoryURL:        stringPtr(trim(run.Repository.HTMLURL)),
+			Actor:                stringPtr(trim(run.Actor.Login)),
+			StartedAt:            stringPtr(trim(run.RunStartedAt)),
+			UpdatedAt:            stringPtr(trim(run.UpdatedAt)),
+			URL:                  stringPtr(stripSensitiveURL(run.HTMLURL)),
+			CorrelationAnchors:   nonEmptyStrings(canonicalRepoID, trim(run.HeadSHA), runID),
+			CollectorInstanceID:  stringPtr(ctx.CollectorInstanceID),
 		})
 	}); err != nil {
 		return facts.Envelope{}, err

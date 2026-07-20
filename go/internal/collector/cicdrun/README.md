@@ -77,3 +77,56 @@ No-Observability-Change: this package is a deterministic normalizer and does
 not mount a runtime. `ghactionsruntime` owns the hosted provider API request,
 rate-limit, fact-emission, partial-generation, redaction, and status signals
 for live collection.
+
+### Canonical repository_id (#5418)
+
+Benchmark Evidence: canonicalizing `repository_id` from a raw host/Org/Repo
+string to `repository:r_<hex>` via `repositoryidentity.CanonicalRepositoryID`
+adds one `NormalizeRemoteURL` + SHA1 per CI fact at emission. Measured on
+Apple M5 Max (darwin/arm64, `-count=5`):
+
+| Benchmark | ns/op | B/op | allocs/op |
+|-----------|-------|------|-----------|
+| `BenchmarkRepositoryID` | ~430–540 | 536 | 11 |
+| `BenchmarkGitHubActionsEnvelopesEndToEnd` | ~35,000–40,000 | 54,420 | 680 |
+
+The canonicalization cost (~480 ns) is ~1.2% of total envelope-build time
+(~38 µs) for a realistic success fixture (run + 1 job + 1 step + 1 artifact
++ 1 trigger). The old `repositoryID` function (string concat only) ran at
+~115 ns/op / 168 B/op / 2 allocs/op; the new path buys a stable
+cross-collector join key at a bounded, measured per-fact cost.
+
+No-Regression Evidence: the existing fixture normalization tests
+(`TestGitHubActionsFixtureBuildsReducerConsumableFacts`,
+`TestGitHubActionsFixturePreservesAttemptsInFactIdentity`,
+`TestGitHubActionsFixtureEmitsPartialWarnings`,
+`TestGitHubActionsFixturePreservesLargeNumericIDs`,
+`TestGitHubActionsFixtureWarnsAndSkipsMalformedChildRecords`,
+`TestGitHubActionsFixtureDeduplicatesDuplicateRecords`,
+`TestGitHubActionsFixtureRedactsCredentialBearingURLsAndWarningText`,
+`TestGitHubActionsFixtureWarnsWhenRunAnchorsMissing`,
+`TestGitHubActionsFixtureEmitsWorkflowDefinitionFromProviderIDOnly`) stay
+green with only their `repository_id`→`provider_repository_id` assertion
+changes. Six new regression tests lock the canonical-id contract:
+`TestGitHubActionsFixtureEmitsCanonicalRepositoryID`,
+`TestGitHubActionsFixtureCanonicalRepositoryIDMatchesGitCollector`,
+`TestGitHubActionsFixtureCanonicalIDHandlesGHESHost`,
+`TestGitHubActionsFixtureCanonicalIDFallsBackWhenNoHTMLURL` (exact-equality
+strengthened from prefix check),
+`TestGitHubActionsFixtureCanonicalIDStableAcrossRunURLs` (two runs, same
+repo → identical id), and
+`TestGitHubActionsFixtureCanonicalIDHandlesGHESAPIPath`. Three integrity
+tests guard edge cases:
+`TestRepositoryCanonicalURLRejectsHostlessHTMLURL` (garbage URL → empty),
+`TestBuildCICDRunCorrelationDecisionsPassesThroughCanonicalRepositoryID`
+(reducer end-to-end), and
+`TestLoadRepositoryScopedCICDEvidenceResolvesByCanonicalRepositoryID`
+(query readback with namespace isolation). Queue behavior is unchanged (no
+new enqueue shape).
+
+No-Observability-Change: the change adds no route, graph query shape, queue
+table, worker, lease, runtime knob, metric instrument, or metric label. The
+existing `eshu_dp_reducer_executions_total` and
+`eshu_dp_reducer_run_duration_seconds` counters, plus the CI/CD run
+correlation query handler spans (`query.ci_cd_run_correlations`), diagnose
+the end-to-end path unchanged.
