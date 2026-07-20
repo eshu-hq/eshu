@@ -41,6 +41,11 @@ func crossTenantEvidenceGraph() fakeGraphReaderWithSingle {
 			}
 		},
 		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			// #5390 resolves the workload's owning repo via a DEFINES traversal;
+			// stub it so the all-scope control populates the repo-keyed enrichment.
+			if strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)") {
+				return []map[string]any{{"repo_id": "repo-a", "repo_name": "orders-api-repo"}}, nil
+			}
 			// Incoming deployment-evidence traversal: anchor repo-a is the target,
 			// the cross-tenant repo-b is the source (non-anchor) endpoint.
 			if strings.Contains(cypher, "(artifact:EvidenceArtifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP]->(r:Repository {id: $repo_id})") {
@@ -197,6 +202,26 @@ func cloudFallbackGraph(candidateMatch, candidateName string) fakeGraphReaderWit
 			}
 		},
 		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			// #5390 resolves the workload's owning repo via a DEFINES traversal;
+			// stub it so the all-scope control populates the repo-keyed enrichment.
+			if strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)") {
+				return []map[string]any{{"repo_id": "repo-a", "repo_name": "orders-api-repo"}}, nil
+			}
+			// #5390 deleted the old free-text MATCH (c:CloudResource)-inside-fetchCloudResources
+			// vector; the surviving config-derived scan needs a READS_CONFIG_FROM artifact
+			// with a matched_value anchor. This in-grant artifact (both endpoints repo-a)
+			// survives scoped filtering; its anchor "derived-queue" is a strict SUBSTRING of
+			// candidateName so the scoped assertion is not falsely satisfied.
+			if strings.Contains(cypher, "(artifact:EvidenceArtifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP]->(r:Repository {id: $repo_id})") {
+				return []map[string]any{{
+					"direction": "incoming", "artifact_id": "artifact-config-read", "name": "app-settings.yaml",
+					"domain": "deployment", "path": "deploy/app-settings.yaml", "evidence_kind": "helm_values",
+					"artifact_family": "helm", "relationship_type": "READS_CONFIG_FROM", "environment": "prod",
+					"matched_alias": "orders-api", "matched_value": "derived-queue",
+					"source_repo_id": "repo-a", "source_repo_name": "orders-api-repo",
+					"target_repo_id": "repo-a", "target_repo_name": "orders-api-repo",
+				}}, nil
+			}
 			if strings.Contains(cypher, candidateMatch) {
 				return []map[string]any{{
 					"id":       "cloud:queue:" + candidateName,

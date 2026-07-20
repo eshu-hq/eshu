@@ -4,12 +4,86 @@
 package query
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+type deploymentConfigInfluenceContentStore struct {
+	fakePortContentStore
+	gitOpsEntities []EntityContent
+	k8sEntities    []EntityContent
+}
+
+const (
+	deploymentConfigOmittedGitOpsImage        = "registry.example/omitted:latest"
+	deploymentConfigBoundedOmittedGitOpsImage = "registry.example/bounded-omitted:latest"
+)
+
+func deploymentConfigGitOpsEntities(count int) []EntityContent {
+	if count == 0 {
+		return nil
+	}
+	entities := []EntityContent{{
+		EntityID:     "argocd:test-service",
+		RepoID:       "repo-gitops",
+		RelativePath: "apps/test-service/application.yaml",
+		EntityType:   "ArgoCDApplication",
+		EntityName:   "test-service",
+		Metadata:     map[string]any{"source_path": "apps/test-service"},
+	}}
+	for index := 1; index < count; index++ {
+		image := fmt.Sprintf("registry.example/included:%04d", index)
+		if index == serviceStoryItemLimit+1 {
+			image = deploymentConfigBoundedOmittedGitOpsImage
+		}
+		if count > repositorySemanticEntityLimit && index == count-1 {
+			image = deploymentConfigOmittedGitOpsImage
+		}
+		entities = append(entities, EntityContent{
+			EntityID:     fmt.Sprintf("k8s:%04d", index),
+			RepoID:       "repo-gitops",
+			RelativePath: fmt.Sprintf("apps/test-service/deploy/%04d.yaml", index),
+			EntityType:   "K8sResource",
+			EntityName:   "test-service",
+			Metadata: map[string]any{
+				"kind":             "Deployment",
+				"container_images": []any{image},
+			},
+		})
+	}
+	return entities
+}
+
+func (s deploymentConfigInfluenceContentStore) ListRepoEntities(
+	_ context.Context,
+	_ string,
+	limit int,
+) ([]EntityContent, error) {
+	rows := s.gitOpsEntities
+	if limit > 0 && len(rows) > limit {
+		rows = rows[:limit]
+	}
+	return append([]EntityContent(nil), rows...), nil
+}
+
+func (s deploymentConfigInfluenceContentStore) SearchEntitiesByName(
+	_ context.Context,
+	_ string,
+	_ string,
+	_ string,
+	limit int,
+) ([]EntityContent, error) {
+	rows := s.k8sEntities
+	if limit > 0 && len(rows) > limit {
+		rows = rows[:limit]
+	}
+	return append([]EntityContent(nil), rows...), nil
+}
 
 func TestBuildDeploymentConfigInfluenceResponseReturnsPromptReadyFiles(t *testing.T) {
 	t.Parallel()
@@ -25,6 +99,8 @@ func TestBuildDeploymentConfigInfluenceResponseReturnsPromptReadyFiles(t *testin
 			"repo_name": "platform-gitops",
 			"reason":    "helm values reference",
 		}},
+		"deployment_source_limits": deploymentConfigExactDeploymentSourceLimits(),
+		"k8s_resource_limits":      deploymentConfigExactK8sResourceLimits(),
 		"deployment_evidence": map[string]any{
 			"artifacts": []map[string]any{
 				{
@@ -233,6 +309,119 @@ func TestInvestigateDeploymentConfigInfluenceReturns404ForUnknownService(t *test
 
 	if got, want := w.Code, http.StatusNotFound; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+}
+
+func TestInvestigateDeploymentConfigInfluenceReturnsConflictForDuplicateWorkloadName(t *testing.T) {
+	t.Parallel()
+
+	call := 0
+	handler := &ImpactHandler{Neo4j: fakeGraphReader{runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+		if strings.Contains(cypher, "w.id = $service_name") {
+			return nil, nil
+		}
+		if strings.Contains(cypher, "w.name = $service_name") {
+			call++
+			return map[string]any{"id": fmt.Sprintf("workload:orders-%d", call)}, nil
+		}
+		return nil, nil
+	}}}
+
+	w := requestDeploymentConfigInfluence(t, handler, `{"service_name":"orders"}`)
+
+	if got, want := w.Code, http.StatusConflict; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+}
+
+func TestInvestigateDeploymentConfigInfluenceDisclosesSaturatedUpstreamEvidence(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		gitOpsCount    int
+		wantTruncated  bool
+		wantLowerBound bool
+	}{
+		{name: "saturated_gitops_probe", gitOpsCount: repositorySemanticEntityLimit + 1, wantTruncated: true, wantLowerBound: true},
+		{name: "exact_gitops_read", gitOpsCount: 1, wantTruncated: false, wantLowerBound: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := makeDeploymentConfigInfluenceHandler()
+			handler.Content = deploymentConfigInfluenceContentStore{
+				fakePortContentStore: fakePortContentStore{repositories: []RepositoryCatalogEntry{{ID: "repo-1", Name: "test-service"}}},
+				gitOpsEntities:       deploymentConfigGitOpsEntities(tt.gitOpsCount),
+				k8sEntities: []EntityContent{{
+					EntityID:     "k8s:deployment:test-service",
+					RepoID:       "repo-1",
+					RelativePath: "deploy/test-service.yaml",
+					EntityType:   "K8sResource",
+					EntityName:   "test-service",
+					Metadata:     map[string]any{"kind": "Deployment", "container_images": []any{"registry.example/direct:latest"}},
+				}},
+			}
+			handler.Neo4j = fakeWorkloadGraphReader{
+				runSingleByMatch: map[string]map[string]any{
+					"MATCH (w:Workload) WHERE":            {"id": "svc-1", "name": "test-service", "kind": "service", "repo_id": "repo-1"},
+					"MATCH (r:Repository {id: $repo_id})": {"repo_name": "test-service"},
+				},
+				runByMatch: map[string][]map[string]any{
+					"INSTANCE_OF":                         {},
+					"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
+					"K8sResource OR":                      {},
+					"fn.name IN":                          {},
+					"DEPLOYMENT_SOURCE":                   {{"instance_id": "instance:test-service", "repo_id": "repo-gitops", "repo_name": "gitops"}},
+				},
+			}
+
+			w := requestDeploymentConfigInfluence(t, handler, `{"service_name":"test-service","limit":100}`)
+			if got, want := w.Code, http.StatusOK; got != want {
+				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+			}
+
+			var response map[string]any
+			if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+				t.Fatalf("json.Unmarshal: %v", err)
+			}
+			coverage := mapValue(response, "coverage")
+			if got := IntVal(coverage, "rendered_target_count"); got >= 100 {
+				t.Fatalf("coverage.rendered_target_count = %d, want fewer than requested limit despite upstream saturation", got)
+			}
+			if got := BoolVal(coverage, "truncated"); got != tt.wantTruncated {
+				t.Fatalf("coverage.truncated = %t, want %t; coverage = %#v", got, tt.wantTruncated, coverage)
+			}
+			if got := BoolVal(coverage, "observed_count_is_lower_bound"); got != tt.wantLowerBound {
+				t.Fatalf("coverage.observed_count_is_lower_bound = %t, want %t; coverage = %#v", got, tt.wantLowerBound, coverage)
+			}
+			limitations := StringSliceVal(response, "limitations")
+			if tt.wantTruncated && !containsString(limitations, "k8s_resource_evidence_truncated") {
+				t.Fatalf("limitations = %#v, want k8s_resource_evidence_truncated", limitations)
+			}
+			if !tt.wantTruncated && containsString(limitations, "k8s_resource_evidence_truncated") {
+				t.Fatalf("limitations = %#v, want no Kubernetes resource truncation limitation", limitations)
+			}
+			deploymentSourceLimits := mapValue(response, "deployment_source_limits")
+			k8sResourceLimits := mapValue(response, "k8s_resource_limits")
+			if got := IntVal(deploymentSourceLimits, "query_sentinel_limit"); got != contextStoryItemLimit+1 {
+				t.Fatalf("deployment_source_limits = %#v, want preserved sentinel metadata", deploymentSourceLimits)
+			}
+			if got := IntVal(k8sResourceLimits, "deployment_source_query_sentinel_limit"); got != repositorySemanticEntityLimit+1 {
+				t.Fatalf("k8s_resource_limits = %#v, want preserved deployment-source sentinel metadata", k8sResourceLimits)
+			}
+			if got := BoolVal(k8sResourceLimits, "truncated"); got != tt.wantTruncated {
+				t.Fatalf("k8s_resource_limits.truncated = %t, want %t; limits = %#v", got, tt.wantTruncated, k8sResourceLimits)
+			}
+			if got := BoolVal(k8sResourceLimits, "deployment_source_observed_count_is_lower_bound"); got != tt.wantLowerBound {
+				t.Fatalf("k8s_resource_limits.deployment_source_observed_count_is_lower_bound = %t, want %t; limits = %#v", got, tt.wantLowerBound, k8sResourceLimits)
+			}
+			if tt.wantTruncated && strings.Contains(w.Body.String(), deploymentConfigOmittedGitOpsImage) {
+				t.Fatalf("response includes image from omitted GitOps row: %s", w.Body.String())
+			}
+			if tt.wantTruncated && strings.Contains(w.Body.String(), deploymentConfigBoundedOmittedGitOpsImage) {
+				t.Fatalf("response includes image from GitOps row omitted by the public cap: %s", w.Body.String())
+			}
+		})
 	}
 }
 

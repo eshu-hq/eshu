@@ -35,6 +35,11 @@ func crossTenantProvisioningGraph() fakeGraphReaderWithSingle {
 			}
 		},
 		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			// #5390 resolves the workload's owning repo via a DEFINES traversal;
+			// stub it so the all-scope control populates the repo-keyed enrichment.
+			if strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)") {
+				return []map[string]any{{"repo_id": "repo-a", "repo_name": "orders-api-repo"}}, nil
+			}
 			if strings.Contains(cypher, "PROVISIONS_DEPENDENCY_FOR|DEPLOYS_FROM|USES_MODULE|DISCOVERS_CONFIG_IN|READS_CONFIG_FROM]-(repo:Repository)") {
 				return []map[string]any{{
 					"repo_id":             "repo-b",

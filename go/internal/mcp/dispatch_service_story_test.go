@@ -281,6 +281,10 @@ type mcpServiceStorySpecCountGraphReader struct {
 
 func (g mcpServiceStorySpecCountGraphReader) Run(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 	switch {
+	case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
+		return []map[string]any{{
+			"repo_id": "repo-sample-service-api", "repo_name": "sample-service-api",
+		}}, nil
 	case strings.Contains(cypher, "w.id = $service_id"):
 		if got, want := params["service_id"], "workload:sample-service-api"; got != want {
 			g.t.Fatalf("params[service_id] = %#v, want %q", got, want)

@@ -184,6 +184,8 @@ func (g serviceStoryExternalDocsGraphReader) Run(
 	params map[string]any,
 ) ([]map[string]any, error) {
 	switch {
+	case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
+		return []map[string]any{{"repo_id": g.repoID, "repo_name": "payments-api"}}, nil
 	case strings.Contains(cypher, "w.id = $service_id"):
 		if got, want := params["service_id"], "workload:payments-api"; got != want {
 			g.t.Fatalf("params[service_id] = %#v, want %#v", got, want)

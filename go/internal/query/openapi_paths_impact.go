@@ -44,17 +44,164 @@ const openAPIPathsImpact = `
                     "repo_id": {"type": "string"},
                     "repo_name": {"type": "string"},
                     "story": {"type": "string"},
-                    "instances": {"type": "array", "items": {"type": "object"}},
+                    "instances": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "instance_id": {"type": "string"},
+                          "environment": {"type": "string"},
+                          "platforms": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "required": ["topology_basis"],
+                              "properties": {
+                                "platform_id": {"type": "string", "description": "Canonical graph Platform identity; never derived from the display name."},
+                                "platform_name": {"type": "string"},
+                                "platform_kind": {"type": "string"},
+                                "platform_confidence": {"type": "number"},
+                                "platform_reason": {"type": "string"},
+                                "topology_basis": {"type": "string", "enum": ["direct_runtime"], "description": "The platform is supported by an exact WorkloadInstance RUNS_ON Platform relationship."},
+                                "topology_edges": {
+                                  "type": "array",
+                                  "description": "Exact canonical RUNS_ON graph relationships supporting this runtime platform.",
+                                  "items": {
+                                    "type": "object",
+                                    "required": ["relationship_type", "source_id", "target_id"],
+                                    "properties": {
+                                      "relationship_type": {"type": "string", "enum": ["RUNS_ON"]},
+                                      "source_id": {"type": "string"},
+                                      "source_name": {"type": "string"},
+                                      "target_id": {"type": "string"},
+                                      "target_name": {"type": "string"},
+                                      "confidence": {"type": "number"},
+                                      "reason": {"type": "string"},
+                                      "evidence_source": {"type": "string"},
+                                      "source_tool": {"type": "string"},
+                                      "properties": {"type": "object", "additionalProperties": true, "description": "Exact observed relationship properties retained as evidence provenance."}
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "topology_edges": {
+                      "type": "array",
+                      "description": "Exact graph-observed repository/workload and instance/workload identity edges. Endpoints are never inferred from ids.",
+                      "items": {
+                        "type": "object",
+                        "required": ["relationship_type", "source_id", "target_id", "properties"],
+                        "properties": {
+                          "relationship_type": {"type": "string", "enum": ["DEFINES", "INSTANCE_OF"]},
+                          "source_id": {"type": "string"},
+                          "source_name": {"type": "string"},
+                          "target_id": {"type": "string"},
+                          "target_name": {"type": "string"},
+                          "confidence": {"type": "number"},
+                          "reason": {"type": "string"},
+                          "evidence_source": {"type": "string"},
+                          "source_tool": {"type": "string"},
+                          "properties": {"type": "object", "additionalProperties": true}
+                        }
+                      }
+                    },
+                    "provisioned_platforms": {
+                      "type": "array",
+                      "description": "Repository-level provisioning evidence kept separate from runtime instance placement. These rows never imply RUNS_ON.",
+                      "items": {
+                        "type": "object",
+                        "required": ["topology_basis"],
+                        "properties": {
+                          "platform_id": {"type": "string"},
+                          "platform_name": {"type": "string"},
+                          "platform_kind": {"type": "string"},
+                          "platform_provider": {"type": "string"},
+                          "platform_region": {"type": "string"},
+                          "platform_locator": {"type": "string"},
+                          "platform_confidence": {"type": "number"},
+                          "platform_reason": {"type": "string"},
+                          "topology_basis": {"type": "string", "enum": ["provisioning_fallback"], "description": "The platform is supported by exact repository provisioning relationships, not a WorkloadInstance RUNS_ON relationship."},
+                          "topology_edges": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "required": ["relationship_type", "source_id", "target_id", "properties"],
+                              "properties": {
+                                "relationship_type": {"type": "string", "enum": ["PROVISIONS_DEPENDENCY_FOR", "PROVISIONS_PLATFORM"]},
+                                "source_id": {"type": "string"},
+                                "source_name": {"type": "string"},
+                                "target_id": {"type": "string"},
+                                "target_name": {"type": "string"},
+                                "confidence": {"type": "number"},
+                                "reason": {"type": "string"},
+                                "evidence_source": {"type": "string"},
+                                "source_tool": {"type": "string"},
+                                "properties": {"type": "object", "additionalProperties": true}
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "runtime_topology_limits": ` + openAPIImpactRuntimeTopologyLimits + `,
                     "hostnames": {"type": "array", "items": {"type": "object"}},
                     "entrypoints": {"type": "array", "items": {"type": "object"}},
                     "network_paths": {"type": "array", "items": {"type": "object"}},
                     "observed_config_environments": {"type": "array", "items": {"type": "string"}},
                     "api_surface": {"type": "object"},
                     "dependents": {"type": "array", "items": {"type": "object"}},
-                    "deployment_sources": {"type": "array", "items": {"type": "object"}},
+                    "deployment_sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "repo_id": {"type": "string"},
+                          "repo_name": {"type": "string"},
+                          "relationship_type": {"type": "string", "enum": ["DEPLOYMENT_SOURCE", "DEPLOYS_FROM"]},
+                          "source_id": {"type": "string", "description": "Canonical source endpoint identity for relationship_type."},
+                          "target_id": {"type": "string", "description": "Canonical target endpoint identity for relationship_type."},
+                          "confidence": {"type": "number"},
+                          "reason": {"type": "string"}
+                        }
+                      }
+                    },
+                    "deployment_source_limits": {
+                      "type": "object",
+                      "description": "Coverage and deterministic bound metadata for deployment_sources. When observed_count_is_lower_bound is true, observed_count is the number seen through the per-query sentinel rather than an exact total.",
+                      "properties": {
+                        "limit": {"type": "integer"},
+                        "query_sentinel_limit": {"type": "integer"},
+                        "returned_count": {"type": "integer"},
+                        "observed_count": {"type": "integer"},
+                        "observed_count_is_lower_bound": {"type": "boolean"},
+                        "canonical_observed_count": {"type": "integer"},
+                        "repository_observed_count": {"type": "integer"},
+                        "truncated": {"type": "boolean"},
+                        "ordering": {"type": "array", "items": {"type": "string"}}
+                      }
+                    },
                     "cloud_resources": {"type": "array", "description": "CloudResource dependencies admitted only from materialized WorkloadInstance USES CloudResource relationships.", "items": {"type": "object"}},
-                    "uncorrelated_cloud_resources": {"type": "array", "description": "CloudResource candidates that matched the service name or ARN/resource identifier but do not have a materialized workload-to-cloud relationship.", "items": {"type": "object"}},
+                    "cloud_resource_limits": {
+                      "type": "object",
+                      "description": "Deterministic bound and sentinel completeness metadata for cloud_resources.",
+                      "properties": {
+                        "limit": {"type": "integer"},
+                        "query_sentinel_limit": {"type": "integer"},
+                        "returned_count": {"type": "integer"},
+                        "observed_count": {"type": "integer"},
+                        "observed_count_is_lower_bound": {"type": "boolean"},
+                        "truncated": {"type": "boolean"},
+                        "ordering": {"type": "array", "items": {"type": "string"}}
+                      }
+                    },
+                    "uncorrelated_cloud_resources": {"type": "array", "description": "CloudResource candidates from bounded free-text or deployment-config evidence that do not have a materialized workload-to-cloud relationship. All candidates expose candidate_status and missing_relationship. Deployment-config candidates are globally ordered by name and canonical ID before the response bound is applied. Deployment-config candidates expose match_basis; free-text candidate_status can be uncorrelated, ambiguous_anchor, stale_anchor, or weak_anchor.", "items": {"type": "object"}},
+                    "uncorrelated_cloud_resources_truncated": {"type": "boolean", "description": "Present and true when candidate discovery was incomplete because the returned list was capped or deployment-config evidence or anchor input was truncated; additional candidates may exist even when no rows were returned."},
                     "k8s_resources": {"type": "array", "items": {"type": "object"}},
+` + openAPIImpactK8sResourceLimits + `
                     "image_refs": {"type": "array", "items": {"type": "string"}},
                     "image_registry_truth": {"type": "array", "items": {"type": "object"}},
                     "k8s_relationships": {"type": "array", "items": {"type": "object"}},
@@ -75,7 +222,20 @@ const openAPIPathsImpact = `
                         "controller_count": {"type": "integer"},
                         "controllers": {"type": "array", "items": {"type": "string"}},
                         "controller_kinds": {"type": "array", "items": {"type": "string"}},
-                        "entities": {"type": "array", "items": {"type": "object"}}
+                        "entities": {"type": "array", "items": {"type": "object"}},
+                        "entity_limits": {
+                          "type": "object",
+                          "description": "Bound and source-scan completeness metadata for controller entities admitted to this service trace.",
+                          "properties": {
+                            "limit": {"type": "integer"},
+                            "source_query_sentinel_limit": {"type": "integer"},
+                            "returned_count": {"type": "integer"},
+                            "observed_count": {"type": "integer"},
+                            "observed_count_is_lower_bound": {"type": "boolean"},
+                            "truncated": {"type": "boolean"},
+                            "ordering": {"type": "array", "items": {"type": "string"}}
+                          }
+                        }
                       }
                     },
                     "runtime_overview": {"type": "object"},
@@ -87,74 +247,14 @@ const openAPIPathsImpact = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "409": {"$ref": "#/components/responses/Conflict"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }
     },
-    "/api/v0/impact/deployment-config-influence": {
-      "post": {
-        "tags": ["impact"],
-        "summary": "Investigate deployment configuration influence",
-        "description": "Returns a bounded service deployment configuration story with influencing repositories, values layers, image tag sources, runtime setting sources, resource limit sources, rendered targets, and portable file handles. Scoped tokens receive the same shape; a service outside the caller's grant 404s and cross-repository evidence outside the grant is withheld.",
-        "operationId": "investigateDeploymentConfigInfluence",
-        "x-scoped-token-support": true,
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "description": "Provide service_name or workload_id.",
-                "anyOf": [
-                  {"required": ["service_name"]},
-                  {"required": ["workload_id"]}
-                ],
-                "properties": {
-                  "service_name": {"type": "string", "description": "Service name to investigate"},
-                  "workload_id": {"type": "string", "description": "Canonical workload id to investigate"},
-                  "environment": {"type": "string", "description": "Optional environment scope"},
-                  "limit": {"type": "integer", "default": 25, "minimum": 1, "maximum": 100}
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Deployment configuration influence story",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "service_name": {"type": "string"},
-                    "workload_id": {"type": "string"},
-                    "environment": {"type": "string"},
-                    "subject": {"type": "object"},
-                    "story": {"type": "string"},
-                    "influencing_repositories": {"type": "array", "items": {"type": "object"}},
-                    "values_layers": {"type": "array", "items": {"type": "object"}},
-                    "image_tag_sources": {"type": "array", "items": {"type": "object"}},
-                    "runtime_setting_sources": {"type": "array", "items": {"type": "object"}},
-                    "resource_limit_sources": {"type": "array", "items": {"type": "object"}},
-                    "rendered_targets": {"type": "array", "items": {"type": "object"}},
-                    "read_first_files": {"type": "array", "items": {"type": "object"}},
-                    "recommended_next_calls": {"type": "array", "items": {"type": "string"}},
-                    "limitations": {"type": "array", "items": {"type": "string"}},
-                    "coverage": {"type": "object"}
-                  }
-                }
-              }
-            }
-          },
-          "400": {"$ref": "#/components/responses/BadRequest"},
-          "404": {"$ref": "#/components/responses/NotFound"},
-          "500": {"$ref": "#/components/responses/InternalError"}
-        }
-      }
-    },
+` + openAPIPathDeploymentConfigInfluence + `
     "/api/v0/impact/blast-radius": {
       "post": {
         "tags": ["impact"],

@@ -5,6 +5,7 @@ package query
 
 import (
 	"context"
+	"regexp"
 	"strings"
 )
 
@@ -90,28 +91,57 @@ func loadConfigDerivedCloudResourceDependencies(
 	deploymentEvidence map[string]any,
 	limit int,
 ) ([]map[string]any, error) {
-	if graph == nil || len(deploymentEvidence) == 0 {
-		return nil, nil
-	}
-	anchors := configReadCloudResourceAnchors(deploymentEvidence)
-	if len(anchors) == 0 {
-		return nil, nil
-	}
+	resources, _, err := loadConfigDerivedCloudResourceDependenciesBounded(
+		ctx,
+		graph,
+		deploymentEvidence,
+		limit,
+	)
+	return resources, err
+}
+
+func loadConfigDerivedCloudResourceDependenciesBounded(
+	ctx context.Context,
+	graph GraphQuery,
+	deploymentEvidence map[string]any,
+	limit int,
+) ([]map[string]any, bool, error) {
 	if limit <= 0 || limit > serviceCloudResourceDependencyLimit {
 		limit = serviceCloudResourceDependencyLimit
 	}
-	resources := make([]map[string]any, 0, len(anchors))
-	for _, anchor := range anchors {
-		if len(resources) >= limit {
-			break
-		}
-		remaining := limit - len(resources)
-		rows, err := graph.Run(ctx, `
+	resources, querySaturated, err := loadConfigDerivedCloudResourceDependenciesWithLimit(
+		ctx,
+		graph,
+		deploymentEvidence,
+		limit+1,
+	)
+	if err != nil {
+		return nil, false, err
+	}
+	resources, truncated := capMapRows(resources, limit)
+	return resources, truncated || querySaturated, nil
+}
+
+func loadConfigDerivedCloudResourceDependenciesWithLimit(
+	ctx context.Context,
+	graph GraphQuery,
+	deploymentEvidence map[string]any,
+	limit int,
+) ([]map[string]any, bool, error) {
+	if graph == nil || len(deploymentEvidence) == 0 {
+		return nil, false, nil
+	}
+	anchors, anchorsTruncated := configReadCloudResourceAnchors(deploymentEvidence)
+	if len(anchors) == 0 {
+		return nil, anchorsTruncated, nil
+	}
+	anchorPattern := configReadCloudResourceAnchorPattern(anchors)
+	rows, err := graph.Run(ctx, `
 MATCH (c:CloudResource)
-WHERE coalesce(c.name, '') CONTAINS $config_anchor
-   OR coalesce(c.config_path, '') CONTAINS $config_anchor
-   OR coalesce(c.resource_id, '') CONTAINS $config_anchor
-   OR coalesce(c.arn, '') CONTAINS $config_anchor
+WHERE coalesce(c.name, '') =~ $config_anchor_pattern
+   OR coalesce(c.config_path, '') =~ $config_anchor_pattern
+   OR coalesce(c.resource_id, '') =~ $config_anchor_pattern
+   OR coalesce(c.arn, '') =~ $config_anchor_pattern
 RETURN DISTINCT coalesce(c.id, c.uid, c.resource_id, c.arn, c.name) AS id,
        c.name AS name,
        coalesce(c.kind, c.resource_type, c.data_type, '') AS kind,
@@ -121,42 +151,74 @@ RETURN DISTINCT coalesce(c.id, c.uid, c.resource_id, c.arn, c.name) AS id,
        coalesce(c.resource_id, '') AS resource_id,
        coalesce(c.arn, '') AS arn,
        coalesce(c.account_id, '') AS account_id,
-       coalesce(c.region, '') AS region
+       coalesce(c.region, '') AS region,
+       coalesce(c.config_path, '') AS config_path
 ORDER BY name, id
 LIMIT $limit`, map[string]any{
-			"config_anchor": anchor,
-			"limit":         remaining,
-		})
-		if err != nil {
-			return nil, err
+		"config_anchor_pattern": anchorPattern,
+		"limit":                 limit,
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	resources := make([]map[string]any, 0, min(len(rows), limit))
+	seen := make(map[string]struct{}, limit)
+	for _, row := range rows {
+		anchor := matchingConfigReadCloudResourceAnchor(row, anchors)
+		if anchor == "" {
+			continue
 		}
-		for _, row := range rows {
-			resource := compactStringMap(map[string]any{
-				"id":                 StringVal(row, "id"),
-				"name":               StringVal(row, "name"),
-				"kind":               StringVal(row, "kind"),
-				"resource_type":      StringVal(row, "resource_type"),
-				"provider":           StringVal(row, "provider"),
-				"environment":        StringVal(row, "environment"),
-				"resource_id":        StringVal(row, "resource_id"),
-				"arn":                StringVal(row, "arn"),
-				"account_id":         StringVal(row, "account_id"),
-				"region":             StringVal(row, "region"),
-				"relationship_basis": "deployment_config_read_evidence",
-				"evidence_source":    "deployment_evidence",
-				"matched_value":      anchor,
-			})
-			if len(resource) > 0 {
-				resources = append(resources, resource)
+		resource := compactStringMap(map[string]any{
+			"id":                 StringVal(row, "id"),
+			"name":               StringVal(row, "name"),
+			"kind":               StringVal(row, "kind"),
+			"resource_type":      StringVal(row, "resource_type"),
+			"provider":           StringVal(row, "provider"),
+			"environment":        StringVal(row, "environment"),
+			"resource_id":        StringVal(row, "resource_id"),
+			"arn":                StringVal(row, "arn"),
+			"account_id":         StringVal(row, "account_id"),
+			"region":             StringVal(row, "region"),
+			"relationship_basis": "deployment_config_read_evidence",
+			"evidence_source":    "deployment_evidence",
+			"matched_value":      anchor,
+		})
+		key := serviceCloudResourceRowKey(resource)
+		if key == "" {
+			continue
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		resources = append(resources, resource)
+	}
+	return resources, anchorsTruncated || len(rows) >= limit, nil
+}
+
+func configReadCloudResourceAnchorPattern(anchors []string) string {
+	escaped := make([]string, 0, len(anchors))
+	for _, anchor := range anchors {
+		escaped = append(escaped, regexp.QuoteMeta(anchor))
+	}
+	return ".*(?:" + strings.Join(escaped, "|") + ").*"
+}
+
+func matchingConfigReadCloudResourceAnchor(row map[string]any, anchors []string) string {
+	for _, anchor := range anchors {
+		for _, field := range []string{"name", "config_path", "resource_id", "arn"} {
+			if strings.Contains(StringVal(row, field), anchor) {
+				return anchor
 			}
 		}
 	}
-	return dedupeServiceCloudResourceRows(resources), nil
+	return ""
 }
 
-func configReadCloudResourceAnchors(deploymentEvidence map[string]any) []string {
+func configReadCloudResourceAnchors(deploymentEvidence map[string]any) ([]string, bool) {
 	seen := map[string]struct{}{}
 	var anchors []string
+	truncated := BoolVal(deploymentEvidence, "artifacts_truncated")
 	for _, artifact := range mapSliceValue(deploymentEvidence, "artifacts") {
 		if strings.TrimSpace(StringVal(artifact, "relationship_type")) != "READS_CONFIG_FROM" {
 			continue
@@ -168,10 +230,14 @@ func configReadCloudResourceAnchors(deploymentEvidence map[string]any) []string 
 		if _, ok := seen[anchor]; ok {
 			continue
 		}
+		if len(anchors) >= serviceCloudResourceDependencyLimit {
+			truncated = true
+			continue
+		}
 		seen[anchor] = struct{}{}
 		anchors = append(anchors, anchor)
 	}
-	return anchors
+	return anchors, truncated
 }
 
 func normalizeConfigReadCloudResourceAnchor(value string) string {
@@ -185,22 +251,6 @@ func normalizeConfigReadCloudResourceAnchor(value string) string {
 	return value
 }
 
-func dedupeServiceCloudResourceRows(rows []map[string]any) []map[string]any {
-	if len(rows) < 2 {
-		return rows
-	}
-	seen := map[string]struct{}{}
-	deduped := make([]map[string]any, 0, len(rows))
-	for _, row := range rows {
-		key := firstNonEmptyString(StringVal(row, "id"), StringVal(row, "resource_id"), StringVal(row, "arn"), StringVal(row, "name"))
-		if key == "" {
-			continue
-		}
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		deduped = append(deduped, row)
-	}
-	return deduped
+func serviceCloudResourceRowKey(row map[string]any) string {
+	return firstNonEmptyString(StringVal(row, "id"), StringVal(row, "resource_id"), StringVal(row, "arn"), StringVal(row, "name"))
 }

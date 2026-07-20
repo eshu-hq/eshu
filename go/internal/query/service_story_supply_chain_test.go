@@ -134,6 +134,8 @@ func TestGetServiceStoryEnvelopeIncludesSupplyChainEvidence(t *testing.T) {
 		Neo4j: fakeWorkloadGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				switch {
+				case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
+					return []map[string]any{{"repo_id": "repo://example/api", "repo_name": "api"}}, nil
 				case strings.Contains(cypher, "w.name = $service_name"):
 					return []map[string]any{{"id": "workload:api", "name": "api", "kind": "service", "repo_id": "repo://example/api"}}, nil
 				case strings.Contains(cypher, "HAS_DEPLOYMENT_EVIDENCE") &&

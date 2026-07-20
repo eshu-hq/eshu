@@ -66,6 +66,10 @@ Related graph edges such as `PROVISIONS_PLATFORM`, `DEFINES`, `INSTANCE_OF`,
 and `DEPLOYMENT_SOURCE` are real runtime topology edges, but they are not
 resolver-owned relationship types. They are written by reducer/materializer
 paths and read by repository, workload, service, and deployment trace surfaces.
+Deployment trace responses preserve `DEPLOYMENT_SOURCE` separately from
+`DEPLOYS_FROM` and return each row's canonical `source_id` and `target_id` so
+clients do not invent a repository-to-repository edge from instance admission
+evidence.
 
 ## Traversal Rule
 

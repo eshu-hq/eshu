@@ -87,7 +87,70 @@ func TestSelectRelevantDeploymentSourceControllersFiltersToServiceScopedArgoCDRo
 	}
 }
 
-func TestCollectDeploymentSourceK8sResourcesIncludesRootScopedAssetsWithAttribution(t *testing.T) {
+func TestSelectRelevantDeploymentSourceControllersDoesNotFallBackToUnrelatedControllers(t *testing.T) {
+	t.Parallel()
+
+	deploymentSources := []map[string]any{{
+		"repo_id":   "repo-helm",
+		"repo_name": "helm-charts",
+	}}
+	entities := []EntityContent{{
+		EntityID:     "payments-app",
+		RepoID:       "repo-helm",
+		RelativePath: "services/payments-api/argocd/application.yaml",
+		EntityType:   "ArgoCDApplication",
+		EntityName:   "payments-api",
+		Metadata: map[string]any{
+			"source_path": "services/payments-api/overlays/prod",
+		},
+	}}
+
+	got := selectRelevantDeploymentSourceControllers("orders-api", deploymentSources, entities)
+	if len(got) != 0 {
+		t.Fatalf("selected unrelated controllers = %#v, want none", got)
+	}
+}
+
+func TestSelectRelevantDeploymentSourceControllersRejectsShortNameCollisions(t *testing.T) {
+	t.Parallel()
+
+	deploymentSources := []map[string]any{{
+		"repo_id":   "repo-helm",
+		"repo_name": "helm-charts",
+	}}
+	entities := []EntityContent{
+		{
+			EntityID:     "payments-api-app",
+			RepoID:       "repo-helm",
+			RelativePath: "services/payments-api/argocd/application.yaml",
+			EntityType:   "ArgoCDApplication",
+			EntityName:   "payments-api",
+			Metadata: map[string]any{
+				"source_path": "services/payments-api/overlays/prod",
+			},
+		},
+		{
+			EntityID:     "api-app",
+			RepoID:       "repo-helm",
+			RelativePath: "services/api/argocd/application.yaml",
+			EntityType:   "ArgoCDApplication",
+			EntityName:   "api-controller",
+			Metadata: map[string]any{
+				"source_path": "services/api/overlays/prod",
+			},
+		},
+	}
+
+	got := selectRelevantDeploymentSourceControllers("api", deploymentSources, entities)
+	if len(got) != 1 {
+		t.Fatalf("len(selectRelevantDeploymentSourceControllers()) = %d, want 1: %#v", len(got), got)
+	}
+	if got, want := StringVal(got[0], "entity_id"), "api-app"; got != want {
+		t.Fatalf("selected controller id = %q, want %q", got, want)
+	}
+}
+
+func TestCollectDeploymentSourceK8sResourcesIncludesRootScopedResourcesWithAttribution(t *testing.T) {
 	t.Parallel()
 
 	controllerEntities := []map[string]any{
@@ -144,7 +207,8 @@ func TestCollectDeploymentSourceK8sResourcesIncludesRootScopedAssetsWithAttribut
 			EntityType:   "DashboardAsset",
 			EntityName:   "request-latency",
 			Metadata: map[string]any{
-				"qualified_name": "dashboard/request-latency",
+				"qualified_name":   "dashboard/request-latency",
+				"container_images": []any{"ghcr.io/acme/dashboard-renderer:9.9.9"},
 			},
 		},
 		{
@@ -161,8 +225,8 @@ func TestCollectDeploymentSourceK8sResourcesIncludesRootScopedAssetsWithAttribut
 	}
 
 	got, imageRefs := collectDeploymentSourceK8sResources(controllerEntities, entities)
-	if len(got) != 4 {
-		t.Fatalf("len(collectDeploymentSourceK8sResources()) = %d, want 4", len(got))
+	if len(got) != 3 {
+		t.Fatalf("len(collectDeploymentSourceK8sResources()) = %d, want 3", len(got))
 	}
 	if got, want := imageRefs, []string{"ghcr.io/acme/sample-service-api:1.2.3"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("imageRefs = %#v, want %#v", got, want)
@@ -183,9 +247,8 @@ func TestCollectDeploymentSourceK8sResourcesIncludesRootScopedAssetsWithAttribut
 		StringVal(got[0], "kind"),
 		StringVal(got[1], "kind"),
 		StringVal(got[2], "kind"),
-		StringVal(got[3], "kind"),
 	}
-	wantKinds := []string{"ConfigMap", "DashboardAsset", "Deployment", "XIRSARole"}
+	wantKinds := []string{"ConfigMap", "Deployment", "XIRSARole"}
 	if !reflect.DeepEqual(resourceKinds, wantKinds) {
 		t.Fatalf("resource kinds = %#v, want %#v", resourceKinds, wantKinds)
 	}

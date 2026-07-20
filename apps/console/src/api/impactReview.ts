@@ -1,23 +1,26 @@
 import {
   normalizeChangeSurfaceInvestigation,
-  type ChangeSurfaceImpactNode,
   type ChangeSurfaceInvestigation,
-  type ChangeSurfaceResponse
+  type ChangeSurfaceResponse,
 } from "./changeSurface";
 import type { EshuApiClient } from "./client";
 import { EshuEnvelopeError, type EshuTruth } from "./envelope";
+import { selectImpactGraph } from "./impactGraph";
+import {
+  normalizeDeploymentTrace,
+  type DeploymentTraceResponse,
+} from "./impactReviewDeploymentNormalization";
 import type {
   BlastAffectedEntity,
   BlastRadiusResult,
   BlastTargetType,
-  DeploymentTraceEntity,
   DeploymentTraceResult,
   ImpactReview,
   ImpactReviewInput,
   ImpactSection,
-  ImpactTargetKind
+  ImpactTargetKind,
 } from "./impactReviewTypes";
-import type { GraphEdge, GraphLayer, GraphModel, GraphNode } from "../console/types";
+import type { GraphEdge, GraphModel, GraphNode } from "../console/types";
 
 interface BlastRadiusResponse {
   readonly affected?: readonly BlastAffectedRecord[];
@@ -37,39 +40,38 @@ interface BlastAffectedRecord {
   readonly tier?: string;
 }
 
-interface DeploymentTraceResponse {
-  readonly cloud_resources?: readonly Record<string, unknown>[];
-  readonly deployment_overview?: Record<string, unknown>;
-  readonly deployment_sources?: readonly Record<string, unknown>[];
-  readonly image_refs?: readonly string[];
-  readonly k8s_resources?: readonly Record<string, unknown>[];
-  readonly service_name?: string;
-  readonly story?: string;
-  readonly workload_id?: string;
-}
-
 const impactSource = {
   blast: "/api/v0/impact/blast-radius",
   changeSurface: "/api/v0/impact/change-surface/investigate",
-  deploymentTrace: "/api/v0/impact/trace-deployment-chain"
+  deploymentTrace: "/api/v0/impact/trace-deployment-chain",
 } as const;
 
 export async function loadImpactReview(
   client: EshuApiClient,
-  rawInput: ImpactReviewInput
+  rawInput: ImpactReviewInput,
 ): Promise<ImpactReview> {
   const input = normalizeImpactInput(rawInput);
   const [blast, changeSurface, deploymentTrace] = await Promise.all([
     loadBlastSection(client, input),
     loadChangeSurfaceSection(client, input),
-    loadDeploymentTraceSection(client, input)
+    loadDeploymentTraceSection(client, input),
   ]);
+  const compositionStartedAt = performance.now();
+  const selectedGraph = selectImpactGraph(
+    input.target,
+    input.targetKind,
+    blast,
+    changeSurface,
+    deploymentTrace,
+  );
+  const compositionDurationMs = Math.max(0, performance.now() - compositionStartedAt);
   return {
     blast,
     changeSurface,
     deploymentTrace,
-    graph: selectImpactGraph(input.target, blast, changeSurface),
-    input
+    graph: selectedGraph.graph,
+    graphPresentation: { ...selectedGraph.presentation, compositionDurationMs },
+    input,
   };
 }
 
@@ -80,67 +82,67 @@ function normalizeImpactInput(rawInput: ImpactReviewInput): ImpactReview["input"
     maxDepth: clampInt(rawInput.maxDepth, 4, 1, 8),
     repoId: optionalTrim(rawInput.repoId),
     target: rawInput.target.trim(),
-    targetKind: rawInput.targetKind
+    targetKind: rawInput.targetKind,
   };
 }
 
 async function loadBlastSection(
   client: EshuApiClient,
-  input: ImpactReview["input"]
+  input: ImpactReview["input"],
 ): Promise<ImpactSection<BlastRadiusResult>> {
   const targetType = blastTargetType(input.targetKind);
   if (targetType === null) {
     return {
-      reason: "Blast radius requires a repository, Terraform module, Crossplane XRD, or SQL table anchor.",
+      reason:
+        "Blast radius requires a repository, Terraform module, Crossplane XRD, or SQL table anchor.",
       source: impactSource.blast,
-      status: "skipped"
+      status: "skipped",
     };
   }
   return loadEnvelopeSection(
     impactSource.blast,
-    () => client.post<BlastRadiusResponse>(impactSource.blast, {
-      limit: input.limit,
-      target: input.target,
-      target_type: targetType
-    }),
-    (response) => normalizeBlastRadius(response, input.target, targetType)
+    () =>
+      client.post<BlastRadiusResponse>(impactSource.blast, {
+        limit: input.limit,
+        target: input.target,
+        target_type: targetType,
+      }),
+    (response) => normalizeBlastRadius(response, input.target, targetType),
   );
 }
 
 async function loadChangeSurfaceSection(
   client: EshuApiClient,
-  input: ImpactReview["input"]
+  input: ImpactReview["input"],
 ): Promise<ImpactSection<ChangeSurfaceInvestigation>> {
   return loadEnvelopeSection(
     impactSource.changeSurface,
-    () => client.post<ChangeSurfaceResponse>(
-      impactSource.changeSurface,
-      changeSurfaceBody(input)
-    ),
-    normalizeChangeSurfaceInvestigation
+    () => client.post<ChangeSurfaceResponse>(impactSource.changeSurface, changeSurfaceBody(input)),
+    normalizeChangeSurfaceInvestigation,
   );
 }
 
 async function loadDeploymentTraceSection(
   client: EshuApiClient,
-  input: ImpactReview["input"]
+  input: ImpactReview["input"],
 ): Promise<ImpactSection<DeploymentTraceResult>> {
   if (input.targetKind !== "service" && input.targetKind !== "workload") {
     return {
       reason: "Trace requires a service or workload name.",
       source: impactSource.deploymentTrace,
-      status: "skipped"
+      status: "skipped",
     };
   }
   return loadEnvelopeSection(
     impactSource.deploymentTrace,
-    () => client.post<DeploymentTraceResponse>(impactSource.deploymentTrace, {
-      direct_only: false,
-      include_related_module_usage: false,
-      max_depth: input.maxDepth,
-      service_name: input.target
-    }),
-    normalizeDeploymentTrace
+    () =>
+      client.post<DeploymentTraceResponse>(impactSource.deploymentTrace, {
+        direct_only: false,
+        include_related_module_usage: false,
+        max_depth: input.maxDepth,
+        service_name: input.target,
+      }),
+    normalizeDeploymentTrace,
   );
 }
 
@@ -151,7 +153,7 @@ async function loadEnvelopeSection<TWire, TData>(
     readonly error: { readonly code: string; readonly message: string } | null;
     readonly truth: EshuTruth | null;
   }>,
-  normalize: (wire: TWire) => TData
+  normalize: (wire: TWire) => TData,
 ): Promise<ImpactSection<TData>> {
   try {
     const env = await load();
@@ -165,13 +167,13 @@ async function loadEnvelopeSection<TWire, TData>(
       data: normalize(env.data),
       source,
       status: "ready",
-      truth: env.truth
+      truth: env.truth,
     };
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "request failed",
       source,
-      status: "unavailable"
+      status: "unavailable",
     };
   }
 }
@@ -179,7 +181,7 @@ async function loadEnvelopeSection<TWire, TData>(
 function changeSurfaceBody(input: ImpactReview["input"]): Record<string, unknown> {
   const base: Record<string, unknown> = {
     limit: input.limit,
-    max_depth: input.maxDepth
+    max_depth: input.maxDepth,
   };
   if (input.environment !== undefined) {
     base.environment = input.environment;
@@ -209,7 +211,7 @@ function changeSurfaceBody(input: ImpactReview["input"]): Record<string, unknown
 function normalizeBlastRadius(
   response: BlastRadiusResponse,
   fallbackTarget: string,
-  fallbackTargetType: BlastTargetType
+  fallbackTargetType: BlastTargetType,
 ): BlastRadiusResult {
   const target = nonEmpty(response.target, fallbackTarget);
   const targetType = response.target_type ?? fallbackTargetType;
@@ -223,7 +225,7 @@ function normalizeBlastRadius(
     limit: response.limit ?? 25,
     target,
     targetType,
-    truncated: response.truncated ?? false
+    truncated: response.truncated ?? false,
   };
 }
 
@@ -238,14 +240,11 @@ function normalizeBlastAffected(record: BlastAffectedRecord): BlastAffectedEntit
     repo,
     repoId: optionalTrim(record.repo_id),
     risk: optionalTrim(record.risk),
-    tier: optionalTrim(record.tier)
+    tier: optionalTrim(record.tier),
   };
 }
 
-function blastRadiusGraph(
-  target: string,
-  affected: readonly BlastAffectedEntity[]
-): GraphModel {
+function blastRadiusGraph(target: string, affected: readonly BlastAffectedEntity[]): GraphModel {
   const centerId = target;
   const nodes = new Map<string, GraphNode>();
   nodes.set(centerId, {
@@ -255,7 +254,7 @@ function blastRadiusGraph(
     kind: "repo",
     label: target,
     sub: "impact origin",
-    truth: "exact"
+    truth: "exact",
   });
   const edges: GraphEdge[] = [];
   for (const entity of affected) {
@@ -269,134 +268,16 @@ function blastRadiusGraph(
       kind: "repo",
       label: entity.repo,
       sub: `hop ${entity.hops}`,
-      truth: "exact"
+      truth: "exact",
     });
     edges.push({
       layer: "runtime",
       s: id,
       t: centerId,
-      verb: "DEPENDS_ON"
+      verb: "DEPENDS_ON",
     });
   }
   return { edges, nodes: [...nodes.values()] };
-}
-
-function normalizeDeploymentTrace(response: DeploymentTraceResponse): DeploymentTraceResult {
-  return {
-    cloudResources: (response.cloud_resources ?? []).map((record) =>
-      normalizeTraceEntity(record, ["name", "id", "resource_type"])
-    ),
-    deploymentOverview: response.deployment_overview ?? {},
-    deploymentSources: (response.deployment_sources ?? []).map((record) =>
-      normalizeTraceEntity(record, ["repo_name", "path", "relationship_type"])
-    ),
-    imageRefs: response.image_refs ?? [],
-    k8sResources: (response.k8s_resources ?? []).map((record) =>
-      normalizeTraceEntity(record, ["entity_name", "name", "kind"])
-    ),
-    serviceName: nonEmpty(response.service_name),
-    story: nonEmpty(response.story, "Deployment trace returned no story text."),
-    workloadId: nonEmpty(response.workload_id)
-  };
-}
-
-function normalizeTraceEntity(
-  record: Record<string, unknown>,
-  fields: readonly string[]
-): DeploymentTraceEntity {
-  const name = fields.map((field) => stringField(record, field)).find((value) => value.length > 0) ?? "entity";
-  return {
-    detail: fields
-      .map((field) => stringField(record, field))
-      .filter((value) => value.length > 0 && value !== name)
-      .join(" · ") || undefined,
-    id: optionalTrim(stringField(record, "id")),
-    kind: optionalTrim(stringField(record, "kind") || stringField(record, "resource_type")),
-    name
-  };
-}
-
-function selectImpactGraph(
-  target: string,
-  blast: ImpactSection<BlastRadiusResult>,
-  changeSurface: ImpactSection<ChangeSurfaceInvestigation>
-): GraphModel {
-  if (blast.status === "ready" && blast.data.graph.nodes.length > 1) {
-    return blast.data.graph;
-  }
-  if (changeSurface.status === "ready") {
-    return changeSurfaceGraph(target, changeSurface.data);
-  }
-  if (blast.status === "ready") {
-    return blast.data.graph;
-  }
-  return { edges: [], nodes: [] };
-}
-
-function changeSurfaceGraph(
-  fallbackTarget: string,
-  investigation: ChangeSurfaceInvestigation
-): GraphModel {
-  const selected = investigation.resolution.selected;
-  const centerId = selected?.id ?? investigation.scope.target ?? fallbackTarget;
-  const centerName = selected?.name ?? investigation.scope.target ?? fallbackTarget;
-  const nodes = new Map<string, GraphNode>();
-  nodes.set(centerId, {
-    col: 0,
-    hero: true,
-    id: centerId,
-    kind: kindForLabels(selected?.labels ?? [investigation.resolution.targetType]),
-    label: centerName,
-    sub: "impact origin",
-    truth: "derived"
-  });
-  const edges: GraphEdge[] = [];
-  for (const node of [...investigation.directImpact, ...investigation.transitiveImpact]) {
-    const id = node.id || node.name;
-    if (id === centerId || id.length === 0) {
-      continue;
-    }
-    nodes.set(id, graphNodeForImpact(node));
-    edges.push({
-      layer: graphLayerForImpact(node),
-      s: id,
-      t: centerId,
-      verb: node.depth <= 1 ? "DIRECT_IMPACT" : "TRANSITIVE_IMPACT"
-    });
-  }
-  return { edges, nodes: [...nodes.values()] };
-}
-
-function graphNodeForImpact(node: ChangeSurfaceImpactNode): GraphNode {
-  return {
-    col: Math.max(1, node.depth),
-    id: node.id || node.name,
-    kind: kindForLabels(node.labels),
-    label: node.name,
-    sub: node.repoId || node.environment || `depth ${node.depth}`,
-    truth: "derived"
-  };
-}
-
-function graphLayerForImpact(node: ChangeSurfaceImpactNode): GraphLayer {
-  const kind = kindForLabels(node.labels);
-  if (kind === "repo" || kind === "client" || kind === "library") {
-    return "code";
-  }
-  if (kind === "aws") {
-    return "infra";
-  }
-  return "runtime";
-}
-
-function kindForLabels(labels: readonly string[]): string {
-  const normalized = labels.join(" ").toLowerCase();
-  if (normalized.includes("repository")) return "repo";
-  if (normalized.includes("cloud") || normalized.includes("resource")) return "aws";
-  if (normalized.includes("module") || normalized.includes("package")) return "library";
-  if (normalized.includes("function") || normalized.includes("class") || normalized.includes("symbol")) return "client";
-  if (normalized.includes("workload")) return "workload";
-  return "service";
 }
 
 function blastTargetType(kind: ImpactTargetKind): BlastTargetType | null {
@@ -411,12 +292,7 @@ function blastTargetType(kind: ImpactTargetKind): BlastTargetType | null {
   return null;
 }
 
-function clampInt(
-  value: number | undefined,
-  fallback: number,
-  min: number,
-  max: number
-): number {
+function clampInt(value: number | undefined, fallback: number, min: number, max: number): number {
   if (value === undefined || !Number.isFinite(value)) {
     return fallback;
   }
@@ -430,9 +306,4 @@ function optionalTrim(value: string | undefined): string | undefined {
 
 function nonEmpty(...values: readonly (string | undefined)[]): string {
   return values.find((value) => value !== undefined && value.trim().length > 0)?.trim() ?? "";
-}
-
-function stringField(record: Record<string, unknown>, field: string): string {
-  const value = record[field];
-  return typeof value === "string" ? value : "";
 }

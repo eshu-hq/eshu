@@ -35,6 +35,11 @@ func fallbackArtifactOverviewGraph() fakeGraphReaderWithSingle {
 			}
 		},
 		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			// #5390 resolves the workload's owning repo via a DEFINES traversal;
+			// stub it so the all-scope control populates the repo-keyed enrichment.
+			if strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)") {
+				return []map[string]any{{"repo_id": "repo-a", "repo_name": "orders-api-repo"}}, nil
+			}
 			if strings.Contains(cypher, "DEPENDS_ON|USES_MODULE") {
 				return []map[string]any{{"repo_id": "repo-b", "repo_name": "other-tenant-infra"}}, nil
 			}

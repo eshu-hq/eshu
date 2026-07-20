@@ -77,6 +77,66 @@ sees bounds and missing evidence without falling back to raw Cypher.
   payload's `limitations` into an explicit, sorted, de-duplicated array so the
   envelope shape is stable across complete and partial reads.
 
+### Deployment Trace Relationship Endpoints
+
+`POST /api/v0/impact/trace-deployment-chain` keeps deployment-source
+relationship families distinct. Every `deployment_sources[]` row includes
+`relationship_type`, canonical `source_id`, and canonical `target_id`:
+
+- `DEPLOYMENT_SOURCE` is `WorkloadInstance -> Repository` runtime admission
+  evidence.
+- `DEPLOYS_FROM` is `Repository -> Repository` deployment configuration
+  evidence.
+
+Consumers must render the returned direction and endpoints. A deployment-source
+repository name is display text, not permission to convert an instance edge into
+a repository edge. Deployment-source expansion is capped at 50 rows. The
+`deployment_source_limits` object reports the returned and observed counts,
+per-family observed counts, deterministic ordering, truncation, and whether the
+observed count is only a lower bound because a graph query reached its sentinel.
+
+Impact graph consumers may report `complete within bounds` only when four
+independent metadata families are present and internally consistent:
+`runtime_topology_limits`, `deployment_source_limits`,
+`cloud_resource_limits`, and `k8s_resource_limits`. The runtime block contains
+separate bounds for instances, direct platform edges, and provisioned
+platforms. The Kubernetes block contains separate content and
+deployment-source probes because those inputs are merged and deduplicated
+before the public cap. Missing, malformed, or contradictory metadata means
+`completeness unverified`; it never proves a complete empty collection.
+
+`cloud_resource_limits` describes only canonical resources returned from a
+materialized workload-instance `USES` relationship. When the handler reuses
+older context rows that were not sentinel-probed, it omits this block and the
+consumer must fail completeness closed. `controller_overview.entity_limits`
+separately bounds service-matched controller entities and discloses source-scan
+saturation. `image_refs` contains images from returned bounded Kubernetes rows
+only; images belonging solely to omitted rows are not returned.
+
+The top-level `topology_edges[]` array carries the selected subject backbone:
+`DEFINES` from `repo_id` to `workload_id`, plus `INSTANCE_OF` from every
+returned `instance_id` to that workload. Consumers should treat a missing or
+mismatched backbone edge as incomplete topology rather than reconnecting rows
+by name.
+
+`instances[].platforms[].platform_id` is the canonical platform identity;
+`platform_name` is only its label. Instance platforms carry
+`topology_basis=direct_runtime` and exact `RUNS_ON` topology edges from their
+containing instance to that platform.
+
+Repository-level provisioning is returned separately in
+`provisioned_platforms[]`, where `topology_basis=provisioning_fallback` preserves
+two relationship families:
+
+- `PROVISIONS_DEPENDENCY_FOR` from the infrastructure repository to the
+  service repository; and
+- `PROVISIONS_PLATFORM` from the infrastructure repository to the platform.
+
+Consumers must not copy a provisioned platform beneath every instance or turn
+repository provisioning into `RUNS_ON`. The instance
+`environment` field is structured runtime evidence, not proof of a graph edge
+to an `Environment` node.
+
 Repository context relationship rows expose the same correlation confidence
 metadata as relationship evidence drilldown: `confidence`, `confidence_basis`,
 `resolution_source`, `evidence_type`, and `evidence_kinds` when the reducer or
@@ -409,6 +469,21 @@ whose safe identity or anchor handles match the service, including `name`,
 relationship, exact service anchor, or exact config-read evidence; callers
 should treat them as missing evidence to investigate, not as attached
 dependencies.
+Deployment-config `READS_CONFIG_FROM` matches use the same candidate bucket:
+they can explain why a resource should be investigated, but they do not create
+the reducer-owned workload-to-cloud relationship. All candidate rows expose
+`candidate_status` and `missing_relationship`. Deployment-config candidates
+also expose `match_basis`; free-text candidates instead preserve their service-
+anchor status, so `candidate_status` can be `uncorrelated`, `ambiguous_anchor`,
+`stale_anchor`, or `weak_anchor`.
+`uncorrelated_cloud_resources_truncated=true` reports that candidate discovery
+was incomplete because the returned list was capped or deployment-config
+evidence or anchor input was truncated. Additional candidates may therefore
+exist even when no candidate rows were returned. Deployment-config candidates
+are globally ordered by resource name and canonical ID before the response
+bound is applied; deployment-evidence artifact order does not decide which
+config-derived candidates survive that bound. Free-text candidate selection is
+a separate query path and does not use deployment-evidence artifact order.
 
 Repository story uses the same repository deployment-evidence read path as
 repository context and service story. When repository-scoped deployment evidence
@@ -490,13 +565,13 @@ events still cover the `graph_api_surface` and `overview_assembly` stages.
 No-Regression Evidence:
 
 ```bash
-cd go && go test ./internal/query -run 'TestTraceDeploymentChainKeepsConfigDerivedCloudResources|TestLoadServiceCloudResourceDependenciesPromotesReadConfigCloudResource|TestEnrichServiceQueryContextPromotesStrongAWSCloudResourceAnchor|TestBuildDeploymentTraceResponseExplainsUncorrelatedCloudCandidates' -count=1
+cd go && go test ./internal/query -run 'TestTraceDeploymentChainKeepsConfigDerivedCloudResourcesAsUncorrelatedCandidates|TestConfigDerivedCloudResourceDependenciesRequireConfigReadEvidence|TestBuildDeploymentTraceResponseExplainsUncorrelatedCloudCandidates' -count=1
 ```
 
-This proves service story and deployment trace readbacks preserve the same
-canonical cloud-resource classification: exact service anchors and
-`READS_CONFIG_FROM` config-identity matches stay in `cloud_resources`, while
-candidate-only rows stay in `uncorrelated_cloud_resources`.
+This proves deployment trace keeps canonical `cloud_resources` limited to
+materialized workload-instance `USES` relationships. Explicit
+`READS_CONFIG_FROM` matches remain bounded `uncorrelated_cloud_resources`
+candidates with their config-evidence basis and missing relationship disclosed.
 
 No-Observability-Change: service story anchor admission uses existing service
 query stage timing and graph query instrumentation; it adds no collector call,
@@ -574,6 +649,11 @@ worker, metric instrument, span name, or deployment knob.
 `workload_id`, optional `environment`, and optional `limit`. Use it when the
 caller asks which repositories and files influence image tags, runtime
 settings, resource limits, values layers, or rendered Kubernetes resources.
+The response preserves `deployment_source_limits` and `k8s_resource_limits` and
+folds upstream truncation or lower-bound state into `coverage`. Missing or
+inconsistent bound metadata appears in `limitations` and fails coverage closed.
+Ambiguous service or workload selectors return HTTP 409. Rendered targets and
+image sources are derived only from rows that survived the published bounds.
 
 ## Service Investigation
 

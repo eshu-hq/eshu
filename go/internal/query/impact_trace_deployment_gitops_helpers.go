@@ -10,10 +10,6 @@ import (
 	"strings"
 )
 
-var deploymentTraceSupportingEntityKinds = map[string]string{
-	"DashboardAsset": "DashboardAsset",
-}
-
 func buildDeploymentSourceControllerEntity(entity EntityContent) (map[string]any, bool) {
 	controllerKind, ok := controllerEntityTypes[entity.EntityType]
 	if !ok {
@@ -63,7 +59,6 @@ func selectRelevantDeploymentSourceControllers(
 	}
 
 	serviceToken := normalizedDeploymentTraceMatch(serviceName)
-	fallback := make([]map[string]any, 0, len(entities))
 	filtered := make([]map[string]any, 0, len(entities))
 	for _, entity := range entities {
 		if _, ok := repoIDs[entity.RepoID]; !ok {
@@ -73,13 +68,9 @@ func selectRelevantDeploymentSourceControllers(
 		if !ok {
 			continue
 		}
-		fallback = append(fallback, controller)
 		if deploymentTraceControllerMatchesService(controller, serviceToken) {
 			filtered = append(filtered, controller)
 		}
-	}
-	if len(filtered) == 0 {
-		filtered = fallback
 	}
 	sortDeploymentTraceMaps(filtered)
 	return filtered
@@ -218,18 +209,37 @@ func deploymentTraceControllerMatchesService(controller map[string]any, normaliz
 	if normalizedService == "" {
 		return false
 	}
-	candidates := []string{
+	identityCandidates := []string{
 		StringVal(controller, "entity_id"),
 		StringVal(controller, "entity_name"),
-		StringVal(controller, "relative_path"),
 		StringVal(controller, "source_repo"),
+	}
+	for _, candidate := range identityCandidates {
+		if normalizedDeploymentTraceMatch(candidate) == normalizedService {
+			return true
+		}
+	}
+
+	pathCandidates := []string{
+		StringVal(controller, "relative_path"),
 		StringVal(controller, "source_path"),
 		StringVal(controller, "source_root"),
 	}
-	candidates = append(candidates, stringSliceMapValue(controller, "source_roots")...)
-	candidates = append(candidates, stringSliceMapValue(controller, "discovery_roots")...)
-	for _, candidate := range candidates {
-		if strings.Contains(normalizedDeploymentTraceMatch(candidate), normalizedService) {
+	pathCandidates = append(pathCandidates, stringSliceMapValue(controller, "source_roots")...)
+	pathCandidates = append(pathCandidates, stringSliceMapValue(controller, "discovery_roots")...)
+	for _, candidate := range pathCandidates {
+		if deploymentTracePathHasServiceSegment(candidate, normalizedService) {
+			return true
+		}
+	}
+	return false
+}
+
+func deploymentTracePathHasServiceSegment(candidate string, normalizedService string) bool {
+	for _, segment := range strings.FieldsFunc(candidate, func(separator rune) bool {
+		return separator == '/' || separator == '\\'
+	}) {
+		if normalizedDeploymentTraceMatch(segment) == normalizedService {
 			return true
 		}
 	}
@@ -275,11 +285,10 @@ func deploymentTracePathWithinRoot(relativePath string, root string) bool {
 }
 
 func deploymentTraceEntityKind(entity EntityContent) (string, bool) {
-	if entity.EntityType == "K8sResource" {
-		return metadataNonEmptyStringValue(entity.Metadata, "kind"), true
+	if entity.EntityType != "K8sResource" {
+		return "", false
 	}
-	kind, ok := deploymentTraceSupportingEntityKinds[entity.EntityType]
-	return kind, ok
+	return metadataNonEmptyStringValue(entity.Metadata, "kind"), true
 }
 
 func sortDeploymentTraceMaps(rows []map[string]any) {

@@ -26,11 +26,38 @@ export interface ImpactReview {
   readonly changeSurface: ImpactSection<ChangeSurfaceInvestigation>;
   readonly deploymentTrace: ImpactSection<DeploymentTraceResult>;
   readonly graph: GraphModel;
+  readonly graphPresentation: ImpactGraphPresentation;
   readonly input: Required<Pick<ImpactReviewInput, "target" | "targetKind">> &
     Pick<ImpactReviewInput, "environment" | "repoId"> & {
       readonly limit: number;
       readonly maxDepth: number;
     };
+}
+
+export type ImpactGraphMode = "blast_radius" | "change_surface" | "deployment_trace" | "empty";
+export type ImpactGraphCompleteness = "complete" | "truncated" | "unverified";
+
+export interface ImpactGraphPresentation {
+  readonly completeness: ImpactGraphCompleteness;
+  readonly compositionDurationMs: number;
+  readonly duplicateEdges: number;
+  readonly duplicateNodes: number;
+  readonly edgeLimit: number;
+  readonly freshness?: string;
+  readonly inputEdges: number;
+  readonly inputNodes: number;
+  readonly limitations: readonly string[];
+  readonly mode: ImpactGraphMode;
+  readonly nodeLimit: number;
+  readonly omittedEdges: number;
+  readonly omittedNodes: number;
+  readonly renderedEdges: number;
+  readonly renderedNodes: number;
+  readonly sourceApis: readonly string[];
+  readonly title: string;
+  readonly truncated: boolean;
+  readonly truthBasis?: string;
+  readonly truthLevel?: string;
 }
 
 export type ImpactSection<TData> =
@@ -72,15 +99,103 @@ export interface BlastAffectedEntity {
 }
 
 export interface DeploymentTraceResult {
+  readonly cloudResourceLimits: BoundedCollectionLimits | null;
   readonly cloudResources: readonly DeploymentTraceEntity[];
   readonly deploymentOverview: Record<string, unknown>;
-  readonly deploymentSources: readonly DeploymentTraceEntity[];
+  readonly deploymentFacts: readonly DeploymentTraceFact[];
+  readonly deploymentSourceLimits: DeploymentSourceLimits | null;
+  readonly deploymentSources: readonly DeploymentTraceSource[];
   readonly imageRefs: readonly string[];
+  readonly invalidTopologyEdgeCount?: number;
+  readonly k8sResourceLimits: KubernetesResourceLimits | null;
   readonly k8sResources: readonly DeploymentTraceEntity[];
+  readonly instances: readonly DeploymentTraceInstance[];
+  readonly provisionedPlatforms: readonly DeploymentTracePlatform[];
+  readonly repoId: string;
+  readonly repoName: string;
+  readonly runtimeTopologyLimits: RuntimeTopologyLimits | null;
   readonly serviceName: string;
   readonly story: string;
+  readonly topologyEdges: readonly DeploymentTraceTopologyEdge[];
+  readonly uncorrelatedCloudResourcesTruncated: boolean;
   readonly workloadId: string;
 }
+
+export interface BoundedCollectionLimits {
+  readonly limit: number;
+  readonly observedCount: number;
+  readonly observedCountIsLowerBound: boolean;
+  readonly ordering: readonly string[];
+  readonly querySentinelLimit: number;
+  readonly returnedCount: number;
+  readonly truncated: boolean;
+}
+
+export interface KubernetesResourceLimits extends BoundedCollectionLimits {
+  readonly contentObservedCount: number;
+  readonly contentObservedCountIsLowerBound: boolean;
+  readonly deploymentSourceObservedCount: number;
+  readonly deploymentSourceObservedCountIsLowerBound: boolean;
+  readonly deploymentSourceQuerySentinelLimit: number;
+}
+
+export interface RuntimeTopologyLimits {
+  readonly instances: BoundedCollectionLimits;
+  readonly platformEdges: BoundedCollectionLimits;
+  readonly provisionedPlatforms: BoundedCollectionLimits;
+}
+
+export interface DeploymentSourceLimits extends BoundedCollectionLimits {
+  readonly canonicalObservedCount: number;
+  readonly repositoryObservedCount: number;
+}
+
+export interface DeploymentTraceFact {
+  readonly confidence?: number;
+  readonly kind?: string;
+  readonly reason?: string;
+  readonly target: string;
+  readonly targetId?: string;
+  readonly type: string;
+}
+
+export interface DeploymentTraceInstance {
+  readonly environment?: string;
+  readonly id: string;
+  readonly platforms: readonly DeploymentTracePlatform[];
+}
+
+export interface DeploymentTracePlatform {
+  readonly confidence?: number;
+  readonly id?: string;
+  readonly invalidTopologyEdgeCount?: number;
+  readonly kind?: string;
+  readonly name: string;
+  readonly reason?: string;
+  readonly topologyBasis?: DeploymentTraceTopologyBasis;
+  readonly topologyEdges: readonly DeploymentTraceTopologyEdge[];
+}
+
+export type DeploymentTraceTopologyBasis = "direct_runtime" | "provisioning_fallback";
+
+export interface DeploymentTraceTopologyEdge {
+  readonly confidence?: number;
+  readonly evidenceSource?: string;
+  readonly reason?: string;
+  readonly relationshipType: DeploymentTraceTopologyRelationship;
+  readonly sourceId?: string;
+  readonly sourceName?: string;
+  readonly sourceTool?: string;
+  readonly targetId?: string;
+  readonly targetName?: string;
+}
+
+export type DeploymentTraceTopologyRelationship =
+  | "DEFINES"
+  | "INSTANCE_OF"
+  | "PROVISIONS_DEPENDENCY_FOR"
+  | "PROVISIONS_PLATFORM"
+  | "RUNS_ON";
 
 export interface DeploymentTraceEntity {
   readonly detail?: string;
@@ -89,8 +204,10 @@ export interface DeploymentTraceEntity {
   readonly name: string;
 }
 
-export type BlastTargetType =
-  | "crossplane_xrd"
-  | "repository"
-  | "sql_table"
-  | "terraform_module";
+export interface DeploymentTraceSource extends DeploymentTraceEntity {
+  readonly relationshipType?: "DEPLOYMENT_SOURCE" | "DEPLOYS_FROM";
+  readonly sourceId?: string;
+  readonly targetId?: string;
+}
+
+export type BlastTargetType = "crossplane_xrd" | "repository" | "sql_table" | "terraform_module";
