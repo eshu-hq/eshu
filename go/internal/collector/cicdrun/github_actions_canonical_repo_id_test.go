@@ -205,8 +205,10 @@ func TestGitHubActionsFixtureCanonicalIDStableAcrossRunURLs(t *testing.T) {
 		SourceURI:           "https://api.github.com/repos/eshu-hq/eshu/actions/runs/100",
 	}
 	ctx2 := FixtureContext{
-		ctx1.ScopeID, "200:1", ctx1.CollectorInstanceID, 0, ctx1.ObservedAt,
-		"https://api.github.com/repos/eshu-hq/eshu/actions/runs/200",
+		ScopeID:             ctx1.ScopeID,
+		GenerationID:        "200:1",
+		CollectorInstanceID: ctx1.CollectorInstanceID,
+		SourceURI:           "https://api.github.com/repos/eshu-hq/eshu/actions/runs/200",
 	}
 
 	run1, err := GitHubActionsFixtureEnvelopes(noHTMLURLFixture, ctx1)
@@ -286,6 +288,7 @@ func TestCanonicalGitHubHostMapsOnlyKnownAPIPatterns(t *testing.T) {
 		{"ghes.example.com", "ghes.example.com", "GHES self-hosted — no api prefix to strip"},
 		{"github.com", "github.com", "already canonical — no change"},
 		{"api.github.com:8443", "github.com", "port-bearing — strip api, drop port"},
+		{"api.acme.ghe.com:8443", "acme.ghe.com", "port-bearing GHEC — strip api prefix and port"},
 		{"acme.ghe.com", "acme.ghe.com", "GHEC without api prefix — unchanged"},
 		{"", "", "empty host — unchanged"},
 	}
