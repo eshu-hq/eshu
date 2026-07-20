@@ -48,7 +48,7 @@ func TestClaimedSourceCollectsGitHubActionsRunAndArtifacts(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.June, 7, 15, 0, 0, 0, time.UTC)
-	client := fakeClient{snapshot: RunSnapshot{
+	client := fakeClient{page: RunPage{Snapshots: []RunSnapshot{{
 		Workflow: map[string]any{
 			"id":    42,
 			"name":  "Publish",
@@ -87,7 +87,7 @@ func TestClaimedSourceCollectsGitHubActionsRunAndArtifacts(t *testing.T) {
 				"head_sha": "0123456789abcdef0123456789abcdef01234567",
 			},
 		}},
-	}}
+	}}}}
 	source, err := NewClaimedSource(SourceConfig{
 		CollectorInstanceID: "ci-cd-primary",
 		Client:              client,
@@ -180,7 +180,7 @@ func TestClaimedSourceRecordsProviderTelemetry(t *testing.T) {
 	}
 	spanRecorder := tracetest.NewSpanRecorder()
 	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spanRecorder))
-	source := newTelemetryTestSource(t, fakeClient{snapshot: telemetryTestSnapshot()}, instruments, tracerProvider)
+	source := newTelemetryTestSource(t, fakeClient{page: RunPage{Snapshots: []RunSnapshot{telemetryTestSnapshot()}}}, instruments, tracerProvider)
 
 	if _, _, err := source.NextClaimed(context.Background(), telemetryTestWorkItem()); err != nil {
 		t.Fatalf("NextClaimed() error = %v, want nil", err)
@@ -239,12 +239,12 @@ func TestClaimedSourceRecordsRateLimitTelemetry(t *testing.T) {
 }
 
 type fakeClient struct {
-	snapshot RunSnapshot
-	err      error
+	page RunPage
+	err  error
 }
 
-func (f fakeClient) FetchLatestRun(context.Context, TargetConfig) (RunSnapshot, error) {
-	return f.snapshot, f.err
+func (f fakeClient) FetchRuns(context.Context, TargetConfig) (RunPage, error) {
+	return f.page, f.err
 }
 
 func drainFacts(t *testing.T, ch <-chan facts.Envelope) []facts.Envelope {

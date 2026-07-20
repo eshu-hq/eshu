@@ -263,11 +263,24 @@ for org targets), and reports only sanitized failure classes.
 
 The CI/CD run collector is claim-only. It selects an enabled `ci_cd_run`
 instance from `ESHU_COLLECTOR_INSTANCES_JSON`. GitHub Actions targets must
-include `token_env`, `repository`, `allowed_repositories`, and bounded
+include `token_env`, `repository`, and `allowed_repositories`, plus bounded
 `max_runs`, `max_jobs`, and `max_artifacts` limits. The runtime resolves the
 credential from the named environment variable and emits only `ci.*` source
 facts. Optional `api_base_url` overrides must use HTTPS because the runtime
 sends the bearer token to that endpoint.
+
+Every claim cycle collects the target's most recent runs, one fully
+populated fact-set per run, up to `max_runs` (an omitted or zero `max_runs`
+defaults to 10; the hard cap is 100). Each run's facts are keyed by provider
+run ID, so re-collecting the same window on a later cycle is an idempotent
+upsert at projection rather than requiring a persistent watermark or cursor.
+When the fetched runs page is full — meaning GitHub may have additional runs
+beyond the window `max_runs` bounds — the collector emits a `ci.warning` fact
+with `reason: "runs_truncated"` (mirroring the existing
+`partial_jobs_payload` warning for a truncated jobs page) and increments
+`eshu_dp_ci_cd_run_partial_generations_total{reason="runs_truncated"}`.
+Widening `max_runs` (up to the 100 cap) shrinks the window between
+collection cycles that a single `runs_truncated` warning can span.
 
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |

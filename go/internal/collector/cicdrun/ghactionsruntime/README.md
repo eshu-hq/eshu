@@ -3,9 +3,12 @@
 ## Purpose
 
 `ghactionsruntime` owns the hosted GitHub Actions provider polling slice for the
-`ci_cd_run` collector family. It fetches bounded workflow-run, job, and artifact
-metadata for configured repositories and delegates fact construction to
-`internal/collector/cicdrun`.
+`ci_cd_run` collector family. Every claim cycle fetches a bounded window of the
+target's most recent runs (`max_runs`, default 10, hard cap 100) plus bounded
+job and artifact metadata for each run in the window, and delegates fact
+construction to `internal/collector/cicdrun` once per run. Re-fetching the same
+window on a later cycle is an idempotent upsert at projection (each run's facts
+are keyed by provider run ID), not a persistent watermark or cursor.
 
 The package does not read artifact ZIP contents, workflow logs, secrets, graph
 state, or query state. Reducers decide whether emitted run and artifact evidence
@@ -27,8 +30,10 @@ See `doc.go` for the godoc contract. Callers use:
 - `SourceConfig`, `TargetConfig`, and `NewClaimedSource` to construct a
   claim-aware source.
 - `ClaimedSource.NextClaimed` to resolve one `workflow.WorkItem`.
-- `Client`, `GitHubClient`, and `RunSnapshot` to fetch or provide bounded
-  GitHub Actions runtime data.
+- `Client`, `GitHubClient`, `RunSnapshot`, and `RunPage` to fetch or provide a
+  bounded window of GitHub Actions runtime data (`Client.FetchRuns` returns one
+  `RunPage`, which carries one `RunSnapshot` per fetched run plus a `Truncated`
+  signal for whether more runs exist beyond the window).
 - `ErrRateLimited` to preserve provider throttling classification.
 - `RateLimitError` to carry bounded GitHub retry guidance from `Retry-After` or
   `X-RateLimit-Reset` into shared claim retry pacing.
@@ -57,7 +62,18 @@ labels.
 
 - Targets must be explicitly configured with `scope_id`, `repository`, `token`,
   and `allowed_repositories`.
-- `max_runs`, `max_jobs`, and `max_artifacts` bound provider request shape.
+- `max_runs`, `max_jobs`, and `max_artifacts` bound provider request shape. An
+  omitted or zero `max_runs` resolves to `defaultMaxRuns` (10); the hard cap
+  stays 100. A fetched runs page that is full (GitHub's `total_count` exceeds
+  the fetched window, or the full-page heuristic when `total_count` is absent)
+  emits a `ci.warning` fact with `reason: "runs_truncated"` on the newest run
+  in the window and records
+  `eshu_dp_ci_cd_run_partial_generations_total{reason="runs_truncated"}`.
+- Consumers of `ci.run`/`ci.artifact`/etc. facts must key by `run_id` (and
+  `run_attempt`), never assume "the only run fact in a generation is the
+  latest run": GitHub returns runs newest-first, but nothing downstream of
+  this package preserves emission order as recency. The reducer/query
+  consumers already key everything by run ID for this reason.
 - Provider HTTP response bodies are closed after each bounded JSON decode or
   status classification so long-running claim loops do not leak connections.
 - Non-rate-limit provider status failures are returned as bounded SDK
@@ -90,22 +106,29 @@ flowchart LR
     Claim["workflow claim"]
     Target["configured repository target"]
     GitHub["GitHub Actions REST API"]
-    Normalize["cicdrun fixture normalizer"]
+    Window["bounded run window (max_runs)"]
+    Normalize["cicdrun fixture normalizer (once per run)"]
     Facts["ci.run / ci.job / ci.artifact / ci.warning facts"]
 
     Claim --> Target
     Target --> GitHub
-    GitHub --> Normalize
+    GitHub --> Window
+    Window --> Normalize
     Normalize --> Facts
 ```
 
 ## Evidence
 
 Collector Performance Evidence: `go test ./internal/collector/cicdrun/ghactionsruntime
--count=1` proves each claim fetches at most one bounded run page, one bounded
-job page, and one bounded artifact page using configured `max_runs`, `max_jobs`,
-and `max_artifacts`; no repository fanout or artifact ZIP download happens in
-this runtime.
+-count=1` proves each claim fetches exactly one bounded run page (`per_page`
+already equals `max_runs`, so the runs request itself is bounded — see
+`TestGitHubClientFetchRunsUsesBoundedActionsEndpoints` and
+`TestGitHubClientFetchRunsCollectsEveryRunInTheWindow`) plus one bounded job
+page and one bounded artifact page per run in the fetched window (bounded by
+`max_jobs`/`max_artifacts` per run, `max_runs` runs). Per-run job/artifact
+fetch volume scales up to `max_runs`x versus the pre-#5338 single-run fetch;
+No-Regression Evidence below states the bounded worst case. No repository
+fanout or artifact ZIP download happens in this runtime.
 
 Collector Observability Evidence: `go test
 ./internal/collector/cicdrun/ghactionsruntime ./internal/telemetry -count=1`
@@ -132,6 +155,25 @@ metrics, rate-limit metrics, fact-emission metrics, partial-generation metrics,
 and source spans without live provider access.
 
 No-Regression Evidence: `go test ./internal/collector ./internal/collector/cicdrun/ghactionsruntime -run 'TestClaimedServiceHonorsRetryAfterOnRetryableCollectFailure|TestGitHubClientReturnsRateLimitRetryGuidance|TestClaimedSourceRecordsRateLimitTelemetry' -count=1` proves GitHub rate-limit retry guidance sets durable claim `visible_at`, keeps `errors.Is(err, ErrRateLimited)` working, records rate-limit metrics, and leaves CI/CD fact output shape unchanged on successful reads.
+
+No-Regression Evidence (#5338 PR B, multi-run collection): the per-claim
+job/artifact fetch volume now multiplies by up to `max_runs`x versus the
+pre-#5338 single-run fetch (one runs-list request stays constant; job and
+artifact requests go from 2 total to up to `2 * max_runs`). This is a bounded
+external HTTP fan-out against GitHub's API, not a hot graph/reducer/database
+path: `max_runs` defaults to 10 and hard-caps at 100, so worst case is 200
+additional bounded HTTP requests per claim cycle, paced by the existing claim
+poll interval and GitHub rate-limit backoff (`ErrRateLimited`/`RateLimitError`)
+that already govern this runtime. `go test
+./internal/collector/cicdrun/ghactionsruntime -count=1` proves the bounded
+per-run request shape (`TestGitHubClientFetchRunsCollectsEveryRunInTheWindow`)
+and that a full runs page still bounds to `max_runs` runs
+(`TestGitHubClientFetchRunsMarksTruncatedWhenMoreRunsExistBeyondTheWindow`,
+`TestClaimedSourceBoundsToMaxRunsAndEmitsRunsTruncatedWarning`).
+`TestClaimedSourceReemittingTheSameRunsWindowIsIdempotent` proves re-fetching
+the same window across claim cycles yields the same `StableFactKey` per run
+(the stateless-idempotent design substituting for a persistent
+watermark/cursor).
 
 Observability Evidence: the hosted command wires the source with
 `telemetry.NewInstruments` and the shared status server. Central collector
