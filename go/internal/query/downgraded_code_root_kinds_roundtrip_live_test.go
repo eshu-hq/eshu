@@ -34,7 +34,9 @@ func TestDowngradedCodeRootKindsRoundTripLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	defer func() { _ = db.Close() }()
+	// t.Cleanup (not defer) so the row-cleanup registered later runs BEFORE the
+	// connection is closed (t.Cleanup is LIFO and runs after the test's defers).
+	t.Cleanup(func() { _ = db.Close() })
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	if err := storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db}); err != nil {
@@ -46,6 +48,23 @@ func TestDowngradedCodeRootKindsRoundTripLive(t *testing.T) {
 	generationID := "gen-" + suffix
 	repoID := "repo-" + suffix
 	now := time.Now().UTC()
+
+	// Clean up every seeded/written row so a persistent dev DB never accumulates
+	// pollution across runs (parity with the #5376 P1 live tests).
+	t.Cleanup(func() {
+		cctx, ccancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer ccancel()
+		for _, q := range []string{
+			`DELETE FROM code_root_verdicts WHERE scope_id=$1`,
+			`DELETE FROM code_reachability_repository_watermarks WHERE scope_id=$1`,
+			`DELETE FROM scope_generations WHERE scope_id=$1`,
+			`DELETE FROM ingestion_scopes WHERE scope_id=$1`,
+		} {
+			if _, err := db.ExecContext(cctx, q, scopeID); err != nil {
+				t.Logf("cleanup %q: %v", q, err)
+			}
+		}
+	})
 
 	seed := func(q string, args ...any) {
 		t.Helper()

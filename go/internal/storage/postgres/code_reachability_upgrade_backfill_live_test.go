@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,20 +17,64 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
+// upgradeBackfillLargeBatchLimit is used both for the loader observation and the
+// runner mutation path so a shared dev DB that has accumulated other pending
+// repos can never truncate or crowd out this test's seeded repo (the loader
+// orders completed_at ASC, repository_id ASC and applies the limit as a SQL
+// LIMIT; older leftovers would otherwise sort first and consume a small batch).
+const upgradeBackfillLargeBatchLimit = 1_000_000
+
+// registerUpgradeBackfillCleanup deletes every row a seed created for one
+// scope/repo when the test finishes (t.Cleanup, LIFO). It is the #5376 P1 F2
+// root-cause fix: without it these live tests leave permanent epoch-0 pending
+// pollution on a persistent ESHU_POSTGRES_DSN, which then crowds out later
+// runs' seeded repos under a bounded ProcessOnce batch. Best-effort: a cleanup
+// failure is logged, not fatal.
+func registerUpgradeBackfillCleanup(t *testing.T, db *sql.DB, scopeID, repoID string) {
+	t.Helper()
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		// Child-first so the cleanup is correct even if a table's FK is not
+		// ON DELETE CASCADE; ingestion_scopes last cascades any stragglers.
+		stmts := []struct {
+			q    string
+			args []any
+		}{
+			{`DELETE FROM code_root_verdicts WHERE scope_id=$1`, []any{scopeID}},
+			{`DELETE FROM code_reachability_rows WHERE scope_id=$1`, []any{scopeID}},
+			{`DELETE FROM code_reachability_repository_watermarks WHERE scope_id=$1`, []any{scopeID}},
+			{`DELETE FROM shared_projection_intents WHERE scope_id=$1`, []any{scopeID}},
+			{`DELETE FROM shared_projection_acceptance WHERE scope_id=$1`, []any{scopeID}},
+			{`DELETE FROM content_entities WHERE repo_id=$1`, []any{repoID}},
+			{`DELETE FROM scope_generations WHERE scope_id=$1`, []any{scopeID}},
+			{`DELETE FROM ingestion_scopes WHERE scope_id=$1`, []any{scopeID}},
+		}
+		for _, s := range stmts {
+			if _, err := db.ExecContext(ctx, s.q, s.args...); err != nil {
+				t.Logf("cleanup %q: %v", s.q, err)
+			}
+		}
+	})
+}
+
 // seedUpgradeBackfillRepo seeds one active scope/generation/repo with a
 // completed code_calls intent and a code_reachability_repository_watermarks row
 // whose updated_at is NEWER than the intent's completed_at AND whose
 // verdict_schema_epoch is 0 — the exact post-migration, pre-upgrade state of an
-// already-indexed repo (#5376 P1). Optional content_entities rows model the
-// repo's Ruby (or non-Ruby) code.
-func seedUpgradeBackfillRepo(t *testing.T, ctx context.Context, db *sql.DB, suffix string, entities func(scopeID, repoID string) []string) (scopeID, repoID string) {
+// already-indexed repo (#5376 P1). `age` is how far back the intent's
+// completed_at is set; optional content_entities model the repo's Ruby (or
+// non-Ruby) code. Registers a t.Cleanup that removes every seeded row.
+func seedUpgradeBackfillRepo(t *testing.T, ctx context.Context, db *sql.DB, suffix string, age time.Duration, entities func(scopeID, repoID string) []string) (scopeID, repoID string) {
 	t.Helper()
 	scopeID = "scope-" + suffix
 	generationID := "gen-" + suffix
 	repoID = "repo-" + suffix
 	sourceRunID := "run-" + suffix
-	completedAt := time.Now().UTC().Add(-1 * time.Hour)
-	watermarkAt := completedAt.Add(30 * time.Minute) // watermark NEWER than the intent
+	completedAt := time.Now().UTC().Add(-age)
+	watermarkAt := completedAt.Add(1 * time.Minute) // watermark NEWER than the intent
+
+	registerUpgradeBackfillCleanup(t, db, scopeID, repoID)
 
 	exec := func(q string, args ...any) {
 		t.Helper()
@@ -65,6 +110,18 @@ func seedUpgradeBackfillRepo(t *testing.T, ctx context.Context, db *sql.DB, suff
 		}
 	}
 	return scopeID, repoID
+}
+
+// seedStalePendingBacklog seeds n minimal stale pending repos (no content, so
+// zero roots) whose completed_at is OLDER than a subsequently-seeded target, so
+// they sort FIRST in the loader's completed_at ASC order — the exact backlog
+// that made a bounded ProcessOnce skip the target. Each is cleaned up.
+func seedStalePendingBacklog(t *testing.T, ctx context.Context, db *sql.DB, testTag string, n int) {
+	t.Helper()
+	for i := 0; i < n; i++ {
+		suffix := fmt.Sprintf("%s-stale-%d-%d", testTag, i, time.Now().UnixNano())
+		seedUpgradeBackfillRepo(t, ctx, db, suffix, 3*time.Hour, nil)
+	}
 }
 
 func rubyControllerEntitiesSQL(_, repoID string) []string {
@@ -103,7 +160,7 @@ func openUpgradeBackfillLiveDB(t *testing.T) (context.Context, *sql.DB) {
 		t.Fatalf("open db: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	t.Cleanup(cancel)
 	if err := ApplyBootstrap(ctx, SQLDB{DB: db}); err != nil {
 		t.Fatalf("apply bootstrap schema: %v", err)
@@ -111,12 +168,16 @@ func openUpgradeBackfillLiveDB(t *testing.T) (context.Context, *sql.DB) {
 	return ctx, db
 }
 
+// testSuffix builds a per-test-unique, traceable id suffix from the test name
+// plus a nanosecond stamp, so each test's rows live in their own scope and no
+// two invocations collide.
+func testSuffix(t *testing.T) string {
+	return fmt.Sprintf("%s-%d", strings.NewReplacer("/", "-", " ", "-").Replace(t.Name()), time.Now().UnixNano())
+}
+
 func loadedRepoIDs(t *testing.T, ctx context.Context, store *CodeReachabilityStore) map[string]bool {
 	t.Helper()
-	// A large limit so a shared test DB that has accumulated many pending repos
-	// cannot truncate this test's repo out of the result (the loader applies the
-	// limit as a SQL LIMIT ordered by completed_at, repository_id).
-	inputs, err := store.LoadPendingCodeReachabilityInputs(ctx, 1_000_000)
+	inputs, err := store.LoadPendingCodeReachabilityInputs(ctx, upgradeBackfillLargeBatchLimit)
 	if err != nil {
 		t.Fatalf("LoadPendingCodeReachabilityInputs: %v", err)
 	}
@@ -125,6 +186,14 @@ func loadedRepoIDs(t *testing.T, ctx context.Context, store *CodeReachabilitySto
 		got[in.RepositoryID] = true
 	}
 	return got
+}
+
+func upgradeBackfillRunner(store *CodeReachabilityStore) *reducer.CodeReachabilityProjectionRunner {
+	return &reducer.CodeReachabilityProjectionRunner{
+		InputLoader: store,
+		RowWriter:   store,
+		Config:      reducer.CodeReachabilityProjectionRunnerConfig{BatchLimit: upgradeBackfillLargeBatchLimit},
+	}
 }
 
 // TestCodeReachabilityUpgradeBackfillReschedules is the #5376 P1 FAILING-FIRST
@@ -136,8 +205,7 @@ func loadedRepoIDs(t *testing.T, ctx context.Context, store *CodeReachabilitySto
 func TestCodeReachabilityUpgradeBackfillReschedules(t *testing.T) {
 	ctx, db := openUpgradeBackfillLiveDB(t)
 	store := NewCodeReachabilityStore(SQLDB{DB: db})
-	suffix := fmt.Sprintf("p1a-%d", time.Now().UnixNano())
-	_, repoID := seedUpgradeBackfillRepo(t, ctx, db, suffix, rubyControllerEntitiesSQL)
+	_, repoID := seedUpgradeBackfillRepo(t, ctx, db, testSuffix(t), time.Hour, rubyControllerEntitiesSQL)
 
 	if !loadedRepoIDs(t, ctx, store)[repoID] {
 		t.Fatalf("upgrade-backfill: repo %q with a stale (epoch 0) watermark newer than its intent was NOT re-scheduled", repoID)
@@ -146,15 +214,18 @@ func TestCodeReachabilityUpgradeBackfillReschedules(t *testing.T) {
 
 // TestCodeReachabilityUpgradeBackfillRoundTripAndAntiLoop proves the runner
 // re-projects a Ruby repo (populating code_root_verdicts), stamps the watermark
-// with the current epoch, and does NOT re-schedule it on the next loader call.
+// with the current epoch, and does NOT re-schedule it on the next loader call —
+// EVEN with a backlog of older stale pending repos ahead of it in the loader's
+// order (the determinism proof the reviewer specified).
 func TestCodeReachabilityUpgradeBackfillRoundTripAndAntiLoop(t *testing.T) {
 	ctx, db := openUpgradeBackfillLiveDB(t)
 	store := NewCodeReachabilityStore(SQLDB{DB: db})
-	suffix := fmt.Sprintf("p1b-%d", time.Now().UnixNano())
-	scopeID, repoID := seedUpgradeBackfillRepo(t, ctx, db, suffix, rubyControllerEntitiesSQL)
 
-	runner := &reducer.CodeReachabilityProjectionRunner{InputLoader: store, RowWriter: store, Config: reducer.CodeReachabilityProjectionRunnerConfig{BatchLimit: 10}}
-	if _, err := runner.ProcessOnce(ctx, time.Now().UTC()); err != nil {
+	// Backlog of >10 OLDER stale pending repos: they sort before the target.
+	seedStalePendingBacklog(t, ctx, db, "rtbacklog", 12)
+	scopeID, repoID := seedUpgradeBackfillRepo(t, ctx, db, testSuffix(t), time.Hour, rubyControllerEntitiesSQL)
+
+	if _, err := upgradeBackfillRunner(store).ProcessOnce(ctx, time.Now().UTC()); err != nil {
 		t.Fatalf("ProcessOnce: %v", err)
 	}
 
@@ -163,7 +234,7 @@ func TestCodeReachabilityUpgradeBackfillRoundTripAndAntiLoop(t *testing.T) {
 		t.Fatalf("count verdicts: %v", err)
 	}
 	if verdicts == 0 {
-		t.Fatalf("expected code_root_verdicts populated for the Ruby repo after re-projection")
+		t.Fatalf("expected code_root_verdicts populated for the Ruby repo after re-projection (even behind a stale backlog)")
 	}
 	var epoch int
 	if err := db.QueryRowContext(ctx, `SELECT verdict_schema_epoch FROM code_reachability_repository_watermarks WHERE scope_id=$1 AND repository_id=$2`, scopeID, repoID).Scan(&epoch); err != nil {
@@ -180,19 +251,19 @@ func TestCodeReachabilityUpgradeBackfillRoundTripAndAntiLoop(t *testing.T) {
 // TestCodeReachabilityUpgradeBackfillZeroVerdictAntiLoop is the case naive
 // "verdict count == 0 => re-schedule" can never pass: a NO-Ruby repo legitimately
 // produces zero verdicts, yet must be stamped with the current epoch after one
-// projection and never re-scheduled.
+// projection and never re-scheduled — again behind a stale backlog.
 func TestCodeReachabilityUpgradeBackfillZeroVerdictAntiLoop(t *testing.T) {
 	ctx, db := openUpgradeBackfillLiveDB(t)
 	store := NewCodeReachabilityStore(SQLDB{DB: db})
-	suffix := fmt.Sprintf("p1c-%d", time.Now().UnixNano())
-	scopeID, repoID := seedUpgradeBackfillRepo(t, ctx, db, suffix, nonRubyEntitiesSQL)
+
+	seedStalePendingBacklog(t, ctx, db, "zvbacklog", 12)
+	scopeID, repoID := seedUpgradeBackfillRepo(t, ctx, db, testSuffix(t), time.Hour, nonRubyEntitiesSQL)
 
 	// Pre-upgrade: the loader schedules it (epoch 0 < current).
 	if !loadedRepoIDs(t, ctx, store)[repoID] {
 		t.Fatalf("no-Ruby repo with a stale watermark should be scheduled once")
 	}
-	runner := &reducer.CodeReachabilityProjectionRunner{InputLoader: store, RowWriter: store, Config: reducer.CodeReachabilityProjectionRunnerConfig{BatchLimit: 10}}
-	if _, err := runner.ProcessOnce(ctx, time.Now().UTC()); err != nil {
+	if _, err := upgradeBackfillRunner(store).ProcessOnce(ctx, time.Now().UTC()); err != nil {
 		t.Fatalf("ProcessOnce: %v", err)
 	}
 
