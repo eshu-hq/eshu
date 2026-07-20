@@ -153,7 +153,34 @@ func resolveSQLRelationshipTarget(
 // function is kept separate rather than widening that one's signature and
 // blast radius across its other callers (TRIGGERS/EXECUTES/HAS_COLUMN/
 // INDEXES).
+//
+// On a genuine miss (no candidate of the stamped kind, and not ambiguous) it
+// retries once with the unqualified (schema-stripped) form of name, so a
+// qualified migration target (e.g. "ALTER TABLE public.orders") still resolves
+// against a bare canonical definition (e.g. "CREATE TABLE orders") — the same
+// mixed qualified/unqualified parser representation the READS_FROM resolver
+// already handles (#5346 codex). The ambiguity signal from the exact pass is
+// preserved: a real same-name collision is never laundered into a match.
 func resolveSQLMigrationTarget(
+	entityByName map[string][]sqlRelationshipEntity,
+	name string,
+	entityType string,
+	repoID string,
+	relativePath string,
+) (target sqlRelationshipEntity, ambiguous bool, ok bool) {
+	if target, ambiguous, ok = resolveSQLMigrationTargetExact(entityByName, name, entityType, repoID, relativePath); ok || ambiguous {
+		return target, ambiguous, ok
+	}
+	if unqualified := unqualifiedSQLRelationshipName(name); unqualified != "" && unqualified != name {
+		return resolveSQLMigrationTargetExact(entityByName, unqualified, entityType, repoID, relativePath)
+	}
+	return sqlRelationshipEntity{}, false, false
+}
+
+// resolveSQLMigrationTargetExact resolves name+kind without the unqualified-name
+// fallback, distinguishing genuinely-missing from ambiguous (see
+// resolveSQLMigrationTarget).
+func resolveSQLMigrationTargetExact(
 	entityByName map[string][]sqlRelationshipEntity,
 	name string,
 	entityType string,

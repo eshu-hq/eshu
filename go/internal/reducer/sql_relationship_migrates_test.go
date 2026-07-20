@@ -78,6 +78,55 @@ func TestExtractSQLRelationshipRowsMigratesResolvesTarget(t *testing.T) {
 	}
 }
 
+// TestExtractSQLRelationshipRowsMigratesResolvesQualifiedTargetAgainstBareEntity
+// is the #5346 codex regression: a migration that names a schema-qualified
+// target (ALTER TABLE public.orders) must still resolve against a bare
+// canonical definition (CREATE TABLE orders) via the unqualified-name fallback,
+// exactly as the READS_FROM resolver does. Before the fallback, the exact-name
+// lookup returned no candidates and the MIGRATES edge was silently skipped as
+// unresolved for the very common mixed qualified/unqualified SQL.
+func TestExtractSQLRelationshipRowsMigratesResolvesQualifiedTargetAgainstBareEntity(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		sqlRelationshipRepositoryEnvelope(false, nil),
+		// Canonical table defined bare (CREATE TABLE orders).
+		sqlRelationshipContentEntity("content-entity:e_ord", "SqlTable", "orders", "db/schema.sql", nil),
+		// Migration targets it schema-qualified (ALTER TABLE public.orders).
+		sqlRelationshipContentEntity("content-entity:e_mig2", "SqlMigration", "V2__alter_orders", "db/migrations/V2__alter_orders.sql", map[string]any{
+			"sql_entity_type":   "SqlMigration",
+			"tool":              "flyway",
+			"migration_targets": []any{sqlMigrationTarget("SqlTable", "public.orders", "alter", 1)},
+		}),
+	}
+
+	_, rows, stats := ExtractSQLRelationshipRows(envelopes)
+
+	if stats.UnresolvedMigrationTargets != 0 {
+		t.Fatalf("UnresolvedMigrationTargets = %d, want 0 (qualified target must resolve against the bare entity)", stats.UnresolvedMigrationTargets)
+	}
+	if stats.AmbiguousMigrationTargets != 0 {
+		t.Fatalf("AmbiguousMigrationTargets = %d, want 0", stats.AmbiguousMigrationTargets)
+	}
+
+	var found bool
+	for _, row := range rows {
+		if anyToString(row["relationship_type"]) != "MIGRATES" {
+			continue
+		}
+		found = true
+		if got, want := row["source_entity_id"], "content-entity:e_mig2"; got != want {
+			t.Errorf("source_entity_id = %v, want %v", got, want)
+		}
+		if got, want := row["target_entity_id"], "content-entity:e_ord"; got != want {
+			t.Errorf("target_entity_id = %v, want %v (bare orders)", got, want)
+		}
+	}
+	if !found {
+		t.Fatalf("no MIGRATES row (qualified target did not resolve against the bare entity) in %#v", rows)
+	}
+}
+
 // TestExtractSQLRelationshipRowsMigratesSkipsAmbiguousSameNameTarget guards
 // the #5346 "never guess" trap: a repo with two same-kind, same-name SqlTable
 // entities (e.g. schema.sql and a legacy schema file both defining "users",
