@@ -7,7 +7,11 @@
 // Parse reads one YAML source file and emits the payload buckets consumed by
 // the parent parser and content materializer: Kubernetes resources, Argo CD
 // applications, Crossplane resources, Kustomize overlays, Helm chart metadata,
-// Helm values metadata, Pub dependency rows, CloudFormation/SAM template rows,
+// Helm values metadata, image override rows (image_overrides, one row per
+// Helm values image: block or Kustomize images[] entry that declares a
+// version override, carrying the tag/digest identity the Helm and Kustomize
+// buckets themselves discard, plus a conservatively inferred deployment
+// environment), Pub dependency rows, CloudFormation/SAM template rows,
 // and Atlantis repo-level project rows (one AtlantisProject row per project in
 // atlantis.yaml, dispatched by filename since the config carries no
 // apiVersion/kind). Flux CD Kustomization custom resources

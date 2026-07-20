@@ -29,28 +29,52 @@ registry lookup, engine dispatch, repository path resolution, and content
 metadata inference.
 
 `image_overrides.go` builds the `image_overrides` bucket (issue #5440): one
-row per declared container image, carrying the tag/digest version truth that
-`helm_values[].image_repositories` and `kustomize_overlays[].image_refs`
-intentionally discard from their own tag-less identity buckets. It is purely
-additive -- adding it does not change either existing bucket's output. Helm
-rows come from every nested `image:` map in a values file (mirroring
-`collectHelmImageRepositories`'s own walk); Kustomize rows come from a
-`kustomization.yaml`'s `images[]` list. `environment` is inferred
-conservatively: the existing `.../environments/<env>/...` path signal
-(`environmentFromPath`) is an author declaration and is returned as-is; a
-`values-<env>.yaml`/`values.<env>.yaml` filename match for Helm is an
-INFERENCE and is gated behind `helmImageOverrideEnvironmentTokens`, a closed
-allowlist mirroring `isDeploymentEnvironmentToken`
+row per declared container image version override, carrying the tag/digest
+version truth that `helm_values[].image_repositories` and
+`kustomize_overlays[].image_refs` intentionally discard from their own
+tag-less identity buckets. It is purely additive -- adding it does not
+change either existing bucket's output. Helm rows come from every nested
+`image:` map in a values file (mirroring `collectHelmImageRepositories`'s
+own walk); Kustomize rows come from a `kustomization.yaml`'s `images[]`
+list, skipping an entry that declares only `name` with none of
+`newName`/`newTag`/`digest` -- a no-op match-target entry with no actual
+version override, so it does not get a phantom row (issue #5440 review P2).
+Both producers' rows are sorted deterministically by full row content
+(`sortImageOverrideRowsByContent`) before dedupe and before the caller's own
+bucket sort, so the same file always parses to the same row order (issue
+#5440 review; see Performance below for why an unsorted input would
+otherwise make that order vary run to run). Both producers also dedupe
+exact-duplicate rows (`dedupeImageOverrideRows`): two declarations identical
+on every field carry no distinguishing information, so they collapse to
+one; a row differing in any field (the same repository under a different
+tag) is kept.
+
+`environment` is inferred from two independent signals, in priority order.
+`imageOverrideDirectoryEnvironment` resolves the
+`.../environments/<env>/...` path-segment signal: `<env>` must be a real
+DIRECTORY (at least one further path segment -- the file itself, or a
+deeper directory -- must follow it, so `environments/values.yaml` on its
+own is NOT a signal, only `environments/<env>/values.yaml` is), the result
+is lowercased, and when a path contains more than one `environments/`
+marker the LAST one that satisfies the directory guard wins -- the
+declaration closest to the file, not the first one encountered in the path
+(issue #5440 P1 and P2-1, independent review; a later marker that fails the
+directory guard is skipped, not treated as clearing an earlier valid one).
+This path signal is an explicit author declaration and is NOT gated by an
+environment-token allowlist: an author who laid a repo out with an
+"environments" directory chose that name deliberately, whatever it is. A
+`values-<env>.yaml`/`values.<env>.yaml` filename match for Helm is a
+separate, lower-priority signal used only when the path signal is absent --
+an INFERENCE, not a declaration -- and IS gated behind
+`helmImageOverrideEnvironmentTokens`, a closed allowlist mirroring
+`isDeploymentEnvironmentToken`
 (`go/internal/query/repository_deployment_evidence_read_model.go`), so a
 non-environment suffix such as `values.schema.yaml` or `values.example.yaml`
-resolves to `""` rather than a fabricated environment. It does not scan
-arbitrary path segments for environment-like keywords -- broader environment
-detection is issue #5444's scope. Both producers dedupe exact-duplicate rows
-(`dedupeImageOverrideRows`): two declarations identical on every field carry
-no distinguishing information, so they collapse to one; a row differing in
-any field (the same repository under a different tag) is kept. Graph
-projection of this bucket (a node label and reducer materialization) is issue
-#5441's scope, not this package's.
+resolves to `""` rather than a fabricated environment. Neither signal scans
+arbitrary path segments for environment-like keywords -- broader
+environment detection is issue #5444's scope. Graph projection of this
+bucket (a node label and reducer materialization) is issue #5441's scope,
+not this package's.
 
 Argo CD Application rows preserve the existing singular `source_repo`,
 `source_path`, `source_revision`, and `source_root` fields from the primary
@@ -331,6 +355,30 @@ representative fixture's 1-in-3 no-op entries are now skipped entirely
 regression that would concern the repo-scale performance contract; the sort
 runs once per file, over a small in-memory row count, inside the same async
 parse stage as everything else in this package.
+
+Marker-selection-fix follow-up (same issue, same benchmarks): a third
+independent review found `imageOverrideDirectoryEnvironment` returned on
+the FIRST `environments` path marker that satisfied the directory guard,
+which is not necessarily the correct one --
+`modules/environments/scripts/environments/prod/values.yaml` resolved to
+`"scripts"` instead of `"prod"` (issue #5440 review P2-1). The fix scans
+every marker instead of stopping at the first, keeping the LAST
+guard-passing one. None of this package's benchmark fixtures contain an
+`environments/` path segment, so this is a pure correctness fix with no
+expected cost on the representative/large fixtures; re-measured to confirm
+rather than assumed. `-count=5`, same session:
+
+| Fixture | ns/op (prev -> now) | B/op (prev -> now) | allocs/op (prev -> now) |
+| --- | --- | --- | --- |
+| Helm 20 images | ~410.4us -> ~392.2us (noise) | 266,844 -> 266,840 (flat) | 3,945 -> 3,945 (+0) |
+| Helm 200 images | ~4.20ms -> ~4.16ms (noise) | 2,427,990 -> 2,427,970 (flat) | 37,174 -> ~37,174 (flat) |
+| Kustomize 20 images | ~116.5us -> ~113.9us (noise) | 80,266 -> 80,266 (flat) | 1,087 -> 1,087 (+0) |
+| Kustomize 200 images | ~1.03ms -> ~1.03ms (flat) | 614,540 -> 614,544 (flat) | 8,597 -> 8,597 (+0) |
+
+Confirmed, not assumed: B/op and allocs/op are unchanged (within a few
+bytes -- normal small map-growth variance) on every fixture, and ns/op
+deltas are within the same few-percent run-to-run band this session has
+shown throughout, not a directional regression.
 
 ## Gotchas / invariants
 
