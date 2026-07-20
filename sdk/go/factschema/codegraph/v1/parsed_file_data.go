@@ -14,8 +14,9 @@ package v1
 // producer field is dropped and the wire schema for parsed_file_data stays
 // byte-identical (no schema major bump).
 //
-// The five keys typed here are the low-risk batch: each is produced by exactly
-// one parser subsystem with a stable, closed element shape, unlike the wide
+// The first five keys below (GomodState through DockerfileStage) are #4750
+// S1's original low-risk batch: each is produced by exactly one parser
+// subsystem with a stable, closed element shape, unlike the wide
 // per-language AST buckets (imports/functions/function_calls/classes/variables/
 // framework_semantics) whose element shape is a union of many independently
 // evolving per-language field sets, deferred to later #4750 increments. The
@@ -23,6 +24,12 @@ package v1
 // github_actions_workflow_triggers, github_actions_reusable_workflow_refs,
 // jenkins_pipeline_calls) have zero producers on this branch and are tracked
 // separately by cleanup issue #4771, not typed here.
+//
+// ImageOverride (added by issue #5440) follows the same closed-shape,
+// single-key-per-struct pattern but is typed proactively, ahead of a reducer
+// read: #5440 only adds the parser-side image_overrides bucket, and #5441
+// (graph projection) is the first consumer. The accessor exists from day one
+// so #5441 decodes through a typed struct rather than a raw map lookup.
 
 // GomodState is the typed view of a parsed_file_data "gomod_state" inner key,
 // the per-file parse-state envelope the Go module manifest parser emits
@@ -126,4 +133,50 @@ type DockerfileStage struct {
 	// non-empty (platform, copies_from, workdir, entrypoint, cmd, user,
 	// healthcheck) plus the "lang" tag, preserving their JSON-native types.
 	Attributes map[string]any `json:"-"`
+}
+
+// ImageOverride is the typed view of one entry in a parsed_file_data
+// "image_overrides" inner slice, one declared container image override the
+// Helm values and Kustomize image-list parsers each emit
+// (go/internal/parser/yaml/image_overrides.go collectHelmImageOverrides /
+// collectKustomizeImageOverrides, issue #5440). It carries the per-image
+// tag/digest version truth that helm_values[].image_repositories and
+// kustomize_overlays[].image_refs intentionally discard from their own
+// stable, tag-less identity buckets. Both producers write the identical
+// closed row shape, so every field is named here with no open Attributes
+// pass-through -- unlike DockerfileStage above, no third producer can add an
+// unlisted field to this key.
+type ImageOverride struct {
+	// Name is the image identity as declared by the source producer: a Helm
+	// values image.repository string (which may itself carry an inline
+	// tag/digest, e.g. "repo:v1"), or a Kustomize images[].name match target.
+	Name string `json:"name,omitempty"`
+	// Repository is the resolved, version-stripped image repository: Helm's
+	// repository with any inline tag/digest removed
+	// (normalizeContainerImageRepository), or Kustomize's newName when set,
+	// else name.
+	Repository string `json:"repository,omitempty"`
+	// Tag is the declared image tag: a Helm sibling `tag:` key (or a tag
+	// parsed out of an inline "repo:tag" repository string when no sibling
+	// key is present) or Kustomize's newTag. Empty when no tag is declared.
+	Tag string `json:"tag,omitempty"`
+	// Digest is the declared image digest in full "sha256:..." form: a Helm
+	// sibling `digest:` key (or a digest parsed out of an inline
+	// "repo@sha256:..." repository string) or Kustomize's digest. Empty when
+	// no digest is declared.
+	Digest string `json:"digest,omitempty"`
+	// Environment is the inferred deployment environment ("prod", "staging",
+	// ...), or "" when it cannot be confidently inferred. See
+	// go/internal/parser/yaml/image_overrides.go for the conservative,
+	// filename/path-based inference rule; issue #5444 owns broader
+	// environment detection.
+	Environment string `json:"environment,omitempty"`
+	// Source identifies the producing parser: "helm" or "kustomize".
+	Source string `json:"source,omitempty"`
+	// Path is the source file path.
+	Path string `json:"path,omitempty"`
+	// LineNumber is the declaring document's source line number.
+	LineNumber int `json:"line_number,omitempty"`
+	// Lang is always "yaml", both producers being YAML-family parsers.
+	Lang string `json:"lang,omitempty"`
 }

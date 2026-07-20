@@ -230,3 +230,111 @@ func TestDecodeParsedFileDataStringSliceKeys(t *testing.T) {
 		})
 	}
 }
+
+// TestDecodeParsedFileDataImageOverrides_TypedRows proves the image_overrides
+// inner key of a parsed_file_data map decodes into a typed
+// []codegraphv1.ImageOverride carrying every field the Helm values and
+// Kustomize images[] producers emit (go/internal/parser/yaml/
+// image_overrides.go, issue #5440), tolerating both the []map[string]any the
+// parsers build in memory and the []any of map[string]any a Postgres JSONB
+// round trip yields.
+func TestDecodeParsedFileDataImageOverrides_TypedRows(t *testing.T) {
+	t.Parallel()
+
+	t.Run("in_memory_map_slice", func(t *testing.T) {
+		t.Parallel()
+
+		pfd := map[string]any{
+			"image_overrides": []map[string]any{
+				{
+					"name":        "ghcr.io/example/checkout-service:v2.0.0",
+					"repository":  "ghcr.io/example/checkout-service",
+					"tag":         "v2.0.0",
+					"digest":      "",
+					"environment": "prod",
+					"source":      "helm",
+					"path":        "charts/checkout/values-prod.yaml",
+					"line_number": 1,
+					"lang":        "yaml",
+				},
+			},
+		}
+
+		overrides, err := DecodeParsedFileDataImageOverrides(pfd)
+		if err != nil {
+			t.Fatalf("DecodeParsedFileDataImageOverrides() error = %v, want nil", err)
+		}
+		if len(overrides) != 1 {
+			t.Fatalf("len(overrides) = %d, want 1", len(overrides))
+		}
+		override := overrides[0]
+		if override.Name != "ghcr.io/example/checkout-service:v2.0.0" {
+			t.Fatalf("Name = %q", override.Name)
+		}
+		if override.Repository != "ghcr.io/example/checkout-service" || override.Tag != "v2.0.0" {
+			t.Fatalf("Repository/Tag = %q/%q", override.Repository, override.Tag)
+		}
+		if override.Environment != "prod" || override.Source != "helm" {
+			t.Fatalf("Environment/Source = %q/%q", override.Environment, override.Source)
+		}
+		if override.Path != "charts/checkout/values-prod.yaml" || override.LineNumber != 1 || override.Lang != "yaml" {
+			t.Fatalf("Path/LineNumber/Lang = %q/%d/%q", override.Path, override.LineNumber, override.Lang)
+		}
+	})
+
+	// Postgres JSONB round trip: []map[string]any becomes []any of
+	// map[string]any, and the int line_number becomes float64.
+	t.Run("jsonb_any_slice_round_trip", func(t *testing.T) {
+		t.Parallel()
+
+		pfd := map[string]any{
+			"image_overrides": []any{
+				map[string]any{
+					"name":        "sidecar",
+					"repository":  "ghcr.io/example/envoy",
+					"tag":         "",
+					"digest":      "sha256:abc123def456",
+					"environment": "",
+					"source":      "kustomize",
+					"path":        "overlays/prod/kustomization.yaml",
+					"line_number": float64(4),
+					"lang":        "yaml",
+				},
+			},
+		}
+
+		overrides, err := DecodeParsedFileDataImageOverrides(pfd)
+		if err != nil {
+			t.Fatalf("DecodeParsedFileDataImageOverrides() error = %v, want nil", err)
+		}
+		if len(overrides) != 1 {
+			t.Fatalf("len(overrides) = %d, want 1", len(overrides))
+		}
+		override := overrides[0]
+		if override.Name != "sidecar" || override.Repository != "ghcr.io/example/envoy" {
+			t.Fatalf("Name/Repository = %q/%q", override.Name, override.Repository)
+		}
+		if override.Digest != "sha256:abc123def456" || override.Source != "kustomize" {
+			t.Fatalf("Digest/Source = %q/%q", override.Digest, override.Source)
+		}
+		if override.LineNumber != 4 {
+			t.Fatalf("LineNumber = %d, want 4 (from JSONB float64)", override.LineNumber)
+		}
+	})
+}
+
+// TestDecodeParsedFileDataImageOverrides_Absent proves an absent
+// image_overrides key decodes to a nil slice with no error, matching the
+// other closed-shape slice accessors' absent-key behavior (for example
+// DecodeParsedFileDataDockerfileStages).
+func TestDecodeParsedFileDataImageOverrides_Absent(t *testing.T) {
+	t.Parallel()
+
+	overrides, err := DecodeParsedFileDataImageOverrides(map[string]any{"lang": "yaml"})
+	if err != nil {
+		t.Fatalf("DecodeParsedFileDataImageOverrides() error = %v, want nil", err)
+	}
+	if overrides != nil {
+		t.Fatalf("overrides = %#v, want nil for an absent image_overrides key", overrides)
+	}
+}
