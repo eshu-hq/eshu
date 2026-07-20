@@ -245,6 +245,13 @@ func repoCheckoutName(repoID string) (string, error) {
 	if normalized == "" {
 		return "", fmt.Errorf("invalid repository identifier %q", repoID)
 	}
+	// Reject names that would squat on the reserved ref-worktree namespace
+	// (N3 fix: a repo named .eshu-ref-worktrees would occupy
+	// ReposDir/.eshu-ref-worktrees, trapping other repos' ref worktrees
+	// inside its canonical checkout where they'd be walked as its files).
+	if strings.HasPrefix(normalized, ".eshu-") {
+		return "", fmt.Errorf("repository identifier %q conflicts with reserved .eshu- prefix; rename the repository", repoID)
+	}
 	return normalized, nil
 }
 

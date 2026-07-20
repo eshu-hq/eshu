@@ -52,51 +52,52 @@ func syncGitRepositoriesWithLogger(
 		}
 		repoPath := filepath.Join(config.ReposDir, filepath.FromSlash(checkoutName))
 		event := gitSyncLogEventFor(repoID, i+1, len(repositoryIDs))
+		mainSelected := false
+		hasPinnedRefs := len(config.PinnedRefsByRepoID[repoID]) > 0
+
 		if !hasGitMarker(repoPath) {
 			cloned, cloneErr := cloneRepository(ctx, config, repoID, repoPath, token, logger, event)
 			if cloneErr == nil && cloned {
 				selected = append(selected, repoPath)
+				mainSelected = true
 				refs, refsErr := remoteGitRefs(ctx, config, repoPath, token)
 				if refsErr != nil {
 					logGitSyncFailed(ctx, logger, event.withOperation("list_refs"), refsErr)
 					return GitSyncSelection{}, refsErr
 				}
 				refsByRepoPath[repoPath] = refs
-				// Create isolated worktrees for pinned refs (enabler #5417).
-				entries, newCount, wtErr := createRefWorktrees(ctx, config, repoPath, repoID, token, logger, event, fleetRefCount, fleetCap)
-				if wtErr != nil {
-					return GitSyncSelection{}, wtErr
+			}
+		} else {
+			forceReconcile := reconcileBudgetRemaining(baseline.Reconcile, reconciledThisCycle) &&
+				baseline.reconcileDue(ctx, config, repoPath)
+			updated, delta, sourceSHA, updateErr := syncExistingRepository(ctx, config, repoPath, token, logger, event, baseline, forceReconcile)
+			if updateErr == nil && updated {
+				selected = append(selected, repoPath)
+				mainSelected = true
+				refs, refsErr := remoteGitRefs(ctx, config, repoPath, token)
+				if refsErr != nil {
+					logGitSyncFailed(ctx, logger, event.withOperation("list_refs"), refsErr)
+					return GitSyncSelection{}, refsErr
 				}
-				fleetRefCount = newCount
-				if len(entries) > 0 {
-					refWorktreesByRepoPath[repoPath] = entries
+				refsByRepoPath[repoPath] = refs
+				if !delta.IsEmpty() {
+					deltaByRepoPath[repoPath] = delta
+				}
+				sourceSHAByRepoPath[repoPath] = sourceSHA
+				if forceReconcile {
+					reconcileByRepoPath[repoPath] = true
+					reconciledThisCycle++
+					baseline.recordReconciliation(ctx)
 				}
 			}
-			continue
 		}
-		// Reconciliation is bounded per cycle so a fleet of overdue scopes does
-		// not stampede into simultaneous full snapshots.
-		forceReconcile := reconcileBudgetRemaining(baseline.Reconcile, reconciledThisCycle) &&
-			baseline.reconcileDue(ctx, config, repoPath)
-		updated, delta, sourceSHA, updateErr := syncExistingRepository(ctx, config, repoPath, token, logger, event, baseline, forceReconcile)
-		if updateErr == nil && updated {
-			selected = append(selected, repoPath)
-			refs, refsErr := remoteGitRefs(ctx, config, repoPath, token)
-			if refsErr != nil {
-				logGitSyncFailed(ctx, logger, event.withOperation("list_refs"), refsErr)
-				return GitSyncSelection{}, refsErr
-			}
-			refsByRepoPath[repoPath] = refs
-			if !delta.IsEmpty() {
-				deltaByRepoPath[repoPath] = delta
-			}
-			sourceSHAByRepoPath[repoPath] = sourceSHA
-			if forceReconcile {
-				reconcileByRepoPath[repoPath] = true
-				reconciledThisCycle++
-				baseline.recordReconciliation(ctx)
-			}
-			// Create isolated worktrees for pinned refs (enabler #5417).
+
+		// Ref worktrees run EVERY cycle when pinned refs exist, independent
+		// of whether the default branch moved (N1 fix: the epic #5393
+		// motivating scenario is a quiet default branch with an actively
+		// deployed pinned branch — without this, the pinned branch never
+		// refreshes between reconciliation cycles).
+		if hasPinnedRefs {
 			entries, newCount, wtErr := createRefWorktrees(ctx, config, repoPath, repoID, token, logger, event, fleetRefCount, fleetCap)
 			if wtErr != nil {
 				return GitSyncSelection{}, wtErr
@@ -104,6 +105,12 @@ func syncGitRepositoriesWithLogger(
 			fleetRefCount = newCount
 			if len(entries) > 0 {
 				refWorktreesByRepoPath[repoPath] = entries
+				// When ref worktrees were refreshed but the default branch
+				// did not move, the main repo path still needs to be in the
+				// selection so buildSelectedRepositories picks up the entries.
+				if !mainSelected {
+					selected = append(selected, repoPath)
+				}
 			}
 		}
 	}
@@ -471,29 +478,4 @@ func flushProgressWriter(writer io.Writer) {
 	if ok {
 		flusher.Flush()
 	}
-}
-
-func gitCommandEnv(config RepoSyncConfig, token string) []string {
-	env := os.Environ()
-	authMethod := strings.ToLower(strings.TrimSpace(config.GitAuthMethod))
-	switch authMethod {
-	case "token", "githubapp":
-		if strings.TrimSpace(token) == "" {
-			return env
-		}
-		index := len(env)
-		env = append(
-			env,
-			fmt.Sprintf("GIT_CONFIG_COUNT=%d", 1),
-			"GIT_CONFIG_KEY_0=http.https://github.com/.extraheader",
-			"GIT_CONFIG_VALUE_0="+githubHTTPExtraHeader(token),
-		)
-		_ = index
-	case "ssh":
-		command := buildSSHCommand(config)
-		if command != "" {
-			env = append(env, "GIT_SSH_COMMAND="+command)
-		}
-	}
-	return env
 }

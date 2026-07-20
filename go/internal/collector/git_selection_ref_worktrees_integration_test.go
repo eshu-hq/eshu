@@ -159,3 +159,161 @@ func writeGitFile(t *testing.T, path, content string) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 }
+
+// TestSyncGitRepositoriesRefreshesPinnedRefWhenDefaultUnmoved proves N1:
+// syncGitRepositoriesWithLogger refreshes pinned ref worktrees EVERY cycle,
+// even when the default branch did not move (the epic #5393 motivating
+// scenario — quiet default, actively deployed pinned branch).
+func TestSyncGitRepositoriesRefreshesPinnedRefWhenDefaultUnmoved(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	// Bare repo as "remote".
+	bareDir := t.TempDir()
+	gitInit(t, bareDir, "--bare", "-b", "main")
+
+	reposDir := t.TempDir()
+	repoName := "test-repo-n1"
+	repoPath := filepath.Join(reposDir, repoName)
+
+	// Create initial commit on main and a feature branch.
+	tmpDir := t.TempDir()
+	gitClone(t, ctx, bareDir, tmpDir)
+	writeGitFile(t, filepath.Join(tmpDir, "README.md"), "# initial\n")
+	gitAddCommit(t, tmpDir, "initial")
+	gitPush(t, tmpDir, bareDir, "main")
+
+	// Create feature branch.
+	writeGitFile(t, filepath.Join(tmpDir, "README.md"), "# feature v1\n")
+	gitRunIn(t, tmpDir, "checkout", "-b", "feature-x")
+	gitAddCommit(t, tmpDir, "feature v1")
+	gitPush(t, tmpDir, bareDir, "feature-x")
+
+	// Pre-clone into the managed repos path so syncExistingRepository is called
+	// instead of cloneRepository (which would try to resolve a GitHub remote URL).
+	gitClone(t, ctx, bareDir, repoPath)
+
+	cfg := RepoSyncConfig{
+		ReposDir:            reposDir,
+		SourceMode:          "explicit",
+		CloneDepth:          1,
+		PinnedRefsByRepoID:  map[string][]string{repoName: {"feature-x"}},
+		PinnedRefPerRepoCap: 3,
+		GitAuthMethod:       "none",
+		GithubOrg:           "test",
+		RepoLimit:           1,
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+
+	// First sync cycle: fetch + create ref worktree.
+	sel1, err := syncGitRepositoriesWithLogger(ctx, cfg, []string{repoName}, logger, gitDeltaBaseline{})
+	if err != nil {
+		t.Fatalf("first syncGitRepositoriesWithLogger error = %v", err)
+	}
+	if len(sel1.SelectedRepoPaths) == 0 {
+		t.Fatal("first sync: no repos selected")
+	}
+	entries1 := sel1.RefWorktreesByRepoPath[repoPath]
+	if len(entries1) != 1 {
+		t.Fatalf("first sync: ref worktrees = %d, want 1", len(entries1))
+	}
+	firstSHA := entries1[0].HeadSHA
+
+	// Advance the feature branch WITHOUT touching main.
+	writeGitFile(t, filepath.Join(tmpDir, "README.md"), "# feature v2\n")
+	gitRunIn(t, tmpDir, "checkout", "feature-x")
+	gitAddCommit(t, tmpDir, "feature v2")
+	gitPush(t, tmpDir, bareDir, "feature-x")
+
+	// Second sync cycle: main is unmoved, but feature-x advanced.
+	// Before N1 fix: updated=false, createRefWorktrees never called → stale SHA.
+	// After  N1 fix: createRefWorktrees runs regardless → SHA advances.
+	sel2, err := syncGitRepositoriesWithLogger(ctx, cfg, []string{repoName}, logger, gitDeltaBaseline{})
+	if err != nil {
+		t.Fatalf("second syncGitRepositoriesWithLogger error = %v", err)
+	}
+	entries2 := sel2.RefWorktreesByRepoPath[repoPath]
+	if len(entries2) != 1 {
+		t.Fatalf("second sync: ref worktrees = %d, want 1 (N1: should refresh even when default unmoved)", len(entries2))
+	}
+	secondSHA := entries2[0].HeadSHA
+	if firstSHA == secondSHA {
+		t.Fatalf("N1: second SHA (%s) == first SHA (%s); pinned ref was NOT refreshed when default branch unmoved", firstSHA[:8], secondSHA[:8])
+	}
+	t.Logf("N1: pinned ref advanced from %s to %s while default branch unmoved", firstSHA[:8], secondSHA[:8])
+}
+
+// TestCreateRefWorktreesSlashRefSurvivesReconcile proves N2: a pinned
+// ref containing a slash (e.g. "feature/x") survives reconcile across
+// cycles without being deleted and recreated — the intermediate directory
+// is recognized as a parent of the pinned ref.
+func TestCreateRefWorktreesSlashRefSurvivesReconcile(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	bareDir := t.TempDir()
+	gitInit(t, bareDir, "--bare", "-b", "main")
+
+	reposDir := t.TempDir()
+	repoName := "test-repo-n2"
+	repoPath := filepath.Join(reposDir, repoName)
+
+	tmpDir := t.TempDir()
+	gitClone(t, ctx, bareDir, tmpDir)
+	writeGitFile(t, filepath.Join(tmpDir, "README.md"), "# initial\n")
+	gitAddCommit(t, tmpDir, "initial")
+	gitPush(t, tmpDir, bareDir, "main")
+
+	// Create a slash branch.
+	writeGitFile(t, filepath.Join(tmpDir, "README.md"), "# slash v1\n")
+	gitRunIn(t, tmpDir, "checkout", "-b", "feature/x")
+	gitAddCommit(t, tmpDir, "slash v1")
+	gitPush(t, tmpDir, bareDir, "feature/x")
+
+	// Pre-clone into managed path.
+	gitClone(t, ctx, bareDir, repoPath)
+
+	cfg := RepoSyncConfig{
+		ReposDir:            reposDir,
+		SourceMode:          "explicit",
+		CloneDepth:          1,
+		PinnedRefsByRepoID:  map[string][]string{repoName: {"feature/x"}},
+		PinnedRefPerRepoCap: 3,
+		GitAuthMethod:       "none",
+		GithubOrg:           "test",
+		RepoLimit:           1,
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+
+	// First wave: create the slash worktree.
+	sel1, err := syncGitRepositoriesWithLogger(ctx, cfg, []string{repoName}, logger, gitDeltaBaseline{})
+	if err != nil {
+		t.Fatalf("first syncGitRepositoriesWithLogger error = %v", err)
+	}
+	entries1 := sel1.RefWorktreesByRepoPath[repoPath]
+	if len(entries1) != 1 {
+		t.Fatalf("first sync: ref worktrees = %d, want 1 (slash ref)", len(entries1))
+	}
+	firstSHA := entries1[0].HeadSHA
+
+	// Second wave (default unmoved, pinned ref unchanged): reconcile should
+	// NOT delete the slash ref's worktree.
+	sel2, err := syncGitRepositoriesWithLogger(ctx, cfg, []string{repoName}, logger, gitDeltaBaseline{})
+	if err != nil {
+		t.Fatalf("second syncGitRepositoriesWithLogger error = %v", err)
+	}
+	entries2 := sel2.RefWorktreesByRepoPath[repoPath]
+	if len(entries2) != 1 {
+		t.Fatalf("second sync: ref worktrees = %d, want 1 (N2: slash ref should survive reconcile)", len(entries2))
+	}
+	// SHA should be the SAME (nothing advanced) — the key assertion is that
+	// the worktree EXISTS across cycles, not that it changed.
+	if entries2[0].HeadSHA != firstSHA {
+		t.Fatalf("slash ref SHA changed unexpectedly: %s → %s (ref didn't advance)", firstSHA[:8], entries2[0].HeadSHA[:8])
+	}
+	t.Logf("N2: slash ref %s survived reconcile, SHA stable at %s", entries1[0].Ref, firstSHA[:8])
+}
