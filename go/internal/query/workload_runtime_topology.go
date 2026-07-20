@@ -7,8 +7,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sort"
 )
+
+// stablePropertiesKeyMarshalErrorSentinel is returned by stablePropertiesKey
+// when json.Marshal fails. It uses U+FFFF (the non-character sentinel) so it
+// cannot equal any real JSON encoding of a property map and sorts after every
+// real key. Returning "" here instead would collide with a real
+// empty-properties key and silently mis-group or mis-dedup topology edges.
+const stablePropertiesKeyMarshalErrorSentinel = "￿￿stable-properties-marshal-error￿￿"
 
 type workloadRuntimeTopologyResult struct {
 	instances     []map[string]any
@@ -32,7 +40,7 @@ func (h *EntityHandler) fetchWorkloadDeploymentTopology(
 	repoID string,
 	includeProvisioning bool,
 ) (workloadDeploymentTopologyResult, error) {
-	runtimeResult, err := fetchWorkloadRuntimeTopology(ctx, h.Neo4j, whereClause, params, repoID)
+	runtimeResult, err := fetchWorkloadRuntimeTopology(ctx, h.Logger, h.Neo4j, whereClause, params, repoID)
 	if err != nil {
 		return workloadDeploymentTopologyResult{}, err
 	}
@@ -60,6 +68,7 @@ func (h *EntityHandler) fetchWorkloadDeploymentTopology(
 
 func fetchWorkloadRuntimeTopology(
 	ctx context.Context,
+	logger *slog.Logger,
 	reader GraphQuery,
 	whereClause string,
 	params map[string]any,
@@ -125,11 +134,11 @@ func fetchWorkloadRuntimeTopology(
 		if _, visible := seenInstances[instanceID]; !visible {
 			continue
 		}
-		appendUniqueTopologyEdge(&topologyEdges, seenEdges, observedTopologyEdge(
+		appendUniqueTopologyEdge(logger, &topologyEdges, seenEdges, observedTopologyEdge(
 			"DEFINES", StringVal(row, "repo_id"), StringVal(row, "repo_name"),
 			StringVal(row, "workload_id"), StringVal(row, "workload_name"), mapValue(row, "defines_edge"),
 		))
-		appendUniqueTopologyEdge(&topologyEdges, seenEdges, observedTopologyEdge(
+		appendUniqueTopologyEdge(logger, &topologyEdges, seenEdges, observedTopologyEdge(
 			"INSTANCE_OF", instanceID, "", StringVal(row, "workload_id"),
 			StringVal(row, "workload_name"), mapValue(row, "instance_edge"),
 		))
@@ -172,13 +181,13 @@ func observedTopologyEdge(
 	return edge
 }
 
-func appendUniqueTopologyEdge(rows *[]map[string]any, seen map[string]int, edge map[string]any) {
+func appendUniqueTopologyEdge(logger *slog.Logger, rows *[]map[string]any, seen map[string]int, edge map[string]any) {
 	key := topologyEdgeKey(edge)
 	if key == "" {
 		return
 	}
 	if index, exists := seen[key]; exists {
-		if stablePropertiesKey(mapValue(edge, "properties")) < stablePropertiesKey(mapValue((*rows)[index], "properties")) {
+		if stablePropertiesKey(logger, mapValue(edge, "properties")) < stablePropertiesKey(logger, mapValue((*rows)[index], "properties")) {
 			(*rows)[index] = edge
 		}
 		return
@@ -187,10 +196,21 @@ func appendUniqueTopologyEdge(rows *[]map[string]any, seen map[string]int, edge 
 	*rows = append(*rows, edge)
 }
 
-func stablePropertiesKey(properties map[string]any) string {
+// stablePropertiesKey returns a deterministic string key for a property map so
+// that topology edges and provisioning evidence can be deduplicated and ordered
+// by content. On a json.Marshal failure it logs via logger (nil-safe) and
+// returns a distinct non-colliding sentinel rather than "", which would collide
+// with a real empty-properties key and corrupt edge grouping.
+func stablePropertiesKey(logger *slog.Logger, properties map[string]any) string {
 	encoded, err := json.Marshal(properties)
 	if err != nil {
-		return ""
+		if logger != nil {
+			logger.Warn(
+				"stable properties key marshal failed; using non-colliding sentinel",
+				slog.String("error", err.Error()),
+			)
+		}
+		return stablePropertiesKeyMarshalErrorSentinel
 	}
 	return string(encoded)
 }

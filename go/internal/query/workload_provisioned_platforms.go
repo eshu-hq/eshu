@@ -131,8 +131,10 @@ func deterministicEvidenceProperties(row map[string]any, field string) map[strin
 	if len(candidates) == 0 {
 		return nil
 	}
+	// No logger is threaded to this deterministic-ordering helper; a marshal
+	// failure still yields the non-colliding sentinel from stablePropertiesKey.
 	sort.Slice(candidates, func(i, j int) bool {
-		return stablePropertiesKey(candidates[i]) < stablePropertiesKey(candidates[j])
+		return stablePropertiesKey(nil, candidates[i]) < stablePropertiesKey(nil, candidates[j])
 	})
 	return copyStringAnyMap(candidates[0])
 }

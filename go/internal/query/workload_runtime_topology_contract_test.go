@@ -61,7 +61,7 @@ func TestFetchWorkloadRuntimeTopologyReturnsObservedIdentityEdges(t *testing.T) 
 	}}
 
 	result, err := fetchWorkloadRuntimeTopology(
-		t.Context(), reader, "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
+		t.Context(), nil, reader, "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
 		"repository:orders",
 	)
 	if err != nil {
@@ -116,7 +116,7 @@ func TestFetchWorkloadRuntimeTopologyScopesDefiningRepositoriesToCallerGrants(t 
 	})
 
 	result, err := fetchWorkloadRuntimeTopology(
-		ctx, reader, "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
+		ctx, nil, reader, "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
 		"repository:allowed",
 	)
 	if err != nil {
@@ -144,7 +144,7 @@ func TestFetchWorkloadRuntimeTopologyReportsInstanceSentinel(t *testing.T) {
 	}}
 
 	result, err := fetchWorkloadRuntimeTopology(
-		t.Context(), reader, "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
+		t.Context(), nil, reader, "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
 		"repository:orders",
 	)
 	if err != nil {
