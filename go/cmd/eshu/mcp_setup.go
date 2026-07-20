@@ -13,9 +13,17 @@ import (
 const mcpServerKey = "eshu"
 
 // apiKeyEnvVar is the environment variable name an MCP client should reference
-// for the hosted bearer token. Setup emits this reference instead of the raw
-// secret whenever the target client supports env-var interpolation.
+// for the legacy shared admin/dev bearer token (shared-key posture). Setup
+// emits this reference instead of the raw secret whenever the target client
+// supports env-var interpolation.
 const apiKeyEnvVar = "ESHU_API_KEY" // #nosec G101 -- apiKeyEnvVar holds an env-var name, not a secret value
+
+// mcpTokenEnvVar is the per-user bearer token env var emitted in token
+// posture (the default): a personal token issued from the console (Profile ->
+// API tokens, issue #5164), scoped to that engineer's own grants rather than
+// the shared admin/dev key. See docs/public/mcp/index.md for the documented
+// client-side contract this name already establishes (issue #5169, F-8).
+const mcpTokenEnvVar = "ESHU_MCP_TOKEN" // #nosec G101 -- mcpTokenEnvVar holds an env-var name, not a secret value
 
 // mcpSetupMode selects between local stdio launch and hosted HTTP transport.
 type mcpSetupMode int
@@ -34,10 +42,24 @@ type mcpSetupRequest struct {
 	Mode mcpSetupMode
 	// ServiceURL is the hosted MCP endpoint base, used only in hosted mode.
 	ServiceURL string
-	// APIKey is the resolved hosted bearer token. It is never embedded when the
-	// platform supports env-var references; it is only used to decide whether a
-	// token is present and, for clients without env-var support, to mask it.
+	// APIKey is the resolved legacy shared bearer token (shared-key posture
+	// only). It is never embedded when the platform supports env-var
+	// references; it is only used to decide whether a token is present and,
+	// for clients without env-var support, to mask it. Token and SSO posture
+	// never read this field: neither carries a raw secret through the CLI.
 	APIKey string
+	// Posture selects token (default), SSO, or shared-key credential wiring
+	// for hosted snippets. The zero value is postureToken, deliberately: any
+	// call site that forgets to set it (including old tests) gets the new
+	// safe default, not the shared key.
+	Posture mcpAuthPosture
+	// Issuers names the IdP(s) advertised by the discovery probe
+	// (authorization_servers). Feeds SSO-posture guidance notes only.
+	Issuers []string
+	// PreregisteredClientID is the eshu_preregistered_client_id advertised by
+	// the discovery probe, when the deployment has one configured. Feeds
+	// SSO-posture guidance notes only.
+	PreregisteredClientID string
 }
 
 // mcpPlatform describes how one MCP client is configured.
@@ -188,16 +210,19 @@ func redactToken(token string) string {
 	return t[:4] + strings.Repeat("*", len(t)-4)
 }
 
-// tokenReference returns the value to embed for the hosted bearer token. When
-// the platform supports env-var references it returns the ${ESHU_API_KEY}
-// reference and never the secret. Otherwise it returns a masked placeholder and
-// the caller emits out-of-band injection guidance.
-func tokenReference(p *mcpPlatform, apiKey string) string {
+// tokenReference returns the value to embed for a hosted bearer token
+// referenced by envVar (apiKeyEnvVar for shared-key posture, mcpTokenEnvVar
+// for token posture). When the platform supports env-var references it
+// returns the ${envVar} reference and never the secret. Otherwise it returns
+// a masked placeholder built from secret (when known) and the caller emits
+// out-of-band injection guidance. secret is empty for token posture, which
+// never resolves a raw personal token through the CLI in the first place.
+func tokenReference(p *mcpPlatform, envVar, secret string) string {
 	if p.SupportsEnvVarToken {
-		return "${" + apiKeyEnvVar + "}"
+		return "${" + envVar + "}"
 	}
-	if strings.TrimSpace(apiKey) == "" {
-		return "<set " + apiKeyEnvVar + " out of band>"
+	if strings.TrimSpace(secret) == "" {
+		return "<set " + envVar + " out of band>"
 	}
-	return redactToken(apiKey)
+	return redactToken(secret)
 }

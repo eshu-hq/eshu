@@ -339,6 +339,7 @@ nav:
     - Overview: operate/index.md
     - Health Checks: operate/health-checks.md
     - MCP OAuth 2.1 Discovery: operate/mcp-oauth-discovery.md
+    - MCP Client Authentication: operate/mcp-client-auth.md
     - Telemetry: operate/telemetry.md
     - Freshness and Convergence: operate/freshness-convergence.md
     - Correlation Admission Decisions: operate/correlation-admission-decisions.md

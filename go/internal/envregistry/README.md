@@ -34,7 +34,10 @@ No-Regression Evidence: this package is pure declarations plus validation
 helpers, read only by `eshu config validate` and the doc-generator test — never
 on any service request, graph, reducer, or queue hot path. The collector entries
 add no runtime behavior; trigger words in their descriptions (e.g. "heartbeat")
-describe collector settings and are not executed here. Verified by
+describe collector settings and are not executed here. The `mcp`-subsystem
+`ESHU_MCP_TOKEN` entry (issue #5169, F-8) is a client-side env-var name that
+`eshu mcp setup` snippets reference; no Eshu server process reads it, so it has
+no query, graph, reducer, or queue impact. Verified by
 `go test ./internal/envregistry ./cmd/eshu -count=1`.
 
 No-Observability-Change: extends a CLI validation command and a generated

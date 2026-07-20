@@ -101,23 +101,138 @@ func TestUnsupportedPlatformError(t *testing.T) {
 	}
 }
 
+// TestHostedTokenNeverLeaksRaw proves no platform, in any of the three auth
+// postures, ever prints a raw secret -- the acceptance line from issue #5169
+// (F-8): "no secret values in snippet" across token, SSO, and shared-key.
 func TestHostedTokenNeverLeaksRaw(t *testing.T) {
 	t.Parallel()
-	// Every platform that supports env-var refs must emit the reference, and no
-	// platform may print the raw token value.
+	const fakePersonalToken = "eshu_pat_ANOTHERSECRET_789xyz"
+	postures := []struct {
+		name    string
+		posture mcpAuthPosture
+		apiKey  string
+	}{
+		{"token", postureToken, ""},
+		{"sso", postureSSO, ""},
+		{"shared-key", postureSharedKey, fakeBearerToken},
+	}
 	for _, platform := range []string{"codex", "claude", "cursor", "vscode", "generic"} {
-		req := mcpSetupRequest{
-			Mode:       modeHostedHTTP,
-			ServiceURL: "https://eshu.example.com",
-			APIKey:     fakeBearerToken,
+		for _, p := range postures {
+			platform, p := platform, p
+			t.Run(platform+"/"+p.name, func(t *testing.T) {
+				t.Parallel()
+				req := mcpSetupRequest{
+					Mode:       modeHostedHTTP,
+					ServiceURL: "https://eshu.example.com",
+					Posture:    p.posture,
+					APIKey:     p.apiKey,
+					Issuers:    []string{"https://idp.example.com/oauth2/aus123"},
+				}
+				out := renderForTest(t, platform, req)
+				if strings.Contains(out, fakeBearerToken) || strings.Contains(out, fakePersonalToken) {
+					t.Fatalf("platform %q posture %q leaked a raw secret in output:\n%s", platform, p.name, out)
+				}
+			})
 		}
-		out := renderForTest(t, platform, req)
-		if strings.Contains(out, fakeBearerToken) {
-			t.Fatalf("platform %q leaked raw token in output:\n%s", platform, out)
-		}
-		if !strings.Contains(out, "${"+apiKeyEnvVar+"}") {
-			t.Fatalf("platform %q did not emit env-var token reference:\n%s", platform, out)
-		}
+	}
+}
+
+// TestHostedSnippetShapes pins the exact credential shape emitted per
+// platform x posture: token references ${ESHU_MCP_TOKEN} (bearer_token_env_var
+// for Codex) and never ${ESHU_API_KEY}; SSO omits any bearer credential
+// entirely and names the issuer; shared-key references ${ESHU_API_KEY} and
+// always carries the admin/dev warning.
+func TestHostedSnippetShapes(t *testing.T) {
+	t.Parallel()
+	for _, platform := range []string{"codex", "claude", "cursor", "vscode", "generic"} {
+		platform := platform
+
+		t.Run(platform+"/token", func(t *testing.T) {
+			t.Parallel()
+			out := renderForTest(t, platform, mcpSetupRequest{
+				Mode:       modeHostedHTTP,
+				ServiceURL: "https://eshu.example.com",
+				Posture:    postureToken,
+			})
+			if strings.Contains(out, "${"+apiKeyEnvVar+"}") {
+				t.Fatalf("%s token snippet must not reference %s:\n%s", platform, apiKeyEnvVar, out)
+			}
+			if platform == "codex" {
+				if !strings.Contains(out, `bearer_token_env_var = "`+mcpTokenEnvVar+`"`) {
+					t.Fatalf("codex token snippet missing bearer_token_env_var:\n%s", out)
+				}
+			} else if !strings.Contains(out, "${"+mcpTokenEnvVar+"}") {
+				t.Fatalf("%s token snippet missing ${%s} reference:\n%s", platform, mcpTokenEnvVar, out)
+			}
+		})
+
+		t.Run(platform+"/sso", func(t *testing.T) {
+			t.Parallel()
+			out := renderForTest(t, platform, mcpSetupRequest{
+				Mode:                  modeHostedHTTP,
+				ServiceURL:            "https://eshu.example.com",
+				Posture:               postureSSO,
+				Issuers:               []string{"https://idp.example.com/oauth2/aus123"},
+				PreregisteredClientID: "eshu-mcp-client",
+			})
+			if strings.Contains(out, "${"+apiKeyEnvVar+"}") || strings.Contains(out, "${"+mcpTokenEnvVar+"}") {
+				t.Fatalf("%s sso snippet must not reference a bearer token env var:\n%s", platform, out)
+			}
+			if strings.Contains(out, "bearer_token_env_var") {
+				t.Fatalf("%s sso snippet must not set bearer_token_env_var:\n%s", platform, out)
+			}
+			if !strings.Contains(out, "https://idp.example.com/oauth2/aus123") {
+				t.Fatalf("%s sso snippet should name the issuer:\n%s", platform, out)
+			}
+			if !strings.Contains(out, "eshu-mcp-client") {
+				t.Fatalf("%s sso snippet should name the pre-registered client id:\n%s", platform, out)
+			}
+			if platform != "codex" {
+				jsonPart := extractJSON(t, out)
+				var doc map[string]any
+				if err := json.Unmarshal([]byte(jsonPart), &doc); err != nil {
+					t.Fatalf("%s sso snippet not valid JSON: %v\n%s", platform, err, jsonPart)
+				}
+				serversKey := "mcpServers"
+				if platform == "vscode" {
+					serversKey = "servers"
+				}
+				servers, ok := doc[serversKey].(map[string]any)
+				if !ok {
+					t.Fatalf("%s sso snippet missing %s key:\n%s", platform, serversKey, jsonPart)
+				}
+				entry, ok := servers["eshu"].(map[string]any)
+				if !ok {
+					t.Fatalf("%s sso snippet missing eshu entry:\n%s", platform, jsonPart)
+				}
+				if _, present := entry["headers"]; present {
+					t.Fatalf("%s sso entry must omit headers entirely:\n%s", platform, jsonPart)
+				}
+			}
+		})
+
+		t.Run(platform+"/shared-key", func(t *testing.T) {
+			t.Parallel()
+			out := renderForTest(t, platform, mcpSetupRequest{
+				Mode:       modeHostedHTTP,
+				ServiceURL: "https://eshu.example.com",
+				Posture:    postureSharedKey,
+				APIKey:     fakeBearerToken,
+			})
+			if !strings.Contains(out, "WARNING") {
+				t.Fatalf("%s shared-key snippet missing admin/dev warning:\n%s", platform, out)
+			}
+			if strings.Contains(out, fakeBearerToken) {
+				t.Fatalf("%s shared-key snippet leaked raw token:\n%s", platform, out)
+			}
+			if platform == "codex" {
+				if !strings.Contains(out, `bearer_token_env_var = "`+apiKeyEnvVar+`"`) {
+					t.Fatalf("codex shared-key snippet missing bearer_token_env_var:\n%s", out)
+				}
+			} else if !strings.Contains(out, "${"+apiKeyEnvVar+"}") {
+				t.Fatalf("%s shared-key snippet missing ${%s} reference:\n%s", platform, apiKeyEnvVar, out)
+			}
+		})
 	}
 }
 
@@ -294,7 +409,7 @@ func (e *fakeErr) Error() string { return e.msg }
 
 func TestVerificationLocalStdioSkipsEndpointStages(t *testing.T) {
 	t.Parallel()
-	report := runVerification("snippet", mcp.ReadOnlyTools, nil, nil)
+	report := runVerification("snippet", mcp.ReadOnlyTools, nil, nil, "")
 	byStage := stageMap(report)
 	if !byStage[stageConfigGenerated].OK {
 		t.Fatal("config generated stage should pass")
@@ -315,7 +430,7 @@ func TestVerificationLocalStdioSkipsEndpointStages(t *testing.T) {
 
 func TestVerificationHostedAllStages(t *testing.T) {
 	t.Parallel()
-	report := runVerification("snippet", mcp.ReadOnlyTools, okHealth{}, okQuery{})
+	report := runVerification("snippet", mcp.ReadOnlyTools, okHealth{}, okQuery{}, "")
 	if !report.allOK() {
 		t.Fatalf("hosted verification should pass, got %+v", report.Stages)
 	}
@@ -323,7 +438,7 @@ func TestVerificationHostedAllStages(t *testing.T) {
 
 func TestVerificationUnreachableFails(t *testing.T) {
 	t.Parallel()
-	report := runVerification("snippet", mcp.ReadOnlyTools, failingHealth{}, okQuery{})
+	report := runVerification("snippet", mcp.ReadOnlyTools, failingHealth{}, okQuery{}, "")
 	byStage := stageMap(report)
 	if byStage[stageClientReachable].OK {
 		t.Fatal("reachable stage should fail when health probe errors")
@@ -336,7 +451,7 @@ func TestVerificationUnreachableFails(t *testing.T) {
 func TestVerificationHealthIsNotQuerySuccess(t *testing.T) {
 	t.Parallel()
 	// Reachable but the first query fails: report must distinguish the two.
-	report := runVerification("snippet", mcp.ReadOnlyTools, okHealth{}, failQuery{})
+	report := runVerification("snippet", mcp.ReadOnlyTools, okHealth{}, failQuery{}, "")
 	byStage := stageMap(report)
 	if !byStage[stageClientReachable].OK {
 		t.Fatal("reachable stage should pass")
@@ -351,7 +466,7 @@ func TestVerificationHealthIsNotQuerySuccess(t *testing.T) {
 
 func TestVerificationEmptySnippetFails(t *testing.T) {
 	t.Parallel()
-	report := runVerification("", mcp.ReadOnlyTools, nil, nil)
+	report := runVerification("", mcp.ReadOnlyTools, nil, nil, "")
 	byStage := stageMap(report)
 	if byStage[stageConfigGenerated].OK {
 		t.Fatal("config generated stage must fail when snippet is empty")

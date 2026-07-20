@@ -128,21 +128,28 @@ func classifyIndexReadiness(status scanPipelineStatus, repoCount int) (hostedFai
 // token, never the raw value. It reuses the #1767 tokenReference/redactToken
 // helpers: when a platform supports env-var references it returns
 // ${ESHU_API_KEY}; otherwise it returns a masked placeholder so the operator can
-// recognize which key is configured without exposing it.
+// recognize which key is configured without exposing it. `eshu hosted-setup`
+// connects using this resolved ESHU_API_KEY (the shared admin/dev credential,
+// issue #1767) regardless of the deployment's F-8 auth posture, so this always
+// references apiKeyEnvVar -- it is showing the credential the command actually
+// used to connect, not re-deriving a posture.
 func hostedTokenReference(platform, apiKey string) string {
 	if strings.TrimSpace(apiKey) == "" {
 		return ""
 	}
 	if p, err := resolvePlatform(platform); err == nil {
-		return tokenReference(p, apiKey)
+		return tokenReference(p, apiKeyEnvVar, apiKey)
 	}
 	return redactToken(apiKey)
 }
 
 // hostedSetupHint renders a hosted MCP setup snippet for the requested platform
 // by delegating to the #1767 renderSetupSnippet helper. It returns an empty
-// string when no platform was requested or the platform is unknown. The snippet
-// references the ESHU_API_KEY env var and never embeds the raw token.
+// string when no platform was requested or the platform is unknown. The
+// snippet is pinned to shared-key posture: this command authenticates via the
+// resolved ESHU_API_KEY (see hostedTokenReference), so the hint it shows must
+// match the credential it actually used, independent of the deployment's F-8
+// auto-detected auth posture.
 func hostedSetupHint(platform string, client *APIClient) string {
 	if strings.TrimSpace(platform) == "" {
 		return ""
@@ -155,6 +162,7 @@ func hostedSetupHint(platform string, client *APIClient) string {
 		Mode:       modeHostedHTTP,
 		ServiceURL: client.BaseURL,
 		APIKey:     client.APIKey,
+		Posture:    postureSharedKey,
 	}
 	hint, err := renderSetupSnippet(p, req)
 	if err != nil {

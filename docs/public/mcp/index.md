@@ -78,6 +78,15 @@ For a deployed HTTP endpoint, keep the bearer token out of committed docs and
 shell history when possible. Set `ESHU_MCP_URL` to the deployed `mcp-server`
 URL and `ESHU_MCP_TOKEN` to the token issued for that endpoint.
 
+**Prefer `eshu mcp setup --hosted --platform <client>`** over the manual
+one-liners below: it detects whether your deployment uses per-user tokens or
+SSO and prints the matching env-var-reference snippet for Claude Code,
+Cursor, VS Code, Codex, or a generic client — never a raw secret, and never
+one interpolated into a CLI argument. See [MCP Client
+Authentication](../operate/mcp-client-auth.md) for the full posture model and
+per-client shapes. The manual commands below remain for clients or scripts
+that call `claude mcp add` / `codex mcp add` directly.
+
 !!! warning "Breaking change: MCP HTTP transport credential handling (#5168)"
     The MCP HTTP transport routes — `initialize`, `tools/list`, `ping`, and
     `GET /sse` session establishment, not only tool calls — now pass through the

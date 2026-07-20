@@ -104,8 +104,13 @@ type toolLister func() []mcp.ToolDefinition
 // runVerification executes the staged checks. snippet is the generated config
 // (empty means generation failed). health and query may be nil when there is no
 // endpoint to probe (those stages are then skipped, not failed). tools must be
-// non-nil; it returns the visible tool surface.
-func runVerification(snippet string, tools toolLister, health healthProber, query queryProber) verifyReport {
+// non-nil; it returns the visible tool surface. querySkipReason overrides the
+// skipped first-query stage's detail: the caller passes a posture-specific
+// reason (for example "OAuth is interactive" for SSO, or "set ESHU_MCP_TOKEN"
+// for token posture without a personal token) so a hosted skip does not
+// mislabel itself with the local-stdio default. An empty querySkipReason keeps
+// that default.
+func runVerification(snippet string, tools toolLister, health healthProber, query queryProber, querySkipReason string) verifyReport {
 	var report verifyReport
 
 	// Stage 1: config generated.
@@ -123,7 +128,7 @@ func runVerification(snippet string, tools toolLister, health healthProber, quer
 	report.Stages = append(report.Stages, toolsVisibleStage(tools))
 
 	// Stage 4: first query successful.
-	report.Stages = append(report.Stages, firstQueryStage(query))
+	report.Stages = append(report.Stages, firstQueryStage(query, querySkipReason))
 
 	return report
 }
@@ -156,9 +161,13 @@ func toolsVisibleStage(tools toolLister) stageResult {
 	return stageResult{Stage: stageToolsVisible, OK: true, Detail: fmt.Sprintf("%d tools visible", len(defs))}
 }
 
-func firstQueryStage(query queryProber) stageResult {
+func firstQueryStage(query queryProber, skipReason string) stageResult {
 	if query == nil {
-		return stageResult{Stage: stageFirstQuery, Skipped: true, Detail: "no endpoint to query (local stdio)"}
+		detail := strings.TrimSpace(skipReason)
+		if detail == "" {
+			detail = "no endpoint to query (local stdio)"
+		}
+		return stageResult{Stage: stageFirstQuery, Skipped: true, Detail: detail}
 	}
 	if err := query.Smoke(); err != nil {
 		return stageResult{Stage: stageFirstQuery, OK: false, Detail: err.Error()}
