@@ -20,13 +20,14 @@ const (
 
 	// CodeRootVerdictConfirmed marks a root the repo-wide decision still
 	// considers a genuine framework root. Stored for provenance only; the query
-	// never acts on it.
-	CodeRootVerdictConfirmed = "confirmed"
+	// never acts on it. Aliases the shared rubycontroller value so the writer
+	// (here) and the reader (the dead-code query) can never drift.
+	CodeRootVerdictConfirmed = rubycontroller.VerdictConfirmed
 	// CodeRootVerdictDowngraded marks a root the repo-wide decision positively
 	// resolved onward to a non-controller reject branch. The query acts ONLY on
 	// downgraded rows; absence means "the reducer proved nothing" and the root
-	// is kept (lag-safety keystone).
-	CodeRootVerdictDowngraded = "downgraded"
+	// is kept (lag-safety keystone). Aliases the shared rubycontroller value.
+	CodeRootVerdictDowngraded = rubycontroller.VerdictDowngraded
 )
 
 // RubyClassEntity is one Ruby class definition's ancestry, loaded per

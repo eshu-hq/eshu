@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
+	"github.com/eshu-hq/eshu/go/internal/rubycontroller"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -207,8 +208,11 @@ func (cr *ContentReader) DowngradedCodeRootKinds(
 	defer span.End()
 
 	placeholders := make([]string, 0, len(entityIDs))
-	args := make([]any, 0, len(entityIDs)+1)
-	args = append(args, repoID)
+	// $1 = repoID, $2 = the downgraded verdict value bound from the shared
+	// rubycontroller constant the reducer writes, so a rename of the verdict
+	// value cannot silently desync this predicate (no bare 'downgraded' literal).
+	args := make([]any, 0, len(entityIDs)+2)
+	args = append(args, repoID, rubycontroller.VerdictDowngraded)
 	for _, entityID := range entityIDs {
 		args = append(args, entityID)
 		placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)))
@@ -224,7 +228,7 @@ func (cr *ContentReader) DowngradedCodeRootKinds(
 		  ON generation.generation_id = verdict.generation_id
 		 AND generation.status = 'active'
 		WHERE verdict.repository_id = $1
-		  AND verdict.verdict = 'downgraded'
+		  AND verdict.verdict = $2
 		  AND verdict.entity_id IN (` + strings.Join(placeholders, ", ") + `)
 	`
 	rows, err := cr.db.QueryContext(ctx, query, args...)

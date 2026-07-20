@@ -8,6 +8,19 @@ import (
 	"strings"
 )
 
+// Verdict values are the persisted code_root_verdicts.verdict strings. They are
+// defined here — the one package both the reducer (writer) and the dead-code
+// query (reader) import — so a rename cannot silently desync the query's SQL
+// predicate from the value the reducer writes (a drift that would fail-keep:
+// silently empty, a hidden feature regression).
+const (
+	// VerdictConfirmed marks a root the repo-wide decision kept.
+	VerdictConfirmed = "confirmed"
+	// VerdictDowngraded marks a root positively resolved onward to a reject
+	// branch. The dead-code query acts ONLY on this value.
+	VerdictDowngraded = "downgraded"
+)
+
 // MaxWalkDepth caps how many superclass hops the chain walk follows before it
 // gives up and falls back to the keep-biased legacy residual. It mirrors the
 // reducer's defaultCodeReachabilityMaxDepth precedent and protects a
