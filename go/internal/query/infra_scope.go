@@ -12,21 +12,34 @@ import "net/http"
 // Both routes run their own whole-graph Cypher rather than the aggregate store,
 // so they reuse infraResourceScopePredicate (infra_scope_grant.go) to bound
 // results to resources attributable to a scoped token's granted repositories.
-// The predicate is fail-closed with two durable admission paths (#5384,
-// SHAPE-A):
+// The predicate is fail-closed and admits a node through four disjunct
+// families OR-joined together (#5384, SHAPE-A; see infraResourceScopePredicate):
 //
-//  1. Canonical IaC entity nodes (TerraformResource, K8sResource,
-//     CloudFormationResource, ArgoCDApplication, HelmChart, ...) and
-//     materialized Workload / WorkloadInstance nodes carry a durable `repo_id`
-//     property, so the direct compare against the grant arrays is the join.
-//  2. CloudResource nodes carry no `repo_id` and anchor to a repository only
-//     through the WorkloadInstance that USES them. Since the pinned NornicDB
-//     build mis-evaluates EXISTS{} subquery correlation for this shape (see
-//     docs/public/reference/nornicdb-pitfalls.md), admission instead uses a
-//     pattern-predicate OR-chain of inline-map property terms — one term per
-//     grant, e.g. `(n)<-[:USES]-(:WorkloadInstance {repo_id:$g})` — built by
-//     scopeGrantInlineMapDisjunction and capped at maxScopeGrantInlineTerms
-//     with fail-closed degradation.
+//  1. Direct ownership. Canonical IaC entity nodes (TerraformResource,
+//     K8sResource, CloudFormationResource, ArgoCDApplication, HelmChart, ...)
+//     and materialized Workload / WorkloadInstance nodes carry a durable
+//     `repo_id` (or, for a Repository, `id`) property, so the direct compare
+//     against the grant arrays is the join.
+//  2. USES inline-map. CloudResource nodes carry no `repo_id` and anchor to a
+//     repository only through the WorkloadInstance that USES them. Since the
+//     pinned NornicDB build mis-evaluates EXISTS{} subquery correlation for
+//     this backward-anchored shape (see docs/public/reference/nornicdb-pitfalls.md),
+//     admission uses a pattern-predicate OR-chain of inline-map property terms —
+//     one per grant, e.g. `(n)<-[:USES]-(:WorkloadInstance {repo_id:$g})` —
+//     built by scopeGrantInlineMapDisjunction.
+//  3. DEPLOYMENT_SOURCE. A node deployed from a granted repository is admitted
+//     through a forward-anchored `EXISTS { (n)-[:DEPLOYMENT_SOURCE]->(:Repository) }`
+//     — the one EXISTS shape the pinned build evaluates correctly.
+//  4. DEFINES-collision inline-map. A Workload whose materialized `repo_id`
+//     names a different tenant but which a granted repository DEFINES is
+//     admitted through `(n)<-[:DEFINES]-(:Repository {id:$g})`, again as an
+//     inline-map term to avoid the mis-evaluated backward EXISTS.
+//
+// The inline-map families (2, 4) expand one term per grant and are capped at
+// maxScopeGrantInlineTerms with fail-closed degradation: past the cap only the
+// direct-ownership and DEPLOYMENT_SOURCE families still admit, so a pathological
+// >cap-grant token loses collision/USES admission for the overflow (missing
+// rows, never extra rows).
 //
 // Nodes with no granted `repo_id` and no USES path from a granted repository
 // match nothing and stay invisible to scoped tokens. Empty-grant scoped tokens

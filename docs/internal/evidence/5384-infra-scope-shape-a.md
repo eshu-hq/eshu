@@ -97,4 +97,4 @@ runtime knob, queue behavior, or graph write; the handlers keep their existing
 The `maxScopeGrantInlineTerms` cap exposes a `capped` bool from
 `scopeGrantInlineScalars` for a future operator signal; wiring that signal to a
 log or metric (which would touch the telemetry coverage contract) is deliberately
-out of scope for this correctness fix and tracked as a follow-up.
+out of scope for this correctness fix and tracked as a follow-up (#5408).

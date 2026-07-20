@@ -156,6 +156,16 @@ func bindScopeGrantInlineScalars(params map[string]any, scalars []string) {
 // scopeGrantInlineScalars and guarantees the predicate builders and param
 // binders derive an identical ordered slice from one source. Shared / admin /
 // local callers (unscoped) get an empty slice.
+//
+// Callers currently discard the returned capped bool (scalars, _ :=). This is
+// intentional and safe, not an oversight: capping only truncates the inline-map
+// (USES / DEFINES-collision) admission families, which is fail-closed — a
+// >maxScopeGrantInlineTerms-grant token loses collision/USES admission for the
+// overflow (missing rows, never extra) while the direct-ownership and
+// DEPLOYMENT_SOURCE families still admit. Surfacing the cap as an operator
+// signal (log / metric) needs a logger threaded through these string-builder
+// call sites and a telemetry-coverage contract update, so it is tracked
+// separately in #5408 rather than wired here.
 func (f repositoryAccessFilter) scopeGrantInlineScalars() (scalars []string, capped bool) {
 	if !f.scoped() {
 		return nil, false
