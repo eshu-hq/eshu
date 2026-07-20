@@ -792,8 +792,9 @@ empty `source_tool` as "not yet stamped", not as an error.
 
 The canonical vocabulary is defined in
 [Edge Source-Tool Provenance](../edge-source-tool-provenance.md).
-`source_tool` values are always one of the 24 canonical tokens listed there
-(`terraform`, `helm`, `kubernetes`, `unknown`, …).
+A `source_tool` value is always one of the canonical tokens enumerated there;
+that reference is the authoritative list (this page does not restate a count or
+subset of it, which would drift).
 
 ### source_tools breakdown (per verb tile)
 
@@ -837,7 +838,7 @@ the request body:
 ```
 
 When present, only edges whose `r.source_tool` property equals the requested
-token are returned. The token must be one of the 24 canonical values; an
+token are returned. The token must be one of the canonical values; an
 unrecognized value returns `400 Bad Request`. When absent, all edges for the
 verb are returned regardless of their source tool.
 
