@@ -160,7 +160,7 @@ operator-local configuration required to take a lane to live promotion.
 | Azure cloud | `gated` | `operator-gated` | Fixture parity green; sanitized live smoke pending. | Read-only Azure workload identity. Tracked by [#3066](https://github.com/eshu-hq/eshu/issues/3066). |
 | Vault live (secrets/IAM) | `gated` | `operator-gated` | Fixture/parity green per package; live needs a read-only Vault. | `VAULT_ADDR` + read-only token. See [Vault read-only permissions](vault-secrets-iam-permissions.md). |
 | semantic extraction | `gated` | `research-only` | No hosted provider lane; gated behind a provider profile. | `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` opt-in; not a deployed collector. |
-| Kubernetes live | `foundation_only` | `foundation-only` | Lists a read-only core resource set + emits source facts; no claim runtime, reducer projection, drift read model, or chart. | None deployable yet; correlation/drift + Helm pending. |
+| Kubernetes live | `foundation_only` | `foundation-only` | Lists a read-only core resource set + emits source facts; the reducer `kubernetes_correlation` domain and drift read model (`GET /api/v0/kubernetes/correlations`) have landed. Claim-driven runtime pending; the kubernetesLiveCollector Helm chart exists (off by default). | Correlation/drift read surface and the readiness-gated `RUNS_IMAGE` graph edge landed; claim-driven runtime pending. |
 
 ## Operator-Gated Reproduction
 
