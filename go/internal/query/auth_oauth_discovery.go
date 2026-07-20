@@ -310,8 +310,16 @@ func (p *PostureOAuthChallengePolicy) OAuthChallenge(ctx context.Context) (metad
 	// login-only OIDC/SAML providers, two providers sharing one issuer which
 	// the routing table fail-closed excludes, a verifier-build failure, or the
 	// snapshot-TTL startup window). In that state the metadata route 404s, so
-	// the challenge must NOT point a client at it.
-	if p.Issuers != nil && len(p.Issuers.ActiveIssuers(ctx)) == 0 {
+	// the challenge must NOT point a client at it. A nil lister is treated
+	// identically to a zero-issuer one — the handler's serveMetadata also 404s
+	// on nil (a nil lister yields a zero-length AuthorizationServers list), so
+	// short-circuiting nil to "OK" here would break the invariant that the
+	// challenge never points a client at a URL that would itself 404.
+	var activeIssuers []string
+	if p.Issuers != nil {
+		activeIssuers = p.Issuers.ActiveIssuers(ctx)
+	}
+	if len(activeIssuers) == 0 {
 		return "", "", false
 	}
 	return p.MetadataURL, p.Scope, true
