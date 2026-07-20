@@ -37,20 +37,28 @@ import (
 // HANDLES_ROUTE intent, no edge, no error -- which is the exact silent seam
 // codex flagged.
 //
-// PHP/Laravel is the one confirmed non-resolving case: Laravel's idiomatic
-// string-callable route (`Route::get('user', 'UserController@index')`)
-// carries handler = "UserController@index" (an "@"-joined controller/method
-// reference), but codeCallFunctionCandidateNames
-// (go/internal/reducer/code_call_materialization_helpers.go) only ever builds
-// a "."-joined class-qualified candidate ("UserController.index") plus the
-// bare name ("index") -- never an "@"-joined one. So the same
-// resolveHandlesRouteFunction exact-map lookup that resolves every other
-// case here returns "" for Laravel's own facade convention, and the entry is
-// dropped with no error. PHP also carries a passing php/symfony case (a
-// Symfony #[Route] attribute binds directly to a bare method name, which
-// exact-matches), proving PHP keeps a real trace_route_callers consumer even
-// though laravel-route-facade-truth specifically is downgraded (see
-// specs/language-feature-parity-ledger.v1.yaml).
+// PHP/Laravel is the one confirmed non-resolving case, and the reason is the
+// handler-token separator, NOT bare-vs-qualified. codeCallFunctionCandidateNames
+// (go/internal/reducer/code_call_materialization_helpers.go) indexes each
+// method under its bare name ("index"/"show") AND a "."-joined class-qualified
+// candidate ("UserController.index"/"ReportController.show") -- but never an
+// "@"-joined one.
+//
+//   - Symfony (php_symfony, resolves): the parser emits the #[Route] handler
+//     as the class-qualified, DOT-joined string "ReportController.show", which
+//     exact-matches the "."-joined candidate the index builds. It resolves
+//     because the separator matches, not because the token is bare.
+//   - Laravel (php_laravel, does NOT resolve): the parser emits the idiomatic
+//     string-callable handler as "UserController@index" -- an "@"-joined
+//     controller/method reference. No candidate the index builds is "@"-joined,
+//     so resolveHandlesRouteFunction's exact-map lookup returns "" and the real,
+//     existing UserController::index method is never bound. The route entry is
+//     dropped with no edge and no error.
+//
+// So PHP keeps a real trace_route_callers consumer (Symfony's dot-joined
+// convention resolves end to end) even though laravel-route-facade-truth
+// specifically is downgraded for the "@"-join gap (see
+// specs/language-feature-parity-ledger.v1.yaml and #5513).
 func TestRouteQueryProofMatrix(t *testing.T) {
 	t.Parallel()
 
@@ -123,12 +131,16 @@ func TestRouteQueryProofMatrix(t *testing.T) {
 				"only index bare (\"index\") and '.'-joined (\"UserController.index\") " +
 				"candidates, so the real, existing UserController.index method never " +
 				"matches and the route entry is silently dropped (no edge, no error)",
+			wantEmittedHandlerSubstring: "@",
 		},
 		{
 			// Companion PHP case: proves PHP still has a real
-			// trace_route_callers consumer (Symfony's #[Route] attribute
-			// binds directly to a bare method name, which exact-matches)
-			// even though the Laravel facade convention above is downgraded.
+			// trace_route_callers consumer. Symfony's #[Route] attribute
+			// emits the class-qualified, DOT-joined handler
+			// "ReportController.show", which exact-matches the "."-joined
+			// candidate the index builds -- unlike Laravel's "@"-joined
+			// "UserController@index" above. The distinction is the separator,
+			// not bare-vs-qualified.
 			language:       "php",
 			framework:      "symfony",
 			ecosystemDir:   "php_comprehensive",
@@ -162,6 +174,12 @@ type routeQueryProofCase struct {
 	// asserted only via t.Logf so it stays discoverable in verbose test
 	// output without duplicating the doc comment above.
 	seamNote string
+	// wantEmittedHandlerSubstring, when set on a non-resolving case, asserts
+	// the parser DID emit a route entry whose handler string contains this
+	// token before the reducer dropped it -- so the test proves the seam is a
+	// resolution failure on a real, emitted route (e.g. Laravel's "@"-joined
+	// handler) rather than the parser silently emitting no route at all.
+	wantEmittedHandlerSubstring string
 }
 
 // runRouteQueryProofCase drives one routeQueryProofCase through the full
@@ -209,6 +227,20 @@ func runRouteQueryProofCase(t *testing.T, tc routeQueryProofCase) {
 				"%s: expected handler %q to stay unresolved (seam: %s), but got a HANDLES_ROUTE intent: %#v",
 				tc.language, tc.handlerFn, tc.seamNote, intent,
 			)
+		}
+		// Prove the parser DID emit the route (with the seam-carrying handler
+		// token) before the reducer dropped it, so this is a resolution
+		// failure on a real emitted route, not silent non-emission.
+		if tc.wantEmittedHandlerSubstring != "" {
+			emittedHandlers := queryProofRouteEntryHandlers(payload)
+			if !anyStringContains(emittedHandlers, tc.wantEmittedHandlerSubstring) {
+				t.Fatalf(
+					"%s: expected the parser to emit a route entry whose handler contains %q (to prove the route WAS emitted then dropped), but emitted handlers = %#v",
+					tc.language, tc.wantEmittedHandlerSubstring, emittedHandlers,
+				)
+			}
+			t.Logf("%s: parser emitted route handler(s) %#v (contains %q) -- the route was emitted, then dropped at resolution",
+				tc.language, emittedHandlers, tc.wantEmittedHandlerSubstring)
 		}
 		t.Logf("%s: confirmed silent seam (%d intents emitted, none for %q) -- %s",
 			tc.language, len(intents), handlerUID, tc.seamNote)

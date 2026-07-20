@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser"
@@ -122,4 +123,90 @@ func findQueryProofIntentByFunctionEntityID(
 		}
 	}
 	return reducer.SharedProjectionIntentRow{}, false
+}
+
+// queryProofRouteEntryHandlers returns every route_entries[].handler string the
+// parser emitted, flattened across every framework it tagged in
+// payload["framework_semantics"]. It tolerates both the raw parse shape
+// ([]map[string]string, string frameworks) and the JSON-round-tripped shape
+// ([]any of map[string]any, []any frameworks) so a negative test can prove a
+// specific handler token WAS emitted before the reducer dropped it, rather than
+// leaning on a sibling parser test for the emission half of the seam.
+func queryProofRouteEntryHandlers(payload map[string]any) []string {
+	semantics, ok := payload["framework_semantics"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	var handlers []string
+	for _, framework := range queryProofStringSlice(semantics["frameworks"]) {
+		frameworkData, ok := semantics[framework].(map[string]any)
+		if !ok {
+			continue
+		}
+		for _, entry := range queryProofRouteEntrySlice(frameworkData["route_entries"]) {
+			if handler, ok := entry["handler"].(string); ok {
+				handlers = append(handlers, handler)
+			}
+		}
+	}
+	return handlers
+}
+
+// anyStringContains reports whether any element of values contains substr.
+func anyStringContains(values []string, substr string) bool {
+	for _, value := range values {
+		if strings.Contains(value, substr) {
+			return true
+		}
+	}
+	return false
+}
+
+// queryProofStringSlice normalizes a frameworks value that may be []string
+// (raw parse) or []any of string (JSON-round-tripped).
+func queryProofStringSlice(value any) []string {
+	switch typed := value.(type) {
+	case []string:
+		return typed
+	case []any:
+		out := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if s, ok := item.(string); ok {
+				out = append(out, s)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+// queryProofRouteEntrySlice normalizes a route_entries value that may be
+// []map[string]string (raw parse) or []any of map[string]any (round-tripped),
+// returning each entry as map[string]any so callers read fields uniformly.
+func queryProofRouteEntrySlice(value any) []map[string]any {
+	switch typed := value.(type) {
+	case []map[string]string:
+		out := make([]map[string]any, 0, len(typed))
+		for _, entry := range typed {
+			converted := make(map[string]any, len(entry))
+			for k, v := range entry {
+				converted[k] = v
+			}
+			out = append(out, converted)
+		}
+		return out
+	case []map[string]any:
+		return typed
+	case []any:
+		out := make([]map[string]any, 0, len(typed))
+		for _, item := range typed {
+			if entry, ok := item.(map[string]any); ok {
+				out = append(out, entry)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
 }

@@ -263,7 +263,7 @@ language_features:
     test_files: [go/internal/parser/php_language_test.go, go/internal/parser/php_dead_code_roots_test.go, go/internal/parser/php_route_entries_test.go, go/internal/reducer/handles_route_php_test.go, go/internal/query/content_reader_framework_routes_php_test.go, go/internal/query/route_query_proof_helpers_test.go, go/internal/query/route_query_proof_matrix_test.go]
     docs: [docs/public/languages/php.md]
     read_surfaces: [execute_language_query, get_code_relationship_story, find_dead_code, trace_route_callers]
-    tracking_issues: [4038, 4162]
+    tracking_issues: [5513, 4038, 4162]
   - language: python
     docs_claim: docs/public/languages/python.md
     parser_backing: tree-sitter-backed
