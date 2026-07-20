@@ -99,7 +99,7 @@ export interface BlastAffectedEntity {
 }
 
 export interface DeploymentTraceResult {
-  readonly cloudResourceLimits: BoundedCollectionLimits | null;
+  readonly cloudResourceLimits: CloudResourceLimits | null;
   readonly cloudResources: readonly DeploymentTraceEntity[];
   readonly deploymentOverview: Record<string, unknown>;
   readonly deploymentFacts: readonly DeploymentTraceFact[];
@@ -129,6 +129,13 @@ export interface BoundedCollectionLimits {
   readonly querySentinelLimit: number;
   readonly returnedCount: number;
   readonly truncated: boolean;
+}
+
+export interface CloudResourceLimits extends BoundedCollectionLimits {
+  readonly observationCount: number;
+  readonly observationCountIsLowerBound: boolean;
+  readonly observationLimit: number;
+  readonly observationQuerySentinelLimit: number;
 }
 
 export interface KubernetesResourceLimits extends BoundedCollectionLimits {

@@ -7,16 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"sort"
 )
-
-// stablePropertiesKeyMarshalErrorSentinel is returned by stablePropertiesKey
-// when json.Marshal fails. It uses U+FFFF (the non-character sentinel) so it
-// cannot equal any real JSON encoding of a property map and sorts after every
-// real key. Returning "" here instead would collide with a real
-// empty-properties key and silently mis-group or mis-dedup topology edges.
-const stablePropertiesKeyMarshalErrorSentinel = "￿￿stable-properties-marshal-error￿￿"
 
 type workloadRuntimeTopologyResult struct {
 	instances     []map[string]any
@@ -40,16 +32,21 @@ func (h *EntityHandler) fetchWorkloadDeploymentTopology(
 	repoID string,
 	includeProvisioning bool,
 ) (workloadDeploymentTopologyResult, error) {
-	runtimeResult, err := fetchWorkloadRuntimeTopology(ctx, h.Logger, h.Neo4j, whereClause, params, repoID)
+	runtimeResult, err := fetchWorkloadRuntimeTopology(ctx, h.Neo4j, whereClause, params, repoID)
 	if err != nil {
 		return workloadDeploymentTopologyResult{}, err
 	}
-	platformResult, err := h.fetchWorkloadPlatformResult(ctx, runtimeResult.instances)
+	platformResult, err := h.fetchWorkloadPlatformResult(
+		ctx, repoID, StringVal(params, "workload_id"), runtimeResult.instances,
+	)
 	if err != nil {
 		return workloadDeploymentTopologyResult{}, err
+	}
+	if len(platformResult.limits) == 0 {
+		platformResult = emptyWorkloadPlatformResult()
 	}
 	attachDirectPlatforms(runtimeResult.instances, platformResult.rows)
-	provisionedResult := provisionedPlatformResult{rows: []map[string]any{}}
+	provisionedResult := emptyProvisionedPlatformResult()
 	if includeProvisioning {
 		provisionedResult, err = h.fetchProvisionedPlatformResult(ctx, repoID)
 		if err != nil {
@@ -68,7 +65,6 @@ func (h *EntityHandler) fetchWorkloadDeploymentTopology(
 
 func fetchWorkloadRuntimeTopology(
 	ctx context.Context,
-	logger *slog.Logger,
 	reader GraphQuery,
 	whereClause string,
 	params map[string]any,
@@ -76,14 +72,16 @@ func fetchWorkloadRuntimeTopology(
 ) (workloadRuntimeTopologyResult, error) {
 	queryLimit := contextStoryItemLimit + 1
 	access := repositoryAccessFilterFromContext(ctx)
-	if access.empty() {
+	// WorkloadInstance and INSTANCE_OF relationships are global today and do
+	// not carry repository ownership. A scoped caller cannot distinguish shared
+	// workload evidence contributed by an authorized repository from evidence
+	// contributed by another repository, so this path must fail closed. Omit the
+	// limits as well: exact-empty metadata would falsely claim that the withheld
+	// collection was completely observed.
+	if access.scoped() {
 		return workloadRuntimeTopologyResult{
 			instances:     []map[string]any{},
 			topologyEdges: []map[string]any{},
-			limits: boundedCollectionMetadata(
-				contextStoryItemLimit, queryLimit, 0, 0, false,
-				[]string{"environment", "instance_id"},
-			),
 		}, nil
 	}
 	params = copyStringAnyMap(params)
@@ -129,19 +127,27 @@ func fetchWorkloadRuntimeTopology(
 		}
 		if _, seen := seenInstances[instanceID]; !seen && len(instances) < contextStoryItemLimit {
 			seenInstances[instanceID] = struct{}{}
-			instances = append(instances, newWorkloadInstance(row))
+			instance, err := newWorkloadInstance(row)
+			if err != nil {
+				return workloadRuntimeTopologyResult{}, err
+			}
+			instances = append(instances, instance)
 		}
 		if _, visible := seenInstances[instanceID]; !visible {
 			continue
 		}
-		appendUniqueTopologyEdge(logger, &topologyEdges, seenEdges, observedTopologyEdge(
+		if err := appendUniqueTopologyEdge(&topologyEdges, seenEdges, observedTopologyEdge(
 			"DEFINES", StringVal(row, "repo_id"), StringVal(row, "repo_name"),
 			StringVal(row, "workload_id"), StringVal(row, "workload_name"), mapValue(row, "defines_edge"),
-		))
-		appendUniqueTopologyEdge(logger, &topologyEdges, seenEdges, observedTopologyEdge(
+		)); err != nil {
+			return workloadRuntimeTopologyResult{}, fmt.Errorf("select DEFINES edge evidence: %w", err)
+		}
+		if err := appendUniqueTopologyEdge(&topologyEdges, seenEdges, observedTopologyEdge(
 			"INSTANCE_OF", instanceID, "", StringVal(row, "workload_id"),
 			StringVal(row, "workload_name"), mapValue(row, "instance_edge"),
-		))
+		)); err != nil {
+			return workloadRuntimeTopologyResult{}, fmt.Errorf("select INSTANCE_OF edge evidence: %w", err)
+		}
 	}
 	sortTopologyEdges(topologyEdges)
 	truncated := len(rows) >= queryLimit || len(seenInstances) > contextStoryItemLimit
@@ -155,18 +161,27 @@ func fetchWorkloadRuntimeTopology(
 	}, nil
 }
 
-func newWorkloadInstance(row map[string]any) map[string]any {
+func newWorkloadInstance(row map[string]any) (map[string]any, error) {
+	instanceID := StringVal(row, "instance_id")
+	materializationConfidence, err := finiteGraphFloat(
+		row,
+		"materialization_confidence",
+		fmt.Sprintf("workload instance %q", instanceID),
+	)
+	if err != nil {
+		return nil, err
+	}
 	return map[string]any{
-		"instance_id":                StringVal(row, "instance_id"),
+		"instance_id":                instanceID,
 		"platform_name":              "",
 		"platform_kind":              "",
 		"platforms":                  []map[string]any{},
 		"environment":                StringVal(row, "environment"),
-		"materialization_confidence": floatVal(row, "materialization_confidence"),
+		"materialization_confidence": materializationConfidence,
 		"materialization_provenance": StringSliceVal(row, "materialization_provenance"),
 		"platform_confidence":        0.0,
 		"platform_reason":            "",
-	}
+	}, nil
 }
 
 func observedTopologyEdge(
@@ -181,38 +196,36 @@ func observedTopologyEdge(
 	return edge
 }
 
-func appendUniqueTopologyEdge(logger *slog.Logger, rows *[]map[string]any, seen map[string]int, edge map[string]any) {
+func appendUniqueTopologyEdge(rows *[]map[string]any, seen map[string]int, edge map[string]any) error {
 	key := topologyEdgeKey(edge)
 	if key == "" {
-		return
+		return nil
+	}
+	propertiesKey, err := stablePropertiesKey(mapValue(edge, "properties"))
+	if err != nil {
+		return err
 	}
 	if index, exists := seen[key]; exists {
-		if stablePropertiesKey(logger, mapValue(edge, "properties")) < stablePropertiesKey(logger, mapValue((*rows)[index], "properties")) {
+		existingPropertiesKey, err := stablePropertiesKey(mapValue((*rows)[index], "properties"))
+		if err != nil {
+			return err
+		}
+		if propertiesKey < existingPropertiesKey {
 			(*rows)[index] = edge
 		}
-		return
+		return nil
 	}
 	seen[key] = len(*rows)
 	*rows = append(*rows, edge)
+	return nil
 }
 
-// stablePropertiesKey returns a deterministic string key for a property map so
-// that topology edges and provisioning evidence can be deduplicated and ordered
-// by content. On a json.Marshal failure it logs via logger (nil-safe) and
-// returns a distinct non-colliding sentinel rather than "", which would collide
-// with a real empty-properties key and corrupt edge grouping.
-func stablePropertiesKey(logger *slog.Logger, properties map[string]any) string {
+func stablePropertiesKey(properties map[string]any) (string, error) {
 	encoded, err := json.Marshal(properties)
 	if err != nil {
-		if logger != nil {
-			logger.Warn(
-				"stable properties key marshal failed; using non-colliding sentinel",
-				slog.String("error", err.Error()),
-			)
-		}
-		return stablePropertiesKeyMarshalErrorSentinel
+		return "", fmt.Errorf("marshal graph relationship properties: %w", err)
 	}
-	return string(encoded)
+	return string(encoded), nil
 }
 
 func topologyEdgeKey(edge map[string]any) string {
@@ -238,6 +251,20 @@ func boundedCollectionMetadata(limit, queryLimit, returned, observed int, trunca
 		"observed_count_is_lower_bound": truncated,
 		"truncated":                     truncated,
 		"ordering":                      ordering,
+	}
+}
+
+func emptyBoundedCollectionMetadata(limit int, ordering []string) map[string]any {
+	return boundedCollectionMetadata(limit, limit+1, 0, 0, false, ordering)
+}
+
+func emptyWorkloadPlatformResult() workloadPlatformResult {
+	return workloadPlatformResult{
+		rows: []map[string]any{},
+		limits: emptyBoundedCollectionMetadata(
+			workloadPlatformEdgeLimit,
+			[]string{"instance_id", "platform_name", "platform_id"},
+		),
 	}
 }
 

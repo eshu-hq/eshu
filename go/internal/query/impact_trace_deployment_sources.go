@@ -58,7 +58,10 @@ func fetchDeploymentSourceResultFromGraph(
 	repositoryReachedSentinel := len(repositoryRows) >= queryLimit
 	repositoryRows = deploymentSourceRowsWithEndpoints(repositoryRows, "DEPLOYS_FROM", repoID)
 	repositoryRows = deploymentSourceRowsWithCanonicalEndpoints(repositoryRows)
-	merged := normalizedDeploymentSources(mergeDeploymentSourceRows(canonicalRows, repositoryRows))
+	merged, err := normalizedDeploymentSources(mergeDeploymentSourceRows(canonicalRows, repositoryRows))
+	if err != nil {
+		return deploymentSourceResult{}, err
+	}
 	sortDeploymentSources(merged)
 	observedCount := len(merged)
 	rows, mergedTruncated := capMapRows(merged, contextStoryItemLimit)
@@ -162,20 +165,24 @@ func deploymentSourceRelationshipPriority(relationshipType string) int {
 	return 1
 }
 
-func normalizedDeploymentSources(rows []map[string]any) []map[string]any {
+func normalizedDeploymentSources(rows []map[string]any) ([]map[string]any, error) {
 	sources := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
+		confidence, err := finiteGraphFloat(row, "confidence", "deployment source")
+		if err != nil {
+			return nil, err
+		}
 		sources = append(sources, map[string]any{
 			"repo_id":           StringVal(row, "repo_id"),
 			"repo_name":         StringVal(row, "repo_name"),
 			"relationship_type": StringVal(row, "relationship_type"),
 			"source_id":         StringVal(row, "source_id"),
 			"target_id":         StringVal(row, "target_id"),
-			"confidence":        floatVal(row, "confidence"),
+			"confidence":        confidence,
 			"reason":            StringVal(row, "reason"),
 		})
 	}
-	return sources
+	return sources, nil
 }
 
 func deploymentSourceRowsWithEndpoints(

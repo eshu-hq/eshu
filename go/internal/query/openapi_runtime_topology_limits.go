@@ -5,6 +5,7 @@ package query
 
 const openAPIBoundedCollectionLimits = `{
   "type": "object",
+  "required": ["limit", "query_sentinel_limit", "returned_count", "observed_count", "observed_count_is_lower_bound", "truncated", "ordering"],
   "properties": {
     "limit": {"type": "integer"},
     "query_sentinel_limit": {"type": "integer"},

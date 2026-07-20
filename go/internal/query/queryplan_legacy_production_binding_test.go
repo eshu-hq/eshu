@@ -67,6 +67,8 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		handler := &EntityHandler{Neo4j: graphQuery}
 		_, err := handler.fetchWorkloadPlatformRows(
 			context.Background(),
+			"repository:proof",
+			"workload:proof",
 			[]map[string]any{{"instance_id": "instance:proof"}},
 		)
 		return err
@@ -75,6 +77,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		_, err := loadMaterializedServiceCloudResourceDependencies(
 			context.Background(),
 			graphQuery,
+			"repository:proof",
 			"workload:proof",
 			10,
 		)

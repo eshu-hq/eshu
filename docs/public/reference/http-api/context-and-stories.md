@@ -106,9 +106,23 @@ before the public cap. Missing, malformed, or contradictory metadata means
 `completeness unverified`; it never proves a complete empty collection.
 
 `cloud_resource_limits` describes only canonical resources returned from a
-materialized workload-instance `USES` relationship. When the handler reuses
+materialized workload-instance `USES` relationship. It separately reports the
+resource bound and the pre-aggregation relationship-observation bound; a true
+`observation_count_is_lower_bound` means an observation or resource sentinel
+prevented an exact global observation count. Observation-only truncation does
+not prove that a whole resource identity was omitted, so consumers must not
+invent an omitted-resource count from that signal. When the handler reuses
 older context rows that were not sentinel-probed, it omits this block and the
-consumer must fail completeness closed. `controller_overview.entity_limits`
+consumer must fail completeness closed.
+
+`WorkloadInstance`, `INSTANCE_OF`, `RUNS_ON`, and `USES` do not currently carry
+canonical repository ownership. Repository-scoped callers therefore receive no
+runtime-instance, direct-platform, or materialized cloud-resource evidence from
+those global relationships. This fails closed instead of treating a selected
+repository's `DEFINES` edge as ownership of every shared workload observation.
+All-scope and shared sessions continue to receive this topology.
+
+`controller_overview.entity_limits`
 separately bounds service-matched controller entities and discloses source-scan
 saturation. `image_refs` contains images from returned bounded Kubernetes rows
 only; images belonging solely to omitted rows are not returned.

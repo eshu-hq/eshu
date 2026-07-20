@@ -92,6 +92,32 @@ describe("DeploymentTraceSummary topology truth", () => {
       screen.getByText(/Runtime instance belongs to the selected workload/),
     ).toBeInTheDocument();
   });
+
+  it("renders deployment pivots as navigation only when links exist", () => {
+    const { rerender } = render(
+      <MemoryRouter>
+        <DeploymentTraceSummary
+          canInspectEntity={() => false}
+          onInspectEntity={() => undefined}
+          trace={baseTrace({})}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("navigation", { name: "Deployment pivots" })).toBeInTheDocument();
+
+    rerender(
+      <MemoryRouter>
+        <DeploymentTraceSummary
+          canInspectEntity={() => false}
+          onInspectEntity={() => undefined}
+          trace={baseTrace({ repoId: "", serviceName: "", workloadId: "" })}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole("navigation", { name: "Deployment pivots" })).not.toBeInTheDocument();
+  });
 });
 
 describe("DeploymentTraceSummary deployment-source relationships", () => {

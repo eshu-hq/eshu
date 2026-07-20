@@ -182,6 +182,11 @@ type QueryShape struct {
 	// values. Array traversal uses the same [] suffix as RequiredJSONPaths and
 	// passes when any resolved value equals the expected value.
 	RequiredJSONValues map[string]any `json:"required_json_values,omitempty"`
+	// RequiredJSONObjectMatches pins related fields to the same object. Each
+	// path resolves one or more objects, and every expected partial object must
+	// match a single resolved object. This prevents independent wildcard value
+	// checks from accepting reversed or unrelated relationship endpoints.
+	RequiredJSONObjectMatches map[string][]map[string]any `json:"required_json_object_matches,omitempty"`
 	// ExpectedErrorContains declares a deliberate MCP refusal/error shape. It is
 	// used only for MCP tools whose local-full-stack proof is an explicit
 	// profile, fixture, or runtime-ceiling refusal rather than a successful data

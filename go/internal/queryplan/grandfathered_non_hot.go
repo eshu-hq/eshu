@@ -12,7 +12,6 @@ const grandfatheredNonHotBaseline = "220989280718f206e53fade8670c3b240d44a9b0"
 var grandfatheredNonHotSourceDigests = map[string]string{
 	"catalog.go:(*RepositoryHandler).listCatalogRepositoriesFromGraph":                                    "bd18f119efe756754c28730a83c4f8b52fc973bc7400c29ff84da225c57bbedb",
 	"catalog_workload_environments.go:(*RepositoryHandler).assembleCatalogWorkloadsFromGraph":             "81c076a9eb1a86acbd223ac25a9773a9ad2f1c776ba730023a80f6a6072e0108",
-	"cloud_resource_candidates.go:loadUncorrelatedCloudResourceCandidatesBounded":                         "e7ea061e90bd644c13c905c326319d9f39f05b82d2a7b668b5c7140e4ff3eda0",
 	"code.go:(*CodeHandler).runComplexityQuery":                                                           "53fef37f7217c6b4e6aa26423fd1be4540f9e50cf8d0c0f0b5ce6f815635eaab",
 	"code_call_chain.go:(*CodeHandler).handleCallChain":                                                   "3dac718510c57f047e3307e85fb7ca1373152bfed38b88be79cf29da1188a7ad",
 	"code_call_chain_nornicdb.go:(*CodeHandler).nornicDBCallChainOneHopRows":                              "39b31b2bae3f29721c1d7b0e274ca2c4478a9707740cd2b9b00c94f4afe154e3",

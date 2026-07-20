@@ -16,6 +16,7 @@ func TestFetchWorkloadContextSelectsRepositoryFromActualDefinesCandidates(t *tes
 		ctx          context.Context
 		storedRepoID string
 		wantRepoID   string
+		wantInstance bool
 	}{
 		{
 			name: "scoped authorized stored repository is stale",
@@ -25,18 +26,21 @@ func TestFetchWorkloadContextSelectsRepositoryFromActualDefinesCandidates(t *tes
 			}),
 			storedRepoID: "repo-team-stale",
 			wantRepoID:   "repo-team-a",
+			wantInstance: false,
 		},
 		{
 			name:         "unscoped stored repository is stale",
 			ctx:          t.Context(),
 			storedRepoID: "repo-team-stale",
 			wantRepoID:   "repo-team-a",
+			wantInstance: true,
 		},
 		{
 			name:         "stored repository is an actual defining candidate",
 			ctx:          t.Context(),
 			storedRepoID: "repo-team-b",
 			wantRepoID:   "repo-team-b",
+			wantInstance: true,
 		},
 	}
 
@@ -107,7 +111,10 @@ func TestFetchWorkloadContextSelectsRepositoryFromActualDefinesCandidates(t *tes
 				t.Fatalf("repo_id = %q, want actual defining repository %q", gotRepoID, test.wantRepoID)
 			}
 			instances := mapSliceValue(got, "instances")
-			if len(instances) != 1 || StringVal(instances[0], "instance_id") != "instance:payments:prod" {
+			if !test.wantInstance && len(instances) != 0 {
+				t.Fatalf("instances = %#v, want scoped repository-unowned topology omitted", instances)
+			}
+			if test.wantInstance && (len(instances) != 1 || StringVal(instances[0], "instance_id") != "instance:payments:prod") {
 				t.Fatalf("instances = %#v, want topology for selected defining repository", instances)
 			}
 		})

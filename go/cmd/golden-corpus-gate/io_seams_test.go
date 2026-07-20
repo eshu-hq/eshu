@@ -369,6 +369,9 @@ func fakeQueryShapeResponse(shape QueryShape) map[string]any {
 	for path, value := range shape.RequiredJSONValues {
 		fakeSetJSONPath(resp, path, value)
 	}
+	for path, matches := range shape.RequiredJSONObjectMatches {
+		fakeSetJSONObjectMatches(resp, path, matches)
+	}
 	return resp
 }
 
