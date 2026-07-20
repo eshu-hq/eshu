@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
 func buildServiceStoryResponse(serviceName string, workloadContext map[string]any) map[string]any {
@@ -100,6 +102,12 @@ func buildServiceDeploymentOverviewWithContext(buildCtx serviceStoryBuildContext
 	materializedEnvironments := distinctSortedInstanceField(instances, "environment")
 	configEnvironments := StringSliceVal(workloadContext, "observed_config_environments")
 
+	tier := truth.ClassifyDeploymentTruthTier(
+		false, // hasLiveEvidence: story context has no live probe today
+		len(instances) > 0,
+		false, // deployment sources not surfaced in story overview
+		len(configEnvironments) > 0,
+	)
 	overview := map[string]any{
 		"instance_count":                 len(instances),
 		"environment_count":              len(materializedEnvironments),
@@ -109,6 +117,9 @@ func buildServiceDeploymentOverviewWithContext(buildCtx serviceStoryBuildContext
 		"platforms":                      platforms,
 		"environments":                   materializedEnvironments,
 		"materialized_environments":      materializedEnvironments,
+	}
+	if tier != "" {
+		overview["deployment_truth_tier"] = string(tier)
 	}
 	if len(configEnvironments) > 0 {
 		overview["config_environments"] = configEnvironments

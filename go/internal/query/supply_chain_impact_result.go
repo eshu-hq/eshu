@@ -3,7 +3,11 @@
 
 package query
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/truth"
+)
 
 const (
 	serviceCatalogCorrelationMissingReason = "service catalog correlation evidence missing"
@@ -76,6 +80,11 @@ type SupplyChainImpactFindingResult struct {
 	// recommendation for this finding (issue #595). Older rows that predate
 	// remediation computation omit this block.
 	Remediation *SupplyChainImpactRemediation `json:"remediation,omitempty"`
+	// DeploymentTruthTier classifies the strongest deployment evidence
+	// available for this finding's repository or workload context, using the
+	// shared truth.DeploymentTruthTier vocabulary (#5471). Omitted when the
+	// finding has no deployment anchor at all.
+	DeploymentTruthTier string `json:"deployment_truth_tier,omitempty"`
 }
 
 // SupplyChainImpactPriorityContribution explains one reducer priority input.
@@ -102,7 +111,32 @@ type SupplyChainReachabilityResult struct {
 func buildSupplyChainImpactFindingResult(row SupplyChainImpactFindingRow) SupplyChainImpactFindingResult {
 	result := SupplyChainImpactFindingResult(row)
 	result.MissingEvidence = normalizedSupplyChainImpactMissingEvidence(row)
+	result.DeploymentTruthTier = string(supplyChainDeploymentTruthTier(row))
 	return result
+}
+
+// supplyChainDeploymentTruthTier classifies the strongest deployment
+// evidence tier available from the finding row's existing fields. It uses
+// the shared truth.ClassifyDeploymentTruthTier with signals derived from
+// what the reducer already writes in the finding payload.
+//
+// Live runtime evidence (runtime_confirmed) and CI provenance
+// (provenance_ci_declared) are not currently differentiated in the
+// reducer's finding payload — that enrichment is gated on #5472 (ci_cd
+// correlation graph projection) and #5474 (gate extensions). Today all
+// deployment-anchored findings classify as config_only.
+func supplyChainDeploymentTruthTier(row SupplyChainImpactFindingRow) truth.DeploymentTruthTier {
+	hasDeploymentAnchor := len(row.WorkloadIDs) > 0 ||
+		len(row.DeploymentIDs) > 0 ||
+		row.ImageRef != "" ||
+		row.SubjectDigest != ""
+	hasConfigEnvs := len(row.Environments) > 0
+	return truth.ClassifyDeploymentTruthTier(
+		false, // hasLiveEvidence: gated on #5472
+		false, // instances not surfaced in finding row
+		hasDeploymentAnchor,
+		hasConfigEnvs,
+	)
 }
 
 func normalizedSupplyChainImpactMissingEvidence(row SupplyChainImpactFindingRow) []string {
