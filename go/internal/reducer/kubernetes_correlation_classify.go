@@ -111,7 +111,8 @@ func classifyImageByCRIDigest(
 	parsed, ok := parseContainerImageRef(resolvedDigest)
 	if !ok || parsed.digest == "" {
 		// The resolved digest could not be parsed (e.g. it lost its repository
-		// through normalization). Fall through to tag classification.
+		// through normalization). Classify as unresolved — do NOT fall through
+		// to the weaker tag classification; the CRI digest is ground truth.
 		// This should be rare — NormalizeCRIImageID already rejects bare sha256.
 		base.Outcome = KubernetesCorrelationUnresolved
 		base.DriftKind = driftMissingSource

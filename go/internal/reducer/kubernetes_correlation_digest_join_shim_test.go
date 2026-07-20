@@ -29,7 +29,7 @@ func TestDigestJoinCardinalityShim(t *testing.T) {
 	type fixture struct {
 		name           string
 		imageRef       string
-		resolvedDigest string   // empty => no CRI digest
+		resolvedDigest string           // empty => no CRI digest
 		sourceFacts    []facts.Envelope // source evidence for this ref's digest(s)
 		// expectedExactPost reports whether the decision should be Exact
 		// (non-provenance-only) POST-5432.
@@ -46,36 +46,36 @@ func TestDigestJoinCardinalityShim(t *testing.T) {
 	fixtures := []fixture{
 		// Digest-pinned refs — always joinable (pre and post).
 		{
-			name:           "digest-pinned-1",
-			imageRef:       repo + "@" + testK8sDigest,
-			sourceFacts:    []facts.Envelope{k8sSourceManifestWithNode("oci-d1", testK8sRegistry, testK8sRepository, testK8sDigest, descriptorID(testK8sDigest), false)},
+			name:              "digest-pinned-1",
+			imageRef:          repo + "@" + testK8sDigest,
+			sourceFacts:       []facts.Envelope{k8sSourceManifestWithNode("oci-d1", testK8sRegistry, testK8sRepository, testK8sDigest, descriptorID(testK8sDigest), false)},
 			expectedExactPost: true,
 			expectedEdgePost:  true,
 		},
 		{
-			name:           "digest-pinned-2",
-			imageRef:       repo + "@" + testK8sDigest2,
-			sourceFacts:    []facts.Envelope{k8sSourceManifestWithNode("oci-d2", testK8sRegistry, testK8sRepository, testK8sDigest2, descriptorID(testK8sDigest2), false)},
+			name:              "digest-pinned-2",
+			imageRef:          repo + "@" + testK8sDigest2,
+			sourceFacts:       []facts.Envelope{k8sSourceManifestWithNode("oci-d2", testK8sRegistry, testK8sRepository, testK8sDigest2, descriptorID(testK8sDigest2), false)},
 			expectedExactPost: true,
 			expectedEdgePost:  true,
 		},
 
 		// Tag-refs WITH CRI-resolved digest + matching source — promote to exact.
 		{
-			name:           "tag-cri-match",
-			imageRef:       repo + ":v1.0.0",
-			resolvedDigest: repo + "@" + testK8sDigest,
-			sourceFacts:    []facts.Envelope{k8sSourceManifestWithNode("oci-tcm", testK8sRegistry, testK8sRepository, testK8sDigest, descriptorID(testK8sDigest), false)},
+			name:              "tag-cri-match",
+			imageRef:          repo + ":v1.0.0",
+			resolvedDigest:    repo + "@" + testK8sDigest,
+			sourceFacts:       []facts.Envelope{k8sSourceManifestWithNode("oci-tcm", testK8sRegistry, testK8sRepository, testK8sDigest, descriptorID(testK8sDigest), false)},
 			expectedExactPost: true,
 			expectedEdgePost:  true,
 		},
 
 		// Tag-ref WITH CRI-resolved digest but NO source observation → unresolved.
 		{
-			name:           "tag-cri-no-source",
-			imageRef:       repo + ":v9.9.9",
-			resolvedDigest: repo + "@sha256:0000000000000000000000000000000000000000000000000000000000000000",
-			sourceFacts:    nil,
+			name:              "tag-cri-no-source",
+			imageRef:          repo + ":v9.9.9",
+			resolvedDigest:    repo + "@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+			sourceFacts:       nil,
 			expectedExactPost: false,
 			expectedEdgePost:  false,
 		},
@@ -83,16 +83,16 @@ func TestDigestJoinCardinalityShim(t *testing.T) {
 		// Tag-refs WITHOUT CRI digest — never joinable (tag classification always
 		// provenance-only Derived/Ambiguous/Unresolved).
 		{
-			name:           "tag-no-cri-1",
-			imageRef:       repo + ":latest",
-			sourceFacts:    []facts.Envelope{k8sSourceTagFact("oci-tn1", testK8sRegistry, testK8sRepository, "latest", testK8sDigest, "", false)},
+			name:              "tag-no-cri-1",
+			imageRef:          repo + ":latest",
+			sourceFacts:       []facts.Envelope{k8sSourceTagFact("oci-tn1", testK8sRegistry, testK8sRepository, "latest", testK8sDigest, "", false)},
 			expectedExactPost: false,
 			expectedEdgePost:  false,
 		},
 		{
-			name:           "tag-no-cri-2",
-			imageRef:       repo + ":v2.0.0",
-			sourceFacts:    nil,
+			name:              "tag-no-cri-2",
+			imageRef:          repo + ":v2.0.0",
+			sourceFacts:       nil,
 			expectedExactPost: false,
 			expectedEdgePost:  false,
 		},
@@ -119,9 +119,7 @@ func TestDigestJoinCardinalityShim(t *testing.T) {
 			"pod-"+f.name, f.name, "uid-"+f.name,
 			[]string{f.imageRef}, nil, false, resolved,
 		))
-		for _, sf := range f.sourceFacts {
-			envelopes = append(envelopes, sf)
-		}
+		envelopes = append(envelopes, f.sourceFacts...)
 
 		// Run classification (always with the CRI-digest code path active).
 		decisions := BuildKubernetesCorrelationDecisions(envelopes)
