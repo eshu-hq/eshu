@@ -17,6 +17,7 @@ import (
 
 const (
 	documentationFindingsReadIndexName      = "fact_records_documentation_findings_read_idx"
+	documentationFindingsFilterIndexName    = "fact_records_documentation_findings_filter_idx"
 	documentationFindingsAggregateIndexName = "fact_records_documentation_findings_visible_idx"
 )
 
@@ -35,7 +36,7 @@ func TestDocumentationFindingsIndexRestartSafetyLive(t *testing.T) {
 		2*time.Minute,
 	)
 	exec := SQLDB{DB: db}
-	preUpgrade, createReadIndex := documentationFindingsUpgradeDefinitions(t)
+	preUpgrade, createListIndexes := documentationFindingsUpgradeDefinitions(t)
 
 	if err := ApplyDefinitions(ctx, exec, preUpgrade); err != nil {
 		t.Fatalf("apply populated pre-064 schema: %v", err)
@@ -48,13 +49,15 @@ func TestDocumentationFindingsIndexRestartSafetyLive(t *testing.T) {
 	if err := ApplyDefinitionsWithLockTimeout(
 		ctx,
 		exec,
-		[]Definition{createReadIndex},
+		createListIndexes,
 		5*time.Second,
 	); err != nil {
-		t.Fatalf("apply migration 064 list-index create: %v", err)
+		t.Fatalf("apply list-index migrations: %v", err)
 	}
-	first := readDocumentationIndexState(t, ctx, db, documentationFindingsReadIndexName)
-	assertDocumentationIndexReady(t, first)
+	firstRead := readDocumentationIndexState(t, ctx, db, documentationFindingsReadIndexName)
+	assertDocumentationIndexReady(t, firstRead)
+	firstFilter := readDocumentationIndexState(t, ctx, db, documentationFindingsFilterIndexName)
+	assertDocumentationFilterIndexReady(t, firstFilter)
 	aggregateAfterCreate := readDocumentationIndexState(t, ctx, db, documentationFindingsAggregateIndexName)
 	assertDocumentationAggregateIndexReady(t, aggregateAfterCreate)
 	if aggregateAfterCreate.oid != aggregateBefore.oid {
@@ -71,24 +74,34 @@ func TestDocumentationFindingsIndexRestartSafetyLive(t *testing.T) {
 	if err := ApplyBootstrap(ctx, exec); err != nil {
 		t.Fatalf("first post-upgrade ApplyBootstrap() error = %v", err)
 	}
-	second := readDocumentationIndexState(t, ctx, db, documentationFindingsReadIndexName)
-	assertDocumentationIndexReady(t, second)
+	secondRead := readDocumentationIndexState(t, ctx, db, documentationFindingsReadIndexName)
+	assertDocumentationIndexReady(t, secondRead)
+	secondFilter := readDocumentationIndexState(t, ctx, db, documentationFindingsFilterIndexName)
+	assertDocumentationFilterIndexReady(t, secondFilter)
 	aggregateSecond := readDocumentationIndexState(t, ctx, db, documentationFindingsAggregateIndexName)
 	assertDocumentationAggregateIndexReady(t, aggregateSecond)
-	if second.oid != first.oid {
-		t.Fatalf("post-upgrade bootstrap rebuilt index: first OID=%d second OID=%d", first.oid, second.oid)
+	if secondRead.oid != firstRead.oid {
+		t.Fatalf("post-upgrade bootstrap rebuilt read index: first OID=%d second OID=%d", firstRead.oid, secondRead.oid)
 	}
-	if second.definition != first.definition {
-		t.Fatalf("post-upgrade bootstrap changed index definition:\nfirst:  %s\nsecond: %s", first.definition, second.definition)
+	if secondRead.definition != firstRead.definition {
+		t.Fatalf("post-upgrade bootstrap changed read index definition:\nfirst:  %s\nsecond: %s", firstRead.definition, secondRead.definition)
+	}
+	if secondFilter != firstFilter {
+		t.Fatalf("post-upgrade bootstrap changed filter index: first=%+v second=%+v", firstFilter, secondFilter)
 	}
 
 	if err := ApplyBootstrap(ctx, exec); err != nil {
 		t.Fatalf("second post-upgrade ApplyBootstrap() error = %v", err)
 	}
-	third := readDocumentationIndexState(t, ctx, db, documentationFindingsReadIndexName)
-	assertDocumentationIndexReady(t, third)
-	if third != second {
-		t.Fatalf("repeated bootstrap changed stable index: second=%+v third=%+v", second, third)
+	thirdRead := readDocumentationIndexState(t, ctx, db, documentationFindingsReadIndexName)
+	assertDocumentationIndexReady(t, thirdRead)
+	if thirdRead != secondRead {
+		t.Fatalf("repeated bootstrap changed stable read index: second=%+v third=%+v", secondRead, thirdRead)
+	}
+	thirdFilter := readDocumentationIndexState(t, ctx, db, documentationFindingsFilterIndexName)
+	assertDocumentationFilterIndexReady(t, thirdFilter)
+	if thirdFilter != secondFilter {
+		t.Fatalf("repeated bootstrap changed stable filter index: second=%+v third=%+v", secondFilter, thirdFilter)
 	}
 	aggregateThird := readDocumentationIndexState(t, ctx, db, documentationFindingsAggregateIndexName)
 	assertDocumentationAggregateIndexReady(t, aggregateThird)
@@ -100,42 +113,56 @@ func TestDocumentationFindingsIndexRestartSafetyLive(t *testing.T) {
 	recovered := readDocumentationIndexState(t, ctx, db, documentationFindingsReadIndexName)
 	assertDocumentationIndexReady(t, recovered)
 	assertDocumentationFindingsIndexDefinition(t, recovered.definition)
+	filterRecovered := readDocumentationIndexState(t, ctx, db, documentationFindingsFilterIndexName)
+	assertDocumentationFilterIndexReady(t, filterRecovered)
+	if filterRecovered != thirdFilter {
+		t.Fatalf("read-index recovery changed filter index: before=%+v after=%+v", thirdFilter, filterRecovered)
+	}
 	aggregateRecovered := readDocumentationIndexState(t, ctx, db, documentationFindingsAggregateIndexName)
 	assertDocumentationAggregateIndexReady(t, aggregateRecovered)
 	if aggregateRecovered != aggregateThird {
 		t.Fatalf("read-index recovery changed aggregate-visible index: before=%+v after=%+v", aggregateThird, aggregateRecovered)
 	}
 
-	beforeConcurrent, aggregateBeforeConcurrent := recovered, aggregateRecovered
+	beforeConcurrentRead, beforeConcurrentFilter, aggregateBeforeConcurrent := recovered, filterRecovered, aggregateRecovered
 	runConcurrentDocumentationBootstraps(t, ctx, db)
-	afterConcurrent := readDocumentationIndexState(t, ctx, db, documentationFindingsReadIndexName)
-	assertDocumentationIndexReady(t, afterConcurrent)
-	if afterConcurrent != beforeConcurrent {
-		t.Fatalf("concurrent bootstrap changed stable index: before=%+v after=%+v", beforeConcurrent, afterConcurrent)
+	afterConcurrentRead := readDocumentationIndexState(t, ctx, db, documentationFindingsReadIndexName)
+	assertDocumentationIndexReady(t, afterConcurrentRead)
+	if afterConcurrentRead != beforeConcurrentRead {
+		t.Fatalf("concurrent bootstrap changed stable read index: before=%+v after=%+v", beforeConcurrentRead, afterConcurrentRead)
+	}
+	afterConcurrentFilter := readDocumentationIndexState(t, ctx, db, documentationFindingsFilterIndexName)
+	assertDocumentationFilterIndexReady(t, afterConcurrentFilter)
+	if afterConcurrentFilter != beforeConcurrentFilter {
+		t.Fatalf("concurrent bootstrap changed stable filter index: before=%+v after=%+v", beforeConcurrentFilter, afterConcurrentFilter)
 	}
 	aggregateAfterConcurrent := readDocumentationIndexState(t, ctx, db, documentationFindingsAggregateIndexName)
 	assertDocumentationAggregateIndexReady(t, aggregateAfterConcurrent)
 	if aggregateAfterConcurrent != aggregateBeforeConcurrent {
 		t.Fatalf("concurrent bootstrap changed aggregate-visible index: before=%+v after=%+v", aggregateBeforeConcurrent, aggregateAfterConcurrent)
 	}
-	assertDocumentationIndexCount(t, ctx, db, 2)
+	assertDocumentationIndexCount(t, ctx, db, 3)
 }
 
 func documentationFindingsUpgradeDefinitions(
 	t *testing.T,
-) ([]Definition, Definition) {
+) ([]Definition, []Definition) {
 	t.Helper()
 	definitions := BootstrapDefinitions()
-	createPosition := -1
+	readPosition := -1
+	filterPosition := -1
 	for i, definition := range definitions {
 		if definition.Name == "create_documentation_findings_read_idx" {
-			createPosition = i
+			readPosition = i
+		}
+		if definition.Name == "create_documentation_findings_filter_idx" {
+			filterPosition = i
 		}
 	}
-	if createPosition < 0 {
-		t.Fatal("documentation findings list-index migration is missing")
+	if readPosition < 0 || filterPosition != readPosition+1 {
+		t.Fatalf("documentation findings list-index migrations are missing or non-adjacent: read=%d filter=%d", readPosition, filterPosition)
 	}
-	return definitions[:createPosition], definitions[createPosition]
+	return definitions[:readPosition], definitions[readPosition : filterPosition+1]
 }
 
 func seedDocumentationFindingsIndexProof(t *testing.T, ctx context.Context, db *sql.DB) {
@@ -283,6 +310,14 @@ func assertDocumentationIndexReady(t *testing.T, state documentationIndexState) 
 	assertDocumentationFindingsIndexDefinition(t, state.definition)
 }
 
+func assertDocumentationFilterIndexReady(t *testing.T, state documentationIndexState) {
+	t.Helper()
+	assertIndexReady(t, documentationFindingsFilterIndexName, state)
+	if err := validateDocumentationFindingFilterIndexForTest(state.definition); err != nil {
+		t.Fatalf("selective documentation findings index: %v: %s", err, state.definition)
+	}
+}
+
 func assertIndexReady(t *testing.T, indexName string, state documentationIndexState) {
 	t.Helper()
 	if !state.valid || !state.ready {
@@ -323,10 +358,11 @@ FROM pg_class c
 JOIN pg_index i ON i.indexrelid = c.oid
 JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE n.nspname = 'public'
-  AND c.relname IN ($1, $2)
+  AND c.relname IN ($1, $2, $3)
   AND i.indisvalid
   AND i.indisready`,
 		documentationFindingsReadIndexName,
+		documentationFindingsFilterIndexName,
 		documentationFindingsAggregateIndexName,
 	).Scan(&got); err != nil {
 		t.Fatalf("count documentation findings indexes: %v", err)

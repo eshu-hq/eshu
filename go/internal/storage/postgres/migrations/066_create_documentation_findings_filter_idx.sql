@@ -1,6 +1,6 @@
--- Create the broad findings-list index under a distinct name while retaining
--- the ACL-filtered aggregate index. The distinct name makes replay a stable no-op.
-CREATE INDEX CONCURRENTLY IF NOT EXISTS fact_records_documentation_findings_read_idx
+-- Serve selective findings pages without sacrificing the unfiltered ordering path.
+-- The distinct name makes replay a stable no-op.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS fact_records_documentation_findings_filter_idx
     ON fact_records (
         (payload->>'finding_type'),
         (payload->>'source_id'),

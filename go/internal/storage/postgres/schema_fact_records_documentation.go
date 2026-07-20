@@ -6,7 +6,9 @@ package postgres
 const documentationFactRecordReadIndexesSQL = `
 CREATE INDEX IF NOT EXISTS fact_records_documentation_sources_observed_idx ON fact_records (observed_at DESC, fact_id DESC) WHERE fact_kind = 'documentation_source' AND is_tombstone = FALSE;
 
-CREATE INDEX IF NOT EXISTS fact_records_documentation_findings_read_idx ON fact_records ((payload->>'finding_type'), (payload->>'source_id'), (payload->>'document_id'), (payload->>'status'), (payload->>'truth_level'), (payload->>'freshness_state'), observed_at DESC, fact_id DESC) WHERE fact_kind = 'documentation_finding' AND is_tombstone = FALSE;
+CREATE INDEX IF NOT EXISTS fact_records_documentation_findings_read_idx ON fact_records (observed_at DESC, fact_id DESC) WHERE fact_kind = 'documentation_finding' AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_documentation_findings_filter_idx ON fact_records ((payload->>'finding_type'), (payload->>'source_id'), (payload->>'document_id'), (payload->>'status'), (payload->>'truth_level'), (payload->>'freshness_state'), observed_at DESC, fact_id DESC) WHERE fact_kind = 'documentation_finding' AND is_tombstone = FALSE;
 
 CREATE INDEX IF NOT EXISTS fact_records_documentation_findings_visible_idx ON fact_records ((payload->>'finding_type'), (payload->>'source_id'), (payload->>'document_id'), (payload->>'status'), (payload->>'truth_level'), (payload->>'freshness_state'), observed_at DESC, fact_id DESC) WHERE fact_kind = 'documentation_finding' AND is_tombstone = FALSE AND (payload->'permissions'->>'viewer_can_read_source') = 'true' AND LOWER(COALESCE(payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false' AND LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied';
 

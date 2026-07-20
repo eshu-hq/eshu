@@ -12,34 +12,56 @@ import (
 func TestDocumentationReadIndexFinalSchemaMatchesCurrentQueries(t *testing.T) {
 	t.Parallel()
 
-	findingsDDL := indexStatementForTest(
+	readDDL := indexStatementForTest(
 		t,
 		documentationFactRecordReadIndexesSQL,
 		"fact_records_documentation_findings_read_idx",
 	)
-	if err := validateDocumentationFindingReadIndexForTest(findingsDDL); err != nil {
-		t.Errorf("final documentation findings index: %v", err)
+	if err := validateDocumentationFindingReadIndexForTest(readDDL); err != nil {
+		t.Errorf("final unfiltered documentation findings index: %v", err)
 	}
 	for _, stale := range documentationFindingACLIndexPredicatesForTest() {
-		if strings.Contains(findingsDDL, stale) {
-			t.Errorf("documentation findings index keeps stale ACL predicate %q:\n%s", stale, findingsDDL)
+		if strings.Contains(readDDL, stale) {
+			t.Errorf("documentation findings read index keeps stale ACL predicate %q:\n%s", stale, readDDL)
 		}
+	}
+	filterDDL := indexStatementForTest(
+		t,
+		documentationFactRecordReadIndexesSQL,
+		"fact_records_documentation_findings_filter_idx",
+	)
+	if err := validateDocumentationFindingFilterIndexForTest(filterDDL); err != nil {
+		t.Errorf("final selective documentation findings index: %v", err)
 	}
 
 	definitions := BootstrapDefinitions()
-	create, ok := definitionByPathForTest(
+	createRead, ok := definitionByPathForTest(
 		definitions,
-		"go/internal/storage/postgres/migrations/064_create_documentation_findings_read_idx.sql",
+		"go/internal/storage/postgres/migrations/065_create_documentation_findings_read_idx.sql",
 	)
 	if !ok {
-		t.Fatal("documentation findings replacement migration is missing")
+		t.Fatal("documentation findings read-index migration is missing")
 	}
-	if err := validateDocumentationFindingReadIndexForTest(create.SQL); err != nil {
-		t.Errorf("replacement migration documentation findings index: %v", err)
+	if err := validateDocumentationFindingReadIndexForTest(createRead.SQL); err != nil {
+		t.Errorf("read migration documentation findings index: %v", err)
 	}
-	if got, want := documentationFindingReadIndexShapeForTest(create.SQL),
-		documentationFindingReadIndexShapeForTest(findingsDDL); got != want {
-		t.Errorf("replacement migration and final schema differ\nmigration: %s\nfinal:     %s", got, want)
+	if got, want := documentationFindingReadIndexShapeForTest(createRead.SQL),
+		documentationFindingReadIndexShapeForTest(readDDL); got != want {
+		t.Errorf("read migration and final schema differ\nmigration: %s\nfinal:     %s", got, want)
+	}
+	createFilter, ok := definitionByPathForTest(
+		definitions,
+		"go/internal/storage/postgres/migrations/066_create_documentation_findings_filter_idx.sql",
+	)
+	if !ok {
+		t.Fatal("documentation findings filter-index migration is missing")
+	}
+	if err := validateDocumentationFindingFilterIndexForTest(createFilter.SQL); err != nil {
+		t.Errorf("filter migration documentation findings index: %v", err)
+	}
+	if got, want := documentationFindingReadIndexShapeForTest(createFilter.SQL),
+		documentationFindingReadIndexShapeForTest(filterDDL); got != want {
+		t.Errorf("filter migration and final schema differ\nmigration: %s\nfinal:     %s", got, want)
 	}
 
 	for _, forbidden := range []string{"fact_records_documentation_facts_search_trgm_idx"} {
@@ -107,6 +129,30 @@ func TestDocumentationReadIndexContractRejectsEveryMissingKey(t *testing.T) {
 	}
 }
 
+func TestDocumentationFilterIndexContractRejectsEveryMissingKey(t *testing.T) {
+	t.Parallel()
+
+	filterDDL := indexStatementForTest(
+		t,
+		documentationFactRecordReadIndexesSQL,
+		"fact_records_documentation_findings_filter_idx",
+	)
+	for _, term := range documentationFindingFilterIndexOrderedTermsForTest() {
+		term := term
+		t.Run(term, func(t *testing.T) {
+			t.Parallel()
+			normalized := strings.ToLower(filterDDL)
+			mutated := strings.Replace(normalized, term, "'removed_index_term'", 1)
+			if mutated == normalized {
+				t.Fatalf("test fixture does not contain ordered term %q", term)
+			}
+			if err := validateDocumentationFindingFilterIndexForTest(mutated); err == nil {
+				t.Fatalf("filter index contract accepted definition without %q", term)
+			}
+		})
+	}
+}
+
 func TestDocumentationReadIndexConcurrentMigrationIsIsolated(t *testing.T) {
 	t.Parallel()
 
@@ -118,10 +164,21 @@ func TestDocumentationReadIndexConcurrentMigrationIsIsolated(t *testing.T) {
 		statements int
 	}{
 		{
-			name: "create corrected findings index first",
-			path: "go/internal/storage/postgres/migrations/064_create_documentation_findings_read_idx.sql",
+			name: "create unfiltered findings index first",
+			path: "go/internal/storage/postgres/migrations/065_create_documentation_findings_read_idx.sql",
 			want: []string{
 				"CREATE INDEX CONCURRENTLY IF NOT EXISTS fact_records_documentation_findings_read_idx",
+				"fact_kind = 'documentation_finding'",
+				"is_tombstone = FALSE",
+			},
+			forbidden:  documentationFindingACLIndexPredicatesForTest(),
+			statements: 1,
+		},
+		{
+			name: "create selective findings index second",
+			path: "go/internal/storage/postgres/migrations/066_create_documentation_findings_filter_idx.sql",
+			want: []string{
+				"CREATE INDEX CONCURRENTLY IF NOT EXISTS fact_records_documentation_findings_filter_idx",
 				"fact_kind = 'documentation_finding'",
 				"is_tombstone = FALSE",
 			},
@@ -197,6 +254,13 @@ func documentationFindingACLIndexPredicatesForTest() []string {
 
 func documentationFindingReadIndexOrderedTermsForTest() []string {
 	return []string{
+		"observed_at desc",
+		"fact_id desc",
+	}
+}
+
+func documentationFindingFilterIndexOrderedTermsForTest() []string {
+	return []string{
 		"'finding_type'",
 		"'source_id'",
 		"'document_id'",
@@ -209,7 +273,7 @@ func documentationFindingReadIndexOrderedTermsForTest() []string {
 }
 
 func validateDocumentationFindingAggregateVisibleIndexForTest(definition string) error {
-	if err := validateDocumentationFindingReadIndexForTest(definition); err != nil {
+	if err := validateDocumentationFindingFilterIndexForTest(definition); err != nil {
 		return err
 	}
 	normalized := strings.ToLower(strings.Join(strings.Fields(definition), " "))
@@ -226,9 +290,23 @@ func validateDocumentationFindingAggregateVisibleIndexForTest(definition string)
 }
 
 func validateDocumentationFindingReadIndexForTest(definition string) error {
+	return validateDocumentationFindingIndexTermsForTest(
+		definition,
+		documentationFindingReadIndexOrderedTermsForTest(),
+	)
+}
+
+func validateDocumentationFindingFilterIndexForTest(definition string) error {
+	return validateDocumentationFindingIndexTermsForTest(
+		definition,
+		documentationFindingFilterIndexOrderedTermsForTest(),
+	)
+}
+
+func validateDocumentationFindingIndexTermsForTest(definition string, terms []string) error {
 	normalized := strings.ToLower(strings.Join(strings.Fields(definition), " "))
 	previous := -1
-	for _, term := range documentationFindingReadIndexOrderedTermsForTest() {
+	for _, term := range terms {
 		position := strings.Index(normalized, term)
 		if position < 0 {
 			return fmt.Errorf("missing ordered term %q", term)

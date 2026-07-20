@@ -2,12 +2,14 @@
 
 ## Decision
 
-This work retains both documentation-findings partial indexes and
-rejects a dedicated free-text documentation-facts search index. The findings
-change fixes a stale predicate and preserves the result set. The search indexes
-made reads faster, but the fastest candidate made the returning-aware
-production streaming write 2.22 times slower while the complete production
-1.6-million-row search completed in 1.252 seconds without it.
+This work retains three complementary documentation-findings partial indexes
+and rejects a dedicated free-text documentation-facts search index. The
+order-first index serves the ordinary unfiltered page, the filter-first index
+serves selective pages, and the ACL-visible index serves aggregate reads. Both
+list shapes preserve their result sets. The search indexes made reads faster,
+but the fastest candidate made the returning-aware production streaming write
+2.20 times slower while the complete production 1.6-million-row search
+completed in 1.169 seconds without it.
 
 No free-text query or search index ships from this investigation.
 
@@ -16,9 +18,9 @@ No free-text query or search index ships from this investigation.
 | Issue acceptance item | Disposition | Evidence |
 | --- | --- | --- |
 | Capture `EXPLAIN (ANALYZE, BUFFERS)` for both reads | Proved | The findings and production-shaped search reads were measured on PostgreSQL 18.4. Sanitized plan nodes, rows, loops, buffers, and timings are below; the exact disposable shim is checked in beside this note. |
-| Retain the findings partial indexes | Implemented | Migration 064 creates the broad list index. The final schema and migration 003 retain `fact_records_documentation_findings_visible_idx` for ACL-filtered aggregate total, group, and inventory scans; migration 065 is removed. |
-| Redesign free-text search around an indexable column | Superseded by measurement | Three index hypotheses were tested. The fastest plan added a 2.22x median write cost, while the complete production search stayed below the local interactive target. No search schema or query change lands. |
-| Preserve exact results | Proved | The findings read returned the same 66 rows and digest before and after the correction. The accepted patch does not change free-text search behavior. |
+| Retain the findings partial indexes | Implemented | Migration 065 creates the order-first unfiltered-list index, migration 066 creates the filter-first selective-list index, and the final schema plus migration 003 retain `fact_records_documentation_findings_visible_idx` for ACL-filtered aggregate total, group, and inventory scans. |
+| Redesign free-text search around an indexable column | Superseded by measurement | Three index hypotheses were tested. The fastest plan added a 2.20x median write cost, while the complete production search stayed below the local interactive target. No search schema or query change lands. |
+| Preserve exact results | Proved | The ordinary page returned the same 51 rows and digest, and the fully selective page returned the same 66 rows and digest. The accepted patch does not change free-text search behavior. |
 | Record before and after plans and wall times | Proved | The accepted findings result and every rejected search candidate are recorded below. |
 
 The third acceptance item is intentionally closed by a measured rejection, not
@@ -35,6 +37,10 @@ tax.
 - Migration lifecycle fixture: 2,000 representative findings. This smaller
   fixture tests restart and concurrency behavior; it is not the performance
   fixture.
+- Findings inputs: the complete projection, join, predicates, ordering, and
+  `limit+1`/offset emitted by `buildDocumentationFindingsSQL` for both the
+  no-filter 50-row request and a request using all six optional payload
+  filters.
 - Search input: the complete SELECT, projection, FROM shape, five-field
   lowercase expression, seven documentation fact kinds, scope, ordering, and
   bounds emitted by `buildDocumentationFactsSQL`.
@@ -52,30 +58,30 @@ tax.
 The production query and write shapes come from
 `go/internal/query/documentation_read_model.go` and
 `go/internal/storage/postgres/facts_streaming.go`. The proof changes only the
-candidate index definition between measurements. The exact read fixture,
+candidate index definitions between measurements. The exact read fixture,
 queries, and candidate DDL are in
 [`5275-documentation-query-plan-shim.sql`](5275-documentation-query-plan-shim.sql);
 the returning-aware write probe is in
 `go/internal/storage/postgres/documentation_facts_write_index_live_test.go`.
 The verified SQL shim SHA-256 is
-`c138e0dcc72759c06607aa1a40d730658a5cc4cf0e69f0d287766404505b1e9d`.
-The rejected-search ledger below was captured before the aggregate comparator
-was added, from the otherwise unchanged search section at SHA-256
-`942756c51ebabb30b05d266f62f4170ae0b197e5d81e37af12c48da4cd92b5c1`.
-The complete current shim was rerun successfully after the aggregate extension;
-the current findings and aggregate results below come from that rerun.
+`6d11e61ab057088621b2f4e829a281c7f11375393ee8986fdba8d43cc285c76d`.
+The complete current shim was rerun successfully after the two list shapes and
+aggregate comparator were bound to production. The findings, aggregate, and
+search plan results below come from that run; the returning-aware write-tax
+samples come from the exact Go live proof named above.
 
 The measured SQL is mechanically bound to production, rather than trusted as
-a hand-maintained copy. Query-package tests render the complete
-`buildDocumentationFactsSQL` statement and arguments and compare them with the
-prepared search. The write proof calls `buildUpsertFactBatchQuery` directly;
+a hand-maintained copy. Query-package tests render the complete filtered and
+unfiltered `buildDocumentationFindingsSQL` statements plus the complete
+`buildDocumentationFactsSQL` statement and arguments, then compare them with
+the three prepared reads. The write proof calls `buildUpsertFactBatchQuery` directly;
 its unit guard checks the production 500-row cardinality, 8,500 arguments,
 multi-value `VALUES` encoding, prefix, and complete returning-aware conflict
 suffix. Its warmup calls `upsertFactBatchReturningAccepted`, and its measured
 `EXPLAIN ANALYZE` uses the same returning-aware query builder and arguments.
 The live proof records three rollback-isolated samples for each candidate.
-Mutation tests prove that changes on the production search side break its
-guard. The source hashes for this run are:
+Mutation tests prove that changes on either findings shape or the production
+search side break the corresponding guard. The source hashes for this run are:
 
 - `go/internal/query/documentation_read_model.go`:
   `02825515bd6b620cc5c4fa63e4a8d7cb60066b8fa2f6bde46e59099e5b48a1cb`;
@@ -84,61 +90,66 @@ guard. The source hashes for this run are:
 - exact aggregate-plan live proof:
   `4b3ad332201d26862efe682c33044fb7fe5149178cbaeb127fbac9e367e1dbfe`;
 - exact write-batch live proof:
-  `ff98aca0b5a8d35e7c61ef8569ae0a2662552d03f4d17d1c80dc2f208a8d47ae`;
+  `f9b6366e0ba7d47667f116e82bea3c2adff5cdef90a6ebd188d425815fe85f4a`;
 - `go/internal/storage/postgres/schema_fact_records_documentation.go`:
-  `6ba7c49457b2b79e04da38da8f4de3560681ddcd6a2e4a3158a03fb5e54a6853`;
+  `8ea9f49e147b2e27665601827d6756875924800711844dc3051046a19f970a2c`;
 - migration 003:
   `17e98ba4f72588f0913d2ed631e6699c24e52958674b367ca4b9218c1f2a47d1`;
-- migration 064:
-  `4e6731c1bbb7d90d0dae479bfb2f03d67f6d5b5fd4b7fa7201fd0d3acd2e5b92`.
+- migration 065:
+  `3c6aaf70f96f6bbbc71543bfd71ee8be4aaf0a5d66587d07f6fefe4063da95d9`;
+- migration 066:
+  `c6c1c8b8193d97f6a0d8eca5b07d54f8ad1943b25b5d1df3d7f893f723f9e8f6`.
 
-## Accepted findings-list index result
+## Accepted findings-list index results
 
-| Measure | Stale predicate | Corrected predicate | Result |
-| --- | ---: | ---: | --- |
-| Execution time | 12.177 ms | 0.330 ms | 11.847 ms faster; 36.90x |
-| Terminal rows | 66 | 66 | identical |
-| Result digest | `b99ca6f196274d3a9b33333c686878a8` | `b99ca6f196274d3a9b33333c686878a8` | identical |
-| Fact-read plan | `Parallel Seq Scan` | `Index Scan using fact_records_documentation_findings_read_idx` | intended plan delta |
-| Actual rows / loops | 22 rows x 3 worker loops | 66 rows x 1 index loop | same 66 terminal rows |
-| Fact-read buffers | 13,334 shared hits | 66 shared hits, 4 reads | 13,264 fewer shared block accesses |
-| Whole-plan buffers | 13,400 shared hits | 198 shared hits, 4 reads | join included |
-| Planning | 0.179 ms, 17 shared hits | 0.443 ms, 53 hits and 1 read | recorded, not optimized |
+The route has two production-reachable shapes that need different leading
+keys. The ordinary page has no optional payload predicate and orders newest
+first; a fully selective page constrains all six optional payload fields and
+then uses the same ordering.
 
-The stale partial predicate forced a sequential scan. The corrected predicate
-made the current disclosure read eligible for its replacement partial index.
-The result identity shows that the speedup did not change disclosure behavior.
+| Shape | Baseline | Accepted plan | Terminal result |
+| --- | --- | --- | --- |
+| Unfiltered, limit 51 | 151.750 ms; parallel scan + top-N sort; 13,373 shared hits | 0.175 ms; `fact_records_documentation_findings_read_idx`; 7 hits + 3 reads | 51 rows; digest `d74da658d3ef55feb49974eb8c8af836` |
+| Six-filter, limit 67 | 11.625 ms; parallel scan + sort; 13,400 shared hits | 0.292 ms; `fact_records_documentation_findings_filter_idx`; 198 hits + 4 reads | 66 rows; digest `b99ca6f196274d3a9b33333c686878a8` |
+
+The theory shim explicitly proves that the order-first index alone does not
+fix the selective shape: it still took 12.453 ms and selected the parallel
+scan. The filter-first companion then reduced that query to 0.292 ms. Conversely,
+the unfiltered query cannot use a filter-first index for its ordering. Keeping
+the concerns under distinct stable names gives each actual route shape an
+eligible index without changing disclosure behavior or terminal rows.
 
 ## Aggregate-visible index retention proof
 
 `CountDocumentationFindings` executes one total plus status, truth-level, and
 freshness-state grouped scans; inventory executes one additional grouped scan.
 Their shared ACL predicate exactly matches
-`fact_records_documentation_findings_visible_idx`, so the broad list index does
+`fact_records_documentation_findings_visible_idx`, so the two list indexes do
 not replace it. The retained 200,000-row planner timing and 500-row
 `INSERT ... SELECT` write timing remain theory-shim evidence only. The opt-in
 live proof executed the production total, grouped, and inventory builders with
-the aggregate-visible index selected: total 7.912 ms, grouped status 6.997 ms,
-and inventory status 8.837 ms. Each index scan returned 10,000 rows with 10,351
+the aggregate-visible index selected: total 7.123 ms, grouped status 5.524 ms,
+and inventory status 5.311 ms. Each index scan returned 10,000 rows with 10,351
 shared hits and zero shared reads; the live test completed in 5.94 s. The
 broad-only comparator remains theory-shim evidence only.
 
 The checked-in theory shim also compares the exact aggregate predicates with
 and without the ACL-visible index on the same 5%-visible fixture:
 
-| Builder | Dual-index execution | Dual-index buffers / plan | Broad-only execution | Broad-only buffers / plan |
+| Builder | Final-index execution | Final-index buffers / plan | List-only execution | List-only buffers / plan |
 | --- | ---: | --- | ---: | --- |
-| Total | 3.536 ms | 10,162 shared hits; `fact_records_documentation_findings_visible_idx` | 13.095 ms | 13,334 shared hits; `Parallel Seq Scan` |
-| Grouped status | 4.478 ms | 10,161 shared hits; `fact_records_documentation_findings_visible_idx` | 13.331 ms | 13,412 shared hits; `Parallel Seq Scan` |
+| Total | 0.863 ms | 1,551 shared hits; `fact_records_documentation_findings_visible_idx` | 13.091 ms | 13,334 shared hits; `Parallel Seq Scan` |
+| Grouped status | 4.271 ms | 10,161 shared hits; `fact_records_documentation_findings_visible_idx` | 12.588 ms | 13,412 shared hits; `Parallel Seq Scan` |
 
-The dual-index and broad-only aggregate results have bidirectional set
+The final-index and list-only aggregate results have bidirectional set
 difference 0/0 and the same digest,
 `1f713158f4cc5b3d724244b56cbeb292`. This proves that retaining the ACL-visible
 index changes the plan and timing, not the aggregate answer.
 
-The exact returning-aware production 500-row write proof recorded old-only
-samples 4.091/4.195/4.264 ms and dual-final samples 4.538/4.954/4.993 ms:
-medians 4.195 and 4.954 ms, ratio 1.181x, below the 1.50x rejection threshold.
+The exact returning-aware production 500-row write proof recorded visible-only
+samples 3.675/3.812/3.959 ms and final-three-index samples
+4.735/4.739/5.486 ms: medians 3.812 and 4.739 ms, ratio 1.243x, below the
+1.50x rejection threshold.
 
 ## Current search baseline
 
@@ -148,10 +159,10 @@ medians 4.195 and 4.954 ms, ratio 1.181x, below the 1.50x rejection threshold.
 | Plan | `Parallel Seq Scan on fact_records` |
 | Actual rows / loops | 533.33 rows x 3 worker loops; 532,800 rows filtered per loop |
 | Buffers | 144,712 shared hits at the scan; 144,818 for the whole plan |
-| Planning / execution | 0.329 ms / 1,251.792 ms |
+| Planning / execution | 0.209 ms / 1,169.485 ms |
 | Terminal result | 51 rows; digest `2c5a286517da306b3461ba075696a3fa` |
 
-The 1.252-second result is below the 2-3 second target on this named local
+The 1.169-second result is below the 2-3 second target on this named local
 profile. Because this machine is not the accepted cross-machine reference,
 that does not establish a universal SLO. It does establish that a new write-heavy
 index is not justified by the current local path.
@@ -160,9 +171,9 @@ index is not justified by the current local path.
 
 | Candidate | Build result | Read result | Disposition |
 | --- | --- | --- | --- |
-| Broad expression GIN with `gin_trgm_ops` | 16.440 s, 315 MB | `Bitmap Index Scan`, 1,600 rows x 1 loop, 22 index hits; whole plan 1,622 hits; 7.689 ms execution | Fastest read, but its exact returning-aware 500-row production batch had a 2.22x median write cost. |
+| Broad expression GIN with `gin_trgm_ops` | 16.353 s, 315 MB | `Bitmap Index Scan`, 1,600 rows x 1 loop, 22 index hits; whole plan 1,622 hits; 7.558 ms execution | Fastest read, but its exact returning-aware 500-row production batch had a 2.20x median write cost. |
 | GiST with `gist_trgm_ops(siglen=64)` | Failed: one index row required 11,912 bytes; PostgreSQL maximum was 8,191 bytes | No valid plan | Rejected for this expression and fixture shape; this is not a general rejection of GiST. |
-| Scoped multicolumn GIN using `btree_gin` | 16.688 s, 320 MB | `Bitmap Index Scan`, 1,600 rows x 1 loop, 476 index hits; whole plan 2,076 hits; 11.177 ms execution | Slower and larger than the broad GIN; its exact returning-aware production batch had a 2.24x median write cost. |
+| Scoped multicolumn GIN using `btree_gin` | 16.420 s, 320 MB | `Bitmap Index Scan`, 1,600 rows x 1 loop, 476 index hits; whole plan 2,076 hits; 11.212 ms execution | Slower and larger than the broad GIN; its exact returning-aware 500-row production batch had a 2.33x median write cost. |
 
 All candidate indexes and the candidate `btree_gin` extension were removed
 after the proof. None is part of the accepted schema.
@@ -178,14 +189,14 @@ comparable.
 
 | Run | Median execution | Median shared buffers | Median dirtied / written | Multiple of baseline |
 | --- | ---: | ---: | ---: | ---: |
-| No candidate | 4.292 ms | 6,092 hits | 46 / 46 | 1.00x |
-| Broad expression GIN | 9.543 ms | 7,092 hits | 109 / 109 | 2.22x |
-| Scoped multicolumn GIN | 9.595 ms | 7,092 hits | 117 / 117 | 2.24x |
+| No candidate | 4.207 ms | 6,092 hits | 46 / 46 | 1.00x |
+| Broad expression GIN | 9.257 ms | 7,092 hits | 109 / 109 | 2.20x |
+| Scoped multicolumn GIN | 9.786 ms | 7,092 hits | 117 / 117 | 2.33x |
 
-The fastest read candidate added 5.251 ms to the median exact production batch.
-The three baseline samples were 4.345, 4.292, and 4.008 ms; broad-GIN samples
-were 9.543, 9.566, and 8.848 ms; scoped-GIN samples were 9.746, 9.595, and
-9.411 ms. This is a bounded same-machine per-batch comparison, not an
+The fastest read candidate added 5.050 ms to the median exact production batch.
+The three baseline samples were 4.689, 4.207, and 4.154 ms; broad-GIN samples
+were 9.367, 9.164, and 9.257 ms; scoped-GIN samples were 9.936, 9.495, and
+9.786 ms. This is a bounded same-machine per-batch comparison, not an
 end-to-end ingestion duration, so no corpus-wide time is extrapolated from it.
 
 The read improvement is real, but it is not an accuracy fix and it does not
@@ -194,33 +205,36 @@ repository's accuracy-then-performance decision order.
 
 ## Migration and restart safety
 
-The lifecycle proof starts from the populated pre-064 schema and checks these
+The lifecycle proof starts from the populated pre-065 schema and checks these
 boundaries:
 
 - migration 003 and final schema retain the ACL-filtered aggregate-visible
-  index while migration 064 creates the separate broad list index;
+  index, migration 065 creates the order-first list index, and migration 066
+  creates the filter-first list index;
 - the 2,000 fixture rows remain unchanged throughout the migration;
-- a repeated bootstrap keeps both index definitions and objects unchanged;
+- a repeated bootstrap keeps all three index definitions and objects unchanged;
 - an invalid index left by a failed concurrent build is removed and rebuilt;
-- two concurrent bootstrap calls converge on the same two stable indexes.
+- two concurrent bootstrap calls converge on the same three stable indexes.
 
 This proof separates schema lifecycle safety from the 200,000-row query-plan
 fixture so a small concurrency test is not presented as performance evidence.
 
 ## Evidence markers
 
-Performance Evidence: the accepted findings index changed a 12.177 ms parallel
-sequential scan into a 0.330 ms index scan with the same 66 rows and digest. The
+Performance Evidence: the accepted order-first index changed the ordinary page
+from a 151.750 ms parallel scan and sort to a 0.175 ms index scan with the same
+51 rows and digest. The filter-first companion changed the selective page from
+11.625 ms to 0.292 ms with the same 66 rows and digest. The
 production aggregate builders selected the retained ACL index in
-7.912/6.997/8.837 ms, and the exact production write-batch ratio for the dual
-index shape was 1.181x. The complete production 1.6-million-row search completed
-in 1,251.792 ms. The
-fastest rejected search index reduced it to 7.689 ms but increased the median
-exact returning-aware 500-row production batch from 4.292 ms to 9.543 ms, so it
+7.123/5.524/5.311 ms, and the exact production write-batch ratio for the final
+three-index shape was 1.243x. The complete production 1.6-million-row search
+completed in 1,169.485 ms. The fastest rejected search index reduced it to
+7.558 ms but increased the median
+exact returning-aware 500-row production batch from 4.207 ms to 9.257 ms, so it
 did not land.
 
-No-Regression Evidence: the accepted findings change preserved terminal row
-count and result digest. Free-text search behavior is unchanged. Migration tests
+No-Regression Evidence: both accepted list shapes preserved terminal row count
+and result digest. Free-text search behavior is unchanged. Migration tests
 cover populated upgrades, invalid-index recovery, repeated bootstrap, and
 concurrent bootstrap.
 
@@ -250,7 +264,7 @@ cd go
 go test ./internal/query \
   -run 'TestDocumentation(QueryPlanShim|FindingAggregate)' -count=1
 go test ./internal/storage/postgres \
-  -run 'TestDocumentation(WriteProofUsesCompleteProductionBatch|ReadIndexFinalSchemaMatchesCurrentQueries|ReadIndexContractRejectsEveryMissingKey|ReadIndexConcurrentMigrationIsIsolated|AggregateVisibleIndexAndRejectedIndexesAreReplayed|AggregateVisibleIndexIsRetainedAcrossBootstrapPaths)' \
+  -run 'TestDocumentation(WriteProofUsesCompleteProductionBatch|FindingsIndexesCoverUnfilteredAndSelectiveLists|ReadIndexFinalSchemaMatchesCurrentQueries|ReadIndexContractRejectsEveryMissingKey|FilterIndexContractRejectsEveryMissingKey|ReadIndexConcurrentMigrationIsIsolated|AggregateVisibleIndexAndRejectedIndexesAreReplayed|AggregateVisibleIndexIsRetainedAcrossBootstrapPaths)' \
   -count=1
 ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DSN=<admin-postgres-dsn> \
 ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DISPOSABLE=1 \

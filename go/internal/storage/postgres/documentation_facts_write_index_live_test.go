@@ -179,18 +179,18 @@ func TestDocumentationFindingIndexWriteTaxLive(t *testing.T) {
 	}
 	batch := documentationFindingWriteProofBatchForTest("aggregate-write:")
 	oldOnly := measureDocumentationWriteProofBatch(t, ctx, db, batch, "old_only")
-	if _, err := db.ExecContext(ctx, documentationAggregateWriteProofListIndexSQL); err != nil {
-		t.Fatalf("create broad list index: %v", err)
+	if _, err := db.ExecContext(ctx, documentationAggregateWriteProofListIndexesSQL); err != nil {
+		t.Fatalf("create unfiltered and selective list indexes: %v", err)
 	}
-	dual := measureDocumentationWriteProofBatch(t, ctx, db, batch, "dual_final")
+	triple := measureDocumentationWriteProofBatch(t, ctx, db, batch, "triple_final")
 	oldMedian := medianDocumentationWriteProof(oldOnly).ExecutionMS
-	dualMedian := medianDocumentationWriteProof(dual).ExecutionMS
-	ratio := dualMedian / oldMedian
+	tripleMedian := medianDocumentationWriteProof(triple).ExecutionMS
+	ratio := tripleMedian / oldMedian
 	logDocumentationWriteProof(t, "old_only", oldOnly)
-	logDocumentationWriteProof(t, "dual_final", dual)
-	t.Logf("WRITE_PROOF_RATIO candidate=dual_final median_ratio=%.3fx", ratio)
+	logDocumentationWriteProof(t, "triple_final", triple)
+	t.Logf("WRITE_PROOF_RATIO candidate=triple_final median_ratio=%.3fx", ratio)
 	if ratio > 1.5 {
-		t.Fatalf("dual final median write ratio = %.3fx, want <= 1.50x", ratio)
+		t.Fatalf("triple final median write ratio = %.3fx, want <= 1.50x", ratio)
 	}
 }
 
@@ -214,8 +214,11 @@ WHERE fact_kind = 'documentation_finding' AND is_tombstone = FALSE
   AND LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied';
 `
 
-const documentationAggregateWriteProofListIndexSQL = `
+const documentationAggregateWriteProofListIndexesSQL = `
 CREATE INDEX fact_records_documentation_findings_read_idx ON fact_records
+ (observed_at DESC, fact_id DESC)
+WHERE fact_kind = 'documentation_finding' AND is_tombstone = FALSE;
+CREATE INDEX fact_records_documentation_findings_filter_idx ON fact_records
 ((payload->>'finding_type'), (payload->>'source_id'), (payload->>'document_id'),
  (payload->>'status'), (payload->>'truth_level'), (payload->>'freshness_state'),
  observed_at DESC, fact_id DESC)

@@ -91,6 +91,22 @@ WHERE fact_kind = 'documentation_finding'
   AND LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied';
 ANALYZE fact_records;
 
+PREPARE findings_unfiltered_read AS
+SELECT fact_records.payload
+  || jsonb_build_object('scope_id', fact_records.scope_id, 'generation_id', fact_records.generation_id)
+  || CASE WHEN ingestion_scopes.payload ? 'repo'
+          THEN jsonb_build_object('repo', ingestion_scopes.payload->>'repo')
+          ELSE '{}'::jsonb END AS payload
+FROM fact_records
+LEFT JOIN ingestion_scopes ON ingestion_scopes.scope_id = fact_records.scope_id
+WHERE fact_records.fact_kind = 'documentation_finding'
+  AND fact_records.is_tombstone = FALSE
+ORDER BY fact_records.observed_at DESC, fact_records.fact_id DESC
+LIMIT 51 OFFSET 0;
+
+\echo FINDINGS_UNFILTERED_BASELINE_RESULT
+EXPLAIN (ANALYZE, BUFFERS, SUMMARY, FORMAT TEXT) EXECUTE findings_unfiltered_read;
+
 PREPARE findings_read AS
 SELECT fact_records.payload
   || jsonb_build_object('scope_id', fact_records.scope_id, 'generation_id', fact_records.generation_id)
@@ -124,6 +140,27 @@ WHERE fact_kind = 'documentation_finding' AND is_tombstone = FALSE
 EXPLAIN (ANALYZE, BUFFERS, SUMMARY, FORMAT TEXT) EXECUTE findings_read;
 
 CREATE INDEX fact_records_documentation_findings_read_idx
+ON fact_records (observed_at DESC, fact_id DESC)
+WHERE fact_kind = 'documentation_finding' AND is_tombstone = FALSE;
+ANALYZE fact_records;
+
+\echo FINDINGS_UNFILTERED_CORRECTED_RESULT
+EXPLAIN (ANALYZE, BUFFERS, SUMMARY, FORMAT TEXT) EXECUTE findings_unfiltered_read;
+SELECT count(*) AS rows,
+       md5(string_agg(fact_id, '|' ORDER BY observed_at DESC, fact_id DESC)) AS digest
+FROM (
+  SELECT fact_id, observed_at
+  FROM fact_records
+  WHERE fact_kind = 'documentation_finding' AND is_tombstone = FALSE
+  ORDER BY observed_at DESC, fact_id DESC
+  LIMIT 51 OFFSET 0
+) AS selected;
+DEALLOCATE findings_unfiltered_read;
+
+\echo FINDINGS_FILTERED_ORDER_ONLY_RESULT
+EXPLAIN (ANALYZE, BUFFERS, SUMMARY, FORMAT TEXT) EXECUTE findings_read;
+
+CREATE INDEX fact_records_documentation_findings_filter_idx
 ON fact_records (
   (payload->>'finding_type'), (payload->>'source_id'),
   (payload->>'document_id'), (payload->>'status'),
@@ -147,7 +184,7 @@ WHERE fact_kind = 'documentation_finding' AND is_tombstone = FALSE
   AND payload->>'freshness_state' = 'fresh';
 DEALLOCATE findings_read;
 
-\echo AGGREGATE_DUAL_INDEX_PLAN_AND_RESULT
+\echo AGGREGATE_FINAL_INDEX_PLAN_AND_RESULT
 VACUUM (ANALYZE) fact_records;
 PREPARE aggregate_total AS
 SELECT COUNT(*) AS total
@@ -167,7 +204,7 @@ WHERE fact_kind = 'documentation_finding'
   AND LOWER(COALESCE(payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'
   AND LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied'
 GROUP BY bucket;
-CREATE TEMP TABLE aggregate_dual_result AS
+CREATE TEMP TABLE aggregate_final_result AS
 SELECT 'total'::text AS dimension, 'all'::text AS bucket,
        COUNT(*) AS bucket_count
 FROM fact_records
@@ -216,16 +253,16 @@ EXPLAIN (ANALYZE, BUFFERS, SUMMARY, FORMAT TEXT) EXECUTE aggregate_status;
 \echo AGGREGATE_EXACT_EQUIVALENCE
 SELECT
   (SELECT COUNT(*) FROM (
-    (SELECT * FROM aggregate_dual_result
+    (SELECT * FROM aggregate_final_result
      EXCEPT SELECT * FROM aggregate_broad_only_result)
     UNION ALL
     (SELECT * FROM aggregate_broad_only_result
-     EXCEPT SELECT * FROM aggregate_dual_result)
+     EXCEPT SELECT * FROM aggregate_final_result)
   ) AS diff) AS symmetric_difference_rows,
   (SELECT md5(string_agg(
     dimension || ':' || bucket || ':' || bucket_count::text,
     '|' ORDER BY dimension, bucket
-  )) FROM aggregate_dual_result) AS dual_digest,
+  )) FROM aggregate_final_result) AS final_digest,
   (SELECT md5(string_agg(
     dimension || ':' || bucket || ':' || bucket_count::text,
     '|' ORDER BY dimension, bucket
@@ -234,6 +271,7 @@ DEALLOCATE aggregate_total;
 DEALLOCATE aggregate_status;
 
 DROP INDEX fact_records_documentation_findings_read_idx;
+DROP INDEX fact_records_documentation_findings_filter_idx;
 TRUNCATE fact_records;
 
 \echo SEARCH_SEED_1600000
