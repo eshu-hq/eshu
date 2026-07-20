@@ -5,8 +5,10 @@ package cloudformation
 
 // EntityPosition captures the real start and end line of one CloudFormation
 // entity, measured directly from a parsed source tree by a caller that has
-// one (currently only the YAML adapter, via gopkg.in/yaml.v3 Node.Line
-// values -- see internal/parser/yaml/cloudformation_positions.go).
+// real source positions -- the YAML adapter via gopkg.in/yaml.v3 Node.Line
+// values, and the JSON adapter via the ordered-entry walk (see
+// internal/parser/yaml/cloudformation_positions.go and
+// internal/parser/json/cloudformation_positions.go).
 // StartLine is the entity's own key line; EndLine is the highest line number
 // touched by the entity's value subtree. A zero EntityPosition (StartLine
 // <= 0) means "unmeasured": SectionPositions.linesFor falls back instead of
