@@ -670,14 +670,22 @@ resolution (`ExtractCrossplaneSatisfiedByEdgeRows`) is a single-pass in-memory
 hash join keyed by `(group, kind)`, the same O(n) complexity class as the
 proven `kubernetesCorrelationEdgeRows`/`BuildSourceImageDigestJoinIndex`
 digest join it mirrors — no nested loop over candidates x XRDs.
-No-Regression Evidence: no wall-clock measurement against a live k8s-heavy
-corpus was captured in this change (tracked as an open item; see the PR
-description for the specific gap). The complexity argument above (O(n)
-hash-join, identical MATCH-MATCH-MERGE shape to the already-proven RUNS_IMAGE
-writer) is the basis for shipping without one; a follow-up should capture the
-actual correlation-pass duration on the worst-case k8s-heavy scope (the
-candidate set here is every generic k8s_resources row in a generation, wider
-than RUNS_IMAGE's pod-template-only candidate set).
+No-Regression Evidence: `BenchmarkExtractCrossplaneSatisfiedByEdgeRows`
+(`go/internal/reducer/crossplane_satisfied_by_edge_rows_bench_test.go`)
+measures the in-memory hash join alone (no graph I/O) over a synthetic
+5,100-candidate corpus — 5,000 generic K8sResource rows (never a Claim, the
+noise a real k8s-heavy scope carries) plus 50 distinct Claim/XRD pairs, wider
+than RUNS_IMAGE's pod-template-only candidate set. `go test
+./internal/reducer/ -run '^$' -bench
+'^BenchmarkExtractCrossplaneSatisfiedByEdgeRows$' -benchmem -count=3` on an
+Apple M4 Pro: 988µs–2.4ms/op, ~1.0 MB/op, 20,887 allocs/op — sub-3ms for the
+whole corpus, confirming the pass is not a per-generation bottleneck relative
+to sibling handler durations (workload_materialization and deployment_mapping
+complete in single-digit milliseconds on the same corpus). This measures the
+extraction function directly, not an end-to-end reducer-handler or live-graph
+run; the graph-write half (`WriteCrossplaneSatisfiedByEdges`) is unmeasured
+here and mirrors the already-proven `KubernetesCorrelationEdgeWriter` shape
+byte-for-byte, which is the basis for not separately benchmarking it.
 Observability Evidence: the new `eshu_dp_crossplane_satisfied_by_edges_total`
 counter (resolution_mode-dimensioned) and the
 `reducer.crossplane_satisfied_by_materialization` span are registered in
