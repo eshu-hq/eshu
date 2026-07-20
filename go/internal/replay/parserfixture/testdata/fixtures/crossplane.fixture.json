@@ -51,7 +51,10 @@
                 "plural": "xpostgresqlinstances"
               }
             ],
+            "flux_buckets": [],
+            "flux_git_repositories": [],
             "flux_kustomizations": [],
+            "flux_oci_repositories": [],
             "function_calls": [],
             "functions": [],
             "gitlab_jobs": [],
