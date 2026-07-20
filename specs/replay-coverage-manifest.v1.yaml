@@ -83,6 +83,11 @@ coverage:
   - {surface: "read_surface:list_repository_files", scenario: api_mcp_golden, scenario_type: baseline, ref: "list_repository_files", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/cloud/inventory", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/cloud/inventory", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/cloud/resources", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/cloud/resources", proof_gate: golden-corpus-gate}
+  # kubernetes_live (#5398): the fact-kind registry read_surface was corrected
+  # from the AWS/GCP cloud-posture endpoint (GET /api/v0/cloud/resources, zero
+  # kubernetes handling — a copy-paste error) to the real mounted kubernetes
+  # correlations route so the surface key and the proven route match.
+  - {surface: "read_surface:GET /api/v0/kubernetes/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/kubernetes/correlations?cluster_id=supply-chain-demo&limit=50", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/images", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/images", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/package-registry/packages", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/package-registry/packages?ecosystem=go&limit=50", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/package-registry/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/package-registry/correlations?package_id=github.com/acme/lib-common&limit=50", proof_gate: golden-corpus-gate}
