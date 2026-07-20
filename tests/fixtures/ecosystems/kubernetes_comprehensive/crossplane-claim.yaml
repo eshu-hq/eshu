@@ -1,0 +1,8 @@
+apiVersion: db.acme.internal/v1alpha1
+kind: AcmeDatabase
+metadata:
+  name: comprehensive-api-db
+  namespace: production
+spec:
+  engine: postgres
+  storageGB: 50

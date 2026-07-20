@@ -1526,6 +1526,14 @@
         "from_label": "CloudResource",
         "to_label": "CloudResource",
         "minimum_count": 1
+      },
+      {
+        "id": "rc-151",
+        "description": "K8sResource Claim -> CrossplaneXRD SATISFIED_BY edge: kubernetes_comprehensive/crossplane-claim.yaml (AcmeDatabase, db.acme.internal/v1alpha1) resolves against kubernetes_comprehensive/crossplane-xrd.yaml (spec.group db.acme.internal, claimNames.kind AcmeDatabase) via the reducer group/claim-kind classification (issue #5347). Zero if the Claim misclassifies or the XRD join key drifts.",
+        "relationship": "SATISFIED_BY",
+        "from_label": "K8sResource",
+        "to_label": "CrossplaneXRD",
+        "minimum_count": 1
       }
     ],
     "required_nodes": [
