@@ -219,63 +219,9 @@ spec:
 	assertBucketContainsFieldValue(t, got, "argocd_applicationsets", "dest_server", "https://kubernetes.default.svc")
 }
 
-func TestDefaultEngineParsePathYAMLCrossplaneResources(t *testing.T) {
-	t.Parallel()
-
-	repoRoot := t.TempDir()
-	filePath := filepath.Join(repoRoot, "crossplane.yaml")
-	writeTestFile(
-		t,
-		filePath,
-		`apiVersion: apiextensions.crossplane.io/v1
-kind: CompositeResourceDefinition
-metadata:
-  name: xiamroles.iam.aws.myorg.io
-spec:
-  group: iam.aws.myorg.io
-  names:
-    kind: XIAMRole
-    plural: xiamroles
-  claimNames:
-    kind: IAMRole
-    plural: iamroles
----
-apiVersion: apiextensions.crossplane.io/v1
-kind: Composition
-metadata:
-  name: iam-role-composition
-spec:
-  compositeTypeRef:
-    apiVersion: iam.aws.myorg.io/v1alpha1
-    kind: XIAMRole
-  resources:
-    - name: iam-role
----
-apiVersion: iam.aws.myorg.crossplane.io/v1alpha1
-kind: IAMRole
-metadata:
-  name: my-service-role
-  namespace: default
-`,
-	)
-
-	engine, err := DefaultEngine()
-	if err != nil {
-		t.Fatalf("DefaultEngine() error = %v, want nil", err)
-	}
-
-	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
-	if err != nil {
-		t.Fatalf("ParsePath() error = %v, want nil", err)
-	}
-
-	assertNamedBucketContains(t, got, "crossplane_xrds", "xiamroles.iam.aws.myorg.io")
-	assertBucketContainsFieldValue(t, got, "crossplane_xrds", "claim_kind", "IAMRole")
-	assertNamedBucketContains(t, got, "crossplane_compositions", "iam-role-composition")
-	assertBucketContainsFieldValue(t, got, "crossplane_compositions", "composite_kind", "XIAMRole")
-	assertNamedBucketContains(t, got, "crossplane_claims", "my-service-role")
-	assertBucketContainsFieldValue(t, got, "crossplane_claims", "api_version", "iam.aws.myorg.crossplane.io/v1alpha1")
-}
+// TestDefaultEngineParsePathYAMLCrossplaneResources moved to
+// engine_yaml_semantics_crossplane_test.go to keep this file under the
+// repo's 500-line package-file cap (issue #5347).
 
 func TestDefaultEngineParsePathYAMLKustomizeAndHelm(t *testing.T) {
 	t.Parallel()

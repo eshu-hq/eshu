@@ -173,6 +173,7 @@ retractable_edge_types:
   - RUNS_IMAGE
   - RUNS_IN
   - RUNS_ON
+  - SATISFIED_BY
   - TARGETS_ENVIRONMENT
   - USES
   - USES_MODULE

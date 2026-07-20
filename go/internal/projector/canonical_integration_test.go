@@ -374,6 +374,10 @@ func TestCanonicalProjectionEntityLabelMapping(t *testing.T) {
 	runtime := Runtime{
 		CanonicalWriter: canonicalWriter,
 		ContentWriter:   contentWriter,
+		// The k8s_resource entity fixture below is a Crossplane Claim-candidate
+		// trigger fact (issue #5347); an IntentWriter is required once a reducer
+		// intent is present.
+		IntentWriter: &recordingIntentWriter{},
 	}
 
 	repoID := "repo-labels-1"

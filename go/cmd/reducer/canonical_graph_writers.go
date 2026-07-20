@@ -23,6 +23,7 @@ type canonicalGraphWriters struct {
 	securityGroupEndpointNode     *sourcecypher.SecurityGroupEndpointNodeWriter
 	securityGroupReachability     *sourcecypher.SecurityGroupReachabilityWriter
 	kubernetesCorrelationEdge     *sourcecypher.KubernetesCorrelationEdgeWriter
+	crossplaneSatisfiedByEdge     *sourcecypher.CrossplaneSatisfiedByEdgeWriter
 	iamEscalationEdge             *sourcecypher.IAMEscalationEdgeWriter
 	iamCanPerformEdge             *sourcecypher.IAMCanPerformEdgeWriter
 	observabilityCoverageEdge     *sourcecypher.ObservabilityCoverageEdgeWriter
@@ -65,6 +66,7 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, batchSize int, ownerGa
 		securityGroupEndpointNode:     sourcecypher.NewSecurityGroupEndpointNodeWriter(exec, batchSize),
 		securityGroupReachability:     sourcecypher.NewSecurityGroupReachabilityWriter(exec, batchSize),
 		kubernetesCorrelationEdge:     sourcecypher.NewKubernetesCorrelationEdgeWriter(exec, batchSize),
+		crossplaneSatisfiedByEdge:     sourcecypher.NewCrossplaneSatisfiedByEdgeWriter(exec, batchSize),
 		iamEscalationEdge:             sourcecypher.NewIAMEscalationEdgeWriter(exec, batchSize),
 		iamCanPerformEdge:             sourcecypher.NewIAMCanPerformEdgeWriter(exec, batchSize),
 		observabilityCoverageEdge:     sourcecypher.NewObservabilityCoverageEdgeWriter(exec, batchSize),

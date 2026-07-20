@@ -93,6 +93,10 @@ or marker that already diagnoses it.
 | projection (AWS relationship) | go/internal/reducer/aws_relationship_materialization.go | `eshu_dp_aws_relationship_edges_total`, `eshu_dp_postgres_query_duration_seconds` | reducer AWS |
 | projection (GCP relationship) | go/internal/reducer/gcp_materialization_observability.go:22 | `eshu_dp_gcp_relationship_edges_total`, `eshu_dp_gcp_materialization_facts_total`, `eshu_dp_gcp_materialization_graph_writes_total`, `eshu_dp_gcp_materialization_duration_seconds` | reducer GCP |
 | projection (Kubernetes correlation) | go/internal/reducer/kubernetes_correlation_materialization.go | `eshu_dp_kubernetes_correlations_total`, `eshu_dp_kubernetes_correlation_edges_total`, `eshu_dp_kubernetes_workload_nodes_total` | reducer Kubernetes |
+| projection (Crossplane SATISFIED_BY) | go/internal/reducer/crossplane_satisfied_by_materialization.go | `eshu_dp_crossplane_satisfied_by_edges_total` | reducer Crossplane |
+| projection (Crossplane SATISFIED_BY row extraction) | go/internal/reducer/crossplane_satisfied_by_edge_rows.go | `No-Observability-Change: pure in-memory extraction/resolution helper called by crossplane_satisfied_by_materialization.go's Handle; its materialized/ambiguous_skipped tally is recorded through eshu_dp_crossplane_satisfied_by_edges_total and the completion log in that file, not a metric of its own` | reducer Crossplane |
+| projection (Crossplane additive domain wiring) | go/internal/reducer/defaults_additive_domains_crossplane.go | `No-Observability-Change: additive reducer-domain registration wiring; registers the adapter-gated DomainCrossplaneSatisfiedByMaterialization domain that runs as a standard reducer execution covered by eshu_dp_reducer_executions_total and eshu_dp_reducer_run_duration_seconds, with its own edge metric documented in the projection row above; this file emits no metric of its own` | reducer additive |
+| reducer domain catalog (platform additive domains) | go/internal/reducer/intent_domain_platform.go | `No-Observability-Change: pure Domain constant declarations split out of intent.go for the 500-line file cap (issue #5347); each domain's telemetry is documented in its own projection row, this file has no runtime behavior and emits no metric` | reducer additive |
 | projection (Observability coverage) | go/internal/reducer/observability_coverage_materialization.go | `eshu_dp_observability_coverage_correlations_total`, `eshu_dp_observability_coverage_edges_total` | reducer observability coverage |
 | projection (IAM CAN_ASSUME) | go/internal/reducer/iam_can_assume_materialization.go | `eshu_dp_iam_can_assume_edges_total` | reducer IAM |
 | projection (IAM escalation) | go/internal/reducer/iam_escalation_materialization.go | `eshu_dp_iam_escalation_edges_total`, `eshu_dp_iam_escalation_skipped_total` | reducer IAM |
@@ -211,6 +215,7 @@ queue-depth and claim-wait surfaces with the reducer.
 | deferred backfill partition fan-out | go/internal/storage/postgres/ingestion_backfill_scoped_load.go:178 | `eshu_dp_deferred_backfill_partitions_total`, `eshu_dp_deferred_backfill_partition_workers`, `eshu_dp_deferred_backfill_partition_load_duration_seconds` | projector backfill |
 | deferred backfill partition memo gate | go/internal/storage/postgres/ingestion_backfill_partition_memo_gate.go:178 | `eshu_dp_deferred_backfill_partitions_skipped_total`, `eshu_dp_deferred_backfill_partitions_loaded_total` | projector backfill |
 | deployment_mapping/code_import_repo_edge reopen partition memo gate | go/internal/storage/postgres/ingestion_reopen_partition_memo_gate.go:118 | `eshu_dp_reopen_skipped_by_partition_memo_total` | projector backfill |
+| Crossplane SATISFIED_BY intent trigger | go/internal/projector/crossplane_satisfied_by_materialization_intents.go | `No-Observability-Change: enqueues the reducer.DomainCrossplaneSatisfiedByMaterialization intent, covered by the standard projector run/canonical-write metrics above (eshu_dp_projector_run_duration_seconds, eshu_dp_canonical_writes_total) and the projection's own eshu_dp_crossplane_satisfied_by_edges_total once the reducer executes it; this file emits no metric of its own` | projector fact commit |
 
 <!-- eshu:metric:section=collector-dispatch-seams -->
 ## Collector Dispatch Seams
@@ -554,6 +559,7 @@ the right name when adding a new stage.
 | reducer.observability_coverage_materialization | go/internal/telemetry/contract.go:272 | `eshu_dp_observability_coverage_edges_total` | span reducer |
 | reducer.iam_can_assume_materialization | go/internal/telemetry/contract.go:279 | `eshu_dp_iam_can_assume_edges_total` | span reducer |
 | reducer.kubernetes_correlation_materialization | go/internal/telemetry/contract.go:287 | `eshu_dp_kubernetes_correlation_edges_total` | span reducer |
+| reducer.crossplane_satisfied_by_materialization | go/internal/telemetry/contract.go:343 | `eshu_dp_crossplane_satisfied_by_edges_total` | span reducer |
 | reducer.s3_logs_to_materialization | go/internal/telemetry/contract.go:294 | `eshu_dp_s3_logs_to_edges_total` | span reducer |
 | reducer.rds_posture_materialization | go/internal/telemetry/contract.go:301 | `eshu_dp_postgres_query_duration_seconds` | span reducer |
 | reducer.ec2_uses_profile_materialization | go/internal/telemetry/contract.go:310 | `eshu_dp_ec2_uses_profile_edges_total` | span reducer |

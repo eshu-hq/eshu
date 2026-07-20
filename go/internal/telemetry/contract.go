@@ -332,6 +332,15 @@ const (
 	// provenance-only or digest-unresolvable correlation degraded gracefully without
 	// fabricating or dangling edges.
 	SpanReducerKubernetesCorrelationMaterialization = "reducer.kubernetes_correlation_materialization"
+	// SpanReducerCrossplaneSatisfiedByMaterialization wraps the Crossplane
+	// Claim -> XRD SATISFIED_BY edge projection (issue #5347): own-scope
+	// content-entity fact load, cross-scope active CrossplaneXRD fact load,
+	// (group, kind) resolution against exactly one XRD, retract, and the
+	// batched MATCH-MATCH-MERGE SATISFIED_BY edge write. The span carries
+	// materialized vs ambiguous-skipped edge counts so a trace shows whether
+	// a 2+ XRD match degraded gracefully without fabricating a representative
+	// edge.
+	SpanReducerCrossplaneSatisfiedByMaterialization = "reducer.crossplane_satisfied_by_materialization"
 	// SpanReducerS3LogsToMaterialization wraps the S3 LOGS_TO server-access-log
 	// edge projection (issue #1144 PR2): fact load, in-memory S3 bucket-name
 	// join-index build, source/target bucket resolution, retract, and the batched

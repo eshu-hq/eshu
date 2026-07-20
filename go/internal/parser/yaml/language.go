@@ -275,10 +275,11 @@ func appendYAMLDocument(payload map[string]any, path string, filename string, do
 		shared.AppendBucket(payload, "crossplane_compositions", parseCrossplaneComposition(document, metadata, path, lineNumber))
 		return
 	}
-	if isCrossplaneClaim(apiVersion) {
-		shared.AppendBucket(payload, "crossplane_claims", parseCrossplaneClaim(metadata, apiVersion, kind, path, lineNumber))
-		return
-	}
+	// A Crossplane Claim is intentionally not classified here — see the
+	// comment above parseK8sResource in semantics.go (issue #5347). It flows
+	// through to k8s_resources like any other generic Kubernetes object; the
+	// reducer correlation layer classifies it against crossplane_xrds and
+	// materializes the SATISFIED_BY edge.
 	shared.AppendBucket(payload, "k8s_resources", parseK8sResource(document, metadata, apiVersion, kind, path, lineNumber))
 }
 

@@ -122,27 +122,22 @@ func parseCrossplaneComposition(document map[string]any, metadata map[string]any
 	}
 }
 
-func isCrossplaneClaim(apiVersion string) bool {
-	if strings.HasPrefix(apiVersion, "apiextensions.crossplane.io/") {
-		return false
-	}
-	if strings.HasPrefix(apiVersion, "pkg.crossplane.io/") {
-		return false
-	}
-	return strings.Contains(apiVersion, ".crossplane.io/")
-}
-
-func parseCrossplaneClaim(metadata map[string]any, apiVersion string, kind string, path string, lineNumber int) map[string]any {
-	return map[string]any{
-		"name":        strings.TrimSpace(fmt.Sprint(metadata["name"])),
-		"line_number": lineNumber,
-		"kind":        kind,
-		"api_version": apiVersion,
-		"namespace":   strings.TrimSpace(fmt.Sprint(metadata["namespace"])),
-		"path":        path,
-		"lang":        "yaml",
-	}
-}
+// A Crossplane Claim is intentionally NOT parser-classified here (issue
+// #5347). A real Claim's apiVersion is the XRD's own custom group
+// (spec.group, e.g. "database.example.org/v1alpha1") — it never contains
+// ".crossplane.io/"; apiVersions that DO contain that substring belong to
+// provider Managed Resources (e.g. "ec2.aws.crossplane.io/v1alpha1") or
+// Crossplane's own apiextensions/pkg groups, never a Claim. A prior
+// classifier keyed on the ".crossplane.io/" substring and was therefore
+// inverted: it misclassified provider Managed Resources as claims while
+// every real Claim fell through to k8s_resources anyway. Every non-XRD,
+// non-Composition Crossplane-family document — including real Claims — now
+// flows to parseK8sResource below (join keys: api_version, kind), and the
+// reducer correlation layer (internal/reducer, SATISFIED_BY materialization)
+// classifies a K8sResource row as a Claim by resolving
+// (api_version's group, kind) against exactly one CrossplaneXRD's
+// (spec.group, spec.claimNames.kind) — a graph-edge classification, not a
+// parse-time label.
 
 func parseK8sResource(document map[string]any, metadata map[string]any, apiVersion string, kind string, path string, lineNumber int) map[string]any {
 	name := strings.TrimSpace(fmt.Sprint(metadata["name"]))

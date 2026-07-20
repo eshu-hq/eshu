@@ -145,6 +145,7 @@ var idempotencyAdditiveExemptDomains = map[Domain]string{
 	DomainWorkloadCloudRelationshipMaterialization: "additive, gated on FactLoader+WorkloadCloudRelationshipEdgeWriter with readiness lookup; idempotency proven by workload_cloud_relationship_materialization_*_test.go",
 	DomainObservabilityCoverageMaterialization:     "additive, gated on FactLoader+ObservabilityCoverageEdgeWriter with readiness lookup; idempotency proven by observability_coverage_materialization_*_test.go",
 	DomainKubernetesCorrelationMaterialization:     "additive, gated on FactLoader+KubernetesCorrelationEdgeWriter with readiness lookup; idempotency proven by kubernetes_correlation_materialization_*_test.go",
+	DomainCrossplaneSatisfiedByMaterialization:     "additive, gated on FactLoader+CrossplaneSatisfiedByEdgeWriter; MATCH-MATCH-MERGE edge write is idempotent by (claim_uid, SATISFIED_BY, xrd_uid) and rows are deduplicated before write, idempotency proven by crossplane_satisfied_by_edge_rows_test.go and crossplane_satisfied_by_edge_writer_test.go",
 	DomainEC2UsesProfileMaterialization:            "additive, gated on FactLoader+EC2UsesProfileEdgeWriter with dual readiness lookup; idempotency proven by ec2_uses_profile_materialization_*_test.go",
 
 	// Security group + IAM edge materializers: readiness-gated graph edges, proven

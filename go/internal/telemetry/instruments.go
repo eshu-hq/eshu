@@ -395,6 +395,16 @@ type Instruments struct {
 	// operator see live-workload->image edge throughput, and a generation that
 	// materialized zero edges, at 3 AM.
 	KubernetesCorrelationEdges metric.Int64Counter
+	// CrossplaneSatisfiedByEdges counts canonical SATISFIED_BY edges the
+	// Crossplane Claim -> XRD correlation edge projection committed (issue
+	// #5347). Label: resolution_mode (group_claim_kind — the sole exact join
+	// this domain produces today). It counts only materialized edges; a
+	// zero-match candidate (an ordinary Kubernetes object) and an ambiguous
+	// 2+ XRD match (counted ambiguous_skipped in the completion log, not a
+	// metric label, to keep cardinality bounded) never produce an edge. Lets
+	// an operator see Claim->XRD edge throughput, and a generation that
+	// materialized zero edges, at 3 AM.
+	CrossplaneSatisfiedByEdges metric.Int64Counter
 	// SecurityGroupEndpointNodes counts canonical CidrBlock and PrefixList graph
 	// nodes committed by the security-group endpoint materialization reducer
 	// (issue #1135 PR2a). Label: endpoint_kind (cidr_block / prefix_list). It lets
@@ -2454,6 +2464,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register KubernetesCorrelationEdges counter: %w", err)
+	}
+
+	inst.CrossplaneSatisfiedByEdges, err = meter.Int64Counter(
+		"eshu_dp_crossplane_satisfied_by_edges_total",
+		metric.WithDescription("Total canonical SATISFIED_BY Crossplane Claim -> XRD edges committed by resolution_mode"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CrossplaneSatisfiedByEdges counter: %w", err)
 	}
 
 	inst.SecurityGroupEndpointNodes, err = meter.Int64Counter(

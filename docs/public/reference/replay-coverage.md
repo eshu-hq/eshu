@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 404/404 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 405/405 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -18,10 +18,10 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
 | Projections (cost/ordering) | 27 | 27 | 100.00% | 0 | 1 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
-| Retractable edge types (delta) | 53 | 53 | 100.00% | 0 | 0 |
+| Retractable edge types (delta) | 54 | 54 | 100.00% | 0 | 0 |
 | Retractable node types (delta) | 87 | 87 | 100.00% | 0 | 0 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **404** | **404** | **100.00%** | **0** | **10** |
+| **Total** | **405** | **405** | **100.00%** | **0** | **10** |
 
 ## Coverage by scenario type
 
@@ -30,7 +30,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | baseline | 215 | 215 | 100.00% | 0 | 5 |
 | cost | 26 | 26 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
-| delta_tombstone | 141 | 141 | 100.00% | 0 | 0 |
+| delta_tombstone | 142 | 142 | 100.00% | 0 | 0 |
 | fault | 17 | 17 | 100.00% | 0 | 4 |
 | ordering | 3 | 3 | 100.00% | 0 | 0 |
 
@@ -46,7 +46,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 None. Every supported surface has a replay scenario.
 
-## Covered surfaces (404)
+## Covered surfaces (405)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -323,6 +323,7 @@ None. Every supported surface has a replay scenario.
 | `retractable_edge:RUNS_IMAGE` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go` |
 | `retractable_edge:RUNS_IN` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go` |
 | `retractable_edge:RUNS_ON` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
+| `retractable_edge:SATISFIED_BY` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_crossplane_edge_retract_live_test.go` |
 | `retractable_edge:SECRETS_IAM_USES_SERVICE_ACCOUNT` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_secrets_iam_edge_retract_live_test.go` |
 | `retractable_edge:TAINT_FLOWS_TO` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go` |
 | `retractable_edge:TARGETS_ENVIRONMENT` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |

@@ -1,0 +1,29 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xacmedatabases.db.acme.internal
+spec:
+  group: db.acme.internal
+  names:
+    kind: XAcmeDatabase
+    plural: xacmedatabases
+  claimNames:
+    kind: AcmeDatabase
+    plural: acmedatabases
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                engine:
+                  type: string
+                  enum: ["postgres", "mysql"]
+                storageGB:
+                  type: integer
+                  default: 20
