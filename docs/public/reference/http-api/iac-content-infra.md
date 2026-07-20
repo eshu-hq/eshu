@@ -841,6 +841,15 @@ token are returned. The token must be one of the 24 canonical values; an
 unrecognized value returns `400 Bad Request`. When absent, all edges for the
 verb are returned regardless of their source tool.
 
+Passing a syntactically valid token does not guarantee matches. Only Tier-2
+shared verbs (`DEPLOYS_FROM`, `USES_MODULE`, and similar) stamp `source_tool`,
+so only those relationships are filterable this way. Tier-1 self-labeling tools
+— for example `atlantis` — attribute by edge TYPE and never carry the
+`source_tool` stamp, so filtering a verb by such a token returns an empty page;
+query those relationships by verb instead. Consult the per-token tier table in
+[Edge Source-Tool Provenance](../edge-source-tool-provenance.md) to see which
+tokens are stamped (and which are Tier-1 only, or dual-tier like `gcp`).
+
 The canonical vocabulary is the closed enum in
 [Edge Source-Tool Provenance](../edge-source-tool-provenance.md):
 `terraform`, `terragrunt`, `helm`, `kustomize`, `argocd`, `ansible`, `puppet`,
