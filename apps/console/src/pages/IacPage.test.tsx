@@ -245,6 +245,19 @@ describe("IacPage", () => {
     expect(path).toContain("include_facets=true");
   });
 
+  it("renders rows accepted by the authoritative server search", async () => {
+    const get = vi.fn().mockResolvedValue(authoritativeEnvelope([row("r1", "aws_s3_bucket.logs")]));
+    const client = { get } as unknown as EshuApiClient;
+
+    renderIacPage(<IacPage client={client} model={{ ...demoModel, iacResources: [] }} />, [
+      "/iac?q=TerraformResource&kind=resource",
+    ]);
+
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(1));
+    expect(get.mock.calls[0][0]).toContain("q=TerraformResource");
+    expect(screen.getByText("aws_s3_bucket.logs")).toBeInTheDocument();
+  });
+
   it("aborts a superseded inventory request", async () => {
     const get = vi.fn(
       (_path: string, options?: { readonly signal?: AbortSignal }) =>

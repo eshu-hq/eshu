@@ -182,11 +182,8 @@ export function IacPage({
   const moduleCount = summary?.truncated.modules ? `${modules.length}+` : modules.length;
 
   const filtered = useMemo(
-    () =>
-      all.filter((row) =>
-        matchesIacRow(row, localRows ? draftQuery : appliedQuery, applied, !localRows),
-      ),
-    [all, draftQuery, appliedQuery, applied, localRows],
+    () => (localRows ? all.filter((row) => matchesIacRow(row, draftQuery, applied)) : all),
+    [all, draftQuery, applied, localRows],
   );
 
   // Clamp the page when filters shrink the result below the current offset.

@@ -50,19 +50,12 @@ export function distinctIacValues(values: readonly string[]): readonly string[] 
   return [...new Set(values.filter((value) => value !== ""))].sort();
 }
 
-export function matchesIacRow(
-  row: IacResourceRow,
-  query: string,
-  filters: IacFilters,
-  serverSideFilters: boolean,
-): boolean {
-  if (!serverSideFilters) {
-    if (row.kind !== filters.kind) return false;
-    if (filters.type !== "" && row.type !== filters.type) return false;
-    if (filters.provider !== "" && row.provider !== filters.provider) return false;
-    if (filters.module !== "" && row.module !== filters.module) return false;
-    if (filters.repository !== "" && row.repoId !== filters.repository) return false;
-  }
+export function matchesIacRow(row: IacResourceRow, query: string, filters: IacFilters): boolean {
+  if (row.kind !== filters.kind) return false;
+  if (filters.type !== "" && row.type !== filters.type) return false;
+  if (filters.provider !== "" && row.provider !== filters.provider) return false;
+  if (filters.module !== "" && row.module !== filters.module) return false;
+  if (filters.repository !== "" && row.repoId !== filters.repository) return false;
   if (query === "") return true;
   const needle = query.toLowerCase();
   const haystack = [
