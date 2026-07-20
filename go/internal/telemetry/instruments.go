@@ -1072,6 +1072,23 @@ type Instruments struct {
 	// field; the field exists so the metric is registered and tracked by the
 	// telemetry-coverage contract.
 	MCPTransportAuthDenied metric.Int64Counter
+	// GovernanceAuditAllowedEmitted, GovernanceAuditAllowedDropped, and
+	// GovernanceAuditAllowedPersistFailures are the F-9 (#5170) allowed-read
+	// governance-audit drop-observability triad. The mcp-server transport auth
+	// middleware's resolver-success branch (go/internal/query/auth.go) emits an
+	// allowed read_authorization event for every scoped-token/OIDC-bearer MCP
+	// read through a governanceauditasync.AsyncAppender so the emission never
+	// couples request latency to a Postgres round trip; that appender's worker
+	// (go/internal/governanceauditasync/appender.go) records to these three
+	// counters, not through this struct's fields directly — they are declared
+	// here so the metrics are registered on the mcp-server provider and tracked
+	// by the telemetry-coverage contract. Emitted counts events accepted into
+	// the bounded buffer; Dropped (the 3am signal) counts events rejected
+	// because the buffer was full or the appender was closed; PersistFailures
+	// counts events accepted but that a durable-store Append call failed.
+	GovernanceAuditAllowedEmitted         metric.Int64Counter
+	GovernanceAuditAllowedDropped         metric.Int64Counter
+	GovernanceAuditAllowedPersistFailures metric.Int64Counter
 	// AuthSecretSealTotal and AuthSecretOpenTotal count go/internal/secretcrypto
 	// Keyring.Seal/Open calls made by identity bootstrap-credential seeding
 	// (epic #4962/#4963) and, later, provider-secret write/read (#4966), by
@@ -3774,6 +3791,30 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register MCPTransportAuthDenied counter: %w", err)
+	}
+
+	inst.GovernanceAuditAllowedEmitted, err = meter.Int64Counter(
+		"eshu_dp_governance_audit_allowed_emitted_total",
+		metric.WithDescription("F-9 (#5170) allowed-read governance-audit events accepted into the async appender's bounded buffer"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GovernanceAuditAllowedEmitted counter: %w", err)
+	}
+
+	inst.GovernanceAuditAllowedDropped, err = meter.Int64Counter(
+		"eshu_dp_governance_audit_allowed_dropped_total",
+		metric.WithDescription("F-9 (#5170) allowed-read governance-audit events dropped because the async appender's buffer was full or the appender was closed; non-zero means governance data loss is happening"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GovernanceAuditAllowedDropped counter: %w", err)
+	}
+
+	inst.GovernanceAuditAllowedPersistFailures, err = meter.Int64Counter(
+		"eshu_dp_governance_audit_allowed_persist_failures_total",
+		metric.WithDescription("F-9 (#5170) allowed-read governance-audit events accepted into the async appender's buffer but that a durable-store Append call failed to persist"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GovernanceAuditAllowedPersistFailures counter: %w", err)
 	}
 
 	inst.AuthSecretSealTotal, err = meter.Int64Counter(
