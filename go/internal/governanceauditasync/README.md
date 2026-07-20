@@ -44,7 +44,17 @@ See `doc.go` for the godoc contract.
 - **Never blocks.** `Append` always returns quickly: a struct copy plus one
   non-blocking channel send per event. A full buffer or a closed appender
   drops the event and increments `Metrics.Dropped`; it never applies
-  backpressure.
+  backpressure. (Enqueue takes a read lock for the nanosecond check-and-send;
+  it contends only with the single trivial write section `Close` uses to begin
+  shutdown, so the hot path stays non-blocking.)
+- **Truthful loss accounting across shutdown.** Every event `Append` is called
+  with takes exactly one outcome: `emitted` (it reached the buffer and the
+  worker will flush it), `dropped` (buffer full, or the appender is closing),
+  or — after flushing — a `persist_failures` increment. There is no
+  emitted-but-lost event: enqueue coordinates with `Close` under an RWMutex so
+  a send either lands in the buffer strictly before shutdown begins (and is
+  drained) or observes the closing flag and drops. For buffered events,
+  `emitted == persisted + persist_failures`; drops are separate and counted.
 - **Single worker, FIFO.** Exactly one goroutine drains the buffer, so events
   enqueued by a single caller are flushed to the sink in the order they were
   enqueued. Cross-goroutine ordering across concurrent callers is not

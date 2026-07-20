@@ -15,7 +15,17 @@
 
 - **Append never blocks.** No lock, retry, or backpressure path may make
   `Append` wait on the sink or on buffer space. A full buffer must drop, not
-  block.
+  block. Enqueue holds `mu.RLock` only around the closing check and the
+  non-blocking send; do not extend that critical section or take the write
+  lock on the hot path.
+- **Truthful loss accounting, no emitted-but-lost.** Enqueue's closing check
+  and buffer send MUST stay one atomic critical section under `mu.RLock`, and
+  `Close` MUST set `closing = true` under `mu.Lock` BEFORE it closes the intake
+  signal. Splitting the check from the send (the pre-fix bug) lets `Close`
+  retire the worker between them, so a later send orphans an event that was
+  already counted `emitted`. Every event must end as exactly one of emitted /
+  dropped / persist-failure; `emitted == persisted + persist_failures` for
+  buffered events.
 - **Exactly one worker.** Do not add a worker pool; a single Postgres sink and
   the FIFO-within-process ordering guarantee both depend on one drain
   goroutine.

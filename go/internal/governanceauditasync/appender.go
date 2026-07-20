@@ -112,11 +112,27 @@ type AsyncAppender struct {
 
 	buf chan governanceaudit.Event
 
+	// mu coordinates enqueue with shutdown. Producers take RLock around the
+	// closing check AND the buffered-channel send as one critical section;
+	// Close takes the write lock to flip closing, which blocks until every
+	// in-flight enqueue has released its RLock. This makes "did this event
+	// make it into buf before shutdown?" an atomic decision: an enqueue either
+	// sends into buf BEFORE Close flips closing (so the worker still drains it)
+	// or observes closing after and drops it — never counts emitted then loses
+	// the event to a worker that already exited. The RLock is held only for the
+	// nanosecond check+non-blocking-send, so the hot path stays non-blocking
+	// (multiple producers hold RLock concurrently; they contend only with the
+	// single trivial Close write section).
+	mu sync.RWMutex
+	// closing is set true (under mu's write lock) by Close before it signals
+	// the worker to drain and exit. Guarded by mu.
+	closing bool
+
 	closeOnce sync.Once
-	// closed signals the worker and enqueue path that no more events should
-	// be accepted. It is closed exactly once by Close(); buf itself is never
-	// closed, so a producer racing Close() can never panic on a send to a
-	// closed channel.
+	// closed signals the worker to drain the buffer and exit. It is closed
+	// exactly once by Close(), AFTER closing is set, so no producer can send
+	// into buf once the worker has begun shutting down. buf itself is never
+	// closed, so a producer can never panic on a send to a closed channel.
 	closed chan struct{}
 	// done is closed by the worker goroutine once it has drained the buffer
 	// and performed its final flush after closed fires.
@@ -161,17 +177,19 @@ func (a *AsyncAppender) Append(_ context.Context, events []governanceaudit.Event
 }
 
 func (a *AsyncAppender) enqueue(event governanceaudit.Event) {
-	// Guarded intake: check the closed signal first so an enqueue arriving
-	// after Close() has begun drops cleanly. buf is never closed, so even
-	// the inherent TOCTOU race between this check and the send below cannot
-	// panic — it can only, in the narrow race window, deliver one extra
-	// event to a worker that has not yet exited, which is an acceptable
-	// best-effort outcome.
-	select {
-	case <-a.closed:
+	// Hold the read lock across BOTH the closing check and the send, so the
+	// pair is atomic with respect to Close flipping closing. If closing is
+	// already set, the worker is (or is about to be) shutting down: drop and
+	// count. Otherwise the non-blocking send either lands in buf — where the
+	// worker is guaranteed to drain it, because Close cannot flip closing
+	// until this RLock releases, and only closes the intake signal after that
+	// — or finds the buffer full and drops. Exactly one counter per event, and
+	// no emitted-but-lost: a send that succeeds provably precedes shutdown.
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	if a.closing {
 		a.countDropped()
 		return
-	default:
 	}
 	select {
 	case a.buf <- event:
@@ -285,6 +303,15 @@ func (a *AsyncAppender) appendOK(events []governanceaudit.Event) bool {
 // stuck sink can never hang process shutdown.
 func (a *AsyncAppender) Close() error {
 	a.closeOnce.Do(func() {
+		// Flip closing under the write lock FIRST: this blocks until every
+		// in-flight enqueue releases its RLock, so no producer is left between
+		// its closing check and its send. After this returns, every future
+		// enqueue observes closing and drops; every event already sent into
+		// buf did so before this point and is guaranteed to be drained. Only
+		// THEN signal the worker to drain and exit.
+		a.mu.Lock()
+		a.closing = true
+		a.mu.Unlock()
 		close(a.closed)
 	})
 	select {
