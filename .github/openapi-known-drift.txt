@@ -8,3 +8,10 @@ GET /api/v0/docs
 GET /api/v0/redoc
 # TODO(#3781): add openapi_paths_code_visualize fragment for this route.
 POST /api/v0/code/visualize
+# RFC 9728 OAuth 2.0 Protected Resource Metadata (#5163, F-2). Served on the MCP
+# origin's unauthenticated well-known surface, not the /api/v0 API — it is a
+# discovery document (authorization_servers, resource) consumed by OAuth
+# clients, not an API operation, so it is intentionally excluded from the
+# OpenAPI paths.
+GET /.well-known/oauth-protected-resource
+GET /.well-known/oauth-protected-resource/{rest...}
