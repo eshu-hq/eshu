@@ -183,8 +183,8 @@ local proof profile, so the accepted change does not alter free-text search.
 The full measurements and rejected-candidate ledger are in
 [`docs/internal/evidence/5275-documentation-query-plans.md`](../../../../docs/internal/evidence/5275-documentation-query-plans.md).
 
-No-Regression Evidence: the 50%-visibility theory shim had bidirectional set
-difference 0/0 and digest `c693401e0c0734fe0d227ea3821521ee`; the live
+No-Regression Evidence: the 5%-visibility theory shim had bidirectional set
+difference 0/0 and digest `1f713158f4cc5b3d724244b56cbeb292`; the live
 production-builder proof independently returned the expected 10,000 visible
 rows. The live migration test keeps both indexes valid through invalid-build
 recovery and proves repeated and concurrent bootstrap calls leave both index

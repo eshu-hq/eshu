@@ -9,7 +9,7 @@ SELECT current_database() LIKE 'eshu_5275_%' AS eshu_5275_disposable \gset
 \if :eshu_5275_disposable
 \else
   \echo 'refusing non-disposable database; expected an eshu_5275_ prefix'
-  \quit
+  SELECT 1 / 0 AS refusing_non_disposable_database;
 \endif
 
 SHOW server_version;
@@ -68,11 +68,11 @@ SELECT
     'truth_level', CASE WHEN n % 3000 = 0 THEN 'observed' ELSE 'inferred' END,
     'freshness_state', CASE WHEN n % 3000 = 0 THEN 'fresh' ELSE 'stale' END,
     'permissions', jsonb_build_object(
-      'viewer_can_read_source', n % 2 = 0,
-      'source_acl_evaluated', n % 2 = 0
+      'viewer_can_read_source', n % 20 = 0,
+      'source_acl_evaluated', n % 20 = 0
     ),
     'states', jsonb_build_object(
-      'permission_decision', CASE WHEN n % 2 = 0 THEN 'allowed' ELSE 'denied' END
+      'permission_decision', CASE WHEN n % 20 = 0 THEN 'allowed' ELSE 'denied' END
     )
   )
 FROM generate_series(1, 200000) AS n;
@@ -147,8 +147,93 @@ WHERE fact_kind = 'documentation_finding' AND is_tombstone = FALSE
   AND payload->>'freshness_state' = 'fresh';
 DEALLOCATE findings_read;
 
-DROP INDEX fact_records_documentation_findings_read_idx;
+\echo AGGREGATE_DUAL_INDEX_PLAN_AND_RESULT
+VACUUM (ANALYZE) fact_records;
+PREPARE aggregate_total AS
+SELECT COUNT(*) AS total
+FROM fact_records
+WHERE fact_kind = 'documentation_finding'
+  AND is_tombstone = FALSE
+  AND (payload->'permissions'->>'viewer_can_read_source') = 'true'
+  AND LOWER(COALESCE(payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'
+  AND LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied';
+PREPARE aggregate_status AS
+SELECT COALESCE(NULLIF(payload->>'status', ''), 'unknown') AS bucket,
+       COUNT(*) AS bucket_count
+FROM fact_records
+WHERE fact_kind = 'documentation_finding'
+  AND is_tombstone = FALSE
+  AND (payload->'permissions'->>'viewer_can_read_source') = 'true'
+  AND LOWER(COALESCE(payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'
+  AND LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied'
+GROUP BY bucket;
+CREATE TEMP TABLE aggregate_dual_result AS
+SELECT 'total'::text AS dimension, 'all'::text AS bucket,
+       COUNT(*) AS bucket_count
+FROM fact_records
+WHERE fact_kind = 'documentation_finding'
+  AND is_tombstone = FALSE
+  AND (payload->'permissions'->>'viewer_can_read_source') = 'true'
+  AND LOWER(COALESCE(payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'
+  AND LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied'
+UNION ALL
+SELECT 'status', COALESCE(NULLIF(payload->>'status', ''), 'unknown'), COUNT(*)
+FROM fact_records
+WHERE fact_kind = 'documentation_finding'
+  AND is_tombstone = FALSE
+  AND (payload->'permissions'->>'viewer_can_read_source') = 'true'
+  AND LOWER(COALESCE(payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'
+  AND LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied'
+GROUP BY 2;
+EXPLAIN (ANALYZE, BUFFERS, SUMMARY, FORMAT TEXT) EXECUTE aggregate_total;
+EXPLAIN (ANALYZE, BUFFERS, SUMMARY, FORMAT TEXT) EXECUTE aggregate_status;
+
 DROP INDEX fact_records_documentation_findings_visible_idx;
+VACUUM (ANALYZE) fact_records;
+
+\echo AGGREGATE_BROAD_ONLY_PLAN_AND_RESULT
+CREATE TEMP TABLE aggregate_broad_only_result AS
+SELECT 'total'::text AS dimension, 'all'::text AS bucket,
+       COUNT(*) AS bucket_count
+FROM fact_records
+WHERE fact_kind = 'documentation_finding'
+  AND is_tombstone = FALSE
+  AND (payload->'permissions'->>'viewer_can_read_source') = 'true'
+  AND LOWER(COALESCE(payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'
+  AND LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied'
+UNION ALL
+SELECT 'status', COALESCE(NULLIF(payload->>'status', ''), 'unknown'), COUNT(*)
+FROM fact_records
+WHERE fact_kind = 'documentation_finding'
+  AND is_tombstone = FALSE
+  AND (payload->'permissions'->>'viewer_can_read_source') = 'true'
+  AND LOWER(COALESCE(payload->'permissions'->>'source_acl_evaluated', 'true')) <> 'false'
+  AND LOWER(COALESCE(payload->'states'->>'permission_decision', '')) <> 'denied'
+GROUP BY 2;
+EXPLAIN (ANALYZE, BUFFERS, SUMMARY, FORMAT TEXT) EXECUTE aggregate_total;
+EXPLAIN (ANALYZE, BUFFERS, SUMMARY, FORMAT TEXT) EXECUTE aggregate_status;
+
+\echo AGGREGATE_EXACT_EQUIVALENCE
+SELECT
+  (SELECT COUNT(*) FROM (
+    (SELECT * FROM aggregate_dual_result
+     EXCEPT SELECT * FROM aggregate_broad_only_result)
+    UNION ALL
+    (SELECT * FROM aggregate_broad_only_result
+     EXCEPT SELECT * FROM aggregate_dual_result)
+  ) AS diff) AS symmetric_difference_rows,
+  (SELECT md5(string_agg(
+    dimension || ':' || bucket || ':' || bucket_count::text,
+    '|' ORDER BY dimension, bucket
+  )) FROM aggregate_dual_result) AS dual_digest,
+  (SELECT md5(string_agg(
+    dimension || ':' || bucket || ':' || bucket_count::text,
+    '|' ORDER BY dimension, bucket
+  )) FROM aggregate_broad_only_result) AS broad_only_digest;
+DEALLOCATE aggregate_total;
+DEALLOCATE aggregate_status;
+
+DROP INDEX fact_records_documentation_findings_read_idx;
 TRUNCATE fact_records;
 
 \echo SEARCH_SEED_1600000

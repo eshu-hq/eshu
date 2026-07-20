@@ -1,5 +1,5 @@
--- Create the corrected read index under a new name before retiring the legacy
--- ACL-filtered index. The distinct name makes bootstrap replay a stable no-op.
+-- Create the broad findings-list index under a distinct name while retaining
+-- the ACL-filtered aggregate index. The distinct name makes replay a stable no-op.
 CREATE INDEX CONCURRENTLY IF NOT EXISTS fact_records_documentation_findings_read_idx
     ON fact_records (
         (payload->>'finding_type'),

@@ -58,7 +58,12 @@ queries, and candidate DDL are in
 the returning-aware write probe is in
 `go/internal/storage/postgres/documentation_facts_write_index_live_test.go`.
 The verified SQL shim SHA-256 is
+`c138e0dcc72759c06607aa1a40d730658a5cc4cf0e69f0d287766404505b1e9d`.
+The rejected-search ledger below was captured before the aggregate comparator
+was added, from the otherwise unchanged search section at SHA-256
 `942756c51ebabb30b05d266f62f4170ae0b197e5d81e37af12c48da4cd92b5c1`.
+The complete current shim was rerun successfully after the aggregate extension;
+the current findings and aggregate results below come from that rerun.
 
 The measured SQL is mechanically bound to production, rather than trusted as
 a hand-maintained copy. Query-package tests render the complete
@@ -85,20 +90,20 @@ guard. The source hashes for this run are:
 - migration 003:
   `17e98ba4f72588f0913d2ed631e6699c24e52958674b367ca4b9218c1f2a47d1`;
 - migration 064:
-  `2a352323a4c01d16d020f35cca6099888790c1930a1d6ee76bde3beb74703fe3`.
+  `4e6731c1bbb7d90d0dae479bfb2f03d67f6d5b5fd4b7fa7201fd0d3acd2e5b92`.
 
 ## Accepted findings-list index result
 
 | Measure | Stale predicate | Corrected predicate | Result |
 | --- | ---: | ---: | --- |
-| Execution time | 13.964 ms | 0.300 ms | 13.664 ms faster; 46.55x |
+| Execution time | 12.177 ms | 0.330 ms | 11.847 ms faster; 36.90x |
 | Terminal rows | 66 | 66 | identical |
 | Result digest | `b99ca6f196274d3a9b33333c686878a8` | `b99ca6f196274d3a9b33333c686878a8` | identical |
 | Fact-read plan | `Parallel Seq Scan` | `Index Scan using fact_records_documentation_findings_read_idx` | intended plan delta |
 | Actual rows / loops | 22 rows x 3 worker loops | 66 rows x 1 index loop | same 66 terminal rows |
 | Fact-read buffers | 13,334 shared hits | 66 shared hits, 4 reads | 13,264 fewer shared block accesses |
 | Whole-plan buffers | 13,400 shared hits | 198 shared hits, 4 reads | join included |
-| Planning | 0.184 ms, 17 shared hits | 0.304 ms, 51 hits and 1 read | recorded, not optimized |
+| Planning | 0.179 ms, 17 shared hits | 0.443 ms, 53 hits and 1 read | recorded, not optimized |
 
 The stale partial predicate forced a sequential scan. The corrected predicate
 made the current disclosure read eligible for its replacement partial index.
@@ -117,6 +122,19 @@ the aggregate-visible index selected: total 7.912 ms, grouped status 6.997 ms,
 and inventory status 8.837 ms. Each index scan returned 10,000 rows with 10,351
 shared hits and zero shared reads; the live test completed in 5.94 s. The
 broad-only comparator remains theory-shim evidence only.
+
+The checked-in theory shim also compares the exact aggregate predicates with
+and without the ACL-visible index on the same 5%-visible fixture:
+
+| Builder | Dual-index execution | Dual-index buffers / plan | Broad-only execution | Broad-only buffers / plan |
+| --- | ---: | --- | ---: | --- |
+| Total | 3.536 ms | 10,162 shared hits; `fact_records_documentation_findings_visible_idx` | 13.095 ms | 13,334 shared hits; `Parallel Seq Scan` |
+| Grouped status | 4.478 ms | 10,161 shared hits; `fact_records_documentation_findings_visible_idx` | 13.331 ms | 13,412 shared hits; `Parallel Seq Scan` |
+
+The dual-index and broad-only aggregate results have bidirectional set
+difference 0/0 and the same digest,
+`1f713158f4cc5b3d724244b56cbeb292`. This proves that retaining the ACL-visible
+index changes the plan and timing, not the aggregate answer.
 
 The exact returning-aware production 500-row write proof recorded old-only
 samples 4.091/4.195/4.264 ms and dual-final samples 4.538/4.954/4.993 ms:
@@ -191,8 +209,8 @@ fixture so a small concurrency test is not presented as performance evidence.
 
 ## Evidence markers
 
-Performance Evidence: the accepted findings index changed a 13.964 ms parallel
-sequential scan into a 0.300 ms index scan with the same 66 rows and digest. The
+Performance Evidence: the accepted findings index changed a 12.177 ms parallel
+sequential scan into a 0.330 ms index scan with the same 66 rows and digest. The
 production aggregate builders selected the retained ACL index in
 7.912/6.997/8.837 ms, and the exact production write-batch ratio for the dual
 index shape was 1.181x. The complete production 1.6-million-row search completed
@@ -219,6 +237,14 @@ createdb "$proof_db"
 psql -X -d "$proof_db" \
   -f docs/internal/evidence/5275-documentation-query-plan-shim.sql
 dropdb "$proof_db"
+
+guard_db=eshu_guard_5275_<run-id>
+createdb "$guard_db"
+! psql -X -d "$guard_db" \
+  -f docs/internal/evidence/5275-documentation-query-plan-shim.sql
+psql -X -d "$guard_db" \
+  -c "SELECT to_regclass('public.fact_records') IS NULL"
+dropdb "$guard_db"
 
 cd go
 go test ./internal/query \
@@ -247,8 +273,12 @@ git diff --check
 ```
 
 The SQL shim requires a fresh database name beginning with `eshu_5275_` and
-refuses every other database. The verified run cleaned up its database; a
-catalog check returned zero remaining `eshu_5275_%` databases.
+refuses every other database. The negative guard proof exited 3 on the deliberate
+division-by-zero assertion before creating `fact_records`; the catalog check
+returned `NULL` for that table. The checked-in query binding test also rejects a
+bare `\quit`, because psql can use it to return a successful exit status. The
+verified positive run cleaned up its database; a catalog check returned zero
+remaining `eshu_5275_%` databases.
 
 The live restart test requires
 `ESHU_TEST_DOCUMENTATION_INDEX_POSTGRES_DSN` and the explicit

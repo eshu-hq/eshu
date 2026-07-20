@@ -208,6 +208,27 @@ func TestDocumentationFindingsQueryPlanShimRejectsProductionReadDrift(t *testing
 	}
 }
 
+func TestDocumentationQueryPlanShimFailsClosedOutsideDisposableDatabase(t *testing.T) {
+	t.Parallel()
+
+	shim := documentationQueryPlanShimForTest(t)
+	required := []string{
+		`\set ON_ERROR_STOP on`,
+		`SELECT current_database() LIKE 'eshu_5275_%' AS eshu_5275_disposable \gset`,
+		`\if :eshu_5275_disposable`,
+		`SELECT 1 / 0 AS refusing_non_disposable_database;`,
+		`\endif`,
+	}
+	for _, literal := range required {
+		if !strings.Contains(shim, literal) {
+			t.Fatalf("checked-in proof shim is missing fail-closed guard %q", literal)
+		}
+	}
+	if strings.Contains(shim, `\quit`) {
+		t.Fatal("checked-in proof shim must not use psql \\quit because it can exit successfully")
+	}
+}
+
 func validateDocumentationSearchShimForTest(query string, args []any, shim string) error {
 	productionStatement, err := renderDocumentationProofArgsForTest(query, args)
 	if err != nil {
