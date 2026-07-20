@@ -86,18 +86,45 @@ type sbomAttachmentWarningEvidence struct {
 	occurrenceCount int
 }
 
+// sbomAttachmentDependencyEvidence carries the decoded fields of one
+// sbom.dependency_relationship fact the attachment decision's
+// DependencyRelationshipEvidence rows need, decoded once when the
+// relationship is indexed rather than re-decoded when the decision is built.
+type sbomAttachmentDependencyEvidence struct {
+	factID             string
+	fromComponentID    string
+	toComponentID      string
+	relationshipType   string
+	relationshipOrigin string
+}
+
+// sbomAttachmentExternalReferenceEvidence carries the decoded fields of one
+// sbom.external_reference fact the attachment decision's
+// ExternalReferenceEvidence rows need, decoded once when the reference is
+// indexed rather than re-decoded when the decision is built.
+type sbomAttachmentExternalReferenceEvidence struct {
+	factID           string
+	componentID      string
+	referenceType    string
+	referenceURL     string
+	referenceLocator string
+}
+
 type sbomAttachmentIndex struct {
-	documents     map[string]sbomAttachmentDocument
-	components    map[string][]sbomAttachmentComponentEvidence
-	referrers     map[string][]sbomAttachmentReferrer
-	images        map[string][]sbomAttachmentImageAnchor
-	verifications map[string]sbomAttachmentVerificationEvidence
-	warnings      map[string][]sbomAttachmentWarningEvidence
+	documents          map[string]sbomAttachmentDocument
+	components         map[string][]sbomAttachmentComponentEvidence
+	referrers          map[string][]sbomAttachmentReferrer
+	images             map[string][]sbomAttachmentImageAnchor
+	verifications      map[string]sbomAttachmentVerificationEvidence
+	warnings           map[string][]sbomAttachmentWarningEvidence
+	dependencies       map[string][]sbomAttachmentDependencyEvidence
+	externalReferences map[string][]sbomAttachmentExternalReferenceEvidence
 }
 
 // buildSBOMAttachmentIndex builds the bounded in-memory index from the scope
 // generation's sbom/attestation fact envelopes. The typed sbom_attestation
-// family kinds (sbom.document, sbom.component, attestation.statement,
+// family kinds (sbom.document, sbom.component, sbom.dependency_relationship,
+// sbom.external_reference, attestation.statement,
 // attestation.signature_verification, sbom.warning) are decoded through the
 // factschema seam; a payload missing its required identity field
 // (document_id / statement_id) is QUARANTINED per-fact via
@@ -111,12 +138,14 @@ type sbomAttachmentIndex struct {
 // canonical extractor, not here.
 func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, []quarantinedFact, error) {
 	index := sbomAttachmentIndex{
-		documents:     map[string]sbomAttachmentDocument{},
-		components:    map[string][]sbomAttachmentComponentEvidence{},
-		referrers:     map[string][]sbomAttachmentReferrer{},
-		images:        map[string][]sbomAttachmentImageAnchor{},
-		verifications: map[string]sbomAttachmentVerificationEvidence{},
-		warnings:      map[string][]sbomAttachmentWarningEvidence{},
+		documents:          map[string]sbomAttachmentDocument{},
+		components:         map[string][]sbomAttachmentComponentEvidence{},
+		referrers:          map[string][]sbomAttachmentReferrer{},
+		images:             map[string][]sbomAttachmentImageAnchor{},
+		verifications:      map[string]sbomAttachmentVerificationEvidence{},
+		warnings:           map[string][]sbomAttachmentWarningEvidence{},
+		dependencies:       map[string][]sbomAttachmentDependencyEvidence{},
+		externalReferences: map[string][]sbomAttachmentExternalReferenceEvidence{},
 	}
 	var quarantined []quarantinedFact
 	for _, envelope := range envelopes {
@@ -228,9 +257,75 @@ func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, 
 					occurrenceCount: warningOccurrenceCount(warning.OccurrenceCount),
 				})
 			}
+		case facts.SBOMDependencyRelationshipFactKind:
+			q, isQuarantine, fatal := indexSBOMDependencyRelationship(index, envelope)
+			if fatal != nil {
+				return sbomAttachmentIndex{}, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
+		case facts.SBOMExternalReferenceFactKind:
+			q, isQuarantine, fatal := indexSBOMExternalReference(index, envelope)
+			if fatal != nil {
+				return sbomAttachmentIndex{}, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
 		}
 	}
 	return index, quarantined, nil
+}
+
+// indexSBOMDependencyRelationship decodes one sbom.dependency_relationship
+// envelope and, when it carries a non-empty document_id, appends it to
+// index.dependencies. Split out of buildSBOMAttachmentIndex's switch to keep
+// that function under the package's function-length limit; index's maps are
+// reference types, so mutations here are visible to the caller. Returns the
+// same (quarantinedFact, isQuarantine, fatal) triple as
+// partitionDecodeFailures for the caller to fold into its own quarantine
+// slice and fatal-error short-circuit.
+func indexSBOMDependencyRelationship(
+	index sbomAttachmentIndex,
+	envelope facts.Envelope,
+) (quarantinedFact, bool, error) {
+	relationship, err := decodeSBOMDependencyRelationship(envelope)
+	if err != nil {
+		return partitionDecodeFailures(envelope, err)
+	}
+	if relationship.DocumentID != "" {
+		index.dependencies[relationship.DocumentID] = append(index.dependencies[relationship.DocumentID], sbomAttachmentDependencyEvidence{
+			factID:             envelope.FactID,
+			fromComponentID:    derefString(relationship.FromComponentID),
+			toComponentID:      derefString(relationship.ToComponentID),
+			relationshipType:   derefString(relationship.RelationshipType),
+			relationshipOrigin: derefString(relationship.RelationshipOrigin),
+		})
+	}
+	return quarantinedFact{}, false, nil
+}
+
+// indexSBOMExternalReference mirrors indexSBOMDependencyRelationship for
+// sbom.external_reference envelopes, appending to index.externalReferences.
+func indexSBOMExternalReference(
+	index sbomAttachmentIndex,
+	envelope facts.Envelope,
+) (quarantinedFact, bool, error) {
+	reference, err := decodeSBOMExternalReference(envelope)
+	if err != nil {
+		return partitionDecodeFailures(envelope, err)
+	}
+	if reference.DocumentID != "" {
+		index.externalReferences[reference.DocumentID] = append(index.externalReferences[reference.DocumentID], sbomAttachmentExternalReferenceEvidence{
+			factID:           envelope.FactID,
+			componentID:      derefString(reference.ComponentID),
+			referenceType:    derefString(reference.ReferenceType),
+			referenceURL:     derefString(reference.ReferenceURL),
+			referenceLocator: derefString(reference.ReferenceLocator),
+		})
+	}
+	return quarantinedFact{}, false, nil
 }
 
 // sbomDocumentFromEnvelope decodes one sbom.document fact envelope through the
