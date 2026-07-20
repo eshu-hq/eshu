@@ -299,6 +299,7 @@ type deadCodeEntityContentBatchStore interface {
 func filterDeadCodeResultsByDefaultPolicy(
 	results []map[string]any,
 	contentByID map[string]*EntityContent,
+	downgraded deadCodeDowngradedRoots,
 ) ([]map[string]any, deadCodePolicyStats) {
 	if len(results) == 0 {
 		return results, deadCodePolicyStats{}
@@ -308,7 +309,7 @@ func filterDeadCodeResultsByDefaultPolicy(
 	filtered := make([]map[string]any, 0, len(results))
 	for _, result := range results {
 		entityID := StringVal(result, "entity_id")
-		if deadCodeResultExcludedByDefault(result, contentByID[entityID], &stats) {
+		if deadCodeResultExcludedByDefault(result, contentByID[entityID], &stats, downgraded) {
 			continue
 		}
 		filtered = append(filtered, result)
@@ -316,7 +317,7 @@ func filterDeadCodeResultsByDefaultPolicy(
 	return filtered, stats
 }
 
-func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityContent, stats *deadCodePolicyStats) bool {
+func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityContent, stats *deadCodePolicyStats, downgraded deadCodeDowngradedRoots) bool {
 	if !deadCodeIsCandidateEntity(result, entity) {
 		return true
 	}
@@ -371,7 +372,7 @@ func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityConten
 	if deadCodeIsRustCargoAuxiliaryTarget(result, entity) {
 		return true
 	}
-	if deadCodeIsRubyRoot(result, entity, stats) {
+	if deadCodeIsRubyRoot(result, entity, stats, downgraded) {
 		return true
 	}
 	if deadCodeIsGroovyRoot(result, entity, stats) {

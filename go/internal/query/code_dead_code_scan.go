@@ -76,7 +76,8 @@ func (h *CodeHandler) scanDeadCodeCandidates(ctx context.Context, req deadCodeRe
 		if err != nil {
 			return scan, err
 		}
-		results, stats := filterDeadCodeResultsByDefaultPolicy(results, contentByID)
+		downgraded := h.loadDeadCodeDowngradedRoots(ctx, results)
+		results, stats := filterDeadCodeResultsByDefaultPolicy(results, contentByID, downgraded)
 		addDeadCodePolicyStats(&scan.PolicyStats, stats)
 		classifyDeadCodeResults(results, contentByID)
 		results = filterResultsByDecoratorExclusions(results, req.ExcludeDecoratedWith)

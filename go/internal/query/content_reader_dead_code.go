@@ -179,6 +179,80 @@ func (cr *ContentReader) CodeReachabilityIncomingEntityIDs(
 	return incoming, nil
 }
 
+// DowngradedCodeRootKinds returns, per candidate entity, the set of guess-based
+// dead-code root kinds the reducer's repo-wide #5376 verdict positively
+// downgraded in the active generation. Only 'downgraded' rows are read; a
+// confirmed verdict never appears here. A missing/lagging/non-active-generation
+// verdict yields no row for that entity, so the caller keeps the parser root
+// (lag-safety). Any error is returned; the caller fail-opens to KEEP.
+func (cr *ContentReader) DowngradedCodeRootKinds(
+	ctx context.Context,
+	repoID string,
+	entityIDs []string,
+) (map[string]map[string]struct{}, error) {
+	repoID = strings.TrimSpace(repoID)
+	entityIDs = cleanDeadCodeIncomingEntityIDs(entityIDs)
+	if cr == nil || cr.db == nil || repoID == "" || len(entityIDs) == 0 {
+		return map[string]map[string]struct{}{}, nil
+	}
+
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "downgraded_code_root_kinds"),
+			attribute.String("db.sql.table", "code_root_verdicts"),
+		),
+	)
+	defer span.End()
+
+	placeholders := make([]string, 0, len(entityIDs))
+	args := make([]any, 0, len(entityIDs)+1)
+	args = append(args, repoID)
+	for _, entityID := range entityIDs {
+		args = append(args, entityID)
+		placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)))
+	}
+	// #nosec G202 -- concatenates only $N parameter placeholders (generated from len(args)) into the IN list; entity ID values are bound args, not SQL text
+	query := `
+		SELECT verdict.entity_id, verdict.root_kind
+		FROM code_root_verdicts AS verdict
+		JOIN ingestion_scopes AS scope
+		  ON scope.scope_id = verdict.scope_id
+		 AND scope.active_generation_id = verdict.generation_id
+		JOIN scope_generations AS generation
+		  ON generation.generation_id = verdict.generation_id
+		 AND generation.status = 'active'
+		WHERE verdict.repository_id = $1
+		  AND verdict.verdict = 'downgraded'
+		  AND verdict.entity_id IN (` + strings.Join(placeholders, ", ") + `)
+	`
+	rows, err := cr.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("downgraded code root kinds: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	downgraded := make(map[string]map[string]struct{})
+	for rows.Next() {
+		var entityID, rootKind string
+		if err := rows.Scan(&entityID, &rootKind); err != nil {
+			span.RecordError(err)
+			return nil, fmt.Errorf("scan downgraded code root kind: %w", err)
+		}
+		if downgraded[entityID] == nil {
+			downgraded[entityID] = make(map[string]struct{})
+		}
+		downgraded[entityID][rootKind] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		return nil, err
+	}
+	return downgraded, nil
+}
+
 // CodeReachabilityCoverage reports whether the active generation has a
 // materialized reachability snapshot for repoID, and whether that snapshot hit
 // the traversal bound. Complete snapshots make absent entities authoritative
