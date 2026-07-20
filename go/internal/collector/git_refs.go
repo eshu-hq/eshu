@@ -6,9 +6,7 @@ package collector
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -185,6 +183,10 @@ func localGitRefs(ctx context.Context, repoPath string) ([]GitRef, error) {
 // Format per line: <objectname> <refname> [<*objectname>]
 // For annotated tags, *objectname is the peeled commit SHA.
 // It discovers the default branch by reading the local HEAD symbolic ref.
+// Unlike parseRemoteGitRefs (which fails on any invalid ref), parseLocalGitRefs
+// skips individual invalid refs without failing the entire batch. Local repos
+// in filesystem mode may carry transient or malformed refs; a hard failure here
+// would drop all refs for that repo instead of capturing the valid subset.
 func parseLocalGitRefs(output string, repoPath string) ([]GitRef, error) {
 	branchesByName := make(map[string]GitRef)
 	tagsByName := make(map[string]GitRef)
@@ -249,10 +251,12 @@ func parseLocalGitRefs(output string, repoPath string) ([]GitRef, error) {
 
 	// Discover default branch from local HEAD.
 	defaultBranch := ""
-	if headRef, err := os.ReadFile(filepath.Join(repoPath, ".git", "HEAD")); err == nil {
-		headLine := strings.TrimSpace(string(headRef))
-		if strings.HasPrefix(headLine, "ref: refs/heads/") {
-			defaultBranch = strings.TrimPrefix(headLine, "ref: refs/heads/")
+	cmd := exec.Command("git", "-C", repoPath, // #nosec G204 -- controlled repo path
+		"symbolic-ref", "HEAD")
+	if out, err := cmd.Output(); err == nil {
+		headLine := strings.TrimSpace(string(out))
+		if strings.HasPrefix(headLine, "refs/heads/") {
+			defaultBranch = strings.TrimPrefix(headLine, "refs/heads/")
 		}
 	}
 
@@ -346,7 +350,10 @@ func normalizeGitTagName(tag string) (string, error) {
 }
 
 // collectLocalRefs calls localGitRefs on each repo path and returns a map
-// suitable for buildSelectedRepositories. Errors are logged and skipped.
+// suitable for buildSelectedRepositories. Errors are silently skipped —
+// localGitRefs fails when the directory is not a git repo (no .git), which
+// is normal for plain-directory fixtures in filesystem mode. The failures
+// are non-fatal: a repo without git refs still snapshots its content.
 func collectLocalRefs(ctx context.Context, repoPaths []string) map[string][]GitRef {
 	refsByRepoPath := make(map[string][]GitRef, len(repoPaths))
 	for _, repoPath := range repoPaths {

@@ -4,6 +4,7 @@
 package goldengate
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -70,5 +71,43 @@ func TestLoadSnapshotRejectsMissingSchemaVersion(t *testing.T) {
 	}
 	if _, err := LoadSnapshot(path); err == nil {
 		t.Fatal("LoadSnapshot accepted a snapshot with no schema_version")
+	}
+}
+
+// TestQueryShapesNoUnknownTopLevelKeys proves that the committed B-12 snapshot's
+// query_shapes section has only the three known top-level keys (mcp, http, cli).
+// Entries placed at the wrong level (siblings of mcp/http/cli instead of inside
+// http) are silently dropped by Go's struct unmarshaling, turning a well-meaning
+// assertion into a false green. This test fails before that silent drop happens.
+func TestQueryShapesNoUnknownTopLevelKeys(t *testing.T) {
+	expected := map[string]bool{"mcp": true, "http": true, "cli": true}
+	repoRoot := filepath.Join("..", "..", "..")
+	absRoot, err := filepath.Abs(repoRoot)
+	if err != nil {
+		absRoot = repoRoot
+	}
+	snapshotPath := filepath.Join(absRoot, "testdata", "golden", "e2e-20repo-snapshot.json")
+
+	data, err := os.ReadFile(snapshotPath)
+	if err != nil {
+		t.Skipf("snapshot not found at %s: %v", snapshotPath, err)
+	}
+
+	// Parse just the query_shapes section as a raw map to detect extra keys.
+	var raw struct {
+		QueryShapes map[string]json.RawMessage `json:"query_shapes"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("unmarshal query_shapes: %v", err)
+	}
+
+	var unknowns []string
+	for key := range raw.QueryShapes {
+		if !expected[key] {
+			unknowns = append(unknowns, key)
+		}
+	}
+	if len(unknowns) > 0 {
+		t.Errorf("query_shapes has %d unknown top-level key(s): %v — entries belong inside \"http\", \"mcp\", or \"cli\", not as siblings. Go's struct unmarshaling silently drops unknown keys; this test catches that misplacement.", len(unknowns), unknowns)
 	}
 }

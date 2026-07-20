@@ -325,6 +325,17 @@ entry carrying `head_sha` and `last_indexed_at`, with an empty `name` and
 or tag names. A repository with no indexed commit returns empty `branches` and
 `tags` arrays; an unknown repository returns a `404` envelope.
 
+Tags are server-side capped at 500 entries (the first 500 by name, matching the
+deterministic `ref_kind, name` sort order). When more than 500 tags exist, the
+response includes `tags_truncated: true`. Full pagination (limit/cursor) for
+both `branches[]` and `tags[]` is deferred to #5503.
+
+In filesystem source mode (local repos without a git remote), the collector now
+discovers local git refs via `git for-each-ref` and emits them into the content
+store's `repository_refs` table, enabling the same branches+tags response as
+remote-collected repos. Repositories that are not git repos still fall through
+to the legacy indexed-commit fallback.
+
 No-Regression Evidence: repository ref persistence writes at most one stale-row
 delete plus one bounded upsert per repository generation, keyed by
 `(repo_id, ref_kind, name)` and sized by Git branch and tag count rather than
