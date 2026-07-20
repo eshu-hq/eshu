@@ -93,8 +93,10 @@ They are served by `get_entity_context`, which resolves the `FluxKustomization` 
 `FluxGitRepository` / `FluxOCIRepository` / `FluxBucket` graph labels and
 surfaces their typed fields (`url`, `source_ref_*`, `ref_*`, `bucket_name`,
 `endpoint`, `provider`, `source_path`, `target_namespace`, `generate_name`)
-through content-metadata enrichment. `resolve_entity` by name is a deferred
-follow-up (PR B). See [Flux Parser](../languages/flux.md).
+through content-metadata enrichment, and by `list_relationship_edges` for the
+`RECONCILES_FROM` verb (issue #5360 PR B; a `FluxKustomization` reconciling
+manifests from its resolved source CR). `resolve_entity` by name is a
+separate, still-deferred follow-up. See [Flux Parser](../languages/flux.md).
 
 `guard` is a semantic filter over `function` entities and returns
 guard-classified functions only.

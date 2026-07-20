@@ -266,6 +266,12 @@ families:
       package_registry.source_hint: "sdk/go/factschema/schema/package_registry.source_hint.v1.schema.json"
       package_registry.package_artifact: "sdk/go/factschema/schema/package_registry.package_artifact.v1.schema.json"
       package_registry.vulnerability_hint: "sdk/go/factschema/schema/package_registry.vulnerability_hint.v1.schema.json"
+      # vulnerability_hint is join-key-only evidence: the Postgres active-evidence
+      # query (go/internal/storage/postgres/facts_active_supply_chain_impact.go:46)
+      # filters on its fact_kind column but never decodes its payload; the projector
+      # (go/internal/projector/package_registry_canonical.go:120-123) intentionally
+      # does not consume it, and no reducer decode seam exists for it. It has no
+      # direct read surface of its own.
       package_registry.registry_event: "sdk/go/factschema/schema/package_registry.registry_event.v1.schema.json"
       package_registry.repository_hosting: "sdk/go/factschema/schema/package_registry.repository_hosting.v1.schema.json"
       package_registry.warning: "sdk/go/factschema/schema/package_registry.warning.v1.schema.json"
@@ -442,6 +448,13 @@ families:
     read_surface: "GET /api/v0/iac/resources"
     truth_profile: deterministic
     provider_key_independent: true
+    # terraform_state_resource, _module, _output, _snapshot, and
+    # _tag_observation are consumed by the projector (go/internal/projector/
+    # tfstate_canonical.go) and/or the reducer (aws_cloud_runtime_drift_writer.go,
+    # multi_cloud_runtime_drift_writer.go). terraform_state_candidate,
+    # _provider_binding, and _warning have NO reducer/projector consumer
+    # (projector/tfstate_canonical.go:104-106 declares them intentionally not
+    # consumed). None are consumed by go/internal/relationships.
     payload_schema_overrides:
       terraform_state_snapshot: "sdk/go/factschema/schema/terraform_state_snapshot.v1.schema.json"
       terraform_state_resource: "sdk/go/factschema/schema/terraform_state_resource.v1.schema.json"

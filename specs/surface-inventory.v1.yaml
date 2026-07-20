@@ -326,9 +326,10 @@ surfaces:
     docs: [reference/collector-reducer-readiness.md]
     notes: >-
       Read-only core resource listing, source facts, and the
-      kubernetesLiveCollector chart workload with in-cluster RBAC exist; no
-      claim-driven runtime, watch mode, reducer projection, or drift read model
-      yet.
+      kubernetesLiveCollector chart workload with in-cluster RBAC exist. The
+      reducer kubernetes_correlation domain and the drift read model
+      (GET /api/v0/kubernetes/correlations, list_kubernetes_correlations) have
+      landed; claim-driven runtime and watch mode remain pending.
     collector_contract:
       fact_kinds: [eks_irsa_annotation, eks_pod_identity_association, k8s_gcp_workload_identity_binding, k8s_rbac_binding, k8s_rbac_role, k8s_service_account, k8s_service_account_token_posture, k8s_workload_identity_use, kubernetes_live.pod_template, kubernetes_live.relationship, kubernetes_live.warning]
       projection_surfaces: [kubernetes_correlation, secrets_iam_trust_chain]

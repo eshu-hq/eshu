@@ -1619,7 +1619,7 @@
       "docs": [
         "reference/collector-reducer-readiness.md"
       ],
-      "notes": "Read-only core resource listing, source facts, and the kubernetesLiveCollector chart workload with in-cluster RBAC exist; no claim-driven runtime, watch mode, reducer projection, or drift read model yet.",
+      "notes": "Read-only core resource listing, source facts, and the kubernetesLiveCollector chart workload with in-cluster RBAC exist. The reducer kubernetes_correlation domain and the drift read model (GET /api/v0/kubernetes/correlations, list_kubernetes_correlations) have landed; claim-driven runtime and watch mode remain pending.",
       "collector_contract": {
         "fact_kinds": [
           "eks_irsa_annotation",

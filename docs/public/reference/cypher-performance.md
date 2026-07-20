@@ -247,12 +247,15 @@ changed but the per-query telemetry surface did not.
 
 ### Relationships Verb Catalog Live Scaling Fix
 
-Current contract note: `relationshipVerbCatalog` holds 19 verbs as of #5369
-(the historical measurements below were taken at 16 verbs, before the three
-Atlantis governance verbs -- `MANAGES`, `ATLANTIS_DEPENDS_ON`,
+Current contract note: `relationshipVerbCatalog` holds 20 verbs as of #5360 PR
+B (19 as of #5369; the historical measurements below were taken at 16 verbs,
+before the three Atlantis governance verbs -- `MANAGES`, `ATLANTIS_DEPENDS_ON`,
 `USES_WORKFLOW` -- were added; the type-indexed count and index-ordered edge
-slice shapes below are unchanged by the addition, so the measured
-per-verb costs still apply). The verb count itself is not restated
+slice shapes below are unchanged by either addition, so the measured
+per-verb costs still apply). #5360 PR B's `RECONCILES_FROM` verb reuses the
+same builder functions with `targetIdentityProperty` unset (like every
+non-MANAGES verb), so it adds no new shape, only one more type-indexed count
+call. The verb count itself is not restated
 elsewhere in this doc; `relationshipVerbCatalog`
 (`go/internal/query/relationships_catalog_cypher.go`) is the source of truth.
 

@@ -1,7 +1,9 @@
 # Design: Kubernetes Live Collector Foundation (toward #388)
 
-**Status:** Foundation — NEEDS PRINCIPAL REVIEW (new collector + new fact kinds,
-`risk:schema`).
+**Status:** Foundation SHIPPED on `main` (collector package
+`go/internal/collector/kuberneteslive/`, `eshu-collector-kubernetes-live`
+binary, three `kubernetes_live.*` fact kinds, and the `kubernetesLiveCollector`
+Helm chart workload).
 **Related:** #388 (reducer Git/runtime correlation and drift read model),
 `docs/public/reference/collector-reducer-readiness.md` (Kubernetes live gated
 row), the removed ADR `2026-05-10-kubernetes-live-cluster-collector.md`
@@ -33,9 +35,12 @@ Deferred to follow-up PRs (stated so reviewers do not expect them here):
   RBAC subjects, CRDs) and the richer ADR fact families
   (`kubernetes_resource`, `kubernetes_workload`, `kubernetes_image_reference`,
   `kubernetes_service`, `kubernetes_rbac_subject`).
-- The #388 reducer projection, correlation, and drift read model.
-- Helm chart values / charted workload (the readiness doc forbids advertising a
-  chart knob before the runtime, fact, reducer, and status path all exist).
+- The #388 reducer projection, correlation, and drift read model — LANDED
+  (`go/internal/reducer/kubernetes_correlation.go`,
+  `go/internal/query/kubernetes.go`; see
+  `docs/internal/design/388-kubernetes-correlation-readmodel.md`).
+- Helm chart values / charted workload — LANDED (`kubernetesLiveCollector`,
+  off by default).
 
 ## Auth model
 

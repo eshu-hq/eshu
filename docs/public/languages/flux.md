@@ -28,6 +28,7 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Bucket (`source.toolkit.fluxcd.io`) | `flux-buckets` | supported | `flux_buckets` | `name, line_number` | `node:FluxBucket` | `go/internal/parser/yaml/flux_source_test.go::TestIsFluxBucket` | Compose-backed fixture verification | - |
 | Bucket coordinates | `flux-bucket-coordinates` | supported | `flux_buckets` | `name, line_number, bucket_name, endpoint, provider` | `property:FluxBucket.bucket_name/endpoint/provider` | `go/internal/parser/yaml/flux_source_test.go::TestParseFluxBucketCapturesBucketFields` | Compose-backed fixture verification | - |
 | generateName evidence (all Flux kinds) | `flux-generate-name` | supported | `flux_kustomizations` / `flux_git_repositories` / `flux_oci_repositories` / `flux_buckets` | `name, line_number, generate_name` | `property:Flux*.generate_name` | `go/internal/parser/yaml/flux_source_test.go::TestParseFluxGitRepositoryGenerateNameOnly`, `go/internal/parser/yaml/flux_test.go::TestParseFluxKustomizationGenerateNameOnly` | Compose-backed fixture verification | A CR using `metadata.generateName` instead of `metadata.name` has an empty `name` (never `"<nil>"`) and carries the literal `generate_name` field so the empty name is explained (issue #5360 PR A). |
+| Kustomization `RECONCILES_FROM` source edge | `flux-reconciles-from-edge` | supported | n/a (projector-canonical, not a parser bucket) | `resolution_mode, source_ref_kind, source_ref_name, source_ref_namespace, namespace_defaulted` | `edge:FluxKustomization-[RECONCILES_FROM]->FluxGitRepository/FluxOCIRepository/FluxBucket` | `go/internal/storage/cypher/canonical_flux_edges_test.go` | `go/internal/query/relationships_catalog_flux_test.go`, B-12 `rc-152` | Resolved in Go at projection time (not the parser): same-repo, deterministic T1-T4 tiers applying Flux's own same-namespace default; a dangling ref, a declared-namespace mismatch, or an unresolved ambiguity (ties, ambiguous ownerless candidates) is an honest non-link, never a fabricated join (issue #5360 PR B). |
 
 ## Framework And Library Support
 
@@ -37,12 +38,14 @@ Supported today:
   reachability.
 - Kustomization, GitRepository, OCIRepository, and Bucket are modeled as
   typed content entities reachable through `get_entity_context`.
+- The `RECONCILES_FROM` correlation edge from a `FluxKustomization` to the
+  `FluxGitRepository`/`FluxOCIRepository`/`FluxBucket` its `sourceRef` names
+  is materialized and browsable through `list_relationship_edges` (issue
+  #5360 PR B) -- see the capability table above and Known Limitations below
+  for what it does and does not resolve.
 
 Not claimed today:
 
-- The `RECONCILES_FROM` correlation edge from a `FluxKustomization` to the
-  `FluxGitRepository`/`FluxOCIRepository`/`FluxBucket` its `sourceRef`
-  names is not yet materialized -- see Known Limitations below.
 - `HelmRelease` (`helm.toolkit.fluxcd.io`) and `HelmRepository`
   (`source.toolkit.fluxcd.io`) are not modeled; they continue to fall
   through to the generic `k8s_resources` bucket.
@@ -51,22 +54,27 @@ Not claimed today:
 
 ## Known Limitations
 
-- **No correlation edge yet.** This change (issue #5360, PR A) promotes the
-  Flux Kustomization and its source CRs to typed graph nodes and makes them
-  reachable through `get_entity_context`, but does not materialize a
-  `FluxKustomization -[:RECONCILES_FROM]-> FluxGitRepository` (or
-  `FluxOCIRepository`/`FluxBucket`) edge. A `FluxKustomization`'s
-  `source_ref_kind`/`source_ref_name`/`source_ref_namespace` properties and a
-  source CR's own `name`/`namespace` are both present in the graph today, but
-  joining them into a traversable edge is separate follow-on work. When PR B
-  builds that join it MUST require non-emptiness explicitly
-  (`source_ref_name IS NOT NULL AND source_ref_name <> '' AND s.name = source_ref_name`)
-  and never coalesce empty-to-empty: a source CR that uses `metadata.generateName`
-  has an empty `name` (see below), and an empty-name source must never
-  false-join a Kustomization whose `sourceRef.name` is also empty.
-- **No deployment-trace reachability yet.** Because the correlation edge is
-  not materialized, `trace_deployment_chain` and the deployment-lineage
-  provenance-family derivation for Flux are not covered by this change.
+- **The correlation edge resolves same-repo only.** `FluxKustomization
+  -[:RECONCILES_FROM]-> FluxGitRepository`/`FluxOCIRepository`/`FluxBucket`
+  (issue #5360 PR B) is resolved in Go at projection time
+  (`go/internal/storage/cypher/canonical_flux_edges.go`), never in the
+  parser: it applies Flux's own same-namespace default (an empty
+  `sourceRef.namespace` falls back to the Kustomization's own namespace,
+  recorded on the edge as `namespace_defaulted`), then four deterministic
+  tiers -- namespace-exact; a multi-cluster same-name/same-namespace
+  duplicate disambiguated by same-file-then-nearest-directory (an
+  unresolved tie skips, never a representative pick); a unique candidate
+  whose own namespace is absent when the declared namespace has no match;
+  and a namespace-fully-unknown unique name repo-wide. A dangling ref, a
+  declared-namespace mismatch, or an unresolved ambiguity produces no edge,
+  ever -- this is a same-repo-only join (two tenants can share
+  `flux-system`/`flux-system`; Eshu has no cross-repo cluster identity), so
+  a `sourceRef` naming a CR that lives in a different repository is also an
+  honest non-link, not a cross-repo lineage limitation (see below).
+- **No deployment-trace reachability yet.** `trace_deployment_chain` and the
+  deployment-lineage provenance-family derivation for Flux are not covered
+  by this change; the correlation edge is browsable only through
+  `list_relationship_edges` and `get_entity_context` today.
 - **HelmRelease sourceRef is a follow-up.** `HelmRelease.spec.chart.spec.sourceRef`
   (or `chartRef`) can reference a `HelmRepository`, `GitRepository`, or
   `OCIRepository`; `HelmRepository` is a fourth, currently uncaptured source
@@ -75,9 +83,9 @@ Not claimed today:
   to a specific `Repository` identity in the trace path is not modeled.
 - Namespace defaulting (Flux's own rule: an empty `sourceRef.namespace`
   defaults to the Kustomization's own namespace) is not applied by the
-  parser -- an absent `source_ref_namespace` is recorded as absent, never
-  fabricated. Applying the default is reducer-owned follow-on work alongside
-  the correlation edge.
+  parser -- an absent `source_ref_namespace` property is recorded as absent,
+  never fabricated. The default is applied at correlation time by the
+  `RECONCILES_FROM` edge builder instead (issue #5360 PR B, see above).
 - **`metadata.generateName` yields an empty `name`.** A Flux CR that uses
   `metadata.generateName` (server-assigned name) instead of `metadata.name`
   has an empty `name` property -- never a fabricated `"<nil>"` -- and carries

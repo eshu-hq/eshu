@@ -158,6 +158,7 @@ retractable_edge_types:
   - MANAGES
   - NEEDS
   - OVERRIDES
+  - RECONCILES_FROM
   - REFERENCES
   - USES_METACLASS
   - USES_WORKFLOW

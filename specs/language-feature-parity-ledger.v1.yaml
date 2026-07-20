@@ -107,13 +107,13 @@ language_features:
     docs_claim: docs/public/languages/flux.md
     parser_backing: structured-parser-backed-exception
     no_provider_required: true
-    supported_features: [flux-kustomizations, flux-kustomization-source-ref, flux-kustomization-source-path, flux-kustomization-target-namespace, flux-git-repositories, flux-git-repository-url, flux-git-repository-ref, flux-oci-repositories, flux-oci-repository-url, flux-oci-repository-ref, flux-buckets, flux-bucket-coordinates, flux-generate-name]
+    supported_features: [flux-kustomizations, flux-kustomization-source-ref, flux-kustomization-source-path, flux-kustomization-target-namespace, flux-git-repositories, flux-git-repository-url, flux-git-repository-ref, flux-oci-repositories, flux-oci-repository-url, flux-oci-repository-ref, flux-buckets, flux-bucket-coordinates, flux-generate-name, flux-reconciles-from-edge]
     partial_features: []
     derived_features: []
-    source_files: [go/internal/parser/yaml/flux.go, go/internal/parser/yaml/flux_source.go, go/internal/parser/yaml/language.go]
-    test_files: [go/internal/parser/yaml/flux_test.go, go/internal/parser/yaml/flux_source_test.go, go/internal/parser/engine_yaml_flux_semantics_test.go]
+    source_files: [go/internal/parser/yaml/flux.go, go/internal/parser/yaml/flux_source.go, go/internal/parser/yaml/language.go, go/internal/storage/cypher/canonical_flux_edges.go, go/internal/query/relationships_catalog_cypher.go]
+    test_files: [go/internal/parser/yaml/flux_test.go, go/internal/parser/yaml/flux_source_test.go, go/internal/parser/engine_yaml_flux_semantics_test.go, go/internal/parser/engine_yaml_flux_fixture_negatives_test.go, go/internal/storage/cypher/canonical_flux_edges_test.go, go/internal/storage/cypher/canonical_flux_edges_retract_test.go, go/internal/query/relationships_catalog_flux_test.go]
     docs: [docs/public/languages/flux.md]
-    read_surfaces: [entity_context]
+    read_surfaces: [entity_context, list_relationship_edges]
     tracking_issues: [5360]
   - language: gitlab-ci
     docs_claim: docs/public/languages/gitlab-ci.md
