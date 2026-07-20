@@ -1,4 +1,5 @@
 import { addDeploymentArtifactGraph } from "./eshuGraphDeploymentArtifacts";
+import { sourceCompletenessSummary } from "./eshuGraphDeploymentCompleteness";
 import { deploymentFamilyLimits, deploymentGraphBounds } from "./eshuGraphDeploymentLimits";
 import type { DeploymentGraphBuildOptions } from "./eshuGraphDeploymentLimits";
 import {
@@ -9,13 +10,12 @@ import {
   graphTruth,
   materializationEvidence,
   omissionContract,
-  repoNode,
-  repoRef,
   summaryNode,
   truthEvidence,
   truthIsCurrent,
 } from "./eshuGraphDeploymentPresentation";
 import * as deploymentProvenance from "./eshuGraphDeploymentProvenance";
+import { addCanonicalDeploymentTopology } from "./eshuGraphDeploymentTopology";
 import {
   mergeDeploymentInstances,
   uniqueNamedRecords,
@@ -94,49 +94,6 @@ export function buildDeploymentStoryGraph(
     traceArtifacts: trace.deployment_evidence?.artifacts ?? [],
     traceTruth: options.traceTruth,
   });
-  const sources = trace.deployment_sources ?? [];
-  const missingSourceIdentities: string[] = [];
-  sources.slice(0, limits.sources).forEach((source) => {
-    const repo = repoRef(source.repo_id, source.repo_name);
-    if (!repo) {
-      missingSourceIdentities.push(cleanText(source.repo_name) || "unnamed source");
-      return;
-    }
-    if (nodes.has(repo.id)) return;
-    addNode({
-      ...repoNode(
-        repo,
-        compact([
-          "Deployment source",
-          cleanText(source.reason) ? `reason: ${cleanText(source.reason)}` : "",
-          source.confidence !== undefined ? `confidence: ${source.confidence}` : "",
-          "relationship endpoints not exposed by API",
-        ]).join(" · "),
-      ),
-      truth: graphTruth(options.traceTruth),
-    });
-  });
-  if (missingSourceIdentities.length > 0) {
-    summaries.push(
-      summaryNode(
-        "source_identity",
-        `${missingSourceIdentities.length} deployment sources missing canonical repository identity`,
-        `Relationships not admitted: ${missingSourceIdentities.join(", ")}`,
-      ),
-    );
-  }
-  addOmissionSummary(
-    summaries,
-    "deployment sources",
-    Math.max(0, sources.length - limits.sources),
-    "sources",
-    omissionContract(
-      limits.sources,
-      sources
-        .slice(limits.sources)
-        .map((source) => cleanText(source.repo_name) || cleanText(source.repo_id)),
-    ),
-  );
   const instanceSources = {
     contextRows: context.instances ?? [],
     contextTruth: options.contextTruth,
@@ -163,15 +120,23 @@ export function buildDeploymentStoryGraph(
       truth: graphTruth(instanceTruth),
     });
     if (!instanceAdded) return;
+    const hasCanonicalInstanceEdge = hasTopologyEdge(
+      trace.topology_edges,
+      "INSTANCE_OF",
+      instanceID,
+      workloadID,
+    );
     if (truthIsCurrent(instanceTruth)) {
-      addEdge({
-        evidence: [...materializationEvidence(instance), ...truthEvidence(instanceTruth)],
-        layer: "runtime",
-        s: instanceID,
-        t: workloadID,
-        truthState: "derived",
-        verb: "INSTANCE_OF",
-      });
+      if (!hasCanonicalInstanceEdge) {
+        addEdge({
+          evidence: [...materializationEvidence(instance), ...truthEvidence(instanceTruth)],
+          layer: "runtime",
+          s: instanceID,
+          t: workloadID,
+          truthState: "derived",
+          verb: "INSTANCE_OF",
+        });
+      }
     } else {
       staleRelationships += 1;
     }
@@ -185,39 +150,54 @@ export function buildDeploymentStoryGraph(
         platform,
         instanceSources,
       );
-      const platformID = `platform:${encodeKey(platformKind || "unknown")}:${encodeKey(platformName || "unknown")}`;
+      const canonicalPlatformID = cleanText(platform.platform_id);
+      const platformID =
+        canonicalPlatformID ||
+        `platform:${encodeKey(platformKind || "unknown")}:${encodeKey(platformName || "unknown")}`;
       if (
         !addNode({
           col: 4,
           id: platformID,
           kind: platformKind || "platform",
           label: platformName || platformKind,
-          sub: `${platformKind || "platform"} · canonical platform identity not exposed by API`,
+          sub: compact([
+            platformKind || "platform",
+            cleanText(platform.topology_basis),
+            canonicalPlatformID === "" ? "canonical platform identity not exposed by API" : "",
+          ]).join(" · "),
           truth: graphTruth(platformTruth),
         })
       )
         return;
       platformPlacements += 1;
+      const hasCanonicalPlatformEdge = hasTopologyEdge(
+        platform.topology_edges,
+        "RUNS_ON",
+        instanceID,
+        platformID,
+      );
       if (truthIsCurrent(platformTruth)) {
-        addEdge({
-          evidence: [
-            ...compact([
-              platformKind ? `platform kind: ${platformKind}` : "",
-              cleanText(platform.platform_reason)
-                ? `reason: ${cleanText(platform.platform_reason)}`
-                : "",
-              platform.platform_confidence !== undefined
-                ? `confidence: ${platform.platform_confidence}`
-                : "",
-            ]),
-            ...truthEvidence(platformTruth),
-          ],
-          layer: "runtime",
-          s: instanceID,
-          t: platformID,
-          truthState: "derived",
-          verb: "RUNS_ON",
-        });
+        if (!hasCanonicalPlatformEdge) {
+          addEdge({
+            evidence: [
+              ...compact([
+                platformKind ? `platform kind: ${platformKind}` : "",
+                cleanText(platform.platform_reason)
+                  ? `reason: ${cleanText(platform.platform_reason)}`
+                  : "",
+                platform.platform_confidence !== undefined
+                  ? `confidence: ${platform.platform_confidence}`
+                  : "",
+              ]),
+              ...truthEvidence(platformTruth),
+            ],
+            layer: "runtime",
+            s: instanceID,
+            t: platformID,
+            truthState: "derived",
+            verb: "RUNS_ON",
+          });
+        }
       } else {
         staleRelationships += 1;
       }
@@ -251,6 +231,17 @@ export function buildDeploymentStoryGraph(
       ),
     ),
   );
+  addCanonicalDeploymentTopology({
+    addEdge,
+    addNode,
+    hasNode: (id) => nodes.has(id),
+    limits,
+    serviceName,
+    summaries,
+    trace,
+    traceTruth: options.traceTruth,
+    workloadID,
+  });
   const k8sResources = trace.k8s_resources ?? [];
   k8sResources.slice(0, limits.k8sResources).forEach((resource) => {
     const id = cleanText(resource.entity_id);
@@ -440,6 +431,8 @@ export function buildDeploymentStoryGraph(
     context.api_surface?.endpoint_count ?? context.api_surface?.endpoints?.length ?? 0;
   if (endpointCount > 0)
     summaries.unshift(summaryNode("api_endpoints", `${endpointCount} API endpoints aggregated`));
+  const completenessSummary = sourceCompletenessSummary(context, trace);
+  if (completenessSummary) summaries.unshift(completenessSummary);
   if (omittedNodeIDs.size > 0 || omittedEdgeLabels.size > 0) {
     const label = compact([
       omittedNodeIDs.size > 0 ? `${omittedNodeIDs.size} nodes not shown` : "",
@@ -447,7 +440,7 @@ export function buildDeploymentStoryGraph(
     ]).join(" · ");
     const nodeIdentities = [...omittedNodeIDs].slice(0, 6).join(", ") || "none";
     const relationshipIdentities = [...omittedEdgeLabels.values()].slice(0, 6).join(", ") || "none";
-    summaries.push(
+    summaries.unshift(
       summaryNode(
         "graph_bounds",
         label,
@@ -457,4 +450,26 @@ export function buildDeploymentStoryGraph(
   }
   summaries.slice(0, maxNodes - nodes.size).forEach((node) => nodes.set(node.id, node));
   return { edges, nodes: [...nodes.values()] };
+}
+
+function hasTopologyEdge(
+  rows:
+    | readonly {
+        readonly relationship_type?: string;
+        readonly source_id?: string;
+        readonly target_id?: string;
+      }[]
+    | undefined,
+  verb: string,
+  sourceID: string,
+  targetID: string,
+): boolean {
+  return (
+    rows?.some(
+      (row) =>
+        cleanText(row.relationship_type).toUpperCase() === verb &&
+        cleanText(row.source_id) === sourceID &&
+        cleanText(row.target_id) === targetID,
+    ) ?? false
+  );
 }

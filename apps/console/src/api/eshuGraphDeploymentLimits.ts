@@ -16,7 +16,9 @@ export interface DeploymentFamilyLimits {
   readonly k8sResources: number;
   readonly networkPaths: number;
   readonly platformPlacements: number;
+  readonly provisionedPlatforms: number;
   readonly sources: number;
+  readonly topologyEdges: number;
 }
 
 const SUMMARY_LIMITS: DeploymentFamilyLimits = {
@@ -28,7 +30,9 @@ const SUMMARY_LIMITS: DeploymentFamilyLimits = {
   k8sResources: 4,
   networkPaths: 1,
   platformPlacements: 6,
+  provisionedPlatforms: 2,
   sources: 2,
+  topologyEdges: 20,
 };
 
 const EXPANDED_LIMITS: DeploymentFamilyLimits = {
@@ -40,7 +44,9 @@ const EXPANDED_LIMITS: DeploymentFamilyLimits = {
   k8sResources: 4,
   networkPaths: 1,
   platformPlacements: 12,
+  provisionedPlatforms: 4,
   sources: 3,
+  topologyEdges: 50,
 };
 
 export function deploymentFamilyLimits(detail: DeploymentGraphDetail): DeploymentFamilyLimits {

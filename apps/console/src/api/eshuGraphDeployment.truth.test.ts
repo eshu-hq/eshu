@@ -283,6 +283,7 @@ function retainedServiceContext() {
 
 function retainedDeploymentTrace() {
   return {
+    cloud_resource_limits: completeLimits(1),
     cloud_resources: [
       {
         confidence: 0.93,
@@ -300,6 +301,7 @@ function retainedDeploymentTrace() {
       instance_count: 2,
       k8s_resource_count: 2,
     },
+    deployment_source_limits: completeLimits(2),
     deployment_sources: [
       {
         confidence: 0.97,
@@ -362,6 +364,7 @@ function retainedDeploymentTrace() {
         type: "SELECTS",
       },
     ],
+    k8s_resource_limits: completeLimits(2),
     k8s_resources: [
       {
         entity_id: "k8s:checkout-service",
@@ -392,8 +395,23 @@ function retainedDeploymentTrace() {
     ],
     repo_id: "repository:r_checkout",
     repo_name: "checkout-api",
+    runtime_topology_limits: {
+      instances: completeLimits(2),
+      platform_edges: completeLimits(2),
+      provisioned_platforms: completeLimits(0),
+    },
     service_name: "checkout-api",
     workload_id: "workload:checkout-api",
+  };
+}
+
+function completeLimits(count: number) {
+  return {
+    limit: 50,
+    observed_count: count,
+    observed_count_is_lower_bound: false,
+    returned_count: count,
+    truncated: false,
   };
 }
 

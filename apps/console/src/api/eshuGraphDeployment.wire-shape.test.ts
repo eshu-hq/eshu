@@ -178,4 +178,168 @@ describe("Graph Explorer production deployment wire shapes", () => {
       }),
     );
   });
+
+  it("discloses upstream API truncation instead of presenting the bounded payload as complete", () => {
+    const graph = deploymentStoryToGraph(
+      {
+        id: "workload:checkout-api",
+        instances: [{ environment: "prod", instance_id: "instance:prod" }],
+        name: "checkout-api",
+        result_limits: {
+          instance_count: 51,
+          limit: 50,
+          returned_count: 50,
+          truncated: true,
+        },
+      },
+      "checkout-api",
+      {
+        cloud_resource_limits: truncatedLimits(50, 51),
+        deployment_source_limits: truncatedLimits(50, 51),
+        k8s_resource_limits: truncatedLimits(50, 51),
+        runtime_topology_limits: {
+          instances: truncatedLimits(50, 51),
+          platform_edges: truncatedLimits(50, 51),
+          provisioned_platforms: truncatedLimits(50, 51),
+        },
+      },
+      { contextTruth: exactTruth, traceTruth: exactTruth },
+    );
+
+    expect(graph.nodes).toContainEqual(
+      expect.objectContaining({
+        id: "summary:source_bounds",
+        label: "Source API returned incomplete deployment evidence",
+      }),
+    );
+    const bounds = graph.nodes.find((node) => node.id === "summary:source_bounds");
+    expect(bounds?.sub).toContain("workload instances");
+    expect(bounds?.sub).toContain("runtime instances");
+    expect(bounds?.sub).toContain("platform edges");
+    expect(bounds?.sub).toContain("provisioned platforms");
+    expect(bounds?.sub).toContain("deployment sources");
+    expect(bounds?.sub).toContain("cloud resources");
+    expect(bounds?.sub).toContain("Kubernetes resources");
+    expect(bounds?.sub).toContain("observed at least 51");
+  });
+
+  it("uses canonical topology and deployment-source endpoints without synthetic duplicates", () => {
+    const graph = deploymentStoryToGraph(
+      {
+        instances: [
+          {
+            environment: "prod",
+            instance_id: "instance:checkout:prod",
+            platforms: [
+              {
+                platform_kind: "ecs_service",
+                platform_name: "checkout-prod",
+              },
+            ],
+          },
+        ],
+      },
+      "checkout-api",
+      {
+        deployment_sources: [
+          {
+            relationship_type: "DEPLOYMENT_SOURCE",
+            repo_id: "repository:r_deploy",
+            repo_name: "checkout-deploy",
+            source_id: "instance:checkout:prod",
+            target_id: "repository:r_deploy",
+          },
+        ],
+        instances: [
+          {
+            environment: "prod",
+            instance_id: "instance:checkout:prod",
+            platforms: [
+              {
+                platform_id: "platform:canonical-ecs-service",
+                platform_kind: "ecs_service",
+                platform_name: "checkout-prod",
+                topology_basis: "direct_runtime",
+                topology_edges: [
+                  topologyEdge(
+                    "RUNS_ON",
+                    "instance:checkout:prod",
+                    "platform:canonical-ecs-service",
+                  ),
+                ],
+              },
+            ],
+          },
+        ],
+        provisioned_platforms: [
+          {
+            platform_id: "platform:canonical-ecs-cluster",
+            platform_kind: "ecs_cluster",
+            platform_name: "shared-prod",
+            topology_basis: "provisioning_fallback",
+            topology_edges: [
+              topologyEdge(
+                "PROVISIONS_DEPENDENCY_FOR",
+                "repository:r_infra",
+                "repository:r_checkout",
+              ),
+              topologyEdge(
+                "PROVISIONS_PLATFORM",
+                "repository:r_infra",
+                "platform:canonical-ecs-cluster",
+              ),
+            ],
+          },
+        ],
+        service_name: "checkout-api",
+        topology_edges: [
+          topologyEdge("DEFINES", "repository:r_checkout", "workload:checkout-api"),
+          topologyEdge("INSTANCE_OF", "instance:checkout:prod", "workload:checkout-api"),
+        ],
+        workload_id: "workload:checkout-api",
+      },
+      { traceTruth: exactTruth },
+    );
+
+    expect(graph.nodes).toContainEqual(
+      expect.objectContaining({ id: "platform:canonical-ecs-service", label: "checkout-prod" }),
+    );
+    expect(graph.nodes).not.toContainEqual(
+      expect.objectContaining({ id: "platform:ecs_service:checkout-prod" }),
+    );
+    expect(graph.nodes.filter((node) => node.label === "checkout-prod")).toHaveLength(1);
+    for (const [source, verb, target] of [
+      ["repository:r_checkout", "DEFINES", "workload:checkout-api"],
+      ["instance:checkout:prod", "INSTANCE_OF", "workload:checkout-api"],
+      ["instance:checkout:prod", "RUNS_ON", "platform:canonical-ecs-service"],
+      ["instance:checkout:prod", "DEPLOYMENT_SOURCE", "repository:r_deploy"],
+      ["repository:r_infra", "PROVISIONS_DEPENDENCY_FOR", "repository:r_checkout"],
+      ["repository:r_infra", "PROVISIONS_PLATFORM", "platform:canonical-ecs-cluster"],
+    ] as const) {
+      expect(graph.edges.filter((edge) => edge.s === source && edge.verb === verb)).toEqual([
+        expect.objectContaining({ t: target }),
+      ]);
+    }
+  });
 });
+
+function truncatedLimits(returnedCount: number, observedCount: number) {
+  return {
+    limit: returnedCount,
+    observed_count: observedCount,
+    observed_count_is_lower_bound: true,
+    returned_count: returnedCount,
+    truncated: true,
+  };
+}
+
+function topologyEdge(relationshipType: string, sourceID: string, targetID: string) {
+  return {
+    confidence: 0.99,
+    evidence_source: "canonical_graph",
+    reason: "exact retained relationship",
+    relationship_type: relationshipType,
+    source_id: sourceID,
+    target_id: targetID,
+  };
+}

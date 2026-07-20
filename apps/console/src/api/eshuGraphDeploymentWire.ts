@@ -34,10 +34,13 @@ export interface DeploymentArtifactRecord {
 }
 
 export interface DeploymentPlatformRecord {
+  readonly platform_id?: string;
   readonly platform_confidence?: number;
   readonly platform_kind?: string;
   readonly platform_name?: string;
   readonly platform_reason?: string;
+  readonly topology_basis?: string;
+  readonly topology_edges?: readonly DeploymentTopologyEdgeRecord[];
 }
 
 export interface DeploymentInstanceRecord {
@@ -46,17 +49,35 @@ export interface DeploymentInstanceRecord {
   readonly materialization_confidence?: number;
   readonly materialization_provenance?: readonly string[];
   readonly platform_confidence?: number;
+  readonly platform_id?: string;
   readonly platform_kind?: string;
   readonly platform_name?: string;
   readonly platform_reason?: string;
   readonly platforms?: readonly DeploymentPlatformRecord[];
+  readonly topology_basis?: string;
+  readonly topology_edges?: readonly DeploymentTopologyEdgeRecord[];
 }
 
 export interface DeploymentSourceRecord {
   readonly confidence?: number;
+  readonly relationship_type?: string;
   readonly reason?: string;
   readonly repo_id?: string;
   readonly repo_name?: string;
+  readonly source_id?: string;
+  readonly target_id?: string;
+}
+
+export interface DeploymentTopologyEdgeRecord {
+  readonly confidence?: number;
+  readonly evidence_source?: string;
+  readonly reason?: string;
+  readonly relationship_type?: string;
+  readonly source_id?: string;
+  readonly source_name?: string;
+  readonly source_tool?: string;
+  readonly target_id?: string;
+  readonly target_name?: string;
 }
 
 export interface KubernetesResourceRecord {
@@ -99,6 +120,20 @@ export interface NamedDeploymentRecord {
   readonly visibility?: string;
 }
 
+export interface DeploymentCollectionLimits {
+  readonly limit?: number;
+  readonly observed_count?: number;
+  readonly observed_count_is_lower_bound?: boolean;
+  readonly returned_count?: number;
+  readonly truncated?: boolean;
+}
+
+export interface DeploymentRuntimeTopologyLimits {
+  readonly instances?: DeploymentCollectionLimits;
+  readonly platform_edges?: DeploymentCollectionLimits;
+  readonly provisioned_platforms?: DeploymentCollectionLimits;
+}
+
 export interface ServiceDeploymentContextResponse {
   readonly api_surface?: {
     readonly endpoint_count?: number;
@@ -115,20 +150,29 @@ export interface ServiceDeploymentContextResponse {
   readonly network_paths?: readonly NetworkPathRecord[];
   readonly repo_id?: string;
   readonly repo_name?: string;
+  readonly result_limits?: DeploymentCollectionLimits & {
+    readonly instance_count?: number;
+  };
 }
 
 export interface DeploymentTraceResponse {
+  readonly cloud_resource_limits?: DeploymentCollectionLimits;
   readonly cloud_resources?: readonly NamedDeploymentRecord[];
   readonly deployment_evidence?: ServiceDeploymentContextResponse["deployment_evidence"];
+  readonly deployment_source_limits?: DeploymentCollectionLimits;
   readonly deployment_sources?: readonly DeploymentSourceRecord[];
   readonly entrypoints?: readonly NamedDeploymentRecord[];
   readonly instances?: readonly DeploymentInstanceRecord[];
   readonly k8s_relationships?: readonly KubernetesRelationshipRecord[];
+  readonly k8s_resource_limits?: DeploymentCollectionLimits;
   readonly k8s_resources?: readonly KubernetesResourceRecord[];
   readonly network_paths?: readonly NetworkPathRecord[];
+  readonly provisioned_platforms?: readonly DeploymentPlatformRecord[];
   readonly repo_id?: string;
   readonly repo_name?: string;
+  readonly runtime_topology_limits?: DeploymentRuntimeTopologyLimits;
   readonly service_name?: string;
+  readonly topology_edges?: readonly DeploymentTopologyEdgeRecord[];
   readonly workload_id?: string;
 }
 
@@ -175,9 +219,12 @@ export function deploymentPlatforms(
       ? [
           {
             platform_confidence: row.platform_confidence,
+            platform_id: row.platform_id,
             platform_kind: row.platform_kind,
             platform_name: row.platform_name,
             platform_reason: row.platform_reason,
+            topology_basis: row.topology_basis,
+            topology_edges: row.topology_edges,
           },
         ]
       : [];
@@ -251,22 +298,26 @@ export function namedDeploymentRecordKey(row: NamedDeploymentRecord): string {
 }
 
 export function deploymentPlatformKey(row: DeploymentPlatformRecord): string {
-  return `${row.platform_kind ?? ""}\u0000${row.platform_name ?? ""}`;
+  const canonicalID = row.platform_id?.trim() ?? "";
+  return canonicalID || `${row.platform_kind ?? ""}\u0000${row.platform_name ?? ""}`;
 }
 
 function uniquePlatforms(rows: readonly DeploymentPlatformRecord[]): DeploymentPlatformRecord[] {
-  const platforms = new Map<string, DeploymentPlatformRecord>();
+  const platforms: DeploymentPlatformRecord[] = [];
   rows.forEach((row) => {
-    const key = deploymentPlatformKey(row);
-    const current = platforms.get(key);
-    platforms.set(key, {
-      platform_confidence: current?.platform_confidence ?? row.platform_confidence,
-      platform_kind: current?.platform_kind ?? row.platform_kind,
-      platform_name: current?.platform_name ?? row.platform_name,
-      platform_reason: current?.platform_reason ?? row.platform_reason,
-    });
+    if (platforms.some((current) => samePlatform(current, row))) return;
+    platforms.push(row);
   });
-  return [...platforms.values()];
+  return platforms;
+}
+
+function samePlatform(left: DeploymentPlatformRecord, right: DeploymentPlatformRecord): boolean {
+  const leftID = left.platform_id?.trim() ?? "";
+  const rightID = right.platform_id?.trim() ?? "";
+  if (leftID !== "" && rightID !== "") return leftID === rightID;
+  const leftAlias = `${left.platform_kind ?? ""}\u0000${left.platform_name ?? ""}`;
+  const rightAlias = `${right.platform_kind ?? ""}\u0000${right.platform_name ?? ""}`;
+  return leftAlias !== "\u0000" && leftAlias === rightAlias;
 }
 
 function uniqueStrings(values: readonly string[]): string[] {
