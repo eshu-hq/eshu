@@ -24,7 +24,7 @@ import (
 func TestBlastRadiusSqlTableCypherDropsDeadBranchesKeepsLiveOnes(t *testing.T) {
 	t.Parallel()
 
-	q := blastRadiusSqlTableCypher
+	q := blastRadiusSqlTableQuery(repositoryAccessFilter{allScopes: true})
 
 	for _, dead := range []string{"MIGRATES", "MAPS_TO_TABLE", "READS_FROM", "TRIGGERS_ON"} {
 		if strings.Contains(q, dead) {

@@ -101,14 +101,23 @@ type impactBlastRadiusGateQuery struct {
 // switch, plus the shared tier-lookup query. See the package-level doc
 // comment on TestImpactBlastRadiusQueriesOnlyTraverseDisclosedEdges for the
 // v1 scope limit (this file only, not every "impact" query in the package).
-var impactBlastRadiusGateQueries = []impactBlastRadiusGateQuery{
-	{ConstName: "blastRadiusRepositoryCypher", Cypher: blastRadiusRepositoryCypher, MinDistinctEdgeTypes: 1},
-	{ConstName: "blastRadiusTerraformSourceReposCypher", Cypher: blastRadiusTerraformSourceReposCypher, MinDistinctEdgeTypes: 2},
-	{ConstName: "blastRadiusDependentsByIDCypher", Cypher: blastRadiusDependentsByIDCypher, MinDistinctEdgeTypes: 1},
-	{ConstName: "blastRadiusCrossplaneCypher", Cypher: blastRadiusCrossplaneCypher, CoverageEdgeTypes: crossplaneXrdBlastRadiusEdgeTypes, MinDistinctEdgeTypes: 3},
-	{ConstName: "blastRadiusSqlTableCypher", Cypher: blastRadiusSqlTableCypher, CoverageEdgeTypes: sqlTableBlastRadiusEdgeTypes, MinDistinctEdgeTypes: 6},
-	{ConstName: "blastRadiusTierLookupCypher", Cypher: blastRadiusTierLookupCypher, MinDistinctEdgeTypes: 1},
-}
+// impactBlastRadiusGateQueries audits the edge types traversed by the
+// blast-radius queries. It builds each query with a NON-scoped access filter so
+// the audited text is the base (grant-predicate-free) shape -- the #5167 W3 P1
+// grant predicate only adds an `a.id/repo.id IN $...` node filter for scoped
+// callers and traverses no additional edge types, so the edge-disclosure audit
+// is identical for both shapes.
+var impactBlastRadiusGateQueries = func() []impactBlastRadiusGateQuery {
+	unscoped := repositoryAccessFilter{allScopes: true}
+	return []impactBlastRadiusGateQuery{
+		{ConstName: "blastRadiusRepositoryCypher", Cypher: blastRadiusRepositoryQuery(unscoped), MinDistinctEdgeTypes: 1},
+		{ConstName: "blastRadiusTerraformSourceReposCypher", Cypher: blastRadiusTerraformSourceReposQuery(unscoped), MinDistinctEdgeTypes: 2},
+		{ConstName: "blastRadiusDependentsByIDCypher", Cypher: blastRadiusDependentsByIDQuery(unscoped), MinDistinctEdgeTypes: 1},
+		{ConstName: "blastRadiusCrossplaneCypher", Cypher: blastRadiusCrossplaneQuery(unscoped), CoverageEdgeTypes: crossplaneXrdBlastRadiusEdgeTypes, MinDistinctEdgeTypes: 3},
+		{ConstName: "blastRadiusSqlTableCypher", Cypher: blastRadiusSqlTableQuery(unscoped), CoverageEdgeTypes: sqlTableBlastRadiusEdgeTypes, MinDistinctEdgeTypes: 6},
+		{ConstName: "blastRadiusTierLookupCypher", Cypher: blastRadiusTierLookupCypher, MinDistinctEdgeTypes: 1},
+	}
+}()
 
 // resolveImpactEdgeType reports whether edgeType, traversed by query, is
 // disclosed rather than silent: owned by query's coverage-edge-type list

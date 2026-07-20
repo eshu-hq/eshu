@@ -258,10 +258,12 @@ func (h *ImpactHandler) resolveChangeSurfaceTarget(
 	if h == nil || h.Neo4j == nil {
 		return nil, nil, fmt.Errorf("graph backend is unavailable")
 	}
-	// #5167 W3: every changeSurfaceResolverQueries probe matches by id/name with
-	// no repo predicate, so an empty grant short-circuits to "no match" without
-	// running any resolver query, and every candidate returned is bound to the
-	// caller's grant below before ambiguity/selection logic runs.
+	// #5167 W3: every changeSurfaceResolverQueries probe now pushes the caller's
+	// grant predicate into its WHERE before the LIMIT (P1 filter-before-limit),
+	// so the LIMIT bounds the GRANTED set rather than a cross-tenant-polluted
+	// page that could hide an authorized row past the limit. An empty grant
+	// short-circuits to "no match" without running any resolver query, and the
+	// post-query filter below stays as defense-in-depth.
 	access := repositoryAccessFilterFromContext(ctx)
 	if access.empty() {
 		return nil, changeSurfaceEmptyGrantResolution(req), nil
@@ -270,7 +272,7 @@ func (h *ImpactHandler) resolveChangeSurfaceTarget(
 	candidates := make([]changeSurfaceTargetCandidate, 0, req.Limit+1)
 	// Keep resolver probes separate so each graph read stays label/property
 	// anchored and avoids backend-sensitive OR or UNION planning.
-	for _, query := range changeSurfaceResolverQueries(req, req.Limit+1) {
+	for _, query := range changeSurfaceResolverQueries(req, req.Limit+1, access) {
 		rows, err := h.Neo4j.Run(ctx, query.cypher, query.params)
 		if err != nil {
 			return nil, nil, fmt.Errorf("resolve change surface target: %w", err)

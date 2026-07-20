@@ -5,8 +5,8 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"net/http"
-	"sort"
 )
 
 // Blast-radius queries are written to the NornicDB-safe single-clause /
@@ -28,11 +28,27 @@ import (
 // target repository, with the shortest hop distance to it. Typed DEPENDS_ON
 // traversal; single clause so min(length(path)) and the implicit group-by on
 // repo both evaluate correctly.
+// #5167 W3 P1: each affected-repo query pushes the caller's grant predicate on
+// the affected node into its WHERE BEFORE the LIMIT, so the LIMIT bounds the
+// GRANTED affected set. Filtering only after the query (filterRowsByRepoIDForAccess,
+// kept as defense-in-depth) let a page filled by cross-tenant affected repos
+// that sort before a granted repo drop the authorized row (incomplete/empty
+// with truncated:false). The grant fragment is empty when the caller is not
+// scoped, so a shared/admin/local caller's query is byte-identical to the
+// pre-#5167 shape (no plan change). The `id IN $list` predicate on a matched
+// node is the same shape the other W3 graph vectors and production resolvers
+// bind, and stays within the NornicDB single-clause / CALL{UNION}-plain-outer
+// contract documented above (a bound-node property WHERE, not an OPTIONAL MATCH
+// / DISTINCT / post-CALL clause).
 const blastRadiusRepositoryCypher = `MATCH path=(s:Repository)<-[:DEPENDS_ON*1..5]-(a:Repository)
-WHERE s.name CONTAINS $target_name
+WHERE s.name CONTAINS $target_name%s
 RETURN a.name AS repo, a.id AS repo_id, min(length(path)) AS hops
 ORDER BY hops, repo
 LIMIT $limit`
+
+func blastRadiusRepositoryQuery(access repositoryAccessFilter) string {
+	return fmt.Sprintf(blastRadiusRepositoryCypher, access.graphPredicateOnProperty("a", "id"))
+}
 
 // blastRadiusTerraformSourceReposCypher resolves the repositories that DEFINE
 // the matched Terraform module (module -> file -> repo). Plain multi-clause
@@ -42,9 +58,13 @@ LIMIT $limit`
 const blastRadiusTerraformSourceReposCypher = `MATCH (mod:TerraformModule)
 WHERE mod.name CONTAINS $target_name OR mod.source CONTAINS $target_name
 MATCH (f:File)-[:CONTAINS]->(mod)
-MATCH (repo:Repository)-[:REPO_CONTAINS]->(f)
+MATCH (repo:Repository)-[:REPO_CONTAINS]->(f)%s
 RETURN repo.name AS repo, repo.id AS repo_id
 LIMIT $limit`
+
+func blastRadiusTerraformSourceReposQuery(access repositoryAccessFilter) string {
+	return fmt.Sprintf(blastRadiusTerraformSourceReposCypher, access.graphWhereClauseOnProperty("repo", "id"))
+}
 
 // blastRadiusDependentsByIDCypher returns repos that transitively depend on any
 // of the source repositories identified by concrete `id`, with shortest hop
@@ -54,10 +74,14 @@ LIMIT $limit`
 // into the blast radius. Typed traversal, single clause; `*1..5` (never `*0..5`,
 // which projects literal text for the zero-length row on this build).
 const blastRadiusDependentsByIDCypher = `MATCH path=(s:Repository)<-[:DEPENDS_ON*1..5]-(a:Repository)
-WHERE s.id IN $repo_ids
+WHERE s.id IN $repo_ids%s
 RETURN a.name AS repo, a.id AS repo_id, min(length(path)) AS hops
 ORDER BY hops, repo
 LIMIT $limit`
+
+func blastRadiusDependentsByIDQuery(access repositoryAccessFilter) string {
+	return fmt.Sprintf(blastRadiusDependentsByIDCypher, access.graphPredicateOnProperty("a", "id"))
+}
 
 // blastRadiusCrossplaneCypher resolves repositories whose claims are satisfied
 // by the matched CrossplaneXRD (xrd <- claim <- file <- repo). The repo is
@@ -72,10 +96,14 @@ const blastRadiusCrossplaneCypher = `MATCH (xrd:CrossplaneXRD)
 WHERE xrd.kind CONTAINS $target_name OR xrd.name CONTAINS $target_name
 MATCH (claim:CrossplaneClaim)-[:SATISFIED_BY]->(xrd)
 MATCH (f:File)-[:CONTAINS]->(claim)
-MATCH (repo:Repository)-[:REPO_CONTAINS]->(f)
+MATCH (repo:Repository)-[:REPO_CONTAINS]->(f)%s
 RETURN repo.name AS repo, repo.id AS repo_id, min(claim.name) AS claim
 ORDER BY repo
 LIMIT $limit`
+
+func blastRadiusCrossplaneQuery(access repositoryAccessFilter) string {
+	return fmt.Sprintf(blastRadiusCrossplaneCypher, access.graphWhereClauseOnProperty("repo", "id"))
+}
 
 // blastRadiusSqlTableBranches is the number of UNION branches in
 // blastRadiusSqlTableCypher; a single repo can appear once per branch, so the
@@ -106,21 +134,34 @@ const blastRadiusSqlTableBranches = 5
 // zero would be a correctness bug. blastRadiusAffected reports their absence
 // honestly via the coverage/complete response fields instead
 // (sqlTableBlastRadiusEdgeTypes, sqlTableBlastRadiusCoverage).
+// blastRadiusSqlTableQuery applies the caller's grant on the affected repo node
+// inside EACH CALL{} UNION branch (a bound-node property WHERE, not a post-CALL
+// clause) so the outer LIMIT bounds the granted set. When the caller is not
+// scoped the branch grant is empty and the query is byte-identical to the
+// pre-#5167 shape.
 const blastRadiusSqlTableCypher = `CALL {
 	MATCH (table:SqlTable) WHERE table.name CONTAINS $target_name
-	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(table) RETURN repo, 0 AS hops UNION
+	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(table)%[1]s RETURN repo, 0 AS hops UNION
 	MATCH (table:SqlTable) WHERE table.name CONTAINS $target_name
-	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:Function)-[:QUERIES_TABLE]->(table) RETURN repo, 1 AS hops UNION
+	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:Function)-[:QUERIES_TABLE]->(table)%[1]s RETURN repo, 1 AS hops UNION
 	MATCH (table:SqlTable) WHERE table.name CONTAINS $target_name
-	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:SqlTable)-[:REFERENCES_TABLE]->(table) RETURN repo, 1 AS hops UNION
+	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:SqlTable)-[:REFERENCES_TABLE]->(table)%[1]s RETURN repo, 1 AS hops UNION
 	MATCH (table:SqlTable) WHERE table.name CONTAINS $target_name
-	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:SqlTrigger)-[:TRIGGERS]->(table) RETURN repo, 1 AS hops UNION
+	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:SqlTrigger)-[:TRIGGERS]->(table)%[1]s RETURN repo, 1 AS hops UNION
 	MATCH (table:SqlTable) WHERE table.name CONTAINS $target_name
-	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:SqlIndex)-[:INDEXES]->(table) RETURN repo, 1 AS hops
+	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:SqlIndex)-[:INDEXES]->(table)%[1]s RETURN repo, 1 AS hops
 }
 RETURN repo.name AS repo, repo.id AS repo_id, hops
 ORDER BY hops, repo
 LIMIT $limit`
+
+func blastRadiusSqlTableQuery(access repositoryAccessFilter) string {
+	branchGrant := ""
+	if access.scoped() {
+		branchGrant = " WHERE " + access.graphConditionOnProperty("repo", "id")
+	}
+	return fmt.Sprintf(blastRadiusSqlTableCypher, branchGrant)
+}
 
 // sqlTableBlastRadiusEdgeTypes lists the graph relationship types the
 // sql_table blast-radius surface conceptually covers, independent of which
@@ -249,11 +290,12 @@ func (h *ImpactHandler) findBlastRadius(w http.ResponseWriter, r *http.Request) 
 
 	limit := normalizeImpactListLimit(req.Limit)
 
-	// #5167 W3: every affected row is a Repository (repo/repo_id), so this
-	// traversal's endpoints are bound to the caller's grant by filtering the
-	// affected set after the query -- an empty grant short-circuits to zero
-	// affected repos without running the (potentially expensive) traversal at
-	// all, matching the #5137 reference pattern.
+	// #5167 W3: every affected row is a Repository (repo/repo_id). The grant is
+	// bound INSIDE each affected-repo query (before its LIMIT, #5167 W3 P1) so
+	// the LIMIT bounds the granted set, with filterRowsByRepoIDForAccess kept as
+	// defense-in-depth below. An empty grant short-circuits to zero affected
+	// repos without running the (potentially expensive) traversal at all,
+	// matching the #5137 reference pattern.
 	access := repositoryAccessFilterFromContext(r.Context())
 	if access.empty() {
 		WriteSuccess(w, r, http.StatusOK, map[string]any{
@@ -267,7 +309,7 @@ func (h *ImpactHandler) findBlastRadius(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	affected, supported, complete, coverage, err := h.blastRadiusAffected(r.Context(), req.TargetType, req.Target, limit+1)
+	affected, supported, complete, coverage, err := h.blastRadiusAffected(r.Context(), req.TargetType, req.Target, limit+1, access)
 	if !supported {
 		WriteError(w, http.StatusBadRequest, "unsupported target_type: "+req.TargetType)
 		return
@@ -326,21 +368,24 @@ func (h *ImpactHandler) findBlastRadius(w http.ResponseWriter, r *http.Request) 
 // always false today — SATISFIED_BY has no writer; see
 // crossplaneXrdBlastRadiusCoverage); other target_types have no coverage gaps
 // registered against them and report complete:true with empty coverage.
-func (h *ImpactHandler) blastRadiusAffected(ctx context.Context, targetType, target string, limit int) ([]map[string]any, bool, bool, []blastRadiusEdgeCoverage, error) {
-	params := map[string]any{"target_name": target, "limit": limit}
+func (h *ImpactHandler) blastRadiusAffected(ctx context.Context, targetType, target string, limit int, access repositoryAccessFilter) ([]map[string]any, bool, bool, []blastRadiusEdgeCoverage, error) {
+	// graphParams binds $allowed_repository_ids / $allowed_scope_ids for the
+	// grant predicate the query builders inject when the caller is scoped; it is
+	// a no-op for a non-scoped caller.
+	params := access.graphParams(map[string]any{"target_name": target, "limit": limit})
 	emptyCoverage := []blastRadiusEdgeCoverage{}
 	switch targetType {
 	case "repository":
-		rows, err := h.Neo4j.Run(ctx, blastRadiusRepositoryCypher, params)
+		rows, err := h.Neo4j.Run(ctx, blastRadiusRepositoryQuery(access), params)
 		return mergeBlastRadiusRows(rows), true, true, emptyCoverage, err
 	case "terraform_module":
-		src, err := h.Neo4j.Run(ctx, blastRadiusTerraformSourceReposCypher, params)
+		src, err := h.Neo4j.Run(ctx, blastRadiusTerraformSourceReposQuery(access), params)
 		if err != nil {
 			return nil, true, true, emptyCoverage, err
 		}
 		affected := src
 		if ids := distinctRepoIDs(src); len(ids) > 0 {
-			deps, err := h.Neo4j.Run(ctx, blastRadiusDependentsByIDCypher, map[string]any{"repo_ids": ids, "limit": limit})
+			deps, err := h.Neo4j.Run(ctx, blastRadiusDependentsByIDQuery(access), access.graphParams(map[string]any{"repo_ids": ids, "limit": limit}))
 			if err != nil {
 				return nil, true, true, emptyCoverage, err
 			}
@@ -348,7 +393,7 @@ func (h *ImpactHandler) blastRadiusAffected(ctx context.Context, targetType, tar
 		}
 		return mergeBlastRadiusRows(affected), true, true, emptyCoverage, nil
 	case "crossplane_xrd":
-		rows, err := h.Neo4j.Run(ctx, blastRadiusCrossplaneCypher, params)
+		rows, err := h.Neo4j.Run(ctx, blastRadiusCrossplaneQuery(access), params)
 		complete, coverage := crossplaneXrdBlastRadiusCoverage()
 		return mergeBlastRadiusRows(rows), true, complete, coverage, err
 	case "sql_table":
@@ -357,7 +402,7 @@ func (h *ImpactHandler) blastRadiusAffected(ctx context.Context, targetType, tar
 		// LIMIT applies before mergeBlastRadiusRows collapses those duplicates.
 		// Over-fetch by the branch multiplier so the post-dedup unique set still
 		// covers the requested limit before the handler trims it.
-		rows, err := h.Neo4j.Run(ctx, blastRadiusSqlTableCypher, map[string]any{"target_name": target, "limit": limit * blastRadiusSqlTableBranches})
+		rows, err := h.Neo4j.Run(ctx, blastRadiusSqlTableQuery(access), access.graphParams(map[string]any{"target_name": target, "limit": limit * blastRadiusSqlTableBranches}))
 		complete, coverage := sqlTableBlastRadiusCoverage()
 		return mergeBlastRadiusRows(rows), true, complete, coverage, err
 	default:
@@ -400,91 +445,4 @@ func (h *ImpactHandler) enrichBlastRadiusTiers(ctx context.Context, affected []m
 			}
 		}
 	}
-}
-
-// distinctRepoIDs returns the unique non-empty repo ids from the rows. Used to
-// anchor the terraform_module dependents traversal on concrete source-repo ids
-// rather than names, so same-named-but-unrelated repos are not pulled in.
-func distinctRepoIDs(rows []map[string]any) []string {
-	return distinctFieldValues(rows, "repo_id")
-}
-
-// distinctFieldValues returns the unique non-empty values of key across rows,
-// preserving first-seen order.
-func distinctFieldValues(rows []map[string]any, key string) []string {
-	seen := make(map[string]bool, len(rows))
-	out := make([]string, 0, len(rows))
-	for _, row := range rows {
-		v := StringVal(row, key)
-		if v == "" || seen[v] {
-			continue
-		}
-		seen[v] = true
-		out = append(out, v)
-	}
-	return out
-}
-
-// mergeBlastRadiusRows de-duplicates affected rows by repo name, keeping the
-// minimum hop distance (so a repo reachable both directly and transitively, or
-// a source repo that is also a dependent, is reported at its shortest path) and
-// preserving the first-seen repo_id/claim. Results are sorted by (hops asc,
-// repo asc) to match the removed Cypher ORDER BY. This is where per-repo
-// min-hop lives now that the affected queries can no longer fold it across the
-// UNION/two-query merge.
-func mergeBlastRadiusRows(rows []map[string]any) []map[string]any {
-	byRepo := make(map[string]map[string]any, len(rows))
-	order := make([]string, 0, len(rows))
-	for _, row := range rows {
-		name := StringVal(row, "repo")
-		if name == "" {
-			continue
-		}
-		existing, ok := byRepo[name]
-		if !ok {
-			merged := map[string]any{"repo": name}
-			if v := StringVal(row, "repo_id"); v != "" {
-				merged["repo_id"] = v
-			}
-			if v := StringVal(row, "claim"); v != "" {
-				merged["claim"] = v
-			}
-			merged["hops"] = IntVal(row, "hops")
-			byRepo[name] = merged
-			order = append(order, name)
-			continue
-		}
-		if hops := IntVal(row, "hops"); hops < IntVal(existing, "hops") {
-			existing["hops"] = hops
-		}
-		if StringVal(existing, "repo_id") == "" {
-			if v := StringVal(row, "repo_id"); v != "" {
-				existing["repo_id"] = v
-			}
-		}
-		if StringVal(existing, "claim") == "" {
-			if v := StringVal(row, "claim"); v != "" {
-				existing["claim"] = v
-			}
-		}
-	}
-	merged := make([]map[string]any, 0, len(order))
-	for _, name := range order {
-		merged = append(merged, byRepo[name])
-	}
-	sortBlastRadiusRows(merged)
-	return merged
-}
-
-// sortBlastRadiusRows orders affected rows by ascending hop distance then repo
-// name, matching the ORDER BY the affected Cypher applied before it was moved to
-// Go (min-hop dedup can no longer rely on the query's ordering).
-func sortBlastRadiusRows(rows []map[string]any) {
-	sort.SliceStable(rows, func(i, j int) bool {
-		hi, hj := IntVal(rows[i], "hops"), IntVal(rows[j], "hops")
-		if hi != hj {
-			return hi < hj
-		}
-		return StringVal(rows[i], "repo") < StringVal(rows[j], "repo")
-	})
 }

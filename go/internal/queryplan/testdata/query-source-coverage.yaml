@@ -158,13 +158,19 @@ source_coverage:
         count: 5
         non_hot:
           class: keyed_support
-          source_sha256: 25ed6186e4a509a7e86155ec344a80fc94c257922ccae909d0d40fdb90470b15
+          source_sha256: d0be042ff05c2ae938d81981ba1aa90e33427db04a53e34ea3f453eb6cd7ec24
           key_bound: single_key
           max_results: 1005
       - {symbol: "(*ImpactHandler).enrichBlastRadiusTiers", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: impact_change_surface_investigation.go
     calls:
-      - {symbol: "(*ImpactHandler).resolveChangeSurfaceTarget", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "(*ImpactHandler).resolveChangeSurfaceTarget"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: 6c11a10a13d084edbdbebef92d32a252203fca108300e249f33c3af524f4c618
+          key_bound: single_key
+          max_results: 1212
   - file: impact_change_surface_legacy.go
     calls:
       - {symbol: "(*ImpactHandler).findChangeSurfaceImpactRows", count: 1, source_sha256: c5f2f7defb9741fa0877b4d8238f228692e461cd75179a746c78fedd7128ccdc, entry_ids: [QP-IMPACT-CHANGE-SURFACE]}
@@ -173,7 +179,13 @@ source_coverage:
       - {symbol: "(*ImpactHandler).changeSurfaceImpactRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: impact_resource_investigation.go
     calls:
-      - {symbol: "(*ImpactHandler).resolveResourceInvestigationTarget", count: 1, non_hot_reason: "multi-label resolver remains owned by issue 5269 and cannot be admitted until its production start anchor is plan-safe"}
+      - symbol: "(*ImpactHandler).resolveResourceInvestigationTarget"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: 9b80900bf531a72f8e3afffa042686cced99595d50fc51bdef11f11ff9d8bd07
+          key_bound: single_key
+          max_results: 101
   - file: impact_resource_investigation_reads.go
     calls:
       - {symbol: "(*ImpactHandler).resourceInvestigationInstanceWorkloads", count: 1, source_sha256: 3c3cae8c5c8b8822f10a0e68fe0eb89a7e24c8a4febd5699e88e3dcf2867a442, entry_ids: [QP-RESOURCE-INVESTIGATION-INSTANCE-WORKLOADS]}

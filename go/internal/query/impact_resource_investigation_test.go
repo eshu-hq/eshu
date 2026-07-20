@@ -304,7 +304,7 @@ func TestResourceInvestigationResolverNarrowsQueueAndDatabaseTypes(t *testing.T)
 		Query:        "orders",
 		ResourceType: "queue",
 		Limit:        25,
-	})
+	}, repositoryAccessFilter{allScopes: true})
 	for _, want := range []string{"CONTAINS 'queue'", "CONTAINS 'sqs'"} {
 		if !strings.Contains(queueCypher, want) {
 			t.Fatalf("queue resolver cypher missing %q: %s", want, queueCypher)
@@ -315,7 +315,7 @@ func TestResourceInvestigationResolverNarrowsQueueAndDatabaseTypes(t *testing.T)
 		Query:        "orders",
 		ResourceType: "database",
 		Limit:        25,
-	})
+	}, repositoryAccessFilter{allScopes: true})
 	for _, want := range []string{"CONTAINS 'database'", "CONTAINS 'rds'", "CONTAINS 'postgres'"} {
 		if !strings.Contains(databaseCypher, want) {
 			t.Fatalf("database resolver cypher missing %q: %s", want, databaseCypher)

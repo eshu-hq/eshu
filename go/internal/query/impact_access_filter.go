@@ -101,6 +101,14 @@ func filterCodeTopicRowsForAccess(rows []codeTopicEvidenceRow, access repository
 // project directly from Cypher (change-surface impact rows, blast-radius
 // affected repos, resource-investigation repository paths, deployment
 // sources).
+//
+// It is deny-by-default when scoped: a row whose "repo_id" is empty (missing,
+// or an entity the graph read matched with no repository tie) is DROPPED for a
+// scoped caller, because there is no repository id to check against the grant
+// and admitting an unbindable row would leak it (impactRepoIDAllowed returns
+// false for an empty repo_id when scoped -- see its godoc and the file-level
+// doc comment). A non-scoped (all-scopes/shared/admin/local) caller is
+// unaffected and every row is returned unchanged.
 func filterRowsByRepoIDForAccess(rows []map[string]any, access repositoryAccessFilter) []map[string]any {
 	if !access.scoped() {
 		return rows

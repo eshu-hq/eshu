@@ -109,6 +109,15 @@ func (h *ImpactHandler) changeSurfaceTopicRows(
 		Intent: "change_surface",
 		Terms:  codeTopicSearchTerms(req.Topic, "change_surface", nil),
 	}
+	// #5167 W3 P1: when the search is corpus-wide (no explicit repo_id), push the
+	// caller's grant into the content-store SQL WHERE so its LIMIT is taken from
+	// the granted set, not a cross-tenant-polluted page. filterCodeTopicRowsForAccess
+	// below stays as defense-in-depth.
+	if req.RepoID == "" {
+		if access := repositoryAccessFilterFromContext(ctx); access.scoped() {
+			topicReq.AllowedRepositoryIDs = access.repositorySearchIDs()
+		}
+	}
 	rows, err := investigator.investigateCodeTopic(ctx, topicReq)
 	if err != nil {
 		return nil, fmt.Errorf("investigate code topic: %w", err)
