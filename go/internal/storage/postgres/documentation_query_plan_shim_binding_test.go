@@ -12,7 +12,7 @@ func TestDocumentationWriteProofUsesCompleteProductionBatch(t *testing.T) {
 	t.Parallel()
 
 	batch := documentationWriteProofBatchForTest("shape-proof:")
-	query, args, err := buildUpsertFactBatchQuery(upsertFactBatchSuffix, batch)
+	query, args, err := buildDocumentationStreamingWriteProofQuery(batch)
 	if err != nil {
 		t.Fatalf("build production write proof batch: %v", err)
 	}
@@ -28,7 +28,7 @@ func TestDocumentationWriteProofUsesCompleteProductionBatch(t *testing.T) {
 	if !strings.Contains(query, ") VALUES ") {
 		t.Fatal("write proof does not use the production multi-value VALUES encoder")
 	}
-	if !strings.HasPrefix(query, upsertFactBatchPrefix) || !strings.HasSuffix(query, upsertFactBatchSuffix) {
-		t.Fatal("write proof does not use the complete production prefix and conflict suffix")
+	if !strings.HasPrefix(query, upsertFactBatchPrefix) || !strings.HasSuffix(query, upsertFactBatchSuffixReturningFactID) {
+		t.Fatal("write proof does not use the complete returning-aware streaming statement")
 	}
 }

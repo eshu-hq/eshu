@@ -216,22 +216,25 @@ func measureDocumentationWriteProof(
 	return samples
 }
 
+func buildDocumentationStreamingWriteProofQuery(batch []facts.Envelope) (string, []any, error) {
+	return buildUpsertFactBatchQuery(upsertFactBatchSuffixReturningFactID, batch)
+}
+
 func runDocumentationWriteWarmup(t *testing.T, ctx context.Context, db *sql.DB, prefix string) {
 	t.Helper()
-	query, args, err := buildUpsertFactBatchQuery(
-		upsertFactBatchSuffix,
-		documentationWriteProofBatchForTest(prefix),
-	)
-	if err != nil {
-		t.Fatalf("build production documentation write warmup: %v", err)
-	}
+	batch := documentationWriteProofBatchForTest(prefix)
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatalf("begin documentation write warmup: %v", err)
 	}
-	if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+	accepted, err := upsertFactBatchReturningAccepted(ctx, SQLTx{Tx: tx}, batch)
+	if err != nil {
 		_ = tx.Rollback()
 		t.Fatalf("run production documentation write warmup: %v", err)
+	}
+	if len(accepted) != len(batch) {
+		_ = tx.Rollback()
+		t.Fatalf("production documentation write warmup accepted %d facts, want %d", len(accepted), len(batch))
 	}
 	if err := tx.Rollback(); err != nil {
 		t.Fatalf("rollback documentation write warmup: %v", err)
@@ -245,8 +248,7 @@ func explainDocumentationWriteBatch(
 	prefix string,
 ) documentationWriteProofSample {
 	t.Helper()
-	query, args, err := buildUpsertFactBatchQuery(
-		upsertFactBatchSuffix,
+	query, args, err := buildDocumentationStreamingWriteProofQuery(
 		documentationWriteProofBatchForTest(prefix),
 	)
 	if err != nil {

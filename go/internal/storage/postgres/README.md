@@ -173,8 +173,8 @@ Performance Evidence: on 200,000 representative finding rows, the stale index
 predicate required 13.964 ms; the corrected index completed the same read in
 0.300 ms with the same 66 rows and result digest. Search-index candidates for
 the five-field documentation-fact query were rejected because the fastest
-candidate increased the exact 500-row production batch median from 4.295 ms to
-9.266 ms (2.16x); the scoped candidate reached 9.786 ms (2.28x). The complete
+candidate increased the exact 500-row production batch median from 4.292 ms to
+9.543 ms (2.22x); the scoped candidate reached 9.595 ms (2.24x). The complete
 production search over 1.6 million rows completed in 1,251.792 ms on the named
 local proof profile, so the accepted change does not alter free-text search.
 The full measurements and rejected-candidate ledger are in

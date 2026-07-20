@@ -5,9 +5,9 @@
 This work accepts the documentation-findings partial-index correction and
 rejects a dedicated free-text documentation-facts search index. The findings
 change fixes a stale predicate and preserves the result set. The search indexes
-made reads faster, but the fastest candidate made a production-shaped write
-2.16 times slower while the complete production 1.6-million-row search
-completed in 1.252 seconds without it.
+made reads faster, but the fastest candidate made the returning-aware
+production streaming write 2.22 times slower while the complete production
+1.6-million-row search completed in 1.252 seconds without it.
 
 No free-text query or search index ships from this investigation.
 
@@ -17,7 +17,7 @@ No free-text query or search index ships from this investigation.
 | --- | --- | --- |
 | Capture `EXPLAIN (ANALYZE, BUFFERS)` for both reads | Proved | The findings and production-shaped search reads were measured on PostgreSQL 18.4. Sanitized plan nodes, rows, loops, buffers, and timings are below; the exact disposable shim is checked in beside this note. |
 | Restore or replace the findings partial index | Implemented | Migration 064 creates the replacement index with the active `documentation_finding` predicate before migration 065 drops the stale legacy index. |
-| Redesign free-text search around an indexable column | Superseded by measurement | Three index hypotheses were tested. The fastest plan added a 2.16x median write cost, while the complete production search stayed below the local interactive target. No search schema or query change lands. |
+| Redesign free-text search around an indexable column | Superseded by measurement | Three index hypotheses were tested. The fastest plan added a 2.22x median write cost, while the complete production search stayed below the local interactive target. No search schema or query change lands. |
 | Preserve exact results | Proved | The findings read returned the same 66 rows and digest before and after the correction. The accepted patch does not change free-text search behavior. |
 | Record before and after plans and wall times | Proved | The accepted findings result and every rejected search candidate are recorded below. |
 
@@ -40,7 +40,8 @@ tax.
   bounds emitted by `buildDocumentationFactsSQL`.
 - Write input: one exact production batch from `buildUpsertFactBatchQuery`:
   500 documentation envelopes, 17 columns, 8,500 bound arguments, the shipped
-  multi-value `VALUES` encoding, conflict suffix, and fencing predicate.
+  multi-value `VALUES` encoding, returning-aware conflict suffix, fencing
+  predicate, and `RETURNING fact_id` clause used by the streaming path.
 - Machine profile: Apple Silicon `arm64`, 18 logical CPUs, 128 GiB physical
   memory, APFS solid-state storage, macOS 26.5.1. The PostgreSQL container had
   no explicit CPU or memory limit.
@@ -51,10 +52,12 @@ tax.
 The production query and write shapes come from
 `go/internal/query/documentation_read_model.go` and
 `go/internal/storage/postgres/facts_streaming.go`. The proof changes only the
-candidate index definition between measurements. The exact fixture, queries,
-candidate DDL, and write probe are in
-[`5275-documentation-query-plan-shim.sql`](5275-documentation-query-plan-shim.sql).
-The verified shim SHA-256 is
+candidate index definition between measurements. The exact read fixture,
+queries, and candidate DDL are in
+[`5275-documentation-query-plan-shim.sql`](5275-documentation-query-plan-shim.sql);
+the returning-aware write probe is in
+`go/internal/storage/postgres/documentation_facts_write_index_live_test.go`.
+The verified SQL shim SHA-256 is
 `942756c51ebabb30b05d266f62f4170ae0b197e5d81e37af12c48da4cd92b5c1`.
 
 The measured SQL is mechanically bound to production, rather than trusted as
@@ -62,18 +65,19 @@ a hand-maintained copy. Query-package tests render the complete
 `buildDocumentationFactsSQL` statement and arguments and compare them with the
 prepared search. The write proof calls `buildUpsertFactBatchQuery` directly;
 its unit guard checks the production 500-row cardinality, 8,500 arguments,
-multi-value `VALUES` encoding, prefix, and complete conflict suffix. The live
-proof executes that exact query and argument set after one warmup and records
-three rollback-isolated samples for each candidate. Mutation tests prove that
-changes on the production search side break its guard. The source hashes for
-this run are:
+multi-value `VALUES` encoding, prefix, and complete returning-aware conflict
+suffix. Its warmup calls `upsertFactBatchReturningAccepted`, and its measured
+`EXPLAIN ANALYZE` uses the same returning-aware query builder and arguments.
+The live proof records three rollback-isolated samples for each candidate.
+Mutation tests prove that changes on the production search side break its
+guard. The source hashes for this run are:
 
 - `go/internal/query/documentation_read_model.go`:
   `02825515bd6b620cc5c4fa63e4a8d7cb60066b8fa2f6bde46e59099e5b48a1cb`;
 - `go/internal/storage/postgres/facts_streaming.go`:
   `daf07fe4672a0b4d914a690d639852370836e4086f2cd98cdff55e0790c967e3`;
 - exact write-batch live proof:
-  `e72df043b47efe94f59b2a1b5556c4868ab3e5da3e790434e7892658556a3dbc`;
+  `a1d545c4aa802338a7a7cd5fed2ad4b385a46efb0575f37a6953bf1a3a9f0b65`;
 - `go/internal/storage/postgres/schema_fact_records_documentation.go`:
   `1fc54258126f280a177c3dee7aa4bce7d833bf05a1efd179802dec0b945674a5`;
 - migration 064:
@@ -116,30 +120,32 @@ index is not justified by the current local path.
 
 | Candidate | Build result | Read result | Disposition |
 | --- | --- | --- | --- |
-| Broad expression GIN with `gin_trgm_ops` | 16.440 s, 315 MB | `Bitmap Index Scan`, 1,600 rows x 1 loop, 22 index hits; whole plan 1,622 hits; 7.689 ms execution | Fastest read, but its exact 500-row production batch had a 2.16x median write cost. |
+| Broad expression GIN with `gin_trgm_ops` | 16.440 s, 315 MB | `Bitmap Index Scan`, 1,600 rows x 1 loop, 22 index hits; whole plan 1,622 hits; 7.689 ms execution | Fastest read, but its exact returning-aware 500-row production batch had a 2.22x median write cost. |
 | GiST with `gist_trgm_ops(siglen=64)` | Failed: one index row required 11,912 bytes; PostgreSQL maximum was 8,191 bytes | No valid plan | Rejected for this expression and fixture shape; this is not a general rejection of GiST. |
-| Scoped multicolumn GIN using `btree_gin` | 16.688 s, 320 MB | `Bitmap Index Scan`, 1,600 rows x 1 loop, 476 index hits; whole plan 2,076 hits; 11.177 ms execution | Slower and larger than the broad GIN; its exact production batch had a 2.28x median write cost. |
+| Scoped multicolumn GIN using `btree_gin` | 16.688 s, 320 MB | `Bitmap Index Scan`, 1,600 rows x 1 loop, 476 index hits; whole plan 2,076 hits; 11.177 ms execution | Slower and larger than the broad GIN; its exact returning-aware production batch had a 2.24x median write cost. |
 
 All candidate indexes and the candidate `btree_gin` extension were removed
 after the proof. None is part of the accepted schema.
 
 ## Write-tax proof
 
-Both valid search candidates were measured by calling the production batch
-builder for one full 500-row streaming batch. Each candidate received one
-warmup and three measured inserts. Every insert ran in a transaction that
-rolled back, so the 1.6-million-row table state stayed comparable.
+Both valid search candidates were measured with the returning-aware production
+statement for one full 500-row streaming batch. The warmup called
+`upsertFactBatchReturningAccepted`; each candidate then received three measured
+`EXPLAIN ANALYZE` inserts using that statement. Every insert ran in a
+transaction that rolled back, so the 1.6-million-row table state stayed
+comparable.
 
 | Run | Median execution | Median shared buffers | Median dirtied / written | Multiple of baseline |
 | --- | ---: | ---: | ---: | ---: |
-| No candidate | 4.295 ms | 6,090 hits | 45 / 45 | 1.00x |
-| Broad expression GIN | 9.266 ms | 7,092 hits | 109 / 109 | 2.16x |
-| Scoped multicolumn GIN | 9.786 ms | 7,092 hits | 117 / 117 | 2.28x |
+| No candidate | 4.292 ms | 6,092 hits | 46 / 46 | 1.00x |
+| Broad expression GIN | 9.543 ms | 7,092 hits | 109 / 109 | 2.22x |
+| Scoped multicolumn GIN | 9.595 ms | 7,092 hits | 117 / 117 | 2.24x |
 
-The fastest read candidate added 4.971 ms to the median exact production batch.
-The three baseline samples were 4.515, 4.295, and 4.197 ms; broad-GIN samples
-were 9.499, 9.266, and 9.011 ms; scoped-GIN samples were 9.786, 9.974, and
-9.702 ms. This is a bounded same-machine per-batch comparison, not an
+The fastest read candidate added 5.251 ms to the median exact production batch.
+The three baseline samples were 4.345, 4.292, and 4.008 ms; broad-GIN samples
+were 9.543, 9.566, and 8.848 ms; scoped-GIN samples were 9.746, 9.595, and
+9.411 ms. This is a bounded same-machine per-batch comparison, not an
 end-to-end ingestion duration, so no corpus-wide time is extrapolated from it.
 
 The read improvement is real, but it is not an accuracy fix and it does not
@@ -167,8 +173,8 @@ Performance Evidence: the accepted findings index changed a 13.964 ms parallel
 sequential scan into a 0.300 ms index scan with the same 66 rows and digest. The
 complete production 1.6-million-row search completed in 1,251.792 ms. The
 fastest rejected search index reduced it to 7.689 ms but increased the median
-exact 500-row production batch from 4.295 ms to 9.266 ms, so it did not
-land.
+exact returning-aware 500-row production batch from 4.292 ms to 9.543 ms, so it
+did not land.
 
 No-Regression Evidence: the accepted findings change preserved terminal row
 count and result digest. Free-text search behavior is unchanged. Migration tests
