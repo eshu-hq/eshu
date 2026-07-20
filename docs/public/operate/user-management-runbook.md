@@ -37,8 +37,9 @@ families, role names, grant families, and data-class names.
 
 | Surface | Current operator posture | Follow-up |
 | --- | --- | --- |
-| Shared API/MCP bearer token | Still available for local development, bootstrap, and compatibility. It is not a tenant boundary. | Move teams to scoped or identity-backed tokens before claiming isolation. |
+| Shared API/MCP bearer token | Still available for local development, bootstrap, and compatibility. It is not a tenant boundary. | Move teams to scoped or identity-backed tokens before claiming isolation; see [MCP Client Authentication](mcp-client-auth.md#shared-key). |
 | Generated personal/service-principal tokens | API and MCP resolve hash-only `identity_token_metadata` rows through active identity subjects, role assignments, and repository/source-scope targets. All-scope admins can create, revoke, and rotate generated tokens through the local identity admin API; raw bearer values are returned once and only hashes are stored. Successful lookups update last-used metadata. | Console UX continues through the user-management console work. |
+| MCP client onboarding | `eshu mcp setup` is posture-aware (issue #5169, F-8): it detects per-user token vs. SSO and emits the matching client snippet, never a raw secret. | See [MCP Client Authentication](mcp-client-auth.md) for the posture model and per-org walkthroughs. |
 | Scoped API/MCP tokens | `ESHU_SCOPED_TOKENS_FILE` maps bearer-token hashes to tenant, workspace, repository, and source-scope grants. The registry is hash-only, optional, and tried after generated identity tokens. | Keep for bootstrap, migration, and operator-managed team tokens. |
 | Browser sessions | `POST /api/v0/auth/browser-session` exchanges an explicit API credential for `__Host-eshu_session`; unsafe cookie-authenticated requests require `X-Eshu-CSRF`. | Full login/profile/admin console UX is tracked by #3462. |
 | Identity schema | Additive and dormant tables model users, provider configs, MFA handles, memberships, roles, grants, sessions, service principals, and token metadata with opaque IDs, hashes, and credential handles. | Local identity, OIDC, and SAML enforcement are tracked by #3455, #3457, and #3458. |
@@ -170,8 +171,13 @@ Proof checklist:
 2. SAML: create a SAML app integration, set SP entity ID and ACS URL, map the
    group attribute, sign in, verify role mapping, rotate metadata/certificate in
    test, and prove fail-closed behavior for new logins.
-3. For both: capture only event-family counts, decision counts, role names,
-   provider kind, refresh-window class, and pass/fail status.
+3. MCP: with the OIDC app configured, confirm an unauthenticated MCP request
+   gets the 401 discovery challenge, `eshu mcp setup --hosted` auto-detects
+   SSO posture, and the OAuth flow completes to a successful tool call. See
+   [MCP Client Authentication § Okta org](mcp-client-auth.md#okta-org); the
+   scripted end-to-end proof is tracked by F-9 (#5170).
+4. For all three: capture only event-family counts, decision counts, role
+   names, provider kind, refresh-window class, and pass/fail status.
 
 For OIDC, convert the private Okta run into a public-safe aggregate summary in
 the repo-ignored `.proof-artifacts/` directory with:
@@ -237,6 +243,12 @@ API tokens and dashboard sessions are different credentials.
   grants, expiry, rotation, status, and last-used metadata.
 - Scoped tokens remain operator-issued hash-only registry entries and are
   suitable for bootstrap, migration, and bounded team read access.
+
+Engineers get their MCP credential through `eshu mcp setup` (posture-aware;
+issue #5169, F-8), which detects per-user token vs. SSO and prints the
+matching client snippet. Personal tokens themselves are issued from the
+console's `/profile` page (Profile -> API tokens, issue #5164). See [MCP
+Client Authentication](mcp-client-auth.md).
 
 Generated token lifecycle routes:
 

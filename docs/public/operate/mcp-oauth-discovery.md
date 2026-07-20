@@ -5,7 +5,9 @@ OAuth 2.0 Protected Resource Metadata document so an OAuth-capable MCP client
 (Claude Code, claude.ai) can discover where to obtain an access token for the
 server without hand-configuration (issue #5163). This page covers enabling the
 discovery document and pre-registering an OAuth client with your identity
-provider.
+provider. See [MCP Client Authentication](mcp-client-auth.md) for how
+`eshu mcp setup` detects this document automatically and for the per-client
+snippet shapes it emits.
 
 ## What the server publishes
 
