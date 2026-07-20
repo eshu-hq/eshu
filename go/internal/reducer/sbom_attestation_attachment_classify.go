@@ -68,6 +68,10 @@ func sbomAttachmentDecision(
 	anchors := sbomAttachmentAnchorsForDocument(doc, index)
 	scope, missing := sbomAttachmentScope(status, hasImageReferrer, anchors.hasUsableAnchor())
 	reason = sbomAttachmentAnchoredReason(status, reason, hasImageReferrer, anchors.hasUsableAnchor())
+	slsaProvenance, hasSLSAProvenance := index.slsaProvenance[doc.documentID]
+	if hasSLSAProvenance {
+		evidence = append(evidence, slsaProvenance.factID)
+	}
 	return SBOMAttestationAttachmentDecision{
 		DocumentID:                     doc.documentID,
 		DocumentDigest:                 doc.documentDigest,
@@ -88,6 +92,8 @@ func sbomAttachmentDecision(
 		DependencyRelationshipEvidence: dependencyRows,
 		ExternalReferenceCount:         externalReferenceCount,
 		ExternalReferenceEvidence:      externalReferenceRows,
+		SLSAProvenancePredicateType:    slsaProvenance.predicateType,
+		SLSAProvenanceBuilderID:        slsaProvenance.builderID,
 		RepositoryIDs:                  anchors.repositories,
 		WorkloadIDs:                    anchors.workloads,
 		ServiceIDs:                     anchors.services,

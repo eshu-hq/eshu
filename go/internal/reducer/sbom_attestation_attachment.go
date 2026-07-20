@@ -78,14 +78,23 @@ type SBOMAttestationAttachmentDecision struct {
 	// deterministically sorted set of external reference rows for this
 	// document (see externalReferenceEvidenceRows).
 	ExternalReferenceEvidence []map[string]string
-	RepositoryIDs             []string
-	WorkloadIDs               []string
-	ServiceIDs                []string
-	WarningSummaries          []string
-	WarningSummaryCount       int
-	EvidenceFactIDs           []string
-	MissingEvidence           []string
-	SourceLayerKinds          []string
+	// SLSAProvenancePredicateType and SLSAProvenanceBuilderID carry the
+	// joined attestation.slsa_provenance evidence for this statement, keyed
+	// by statement_id in sbomAttachmentIndex.slsaProvenance. Presence is
+	// equivalent to SLSAProvenancePredicateType != "": a statement with no
+	// joined SLSA provenance fact leaves both fields empty rather than
+	// reporting a count or a truncated array, since at most one provenance
+	// predicate is ever expected per statement.
+	SLSAProvenancePredicateType string
+	SLSAProvenanceBuilderID     string
+	RepositoryIDs               []string
+	WorkloadIDs                 []string
+	ServiceIDs                  []string
+	WarningSummaries            []string
+	WarningSummaryCount         int
+	EvidenceFactIDs             []string
+	MissingEvidence             []string
+	SourceLayerKinds            []string
 }
 
 // SBOMAttestationAttachmentWrite carries decisions for durable publication.
@@ -399,6 +408,8 @@ func sbomAttachmentActiveKeys(envelopes []facts.Envelope) []string {
 				payloadString(envelope.Payload, "statement_id"),
 				payloadString(envelope.Payload, "document_id"),
 			)
+		case facts.AttestationSLSAProvenanceFactKind:
+			keys = append(keys, payloadString(envelope.Payload, "statement_id"))
 		case facts.SBOMWarningFactKind:
 			keys = append(
 				keys,

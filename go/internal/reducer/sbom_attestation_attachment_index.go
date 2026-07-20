@@ -110,6 +110,19 @@ type sbomAttachmentExternalReferenceEvidence struct {
 	referenceLocator string
 }
 
+// sbomAttachmentSLSAProvenanceEvidence carries the decoded fields of one
+// attestation.slsa_provenance fact the reducer needs, keyed by the owning
+// statement_id. When two facts join the same statement_id (a duplicate
+// emission), buildSBOMAttachmentIndex keeps the row whose factID sorts
+// lexicographically smallest and discards the other — the two candidate
+// rows are never merged field-by-field, since merging could silently splice
+// a predicate_type from one fact with a builder_id from another.
+type sbomAttachmentSLSAProvenanceEvidence struct {
+	factID        string
+	predicateType string
+	builderID     string
+}
+
 type sbomAttachmentIndex struct {
 	documents          map[string]sbomAttachmentDocument
 	components         map[string][]sbomAttachmentComponentEvidence
@@ -119,6 +132,7 @@ type sbomAttachmentIndex struct {
 	warnings           map[string][]sbomAttachmentWarningEvidence
 	dependencies       map[string][]sbomAttachmentDependencyEvidence
 	externalReferences map[string][]sbomAttachmentExternalReferenceEvidence
+	slsaProvenance     map[string]sbomAttachmentSLSAProvenanceEvidence
 }
 
 // buildSBOMAttachmentIndex builds the bounded in-memory index from the scope
@@ -146,6 +160,7 @@ func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, 
 		warnings:           map[string][]sbomAttachmentWarningEvidence{},
 		dependencies:       map[string][]sbomAttachmentDependencyEvidence{},
 		externalReferences: map[string][]sbomAttachmentExternalReferenceEvidence{},
+		slsaProvenance:     map[string]sbomAttachmentSLSAProvenanceEvidence{},
 	}
 	var quarantined []quarantinedFact
 	for _, envelope := range envelopes {
@@ -238,6 +253,14 @@ func buildSBOMAttachmentIndex(envelopes []facts.Envelope) (sbomAttachmentIndex, 
 					verificationPolicy: derefString(verification.VerificationPolicy),
 				}
 			}
+		case facts.AttestationSLSAProvenanceFactKind:
+			q, isQuarantine, fatal := indexAttestationSLSAProvenance(index, envelope)
+			if fatal != nil {
+				return sbomAttachmentIndex{}, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
 		case facts.SBOMWarningFactKind:
 			warning, err := decodeSBOMWarning(envelope)
 			if err != nil {
@@ -327,6 +350,11 @@ func indexSBOMExternalReference(
 	}
 	return quarantinedFact{}, false, nil
 }
+
+// indexAttestationSLSAProvenance, indexSLSAProvenanceEvidence, and the
+// duplicate-statement_id conflict resolution they implement live in
+// sbom_attestation_attachment_slsa_index.go (split out to keep this file
+// under the package's 500-line cap).
 
 // sbomDocumentFromEnvelope decodes one sbom.document fact envelope through the
 // factschema seam into the reducer's internal sbomAttachmentDocument shape,

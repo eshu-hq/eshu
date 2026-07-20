@@ -133,6 +133,8 @@ func sbomAttestationAttachmentPayload(
 		"dependency_relationship_evidence": decision.DependencyRelationshipEvidence,
 		"external_reference_count":         decision.ExternalReferenceCount,
 		"external_reference_evidence":      decision.ExternalReferenceEvidence,
+		"slsa_provenance_predicate_type":   decision.SLSAProvenancePredicateType,
+		"slsa_provenance_builder_id":       decision.SLSAProvenanceBuilderID,
 		"repository_ids":                   uniqueSortedStrings(decision.RepositoryIDs),
 		"workload_ids":                     uniqueSortedStrings(decision.WorkloadIDs),
 		"service_ids":                      uniqueSortedStrings(decision.ServiceIDs),
