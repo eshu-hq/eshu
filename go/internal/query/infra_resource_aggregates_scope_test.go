@@ -169,15 +169,32 @@ func TestInfraResourceScopePredicateRendersOnlyWhenScoped(t *testing.T) {
 	scoped := infraResourceAggregateBranchWhere(InfraResourceAggregateFilter{
 		AllowedRepositoryIDs: []string{"repo-team-a"},
 	})
+	// SHAPE-A (#5384): flat direct-ownership disjuncts + the CloudResource-via-USES
+	// inline-map pattern predicate + the forward DEPLOYMENT_SOURCE EXISTS +
+	// the Workload-via-DEFINES inline-map pattern predicate. The single granted
+	// repository expands to one scope_grant_0 scalar per inline-map disjunct.
 	for _, want := range []string{
 		"n.repo_id IN $allowed_repository_ids",
 		"n.repo_id IN $allowed_scope_ids",
-		"EXISTS {",
-		"(scopeRepo:Repository)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(:WorkloadInstance)-[:USES]->(n)",
-		"scopeRepo.id IN $allowed_repository_ids",
+		"n.id IN $allowed_repository_ids",
+		"(n)<-[:USES]-(:WorkloadInstance {repo_id:$scope_grant_0})",
+		"EXISTS { MATCH (n)-[:DEPLOYMENT_SOURCE]->(scopeDeployRepo:Repository)",
+		"(n)<-[:DEFINES]-(:Repository {id:$scope_grant_0})",
 	} {
 		if !strings.Contains(scoped, want) {
 			t.Fatalf("scoped branch where clause missing %q:\n%s", want, scoped)
+		}
+	}
+	// Guardrails: the dead n-last 4-hop EXISTS bridge and the always-true
+	// backward-EXISTS-with-WHERE shape must be gone (both mis-evaluate on the
+	// pinned NornicDB build; see docs/public/reference/nornicdb-pitfalls.md).
+	for _, forbidden := range []string{
+		"(scopeRepo:Repository)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]",
+		"(n)<-[:USES]-(scopeInstance",
+		"scopeRepo.id IN",
+	} {
+		if strings.Contains(scoped, forbidden) {
+			t.Fatalf("scoped branch where clause must not contain forbidden shape %q:\n%s", forbidden, scoped)
 		}
 	}
 

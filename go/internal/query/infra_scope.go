@@ -38,7 +38,8 @@ func infraSearchScopeClause(access repositoryAccessFilter) string {
 	if !access.scoped() {
 		return ""
 	}
-	return " AND " + infraResourceScopePredicate("n")
+	scalars, _ := access.scopeGrantInlineScalars()
+	return " AND " + infraResourceScopePredicate("n", scalars)
 }
 
 // infraRelationshipAnchorClause bounds the relationship seed node `n` to a
@@ -49,7 +50,8 @@ func infraRelationshipAnchorClause(access repositoryAccessFilter) string {
 	if !access.scoped() {
 		return ""
 	}
-	return " AND " + infraResourceScopePredicate("n")
+	scalars, _ := access.scopeGrantInlineScalars()
+	return " AND " + infraResourceScopePredicate("n", scalars)
 }
 
 // infraRelationshipNeighborClause bounds an OPTIONAL MATCH neighbor (target /
@@ -65,7 +67,8 @@ func infraRelationshipNeighborClause(access repositoryAccessFilter, alias string
 	if !access.scoped() {
 		return ""
 	}
-	return " WHERE " + infraResourceScopePredicate(alias)
+	scalars, _ := access.scopeGrantInlineScalars()
+	return " WHERE " + infraResourceScopePredicate(alias, scalars)
 }
 
 // writeEmptyInfraSearch returns the bounded empty search page for an empty-grant

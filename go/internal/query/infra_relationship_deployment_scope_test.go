@@ -125,31 +125,43 @@ func TestScopedWhatDeploysExcludesOutOfGrantDeploymentSource(t *testing.T) {
 	}
 }
 
-// TestInfraResourceScopePredicateAdmitsDeploymentTopology pins the scope
-// predicate shape: it must authorize a Repository neighbor by its own id and a
-// WorkloadInstance anchored to a granted repo via DEFINES/INSTANCE_OF, in
-// addition to the pre-existing repo_id and USES-path admissions. Without these
-// the deployment-source topology is dropped under scope (#3519).
+// TestInfraResourceScopePredicateAdmitsDeploymentTopology pins the SHAPE-A
+// scope predicate (#5384): a Repository neighbor is authorized by its own id, a
+// CloudResource by its using WorkloadInstance's repo_id (inline-map), a
+// WorkloadInstance by its own repo_id or a forward DEPLOYMENT_SOURCE to a
+// granted repo, and a collision-defined Workload by a granted DEFINES-ing
+// repository (inline-map). The dead n-last bridge and the always-true
+// backward-EXISTS-WHERE shapes must be absent (both mis-evaluate on the pinned
+// NornicDB build).
 func TestInfraResourceScopePredicateAdmitsDeploymentTopology(t *testing.T) {
 	t.Parallel()
 
-	pred := infraResourceScopePredicate("target")
+	scalars := []string{"repo-team-a"}
+	pred := infraResourceScopePredicate("target", scalars)
 
-	// Pre-existing admissions stay intact.
-	if !strings.Contains(pred, "target.repo_id IN $allowed_repository_ids") {
-		t.Fatalf("predicate lost the repo_id admission:\n%s", pred)
+	for _, want := range []string{
+		// Direct ownership (flat).
+		"target.repo_id IN $allowed_repository_ids",
+		"target.id IN $allowed_repository_ids",
+		"target.id IN $allowed_scope_ids",
+		// CloudResource via its using instance's repo_id (inline-map).
+		"(target)<-[:USES]-(:WorkloadInstance {repo_id:$scope_grant_0})",
+		// WorkloadInstance via forward DEPLOYMENT_SOURCE to a granted repo.
+		"EXISTS { MATCH (target)-[:DEPLOYMENT_SOURCE]->(scopeDeployRepo:Repository)",
+		// Collision-defined Workload via a granted DEFINES-ing repository.
+		"(target)<-[:DEFINES]-(:Repository {id:$scope_grant_0})",
+	} {
+		if !strings.Contains(pred, want) {
+			t.Fatalf("predicate missing SHAPE-A admission %q:\n%s", want, pred)
+		}
 	}
-	if !strings.Contains(pred, "-[:USES]->(target)") {
-		t.Fatalf("predicate lost the USES-path admission:\n%s", pred)
-	}
-	// New: Repository neighbor authorized by its own id.
-	if !strings.Contains(pred, "target.id IN $allowed_repository_ids") ||
-		!strings.Contains(pred, "target.id IN $allowed_scope_ids") {
-		t.Fatalf("predicate missing Repository-by-id admission:\n%s", pred)
-	}
-	// New: WorkloadInstance anchored to a granted repo via DEFINES/INSTANCE_OF
-	// (no USES hop), so a deployment-source seed/neighbor instance is in scope.
-	if !strings.Contains(pred, "-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(target)") {
-		t.Fatalf("predicate missing WorkloadInstance DEFINES/INSTANCE_OF admission:\n%s", pred)
+	for _, forbidden := range []string{
+		"-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]",
+		"(target)<-[:USES]-(scopeInstance",
+		"scopeRepo.id IN",
+	} {
+		if strings.Contains(pred, forbidden) {
+			t.Fatalf("predicate must not contain forbidden shape %q:\n%s", forbidden, pred)
+		}
 	}
 }

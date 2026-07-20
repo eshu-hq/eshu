@@ -101,12 +101,17 @@ func TestInfraSearchScopePredicateRendersOnlyWhenScoped(t *testing.T) {
 	for _, want := range []string{
 		"AND ",
 		"n.repo_id IN $allowed_repository_ids",
-		"EXISTS {",
-		"(scopeRepo:Repository)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(:WorkloadInstance)-[:USES]->(n)",
+		"(n)<-[:USES]-(:WorkloadInstance {repo_id:$scope_grant_0})",
+		"EXISTS { MATCH (n)-[:DEPLOYMENT_SOURCE]->(scopeDeployRepo:Repository)",
+		"(n)<-[:DEFINES]-(:Repository {id:$scope_grant_0})",
 	} {
 		if !strings.Contains(scoped, want) {
 			t.Fatalf("scoped search clause missing %q:\n%s", want, scoped)
 		}
+	}
+	// The dead n-last bridge shape must be gone (SHAPE-A / #5384).
+	if strings.Contains(scoped, "(scopeRepo:Repository)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]") {
+		t.Fatalf("scoped search clause must not contain the dead n-last EXISTS bridge:\n%s", scoped)
 	}
 }
 
@@ -235,13 +240,13 @@ func TestInfraRelationshipsScopePredicateRendersOnlyWhenScoped(t *testing.T) {
 	}
 	anchor := infraRelationshipAnchorClause(scoped)
 	if !strings.Contains(anchor, "n.repo_id IN $allowed_repository_ids") ||
-		!strings.Contains(anchor, "-[:USES]->(n)") {
-		t.Fatalf("scoped anchor clause missing predicate:\n%s", anchor)
+		!strings.Contains(anchor, "(n)<-[:USES]-(:WorkloadInstance {repo_id:$scope_grant_0})") {
+		t.Fatalf("scoped anchor clause missing SHAPE-A predicate:\n%s", anchor)
 	}
 	neighbor := infraRelationshipNeighborClause(scoped, "target")
 	if !strings.Contains(neighbor, "WHERE ") ||
 		!strings.Contains(neighbor, "target.repo_id IN $allowed_repository_ids") ||
-		!strings.Contains(neighbor, "-[:USES]->(target)") {
+		!strings.Contains(neighbor, "(target)<-[:USES]-(:WorkloadInstance {repo_id:$scope_grant_0})") {
 		t.Fatalf("scoped neighbor clause missing predicate:\n%s", neighbor)
 	}
 }
