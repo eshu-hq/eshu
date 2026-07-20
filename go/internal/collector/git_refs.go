@@ -6,6 +6,9 @@ package collector
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -161,6 +164,124 @@ func remoteGitRefs(
 	return parseRemoteGitRefs(output)
 }
 
+// localGitRefs discovers git refs from a local repository using
+// git for-each-ref. It does not require an origin remote — it reads
+// refs/heads/ and refs/tags/ directly from the local repo.
+func localGitRefs(ctx context.Context, repoPath string) ([]GitRef, error) {
+	cmd := exec.CommandContext(ctx, "git", "-C", repoPath, // #nosec G204 -- controlled repo path
+		"for-each-ref",
+		"--format=%(objectname) %(refname) %(*objectname)",
+		"refs/heads/",
+		"refs/tags/",
+	)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("list local git refs for %q: %w", repoPath, err)
+	}
+	return parseLocalGitRefs(string(output), repoPath)
+}
+
+// parseLocalGitRefs parses git for-each-ref output into GitRef entries.
+// Format per line: <objectname> <refname> [<*objectname>]
+// For annotated tags, *objectname is the peeled commit SHA.
+// It discovers the default branch by reading the local HEAD symbolic ref.
+func parseLocalGitRefs(output string, repoPath string) ([]GitRef, error) {
+	branchesByName := make(map[string]GitRef)
+	tagsByName := make(map[string]GitRef)
+	peeledTagSHAs := make(map[string]string)
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		sha := strings.TrimSpace(fields[0])
+		refspec := fields[1]
+		peeled := ""
+		if len(fields) >= 3 {
+			peeled = strings.TrimSpace(fields[2])
+		}
+		if sha == "" {
+			continue
+		}
+		if strings.HasPrefix(refspec, "refs/heads/") {
+			branch, err := normalizeGitBranchName(strings.TrimPrefix(refspec, "refs/heads/"))
+			if err != nil || branch == "" {
+				continue
+			}
+			branchesByName[branch] = GitRef{
+				Name:    branch,
+				Kind:    "branch",
+				HeadSHA: sha,
+			}
+		} else if strings.HasPrefix(refspec, "refs/tags/") {
+			tagName, err := normalizeGitTagName(strings.TrimPrefix(refspec, "refs/tags/"))
+			if err != nil || tagName == "" {
+				continue
+			}
+			if peeled != "" {
+				peeledTagSHAs[tagName] = peeled
+			}
+			// Prefer the peeled SHA when available; if the peeled line arrives
+			// after the tag-object line (for-each-ref guarantees tag-object first),
+			// store the object SHA temporarily and replace below.
+			headSHA := sha
+			if peeled != "" {
+				headSHA = peeled
+			}
+			tagsByName[tagName] = GitRef{
+				Name:    tagName,
+				Kind:    "tag",
+				HeadSHA: headSHA,
+			}
+		}
+	}
+	// Apply any peeled SHAs that arrived after the tag-object line.
+	for tagName, peeledSHA := range peeledTagSHAs {
+		if existing, ok := tagsByName[tagName]; ok {
+			existing.HeadSHA = peeledSHA
+			tagsByName[tagName] = existing
+		}
+	}
+
+	// Discover default branch from local HEAD.
+	defaultBranch := ""
+	if headRef, err := os.ReadFile(filepath.Join(repoPath, ".git", "HEAD")); err == nil {
+		headLine := strings.TrimSpace(string(headRef))
+		if strings.HasPrefix(headLine, "ref: refs/heads/") {
+			defaultBranch = strings.TrimPrefix(headLine, "ref: refs/heads/")
+		}
+	}
+
+	branchNames := make([]string, 0, len(branchesByName))
+	for name := range branchesByName {
+		branchNames = append(branchNames, name)
+	}
+	sort.Strings(branchNames)
+
+	tagNames := make([]string, 0, len(tagsByName))
+	for name := range tagsByName {
+		tagNames = append(tagNames, name)
+	}
+	sort.Strings(tagNames)
+
+	refs := make([]GitRef, 0, len(branchNames)+len(tagNames))
+	for _, name := range branchNames {
+		ref := branchesByName[name]
+		ref.Default = name == defaultBranch
+		refs = append(refs, ref)
+	}
+	for _, name := range tagNames {
+		ref := tagsByName[name]
+		ref.Default = false
+		refs = append(refs, ref)
+	}
+	return refs, nil
+}
+
 func cloneGitRefs(refs []GitRef) []GitRef {
 	if len(refs) == 0 {
 		return nil
@@ -222,4 +343,20 @@ func normalizeGitTagName(tag string) (string, error) {
 		return "", fmt.Errorf("invalid git tag name %q", tag)
 	}
 	return tag, nil
+}
+
+// collectLocalRefs calls localGitRefs on each repo path and returns a map
+// suitable for buildSelectedRepositories. Errors are logged and skipped.
+func collectLocalRefs(ctx context.Context, repoPaths []string) map[string][]GitRef {
+	refsByRepoPath := make(map[string][]GitRef, len(repoPaths))
+	for _, repoPath := range repoPaths {
+		refs, err := localGitRefs(ctx, repoPath)
+		if err != nil {
+			continue
+		}
+		if len(refs) > 0 {
+			refsByRepoPath[repoPath] = refs
+		}
+	}
+	return refsByRepoPath
 }

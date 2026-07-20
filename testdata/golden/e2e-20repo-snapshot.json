@@ -4401,6 +4401,21 @@
         }
       }
     },
+    "GET /api/v0/repositories/deployable-config/branches": {
+      "description": "Repository branches + tags endpoint; asserts that the fixtures produce repository_refs tag rows and that tags are returned separately from branches with the peeled commit SHA for annotated tags. The deployable-config fixture carries both annotated and lightweight tags.",
+      "truth_class": "content_index",
+      "minimum_results": 1,
+      "required_response_fields": [
+        "default_branch",
+        "tags",
+        "branches"
+      ],
+      "result_item_required_fields": [
+        "name",
+        "kind",
+        "head_sha"
+      ]
+    },
     "cli": {
       "eshu list": {
         "description": "CLI repository list read surface; asserts the CLI shape and shared API/MCP truth class for the repository list answer.",

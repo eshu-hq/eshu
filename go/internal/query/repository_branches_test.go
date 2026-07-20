@@ -5,6 +5,7 @@ package query
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -277,6 +278,90 @@ func TestGetRepositoryBranchesTagSameNameAsBranch(t *testing.T) {
 	}
 	if got, ok := tagEntry["is_default"]; ok && got == true {
 		t.Fatal("tag is_default is true, want absent or false")
+	}
+}
+
+func TestGetRepositoryBranchesTagsExceedingCapAreTruncated(t *testing.T) {
+	// tagResultCap is 500; build 600 tag refs to exceed it.
+	tagResultCap := 500
+	observedAt := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
+	indexedAt := time.Date(2026, 6, 1, 9, 5, 0, 0, time.UTC)
+
+	refs := []RepositoryRef{
+		{Name: "main", Kind: "branch", HeadSHA: "abc123", Default: true, ObservedAt: observedAt, IndexedAt: indexedAt},
+	}
+	for i := 0; i < tagResultCap+100; i++ {
+		refs = append(refs, RepositoryRef{
+			Name:       fmt.Sprintf("v1.%d.0", i),
+			Kind:       "tag",
+			HeadSHA:    "abc123",
+			ObservedAt: observedAt,
+			IndexedAt:  indexedAt,
+		})
+	}
+	handler := &RepositoryHandler{
+		Content: fakePortContentStore{
+			repositories:   []RepositoryCatalogEntry{repositoryStatsCatalogEntry()},
+			repositoryRefs: refs,
+		},
+	}
+
+	w := requestRepositoryBranches(t, handler, "/api/v0/repositories/repo-1/branches")
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	tags, ok := resp["tags"].([]any)
+	if !ok {
+		t.Fatal("tags key missing")
+	}
+	if got, want := len(tags), tagResultCap; got != want {
+		t.Fatalf("len(tags) = %d, want %d (capped)", got, want)
+	}
+	truncated, _ := resp["tags_truncated"].(bool)
+	if !truncated {
+		t.Fatal("tags_truncated = false, want true when cap exceeded")
+	}
+	// Default branch still correct.
+	if got, want := resp["default_branch"], "main"; got != want {
+		t.Fatalf("default_branch = %#v, want %#v", got, want)
+	}
+}
+
+func TestGetRepositoryBranchesTagsWithinCapNotTruncated(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
+	indexedAt := time.Date(2026, 6, 1, 9, 5, 0, 0, time.UTC)
+	handler := &RepositoryHandler{
+		Content: fakePortContentStore{
+			repositories: []RepositoryCatalogEntry{repositoryStatsCatalogEntry()},
+			repositoryRefs: []RepositoryRef{
+				{Name: "main", Kind: "branch", HeadSHA: "abc123", Default: true, ObservedAt: observedAt, IndexedAt: indexedAt},
+				{Name: "v1.0.0", Kind: "tag", HeadSHA: "abc123", ObservedAt: observedAt, IndexedAt: indexedAt},
+			},
+		},
+	}
+
+	w := requestRepositoryBranches(t, handler, "/api/v0/repositories/repo-1/branches")
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	tags, ok := resp["tags"].([]any)
+	if !ok || len(tags) != 1 {
+		t.Fatalf("tags = %#v, want 1", resp["tags"])
+	}
+	if truncated, _ := resp["tags_truncated"].(bool); truncated {
+		t.Fatal("tags_truncated = true, want false/absent when within cap")
 	}
 }
 

@@ -51,6 +51,10 @@ const openAPIPathsRepositoriesBranches = `
                           "last_indexed_at": {"type": "string", "format": "date-time"}
                         }
                       }
+                    },
+                    "tags_truncated": {
+                      "type": "boolean",
+                      "description": "True when the tag count exceeds the server-side cap (500); omitted when false. Full pagination is deferred to #5503."
                     }
                   }
                 }

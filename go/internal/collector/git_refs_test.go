@@ -356,3 +356,61 @@ func TestRemoteGitRefsIncludesTags(t *testing.T) {
 		t.Fatal("tag lightweight Default = true, want false")
 	}
 }
+
+// TestLocalGitRefsIncludesTags proves that localGitRefs discovers branches
+// and tags from a local repo with no origin remote — the path filesystem-mode
+// collectors use.
+func TestLocalGitRefsIncludesTags(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skipf("git not found in PATH: %v", err)
+	}
+
+	repoPath := t.TempDir()
+	runGit(t, repoPath, "init", "-b", "main")
+	runGit(t, repoPath, "config", "user.email", "test@example.com")
+	runGit(t, repoPath, "config", "user.name", "Test")
+
+	writeFile(t, repoPath, "README.md", "# Local repo")
+	runGit(t, repoPath, "add", "README.md")
+	runGit(t, repoPath, "commit", "-m", "initial commit")
+	commitSHA := strings.TrimSpace(runGit(t, repoPath, "rev-parse", "HEAD"))
+
+	// Annotated tag.
+	runGit(t, repoPath, "tag", "-a", "v1.0.0", "-m", "annotated", commitSHA)
+	// Lightweight tag.
+	runGit(t, repoPath, "tag", "lightweight", commitSHA)
+
+	ctx := context.Background()
+	refs, err := localGitRefs(ctx, repoPath)
+	if err != nil {
+		t.Fatalf("localGitRefs() error = %v, want nil", err)
+	}
+
+	if got := len(refs); got < 3 {
+		t.Fatalf("len(refs) = %d, want >= 3 (main + v1.0.0 + lightweight): %#v", got, refs)
+	}
+
+	// Branch main is default.
+	var branch *GitRef
+	var tagV1 *GitRef
+	var tagLW *GitRef
+	for i := range refs {
+		switch {
+		case refs[i].Kind == "branch" && refs[i].Name == "main":
+			branch = &refs[i]
+		case refs[i].Kind == "tag" && refs[i].Name == "v1.0.0":
+			tagV1 = &refs[i]
+		case refs[i].Kind == "tag" && refs[i].Name == "lightweight":
+			tagLW = &refs[i]
+		}
+	}
+	if branch == nil || !branch.Default {
+		t.Fatalf("branch main missing or not default: %#v", branch)
+	}
+	if tagV1 == nil || tagV1.HeadSHA != commitSHA {
+		t.Fatalf("annotated tag v1.0.0 missing or wrong SHA: %#v", tagV1)
+	}
+	if tagLW == nil || tagLW.HeadSHA != commitSHA {
+		t.Fatalf("lightweight tag missing or wrong SHA: %#v", tagLW)
+	}
+}
