@@ -406,6 +406,9 @@ func copyRepoRelationshipMetadata(rowMap map[string]any, payload map[string]any,
 
 // repoEvidenceArtifactRowsFromIntent builds bounded graph nodes from reducer
 // evidence summaries while preserving raw detail ownership in Postgres.
+// ref_value/ref_pinned (issue #5372) are carried through unchanged when the
+// reducer computed them (GitHub Actions evidence only); this function is not
+// the place that classifies a ref as pinned.
 func repoEvidenceArtifactRowsFromIntent(
 	row reducer.SharedProjectionIntentRow,
 	evidenceSource string,
@@ -467,6 +470,18 @@ func repoEvidenceArtifactRowsFromIntent(
 		}
 		if sha := payloadString(artifact, "commit_sha"); sha != "" {
 			row["commit_sha"] = sha
+		}
+		// GitHub Actions @ref pin signal (issue #5372). The reducer
+		// (resolvedRelationshipEvidenceArtifacts) is the sole place
+		// ref_value/ref_pinned are computed, scoped there to
+		// GITHUB_ACTIONS_* evidence kinds; this builder only carries the
+		// two fields through together, it never recomputes Pinned() or
+		// widens the scope. Omitted together when the artifact carries no
+		// ref_value (local ./ workflow, docker action, or a non-GitHub-
+		// Actions evidence kind).
+		if refValue := payloadString(artifact, "ref_value"); refValue != "" {
+			row["ref_value"] = refValue
+			row["ref_pinned"] = payloadBool(artifact, "ref_pinned")
 		}
 		rows = append(rows, row)
 	}
