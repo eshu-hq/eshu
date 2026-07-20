@@ -75,7 +75,7 @@ func canonicalGitHubHost(host string) string {
 	case lower == "api.github.com":
 		return "github.com"
 	case strings.HasSuffix(lower, ".ghe.com") && strings.HasPrefix(lower, "api."):
-		return hostname[len("api."):]
+		return lower[len("api."):]
 	default:
 		return hostname
 	}

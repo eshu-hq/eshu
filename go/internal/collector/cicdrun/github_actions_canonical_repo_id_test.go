@@ -281,6 +281,7 @@ func TestCanonicalGitHubHostMapsOnlyKnownAPIPatterns(t *testing.T) {
 		{"API.GITHUB.COM", "github.com", "case-insensitive public github.com"},
 		{"Api.GitHub.Com", "github.com", "mixed-case github.com"},
 		{"api.acme.ghe.com", "acme.ghe.com", "GHEC data residency tenant"},
+		{"API.Acme.GHE.COM", "acme.ghe.com", "mixed-case GHEC tenant — mapped host is lowercased for consistency"},
 		{"api.corp.example.com", "api.corp.example.com", "non-GitHub host — must not strip api prefix"},
 		{"ghes.example.com", "ghes.example.com", "GHES self-hosted — no api prefix to strip"},
 		{"github.com", "github.com", "already canonical — no change"},
