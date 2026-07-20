@@ -449,7 +449,7 @@ func TestAuthMiddlewareWithScopedTokensAuditsUnsupportedScopedRoute(t *testing.T
 		},
 		ok: true,
 	}
-	handler := authMiddleware("", resolver, nil, mockHandler(), audit, false)
+	handler := authMiddleware("", resolver, nil, mockHandler(), audit, false, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/code/search", nil)
 	req.Header.Set("Authorization", "Bearer scoped-token")
