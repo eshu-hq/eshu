@@ -19,14 +19,16 @@ func TestParseRemoteGitRefsCapturesDefaultAndHeads(t *testing.T) {
 		"abc123\tHEAD\n" +
 		"abc123\trefs/heads/main\n" +
 		"def456\trefs/heads/release\n" +
-		"ignored\trefs/tags/v1.0.0\n"
+		// Tags are now captured, not ignored.
+		"tagobj01\trefs/tags/v1.0.0\n" +
+		"abc123\trefs/tags/v1.0.0^{}\n" // annotated tag — peeled commit
 
 	refs, err := parseRemoteGitRefs(output)
 	if err != nil {
 		t.Fatalf("parseRemoteGitRefs() error = %v, want nil", err)
 	}
-	if got, want := len(refs), 2; got != want {
-		t.Fatalf("len(refs) = %d, want %d: %#v", got, want, refs)
+	if got, want := len(refs), 3; got != want {
+		t.Fatalf("len(refs) = %d, want %d (2 branches + 1 tag): %#v", got, want, refs)
 	}
 	if got, want := refs[0].Name, "main"; got != want {
 		t.Fatalf("refs[0].Name = %q, want %q", got, want)
@@ -45,6 +47,132 @@ func TestParseRemoteGitRefsCapturesDefaultAndHeads(t *testing.T) {
 	}
 	if got, want := refs[1].HeadSHA, "def456"; got != want {
 		t.Fatalf("refs[1].HeadSHA = %q, want %q", got, want)
+	}
+	// Tag v1.0.0 — kind=tag, head_sha = peeled commit (abc123), never default.
+	if got, want := refs[2].Name, "v1.0.0"; got != want {
+		t.Fatalf("refs[2].Name = %q, want %q", got, want)
+	}
+	if got, want := refs[2].Kind, "tag"; got != want {
+		t.Fatalf("refs[2].Kind = %q, want %q", got, want)
+	}
+	if got, want := refs[2].HeadSHA, "abc123"; got != want {
+		t.Fatalf("refs[2].HeadSHA = %q, want %q (peeled commit)", got, want)
+	}
+	if got := refs[2].Default; got != false {
+		t.Fatalf("refs[2].Default = %v, want false (tags are never default)", got)
+	}
+}
+
+func TestParseRemoteGitRefsCapturesLightweightTag(t *testing.T) {
+	t.Parallel()
+
+	output := "" +
+		"ref: refs/heads/main\tHEAD\n" +
+		"abc123\tHEAD\n" +
+		"abc123\trefs/heads/main\n" +
+		// Lightweight tag — no ^{} line, SHA is directly the commit.
+		"abc123\trefs/tags/v1.0.0\n"
+
+	refs, err := parseRemoteGitRefs(output)
+	if err != nil {
+		t.Fatalf("parseRemoteGitRefs() error = %v, want nil", err)
+	}
+	if got, want := len(refs), 2; got != want {
+		t.Fatalf("len(refs) = %d, want %d: %#v", got, want, refs)
+	}
+	// Tag is sorted after branch.
+	if got, want := refs[1].Name, "v1.0.0"; got != want {
+		t.Fatalf("refs[1].Name = %q, want %q", got, want)
+	}
+	if got, want := refs[1].Kind, "tag"; got != want {
+		t.Fatalf("refs[1].Kind = %q, want %q", got, want)
+	}
+	if got, want := refs[1].HeadSHA, "abc123"; got != want {
+		t.Fatalf("refs[1].HeadSHA = %q, want %q", got, want)
+	}
+}
+
+func TestParseRemoteGitRefsAnnotatedTagPeeledCommit(t *testing.T) {
+	t.Parallel()
+
+	// Annotated tags produce two lines: the tag object, then the peeled commit.
+	output := "" +
+		"ref: refs/heads/main\tHEAD\n" +
+		"abc123\tHEAD\n" +
+		"abc123\trefs/heads/main\n" +
+		"tagobj02\trefs/tags/v2.0.0\n" +
+		"def456\trefs/tags/v2.0.0^{}\n"
+
+	refs, err := parseRemoteGitRefs(output)
+	if err != nil {
+		t.Fatalf("parseRemoteGitRefs() error = %v, want nil", err)
+	}
+	if got, want := len(refs), 2; got != want {
+		t.Fatalf("len(refs) = %d, want %d: %#v", got, want, refs)
+	}
+	if got, want := refs[1].Name, "v2.0.0"; got != want {
+		t.Fatalf("refs[1].Name = %q, want %q", got, want)
+	}
+	if got, want := refs[1].HeadSHA, "def456"; got != want {
+		t.Fatalf("refs[1].HeadSHA = %q, want %q (peeled commit, not tag object)", got, want)
+	}
+}
+
+func TestParseRemoteGitRefsTagSameNameAsBranch(t *testing.T) {
+	t.Parallel()
+
+	output := "" +
+		"ref: refs/heads/main\tHEAD\n" +
+		"abc123\tHEAD\n" +
+		"abc123\trefs/heads/main\n" +
+		"def456\trefs/tags/main\n"
+
+	refs, err := parseRemoteGitRefs(output)
+	if err != nil {
+		t.Fatalf("parseRemoteGitRefs() error = %v, want nil", err)
+	}
+	if got, want := len(refs), 2; got != want {
+		t.Fatalf("len(refs) = %d, want %d (branch \"main\" + tag \"main\"): %#v", got, want, refs)
+	}
+	// Branch main is default.
+	if refs[0].Kind != "branch" || refs[0].Name != "main" || !refs[0].Default {
+		t.Fatalf("refs[0] = %#v, want branch main default=true", refs[0])
+	}
+	// Tag main is separate, not default.
+	if refs[1].Kind != "tag" || refs[1].Name != "main" || refs[1].Default {
+		t.Fatalf("refs[1] = %#v, want tag main default=false", refs[1])
+	}
+}
+
+func TestParseRemoteGitRefsEmptyTags(t *testing.T) {
+	t.Parallel()
+
+	output := "" +
+		"ref: refs/heads/main\tHEAD\n" +
+		"abc123\tHEAD\n" +
+		"abc123\trefs/heads/main\n"
+
+	refs, err := parseRemoteGitRefs(output)
+	if err != nil {
+		t.Fatalf("parseRemoteGitRefs() error = %v, want nil", err)
+	}
+	if got, want := len(refs), 1; got != want {
+		t.Fatalf("len(refs) = %d, want %d (only branch, no tags): %#v", got, want, refs)
+	}
+}
+
+func TestParseRemoteGitRefsInvalidTagName(t *testing.T) {
+	t.Parallel()
+
+	output := "" +
+		"ref: refs/heads/main\tHEAD\n" +
+		"abc123\tHEAD\n" +
+		"abc123\trefs/heads/main\n" +
+		"def456\trefs/tags/bad..tag\n"
+
+	_, err := parseRemoteGitRefs(output)
+	if err == nil {
+		t.Fatalf("parseRemoteGitRefs() error = nil, want error for invalid tag name")
 	}
 }
 

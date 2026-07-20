@@ -20,7 +20,12 @@ type GitRef struct {
 
 func parseRemoteGitRefs(output string) ([]GitRef, error) {
 	defaultBranch := ""
-	refsByName := make(map[string]GitRef)
+	branchesByName := make(map[string]GitRef)
+	tagsByName := make(map[string]GitRef)
+	// peeledTagSHAs tracks the committed SHA for annotated tags whose peeled
+	// (^{}) line arrived before the tag-object line, which can happen because
+	// git ls-remote output order is not guaranteed.
+	peeledTagSHAs := make(map[string]string)
 	for _, line := range strings.Split(output, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -38,34 +43,90 @@ func parseRemoteGitRefs(output string) ([]GitRef, error) {
 			defaultBranch = branch
 			continue
 		}
-		if !strings.HasPrefix(fields[1], "refs/heads/") {
+		if strings.HasPrefix(fields[1], "refs/heads/") {
+			branch, err := normalizeGitBranchName(strings.TrimPrefix(fields[1], "refs/heads/"))
+			if err != nil {
+				return nil, err
+			}
+			headSHA := strings.TrimSpace(fields[0])
+			if branch == "" || headSHA == "" {
+				continue
+			}
+			branchesByName[branch] = GitRef{
+				Name:    branch,
+				Kind:    "branch",
+				HeadSHA: headSHA,
+			}
 			continue
 		}
-		branch, err := normalizeGitBranchName(strings.TrimPrefix(fields[1], "refs/heads/"))
-		if err != nil {
-			return nil, err
-		}
-		headSHA := strings.TrimSpace(fields[0])
-		if branch == "" || headSHA == "" {
+		if strings.HasPrefix(fields[1], "refs/tags/") {
+			refspec := fields[1]
+			if strings.HasSuffix(refspec, "^{}") {
+				// Peeled line of an annotated tag — carry the commit SHA.
+				tagName, err := normalizeGitTagName(strings.TrimSuffix(strings.TrimPrefix(refspec, "refs/tags/"), "^{}"))
+				if err != nil {
+					return nil, err
+				}
+				if tagName != "" {
+					peeledTagSHAs[tagName] = strings.TrimSpace(fields[0])
+				}
+				continue
+			}
+			tagName, err := normalizeGitTagName(strings.TrimPrefix(refspec, "refs/tags/"))
+			if err != nil {
+				return nil, err
+			}
+			if tagName == "" {
+				continue
+			}
+			headSHA := strings.TrimSpace(fields[0])
+			// When a peeled SHA is already known (^{} line arrived first),
+			// prefer the peeled commit SHA over the tag object SHA.
+			if peeled, ok := peeledTagSHAs[tagName]; ok {
+				headSHA = peeled
+			}
+			if headSHA == "" {
+				continue
+			}
+			tagsByName[tagName] = GitRef{
+				Name:    tagName,
+				Kind:    "tag",
+				HeadSHA: headSHA,
+			}
 			continue
 		}
-		refsByName[branch] = GitRef{
-			Name:    branch,
-			Kind:    "branch",
-			HeadSHA: headSHA,
+	}
+	// When the tag-object line arrived before the peeled line, replace the
+	// stored SHA with the peeled commit SHA.
+	for tagName, peeledSHA := range peeledTagSHAs {
+		if existing, ok := tagsByName[tagName]; ok {
+			existing.HeadSHA = peeledSHA
+			tagsByName[tagName] = existing
 		}
 	}
 
-	names := make([]string, 0, len(refsByName))
-	for name := range refsByName {
-		names = append(names, name)
+	// Collect sorted branch names, tagged as default where applicable.
+	branchNames := make([]string, 0, len(branchesByName))
+	for name := range branchesByName {
+		branchNames = append(branchNames, name)
 	}
-	sort.Strings(names)
+	sort.Strings(branchNames)
 
-	refs := make([]GitRef, 0, len(names))
-	for _, name := range names {
-		ref := refsByName[name]
+	tagNames := make([]string, 0, len(tagsByName))
+	for name := range tagsByName {
+		tagNames = append(tagNames, name)
+	}
+	sort.Strings(tagNames)
+
+	refs := make([]GitRef, 0, len(branchNames)+len(tagNames))
+	for _, name := range branchNames {
+		ref := branchesByName[name]
 		ref.Default = name == defaultBranch
+		refs = append(refs, ref)
+	}
+	for _, name := range tagNames {
+		ref := tagsByName[name]
+		ref.Default = false // Tags are never the default branch.
 		refs = append(refs, ref)
 	}
 	return refs, nil
@@ -87,6 +148,7 @@ func remoteGitRefs(
 		"origin",
 		"HEAD",
 		"refs/heads/*",
+		"refs/tags/*",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list remote git refs for %q: %w", repoPath, err)
@@ -135,4 +197,23 @@ func repositoryFactGitRefsPayload(refs []GitRef) []map[string]any {
 		})
 	}
 	return payload
+}
+
+// normalizeGitTagName validates a Git tag name. Tag names follow the same
+// safety rules as branch names with one difference: colons are allowed in tag
+// names (some Git workflows use colon-separated tag prefixes).
+func normalizeGitTagName(tag string) (string, error) {
+	tag = strings.TrimSpace(tag)
+	tag = strings.TrimPrefix(tag, "refs/tags/")
+	if tag == "" {
+		return "", nil
+	}
+	if strings.HasPrefix(tag, "-") ||
+		strings.Contains(tag, "..") ||
+		strings.Contains(tag, "\\") ||
+		strings.Contains(tag, "^{}") ||
+		strings.ContainsAny(tag, " \t\r\n") {
+		return "", fmt.Errorf("invalid git tag name %q", tag)
+	}
+	return tag, nil
 }

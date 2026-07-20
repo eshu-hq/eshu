@@ -311,14 +311,16 @@ holds; it never reveals secrets the collectors strip during indexing.
 
 `GET /api/v0/repositories/{repo_id}/branches` returns the refs the console
 branch selector uses. For Git-backed repositories, ingestion captures branch
-names, ref kind, default-branch marker, head SHA, observed timestamp, and the
-content-store indexed timestamp. The response returns `default_branch` plus one
-`branches[]` row per source-backed ref. Older repositories without captured ref
-metadata keep the legacy single indexed commit fallback: one `branches[]` entry
-carrying `head_sha` and `last_indexed_at`, with an empty `name` and
-`default_branch`, rather than fabricating branch names. A repository with no
-indexed commit returns an empty `branches` array; an unknown repository returns
-a `404` envelope.
+names, tag names, ref kind, default-branch marker, head SHA, observed timestamp,
+and the content-store indexed timestamp. The response returns `default_branch`
+plus `branches[]` rows (kind `branch`) and `tags[]` rows (kind `tag`), one per
+source-backed ref. Tags carry the peeled commit SHA for annotated tags so a
+release reference resolves to its commit. Older repositories without captured
+ref metadata keep the legacy single indexed commit fallback: one `branches[]`
+entry carrying `head_sha` and `last_indexed_at`, with an empty `name` and
+`default_branch`, and an empty `tags[]` array, rather than fabricating branch
+or tag names. A repository with no indexed commit returns empty `branches` and
+`tags` arrays; an unknown repository returns a `404` envelope.
 
 No-Regression Evidence: repository ref persistence writes at most one stale-row
 delete plus one bounded upsert per repository generation, keyed by

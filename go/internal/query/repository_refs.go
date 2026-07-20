@@ -44,23 +44,47 @@ func repositoryRefsDefaultBranch(refs []RepositoryRef) string {
 }
 
 func repositoryRefBranchEntries(refs []RepositoryRef) []map[string]any {
-	entries := make([]map[string]any, 0, len(refs))
+	entries := make([]map[string]any, 0)
 	for _, ref := range refs {
-		entry := map[string]any{
-			"name":       ref.Name,
-			"kind":       ref.Kind,
-			"head_sha":   ref.HeadSHA,
-			"is_default": ref.Default,
+		if ref.Kind != "branch" {
+			continue
 		}
-		if !ref.ObservedAt.IsZero() {
-			entry["observed_at"] = formatCoverageTimestamp(ref.ObservedAt)
+		entries = append(entries, repositoryRefEntry(ref))
+	}
+	return entries
+}
+
+func repositoryRefTagEntries(refs []RepositoryRef) []map[string]any {
+	entries := make([]map[string]any, 0)
+	for _, ref := range refs {
+		if ref.Kind != "tag" {
+			continue
 		}
-		if !ref.IndexedAt.IsZero() {
-			entry["last_indexed_at"] = formatCoverageTimestamp(ref.IndexedAt)
-		}
+		entry := repositoryRefEntry(ref)
+		// Tags are never default; omit the field rather than sending false.
+		delete(entry, "is_default")
 		entries = append(entries, entry)
 	}
 	return entries
+}
+
+func repositoryRefEntry(ref RepositoryRef) map[string]any {
+	entry := map[string]any{
+		"name":     ref.Name,
+		"kind":     ref.Kind,
+		"head_sha": ref.HeadSHA,
+	}
+	// Only include is_default for branches where the default signal is meaningful.
+	if ref.Default {
+		entry["is_default"] = ref.Default
+	}
+	if !ref.ObservedAt.IsZero() {
+		entry["observed_at"] = formatCoverageTimestamp(ref.ObservedAt)
+	}
+	if !ref.IndexedAt.IsZero() {
+		entry["last_indexed_at"] = formatCoverageTimestamp(ref.IndexedAt)
+	}
+	return entry
 }
 
 func validateSelectedRepositoryRef(

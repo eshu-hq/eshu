@@ -44,6 +44,7 @@ func (h *RepositoryHandler) getRepositoryBranches(w http.ResponseWriter, r *http
 			map[string]any{
 				"default_branch": repositoryRefsDefaultBranch(refs),
 				"branches":       repositoryRefBranchEntries(refs),
+				"tags":           repositoryRefTagEntries(refs),
 			},
 			BuildTruthEnvelope(
 				h.profile(),
