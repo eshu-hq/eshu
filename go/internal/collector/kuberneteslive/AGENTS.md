@@ -51,3 +51,11 @@
 - Inferring cluster identity from the API server URL.
 - Treating a forbidden list as "no resources" instead of a partial warning.
 - Inventing an owner identity for an owner reference that was not collected.
+
+## Evidence
+
+### CRI-resolved image digest from pod containerStatuses ImageID (#5432)
+
+No-Regression Evidence: `go test ./internal/collector/kuberneteslive/... ./internal/reducer/... -count=1` passes with byte-identical behavior for all pre-existing correlation paths. The CRI-digest path is additive — when no resolved digest exists (Deployments, ReplicaSets, pending pods), behavior stays byte-identical to before. Five new regression tests (`kubernetes_correlation_cri_digest_test.go`) prove: (1) tag-form ref with CRI digest + matching source → exact, edge-eligible; (2) tag without CRI digest stays derived/provenance-only; (3) CRI digest without source observation → unresolved, never tag-derived; (4) CRI-digest-promoted workload produces a RUNS_IMAGE edge; (5) tag without CRI digest produces no edge. Collector tests (`TestAdapterMapsPodContainerStatusDigest`, `TestAdapterDeploymentHasNoResolvedDigest`, `TestNormalizeCRIImageID`) prove the mapping and normalization. Cardinality shim (`TestDigestJoinCardinalityShim`, synthetic 7-ref fixture): 0% edge-eligible before → 14% edge-eligible after. The B-7 golden-corpus gate unit tests pass (`test-verify-golden-corpus-gate.sh`, `go test ./cmd/golden-corpus-gate/`). Cassette updated with tag-referenced Pod + resolved digest (schema_version 1.1.0); B-12 snapshot gains rc-153 (RUNS_IMAGE min ≥ 3, non-vacuous). Full Docker gate run deferred to orchestrator (requires 30+ min; tool timeout blocked completion).
+
+No-Observability-Change: No new metric instrument, metric label, span, structured log field, status field, queue domain, worker count, batch size, or runtime knob. The `resolved_image_digest` payload field is a new optional key on `kubernetes_live.pod_template` containers — malformed values surface through the existing `input_invalid` dead-letter path. The CRI-digest promotion to exact reuses the existing `materialized[digest]` tally and `kubernetes correlation materialization completed` log. The `ImageID` read from pod status is the ONLY `.Status` field the adapter reads, and a digest is metadata (content fingerprint), so the metadata-only invariant is preserved.

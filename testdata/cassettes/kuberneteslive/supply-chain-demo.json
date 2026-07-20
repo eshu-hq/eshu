@@ -116,6 +116,54 @@
           }
         },
         {
+          "fact_kind": "kubernetes_live.pod_template",
+          "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:pod:default:supply-chain-demo-pod",
+          "schema_version": "1.1.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "collector_instance_id": "kubernetes_live:cluster:supply-chain-demo",
+            "cluster_id": "supply-chain-demo",
+            "object_id": "kubernetes_live:supply-chain-demo:/v1/pods:default:supply-chain-demo-pod",
+            "uid": "33333333-4444-5555-6666-777777777777",
+            "group_version_resource": "/v1/pods",
+            "namespace": "default",
+            "name": "supply-chain-demo-pod",
+            "service_account": "supply-chain-demo",
+            "labels": {
+              "app": "supply-chain-demo"
+            },
+            "containers": [
+              {
+                "name": "app",
+                "image": "ghcr.io/eshu-hq/supply-chain-demo:1.0.0",
+                "init": false,
+                "ports": [
+                  3000
+                ],
+                "env_keys": [
+                  "DATABASE_URL",
+                  "NODE_ENV",
+                  "VAULT_ADDR"
+                ],
+                "env_from_secret": true,
+                "resolved_image_digest": "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
+              }
+            ],
+            "image_refs": [
+              "ghcr.io/eshu-hq/supply-chain-demo:1.0.0"
+            ],
+            "selector": {
+              "app": "supply-chain-demo"
+            },
+            "correlation_anchors": [
+              "kubernetes_live:supply-chain-demo:/v1/pods:default:supply-chain-demo-pod",
+              "ghcr.io/eshu-hq/supply-chain-demo:1.0.0"
+            ]
+          }
+        },
+        {
           "fact_kind": "kubernetes_live.relationship",
           "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:rel:owner_reference:replicaset:deployment:supply-chain-demo",
           "schema_version": "1.0.0",

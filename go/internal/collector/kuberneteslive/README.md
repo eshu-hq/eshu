@@ -19,6 +19,18 @@ correlation and drift remain reducer-owned and are not in this package.
     ingress-to-service edges between durable object identities.
   - `kubernetes_live.warning` — non-fatal capability gaps (forbidden resource,
     partial list, invalid owner reference, ambiguous selector).
+- Each container in a `pod_template` fact may carry an optional
+  `resolved_image_digest` — the CRI-resolved digest from
+  `pod.Status.ContainerStatuses[].ImageID`, normalized to the bare
+  `repo@sha256:<digest>` form. This field is metadata-only (a digest is a
+  content fingerprint, never a secret), populated only for Pod objects (which
+  carry container statuses), and empty for Deployments, ReplicaSets, and any
+  object that only exposes a pod template spec without status. The
+  normalization strips container-runtime scheme prefixes (`docker-pullable://`,
+  `docker://`, `cri-o://`, etc.) and rejects bare `sha256:` values with no
+  repository (unjoinable). See `NormalizeCRIImageID` in `envelope.go` and the
+  `clientgo` adapter's `workloadFromPod` which reads `.Status` — the ONLY
+  `.Status` field the adapter reads (#5432).
 - Map listed ServiceAccount and RBAC objects into `secrets_iam_posture` source
   facts for the Kubernetes secrets/IAM evidence lane:
   - `k8s_service_account`

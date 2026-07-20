@@ -30,4 +30,12 @@
 // and fingerprinted subject metadata. It never emits Secret values, ConfigMap
 // data payloads, environment
 // variable values, projected tokens, or container logs.
+//
+// CRI-resolved image digest (#5432): For Pod objects only, the collector reads
+// pod.Status.ContainerStatuses[].ImageID (and InitContainerStatuses), normalizes
+// it via NormalizeCRIImageID to the bare repo@sha256:<digest> form, and stores
+// it in ContainerSummary.ResolvedImageDigest. A digest is a content fingerprint
+// — metadata, not a secret — so this does not violate the metadata-only
+// invariant. Deployments, ReplicaSets, and other workload kinds carry only the
+// pod template spec and never populate this field.
 package kuberneteslive
