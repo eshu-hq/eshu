@@ -66,7 +66,7 @@ export interface IacResourcePage {
   readonly truncated: boolean;
   readonly nextCursor: IacResourceCursor | null;
   readonly summary: IacInventorySummary | null;
-  readonly truth: IacResourcePageTruth;
+  readonly truth: IacResourcePageTruth | null;
 }
 
 interface IacResourceRecord {
@@ -222,11 +222,12 @@ function iacResourceRowFromRecord(record: IacResourceRecord): IacResourceRow {
   };
 }
 
-function iacPageTruth(truth: EshuTruth | null): IacResourcePageTruth {
+function iacPageTruth(truth: EshuTruth | null): IacResourcePageTruth | null {
+  if (!truth) return null;
   return {
-    freshness: truth?.freshness.state ?? "fresh",
-    level: truth?.level ?? "derived",
-    profile: truth?.profile ?? "unknown",
+    freshness: truth.freshness.state,
+    level: truth.level,
+    profile: truth.profile,
   };
 }
 

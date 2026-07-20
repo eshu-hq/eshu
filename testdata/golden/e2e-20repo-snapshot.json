@@ -4807,7 +4807,17 @@
           "count",
           "summary"
         ],
-        "minimum_results": 0
+        "minimum_results": 1,
+        "required_json_paths": [
+          "resources[].id",
+          "summary.total",
+          "summary.by_kind.resource"
+        ],
+        "required_json_values": {
+          "count": 10,
+          "summary.total": 18,
+          "summary.by_kind.resource": 10
+        }
       },
       "GET /api/v0/documentation/facts?fact_kind=source": {
         "description": "Documentation source facts; confirms the documentation read surface is queryable.",

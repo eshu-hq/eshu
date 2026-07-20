@@ -156,6 +156,43 @@ describe("IacPage", () => {
     expect(get).not.toHaveBeenCalled();
   });
 
+  it("does not render bounded bootstrap rows while the live inventory read is pending", async () => {
+    const get = vi.fn(() => new Promise(() => undefined));
+    const client = { get } as unknown as EshuApiClient;
+
+    renderIacPage(<IacPage client={client} sourceLabel="live" model={demoModel} />);
+
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText('module."checkout".aws_iam_role.this')).not.toBeInTheDocument();
+    expect(screen.queryByText("aws_s3_bucket.assets")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Loading…" })).toBeDisabled();
+  });
+
+  it("does not fall back to bootstrap truth when a live response has no truth metadata", async () => {
+    const response = { ...envelope([row("r1", "aws_s3_bucket.logs")]), truth: null };
+    const get = vi.fn().mockResolvedValue(response);
+    const client = { get } as unknown as EshuApiClient;
+    const model: ConsoleModel = {
+      ...demoModel,
+      iacResources: [],
+      truth: {
+        ...demoModel.truth,
+        iacResources: {
+          capability: "iac_inventory.resources.list",
+          freshness: { state: "fresh" },
+          level: "exact",
+          profile: "production",
+        },
+      },
+    };
+
+    renderIacPage(<IacPage client={client} sourceLabel="live" model={model} />);
+
+    await waitFor(() => expect(screen.getByText("aws_s3_bucket.logs")).toBeInTheDocument());
+    expect(screen.queryByTitle("Truth: exact")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Freshness: fresh")).not.toBeInTheDocument();
+  });
+
   it("clears stale live rows and shows fixture model when switching live->demo", async () => {
     const get = vi.fn().mockResolvedValue(envelope([row("live-1", "aws_s3_bucket.private-live")]));
     const client = { get } as unknown as EshuApiClient;
@@ -207,6 +244,28 @@ describe("IacPage", () => {
     expect(lastCall).toContain("after_name=aws_s3_bucket.logs");
     expect(lastCall).toContain("after_id=r1");
     expect(lastCall).not.toContain("offset");
+  });
+
+  it("clears the prior URL-owned view while a replacement query is pending", async () => {
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce(envelope([row("r1", "aws_s3_bucket.logs")]))
+      .mockImplementationOnce(() => new Promise(() => undefined));
+    const client = { get } as unknown as EshuApiClient;
+
+    renderIacPage(
+      <>
+        <IacPage client={client} model={{ ...demoModel, iacResources: [] }} />
+        <NavigateArchiveButton />
+      </>,
+    );
+
+    await waitFor(() => expect(screen.getByText("aws_s3_bucket.logs")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Navigate to archive" }));
+
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("aws_s3_bucket.logs")).not.toBeInTheDocument();
+    expect(screen.getByText("Loading current IaC inventory…")).toBeInTheDocument();
   });
 
   it("renders every row in the bounded live server page", async () => {

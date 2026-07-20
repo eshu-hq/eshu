@@ -102,7 +102,7 @@ coverage:
   # so the surface key and the proven route match (a query-param selector is
   # required).
   - {surface: "read_surface:GET /api/v0/observability/coverage/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:GET /api/v0/iac/resources", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/iac/resources?limit=50", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/iac/resources", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/iac/resources?limit=50&include_facets=true", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/documentation/facts", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/documentation/facts?fact_kind=source", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/secrets-iam/posture-summary", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/ci-cd/run-correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/ci-cd/run-correlations?limit=50&scope_id=supply-chain-demo", proof_gate: golden-corpus-gate}

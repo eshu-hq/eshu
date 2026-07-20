@@ -7,6 +7,7 @@ import { useSearchParams } from "react-router-dom";
 
 import {
   distinctIacValues,
+  IacInventoryFilterForm,
   iacSearchFromView,
   iacViewFromSearch,
   IacSourceLocation,
@@ -15,7 +16,7 @@ import {
 } from "./iacPageSupport";
 import type { EshuApiClient } from "../api/client";
 import { loadIacResourcesPage } from "../api/iacResources";
-import type { IacResourceCursor, IacResourceKind, IacResourcePage } from "../api/iacResources";
+import type { IacResourceCursor, IacResourcePage } from "../api/iacResources";
 import { Panel, StatTile, TruthChip, FreshDot, Badge } from "../components/atoms";
 import type { ConsoleModel } from "../console/types";
 import { uiTruth, uiFresh } from "../console/types";
@@ -44,15 +45,23 @@ export function IacPage({
   const [stack, setStack] = useState<readonly (IacResourceCursor | null)[]>([null]);
   const requestSequence = useRef(0);
   const requestController = useRef<AbortController | null>(null);
-  const all = livePage?.rows ?? model.iacResources;
-  const provenance = livePage ? (all.length > 0 ? "live" : "empty") : model.provenance.iacResources;
-  const truthLevel = livePage?.truth.level ?? model.truth.iacResources?.level;
-  const freshnessState = livePage?.truth.freshness ?? model.truth.iacResources?.freshness.state;
+  const isDemo = sourceLabel === "demo fixtures";
+  const localRows = !client || isDemo;
+  const all = localRows ? model.iacResources : (livePage?.rows ?? []);
+  const provenance = localRows
+    ? model.provenance.iacResources
+    : livePage
+      ? all.length > 0
+        ? "live"
+        : "empty"
+      : model.provenance.iacResources;
+  const truthLevel = localRows ? model.truth.iacResources?.level : livePage?.truth?.level;
+  const freshnessState = localRows
+    ? model.truth.iacResources?.freshness.state
+    : livePage?.truth?.freshness;
 
   const [draftQuery, setDraftQuery] = useState(() => appliedQuery);
   const [page, setPage] = useState(0);
-  const isDemo = sourceLabel === "demo fixtures";
-  const localRows = !client || isDemo;
 
   // The applied view belongs to the URL. This restores explicit filter state
   // after browser back/forward without retaining rows from the newer request.
@@ -135,7 +144,10 @@ export function IacPage({
     [client, isDemo],
   );
 
-  useEffect(() => fetchPage(applied, appliedQuery, null), [fetchPage, applied, appliedQuery]);
+  useEffect(() => {
+    if (!localRows) setLivePage(null);
+    return fetchPage(applied, appliedQuery, null);
+  }, [fetchPage, applied, appliedQuery, localRows]);
 
   const summary = livePage?.summary;
   const types = useMemo(
@@ -207,6 +219,7 @@ export function IacPage({
   }
 
   const unavailable = provenance === "unavailable";
+  const loading = busy && livePage === null;
   const empty = !unavailable && (summary ? summary.total === 0 : all.length === 0);
   const noMatches = !unavailable && !empty && all.length === 0;
   const currentKindTotal = summary?.byKind[applied.kind] ?? livePage?.count ?? all.length;
@@ -272,96 +285,22 @@ export function IacPage({
             </span>
           }
         >
-          <form
-            className="evidence-toolbar"
-            onSubmit={(event) => {
-              event.preventDefault();
-              applyFilters();
+          <IacInventoryFilterForm
+            busy={busy}
+            draft={draft}
+            draftQuery={draftQuery}
+            modules={modules}
+            providers={providers}
+            repositories={repositories}
+            types={types}
+            onDraftChange={setDraft}
+            onQueryChange={(query) => {
+              setDraftQuery(query);
+              setPage(0);
             }}
-          >
-            <input
-              className="popover-input mono"
-              placeholder="Search name, type, module, path…"
-              value={draftQuery}
-              onChange={(event) => {
-                setDraftQuery(event.target.value);
-                setPage(0);
-              }}
-              aria-label="Search IaC resources"
-            />
-            <select
-              className="popover-input"
-              value={draft.kind}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, kind: event.target.value as IacResourceKind }))
-              }
-              aria-label="Filter by kind"
-            >
-              <option value="resource">Resources</option>
-              <option value="module">Modules</option>
-              <option value="data-source">Data sources</option>
-            </select>
-            <input
-              className="popover-input mono"
-              list="iac-types"
-              placeholder="type"
-              value={draft.type}
-              onChange={(e) => setDraft((current) => ({ ...current, type: e.target.value }))}
-              aria-label="Filter by type"
-            />
-            <datalist id="iac-types">
-              {types.map((t) => (
-                <option key={t} value={t} />
-              ))}
-            </datalist>
-            <input
-              className="popover-input mono"
-              list="iac-providers"
-              placeholder="provider"
-              value={draft.provider}
-              onChange={(e) => setDraft((current) => ({ ...current, provider: e.target.value }))}
-              aria-label="Filter by provider"
-            />
-            <datalist id="iac-providers">
-              {providers.map((p) => (
-                <option key={p} value={p} />
-              ))}
-            </datalist>
-            <input
-              className="popover-input mono"
-              list="iac-modules"
-              placeholder="module"
-              value={draft.module}
-              onChange={(e) => setDraft((current) => ({ ...current, module: e.target.value }))}
-              aria-label="Filter by module"
-            />
-            <datalist id="iac-modules">
-              {modules.map((m) => (
-                <option key={m} value={m} />
-              ))}
-            </datalist>
-            <input
-              className="popover-input mono"
-              list="iac-repositories"
-              placeholder="repository"
-              value={draft.repository}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, repository: event.target.value }))
-              }
-              aria-label="Filter by repository"
-            />
-            <datalist id="iac-repositories">
-              {repositories.map((repository) => (
-                <option key={repository} value={repository} />
-              ))}
-            </datalist>
-            <button className="btn-ghost active" type="submit" disabled={busy}>
-              {busy ? "Loading…" : "Apply"}
-            </button>
-            <button className="btn-ghost" type="button" onClick={resetFilters} disabled={busy}>
-              Reset
-            </button>
-          </form>
+            onReset={resetFilters}
+            onSubmit={applyFilters}
+          />
 
           <div className="table-scroll">
             <table className="tbl wide">
@@ -404,6 +343,12 @@ export function IacPage({
                     <td colSpan={5} className="empty">
                       IaC inventory is not available from this API (it requires the authoritative
                       graph profile).
+                    </td>
+                  </tr>
+                ) : loading ? (
+                  <tr>
+                    <td colSpan={5} className="empty">
+                      Loading current IaC inventory…
                     </td>
                   </tr>
                 ) : err ? (

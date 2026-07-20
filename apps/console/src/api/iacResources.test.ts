@@ -136,14 +136,14 @@ describe("iacResources", () => {
     });
   });
 
-  it("does not overstate hybrid inventory truth when metadata is absent", async () => {
+  it("does not fabricate hybrid inventory truth when metadata is absent", async () => {
     const client = {
       get: vi.fn(async () => ({ ...envelope([]), truth: null })),
     } as unknown as EshuApiClient;
 
     const page = await loadIacResourcesPage(client, { limit: 50 });
 
-    expect(page.truth.level).toBe("derived");
+    expect(page.truth).toBeNull();
   });
 
   it("propagates Eshu error envelopes instead of fabricating an empty inventory", async () => {

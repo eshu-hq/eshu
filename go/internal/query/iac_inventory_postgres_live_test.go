@@ -32,7 +32,11 @@ func TestPostgresIaCInventoryStoreLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open Postgres: %v", err)
 	}
-	defer func() { _ = db.Close() }()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close Postgres: %v", err)
+		}
+	})
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 
@@ -42,14 +46,22 @@ func TestPostgresIaCInventoryStoreLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open dedicated connection: %v", err)
 	}
-	defer func() { _ = conn.Close() }()
+	t.Cleanup(func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("close dedicated connection: %v", err)
+		}
+	})
 
 	schema := fmt.Sprintf("iac_inventory_proof_%d", time.Now().UnixNano())
 	if _, err := conn.ExecContext(ctx, "CREATE SCHEMA "+schema); err != nil {
 		t.Fatalf("create proof schema: %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(), "DROP SCHEMA "+schema+" CASCADE")
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cleanupCancel()
+		if _, err := conn.ExecContext(cleanupCtx, "DROP SCHEMA "+schema+" CASCADE"); err != nil {
+			t.Errorf("drop proof schema: %v", err)
+		}
 	})
 	if _, err := conn.ExecContext(ctx, "SET search_path TO "+schema); err != nil {
 		t.Fatalf("set proof search path: %v", err)
