@@ -25,7 +25,7 @@ MERGE (k)-[r:RECONCILES_FROM]->(s)
 SET r.evidence_source = 'projector/canonical', r.generation_id = row.generation_id,
     r.resolution_mode = row.resolution_mode, r.source_ref_kind = row.source_ref_kind,
     r.source_ref_name = row.source_ref_name, r.source_ref_namespace = row.source_ref_namespace,
-    r.namespace_defaulted = row.namespace_defaulted`
+    r.namespace_defaulted = row.namespace_defaulted, r.reconciler_kind = 'Kustomization'`
 
 // canonicalNodeFluxReconcilesFromOCIRepositoryEdgeCypher is the OCIRepository
 // target-label sibling of canonicalNodeFluxReconcilesFromGitRepositoryEdgeCypher.
@@ -36,7 +36,7 @@ MERGE (k)-[r:RECONCILES_FROM]->(s)
 SET r.evidence_source = 'projector/canonical', r.generation_id = row.generation_id,
     r.resolution_mode = row.resolution_mode, r.source_ref_kind = row.source_ref_kind,
     r.source_ref_name = row.source_ref_name, r.source_ref_namespace = row.source_ref_namespace,
-    r.namespace_defaulted = row.namespace_defaulted`
+    r.namespace_defaulted = row.namespace_defaulted, r.reconciler_kind = 'Kustomization'`
 
 // canonicalNodeFluxReconcilesFromBucketEdgeCypher is the Bucket target-label
 // sibling of canonicalNodeFluxReconcilesFromGitRepositoryEdgeCypher.
@@ -47,7 +47,7 @@ MERGE (k)-[r:RECONCILES_FROM]->(s)
 SET r.evidence_source = 'projector/canonical', r.generation_id = row.generation_id,
     r.resolution_mode = row.resolution_mode, r.source_ref_kind = row.source_ref_kind,
     r.source_ref_name = row.source_ref_name, r.source_ref_namespace = row.source_ref_namespace,
-    r.namespace_defaulted = row.namespace_defaulted`
+    r.namespace_defaulted = row.namespace_defaulted, r.reconciler_kind = 'Kustomization'`
 
 // retractFluxReconcilesFromEdgesCypher deletes stale RECONCILES_FROM edges
 // from this materialization's FluxKustomization source nodes. Unlike the
@@ -74,7 +74,7 @@ DELETE r`
 // (go/internal/query/edge_materialization_coverage.go), mirroring
 // crossplaneSatisfiedByWriteReasons.
 var fluxReconcilesFromWriteReasons = map[string]string{
-	"RECONCILES_FROM": "FluxKustomization spec.sourceRef resolved against exactly one FluxGitRepository/FluxOCIRepository/FluxBucket source CR via deterministic same-repo namespace/name tiers (T1-T4); never fabricated across a namespace mismatch, dangling ref, or unresolved ambiguity",
+	"RECONCILES_FROM": "FluxKustomization spec.sourceRef or FluxHelmRelease spec.chart.spec.sourceRef/spec.chartRef resolved against exactly one source CR (FluxGitRepository/FluxOCIRepository/FluxBucket/FluxHelmRepository) via the shared deterministic same-repo namespace/name tiers (T1-T4); never fabricated across a namespace mismatch, dangling ref, unresolved ambiguity, an unmapped ref kind (chartRef kind HelmChart is deliberately never linked -- it names a different graph label, the Chart.yaml directory), or an invalid both-chart-and-chartRef HelmRelease",
 }
 
 // FluxRelationshipMaterializedEdgeTypes returns a defensive copy of
@@ -100,22 +100,39 @@ var fluxSourceRefKindToLabel = map[string]string{
 }
 
 // fluxSourceLabels is the set of typed Flux source-CR labels a Kustomization's
-// sourceRef can resolve against.
+// sourceRef or a HelmRelease's chart.spec.sourceRef/chartRef can resolve
+// against. FluxHelmRepository was added by issue #5483 C1 (HelmRelease's
+// sourceRef can name a HelmRepository, which a Kustomization's sourceRef never
+// does).
 var fluxSourceLabels = map[string]struct{}{
-	"FluxGitRepository": {},
-	"FluxOCIRepository": {},
-	"FluxBucket":        {},
+	"FluxGitRepository":  {},
+	"FluxOCIRepository":  {},
+	"FluxBucket":         {},
+	"FluxHelmRepository": {},
 }
 
-// fluxKustomizationEntity is one FluxKustomization content entity reduced to
-// the fields the RECONCILES_FROM resolution needs.
-type fluxKustomizationEntity struct {
+// fluxReconcilerEntity is one Flux reconciler CR (FluxKustomization or
+// FluxHelmRelease, issue #5483 C1) reduced to the fields the shared
+// RECONCILES_FROM resolution (resolveFluxSourceCandidate, T1-T4) needs.
+// FluxKustomization and FluxHelmRelease resolve against their source CR
+// through the IDENTICAL tier algorithm; sourceLabel and via record which
+// reconciler kind and which reference field (spec.sourceRef vs
+// spec.chart.spec.sourceRef vs spec.chartRef) produced this entity, purely
+// for template-family selection and provenance/testability -- reconciler_kind
+// and via are literal (not row-parameterized) in every static Cypher
+// template, since sourceLabel+targetLabel already determine them uniquely for
+// the current closed kind maps (see fluxHelmChartRefKindToLabel /
+// fluxHelmSourceRefKindToLabel in canonical_flux_helm_edges.go).
+type fluxReconcilerEntity struct {
 	uid          string
 	filePath     string
-	namespace    string // the Kustomization's own metadata.namespace, may be ""
-	refKind      string // raw spec.sourceRef.kind
-	refName      string // raw spec.sourceRef.name
-	refNamespace string // raw spec.sourceRef.namespace as declared, may be ""
+	namespace    string // the reconciler's own metadata.namespace, may be ""
+	sourceLabel  string // "FluxKustomization" | "FluxHelmRelease"
+	targetLabel  string // resolved target label, already mapped by the entity's own collector via its own closed kind map
+	refKind      string // raw ref kind (spec.sourceRef.kind or spec.chartRef.kind)
+	refName      string // raw ref name
+	refNamespace string // raw ref namespace as declared, may be ""
+	via          string // "" (Kustomization) | "chart_source_ref" | "chart_ref" (HelmRelease)
 }
 
 // fluxSourceEntity is one FluxGitRepository/FluxOCIRepository/FluxBucket
@@ -127,11 +144,13 @@ type fluxSourceEntity struct {
 	filePath  string
 }
 
-// fluxReconciliationRow is one resolved FluxKustomization -> source-CR edge,
-// ready to be grouped by targetLabel into a per-label MERGE statement.
+// fluxReconciliationRow is one resolved FluxKustomization/FluxHelmRelease ->
+// source-CR edge, ready to be grouped by (sourceLabel, targetLabel) into a
+// per-template MERGE statement.
 type fluxReconciliationRow struct {
 	sourceUID          string
 	targetUID          string
+	sourceLabel        string // "FluxKustomization" | "FluxHelmRelease" -- selects the Cypher template family
 	targetLabel        string
 	resolutionMode     string
 	sourceRefKind      string
@@ -141,22 +160,34 @@ type fluxReconciliationRow struct {
 }
 
 // fluxReconcilesFromEdgeStatements returns the RECONCILES_FROM edge statements
-// for the FluxKustomization entities in the materialization, or nil when there
-// are none so the statements never run for non-Flux repos. Edges are resolved
-// in Go (resolveFluxReconciliationRows) and matched by canonical uid, mirroring
-// atlantisEdgeStatements.
+// for the FluxKustomization and FluxHelmRelease entities in the
+// materialization (issue #5360 PR B, extended by issue #5483 C1), or nil when
+// there are neither so the statements never run for non-Flux repos. Both
+// reconciler kinds resolve through the IDENTICAL T1-T4 tiers
+// (resolveFluxSourceCandidate) but are retract-scoped and Cypher-templated
+// separately, since they anchor on different source labels. Edges are
+// resolved in Go (resolveFluxReconciliationRows) and matched by canonical
+// uid, mirroring atlantisEdgeStatements.
 func fluxReconcilesFromEdgeStatements(mat projector.CanonicalMaterialization) []Statement {
 	kustomizations, allKustomizationUIDs := collectFluxKustomizationEntities(mat.Entities)
-	if len(allKustomizationUIDs) == 0 {
+	helmReleases, allHelmReleaseUIDs := collectFluxHelmReleaseEntities(mat.Entities)
+	if len(allKustomizationUIDs) == 0 && len(allHelmReleaseUIDs) == 0 {
 		return nil
 	}
 
 	candidatesByKey := collectFluxSourceEntities(mat.Entities)
-	rows := resolveFluxReconciliationRows(kustomizations, candidatesByKey)
+	reconcilers := make([]fluxReconcilerEntity, 0, len(kustomizations)+len(helmReleases))
+	reconcilers = append(reconcilers, kustomizations...)
+	reconcilers = append(reconcilers, helmReleases...)
+	rows := resolveFluxReconciliationRows(reconcilers, candidatesByKey)
 
-	rowsByLabel := map[string][]map[string]any{}
+	rowsByLabelPair := map[string]map[string][]map[string]any{
+		"FluxKustomization": {},
+		"FluxHelmRelease":   {},
+	}
 	for _, row := range rows {
-		rowsByLabel[row.targetLabel] = append(rowsByLabel[row.targetLabel], map[string]any{
+		byLabel := rowsByLabelPair[row.sourceLabel]
+		byLabel[row.targetLabel] = append(byLabel[row.targetLabel], map[string]any{
 			"source_uid":           row.sourceUID,
 			"target_uid":           row.targetUID,
 			"generation_id":        mat.GenerationID,
@@ -170,24 +201,48 @@ func fluxReconcilesFromEdgeStatements(mat projector.CanonicalMaterialization) []
 
 	var stmts []Statement
 	if !mat.FirstGeneration {
-		stmts = append(stmts, Statement{
-			Operation: OperationCanonicalRetract,
-			Cypher:    retractFluxReconcilesFromEdgesCypher,
-			Parameters: map[string]any{
-				"source_uids":   allKustomizationUIDs,
-				"generation_id": mat.GenerationID,
-			},
-			Drain: true,
-		})
+		if len(allKustomizationUIDs) > 0 {
+			stmts = append(stmts, Statement{
+				Operation: OperationCanonicalRetract,
+				Cypher:    retractFluxReconcilesFromEdgesCypher,
+				Parameters: map[string]any{
+					"source_uids":   allKustomizationUIDs,
+					"generation_id": mat.GenerationID,
+				},
+				Drain: true,
+			})
+		}
+		if len(allHelmReleaseUIDs) > 0 {
+			stmts = append(stmts, Statement{
+				Operation: OperationCanonicalRetract,
+				Cypher:    retractFluxHelmReconcilesFromEdgesCypher,
+				Parameters: map[string]any{
+					"source_uids":   allHelmReleaseUIDs,
+					"generation_id": mat.GenerationID,
+				},
+				Drain: true,
+			})
+		}
 	}
 	for _, targetLabel := range []string{"FluxGitRepository", "FluxOCIRepository", "FluxBucket"} {
-		labelRows := rowsByLabel[targetLabel]
+		labelRows := rowsByLabelPair["FluxKustomization"][targetLabel]
 		if len(labelRows) == 0 {
 			continue
 		}
 		stmts = append(stmts, Statement{
 			Operation:  OperationCanonicalUpsert,
 			Cypher:     fluxReconcilesFromCypherByLabel[targetLabel],
+			Parameters: map[string]any{"rows": labelRows},
+		})
+	}
+	for _, targetLabel := range []string{"FluxHelmRepository", "FluxGitRepository", "FluxOCIRepository", "FluxBucket"} {
+		labelRows := rowsByLabelPair["FluxHelmRelease"][targetLabel]
+		if len(labelRows) == 0 {
+			continue
+		}
+		stmts = append(stmts, Statement{
+			Operation:  OperationCanonicalUpsert,
+			Cypher:     fluxHelmReconcilesFromCypherByLabel[targetLabel],
 			Parameters: map[string]any{"rows": labelRows},
 		})
 	}
@@ -207,8 +262,8 @@ var fluxReconcilesFromCypherByLabel = map[string]string{
 // collectFluxKustomizationEntities extracts every FluxKustomization entity's
 // uid (for the retract scope, regardless of resolvability) and the subset
 // with a resolvable sourceRef (non-empty name, known kind) for resolution.
-func collectFluxKustomizationEntities(entities []projector.EntityRow) ([]fluxKustomizationEntity, []string) {
-	var kustomizations []fluxKustomizationEntity
+func collectFluxKustomizationEntities(entities []projector.EntityRow) ([]fluxReconcilerEntity, []string) {
+	var kustomizations []fluxReconcilerEntity
 	var uids []string
 	for _, entity := range entities {
 		if entity.Label != "FluxKustomization" {
@@ -223,14 +278,17 @@ func collectFluxKustomizationEntities(entities []projector.EntityRow) ([]fluxKus
 			// No sourceRef name: never resolvable, an honest non-link.
 			continue
 		}
-		if _, ok := fluxSourceRefKindToLabel[refKind]; !ok {
+		targetLabel, ok := fluxSourceRefKindToLabel[refKind]
+		if !ok {
 			// Absent or unknown kind (e.g. ExternalArtifact): honest non-link.
 			continue
 		}
-		kustomizations = append(kustomizations, fluxKustomizationEntity{
+		kustomizations = append(kustomizations, fluxReconcilerEntity{
 			uid:          entity.EntityID,
 			filePath:     entity.FilePath,
 			namespace:    metadataString(entity.Metadata, "namespace"),
+			sourceLabel:  "FluxKustomization",
+			targetLabel:  targetLabel,
 			refKind:      refKind,
 			refName:      refName,
 			refNamespace: metadataString(entity.Metadata, "source_ref_namespace"),
@@ -265,40 +323,46 @@ func collectFluxSourceEntities(entities []projector.EntityRow) map[string][]flux
 }
 
 // resolveFluxReconciliationRows applies the deterministic T1-T4 resolution
-// tiers (issue #5360 PR B design) to every resolvable Kustomization, producing
-// one row per Kustomization that reaches a unique, honest resolution.
-// Kustomizations that reach no unique resolution (dangling ref, declared-
-// namespace mismatch, or an unresolved tie) produce no row -- an edge is
-// never fabricated. Rows are sorted by (sourceUID, targetUID) for byte-stable
-// output regardless of map iteration order upstream.
-func resolveFluxReconciliationRows(kustomizations []fluxKustomizationEntity, candidatesByKey map[string][]fluxSourceEntity) []fluxReconciliationRow {
+// tiers (issue #5360 PR B design, reused verbatim for FluxHelmRelease by
+// issue #5483 C1) to every resolvable reconciler entity (FluxKustomization or
+// FluxHelmRelease), producing one row per entity that reaches a unique,
+// honest resolution. An entity's targetLabel is already resolved by its own
+// collector (each reconciler kind maps its ref kind through a DIFFERENT
+// closed kind-to-label map), so this loop is entirely reconciler-neutral: it
+// only reads targetLabel/refName/refNamespace/namespace/filePath, never a
+// reconciler-specific field. Entities that reach no unique resolution
+// (dangling ref, declared-namespace mismatch, or an unresolved tie) produce
+// no row -- an edge is never fabricated. Rows are sorted by (sourceUID,
+// targetUID) for byte-stable output regardless of map iteration order
+// upstream.
+func resolveFluxReconciliationRows(reconcilers []fluxReconcilerEntity, candidatesByKey map[string][]fluxSourceEntity) []fluxReconciliationRow {
 	var rows []fluxReconciliationRow
-	for _, k := range kustomizations {
-		targetLabel := fluxSourceRefKindToLabel[k.refKind]
-		candidates := candidatesByKey[targetLabel+"\x00"+k.refName]
+	for _, r := range reconcilers {
+		candidates := candidatesByKey[r.targetLabel+"\x00"+r.refName]
 		if len(candidates) == 0 {
 			continue // dangling ref: no candidate exists at all
 		}
 
-		refNS := k.refNamespace
+		refNS := r.refNamespace
 		namespaceDefaulted := false
 		if refNS == "" {
-			refNS = k.namespace
+			refNS = r.namespace
 			namespaceDefaulted = true
 		}
 
-		winner, mode, ok := resolveFluxSourceCandidate(candidates, refNS, k.filePath)
+		winner, mode, ok := resolveFluxSourceCandidate(candidates, refNS, r.filePath)
 		if !ok {
 			continue
 		}
 
 		rows = append(rows, fluxReconciliationRow{
-			sourceUID:          k.uid,
+			sourceUID:          r.uid,
 			targetUID:          winner.uid,
-			targetLabel:        targetLabel,
+			sourceLabel:        r.sourceLabel,
+			targetLabel:        r.targetLabel,
 			resolutionMode:     mode,
-			sourceRefKind:      k.refKind,
-			sourceRefName:      k.refName,
+			sourceRefKind:      r.refKind,
+			sourceRefName:      r.refName,
 			sourceRefNamespace: refNS,
 			namespaceDefaulted: namespaceDefaulted,
 		})
