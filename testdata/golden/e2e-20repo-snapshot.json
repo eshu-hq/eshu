@@ -38,7 +38,7 @@
       "WorkloadInstance": {
         "min": 1,
         "max": 20,
-        "note": "logical workload-instance nodes correlated from kubernetes_live facts"
+        "note": "logical workload-instance nodes derived from config materialization and deployment mapping"
       },
       "KubernetesWorkload": {
         "min": 1,
@@ -2471,6 +2471,9 @@
           "workload_id"
         ],
         "minimum_results": 0,
+        "required_json_values": {
+          "data.deployment_fact_summary.deployment_truth_tier": "config_only"
+        },
         "arguments": {
           "service_name": "api-svc",
           "max_depth": 4
@@ -4601,6 +4604,7 @@
         ],
         "required_json_values": {
           "data.instances[].platforms[].topology_edges[].relationship_type": "RUNS_ON",
+          "data.deployment_fact_summary.deployment_truth_tier": "config_only",
           "truth.level": "derived",
           "truth.basis": "hybrid"
         }
