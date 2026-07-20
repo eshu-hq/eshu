@@ -11,81 +11,6 @@ type githubActionsRelationship struct {
 	targetName       string
 }
 
-func githubActionsMetadataRelationships(metadata map[string]any) []githubActionsRelationship {
-	relationships := make([]githubActionsRelationship, 0, 4)
-	for _, workflowRef := range metadataStringSlice(metadata, "workflow_refs") {
-		if targetName := githubActionsRepositoryRef(workflowRef); targetName != "" {
-			relationships = append(relationships, githubActionsRelationship{
-				relationshipType: "DEPLOYS_FROM",
-				targetName:       targetName,
-				reason:           "github_actions_reusable_workflow_ref",
-			})
-			continue
-		}
-		if targetPath := githubActionsLocalReusableWorkflowPath(workflowRef); targetPath != "" {
-			relationships = append(relationships, githubActionsRelationship{
-				relationshipType: "DEPLOYS_FROM",
-				targetName:       targetPath,
-				reason:           "github_actions_local_reusable_workflow_ref",
-			})
-		}
-	}
-	for _, workflowRef := range metadataStringSlice(metadata, "workflow_ref") {
-		if targetName := githubActionsRepositoryRef(workflowRef); targetName != "" {
-			relationships = append(relationships, githubActionsRelationship{
-				relationshipType: "DEPLOYS_FROM",
-				targetName:       targetName,
-				reason:           "github_actions_reusable_workflow_ref",
-			})
-			continue
-		}
-		if targetPath := githubActionsLocalReusableWorkflowPath(workflowRef); targetPath != "" {
-			relationships = append(relationships, githubActionsRelationship{
-				relationshipType: "DEPLOYS_FROM",
-				targetName:       targetPath,
-				reason:           "github_actions_local_reusable_workflow_ref",
-			})
-		}
-	}
-	for _, repoRef := range metadataStringSlice(metadata, "checkout_repositories") {
-		if targetName := githubActionsRepositoryRef(repoRef); targetName != "" {
-			relationships = append(relationships, githubActionsRelationship{
-				relationshipType: "DISCOVERS_CONFIG_IN",
-				targetName:       targetName,
-				reason:           "github_actions_checkout_repository",
-			})
-		}
-	}
-	for _, repoRef := range metadataStringSlice(metadata, "checkout_repository") {
-		if targetName := githubActionsRepositoryRef(repoRef); targetName != "" {
-			relationships = append(relationships, githubActionsRelationship{
-				relationshipType: "DISCOVERS_CONFIG_IN",
-				targetName:       targetName,
-				reason:           "github_actions_checkout_repository",
-			})
-		}
-	}
-	for _, repoRef := range githubActionsWorkflowInputRepositoryMetadata(metadata) {
-		if targetName := githubActionsRepositoryRef(repoRef); targetName != "" {
-			relationships = append(relationships, githubActionsRelationship{
-				relationshipType: "DISCOVERS_CONFIG_IN",
-				targetName:       targetName,
-				reason:           "github_actions_workflow_input_repository",
-			})
-		}
-	}
-	for _, repoRef := range metadataStringSlice(metadata, "action_repositories") {
-		if targetName := githubActionsActionRepositoryRef(repoRef); targetName != "" {
-			relationships = append(relationships, githubActionsRelationship{
-				relationshipType: "DEPENDS_ON",
-				targetName:       targetName,
-				reason:           "github_actions_action_repository",
-			})
-		}
-	}
-	return relationships
-}
-
 // githubActionsDependencyRefs is the set of first-class GitHub Actions
 // dependency reference lists a workflow or composite-action file declares. It
 // is produced by a single structured YAML decode of the file content
@@ -99,7 +24,7 @@ func githubActionsMetadataRelationships(metadata map[string]any) []githubActions
 // localReusableWorkflowPaths are `.github/workflows/*.yml` paths, and
 // checkoutRepositories/workflowInputRepositories hold the raw `with:`/job input
 // values (the relationship builder normalizes those through
-// githubActionsRepositoryRef, matching the metadata path).
+// githubActionsRepositoryRef).
 type githubActionsDependencyRefs struct {
 	reusableWorkflowRepos      []string
 	localReusableWorkflowPaths []string

@@ -23,7 +23,7 @@ func TestGetEntityContextFallsBackToGitHubActionsWorkflowLocalReusablePath(t *te
 			rows: [][]driver.Value{
 				{
 					"gha-workflow-1", "repo-1", ".github/workflows/deploy.yaml", "File", "deploy",
-					int64(1), int64(20), "yaml", "jobs:\n  deploy:\n    uses: myorg/deployment-helm/.github/workflows/deploy.yaml@main\n  local:\n    uses: ./.github/workflows/release.yaml\n", []byte(`{"workflow_refs":["myorg/deployment-helm/.github/workflows/deploy.yaml@main","./.github/workflows/release.yaml@main"]}`),
+					int64(1), int64(20), "yaml", "jobs:\n  deploy:\n    uses: myorg/deployment-helm/.github/workflows/deploy.yaml@main\n  local:\n    uses: ./.github/workflows/release.yaml\n", []byte(`{}`),
 				},
 			},
 		},
