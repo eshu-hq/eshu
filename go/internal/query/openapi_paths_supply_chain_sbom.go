@@ -51,6 +51,50 @@ const openAPIPathsSupplyChainSBOMAttestations = `
                           "missing_evidence": {"type": "array", "items": {"type": "string"}},
                           "canonical_writes": {"type": "integer"},
                           "component_count": {"type": "integer"},
+                          "dependency_relationships": {
+                            "type": "array",
+                            "description": "Bounded, deduplicated sbom.dependency_relationship evidence rows for this document (write-time capped at 100 per document).",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "from_component_id": {"type": "string"},
+                                "to_component_id": {"type": "string"},
+                                "relationship_type": {"type": "string"},
+                                "relationship_origin": {"type": "string"},
+                                "fact_id": {"type": "string"}
+                              }
+                            }
+                          },
+                          "dependency_relationship_count": {
+                            "type": "integer",
+                            "description": "Full distinct dependency-relationship tuple count before the write-time cap."
+                          },
+                          "dependency_relationships_truncated": {
+                            "type": "boolean",
+                            "description": "True when dependency_relationship_count exceeds the number of rows in dependency_relationships."
+                          },
+                          "external_references": {
+                            "type": "array",
+                            "description": "Bounded, deduplicated sbom.external_reference evidence rows for this document (write-time capped at 50 per document).",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "component_id": {"type": "string"},
+                                "reference_type": {"type": "string"},
+                                "reference_url": {"type": "string"},
+                                "reference_locator": {"type": "string"},
+                                "fact_id": {"type": "string"}
+                              }
+                            }
+                          },
+                          "external_reference_count": {
+                            "type": "integer",
+                            "description": "Full distinct external-reference tuple count before the write-time cap."
+                          },
+                          "external_references_truncated": {
+                            "type": "boolean",
+                            "description": "True when external_reference_count exceeds the number of rows in external_references."
+                          },
                           "warning_summaries": {
                             "type": "array",
                             "maxItems": 10,
