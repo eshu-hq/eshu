@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
+// No-Observability-Change: the fetchWorkloadLiveEvidence path reuses the
+// existing h.Neo4j.Run driver instrumentation (neo4j.query spans,
+// eshu_dp_neo4j_query_duration_seconds metric), so operators diagnose the
+// bounded live-evidence probe through the same signals as every other
+// deployment-trace graph read.
+
 package query
 
 import "context"
