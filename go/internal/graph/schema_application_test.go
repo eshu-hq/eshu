@@ -54,6 +54,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			backend:     SchemaBackendNornicDB,
 			fingerprint: graphSchemaNornicDBFingerprint,
 			compatible: []string{
+				graphSchemaNornicDBPreKubernetesWorkloadIDLookupFingerprint,
 				graphSchemaNornicDBPreFluxHelmEntitiesFingerprint,
 				graphSchemaNornicDBPreFluxTypedEntitiesFingerprint,
 				graphSchemaNornicDBPreSqlMigrationFingerprint,
