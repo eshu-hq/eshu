@@ -471,6 +471,12 @@ token.
    present) -- this is a normal, non-error outcome for a repository with no
    resolvable owner.
 
+Scoped tokens may read ownership only for a granted `repository_id`. An
+out-of-grant `repository_id` returns a bounded empty page (`ownership: []`,
+`effective_owner: {}`) without reading the `DECLARES_CODEOWNER` graph or the
+service-catalog correlation store, so a caller cannot use either read path to
+probe another tenant's CODEOWNERS rules or manifest owner.
+
 Responses are `exact` truth from the authoritative graph with deterministic
 ordering and keyset paging. The equivalent MCP tool is
 `list_codeowners_ownership`, which re-dispatches into this same route rather
@@ -488,6 +494,11 @@ cypher-query-rigor). `go test ./internal/query -run
 -count=1` cover the bounded list (defaults, invalid limit, truncation,
 keyset cursor threading, backend-unavailable) and all three effective-owner
 precedence branches plus both dependency error paths.
+`TestCodeownersOwnershipScopedCallerCannotReadUngrantedRepository` (issue
+#5419 Phase 4b) is the scoped-grant cross-tenant leak proof: a caller granted
+only `repo-a` requesting `repository_id=repo-b` gets an empty page even
+though the graph and correlation store both hold real `repo-b` data, while a
+caller granted `repo-b` (or unscoped) sees it.
 
 Observability Evidence: the handler reuses the existing query-handler
 envelope (`WriteSuccess` + `BuildTruthEnvelope` with

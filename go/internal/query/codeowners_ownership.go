@@ -96,6 +96,19 @@ func (h *CodeownersOwnershipHandler) listOwnership(w http.ResponseWriter, r *htt
 		return
 	}
 
+	// Resolve the caller's scoped grant before touching either read path (the
+	// DECLARES_CODEOWNER graph and the service-catalog correlation store used
+	// by resolveEffectiveRepositoryOwner). A scoped caller not granted
+	// repository_id gets the bounded empty page below rather than the repo's
+	// real ownership/effective_owner -- otherwise a caller granted only repo-a
+	// could pass ?repository_id=repo-b and read repo-b's CODEOWNERS ownership
+	// and manifest owner (cross-tenant leak).
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.scoped() && !access.allowsRepositoryID(repoID) {
+		h.writeEmptyCodeownersOwnership(w, r, repoID, limit)
+		return
+	}
+
 	if h.Neo4j == nil {
 		WriteContractError(
 			w,
@@ -210,4 +223,33 @@ func codeownersOwnershipCursor(w http.ResponseWriter, r *http.Request) (afterOrd
 		return 0, "", "", false
 	}
 	return parsed, afterPattern, afterRef, true
+}
+
+// writeEmptyCodeownersOwnership returns the bounded zero-row page used when a
+// scoped caller's grant does not include repoID. It reports the same shape as
+// a real "no CODEOWNERS rules" answer -- empty ownership, no next_cursor, and
+// a zero-value effective_owner -- without reading the DECLARES_CODEOWNER graph
+// or the service-catalog correlation store, so a scoped caller cannot
+// distinguish "out of grant" from "granted but genuinely empty" and cannot use
+// either read path to probe an ungranted repository's ownership.
+func (h *CodeownersOwnershipHandler) writeEmptyCodeownersOwnership(
+	w http.ResponseWriter,
+	r *http.Request,
+	repoID string,
+	limit int,
+) {
+	body := map[string]any{
+		"ownership":       []CodeownersOwnershipRow{},
+		"repository_id":   repoID,
+		"count":           0,
+		"limit":           limit,
+		"truncated":       false,
+		"effective_owner": EffectiveRepositoryOwner{},
+	}
+	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
+		h.profile(),
+		codeownersOwnershipCapability,
+		TruthBasisAuthoritativeGraph,
+		"scoped token grants do not include the requested repository; ownership and effective_owner are withheld without reading the DECLARES_CODEOWNER graph or the service-catalog correlation store",
+	))
 }

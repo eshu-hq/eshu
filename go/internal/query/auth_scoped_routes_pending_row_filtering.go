@@ -67,13 +67,6 @@ var pendingRowFilteringRoutes = map[string]struct{}{
 	"POST /api/v0/impact/explain-dependency-path": {},
 	"POST /api/v0/impact/trace-exposure-path":     {},
 	"POST /api/v0/impact/trace-resource-to-code":  {},
-	// #5419 Phase 4: GET /api/v0/codeowners/ownership reads the
-	// DECLARES_CODEOWNER graph and, for effective_owner, the service-catalog
-	// correlation store, neither filtered by AllowedRepositoryIDs/
-	// AllowedScopeIDs today. Tracked here rather than allowlisted until a
-	// follow-up wires real grant filtering (the #5137 row-filtering pattern
-	// referenced in this ledger's doc comment).
-	"GET /api/v0/codeowners/ownership": {},
 }
 
 // IsPendingRowFilteringRoute reports whether r targets a #5167 Group B route:

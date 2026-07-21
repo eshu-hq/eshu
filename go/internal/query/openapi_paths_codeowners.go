@@ -8,8 +8,9 @@ const openAPIPathsCodeowners = `
       "get": {
         "tags": ["codeowners"],
         "summary": "List a repository's CODEOWNERS ownership declarations",
-        "description": "Bounded read of one repository's Phase 3 DECLARES_CODEOWNER graph edges (issue #5419), plus an effective_owner resolved by manifest-vs-codeowners precedence: a service-catalog manifest declaration with an exact or derived reducer outcome wins; otherwise the CODEOWNERS last-match-wins rule (the highest order_index rule) applies; otherwise effective_owner is empty.",
+        "description": "Bounded read of one repository's Phase 3 DECLARES_CODEOWNER graph edges (issue #5419), plus an effective_owner resolved by manifest-vs-codeowners precedence: a service-catalog manifest declaration with an exact or derived reducer outcome wins; otherwise the CODEOWNERS last-match-wins rule (the highest order_index rule) applies; otherwise effective_owner is empty. Scoped tokens receive an empty ownership page and effective_owner when repository_id is outside their granted repository set.",
         "operationId": "listCodeownersOwnership",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "repository_id", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Repository to anchor the read on."},
           {"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 200, "default": 50}, "description": "Maximum rows to return. Defaults to 50, capped at 200."},
