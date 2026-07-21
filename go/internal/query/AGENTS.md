@@ -534,10 +534,15 @@
 - **Change import dependency investigation** → keep normal import, package,
   direct Python file-cycle, and cross-module call prompts on
   `POST /api/v0/code/imports/investigate`. Require at least one repo/file/module
-  scope anchor before expanding `IMPORTS` or `CALLS`, keep deterministic
-  ordering plus `limit+1` truncation probing, reject negative paging bounds, and
-  return exactly one row key for each query type (`dependencies`, `modules`,
-  `cycles`, or `cross_module_calls`) plus source handles for file drill-down.
+  scope anchor before expanding `IMPORTS` or `CALLS`. Keep one connected graph
+  pattern per read, deterministic ordering, caller-page `limit+1` probing, and
+  the 25,001-row internal sentinel that fails closed above 25,000 candidates.
+  Anchor module membership from the exact module name and preserve repository
+  plus file-path identity through paging. For cycle reads, apply directional
+  file and module filters only after reciprocal edges are reconstructed.
+  Reject negative paging bounds and return exactly one row key for each query
+  type (`dependencies`, `modules`, `cycles`, or `cross_module_calls`) plus
+  source handles for file drill-down.
 
 - **Change call graph metrics** → keep recursive-function and hub-function
   prompts on `POST /api/v0/code/call-graph/metrics`. Require `repo_id` before

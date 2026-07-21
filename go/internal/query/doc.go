@@ -26,6 +26,10 @@
 // one row beyond the public limit, trims that probe row, and returns count,
 // limit, and truncated consistently for global content, repository content,
 // and repository graph branches.
+// Import-dependency handlers keep one connected graph pattern per read,
+// reconstruct Python cycles from a bounded edge set, and page distinct package
+// identities. Internal candidate scans stop at 25,000 rows and return a scope-
+// narrowing error instead of extending the request timeout.
 //
 // Handler behavior, OpenAPI fragments, docs/public/reference/http-api.md,
 // truth-envelope fields, and MCP tool dispatch must stay aligned whenever a

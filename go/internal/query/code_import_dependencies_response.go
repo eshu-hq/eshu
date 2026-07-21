@@ -48,14 +48,17 @@ func importDependencyUniqueModules(rows []map[string]any) []map[string]any {
 		if moduleName == "" {
 			continue
 		}
-		if _, ok := seen[moduleName]; ok {
+		repoID := StringVal(row, "repo_id")
+		language := StringVal(row, "language")
+		logicalKey := strings.Join([]string{repoID, moduleName, language}, "\x00")
+		if _, ok := seen[logicalKey]; ok {
 			continue
 		}
-		seen[moduleName] = struct{}{}
+		seen[logicalKey] = struct{}{}
 		modules = append(modules, map[string]any{
-			"repo_id":        StringVal(row, "repo_id"),
+			"repo_id":        repoID,
 			"module":         moduleName,
-			"language":       StringVal(row, "language"),
+			"language":       language,
 			"source_backend": "graph",
 		})
 	}
@@ -151,10 +154,11 @@ func importDependencyCoverage(req importDependencyRequest, truncated bool) map[s
 		queryShape = "module_anchored_call_edges"
 	}
 	return map[string]any{
-		"query_shape":        queryShape,
-		"relationship_types": importDependencyRelationshipTypes(req),
-		"truncated":          truncated,
-		"bounded":            true,
+		"query_shape":          queryShape,
+		"relationship_types":   importDependencyRelationshipTypes(req),
+		"truncated":            truncated,
+		"bounded":              true,
+		"candidate_scan_limit": importDependencyInternalScanLimit,
 	}
 }
 

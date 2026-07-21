@@ -69,10 +69,36 @@ func handlerQueryplanProductionCypher() map[string]string {
 	return map[string]string{
 		"QP-ENTITY-RESOLVE-REPOSITORY": entityCypher,
 		"QP-CODE-SEARCH-REPOSITORY":    codeCypher,
-		"QP-CODE-IMPORT-ROWS-REPOSITORY": importRowsCypher(importDependencyRequest{
+		"QP-CODE-IMPORT-ROWS-REPOSITORY": directImportRowsCypher(importDependencyRequest{
 			RepoID:     "proof-repository",
 			SourceFile: "proof.go",
 		}),
+		"QP-CODE-IMPORT-PACKAGES": packageImportRowsCypher(importDependencyRequest{
+			QueryType:    "package_imports",
+			RepoID:       "proof-repository",
+			SourceModule: "proof.source",
+		}, []map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/proof.py"}}),
+		"QP-CODE-IMPORT-SOURCE-MODULE-FILES": sourceModuleFilesCypher(importDependencyRequest{
+			RepoID:       "proof-repository",
+			SourceModule: "proof.source",
+		}),
+		"QP-CODE-IMPORT-TARGET-MODULE-FILES": targetModuleFilesCypher(importDependencyRequest{
+			RepoID:       "proof-repository",
+			TargetModule: "proof.target",
+		}),
+		"QP-CODE-IMPORT-SOURCE-MODULE-ROWS": sourceModuleImportRowsCypher(importDependencyRequest{
+			RepoID:       "proof-repository",
+			SourceModule: "proof.source",
+		}, []map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/proof.py"}}),
+		"QP-CODE-IMPORT-CROSS-MODULE-CALLS": crossModuleCallRowsCypher(importDependencyRequest{
+			QueryType:    "cross_module_calls",
+			RepoID:       "proof-repository",
+			SourceModule: "proof.source",
+			TargetModule: "proof.target",
+		},
+			[]map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/proof.py"}},
+			[]map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/target.py"}},
+		),
 		"QP-ENTITY-MAP-RESOLVE-REPOSITORY": entityMapNodeResolverQuery(
 			"Repository",
 			"id",
