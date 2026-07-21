@@ -117,15 +117,47 @@ func (w *CanonicalNodeWriter) terraformStateResourceMigrationStatements(mat proj
 // DETACH DELETE statements described on
 // canonicalTerraformStateResourceRetractCurrentLabelCypher and
 // canonicalTerraformStateResourceRetractLegacyLabelCypher. Must run AFTER
-// terraformStateResourceMigrationStatements in the phase order
-// buildTerraformStateStatements assembles: migration first removes any
-// currently-present resource from the legacy label's population, so the
-// legacy-label retraction only ever deletes genuinely orphaned nodes rather
-// than a resource this same batch is about to relabel. Skipped on the
-// scope's first generation, matching buildRetractStatements's existing
-// config-side skip (canonical_node_writer_retract.go).
+// terraformStateResourceMigrationStatements AND after the resource upsert in
+// the phase order buildTerraformStateStatements assembles: migration first
+// removes any currently-present resource from the legacy label's population,
+// so the legacy-label retraction only ever deletes genuinely orphaned nodes
+// rather than a resource this same batch is about to relabel; running after
+// the upsert means every resource this batch actually saw already carries
+// the CURRENT generation_id by the time this statement's WHERE clause
+// evaluates it, matching buildEntityRetractStatements's entities-then-
+// entity_retract precedent (canonical_node_writer.go's buildPhases) --
+// retracting before the upsert would delete the whole scope population every
+// cycle instead of only genuinely stale nodes (see this package's git
+// history for the incident this reordering fixes).
+//
+// Skipped on the scope's first generation, matching buildRetractStatements's
+// existing config-side skip (canonical_node_writer_retract.go). ALSO skipped
+// on a delta cycle (mat.DeltaProjection), matching every other retraction in
+// this package (buildRetractStatements delegates to buildDeltaRetractStatements,
+// buildEntityRetractStatements delegates to buildDeltaEntityRetractStatements,
+// buildRepositoryCleanupStatements skips outright): mat.TerraformStateResources
+// is populated only from terraform_state envelopes present in THIS
+// materialization's input (tfstate_canonical.go's extractTerraformStateRows),
+// so a delta cycle triggered by an unrelated file edit carries none. Unlike
+// entities and files, a Terraform state resource has no file-path scope this
+// writer can use to build a delta-scoped retract variant the way
+// buildDeltaEntityRetractStatements does (it scopes to $file_paths) -- a
+// tfstate resource's only natural scope is the (backend_kind, locator_hash)
+// of the state file that produced it, and a delta materialization does not
+// carry a positive list of "backends untouched this cycle" to safely exclude
+// from a scoped delete. Skipping outright is therefore the correct choice
+// here, not just the simpler one: genuine deletions (a resource destroyed or
+// removed from state) are still caught by the periodic full reconciliation
+// generation (mat.ReconciliationProjection forces DeltaProjection=false;
+// see internal/projector/canonical_builder.go), which is this repository's
+// existing designed mechanism for catching what delta cycles intentionally
+// do not sweep -- exactly the same mechanism buildRepositoryCleanupStatements
+// already relies on for repository-node cleanup.
 func (w *CanonicalNodeWriter) terraformStateResourceRetractStatements(mat projector.CanonicalMaterialization) []Statement {
 	if mat.FirstGeneration {
+		return nil
+	}
+	if mat.DeltaProjection {
 		return nil
 	}
 	return []Statement{
