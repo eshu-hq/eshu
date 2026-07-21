@@ -146,11 +146,17 @@ func TestCodeownersOwnershipHandlerBuildsOneEdgePerPatternOwner(t *testing.T) {
 // mandatory delta-retract proof: when a CODEOWNERS file is removed (the
 // repository delta reports it deleted, and no codeowners.ownership fact for
 // it survives into the new generation), the handler MUST still sweep the
-// stale DECLARES_CODEOWNER edges for that source path even though it writes
-// zero new edges. This is the same leak class as the bug already fixed for
-// documentation edges: a materialization handler that only retracts when it
-// also writes would leave orphaned edges behind forever once a source file
-// disappears.
+// stale DECLARES_CODEOWNER edges even though it writes zero new edges. This is
+// the same leak class as the bug already fixed for documentation edges: a
+// materialization handler that only retracts when it also writes would leave
+// orphaned edges behind forever once a source file disappears.
+//
+// The retract MUST be whole-repository, not scoped to the deleted path
+// (issue #5419 P1, Bug 2): CODEOWNERS winner-resolution is whole-repo, so
+// deleting the current winner can hand the win to a different candidate
+// location entirely, and a retract scoped only to the deleted path would
+// leave the graph with zero edges instead of falling back to whichever
+// candidate now wins (the empty-graph transition).
 func TestCodeownersOwnershipHandlerDeletedFileRetractsWithoutWrites(t *testing.T) {
 	t.Parallel()
 
@@ -166,7 +172,9 @@ func TestCodeownersOwnershipHandlerDeletedFileRetractsWithoutWrites(t *testing.T
 					"delta_deleted_relative_paths": []string{".github/CODEOWNERS"},
 				},
 			},
-			// No codeowners.ownership facts survive: the file was removed.
+			// No codeowners.ownership facts survive: the file was removed
+			// and, in this scenario, no other candidate exists to fall back
+			// to.
 		}},
 		EdgeWriter: writer,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) {
@@ -190,27 +198,23 @@ func TestCodeownersOwnershipHandlerDeletedFileRetractsWithoutWrites(t *testing.T
 	if len(writer.retractRows) != 1 {
 		t.Fatalf("retractRows len = %d, want 1", len(writer.retractRows))
 	}
-	payload := writer.retractRows[0].Payload
-	if got, ok := payload["delta_projection"].(bool); !ok || !got {
-		t.Fatalf("delta_projection = %#v, want true", payload["delta_projection"])
-	}
-	gotPaths, ok := payload["delta_file_paths"].([]string)
-	if !ok {
-		t.Fatalf("delta_file_paths type = %T, want []string", payload["delta_file_paths"])
-	}
-	wantPaths := []string{".github/CODEOWNERS"}
-	if !reflect.DeepEqual(gotPaths, wantPaths) {
-		t.Fatalf("delta_file_paths = %#v, want %#v", gotPaths, wantPaths)
+	if writer.retractRows[0].Payload != nil {
+		t.Fatalf("retract Payload = %#v, want nil (whole-repository retract)", writer.retractRows[0].Payload)
 	}
 	if writer.retractRows[0].RepositoryID != "repo-1" {
 		t.Fatalf("retract RepositoryID = %q, want repo-1", writer.retractRows[0].RepositoryID)
 	}
 }
 
-// TestCodeownersOwnershipHandlerChangedFileScopesRetractAndRewrites proves the
-// companion case: a changed (not deleted) CODEOWNERS file both retracts scoped
-// to its own source path AND re-writes the current generation's rules.
-func TestCodeownersOwnershipHandlerChangedFileScopesRetractAndRewrites(t *testing.T) {
+// TestCodeownersOwnershipHandlerChangedCandidateForcesWholeRepoRetract proves
+// the companion case for issue #5419 P1 Bug 2: a changed (not deleted)
+// CODEOWNERS candidate file forces a whole-repository retract before
+// rewriting the current generation's rules, rather than a retract scoped only
+// to its own source path. A path-scoped retract here would leave a
+// now-losing candidate's previously-projected edges behind (the union
+// transition) whenever the changed file causes the winner to switch between
+// candidate locations.
+func TestCodeownersOwnershipHandlerChangedCandidateForcesWholeRepoRetract(t *testing.T) {
 	t.Parallel()
 
 	writer := &recordingCodeownersOwnershipEdgeWriter{}
@@ -243,11 +247,59 @@ func TestCodeownersOwnershipHandlerChangedFileScopesRetractAndRewrites(t *testin
 	if len(writer.retractRows) != 1 {
 		t.Fatalf("retractRows len = %d, want 1", len(writer.retractRows))
 	}
+	if writer.retractRows[0].Payload != nil {
+		t.Fatalf("retract Payload = %#v, want nil (whole-repository retract)", writer.retractRows[0].Payload)
+	}
+	if writer.retractRows[0].RepositoryID != "repo-1" {
+		t.Fatalf("retract RepositoryID = %q, want repo-1", writer.retractRows[0].RepositoryID)
+	}
+}
+
+// TestCodeownersOwnershipHandlerNonCandidateDeltaKeepsPathScopedRetract proves
+// the fix stays narrow: a delta whose changed paths do NOT touch any of the
+// three recognized CODEOWNERS locations keeps the ordinary path-scoped delta
+// retract (the pre-existing, harmless no-op mechanism against
+// DECLARES_CODEOWNER edges), rather than escalating every unrelated file
+// change in the repo to a whole-repository codeowners retract.
+func TestCodeownersOwnershipHandlerNonCandidateDeltaKeepsPathScopedRetract(t *testing.T) {
+	t.Parallel()
+
+	writer := &recordingCodeownersOwnershipEdgeWriter{}
+	handler := CodeownersOwnershipEdgeMaterializationHandler{
+		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
+			{
+				FactKind: factKindRepository,
+				Payload: map[string]any{
+					"repo_id":              "repo-1",
+					"local_path":           "/repo",
+					"delta_generation":     true,
+					"delta_relative_paths": []string{"main.go"},
+				},
+			},
+			// No codeowners.ownership facts: CODEOWNERS itself did not
+			// change this generation.
+		}},
+		EdgeWriter: writer,
+		PriorGenerationCheck: func(context.Context, string, string) (bool, error) {
+			return true, nil
+		},
+	}
+
+	result, err := handler.Handle(context.Background(), codeownersOwnershipIntent("scope-1", "gen-4"))
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if result.CanonicalWrites != 0 {
+		t.Fatalf("CanonicalWrites = %d, want 0", result.CanonicalWrites)
+	}
+	if len(writer.retractRows) != 1 {
+		t.Fatalf("retractRows len = %d, want 1", len(writer.retractRows))
+	}
 	gotPaths, ok := writer.retractRows[0].Payload["delta_file_paths"].([]string)
 	if !ok {
 		t.Fatalf("delta_file_paths type = %T, want []string", writer.retractRows[0].Payload["delta_file_paths"])
 	}
-	wantPaths := []string{".github/CODEOWNERS"}
+	wantPaths := []string{"main.go"}
 	if !reflect.DeepEqual(gotPaths, wantPaths) {
 		t.Fatalf("delta_file_paths = %#v, want %#v", gotPaths, wantPaths)
 	}

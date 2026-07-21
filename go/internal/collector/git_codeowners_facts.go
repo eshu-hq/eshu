@@ -4,6 +4,7 @@
 package collector
 
 import (
+	"os"
 	"path/filepath"
 	"time"
 
@@ -64,6 +65,67 @@ func extractCodeownersCandidateFiles(
 		candidateRelativePaths = append(candidateRelativePaths, relativePath)
 	}
 	return filtered, candidateRelativePaths
+}
+
+// codeownersDeltaTouchesCandidate reports whether any of the delta's
+// changed/deleted relative paths is one of the three recognized CODEOWNERS
+// candidate locations (see codeowners.IsCandidatePath).
+func codeownersDeltaTouchesCandidate(deltaRelativePaths []string) bool {
+	for _, relativePath := range deltaRelativePaths {
+		if _, ok := codeowners.IsCandidatePath(relativePath); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// codeownersCandidatePathsPresentOnDisk reports each of the three recognized
+// CODEOWNERS locations (codeowners.CandidatePaths()) that currently exists as
+// a regular file under repoPath, checked by a direct stat against repoPath
+// rather than through the (possibly delta-narrowed) discovered file set.
+// CODEOWNERS winner-resolution is whole-repo, so whenever a delta snapshot's
+// changed/deleted paths touch any one candidate location (see
+// codeownersDeltaTouchesCandidate), the collector must see every
+// currently-existing candidate, not just the ones the delta happened to list
+// as changed (issue #5419 P1).
+func codeownersCandidatePathsPresentOnDisk(repoPath string) []string {
+	var present []string
+	for _, candidate := range codeowners.CandidatePaths() {
+		absolutePath := filepath.Join(repoPath, filepath.FromSlash(candidate))
+		if info, err := os.Stat(absolutePath); err == nil && !info.IsDir() {
+			present = append(present, candidate)
+		}
+	}
+	return present
+}
+
+// resolvedCodeownersCandidateRelativePaths returns the CODEOWNERS candidate
+// relative paths a snapshot should use for this generation.
+//
+// extractedRelativePaths is whatever extractCodeownersCandidateFiles already
+// found in the (possibly delta-narrowed) discovered file set; that is enough
+// on a full snapshot, where fileSet.Files spans the whole repository.
+//
+// On a delta snapshot, though, fileSet.Files is narrowed to the delta's
+// changed targets only (see resolveNativeSnapshotFileSetForTargets), so a
+// deleted or newly added candidate can hide a sibling candidate that already
+// exists on disk unchanged. Whenever isDelta is true and deltaRelativePaths
+// touches any of the three known CODEOWNERS locations (see
+// codeownersDeltaTouchesCandidate), this instead re-reads every
+// currently-existing candidate directly from repoPath (see
+// codeownersCandidatePathsPresentOnDisk), so ResolveWinner sees the true,
+// current whole-repo candidate set rather than only the ones the delta
+// happened to list as changed (issue #5419 P1).
+func resolvedCodeownersCandidateRelativePaths(
+	repoPath string,
+	isDelta bool,
+	deltaRelativePaths []string,
+	extractedRelativePaths []string,
+) []string {
+	if isDelta && codeownersDeltaTouchesCandidate(deltaRelativePaths) {
+		return codeownersCandidatePathsPresentOnDisk(repoPath)
+	}
+	return extractedRelativePaths
 }
 
 // codeownersFileMetasForPaths builds one ContentFileMeta per extracted

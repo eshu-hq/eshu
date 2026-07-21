@@ -76,15 +76,8 @@ func (h CodeownersOwnershipEdgeMaterializationHandler) Handle(ctx context.Contex
 	}
 	if !skipRetract {
 		retractRows := buildCodeownersOwnershipRetractRows(repositoryIDs, deltaScope)
-		if len(retractRows) > 0 {
-			if err := h.EdgeWriter.RetractEdges(
-				ctx,
-				DomainCodeownersOwnershipEdges,
-				retractRows,
-				codeownersOwnershipEvidenceSource,
-			); err != nil {
-				return Result{}, fmt.Errorf("retract canonical codeowners ownership edges: %w", err)
-			}
+		if err := h.retractCodeownersOwnershipEdges(ctx, retractRows); err != nil {
+			return Result{}, err
 		}
 	}
 
@@ -115,6 +108,47 @@ func (h CodeownersOwnershipEdgeMaterializationHandler) Handle(ctx context.Contex
 		CanonicalWrites: len(writeRows),
 		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
+}
+
+// retractCodeownersOwnershipEdges issues the codeowners ownership retract in
+// up to two homogeneous batches: rows with a nil Payload get a
+// whole-repository retract, rows carrying a delta_projection Payload get the
+// ordinary path-scoped delta retract. Splitting is required because the
+// storage-layer dispatch (cypher.EdgeWriter.RetractEdges) picks exactly one
+// Cypher shape per call based on whether ANY row in the batch carries delta
+// scope (cypher.collectDeltaFilePaths); a single batch mixing both row shapes
+// would silently apply the path-scoped shape to a repository that actually
+// needs the whole-repository sweep. In practice one codeowners intent covers
+// exactly one repository (scope is built per-repo), so this split is a
+// defensive no-op today, but it keeps the generic multi-repository
+// repositoryIDs plumbing correct if that ever changes.
+func (h CodeownersOwnershipEdgeMaterializationHandler) retractCodeownersOwnershipEdges(
+	ctx context.Context,
+	retractRows []SharedProjectionIntentRow,
+) error {
+	var wholeRepoRows, deltaScopedRows []SharedProjectionIntentRow
+	for _, row := range retractRows {
+		if row.Payload == nil {
+			wholeRepoRows = append(wholeRepoRows, row)
+			continue
+		}
+		deltaScopedRows = append(deltaScopedRows, row)
+	}
+	if len(wholeRepoRows) > 0 {
+		if err := h.EdgeWriter.RetractEdges(
+			ctx, DomainCodeownersOwnershipEdges, wholeRepoRows, codeownersOwnershipEvidenceSource,
+		); err != nil {
+			return fmt.Errorf("retract canonical codeowners ownership edges (whole-repo): %w", err)
+		}
+	}
+	if len(deltaScopedRows) > 0 {
+		if err := h.EdgeWriter.RetractEdges(
+			ctx, DomainCodeownersOwnershipEdges, deltaScopedRows, codeownersOwnershipEvidenceSource,
+		); err != nil {
+			return fmt.Errorf("retract canonical codeowners ownership edges (delta-scoped): %w", err)
+		}
+	}
+	return nil
 }
 
 func (h CodeownersOwnershipEdgeMaterializationHandler) shouldSkipCodeownersOwnershipRetract(ctx context.Context, intent Intent) (bool, error) {

@@ -170,6 +170,9 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	// through shape.Materialize.
 	var codeownersCandidateRelativePaths []string
 	fileSet.Files, codeownersCandidateRelativePaths = extractCodeownersCandidateFiles(repoPath, fileSet.Files)
+	// See resolvedCodeownersCandidateRelativePaths (issue #5419 P1): a delta
+	// touching a CODEOWNERS candidate re-reads every candidate from repoPath.
+	codeownersCandidateRelativePaths = resolvedCodeownersCandidateRelativePaths(repoPath, repository.Delta, deltaRelativePaths, codeownersCandidateRelativePaths)
 	parserFiles, documentationFiles := partitionNativeSnapshotFiles(fileSet.Files, registry)
 	fullParserFiles, _ := partitionNativeSnapshotFiles(fullFileSet.Files, registry)
 	parserFileSet := fileSet

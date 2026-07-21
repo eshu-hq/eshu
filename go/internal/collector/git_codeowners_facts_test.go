@@ -267,3 +267,129 @@ func TestSnapshotRepositoryWithOnlyCodeownersSurvivesZeroParsedFiles(t *testing.
 		t.Fatalf("ContentFileMetas = %#v, want one entry for .github/CODEOWNERS", got.ContentFileMetas)
 	}
 }
+
+// TestNativeRepositorySnapshotterDeltaDeleteGithubCandidateReResolvesRootWinner
+// proves the collector-side fix for issue #5419 Bug 2's empty-graph
+// transition. CODEOWNERS winner-resolution is whole-repo (one winner among
+// the three known candidate locations), but a delta snapshot narrows
+// fileSet.Files to the delta's changed targets only (see
+// resolveNativeSnapshotFileSetForTargets). Before the fix, deleting
+// ".github/CODEOWNERS" while root "CODEOWNERS" stayed unchanged left NEITHER
+// file in that narrowed set: the deleted file is gone from disk, and the
+// unchanged root file was never a changed target. That produced zero
+// CODEOWNERS candidates, so no fallback facts were emitted and the winner
+// silently disappeared instead of falling back to root. The fix re-reads all
+// three known candidate locations directly from repoPath whenever the delta
+// touches any one of them, so root is discovered as the new winner.
+func TestNativeRepositorySnapshotterDeltaDeleteGithubCandidateReResolvesRootWinner(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	writeCollectorTestFile(t, filepath.Join(repoRoot, ".git", "HEAD"), "ref: refs/heads/main\n")
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "main.go"), "package main\n")
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "CODEOWNERS"), "*.go @root-owner\n")
+	// ".github/CODEOWNERS" is deliberately absent: this reproduces the
+	// post-delta disk state right after the delete landed.
+
+	resolvedRepoRoot, err := filepath.EvalSymlinks(repoRoot)
+	if err != nil {
+		resolvedRepoRoot = repoRoot
+	}
+	snapshotter := NativeRepositorySnapshotter{}
+
+	snapshot, err := snapshotter.SnapshotRepository(context.Background(), SelectedRepository{
+		RepoPath: resolvedRepoRoot,
+		Delta:    true,
+		// "main.go" is an unrelated changed file: it forces the delta path
+		// (resolveNativeSnapshotFileSetForTargets narrows fileSet.Files to
+		// just this target), reproducing the real failure mode where the
+		// narrowed file set hides an unrelated, unchanged CODEOWNERS
+		// candidate.
+		FileTargets:          []string{filepath.Join(resolvedRepoRoot, "main.go")},
+		DeletedRelativePaths: []string{".github/CODEOWNERS"},
+	})
+	if err != nil {
+		t.Fatalf("SnapshotRepository() error = %v", err)
+	}
+
+	var rootMetaFound bool
+	for _, meta := range snapshot.ContentFileMetas {
+		if meta.RelativePath == ".github/CODEOWNERS" {
+			t.Fatalf("ContentFileMetas unexpectedly contains deleted .github/CODEOWNERS: %#v", snapshot.ContentFileMetas)
+		}
+		if meta.RelativePath == "CODEOWNERS" {
+			rootMetaFound = true
+		}
+	}
+	if !rootMetaFound {
+		t.Fatalf("ContentFileMetas missing root CODEOWNERS fallback; got=%#v", snapshot.ContentFileMetas)
+	}
+
+	repo := testCollectorRepositoryMetadata(resolvedRepoRoot)
+	collected := buildStreamingGeneration(resolvedRepoRoot, repo, "run-delta", time.Now().UTC(), snapshot, false, "")
+	envelopes := drainFactChannel(collected.Facts)
+
+	ownershipFacts := factsByKind(envelopes, facts.CodeownersOwnershipFactKind)
+	if len(ownershipFacts) != 1 {
+		t.Fatalf("codeowners.ownership fact count = %d, want 1 (root fallback); facts=%#v", len(ownershipFacts), ownershipFacts)
+	}
+	if got, want := ownershipFacts[0].Payload["source_path"], "CODEOWNERS"; got != want {
+		t.Fatalf("Payload[source_path] = %#v, want %#v", got, want)
+	}
+	owners, _ := ownershipFacts[0].Payload["owners"].([]any)
+	if len(owners) != 1 || owners[0] != "@root-owner" {
+		t.Fatalf("Payload[owners] = %#v, want [@root-owner]", ownershipFacts[0].Payload["owners"])
+	}
+}
+
+// TestNativeRepositorySnapshotterDeltaAddGithubCandidateWinsOverRoot is the
+// companion collector-side proof for issue #5419 Bug 2's other transition: a
+// repository already had a root "CODEOWNERS" file (previously the winner),
+// and a delta adds ".github/CODEOWNERS". Since ".github/CODEOWNERS" is itself
+// the delta's changed target, the collector already discovered it as a
+// candidate before this fix; this test locks in that the whole-repo re-read
+// this fix adds does not regress precedence — ".github" still wins and root's
+// rules are NOT also emitted (the reducer-side whole-repo retract, proven
+// separately, is what keeps root's stale edges from unioning with the new
+// ".github" edges in the graph).
+func TestNativeRepositorySnapshotterDeltaAddGithubCandidateWinsOverRoot(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	writeCollectorTestFile(t, filepath.Join(repoRoot, ".git", "HEAD"), "ref: refs/heads/main\n")
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "CODEOWNERS"), "*.go @root-owner\n")
+	writeCollectorTestFile(t, filepath.Join(repoRoot, ".github", "CODEOWNERS"), "*.go @github-owner\n")
+
+	resolvedRepoRoot, err := filepath.EvalSymlinks(repoRoot)
+	if err != nil {
+		resolvedRepoRoot = repoRoot
+	}
+	snapshotter := NativeRepositorySnapshotter{}
+
+	snapshot, err := snapshotter.SnapshotRepository(context.Background(), SelectedRepository{
+		RepoPath: resolvedRepoRoot,
+		Delta:    true,
+		FileTargets: []string{
+			filepath.Join(resolvedRepoRoot, ".github", "CODEOWNERS"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("SnapshotRepository() error = %v", err)
+	}
+
+	repo := testCollectorRepositoryMetadata(resolvedRepoRoot)
+	collected := buildStreamingGeneration(resolvedRepoRoot, repo, "run-delta", time.Now().UTC(), snapshot, false, "")
+	envelopes := drainFactChannel(collected.Facts)
+
+	ownershipFacts := factsByKind(envelopes, facts.CodeownersOwnershipFactKind)
+	if len(ownershipFacts) != 1 {
+		t.Fatalf("codeowners.ownership fact count = %d, want 1 (.github only, no union); facts=%#v", len(ownershipFacts), ownershipFacts)
+	}
+	if got, want := ownershipFacts[0].Payload["source_path"], ".github/CODEOWNERS"; got != want {
+		t.Fatalf("Payload[source_path] = %#v, want %#v", got, want)
+	}
+	owners, _ := ownershipFacts[0].Payload["owners"].([]any)
+	if len(owners) != 1 || owners[0] != "@github-owner" {
+		t.Fatalf("Payload[owners] = %#v, want [@github-owner]", ownershipFacts[0].Payload["owners"])
+	}
+}
