@@ -72,12 +72,13 @@ type TargetConfig struct {
 // RunSnapshot carries raw provider-shaped fields consumed by the shared
 // cicdrun normalizer.
 type RunSnapshot struct {
-	Workflow    map[string]any
-	Run         map[string]any
-	Jobs        []map[string]any
-	JobsPartial bool
-	Artifacts   []map[string]any
-	Warnings    []map[string]any
+	Workflow         map[string]any
+	Run              map[string]any
+	Jobs             []map[string]any
+	JobsPartial      bool
+	Artifacts        []map[string]any
+	ArtifactsPartial bool
+	Warnings         []map[string]any
 }
 
 // RunPage carries the bounded window of runs one claim fetched (newest first,
@@ -222,12 +223,13 @@ func (s ClaimedSource) buildRunEnvelopes(
 	envelopes := make([]facts.Envelope, 0, len(snapshots))
 	for _, snapshot := range snapshots {
 		raw, err := json.Marshal(map[string]any{
-			"workflow":     snapshot.Workflow,
-			"run":          snapshot.Run,
-			"jobs":         snapshot.Jobs,
-			"jobs_partial": snapshot.JobsPartial,
-			"artifacts":    sanitizeArtifacts(snapshot.Artifacts),
-			"warnings":     snapshot.Warnings,
+			"workflow":          snapshot.Workflow,
+			"run":               snapshot.Run,
+			"jobs":              snapshot.Jobs,
+			"jobs_partial":      snapshot.JobsPartial,
+			"artifacts":         sanitizeArtifacts(snapshot.Artifacts),
+			"artifacts_partial": snapshot.ArtifactsPartial,
+			"warnings":          snapshot.Warnings,
 		})
 		if err != nil {
 			recordSpanError(observeSpan, err)

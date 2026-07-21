@@ -69,6 +69,14 @@ labels.
   emits a `ci.warning` fact with `reason: "runs_truncated"` on the newest run
   in the window and records
   `eshu_dp_ci_cd_run_partial_generations_total{reason="runs_truncated"}`.
+  Per-run jobs and artifact-list pages carry the same signal at the run level:
+  a jobs page whose `total_count` exceeds the fetched jobs emits a `ci.warning`
+  fact with `reason: "partial_jobs_payload"` and records
+  `eshu_dp_ci_cd_run_partial_generations_total{reason="jobs_truncated"}`; an
+  artifact-list page whose `total_count` exceeds the fetched artifacts emits a
+  `ci.warning` fact with `reason: "partial_artifacts_payload"` and records
+  `eshu_dp_ci_cd_run_partial_generations_total{reason="artifacts_truncated"}`
+  (#5389).
 - Consumers of `ci.run`/`ci.artifact`/etc. facts must key by `run_id` (and
   `run_attempt`), never assume "the only run fact in a generation is the
   latest run": GitHub returns runs newest-first, but nothing downstream of
