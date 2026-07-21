@@ -66,18 +66,20 @@ type iacResourceRow struct {
 
 // iacResourceFilter holds the normalized, bounded query for one list call.
 type iacResourceFilter struct {
-	Kind      iacResourceKind
-	Type      string
-	Provider  string
-	Module    string
-	AfterName string
-	AfterID   string
-	Limit     int
+	Kind         iacResourceKind
+	Type         string
+	Provider     string
+	Module       string
+	Repository   string
+	AfterName    string
+	AfterID      string
+	CandidateIDs []string
+	Limit        int
 }
 
 // listResources serves the bounded Terraform/IaC resource browse read.
 //
-// GET /api/v0/iac/resources?kind=&type=&provider=&module=&limit=&after_name=&after_id=
+// GET /api/v0/iac/resources?kind=&q=&type=&provider=&module=&repository=&include_facets=&limit=&after_name=&after_id=
 func (h *IaCHandler) listResources(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	r, span := startQueryHandlerSpan(r, telemetry.SpanQueryIaCResources, "GET /api/v0/iac/resources", iacResourcesCapability)
@@ -112,13 +114,13 @@ func (h *IaCHandler) listResources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h == nil || h.Graph == nil {
+	if h == nil || h.Graph == nil || h.Inventory == nil {
 		metrics.recordError(r.Context(), string(kind), "backend_unavailable")
 		WriteContractError(
 			w,
 			r,
 			http.StatusServiceUnavailable,
-			"IaC resource inventory requires the authoritative graph",
+			"IaC resource inventory requires the authoritative graph and current-generation store",
 			ErrorCodeBackendUnavailable,
 			iacResourcesCapability,
 			h.profile(),
@@ -138,23 +140,43 @@ func (h *IaCHandler) listResources(w http.ResponseWriter, r *http.Request) {
 	}
 
 	filter := iacResourceFilter{
-		Kind:      kind,
-		Type:      QueryParam(r, "type"),
-		Provider:  QueryParam(r, "provider"),
-		Module:    QueryParam(r, "module"),
-		AfterName: QueryParam(r, "after_name"),
-		AfterID:   QueryParam(r, "after_id"),
+		Kind:       kind,
+		Type:       QueryParam(r, "type"),
+		Provider:   QueryParam(r, "provider"),
+		Module:     QueryParam(r, "module"),
+		Repository: QueryParam(r, "repository"),
+		AfterName:  QueryParam(r, "after_name"),
+		AfterID:    QueryParam(r, "after_id"),
 		// limit+1 truncation: fetch one extra row to detect more pages without
 		// a second count round trip.
 		Limit: limit + 1,
 	}
-
-	cypher, params := buildIaCResourceQuery(filter, access)
-	rows, err := h.Graph.Run(r.Context(), cypher, params)
+	query := QueryParam(r, "q")
+	candidates, err := searchActiveIaCInventory(r.Context(), h.Inventory, kind, query, filter, access)
 	if err != nil {
-		metrics.recordError(r.Context(), string(kind), "graph_error")
+		metrics.recordError(r.Context(), string(kind), "inventory_search_error")
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	filter.CandidateIDs = make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		filter.CandidateIDs = append(filter.CandidateIDs, candidate.ID)
+	}
+
+	var rows []map[string]any
+	if len(candidates) > 0 {
+		cypher, params := buildIaCResourceQuery(filter)
+		rows, err = h.Graph.Run(r.Context(), cypher, params)
+		if err != nil {
+			metrics.recordError(r.Context(), string(kind), "graph_error")
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if !iacSearchHydrationMatches(candidates, rows) {
+			metrics.recordError(r.Context(), string(kind), "inventory_graph_mismatch")
+			WriteError(w, http.StatusInternalServerError, "current inventory and graph projection disagree")
+			return
+		}
 	}
 
 	truncated := len(rows) > limit
@@ -173,6 +195,15 @@ func (h *IaCHandler) listResources(w http.ResponseWriter, r *http.Request) {
 		"limit":     limit,
 		"truncated": truncated,
 	}
+	if QueryParam(r, "include_facets") == "true" {
+		summary, err := h.Inventory.Summary(r.Context(), access, iacInventoryFacetLimit)
+		if err != nil {
+			metrics.recordError(r.Context(), string(kind), "inventory_summary_error")
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		body["summary"] = summary
+	}
 	if truncated && len(results) > 0 {
 		last := results[len(results)-1]
 		body["next_cursor"] = map[string]string{
@@ -185,9 +216,39 @@ func (h *IaCHandler) listResources(w http.ResponseWriter, r *http.Request) {
 	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
 		iacResourcesCapability,
-		TruthBasisAuthoritativeGraph,
-		"resolved from the authoritative Terraform/IaC graph projection; bounded list ordered by name then id",
+		TruthBasisHybrid,
+		"current active-generation identities resolved from Postgres and hydrated from the authoritative Terraform/IaC graph; bounded list ordered by name then id",
 	))
+}
+
+func iacSearchHydrationMatches(candidates []iacInventoryCandidate, rows []map[string]any) bool {
+	if len(candidates) != len(rows) {
+		return false
+	}
+	type expectedHydration struct {
+		name         string
+		generationID string
+	}
+	want := make(map[string]expectedHydration, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.ID == "" || candidate.Name == "" || candidate.GenerationID == "" {
+			return false
+		}
+		want[candidate.ID] = expectedHydration{name: candidate.Name, generationID: candidate.GenerationID}
+	}
+	if len(want) != len(candidates) {
+		return false
+	}
+	for _, row := range rows {
+		id := StringVal(row, "id")
+		expected, ok := want[id]
+		if !ok || expected.name != StringVal(row, "name") ||
+			expected.generationID != StringVal(row, "generation_id") {
+			return false
+		}
+		delete(want, id)
+	}
+	return len(want) == 0
 }
 
 // parseIaCResourceKind maps the optional kind selector to a closed enum,
@@ -222,74 +283,22 @@ func requiredIaCResourceLimit(w http.ResponseWriter, r *http.Request) (int, bool
 	return limit, true
 }
 
-// buildIaCResourceQuery renders the bounded list query. The label is one of the
-// closed iacResourceKindLabels values; every filter and cursor value flows
-// through bound parameters. The query anchors on the single label, applies
-// indexed equality on resource_type/data_type and provider where present, and
-// keyset-paginates on (name, id) so ORDER BY is deterministic and the cursor is
-// stable across pages.
-func buildIaCResourceQuery(filter iacResourceFilter, access repositoryAccessFilter) (string, map[string]any) {
+// buildIaCResourceQuery hydrates the exact current identities already selected,
+// filtered, authorized, and keyset-paginated by Postgres. The closed graph label
+// and measured uid-only predicate preserve NornicDB's property-index seek. The
+// legacy n.id-plus-generation shape was not index-backed on the retained
+// backend; current generation remains an application-level exactness check so
+// no unmeasured graph predicate is added to the selected query. The hydration
+// is checked against candidate identity, name, and generation before any row is
+// returned.
+func buildIaCResourceQuery(filter iacResourceFilter) (string, map[string]any) {
 	label := iacResourceKindLabels[filter.Kind]
-	params := map[string]any{"limit": filter.Limit}
-
-	clauses := make([]string, 0, 5)
-	if filter.Type != "" {
-		if filter.Kind == iacResourceKindDataSource {
-			clauses = append(clauses, "n.data_type = $type")
-		} else {
-			clauses = append(clauses, "n.resource_type = $type")
-		}
-		params["type"] = filter.Type
-	}
-	if filter.Provider != "" {
-		clauses = append(clauses, "n.provider = $provider")
-		params["provider"] = filter.Provider
-	}
-	if filter.Module != "" {
-		if filter.Kind == iacResourceKindModule {
-			// Module nodes carry the module name directly.
-			clauses = append(clauses, "n.name = $module")
-			params["module"] = filter.Module
-		} else {
-			// Resource/data-source nodes embed the module path as a prefix on
-			// n.name. Terraform writes bare `module.<name>.`, quoted
-			// `module."<name>".`, and for_each/count indexed forms. Match those
-			// prefixes through parameters so quoted module names are not silently
-			// invisible.
-			clauses = append(clauses, "("+
-				"n.name STARTS WITH $module_prefix_dot OR "+
-				"n.name STARTS WITH $module_prefix_idx OR "+
-				"n.name STARTS WITH $module_prefix_quoted_dot OR "+
-				"n.name STARTS WITH $module_prefix_quoted_idx)")
-			params["module_prefix_dot"] = "module." + filter.Module + "."
-			params["module_prefix_idx"] = "module." + filter.Module + "["
-			params["module_prefix_quoted_dot"] = `module."` + filter.Module + `".`
-			params["module_prefix_quoted_idx"] = `module."` + filter.Module + `"[`
-		}
-	}
-	// Keyset cursor: rows strictly after (after_name, after_id) in (name, id)
-	// order. The compound predicate keeps the page boundary exact when many
-	// rows share a name.
-	if filter.AfterName != "" || filter.AfterID != "" {
-		clauses = append(clauses, "(n.name > $after_name OR (n.name = $after_name AND n.id > $after_id))")
-		params["after_name"] = filter.AfterName
-		params["after_id"] = filter.AfterID
+	params := map[string]any{
+		"candidate_ids": append([]string(nil), filter.CandidateIDs...),
+		"limit":         filter.Limit,
 	}
 
-	// Scoped tokens bound the list to nodes whose durable repo_id is in the
-	// granted repository / ingestion-scope set. The clause and its parameters
-	// render only in scoped mode, so the unscoped query is byte-identical.
-	if clause := iacResourceScopeClause(access); clause != "" {
-		clauses = append(clauses, clause)
-		iacResourceScopeParams(access, params)
-	}
-
-	where := ""
-	if len(clauses) > 0 {
-		where = " WHERE " + strings.Join(clauses, " AND ")
-	}
-
-	cypher := "MATCH (n:" + label + ")" + where +
+	cypher := "MATCH (n:" + label + ") WHERE n.uid IN $candidate_ids" +
 		" RETURN coalesce(n.id, '') AS id," +
 		" coalesce(n.name, '') AS name," +
 		" coalesce(n.resource_name, '') AS resource_name," +
@@ -299,7 +308,8 @@ func buildIaCResourceQuery(filter iacResourceFilter, access repositoryAccessFilt
 		" coalesce(n.resource_category, '') AS resource_category," +
 		" coalesce(n.repo_id, '') AS repo_id," +
 		" coalesce(n.relative_path, '') AS relative_path," +
-		" coalesce(n.line_number, 0) AS line_number" +
+		" coalesce(n.line_number, 0) AS line_number," +
+		" coalesce(n.generation_id, '') AS generation_id" +
 		" ORDER BY n.name, n.id" +
 		" LIMIT $limit"
 	return cypher, params

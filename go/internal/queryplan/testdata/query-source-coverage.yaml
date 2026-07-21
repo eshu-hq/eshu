@@ -138,7 +138,14 @@ source_coverage:
       - {symbol: "(*GraphEntityInventoryHandler).listEntities", count: 2, source_sha256: a55aef265d6c25d1b558062a3b66ed1421777374ddfcd92c3721bb4959bb9a00, entry_ids: [QP-GRAPH-ENTITY-COUNT, QP-GRAPH-ENTITY-LIST]}
   - file: iac_resources.go
     calls:
-      - {symbol: "(*IaCHandler).listResources", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "(*IaCHandler).listResources"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: b8e7faeebfaac56c8331e13f55a36337d7ed2f599dc30fbe92e97e611341c5dc
+          key_bound: bounded_key_batch
+          max_keys: 201
+          max_results: 201
   - file: images.go
     calls:
       - {symbol: "(*ImageHandler).listImages", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}

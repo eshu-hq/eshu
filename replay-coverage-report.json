@@ -1863,9 +1863,9 @@
       "scenario_type": "baseline",
       "status": "covered",
       "scenario": "api_mcp_golden",
-      "ref": "GET /api/v0/iac/resources?limit=50",
+      "ref": "GET /api/v0/iac/resources?limit=50\u0026include_facets=true",
       "proof_gate": "golden-corpus-gate",
-      "detail": "snapshot HTTP query shape \"GET /api/v0/iac/resources?limit=50\""
+      "detail": "snapshot HTTP query shape \"GET /api/v0/iac/resources?limit=50\u0026include_facets=true\""
     },
     {
       "registry": "fact_kind_registry",

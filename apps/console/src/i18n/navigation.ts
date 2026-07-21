@@ -103,7 +103,10 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         to: "/iac",
         messageId: "app.nav.item.iac",
         icon: Network,
-        count: (m) => nonZero(m.iacResources?.length ?? 0),
+        // The bootstrap model contains one bounded page, not an inventory
+        // aggregate. Label it explicitly so the navigation never presents a
+        // page limit as the authoritative IaC total.
+        count: (m) => (m.iacResources.length > 0 ? `${m.iacResources.length} page-only` : null),
       },
       { to: "/replatforming", messageId: "app.nav.item.replatforming", icon: Network },
       {

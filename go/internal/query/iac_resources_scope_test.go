@@ -15,6 +15,7 @@ import (
 func iacResourceRepoNode(id, name, resourceType, provider, repoID string) map[string]any {
 	node := iacResourceNode(id, name, resourceType, provider)
 	node["repo_id"] = repoID
+	node["generation_id"] = "generation-active"
 	return node
 }
 
@@ -103,13 +104,13 @@ func TestScopedIaCResourceListEmptyGrantSkipsGraphRead(t *testing.T) {
 	graph := &stubIaCResourceGraph{rows: []map[string]any{
 		iacResourceRepoNode("a1", "aws_s3_bucket.logs", "aws_s3_bucket", "aws", "repo-team-a"),
 	}}
-	handler := &IaCHandler{Graph: graph}
+	handler := newIaCResourceTestHandler(graph)
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
 	// Scoped token with no granted repository or ingestion scope: must return a
 	// bounded empty page without reading the graph.
-	req := scopedIaCResourceRequest(t, "/api/v0/iac/resources?limit=10", AuthContext{
+	req := scopedIaCResourceRequest(t, "/api/v0/iac/resources?limit=10&include_facets=true", AuthContext{
 		Mode:        AuthModeScoped,
 		TenantID:    "tenant-a",
 		WorkspaceID: "workspace-a",
@@ -133,6 +134,9 @@ func TestScopedIaCResourceListEmptyGrantSkipsGraphRead(t *testing.T) {
 	if body.Limit != 10 {
 		t.Fatalf("limit = %d, want 10", body.Limit)
 	}
+	if !strings.Contains(w.Body.String(), `"summary":{"total":0`) {
+		t.Fatalf("empty-grant response missing authoritative zero summary: %s", w.Body.String())
+	}
 }
 
 func TestScopedIaCResourceListBindsRepoPredicateAndParams(t *testing.T) {
@@ -141,7 +145,7 @@ func TestScopedIaCResourceListBindsRepoPredicateAndParams(t *testing.T) {
 	graph := &stubIaCResourceGraph{rows: []map[string]any{
 		iacResourceRepoNode("a1", "aws_s3_bucket.logs", "aws_s3_bucket", "aws", "repo-team-a"),
 	}}
-	handler := &IaCHandler{Graph: graph}
+	handler := newIaCResourceTestHandler(graph)
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -161,24 +165,15 @@ func TestScopedIaCResourceListBindsRepoPredicateAndParams(t *testing.T) {
 	if graph.calls != 1 {
 		t.Fatalf("graph.calls = %d, want 1", graph.calls)
 	}
-	// The repo-anchored predicate must render in scoped mode.
-	if !strings.Contains(graph.lastCypher, "n.repo_id IN $allowed_repository_ids") ||
-		!strings.Contains(graph.lastCypher, "n.repo_id IN $allowed_scope_ids") {
-		t.Fatalf("cypher missing scoped repo predicate: %s", graph.lastCypher)
+	inventory := handler.Inventory.(*stubIaCInventoryStore)
+	if got := inventory.lastAccess.grantedRepositoryIDs(); len(got) != 1 || got[0] != "repo-team-a" {
+		t.Fatalf("inventory repository grants = %#v, want [repo-team-a]", got)
 	}
-	// The predicate must sit in the WHERE chain, before ORDER BY / LIMIT.
-	whereIdx := strings.Index(graph.lastCypher, "n.repo_id IN $allowed_repository_ids")
-	orderIdx := strings.Index(graph.lastCypher, "ORDER BY")
-	if whereIdx < 0 || orderIdx < 0 || whereIdx > orderIdx {
-		t.Fatalf("scope predicate must precede ORDER BY: %s", graph.lastCypher)
+	if got := inventory.lastAccess.grantedScopeIDs(); len(got) != 1 || got[0] != "scope-a" {
+		t.Fatalf("inventory scope grants = %#v, want [scope-a]", got)
 	}
-	repos, ok := graph.lastParams["allowed_repository_ids"].([]string)
-	if !ok || len(repos) != 1 || repos[0] != "repo-team-a" {
-		t.Fatalf("allowed_repository_ids param = %#v, want [repo-team-a]", graph.lastParams["allowed_repository_ids"])
-	}
-	scopes, ok := graph.lastParams["allowed_scope_ids"].([]string)
-	if !ok || len(scopes) != 1 || scopes[0] != "scope-a" {
-		t.Fatalf("allowed_scope_ids param = %#v, want [scope-a]", graph.lastParams["allowed_scope_ids"])
+	if strings.Contains(graph.lastCypher, "allowed_repository_ids") || strings.Contains(graph.lastCypher, "allowed_scope_ids") {
+		t.Fatalf("graph hydration must be bounded only by already-authorized candidate ids: %s", graph.lastCypher)
 	}
 }
 
@@ -188,7 +183,7 @@ func TestScopedIaCResourceListUnscopedQueryUnchanged(t *testing.T) {
 	graph := &stubIaCResourceGraph{rows: []map[string]any{
 		iacResourceRepoNode("a1", "aws_s3_bucket.logs", "aws_s3_bucket", "aws", "repo-team-a"),
 	}}
-	handler := &IaCHandler{Graph: graph}
+	handler := newIaCResourceTestHandler(graph)
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

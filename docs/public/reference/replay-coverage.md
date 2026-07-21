@@ -219,7 +219,7 @@ None. Every supported surface has a replay scenario.
 | `read_surface:GET /api/v0/cloud/inventory` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/cloud/inventory` |
 | `read_surface:GET /api/v0/cloud/resources` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/cloud/resources` |
 | `read_surface:GET /api/v0/documentation/facts` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/documentation/facts?fact_kind=source` |
-| `read_surface:GET /api/v0/iac/resources` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/iac/resources?limit=50` |
+| `read_surface:GET /api/v0/iac/resources` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/iac/resources?limit=50&include_facets=true` |
 | `read_surface:GET /api/v0/images` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/images` |
 | `read_surface:GET /api/v0/incidents/{incident_id}/context` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/incidents/PSCD1/context` |
 | `read_surface:GET /api/v0/kubernetes/correlations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/kubernetes/correlations?cluster_id=supply-chain-demo&limit=50` |

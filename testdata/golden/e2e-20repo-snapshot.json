@@ -4826,13 +4826,24 @@
         ],
         "minimum_results": 0
       },
-      "GET /api/v0/iac/resources?limit=50": {
-        "description": "IaC resource list from the terraform/IaC corpus; confirms the IaC read surface is queryable.",
+      "GET /api/v0/iac/resources?limit=50&include_facets=true": {
+        "description": "Current active-generation IaC resource list and authoritative caller-visible summary from the terraform/IaC corpus.",
         "required_response_fields": [
           "resources",
-          "count"
+          "count",
+          "summary"
         ],
-        "minimum_results": 0
+        "minimum_results": 1,
+        "required_json_paths": [
+          "resources[].id",
+          "summary.total",
+          "summary.by_kind.resource"
+        ],
+        "required_json_values": {
+          "count": 10,
+          "summary.total": 18,
+          "summary.by_kind.resource": 10
+        }
       },
       "GET /api/v0/documentation/facts?fact_kind=source": {
         "description": "Documentation source facts; confirms the documentation read surface is queryable.",

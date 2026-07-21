@@ -4,6 +4,7 @@
 // fields together and must not use offsets.
 
 import type { EshuApiClient } from "./client";
+import type { EshuApiRequestOptions } from "./client";
 import type { EshuTruth, FreshnessState, TruthLevel } from "./envelope";
 import { EshuEnvelopeError } from "./envelope";
 import type { IacResourceRow } from "./eshuConsoleLive";
@@ -21,10 +22,32 @@ export interface IacResourceCursor {
 export interface IacResourceQuery {
   readonly limit: number;
   readonly kind?: IacResourceKind;
+  readonly query?: string;
   readonly type?: string;
   readonly provider?: string;
   readonly module?: string;
+  readonly repository?: string;
+  readonly includeFacets?: boolean;
   readonly cursor?: IacResourceCursor | null;
+}
+
+/** One authoritative bounded selector value. */
+export interface IacInventoryFacet {
+  readonly kind?: IacResourceKind;
+  readonly value: string;
+  readonly count: number;
+}
+
+/** Current caller-authorized inventory totals and selector facets. */
+export interface IacInventorySummary {
+  readonly total: number;
+  readonly byKind: Readonly<Record<IacResourceKind, number>>;
+  readonly types: readonly IacInventoryFacet[];
+  readonly providers: readonly IacInventoryFacet[];
+  readonly modules: readonly IacInventoryFacet[];
+  readonly repositories: readonly IacInventoryFacet[];
+  readonly facetLimit: number;
+  readonly truncated: Readonly<Record<string, boolean>>;
 }
 
 /** Normalized truth metadata rendered by the IaC inventory page. */
@@ -42,7 +65,8 @@ export interface IacResourcePage {
   readonly limit: number;
   readonly truncated: boolean;
   readonly nextCursor: IacResourceCursor | null;
-  readonly truth: IacResourcePageTruth;
+  readonly summary: IacInventorySummary | null;
+  readonly truth: IacResourcePageTruth | null;
 }
 
 interface IacResourceRecord {
@@ -66,7 +90,31 @@ interface IacResourcesResponse {
   readonly limit?: number;
   readonly next_cursor?: { readonly after_name?: string; readonly after_id?: string };
   readonly resources?: readonly IacResourceRecord[];
+  readonly summary?: IacInventorySummaryRecord;
   readonly truncated?: boolean;
+}
+
+interface IacInventoryFacetRecord {
+  readonly kind?: string;
+  readonly value?: string;
+  readonly count?: number;
+}
+
+interface ValidIacInventoryFacetRecord {
+  readonly kind?: IacResourceKind;
+  readonly value: string;
+  readonly count: number;
+}
+
+interface IacInventorySummaryRecord {
+  readonly total?: number;
+  readonly by_kind?: Readonly<Record<string, number>>;
+  readonly types?: readonly IacInventoryFacetRecord[];
+  readonly providers?: readonly IacInventoryFacetRecord[];
+  readonly modules?: readonly IacInventoryFacetRecord[];
+  readonly repositories?: readonly IacInventoryFacetRecord[];
+  readonly facet_limit?: number;
+  readonly truncated?: Readonly<Record<string, boolean>>;
 }
 
 /**
@@ -77,6 +125,9 @@ export function iacResourcesPath(query: IacResourceQuery): string {
   const params = new URLSearchParams();
   params.set("limit", String(query.limit));
   if (query.kind) params.set("kind", query.kind);
+  if (query.query) params.set("q", query.query);
+  if (query.repository) params.set("repository", query.repository);
+  if (query.includeFacets) params.set("include_facets", "true");
   if (query.type) params.set("type", query.type);
   if (query.provider) params.set("provider", query.provider);
   if (query.module) params.set("module", query.module);
@@ -89,7 +140,7 @@ export function iacResourcesPath(query: IacResourceQuery): string {
 
 /** Maps a raw IaC resources payload into id-bearing console rows. */
 export function iacResourceRowsFromResponse(
-  data: { readonly resources?: readonly IacResourceRecord[] } | null | undefined
+  data: { readonly resources?: readonly IacResourceRecord[] } | null | undefined,
 ): IacResourceRow[] {
   return (data?.resources ?? []).map(iacResourceRowFromRecord).filter((row) => row.id !== "");
 }
@@ -100,9 +151,13 @@ export function iacResourceRowsFromResponse(
  */
 export async function loadIacResourcesPage(
   client: EshuApiClient,
-  query: IacResourceQuery
+  query: IacResourceQuery,
+  options: EshuApiRequestOptions = {},
 ): Promise<IacResourcePage> {
-  const env = await client.get<IacResourcesResponse>(iacResourcesPath(query));
+  const path = iacResourcesPath(query);
+  const env = options.signal
+    ? await client.get<IacResourcesResponse>(path, options)
+    : await client.get<IacResourcesResponse>(path);
   if (env.error) throw new EshuEnvelopeError(env.error);
   const data = env.data ?? {};
   const next = data.next_cursor;
@@ -111,12 +166,73 @@ export async function loadIacResourcesPage(
     count: typeof data.count === "number" ? data.count : 0,
     kind: iacResourceKind(data.kind ?? query.kind),
     limit: typeof data.limit === "number" ? data.limit : query.limit,
-    nextCursor: data.truncated === true && next?.after_name && next.after_id
-      ? { afterName: next.after_name, afterId: next.after_id }
-      : null,
+    nextCursor:
+      data.truncated === true && next?.after_name && next.after_id
+        ? { afterName: next.after_name, afterId: next.after_id }
+        : null,
+    summary: iacInventorySummary(data.summary),
     truncated: data.truncated === true,
-    truth: iacPageTruth(env.truth)
+    truth: iacPageTruth(env.truth),
   };
+}
+
+function iacInventorySummary(
+  record: IacInventorySummaryRecord | undefined,
+): IacInventorySummary | null {
+  if (
+    !record ||
+    !isInventoryCount(record.total) ||
+    !isInventoryCount(record.facet_limit) ||
+    !record.by_kind ||
+    !isInventoryCount(record.by_kind.resource) ||
+    !isInventoryCount(record.by_kind.module) ||
+    !isInventoryCount(record.by_kind["data-source"]) ||
+    !record.truncated ||
+    !validIacInventoryFacets(record.types) ||
+    !validIacInventoryFacets(record.providers) ||
+    !validIacInventoryFacets(record.modules) ||
+    !validIacInventoryFacets(record.repositories)
+  ) {
+    return null;
+  }
+  return {
+    total: record.total,
+    byKind: {
+      "data-source": record.by_kind["data-source"],
+      module: record.by_kind.module,
+      resource: record.by_kind.resource,
+    },
+    types: iacInventoryFacets(record.types),
+    providers: iacInventoryFacets(record.providers),
+    modules: iacInventoryFacets(record.modules),
+    repositories: iacInventoryFacets(record.repositories),
+    facetLimit: record.facet_limit,
+    truncated: record.truncated,
+  };
+}
+
+function validIacInventoryFacets(
+  records: unknown,
+): records is readonly ValidIacInventoryFacetRecord[] {
+  return Array.isArray(records) && records.every(validIacInventoryFacet);
+}
+
+function validIacInventoryFacet(value: unknown): value is ValidIacInventoryFacetRecord {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  const kind = record.kind;
+  return (
+    typeof record.value === "string" &&
+    record.value !== "" &&
+    isInventoryCount(record.count) &&
+    (kind === undefined || kind === "resource" || kind === "module" || kind === "data-source")
+  );
+}
+
+function iacInventoryFacets(records: readonly ValidIacInventoryFacetRecord[]): IacInventoryFacet[] {
+  return records.map((record) => {
+    return { count: record.count, kind: record.kind, value: record.value };
+  });
 }
 
 function iacResourceRowFromRecord(record: IacResourceRecord): IacResourceRow {
@@ -132,15 +248,16 @@ function iacResourceRowFromRecord(record: IacResourceRecord): IacResourceRow {
     repoId: str(record.repo_id),
     resourceName: str(record.resource_name),
     service: str(record.resource_service),
-    type: str(record.type)
+    type: str(record.type),
   };
 }
 
-function iacPageTruth(truth: EshuTruth | null): IacResourcePageTruth {
+function iacPageTruth(truth: EshuTruth | null): IacResourcePageTruth | null {
+  if (!truth) return null;
   return {
-    freshness: truth?.freshness.state ?? "fresh",
-    level: truth?.level ?? "exact",
-    profile: truth?.profile ?? "unknown"
+    freshness: truth.freshness.state,
+    level: truth.level,
+    profile: truth.profile,
   };
 }
 
@@ -155,4 +272,8 @@ function str(value: string | undefined): string {
 
 function numberOrNull(value: number | undefined): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function isInventoryCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
 }

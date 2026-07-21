@@ -86,13 +86,10 @@ func scopedInfraRelationshipsRoute(r *http.Request) bool {
 }
 
 // scopedIaCResourceListRoute reports whether the request targets the
-// graph-backed IaC resource browse read. The handler scans one canonical
-// Terraform/IaC label (TerraformResource, TerraformModule, TerraformDataSource),
-// each of whose nodes carries a durable `repo_id` property; scoped tokens bind a
-// repository-anchored predicate (see iacResourceScopeClause) so the listed rows,
-// count, limit+1 truncation, and keyset cursor are computed over only the
-// resources attributable to granted repositories, and an empty-grant scoped
-// token returns a bounded empty page without a graph read.
+// hybrid IaC resource browse read. Postgres applies repository and scope grants
+// before search, counts, facets, keyset pagination, or graph hydration. The
+// graph receives only already-authorized current candidate uids, and an
+// empty-grant scoped token returns a bounded empty page without either backend.
 func scopedIaCResourceListRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/iac/resources"
 }
