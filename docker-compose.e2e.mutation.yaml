@@ -1,0 +1,44 @@
+# Mutation override for the MCP-identity E2E sensitivity gate (F-9, issue
+# #5170, design §5 "Sensitivity (mutation) proof"). Applied ON TOP of
+# docker-compose.e2e.yaml (docker compose -f docker-compose.e2e.yaml -f
+# docker-compose.e2e.mutation.yaml) to recreate ONLY the mcp-server with the
+# credential-source gate deliberately DISABLED, so the negative credential-less
+# leakage module — which passes (every probe 401s) against the real gate — now
+# FAILS (probes 200). scripts/verify-auth-mcp-e2e-sensitivity.sh asserts that
+# inverted exit, proving the negative module is live (it would catch a real
+# regression), not vacuously green.
+#
+# Why THREE knobs, not one — authEnforcementConfigured
+# (go/cmd/mcp-server/auth_enforcement.go) is `apiKey != "" || fileResolver !=
+# nil || oidcResolver != nil`, and ALL THREE credential sources must be zeroed
+# for query.authMiddleware's dev-mode-open branch to serve headerless reads
+# OPEN (the defect this gate simulates):
+#   - ESHU_AUTH_RESOURCE_URI unset removes the OIDC-bearer resolver.
+#   - ESHU_HOME repointed to an EMPTY dir removes the persisted shared API key:
+#     runtime.ResolveAPIKey reads ${ESHU_HOME}/.eshu/.env, and the shared
+#     eshu_e2e_data volume already holds an auto-generated ESHU_API_KEY written
+#     there by the `eshu` API service (ESHU_AUTO_GENERATE_API_KEY=true in the
+#     base compose). The mcp-server's own ESHU_API_KEY is empty and its
+#     auto-generate is false, but it would still READ that persisted key from
+#     the shared home — so the mutation must send it to a fresh, keyless home.
+#     (A tmpfs mount keeps it empty even across a recreate.)
+#   - ESHU_MCP_ALLOW_UNAUTHENTICATED=true is then REQUIRED for the server to
+#     boot at all: requireMCPHTTPCredentialSource (go/cmd/mcp-server/main.go)
+#     refuses to start ESHU_MCP_TRANSPORT=http with no resolvable credential
+#     source unless this escape hatch is set. Without it the mutated container
+#     would crash-loop instead of serving open, and the gate could not
+#     distinguish "served the mutated open gate" from "never started".
+#
+# This override is NEVER applied by the normal suite (scripts/run-auth-mcp-e2e.sh
+# lists only docker-compose.e2e.yaml); only the sensitivity script layers it in,
+# and restores the real service immediately after.
+name: ${ESHU_E2E_PROJECT_NAME:-eshu-e2e-auth-mcp}
+
+services:
+  mcp-server:
+    environment:
+      ESHU_AUTH_RESOURCE_URI: ""
+      ESHU_MCP_ALLOW_UNAUTHENTICATED: "true"
+      ESHU_HOME: /tmp/eshu-mutation-home/.eshu
+    tmpfs:
+      - /tmp/eshu-mutation-home
