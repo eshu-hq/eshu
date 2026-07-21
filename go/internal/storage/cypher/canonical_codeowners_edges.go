@@ -54,10 +54,21 @@ DELETE rel`
 // keeps a removed or edited CODEOWNERS file from leaking stale edges: the
 // handler passes every path the repository delta touched (not just CODEOWNERS
 // paths), and this WHERE clause naturally narrows to the edges whose
-// source_path actually matches — a changed path that never was a CODEOWNERS
-// file simply matches nothing.
-const retractCodeownersOwnershipEdgesByFilePathCypher = `MATCH (rel:DECLARES_CODEOWNER)
-WHERE rel.source_path IN $file_paths
+// source_path actually matches.
+//
+// The MATCH MUST also anchor on the owning Repository (repo.id IN
+// $repo_ids): source_path is a bare repo-relative path (".github/CODEOWNERS",
+// "CODEOWNERS", "docs/CODEOWNERS") that is IDENTICAL across every repository
+// in the graph, unlike the inheritance delta retract's repo-qualified file
+// paths (see canonical_inheritance_retract.go). Without the repository
+// anchor, a delta retract triggered by one repo's CODEOWNERS change would
+// delete every other repo's DECLARES_CODEOWNER edges at the same relative
+// path — a cross-repo over-retraction (#5419 P1) — and those other repos are
+// not re-projected in this generation, so they would permanently lose
+// ownership edges until their own next generation.
+const retractCodeownersOwnershipEdgesByFilePathCypher = `MATCH (repo:Repository)-[rel:DECLARES_CODEOWNER]->(:CodeownerTeam)
+WHERE repo.id IN $repo_ids
+  AND rel.source_path IN $file_paths
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
@@ -102,12 +113,15 @@ func BuildRetractCodeownersOwnershipEdges(repoIDs []string, evidenceSource strin
 
 // BuildRetractCodeownersOwnershipEdgesByFilePath builds the delta-scoped
 // DECLARES_CODEOWNER retract statement for the given repo-relative changed or
-// deleted file paths.
-func BuildRetractCodeownersOwnershipEdgesByFilePath(filePaths []string, evidenceSource string) Statement {
+// deleted file paths, anchored on the owning repositories (repoIDs) so the
+// sweep never crosses into another repository's edges at the same relative
+// source_path (#5419 P1).
+func BuildRetractCodeownersOwnershipEdgesByFilePath(repoIDs, filePaths []string, evidenceSource string) Statement {
 	return Statement{
 		Operation: OperationCanonicalRetract,
 		Cypher:    retractCodeownersOwnershipEdgesByFilePathCypher,
 		Parameters: map[string]any{
+			"repo_ids":        repoIDs,
 			"file_paths":      filePaths,
 			"evidence_source": evidenceSource,
 		},

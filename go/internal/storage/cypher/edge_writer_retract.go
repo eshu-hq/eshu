@@ -120,7 +120,7 @@ func (w *EdgeWriter) RetractEdges(
 			return err
 		}
 		if hasDeltaScope {
-			stmt := BuildRetractCodeownersOwnershipEdgesByFilePath(filePaths, evidenceSource)
+			stmt := BuildRetractCodeownersOwnershipEdgesByFilePath(repoIDs, filePaths, evidenceSource)
 			return WrapRetryableNeo4jError(w.executor.Execute(ctx, stmt))
 		}
 	}
