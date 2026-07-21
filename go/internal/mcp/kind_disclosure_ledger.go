@@ -84,6 +84,8 @@ import (
 // round 2 found their real consumers. See
 // docs/internal/design/5474-ifa-coverage-backfill-plan.md for the tracked
 // backfill plan the remaining 21 still need.
+// #nosec G101 -- map values are sha256 source-content digests for the
+// consumer-disclosure ledger, not credentials.
 var grandfatheredUnconsumedKinds = map[string]string{
 	// terraform_state family — projector/tfstate_canonical.go:104-106
 	"terraform_state_candidate":        "237d492637756acd33f62cbf1664ebdbad6cc83a464ee5a592c372dee36622ba",
