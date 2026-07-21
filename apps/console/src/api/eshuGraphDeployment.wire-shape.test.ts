@@ -223,6 +223,57 @@ describe("Graph Explorer production deployment wire shapes", () => {
     expect(bounds?.sub).toContain("observed at least 51");
   });
 
+  it("preserves context-owned runtime truncation when the trace omits limits", () => {
+    const graph = deploymentStoryToGraph(
+      {
+        id: "workload:checkout-api",
+        instances: [{ environment: "prod", instance_id: "instance:prod" }],
+        name: "checkout-api",
+        runtime_topology_limits: {
+          instances: truncatedLimits(50, 51),
+          platform_edges: truncatedLimits(50, 51),
+          provisioned_platforms: truncatedLimits(50, 51),
+        },
+      },
+      "checkout-api",
+      {},
+      { contextTruth: exactTruth, traceTruth: exactTruth },
+    );
+
+    expect(graph.nodes).toContainEqual(
+      expect.objectContaining({
+        id: "summary:source_bounds",
+        label: "Source API returned incomplete deployment evidence",
+      }),
+    );
+    const bounds = graph.nodes.find((node) => node.id === "summary:source_bounds");
+    expect(bounds?.sub).toContain("runtime instances");
+    expect(bounds?.sub).toContain("platform edges");
+    expect(bounds?.sub).toContain("provisioned platforms");
+  });
+
+  it("does not claim instance completeness is unavailable when context limits are complete", () => {
+    const graph = deploymentStoryToGraph(
+      {
+        id: "workload:checkout-api",
+        instances: [{ environment: "prod", instance_id: "instance:prod" }],
+        name: "checkout-api",
+        runtime_topology_limits: {
+          instances: completeLimits(1),
+          platform_edges: completeLimits(0),
+          provisioned_platforms: completeLimits(0),
+        },
+      },
+      "checkout-api",
+      {},
+      { contextTruth: exactTruth, traceTruth: exactTruth },
+    );
+
+    const bounds = graph.nodes.find((node) => node.id === "summary:source_bounds");
+    expect(bounds?.sub).not.toContain("workload instances: completeness metadata unavailable");
+    expect(bounds?.sub).toContain("deployment sources: completeness metadata unavailable");
+  });
+
   it("uses canonical topology and deployment-source endpoints without synthetic duplicates", () => {
     const graph = deploymentStoryToGraph(
       {
@@ -330,6 +381,16 @@ function truncatedLimits(returnedCount: number, observedCount: number) {
     observed_count_is_lower_bound: true,
     returned_count: returnedCount,
     truncated: true,
+  };
+}
+
+function completeLimits(count: number) {
+  return {
+    limit: 50,
+    observed_count: count,
+    observed_count_is_lower_bound: false,
+    returned_count: count,
+    truncated: false,
   };
 }
 

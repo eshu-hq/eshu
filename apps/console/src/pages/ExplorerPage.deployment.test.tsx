@@ -9,6 +9,37 @@ import type { ConsoleModel } from "../console/types";
 const liveModel: ConsoleModel = { ...demoModel, source: "live" };
 
 describe("ExplorerPage bounded deployment detail", () => {
+  it("resolves catalog service names through the bounded workload resolver", async () => {
+    const bodies: unknown[] = [];
+    const client = {
+      postJson: async (_path: string, body: unknown) => {
+        bodies.push(body);
+        return {
+          entities: [
+            {
+              id: "workload:checkout-service",
+              labels: ["Workload"],
+              name: "checkout-service",
+              type: "Workload",
+            },
+          ],
+        };
+      },
+      get: async () => ({ data: {}, error: null, truth: null }),
+      post: async () => ({ data: {}, error: null, truth: null }),
+    } as unknown as EshuApiClient;
+
+    render(
+      <MemoryRouter initialEntries={["/explorer?q=checkout-service"]}>
+        <ExplorerPage client={client} model={liveModel} />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(bodies).toContainEqual({ limit: 1, name: "checkout-service", type: "workload" }),
+    );
+  });
+
   it("keeps endpoint-less source truth visible and expands the bounded instance family", async () => {
     const calls: string[] = [];
     const instances = Array.from({ length: 14 }, (_, index) => ({

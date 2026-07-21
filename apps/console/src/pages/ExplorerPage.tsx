@@ -154,7 +154,7 @@ export function ExplorerPage({
       // kind-recommended mode so a service/infra search lands on Neighborhood
       // (which has data) instead of Direct's code-only relationships. A toggle
       // click passes forcedMode so the new view applies before state settles.
-      const resolved = await resolveEntityHandle(client, name);
+      const resolved = await resolveEntityHandle(client, resolverInputForModel(model, name));
       if (!requestIsCurrent(requestID, requestClient)) return;
       if (resolved.id === "") {
         setLiveGraph({ nodes: [], edges: [] });
@@ -373,4 +373,13 @@ export function ExplorerPage({
       </div>
     </div>
   );
+}
+
+function resolverInputForModel(model: ConsoleModel, query: string): string {
+  const needle = query.trim().toLowerCase();
+  if (needle === "" || needle.startsWith("workload:")) return query;
+  const service = model.services.find(
+    (row) => row.id.toLowerCase() === needle || row.name.toLowerCase() === needle,
+  );
+  return service ? `workload:${service.name}` : query;
 }

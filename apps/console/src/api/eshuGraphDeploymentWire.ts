@@ -153,6 +153,7 @@ export interface ServiceDeploymentContextResponse {
   readonly result_limits?: DeploymentCollectionLimits & {
     readonly instance_count?: number;
   };
+  readonly runtime_topology_limits?: DeploymentRuntimeTopologyLimits;
 }
 
 export interface DeploymentTraceResponse {

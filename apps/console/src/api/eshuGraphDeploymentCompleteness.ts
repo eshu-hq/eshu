@@ -17,9 +17,11 @@ export function sourceCompletenessSummary(
 ): GraphNode | null {
   if (!hasCompletenessMetadata(context, trace)) return null;
 
-  const runtime = trace.runtime_topology_limits;
+  const runtime = trace.runtime_topology_limits ?? context.runtime_topology_limits;
   const statuses = [
-    contextLimitsStatus("workload instances", context.result_limits, context.instances?.length),
+    context.result_limits !== undefined || runtime?.instances === undefined
+      ? contextLimitsStatus("workload instances", context.result_limits, context.instances?.length)
+      : null,
     limitsStatus("runtime instances", runtime?.instances, trace.instances?.length),
     limitsStatus("platform edges", runtime?.platform_edges),
     limitsStatus("provisioned platforms", runtime?.provisioned_platforms),
@@ -48,6 +50,7 @@ function hasCompletenessMetadata(
 ): boolean {
   return (
     context.result_limits !== undefined ||
+    context.runtime_topology_limits !== undefined ||
     trace.runtime_topology_limits !== undefined ||
     trace.deployment_source_limits !== undefined ||
     trace.cloud_resource_limits !== undefined ||
