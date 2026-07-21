@@ -45,6 +45,9 @@ func TestHandlerHotCypherManifestRegistrationMetadata(t *testing.T) {
 	entries := make(map[string]struct{}, len(manifest.Entries))
 	for _, entry := range manifest.Entries {
 		entries[entry.ID] = struct{}{}
+		if entry.QueryKind != queryKindCypher {
+			continue
+		}
 		if strings.TrimSpace(entry.Cypher) != "" {
 			t.Errorf("handler hot path %s must bind Cypher from its production builder", entry.ID)
 		}

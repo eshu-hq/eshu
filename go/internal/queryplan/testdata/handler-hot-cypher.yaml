@@ -11,7 +11,8 @@ required_ids:
   - QP-ENTITY-MAP-RESOLVE-REPOSITORY
   - QP-ENTITY-MAP-DIRECT-REPOSITORY
   - QP-ENTITY-MAP-BOUNDED-REPOSITORY
-  - QP-CLOUD-RESOURCE-LIST
+  - QP-CLOUD-RESOURCE-LIST-HYDRATION
+  - QP-CLOUD-RESOURCE-IDENTITY-PAGE
   - QP-CALL-GRAPH-HUBS
   - QP-CALL-GRAPH-RECURSIVE
   - QP-GRAPH-ENTITY-COUNT
@@ -174,18 +175,24 @@ entries:
     requires_order: true
     plan: *indexed_plan
 
-  - id: QP-CLOUD-RESOURCE-LIST
+  - id: QP-CLOUD-RESOURCE-LIST-HYDRATION
     domain: infra
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/cloud_resources.go, symbol: buildCloudResourceListQuery, source_sha256: 80ebd115c1329cf4dafe0577f8cd9d3f4ee3bb0fafe0bc832947906adfe3827c}
-    query_fragment: 'MATCH (n:CloudResource)'
-    cypher_sha256: 6eab61a21db14cd00caacfddc0e877ff5a6801326a40148f5100ebbe6583f29c
-    required_anchors: [{label: CloudResource, property: resource_type}]
-    required_schema: [cloud_resource_type]
-    required_limits: [$limit]
-    requires_order: true
+    source: {file: go/internal/query/cloud_resources.go, symbol: buildCloudResourceHydrationQuery, source_sha256: cacb01de4b08ee41eb35997efcf370ac05d191f6c398c1380efc17652dbb33a8}
+    query_fragment: 'WHERE n.uid IN $uids'
+    cypher_sha256: fc07ba2d57b553454e082f450a9cf69ba696235a507535cc662715418a9112f9
+    required_anchors: [{label: CloudResource, property: uid}]
+    required_schema: [cloud_resource_uid_unique]
     plan: *indexed_plan
+
+  - id: QP-CLOUD-RESOURCE-IDENTITY-PAGE
+    domain: infra
+    backend: postgresql
+    query_kind: sql_read_model
+    source: {file: go/internal/query/cloud_resource_list_store.go, symbol: buildCloudResourceIdentityListQuery, source_sha256: fbced2dfb725aa9d3a0f1aca42b538ee22e8965c2ada84c2258b2c9afe78e57a}
+    caveats:
+      - The hash-frozen 64-variant SQL family is validated by TestHandlerQueryplanCloudResourceListVariantsStayCovered; live EXPLAIN evidence is captured separately because this manifest does not connect to Postgres.
 
   - id: QP-CALL-GRAPH-HUBS
     domain: code

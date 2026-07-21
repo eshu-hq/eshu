@@ -7,7 +7,9 @@ const openAPIPathsCloud = `
     "/api/v0/cloud/resources": {
       "get": {
         "summary": "List cloud provider resources from the authoritative graph (bounded, filterable, keyset-paged)",
+        "description": "Selects an authorized, current page from the graph owner ledger before hydrating only those resource IDs from the authoritative graph. Scoped tokens are filtered by repository and ingestion-scope grants before the page limit.",
         "operationId": "listCloudResources",
+        "x-scoped-token-support": true,
         "parameters": [
           {"name": "provider", "in": "query", "description": "Filter by collector provider (for example aws).", "schema": {"type": "string"}},
           {"name": "resource_type", "in": "query", "description": "Filter by resource type (for example aws_iam_role).", "schema": {"type": "string"}},
@@ -59,7 +61,7 @@ const openAPIPathsCloud = `
               }
             }
           },
-          "400": {"description": "Invalid limit"},
+          "400": {"description": "Invalid limit or incomplete cursor"},
           "501": {"description": "Capability unsupported by the active query profile"},
           "503": {"description": "Authoritative graph backend unavailable"}
         }

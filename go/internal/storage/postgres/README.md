@@ -400,9 +400,20 @@ commits to release the locks. The table is keyed on uid alone (canonical uids
 are globally unique across labels) and stores the winning row as JSONB for the
 Stage 2 provenance foundation.
 
+Migrations `070` through `073` add four concurrent, partial ordered indexes over
+the winning row's resource type and the optional provider, region, or account
+prefix. Each concurrent index is its own bootstrap definition so Postgres can
+build it in autocommit mode. `PostgresCloudResourceListStore` uses them
+to select an authorized `limit+1` CloudResource identity page before graph
+hydration. The indexes intentionally do not `INCLUDE (winning_row)`: copying
+every JSONB document into four indexes would multiply write and storage cost for
+fields the page order does not need.
+
 Evidence: `TestGraphNodeOwner*` unit tests (dedup, advisory-key namespacing, SQL
 shape, fail-closed guards) and `TestGraphNodeOwnerStoreIntegration`
 (single-writer owns, cross-batch max resolution, concurrent-converges-to-max).
+Cloud-resource page evidence lives in
+`internal/query/evidence-5563-cloud-resource-paging.md`.
 
 ## Exported surface
 

@@ -91,4 +91,8 @@ var orderedBootstrapDefinitionNames = []string{
 	"iac_active_inventory_index",
 	"drop_relationship_family_candidate_index_legacy",
 	"fact_records_identity_epoch_idx",
+	"cloud_resource_owner_page_index",
+	"cloud_resource_owner_provider_page_index",
+	"cloud_resource_owner_region_page_index",
+	"cloud_resource_owner_account_page_index",
 }

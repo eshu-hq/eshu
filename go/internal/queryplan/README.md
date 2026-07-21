@@ -50,21 +50,22 @@ form, including the bounded workload repository-name hydration helper.
 
 ## Live Plan Proof
 
-Live backend calls remain outside this package. The build-tagged test
+Live graph calls remain outside this package. The build-tagged test
 `internal/query/queryplan_profile_live_test.go` applies only the schema names
 required by both manifests to an isolated Neo4j database, binds every Cypher
 entry to its exact production builder or execution-path output, and profiles 21
-handler entries, 22 legacy Cypher entries, and 454 hash-frozen safe production
-variants. The safe family includes the 31 cloud-resource list shapes not already
-represented by the registered resource-type-only handler entry, so all 32
-combinations of its optional filters and keyset cursor are covered. It also
+handler entries, 22 legacy Cypher entries, and 423 hash-frozen safe production
+variants. It also
 includes 140 distinct import-dependency queries mapped from all 244 valid API
-and MCP request shapes. All 497 profiled shapes must avoid `AllNodesScan` and
+and MCP request shapes. All 466 profiled shapes must avoid `AllNodesScan` and
 expose an admitted bounded anchor operator.
 The accepted label and relationship-type scan exceptions are a closed Go policy;
-manifest data cannot expand that allowlist. Cloud-resource shapes without a
-resource-type predicate or cursor must remain label-bounded, while shapes with
-either must retain an index seek.
+manifest data cannot expand that allowlist. Cloud-resource browsing now has one
+UID-bounded graph hydration plan plus a separately hash-frozen 64-variant
+Postgres page family (32 filter/cursor combinations for all-scope and scoped
+access). `cloud_resource_list_store_live_test.go` executes that SQL family on a
+20,000-row disposable corpus, requires an ordered owner-ledger index, and
+enforces the 2-second interactive SLO.
 The formerly reachable global entity/code graph variants are fail-closed under
 #5318. Only repository-selected variants remain in the registered PROFILE
 family; global name reads are bounded Postgres content-index queries with their

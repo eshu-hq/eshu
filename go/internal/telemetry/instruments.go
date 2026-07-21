@@ -1031,10 +1031,13 @@ type Instruments struct {
 	// traces. The query package records both through the global meter using the
 	// same instrument names registered here so the frozen contract stays
 	// authoritative.
-	IaCResourceListDuration   metric.Float64Histogram
-	IaCResourceListErrors     metric.Int64Counter
-	CloudResourceListDuration metric.Float64Histogram
-	CloudResourceListErrors   metric.Int64Counter
+	IaCResourceListDuration      metric.Float64Histogram
+	IaCResourceListErrors        metric.Int64Counter
+	CloudResourceListDuration    metric.Float64Histogram
+	CloudResourceListErrors      metric.Int64Counter
+	CloudResourceListScannedRows metric.Int64Histogram
+	CloudResourceListPageSize    metric.Int64Histogram
+	CloudResourceListTruncations metric.Int64Counter
 	// APIRequestDuration measures per-endpoint HTTP handler latency for every
 	// query API and MCP read route, labeled by the matched low-cardinality route
 	// pattern (which already encodes the method) and response status_class. Its
@@ -3740,6 +3743,33 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CloudResourceListErrors counter: %w", err)
+	}
+
+	cloudResourceListRowBuckets := []float64{0, 1, 2, 5, 10, 25, 50, 100, 201}
+	inst.CloudResourceListScannedRows, err = meter.Int64Histogram(
+		"eshu_dp_cloud_resource_list_scanned_rows",
+		metric.WithDescription("Owner-ledger candidate rows returned by the bounded cloud resource page selection"),
+		metric.WithExplicitBucketBoundaries(cloudResourceListRowBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CloudResourceListScannedRows histogram: %w", err)
+	}
+
+	inst.CloudResourceListPageSize, err = meter.Int64Histogram(
+		"eshu_dp_cloud_resource_list_page_size",
+		metric.WithDescription("Cloud resources returned by one GET /api/v0/cloud/resources page"),
+		metric.WithExplicitBucketBoundaries(cloudResourceListRowBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CloudResourceListPageSize histogram: %w", err)
+	}
+
+	inst.CloudResourceListTruncations, err = meter.Int64Counter(
+		"eshu_dp_cloud_resource_list_truncations_total",
+		metric.WithDescription("Cloud resource list pages with another page available"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CloudResourceListTruncations counter: %w", err)
 	}
 
 	inst.APIRequestDuration, err = meter.Float64Histogram(

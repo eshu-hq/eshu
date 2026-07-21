@@ -17,7 +17,7 @@ source_coverage:
       - {symbol: "loadMaterializedServiceCloudResourceDependencies", count: 1, source_sha256: e43495aed2bea44e69410778f7ae80a662b1189316ffc1849e44ca02dea78f6e, entry_ids: [QP-SVC-CLOUD-DEPS]}
   - file: cloud_resources.go
     calls:
-      - {symbol: "(*InfraHandler).listCloudResources", count: 1, source_sha256: f6f736fb51d770f9e83e5a335723cd974974a491c3420cf71c0ef2095698022b, entry_ids: [QP-CLOUD-RESOURCE-LIST]}
+      - {symbol: "(*InfraHandler).listCloudResources", count: 1, source_sha256: 7f24f18ef33bba3754dc457191218b63823c9c625c4521b4bb291b3be4ddba4c, entry_ids: [QP-CLOUD-RESOURCE-LIST-HYDRATION]}
   - file: code.go
     calls:
       - {symbol: "(*CodeHandler).runComplexityQuery", count: 1, non_hot_reason: "unlabeled complexity-by-id branch is inventoried but cannot be admitted until its production anchor is typed"}

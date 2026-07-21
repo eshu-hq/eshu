@@ -25,8 +25,11 @@ const cloudResourceListMeterName = "eshu/go/internal/query"
 // telemetry.NewProviders, the same way queryHandlerTracer pulls the global
 // tracer provider.
 type cloudResourceListInstruments struct {
-	duration metric.Float64Histogram
-	errors   metric.Int64Counter
+	duration    metric.Float64Histogram
+	errors      metric.Int64Counter
+	rowsScanned metric.Int64Histogram
+	pageSize    metric.Int64Histogram
+	truncations metric.Int64Counter
 }
 
 var (
@@ -58,29 +61,62 @@ func cloudResourceListMetrics() *cloudResourceListInstruments {
 		); err == nil {
 			inst.errors = counter
 		}
+		rowBuckets := []float64{0, 1, 2, 5, 10, 25, 50, 100, 201}
+		if hist, err := meter.Int64Histogram(
+			"eshu_dp_cloud_resource_list_scanned_rows",
+			metric.WithDescription("Owner-ledger candidate rows returned by the bounded cloud resource page selection"),
+			metric.WithExplicitBucketBoundaries(rowBuckets...),
+		); err == nil {
+			inst.rowsScanned = hist
+		}
+		if hist, err := meter.Int64Histogram(
+			"eshu_dp_cloud_resource_list_page_size",
+			metric.WithDescription("Cloud resources returned by one GET /api/v0/cloud/resources page"),
+			metric.WithExplicitBucketBoundaries(rowBuckets...),
+		); err == nil {
+			inst.pageSize = hist
+		}
+		if counter, err := meter.Int64Counter(
+			"eshu_dp_cloud_resource_list_truncations_total",
+			metric.WithDescription("Cloud resource list pages with another page available"),
+		); err == nil {
+			inst.truncations = counter
+		}
 		cloudResourceListInstrumentsVal = inst
 	})
 	return cloudResourceListInstrumentsVal
 }
 
-// recordCloudResourceList records the query duration and, when failed, a single
-// error event labeled with a bounded outcome reason. The reason values are a
-// fixed closed set ("ok", "query_error") so the metric stays dashboard-safe.
-func recordCloudResourceList(ctx context.Context, start time.Time, failed bool) {
+// recordCloudResourceList records duration, bounded row counts, page size,
+// truncation, and errors. outcome is one of ok, store_error, graph_error, or
+// parity_error; no resource identity or tenant value enters metric labels.
+func recordCloudResourceList(
+	ctx context.Context,
+	start time.Time,
+	rowsScanned int,
+	pageSize int,
+	truncated bool,
+	outcome string,
+) {
 	inst := cloudResourceListMetrics()
 	if inst == nil {
 		return
-	}
-	outcome := "ok"
-	if failed {
-		outcome = "query_error"
 	}
 	if inst.duration != nil {
 		inst.duration.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(
 			attribute.String("outcome", outcome),
 		))
 	}
-	if failed && inst.errors != nil {
+	if inst.rowsScanned != nil {
+		inst.rowsScanned.Record(ctx, int64(rowsScanned))
+	}
+	if inst.pageSize != nil {
+		inst.pageSize.Record(ctx, int64(pageSize))
+	}
+	if truncated && inst.truncations != nil {
+		inst.truncations.Add(ctx, 1)
+	}
+	if outcome != "ok" && inst.errors != nil {
 		inst.errors.Add(ctx, 1, metric.WithAttributes(
 			attribute.String("reason", outcome),
 		))

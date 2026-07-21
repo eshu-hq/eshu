@@ -308,6 +308,7 @@ func queryplanProfileParams() map[string]any {
 		"target_module":          "proof.target",
 		"target_paths":           []string{"/proof/src/target.py"},
 		"type":                   "Function",
+		"uids":                   []string{"proof-cloud-resource"},
 		"version_id":             "proof-version",
 		"workload_id":            "proof-workload",
 	}
