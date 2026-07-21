@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package relationships //nolint:filelength // 511 lines: YAML IaC evidence relationship resolver. Tracked for split in audit § T8; grew from 502 lines in #5441 (a call-site comment plus a source-revision lookup call in discoverArgoCDDocumentEvidence; the extracted helper itself lives in argocd_document_source_revision.go, not here).
+package relationships //nolint:filelength // 511 lines: YAML IaC evidence relationship resolver, already over the 500-line cap at base (pre-existing debt, not introduced by #5441; the file's prior citation of "audit § T8" was itself wrong -- T8 tracks git_snapshot_native.go/ingestion.go/cmd/bootstrap-index/main.go, not this file -- see #5539). #5441 grew it from 502 to 511 lines: a call-site doc comment plus a one-line source-revision lookup call in discoverArgoCDDocumentEvidence; the actual new logic was correctly extracted into argocd_document_source_revision.go instead of growing this file further. Splitting this file's pre-existing debt is out of scope for #5441.
 
 import (
 	"io"
@@ -24,7 +24,7 @@ func discoverArgoCDDocumentEvidence(
 	// discoverStructuredArgoCDEvidence) is the one that actually fires for a
 	// bare top-level ArgoCD Application YAML manifest, so it must carry
 	// source_revision itself rather than relying on the structured path's
-	// Details. Found via the live golden-corpus gate: rc-154 failed with
+	// Details. Found via the live golden-corpus gate: rc-156 failed with
 	// "2/2 matching edges offending" even after the reducer-side P0 fix
 	// landed, because both corpus DEPLOYS_FROM edges came through here with
 	// no source_revision key at all (extraDetails was a hard-coded nil).

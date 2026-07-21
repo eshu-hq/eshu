@@ -479,6 +479,19 @@ was actually proven. This section is the correction: the gate output above
 is the actual, complete, passing run, and it is now committed (discoverable
 on the branch, not only reported in review conversation).
 
+**Note on the ID (review round 7):** the gate output above, and the prose
+through the rest of this "Golden-Corpus Proof" section, all use the
+correlation ID `rc-154`, because that was this branch's ID at the time this
+run was captured. `rc-154` was later found to collide with a second,
+unrelated, pre-existing entry (issue #5483's Flux HelmRelease
+`RECONCILES_FROM` correlation, added to `origin/main` non-sequentially in a
+`rc-140`..`rc-155` block far from where this branch's entries were inserted,
+so a local scan of nearby IDs never surfaced it) and was renamed a second
+time to the true final ID, `rc-156` — see "ID collision found and fixed"
+below for the full story. This transcript is kept verbatim as the historical
+record of the run that proved the fix; look up this correlation in the
+current snapshot by `rc-156`, not `rc-154`.
+
 ### The second P0: found by the gate, not assumed fixed
 
 The first live gate run (fully complete, 18,635 lines of output) genuinely
@@ -517,25 +530,61 @@ exactly the same "fixture points outside the catalog" gap that let
 the in-corpus `deployable-source` repository
 (`git::https://github.com/acme/deployable-source.git?ref=v1.0.0`, the same
 established cross-fixture target every other tool fixture in this corpus
-uses) and added `rc-155`, mirroring `rc-154`'s pattern: `evidence_kinds`
-narrowed to `TERRAFORM_MODULE_SOURCE`, `required_edge_properties` on
-`source_tool` (pinned to `terraform`) and `first_party_ref_version`
-(non-empty). Confirmed alongside `rc-154`/`rn-terraform-resource-attribute-promotion`
-in the same passing run above.
+uses) and added `rc-155`, mirroring the ArgoCD `source_revision` correlation's
+pattern (`rc-156` as of review round 7's rename; `rc-154` in the run captured
+above): `evidence_kinds` narrowed to `TERRAFORM_MODULE_SOURCE`,
+`required_edge_properties` on `source_tool` (pinned to `terraform`) and
+`first_party_ref_version` (non-empty). Confirmed alongside the ArgoCD
+correlation and `rn-terraform-resource-attribute-promotion` in the same
+passing run above.
 
-### ID collision found and fixed
+### ID collision found and fixed (twice — read this before trusting a local scan)
 
-While adding `rc-154`, an ID collision surfaced: `origin/main` had advanced
-past this branch's original base and merged its own new `rc-153`
-(RUNS_IMAGE, issue #5432) — an unrelated correlation that happened to reuse
-the same next-available ID this branch had already claimed for the ArgoCD
-`source_revision` assertion. Two array entries shared `"id": "rc-153"`,
-which would have silently conflated two different correlations under any
-ID-keyed lookup (the gate's `-required-correlations=all` blocking-set
-resolution, `blockingCorrelations[rc.ID]`). Renamed this branch's entry to
-`rc-154` (the true next-free ID after the collision) and updated every Go
-comment reference (`yaml_iac_evidence.go`,
-`yaml_iac_evidence_source_revision_test.go`,
-`argocd_document_source_revision.go`) accordingly; the pre-existing
+**First collision, review round 2:** while adding this branch's ArgoCD
+`source_revision` correlation, `origin/main` had advanced past this branch's
+original base and merged its own new `rc-153` (RUNS_IMAGE, issue #5432) — an
+unrelated correlation that happened to reuse the same next-available ID this
+branch had already claimed. Two array entries shared `"id": "rc-153"`, which
+would have silently conflated two different correlations under any ID-keyed
+lookup (the gate's `-required-correlations=all` blocking-set resolution,
+`blockingCorrelations[rc.ID]`). Renamed this branch's entry to `rc-154`,
+updated the Go comment references, and reported it fixed. The pre-existing
 `rc-153` (RUNS_IMAGE) and its `AGENTS.md` evidence citations were left
-untouched.
+untouched and remain correct today.
+
+**Second collision, found in review round 7 — the `rc-154` rename above was
+itself wrong.** `rc-154` was NOT actually free: a pre-existing Flux
+HelmRelease `RECONCILES_FROM` correlation from issue #5483 already held
+`"id": "rc-154"` (`testdata/golden/e2e-20repo-snapshot.json` ~line 1595).
+`rg -c '"id": "rc-154"'` against the committed snapshot returned 2, and the
+"already fixed" claim in the previous version of this section was false.
+
+**Why a local scan missed it both times:** this branch's correlation entries
+were inserted non-sequentially, near the unrelated `rc-19`/`rc-20` block from
+an older base, while `#5483`'s Flux entries sit in a sequential `rc-140`..
+`rc-155` block added later by a different PR. Scanning the IDs adjacent to
+where THIS branch's own entries live never surfaces a collision that exists
+somewhere else entirely in a 700+-entry file. The correct check is a
+whole-file duplicate scan, not a local eyeball of the surrounding lines:
+
+```
+rg -o '"id": "rc-[0-9]+"' testdata/golden/e2e-20repo-snapshot.json | sort | uniq -d
+```
+
+An empty result from that command is the only thing that actually proves no
+duplicate exists — "the ID after the one I collided with" is an assumption,
+not a check, and this branch made that exact assumption twice.
+
+**Final ID: `rc-156`.** Before choosing it, ran
+`rg '"id": "rc-1[0-9][0-9]"' testdata/golden/e2e-20repo-snapshot.json | sort -u`
+and confirmed `rc-155` (this branch's own USES_MODULE `first_party_ref_version`
+correlation) was the highest ID in use and `rc-156` did not already exist.
+Renamed the ArgoCD `source_revision` entry from `rc-154` to `rc-156`,
+updated its self-reference inside `rc-155`'s own description text (which had
+cited `rc-154` by name), and updated every Go comment reference
+(`yaml_iac_evidence.go`, `yaml_iac_evidence_source_revision_test.go`,
+`argocd_document_source_revision.go`). Confirmed with the same whole-file
+duplicate scan (empty result, see "Verify and report" below) and a re-run of
+the golden-corpus unit tests and `scripts/test-verify-golden-corpus-gate.sh`.
+`#5483`'s `rc-154` (Flux HelmRelease `RECONCILES_FROM`) is unrelated to
+#5441 and was left untouched throughout.

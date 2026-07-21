@@ -376,7 +376,7 @@
         "minimum_count": 1
       },
       {
-        "id": "rc-154",
+        "id": "rc-156",
         "description": "#5441 P1 finding 3 regression guard: the helm_argocd_platform fixture's application.yaml declares source.targetRevision: v1.4.0 pointing at the in-corpus deployable-source repository (github.com/acme/deployable-source.git), which the relationships engine emits as ARGOCD_APPLICATION_SOURCE evidence resolving a DEPLOYS_FROM edge. DEPLOYS_FROM is a tool-agnostic edge also emitted by Kustomize (rc-29) and a Helm chart dependency (rc-34), so this correlation filters on evidence_kinds=[ARGOCD_APPLICATION_SOURCE] to isolate the ArgoCD deployment-source verb, and additionally requires the edge to carry a non-empty source_revision property -- the exact regression this issue fixed: buildResolvedEdgeIntentRow previously read the wrong Details map and always wrote source_revision as \"\" for every ArgoCD-sourced edge in production. The count and the property are both provably zero/empty without the fix.",
         "relationship": "DEPLOYS_FROM",
         "from_label": "Repository",
@@ -397,7 +397,7 @@
       },
       {
         "id": "rc-155",
-        "description": "#5441 P1 finding 3 regression guard: USES_MODULE had zero golden-corpus coverage before this fix. The terraform_comprehensive fixture's modules.tf eks module previously declared source = git::https://github.com/example/terraform-aws-eks.git?ref=v1.0.0, an org not in the 20-repo catalog, so it never resolved to a real edge -- exactly the same class of gap that let source_revision (rc-154) sit uncovered before the live gate caught it. Repointed at the in-corpus deployable-source repository (source = git::https://github.com/acme/deployable-source.git?ref=v1.0.0) so the module-source pin is observable end to end: the relationships engine emits TERRAFORM_MODULE_SOURCE evidence resolving a USES_MODULE edge, and evidenceFactFirstPartyRefVersion (evidence_edge_fields.go) derives first_party_ref_version from Details[\"source_ref\"] via ExtractTerraformRefPin since Terraform module evidence never sets first_party_ref_version directly (unlike GitHub Actions). The count and the property are both provably zero/empty without the fixture retarget.",
+        "description": "#5441 P1 finding 3 regression guard: USES_MODULE had zero golden-corpus coverage before this fix. The terraform_comprehensive fixture's modules.tf eks module previously declared source = git::https://github.com/example/terraform-aws-eks.git?ref=v1.0.0, an org not in the 20-repo catalog, so it never resolved to a real edge -- exactly the same class of gap that let source_revision (rc-156) sit uncovered before the live gate caught it. Repointed at the in-corpus deployable-source repository (source = git::https://github.com/acme/deployable-source.git?ref=v1.0.0) so the module-source pin is observable end to end: the relationships engine emits TERRAFORM_MODULE_SOURCE evidence resolving a USES_MODULE edge, and evidenceFactFirstPartyRefVersion (evidence_edge_fields.go) derives first_party_ref_version from Details[\"source_ref\"] via ExtractTerraformRefPin since Terraform module evidence never sets first_party_ref_version directly (unlike GitHub Actions). The count and the property are both provably zero/empty without the fixture retarget.",
         "relationship": "USES_MODULE",
         "from_label": "Repository",
         "to_label": "Repository",
