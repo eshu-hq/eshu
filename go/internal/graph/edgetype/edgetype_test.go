@@ -58,6 +58,7 @@ func TestEdgeTypeStringParity(t *testing.T) {
 		LogsTo:                             "LOGS_TO",
 		Manages:                            "MANAGES",
 		MapsToTable:                        "MAPS_TO_TABLE",
+		MatchesState:                       "MATCHES_STATE",
 		Migrates:                           "MIGRATES",
 		Needs:                              "NEEDS",
 		Overrides:                          "OVERRIDES",

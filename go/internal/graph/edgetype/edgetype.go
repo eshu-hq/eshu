@@ -119,6 +119,10 @@ const (
 	Manages EdgeType = "MANAGES"
 	// MapsToTable is the "MAPS_TO_TABLE" graph relationship type.
 	MapsToTable EdgeType = "MAPS_TO_TABLE"
+	// MatchesState is the "MATCHES_STATE" graph relationship type (#5443: a
+	// config-declared TerraformResource to the TerraformStateResource it
+	// matches by exact address equality).
+	MatchesState EdgeType = "MATCHES_STATE"
 	// Needs is the "NEEDS" graph relationship type (a GitLab CI job to a sibling
 	// job it declares in needs/dependencies, resolved within the same
 	// .gitlab-ci.yml). It is distinct from DependsOn so CI job ordering is never
@@ -204,7 +208,7 @@ var registered = []EdgeType{
 	HasLiveRouting, HasParameter, HasRole, HasTaintEvidence,
 	HasVersion, HelmValueReference, Implements, Imports, Indexes,
 	Inherits, InstanceOf, Instantiates, InvokesCloudAction,
-	LogsTo, Manages, MapsToTable, Migrates, Needs, Overrides,
+	LogsTo, Manages, MapsToTable, MatchesState, Migrates, Needs, Overrides,
 	ProvisionsDependencyFor, ProvisionsPlatform, QueriesTable, ReadsConfigFrom,
 	ReadsFrom, ReconcilesFrom, References, ReferencesTable, RepoContains,
 	RunsImage, RunsIn, RunsOn, SatisfiedBy,
