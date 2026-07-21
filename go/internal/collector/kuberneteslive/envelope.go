@@ -53,6 +53,19 @@ type PodTemplateObservation struct {
 	FencingToken        int64
 	ObservedAt          time.Time
 	SourceURI           string
+	// DesiredReplicas is the DESIRED replica count from a Deployment or
+	// ReplicaSet's .Spec.Replicas. Nil for a Pod observation.
+	DesiredReplicas *int32
+	// ReadyReplicas is the OBSERVED ready replica count from a Deployment or
+	// ReplicaSet's .Status.ReadyReplicas. Nil for a Pod observation.
+	ReadyReplicas *int32
+	// AvailableReplicas is the OBSERVED available replica count from a
+	// Deployment or ReplicaSet's .Status.AvailableReplicas. Nil for a Pod
+	// observation.
+	AvailableReplicas *int32
+	// PodPhase is the OBSERVED pod lifecycle phase from a Pod's
+	// .Status.Phase. Nil for a Deployment or ReplicaSet observation.
+	PodPhase *string
 }
 
 // RelationshipObservation is the input for one kubernetes_live.relationship
@@ -123,6 +136,10 @@ func NewPodTemplateEnvelope(observation PodTemplateObservation) (facts.Envelope,
 		Selector:             sortedStringMap(observation.Selector),
 		Labels:               sortedStringMap(observation.Labels),
 		CorrelationAnchors:   anchors,
+		DesiredReplicas:      observation.DesiredReplicas,
+		ReadyReplicas:        observation.ReadyReplicas,
+		AvailableReplicas:    observation.AvailableReplicas,
+		PodPhase:             observation.PodPhase,
 	})
 	if err != nil {
 		return facts.Envelope{}, fmt.Errorf("encode kubernetes_live.pod_template payload: %w", err)

@@ -127,6 +127,10 @@ func (b *generationBuilder) addWorkload(ctx context.Context, workload WorkloadOb
 		FencingToken:        b.target.FencingToken,
 		ObservedAt:          b.observedAt,
 		SourceURI:           b.target.SourceURI,
+		DesiredReplicas:     workload.DesiredReplicas,
+		ReadyReplicas:       workload.ReadyReplicas,
+		AvailableReplicas:   workload.AvailableReplicas,
+		PodPhase:            workload.PodPhase,
 	})
 	if err != nil {
 		return err

@@ -27,8 +27,10 @@ const (
 
 	// KubernetesPodTemplateSchemaVersion is the first pod-template fact schema.
 	// Bumped 1.0.0 -> 1.1.0 for the additive optional resolved_image_digest field
-	// on PodTemplateContainer (issue #5432).
-	KubernetesPodTemplateSchemaVersion = "1.1.0"
+	// on PodTemplateContainer (issue #5432). Bumped 1.1.0 -> 1.2.0 for the
+	// additive optional runtime-status fields (desired_replicas, ready_replicas,
+	// available_replicas, pod_phase) on PodTemplate (issue #5431).
+	KubernetesPodTemplateSchemaVersion = "1.2.0"
 	// KubernetesRelationshipSchemaVersion is the first relationship fact schema.
 	KubernetesRelationshipSchemaVersion = "1.0.0"
 	// KubernetesWarningSchemaVersion is the first warning fact schema.

@@ -19,7 +19,7 @@
         {
           "fact_kind": "kubernetes_live.pod_template",
           "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:deployment:default:supply-chain-demo",
-          "schema_version": "1.1.0",
+          "schema_version": "1.2.0",
           "collector_kind": "kubernetes_live",
           "fencing_token": 1,
           "source_confidence": "observed",
@@ -61,13 +61,16 @@
             "correlation_anchors": [
               "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:supply-chain-demo",
               "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
-            ]
+            ],
+            "desired_replicas": 3,
+            "ready_replicas": 3,
+            "available_replicas": 3
           }
         },
         {
           "fact_kind": "kubernetes_live.pod_template",
           "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:replicaset:default:supply-chain-demo-7f8d9",
-          "schema_version": "1.1.0",
+          "schema_version": "1.2.0",
           "collector_kind": "kubernetes_live",
           "fencing_token": 1,
           "source_confidence": "observed",
@@ -110,13 +113,16 @@
             "correlation_anchors": [
               "kubernetes_live:supply-chain-demo:apps/v1/replicasets:default:supply-chain-demo-7f8d9",
               "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
-            ]
+            ],
+            "desired_replicas": 3,
+            "ready_replicas": 3,
+            "available_replicas": 3
           }
         },
         {
           "fact_kind": "kubernetes_live.pod_template",
           "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:pod:default:supply-chain-demo-pod",
-          "schema_version": "1.1.0",
+          "schema_version": "1.2.0",
           "collector_kind": "kubernetes_live",
           "fencing_token": 1,
           "source_confidence": "observed",
@@ -158,7 +164,8 @@
             "correlation_anchors": [
               "kubernetes_live:supply-chain-demo:/v1/pods:default:supply-chain-demo-pod",
               "ghcr.io/eshu-hq/supply-chain-demo:1.0.0"
-            ]
+            ],
+            "pod_phase": "Running"
           }
         },
         {

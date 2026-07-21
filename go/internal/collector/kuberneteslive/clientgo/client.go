@@ -66,7 +66,8 @@ func (a *Adapter) ListNamespaces(ctx context.Context) (kuberneteslive.ListResult
 // ListPods lists pods across all namespaces. For each pod, it reads
 // pod.Status.ContainerStatuses and InitContainerStatuses to resolve the
 // CRI-resolved digest (ImageID) for each container, normalized into the
-// repo@sha256:<digest> form.
+// repo@sha256:<digest> form, and pod.Status.Phase to populate the OBSERVED
+// runtime pod phase (issue #5431).
 func (a *Adapter) ListPods(ctx context.Context) (kuberneteslive.ListResult[kuberneteslive.WorkloadObject], error) {
 	var items []kuberneteslive.WorkloadObject
 	partial, reason, err := a.paginate(ctx, func(opts metav1.ListOptions) (string, error) {
@@ -76,10 +77,14 @@ func (a *Adapter) ListPods(ctx context.Context) (kuberneteslive.ListResult[kuber
 		}
 		for i := range list.Items {
 			pod := &list.Items[i]
-			items = append(items, workloadFromPod(
+			workload := workloadFromPod(
 				objectMeta("", "v1", "pods", pod.ObjectMeta),
 				pod,
-			))
+			)
+			if phase := string(pod.Status.Phase); phase != "" {
+				workload.PodPhase = &phase
+			}
+			items = append(items, workload)
 		}
 		return list.Continue, nil
 	})
@@ -89,7 +94,10 @@ func (a *Adapter) ListPods(ctx context.Context) (kuberneteslive.ListResult[kuber
 	return kuberneteslive.ListResult[kuberneteslive.WorkloadObject]{Items: items, Partial: partial, Reason: reason}, nil
 }
 
-// ListDeployments lists deployments across all namespaces.
+// ListDeployments lists deployments across all namespaces. For each
+// deployment, it reads .Spec.Replicas (DESIRED) and
+// .Status.ReadyReplicas/.Status.AvailableReplicas (OBSERVED) to populate the
+// workload's runtime-status fields (issue #5431).
 func (a *Adapter) ListDeployments(ctx context.Context) (kuberneteslive.ListResult[kuberneteslive.WorkloadObject], error) {
 	var items []kuberneteslive.WorkloadObject
 	partial, reason, err := a.paginate(ctx, func(opts metav1.ListOptions) (string, error) {
@@ -99,10 +107,16 @@ func (a *Adapter) ListDeployments(ctx context.Context) (kuberneteslive.ListResul
 		}
 		for i := range list.Items {
 			d := &list.Items[i]
-			items = append(items, workloadFromPodSpec(
+			workload := workloadFromPodSpec(
 				objectMeta("apps", "v1", "deployments", d.ObjectMeta),
 				d.Spec.Template.Spec, d.Spec.Selector,
-			))
+			)
+			workload.DesiredReplicas = d.Spec.Replicas
+			readyReplicas := d.Status.ReadyReplicas
+			workload.ReadyReplicas = &readyReplicas
+			availableReplicas := d.Status.AvailableReplicas
+			workload.AvailableReplicas = &availableReplicas
+			items = append(items, workload)
 		}
 		return list.Continue, nil
 	})
@@ -112,7 +126,10 @@ func (a *Adapter) ListDeployments(ctx context.Context) (kuberneteslive.ListResul
 	return kuberneteslive.ListResult[kuberneteslive.WorkloadObject]{Items: items, Partial: partial, Reason: reason}, nil
 }
 
-// ListReplicaSets lists replicasets across all namespaces.
+// ListReplicaSets lists replicasets across all namespaces. For each
+// replicaset, it reads .Spec.Replicas (DESIRED) and
+// .Status.ReadyReplicas/.Status.AvailableReplicas (OBSERVED) to populate the
+// workload's runtime-status fields (issue #5431).
 func (a *Adapter) ListReplicaSets(ctx context.Context) (kuberneteslive.ListResult[kuberneteslive.WorkloadObject], error) {
 	var items []kuberneteslive.WorkloadObject
 	partial, reason, err := a.paginate(ctx, func(opts metav1.ListOptions) (string, error) {
@@ -122,10 +139,16 @@ func (a *Adapter) ListReplicaSets(ctx context.Context) (kuberneteslive.ListResul
 		}
 		for i := range list.Items {
 			rs := &list.Items[i]
-			items = append(items, workloadFromPodSpec(
+			workload := workloadFromPodSpec(
 				objectMeta("apps", "v1", "replicasets", rs.ObjectMeta),
 				rs.Spec.Template.Spec, rs.Spec.Selector,
-			))
+			)
+			workload.DesiredReplicas = rs.Spec.Replicas
+			readyReplicas := rs.Status.ReadyReplicas
+			workload.ReadyReplicas = &readyReplicas
+			availableReplicas := rs.Status.AvailableReplicas
+			workload.AvailableReplicas = &availableReplicas
+			items = append(items, workload)
 		}
 		return list.Continue, nil
 	})

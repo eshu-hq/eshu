@@ -38,4 +38,14 @@
 // — metadata, not a secret — so this does not violate the metadata-only
 // invariant. Deployments, ReplicaSets, and other workload kinds carry only the
 // pod template spec and never populate this field.
+//
+// Observed-vs-desired runtime status (#5431): a WorkloadObject also carries
+// optional, self-describing runtime-status fields. DesiredReplicas is the
+// DESIRED truth basis from a Deployment/ReplicaSet's .Spec.Replicas.
+// ReadyReplicas and AvailableReplicas are OBSERVED from
+// .Status.ReadyReplicas/.Status.AvailableReplicas. PodPhase is OBSERVED from a
+// Pod's .Status.Phase. The replica fields are populated only for Deployment
+// and ReplicaSet objects; PodPhase is populated only for Pod objects. This is
+// fact-level emission only; no reducer, graph node, or query surface consumes
+// these fields yet (deferred to the #5435 materialization capstone).
 package kuberneteslive
