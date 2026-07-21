@@ -164,13 +164,21 @@ func codeownersOwnershipRepositoryIDs(rows []map[string]any, deltaScope codeowne
 // quarantined per-fact via partitionDecodeFailures rather than dropped
 // silently; an unsupported schema major is escalated to a fatal error for
 // durable triage (see partitionDecodeFailures).
+//
+// A repeated (repo, path, pattern, owner) key — the same owner listed again
+// on a later rule line for the same pattern — collapses into a single row,
+// but that row MUST keep the highest (latest) order_index it saw, never the
+// first. GitHub's CODEOWNERS resolution is last-match-wins, and the
+// downstream precedence resolver picks the highest surviving ordinal as the
+// effective owner, so freezing the first occurrence's ordinal would let a
+// stale, superseded rule line outrank the true last match.
 func ExtractCodeownersOwnershipEdgeRowsWithQuarantine(
 	envelopes []facts.Envelope,
 	generationID string,
 ) ([]map[string]any, []quarantinedFact, error) {
 	rows := make([]map[string]any, 0)
 	var quarantined []quarantinedFact
-	seen := make(map[string]struct{})
+	rowIndexByKey := make(map[string]int)
 	for _, env := range envelopes {
 		if env.FactKind != factKindCodeownersOwnership || env.IsTombstone {
 			continue
@@ -200,10 +208,13 @@ func ExtractCodeownersOwnershipEdgeRowsWithQuarantine(
 				continue
 			}
 			key := repoID + "|" + sourcePath + "|" + pattern + "|" + ownerRef
-			if _, dup := seen[key]; dup {
+			if idx, dup := rowIndexByKey[key]; dup {
+				if existingOrderIndex, ok := rows[idx]["order_index"].(int); ok && ownership.OrderIndex > existingOrderIndex {
+					rows[idx]["order_index"] = ownership.OrderIndex
+				}
 				continue
 			}
-			seen[key] = struct{}{}
+			rowIndexByKey[key] = len(rows)
 
 			rows = append(rows, map[string]any{
 				"repo_id":       repoID,

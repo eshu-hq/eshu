@@ -282,6 +282,52 @@ func TestExtractCodeownersOwnershipEdgeRowsFansOutOwnersPerRule(t *testing.T) {
 	}
 }
 
+// TestExtractCodeownersOwnershipEdgeRowsKeepsLastMatchOrdinalOnRepeatedRule
+// proves the last-match-wins ordinal fix (issue #5419 P1): GitHub CODEOWNERS
+// resolution is last-match-wins, so when the same (pattern, owner) pair
+// repeats across multiple rule lines, the surviving edge MUST carry the
+// highest (latest) order_index, not the first occurrence's. Before the fix,
+// a duplicate (repo, path, pattern, owner) key was skipped outright, freezing
+// the FIRST occurrence's order_index — for `*.go @team-a`(0), `*.go
+// @team-b`(1), `*.go @team-a`(2), the @team-a edge kept order_index 0, so the
+// precedence resolver (highest surviving ordinal wins) picked @team-b (1)
+// instead of the true last-match winner @team-a (2).
+func TestExtractCodeownersOwnershipEdgeRowsKeepsLastMatchOrdinalOnRepeatedRule(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		codeownersOwnershipEnvelope("repo-1", "CODEOWNERS", "*.go", []string{"@team-a"}, 0),
+		codeownersOwnershipEnvelope("repo-1", "CODEOWNERS", "*.go", []string{"@team-b"}, 1),
+		codeownersOwnershipEnvelope("repo-1", "CODEOWNERS", "*.go", []string{"@team-a"}, 2),
+	}
+	rows, quarantined, err := ExtractCodeownersOwnershipEdgeRowsWithQuarantine(envelopes, "gen-1")
+	if err != nil {
+		t.Fatalf("ExtractCodeownersOwnershipEdgeRowsWithQuarantine() error = %v", err)
+	}
+	if len(quarantined) != 0 {
+		t.Fatalf("quarantined = %#v, want empty", quarantined)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("len(rows) = %d, want 2 (one row per owner, @team-a deduped)", len(rows))
+	}
+
+	gotOrderIndex := make(map[string]int)
+	for _, row := range rows {
+		ownerRef, _ := row["owner_ref"].(string)
+		orderIndex, _ := row["order_index"].(int)
+		if _, dup := gotOrderIndex[ownerRef]; dup {
+			t.Fatalf("owner_ref %q produced more than one row: %#v", ownerRef, rows)
+		}
+		gotOrderIndex[ownerRef] = orderIndex
+	}
+	if gotOrderIndex["@team-a"] != 2 {
+		t.Errorf("@team-a order_index = %d, want 2 (last-match ordinal)", gotOrderIndex["@team-a"])
+	}
+	if gotOrderIndex["@team-b"] != 1 {
+		t.Errorf("@team-b order_index = %d, want 1", gotOrderIndex["@team-b"])
+	}
+}
+
 func TestExtractCodeownersOwnershipEdgeRowsQuarantinesMissingRequiredField(t *testing.T) {
 	t.Parallel()
 
