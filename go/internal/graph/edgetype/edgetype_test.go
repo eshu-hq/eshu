@@ -21,6 +21,7 @@ func TestEdgeTypeStringParity(t *testing.T) {
 		CanPerform:                         "CAN_PERFORM",
 		Contains:                           "CONTAINS",
 		CorrelatesDeployableUnit:           "CORRELATES_DEPLOYABLE_UNIT",
+		DeclaresCodeowner:                  "DECLARES_CODEOWNER",
 		DeclaresDependency:                 "DECLARES_DEPENDENCY",
 		Defines:                            "DEFINES",
 		DefinesJob:                         "DEFINES_JOB",

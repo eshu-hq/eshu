@@ -30,6 +30,7 @@ func TestSchemaStatementsContainsExpectedConstraints(t *testing.T) {
 		"CREATE CONSTRAINT parameter_unique IF NOT EXISTS",
 		"CREATE CONSTRAINT platform_id IF NOT EXISTS",
 		"CREATE CONSTRAINT source_local_record_unique IF NOT EXISTS",
+		"CREATE CONSTRAINT codeowner_team_ref IF NOT EXISTS FOR (t:CodeownerTeam) REQUIRE t.ref IS UNIQUE",
 	}
 	for _, want := range expected {
 		found := false
@@ -115,6 +116,7 @@ func TestSchemaStatementsForBackendAddsNornicDBMergeLookupIndexes(t *testing.T) 
 		// comment calls out as "O(n²)".
 		"CREATE INDEX nornicdb_source_local_record_scope_lookup IF NOT EXISTS FOR (n:SourceLocalRecord) ON (n.scope_id)",
 		"CREATE INDEX nornicdb_parameter_path_lookup IF NOT EXISTS FOR (n:Parameter) ON (n.path)",
+		"CREATE INDEX nornicdb_codeowner_team_ref_lookup IF NOT EXISTS FOR (t:CodeownerTeam) ON (t.ref)", // #5419 Phase 3 DECLARES_CODEOWNER MERGE
 	}
 	for _, want := range expected {
 		assertContainsStatement(t, stmts, want)
