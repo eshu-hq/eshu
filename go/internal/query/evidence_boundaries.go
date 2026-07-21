@@ -37,7 +37,6 @@ func attachEvidenceBoundaries(data map[string]any, readSurface string) {
 func evidenceBoundariesFor(readSurface string) []PostgresOnlyBoundary {
 	type pair struct{ domain, surface string }
 	pairs := []pair{
-		{domain: "ci_cd_run_correlation", surface: "get_service_story"},
 		{domain: "container_image_identity", surface: "get_service_story"},
 		{domain: "ci_cd_run_correlation", surface: "get_workload_story"},
 		{domain: "container_image_identity", surface: "get_workload_story"},

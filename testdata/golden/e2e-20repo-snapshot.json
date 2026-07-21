@@ -3731,7 +3731,7 @@
         ],
         "minimum_results": 0,
         "required_json_values": {
-          "evidence_boundaries[].domain": "ci_cd_run_correlation"
+          "evidence_boundaries[].domain": "container_image_identity"
         },
         "arguments": {
           "workload_id": "workload:api-svc"

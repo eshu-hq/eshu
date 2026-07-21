@@ -122,7 +122,7 @@ probes are forbidden without a measured budget.
 The disclosure vocabulary is `PostgresOnlyBoundary`:
 ```json
 {
-  "domain": "ci_cd_run_correlation",
+  "domain": "container_image_identity",
   "read_surface": "get_service_story",
   "reason": "postgres_only_read_model"
 }
@@ -153,7 +153,7 @@ runtime cost and no graph schema change.
 
 | Story tool | Boundary domains | Reason |
 | --- | --- | --- |
-| get_service_story | ci_cd_run_correlation, container_image_identity | graph-native sections omit Postgres ci_cd/supply-chain links |
+| get_service_story | container_image_identity | `evidence_graph` omits the Postgres-only supply-chain (BUILT_FROM) link; ci_cd_run_correlation is NOT a boundary here because the top-level `ci_cd_evidence` field already serves that domain |
 | get_workload_story | ci_cd_run_correlation, container_image_identity, package_correlation | entire ci_cd/image/package chain absent from workload graph read |
 | get_repo_story | container_image_identity, package_correlation_ownership, package_correlation_publication | no publication/ownership/image links in graph repo story |
 | trace_deployment_chain | ci_cd_run_correlation, container_image_identity | image_ref→digest identity + CI-run-produced-image hop invisible |

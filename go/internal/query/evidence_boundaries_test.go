@@ -22,11 +22,11 @@ func TestEvidenceBoundariesForServiceStory(t *testing.T) {
 	t.Parallel()
 
 	got := evidenceBoundariesFor("get_service_story")
-	if len(got) != 2 {
-		t.Fatalf("len(evidence_boundaries) = %d, want 2: %#v", len(got), got)
+	if len(got) != 1 {
+		t.Fatalf("len(evidence_boundaries) = %d, want 1: %#v", len(got), got)
 	}
 
-	wantDomains := []string{"ci_cd_run_correlation", "container_image_identity"}
+	wantDomains := []string{"container_image_identity"}
 	for i, b := range got {
 		if b.Domain != wantDomains[i] {
 			t.Errorf("boundary[%d].domain = %q, want %q", i, b.Domain, wantDomains[i])
@@ -139,11 +139,11 @@ func TestBuildServiceStoryResponseIncludesEvidenceBoundaries(t *testing.T) {
 	got := buildServiceStoryResponse("workload:sample-service-api", workloadContext)
 
 	boundaries := evidenceBoundariesFromMap(got)
-	if len(boundaries) != 2 {
-		t.Fatalf("len(evidence_boundaries) = %d, want 2: %#v", len(boundaries), got["evidence_boundaries"])
+	if len(boundaries) != 1 {
+		t.Fatalf("len(evidence_boundaries) = %d, want 1: %#v", len(boundaries), got["evidence_boundaries"])
 	}
 
-	wantDomains := []string{"ci_cd_run_correlation", "container_image_identity"}
+	wantDomains := []string{"container_image_identity"}
 	for i, b := range boundaries {
 		if b.Domain != wantDomains[i] {
 			t.Errorf("boundary[%d].domain = %q, want %q", i, b.Domain, wantDomains[i])
@@ -245,18 +245,52 @@ func TestAttachEvidenceBoundariesSliceUsesPostgresOnlyBoundary(t *testing.T) {
 	if !ok {
 		t.Fatalf("evidence_boundaries type = %T, want []PostgresOnlyBoundary", response["evidence_boundaries"])
 	}
-	if len(boundaries) != 2 {
-		t.Fatalf("len(evidence_boundaries) = %d, want 2", len(boundaries))
+	if len(boundaries) != 1 {
+		t.Fatalf("len(evidence_boundaries) = %d, want 1", len(boundaries))
 	}
 	for _, b := range boundaries {
 		if b.Reason != boundaryReasonPostgresOnly {
 			t.Errorf("boundary %q reason = %q, want %q", b.Domain, b.Reason, boundaryReasonPostgresOnly)
 		}
-		if !slices.Contains([]string{"ci_cd_run_correlation", "container_image_identity"}, b.Domain) {
+		if !slices.Contains([]string{"container_image_identity"}, b.Domain) {
 			t.Errorf("unexpected domain %q in get_service_story boundaries", b.Domain)
 		}
 		if b.ReadSurface != "get_service_story" {
 			t.Errorf("boundary %q read_surface = %q, want get_service_story", b.Domain, b.ReadSurface)
+		}
+	}
+}
+
+// TestBuildServiceStoryResponseOmitsBoundaryForFieldAlreadyServed is the
+// regression test for the arbitrated #5472 review finding: get_service_story
+// wrongly disclosed a ci_cd_run_correlation boundary even though the response
+// already serves that domain through the top-level ci_cd_evidence field. The
+// pre-fix declaration in evidenceBoundariesFor contradicted the response it
+// described. sampleServiceDossierContext() never set ci_cd_evidence, which is
+// why TestBuildServiceStoryResponseIncludesEvidenceBoundaries above did not
+// catch the contradiction; this test populates it explicitly.
+func TestBuildServiceStoryResponseOmitsBoundaryForFieldAlreadyServed(t *testing.T) {
+	t.Parallel()
+
+	workloadContext := sampleServiceDossierContext()
+	workloadContext["ci_cd_evidence"] = map[string]any{
+		"static_workflow_artifacts": map[string]any{"state": "materialized"},
+	}
+
+	got := buildServiceStoryResponse("workload:sample-service-api", workloadContext)
+
+	if ciCDEvidence, ok := got["ci_cd_evidence"]; !ok || ciCDEvidence == nil {
+		t.Fatalf("response missing ci_cd_evidence sibling field; test setup invalid: %#v", got["ci_cd_evidence"])
+	}
+
+	boundaries := evidenceBoundariesFromMap(got)
+	for _, b := range boundaries {
+		if b.Domain == "ci_cd_run_correlation" {
+			t.Fatalf(
+				"evidence_boundaries contains ci_cd_run_correlation while response[\"ci_cd_evidence\"] is populated; "+
+					"a sibling field already serves this domain, so the boundary disclosure is false: %#v",
+				boundaries,
+			)
 		}
 	}
 }
