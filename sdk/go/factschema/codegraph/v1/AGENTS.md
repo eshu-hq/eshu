@@ -51,11 +51,17 @@ remain independent from Eshu internals.
   field regardless of its Go field name (`decode_map.go`), and a non-object
   payload value fails that assignment with a classified decode error. Do NOT
   add a custom codec to this field; it is unnecessary.
-- `ParsedFileData` MUST stay opaque (`map[string]any`, no nested struct). Its
-  inner shape is deferred to issue #4750 (inner-AST typing). Do not add a
-  nested struct for `parsed_file_data`'s inner keys (`imports`, `functions`,
-  `function_calls`, ...) in this change or without discussing scope first —
-  that is separate follow-up work, not an incremental edit here.
+- `ParsedFileData` MUST stay opaque (`map[string]any`, no nested struct for the
+  container itself). Its SPECIFIC inner keys are typed incrementally,
+  key-by-key, as a consuming read site migrates off a raw map lookup (issue
+  #4750 S1, issue #5440, issue #5445 slice 1): the typed inner structs live in
+  `parsed_file_data*.go` and are decoded on demand through the parent module's
+  `DecodeParsedFileData*` accessors, per key, per the pattern documented in
+  `README.md`'s "parsed_file_data is an open container" section. Do not add a
+  typed struct for the WIDE per-language AST buckets (`imports`, `functions`,
+  `function_calls`, `classes`, `variables`, `framework_semantics`) — their
+  element shape is a union of many independently evolving per-language field
+  sets, deferred to a later increment — without discussing scope first.
 - `File.ParsedFileData` is a required, non-`omitempty` `map[string]any` field.
   `TestPayloadStructShapeConvention` (parent module `decode_test.go`) requires
   every such field to be explicitly allow-listed in
