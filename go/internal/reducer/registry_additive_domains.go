@@ -17,9 +17,31 @@ func configStateDriftDomainDefinition() DomainDefinition {
 	return DomainDefinition{
 		Domain:  DomainConfigStateDrift,
 		Summary: "correlate Terraform config (parsed HCL) against state snapshots to detect five drift kinds",
-		// CounterEmit declares the v1 truth surface: bounded metric
-		// counters + structured logs. Graph projection follows per
-		// design doc §10.
+		// Durable truth surface (issue #5442): every admitted per-address
+		// finding and every ambiguous-owner rejection is written as a
+		// reducer_terraform_config_state_drift_finding Postgres fact (see
+		// terraform_config_state_drift_writer.go), read back through
+		// POST /api/v0/terraform/config-state-drift/findings and the
+		// list_terraform_config_state_drift_findings MCP tool. Graph
+		// projection stays deferred: this mirrors the AWS and multi-cloud
+		// runtime drift domains, which are Postgres-only with graph
+		// projection explicitly gated behind a separate Cypher-shape and
+		// performance proof (see docs/public/reference/cypher-performance.md)
+		// rather than assumed free. CanonicalWrite stays false because that
+		// field means a canonical GRAPH write; it is not the durability flag
+		// (this is a documentation-accuracy correction, not a functional
+		// switch — CanonicalWrite's only production consumer is a Validate()
+		// OR-check already satisfied by CounterEmit:true). CounterEmit
+		// declares the v1 truth surface: bounded metric counters +
+		// structured logs remain a parallel signal alongside the durable
+		// write, not a replacement for it.
+		//
+		// The previous version of this comment cited "design doc §10" for
+		// the graph-projection deferral; that document
+		// (docs/internal/design/391-observability-coverage-correlation.md)
+		// was deleted in commit 52d998301, and its §10 was about an
+		// unrelated state_to_cloud_arn rule pack even before the deletion —
+		// the citation was wrong when it was written, not merely stale.
 		Ownership: OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
