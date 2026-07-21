@@ -36,8 +36,8 @@ func applySchema(ctx context.Context, db bootstrapDB) error {
 	return postgres.ApplyBootstrapWithoutContentSearchIndexes(ctx, db)
 }
 
-func openBootstrapGraph(ctx context.Context, getenv func(string) string, tracer trace.Tracer, instruments *telemetry.Instruments) (graphDeps, error) {
-	writer, closer, err := openBootstrapCanonicalWriter(ctx, getenv, tracer, instruments)
+func openBootstrapGraph(ctx context.Context, database bootstrapDB, getenv func(string) string, tracer trace.Tracer, instruments *telemetry.Instruments) (graphDeps, error) {
+	writer, closer, err := openBootstrapCanonicalWriter(ctx, database, getenv, tracer, instruments)
 	if err != nil {
 		return graphDeps{}, err
 	}

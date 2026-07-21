@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -175,8 +176,16 @@ func neo4jBatchSize(getenv func(string) string) int {
 	return n
 }
 
+// openBootstrapCanonicalWriter opens the canonical graph writer for the
+// configured backend. database is the already-open Postgres handle
+// bootstrap-index's main() owns; it is threaded in, not opened here, so the
+// #5443 MATCHES_STATE ownership resolver reuses the process's single
+// Postgres connection instead of duplicating a lifecycle -- the same pattern
+// cmd/projector's openProjectorCanonicalWriter and cmd/ingester's
+// openIngesterCanonicalWriter follow.
 func openBootstrapCanonicalWriter(
 	parent context.Context,
+	database bootstrapDB,
 	getenv func(string) string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
@@ -234,7 +243,11 @@ func openBootstrapCanonicalWriter(
 		executor,
 		neo4jBatchSize(getenv),
 		instruments,
-	).WithTracer(tracer)
+	).WithTracer(tracer).WithTerraformStateOwnershipResolver(
+		bootstrapTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.PostgresTerraformBackendQuery{DB: database})},
+	).WithTerraformStateConfigMatchResolver(
+		bootstrapTerraformStateConfigMatchResolver{driver: driver, databaseName: cfg.DatabaseName},
+	)
 	labelBatchSizes := map[string]int(nil)
 	orderedLabels := []string(nil)
 	fileBatchSize := 0
