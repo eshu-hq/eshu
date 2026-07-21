@@ -15,7 +15,7 @@ One `codeowners` fact kind decodes through this package today:
 
 | Fact kind | Struct | Decode function | Read by |
 | --- | --- | --- | --- |
-| `codeowners.ownership` | `Ownership` | `factschema.DecodeCodeownersOwnership` | none yet (Phase 3 of issue #5419) |
+| `codeowners.ownership` | `Ownership` | `factschema.DecodeCodeownersOwnership` | `go/internal/reducer` `codeowners_ownership` domain (projects `DECLARES_CODEOWNER` edges); served via `go/internal/query` + `go/internal/mcp` |
 
 `Ownership` models one CODEOWNERS pattern-to-owners mapping: one line of a
 repository's CODEOWNERS file (`repo_id`, `source_path`, `pattern`, `owners`,
