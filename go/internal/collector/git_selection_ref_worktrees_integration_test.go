@@ -403,3 +403,71 @@ func TestCreateRefWorktreesSlashRefSurvivesReconcile(t *testing.T) {
 	}
 	t.Logf("N2: slash ref %s survived reconcile, SHA stable at %s", entries1[0].Ref, firstSHA[:8])
 }
+
+// TestSyncGitRepositoriesPrunesRefWorktreesAfterLastPinRemoved proves the P2
+// finding: when an operator removes ALL pins for a repo that remains in the
+// selection, syncGitRepositoriesWithLogger must still prune any leftover
+// .eshu-ref-worktrees/<repo>/<ref> checkouts. Before the fix, hasPinnedRefs
+// is false for an unpinned repo, so the `if hasPinnedRefs` block — the only
+// caller of reconcileRefWorktrees — never runs, and the reserved-prefix
+// worktree leaks forever (cleanManagedWorkspace preserves .eshu- entries).
+//
+// This drives the real sync loop (syncGitRepositoriesWithLogger) rather than
+// calling reconcileRefWorktrees directly: reconcileRefWorktrees already prunes
+// correctly in isolation (git_selection_ref_worktrees.go), so the bug is only
+// observable by proving the loop's else-branch actually invokes it for a repo
+// with zero current pins.
+func TestSyncGitRepositoriesPrunesRefWorktreesAfterLastPinRemoved(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	// Bare repo as "remote".
+	bareDir := t.TempDir()
+	gitInit(t, bareDir, "--bare", "-b", "main")
+
+	reposDir := t.TempDir()
+	repoName := "test-repo-unpin"
+	repoPath := filepath.Join(reposDir, repoName)
+
+	tmpDir := t.TempDir()
+	gitClone(t, ctx, bareDir, tmpDir)
+	writeGitFile(t, filepath.Join(tmpDir, "README.md"), "# initial\n")
+	gitAddCommit(t, tmpDir, "initial")
+	gitPush(t, tmpDir, bareDir, "main")
+
+	// Pre-clone into the managed repos path so syncExistingRepository is used
+	// instead of cloneRepository.
+	gitClone(t, ctx, bareDir, repoPath)
+
+	// Seed a leftover ref-worktree dir + marker as if a ref was pinned and
+	// checked out in a prior cycle, then the pin was removed.
+	staleRefDir := filepath.Join(reposDir, ".eshu-ref-worktrees", repoName, "stale-ref")
+	if err := os.MkdirAll(staleRefDir, 0o750); err != nil {
+		t.Fatalf("MkdirAll(staleRefDir): %v", err)
+	}
+	writeGitFile(t, filepath.Join(staleRefDir, "marker.txt"), "leftover from a removed pin\n")
+
+	// Repo is in the selection, but has NO pins — the last pin was removed.
+	cfg := RepoSyncConfig{
+		ReposDir:            reposDir,
+		SourceMode:          "explicit",
+		CloneDepth:          1,
+		PinnedRefsByRepoID:  map[string][]string{},
+		PinnedRefPerRepoCap: 3,
+		GitAuthMethod:       "none",
+		GithubOrg:           "test",
+		RepoLimit:           1,
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+
+	if _, err := syncGitRepositoriesWithLogger(ctx, cfg, []string{repoName}, logger, gitDeltaBaseline{}); err != nil {
+		t.Fatalf("syncGitRepositoriesWithLogger error = %v", err)
+	}
+
+	if _, statErr := os.Stat(staleRefDir); !os.IsNotExist(statErr) {
+		t.Fatalf("stale ref worktree %q still exists after sync with zero pins (stat err = %v); want pruned", staleRefDir, statErr)
+	}
+	t.Logf("unpin: leftover ref worktree %q pruned after last pin removed", staleRefDir)
+}

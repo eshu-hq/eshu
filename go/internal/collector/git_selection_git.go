@@ -109,6 +109,16 @@ func syncGitRepositoriesWithLogger(
 				// buildSelectedRepositories processes ref-worktree-only paths
 				// separately, emitting only the ref-scoped entries.
 			}
+		} else {
+			// Unpinning must prune leftover ref worktrees so the reserved
+			// .eshu-ref-worktrees checkout does not leak: cleanManaged
+			// workspace preserves the .eshu- prefix, so once created these
+			// entries only ever go away via reconcileRefWorktrees. When a
+			// repo has zero current pins (all pins removed, or it never had
+			// any), pass an empty pinned set so any stale entries under its
+			// ref dir are pruned; reconcileRefWorktrees already returns
+			// cleanly when the dir doesn't exist.
+			reconcileRefWorktrees(ctx, config, repoID, nil, logger)
 		}
 	}
 	return GitSyncSelection{
