@@ -11,6 +11,13 @@
    by `postgres.FactStore.ListScopeGenerationWork`) instead of a cassette.
 5. `graph_dump.go`, `graphdump_reader.go` - P3 graph-truth determinism verb
    (issue #4396).
+5b. `assert_edges.go` - the materialized-edge exhaustiveness gate's live,
+   set-exact non-vacuity assertion (#5351): reads the family's registry edge
+   types off the same Bolt `Reader` and asserts they are exactly the expected
+   set. Reuses `boltGraphReader` (graphdump_reader.go) and
+   `go/internal/ifa.LoadExpectedEdges`/`MaterializedEdgeDomainEdgeTypes`. Wired
+   into the `ifa-determinism` (per cell) and `ifa-fault-injection` (baseline)
+   live gate scripts.
 6. `mutate_cassette.go` - P3 failure-path-determinism fixture generator verb
    (ADR step 3a, issue #4396): wraps `go/internal/ifa.MutateCassette`.
 7. `dead_letters.go` - P3 failure-path-determinism read verb (ADR step 3a,
@@ -84,6 +91,18 @@
 - `ifa graph-dump` is read-only: it applies no schema DDL and issues only the
   two `MATCH` reads in `graphdump_reader.go` (`boltNodesCypher`/
   `boltEdgesCypher`). Do not add a write statement to this verb.
+- `ifa assert-edges` is the non-vacuity check the P2 digest cannot make: it
+  MUST fail on a family that materialized zero edges (an empty family passes a
+  digest comparison vacuously). Its `edgeTypes` filter is registry-derived via
+  `ifa.MaterializedEdgeDomainEdgeTypes` (never hand-listed), and an edge with a
+  missing endpoint `uid` is a real defect (an unmaterialized endpoint node),
+  surfaced, never silently skipped — that exact silent no-op is what #5351's
+  fixture work surfaced. Read-only, flags-before-backend like `graph-dump`; the
+  set-comparison core (`assertMaterializedEdges`) takes a `graphdump.Reader` so
+  it is hermetically testable against a fake with no Docker. A new family gains
+  live coverage by adding its case to `ifa.MaterializedEdgeDomainEdgeTypes` and
+  its cassette/expected-set to BOTH gate scripts — not by hand-listing edge
+  types here.
 - `ifa mutate-cassette` NEVER overwrites `-cassette`; it always writes to
   `-out`, a separate path. Never point `-out` at a committed `testdata/`
   cassette in a script or CI job.

@@ -16,6 +16,12 @@
    wholesale.
 9. `go/internal/synth/gcp/AGENTS.md` - the synthetic GCP corpus generator
    `demoOrgRoundtripOdu` depends on.
+10. `materialized_edges.go`, `materialized_edges_manifest.go`,
+    `materialized_edges_sql.go` (#5351) - the `materialized_edges:<domain>`
+    exhaustiveness gate: binds an Odù expectation to a reducer-materialized
+    graph edge family so a materialization silently ceasing to produce an
+    edge family is caught. `sql_relationship_odu.go` is the first family's
+    fixture.
 
 ## Invariants
 
@@ -68,6 +74,30 @@
   including `FailureClass`. Do not narrow it to `WorkItemID`-only equality —
   the ADR's step 3a teeth test requires catching a divergent `failure_class`
   on an otherwise-matching work item.
+- `reducer.MaterializedEdgeFamilies()` is the ONLY enumeration source for
+  `materialized_edges:<domain>` surfaces. Do not hand-list families in
+  `materialized_edges.go` or the manifest; a family must come from that
+  function (locked to `allProjectionDomains` by a reducer-package test).
+- A `materialized_edges:<family>` coverage row is not exhaustively covered
+  until BOTH its `baseline` (proof_gate `ifa-determinism`) and `fault`
+  (proof_gate `ifa-fault-injection`) scenario_type rows resolve covered.
+  `materializedEdgeScenarioRequirements` computes this requirement directly
+  from `reducer.MaterializedEdgeFamilies()` in code; do not add a
+  `scenario_requirements:` section to
+  `specs/ifa-materialized-edge-coverage.v1.yaml` — it would be ignored (the
+  loaded value is always overwritten before `Reconcile` runs) and would mislead
+  a reviewer into thinking the file controls the requirement.
+- An uncovered family MUST be either bound to real coverage rows or listed in
+  the manifest's `waivers:` section with a tracked issue; a family in neither
+  fails the blocking gate. A waiver on a family that later gains real
+  coverage is flagged as stale — remove the `waivers:` row in the same change
+  that adds the coverage rows.
+- Before trusting a new family's expected-edge-set fixture against a live
+  backend, read `README.md`'s Gotchas note on the #5351 live-proof finding: a
+  `content_entity` fact whose `relative_path` has no matching `file` fact
+  produces zero graph nodes silently, and a `Function`/`Class`/other
+  `canonicalNamePathLineEntityLabels` endpoint's real graph uid is a derived
+  hash, not the fact's own `entity_id`.
 
 ## Drop an Odù
 

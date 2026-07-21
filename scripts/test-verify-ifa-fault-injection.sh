@@ -70,6 +70,24 @@ require "synth-cassette verb invocation" '"${bin_dir}/eshu-ifa" synth-cassette'
 require "drive verb invocation" 'eshu-ifa" drive -cassette'
 require "vacuous-drive guard" "vacuous drain proof"
 
+# SQL relationship family cassette (#5351): driven into every cell so cells 2/3
+# (lease-expiry / kill-worker) exercise the SQL relationship materialization
+# handler's replay through the real durable fault path, plus a baseline
+# absolute-set assertion (`ifa assert-edges`) proving the fault-free graph
+# carries all seven SQL edges before the recovery cells compare against it.
+# Backs the materialized_edges:sql_relationships manifest row's proof_gate:
+# ifa-fault-injection claim.
+require "SQL cassette path" "testdata/cassettes/sqlrelationships/ifa-sql-family.json"
+require "SQL expected-edge set path" "testdata/cassettes/sqlrelationships/ifa-sql-family-expected-edges.json"
+require "SQL cassette existence guard" 'SQL cassette not found'
+require "SQL expected-edge set existence guard" 'SQL expected-edge set not found'
+require "SQL cassette driven into every cell" 'eshu-ifa" drive -cassette "${sql_cassette}" -workers "${drive_workers}"'
+require "drive helper covers all three cassettes" "drive_all_cassettes"
+require "assert-edges verb invocation on baseline" '"${bin_dir}/eshu-ifa" assert-edges'
+require "assert-edges domain flag" "-domain sql_relationships"
+require "assert-edges expected flag" '-expected "${sql_expected_edges}"'
+require "assert-edges non-vacuity framing" "non-vacuity"
+
 # Untagged binaries plus a SEPARATE tagged reducer build for cells 4-5.
 require "untagged reducer build" "ifa_det_build_bin \"\${bin_dir}\" reducer"
 require "tagged reducer build" "ifa_det_build_bin \"\${tagged_bin_dir}\" reducer \"ifafaultinjection\""

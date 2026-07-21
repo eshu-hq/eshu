@@ -156,6 +156,18 @@ compose_file="docker-compose.yaml"
 cassette="${repo_root}/testdata/cassettes/gcpcloud/supply-chain-demo.json"
 worker_counts=(1 2 4)
 
+# SQL relationship family cassette (#5351): a committed cassette (unlike the
+# generated synth cassette) that exercises the reducer's SQL relationship edge
+# materialization across all seven materialized edge types (QUERIES_TABLE,
+# READS_FROM, HAS_COLUMN, TRIGGERS, EXECUTES, INDEXES, MIGRATES). It is driven
+# into every cell alongside the demo-org + synth-multiscope cassettes, and the
+# materialized_edges:sql_relationships manifest row's proof_gate: ifa-determinism
+# claim is backed by an ADDITIONAL per-cell absolute-set assertion (see the
+# `ifa assert-edges` call after the drain): digest equality across N cannot
+# catch a family silently empty in ALL cells, the absolute expected set can.
+sql_cassette="${repo_root}/testdata/cassettes/sqlrelationships/ifa-sql-family.json"
+sql_expected_edges="${repo_root}/testdata/cassettes/sqlrelationships/ifa-sql-family-expected-edges.json"
+
 # synth-multiscope cassette settings (issue #4396 slice 6b): a fixed seed so
 # the generated cassette is byte-identical across every cell (and across
 # repeated runs of this script), 8 disjoint GCP project scopes, 64 resources
@@ -208,6 +220,8 @@ if [[ "${teeth}" -eq 1 ]]; then
 fi
 
 [[ -f "${cassette}" ]] || { echo "verify-ifa-determinism: cassette not found: ${cassette}" >&2; exit 1; }
+[[ -f "${sql_cassette}" ]] || { echo "verify-ifa-determinism: SQL cassette not found: ${sql_cassette}" >&2; exit 1; }
+[[ -f "${sql_expected_edges}" ]] || { echo "verify-ifa-determinism: SQL expected-edge set not found: ${sql_expected_edges}" >&2; exit 1; }
 
 work_dir="$(mktemp -d -t ifa-determinism.XXXXXX)"
 bin_dir="${work_dir}/bin"
@@ -354,7 +368,22 @@ for n in "${worker_counts[@]}"; do
 	fi
 	cat "${log_dir}/ifa-drive-synth-n${n}.log"
 
-	# Third drive (opt-in --contention): the #5007 overlapping-identity cassette.
+	# Third drive: the committed SQL relationship family cassette (#5351). Driven
+	# at the SAME -workers N into the same cell stack, so its seven materialized
+	# SQL edge types (QUERIES_TABLE/READS_FROM/HAS_COLUMN/TRIGGERS/EXECUTES/
+	# INDEXES/MIGRATES) are part of the combined graph the digest below covers,
+	# AND become the subject of the per-cell absolute-set assertion after the
+	# drain. This is what backs the materialized_edges:sql_relationships manifest
+	# row's proof_gate: ifa-determinism claim with an actual replay of the family.
+	log "N=${n}: drive SQL relationship family cassette through eshu-ifa drive -workers ${n}"
+	if ! "${bin_dir}/eshu-ifa" drive -cassette "${sql_cassette}" -workers "${n}" \
+		>"${log_dir}/ifa-drive-sql-n${n}.log" 2>&1; then
+		tail -40 "${log_dir}/ifa-drive-sql-n${n}.log" >&2 || true
+		die "N=${n}: eshu-ifa drive (SQL relationship family) failed"
+	fi
+	cat "${log_dir}/ifa-drive-sql-n${n}.log"
+
+	# Fourth drive (opt-in --contention): the #5007 overlapping-identity cassette.
 	# Its K scopes all contend on the same CloudResource nodes; the owner ledger
 	# must make the contended node's final state identical across N=1/2/4. A
 	# digest divergence that appears ONLY with --contention is a real ledger
@@ -376,7 +405,7 @@ for n in "${worker_counts[@]}"; do
 		'SELECT count(*) FROM fact_work_items;' "${compose_file}" | tr -d '[:space:]')"
 	[[ -n "${work_items}" && "${work_items}" -gt 0 ]] \
 		|| die "N=${n}: eshu-ifa drive committed but enqueued 0 fact_work_items rows (vacuous drain proof)"
-	printf 'N=%s fact_work_items enqueued (demo-org + synth-multiscope): %s\n' "${n}" "${work_items}"
+	printf 'N=%s fact_work_items enqueued (demo-org + synth-multiscope + SQL family): %s\n' "${n}" "${work_items}"
 
 	log "N=${n}: drain projector + reducer (gate polls to the B-12 residual bound)"
 	bg_pids=()
@@ -400,6 +429,21 @@ for n in "${worker_counts[@]}"; do
 	[[ -n "${digest_n}" ]] || die "N=${n}: ifa graph-dump -digest returned empty output"
 	digests[${n}]="${digest_n}"
 	printf 'N=%s digest: %s\n' "${n}" "${digest_n}"
+
+	# Absolute-set assertion for the SQL relationship family (#5351): the
+	# non-vacuity check the digest cannot make. Digest equality across N proves
+	# worker-count invariance, but a family that materialized ZERO edges in ALL
+	# cells has an identical (empty-for-that-family) digest in every cell and
+	# would pass the digest comparison vacuously. `ifa assert-edges` reads the
+	# live graph and asserts the SQL family's materialized edges are EXACTLY the
+	# committed expected set (all seven edge types), per cell, so a silently
+	# non-materializing family fails here even when the digest is stable.
+	log "N=${n}: assert SQL relationship family materialized edges (absolute set, non-vacuity)"
+	if ! "${bin_dir}/eshu-ifa" assert-edges \
+		-domain sql_relationships \
+		-expected "${sql_expected_edges}"; then
+		die "N=${n}: SQL relationship family materialized edge set did not match the expected set — a family silently not materializing (or spurious edges); do NOT normalize this away"
+	fi
 
 	if [[ "${use_compose}" -eq 1 ]]; then
 		log "N=${n}: tear down cell (fresh stack for the next cell)"

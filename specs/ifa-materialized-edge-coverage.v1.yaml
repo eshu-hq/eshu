@@ -1,0 +1,125 @@
+# Ifá materialized-edge coverage manifest (#5351, epic #5344).
+#
+# This is the curated, reviewable mapping from each reducer-materialized edge
+# family to the cataloged Odù that proves it. go/internal/ifa's
+# RunMaterializedEdgeCoverage enumerates the required surfaces from
+# reducer.MaterializedEdgeFamilies() — the drift-proof registry of reducer
+# domains that write graph edges through the ordering-safe shared-projection
+# intent path (go/internal/reducer/shared_projection.go's allProjectionDomains)
+# — and reports any family with no entry here as UNCOVERED unless a matching
+# `waivers:` row names a tracked child issue.
+#
+# Surface keys are "materialized_edges:<domain>", one per
+# reducer.MaterializedEdgeFamilies() entry.
+#
+# Exhaustive coverage for a family requires BOTH:
+#   - a `coverage:` row with scenario_type: baseline, proof_gate: ifa-determinism
+#     (the P2 graph-determinism matrix replays the family's committed cassette
+#     across N in {1,2,4} and, per cell, runs `ifa assert-edges -domain <family>
+#     -expected <file>` — a live, set-exact assertion that the family's
+#     materialized edges are EXACTLY the hand-derived expected set. Digest
+#     equality across N alone cannot catch a family silently empty in ALL cells;
+#     the absolute expected set can, which is why the proof_gate is only honest
+#     with the assert-edges wiring in scripts/verify-ifa-determinism.sh.)
+#   - a `coverage:` row with scenario_type: fault, proof_gate: ifa-fault-injection
+#     (the P4 fault-injection matrix drives the same family cassette into every
+#     cell so lease-expiry / kill-worker recovery exercises the family's real
+#     durable handler replay, asserts the fault-free baseline carries exactly
+#     the expected edges via `ifa assert-edges`, then compares every recovery
+#     cell's graph byte-identical to that known-good baseline.)
+# go/internal/ifa/materialized_edges.go computes this [baseline, fault]
+# requirement directly from reducer.MaterializedEdgeFamilies() in code, not
+# from a scenario_requirements: section in this file, so a family added to
+# that registry can never drift out of sync with its own required pair.
+#
+# scenario is always "odu": every coverage entry's ref must name an Odù
+# returned by Catalog()/CatalogByName() in go/internal/ifa/catalog_seed.go.
+#
+# Resolution semantics (go/internal/ifa/materialized_edges.go's
+# MaterializedEdgeOduResolver, materialized_edges_sql.go's
+# resolveSQLRelationshipMaterializedEdges for the sql_relationships family):
+# true iff (1) ref names a cataloged Odù, (2) the family's hand-derived
+# expected-edge-set fixture names at least one edge of every relationship type
+# the family's writer registry accepts, and (3) running the Odù's own facts
+# through the family's pure, backend-free extraction seam reproduces the
+# expected set EXACTLY. See go/internal/ifa/coverage_falsegreen_test.go's
+# sibling materialized_edges_falsegreen_test.go for the proof this file's
+# bindings cannot pass on a wrong Odù or an incomplete expected-edge-set.
+#
+# Only 1 of the 12 allProjectionDomains families has real coverage as of
+# #5351 (sql_relationships, the first coverage this issue lands). The other
+# 11 are RED-BY-DEFAULT and carry a `waivers:` row each, pointing at epic
+# #5344 pending the per-domain child issues #5351's driving session files.
+# `waivers:` is a small addition on top of replaycoverage's generic Manifest
+# schema (parsed separately by go/internal/ifa/materialized_edges_manifest.go
+# LoadMaterializedEdgeWaivers): a waiver softens an otherwise-required
+# uncovered finding into an advisory one that still names the issue in every
+# report, mirroring the C-13/C-14/F-6 gates' waiver-with-tracked-issue
+# pattern. A waived family that gains real coverage must have its waiver row
+# removed in the same change (materialized_edges.go flags a stale waiver on a
+# now-covered family as its own finding).
+#
+# Only seed a coverage row here once the referenced Odù is genuinely green
+# under the resolution semantics above (the same seed-only-green-rows
+# philosophy specs/ifa-coverage-manifest.v1.yaml documents) — an aspirational
+# binding belongs on the waiver list, never as an unproven coverage row.
+
+version: "1"
+
+coverage:
+  - surface: "materialized_edges:sql_relationships"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-sql-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:sql_relationships"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-sql-family"
+    proof_gate: ifa-fault-injection
+
+waivers:
+  - surface: "materialized_edges:repo_dependency"
+    issue: "#5344"
+    waived: "2026-07-20"
+    reason: "reducer.DomainRepoDependency (Terraform/app_repo dependency edges); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+  - surface: "materialized_edges:workload_dependency"
+    issue: "#5344"
+    waived: "2026-07-20"
+    reason: "reducer.DomainWorkloadDependency; pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+  - surface: "materialized_edges:code_calls"
+    issue: "#5344"
+    waived: "2026-07-20"
+    reason: "reducer.DomainCodeCalls (CALLS edges); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+  - surface: "materialized_edges:shell_exec"
+    issue: "#5344"
+    waived: "2026-07-20"
+    reason: "reducer.DomainShellExec; pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+  - surface: "materialized_edges:inheritance_edges"
+    issue: "#5344"
+    waived: "2026-07-20"
+    reason: "reducer.DomainInheritanceEdges; pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+  - surface: "materialized_edges:documentation_edges"
+    issue: "#5344"
+    waived: "2026-07-20"
+    reason: "reducer.DomainDocumentationEdges; pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+  - surface: "materialized_edges:rationale_edges"
+    issue: "#5344"
+    waived: "2026-07-20"
+    reason: "reducer.DomainRationaleEdges; pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+  - surface: "materialized_edges:deployable_unit_edges"
+    issue: "#5344"
+    waived: "2026-07-20"
+    reason: "reducer.DomainDeployableUnitEdges; pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+  - surface: "materialized_edges:handles_route"
+    issue: "#5344"
+    waived: "2026-07-20"
+    reason: "reducer.DomainHandlesRoute (HANDLES_ROUTE edges, #2721); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+  - surface: "materialized_edges:runs_in"
+    issue: "#5344"
+    waived: "2026-07-20"
+    reason: "reducer.DomainRunsIn (RUNS_IN edges, #2722); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+  - surface: "materialized_edges:invokes_cloud_action"
+    issue: "#5344"
+    waived: "2026-07-20"
+    reason: "reducer.DomainInvokesCloudAction (INVOKES_CLOUD_ACTION edges, #2723); pending its own #5351 child issue for an Odù + expected-edge-set fixture"

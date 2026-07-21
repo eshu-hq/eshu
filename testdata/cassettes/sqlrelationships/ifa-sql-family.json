@@ -1,0 +1,248 @@
+{
+  "collector": "git",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "scope-ifa-sql-family",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "scope-ifa-sql-family",
+      "metadata": {
+        "fixture": "ifa-sql-family"
+      },
+      "generation_id": "gen-1",
+      "observed_at": "2026-07-20T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repo-ifa-sql-family",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-sql-family",
+            "source_run_id": "run-ifa-sql-family-1"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-ifa-sql-family:db/schema.sql",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-sql-family",
+            "relative_path": "db/schema.sql",
+            "parsed_file_data": {}
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_cb021b7a4238",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-sql-family",
+            "entity_id": "content-entity:e_cb021b7a4238",
+            "entity_type": "Function",
+            "entity_name": "GetUser",
+            "relative_path": "cmd/api/handlers.go",
+            "start_line": 10,
+            "end_line": 20
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:sql-tbl-users",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-sql-family",
+            "entity_id": "content-entity:sql-tbl-users",
+            "entity_type": "SqlTable",
+            "entity_name": "public.users",
+            "relative_path": "db/schema.sql"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:sql-tbl-orders",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-sql-family",
+            "entity_id": "content-entity:sql-tbl-orders",
+            "entity_type": "SqlTable",
+            "entity_name": "public.orders",
+            "relative_path": "db/schema.sql"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:sql-col-email",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-sql-family",
+            "entity_id": "content-entity:sql-col-email",
+            "entity_type": "SqlColumn",
+            "entity_name": "public.users.email",
+            "relative_path": "db/schema.sql",
+            "entity_metadata": {
+              "table_name": "public.users",
+              "sql_entity_type": "SqlColumn"
+            }
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:sql-view-active-users",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-sql-family",
+            "entity_id": "content-entity:sql-view-active-users",
+            "entity_type": "SqlView",
+            "entity_name": "public.active_users",
+            "relative_path": "db/schema.sql",
+            "entity_metadata": {
+              "source_tables": [
+                "public.users"
+              ],
+              "sql_entity_type": "SqlView"
+            }
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:sql-fn-touch-updated-at",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-sql-family",
+            "entity_id": "content-entity:sql-fn-touch-updated-at",
+            "entity_type": "SqlFunction",
+            "entity_name": "public.touch_updated_at",
+            "relative_path": "db/schema.sql"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:sql-trig-users-touch",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-sql-family",
+            "entity_id": "content-entity:sql-trig-users-touch",
+            "entity_type": "SqlTrigger",
+            "entity_name": "users_touch",
+            "relative_path": "db/schema.sql",
+            "entity_metadata": {
+              "table_name": "public.users",
+              "function_name": "public.touch_updated_at",
+              "sql_entity_type": "SqlTrigger"
+            }
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:sql-idx-users-email",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-sql-family",
+            "entity_id": "content-entity:sql-idx-users-email",
+            "entity_type": "SqlIndex",
+            "entity_name": "idx_users_email",
+            "relative_path": "db/schema.sql",
+            "entity_metadata": {
+              "table_name": "public.users",
+              "sql_entity_type": "SqlIndex"
+            }
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:sql-mig-v1-add-users",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-sql-family",
+            "entity_id": "content-entity:sql-mig-v1-add-users",
+            "entity_type": "SqlMigration",
+            "entity_name": "V1__add_users",
+            "relative_path": "db/schema.sql",
+            "entity_metadata": {
+              "tool": "flyway",
+              "sql_entity_type": "SqlMigration",
+              "migration_targets": [
+                {
+                  "kind": "SqlTable",
+                  "name": "public.users",
+                  "operation": "create",
+                  "line_number": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-ifa-sql-family:cmd/api/handlers.go",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-sql-family",
+            "relative_path": "cmd/api/handlers.go",
+            "parsed_file_data": {
+              "path": "/repo/cmd/api/handlers.go",
+              "functions": [
+                {
+                  "name": "GetUser",
+                  "uid": "content-entity:e_cb021b7a4238",
+                  "line_number": 10,
+                  "end_line": 20
+                }
+              ],
+              "embedded_sql_queries": [
+                {
+                  "function_name": "GetUser",
+                  "function_line_number": 10,
+                  "table_name": "public.users",
+                  "operation": "select",
+                  "line_number": 13,
+                  "api": "database/sql"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "stable_fact_key": "shared_followup:repo-ifa-sql-family:sql_relationship_materialization",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "reducer_domain": "sql_relationship_materialization",
+            "entity_key": "sql:repo-ifa-sql-family",
+            "reason": "repository snapshot emitted SQL relationship materialization follow-up",
+            "repo_id": "repo-ifa-sql-family"
+          }
+        }
+      ]
+    }
+  ]
+}

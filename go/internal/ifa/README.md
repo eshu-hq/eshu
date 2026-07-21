@@ -68,6 +68,36 @@ authoring; it does not build a second coverage framework.
   (`dead_letters.go`) - the durable `fact_work_items` dead-letter set shape and
   its cross-run comparator, which `cmd/ifa`'s `ifa dead-letters` verb reads and
   renders.
+- `RegistryMaterializedEdges`, `MaterializedEdgeSurfacePrefix`,
+  `MaterializedEdgeManifestFileName`, `EnumerateMaterializedEdgeSurfaces`,
+  `MaterializedEdgeOduResolver`, `MaterializedEdgeWaiver`,
+  `LoadMaterializedEdgeWaivers`, `MaterializedEdgeCoverageInputs`,
+  `RunMaterializedEdgeCoverage` (`materialized_edges.go`,
+  `materialized_edges_manifest.go`, #5351) - the `materialized_edges:<domain>`
+  exhaustiveness gate: binds an Odù expectation to each
+  `reducer.MaterializedEdgeFamilies()` entry, mirroring `RunCoverage`'s shape
+  with one addition — a `waivers:` section (parsed separately from the
+  standard `replaycoverage.Manifest` `coverage:`/`scenario_requirements:`
+  rows) that softens an otherwise-required uncovered family into an advisory
+  finding naming a tracked child issue, instead of silently exempting it.
+  `materialized_edges_sql.go`'s `resolveSQLRelationshipMaterializedEdges` is
+  the first family vacuity guard (`sql_relationships`): it asserts the
+  hand-derived expected-edge-set fixture covers every
+  `cypher.SQLRelationshipMaterializedEdgeTypes()` key, then reproduces it
+  exactly by running the Odù's facts through the pure
+  `reducer.ExtractSQLRelationshipRows` seam.
+- `ExpectedEdge`, `LoadExpectedEdges`, `MaterializedEdgeDomainEdgeTypes`
+  (`materialized_edges_assert.go`, #5351) - the exported surface `cmd/ifa`'s
+  `assert-edges` verb uses for the LIVE, set-exact non-vacuity assertion: it
+  loads the SAME hand-derived expected-edge-set fixture the pure vacuity guard
+  consumes (so the live gate and the pure `go test` guard cannot drift on the
+  format) and returns the family's registry edge types
+  (registry-derived from `cypher.SQLRelationshipMaterializedEdgeTypes()`) so a
+  live graph read knows which edges belong to the family. This is what backs
+  the `materialized_edges:sql_relationships` manifest row's `proof_gate`
+  claims from inside the `ifa-determinism` and `ifa-fault-injection` live
+  gates — digest equality across worker counts cannot catch a family silently
+  empty in all cells; the absolute expected set can.
 
 ## Dependencies
 
@@ -159,6 +189,30 @@ Existing diagnostics remain the `go test` suite (including
   `roundtrip_test.go`'s baseline and teeth cases); a future fact family with a
   genuinely divergent number representation would need to prove that
   assumption again before reusing this comparator unchanged.
+- A `materialized_edges:<family>` Odù whose facts derive edges correctly under
+  the family's PURE extraction seam (e.g. `reducer.ExtractSQLRelationshipRows`)
+  can still be a silent no-op against a real graph backend if a required
+  endpoint node's containment write never fires. Proven live (#5351,
+  `sql_relationship_odu.go`'s `sqlFamilySchemaFileFact`/
+  `sqlFamilyGetUserFunctionEntity` doc comments) against a real
+  Postgres+NornicDB stack: (1) every `content_entity` entity's graph-node
+  write is `UNWIND $rows AS row MATCH (f:File {path: row.file_path}) MERGE
+  (n:Label {uid: row.entity_id}) ...` — an inner join — so a `content_entity`
+  fact whose `relative_path` names a file with no matching `file` fact
+  produces ZERO graph nodes for every entity in that batch, silently, with no
+  error and a misleadingly successful projector log line; (2) a graph node's
+  actual `uid` is NOT always the content_entity fact's own `entity_id` —
+  `projector.canonicalGraphEntityID`'s `canonicalNamePathLineEntityLabels` set
+  (includes `Function`, `Class`, ...) IGNORES the incoming id and derives
+  `content.CanonicalEntityID(repoID, relativePath, entityType, entityName,
+  startLine)` instead, so an edge extractor that reads a hand-picked function
+  uid from `parsed_file_data.functions[].uid` must use that SAME precomputed
+  canonical value or its edge write's endpoint `MATCH` silently no-ops too.
+  Any new `materialized_edges:<family>` Odù whose family writes edges to
+  `Function`/`Class`/other `canonicalNamePathLineEntityLabels`-derived
+  endpoints must precompute their canonical uid the same way, and every Odù
+  carrying `content_entity` facts must also carry a matching `file` fact for
+  every `relative_path` it references.
 - `MutateCassette`'s two `MutationKind` values do NOT map onto one fixed
   durable outcome. Proven empirically against a real Postgres + NornicDB stack
   (`scripts/verify-ifa-dead-letter-determinism.sh`), not just by reading the
