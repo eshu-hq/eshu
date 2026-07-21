@@ -446,17 +446,14 @@ families:
     reducer_domain: codeowners_ownership
     projection_hook: codeowners_ownership
     admission_hook: facts.ValidateSchemaVersion
-    # Issue #5419 Phase 1 (branch-aware CODEOWNERS ingestion, epic #5415): the
-    # contract only. No collector emits this kind yet and no reducer/query
-    # handler decodes it yet, so read_surface is "none" (the established
-    # sentinel, see the reducer_internal family below) rather than a route
-    # that is not actually mounted. A live route is later-phase work; setting
-    # a real GET path here now would fail
-    # TestFactKindRegistryReadSurfacesResolveToLiveRoutes
-    # (go/internal/mcp/read_surface_consumer_existence_test.go), which checks
-    # every non-"none" read_surface against the live, implemented API route
-    # inventory.
-    read_surface: none
+    # Issue #5419 Phase 4 (branch-aware CODEOWNERS ingestion, epic #5415) wired
+    # the live read surface: GET /api/v0/codeowners/ownership
+    # (go/internal/query/codeowners_ownership.go) reads the Phase 3
+    # DECLARES_CODEOWNER graph edges and resolves an effective_owner via
+    # manifest-vs-codeowners precedence. TestFactKindRegistryReadSurfacesResolveToLiveRoutes
+    # (go/internal/mcp/read_surface_consumer_existence_test.go) checks this
+    # literal against the live, implemented API route inventory.
+    read_surface: "GET /api/v0/codeowners/ownership"
     truth_profile: deterministic
     provider_key_independent: true
     # payload_schema_overrides is set even though no decode-side consumer
