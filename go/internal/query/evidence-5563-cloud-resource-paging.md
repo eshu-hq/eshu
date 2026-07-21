@@ -55,7 +55,8 @@ four indexes ready and valid, and the isolated proof schema was absent after
 test cleanup.
 
 The upgrade backfill seeded 20,000 existing graph-owner rows into an isolated
-Postgres 18 schema in 254.485 ms on the shared local host. The same live test
+Postgres 18 schema in 254.485-497.976 ms across two runs on the shared local
+host, including a post-rebase rerun while the machine was under load. The same live test
 preloaded a real reducer owner for an overlapping uid and then applied the
 minimum-key backfill row; the real key and fact id remained unchanged. The
 final ledger contained all 20,001 expected rows, the completion marker read

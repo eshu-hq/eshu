@@ -100,13 +100,13 @@ func BackfillCloudResourceOwnerLedger(ctx context.Context, db *sql.DB, graph Gra
 		return fmt.Errorf("cloud resource owner backfill database is required")
 	}
 	store := postgres.NewGraphNodeOwnerBackfillStore(postgres.SQLDB{DB: db})
-	return (CloudResourceOwnerBackfiller{Graph: graph, Store: store}).Run(ctx)
+	return (CloudResourceOwnerBackfiller{Graph: graph, Store: store}).Backfill(ctx)
 }
 
-// Run seeds every existing CloudResource row before recording durable
+// Backfill seeds every existing CloudResource row before recording durable
 // completion. A partial failure never marks completion, so the next startup
 // retries the idempotent, monotonic seed.
-func (b CloudResourceOwnerBackfiller) Run(ctx context.Context) error {
+func (b CloudResourceOwnerBackfiller) Backfill(ctx context.Context) error {
 	if b.Graph == nil {
 		return fmt.Errorf("cloud resource owner backfill graph is required")
 	}

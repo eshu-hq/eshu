@@ -35,8 +35,8 @@ func TestCloudResourceOwnerBackfillerSeedsExistingGraphRowsBeforeCompletion(t *t
 		Now:   func() time.Time { return now },
 	}
 
-	if err := backfiller.Run(context.Background()); err != nil {
-		t.Fatalf("Run() error = %v, want nil", err)
+	if err := backfiller.Backfill(context.Background()); err != nil {
+		t.Fatalf("Backfill() error = %v, want nil", err)
 	}
 	if !store.markedComplete {
 		t.Fatal("Run() did not mark the backfill complete")
@@ -70,8 +70,8 @@ func TestCloudResourceOwnerBackfillerCompleteSkipsGraph(t *testing.T) {
 	store := &recordingCloudResourceBackfillStore{complete: true}
 	backfiller := CloudResourceOwnerBackfiller{Graph: graph, Store: store}
 
-	if err := backfiller.Run(context.Background()); err != nil {
-		t.Fatalf("Run() error = %v, want nil", err)
+	if err := backfiller.Backfill(context.Background()); err != nil {
+		t.Fatalf("Backfill() error = %v, want nil", err)
 	}
 	if graph.calls != 0 {
 		t.Fatalf("graph calls = %d, want 0", graph.calls)
@@ -94,8 +94,8 @@ func TestCloudResourceOwnerBackfillerPagesWithoutGaps(t *testing.T) {
 	store := &recordingCloudResourceBackfillStore{}
 	backfiller := CloudResourceOwnerBackfiller{Graph: graph, Store: store, PageSize: 2}
 
-	if err := backfiller.Run(context.Background()); err != nil {
-		t.Fatalf("Run() error = %v, want nil", err)
+	if err := backfiller.Backfill(context.Background()); err != nil {
+		t.Fatalf("Backfill() error = %v, want nil", err)
 	}
 	if got, want := graph.afterUIDs, []string{"", "uid-b"}; !equalStrings(got, want) {
 		t.Fatalf("after uid sequence = %#v, want %#v", got, want)
@@ -115,8 +115,8 @@ func TestCloudResourceOwnerBackfillerRejectsUnattributableGraphRow(t *testing.T)
 	store := &recordingCloudResourceBackfillStore{}
 	backfiller := CloudResourceOwnerBackfiller{Graph: graph, Store: store}
 
-	if err := backfiller.Run(context.Background()); err == nil {
-		t.Fatal("Run() error = nil, want missing source_fact_id failure")
+	if err := backfiller.Backfill(context.Background()); err == nil {
+		t.Fatal("Backfill() error = nil, want missing source_fact_id failure")
 	}
 	if store.markedComplete {
 		t.Fatal("failed backfill marked complete")
@@ -135,8 +135,8 @@ func TestCloudResourceOwnerBackfillerSeedFailureDoesNotMarkComplete(t *testing.T
 	store := &recordingCloudResourceBackfillStore{seedErr: seedErr}
 	backfiller := CloudResourceOwnerBackfiller{Graph: graph, Store: store}
 
-	if err := backfiller.Run(context.Background()); !errors.Is(err, seedErr) {
-		t.Fatalf("Run() error = %v, want wrapping %v", err, seedErr)
+	if err := backfiller.Backfill(context.Background()); !errors.Is(err, seedErr) {
+		t.Fatalf("Backfill() error = %v, want wrapping %v", err, seedErr)
 	}
 	if store.markedComplete {
 		t.Fatal("failed backfill marked complete")
