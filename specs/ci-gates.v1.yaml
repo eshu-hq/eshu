@@ -954,6 +954,48 @@ gates:
     # a test-file split or fixture move must re-run this gate in the SAME PR that
     # causes the drift, not wait for someone to notice a stale citation later.
 
+  - id: remote-validation-artifacts
+    name: Remote-validation artifact-existence gate
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "specs/capability-matrix.v1.yaml"
+      - "specs/capability-matrix/**"
+      - "go/internal/capabilitycatalog/**"
+      - "go/cmd/capability-inventory/**"
+      - "docs/internal/remote-validation/**"
+      - "specs/remote-validation-baseline.txt"
+      - "scripts/verify-remote-validation-artifacts.sh"
+      - "scripts/test-verify-remote-validation-artifacts.sh"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "bash scripts/verify-remote-validation-artifacts.sh"
+      test_command: "bash scripts/test-verify-remote-validation-artifacts.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify remote-validation-artifacts gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+    # Wired into CI (static-contract-gates.yml, same lane as doc-citations and
+    # maturity-drift-guard) because this is a blocking recurrence-prevention
+    # gate for #5336's part (d) finding: remote_validation proof-IDs in the
+    # capability matrix were free-form slugs with no allow-list and no
+    # required committed evidence, so a production:supported claim could ride
+    # on an unverifiable reference indefinitely
+    # (component_extensions.{inventory,diagnostics} were the flagged
+    # example). convertVerification() in
+    # go/internal/capabilitycatalog/matrix.go now hard-fails an unknown
+    # verification kind at load time (covered by the existing
+    # go test ./internal/capabilitycatalog gate); this gate covers the
+    # second half — CheckRemoteValidationArtifacts requires every
+    # remote_validation ref to resolve to
+    # docs/internal/remote-validation/<ref>.md or appear in the burn-down
+    # baseline at specs/remote-validation-baseline.txt (currently 115 known-
+    # debt slugs; shrink-only, regenerate with
+    # `bash scripts/verify-remote-validation-artifacts.sh -update`).
+
   - id: maturity-drift-guard
     name: Support-maturity matrix live-gate drift guard
     category: exactness
@@ -1628,6 +1670,43 @@ gates:
       - nornicdb
       - postgres
     ci_only_reason: "requires Docker Compose service stack"
+
+  - id: auth-mcp-e2e
+    name: MCP-identity auth E2E (browser + scripted OAuth, fresh stack)
+    category: exactness
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "apps/console/e2e/**"
+      - "scripts/run-auth-mcp-e2e.sh"
+      - "scripts/auth-mcp-e2e-runtime.mjs"
+      - "scripts/verify-auth-mcp-e2e-sensitivity.sh"
+      - "scripts/verify-auth-mcp-e2e-manifest.sh"
+      - "scripts/lib/auth_mcp_e2e_sensitivity.sh"
+      - "scripts/lib/auth_mcp_e2e_manifest.sh"
+      - "docker-compose.e2e.yaml"
+      - "docker-compose.e2e.mutation.yaml"
+      - "testdata/golden/auth-mcp-e2e-baseline.json"
+      - "go/cmd/mock-github/**"
+      - "go/cmd/mock-oidc-idp/**"
+      - "go/cmd/mcp-server/**"
+      - "go/internal/oidcbearer/**"
+      - "go/internal/githublogin/**"
+      - "go/internal/query/**"
+      - "go/internal/mcp/**"
+    local:
+      command: "bash scripts/run-auth-mcp-e2e.sh"
+      test_command: ""
+    ci:
+      workflow: frontend.yml
+      job: "MCP-identity auth E2E (browser + scripted OAuth, fresh stack)"
+    requirements:
+      - go
+      - node
+      - docker
+      - nornicdb
+      - postgres
+    ci_only_reason: ""
 
   - id: trivy-image
     name: Trivy image scan (GHCR)

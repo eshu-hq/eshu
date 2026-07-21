@@ -35,6 +35,18 @@
   and a focused test; resolve any real-spec findings it surfaces in the overlay.
 - **Matrix shape change** → update `matrixFile*` structs and `convertCapability`;
   keep `effectiveStatus` correct for rows that omit `status`.
+- **New verification kind** → add it to `allowedVerificationKinds` in
+  `matrix.go` first; an unlisted key is a hard `LoadMatrix` error by design
+  (#5407). Do not loosen the allow-list to unblock a one-off spec change.
+- **New or moved `remote_validation` ref** → commit the evidence at
+  `docs/internal/remote-validation/<ref>.md`. The baseline is a frozen audited
+  set guarded by a `# FROZEN_MAX: <N>` ceiling: it may shrink but not grow, so
+  `-update` will NOT quietly baseline a new unverified `production:supported`
+  ref — the regenerated file lands over the ceiling and fails the gate. Do not
+  hand-edit the baseline; the only legitimate ways to clear the gate are
+  committing an artifact or, for a deliberate scope decision, an explicit
+  separately-reviewed raise of the FROZEN_MAX line. The systemic per-row
+  burn-down is tracked in #5552 (blocks epic #5344).
 
 ## Failure modes and how to debug
 

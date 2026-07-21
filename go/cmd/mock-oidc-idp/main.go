@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -21,17 +22,21 @@ import (
 const (
 	appName = "eshu-mock-oidc-idp"
 
-	envListenAddr = "MOCK_OIDC_LISTEN_ADDR"
-	envIssuerURL  = "MOCK_OIDC_ISSUER_URL"
-	envSubject    = "MOCK_OIDC_SUBJECT"
-	envEmail      = "MOCK_OIDC_EMAIL"
-	envGroups     = "MOCK_OIDC_GROUPS"
-	envGroupClaim = "MOCK_OIDC_GROUP_CLAIM"
+	envListenAddr          = "MOCK_OIDC_LISTEN_ADDR"
+	envIssuerURL           = "MOCK_OIDC_ISSUER_URL"
+	envSubject             = "MOCK_OIDC_SUBJECT"
+	envEmail               = "MOCK_OIDC_EMAIL"
+	envGroups              = "MOCK_OIDC_GROUPS"
+	envGroupClaim          = "MOCK_OIDC_GROUP_CLAIM"
+	envAccessTokenJWT      = "MOCK_OIDC_ACCESS_TOKEN_JWT"
+	envAccessTokenAudience = "MOCK_OIDC_ACCESS_TOKEN_AUDIENCE"
+	envAccessTokenTTL      = "MOCK_OIDC_ACCESS_TOKEN_TTL_SECONDS"
 
-	defaultListenAddr = "0.0.0.0:8080"
-	defaultSubject    = "member-user-1"
-	defaultEmail      = "member.user@example.test"
-	defaultGroups     = "member"
+	defaultListenAddr            = "0.0.0.0:8080"
+	defaultSubject               = "member-user-1"
+	defaultEmail                 = "member.user@example.test"
+	defaultGroups                = "member"
+	defaultAccessTokenTTLSeconds = 600
 
 	shutdownTimeout = 5 * time.Second
 )
@@ -116,6 +121,12 @@ func configFromEnv(getenv func(string) string) (appConfig, error) {
 	email := defaultString(getenv(envEmail), defaultEmail)
 	groups := splitAndTrim(defaultString(getenv(envGroups), defaultGroups))
 	groupClaim := strings.TrimSpace(getenv(envGroupClaim))
+	accessTokenJWT := parseBool(getenv(envAccessTokenJWT))
+	accessTokenAudience := strings.TrimSpace(getenv(envAccessTokenAudience))
+	accessTokenTTLSeconds, err := parseIntDefault(getenv(envAccessTokenTTL), defaultAccessTokenTTLSeconds)
+	if err != nil {
+		return appConfig{}, fmt.Errorf("%s: %w", envAccessTokenTTL, err)
+	}
 
 	return appConfig{
 		listenAddr: listenAddr,
@@ -126,9 +137,38 @@ func configFromEnv(getenv func(string) string) (appConfig, error) {
 				Email:   email,
 				Groups:  groups,
 			},
-			GroupClaim: groupClaim,
+			GroupClaim:          groupClaim,
+			AccessTokenJWT:      accessTokenJWT,
+			AccessTokenAudience: accessTokenAudience,
+			AccessTokenTTL:      time.Duration(accessTokenTTLSeconds) * time.Second,
 		},
 	}, nil
+}
+
+// parseBool reports whether value is a recognized truthy string
+// ("true"/"1", case-insensitive). Any other value, including empty, is
+// false — matching the rest of Eshu's ESHU_*-style boolean env parsing.
+func parseBool(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "true", "1":
+		return true
+	default:
+		return false
+	}
+}
+
+// parseIntDefault parses value as a base-10 integer, returning fallback when
+// value is blank.
+func parseIntDefault(value string, fallback int) (int, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fallback, nil
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, fmt.Errorf("invalid integer %q: %w", value, err)
+	}
+	return parsed, nil
 }
 
 func defaultString(value, fallback string) string {

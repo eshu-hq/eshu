@@ -15,6 +15,15 @@ func publicHTTPRoute(r *http.Request) bool {
 	if r.Method == http.MethodGet &&
 		(r.URL.Path == "/api/v0/auth/oidc/login" ||
 			r.URL.Path == "/api/v0/auth/oidc/callback" ||
+			// GitHub login-start/callback (issue #5166, F-5) mirror the OIDC
+			// routes immediately above: an anonymous browser beginning or
+			// completing a GitHub SSO login carries no session, bearer token,
+			// or shared key, so these must bypass AuthMiddleware exactly like
+			// OIDC's equivalents. Missing this made every GitHub login 401
+			// before it could even redirect to the provider (found live by the
+			// F-9 MCP-identity E2E harness, issue #5170).
+			r.URL.Path == "/api/v0/auth/github/login" ||
+			r.URL.Path == "/api/v0/auth/github/callback" ||
 			r.URL.Path == "/api/v0/auth/providers" ||
 			// /api/v0/auth/sign-in-policy is public GET-only (issue #4968):
 			// the login page must know require_sso BEFORE the user is
