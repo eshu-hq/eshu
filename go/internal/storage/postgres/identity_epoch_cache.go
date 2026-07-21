@@ -14,7 +14,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-const defaultIdentityCacheMaxBytes = 5 * 1024 * 1024 // 5 MiB
+// defaultIdentityCacheMaxBytes is the evidence-based default cap for the
+// identity-fact cache. Measured on a 500k-identity-fact shim (2.5M total rows,
+// 2000 scopes): 226.5 MB Postgres on-disk, estimated ~342 MB in-process Go
+// structs (string fields + JSON payload + fixed overhead). 500 MiB provides
+// 2.2× headroom over the measured worst case, keeping a realistic corpus
+// cached while a pathological set passes through observably via
+// eshu_dp_identity_cache_passthrough_total.
+const defaultIdentityCacheMaxBytes = 500 * 1024 * 1024 // 500 MiB
 
 // identityEpoch is the set-identity probe for the identity-fact cache.
 // Two epochs are equal when both the count and the max observed_at match.
@@ -46,6 +53,20 @@ type identityEpochCache struct {
 	passthroughCounter metric.Int64Counter
 	reloadDuration     metric.Float64Histogram
 	probeDuration      metric.Float64Histogram
+}
+
+// NewIdentityEpochCache constructs the identity epoch cache. maxBytes caps
+// the cached set; 0 disables the cap (uses defaultIdentityCacheMaxBytes).
+// Returns nil if maxBytes is negative (cache disabled — callers use the
+// uncached path). meter must be non-nil when cache is enabled.
+func NewIdentityEpochCache(meter metric.Meter, maxBytes int64) *identityEpochCache {
+	if maxBytes < 0 {
+		return nil
+	}
+	if maxBytes == 0 {
+		maxBytes = defaultIdentityCacheMaxBytes
+	}
+	return newIdentityEpochCache(meter, maxBytes)
 }
 
 // newIdentityEpochCache constructs a ready-to-use identity epoch cache.
@@ -147,6 +168,7 @@ func (c *identityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 	// Cache miss: start a singleflight reload.
 	c.missCounter.Add(ctx, 1)
 	c.loading = make(chan struct{})
+	preLoadProbe := probe // save for post-load comparison
 	c.mu.Unlock()
 
 	// Singleflight leader: load from DB.
@@ -161,10 +183,7 @@ func (c *identityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 		return nil, err
 	}
 
-	// Compute self-epoch from the loaded set.
-	selfEpoch := computeIdentityEpoch(loaded)
-
-	// Post-load probe: verify the set did not change during the load.
+	// Post-load probe: verify the raw fact_records set did not change during the load.
 	postProbeStart := time.Now()
 	postProbe, postProbeErr := store.probeIdentityEpoch(ctx)
 	c.probeDuration.Record(ctx, time.Since(postProbeStart).Seconds())
@@ -177,9 +196,9 @@ func (c *identityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 		return loaded, nil
 	}
 
-	// If post-load probe disagrees with self-epoch, a commit landed mid-load.
+	// If post-load probe disagrees with pre-load probe, a commit landed mid-load.
 	// Serve the loaded rows uncached; next call retries.
-	if postProbe != selfEpoch {
+	if postProbe != preLoadProbe {
 		c.passthroughCounter.Add(ctx, 1)
 		c.mu.Lock()
 		close(c.loading)
@@ -200,8 +219,10 @@ func (c *identityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 	}
 
 	// Store in cache and wake waiters.
+	// Cache the epoch from the pre-load probe (raw fact_records state),
+	// not the loaded set's self-epoch, so subsequent probes match.
 	c.mu.Lock()
-	c.epoch = selfEpoch
+	c.epoch = preLoadProbe
 	c.facts = loaded
 	close(c.loading)
 	c.loading = nil
@@ -210,17 +231,6 @@ func (c *identityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 	c.reloadDuration.Record(ctx, time.Since(reloadStart).Seconds())
 
 	return defensiveCopyEnvelopes(loaded), nil
-}
-
-// computeIdentityEpoch derives the set identity from the loaded slice.
-func computeIdentityEpoch(loaded []facts.Envelope) identityEpoch {
-	e := identityEpoch{count: len(loaded)}
-	for _, env := range loaded {
-		if env.ObservedAt.After(e.maxObservedAt) {
-			e.maxObservedAt = env.ObservedAt
-		}
-	}
-	return e
 }
 
 // estimateEnvelopesByteSize returns a conservative byte estimate for a set of

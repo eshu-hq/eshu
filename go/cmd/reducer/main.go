@@ -10,6 +10,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/clock"
@@ -111,6 +112,10 @@ func buildReducerService(
 	relationshipStore := postgres.NewRelationshipStore(database)
 	relationshipGenerationActive := postgres.NewRelationshipGenerationActiveLookup(relationshipStore)
 	factStore := postgres.NewFactStore(database)
+	identityCache := postgres.NewIdentityEpochCache(noop.NewMeterProvider().Meter("identity-cache"), identityCacheMaxBytes(getenv))
+	if identityCache != nil {
+		factStore = postgres.NewFactStoreWithIdentityCache(database, identityCache)
+	}
 	admissionDecisionWriter := newAdmissionDecisionWriter(database)
 	codeCallIntentWriter := postgres.NewCodeCallIntentWriterWithInstruments(database, instruments)
 	repoDependencyIntentWriter := postgres.NewSharedIntentAcceptanceWriterWithInstruments(database, instruments)

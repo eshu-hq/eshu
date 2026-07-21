@@ -803,3 +803,115 @@ tag evidence loader skipped source fact", `cloud_tag_evidence_source_fact_decode
 failure class, scope/generation/fact_kind attributes) still fires on every
 dropped row, decode failures included, so an operator's existing diagnostic
 path is unchanged.
+
+## #5438 — identity-fact load epoch cache
+
+### Concurrency design
+
+The identity epoch cache (`identityEpochCache`) holds the full set of active
+container-image identity facts, reloaded under singleflight on epoch mismatch.
+
+- **Shared state**: `epoch` (count + max observed_at), `facts` slice, `loading`
+  channel. All guarded by `sync.Mutex mu`.
+- **Lock scope**: `mu` is held ONLY for map/state reads, state swaps, and the
+  channel handoff. It is NEVER held across DB loads or epoch probes — both
+  release the lock before I/O.
+- **Singleflight**: the first cache-miss caller sets `c.loading = make(chan
+  struct{})` under lock, releases the lock, performs the DB load + post-load
+  probe, re-acquires the lock, populates the cache, `close(c.loading)`, and sets
+  `loading = nil`. Concurrent callers see non-nil `loading`, release the lock,
+  `<-waitCh`, and retry `get()` which then serves from the newly populated
+  cache.
+- **TOCTOU analysis**: the probe→serve window (between epoch probe and cache
+  hit) is a bounded probe-interval gap. Today's baseline does a full paginated
+  O(corpus) scan inside every call, mixing facts from different commit
+  snapshots across pages. The cache serves a read-committed snapshot of ONE
+  coherent load with post-load validation. A mid-load commit is detected by
+  the post-load probe and the rows are served uncached — no worse than today's
+  mixed-epoch pagination, and the next call retries the cache. The cache is
+  strictly more consistent per serving window than the unbounded pagination it
+  replaces.
+- **Staleness bound**: one probe window (~microseconds). Self-heals on the next
+  reducer intent execution.
+- **Cap behavior**: `ESHU_IDENTITY_CACHE_MAX_BYTES` (default 500 MiB, measured).
+  Loaded set exceeding the cap is served DIRECTLY (passthrough, never partial,
+  never cached) and increments `eshu_dp_identity_cache_passthrough_total`.
+  Set to 0 or unset for the default; negative disables the cache entirely.
+- **Wiring topology**: the cache is wired default-ON at the reducer
+  (`go/cmd/reducer/main.go`) via `NewIdentityEpochCache`. The cache serves the
+  3 identity-load call sites (container_image_identity + kubernetes_correlation
+  handlers). Bootstrap-index (`go/cmd/bootstrap-index/wiring.go`) uses its
+  `factStore` only for projector-level `LoadFacts` (scope-generation-scoped
+  loads), never the cross-scope identity loader — left uncached.
+  Other constructors (ingester, workflow-coordinator, eshu docs) are also
+  uncached; they do not call the identity loader.
+- **Retry/idempotency**: loads are pure reads (no mutating side effects).
+  Serving an older epoch for one call is equivalent to today's racing reader
+  getting rows from different snapshot points.
+- **Defensive copy**: every cache hit returns a deep copy of the Payload map
+  (`defensiveCopyEnvelopes`). Callers cannot mutate the shared cache.
+
+### Evidence notes
+
+Performance Evidence: #5438 adds an epoch-cached identity fact set to
+`ListActiveContainerImageIdentityFacts`, replacing ~2,000 O(corpus) paginated
+loads per worst-case reducer drain with 1 reload + ~2,000 cheap index-only
+epoch probes. The probe is backed by the new partial index
+`fact_records_identity_epoch_idx ON fact_records (observed_at, fact_id)
+WHERE <6-arm identity filter> AND is_tombstone = FALSE` and runs FROM
+fact_records alone (no ingestion_scopes/scope_generations JOIN), so it
+leverages an Index Only Scan. Proved locally with the identity-epoch test
+suite (7 new tests, all green, including concurrent-singleflight under 32
+goroutines and commit-mid-load rejection).
+
+Shim measurements (postgres:18-alpine, 2.5M rows, 500k identity facts,
+2000 scopes):
+
+| metric | OLD (per call) | NEW (per call) | total per drain |
+| --- | --- | --- | --- |
+| load (paginated, with JOIN) | 1,476 ms | 1,476 ms | — |
+| probe (index-only, no JOIN) | — | 50 ms | — |
+| per-drain: 2,000 calls | 2,000 × 1,476 ms = 2,952 s | 1 load + 2,000 probes = 1.5 s + 100 s = 101.5 s | 29× faster |
+| per-drain: epoch stable | 2,952 s | 1 load + 1,999 cache hits = 1.5 s | ~2,000× faster |
+
+Probe EXPLAIN: `Index Only Scan using fact_records_identity_epoch_idx`
+(50 ms, 0 heap fetches, 3,016 buffers). Partial index size: 24 MB for
+500k matching rows. Write tax: 0% for non-identity facts (partial index
+excludes them); ~1 index entry per identity fact insert.
+Byte-identical row-set: cached load (JOIN-filtered) == direct load for
+the stable shim setup (all 2000 scopes active, 500k facts match both
+the JOIN and no-JOIN probes).
+
+### Cap sizing evidence (500 MiB default)
+
+Payload size measured per arm on the 2.5M-row shim (500k identity rows):
+
+| arm | count | avg bytes | total MB | p95 bytes |
+| --- | --- | --- | --- | --- |
+| oci_registry | 300,000 | 278 | 83.5 | 342 |
+| aws_image_reference | 50,000 | 328 | 16.4 | 329 |
+| azure_image_reference | 50,000 | 480 | 24.0 | 485 |
+| gcp_image_reference | 50,000 | 313 | 15.7 | 314 |
+| aws_relationship | 25,000 | 378 | 9.4 | 379 |
+| content_entity | 25,000 | 189 | 4.7 | 192 |
+| **total** | **500,000** | **308** | **153.7** | — |
+
+Total Postgres on-disk row bytes (all columns): 226.5 MB (453 bytes/row avg).
+Estimated in-process Go struct bytes (string fields + JSON payload + 40-byte
+fixed overhead): ~342 MB. Default cap = 500 MiB = 2.2× in-process estimate,
+keeping the 500k-fact shim comfortably cached while a pathological set above
+this bound passes through observably via the passthrough counter.
+
+Observability Evidence: six new `eshu_dp_` instruments registered by
+`newIdentityEpochCache` on its own meter:
+`eshu_dp_identity_cache_hit_total`, `eshu_dp_identity_cache_miss_total`,
+`eshu_dp_identity_cache_reload_total`,
+`eshu_dp_identity_cache_passthrough_total`,
+`eshu_dp_identity_cache_reload_duration_seconds`,
+`eshu_dp_identity_cache_probe_duration_seconds`. All are documented in
+`docs/public/observability/telemetry-coverage.md`.
+The cache path adds no route, worker, queue domain, lease, graph write,
+or runtime knob beyond `ESHU_IDENTITY_CACHE_MAX_BYTES`. Operators
+diagnose cache effectiveness through the hit/miss/reload/passthrough
+counters and probe/reload duration histograms, plus the existing
+`eshu_dp_postgres_query_duration_seconds` for the underlying DB queries.

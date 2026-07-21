@@ -83,22 +83,17 @@ LIMIT $3
 `
 
 // probeIdentityEpochQuery returns (count, COALESCE(max(observed_at), '-infinity'))
-// over the exact same identity-fact filter as the load query, backed by a partial
-// B-tree index on (observed_at, fact_id) WHERE <filter> AND is_tombstone = FALSE.
+// over the exact same 6-arm fact_kind/source_system filter as the load query,
+// but FROM fact_records alone (no ingestion_scopes/scope_generations JOIN).
+// Backed by the partial B-tree index fact_records_identity_epoch_idx
+// ON (observed_at, fact_id) WHERE <filter> AND is_tombstone = FALSE.
 const probeIdentityEpochQuery = `
 SELECT
     count(*),
-    COALESCE(max(fact.observed_at), '-infinity'::timestamptz)
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
+    COALESCE(max(observed_at), '-infinity'::timestamptz)
+FROM fact_records
 WHERE ` + identityFactFilterSQL + `
-  AND fact.is_tombstone = FALSE
-  AND generation.status = 'active'
+  AND is_tombstone = FALSE
 `
 
 // ListActiveContainerImageIdentityFacts loads active OCI registry facts and

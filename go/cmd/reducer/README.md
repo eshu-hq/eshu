@@ -380,6 +380,12 @@ chooses which presence store each consumer receives.
 | --- | --- | --- |
 | `ESHU_DRIFT_PRIOR_CONFIG_DEPTH` | `10` | Number of prior repo-snapshot generations the drift loader walks to detect `removed_from_config`. `0` means use the default (10). Invalid or non-positive input falls back to `0` with a structured WARN log and the env key `failure_class=env_parse`. Parsed by `parsePriorConfigDepth` in `config.go:311` and stored in `PostgresDriftEvidenceLoader.PriorConfigDepth`. |
 
+### Identity fact cache
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ESHU_IDENTITY_CACHE_MAX_BYTES` | `0` (use default 500 MiB) | Maximum in-process byte size of the cached identity fact set for `ListActiveContainerImageIdentityFacts`. Zero or unset uses the evidence-based default (500 MiB, measured from a 500k-fact shim with 2.2× headroom). Negative disables the cache entirely, returning the byte-identical uncached path. Override only to cap at a lower bound for memory-constrained deployments. |
+
 ### NornicDB knobs (narrow seam)
 
 | Variable | Purpose |
