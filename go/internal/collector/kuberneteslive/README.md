@@ -8,8 +8,8 @@ correlation and drift remain reducer-owned and are not in this package.
 
 - Connect to a configured cluster through a narrow, read-only `Client` and list
   a fixed core resource set: namespaces, pods, deployments, replicasets,
-  services, ingresses, ServiceAccounts, Roles, ClusterRoles, RoleBindings, and
-  ClusterRoleBindings.
+  statefulsets, daemonsets, jobs, cronjobs, services, ingresses,
+  ServiceAccounts, Roles, ClusterRoles, RoleBindings, and ClusterRoleBindings.
 - Map listed workload and topology objects into Kubernetes live source facts via
   the shared envelope:
   - `kubernetes_live.pod_template` — container/init-container image refs,
@@ -35,13 +35,20 @@ correlation and drift remain reducer-owned and are not in this package.
   `pod.Status.Phase` and the Deployment/ReplicaSet
   `.Status.ReadyReplicas`/`.Status.AvailableReplicas` — are described next.
 - A `pod_template` fact also carries optional observed-vs-desired runtime-status
-  fields, self-describing by name (#5431): `desired_replicas` (DESIRED, from a
-  Deployment/ReplicaSet's `.Spec.Replicas`), `ready_replicas` and
-  `available_replicas` (OBSERVED, from `.Status.ReadyReplicas` /
-  `.Status.AvailableReplicas`), and `pod_phase` (OBSERVED, from a Pod's
-  `.Status.Phase`). The replica fields are populated only for Deployment and
-  ReplicaSet objects and absent for Pod objects; `pod_phase` is populated only
-  for Pod objects and absent for Deployment/ReplicaSet objects. This is
+  fields, self-describing by name (#5431, extended #5433): `desired_replicas`
+  (DESIRED, from a Deployment/ReplicaSet/StatefulSet's `.Spec.Replicas`),
+  `ready_replicas` and `available_replicas` (OBSERVED, from
+  `.Status.ReadyReplicas` / `.Status.AvailableReplicas`), and `pod_phase`
+  (OBSERVED, from a Pod's `.Status.Phase`). The replica fields are populated for
+  Deployment, ReplicaSet, and StatefulSet objects. A DaemonSet has no replica
+  spec, so its per-node scheduling counts stand in as the replica-equivalent:
+  `desired_replicas` from `.Status.DesiredNumberScheduled`, `ready_replicas`
+  from `.Status.NumberReady`, `available_replicas` from
+  `.Status.NumberAvailable` — all OBSERVED, never a desired spec value. A Job
+  or CronJob has no replica concept at all, so all three fields are absent;
+  only the pod template spec is emitted (a CronJob's template is read from the
+  nested `.Spec.JobTemplate.Spec.Template.Spec`). `pod_phase` is populated only
+  for Pod objects and absent for every other workload kind. This is
   fact-level emission only — nothing here materializes onto the graph node or
   adds a query surface; that is deferred to the materialization capstone
   (#5435).
@@ -195,7 +202,7 @@ readiness-gated `RUNS_IMAGE` graph edge
 - Claim-driven collection through `collector.ClaimedService` and the workflow
   coordinator.
 - Watch mode with bookmarks, reconnects, and `410 Gone` relist recovery.
-- Additional resource kinds (StatefulSet, DaemonSet, Job, CronJob, Service
-  endpoints, CRDs) and the richer ADR fact families.
+- Additional resource kinds (Service endpoints, CRDs) and the richer ADR fact
+  families.
 - Effective RBAC interpretation, AWS IAM joins, Vault joins, stale-generation
   handling, and secrets/IAM posture read models.
