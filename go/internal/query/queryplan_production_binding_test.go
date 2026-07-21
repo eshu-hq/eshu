@@ -130,10 +130,11 @@ func handlerQueryplanProductionCypher() map[string]string {
 		"QP-RESOURCE-INVESTIGATION-WORKLOADS": resourceInvestigationWorkloadsCypher(
 			selectedResource,
 		),
-		"QP-RESOURCE-INVESTIGATION-SELECTOR": resourceInvestigationSelectorPropertyCypher(
+		"QP-RESOURCE-INVESTIGATION-SELECTOR": resourceInvestigationSelectorLabelCypher(
 			resourceSelectorReq,
 			allAccess,
-			resourceInvestigationExactSelectorPredicates[2],
+			"CloudResource",
+			resourceInvestigationExactSelectorPredicates,
 		),
 		"QP-RESOURCE-INVESTIGATION-INSTANCE-WORKLOADS": resourceInvestigationInstanceWorkloadsCypher(),
 		"QP-RESOURCE-INVESTIGATION-REPO-PATHS": resourceInvestigationRepoPathsCypher(

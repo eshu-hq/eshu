@@ -26,6 +26,7 @@ type recordingResourceInvestigationGraph struct {
 	instanceWorkloadErr  error
 	incomingErr          error
 	outgoingErr          error
+	selectorLabel        string
 }
 
 type resourceInvestigationRunCall struct {
@@ -62,6 +63,9 @@ func (g *recordingResourceInvestigationGraph) Run(
 			return nil, g.outgoingErr
 		}
 		return g.outgoingRows, nil
+	}
+	if g.selectorLabel != "" && !strings.Contains(cypher, "MATCH (n:"+g.selectorLabel+")") {
+		return nil, nil
 	}
 	if len(g.runRows) == 0 {
 		return nil, nil
@@ -102,11 +106,11 @@ func TestInvestigateResourceReturnsAmbiguityWithoutTraversal(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
-	if got, want := len(graph.runCalls), len(resourceInvestigationExactSelectorPredicates); got != want {
+	if got, want := len(graph.runCalls), len(resourceInvestigationDefaultLabels); got != want {
 		t.Fatalf("graph Run calls = %d, want only %d exact selector reads", got, want)
 	}
 	for _, call := range graph.runCalls {
-		if !strings.HasPrefix(strings.TrimSpace(call.cypher), "CALL {") {
+		if !strings.HasPrefix(strings.TrimSpace(call.cypher), "MATCH (n:") {
 			t.Fatalf("ambiguous resolution unexpectedly traversed graph: %s", call.cypher)
 		}
 	}
@@ -187,7 +191,7 @@ func TestInvestigateResourceReturnsBoundedResourcePacket(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
-	if got, want := len(graph.runCalls), len(resourceInvestigationExactSelectorPredicates)+4; got != want {
+	if got, want := len(graph.runCalls), len(resourceInvestigationDefaultLabels)+4; got != want {
 		t.Fatalf("graph Run calls = %d, want exact selector fanout plus workload instances, instance-of resolve, and both path reads", got)
 	}
 	var depthQueries int
@@ -267,7 +271,7 @@ func TestInvestigateResourceResolvesExactCloudARN(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
-	if got, want := len(graph.runCalls), len(resourceInvestigationExactSelectorPredicates)+3; got != want {
+	if got, want := len(graph.runCalls), len(resourceInvestigationSelectorLabels("cloud"))+3; got != want {
 		t.Fatalf("graph Run calls = %d, want exact selector fanout plus workloads and both path reads", got)
 	}
 	var resolverCall *resourceInvestigationRunCall
@@ -285,7 +289,7 @@ func TestInvestigateResourceResolvesExactCloudARN(t *testing.T) {
 		t.Fatalf("resolver selector = %#v, want %#v", got, want)
 	}
 	for i, call := range graph.runCalls {
-		if strings.HasPrefix(strings.TrimSpace(call.cypher), "CALL {") {
+		if strings.HasPrefix(strings.TrimSpace(call.cypher), "MATCH (n:") {
 			continue
 		}
 		if !strings.Contains(call.cypher, "resource.arn = $resource_arn") {
@@ -315,22 +319,22 @@ func TestInvestigateResourceResolvesExactCloudARN(t *testing.T) {
 func TestResourceInvestigationResolverNarrowsQueueAndDatabaseTypes(t *testing.T) {
 	t.Parallel()
 
-	queueCypher := resourceInvestigationSelectorPropertyCypher(resourceInvestigationRequest{
+	queueCypher := resourceInvestigationSelectorLabelCypher(resourceInvestigationRequest{
 		Query:        "orders",
 		ResourceType: "queue",
 		Limit:        25,
-	}, repositoryAccessFilter{allScopes: true}, resourceInvestigationExactSelectorPredicates[0])
+	}, repositoryAccessFilter{allScopes: true}, "CloudResource", resourceInvestigationExactSelectorPredicates)
 	for _, want := range []string{"CONTAINS 'queue'", "CONTAINS 'sqs'"} {
 		if !strings.Contains(queueCypher, want) {
 			t.Fatalf("queue resolver cypher missing %q: %s", want, queueCypher)
 		}
 	}
 
-	databaseCypher := resourceInvestigationSelectorPropertyCypher(resourceInvestigationRequest{
+	databaseCypher := resourceInvestigationSelectorLabelCypher(resourceInvestigationRequest{
 		Query:        "orders",
 		ResourceType: "database",
 		Limit:        25,
-	}, repositoryAccessFilter{allScopes: true}, resourceInvestigationExactSelectorPredicates[0])
+	}, repositoryAccessFilter{allScopes: true}, "CloudResource", resourceInvestigationExactSelectorPredicates)
 	for _, want := range []string{"CONTAINS 'database'", "CONTAINS 'rds'", "CONTAINS 'postgres'"} {
 		if !strings.Contains(databaseCypher, want) {
 			t.Fatalf("database resolver cypher missing %q: %s", want, databaseCypher)

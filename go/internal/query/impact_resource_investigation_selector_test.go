@@ -102,7 +102,7 @@ func TestResourceInvestigationSelectorPrefersExactMatchBeforeFuzzy(t *testing.T)
 	if got, want := resolution["status"], "resolved"; got != want {
 		t.Fatalf("resolution.status = %#v, want %#v", got, want)
 	}
-	assertResourceSelectorFanout(t, graph, 7, 0)
+	assertResourceSelectorFanout(t, graph, len(resourceInvestigationDefaultLabels), 0)
 }
 
 func TestResourceInvestigationSelectorFallsBackToFuzzyAfterExactMiss(t *testing.T) {
@@ -121,7 +121,7 @@ func TestResourceInvestigationSelectorFallsBackToFuzzyAfterExactMiss(t *testing.
 	if got, want := resolution["status"], "resolved"; got != want {
 		t.Fatalf("resolution.status = %#v, want %#v", got, want)
 	}
-	assertResourceSelectorFanout(t, graph, 7, 5)
+	assertResourceSelectorFanout(t, graph, len(resourceInvestigationDefaultLabels), len(resourceInvestigationDefaultLabels))
 }
 
 func TestResourceInvestigationResourceIDNeverFallsBackToFuzzy(t *testing.T) {
@@ -140,7 +140,7 @@ func TestResourceInvestigationResourceIDNeverFallsBackToFuzzy(t *testing.T) {
 	if got, want := resolution["status"], "no_match"; got != want {
 		t.Fatalf("resolution.status = %#v, want %#v", got, want)
 	}
-	assertResourceSelectorFanout(t, graph, 7, 0)
+	assertResourceSelectorFanout(t, graph, len(resourceInvestigationDefaultLabels), 0)
 }
 
 func TestResourceInvestigationSelectorDeduplicatesLabelAndPropertyCollisions(t *testing.T) {
@@ -159,7 +159,7 @@ func TestResourceInvestigationSelectorDeduplicatesLabelAndPropertyCollisions(t *
 	if got, want := resolution["status"], "resolved"; got != want {
 		t.Fatalf("resolution.status = %#v, want %#v", got, want)
 	}
-	assertResourceSelectorFanout(t, graph, 7, 0)
+	assertResourceSelectorFanout(t, graph, len(resourceInvestigationDefaultLabels), 0)
 }
 
 func assertResourceSelectorFanout(
@@ -176,8 +176,8 @@ func assertResourceSelectorFanout(
 		if strings.Contains(call.cypher, "MATCH (n)\n") {
 			t.Fatalf("selector query regressed to global MATCH (n):\n%s", call.cypher)
 		}
-		if !strings.HasPrefix(strings.TrimSpace(call.cypher), "CALL {") {
-			t.Fatalf("selector query is not label-branch anchored:\n%s", call.cypher)
+		if !strings.HasPrefix(strings.TrimSpace(call.cypher), "MATCH (n:") {
+			t.Fatalf("selector query is not directly label-anchored:\n%s", call.cypher)
 		}
 		limitAt := strings.LastIndex(call.cypher, "LIMIT $limit")
 		if limitAt < 0 {
@@ -221,8 +221,8 @@ func TestResourceInvestigationSelectorReturnsExactReadFailureWithoutFuzzyFallbac
 	}
 	graph.mu.Lock()
 	defer graph.mu.Unlock()
-	if got, want := len(graph.calls), len(resourceInvestigationExactSelectorPredicates); got != want {
-		t.Fatalf("selector calls = %d, want %d exact calls and no fuzzy fallback", got, want)
+	if got, want := len(graph.calls), len(resourceInvestigationDefaultLabels); got != want {
+		t.Fatalf("selector calls = %d, want %d exact label calls and no fuzzy fallback", got, want)
 	}
 }
 

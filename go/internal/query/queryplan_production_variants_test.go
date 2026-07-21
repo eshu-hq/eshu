@@ -14,11 +14,11 @@ import (
 const handlerQueryplanRegisteredCloudResourceListVariant = "cloud-resource-list/resource-type"
 
 const (
-	handlerQueryplanSafeVariantFamilySHA256       = "30ba4d1a4e950dcf7725810c8764847509d524d2f07ed65bdf4a031988bc219d"
+	handlerQueryplanSafeVariantFamilySHA256       = "c1f7266aec8424853bda7947950f8bafd38d146507dd388ee90f5005027a38b1"
 	entityNameSearchQueryplanVariantFamilySHA256  = "4d4f47c1555b8a42caa91d20a5971902fc19b6ef65d3c77440f9be5df4333ef5"
 	entityNameSearchQueryplanBuilderSourceSHA256  = "3057a508e8b5acf4e07b4d5567b00dbf5e900b360eed82b3102f358e2a1e1523"
 	entityNameSearchQueryplanExpectedVariantCount = 17
-	resourceSelectorQueryplanExpectedVariantCount = 336
+	resourceSelectorQueryplanExpectedVariantCount = 304
 )
 
 func TestHandlerQueryplanProductionVariantFamiliesStayExplicit(t *testing.T) {
@@ -45,8 +45,8 @@ func TestResourceSelectorQueryplanVariantsCoverEveryReachableShape(t *testing.T)
 		if strings.Contains(cypher, "MATCH (n)\n") {
 			t.Errorf("resource selector variant %q contains a whole-graph match", name)
 		}
-		if !strings.HasPrefix(strings.TrimSpace(cypher), "CALL {") {
-			t.Errorf("resource selector variant %q is not label-branch anchored", name)
+		if !strings.HasPrefix(strings.TrimSpace(cypher), "MATCH (n:") {
+			t.Errorf("resource selector variant %q is not directly label-anchored", name)
 		}
 	}
 }
@@ -338,7 +338,7 @@ func resourceSelectorQueryplanVariants() map[string]string {
 		{name: "terraform", resourceType: "terraform"},
 		{name: "module", resourceType: "module"},
 	}
-	properties := []struct {
+	phases := []struct {
 		phase      string
 		predicates []string
 	}{
@@ -354,8 +354,8 @@ func resourceSelectorQueryplanVariants() map[string]string {
 				{name: "any-environment"},
 				{name: "environment", value: "proof-environment"},
 			} {
-				for _, property := range properties {
-					for index, predicate := range property.predicates {
+				for _, phase := range phases {
+					for _, label := range resourceInvestigationSelectorLabels(shape.resourceType) {
 						req := resourceInvestigationRequest{
 							Query:        "proof",
 							ResourceType: shape.resourceType,
@@ -363,14 +363,19 @@ func resourceSelectorQueryplanVariants() map[string]string {
 							Limit:        10,
 						}
 						name := fmt.Sprintf(
-							"resource-selector/%s/%s/%s/%s/property-%d",
+							"resource-selector/%s/%s/%s/%s/label-%s",
 							access.name,
 							shape.name,
 							environment.name,
-							property.phase,
-							index,
+							phase.phase,
+							strings.ToLower(label),
 						)
-						variants[name] = resourceInvestigationSelectorPropertyCypher(req, access.filter, predicate)
+						variants[name] = resourceInvestigationSelectorLabelCypher(
+							req,
+							access.filter,
+							label,
+							phase.predicates,
+						)
 					}
 				}
 			}

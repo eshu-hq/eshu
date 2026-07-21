@@ -46,11 +46,11 @@ func TestQueryplanBoundedAnchorOperatorPolicyIsClosed(t *testing.T) {
 		}
 	}
 	variantTests := map[string][]string{
-		"cloud-resource-list/unfiltered":                                 {"NodeByLabelScan"},
-		"cloud-resource-list/provider+region+account":                    {"NodeByLabelScan"},
-		"cloud-resource-list/resource-type":                              {"NodeIndexSeek", "NodeUniqueIndexSeek"},
-		"cloud-resource-list/cursor":                                     {"NodeIndexSeek", "NodeUniqueIndexSeek"},
-		"resource-selector/all/default/any-environment/exact/property-0": {"NodeByLabelScan"},
+		"cloud-resource-list/unfiltered":                                          {"NodeByLabelScan"},
+		"cloud-resource-list/provider+region+account":                             {"NodeByLabelScan"},
+		"cloud-resource-list/resource-type":                                       {"NodeIndexSeek", "NodeUniqueIndexSeek"},
+		"cloud-resource-list/cursor":                                              {"NodeIndexSeek", "NodeUniqueIndexSeek"},
+		"resource-selector/all/default/any-environment/exact/label-cloudresource": {"NodeByLabelScan"},
 	}
 	for name, want := range variantTests {
 		if got := queryplanProductionVariantAnchorOperators(name); !slices.Equal(got, want) {

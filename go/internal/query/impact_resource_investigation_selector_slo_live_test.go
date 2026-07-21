@@ -36,11 +36,12 @@ func TestResourceInvestigationSelectorInteractiveSLO(t *testing.T) {
 	seedResourceSelectorSLOGraph(ctx, t, driver, database)
 
 	handler := &ImpactHandler{Neo4j: NewNeo4jReader(driver, database)}
+	exactReq := resourceInvestigationRequest{Query: "orders-db", Limit: 25}
 	exactDuration, exactResolution := measureResourceSelectorSLOResolution(
 		ctx,
 		t,
 		handler,
-		resourceInvestigationRequest{Query: "orders-db", Limit: 25},
+		exactReq,
 	)
 	if got, want := exactResolution["status"], "ambiguous"; got != want {
 		t.Fatalf("exact resolution status = %#v, want %#v", got, want)
@@ -70,7 +71,7 @@ func TestResourceInvestigationSelectorInteractiveSLO(t *testing.T) {
 	}
 	scopedCandidates, err := handler.resourceInvestigationSelectorCandidates(
 		ctx,
-		resourceInvestigationRequest{Query: "orders-db", Limit: 25},
+		exactReq,
 		scoped,
 		resourceInvestigationExactSelectorPredicates,
 	)
@@ -83,6 +84,25 @@ func TestResourceInvestigationSelectorInteractiveSLO(t *testing.T) {
 	}; !equalResourceSelectorSLOStrings(got, want) {
 		t.Fatalf("scoped candidate ids = %v, want %v", got, want)
 	}
+	if os.Getenv("ESHU_RESOURCE_SELECTOR_PROFILE") == "1" {
+		exactHits := profileResourceSelectorSLOQueries(
+			ctx,
+			t,
+			driver,
+			database,
+			exactReq,
+			resourceInvestigationExactSelectorPredicates,
+		)
+		fuzzyHits := profileResourceSelectorSLOQueries(
+			ctx,
+			t,
+			driver,
+			database,
+			resourceInvestigationRequest{Query: "fuzzy-only", Limit: 25},
+			resourceInvestigationFuzzySelectorPredicates,
+		)
+		t.Logf("selector PROFILE exact_db_hits=%d fuzzy_db_hits=%d", exactHits, fuzzyHits)
+	}
 
 	t.Logf(
 		"selector SLO exact=%s fuzzy=%s limit=%s noise_nodes=%d",
@@ -91,6 +111,57 @@ func TestResourceInvestigationSelectorInteractiveSLO(t *testing.T) {
 		resourceSelectorSLOLimit,
 		resourceSelectorSLONoiseNodes,
 	)
+}
+
+func profileResourceSelectorSLOQueries(
+	ctx context.Context,
+	t *testing.T,
+	driver neo4jdriver.DriverWithContext,
+	database string,
+	req resourceInvestigationRequest,
+	predicates []string,
+) int64 {
+	t.Helper()
+	queries := resourceInvestigationSelectorCyphers(
+		req,
+		repositoryAccessFilter{allScopes: true},
+		predicates,
+	)
+	params := map[string]any{"selector": req.selector(), "limit": req.Limit + 1}
+	var total int64
+	for index, cypher := range queries {
+		session := driver.NewSession(ctx, neo4jdriver.SessionConfig{
+			AccessMode:   neo4jdriver.AccessModeRead,
+			DatabaseName: database,
+		})
+		result, err := session.Run(ctx, "PROFILE "+cypher, params)
+		if err != nil {
+			_ = session.Close(context.Background())
+			t.Fatalf("PROFILE selector query %d: %v", index, err)
+		}
+		summary, err := result.Consume(ctx)
+		closeErr := session.Close(context.Background())
+		if err != nil {
+			t.Fatalf("consume selector PROFILE query %d: %v", index, err)
+		}
+		if closeErr != nil {
+			t.Fatalf("close selector PROFILE query %d: %v", index, closeErr)
+		}
+		profile := summary.Profile()
+		if profile == nil {
+			t.Fatalf("selector PROFILE query %d returned no plan", index)
+		}
+		total += resourceSelectorSLOPlanDBHits(profile)
+	}
+	return total
+}
+
+func resourceSelectorSLOPlanDBHits(plan neo4jdriver.ProfiledPlan) int64 {
+	total := plan.DbHits()
+	for _, child := range plan.Children() {
+		total += resourceSelectorSLOPlanDBHits(child)
+	}
+	return total
 }
 
 func openResourceSelectorSLOGraph(

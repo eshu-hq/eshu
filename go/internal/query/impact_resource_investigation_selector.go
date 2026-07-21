@@ -146,19 +146,20 @@ func resourceInvestigationSelectorCyphers(
 	access repositoryAccessFilter,
 	predicates []string,
 ) []string {
-	queries := make([]string, 0, len(predicates))
-	for _, predicate := range predicates {
-		queries = append(queries, resourceInvestigationSelectorPropertyCypher(req, access, predicate))
+	labels := resourceInvestigationSelectorLabels(req.ResourceType)
+	queries := make([]string, 0, len(labels))
+	for _, label := range labels {
+		queries = append(queries, resourceInvestigationSelectorLabelCypher(req, access, label, predicates))
 	}
 	return queries
 }
 
-func resourceInvestigationSelectorPropertyCypher(
+func resourceInvestigationSelectorLabelCypher(
 	req resourceInvestigationRequest,
 	access repositoryAccessFilter,
-	predicate string,
+	label string,
+	predicates []string,
 ) string {
-	labels := resourceInvestigationSelectorLabels(req.ResourceType)
 	typeClause := ""
 	if typePredicate := resourceInvestigationTypePredicate(req.ResourceType); typePredicate != "1 = 1" {
 		typeClause = "\n  AND " + typePredicate
@@ -167,11 +168,9 @@ func resourceInvestigationSelectorPropertyCypher(
 	if req.Environment != "" {
 		environmentClause = "\n  AND (coalesce(n.environment, '') = '' OR n.environment = $environment)"
 	}
-	branches := make([]string, 0, len(labels))
-	for _, label := range labels {
-		branches = append(branches, fmt.Sprintf(`MATCH (n:%s)
+	return fmt.Sprintf(`MATCH (n:%s)
 WHERE true%s
-  AND %s%s%s
+  AND (%s)%s%s
 RETURN coalesce(n.id, n.uid, n.resource_id, n.name) AS id,
        n.name AS name,
        labels(n) AS labels,
@@ -184,21 +183,15 @@ RETURN coalesce(n.id, n.uid, n.resource_id, n.name) AS id,
        coalesce(n.resource_id, '') AS resource_id,
        coalesce(n.arn, '') AS arn,
        coalesce(n.kind, '') AS resource_kind,
-       coalesce(n.resource_category, '') AS resource_class`,
-			label,
-			typeClause,
-			predicate,
-			environmentClause,
-			access.graphPredicateOnProperty("n", "repo_id"),
-		))
-	}
-	return `CALL {
-` + strings.Join(branches, "\nUNION\n") + `
-}
-RETURN id, name, labels, resource_type, provider, environment, repo_id,
-       config_path, source, resource_id, arn, resource_kind, resource_class
+       coalesce(n.resource_category, '') AS resource_class
 ORDER BY name, id
-LIMIT $limit`
+LIMIT $limit`,
+		label,
+		typeClause,
+		strings.Join(predicates, " OR "),
+		environmentClause,
+		access.graphPredicateOnProperty("n", "repo_id"),
+	)
 }
 
 func resourceInvestigationSelectorLabels(resourceType string) []string {

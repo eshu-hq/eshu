@@ -275,14 +275,14 @@ entries:
     domain: impact
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/impact_resource_investigation_selector.go, symbol: resourceInvestigationSelectorPropertyCypher, source_sha256: f1c64e95b9b1c325b8da72fe8ca78f739a77d72858c449c7e1a144fce7ca3f4e}
+    source: {file: go/internal/query/impact_resource_investigation_selector.go, symbol: resourceInvestigationSelectorLabelCypher, source_sha256: 6c6553a51a109e2fb8be5d79b7f93fa97d35ef95efc4a517a222ad9eed6a9769}
     query_fragment: 'MATCH (n:%s)'
-    cypher_sha256: bea50438624838ba9f34513b562e64d3396b66dc5e36521633c02e0408f66c81
+    cypher_sha256: 37986e9c5d95e6ed09806952f0f52cf683d660df41a276fea1668d246c517612
     required_anchors: [{label: CloudResource, property: resource_id}]
     required_schema: [cloud_resource_resource_id]
     required_limits: [$limit]
     requires_order: true
-    caveats: [The production resolver runs the same label-anchored builder once per selector property with at most four read sessions; the safe-variant family PROFILEs every reachable label, type, environment, access, and exact or fuzzy shape.]
+    caveats: [The production resolver runs one direct query per reachable label with at most four read sessions; the safe-variant family PROFILEs every reachable label, type, environment, access, and exact or fuzzy shape.]
     plan:
       operators: [NodeByLabelScan]
       forbidden_operators: [AllNodesScan, CartesianProduct, UnboundedExpand]
