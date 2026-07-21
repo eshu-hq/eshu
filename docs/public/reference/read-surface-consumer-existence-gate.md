@@ -258,6 +258,22 @@ Follows the baseline-green-then-break pattern from the #5359 BITES precedent.
 Rides `go test ./internal/mcp`, the same credential-free floor as every other
 package test. No separate workflow.
 
+### Self-certification caveat
+
+`routeServesDataBackingMap` is hand-maintained, not derived from the real
+handler wiring, for all 17 routes — nothing here cross-checks a `ServedDomains`
+claim against the Go handler actually registered for that route. So the
+documented "add the domain to `ServedDomains`" remediation could, if misapplied,
+paper over a real #5480-class misrouting instead of fixing it.
+`TestRouteServesData_CloudResourcesStructurallyExcludesKubernetesCorrelation`
+(`route_serves_data_structural_test.go`) closes this gap for the ONE
+`cloud/resources` ↔ `kubernetes_correlation` pair by AST-checking the real
+handlers (map-independent): it asserts `InfraHandler`/`listCloudResources` never
+reference the Kubernetes correlation store while `KubernetesHandler`/
+`listCorrelations` does. Generalizing that handler-derived check to all 17
+routes is tracked in issue #5584; until it lands, every route other than that
+one pair remains self-certifying by design-for-now.
+
 ## GATE 4 — per-kind consumer existence (#5474 D2)
 
 `go/internal/mcp/kind_disclosure_ledger.go` and
