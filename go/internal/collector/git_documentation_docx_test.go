@@ -289,6 +289,7 @@ func streamMultipleDocumentFacts(t *testing.T, repoPath string, relativePaths []
 			DocumentationFileMetas: metas,
 		},
 		false,
+		"",
 	)
 	return drainFactChannel(collected.Facts)
 }

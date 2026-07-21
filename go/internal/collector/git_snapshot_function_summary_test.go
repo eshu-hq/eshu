@@ -74,8 +74,8 @@ func TestFunctionSummaryFactEmittedAndCounted(t *testing.T) {
 		{FunctionID: "repo-1\x1fpkg\x1f\x1fview", Language: "go", SourceToReturn: []any{"http_request"}},
 	}
 
-	baseFacts := drainFactChannel(buildStreamingGeneration(repoPath, repo, "run-1", observedAt, base, false).Facts)
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, withSummaries, false)
+	baseFacts := drainFactChannel(buildStreamingGeneration(repoPath, repo, "run-1", observedAt, base, false, "").Facts)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, withSummaries, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
 	if got, want := len(envelopes), collected.FactCount(); got != want {

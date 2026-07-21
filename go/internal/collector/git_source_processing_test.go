@@ -37,7 +37,7 @@ func TestBuildScopeRepositorySourceKeyMatchesMetadataRepoID(t *testing.T) {
 		LocalPath: "/repos/example-repo",
 	}
 
-	got := buildScope(repo)
+	got := buildScope(repo, "")
 
 	if got.ScopeKind != scope.KindRepository {
 		t.Fatalf("ScopeKind = %q, want %q", got.ScopeKind, scope.KindRepository)

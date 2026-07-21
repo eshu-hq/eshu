@@ -253,6 +253,7 @@ func streamContractDocumentationFacts(t *testing.T, relativePath string, body st
 		time.Date(2026, time.June, 9, 1, 0, 0, 0, time.UTC),
 		snapshot,
 		false,
+		"",
 	)
 	return drainFactChannel(collected.Facts)
 }

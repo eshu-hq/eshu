@@ -37,6 +37,7 @@ jobs:
 			}},
 		},
 		false,
+		"",
 	)
 	envelopes := drainCollectorFacts(t, collected)
 	if got, want := collected.FactCount(), len(envelopes); got != want {

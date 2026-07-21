@@ -42,6 +42,20 @@ type GitSyncSelection struct {
 	// selectors. The snapshot code uses this to skip a redundant git rev-parse
 	// HEAD subprocess.
 	SourceCommitSHAByRepoPath map[string]string
+	// RefWorktreeByRepoPath maps the main repo path to a list of pinned-ref
+	// worktree metadata. Each entry carries a worktree path and the ref name.
+	// Populated only when ESHU_PINNED_REFS_JSON is configured. Enabler for
+	// epic #5393 / issue #5417.
+	RefWorktreesByRepoPath map[string][]RefWorktreeEntry
+}
+
+// RefWorktreeEntry describes one pinned-ref git worktree checkout created
+// alongside the default-branch checkout during a sync cycle.
+type RefWorktreeEntry struct {
+	WorktreePath string
+	Ref          string
+	RefKind      string // "branch" or "tag"
+	HeadSHA      string
 }
 
 // GitSyncDelta carries the file-scoped change set for an updated Git checkout.
@@ -230,6 +244,13 @@ func repoCheckoutName(repoID string) (string, error) {
 	normalized := normalizeRepositoryID(repoID)
 	if normalized == "" {
 		return "", fmt.Errorf("invalid repository identifier %q", repoID)
+	}
+	// Reject names that would squat on the reserved ref-worktree namespace
+	// (N3 fix: a repo named .eshu-ref-worktrees would occupy
+	// ReposDir/.eshu-ref-worktrees, trapping other repos' ref worktrees
+	// inside its canonical checkout where they'd be walked as its files).
+	if strings.HasPrefix(normalized, ".eshu-") {
+		return "", fmt.Errorf("repository identifier %q conflicts with reserved .eshu- prefix; rename the repository", repoID)
 	}
 	return normalized, nil
 }

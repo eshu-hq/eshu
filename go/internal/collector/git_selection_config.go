@@ -14,8 +14,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 )
 
 // RepoSyncRepositoryRule constrains repository selection for one sync cycle.
@@ -80,6 +78,19 @@ type RepoSyncConfig struct {
 	// a full reconciliation snapshot so a fleet does not stampede. Non-positive
 	// means no per-cycle cap.
 	ReconcileMaxPerCycle int
+	// PinnedRefsByRepoID maps repository IDs to per-repo pinned refs. Each
+	// pinned ref produces an isolated non-default-branch snapshot with identity
+	// repo_id@ref. Parsed from ESHU_PINNED_REFS_JSON. Empty means feature off.
+	// Enabler for epic #5393 / issue #5417.
+	PinnedRefsByRepoID map[string][]string
+	// PinnedRefPerRepoCap is the maximum number of extra pinned refs allowed per
+	// repository. Ref counts exceeding the cap are truncated with a warning log.
+	// Default: 3.
+	PinnedRefPerRepoCap int
+	// PinnedRefFleetCap is the absolute maximum total pinned-ref worktree entries
+	// allowed across the entire fleet per sync cycle. Zero means unlimited.
+	// Default: 0 (unlimited until #5393 measures the real cost).
+	PinnedRefFleetCap int
 }
 
 // LoadRepoSyncConfig parses the repo-sync environment contract for Go runtimes.
@@ -99,6 +110,12 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 	if err := validateRepositoryRulesForSourceMode(sourceMode, repositoryRules); err != nil {
 		return RepoSyncConfig{}, err
 	}
+	pinnedRefsByRepoID, err := parsePinnedRefsJSON(getenv("ESHU_PINNED_REFS_JSON"))
+	if err != nil {
+		return RepoSyncConfig{}, err
+	}
+	pinnedRefCap := pinnedRefPerRepoCap(getenv)
+	pinnedRefFleetCap := pinnedRefFleetCap(getenv)
 
 	reposDir := strings.TrimSpace(getenv("ESHU_REPOS_DIR"))
 	if reposDir == "" {
@@ -146,6 +163,9 @@ func LoadRepoSyncConfig(component string, getenv func(string) string) (RepoSyncC
 		RepoShardIndex:         repoShardIndex,
 		ReconcileInterval:      reconcileIntervalFromEnv(getenv),
 		ReconcileMaxPerCycle:   reconcileMaxPerCycleFromEnv(getenv),
+		PinnedRefsByRepoID:     pinnedRefsByRepoID,
+		PinnedRefPerRepoCap:    pinnedRefCap,
+		PinnedRefFleetCap:      pinnedRefFleetCap,
 	}
 	normalizeFilesystemConfig(&config)
 	return config, nil
@@ -409,92 +429,4 @@ func sortUniqueStrings(values []string) []string {
 	}
 	sort.Strings(result)
 	return result
-}
-
-// snapshotWorkerCount returns the number of concurrent snapshot workers.
-// Reads ESHU_SNAPSHOT_WORKERS from env; defaults to min(NumCPU, 8).
-// With two-lane scheduling and the large-repo semaphore, extra workers
-// safely process small repos while large repos hold semaphore slots.
-// The two-phase streaming design keeps per-snapshot memory at O(single_file).
-func snapshotWorkerCount(getenv func(string) string) int {
-	if raw := strings.TrimSpace(getenv("ESHU_SNAPSHOT_WORKERS")); raw != "" {
-		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
-			return n
-		}
-	}
-	n := cpubudget.UsableCPUs()
-	if n > 8 {
-		n = 8
-	}
-	if n < 1 {
-		n = 1
-	}
-	return n
-}
-
-// streamBufferSize returns the stream channel buffer size.
-// Reads ESHU_STREAM_BUFFER from env; defaults to 0 (use worker count).
-//
-// Each buffered CollectedGeneration holds metadata and a fact channel
-// reference — file bodies are re-read from disk on demand via two-phase
-// streaming, so the per-slot memory cost is negligible.
-func streamBufferSize(getenv func(string) string) int {
-	if raw := strings.TrimSpace(getenv("ESHU_STREAM_BUFFER")); raw != "" {
-		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
-			return n
-		}
-	}
-	return 0
-}
-
-// parseWorkerCount returns the number of concurrent file parse workers.
-// Reads ESHU_PARSE_WORKERS from env; defaults to min(NumCPU, 8).
-func parseWorkerCount(getenv func(string) string) int {
-	if raw := strings.TrimSpace(getenv("ESHU_PARSE_WORKERS")); raw != "" {
-		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
-			return n
-		}
-	}
-	n := cpubudget.UsableCPUs()
-	if n > 8 {
-		n = 8
-	}
-	if n < 1 {
-		n = 1
-	}
-	return n
-}
-
-// largeRepoThreshold returns the file-count threshold above which a repository
-// is classified as "large" for concurrency limiting.
-// Reads ESHU_LARGE_REPO_FILE_THRESHOLD from env; defaults to 1000.
-//
-// Production data (895 repos, Apr 2026) shows 34 repos above 1000 files
-// producing 66.8% of all facts. Repos in the 501–1000 range (40 repos)
-// are busy but not memory-dangerous and benefit from full parallelism.
-func largeRepoThreshold(getenv func(string) string) int {
-	if raw := strings.TrimSpace(getenv("ESHU_LARGE_REPO_FILE_THRESHOLD")); raw != "" {
-		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
-			return n
-		}
-	}
-	return 1000
-}
-
-// largeRepoMaxConcurrent returns the maximum number of large repositories that
-// can be snapshotted concurrently.
-// Reads ESHU_LARGE_REPO_MAX_CONCURRENT from env; defaults to 2.
-//
-// Tuning guide:
-//
-//	1 = safest for memory; only one large parse at a time
-//	2 = good balance; two large repos + remaining workers on small repos
-//	4 = aggressive; requires more RAM but faster on large-heavy workloads
-func largeRepoMaxConcurrent(getenv func(string) string) int {
-	if raw := strings.TrimSpace(getenv("ESHU_LARGE_REPO_MAX_CONCURRENT")); raw != "" {
-		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
-			return n
-		}
-	}
-	return 2
 }

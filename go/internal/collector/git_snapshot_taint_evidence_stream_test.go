@@ -28,10 +28,10 @@ func TestTaintEvidenceCountedStreamedAndFreshness(t *testing.T) {
 		Binding: "q", SourceLine: 4, SinkLine: 5, Confidence: 0.8,
 	}}
 
-	baseCollected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, base, false)
+	baseCollected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, base, false, "")
 	baseFacts := drainFactChannel(baseCollected.Facts)
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, withEvidence, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, withEvidence, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
 	// Parity: FactCount accounts for the extra taint evidence fact.

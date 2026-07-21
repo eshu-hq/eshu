@@ -54,6 +54,12 @@ type SelectedRepository struct {
 	// remote SHA) leave this empty. Snapshot code uses this to skip a redundant
 	// git rev-parse HEAD subprocess when the SHA is already known.
 	SourceCommitSHA string `json:"source_commit_sha,omitempty"`
+	// Ref names a non-default git ref (branch or tag) being snapped for this
+	// repository. When set, the scope identity becomes repo_id@ref and emitted
+	// facts carry a ref payload field so multi-ref coverage is distinguishable.
+	// Empty on the default-branch selection (canonical identity unchanged).
+	// Enabler for epic #5393 / issue #5417.
+	Ref string `json:"ref,omitempty"`
 }
 
 // RepositorySnapshot captures one repository parse snapshot and content transport.

@@ -90,8 +90,8 @@ func TestDataflowFunctionFactEmittedAndCounted(t *testing.T) {
 		DefUse:       []map[string]any{{"binding": "q", "def_line": 4, "use_line": 5}},
 	}}
 
-	baseFacts := drainFactChannel(buildStreamingGeneration(repoPath, repo, "run-1", observedAt, base, false).Facts)
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, withDataflow, false)
+	baseFacts := drainFactChannel(buildStreamingGeneration(repoPath, repo, "run-1", observedAt, base, false, "").Facts)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, withDataflow, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
 	if got, want := len(envelopes), collected.FactCount(); got != want {

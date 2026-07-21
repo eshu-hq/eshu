@@ -62,7 +62,7 @@ end note
 		},
 	}
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
 	documentFacts := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
@@ -153,7 +153,7 @@ component "Unsafe"
 		},
 	}
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
 	documentFacts := factsByKind(envelopes, facts.DocumentationDocumentFactKind)

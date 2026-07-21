@@ -261,6 +261,7 @@ func TestNotebookDocumentationStableIDsAndParserSupport(t *testing.T) {
 		time.Date(2026, time.June, 9, 3, 30, 0, 0, time.UTC),
 		snapshot,
 		false,
+		"",
 	)
 	envelopes := drainFactChannel(collected.Facts)
 	if got, want := len(factsByKind(envelopes, facts.DocumentationDocumentFactKind)), 1; got != want {
@@ -300,6 +301,7 @@ func TestNativeSnapshotMalformedNotebookStillEmitsDocumentationWarning(t *testin
 		time.Date(2026, time.June, 9, 4, 0, 0, 0, time.UTC),
 		snapshot,
 		false,
+		"",
 	)
 	envelopes := drainFactChannel(collected.Facts)
 	documents := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
@@ -331,6 +333,7 @@ func streamNotebookFacts(t *testing.T, repoPath string, relativePath string) []f
 			}},
 		},
 		false,
+		"",
 	)
 	return drainFactChannel(collected.Facts)
 }

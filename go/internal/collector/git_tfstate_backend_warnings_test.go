@@ -47,7 +47,7 @@ func TestBuildStreamingGenerationEmitsUnresolvedTerraformBackendExpressionWarnin
 		},
 	}
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-backend-warning", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-backend-warning", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 	if got, want := len(envelopes), collected.FactCount(); got != want {
 		t.Fatalf("streamed facts = %d, FactCount = %d", got, want)
@@ -153,6 +153,7 @@ func TestBuildStreamingGenerationKeysBackendExpressionWarningsByLine(t *testing.
 		time.Date(2026, time.June, 13, 16, 0, 0, 0, time.UTC),
 		snapshot,
 		false,
+		"",
 	)
 	warnings := factsByKind(drainFactChannel(collected.Facts), facts.TerraformStateWarningFactKind)
 	if got, want := len(warnings), 2; got != want {
