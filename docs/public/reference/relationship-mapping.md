@@ -47,6 +47,34 @@ flowchart TD
   K["Graph readiness phases"] --> F
 ```
 
+### Two invocation paths, two payload shapes
+
+`DiscoverEvidence` runs from two places, and they hand it `parsed_file_data`
+in different Go shapes:
+
+- **Streaming**, per commit, for every repository scope. The collector embeds
+  the parser's in-memory map into the fact envelope verbatim, with no JSON
+  round trip, so bucket values arrive as `[]map[string]any`.
+- **Deferred backfill**, which reloads facts from Postgres. JSONB decoding
+  produces `[]any` of `map[string]any`.
+
+An extractor that reads a bucket must accept both. Asserting one shape
+silently yields zero evidence on the other path — and because the streaming
+path is the always-on one, that failure is invisible: no error, no log, just
+an empty result that looks like a repository with nothing to find.
+
+This is not hypothetical. Eight IaC buckets (Terraform modules, Terragrunt
+dependencies and configs, Helm charts and values, ArgoCD applications and
+applicationsets, Flux git repositories) asserted `.([]any)` and therefore
+produced nothing on the streaming path until #5445. Their evidence appeared
+only after a backfill pass. Every test for them used `[]any` fixtures — the
+backfill shape — so the suite stayed green throughout.
+
+Read buckets through the typed `DecodeParsedFileData*` accessors in
+`sdk/go/factschema`, which handle both shapes. When adding a test for an
+extractor, drive it from real parser output rather than a hand-built map, so
+the fixture cannot encode a shape production never emits.
+
 ## Canonical Relationship Types
 
 The resolver-owned typed relationship enum lives in
