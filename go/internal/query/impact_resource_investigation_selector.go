@@ -36,10 +36,16 @@ var resourceInvestigationFuzzySelectorPredicates = []string{
 	"coalesce(n.config_path, '') CONTAINS $selector",
 }
 
+// resourceInvestigationDefaultLabels includes TerraformStateResource
+// (#5443) alongside TerraformResource: TerraformStateResource is the
+// state-observed sibling label split off TerraformResource, so an
+// untyped resource investigation covers declared, applied, and matched
+// resources.
 var resourceInvestigationDefaultLabels = []string{
 	"CloudResource",
 	"K8sResource",
 	"TerraformResource",
+	"TerraformStateResource",
 	"TerraformDataSource",
 	"TerraformModule",
 	"CloudFormationResource",
@@ -205,7 +211,10 @@ func resourceInvestigationSelectorLabels(resourceType string) []string {
 	case "k8s", "k8s_resource", "kubernetes":
 		return []string{"K8sResource"}
 	case "terraform", "terraform_resource":
-		return []string{"TerraformResource", "TerraformDataSource"}
+		// #5443: TerraformStateResource is the state-observed sibling label
+		// split off TerraformResource; included alongside it so a resource
+		// investigation covers declared, applied, and matched resources.
+		return []string{"TerraformResource", "TerraformStateResource", "TerraformDataSource"}
 	case "module", "terraform_module":
 		return []string{"TerraformModule"}
 	default:

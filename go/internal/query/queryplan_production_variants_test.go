@@ -15,13 +15,14 @@ const (
 	// handlerQueryplanSafeVariantFamilySHA256 is recomputed below (via the
 	// package test) after each production-variant-affecting change; it must
 	// reflect BOTH the RUNS_IMAGE/#5600 and TerraformStateResource/#5443
-	// additions to allInfraLabels once this file lands on main.
-	handlerQueryplanSafeVariantFamilySHA256       = "121403ea186e0c9e140b1aa6960effb3b8d26a5abf8d859db75a2010fdaf27c3"
+	// additions to allInfraLabels and the resource-investigation selector
+	// labels once this file lands on main.
+	handlerQueryplanSafeVariantFamilySHA256       = "9898a740cde00e39fc1e0f3e8d82d83548621f9b42d05ea19ae09621432f1993"
 	cloudResourcePageQueryplanFamilySHA256        = "712236c6413a22d03897649a0ac0a58115531537557d9bb3fed5604acd23f2b2"
 	entityNameSearchQueryplanVariantFamilySHA256  = "4d4f47c1555b8a42caa91d20a5971902fc19b6ef65d3c77440f9be5df4333ef5"
 	entityNameSearchQueryplanBuilderSourceSHA256  = "3057a508e8b5acf4e07b4d5567b00dbf5e900b360eed82b3102f358e2a1e1523"
 	entityNameSearchQueryplanExpectedVariantCount = 17
-	resourceSelectorQueryplanExpectedVariantCount = 304
+	resourceSelectorQueryplanExpectedVariantCount = 336
 )
 
 func TestHandlerQueryplanProductionVariantFamiliesStayExplicit(t *testing.T) {

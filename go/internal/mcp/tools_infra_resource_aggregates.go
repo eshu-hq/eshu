@@ -17,7 +17,7 @@ func infraResourceAggregateTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
 			Name:        "count_infra_resources",
-			Description: "Return graph-backed infrastructure resource totals for one optional scope without paging through individual resources. Provides total resources and rollups by provider, environment, and label (CloudResource / TerraformResource / K8sResource / CloudFormationResource / ArgoCDApplication / CrossplaneXRD / HelmChart / etc.). Pass `category` (k8s / terraform / argocd / crossplane / helm / cloud) to narrow to one label-set for hot-path performance.",
+			Description: "Return graph-backed infrastructure resource totals for one optional scope without paging through individual resources. Provides total resources and rollups by provider, environment, and label (CloudResource / TerraformResource / TerraformStateResource / K8sResource / CloudFormationResource / ArgoCDApplication / CrossplaneXRD / HelmChart / etc.). Pass `category` (k8s / terraform / argocd / crossplane / helm / cloud) to narrow to one label-set for hot-path performance.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -43,7 +43,7 @@ func infraResourceAggregateTools() []ToolDefinition {
 				"properties": map[string]any{
 					"group_by": map[string]any{
 						"type":        "string",
-						"description": "Grouping dimension. provider (default) groups by cloud provider; environment groups by deployment environment; resource_category groups by category; resource_service groups by service; label groups by node label (TerraformResource / K8sResource / ...).",
+						"description": "Grouping dimension. provider (default) groups by cloud provider; environment groups by deployment environment; resource_category groups by category; resource_service groups by service; label groups by node label (TerraformResource / TerraformStateResource / K8sResource / ...).",
 						"enum":        []string{"provider", "environment", "resource_category", "resource_service", "label"},
 						"default":     "provider",
 					},
