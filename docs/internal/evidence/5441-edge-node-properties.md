@@ -12,8 +12,7 @@ Two additive, SET-clause-only changes:
   `copyRepoRelationshipMetadata`
   (`go/internal/storage/cypher/edge_writer_row_metadata.go` as of #5441
   review round 3's file-cap split; `edge_writer_retract.go` before that). The
-  production
-  write path is exclusively the `UNWIND $rows` batch templates via
+  production write path is exclusively the `UNWIND $rows` batch templates via
   `EdgeWriter.WriteEdges`/`buildRowMap`; the file also carries a matching
   single-row `BuildCanonicalRepoRelationshipUpsert` builder and its five
   single-row Cypher constants for contract/test symmetry, but that builder
@@ -161,7 +160,7 @@ so the query plan shape is invariant on both NornicDB and Neo4j, matching the
 `Code-Edge Resolution Provenance Write Shape` precedent in
 `docs/public/reference/cypher-performance.md`.
 
-### Edge write benchmark
+### Edge write benchmark (current, reproducible)
 
 New focused benchmark
 `go/internal/storage/cypher/edge_writer_repo_dependency_bench_test.go`
@@ -170,98 +169,17 @@ batching for the five canonical edge types behind a no-op executor (1000 rows
 per type, 5000 rows total), so it measures `buildRowMap` +
 `copyRepoRelationshipMetadata` + `UNWIND` batching cost, not backend network or
 write latency. Same input shape and row count run on both sides; only the
-production code differs (OLD = `origin/main` at `0a9461b21`, checked out via a
-detached `git worktree add --detach /tmp/eshu-5441-baseline origin/main`,
-removed after the run per repo policy; NEW = this branch).
+production code differs. OLD and NEW below are both re-run at the current true
+merge-base `a5350625f` (checked out via a detached
+`git worktree add --detach`, removed after the run) against this branch's
+shipped code (`repoDependencyRowMapCapacity`/`repoRelationshipRowMapCapacity`
+pre-sizing the row map, two tracked fields — source_revision and
+first_party_ref_version — after the destination_namespace removal). This is
+the authoritative, currently-reproducible measurement for this benchmark; an
+earlier iteration's numbers are recorded separately below as a superseded
+hypothesis, not restated here.
 
-`go test ./internal/storage/cypher/... -run '^$' -bench BenchmarkEdgeWriterRepoDependencyWrite -benchtime=3x -benchmem -count=3`, Apple M1 Max:
-
-| Side | ns/op (avg of 3) | B/op (avg of 3) | allocs/op (avg of 3) |
-| --- | ---: | ---: | ---: |
-| OLD (`origin/main` 0a9461b21) | 4,740,921 | 5,735,114 | 80,102 |
-| NEW (this branch) | 8,424,620 | 11,894,525 | 105,101 |
-| Delta (5000 rows) | +3,683,699 (+77.7%) | +6,159,411 (+107.4%) | +24,999 (+31.2%) |
-| Delta per row | +736.7 ns | +1,231.9 B | +5.0 allocs |
-
-The per-row delta was real and larger in relative terms than "three scalar
-SETs" alone would suggest. Investigated per Prove-The-Theory-First below
-rather than accepted as inherent.
-
-**#5441 review round 3 caveat:** this table's "NEW (this branch)" row captured
-the original unsized `buildRowMap` implementation with three tracked fields
-(source_revision, destination_namespace, first_party_ref_version). Two things
-changed since: destination_namespace was removed (two fields, not three), and
-a fresh same-shape re-check of unsized vs. pre-sized on today's toolchain does
-not reproduce this gap — see "Map Bucket-Growth Pre-Sizing" below for the
-re-check and the current, reproducible OLD-vs-shipped numbers. This table is
-kept as the original discovery record, not as a currently-reproducible claim.
-
-### Map Bucket-Growth Pre-Sizing
-
-Theory: `buildRowMap`'s DEPENDS_ON and typed-relationship branches build
-`rowMap` from a small `map[string]any{...}` literal (3-4 keys), then append
-`evidence_type`, `source_tool`, and `copyRepoRelationshipMetadata`'s ten keys
-one at a time — up to 16 keys total after #5441 (13 before). A Go map literal
-is sized from its own element count only, so every key appended afterward can
-force the runtime to grow the map's bucket array once the load factor is
-exceeded; that reallocation, not the three added string values themselves,
-was suspected to dominate the measured delta.
-
-Proof shim (Prove-The-Theory-First, cheapest-possible microbenchmark, run
-before touching production code): a throwaway `BenchmarkMapGrowthTheory` in
-`go/internal/storage/cypher` (removed after the result; not committed) built
-the exact 15-key row shape from `buildRowMap`'s typed-relationship branch two
-ways — a 4-key literal plus 11 appends (mirroring production) vs
-`make(map[string]any, 15)` up front plus 15 direct assignments. Apple M1 Max,
-`-benchtime=200000x -benchmem -count=5`:
-
-| Shape | ns/op | B/op | allocs/op |
-| --- | ---: | ---: | ---: |
-| Literal + 11 appends (current shape) | 1210-1239 | 2176 | 9 |
-| Pre-sized `make` + 15 assigns | 562.9-571.8 | 1280 | 6 |
-
-~2.1x faster, 41% less memory, 3 fewer allocations — exactly the signature of
-one avoided bucket-array reallocation, not three avoided interface boxings
-(which would show as ~3 allocs total, not 9 vs 6 plus the B/op gap). Theory
-confirmed on representative data before implementing.
-
-**#5441 review round 3, re-check:** this shim's own ns/op/B/op/allocs numbers
-above, and the "NEW, unsized (first attempt)" row in the re-measured table
-below, both predate the destination_namespace removal AND do not reproduce on
-a fresh same-shape re-check. Reverting the shipped pre-sizing back to a
-3-key-literal-plus-appends `rowMap` (matching this section's own description,
-temporarily, not committed) and re-running
-`BenchmarkEdgeWriterRepoDependencyWrite` against today's 2-field
-`copyRepoRelationshipMetadata` shape shows literal+append and pre-sized
-`make(map[string]any, N)` landing on statistically indistinguishable B/op and
-allocs/op (~7,335,000 B/op / ~85,102 allocs/op either way) — not the large gap
-this section originally claimed. `go env GOEXPERIMENT` is empty and `go
-version` is `go1.26.5`, i.e. this repo's pinned toolchain already defaults to
-Go's swiss-table map implementation, whose incremental-growth behavior differs
-materially from the classic bucket-hmap this theory was written against; that
-is the leading candidate explanation, not confirmed. The pre-sized `make` call
-is still correct and harmless to keep (measured equal, never worse), but the
-specific "avoided bucket-array reallocation" recovery narrative in this
-section is not currently substantiated and needs a decision from review on how
-to reframe it, rather than being silently rewritten here. See the corrected,
-freshly-measured "Re-measured" table below for the current, reproducible
-production-code numbers (OLD vs the shipped pre-sized NEW); the "unsized"
-comparison itself does not currently reproduce and is not reasserted.
-
-Fix: pre-size both affected `rowMap`s with `make(map[string]any, N)`
-(`repoDependencyRowMapCapacity = 14`, `repoRelationshipRowMapCapacity = 15`,
-covering each branch's worst-case key count after the destination_namespace
-removal) in `go/internal/storage/cypher/edge_writer.go`, replacing the map
-literal plus appends with direct assignments into the pre-sized map.
-Output-preserving: every existing exact-key/value-asserting test in
-`go/internal/storage/cypher` (`TestEdgeWriterWriteEdgesTypedRepoRelationshipDispatch`
-and siblings) passed unchanged after the edit, proving the row map's key set
-and values are byte-identical to before — only the allocation shape changed.
-
-Re-measured `BenchmarkEdgeWriterRepoDependencyWrite` (same 5000-row input, no-op
-executor, Apple M1 Max, `-benchtime=3x -benchmem -count=3`, 3 runs each, OLD and
-NEW both re-run at the current true merge-base `a5350625f` — #5441 review
-round 3, replacing this table's pre-removal figures):
+`go test ./internal/storage/cypher/... -run '^$' -bench BenchmarkEdgeWriterRepoDependencyWrite -benchtime=3x -benchmem -count=3`, Apple M1 Max, 3 runs each:
 
 | Side | ns/op (avg of 3) | B/op (avg of 3) | allocs/op (avg of 3) |
 | --- | ---: | ---: | ---: |
@@ -270,17 +188,84 @@ round 3, replacing this table's pre-removal figures):
 | Delta shipped vs OLD (5000 rows) | +212,607 (+4.4%) | +1,599,324 (+27.9%) | +4,999 (+6.2%) |
 | Delta per row | +42.5 ns | +319.9 B | +1.0 allocs |
 
-The deterministic allocs/op delta is now +6.2% (2 new `string` values boxed
-into `interface{}` map entries per row, one full allocation each — matching
-the 5,000-allocation gap for 5,000 rows exactly), not the +12.5% this section
-previously claimed before the destination_namespace field was removed and
-before this re-check. This is pure in-process Go row-shaping cost with a no-op
-executor: it measures zero DB/network time. Every comparable measured backend
-write in this repo's evidence history (e.g. the `#3429` catalog/edges fix
-above) puts a single graph write between 10ms and several seconds; the
-per-row row-shaping cost here is immaterial against that, and this framing —
-Go-side row shaping only, not end-to-end graph-write latency — is explicit
-here so it is not misread as a hit to actual write throughput.
+The deterministic allocs/op delta is +6.2% (2 new `string` values boxed into
+`interface{}` map entries per row, one full allocation each — matching the
+5,000-allocation gap for 5,000 rows exactly). This is pure in-process Go
+row-shaping cost with a no-op executor: it measures zero DB/network time.
+Every comparable measured backend write in this repo's evidence history (e.g.
+the `#3429` catalog/edges fix above) puts a single graph write between 10ms
+and several seconds; the per-row row-shaping cost here is immaterial against
+that, and this framing — Go-side row shaping only, not end-to-end
+graph-write latency — is explicit here so it is not misread as a hit to
+actual write throughput.
+
+**Why the row map is still pre-sized with `make(map[string]any, N)`**
+(`repoDependencyRowMapCapacity = 14`, `repoRelationshipRowMapCapacity = 15`,
+covering each branch's worst-case key count) in
+`go/internal/storage/cypher/edge_writer.go`, replacing the map literal plus
+appends an earlier iteration used: it measures no worse than the
+literal-plus-appends alternative on this repo's pinned toolchain today (see
+"Superseded hypothesis" below), it makes the intended final key count
+explicit at the call site instead of leaving it to accumulate implicitly
+across a dozen conditional appends, and reverting it now would be pure churn
+with no measured benefit either way. This is a capacity-explicitness and
+readability rationale, not a performance win — do not read it as one.
+Output-preserving regardless of rationale: every existing
+exact-key/value-asserting test in `go/internal/storage/cypher`
+(`TestEdgeWriterWriteEdgesTypedRepoRelationshipDispatch` and siblings) passed
+unchanged, proving the row map's key set and values are byte-identical to the
+literal-plus-appends form.
+
+### Superseded hypothesis: Map Bucket-Growth Pre-Sizing
+
+**This section is historical, not a current claim.** An earlier development
+iteration measured a large gap between an unsized `rowMap` (small literal plus
+per-key appends) and a pre-sized one, attributed it to Go map bucket-array
+growth, and used that theory to justify pre-sizing. A fresh same-shape
+re-check on this repo's pinned `go1.26.5` toolchain does not reproduce the
+gap: `go env GOEXPERIMENT` is empty, meaning Go's swiss-table map
+implementation is already the default, and swiss-table incremental-growth
+behavior differs materially from the classic bucket-hmap this theory assumed.
+Re-running the same production benchmark with the pre-sizing temporarily
+reverted (not committed) landed on B/op and allocs/op statistically
+indistinguishable from the shipped pre-sized code (~7,335,000 B/op /
+~85,102 allocs/op either way) — not the gap this section originally
+documented. The numbers below are kept as the original discovery record for
+traceability; do not cite them as current fact.
+
+Original theory: `buildRowMap`'s DEPENDS_ON and typed-relationship branches
+build `rowMap` from a small `map[string]any{...}` literal (3-4 keys), then
+append `evidence_type`, `source_tool`, and `copyRepoRelationshipMetadata`'s
+keys one at a time. A Go map literal is sized from its own element count
+only, so every key appended afterward can force the runtime to grow the
+map's bucket array once the load factor is exceeded; that reallocation, not
+the added string values themselves, was suspected to dominate the measured
+delta.
+
+Original proof shim (`BenchmarkMapGrowthTheory`, throwaway, not committed)
+built a 15-key row shape two ways — a 4-key literal plus 11 appends
+(mirroring production at the time) vs `make(map[string]any, 15)` up front
+plus 15 direct assignments. Apple M1 Max, `-benchtime=200000x -benchmem -count=5`:
+
+| Shape | ns/op | B/op | allocs/op |
+| --- | ---: | ---: | ---: |
+| Literal + 11 appends (original shape) | 1210-1239 | 2176 | 9 |
+| Pre-sized `make` + 15 assigns | 562.9-571.8 | 1280 | 6 |
+
+Original production benchmark (before the destination_namespace removal,
+three tracked fields, OLD = `origin/main` at the then-current merge-base
+`0a9461b21`):
+
+| Side | ns/op (avg of 3) | B/op (avg of 3) | allocs/op (avg of 3) |
+| --- | ---: | ---: | ---: |
+| OLD (`origin/main` `0a9461b21`) | 4,740,921 | 5,735,114 | 80,102 |
+| NEW, unsized (first attempt) | 8,424,620 | 11,894,525 | 105,101 |
+| NEW, pre-sized (shipped, at the time) | 5,093,139 | 7,415,118 | 90,102 |
+
+This originally read as "pre-sizing recovered a ~2.1x-slower, 107%-more-memory
+regression." It does not read that way today: see the current, reproducible
+numbers in "Edge write benchmark" above, and the rationale there for why the
+pre-sizing still ships despite the theory not holding up.
 
 ### Resolver candidate aggregation (#5441 review round 2, P1-2)
 
@@ -380,9 +365,10 @@ load-bearing for this change; the `TestPromoteTerraformResourceAttributes*`
 suite proves correctness and the redaction/size-cap guards.
 
 Performance Evidence (#5441 review round 3, P2 — re-measured against final
-HEAD; the figures below supersede an earlier version of this marker that
-predated the destination_namespace removal): `BenchmarkEdgeWriterRepoDependencyWrite`
-on the same 5000-row input, no-op executor, Apple M1 Max,
+HEAD and reframed per review's decision; see "Edge write benchmark (current,
+reproducible)" and "Superseded hypothesis: Map Bucket-Growth Pre-Sizing"
+above for the full context): `BenchmarkEdgeWriterRepoDependencyWrite` on the
+same 5000-row input, no-op executor, Apple M1 Max,
 `-benchtime=3x -benchmem -count=3` (3 runs each), OLD and NEW both re-run at
 the current true merge-base `a5350625f` — OLD 4,839,055 ns/op avg /
 5,735,771 B/op avg / 80,103 allocs/op avg; shipped (pre-sized)
@@ -397,16 +383,16 @@ unchanged; this is pure in-process Go row-shaping cost measured with a no-op
 executor (zero DB/network time), negligible next to this repo's measured
 backend graph-write latencies (milliseconds to seconds per statement
 elsewhere in this evidence history) — do not read any of these percentages as
-end-to-end graph-write latency. A fresh apples-to-apples re-check (temporarily
-reverting the shipped pre-sizing back to a literal-plus-appends `rowMap`,
-not committed) found the originally-claimed "unsized" regression and its
-recovery via pre-sizing do not currently reproduce — see the caveat in "Map
-Bucket-Growth Pre-Sizing" above; the pre-sized `make` call itself is still
-correct and measured no worse than the alternative, so the shipped code is
-unaffected, but the specific bucket-growth causal narrative for the original
-regression needs a review decision on reframing, not restated here as fact.
-The `TerraformResource` node write path is proven correct by
-`TestCanonicalNodeWriterBuildsTerraformStateStatements` (additive `SET`
+end-to-end graph-write latency. The row map is still pre-sized with
+`make(map[string]any, N)`, but not as a measured performance win: a fresh
+apples-to-apples re-check (temporarily reverting the pre-sizing, not
+committed) found pre-sized and unsized `rowMap` construction statistically
+indistinguishable on this repo's pinned go1.26.5 toolchain (swiss-table maps
+by default), so the originally-claimed bucket-growth regression and its
+recovery are a superseded hypothesis, not current fact — kept only for
+capacity-explicitness and to avoid reverting a change that measures no
+worse either way. The `TerraformResource` node write path is proven correct
+by `TestCanonicalNodeWriterBuildsTerraformStateStatements` (additive `SET`
 clause, same batch/MERGE shape); a dedicated benchmark was judged not
 load-bearing since `promoteTerraformResourceAttributes` does bounded
 `O(len(allowlist))` work (at most 4 attribute lookups) well under the cost of
