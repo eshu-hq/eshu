@@ -57,7 +57,7 @@ func TestBuildReducerServiceWiresIdentityCacheEnvDisable(t *testing.T) {
 			}
 			return ""
 		},
-		nil, nil, nil,
+		nil, nil, nil, nil,
 	)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil (cache disabled via env)", err)

@@ -62,7 +62,7 @@ ORDER BY observed_at ASC, fact_id ASC
 // FactStore persists and loads fact records from Postgres.
 type FactStore struct {
 	db            ExecQueryer
-	identityCache *identityEpochCache
+	identityCache *IdentityEpochCache
 }
 
 // NewFactStore constructs a Postgres-backed fact store without identity caching.
@@ -73,7 +73,7 @@ func NewFactStore(db ExecQueryer) *FactStore {
 
 // NewFactStoreWithIdentityCache constructs a Postgres-backed fact store with
 // the identity-fact epoch cache enabled.
-func NewFactStoreWithIdentityCache(db ExecQueryer, cache *identityEpochCache) *FactStore {
+func NewFactStoreWithIdentityCache(db ExecQueryer, cache *IdentityEpochCache) *FactStore {
 	return &FactStore{db: db, identityCache: cache}
 }
 

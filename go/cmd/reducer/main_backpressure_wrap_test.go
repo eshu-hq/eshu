@@ -359,6 +359,7 @@ func TestBuildReducerServiceMaxInFlightWrapsAllWriters(t *testing.T) {
 		nil,
 		nil,
 		slog.Default(),
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("buildReducerService() with MAX_IN_FLIGHT=2 error = %v, want nil", err)
@@ -396,6 +397,7 @@ func TestBuildReducerServiceMaxInFlightWithGroupedWritesEnabled(t *testing.T) {
 		nil,
 		nil,
 		slog.Default(),
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("buildReducerService() with MAX_IN_FLIGHT=2 and grouped writes error = %v, want nil", err)

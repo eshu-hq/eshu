@@ -903,7 +903,10 @@ keeping the 500k-fact shim comfortably cached while a pathological set above
 this bound passes through observably via the passthrough counter.
 
 Observability Evidence: six new `eshu_dp_` instruments registered by
-`newIdentityEpochCache` on its own meter:
+`newIdentityEpochCache` on the reducer's real OTEL meter
+(`providers.MeterProvider.Meter(telemetry.DefaultSignalName)`, threaded
+through `buildObservedReducerService` → `NewIdentityEpochCache`).
+Metrics appear on the `/metrics` endpoint via the shared Prometheus exporter:
 `eshu_dp_identity_cache_hit_total`, `eshu_dp_identity_cache_miss_total`,
 `eshu_dp_identity_cache_reload_total`,
 `eshu_dp_identity_cache_passthrough_total`,
@@ -915,3 +918,9 @@ or runtime knob beyond `ESHU_IDENTITY_CACHE_MAX_BYTES`. Operators
 diagnose cache effectiveness through the hit/miss/reload/passthrough
 counters and probe/reload duration histograms, plus the existing
 `eshu_dp_postgres_query_duration_seconds` for the underlying DB queries.
+The X2 verifier flags these metrics as "doc references metric X but not
+registered in instruments.go" — this is a documented limitation: the
+verifier does not scan registrations outside `go/internal/telemetry/`.
+The metric constructor lives at `identity_epoch_cache.go:44`. X4
+dashboard: diagnostic cache-internal signals; not headline-alarm-worthy
+per the skill's conditional ("If the metric should appear").

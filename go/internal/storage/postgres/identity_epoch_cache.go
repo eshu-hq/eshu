@@ -30,7 +30,7 @@ type identityEpoch struct {
 	maxObservedAt time.Time
 }
 
-// identityEpochCache caches the full set of active container-image identity
+// IdentityEpochCache caches the full set of active container-image identity
 // facts, validated by an O(1) epoch probe (count + max observed_at) backed
 // by a partial B-tree index. On probe match the cached slice is served with
 // a defensive copy; on miss a singleflight reload drains the paginated load
@@ -38,7 +38,7 @@ type identityEpoch struct {
 //
 // Concurrency: mu guards epoch, facts, and loading. mu is never held across
 // the DB load or the epoch probe — both release the lock before I/O.
-type identityEpochCache struct {
+type IdentityEpochCache struct {
 	mu      sync.Mutex
 	epoch   identityEpoch
 	facts   []facts.Envelope
@@ -59,7 +59,7 @@ type identityEpochCache struct {
 // the cached set; 0 disables the cap (uses defaultIdentityCacheMaxBytes).
 // Returns nil if maxBytes is negative (cache disabled — callers use the
 // uncached path). meter must be non-nil when cache is enabled.
-func NewIdentityEpochCache(meter metric.Meter, maxBytes int64) *identityEpochCache {
+func NewIdentityEpochCache(meter metric.Meter, maxBytes int64) *IdentityEpochCache {
 	if maxBytes < 0 {
 		return nil
 	}
@@ -72,8 +72,8 @@ func NewIdentityEpochCache(meter metric.Meter, maxBytes int64) *identityEpochCac
 // newIdentityEpochCache constructs a ready-to-use identity epoch cache.
 // maxBytes caps the cached set; 0 disables the cap (unlimited).
 // meter must be non-nil.
-func newIdentityEpochCache(meter metric.Meter, maxBytes int64) *identityEpochCache {
-	c := &identityEpochCache{
+func newIdentityEpochCache(meter metric.Meter, maxBytes int64) *IdentityEpochCache {
+	c := &IdentityEpochCache{
 		maxBytes: maxBytes,
 	}
 	if c.maxBytes <= 0 {
@@ -130,7 +130,7 @@ func newIdentityEpochCache(meter metric.Meter, maxBytes int64) *identityEpochCac
 
 // get serves the identity fact set, transparently applying the epoch cache
 // and singleflight reload.
-func (c *identityEpochCache) get(ctx context.Context, store *FactStore) ([]facts.Envelope, error) {
+func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts.Envelope, error) {
 	// Fast path: check cache under lock.
 	c.mu.Lock()
 
