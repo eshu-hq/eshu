@@ -69,6 +69,45 @@ func TestParsePinnedRefsJSONInvalidRef(t *testing.T) {
 	}
 }
 
+func TestParsePinnedRefsJSONDedupsWithinRepoArray(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  string
+		want []string
+	}{
+		{
+			name: "trailing-duplicates",
+			raw:  `{"owner/repo": ["main", "main", "dev", "dev"]}`,
+			want: []string{"main", "dev"},
+		},
+		{
+			name: "mixed-position-duplicate",
+			raw:  `{"owner/repo": ["a", "b", "a"]}`,
+			want: []string{"a", "b"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := parsePinnedRefsJSON(tc.raw)
+			if err != nil {
+				t.Fatalf("parsePinnedRefsJSON(%q) error = %v, want nil", tc.raw, err)
+			}
+			refs := got["owner/repo"]
+			if len(refs) != len(tc.want) {
+				t.Fatalf("owner/repo refs = %v, want %v", refs, tc.want)
+			}
+			for i, ref := range refs {
+				if ref != tc.want[i] {
+					t.Fatalf("owner/repo refs = %v, want %v", refs, tc.want)
+				}
+			}
+		})
+	}
+}
+
 func TestLoadRepoSyncConfigPinnedRefsEnv(t *testing.T) {
 	t.Parallel()
 

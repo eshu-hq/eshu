@@ -93,6 +93,7 @@ func parseRefList(raw any) ([]string, error) {
 			return nil, nil
 		}
 		refs := make([]string, 0, len(v))
+		seen := make(map[string]struct{}, len(v))
 		for _, item := range v {
 			ref := strings.TrimSpace(fmt.Sprint(item))
 			if ref == "" {
@@ -101,6 +102,10 @@ func parseRefList(raw any) ([]string, error) {
 			if err := validateGitRefName(ref); err != nil {
 				return nil, err
 			}
+			if _, dup := seen[ref]; dup {
+				continue
+			}
+			seen[ref] = struct{}{}
 			refs = append(refs, ref)
 		}
 		return refs, nil
