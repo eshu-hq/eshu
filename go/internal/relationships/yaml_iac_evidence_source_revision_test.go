@@ -104,17 +104,23 @@ spec:
 
 // TestDiscoverArgoCDDocumentEvidenceCarriesSourceRevisionFromMultiSource
 // covers the spec.sources[] (multi-source Application) shape at the
-// DiscoverEvidence layer: only one of the two declared sources
-// (payments-service) matches a catalog entry, so this fixture cannot by
-// itself distinguish "each source carries its own revision" from the older,
-// buggy "first non-empty revision anywhere in the document" behavior --
-// TestBuildResolvedEdgeIntentRowsPerSourceRevisionForMultiSourceApplication
-// (go/internal/reducer/cross_repo_intent_row_argocd_multisource_test.go) is
-// the real-pipeline regression guard for per-source revision correctness
-// (#5441 review round 8, P1-b), using two sources that both match catalog
-// entries with different revisions. This test stays as coverage for the
-// DiscoverEvidence layer alone: the matched source's own revision reaches
-// Details, unaffected by an unmatched sibling source.
+// DiscoverEvidence layer only. Two things NOT to re-derive here (#5441
+// review round 10 -- two prior review passes missed this and re-raised the
+// gap; read this before concluding per-source isolation is untested):
+//
+//	(a) This fixture's second source (config-repo) is INTENTIONALLY not
+//	    catalog-matched, so only one edge is ever produced. It cannot prove
+//	    revisions stay isolated between sources -- it only proves one
+//	    matched source's own revision reaches Details.
+//	(b) Per-source isolation (revisions do not leak between sources) is
+//	    proven end to end -- DiscoverEvidence -> Resolve ->
+//	    buildResolvedEdgeIntentRows, two catalog-matched sources with
+//	    different revisions -- by
+//	    TestBuildResolvedEdgeIntentRowsPerSourceRevisionForMultiSourceApplication
+//	    in go/internal/reducer/cross_repo_intent_row_argocd_multisource_test.go.
+//	    Falsified there: hoisting the revision computation out of the
+//	    per-source loop makes that test fail with the exact leak Codex
+//	    reported; reverting restores a clean diff. That is the real guard.
 func TestDiscoverArgoCDDocumentEvidenceCarriesSourceRevisionFromMultiSource(t *testing.T) {
 	t.Parallel()
 
