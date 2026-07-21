@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/ghactionsref"
 )
 
@@ -347,12 +348,7 @@ func deploymentEnvironmentFromPath(path string) string {
 }
 
 func isDeploymentEnvironmentToken(token string) bool {
-	switch token {
-	case "dev", "development", "test", "qa", "stage", "staging", "uat", "preprod", "prod", "production", "sandbox", "preview":
-		return true
-	default:
-		return false
-	}
+	return environment.IsKnownToken(token)
 }
 
 func firstNonEmpty(values ...string) string {

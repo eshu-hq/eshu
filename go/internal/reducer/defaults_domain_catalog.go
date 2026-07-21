@@ -52,6 +52,7 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				Materializer:                 handlers.WorkloadMaterializer,
 				DependencyLookup:             handlers.WorkloadDependencyLookup,
 				WorkloadDependencyEdgeWriter: handlers.WorkloadDependencyEdgeWriter,
+				InstanceRetractionLookup:     handlers.InstanceRetractionLookup,
 				PhasePublisher:               handlers.GraphProjectionPhasePublisher,
 				RepairQueue:                  handlers.GraphProjectionRepairQueue,
 				// The handles_route (repo_id, path) presence writer (#2809) is wired

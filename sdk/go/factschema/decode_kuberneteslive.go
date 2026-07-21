@@ -40,6 +40,10 @@ func EncodeKubernetesLivePodTemplate(podTemplate kuberneteslivev1.PodTemplate) (
 	addStringMap(payload, "selector", podTemplate.Selector)
 	addStringMap(payload, "labels", podTemplate.Labels)
 	addStringSlice(payload, "correlation_anchors", podTemplate.CorrelationAnchors)
+	addInt32Ptr(payload, "desired_replicas", podTemplate.DesiredReplicas)
+	addInt32Ptr(payload, "ready_replicas", podTemplate.ReadyReplicas)
+	addInt32Ptr(payload, "available_replicas", podTemplate.AvailableReplicas)
+	addStringPtr(payload, "pod_phase", podTemplate.PodPhase)
 	return payload, nil
 }
 

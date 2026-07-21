@@ -6,9 +6,10 @@
 //
 // The collector observes a configured cluster's API server with read-only
 // credentials, lists a fixed core resource set (namespaces, pods, deployments,
-// replicasets, services, ingresses, ServiceAccounts, Roles, ClusterRoles,
-// RoleBindings, and ClusterRoleBindings), and maps those objects into typed
-// source facts. Kubernetes live facts carry workload and topology evidence;
+// replicasets, statefulsets, daemonsets, jobs, cronjobs, services, ingresses,
+// ServiceAccounts, Roles, ClusterRoles, RoleBindings, and ClusterRoleBindings),
+// and maps those objects into typed source facts. Kubernetes live facts carry
+// workload and topology evidence;
 // secrets_iam_posture facts carry redacted ServiceAccount, RBAC, workload
 // identity, GKE Workload Identity binding, IRSA annotation, token-posture, and
 // coverage-warning evidence.
@@ -38,4 +39,18 @@
 // — metadata, not a secret — so this does not violate the metadata-only
 // invariant. Deployments, ReplicaSets, and other workload kinds carry only the
 // pod template spec and never populate this field.
+//
+// Observed-vs-desired runtime status (#5431, extended to StatefulSet,
+// DaemonSet, Job, and CronJob by #5433): a WorkloadObject also carries
+// optional, self-describing runtime-status fields. DesiredReplicas is the
+// DESIRED truth basis from a Deployment/ReplicaSet/StatefulSet's
+// .Spec.Replicas. ReadyReplicas and AvailableReplicas are OBSERVED from
+// .Status.ReadyReplicas/.Status.AvailableReplicas. A DaemonSet has no replica
+// spec, so its per-node scheduling counts
+// (.Status.DesiredNumberScheduled/.Status.NumberReady/.Status.NumberAvailable)
+// stand in as the OBSERVED replica-equivalent. A Job or CronJob has no
+// replica concept, so all three fields stay nil. PodPhase is OBSERVED from a
+// Pod's .Status.Phase and nil for every other workload kind. This is
+// fact-level emission only; no reducer, graph node, or query surface consumes
+// these fields yet (deferred to the #5435 materialization capstone).
 package kuberneteslive

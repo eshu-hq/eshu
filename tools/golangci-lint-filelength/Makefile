@@ -5,10 +5,16 @@
 #   - `-buildmode=plugin` requires CGO_ENABLED=1, which is not the
 #     default for many developer shells.
 #   - The plugin must be built with the same `golang.org/x/tools`
-#     revision that golangci-lint v2.11.4 vendors, otherwise
-#     plugin.Open fails with "plugin was built with a different
-#     version of package ...". The version is pinned in go.mod
-#     here; this Makefile just makes the build deterministic.
+#     revision that the pinned golangci-lint release vendors,
+#     otherwise plugin.Open fails with "plugin was built with a
+#     different version of package ...". That revision is pinned in
+#     this module's go.mod, whose comment names the golangci-lint
+#     version it matches; CI installs that same version in
+#     .github/workflows/test.yml. Those two must be bumped together.
+#     No version is restated here on purpose: a number duplicated
+#     into this comment goes stale on the next bump and then points
+#     whoever is debugging a plugin.Open failure at the wrong
+#     release. This Makefile just makes the build deterministic.
 #
 # Why this is not in go/Makefile:
 #   - tools/golangci-lint-filelength is a separate Go module so its

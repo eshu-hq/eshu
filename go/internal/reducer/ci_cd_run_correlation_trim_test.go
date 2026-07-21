@@ -164,6 +164,30 @@ func TestBuildCICDRunCorrelationDecisionsTrimsArtifactAndWorkflowImageEvidence(t
 		}
 	})
 
+	t.Run("alias environment surfaces canonical", func(t *testing.T) {
+		t.Parallel()
+
+		decisions := BuildCICDRunCorrelationDecisions([]facts.Envelope{
+			ciRunFact("run-env-alias", "github_actions", "repo-api", "abc123"),
+			{
+				FactID:           "ci.env:alias",
+				FactKind:         facts.CICDEnvironmentObservationFactKind,
+				SourceConfidence: facts.SourceConfidenceReported,
+				Payload: map[string]any{
+					"provider":    "github_actions",
+					"run_id":      "run-env-alias",
+					"run_attempt": "1",
+					"environment": "production",
+				},
+			},
+		})
+
+		got := cicdDecisionsByRun(decisions)["github_actions:run-env-alias:1"]
+		if got.Environment != "prod" {
+			t.Fatalf("Environment = %q, want %q (environment-alias contract: CI observations canonicalize through environment.Canonical)", got.Environment, "prod")
+		}
+	})
+
 	t.Run("padded workflow image evidence_class still matches", func(t *testing.T) {
 		t.Parallel()
 

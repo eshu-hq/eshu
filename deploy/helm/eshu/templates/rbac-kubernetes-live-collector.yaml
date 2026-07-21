@@ -24,6 +24,13 @@ rules:
     resources:
       - deployments
       - replicasets
+      - statefulsets
+      - daemonsets
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources:
+      - jobs
+      - cronjobs
     verbs: ["get", "list", "watch"]
   - apiGroups: ["networking.k8s.io"]
     resources:

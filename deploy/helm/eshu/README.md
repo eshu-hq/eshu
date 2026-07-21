@@ -86,8 +86,9 @@ guidance belong in the public Kubernetes docs.
   read-only `auth_mode` (`in_cluster` or `kubeconfig`). For `in_cluster` auth keep
   `serviceAccount.create=true` and `rbac.create=true` so the chart binds a
   read-only ClusterRole (namespaces, pods, services, serviceaccounts, deployments,
-  replicasets, ingresses, roles, rolebindings, clusterroles, clusterrolebindings)
-  to the collector ServiceAccount. The RBAC objects render only when at least one
+  replicasets, statefulsets, daemonsets, jobs, cronjobs, ingresses, roles,
+  rolebindings, clusterroles, clusterrolebindings) to the collector
+  ServiceAccount. The RBAC objects render only when at least one
   configured cluster uses `auth_mode: in_cluster`. For `kubeconfig` auth set
   `kubernetesLiveCollector.kubeconfig.secretName` to an operator-managed read-only
   Secret, point each cluster's `kubeconfig_path` at the mount path, and set

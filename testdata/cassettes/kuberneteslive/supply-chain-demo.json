@@ -19,7 +19,7 @@
         {
           "fact_kind": "kubernetes_live.pod_template",
           "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:deployment:default:supply-chain-demo",
-          "schema_version": "1.1.0",
+          "schema_version": "1.2.0",
           "collector_kind": "kubernetes_live",
           "fencing_token": 1,
           "source_confidence": "observed",
@@ -61,13 +61,16 @@
             "correlation_anchors": [
               "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:supply-chain-demo",
               "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
-            ]
+            ],
+            "desired_replicas": 3,
+            "ready_replicas": 3,
+            "available_replicas": 3
           }
         },
         {
           "fact_kind": "kubernetes_live.pod_template",
           "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:replicaset:default:supply-chain-demo-7f8d9",
-          "schema_version": "1.1.0",
+          "schema_version": "1.2.0",
           "collector_kind": "kubernetes_live",
           "fencing_token": 1,
           "source_confidence": "observed",
@@ -110,13 +113,16 @@
             "correlation_anchors": [
               "kubernetes_live:supply-chain-demo:apps/v1/replicasets:default:supply-chain-demo-7f8d9",
               "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
-            ]
+            ],
+            "desired_replicas": 3,
+            "ready_replicas": 3,
+            "available_replicas": 3
           }
         },
         {
           "fact_kind": "kubernetes_live.pod_template",
           "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:pod:default:supply-chain-demo-pod",
-          "schema_version": "1.1.0",
+          "schema_version": "1.2.0",
           "collector_kind": "kubernetes_live",
           "fencing_token": 1,
           "source_confidence": "observed",
@@ -158,7 +164,105 @@
             "correlation_anchors": [
               "kubernetes_live:supply-chain-demo:/v1/pods:default:supply-chain-demo-pod",
               "ghcr.io/eshu-hq/supply-chain-demo:1.0.0"
-            ]
+            ],
+            "pod_phase": "Running"
+          }
+        },
+        {
+          "fact_kind": "kubernetes_live.pod_template",
+          "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:statefulset:default:supply-chain-demo-db",
+          "schema_version": "1.2.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "collector_instance_id": "kubernetes_live:cluster:supply-chain-demo",
+            "cluster_id": "supply-chain-demo",
+            "object_id": "kubernetes_live:supply-chain-demo:apps/v1/statefulsets:default:supply-chain-demo-db",
+            "uid": "44444444-5555-6666-7777-888888888888",
+            "group_version_resource": "apps/v1/statefulsets",
+            "namespace": "default",
+            "name": "supply-chain-demo-db",
+            "service_account": "supply-chain-demo-db",
+            "labels": {
+              "app": "supply-chain-demo-db"
+            },
+            "containers": [
+              {
+                "name": "db",
+                "image": "ghcr.io/eshu-hq/internal-tools/db-migrator:1.0.0",
+                "init": false,
+                "ports": [
+                  5432
+                ],
+                "env_keys": [
+                  "POSTGRES_DB",
+                  "POSTGRES_PASSWORD"
+                ],
+                "env_from_secret": true
+              }
+            ],
+            "image_refs": [
+              "ghcr.io/eshu-hq/internal-tools/db-migrator:1.0.0"
+            ],
+            "selector": {
+              "app": "supply-chain-demo-db"
+            },
+            "correlation_anchors": [
+              "kubernetes_live:supply-chain-demo:apps/v1/statefulsets:default:supply-chain-demo-db",
+              "ghcr.io/eshu-hq/internal-tools/db-migrator:1.0.0"
+            ],
+            "desired_replicas": 2,
+            "ready_replicas": 2,
+            "available_replicas": 2
+          }
+        },
+        {
+          "fact_kind": "kubernetes_live.pod_template",
+          "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:daemonset:default:supply-chain-node-agent",
+          "schema_version": "1.2.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "collector_instance_id": "kubernetes_live:cluster:supply-chain-demo",
+            "cluster_id": "supply-chain-demo",
+            "object_id": "kubernetes_live:supply-chain-demo:apps/v1/daemonsets:default:supply-chain-node-agent",
+            "uid": "55555555-6666-7777-8888-999999999999",
+            "group_version_resource": "apps/v1/daemonsets",
+            "namespace": "default",
+            "name": "supply-chain-node-agent",
+            "service_account": "supply-chain-node-agent",
+            "labels": {
+              "app": "supply-chain-node-agent"
+            },
+            "containers": [
+              {
+                "name": "agent",
+                "image": "ghcr.io/eshu-hq/internal-tools/node-agent:1.0.0",
+                "init": false,
+                "ports": [
+                  9100
+                ],
+                "env_keys": [
+                  "NODE_NAME"
+                ],
+                "env_from_secret": false
+              }
+            ],
+            "image_refs": [
+              "ghcr.io/eshu-hq/internal-tools/node-agent:1.0.0"
+            ],
+            "selector": {
+              "app": "supply-chain-node-agent"
+            },
+            "correlation_anchors": [
+              "kubernetes_live:supply-chain-demo:apps/v1/daemonsets:default:supply-chain-node-agent",
+              "ghcr.io/eshu-hq/internal-tools/node-agent:1.0.0"
+            ],
+            "desired_replicas": 3,
+            "ready_replicas": 3,
+            "available_replicas": 2
           }
         },
         {

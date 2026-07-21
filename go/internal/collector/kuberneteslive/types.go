@@ -52,6 +52,14 @@ const (
 	ResourceScopeRoleBindings = "rolebindings"
 	// ResourceScopeClusterRoleBindings labels ClusterRoleBinding list work.
 	ResourceScopeClusterRoleBindings = "clusterrolebindings"
+	// ResourceScopeStatefulSets labels StatefulSet list work.
+	ResourceScopeStatefulSets = "statefulsets"
+	// ResourceScopeDaemonSets labels DaemonSet list work.
+	ResourceScopeDaemonSets = "daemonsets"
+	// ResourceScopeJobs labels Job list work.
+	ResourceScopeJobs = "jobs"
+	// ResourceScopeCronJobs labels CronJob list work.
+	ResourceScopeCronJobs = "cronjobs"
 )
 
 // Warning reason codes are a closed enum so warning metrics stay
