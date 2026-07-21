@@ -28,6 +28,9 @@ type (
 	RequiredCorrelation = gg.RequiredCorrelation
 	// RequiredNode is an existence-plus-property node assertion.
 	RequiredNode = gg.RequiredNode
+	// RequiredSelfLoop is a bounded self-loop count assertion (the self-loop-axis
+	// counterpart to RequiredCorrelation/RequiredNode).
+	RequiredSelfLoop = gg.RequiredSelfLoop
 	// DrainAssertions captures the B-7(a) queue-drain bounds.
 	DrainAssertions = gg.DrainAssertions
 	// DrainBound carries one queue's tolerated nonterminal/residual ceiling.
@@ -60,6 +63,8 @@ var (
 	EvaluateNodeProperty = gg.EvaluateNodeProperty
 	// EvaluateRequiredNode produces a required node-existence finding.
 	EvaluateRequiredNode = gg.EvaluateRequiredNode
+	// EvaluateRequiredSelfLoop produces a bounded self-loop count finding.
+	EvaluateRequiredSelfLoop = gg.EvaluateRequiredSelfLoop
 	// EvaluateNodePresent produces a node-present smoke finding.
 	EvaluateNodePresent = gg.EvaluateNodePresent
 	// EvaluateNodeCount compares an observed node count to its tolerance.

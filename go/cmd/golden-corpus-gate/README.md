@@ -85,6 +85,22 @@ exactly as before. A missing or un-normalized property fails the gate with a
 message naming the verb/label, the property, and the offending/short count — so a
 provenance regression can no longer pass silently.
 
+## Self-loop assertions (per-language recursion truth)
+
+`required_self_loops` (issue #5349) pins the count of
+`(n:Label {node_property: node_property_value})-[:Relationship]->(n)`
+self-loop edges — same source and target node — to a closed
+`[minimum_count, maximum_count]` range, not a floor. A floor-only assertion
+cannot tell "genuine recursion survives" apart from "a declaration was
+misclassified as a call to itself" (the [#5332](https://github.com/eshu-hq/eshu/issues/5332)
+class of bug): both push the observed count up. `node_property`/
+`node_property_value` (e.g. `language`/`dart`) scope the match to one
+language sharing a node label such as `Function`, so one language's
+self-loop count is never conflated with another's. See
+`sl-dart-calls-recursion` in the committed snapshot, pinned exactly at 2
+against `tests/fixtures/ecosystems/dart_comprehensive/calls.dart`'s
+arrow-form and block-form recursive self-calls.
+
 ## Query shapes
 
 `query_shapes.http` supports bounded `GET` reads and read-style `POST` queries
@@ -122,3 +138,32 @@ scans an entire response.
   playbook, its `surface.execute` target), and assert a populated answer (#4776).
 - `report.go` — finding aggregation, severity, and rendering.
 - `runner.go` / `main.go` — flag parsing and phase orchestration.
+
+## Self-loop counting — performance & observability evidence (#5349)
+
+`graph.go`'s `CountSelfLoopEdges` backs the `required_self_loops` B-12
+assertion. It counts genuine self-referential edges (e.g. the Dart
+`recursionFib`/`recursionFact` functions calling themselves) for a
+`(label {property: value})` scope, so a regression that inflates every
+declaration into a spurious self-loop (the #5332 class) or drops genuine
+recursion is caught by a closed `[min, max]` bound rather than a floor.
+
+- No-Regression Evidence: `CountSelfLoopEdges` executes once per B-7
+  golden-corpus gate invocation against the freshly projected test graph — it
+  is never on a production request path. Baseline: the gate had no self-loop
+  assertion. After: the full B-7 gate completes in 39s (budget ceiling 1800s)
+  with the added query, and `(Function {language:"dart"})-[:CALLS]->(self)`
+  returns exactly 2 (recursionFib, recursionFact), matching the parser-level
+  self-loop count. Backend: NornicDB over Bolt. Input shape: the 22-repo corpus
+  after Dart staging (Repository=22, Function=202, CALLS=25). The query fetches
+  the matched label's `CALLS` edges and compares endpoint `elementId`s in Go —
+  mirroring `ListCorrelationEdgeProperty`, which already filters in Go for the
+  same NornicDB limitation: a reused-endpoint pattern `(n)-[r]->(n)` degenerates
+  to `(n)-[r]->()`, and every in-query identity predicate (`elementId(n)=
+  elementId(m)`, `n.uid=m.uid`, `startNode(r)=endNode(r)`) silently returns 0.
+  Terminal counts: 2 identity-matched self-loops out of 25 CALLS edges scanned
+  — bounded by the per-label CALLS count, negligible.
+- No-Observability-Change: this is a golden-corpus-gate assertion; its own
+  pass/fail line (the printed count against the `[min, max]` bound) is the
+  observability. No production telemetry, spans, metrics, logs, or status
+  surfaces are added or changed.

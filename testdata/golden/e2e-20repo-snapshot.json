@@ -4,7 +4,7 @@
   "description": "Golden graph and query truth snapshot for the B-7 end-to-end corpus gate. B-7 diffs a live run against this file. Update this file under review when intentional graph behaviour changes; never update silently.",
   "tolerance_policy": "count ranges are [min, max] inclusive; a live run outside the range fails B-7(b). required_correlations assertions must all pass; a missing edge fails B-7(b). query_shapes define required response fields; a missing field fails B-7(c).",
   "corpus_composition": {
-    "git_repos": 21,
+    "git_repos": 22,
     "credentialed_collectors": [
       "kubernetes_live",
       "aws_cloud",
@@ -1651,6 +1651,18 @@
         "required_node_properties": [
           "url"
         ]
+      }
+    ],
+    "required_self_loops": [
+      {
+        "id": "sl-dart-calls-recursion",
+        "description": "Exactly 2 Function{language=dart} CALLS self-loop edges (caller==callee): recursionFib (arrow-form) and recursionFact (block-form) in tests/fixtures/ecosystems/dart_comprehensive/calls.dart. Dart's call extractor (go/internal/parser/dart/calls.go) was a raw byte-scanner that could not distinguish a declaration header from a call site, recording every function/method/constructor declaration in the corpus as a spurious self-loop CALLS edge (issue #5332). Dart was not staged in the golden corpus, so that corruption class shipped with no durable end-to-end gate (issue #5349). The bound is closed on BOTH sides, not a floor: below 2 means genuine recursion was dropped; above 2 means the #5332 declaration-vs-call-site bug regressed (every one of the fixture's other declarations — DeclarationOnlyWidget's 2 constructors + getter + setter + method, GeoPoint's named constructor, mutualPing/mutualPong, identityFn, LineBuffer.append — would each contribute a spurious self-loop). Mutual recursion (mutualPing<->mutualPong) and the named-constructor/generic-args/cascade call shapes in the same fixture are NOT self-loops (caller != callee) and so do not move this count; they instead flow through the existing generic rc-11 Function-CALLS-Function floor.",
+        "label": "Function",
+        "relationship": "CALLS",
+        "node_property": "language",
+        "node_property_value": "dart",
+        "minimum_count": 2,
+        "maximum_count": 2
       }
     ]
   },

@@ -186,6 +186,59 @@ func TestEvaluateHonorsEvidenceAndEdgeProperty(t *testing.T) {
 	}
 }
 
+// TestEvaluateEnforcesSelfLoopBound is the regression guard for the codex P2
+// finding: the offline conformance driver must evaluate required_self_loops, not
+// silently drop them the way it did before the wiring (only the live gate
+// enforced the bound). The starter corpus projects zero self-loops, so the
+// committed [0,0] bound holds for the healthy observation; a spurious
+// (File {language=go})-[:CALLS]->(self) loop — the eshu-hq/eshu#5332
+// declaration-vs-call-site class — must push the count past the max=0 ceiling
+// and fail the gate offline, exactly as the live gate's checkRequiredSelfLoops
+// would. Before the wiring this test fails at the second assertion: the
+// self-loop assertion is never evaluated and the spurious loop passes unnoticed.
+func TestEvaluateEnforcesSelfLoopBound(t *testing.T) {
+	snap, err := LoadSpec(starterSpec)
+	if err != nil {
+		t.Fatalf("LoadSpec: %v", err)
+	}
+
+	// Healthy: the starter tape has no self-loops, so the [0,0] bound holds.
+	healthy := healthyStarterObservation()
+	if r := Evaluate(healthy, snap); r.Failed() {
+		var buf bytes.Buffer
+		r.Write(&buf)
+		t.Fatalf("healthy observation unexpectedly failed the self-loop bound:\n%s", buf.String())
+	}
+
+	// A spurious self-loop on a go File must exceed the max=0 ceiling and fail.
+	spurious := healthyStarterObservation()
+	spurious.SelfLoops = []SelfLoopObservation{{
+		Label:        "File",
+		Relationship: "CALLS",
+		Properties:   map[string]string{"language": "go"},
+	}}
+	if r := Evaluate(spurious, snap); !r.Failed() {
+		var buf bytes.Buffer
+		r.Write(&buf)
+		t.Fatalf("spurious self-loop should exceed the max=0 bound and fail the gate but passed:\n%s", buf.String())
+	}
+
+	// A self-loop scoped to a different language must NOT satisfy the go-scoped
+	// assertion (it is a different count), so the go bound still reads 0 and the
+	// gate passes — the node-property narrowing is real, not ignored.
+	otherLang := healthyStarterObservation()
+	otherLang.SelfLoops = []SelfLoopObservation{{
+		Label:        "File",
+		Relationship: "CALLS",
+		Properties:   map[string]string{"language": "rust"},
+	}}
+	if r := Evaluate(otherLang, snap); r.Failed() {
+		var buf bytes.Buffer
+		r.Write(&buf)
+		t.Fatalf("a rust-scoped self-loop must not trip the go-scoped [0,0] bound but the gate failed:\n%s", buf.String())
+	}
+}
+
 // TestObserveRejectsMalformedFact proves a cassette fact missing a required
 // payload field fails loudly instead of projecting a silently-empty graph that
 // would look green.

@@ -145,6 +145,34 @@ func TestEvaluateRequiredCorrelation(t *testing.T) {
 	}
 }
 
+// TestEvaluateRequiredSelfLoop is the keystone acceptance for eshu-hq/eshu#5349:
+// a self-loop bound must be a closed range, not a floor, so it catches BOTH
+// directions of regression on the same observed count — genuine recursion
+// silently dropped (below the floor) and a re-introduced declaration-vs-
+// call-site self-loop bug (eshu-hq/eshu#5332) silently inflating the count
+// past the pinned ceiling, one spurious self-loop per declaration.
+func TestEvaluateRequiredSelfLoop(t *testing.T) {
+	rsl := RequiredSelfLoop{
+		ID: "sl-dart-calls-recursion", Label: "Function", Relationship: "CALLS",
+		NodeProperty: "language", NodePropertyValue: "dart",
+		MinimumCount: 2, MaximumCount: 2,
+	}
+	if f := EvaluateRequiredSelfLoop(rsl, 2); !f.OK || !f.Required {
+		t.Errorf("exact pinned count must pass and be required: %+v", f)
+	}
+	if f := EvaluateRequiredSelfLoop(rsl, 1); f.OK {
+		t.Errorf("count below the floor (genuine recursion dropped) must fail: %+v", f)
+	}
+	// The #5332 regression shape: every declaration in the fixture becomes a
+	// spurious self-loop, pushing the count well past the pinned ceiling.
+	if f := EvaluateRequiredSelfLoop(rsl, 9); f.OK {
+		t.Errorf("count above the ceiling (spurious declaration self-loops) must fail: %+v", f)
+	}
+	if f := EvaluateRequiredSelfLoop(rsl, 0); f.OK {
+		t.Errorf("zero self-loops when 2 are pinned must fail: %+v", f)
+	}
+}
+
 func TestEvaluateNodeAndEdgeCountAdvisory(t *testing.T) {
 	rng := CountRange{Min: 15, Max: 30}
 	// Advisory variant (required=false): out-of-range warns without blocking.
