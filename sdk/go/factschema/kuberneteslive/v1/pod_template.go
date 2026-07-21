@@ -77,6 +77,18 @@ type PodTemplate struct {
 	// Labels are the object's labels. Optional.
 	Labels map[string]string `json:"labels,omitempty"`
 
+	// Annotations are the object's declared annotations, redacted to
+	// key/value strings the same way Labels is. It exists to carry the
+	// ArgoCD argocd.argoproj.io/tracking-id annotation — the
+	// production-faithful declared->live identity signal that survives a
+	// Helm/Kustomize rename — so the reducer can bind a live workload back to
+	// its declared source without relying on a shared image digest (#5471
+	// F2). Optional: absent when the object carries no annotations or the
+	// collector observed none; an absent map must decode to nil, never an
+	// empty map, so callers can distinguish "not observed" from "observed
+	// empty".
+	Annotations map[string]string `json:"annotations,omitempty"`
+
 	// CorrelationAnchors are redaction-safe join anchors (the object id plus
 	// every declared image reference) the correlation reducer domain may use
 	// for name-only join resolution. Optional.

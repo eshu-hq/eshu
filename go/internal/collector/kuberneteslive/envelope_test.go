@@ -399,6 +399,56 @@ func TestNewPodTemplateEnvelopeEmitsRuntimeStatus(t *testing.T) {
 	}
 }
 
+// TestNewPodTemplateEnvelopeEmitsAnnotations locks the wire contract for
+// #5471 F2: an optional Annotations map — carrying, among other keys, the
+// ArgoCD argocd.argoproj.io/tracking-id declared->live identity signal — must
+// survive the typed EncodeKubernetesLivePodTemplate seam into the emitted
+// payload when observed, and the "annotations" key must be omitted entirely
+// (not emitted as an empty map) when no annotations were observed, matching
+// the existing PodTemplate optional-map contract (Selector, Labels).
+func TestNewPodTemplateEnvelopeEmitsAnnotations(t *testing.T) {
+	t.Parallel()
+
+	envelope, err := NewPodTemplateEnvelope(PodTemplateObservation{
+		Identity:            sampleIdentity(),
+		GenerationID:        "gen-1",
+		CollectorInstanceID: "k8s-prod",
+		Annotations: map[string]string{
+			"argocd.argoproj.io/tracking-id": "checkout:apps/Deployment:payments/checkout",
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewPodTemplateEnvelope() error = %v", err)
+	}
+	annotations, ok := envelope.Payload["annotations"].(map[string]string)
+	if !ok {
+		t.Fatalf("payload annotations = %#v, want map[string]string", envelope.Payload["annotations"])
+	}
+	if got := annotations["argocd.argoproj.io/tracking-id"]; got != "checkout:apps/Deployment:payments/checkout" {
+		t.Fatalf("payload annotations tracking-id = %q, want %q", got, "checkout:apps/Deployment:payments/checkout")
+	}
+}
+
+// TestNewPodTemplateEnvelopeOmitsAnnotationsWhenAbsent proves the negative
+// case for #5471 F2: a PodTemplateObservation with no Annotations observed
+// must not emit an "annotations" key at all, preserving backward
+// compatibility with collectors and decoders that predate the field.
+func TestNewPodTemplateEnvelopeOmitsAnnotationsWhenAbsent(t *testing.T) {
+	t.Parallel()
+
+	envelope, err := NewPodTemplateEnvelope(PodTemplateObservation{
+		Identity:            sampleIdentity(),
+		GenerationID:        "gen-1",
+		CollectorInstanceID: "k8s-prod",
+	})
+	if err != nil {
+		t.Fatalf("NewPodTemplateEnvelope() error = %v", err)
+	}
+	if _, present := envelope.Payload["annotations"]; present {
+		t.Fatalf("payload annotations present = %#v, want key omitted when not observed", envelope.Payload["annotations"])
+	}
+}
+
 // TestNewPodTemplateEnvelopePodPhaseOmittedWhenAbsentReplicasSet locks the
 // pod-observation shape for #5431: a pod observation carries PodPhase but no
 // replica fields, and the emitted payload must reflect exactly that — the

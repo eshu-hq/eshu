@@ -19,6 +19,11 @@ type ObjectMeta struct {
 	UID             string
 	ResourceVersion string
 	Labels          map[string]string
+	// Annotations are the object's declared annotations. It carries, among
+	// other keys, the ArgoCD argocd.argoproj.io/tracking-id annotation — the
+	// declared->live identity signal #5471 F2 threads through to the
+	// kubernetes_live.pod_template fact's optional Annotations field.
+	Annotations     map[string]string
 	OwnerReferences []OwnerReference
 }
 

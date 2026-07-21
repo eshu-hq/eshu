@@ -131,6 +131,7 @@ func (b *generationBuilder) addWorkload(ctx context.Context, workload WorkloadOb
 		ServiceAccount:      workload.ServiceAccount,
 		Selector:            workload.Selector,
 		Labels:              workload.Meta.Labels,
+		Annotations:         workload.Meta.Annotations,
 		GenerationID:        b.generationID(),
 		CollectorInstanceID: b.collectorInstanceID,
 		FencingToken:        b.target.FencingToken,

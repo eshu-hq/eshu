@@ -43,11 +43,17 @@ type ContainerSummary struct {
 
 // PodTemplateObservation is the input for one kubernetes_live.pod_template fact.
 type PodTemplateObservation struct {
-	Identity            ObjectIdentity
-	Containers          []ContainerSummary
-	ServiceAccount      string
-	Selector            map[string]string
-	Labels              map[string]string
+	Identity       ObjectIdentity
+	Containers     []ContainerSummary
+	ServiceAccount string
+	Selector       map[string]string
+	Labels         map[string]string
+	// Annotations are the workload's declared annotations, carried through to
+	// the emitted fact's optional Annotations field. It exists to surface the
+	// ArgoCD argocd.argoproj.io/tracking-id annotation, the declared->live
+	// identity signal #5471 F2 introduces. Nil when the source object had no
+	// annotations or none were observed.
+	Annotations         map[string]string
 	GenerationID        string
 	CollectorInstanceID string
 	FencingToken        int64
@@ -141,6 +147,7 @@ func NewPodTemplateEnvelope(observation PodTemplateObservation) (facts.Envelope,
 		ImageRefs:            images,
 		Selector:             sortedStringMap(observation.Selector),
 		Labels:               sortedStringMap(observation.Labels),
+		Annotations:          sortedStringMap(observation.Annotations),
 		CorrelationAnchors:   anchors,
 		DesiredReplicas:      observation.DesiredReplicas,
 		ReadyReplicas:        observation.ReadyReplicas,

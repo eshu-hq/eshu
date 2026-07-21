@@ -251,6 +251,7 @@ func objectMeta(apiGroup, version, resource string, meta metav1.ObjectMeta) kube
 		UID:             string(meta.UID),
 		ResourceVersion: meta.ResourceVersion,
 		Labels:          copyStringMap(meta.Labels),
+		Annotations:     copyStringMap(meta.Annotations),
 		OwnerReferences: owners,
 	}
 }
