@@ -368,5 +368,68 @@ else
 	fi
 fi
 
+# ---------------------------------------------------------------------------
+# Case 13: POLYGLOT fixture -- the TEXTUAL fixture-name signal must NOT be
+# trusted for a fixture that attributes to more than one language. A single
+# fixture "polyglot-app" carries both .go and .py, so it attributes to both
+# go and python. The B-12 blob structurally attributes only go
+# ("language": "go") and mentions the fixture name once. Correct result: go
+# is live-supported (STRUCTURED), python is NOT (its only signal is the
+# ambiguous shared fixture-name mention). A matrix that marks python
+# supported off that shared mention is over-graded and must fail.
+# ---------------------------------------------------------------------------
+root13="$(new_scratch_root)"
+write_gate_script "${root13}" polyglot-app
+write_ledger "${root13}" go python
+write_fixture_source "${root13}" polyglot-app go
+write_fixture_source "${root13}" polyglot-app py
+cat >"${root13}/testdata/golden/e2e-20repo-snapshot.json" <<'JSON'
+{
+  "graph": {
+    "required_correlations": [
+      {"id": "rc-1", "description": "symbol reference projected from the polyglot-app fixture"}
+    ]
+  },
+  "query_shapes": {
+    "mcp": {
+      "investigate_dead_code": {"arguments": {"repo_id": "polyglot-app", "language": "go"}}
+    }
+  }
+}
+JSON
+write_matrix "${root13}" \
+	'| Go | `DefaultEngine (go)` | supported | supported | derived roots | net/http | supported | supported | supported |' \
+	'| Python | `DefaultEngine (python)` | supported | supported | derived roots | FastAPI | supported | supported | supported |'
+if out13="$(ESHU_MATURITY_DRIFT_GUARD_ROW_FLOOR=1 run_verifier "${root13}" 2>&1)"; then
+	record_fail "case 13: polyglot fixture-name should NOT mark python live-supported, but the gate passed"
+else
+	if printf '%s' "${out13}" | rg -q "DRIFT \(over-graded\).*Python"; then
+		record_pass "case 13: polyglot TEXTUAL signal is not trusted -- python over-grade fails, go (STRUCTURED) is fine"
+	else
+		record_fail "case 13: failed as expected but wrong message: ${out13}"
+	fi
+fi
+
+# ---------------------------------------------------------------------------
+# Case 14: same polyglot setup as case 13, but with the CORRECT grading --
+# go supported (clears STRUCTURED even though its fixture is polyglot),
+# python fixture-backed. The gate must pass, proving the polyglot guard does
+# not falsely demote a language that has its own structured B-12 evidence.
+# ---------------------------------------------------------------------------
+root14="$(new_scratch_root)"
+write_gate_script "${root14}" polyglot-app
+write_ledger "${root14}" go python
+write_fixture_source "${root14}" polyglot-app go
+write_fixture_source "${root14}" polyglot-app py
+cp "${root13}/testdata/golden/e2e-20repo-snapshot.json" "${root14}/testdata/golden/e2e-20repo-snapshot.json"
+write_matrix "${root14}" \
+	'| Go | `DefaultEngine (go)` | supported | supported | derived roots | net/http | supported | supported | supported |' \
+	'| Python | `DefaultEngine (python)` | supported | supported | derived roots | FastAPI | supported | fixture-backed | fixture-backed |'
+if out14="$(ESHU_MATURITY_DRIFT_GUARD_ROW_FLOOR=1 run_verifier "${root14}" 2>&1)"; then
+	record_pass "case 14: polyglot fixture with correct grading passes (go STRUCTURED live-supported, python fixture-backed)"
+else
+	record_fail "case 14: correctly graded polyglot setup should pass, got: ${out14}"
+fi
+
 printf '\n%d passed, %d failed\n' "${PASS}" "${FAIL}"
 [ "${FAIL}" -eq 0 ]

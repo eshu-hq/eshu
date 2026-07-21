@@ -60,10 +60,25 @@
 #          `arguments.language` (or equivalent) field literally equal to the
 #          ledger key (e.g. "language": "go").
 #        - TEXTUAL: that same subtree contains the literal name of one of
-#          the fixtures attributed to this language as a fixed-string
-#          substring (e.g. "go_comprehensive", "orders-api").
+#          the SINGLE-LANGUAGE fixtures attributed to this language as a
+#          fixed-string substring (e.g. "go_comprehensive", "orders-api").
 #      A language is "live-supported" iff it has at least one staged fixture
 #      AND clears either signal.
+#
+#      The TEXTUAL signal is fixture-scoped, so it is only trustworthy for a
+#      fixture that attributes to exactly ONE language. A POLYGLOT fixture
+#      (one whose source tree carries files for more than one ledger
+#      language -- e.g. both .go and .py) attributes to every one of those
+#      languages via step 4, so a bare fixture-name mention in the B-12 blob
+#      cannot tell WHICH of them the evidence actually targets. Trusting the
+#      TEXTUAL match there would mark every attributed language live off a
+#      single mention. So the TEXTUAL signal is only consulted for a fixture
+#      attributed to exactly one language; a polyglot fixture's languages
+#      must each clear the language-scoped STRUCTURED signal independently.
+#      (The current corpus is all single-language app fixtures plus
+#      "_comprehensive" fixtures, so no language relies on this today, but
+#      the guard keeps a future polyglot fixture from silently over-crediting
+#      the matrix -- exactly the drift class this gate exists to catch.)
 #
 # A row's Real-Repo Validation and End-to-End Indexing columns are compared
 # against the single derived live-supported boolean and MUST both read
@@ -270,6 +285,10 @@ main() {
 			fi
 		done < <(fixture_language_candidates "${fixture}")
 	done <"${fixtures_file}"
+	# Dedup so a fixture that attributes to one key via multiple extensions
+	# (e.g. .cpp + .hpp both -> cpp) counts as a single "<key> <fixture>"
+	# pair, keeping the polyglot key-count below accurate.
+	LC_ALL=C sort -u -o "${pairs_file}" "${pairs_file}"
 
 	# B-12 attribution signals, scoped to the graph.required_correlations +
 	# query_shapes subtree (algorithm step 6).
@@ -297,15 +316,22 @@ main() {
 			die "matrix row '${name}' transliterates to '${expected_key}', which is not a known language ledger key -- renamed row or ledger drift, cannot verify"
 		fi
 
-		attributed_fixtures="$(awk -v k="${expected_key}" '$1 == k { print $2 }' "${pairs_file}")"
+		attributed_fixtures="$(awk -v k="${expected_key}" '$1 == k { print $2 }' "${pairs_file}" | LC_ALL=C sort -u)"
 		live_supported=false
 		if [[ -n "${attributed_fixtures}" ]]; then
 			if rg -qx -- "${expected_key}" "${structured_file}"; then
+				# STRUCTURED signal: language-scoped, always precise.
 				live_supported=true
 			else
-				local f
+				# TEXTUAL signal: fixture-scoped, only trusted for a fixture
+				# that attributes to exactly one language (algorithm step 6).
+				local f key_count
 				while IFS= read -r f; do
 					[[ -z "${f}" ]] && continue
+					key_count="$(awk -v ff="${f}" '$2 == ff { print $1 }' "${pairs_file}" | LC_ALL=C sort -u | wc -l | tr -d ' ')"
+					if [[ "${key_count}" -ne 1 ]]; then
+						continue
+					fi
 					if rg -q -F -- "${f}" "${blob_file}"; then
 						live_supported=true
 						break
