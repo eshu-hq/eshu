@@ -140,6 +140,37 @@ func TestAdapterMapsReplicaSetReplicaStatus(t *testing.T) {
 	}
 }
 
+// TestAdapterReplicaSetNilSpecReplicasLeavesDesiredNil proves that a
+// ReplicaSet with an unset .Spec.Replicas leaves DesiredReplicas nil rather
+// than fabricating a zero value, mirroring the Deployment path (#5431).
+func TestAdapterReplicaSetNilSpecReplicasLeavesDesiredNil(t *testing.T) {
+	t.Parallel()
+
+	replicaset := &appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "payments", Name: "rs-7f8d9", UID: "uid-rs"},
+		Spec: appsv1.ReplicaSetSpec{
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "checkout"}},
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{Name: "web", Image: "docker.io/myapp/web:v1.2.3"}},
+				},
+			},
+		},
+	}
+	adapter := NewAdapter(fake.NewClientset(replicaset))
+
+	result, err := adapter.ListReplicaSets(context.Background())
+	if err != nil {
+		t.Fatalf("ListReplicaSets() error = %v", err)
+	}
+	if len(result.Items) != 1 {
+		t.Fatalf("replicaset count = %d, want 1", len(result.Items))
+	}
+	if got := result.Items[0].DesiredReplicas; got != nil {
+		t.Fatalf("DesiredReplicas = %v, want nil (Spec.Replicas unset)", *got)
+	}
+}
+
 // TestAdapterMapsPodPhase proves that ListPods reads .Status.Phase onto the
 // workload's PodPhase field, and leaves the replica fields nil (a Pod carries
 // no replica spec or status) (#5431).
