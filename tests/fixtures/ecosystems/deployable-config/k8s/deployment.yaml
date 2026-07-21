@@ -15,6 +15,6 @@ spec:
     spec:
       containers:
         - name: app
-          image: ghcr.io/acme/deployable-source:1.0.0
+          image: ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab
           ports:
             - containerPort: 8080
