@@ -26,7 +26,7 @@ func TestBuildReducerServiceWiresNornicDBProjectorDrainGate(t *testing.T) {
 		default:
 			return ""
 		}
-	}, nil, nil, slog.Default())
+	}, nil, nil, slog.Default(), nil)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
 	}
@@ -58,7 +58,7 @@ func TestBuildReducerServiceWiresExpectedSourceLocalProjectors(t *testing.T) {
 		default:
 			return ""
 		}
-	}, nil, nil, slog.Default())
+	}, nil, nil, slog.Default(), nil)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
 	}
@@ -87,7 +87,7 @@ func TestBuildReducerServiceWiresSemanticEntityClaimLimit(t *testing.T) {
 		default:
 			return ""
 		}
-	}, nil, nil, slog.Default())
+	}, nil, nil, slog.Default(), nil)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
 	}

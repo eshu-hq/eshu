@@ -32,6 +32,7 @@ func TestBuildReducerServiceWiresSearchVectorBuildRunnerWhenLocalHashConfigured(
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
@@ -74,6 +75,7 @@ func TestBuildReducerServiceWiresSearchVectorBuildRunnerWhenProviderProfileConfi
 				return ""
 			}
 		},
+		nil,
 		nil,
 		nil,
 		nil,
