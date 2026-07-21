@@ -276,6 +276,7 @@ func TestSchemaStatementsContainsUIDConstraints(t *testing.T) {
 		"CREATE CONSTRAINT package_registry_package_version_uid_unique IF NOT EXISTS FOR (n:PackageRegistryPackageVersion) REQUIRE n.uid IS UNIQUE",
 		"CREATE CONSTRAINT shell_command_uid_unique IF NOT EXISTS FOR (n:ShellCommand) REQUIRE n.uid IS UNIQUE",
 		"CREATE CONSTRAINT terraform_resource_uid_unique IF NOT EXISTS FOR (n:TerraformResource) REQUIRE n.uid IS UNIQUE",
+		"CREATE CONSTRAINT terraform_state_resource_uid_unique IF NOT EXISTS FOR (n:TerraformStateResource) REQUIRE n.uid IS UNIQUE",
 		"CREATE CONSTRAINT terraform_module_uid_unique IF NOT EXISTS FOR (n:TerraformModule) REQUIRE n.uid IS UNIQUE",
 		"CREATE CONSTRAINT terraform_output_uid_unique IF NOT EXISTS FOR (n:TerraformOutput) REQUIRE n.uid IS UNIQUE",
 	}

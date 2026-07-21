@@ -21,6 +21,14 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			name:        "neo4j",
 			backend:     SchemaBackendNeo4j,
 			fingerprint: graphSchemaNeo4jFingerprint,
+			// The TerraformStateResource split (#5443) only adds a uid
+			// uniqueness constraint for a brand-new label; an older writer
+			// creates no nodes under that label, so its predecessor schema
+			// (the merged CodeownersOwnership/KubernetesWorkloadIDLookup tip)
+			// stays compatible, and the chain beneath it (Flux, SqlMigration,
+			// shell_exec/inheritance/Function retract indexes, Helm
+			// template-values, GitLab) is cumulative, so every earlier
+			// predecessor below stays compatible too.
 			// The shell_exec and inheritance child lookup-index bumps add only
 			// repo_id/path indexes, so their immediately preceding schemas stay
 			// compatible too.
@@ -39,6 +47,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			// immediate predecessor = the Flux typed-entity tip) is additive
 			// the same way.
 			compatible: []string{
+				graphSchemaNeo4jPreTerraformStateResourceSplitFingerprint,
 				graphSchemaNeo4jPreCodeownersOwnershipFingerprint,
 				graphSchemaNeo4jPreFluxHelmEntitiesFingerprint,
 				graphSchemaNeo4jPreFluxTypedEntitiesFingerprint,
@@ -55,6 +64,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			backend:     SchemaBackendNornicDB,
 			fingerprint: graphSchemaNornicDBFingerprint,
 			compatible: []string{
+				graphSchemaNornicDBPreTerraformStateResourceSplitFingerprint,
 				graphSchemaNornicDBPreCodeownersOwnershipFingerprint,
 				graphSchemaNornicDBPreKubernetesWorkloadIDLookupFingerprint,
 				graphSchemaNornicDBPreFluxHelmEntitiesFingerprint,

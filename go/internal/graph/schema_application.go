@@ -25,13 +25,14 @@ type SchemaApplication struct {
 
 const (
 	// graphSchemaNeo4jFingerprint and graphSchemaNornicDBFingerprint are the
-	// current schema digests for the merged schema (both the CodeownerTeam.ref
-	// constraint/index from #5419 and the KubernetesWorkload.id lookup index
-	// from #5436 present). The KubernetesWorkload.id lookup index is
-	// NornicDB-only, so the Neo4j digest is unchanged from #5419's value; the
-	// NornicDB digest reflects both additions.
-	graphSchemaNeo4jFingerprint    = "f69cb50986b83d379d7372b4ea9bcbc488d93b2b520d2dd8f67aea91ee381baf"
-	graphSchemaNornicDBFingerprint = "be6a2e36e20dd5b234332c39e723e11f3374990191f62d7fa5e514487720d1c7"
+	// current schema digests for the merged schema: the CodeownerTeam.ref
+	// constraint/index from #5419, the KubernetesWorkload.id lookup index from
+	// #5436, and the TerraformStateResource uid constraint from #5443 (schema
+	// split prep) are all present. The KubernetesWorkload.id lookup index is
+	// NornicDB-only, so it does not shift the Neo4j digest independently of
+	// the other two additions.
+	graphSchemaNeo4jFingerprint    = "93f707ac685bd77d643f95f42175f0d781419d7d1ee3baaaa944b3ab17363c69"
+	graphSchemaNornicDBFingerprint = "5195da852e63bf76c5a4e76dab15a68b77403b304ea18d749553cad505f748c6"
 
 	// graphSchemaNeo4jPreCodeownersOwnershipFingerprint and its NornicDB peer
 	// are the schema fingerprints immediately before the CodeownerTeam.ref
@@ -51,6 +52,22 @@ const (
 	// index being absent, and newer writers only gain a faster
 	// KubernetesWorkload lookup instead of falling back to a label scan.
 	graphSchemaNornicDBPreKubernetesWorkloadIDLookupFingerprint = "9b67c40d329b0309bb1247cf86c1f0574f9ddf31b8e6ab47de9416e960af0b70"
+
+	// graphSchemaNeo4jPreTerraformStateResourceSplitFingerprint and its
+	// NornicDB peer are the schema fingerprints immediately before the
+	// TerraformStateResource uid uniqueness constraint was added (#5443:
+	// Terraform-state-observed resources now MERGE under their own label
+	// instead of sharing TerraformResource with config-declared resources).
+	// The immediate predecessor is the #5419/#5436 merged schema above (the
+	// bump lands after both), so these equal graphSchemaNeo4jFingerprint /
+	// graphSchemaNornicDBFingerprint's value before this addition. The bump is
+	// additive: a writer running the predecessor schema creates no
+	// TerraformStateResource nodes (it still writes the old TerraformResource
+	// label), so the predecessor stays compatible, and the additive chain
+	// pre-CodeownersOwnership -> ... -> this bump is cumulative, so every
+	// earlier predecessor below stays compatible too.
+	graphSchemaNeo4jPreTerraformStateResourceSplitFingerprint    = "f69cb50986b83d379d7372b4ea9bcbc488d93b2b520d2dd8f67aea91ee381baf"
+	graphSchemaNornicDBPreTerraformStateResourceSplitFingerprint = "be6a2e36e20dd5b234332c39e723e11f3374990191f62d7fa5e514487720d1c7"
 
 	// graphSchemaNeo4jPreFluxHelmEntitiesFingerprint and its NornicDB peer are
 	// the schema fingerprints immediately before the FluxHelmRelease /
@@ -150,6 +167,7 @@ const (
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
 		graphSchemaNeo4jFingerprint: {
+			graphSchemaNeo4jPreTerraformStateResourceSplitFingerprint,
 			graphSchemaNeo4jPreCodeownersOwnershipFingerprint,
 			graphSchemaNeo4jPreFluxHelmEntitiesFingerprint,
 			graphSchemaNeo4jPreFluxTypedEntitiesFingerprint,
@@ -163,6 +181,7 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	},
 	SchemaBackendNornicDB: {
 		graphSchemaNornicDBFingerprint: {
+			graphSchemaNornicDBPreTerraformStateResourceSplitFingerprint,
 			graphSchemaNornicDBPreCodeownersOwnershipFingerprint,
 			graphSchemaNornicDBPreKubernetesWorkloadIDLookupFingerprint,
 			graphSchemaNornicDBPreFluxHelmEntitiesFingerprint,

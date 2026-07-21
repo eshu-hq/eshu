@@ -63,7 +63,11 @@ var schemaConstraints = []string{
 	"CREATE CONSTRAINT helm_value_definition_unique IF NOT EXISTS FOR (hvd:HelmValueDefinition) REQUIRE (hvd.name, hvd.path, hvd.line_number) IS UNIQUE",
 	"CREATE CONSTRAINT helm_template_value_usage_unique IF NOT EXISTS FOR (htvu:HelmTemplateValueUsage) REQUIRE (htvu.name, htvu.path, htvu.line_number) IS UNIQUE",
 
-	// Terraform entity constraints
+	// Terraform entity constraints. TerraformResource is config-declared only
+	// as of #5443 (state-observed resources now MERGE under
+	// TerraformStateResource, uid-constrained only — see uidConstraintLabels
+	// below); this composite constraint's (name, path, line_number) shape is
+	// meaningful again because every row now has a real file path and line.
 	"CREATE CONSTRAINT tf_resource_unique IF NOT EXISTS FOR (r:TerraformResource) REQUIRE (r.name, r.path, r.line_number) IS UNIQUE",
 	"CREATE CONSTRAINT tf_variable_unique IF NOT EXISTS FOR (v:TerraformVariable) REQUIRE (v.name, v.path, v.line_number) IS UNIQUE",
 	"CREATE CONSTRAINT tf_output_unique IF NOT EXISTS FOR (o:TerraformOutput) REQUIRE (o.name, o.path, o.line_number) IS UNIQUE",
@@ -211,6 +215,19 @@ var uidConstraintLabels = []string{
 	"TerraformProvider",
 	"TerraformRemovedBlock",
 	"TerraformResource",
+	// TerraformStateResource is the state-side sibling of TerraformResource
+	// (#5443). Before this split, both config-declared and Terraform-state-
+	// observed resources shared the TerraformResource label; the state-side
+	// canonical writer (tfstate_canonical_writer.go) now MERGEs its own label
+	// so config-declared and state-applied resources are distinguishable by
+	// label alone, with zero heuristics. Only a uid uniqueness constraint is
+	// registered here (see schema_tables.go's Terraform entity constraints
+	// comment for why the composite (name, path, line_number) shape does not
+	// carry over: state rows use a synthetic tfstate:// path and a hardcoded
+	// line_number of 1, so uid — already a collision-resistant sha256 over
+	// kind/scope/lineage/address — is state resources' only meaningful
+	// identity key).
+	"TerraformStateResource",
 	"TerraformVariable",
 	"TerragruntConfig",
 	"TerragruntDependency",
