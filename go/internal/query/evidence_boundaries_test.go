@@ -18,25 +18,18 @@ func evidenceBoundariesFromMap(data map[string]any) []PostgresOnlyBoundary {
 	return boundaries
 }
 
-func TestEvidenceBoundariesForServiceStory(t *testing.T) {
+// TestEvidenceBoundariesForServiceStoryIsEmpty asserts get_service_story has
+// no declared Postgres-only boundaries at all: both candidate domains it once
+// claimed (ci_cd_run_correlation, container_image_identity) are served
+// through sibling top-level response fields (ci_cd_evidence and
+// code_to_runtime_trace's image_package segment, respectively), so there is
+// nothing left to disclose. See the audit note atop evidenceBoundariesFor.
+func TestEvidenceBoundariesForServiceStoryIsEmpty(t *testing.T) {
 	t.Parallel()
 
 	got := evidenceBoundariesFor("get_service_story")
-	if len(got) != 1 {
-		t.Fatalf("len(evidence_boundaries) = %d, want 1: %#v", len(got), got)
-	}
-
-	wantDomains := []string{"container_image_identity"}
-	for i, b := range got {
-		if b.Domain != wantDomains[i] {
-			t.Errorf("boundary[%d].domain = %q, want %q", i, b.Domain, wantDomains[i])
-		}
-		if b.ReadSurface != "get_service_story" {
-			t.Errorf("boundary[%d].read_surface = %q, want get_service_story", i, b.ReadSurface)
-		}
-		if b.Reason != boundaryReasonPostgresOnly {
-			t.Errorf("boundary[%d].reason = %q, want %q", i, b.Reason, boundaryReasonPostgresOnly)
-		}
+	if got != nil {
+		t.Fatalf("evidence_boundaries = %#v, want nil for get_service_story", got)
 	}
 }
 
@@ -132,28 +125,18 @@ func TestEvidenceBoundariesDeterministicOrder(t *testing.T) {
 	}
 }
 
-func TestBuildServiceStoryResponseIncludesEvidenceBoundaries(t *testing.T) {
+// TestBuildServiceStoryResponseOmitsEvidenceBoundariesField asserts the
+// get_service_story response has no evidence_boundaries key at all (not an
+// empty array — the field is omitted, matching attachEvidenceBoundaries'
+// nil/omitted contract) once every candidate domain is genuinely absent.
+func TestBuildServiceStoryResponseOmitsEvidenceBoundariesField(t *testing.T) {
 	t.Parallel()
 
 	workloadContext := sampleServiceDossierContext()
 	got := buildServiceStoryResponse("workload:sample-service-api", workloadContext)
 
-	boundaries := evidenceBoundariesFromMap(got)
-	if len(boundaries) != 1 {
-		t.Fatalf("len(evidence_boundaries) = %d, want 1: %#v", len(boundaries), got["evidence_boundaries"])
-	}
-
-	wantDomains := []string{"container_image_identity"}
-	for i, b := range boundaries {
-		if b.Domain != wantDomains[i] {
-			t.Errorf("boundary[%d].domain = %q, want %q", i, b.Domain, wantDomains[i])
-		}
-		if b.ReadSurface != "get_service_story" {
-			t.Errorf("boundary[%d].read_surface = %q, want get_service_story", i, b.ReadSurface)
-		}
-		if b.Reason != boundaryReasonPostgresOnly {
-			t.Errorf("boundary[%d].reason = %q, want %q", i, b.Reason, boundaryReasonPostgresOnly)
-		}
+	if _, exists := got["evidence_boundaries"]; exists {
+		t.Fatalf("evidence_boundaries present for get_service_story; want field omitted: %#v", got["evidence_boundaries"])
 	}
 }
 
@@ -239,24 +222,24 @@ func TestAttachEvidenceBoundariesSliceUsesPostgresOnlyBoundary(t *testing.T) {
 	t.Parallel()
 
 	response := map[string]any{"key": "value"}
-	attachEvidenceBoundaries(response, "get_service_story")
+	attachEvidenceBoundaries(response, "trace_deployment_chain")
 
 	boundaries, ok := response["evidence_boundaries"].([]PostgresOnlyBoundary)
 	if !ok {
 		t.Fatalf("evidence_boundaries type = %T, want []PostgresOnlyBoundary", response["evidence_boundaries"])
 	}
-	if len(boundaries) != 1 {
-		t.Fatalf("len(evidence_boundaries) = %d, want 1", len(boundaries))
+	if len(boundaries) != 2 {
+		t.Fatalf("len(evidence_boundaries) = %d, want 2", len(boundaries))
 	}
 	for _, b := range boundaries {
 		if b.Reason != boundaryReasonPostgresOnly {
 			t.Errorf("boundary %q reason = %q, want %q", b.Domain, b.Reason, boundaryReasonPostgresOnly)
 		}
-		if !slices.Contains([]string{"container_image_identity"}, b.Domain) {
-			t.Errorf("unexpected domain %q in get_service_story boundaries", b.Domain)
+		if !slices.Contains([]string{"ci_cd_run_correlation", "container_image_identity"}, b.Domain) {
+			t.Errorf("unexpected domain %q in trace_deployment_chain boundaries", b.Domain)
 		}
-		if b.ReadSurface != "get_service_story" {
-			t.Errorf("boundary %q read_surface = %q, want get_service_story", b.Domain, b.ReadSurface)
+		if b.ReadSurface != "trace_deployment_chain" {
+			t.Errorf("boundary %q read_surface = %q, want trace_deployment_chain", b.Domain, b.ReadSurface)
 		}
 	}
 }
@@ -292,5 +275,101 @@ func TestBuildServiceStoryResponseOmitsBoundaryForFieldAlreadyServed(t *testing.
 				boundaries,
 			)
 		}
+	}
+}
+
+// TestBuildServiceStoryResponseOmitsContainerImageIdentityBoundaryForFieldAlreadyServed
+// is the round-2 regression test for the same defect class the eshu-code-review
+// gate caught after TestBuildServiceStoryResponseOmitsBoundaryForFieldAlreadyServed
+// landed: get_service_story's remaining container_image_identity boundary was
+// ALSO false. response["code_to_runtime_trace"] (service_story_overview.go:22,
+// buildServiceCodeToRuntimeTrace) includes an image_package segment
+// (service_story_trace_path.go:94-121, serviceTraceImagePackageSegment) that
+// embeds container-image-identity evidence — repository_id, identity_id,
+// identity_outcome, identity_strength, identity_evidence_fact_ids — read back
+// from workloadContext["supply_chain_evidence"]["image_package"]
+// (service_story_supply_chain.go:314-347). sampleServiceDossierContext() never
+// sets supply_chain_evidence, the same vacuous-coverage shape that let the
+// original ci_cd_run_correlation contradiction through; this test populates it
+// explicitly.
+func TestBuildServiceStoryResponseOmitsContainerImageIdentityBoundaryForFieldAlreadyServed(t *testing.T) {
+	t.Parallel()
+
+	workloadContext := sampleServiceDossierContext()
+	workloadContext["supply_chain_evidence"] = map[string]any{
+		"image_package": map[string]any{
+			"evidence": []map[string]any{
+				{
+					"source":                     "supply_chain_read_model",
+					"image_ref":                  "registry.example.com/sample-service-api:v1",
+					"digest":                     "sha256:deadbeefcafefeed",
+					"repository_id":              "repo-sample-service-api",
+					"identity_id":                "identity-sample-service-api",
+					"identity_outcome":           "exact_digest",
+					"identity_strength":          "exact",
+					"identity_evidence_fact_ids": []string{"fact-1"},
+				},
+			},
+			"missing_evidence": []string{},
+		},
+	}
+
+	got := buildServiceStoryResponse("workload:sample-service-api", workloadContext)
+
+	trace := mapValue(got, "code_to_runtime_trace")
+	var imagePackageSegment map[string]any
+	for _, segment := range mapSliceValue(trace, "segments") {
+		if StringVal(segment, "name") == "image_package" {
+			imagePackageSegment = segment
+			break
+		}
+	}
+	if imagePackageSegment == nil || IntVal(imagePackageSegment, "evidence_count") == 0 {
+		t.Fatalf("code_to_runtime_trace missing a populated image_package segment; test setup invalid: %#v", trace)
+	}
+
+	boundaries := evidenceBoundariesFromMap(got)
+	for _, b := range boundaries {
+		if b.Domain == "container_image_identity" {
+			t.Fatalf(
+				"evidence_boundaries contains container_image_identity while "+
+					"code_to_runtime_trace's image_package segment already serves it; "+
+					"the boundary disclosure is false: %#v",
+				boundaries,
+			)
+		}
+	}
+}
+
+// TestBuildServiceStoryResponseOmitsEvidenceBoundariesWhenFullyServed proves
+// the two prior regressions together: when both ci_cd_evidence and
+// supply_chain_evidence are populated, get_service_story's correct boundary
+// set is empty and the field is omitted entirely, not emitted as `[]`.
+func TestBuildServiceStoryResponseOmitsEvidenceBoundariesWhenFullyServed(t *testing.T) {
+	t.Parallel()
+
+	workloadContext := sampleServiceDossierContext()
+	workloadContext["ci_cd_evidence"] = map[string]any{
+		"static_workflow_artifacts": map[string]any{"state": "materialized"},
+	}
+	workloadContext["supply_chain_evidence"] = map[string]any{
+		"image_package": map[string]any{
+			"evidence": []map[string]any{
+				{
+					"source":           "supply_chain_read_model",
+					"image_ref":        "registry.example.com/sample-service-api:v1",
+					"digest":           "sha256:deadbeefcafefeed",
+					"repository_id":    "repo-sample-service-api",
+					"identity_id":      "identity-sample-service-api",
+					"identity_outcome": "exact_digest",
+				},
+			},
+		},
+	}
+
+	got := buildServiceStoryResponse("workload:sample-service-api", workloadContext)
+
+	if _, exists := got["evidence_boundaries"]; exists {
+		t.Fatalf("evidence_boundaries present when all candidate domains are served; want field omitted: %#v", got["evidence_boundaries"])
 	}
 }

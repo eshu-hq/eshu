@@ -3717,7 +3717,6 @@
           "deployment_overview",
           "documentation_overview",
           "downstream_consumers",
-          "evidence_boundaries",
           "evidence_graph",
           "investigation",
           "raw_context_limits",
@@ -3730,9 +3729,6 @@
           "upstream_dependencies"
         ],
         "minimum_results": 0,
-        "required_json_values": {
-          "evidence_boundaries[].domain": "container_image_identity"
-        },
         "arguments": {
           "workload_id": "workload:api-svc"
         }

@@ -123,10 +123,19 @@ The disclosure vocabulary is `PostgresOnlyBoundary`:
 ```json
 {
   "domain": "container_image_identity",
-  "read_surface": "get_service_story",
+  "read_surface": "get_workload_story",
   "reason": "postgres_only_read_model"
 }
 ```
+
+A domain is disclosed for a read surface only when it is genuinely absent from
+that surface's ENTIRE response — top-level fields and nested structures alike.
+A domain already served by a sibling field (for example get_service_story's
+top-level `ci_cd_evidence`, or `code_to_runtime_trace`'s `image_package`
+segment, which embeds `container_image_identity` evidence read back from
+`supply_chain_evidence`) is never disclosed as a boundary for that surface —
+there is no omission to disclose. get_service_story's boundary set is
+currently empty for exactly this reason: see the surface mappings below.
 
 ## Consequences
 
@@ -139,10 +148,13 @@ retraction and telemetry. The benefit is that story surfaces can surface the
 BUILT_FROM, PUBLISHES, and RUNS_IMAGE chains without ad-hoc fixups, and the
 retraction/replay discipline prevents stale edges from accumulating.
 
-The disclosure rule adds a lightweight `evidence_boundaries` field to four
-story surfaces (implemented in this PR). The implementer PRs then remove those
-boundaries as domains project — a boundary that vanishes from the code is
-documented in the PR as "domain X no longer postgres-only."
+The disclosure rule adds a lightweight, optional `evidence_boundaries` field
+to four story surfaces' OpenAPI schemas (implemented in this PR); the field is
+populated only when a surface has a genuine, currently-undisclosed boundary,
+and omitted entirely otherwise (get_service_story: see below). The
+implementer PRs then remove those boundaries as domains project — a boundary
+that vanishes from the code is documented in the PR as "domain X no longer
+postgres-only."
 
 The three registries-only disclosure comments for `ci.job`,
 `ci.pipeline_definition`, and `ci.warning` are pure documentation text in
@@ -153,11 +165,15 @@ runtime cost and no graph schema change.
 
 | Story tool | Boundary domains | Reason |
 | --- | --- | --- |
-| get_service_story | container_image_identity | `evidence_graph` omits the Postgres-only supply-chain (BUILT_FROM) link; ci_cd_run_correlation is NOT a boundary here because the top-level `ci_cd_evidence` field already serves that domain |
+| get_service_story | **none** — `evidence_boundaries` is omitted from the response | Both candidate domains are fully served: ci_cd_run_correlation via the top-level `ci_cd_evidence` field, and container_image_identity via `code_to_runtime_trace`'s `image_package` segment (`service_story_trace_path.go:94-121`, backed by `supply_chain_evidence`, `service_story_supply_chain.go:314-347`). `evidence_graph` alone omits ci_cd/supply-chain GRAPH edges (no BUILT_FROM edge is projected yet), but that is a narrower sub-surface gap, not a whole-tool boundary, so it is not disclosed as one |
 | get_workload_story | ci_cd_run_correlation, container_image_identity, package_correlation | entire ci_cd/image/package chain absent from workload graph read |
 | get_repo_story | container_image_identity, package_correlation_ownership, package_correlation_publication | no publication/ownership/image links in graph repo story |
 | trace_deployment_chain | ci_cd_run_correlation, container_image_identity | image_ref→digest identity + CI-run-produced-image hop invisible |
 
 These disclosures are additive only — they add `evidence_boundaries` without
 renaming or removing any existing fields. Entries are deterministic (stable
-sort by domain) for golden assertions.
+sort by domain) for golden assertions. The OpenAPI schema keeps
+`evidence_boundaries` declared as an optional property on all four routes even
+where, as with get_service_story today, no instance currently has a non-empty
+boundary set — the schema documents what the route CAN return, not a
+per-request guarantee.

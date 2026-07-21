@@ -35,9 +35,15 @@ func attachEvidenceBoundaries(data map[string]any, readSurface string) {
 // named read surface. Entries are stable-ordered by domain. Returns nil when
 // no boundaries apply.
 func evidenceBoundariesFor(readSurface string) []PostgresOnlyBoundary {
+	// get_service_story intentionally has no entries here: every Postgres-only
+	// domain it touches (ci_cd_run_correlation via response["ci_cd_evidence"];
+	// container_image_identity via response["code_to_runtime_trace"]'s
+	// image_package segment, service_story_trace_path.go:94-121) is already
+	// served through a sibling top-level field, so there is no boundary left to
+	// disclose. See TestBuildServiceStoryResponseOmitsBoundaryForFieldAlreadyServed
+	// and TestBuildServiceStoryResponseOmitsContainerImageIdentityBoundaryForFieldAlreadyServed.
 	type pair struct{ domain, surface string }
 	pairs := []pair{
-		{domain: "container_image_identity", surface: "get_service_story"},
 		{domain: "ci_cd_run_correlation", surface: "get_workload_story"},
 		{domain: "container_image_identity", surface: "get_workload_story"},
 		{domain: "package_correlation", surface: "get_workload_story"},
