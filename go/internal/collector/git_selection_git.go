@@ -52,14 +52,12 @@ func syncGitRepositoriesWithLogger(
 		}
 		repoPath := filepath.Join(config.ReposDir, filepath.FromSlash(checkoutName))
 		event := gitSyncLogEventFor(repoID, i+1, len(repositoryIDs))
-		mainSelected := false
 		hasPinnedRefs := len(config.PinnedRefsByRepoID[repoID]) > 0
 
 		if !hasGitMarker(repoPath) {
 			cloned, cloneErr := cloneRepository(ctx, config, repoID, repoPath, token, logger, event)
 			if cloneErr == nil && cloned {
 				selected = append(selected, repoPath)
-				mainSelected = true
 				refs, refsErr := remoteGitRefs(ctx, config, repoPath, token)
 				if refsErr != nil {
 					logGitSyncFailed(ctx, logger, event.withOperation("list_refs"), refsErr)
@@ -73,7 +71,6 @@ func syncGitRepositoriesWithLogger(
 			updated, delta, sourceSHA, updateErr := syncExistingRepository(ctx, config, repoPath, token, logger, event, baseline, forceReconcile)
 			if updateErr == nil && updated {
 				selected = append(selected, repoPath)
-				mainSelected = true
 				refs, refsErr := remoteGitRefs(ctx, config, repoPath, token)
 				if refsErr != nil {
 					logGitSyncFailed(ctx, logger, event.withOperation("list_refs"), refsErr)
@@ -105,12 +102,12 @@ func syncGitRepositoriesWithLogger(
 			fleetRefCount = newCount
 			if len(entries) > 0 {
 				refWorktreesByRepoPath[repoPath] = entries
-				// When ref worktrees were refreshed but the default branch
-				// did not move, the main repo path still needs to be in the
-				// selection so buildSelectedRepositories picks up the entries.
-				if !mainSelected {
-					selected = append(selected, repoPath)
-				}
+				// N5 fix: when only pinned refs advanced (default branch
+				// unchanged), do NOT add the main repoPath to selected.
+				// The main-line entry would trigger a full file-tree walk +
+				// parse on the default branch every cycle, wasting fleet CPU.
+				// buildSelectedRepositories processes ref-worktree-only paths
+				// separately, emitting only the ref-scoped entries.
 			}
 		}
 	}

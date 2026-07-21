@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestCreateRefWorktreesReusesExistingWorktree proves P1-1: an existing
@@ -142,12 +143,18 @@ func gitPush(t *testing.T, srcDir, destDir string, branch string) {
 
 func gitRunIn(t *testing.T, dir string, args ...string) {
 	t.Helper()
+	gitOutputIn(t, dir, args...)
+}
+
+func gitOutputIn(t *testing.T, dir string, args ...string) string {
+	t.Helper()
 	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
 	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_NOGLOBAL=1")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("git -C %s %s: %v\n%s", dir, strings.Join(args, " "), err, out)
 	}
+	return string(out)
 }
 
 func writeGitFile(t *testing.T, path, content string) {
@@ -158,6 +165,21 @@ func writeGitFile(t *testing.T, path, content string) {
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
+}
+
+// staticBaselineResolver reports a fixed projected commit SHA so a sync
+// cycle sees the default branch as already-projected (baseline == remote
+// head) instead of falling back to a full re-observe on an empty baseline.
+type staticBaselineResolver struct {
+	sha string
+}
+
+func (r staticBaselineResolver) LastProjectedCommitSHA(_ context.Context, _ string) (string, error) {
+	return r.sha, nil
+}
+
+func (r staticBaselineResolver) LastFullProjectionAt(_ context.Context, _ string) (time.Time, bool, error) {
+	return time.Now(), true, nil
 }
 
 // TestSyncGitRepositoriesRefreshesPinnedRefWhenDefaultUnmoved proves N1:
@@ -230,7 +252,13 @@ func TestSyncGitRepositoriesRefreshesPinnedRefWhenDefaultUnmoved(t *testing.T) {
 	// Second sync cycle: main is unmoved, but feature-x advanced.
 	// Before N1 fix: updated=false, createRefWorktrees never called → stale SHA.
 	// After  N1 fix: createRefWorktrees runs regardless → SHA advances.
-	sel2, err := syncGitRepositoriesWithLogger(ctx, cfg, []string{repoName}, logger, gitDeltaBaseline{})
+	// The baseline resolver reports main's HEAD as already projected, so the
+	// default branch is genuinely unmoved this cycle (an empty baseline would
+	// legitimately force a full re-observe and mask the N5 assertion).
+	mainSHA := strings.TrimSpace(gitOutputIn(t, repoPath, "rev-parse", "HEAD"))
+	sel2, err := syncGitRepositoriesWithLogger(ctx, cfg, []string{repoName}, logger, gitDeltaBaseline{
+		Resolver: staticBaselineResolver{sha: mainSHA},
+	})
 	if err != nil {
 		t.Fatalf("second syncGitRepositoriesWithLogger error = %v", err)
 	}
@@ -243,6 +271,57 @@ func TestSyncGitRepositoriesRefreshesPinnedRefWhenDefaultUnmoved(t *testing.T) {
 		t.Fatalf("N1: second SHA (%s) == first SHA (%s); pinned ref was NOT refreshed when default branch unmoved", firstSHA[:8], secondSHA[:8])
 	}
 	t.Logf("N1: pinned ref advanced from %s to %s while default branch unmoved", firstSHA[:8], secondSHA[:8])
+
+	// N5: default branch unmoved → main-line entry NOT selected
+	// (no wasteful file-tree walk + parse on unchanged default branch).
+	sel2Paths := make(map[string]struct{}, len(sel2.SelectedRepoPaths))
+	for _, p := range sel2.SelectedRepoPaths {
+		sel2Paths[p] = struct{}{}
+	}
+	if _, ok := sel2Paths[repoPath]; ok {
+		t.Fatal("N5: default branch unmoved, but repoPath is in SelectedRepoPaths (main-line should NOT be re-snapshotted)")
+	}
+	t.Logf("N5: main-line repoPath correctly excluded from selected when default branch unmoved")
+}
+
+// TestBuildSelectedRepositoriesRefOnlyEmitsNoMainline proves N5: when
+// ref worktrees exist but the main repo path is NOT in selectedPaths
+// (default branch unchanged), buildSelectedRepositories emits ONLY the
+// ref-scoped SelectedRepository entries — no main-line entry.
+func TestBuildSelectedRepositoriesRefOnlyEmitsNoMainline(t *testing.T) {
+	t.Parallel()
+
+	reposDir := t.TempDir()
+	mainRepoPath := filepath.Join(reposDir, "org", "repo")
+	if err := os.MkdirAll(mainRepoPath, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	refWorktreesByRepoPath := map[string][]RefWorktreeEntry{
+		mainRepoPath: {
+			{WorktreePath: filepath.Join(reposDir, ".eshu-ref-worktrees", "org", "repo", "feature-x"), Ref: "feature-x", HeadSHA: "abc123", RefKind: "branch"},
+		},
+	}
+
+	// selectedPaths is EMPTY (default branch did not move).
+	got := buildSelectedRepositories(
+		RepoSyncConfig{ReposDir: reposDir, SourceMode: "githubOrg", GithubOrg: "test", CloneDepth: 1},
+		[]string{}, // no main-line paths selected
+		nil, nil, nil, nil, nil,
+		refWorktreesByRepoPath,
+	)
+
+	// Must produce exactly one ref-scoped entry, zero main-line entries.
+	if len(got) != 1 {
+		t.Fatalf("got %d entries, want 1 (ref-only, no main-line)", len(got))
+	}
+	if got[0].Ref != "feature-x" {
+		t.Fatalf("entry Ref = %q, want feature-x", got[0].Ref)
+	}
+	if got[0].RepoPath != refWorktreesByRepoPath[mainRepoPath][0].WorktreePath {
+		t.Fatalf("entry RepoPath = %q, want ref worktree path", got[0].RepoPath)
+	}
+	t.Logf("N5: %d entries produced (ref-only, zero main-line)", len(got))
 }
 
 // TestCreateRefWorktreesSlashRefSurvivesReconcile proves N2: a pinned

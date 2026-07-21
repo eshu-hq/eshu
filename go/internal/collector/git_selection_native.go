@@ -246,6 +246,43 @@ func buildSelectedRepositories(
 			})
 		}
 	}
+	// N5 fix: process repos that have ref worktree entries but whose default
+	// branch did not move — emit ONLY the ref-scoped SelectedRepository entries,
+	// no main-line entry. This avoids a full file-tree walk + parse on the
+	// default branch when only a pinned ref advanced (fleet CPU waste per the
+	// #5393 model).
+	handled := make(map[string]struct{}, len(repoPaths))
+	for _, rp := range repoPaths {
+		abs, err := filepath.Abs(rp)
+		if err != nil {
+			continue
+		}
+		handled[abs] = struct{}{}
+	}
+	for mainPath, entries := range refWorktreesByRepoPath {
+		absMain, err := filepath.Abs(mainPath)
+		if err != nil {
+			continue
+		}
+		if _, ok := handled[absMain]; ok {
+			continue // already processed in the main loop above
+		}
+		// This repo's default branch did not move — only pinned refs advanced.
+		// Emit ref-scoped entries only, no main-line SelectedRepository (N5 fix).
+		refRepoID := repoIDFromManagedPath(config.ReposDir, absMain)
+		remoteURL := repoRemoteURL(config, refRepoID)
+		for _, entry := range entries {
+			repositories = append(repositories, SelectedRepository{
+				RepoPath:        entry.WorktreePath,
+				RemoteURL:       remoteURL,
+				IsDependency:    config.DependencyMode,
+				DisplayName:     strings.TrimSpace(config.DependencyName),
+				Language:        strings.TrimSpace(config.DependencyLanguage),
+				SourceCommitSHA: entry.HeadSHA,
+				Ref:             entry.Ref,
+			})
+		}
+	}
 	return repositories
 }
 
