@@ -72,7 +72,7 @@ func buildStreamingGenerationWithContext(
 	if len(snapshot.ContentFileMetas) > 0 {
 		contentFileCount = len(snapshot.ContentFileMetas)
 	}
-	followupFactCount := 10
+	followupFactCount := 11
 	if snapshot.Delta {
 		followupFactCount = 1
 	}
@@ -383,6 +383,9 @@ func streamFacts(
 	w.send(shellExecMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	w.send(inheritanceMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	w.send(codeImportRepoEdgeFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
+	// Unconditional (not gated on CODEOWNERS presence): runs the domain every
+	// generation so delta-retract sweeps stale edges even when CODEOWNERS is removed.
+	w.send(codeownersOwnershipFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 }
 
 // streamContentBodyReadFile is the seam streamFacts uses to read each content

@@ -302,6 +302,39 @@ func codeImportRepoEdgeFactEnvelope(
 	)
 }
 
+// codeownersOwnershipFactEnvelope builds the per-repository follow-up marker
+// that triggers the codeowners_ownership reducer domain (const
+// DomainCodeownersOwnership, issue #5419 Phase 3). The handler materializes
+// canonical DECLARES_CODEOWNER edges from directly-emitted codeowners.ownership
+// facts. It is emitted unconditionally per repository, not gated on CODEOWNERS
+// presence: this makes the domain run every generation so its delta-retract
+// sweeps stale edges even when a CODEOWNERS file is removed (no
+// codeowners.ownership facts survive to re-cycle the retract-then-write).
+func codeownersOwnershipFactEnvelope(
+	repoPath string,
+	repoID string,
+	scopeID string,
+	generationID string,
+	observedAt time.Time,
+) facts.Envelope {
+	payload := map[string]any{
+		"reducer_domain": "codeowners_ownership",
+		"entity_key":     "codeowners:" + filepath.Base(repoPath),
+		"reason":         "repository snapshot emitted codeowners ownership follow-up",
+		"repo_id":        repoID,
+	}
+
+	return factEnvelope(
+		"shared_followup",
+		scopeID,
+		generationID,
+		observedAt,
+		"shared_followup:"+repoID+":codeowners_ownership",
+		payload,
+		repoPath,
+	)
+}
+
 func factEnvelope(
 	factKind string,
 	scopeID string,

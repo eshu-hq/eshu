@@ -217,6 +217,44 @@ func TestBuildStreamingGenerationDeltaEmitsShellExecFollowupOnly(t *testing.T) {
 	}
 }
 
+// TestBuildStreamingGenerationEmitsCodeownersOwnershipFollowup proves the git
+// collector wires the codeowners_ownership shared_followup marker (issue
+// #5419 Phase 3b) so the reducer domain the Phase 3 handler registered
+// actually receives an intent. Without this marker the handler is dead code:
+// no fact ever carries reducer_domain "codeowners_ownership".
+func TestBuildStreamingGenerationEmitsCodeownersOwnershipFollowup(t *testing.T) {
+	t.Parallel()
+
+	repoPath := t.TempDir()
+	repo := testCollectorRepositoryMetadata(repoPath)
+	snapshot := testCollectorSnapshot(repoPath, "package main\n", "digest-full")
+
+	collected := buildStreamingGeneration(repoPath, repo, "run-full", time.Now().UTC(), snapshot, false, "")
+	var marker facts.Envelope
+	var found bool
+	for _, envelope := range drainFactChannel(collected.Facts) {
+		if envelope.FactKind != "shared_followup" {
+			continue
+		}
+		if domain, _ := envelope.Payload["reducer_domain"].(string); domain == "codeowners_ownership" {
+			marker = envelope
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("full generation missing shared_followup marker for reducer_domain codeowners_ownership")
+	}
+	if got, want := marker.Payload["entity_key"], "codeowners:"+filepath.Base(repoPath); got != want {
+		t.Fatalf("codeowners_ownership followup entity_key = %#v, want %#v", got, want)
+	}
+	if got, want := marker.StableFactKey, "shared_followup:"+repo.ID+":codeowners_ownership"; got != want {
+		t.Fatalf("codeowners_ownership followup StableFactKey = %q, want %q", got, want)
+	}
+	if reason, _ := marker.Payload["reason"].(string); reason == "" {
+		t.Fatal("codeowners_ownership followup reason is empty, want non-empty")
+	}
+}
+
 func factPayloadForRelativePath(envelopes []facts.Envelope, kind string, relativePath string) (map[string]any, bool) {
 	for _, envelope := range envelopes {
 		if envelope.FactKind != kind || envelope.IsTombstone {
