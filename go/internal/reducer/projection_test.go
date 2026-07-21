@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package reducer //nolint:filelength // 982 lines: projection row builder and overlay extraction test suite.
 
 import (
 	"testing"
@@ -126,11 +126,11 @@ func TestExtractOverlayEnvironmentsBasic(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("ExtractOverlayEnvironments() len = %d, want 2", len(got))
 	}
-	if got[0] != "production" {
-		t.Fatalf("got[0] = %q, want production", got[0])
+	if got[0] != "prod" {
+		t.Fatalf("got[0] = %q, want prod", got[0])
 	}
-	if got[1] != "staging" {
-		t.Fatalf("got[1] = %q, want staging", got[1])
+	if got[1] != "stage" {
+		t.Fatalf("got[1] = %q, want stage", got[1])
 	}
 }
 
@@ -149,6 +149,21 @@ func TestExtractOverlayEnvironmentsDeduplicates(t *testing.T) {
 	}
 }
 
+func TestExtractOverlayEnvironmentsMergesAliasesToOneCanonical(t *testing.T) {
+	t.Parallel()
+	paths := []string{
+		"deploy/overlays/production/kustomization.yaml",
+		"deploy/overlays/prod/kustomization.yaml",
+	}
+	got := ExtractOverlayEnvironments(paths)
+	if len(got) != 1 {
+		t.Fatalf("ExtractOverlayEnvironments() len = %d, want 1 (alias merge per the environment-alias contract)", len(got))
+	}
+	if got[0] != "prod" {
+		t.Fatalf("got[0] = %q, want prod", got[0])
+	}
+}
+
 func TestExtractOverlayEnvironmentsSupportsJenkinsAndTerraformPathConventions(t *testing.T) {
 	t.Parallel()
 	paths := []string{
@@ -160,8 +175,8 @@ func TestExtractOverlayEnvironmentsSupportsJenkinsAndTerraformPathConventions(t 
 	if len(got) != 3 {
 		t.Fatalf("ExtractOverlayEnvironments() len = %d, want 3", len(got))
 	}
-	if got[0] != "staging" {
-		t.Fatalf("got[0] = %q, want staging", got[0])
+	if got[0] != "stage" {
+		t.Fatalf("got[0] = %q, want stage", got[0])
 	}
 	if got[1] != "monitoring" {
 		t.Fatalf("got[1] = %q, want monitoring", got[1])
@@ -253,10 +268,10 @@ func TestBuildProjectionRowsSingleCandidate(t *testing.T) {
 		t.Fatalf("Stats.Instances = %d, want 1", result.Stats.Instances)
 	}
 	inst := result.InstanceRows[0]
-	if inst.InstanceID != "workload-instance:my-api:production" {
+	if inst.InstanceID != "workload-instance:my-api:prod" {
 		t.Fatalf("InstanceID = %q", inst.InstanceID)
 	}
-	if inst.Environment != "production" {
+	if inst.Environment != "prod" {
 		t.Fatalf("Environment = %q", inst.Environment)
 	}
 
@@ -480,11 +495,11 @@ func TestBuildProjectionRowsRuntimePlatformFromResourceKinds(t *testing.T) {
 	if plat.PlatformKind != "kubernetes" {
 		t.Fatalf("PlatformKind = %q, want kubernetes", plat.PlatformKind)
 	}
-	if plat.InstanceID != "workload-instance:my-api:production" {
+	if plat.InstanceID != "workload-instance:my-api:prod" {
 		t.Fatalf("InstanceID = %q", plat.InstanceID)
 	}
-	if plat.PlatformName != "production" {
-		t.Fatalf("PlatformName = %q, want production", plat.PlatformName)
+	if plat.PlatformName != "prod" {
+		t.Fatalf("PlatformName = %q, want prod", plat.PlatformName)
 	}
 }
 
@@ -912,6 +927,39 @@ func TestBuildProjectionRowsSkipsNamespaceFallbackForNonEnvironmentNamespace(t *
 	}
 	if got := len(result.RuntimePlatformRows); got != 0 {
 		t.Fatalf("len(RuntimePlatformRows) = %d, want 0 for non-environment namespace fallback", got)
+	}
+}
+
+// TestNamespaceEnvironmentFallbackNormalizesMixedCase proves the
+// case-normalization delta the environment-alias contract (#5473) introduced
+// to namespaceEnvironmentFallback (projection_helpers.go): it now returns
+// environment.Canonical(namespace) instead of the original-case namespace, so
+// a mixed-case namespace like "Production" resolves to the canonical "prod"
+// (not "Production" and not the lowercased-but-still-aliased "production").
+func TestNamespaceEnvironmentFallbackNormalizesMixedCase(t *testing.T) {
+	t.Parallel()
+
+	candidates := []WorkloadCandidate{
+		{
+			RepoID:         "repo-mixed-case-ns",
+			RepoName:       "mixed-case-ns",
+			Classification: "service",
+			Confidence:     0.98,
+			Namespaces:     []string{"Production"},
+			Provenance:     []string{"k8s_resource", "dockerfile_runtime"},
+		},
+	}
+
+	result := BuildProjectionRows(candidates, nil)
+
+	if got, want := len(result.InstanceRows), 1; got != want {
+		t.Fatalf("len(InstanceRows) = %d, want %d", got, want)
+	}
+	if got, want := result.InstanceRows[0].Environment, "prod"; got != want {
+		t.Fatalf("InstanceRows[0].Environment = %q, want %q (namespace %q must canonicalize, not just lowercase)", got, want, "Production")
+	}
+	if got, want := result.InstanceRows[0].InstanceID, "workload-instance:mixed-case-ns:prod"; got != want {
+		t.Fatalf("InstanceRows[0].InstanceID = %q, want %q", got, want)
 	}
 }
 

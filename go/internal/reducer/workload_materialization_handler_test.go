@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package reducer //nolint:filelength // 994 lines: workload materialization handler test suite.
 
 import (
 	"context"
@@ -435,7 +435,7 @@ func TestWorkloadMaterializationHandlerSeedsRuntimeCandidateFromArgoDeploymentSo
 	}
 
 	candidates, deploymentEnvironments := ExtractWorkloadCandidates(loader.envelopes)
-	if got, want := deploymentEnvironments["repo-platform-deploy"], []string{"production"}; len(got) != len(want) || got[0] != want[0] {
+	if got, want := deploymentEnvironments["repo-platform-deploy"], []string{"prod"}; len(got) != len(want) || got[0] != want[0] {
 		t.Fatalf("deploymentEnvironments[repo-platform-deploy] = %v, want %v", got, want)
 	}
 	candidates = applyResolvedDeploymentSources(candidates, relationshipLoader.resolved)

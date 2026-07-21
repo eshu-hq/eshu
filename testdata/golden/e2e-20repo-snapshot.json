@@ -4697,8 +4697,8 @@
         "required_json_values": {
           "data.repo_id": "repository:r_217415d9",
           "data.workload_id": "workload:deployable-config",
-          "data.instances[].instance_id": "workload-instance:deployable-config:production",
-          "data.instances[].platforms[].platform_id": "platform:kubernetes:none:production:production:none",
+          "data.instances[].instance_id": "workload-instance:deployable-config:prod",
+          "data.instances[].platforms[].platform_id": "platform:kubernetes:none:prod:prod:none",
           "data.instances[].platforms[].topology_edges[].relationship_type": "RUNS_ON",
           "truth.level": "derived",
           "truth.basis": "hybrid"
@@ -4707,8 +4707,8 @@
           "data.instances[].platforms[].topology_edges[]": [
             {
               "relationship_type": "RUNS_ON",
-              "source_id": "workload-instance:deployable-config:production",
-              "target_id": "platform:kubernetes:none:production:production:none"
+              "source_id": "workload-instance:deployable-config:prod",
+              "target_id": "platform:kubernetes:none:prod:prod:none"
             }
           ],
           "data.topology_edges[]": [
@@ -4719,14 +4719,14 @@
             },
             {
               "relationship_type": "INSTANCE_OF",
-              "source_id": "workload-instance:deployable-config:production",
+              "source_id": "workload-instance:deployable-config:prod",
               "target_id": "workload:deployable-config"
             }
           ],
           "data.deployment_sources[]": [
             {
               "relationship_type": "DEPLOYMENT_SOURCE",
-              "source_id": "workload-instance:deployable-config:production",
+              "source_id": "workload-instance:deployable-config:prod",
               "target_id": "repository:r_1f68383d"
             }
           ]

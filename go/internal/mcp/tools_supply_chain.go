@@ -117,7 +117,7 @@ func supplyChainTools() []ToolDefinition {
 					},
 					"environment": map[string]any{
 						"type":        "string",
-						"description": "Reducer-admitted environment anchor. Environment names are not inferred from tags or repository names.",
+						"description": "Reducer-admitted environment anchor. Environment names are not inferred from tags or repository names. Normalization follows the environment-alias contract.",
 					},
 					"severity": map[string]any{
 						"type":        "string",

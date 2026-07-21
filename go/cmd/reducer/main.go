@@ -266,6 +266,7 @@ func buildReducerService(
 			ScopeResolver:  postgres.RepoScopeResolver{DB: database},
 		},
 		WorkloadDependencyLookup:           neo4jWorkloadDependencyLookup{reader: graphReader},
+		InstanceRetractionLookup:           neo4jWorkloadInstanceRetractionLookup{reader: graphReader},
 		WorkloadIdentityWriter:             reducer.PostgresWorkloadIdentityWriter{DB: database},
 		CloudAssetResolutionWriter:         reducer.PostgresCloudAssetResolutionWriter{DB: database},
 		PlatformMaterializationWriter:      reducer.PostgresPlatformMaterializationWriter{DB: database},

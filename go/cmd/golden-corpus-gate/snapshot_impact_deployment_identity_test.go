@@ -85,8 +85,8 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 	for path, want := range map[string]any{
 		"data.repo_id":                             "repository:r_217415d9",
 		"data.workload_id":                         "workload:deployable-config",
-		"data.instances[].instance_id":             "workload-instance:deployable-config:production",
-		"data.instances[].platforms[].platform_id": "platform:kubernetes:none:production:production:none",
+		"data.instances[].instance_id":             "workload-instance:deployable-config:prod",
+		"data.instances[].platforms[].platform_id": "platform:kubernetes:none:prod:prod:none",
 	} {
 		if got := shape.RequiredJSONValues[path]; got != want {
 			t.Fatalf("trace_deployment_chain required_json_values[%q] = %#v, want %#v", path, got, want)
@@ -96,8 +96,8 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 		"data.instances[].platforms[].topology_edges[]": {
 			{
 				"relationship_type": "RUNS_ON",
-				"source_id":         "workload-instance:deployable-config:production",
-				"target_id":         "platform:kubernetes:none:production:production:none",
+				"source_id":         "workload-instance:deployable-config:prod",
+				"target_id":         "platform:kubernetes:none:prod:prod:none",
 			},
 		},
 		"data.topology_edges[]": {
@@ -108,14 +108,14 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 			},
 			{
 				"relationship_type": "INSTANCE_OF",
-				"source_id":         "workload-instance:deployable-config:production",
+				"source_id":         "workload-instance:deployable-config:prod",
 				"target_id":         "workload:deployable-config",
 			},
 		},
 		"data.deployment_sources[]": {
 			{
 				"relationship_type": "DEPLOYMENT_SOURCE",
-				"source_id":         "workload-instance:deployable-config:production",
+				"source_id":         "workload-instance:deployable-config:prod",
 				"target_id":         "repository:r_1f68383d",
 			},
 		},

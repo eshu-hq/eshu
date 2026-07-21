@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/ghactionsref"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
@@ -195,10 +196,5 @@ func environmentFromArtifactPath(path string) string {
 }
 
 func isKnownEnvironmentToken(token string) bool {
-	switch token {
-	case "dev", "development", "test", "qa", "stage", "staging", "uat", "preprod", "prod", "production", "sandbox", "preview":
-		return true
-	default:
-		return false
-	}
+	return environment.IsKnownToken(token)
 }
