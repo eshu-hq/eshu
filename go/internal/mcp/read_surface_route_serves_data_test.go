@@ -130,7 +130,7 @@ func TestRouteServesDataBITES_KubernetesLiveCloudResourcesMismatch(t *testing.T)
 		if ok {
 			t.Fatalf("BITES FAILED: resolveRouteServesData(%q, %q, %q) returned true — the route serves CloudResource nodes, not kubernetes_correlation facts", family, reducerDomain, misroutedRoute)
 		}
-		if !substrIn(reason, "read_surface") || !substrIn(reason, "backing map") {
+		if !strings.Contains(reason, "read_surface") || !strings.Contains(reason, "backing map") {
 			t.Errorf("RED message does not name both fix paths — got: %s", reason)
 		}
 	})
@@ -188,51 +188,5 @@ func TestRouteServesDataBackingMapStaleness(t *testing.T) {
 		if usedRoutes[route] == 0 {
 			t.Errorf("routeServesDataBackingMap has a stale entry for route %q — no family uses this read_surface; remove it", route)
 		}
-	}
-}
-
-func substrIn(s, sub string) bool {
-	return len(s) >= len(sub) && indexSubstr(s, sub) >= 0
-}
-
-func indexSubstr(s, sub string) int {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return i
-		}
-	}
-	return -1
-}
-
-// TestSubstrIn exercises substrIn against the same cases strings.Contains
-// documents, since every BITES/RED-message assertion in this package
-// (TestKindConsumerExistenceBITES_TeethProof, TestRouteServesDataBITES_*)
-// depends on substrIn correctly finding (or correctly failing to find) a
-// substring in a failure reason string.
-func TestSubstrIn(t *testing.T) {
-	tests := []struct {
-		name string
-		s    string
-		sub  string
-		want bool
-	}{
-		{name: "substring_present_start", s: "hello world", sub: "hello", want: true},
-		{name: "substring_present_middle", s: "hello world", sub: "lo wo", want: true},
-		{name: "substring_present_end", s: "hello world", sub: "world", want: true},
-		{name: "substring_absent", s: "hello world", sub: "xyz", want: false},
-		{name: "substring_equals_string", s: "hello", sub: "hello", want: true},
-		{name: "substring_longer_than_string", s: "hi", sub: "hello", want: false},
-		{name: "empty_substring_always_found", s: "hello", sub: "", want: true},
-		{name: "both_empty", s: "", sub: "", want: true},
-		{name: "empty_string_nonempty_substring", s: "", sub: "x", want: false},
-		{name: "case_sensitive_mismatch", s: "Hello World", sub: "hello", want: false},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := substrIn(tc.s, tc.sub); got != tc.want {
-				t.Errorf("substrIn(%q, %q) = %v, want %v", tc.s, tc.sub, got, tc.want)
-			}
-		})
 	}
 }

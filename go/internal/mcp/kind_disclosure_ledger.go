@@ -165,9 +165,21 @@ type kindDisclosureEntry struct {
 }
 
 // disclosedKindsUnchanged checks that the committed disclosure ledger
-// matches the expected entries. If an entry's digest drifts, it fails.
+// (grandfatheredUnconsumedKinds) is EXACTLY the pinned expected set — same
+// keys, same digests, both directions. It is not enough to check that every
+// expected entry is present with the right digest (the forward direction):
+// without also rejecting an extra key, a kind could be added directly to
+// grandfatheredUnconsumedKinds — bypassing kindDisclosureEntries' digest-
+// pinned, code-anchored discipline entirely — and isKindDisclosed would
+// silently start returning true for it, producing a false-green
+// consumer-existence gate result (TestEveryRegistryKindHasConsumerOrDisclosure,
+// which calls this function) for a kind nobody ever justified. The reverse
+// pass below closes that gap.
 func disclosedKindsUnchanged(expected []kindDisclosureEntry) error {
 	expectedLedger := buildKindDisclosureLedger(expected)
+
+	// Forward: every expected (pinned, code-anchored) entry must be present
+	// in the ledger with a matching digest.
 	for kind, expectedDigest := range expectedLedger {
 		actualDigest, exists := grandfatheredUnconsumedKinds[kind]
 		if !exists {
@@ -176,6 +188,29 @@ func disclosedKindsUnchanged(expected []kindDisclosureEntry) error {
 		if actualDigest != expectedDigest {
 			return fmt.Errorf("kind %q disclosure digest mismatch: ledger=%s, expected=%s", kind, actualDigest, expectedDigest)
 		}
+	}
+
+	// Reverse: the ledger must not contain any key absent from the pinned
+	// expected set. Checked per-key first so the error names the exact
+	// offending kind; the trailing length check is a defensive fallback that
+	// cannot actually fire once both directions of the per-key checks above
+	// pass (a map that is a superset AND a subset of another, key-for-key, is
+	// that map), but it keeps the invariant explicit and self-documenting.
+	for kind := range grandfatheredUnconsumedKinds {
+		if _, ok := expectedLedger[kind]; !ok {
+			return fmt.Errorf(
+				"kind %q is in grandfatheredUnconsumedKinds but has no matching kindDisclosureEntries entry — "+
+					"it bypasses the digest-pinned, code-anchored disclosure discipline; add a kindDisclosureEntries "+
+					"entry citing real evidence, or remove it from grandfatheredUnconsumedKinds",
+				kind,
+			)
+		}
+	}
+	if len(grandfatheredUnconsumedKinds) != len(expectedLedger) {
+		return fmt.Errorf(
+			"grandfatheredUnconsumedKinds has %d entries but kindDisclosureEntries only pins %d — every disclosure key must have a matching digest-pinned kindDisclosureEntries entry",
+			len(grandfatheredUnconsumedKinds), len(expectedLedger),
+		)
 	}
 	return nil
 }

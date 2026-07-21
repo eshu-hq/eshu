@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/payloadusage"
@@ -247,8 +248,9 @@ func loadRealConsumerEvidence(repoRoot string) (realConsumerEvidence, error) {
 		rawSQLKinds[kind] = true
 	}
 
+	validKinds := registryFactKinds()
 	for _, dir := range realConsumerNamedStoreDirs {
-		namedStoreKinds, err := namedConstStoreKinds(filepath.Join(repoRoot, dir))
+		namedStoreKinds, err := namedConstStoreKinds(filepath.Join(repoRoot, dir), validKinds)
 		if err != nil {
 			return realConsumerEvidence{}, err
 		}
@@ -340,16 +342,19 @@ func factKindConstantValues(glob string) (map[string]string, error) {
 	return values, nil
 }
 
-// unquoteGoString strips the double quotes a Go string-literal AST node
-// carries. factschema's FactKind* constants are always plain double-quoted
-// literals (never backtick raw strings), so trimming one leading and
-// trailing quote byte is sufficient and avoids importing strconv just for
-// Unquote's broader escape handling.
+// unquoteGoString decodes the literal text an *ast.BasicLit(token.STRING)
+// node carries — go/parser hands back the raw source bytes, quotes and all —
+// into the actual Go string value. strconv.Unquote handles both
+// double-quoted interpreted strings (backslash escapes: \", \n, \uXXXX, ...)
+// and backtick raw strings correctly; a manual "strip the first and last
+// byte" trim would silently mis-decode any constant that ever used an escape
+// sequence instead of the escaped character's literal byte.
 func unquoteGoString(raw string) (string, error) {
-	if len(raw) < 2 || raw[0] != '"' || raw[len(raw)-1] != '"' {
-		return "", fmt.Errorf("const value %q is not a plain double-quoted string literal", raw)
+	unquoted, err := strconv.Unquote(raw)
+	if err != nil {
+		return "", fmt.Errorf("const value %q is not a valid Go string literal: %w", raw, err)
 	}
-	return raw[1 : len(raw)-1], nil
+	return unquoted, nil
 }
 
 // rawSQLFactKindReaders scans every non-test .go file directly under dir
@@ -414,63 +419,6 @@ func factsPackageIdentRefKinds(dir string, factsConstValues map[string]string) (
 		for _, m := range factsPackageIdentRefPattern.FindAllStringSubmatch(contents, -1) {
 			if wire, ok := factsConstValues[m[1]]; ok {
 				kinds[wire] = true
-			}
-		}
-	}
-	return kinds, nil
-}
-
-// namedConstStoreKinds scans every non-test .go file directly under dir for
-// a top-level exported string const declaration whose literal value looks
-// like a registry fact-kind string, and returns the set of such values found
-// in files that also reference "fact_kind" somewhere (evidence the constant
-// actually backs a fact_kind-scoped query, not an unrelated string). See
-// realConsumerNamedStoreDir's doc comment for the motivating case.
-func namedConstStoreKinds(dir string) (map[string]bool, error) {
-	matches, err := filepath.Glob(filepath.Join(dir, "*.go"))
-	if err != nil {
-		return nil, fmt.Errorf("kind_real_consumer: glob %s: %w", dir, err)
-	}
-
-	kinds := map[string]bool{}
-	fset := token.NewFileSet()
-	for _, path := range matches {
-		if isGoTestFile(path) {
-			continue
-		}
-		contents, err := readFileForGate(path)
-		if err != nil {
-			return nil, fmt.Errorf("kind_real_consumer: read %s: %w", path, err)
-		}
-		if !strings.Contains(contents, "fact_kind") && !strings.Contains(contents, "FactKind") {
-			continue
-		}
-		file, err := parser.ParseFile(fset, path, nil, 0)
-		if err != nil {
-			return nil, fmt.Errorf("kind_real_consumer: parse %s: %w", path, err)
-		}
-		for _, decl := range file.Decls {
-			gen, ok := decl.(*ast.GenDecl)
-			if !ok || gen.Tok != token.CONST {
-				continue
-			}
-			for _, spec := range gen.Specs {
-				vspec, ok := spec.(*ast.ValueSpec)
-				if !ok {
-					continue
-				}
-				for i := range vspec.Names {
-					if i >= len(vspec.Values) {
-						continue
-					}
-					lit, ok := vspec.Values[i].(*ast.BasicLit)
-					if !ok || lit.Kind != token.STRING {
-						continue
-					}
-					if unquoted, err := unquoteGoString(lit.Value); err == nil {
-						kinds[unquoted] = true
-					}
-				}
 			}
 		}
 	}

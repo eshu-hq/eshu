@@ -4,6 +4,7 @@
 package mcp
 
 import (
+	"os"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -119,7 +120,7 @@ func TestKindConsumerExistenceBITES_TeethProof(t *testing.T) {
 		if okResult {
 			t.Fatalf("BITES FAILED: a disclosed kind with a real consumer must be RED (stale disclosure), got GREEN")
 		}
-		if !substrIn(reason, "stale") || !substrIn(reason, "grandfatheredUnconsumedKinds") {
+		if !strings.Contains(reason, "stale") || !strings.Contains(reason, "grandfatheredUnconsumedKinds") {
 			t.Errorf("contradiction RED message doesn't name the stale-disclosure fix: %s", reason)
 		}
 
@@ -180,7 +181,7 @@ func TestKindConsumerExistenceBITES_TeethProof(t *testing.T) {
 		if okResult {
 			t.Fatalf("BITES FAILED: terraform_state_candidate without its disclosure must be RED")
 		}
-		if !substrIn(reason, "add a consumer") || !substrIn(reason, "grandfatheredUnconsumedKinds") || !substrIn(reason, "remove the kind") {
+		if !strings.Contains(reason, "add a consumer") || !strings.Contains(reason, "grandfatheredUnconsumedKinds") || !strings.Contains(reason, "remove the kind") {
 			t.Errorf("RED message does not name all three legal exits: %s", reason)
 		}
 
@@ -299,10 +300,61 @@ func TestKindConsumerExistenceBITES_RoundTwoBlindSpots(t *testing.T) {
 			if okContradiction {
 				t.Fatalf("BITES FAILED: %q simulated as both disclosed and consumed must be RED (stale disclosure)", tc.kind)
 			}
-			if !substrIn(reasonContradiction, "stale") {
+			if !strings.Contains(reasonContradiction, "stale") {
 				t.Errorf("contradiction message doesn't name the stale-disclosure fix: %s", reasonContradiction)
 			}
 		})
+	}
+}
+
+// TestNamedConstStoreKindsOnlyAdmitsRegistryKinds pins the #5474 P2
+// (PR #5583 round-3 review) tightening of namedConstStoreKinds: it must
+// admit a scanned const's value ONLY when that value is a real, registered
+// fact-kind wire string, not any string const that happens to sit in a
+// fact_kind-mentioning file. Without the registry-membership filter, an
+// unrelated const (e.g. a schema-version literal, a resource-type tag) in a
+// storage/postgres file that also references "fact_kind" somewhere would be
+// wrongly admitted as evidence that its value's fact kind is consumed.
+func TestNamedConstStoreKindsOnlyAdmitsRegistryKinds(t *testing.T) {
+	dir := t.TempDir()
+	const fixture = `// SPDX-License-Identifier: MIT
+package postgres
+
+import "fmt"
+
+// realKindConst backs a genuine fact_kind = $1 store for aws_resource.
+const realKindConst = "aws_resource"
+
+// notAKindConst is an unrelated string constant that happens to live in the
+// same fact_kind-scoped file. Its value is not a registered fact kind.
+const notAKindConst = "totally_made_up_not_a_real_kind"
+
+func useFactKind(factKind string) {
+	fmt.Println(factKind, realKindConst, notAKindConst)
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "fixture.go"), []byte(fixture), 0o600); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	validKinds := registryFactKinds()
+	if !validKinds["aws_resource"] {
+		t.Fatal("test premise broken: aws_resource must be a real registry kind")
+	}
+	if validKinds["totally_made_up_not_a_real_kind"] {
+		t.Fatal("test premise broken: totally_made_up_not_a_real_kind must not be a real registry kind")
+	}
+
+	kinds, err := namedConstStoreKinds(dir, validKinds)
+	if err != nil {
+		t.Fatalf("namedConstStoreKinds: %v", err)
+	}
+
+	if !kinds["aws_resource"] {
+		t.Errorf("namedConstStoreKinds did not admit realKindConst's registered value %q", "aws_resource")
+	}
+	if kinds["totally_made_up_not_a_real_kind"] {
+		t.Errorf("BITES FAILED: namedConstStoreKinds admitted notAKindConst's non-registry value %q — the registry-membership filter regressed", "totally_made_up_not_a_real_kind")
 	}
 }
 
@@ -333,6 +385,57 @@ func TestDisclosureLedgerDigestPinned(t *testing.T) {
 		if _, ok := expected[kind]; !ok {
 			t.Errorf("grandfatheredUnconsumedKinds has stale entry for %q — it has no matching kindDisclosureEntries entry", kind)
 		}
+	}
+}
+
+// TestDisclosureLedgerDigestPinnedRejectsExtraKey is the #5474 P1a BITES
+// proof (PR #5583 round-3 review). disclosedKindsUnchanged only checked the
+// forward direction until this fix — every kindDisclosureEntries entry
+// present in grandfatheredUnconsumedKinds with the right digest — and never
+// rejected an EXTRA grandfatheredUnconsumedKinds key absent from
+// kindDisclosureEntries. That gap let a kind bypass the digest-pinned,
+// code-anchored disclosure discipline entirely by being added directly to
+// grandfatheredUnconsumedKinds, producing a false-green consumer-existence
+// gate result (TestEveryRegistryKindHasConsumerOrDisclosure calls
+// disclosedKindsUnchanged as its integrity pre-check). This test injects an
+// unexpected key directly into the package-level grandfatheredUnconsumedKinds
+// map and asserts disclosedKindsUnchanged now rejects it (RED); once
+// removed, the ledger is clean again (GREEN).
+//
+// Deliberately NOT t.Parallel(): it mutates the package-level
+// grandfatheredUnconsumedKinds map for the duration of the test and restores
+// it before returning, which would race with any test running concurrently.
+func TestDisclosureLedgerDigestPinnedRejectsExtraKey(t *testing.T) {
+	const bogusKind = "test_p1a.injected_unexpected_kind"
+
+	if _, exists := grandfatheredUnconsumedKinds[bogusKind]; exists {
+		t.Fatalf("test premise broken: %q must not already be in grandfatheredUnconsumedKinds", bogusKind)
+	}
+
+	// Baseline: the real, committed ledger is clean before injection.
+	if err := disclosedKindsUnchanged(kindDisclosureEntries); err != nil {
+		t.Fatalf("baseline broken: disclosedKindsUnchanged(kindDisclosureEntries) = %v, want nil", err)
+	}
+
+	// Inject an extra key with NO matching kindDisclosureEntries entry —
+	// exactly the P1a bypass: added straight to grandfatheredUnconsumedKinds,
+	// skipping the digest-pinned, code-anchored discipline.
+	grandfatheredUnconsumedKinds[bogusKind] = "0000000000000000000000000000000000000000000000000000000000000000"
+	t.Cleanup(func() { delete(grandfatheredUnconsumedKinds, bogusKind) })
+
+	// RED: the reverse-membership check must reject the unpinned extra key.
+	err := disclosedKindsUnchanged(kindDisclosureEntries)
+	if err == nil {
+		t.Fatalf("BITES FAILED: disclosedKindsUnchanged returned nil with an unexpected extra key %q in grandfatheredUnconsumedKinds — the reverse-membership check regressed", bogusKind)
+	}
+	if !strings.Contains(err.Error(), bogusKind) {
+		t.Errorf("error does not name the offending kind %q: %v", bogusKind, err)
+	}
+
+	// GREEN: remove the injected key and the ledger is clean again.
+	delete(grandfatheredUnconsumedKinds, bogusKind)
+	if err := disclosedKindsUnchanged(kindDisclosureEntries); err != nil {
+		t.Fatalf("after removing the injected key, disclosedKindsUnchanged should pass again, got: %v", err)
 	}
 }
 
@@ -371,7 +474,7 @@ func TestKindConsumerExistenceEdgeCases(t *testing.T) {
 			if okResult != tc.wantOK {
 				t.Errorf("resolveKindConsumer(%q) = %v, want %v (reason: %s)", tc.kind, okResult, tc.wantOK, reason)
 			}
-			if tc.wantMsg != "" && !substrIn(strings.ToLower(reason), strings.ToLower(tc.wantMsg)) {
+			if tc.wantMsg != "" && !strings.Contains(strings.ToLower(reason), strings.ToLower(tc.wantMsg)) {
 				t.Errorf("expected reason to contain %q, got: %s", tc.wantMsg, reason)
 			}
 		})
@@ -388,7 +491,7 @@ func TestKindConsumerExistenceEdgeCases(t *testing.T) {
 		if okResult {
 			t.Errorf("classifyKindConsumer(hasConsumer=false, disclosed=false) = true, want false")
 		}
-		if !substrIn(strings.ToLower(reason), "no detectable consumer") {
+		if !strings.Contains(strings.ToLower(reason), "no detectable consumer") {
 			t.Errorf("expected reason to contain %q, got: %s", "no detectable consumer", reason)
 		}
 	})
