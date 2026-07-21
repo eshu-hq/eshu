@@ -905,7 +905,13 @@ Shim measurements (postgres:18-alpine, 2.5M rows, 500k identity facts,
 | load (paginated, with JOIN) | 1,476 ms | 1,476 ms | — |
 | probe (index-only, no JOIN) | — | 50 ms | — |
 | per-drain: 2,000 calls | 2,000 × 1,476 ms = 2,952 s | 1 load + 2,000 probes = 1.5 s + 100 s = 101.5 s | 29× faster |
-| per-drain: epoch stable | 2,952 s | 1 load + 1,999 cache hits = 1.5 s | ~2,000× faster |
+| per-drain: epoch stable | 2,952 s | 1 load + 1,999 cache hits + 2,000 probes = 1.5 s + 100 s = 101.5 s | 29× faster |
+
+The epoch probe is unconditional: it runs on every `get()` call, including
+cache hits, so 2,000 probes set a ~100 s floor per drain regardless of hit
+rate. The ~2,000× reduction applies only to DB *load* work (2,952 s → 1.5 s
+across 2,000 calls); end-to-end per-drain wall time, including probes, is
+29× faster (2,952 s → 101.5 s).
 
 Probe EXPLAIN: `Index Only Scan using fact_records_identity_epoch_idx`
 (50 ms, 0 heap fetches, 3,016 buffers). Partial index size: 24 MB for
