@@ -33,6 +33,12 @@ type GraphSnapshot struct {
 	// preserves the historical behaviour where node presence came only from the
 	// -required-node-labels flag.
 	RequiredNodes []RequiredNode `json:"required_nodes,omitempty"`
+	// RequiredSelfLoops pin the count of (n)-[Relationship]->(n) self-loop edges
+	// on nodes carrying a given label and property value (the self-loop-axis
+	// counterpart to RequiredCorrelations and RequiredNodes). Optional and
+	// additive: an empty list preserves historical behaviour (no self-loop
+	// assertions).
+	RequiredSelfLoops []RequiredSelfLoop `json:"required_self_loops,omitempty"`
 }
 
 // CountRange is an inclusive [Min, Max] tolerance for a node label or edge type.
@@ -115,6 +121,26 @@ type RequiredNode struct {
 	MinimumCount              int64               `json:"minimum_count"`
 	RequiredNodeProperties    []string            `json:"required_node_properties,omitempty"`
 	AllowedNodePropertyValues map[string][]string `json:"allowed_node_property_values,omitempty"`
+}
+
+// RequiredSelfLoop is a bounded assertion on the count of (n:Label
+// {NodeProperty: NodePropertyValue})-[:Relationship]->(n) self-loop edges —
+// same source and target node. Unlike RequiredCorrelation (an existence-only
+// floor), a self-loop count must be bounded on BOTH sides: a floor alone
+// cannot distinguish "genuine recursion survives" from "a declaration-vs-
+// call-site bug (eshu-hq/eshu#5332) reintroduced a spurious self-loop per
+// declaration", since both push the count up. NodeProperty/NodePropertyValue
+// scope the match to one language/family sharing a node label (e.g. Function)
+// so one language's self-loop count is not conflated with another's.
+type RequiredSelfLoop struct {
+	ID                string `json:"id"`
+	Description       string `json:"description"`
+	Label             string `json:"label"`
+	Relationship      string `json:"relationship"`
+	NodeProperty      string `json:"node_property"`
+	NodePropertyValue string `json:"node_property_value"`
+	MinimumCount      int64  `json:"minimum_count"`
+	MaximumCount      int64  `json:"maximum_count"`
 }
 
 // DrainAssertions captures the B-7(a) queue-drain gate: both queues must reach a

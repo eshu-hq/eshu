@@ -85,6 +85,22 @@ exactly as before. A missing or un-normalized property fails the gate with a
 message naming the verb/label, the property, and the offending/short count — so a
 provenance regression can no longer pass silently.
 
+## Self-loop assertions (per-language recursion truth)
+
+`required_self_loops` (issue #5349) pins the count of
+`(n:Label {node_property: node_property_value})-[:Relationship]->(n)`
+self-loop edges — same source and target node — to a closed
+`[minimum_count, maximum_count]` range, not a floor. A floor-only assertion
+cannot tell "genuine recursion survives" apart from "a declaration was
+misclassified as a call to itself" (the [#5332](https://github.com/eshu-hq/eshu/issues/5332)
+class of bug): both push the observed count up. `node_property`/
+`node_property_value` (e.g. `language`/`dart`) scope the match to one
+language sharing a node label such as `Function`, so one language's
+self-loop count is never conflated with another's. See
+`sl-dart-calls-recursion` in the committed snapshot, pinned exactly at 2
+against `tests/fixtures/ecosystems/dart_comprehensive/calls.dart`'s
+arrow-form and block-form recursive self-calls.
+
 ## Query shapes
 
 `query_shapes.http` supports bounded `GET` reads and read-style `POST` queries

@@ -47,6 +47,12 @@ type graphCounter interface {
 	// ListNodeProperty returns the value of property prop for every node carrying
 	// label. A null/absent or non-string property yields "".
 	ListNodeProperty(ctx context.Context, label, prop string) ([]string, error)
+	// CountSelfLoopEdges returns the number of (n:label {property: value})
+	// -[r:relationship]->(n) self-loop edges — same source and target node. Used
+	// to pin per-language recursion truth (e.g. Function{language:"dart"} CALLS
+	// itself) distinctly from a spurious declaration-vs-call-site self-loop (see
+	// RequiredSelfLoop).
+	CountSelfLoopEdges(ctx context.Context, label, relationship, property, value string) (int64, error)
 }
 
 // boltGraphCounter runs counts over the shared Bolt driver used by every Eshu
@@ -213,6 +219,38 @@ func (b *boltGraphCounter) ListNodeProperty(ctx context.Context, label, prop str
 	return out, nil
 }
 
+// CountSelfLoopEdges implements graphCounter: it counts (n:label {property:
+// value})-[r:relationship]->(n) self-loop edges, reusing the SAME bound node
+// variable as both the source and target of the pattern — the standard Cypher
+// shape for a self-loop match. property/value are node property scoping (e.g.
+// language="dart") so a shared label like Function does not conflate one
+// language's self-loop count with another's; value is passed as a query
+// parameter (not interpolated), only label/relationship/property are validated
+// against identRE and interpolated, matching the other Count* methods' safety
+// posture.
+func (b *boltGraphCounter) CountSelfLoopEdges(ctx context.Context, label, relationship, property, value string) (int64, error) {
+	for _, id := range []string{label, relationship, property} {
+		if !identRE.MatchString(id) {
+			return 0, fmt.Errorf("unsafe self-loop identifier %q", id)
+		}
+	}
+	result, err := neo4j.ExecuteQuery(ctx, b.driver,
+		fmt.Sprintf("MATCH (n:%s {%s: $value})-[r:%s]->(n) RETURN count(r) AS c", label, property, relationship),
+		map[string]any{"value": value},
+		neo4j.EagerResultTransformer, neo4j.ExecuteQueryWithDatabase(b.db))
+	if err != nil {
+		return 0, fmt.Errorf("execute self-loop count query: %w", err)
+	}
+	if len(result.Records) == 0 {
+		return 0, nil
+	}
+	val, _, err := neo4j.GetRecordValue[int64](result.Records[0], "c")
+	if err != nil {
+		return 0, fmt.Errorf("read self-loop count column: %w", err)
+	}
+	return val, nil
+}
+
 // boltPropertyString coerces a Bolt-decoded property value to a string for the
 // gate's presence/value checks. A null, absent, or non-string value yields ""
 // (treated as absent), which is conservative: a property the gate expects to be a
@@ -295,6 +333,23 @@ func checkRequiredNodeAssertions(ctx context.Context, c graphCounter, nodes []Re
 	return nil
 }
 
+// checkRequiredSelfLoops evaluates the snapshot's RequiredSelfLoops: the count
+// of (n:Label {NodeProperty: NodePropertyValue})-[:Relationship]->(n) self-loop
+// edges must fall within [MinimumCount, MaximumCount]. Always required
+// (unconditionally blocking), matching checkRequiredNodeAssertions — a
+// self-loop bound is corpus-size independent, not a tolerance calibrated to the
+// 20-repo corpus scale.
+func checkRequiredSelfLoops(ctx context.Context, c graphCounter, selfLoops []RequiredSelfLoop, r *Report) error {
+	for _, rsl := range selfLoops {
+		count, err := c.CountSelfLoopEdges(ctx, rsl.Label, rsl.Relationship, rsl.NodeProperty, rsl.NodePropertyValue)
+		if err != nil {
+			return fmt.Errorf("count self-loop edges %s: %w", rsl.ID, err)
+		}
+		r.Add(EvaluateRequiredSelfLoop(rsl, count))
+	}
+	return nil
+}
+
 // checkGraph runs every B-7(b) graph assertion: required correlations and
 // node/edge count tolerances. blockingCorrelations names the correlation IDs
 // that fail the gate (the rest are advisory). requiredOnly limits the run to the
@@ -328,6 +383,12 @@ func checkGraph(ctx context.Context, c graphCounter, snap Snapshot, requiredOnly
 	// independent like correlations, so they run in both the minimal and full
 	// gate, before the requiredOnly early return.
 	if err := checkRequiredNodeAssertions(ctx, c, snap.Graph.RequiredNodes, r); err != nil {
+		return err
+	}
+	// Required self-loop bounds are likewise corpus-size independent (they pin a
+	// specific fixture's known-closed recursion set, not a scale tolerance), so
+	// they also run before the requiredOnly early return.
+	if err := checkRequiredSelfLoops(ctx, c, snap.Graph.RequiredSelfLoops, r); err != nil {
 		return err
 	}
 	if requiredOnly {

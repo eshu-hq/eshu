@@ -116,6 +116,8 @@ type fakeCounter struct {
 	// matching (evidence-narrowed) edge ("" = absent). nodeProp keys "label|prop".
 	edgeProp map[string][]string
 	nodeProp map[string][]string
+	// selfLoop keys "label|relationship|property|value" -> self-loop edge count.
+	selfLoop map[string]int64
 	err      error
 }
 
@@ -141,6 +143,20 @@ func (f fakeCounter) ListCorrelationEdgeProperty(_ context.Context, from, rel, t
 
 func (f fakeCounter) ListNodeProperty(_ context.Context, label, prop string) ([]string, error) {
 	return f.nodeProp[label+"|"+prop], f.err
+}
+
+func (f fakeCounter) CountSelfLoopEdges(_ context.Context, label, relationship, property, value string) (int64, error) {
+	return f.selfLoop[label+"|"+relationship+"|"+property+"|"+value], f.err
+}
+
+// dartSelfLoopFloor seeds the unconditionally-asserted required_self_loops
+// exact bound (sl-dart-calls-recursion, issue #5349) so a minimal-gate test can
+// satisfy the snapshot's required self-loops while focusing on its own
+// assertion. The pinned count of 2 mirrors tests/fixtures/ecosystems/
+// dart_comprehensive/calls.dart's recursionFib + recursionFact self-calls (see
+// testdata/golden/e2e-20repo-snapshot.json).
+func dartSelfLoopFloor() map[string]int64 {
+	return map[string]int64{"Function|CALLS|language|dart": 2}
 }
 
 // fileLanguageFloor seeds every unconditionally-asserted required_nodes floor
@@ -203,6 +219,7 @@ func TestCheckGraphRequiredOnlyPassesOnExistence(t *testing.T) {
 		},
 		nodes:    nodes,
 		nodeProp: nodeProp,
+		selfLoop: dartSelfLoopFloor(),
 	}
 	var r Report
 	if err := checkGraph(context.Background(), c, snap, true, map[string]bool{"rc-1": true, "rc-3": true}, &r); err != nil {
@@ -227,6 +244,7 @@ func TestCheckGraphAdvisoryCorrelationDoesNotBlock(t *testing.T) {
 		},
 		nodes:    nodes,
 		nodeProp: nodeProp,
+		selfLoop: dartSelfLoopFloor(),
 	}
 	var r Report
 	if err := checkGraph(context.Background(), c, snap, true, map[string]bool{"rc-1": true, "rc-3": true}, &r); err != nil {

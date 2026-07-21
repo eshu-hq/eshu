@@ -201,6 +201,27 @@ func EvaluateRequiredNode(rn RequiredNode, count int64) Finding {
 	}
 }
 
+// EvaluateRequiredSelfLoop produces a required finding asserting the number of
+// (n:Label {NodeProperty: NodePropertyValue})-[:Relationship]->(n) self-loop
+// edges falls within [MinimumCount, MaximumCount]. Unlike
+// EvaluateRequiredCorrelation (an existence-only floor), this bounds both
+// sides: it is how the gate pins that a language's genuine recursive self-calls
+// survive (the floor) while a re-introduced declaration-vs-call-site self-loop
+// bug (eshu-hq/eshu#5332) — which inflates the SAME count, one spurious
+// self-loop per declaration — fails the gate instead of silently passing a
+// floor-only check.
+func EvaluateRequiredSelfLoop(rsl RequiredSelfLoop, count int64) Finding {
+	return Finding{
+		Phase:    "graph",
+		Check:    rsl.ID,
+		OK:       count >= rsl.MinimumCount && count <= rsl.MaximumCount,
+		Required: true,
+		Detail: fmt.Sprintf("(%s {%s=%q})-[:%s]->(self) count=%d, want [%d,%d]",
+			rsl.Label, rsl.NodeProperty, rsl.NodePropertyValue, rsl.Relationship,
+			count, rsl.MinimumCount, rsl.MaximumCount),
+	}
+}
+
 // EvaluateNodePresent produces a required finding asserting at least one node of
 // label exists. This is the minimal "the pipeline projected something to the
 // graph" smoke check — it holds for any non-empty corpus while the richer
