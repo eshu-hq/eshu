@@ -1,10 +1,10 @@
 {
   "schema_version": "1",
   "corpus_id": "supply-chain-demo-20repo",
-  "description": "Golden graph and query truth snapshot for the B-7 end-to-end corpus gate. B-7 diffs a live run against this file. Update this file under review when intentional graph behaviour changes; never update silently.",
+  "description": "Golden graph and query truth snapshot for the B-7 end-to-end corpus gate. B-7 diffs a live run against this file. Update this file under review when intentional graph behaviour changes; never update silently. `corpus_id` is a stable identifier (its historical `-20repo` suffix is not a live count); `corpus_composition.git_repos` is the authoritative repository count.",
   "tolerance_policy": "count ranges are [min, max] inclusive; a live run outside the range fails B-7(b). required_correlations assertions must all pass; a missing edge fails B-7(b). query_shapes define required response fields; a missing field fails B-7(c).",
   "corpus_composition": {
-    "git_repos": 22,
+    "git_repos": 24,
     "credentialed_collectors": [
       "kubernetes_live",
       "aws_cloud",
@@ -23,12 +23,12 @@
       "Repository": {
         "min": 15,
         "max": 30,
-        "note": "20 corpus repos; may include additional discovered mirror stubs"
+        "note": "24 corpus repos; may include additional discovered mirror stubs"
       },
       "File": {
         "min": 40,
         "max": 20000,
-        "note": "all source files parsed across the deterministic 20-repo corpus (observed 78); floor catches a major projection drop (e.g. #4019), ceiling stays wide for parser growth"
+        "note": "all source files parsed across the deterministic corpus (observed 78); floor catches a major projection drop (e.g. #4019), ceiling stays wide for parser growth"
       },
       "Function": {
         "min": 100,
@@ -4997,6 +4997,108 @@
           "truth.basis": "hybrid",
           "data.coverage.query_shape": "bounded_dead_code_investigation",
           "data.language_maturity.go": "derived"
+        }
+      },
+      "POST /api/v0/code/dead-code/investigate?golden_scope=ruby_rails_app": {
+        "description": "#5378 Detector 1 (Ruby Rails route-handler) golden discrimination. WidgetsController#index is rooted, so it is suppressed as a modeled root; the LegacyReportsController#generate foil is downgraded (not a route), so it must surface as a cleanup_ready dead-code candidate. The two object-matches are closed on (name, classification): over-rooting the foil moves generate out of cleanup_ready and fails the gate (false-positive guard); under-rooting the real handler moves index out of suppressed and fails the gate (false-negative guard). The golden_scope query arg only disambiguates this snapshot key; the handler reads repo_id from the body and ignores the query string. Content-store-only detector: no reducer/graph edge, so no Ifa materialized-edge row applies.",
+        "envelope": true,
+        "request_body": {
+          "repo_id": "ruby_rails_app",
+          "language": "ruby",
+          "limit": 50,
+          "offset": 0
+        },
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "required_json_values": {
+          "truth.level": "derived",
+          "truth.basis": "hybrid",
+          "data.coverage.query_shape": "bounded_dead_code_investigation"
+        },
+        "required_json_object_matches": {
+          "data.candidate_buckets.cleanup_ready[]": [
+            {
+              "name": "generate",
+              "classification": "unused"
+            }
+          ],
+          "data.candidate_buckets.suppressed[]": [
+            {
+              "name": "index",
+              "classification": "excluded"
+            }
+          ]
+        }
+      },
+      "POST /api/v0/code/dead-code/investigate?golden_scope=swift_vapor_app": {
+        "description": "#5378 Detector 2 (Swift Vapor route-handler) golden discrimination. routes.swift has import Vapor, so its use: healthCheck handler is rooted (swift.vapor_route_handler) and suppressed as a modeled root; plain.swift carries the identical use: shape without import Vapor, so its statusReport handler must NOT be rooted and must surface as a cleanup_ready dead-code candidate. The object-matches are closed on (name, classification): rooting the foil (dropping the per-file import Vapor gate) moves statusReport out of cleanup_ready and fails (false-positive guard); losing the healthCheck root moves it out of suppressed and fails (false-negative guard). golden_scope disambiguates the key only; repo_id comes from the body. Content-store-only detector: no reducer/graph edge, so no Ifa materialized-edge row applies.",
+        "envelope": true,
+        "request_body": {
+          "repo_id": "swift_vapor_app",
+          "language": "swift",
+          "limit": 50,
+          "offset": 0
+        },
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "required_json_values": {
+          "truth.level": "derived",
+          "truth.basis": "hybrid",
+          "data.coverage.query_shape": "bounded_dead_code_investigation"
+        },
+        "required_json_object_matches": {
+          "data.candidate_buckets.cleanup_ready[]": [
+            {
+              "name": "statusReport",
+              "classification": "unused"
+            }
+          ],
+          "data.candidate_buckets.suppressed[]": [
+            {
+              "name": "healthCheck",
+              "classification": "excluded"
+            }
+          ]
+        }
+      },
+      "POST /api/v0/code/dead-code/investigate?golden_scope=jenkins-ci-pipelines": {
+        "description": "#5378 Detector 3 (Jenkins Groovy pipeline entrypoint) golden discrimination. The Jenkinsfile pipeline entrypoint is rooted (groovy.jenkins_pipeline_entrypoint) and suppressed as a modeled root; the src/DeployHelper.groovy foil is an ordinary Groovy source file (not a Jenkins artifact), so its deployApp method, though it calls pipelineDeploy(, gets no dead_code_root_kind and must surface as an ambiguous (derived_candidate_only) dead-code candidate. The object-matches are closed on (name, classification): rooting the foil moves deployApp out of ambiguous and fails (false-positive guard); losing the Jenkinsfile root moves it out of suppressed and fails (false-negative guard). golden_scope disambiguates the key only; repo_id comes from the body. Content-store-only detector: no reducer/graph edge, so no Ifa materialized-edge row applies.",
+        "envelope": true,
+        "request_body": {
+          "repo_id": "jenkins-ci-pipelines",
+          "language": "groovy",
+          "limit": 50,
+          "offset": 0
+        },
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "required_json_values": {
+          "truth.level": "derived",
+          "truth.basis": "hybrid",
+          "data.coverage.query_shape": "bounded_dead_code_investigation"
+        },
+        "required_json_object_matches": {
+          "data.candidate_buckets.ambiguous[]": [
+            {
+              "name": "deployApp",
+              "classification": "derived_candidate_only"
+            }
+          ],
+          "data.candidate_buckets.suppressed[]": [
+            {
+              "name": "Jenkinsfile",
+              "classification": "excluded"
+            }
+          ]
         }
       },
       "POST /api/v0/code/dead-code/cross-repo": {
