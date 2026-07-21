@@ -90,9 +90,22 @@ async function assertDiscoveryRoute404(ctx: ShapeAContext): Promise<string> {
 }
 
 // assertMcpToolCallRowFiltered drives a full initialize -> tools/list ->
-// tools/call round trip authenticated with a personal token, asserting 200s
-// and that the tool catalog is genuinely non-empty (proving auth actually let
-// the call through, not merely that the transport accepted the credential).
+// tools/call round trip authenticated with the personal token, asserting
+// 200s, a genuinely non-empty tool catalog (proving auth let the call
+// through, not merely that the transport accepted the credential), and a
+// well-formed (bounded) tool result.
+//
+// It does NOT assert the personal token SEES any repository: a personal
+// identity token resolves to AuthModeScoped with an EMPTY repository/scope
+// grant (go/internal/scopedtoken/identity.go — no AllScopes), so
+// repositoryAccessFilterFromContext fail-closes it to zero rows regardless of
+// corpus (verified live). The non-vacuous row-filter proof — an AllScopes
+// cookie session seeing the seeded node while this scoped bearer sees zero —
+// lives in the leakage module, which has both credentials on hand. (This
+// replaces an earlier assertion that filtered rows by a `tenant_id` field:
+// repositories carry no tenant_id, only id/name, so that check both passed
+// vacuously and probed a nonexistent field — the isolation dimension is the
+// scoped repository/scope grant, not tenant.)
 async function assertMcpToolCallRowFiltered(ctx: ShapeAContext, token: string): Promise<string> {
   const init = await mcpInitialize(ctx.mcpBase, token);
   if (init.httpStatus !== 200) {
@@ -106,22 +119,16 @@ async function assertMcpToolCallRowFiltered(ctx: ShapeAContext, token: string): 
   if (toolsArray.length === 0) {
     throw new Error(`tools/list returned zero tools authenticated with a personal token: ${list.bodyText}`);
   }
-  const call = await mcpToolsCall(ctx.mcpBase, "list_indexed_repositories", { limit: 10, offset: 0 }, token);
+  const call = await mcpToolsCall(ctx.mcpBase, "list_indexed_repositories", { limit: 50, offset: 0 }, token);
   if (call.httpStatus !== 200) {
     throw new Error(`tools/call list_indexed_repositories expected 200, got ${call.httpStatus}: ${call.bodyText}`);
   }
   const parsed = extractToolCallStructuredContent(call) as {
-    repositories?: readonly { tenant_id?: string }[];
+    repositories?: readonly { id?: string }[];
     total?: number;
   };
   const rows = parsed.repositories ?? [];
-  const foreignTenantRows = rows.filter((row) => row.tenant_id !== undefined && row.tenant_id !== "default");
-  if (foreignTenantRows.length > 0) {
-    throw new Error(
-      `list_indexed_repositories row-filter leak: ${foreignTenantRows.length} row(s) outside tenant "default"`,
-    );
-  }
-  return `${toolsArray.length} tools listed; list_indexed_repositories returned ${rows.length} row(s) (total=${parsed.total ?? 0}), none outside tenant "default"`;
+  return `${toolsArray.length} tools listed; scoped personal token's list_indexed_repositories returned ${rows.length} row(s) (total=${parsed.total ?? 0})`;
 }
 
 // assertAllowedReadAuditRecorded polls governance_audit_events (bounded, the

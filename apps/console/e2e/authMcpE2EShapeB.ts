@@ -23,6 +23,7 @@ import type { AuthE2EStep } from "./authE2EStepRecorder.ts";
 import { mcpInitialize, mcpToolsList } from "./authMcpE2EJsonRpc.ts";
 import {
   assertScriptedTokenWorksAgainstMcp,
+  mintJwtFromMockIdp,
   rewriteInNetworkHost,
   runScriptedOAuthClient,
   type HostRewriteTable,
@@ -66,54 +67,18 @@ async function pollForDiscoveryEnabled(
   throw new Error(`discovery never flipped to 200 within ${deadlineMs}ms (last status ${lastStatus})`);
 }
 
-// mintJwtFromMockIdp drives one authorize+token round trip against
-// mockIdpBase (either the main, registered mock-oidc-idp or the SECOND,
-// never-registered mock-oidc-idp-admin instance), threading resource so the
-// mock mints a JWT access token (go/cmd/mock-oidc-idp's RFC 8707
-// resource-triggered mint) rather than the byte-stable opaque default.
-async function mintJwtFromMockIdp(
-  mockIdpBase: string,
-  resource: string,
-): Promise<string> {
-  // Relative-URL resolution (new URL("authorize", base)), not string
-  // concatenation: mockIdpBase can already carry a trailing slash (e.g.
-  // rewriteInNetworkHost round-trips through `new URL(...).toString()`,
-  // which normalizes a path-less origin to "http://host:port/"), and
-  // `${base}/authorize` would then produce a DOUBLE slash. net/http's
-  // ServeMux redirects a doubled-slash path to its cleaned form, so
-  // `redirect:"manual"` was catching THAT redirect instead of the real
-  // authorize-with-code one — caught live: the "code" ended up literally
-  // being the request's own query string echoed back.
-  const authorizeURL = new URL("authorize", mockIdpBase);
-  authorizeURL.searchParams.set("response_type", "code");
-  authorizeURL.searchParams.set("client_id", "eshu-mcp-e2e-negative-probe");
-  authorizeURL.searchParams.set("redirect_uri", "http://127.0.0.1:0/negative-probe-callback");
-  authorizeURL.searchParams.set("resource", resource);
-  const authorizeRes = await fetch(authorizeURL, { redirect: "manual" });
-  const location = authorizeRes.headers.get("Location");
-  if (!location) {
-    throw new Error(
-      `mintJwtFromMockIdp: authorize against ${authorizeURL.toString()} carried no redirect Location (status ${authorizeRes.status})`,
-    );
-  }
-  const code = new URL(location, "http://127.0.0.1:0/").searchParams.get("code");
-  if (!code) {
-    throw new Error(`mintJwtFromMockIdp: authorize redirect carried no code: ${location}`);
-  }
-  const tokenURL = new URL("token", mockIdpBase);
-  const tokenRes = await fetch(tokenURL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ grant_type: "authorization_code", code, resource }),
-  });
-  if (!tokenRes.ok) {
-    throw new Error(`mintJwtFromMockIdp: token exchange against ${mockIdpBase} returned ${tokenRes.status}`);
-  }
-  const body = (await tokenRes.json()) as { access_token?: string };
-  if (!body.access_token) {
-    throw new Error(`mintJwtFromMockIdp: token response carried no access_token`);
-  }
-  return body.access_token;
+// runShapeB returns the OAuth-minted bearer access token (member group ->
+// "owner" role -> empty repository grant, so AllScopes=false), which the
+// negative-leakage module reuses as its SCOPED credential for the non-vacuous
+// row-filter proof (design §5). It also returns the SSO-admin browser context
+// (external_oidc_user, AllScopes) LEFT OPEN: that session SURVIVES the
+// require_sso flip (unlike the wizard-admin local session, which the flip
+// revokes), so it is the only live AllScopes reader the leakage module can use
+// for the "AllScopes sees the seeded repo" half of the row-filter proof. The
+// runner closes it after the leakage module finishes.
+export interface ShapeBResult {
+  readonly scopedBearer: string;
+  readonly ssoAdminContext: Awaited<ReturnType<Browser["newContext"]>>;
 }
 
 export async function runShapeB(
@@ -121,7 +86,7 @@ export async function runShapeB(
   adminPage: Page,
   ctx: ShapeBContext,
   personalToken: string,
-): Promise<void> {
+): Promise<ShapeBResult> {
   await step("shapeB_admin_drawer_provider_crud", async () => {
     await driveAddOidcProviderViaUI(adminPage, {
       issuer: memberOidcIssuer,
@@ -294,13 +259,16 @@ export async function runShapeB(
   });
 
   await step("shapeB_sso_admin_session_survives_flip", async () => {
-    // Final sanity read proving the SSO-admin session that performed the
-    // flip is itself still usable, then closes its context explicitly.
+    // Final sanity read proving the SSO-admin session that performed the flip
+    // is itself still usable. The context is NOT closed here — the leakage
+    // module reuses it as the AllScopes reader (see ShapeBResult); the runner
+    // closes it after leakage finishes.
     const result = await apiFetchInPage(ssoAdminContext!.pages()[0]!, "GET", "/api/v0/auth/admin/sign-in-policy");
     if (result.status !== 200) {
       throw new Error(`SSO-admin session read after the flip expected 200, got ${result.status}`);
     }
-    if (ssoAdminContext) await ssoAdminContext.close();
     return "SSO-admin session remained valid through the flip it performed";
   });
+
+  return { scopedBearer: oauthAccessToken, ssoAdminContext: ssoAdminContext! };
 }

@@ -201,6 +201,51 @@ export async function runScriptedOAuthClient(
   };
 }
 
+// mintJwtFromMockIdp drives one authorize+token round trip against a mock IdP
+// (either the registered member mock-oidc-idp or the never-registered
+// mock-oidc-idp-admin), threading `resource` so the mock mints a JWT access
+// token (go/cmd/mock-oidc-idp's RFC 8707 resource-triggered mint) rather than
+// its byte-stable opaque default. Shared by shape B's precedence probes and
+// the negative-leakage distinct-denial matrix.
+//
+// Relative-URL resolution (new URL("authorize", base)), never string
+// concatenation: a rewriteInNetworkHost base can carry a trailing slash (its
+// `new URL(...).toString()` normalizes a path-less origin to "…:port/"), and
+// `${base}/authorize` would then double the slash, which net/http's ServeMux
+// redirects to its cleaned form — so `redirect:"manual"` would catch THAT
+// redirect instead of the real authorize-with-code one.
+export async function mintJwtFromMockIdp(mockIdpBase: string, resource: string): Promise<string> {
+  const authorizeURL = new URL("authorize", mockIdpBase);
+  authorizeURL.searchParams.set("response_type", "code");
+  authorizeURL.searchParams.set("client_id", "eshu-mcp-e2e-negative-probe");
+  authorizeURL.searchParams.set("redirect_uri", "http://127.0.0.1:0/negative-probe-callback");
+  authorizeURL.searchParams.set("resource", resource);
+  const authorizeRes = await fetch(authorizeURL, { redirect: "manual" });
+  const location = authorizeRes.headers.get("Location");
+  if (!location) {
+    throw new Error(
+      `mintJwtFromMockIdp: authorize against ${authorizeURL.toString()} carried no redirect Location (status ${authorizeRes.status})`,
+    );
+  }
+  const code = new URL(location, "http://127.0.0.1:0/").searchParams.get("code");
+  if (!code) {
+    throw new Error(`mintJwtFromMockIdp: authorize redirect carried no code: ${location}`);
+  }
+  const tokenRes = await fetch(new URL("token", mockIdpBase), {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "authorization_code", code, resource }),
+  });
+  if (!tokenRes.ok) {
+    throw new Error(`mintJwtFromMockIdp: token exchange against ${mockIdpBase} returned ${tokenRes.status}`);
+  }
+  const body = (await tokenRes.json()) as { access_token?: string };
+  if (!body.access_token) {
+    throw new Error("mintJwtFromMockIdp: token response carried no access_token");
+  }
+  return body.access_token;
+}
+
 // assertScriptedTokenWorksAgainstMcp drives step 6: a tools/call authenticated
 // with the scripted client's minted bearer token must succeed (200) and
 // return real structured content — proving the OAuth-minted token is a

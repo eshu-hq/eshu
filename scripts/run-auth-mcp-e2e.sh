@@ -119,5 +119,6 @@ ESHU_E2E_API_BASE="$api_base" \
   ESHU_E2E_MOCK_OIDC_PORT="$mock_oidc_port" \
   ESHU_E2E_MOCK_OIDC_ADMIN_PORT="$mock_oidc_admin_port" \
   ESHU_E2E_MOCK_GITHUB_PORT="$mock_github_port" \
+  ESHU_E2E_NORNICDB_HTTP_PORT="$nornicdb_http_port" \
   ESHU_E2E_MCP_MODULE="$runner_module" \
   node scripts/auth-mcp-e2e-runtime.mjs

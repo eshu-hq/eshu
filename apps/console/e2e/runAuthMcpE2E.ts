@@ -38,6 +38,8 @@ import { startAuthE2EDevServer, stopAuthE2EDevServer, type AuthE2EDevServer } fr
 import { assertFreshStackShowsSetupWizard, driveSetupWizard } from "./authE2ESetupWizard.ts";
 import { recordAuthE2EStep, type StepResult } from "./authE2EStepRecorder.ts";
 import { chromiumLaunchArgsWithGithub, runShapeC } from "./authMcpE2EGithubFlow.ts";
+import { SEEDED_REPOSITORY_ID, seedGraphRepository } from "./authMcpE2EGraphSeed.ts";
+import { assertCredentialLessProbesDoNotLeak, runLeakageSuite } from "./authMcpE2ELeakage.ts";
 import type { HostRewriteTable } from "./authMcpE2EOauthClient.ts";
 import { runShapeB, type ShapeBContext } from "./authMcpE2EShapeB.ts";
 import { runShapeA, type ShapeAContext } from "./authMcpE2ETokenFlow.ts";
@@ -69,6 +71,8 @@ const navTimeoutMs = 30000;
 const mockOidcPort = (process.env.ESHU_E2E_MOCK_OIDC_PORT ?? "29090").trim();
 const mockOidcAdminPort = (process.env.ESHU_E2E_MOCK_OIDC_ADMIN_PORT ?? "29091").trim();
 const mockGithubPort = (process.env.ESHU_E2E_MOCK_GITHUB_PORT ?? "29092").trim();
+const nornicHttpPort = (process.env.ESHU_E2E_NORNICDB_HTTP_PORT ?? "29474").trim();
+const nornicHttpBase = `http://127.0.0.1:${nornicHttpPort}`;
 const wizardNewPassword = "E2E-auth-mcp-runner-P@ssw0rd-1";
 const selectedModule = (process.env.ESHU_E2E_MCP_MODULE ?? "").trim();
 
@@ -88,6 +92,29 @@ export async function runAuthMcpE2E(): Promise<number> {
   process.stdout.write(`auth-mcp-e2e: api base ${apiBase}; mcp base ${mcpBase}\n`);
   if (selectedModule !== "") {
     process.stdout.write(`auth-mcp-e2e: ESHU_E2E_MCP_MODULE=${selectedModule} — running only that module\n`);
+  }
+
+  // Fast standalone path for the mutation-sensitivity gate (step 8): the
+  // credential-less negative probes need no browser, wizard, token, or shape
+  // state — only a live mcp-server + API. Skipping the ~10s browser/wizard
+  // bootstrap keeps the mutated re-run cheap (a few seconds), and against a
+  // mutated (allow-unauthenticated) mcp-server this module FAILS with a
+  // non-zero exit — the inverted-exit signal the sensitivity script asserts.
+  if (selectedModule === "credentialless") {
+    await step("leakage_credentialless_probes_do_not_leak", () =>
+      assertCredentialLessProbesDoNotLeak({ mcpBase, apiBase, repoRoot, project: composeProject, hostRewrite: {} }),
+    );
+    const failedCl = results.filter((r) => r.status === "fail");
+    const totalMsCl = Date.now() - runStart;
+    await writeFile(
+      reportPath,
+      JSON.stringify({ apiBase, mcpBase, module: selectedModule, totalMs: totalMsCl, results }, null, 2),
+      "utf8",
+    );
+    process.stdout.write(
+      `auth-mcp-e2e: ${results.length - failedCl.length}/${results.length} steps passed in ${totalMsCl}ms; report ${reportPath}\n`,
+    );
+    return failedCl.length > 0 ? 1 : 0;
   }
 
   let devServer: AuthE2EDevServer | undefined;
@@ -141,6 +168,17 @@ export async function runAuthMcpE2E(): Promise<number> {
       "mock-github:8080": `127.0.0.1:${mockGithubPort}`,
     };
 
+    // Seed ONE Repository node into the graph (NornicDB) BEFORE shape A, so
+    // the AllScopes row-filter reads are non-vacuous (a zero-corpus stack has
+    // nothing to filter). See authMcpE2EGraphSeed.ts for why a graph seed —
+    // list_indexed_repositories is graph-backed here, not psql-backed, so the
+    // design's "psql cross-tenant seed" wording is adapted to a graph seed,
+    // and the real isolation dimension is scope grant, not tenant.
+    await step("seed_graph_repository", async () => {
+      await seedGraphRepository(nornicHttpBase, SEEDED_REPOSITORY_ID);
+      return `seeded Repository node ${SEEDED_REPOSITORY_ID} into NornicDB (${nornicHttpBase})`;
+    });
+
     const shapeCtx: ShapeBContext = {
       browser,
       baseUrl: devServer.baseUrl,
@@ -158,6 +196,8 @@ export async function runAuthMcpE2E(): Promise<number> {
     };
 
     let personalToken = "";
+    let scopedBearer = "";
+    let ssoAdminContext: Awaited<ReturnType<Browser["newContext"]>> | undefined;
     if (moduleSelected("shapeA")) {
       personalToken = await runShapeA(step, adminPage, shapeCtx as ShapeAContext);
     }
@@ -165,7 +205,23 @@ export async function runAuthMcpE2E(): Promise<number> {
       await runShapeC(step, adminPage, shapeCtx, personalToken);
     }
     if (moduleSelected("shapeB")) {
-      await runShapeB(step, adminPage, shapeCtx, personalToken);
+      const shapeBResult = await runShapeB(step, adminPage, shapeCtx, personalToken);
+      scopedBearer = shapeBResult.scopedBearer;
+      ssoAdminContext = shapeBResult.ssoAdminContext;
+    }
+    // The negative-leakage module runs LAST: it needs the OIDC provider active
+    // (shape B) for the denial matrix, shape A's scoped personal token and
+    // shape B's scoped OAuth bearer, and shape B's surviving AllScopes
+    // SSO-admin session for the non-vacuous row-filter proof.
+    if (moduleSelected("leakage") && ssoAdminContext) {
+      await runLeakageSuite(
+        step,
+        { mcpBase, apiBase, repoRoot, project: composeProject, hostRewrite },
+        { personalToken, scopedBearer, ssoAdminPage: ssoAdminContext.pages()[0]! },
+      );
+    }
+    if (ssoAdminContext) {
+      await ssoAdminContext.close();
     }
 
     const failed = results.filter((r) => r.status === "fail");
