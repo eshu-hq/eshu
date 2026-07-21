@@ -14,22 +14,40 @@ import (
 const handlerQueryplanRegisteredCloudResourceListVariant = "cloud-resource-list/resource-type"
 
 const (
-	handlerQueryplanSafeVariantFamilySHA256       = "e82b7d7dc386f1b785a704d24a436365d1ee4f220b0f8a3cd42e8acc12b824e8"
+	handlerQueryplanSafeVariantFamilySHA256       = "30ba4d1a4e950dcf7725810c8764847509d524d2f07ed65bdf4a031988bc219d"
 	entityNameSearchQueryplanVariantFamilySHA256  = "4d4f47c1555b8a42caa91d20a5971902fc19b6ef65d3c77440f9be5df4333ef5"
 	entityNameSearchQueryplanBuilderSourceSHA256  = "3057a508e8b5acf4e07b4d5567b00dbf5e900b360eed82b3102f358e2a1e1523"
 	entityNameSearchQueryplanExpectedVariantCount = 17
+	resourceSelectorQueryplanExpectedVariantCount = 336
 )
 
 func TestHandlerQueryplanProductionVariantFamiliesStayExplicit(t *testing.T) {
 	t.Parallel()
 
 	safe := handlerQueryplanSafeCypherVariants()
-	wantSafe := 13 + len(allInfraLabels)*10 + 31 + importDependencyQueryplanExpectedVariantCount
+	wantSafe := 13 + len(allInfraLabels)*10 + 31 + importDependencyQueryplanExpectedVariantCount + resourceSelectorQueryplanExpectedVariantCount
 	if got := len(safe); got != wantSafe {
 		t.Fatalf("safe production variant count = %d, want %d", got, wantSafe)
 	}
 	if got := queryplan.ProductionCypherFamilySHA256(safe); got != handlerQueryplanSafeVariantFamilySHA256 {
 		t.Fatalf("safe production variant family SHA-256 = %s, want %s; live PROFILE coverage must change with the family", got, handlerQueryplanSafeVariantFamilySHA256)
+	}
+}
+
+func TestResourceSelectorQueryplanVariantsCoverEveryReachableShape(t *testing.T) {
+	t.Parallel()
+
+	variants := resourceSelectorQueryplanVariants()
+	if got, want := len(variants), resourceSelectorQueryplanExpectedVariantCount; got != want {
+		t.Fatalf("resource selector variant count = %d, want %d", got, want)
+	}
+	for name, cypher := range variants {
+		if strings.Contains(cypher, "MATCH (n)\n") {
+			t.Errorf("resource selector variant %q contains a whole-graph match", name)
+		}
+		if !strings.HasPrefix(strings.TrimSpace(cypher), "CALL {") {
+			t.Errorf("resource selector variant %q is not label-branch anchored", name)
+		}
 	}
 }
 
@@ -214,7 +232,7 @@ func cloudResourceListQueryplanVariants() map[string]string {
 func handlerQueryplanSafeCypherVariants() map[string]string {
 	allAccess := repositoryAccessFilter{allScopes: true}
 	scopedAccess := queryplanScopedRepositoryAccess()
-	variants := make(map[string]string, 13+len(allInfraLabels)*10+31+importDependencyQueryplanExpectedVariantCount)
+	variants := make(map[string]string, 13+len(allInfraLabels)*10+31+importDependencyQueryplanExpectedVariantCount+resourceSelectorQueryplanExpectedVariantCount)
 
 	for name, cypher := range importDependencyQueryplanVariants() {
 		variants[name] = cypher
@@ -224,6 +242,9 @@ func handlerQueryplanSafeCypherVariants() map[string]string {
 		if name == handlerQueryplanRegisteredCloudResourceListVariant {
 			continue
 		}
+		variants[name] = cypher
+	}
+	for name, cypher := range resourceSelectorQueryplanVariants() {
 		variants[name] = cypher
 	}
 
@@ -289,6 +310,68 @@ func handlerQueryplanSafeCypherVariants() map[string]string {
 						selected,
 						direction,
 					)
+				}
+			}
+		}
+	}
+	return variants
+}
+
+func resourceSelectorQueryplanVariants() map[string]string {
+	variants := make(map[string]string, resourceSelectorQueryplanExpectedVariantCount)
+	accesses := []struct {
+		name   string
+		filter repositoryAccessFilter
+	}{
+		{name: "all", filter: repositoryAccessFilter{allScopes: true}},
+		{name: "scoped", filter: queryplanScopedRepositoryAccess()},
+	}
+	shapes := []struct {
+		name         string
+		resourceType string
+	}{
+		{name: "default"},
+		{name: "queue", resourceType: "queue"},
+		{name: "database", resourceType: "database"},
+		{name: "cloud", resourceType: "cloud"},
+		{name: "k8s", resourceType: "k8s"},
+		{name: "terraform", resourceType: "terraform"},
+		{name: "module", resourceType: "module"},
+	}
+	properties := []struct {
+		phase      string
+		predicates []string
+	}{
+		{phase: "exact", predicates: resourceInvestigationExactSelectorPredicates},
+		{phase: "fuzzy", predicates: resourceInvestigationFuzzySelectorPredicates},
+	}
+	for _, access := range accesses {
+		for _, shape := range shapes {
+			for _, environment := range []struct {
+				name  string
+				value string
+			}{
+				{name: "any-environment"},
+				{name: "environment", value: "proof-environment"},
+			} {
+				for _, property := range properties {
+					for index, predicate := range property.predicates {
+						req := resourceInvestigationRequest{
+							Query:        "proof",
+							ResourceType: shape.resourceType,
+							Environment:  environment.value,
+							Limit:        10,
+						}
+						name := fmt.Sprintf(
+							"resource-selector/%s/%s/%s/%s/property-%d",
+							access.name,
+							shape.name,
+							environment.name,
+							property.phase,
+							index,
+						)
+						variants[name] = resourceInvestigationSelectorPropertyCypher(req, access.filter, predicate)
+					}
 				}
 			}
 		}

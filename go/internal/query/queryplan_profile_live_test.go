@@ -28,6 +28,7 @@ const (
 func TestQueryplanBoundedAnchorOperatorPolicyIsClosed(t *testing.T) {
 	tests := map[string][]string{
 		"QP-GRAPH-ENTITY-LIST":                            {"NodeByLabelScan"},
+		"QP-RESOURCE-INVESTIGATION-SELECTOR":              {"NodeByLabelScan"},
 		"QP-RESOURCE-INVESTIGATION-WORKLOADS":             {"DirectedRelationshipTypeScan"},
 		"QP-RESOURCE-INVESTIGATION-REPO-PATHS":            {"NodeByLabelScan"},
 		"QP-CODE-REL-STORY-ANCHOR-COLLISION":              {"NodeByLabelScan"},
@@ -45,10 +46,11 @@ func TestQueryplanBoundedAnchorOperatorPolicyIsClosed(t *testing.T) {
 		}
 	}
 	variantTests := map[string][]string{
-		"cloud-resource-list/unfiltered":              {"NodeByLabelScan"},
-		"cloud-resource-list/provider+region+account": {"NodeByLabelScan"},
-		"cloud-resource-list/resource-type":           {"NodeIndexSeek", "NodeUniqueIndexSeek"},
-		"cloud-resource-list/cursor":                  {"NodeIndexSeek", "NodeUniqueIndexSeek"},
+		"cloud-resource-list/unfiltered":                                 {"NodeByLabelScan"},
+		"cloud-resource-list/provider+region+account":                    {"NodeByLabelScan"},
+		"cloud-resource-list/resource-type":                              {"NodeIndexSeek", "NodeUniqueIndexSeek"},
+		"cloud-resource-list/cursor":                                     {"NodeIndexSeek", "NodeUniqueIndexSeek"},
+		"resource-selector/all/default/any-environment/exact/property-0": {"NodeByLabelScan"},
 	}
 	for name, want := range variantTests {
 		if got := queryplanProductionVariantAnchorOperators(name); !slices.Equal(got, want) {
@@ -209,6 +211,8 @@ func queryplanProductionVariantAnchorOperators(name string) []string {
 		return []string{"DirectedRelationshipTypeScan"}
 	case strings.HasPrefix(name, "resource/") && strings.Contains(name, "/paths/"):
 		return []string{"NodeByLabelScan", "NodeIndexSeek", "NodeUniqueIndexSeek"}
+	case strings.HasPrefix(name, "resource-selector/"):
+		return []string{"NodeByLabelScan"}
 	default:
 		return []string{"NodeIndexSeek", "NodeUniqueIndexSeek"}
 	}
@@ -291,6 +295,7 @@ func queryplanProfileParams() map[string]any {
 		"resource_arn":           "arn:proof",
 		"resource_type":          "proof-type",
 		"resource_type_query":    "proof-type",
+		"selector":               "proof",
 		"semantic_filter":        "proof",
 		"service_id":             "proof-service",
 		"scan_limit":             importDependencyInternalScanLimit + 1,
@@ -365,7 +370,7 @@ func assertProfileHasBoundedAnchor(t *testing.T, entry queryplan.Entry, operator
 
 func queryplanBoundedAnchorOperators(entryID string) []string {
 	switch entryID {
-	case "QP-GRAPH-ENTITY-LIST", "QP-RESOURCE-INVESTIGATION-REPO-PATHS",
+	case "QP-GRAPH-ENTITY-LIST", "QP-RESOURCE-INVESTIGATION-SELECTOR", "QP-RESOURCE-INVESTIGATION-REPO-PATHS",
 		"QP-CODE-REL-STORY-ANCHOR-COLLISION",
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY",
 		"QP-INFRA-RESOURCE-SEARCH", "QP-INFRA-RESOURCE-AGGREGATE":

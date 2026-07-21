@@ -102,8 +102,13 @@ func TestInvestigateResourceReturnsAmbiguityWithoutTraversal(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
-	if got, want := len(graph.runCalls), 1; got != want {
-		t.Fatalf("graph Run calls = %d, want only resolver call", got)
+	if got, want := len(graph.runCalls), len(resourceInvestigationExactSelectorPredicates); got != want {
+		t.Fatalf("graph Run calls = %d, want only %d exact selector reads", got, want)
+	}
+	for _, call := range graph.runCalls {
+		if !strings.HasPrefix(strings.TrimSpace(call.cypher), "CALL {") {
+			t.Fatalf("ambiguous resolution unexpectedly traversed graph: %s", call.cypher)
+		}
 	}
 	data := decodeImpactEnvelopeData(t, w)
 	resolution := data["target_resolution"].(map[string]any)
@@ -182,11 +187,11 @@ func TestInvestigateResourceReturnsBoundedResourcePacket(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
-	if got, want := len(graph.runCalls), 5; got != want {
-		t.Fatalf("graph Run calls = %d, want resolver, workload instances, instance-of resolve, incoming paths, outgoing paths", got)
+	if got, want := len(graph.runCalls), len(resourceInvestigationExactSelectorPredicates)+4; got != want {
+		t.Fatalf("graph Run calls = %d, want exact selector fanout plus workload instances, instance-of resolve, and both path reads", got)
 	}
 	var depthQueries int
-	for i, call := range graph.runCalls[1:] {
+	for i, call := range graph.runCalls {
 		// The INSTANCE_OF workload-resolve read is bounded by the (already
 		// limited) instance-id set, not a LIMIT clause.
 		if strings.Contains(call.cypher, "-[:INSTANCE_OF]->(workload:Workload)") {
@@ -262,17 +267,27 @@ func TestInvestigateResourceResolvesExactCloudARN(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
-	if got, want := len(graph.runCalls), 4; got != want {
-		t.Fatalf("graph Run calls = %d, want resolver, workloads, incoming paths, outgoing paths", got)
+	if got, want := len(graph.runCalls), len(resourceInvestigationExactSelectorPredicates)+3; got != want {
+		t.Fatalf("graph Run calls = %d, want exact selector fanout plus workloads and both path reads", got)
 	}
-	resolverCall := graph.runCalls[0]
-	if !strings.Contains(resolverCall.cypher, "n.arn = $selector") {
-		t.Fatalf("resolver cypher does not match exact ARN selectors: %s", resolverCall.cypher)
+	var resolverCall *resourceInvestigationRunCall
+	for i := range graph.runCalls {
+		call := &graph.runCalls[i]
+		if strings.Contains(call.cypher, "coalesce(n.arn, '') = $selector") {
+			resolverCall = call
+			break
+		}
+	}
+	if resolverCall == nil {
+		t.Fatal("exact selector fanout does not include the ARN property")
 	}
 	if got, want := resolverCall.params["selector"], arn; got != want {
 		t.Fatalf("resolver selector = %#v, want %#v", got, want)
 	}
-	for i, call := range graph.runCalls[1:] {
+	for i, call := range graph.runCalls {
+		if strings.HasPrefix(strings.TrimSpace(call.cypher), "CALL {") {
+			continue
+		}
 		if !strings.Contains(call.cypher, "resource.arn = $resource_arn") {
 			t.Fatalf("section call %d cypher does not carry selected ARN: %s", i+1, call.cypher)
 		}
@@ -300,22 +315,22 @@ func TestInvestigateResourceResolvesExactCloudARN(t *testing.T) {
 func TestResourceInvestigationResolverNarrowsQueueAndDatabaseTypes(t *testing.T) {
 	t.Parallel()
 
-	queueCypher := resourceInvestigationResolverCypher(resourceInvestigationRequest{
+	queueCypher := resourceInvestigationSelectorPropertyCypher(resourceInvestigationRequest{
 		Query:        "orders",
 		ResourceType: "queue",
 		Limit:        25,
-	}, repositoryAccessFilter{allScopes: true})
+	}, repositoryAccessFilter{allScopes: true}, resourceInvestigationExactSelectorPredicates[0])
 	for _, want := range []string{"CONTAINS 'queue'", "CONTAINS 'sqs'"} {
 		if !strings.Contains(queueCypher, want) {
 			t.Fatalf("queue resolver cypher missing %q: %s", want, queueCypher)
 		}
 	}
 
-	databaseCypher := resourceInvestigationResolverCypher(resourceInvestigationRequest{
+	databaseCypher := resourceInvestigationSelectorPropertyCypher(resourceInvestigationRequest{
 		Query:        "orders",
 		ResourceType: "database",
 		Limit:        25,
-	}, repositoryAccessFilter{allScopes: true})
+	}, repositoryAccessFilter{allScopes: true}, resourceInvestigationExactSelectorPredicates[0])
 	for _, want := range []string{"CONTAINS 'database'", "CONTAINS 'rds'", "CONTAINS 'postgres'"} {
 		if !strings.Contains(databaseCypher, want) {
 			t.Fatalf("database resolver cypher missing %q: %s", want, databaseCypher)

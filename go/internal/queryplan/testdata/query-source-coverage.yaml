@@ -184,15 +184,9 @@ source_coverage:
   - file: impact_change_surface_response.go
     calls:
       - {symbol: "(*ImpactHandler).changeSurfaceImpactRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-  - file: impact_resource_investigation.go
+  - file: impact_resource_investigation_selector.go
     calls:
-      - symbol: "(*ImpactHandler).resolveResourceInvestigationTarget"
-        count: 1
-        non_hot:
-          class: keyed_support
-          source_sha256: 9b80900bf531a72f8e3afffa042686cced99595d50fc51bdef11f11ff9d8bd07
-          key_bound: single_key
-          max_results: 101
+      - {symbol: "runResourceInvestigationSelectorFanout", count: 1, source_sha256: d9db84043aeb47b46543f15a2c74b0877c9ae55ba83bc1dd53b42258edb56e60, entry_ids: [QP-RESOURCE-INVESTIGATION-SELECTOR]}
   - file: impact_resource_investigation_reads.go
     calls:
       - {symbol: "(*ImpactHandler).resourceInvestigationInstanceWorkloads", count: 1, source_sha256: 3c3cae8c5c8b8822f10a0e68fe0eb89a7e24c8a4febd5699e88e3dcf2867a442, entry_ids: [QP-RESOURCE-INVESTIGATION-INSTANCE-WORKLOADS]}

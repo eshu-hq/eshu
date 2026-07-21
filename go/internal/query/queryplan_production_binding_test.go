@@ -59,6 +59,11 @@ func handlerQueryplanProductionCypher() map[string]string {
 		Labels: []string{"CloudResource"},
 	}
 	resourceReq := resourceInvestigationRequest{MaxDepth: 3, Limit: 10}
+	resourceSelectorReq := resourceInvestigationRequest{
+		Query:        "proof-resource",
+		ResourceType: "cloud",
+		Limit:        10,
+	}
 	workloadPropertyCypher, workloadRelationshipCypher, _ := buildResolveWorkloadQueries(
 		"proof",
 		"proof-repository",
@@ -124,6 +129,11 @@ func handlerQueryplanProductionCypher() map[string]string {
 		"QP-WORKLOAD-RESOLVE-RELATIONSHIP": workloadRelationshipCypher,
 		"QP-RESOURCE-INVESTIGATION-WORKLOADS": resourceInvestigationWorkloadsCypher(
 			selectedResource,
+		),
+		"QP-RESOURCE-INVESTIGATION-SELECTOR": resourceInvestigationSelectorPropertyCypher(
+			resourceSelectorReq,
+			allAccess,
+			resourceInvestigationExactSelectorPredicates[2],
 		),
 		"QP-RESOURCE-INVESTIGATION-INSTANCE-WORKLOADS": resourceInvestigationInstanceWorkloadsCypher(),
 		"QP-RESOURCE-INVESTIGATION-REPO-PATHS": resourceInvestigationRepoPathsCypher(
