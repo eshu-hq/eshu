@@ -20,7 +20,7 @@ import (
 // helmImageOverrideEnvironmentTokens is the closed set of filename suffixes
 // helmValuesEnvironment accepts as a real deployment environment. It mirrors
 // isDeploymentEnvironmentToken
-// (go/internal/query/repository_deployment_evidence_read_model.go:331-338)
+// (go/internal/query/repository_deployment_evidence_read_model.go:349-355)
 // so the two "which words mean environment" answers agree.
 //
 // The token set is deliberately duplicated here rather than imported: the
