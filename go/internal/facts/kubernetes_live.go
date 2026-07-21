@@ -24,6 +24,14 @@ const (
 	// secret, unsupported API, or ambiguous selector. A warning reports a
 	// capability gap; it never asserts that a resource set is complete.
 	KubernetesWarningFactKind = "kubernetes_live.warning"
+	// KubernetesNamespaceFactKind identifies one live Kubernetes namespace
+	// object's metadata-only evidence, keyed by (cluster_id, namespace). It
+	// carries the namespace's labels only (never annotations, reserved for
+	// #5444) so the reducer can decide, per namespace, whether a label
+	// declares an alias-recognized environment (issue #5434). A namespace
+	// with no alias-recognized label stays environment-unbound; this fact
+	// kind never invents an environment.
+	KubernetesNamespaceFactKind = "kubernetes_live.namespace"
 
 	// KubernetesPodTemplateSchemaVersion is the first pod-template fact schema.
 	// Bumped 1.0.0 -> 1.1.0 for the additive optional resolved_image_digest field
@@ -35,18 +43,23 @@ const (
 	KubernetesRelationshipSchemaVersion = "1.0.0"
 	// KubernetesWarningSchemaVersion is the first warning fact schema.
 	KubernetesWarningSchemaVersion = "1.0.0"
+	// KubernetesNamespaceSchemaVersion is the first namespace fact schema
+	// (issue #5434).
+	KubernetesNamespaceSchemaVersion = "1.0.0"
 )
 
 var kubernetesLiveFactKinds = []string{
 	KubernetesPodTemplateFactKind,
 	KubernetesRelationshipFactKind,
 	KubernetesWarningFactKind,
+	KubernetesNamespaceFactKind,
 }
 
 var kubernetesLiveSchemaVersions = map[string]string{
 	KubernetesPodTemplateFactKind:  KubernetesPodTemplateSchemaVersion,
 	KubernetesRelationshipFactKind: KubernetesRelationshipSchemaVersion,
 	KubernetesWarningFactKind:      KubernetesWarningSchemaVersion,
+	KubernetesNamespaceFactKind:    KubernetesNamespaceSchemaVersion,
 }
 
 // KubernetesLiveFactKinds returns the accepted Kubernetes live fact kinds in

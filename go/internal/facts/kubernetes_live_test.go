@@ -12,6 +12,7 @@ func TestKubernetesLiveFactKindRegistry(t *testing.T) {
 		KubernetesPodTemplateFactKind,
 		KubernetesRelationshipFactKind,
 		KubernetesWarningFactKind,
+		KubernetesNamespaceFactKind,
 	}
 
 	gotKinds := KubernetesLiveFactKinds()
@@ -30,6 +31,7 @@ func TestKubernetesLiveFactKindRegistry(t *testing.T) {
 			KubernetesPodTemplateFactKind:  KubernetesPodTemplateSchemaVersion,
 			KubernetesRelationshipFactKind: KubernetesRelationshipSchemaVersion,
 			KubernetesWarningFactKind:      KubernetesWarningSchemaVersion,
+			KubernetesNamespaceFactKind:    KubernetesNamespaceSchemaVersion,
 		}
 		if version != wantVersions[want] {
 			t.Fatalf("KubernetesLiveSchemaVersion(%q) = %q, want %s", want, version, wantVersions[want])
@@ -54,6 +56,7 @@ func TestKubernetesLiveFactKindValues(t *testing.T) {
 		KubernetesPodTemplateFactKind:  "kubernetes_live.pod_template",
 		KubernetesRelationshipFactKind: "kubernetes_live.relationship",
 		KubernetesWarningFactKind:      "kubernetes_live.warning",
+		KubernetesNamespaceFactKind:    "kubernetes_live.namespace",
 	}
 	for got, want := range cases {
 		if got != want {

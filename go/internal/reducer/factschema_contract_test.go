@@ -43,6 +43,7 @@ var factSchemaWireKindCases = []struct {
 	{"kubernetes_live.pod_template", factschema.FactKindKubernetesLivePodTemplate, facts.KubernetesPodTemplateFactKind},
 	{"kubernetes_live.relationship", factschema.FactKindKubernetesLiveRelationship, facts.KubernetesRelationshipFactKind},
 	{"kubernetes_live.warning", factschema.FactKindKubernetesLiveWarning, facts.KubernetesWarningFactKind},
+	{"kubernetes_live.namespace", factschema.FactKindKubernetesLiveNamespace, facts.KubernetesNamespaceFactKind},
 	{"oci_registry.repository", factschema.FactKindOCIRegistryRepository, facts.OCIRegistryRepositoryFactKind},
 	{"oci_registry.image_manifest", factschema.FactKindOCIImageManifest, facts.OCIImageManifestFactKind},
 	{"oci_registry.image_index", factschema.FactKindOCIImageIndex, facts.OCIImageIndexFactKind},

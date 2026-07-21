@@ -214,7 +214,8 @@ families:
       kubernetes_live.pod_template: "sdk/go/factschema/schema/kubernetes_live.pod_template.v1.schema.json"
       kubernetes_live.relationship: "sdk/go/factschema/schema/kubernetes_live.relationship.v1.schema.json"
       kubernetes_live.warning: "sdk/go/factschema/schema/kubernetes_live.warning.v1.schema.json"
-    kinds: [kubernetes_live.pod_template, kubernetes_live.relationship, kubernetes_live.warning]
+      kubernetes_live.namespace: "sdk/go/factschema/schema/kubernetes_live.namespace.v1.schema.json"
+    kinds: [kubernetes_live.pod_template, kubernetes_live.relationship, kubernetes_live.warning, kubernetes_live.namespace]
   observability:
     lifecycle_owner: go/internal/facts
     schema_version: "1.0.0"
