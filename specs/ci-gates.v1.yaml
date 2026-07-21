@@ -1671,6 +1671,43 @@ gates:
       - postgres
     ci_only_reason: "requires Docker Compose service stack"
 
+  - id: auth-mcp-e2e
+    name: MCP-identity auth E2E (browser + scripted OAuth, fresh stack)
+    category: exactness
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "apps/console/e2e/**"
+      - "scripts/run-auth-mcp-e2e.sh"
+      - "scripts/auth-mcp-e2e-runtime.mjs"
+      - "scripts/verify-auth-mcp-e2e-sensitivity.sh"
+      - "scripts/verify-auth-mcp-e2e-manifest.sh"
+      - "scripts/lib/auth_mcp_e2e_sensitivity.sh"
+      - "scripts/lib/auth_mcp_e2e_manifest.sh"
+      - "docker-compose.e2e.yaml"
+      - "docker-compose.e2e.mutation.yaml"
+      - "testdata/golden/auth-mcp-e2e-baseline.json"
+      - "go/cmd/mock-github/**"
+      - "go/cmd/mock-oidc-idp/**"
+      - "go/cmd/mcp-server/**"
+      - "go/internal/oidcbearer/**"
+      - "go/internal/githublogin/**"
+      - "go/internal/query/**"
+      - "go/internal/mcp/**"
+    local:
+      command: "bash scripts/run-auth-mcp-e2e.sh"
+      test_command: ""
+    ci:
+      workflow: frontend.yml
+      job: "MCP-identity auth E2E (browser + scripted OAuth, fresh stack)"
+    requirements:
+      - go
+      - node
+      - docker
+      - nornicdb
+      - postgres
+    ci_only_reason: ""
+
   - id: trivy-image
     name: Trivy image scan (GHCR)
     category: security

@@ -41,6 +41,24 @@ Environment variables read by `configFromEnv` (`main.go`):
 | `MOCK_OIDC_EMAIL` | no | `member.user@example.test` | The `email` claim. |
 | `MOCK_OIDC_GROUPS` | no | `member` | Comma-separated group claim values. |
 | `MOCK_OIDC_GROUP_CLAIM` | no | `groups` | The claim name carrying the group list, matching the default `GroupsClaim` `oidclogin.ResolveSealedProviderConfig` assigns a DB-backed provider config. |
+| `MOCK_OIDC_ACCESS_TOKEN_JWT` | no | `false` | When `true`/`1`, every `/token` response's `access_token` is a signed JWT (see below) even when the request carries no RFC 8707 `resource` parameter. |
+| `MOCK_OIDC_ACCESS_TOKEN_AUDIENCE` | no | none | Fallback `aud` claim for a JWT access token when neither `/authorize` nor `/token` carried a `resource` value. |
+| `MOCK_OIDC_ACCESS_TOKEN_TTL_SECONDS` | no | `600` | Lifetime of a minted JWT access token. A short value (e.g. `1`) drives a deterministic expired-token E2E probe. |
+
+### JWT access tokens (issue #5170)
+
+By default `/token` returns the fixed opaque string `"mock-access-token"` as
+`access_token` — unchanged since #4971, so the browser-auth E2E suite (which
+never reads `access_token`, only `id_token`) stays byte-stable.
+
+When the `/authorize` or `/token` request carries an RFC 8707 `resource`
+parameter, or `MOCK_OIDC_ACCESS_TOKEN_JWT=true` is set, `/token` instead mints
+a signed RS256 JWT access token: `iss` = this IdP's issuer, `aud` = the
+`resource` value (falling back to `MOCK_OIDC_ACCESS_TOKEN_AUDIENCE`), `sub`/
+`email`/the configured group claim = the configured synthetic identity, `exp`
+= now + `MOCK_OIDC_ACCESS_TOKEN_TTL_SECONDS`. This is what
+`go/internal/oidcbearer`'s `Resolver` validates for MCP OAuth bearer calls
+(`server.go`'s `mintAccessToken`/`signAccessToken`).
 
 ## Telemetry
 

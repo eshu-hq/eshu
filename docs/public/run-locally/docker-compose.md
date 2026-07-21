@@ -683,6 +683,64 @@ container (Compose network) and the host browser (via Chromium
 `--host-resolver-rules`); see `go/cmd/mock-oidc-idp/README.md` for its endpoint
 contract.
 
+## MCP-Identity Auth E2E Stack
+
+The same `docker-compose.e2e.yaml` additionally defines an `mcp-server` and a
+`mock-github` service that a SIBLING suite (F-9, issue #5170) uses to prove the
+auth-identity story on the **MCP HTTP transport** (`GET /sse`,
+`POST /mcp/message`, `/.well-known/oauth-protected-resource`). These services
+are additive: the #4971 SSO suite above never starts them, so both suites can
+run concurrently on one machine.
+
+```bash
+bash scripts/run-auth-mcp-e2e.sh
+```
+
+The runner (`apps/console/e2e/runAuthMcpE2E.ts`, wrapped by
+`scripts/run-auth-mcp-e2e.sh`) owns the full stack lifecycle (fresh
+`up --build --wait`, then `down -v`) on an **isolated Compose project
+(`eshu-e2e-auth-mcp`) and 29xxx port block**, disjoint from the SSO suite's
+`eshu-e2e-auth` / 28xxx block. It drives one stack through three sequential
+org-shape phases plus a negative-leakage module:
+
+| Phase | What it proves |
+| --- | --- |
+| Shape A (token-only) | Zero-provider login page and 404 discovery; a personal API token minted through the console UI; an authenticated MCP `tools/call`; the async allowed-read governance-audit event; the bare (non-OAuth) 401 challenge. |
+| Shape C (GitHub, stubbed) | Admin-drawer GitHub provider CRUD against `mock-github`; login DENIED before a team-role mapping, then allowed after; discovery still 404 (GitHub is never a bearer issuer); MCP still works via the personal token; `eshu mcp setup` resolves token posture. |
+| Shape B (OIDC via mock IdP) | Provider CRUD; the live discovery flip to 200; a scripted RFC 9728 + PKCE OAuth chain minting a JWT bearer; the F-2 challenge-precedence regression (valid token → 200 no challenge; expired/wrong-aud → bare `Bearer`; unknown-issuer → `resource_metadata`); the `require_sso` flip keeping tokens and break-glass working. |
+| Negative-leakage | Credential-less probes → 401 with no tool/server/protocol leakage; distinct bad-credential denials (via the oidcbearer resolver's structured-log `outcome` and the F-2 challenge shape); a non-vacuous cross-scope repository row filter; a raw-token-absence scan across logs, audit rows, and the DOM. |
+
+Two additional verifiers back the suite:
+
+- `scripts/verify-auth-mcp-e2e-manifest.sh` compares the runner's report
+  (`e2e-artifacts/auth-mcp-e2e-report.json`) against the named baseline
+  `testdata/golden/auth-mcp-e2e-baseline.json` (exact ordered step-id list,
+  per-step status, runtime bound). Recapture with
+  `scripts/refresh-auth-mcp-e2e-baseline.sh`.
+- `scripts/verify-auth-mcp-e2e-sensitivity.sh` proves the negative module is
+  live by recreating the `mcp-server` with its credential-source gate disabled
+  (`docker-compose.e2e.mutation.yaml`) and asserting the credential-less module
+  flips from pass to fail.
+
+Both run in CI as the `auth-mcp-e2e` job in `.github/workflows/frontend.yml`
+(registered as the `auth-mcp-e2e` gate in `specs/ci-gates.v1.yaml`), and are
+locally runnable with the single command above.
+
+> Denial-reason distinctness is asserted from the oidcbearer resolver's
+> structured-log `outcome` values and the RFC 9728 challenge shape, because
+> denial-side governance-audit reason codes do not yet exist. Adding a
+> first-class denial-reason to the governance-audit table is tracked in
+> [eshu-hq/eshu#5567](https://github.com/eshu-hq/eshu/issues/5567).
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ESHU_E2E_MCP_PORT` | `29081` | MCP HTTP transport port (`mcp-server`). |
+| `ESHU_E2E_MOCK_GITHUB_PORT` | `29092` | Stubbed GitHub OAuth2/REST counterparty (`mock-github`) port. |
+| `ESHU_E2E_OIDC_STATIC_CONFIG_PATH` | `./apps/console/e2e/fixtures/oidc-static-config.json` | Path to the env/file OIDC provider fixture; the MCP suite points it at a port-5195 variant so its own dev server's callback resolves. |
+
+See `go/cmd/mock-github/README.md` for the stubbed GitHub endpoint contract and
+`apps/console/e2e/README-auth-mcp-e2e.md` for the suite's module map.
+
 ## Point CLI Commands At Compose
 
 The API is available at `http://localhost:8080` by default. The MCP service is

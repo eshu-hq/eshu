@@ -67,6 +67,33 @@ on:
       - "go/cmd/mock-oidc-idp/**"
       - "go/cmd/api/**"
       - "go/internal/oidclogin/**"
+      # MCP-identity auth E2E (F-9, #5170) surfaces — the sibling browser+scripted
+      # gate, its sensitivity/manifest verifiers, the mutation override, the
+      # named baseline, the stubbed GitHub counterparty, the MCP transport, and
+      # the backend bearer/GitHub/auth handlers it exercises end to end. A
+      # regression in any of these must re-run the gate on that same PR.
+      # (apps/console/** above already covers the apps/console/e2e/** modules.)
+      - "scripts/run-auth-mcp-e2e.sh"
+      - "scripts/auth-mcp-e2e-runtime.mjs"
+      - "scripts/verify-auth-mcp-e2e-sensitivity.sh"
+      - "scripts/verify-auth-mcp-e2e-manifest.sh"
+      - "scripts/refresh-auth-mcp-e2e-baseline.sh"
+      - "scripts/lib/auth_mcp_e2e_sensitivity.sh"
+      - "scripts/lib/auth_mcp_e2e_manifest.sh"
+      - "scripts/test-verify-auth-mcp-e2e-sensitivity.sh"
+      - "scripts/test-verify-auth-mcp-e2e-manifest.sh"
+      - "docker-compose.e2e.mutation.yaml"
+      - "testdata/golden/auth-mcp-e2e-baseline.json"
+      - "go/cmd/mock-github/**"
+      - "go/cmd/mcp-server/**"
+      - "go/internal/oidcbearer/**"
+      - "go/internal/githublogin/**"
+      # The query auth surface (public-route allowlist, transport-auth
+      # middleware, OAuth discovery/challenge, bearer resolution) and the MCP
+      # transport itself: a revert of the public-route fix or an MCP-transport
+      # auth regression MUST re-trigger this gate (design §7).
+      - "go/internal/query/**"
+      - "go/internal/mcp/**"
   workflow_dispatch:
 
 concurrency:
@@ -187,6 +214,61 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: auth-sso-e2e-artifacts
+          path: e2e-artifacts/
+          if-no-files-found: ignore
+
+  auth-mcp-e2e:
+    name: MCP-identity auth E2E (browser + scripted OAuth, fresh stack)
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies (clean, lockfile-pinned)
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      # Sibling of run-auth-e2e.sh (issue #4971), scoped to the MCP HTTP
+      # transport identity story (F-9, #5170): it owns the docker-compose.e2e.yaml
+      # lifecycle (fresh up --build --wait then down -v) and drives all three org
+      # shapes — token-only, GitHub (stubbed), OIDC (scripted RFC 9728 + PKCE) —
+      # plus the negative-leakage module, exiting non-zero on any failure.
+      # Distinct compose project + port block from run-auth-e2e.sh, so the two
+      # gates never collide.
+      - name: Run the fresh-stack MCP-identity auth E2E
+        run: bash scripts/run-auth-mcp-e2e.sh
+
+      # Assert the runner's report matches the named baseline manifest (exact
+      # ordered step-id list, per-step status, runtime bound).
+      - name: Verify the report against the named baseline manifest
+        run: bash scripts/verify-auth-mcp-e2e-manifest.sh
+
+      # Prove the negative credential-less module is live (real gate PASS ->
+      # mutated FAIL-on-gate -> restored PASS), on its own isolated stack.
+      - name: Run the mutation-sensitivity gate
+        run: bash scripts/verify-auth-mcp-e2e-sensitivity.sh
+
+      - name: Upload MCP-identity auth E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-mcp-e2e-artifacts
           path: e2e-artifacts/
           if-no-files-found: ignore
 
