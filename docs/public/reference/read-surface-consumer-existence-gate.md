@@ -283,7 +283,13 @@ of these:
    derivation, reused via `payloadusage.ParseDecodeSeamsGlob` across the
    reducer, projector, query, storage/postgres, relationships, and replay
    directories) or a direct call to factschema's exported
-   `Decode<Kind>(...)` from one of those directories.
+   `Decode<Kind>(...)` from one of those directories. `go/internal/ifa` is
+   deliberately excluded even though `roundtrip.go` (#4804) calls real
+   `factschema.Decode<Kind>(...)` functions for several GCP kinds
+   (`gcp_collection_warning`, `gcp_dns_record`,
+   `gcp_iam_policy_observation`): it is a schema round-trip fidelity harness
+   that decodes a fixture payload and immediately re-encodes it, not a
+   read-surface consumer.
 2. **AdmissionExempt** — legacy code kinds (`file`, `repository`) are
    deliberately outside the versioned-admission regime but still consumed.
 3. **Query-layer raw SQL / identifier evidence** — a literal

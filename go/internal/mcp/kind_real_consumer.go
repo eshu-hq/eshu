@@ -29,6 +29,20 @@ import (
 // is the concrete false-green: it has a PayloadSchema path but no decode
 // call site (go/internal/projector/tfstate_canonical.go:113-116 documents
 // the kind as intentionally unhandled).
+//
+// go/internal/ifa is deliberately EXCLUDED from this list. roundtrip.go
+// (#4804) calls real factschema.Decode<Kind>(...) functions — including
+// DecodeGCPCollectionWarning, DecodeGCPDNSRecord, and
+// DecodeGCPIAMPolicyObservation, covering three kinds this gate discloses as
+// unconsumed (gcp_collection_warning, gcp_dns_record,
+// gcp_iam_policy_observation) — but only to decode a fixture payload and
+// immediately re-encode it, proving schema round-trip fidelity for the Ifá
+// coverage harness. It never serves a read surface. Adding go/internal/ifa
+// here would silently flip those three kinds' disclosure to green for the
+// wrong reason, the same false-green class the projector
+// (go/internal/projector/runtime_phase.go's readiness dispatch) and
+// go/internal/storage/postgres (tfstate_backend_queries.go's SQL-string-only
+// touch) exclusions above guard against.
 var realConsumerDecodeSeamDirs = []string{
 	"go/internal/reducer",
 	"go/internal/projector",
