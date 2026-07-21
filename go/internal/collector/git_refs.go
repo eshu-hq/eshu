@@ -6,6 +6,8 @@ package collector
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os/exec"
 	"sort"
 	"strings"
 )
@@ -20,7 +22,12 @@ type GitRef struct {
 
 func parseRemoteGitRefs(output string) ([]GitRef, error) {
 	defaultBranch := ""
-	refsByName := make(map[string]GitRef)
+	branchesByName := make(map[string]GitRef)
+	tagsByName := make(map[string]GitRef)
+	// peeledTagSHAs tracks the committed SHA for annotated tags whose peeled
+	// (^{}) line arrived before the tag-object line, which can happen because
+	// git ls-remote output order is not guaranteed.
+	peeledTagSHAs := make(map[string]string)
 	for _, line := range strings.Split(output, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -38,34 +45,95 @@ func parseRemoteGitRefs(output string) ([]GitRef, error) {
 			defaultBranch = branch
 			continue
 		}
-		if !strings.HasPrefix(fields[1], "refs/heads/") {
+		if strings.HasPrefix(fields[1], "refs/heads/") {
+			branch, err := normalizeGitBranchName(strings.TrimPrefix(fields[1], "refs/heads/"))
+			if err != nil {
+				return nil, err
+			}
+			headSHA := strings.TrimSpace(fields[0])
+			if branch == "" || headSHA == "" {
+				continue
+			}
+			branchesByName[branch] = GitRef{
+				Name:    branch,
+				Kind:    "branch",
+				HeadSHA: headSHA,
+			}
 			continue
 		}
-		branch, err := normalizeGitBranchName(strings.TrimPrefix(fields[1], "refs/heads/"))
-		if err != nil {
-			return nil, err
-		}
-		headSHA := strings.TrimSpace(fields[0])
-		if branch == "" || headSHA == "" {
+		if strings.HasPrefix(fields[1], "refs/tags/") {
+			refspec := fields[1]
+			if strings.HasSuffix(refspec, "^{}") {
+				// Peeled line of an annotated tag — carry the object SHA.
+				// Note: git ls-remote does not report the object type, so
+				// the peeled SHA is always the dereferenced OBJECT (a commit
+				// for normal release tags, a blob for annotated tags of blobs,
+				// a tree for annotated tags of trees). Eshu stores the peeled
+				// object SHA as-is; it does not guarantee the SHA is a commit.
+				tagName, err := normalizeGitTagName(strings.TrimSuffix(strings.TrimPrefix(refspec, "refs/tags/"), "^{}"))
+				if err != nil {
+					return nil, err
+				}
+				if tagName != "" {
+					peeledTagSHAs[tagName] = strings.TrimSpace(fields[0])
+				}
+				continue
+			}
+			tagName, err := normalizeGitTagName(strings.TrimPrefix(refspec, "refs/tags/"))
+			if err != nil {
+				return nil, err
+			}
+			if tagName == "" {
+				continue
+			}
+			headSHA := strings.TrimSpace(fields[0])
+			// When a peeled SHA is already known (^{} line arrived first),
+			// prefer the peeled commit SHA over the tag object SHA.
+			if peeled, ok := peeledTagSHAs[tagName]; ok {
+				headSHA = peeled
+			}
+			if headSHA == "" {
+				continue
+			}
+			tagsByName[tagName] = GitRef{
+				Name:    tagName,
+				Kind:    "tag",
+				HeadSHA: headSHA,
+			}
 			continue
 		}
-		refsByName[branch] = GitRef{
-			Name:    branch,
-			Kind:    "branch",
-			HeadSHA: headSHA,
+	}
+	// When the tag-object line arrived before the peeled line, replace the
+	// stored SHA with the peeled commit SHA.
+	for tagName, peeledSHA := range peeledTagSHAs {
+		if existing, ok := tagsByName[tagName]; ok {
+			existing.HeadSHA = peeledSHA
+			tagsByName[tagName] = existing
 		}
 	}
 
-	names := make([]string, 0, len(refsByName))
-	for name := range refsByName {
-		names = append(names, name)
+	// Collect sorted branch names, tagged as default where applicable.
+	branchNames := make([]string, 0, len(branchesByName))
+	for name := range branchesByName {
+		branchNames = append(branchNames, name)
 	}
-	sort.Strings(names)
+	sort.Strings(branchNames)
 
-	refs := make([]GitRef, 0, len(names))
-	for _, name := range names {
-		ref := refsByName[name]
+	tagNames := make([]string, 0, len(tagsByName))
+	for name := range tagsByName {
+		tagNames = append(tagNames, name)
+	}
+	sort.Strings(tagNames)
+
+	refs := make([]GitRef, 0, len(branchNames)+len(tagNames))
+	for _, name := range branchNames {
+		ref := branchesByName[name]
 		ref.Default = name == defaultBranch
+		refs = append(refs, ref)
+	}
+	for _, name := range tagNames {
+		ref := tagsByName[name]
+		ref.Default = false // Tags are never the default branch.
 		refs = append(refs, ref)
 	}
 	return refs, nil
@@ -87,11 +155,136 @@ func remoteGitRefs(
 		"origin",
 		"HEAD",
 		"refs/heads/*",
+		"refs/tags/*",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list remote git refs for %q: %w", repoPath, err)
 	}
 	return parseRemoteGitRefs(output)
+}
+
+// localGitRefs discovers git refs from a local repository using
+// git for-each-ref. It does not require an origin remote — it reads
+// refs/heads/ and refs/tags/ directly from the local repo.
+func localGitRefs(ctx context.Context, repoPath string) ([]GitRef, error) {
+	cmd := exec.CommandContext(ctx, "git", "-C", repoPath, // #nosec G204 -- controlled repo path
+		"for-each-ref",
+		"--format=%(objectname) %(refname) %(*objectname)",
+		"refs/heads/",
+		"refs/tags/",
+	)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("list local git refs for %q: %w", repoPath, err)
+	}
+	return parseLocalGitRefs(string(output), repoPath)
+}
+
+// parseLocalGitRefs parses git for-each-ref output into GitRef entries.
+// Format per line: <objectname> <refname> [<*objectname>]
+// For annotated tags, *objectname is the peeled commit SHA.
+// It discovers the default branch by reading the local HEAD symbolic ref.
+// Unlike parseRemoteGitRefs (which fails on any invalid ref), parseLocalGitRefs
+// skips individual invalid refs without failing the entire batch. Local repos
+// in filesystem mode may carry transient or malformed refs; a hard failure here
+// would drop all refs for that repo instead of capturing the valid subset.
+func parseLocalGitRefs(output string, repoPath string) ([]GitRef, error) {
+	branchesByName := make(map[string]GitRef)
+	tagsByName := make(map[string]GitRef)
+	peeledTagSHAs := make(map[string]string)
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		sha := strings.TrimSpace(fields[0])
+		refspec := fields[1]
+		peeled := ""
+		if len(fields) >= 3 {
+			peeled = strings.TrimSpace(fields[2])
+		}
+		if sha == "" {
+			continue
+		}
+		if strings.HasPrefix(refspec, "refs/heads/") {
+			branch, err := normalizeGitBranchName(strings.TrimPrefix(refspec, "refs/heads/"))
+			if err != nil || branch == "" {
+				continue
+			}
+			branchesByName[branch] = GitRef{
+				Name:    branch,
+				Kind:    "branch",
+				HeadSHA: sha,
+			}
+		} else if strings.HasPrefix(refspec, "refs/tags/") {
+			tagName, err := normalizeGitTagName(strings.TrimPrefix(refspec, "refs/tags/"))
+			if err != nil || tagName == "" {
+				continue
+			}
+			if peeled != "" {
+				peeledTagSHAs[tagName] = peeled
+			}
+			// Prefer the peeled SHA when available; if the peeled line arrives
+			// after the tag-object line (for-each-ref guarantees tag-object first),
+			// store the object SHA temporarily and replace below.
+			headSHA := sha
+			if peeled != "" {
+				headSHA = peeled
+			}
+			tagsByName[tagName] = GitRef{
+				Name:    tagName,
+				Kind:    "tag",
+				HeadSHA: headSHA,
+			}
+		}
+	}
+	// Apply any peeled SHAs that arrived after the tag-object line.
+	for tagName, peeledSHA := range peeledTagSHAs {
+		if existing, ok := tagsByName[tagName]; ok {
+			existing.HeadSHA = peeledSHA
+			tagsByName[tagName] = existing
+		}
+	}
+
+	// Discover default branch from local HEAD.
+	defaultBranch := ""
+	cmd := exec.Command("git", "-C", repoPath, // #nosec G204 -- controlled repo path
+		"symbolic-ref", "HEAD")
+	if out, err := cmd.Output(); err == nil {
+		headLine := strings.TrimSpace(string(out))
+		if strings.HasPrefix(headLine, "refs/heads/") {
+			defaultBranch = strings.TrimPrefix(headLine, "refs/heads/")
+		}
+	}
+
+	branchNames := make([]string, 0, len(branchesByName))
+	for name := range branchesByName {
+		branchNames = append(branchNames, name)
+	}
+	sort.Strings(branchNames)
+
+	tagNames := make([]string, 0, len(tagsByName))
+	for name := range tagsByName {
+		tagNames = append(tagNames, name)
+	}
+	sort.Strings(tagNames)
+
+	refs := make([]GitRef, 0, len(branchNames)+len(tagNames))
+	for _, name := range branchNames {
+		ref := branchesByName[name]
+		ref.Default = name == defaultBranch
+		refs = append(refs, ref)
+	}
+	for _, name := range tagNames {
+		ref := tagsByName[name]
+		ref.Default = false
+		refs = append(refs, ref)
+	}
+	return refs, nil
 }
 
 func cloneGitRefs(refs []GitRef) []GitRef {
@@ -135,4 +328,55 @@ func repositoryFactGitRefsPayload(refs []GitRef) []map[string]any {
 		})
 	}
 	return payload
+}
+
+// normalizeGitTagName validates a Git tag name against the same safety rules as
+// normalizeGitBranchName. Git forbids `:`, `..`, `\\`, whitespace, and control
+// characters in all ref names, including tags.
+func normalizeGitTagName(tag string) (string, error) {
+	tag = strings.TrimSpace(tag)
+	tag = strings.TrimPrefix(tag, "refs/tags/")
+	if tag == "" {
+		return "", nil
+	}
+	if strings.HasPrefix(tag, "-") ||
+		strings.Contains(tag, ":") ||
+		strings.Contains(tag, "..") ||
+		strings.Contains(tag, "\\") ||
+		strings.Contains(tag, "^{}") ||
+		strings.ContainsAny(tag, " \t\r\n") {
+		return "", fmt.Errorf("invalid git tag name %q", tag)
+	}
+	return tag, nil
+}
+
+// collectLocalRefs runs localGitRefs on the SOURCE path for each repository ID
+// (the original checkout which carries .git) and stores results keyed by the
+// TARGET path (the managed copy in filesystem mode). This is necessary because
+// copyRepositoryTree strips dotfiles, so the target path has no .git directory.
+// Errors are logged and skipped — localGitRefs fails when the source is not a git
+// repo, which is normal for plain-directory fixtures.
+func collectLocalRefs(ctx context.Context, logger *slog.Logger, config RepoSyncConfig, repoIDs []string, targetPaths []string) map[string][]GitRef {
+	refsByRepoPath := make(map[string][]GitRef, len(targetPaths))
+	for _, repoID := range repoIDs {
+		sourcePath, targetPath, err := filesystemRepoPaths(config, repoID)
+		if err != nil {
+			continue
+		}
+		refs, err := localGitRefs(ctx, sourcePath)
+		if err != nil {
+			if logger != nil {
+				logger.Debug("local git refs skipped (not a git repo or ref parse failed)",
+					"source_path", sourcePath,
+					"repo_id", repoID,
+					"error", err,
+				)
+			}
+			continue
+		}
+		if len(refs) > 0 {
+			refsByRepoPath[targetPath] = refs
+		}
+	}
+	return refsByRepoPath
 }

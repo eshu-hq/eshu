@@ -311,21 +311,37 @@ holds; it never reveals secrets the collectors strip during indexing.
 
 `GET /api/v0/repositories/{repo_id}/branches` returns the refs the console
 branch selector uses. For Git-backed repositories, ingestion captures branch
-names, ref kind, default-branch marker, head SHA, observed timestamp, and the
-content-store indexed timestamp. The response returns `default_branch` plus one
-`branches[]` row per source-backed ref. Older repositories without captured ref
-metadata keep the legacy single indexed commit fallback: one `branches[]` entry
-carrying `head_sha` and `last_indexed_at`, with an empty `name` and
-`default_branch`, rather than fabricating branch names. A repository with no
-indexed commit returns an empty `branches` array; an unknown repository returns
-a `404` envelope.
+names, tag names, ref kind, default-branch marker, head SHA, observed timestamp,
+and the content-store indexed timestamp. The response returns `default_branch`
+plus `branches[]` rows (kind `branch`) and `tags[]` rows (kind `tag`), one per
+source-backed ref. Tags carry the peeled commit SHA for annotated tags so a
+release reference resolves to its commit. The `head_sha` field carries the peeled
+(^{}) object SHA for annotated tags — a commit for normal release tags, the
+dereferenced blob or tree object for annotated tags of non-commit objects.
+Older repositories without captured
+ref metadata keep the legacy single indexed commit fallback: one `branches[]`
+entry carrying `head_sha` and `last_indexed_at`, with an empty `name` and
+`default_branch`, and an empty `tags[]` array, rather than fabricating branch
+or tag names. A repository with no indexed commit returns empty `branches` and
+`tags` arrays; an unknown repository returns a `404` envelope.
+
+Tags are server-side capped at 500 entries (the first 500 by name, matching the
+deterministic `ref_kind, name` sort order). When more than 500 tags exist, the
+response includes `tags_truncated: true`. Full pagination (limit/cursor) for
+both `branches[]` and `tags[]` is deferred to #5503.
+
+In filesystem source mode (local repos without a git remote), the collector now
+discovers local git refs via `git for-each-ref` and emits them into the content
+store's `repository_refs` table, enabling the same branches+tags response as
+remote-collected repos. Repositories that are not git repos still fall through
+to the legacy indexed-commit fallback.
 
 No-Regression Evidence: repository ref persistence writes at most one stale-row
 delete plus one bounded upsert per repository generation, keyed by
-`(repo_id, ref_kind, name)` and sized by Git branch count rather than file or
-entity count. Focused tests cover source-backed branch responses, selected-ref
-acceptance/rejection, repository ref schema bootstrap, writer upsert counts,
-projector materialization, and collector ref parsing/fact payloads.
+`(repo_id, ref_kind, name)` and sized by Git branch and tag count rather than
+file or entity count. Focused tests cover source-backed branch and tag responses,
+selected-ref acceptance/rejection, repository ref schema bootstrap, writer upsert
+counts, projector materialization, and collector ref parsing/fact payloads.
 
 No-Observability-Change: the existing projector `content_write` stage remains
 the operator-facing timing span/metric path, and the writer now logs

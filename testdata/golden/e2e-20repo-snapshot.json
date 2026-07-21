@@ -4988,6 +4988,21 @@
           "data.candidate_buckets.unknown[].classification": "unknown_needs_evidence",
           "data.analysis.dead_code_language_maturity.go": "derived"
         }
+      },
+      "GET /api/v0/repositories/deployable-config/branches": {
+        "description": "Repository branches + tags endpoint; the deployable-config fixture is staged with annotated and lightweight git tags so the endpoint returns tags with minimum 2 results and required item fields present.",
+        "truth_class": "content_index",
+        "minimum_results": 2,
+        "required_response_fields": [
+          "default_branch",
+          "tags",
+          "branches"
+        ],
+        "result_item_required_fields": [
+          "name",
+          "kind",
+          "head_sha"
+        ]
       }
     }
   },

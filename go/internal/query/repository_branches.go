@@ -37,14 +37,20 @@ func (h *RepositoryHandler) getRepositoryBranches(w http.ResponseWriter, r *http
 		return
 	}
 	if len(refs) > 0 {
+		tags, tagsTruncated := repositoryRefTagEntries(refs)
+		response := map[string]any{
+			"default_branch": repositoryRefsDefaultBranch(refs),
+			"branches":       repositoryRefBranchEntries(refs),
+			"tags":           tags,
+		}
+		if tagsTruncated {
+			response["tags_truncated"] = true
+		}
 		WriteSuccess(
 			w,
 			r,
 			http.StatusOK,
-			map[string]any{
-				"default_branch": repositoryRefsDefaultBranch(refs),
-				"branches":       repositoryRefBranchEntries(refs),
-			},
+			response,
 			BuildTruthEnvelope(
 				h.profile(),
 				"platform_impact.context_overview",
@@ -79,6 +85,7 @@ func (h *RepositoryHandler) getRepositoryBranches(w http.ResponseWriter, r *http
 		map[string]any{
 			"default_branch": "", // not captured by ingestion yet (#1433)
 			"branches":       branches,
+			"tags":           make([]map[string]any, 0),
 		},
 		BuildTruthEnvelope(
 			h.profile(),

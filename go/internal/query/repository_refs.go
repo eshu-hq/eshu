@@ -43,24 +43,59 @@ func repositoryRefsDefaultBranch(refs []RepositoryRef) string {
 	return ""
 }
 
+// tagResultCap is the maximum number of tag entries returned by the branches
+// endpoint. Exceeding it sets tags_truncated: true. Full pagination (limit,
+// cursor, truncated) for both branches and tags is deferred to #5503.
+const tagResultCap = 500
+
 func repositoryRefBranchEntries(refs []RepositoryRef) []map[string]any {
-	entries := make([]map[string]any, 0, len(refs))
+	entries := make([]map[string]any, 0)
 	for _, ref := range refs {
-		entry := map[string]any{
-			"name":       ref.Name,
-			"kind":       ref.Kind,
-			"head_sha":   ref.HeadSHA,
-			"is_default": ref.Default,
+		if ref.Kind != "branch" {
+			continue
 		}
-		if !ref.ObservedAt.IsZero() {
-			entry["observed_at"] = formatCoverageTimestamp(ref.ObservedAt)
-		}
-		if !ref.IndexedAt.IsZero() {
-			entry["last_indexed_at"] = formatCoverageTimestamp(ref.IndexedAt)
-		}
-		entries = append(entries, entry)
+		entries = append(entries, repositoryRefEntry(ref, true))
 	}
 	return entries
+}
+
+// repositoryRefTagEntries returns up to tagResultCap tag entries sorted by name.
+// truncated is true when there are more tags than the cap.
+func repositoryRefTagEntries(refs []RepositoryRef) ([]map[string]any, bool) {
+	truncated := false
+	entries := make([]map[string]any, 0)
+	for _, ref := range refs {
+		if ref.Kind != "tag" {
+			continue
+		}
+		if len(entries) >= tagResultCap {
+			truncated = true
+			break
+		}
+		entries = append(entries, repositoryRefEntry(ref, false))
+	}
+	return entries, truncated
+}
+
+// repositoryRefEntry builds the wire entry for one repository ref.
+// includeDefault controls whether the is_default field appears;
+// branches always include it (legacy contract), tags never include it.
+func repositoryRefEntry(ref RepositoryRef, includeDefault bool) map[string]any {
+	entry := map[string]any{
+		"name":     ref.Name,
+		"kind":     ref.Kind,
+		"head_sha": ref.HeadSHA,
+	}
+	if includeDefault {
+		entry["is_default"] = ref.Default
+	}
+	if !ref.ObservedAt.IsZero() {
+		entry["observed_at"] = formatCoverageTimestamp(ref.ObservedAt)
+	}
+	if !ref.IndexedAt.IsZero() {
+		entry["last_indexed_at"] = formatCoverageTimestamp(ref.IndexedAt)
+	}
+	return entry
 }
 
 func validateSelectedRepositoryRef(

@@ -29,7 +29,7 @@ func buildRepositoryRefs(fact facts.Envelope) []content.RepositoryRef {
 		if kind == "" {
 			kind = "branch"
 		}
-		isDefault := entry.IsDefault || entry.Name == defaultBranch
+		isDefault := entry.IsDefault || (kind == "branch" && entry.Name == defaultBranch)
 		key := kind + "\x00" + entry.Name
 		refsByKey[key] = content.RepositoryRef{
 			Name:       entry.Name,
