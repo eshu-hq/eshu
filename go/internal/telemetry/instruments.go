@@ -1279,6 +1279,14 @@ type Instruments struct {
 	// denormalized edges are stranded at the source.
 	CrossRepoActivationFenced metric.Int64Counter
 
+	// FluxCrossRepoURLResolution counts every Flux GitRepository spec.url
+	// discoverStructuredFluxEvidence considered during evidence discovery
+	// (go/internal/storage/postgres/ingestion.go), labeled by outcome (linked,
+	// unresolved, ambiguous, self; issue #5483 C2). An operator reads a
+	// sustained unresolved/ambiguous rate as a signal that cross-repo Flux
+	// lineage is under-linking, without inspecting graph state directly.
+	FluxCrossRepoURLResolution metric.Int64Counter
+
 	// RepoDependencyGateDecisions counts per-key gate decisions emitted from
 	// GateAcceptedGenerationOnActive, labeled by the bounded decision enum
 	// bypassed, deferred_inactive, deferred_error, active. It increments once per
@@ -4481,6 +4489,16 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CrossRepoActivationFenced counter: %w", err)
+	}
+
+	inst.FluxCrossRepoURLResolution, err = meter.Int64Counter(
+		"eshu_dp_flux_cross_repo_url_resolution_total",
+		metric.WithDescription(
+			"Total Flux GitRepository spec.url cross-repo resolution attempts by outcome (linked, unresolved, ambiguous, self)",
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register FluxCrossRepoURLResolution counter: %w", err)
 	}
 
 	inst.RepoDependencyGateDecisions, err = meter.Int64Counter(

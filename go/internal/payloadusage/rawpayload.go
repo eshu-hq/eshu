@@ -18,7 +18,7 @@ import (
 const (
 	rawPayloadIndexAccessor  = "payload_index"
 	rawPayloadDynamicKey     = "*"
-	rawPayloadExemptionLimit = 51
+	rawPayloadExemptionLimit = 54
 )
 
 // RawPayloadAccess is one direct read of a fact payload map outside an approved
@@ -422,6 +422,17 @@ func defaultRawPayloadExemptions() []RawPayloadExemption {
 		{Path: "go/internal/relationships/catalog.go", Accessor: "catalogPayloadString", Key: "repo_id"},
 		{Path: "go/internal/relationships/catalog.go", Accessor: "catalogPayloadString", Key: "repo_name"},
 		{Path: "go/internal/relationships/catalog.go", Accessor: "catalogPayloadString", Key: "repo_slug"},
+		// remote_url feeds CatalogEntry.RemoteURL, the strict cross-repo URL
+		// resolution primitive discoverStructuredFluxEvidence uses (issue #5483
+		// C2). Same untyped repository-payload pattern as the sibling reads
+		// above; the repository fact kind has no typed struct yet.
+		{Path: "go/internal/relationships/catalog.go", Accessor: "catalogPayloadString", Key: "remote_url"},
+		// flux_evidence.go reads the flux_git_repositories parsed_file_data
+		// bucket's url/name fields, an untyped inner key of the "file" fact kind
+		// (same TODO(#4799 W2f) gap structured_family_evidence.go's helm/argocd
+		// extractors already carry exemptions for).
+		{Path: "go/internal/relationships/flux_evidence.go", Accessor: "payloadString", Key: "url"},
+		{Path: "go/internal/relationships/flux_evidence.go", Accessor: "payloadString", Key: "name"},
 		{Path: "go/internal/replay/offlinetier/delta.go", Accessor: rawPayloadIndexAccessor, Key: "path"},
 		{Path: "go/internal/replay/offlinetier/materialization.go", Accessor: "optionalString", Key: "needs"},
 		{Path: "go/internal/replay/offlinetier/materialization.go", Accessor: "requireInt", Key: "depth"},

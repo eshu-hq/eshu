@@ -164,6 +164,24 @@ var goldenSet = []goldenCase{
 		Rationale: "repoURL is a template variable not resolved at parse time — no concrete catalog target",
 	},
 
+	// FLUX_GIT_REPOSITORY_SOURCE (prior 0.99; neg 0.8712)
+	// All direct-binding priors × 0.80 ≥ 0.76 > threshold, so no ambiguous case:
+	// the resolution is strict-equality, not a graded fuzzy match, and the
+	// resolver itself tallies a genuine 2+-match as "ambiguous" and emits no
+	// evidence fact at all (see TestDiscoverStructuredFluxEvidenceAmbiguousMatch).
+	{
+		ID: "flux-git-repo-src-pos-1", Kind: EvidenceKindFluxGitRepositorySource, Label: goldenPositive, GoldenConfidence: 0.99,
+		Rationale: "GitRepository.spec.url = 'https://github.com/org/payments-deploy' normalizes to exactly one catalog repository's RemoteURL",
+	},
+	{
+		ID: "flux-git-repo-src-pos-2", Kind: EvidenceKindFluxGitRepositorySource, Label: goldenPositive, GoldenConfidence: 0.99,
+		Rationale: "GitRepository.spec.url = 'ssh://git@github.com/org/platform-config.git' normalizes to exactly one catalog repository's RemoteURL",
+	},
+	{
+		ID: "flux-git-repo-src-neg-1", Kind: EvidenceKindFluxGitRepositorySource, Label: goldenNegative, GoldenConfidence: 0.8712,
+		Rationale: "GitRepository.spec.url names a mirror host the catalog has since migrated away from — stale normalized-URL binding",
+	},
+
 	// ARGOCD_APPLICATIONSET_DISCOVERY (prior 0.99; neg 0.8712)
 	{
 		ID: "appset-disco-pos-1", Kind: EvidenceKindArgoCDApplicationSetDiscovery, Label: goldenPositive, GoldenConfidence: 0.99,

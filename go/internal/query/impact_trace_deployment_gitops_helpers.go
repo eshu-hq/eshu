@@ -16,7 +16,7 @@ func buildDeploymentSourceControllerEntity(entity EntityContent) (map[string]any
 		return nil, false
 	}
 
-	sourceRoots := deploymentTraceSourceRoots(entity.Metadata)
+	sourceRoots := deploymentTraceSourceRoots(entity.EntityType, entity.Metadata)
 	discoveryRoots := deploymentTraceDiscoveryRoots(entity.Metadata)
 	controller := map[string]any{
 		"entity_id":              entity.EntityID,
@@ -154,10 +154,36 @@ func collectDeploymentSourceK8sResources(
 	return resources, imageRefs
 }
 
-func deploymentTraceSourceRoots(metadata map[string]any) []string {
-	return deploymentTraceNormalizedRoots(
-		append([]string{metadataNonEmptyStringValue(metadata, "source_path")}, metadataStringSlice(metadata, "template_source_paths")...),
-	)
+// deploymentTraceSourceRoots derives the deployment-trace path roots for one
+// controller entity. Every controller reads metadata["source_path"] and
+// template_source_paths as-is (the ArgoCD and Flux Kustomization parsers both
+// emit spec.path under "source_path"). FluxHelmRelease is the one exception
+// (issue #5483 C2): per the Flux HelmRelease API,
+// spec.chart.spec.chart is a chart NAME when source_ref_kind is
+// HelmRepository, but a chart PATH when source_ref_kind is GitRepository or
+// Bucket -- so "chart" is folded in as an extra root ONLY for that entity type
+// and ONLY when source_ref_kind names a path-shaped source.
+func deploymentTraceSourceRoots(entityType string, metadata map[string]any) []string {
+	values := append([]string{metadataNonEmptyStringValue(metadata, "source_path")}, metadataStringSlice(metadata, "template_source_paths")...)
+	if entityType == "FluxHelmRelease" && fluxHelmReleaseChartIsPathRoot(metadata) {
+		values = append(values, metadataNonEmptyStringValue(metadata, "chart"))
+	}
+	return deploymentTraceNormalizedRoots(values)
+}
+
+// fluxHelmReleaseChartIsPathRoot reports whether a FluxHelmRelease's
+// spec.chart.spec.chart names a path (GitRepository/Bucket source) rather
+// than a chart name (HelmRepository source, or an unresolved/absent
+// source_ref_kind). See the Flux HelmRelease API
+// (helm.toolkit.fluxcd.io): chart is a NAME only for a HelmRepository
+// source; every other source kind treats it as a repository-relative path.
+func fluxHelmReleaseChartIsPathRoot(metadata map[string]any) bool {
+	switch metadataNonEmptyStringValue(metadata, "source_ref_kind") {
+	case "GitRepository", "Bucket":
+		return true
+	default:
+		return false
+	}
 }
 
 func deploymentTraceDiscoveryRoots(metadata map[string]any) []string {

@@ -47,6 +47,7 @@ func TestDeferredCatalogFingerprintChangesOnCatalogEdit(t *testing.T) {
 	baseline := deferredScopedFactQueryParams{
 		nonRepoIDLike: pq.StringArray{"%alpha%", "%beta%"},
 		repoIDValues:  pq.StringArray{"repo-a", "repo-b"},
+		remoteURLs:    pq.StringArray{"https://github.com/acme/alpha", "https://github.com/acme/beta"},
 	}
 	baselineFP := deferredCatalogFingerprint(baseline)
 
@@ -54,22 +55,36 @@ func TestDeferredCatalogFingerprintChangesOnCatalogEdit(t *testing.T) {
 		"added_non_repo_id_term": {
 			nonRepoIDLike: pq.StringArray{"%alpha%", "%beta%", "%gamma%"},
 			repoIDValues:  pq.StringArray{"repo-a", "repo-b"},
+			remoteURLs:    pq.StringArray{"https://github.com/acme/alpha", "https://github.com/acme/beta"},
 		},
 		"removed_non_repo_id_term": {
 			nonRepoIDLike: pq.StringArray{"%alpha%"},
 			repoIDValues:  pq.StringArray{"repo-a", "repo-b"},
+			remoteURLs:    pq.StringArray{"https://github.com/acme/alpha", "https://github.com/acme/beta"},
 		},
 		"added_repo_id_value": {
 			nonRepoIDLike: pq.StringArray{"%alpha%", "%beta%"},
 			repoIDValues:  pq.StringArray{"repo-a", "repo-b", "repo-c"},
+			remoteURLs:    pq.StringArray{"https://github.com/acme/alpha", "https://github.com/acme/beta"},
 		},
 		"removed_repo_id_value": {
 			nonRepoIDLike: pq.StringArray{"%alpha%", "%beta%"},
 			repoIDValues:  pq.StringArray{"repo-a"},
+			remoteURLs:    pq.StringArray{"https://github.com/acme/alpha", "https://github.com/acme/beta"},
 		},
 		"renamed_repo_id_value": {
 			nonRepoIDLike: pq.StringArray{"%alpha%", "%beta%"},
 			repoIDValues:  pq.StringArray{"repo-a", "repo-b-renamed"},
+			remoteURLs:    pq.StringArray{"https://github.com/acme/alpha", "https://github.com/acme/beta"},
+		},
+		// #5483 C2: a repository's remote_url change (a mirror migration) moves
+		// neither the alias LIKE terms nor the repo_id values, but MUST still
+		// flip the fingerprint so the strict Flux cross-repo resolver's
+		// changed input re-triggers deferred re-discovery.
+		"changed_remote_url": {
+			nonRepoIDLike: pq.StringArray{"%alpha%", "%beta%"},
+			repoIDValues:  pq.StringArray{"repo-a", "repo-b"},
+			remoteURLs:    pq.StringArray{"https://github.com/acme/alpha", "https://gitlab.example.com/acme/beta"},
 		},
 	}
 

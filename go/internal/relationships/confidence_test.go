@@ -22,6 +22,7 @@ var allEvidenceKinds = []EvidenceKind{
 	EvidenceKindHelmChart,
 	EvidenceKindHelmValues,
 	EvidenceKindArgoCDAppSource,
+	EvidenceKindFluxGitRepositorySource,
 	EvidenceKindArgoCDApplicationSetDiscovery,
 	EvidenceKindArgoCDApplicationSetDeploySource,
 	EvidenceKindArgoCDDestinationPlatform,

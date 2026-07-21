@@ -23,6 +23,14 @@ SHARED_ACCEPTANCE_ROWS='eshu_dp_shared_acceptance_rows'
 GRAPH_ORPHAN_NODES='eshu_dp_graph_orphan_nodes'
 CROSS_REPO_FENCED='eshu_dp_cross_repo_activation_fenced_total'
 
+# Flux cross-repo GitRepository url->Repository resolution outcome (issue #5483
+# C2). A sustained unresolved/ambiguous rate means cross-repo Flux lineage is
+# under-linking (a url that names an unindexed repository, or -- structurally
+# near-impossible -- two catalog repos sharing a normalized remote); linked is
+# the healthy steady state and self is a same-repo GitRepository already covered
+# by the RECONCILES_FROM edge.
+FLUX_CROSS_REPO_URL_RESOLUTION='eshu_dp_flux_cross_repo_url_resolution_total'
+
 # Typed-payload decode accuracy. A non-zero rate means the reducer skipped
 # facts whose payload was missing a required identity field (input_invalid);
 # the graph is under-projecting for that domain/fact_kind until the collector
@@ -64,7 +72,8 @@ COLLECTOR_DEAD_LETTER='eshu_dp_workflow_claim_attempt_budget_exhausted_total'
 OPERATOR_DASHBOARD_METRIC_VARS="ACTIVE_GENERATIONS GENERATION_LIVENESS_FAILURES \
 GENERATION_LIVENESS_RECOVERED GENERATION_LIVENESS_SUPERSEDED QUEUE_DEPTH \
 QUEUE_OLDEST_AGE WORKER_POOL_ACTIVE SHARED_ACCEPTANCE_ROWS GRAPH_ORPHAN_NODES \
-CROSS_REPO_FENCED REDUCER_INPUT_INVALID_FACTS PROJECTOR_INPUT_INVALID_FACTS \
+CROSS_REPO_FENCED FLUX_CROSS_REPO_URL_RESOLUTION REDUCER_INPUT_INVALID_FACTS \
+PROJECTOR_INPUT_INVALID_FACTS \
 EDGES_BY_SOURCE_TOOL FILES_BY_LANGUAGE API_REQUEST_DURATION \
 API_REQUEST_ERRORS COLLECTOR_RECONCILIATION_FULL \
 COLLECTOR_RECONCILIATION_DRIFT COLLECTOR_RECONCILIATION_CONVERGENCE \

@@ -25,7 +25,7 @@ import (
 const (
 	relationshipFamilyIndexProofDSNEnv = "ESHU_RELATIONSHIP_FAMILY_INDEX_PROOF_DSN"
 	relationshipFamilyProofDatabase    = "ifa_relationship_family_proof"
-	relationshipFamilyProofIndexName   = "fact_records_relationship_family_scope_generation_idx"
+	relationshipFamilyProofIndexName   = "fact_records_relationship_family_scope_generation_idx_v2"
 )
 
 type relationshipFamilyProofDB struct {

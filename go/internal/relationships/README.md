@@ -5,8 +5,9 @@
 `relationships` extracts IaC and provider relationship evidence from fact
 envelopes and resolves that evidence into typed cross-repository relationships
 before reducer admission. It covers Terraform, Terraform provider schemas,
-Terragrunt, Helm, Kustomize, Argo CD, GitHub Actions, Jenkins, Ansible,
-Dockerfile, Docker Compose, and supported GCP cloud relationship signals.
+Terragrunt, Helm, Kustomize, Argo CD, Flux (cross-repo GitRepository url
+resolution), GitHub Actions, Jenkins, Ansible, Dockerfile, Docker Compose, and
+supported GCP cloud relationship signals.
 
 The package describes evidence rather than inventing deployment truth.
 Extractors emit `EvidenceFact` values; the `Resolve` function promotes them to
@@ -148,7 +149,16 @@ overridable place instead of scattered literals.
 ## Exported surface
 
 - `DiscoverEvidence(envelopes, catalog)` — scan envelopes for IaC evidence;
-  returns a deduplicated `[]EvidenceFact` (`evidence.go:18`)
+  returns a deduplicated `[]EvidenceFact` (`evidence.go:18`). Discards the
+  `DiscoveryStats` tally `DiscoverEvidenceWithStats` returns.
+- `DiscoverEvidenceWithStats(envelopes, catalog)` — same scan as
+  `DiscoverEvidence`, plus a `DiscoveryStats` tally for outcomes an extractor
+  intentionally does not turn into an `EvidenceFact` (today: the Flux
+  cross-repo url resolution linked/unresolved/ambiguous/self counters). A new
+  seam rather than a widened `DiscoverEvidence` signature, so every existing
+  caller stays untouched; only the Postgres ingestion commit path calls it
+  directly to emit `eshu_dp_flux_cross_repo_url_resolution_total`
+  (`evidence.go`, issue #5483 C2)
 - `Resolve(evidenceFacts, assertions, confidenceThreshold)` — group evidence
   into `[]Candidate`, apply `Assertion` overrides, filter by confidence, and
   return both slices (`resolver.go:62`)
@@ -208,7 +218,9 @@ overridable place instead of scattered literals.
 - `Assertion` — explicit human or control-plane override with `Decision`
   `"assert"` or `"reject"` (`models.go:122`)
 - `CatalogEntry` — maps one `RepoID` to its `Aliases` slice used by
-  `matchCatalog` (`evidence.go:11`)
+  `matchCatalog`, plus a normalized `RemoteURL` used ONLY by
+  `discoverStructuredFluxEvidence`'s strict cross-repo url equality
+  resolution, never the fuzzy alias matcher (`evidence.go:11`, issue #5483 C2)
 - `Generation` — lifecycle record for one resolution run (`models.go:171`)
 
 ## Dependencies
@@ -477,13 +489,23 @@ data only, following the existing citation-field pattern above.
 ## Shared repository-catalog derivation (#4394)
 
 `RepositoryCatalogEntry` (`catalog.go`) is the single source of truth for
-deriving a repository `CatalogEntry` (RepoID plus matching aliases) from a
-decoded repository fact payload. The logic moved here verbatim from the Postgres
-ingestion path (`go/internal/storage/postgres/ingestion_catalog_parse.go`), which
-now delegates to it, so Ifá's offline derived catalog (#4394) computes a
+deriving a repository `CatalogEntry` (RepoID, matching aliases, and a
+normalized `RemoteURL`) from a decoded repository fact payload. The logic
+moved here verbatim from the Postgres ingestion path
+(`go/internal/storage/postgres/ingestion_catalog_parse.go`), which now
+delegates to it, so Ifá's offline derived catalog (#4394) computes a
 generation's committed repository identity identically to the streaming commit
 path. The raw-payload-usage exemption for these pre-typed reads moved with the
 code (`go/internal/payloadusage/rawpayload.go`); no read changed.
+
+`RemoteURL` (issue #5483 C2) is `repositoryidentity.NormalizeRemoteURL(payload["remote_url"])`,
+captured alongside `Aliases` but never folded into it — it feeds only
+`discoverStructuredFluxEvidence`'s strict cross-repo url equality resolution.
+The shared catalog cache's reload-trigger comparison
+(`go/internal/storage/postgres/ingestion_catalog_cache.go`'s
+`catalogEntriesEqual`) checks `RemoteURL` in addition to `Aliases`, so a
+repository's remote URL changing (a mirror migration) merges a fresh entry
+into the cache instead of leaving Flux resolution pinned to a stale URL.
 
 No-Regression Evidence: this is a behavior-preserving extraction — the parser
 body (`catalogPayloadString` over `repo_id`/`graph_id`/`name`/`repo_name`/

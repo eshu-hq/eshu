@@ -12,6 +12,14 @@ import (
 var controllerEntityTypes = map[string]string{
 	"ArgoCDApplication":    "argocd_application",
 	"ArgoCDApplicationSet": "argocd_applicationset",
+	// FluxKustomization/FluxHelmRelease (issue #5483 C2) extend the same
+	// controller-entity trace surface Argo CD uses: buildDeploymentSourceControllerEntity
+	// reads metadata["source_path"] for FluxKustomization as-is (the Flux
+	// parser already emits spec.path under that key), while FluxHelmRelease
+	// needs the chart-as-path-root rule in
+	// impact_trace_deployment_gitops_helpers.go's deploymentTraceSourceRoots.
+	"FluxKustomization": "flux_kustomization",
+	"FluxHelmRelease":   "flux_helm_release",
 }
 
 func (h *ImpactHandler) fetchControllerEntities(
