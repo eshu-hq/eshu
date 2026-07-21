@@ -72,7 +72,15 @@ func decodeParsedFileDataTolerantSlice[T any](raw any) ([]T, bool) {
 		out = append(out, decoded)
 	}
 	if skipped > 0 {
-		slog.Debug("factschema: parsed_file_data tolerant decode skipped malformed element(s)",
+		// Warn, not Debug: the only producer of these buckets is the parser's
+		// AppendBucket, which always emits well-formed objects, so a skipped
+		// element means a producer regression rather than routine input noise.
+		// Debug is silent at the default Info level, which would leave an
+		// operator unable to tell a degraded bucket from an empty one -- the
+		// same absence-vs-not-evaluated ambiguity this decode path exists to
+		// surface. One record per decode call, never per element, so a
+		// systematically malformed bucket cannot flood the log.
+		slog.Warn("factschema: parsed_file_data tolerant decode skipped malformed element(s)",
 			"element_type", reflect.TypeFor[T]().String(),
 			"total_elements", len(items),
 			"skipped_elements", skipped,

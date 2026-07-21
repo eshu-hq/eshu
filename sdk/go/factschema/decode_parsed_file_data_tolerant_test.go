@@ -32,7 +32,12 @@ import (
 func TestDecodeParsedFileDataTolerantSlice_LogsSkippedElements(t *testing.T) {
 	var buf bytes.Buffer
 	previous := slog.Default()
-	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	// LevelInfo, deliberately: the point of this record is that an operator
+	// running default settings sees a degraded bucket. A LevelDebug handler
+	// would capture the record whatever level it was emitted at, so it could
+	// not fail if someone lowered it back to Debug and made it invisible in
+	// production.
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})))
 	defer slog.SetDefault(previous)
 
 	rows, ok := decodeParsedFileDataTolerantSlice[codegraphv1.TerraformModule]([]any{
@@ -60,8 +65,10 @@ func TestDecodeParsedFileDataTolerantSlice_LogsSkippedElements(t *testing.T) {
 }
 
 // TestDecodeParsedFileDataTolerantSlice_NoLogWhenNothingSkipped proves the
-// debug log stays silent on the common well-formed-input path, so it never
-// adds noise to a healthy decode.
+// skipped-element record stays silent on the common well-formed-input path, so
+// it never adds noise to a healthy decode. This one keeps a LevelDebug handler
+// on purpose: proving silence at the most permissive level is stronger than
+// proving it at the level the record is actually emitted on.
 func TestDecodeParsedFileDataTolerantSlice_NoLogWhenNothingSkipped(t *testing.T) {
 	var buf bytes.Buffer
 	previous := slog.Default()
