@@ -169,24 +169,128 @@ are either unreachable with today's evidence or intentionally not persisted.
   drift writers' bound. There is no prior baseline to compare against — the
   domain emitted no durable write before this issue — so this is the starting
   measurement, not a before/after delta.
-- **Read path — measured with `EXPLAIN ANALYZE`.** Ran a live Postgres
-  (`docker compose`, `COMPOSE_PROJECT_NAME=eshu-explain-5442`, torn down
-  after) seeded with representative volume — 256,000 `fact_records` rows
-  total, 6,000 `reducer_terraform_config_state_drift_finding` rows spread
-  across 300 distinct `state_snapshot` scopes (20 rows/scope) — and ran
-  `EXPLAIN (ANALYZE, BUFFERS)` for both the list and count queries
+- **Read path — measured with `EXPLAIN ANALYZE`, literal plans below.**
+  Two live-Postgres passes (`docker compose`, torn down after each):
+  `COMPOSE_PROJECT_NAME=eshu-explain-5442` (uniform seed) and
+  `COMPOSE_PROJECT_NAME=eshu-explain-5442b` (uniform seed plus one hot
+  scope, added per review — see cardinality-skew note below). Ran
+  `EXPLAIN (ANALYZE, BUFFERS)` for the list, count, and `Scoped`
+  (`scope_id = ANY(...)`) query shapes
   `buildTerraformConfigStateDriftFindingQuery` builds
-  (`go/internal/storage/postgres/terraform_config_state_drift_findings.go`),
-  plus the `Scoped` variant with the `scope_id = ANY(...)` grant predicate.
-  All three plans use `Index Scan using fact_records_scope_generation_idx`
-  (the `(scope_id, generation_id, fact_kind, observed_at DESC)` composite
-  index) joined via `Index Scan using ingestion_scopes_pkey` — no
-  sequential scan anywhere in any plan. Execution times: list query
-  0.31ms, count query 0.05-0.10ms, scoped list query 0.30ms (`Buffers:
-  shared hit` only, no disk reads). This independently confirms the
-  earlier structural argument (byte-for-byte the same predicate/join/index
-  shape as the already-proven `reducer_aws_cloud_runtime_drift_finding`
-  query) rather than resting on it.
+  (`go/internal/storage/postgres/terraform_config_state_drift_findings.go`).
+  Every plan below is an `Index Scan` — no `Seq Scan` appears anywhere.
+
+  Second-pass seed: 260,768 `fact_records` rows total (300 uniform
+  `state_snapshot` scopes at 20 rows each, plus one **hot scope** —
+  `state_snapshot:s3:hotscope` — carrying 2,500 rows behind a single
+  `scope_id` equality predicate, plus 250,000 unrelated rows of other fact
+  kinds so the table is large enough that a sequential scan would be
+  visibly costlier than an index scan if the planner chose one).
+
+  List query, normal scope (20 rows behind the predicate):
+
+  ```
+   Limit  (cost=5.15..5.16 rows=1 width=122) (actual time=0.223..0.227 rows=20.00 loops=1)
+     Buffers: shared hit=32
+     ->  Sort  (cost=5.15..5.16 rows=1 width=122) (actual time=0.222..0.223 rows=20.00 loops=1)
+           Sort Key: fact.observed_at DESC, fact.fact_id
+           Sort Method: quicksort  Memory: 45kB
+           Buffers: shared hit=32
+           ->  Nested Loop  (cost=0.70..5.14 rows=1 width=122) (actual time=0.073..0.175 rows=20.00 loops=1)
+                 Buffers: shared hit=26
+                 ->  Index Scan using ingestion_scopes_pkey on ingestion_scopes scope  (cost=0.28..2.49 rows=1 width=52) (actual time=0.032..0.032 rows=1.00 loops=1)
+                       Index Cond: (scope_id = 'state_snapshot:s3:synthetic150'::text)
+                       Buffers: shared hit=3
+                 ->  Index Scan using fact_records_scope_generation_idx on fact_records fact  (cost=0.42..2.64 rows=1 width=122) (actual time=0.038..0.136 rows=20.00 loops=1)
+                       Index Cond: ((scope_id = 'state_snapshot:s3:synthetic150'::text) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'reducer_terraform_config_state_drift_finding'::text))
+                       Filter: (NOT is_tombstone)
+                       Buffers: shared hit=23
+   Planning Time: 6.770 ms
+   Execution Time: 0.290 ms
+  ```
+
+  Count query, normal scope — same index, same shape, `Execution Time:
+  0.047 ms`.
+
+  `Scoped`/`ANY()` variant, normal scope — still an `Index Scan`, but the
+  planner picked a **different** index than the unscoped queries:
+  `fact_records_collector_status_active_idx`
+  (`scope_id, generation_id, source_system, fact_kind, observed_at DESC,
+  ingested_at DESC WHERE is_tombstone = false`) rather than
+  `fact_records_scope_generation_idx`. Both are real indexes on
+  `fact_records`; the planner chose the tombstone-filtered partial index
+  because the `ANY()` array made it cheaper for this cardinality. Still no
+  `Seq Scan`. `Execution Time: 0.102 ms`.
+
+  ```
+   Limit  (cost=6.69..6.70 rows=1 width=122) (actual time=0.084..0.087 rows=20.00 loops=1)
+     Buffers: shared hit=86
+     ->  Sort  (cost=6.69..6.70 rows=1 width=122) (actual time=0.084..0.085 rows=20.00 loops=1)
+           Sort Key: fact.observed_at DESC, fact.fact_id
+           Sort Method: quicksort  Memory: 45kB
+           Buffers: shared hit=86
+           ->  Nested Loop  (cost=0.70..6.68 rows=1 width=122) (actual time=0.034..0.076 rows=20.00 loops=1)
+                 Join Filter: (scope.active_generation_id = fact.generation_id)
+                 Buffers: shared hit=86
+                 ->  Index Scan using fact_records_collector_status_active_idx on fact_records fact  (cost=0.42..4.17 rows=1 width=122) (actual time=0.028..0.041 rows=20.00 loops=1)
+                       Index Cond: ((scope_id = ANY ('{state_snapshot:s3:synthetic150,state_snapshot:s3:synthetic151}'::text[])) AND (scope_id = 'state_snapshot:s3:synthetic150'::text) AND (fact_kind = 'reducer_terraform_config_state_drift_finding'::text))
+                       Buffers: shared hit=26
+                 ->  Index Scan using ingestion_scopes_pkey on ingestion_scopes scope  (cost=0.28..2.49 rows=1 width=52) (actual time=0.001..0.001 rows=1.00 loops=20)
+                       Index Cond: (scope_id = 'state_snapshot:s3:synthetic150'::text)
+                       Buffers: shared hit=60
+   Planning Time: 0.419 ms
+   Execution Time: 0.102 ms
+  ```
+
+  **Hot scope (2,500 rows behind one `scope_id`)** — cardinality-skew
+  proof added per review (P2-2): the uniform 20-rows/scope seed alone only
+  tests scope *count*, not per-scope *volume*, and nothing in
+  `PostgresTerraformConfigStateDriftWriter` caps findings per scope or
+  generation, so a real Terraform state with thousands of drifting
+  resources in one generation is a real worst case, not a hypothetical
+  one. List query (`LIMIT 100`) plan:
+
+  ```
+   Limit  (cost=5.15..5.16 rows=1 width=122) (actual time=1.547..1.559 rows=100.00 loops=1)
+     Buffers: shared hit=315
+     ->  Sort  (cost=5.15..5.16 rows=1 width=122) (actual time=1.547..1.552 rows=100.00 loops=1)
+           Sort Key: fact.observed_at DESC, fact.fact_id
+           Sort Method: top-N heapsort  Memory: 125kB
+           Buffers: shared hit=315
+           ->  Nested Loop  (cost=0.70..5.14 rows=1 width=122) (actual time=0.044..1.150 rows=2500.00 loops=1)
+                 Buffers: shared hit=315
+                 ->  Index Scan using ingestion_scopes_pkey on ingestion_scopes scope  (cost=0.28..2.49 rows=1 width=52) (actual time=0.015..0.016 rows=1.00 loops=1)
+                       Index Cond: (scope_id = 'state_snapshot:s3:hotscope'::text)
+                       Buffers: shared hit=3
+                 ->  Index Scan using fact_records_scope_generation_idx on fact_records fact  (cost=0.42..2.64 rows=1 width=122) (actual time=0.027..0.917 rows=2500.00 loops=1)
+                       Index Cond: ((scope_id = 'state_snapshot:s3:hotscope'::text) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'reducer_terraform_config_state_drift_finding'::text))
+                       Filter: (NOT is_tombstone)
+                       Buffers: shared hit=312
+   Planning Time: 0.417 ms
+   Execution Time: 1.594 ms
+  ```
+
+  Count query, hot scope — same index, `Execution Time: 0.838 ms`. The
+  index scan does not flip to a sequential scan at 2,500 rows behind one
+  `scope_id`; `fact_records_scope_generation_idx` still wins, and both the
+  planner's row estimate progression (`rows=1` cost estimate on the
+  `Index Cond`, `rows=2500.00` actual — Postgres's known
+  single-value-selectivity estimation quirk when the planner has no
+  per-value MCV stats for a brand-new scope_id, not a plan-shape problem)
+  and the `Buffers: shared hit` line (all cache hits, no disk reads) match
+  the low-cardinality runs' shape, just scaled by row count.
+
+  **Architectural bound on the worst case (stronger than any single
+  measurement):** every call into this store's `ListActiveFindings` and
+  `CountActiveFindings` passes through
+  `validateTerraformConfigStateDriftFindingFilter`, which rejects an empty
+  `ScopeID` and any `ScopeID` not prefixed `state_snapshot:` before a
+  query is ever built. There is no code path through this store that
+  issues the query without a `scope_id` equality predicate — the
+  `fact_kind = $1 AND fact.scope_id = $2` shape (or the `Scoped` variant's
+  additional `ANY()` predicate) is not just today's common case, it is the
+  only shape reachable. A full-table scan of `fact_records` filtered by
+  `fact_kind` alone, with no `scope_id`, cannot occur through this store.
 - **Golden-corpus fixture coverage — measured, closed.** A first live
   `scripts/verify-golden-corpus-gate.sh` run found zero
   `list_terraform_config_state_drift_findings` results. Root-caused to two

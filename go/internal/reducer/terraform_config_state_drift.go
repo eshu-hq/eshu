@@ -269,7 +269,15 @@ func (h TerraformConfigStateDriftHandler) writeAmbiguousOwner(
 		LocatorHash:     locatorHash,
 		AmbiguousOwners: ambiguous.Candidates,
 	})
-	if writeErr != nil && h.Logger != nil {
+	if writeErr == nil {
+		return
+	}
+	if h.Instruments != nil && h.Instruments.DriftAmbiguousOwnerWriteFailed != nil {
+		h.Instruments.DriftAmbiguousOwnerWriteFailed.Add(ctx, 1, metric.WithAttributes(
+			attribute.String(telemetry.MetricDimensionPack, rules.TerraformConfigStateDriftPackName),
+		))
+	}
+	if h.Logger != nil {
 		h.Logger.LogAttrs(
 			ctx, slog.LevelWarn, "drift ambiguous owner durable write failed",
 			log.Domain(string(intent.Domain)),

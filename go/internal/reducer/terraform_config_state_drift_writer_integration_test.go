@@ -199,10 +199,15 @@ func TestDriftHandlerAmbiguousOwnerWritesDurableAmbiguousFinding(t *testing.T) {
 // write failure on the ambiguous path does not turn an already
 // operator-actionable, non-fatal rejection into a retriable Handle() error —
 // that would create a retry storm for a case the reducer already classifies
-// as "succeeded, operator should look at this."
+// as "succeeded, operator should look at this." It also proves the failure
+// is not invisible to metrics: DriftAmbiguousOwnerWriteFailed (issue #5442
+// P2-3) increments once, since the log-only Handle() outcome would otherwise
+// give an operator watching dashboards rather than grepping logs no signal
+// that an ambiguous finding failed to persist.
 func TestDriftHandlerAmbiguousOwnerWriteFailureStaysNonFatal(t *testing.T) {
 	t.Parallel()
 
+	inst, reader := newDriftInstruments(t)
 	now := time.Now()
 	backendRows := []tfstatebackend.TerraformBackendRow{
 		{RepoID: "repo-a", ScopeID: "repo:repo-a@1", CommitID: "aaa", CommitObservedAt: now, BackendKind: "s3", LocatorHash: "hash-1"},
@@ -213,6 +218,7 @@ func TestDriftHandlerAmbiguousOwnerWriteFailureStaysNonFatal(t *testing.T) {
 		Resolver:       tfstatebackend.NewResolver(&stubBackendQuery{rows: backendRows}),
 		EvidenceLoader: &stubDriftLoader{},
 		Writer:         writer,
+		Instruments:    inst,
 	}
 	res, err := h.Handle(context.Background(), validIntent())
 	if err != nil {
@@ -220,6 +226,45 @@ func TestDriftHandlerAmbiguousOwnerWriteFailureStaysNonFatal(t *testing.T) {
 	}
 	if res.Status != ResultStatusSucceeded {
 		t.Fatalf("res.Status = %q, want Succeeded", res.Status)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if got := counterTotal(rm, "eshu_dp_drift_ambiguous_owner_write_failed_total"); got != 1 {
+		t.Fatalf("eshu_dp_drift_ambiguous_owner_write_failed_total = %d, want 1", got)
+	}
+}
+
+// TestDriftHandlerAmbiguousOwnerWriteSuccessDoesNotIncrementFailureCounter
+// proves the counter is failure-specific, not incremented on every ambiguous
+// write attempt.
+func TestDriftHandlerAmbiguousOwnerWriteSuccessDoesNotIncrementFailureCounter(t *testing.T) {
+	t.Parallel()
+
+	inst, reader := newDriftInstruments(t)
+	now := time.Now()
+	backendRows := []tfstatebackend.TerraformBackendRow{
+		{RepoID: "repo-a", ScopeID: "repo:repo-a@1", CommitID: "aaa", CommitObservedAt: now, BackendKind: "s3", LocatorHash: "hash-1"},
+		{RepoID: "repo-b", ScopeID: "repo:repo-b@1", CommitID: "bbb", CommitObservedAt: now, BackendKind: "s3", LocatorHash: "hash-1"},
+	}
+	h := TerraformConfigStateDriftHandler{
+		Resolver:       tfstatebackend.NewResolver(&stubBackendQuery{rows: backendRows}),
+		EvidenceLoader: &stubDriftLoader{},
+		Writer:         &stubDriftWriter{},
+		Instruments:    inst,
+	}
+	if _, err := h.Handle(context.Background(), validIntent()); err != nil {
+		t.Fatalf("Handle() err = %v", err)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if got := counterTotal(rm, "eshu_dp_drift_ambiguous_owner_write_failed_total"); got != 0 {
+		t.Fatalf("eshu_dp_drift_ambiguous_owner_write_failed_total = %d, want 0 on a successful write", got)
 	}
 }
 
