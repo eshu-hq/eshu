@@ -180,28 +180,43 @@ are either unreachable with today's evidence or intentionally not persisted.
   `ingestion_scopes` join on `active_generation_id` — not a benchmark. This
   should be independently measured against representative data before
   relying on it as a performance guarantee.
-- **Golden-corpus fixture coverage — measured, and a real gap.** A live
-  `scripts/verify-golden-corpus-gate.sh` run (`GATE_COLLECTOR_SETTLE_
-  SECONDS=45`, unique compose project/ports) against the shared 20-repo
-  corpus returned zero `list_terraform_config_state_drift_findings` results
-  for the corpus's only Terraform state scope
-  (`state_snapshot:s3:517dc802bb6c5ddfaf17a5e4b8fa9e8bb913a01fbacc87524ef
-  4349265e3c812`, derived from
-  `testdata/cassettes/terraformstate/supply-chain-demo.json`). Root cause:
-  that cassette's backend locator (`s3` bucket `supply-chain-demo-tfstate`,
-  key `supply-chain-demo/terraform.tfstate`) does not match the corpus's
-  only Terraform config fixture's declared backend
-  (`tests/fixtures/ecosystems/terraform_comprehensive/main.tf`: bucket
-  `my-terraform-state`, key `comprehensive/terraform.tfstate`), so
-  `tfstatebackend.ResolveConfigCommitForBackend` returns
-  `ErrNoConfigRepoOwnsBackend` and the reducer correctly persists nothing
-  (the no-owner case is intentionally not durable — see the outcome model
-  above). This is a corpus fixture-coverage gap, not a handler defect: the
-  demo/golden corpus has no Terraform config+state fixture pair sharing a
-  backend locator, so this domain's `exact` and `ambiguous` durable-write
-  paths are exercised only by the unit and writer-integration tests, not by
-  the golden corpus. `testdata/golden/e2e-20repo-snapshot.json`'s
-  `list_terraform_config_state_drift_findings` shape keeps
-  `minimum_results: 0` for this reason; raising it needs a new fixture pair
-  with a matching backend locator (or an existing fixture's backend
-  corrected to match), which is a separate, unfiled follow-up.
+- **Golden-corpus fixture coverage — measured, closed.** A first live
+  `scripts/verify-golden-corpus-gate.sh` run found zero
+  `list_terraform_config_state_drift_findings` results. Root-caused to two
+  compounding gaps, not a handler defect:
+  1. `testdata/cassettes/terraformstate/supply-chain-demo.json`'s scope_id
+     was `terraform_state:s3:supply-chain-demo-tfstate:supply-chain-demo/
+     terraform.tfstate` — cassette replay
+     (`go/internal/replay/cassette/source.go`) uses a cassette's `scope_id`
+     verbatim as the ingestion scope, and the Phase 3.5 drift-intent
+     trigger (`go/internal/storage/postgres/drift_enqueue.go`) only scans
+     `ingestion_scopes` rows matching `state_snapshot:%`, so this cassette's
+     scope was never even considered — no drift intent was ever enqueued for
+     it, independent of backend matching.
+  2. The corpus's only Terraform config fixture
+     (`tests/fixtures/ecosystems/terraform_comprehensive/main.tf`) declared
+     a different S3 backend (bucket `my-terraform-state`, key
+     `comprehensive/terraform.tfstate`) than the cassette (bucket
+     `supply-chain-demo-tfstate`, key `supply-chain-demo/terraform.tfstate`),
+     so even a correctly-scoped intent would have hit
+     `tfstatebackend.ErrNoConfigRepoOwnsBackend` (the no-owner case is
+     intentionally not durable — see the outcome model above).
+
+  Fixed both, in the corpus itself rather than documenting the gap: gave
+  the cassette the canonical `state_snapshot:s3:<sha256("s3://" + bucket +
+  "/" + key)>` scope_id (`terraformstate.ScopeLocatorHash`, the same hash
+  `tfstate_backend_canonical.go` recomputes from the config side at query
+  time), and pointed `terraform_comprehensive`'s backend block at the same
+  bucket/key the cassette already used. A second live gate run then showed
+  `[PASS] mcp:list_terraform_config_state_drift_findings: "drift_findings"
+  has 12 results` — real `added_in_config`/`added_in_state` drift, because
+  none of the fixture's ~12 declared resource addresses overlap the
+  cassette's 2 ECS state resources by design (deliberately the most robust
+  drift kinds: presence/absence only, no attribute-allowlist dependency).
+  Every other one of the gate's 439 assertions was diffed line-for-line
+  between the before/after runs and was byte-identical except this one
+  (`node_count_TerraformResource` stayed `12` in the pinned `[1,30]` range
+  both times — no config resource nodes were added, only the backend
+  pointer changed). `testdata/golden/e2e-20repo-snapshot.json`'s
+  `list_terraform_config_state_drift_findings` shape now asserts
+  `minimum_results: 1`, backed by that observed run.

@@ -4588,7 +4588,7 @@
         }
       },
       "list_terraform_config_state_drift_findings": {
-        "description": "MCP tool coverage shape for list_terraform_config_state_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). scope_id is state_snapshot:s3:<sha256(backend_kind + NUL + locator)> derived from testdata/cassettes/terraformstate/supply-chain-demo.json's scope metadata (backend_kind=s3, locator_hash=supply-chain-demo-tfstate/supply-chain-demo/terraform.tfstate) via go/internal/scope/tfstate.go's hashStateLocator. minimum_results is 0: a live golden-corpus-gate run (issue #5442 follow-up investigation) confirmed 0 results -- the corpus's only Terraform STATE cassette (this one) declares an S3 backend locator that does not match any Terraform CONFIG fixture's declared backend in the corpus (tests/fixtures/ecosystems/terraform_comprehensive/main.tf declares bucket=my-terraform-state key=comprehensive/terraform.tfstate, a different backend entirely), so tfstatebackend.ResolveConfigCommitForBackend never finds an owning config repo for this state scope and the reducer correctly persists nothing (the unresolved/no-owner case is intentionally not durable, see tfconfigstate/doc.go). This is a corpus fixture-coverage gap, not a handler defect; raising minimum_results requires adding a config+state fixture pair that share a backend locator.",
+        "description": "MCP tool coverage shape for list_terraform_config_state_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). scope_id is state_snapshot:s3:<sha256(s3://bucket/key)> (terraformstate.ScopeLocatorHash) for bucket=supply-chain-demo-tfstate key=supply-chain-demo/terraform.tfstate, the backend shared by testdata/cassettes/terraformstate/supply-chain-demo.json (state) and tests/fixtures/ecosystems/terraform_comprehensive/main.tf (config), deliberately aligned in issue #5442 so tfstatebackend.ResolveConfigCommitForBackend resolves an owner and real added_in_config/added_in_state drift findings materialize (none of the two fixtures' resource addresses overlap by design, so every resource on both sides drifts). minimum_results is 1 -- proven by a live golden-corpus-gate run, not shape-only.",
         "required_response_fields": [
           "address",
           "analysis_status",
@@ -4608,10 +4608,10 @@
           "truncated",
           "truth_basis"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
         "arguments": {
-          "scope_id": "state_snapshot:s3:517dc802bb6c5ddfaf17a5e4b8fa9e8bb913a01fbacc87524ef4349265e3c812",
-          "limit": 10
+          "scope_id": "state_snapshot:s3:299b28d40110e54bf81beb51e9459bdef688dbc58419782b29aa83a5930b48a7",
+          "limit": 25
         }
       }
     },
