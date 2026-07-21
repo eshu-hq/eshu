@@ -92,7 +92,22 @@ var relationshipVerbCatalog = []relationshipVerbEntry{
 	// why those stay targetAttributable=false -- the distinction is repo_id
 	// bindability, not the unrelated targetIdentityProperty override MANAGES
 	// uses for its non-standard Directory identity key.
-	{verb: "RECONCILES_FROM", layer: "deploy", sourceLabel: "FluxKustomization", sourceProperty: "uid", evidence: "Flux GitOps", detail: "Flux Kustomization reconciles manifests from its source", targetAttributable: true},
+	//
+	// Issue #5483 C1 extends the SAME RECONCILES_FROM edge type to
+	// FluxHelmRelease sources (FluxHelmRepository/FluxGitRepository/
+	// FluxOCIRepository/FluxBucket) and deliberately does NOT add a second
+	// catalog entry: relationshipVerbByName is verb-keyed, so a second
+	// "RECONCILES_FROM" entry would clobber this one (the DEPENDS_ON
+	// precedent -- a shared verb with more than one source label keeps one
+	// entry). This whole-graph count (`MATCH ()-[r:RECONCILES_FROM]->()`)
+	// includes HelmRelease-sourced edges automatically; the sourceLabel stays
+	// FluxKustomization, so the bounded list_relationship_edges SLICE below
+	// stays anchored there and never returns a FluxHelmRelease-sourced edge --
+	// those are honestly reachable only through get_entity_context (the
+	// generic graph-projected-node edge surface), not this catalog's
+	// per-verb browse. See relationships_catalog_flux_test.go for the
+	// count/slice divergence proof.
+	{verb: "RECONCILES_FROM", layer: "deploy", sourceLabel: "FluxKustomization", sourceProperty: "uid", evidence: "Flux GitOps", detail: "Flux Kustomization or HelmRelease reconciles from its source", targetAttributable: true},
 	// infra layer
 	{verb: "PROVISIONS_DEPENDENCY_FOR", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Terraform", detail: "Repository provisions infrastructure for a target", carriesSourceTool: true, sourceToolSourceLabel: "Repository", targetAttributable: true},
 	{verb: "USES_MODULE", layer: "infra", sourceLabel: "Repository", sourceProperty: "id", evidence: "Terraform modules", detail: "Repository consumes a module repository", carriesSourceTool: true, sourceToolSourceLabel: "Repository", targetAttributable: true},

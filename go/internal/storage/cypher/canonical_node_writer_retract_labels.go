@@ -54,6 +54,8 @@ var canonicalNodeRetractInfraEntityLabels = map[string]struct{}{
 	"FluxGitRepository":      {},
 	"FluxOCIRepository":      {},
 	"FluxBucket":             {},
+	"FluxHelmRelease":        {},
+	"FluxHelmRepository":     {},
 	"HelmChart":              {},
 	"HelmValues":             {},
 	"HelmValueDefinition":    {},

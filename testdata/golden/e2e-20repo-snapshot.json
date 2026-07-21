@@ -1550,6 +1550,14 @@
         "from_label": "KubernetesWorkload",
         "to_label": "OciImageManifest",
         "minimum_count": 3
+      },
+      {
+        "id": "rc-154",
+        "description": "FluxHelmRelease RECONCILES_FROM its resolved source CR: kubernetes_comprehensive/flux-helmrelease.yaml (podinfo, spec.chart.spec.sourceRef kind HelmRepository name podinfo namespace flux-system) resolves against kubernetes_comprehensive/flux-helmrepository.yaml (podinfo, namespace flux-system) via the SAME deterministic same-repo namespace-exact tier FluxKustomization uses, reused verbatim (issue #5483 C1). Zero if the sourceRef/source-CR namespace or name join drifts, or if the shared T1-T4 resolver stops being reachable from the HelmRelease collection path.",
+        "relationship": "RECONCILES_FROM",
+        "from_label": "FluxHelmRelease",
+        "to_label": "FluxHelmRepository",
+        "minimum_count": 1
       }
     ],
     "required_nodes": [
@@ -1624,6 +1632,24 @@
         "minimum_count": 1,
         "required_node_properties": [
           "bucket_name"
+        ]
+      },
+      {
+        "id": "rn-flux-helm-release-source-ref",
+        "description": "At least 1 FluxHelmRelease node carries source_ref_kind; kubernetes_comprehensive/flux-helmrelease.yaml (podinfo, helm.toolkit.fluxcd.io) proves the typed Flux HelmRelease walker captures spec.chart.spec.sourceRef instead of falling through to the generic K8sResource parser (issue #5483 C1). The RECONCILES_FROM correlation edge to its resolved source CR is asserted separately as rc-154.",
+        "label": "FluxHelmRelease",
+        "minimum_count": 1,
+        "required_node_properties": [
+          "source_ref_kind"
+        ]
+      },
+      {
+        "id": "rn-flux-helm-repository-url",
+        "description": "At least 1 FluxHelmRepository node carries url; kubernetes_comprehensive/flux-helmrepository.yaml (podinfo, source.toolkit.fluxcd.io) proves the typed Flux HelmRepository walker captures spec.url instead of dropping it on the generic K8sResource path (issue #5483 C1).",
+        "label": "FluxHelmRepository",
+        "minimum_count": 1,
+        "required_node_properties": [
+          "url"
         ]
       }
     ]

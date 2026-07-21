@@ -148,6 +148,8 @@ var uidConstraintLabels = []string{
 	"File",
 	"FluxBucket",
 	"FluxGitRepository",
+	"FluxHelmRelease",
+	"FluxHelmRepository",
 	"FluxKustomization",
 	"FluxOCIRepository",
 	"Function",

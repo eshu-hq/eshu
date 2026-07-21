@@ -375,17 +375,20 @@ func graphLabelToContentEntityType(label string) string {
 		return label
 	case "TerraformModule", "TerragruntConfig", "TerragruntDependency":
 		return label
-	case "FluxKustomization", "FluxGitRepository", "FluxOCIRepository", "FluxBucket":
-		// Flux typed entities are entity_context-only (issue #5360 PR A). Their
-		// typed fields (url, source_ref_*, ref_*, bucket_name, endpoint,
-		// provider, source_path, target_namespace, generate_name) ride
-		// entity_metadata and are written as graph node properties, but the
-		// fixed graph metadata projection does not select them, so
-		// get_entity_context relies on this content-enrichment bridge to
-		// surface them -- mirroring the #5346 SqlMigration read-surface fix.
-		// This mapping does NOT advertise them as language-queryable: it feeds
-		// only the content-metadata enrichment and relationship-label paths,
-		// never allSupportedEntityTypes()/SupportedEntityTypes().
+	case "FluxKustomization", "FluxGitRepository", "FluxOCIRepository", "FluxBucket",
+		"FluxHelmRelease", "FluxHelmRepository":
+		// Flux typed entities are entity_context-only (issue #5360 PR A;
+		// FluxHelmRelease/FluxHelmRepository added issue #5483 C1). Their typed
+		// fields (url, source_ref_*, chart_ref_*, ref_*, bucket_name, endpoint,
+		// provider, source_path, target_namespace, chart, chart_version,
+		// repo_type, generate_name) ride entity_metadata and are written as
+		// graph node properties, but the fixed graph metadata projection does
+		// not select them, so get_entity_context relies on this
+		// content-enrichment bridge to surface them -- mirroring the #5346
+		// SqlMigration read-surface fix. This mapping does NOT advertise them
+		// as language-queryable: it feeds only the content-metadata enrichment
+		// and relationship-label paths, never
+		// allSupportedEntityTypes()/SupportedEntityTypes().
 		return label
 	default:
 		return ""

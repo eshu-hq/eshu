@@ -110,6 +110,11 @@ var contentEntityBuckets = []entityBucketMapping{
 	{bucket: "flux_git_repositories", label: "FluxGitRepository"},
 	{bucket: "flux_oci_repositories", label: "FluxOCIRepository"},
 	{bucket: "flux_buckets", label: "FluxBucket"},
+	// Flux HelmRelease/HelmRepository typed entities (issue #5483 C1),
+	// mirroring PR A's Flux typed-entity promotion above. Appended at the end
+	// per the frozen-table invariant.
+	{bucket: "flux_helm_releases", label: "FluxHelmRelease"},
+	{bucket: "flux_helm_repositories", label: "FluxHelmRepository"},
 }
 
 // sourceFieldContainsCode is the set of entity labels whose Source field holds
@@ -157,6 +162,8 @@ var trailingNewlineLabels = map[string]struct{}{
 	"Function":                {},
 	"FluxBucket":              {},
 	"FluxGitRepository":       {},
+	"FluxHelmRelease":         {},
+	"FluxHelmRepository":      {},
 	"FluxKustomization":       {},
 	"FluxOCIRepository":       {},
 	"GitlabJob":               {},

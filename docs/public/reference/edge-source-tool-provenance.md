@@ -175,7 +175,7 @@ each by tier; only Tier-1/Tier-2 carry a tool.
 | `MANAGES` | `atlantis` | `storage/cypher/canonical_atlantis_edges.go:23` |
 | `ATLANTIS_DEPENDS_ON` | `atlantis` | `canonical_atlantis_edges.go:35` |
 | `USES_WORKFLOW` | `atlantis` | `canonical_atlantis_edges.go:46` |
-| `RECONCILES_FROM` | `flux` | `storage/cypher/canonical_flux_edges.go:21` (GitRepository), `:32` (OCIRepository), `:43` (Bucket) |
+| `RECONCILES_FROM` | `flux` | `storage/cypher/canonical_flux_edges.go:21` (GitRepository), `:32` (OCIRepository), `:43` (Bucket) -- Kustomization-sourced; `canonical_flux_helm_edges.go` (HelmRepository/GitRepository/OCIRepository/Bucket) -- HelmRelease-sourced, issue #5483 C1 |
 | `DEFINES_JOB` | `gitlab` | `canonical_gitlab_edges.go:22` |
 | `NEEDS` | `gitlab` | `canonical_gitlab_edges.go:34` |
 | `HAS_VERSION` | package ecosystem (`gomod`/`npm`/`pip`/`maven`/`cargo`) | `package_registry_edge_writer.go:25` |

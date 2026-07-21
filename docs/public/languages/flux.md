@@ -9,7 +9,7 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 - Parser: `DefaultEngine (yaml)`
 - Entrypoint: `go/internal/parser/yaml_language.go`
 - Fixture repo: `tests/fixtures/ecosystems/flux_comprehensive/`
-- Unit test suite: `go/internal/parser/yaml/flux_test.go`, `go/internal/parser/yaml/flux_source_test.go`, `go/internal/parser/engine_yaml_flux_semantics_test.go`
+- Unit test suite: `go/internal/parser/yaml/flux_test.go`, `go/internal/parser/yaml/flux_source_test.go`, `go/internal/parser/yaml/flux_helm_test.go`, `go/internal/parser/engine_yaml_flux_semantics_test.go`, `go/internal/parser/engine_yaml_flux_helm_fixture_negatives_test.go`
 - Integration validation: compose-backed fixture verification (see [Local Testing Runbook](../reference/local-testing.md))
 
 ## Capability Checklist
@@ -27,8 +27,16 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | OCIRepository ref | `flux-oci-repository-ref` | supported | `flux_oci_repositories` | `name, line_number, ref_tag, ref_semver, ref_commit` | `property:FluxOCIRepository.ref_tag/ref_semver/ref_commit` | `go/internal/parser/yaml/flux_source_test.go::TestParseFluxOCIRepositoryCapturesURLAndRef` | Compose-backed fixture verification | `spec.ref.digest` folds into `ref_commit` alongside GitRepository's commit SHA -- both identify an immutable content-addressed revision. |
 | Bucket (`source.toolkit.fluxcd.io`) | `flux-buckets` | supported | `flux_buckets` | `name, line_number` | `node:FluxBucket` | `go/internal/parser/yaml/flux_source_test.go::TestIsFluxBucket` | Compose-backed fixture verification | - |
 | Bucket coordinates | `flux-bucket-coordinates` | supported | `flux_buckets` | `name, line_number, bucket_name, endpoint, provider` | `property:FluxBucket.bucket_name/endpoint/provider` | `go/internal/parser/yaml/flux_source_test.go::TestParseFluxBucketCapturesBucketFields` | Compose-backed fixture verification | - |
-| generateName evidence (all Flux kinds) | `flux-generate-name` | supported | `flux_kustomizations` / `flux_git_repositories` / `flux_oci_repositories` / `flux_buckets` | `name, line_number, generate_name` | `property:Flux*.generate_name` | `go/internal/parser/yaml/flux_source_test.go::TestParseFluxGitRepositoryGenerateNameOnly`, `go/internal/parser/yaml/flux_test.go::TestParseFluxKustomizationGenerateNameOnly` | Compose-backed fixture verification | A CR using `metadata.generateName` instead of `metadata.name` has an empty `name` (never `"<nil>"`) and carries the literal `generate_name` field so the empty name is explained (issue #5360 PR A). |
-| Kustomization `RECONCILES_FROM` source edge | `flux-reconciles-from-edge` | supported | n/a (projector-canonical, not a parser bucket) | `resolution_mode, source_ref_kind, source_ref_name, source_ref_namespace, namespace_defaulted` | `edge:FluxKustomization-[RECONCILES_FROM]->FluxGitRepository/FluxOCIRepository/FluxBucket` | `go/internal/storage/cypher/canonical_flux_edges_test.go` | `go/internal/query/relationships_catalog_flux_test.go`, B-12 `rc-152` | Resolved in Go at projection time (not the parser): same-repo, deterministic T1-T4 tiers applying Flux's own same-namespace default; a dangling ref, a declared-namespace mismatch, or an unresolved ambiguity (ties, ambiguous ownerless candidates) is an honest non-link, never a fabricated join (issue #5360 PR B). |
+| generateName evidence (all Flux kinds) | `flux-generate-name` | supported | `flux_kustomizations` / `flux_git_repositories` / `flux_oci_repositories` / `flux_buckets` / `flux_helm_releases` / `flux_helm_repositories` | `name, line_number, generate_name` | `property:Flux*.generate_name` | `go/internal/parser/yaml/flux_source_test.go::TestParseFluxGitRepositoryGenerateNameOnly`, `go/internal/parser/yaml/flux_test.go::TestParseFluxKustomizationGenerateNameOnly` | Compose-backed fixture verification | A CR using `metadata.generateName` instead of `metadata.name` has an empty `name` (never `"<nil>"`) and carries the literal `generate_name` field so the empty name is explained (issue #5360 PR A; extended to HelmRelease/HelmRepository by issue #5483 C1). |
+| Kustomization `RECONCILES_FROM` source edge | `flux-reconciles-from-edge` | supported | n/a (projector-canonical, not a parser bucket) | `resolution_mode, source_ref_kind, source_ref_name, source_ref_namespace, namespace_defaulted, reconciler_kind` | `edge:FluxKustomization-[RECONCILES_FROM]->FluxGitRepository/FluxOCIRepository/FluxBucket` | `go/internal/storage/cypher/canonical_flux_edges_test.go` | `go/internal/query/relationships_catalog_flux_test.go`, B-12 `rc-152` | Resolved in Go at projection time (not the parser): same-repo, deterministic T1-T4 tiers applying Flux's own same-namespace default; a dangling ref, a declared-namespace mismatch, or an unresolved ambiguity (ties, ambiguous ownerless candidates) is an honest non-link, never a fabricated join (issue #5360 PR B). `reconciler_kind` (`Kustomization`\|`HelmRelease`) is stamped on every edge this verb writes (issue #5483 C1). |
+| HelmRelease (`helm.toolkit.fluxcd.io`) | `flux-helm-releases` | supported | `flux_helm_releases` | `name, line_number` | `node:FluxHelmRelease` | `go/internal/parser/yaml/flux_helm_test.go::TestIsFluxHelmRelease` | Compose-backed fixture verification | Previously fell through to the generic `k8s_resources` bucket. |
+| HelmRelease chart | `flux-helm-release-chart` | supported | `flux_helm_releases` | `name, line_number, chart, chart_version` | `property:FluxHelmRelease.chart/chart_version` | `go/internal/parser/yaml/flux_helm_test.go::TestParseFluxHelmReleaseCapturesChartSourceRef` | Compose-backed fixture verification | `spec.chart.spec.chart` is a chart NAME for a `HelmRepository` source, a PATH for `GitRepository`/`Bucket` sources. |
+| HelmRelease chart sourceRef | `flux-helm-release-source-ref` | supported | `flux_helm_releases` | `name, line_number, source_ref_kind, source_ref_name, source_ref_namespace` | `property:FluxHelmRelease.source_ref_kind/name/namespace` | `go/internal/parser/yaml/flux_helm_test.go::TestParseFluxHelmReleaseCapturesChartSourceRef` | Compose-backed fixture verification | Same three row keys `flux-kustomization-source-ref` uses; namespace is omitted, never defaulted, when absent (the reducer-side default rule applies at edge-resolution time). |
+| HelmRelease chartRef | `flux-helm-release-chart-ref` | supported | `flux_helm_releases` | `name, line_number, chart_ref_kind, chart_ref_name, chart_ref_namespace` | `property:FluxHelmRelease.chart_ref_kind/name/namespace` | `go/internal/parser/yaml/flux_helm_test.go::TestParseFluxHelmReleaseCapturesChartRef` | Compose-backed fixture verification | Distinct keys from `source_ref_*` -- a HelmRelease with both `spec.chart` and `spec.chartRef` set (invalid per the Flux API) still captures both verbatim; the exactly-one-of validation belongs to the edge resolver, never the parser. |
+| HelmRepository (`source.toolkit.fluxcd.io`) | `flux-helm-repositories` | supported | `flux_helm_repositories` | `name, line_number` | `node:FluxHelmRepository` | `go/internal/parser/yaml/flux_source_test.go::TestIsFluxHelmRepository` | Compose-backed fixture verification | Previously fell through to the generic `k8s_resources` bucket. |
+| HelmRepository url | `flux-helm-repository-url` | supported | `flux_helm_repositories` | `name, line_number, url` | `property:FluxHelmRepository.url` | `go/internal/parser/yaml/flux_source_test.go::TestParseFluxHelmRepositoryCapturesURLAndType` | Compose-backed fixture verification | `spec.url` is the chart-index coordinate. |
+| HelmRepository type | `flux-helm-repository-type` | supported | `flux_helm_repositories` | `name, line_number, repo_type` | `property:FluxHelmRepository.repo_type` | `go/internal/parser/yaml/flux_source_test.go::TestParseFluxHelmRepositoryCapturesURLAndType` | Compose-backed fixture verification | Captured under `repo_type`, deliberately NOT the generic `type` key, to avoid a collision at the content-metadata/query layer. |
+| HelmRelease `RECONCILES_FROM` source edge | `flux-helmrelease-reconciles-from-edge` | supported | n/a (projector-canonical, not a parser bucket) | `resolution_mode, source_ref_kind, source_ref_name, source_ref_namespace, namespace_defaulted, reconciler_kind, via` | `edge:FluxHelmRelease-[RECONCILES_FROM]->FluxHelmRepository/FluxGitRepository/FluxOCIRepository/FluxBucket` | `go/internal/storage/cypher/canonical_flux_helm_edges_test.go` | B-12 `rc-` HelmRelease correlation | Reuses the SAME T1-T4 resolution tiers as Kustomization, verbatim (issue #5483 C1). `via` (`chart_source_ref`\|`chart_ref`) records which reference field resolved the edge. `chartRef.kind: HelmChart` is a deliberate honest non-link (see Known Limitations); reachable only through `get_entity_context`, not `list_relationship_edges` (the catalog slice stays anchored on `FluxKustomization`). |
 
 ## Framework And Library Support
 
@@ -43,12 +51,16 @@ Supported today:
   is materialized and browsable through `list_relationship_edges` (issue
   #5360 PR B) -- see the capability table above and Known Limitations below
   for what it does and does not resolve.
+- `HelmRelease` (`helm.toolkit.fluxcd.io`) and `HelmRepository`
+  (`source.toolkit.fluxcd.io`) are modeled as typed content entities
+  (issue #5483 C1), reachable through `get_entity_context`. The
+  `RECONCILES_FROM` edge extends to `FluxHelmRelease` sources through the
+  identical resolution tiers, but is reachable only through
+  `get_entity_context`, not `list_relationship_edges` (see Known Limitations
+  below).
 
 Not claimed today:
 
-- `HelmRelease` (`helm.toolkit.fluxcd.io`) and `HelmRepository`
-  (`source.toolkit.fluxcd.io`) are not modeled; they continue to fall
-  through to the generic `k8s_resources` bucket.
 - Flux notification/alerting CRDs (`notification.toolkit.fluxcd.io`) and
   image-automation CRDs (`image.toolkit.fluxcd.io`) are not modeled.
 
@@ -73,12 +85,32 @@ Not claimed today:
   honest non-link, not a cross-repo lineage limitation (see below).
 - **No deployment-trace reachability yet.** `trace_deployment_chain` and the
   deployment-lineage provenance-family derivation for Flux are not covered
-  by this change; the correlation edge is browsable only through
-  `list_relationship_edges` and `get_entity_context` today.
-- **HelmRelease sourceRef is a follow-up.** `HelmRelease.spec.chart.spec.sourceRef`
-  (or `chartRef`) can reference a `HelmRepository`, `GitRepository`, or
-  `OCIRepository`; `HelmRepository` is a fourth, currently uncaptured source
-  kind. Tracked as a follow-up to issue #5360.
+  by this change; the Kustomization-sourced correlation edge is browsable
+  only through `list_relationship_edges` and `get_entity_context` today.
+- **HelmRelease resolves through `get_entity_context` only, never
+  `list_relationship_edges`.** `HelmRelease.spec.chart.spec.sourceRef`
+  (`HelmRepository`/`GitRepository`/`Bucket`) or `spec.chartRef`
+  (`OCIRepository` only) resolves through the SAME T1-T4 tiers as
+  Kustomization's `sourceRef` (issue #5483 C1), and the whole-graph
+  `RECONCILES_FROM` tile count on the relationships catalog includes these
+  edges automatically. But the catalog's bounded edge-slice endpoint
+  (`list_relationship_edges`) stays anchored on `FluxKustomization`
+  (`relationshipVerbCatalog` is verb-keyed, so a second `RECONCILES_FROM`
+  entry would clobber the existing one rather than add coverage) -- a
+  HelmRelease-sourced edge is honestly reachable only through
+  `get_entity_context`, the generic graph-projected-node edge surface.
+- **`chartRef.kind: HelmChart` is a deliberate, permanent non-link, not a
+  follow-up gap.** Eshu's existing `HelmChart` label models a `Chart.yaml`
+  DIRECTORY ((name, path) identity), not the Flux `HelmChart` custom
+  resource. Linking a HelmRelease's `chartRef.kind: HelmChart` to that label
+  would be a fabricated cross-class join between two unrelated graph
+  identities that happen to share a name, so `fluxHelmChartRefKindToLabel`
+  omits it on purpose. Never add it without a distinct, dedicated typed
+  label for the Flux HelmChart CR first.
+- **Exactly-one-of `chart`/`chartRef` is a resolver-side rule, not a parser
+  validation.** A HelmRelease manifest that sets BOTH (invalid per the Flux
+  API) or NEITHER is captured verbatim by the parser; the edge resolver
+  treats either case as an honest non-link, never an arbitrary pick.
 - **Cross-repo lineage is a follow-up.** `FluxGitRepository.spec.url` resolving
   to a specific `Repository` identity in the trace path is not modeled.
 - Namespace defaulting (Flux's own rule: an empty `sourceRef.namespace`

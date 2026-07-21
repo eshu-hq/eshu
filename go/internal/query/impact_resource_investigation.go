@@ -368,7 +368,15 @@ func resourceInvestigationLabelPredicate(resourceType string) string {
 	case "module", "terraform_module":
 		return "n:TerraformModule"
 	default:
-		return "(n:CloudResource OR n:K8sResource OR n:TerraformResource OR n:TerraformDataSource OR n:TerraformModule OR n:CloudFormationResource OR n:ArgoCDApplication OR n:ArgoCDApplicationSet OR n:CrossplaneClaim OR n:CrossplaneXRD OR n:HelmRelease)"
+		// n:FluxHelmRelease (issue #5483 C1) replaces the dead "n:HelmRelease"
+		// label this disjunction previously carried: the canonical graph
+		// writer has never produced a bare :HelmRelease label -- a
+		// kind: HelmRelease manifest projected as a generic K8sResource node
+		// (kind='HelmRelease' property, no distinct label) before this
+		// change, so that branch could never match a real node. FluxHelmRelease
+		// is the real typed label this change introduces for Flux CD's
+		// HelmRelease custom resource.
+		return "(n:CloudResource OR n:K8sResource OR n:TerraformResource OR n:TerraformDataSource OR n:TerraformModule OR n:CloudFormationResource OR n:ArgoCDApplication OR n:ArgoCDApplicationSet OR n:CrossplaneClaim OR n:CrossplaneXRD OR n:FluxHelmRelease)"
 	}
 }
 

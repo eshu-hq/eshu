@@ -86,17 +86,23 @@ graph labels and return their outgoing governance edges) and by
 `list_relationship_edges` for the MANAGES / ATLANTIS_DEPENDS_ON / USES_WORKFLOW
 verbs. See [Atlantis Parser](../languages/atlantis.md#query-surfacing).
 
-`flux_kustomization`/`flux_git_repository`/`flux_oci_repository`/`flux_bucket`
-are likewise **not** language-queryable and are deliberately absent from the enum
-above: Flux CRs carry language `yaml`, which `language-query` does not accept.
-They are served by `get_entity_context`, which resolves the `FluxKustomization` /
-`FluxGitRepository` / `FluxOCIRepository` / `FluxBucket` graph labels and
-surfaces their typed fields (`url`, `source_ref_*`, `ref_*`, `bucket_name`,
-`endpoint`, `provider`, `source_path`, `target_namespace`, `generate_name`)
-through content-metadata enrichment, and by `list_relationship_edges` for the
-`RECONCILES_FROM` verb (issue #5360 PR B; a `FluxKustomization` reconciling
-manifests from its resolved source CR). `resolve_entity` by name is a
-separate, still-deferred follow-up. See [Flux Parser](../languages/flux.md).
+`flux_kustomization`/`flux_git_repository`/`flux_oci_repository`/`flux_bucket`/
+`flux_helm_release`/`flux_helm_repository` are likewise **not**
+language-queryable and are deliberately absent from the enum above: Flux CRs
+carry language `yaml`, which `language-query` does not accept. They are
+served by `get_entity_context`, which resolves the `FluxKustomization` /
+`FluxGitRepository` / `FluxOCIRepository` / `FluxBucket` / `FluxHelmRelease` /
+`FluxHelmRepository` graph labels and surfaces their typed fields (`url`,
+`source_ref_*`, `chart_ref_*`, `ref_*`, `bucket_name`, `endpoint`, `provider`,
+`source_path`, `target_namespace`, `chart`, `chart_version`, `repo_type`,
+`generate_name`) through content-metadata enrichment, and by
+`list_relationship_edges` for the `RECONCILES_FROM` verb (issue #5360 PR B; a
+`FluxKustomization` reconciling manifests from its resolved source CR --
+extended by issue #5483 C1 to `FluxHelmRelease` chart/chartRef resolution,
+though the HelmRelease-sourced edges are reachable only through
+`get_entity_context`, not the `list_relationship_edges` slice, which stays
+anchored on `FluxKustomization`). `resolve_entity` by name is a separate,
+still-deferred follow-up. See [Flux Parser](../languages/flux.md).
 
 `guard` is a semantic filter over `function` entities and returns
 guard-classified functions only.

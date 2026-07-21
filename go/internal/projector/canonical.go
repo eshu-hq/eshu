@@ -189,6 +189,8 @@ var entityTypeLabelMap = map[string]string{
 	"flux_git_repository":       "FluxGitRepository",
 	"flux_oci_repository":       "FluxOCIRepository",
 	"flux_bucket":               "FluxBucket",
+	"flux_helm_release":         "FluxHelmRelease",
+	"flux_helm_repository":      "FluxHelmRepository",
 	"helm_chart":                "HelmChart",
 	"helm_values":               "HelmValues",
 	"helm_value_definition":     "HelmValueDefinition",

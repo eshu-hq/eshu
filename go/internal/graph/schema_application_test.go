@@ -34,8 +34,12 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			// and the SqlMigration bump (#5346: SqlMigration uid constraint,
 			// immediate predecessor = the Helm tip) are additive — an older
 			// writer creates no nodes of the new labels, so the new constraints
-			// never apply to it.
+			// never apply to it. The FluxHelmRelease/FluxHelmRepository bump
+			// (issue #5483 C1: uid constraints for two new Flux labels,
+			// immediate predecessor = the Flux typed-entity tip) is additive
+			// the same way.
 			compatible: []string{
+				graphSchemaNeo4jPreFluxHelmEntitiesFingerprint,
 				graphSchemaNeo4jPreFluxTypedEntitiesFingerprint,
 				graphSchemaNeo4jPreSqlMigrationFingerprint,
 				graphSchemaNeo4jPreShellExecRetractIndexesFingerprint,
@@ -50,6 +54,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			backend:     SchemaBackendNornicDB,
 			fingerprint: graphSchemaNornicDBFingerprint,
 			compatible: []string{
+				graphSchemaNornicDBPreFluxHelmEntitiesFingerprint,
 				graphSchemaNornicDBPreFluxTypedEntitiesFingerprint,
 				graphSchemaNornicDBPreSqlMigrationFingerprint,
 				graphSchemaNornicDBPreFunctionLegacyIDLookupFingerprint,

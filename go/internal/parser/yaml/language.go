@@ -157,6 +157,8 @@ func Parse(
 		"flux_git_repositories",
 		"flux_oci_repositories",
 		"flux_buckets",
+		"flux_helm_releases",
+		"flux_helm_repositories",
 		"helm_charts",
 		"helm_values",
 		"helm_value_definitions",
@@ -194,6 +196,8 @@ func yamlBasePayload(path string, isDependency bool) map[string]any {
 	payload["flux_git_repositories"] = []map[string]any{}
 	payload["flux_oci_repositories"] = []map[string]any{}
 	payload["flux_buckets"] = []map[string]any{}
+	payload["flux_helm_releases"] = []map[string]any{}
+	payload["flux_helm_repositories"] = []map[string]any{}
 	payload["helm_charts"] = []map[string]any{}
 	payload["helm_values"] = []map[string]any{}
 	payload["helm_value_definitions"] = []map[string]any{}
@@ -269,6 +273,14 @@ func appendYAMLDocument(payload map[string]any, path string, filename string, do
 	}
 	if isFluxBucket(apiVersion, kind) {
 		shared.AppendBucket(payload, "flux_buckets", parseFluxBucket(document, metadata, path, lineNumber))
+		return
+	}
+	if isFluxHelmRelease(apiVersion, kind) {
+		shared.AppendBucket(payload, "flux_helm_releases", parseFluxHelmRelease(document, metadata, path, lineNumber))
+		return
+	}
+	if isFluxHelmRepository(apiVersion, kind) {
+		shared.AppendBucket(payload, "flux_helm_repositories", parseFluxHelmRepository(document, metadata, path, lineNumber))
 		return
 	}
 	if strings.TrimSpace(apiVersion) == "" || strings.TrimSpace(kind) == "" {

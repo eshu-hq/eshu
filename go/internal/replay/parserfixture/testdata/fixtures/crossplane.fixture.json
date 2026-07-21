@@ -53,6 +53,8 @@
             ],
             "flux_buckets": [],
             "flux_git_repositories": [],
+            "flux_helm_releases": [],
+            "flux_helm_repositories": [],
             "flux_kustomizations": [],
             "flux_oci_repositories": [],
             "function_calls": [],
