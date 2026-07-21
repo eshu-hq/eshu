@@ -83,14 +83,12 @@ authoring; it does not build a second coverage framework.
   Waivers are keyed per `(surface, proof_gate)` — equal to the reconciled row
   key — so waiving a family's `fault` (`ifa-fault-injection`) row never revokes
   credit for a proven `baseline` (`ifa-determinism`) row. The manifest is a
-  CLAIMS LEDGER, not a roadmap: a `(surface × proof_gate)` dimension with
-  neither a `coverage:` row nor a matching waiver is UNCLAIMED / not covered,
-  and is never inferred as covered. As of #5351 only the `sql_relationships`
-  baseline is proven; its `fault` row is waived on #5555 (a confirmed-false
-  fault anchored to a `CloudResource` MERGE), and SQL delta-live coverage is
-  intentionally unclaimed pending the reducer refresh-fence fix #5554 (proven
-  credential-free only by the pure-derivation delta lockstep, not a manifest
-  row).
+  CLAIMS LEDGER, not a roadmap: each required `(surface × scenario_type)` row
+  must name the proof gate that runs it. SQL relationships has proven baseline
+  and `delta_tombstone` rows under `ifa-determinism`; the matrix drives gen 2
+  after gen 1 and checks the accumulated exact edge set. Its `fault` row remains
+  waived on #5555 because that fault is anchored to a `CloudResource` MERGE and
+  never exercises the SQL work item.
   `materialized_edges_sql.go`'s `resolveSQLRelationshipMaterializedEdges` is
   the first family vacuity guard (`sql_relationships`): it asserts the
   hand-derived expected-edge-set fixture covers every
@@ -108,7 +106,9 @@ authoring; it does not build a second coverage framework.
   the `materialized_edges:sql_relationships` manifest row's `proof_gate`
   claims from inside the `ifa-determinism` and `ifa-fault-injection` live
   gates — digest equality across worker counts cannot catch a family silently
-  empty in all cells; the absolute expected set can.
+  empty in all cells; the absolute expected set can. The determinism gate first
+  asserts gen 1, then drives gen 2 into the same durable cell and asserts the
+  accumulated exact set before comparing N=1/2/4 graph digests.
 
 ## Dependencies
 

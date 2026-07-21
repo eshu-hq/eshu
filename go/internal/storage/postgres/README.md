@@ -431,7 +431,9 @@ Primary groups:
 - Content stores and content writers, including bounded entity-batch
   concurrency and Postgres pool-budget notes.
 - Graph projection phase, shared projection intent, acceptance, freshness, and
-  readiness helpers used by reducer domains.
+  readiness helpers used by reducer domains. Exact intent retries preserve
+  completion; the repo-refresh history lookup includes `generation_id` so a
+  reused source run cannot open a later generation's fence.
 - Hosted isolation and dashboard auth stores, including tenant/workspace
   grants, scoped API tokens, browser sessions, OIDC login state and group-role
   mappings, and dormant identity subject tables.

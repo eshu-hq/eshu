@@ -76,6 +76,9 @@
 // allowlist. Shared projection intent writes use bounded multi-row upserts so
 // high-cardinality package, code-call, and correlation facts reduce Postgres
 // round trips without changing idempotency semantics.
+// Exact shared-intent retries preserve completed_at; generation-scoped refresh
+// history prevents an older completion from opening a later generation's
+// repo-wide retract fence when source_run_id is reused.
 // AdmissionDecisionStore persists reducer-owned correlation admission outcomes
 // and redaction-safe evidence handles under a scope/generation/domain boundary;
 // rejected, ambiguous, stale, hidden, unsupported, and unsafe rows explain why

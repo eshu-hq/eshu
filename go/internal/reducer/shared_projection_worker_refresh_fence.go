@@ -106,17 +106,18 @@ func splitRepoRefreshRows(rows []SharedProjectionIntentRow) (refresh, edge []Sha
 	return refresh, edge
 }
 
-// SharedProjectionRefreshFenceLookup reports whether a repo's whole-scope refresh
-// partition has already completed for the current source run and domain. It is
-// the durable happens-before signal that lets a per-edge upsert row write only
-// after the single repo-wide retract has committed, even when partitions are
-// processed concurrently across workers or replicas (#2898). The runtime
-// SharedIntentStore satisfies it via
-// HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents.
+// SharedProjectionRefreshFenceLookup reports whether a repo's whole-scope
+// refresh partition has completed for the current generation. It is the durable
+// happens-before signal that lets a per-edge upsert row write only after the
+// single repo-wide retract for its generation has committed, even when
+// partitions are processed concurrently across workers or replicas (#2898,
+// #5554). Exact same-generation redelivery is idempotent because intent IDs are
+// deterministic and completed rows are not reopened by the durable upsert.
 type SharedProjectionRefreshFenceLookup interface {
-	HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents(
+	HasCompletedAcceptanceUnitSourceRunGenerationPartitionDomainIntents(
 		ctx context.Context,
 		key SharedProjectionAcceptanceKey,
+		generationID string,
 		partitionKey string,
 		domain string,
 	) (bool, error)
@@ -297,7 +298,13 @@ func perEdgeRowReady(
 		return true, nil
 	}
 	refreshKey := repoWideRetractRefreshPartitionKey(domain, sharedProjectionRowRepoID(row))
-	done, err := fence.HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents(ctx, key, refreshKey, domain)
+	done, err := fence.HasCompletedAcceptanceUnitSourceRunGenerationPartitionDomainIntents(
+		ctx,
+		key,
+		row.GenerationID,
+		refreshKey,
+		domain,
+	)
 	if err != nil {
 		return false, fmt.Errorf("check repo refresh fence for %s: %w", domain, err)
 	}

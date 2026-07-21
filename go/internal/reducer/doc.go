@@ -9,6 +9,9 @@
 // idempotency across retries and replays. They do not call graph drivers
 // directly; canonical graph writes go through storage/cypher, and durable fact
 // writes go through narrow writer interfaces wired by cmd/reducer.
+// Repo-wide shared-projection refresh fences are generation-local: an exact
+// same-generation retry reuses completed deterministic intent IDs, while a
+// later generation must complete its own refresh before its edge rows write.
 //
 // Changes in this package must preserve the evidence path from raw facts to
 // admitted candidate, projected row, graph or fact write, and API/MCP query
