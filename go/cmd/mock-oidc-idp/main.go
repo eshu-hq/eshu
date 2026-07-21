@@ -28,9 +28,9 @@ const (
 	envEmail               = "MOCK_OIDC_EMAIL"
 	envGroups              = "MOCK_OIDC_GROUPS"
 	envGroupClaim          = "MOCK_OIDC_GROUP_CLAIM"
-	envAccessTokenJWT      = "MOCK_OIDC_ACCESS_TOKEN_JWT"
-	envAccessTokenAudience = "MOCK_OIDC_ACCESS_TOKEN_AUDIENCE"
-	envAccessTokenTTL      = "MOCK_OIDC_ACCESS_TOKEN_TTL_SECONDS"
+	envAccessTokenJWT      = "MOCK_OIDC_ACCESS_TOKEN_JWT"         // #nosec G101 -- environment variable name, not a credential
+	envAccessTokenAudience = "MOCK_OIDC_ACCESS_TOKEN_AUDIENCE"    // #nosec G101 -- environment variable name, not a credential
+	envAccessTokenTTL      = "MOCK_OIDC_ACCESS_TOKEN_TTL_SECONDS" // #nosec G101 -- environment variable name, not a credential
 
 	defaultListenAddr            = "0.0.0.0:8080"
 	defaultSubject               = "member-user-1"
