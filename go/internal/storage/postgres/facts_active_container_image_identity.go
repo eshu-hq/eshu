@@ -11,32 +11,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-const listActiveContainerImageIdentityFactsQuery = `
-SELECT
-    fact.fact_id,
-    fact.scope_id,
-    fact.generation_id,
-    fact.fact_kind,
-    fact.stable_fact_key,
-    fact.schema_version,
-    fact.collector_kind,
-    fact.fencing_token,
-    fact.source_confidence,
-    fact.source_system,
-    fact.source_fact_key,
-    COALESCE(fact.source_uri, ''),
-    COALESCE(fact.source_record_id, ''),
-    fact.observed_at,
-    fact.is_tombstone,
-    fact.payload
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
-WHERE (
+// identityFactFilterSQL is the shared 6-arm filter used by both the load query
+// and the epoch probe. Both queries MUST embed the identical filter text;
+// TestIdentityEpochProbeFilterDrift locks this invariant.
+const identityFactFilterSQL = `(
     (
       fact.fact_kind IN ('oci_registry.image_tag_observation', 'oci_registry.image_manifest', 'oci_registry.image_index')
       AND fact.source_system = 'oci_registry'
@@ -66,7 +44,34 @@ WHERE (
         OR fact.payload->'metadata' ? 'container_images'
       )
     )
-  )
+  )`
+
+const listActiveContainerImageIdentityFactsQuery = `
+SELECT
+    fact.fact_id,
+    fact.scope_id,
+    fact.generation_id,
+    fact.fact_kind,
+    fact.stable_fact_key,
+    fact.schema_version,
+    fact.collector_kind,
+    fact.fencing_token,
+    fact.source_confidence,
+    fact.source_system,
+    fact.source_fact_key,
+    COALESCE(fact.source_uri, ''),
+    COALESCE(fact.source_record_id, ''),
+    fact.observed_at,
+    fact.is_tombstone,
+    fact.payload
+FROM fact_records AS fact
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = fact.scope_id
+ AND scope.active_generation_id = fact.generation_id
+JOIN scope_generations AS generation
+  ON generation.scope_id = fact.scope_id
+ AND generation.generation_id = fact.generation_id
+WHERE ` + identityFactFilterSQL + `
   AND fact.is_tombstone = FALSE
   AND generation.status = 'active'
   AND (
@@ -77,13 +82,43 @@ ORDER BY fact.observed_at ASC, fact.fact_id ASC
 LIMIT $3
 `
 
+// probeIdentityEpochQuery returns (count, COALESCE(max(observed_at), '-infinity'))
+// over the exact same identity-fact filter as the load query, backed by a partial
+// B-tree index on (observed_at, fact_id) WHERE <filter> AND is_tombstone = FALSE.
+const probeIdentityEpochQuery = `
+SELECT
+    count(*),
+    COALESCE(max(fact.observed_at), '-infinity'::timestamptz)
+FROM fact_records AS fact
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = fact.scope_id
+ AND scope.active_generation_id = fact.generation_id
+JOIN scope_generations AS generation
+  ON generation.scope_id = fact.scope_id
+ AND generation.generation_id = fact.generation_id
+WHERE ` + identityFactFilterSQL + `
+  AND fact.is_tombstone = FALSE
+  AND generation.status = 'active'
+`
+
 // ListActiveContainerImageIdentityFacts loads active OCI registry facts and
 // active Git/AWS/Azure/GCP image-reference facts for cross-scope identity joins.
-func (s FactStore) ListActiveContainerImageIdentityFacts(ctx context.Context) ([]facts.Envelope, error) {
+// When an identity cache is wired, the result set is served from the cache on
+// epoch match and reloaded via singleflight on miss.
+func (s *FactStore) ListActiveContainerImageIdentityFacts(ctx context.Context) ([]facts.Envelope, error) {
 	if s.db == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 
+	if s.identityCache != nil {
+		return s.identityCache.get(ctx, s)
+	}
+
+	return s.loadIdentityFactsUncached(ctx)
+}
+
+// loadIdentityFactsUncached performs the paginated load without caching.
+func (s *FactStore) loadIdentityFactsUncached(ctx context.Context) ([]facts.Envelope, error) {
 	var loaded []facts.Envelope
 	var cursorObservedAt *time.Time
 	var cursorFactID string
@@ -102,6 +137,29 @@ func (s FactStore) ListActiveContainerImageIdentityFacts(ctx context.Context) ([
 		cursorObservedAt = &observedAt
 		cursorFactID = last.FactID
 	}
+}
+
+// probeIdentityEpoch returns the epoch probe for the identity fact set.
+func (s *FactStore) probeIdentityEpoch(ctx context.Context) (identityEpoch, error) {
+	rows, err := s.db.QueryContext(ctx, probeIdentityEpochQuery)
+	if err != nil {
+		return identityEpoch{}, fmt.Errorf("probe identity epoch: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	if !rows.Next() {
+		return identityEpoch{}, fmt.Errorf("probe identity epoch: no rows returned")
+	}
+	var count int64
+	var maxObservedAt time.Time
+	if err := rows.Scan(&count, &maxObservedAt); err != nil {
+		return identityEpoch{}, fmt.Errorf("probe identity epoch scan: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return identityEpoch{}, fmt.Errorf("probe identity epoch rows: %w", err)
+	}
+
+	return identityEpoch{count: int(count), maxObservedAt: maxObservedAt}, nil
 }
 
 func (s FactStore) listActiveContainerImageIdentityFactsPage(

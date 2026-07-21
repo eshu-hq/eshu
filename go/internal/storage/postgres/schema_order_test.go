@@ -90,4 +90,5 @@ var orderedBootstrapDefinitionNames = []string{
 	"create_documentation_findings_filter_idx",
 	"iac_active_inventory_index",
 	"drop_relationship_family_candidate_index_legacy",
+	"fact_records_identity_epoch_idx",
 }
