@@ -109,6 +109,10 @@ func (h *ImpactHandler) resourceInvestigationSelectorCandidates(
 	return filterResourceInvestigationCandidatesForAccess(candidates, access), nil
 }
 
+// runResourceInvestigationSelectorFanout runs each direct-label query with at
+// most resourceInvestigationSelectorConcurrency graph reads in flight. It
+// preserves query order, joins all query errors, and leaves result merging and
+// deduplication to the caller.
 func runResourceInvestigationSelectorFanout(
 	ctx context.Context,
 	graph GraphQuery,
@@ -279,6 +283,9 @@ func resourceInvestigationCandidateKey(candidate resourceInvestigationCandidate)
 	}, "\x00")
 }
 
+// resourceInvestigationSelectorResolution records selector telemetry, applies
+// the response limit, and returns the no_match, resolved, or ambiguous outcome
+// determined by the untruncated candidate count.
 func resourceInvestigationSelectorResolution(
 	ctx context.Context,
 	req resourceInvestigationRequest,
