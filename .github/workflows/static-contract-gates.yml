@@ -192,6 +192,7 @@ jobs:
               - 'testdata/golden/e2e-20repo-snapshot.json'
               - 'docs/public/languages/support-maturity.md'
               - 'specs/language-feature-parity-ledger.v1.yaml'
+              - 'tests/fixtures/ecosystems/**'
               - 'scripts/verify-maturity-drift-guard.sh'
               - 'scripts/test-verify-maturity-drift-guard.sh'
               - 'scripts/lib/maturity-drift-guard-language-extensions.sh'
