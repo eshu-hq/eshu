@@ -10,7 +10,9 @@ Two additive, SET-clause-only changes:
   reducer's `buildResolvedEdgeIntentRow` chokepoint
   (`go/internal/reducer/cross_repo_intent_row.go`) and
   `copyRepoRelationshipMetadata`
-  (`go/internal/storage/cypher/edge_writer_retract.go`). The production
+  (`go/internal/storage/cypher/edge_writer_row_metadata.go` as of #5441
+  review round 3's file-cap split; `edge_writer_retract.go` before that). The
+  production
   write path is exclusively the `UNWIND $rows` batch templates via
   `EdgeWriter.WriteEdges`/`buildRowMap`; the file also carries a matching
   single-row `BuildCanonicalRepoRelationshipUpsert` builder and its five
@@ -138,7 +140,9 @@ the `Candidate`/`ResolvedRelationship` typed fields and their doc comments
 and its wiring in `aggregateCandidate` (`resolver.go`,
 `evidence_edge_fields.go`), the reducer chokepoint
 (`cross_repo_intent_row.go`), `copyRepoRelationshipMetadata`
-(`edge_writer_retract.go`), all ten Cypher `SET` clauses and the
+(`edge_writer_retract.go` at the time of removal, later moved to
+`edge_writer_row_metadata.go` by #5441 review round 3's file-cap split), all
+ten Cypher `SET` clauses and the
 `CanonicalRepoRelationshipParams` field (`canonical_relationships.go`), the
 row-map pre-sizing constants (now 14/15 instead of 15/16 —
 `edge_writer.go`), and every test that asserted on it. The pre-existing,
@@ -183,6 +187,15 @@ The per-row delta was real and larger in relative terms than "three scalar
 SETs" alone would suggest. Investigated per Prove-The-Theory-First below
 rather than accepted as inherent.
 
+**#5441 review round 3 caveat:** this table's "NEW (this branch)" row captured
+the original unsized `buildRowMap` implementation with three tracked fields
+(source_revision, destination_namespace, first_party_ref_version). Two things
+changed since: destination_namespace was removed (two fields, not three), and
+a fresh same-shape re-check of unsized vs. pre-sized on today's toolchain does
+not reproduce this gap — see "Map Bucket-Growth Pre-Sizing" below for the
+re-check and the current, reproducible OLD-vs-shipped numbers. This table is
+kept as the original discovery record, not as a currently-reproducible claim.
+
 ### Map Bucket-Growth Pre-Sizing
 
 Theory: `buildRowMap`'s DEPENDS_ON and typed-relationship branches build
@@ -212,40 +225,62 @@ one avoided bucket-array reallocation, not three avoided interface boxings
 (which would show as ~3 allocs total, not 9 vs 6 plus the B/op gap). Theory
 confirmed on representative data before implementing.
 
+**#5441 review round 3, re-check:** this shim's own ns/op/B/op/allocs numbers
+above, and the "NEW, unsized (first attempt)" row in the re-measured table
+below, both predate the destination_namespace removal AND do not reproduce on
+a fresh same-shape re-check. Reverting the shipped pre-sizing back to a
+3-key-literal-plus-appends `rowMap` (matching this section's own description,
+temporarily, not committed) and re-running
+`BenchmarkEdgeWriterRepoDependencyWrite` against today's 2-field
+`copyRepoRelationshipMetadata` shape shows literal+append and pre-sized
+`make(map[string]any, N)` landing on statistically indistinguishable B/op and
+allocs/op (~7,335,000 B/op / ~85,102 allocs/op either way) — not the large gap
+this section originally claimed. `go env GOEXPERIMENT` is empty and `go
+version` is `go1.26.5`, i.e. this repo's pinned toolchain already defaults to
+Go's swiss-table map implementation, whose incremental-growth behavior differs
+materially from the classic bucket-hmap this theory was written against; that
+is the leading candidate explanation, not confirmed. The pre-sized `make` call
+is still correct and harmless to keep (measured equal, never worse), but the
+specific "avoided bucket-array reallocation" recovery narrative in this
+section is not currently substantiated and needs a decision from review on how
+to reframe it, rather than being silently rewritten here. See the corrected,
+freshly-measured "Re-measured" table below for the current, reproducible
+production-code numbers (OLD vs the shipped pre-sized NEW); the "unsized"
+comparison itself does not currently reproduce and is not reasserted.
+
 Fix: pre-size both affected `rowMap`s with `make(map[string]any, N)`
-(`repoDependencyRowMapCapacity = 15`, `repoRelationshipRowMapCapacity = 16`,
-covering each branch's worst-case key count) in
-`go/internal/storage/cypher/edge_writer.go`, replacing the map literal plus
-appends with direct assignments into the pre-sized map. Output-preserving:
-every existing exact-key/value-asserting test in
+(`repoDependencyRowMapCapacity = 14`, `repoRelationshipRowMapCapacity = 15`,
+covering each branch's worst-case key count after the destination_namespace
+removal) in `go/internal/storage/cypher/edge_writer.go`, replacing the map
+literal plus appends with direct assignments into the pre-sized map.
+Output-preserving: every existing exact-key/value-asserting test in
 `go/internal/storage/cypher` (`TestEdgeWriterWriteEdgesTypedRepoRelationshipDispatch`
 and siblings) passed unchanged after the edit, proving the row map's key set
 and values are byte-identical to before — only the allocation shape changed.
 
 Re-measured `BenchmarkEdgeWriterRepoDependencyWrite` (same 5000-row input, no-op
-executor, Apple M1 Max, `-benchtime=3x -benchmem -count=3`, 3 runs each):
+executor, Apple M1 Max, `-benchtime=3x -benchmem -count=3`, 3 runs each, OLD and
+NEW both re-run at the current true merge-base `a5350625f` — #5441 review
+round 3, replacing this table's pre-removal figures):
 
 | Side | ns/op (avg of 3) | B/op (avg of 3) | allocs/op (avg of 3) |
 | --- | ---: | ---: | ---: |
-| OLD (`origin/main` 0a9461b21) | 4,740,921 | 5,735,114 | 80,102 |
-| NEW, unsized (first attempt) | 8,424,620 | 11,894,525 | 105,101 |
-| NEW, pre-sized (shipped) | 5,093,139 | 7,415,118 | 90,102 |
-| Delta pre-sized vs OLD (5000 rows) | +352,218 (+7.4%) | +1,680,004 (+29.3%) | +10,000 (+12.5%) |
-| Delta per row | +70.4 ns | +336.0 B | +2.0 allocs |
+| OLD (`origin/main` `a5350625f`) | 4,839,055 | 5,735,771 | 80,103 |
+| NEW, pre-sized (shipped) | 5,051,662 | 7,335,095 | 85,102 |
+| Delta shipped vs OLD (5000 rows) | +212,607 (+4.4%) | +1,599,324 (+27.9%) | +4,999 (+6.2%) |
+| Delta per row | +42.5 ns | +319.9 B | +1.0 allocs |
 
-Pre-sizing recovered most of the regression: ns/op delta dropped from +77.7%
-to +7.4%, B/op from +107.4% to +29.3%, allocs/op from +31.2% to +12.5%. The
-residual ~70ns/~336B/~2 allocs per row is now consistent with genuinely
-inherent cost — three new `string` values boxed into `interface{}` map
-entries at a capacity that already accounts for them, with no further
-reallocation — not an unaccounted-for growth artifact. This is pure in-process
-Go row-shaping cost with a no-op executor: it measures zero DB/network time.
-Every comparable measured backend write in this repo's evidence history (e.g.
-the `#3429` catalog/edges fix above) puts a single graph write between 10ms
-and several seconds; ~0.00007ms of added row-shaping cost per edge is
-immaterial against that, and this framing — Go-side row shaping only, not
-end-to-end graph-write latency — is explicit here so it is not misread as a
-77% (or even 7%) hit to actual write throughput.
+The deterministic allocs/op delta is now +6.2% (2 new `string` values boxed
+into `interface{}` map entries per row, one full allocation each — matching
+the 5,000-allocation gap for 5,000 rows exactly), not the +12.5% this section
+previously claimed before the destination_namespace field was removed and
+before this re-check. This is pure in-process Go row-shaping cost with a no-op
+executor: it measures zero DB/network time. Every comparable measured backend
+write in this repo's evidence history (e.g. the `#3429` catalog/edges fix
+above) puts a single graph write between 10ms and several seconds; the
+per-row row-shaping cost here is immaterial against that, and this framing —
+Go-side row shaping only, not end-to-end graph-write latency — is explicit
+here so it is not misread as a hit to actual write throughput.
 
 ### Resolver candidate aggregation (#5441 review round 2, P1-2)
 
@@ -265,33 +300,39 @@ New benchmark `go/internal/relationships/resolver_edge_fields_bench_test.go`
 deliberately the worst case for the new fields — every fact carries a
 `source_ref` needing the `ExtractTerraformRefPin` fallback (real corpora will
 have this key far less often; most non-Terraform evidence kinds never set
-`source_ref` at all). OLD = `origin/main` at merge-base `982323ef6` (checked
-out via a detached `git worktree add --detach`, removed after the run); NEW =
-this branch (pre-`settled()` and post-`settled()` measured separately below).
+`source_ref` at all). OLD = `origin/main` at the current true merge-base
+`a5350625f` (checked out via a detached `git worktree add --detach`, removed
+after the run); NEW = this branch (pre-`settled()` and post-`settled()`
+measured separately below). Re-run for #5441 review round 3 (P2): the prior
+figures in this section were captured before the destination_namespace field
+was removed (3 tracked fields, not 2) and against a stale `982323ef6`
+merge-base, so both OLD and NEW below are fresh, matched-methodology
+re-measurements against the current branch and the current true merge-base.
 
 `go test ./internal/relationships/... -run '^$' -bench BenchmarkResolveCandidateAggregation -benchtime=10x -benchmem -count=7`,
-Apple M1 Max, machine under real concurrent load (other agents' Docker
-stacks; `uptime` load averages 10.84/12.19/25.00 during these runs):
+Apple M1 Max, machine under lighter concurrent load than the round-2 run
+(`uptime` load averages 5.47/4.74/5.56 during these runs, vs 10.84/12.19/25.00
+previously):
 
-| Side | ns/op (range across 7 runs) | B/op (stable) | allocs/op (stable) |
-| --- | --- | ---: | ---: |
-| OLD (`982323ef6`) | 12.07M – 44.04M (noisy; median 23.19M) | 12,435,156 – 12,436,116 | 78,077 – 78,078 |
-| NEW, before `settled()` optimization | 23.43M – 29.49M (noisy; median 26.08M) | 12,873,800 – 12,874,680 | 88,076 – 88,079 |
-| NEW, after `settled()` optimization | 7.83M – 12.45M (noisy; median 9.72M) | 12,874,018 – 12,874,680 | 88,077 – 88,079 |
+| Side | ns/op (avg of 7) | B/op (avg of 7) | allocs/op (avg of 7) |
+| --- | ---: | ---: | ---: |
+| OLD (`a5350625f`) | 5,621,160 | 12,435,674 | 78,078 |
+| NEW, before `settled()` optimization | 6,851,635 | 12,792,330 | 88,078 |
+| NEW, after `settled()` optimization (shipped) | 6,641,843 | 12,792,369 | 88,078 |
 
-`ns/op` is too noisy on this contended shared machine to state a precise
-percentage — the same NEW binary measured medians of both 26.08M and 9.72M
-ns/op across two back-to-back batches with byte-for-byte identical
-`B/op`/`allocs/op`, so that swing is entirely machine scheduling noise, not a
-real difference between the two batches. `B/op` and `allocs/op` are
-deterministic and reproducible across every run regardless of noise, so they
-are the trustworthy signal:
+`ns/op` is still noisy run-to-run on a shared machine, though less so than the
+round-2 run; `B/op` and `allocs/op` are deterministic and reproducible across
+every run regardless of noise, so they remain the trustworthy signal:
 
-- **B/op: +438,700 (+3.5%)** (12,874,xxx vs 12,435,xxx for 2000 candidates).
-- **allocs/op: +10,000 (+12.8%)** (88,07x vs 78,07x) — exactly 5 extra
-  allocations per candidate (5 facts × 1 alloc each), matching
+- **B/op: +356,695 (+2.9%)** (12,792,369 vs 12,435,674 for 2000 candidates) —
+  down from the previously-reported +3.5%, because two tracked fields (not
+  three) now flow through `evidenceFieldWinner`/`Candidate`.
+- **allocs/op: +10,000 (+12.8%)** (88,078 vs 78,078) — unchanged from the
+  prior measurement, because this delta comes entirely from
   `strings.Split` inside `ExtractTerraformRefPin`'s `?ref=` fallback path
-  firing on every one of this benchmark's deliberately-worst-case facts.
+  firing on every one of this benchmark's deliberately-worst-case facts (5
+  extra allocations per candidate, 5 facts × 1 alloc each) — a per-fact
+  allocation count the destination_namespace removal never touched.
 
 **Optimization measured, not assumed** (Prove-The-Theory-First): the review
 suggested short-circuiting `evidenceFieldWinner.consider()` once a field's
@@ -306,7 +347,7 @@ discarded, and proven correctness-preserving by
 overwrite an already-settled winner.
 
 Measured result: **no change** in `B/op`/`allocs/op` between the
-before/after-`settled()` NEW rows above (88,07x both times) — confirming,
+before/after-`settled()` NEW rows above (88,078 both times) — confirming,
 not assuming, that this optimization is a no-op for this benchmark's
 realistic confidence range (0.80–0.88; nothing ever reaches exactly 1.0),
 exactly as predicted in the code comment before measuring. It is kept
@@ -315,8 +356,8 @@ help (an explicit maximum-confidence fact), not claimed as the fix for this
 regression.
 
 **Disposition: ACCEPTED, not further optimized**, for three reasons: (1) the
-measured magnitude (allocs +12.8%, bytes +3.5%) is the same order as the
-already-accepted writer-side delta (+12.5% allocs, +29.3% bytes after
+measured magnitude (allocs +12.8%, bytes +2.9%) is the same order as the
+already-accepted writer-side delta (+6.2% allocs, +27.9% bytes after
 pre-sizing); (2) this benchmark is a deliberate worst case — 100% of facts
 require the `ExtractTerraformRefPin` fallback, which real corpora will hit far
 less often (most evidence kinds never set `source_ref`, and ArgoCD/GitHub
@@ -338,51 +379,57 @@ the input `Attributes` map upstream, so a dedicated benchmark was judged not
 load-bearing for this change; the `TestPromoteTerraformResourceAttributes*`
 suite proves correctness and the redaction/size-cap guards.
 
-Performance Evidence: `BenchmarkEdgeWriterRepoDependencyWrite` on the same
-5000-row input, no-op executor, Apple M1 Max, `-benchtime=3x -benchmem -count=3`
-(3 runs each) — OLD (`origin/main` 0a9461b21) 4,740,921 ns/op avg / 5,735,114
-B/op avg / 80,102 allocs/op avg; an initial unsized implementation regressed to
-8,424,620 ns/op avg / 11,894,525 B/op avg / 105,101 allocs/op avg
-(+77.7%/+107.4%/+31.2%); root-caused via a Prove-The-Theory-First microbenchmark
-to `buildRowMap`'s row map growing its bucket array as `copyRepoRelationshipMetadata`
-appends keys past a small literal's initial size (proof shim: pre-sizing the
-same 15-key map cut construction from 1210-1239 ns/op to 562.9-571.8 ns/op,
-2176 B/op to 1280 B/op, 9 allocs/op to 6 allocs/op); shipped with
-`repoDependencyRowMapCapacity`/`repoRelationshipRowMapCapacity` pre-sizing the
-row map up front, recovering to 5,093,139 ns/op avg / 7,415,118 B/op avg /
-90,102 allocs/op avg (+7.4%/+29.3%/+12.5% vs OLD, or +70.4 ns / +336.0 B / +2.0
-allocs per edge row) — the residual matches three more `interface{}`-boxed
-string values at an already-correct capacity, not further reallocation. No new
-`MATCH`, traversal, or Cypher statement was added on either side, so the query
-plan shape is unchanged; this is pure in-process Go row-shaping cost measured
-with a no-op executor (zero DB/network time), negligible next to this repo's
-measured backend graph-write latencies (milliseconds to seconds per statement
+Performance Evidence (#5441 review round 3, P2 — re-measured against final
+HEAD; the figures below supersede an earlier version of this marker that
+predated the destination_namespace removal): `BenchmarkEdgeWriterRepoDependencyWrite`
+on the same 5000-row input, no-op executor, Apple M1 Max,
+`-benchtime=3x -benchmem -count=3` (3 runs each), OLD and NEW both re-run at
+the current true merge-base `a5350625f` — OLD 4,839,055 ns/op avg /
+5,735,771 B/op avg / 80,103 allocs/op avg; shipped (pre-sized)
+`repoDependencyRowMapCapacity`/`repoRelationshipRowMapCapacity` (14/15 after
+the destination_namespace removal) measures 5,051,662 ns/op avg / 7,335,095
+B/op avg / 85,102 allocs/op avg (+4.4%/+27.9%/+6.2% vs OLD, or +42.5 ns /
++319.9 B / +1.0 allocs per edge row) — the residual matches two
+`interface{}`-boxed string values per row (source_revision,
+first_party_ref_version), one allocation each. No new `MATCH`, traversal, or
+Cypher statement was added on either side, so the query plan shape is
+unchanged; this is pure in-process Go row-shaping cost measured with a no-op
+executor (zero DB/network time), negligible next to this repo's measured
+backend graph-write latencies (milliseconds to seconds per statement
 elsewhere in this evidence history) — do not read any of these percentages as
-end-to-end graph-write latency. The `TerraformResource` node write path is
-proven correct by `TestCanonicalNodeWriterBuildsTerraformStateStatements`
-(additive `SET` clause, same batch/MERGE shape); a dedicated benchmark was
-judged not load-bearing since `promoteTerraformResourceAttributes` does
-bounded `O(len(allowlist))` work (at most 4 attribute lookups) well under the
-cost of the JSON decode that already produces its input upstream.
+end-to-end graph-write latency. A fresh apples-to-apples re-check (temporarily
+reverting the shipped pre-sizing back to a literal-plus-appends `rowMap`,
+not committed) found the originally-claimed "unsized" regression and its
+recovery via pre-sizing do not currently reproduce — see the caveat in "Map
+Bucket-Growth Pre-Sizing" above; the pre-sized `make` call itself is still
+correct and measured no worse than the alternative, so the shipped code is
+unaffected, but the specific bucket-growth causal narrative for the original
+regression needs a review decision on reframing, not restated here as fact.
+The `TerraformResource` node write path is proven correct by
+`TestCanonicalNodeWriterBuildsTerraformStateStatements` (additive `SET`
+clause, same batch/MERGE shape); a dedicated benchmark was judged not
+load-bearing since `promoteTerraformResourceAttributes` does bounded
+`O(len(allowlist))` work (at most 4 attribute lookups) well under the cost of
+the JSON decode that already produces its input upstream.
 `BenchmarkResolveCandidateAggregation` (2000 candidates x 5 facts,
-`-benchtime=10x -benchmem -count=7`, Apple M1 Max under real machine
-contention) isolates the resolver-side hot path
+`-benchtime=10x -benchmem -count=7`, Apple M1 Max, OLD and NEW both re-run at
+the current true merge-base `a5350625f` under lighter machine contention than
+the round-2 run) isolates the resolver-side hot path
 (`relationships.aggregateCandidate`) the writer benchmark does not cover:
-deterministic allocation metrics show +438,700 B/op (+3.5%) and +10,000
-allocs/op (+12.8%) for 2000 candidates against the `982323ef6` merge-base;
-`ns/op` was too noisy on this machine to state a precise percentage (medians
-of 23.19M OLD vs 26.08M NEW across matched-methodology runs, with the same
-NEW binary separately measuring a 9.72M median under lighter contention —
-proving the swing is scheduling noise, not code, since `B/op`/`allocs/op`
-were byte-identical between those two NEW batches). The reviewer-suggested
-`evidenceFieldWinner.settled()` short-circuit was implemented, proven
-correctness-preserving
+deterministic allocation metrics show +356,695 B/op (+2.9%) and +10,000
+allocs/op (+12.8%) for 2000 candidates against OLD; `ns/op` remains noisy on
+this shared machine (OLD avg 5.62M, NEW-shipped avg 6.64M ns/op across
+matched-methodology runs) but `B/op`/`allocs/op` are deterministic and are the
+trustworthy signal. The reviewer-suggested `evidenceFieldWinner.settled()`
+short-circuit was implemented, proven correctness-preserving
 (`TestAggregateCandidateSourceRevisionSettledWinnerSkipsLaterFacts`), and
 measured (not assumed) to be a no-op for this benchmark's realistic
-0.80-0.88 confidence range — accepted anyway as a zero-downside safety net,
-not as the fix. The regression itself is accepted, not further optimized:
-this benchmark deliberately forces the `ExtractTerraformRefPin` fallback on
-every fact (real corpora hit it far less often), the magnitude matches the
+0.80-0.88 confidence range — confirmed again on this re-run (before/after
+`settled()` B/op and allocs/op are byte-identical: 12,792,330/88,078 vs
+12,792,369/88,078) — accepted anyway as a zero-downside safety net, not as
+the fix. The regression itself is accepted, not further optimized: this
+benchmark deliberately forces the `ExtractTerraformRefPin` fallback on every
+fact (real corpora hit it far less often), the magnitude matches the
 already-accepted writer-side delta, and `aggregateCandidate` runs on a
 bounded per-resolver-pass candidate set, not a per-request path.
 
