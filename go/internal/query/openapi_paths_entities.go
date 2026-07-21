@@ -149,7 +149,8 @@ const openAPIPathsEntities = `
                     "name": {"type": "string"},
                     "story": {"type": "string"},
                     "result_limits": {"type": "object", "description": "Additive drilldown block: bounded limit, deterministic ordering, instance/dependent/consumer counts, truncation flag, and the get_workload_context drilldown plus context path.", "additionalProperties": true},
-                    "partial_reasons": {"type": "array", "description": "Explicit limitations or unsupported-evidence reasons for the workload story read; always present so the envelope shape is stable.", "items": {"type": "string"}}
+                    "partial_reasons": {"type": "array", "description": "Explicit limitations or unsupported-evidence reasons for the workload story read; always present so the envelope shape is stable.", "items": {"type": "string"}},
+                    "evidence_boundaries": ` + openAPIEvidenceBoundariesSchema + `
                   }
                 }
               }
@@ -240,7 +241,8 @@ const openAPIPathsEntities = `
                     },
                     "documentation_overview": {"type": "object"},
                     "support_overview": {"type": "object"},
-                    "answer_metadata": {"type": "object", "description": "Normalized additive answer metadata with schema_version, evidence_handles, missing_evidence, limitations, truncated, coverage, partial_reasons, and recommended_next_calls."}
+                    "answer_metadata": {"type": "object", "description": "Normalized additive answer metadata with schema_version, evidence_handles, missing_evidence, limitations, truncated, coverage, partial_reasons, and recommended_next_calls."},
+                    "evidence_boundaries": ` + openAPIEvidenceBoundariesSchema + `
                   }
                 }
               }
