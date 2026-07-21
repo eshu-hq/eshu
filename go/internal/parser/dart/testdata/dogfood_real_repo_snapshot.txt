@@ -1,0 +1,4 @@
+lib/dogfood_http.dart	classes=0 function_calls=1 functions=1 imports=3 variables=0
+lib/src/http_client.dart	classes=2 function_calls=7 functions=6 imports=3 variables=6
+lib/src/models/user.dart	classes=2 function_calls=1 functions=6 imports=0 variables=4
+test/http_client_test.dart	classes=0 function_calls=9 functions=3 imports=2 variables=2

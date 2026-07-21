@@ -1,0 +1,3 @@
+app/controllers/UserController.scala	classes=2 function_calls=1 functions=3 imports=2 traits=0 variables=3
+app/models/User.scala	classes=3 function_calls=1 functions=2 imports=0 traits=0 variables=0
+app/services/UserService.scala	classes=2 function_calls=2 functions=7 imports=2 traits=1 variables=1

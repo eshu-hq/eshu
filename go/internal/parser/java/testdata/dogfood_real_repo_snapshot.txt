@@ -1,0 +1,5 @@
+src/main/java/com/example/dogfood/User.java	annotations=1 classes=1 enums=0 function_calls=0 functions=5 imports=0 interfaces=0 variables=3
+src/main/java/com/example/dogfood/UserController.java	annotations=7 classes=1 enums=0 function_calls=2 functions=4 imports=5 interfaces=0 variables=1
+src/main/java/com/example/dogfood/UserNotFoundException.java	annotations=0 classes=1 enums=0 function_calls=0 functions=1 imports=0 interfaces=0 variables=0
+src/main/java/com/example/dogfood/UserService.java	annotations=1 classes=1 enums=0 function_calls=12 functions=4 imports=4 interfaces=0 variables=1
+src/test/java/com/example/dogfood/UserServiceTest.java	annotations=2 classes=1 enums=0 function_calls=9 functions=2 imports=3 interfaces=0 variables=0

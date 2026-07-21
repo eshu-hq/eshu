@@ -49,3 +49,10 @@ tests), including `TestSwiftComprehensiveSymbolExtractionGate` and the
 `TestDefaultEngineParsePathSwift*` parity suite. No-Observability-Change: this
 parser-local change adds no metric, span, log, status field, queue behavior,
 graph query, environment variable, or runtime knob.
+
+`dogfood_real_repo_test.go` is a standing regression test (#5399) backing the
+`real-repo-validated` grade; it is not opt-in like the `SWIFT_PARSE_DUMP`
+equivalence harness. Do not hand-edit
+`testdata/dogfood_real_repo_snapshot.txt`; regenerate it with
+`DOGFOOD_UPDATE_SNAPSHOT=1 bash scripts/dogfood-swift.sh` after an intended
+parser change and verify the bucket-count delta is expected.

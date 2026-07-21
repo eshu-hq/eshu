@@ -22,3 +22,17 @@ Dynamic Play routes, namespaced controller targets, generated route files,
 broader http4s extractor shapes, implicit/given resolution, macros, compiler
 plugins, dynamic dispatch, and broad public API surfaces remain query exactness
 blockers rather than parser fallbacks.
+
+`dogfood_real_repo_test.go` is a standing regression test (#5399), not an
+opt-in dump: `TestDogfoodScalaRealRepoSnapshot` parses the committed,
+Play-shaped corpus at `tests/fixtures/dogfood/scala_real_repo` and diffs the
+bucket counts against `testdata/dogfood_real_repo_snapshot.txt`. It backs the
+`real-repo-validated` grade in
+`docs/public/languages/support-maturity.md#grade-definitions`. Regenerate the
+snapshot after an intentional parser change with
+`DOGFOOD_UPDATE_SNAPSHOT=1 bash scripts/dogfood-scala.sh`.
+
+## Related docs
+
+- `docs/public/languages/support-maturity.md`
+- `docs/public/languages/scala.md`

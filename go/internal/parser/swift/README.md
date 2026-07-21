@@ -87,6 +87,16 @@ and full-body source span against pre-migration `main`. No-Observability-Change:
 this parser-local extraction change adds no metric, span, log, status field,
 queue behavior, graph query, environment variable, or runtime knob.
 
+`dogfood_real_repo_test.go` is a standing regression test (#5399), not an
+opt-in dump: `TestDogfoodSwiftRealRepoSnapshot` parses the committed,
+Vapor-shaped corpus at `tests/fixtures/dogfood/swift_real_repo` and diffs
+the bucket counts against `testdata/dogfood_real_repo_snapshot.txt`. It
+backs the `real-repo-validated` grade in
+`docs/public/languages/support-maturity.md#grade-definitions`. Regenerate
+the snapshot after an intentional parser change with
+`DOGFOOD_UPDATE_SNAPSHOT=1 bash scripts/dogfood-swift.sh`.
+
 ## Related docs
 
 - `docs/public/languages/support-maturity.md`
+- `docs/public/languages/swift.md`

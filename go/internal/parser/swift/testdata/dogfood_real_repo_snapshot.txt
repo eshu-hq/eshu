@@ -1,0 +1,4 @@
+Sources/App/Controllers/UserController.swift	classes=0 enums=0 function_calls=12 functions=4 imports=1 protocols=0 structs=1 variables=3
+Sources/App/Models/User.swift	classes=1 enums=0 function_calls=3 functions=3 imports=1 protocols=0 structs=2 variables=5
+Sources/App/configure.swift	classes=0 enums=0 function_calls=4 functions=2 imports=1 protocols=0 structs=0 variables=0
+Tests/AppTests/UserTests.swift	classes=1 enums=0 function_calls=13 functions=2 imports=2 protocols=0 structs=0 variables=2

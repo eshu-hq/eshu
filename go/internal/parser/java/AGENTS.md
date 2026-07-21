@@ -12,6 +12,9 @@
    literal reflection references
 6. `metadata.go` and `parser_metadata.go` - ServiceLoader, Spring metadata,
    decorators, parameter types, and method-reference target evidence
+7. `dogfood_real_repo_test.go` - standing real-repo-validated snapshot test
+   (#5399); do not edit `testdata/dogfood_real_repo_snapshot.txt` by hand,
+   regenerate with `DOGFOOD_UPDATE_SNAPSHOT=1 bash scripts/dogfood-java.sh`
 
 ## Invariants this package enforces
 
@@ -55,6 +58,10 @@
   did not match the resource path.
 - Wrong line numbers usually mean helper code used the enclosing node instead
   of the declaration or literal node that proves the evidence.
+- A `TestDogfoodJavaRealRepoSnapshot` mismatch means a code change altered
+  bucket counts for `tests/fixtures/dogfood/java_real_repo`; verify the delta
+  is intended, then regenerate with `DOGFOOD_UPDATE_SNAPSHOT=1 bash
+  scripts/dogfood-java.sh`.
 
 ## Anti-patterns specific to this package
 
