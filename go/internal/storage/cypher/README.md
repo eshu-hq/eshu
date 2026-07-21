@@ -357,7 +357,13 @@ Terraform-state rows are written as `TerraformResource`, `TerraformModule`, and
 `TerraformOutput` nodes keyed by `uid`. The rows keep lineage, serial, provider
 binding, tag-key hashes, and hashed correlation anchors on the node without
 creating cloud-resource joins. Those joins are reducer work after the
-Terraform-state readiness checkpoints exist.
+Terraform-state readiness checkpoints exist. `TerraformResource` also gets a
+bounded, allowlisted subset of the resource's classified attributes flattened
+onto prefixed scalar node properties (`tf_attr_*`) via an additive
+`r += row.attrs` merge on the existing upsert template — see
+`terraform_attribute_promotion.go` and its redaction guard against the full
+IAM policy documents the drift package's attribute allowlist also carries
+(#5441).
 
 OCI registry rows are written as `OciRegistryRepository`,
 `ContainerImage`/`OciImageManifest`, `ContainerImageIndex`/`OciImageIndex`,

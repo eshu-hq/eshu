@@ -68,7 +68,6 @@ func benchmarkRepoDependencyRows(rowsPerType int) []reducer.SharedProjectionInte
 					"confidence":              0.9,
 					"rationale":               "benchmark fixture",
 					"source_revision":         "main",
-					"destination_namespace":   "prod",
 					"first_party_ref_version": "v1.2.3",
 				},
 			})

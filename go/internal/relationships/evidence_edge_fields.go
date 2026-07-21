@@ -34,35 +34,34 @@ func (w *evidenceFieldWinner) consider(value string, confidence float64) {
 	}
 }
 
+// settled reports whether no future consider() call could ever change this
+// winner's outcome, so the caller can skip computing that fact's (possibly
+// expensive, e.g. evidenceFactFirstPartyRefVersion's ExtractTerraformRefPin
+// derivation) value entirely rather than compute-then-discard it. Confidence
+// is always clamped to at most 1.0 (clampConfidence), so once a winner holds
+// a value at confidence 1.0, no later fact can out-rank it, and a later
+// same-confidence (1.0) fact would still lose the existing tie-break (first
+// recorded wins ties) — so the outcome cannot change either way.
+//
+// #5441 review round 2, P1-2: measured, not assumed (Prove-The-Theory-First).
+// See BenchmarkResolveCandidateAggregation
+// (resolver_edge_fields_bench_test.go) and the before/after in
+// docs/internal/evidence/5441-edge-node-properties.md — this guard measured
+// as a no-op on that benchmark's realistic-confidence fixture (no fact ever
+// reaches exactly 1.0), which is expected: it only pays off for the narrow
+// case of an explicit, maximum-confidence fact appearing before others in a
+// candidate's evidence bucket. Kept because it is a strict, provably safe
+// early exit with no measured downside, not because it fixed the regression.
+func (w *evidenceFieldWinner) settled() bool {
+	return w.has && w.confidence >= 1.0
+}
+
 // evidenceFactSourceRevision reads the declared git revision (branch, tag,
 // or SHA) an ArgoCD deployment source targets, set directly on the fact's
 // Details by structured_family_evidence.go's
 // discoverStructuredArgoCDEvidence.
 func evidenceFactSourceRevision(fact EvidenceFact) string {
 	return toDetailsString(fact.Details["source_revision"])
-}
-
-// evidenceFactDestinationNamespace reads the declared Kubernetes namespace an
-// ArgoCD deployment targets, set directly on the fact's Details by
-// yaml_iac_evidence.go's appendDestinationPlatformEvidence.
-//
-// IMPORTANT (#5441 P0 follow-up): as of this writing,
-// appendDestinationPlatformEvidence is the ONLY producer of
-// destination_namespace, and it attaches the value to a RelRunsOn fact
-// targeting a Platform entity — a different Candidate bucket (different
-// RelationshipType, different TargetEntityID, and even a different
-// SourceRepoID: the deployed repo, not the ArgoCD manifest's own repo) than
-// any RelDeploysFrom/RelDiscoversConfigIn/RelProvisionsDependencyFor/
-// RelUsesModule/RelReadsConfigFrom candidate. This function and the winner
-// selection in aggregateCandidate are correct and will populate the field
-// the moment a fact of one of the five widened relationship types carries
-// destination_namespace directly, but no current evidence producer does
-// that, so this reads "" on every real corpus today. Wiring it for real
-// ArgoCD data requires a cross-candidate join
-// (RelDeploysFrom.TargetRepoID == RelRunsOn.SourceRepoID) that is out of
-// scope for this fix — a tracked follow-up, not silently claimed as done.
-func evidenceFactDestinationNamespace(fact EvidenceFact) string {
-	return toDetailsString(fact.Details["destination_namespace"])
 }
 
 // evidenceFactFirstPartyRefVersion reads the pinned module/reference version

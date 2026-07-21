@@ -439,3 +439,42 @@ func TestAggregateCandidateFirstPartyRefVersionSkipsFactsWithoutValue(t *testing
 		t.Fatalf("FirstPartyRefVersion = %q, want %q (the only fact carrying a pin)", got, want)
 	}
 }
+
+// TestAggregateCandidateSourceRevisionSettledWinnerSkipsLaterFacts proves the
+// #5441 review round 2 P1-2 short-circuit optimization
+// (evidenceFieldWinner.settled) does not change correctness: once a fact at
+// confidence 1.0 wins a field, a later fact in the same bucket — even one
+// that would otherwise win a plain confidence comparison — must not replace
+// it, because clampConfidence never lets any value exceed 1.0.
+func TestAggregateCandidateSourceRevisionSettledWinnerSkipsLaterFacts(t *testing.T) {
+	t.Parallel()
+
+	facts := []EvidenceFact{
+		{
+			EvidenceKind:     EvidenceKindArgoCDAppSource,
+			RelationshipType: RelDeploysFrom,
+			SourceRepoID:     "repo-deploy",
+			TargetRepoID:     "repo-service",
+			Confidence:       1.0,
+			Rationale:        "first fact, already at max confidence",
+			Details:          map[string]any{"source_revision": "main"},
+		},
+		{
+			EvidenceKind:     EvidenceKindArgoCDAppSource,
+			RelationshipType: RelDeploysFrom,
+			SourceRepoID:     "repo-deploy",
+			TargetRepoID:     "repo-service",
+			Confidence:       1.0,
+			Rationale:        "second fact, same confidence, must not overwrite",
+			Details:          map[string]any{"source_revision": "should-never-win"},
+		},
+	}
+
+	_, resolved := Resolve(facts, nil, DefaultConfidenceThreshold)
+	if got, want := len(resolved), 1; got != want {
+		t.Fatalf("len(resolved) = %d, want %d", got, want)
+	}
+	if got, want := resolved[0].SourceRevision, "main"; got != want {
+		t.Fatalf("SourceRevision = %q, want %q (the first max-confidence fact must still win)", got, want)
+	}
+}

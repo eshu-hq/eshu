@@ -308,8 +308,8 @@ func batchCypherForDomain(domain string) (string, error) {
 // docs/internal/evidence/5441-edge-node-properties.md for the throwaway-shim
 // numbers and the recovered before/after/pre-sized benchmark table.
 const (
-	repoDependencyRowMapCapacity   = 15 // 3 base + evidence_type + source_tool + 10 copyRepoRelationshipMetadata keys.
-	repoRelationshipRowMapCapacity = 16 // 4 base + evidence_type + source_tool + 10 copyRepoRelationshipMetadata keys.
+	repoDependencyRowMapCapacity   = 14 // 3 base + evidence_type + source_tool + 9 copyRepoRelationshipMetadata keys.
+	repoRelationshipRowMapCapacity = 15 // 4 base + evidence_type + source_tool + 9 copyRepoRelationshipMetadata keys.
 )
 
 // buildRowMap converts a SharedProjectionIntentRow into a flat parameter map

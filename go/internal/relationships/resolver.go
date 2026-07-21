@@ -158,7 +158,7 @@ func aggregateCandidate(key entityTriple, facts []EvidenceFact) Candidate {
 	rationales := make([]string, 0)
 	seenRationale := make(map[string]struct{})
 	var srcRepoID, tgtRepoID string
-	var sourceRevision, destinationNamespace, firstPartyRefVersion evidenceFieldWinner
+	var sourceRevision, firstPartyRefVersion evidenceFieldWinner
 
 	preview := make([]map[string]any, 0, min(len(facts), 5))
 
@@ -183,10 +183,17 @@ func aggregateCandidate(key entityTriple, facts []EvidenceFact) Candidate {
 		// evidence fact, not from the aggregated Details map below (which
 		// deliberately carries only evidence_kinds/evidence_preview). See
 		// evidence_edge_fields.go for the per-field source and the winner
-		// rule when facts disagree.
-		sourceRevision.consider(evidenceFactSourceRevision(facts[i]), confidence)
-		destinationNamespace.consider(evidenceFactDestinationNamespace(facts[i]), confidence)
-		firstPartyRefVersion.consider(evidenceFactFirstPartyRefVersion(facts[i]), confidence)
+		// rule when facts disagree. Each field is skipped once its winner is
+		// settled() (already holds a maximum-confidence value), so a
+		// possibly-expensive derivation (evidenceFactFirstPartyRefVersion's
+		// ExtractTerraformRefPin fallback) is never computed only to be
+		// discarded.
+		if !sourceRevision.settled() {
+			sourceRevision.consider(evidenceFactSourceRevision(facts[i]), confidence)
+		}
+		if !firstPartyRefVersion.settled() {
+			firstPartyRefVersion.consider(evidenceFactFirstPartyRefVersion(facts[i]), confidence)
+		}
 		if len(preview) < 5 {
 			preview = append(preview, map[string]any{
 				"kind":       string(facts[i].EvidenceKind),
@@ -213,7 +220,6 @@ func aggregateCandidate(key entityTriple, facts []EvidenceFact) Candidate {
 			"evidence_preview": preview,
 		},
 		SourceRevision:       sourceRevision.value,
-		DestinationNamespace: destinationNamespace.value,
 		FirstPartyRefVersion: firstPartyRefVersion.value,
 	}
 }
@@ -297,7 +303,6 @@ func candidateToResolved(c Candidate) ResolvedRelationship {
 		ResolutionSource:     ResolutionSourceInferred,
 		Details:              details,
 		SourceRevision:       c.SourceRevision,
-		DestinationNamespace: c.DestinationNamespace,
 		FirstPartyRefVersion: c.FirstPartyRefVersion,
 	}
 }

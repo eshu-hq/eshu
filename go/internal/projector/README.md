@@ -148,7 +148,11 @@ Graph writes route through `internal/storage/cypher.CanonicalNodeWriter` via the
 `CanonicalWriter` interface. Terraform-state facts are projected as
 `TerraformResource`, `TerraformModule`, and `TerraformOutput` nodes with
 lineage, serial, provider, tag hash, and correlation-anchor evidence kept as
-properties. OCI registry facts are projected as digest-addressed image
+properties. `TerraformResource` also carries a bounded, redaction-safe,
+allowlisted subset of the resource's classified attributes as prefixed
+scalar properties (`tf_attr_instance_type`, `tf_attr_ami`, ...) — see
+`internal/storage/cypher/terraform_attribute_promotion.go` (#5441). OCI
+registry facts are projected as digest-addressed image
 manifest/index/descriptor rows; tag facts remain weak mutable observations and
 do not define image identity. The projector never calls a Neo4j or NornicDB
 driver directly.

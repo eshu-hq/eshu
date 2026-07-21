@@ -26,11 +26,13 @@ type CanonicalRepoRelationshipParams struct {
 	// SourceRevision is the declared git revision (branch/tag/SHA) an ArgoCD
 	// deployment source targets (#5441). Empty when the evidence family does
 	// not carry a source revision (e.g. Terraform module edges).
+	//
+	// A third field, DestinationNamespace, was deliberately removed before
+	// merge (#5441 review round 2): it has no evidence producer on any of
+	// the five widened relationship types (see the Candidate doc comment in
+	// go/internal/relationships/models.go), so it would have shipped as a
+	// permanently-empty property with no producer.
 	SourceRevision string
-	// DestinationNamespace is the declared Kubernetes namespace an ArgoCD
-	// deployment targets (#5441). Empty when the evidence family has no
-	// namespace concept.
-	DestinationNamespace string
 	// FirstPartyRefVersion is the pinned module/reference version extracted
 	// from a raw first-party source string (#5441), e.g. the `ref=` query
 	// parameter on a Terraform/Terragrunt git-sourced module. Empty when the
@@ -65,7 +67,6 @@ SET rel.confidence = $confidence,
     rel.rationale = $rationale,
     rel.source_tool = $source_tool,
     rel.source_revision = $source_revision,
-    rel.destination_namespace = $destination_namespace,
     rel.first_party_ref_version = $first_party_ref_version`
 
 const canonicalDiscoversConfigInRepoRelationshipUpsertCypher = `MERGE (source_repo:Repository {id: $repo_id})
@@ -88,7 +89,6 @@ SET rel.confidence = $confidence,
     rel.rationale = $rationale,
     rel.source_tool = $source_tool,
     rel.source_revision = $source_revision,
-    rel.destination_namespace = $destination_namespace,
     rel.first_party_ref_version = $first_party_ref_version`
 
 const canonicalProvisionsDependencyForRepoRelationshipUpsertCypher = `MERGE (source_repo:Repository {id: $repo_id})
@@ -111,7 +111,6 @@ SET rel.confidence = $confidence,
     rel.rationale = $rationale,
     rel.source_tool = $source_tool,
     rel.source_revision = $source_revision,
-    rel.destination_namespace = $destination_namespace,
     rel.first_party_ref_version = $first_party_ref_version`
 
 const canonicalUsesModuleRepoRelationshipUpsertCypher = `MERGE (source_repo:Repository {id: $repo_id})
@@ -134,7 +133,6 @@ SET rel.confidence = $confidence,
     rel.rationale = $rationale,
     rel.source_tool = $source_tool,
     rel.source_revision = $source_revision,
-    rel.destination_namespace = $destination_namespace,
     rel.first_party_ref_version = $first_party_ref_version`
 
 const canonicalReadsConfigFromRepoRelationshipUpsertCypher = `MERGE (source_repo:Repository {id: $repo_id})
@@ -157,7 +155,6 @@ SET rel.confidence = $confidence,
     rel.rationale = $rationale,
     rel.source_tool = $source_tool,
     rel.source_revision = $source_revision,
-    rel.destination_namespace = $destination_namespace,
     rel.first_party_ref_version = $first_party_ref_version`
 
 const batchCanonicalDeploysFromRepoRelationshipUpsertCypher = `UNWIND $rows AS row
@@ -181,7 +178,6 @@ SET rel.confidence = row.confidence,
     rel.rationale = row.rationale,
     rel.source_tool = row.source_tool,
     rel.source_revision = row.source_revision,
-    rel.destination_namespace = row.destination_namespace,
     rel.first_party_ref_version = row.first_party_ref_version`
 
 const batchCanonicalDiscoversConfigInRepoRelationshipUpsertCypher = `UNWIND $rows AS row
@@ -205,7 +201,6 @@ SET rel.confidence = row.confidence,
     rel.rationale = row.rationale,
     rel.source_tool = row.source_tool,
     rel.source_revision = row.source_revision,
-    rel.destination_namespace = row.destination_namespace,
     rel.first_party_ref_version = row.first_party_ref_version`
 
 const batchCanonicalProvisionsDependencyForRepoRelationshipUpsertCypher = `UNWIND $rows AS row
@@ -229,7 +224,6 @@ SET rel.confidence = row.confidence,
     rel.rationale = row.rationale,
     rel.source_tool = row.source_tool,
     rel.source_revision = row.source_revision,
-    rel.destination_namespace = row.destination_namespace,
     rel.first_party_ref_version = row.first_party_ref_version`
 
 const batchCanonicalUsesModuleRepoRelationshipUpsertCypher = `UNWIND $rows AS row
@@ -253,7 +247,6 @@ SET rel.confidence = row.confidence,
     rel.rationale = row.rationale,
     rel.source_tool = row.source_tool,
     rel.source_revision = row.source_revision,
-    rel.destination_namespace = row.destination_namespace,
     rel.first_party_ref_version = row.first_party_ref_version`
 
 const batchCanonicalReadsConfigFromRepoRelationshipUpsertCypher = `UNWIND $rows AS row
@@ -277,7 +270,6 @@ SET rel.confidence = row.confidence,
     rel.rationale = row.rationale,
     rel.source_tool = row.source_tool,
     rel.source_revision = row.source_revision,
-    rel.destination_namespace = row.destination_namespace,
     rel.first_party_ref_version = row.first_party_ref_version`
 
 const batchCanonicalRepoEvidenceArtifactUpsertCypher = `UNWIND $rows AS row
@@ -400,7 +392,6 @@ func BuildCanonicalRepoRelationshipUpsert(p CanonicalRepoRelationshipParams, evi
 			"rationale":               p.Rationale,
 			"source_tool":             p.SourceTool,
 			"source_revision":         p.SourceRevision,
-			"destination_namespace":   p.DestinationNamespace,
 			"first_party_ref_version": p.FirstPartyRefVersion,
 		},
 	}

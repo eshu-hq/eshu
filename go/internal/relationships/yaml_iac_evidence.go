@@ -24,7 +24,7 @@ func discoverArgoCDDocumentEvidence(
 	// discoverStructuredArgoCDEvidence) is the one that actually fires for a
 	// bare top-level ArgoCD Application YAML manifest, so it must carry
 	// source_revision itself rather than relying on the structured path's
-	// Details. Found via the live golden-corpus gate: rc-153 failed with
+	// Details. Found via the live golden-corpus gate: rc-154 failed with
 	// "2/2 matching edges offending" even after the reducer-side P0 fix
 	// landed, because both corpus DEPLOYS_FROM edges came through here with
 	// no source_revision key at all (extraDetails was a hard-coded nil).

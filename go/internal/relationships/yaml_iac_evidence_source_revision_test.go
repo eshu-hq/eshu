@@ -10,7 +10,7 @@ import (
 )
 
 // TestDiscoverArgoCDDocumentEvidenceCarriesSourceRevision is the #5441
-// second-P0 regression guard, found while proving rc-153 against the live
+// second-P0 regression guard, found while proving rc-154 against the live
 // golden-corpus gate: a plain ArgoCD Application YAML manifest (the shape
 // tests/fixtures/ecosystems/helm_argocd_platform/application.yaml and
 // deployable-config/application.yaml both use, and the shape
@@ -28,7 +28,7 @@ import (
 // separate discoverStructuredArgoCDEvidence path requires a parser to have
 // already populated parsedFileData["argocd_applications"], which a bare
 // top-level Application YAML file does not trigger in this corpus). The live
-// golden-corpus gate caught this: rc-153_edge_prop_source_revision failed
+// golden-corpus gate caught this: rc-154_edge_prop_source_revision failed
 // with "2/2 matching edges offending" even after the P0 fix landed, because
 // both corpus edges came through this document-level path.
 func TestDiscoverArgoCDDocumentEvidenceCarriesSourceRevision(t *testing.T) {

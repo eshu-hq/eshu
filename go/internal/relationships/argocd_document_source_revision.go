@@ -21,7 +21,7 @@ package relationships
 // #5441 fix (evidenceFactSourceRevision reading
 // EvidenceFact.Details["source_revision"] in aggregateCandidate,
 // evidence_edge_fields.go) was correct but had no data to read; the live
-// golden-corpus gate caught the gap (rc-153_edge_prop_source_revision failed
+// golden-corpus gate caught the gap (rc-154_edge_prop_source_revision failed
 // "2/2 matching edges offending" even after the reducer fix landed).
 //
 // Only the first source carrying a non-empty targetRevision is used, even

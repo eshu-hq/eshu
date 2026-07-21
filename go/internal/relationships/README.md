@@ -212,9 +212,21 @@ overridable place instead of scattered literals.
   `RelUsesModule`, `RelProvisionsDependencyFor`, `RelDiscoversConfigIn`,
   `RelReadsConfigFrom`, `RelRunsOn`, `RelDependsOn` (`models.go:79`)
 - `Candidate` — aggregated machine-generated relationship with combined
-  `Confidence`, `EvidenceCount`, and merged `Details` (`models.go:134`)
+  `Confidence`, `EvidenceCount`, and merged `Details` (`models.go:162`).
+  Also carries `SourceRevision` and `FirstPartyRefVersion` — typed
+  accessors for two specific per-evidence-fact `Details` values (#5441),
+  aggregated across the candidate's facts by `aggregateCandidate` using a
+  deterministic highest-confidence-wins winner rule (`evidence_edge_fields.go`),
+  not read from the generic `Details` map. A third candidate field,
+  `DestinationNamespace`, was scoped and then deliberately removed before
+  merge: its only producer attaches the value to a `RelRunsOn` fact, never
+  to a fact of a repo-relationship type, so it would never populate — see
+  the `Candidate` doc comment and `docs/internal/evidence/5441-edge-node-properties.md`.
 - `ResolvedRelationship` — canonical relationship emitted after resolution;
-  carries `ResolutionSource` (`inferred` or `assertion`) (`models.go:147`)
+  carries `ResolutionSource` (`inferred` or `assertion`) (`models.go:199`).
+  Mirrors `Candidate`'s `SourceRevision`/`FirstPartyRefVersion` fields,
+  copied through by `candidateToResolved`; assertion-sourced relationships
+  never populate them.
 - `Assertion` — explicit human or control-plane override with `Decision`
   `"assert"` or `"reject"` (`models.go:122`)
 - `CatalogEntry` — maps one `RepoID` to its `Aliases` slice used by

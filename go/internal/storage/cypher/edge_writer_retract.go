@@ -391,21 +391,19 @@ func buildDocumentationDeltaRetractStatements(
 // copyRepoRelationshipMetadata preserves durable evidence pointers on graph
 // edge writes while keeping the full evidence payload in Postgres.
 //
-// #5441 widens this narrow allowlist by exactly three fields —
-// source_revision, destination_namespace, and first_party_ref_version. Unlike
-// the rest of Details (kept in Postgres only, per the doc comment above),
-// these three answer "which git revision / which namespace / which module
-// version is declared for env Y" directly from the edge, which is the
-// question this graph exists to answer at query time; a Postgres round trip
-// per edge to recover them would defeat the point of a graph read. Every
-// other Details key still stays out of the graph. Absent values copy as ""
-// (never omitted, never Cypher null) matching every other optional field
+// #5441 widens this narrow allowlist by exactly two fields — source_revision
+// and first_party_ref_version, answering "which git revision / which module
+// version is declared for env Y" directly from the edge instead of a
+// Postgres round trip at query time. Every other Details key still stays out
+// of the graph. A third field, destination_namespace, was deliberately
+// removed before merge (#5441 review round 2): it has no evidence producer
+// on any of the five widened relationship types — see the Candidate doc
+// comment in go/internal/relationships/models.go. Absent values copy as ""
+// (never omitted, never Cypher null), matching every other optional field
 // here (resolution_source, rationale): NornicDB v1.1.11's per-property SET
-// path (pkg/cypher/merge.go applySetToRelationshipWithContext) stores a nil
-// RHS as a literal nil-valued property key instead of removing it, so a null
-// parameter would diverge from Cypher's standard remove-on-null semantics
-// rather than emulate it — "" is the only value this shared writer treats
-// uniformly across both backends.
+// path stores a nil RHS as a literal nil-valued property instead of
+// removing it, diverging from Cypher's remove-on-null semantics — "" is the
+// only value this shared writer treats uniformly across both backends.
 func copyRepoRelationshipMetadata(rowMap map[string]any, payload map[string]any, rowGenerationID string) {
 	rowMap["resolved_id"] = payloadString(payload, "resolved_id")
 	generationID := payloadString(payload, "generation_id")
@@ -419,7 +417,6 @@ func copyRepoRelationshipMetadata(rowMap map[string]any, payload map[string]any,
 	rowMap["confidence"] = repoRelationshipConfidence(payloadFloat(payload, "confidence"))
 	rowMap["rationale"] = payloadString(payload, "rationale")
 	rowMap["source_revision"] = payloadString(payload, "source_revision")
-	rowMap["destination_namespace"] = payloadString(payload, "destination_namespace")
 	rowMap["first_party_ref_version"] = payloadString(payload, "first_party_ref_version")
 }
 

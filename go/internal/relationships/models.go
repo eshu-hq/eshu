@@ -176,11 +176,10 @@ type Candidate struct {
 	EvidenceCount    int
 	Rationale        string
 	Details          map[string]any
-	// SourceRevision, DestinationNamespace, and FirstPartyRefVersion (#5441)
-	// are typed accessors for three specific EvidenceFact.Details values,
-	// aggregated across the candidate's evidence facts by aggregateCandidate
-	// (resolver.go) and evidenceFactSourceRevision/
-	// evidenceFactDestinationNamespace/evidenceFactFirstPartyRefVersion
+	// SourceRevision and FirstPartyRefVersion (#5441) are typed accessors for
+	// two specific EvidenceFact.Details values, aggregated across the
+	// candidate's evidence facts by aggregateCandidate (resolver.go) and
+	// evidenceFactSourceRevision/evidenceFactFirstPartyRefVersion
 	// (evidence_edge_fields.go). They are typed struct fields rather than
 	// nested map keys deliberately: the untyped-map version of this data
 	// (ResolvedRelationship.Details, which carries only "evidence_kinds" and
@@ -188,8 +187,18 @@ type Candidate struct {
 	// about which Details map held this data ship uncaught, because nothing
 	// compile-checked the read site. Empty when no evidence fact in this
 	// candidate carries a value for that field.
+	//
+	// A third field, DestinationNamespace, was deliberately removed before
+	// merge (#5441 review round 2): its only evidence producer
+	// (yaml_iac_evidence.go's appendDestinationPlatformEvidence) attaches
+	// destination_namespace to a RelRunsOn fact targeting a Platform entity,
+	// never to a fact of one of the five widened relationship types, so it
+	// would have shipped as a permanently-empty property with no producer.
+	// Fixing it needs a real cross-candidate join
+	// (DEPLOYS_FROM.TargetRepoID == RUNS_ON.SourceRepoID, proven by a
+	// from-scratch DiscoverEvidence -> Resolve probe), which is out of scope
+	// here; tracked as a follow-up rather than shipped as a lie.
 	SourceRevision       string
-	DestinationNamespace string
 	FirstPartyRefVersion string
 }
 
@@ -205,14 +214,14 @@ type ResolvedRelationship struct {
 	Rationale        string
 	ResolutionSource ResolutionSource
 	Details          map[string]any
-	// SourceRevision, DestinationNamespace, and FirstPartyRefVersion (#5441)
-	// mirror the identically-named Candidate fields; candidateToResolved
-	// (resolver.go) copies them straight through. Assertion-sourced resolved
-	// relationships (applyExplicitAssertions) never populate them — an
-	// explicit human/control-plane assertion carries no evidence-derived
-	// revision/namespace/ref, so they stay "".
+	// SourceRevision and FirstPartyRefVersion (#5441) mirror the
+	// identically-named Candidate fields; candidateToResolved (resolver.go)
+	// copies them straight through. Assertion-sourced resolved relationships
+	// (applyExplicitAssertions) never populate them — an explicit
+	// human/control-plane assertion carries no evidence-derived
+	// revision/ref, so they stay "". See the Candidate doc comment for why
+	// there is no DestinationNamespace field here.
 	SourceRevision       string
-	DestinationNamespace string
 	FirstPartyRefVersion string
 }
 

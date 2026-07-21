@@ -23,19 +23,18 @@ func TestEdgeWriterWriteEdgesTypedRepoRelationshipDispatch(t *testing.T) {
 			IntentID:     "i1",
 			RepositoryID: "repo-a",
 			Payload: map[string]any{
-				"repo_id":               "repo-a",
-				"target_repo_id":        "repo-b",
-				"relationship_type":     "DEPLOYS_FROM",
-				"evidence_type":         "argocd_application_source",
-				"resolved_id":           "resolved-1",
-				"generation_id":         "gen-1",
-				"evidence_count":        3,
-				"evidence_kinds":        []string{"ARGOCD_APPLICATION_SOURCE", "HELM_VALUES_REFERENCE"},
-				"resolution_source":     "inferred",
-				"confidence":            0.93,
-				"rationale":             "deployment config references service repository",
-				"source_revision":       "main",
-				"destination_namespace": "prod",
+				"repo_id":           "repo-a",
+				"target_repo_id":    "repo-b",
+				"relationship_type": "DEPLOYS_FROM",
+				"evidence_type":     "argocd_application_source",
+				"resolved_id":       "resolved-1",
+				"generation_id":     "gen-1",
+				"evidence_count":    3,
+				"evidence_kinds":    []string{"ARGOCD_APPLICATION_SOURCE", "HELM_VALUES_REFERENCE"},
+				"resolution_source": "inferred",
+				"confidence":        0.93,
+				"rationale":         "deployment config references service repository",
+				"source_revision":   "main",
 			},
 		},
 		{
@@ -119,20 +118,24 @@ func TestEdgeWriterWriteEdgesTypedRepoRelationshipDispatch(t *testing.T) {
 			t.Fatalf("row missing evidence_type: %#v", rowsOut[0])
 		}
 		// #5441: every one of the five canonical edge templates carries the
-		// three allowlisted properties unconditionally, so a row with no
+		// two allowlisted properties unconditionally, so a row with no
 		// Details signal still round-trips a uniform "" (never a dropped key,
 		// never Go nil/Cypher null — see the absent-value research note in
-		// the PR evidence).
+		// the PR evidence). A third candidate property, destination_namespace,
+		// was deliberately removed before merge (#5441 review round 2): it has
+		// no evidence producer on any of the five widened relationship types.
 		for _, fragment := range []string{
 			"rel.source_revision = row.source_revision",
-			"rel.destination_namespace = row.destination_namespace",
 			"rel.first_party_ref_version = row.first_party_ref_version",
 		} {
 			if !strings.Contains(call.Cypher, fragment) {
 				t.Fatalf("cypher for %s missing %q: %s", relType, fragment, call.Cypher)
 			}
 		}
-		for _, key := range []string{"source_revision", "destination_namespace", "first_party_ref_version"} {
+		if strings.Contains(call.Cypher, "destination_namespace") {
+			t.Fatalf("cypher for %s must not carry destination_namespace (removed, no producer): %s", relType, call.Cypher)
+		}
+		for _, key := range []string{"source_revision", "first_party_ref_version"} {
 			if _, ok := rowsOut[0][key]; !ok {
 				t.Fatalf("row for %s missing key %s entirely (must default to \"\", not be omitted): %#v", relType, key, rowsOut[0])
 			}
@@ -147,7 +150,6 @@ func TestEdgeWriterWriteEdgesTypedRepoRelationshipDispatch(t *testing.T) {
 				"confidence":              0.93,
 				"rationale":               "deployment config references service repository",
 				"source_revision":         "main",
-				"destination_namespace":   "prod",
 				"first_party_ref_version": "",
 			} {
 				if got := rowsOut[0][key]; got != want {
@@ -161,7 +163,6 @@ func TestEdgeWriterWriteEdgesTypedRepoRelationshipDispatch(t *testing.T) {
 		case "USES_MODULE":
 			for key, want := range map[string]any{
 				"source_revision":         "",
-				"destination_namespace":   "",
 				"first_party_ref_version": "v1.2.3",
 			} {
 				if got := rowsOut[0][key]; got != want {
@@ -169,7 +170,7 @@ func TestEdgeWriterWriteEdgesTypedRepoRelationshipDispatch(t *testing.T) {
 				}
 			}
 		case "DISCOVERS_CONFIG_IN", "PROVISIONS_DEPENDENCY_FOR", "READS_CONFIG_FROM":
-			for _, key := range []string{"source_revision", "destination_namespace", "first_party_ref_version"} {
+			for _, key := range []string{"source_revision", "first_party_ref_version"} {
 				if got := rowsOut[0][key]; got != "" {
 					t.Fatalf("row %s[%s] = %#v, want \"\" (no Details signal supplied)", relType, key, got)
 				}
