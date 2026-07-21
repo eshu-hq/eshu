@@ -39,6 +39,19 @@ type WorkloadObject struct {
 	ProjectedServiceAccountToken bool
 	Selector                     map[string]string
 	Containers                   []ContainerSummary
+	// DesiredReplicas is the DESIRED replica count from a Deployment or
+	// ReplicaSet's .Spec.Replicas. Nil for a Pod object (no replica spec).
+	DesiredReplicas *int32
+	// ReadyReplicas is the OBSERVED ready replica count from a Deployment or
+	// ReplicaSet's .Status.ReadyReplicas. Nil for a Pod object.
+	ReadyReplicas *int32
+	// AvailableReplicas is the OBSERVED available replica count from a
+	// Deployment or ReplicaSet's .Status.AvailableReplicas. Nil for a Pod
+	// object.
+	AvailableReplicas *int32
+	// PodPhase is the OBSERVED pod lifecycle phase from a Pod's
+	// .Status.Phase. Nil for a Deployment or ReplicaSet object.
+	PodPhase *string
 }
 
 // ServiceObject is the metadata-only view of a Service.

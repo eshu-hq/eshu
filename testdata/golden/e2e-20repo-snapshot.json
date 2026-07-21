@@ -43,7 +43,7 @@
       "KubernetesWorkload": {
         "min": 3,
         "max": 20,
-        "note": "raw k8s Deployment/ReplicaSet/Pod workload nodes; source of RUNS_IMAGE edges; +1 pod from #5432"
+        "note": "raw k8s Deployment/ReplicaSet/Pod workload nodes; source of RUNS_IMAGE edges; +1 pod from #5432; #5431 adds observed-vs-desired runtime-status fields (desired/ready/available replicas, pod phase) to the underlying pod_template facts, fact-level only, no node/edge count change"
       },
       "Workload": {
         "min": 1,

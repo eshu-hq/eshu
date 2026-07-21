@@ -31,6 +31,17 @@ correlation and drift remain reducer-owned and are not in this package.
   repository (unjoinable). See `NormalizeCRIImageID` in `envelope.go` and the
   `clientgo` adapter's `workloadFromPod` which reads `.Status` — the ONLY
   `.Status` field the adapter reads (#5432).
+- A `pod_template` fact also carries optional observed-vs-desired runtime-status
+  fields, self-describing by name (#5431): `desired_replicas` (DESIRED, from a
+  Deployment/ReplicaSet's `.Spec.Replicas`), `ready_replicas` and
+  `available_replicas` (OBSERVED, from `.Status.ReadyReplicas` /
+  `.Status.AvailableReplicas`), and `pod_phase` (OBSERVED, from a Pod's
+  `.Status.Phase`). The replica fields are populated only for Deployment and
+  ReplicaSet objects and absent for Pod objects; `pod_phase` is populated only
+  for Pod objects and absent for Deployment/ReplicaSet objects. This is
+  fact-level emission only — nothing here materializes onto the graph node or
+  adds a query surface; that is deferred to the materialization capstone
+  (#5435).
 - Map listed ServiceAccount and RBAC objects into `secrets_iam_posture` source
   facts for the Kubernetes secrets/IAM evidence lane:
   - `k8s_service_account`

@@ -361,3 +361,67 @@ func TestNewPodTemplateEnvelopeEmitsResolvedImageDigest(t *testing.T) {
 		t.Fatalf("containers[1].resolved_image_digest present = %#v, want key omitted when no digest observed", containers[1]["resolved_image_digest"])
 	}
 }
+
+// TestNewPodTemplateEnvelopeEmitsRuntimeStatus locks the wire contract for
+// #5431: a workload's DESIRED replica count (Spec.Replicas) and OBSERVED
+// runtime-status fields (ready/available replicas, pod phase) must survive
+// the typed EncodeKubernetesLivePodTemplate seam into the emitted payload. The
+// encoder enumerates fields by hand, so a field added to the struct but not
+// the encoder is silently dropped — this test fails in that case.
+func TestNewPodTemplateEnvelopeEmitsRuntimeStatus(t *testing.T) {
+	t.Parallel()
+
+	desired := int32(3)
+	ready := int32(2)
+	available := int32(1)
+	envelope, err := NewPodTemplateEnvelope(PodTemplateObservation{
+		Identity:            sampleIdentity(),
+		GenerationID:        "gen-1",
+		CollectorInstanceID: "k8s-prod",
+		DesiredReplicas:     &desired,
+		ReadyReplicas:       &ready,
+		AvailableReplicas:   &available,
+	})
+	if err != nil {
+		t.Fatalf("NewPodTemplateEnvelope() error = %v", err)
+	}
+	if got := envelope.Payload["desired_replicas"]; got != int32(3) {
+		t.Fatalf("payload desired_replicas = %#v, want 3", got)
+	}
+	if got := envelope.Payload["ready_replicas"]; got != int32(2) {
+		t.Fatalf("payload ready_replicas = %#v, want 2", got)
+	}
+	if got := envelope.Payload["available_replicas"]; got != int32(1) {
+		t.Fatalf("payload available_replicas = %#v, want 1", got)
+	}
+	if _, present := envelope.Payload["pod_phase"]; present {
+		t.Fatalf("payload pod_phase present = %#v, want key omitted when not observed", envelope.Payload["pod_phase"])
+	}
+}
+
+// TestNewPodTemplateEnvelopePodPhaseOmittedWhenAbsentReplicasSet locks the
+// pod-observation shape for #5431: a pod observation carries PodPhase but no
+// replica fields, and the emitted payload must reflect exactly that — the
+// pod_phase key present, the replica keys omitted rather than zeroed.
+func TestNewPodTemplateEnvelopePodPhaseOmittedWhenAbsentReplicasSet(t *testing.T) {
+	t.Parallel()
+
+	phase := "Running"
+	envelope, err := NewPodTemplateEnvelope(PodTemplateObservation{
+		Identity:            sampleIdentity(),
+		GenerationID:        "gen-1",
+		CollectorInstanceID: "k8s-prod",
+		PodPhase:            &phase,
+	})
+	if err != nil {
+		t.Fatalf("NewPodTemplateEnvelope() error = %v", err)
+	}
+	if got := envelope.Payload["pod_phase"]; got != "Running" {
+		t.Fatalf("payload pod_phase = %#v, want %q", got, "Running")
+	}
+	for _, key := range []string{"desired_replicas", "ready_replicas", "available_replicas"} {
+		if _, present := envelope.Payload[key]; present {
+			t.Fatalf("payload %s present = %#v, want key omitted (Pod observation carries no replica fields)", key, envelope.Payload[key])
+		}
+	}
+}

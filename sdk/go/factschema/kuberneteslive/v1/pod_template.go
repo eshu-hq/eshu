@@ -81,6 +81,27 @@ type PodTemplate struct {
 	// every declared image reference) the correlation reducer domain may use
 	// for name-only join resolution. Optional.
 	CorrelationAnchors []string `json:"correlation_anchors,omitempty"`
+
+	// DesiredReplicas is the DESIRED replica count declared on a Deployment or
+	// ReplicaSet's .Spec.Replicas. It is the desired-state truth basis, not an
+	// observation of running pods. Absent for a Pod object (a Pod has no
+	// replica spec) and absent when the source Spec.Replicas was nil. Optional.
+	DesiredReplicas *int32 `json:"desired_replicas,omitempty"`
+
+	// ReadyReplicas is the OBSERVED ready replica count from a Deployment or
+	// ReplicaSet's .Status.ReadyReplicas. Absent for a Pod object. Optional.
+	ReadyReplicas *int32 `json:"ready_replicas,omitempty"`
+
+	// AvailableReplicas is the OBSERVED available replica count from a
+	// Deployment or ReplicaSet's .Status.AvailableReplicas. Absent for a Pod
+	// object. Optional.
+	AvailableReplicas *int32 `json:"available_replicas,omitempty"`
+
+	// PodPhase is the OBSERVED pod lifecycle phase from a Pod's .Status.Phase
+	// (one of Pending, Running, Succeeded, Failed, or Unknown). Absent for a
+	// Deployment or ReplicaSet object (they carry a pod template spec, not pod
+	// status) and absent when the source phase was empty. Optional.
+	PodPhase *string `json:"pod_phase,omitempty"`
 }
 
 // PodTemplateContainer is the redacted, metadata-only view of one container or
