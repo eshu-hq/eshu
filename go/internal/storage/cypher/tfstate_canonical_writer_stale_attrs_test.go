@@ -28,9 +28,10 @@ import (
 // the production fix (a REMOVE clause fused into the same MERGE...SET
 // statement) passed this exact fixture green while corrupting
 // r.evidence_source and leaving the stale attribute in place on the real
-// backend -- see TestTerraformResourceWriterTwoStatementDesignAgainstRealNornicDB_Live
-// below and docs/internal/evidence/5441-edge-node-properties.md for the
-// backend-level proof this fixture cannot provide on its own.
+// backend -- see TestTerraformResourceWriterLiveClearsStaleAttributeOnRefresh
+// in tfstate_canonical_writer_stale_attrs_live_test.go and
+// docs/internal/evidence/5441-edge-node-properties.md for the backend-level
+// proof this fixture cannot provide on its own.
 type fakeTerraformResourceGraph struct {
 	nodes map[string]map[string]any // uid -> properties
 }

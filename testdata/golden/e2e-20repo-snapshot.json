@@ -41,9 +41,9 @@
         "note": "logical workload-instance nodes derived from config materialization and deployment mapping"
       },
       "KubernetesWorkload": {
-        "min": 3,
+        "min": 5,
         "max": 20,
-        "note": "raw k8s Deployment/ReplicaSet/Pod workload nodes; source of RUNS_IMAGE edges; +1 pod from #5432"
+        "note": "raw k8s Deployment/ReplicaSet/StatefulSet/DaemonSet/Pod workload nodes; source of RUNS_IMAGE edges; +1 pod from #5432; #5431 adds observed-vs-desired runtime-status fields (desired/ready/available replicas, pod phase) to the underlying pod_template facts, fact-level only, no node/edge count change; #5433 adds StatefulSet and DaemonSet nodes (+2, min 3->5) plus Job/CronJob collection (no new cassette node for those two kinds), using images that do not correlate to the OciImageManifest cassette so RUNS_IMAGE stays unchanged"
       },
       "Workload": {
         "min": 1,
@@ -4700,8 +4700,8 @@
         "required_json_values": {
           "data.repo_id": "repository:r_217415d9",
           "data.workload_id": "workload:deployable-config",
-          "data.instances[].instance_id": "workload-instance:deployable-config:production",
-          "data.instances[].platforms[].platform_id": "platform:kubernetes:none:production:production:none",
+          "data.instances[].instance_id": "workload-instance:deployable-config:prod",
+          "data.instances[].platforms[].platform_id": "platform:kubernetes:none:prod:prod:none",
           "data.instances[].platforms[].topology_edges[].relationship_type": "RUNS_ON",
           "data.deployment_fact_summary.deployment_truth_tier": "runtime_confirmed",
           "data.deployment_fact_summary.image_ref_count": 1,
@@ -4714,8 +4714,8 @@
           "data.instances[].platforms[].topology_edges[]": [
             {
               "relationship_type": "RUNS_ON",
-              "source_id": "workload-instance:deployable-config:production",
-              "target_id": "platform:kubernetes:none:production:production:none"
+              "source_id": "workload-instance:deployable-config:prod",
+              "target_id": "platform:kubernetes:none:prod:prod:none"
             }
           ],
           "data.topology_edges[]": [
@@ -4726,14 +4726,14 @@
             },
             {
               "relationship_type": "INSTANCE_OF",
-              "source_id": "workload-instance:deployable-config:production",
+              "source_id": "workload-instance:deployable-config:prod",
               "target_id": "workload:deployable-config"
             }
           ],
           "data.deployment_sources[]": [
             {
               "relationship_type": "DEPLOYMENT_SOURCE",
-              "source_id": "workload-instance:deployable-config:production",
+              "source_id": "workload-instance:deployable-config:prod",
               "target_id": "repository:r_1f68383d"
             }
           ],

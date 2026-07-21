@@ -32,6 +32,7 @@ func TestBuildReducerServiceRejectsDisabledGenerationRetentionInProduction(t *te
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 	if err == nil {
 		t.Fatal("buildReducerService() error = nil, want production retention disable rejected")
@@ -72,6 +73,7 @@ func TestBuildReducerServiceAllowsDisabledGenerationRetentionForLocalProfiles(t 
 				nil,
 				nil,
 				nil,
+				nil,
 			)
 			if err != nil {
 				t.Fatalf("buildReducerService() error = %v, want nil for explicit local disable", err)
@@ -108,6 +110,7 @@ func TestBuildReducerServiceRejectsDisabledGenerationRetentionWithProductionProf
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 	if err == nil {
 		t.Fatal("buildReducerService() error = nil, want production profile rejected")
@@ -136,6 +139,7 @@ func TestBuildReducerServiceRejectsDisabledGenerationRetentionWithInvalidProfile
 				return ""
 			}
 		},
+		nil,
 		nil,
 		nil,
 		nil,

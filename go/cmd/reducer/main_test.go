@@ -47,7 +47,7 @@ func TestBuildReducerServiceWiresDefaultRuntimeAndQueue(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeReducerDB{}
-	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(string) string { return "" }, nil, nil, nil)
+	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(string) string { return "" }, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
 	}
@@ -207,6 +207,7 @@ func TestBuildReducerServiceWiresSearchVectorBuildRunnerWhenLocalEmbedderEnabled
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
@@ -258,6 +259,7 @@ func TestBuildReducerServiceWiresSharedEdgeGroupBatchOverrides(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v", err)
@@ -296,6 +298,7 @@ func TestBuildReducerServiceWiresRepoDependencyRetractStatementTiming(t *testing
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v", err)
@@ -314,7 +317,7 @@ func TestBuildReducerServiceWiresPostgresWorkloadIdentityWriter(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeReducerDB{}
-	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(string) string { return "" }, nil, nil, nil)
+	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(string) string { return "" }, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
 	}
@@ -358,7 +361,7 @@ func TestBuildReducerServiceWiresPostgresCloudAssetResolutionWriter(t *testing.T
 	t.Parallel()
 
 	db := &fakeReducerDB{}
-	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(string) string { return "" }, nil, nil, nil)
+	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(string) string { return "" }, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
 	}
@@ -411,7 +414,7 @@ func TestBuildReducerServiceWiresRetryConfigFromEnv(t *testing.T) {
 		default:
 			return ""
 		}
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
 	}

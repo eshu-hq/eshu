@@ -90,12 +90,21 @@ func (b *generationBuilder) collectServices(ctx context.Context, client Client) 
 }
 
 func (b *generationBuilder) collectWorkloads(ctx context.Context, client Client) error {
+	// Parents must be indexed before children: addOwnerEdges resolves an
+	// owner's UID against b.uidIndex immediately, so an owned kind listed
+	// before its owner would find an unindexed UID and drop the edge with a
+	// WarningInvalidOwnerReference instead of emitting it. Deployment before
+	// ReplicaSet before Pod, and CronJob before Job before Pod.
 	lists := []struct {
 		resourceScope string
 		list          func(context.Context) (ListResult[WorkloadObject], error)
 	}{
 		{ResourceScopeDeployments, client.ListDeployments},
 		{ResourceScopeReplicaSets, client.ListReplicaSets},
+		{ResourceScopeStatefulSets, client.ListStatefulSets},
+		{ResourceScopeDaemonSets, client.ListDaemonSets},
+		{ResourceScopeCronJobs, client.ListCronJobs},
+		{ResourceScopeJobs, client.ListJobs},
 		{ResourceScopePods, client.ListPods},
 	}
 	for _, entry := range lists {
@@ -127,6 +136,10 @@ func (b *generationBuilder) addWorkload(ctx context.Context, workload WorkloadOb
 		FencingToken:        b.target.FencingToken,
 		ObservedAt:          b.observedAt,
 		SourceURI:           b.target.SourceURI,
+		DesiredReplicas:     workload.DesiredReplicas,
+		ReadyReplicas:       workload.ReadyReplicas,
+		AvailableReplicas:   workload.AvailableReplicas,
+		PodPhase:            workload.PodPhase,
 	})
 	if err != nil {
 		return err
@@ -262,6 +275,14 @@ func (b *generationBuilder) ownerScope(owner OwnerReference) string {
 		return ResourceScopeDeployments
 	case "replicaset":
 		return ResourceScopeReplicaSets
+	case "statefulset":
+		return ResourceScopeStatefulSets
+	case "daemonset":
+		return ResourceScopeDaemonSets
+	case "job":
+		return ResourceScopeJobs
+	case "cronjob":
+		return ResourceScopeCronJobs
 	default:
 		return kind
 	}

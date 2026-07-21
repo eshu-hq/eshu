@@ -10,6 +10,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -272,7 +273,7 @@ func classifyCICDRunEvidence(ev *cicdRunEvidence, imageIndex map[string][]cicdIm
 		EvidenceFactIDs:  []string{ev.run.FactID},
 	}
 	if len(ev.environmentsDecoded) > 0 {
-		decision.Environment = trimmedCICDPtr(ev.environmentsDecoded[0].Environment)
+		decision.Environment = environment.Canonical(trimmedCICDPtr(ev.environmentsDecoded[0].Environment))
 		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, ev.environments[0].FactID)
 	}
 	for _, trigger := range ev.triggers {

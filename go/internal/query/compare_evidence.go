@@ -3,7 +3,11 @@
 
 package query
 
-import "strings"
+import (
+	"strings"
+
+	envcontract "github.com/eshu-hq/eshu/go/internal/environment"
+)
 
 func inferredEnvironmentProvenance(environment string, evidence ServiceQueryEvidence) []map[string]any {
 	canonical := canonicalEnvironmentName(environment)
@@ -42,16 +46,5 @@ func inferredEnvironmentProvenance(environment string, evidence ServiceQueryEvid
 }
 
 func canonicalEnvironmentName(environment string) string {
-	normalized := strings.ToLower(strings.TrimSpace(environment))
-	if normalized == "" {
-		return ""
-	}
-	for _, alias := range environmentAliases {
-		for _, candidate := range alias.aliases {
-			if normalized == candidate {
-				return alias.canonical
-			}
-		}
-	}
-	return normalized
+	return envcontract.Canonical(environment)
 }

@@ -24,6 +24,8 @@ import "context"
 // A workload that materializes no WorkloadInstance still reports the
 // environments resolved through its deployment evidence. An empty result means
 // no environment edge exists; environments are never inferred from names.
+// Environment normalization follows the canonical alias contract
+// (go/internal/environment, docs/public/reference/environment-alias-contract.md).
 
 const catalogWorkloadBaseCypher = `
 	MATCH (w:Workload)
