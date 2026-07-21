@@ -1,0 +1,10 @@
+{
+  "scenario": "codeowners-ownership",
+  "cassette": "none: cypher.EdgeWriter.WriteEdges operates over flat reducer.SharedProjectionIntentRow values, not a CanonicalMaterialization; the two fixture rows (repo-1's *.go and /docs/ CODEOWNERS rules, reusing the real Phase 5 go_comprehensive fixture's pattern/owner values) live inline in go/internal/replay/costcounting/codeowners_ownership_cost_test.go",
+  "description": "Two DECLARES_CODEOWNER edge rows for one repository, driven through the production cypher.EdgeWriter.WriteEdges (DomainCodeownersOwnershipEdges) over a GroupExecutor-capable executor with EdgeWriter.Instruments set. Unlike documentation-materialization's entity/workload template split, both codeowners rows route to the SAME single Cypher template (batchCanonicalCodeownersOwnershipEdgeCypher), so WriteEdges batches them into one UNWIND statement and calls ExecuteGroup exactly once, giving eshu_dp_shared_edge_write_groups_total=1 and statements_executed=1 regardless of row count. Any increase to the group counter means the reducer handler is issuing more than one write transaction per intent — the N+1 pattern this gate exists to catch.",
+  "refresh_path": "manual: edit the inline fixture rows in codeowners_ownership_cost_test.go and this file together, reviewed in the same diff (no credentialed cassette refresh applies since there is no cassette)",
+  "budgets": {
+    "eshu_dp_shared_edge_write_groups_total": 1,
+    "statements_executed": 1
+  }
+}

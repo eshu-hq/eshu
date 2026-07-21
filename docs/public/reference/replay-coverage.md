@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 417/418 surfaces satisfied (99.76%)** — mode: blocking.
+**Overall: 418/418 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -16,19 +16,19 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Read surfaces (API/MCP) | 24 | 24 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
-| Projections (cost/ordering) | 27 | 28 | 96.43% | 1 | 1 |
+| Projections (cost/ordering) | 28 | 28 | 100.00% | 0 | 1 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
 | Retractable edge types (delta) | 56 | 56 | 100.00% | 0 | 0 |
 | Retractable node types (delta) | 94 | 94 | 100.00% | 0 | 0 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **417** | **418** | **99.76%** | **1** | **10** |
+| **Total** | **418** | **418** | **100.00%** | **0** | **10** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | baseline | 218 | 218 | 100.00% | 0 | 5 |
-| cost | 26 | 27 | 96.30% | 1 | 1 |
+| cost | 27 | 27 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 151 | 151 | 100.00% | 0 | 0 |
 | fault | 17 | 17 | 100.00% | 0 | 4 |
@@ -44,13 +44,9 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 ## Gaps — surfaces still needing a replay scenario
 
-1 surface(s) uncovered or unresolved:
+None. Every supported surface has a replay scenario.
 
-### Projections (cost/ordering) (1)
-
-- `projection:codeowners_ownership` (cost)
-
-## Covered surfaces (417)
+## Covered surfaces (418)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -264,6 +260,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 | `projection:ci_cd_run_correlation` | cost | go_test | go-test-race | `go/internal/replay/costcounting/ci_cd_run_correlation_cost_test.go` |
 | `projection:cloud_asset_resolution` | cost | go_test | go-test-race | `go/internal/replay/costcounting/cloud_asset_resolution_cost_test.go` |
 | `projection:code_graph_projection` | cost | go_test | go-test-race | `go/internal/replay/costcounting/cost_counting_test.go` |
+| `projection:codeowners_ownership` | cost | go_test | go-test-race | `go/internal/replay/costcounting/codeowners_ownership_cost_test.go` |
 | `projection:config_state_drift` | cost | exempt | — | — |
 | `projection:container_image_identity` | cost | go_test | go-test-race | `go/internal/replay/costcounting/container_image_identity_cost_test.go` |
 | `projection:documentation_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/documentation_edges_cost_test.go` |

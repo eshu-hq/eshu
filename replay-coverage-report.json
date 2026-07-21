@@ -3,11 +3,11 @@
   "blocking": true,
   "totals": {
     "total": 418,
-    "covered": 407,
-    "uncovered": 1,
+    "covered": 408,
+    "uncovered": 0,
     "unresolved": 0,
     "exempt": 10,
-    "percent_satisfied": 99.76
+    "percent_satisfied": 100
   },
   "registry_summaries": [
     {
@@ -67,11 +67,11 @@
     {
       "registry": "projection",
       "total": 28,
-      "covered": 26,
-      "uncovered": 1,
+      "covered": 27,
+      "uncovered": 0,
       "unresolved": 0,
       "exempt": 1,
-      "percent_satisfied": 96.43
+      "percent_satisfied": 100
     },
     {
       "registry": "reducer_drain",
@@ -123,11 +123,11 @@
     {
       "scenario_type": "cost",
       "total": 27,
-      "covered": 25,
-      "uncovered": 1,
+      "covered": 26,
+      "uncovered": 0,
       "unresolved": 0,
       "exempt": 1,
-      "percent_satisfied": 96.3
+      "percent_satisfied": 100
     },
     {
       "scenario_type": "crash",
@@ -2268,8 +2268,11 @@
       "registry": "projection",
       "key": "projection:codeowners_ownership",
       "scenario_type": "cost",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type cost"
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/codeowners_ownership_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/codeowners_ownership_cost_test.go"
     },
     {
       "registry": "projection",
@@ -4315,9 +4318,7 @@
       "detail": "Inbound webhook sink, not a pollable source. The webhook collector verifies and normalizes inbound deliveries into refresh triggers; it never polls an upstream, so there is no generation to record into a cassette."
     }
   ],
-  "gaps": [
-    "projection:codeowners_ownership|cost"
-  ],
+  "gaps": null,
   "stale_manifest_surfaces": null,
   "language_scoreboard": {
     "total": 33,
