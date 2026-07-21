@@ -44,18 +44,37 @@ func buildDeploymentSourceControllerEntity(entity EntityContent) (map[string]any
 	return controller, true
 }
 
+// selectRelevantDeploymentSourceControllers keeps the GitOps controller
+// entities (ArgoCD/Flux) that are relevant to the traced service, out of the
+// full entity set observed across deploymentSources' repos plus the
+// workload's own repo (workloadRepoID).
+//
+// A controller found in workloadRepoID is trusted without the service-name
+// token check below: workloadRepoID is already the grant-verified identity
+// of the SPECIFIC traced workload (not a heuristic), so any GitOps
+// controller entity that lives there is unambiguously this workload's
+// deployment config, even when the controller's own entity name or path
+// (e.g. an ArgoCD Application named after the app it deploys) does not
+// textually contain the service name (#5471 defect A). Controllers observed
+// in OTHER repos (named only by deploymentSources, e.g. a shared
+// multi-service GitOps repo) still require the service-name-token match to
+// disambiguate which of that repo's several controllers applies here.
 func selectRelevantDeploymentSourceControllers(
 	serviceName string,
+	workloadRepoID string,
 	deploymentSources []map[string]any,
 	entities []EntityContent,
 ) []map[string]any {
-	if serviceName == "" || len(deploymentSources) == 0 || len(entities) == 0 {
+	if serviceName == "" || (len(deploymentSources) == 0 && workloadRepoID == "") || len(entities) == 0 {
 		return nil
 	}
 
-	repoIDs := make(map[string]struct{}, len(deploymentSources))
+	repoIDs := make(map[string]struct{}, len(deploymentSources)+1)
 	for _, repoID := range uniqueNonEmptyRepoIDs(deploymentSources) {
 		repoIDs[repoID] = struct{}{}
+	}
+	if workloadRepoID != "" {
+		repoIDs[workloadRepoID] = struct{}{}
 	}
 
 	serviceToken := normalizedDeploymentTraceMatch(serviceName)
@@ -68,7 +87,8 @@ func selectRelevantDeploymentSourceControllers(
 		if !ok {
 			continue
 		}
-		if deploymentTraceControllerMatchesService(controller, serviceToken) {
+		if (workloadRepoID != "" && entity.RepoID == workloadRepoID) ||
+			deploymentTraceControllerMatchesService(controller, serviceToken) {
 			filtered = append(filtered, controller)
 		}
 	}

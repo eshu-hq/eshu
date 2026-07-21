@@ -6,6 +6,7 @@ package query
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -51,9 +52,10 @@ func (h *ImpactHandler) fetchControllerEntities(
 func (h *ImpactHandler) fetchDeploymentSourceGitOps(
 	ctx context.Context,
 	serviceName string,
+	workloadRepoID string,
 	deploymentSources []map[string]any,
 ) ([]map[string]any, []map[string]any, []string, bool, error) {
-	result, err := h.fetchDeploymentSourceGitOpsResult(ctx, serviceName, deploymentSources)
+	result, err := h.fetchDeploymentSourceGitOpsResult(ctx, serviceName, workloadRepoID, deploymentSources)
 	return result.controllers, result.k8sResources, result.imageRefs, result.k8sObservedCountIsLowerBound, err
 }
 
@@ -65,16 +67,34 @@ type deploymentSourceGitOpsResult struct {
 	k8sResources                 []map[string]any
 }
 
+// fetchDeploymentSourceGitOpsResult resolves the GitOps controller entities
+// (ArgoCD/Flux) relevant to the traced workload and the K8sResource entities
+// they target, then extracts config-declared image refs from those resources.
+//
+// workloadRepoID (the traced workload's OWN repo, ctx["repo_id"]) is scanned
+// in addition to the repos named by the canonical DEPLOYMENT_SOURCE graph
+// edges (deploymentSources). The two are NOT always the same repo: a
+// DEPLOYMENT_SOURCE edge can point at the application's source-code repo,
+// while the GitOps controller (ArgoCD Application, Flux Kustomization) that
+// actually declares the deployed image commonly lives in a separate
+// deployment-config repo — which, when the traced workload's OWN identity is
+// that config repo, is workloadRepoID itself (#5471 defect A). Restricting
+// the scan to deploymentSources' repos alone silently drops that config
+// repo's controllers and starves fetchWorkloadLiveEvidence of image refs.
 func (h *ImpactHandler) fetchDeploymentSourceGitOpsResult(
 	ctx context.Context,
 	serviceName string,
+	workloadRepoID string,
 	deploymentSources []map[string]any,
 ) (deploymentSourceGitOpsResult, error) {
-	if h == nil || h.Content == nil || len(deploymentSources) == 0 {
+	if h == nil || h.Content == nil || (len(deploymentSources) == 0 && workloadRepoID == "") {
 		return deploymentSourceGitOpsResult{}, nil
 	}
 
 	repoIDs := uniqueNonEmptyRepoIDs(deploymentSources)
+	if workloadRepoID != "" && !slices.Contains(repoIDs, workloadRepoID) {
+		repoIDs = append(repoIDs, workloadRepoID)
+	}
 	entities := make([]EntityContent, 0, len(repoIDs)*8)
 	observedCountIsLowerBound := false
 	for _, repoID := range repoIDs {
@@ -91,7 +111,7 @@ func (h *ImpactHandler) fetchDeploymentSourceGitOpsResult(
 		entities = append(entities, rows...)
 	}
 
-	observedControllers := selectRelevantDeploymentSourceControllers(serviceName, deploymentSources, entities)
+	observedControllers := selectRelevantDeploymentSourceControllers(serviceName, workloadRepoID, deploymentSources, entities)
 	controllers, controllersTruncated := capMapRows(observedControllers, serviceStoryItemLimit)
 	k8sResources, imageRefs := collectDeploymentSourceK8sResources(controllers, entities)
 	controllerObservedCountIsLowerBound := observedCountIsLowerBound

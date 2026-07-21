@@ -147,6 +147,7 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		deploymentSourceGitOps, err := h.fetchDeploymentSourceGitOpsResult(
 			r.Context(),
 			safeStr(ctx, "name"),
+			safeStr(ctx, "repo_id"),
 			deploymentSources,
 		)
 		if err != nil {

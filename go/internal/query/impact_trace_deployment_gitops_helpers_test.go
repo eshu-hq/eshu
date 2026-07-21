@@ -62,7 +62,7 @@ func TestSelectRelevantDeploymentSourceControllersFiltersToServiceScopedArgoCDRo
 		},
 	}
 
-	got := selectRelevantDeploymentSourceControllers("sample-service-api", deploymentSources, entities)
+	got := selectRelevantDeploymentSourceControllers("sample-service-api", "", deploymentSources, entities)
 	if len(got) != 2 {
 		t.Fatalf("len(selectRelevantDeploymentSourceControllers()) = %d, want 2", len(got))
 	}
@@ -105,7 +105,7 @@ func TestSelectRelevantDeploymentSourceControllersDoesNotFallBackToUnrelatedCont
 		},
 	}}
 
-	got := selectRelevantDeploymentSourceControllers("orders-api", deploymentSources, entities)
+	got := selectRelevantDeploymentSourceControllers("orders-api", "", deploymentSources, entities)
 	if len(got) != 0 {
 		t.Fatalf("selected unrelated controllers = %#v, want none", got)
 	}
@@ -141,7 +141,7 @@ func TestSelectRelevantDeploymentSourceControllersRejectsShortNameCollisions(t *
 		},
 	}
 
-	got := selectRelevantDeploymentSourceControllers("api", deploymentSources, entities)
+	got := selectRelevantDeploymentSourceControllers("api", "", deploymentSources, entities)
 	if len(got) != 1 {
 		t.Fatalf("len(selectRelevantDeploymentSourceControllers()) = %d, want 1: %#v", len(got), got)
 	}
