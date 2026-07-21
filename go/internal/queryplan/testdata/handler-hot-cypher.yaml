@@ -3,6 +3,11 @@ required_ids:
   - QP-ENTITY-RESOLVE-REPOSITORY
   - QP-CODE-SEARCH-REPOSITORY
   - QP-CODE-IMPORT-ROWS-REPOSITORY
+  - QP-CODE-IMPORT-PACKAGES
+  - QP-CODE-IMPORT-SOURCE-MODULE-FILES
+  - QP-CODE-IMPORT-TARGET-MODULE-FILES
+  - QP-CODE-IMPORT-SOURCE-MODULE-ROWS
+  - QP-CODE-IMPORT-CROSS-MODULE-CALLS
   - QP-ENTITY-MAP-RESOLVE-REPOSITORY
   - QP-ENTITY-MAP-DIRECT-REPOSITORY
   - QP-ENTITY-MAP-BOUNDED-REPOSITORY
@@ -49,15 +54,84 @@ entries:
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/code_import_dependencies.go, symbol: importRowsCypher, source_sha256: fa1d697b1d220e40ea6e4aee8004511f479bcca17d58696ed0acbbe7a3dd08d5}
-    query_fragment: 'MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(source_file:File {relative_path: $source_file})'
-    cypher_sha256: e835bb3dd6848992566029e4504696a166056b7e3493d116a0549f20fc5fd6d1
+    source: {file: go/internal/query/code_import_dependencies_queries.go, symbol: directImportRowsCypher, source_sha256: 162bd0efa638bd7693f557ac4d832d102481fd8b2deb1bbfc84881bda5fc852f}
+    query_fragment: 'ORDER BY repo.id, source_file.relative_path'
+    cypher_sha256: 154864500bcd5e87cacbaa355dc0a3f7cd257fffe78431f99570a1ce43927f24
     required_anchors: [{label: Repository, property: id}]
     required_schema: [repository_id]
     required_limits: [$limit]
     requires_order: true
-    allow_unlabeled: true
-    caveats: [The second MATCH expands from source_file already bound by the indexed Repository anchor.]
+    caveats: [The exact-hash import-dependency variant family profiles every reachable optional-filter shape, including unscoped label-bounded variants.]
+    plan: *indexed_plan
+
+  - id: QP-CODE-IMPORT-PACKAGES
+    domain: code
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/code_import_dependencies_queries.go, symbol: packageImportRowsCypher, source_sha256: 7aaf8d6da184da55dd1a2d3a50d2def55f54755123fe1d36445e13fc6327cefb}
+    query_fragment: 'source_file.path as source_path'
+    cypher_sha256: f3df016eef9ca9595c8bcd9361cc0355d98b817b9a4251091d98038aefb06ce1
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [$scan_limit]
+    requires_order: true
+    caveats: [Source-module variants scan bounded path candidates, reject repository-path collisions in Go, then form distinct logical package rows before paging.]
+    plan: *indexed_plan
+
+  - id: QP-CODE-IMPORT-SOURCE-MODULE-FILES
+    domain: code
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/code_import_dependencies_queries.go, symbol: sourceModuleFilesCypher, source_sha256: be50ec63c49cf994229906b0e26488bc803a791f23c62a1cdc86505e1dca757e}
+    query_fragment: 'source_file.path as source_path'
+    cypher_sha256: 5014ca18249b1d5ca81bcda31e3be4c01425ba7542a0859a08408acf10c18694
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [$scan_limit]
+    requires_order: true
+    caveats: [The internal scan uses one sentinel row beyond the 25000-candidate ceiling and fails closed with an instruction to narrow scope.]
+    plan: *indexed_plan
+
+  - id: QP-CODE-IMPORT-TARGET-MODULE-FILES
+    domain: code
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/code_import_dependencies_queries.go, symbol: targetModuleFilesCypher, source_sha256: 711a85464046aab4ad334dd0ae94e83439e46be4330d059e690018ef9bc1e347}
+    query_fragment: 'target_file.path as target_path'
+    cypher_sha256: 05521bbbf2c74af41b0f4f9f01399bc8c1715eed15a6c8919baea70368211cc8
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [$scan_limit]
+    requires_order: true
+    caveats: [The internal scan uses one sentinel row beyond the 25000-candidate ceiling and fails closed with an instruction to narrow scope.]
+    plan: *indexed_plan
+
+  - id: QP-CODE-IMPORT-SOURCE-MODULE-ROWS
+    domain: code
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/code_import_dependencies_queries.go, symbol: sourceModuleImportRowsCypher, source_sha256: 2a07e9fe02f9c24d73b4d2d49ca1bd2b83494c7acab61d32e9fabf628a2a652a}
+    query_fragment: 'source_file.path IN $source_paths'
+    cypher_sha256: fdac99475becb5a6b055e37550081bbdcf6defe576a930325f75bbb3f11268b9
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [$scan_limit]
+    requires_order: true
+    caveats: [Paging follows bounded source-module membership and import-edge scans so module scope is exact before offset is applied.]
+    plan: *indexed_plan
+
+  - id: QP-CODE-IMPORT-CROSS-MODULE-CALLS
+    domain: code
+    backend: nornicdb_neo4j
+    query_kind: cypher
+    source: {file: go/internal/query/code_import_dependencies_queries.go, symbol: crossModuleCallRowsCypher, source_sha256: 6d0fd91b5eafe53f13f803daedad0c73f915368bca8173ce74acb1b61c315066}
+    query_fragment: '(caller:Function)-[rel:CALLS]->(callee:Function)'
+    cypher_sha256: 7fc2e1f2b77dd9274ea6c598768be9f1ab069189cf9c74d1994154e1cf62e844
+    required_anchors: [{label: Repository, property: id}]
+    required_schema: [repository_id]
+    required_limits: [$scan_limit]
+    requires_order: true
+    caveats: [Cross-repository and repository-path membership collisions are rejected before paging because pinned NornicDB cannot express both constraints safely on this path.]
     plan: *indexed_plan
 
   - id: QP-ENTITY-MAP-RESOLVE-REPOSITORY

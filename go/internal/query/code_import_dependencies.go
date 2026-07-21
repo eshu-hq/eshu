@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -68,16 +69,32 @@ func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter,
 	if !h.applyRepositorySelector(w, r, &req.RepoID) {
 		return
 	}
+	span.SetAttributes(attribute.String("eshu.import_dependencies.query_type", req.queryType()))
 
 	data, err := h.importDependencyData(r.Context(), req)
 	if err != nil {
+		span.RecordError(err)
 		if errors.Is(err, errImportDependencyUnavailable) {
 			WriteError(w, http.StatusServiceUnavailable, err.Error())
+			return
+		}
+		if errors.Is(err, errImportDependencyScopeTooBroad) {
+			span.SetAttributes(attribute.Bool("eshu.import_dependencies.scan_overflow", true))
+			WriteError(
+				w,
+				http.StatusUnprocessableEntity,
+				fmt.Sprintf("%v; narrow the repository, file, or module scope", err),
+			)
 			return
 		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	span.SetAttributes(
+		attribute.Int("eshu.import_dependencies.result_count", IntVal(data, "count")),
+		attribute.Bool("eshu.import_dependencies.truncated", BoolVal(data, "truncated")),
+		attribute.Bool("eshu.import_dependencies.scan_overflow", false),
+	)
 	WriteSuccess(
 		w,
 		r,
@@ -105,6 +122,9 @@ func (r importDependencyRequest) validate() error {
 	}
 	if !r.hasScopeFilter() {
 		return fmt.Errorf("one of repo_id, source_file, target_file, source_module, or target_module is required")
+	}
+	if strings.TrimSpace(r.TargetFile) != "" && r.queryType() != "file_import_cycles" && r.queryType() != "cross_module_calls" {
+		return fmt.Errorf("target_file is supported only for file_import_cycles and cross_module_calls")
 	}
 	if r.queryType() == "file_import_cycles" {
 		language := r.normalizedLanguage()
@@ -170,24 +190,11 @@ func (h *CodeHandler) importDependencyData(ctx context.Context, req importDepend
 	if h == nil || h.Neo4j == nil {
 		return nil, errImportDependencyUnavailable
 	}
-	cypher, params := importDependencyCypher(req)
-	rows, err := h.Neo4j.Run(ctx, cypher, params)
+	rows, err := h.importDependencyRows(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 	return importDependencyResponse(req, rows), nil
-}
-
-func importDependencyCypher(req importDependencyRequest) (string, map[string]any) {
-	params := importDependencyParams(req)
-	switch req.queryType() {
-	case "cross_module_calls":
-		return crossModuleCallsCypher(req), params
-	case "file_import_cycles":
-		return fileImportCyclesCypher(req), params
-	default:
-		return importRowsCypher(req), params
-	}
 }
 
 func importDependencyParams(req importDependencyRequest) map[string]any {
@@ -214,168 +221,4 @@ func importDependencyParams(req importDependencyRequest) map[string]any {
 		params["target_module"] = targetModule
 	}
 	return params
-}
-
-func importRowsCypher(req importDependencyRequest) string {
-	var cypher strings.Builder
-	switch {
-	case strings.TrimSpace(req.RepoID) != "" && strings.TrimSpace(req.SourceFile) != "":
-		cypher.WriteString("MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(source_file:File {relative_path: $source_file})\n")
-	case strings.TrimSpace(req.SourceFile) != "":
-		cypher.WriteString("MATCH (source_file:File {relative_path: $source_file})\n")
-		cypher.WriteString("MATCH (repo:Repository)-[:REPO_CONTAINS]->(source_file)\n")
-	case strings.TrimSpace(req.TargetModule) != "":
-		cypher.WriteString("MATCH (source_file:File)-[rel:IMPORTS]->(target_module:Module {name: $target_module})\n")
-		cypher.WriteString("MATCH (repo:Repository)-[:REPO_CONTAINS]->(source_file)\n")
-	case strings.TrimSpace(req.SourceModule) != "":
-		cypher.WriteString("MATCH (source_file)-[:CONTAINS]->(source_module:Module {name: $source_module})\n")
-		cypher.WriteString("MATCH (repo:Repository)-[:REPO_CONTAINS]->(source_file)\n")
-	default:
-		cypher.WriteString("MATCH (repo:Repository)-[:REPO_CONTAINS]->(source_file:File)\n")
-	}
-	if strings.TrimSpace(req.TargetModule) == "" {
-		cypher.WriteString("MATCH (source_file)-[rel:IMPORTS]->(target_module:Module)\n")
-	}
-	if strings.TrimSpace(req.SourceModule) != "" && !strings.Contains(cypher.String(), "source_module:Module") {
-		cypher.WriteString("MATCH (source_file)-[:CONTAINS]->(source_module:Module {name: $source_module})\n")
-	}
-	where := importDependencyImportPredicates(req)
-	if len(where) > 0 {
-		cypher.WriteString("WHERE ")
-		cypher.WriteString(strings.Join(where, " AND "))
-		cypher.WriteString("\n")
-	}
-	cypher.WriteString(`RETURN repo.id as repo_id,
-       repo.name as repo_name,
-       source_file.relative_path as source_file,
-       source_file.name as source_name,
-       coalesce(source_file.language, target_module.lang) as language,
-       target_module.name as target_module,
-       rel.imported_name as imported_name,
-       rel.alias as alias,
-       rel.line_number as line_number
-ORDER BY source_file.relative_path, target_module.name, rel.line_number
-SKIP $offset
-LIMIT $limit`)
-	return cypher.String()
-}
-
-func importDependencyImportPredicates(req importDependencyRequest) []string {
-	predicates := make([]string, 0, 5)
-	if strings.TrimSpace(req.RepoID) != "" && strings.TrimSpace(req.SourceFile) == "" {
-		predicates = append(predicates, "repo.id = $repo_id")
-	}
-	if strings.TrimSpace(req.SourceFile) != "" && strings.TrimSpace(req.RepoID) == "" {
-		predicates = append(predicates, "source_file.relative_path = $source_file")
-	}
-	if language := req.normalizedLanguage(); language != "" {
-		predicates = append(predicates, "(source_file.language = $language OR target_module.lang = $language)")
-	}
-	if strings.TrimSpace(req.TargetModule) != "" {
-		predicates = append(predicates, "target_module.name = $target_module")
-	}
-	return predicates
-}
-
-func fileImportCyclesCypher(req importDependencyRequest) string {
-	var cypher strings.Builder
-	if strings.TrimSpace(req.RepoID) != "" {
-		cypher.WriteString("MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->")
-	} else {
-		cypher.WriteString("MATCH (repo:Repository)-[:REPO_CONTAINS]->")
-	}
-	cypher.WriteString(`(source_file:File)-[source_import:IMPORTS]->(target_module:Module)
-MATCH (repo:Repository)-[:REPO_CONTAINS]->(target_file:File)-[target_import:IMPORTS]->(source_module:Module)
-WHERE source_file.name = source_module.name + '.py'
-  AND target_file.name = target_module.name + '.py'
-  AND source_file.relative_path < target_file.relative_path`)
-	if language := req.normalizedLanguage(); language != "" {
-		_ = language
-		cypher.WriteString("\n  AND source_file.language = $language AND target_file.language = $language")
-	}
-	if strings.TrimSpace(req.SourceFile) != "" {
-		cypher.WriteString("\n  AND source_file.relative_path = $source_file")
-	}
-	if strings.TrimSpace(req.TargetFile) != "" {
-		cypher.WriteString("\n  AND target_file.relative_path = $target_file")
-	}
-	if strings.TrimSpace(req.SourceModule) != "" {
-		cypher.WriteString("\n  AND source_module.name = $source_module")
-	}
-	if strings.TrimSpace(req.TargetModule) != "" {
-		cypher.WriteString("\n  AND target_module.name = $target_module")
-	}
-	cypher.WriteString(`
-RETURN repo.id as repo_id,
-       repo.name as repo_name,
-       source_file.relative_path as source_file,
-       target_file.relative_path as target_file,
-       source_module.name as source_module,
-       target_module.name as target_module,
-       source_import.line_number as source_line_number,
-       target_import.line_number as back_edge_line_number
-ORDER BY source_file.relative_path, target_file.relative_path, source_module.name, target_module.name
-SKIP $offset
-LIMIT $limit`)
-	return cypher.String()
-}
-
-func crossModuleCallsCypher(req importDependencyRequest) string {
-	var cypher strings.Builder
-	if strings.TrimSpace(req.SourceModule) != "" {
-		cypher.WriteString("MATCH (source_file)-[:CONTAINS]->(source_module:Module {name: $source_module})\n")
-	}
-	if strings.TrimSpace(req.TargetModule) != "" {
-		cypher.WriteString("MATCH (target_file)-[:CONTAINS]->(target_module:Module {name: $target_module})\n")
-	}
-	cypher.WriteString(`MATCH (source_file)-[:CONTAINS]->(caller:Function)
-MATCH (caller)-[rel:CALLS]->(callee:Function)
-MATCH (target_file)-[:CONTAINS]->(callee)
-MATCH (repo:Repository)-[:REPO_CONTAINS]->(source_file)
-MATCH (repo)-[:REPO_CONTAINS]->(target_file)
-`)
-	where := crossModuleCallPredicates(req)
-	if len(where) > 0 {
-		cypher.WriteString("WHERE ")
-		cypher.WriteString(strings.Join(where, " AND "))
-		cypher.WriteString("\n")
-	}
-	cypher.WriteString(`RETURN repo.id as repo_id,
-       repo.name as repo_name,
-       source_file.relative_path as source_file,
-       target_file.relative_path as target_file,
-       caller.name as source_name,
-       coalesce(caller.id, caller.uid) as source_id,
-       callee.name as target_name,
-       coalesce(callee.id, callee.uid) as target_id,
-       rel.call_kind as call_kind,
-       rel.reason as reason`)
-	if strings.TrimSpace(req.SourceModule) != "" {
-		cypher.WriteString(",\n       source_module.name as source_module")
-	}
-	if strings.TrimSpace(req.TargetModule) != "" {
-		cypher.WriteString(",\n       target_module.name as target_module")
-	}
-	cypher.WriteString(`
-ORDER BY source_file.relative_path, caller.start_line, caller.name, target_file.relative_path, callee.start_line, callee.name
-SKIP $offset
-LIMIT $limit`)
-	return cypher.String()
-}
-
-func crossModuleCallPredicates(req importDependencyRequest) []string {
-	predicates := make([]string, 0, 5)
-	if strings.TrimSpace(req.RepoID) != "" {
-		predicates = append(predicates, "repo.id = $repo_id")
-	}
-	if strings.TrimSpace(req.SourceFile) != "" {
-		predicates = append(predicates, "source_file.relative_path = $source_file")
-	}
-	if strings.TrimSpace(req.TargetFile) != "" {
-		predicates = append(predicates, "target_file.relative_path = $target_file")
-	}
-	if language := req.normalizedLanguage(); language != "" {
-		predicates = append(predicates, "(source_file.language = $language OR target_file.language = $language)")
-	}
-	return predicates
 }

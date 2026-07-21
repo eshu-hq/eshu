@@ -50,6 +50,8 @@
 // query package; their tool definitions live in
 // tools_structural_inventory.go, tools_import_dependencies.go,
 // tools_call_graph_metrics.go, and tools_security.go.
+// Import-dependency dispatch forwards scope and paging unchanged; the query
+// handler owns the 25,000-row candidate ceiling and scope-narrowing response.
 // The get_capability_catalog tool forwards to /api/v0/capabilities and
 // preserves the embedded role, grant, data-class, permission-family, and
 // per-capability authorization metadata from the query response.
