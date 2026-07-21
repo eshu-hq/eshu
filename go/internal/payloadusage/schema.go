@@ -266,6 +266,10 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	// absent here (documentation/v1/README.md).
 	"FactKindDocumentationDocument":      "documentation_document.v1.schema.json",
 	"FactKindDocumentationEntityMention": "documentation_entity_mention.v1.schema.json",
+	// codeowners family (issue #5419 Phase 3): codeowners.ownership is a
+	// directly-emitted fact decoded by the reducer through the typed seam
+	// (factschema_decode_codeowners.go).
+	"FactKindCodeownersOwnership": "codeowners.ownership.v1.schema.json",
 }
 
 // jsonSchemaDocument is the subset of a checked-in factschema JSON Schema

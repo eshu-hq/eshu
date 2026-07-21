@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package reducer //nolint:filelength // pre-existing test file exceeding the 500-line cap; this change only bumps an existing domain-count assertion (issue #5419 Phase 3), new coverage lives in codeowners_ownership_materialization_test.go
 
 import (
 	"context"
@@ -209,8 +209,8 @@ func TestDefaultDomainDefinitionsMatchImplementedRuntimeCatalog(t *testing.T) {
 	t.Parallel()
 
 	got := DefaultDomainDefinitions()
-	if len(got) != 12 {
-		t.Fatalf("len(DefaultDomainDefinitions()) = %d, want 12", len(got))
+	if len(got) != 13 {
+		t.Fatalf("len(DefaultDomainDefinitions()) = %d, want 13", len(got))
 	}
 	if got[0].Domain != DomainWorkloadIdentity {
 		t.Fatalf("DefaultDomainDefinitions()[0].Domain = %q, want %q", got[0].Domain, DomainWorkloadIdentity)
