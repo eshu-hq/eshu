@@ -163,6 +163,84 @@ func TestHandleTerraformConfigStateDriftFindingsScopedCallerWithoutGrantGetsEmpt
 	}
 }
 
+// terraformConfigStateDriftScopedFixtureRows is the fixture row
+// TestHandleTerraformConfigStateDriftFindingsScopedInGrantReturnsRealRowData
+// asserts comes back for a scoped caller whose grant matches the requested
+// scope_id.
+func terraformConfigStateDriftScopedFixtureRows() []TerraformConfigStateDriftFindingRow {
+	return []TerraformConfigStateDriftFindingRow{
+		{
+			FactID: "fact:tf-scoped-1", ScopeID: "state_snapshot:s3:hash-1", GenerationID: "generation:tf-scoped-1",
+			SourceSystem: "collector/terraform-state", CanonicalID: "canonical:tenant-a",
+			CandidateID: "candidate:tenant-a", CandidateKind: "terraform_config_state_drift",
+			Outcome: "exact", Address: "aws_s3_bucket.tenant_a", DriftKind: "added_in_state",
+			BackendKind: "s3", LocatorHash: "hash-1", Confidence: 1,
+		},
+	}
+}
+
+// TestHandleTerraformConfigStateDriftFindingsScopedInGrantReturnsRealRowData
+// proves the paired positive case to
+// TestHandleTerraformConfigStateDriftFindingsScopedCallerWithoutGrantGetsEmptyPage:
+// a scoped caller whose requested exact scope_id IS granted reaches the
+// store, the store observes that exact scope_id, and real fixture rows come
+// back in the response -- not just an empty page shape. Mirrors
+// TestHandleAWSRuntimeDriftFindingsScopedInGrantReturnsRealRowData in
+// aws_runtime_drift_test.go.
+func TestHandleTerraformConfigStateDriftFindingsScopedInGrantReturnsRealRowData(t *testing.T) {
+	t.Parallel()
+
+	var observed TerraformConfigStateDriftFindingFilter
+	handler := &TerraformConfigStateDriftHandler{
+		Profile: ProfileLocalAuthoritative,
+		Store: fakeTerraformConfigStateDriftStore{
+			observedFilter: &observed,
+			rows:           terraformConfigStateDriftScopedFixtureRows(),
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/terraform/config-state-drift/findings", bytes.NewBufferString(`{
+		"scope_id": "state_snapshot:s3:hash-1",
+		"limit": 10
+	}`))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:                 AuthModeScoped,
+		AllowedRepositoryIDs: []string{"state_snapshot:s3:hash-1"},
+	}))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d, body = %s", got, want, w.Body.String())
+	}
+	if got, want := observed.ScopeID, "state_snapshot:s3:hash-1"; got != want {
+		t.Fatalf("store was not called for an in-grant scoped request: observed.ScopeID = %q, want %q", got, want)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	data, ok := payload["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("payload[data] = %#v, want map", payload["data"])
+	}
+	findings, ok := data["drift_findings"].([]any)
+	if !ok || len(findings) != 1 {
+		t.Fatalf("data[drift_findings] = %#v, want one finding", data["drift_findings"])
+	}
+	first, ok := findings[0].(map[string]any)
+	if !ok {
+		t.Fatalf("findings[0] = %#v, want map", findings[0])
+	}
+	if got, want := first["address"], "aws_s3_bucket.tenant_a"; got != want {
+		t.Fatalf("first[address] = %#v, want %#v (real row data)", got, want)
+	}
+}
+
 type fakeTerraformConfigStateDriftStoreFunc func()
 
 func (f fakeTerraformConfigStateDriftStoreFunc) ListActiveFindings(
