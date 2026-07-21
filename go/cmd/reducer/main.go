@@ -34,6 +34,7 @@ func buildReducerService(
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
+	identityCache *postgres.IdentityEpochCache,
 ) (reducer.Service, error) {
 	graphBackend, err := runtimecfg.LoadGraphBackend(getenv)
 	if err != nil {
@@ -111,6 +112,9 @@ func buildReducerService(
 	relationshipStore := postgres.NewRelationshipStore(database)
 	relationshipGenerationActive := postgres.NewRelationshipGenerationActiveLookup(relationshipStore)
 	factStore := postgres.NewFactStore(database)
+	if identityCache != nil {
+		factStore = postgres.NewFactStoreWithIdentityCache(database, identityCache)
+	}
 	admissionDecisionWriter := newAdmissionDecisionWriter(database)
 	codeCallIntentWriter := postgres.NewCodeCallIntentWriterWithInstruments(database, instruments)
 	repoDependencyIntentWriter := postgres.NewSharedIntentAcceptanceWriterWithInstruments(database, instruments)
@@ -373,9 +377,9 @@ func buildReducerService(
 		CloudInventoryHandlers:      buildReducerCloudInventoryHandlers(database, logger),
 		KubernetesHandlers:          buildReducerKubernetesHandlers(database, graphWriters),
 		CrossplaneHandlers:          buildReducerCrossplaneHandlers(graphWriters),
-		SupplyChainSecurityHandlers: buildReducerSupplyChainSecurityHandlers(database, factStore, secretsIAMGraphWriter, presence),
-		IncidentRoutingHandlers:     buildReducerIncidentRoutingHandlers(database, factStore, graphWriters),
-		CodeEvidenceHandlers:        buildReducerCodeEvidenceHandlers(database, factStore, graphWriters, graphReader, logger),
+		SupplyChainSecurityHandlers: buildReducerSupplyChainSecurityHandlers(database, *factStore, secretsIAMGraphWriter, presence),
+		IncidentRoutingHandlers:     buildReducerIncidentRoutingHandlers(database, *factStore, graphWriters),
+		CodeEvidenceHandlers:        buildReducerCodeEvidenceHandlers(database, *factStore, graphWriters, graphReader, logger),
 	})
 	if err != nil {
 		return reducer.Service{}, err

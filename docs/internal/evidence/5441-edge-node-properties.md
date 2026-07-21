@@ -535,14 +535,38 @@ file does not trigger in this corpus. `discoverArgoCDDocumentEvidence`'s
 fact it produced carried no `source_revision` key at all, regardless of the
 reducer-side fix.
 
-Fixed by `argocdApplicationSourceRevisionDetails`
-(`go/internal/relationships/argocd_document_source_revision.go`), which
-reads the declared `targetRevision` off `spec.source` (or the first
-`spec.sources[]` entry carrying one) and threads it through as
-`extraDetails` instead of `nil`. Proven failing-first, then green, with 3
-unit tests (`yaml_iac_evidence_source_revision_test.go`) driving
-`DiscoverEvidence` directly: single-source with revision, absent revision
-(negative), and multi-source (first non-empty revision wins).
+Fixed by a new function in
+`go/internal/relationships/argocd_document_source_revision.go` that read the
+declared `targetRevision` off `spec.source` (or the first `spec.sources[]`
+entry carrying one) and threaded it through as `extraDetails` instead of
+`nil`. Proven failing-first, then green, with 3 unit tests
+(`yaml_iac_evidence_source_revision_test.go`) driving `DiscoverEvidence`
+directly: single-source with revision, absent revision (negative), and
+multi-source (first non-empty revision wins, the shape correct at the time
+this fix landed).
+
+**Renamed and split, review round 8, P1-b:** the original single function,
+`argocdApplicationSourceRevisionDetails(document)`, read the whole document
+and always picked one document-wide revision -- exactly the shape review
+round 8 found fabricates one source's revision onto every other source's
+edge in a multi-source Application. (This multi-source revision-leak fix has
+no dedicated section elsewhere in this document; noting it here, where the
+sweep found the stale citation, rather than leaving a gap unexplained.) The
+function no longer exists under that name. It is now two functions in the
+same file:
+`argocdApplicationSources(document)` extracts each source's own
+`repoURL`/`targetRevision` pair, and `argocdSourceRevisionDetails(targetRevision)`
+wraps one source's own revision into the `Details` map --
+`discoverArgoCDDocumentEvidence` (`yaml_iac_evidence.go`) now calls the
+latter once per source, inside the per-source loop, instead of once for the
+whole document. The "multi-source (first non-empty revision wins)" test
+case above describes behavior from BEFORE this rename; the current,
+correct multi-source behavior (revisions never leak between sources) is
+proven by
+`TestBuildResolvedEdgeIntentRowsPerSourceRevisionForMultiSourceApplication`
+in `go/internal/reducer/cross_repo_intent_row_argocd_multisource_test.go`
+(#5441 review round 8, falsified against a pre-fix scratch revert in review
+round 10 -- see that test's doc comment).
 
 ### first_party_ref_version golden-corpus coverage (#5441 review round 2, P1-1)
 

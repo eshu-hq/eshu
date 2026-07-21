@@ -36,6 +36,7 @@ func TestBuildReducerServiceWiresReducerClaimDomains(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
