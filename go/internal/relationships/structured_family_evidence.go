@@ -207,6 +207,49 @@ type argoApplicationSourceRef struct {
 	revision string
 }
 
+// argoApplicationSourceRefs reads the typed, already-decoded
+// codegraphv1.ArgoCDApplication's *_repos/*_paths/*_roots/*_revisions
+// string fields, not a raw map. This is a deliberately stricter contract
+// than the pre-issue-#5445 raw-map read, and the tradeoff is intentional
+// (Finding 4, issue #5445 review): the pre-typing read passed the RAW
+// parsed_file_data value straight to tupleCSVValues, which tolerated a
+// string, a []string, or a []any per field. Since the #5445 slice 1
+// migration, factschema.DecodeParsedFileDataArgoCDApplications enforces
+// SourceRepos (and every other CSV-ish field here) as a Go string at decode
+// time (sdk/go/factschema/decode_map.go's assignField, reflect.String case).
+// A producer that ever emitted one of these fields as an array instead of a
+// comma-joined string would make decodeMapInto error, and
+// decodeParsedFileDataTolerantSlice
+// (sdk/go/factschema/decode_parsed_file_data_tolerant.go) skips the WHOLE
+// malformed Application/ApplicationSet row -- not just the one bad field --
+// silently dropping every other well-formed field on that same row (Finding
+// 2's operator-signal debug log is the only surfaced trace of that drop).
+//
+// This is not special-cased back to per-field tolerance here, for two
+// reasons. First, the sole real producer
+// (go/internal/parser/yaml/argocd.go's joinArgoSourceTupleValues) always
+// returns a Go string and only a Go string for source_repos/source_paths/
+// source_roots/source_revisions/generator_source_repos/... -- there is no
+// live path that emits an array today, and codegraphv1.ArgoCDApplication's
+// own doc comment (parsed_file_data_gitops.go) already states these fields
+// are "always a comma-joined CSV string on the wire, not a JSON array."
+// Second, this row-atomic-on-type-mismatch behavior is not unique to the
+// CSV-ish fields: EVERY named field on EVERY one of the 8 issue-#5445-slice-1
+// accessors (Name, DestName, DestNamespace, URL, ...) has the identical
+// whole-row-drop-on-mismatch contract, because they all route through the
+// same decodeParsedFileDataTolerantSlice. Restoring tolerance only for
+// SourceRepos would patch one field while leaving the identical landmine on
+// every other typed field this package reads, which is a general
+// row-vs-field-tolerance design question for decodeParsedFileDataTolerantSlice
+// itself, not something to special-case per call site.
+//
+// tupleCSVValues' []string and []any type-switch cases below are therefore
+// unreachable dead code: this function is tupleCSVValues' only caller in the
+// repository (rg confirms four call sites, all four here, all four passing
+// an already-decode-time-enforced string field), so the dynamic type is
+// always string. Removing the now-dead branches is a real cleanup but is out
+// of scope for this change; flagged separately rather than expanding this
+// PR's surface.
 func argoApplicationSourceRefs(application codegraphv1.ArgoCDApplication) []argoApplicationSourceRef {
 	repos := tupleCSVValues(application.SourceRepos)
 	if len(repos) == 0 {

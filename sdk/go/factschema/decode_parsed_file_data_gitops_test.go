@@ -161,6 +161,47 @@ func TestDecodeParsedFileDataArgoCDApplications_TypedRows(t *testing.T) {
 	}
 }
 
+// TestDecodeParsedFileDataArgoCDApplications_WholeRowDroppedOnFieldTypeMismatch
+// locks in the deliberate, documented (Finding 4, issue #5445 review)
+// row-atomic decode contract: a single wrong-typed field (here source_repos
+// as a []any instead of the codegraphv1.ArgoCDApplication.SourceRepos string
+// the wire always carries -- go/internal/parser/yaml/argocd.go's
+// joinArgoSourceTupleValues never emits anything else) makes decodeMapInto
+// error for that ENTIRE row, and decodeParsedFileDataTolerantSlice skips the
+// whole Application, not just the one bad field. This is stricter than the
+// pre-#5445 raw-map read, which passed the raw value straight to
+// tupleCSVValues (tolerant of string/[]string/[]any per field). See
+// go/internal/relationships/structured_family_evidence.go's
+// argoApplicationSourceRefs doc comment for the full reasoning. A second,
+// well-formed Application row in the same slice must still decode.
+func TestDecodeParsedFileDataArgoCDApplications_WholeRowDroppedOnFieldTypeMismatch(t *testing.T) {
+	t.Parallel()
+
+	pfd := map[string]any{
+		"argocd_applications": []any{
+			map[string]any{
+				"name":         "malformed-source-repos",
+				"source_repos": []any{"https://github.com/example/a", "https://github.com/example/b"},
+			},
+			map[string]any{
+				"name":         "well-formed",
+				"source_repos": "https://github.com/example/checkout-deploy",
+			},
+		},
+	}
+
+	applications, err := DecodeParsedFileDataArgoCDApplications(pfd)
+	if err != nil {
+		t.Fatalf("DecodeParsedFileDataArgoCDApplications() error = %v, want nil (malformed row skipped, not surfaced)", err)
+	}
+	if len(applications) != 1 {
+		t.Fatalf("applications = %#v, want exactly the well-formed row (malformed row's whole entry dropped)", applications)
+	}
+	if applications[0].Name != "well-formed" {
+		t.Fatalf("applications[0].Name = %q, want %q", applications[0].Name, "well-formed")
+	}
+}
+
 // TestDecodeParsedFileDataArgoCDApplicationSets_TypedRows proves the
 // argocd_applicationsets inner key decodes into typed
 // []ArgoCDApplicationSet rows exposing every field
