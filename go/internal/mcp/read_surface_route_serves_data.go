@@ -81,6 +81,7 @@ var routeServesDataBackingMap = map[string]routeServesDataBacking{
 	"GET /api/v0/supply-chain/security-alerts/reconciliations": {ServedDomains: []string{"security_alert_reconciliation"}},
 	"GET /api/v0/semantic/documentation-observations":          {ServedDomains: []string{"semantic_entity_materialization"}},
 	"GET /api/v0/service-catalog/correlations":                 {ServedDomains: []string{"service_catalog_correlation"}},
+	"GET /api/v0/codeowners/ownership":                         {ServedDomains: []string{"codeowners_ownership"}},
 	"GET /api/v0/iac/resources":                                {ServedDomains: []string{"config_state_drift"}},
 	"GET /api/v0/work-items/evidence":                          {ServedDomains: []string{"incident_repository_correlation"}},
 }
