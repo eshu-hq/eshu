@@ -42,6 +42,7 @@ import { recordAuthE2EStep, type StepResult } from "./authE2EStepRecorder.ts";
 import { chromiumLaunchArgsWithGithub, runShapeC } from "./authMcpE2EGithubFlow.ts";
 import { SEEDED_REPOSITORY_ID, seedGraphRepository } from "./authMcpE2EGraphSeed.ts";
 import { assertCredentialLessProbesDoNotLeak, runLeakageSuite } from "./authMcpE2ELeakage.ts";
+import { selectedModuleContributedSteps, validateSelectedModule } from "./authMcpE2EModuleSelection.ts";
 import type { HostRewriteTable } from "./authMcpE2EOauthClient.ts";
 import { runShapeB, type ShapeBContext } from "./authMcpE2EShapeB.ts";
 import { runShapeA, type ShapeAContext } from "./authMcpE2ETokenFlow.ts";
@@ -87,6 +88,17 @@ function moduleSelected(name: string): boolean {
 
 export async function runAuthMcpE2E(): Promise<number> {
   const runStart = Date.now();
+
+  // Validate the selector BEFORE any filesystem or stack work: an unknown
+  // ESHU_E2E_MCP_MODULE must fail loudly and NEVER write a (would-be green)
+  // report — a selector that greens without running the requested module is a
+  // false-green in a proof gate.
+  const moduleCheck = validateSelectedModule(selectedModule);
+  if (!moduleCheck.ok) {
+    process.stderr.write(`auth-mcp-e2e: ${moduleCheck.error}\n`);
+    return 1;
+  }
+
   await rm(screenshotsDir, { recursive: true, force: true });
   await rm(reportPath, { force: true });
   await mkdir(screenshotsDir, { recursive: true });
@@ -215,15 +227,39 @@ export async function runAuthMcpE2E(): Promise<number> {
     // (shape B) for the denial matrix, shape A's scoped personal token and
     // shape B's scoped OAuth bearer, and shape B's surviving AllScopes
     // SSO-admin session for the non-vacuous row-filter proof.
-    if (moduleSelected("leakage") && ssoAdminContext) {
-      await runLeakageSuite(
-        step,
-        { mcpBase, apiBase, repoRoot, project: composeProject, hostRewrite },
-        { personalToken, scopedBearer, ssoAdminPage: ssoAdminContext.pages()[0]! },
-      );
+    if (moduleSelected("leakage")) {
+      if (!ssoAdminContext) {
+        // A lone `--module leakage` skips shapes A-C-B, so its ssoAdminContext
+        // prerequisite is never set. Record a FAILED step (never silently
+        // skip): leakage is unsatisfiable in isolation — run the full suite.
+        await step("leakage_prerequisite_shapeB_required", async () => {
+          throw new Error(
+            "the leakage module requires shape B (its SSO-admin session and OIDC provider); " +
+              "a lone --module leakage is unsatisfiable — run the full suite (no --module)",
+          );
+        });
+      } else {
+        await runLeakageSuite(
+          step,
+          { mcpBase, apiBase, repoRoot, project: composeProject, hostRewrite },
+          { personalToken, scopedBearer, ssoAdminPage: ssoAdminContext.pages()[0]! },
+        );
+      }
     }
     if (ssoAdminContext) {
       await ssoAdminContext.close();
+    }
+
+    // General false-green guard: a selected module that produced ZERO of its
+    // own steps (a dependency-skip, or any future regression) must fail the
+    // run, not write a green report. Runs before the failure tally so the
+    // synthetic step counts.
+    if (!selectedModuleContributedSteps(selectedModule, results.map((r) => r.id))) {
+      await step(`${selectedModule}_ran_no_steps`, async () => {
+        throw new Error(
+          `--module ${selectedModule} ran zero of its steps; the selector greened without exercising the requested module`,
+        );
+      });
     }
 
     const failed = results.filter((r) => r.status === "fail");
