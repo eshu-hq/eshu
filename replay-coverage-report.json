@@ -3,11 +3,11 @@
   "blocking": true,
   "totals": {
     "total": 424,
-    "covered": 411,
-    "uncovered": 1,
+    "covered": 412,
+    "uncovered": 0,
     "unresolved": 0,
     "exempt": 12,
-    "percent_satisfied": 99.76
+    "percent_satisfied": 100
   },
   "registry_summaries": [
     {
@@ -40,11 +40,11 @@
     {
       "registry": "fact_kind_registry",
       "total": 25,
-      "covered": 23,
-      "uncovered": 1,
+      "covered": 24,
+      "uncovered": 0,
       "unresolved": 0,
       "exempt": 1,
-      "percent_satisfied": 96
+      "percent_satisfied": 100
     },
     {
       "registry": "parser_backing_ledger",
@@ -114,11 +114,11 @@
     {
       "scenario_type": "baseline",
       "total": 220,
-      "covered": 214,
-      "uncovered": 1,
+      "covered": 215,
+      "uncovered": 0,
       "unresolved": 0,
       "exempt": 5,
-      "percent_satisfied": 99.55
+      "percent_satisfied": 100
     },
     {
       "scenario_type": "cost",
@@ -2068,8 +2068,11 @@
       "registry": "fact_kind_registry",
       "key": "read_surface:POST /api/v0/terraform/config-state-drift/findings",
       "scenario_type": "baseline",
-      "status": "uncovered",
-      "detail": "no replay scenario mapped for required scenario_type baseline"
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "POST /api/v0/terraform/config-state-drift/findings",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"POST /api/v0/terraform/config-state-drift/findings\""
     },
     {
       "registry": "fact_kind_registry",
@@ -4369,9 +4372,7 @@
       "detail": "Inbound webhook sink, not a pollable source. The webhook collector verifies and normalizes inbound deliveries into refresh triggers; it never polls an upstream, so there is no generation to record into a cassette."
     }
   ],
-  "gaps": [
-    "read_surface:POST /api/v0/terraform/config-state-drift/findings"
-  ],
+  "gaps": null,
   "stale_manifest_surfaces": null,
   "language_scoreboard": {
     "total": 33,

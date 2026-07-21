@@ -212,15 +212,26 @@ are either unreachable with today's evidence or intentionally not persisted.
   Count query, normal scope — same index, same shape, `Execution Time:
   0.047 ms`.
 
-  `Scoped`/`ANY()` variant, normal scope — still an `Index Scan`, but the
-  planner picked a **different** index than the unscoped queries:
+  `Scoped`/`ANY()` variant, normal scope — still an `Index Scan`, never a
+  `Seq Scan`. **Hedged, not asserted as a stable contract:** in this
+  measured pass, on this seed (`shared_buffers`/`work_mem` at the repo's
+  `docker-compose.yaml` non-default settings, this exact row distribution
+  and `ANALYZE` history), the planner picked
   `fact_records_collector_status_active_idx`
   (`scope_id, generation_id, source_system, fact_kind, observed_at DESC,
   ingested_at DESC WHERE is_tombstone = false`) rather than
-  `fact_records_scope_generation_idx`. Both are real indexes on
-  `fact_records`; the planner chose the tombstone-filtered partial index
-  because the `ANY()` array made it cheaper for this cardinality. Still no
-  `Seq Scan`. `Execution Time: 0.102 ms`.
+  `fact_records_scope_generation_idx` for this one query shape. An
+  independent review reproduced this exact query three ways (2-scope,
+  ~300-scope/2-element array, ~300-scope/150-element array) against its
+  own seed and got `fact_records_scope_generation_idx` every time — a
+  different but plausible planner choice attributable to differing
+  statistics and Postgres settings, not a fabricated result. Both indexes
+  are real and both plans are `Index Scan`s; **which specific index the
+  planner picks for this shape is not being asserted as a stable fact.**
+  The invariant that IS stable across every run in both passes — index
+  scan, never a sequential scan, on every query shape and both
+  cardinalities — is the one worth relying on. `Execution Time: 0.102 ms`
+  in this pass.
 
   ```
    Limit  (cost=6.69..6.70 rows=1 width=122) (actual time=0.084..0.087 rows=20.00 loops=1)

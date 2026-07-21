@@ -103,6 +103,7 @@ coverage:
   - {surface: "read_surface:GET /api/v0/supply-chain/impact/findings", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:POST /api/v0/aws/runtime-drift/findings", scenario: api_mcp_golden, scenario_type: baseline, ref: "POST /api/v0/aws/runtime-drift/findings", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:POST /api/v0/cloud/runtime-drift/findings", scenario: api_mcp_golden, scenario_type: baseline, ref: "POST /api/v0/cloud/runtime-drift/findings", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:POST /api/v0/terraform/config-state-drift/findings", scenario: api_mcp_golden, scenario_type: baseline, ref: "POST /api/v0/terraform/config-state-drift/findings", proof_gate: golden-corpus-gate}
   # observability/coverage: the fact-kind registry read_surface was corrected from
   # the unmounted bare path to the real mounted route (.../coverage/correlations)
   # so the surface key and the proven route match (a query-param selector is

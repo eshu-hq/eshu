@@ -5397,6 +5397,33 @@
           "kind",
           "head_sha"
         ]
+      },
+      "POST /api/v0/terraform/config-state-drift/findings": {
+        "description": "HTTP route coverage shape for POST /api/v0/terraform/config-state-drift/findings; asserted independently of the list_terraform_config_state_drift_findings MCP tool shape even though MCP dispatch calls this same route internally, per review: an MCP pass does not prove the HTTP surface was exercised. scope_id is state_snapshot:s3:<sha256(s3://bucket/key)> (terraformstate.ScopeLocatorHash) for bucket=supply-chain-demo-tfstate key=supply-chain-demo/terraform.tfstate, the backend shared by testdata/cassettes/terraformstate/supply-chain-demo.json (state) and tests/fixtures/ecosystems/terraform_comprehensive/main.tf (config), deliberately aligned in issue #5442 so tfstatebackend.ResolveConfigCommitForBackend resolves an owner and real added_in_config/added_in_state drift findings materialize. minimum_results is 1 -- proven by a live golden-corpus-gate run against the HTTP route directly (no Accept: envelope header, matching the MCP dispatch shape), not shape-only.",
+        "required_response_fields": [
+          "address",
+          "analysis_status",
+          "drift_findings",
+          "drift_kinds",
+          "findings_count",
+          "graph_projection_note",
+          "limit",
+          "limitations",
+          "next_offset",
+          "offset",
+          "outcome",
+          "outcome_groups",
+          "scope_id",
+          "story",
+          "total_findings_count",
+          "truncated",
+          "truth_basis"
+        ],
+        "minimum_results": 1,
+        "request_body": {
+          "scope_id": "state_snapshot:s3:299b28d40110e54bf81beb51e9459bdef688dbc58419782b29aa83a5930b48a7",
+          "limit": 25
+        }
       }
     }
   },
