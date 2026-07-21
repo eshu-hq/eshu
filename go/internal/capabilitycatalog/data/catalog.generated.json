@@ -3305,7 +3305,12 @@
       "display_name": "Codeowners Ownership List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
-      "surfaces": [],
+      "surfaces": [
+        {
+          "tool": "list_codeowners_ownership",
+          "kind": "mcp"
+        }
+      ],
       "profiles": {
         "local_authoritative": {
           "status": "supported",

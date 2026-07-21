@@ -178,6 +178,11 @@
     },
     {
       "category": "api_route",
+      "name": "GET /api/v0/codeowners/ownership",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "GET /api/v0/collector-extraction-readiness",
       "readiness": "implemented"
     },
@@ -3205,6 +3210,11 @@
     {
       "category": "mcp_tool",
       "name": "list_cloud_runtime_drift_findings",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_codeowners_ownership",
       "readiness": "implemented"
     },
     {

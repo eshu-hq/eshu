@@ -26,6 +26,7 @@ func ReadOnlyTools() []ToolDefinition {
 	tools = append(tools, cicdTools()...)
 	tools = append(tools, cicdRunCorrelationAggregateTools()...)
 	tools = append(tools, serviceCatalogTools()...)
+	tools = append(tools, codeownersTools()...)
 	tools = append(tools, kubernetesTools()...)
 	tools = append(tools, secretsIAMTools()...)
 	tools = append(tools, observabilityCoverageTools()...)
