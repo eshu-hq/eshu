@@ -56,7 +56,7 @@ func parseFixtureForBench(t testing.TB, filename, source string) map[string]any 
 //  1. streaming-time evidence VOLUME: buildRepresentativeStreamingRepoBatch
 //     assembles a batch of REAL-PARSER-emitted file facts (go/internal/parser's
 //     DefaultEngine, via parseFixtureForTest) for a representative mid-size
-//     platform/gitops repository -- 23 files spanning all 8 migrated buckets,
+//     platform/gitops repository -- 24 files spanning all 8 migrated buckets,
 //     matched against a populated catalog so real evidence resolves, not just
 //     discovery attempts.
 //  2. streaming-time COST delta: BenchmarkStreamingEvidenceDiscovery_
