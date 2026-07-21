@@ -314,6 +314,12 @@ func wireAPI(
 		}
 		return nil, nil, nil, fmt.Errorf("configure oidc login: %w", err)
 	}
+	if oidcLoginHandler != nil {
+		// Governance audit for SSO callback outcomes (issue #5601): reuses
+		// the same governanceAudit appender local login, break-glass, and
+		// bootstrap already write identity_authentication events through.
+		oidcLoginHandler.Audit = adminRecoveryAuditAppender(governanceAudit)
+	}
 	router.OIDCLogin = oidcLoginHandler
 	oidcSessionRefreshWorker, err := newOIDCSessionRefreshWorker(getenv, db, instruments, logger)
 	if err != nil {
@@ -348,6 +354,8 @@ func wireAPI(
 		// session issuance resolves the same override BrowserSessionHandler
 		// and LocalIdentityHandler do.
 		samlHandler.SignInPolicy = browserSessionAdapter
+		// Governance audit for SSO callback outcomes (issue #5601).
+		samlHandler.Audit = adminRecoveryAuditAppender(governanceAudit)
 	}
 	githubLoginHandler, err := newGitHubLoginHandler(getenv, db, instruments, providerSecretKeyring)
 	if err != nil {
@@ -356,6 +364,10 @@ func wireAPI(
 			_ = driver.Close(ctx)
 		}
 		return nil, nil, nil, fmt.Errorf("configure github login: %w", err)
+	}
+	if githubLoginHandler != nil {
+		// Governance audit for SSO callback outcomes (issue #5601).
+		githubLoginHandler.Audit = adminRecoveryAuditAppender(governanceAudit)
 	}
 	router.GitHubLogin = githubLoginHandler
 	authProviders := &query.AuthProviderListHandler{

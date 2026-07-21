@@ -92,6 +92,13 @@ type OIDCLoginHandler struct {
 	Service              OIDCLoginService
 	SessionIssuer        *BrowserSessionHandler
 	SessionRefreshWindow time.Duration
+	// Audit records an identity_authentication governance-audit event for
+	// every callback outcome (issue #5601): allowed
+	// ("sso_login_authenticated") and denied (a classification such as
+	// "no_grants", carried through SSOLoginDeniedError). Nil is safe —
+	// auditing is skipped, matching LocalIdentityHandler.Audit's nil-safe
+	// convention.
+	Audit GovernanceAuditAppender
 }
 
 // RegisteredProviders returns the set of OIDC providers managed by the Service,
@@ -147,9 +154,11 @@ func (h *OIDCLoginHandler) handleCallback(w http.ResponseWriter, r *http.Request
 	}
 	complete, err := h.Service.CompleteOIDCLogin(r.Context(), req)
 	if err != nil {
+		auditOIDCSSOLogin(r, h.Audit, h.SessionIssuer.now(), err, "")
 		writeOIDCLoginError(w, err)
 		return
 	}
+	auditOIDCSSOLogin(r, h.Audit, h.SessionIssuer.now(), nil, complete.ProviderSubjectID)
 	proofAt := complete.ProviderProofAt.UTC()
 	if proofAt.IsZero() {
 		proofAt = h.SessionIssuer.now()

@@ -57,9 +57,19 @@ This package emits no spans or metrics directly, matching `oidclogin`'s
 convention: API route metrics live in `cmd/api`. It does emit structured
 `slog` WARN lines with a stable `reason` field
 (`code_exchange_failed`, `identity_fetch_failed`, `email_not_verified`,
-`org_not_allowed`, `no_team_role_mapping`, `no_role_grant`) for every denied
+`org_not_allowed`, `no_team_role_mapping`, `no_grants`) for every denied
 login, which is the audited-denial trail issue #5166 requires ("user
 outside allowed orgs is rejected with an audited denied reason").
+
+`CompleteGitHubLogin` also wraps every denied/unavailable return with
+`query.SSOLoginDeniedError`, carrying the same reason classification (plus
+`state_invalid`, `redirect_mismatch`, `subject_missing`,
+`state_store_unavailable`, and `grant_resolution_unavailable`, which have no
+slog line since they precede any identity fetch). `query.GitHubLoginHandler`
+uses that classification to record an `identity_authentication`
+governance-audit event for every callback outcome — success and denial alike
+— which is the durable, queryable trail issue #5601 requires: the slog line
+above rotates out of logs, the audit row does not.
 
 ## Gotchas / invariants
 
