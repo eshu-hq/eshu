@@ -19,9 +19,9 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Projections (cost/ordering) | 28 | 28 | 100.00% | 0 | 1 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
 | Retractable edge types (delta) | 58 | 58 | 100.00% | 0 | 0 |
-| Retractable node types (delta) | 95 | 95 | 100.00% | 0 | 0 |
+| Retractable node types (delta) | 95 | 95 | 100.00% | 0 | 1 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **421** | **421** | **100.00%** | **0** | **10** |
+| **Total** | **421** | **421** | **100.00%** | **0** | **11** |
 
 ## Coverage by scenario type
 
@@ -30,7 +30,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | baseline | 218 | 218 | 100.00% | 0 | 5 |
 | cost | 27 | 27 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
-| delta_tombstone | 154 | 154 | 100.00% | 0 | 0 |
+| delta_tombstone | 154 | 154 | 100.00% | 0 | 1 |
 | fault | 17 | 17 | 100.00% | 0 | 4 |
 | ordering | 3 | 3 | 100.00% | 0 | 0 |
 
@@ -425,7 +425,7 @@ None. Every supported surface has a replay scenario.
 | `retractable_node:TerraformProvider` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:TerraformRemovedBlock` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:TerraformResource` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
-| `retractable_node:TerraformStateResource` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
+| `retractable_node:TerraformStateResource` | delta_tombstone | exempt | — | — |
 | `retractable_node:TerraformVariable` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:TerragruntConfig` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:TerragruntDependency` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |

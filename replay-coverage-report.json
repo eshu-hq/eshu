@@ -3,10 +3,10 @@
   "blocking": true,
   "totals": {
     "total": 421,
-    "covered": 411,
+    "covered": 410,
     "uncovered": 0,
     "unresolved": 0,
-    "exempt": 10,
+    "exempt": 11,
     "percent_satisfied": 100
   },
   "registry_summaries": [
@@ -94,10 +94,10 @@
     {
       "registry": "retractable_type",
       "total": 95,
-      "covered": 95,
+      "covered": 94,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 0,
+      "exempt": 1,
       "percent_satisfied": 100
     },
     {
@@ -141,10 +141,10 @@
     {
       "scenario_type": "delta_tombstone",
       "total": 154,
-      "covered": 154,
+      "covered": 153,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 0,
+      "exempt": 1,
       "percent_satisfied": 100
     },
     {
@@ -3915,11 +3915,8 @@
       "registry": "retractable_type",
       "key": "retractable_node:TerraformStateResource",
       "scenario_type": "delta_tombstone",
-      "status": "covered",
-      "scenario": "cassette",
-      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
-      "proof_gate": "replay-tier",
-      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
+      "status": "exempt",
+      "detail": "TerraformStateResource retraction is unconditionally skipped on a delta cycle: terraformStateResourceRetractStatements (go/internal/storage/cypher/tfstate_canonical_writer_retract.go) returns nil whenever mat.DeltaProjection is true, before building any retract statement. A tfstate resource has no file-path scope this writer can use to build a delta-scoped retract the way file- and entity-scoped retraction do, and a delta materialization carries no positive list of untouched backends to safely exclude from a scoped delete -- so a delta_tombstone scenario for this node type is not an authored-scenario gap (C-14) but a structural impossibility: no input can ever reach the retract statement on a delta cycle for this label. Genuine deletions are still caught by the periodic full reconciliation generation (mat.ReconciliationProjection forces DeltaProjection=false; see internal/projector/canonical_builder.go), the same mechanism buildRepositoryCleanupStatements already relies on for repository-node cleanup, within the reconcile interval. A prior manifest row (specs/replay-coverage-manifest.v1.yaml) claimed cassette coverage of this exact surface/scenario_type via testdata/cassettes/replaydelta/multi-generation-tombstone.json; that cassette contains zero TerraformStateResource references, so the row was removed as a false coverage claim rather than an accurate one. Remove this exemption only if a future change adds a delta-scoped retract path for TerraformStateResource (e.g. by threading a backend-scoped exclusion list through the delta materialization)."
     },
     {
       "registry": "retractable_type",
