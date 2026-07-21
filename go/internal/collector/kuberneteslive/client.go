@@ -39,18 +39,24 @@ type WorkloadObject struct {
 	ProjectedServiceAccountToken bool
 	Selector                     map[string]string
 	Containers                   []ContainerSummary
-	// DesiredReplicas is the DESIRED replica count from a Deployment or
-	// ReplicaSet's .Spec.Replicas. Nil for a Pod object (no replica spec).
+	// DesiredReplicas is the DESIRED replica count from a Deployment,
+	// ReplicaSet, or StatefulSet's .Spec.Replicas, or a DaemonSet's OBSERVED
+	// .Status.DesiredNumberScheduled (a DaemonSet has no replica spec; its
+	// per-node scheduling count is the closest analogue). Nil for a Pod, Job,
+	// or CronJob object (no replica concept).
 	DesiredReplicas *int32
-	// ReadyReplicas is the OBSERVED ready replica count from a Deployment or
-	// ReplicaSet's .Status.ReadyReplicas. Nil for a Pod object.
+	// ReadyReplicas is the OBSERVED ready replica count from a Deployment,
+	// ReplicaSet, or StatefulSet's .Status.ReadyReplicas, or a DaemonSet's
+	// .Status.NumberReady. Nil for a Pod, Job, or CronJob object.
 	ReadyReplicas *int32
 	// AvailableReplicas is the OBSERVED available replica count from a
-	// Deployment or ReplicaSet's .Status.AvailableReplicas. Nil for a Pod
+	// Deployment, ReplicaSet, or StatefulSet's .Status.AvailableReplicas, or a
+	// DaemonSet's .Status.NumberAvailable. Nil for a Pod, Job, or CronJob
 	// object.
 	AvailableReplicas *int32
 	// PodPhase is the OBSERVED pod lifecycle phase from a Pod's
-	// .Status.Phase. Nil for a Deployment or ReplicaSet object.
+	// .Status.Phase. Nil for every other workload kind (Deployment,
+	// ReplicaSet, StatefulSet, DaemonSet, Job, CronJob object).
 	PodPhase *string
 }
 

@@ -96,6 +96,10 @@ func (b *generationBuilder) collectWorkloads(ctx context.Context, client Client)
 	}{
 		{ResourceScopeDeployments, client.ListDeployments},
 		{ResourceScopeReplicaSets, client.ListReplicaSets},
+		{ResourceScopeStatefulSets, client.ListStatefulSets},
+		{ResourceScopeDaemonSets, client.ListDaemonSets},
+		{ResourceScopeJobs, client.ListJobs},
+		{ResourceScopeCronJobs, client.ListCronJobs},
 		{ResourceScopePods, client.ListPods},
 	}
 	for _, entry := range lists {
@@ -266,6 +270,14 @@ func (b *generationBuilder) ownerScope(owner OwnerReference) string {
 		return ResourceScopeDeployments
 	case "replicaset":
 		return ResourceScopeReplicaSets
+	case "statefulset":
+		return ResourceScopeStatefulSets
+	case "daemonset":
+		return ResourceScopeDaemonSets
+	case "job":
+		return ResourceScopeJobs
+	case "cronjob":
+		return ResourceScopeCronJobs
 	default:
 		return kind
 	}
