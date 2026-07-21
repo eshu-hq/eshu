@@ -90,9 +90,16 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 
 // assertMaterializedEdges streams every graph edge, keeps only those whose type
 // is in edgeTypes (the family's registry edge types), and asserts the resulting
-// set is EXACTLY expected. It takes a graphdump.Reader so the set-comparison
+// MULTISET is EXACTLY expected. It takes a graphdump.Reader so the comparison
 // logic is unit-testable against an in-memory fake with no Bolt/Docker
 // dependency, mirroring graphdump.Canonicalize's own testability contract.
+//
+// The comparison is by multiplicity, not set membership: the command promises
+// an exact edge COUNT, so an edge materialized more times than the expected-set
+// names it (a concurrent-MERGE race or a duplicate writer output) is a
+// duplicate MISMATCH, never silently collapsed to one — a deterministic
+// duplicate that a plain set comparison, and the cross-worker digest, would
+// both miss.
 //
 // An edge's endpoint identity is its node's "uid" property — the canonical
 // graph node id the expected-edge-set fixture's source/target_entity_id names
@@ -109,12 +116,19 @@ func assertMaterializedEdges(
 	edgeTypes map[string]struct{},
 	expected []ifa.ExpectedEdge,
 ) error {
-	expectedSet := make(map[string]struct{}, len(expected))
+	// expectedCounts tracks per-key multiplicity, not just presence: the
+	// command promises an exact edge COUNT, so two identical expected edges (a
+	// mis-authored fixture) and two identical graph edges (a duplicate-writer /
+	// concurrent-MERGE regression) must both be visible, never collapsed to a
+	// set. In practice the reducer dedups its edge rows (seenEdges) and the
+	// hand-derived expected-set names each edge once, so any key with an actual
+	// count above its expected count is a real duplicate-edge defect.
+	expectedCounts := make(map[string]int, len(expected))
 	for _, e := range expected {
-		expectedSet[e.Key()] = struct{}{}
+		expectedCounts[e.Key()]++
 	}
 
-	actualSet := make(map[string]struct{})
+	actualCounts := make(map[string]int)
 	var endpointErrs []string
 	err := reader.StreamEdges(ctx, func(edge graphdump.Edge) error {
 		if _, ok := edgeTypes[edge.Type]; !ok {
@@ -129,29 +143,41 @@ func assertMaterializedEdges(
 			))
 			return nil
 		}
-		actualSet[ifa.ExpectedEdge{RelationshipType: edge.Type, SourceEntityID: fromUID, TargetEntityID: toUID}.Key()] = struct{}{}
+		actualCounts[ifa.ExpectedEdge{RelationshipType: edge.Type, SourceEntityID: fromUID, TargetEntityID: toUID}.Key()]++
 		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("ifa assert-edges: stream %s edges: %w", domain, err)
 	}
 
-	var missing, extra []string
-	for key := range expectedSet {
-		if _, ok := actualSet[key]; !ok {
+	var missing, extra, duplicate []string
+	for key, want := range expectedCounts {
+		got := actualCounts[key]
+		switch {
+		case got == 0:
 			missing = append(missing, key)
+		case got > want:
+			// Present, but materialized more times than expected: a duplicate.
+			duplicate = append(duplicate, fmt.Sprintf("%s (graph=%d, expected=%d)", key, got, want))
 		}
 	}
-	for key := range actualSet {
-		if _, ok := expectedSet[key]; !ok {
-			extra = append(extra, key)
+	for key, got := range actualCounts {
+		if _, ok := expectedCounts[key]; !ok {
+			// Not in the expected set at all. Report the count so a spurious
+			// duplicate of an unexpected edge is not undercounted either.
+			if got > 1 {
+				extra = append(extra, fmt.Sprintf("%s (x%d)", key, got))
+			} else {
+				extra = append(extra, key)
+			}
 		}
 	}
 	sort.Strings(missing)
 	sort.Strings(extra)
+	sort.Strings(duplicate)
 	sort.Strings(endpointErrs)
 
-	if len(missing) == 0 && len(extra) == 0 && len(endpointErrs) == 0 {
+	if len(missing) == 0 && len(extra) == 0 && len(duplicate) == 0 && len(endpointErrs) == 0 {
 		return nil
 	}
 	var b strings.Builder
@@ -165,6 +191,12 @@ func assertMaterializedEdges(
 	if len(extra) > 0 {
 		fmt.Fprintf(&b, "\n  extra (%d, in graph but not in expected-set — fixture drift or a spurious edge):", len(extra))
 		for _, k := range extra {
+			fmt.Fprintf(&b, "\n    %s", k)
+		}
+	}
+	if len(duplicate) > 0 {
+		fmt.Fprintf(&b, "\n  duplicate (%d, materialized more times than expected — a concurrent-MERGE race or duplicate writer output):", len(duplicate))
+		for _, k := range duplicate {
 			fmt.Fprintf(&b, "\n    %s", k)
 		}
 	}

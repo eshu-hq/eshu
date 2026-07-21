@@ -213,3 +213,34 @@ func TestAssertMaterializedEdgesMissingEndpointUIDFails(t *testing.T) {
 		t.Errorf("error %q does not report the endpoint defect", err)
 	}
 }
+
+// TestAssertMaterializedEdgesDuplicateEdgeFails proves a deterministic
+// duplicate edge — the SAME (type, source_uid, target_uid) written twice, e.g.
+// a concurrent MERGE race or a duplicate writer output — is a MISMATCH, not a
+// silent collapse. The command promises an exact edge COUNT; keying the actual
+// set by identity alone would let two identical edges collapse to one and pass
+// both this assertion and the cross-worker digest, so multiplicity must be
+// tracked. (P2 on #5549.)
+func TestAssertMaterializedEdgesDuplicateEdgeFails(t *testing.T) {
+	t.Parallel()
+
+	expected := []ifa.ExpectedEdge{
+		{RelationshipType: "HAS_COLUMN", SourceEntityID: "t", TargetEntityID: "c"},
+	}
+	reader := fakeEdgeReader{edges: []graphdump.Edge{
+		sqlEdge("HAS_COLUMN", "t", "c"),
+		// The identical edge, materialized twice — a duplicate-edge regression.
+		sqlEdge("HAS_COLUMN", "t", "c"),
+	}}
+
+	err := assertMaterializedEdges(context.Background(), reader, "sql_relationships", sqlEdgeTypesForTest(t), expected)
+	if err == nil {
+		t.Fatal("assertMaterializedEdges(duplicate edge) = nil, want a duplicate-edge failure — a duplicate must not silently collapse")
+	}
+	if !strings.Contains(err.Error(), "duplicate") {
+		t.Errorf("error %q does not report the duplicate edge", err)
+	}
+	if !strings.Contains(err.Error(), "HAS_COLUMN|t|c") {
+		t.Errorf("error %q does not name the duplicated edge", err)
+	}
+}

@@ -24,6 +24,23 @@ const (
 	sqlFamilyHandlerPath  = "cmd/api/handlers.go"
 	sqlFamilySourceRunID  = "run-ifa-sql-family-1"
 
+	// sqlFamilyLocalPath is the repository fact's local_path — the checkout
+	// path the real git collector emits (repositoryFactEnvelope's
+	// payload["local_path"] = repo.LocalPath). It is REQUIRED for the delta
+	// retract to work, and its absence was the #5549 P1a live-proof finding:
+	// the projector derives every entity NODE's `path` property as
+	// qualify(repoPath, relative_path) where repoPath falls back to
+	// local_path (the collector never emits a top-level "path" — see
+	// projector/canonical_codegraph_extract.go's "collector does not emit
+	// path" comment), and the file-scoped SQL delta retract anchors on that
+	// node `path` property (edge_writer_sql.go's
+	// `MATCH (source:SqlIndex {path: file_path})`). With no local_path the
+	// node path is unqualified AND deltaScope.filePathsByRepoID is empty, so
+	// the retract matches nothing and a retargeted INDEXES edge leaves its
+	// stale predecessor in the graph. "/repo" mirrors the reducer's own delta
+	// test (sql_relationship_delta_scope_test.go).
+	sqlFamilyLocalPath = "/repo"
+
 	// sqlFamilyGetUserFunctionUID is content.CanonicalEntityID(sqlFamilyRepoID,
 	// sqlFamilyHandlerPath, "Function", "GetUser", 10)
 	// (go/internal/content/writer.go): the canonical graph uid the projector's
@@ -198,6 +215,9 @@ func sqlFamilyRepositoryFact(generationID string, delta bool, deltaRelativePaths
 	payload := map[string]any{
 		"repo_id":       sqlFamilyRepoID,
 		"source_run_id": sqlFamilySourceRunID,
+		// local_path qualifies every entity node's path property (the delta
+		// retract anchor) — see sqlFamilyLocalPath's doc comment (#5549 P1a).
+		"local_path": sqlFamilyLocalPath,
 	}
 	if delta {
 		payload["delta_generation"] = true

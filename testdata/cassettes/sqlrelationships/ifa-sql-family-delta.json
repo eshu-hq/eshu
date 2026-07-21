@@ -24,6 +24,7 @@
           "payload": {
             "repo_id": "repo-ifa-sql-family",
             "source_run_id": "run-ifa-sql-family-1",
+            "local_path": "/repo",
             "delta_generation": true,
             "delta_relative_paths": [
               "db/schema.sql"
