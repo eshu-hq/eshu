@@ -1,15 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package environment provides the canonical environment-alias contract for the
-// Eshu platform. It defines the single normalization rule, the shared alias
-// table, the known-token set for path-token detection, and the closed
-// vocabulary of evidence classes and environment states.
-//
-// Callers use Normalize for trim+lowercase, Canonical for normalize+alias
-// resolution, and IsKnownToken for the 12-token union used in artifact-path
-// detection. Unknown values pass through normalized and are never rejected or
-// invented.
 package environment
 
 import (

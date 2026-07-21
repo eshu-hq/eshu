@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:filelength // 502 lines: workload deployable-unit materialization handler. Tracked for split in audit § T8.
+package reducer
 
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
-	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // FactLoader loads fact envelopes for one scope generation.
@@ -91,7 +89,15 @@ type WorkloadMaterializationHandler struct {
 	Materializer                 *WorkloadMaterializer
 	DependencyLookup             WorkloadDependencyGraphLookup
 	WorkloadDependencyEdgeWriter SharedProjectionEdgeWriter
-	PhasePublisher               GraphProjectionPhasePublisher
+	// InstanceRetractionLookup resolves previously materialized WorkloadInstance
+	// ids that this generation's projection superseded (e.g. a pre-canonical
+	// environment alias key retired by the #5473 environment-alias contract), so
+	// Handle can retract the orphaned node and its INSTANCE_OF/DEPLOYMENT_SOURCE/
+	// RUNS_ON edges after the replacement MERGE write commits. A nil lookup (the
+	// default) makes retraction a no-op, keeping the hot workload materialization
+	// path byte-identical.
+	InstanceRetractionLookup WorkloadInstanceRetractionLookup
+	PhasePublisher           GraphProjectionPhasePublisher
 	// RepairQueue captures exact workload-materialization phase rows when graph
 	// writes have committed but phase publication fails.
 	RepairQueue GraphProjectionPhaseRepairQueue
@@ -109,6 +115,7 @@ type workloadMaterializationTiming struct {
 	loadInputsDuration      time.Duration
 	buildProjectionDuration time.Duration
 	graphWriteDuration      time.Duration
+	instanceRetract         time.Duration
 	dependencyReconcile     time.Duration
 	dependencyRetract       time.Duration
 	dependencyWrite         time.Duration
@@ -191,7 +198,7 @@ func (h WorkloadMaterializationHandler) Handle(
 		}
 		timing.phasePublishDuration = time.Since(phaseStarted)
 		timing.totalDuration = time.Since(totalStarted)
-		logWorkloadMaterializationCompleted(ctx, intent, candidates, nil, MaterializeResult{}, timing, 0, 0)
+		logWorkloadMaterializationCompleted(ctx, intent, candidates, nil, MaterializeResult{}, timing, 0, 0, 0)
 		return Result{
 			IntentID:        intent.IntentID,
 			Domain:          DomainWorkloadMaterialization,
@@ -258,6 +265,28 @@ func (h WorkloadMaterializationHandler) Handle(
 		materializeResult.RuntimePlatformsWritten +
 		materializeResult.EndpointsWritten
 	repoReadinessRepoIDs := projectionRepoReadinessRepoIDs(projection)
+
+	instanceRetractRows := 0
+	if h.InstanceRetractionLookup != nil {
+		retractStarted := time.Now()
+		supersededInstanceIDs, err := ReconcileWorkloadInstanceRetraction(
+			ctx,
+			projection.RepoDescriptors,
+			projection.InstanceRows,
+			h.InstanceRetractionLookup,
+		)
+		if err != nil {
+			return Result{}, fmt.Errorf("reconcile workload instance retraction: %w", err)
+		}
+		if len(supersededInstanceIDs) > 0 {
+			if err := h.Materializer.RetractInstances(ctx, supersededInstanceIDs); err != nil {
+				return Result{}, fmt.Errorf("retract superseded workload instances: %w", err)
+			}
+			instanceRetractRows = len(supersededInstanceIDs)
+			totalWrites += instanceRetractRows
+		}
+		timing.instanceRetract = time.Since(retractStarted)
+	}
 
 	dependencyRetractRows := 0
 	dependencyWriteRows := 0
@@ -352,6 +381,7 @@ func (h WorkloadMaterializationHandler) Handle(
 		projection,
 		materializeResult,
 		timing,
+		instanceRetractRows,
 		dependencyRetractRows,
 		dependencyWriteRows,
 	)
@@ -371,24 +401,6 @@ func (h WorkloadMaterializationHandler) Handle(
 		CanonicalWrites: totalWrites,
 		SubDurations:    workloadMaterializationSubDurations(timing),
 	}, nil
-}
-
-// workloadMaterializationSubDurations converts the internal per-phase timing
-// struct into the Result.SubDurations map so the service layer can emit
-// per-phase log attributes alongside handler_duration_seconds. Keys use the
-// same names as the workload materialization log attributes without the
-// "_duration_seconds" suffix so callers can reconstruct attribute names
-// consistently.
-func workloadMaterializationSubDurations(t workloadMaterializationTiming) map[string]float64 {
-	return map[string]float64{
-		"load_inputs":      t.loadInputsDuration.Seconds(),
-		"build_projection": t.buildProjectionDuration.Seconds(),
-		"graph_write":      t.graphWriteDuration.Seconds(),
-		"dep_reconcile":    t.dependencyReconcile.Seconds(),
-		"dep_retract":      t.dependencyRetract.Seconds(),
-		"dep_write":        t.dependencyWrite.Seconds(),
-		"phase_publish":    t.phasePublishDuration.Seconds(),
-	}
 }
 
 func (h WorkloadMaterializationHandler) loadInfrastructurePlatforms(
@@ -425,63 +437,6 @@ func uniqueProvisioningRepoIDs(candidates []WorkloadCandidate) []string {
 		}
 	}
 	return repoIDs
-}
-
-func logWorkloadMaterializationCompleted(
-	ctx context.Context,
-	intent Intent,
-	candidates []WorkloadCandidate,
-	projection *ProjectionResult,
-	materializeResult MaterializeResult,
-	timing workloadMaterializationTiming,
-	dependencyRetractRows int,
-	dependencyWriteRows int,
-) {
-	workloadRows := 0
-	instanceRows := 0
-	deploymentSourceRows := 0
-	runtimePlatformRows := 0
-	endpointRows := 0
-	if projection != nil {
-		workloadRows = len(projection.WorkloadRows)
-		instanceRows = len(projection.InstanceRows)
-		deploymentSourceRows = len(projection.DeploymentSourceRows)
-		runtimePlatformRows = len(projection.RuntimePlatformRows)
-		endpointRows = len(projection.EndpointRows)
-	}
-
-	slog.InfoContext(
-		ctx, "workload materialization completed",
-		log.ScopeID(intent.ScopeID),
-		log.GenerationID(intent.GenerationID),
-		log.Domain(string(DomainWorkloadMaterialization)),
-		slog.Int("candidate_count", len(candidates)),
-		slog.Int("workload_row_count", workloadRows),
-		slog.Int("instance_row_count", instanceRows),
-		slog.Int("deployment_source_row_count", deploymentSourceRows),
-		slog.Int("runtime_platform_row_count", runtimePlatformRows),
-		slog.Int("endpoint_row_count", endpointRows),
-		slog.Int("workloads_written", materializeResult.WorkloadsWritten),
-		slog.Int("instances_written", materializeResult.InstancesWritten),
-		slog.Int("deployment_sources_written", materializeResult.DeploymentSourcesWritten),
-		slog.Int("runtime_platforms_written", materializeResult.RuntimePlatformsWritten),
-		slog.Int("endpoints_written", materializeResult.EndpointsWritten),
-		slog.Int("dependency_retract_row_count", dependencyRetractRows),
-		slog.Int("dependency_write_row_count", dependencyWriteRows),
-		slog.Float64("load_inputs_duration_seconds", timing.loadInputsDuration.Seconds()),
-		slog.Float64("build_projection_duration_seconds", timing.buildProjectionDuration.Seconds()),
-		slog.Float64("graph_write_duration_seconds", timing.graphWriteDuration.Seconds()),
-		slog.Float64("workload_graph_write_duration_seconds", materializeResult.WorkloadWriteDuration.Seconds()),
-		slog.Float64("instance_graph_write_duration_seconds", materializeResult.InstanceWriteDuration.Seconds()),
-		slog.Float64("deployment_source_graph_write_duration_seconds", materializeResult.DeploymentSourceDuration.Seconds()),
-		slog.Float64("runtime_platform_graph_write_duration_seconds", materializeResult.RuntimePlatformDuration.Seconds()),
-		slog.Float64("endpoint_graph_write_duration_seconds", materializeResult.EndpointWriteDuration.Seconds()),
-		slog.Float64("dependency_reconcile_duration_seconds", timing.dependencyReconcile.Seconds()),
-		slog.Float64("dependency_retract_duration_seconds", timing.dependencyRetract.Seconds()),
-		slog.Float64("dependency_write_duration_seconds", timing.dependencyWrite.Seconds()),
-		slog.Float64("phase_publish_duration_seconds", timing.phasePublishDuration.Seconds()),
-		slog.Float64("total_duration_seconds", timing.totalDuration.Seconds()),
-	)
 }
 
 func (h WorkloadMaterializationHandler) loadProjectionInputs(
