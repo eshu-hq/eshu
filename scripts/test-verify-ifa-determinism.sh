@@ -17,16 +17,21 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/verify-ifa-determinism.sh"
 lib="${repo_root}/scripts/lib/ifa_determinism_common.sh"
+delta_lib="${repo_root}/scripts/lib/ifa_sql_delta_live.sh"
 
 fail() { printf 'test-verify-ifa-determinism: %s\n' "$*" >&2; exit 1; }
 
 [[ -f "${script}" ]] || fail "missing ${script}"
 [[ -x "${script}" ]] || fail "verify-ifa-determinism.sh must be executable"
 [[ -f "${lib}" ]] || fail "missing ${lib}"
+[[ -f "${delta_lib}" ]] || fail "missing ${delta_lib}"
 
 # Both files parse under bash -n.
 bash -n "${script}" || fail "verify-ifa-determinism.sh has a syntax error"
 bash -n "${lib}" || fail "ifa_determinism_common.sh has a syntax error"
+bash -n "${delta_lib}" || fail "ifa_sql_delta_live.sh has a syntax error"
+[[ "$(wc -l <"${script}" | tr -d '[:space:]')" -lt 500 ]] \
+	|| fail "verify-ifa-determinism.sh must stay under 500 lines"
 
 require() {
 	local label="$1" needle="$2"
@@ -35,6 +40,10 @@ require() {
 require_lib() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${lib}" || fail "missing ${label} (lib): ${needle}"
+}
+require_delta_lib() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${delta_lib}" || fail "missing ${label} (delta lib): ${needle}"
 }
 
 # Strict mode and self-cleanup.
@@ -45,6 +54,7 @@ require "exit trap" "trap cleanup EXIT"
 # refactor cannot silently drop it.
 require "bash>=4.4 guard (masking-safe)" "requires bash >= 4.4"
 require "sources shared lib" "scripts/lib/ifa_determinism_common.sh"
+require "sources SQL delta-live lib" "scripts/lib/ifa_sql_delta_live.sh"
 # Background pids must be recorded in the PARENT shell (printf -v in the lib),
 # or the cleanup trap reaps nothing on a failure path and leaks host processes.
 require_lib "parent-shell pid capture" "printf -v"
@@ -107,14 +117,25 @@ require "combined-graph digest framing" "demo-org + synth-multiscope + SQL famil
 # passes the digest comparison vacuously; the absolute expected set catches it.
 require "SQL cassette path" "testdata/cassettes/sqlrelationships/ifa-sql-family.json"
 require "SQL expected-edge set path" "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
+require "SQL delta cassette path" "testdata/cassettes/sqlrelationships/ifa-sql-family-delta.json"
+require "SQL delta-live expected-edge set path" "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-delta-live-expected-edges.json"
 require "SQL cassette existence guard" 'SQL cassette not found'
 require "SQL expected-edge set existence guard" 'SQL expected-edge set not found'
-require "SQL cassette drive into every cell" 'eshu-ifa" drive -cassette "${sql_cassette}" -workers "${n}"'
-require "assert-edges verb invocation" '"${bin_dir}/eshu-ifa" assert-edges'
-require "assert-edges domain flag" "-domain sql_relationships"
-require "assert-edges expected flag" '-expected "${sql_expected_edges}"'
-require "assert-edges non-vacuity framing" "non-vacuity"
-require "assert-edges no-normalize-away directive" "do NOT normalize this away"
+require "SQL delta cassette existence guard" 'SQL delta cassette not found'
+require "SQL delta expected-edge set existence guard" 'SQL delta expected-edge set not found'
+require "SQL baseline helper invocation in every cell" "ifa_det_drive_sql_baseline"
+require_delta_lib "SQL cassette drive into every cell" 'eshu-ifa" drive -cassette "${sql_cassette}" -workers "${n}"'
+require "SQL delta helper invocation in every cell" "ifa_det_run_sql_delta_live"
+require_delta_lib "SQL delta cassette drive into every cell" 'eshu-ifa" drive -cassette "${sql_delta_cassette}" -workers "${n}"'
+require_delta_lib "SQL delta populated guard" "SQL delta drive enqueued 0 new fact_work_items rows"
+require "SQL baseline assertion helper invocation in every cell" "ifa_det_assert_sql_baseline"
+require_delta_lib "assert-edges verb invocation" '"${bin_dir}/eshu-ifa" assert-edges'
+require_delta_lib "assert-edges domain flag" "-domain sql_relationships"
+require_delta_lib "assert-edges expected flag" '-expected "${sql_expected_edges}"'
+require_delta_lib "assert-edges non-vacuity framing" "non-vacuity"
+require_delta_lib "assert-edges no-normalize-away directive" "do NOT normalize this away"
+require_delta_lib "delta assert-edges expected flag" '-expected "${sql_delta_expected_edges}"'
+require_delta_lib "delta assert-edges exactness framing" "SQL delta-live materialized edge set did not match the expected accumulated set"
 
 # #5007 contention cassette (opt-in --contention): the overlapping-identity
 # fixture whose K scopes share one CloudResource uid set, so the cross-scope

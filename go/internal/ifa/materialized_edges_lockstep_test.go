@@ -19,9 +19,8 @@ import (
 // registry, in BLOCKING mode. It is the "pure go test" local command the
 // ifa-materialized-edge-coverage CI gate runs (specs/ci-gates.v1.yaml): every
 // one of the 12 allProjectionDomains families must be either genuinely
-// covered (both baseline and fault rows resolve) or carry a waiver naming a
-// tracked issue — a family with neither must fail this test, exactly the
-// drift the gate exists to catch.
+// covered (baseline and fault rows resolve) or carry a waiver naming a tracked
+// issue. SQL relationships additionally requires a live delta row.
 func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 	repoRoot := repoRootDir(t)
 	specsDir := filepath.Join(repoRoot, "specs")
@@ -64,15 +63,16 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 		t.Fatal("materialized-edge coverage gate failed in blocking mode: every family must be either covered (both scenario types) or waived with a tracked issue")
 	}
 
-	// sql_relationships is the one family with a genuinely-proven row as of
-	// #5351: the BASELINE (ifa-determinism) is covered. The FAULT
-	// (ifa-fault-injection) is NOT covered — it is a confirmed-false fault
-	// (#5555) that is waived, not proven. Asserting them separately is the
-	// honest-landing shape: baseline green, fault waived, at (surface × proof_gate)
-	// granularity.
+	// sql_relationships has genuinely-proven BASELINE and DELTA rows under the
+	// ifa-determinism matrix. The FAULT row is NOT covered — it is a
+	// confirmed-false fault (#5555) that is waived, not proven.
 	baseline := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"sql_relationships", replaycoverage.ScenarioTypeBaseline)
 	if baseline.Status != replaycoverage.StatusCovered {
 		t.Errorf("materialized_edges:sql_relationships (baseline) status = %q, detail=%q, want covered", baseline.Status, baseline.Detail)
+	}
+	delta := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"sql_relationships", replaycoverage.ScenarioTypeDeltaTombstone)
+	if delta.Status != replaycoverage.StatusCovered {
+		t.Errorf("materialized_edges:sql_relationships (delta_tombstone) status = %q, detail=%q, want covered", delta.Status, delta.Detail)
 	}
 	fault := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"sql_relationships", replaycoverage.ScenarioTypeFault)
 	if fault.Status == replaycoverage.StatusCovered {
@@ -123,6 +123,27 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 		}
 		if found.Local == nil || strings.TrimSpace(found.Local.Command) == "" {
 			t.Errorf("%s gate has no local command", gateID)
+		}
+	}
+}
+
+func TestMaterializedEdgeScenarioRequirementsIncludeSQLDeltaLiveOnly(t *testing.T) {
+	t.Parallel()
+
+	requirements := materializedEdgeScenarioRequirements([]string{"code_calls", "sql_relationships"})
+	if len(requirements) != 2 {
+		t.Fatalf("requirements = %d, want 2", len(requirements))
+	}
+	for _, requirement := range requirements {
+		hasDelta := false
+		for _, scenarioType := range requirement.ScenarioTypes {
+			if scenarioType == replaycoverage.ScenarioTypeDeltaTombstone {
+				hasDelta = true
+			}
+		}
+		wantDelta := requirement.Surface == MaterializedEdgeSurfacePrefix+"sql_relationships"
+		if hasDelta != wantDelta {
+			t.Errorf("surface %q has delta requirement = %v, want %v", requirement.Surface, hasDelta, wantDelta)
 		}
 	}
 }

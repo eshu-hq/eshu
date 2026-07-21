@@ -14,17 +14,13 @@
 #
 # CLAIMS-LEDGER RULE — absence means NOT CLAIMED, never inferred covered.
 # This manifest is a ledger of what is PROVEN, not a roadmap of what is planned.
-# The unit of a claim is one (surface × proof_gate) row. If a
-# (surface × proof_gate) dimension has neither a `coverage:` row nor a matching
-# `waivers:` row, it is UNCLAIMED / not covered — a maintainer reads it as
-# unproven, and the gate treats a required-but-unclaimed dimension as a failure.
-# A gate never infers coverage for a dimension the ledger is silent about. Example:
-# SQL delta-live coverage is deliberately UNCLAIMED (no row of any kind); it is
-# proven only by the credential-free pure-derivation lockstep
-# (TestSQLRelationshipDeltaPureDerivationMatchesExpectedEdgesExactly), which is
-# not a manifest claim. See the roadmap block at the end of this file.
+# The unit of a claim is one (surface × scenario_type) row, bound to the
+# proof_gate that runs it. If a required dimension has neither a `coverage:` row
+# nor an allowed matching waiver, it is UNCLAIMED / not covered — a maintainer
+# reads it as unproven, and the gate fails in blocking mode. SQL delta-live is a
+# required, unwaived `delta_tombstone` row after #5554.
 #
-# Exhaustive coverage for a family requires BOTH:
+# Exhaustive coverage for every family requires BOTH:
 #   - a `coverage:` row with scenario_type: baseline, proof_gate: ifa-determinism
 #     (the P2 graph-determinism matrix replays the family's committed cassette
 #     across N in {1,2,4} and, per cell, runs `ifa assert-edges -domain <family>
@@ -39,10 +35,13 @@
 #     durable handler replay, asserts the fault-free baseline carries exactly
 #     the expected edges via `ifa assert-edges`, then compares every recovery
 #     cell's graph byte-identical to that known-good baseline.)
-# go/internal/ifa/materialized_edges.go computes this [baseline, fault]
-# requirement directly from reducer.MaterializedEdgeFamilies() in code, not
-# from a scenario_requirements: section in this file, so a family added to
-# that registry can never drift out of sync with its own required pair.
+# SQL relationships additionally requires:
+#   - a `coverage:` row with scenario_type: delta_tombstone and proof_gate:
+#     ifa-determinism. The matrix drives gen 2 after the known-good baseline and
+#     asserts the accumulated exact edge set before computing its digest.
+# go/internal/ifa/materialized_edges.go computes these requirements directly
+# from reducer.MaterializedEdgeFamilies(), not from a scenario_requirements:
+# section in this file.
 #
 # scenario is always "odu": every coverage entry's ref must name an Odù
 # returned by Catalog()/CatalogByName() in go/internal/ifa/catalog_seed.go.
@@ -74,8 +73,8 @@
 # change (materialized_edges.go flags a stale waiver on a now-covered row as its
 # own finding).
 #
-# As of #5351 only the sql_relationships BASELINE (ifa-determinism) is genuinely
-# proven. sql_relationships FAULT is waived on #5555 (the fault is anchored to a
+# The sql_relationships BASELINE and DELTA rows are genuinely proven by
+# ifa-determinism. Its FAULT row is waived on #5555 (the fault is anchored to a
 # CloudResource MERGE and never exercises the SQL work item — a confirmed-false
 # fault, not real coverage). Every other allProjectionDomains family is
 # RED-BY-DEFAULT for BOTH gates and carries a `waivers:` row per gate, pointing
@@ -89,13 +88,19 @@
 version: "1"
 
 coverage:
-  # sql_relationships BASELINE is the one genuinely-proven (surface × proof_gate)
-  # row as of #5351: 7 edges materialize, pure-derivation + live assert-edges
-  # cover it. The fault row is NOT here — it is waived (see #5555 below).
+  # SQL baseline proves all seven edge types. The fault row is NOT here — it is
+  # waived (see #5555 below).
   - surface: "materialized_edges:sql_relationships"
     scenario: odu
     scenario_type: baseline
     ref: "odu:ifa-sql-family"
+    proof_gate: ifa-determinism
+  # #5554 promotes the gen-2 cassette from pure derivation to a live,
+  # accumulated exact-set assertion inside every ifa-determinism matrix cell.
+  - surface: "materialized_edges:sql_relationships"
+    scenario: odu
+    scenario_type: delta_tombstone
+    ref: "odu:ifa-sql-family-delta"
     proof_gate: ifa-determinism
 
 waivers:
@@ -237,14 +242,10 @@ waivers:
 # maintainer reads them as unproven. They are recorded here so the honest gaps
 # travel with the gate:
 #
-#   - sql_relationships DELTA-LIVE coverage is blocked on #5554: the reducer's
-#     refresh fence is monotonic-open + generation-blind, so a redelivered SQL
-#     refresh follow-up silently drops materialized edges. A live delta
-#     assertion would go RED on that real bug (or on snapshot-capture of the
-#     broken output), so delta-live is intentionally NOT a manifest row. The
-#     gen-2 delta is proven credential-free by the pure-derivation lockstep
-#     (ExtractSQLRelationshipRows == expected-v2 set) only. Once #5554 lands,
-#     a delta-live (surface × proof_gate) claim can be added here.
+#   - sql_relationships DELTA-LIVE is proven by the delta_tombstone row above:
+#     the ifa-determinism matrix drives gen 1, asserts its exact seven-edge set,
+#     drives gen 2 with the reused source_run_id, drains again, and asserts the
+#     accumulated exact seven-edge set with INDEXES retargeted to orders.
 #   - sql_relationships FAULT coverage is blocked on #5555 (waived above): the
 #     fault is anchored to a CloudResource MERGE and never exercises the SQL
 #     work item. A corrected fault that targets the sql_relationship_
