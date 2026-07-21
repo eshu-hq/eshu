@@ -619,12 +619,15 @@ the golden-corpus unit tests and `scripts/test-verify-golden-corpus-gate.sh`.
 
 Round 8's fix for the additive-merge staleness bug (a `MATCH (r) WHERE r.uid
 IN $uids REMOVE ...` clause fused into the same `MERGE ... SET` upsert
-statement, per allowlisted resource type) did not work on the pinned
-NornicDB executor, and it made things worse, not better. An independent
-reviewer built a throwaway Go module with a `replace` directive at the
-pinned NornicDB-New fork checkout (path per user-local config) and ran the
-exact shipped Cypher template through the real `StorageExecutor`. Both of
-the following were true on **every write**, not only refreshes:
+statement, per allowlisted resource type) did not work as written, and it
+made things worse, not better. An independent reviewer built a throwaway Go
+module with a `replace` directive at the NornicDB-New fork checkout (path
+per user-local config -- NOT the pinned Go module; see "Root cause, traced
+through the pinned module" below for why that distinction matters and how
+the conclusion was re-verified against the module `go/go.mod` actually
+resolves) and ran the exact shipped Cypher template through the real
+`StorageExecutor`. Both of the following were true on **every write**, not
+only refreshes:
 
 1. The staleness bug the round-8 fix was meant to close was NOT closed --
    `tf_attr_instance_type` survived a re-projection without it, unchanged
@@ -854,12 +857,22 @@ package's existing `_live_test.go` convention exactly:
 `openBoltTestRunner`/`boltTestExecutor` (shared with
 `edge_writer_retract_repo_live_test.go` and others), gated on
 `ESHU_CYPHER_BOLT_DSN`, skipped by default, opt-in against a real running
-Bolt-speaking backend (NornicDB or Neo4j-compatible). It runs the exact
-production `buildTerraformStateStatements` output through a real backend
+Bolt-speaking backend (NornicDB or Neo4j-compatible). This is a THIRD,
+distinct NornicDB artifact from the pinned Go module (`v1.0.45`) and the
+fork checkout discussed above: it is the server image `docker-compose.yaml`
+runs (`eshu-nornicdb-pr261:149245885258` by default, a PR-specific build,
+not a release tag -- see "Runtime backend image is not a release tag" below)
+or whatever `ESHU_CYPHER_BOLT_DSN` points at when set to something else. The
+in-process `StorageExecutor` proof above exercises the LIBRARY; this test
+exercises the SERVER, over the real Bolt wire protocol -- a different code
+path (network transport, connection handling, server-side query execution)
+even when both ultimately run overlapping NornicDB source. It runs the exact
+production `buildTerraformStateStatements` output through that real server
 for both projections and asserts both the stale-attribute removal and the
 uncorrupted `evidence_source` value -- the same two assertions proven above
-against the throwaway harness, now available as an opt-in CI/local lane
-without needing a separate ad hoc harness.
+against the in-process library harness, now also proven against the server
+artifact, and available as an opt-in CI/local lane without needing a
+separate ad hoc harness.
 
 Did **not** extend the golden-corpus cassette to re-project the same UID
 twice in this round. That would require establishing whether/how the B-7
@@ -873,6 +886,31 @@ additional, less-understood fixture surgery. Flagging this as a deliberate
 scope decision, not an oversight: a cassette-level refresh-replay guard
 remains a legitimate follow-up if the golden-corpus pipeline turns out to
 support it cleanly.
+
+### Runtime backend image is not a release tag (observation, #5441 review round 11)
+
+`docker-compose.yaml`'s `nornicdb` service default
+(`${NORNICDB_IMAGE:-eshu-nornicdb-pr261:149245885258}`) is a PR-specific
+build, not a release tag -- the THIRD NornicDB artifact this branch's proofs
+touch, distinct from both the pinned Go module (`v1.0.45`) and the fork
+checkout. Checked whether this is intentional or drift before reporting it:
+the compose file's own comment states it plainly --
+
+> Temporary exact-source default for the same-UID UNIQUE commit-lock fix in
+> orneryd/NornicDB#261. Keep this full commit pin until a released image
+> containing the fix is pinned by digest and the Eshu performance/correctness
+> proof is repeated on that artifact.
+
+This is a documented, intentional pin for an in-flight upstream correctness
+fix, with a stated exit condition, not unexplained drift. It also matches an
+established pattern already used across many prior evidence docs in this
+repo's history that pin the same build family (e.g.
+`docs/internal/evidence/5287-change-surface-nornicdb.md`,
+`docs/internal/evidence/5283-infra-provider-null-bucket-nornicdb.md`,
+`docs/internal/evidence/5384-infra-scope-shape-a.md`,
+`docs/public/reference/cypher-performance.md`) -- this is not a new or
+one-off situation. Reported to the coordinator as read-only information, not
+filed as a new issue from this branch.
 
 ### Fast-path and performance measurement
 

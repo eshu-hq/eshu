@@ -91,9 +91,11 @@ query time.
 
 Both are absent-safe: an edge whose evidence carries neither value gets `""`
 (never a Cypher `null`, matching the existing `rationale`/`resolution_source`
-convention — NornicDB v1.1.11 stores a `null` RHS as a literal nil-valued
-property instead of removing it, so `""` is the only value this writer treats
-uniformly across both backends). When multiple evidence facts in one
+convention — the pinned NornicDB Go module, `github.com/orneryd/nornicdb
+v1.0.45` per `go/go.mod`, stores a `null` RHS as a literal nil-valued
+property instead of removing it (verified in-process against that exact
+module), so `""` is the only value this writer treats uniformly across both
+backends). When multiple evidence facts in one
 candidate disagree, the highest-confidence fact wins (a confidence tie keeps
 whichever fact was discovered first, never Go map order) —
 `evidenceFieldWinner` in `go/internal/relationships/evidence_edge_fields.go`.

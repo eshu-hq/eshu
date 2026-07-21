@@ -23,10 +23,13 @@ import (
 // on any of the five widened relationship types — see the Candidate doc
 // comment in go/internal/relationships/models.go. Absent values copy as ""
 // (never omitted, never Cypher null), matching every other optional field
-// here (resolution_source, rationale): NornicDB v1.1.11's per-property SET
-// path stores a nil RHS as a literal nil-valued property instead of
-// removing it, diverging from Cypher's remove-on-null semantics — "" is the
-// only value this shared writer treats uniformly across both backends.
+// here (resolution_source, rationale): the pinned NornicDB Go module
+// (github.com/orneryd/nornicdb v1.0.45, go/go.mod) per-property SET path
+// stores a nil RHS as a literal nil-valued property instead of removing it
+// (empirically verified in-process against that exact module -- see
+// docs/internal/evidence/5441-edge-node-properties.md), diverging from
+// Cypher's remove-on-null semantics — "" is the only value this shared
+// writer treats uniformly across both backends.
 func copyRepoRelationshipMetadata(rowMap map[string]any, payload map[string]any, rowGenerationID string) {
 	rowMap["resolved_id"] = payloadString(payload, "resolved_id")
 	generationID := payloadString(payload, "generation_id")
