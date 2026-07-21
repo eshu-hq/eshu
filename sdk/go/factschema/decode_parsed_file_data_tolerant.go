@@ -3,6 +3,11 @@
 
 package factschema
 
+import (
+	"log/slog"
+	"reflect"
+)
+
 // decodeParsedFileDataTolerantSlice decodes a raw parsed_file_data slice value
 // into a typed slice, SKIPPING (never erroring on) any element that is not a
 // JSON object or whose fields do not coerce into T, and returning ok=false
@@ -26,6 +31,17 @@ package factschema
 // error). Aborting the WHOLE decode because one Helm chart or one ArgoCD
 // Application entry is malformed would drop every OTHER well-formed row in
 // the same file -- a real accuracy regression this helper exists to avoid.
+//
+// A skipped element is otherwise invisible: (out, true) with a len-0 out is
+// indistinguishable from "this file legitimately has no rows for this
+// bucket." Issue #5445 finding 2: a producer regression that starts emitting
+// a malformed element for one bucket would silently degrade that bucket's
+// evidence to zero with no operator signal. When at least one element is
+// skipped, this helper emits one slog.Debug record naming the decoded
+// element type, the total element count, and the skipped count, so an
+// operator grepping logs (or a future metric reader) can tell "zero rows,
+// evaluated" apart from "zero rows, quietly dropped." The common
+// nothing-skipped path stays silent.
 func decodeParsedFileDataTolerantSlice[T any](raw any) ([]T, bool) {
 	var items []any
 	switch v := raw.(type) {
@@ -41,16 +57,27 @@ func decodeParsedFileDataTolerantSlice[T any](raw any) ([]T, bool) {
 	}
 
 	out := make([]T, 0, len(items))
+	skipped := 0
 	for _, item := range items {
 		obj, ok := asObjectMap(item)
 		if !ok {
+			skipped++
 			continue
 		}
 		var decoded T
 		if err := decodeMapInto(obj, &decoded); err != nil {
+			skipped++
 			continue
 		}
 		out = append(out, decoded)
+	}
+	if skipped > 0 {
+		slog.Debug("factschema: parsed_file_data tolerant decode skipped malformed element(s)",
+			"element_type", reflect.TypeFor[T]().String(),
+			"total_elements", len(items),
+			"skipped_elements", skipped,
+			"decoded_elements", len(out),
+		)
 	}
 	return out, true
 }
