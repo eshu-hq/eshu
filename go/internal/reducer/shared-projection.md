@@ -78,6 +78,15 @@ the edge identity is required because the worker's
 `LatestIntentsByRepoAndPartition` deduplicates by partition key, so two edges
 sharing one file-only key would collapse and silently drop an edge.
 
+The refresh fence is generation-scoped (#5554). A completed refresh opens a
+per-edge write only for the same `(scope, acceptance unit, source run,
+generation, refresh partition, domain)`, so a reused `source_run_id` cannot
+carry the fence across generations. Exact same-generation delivery is
+idempotent: `BuildSharedProjectionIntent` derives the same intent IDs and the
+Postgres upsert preserves `completed_at`, so completed refresh and edge rows are
+not re-fired. Unrelated partitions retain their existing leases and worker
+concurrency; only edges awaiting their own generation's refresh are deferred.
+
 SQL relationship materialization writes trigger-to-table `TRIGGERS` edges and
 trigger-to-function `EXECUTES` edges from the same `SqlTrigger` entity when the
 parser proves both targets. The `EXECUTES` row is part of code dead-code
@@ -93,6 +102,8 @@ than creating false reachability.
 
 - Shared projection is readiness-gated; edge domains must wait for the phase
   that proves their node endpoints exist.
+- Refresh completion is generation-local. An exact same-generation retry is a
+  durable no-op; a later generation must complete its own refresh.
 - The code-call runner's drain gate is scheduling only. It must not change
   admitted graph truth.
 - SQL trigger `EXECUTES` edges protect stored routine reachability. Removing

@@ -1,0 +1,41 @@
+{
+  "odu": "odu:ifa-sql-family-delta",
+  "note": "Live accumulated graph after gen-1 plus gen-2 delta: QUERIES_TABLE survives from unchanged cmd/api/handlers.go; the six db/schema.sql edges are re-derived; INDEXES is retargeted from public.users to public.orders.",
+  "edges": [
+    {
+      "relationship_type": "HAS_COLUMN",
+      "source_entity_id": "content-entity:sql-tbl-users",
+      "target_entity_id": "content-entity:sql-col-email"
+    },
+    {
+      "relationship_type": "READS_FROM",
+      "source_entity_id": "content-entity:sql-view-active-users",
+      "target_entity_id": "content-entity:sql-tbl-users"
+    },
+    {
+      "relationship_type": "TRIGGERS",
+      "source_entity_id": "content-entity:sql-trig-users-touch",
+      "target_entity_id": "content-entity:sql-tbl-users"
+    },
+    {
+      "relationship_type": "EXECUTES",
+      "source_entity_id": "content-entity:sql-trig-users-touch",
+      "target_entity_id": "content-entity:sql-fn-touch-updated-at"
+    },
+    {
+      "relationship_type": "INDEXES",
+      "source_entity_id": "content-entity:sql-idx-users-email",
+      "target_entity_id": "content-entity:sql-tbl-orders"
+    },
+    {
+      "relationship_type": "MIGRATES",
+      "source_entity_id": "content-entity:sql-mig-v1-add-users",
+      "target_entity_id": "content-entity:sql-tbl-users"
+    },
+    {
+      "relationship_type": "QUERIES_TABLE",
+      "source_entity_id": "content-entity:e_cb021b7a4238",
+      "target_entity_id": "content-entity:sql-tbl-users"
+    }
+  ]
+}

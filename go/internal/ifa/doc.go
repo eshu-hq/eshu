@@ -36,6 +36,12 @@
 // collector would use, so this package still touches no collector or parser
 // internals directly.
 //
+// RunMaterializedEdgeCoverage derives reducer edge-family requirements and
+// resolves them against hand-derived Odù expectations. SQL relationships
+// require baseline, delta-tombstone, and fault dimensions; the determinism
+// matrix proves baseline and accumulated gen-2 delta truth with live exact-set
+// assertions, while an unproven fault dimension remains explicitly waived.
+//
 // P5 adds the Layer 3 load vocabulary. AmplifyAtSlot (amplify.go) replays one
 // base Odù across a scale-lab slot's disjoint synthetic scopes through the
 // family-native generator (go/internal/synth/gcp.GenerateMultiScope),

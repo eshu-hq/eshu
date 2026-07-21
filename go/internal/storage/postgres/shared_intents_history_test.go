@@ -309,6 +309,7 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceTreatsMissingSe
 
 type partitionHistoryTestDB struct {
 	completed           map[string]bool
+	generationReady     bool
 	refreshCompleted    bool
 	fenceSelectedExists bool
 	fenceBlocked        bool
@@ -328,6 +329,9 @@ func (db *partitionHistoryTestDB) QueryContext(_ context.Context, query string, 
 	}
 	if strings.Contains(query, "payload->>'intent_type' = 'repo_refresh'") {
 		return &partitionHistoryRows{values: []bool{db.refreshCompleted}, idx: -1}, nil
+	}
+	if strings.Contains(query, "generation_id = $4") {
+		return &partitionHistoryRows{values: []bool{db.generationReady}, idx: -1}, nil
 	}
 	partitionKey := args[3].(string)
 	return &partitionHistoryRows{values: []bool{db.completed[partitionKey]}, idx: -1}, nil

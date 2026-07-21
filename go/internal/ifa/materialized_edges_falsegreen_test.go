@@ -18,8 +18,8 @@ import (
 // coverage_falsegreen_test.go): the real manifest's materialized_edges:
 // sql_relationships must resolve covered for the determinism (baseline) gate
 // before either deliberate break below is trusted to mean anything. Only the
-// baseline is a covered claim as of #5351 — the fault gate is waived (#5555),
-// not resolved, so it is not asserted covered here.
+// baseline is a covered claim; SQL delta is checked separately below and the
+// fault gate is waived (#5555), not resolved.
 func TestMaterializedEdgeFalseGreenBaselineSQLRelationshipsCovered(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
@@ -31,6 +31,22 @@ func TestMaterializedEdgeFalseGreenBaselineSQLRelationshipsCovered(t *testing.T)
 	})
 	if !ok {
 		t.Fatalf("baseline resolve(sql_relationships, proof_gate=%s) = false, detail=%q, want true", materializedEdgeProofGateBaseline, detail)
+	}
+}
+
+func TestMaterializedEdgeFalseGreenDeltaSQLRelationshipsCovered(t *testing.T) {
+	t.Parallel()
+	repoRoot := repoRootDir(t)
+
+	resolver := MaterializedEdgeOduResolver{Catalog: CatalogByName(), RepoRoot: repoRoot}
+	ok, detail := resolver.Resolve(replaycoverage.CoverageEntry{
+		Surface: MaterializedEdgeSurfacePrefix + "sql_relationships", Scenario: replaycoverage.ScenarioOdu,
+		ScenarioType: replaycoverage.ScenarioTypeDeltaTombstone,
+		Ref:          sqlFamilyDeltaOduName,
+		ProofGate:    materializedEdgeProofGateBaseline,
+	})
+	if !ok {
+		t.Fatalf("delta resolve(sql_relationships, proof_gate=%s) = false, detail=%q, want true", materializedEdgeProofGateBaseline, detail)
 	}
 }
 
@@ -110,6 +126,43 @@ func TestMaterializedEdgeFalseGreenMissingWaiverFailsNamingFamily(t *testing.T) 
 	}
 	if !foundCodeCalls {
 		t.Errorf("gate findings do not name materialized_edges:code_calls as a required failure: %+v", gate.Findings)
+	}
+}
+
+// TestMaterializedEdgeFalseGreenSQLDeltaCannotUseBaselineWaiver proves the
+// required SQL delta-live row stays unwaivable even though it shares the
+// ifa-determinism proof gate with the baseline row. A future baseline waiver
+// must neither soften an unresolved delta nor become stale merely because the
+// distinct delta row is covered.
+func TestMaterializedEdgeFalseGreenSQLDeltaCannotUseBaselineWaiver(t *testing.T) {
+	t.Parallel()
+
+	surface := MaterializedEdgeSurfacePrefix + "sql_relationships"
+	waivers := map[materializedEdgeWaiverKey]MaterializedEdgeWaiver{
+		{Surface: surface, ProofGate: materializedEdgeProofGateBaseline}: {
+			Surface:   surface,
+			ProofGate: materializedEdgeProofGateBaseline,
+			Issue:     "#test-baseline-waiver",
+			Waived:    "2026-07-21",
+			Reason:    "test-only baseline gap",
+		},
+	}
+	delta := replaycoverage.SurfaceCoverage{
+		Surface: replaycoverage.SupportedSurface{
+			Registry: RegistryMaterializedEdges,
+			Key:      surface,
+		},
+		ScenarioType: replaycoverage.ScenarioTypeDeltaTombstone,
+		Status:       replaycoverage.StatusUncovered,
+		Detail:       "test-only missing delta proof",
+	}
+
+	finding := materializedEdgeFinding(delta, waivers, true)
+	if finding.OK || !finding.Required {
+		t.Fatalf("unresolved SQL delta with baseline waiver = %+v, want required failure", finding)
+	}
+	if got := materializedEdgeWaiverProofGateFor(replaycoverage.ScenarioTypeDeltaTombstone); got != "" {
+		t.Fatalf("delta waiver lookup gate = %q, want empty so covered delta cannot stale or consume a baseline waiver", got)
 	}
 }
 
