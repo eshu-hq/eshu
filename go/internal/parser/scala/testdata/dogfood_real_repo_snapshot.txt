@@ -1,3 +1,35 @@
-app/controllers/UserController.scala	classes=2 function_calls=1 functions=3 imports=2 traits=0 variables=3
-app/models/User.scala	classes=3 function_calls=1 functions=2 imports=0 traits=0 variables=0
-app/services/UserService.scala	classes=2 function_calls=2 functions=7 imports=2 traits=1 variables=1
+app/controllers/UserController.scala	classes	dead_code_root_kinds=["scala.app_object"] end_line=34 lang="scala" line_number=28 name="UserControllerApp"
+app/controllers/UserController.scala	classes	end_line=26 lang="scala" line_number=13 name="UserController"
+app/controllers/UserController.scala	framework_semantics	{frameworks=[]}
+app/controllers/UserController.scala	function_calls	lang="scala" line_number=33 name="println"
+app/controllers/UserController.scala	functions	class_context="UserController" cyclomatic_complexity=1 decorators=[] end_line=17 lang="scala" line_number=15 name="show"
+app/controllers/UserController.scala	functions	class_context="UserController" cyclomatic_complexity=1 decorators=[] end_line=21 lang="scala" line_number=19 name="create"
+app/controllers/UserController.scala	functions	class_context="UserController" cyclomatic_complexity=1 decorators=[] end_line=25 lang="scala" line_number=23 name="healthCheck"
+app/controllers/UserController.scala	imports	lang="scala" line_number=10 name="models.User"
+app/controllers/UserController.scala	imports	lang="scala" line_number=11 name="services.UserService"
+app/controllers/UserController.scala	variables	end_line=29 lang="scala" line_number=29 name="repository"
+app/controllers/UserController.scala	variables	end_line=30 lang="scala" line_number=30 name="service"
+app/controllers/UserController.scala	variables	end_line=31 lang="scala" line_number=31 name="controller"
+app/models/User.scala	classes	end_line=10 lang="scala" line_number=10 name="User"
+app/models/User.scala	classes	end_line=18 lang="scala" line_number=12 name="User"
+app/models/User.scala	classes	end_line=20 lang="scala" line_number=20 name="UserNotFoundException"
+app/models/User.scala	framework_semantics	{frameworks=[]}
+app/models/User.scala	function_calls	lang="scala" line_number=13 name="User"
+app/models/User.scala	functions	class_context="User" cyclomatic_complexity=1 decorators=[] end_line=13 lang="scala" line_number=13 name="empty"
+app/models/User.scala	functions	class_context="User" cyclomatic_complexity=2 decorators=[] end_line=17 lang="scala" line_number=15 name="validate"
+app/services/UserService.scala	classes	end_line=26 lang="scala" line_number=17 name="InMemoryUserRepository"
+app/services/UserService.scala	classes	end_line=39 lang="scala" line_number=28 name="UserService"
+app/services/UserService.scala	framework_semantics	{frameworks=[]}
+app/services/UserService.scala	function_calls	lang="scala" line_number=34 name="User"
+app/services/UserService.scala	function_calls	lang="scala" line_number=34 name="generateId"
+app/services/UserService.scala	functions	class_context="InMemoryUserRepository" cyclomatic_complexity=1 dead_code_root_kinds=["scala.trait_implementation_method"] decorators=[] end_line=20 lang="scala" line_number=20 name="findById"
+app/services/UserService.scala	functions	class_context="InMemoryUserRepository" cyclomatic_complexity=1 dead_code_root_kinds=["scala.trait_implementation_method"] decorators=[] end_line=25 lang="scala" line_number=22 name="save"
+app/services/UserService.scala	functions	class_context="UserRepository" cyclomatic_complexity=1 dead_code_root_kinds=["scala.trait_method"] decorators=[] end_line=13 lang="scala" line_number=13 name="findById"
+app/services/UserService.scala	functions	class_context="UserRepository" cyclomatic_complexity=1 dead_code_root_kinds=["scala.trait_method"] decorators=[] end_line=14 lang="scala" line_number=14 name="save"
+app/services/UserService.scala	functions	class_context="UserService" cyclomatic_complexity=1 decorators=[] end_line=31 lang="scala" line_number=29 name="getUser"
+app/services/UserService.scala	functions	class_context="UserService" cyclomatic_complexity=1 decorators=[] end_line=36 lang="scala" line_number=33 name="createUser"
+app/services/UserService.scala	functions	class_context="UserService" cyclomatic_complexity=1 decorators=[] end_line=38 lang="scala" line_number=38 name="generateId"
+app/services/UserService.scala	imports	lang="scala" line_number=10 name="models.User"
+app/services/UserService.scala	imports	lang="scala" line_number=10 name="models.UserNotFoundException"
+app/services/UserService.scala	traits	dead_code_root_kinds=["scala.trait_type"] end_line=15 lang="scala" line_number=12 name="UserRepository"
+app/services/UserService.scala	variables	end_line=18 lang="scala" line_number=18 name="users"
