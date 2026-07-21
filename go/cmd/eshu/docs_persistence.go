@@ -55,7 +55,7 @@ type docsVerifyPersistenceSummary struct {
 
 type docsVerifyPostgresPersistence struct {
 	ingestion postgres.IngestionStore
-	facts     postgres.FactStore
+	facts     *postgres.FactStore
 }
 
 const docsVerifyFreshnessVersion = "docs-verify-v1"

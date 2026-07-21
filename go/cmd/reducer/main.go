@@ -373,9 +373,9 @@ func buildReducerService(
 		CloudInventoryHandlers:      buildReducerCloudInventoryHandlers(database, logger),
 		KubernetesHandlers:          buildReducerKubernetesHandlers(database, graphWriters),
 		CrossplaneHandlers:          buildReducerCrossplaneHandlers(graphWriters),
-		SupplyChainSecurityHandlers: buildReducerSupplyChainSecurityHandlers(database, factStore, secretsIAMGraphWriter, presence),
-		IncidentRoutingHandlers:     buildReducerIncidentRoutingHandlers(database, factStore, graphWriters),
-		CodeEvidenceHandlers:        buildReducerCodeEvidenceHandlers(database, factStore, graphWriters, graphReader, logger),
+		SupplyChainSecurityHandlers: buildReducerSupplyChainSecurityHandlers(database, *factStore, secretsIAMGraphWriter, presence),
+		IncidentRoutingHandlers:     buildReducerIncidentRoutingHandlers(database, *factStore, graphWriters),
+		CodeEvidenceHandlers:        buildReducerCodeEvidenceHandlers(database, *factStore, graphWriters, graphReader, logger),
 	})
 	if err != nil {
 		return reducer.Service{}, err
