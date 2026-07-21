@@ -90,6 +90,11 @@ func (b *generationBuilder) collectServices(ctx context.Context, client Client) 
 }
 
 func (b *generationBuilder) collectWorkloads(ctx context.Context, client Client) error {
+	// Parents must be indexed before children: addOwnerEdges resolves an
+	// owner's UID against b.uidIndex immediately, so an owned kind listed
+	// before its owner would find an unindexed UID and drop the edge with a
+	// WarningInvalidOwnerReference instead of emitting it. Deployment before
+	// ReplicaSet before Pod, and CronJob before Job before Pod.
 	lists := []struct {
 		resourceScope string
 		list          func(context.Context) (ListResult[WorkloadObject], error)
@@ -98,8 +103,8 @@ func (b *generationBuilder) collectWorkloads(ctx context.Context, client Client)
 		{ResourceScopeReplicaSets, client.ListReplicaSets},
 		{ResourceScopeStatefulSets, client.ListStatefulSets},
 		{ResourceScopeDaemonSets, client.ListDaemonSets},
-		{ResourceScopeJobs, client.ListJobs},
 		{ResourceScopeCronJobs, client.ListCronJobs},
+		{ResourceScopeJobs, client.ListJobs},
 		{ResourceScopePods, client.ListPods},
 	}
 	for _, entry := range lists {

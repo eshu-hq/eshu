@@ -297,6 +297,63 @@ func TestSourceInvalidOwnerReferenceWarns(t *testing.T) {
 	}
 }
 
+// TestSourceJobOwnedByCronJobEmitsOwnerEdge is a regression test for the
+// owner-edge ordering bug: collectWorkloads must index parent kinds before
+// their children so addOwnerEdges can resolve the owner UID on first pass.
+// A CronJob's UID must be indexed before its owned Jobs are processed, the
+// same reason Deployments are listed before ReplicaSets and both before Pods.
+func TestSourceJobOwnedByCronJobEmitsOwnerEdge(t *testing.T) {
+	t.Parallel()
+
+	cronjob := WorkloadObject{
+		Meta: ObjectMeta{
+			APIGroup: "batch", Version: "v1", Resource: "cronjobs",
+			Namespace: "n", Name: "nightly", UID: "uid-cronjob",
+		},
+	}
+	job := WorkloadObject{
+		Meta: ObjectMeta{
+			APIGroup: "batch", Version: "v1", Resource: "jobs",
+			Namespace: "n", Name: "nightly-28234500", UID: "uid-job",
+			OwnerReferences: []OwnerReference{{Kind: "CronJob", Name: "nightly", UID: "uid-cronjob"}},
+		},
+		Containers: []ContainerSummary{{Name: "app", Image: "img:1"}},
+	}
+	client := &fakeClient{
+		jobs:     ListResult[WorkloadObject]{Items: []WorkloadObject{job}},
+		cronjobs: ListResult[WorkloadObject]{Items: []WorkloadObject{cronjob}},
+	}
+	source := newSource(client)
+	collected, _, err := source.Next(context.Background())
+	if err != nil {
+		t.Fatalf("Next() error = %v", err)
+	}
+	envs := drain(t, collected.Facts)
+
+	clusterID := source.Config.Clusters[0].ClusterID
+	wantFromID := identityFromMeta(clusterID, job.Meta).ObjectID()
+	wantToID := identityFromMeta(clusterID, cronjob.Meta).ObjectID()
+
+	foundOwnerEdge := false
+	for _, env := range envelopesOfKind(envs, facts.KubernetesRelationshipFactKind) {
+		if env.Payload["relationship_type"] != string(RelationshipOwnerReference) {
+			continue
+		}
+		if env.Payload["from_object_id"] == wantFromID && env.Payload["to_object_id"] == wantToID {
+			foundOwnerEdge = true
+		}
+	}
+	if !foundOwnerEdge {
+		t.Fatalf("no owner-reference relationship fact From=Job To=CronJob found in %d relationship facts", countKind(envs, facts.KubernetesRelationshipFactKind))
+	}
+
+	for _, env := range envelopesOfKind(envs, facts.KubernetesWarningFactKind) {
+		if env.Payload["reason"] == WarningInvalidOwnerReference {
+			t.Fatalf("unexpected invalid_owner_reference warning for a Job whose CronJob owner was collected: %+v", env.Payload)
+		}
+	}
+}
+
 func TestSourceUnreachableClusterReturnsError(t *testing.T) {
 	t.Parallel()
 
