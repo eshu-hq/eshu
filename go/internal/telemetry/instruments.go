@@ -1413,6 +1413,18 @@ type Instruments struct {
 	// fallback is unreachable in practice because stdjson.Unmarshal already
 	// accepted the same bytes the ordered walk re-reads.
 	CloudFormationPositionFallbacks metric.Int64Counter
+	// IdentityCacheHitTotal counts identity-fact cache hits (#5438).
+	IdentityCacheHitTotal metric.Int64Counter
+	// IdentityCacheMissTotal counts identity-fact cache misses (epoch changed → reload) (#5438).
+	IdentityCacheMissTotal metric.Int64Counter
+	// IdentityCacheReloadTotal counts identity-fact cache reloads (singleflight leader) (#5438).
+	IdentityCacheReloadTotal metric.Int64Counter
+	// IdentityCachePassthroughTotal counts identity-fact passthroughs (cap exceeded or mid-load commit) (#5438).
+	IdentityCachePassthroughTotal metric.Int64Counter
+	// IdentityCacheReloadDuration records the duration of identity-fact cache reloads (#5438).
+	IdentityCacheReloadDuration metric.Float64Histogram
+	// IdentityCacheProbeDuration records the duration of identity-fact epoch probe queries (#5438).
+	IdentityCacheProbeDuration metric.Float64Histogram
 }
 
 // NewInstruments creates and registers all OTEL metric instruments using the
@@ -4612,6 +4624,54 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CloudFormationPositionFallbacks counter: %w", err)
+	}
+
+	inst.IdentityCacheHitTotal, err = meter.Int64Counter(
+		"eshu_dp_identity_cache_hit_total",
+		metric.WithDescription("Total identity-fact cache hits"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IdentityCacheHitTotal counter: %w", err)
+	}
+
+	inst.IdentityCacheMissTotal, err = meter.Int64Counter(
+		"eshu_dp_identity_cache_miss_total",
+		metric.WithDescription("Total identity-fact cache misses (epoch changed → reload)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IdentityCacheMissTotal counter: %w", err)
+	}
+
+	inst.IdentityCacheReloadTotal, err = meter.Int64Counter(
+		"eshu_dp_identity_cache_reload_total",
+		metric.WithDescription("Total identity-fact cache reloads (singleflight leader)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IdentityCacheReloadTotal counter: %w", err)
+	}
+
+	inst.IdentityCachePassthroughTotal, err = meter.Int64Counter(
+		"eshu_dp_identity_cache_passthrough_total",
+		metric.WithDescription("Total identity-fact cache passthroughs (cap exceeded or mid-load commit)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IdentityCachePassthroughTotal counter: %w", err)
+	}
+
+	inst.IdentityCacheReloadDuration, err = meter.Float64Histogram(
+		"eshu_dp_identity_cache_reload_duration_seconds",
+		metric.WithDescription("Duration of identity-fact cache reloads"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IdentityCacheReloadDuration histogram: %w", err)
+	}
+
+	inst.IdentityCacheProbeDuration, err = meter.Float64Histogram(
+		"eshu_dp_identity_cache_probe_duration_seconds",
+		metric.WithDescription("Duration of identity-fact epoch probe queries"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IdentityCacheProbeDuration histogram: %w", err)
 	}
 
 	return inst, nil

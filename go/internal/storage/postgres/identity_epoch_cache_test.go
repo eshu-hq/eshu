@@ -10,10 +10,20 @@ import (
 	"testing"
 	"time"
 
-	"go.opentelemetry.io/otel/metric/noop"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// testInstruments creates a test-only telemetry.Instruments for cache tests.
+func testInstruments() *telemetry.Instruments {
+	inst, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider().Meter("identity-cache-test"))
+	if err != nil {
+		panic("telemetry.NewInstruments in test: " + err.Error())
+	}
+	return inst
+}
 
 // probeQueryRow returns a single-row fake response for the epoch probe:
 // count, COALESCE(max(observed_at), ...), active_fingerprint.
@@ -29,9 +39,9 @@ func probeQueryRow(count int, maxObservedAt time.Time, fingerprint int64) queueF
 
 // newFactStoreWithCache creates a FactStore with a wired identity cache for testing.
 func newFactStoreWithCache(db ExecQueryer, maxBytes int64) *FactStore {
-	cache, err := newIdentityEpochCache(noop.NewMeterProvider().Meter("test"), maxBytes)
+	cache, err := NewIdentityEpochCache(testInstruments(), maxBytes)
 	if err != nil {
-		panic("newIdentityEpochCache in test: " + err.Error())
+		panic("NewIdentityEpochCache in test: " + err.Error())
 	}
 	return &FactStore{
 		db:            db,

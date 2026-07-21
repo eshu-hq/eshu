@@ -6,13 +6,11 @@ package postgres
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"sync"
 	"time"
 
-	"go.opentelemetry.io/otel/metric"
-
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // defaultIdentityCacheMaxBytes is the evidence-based default cap for the
@@ -55,87 +53,27 @@ type IdentityEpochCache struct {
 	loading chan struct{} // non-nil while a singleflight reload is in flight
 
 	maxBytes int64
-
-	// Cache telemetry instruments.
-	hitCounter         metric.Int64Counter
-	missCounter        metric.Int64Counter
-	reloadCounter      metric.Int64Counter
-	passthroughCounter metric.Int64Counter
-	reloadDuration     metric.Float64Histogram
-	probeDuration      metric.Float64Histogram
+	inst     *telemetry.Instruments
 }
 
 // NewIdentityEpochCache constructs the identity epoch cache. maxBytes caps
 // the cached set; 0 disables the cap (uses defaultIdentityCacheMaxBytes).
 // Returns (nil, nil) if maxBytes is negative (cache disabled — callers use the
-// uncached path). meter must be non-nil when cache is enabled.
-func NewIdentityEpochCache(meter metric.Meter, maxBytes int64) (*IdentityEpochCache, error) {
+// uncached path). inst must be non-nil when cache is enabled.
+func NewIdentityEpochCache(inst *telemetry.Instruments, maxBytes int64) (*IdentityEpochCache, error) {
 	if maxBytes < 0 {
 		return nil, nil
 	}
 	if maxBytes == 0 {
 		maxBytes = defaultIdentityCacheMaxBytes
 	}
-	return newIdentityEpochCache(meter, maxBytes)
-}
-
-// newIdentityEpochCache constructs a ready-to-use identity epoch cache.
-// maxBytes caps the cached set; 0 disables the cap (unlimited).
-// meter must be non-nil.
-func newIdentityEpochCache(meter metric.Meter, maxBytes int64) (*IdentityEpochCache, error) {
-	c := &IdentityEpochCache{
+	if inst == nil {
+		return nil, nil
+	}
+	return &IdentityEpochCache{
 		maxBytes: maxBytes,
-	}
-	if c.maxBytes <= 0 {
-		c.maxBytes = defaultIdentityCacheMaxBytes
-	}
-
-	// Register cache telemetry instruments.
-	var err error
-	c.hitCounter, err = meter.Int64Counter(
-		"eshu_dp_identity_cache_hit_total",
-		metric.WithDescription("Total identity-fact cache hits"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register identity cache hit counter: %w", err)
-	}
-	c.missCounter, err = meter.Int64Counter(
-		"eshu_dp_identity_cache_miss_total",
-		metric.WithDescription("Total identity-fact cache misses (epoch changed → reload)"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register identity cache miss counter: %w", err)
-	}
-	c.reloadCounter, err = meter.Int64Counter(
-		"eshu_dp_identity_cache_reload_total",
-		metric.WithDescription("Total identity-fact cache reloads (singleflight leader)"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register identity cache reload counter: %w", err)
-	}
-	c.passthroughCounter, err = meter.Int64Counter(
-		"eshu_dp_identity_cache_passthrough_total",
-		metric.WithDescription("Total identity-fact cache passthroughs (cap exceeded or mid-load commit)"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register identity cache passthrough counter: %w", err)
-	}
-	c.reloadDuration, err = meter.Float64Histogram(
-		"eshu_dp_identity_cache_reload_duration_seconds",
-		metric.WithDescription("Duration of identity-fact cache reloads"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register identity cache reload duration histogram: %w", err)
-	}
-	c.probeDuration, err = meter.Float64Histogram(
-		"eshu_dp_identity_cache_probe_duration_seconds",
-		metric.WithDescription("Duration of identity-fact epoch probe queries"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register identity cache probe duration histogram: %w", err)
-	}
-
-	return c, nil
+		inst:     inst,
+	}, nil
 }
 
 // get serves the identity fact set, transparently applying the epoch cache
@@ -160,7 +98,7 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 	// Probe the epoch.
 	probeStart := time.Now()
 	probe, err := store.probeIdentityEpoch(ctx)
-	c.probeDuration.Record(ctx, time.Since(probeStart).Seconds())
+	c.inst.IdentityCacheProbeDuration.Record(ctx, time.Since(probeStart).Seconds())
 	if err != nil {
 		c.mu.Unlock()
 		return nil, err
@@ -170,19 +108,19 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 	if c.facts != nil && c.epoch == probe {
 		// Cache hit: serve with defensive copy.
 		result := defensiveCopyEnvelopes(c.facts)
-		c.hitCounter.Add(ctx, 1)
+		c.inst.IdentityCacheHitTotal.Add(ctx, 1)
 		c.mu.Unlock()
 		return result, nil
 	}
 
 	// Cache miss: start a singleflight reload.
-	c.missCounter.Add(ctx, 1)
+	c.inst.IdentityCacheMissTotal.Add(ctx, 1)
 	c.loading = make(chan struct{})
 	preLoadProbe := probe // save for post-load comparison
 	c.mu.Unlock()
 
 	// Singleflight leader: load from DB.
-	c.reloadCounter.Add(ctx, 1)
+	c.inst.IdentityCacheReloadTotal.Add(ctx, 1)
 	reloadStart := time.Now()
 	loaded, err := store.loadIdentityFactsUncached(ctx)
 	if err != nil {
@@ -196,7 +134,7 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 	// Post-load probe: verify the raw fact_records set did not change during the load.
 	postProbeStart := time.Now()
 	postProbe, postProbeErr := store.probeIdentityEpoch(ctx)
-	c.probeDuration.Record(ctx, time.Since(postProbeStart).Seconds())
+	c.inst.IdentityCacheProbeDuration.Record(ctx, time.Since(postProbeStart).Seconds())
 	if postProbeErr != nil {
 		c.mu.Lock()
 		close(c.loading)
@@ -209,7 +147,7 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 	// If post-load probe disagrees with pre-load probe, a commit landed mid-load.
 	// Serve the loaded rows uncached; next call retries.
 	if postProbe != preLoadProbe {
-		c.passthroughCounter.Add(ctx, 1)
+		c.inst.IdentityCachePassthroughTotal.Add(ctx, 1)
 		c.mu.Lock()
 		close(c.loading)
 		c.loading = nil
@@ -220,7 +158,7 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 	// Cap check: if estimated bytes exceed maxBytes, passthrough uncached.
 	estBytes := estimateEnvelopesByteSize(loaded)
 	if c.maxBytes > 0 && estBytes > c.maxBytes {
-		c.passthroughCounter.Add(ctx, 1)
+		c.inst.IdentityCachePassthroughTotal.Add(ctx, 1)
 		c.mu.Lock()
 		close(c.loading)
 		c.loading = nil
@@ -238,7 +176,7 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 	c.loading = nil
 	c.mu.Unlock()
 
-	c.reloadDuration.Record(ctx, time.Since(reloadStart).Seconds())
+	c.inst.IdentityCacheReloadDuration.Record(ctx, time.Since(reloadStart).Seconds())
 
 	return defensiveCopyEnvelopes(loaded), nil
 }

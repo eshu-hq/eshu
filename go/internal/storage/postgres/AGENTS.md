@@ -884,18 +884,6 @@ container-image identity facts, reloaded under singleflight on epoch mismatch.
   (500 MiB cap vs ~226 MB measured Postgres bytes) absorbs this gap.
   A follow-up heap-profile pass can tighten the estimate if needed.
 
-- **Telemetry self-registration**: the six `eshu_dp_identity_cache_*`
-  instruments are registered on the cache's own meter in
-  `identity_epoch_cache.go:44`, not in the central
-  `go/internal/telemetry/instruments.go`. This is an intentional exception:
-  the cache is a self-contained postgres-layer component with its own
-  meter. The X2 verifier documents this as a known limitation ("Does not
-  catch: a metric that lives outside `go/internal/telemetry/`"). The
-  instruments appear on the `/metrics` endpoint via the shared
-  `providers.MeterProvider`. The X1 contract doc
-  (`docs/public/observability/telemetry-coverage.md`) correctly lists all
-  six metric names.
-
 ### Evidence notes
 
 Performance Evidence: #5438 adds an epoch-cached identity fact set to
@@ -947,25 +935,21 @@ fixed overhead): ~342 MB. Default cap = 500 MiB = 2.2× in-process estimate,
 keeping the 500k-fact shim comfortably cached while a pathological set above
 this bound passes through observably via the passthrough counter.
 
-Observability Evidence: six new `eshu_dp_` instruments registered by
-`newIdentityEpochCache` on the reducer's real OTEL meter
-(`providers.MeterProvider.Meter(telemetry.DefaultSignalName)`, threaded
-through `buildObservedReducerService` → `NewIdentityEpochCache`).
-Metrics appear on the `/metrics` endpoint via the shared Prometheus exporter:
-`eshu_dp_identity_cache_hit_total`, `eshu_dp_identity_cache_miss_total`,
-`eshu_dp_identity_cache_reload_total`,
-`eshu_dp_identity_cache_passthrough_total`,
-`eshu_dp_identity_cache_reload_duration_seconds`,
-`eshu_dp_identity_cache_probe_duration_seconds`. All are documented in
-`docs/public/observability/telemetry-coverage.md`.
-The cache path adds no route, worker, queue domain, lease, graph write,
-or runtime knob beyond `ESHU_IDENTITY_CACHE_MAX_BYTES`. Operators
-diagnose cache effectiveness through the hit/miss/reload/passthrough
-counters and probe/reload duration histograms, plus the existing
+Observability Evidence: six new `eshu_dp_` instruments registered in
+`go/internal/telemetry/instruments.go` (IdentityCacheHitTotal,
+IdentityCacheMissTotal, IdentityCacheReloadTotal,
+IdentityCachePassthroughTotal, IdentityCacheReloadDuration,
+IdentityCacheProbeDuration). The cache receives `*telemetry.Instruments`
+via `NewIdentityEpochCache`, wired from the reducer's real `instruments`
+in `buildObservedReducerService`. Metrics appear on the `/metrics`
+endpoint via the shared Prometheus exporter. All are documented in
+`docs/public/observability/telemetry-coverage.md`. The blocking
+telemetry-coverage gate (`ESHU_TELEMETRY_COVERAGE_BASE=origin/main
+scripts/verify-telemetry-coverage.sh`) is green. X4 dashboard:
+diagnostic cache-internal signals; not headline-alarm-worthy per the
+skill's conditional ("If the metric should appear"). The cache path
+adds no route, worker, queue domain, lease, graph write, or runtime
+knob beyond `ESHU_IDENTITY_CACHE_MAX_BYTES`. Operators diagnose cache
+effectiveness through the hit/miss/reload/passthrough counters and
+probe/reload duration histograms, plus the existing
 `eshu_dp_postgres_query_duration_seconds` for the underlying DB queries.
-The X2 verifier flags these metrics as "doc references metric X but not
-registered in instruments.go" — this is a documented limitation: the
-verifier does not scan registrations outside `go/internal/telemetry/`.
-The metric constructor lives at `identity_epoch_cache.go:44`. X4
-dashboard: diagnostic cache-internal signals; not headline-alarm-worthy
-per the skill's conditional ("If the metric should appear").
