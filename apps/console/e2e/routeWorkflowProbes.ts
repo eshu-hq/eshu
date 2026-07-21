@@ -4,6 +4,7 @@ import type {
   RouteWorkflowObservation,
   RouteWorkflowSpec,
   NetworkObservation,
+  RouteResponseEvidenceSource,
   WorkflowDataShapeObservation,
   WorkflowRequestObservation,
 } from "../src/e2e/routeAssertions.ts";
@@ -304,6 +305,7 @@ export async function executeRouteWorkflow(
   loadImpactFindings?: LoadImpactFindings,
   indexedRepositoryInventory: IndexedRepositoryInventoryAnchor | null = null,
   loadAdvisoryCatalog?: LoadAdvisoryCatalog,
+  routeResponseEvidence: RouteResponseEvidenceSource = "fresh",
 ): Promise<RouteWorkflowObservation> {
   try {
     const ownership =
@@ -320,6 +322,7 @@ export async function executeRouteWorkflow(
           network,
           bootstrapNetwork,
           waitForQuiet,
+          routeResponseEvidence,
         );
         break;
       case "fill":
