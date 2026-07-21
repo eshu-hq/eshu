@@ -52,6 +52,19 @@ on:
       - 'scripts/verify-ifa-fault-injection.sh'
       - 'scripts/test-verify-ifa-fault-injection.sh'
       - 'scripts/lib/ifa_fault_injection_common.sh'
+      # #5351 materialized-edge exhaustiveness gate: the SQL relationship family
+      # cassette is driven into every determinism cell (with a per-cell
+      # `ifa assert-edges`) and every fault-injection cell (with a baseline
+      # `ifa assert-edges`), so the materialized_edges:sql_relationships manifest
+      # row's proof_gate: ifa-determinism / ifa-fault-injection claims are backed
+      # by a live replay of the family. A write-path-only regression to the SQL
+      # edge writer or materialization handler is exactly the silent-no-op class
+      # the pure seam cannot catch, so it MUST retrigger these live lanes.
+      - 'go/internal/reducer/sql_relationship_materialization.go'
+      - 'go/internal/reducer/sql_relationship_embedded_query.go'
+      - 'go/internal/storage/cypher/edge_writer_sql.go'
+      - 'specs/ifa-materialized-edge-coverage.v1.yaml'
+      - 'testdata/cassettes/sqlrelationships/**'
       - '.github/workflows/ifa-determinism-gate.yml'
 
 concurrency:

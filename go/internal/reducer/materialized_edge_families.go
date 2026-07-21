@@ -32,7 +32,9 @@ import "sort"
 // lands the gate plus first coverage for the sql_relationships family only,
 // waiving the other 11 allProjectionDomains members to child issues; adding
 // the direct-materialization families to this enumeration is deliberately
-// deferred follow-up work, tracked outside allProjectionDomains's own scope.
+// deferred follow-up work, tracked under the umbrella follow-up #5543 (the
+// same issue the 11 not-yet-covered allProjectionDomains families are waived
+// to in specs/ifa-materialized-edge-coverage.v1.yaml).
 func MaterializedEdgeFamilies() []string {
 	out := make([]string, 0, len(allProjectionDomains))
 	for _, domain := range allProjectionDomains {
