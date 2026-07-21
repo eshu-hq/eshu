@@ -36,7 +36,7 @@ func TestTerraformResourceWriterLiveClearsStaleAttributeOnRefresh(t *testing.T) 
 		if err := boltWriteStatement(
 			context.Background(),
 			runner,
-			`MATCH (r:TerraformResource {uid: $uid}) DETACH DELETE r`,
+			`MATCH (r:TerraformStateResource {uid: $uid}) DETACH DELETE r`,
 			map[string]any{"uid": uid},
 		); err != nil {
 			t.Errorf("cleanup live terraform resource node: %v", err)
@@ -72,7 +72,7 @@ func TestTerraformResourceWriterLiveClearsStaleAttributeOnRefresh(t *testing.T) 
 		}
 	}
 
-	rows, err := runner.runCypher(ctx, `MATCH (r:TerraformResource {uid: $uid}) RETURN r.tf_attr_instance_type AS instance_type, r.tf_attr_ami AS ami, r.evidence_source AS evidence_source`, map[string]any{"uid": uid})
+	rows, err := runner.runCypher(ctx, `MATCH (r:TerraformStateResource {uid: $uid}) RETURN r.tf_attr_instance_type AS instance_type, r.tf_attr_ami AS ami, r.evidence_source AS evidence_source`, map[string]any{"uid": uid})
 	if err != nil {
 		t.Fatalf("read after first projection: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestTerraformResourceWriterLiveClearsStaleAttributeOnRefresh(t *testing.T) 
 		}
 	}
 
-	rows, err = runner.runCypher(ctx, `MATCH (r:TerraformResource {uid: $uid}) RETURN r.tf_attr_instance_type AS instance_type, r.tf_attr_ami AS ami, r.evidence_source AS evidence_source`, map[string]any{"uid": uid})
+	rows, err = runner.runCypher(ctx, `MATCH (r:TerraformStateResource {uid: $uid}) RETURN r.tf_attr_instance_type AS instance_type, r.tf_attr_ami AS ami, r.evidence_source AS evidence_source`, map[string]any{"uid": uid})
 	if err != nil {
 		t.Fatalf("read after second projection: %v", err)
 	}
