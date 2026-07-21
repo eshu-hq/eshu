@@ -49,4 +49,4 @@
 
 - The alias table entries (production→prod, staging→stage, development→dev).
 - The known-token count (12).
-- The StateClosed vocabulary values.
+- The State vocabulary values (StateBound, StateEnvironmentUnbound).
