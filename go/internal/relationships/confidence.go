@@ -117,147 +117,159 @@ func newDefaultConfidenceRegistry() *ConfidenceRegistry {
 		runtimeServiceTier:                  TierDirectBinding,
 		terraformIdentityKeyConfidence:      0.78,
 		terraformResourceNameFallbackWeight: 0.55,
-		byKind: map[EvidenceKind]ConfidenceEntry{
-			EvidenceKindTerraformAppRepo: {
-				Confidence: 0.99, Tier: TierDirectBinding,
-				Rationale: "app_repo names the target repository directly in provisioning config",
-			},
-			EvidenceKindTerraformGitHubRepo: {
-				Confidence: 0.98, Tier: TierDirectBinding,
-				Rationale: "an explicit github.com repository URL resolves to exactly one target",
-			},
-			EvidenceKindTerraformModuleSource: {
-				Confidence: 0.98, Tier: TierDirectBinding,
-				Rationale: "a module source path binds to one concrete module repository",
-			},
-			EvidenceKindTerraformGitHubActions: {
-				Confidence: 0.97, Tier: TierDirectBinding,
-				Rationale: "a GitHub Actions OIDC subject names the owning repository",
-			},
-			EvidenceKindArgoCDAppSource: {
-				Confidence: 0.95, Tier: TierDirectBinding,
-				Rationale: "an Argo CD Application source repoURL is an explicit deployment source",
-			},
-			EvidenceKindArgoCDApplicationSetDiscovery: {
-				Confidence: 0.99, Tier: TierDirectBinding,
-				Rationale: "an ApplicationSet generator enumerates concrete source repositories",
-			},
-			EvidenceKindArgoCDApplicationSetDeploySource: {
-				Confidence: 0.99, Tier: TierDirectBinding,
-				Rationale: "an ApplicationSet template binds a generated app to one deploy source",
-			},
-			EvidenceKindArgoCDDestinationPlatform: {
-				Confidence: 0.97, Tier: TierDirectBinding,
-				Rationale: "an ApplicationSet destination names the concrete target platform",
-			},
-			EvidenceKindTerraformAppName: {
-				Confidence: 0.94, Tier: TierStrongReference,
-				Rationale: "app_name matches a target repository name; one inference step from a direct repo binding",
-			},
-			EvidenceKindDockerfileSourceLabel: {
-				Confidence: 0.93, Tier: TierStrongReference,
-				Rationale: "an OCI source label is an authored, explicit repository reference",
-			},
-			EvidenceKindGitHubActionsReusableWorkflow: {
-				Confidence: 0.93, Tier: TierStrongReference,
-				Rationale: "a reusable workflow ref names the repository hosting the deployment logic",
-			},
-			EvidenceKindTerraformIAMPermission: {
-				Confidence: 0.92, Tier: TierStrongReference,
-				Rationale: "an IAM permission subject ties provisioning to a named principal repository",
-			},
-			EvidenceKindJenkinsGitHubRepository: {
-				Confidence: 0.92, Tier: TierStrongReference,
-				Rationale: "an explicit GitHub repository URL inside Jenkins automation is unambiguous",
-			},
-			EvidenceKindAnsibleRoleReference: {
-				Confidence: 0.92, Tier: TierStrongReference,
-				Rationale: "an Ansible role reference names the role-owning repository",
-			},
-			EvidenceKindPuppetModuleReference: {
-				Confidence: 0.90, Tier: TierStrongReference,
-				Rationale: "a Puppetfile mod git source names the module-owning repository",
-			},
-			EvidenceKindChefCookbookDependency: {
-				Confidence: 0.90, Tier: TierStrongReference,
-				Rationale: "a Berksfile cookbook git source names the cookbook-owning repository",
-			},
-			EvidenceKindSaltFormulaReference: {
-				Confidence: 0.90, Tier: TierStrongReference,
-				Rationale: "a Salt gitfs_remotes formula source names the formula-owning repository",
-			},
-			EvidenceKindHelmTemplateValueReference: {
-				Confidence: 0.90, Tier: TierStrongReference,
-				Rationale: "a chart template `{{ .Values.<path> }}` reads a leaf key defined in the same chart's values.yaml",
-			},
-			EvidenceKindDockerComposeBuildContext: {
-				Confidence: 0.91, Tier: TierStrongReference,
-				Rationale: "a Compose build context path points at a buildable source repository",
-			},
-			EvidenceKindGitHubActionsCheckoutRepository: {
-				Confidence: 0.91, Tier: TierStrongReference,
-				Rationale: "an explicit actions/checkout repo names the config/automation source",
-			},
-			EvidenceKindHelmChart: {
-				Confidence: 0.90, Tier: TierStrongReference,
-				Rationale: "Helm Chart.yaml metadata references the packaged target repository",
-			},
-			EvidenceKindTerraformConfigPath: {
-				Confidence: 0.90, Tier: TierStrongReference,
-				Rationale: "a config path segment matches a target repository name",
-			},
-			EvidenceKindTerragruntDependencyConfigPath: {
-				Confidence: 0.90, Tier: TierStrongReference,
-				Rationale: "a Terragrunt dependency config_path resolves to one config repository",
-			},
-			EvidenceKindKustomizeResource: {
-				Confidence: 0.90, Tier: TierStrongReference,
-				Rationale: "a Kustomize resource reference sources deployment config from the target",
-			},
-			EvidenceKindGitHubActionsWorkflowInputRepository: {
-				Confidence: 0.90, Tier: TierStrongReference,
-				Rationale: "a repo-bearing workflow input passes an explicit automation/config repository",
-			},
-			EvidenceKindJenkinsSharedLibrary: {
-				Confidence: 0.89, Tier: TierReference,
-				Rationale: "a Jenkins shared library reference names the library repository indirectly",
-			},
-			EvidenceKindKustomizeHelmChart: {
-				Confidence: 0.89, Tier: TierReference,
-				Rationale: "a Kustomize Helm chart reference points at the chart-owning repository",
-			},
-			EvidenceKindDockerComposeImage: {
-				Confidence: 0.88, Tier: TierReference,
-				Rationale: "a Compose image reference maps to a build/source repository",
-			},
-			EvidenceKindGitHubActionsActionRepository: {
-				Confidence: 0.88, Tier: TierReference,
-				Rationale: "a step-level action repository is a dependency, not a deploy source",
-			},
-			EvidenceKindTerragruntConfigAssetPath: {
-				Confidence: 0.88, Tier: TierReference,
-				Rationale: "a Terragrunt helper/local asset path references a config repository",
-			},
-			EvidenceKindKustomizeImage: {
-				Confidence: 0.86, Tier: TierReference,
-				Rationale: "a Kustomize image reference maps to a source repository by image name",
-			},
-			EvidenceKindGitHubActionsLocalReusableWorkflow: {
-				Confidence: 0.86, Tier: TierReference,
-				Rationale: "a repo-local reusable workflow is a same-repo deployment-logic reference",
-			},
-			EvidenceKindHelmValues: {
-				Confidence: 0.84, Tier: TierWeakReference,
-				Rationale: "a Helm values reference is a convention match that needs corroboration",
-			},
-			EvidenceKindDockerComposeDependsOn: {
-				Confidence: 0.84, Tier: TierWeakReference,
-				Rationale: "a Compose depends_on edge implies a service dependency, not a source binding",
-			},
-			EvidenceKindGCPCloudRelationship: {
-				Confidence: 0.82, Tier: TierWeakReference,
-				Rationale: "a single-provider GCP endpoint resolves to one repo only when each side is unambiguous",
-			},
+		byKind:                              defaultConfidenceEntries(),
+	}
+}
+
+// defaultConfidenceEntries returns the calibrated-by-hand per-EvidenceKind
+// confidence priors. Split out of newDefaultConfidenceRegistry (rather than
+// inlined in its return literal) so that function stays under the funlen
+// limit as the registry grows a new entry per extractor.
+func defaultConfidenceEntries() map[EvidenceKind]ConfidenceEntry {
+	return map[EvidenceKind]ConfidenceEntry{
+		EvidenceKindTerraformAppRepo: {
+			Confidence: 0.99, Tier: TierDirectBinding,
+			Rationale: "app_repo names the target repository directly in provisioning config",
+		},
+		EvidenceKindTerraformGitHubRepo: {
+			Confidence: 0.98, Tier: TierDirectBinding,
+			Rationale: "an explicit github.com repository URL resolves to exactly one target",
+		},
+		EvidenceKindTerraformModuleSource: {
+			Confidence: 0.98, Tier: TierDirectBinding,
+			Rationale: "a module source path binds to one concrete module repository",
+		},
+		EvidenceKindTerraformGitHubActions: {
+			Confidence: 0.97, Tier: TierDirectBinding,
+			Rationale: "a GitHub Actions OIDC subject names the owning repository",
+		},
+		EvidenceKindArgoCDAppSource: {
+			Confidence: 0.95, Tier: TierDirectBinding,
+			Rationale: "an Argo CD Application source repoURL is an explicit deployment source",
+		},
+		EvidenceKindFluxGitRepositorySource: {
+			Confidence: 0.99, Tier: TierDirectBinding,
+			Rationale: "a Flux GitRepository spec.url resolves by exact normalized-URL identity to exactly one catalog repository, never a fuzzy match",
+		},
+		EvidenceKindArgoCDApplicationSetDiscovery: {
+			Confidence: 0.99, Tier: TierDirectBinding,
+			Rationale: "an ApplicationSet generator enumerates concrete source repositories",
+		},
+		EvidenceKindArgoCDApplicationSetDeploySource: {
+			Confidence: 0.99, Tier: TierDirectBinding,
+			Rationale: "an ApplicationSet template binds a generated app to one deploy source",
+		},
+		EvidenceKindArgoCDDestinationPlatform: {
+			Confidence: 0.97, Tier: TierDirectBinding,
+			Rationale: "an ApplicationSet destination names the concrete target platform",
+		},
+		EvidenceKindTerraformAppName: {
+			Confidence: 0.94, Tier: TierStrongReference,
+			Rationale: "app_name matches a target repository name; one inference step from a direct repo binding",
+		},
+		EvidenceKindDockerfileSourceLabel: {
+			Confidence: 0.93, Tier: TierStrongReference,
+			Rationale: "an OCI source label is an authored, explicit repository reference",
+		},
+		EvidenceKindGitHubActionsReusableWorkflow: {
+			Confidence: 0.93, Tier: TierStrongReference,
+			Rationale: "a reusable workflow ref names the repository hosting the deployment logic",
+		},
+		EvidenceKindTerraformIAMPermission: {
+			Confidence: 0.92, Tier: TierStrongReference,
+			Rationale: "an IAM permission subject ties provisioning to a named principal repository",
+		},
+		EvidenceKindJenkinsGitHubRepository: {
+			Confidence: 0.92, Tier: TierStrongReference,
+			Rationale: "an explicit GitHub repository URL inside Jenkins automation is unambiguous",
+		},
+		EvidenceKindAnsibleRoleReference: {
+			Confidence: 0.92, Tier: TierStrongReference,
+			Rationale: "an Ansible role reference names the role-owning repository",
+		},
+		EvidenceKindPuppetModuleReference: {
+			Confidence: 0.90, Tier: TierStrongReference,
+			Rationale: "a Puppetfile mod git source names the module-owning repository",
+		},
+		EvidenceKindChefCookbookDependency: {
+			Confidence: 0.90, Tier: TierStrongReference,
+			Rationale: "a Berksfile cookbook git source names the cookbook-owning repository",
+		},
+		EvidenceKindSaltFormulaReference: {
+			Confidence: 0.90, Tier: TierStrongReference,
+			Rationale: "a Salt gitfs_remotes formula source names the formula-owning repository",
+		},
+		EvidenceKindHelmTemplateValueReference: {
+			Confidence: 0.90, Tier: TierStrongReference,
+			Rationale: "a chart template `{{ .Values.<path> }}` reads a leaf key defined in the same chart's values.yaml",
+		},
+		EvidenceKindDockerComposeBuildContext: {
+			Confidence: 0.91, Tier: TierStrongReference,
+			Rationale: "a Compose build context path points at a buildable source repository",
+		},
+		EvidenceKindGitHubActionsCheckoutRepository: {
+			Confidence: 0.91, Tier: TierStrongReference,
+			Rationale: "an explicit actions/checkout repo names the config/automation source",
+		},
+		EvidenceKindHelmChart: {
+			Confidence: 0.90, Tier: TierStrongReference,
+			Rationale: "Helm Chart.yaml metadata references the packaged target repository",
+		},
+		EvidenceKindTerraformConfigPath: {
+			Confidence: 0.90, Tier: TierStrongReference,
+			Rationale: "a config path segment matches a target repository name",
+		},
+		EvidenceKindTerragruntDependencyConfigPath: {
+			Confidence: 0.90, Tier: TierStrongReference,
+			Rationale: "a Terragrunt dependency config_path resolves to one config repository",
+		},
+		EvidenceKindKustomizeResource: {
+			Confidence: 0.90, Tier: TierStrongReference,
+			Rationale: "a Kustomize resource reference sources deployment config from the target",
+		},
+		EvidenceKindGitHubActionsWorkflowInputRepository: {
+			Confidence: 0.90, Tier: TierStrongReference,
+			Rationale: "a repo-bearing workflow input passes an explicit automation/config repository",
+		},
+		EvidenceKindJenkinsSharedLibrary: {
+			Confidence: 0.89, Tier: TierReference,
+			Rationale: "a Jenkins shared library reference names the library repository indirectly",
+		},
+		EvidenceKindKustomizeHelmChart: {
+			Confidence: 0.89, Tier: TierReference,
+			Rationale: "a Kustomize Helm chart reference points at the chart-owning repository",
+		},
+		EvidenceKindDockerComposeImage: {
+			Confidence: 0.88, Tier: TierReference,
+			Rationale: "a Compose image reference maps to a build/source repository",
+		},
+		EvidenceKindGitHubActionsActionRepository: {
+			Confidence: 0.88, Tier: TierReference,
+			Rationale: "a step-level action repository is a dependency, not a deploy source",
+		},
+		EvidenceKindTerragruntConfigAssetPath: {
+			Confidence: 0.88, Tier: TierReference,
+			Rationale: "a Terragrunt helper/local asset path references a config repository",
+		},
+		EvidenceKindKustomizeImage: {
+			Confidence: 0.86, Tier: TierReference,
+			Rationale: "a Kustomize image reference maps to a source repository by image name",
+		},
+		EvidenceKindGitHubActionsLocalReusableWorkflow: {
+			Confidence: 0.86, Tier: TierReference,
+			Rationale: "a repo-local reusable workflow is a same-repo deployment-logic reference",
+		},
+		EvidenceKindHelmValues: {
+			Confidence: 0.84, Tier: TierWeakReference,
+			Rationale: "a Helm values reference is a convention match that needs corroboration",
+		},
+		EvidenceKindDockerComposeDependsOn: {
+			Confidence: 0.84, Tier: TierWeakReference,
+			Rationale: "a Compose depends_on edge implies a service dependency, not a source binding",
+		},
+		EvidenceKindGCPCloudRelationship: {
+			Confidence: 0.82, Tier: TierWeakReference,
+			Rationale: "a single-provider GCP endpoint resolves to one repo only when each side is unambiguous",
 		},
 	}
 }

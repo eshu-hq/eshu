@@ -50,6 +50,46 @@ func TestFluxReconcilesFromVerbIsRegisteredInDeployLayer(t *testing.T) {
 	}
 }
 
+// TestFluxReconcilesFromCatalogStaysOneEntryCoveringHelmRelease is the issue
+// #5483 C1 count/slice divergence proof (the DEPENDS_ON precedent):
+// RECONCILES_FROM keeps exactly ONE relationshipVerbCatalog entry after C1
+// extends the edge to FluxHelmRelease sources (relationshipVerbByName is
+// verb-keyed, so a second entry would clobber this one, not add coverage).
+// The whole-graph count query stays the bare relationship-type aggregate
+// (no source-label restriction, so it counts FluxKustomization- AND
+// FluxHelmRelease-sourced edges together), while the bounded edge-slice query
+// stays anchored on FluxKustomization only -- a FluxHelmRelease-sourced edge
+// is never returned by the list_relationship_edges slice, only through
+// get_entity_context.
+func TestFluxReconcilesFromCatalogStaysOneEntryCoveringHelmRelease(t *testing.T) {
+	t.Parallel()
+
+	count := 0
+	for _, entry := range relationshipVerbCatalog {
+		if entry.verb == "RECONCILES_FROM" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("relationshipVerbCatalog has %d RECONCILES_FROM entries, want exactly 1 (a second entry would clobber relationshipVerbByName)", count)
+	}
+
+	entry := relationshipVerbByName["RECONCILES_FROM"]
+	if entry.detail != "Flux Kustomization or HelmRelease reconciles from its source" {
+		t.Fatalf("RECONCILES_FROM detail = %q, want the reconciler-neutral wording covering both Kustomization and HelmRelease", entry.detail)
+	}
+
+	countCypher := relationshipCountCypher(entry)
+	if !strings.Contains(countCypher, "MATCH ()-[r:RECONCILES_FROM]->()") {
+		t.Fatalf("RECONCILES_FROM count cypher = %q, want the bare whole-graph relationship-type aggregate (no source-label restriction, so it counts FluxKustomization- and FluxHelmRelease-sourced edges together)", countCypher)
+	}
+
+	edgesCypher := relationshipEdgesCypher(entry, repositoryAccessFilter{allScopes: true})
+	if !strings.Contains(edgesCypher, "MATCH (s:FluxKustomization)-[r:RECONCILES_FROM]->(t)") {
+		t.Fatalf("RECONCILES_FROM edges cypher = %q, want the slice anchored on FluxKustomization only (FluxHelmRelease-sourced edges are never returned by this slice)", edgesCypher)
+	}
+}
+
 // TestFluxReconcilesFromEdgeCypherByteIdenticalToDefaultShape proves adding
 // RECONCILES_FROM (a plain targetIdentityProperty-unset entry) does not alter
 // the emitted Cypher shape for either relationshipEdgesCypher or

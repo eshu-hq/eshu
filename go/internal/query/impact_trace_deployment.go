@@ -78,22 +78,17 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if workloadID := safeStr(ctx, "id"); workloadID != "" {
-		// #5167 W3: the workload identity itself is already bound to the
-		// caller's grant (fetchServiceTraceContext -> fetchServiceWorkloadContext
-		// -> fetchWorkloadContextForOperation applies repositoryAccessFilterFromContext),
-		// but the enrichment below reads other repositories' deployment-source
-		// edges, so deploymentSources is independently bound to the grant and
-		// every downstream read that derives repo ids from it inherits the
-		// filtered set.
-		access := repositoryAccessFilterFromContext(r.Context())
 		deploymentSourceResult, err := h.fetchDeploymentSourceResult(r.Context(), workloadID, safeStr(ctx, "repo_id"))
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query deployment sources: %v", err))
 			return
 		}
-		deploymentSourceResult.rows = filterRowsByRepoIDForAccess(deploymentSourceResult.rows, access)
 		deploymentSources := deploymentSourceResult.rows
-		cloudResourceResult, err := h.fetchCloudResourceResult(r.Context(), workloadID)
+		cloudResourceResult, err := h.fetchCloudResourceResult(
+			r.Context(),
+			safeStr(ctx, "repo_id"),
+			workloadID,
+		)
 		if err != nil {
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query cloud resources: %v", err))
 			return
@@ -108,12 +103,7 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 				cloudResources = cloudResourceResult.rows
 			}
 		}
-		// The config-derived and "uncorrelated" cloud-resource fallbacks below
-		// are free-text CloudResource scans with no repo_id in their result rows
-		// at all (#5167 W3) -- there is no property to bind to the caller's
-		// grant, so a scoped caller never runs them and simply sees no fallback
-		// cloud resources rather than a cross-tenant free-text leak.
-		if len(cloudResources) == 0 && len(mapSliceValue(ctx, "uncorrelated_cloud_resources")) == 0 && !access.scoped() {
+		if len(cloudResources) == 0 && len(mapSliceValue(ctx, "uncorrelated_cloud_resources")) == 0 {
 			configRows, configTruncated, configErr := loadConfigDerivedCloudResourceDependenciesBounded(
 				r.Context(),
 				h.Neo4j,
@@ -134,7 +124,7 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		if len(cloudResources) > 0 {
 			ctx["cloud_resources"] = cloudResources
 			delete(ctx, "uncorrelated_cloud_resources")
-		} else if len(mapSliceValue(ctx, "uncorrelated_cloud_resources")) == 0 && !access.scoped() {
+		} else if len(mapSliceValue(ctx, "uncorrelated_cloud_resources")) == 0 {
 			cloudCandidates, cloudCandidatesTruncated, err := loadUncorrelatedCloudResourceCandidatesBounded(
 				r.Context(), h.Neo4j, safeStr(ctx, "name"), serviceStoryItemLimit,
 			)
@@ -192,6 +182,13 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		ctx["controller_entities"] = deploymentSourceGitOps.controllers
 		ctx["controller_entity_limits"] = deploymentSourceGitOps.controllerLimits
 
+		// D2 (#5471): re-derive the repository access filter for the
+		// live-evidence probe. #5530 removed the handler's earlier
+		// access uses as redundant with fetchWorkloadContext filtering,
+		// but this probe is a separate scope-sensitive Postgres read
+		// (#5167 discipline) and must carry the caller's grant set — a
+		// zero-value filter would read all scopes cross-tenant.
+		access := repositoryAccessFilterFromContext(r.Context())
 		// D2 (#5471): probe for exact-outcome kubernetes correlation
 		// rows matching the workload's config-declared image refs.
 		// An exact match (outcome=exact, image_ref matches) means a
@@ -256,198 +253,4 @@ func fetchServiceTraceContext(
 	}
 
 	return workloadContext, nil
-}
-
-func buildDeploymentTraceResponse(serviceName string, workloadContext map[string]any) map[string]any {
-	serviceName = canonicalServiceName(serviceName, workloadContext)
-	instances, _ := workloadContext["instances"].([]map[string]any)
-	topologyEdges := mapSliceValue(workloadContext, "topology_edges")
-	provisionedPlatforms := mapSliceValue(workloadContext, "provisioned_platforms")
-	deploymentSources, _ := workloadContext["deployment_sources"].([]map[string]any)
-	cloudResources, _ := workloadContext["cloud_resources"].([]map[string]any)
-	uncorrelatedCloudResources := mapSliceValue(workloadContext, "uncorrelated_cloud_resources")
-	k8sResources, _ := workloadContext["k8s_resources"].([]map[string]any)
-	imageRefs, _ := workloadContext["image_refs"].([]string)
-	imageRegistryTruth := mapSliceValue(workloadContext, "image_registry_truth")
-	controllerEntities, _ := workloadContext["controller_entities"].([]map[string]any)
-	hostnames := mapSliceValue(workloadContext, "hostnames")
-	entrypoints := mapSliceValue(workloadContext, "entrypoints")
-	networkPaths := mapSliceValue(workloadContext, "network_paths")
-	apiSurface := mapValue(workloadContext, "api_surface")
-	dependents := mapSliceValue(workloadContext, "dependents")
-	consumerRepositories := mapSliceValue(workloadContext, "consumer_repositories")
-	provisioningSourceChains := mapSliceValue(workloadContext, "provisioning_source_chains")
-	documentationOverview := mapValue(workloadContext, "documentation_overview")
-	supportOverview := mapValue(workloadContext, "support_overview")
-	deploymentEvidence := mapValue(workloadContext, "deployment_evidence")
-	k8sRelationships := buildK8sRelationships(k8sResources)
-	platforms := distinctSortedInstanceField(instances, "platform_name")
-	platformKinds := distinctSortedInstanceField(instances, "platform_kind")
-	materializedEnvironments := distinctSortedInstanceField(instances, "environment")
-	configEnvironments := StringSliceVal(workloadContext, "observed_config_environments")
-	mappingMode := deploymentMappingMode(platformKinds, deploymentSources)
-	deploymentFacts := buildDeploymentFacts(instances, topologyEdges, provisionedPlatforms, deploymentSources)
-	artifactLineage := buildDeploymentTraceArtifactLineage(
-		controllerEntities,
-		deploymentEvidence,
-		k8sResources,
-		hostnames,
-		apiSurface,
-	)
-	provenanceOverview := buildDeploymentTraceProvenanceOverview(
-		controllerEntities,
-		deploymentSources,
-		deploymentEvidence,
-		artifactLineage,
-	)
-	story := buildWorkloadStory(workloadContext)
-	if provenanceStory := buildDeploymentProvenanceStory(controllerEntities, deploymentSources); provenanceStory != "" {
-		story = appendDeploymentTraceStory(story, provenanceStory)
-	}
-	if workflowStory := buildDeploymentTraceWorkflowProvenanceStory(deploymentEvidence); workflowStory != "" {
-		story = appendDeploymentTraceStory(story, workflowStory)
-	}
-	deploymentOverview := buildServiceDeploymentOverview(workloadContext)
-	deliveryPaths := buildNormalizedDeliveryPaths(
-		deploymentSources,
-		cloudResources,
-		k8sResources,
-		imageRefs,
-		k8sRelationships,
-		deploymentEvidence,
-	)
-	deploymentOverview["deployment_source_count"] = len(deploymentSources)
-	deploymentOverview["cloud_resource_count"] = len(cloudResources)
-	if len(uncorrelatedCloudResources) > 0 {
-		deploymentOverview["uncorrelated_cloud_resource_count"] = len(uncorrelatedCloudResources)
-	}
-	deploymentOverview["k8s_resource_count"] = len(k8sResources)
-	deploymentOverview["image_ref_count"] = len(imageRefs)
-	if len(imageRegistryTruth) > 0 {
-		deploymentOverview["image_registry_match_count"] = len(imageRegistryTruth)
-		deploymentOverview["canonical_image_match_count"] = canonicalOCIImageMatchCount(imageRegistryTruth)
-	}
-	deploymentOverview["platform_kinds"] = platformKinds
-	deploymentOverview["platforms"] = platforms
-	deploymentOverview["environments"] = materializedEnvironments
-	deploymentOverview["materialized_environments"] = materializedEnvironments
-	if len(configEnvironments) > 0 {
-		deploymentOverview["config_environments"] = configEnvironments
-	}
-	if len(provenanceOverview) > 0 {
-		deploymentOverview["provenance_families"] = StringSliceVal(provenanceOverview, "families")
-	}
-	if len(artifactLineage) > 0 {
-		deploymentOverview["artifact_lineage_count"] = len(artifactLineage)
-	}
-	hasLiveEvidence := false
-	if liveEv, ok := workloadContext["_has_live_evidence"].(bool); ok {
-		hasLiveEvidence = liveEv
-	}
-	deploymentFactSummary := buildDeploymentFactSummary(
-		workloadContext,
-		instances,
-		materializedEnvironments,
-		configEnvironments,
-		platforms,
-		deploymentSources,
-		cloudResources,
-		k8sResources,
-		imageRefs,
-		deploymentFacts,
-		mappingMode,
-		hasLiveEvidence,
-	)
-
-	response := map[string]any{
-		"service_name": serviceName,
-		"workload_id":  safeStr(workloadContext, "id"),
-		"name":         safeStr(workloadContext, "name"),
-		"kind":         safeStr(workloadContext, "kind"),
-		"repo_id":      safeStr(workloadContext, "repo_id"),
-		"repo_name":    safeStr(workloadContext, "repo_name"),
-		"subject": map[string]any{
-			"type": "service",
-			"id":   safeStr(workloadContext, "id"),
-			"name": safeStr(workloadContext, "name"),
-		},
-		"instances":               instances,
-		"topology_edges":          topologyEdges,
-		"provisioned_platforms":   provisionedPlatforms,
-		"deployment_sources":      deploymentSources,
-		"cloud_resources":         cloudResources,
-		"k8s_resources":           k8sResources,
-		"image_refs":              imageRefs,
-		"k8s_relationships":       k8sRelationships,
-		"deployment_facts":        deploymentFacts,
-		"controller_driven_paths": buildControllerDrivenPaths(instances),
-		"delivery_paths":          deliveryPaths,
-		"story":                   story,
-		"story_sections":          buildStorySections(platforms, platformKinds, materializedEnvironments),
-		"deployment_overview":     deploymentOverview,
-		"controller_overview":     buildControllerOverview(platforms, platformKinds, controllerEntities, deploymentSources, deploymentEvidence, mapValue(workloadContext, "controller_entity_limits")),
-		"gitops_overview":         buildGitOpsOverview(platforms, platformKinds, deploymentSources, deploymentEvidence, controllerEntities),
-		"runtime_overview":        buildRuntimeOverview(materializedEnvironments),
-		"deployment_fact_summary": deploymentFactSummary,
-		"drilldowns":              buildDeploymentDrilldowns(serviceName, safeStr(workloadContext, "id")),
-	}
-	if runtimeTopologyLimits := mapValue(workloadContext, "runtime_topology_limits"); len(runtimeTopologyLimits) > 0 {
-		response["runtime_topology_limits"] = runtimeTopologyLimits
-	}
-	if deploymentSourceLimits := mapValue(workloadContext, "deployment_source_limits"); len(deploymentSourceLimits) > 0 {
-		response["deployment_source_limits"] = deploymentSourceLimits
-	}
-	if cloudResourceLimits := mapValue(workloadContext, "cloud_resource_limits"); len(cloudResourceLimits) > 0 {
-		response["cloud_resource_limits"] = cloudResourceLimits
-	}
-	if k8sResourceLimits := mapValue(workloadContext, "k8s_resource_limits"); len(k8sResourceLimits) > 0 {
-		response["k8s_resource_limits"] = k8sResourceLimits
-	}
-	if len(uncorrelatedCloudResources) > 0 {
-		response["uncorrelated_cloud_resources"] = uncorrelatedCloudResources
-	}
-	if BoolVal(workloadContext, "uncorrelated_cloud_resources_truncated") {
-		response["uncorrelated_cloud_resources_truncated"] = true
-	}
-	if len(imageRegistryTruth) > 0 {
-		response["image_registry_truth"] = imageRegistryTruth
-	}
-	if len(provenanceOverview) > 0 {
-		response["provenance_overview"] = provenanceOverview
-	}
-	if len(artifactLineage) > 0 {
-		response["artifact_lineage"] = artifactLineage
-	}
-	if len(hostnames) > 0 {
-		response["hostnames"] = hostnames
-	}
-	if len(entrypoints) > 0 {
-		response["entrypoints"] = entrypoints
-	}
-	if len(networkPaths) > 0 {
-		response["network_paths"] = networkPaths
-	}
-	if len(apiSurface) > 0 {
-		response["api_surface"] = apiSurface
-	}
-	if len(dependents) > 0 {
-		response["dependents"] = dependents
-	}
-	if len(consumerRepositories) > 0 {
-		response["consumer_repositories"] = consumerRepositories
-	}
-	if len(provisioningSourceChains) > 0 {
-		response["provisioning_source_chains"] = provisioningSourceChains
-	}
-	if len(documentationOverview) > 0 {
-		response["documentation_overview"] = documentationOverview
-	}
-	if len(supportOverview) > 0 {
-		response["support_overview"] = supportOverview
-	}
-	if len(deploymentEvidence) > 0 {
-		response["deployment_evidence"] = deploymentEvidence
-	}
-
-	return response
 }

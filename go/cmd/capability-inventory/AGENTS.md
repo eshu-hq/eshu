@@ -20,8 +20,15 @@
 
 ## Common changes and how to scope them
 
-- **New mode** → add a case to the `switch` in `run`, document the flag, add a
-  `main_test.go` case. Why: the switch is the only mode dispatch point.
+- **New mode that needs the full reconciled catalog** → add a case to the
+  `switch` in `run`, document the flag, add a `main_test.go` case. Why: the
+  switch is the mode dispatch point for catalog-backed modes.
+- **New mode that does not need the full catalog** (like `budget-proof` and
+  `remote-validation`) → add an early `if *mode == "..."` return in `run`
+  before `BuildFromSpecs` runs, in its own file (`remote_validation_mode.go`
+  is the worked example), with its own test file. Why: `BuildFromSpecs`
+  collects the live MCP registry and is unnecessary work for a mode that only
+  needs `LoadMatrix`.
 - **Additional live signal** (for example API operation ids) → extend
   `mcpSignals` to populate the new `Signals` field; keep collection deterministic.
 
@@ -35,8 +42,9 @@
 
 ## What NOT to change without an ADR
 
-- The `-mode` names (`report`, `generate`, `verify`, `docs`, `product-claims`) —
-  CI and contributor workflows depend on them. `product-claims` is a narrower
-  view of `docs` (product claim ledger guard only, see #4073) and must keep
-  calling the same `checkProductClaims` helper `docs` mode uses so the two
-  modes cannot silently diverge on what a ledger finding is.
+- The `-mode` names (`report`, `generate`, `verify`, `docs`, `product-claims`,
+  `budget-proof`, `remote-validation`) — CI and contributor workflows depend
+  on them. `product-claims` is a narrower view of `docs` (product claim
+  ledger guard only, see #4073) and must keep calling the same
+  `checkProductClaims` helper `docs` mode uses so the two modes cannot
+  silently diverge on what a ledger finding is.

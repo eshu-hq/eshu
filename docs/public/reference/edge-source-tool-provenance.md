@@ -50,7 +50,7 @@ materialized edge type into one of three tiers:
   `EVIDENCES_REPOSITORY_RELATIONSHIP`, …) have no tool concept at all. Their
   lack of a `source_tool` is **intentional**, not a coverage gap.
 
-## The three edge properties (and why `evidence_source` is not the tool)
+## The provenance edge properties (and why `evidence_source` is not the tool)
 
 Every Tier-2 resolver edge carries three distinct provenance properties. They
 are easy to confuse; only the first two encode the tool.
@@ -72,6 +72,44 @@ distinct Terraform evidence kinds all map to six different `evidence_type`
 values, all of which are the tool `terraform`. Normalizing those down to a
 single `source_tool` token is exactly the work of #3999; the mapping below is
 the target.
+
+### #5441: declared-revision properties on the five canonical repo-relationship edges
+
+[#5441](https://github.com/eshu-hq/eshu/issues/5441) added two further
+properties, narrower in scope than the three above: they are allowlisted onto
+only the five canonical repo-to-repo relationship edges (`DEPLOYS_FROM`,
+`DISCOVERS_CONFIG_IN`, `PROVISIONS_DEPENDENCY_FOR`, `USES_MODULE`,
+`READS_CONFIG_FROM`) — not `RUNS_ON`, not `DEPENDS_ON`, and not any Tier-1 or
+Tier-3 edge. They answer "which git revision / which module version is
+declared for env Y" directly from the edge, without a Postgres round trip at
+query time.
+
+| Property | Holds | Set at | Populated for |
+| --- | --- | --- | --- |
+| `source_revision` | The declared git revision (branch/tag/SHA), e.g. an ArgoCD `Application.spec.source.targetRevision` | `evidenceFactSourceRevision`/`aggregateCandidate` (`go/internal/relationships/`), written in `canonical_relationships.go` | `DEPLOYS_FROM` edges from ArgoCD evidence (both the structured and document-level ArgoCD discovery paths) |
+| `first_party_ref_version` | The pinned module/reference version, e.g. the `ref=` query parameter on a `git::https://...?ref=v1.2.3` Terraform module source, or the `@ref` pin on a GitHub Actions `uses:` reference | `evidenceFactFirstPartyRefVersion` (prefers `Details["first_party_ref_version"]` when an evidence family sets it directly — GitHub Actions, ArgoCD — falling back to `ExtractTerraformRefPin` deriving it from `Details["source_ref"]` for Terraform/Terragrunt/Ansible/Dockerfile evidence) | `DEPLOYS_FROM` edges from GitHub Actions reusable-workflow evidence; `USES_MODULE`/`PROVISIONS_DEPENDENCY_FOR` edges from pinned Terraform module sources |
+
+Both are absent-safe: an edge whose evidence carries neither value gets `""`
+(never a Cypher `null`, matching the existing `rationale`/`resolution_source`
+convention — the pinned NornicDB Go module, `github.com/orneryd/nornicdb
+v1.0.45` per `go/go.mod`, stores a `null` RHS as a literal nil-valued
+property instead of removing it (verified in-process against that exact
+module), so `""` is the only value this writer treats uniformly across both
+backends). When multiple evidence facts in one
+candidate disagree, the highest-confidence fact wins (a confidence tie keeps
+whichever fact was discovered first, never Go map order) —
+`evidenceFieldWinner` in `go/internal/relationships/evidence_edge_fields.go`.
+
+**`destination_namespace` was scoped, implemented, and then deliberately
+removed before merge.** Its only evidence producer
+(`appendDestinationPlatformEvidence` in `yaml_iac_evidence.go`) attaches the
+declared Kubernetes namespace to a `RUNS_ON` fact targeting a `Platform`
+entity, never to a fact of one of the five edges above — `RUNS_ON` and
+`DEPLOYS_FROM` land in different resolver candidate buckets even for the same
+ArgoCD Application, so it would have shipped as a permanently-empty property
+on every edge, forever, with no real producer. See
+`docs/internal/evidence/5441-edge-node-properties.md` for the full mechanism
+probe and the cross-candidate join a real fix would need.
 
 ## Canonical `source_tool` vocabulary
 
@@ -95,7 +133,7 @@ addition, never by free-form values.
 | `docker_compose` | `DOCKER_COMPOSE_*` evidence kinds | Tier 2 |
 | `gcp` | `GCP_CLOUD_RELATIONSHIP`; GCP cloud writers | Tier 2 / Tier 1 |
 | `atlantis` | `MANAGES`, `ATLANTIS_DEPENDS_ON`, `USES_WORKFLOW` edge types | Tier 1 |
-| `flux` | `RECONCILES_FROM` edge type | Tier 1 |
+| `flux` | `RECONCILES_FROM` edge type (issue #5483 C1); `FLUX_GIT_REPOSITORY_SOURCE` evidence kind (issue #5483 C2) | Tier 1 / Tier 2 |
 | `gitlab` | `DEFINES_JOB`, `NEEDS` edge types | Tier 1 |
 | `gomod` | `HAS_VERSION`/`DECLARES_DEPENDENCY`/`DEPENDS_ON_PACKAGE` (Go ecosystem) | Tier 1 |
 | `npm` | package-registry edges (npm ecosystem) | Tier 1 |
@@ -131,8 +169,8 @@ same enum across both axes.
 
 ## `EvidenceKind` → `source_tool` mapping
 
-The 33 persisted `EvidenceKind` constants (`go/internal/relationships/models.go:20-91`)
-collapse to 13 tools. This is the family→tool map #3999 implements (distinct
+The 34 persisted `EvidenceKind` constants (`go/internal/relationships/models.go:20-99`)
+collapse to 14 tools. This is the family→tool map #3999 implements (distinct
 from the existing `evidenceKindToType` sub-kind map, which keeps each kind
 separate).
 
@@ -144,6 +182,7 @@ separate).
 | `HELM_CHART_REFERENCE`, `HELM_VALUES_REFERENCE` | `helm` |
 | `KUSTOMIZE_RESOURCE_REFERENCE`, `KUSTOMIZE_HELM_CHART_REFERENCE`, `KUSTOMIZE_IMAGE_REFERENCE` | `kustomize` |
 | `ARGOCD_APPLICATION_SOURCE`, `ARGOCD_APPLICATIONSET_DISCOVERY`, `ARGOCD_APPLICATIONSET_DEPLOY_SOURCE`, `ARGOCD_DESTINATION_PLATFORM` | `argocd` |
+| `FLUX_GIT_REPOSITORY_SOURCE` | `flux` |
 | `GITHUB_ACTIONS_REUSABLE_WORKFLOW`, `GITHUB_ACTIONS_LOCAL_REUSABLE_WORKFLOW`, `GITHUB_ACTIONS_CHECKOUT_REPOSITORY`, `GITHUB_ACTIONS_WORKFLOW_INPUT_REPOSITORY`, `GITHUB_ACTIONS_ACTION_REPOSITORY` | `github_actions` |
 | `JENKINS_SHARED_LIBRARY`, `JENKINS_GITHUB_REPOSITORY` | `jenkins` |
 | `DOCKER_COMPOSE_BUILD_CONTEXT`, `DOCKER_COMPOSE_IMAGE`, `DOCKER_COMPOSE_DEPENDS_ON` | `docker_compose` |
@@ -175,7 +214,7 @@ each by tier; only Tier-1/Tier-2 carry a tool.
 | `MANAGES` | `atlantis` | `storage/cypher/canonical_atlantis_edges.go:23` |
 | `ATLANTIS_DEPENDS_ON` | `atlantis` | `canonical_atlantis_edges.go:35` |
 | `USES_WORKFLOW` | `atlantis` | `canonical_atlantis_edges.go:46` |
-| `RECONCILES_FROM` | `flux` | `storage/cypher/canonical_flux_edges.go:21` (GitRepository), `:32` (OCIRepository), `:43` (Bucket) |
+| `RECONCILES_FROM` | `flux` | `storage/cypher/canonical_flux_edges.go:21` (GitRepository), `:32` (OCIRepository), `:43` (Bucket) -- Kustomization-sourced; `canonical_flux_helm_edges.go` (HelmRepository/GitRepository/OCIRepository/Bucket) -- HelmRelease-sourced, issue #5483 C1 |
 | `DEFINES_JOB` | `gitlab` | `canonical_gitlab_edges.go:22` |
 | `NEEDS` | `gitlab` | `canonical_gitlab_edges.go:34` |
 | `HAS_VERSION` | package ecosystem (`gomod`/`npm`/`pip`/`maven`/`cargo`) | `package_registry_edge_writer.go:25` |
@@ -213,7 +252,7 @@ and written through the canonical relationship upserts
 | Edge type | Tools observed (via evidence kinds) | Emitter |
 | --- | --- | --- |
 | `DEPENDS_ON` | `ansible`, `puppet`, `chef`, `salt`, `docker_compose`, `github_actions`, `jenkins`, `gcp`, … | `canonical.go:78` (repo), `:93` (workload) |
-| `DEPLOYS_FROM` | `helm`, `kustomize`, `argocd`, `docker`, `docker_compose`, `github_actions` | `canonical_relationships.go:37` |
+| `DEPLOYS_FROM` | `helm`, `kustomize`, `argocd`, `docker`, `docker_compose`, `github_actions`, `flux` (cross-repo Flux GitRepository url resolution, issue #5483 C2) | `canonical_relationships.go:37` |
 | `DISCOVERS_CONFIG_IN` | `terragrunt`, `argocd`, `jenkins` | `canonical_relationships.go:56` |
 | `PROVISIONS_DEPENDENCY_FOR` | `terraform`, `terragrunt` | `canonical_relationships.go:75` |
 | `USES_MODULE` | `terraform` (¹ terragrunt) | `canonical_relationships.go:94` |

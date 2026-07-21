@@ -33,7 +33,7 @@ func AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditAndRoutePolicy(
 	audit GovernanceAuditAppender,
 	policy BrowserSessionRoutePolicy,
 ) http.Handler {
-	return authMiddlewareWithRoutePolicy(token, resolver, sessionResolver, next, audit, policy, token != "", nil)
+	return authMiddlewareWithRoutePolicy(token, resolver, sessionResolver, next, audit, policy, token != "", nil, nil)
 }
 
 // AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditRoutePolicyAndEnforcement
@@ -55,7 +55,7 @@ func AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditRoutePolicyAndE
 	policy BrowserSessionRoutePolicy,
 	authEnforcementConfigured bool,
 ) http.Handler {
-	return authMiddlewareWithRoutePolicy(token, resolver, sessionResolver, next, audit, policy, authEnforcementConfigured, nil)
+	return authMiddlewareWithRoutePolicy(token, resolver, sessionResolver, next, audit, policy, authEnforcementConfigured, nil, nil)
 }
 
 func browserSessionRouteAllowed(

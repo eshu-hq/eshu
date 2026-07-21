@@ -4,6 +4,8 @@
 package main
 
 import (
+	"encoding/json"
+	"reflect"
 	"slices"
 	"testing"
 )
@@ -85,5 +87,75 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 	}
 	if got, want := mcpShape.RequiredJSONValues["data.deployment_fact_summary.overall_confidence_reason"], "no_deployment_evidence"; got != want {
 		t.Fatalf("MCP trace_deployment_chain deployment_truth_tier pin = %#v, want %#v", got, want)
+	}
+	for path, want := range map[string]any{
+		"data.repo_id":                             "repository:r_217415d9",
+		"data.workload_id":                         "workload:deployable-config",
+		"data.instances[].instance_id":             "workload-instance:deployable-config:production",
+		"data.instances[].platforms[].platform_id": "platform:kubernetes:none:production:production:none",
+	} {
+		if got := shape.RequiredJSONValues[path]; got != want {
+			t.Fatalf("trace_deployment_chain required_json_values[%q] = %#v, want %#v", path, got, want)
+		}
+	}
+	wantObjectMatches := map[string][]map[string]any{
+		"data.instances[].platforms[].topology_edges[]": {
+			{
+				"relationship_type": "RUNS_ON",
+				"source_id":         "workload-instance:deployable-config:production",
+				"target_id":         "platform:kubernetes:none:production:production:none",
+			},
+		},
+		"data.topology_edges[]": {
+			{
+				"relationship_type": "DEFINES",
+				"source_id":         "repository:r_217415d9",
+				"target_id":         "workload:deployable-config",
+			},
+			{
+				"relationship_type": "INSTANCE_OF",
+				"source_id":         "workload-instance:deployable-config:production",
+				"target_id":         "workload:deployable-config",
+			},
+		},
+		"data.deployment_sources[]": {
+			{
+				"relationship_type": "DEPLOYMENT_SOURCE",
+				"source_id":         "workload-instance:deployable-config:production",
+				"target_id":         "repository:r_1f68383d",
+			},
+		},
+	}
+	if !reflect.DeepEqual(shape.RequiredJSONObjectMatches, wantObjectMatches) {
+		t.Fatalf("trace_deployment_chain object matches = %#v, want %#v", shape.RequiredJSONObjectMatches, wantObjectMatches)
+	}
+}
+
+func TestGoldenSnapshotTraceDeploymentChainRejectsReversedExactEndpoints(t *testing.T) {
+	snapshot, err := LoadSnapshot(goldenSnapshotPath())
+	if err != nil {
+		t.Fatalf("LoadSnapshot() error = %v", err)
+	}
+	shape := snapshot.QueryShapes.HTTP["POST /api/v0/impact/trace-deployment-chain"]
+	response := fakeQueryShapeResponse(shape)
+	raw, err := json.Marshal(response)
+	if err != nil {
+		t.Fatalf("marshal valid fixture response: %v", err)
+	}
+	if finding := EvaluateQueryShape("trace-deployment-chain", shape, raw); !finding.OK {
+		t.Fatalf("valid exact endpoint fixture failed: %s", finding.Detail)
+	}
+
+	data := response["data"].(map[string]any)
+	edges := data["topology_edges"].([]any)
+	first := edges[0].(map[string]any)
+	first["source_id"] = "workload:deployable-config"
+	first["target_id"] = "repository:r_217415d9"
+	mutated, err := json.Marshal(response)
+	if err != nil {
+		t.Fatalf("marshal mutated fixture response: %v", err)
+	}
+	if finding := EvaluateQueryShape("trace-deployment-chain", shape, mutated); finding.OK {
+		t.Fatalf("reversed exact endpoint passed unexpectedly: %s", finding.Detail)
 	}
 }

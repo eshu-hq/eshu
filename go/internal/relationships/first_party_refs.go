@@ -6,6 +6,8 @@ package relationships
 import (
 	"path/filepath"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/ghactionsref"
 )
 
 func withFirstPartyRefDetails(
@@ -98,29 +100,18 @@ func normalizeHelmRefValue(raw string) string {
 	return trimmed
 }
 
+// parseGitHubRefParts splits a GitHub Actions `uses:`/reusable-workflow
+// reference into its repository slug, in-repo path, and @ref (version)
+// components. It delegates to ghactionsref.Parse -- the single ref-splitting
+// implementation issue #5372 introduced so this package's evidence
+// extraction and the query package's read-model re-parsing cannot silently
+// diverge. Behavior-preserving: the delegated logic is byte-identical to the
+// implementation this function used to contain, so every existing Details key
+// this package's callers populate (first_party_ref_path,
+// first_party_ref_version, action_ref_name, workflow_ref_name, ...) is
+// unchanged.
 func parseGitHubRefParts(raw string) (repo string, path string, version string) {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return "", "", ""
-	}
-	if at := strings.Index(trimmed, "@"); at >= 0 {
-		version = strings.TrimSpace(trimmed[at+1:])
-		trimmed = strings.TrimSpace(trimmed[:at])
-	}
-	trimmed = strings.TrimPrefix(trimmed, "./")
-	trimmed = strings.TrimPrefix(trimmed, "/")
-	parts := strings.Split(trimmed, "/")
-	if len(parts) < 2 {
-		return "", trimmed, version
-	}
-	if parts[0] == ".github" {
-		return "", trimmed, version
-	}
-	repo = strings.Join(parts[:2], "/")
-	if len(parts) > 2 {
-		path = strings.Join(parts[2:], "/")
-	}
-	return repo, path, version
+	return ghactionsref.Parse(raw)
 }
 
 func normalizeRepositoryURLName(raw string) string {
@@ -163,6 +154,45 @@ func normalizeAnsibleReference(candidate ansibleRoleCandidate) (kind, name, norm
 		}
 	}
 	return kind, name, normalized
+}
+
+// ExtractTerraformRefPin reads the go-getter style `ref=` query parameter off
+// a raw Terraform/Terragrunt module source string (e.g.
+// "git::https://host/mod.git?ref=v1.2.3" -> "v1.2.3"). It is the counterpart
+// to normalizeTerraformFirstPartyRef that recovers the pin value instead of
+// stripping it; normalizeTerraformFirstPartyRef's behavior is intentionally
+// left untouched (it has pinned consumers) since edges now carry the pin as
+// its own first_party_ref_version property alongside the existing stripped
+// first_party_ref_normalized value. Returns "" when the source has no query
+// string, no ref parameter, or an empty ref value. A trailing URL fragment
+// (everything from the first "#" onward) is stripped from the extracted
+// value: a fragment identifier is never part of the ref itself, so
+// "?ref=v1.2.3#subdir" yields "v1.2.3", not "v1.2.3#subdir" (P2 finding F7).
+// Exported so evidenceFactFirstPartyRefVersion
+// (evidence_edge_fields.go) can derive the first_party_ref_version edge
+// property from EvidenceFact.Details["source_ref"] without duplicating the
+// parsing rule.
+func ExtractTerraformRefPin(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	idx := strings.Index(trimmed, "?")
+	if idx < 0 {
+		return ""
+	}
+	query := trimmed[idx+1:]
+	for _, param := range strings.Split(query, "&") {
+		key, value, ok := strings.Cut(param, "=")
+		if !ok || key != "ref" {
+			continue
+		}
+		if fragmentIdx := strings.Index(value, "#"); fragmentIdx >= 0 {
+			value = value[:fragmentIdx]
+		}
+		return strings.TrimSpace(value)
+	}
+	return ""
 }
 
 func normalizeTerraformFirstPartyRef(raw string) string {

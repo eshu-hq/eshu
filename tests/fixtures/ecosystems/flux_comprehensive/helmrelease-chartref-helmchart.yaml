@@ -1,0 +1,14 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: podinfo-helmchart-ref
+  namespace: flux-system
+spec:
+  interval: 5m
+  # chartRef.kind: HelmChart names the Flux HelmChart custom resource, NOT
+  # Eshu's HelmChart label (which models a Chart.yaml directory). This is a
+  # deliberate honest non-link fixture: fluxHelmChartRefKindToLabel omits
+  # "HelmChart", so no edge is ever produced from this manifest.
+  chartRef:
+    kind: HelmChart
+    name: podinfo

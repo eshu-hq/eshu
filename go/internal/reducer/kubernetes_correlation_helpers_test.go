@@ -70,14 +70,33 @@ func (w *recordingKubernetesCorrelationWriter) WriteKubernetesCorrelations(
 // one workload's redacted image references and selector, the live workload
 // substrate the correlation index reads.
 func podTemplateFact(factID, name, uid string, imageRefs []string, selector map[string]string, tombstone bool) facts.Envelope {
+	return podTemplateFactWithResolvedDigests(factID, name, uid, imageRefs, selector, tombstone, nil)
+}
+
+// podTemplateFactWithResolvedDigests builds a pod_template fact with optional
+// CRI-resolved image digests keyed by the container's declared image ref.
+// A nil or empty resolved map emits no resolved_image_digest field (backward-
+// compatible fixture for pre-CRI-digest behavior). A non-empty entry sets
+// resolved_image_digest on the container carrying that image ref.
+func podTemplateFactWithResolvedDigests(
+	factID, name, uid string,
+	imageRefs []string,
+	selector map[string]string,
+	tombstone bool,
+	resolved map[string]string,
+) facts.Envelope {
 	objectID := "k8s://" + testK8sCluster + "/apps/v1/deployments/" + testK8sNamespace + "/" + name
 	containers := make([]any, 0, len(imageRefs))
 	for i, ref := range imageRefs {
-		containers = append(containers, map[string]any{
+		container := map[string]any{
 			"name":  name + "-c" + string(rune('0'+i)),
 			"image": ref,
 			"init":  false,
-		})
+		}
+		if d, ok := resolved[ref]; ok && d != "" {
+			container["resolved_image_digest"] = d
+		}
+		containers = append(containers, container)
 	}
 	sel := make(map[string]any, len(selector))
 	for k, v := range selector {

@@ -15,6 +15,7 @@
   },
   "jobs_partial": true,
   "jobs": [],
+  "artifacts_partial": true,
   "artifacts": [
     {
       "id": 8001,

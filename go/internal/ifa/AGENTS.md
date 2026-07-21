@@ -16,6 +16,12 @@
    wholesale.
 9. `go/internal/synth/gcp/AGENTS.md` - the synthetic GCP corpus generator
    `demoOrgRoundtripOdu` depends on.
+10. `materialized_edges.go`, `materialized_edges_manifest.go`,
+    `materialized_edges_sql.go` (#5351) - the `materialized_edges:<domain>`
+    exhaustiveness gate: binds an Odù expectation to a reducer-materialized
+    graph edge family so a materialization silently ceasing to produce an
+    edge family is caught. `sql_relationship_odu.go` is the first family's
+    fixture.
 
 ## Invariants
 
@@ -68,6 +74,42 @@
   including `FailureClass`. Do not narrow it to `WorkItemID`-only equality —
   the ADR's step 3a teeth test requires catching a divergent `failure_class`
   on an otherwise-matching work item.
+- `reducer.MaterializedEdgeFamilies()` is the ONLY enumeration source for
+  `materialized_edges:<domain>` surfaces. Do not hand-list families in
+  `materialized_edges.go` or the manifest; a family must come from that
+  function (locked to `allProjectionDomains` by a reducer-package test).
+- A `materialized_edges:<family>` coverage row is not exhaustively covered
+  until BOTH its `baseline` (proof_gate `ifa-determinism`) and `fault`
+  (proof_gate `ifa-fault-injection`) scenario_type rows resolve covered.
+  `materializedEdgeScenarioRequirements` computes this requirement directly
+  from `reducer.MaterializedEdgeFamilies()` in code; do not add a
+  `scenario_requirements:` section to
+  `specs/ifa-materialized-edge-coverage.v1.yaml` — it would be ignored (the
+  loaded value is always overwritten before `Reconcile` runs) and would mislead
+  a reviewer into thinking the file controls the requirement.
+- An uncovered `(surface, proof_gate)` row MUST be either bound to a real
+  coverage row or listed in the manifest's `waivers:` section with a tracked
+  issue; a row in neither fails the blocking gate. Waivers are keyed per
+  `(surface, proof_gate)` (each waiver row carries a `proof_gate:` — one of
+  `ifa-determinism` / `ifa-fault-injection`), so a per-family waiver with no
+  `proof_gate` is too coarse and fails to load. Waiving the `fault` gate does
+  NOT green the `baseline` row and vice versa — this is how `sql_relationships`
+  keeps a proven baseline while its confirmed-false fault (#5555) is waived. A
+  waiver on a `(surface, proof_gate)` that later gains real coverage is flagged
+  as stale — remove the `waivers:` row in the same change that adds the
+  coverage row.
+- The manifest is a CLAIMS LEDGER, not a roadmap: absence of a
+  `(surface × proof_gate)` row means NOT CLAIMED / not covered, never inferred
+  covered. Do NOT add a permanently-waived row for a dimension you cannot prove
+  live (e.g. SQL delta-live, blocked on the reducer refresh-fence bug #5554) —
+  leave it unclaimed and record the gap in the manifest's roadmap block, so the
+  ledger never claims coverage it does not have.
+- Before trusting a new family's expected-edge-set fixture against a live
+  backend, read `README.md`'s Gotchas note on the #5351 live-proof finding: a
+  `content_entity` fact whose `relative_path` has no matching `file` fact
+  produces zero graph nodes silently, and a `Function`/`Class`/other
+  `canonicalNamePathLineEntityLabels` endpoint's real graph uid is a derived
+  hash, not the fact's own `entity_id`.
 
 ## Drop an Odù
 

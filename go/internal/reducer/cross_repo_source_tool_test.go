@@ -53,6 +53,7 @@ func TestSourceToolForEvidenceKind(t *testing.T) {
 		{relationships.EvidenceKindKustomizeResource, "kustomize"},
 		{relationships.EvidenceKindKustomizeImage, "kustomize"},
 		{relationships.EvidenceKindArgoCDAppSource, "argocd"},
+		{relationships.EvidenceKindFluxGitRepositorySource, "flux"},
 		{relationships.EvidenceKindGitHubActionsReusableWorkflow, "github_actions"},
 		{relationships.EvidenceKindJenkinsGitHubRepository, "jenkins"},
 		{relationships.EvidenceKindDockerComposeImage, "docker_compose"},

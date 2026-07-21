@@ -22,7 +22,6 @@ import { CollectorReadinessPage } from "./pages/CollectorReadinessPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DeadCodePage } from "./pages/DeadCodePage";
 import { DependenciesPage } from "./pages/DependenciesPage";
-import { ExplorerPage } from "./pages/ExplorerPage";
 import { ExposurePathPage } from "./pages/ExposurePathPage";
 import { FindingsPage } from "./pages/FindingsPage";
 import { FreshnessCausalityPage } from "./pages/FreshnessCausalityPage";
@@ -70,6 +69,12 @@ const GuidedQuestionsPage = lazy(() =>
 
 const CodeGraphPage = lazy(() =>
   import("./pages/CodeGraphPage").then((module) => ({ default: module.CodeGraphPage })),
+);
+
+// Graph Explorer owns its deployment-story mapper and inspector. Keep that
+// route-specific graph surface out of the eager console shell.
+const ExplorerPage = lazy(() =>
+  import("./pages/ExplorerPage").then((module) => ({ default: module.ExplorerPage })),
 );
 
 // VulnerabilitiesPage owns the advisory catalog, its bounded filter client,
@@ -211,7 +216,18 @@ export function AppRoutes({
       />
       <Route
         path={APP_ROUTE_PATHS.explorer}
-        element={<ExplorerPage model={model} client={client} onOpenService={onOpenService} />}
+        element={
+          <Suspense
+            fallback={
+              <section className="page-shell">
+                <h1>Loading Graph Explorer</h1>
+                <p>Loading graph evidence.</p>
+              </section>
+            }
+          >
+            <ExplorerPage model={model} client={client} onOpenService={onOpenService} />
+          </Suspense>
+        }
       />
       <Route
         path={APP_ROUTE_PATHS.relationships}

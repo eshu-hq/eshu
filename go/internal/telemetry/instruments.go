@@ -1072,6 +1072,23 @@ type Instruments struct {
 	// field; the field exists so the metric is registered and tracked by the
 	// telemetry-coverage contract.
 	MCPTransportAuthDenied metric.Int64Counter
+	// GovernanceAuditAllowedEmitted, GovernanceAuditAllowedDropped, and
+	// GovernanceAuditAllowedPersistFailures are the F-9 (#5170) allowed-read
+	// governance-audit drop-observability triad. The mcp-server transport auth
+	// middleware's resolver-success branch (go/internal/query/auth.go) emits an
+	// allowed read_authorization event for every scoped-token/OIDC-bearer MCP
+	// read through a governanceauditasync.AsyncAppender so the emission never
+	// couples request latency to a Postgres round trip; that appender's worker
+	// (go/internal/governanceauditasync/appender.go) records to these three
+	// counters, not through this struct's fields directly — they are declared
+	// here so the metrics are registered on the mcp-server provider and tracked
+	// by the telemetry-coverage contract. Emitted counts events accepted into
+	// the bounded buffer; Dropped (the 3am signal) counts events rejected
+	// because the buffer was full or the appender was closed; PersistFailures
+	// counts events accepted but that a durable-store Append call failed.
+	GovernanceAuditAllowedEmitted         metric.Int64Counter
+	GovernanceAuditAllowedDropped         metric.Int64Counter
+	GovernanceAuditAllowedPersistFailures metric.Int64Counter
 	// AuthSecretSealTotal and AuthSecretOpenTotal count go/internal/secretcrypto
 	// Keyring.Seal/Open calls made by identity bootstrap-credential seeding
 	// (epic #4962/#4963) and, later, provider-secret write/read (#4966), by
@@ -1261,6 +1278,14 @@ type Instruments struct {
 	// failed to commit, leaving the generation un-published so no stranded
 	// denormalized edges are stranded at the source.
 	CrossRepoActivationFenced metric.Int64Counter
+
+	// FluxCrossRepoURLResolution counts every Flux GitRepository spec.url
+	// discoverStructuredFluxEvidence considered during evidence discovery
+	// (go/internal/storage/postgres/ingestion.go), labeled by outcome (linked,
+	// unresolved, ambiguous, self; issue #5483 C2). An operator reads a
+	// sustained unresolved/ambiguous rate as a signal that cross-repo Flux
+	// lineage is under-linking, without inspecting graph state directly.
+	FluxCrossRepoURLResolution metric.Int64Counter
 
 	// RepoDependencyGateDecisions counts per-key gate decisions emitted from
 	// GateAcceptedGenerationOnActive, labeled by the bounded decision enum
@@ -3776,6 +3801,30 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register MCPTransportAuthDenied counter: %w", err)
 	}
 
+	inst.GovernanceAuditAllowedEmitted, err = meter.Int64Counter(
+		"eshu_dp_governance_audit_allowed_emitted_total",
+		metric.WithDescription("F-9 (#5170) allowed-read governance-audit events accepted into the async appender's bounded buffer"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GovernanceAuditAllowedEmitted counter: %w", err)
+	}
+
+	inst.GovernanceAuditAllowedDropped, err = meter.Int64Counter(
+		"eshu_dp_governance_audit_allowed_dropped_total",
+		metric.WithDescription("F-9 (#5170) allowed-read governance-audit events dropped because the async appender's buffer was full or the appender was closed; non-zero means governance data loss is happening"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GovernanceAuditAllowedDropped counter: %w", err)
+	}
+
+	inst.GovernanceAuditAllowedPersistFailures, err = meter.Int64Counter(
+		"eshu_dp_governance_audit_allowed_persist_failures_total",
+		metric.WithDescription("F-9 (#5170) allowed-read governance-audit events accepted into the async appender's buffer but that a durable-store Append call failed to persist"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GovernanceAuditAllowedPersistFailures counter: %w", err)
+	}
+
 	inst.AuthSecretSealTotal, err = meter.Int64Counter(
 		"eshu_dp_auth_secret_seal_total",
 		metric.WithDescription("go/internal/secretcrypto Keyring.Seal calls by operation and result (success, error). Never carries plaintext, ciphertext, or key material."),
@@ -4440,6 +4489,16 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CrossRepoActivationFenced counter: %w", err)
+	}
+
+	inst.FluxCrossRepoURLResolution, err = meter.Int64Counter(
+		"eshu_dp_flux_cross_repo_url_resolution_total",
+		metric.WithDescription(
+			"Total Flux GitRepository spec.url cross-repo resolution attempts by outcome (linked, unresolved, ambiguous, self)",
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register FluxCrossRepoURLResolution counter: %w", err)
 	}
 
 	inst.RepoDependencyGateDecisions, err = meter.Int64Counter(

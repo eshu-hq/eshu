@@ -1,0 +1,21 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: podinfo-invalid-both-refs
+  namespace: flux-system
+spec:
+  interval: 5m
+  # Invalid per the Flux HelmRelease API (exactly one of chart/chartRef must
+  # be set), but the parser is honest capture only -- it captures both sets
+  # of fields verbatim. The edge resolver treats this as a non-link.
+  chart:
+    spec:
+      chart: podinfo
+      sourceRef:
+        kind: HelmRepository
+        name: podinfo
+        namespace: flux-system
+  chartRef:
+    kind: OCIRepository
+    name: podinfo-oci
+    namespace: flux-system

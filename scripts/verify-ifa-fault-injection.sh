@@ -122,6 +122,18 @@ compose_file="docker-compose.yaml"
 cassette="${repo_root}/testdata/cassettes/gcpcloud/supply-chain-demo.json"
 drive_workers=4
 
+# SQL relationship family cassette (#5351): driven into every cell alongside
+# the demo-org + synth-multiscope cassettes, so cells 2/3 (lease-expiry / kill-
+# worker) exercise the SQL relationship materialization handler's replay
+# through the REAL durable fault path, and the fault-free baseline's own graph
+# is asserted to carry exactly the seven expected SQL edges (the non-vacuity
+# check backing the materialized_edges:sql_relationships manifest row's
+# proof_gate: ifa-fault-injection claim). Every cell's post-recovery graph is
+# then compared byte-identical to that baseline, so a fault that silently
+# dropped a SQL edge on recovery diverges the digest and fails.
+sql_cassette="${repo_root}/testdata/cassettes/sqlrelationships/ifa-sql-family.json"
+sql_expected_edges="${repo_root}/go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
+
 : "${SYNTH_MULTISCOPE_SEED:=4580}"
 : "${SYNTH_MULTISCOPE_PROJECTS:=8}"
 : "${SYNTH_MULTISCOPE_RESOURCES:=64}"
@@ -150,6 +162,8 @@ for arg in "$@"; do
 done
 
 [[ -f "${cassette}" ]] || { echo "verify-ifa-fault-injection: cassette not found: ${cassette}" >&2; exit 1; }
+[[ -f "${sql_cassette}" ]] || { echo "verify-ifa-fault-injection: SQL cassette not found: ${sql_cassette}" >&2; exit 1; }
+[[ -f "${sql_expected_edges}" ]] || { echo "verify-ifa-fault-injection: SQL expected-edge set not found: ${sql_expected_edges}" >&2; exit 1; }
 
 work_dir="$(mktemp -d -t ifa-fault-injection.XXXXXX)"
 bin_dir="${work_dir}/bin"
@@ -246,10 +260,12 @@ fresh_stack() {
 		|| { tail -40 "${log_dir}/bootstrap-data-plane-${cell}.log"; die "${cell}: bootstrap-data-plane failed"; }
 }
 
-# drive_both_cassettes drives the demo-org + synth-multiscope cassettes into
-# the fresh stack and asserts the drive actually enqueued work (never a
-# vacuous drain proof).
-drive_both_cassettes() {
+# drive_all_cassettes drives the demo-org + synth-multiscope + SQL relationship
+# family cassettes into the fresh stack and asserts the drive actually enqueued
+# work (never a vacuous drain proof). The SQL family cassette (#5351) makes
+# cells 2/3 exercise the SQL relationship materialization handler's replay
+# through the real durable fault path, not only the GCP resource path.
+drive_all_cassettes() {
 	local cell="$1"
 	log "${cell}: drive demo-org cassette (-workers ${drive_workers})"
 	"${bin_dir}/eshu-ifa" drive -cassette "${cassette}" -workers "${drive_workers}" \
@@ -259,6 +275,10 @@ drive_both_cassettes() {
 	"${bin_dir}/eshu-ifa" drive -cassette "${synth_cassette}" -workers "${drive_workers}" \
 		>"${log_dir}/ifa-drive-synth-${cell}.log" 2>&1 \
 		|| { tail -40 "${log_dir}/ifa-drive-synth-${cell}.log" >&2; die "${cell}: eshu-ifa drive (synth-multiscope) failed"; }
+	log "${cell}: drive SQL relationship family cassette (-workers ${drive_workers})"
+	"${bin_dir}/eshu-ifa" drive -cassette "${sql_cassette}" -workers "${drive_workers}" \
+		>"${log_dir}/ifa-drive-sql-${cell}.log" 2>&1 \
+		|| { tail -40 "${log_dir}/ifa-drive-sql-${cell}.log" >&2; die "${cell}: eshu-ifa drive (SQL relationship family) failed"; }
 	local enqueued
 	enqueued="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
 		'SELECT count(*) FROM fact_work_items;' "${compose_file}" | tr -d '[:space:]')"
@@ -338,12 +358,26 @@ cell_start=$(date +%s)
 # --- Cell 1: baseline (fault-free) ------------------------------------------
 log "cell baseline: fresh stack"
 fresh_stack baseline
-drive_both_cassettes baseline
+drive_all_cassettes baseline
 ifa_det_start_bg "${log_dir}" "projector-baseline" projector_pid "${bin_dir}/eshu-projector"
 ifa_det_start_bg "${log_dir}" "reducer-baseline" reducer_pid "${bin_dir}/eshu-reducer"
 run_drain_gate baseline
 assert_no_dead_letters baseline
 capture_digest baseline
+# Non-vacuity assertion for the SQL relationship family (#5351): the fault-free
+# baseline graph must carry EXACTLY the seven expected SQL edges. This is what
+# gives the per-cell "identical to baseline" digest comparison teeth for this
+# family — if the SQL family materialized zero edges, the baseline digest and
+# every recovery-cell digest would still match (empty == empty) and pass
+# vacuously; asserting the absolute set here proves the baseline is non-empty,
+# so a fault that drops a SQL edge on recovery then diverges from a KNOWN-good
+# baseline. Backs the materialized_edges:sql_relationships manifest row's
+# proof_gate: ifa-fault-injection claim.
+log "baseline: assert SQL relationship family materialized edges (absolute set, non-vacuity)"
+"${bin_dir}/eshu-ifa" assert-edges \
+	-domain sql_relationships \
+	-expected "${sql_expected_edges}" \
+	|| die "baseline: SQL relationship family materialized edge set did not match the expected set (fault-free baseline must materialize all seven SQL edges before the recovery cells compare against it)"
 # Snapshot the fault-free retry count so cell 4 can prove the injected fault
 # ADDED a retry this identical drive did not produce on its own (guards the
 # non-vacuity check against a natural counting-class retry greening it while the
@@ -359,7 +393,7 @@ printf 'baseline: cell wall time: %ss\n' "${wall_times[baseline]}"
 cell_start=$(date +%s)
 log "cell kill-worker-after-claim: fresh stack"
 fresh_stack killworker
-drive_both_cassettes killworker
+drive_all_cassettes killworker
 ifa_det_start_bg "${log_dir}" "projector-killworker" projector_pid "${bin_dir}/eshu-projector"
 ifa_det_start_bg "${log_dir}" "reducer-killworker-before" reducer_pid_before "${bin_dir}/eshu-reducer"
 claimed_before="$(ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${CLAIMED_ROW_WAIT_TIMEOUT}")" \
@@ -381,7 +415,7 @@ printf 'kill-worker-after-claim: cell wall time: %ss\n' "${wall_times[killworker
 cell_start=$(date +%s)
 log "cell expire-lease-mid-handler: fresh stack"
 fresh_stack expirelease
-drive_both_cassettes expirelease
+drive_all_cassettes expirelease
 ifa_det_start_bg "${log_dir}" "projector-expirelease" projector_pid "${bin_dir}/eshu-projector"
 ifa_det_start_bg "${log_dir}" "reducer-expirelease" reducer_pid "${bin_dir}/eshu-reducer"
 claimed_before="$(ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${CLAIMED_ROW_WAIT_TIMEOUT}")" \
@@ -403,7 +437,7 @@ printf 'expire-lease-mid-handler: cell wall time: %ss\n' "${wall_times[expirelea
 cell_start=$(date +%s)
 log "cell fail-graph-write-once-then-succeed: fresh stack"
 fresh_stack failgraphwrite
-drive_both_cassettes failgraphwrite
+drive_all_cassettes failgraphwrite
 fault_once_script="${work_dir}/fault-once-then-succeed.json"
 ifa_fault_write_once_script "${fault_once_script}" "${cloud_resource_operation_match}" "queue-retry"
 ifa_det_start_bg "${log_dir}" "projector-failgraphwrite" projector_pid "${bin_dir}/eshu-projector"
@@ -427,7 +461,7 @@ else
 	cell_start=$(date +%s)
 	log "cell restart-backend-between-phase-groups: fresh stack"
 	fresh_stack restartbackend
-	drive_both_cassettes restartbackend
+	drive_all_cassettes restartbackend
 	fault_restart_script="${work_dir}/fault-restart-backend.json"
 	ifa_fault_write_restart_script "${fault_restart_script}" 1
 	restart_sentinel="${fault_restart_script}.restart-sentinel"

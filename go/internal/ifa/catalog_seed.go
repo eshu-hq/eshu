@@ -23,6 +23,19 @@ const repositoryFactKind = "repository"
 // registered one, so Ifá seeds it as a plain string literal too.
 const contentFactKind = "content"
 
+// contentEntityFactKind and fileFactKind are the raw fact-kind literals the
+// git collector emits for a parsed entity and a parsed file
+// (go/internal/collector/git_content_fact_envelopes.go, git_fact_builder.go).
+// Neither carries a registry payload schema (content_entity is absent from
+// specs/fact-kind-registry.v1.yaml entirely, matching
+// go/internal/reducer/fact_kind_loader.go's factKindContentEntity/
+// factKindFile), so Ifá seeds them as plain string literals, mirroring
+// repositoryFactKind/contentFactKind above.
+const (
+	contentEntityFactKind = "content_entity"
+	fileFactKind          = "file"
+)
+
 // catalogSeed is the P1 seed set of cataloged Odùs. Every entry here is
 // genuinely green: it either satisfies a payload schema (fact_kind:*) or
 // produces graph evidence relationships.DiscoverEvidence resolves against a
@@ -35,6 +48,8 @@ var catalogSeed = []CatalogOdu{
 	awsPackOdu(),
 	demoOrgRoundtripOdu(),
 	repoDependencyConcurrencyOdu(),
+	sqlFamilyOdu(),
+	sqlFamilyDeltaOdu(),
 }
 
 // awsFamilySchemaBackedKinds are the representative aws_* fact kinds

@@ -13,6 +13,7 @@ var Canonical = []string{
 	"helm",
 	"kustomize",
 	"argocd",
+	"flux",
 	"ansible",
 	"puppet",
 	"chef",

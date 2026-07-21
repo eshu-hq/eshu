@@ -1,4 +1,5 @@
 import { boundedCollectionGraphAccounting } from "./impactBoundedCollectionLimits";
+import { cloudResourceGraphAccounting } from "./impactCloudResourceLimits";
 import { requiredTopologyRelationshipLimitations } from "./impactDeploymentCompleteness";
 import { boundedGraph } from "./impactGraphSelection";
 import type {
@@ -167,16 +168,22 @@ export function deploymentTraceGraph(
     );
   } else if (trace.deploymentSourceLimits.truncated) {
     const upstreamOmittedEdges = Math.max(
-      1,
+      0,
       trace.deploymentSourceLimits.observedCount - trace.deploymentSourceLimits.returnedCount,
     );
     identityOmittedEdges += upstreamOmittedEdges;
-    const quantity = trace.deploymentSourceLimits.observedCountIsLowerBound
-      ? `at least ${upstreamOmittedEdges}`
-      : String(upstreamOmittedEdges);
-    limitations.add(
-      `deployment-source input truncated upstream; ${quantity} ${upstreamOmittedEdges === 1 ? "relationship was" : "relationships were"} not returned`,
-    );
+    if (trace.deploymentSourceLimits.observedCountIsLowerBound && upstreamOmittedEdges === 0) {
+      limitations.add(
+        "deployment-source input truncated upstream; additional relationships may exist, but their count is unknown",
+      );
+    } else {
+      const quantity = trace.deploymentSourceLimits.observedCountIsLowerBound
+        ? `at least ${upstreamOmittedEdges}`
+        : String(upstreamOmittedEdges);
+      limitations.add(
+        `deployment-source input truncated upstream; ${quantity} ${upstreamOmittedEdges === 1 ? "relationship was" : "relationships were"} not returned`,
+      );
+    }
   }
   const invalidTopologyEdgeCount = trace.invalidTopologyEdgeCount ?? 0;
   if (invalidTopologyEdgeCount > 0) {
@@ -192,7 +199,7 @@ export function deploymentTraceGraph(
   identityOmittedEdges += runtimeAccounting.omittedEdges;
   for (const limitation of runtimeAccounting.limitations) limitations.add(limitation);
 
-  const cloudResourceAccounting = boundedCollectionGraphAccounting(trace.cloudResourceLimits, {
+  const cloudResourceAccounting = cloudResourceGraphAccounting(trace.cloudResourceLimits, {
     edgeMultiplier: 0,
     family: "cloud-resource",
     familyPlural: "cloud resources",
@@ -203,7 +210,7 @@ export function deploymentTraceGraph(
   });
   const k8sResourceAccounting = boundedCollectionGraphAccounting(trace.k8sResourceLimits, {
     edgeMultiplier: 0,
-    family: "Kubernetes-resource",
+    family: "Kubernetes resource",
     familyPlural: "Kubernetes resources",
     item: "resource",
     missingMetadataLimitation:

@@ -60,3 +60,26 @@ graph:
       minimum_count: 2
       required_node_properties:
         - language
+  # Bounded self-loop assertion — the self-loop-axis twin of the in-repo gate's
+  # required_self_loops (which pins the dart (Function {language})-[:CALLS]->
+  # (self) recursion count). Unlike a correlation (a floor only), a self-loop
+  # count is bounded on BOTH sides: a floor alone cannot tell "genuine recursion
+  # survives" apart from "a declaration-vs-call-site bug (eshu-hq/eshu#5332)
+  # reintroduced a spurious self-loop per declaration" — both inflate the SAME
+  # count. Scope by a node property (here File.language, the starter schema's
+  # real language-bearing property) so one language's self-loop count is not
+  # conflated with another's, mirroring the live gate's language scoping. The
+  # starter hello-eshu corpus emits no code-call self-loops, so the honest bound
+  # is [0,0]: the offline driver computes the real observed count (0) and this
+  # asserts it, and a spurious (File {language})-[:CALLS]->(self) loop would push
+  # the count past the max=0 ceiling and fail the gate. A collector whose real
+  # graph has genuine recursion widens the bound accordingly.
+  required_self_loops:
+    - id: rsl-go-no-self-call
+      description: no go file has a spurious self-call self-loop in the starter corpus
+      label: File
+      relationship: CALLS
+      node_property: language
+      node_property_value: go
+      minimum_count: 0
+      maximum_count: 0

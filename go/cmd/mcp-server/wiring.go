@@ -14,6 +14,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.opentelemetry.io/otel"
 
+	"github.com/eshu-hq/eshu/go/internal/governanceauditasync"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scopedtoken"
@@ -191,6 +192,24 @@ func wireAPI(
 		semanticProviderProfiles...,
 	)
 	governanceAudit := pgstatus.NewGovernanceAuditStore(pgstatus.SQLDB{DB: db})
+	// allowedReadAudit is the F-9 (#5170) allowed-read governance-audit sink:
+	// a bounded, non-blocking async appender over the SAME durable
+	// governanceAudit store the denial paths already use synchronously. It
+	// is wired ONLY into mcpAuthWiring.transportAuth below (never into
+	// authedHandler's /api/v0/* middleware), so a scoped-token or
+	// OIDC-bearer MCP transport read gets exactly one allowed-read audit
+	// event, and Close()d from cleanup before db.Close() so shutdown does
+	// not lose the buffered tail. See go/internal/governanceauditasync for
+	// the non-blocking design and go/internal/query/auth_audit.go's
+	// recordScopedReadAuthorized for the emission point.
+	allowedReadAudit := governanceauditasync.NewAsyncAppender(
+		governanceAudit,
+		governanceauditasync.Metrics{
+			Emitted:         instruments.GovernanceAuditAllowedEmitted,
+			Dropped:         instruments.GovernanceAuditAllowedDropped,
+			PersistFailures: instruments.GovernanceAuditAllowedPersistFailures,
+		},
+	)
 
 	componentHome := strings.TrimSpace(getenv("ESHU_COMPONENT_HOME"))
 	componentPolicy := componentPolicyFromEnv(getenv)
@@ -237,7 +256,12 @@ func wireAPI(
 	// with auth middleware (shared token + optional scoped-token registry;
 	// protects all /api/v0/* routes when mounted by MCP server)
 	instrumentedMux := query.RequestMetricsMiddleware(mux)
-	authedHandler := buildTransportAuthMiddleware(apiKey, scopedTokenResolver, governanceAudit, authSourceConfigured, oauthChallengePolicy)(instrumentedMux)
+	// authedHandler does NOT get allowedReadAudit: it is the /api/v0/* HTTP
+	// API surface, out of F-9's MCP-transport-only scope (design addendum
+	// §2/§6), and tools/call dispatches internally through the same
+	// credential chain as the transport middleware below, so wiring it here
+	// too would double-emit one logical MCP read.
+	authedHandler := buildTransportAuthMiddleware(apiKey, scopedTokenResolver, governanceAudit, authSourceConfigured, oauthChallengePolicy, nil)(instrumentedMux)
 
 	adminMux, err := mountRuntimeSurface("mcp-server", statusReader, prometheusHandler, db, driver)
 	if err != nil {
@@ -258,6 +282,10 @@ func wireAPI(
 	}
 
 	cleanup := func() {
+		// Close allowedReadAudit BEFORE db.Close(): its worker's final
+		// shutdown flush still needs a live connection, and Close() is
+		// bounded (default 5s) so a stuck sink cannot hang shutdown.
+		_ = allowedReadAudit.Close()
 		_ = db.Close()
 		if driver != nil {
 			_ = driver.Close(context.Background())
@@ -273,7 +301,7 @@ func wireAPI(
 	// initialize/tools/list/ping/SSE-establishment request instead of serving
 	// it open.
 	authWiring := mcpAuthWiring{
-		transportAuth:              buildTransportAuthMiddleware(apiKey, scopedTokenResolver, governanceAudit, authSourceConfigured, oauthChallengePolicy),
+		transportAuth:              buildTransportAuthMiddleware(apiKey, scopedTokenResolver, governanceAudit, authSourceConfigured, oauthChallengePolicy, allowedReadAudit),
 		credentialSourceConfigured: authSourceConfigured,
 	}
 
@@ -286,16 +314,23 @@ func wireAPI(
 // tests can exercise the SAME production composition wireAPI uses without
 // standing up a real Postgres connection (see
 // cmd/mcp-server/auth_enforcement_wiring_test.go).
+//
+// allowedAudit is the F-9 (#5170) allowed-read governance-audit sink. wireAPI
+// passes nil for authedHandler and a real governanceauditasync.AsyncAppender
+// only for mcpAuthWiring.transportAuth, so only the MCP transport emits
+// allowed-read events (see wiring.go's two call sites for the rationale). A
+// nil allowedAudit is a safe no-op, byte-identical to before F-9.
 func buildTransportAuthMiddleware(
 	apiKey string,
 	scopedTokenResolver query.ScopedTokenResolver,
 	governanceAudit query.GovernanceAuditAppender,
 	authSourceConfigured bool,
 	oauthChallenge query.OAuthChallengePolicy,
+	allowedAudit query.GovernanceAuditAppender,
 ) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		return query.AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementAndOAuthChallenge(
-			apiKey, scopedTokenResolver, next, governanceAudit, authSourceConfigured, oauthChallenge,
+		return query.AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementOAuthChallengeAndAllowedReadAudit(
+			apiKey, scopedTokenResolver, next, governanceAudit, authSourceConfigured, oauthChallenge, allowedAudit,
 		)
 	}
 }

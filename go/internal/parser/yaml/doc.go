@@ -7,7 +7,11 @@
 // Parse reads one YAML source file and emits the payload buckets consumed by
 // the parent parser and content materializer: Kubernetes resources, Argo CD
 // applications, Crossplane resources, Kustomize overlays, Helm chart metadata,
-// Helm values metadata, Pub dependency rows, CloudFormation/SAM template rows,
+// Helm values metadata, image override rows (image_overrides, one row per
+// Helm values image: block or Kustomize images[] entry that declares a
+// version override, carrying the tag/digest identity the Helm and Kustomize
+// buckets themselves discard, plus a conservatively inferred deployment
+// environment), Pub dependency rows, CloudFormation/SAM template rows,
 // and Atlantis repo-level project rows (one AtlantisProject row per project in
 // atlantis.yaml, dispatched by filename since the config carries no
 // apiVersion/kind). Flux CD Kustomization custom resources
@@ -17,10 +21,17 @@
 // reconciles against (source.toolkit.fluxcd.io/*: GitRepository,
 // OCIRepository, Bucket) are captured into flux_git_repositories,
 // flux_oci_repositories, and flux_buckets buckets (url, ref, and bucket
-// coordinates). All four Flux buckets are registered content entities
-// reachable through get_entity_context; the RECONCILES_FROM correlation edge
-// from a FluxKustomization to its source CR is not materialized by this
-// package (issue #5360 PR A; see docs/public/languages/flux.md).
+// coordinates). Flux HelmRelease custom resources
+// (helm.toolkit.fluxcd.io/*, kind HelmRelease) are captured into a
+// flux_helm_releases bucket (chart/chart_version/source_ref_* from
+// spec.chart.spec, or chart_ref_* from spec.chartRef, plus targetNamespace),
+// and Flux HelmRepository custom resources
+// (source.toolkit.fluxcd.io/*, kind HelmRepository) are captured into a
+// flux_helm_repositories bucket (url, repo_type). All six Flux buckets are
+// registered content entities reachable through get_entity_context; the
+// RECONCILES_FROM correlation edge from a FluxKustomization/FluxHelmRelease
+// to its source CR is not materialized by this package (issue #5360 PR A,
+// issue #5483 C1; see docs/public/languages/flux.md).
 // GitLab CI pipelines are likewise dispatched by filename:
 // one GitlabPipeline row per .gitlab-ci.yml plus one GitlabJob row per top-level
 // job (hidden/template jobs and reserved global keywords excluded). DecodeDocuments and SanitizeTemplating remain available for parent

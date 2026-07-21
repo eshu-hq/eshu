@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 413/413 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 415/415 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -19,9 +19,9 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Projections (cost/ordering) | 27 | 27 | 100.00% | 0 | 1 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
 | Retractable edge types (delta) | 56 | 56 | 100.00% | 0 | 0 |
-| Retractable node types (delta) | 92 | 92 | 100.00% | 0 | 0 |
+| Retractable node types (delta) | 94 | 94 | 100.00% | 0 | 0 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **413** | **413** | **100.00%** | **0** | **10** |
+| **Total** | **415** | **415** | **100.00%** | **0** | **10** |
 
 ## Coverage by scenario type
 
@@ -30,7 +30,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | baseline | 216 | 216 | 100.00% | 0 | 5 |
 | cost | 26 | 26 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
-| delta_tombstone | 149 | 149 | 100.00% | 0 | 0 |
+| delta_tombstone | 151 | 151 | 100.00% | 0 | 0 |
 | fault | 17 | 17 | 100.00% | 0 | 4 |
 | ordering | 3 | 3 | 100.00% | 0 | 0 |
 
@@ -46,7 +46,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 None. Every supported surface has a replay scenario.
 
-## Covered surfaces (413)
+## Covered surfaces (415)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -219,7 +219,7 @@ None. Every supported surface has a replay scenario.
 | `read_surface:GET /api/v0/cloud/inventory` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/cloud/inventory` |
 | `read_surface:GET /api/v0/cloud/resources` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/cloud/resources` |
 | `read_surface:GET /api/v0/documentation/facts` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/documentation/facts?fact_kind=source` |
-| `read_surface:GET /api/v0/iac/resources` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/iac/resources?limit=50` |
+| `read_surface:GET /api/v0/iac/resources` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/iac/resources?limit=50&include_facets=true` |
 | `read_surface:GET /api/v0/images` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/images` |
 | `read_surface:GET /api/v0/incidents/{incident_id}/context` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/incidents/PSCD1/context` |
 | `read_surface:GET /api/v0/kubernetes/correlations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/kubernetes/correlations?cluster_id=supply-chain-demo&limit=50` |
@@ -366,6 +366,8 @@ None. Every supported surface has a replay scenario.
 | `retractable_node:File` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:FluxBucket` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:FluxGitRepository` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
+| `retractable_node:FluxHelmRelease` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
+| `retractable_node:FluxHelmRepository` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:FluxKustomization` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:FluxOCIRepository` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:Function` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |

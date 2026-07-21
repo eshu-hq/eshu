@@ -190,68 +190,6 @@ import (
 // already guarded every payload-matching arm, and the reference CTE changes
 // join order without changing its fact_id, scope, generation, or self-exclusion
 // predicates.
-const deferredRelationshipFamilyPathSQL = `lower(COALESCE(
-            fact.payload->>'relative_path',
-            fact.payload->>'content_path',
-            fact.payload->>'file_path',
-            fact.payload->>'path',
-            ''
-          ))`
-
-const deferredRelationshipFamilyArtifactTypeSQL = `lower(COALESCE(fact.payload->>'artifact_type', ''))`
-
-const deferredRelationshipFamilyArgoCDContentMarkerSQL = `(CASE
-            WHEN ` + deferredRelationshipFamilyArtifactTypeSQL + ` = 'argocd'
-              OR ` + deferredRelationshipFamilyPathSQL + ` ~ '\.ya?ml$'
-            THEN lower(COALESCE(
-              fact.payload->>'content',
-              fact.payload->>'content_body',
-              ''
-            )) LIKE '%kind: application%'
-              OR lower(COALESCE(
-                fact.payload->>'content',
-                fact.payload->>'content_body',
-                ''
-              )) LIKE '%kind: applicationset%'
-            ELSE false
-          END)`
-
-const deferredRelationshipFamilySaltGitfsContentMarkerSQL = `(CASE
-            WHEN ` + deferredRelationshipFamilyPathSQL + ` ~ '\.ya?ml$'
-              AND COALESCE(
-              fact.payload->>'content',
-              fact.payload->>'content_body',
-              ''
-            ) LIKE '%gitfs_remotes:%'
-            THEN COALESCE(
-              fact.payload->>'content',
-              fact.payload->>'content_body',
-              ''
-            ) ~ E'(^|\n)gitfs_remotes[[:space:]]*:'
-            ELSE false
-          END)`
-
-const deferredRelationshipFamilyCandidatePredicateSQL = `(
-          fact.fact_kind = 'gcp_cloud_relationship'
-          OR ` + deferredRelationshipFamilyArtifactTypeSQL + ` IN (
-            'terraform',
-            'terraform_hcl',
-            'terraform_template_text',
-            'terragrunt',
-            'helm',
-            'argocd',
-            'dockerfile',
-            'docker_compose',
-            'github_actions_workflow'
-          )
-          OR ` + deferredRelationshipFamilyArtifactTypeSQL + ` LIKE 'ansible_%'
-          OR ` + deferredRelationshipFamilyPathSQL + ` ~ '(^|/)(dockerfile(\.[^/]*)?|jenkinsfile(\.[^/]*)?|puppetfile|berksfile)$|(^|/)docker-compose\.ya?ml$|(^|/)compose\.ya?ml$|(^|/)\.github/workflows/[^/]+\.ya?ml$|(^|/)applicationsets?/.*\.ya?ml$|(^|/)argocd/.*\.ya?ml$|(^|/)values([^/]*)\.ya?ml$|(^|/)chart\.ya?ml$|(^|/)kustomization\.ya?ml$|(^|/)(playbooks|roles|group_vars|host_vars|inventories)/|(^|/)inventory($|/)|\.(tf|tf\.json|tfvars|tfvars\.json|hcl|tpl)$'
-          OR ` + deferredRelationshipFamilyArgoCDContentMarkerSQL + `
-          OR ` + deferredRelationshipFamilySaltGitfsContentMarkerSQL + `
-        )`
-
-const deferredRelationshipFamilyPayloadFactsFilterSQL = `WHERE ` + deferredRelationshipFamilyCandidatePredicateSQL
-
 const listDeferredScopedRelationshipFactRecordsQuery = latestGenerationCTE + `,
 source_facts AS MATERIALIZED (
     SELECT
@@ -366,6 +304,18 @@ type deferredScopedFactQueryParams struct {
 	nonRepoIDLike      pq.StringArray
 	repoIDValues       pq.StringArray
 	repoIDReferenceKey pq.StringArray
+	// remoteURLs is NOT bound to any query. It is a fingerprint-only input
+	// (issue #5483 C2): the strict cross-repo Flux resolver
+	// (relationships.discoverStructuredFluxEvidence) matches a manifest's
+	// spec.url against each catalog repository's normalized RemoteURL by exact
+	// equality, so a repository's remote_url change is a catalog-shape change
+	// that can flip a Flux DEPLOYS_FROM edge — yet it moves neither
+	// nonRepoIDLike (name/slug aliases) nor repoIDValues. Including the sorted
+	// normalized RemoteURLs in deferredCatalogFingerprint makes a remote_url
+	// change invalidate the partition memo, exactly as a rename already does,
+	// so the deferred backfill re-discovers the manifest's evidence instead of
+	// memo-skipping it.
+	remoteURLs pq.StringArray
 }
 
 // buildDeferredScopedFactQueryParams derives the shared $1/$2 parameters from the
@@ -380,6 +330,8 @@ func buildDeferredScopedFactQueryParams(
 	if len(nonRepoIDTerms) == 0 && len(repoIDValues) == 0 {
 		return deferredScopedFactQueryParams{}, false
 	}
+
+	remoteURLs := catalogRemoteURLValues(catalog)
 
 	nonRepoIDLike := buildPayloadAnchorLikeTerms(nonRepoIDTerms)
 	repoIDRaw := make([]string, 0, len(repoIDValues))
@@ -408,7 +360,25 @@ func buildDeferredScopedFactQueryParams(
 		nonRepoIDLike:      pq.StringArray(nonRepoIDLike),
 		repoIDValues:       pq.StringArray(repoIDRaw),
 		repoIDReferenceKey: pq.StringArray(repoIDReferenceKeys),
+		remoteURLs:         pq.StringArray(remoteURLs),
 	}, true
+}
+
+// catalogRemoteURLValues returns the non-empty normalized RemoteURLs of the
+// catalog entries, lowercased. It feeds only the partition-memo fingerprint
+// (issue #5483 C2), never a query bind: the deferred fact-load query matches on
+// alias LIKE terms and repo_id values, but the strict Flux cross-repo resolver
+// depends on RemoteURL equality, so the fingerprint must observe RemoteURL
+// changes too.
+func catalogRemoteURLValues(catalog []relationships.CatalogEntry) []string {
+	values := make([]string, 0, len(catalog))
+	for _, entry := range catalog {
+		remoteURL := strings.ToLower(strings.TrimSpace(entry.RemoteURL))
+		if remoteURL != "" {
+			values = append(values, remoteURL)
+		}
+	}
+	return values
 }
 
 // loadDeferredScopedRelationshipFactsForPartition runs the self-exclusion query

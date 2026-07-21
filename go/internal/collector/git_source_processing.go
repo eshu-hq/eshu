@@ -86,14 +86,20 @@ func (s *GitSource) resolveRepositories(batch SelectionBatch) ([]SelectedReposit
 		if err != nil {
 			return nil, nil, "", fmt.Errorf("resolve selected repo path %q: %w", repo.RepoPath, err)
 		}
-		resolved = append(resolved, SelectedRepository{
-			RepoPath:     absPath,
-			RemoteURL:    repo.RemoteURL,
-			IsDependency: repo.IsDependency,
-			DisplayName:  repo.DisplayName,
-			Language:     repo.Language,
-			FileTargets:  append([]string(nil), repo.FileTargets...),
-		})
+		resolvedRepo := repo
+		resolvedRepo.RepoPath = absPath
+		// Clone slice fields so the resolved copy does not share backing arrays
+		// with the original — downstream mutations to one must not corrupt the other.
+		if len(resolvedRepo.FileTargets) > 0 {
+			resolvedRepo.FileTargets = append([]string(nil), resolvedRepo.FileTargets...)
+		}
+		if len(resolvedRepo.GitRefs) > 0 {
+			resolvedRepo.GitRefs = cloneGitRefs(resolvedRepo.GitRefs)
+		}
+		if len(resolvedRepo.DeletedRelativePaths) > 0 {
+			resolvedRepo.DeletedRelativePaths = append([]string(nil), resolvedRepo.DeletedRelativePaths...)
+		}
+		resolved = append(resolved, resolvedRepo)
 		paths = append(paths, absPath)
 	}
 

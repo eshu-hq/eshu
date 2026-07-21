@@ -75,25 +75,35 @@ paged with `truncated` and `next_offset`.
 `repo_id`, `source_file`, `target_file`, `source_module`, or `target_module`.
 Supported `query_type` values are `imports_by_file`, `importers`,
 `module_dependencies`, `package_imports`, `file_import_cycles`, and
-`cross_module_calls`. The response uses one canonical row key for the selected
-query: `dependencies`, `modules`, `cycles`, or `cross_module_calls`.
+`cross_module_calls`. `target_file` is accepted only for cycle and cross-module
+queries. The response uses one canonical row key for the selected query:
+`dependencies`, `modules`, `cycles`, or `cross_module_calls`. Package pages are
+distinct by repository, module, and language before offset and limit are
+applied.
+
+Module, cycle, and call candidates use a 25,000-row internal ceiling. The
+handler requests one extra sentinel row and returns HTTP 422 with an instruction
+to narrow the repository, file, or module scope when that ceiling is exceeded.
+This internal bound is separate from the caller's page limit.
 `file_import_cycles` rows include `repo_id`, `repo_name`, `cycle_path`, and
 `cycle_edges`, where each proof edge names the `IMPORTS` relationship plus
 source/target files, source/target modules, and line numbers when available.
 Empty cycle pages return `cycles=[]`; unavailable graph backends return a
 service-unavailable error instead of pretending the repository is acyclic.
 
-No-Regression Evidence: import-cycle display metadata is projection-only on the
-existing bounded `file_import_cycles` query. The query still anchors by
-repository/file/module scope before expanding `IMPORTS`, keeps deterministic
-ordering, probes `limit+1`, and now returns `repo.name` with the same row. The
-Console calls the route with the selected repository selector and `limit=6`,
-so it does not load the whole code graph.
+No-Regression Evidence: all 244 valid request shapes map to 140 hash-frozen
+production query texts in the query-plan gate. Exactness tests cover empty
+graphs, duplicate edges, dotted-module prefix collisions, language filters,
+paging, repository-path collisions, directionally scoped cycles, truncation,
+and overflow. Cold and immediate-repeat NornicDB timings are
+recorded in `docs/internal/evidence/5561-import-investigation-bounds.md` against
+the 1.5-second interactive SLO.
 
-No-Observability-Change: the route still emits
-`query.import_dependency_investigation` spans, HTTP request metrics, the Eshu
-truth envelope, bounded `coverage`, `truncated`, and `next_offset`; no graph
-write, queue, worker, runtime setting, metric label, or new span is added.
+Observability: the route emits `query.import_dependency_investigation` with
+`eshu.import_dependencies.query_type`, `result_count`, `truncated`, and
+`scan_overflow` attributes. Responses keep the Eshu truth envelope, `coverage`,
+`truncated`, and `next_offset`. The read path adds no graph write, queue, worker,
+or runtime setting.
 
 `POST /api/v0/code/call-graph/metrics` requires `repo_id`. It supports
 `hub_functions` and `recursive_functions`, deterministic ordering, paging,

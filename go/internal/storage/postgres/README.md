@@ -263,6 +263,27 @@ No-Regression Evidence: scoped hot-path notes live in
 [`evidence-notes.md`](evidence-notes.md), including #2059 claimed fact commit
 tenant-grant fencing. No-Observability-Change: #2059 adds no new signal shape.
 
+### Current IaC inventory index (#5262)
+
+Migration `067_iac_active_inventory_index.sql` adds a concurrent partial
+expression index for active-generation Terraform resource, module, and data
+source discovery. It leads with `(scope_id, generation_id)` and carries only
+entity kind, name, and id; source bodies and other large payload fields remain
+outside the index. `PostgresIaCInventoryStore` uses this shape to select exact
+current identities before graph hydration and to compute caller-authorized
+search and bounded facets.
+
+Performance Evidence: on the retained 8,080,369-row `fact_records` corpus, a
+same-data rollback-only comparison returned the same current IaC set (symmetric
+difference 0/0). The existing broad index shape took 1,351.841 ms with 851,388
+local reads; the partial expression index took 93.671 ms with 24,723 reads. The
+predicate selected about 24,610 rows, roughly 0.3 percent of the fact corpus,
+which bounds index write amplification.
+
+No-Observability-Change: this is a read index and adds no queue, lease, worker,
+metric, span, or log contract. Existing Postgres query spans and the IaC handler
+latency/error signals cover the read path.
+
 No-Regression Evidence: `go test ./internal/storage/postgres -run
 'TestIngestionStore(CommitScopeGenerationTakesSharedMaintenanceBarrier|RunDeferredRelationshipMaintenanceTakesPerRepoExclusiveBarrier|ShardDrainBarrier)|TestBootstrapDefinitionsIncludeDeferredMaintenanceBarrier'
 -count=1` covers the per-repo shared source-commit barrier and per-repo deferred

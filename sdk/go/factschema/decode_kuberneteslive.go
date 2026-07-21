@@ -104,6 +104,7 @@ func encodeKubernetesLiveContainers(containers []kuberneteslivev1.PodTemplateCon
 		}
 		addStringSlice(payload, "env_keys", container.EnvKeys)
 		addBoolPtr(payload, "env_from_secret", container.EnvFromSecret)
+		addStringPtr(payload, "resolved_image_digest", container.ResolvedImageDigest)
 		out = append(out, payload)
 	}
 	return out

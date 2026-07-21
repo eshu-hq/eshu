@@ -41,10 +41,8 @@ func crossTenantEvidenceGraph() fakeGraphReaderWithSingle {
 			}
 		},
 		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-			// #5390 resolves the workload's owning repo via a DEFINES traversal;
-			// stub it so the all-scope control populates the repo-keyed enrichment.
-			if strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)") {
-				return []map[string]any{{"repo_id": "repo-a", "repo_name": "orders-api-repo"}}, nil
+			if rows, ok := impactEvidenceWorkloadRepositoryRows(cypher); ok {
+				return rows, nil
 			}
 			// Incoming deployment-evidence traversal: anchor repo-a is the target,
 			// the cross-tenant repo-b is the source (non-anchor) endpoint.
@@ -183,12 +181,10 @@ func TestServiceContextScopedFiltersCrossTenantDeploymentEvidence(t *testing.T) 
 
 // cloudFallbackGraph resolves the orders-api workload (repo-a) with NO
 // materialized USES cloud resources, then returns a distinctively-named
-// free-text CloudResource candidate from the given fallback query matcher --
-// either fetchConfigDerivedCloudResources (`MATCH (c:CloudResource)`, reached
-// inside fetchCloudResources) or loadUncorrelatedCloudResourceCandidates
-// (`MATCH (n:CloudResource)`, the handler-level fallback). Both are free-text
-// scans with no repo_id, so a scoped caller must skip them entirely (#5167 W3
-// P2). candidateMatch selects which fallback returns the row.
+// free-text CloudResource candidate from the handler-level
+// loadUncorrelatedCloudResourceCandidates fallback (`MATCH
+// (n:CloudResource)`). This scan has no repo_id, so a scoped caller must skip
+// it entirely (#5167 W3 P2). candidateMatch selects the fallback query.
 func cloudFallbackGraph(candidateMatch, candidateName string) fakeGraphReaderWithSingle {
 	return fakeGraphReaderWithSingle{
 		runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
@@ -202,25 +198,8 @@ func cloudFallbackGraph(candidateMatch, candidateName string) fakeGraphReaderWit
 			}
 		},
 		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-			// #5390 resolves the workload's owning repo via a DEFINES traversal;
-			// stub it so the all-scope control populates the repo-keyed enrichment.
-			if strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)") {
-				return []map[string]any{{"repo_id": "repo-a", "repo_name": "orders-api-repo"}}, nil
-			}
-			// #5390 deleted the old free-text MATCH (c:CloudResource)-inside-fetchCloudResources
-			// vector; the surviving config-derived scan needs a READS_CONFIG_FROM artifact
-			// with a matched_value anchor. This in-grant artifact (both endpoints repo-a)
-			// survives scoped filtering; its anchor "derived-queue" is a strict SUBSTRING of
-			// candidateName so the scoped assertion is not falsely satisfied.
-			if strings.Contains(cypher, "(artifact:EvidenceArtifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP]->(r:Repository {id: $repo_id})") {
-				return []map[string]any{{
-					"direction": "incoming", "artifact_id": "artifact-config-read", "name": "app-settings.yaml",
-					"domain": "deployment", "path": "deploy/app-settings.yaml", "evidence_kind": "helm_values",
-					"artifact_family": "helm", "relationship_type": "READS_CONFIG_FROM", "environment": "prod",
-					"matched_alias": "orders-api", "matched_value": "derived-queue",
-					"source_repo_id": "repo-a", "source_repo_name": "orders-api-repo",
-					"target_repo_id": "repo-a", "target_repo_name": "orders-api-repo",
-				}}, nil
+			if rows, ok := impactEvidenceWorkloadRepositoryRows(cypher); ok {
+				return rows, nil
 			}
 			if strings.Contains(cypher, candidateMatch) {
 				return []map[string]any{{
@@ -237,12 +216,12 @@ func cloudFallbackGraph(candidateMatch, candidateName string) fakeGraphReaderWit
 }
 
 // TestTraceDeploymentChainScopedSkipsFreeTextCloudFallbacks is the #5167 W3 P2
-// mutation-check for the three free-text CloudResource fallback guards in the
-// trace_deployment_chain path (fetchCloudResources' config-derived fallback and
-// the handler-level config-derived/uncorrelated fallbacks, all gated on
-// !access.scoped()). Each fallback is a name-similarity CloudResource scan with
-// no repo_id, so a scoped caller must never see its candidate; an all-scope
-// caller does. Removing any guard makes the scoped assertion red.
+// mutation-check for the remaining free-text CloudResource fallback guard in
+// the trace_deployment_chain path. The former config-derived free-text scan was
+// removed when the primary read became repository-bound. This uncorrelated
+// name-similarity scan has no repo_id, so a scoped caller must never see its
+// candidate; an all-scope caller does. Removing the guard makes the scoped
+// assertion red.
 func TestTraceDeploymentChainScopedSkipsFreeTextCloudFallbacks(t *testing.T) {
 	t.Parallel()
 
@@ -251,9 +230,6 @@ func TestTraceDeploymentChainScopedSkipsFreeTextCloudFallbacks(t *testing.T) {
 		candidateMatch string
 		candidateName  string
 	}{
-		// fetchConfigDerivedCloudResources runs inside fetchCloudResources when
-		// the materialized USES query returns zero rows.
-		{"config_derived_via_fetchCloudResources", "MATCH (c:CloudResource)", "config-derived-queue"},
 		// loadUncorrelatedCloudResourceCandidates is the handler-level fallback.
 		{"uncorrelated", "MATCH (n:CloudResource)", "uncorrelated-queue"},
 	}

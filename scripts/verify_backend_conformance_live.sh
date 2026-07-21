@@ -36,7 +36,9 @@ cd "$REPO_ROOT/go"
 go test ./internal/backendconformance -run '^TestLiveBackendConformance$' -count=1
 
 if [ "$ESHU_GRAPH_BACKEND" = "nornicdb" ]; then
-    echo "Running live NornicDB retry classification contract"
+    echo "Running live NornicDB retry classification contract and #5441 stale-attribute-removal regression"
     ESHU_NORNICDB_RETRY_CONTRACT_LIVE=1 \
-        go test ./internal/storage/cypher -run '^TestLiveNornicDBRetryConflictClassificationContract$' -count=1
+    ESHU_CYPHER_BOLT_DSN="$ESHU_NEO4J_URI" \
+    ESHU_CYPHER_BOLT_DATABASE="$ESHU_NEO4J_DATABASE" \
+        go test ./internal/storage/cypher -run '^(TestLiveNornicDBRetryConflictClassificationContract|TestTerraformResourceWriterLiveClearsStaleAttributeOnRefresh)$' -count=1
 fi

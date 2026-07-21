@@ -12,7 +12,6 @@ const grandfatheredNonHotBaseline = "220989280718f206e53fade8670c3b240d44a9b0"
 var grandfatheredNonHotSourceDigests = map[string]string{
 	"catalog.go:(*RepositoryHandler).listCatalogRepositoriesFromGraph":                                    "bd18f119efe756754c28730a83c4f8b52fc973bc7400c29ff84da225c57bbedb",
 	"catalog_workload_environments.go:(*RepositoryHandler).assembleCatalogWorkloadsFromGraph":             "81c076a9eb1a86acbd223ac25a9773a9ad2f1c776ba730023a80f6a6072e0108",
-	"cloud_resource_candidates.go:loadUncorrelatedCloudResourceCandidatesBounded":                         "e7ea061e90bd644c13c905c326319d9f39f05b82d2a7b668b5c7140e4ff3eda0",
 	"code.go:(*CodeHandler).runComplexityQuery":                                                           "53fef37f7217c6b4e6aa26423fd1be4540f9e50cf8d0c0f0b5ce6f815635eaab",
 	"code_call_chain.go:(*CodeHandler).handleCallChain":                                                   "3dac718510c57f047e3307e85fb7ca1373152bfed38b88be79cf29da1188a7ad",
 	"code_call_chain_nornicdb.go:(*CodeHandler).nornicDBCallChainOneHopRows":                              "39b31b2bae3f29721c1d7b0e274ca2c4478a9707740cd2b9b00c94f4afe154e3",
@@ -48,7 +47,6 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"entity.go:(*EntityHandler).getEntityContext":                                                         "0a471541f408acdf0bd9f6cf2b0cc14c8b217886dae172ed8594cfa505379d10",
 	"entity_resolve_identity.go:hydrateResolvedEntityRepoIdentity":                                        "2206902b6a66fe8ae06861b53946f5af00e0cba135c238ad1cd86cf50aac0342",
 	"exposure_path.go:(*ImpactHandler).exposurePathCandidates":                                            "157383f76058132a7c74d0105bf806386cedd0a7eae975ddecd90f29ab28b243",
-	"iac_resources.go:(*IaCHandler).listResources":                                                        "4fdf780e6e8230b8987c6e88023d204939dc4c777c19775c305c129bed346e29",
 	"images.go:(*ImageHandler).listImages":                                                                "43d3716541ea57dfa8517ac863666293b14d8672a9a7b80f90a8f33d9816c121",
 	"impact.go:(*ImpactHandler).explainDependencyPath":                                                    "a6d2800afbdb3a6fbec38762a2c44da60ff8aa597342ba90d7d20e0cc3685d32",
 	"impact.go:(*ImpactHandler).traceResourceToCode":                                                      "49a7e3d3b49f428564ba7525d3804ae220dce475e01b57c0fed68b3100d13fc0",

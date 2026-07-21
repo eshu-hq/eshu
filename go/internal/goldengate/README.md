@@ -29,9 +29,9 @@ tests are unchanged.
 
 | File | Holds |
 |------|-------|
-| `snapshot.go` | `Snapshot` and its nested contract types (`GraphSnapshot`, `CountRange`, `RequiredCorrelation`, `RequiredNode`, `DrainAssertions`, `DrainBound`, `QueryShapes`, `QueryShape`) plus `LoadSnapshot`. |
+| `snapshot.go` | `Snapshot` and its nested contract types (`GraphSnapshot`, `CountRange`, `RequiredCorrelation`, `RequiredNode`, `RequiredSelfLoop`, `DrainAssertions`, `DrainBound`, `QueryShapes`, `QueryShape`) plus `LoadSnapshot`. |
 | `report.go` | `Finding` and `Report` — the pass/fail accumulator with the required/advisory split. |
-| `evaluate.go` | `DrainCounts` and every `Evaluate*` function (drains, required correlations, edge/node properties, required/present nodes, node/edge counts, query shape, API/MCP/CLI parity, timing). |
+| `evaluate.go` | `DrainCounts` and every `Evaluate*` function (drains, required correlations, edge/node properties, required/present nodes, required self-loops, node/edge counts, query shape, API/MCP/CLI parity, timing). |
 | `query_shape_paths.go` | Bounded deep JSON path/value assertions for query shapes, including array traversal with `[]`. |
 
 ## Assertion semantics worth knowing
@@ -47,6 +47,15 @@ tests are unchanged.
   carry a non-empty (optionally pinned) value. A label legitimately contains
   property-less nodes (a `LICENSE` has no language), so the gate asserts a floor
   of tagged nodes rather than the absence of any untagged node.
+- **Self-loops are closed-range, not floor-only.** `RequiredSelfLoop` pins the
+  count of `(n:Label {NodeProperty: NodePropertyValue})-[:Relationship]->(n)`
+  edges to `[MinimumCount, MaximumCount]`. A floor alone cannot separate
+  "genuine recursion survives" from "every declaration became a spurious
+  self-loop" (the [#5332](https://github.com/eshu-hq/eshu/issues/5332) class of
+  bug) since both push the same observed count up — the ceiling is what catches
+  the regression. `NodeProperty`/`NodePropertyValue` scope the match to one
+  language/family sharing a node label so it is not conflated with another's
+  self-loop count.
 - **Query path assertions are explicit.** `RequiredJSONPaths` and
   `RequiredJSONValues` walk only the dot paths named by the snapshot. A `[]`
   suffix traverses a non-empty array, which lets the dead-code replay library

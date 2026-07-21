@@ -41,6 +41,8 @@
               }
             ],
             "flux_git_repositories": [],
+            "flux_helm_releases": [],
+            "flux_helm_repositories": [],
             "flux_kustomizations": [],
             "flux_oci_repositories": [],
             "function_calls": [],
@@ -52,6 +54,7 @@
             "helm_value_definitions": [],
             "helm_values": [],
             "iac_relevant": false,
+            "image_overrides": [],
             "imports": [],
             "is_dependency": false,
             "k8s_resources": [],
@@ -116,6 +119,8 @@
                 "url": "https://github.com/acme/flux-system"
               }
             ],
+            "flux_helm_releases": [],
+            "flux_helm_repositories": [],
             "flux_kustomizations": [],
             "flux_oci_repositories": [],
             "function_calls": [],
@@ -127,6 +132,7 @@
             "helm_value_definitions": [],
             "helm_values": [],
             "iac_relevant": false,
+            "image_overrides": [],
             "imports": [],
             "is_dependency": false,
             "k8s_resources": [],
@@ -181,6 +187,8 @@
             "crossplane_xrds": [],
             "flux_buckets": [],
             "flux_git_repositories": [],
+            "flux_helm_releases": [],
+            "flux_helm_repositories": [],
             "flux_kustomizations": [
               {
                 "lang": "yaml",
@@ -205,6 +213,7 @@
             "helm_value_definitions": [],
             "helm_values": [],
             "iac_relevant": false,
+            "image_overrides": [],
             "imports": [],
             "is_dependency": false,
             "k8s_resources": [],
@@ -259,6 +268,8 @@
             "crossplane_xrds": [],
             "flux_buckets": [],
             "flux_git_repositories": [],
+            "flux_helm_releases": [],
+            "flux_helm_repositories": [],
             "flux_kustomizations": [],
             "flux_oci_repositories": [
               {
@@ -280,6 +291,7 @@
             "helm_value_definitions": [],
             "helm_values": [],
             "iac_relevant": false,
+            "image_overrides": [],
             "imports": [],
             "is_dependency": false,
             "k8s_resources": [],
@@ -334,6 +346,8 @@
             "crossplane_xrds": [],
             "flux_buckets": [],
             "flux_git_repositories": [],
+            "flux_helm_releases": [],
+            "flux_helm_repositories": [],
             "flux_kustomizations": [],
             "flux_oci_repositories": [],
             "function_calls": [],
@@ -345,6 +359,7 @@
             "helm_value_definitions": [],
             "helm_values": [],
             "iac_relevant": false,
+            "image_overrides": [],
             "imports": [],
             "is_dependency": false,
             "k8s_resources": [
@@ -411,6 +426,8 @@
             "crossplane_xrds": [],
             "flux_buckets": [],
             "flux_git_repositories": [],
+            "flux_helm_releases": [],
+            "flux_helm_repositories": [],
             "flux_kustomizations": [],
             "flux_oci_repositories": [],
             "function_calls": [],
@@ -422,6 +439,7 @@
             "helm_value_definitions": [],
             "helm_values": [],
             "iac_relevant": false,
+            "image_overrides": [],
             "imports": [],
             "is_dependency": false,
             "k8s_resources": [

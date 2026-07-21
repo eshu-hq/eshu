@@ -82,12 +82,13 @@ RUN cd go \
 # image, and a compromised orchestrator could start it inside the trust
 # boundary via an explicit `command:` override). It is built in its own stage
 # off `builder`, so /go-bin/ — and therefore the production stage's
-# `COPY --from=builder /go-bin/` below — never contains it. These two stages
-# MUST stay before "Production stage": no docker-compose*.yaml `build:` block
-# in this repo sets an explicit `target:`, so plain `docker build .` /
-# `docker compose build` resolves to whichever stage is LAST in this file: the
-# production stage must remain that last stage, with mock-oidc-idp reached
-# only via an explicit `--target mock-oidc-idp` (see docker-compose.e2e.yaml).
+# `COPY --from=builder /go-bin/` below — never contains it. This stage and
+# mock-github's below it MUST stay before "Production stage": no
+# docker-compose*.yaml `build:` block in this repo sets an explicit
+# `target:`, so plain `docker build .` / `docker compose build` resolves to
+# whichever stage is LAST in this file: the production stage must remain
+# that last stage, with mock-oidc-idp reached only via an explicit
+# `--target mock-oidc-idp` (see docker-compose.e2e.yaml).
 FROM builder AS mock-oidc-builder
 # Redeclare so a provided epoch reaches this stage's RUN too — ARGs do not
 # cross stage boundaries, and the builder stage no longer leaks it via ENV.
@@ -114,6 +115,36 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -fsS http://localhost:8080/.well-known/openid-configuration || exit 1
 
 CMD ["eshu-mock-oidc-idp"]
+
+# mock-github: E2E-only synthetic GitHub OAuth2/REST counterparty (issue
+# #5170), built and shipped as its own image for the same reason
+# mock-oidc-idp is: a no-auth, any-caller identity-provider stand-in must not
+# ship inside the released Eshu image. Same "own stage off builder, own image,
+# must stay before Production stage" rules as mock-oidc-idp above.
+FROM builder AS mock-github-builder
+ARG SOURCE_DATE_EPOCH
+RUN cd go \
+    && export CGO_ENABLED=1 \
+    && export GOFLAGS="-buildvcs=false" \
+    && LDFLAGS="-s -w -buildid= -extldflags '-static' -X github.com/eshu-hq/eshu/go/internal/buildinfo.Version=${ESHU_VERSION}" \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /mock-bin/eshu-mock-github ./cmd/mock-github
+
+FROM alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d AS mock-github
+
+RUN apk add --no-cache curl
+
+COPY --from=mock-github-builder /mock-bin/ /usr/local/bin/
+
+RUN adduser -D -u 10001 mock-github
+
+EXPOSE 8080
+
+USER mock-github
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -fsS http://localhost:8080/ || exit 1
+
+CMD ["eshu-mock-github"]
 
 # Production stage. MUST remain the last stage in this file — see the
 # mock-oidc-idp comment above.

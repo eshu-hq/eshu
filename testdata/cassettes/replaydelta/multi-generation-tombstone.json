@@ -1899,6 +1899,42 @@
             "end_line": 5,
             "entity_id": "replay-delta-tombstone:flux_bucket:probe"
           }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:flux_helm_release:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "flux_helm_release",
+            "entity_name": "retractProbe_flux_helm_release",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:flux_helm_release:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:flux_helm_repository:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "flux_helm_repository",
+            "entity_name": "retractProbe_flux_helm_repository",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:flux_helm_repository:probe"
+          }
         }
       ]
     },

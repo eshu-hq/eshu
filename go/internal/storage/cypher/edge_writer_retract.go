@@ -5,8 +5,6 @@ package cypher
 
 import (
 	"context"
-	"crypto/sha1" // #nosec G505 -- non-cryptographic stable artifact ID digest, not a security primitive
-	"encoding/hex"
 	"fmt"
 	"sort"
 	"strings"
@@ -386,94 +384,4 @@ func buildDocumentationDeltaRetractStatements(
 		))
 	}
 	return stmts
-}
-
-// copyRepoRelationshipMetadata preserves durable evidence pointers on graph
-// edge writes while keeping the full evidence payload in Postgres.
-func copyRepoRelationshipMetadata(rowMap map[string]any, payload map[string]any, rowGenerationID string) {
-	rowMap["resolved_id"] = payloadString(payload, "resolved_id")
-	generationID := payloadString(payload, "generation_id")
-	if generationID == "" {
-		generationID = rowGenerationID
-	}
-	rowMap["generation_id"] = generationID
-	rowMap["evidence_count"] = payloadInt(payload, "evidence_count")
-	rowMap["evidence_kinds"] = payloadStringSlice(payload, "evidence_kinds")
-	rowMap["resolution_source"] = payloadString(payload, "resolution_source")
-	rowMap["confidence"] = repoRelationshipConfidence(payloadFloat(payload, "confidence"))
-	rowMap["rationale"] = payloadString(payload, "rationale")
-}
-
-// repoEvidenceArtifactRowsFromIntent builds bounded graph nodes from reducer
-// evidence summaries while preserving raw detail ownership in Postgres.
-func repoEvidenceArtifactRowsFromIntent(
-	row reducer.SharedProjectionIntentRow,
-	evidenceSource string,
-) []map[string]any {
-	payload := row.Payload
-	repoID := payloadString(payload, "repo_id")
-	targetRepoID := payloadString(payload, "target_repo_id")
-	if repoID == "" || targetRepoID == "" {
-		return nil
-	}
-	artifacts := payloadMapSlice(payload, "evidence_artifacts")
-	if len(artifacts) == 0 {
-		return nil
-	}
-
-	relationshipType := payloadString(payload, "relationship_type")
-	resolvedID := payloadString(payload, "resolved_id")
-	generationID := payloadString(payload, "generation_id")
-	if generationID == "" {
-		generationID = row.GenerationID
-	}
-	rows := make([]map[string]any, 0, len(artifacts))
-	for _, artifact := range artifacts {
-		evidenceKind := payloadString(artifact, "evidence_kind")
-		path := payloadString(artifact, "path")
-		matchedValue := payloadString(artifact, "matched_value")
-		name := path
-		if name == "" {
-			name = evidenceKind
-		}
-		artifactID := repoEvidenceArtifactID(resolvedID, evidenceKind, path, matchedValue)
-		row := map[string]any{
-			"artifact_id":           artifactID,
-			"name":                  name,
-			"repo_id":               repoID,
-			"target_repo_id":        targetRepoID,
-			"relationship_type":     relationshipType,
-			"resolved_id":           resolvedID,
-			"generation_id":         generationID,
-			"evidence_kind":         evidenceKind,
-			"artifact_family":       payloadString(artifact, "artifact_family"),
-			"path":                  path,
-			"extractor":             payloadString(artifact, "extractor"),
-			"environment":           payloadString(artifact, "environment"),
-			"runtime_platform_kind": payloadString(artifact, "runtime_platform_kind"),
-			"matched_alias":         payloadString(artifact, "matched_alias"),
-			"matched_value":         matchedValue,
-			"confidence":            payloadFloat(artifact, "confidence"),
-			"evidence_source":       evidenceSource,
-		}
-		// Propagate byte-level citation fields when the artifact carries them so
-		// the EvidenceArtifact graph node exposes start_line/end_line/commit_sha
-		// to the query surface. Absent fields are omitted to avoid zero-noise.
-		if sl := payloadInt(artifact, "start_line"); sl > 0 {
-			row["start_line"] = sl
-		}
-		if el := payloadInt(artifact, "end_line"); el > 0 {
-			row["end_line"] = el
-		}
-		if sha := payloadString(artifact, "commit_sha"); sha != "" {
-			row["commit_sha"] = sha
-		}
-		rows = append(rows, row)
-	}
-	return rows
-}
-
-func repoEvidenceArtifactID(resolvedID string, evidenceKind string, path string, matchedValue string) string {
-	hash := sha1.Sum([]byte(strings.Join([]string{resolvedID, evidenceKind, path, matchedValue}, "\x00"))) // #nosec G401 -- non-cryptographic stable evidence artifact ID, not a security primitive
-	return "evidence-artifact:" + hex.EncodeToString(hash[:8])
 }

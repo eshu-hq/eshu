@@ -52,7 +52,7 @@ git clone https://github.com/eshu-hq/eshu && cd eshu/go
 go test ./conformance -count=1
 
 # 3. Describe what YOUR collector must project: edit the spec's node/edge counts,
-#    required correlations, and required-node property floors.
+#    required correlations, required-node property floors, and self-loop bounds.
 $EDITOR conformance/testdata/starter-spec.yaml
 
 # 4. Record your own tape once, against your real API, with your own credentials

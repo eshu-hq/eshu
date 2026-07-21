@@ -275,6 +275,15 @@ superset of the partition worker's `sharedProjectionDomains`: it also covers the
 domains driven by dedicated projection runners (`code_calls`, `repo_dependency`,
 `deployable_unit_edges`).
 
+`MaterializedEdgeFamilies` (`materialized_edge_families.go`, #5351) returns
+`allProjectionDomains` as `[]string`, sorted: the drift-proof enumeration the
+Ifá `materialized_edges:<domain>` exhaustiveness gate
+(`go/internal/ifa/materialized_edges.go`) binds an Odù expectation to, so a
+reducer materialization silently ceasing to produce an edge family is caught.
+A domain added to or removed from `allProjectionDomains` moves this
+enumeration in the same change; `TestMaterializedEdgeFamiliesLocksToAllProjectionDomains`
+locks the two together.
+
 | Domain constant | Summary |
 | --- | --- |
 | `DomainWorkloadIdentity` | Resolve canonical workload identity across sources |
@@ -912,6 +921,25 @@ PR2) and `DomainObservabilityCoverageMaterialization` (#391 PR3):
   `SourceDigest` and is naturally excluded from this image-edge slice. An exact
   decision whose digest resolves no canonical node (tag-only evidence) is counted
   skipped, never written as a dangling edge.
+- **CRI-resolved digest promotion (#5432)**: When a pod_template container
+  declares a tag-form image ref (e.g. `nginx:1.25`) AND carries a CRI-resolved
+  `resolved_image_digest` (from `pod.Status.ContainerStatuses[].ImageID`
+  normalized to `repo@sha256:<digest>` form), the classifier routes through
+  `classifyImageByCRIDigest` — parsing the resolved digest as a repository+digest
+  pair and resolving against the source digest index via the DIGEST path, never
+  falling through to the weaker tag classification. When the resolved digest
+  matches an active deployment-source observation, the outcome is `exact` /
+  `JoinMode=digest` / `ProvenanceOnly=false` (edge-eligible). When the resolved
+  digest has NO source observation, the outcome is `unresolved` /
+  `driftMissingSource` / provenance-only — the CRI digest is ground truth of what
+  is running, and a missing source is unresolved, not tag-derived. Without a
+  CRI-resolved digest (Deployments, ReplicaSets, pending pods), behavior stays
+  byte-identical to today: tag-form refs fall through to `classifyImageByTag`
+  which is always provenance-only `Derived` / `Ambiguous` / `Unresolved`.
+  When two containers share a declared tag ref with differing resolved digests,
+  `resolvedImageDigestsFromTemplate` applies a first-wins policy — tracked
+  follow-up #5517 proposes classifying this as ambiguous rather than picking
+  one.
 - The write is idempotent on `(workload_uid, RUNS_IMAGE, source_uid)`; rows are
   deduplicated and sorted so retries and reprojections produce a byte-stable
   batch. The conflict key is per-edge, so no serialization workaround is
@@ -4130,3 +4158,38 @@ operators diagnose correlation outcomes through existing reducer run spans,
 execution counters, and `eshu_dp_reducer_*` metrics. The normalization path
 produces the same graph truth (431/0 golden gate), so existing query/MCP/test
 surface observability is unaffected.
+
+## GitHub Actions @ref pin signal (#5372)
+
+`resolvedRelationshipEvidenceArtifacts` (`cross_repo_evidence_artifacts.go`)
+projects `ref_value`/`ref_pinned` onto the `EvidenceArtifact` graph node for
+`GITHUB_ACTIONS_*` evidence kinds only. `ref_value` is the raw `@ref` a
+GitHub Actions action/workflow step pins to (read from the evidence-preview
+`Details` fields `first_party_ref_version`/`action_ref_name`/
+`workflow_ref_name`, populated by `go/internal/relationships`);
+`ref_pinned` is `true` only when `ref_value` is a full-length (40- or
+64-hex) commit SHA, via the shared `go/internal/ghactionsref` package's
+`Pinned` classifier -- the same classifier the query-package read-model path
+(`go/internal/query/repository_deployment_evidence_read_model.go`) uses, so
+the graph-projection path and the read-model path agree. Both fields are
+omitted together when the evidence carries no ref at all (a local `./`
+reusable workflow, a Docker action). The kind gate matters because
+`first_party_ref_version` is also populated by unrelated evidence families
+(Terraform, Ansible, Chef, ...); without it, this projection would fabricate
+a GitHub Actions pin-safety label on those.
+
+No-Regression Evidence: this follows the existing byte-level-citation
+projection pattern above (issue #3636) exactly -- an additive, conditionally
+populated pair of scalar properties on the same evidence-preview walk, no new
+MATCH/MERGE anchor, no additional graph round trip. `go test
+./internal/ghactionsref ./internal/relationships ./internal/reducer
+./internal/query ./internal/storage/cypher -count=1` stays green. The 20-repo
+golden corpus carries no GitHub Actions workflow fixtures (confirmed by
+`rg -l "GITHUB_ACTIONS|\.github/workflows" testdata/cassettes/
+testdata/golden/e2e-20repo-snapshot.json` returning no matches before this
+change), so `scripts/verify-golden-corpus-gate.sh` exercises no code path this
+change touches and is expected no-diff.
+
+No-Observability-Change: no metrics, spans, or structured logs are added or
+altered; ref_value/ref_pinned flow as evidence-fact and graph-node-property
+data only, following the existing citation-field pattern.

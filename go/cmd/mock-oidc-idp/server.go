@@ -6,6 +6,9 @@ package main
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -46,6 +49,24 @@ type ServerConfig struct {
 	GroupClaim string
 	// TokenTTL is the ID token lifetime. Empty defaults to one hour.
 	TokenTTL time.Duration
+	// AccessTokenJWT forces every /token response's access_token to be a
+	// signed JWT (see signAccessToken) even when the request carries no RFC
+	// 8707 "resource" parameter. Defaults to false, which keeps this IdP
+	// byte-stable for the #4971 browser-auth suite: that suite never reads
+	// access_token, only id_token, so its opaque "mock-access-token" default
+	// must never change under it.
+	AccessTokenJWT bool
+	// AccessTokenAudience is the JWT access token's "aud" claim fallback,
+	// used when AccessTokenJWT is true (or a resource-triggered mint) and
+	// neither the /authorize nor /token request carried a "resource" value.
+	// F-9's scripted MCP OAuth client always sends "resource" explicitly, so
+	// this fallback exists for MOCK_OIDC_ACCESS_TOKEN_JWT=true callers that
+	// want a fixed audience without repeating it on every request.
+	AccessTokenAudience string
+	// AccessTokenTTL is the minted JWT access token's lifetime. Empty
+	// defaults to ten minutes. A short TTL (e.g. one second) drives the
+	// deterministic expired-token E2E probe.
+	AccessTokenTTL time.Duration
 	// Now overrides the clock; nil defaults to time.Now.
 	Now func() time.Time
 }
@@ -63,6 +84,10 @@ type Server struct {
 	tokenTTL   time.Duration
 	now        func() time.Time
 
+	accessTokenJWT      bool
+	accessTokenAudience string
+	accessTokenTTL      time.Duration
+
 	privateKey *rsa.PrivateKey
 	keyID      string
 
@@ -75,6 +100,23 @@ type Server struct {
 type authorizeRequest struct {
 	RedirectURI string
 	Nonce       string
+	// Resource is the RFC 8707 "resource" parameter, when the /authorize
+	// call carried one. It threads through to handleToken so the scripted
+	// MCP OAuth client (issue #5170) does not have to repeat it on the
+	// /token call, matching how a real resource-indicator-aware client can
+	// carry the value on either or both requests.
+	Resource string
+	// CodeChallenge is the RFC 7636 PKCE code_challenge, when the /authorize
+	// call carried one (issue #5170: `eshu mcp setup`'s SSO snippets
+	// advertise Code+PKCE, so the scripted MCP OAuth client exercises a real
+	// S256 challenge/verifier round trip rather than skipping PKCE against
+	// the mock). Empty means this authorization was NOT PKCE-protected —
+	// handleToken then ignores any code_verifier the /token call sends,
+	// keeping every existing non-PKCE caller (including #4971's suite)
+	// byte-stable. Only "S256" is accepted as a challenge method (this mock
+	// never implements the deprecated "plain" method); handleAuthorize
+	// rejects any other value.
+	CodeChallenge string
 }
 
 // NewServer builds a Server ready to mount with Mux.
@@ -102,15 +144,22 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	if now == nil {
 		now = time.Now
 	}
+	accessTokenTTL := cfg.AccessTokenTTL
+	if accessTokenTTL <= 0 {
+		accessTokenTTL = 10 * time.Minute
+	}
 	return &Server{
-		issuer:     issuer,
-		identity:   cfg.Identity,
-		groupClaim: groupClaim,
-		tokenTTL:   tokenTTL,
-		now:        now,
-		privateKey: key,
-		keyID:      kid,
-		codes:      make(map[string]authorizeRequest),
+		issuer:              issuer,
+		identity:            cfg.Identity,
+		groupClaim:          groupClaim,
+		tokenTTL:            tokenTTL,
+		now:                 now,
+		accessTokenJWT:      cfg.AccessTokenJWT,
+		accessTokenAudience: strings.TrimSpace(cfg.AccessTokenAudience),
+		accessTokenTTL:      accessTokenTTL,
+		privateKey:          key,
+		keyID:               kid,
+		codes:               make(map[string]authorizeRequest),
 	}, nil
 }
 
@@ -140,7 +189,7 @@ func (s *Server) handleDiscovery(w http.ResponseWriter, _ *http.Request) {
 		"id_token_signing_alg_values_supported": []string{"RS256"},
 		"scopes_supported":                      []string{"openid", "profile", "email", "groups"},
 		"claims_supported":                      []string{"sub", "email", s.groupClaim},
-		"code_challenge_methods_supported":      []string{},
+		"code_challenge_methods_supported":      []string{"S256"},
 		"token_endpoint_auth_methods_supported": []string{"client_secret_post", "client_secret_basic"},
 	})
 }
@@ -162,9 +211,17 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	codeChallenge := strings.TrimSpace(query.Get("code_challenge"))
+	if codeChallengeMethod := strings.TrimSpace(query.Get("code_challenge_method")); codeChallenge != "" && codeChallengeMethod != "S256" {
+		http.Error(w, "code_challenge_method must be S256", http.StatusBadRequest)
+		return
+	}
+
 	code := s.issueCode(authorizeRequest{
-		RedirectURI: redirectURI,
-		Nonce:       strings.TrimSpace(query.Get("nonce")),
+		RedirectURI:   redirectURI,
+		Nonce:         strings.TrimSpace(query.Get("nonce")),
+		Resource:      strings.TrimSpace(query.Get("resource")),
+		CodeChallenge: codeChallenge,
 	})
 
 	callback := url.Values{"code": {code}}
@@ -197,6 +254,29 @@ func mergeQuery(existing string, add url.Values) string {
 		}
 	}
 	return values.Encode()
+}
+
+// verifyPKCE enforces RFC 7636 section 4.6: when the authorization that
+// issued this code carried a code_challenge, the matching /token call MUST
+// present the code_verifier it derives from, and it must actually hash
+// (S256) to that challenge. When codeChallenge is empty (the authorization
+// was not PKCE-protected), this is a no-op regardless of what code_verifier
+// carries — keeping every non-PKCE caller (#4971's suite included)
+// byte-stable. Uses constant-time comparison since this is a real secret
+// check, not decoration.
+func verifyPKCE(codeChallenge, codeVerifier string) error {
+	if codeChallenge == "" {
+		return nil
+	}
+	if codeVerifier == "" {
+		return fmt.Errorf("code_verifier is required: this authorization was made with a PKCE code_challenge")
+	}
+	sum := sha256.Sum256([]byte(codeVerifier))
+	computed := base64.RawURLEncoding.EncodeToString(sum[:])
+	if subtle.ConstantTimeCompare([]byte(computed), []byte(codeChallenge)) != 1 {
+		return fmt.Errorf("code_verifier does not match the code_challenge from /authorize")
+	}
+	return nil
 }
 
 // issueCode records req under a fresh random code and returns the code. The
@@ -249,6 +329,10 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "redirect_uri mismatch", http.StatusBadRequest)
 		return
 	}
+	if err := verifyPKCE(req.CodeChallenge, strings.TrimSpace(r.PostFormValue("code_verifier"))); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	clientID, _, hasBasicAuth := r.BasicAuth()
 	if !hasBasicAuth {
@@ -261,12 +345,68 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	accessToken, expiresIn, err := s.mintAccessToken(req, strings.TrimSpace(r.PostFormValue("resource")))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"access_token": "mock-access-token",
+		"access_token": accessToken,
 		"token_type":   "Bearer",
-		"expires_in":   int(s.tokenTTL.Seconds()),
+		"expires_in":   expiresIn,
 		"id_token":     idToken,
 	})
+}
+
+// mintAccessToken returns the access_token value and its expires_in seconds
+// for one /token response. By default (no RFC 8707 "resource" anywhere in
+// the flow and AccessTokenJWT unset) it returns the fixed opaque string this
+// IdP has always returned, keeping the #4971 browser-auth suite byte-stable.
+// A resource-triggered or config-forced mint returns a signed JWT instead,
+// which go/internal/oidcbearer's Resolver can validate (issue #5170).
+func (s *Server) mintAccessToken(req authorizeRequest, tokenResource string) (string, int, error) {
+	resource := tokenResource
+	if resource == "" {
+		resource = req.Resource
+	}
+	mintJWT := resource != "" || s.accessTokenJWT
+	if !mintJWT {
+		return "mock-access-token", int(s.tokenTTL.Seconds()), nil
+	}
+	audience := resource
+	if audience == "" {
+		audience = s.accessTokenAudience
+	}
+	if audience == "" {
+		return "", 0, fmt.Errorf("mock-oidc-idp: minting a JWT access token requires a resource parameter or MOCK_OIDC_ACCESS_TOKEN_AUDIENCE")
+	}
+	token, err := s.signAccessToken(audience)
+	if err != nil {
+		return "", 0, fmt.Errorf("mock-oidc-idp: sign access token: %w", err)
+	}
+	return token, int(s.accessTokenTTL.Seconds()), nil
+}
+
+// signAccessToken builds and signs a JWT access token for the server's
+// configured identity, targeting audience (an RFC 8707 resource indicator).
+// Claim shape mirrors signIDToken but with no nonce (access tokens are never
+// replay-bound to one authorization request the way an ID token's nonce is)
+// and the configurable accessTokenTTL rather than the ID token's tokenTTL.
+func (s *Server) signAccessToken(audience string) (string, error) {
+	now := s.now()
+	claims := jwt.MapClaims{
+		"iss":        s.issuer,
+		"sub":        s.identity.Subject,
+		"aud":        audience,
+		"exp":        now.Add(s.accessTokenTTL).Unix(),
+		"iat":        now.Unix(),
+		"email":      s.identity.Email,
+		s.groupClaim: append([]string(nil), s.identity.Groups...),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = s.keyID
+	return token.SignedString(s.privateKey)
 }
 
 // signIDToken builds and signs the ID token for the server's configured

@@ -954,6 +954,85 @@ gates:
     # a test-file split or fixture move must re-run this gate in the SAME PR that
     # causes the drift, not wait for someone to notice a stale citation later.
 
+  - id: remote-validation-artifacts
+    name: Remote-validation artifact-existence gate
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "specs/capability-matrix.v1.yaml"
+      - "specs/capability-matrix/**"
+      - "go/internal/capabilitycatalog/**"
+      - "go/cmd/capability-inventory/**"
+      - "docs/internal/remote-validation/**"
+      - "specs/remote-validation-baseline.txt"
+      - "scripts/verify-remote-validation-artifacts.sh"
+      - "scripts/test-verify-remote-validation-artifacts.sh"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "bash scripts/verify-remote-validation-artifacts.sh"
+      test_command: "bash scripts/test-verify-remote-validation-artifacts.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify remote-validation-artifacts gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+    # Wired into CI (static-contract-gates.yml, same lane as doc-citations and
+    # maturity-drift-guard) because this is a blocking recurrence-prevention
+    # gate for #5336's part (d) finding: remote_validation proof-IDs in the
+    # capability matrix were free-form slugs with no allow-list and no
+    # required committed evidence, so a production:supported claim could ride
+    # on an unverifiable reference indefinitely
+    # (component_extensions.{inventory,diagnostics} were the flagged
+    # example). convertVerification() in
+    # go/internal/capabilitycatalog/matrix.go now hard-fails an unknown
+    # verification kind at load time (covered by the existing
+    # go test ./internal/capabilitycatalog gate); this gate covers the
+    # second half — CheckRemoteValidationArtifacts requires every
+    # remote_validation ref to resolve to
+    # docs/internal/remote-validation/<ref>.md or appear in the burn-down
+    # baseline at specs/remote-validation-baseline.txt (currently 115 known-
+    # debt slugs; shrink-only, regenerate with
+    # `bash scripts/verify-remote-validation-artifacts.sh -update`).
+
+  - id: maturity-drift-guard
+    name: Support-maturity matrix live-gate drift guard
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/verify-golden-corpus-gate.sh"
+      - "testdata/golden/e2e-20repo-snapshot.json"
+      - "docs/public/languages/support-maturity.md"
+      - "specs/language-feature-parity-ledger.v1.yaml"
+      - "tests/fixtures/ecosystems/**"
+      - "scripts/verify-maturity-drift-guard.sh"
+      - "scripts/test-verify-maturity-drift-guard.sh"
+      - "scripts/lib/maturity-drift-guard-language-extensions.sh"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "bash scripts/verify-maturity-drift-guard.sh"
+      test_command: "bash scripts/test-verify-maturity-drift-guard.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify maturity-drift-guard gate"
+    requirements: []
+    ci_only_reason: ""
+    # Wired into CI (static-contract-gates.yml, same lane as doc-citations)
+    # because this is the blocking recurrence-prevention gate for the exact
+    # class of drift #5336 fixed by hand: the "Real-Repo Validation" /
+    # "End-to-End Indexing" columns of support-maturity.md silently rotting
+    # the next time scripts/verify-golden-corpus-gate.sh's corpus_fixtures
+    # array or the B-12 snapshot changes. category is exactness (not docs --
+    # #5340: category:docs is never run by any lane) so it actually blocks.
+    # tests/fixtures/ecosystems/** is a trigger because the verifier scans
+    # those fixture trees to attribute languages to fixtures (algorithm step
+    # 4): a fixture-only change -- e.g. removing the last .rb file from a
+    # staged app fixture -- can move a language in/out of the live-supported
+    # set, so it MUST re-run this gate or the matrix could drift with all
+    # required checks green.
+
   - id: mcp-client-auth-doc
     name: MCP client-auth doc lockstep guard
     category: exactness
@@ -1350,6 +1429,34 @@ gates:
       - go
     ci_only_reason: ""
 
+  - id: ifa-materialized-edge-coverage
+    name: Ifa materialized-edge exhaustiveness gate (#5351)
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/ifa/materialized_edges*.go"
+      - "go/internal/ifa/sql_relationship_odu*.go"
+      - "go/internal/reducer/materialized_edge_families.go"
+      - "go/internal/reducer/shared_projection.go"
+      - "go/internal/reducer/sql_relationship_materialization.go"
+      - "go/internal/reducer/sql_relationship_embedded_query.go"
+      - "go/internal/reducer/sql_relationship_metadata.go"
+      - "go/internal/storage/cypher/edge_writer_sql.go"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ifa-materialized-edge-coverage.v1.yaml"
+      - "testdata/cassettes/sqlrelationships/**"
+      - "go/internal/ifa/testdata/sqlrelationships/**"
+    local:
+      command: "cd go && go test ./internal/ifa -run 'TestMaterializedEdge|TestSQLRelationship|TestSQLFamily' -count=1 && go test ./internal/reducer -run TestMaterializedEdgeFamilies -count=1"
+      test_command: "cd go && go test ./internal/ifa -run 'TestMaterializedEdge|TestSQLRelationship|TestSQLFamily' -count=1 && go test ./internal/reducer -run TestMaterializedEdgeFamilies -count=1"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify Ifa contract-layer gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
   - id: ifa-determinism
     name: Ifa P3 graph-determinism matrix (+ --teeth non-idempotent-write gate)
     category: exactness
@@ -1365,6 +1472,11 @@ gates:
       - "go/internal/storage/cypher/cloud_resource_node_writer.go"
       - "go/internal/storage/cypher/cloud_resource_node_writer_teeth.go"
       - "go/internal/storage/cypher/cloud_resource_node_writer_teeth_off.go"
+      - "go/internal/reducer/sql_relationship_materialization.go"
+      - "go/internal/reducer/sql_relationship_embedded_query.go"
+      - "go/internal/storage/cypher/edge_writer_sql.go"
+      - "testdata/cassettes/sqlrelationships/**"
+      - "go/internal/ifa/testdata/sqlrelationships/**"
       - "scripts/verify-ifa-determinism.sh"
       - "scripts/test-verify-ifa-determinism.sh"
       - "scripts/lib/ifa_determinism_common.sh"
@@ -1413,6 +1525,12 @@ gates:
       - "go/internal/replay/faultreplay/**"
       - "go/cmd/reducer/ifa_fault_wiring.go"
       - "go/cmd/reducer/ifa_fault_wiring_off.go"
+      - "go/cmd/ifa/assert_edges.go"
+      - "go/internal/reducer/sql_relationship_materialization.go"
+      - "go/internal/reducer/sql_relationship_embedded_query.go"
+      - "go/internal/storage/cypher/edge_writer_sql.go"
+      - "testdata/cassettes/sqlrelationships/**"
+      - "go/internal/ifa/testdata/sqlrelationships/**"
       - "scripts/verify-ifa-fault-injection.sh"
       - "scripts/test-verify-ifa-fault-injection.sh"
       - "scripts/lib/ifa_fault_injection_common.sh"
@@ -1552,6 +1670,43 @@ gates:
       - nornicdb
       - postgres
     ci_only_reason: "requires Docker Compose service stack"
+
+  - id: auth-mcp-e2e
+    name: MCP-identity auth E2E (browser + scripted OAuth, fresh stack)
+    category: exactness
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "apps/console/e2e/**"
+      - "scripts/run-auth-mcp-e2e.sh"
+      - "scripts/auth-mcp-e2e-runtime.mjs"
+      - "scripts/verify-auth-mcp-e2e-sensitivity.sh"
+      - "scripts/verify-auth-mcp-e2e-manifest.sh"
+      - "scripts/lib/auth_mcp_e2e_sensitivity.sh"
+      - "scripts/lib/auth_mcp_e2e_manifest.sh"
+      - "docker-compose.e2e.yaml"
+      - "docker-compose.e2e.mutation.yaml"
+      - "testdata/golden/auth-mcp-e2e-baseline.json"
+      - "go/cmd/mock-github/**"
+      - "go/cmd/mock-oidc-idp/**"
+      - "go/cmd/mcp-server/**"
+      - "go/internal/oidcbearer/**"
+      - "go/internal/githublogin/**"
+      - "go/internal/query/**"
+      - "go/internal/mcp/**"
+    local:
+      command: "bash scripts/run-auth-mcp-e2e.sh"
+      test_command: ""
+    ci:
+      workflow: frontend.yml
+      job: "MCP-identity auth E2E (browser + scripted OAuth, fresh stack)"
+    requirements:
+      - go
+      - node
+      - docker
+      - nornicdb
+      - postgres
+    ci_only_reason: ""
 
   - id: trivy-image
     name: Trivy image scan (GHCR)

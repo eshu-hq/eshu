@@ -2379,6 +2379,11 @@
     },
     {
       "category": "command",
+      "name": "mock-github",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "mock-oidc-idp",
       "readiness": "fixture_only",
       "owner": "cmd/mock-oidc-idp",

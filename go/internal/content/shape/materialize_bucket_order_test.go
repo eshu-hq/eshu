@@ -10,8 +10,9 @@ import "testing"
 // MUST be appended to the end of contentEntityBuckets, never inserted mid-table.
 // Inserting before the SQL/data/impl_blocks/pagerduty/gitlab/helm/sql_migrations
 // buckets would shift the persisted entity row order for every later label. The
-// Flux typed entities (issue #5360 PR A) are the most recent addition, so they
-// must be the trailing four entries, with sql_migrations (SqlMigration, #5346)
+// Flux typed entities (issue #5360 PR A, extended with FluxHelmRelease/
+// FluxHelmRepository by issue #5483 C1) are the most recent addition, so they
+// must be the trailing six entries, with sql_migrations (SqlMigration, #5346)
 // immediately before them and the Helm template-value buckets before that.
 func TestContentEntityBucketsFluxTypedEntitiesAppendedAtEnd(t *testing.T) {
 	t.Parallel()
@@ -22,23 +23,27 @@ func TestContentEntityBucketsFluxTypedEntitiesAppendedAtEnd(t *testing.T) {
 	}
 
 	fluxTypedEntities := map[string]string{
-		"flux_kustomizations":   "FluxKustomization",
-		"flux_git_repositories": "FluxGitRepository",
-		"flux_oci_repositories": "FluxOCIRepository",
-		"flux_buckets":          "FluxBucket",
+		"flux_kustomizations":    "FluxKustomization",
+		"flux_git_repositories":  "FluxGitRepository",
+		"flux_oci_repositories":  "FluxOCIRepository",
+		"flux_buckets":           "FluxBucket",
+		"flux_helm_releases":     "FluxHelmRelease",
+		"flux_helm_repositories": "FluxHelmRepository",
 	}
 	helmTemplateValues := map[string]string{
 		"helm_value_definitions":     "HelmValueDefinition",
 		"helm_template_value_usages": "HelmTemplateValueUsage",
 	}
 
-	// The four trailing entries must be the Flux typed entities, in this
+	// The six trailing entries must be the Flux typed entities, in this
 	// fixed order.
 	wantTrailing := []entityBucketMapping{
 		{bucket: "flux_kustomizations", label: "FluxKustomization"},
 		{bucket: "flux_git_repositories", label: "FluxGitRepository"},
 		{bucket: "flux_oci_repositories", label: "FluxOCIRepository"},
 		{bucket: "flux_buckets", label: "FluxBucket"},
+		{bucket: "flux_helm_releases", label: "FluxHelmRelease"},
+		{bucket: "flux_helm_repositories", label: "FluxHelmRepository"},
 	}
 	for i, want := range wantTrailing {
 		got := contentEntityBuckets[n-len(wantTrailing)+i]

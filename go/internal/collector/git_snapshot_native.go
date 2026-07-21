@@ -98,11 +98,19 @@ var snapshotEntityBuckets = []struct {
 	{bucket: "sql_migrations", label: "SqlMigration"},
 	// Flux typed entities: appended at the end to mirror
 	// content/shape/materialize_tables.go's frozen contentEntityBuckets order
-	// (issue #5360 PR A).
+	// (issue #5360 PR A). This list is the collector-side twin of that one:
+	// entityBucketsFromParsed walks ONLY these buckets to emit content
+	// entities, so a bucket registered in the parser and content/shape but
+	// missing here silently drops every entity (no fact, no graph node). The
+	// FluxHelmRelease/FluxHelmRepository buckets (issue #5483 C1) must stay in
+	// lockstep with both the parser dispatch and contentEntityBuckets --
+	// TestSnapshotEmitsFluxHelmReleaseAndRepositoryContentEntities guards that.
 	{bucket: "flux_kustomizations", label: "FluxKustomization"},
 	{bucket: "flux_git_repositories", label: "FluxGitRepository"},
 	{bucket: "flux_oci_repositories", label: "FluxOCIRepository"},
 	{bucket: "flux_buckets", label: "FluxBucket"},
+	{bucket: "flux_helm_releases", label: "FluxHelmRelease"},
+	{bucket: "flux_helm_repositories", label: "FluxHelmRepository"},
 }
 
 // NativeRepositorySnapshotter builds repository snapshots without Python bridge code.

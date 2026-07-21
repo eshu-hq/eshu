@@ -27,6 +27,19 @@ func TestOpenAPIImportDependencyInvestigation(t *testing.T) {
 		}
 	}
 	importDependencyResponses := mustMapField(t, importDependencyPost, "responses")
+	importDependencyTooBroad, ok := importDependencyResponses["422"]
+	if !ok {
+		t.Fatal("code/imports/investigate responses missing 422 scope-too-broad contract")
+	}
+	tooBroadResponse, ok := importDependencyTooBroad.(map[string]any)
+	if !ok {
+		t.Fatalf("code/imports/investigate 422 response = %#v, want object", importDependencyTooBroad)
+	}
+	if _, hasReferenceSibling := tooBroadResponse["$ref"]; hasReferenceSibling {
+		t.Fatalf("code/imports/investigate 422 response = %#v, want concrete response without ignored reference siblings", tooBroadResponse)
+	}
+	tooBroadContent := mustMapField(t, tooBroadResponse, "content")
+	_ = mustMapField(t, tooBroadContent, "application/json")
 	importDependencyOK := mustMapField(t, importDependencyResponses, "200")
 	importDependencyContent := mustMapField(t, mustMapField(t, importDependencyOK, "content"), "application/json")
 	importDependencyResponse := mustMapField(t, mustMapField(t, importDependencyContent, "schema"), "properties")

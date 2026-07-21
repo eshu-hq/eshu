@@ -135,3 +135,36 @@ func AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementAndOAuthChallenge(
 ) http.Handler {
 	return authMiddleware(token, resolver, nil, next, audit, authEnforcementConfigured, oauthChallenge)
 }
+
+// AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementOAuthChallengeAndAllowedReadAudit
+// is AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementAndOAuthChallenge
+// plus allowedAudit, the F-9 (#5170) allowed-read governance-audit sink. It
+// records an ALLOWED read_authorization event for every scoped-token or
+// OIDC-bearer credential that resolves successfully, immediately before
+// dispatch, mirroring the denial event audit already records on the failure
+// paths. A nil allowedAudit is a safe no-op, byte-identical to the
+// *AndOAuthChallenge constructor above.
+//
+// This is the ONLY constructor that threads a non-nil allowedAudit in
+// production: cmd/mcp-server/wiring.go uses it exclusively for the MCP
+// transport middleware (GET /sse, POST /mcp/message), never for the
+// /api/v0/* authedHandler mcp-server also builds and never for cmd/api,
+// so tools/call's internal dispatch through the same credential chain does
+// not double-emit one logical MCP read. See the F-9 design addendum §2 for
+// the full route-scope rationale. allowedAudit is expected to be a
+// governanceauditasync.AsyncAppender in production so this call never adds a
+// synchronous Postgres round trip to the read path; see that package's
+// README for why.
+func AuthMiddlewareWithScopedTokensGovernanceAuditEnforcementOAuthChallengeAndAllowedReadAudit(
+	token string,
+	resolver ScopedTokenResolver,
+	next http.Handler,
+	audit GovernanceAuditAppender,
+	authEnforcementConfigured bool,
+	oauthChallenge OAuthChallengePolicy,
+	allowedAudit GovernanceAuditAppender,
+) http.Handler {
+	return authMiddlewareWithAllowedReadAudit(
+		token, resolver, nil, next, audit, authEnforcementConfigured, oauthChallenge, allowedAudit,
+	)
+}

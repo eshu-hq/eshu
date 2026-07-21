@@ -116,6 +116,8 @@ type fakeCounter struct {
 	// matching (evidence-narrowed) edge ("" = absent). nodeProp keys "label|prop".
 	edgeProp map[string][]string
 	nodeProp map[string][]string
+	// selfLoop keys "label|relationship|property|value" -> self-loop edge count.
+	selfLoop map[string]int64
 	err      error
 }
 
@@ -143,29 +145,51 @@ func (f fakeCounter) ListNodeProperty(_ context.Context, label, prop string) ([]
 	return f.nodeProp[label+"|"+prop], f.err
 }
 
+func (f fakeCounter) CountSelfLoopEdges(_ context.Context, label, relationship, property, value string) (int64, error) {
+	return f.selfLoop[label+"|"+relationship+"|"+property+"|"+value], f.err
+}
+
+// dartSelfLoopFloor seeds the unconditionally-asserted required_self_loops
+// exact bound (sl-dart-calls-recursion, issue #5349) so a minimal-gate test can
+// satisfy the snapshot's required self-loops while focusing on its own
+// assertion. The pinned count of 2 mirrors tests/fixtures/ecosystems/
+// dart_comprehensive/calls.dart's recursionFib + recursionFact self-calls (see
+// testdata/golden/e2e-20repo-snapshot.json).
+func dartSelfLoopFloor() map[string]int64 {
+	return map[string]int64{"Function|CALLS|language|dart": 2}
+}
+
 // fileLanguageFloor seeds every unconditionally-asserted required_nodes floor
 // (rn-file-language, rn-dataplex-entry-group, rn-identity-platform-config,
 // rn-flux-kustomization-source-ref, rn-flux-git-repository-url,
-// rn-flux-oci-repository-url, rn-flux-bucket-name) so a minimal-gate test can
+// rn-flux-oci-repository-url, rn-flux-bucket-name, rn-flux-helm-release-
+// source-ref, rn-flux-helm-repository-url,
+// rn-terraform-resource-attribute-promotion) so a minimal-gate test can
 // satisfy the snapshot's required nodes while focusing on its own assertion.
 // The two GCP posture-only entries pin identity via a single CloudResource
-// node carrying the matching resource_type value; the four Flux entries (issue
-// #5360 PR A) pin identity via a FluxKustomization node carrying
+// node carrying the matching resource_type value; the four Flux PR A entries
+// (issue #5360 PR A) pin identity via a FluxKustomization node carrying
 // source_ref_kind, a FluxGitRepository node carrying url, a FluxOCIRepository
-// node carrying url, and a FluxBucket node carrying bucket_name (see
-// testdata/golden/e2e-20repo-snapshot.json).
+// node carrying url, and a FluxBucket node carrying bucket_name; the two Flux
+// Helm entries (issue #5483 C1) pin identity via a FluxHelmRelease node
+// carrying source_ref_kind and a FluxHelmRepository node carrying url; the
+// #5441 entry pins identity via a TerraformResource node carrying
+// tf_attr_instance_type (see testdata/golden/e2e-20repo-snapshot.json).
 func fileLanguageFloor() (map[string]int64, map[string][]string) {
 	langs := make([]string, 10)
 	for i := range langs {
 		langs[i] = "go"
 	}
 	nodes := map[string]int64{
-		"File":              int64(len(langs)),
-		"CloudResource":     2,
-		"FluxKustomization": 1,
-		"FluxGitRepository": 1,
-		"FluxOCIRepository": 1,
-		"FluxBucket":        1,
+		"File":               int64(len(langs)),
+		"CloudResource":      2,
+		"FluxKustomization":  1,
+		"FluxGitRepository":  1,
+		"FluxOCIRepository":  1,
+		"FluxBucket":         1,
+		"FluxHelmRelease":    1,
+		"FluxHelmRepository": 1,
+		"TerraformResource":  1,
 	}
 	nodeProp := map[string][]string{
 		"File|language": langs,
@@ -173,10 +197,13 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 			"dataplex.googleapis.com/EntryGroup",
 			"identitytoolkit.googleapis.com/Config",
 		},
-		"FluxKustomization|source_ref_kind": {"GitRepository"},
-		"FluxGitRepository|url":             {"https://github.com/acme/flux-system"},
-		"FluxOCIRepository|url":             {"oci://ghcr.io/acme/app-manifests"},
-		"FluxBucket|bucket_name":            {"flux-artifacts"},
+		"FluxKustomization|source_ref_kind":       {"GitRepository"},
+		"FluxGitRepository|url":                   {"https://github.com/acme/flux-system"},
+		"FluxOCIRepository|url":                   {"oci://ghcr.io/acme/app-manifests"},
+		"FluxBucket|bucket_name":                  {"flux-artifacts"},
+		"FluxHelmRelease|source_ref_kind":         {"HelmRepository"},
+		"FluxHelmRepository|url":                  {"https://stefanprodan.github.io/podinfo"},
+		"TerraformResource|tf_attr_instance_type": {"t3.micro"},
 	}
 	return nodes, nodeProp
 }
@@ -196,6 +223,7 @@ func TestCheckGraphRequiredOnlyPassesOnExistence(t *testing.T) {
 		},
 		nodes:    nodes,
 		nodeProp: nodeProp,
+		selfLoop: dartSelfLoopFloor(),
 	}
 	var r Report
 	if err := checkGraph(context.Background(), c, snap, true, map[string]bool{"rc-1": true, "rc-3": true}, &r); err != nil {
@@ -220,6 +248,7 @@ func TestCheckGraphAdvisoryCorrelationDoesNotBlock(t *testing.T) {
 		},
 		nodes:    nodes,
 		nodeProp: nodeProp,
+		selfLoop: dartSelfLoopFloor(),
 	}
 	var r Report
 	if err := checkGraph(context.Background(), c, snap, true, map[string]bool{"rc-1": true, "rc-3": true}, &r); err != nil {
@@ -368,6 +397,9 @@ func fakeQueryShapeResponse(shape QueryShape) map[string]any {
 	}
 	for path, value := range shape.RequiredJSONValues {
 		fakeSetJSONPath(resp, path, value)
+	}
+	for path, matches := range shape.RequiredJSONObjectMatches {
+		fakeSetJSONObjectMatches(resp, path, matches)
 	}
 	return resp
 }

@@ -133,6 +133,22 @@ per-language AST buckets (`imports`, `functions`, `function_calls`, `classes`,
 many independently evolving per-language field sets, deferred to later #4750
 increments that will follow the same read-set-plus-open-passthrough shape.
 
+Issue #5440 later typed a sixth key, `image_overrides` (`ImageOverride`), the
+same way: closed shape, two single-producer parsers
+(`go/internal/parser/yaml/image_overrides.go`), every field named with no
+`Attributes` pass-through since no third producer can add an unlisted field.
+Unlike the S1 batch, it was typed ahead of any reducer read site — it has no
+consumer yet (round-4 review corrected an earlier, inaccurate #5441 citation
+here and at seven other sites -- #5441 is "iac: persist relationship Details
+and Terraform attributes at the graph write" and has nothing to do with
+image_overrides). Issue #5445 ("contract the extraction surface: registry
+entries + typed accessors") governs the typed-accessor contract it follows.
+Issue #5469 ("vuln: tiered deployed-version resolution") aims to judge a
+vulnerability finding's version from the strongest available tier,
+including branch-resolved manifest evidence, which this bucket's declared
+Helm/Kustomize tag/digest is the kind of evidence for -- though #5469 does
+not yet name this bucket explicitly.
+
 Typing an inner key here adds a struct + accessor, NOT a new fact kind: these
 structs have no `payloadContracts` row, no `schema/` artifact, and no schemagen
 entry (they are not envelopes), so they do not change the `file.v1.schema.json`

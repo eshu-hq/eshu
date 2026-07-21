@@ -1,0 +1,36 @@
+{
+  "odu": "odu:ifa-sql-family-delta",
+  "note": "gen-2 generation-local pure derivation only: db/schema.sql is re-collected (delta_generation) so its six entities re-derive, but cmd/api/handlers.go is unchanged and not re-emitted in gen-2, so QUERIES_TABLE does not appear in THIS set. The accumulated durable graph (gen-1 committed + gen-2 delta) still carries QUERIES_TABLE through the file-scoped partition the live P4 proof asserts separately.",
+  "edges": [
+    {
+      "relationship_type": "HAS_COLUMN",
+      "source_entity_id": "content-entity:sql-tbl-users",
+      "target_entity_id": "content-entity:sql-col-email"
+    },
+    {
+      "relationship_type": "READS_FROM",
+      "source_entity_id": "content-entity:sql-view-active-users",
+      "target_entity_id": "content-entity:sql-tbl-users"
+    },
+    {
+      "relationship_type": "TRIGGERS",
+      "source_entity_id": "content-entity:sql-trig-users-touch",
+      "target_entity_id": "content-entity:sql-tbl-users"
+    },
+    {
+      "relationship_type": "EXECUTES",
+      "source_entity_id": "content-entity:sql-trig-users-touch",
+      "target_entity_id": "content-entity:sql-fn-touch-updated-at"
+    },
+    {
+      "relationship_type": "INDEXES",
+      "source_entity_id": "content-entity:sql-idx-users-email",
+      "target_entity_id": "content-entity:sql-tbl-orders"
+    },
+    {
+      "relationship_type": "MIGRATES",
+      "source_entity_id": "content-entity:sql-mig-v1-add-users",
+      "target_entity_id": "content-entity:sql-tbl-users"
+    }
+  ]
+}

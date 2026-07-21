@@ -60,6 +60,16 @@ marks Dart `library_import` rows with `import_type=import` and
 `library_export` rows with `import_type=export` so downstream resolvers do not
 treat export-only barrel files as local lexical imports.
 
+`dogfood_real_repo_test.go` is a standing regression test (#5399), not an
+opt-in dump: `TestDogfoodDartRealRepoSnapshot` parses the committed,
+package-shaped corpus at `tests/fixtures/dogfood/dart_real_repo` and diffs
+the bucket counts against `testdata/dogfood_real_repo_snapshot.txt`. It
+backs the `real-repo-validated` grade in
+`docs/public/languages/support-maturity.md#grade-definitions`. Regenerate
+the snapshot after an intentional parser change with
+`DOGFOOD_UPDATE_SNAPSHOT=1 bash scripts/dogfood-dart.sh`.
+
 ## Related docs
 
 - docs/public/languages/support-maturity.md
+- docs/public/languages/dart.md

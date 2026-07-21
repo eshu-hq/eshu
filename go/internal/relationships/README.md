@@ -5,8 +5,9 @@
 `relationships` extracts IaC and provider relationship evidence from fact
 envelopes and resolves that evidence into typed cross-repository relationships
 before reducer admission. It covers Terraform, Terraform provider schemas,
-Terragrunt, Helm, Kustomize, Argo CD, GitHub Actions, Jenkins, Ansible,
-Dockerfile, Docker Compose, and supported GCP cloud relationship signals.
+Terragrunt, Helm, Kustomize, Argo CD, Flux (cross-repo GitRepository url
+resolution), GitHub Actions, Jenkins, Ansible, Dockerfile, Docker Compose, and
+supported GCP cloud relationship signals.
 
 The package describes evidence rather than inventing deployment truth.
 Extractors emit `EvidenceFact` values; the `Resolve` function promotes them to
@@ -148,7 +149,16 @@ overridable place instead of scattered literals.
 ## Exported surface
 
 - `DiscoverEvidence(envelopes, catalog)` — scan envelopes for IaC evidence;
-  returns a deduplicated `[]EvidenceFact` (`evidence.go:18`)
+  returns a deduplicated `[]EvidenceFact` (`evidence.go:18`). Discards the
+  `DiscoveryStats` tally `DiscoverEvidenceWithStats` returns.
+- `DiscoverEvidenceWithStats(envelopes, catalog)` — same scan as
+  `DiscoverEvidence`, plus a `DiscoveryStats` tally for outcomes an extractor
+  intentionally does not turn into an `EvidenceFact` (today: the Flux
+  cross-repo url resolution linked/unresolved/ambiguous/self counters). A new
+  seam rather than a widened `DiscoverEvidence` signature, so every existing
+  caller stays untouched; only the Postgres ingestion commit path calls it
+  directly to emit `eshu_dp_flux_cross_repo_url_resolution_total`
+  (`evidence.go`, issue #5483 C2)
 - `Resolve(evidenceFacts, assertions, confidenceThreshold)` — group evidence
   into `[]Candidate`, apply `Assertion` overrides, filter by confidence, and
   return both slices (`resolver.go:62`)
@@ -202,13 +212,27 @@ overridable place instead of scattered literals.
   `RelUsesModule`, `RelProvisionsDependencyFor`, `RelDiscoversConfigIn`,
   `RelReadsConfigFrom`, `RelRunsOn`, `RelDependsOn` (`models.go:79`)
 - `Candidate` — aggregated machine-generated relationship with combined
-  `Confidence`, `EvidenceCount`, and merged `Details` (`models.go:134`)
+  `Confidence`, `EvidenceCount`, and merged `Details` (`models.go:162`).
+  Also carries `SourceRevision` and `FirstPartyRefVersion` — typed
+  accessors for two specific per-evidence-fact `Details` values (#5441),
+  aggregated across the candidate's facts by `aggregateCandidate` using a
+  deterministic highest-confidence-wins winner rule (`evidence_edge_fields.go`),
+  not read from the generic `Details` map. A third candidate field,
+  `DestinationNamespace`, was scoped and then deliberately removed before
+  merge: its only producer attaches the value to a `RelRunsOn` fact, never
+  to a fact of a repo-relationship type, so it would never populate — see
+  the `Candidate` doc comment and `docs/internal/evidence/5441-edge-node-properties.md`.
 - `ResolvedRelationship` — canonical relationship emitted after resolution;
-  carries `ResolutionSource` (`inferred` or `assertion`) (`models.go:147`)
+  carries `ResolutionSource` (`inferred` or `assertion`) (`models.go:199`).
+  Mirrors `Candidate`'s `SourceRevision`/`FirstPartyRefVersion` fields,
+  copied through by `candidateToResolved`; assertion-sourced relationships
+  never populate them.
 - `Assertion` — explicit human or control-plane override with `Decision`
   `"assert"` or `"reject"` (`models.go:122`)
 - `CatalogEntry` — maps one `RepoID` to its `Aliases` slice used by
-  `matchCatalog` (`evidence.go:11`)
+  `matchCatalog`, plus a normalized `RemoteURL` used ONLY by
+  `discoverStructuredFluxEvidence`'s strict cross-repo url equality
+  resolution, never the fuzzy alias matcher (`evidence.go:11`, issue #5483 C2)
 - `Generation` — lifecycle record for one resolution run (`models.go:171`)
 
 ## Dependencies
@@ -439,16 +463,61 @@ no plan change. `go test ./internal/relationships ./internal/reducer ./internal/
 No-Observability-Change: no metrics, spans, or structured logs are added or
 altered; the citation flows as evidence-fact and edge-property data only.
 
+## GitHub Actions @ref pin signal (#5372)
+
+`parseGitHubRefParts` (`first_party_refs.go`) delegates to the new leaf
+package `go/internal/ghactionsref`'s `Parse` -- the single ref-splitting
+implementation this package and `go/internal/query` both depend on, so the
+reducer/graph-projection path and the query/read-model path cannot silently
+diverge on how a GitHub Actions `uses:` ref splits. The delegation is
+behavior-preserving: every existing evidence `Details` key this package
+populates (`first_party_ref_path`, `first_party_ref_version`,
+`action_ref_name`, `workflow_ref_name`, ...) is unchanged.
+
+The reducer (`go/internal/reducer/cross_repo_evidence_artifacts.go`) reads
+those `Details` keys and projects `ref_value`/`ref_pinned` onto the graph
+`EvidenceArtifact` node, scoped strictly to `GITHUB_ACTIONS_*` evidence kinds
+-- `first_party_ref_version` is also populated by unrelated evidence families
+(Terraform, Ansible, Chef, ...) via `withFirstPartyRefDetails`, so the kind
+gate prevents mislabeling those as a GitHub Actions pin signal. `ref_pinned`
+is `true` only for a full-length (40- or 64-hex) commit SHA, per
+`ghactionsref.Pinned`; see
+`docs/public/reference/relationship-mapping-evidence.md` for the full
+contract and why branch vs. tag is deliberately not classified.
+
+No-Regression Evidence: `ghactionsref.Parse` is a leaf-package extraction of
+the prior `parseGitHubRefParts` body (byte-identical logic), so this is a
+behavior-preserving delegation, confirmed by the existing
+`go/internal/relationships` test suite staying green with no changes to
+expected values. `go list -deps ./internal/ghactionsref/` shows zero
+`eshu-hq/eshu` imports, confirming the new package introduces no import
+cycle with `go/internal/reducer`, `go/internal/storage/cypher`, or
+`go/internal/query`.
+
+No-Observability-Change: no metrics, spans, or structured logs are added or
+altered; ref_value/ref_pinned flow as evidence-fact and graph-node-property
+data only, following the existing citation-field pattern above.
+
 ## Shared repository-catalog derivation (#4394)
 
 `RepositoryCatalogEntry` (`catalog.go`) is the single source of truth for
-deriving a repository `CatalogEntry` (RepoID plus matching aliases) from a
-decoded repository fact payload. The logic moved here verbatim from the Postgres
-ingestion path (`go/internal/storage/postgres/ingestion_catalog_parse.go`), which
-now delegates to it, so Ifá's offline derived catalog (#4394) computes a
+deriving a repository `CatalogEntry` (RepoID, matching aliases, and a
+normalized `RemoteURL`) from a decoded repository fact payload. The logic
+moved here verbatim from the Postgres ingestion path
+(`go/internal/storage/postgres/ingestion_catalog_parse.go`), which now
+delegates to it, so Ifá's offline derived catalog (#4394) computes a
 generation's committed repository identity identically to the streaming commit
 path. The raw-payload-usage exemption for these pre-typed reads moved with the
 code (`go/internal/payloadusage/rawpayload.go`); no read changed.
+
+`RemoteURL` (issue #5483 C2) is `repositoryidentity.NormalizeRemoteURL(payload["remote_url"])`,
+captured alongside `Aliases` but never folded into it — it feeds only
+`discoverStructuredFluxEvidence`'s strict cross-repo url equality resolution.
+The shared catalog cache's reload-trigger comparison
+(`go/internal/storage/postgres/ingestion_catalog_cache.go`'s
+`catalogEntriesEqual`) checks `RemoteURL` in addition to `Aliases`, so a
+repository's remote URL changing (a mirror migration) merges a fresh entry
+into the cache instead of leaving Flux resolution pinned to a stale URL.
 
 No-Regression Evidence: this is a behavior-preserving extraction — the parser
 body (`catalogPayloadString` over `repo_id`/`graph_id`/`name`/`repo_name`/

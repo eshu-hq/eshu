@@ -100,6 +100,9 @@ func TestGitHubClientFetchRunsUsesBoundedActionsEndpoints(t *testing.T) {
 	if got, want := len(snapshot.Artifacts), 1; got != want {
 		t.Fatalf("len(Artifacts) = %d, want %d", got, want)
 	}
+	if snapshot.ArtifactsPartial {
+		t.Fatal("ArtifactsPartial = true, want false (no total_count on artifacts response)")
+	}
 	wantPaths := []string{
 		"/repos/example/repo/actions/runs?per_page=1",
 		"/repos/example/repo/actions/runs/1001/jobs?per_page=1",

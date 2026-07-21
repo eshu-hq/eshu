@@ -92,9 +92,12 @@ entries:
       source_sha256: 8f497a0cddd14b3e16382d6a2fbddeb4e2ba4ef270c4b327581e4b494aabdf2d
       line_hint: 59
     required_anchors:
+      - label: Repository
+        property: id
       - label: Workload
         property: id
     required_schema:
+      - repository_id
       - workload_id
       - nornicdb_workload_id_lookup
       - environment_name
@@ -225,12 +228,20 @@ entries:
     source:
       file: go/internal/query/entity_workload_context.go
       symbol: (*EntityHandler).fetchWorkloadPlatformResult
-      source_sha256: 32a2f173df26d536e734705924f20d9cf211e40337f85c4620227b9e8370caf9
+      source_sha256: 04684c04bcaf3a51164e5edc297384666ca5d4b341df44fd2c43c7f2161b734d
       line_hint: 292
     required_anchors:
+      - label: Repository
+        property: id
+      - label: Workload
+        property: id
       - label: WorkloadInstance
         property: id
     required_schema:
+      - repository_id
+      - nornicdb_repository_id_lookup
+      - workload_id
+      - nornicdb_workload_id_lookup
       - workload_instance_id
       - nornicdb_workload_instance_id_lookup
       - platform_id
@@ -244,7 +255,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-    cypher_sha256: "e7564de1e89bfe67c599cb3dd742b7b31bd226bb356fd7c8baab3c8bd9bd70ac"
+    cypher_sha256: "bb0a744ecd3889a3b4d36f4ecba05a5142904722fdf23dcf1f50ab3c80d341d0"
   - id: QP-SVC-CLOUD-DEPS
     domain: service
     backend: nornicdb
@@ -252,12 +263,16 @@ entries:
     source:
       file: go/internal/query/cloud_resource_dependencies.go
       symbol: loadMaterializedServiceCloudResourceDependencies
-      source_sha256: 147687884747140d0e4cc8238bef499cff688799df7206de884d264e23269e3e
+      source_sha256: e43495aed2bea44e69410778f7ae80a662b1189316ffc1849e44ca02dea78f6e
       line_hint: 10
     required_anchors:
+      - label: Repository
+        property: id
       - label: Workload
         property: id
     required_schema:
+      - repository_id
+      - nornicdb_repository_id_lookup
       - workload_id
       - nornicdb_workload_id_lookup
       - cloud_resource_resource_id
@@ -272,7 +287,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-    cypher_sha256: "ef641833902ea720432106011ef76ed72471135dd9ecc4fa7c59421f17c1b4be"
+    cypher_sha256: "d4211fdbcd0cf5321b4f93db45a72eeb7a2711ac8752832bae6f55d57c65b363"
   - id: QP-CODE-REL-STORY
     domain: code_relationship
     backend: nornicdb
@@ -393,10 +408,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/code_import_dependencies.go
-      symbol: fileImportCyclesCypher
-      source_sha256: bc80a62dfd1662bb0b12fa1d3d819b33c19ccca3b32098c3ec0791dfa20cede1
-      line_hint: 280
+      file: go/internal/query/code_import_dependencies_queries.go
+      symbol: fileImportCycleEdgeRowsCypher
+      source_sha256: 7933770f8693f37d674b2969bd7ba31d4150f1d22b9df3a68fd05da7d7afb1a9
+      line_hint: 146
     required_anchors:
       - label: Repository
         property: id
@@ -404,10 +419,11 @@ entries:
       - repository_id
       - nornicdb_repository_id_lookup
     required_limits:
-      - $limit
+      - $scan_limit
     requires_order: true
     caveats:
-      - Repo-scoped file-cycle investigation must seek the indexed repository before expanding either IMPORTS path. Requests scoped only by file or module retain the broader repository-discovery shape because no repo_id exists to anchor.
+      - The graph read returns one bounded ordered IMPORTS edge set; exact reciprocal Python cycles are reconstructed, deduplicated, filtered, and paged in Go.
+      - The exact-hash import-dependency variant family profiles every reachable optional-filter shape, including unscoped label-bounded variants.
     plan:
       operators:
         - NodeIndexSeek
@@ -417,7 +433,7 @@ entries:
         - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
-    cypher_sha256: "4b91024d77867e6f7ffbe0e502a2d069c797b878fee5d57f74753fb7033e88a1"
+    cypher_sha256: "03d641efabac1a59818e790354ed551d528db1cc3b6ee8755ec608a3d2917569"
   - id: QP-READINESS-HOSTED
     domain: readiness
     backend: nornicdb

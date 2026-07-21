@@ -97,6 +97,7 @@ describe("ImpactGraphProvenance completeness", () => {
 
     render(<ImpactGraphProvenance presentation={presentation} />);
 
+    expect(screen.getByRole("group", { name: "Graph composition evidence" })).toBeInTheDocument();
     expect(screen.getByText("completeness unverified")).toBeInTheDocument();
     expect(screen.queryByText("complete within bounds")).not.toBeInTheDocument();
   });

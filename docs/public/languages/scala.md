@@ -11,7 +11,8 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 - Fixture repo: `tests/fixtures/ecosystems/scala_comprehensive/`
 - Unit test suite: `go/internal/parser/engine_managed_oo_test.go`
 - Integration validation: compose-backed fixture verification (see
-  `../reference/local-testing.md`)
+  `../reference/local-testing.md`) plus the offline real-repo dogfood check
+  (`scripts/dogfood-scala.sh`, see [Known Limitations](#known-limitations))
 
 ## Capability Checklist
 | Capability | ID | Status | Extracted Bucket/Key | Required Fields | Graph Surface | Unit Coverage | Integration Coverage | Rationale |
@@ -40,12 +41,24 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
   covered `playframework/playframework` at
   `bcdc682de2250bbd0f2788bc5acc06f6d66ad5a7` and `scala/scala` at
   `25075e9b9b79954a0f99de515618901818822e62`, and both returned fresh `derived`
-  dead-code API truth after queue drain. Those pinned SHAs are recorded as
-  provenance only; the run left no committed, offline-reproducible artifact, so
-  Scala's Real-Repo Validation and End-to-End Indexing grades are
-  `fixture-backed` (see
-  [Parser Support Matrix](support-maturity.md#grade-definitions)). The evidence
-  cells above cite the checked-in fixtures and tests.
+  dead-code API truth after queue drain. That run left no committed,
+  offline-reproducible artifact, so it never backed a grade on its own.
+- Scala's Real-Repo Validation grade is `real-repo-validated` (#5399), earned
+  by a committed, offline-reproducible dogfood artifact: `scripts/dogfood-scala.sh`
+  runs the standing `TestDogfoodScalaRealRepoSnapshot` regression test
+  (`go/internal/parser/scala/dogfood_real_repo_test.go`) against the committed
+  app-shaped corpus at `tests/fixtures/dogfood/scala_real_repo` (a synthetic
+  Play-style `app/{controllers,models,services}` layout whose shape is
+  informed by the same `playframework/playframework` and `scala/scala` pinned
+  SHAs cited above, recorded as provenance metadata only and never fetched)
+  and diffs the parser's bucket counts against the checked-in snapshot at
+  `go/internal/parser/scala/testdata/dogfood_real_repo_snapshot.txt`. The
+  script requires no network access or Docker. End-to-End Indexing stays
+  `fixture-backed`: the corpus is not staged in `corpus_fixtures` in
+  `scripts/verify-golden-corpus-gate.sh` and has no B-12 attribution, so it
+  does not clear the `supported` bar (see
+  [Parser Support Matrix](support-maturity.md#grade-definitions)). The
+  evidence cells above cite the checked-in fixtures and tests.
 
 ## Framework And Library Support
 

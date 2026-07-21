@@ -51,6 +51,15 @@ func Parse(
 		if item := parseHelmValues(path, documents); item != nil {
 			shared.AppendBucket(payload, "helm_values", item)
 		}
+		if len(documents) > 0 {
+			if document, ok := documents[0].(map[string]any); ok {
+				environment := helmImageOverrideEnvironment(path)
+				for _, row := range collectHelmImageOverrides(document, path, environment) {
+					shared.AppendBucket(payload, "image_overrides", row)
+				}
+				shared.SortNamedBucket(payload, "image_overrides")
+			}
+		}
 		// Only the base values.yaml defines the chart's canonical values; emitting
 		// HelmValueDefinition nodes from environment overrides (values-prod.yaml)
 		// would let a template usage resolve to an override instead of the base.
@@ -153,10 +162,13 @@ func Parse(
 		"crossplane_compositions",
 		"crossplane_claims",
 		"kustomize_overlays",
+		"image_overrides",
 		"flux_kustomizations",
 		"flux_git_repositories",
 		"flux_oci_repositories",
 		"flux_buckets",
+		"flux_helm_releases",
+		"flux_helm_repositories",
 		"helm_charts",
 		"helm_values",
 		"helm_value_definitions",
@@ -190,10 +202,13 @@ func yamlBasePayload(path string, isDependency bool) map[string]any {
 	payload["crossplane_compositions"] = []map[string]any{}
 	payload["crossplane_claims"] = []map[string]any{}
 	payload["kustomize_overlays"] = []map[string]any{}
+	payload["image_overrides"] = []map[string]any{}
 	payload["flux_kustomizations"] = []map[string]any{}
 	payload["flux_git_repositories"] = []map[string]any{}
 	payload["flux_oci_repositories"] = []map[string]any{}
 	payload["flux_buckets"] = []map[string]any{}
+	payload["flux_helm_releases"] = []map[string]any{}
+	payload["flux_helm_repositories"] = []map[string]any{}
 	payload["helm_charts"] = []map[string]any{}
 	payload["helm_values"] = []map[string]any{}
 	payload["helm_value_definitions"] = []map[string]any{}
@@ -253,6 +268,15 @@ func appendYAMLDocument(payload map[string]any, path string, filename string, do
 
 	if isKustomization(apiVersion, filename) {
 		shared.AppendBucket(payload, "kustomize_overlays", parseKustomization(document, path, lineNumber))
+		// imageOverrideDirectoryEnvironment (image_overrides.go), not
+		// environmentFromPath directly: it requires <env> to be a real
+		// directory and lowercases the result, matching the guards
+		// helmImageOverrideEnvironment applies for the Helm producer
+		// (issue #5440 P1, independent review).
+		environment := imageOverrideDirectoryEnvironment(path)
+		for _, row := range collectKustomizeImageOverrides(document, path, environment, lineNumber) {
+			shared.AppendBucket(payload, "image_overrides", row)
+		}
 		return
 	}
 	if isFluxKustomization(apiVersion, kind) {
@@ -269,6 +293,14 @@ func appendYAMLDocument(payload map[string]any, path string, filename string, do
 	}
 	if isFluxBucket(apiVersion, kind) {
 		shared.AppendBucket(payload, "flux_buckets", parseFluxBucket(document, metadata, path, lineNumber))
+		return
+	}
+	if isFluxHelmRelease(apiVersion, kind) {
+		shared.AppendBucket(payload, "flux_helm_releases", parseFluxHelmRelease(document, metadata, path, lineNumber))
+		return
+	}
+	if isFluxHelmRepository(apiVersion, kind) {
+		shared.AppendBucket(payload, "flux_helm_repositories", parseFluxHelmRepository(document, metadata, path, lineNumber))
 		return
 	}
 	if strings.TrimSpace(apiVersion) == "" || strings.TrimSpace(kind) == "" {

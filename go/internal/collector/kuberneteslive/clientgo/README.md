@@ -40,6 +40,20 @@ with fakes.
   not abort the snapshot. A mid-stream failure after some pages degrades to
   `partial_list`.
 
+## CRI-resolved image digest (#5432)
+
+For Pod objects only, the adapter reads `pod.Status.ContainerStatuses[].ImageID`
+and `pod.Status.InitContainerStatuses[].ImageID` — the ONLY `.Status` fields the
+adapter reads. The `ImageID` is the CRI-resolved digest published by the
+container runtime for every container, even for tag-referenced images. The
+adapter normalizes it via `kuberneteslive.NormalizeCRIImageID` (strips
+`docker-pullable://` / `docker://` / `cri-o://` scheme prefixes, keeps only
+`repo@sha256:<digest>` forms) and populates `ContainerSummary.ResolvedImageDigest`
+on the matching spec container by name. A digest is a content fingerprint
+(metadata), so this does not violate the metadata-only invariant.
+Deployments, ReplicaSets, and other workload kinds carry only the pod template
+spec — they have no status and therefore no resolved digests.
+
 ## RBAC posture
 
 The collector needs only `get`, `list`, and `watch` on the configured resource

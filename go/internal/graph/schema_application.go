@@ -24,8 +24,21 @@ type SchemaApplication struct {
 }
 
 const (
-	graphSchemaNeo4jFingerprint    = "edf86cd974966f8ddf66d050185f0f8ebeb3155b2106bfa7484a63d865699108"
-	graphSchemaNornicDBFingerprint = "c5f668561275341825c53914e7f92cc10ad54bdf229eae143cd8f7c8c153c8ba"
+	graphSchemaNeo4jFingerprint    = "ad2a8291d1aa3766839c46d708f3641a1ec7c6fc0d2126de1c901f5b1997ebd7"
+	graphSchemaNornicDBFingerprint = "9b67c40d329b0309bb1247cf86c1f0574f9ddf31b8e6ab47de9416e960af0b70"
+
+	// graphSchemaNeo4jPreFluxHelmEntitiesFingerprint and its NornicDB peer are
+	// the schema fingerprints immediately before the FluxHelmRelease /
+	// FluxHelmRepository uid uniqueness constraints were added (issue #5483
+	// C1). On the current history the immediately-preceding schema is the
+	// #5360 PR A Flux typed-entities bump, so these equal that predecessor's
+	// (then-current) fingerprints -- the values graphSchemaNeo4jFingerprint/
+	// graphSchemaNornicDBFingerprint held before this change. The bump is
+	// additive: a writer running the predecessor schema creates no
+	// FluxHelmRelease/FluxHelmRepository nodes, so the predecessor stays
+	// compatible.
+	graphSchemaNeo4jPreFluxHelmEntitiesFingerprint    = "edf86cd974966f8ddf66d050185f0f8ebeb3155b2106bfa7484a63d865699108"
+	graphSchemaNornicDBPreFluxHelmEntitiesFingerprint = "c5f668561275341825c53914e7f92cc10ad54bdf229eae143cd8f7c8c153c8ba"
 
 	// graphSchemaNeo4jPreFluxTypedEntitiesFingerprint and its NornicDB peer are
 	// the schema fingerprints immediately before the FluxKustomization /
@@ -112,6 +125,7 @@ const (
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
 		graphSchemaNeo4jFingerprint: {
+			graphSchemaNeo4jPreFluxHelmEntitiesFingerprint,
 			graphSchemaNeo4jPreFluxTypedEntitiesFingerprint,
 			graphSchemaNeo4jPreSqlMigrationFingerprint,
 			graphSchemaNeo4jPreShellExecRetractIndexesFingerprint,
@@ -123,6 +137,7 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	},
 	SchemaBackendNornicDB: {
 		graphSchemaNornicDBFingerprint: {
+			graphSchemaNornicDBPreFluxHelmEntitiesFingerprint,
 			graphSchemaNornicDBPreFluxTypedEntitiesFingerprint,
 			graphSchemaNornicDBPreSqlMigrationFingerprint,
 			graphSchemaNornicDBPreFunctionLegacyIDLookupFingerprint,

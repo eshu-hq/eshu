@@ -156,6 +156,65 @@ func TestCheckGraphNodePresenceFailsWhenLabelEmpty(t *testing.T) {
 	}
 }
 
+// selfLoopSnapshot models "exactly 2 Function{language:dart} CALLS self-loops"
+// — the eshu-hq/eshu#5349 durable corpus gate for the eshu-hq/eshu#5332
+// declaration-vs-call-site self-loop fix.
+func selfLoopSnapshot() Snapshot {
+	return Snapshot{
+		SchemaVersion: "1",
+		Graph: GraphSnapshot{
+			RequiredSelfLoops: []RequiredSelfLoop{{
+				ID: "sl-dart-calls-recursion", Label: "Function", Relationship: "CALLS",
+				NodeProperty: "language", NodePropertyValue: "dart",
+				MinimumCount: 2, MaximumCount: 2,
+			}},
+		},
+	}
+}
+
+// TestCheckGraphSelfLoopExactCountPasses confirms the pinned exact count (2:
+// arrow-recursion + block-recursion, see tests/fixtures/ecosystems/
+// dart_comprehensive) passes.
+func TestCheckGraphSelfLoopExactCountPasses(t *testing.T) {
+	c := fakeCounter{selfLoop: map[string]int64{"Function|CALLS|language|dart": 2}}
+	var r Report
+	if err := checkGraph(context.Background(), c, selfLoopSnapshot(), true, nil, &r); err != nil {
+		t.Fatalf("checkGraph err = %v", err)
+	}
+	if r.Failed() {
+		t.Fatalf("expected pass at the pinned exact self-loop count; findings: %+v", r.Findings)
+	}
+}
+
+// TestCheckGraphSelfLoopRegressedInflationFails is the keystone acceptance for
+// eshu-hq/eshu#5349: if the eshu-hq/eshu#5332 declaration-vs-call-site
+// self-loop bug regresses, EVERY declaration in the fixture becomes a spurious
+// self-loop, pushing the observed count well past the pinned ceiling of 2. A
+// floor-only assertion would not catch this; the gate must fail.
+func TestCheckGraphSelfLoopRegressedInflationFails(t *testing.T) {
+	c := fakeCounter{selfLoop: map[string]int64{"Function|CALLS|language|dart": 11}}
+	var r Report
+	if err := checkGraph(context.Background(), c, selfLoopSnapshot(), true, nil, &r); err != nil {
+		t.Fatalf("checkGraph err = %v", err)
+	}
+	if !r.Failed() {
+		t.Fatal("a self-loop count above the pinned ceiling (spurious declaration self-loops) must fail the gate")
+	}
+}
+
+// TestCheckGraphSelfLoopDroppedRecursionFails confirms the floor side of the
+// bound also blocks: genuine recursion silently filtered out must not pass.
+func TestCheckGraphSelfLoopDroppedRecursionFails(t *testing.T) {
+	c := fakeCounter{selfLoop: map[string]int64{"Function|CALLS|language|dart": 0}}
+	var r Report
+	if err := checkGraph(context.Background(), c, selfLoopSnapshot(), true, nil, &r); err != nil {
+		t.Fatalf("checkGraph err = %v", err)
+	}
+	if !r.Failed() {
+		t.Fatal("zero self-loops when genuine recursion is pinned must fail the gate")
+	}
+}
+
 // TestLoadSnapshotParsesPropertyAssertions proves the schema additions are
 // additive and round-trip: the committed golden snapshot still loads, and the new
 // optional fields default to empty (no property check) for existing entries.

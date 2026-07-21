@@ -1,10 +1,10 @@
 {
   "schema_version": "1",
   "corpus_id": "supply-chain-demo-20repo",
-  "description": "Golden graph and query truth snapshot for the B-7 end-to-end corpus gate. B-7 diffs a live run against this file. Update this file under review when intentional graph behaviour changes; never update silently.",
+  "description": "Golden graph and query truth snapshot for the B-7 end-to-end corpus gate. B-7 diffs a live run against this file. Update this file under review when intentional graph behaviour changes; never update silently. `corpus_id` is a stable identifier (its historical `-20repo` suffix is not a live count); `corpus_composition.git_repos` is the authoritative repository count.",
   "tolerance_policy": "count ranges are [min, max] inclusive; a live run outside the range fails B-7(b). required_correlations assertions must all pass; a missing edge fails B-7(b). query_shapes define required response fields; a missing field fails B-7(c).",
   "corpus_composition": {
-    "git_repos": 21,
+    "git_repos": 24,
     "credentialed_collectors": [
       "kubernetes_live",
       "aws_cloud",
@@ -23,12 +23,12 @@
       "Repository": {
         "min": 15,
         "max": 30,
-        "note": "20 corpus repos; may include additional discovered mirror stubs"
+        "note": "24 corpus repos; may include additional discovered mirror stubs"
       },
       "File": {
         "min": 40,
         "max": 20000,
-        "note": "all source files parsed across the deterministic 20-repo corpus (observed 78); floor catches a major projection drop (e.g. #4019), ceiling stays wide for parser growth"
+        "note": "all source files parsed across the deterministic corpus (observed 78); floor catches a major projection drop (e.g. #4019), ceiling stays wide for parser growth"
       },
       "Function": {
         "min": 100,
@@ -41,9 +41,9 @@
         "note": "logical workload-instance nodes derived from config materialization and deployment mapping"
       },
       "KubernetesWorkload": {
-        "min": 1,
+        "min": 3,
         "max": 20,
-        "note": "raw k8s Deployment/Service workload nodes; source of RUNS_IMAGE edges"
+        "note": "raw k8s Deployment/ReplicaSet/Pod workload nodes; source of RUNS_IMAGE edges; +1 pod from #5432"
       },
       "Workload": {
         "min": 1,
@@ -158,9 +158,9 @@
         "note": "Function\u2192Workload code-to-workload binding (not WorkloadInstance\u2192CloudResource)"
       },
       "RUNS_IMAGE": {
-        "min": 1,
+        "min": 3,
         "max": 30,
-        "note": "KubernetesWorkload\u2192OciImageManifest supply-chain image correlation"
+        "note": "KubernetesWorkload\u2192OciImageManifest supply-chain image correlation; +1 from #5432 CRI-resolved-digest pod"
       },
       "HANDLES_ROUTE": {
         "min": 1,
@@ -374,6 +374,46 @@
         "from_label": "Repository",
         "to_label": "Repository",
         "minimum_count": 1
+      },
+      {
+        "id": "rc-156",
+        "description": "#5441 P1 finding 3 regression guard: the helm_argocd_platform fixture's application.yaml declares source.targetRevision: v1.4.0 pointing at the in-corpus deployable-source repository (github.com/acme/deployable-source.git), which the relationships engine emits as ARGOCD_APPLICATION_SOURCE evidence resolving a DEPLOYS_FROM edge. DEPLOYS_FROM is a tool-agnostic edge also emitted by Kustomize (rc-29) and a Helm chart dependency (rc-34), so this correlation filters on evidence_kinds=[ARGOCD_APPLICATION_SOURCE] to isolate the ArgoCD deployment-source verb, and additionally requires the edge to carry a non-empty source_revision property -- the exact regression this issue fixed: buildResolvedEdgeIntentRow previously read the wrong Details map and always wrote source_revision as \"\" for every ArgoCD-sourced edge in production. The count and the property are both provably zero/empty without the fix.",
+        "relationship": "DEPLOYS_FROM",
+        "from_label": "Repository",
+        "to_label": "Repository",
+        "minimum_count": 1,
+        "evidence_kinds": [
+          "ARGOCD_APPLICATION_SOURCE"
+        ],
+        "required_edge_properties": [
+          "source_tool",
+          "source_revision"
+        ],
+        "allowed_edge_property_values": {
+          "source_tool": [
+            "argocd"
+          ]
+        }
+      },
+      {
+        "id": "rc-155",
+        "description": "#5441 P1 finding 3 regression guard: USES_MODULE had zero golden-corpus coverage before this fix. The terraform_comprehensive fixture's modules.tf eks module previously declared source = git::https://github.com/example/terraform-aws-eks.git?ref=v1.0.0, an org not in the 20-repo catalog, so it never resolved to a real edge -- exactly the same class of gap that let source_revision (rc-156) sit uncovered before the live gate caught it. Repointed at the in-corpus deployable-source repository (source = git::https://github.com/acme/deployable-source.git?ref=v1.0.0) so the module-source pin is observable end to end: the relationships engine emits TERRAFORM_MODULE_SOURCE evidence resolving a USES_MODULE edge, and evidenceFactFirstPartyRefVersion (evidence_edge_fields.go) derives first_party_ref_version from Details[\"source_ref\"] via ExtractTerraformRefPin since Terraform module evidence never sets first_party_ref_version directly (unlike GitHub Actions). The count and the property are both provably zero/empty without the fixture retarget.",
+        "relationship": "USES_MODULE",
+        "from_label": "Repository",
+        "to_label": "Repository",
+        "minimum_count": 1,
+        "evidence_kinds": [
+          "TERRAFORM_MODULE_SOURCE"
+        ],
+        "required_edge_properties": [
+          "source_tool",
+          "first_party_ref_version"
+        ],
+        "allowed_edge_property_values": {
+          "source_tool": [
+            "terraform"
+          ]
+        }
       },
       {
         "id": "rc-20",
@@ -1542,9 +1582,34 @@
         "from_label": "FluxKustomization",
         "to_label": "FluxGitRepository",
         "minimum_count": 1
+      },
+      {
+        "id": "rc-153",
+        "description": "At least 3 RUNS_IMAGE edges; the +1 over digest-pinned Deployment+ReplicaSet comes from the tag-referenced Pod (supply-chain-demo-pod) promoting via its CRI-resolved ImageID digest (issue #5432). Without the CRI-digest feature, the tag-referenced pod produces no edge and count stays at 2.",
+        "relationship": "RUNS_IMAGE",
+        "from_label": "KubernetesWorkload",
+        "to_label": "OciImageManifest",
+        "minimum_count": 3
+      },
+      {
+        "id": "rc-154",
+        "description": "FluxHelmRelease RECONCILES_FROM its resolved source CR: kubernetes_comprehensive/flux-helmrelease.yaml (podinfo, spec.chart.spec.sourceRef kind HelmRepository name podinfo namespace flux-system) resolves against kubernetes_comprehensive/flux-helmrepository.yaml (podinfo, namespace flux-system) via the SAME deterministic same-repo namespace-exact tier FluxKustomization uses, reused verbatim (issue #5483 C1). Zero if the sourceRef/source-CR namespace or name join drifts, or if the shared T1-T4 resolver stops being reachable from the HelmRelease collection path.",
+        "relationship": "RECONCILES_FROM",
+        "from_label": "FluxHelmRelease",
+        "to_label": "FluxHelmRepository",
+        "minimum_count": 1
       }
     ],
     "required_nodes": [
+      {
+        "id": "rn-terraform-resource-attribute-promotion",
+        "description": "#5441 P1 finding 3 regression guard: at least 1 TerraformResource node carries a non-empty tf_attr_instance_type property. The terraformstate supply-chain-demo cassette's module.ecs.aws_instance.supply-chain-demo resource declares attributes.instance_type = \"t3.micro\", which promoteTerraformResourceAttributes (go/internal/storage/cypher/terraform_attribute_promotion.go) flattens onto the node as tf_attr_instance_type via the additive `r += row.attrs` merge in the TerraformResource upsert template. Zero without the fix (the property did not exist before #5441) and zero without the new cassette resource (the pre-existing aws_ecs_cluster/aws_ecs_service resources are not in the promotion allowlist).",
+        "label": "TerraformResource",
+        "minimum_count": 1,
+        "required_node_properties": [
+          "tf_attr_instance_type"
+        ]
+      },
       {
         "id": "rn-file-language",
         "description": "At least 10 File nodes carry a non-empty language (source_type); proves per-file language extraction (#4003) is operational. Presence-positive floor \u2014 legitimately language-less files (LICENSE, .gitignore) do not fail it, but a regression that stops populating language drops the count below the floor.",
@@ -1617,6 +1682,36 @@
         "required_node_properties": [
           "bucket_name"
         ]
+      },
+      {
+        "id": "rn-flux-helm-release-source-ref",
+        "description": "At least 1 FluxHelmRelease node carries source_ref_kind; kubernetes_comprehensive/flux-helmrelease.yaml (podinfo, helm.toolkit.fluxcd.io) proves the typed Flux HelmRelease walker captures spec.chart.spec.sourceRef instead of falling through to the generic K8sResource parser (issue #5483 C1). The RECONCILES_FROM correlation edge to its resolved source CR is asserted separately as rc-154.",
+        "label": "FluxHelmRelease",
+        "minimum_count": 1,
+        "required_node_properties": [
+          "source_ref_kind"
+        ]
+      },
+      {
+        "id": "rn-flux-helm-repository-url",
+        "description": "At least 1 FluxHelmRepository node carries url; kubernetes_comprehensive/flux-helmrepository.yaml (podinfo, source.toolkit.fluxcd.io) proves the typed Flux HelmRepository walker captures spec.url instead of dropping it on the generic K8sResource path (issue #5483 C1).",
+        "label": "FluxHelmRepository",
+        "minimum_count": 1,
+        "required_node_properties": [
+          "url"
+        ]
+      }
+    ],
+    "required_self_loops": [
+      {
+        "id": "sl-dart-calls-recursion",
+        "description": "Exactly 2 Function{language=dart} CALLS self-loop edges (caller==callee): recursionFib (arrow-form) and recursionFact (block-form) in tests/fixtures/ecosystems/dart_comprehensive/calls.dart. Dart's call extractor (go/internal/parser/dart/calls.go) was a raw byte-scanner that could not distinguish a declaration header from a call site, recording every function/method/constructor declaration in the corpus as a spurious self-loop CALLS edge (issue #5332). Dart was not staged in the golden corpus, so that corruption class shipped with no durable end-to-end gate (issue #5349). The bound is closed on BOTH sides, not a floor: below 2 means genuine recursion was dropped; above 2 means the #5332 declaration-vs-call-site bug regressed (every one of the fixture's other declarations — DeclarationOnlyWidget's 2 constructors + getter + setter + method, GeoPoint's named constructor, mutualPing/mutualPong, identityFn, LineBuffer.append — would each contribute a spurious self-loop). Mutual recursion (mutualPing<->mutualPong) and the named-constructor/generic-args/cascade call shapes in the same fixture are NOT self-loops (caller != callee) and so do not move this count; they instead flow through the existing generic rc-11 Function-CALLS-Function floor.",
+        "label": "Function",
+        "relationship": "CALLS",
+        "node_property": "language",
+        "node_property_value": "dart",
+        "minimum_count": 2,
+        "maximum_count": 2
       }
     ]
   },
@@ -4603,10 +4698,42 @@
           "data.k8s_resource_limits.k8s_relationships_complete"
         ],
         "required_json_values": {
+          "data.repo_id": "repository:r_217415d9",
+          "data.workload_id": "workload:deployable-config",
+          "data.instances[].instance_id": "workload-instance:deployable-config:production",
+          "data.instances[].platforms[].platform_id": "platform:kubernetes:none:production:production:none",
           "data.instances[].platforms[].topology_edges[].relationship_type": "RUNS_ON",
           "data.deployment_fact_summary.deployment_truth_tier": "runtime_confirmed",
           "truth.level": "derived",
           "truth.basis": "hybrid"
+        },
+        "required_json_object_matches": {
+          "data.instances[].platforms[].topology_edges[]": [
+            {
+              "relationship_type": "RUNS_ON",
+              "source_id": "workload-instance:deployable-config:production",
+              "target_id": "platform:kubernetes:none:production:production:none"
+            }
+          ],
+          "data.topology_edges[]": [
+            {
+              "relationship_type": "DEFINES",
+              "source_id": "repository:r_217415d9",
+              "target_id": "workload:deployable-config"
+            },
+            {
+              "relationship_type": "INSTANCE_OF",
+              "source_id": "workload-instance:deployable-config:production",
+              "target_id": "workload:deployable-config"
+            }
+          ],
+          "data.deployment_sources[]": [
+            {
+              "relationship_type": "DEPLOYMENT_SOURCE",
+              "source_id": "workload-instance:deployable-config:production",
+              "target_id": "repository:r_1f68383d"
+            }
+          ]
         }
       },
       "GET /api/v0/repositories": {
@@ -4764,13 +4891,24 @@
         ],
         "minimum_results": 0
       },
-      "GET /api/v0/iac/resources?limit=50": {
-        "description": "IaC resource list from the terraform/IaC corpus; confirms the IaC read surface is queryable.",
+      "GET /api/v0/iac/resources?limit=50&include_facets=true": {
+        "description": "Current active-generation IaC resource list and authoritative caller-visible summary from the terraform/IaC corpus.",
         "required_response_fields": [
           "resources",
-          "count"
+          "count",
+          "summary"
         ],
-        "minimum_results": 0
+        "minimum_results": 1,
+        "required_json_paths": [
+          "resources[].id",
+          "summary.total",
+          "summary.by_kind.resource"
+        ],
+        "required_json_values": {
+          "count": 10,
+          "summary.total": 18,
+          "summary.by_kind.resource": 10
+        }
       },
       "GET /api/v0/documentation/facts?fact_kind=source": {
         "description": "Documentation source facts; confirms the documentation read surface is queryable.",
@@ -4914,6 +5052,108 @@
           "data.language_maturity.go": "derived"
         }
       },
+      "POST /api/v0/code/dead-code/investigate?golden_scope=ruby_rails_app": {
+        "description": "#5378 Detector 1 (Ruby Rails route-handler) golden discrimination. WidgetsController#index is rooted, so it is suppressed as a modeled root; the LegacyReportsController#generate foil is downgraded (not a route), so it must surface as a cleanup_ready dead-code candidate. The two object-matches are closed on (name, classification): over-rooting the foil moves generate out of cleanup_ready and fails the gate (false-positive guard); under-rooting the real handler moves index out of suppressed and fails the gate (false-negative guard). The golden_scope query arg only disambiguates this snapshot key; the handler reads repo_id from the body and ignores the query string. Content-store-only detector: no reducer/graph edge, so no Ifa materialized-edge row applies.",
+        "envelope": true,
+        "request_body": {
+          "repo_id": "ruby_rails_app",
+          "language": "ruby",
+          "limit": 50,
+          "offset": 0
+        },
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "required_json_values": {
+          "truth.level": "derived",
+          "truth.basis": "hybrid",
+          "data.coverage.query_shape": "bounded_dead_code_investigation"
+        },
+        "required_json_object_matches": {
+          "data.candidate_buckets.cleanup_ready[]": [
+            {
+              "name": "generate",
+              "classification": "unused"
+            }
+          ],
+          "data.candidate_buckets.suppressed[]": [
+            {
+              "name": "index",
+              "classification": "excluded"
+            }
+          ]
+        }
+      },
+      "POST /api/v0/code/dead-code/investigate?golden_scope=swift_vapor_app": {
+        "description": "#5378 Detector 2 (Swift Vapor route-handler) golden discrimination. routes.swift has import Vapor, so its use: healthCheck handler is rooted (swift.vapor_route_handler) and suppressed as a modeled root; plain.swift carries the identical use: shape without import Vapor, so its statusReport handler must NOT be rooted and must surface as a cleanup_ready dead-code candidate. The object-matches are closed on (name, classification): rooting the foil (dropping the per-file import Vapor gate) moves statusReport out of cleanup_ready and fails (false-positive guard); losing the healthCheck root moves it out of suppressed and fails (false-negative guard). golden_scope disambiguates the key only; repo_id comes from the body. Content-store-only detector: no reducer/graph edge, so no Ifa materialized-edge row applies.",
+        "envelope": true,
+        "request_body": {
+          "repo_id": "swift_vapor_app",
+          "language": "swift",
+          "limit": 50,
+          "offset": 0
+        },
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "required_json_values": {
+          "truth.level": "derived",
+          "truth.basis": "hybrid",
+          "data.coverage.query_shape": "bounded_dead_code_investigation"
+        },
+        "required_json_object_matches": {
+          "data.candidate_buckets.cleanup_ready[]": [
+            {
+              "name": "statusReport",
+              "classification": "unused"
+            }
+          ],
+          "data.candidate_buckets.suppressed[]": [
+            {
+              "name": "healthCheck",
+              "classification": "excluded"
+            }
+          ]
+        }
+      },
+      "POST /api/v0/code/dead-code/investigate?golden_scope=jenkins-ci-pipelines": {
+        "description": "#5378 Detector 3 (Jenkins Groovy pipeline entrypoint) golden discrimination. The Jenkinsfile pipeline entrypoint is rooted (groovy.jenkins_pipeline_entrypoint) and suppressed as a modeled root; the src/DeployHelper.groovy foil is an ordinary Groovy source file (not a Jenkins artifact), so its deployApp method, though it calls pipelineDeploy(, gets no dead_code_root_kind and must surface as an ambiguous (derived_candidate_only) dead-code candidate. The object-matches are closed on (name, classification): rooting the foil moves deployApp out of ambiguous and fails (false-positive guard); losing the Jenkinsfile root moves it out of suppressed and fails (false-negative guard). golden_scope disambiguates the key only; repo_id comes from the body. Content-store-only detector: no reducer/graph edge, so no Ifa materialized-edge row applies.",
+        "envelope": true,
+        "request_body": {
+          "repo_id": "jenkins-ci-pipelines",
+          "language": "groovy",
+          "limit": 50,
+          "offset": 0
+        },
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "required_json_values": {
+          "truth.level": "derived",
+          "truth.basis": "hybrid",
+          "data.coverage.query_shape": "bounded_dead_code_investigation"
+        },
+        "required_json_object_matches": {
+          "data.candidate_buckets.ambiguous[]": [
+            {
+              "name": "deployApp",
+              "classification": "derived_candidate_only"
+            }
+          ],
+          "data.candidate_buckets.suppressed[]": [
+            {
+              "name": "Jenkinsfile",
+              "classification": "excluded"
+            }
+          ]
+        }
+      },
       "POST /api/v0/code/dead-code/cross-repo": {
         "description": "Cross-repo producer dead-code classification; asserts dead/live-by-consumer/unknown/suppressed bucket counts, bounded query shape, and truth envelope without provider keys.",
         "envelope": true,
@@ -4952,6 +5192,21 @@
           "data.candidate_buckets.unknown[].classification": "unknown_needs_evidence",
           "data.analysis.dead_code_language_maturity.go": "derived"
         }
+      },
+      "GET /api/v0/repositories/deployable-config/branches": {
+        "description": "Repository branches + tags endpoint; the deployable-config fixture is staged with annotated and lightweight git tags so the endpoint returns tags with minimum 2 results and required item fields present.",
+        "truth_class": "content_index",
+        "minimum_results": 2,
+        "required_response_fields": [
+          "default_branch",
+          "tags",
+          "branches"
+        ],
+        "result_item_required_fields": [
+          "name",
+          "kind",
+          "head_sha"
+        ]
       }
     }
   },

@@ -166,7 +166,13 @@ export async function resolveEntityHandle(
   client: EshuApiClient,
   query: string,
 ): Promise<ResolvedHandle> {
-  const result = await resolveEntity({ client, name: query, limit: 1 });
+  const canonical = canonicalResolutionQuery(query);
+  const result = await resolveEntity({
+    client,
+    name: canonical.name,
+    limit: 1,
+    type: canonical.type,
+  });
   const top = result.candidates[0];
   const kind = top?.type ?? top?.labels[0] ?? "";
   return {
@@ -177,6 +183,15 @@ export async function resolveEntityHandle(
     repoId: repositoryIDForResolved(top?.id, top?.repoId, kind),
     repoName: top?.repoName ?? "",
   };
+}
+
+function canonicalResolutionQuery(query: string): { name: string; type?: string } {
+  const trimmed = query.trim();
+  const prefix = "workload:";
+  if (trimmed.toLowerCase().startsWith(prefix)) {
+    return { name: trimmed.slice(prefix.length), type: "workload" };
+  }
+  return { name: query };
 }
 
 function repositoryIDForResolved(

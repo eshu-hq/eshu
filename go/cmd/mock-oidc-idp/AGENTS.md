@@ -34,6 +34,12 @@
 - **No OTEL bootstrap** — matches `go/cmd/admin-status`'s precedent: a
   synthetic test fixture with no database does not need the runtime
   telemetry framework. Do not add `internal/telemetry` wiring here.
+- **`access_token` stays the fixed opaque string by default** — `mintAccessToken`
+  (`server.go`) only mints a JWT when the flow carries an RFC 8707 `resource`
+  parameter or `MOCK_OIDC_ACCESS_TOKEN_JWT=true` is set. Do not make JWT
+  minting unconditional: the #4971 browser-auth suite depends on
+  `access_token` staying byte-stable (`"mock-access-token"`) since it never
+  reads that field.
 
 ## Common changes and how to scope them
 

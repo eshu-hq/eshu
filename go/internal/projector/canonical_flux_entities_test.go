@@ -13,11 +13,12 @@ import (
 // silent-drop regression: entityTypeLabelMap gates extractEntities (via
 // EntityTypeLabel) before a content_entity fact ever becomes an EntityRow.
 // Before FluxKustomization/FluxGitRepository/FluxOCIRepository/FluxBucket
+// (issue #5360 PR A) and FluxHelmRelease/FluxHelmRepository (issue #5483 C1)
 // were registered there, a content_entity fact carrying one of these
 // entity_type values was silently skipped (continue on !ok) -- the fact
 // existed, but no node was ever produced for the canonical graph writer, the
 // same class of gap #5346/#5347 hit for other typed entities. This test
-// proves all four labels now reach EntityRow instead of being dropped.
+// proves all six labels now reach EntityRow instead of being dropped.
 func TestExtractEntitiesCapturesFluxTypedEntities(t *testing.T) {
 	t.Parallel()
 
@@ -39,6 +40,8 @@ func TestExtractEntitiesCapturesFluxTypedEntities(t *testing.T) {
 		"FluxGitRepository",
 		"FluxOCIRepository",
 		"FluxBucket",
+		"FluxHelmRelease",
+		"FluxHelmRepository",
 	}
 	for i, label := range fluxLabels {
 		envelopes = append(envelopes, facts.Envelope{

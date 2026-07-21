@@ -33,6 +33,12 @@ type GraphSnapshot struct {
 	// preserves the historical behaviour where node presence came only from the
 	// -required-node-labels flag.
 	RequiredNodes []RequiredNode `json:"required_nodes,omitempty"`
+	// RequiredSelfLoops pin the count of (n)-[Relationship]->(n) self-loop edges
+	// on nodes carrying a given label and property value (the self-loop-axis
+	// counterpart to RequiredCorrelations and RequiredNodes). Optional and
+	// additive: an empty list preserves historical behaviour (no self-loop
+	// assertions).
+	RequiredSelfLoops []RequiredSelfLoop `json:"required_self_loops,omitempty"`
 }
 
 // CountRange is an inclusive [Min, Max] tolerance for a node label or edge type.
@@ -117,6 +123,26 @@ type RequiredNode struct {
 	AllowedNodePropertyValues map[string][]string `json:"allowed_node_property_values,omitempty"`
 }
 
+// RequiredSelfLoop is a bounded assertion on the count of (n:Label
+// {NodeProperty: NodePropertyValue})-[:Relationship]->(n) self-loop edges —
+// same source and target node. Unlike RequiredCorrelation (an existence-only
+// floor), a self-loop count must be bounded on BOTH sides: a floor alone
+// cannot distinguish "genuine recursion survives" from "a declaration-vs-
+// call-site bug (eshu-hq/eshu#5332) reintroduced a spurious self-loop per
+// declaration", since both push the count up. NodeProperty/NodePropertyValue
+// scope the match to one language/family sharing a node label (e.g. Function)
+// so one language's self-loop count is not conflated with another's.
+type RequiredSelfLoop struct {
+	ID                string `json:"id"`
+	Description       string `json:"description"`
+	Label             string `json:"label"`
+	Relationship      string `json:"relationship"`
+	NodeProperty      string `json:"node_property"`
+	NodePropertyValue string `json:"node_property_value"`
+	MinimumCount      int64  `json:"minimum_count"`
+	MaximumCount      int64  `json:"maximum_count"`
+}
+
 // DrainAssertions captures the B-7(a) queue-drain gate: both queues must reach a
 // terminal state before any graph or query truth is checked.
 type DrainAssertions struct {
@@ -182,6 +208,11 @@ type QueryShape struct {
 	// values. Array traversal uses the same [] suffix as RequiredJSONPaths and
 	// passes when any resolved value equals the expected value.
 	RequiredJSONValues map[string]any `json:"required_json_values,omitempty"`
+	// RequiredJSONObjectMatches pins related fields to the same object. Each
+	// path resolves one or more objects, and every expected partial object must
+	// match a single resolved object. This prevents independent wildcard value
+	// checks from accepting reversed or unrelated relationship endpoints.
+	RequiredJSONObjectMatches map[string][]map[string]any `json:"required_json_object_matches,omitempty"`
 	// ExpectedErrorContains declares a deliberate MCP refusal/error shape. It is
 	// used only for MCP tools whose local-full-stack proof is an explicit
 	// profile, fixture, or runtime-ceiling refusal rather than a successful data

@@ -104,6 +104,33 @@ func DecodeParsedFileDataDockerfileStages(parsedFileData map[string]any) ([]code
 	return stages, nil
 }
 
+// DecodeParsedFileDataImageOverrides decodes the "image_overrides" inner
+// slice of a parsed_file_data map into a typed []codegraphv1.ImageOverride.
+// An absent key decodes to a nil slice with no error, matching the other
+// closed-shape slice accessors' absent-key behavior. Both producers -- the
+// Helm values and Kustomize image-list parsers
+// (go/internal/parser/yaml/image_overrides.go) -- write the identical closed
+// row shape.
+func DecodeParsedFileDataImageOverrides(parsedFileData map[string]any) ([]codegraphv1.ImageOverride, error) {
+	raw, present := parsedFileData["image_overrides"]
+	if !present || raw == nil {
+		return nil, nil
+	}
+	elems, ok := asObjectSlice(raw)
+	if !ok {
+		return nil, fmt.Errorf("factschema: image_overrides: want slice of JSON objects, got %T", raw)
+	}
+	overrides := make([]codegraphv1.ImageOverride, 0, len(elems))
+	for i, elem := range elems {
+		var override codegraphv1.ImageOverride
+		if err := decodeMapInto(elem, &override); err != nil {
+			return nil, fmt.Errorf("factschema: image_overrides[%d]: %w", i, err)
+		}
+		overrides = append(overrides, override)
+	}
+	return overrides, nil
+}
+
 // DecodeParsedFileDataPipelineCalls decodes the "pipeline_calls" inner key of a
 // parsed_file_data map into a []string, tolerating both the []string the groovy
 // producer emits and the []any a Postgres JSONB round trip yields. An absent or

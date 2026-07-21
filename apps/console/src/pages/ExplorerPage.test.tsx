@@ -123,9 +123,10 @@ describe("ExplorerPage mode-by-kind (issue #1725)", () => {
       },
       post: async (path: string) => {
         calls.push(path);
-        throw new Error(
-          "entity-map should not be called when service context has deployment evidence",
-        );
+        if (path === "/api/v0/impact/trace-deployment-chain") {
+          return { data: {}, error: null, truth: null };
+        }
+        throw new Error(`unexpected POST ${path}`);
       },
     } as unknown as EshuApiClient;
 
@@ -133,7 +134,8 @@ describe("ExplorerPage mode-by-kind (issue #1725)", () => {
 
     expect(await screen.findByText("iac-eks-argocd")).toBeInTheDocument();
     expect(screen.getByText("helm-charts")).toBeInTheDocument();
-    expect(screen.getByText("DEPLOYS_FROM ← svc-platform")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("iac-eks-argocd"));
+    expect(screen.getByText("DEPLOYS_FROM → svc-platform")).toBeInTheDocument();
     expect(calls).toContain("/api/v0/services/svc-platform/context");
     expect(calls).not.toContain("/api/v0/impact/entity-map");
     expect(screen.queryByText(/RELATED/)).not.toBeInTheDocument();
@@ -172,14 +174,18 @@ describe("ExplorerPage mode-by-kind (issue #1725)", () => {
         error: null,
         truth: null,
       }),
-      post: async () => {
-        throw new Error("entity-map should not be called");
+      post: async (path: string) => {
+        if (path === "/api/v0/impact/trace-deployment-chain") {
+          return { data: {}, error: null, truth: null };
+        }
+        throw new Error(`unexpected POST ${path}`);
       },
     } as unknown as EshuApiClient;
 
     renderExplorer(client, "checkout-api");
 
-    const edgeRow = await screen.findByRole("button", { name: /DEPLOYS_FROM ← checkout-api/i });
+    fireEvent.click(await screen.findByText("gitops-config"));
+    const edgeRow = screen.getByRole("button", { name: /DEPLOYS_FROM → checkout-api/i });
     fireEvent.click(edgeRow);
 
     const panel = screen.getByRole("region", { name: /Evidence for DEPLOYS_FROM/i });

@@ -238,6 +238,29 @@ func matchCatalog(
 	return evidence
 }
 
+// remoteURLMatches returns every catalog entry whose RemoteURL is BYTE-EQUAL
+// to normalizedURL. Unlike match, this is a strict identity comparison, not a
+// fuzzy token match: it is the resolution primitive
+// discoverStructuredFluxEvidence uses so a Flux GitRepository's spec.url only
+// ever links to a repository it names exactly, never one it merely resembles
+// (issue #5483 C2). An empty normalizedURL or an entry with no RemoteURL
+// never matches.
+func (matcher *catalogMatcher) remoteURLMatches(normalizedURL string) []CatalogEntry {
+	if matcher == nil || normalizedURL == "" {
+		return nil
+	}
+	var matches []CatalogEntry
+	for _, entry := range matcher.entries {
+		if entry.RemoteURL == "" {
+			continue
+		}
+		if entry.RemoteURL == normalizedURL {
+			matches = append(matches, entry)
+		}
+	}
+	return matches
+}
+
 // matchesEntry checks if a candidate string matches any alias of a catalog entry.
 // Returns the matched alias or empty string.
 func matchesEntry(candidate string, entry CatalogEntry) string {

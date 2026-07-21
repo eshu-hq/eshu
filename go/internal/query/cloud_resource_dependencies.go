@@ -5,6 +5,7 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
 )
@@ -14,18 +15,32 @@ const serviceCloudResourceDependencyLimit = serviceStoryItemLimit
 func loadMaterializedServiceCloudResourceDependencies(
 	ctx context.Context,
 	graph GraphQuery,
+	repoID string,
 	workloadID string,
 	limit int,
 ) ([]map[string]any, error) {
+	repoID = strings.TrimSpace(repoID)
 	workloadID = strings.TrimSpace(workloadID)
-	if graph == nil || workloadID == "" {
+	if graph == nil || repoID == "" || workloadID == "" {
+		return nil, nil
+	}
+	access := repositoryAccessFilterFromContext(ctx)
+	// WorkloadInstance and USES relationships are global today and do not
+	// carry repository ownership, so scoped callers cannot safely consume them.
+	if access.scoped() {
 		return nil, nil
 	}
 	if limit <= 0 || limit > serviceCloudResourceDependencyLimit {
 		limit = serviceCloudResourceDependencyLimit
 	}
-	rows, err := graph.Run(ctx, `
-MATCH (workload:Workload {id: $workload_id})<-[:INSTANCE_OF]-(instance:WorkloadInstance)-[rel:USES]->(c:CloudResource)
+	params := access.graphParams(map[string]any{
+		"repo_id":     repoID,
+		"workload_id": workloadID,
+		"limit":       limit,
+	})
+	rows, err := graph.Run(ctx, fmt.Sprintf(`
+MATCH (repo:Repository)-[:DEFINES]->(workload:Workload {id: $workload_id})<-[:INSTANCE_OF]-(instance:WorkloadInstance)-[rel:USES]->(c:CloudResource)
+WHERE repo.id = $repo_id%s
 RETURN DISTINCT coalesce(c.id, c.uid, c.resource_id, c.arn, c.name) AS id,
        c.name AS name,
        coalesce(c.kind, c.resource_type, c.data_type, '') AS kind,
@@ -47,10 +62,7 @@ RETURN DISTINCT coalesce(c.id, c.uid, c.resource_id, c.arn, c.name) AS id,
        coalesce(rel.source_record_id, '') AS source_record_id,
        coalesce(rel.collector_kind, '') AS collector_kind
 ORDER BY name, id
-LIMIT $limit`, map[string]any{
-		"workload_id": workloadID,
-		"limit":       limit,
-	})
+LIMIT $limit`, access.graphPredicate("repo")), params)
 	if err != nil {
 		return nil, err
 	}
@@ -129,6 +141,11 @@ func loadConfigDerivedCloudResourceDependenciesWithLimit(
 	limit int,
 ) ([]map[string]any, bool, error) {
 	if graph == nil || len(deploymentEvidence) == 0 {
+		return nil, false, nil
+	}
+	// CloudResource nodes do not carry repository ownership. A config-text
+	// match is only a candidate, so a scoped token cannot safely authorize it.
+	if repositoryAccessFilterFromContext(ctx).scoped() {
 		return nil, false, nil
 	}
 	anchors, anchorsTruncated := configReadCloudResourceAnchors(deploymentEvidence)

@@ -298,6 +298,20 @@ func batchCypherForDomain(domain string) (string, error) {
 	}
 }
 
+// repoDependencyRowMapCapacity and repoRelationshipRowMapCapacity pre-size
+// the DEPENDS_ON and typed-relationship row maps in buildRowMap to their
+// worst-case key count (#5441 perf follow-up). A map literal is sized from
+// its own element count only, so every key appended afterward can force a
+// bucket-array reallocation once the map crosses Go's load-factor threshold;
+// pre-sizing avoids it. Theory proved and measured before implementing —
+// see "Map Bucket-Growth Pre-Sizing" in
+// docs/internal/evidence/5441-edge-node-properties.md for the throwaway-shim
+// numbers and the recovered before/after/pre-sized benchmark table.
+const (
+	repoDependencyRowMapCapacity   = 14 // 3 base + evidence_type + source_tool + 9 copyRepoRelationshipMetadata keys.
+	repoRelationshipRowMapCapacity = 15 // 4 base + evidence_type + source_tool + 9 copyRepoRelationshipMetadata keys.
+)
+
 // buildRowMap converts a SharedProjectionIntentRow into a flat parameter map
 // suitable for UNWIND batching. Returns false if required MATCH fields for the
 // domain are empty, indicating the row should be skipped.
@@ -336,11 +350,10 @@ func buildRowMap(
 			return "", nil, false
 		}
 		if relationshipType == "" || relationshipType == string(edgetype.DependsOn) {
-			rowMap := map[string]any{
-				"repo_id":         repoID,
-				"target_repo_id":  targetRepoID,
-				"evidence_source": evidenceSource,
-			}
+			rowMap := make(map[string]any, repoDependencyRowMapCapacity)
+			rowMap["repo_id"] = repoID
+			rowMap["target_repo_id"] = targetRepoID
+			rowMap["evidence_source"] = evidenceSource
 			if evidenceType := payloadString(row.Payload, "evidence_type"); evidenceType != "" {
 				rowMap["evidence_type"] = evidenceType
 			}
@@ -350,12 +363,11 @@ func buildRowMap(
 			copyRepoRelationshipMetadata(rowMap, row.Payload, row.GenerationID)
 			return batchCanonicalRepoDependencyUpsertCypher, rowMap, true
 		}
-		rowMap := map[string]any{
-			"repo_id":           repoID,
-			"target_repo_id":    targetRepoID,
-			"relationship_type": relationshipType,
-			"evidence_source":   evidenceSource,
-		}
+		rowMap := make(map[string]any, repoRelationshipRowMapCapacity)
+		rowMap["repo_id"] = repoID
+		rowMap["target_repo_id"] = targetRepoID
+		rowMap["relationship_type"] = relationshipType
+		rowMap["evidence_source"] = evidenceSource
 		if evidenceType := payloadString(row.Payload, "evidence_type"); evidenceType != "" {
 			rowMap["evidence_type"] = evidenceType
 		}

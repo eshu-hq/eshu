@@ -90,7 +90,7 @@ func TestIaCResourcesHappyPath(t *testing.T) {
 		iacResourceNode("a1", "aws_s3_bucket.logs", "aws_s3_bucket", "aws"),
 		iacResourceNode("b2", "aws_iam_role.app", "aws_iam_role", "aws"),
 	}}
-	handler := &IaCHandler{Graph: graph}
+	handler := newIaCResourceTestHandler(graph)
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -133,7 +133,7 @@ func TestIaCResourcesEmpty(t *testing.T) {
 	t.Parallel()
 
 	graph := &stubIaCResourceGraph{rows: nil}
-	handler := &IaCHandler{Graph: graph}
+	handler := newIaCResourceTestHandler(graph)
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -157,7 +157,7 @@ func TestIaCResourcesLimitValidation(t *testing.T) {
 	t.Parallel()
 
 	graph := &stubIaCResourceGraph{}
-	handler := &IaCHandler{Graph: graph}
+	handler := newIaCResourceTestHandler(graph)
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -178,7 +178,7 @@ func TestIaCResourcesDefaultLimitWhenAbsent(t *testing.T) {
 	t.Parallel()
 
 	graph := &stubIaCResourceGraph{rows: nil}
-	handler := &IaCHandler{Graph: graph}
+	handler := newIaCResourceTestHandler(graph)
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -193,8 +193,9 @@ func TestIaCResourcesDefaultLimitWhenAbsent(t *testing.T) {
 	if body.Limit != iacResourcesDefaultLimit {
 		t.Fatalf("limit = %d, want default %d", body.Limit, iacResourcesDefaultLimit)
 	}
-	if got, want := graph.lastParams["limit"], iacResourcesDefaultLimit+1; got != want {
-		t.Fatalf("graph limit param = %v, want %d", got, want)
+	inventory := handler.Inventory.(*stubIaCInventoryStore)
+	if got, want := inventory.lastSearch.Limit, iacResourcesDefaultLimit+1; got != want {
+		t.Fatalf("inventory search limit = %v, want %d", got, want)
 	}
 }
 
@@ -207,7 +208,7 @@ func TestIaCResourcesTruncationAndCursor(t *testing.T) {
 		iacResourceNode("b2", "aws_iam_role.b", "aws_iam_role", "aws"),
 		iacResourceNode("c3", "aws_s3_bucket.c", "aws_s3_bucket", "aws"),
 	}}
-	handler := &IaCHandler{Graph: graph}
+	handler := newIaCResourceTestHandler(graph)
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -237,7 +238,7 @@ func TestIaCResourcesFilters(t *testing.T) {
 	t.Parallel()
 
 	graph := &stubIaCResourceGraph{rows: nil}
-	handler := &IaCHandler{Graph: graph}
+	handler := newIaCResourceTestHandler(graph)
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -248,26 +249,18 @@ func TestIaCResourcesFilters(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if got := graph.lastParams["type"]; got != "aws_iam_role" {
-		t.Fatalf("type param = %v, want aws_iam_role", got)
+	inventory := handler.Inventory.(*stubIaCInventoryStore)
+	if got := inventory.lastSearch.Type; got != "aws_iam_role" {
+		t.Fatalf("type filter = %v, want aws_iam_role", got)
 	}
-	if got := graph.lastParams["provider"]; got != "aws" {
-		t.Fatalf("provider param = %v, want aws", got)
+	if got := inventory.lastSearch.Provider; got != "aws" {
+		t.Fatalf("provider filter = %v, want aws", got)
 	}
-	if got := graph.lastParams["module_prefix_dot"]; got != "module.app." {
-		t.Fatalf("module_prefix_dot param = %v, want module.app.", got)
+	if got := inventory.lastSearch.Module; got != "app" {
+		t.Fatalf("module filter = %v, want app", got)
 	}
-	if got := graph.lastParams["module_prefix_idx"]; got != "module.app[" {
-		t.Fatalf("module_prefix_idx param = %v, want module.app[", got)
-	}
-	if !strings.Contains(graph.lastCypher, "n.resource_type = $type") {
-		t.Fatalf("cypher missing resource_type filter: %s", graph.lastCypher)
-	}
-	if !strings.Contains(graph.lastCypher, "n.provider = $provider") {
-		t.Fatalf("cypher missing provider filter: %s", graph.lastCypher)
-	}
-	if !strings.Contains(graph.lastCypher, "n.name STARTS WITH $module_prefix_dot") {
-		t.Fatalf("cypher missing module prefix filter: %s", graph.lastCypher)
+	if graph.calls != 0 {
+		t.Fatalf("graph calls = %d, want 0 for an empty current candidate page", graph.calls)
 	}
 }
 
@@ -275,7 +268,7 @@ func TestIaCResourcesModuleFilterIncludesQuotedAddresses(t *testing.T) {
 	t.Parallel()
 
 	graph := &stubIaCResourceGraph{rows: nil}
-	handler := &IaCHandler{Graph: graph}
+	handler := newIaCResourceTestHandler(graph)
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -286,14 +279,9 @@ func TestIaCResourcesModuleFilterIncludesQuotedAddresses(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if got := graph.lastParams["module_prefix_quoted_dot"]; got != `module."api-node".` {
-		t.Fatalf("module_prefix_quoted_dot param = %v, want quoted module prefix", got)
-	}
-	if got := graph.lastParams["module_prefix_quoted_idx"]; got != `module."api-node"[` {
-		t.Fatalf("module_prefix_quoted_idx param = %v, want quoted indexed module prefix", got)
-	}
-	if !strings.Contains(graph.lastCypher, "n.name STARTS WITH $module_prefix_quoted_dot") {
-		t.Fatalf("cypher missing quoted module prefix filter: %s", graph.lastCypher)
+	inventory := handler.Inventory.(*stubIaCInventoryStore)
+	if got := inventory.lastSearch.Module; got != "api-node" {
+		t.Fatalf("module filter = %v, want api-node", got)
 	}
 }
 
@@ -303,7 +291,7 @@ func TestIaCResourcesModuleKind(t *testing.T) {
 	graph := &stubIaCResourceGraph{rows: []map[string]any{
 		{"id": "m1", "name": "vpc", "line_number": int64(0)},
 	}}
-	handler := &IaCHandler{Graph: graph}
+	handler := newIaCResourceTestHandler(graph)
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -317,8 +305,9 @@ func TestIaCResourcesModuleKind(t *testing.T) {
 	if !strings.Contains(graph.lastCypher, "MATCH (n:TerraformModule)") {
 		t.Fatalf("cypher missing TerraformModule anchor: %s", graph.lastCypher)
 	}
-	if got := graph.lastParams["module"]; got != "vpc" {
-		t.Fatalf("module param = %v, want vpc (exact match for module kind)", got)
+	inventory := handler.Inventory.(*stubIaCInventoryStore)
+	if got := inventory.lastSearch.Module; got != "vpc" {
+		t.Fatalf("module filter = %v, want vpc", got)
 	}
 	body := decodeIaCResourceList(t, w)
 	if body.Kind != "module" {
@@ -332,8 +321,10 @@ func TestIaCResourcesModuleKind(t *testing.T) {
 func TestIaCResourcesDataSourceKind(t *testing.T) {
 	t.Parallel()
 
-	graph := &stubIaCResourceGraph{rows: nil}
-	handler := &IaCHandler{Graph: graph}
+	graph := &stubIaCResourceGraph{rows: []map[string]any{
+		iacResourceNode("d1", "data.aws_iam_policy_document.app", "aws_iam_policy_document", "aws"),
+	}}
+	handler := newIaCResourceTestHandler(graph)
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -347,8 +338,9 @@ func TestIaCResourcesDataSourceKind(t *testing.T) {
 	if !strings.Contains(graph.lastCypher, "MATCH (n:TerraformDataSource)") {
 		t.Fatalf("cypher missing TerraformDataSource anchor: %s", graph.lastCypher)
 	}
-	if !strings.Contains(graph.lastCypher, "n.data_type = $type") {
-		t.Fatalf("data-source kind must filter on data_type: %s", graph.lastCypher)
+	inventory := handler.Inventory.(*stubIaCInventoryStore)
+	if got := inventory.lastSearch.Type; got != "aws_iam_policy_document" {
+		t.Fatalf("data-source type filter = %q, want aws_iam_policy_document", got)
 	}
 }
 
@@ -356,7 +348,7 @@ func TestIaCResourcesInvalidKind(t *testing.T) {
 	t.Parallel()
 
 	graph := &stubIaCResourceGraph{}
-	handler := &IaCHandler{Graph: graph}
+	handler := newIaCResourceTestHandler(graph)
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -376,7 +368,8 @@ func TestIaCResourcesUnsupportedProfile(t *testing.T) {
 	t.Parallel()
 
 	graph := &stubIaCResourceGraph{}
-	handler := &IaCHandler{Graph: graph, Profile: ProfileLocalLightweight}
+	handler := newIaCResourceTestHandler(graph)
+	handler.Profile = ProfileLocalLightweight
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -395,8 +388,11 @@ func TestIaCResourcesUnsupportedProfile(t *testing.T) {
 func TestIaCResourcesGraphError(t *testing.T) {
 	t.Parallel()
 
-	graph := &stubIaCResourceGraph{err: errors.New("boom")}
-	handler := &IaCHandler{Graph: graph}
+	graph := &stubIaCResourceGraph{
+		rows: []map[string]any{iacResourceNode("a1", "aws_s3_bucket.logs", "aws_s3_bucket", "aws")},
+		err:  errors.New("boom"),
+	}
+	handler := newIaCResourceTestHandler(graph)
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

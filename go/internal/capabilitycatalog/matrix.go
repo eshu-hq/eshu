@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -75,6 +76,18 @@ type matrixFileProfileRow struct {
 	Verification    []map[string]string `yaml:"verification"`
 }
 
+// allowedVerificationKinds is the closed set of verification kinds a matrix
+// row may declare. An unlisted key is a hard load error (#5407) rather than a
+// silently accepted proof signal: mirrors
+// go/internal/backendconformance/matrix.go's allowedVerificationKeys so the
+// two matrices agree on the proof-kind vocabulary.
+var allowedVerificationKinds = map[string]struct{}{
+	"go_test":           {},
+	"integration_test":  {},
+	"compose_e2e":       {},
+	"remote_validation": {},
+}
+
 // MatrixFileName is the main capability matrix file inside the specs directory.
 const MatrixFileName = "capability-matrix.v1.yaml"
 
@@ -98,7 +111,11 @@ func LoadMatrix(specsDir string) (Matrix, error) {
 			return fmt.Errorf("duplicate capability %q", raw.Capability)
 		}
 		seen[raw.Capability] = struct{}{}
-		capabilities = append(capabilities, convertCapability(raw))
+		converted, err := convertCapability(raw)
+		if err != nil {
+			return err
+		}
+		capabilities = append(capabilities, converted)
 		return nil
 	}
 	for _, raw := range main.Capabilities {
@@ -170,16 +187,20 @@ func readMatrixFile(path string) (matrixFile, error) {
 	return parsed, nil
 }
 
-func convertCapability(raw matrixFileCapability) MatrixCapability {
+func convertCapability(raw matrixFileCapability) (MatrixCapability, error) {
 	profiles := make(map[string]MatrixProfile, len(raw.Profiles))
 	for id, row := range raw.Profiles {
+		verification, err := convertVerification(row.Verification)
+		if err != nil {
+			return MatrixCapability{}, fmt.Errorf("capability %q profile %q: %w", raw.Capability, id, err)
+		}
 		profiles[id] = MatrixProfile{
 			Status:          row.Status,
 			MaxTruthLevel:   row.MaxTruthLevel,
 			RequiredRuntime: row.RequiredRuntime,
 			P95LatencyMS:    row.P95LatencyMS,
 			MaxScopeSize:    row.MaxScopeSize,
-			Verification:    convertVerification(row.Verification),
+			Verification:    verification,
 		}
 	}
 	tools := append([]string(nil), raw.Tools...)
@@ -187,14 +208,16 @@ func convertCapability(raw matrixFileCapability) MatrixCapability {
 		Capability: raw.Capability,
 		Tools:      tools,
 		Profiles:   profiles,
-	}
+	}, nil
 }
 
 // convertVerification flattens the YAML list of single-key maps into ordered
 // kind/ref pairs. Each entry like {go_test: ./internal/query} yields one
 // MatrixVerification; multi-key maps are expanded in sorted key order so the
-// output stays deterministic.
-func convertVerification(raw []map[string]string) []MatrixVerification {
+// output stays deterministic. A key outside allowedVerificationKinds is a hard
+// error (#5407): an unrecognized proof kind must not be silently accepted as
+// verification evidence.
+func convertVerification(raw []map[string]string) ([]MatrixVerification, error) {
 	out := make([]MatrixVerification, 0, len(raw))
 	for _, entry := range raw {
 		keys := make([]string, 0, len(entry))
@@ -203,8 +226,22 @@ func convertVerification(raw []map[string]string) []MatrixVerification {
 		}
 		sort.Strings(keys)
 		for _, key := range keys {
+			if _, ok := allowedVerificationKinds[key]; !ok {
+				return nil, fmt.Errorf("unknown verification kind %q (allowed: %s)", key, strings.Join(sortedVerificationKinds(), ", "))
+			}
 			out = append(out, MatrixVerification{Kind: key, Ref: entry[key]})
 		}
 	}
-	return out
+	return out, nil
+}
+
+// sortedVerificationKinds returns allowedVerificationKinds' keys sorted, for a
+// deterministic error message.
+func sortedVerificationKinds() []string {
+	kinds := make([]string, 0, len(allowedVerificationKinds))
+	for kind := range allowedVerificationKinds {
+		kinds = append(kinds, kind)
+	}
+	sort.Strings(kinds)
+	return kinds
 }

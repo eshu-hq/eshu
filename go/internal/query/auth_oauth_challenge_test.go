@@ -345,7 +345,7 @@ func TestAuthMiddleware_BrowserSessionDenial_NeverCarriesOAuthChallenge(t *testi
 		ok:          true,
 	}
 	handler := authMiddlewareWithRoutePolicy(
-		"shared-token", nil, sessionResolver, mockHandler(), nil, BrowserSessionRoutePolicy{}, true, oauthPolicy,
+		"shared-token", nil, sessionResolver, mockHandler(), nil, BrowserSessionRoutePolicy{}, true, oauthPolicy, nil,
 	)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories", nil)

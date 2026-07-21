@@ -44,6 +44,8 @@ jobs:
       heredoc: ${{ steps.filter.outputs.heredoc }}
       docsrefs: ${{ steps.filter.outputs.docsrefs }}
       doccitations: ${{ steps.filter.outputs.doccitations }}
+      remotevalidation: ${{ steps.filter.outputs.remotevalidation }}
+      maturitydrift: ${{ steps.filter.outputs.maturitydrift }}
       matrix: ${{ steps.gate-matrix.outputs.matrix }}
       any: ${{ steps.gate-matrix.outputs.any }}
     steps:
@@ -142,6 +144,20 @@ jobs:
               - 'specs/fact-kind-registry.v1.yaml'
               - 'specs/replay-coverage-manifest.v1.yaml'
               - 'testdata/golden/e2e-20repo-snapshot.json'
+              # #5351 materialized-edge exhaustiveness gate: the SQL relationship
+              # family's write path (edge_writer_sql.go, sql_relationship_*.go)
+              # and its fixtures/manifest. A write-path-only regression here is
+              # exactly the silent-no-op class the gate exists for and the pure
+              # seam cannot catch, so it MUST retrigger the Ifa contract-layer
+              # gate (which runs the pure ifa-materialized-edge-coverage go test).
+              - 'go/internal/reducer/materialized_edge_families.go'
+              - 'go/internal/reducer/shared_projection.go'
+              - 'go/internal/reducer/sql_relationship_materialization.go'
+              - 'go/internal/reducer/sql_relationship_embedded_query.go'
+              - 'go/internal/reducer/sql_relationship_metadata.go'
+              - 'go/internal/storage/cypher/edge_writer_sql.go'
+              - 'specs/ifa-materialized-edge-coverage.v1.yaml'
+              - 'testdata/cassettes/sqlrelationships/**'
             ifaload:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'
@@ -184,6 +200,28 @@ jobs:
               - 'scripts/verify-doc-citations.sh'
               - 'scripts/test-verify-doc-citations.sh'
               - 'scripts/docs-citations-baseline.txt'
+            remotevalidation:
+              - '.github/workflows/static-contract-gates.yml'
+              - 'specs/ci-gates.v1.yaml'
+              - 'specs/capability-matrix.v1.yaml'
+              - 'specs/capability-matrix/**'
+              - 'go/internal/capabilitycatalog/**'
+              - 'go/cmd/capability-inventory/**'
+              - 'docs/internal/remote-validation/**'
+              - 'specs/remote-validation-baseline.txt'
+              - 'scripts/verify-remote-validation-artifacts.sh'
+              - 'scripts/test-verify-remote-validation-artifacts.sh'
+            maturitydrift:
+              - '.github/workflows/static-contract-gates.yml'
+              - 'specs/ci-gates.v1.yaml'
+              - 'scripts/verify-golden-corpus-gate.sh'
+              - 'testdata/golden/e2e-20repo-snapshot.json'
+              - 'docs/public/languages/support-maturity.md'
+              - 'specs/language-feature-parity-ledger.v1.yaml'
+              - 'tests/fixtures/ecosystems/**'
+              - 'scripts/verify-maturity-drift-guard.sh'
+              - 'scripts/test-verify-maturity-drift-guard.sh'
+              - 'scripts/lib/maturity-drift-guard-language-extensions.sh'
       - name: Build selected gate matrix
         id: gate-matrix
         run: |
@@ -223,6 +261,8 @@ jobs:
           append_gate "${{ steps.filter.outputs.heredoc }}" "heredoc" "Verify heredoc budget gate" "cd go && go test ./cmd/heredoc-budget -count=1" "cd go && go run ./cmd/heredoc-budget -baseline ../scripts/heredoc-budget-baseline.txt"
           append_gate "${{ steps.filter.outputs.docsrefs }}" "docsrefs" "Verify docs-refs gate" "bash scripts/test-verify-docs-refs.sh" "bash scripts/verify-docs-refs.sh"
           append_gate "${{ steps.filter.outputs.doccitations }}" "doccitations" "Verify doc-citations gate" "bash scripts/test-verify-doc-citations.sh" "bash scripts/verify-doc-citations.sh"
+          append_gate "${{ steps.filter.outputs.remotevalidation }}" "remotevalidation" "Verify remote-validation-artifacts gate" "bash scripts/test-verify-remote-validation-artifacts.sh" "bash scripts/verify-remote-validation-artifacts.sh"
+          append_gate "${{ steps.filter.outputs.maturitydrift }}" "maturitydrift" "Verify maturity-drift-guard gate" "bash scripts/test-verify-maturity-drift-guard.sh" "bash scripts/verify-maturity-drift-guard.sh"
 
           printf 'matrix={"include":[%s]}\n' "${matrix_items}" >>"${GITHUB_OUTPUT}"
           printf 'any=%s\n' "${any}" >>"${GITHUB_OUTPUT}"

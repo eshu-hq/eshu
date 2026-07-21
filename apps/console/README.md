@@ -377,6 +377,24 @@ evidence, drops obsolete scope/baseline URL state, and performs one bounded
 generation lookup before loading the new comparison. File samples show a human
 path first while retaining the raw stable fact key as diagnostic detail.
 
+## IaC Inventory
+
+The `/iac` page is a bounded view of `GET /api/v0/iac/resources`, not a
+client-side snapshot of the full corpus. In live mode, the URL owns the applied
+query and kind/type/provider/module/repository filters. Every filter change,
+browser-history transition, or keyset page request cancels the superseded HTTP
+read; late responses cannot replace the newer view.
+
+When requested, the API supplies authoritative current totals and bounded
+selector facets across the caller-authorized inventory. Each row links its
+canonical repository id and source location to
+`/repositories/:repoId/source?path=...&lineStart=...`. Demo mode continues to
+filter fixture rows locally and never calls the live API.
+
+No-Observability-Change: the page uses the existing API envelope truth,
+freshness, loading, empty, and error states. Request cancellation changes no
+telemetry or wire contract.
+
 ## Service Evidence Graph
 
 The Service Story page (`/service-story`, `/service-story/:serviceName`) renders

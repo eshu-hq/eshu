@@ -6,6 +6,7 @@ import {
   relationshipsToGraph,
   loadEntityGraph,
   loadBlastGraph,
+  resolveEntityHandle,
   resolveEntityName,
   codeRelationshipsToGraph,
   recommendedModeForKind,
@@ -300,5 +301,28 @@ describe("eshuGraph", () => {
       },
     } as unknown as EshuApiClient;
     await expect(resolveEntityName(errClient, "checkout")).rejects.toThrow("boom");
+  });
+
+  it("resolves canonical workload handles through the indexed workload path", async () => {
+    let body: unknown = null;
+    const client = {
+      postJson: async (_path: string, requestBody: unknown) => {
+        body = requestBody;
+        return {
+          entities: [
+            {
+              id: "workload:checkout-api",
+              labels: ["Workload"],
+              name: "checkout-api",
+              type: "Workload",
+            },
+          ],
+        };
+      },
+    } as unknown as EshuApiClient;
+
+    await resolveEntityHandle(client, "workload:checkout-api");
+
+    expect(body).toEqual({ limit: 1, name: "checkout-api", type: "workload" });
   });
 });

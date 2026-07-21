@@ -97,6 +97,22 @@ session.
   `-out` or stdout; with `-digest`, it writes the sha256 hex digest instead.
   It is a read-only diagnostic verb: it applies no schema DDL and performs no
   write.
+- `ifa assert-edges -domain DOMAIN -expected FILE` (#5351) - the Ifá
+  materialized-edge exhaustiveness gate's LIVE, set-exact non-vacuity
+  assertion. It opens the same read-only Bolt connection `ifa graph-dump` uses,
+  reads every edge of the named materialized-edge family's registry types
+  (e.g. `-domain sql_relationships` → the seven types
+  `cypher.SQLRelationshipMaterializedEdgeTypes()` accepts), and asserts the
+  family's materialized edges are EXACTLY the hand-derived expected set in
+  `-expected` (same count, same `relationship_type`/source-uid/target-uid
+  triples). This is the assertion `ifa graph-dump -digest`'s determinism
+  comparison cannot make: a family that materializes ZERO edges in ALL cells
+  has an identical digest in every cell and passes the digest comparison
+  vacuously; the absolute expected set catches that regression. Wired into both
+  the `ifa-determinism` (per cell) and `ifa-fault-injection` (baseline) live
+  gates so the `materialized_edges:sql_relationships` coverage manifest row's
+  two `proof_gate`s are actually backed by a replay of the family. Read-only:
+  no schema DDL, no write.
 - `ifa mutate-cassette -cassette FILE -out FILE -fact-kind KIND -kind
   missing-field|schema-major [-field F] [-schema-major V] [-count N]` -
   Ifá P3 failure-path-determinism fixture generator (ADR step 3a): loads

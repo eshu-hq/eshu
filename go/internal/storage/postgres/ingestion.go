@@ -278,7 +278,8 @@ func (s IngestionStore) commitScopeGeneration(
 			if !shouldDiscoverStreamingRelationshipEvidence(scopeValue) || len(catalog) == 0 {
 				return nil
 			}
-			evidence := relationships.DiscoverEvidence(batch, catalog)
+			evidence, discoveryStats := relationships.DiscoverEvidenceWithStats(batch, catalog)
+			recordFluxCrossRepoURLResolutionStats(ctx, s.Instruments, discoveryStats.FluxCrossRepoURLResolution)
 			if len(evidence) == 0 {
 				return nil
 			}

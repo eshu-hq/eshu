@@ -10,7 +10,7 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 - Entrypoint: `go/internal/parser/swift_language.go`
 - Fixture repo: `tests/fixtures/ecosystems/swift_comprehensive/`
 - Unit test suite: `go/internal/parser/engine_swift_semantics_test.go`
-- Integration validation: compose-backed fixture verification (see `../reference/local-testing.md`)
+- Integration validation: compose-backed fixture verification (see `../reference/local-testing.md`) plus the offline real-repo dogfood check (`scripts/dogfood-swift.sh`, see [Known Limitations](#known-limitations))
 
 ## Capability Checklist
 | Capability | ID | Status | Extracted Bucket/Key | Required Fields | Graph Surface | Unit Coverage | Integration Coverage | Rationale |
@@ -43,6 +43,21 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
   dispatch, property-wrapper generated code, result-builder expansion,
   Objective-C runtime dispatch, and broad public API surfaces are named
   exactness blockers rather than hidden assumptions.
+- Swift's Real-Repo Validation grade is `real-repo-validated` (#5399), earned
+  by a committed, offline-reproducible dogfood artifact: `scripts/dogfood-swift.sh`
+  runs the standing `TestDogfoodSwiftRealRepoSnapshot` regression test
+  (`go/internal/parser/swift/dogfood_real_repo_test.go`) against the committed
+  app-shaped corpus at `tests/fixtures/dogfood/swift_real_repo` (a synthetic
+  Vapor-style `Sources/App/{Controllers,Models}` plus `Tests/AppTests` layout;
+  no external repository or pinned SHA is cited as provenance here, since this
+  page never carried a specific external-repo dogfood claim to preserve) and
+  diffs the parser's bucket counts against the checked-in snapshot at
+  `go/internal/parser/swift/testdata/dogfood_real_repo_snapshot.txt`. The
+  script requires no network access or Docker. End-to-End Indexing stays
+  `fixture-backed`: the corpus is not staged in `corpus_fixtures` in
+  `scripts/verify-golden-corpus-gate.sh` and has no B-12 attribution, so it
+  does not clear the `supported` bar (see
+  [Parser Support Matrix](support-maturity.md#grade-definitions)).
 
 ## Framework And Library Support
 

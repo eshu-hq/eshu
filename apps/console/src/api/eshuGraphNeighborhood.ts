@@ -97,11 +97,26 @@ function edgeEvidence(relationship: EntityMapRel, incoming: boolean): readonly s
   ].filter((value): value is string => value !== "");
 }
 
-export async function loadEntityMapGraph(client: EshuApiClient, name: string): Promise<GraphModel> {
-  const env = await client.post<EntityMapResponse>("/api/v0/impact/entity-map", {
-    from: name,
+export interface EntityMapGraphOptions {
+  readonly from?: string;
+  readonly fromType?: string;
+  readonly repoId?: string;
+}
+
+export async function loadEntityMapGraph(
+  client: EshuApiClient,
+  name: string,
+  options: EntityMapGraphOptions = {},
+): Promise<GraphModel> {
+  const request: { depth: number; from: string; from_type?: string; repo_id?: string } = {
     depth: 2,
-  });
+    from: options.from?.trim() || name,
+  };
+  const fromType = options.fromType?.trim();
+  if (fromType) request.from_type = fromType;
+  const repoId = options.repoId?.trim();
+  if (repoId) request.repo_id = repoId;
+  const env = await client.post<EntityMapResponse>("/api/v0/impact/entity-map", request);
   if (env.error) throw new EshuEnvelopeError(env.error);
   return entityMapToGraph(env.data ?? {}, name);
 }

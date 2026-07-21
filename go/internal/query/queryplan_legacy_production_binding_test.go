@@ -67,6 +67,8 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		handler := &EntityHandler{Neo4j: graphQuery}
 		_, err := handler.fetchWorkloadPlatformRows(
 			context.Background(),
+			"repository:proof",
+			"workload:proof",
 			[]map[string]any{{"instance_id": "instance:proof"}},
 		)
 		return err
@@ -75,6 +77,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		_, err := loadMaterializedServiceCloudResourceDependencies(
 			context.Background(),
 			graphQuery,
+			"repository:proof",
 			"workload:proof",
 			10,
 		)
@@ -151,7 +154,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		"QP-CODE-REL-TRANSITIVE":                          transitiveRelationship,
 		"QP-CODE-REL-STORY-INCOMING":                      incomingRelationship,
 		"QP-CODE-REL-STORY-ANCHOR-COLLISION":              nornicDBRelationshipStoryAnchorLookupCypher("Function", "id", false),
-		"QP-CODE-IMPORT-CYCLES":                           fileImportCyclesCypher(importDependencyRequest{QueryType: "file_import_cycles", RepoID: "proof-repository", Limit: 10}),
+		"QP-CODE-IMPORT-CYCLES":                           fileImportCycleEdgeRowsCypher(importDependencyRequest{QueryType: "file_import_cycles", RepoID: "proof-repository", Limit: 10}),
 		"QP-READINESS-HOSTED":                             hostedRepositoryCount,
 		"QP-IMPACT-CHANGE-SURFACE":                        changeSurface,
 		"QP-RELATIONSHIPS-CATALOG-COUNT":                  relationshipCountCypher(relationshipVerbByName["CALLS"]),

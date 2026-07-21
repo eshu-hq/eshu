@@ -203,6 +203,10 @@ func TestClaimedSourceRecordsProviderTelemetry(t *testing.T) {
 		telemetry.MetricDimensionProvider: "github_actions",
 		telemetry.MetricDimensionReason:   "jobs_truncated",
 	})
+	assertCICDRunCounterPoint(t, rm, "eshu_dp_ci_cd_run_partial_generations_total", map[string]string{
+		telemetry.MetricDimensionProvider: "github_actions",
+		telemetry.MetricDimensionReason:   "artifacts_truncated",
+	})
 	assertCICDRunCounterLabelsExclude(t, rm, "eshu_dp_ci_cd_run_provider_requests_total", "example/repo", "token-value")
 	if !cicdRunSpanRecorded(spanRecorder, telemetry.SpanCICDRunObserve) {
 		t.Fatalf("span %q was not recorded", telemetry.SpanCICDRunObserve)
@@ -338,7 +342,8 @@ func telemetryTestSnapshot() RunSnapshot {
 			"run_started_at": "2026-06-07T14:59:00Z",
 			"updated_at":     "2026-06-07T15:00:00Z",
 		},
-		JobsPartial: true,
+		JobsPartial:      true,
+		ArtifactsPartial: true,
 		Artifacts: []map[string]any{{
 			"id":            501,
 			"name":          "image-digest",

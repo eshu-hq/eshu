@@ -39,7 +39,7 @@ func TestTraceDeploymentChainOmitsLimitsForUnprobedContextCloudResources(t *test
 				switch {
 				case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
 					return []map[string]any{{"repo_id": "repo-orders", "repo_name": "orders-api"}}, nil
-				case strings.Contains(cypher, "MATCH (workload:Workload {id: $workload_id})"):
+				case strings.Contains(cypher, "MATCH (repo:Repository)-[:DEFINES]->(workload:Workload {id: $workload_id})"):
 					return []map[string]any{workload["cloud_resources"].([]map[string]any)[0]}, nil
 				default:
 					return nil, nil

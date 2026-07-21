@@ -6,6 +6,7 @@ package query
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 )
@@ -50,6 +51,23 @@ func TestFetchDeploymentSourcesReturnsExactRelationshipEndpoints(t *testing.T) {
 		"repo-legacy-deploy",
 		"repository:r_service_edge_api",
 	)
+}
+
+func TestFetchDeploymentSourcesRejectsNonFiniteConfidence(t *testing.T) {
+	t.Parallel()
+
+	_, err := fetchDeploymentSourcesFromGraph(t.Context(), fakeRepoGraphReader{
+		runByMatch: map[string][]map[string]any{
+			"MATCH (w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:DEPLOYMENT_SOURCE]->(repo:Repository)": {{
+				"instance_id": "instance:runtime-deploy:prod",
+				"repo_id":     "repo-runtime-deploy",
+				"confidence":  math.Inf(1),
+			}},
+		},
+	}, "workload:service-edge-api", "")
+	if err == nil || !strings.Contains(err.Error(), "deployment source confidence") {
+		t.Fatalf("fetchDeploymentSourcesFromGraph() error = %v, want non-finite deployment-source confidence error", err)
+	}
 }
 
 func TestFetchDeploymentSourcesPreservesRelationshipFamiliesForSameRepository(t *testing.T) {

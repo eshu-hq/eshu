@@ -6,9 +6,77 @@ package query
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 )
+
+func TestFetchWorkloadDeploymentTopologyReturnsStructuredEmptyLimits(t *testing.T) {
+	t.Parallel()
+
+	runtimeQueryCalls := 0
+	reader := fakeGraphReader{run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		runtimeQueryCalls++
+		if !strings.Contains(cypher, "MATCH (repo:Repository)-[defines:DEFINES]->(w:Workload)<-[instanceOf:INSTANCE_OF]-(i:WorkloadInstance)") {
+			t.Fatalf("unexpected graph query for empty runtime topology: %s", cypher)
+		}
+		return []map[string]any{}, nil
+	}}
+
+	result, err := (&EntityHandler{Neo4j: reader}).fetchWorkloadDeploymentTopology(
+		t.Context(), "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
+		"repository:orders", false,
+	)
+	if err != nil {
+		t.Fatalf("fetchWorkloadDeploymentTopology() error = %v", err)
+	}
+	if runtimeQueryCalls != 1 {
+		t.Fatalf("runtime graph query calls = %d, want 1", runtimeQueryCalls)
+	}
+	assertEmptyTopologyLimits(
+		t, result.instanceLimits, contextStoryItemLimit, contextStoryItemLimit+1,
+		[]string{"environment", "instance_id"},
+	)
+	assertEmptyTopologyLimits(
+		t, result.platformLimits, workloadPlatformEdgeLimit, workloadPlatformEdgeLimit+1,
+		[]string{"instance_id", "platform_name", "platform_id"},
+	)
+	assertEmptyTopologyLimits(
+		t, result.provisionedPlatformLimits, contextStoryItemLimit, contextStoryItemLimit+1,
+		[]string{"platform_name", "platform_id", "source_repository_id", "target_repository_id"},
+	)
+}
+
+func TestFetchWorkloadDeploymentTopologyOmitsUnownedRuntimeForScopedTokens(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	reader := fakeGraphReader{run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+		calls++
+		return []map[string]any{{"instance_id": "workload-instance:orders:unowned"}}, nil
+	}}
+	ctx := ContextWithAuthContext(t.Context(), AuthContext{
+		Mode:                 AuthModeScoped,
+		AllowedRepositoryIDs: []string{"repository:allowed"},
+	})
+
+	result, err := (&EntityHandler{Neo4j: reader}).fetchWorkloadDeploymentTopology(
+		ctx, "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
+		"repository:allowed", false,
+	)
+	if err != nil {
+		t.Fatalf("fetchWorkloadDeploymentTopology() error = %v", err)
+	}
+	if len(result.instances) != 0 || len(result.topologyEdges) != 0 {
+		t.Fatalf("topology = %#v, want no repository-unowned runtime evidence", result)
+	}
+	if len(result.instanceLimits) != 0 {
+		t.Fatalf("instance limits = %#v, want completeness metadata withheld with runtime evidence", result.instanceLimits)
+	}
+	if calls != 0 {
+		t.Fatalf("graph calls = %d, want zero for scoped token", calls)
+	}
+}
 
 func TestFetchWorkloadPlatformResultReportsSentinel(t *testing.T) {
 	t.Parallel()
@@ -29,7 +97,8 @@ func TestFetchWorkloadPlatformResultReportsSentinel(t *testing.T) {
 		return rows, nil
 	}}
 	result, err := (&EntityHandler{Neo4j: reader}).fetchWorkloadPlatformResult(
-		t.Context(), []map[string]any{{"instance_id": "instance:orders:prod"}},
+		t.Context(), "repository:orders", "workload:orders",
+		[]map[string]any{{"instance_id": "instance:orders:prod"}},
 	)
 	if err != nil {
 		t.Fatalf("fetchWorkloadPlatformResult() error = %v", err)
@@ -39,6 +108,25 @@ func TestFetchWorkloadPlatformResultReportsSentinel(t *testing.T) {
 	}
 	if !BoolVal(result.limits, "truncated") || !BoolVal(result.limits, "observed_count_is_lower_bound") {
 		t.Fatalf("limits = %#v, want lower-bound truncation", result.limits)
+	}
+}
+
+func TestFetchWorkloadPlatformResultRejectsNonJSONRelationshipProperties(t *testing.T) {
+	t.Parallel()
+
+	reader := fakeGraphReader{run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+		return []map[string]any{{
+			"instance_id": "workload-instance:orders:prod", "platform_id": "platform:eks:prod",
+			"platform_edges": []map[string]any{{"confidence": math.Inf(-1)}},
+		}}, nil
+	}}
+
+	_, err := (&EntityHandler{Neo4j: reader}).fetchWorkloadPlatformResult(
+		t.Context(), "repository:orders", "workload:orders",
+		[]map[string]any{{"instance_id": "workload-instance:orders:prod"}},
+	)
+	if err == nil || !strings.Contains(err.Error(), "marshal graph relationship properties") {
+		t.Fatalf("fetchWorkloadPlatformResult() error = %v, want non-JSON relationship-property error", err)
 	}
 }
 
@@ -61,7 +149,7 @@ func TestFetchWorkloadRuntimeTopologyReturnsObservedIdentityEdges(t *testing.T) 
 	}}
 
 	result, err := fetchWorkloadRuntimeTopology(
-		t.Context(), nil, reader, "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
+		t.Context(), reader, "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
 		"repository:orders",
 	)
 	if err != nil {
@@ -77,38 +165,53 @@ func TestFetchWorkloadRuntimeTopologyReturnsObservedIdentityEdges(t *testing.T) 
 	}
 }
 
-func TestFetchWorkloadRuntimeTopologyScopesDefiningRepositoriesToCallerGrants(t *testing.T) {
+func TestFetchWorkloadRuntimeTopologyRejectsNonJSONRelationshipProperties(t *testing.T) {
 	t.Parallel()
 
-	reader := fakeGraphReader{run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-		if !strings.Contains(cypher, "repo.id IN $allowed_repository_ids") ||
-			!strings.Contains(cypher, "repo.id IN $allowed_scope_ids") ||
-			!strings.Contains(cypher, "repo.id = $repo_id") {
-			return []map[string]any{
-				{
-					"repo_id": "repository:allowed", "repo_name": "allowed", "workload_id": "workload:orders",
-					"instance_id": "workload-instance:orders:prod", "environment": "prod",
-				},
-				{
-					"repo_id": "repository:allowed", "repo_name": "allowed", "workload_id": "workload:orders",
-					"instance_id": "workload-instance:orders:secret", "environment": "secret",
-					"instance_edge": map[string]any{"source_fact_id": "fact-secret"},
-				},
-			}, nil
-		}
-		if got := StringSliceVal(params, "allowed_repository_ids"); len(got) != 1 || got[0] != "repository:allowed" {
-			t.Fatalf("allowed_repository_ids = %#v, want only repository:allowed", got)
-		}
-		if got, want := StringVal(params, "repo_id"), "repository:allowed"; got != want {
-			t.Fatalf("repo_id = %q, want selected %q", got, want)
-		}
-		if strings.Contains(cypher, "i.repo_id") {
-			t.Fatalf("runtime topology must not invent WorkloadInstance repository ownership: %s", cypher)
-		}
+	reader := fakeGraphReader{run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 		return []map[string]any{{
-			"repo_id": "repository:allowed", "repo_name": "allowed", "workload_id": "workload:orders",
-			"instance_id": "workload-instance:orders:prod", "environment": "prod",
+			"repo_id": "repository:orders", "workload_id": "workload:orders",
+			"instance_id":  "workload-instance:orders:prod",
+			"defines_edge": map[string]any{"confidence": math.NaN()},
 		}}, nil
+	}}
+
+	_, err := fetchWorkloadRuntimeTopology(
+		t.Context(), reader, "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
+		"repository:orders",
+	)
+	if err == nil || !strings.Contains(err.Error(), "marshal graph relationship properties") {
+		t.Fatalf("fetchWorkloadRuntimeTopology() error = %v, want non-JSON relationship-property error", err)
+	}
+}
+
+func TestFetchWorkloadRuntimeTopologyRejectsNonFiniteInstanceConfidence(t *testing.T) {
+	t.Parallel()
+
+	reader := fakeGraphReader{run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+		return []map[string]any{{
+			"repo_id": "repository:orders", "workload_id": "workload:orders",
+			"instance_id":                "workload-instance:orders:prod",
+			"materialization_confidence": math.NaN(),
+		}}, nil
+	}}
+
+	_, err := fetchWorkloadRuntimeTopology(
+		t.Context(), reader, "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
+		"repository:orders",
+	)
+	if err == nil || !strings.Contains(err.Error(), "materialization_confidence") {
+		t.Fatalf("fetchWorkloadRuntimeTopology() error = %v, want non-finite instance-confidence error", err)
+	}
+}
+
+func TestFetchWorkloadRuntimeTopologyOmitsUnownedInstancesForScopedTokens(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	reader := fakeGraphReader{run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+		calls++
+		return []map[string]any{{"instance_id": "workload-instance:orders:unowned"}}, nil
 	}}
 	ctx := ContextWithAuthContext(t.Context(), AuthContext{
 		Mode:                 AuthModeScoped,
@@ -116,16 +219,20 @@ func TestFetchWorkloadRuntimeTopologyScopesDefiningRepositoriesToCallerGrants(t 
 	})
 
 	result, err := fetchWorkloadRuntimeTopology(
-		ctx, nil, reader, "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
+		ctx, reader, "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
 		"repository:allowed",
 	)
 	if err != nil {
 		t.Fatalf("fetchWorkloadRuntimeTopology() error = %v", err)
 	}
-	for _, edge := range result.topologyEdges {
-		if got := StringVal(edge, "source_id"); got == "repository:secret" || got == "workload-instance:orders:secret" {
-			t.Fatalf("topology edge leaked unauthorized repository or instance: %#v", edge)
-		}
+	if len(result.instances) != 0 || len(result.topologyEdges) != 0 {
+		t.Fatalf("topology = %#v, want no repository-unowned runtime evidence", result)
+	}
+	if len(result.limits) != 0 {
+		t.Fatalf("limits = %#v, want completeness metadata withheld with runtime evidence", result.limits)
+	}
+	if calls != 0 {
+		t.Fatalf("graph calls = %d, want zero for scoped token", calls)
 	}
 }
 
@@ -144,7 +251,7 @@ func TestFetchWorkloadRuntimeTopologyReportsInstanceSentinel(t *testing.T) {
 	}}
 
 	result, err := fetchWorkloadRuntimeTopology(
-		t.Context(), nil, reader, "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
+		t.Context(), reader, "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
 		"repository:orders",
 	)
 	if err != nil {
@@ -171,4 +278,37 @@ func assertExactTopologyEdge(t *testing.T, edges []map[string]any, relationshipT
 		return
 	}
 	t.Fatalf("edges = %#v, want %s %s -> %s", edges, relationshipType, sourceID, targetID)
+}
+
+func assertEmptyTopologyLimits(
+	t *testing.T,
+	limits map[string]any,
+	wantLimit int,
+	wantQueryLimit int,
+	wantOrdering []string,
+) {
+	t.Helper()
+	if len(limits) == 0 {
+		t.Fatal("limits are missing, want a structured empty collection contract")
+	}
+	for _, field := range []string{"returned_count", "observed_count"} {
+		if got := IntVal(limits, field); got != 0 {
+			t.Fatalf("limits.%s = %d, want 0; limits = %#v", field, got, limits)
+		}
+	}
+	for _, field := range []string{"observed_count_is_lower_bound", "truncated"} {
+		value, ok := limits[field].(bool)
+		if !ok || value {
+			t.Fatalf("limits.%s = %#v, want false; limits = %#v", field, limits[field], limits)
+		}
+	}
+	if got := IntVal(limits, "limit"); got != wantLimit {
+		t.Fatalf("limits.limit = %d, want %d; limits = %#v", got, wantLimit, limits)
+	}
+	if got := IntVal(limits, "query_sentinel_limit"); got != wantQueryLimit {
+		t.Fatalf("limits.query_sentinel_limit = %d, want %d; limits = %#v", got, wantQueryLimit, limits)
+	}
+	if got := StringSliceVal(limits, "ordering"); strings.Join(got, "\x00") != strings.Join(wantOrdering, "\x00") {
+		t.Fatalf("limits.ordering = %#v, want %#v", got, wantOrdering)
+	}
 }

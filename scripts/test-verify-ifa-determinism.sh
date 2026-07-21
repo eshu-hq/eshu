@@ -96,7 +96,25 @@ require "synth-cassette projects flag" "-projects \"\${SYNTH_MULTISCOPE_PROJECTS
 require "synth-cassette resources flag" "-resources \"\${SYNTH_MULTISCOPE_RESOURCES}\""
 require "synth-cassette generated before the cell loop" "synth_cassette=\"\${work_dir}/synth-multiscope.json\""
 require "second drive invocation into the same cell" 'eshu-ifa" drive -cassette "${synth_cassette}" -workers "${n}"'
-require "combined-graph digest framing" "demo-org + synth-multiscope"
+require "combined-graph digest framing" "demo-org + synth-multiscope + SQL family"
+
+# SQL relationship family cassette (#5351): the committed cassette driven into
+# every cell so the ifa-determinism lane actually replays the SQL relationship
+# materialization family (backing the materialized_edges:sql_relationships
+# manifest row's proof_gate: ifa-determinism claim), plus the per-cell
+# absolute-set assertion (`ifa assert-edges`) that the P2 digest cannot make: a
+# family silently empty in ALL cells has an identical digest in every cell and
+# passes the digest comparison vacuously; the absolute expected set catches it.
+require "SQL cassette path" "testdata/cassettes/sqlrelationships/ifa-sql-family.json"
+require "SQL expected-edge set path" "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
+require "SQL cassette existence guard" 'SQL cassette not found'
+require "SQL expected-edge set existence guard" 'SQL expected-edge set not found'
+require "SQL cassette drive into every cell" 'eshu-ifa" drive -cassette "${sql_cassette}" -workers "${n}"'
+require "assert-edges verb invocation" '"${bin_dir}/eshu-ifa" assert-edges'
+require "assert-edges domain flag" "-domain sql_relationships"
+require "assert-edges expected flag" '-expected "${sql_expected_edges}"'
+require "assert-edges non-vacuity framing" "non-vacuity"
+require "assert-edges no-normalize-away directive" "do NOT normalize this away"
 
 # #5007 contention cassette (opt-in --contention): the overlapping-identity
 # fixture whose K scopes share one CloudResource uid set, so the cross-scope

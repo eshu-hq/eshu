@@ -100,9 +100,10 @@ func LoadSpec(path string) (goldengate.Snapshot, error) {
 // its required_edge_properties is checked over the narrowed edges — so a
 // contributor spec using those shared snapshot fields is asserted the same way
 // offline as the live gate, never passing here on an edge the gate would reject.
-// Node and edge count tolerances are asserted as required; required correlations
-// and required nodes (with any property floor) are all blocking (no advisory
-// tier offline).
+// Node and edge count tolerances are asserted as required; required correlations,
+// required nodes (with any property floor), and required self-loops (the two-
+// sided [min,max] bound the live gate's checkRequiredSelfLoops enforces) are all
+// blocking (no advisory tier offline).
 func Evaluate(obs Observation, snap goldengate.Snapshot) goldengate.Report {
 	var r goldengate.Report
 	g := snap.Graph
@@ -129,6 +130,12 @@ func Evaluate(obs Observation, snap goldengate.Snapshot) goldengate.Report {
 			values := obs.NodeProperty(rn.Label, prop)
 			r.Add(goldengate.EvaluateNodeProperty(rn, prop, values, rn.AllowedNodePropertyValues[prop]))
 		}
+	}
+	for _, rsl := range g.RequiredSelfLoops {
+		// Feed the offline observed self-loop count into the SAME shared bound the
+		// live gate uses, so a self-loop assertion is enforced (not silently
+		// dropped) on the offline path too.
+		r.Add(goldengate.EvaluateRequiredSelfLoop(rsl, obs.selfLoopCount(rsl)))
 	}
 
 	return r
