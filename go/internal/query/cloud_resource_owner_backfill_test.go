@@ -39,7 +39,7 @@ func TestCloudResourceOwnerBackfillerSeedsExistingGraphRowsBeforeCompletion(t *t
 		t.Fatalf("Backfill() error = %v, want nil", err)
 	}
 	if !store.markedComplete {
-		t.Fatal("Run() did not mark the backfill complete")
+		t.Fatal("Backfill() did not mark the backfill complete")
 	}
 	if got, want := len(store.seeded), 1; got != want {
 		t.Fatalf("seeded entries = %d, want %d", got, want)

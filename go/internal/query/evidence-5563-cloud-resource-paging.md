@@ -56,13 +56,19 @@ test cleanup.
 
 The upgrade backfill seeded 20,000 existing graph-owner rows into an isolated
 Postgres 18 schema in 254.485-497.976 ms across two runs on the shared local
-host, including a post-rebase rerun while the machine was under load. The same live test
-preloaded a real reducer owner for an overlapping uid and then applied the
-minimum-key backfill row; the real key and fact id remained unchanged. The
+host, including a post-rebase rerun while the machine was under load. The same
+live test preloaded a real reducer owner for an overlapping uid and then applied
+the minimum-key backfill row; the real key and fact id remained unchanged. The
 final ledger contained all 20,001 expected rows, the completion marker read
-back as true, and cleanup removed the isolated schema. This is a one-time
-startup cost; the steady-state request remains the indexed `limit+1` selection
-and bounded graph hydration measured above.
+back as true, and cleanup removed the isolated schema.
+
+The exact graph enumeration also ran against an isolated NornicDB v1.1.11 image
+at the repository-pinned digest. It backfilled 1,201 real `CloudResource` nodes
+in 98.681 ms over three pages (500/500/201), with the expected continuation
+cursor at each boundary and no missing, duplicate, or reordered uid. The test
+removed its synthetic nodes, and the disposable container was removed after
+the run. This is a one-time startup cost; the steady-state request remains the
+indexed `limit+1` selection and bounded graph hydration measured above.
 
 ## Exactness
 
@@ -73,7 +79,8 @@ and bounded graph hydration measured above.
   incomplete marker. It proves the row is seeded before completion, a partial
   seed never marks completion, a second startup skips the graph, malformed
   unattributable rows fail closed, and multi-page enumeration advances by the
-  last uid without gaps.
+  last uid without gaps. The opt-in NornicDB test repeats that page proof against
+  the shipped Cypher and a real 1,201-node graph.
 - Filtered current and candidate reads returned identical sets. The candidate
   corrects the old graph backend's non-semantic filtered ordering by enforcing
   `(resource_type, uid)` in Postgres.
