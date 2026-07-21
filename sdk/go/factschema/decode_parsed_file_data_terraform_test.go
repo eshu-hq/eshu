@@ -80,10 +80,10 @@ func TestDecodeParsedFileDataTerraformModules_Absent(t *testing.T) {
 	}
 }
 
-// TestDecodeParsedFileDataTerraformModules_MalformedElement proves a
-// present-but-wrong-shape terraform_modules value surfaces a wrapped error
-// rather than silently decoding to an empty slice.
-func TestDecodeParsedFileDataTerraformModules_MalformedElement(t *testing.T) {
+// TestDecodeParsedFileDataTerraformModules_WrongTopLevelShape proves a
+// present-but-not-any-recognized-slice-shape terraform_modules value
+// surfaces a wrapped error rather than silently decoding to an empty slice.
+func TestDecodeParsedFileDataTerraformModules_WrongTopLevelShape(t *testing.T) {
 	t.Parallel()
 
 	_, err := DecodeParsedFileDataTerraformModules(map[string]any{
@@ -91,6 +91,29 @@ func TestDecodeParsedFileDataTerraformModules_MalformedElement(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("DecodeParsedFileDataTerraformModules() error = nil, want error for a non-slice terraform_modules value")
+	}
+}
+
+// TestDecodeParsedFileDataTerraformModules_MalformedElementSkipped proves a
+// non-object element inside an otherwise well-formed terraform_modules slice
+// is SKIPPED, not an aborting error, so one malformed module row never drops
+// every other well-formed module in the same .tf file -- the same
+// per-element tolerance discoverStructuredTerraformEvidence's pre-typing
+// raw-map read had (item, ok := raw.(map[string]any); if !ok { continue }).
+func TestDecodeParsedFileDataTerraformModules_MalformedElementSkipped(t *testing.T) {
+	t.Parallel()
+
+	modules, err := DecodeParsedFileDataTerraformModules(map[string]any{
+		"terraform_modules": []any{
+			"not-an-object",
+			map[string]any{"name": "vpc", "source": "terraform-aws-modules/vpc/aws"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("DecodeParsedFileDataTerraformModules() error = %v, want nil (malformed element skipped)", err)
+	}
+	if len(modules) != 1 || modules[0].Name != "vpc" {
+		t.Fatalf("modules = %#v, want one row for the well-formed element", modules)
 	}
 }
 

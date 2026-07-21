@@ -277,16 +277,41 @@ func TestDecodeParsedFileDataFluxGitRepositories_AbsentURL(t *testing.T) {
 	}
 }
 
-// TestDecodeParsedFileDataArgoCDApplications_MalformedElement proves a
-// present-but-wrong-shape argocd_applications value surfaces a wrapped error
-// rather than silently decoding to an empty slice.
-func TestDecodeParsedFileDataArgoCDApplications_MalformedElement(t *testing.T) {
+// TestDecodeParsedFileDataArgoCDApplications_WrongTopLevelShape proves a
+// present-but-not-any-recognized-slice-shape argocd_applications value
+// surfaces a wrapped error, matching asObjectSlice's whole-container shape
+// check.
+func TestDecodeParsedFileDataArgoCDApplications_WrongTopLevelShape(t *testing.T) {
 	t.Parallel()
 
 	_, err := DecodeParsedFileDataArgoCDApplications(map[string]any{
-		"argocd_applications": []any{"not-an-object"},
+		"argocd_applications": "not-a-slice",
 	})
 	if err == nil {
-		t.Fatal("DecodeParsedFileDataArgoCDApplications() error = nil, want error for a non-object element")
+		t.Fatal("DecodeParsedFileDataArgoCDApplications() error = nil, want error for a non-slice argocd_applications value")
+	}
+}
+
+// TestDecodeParsedFileDataArgoCDApplications_MalformedElementSkipped proves a
+// non-object element inside an otherwise well-formed argocd_applications
+// slice is SKIPPED, not an aborting error, so one malformed Application
+// entry never drops every other well-formed Application in the same
+// multi-document YAML file -- the same per-element tolerance
+// discoverStructuredArgoCDEvidence's pre-typing raw-map read had
+// (item, ok := raw.(map[string]any); if !ok { continue }).
+func TestDecodeParsedFileDataArgoCDApplications_MalformedElementSkipped(t *testing.T) {
+	t.Parallel()
+
+	applications, err := DecodeParsedFileDataArgoCDApplications(map[string]any{
+		"argocd_applications": []any{
+			"not-an-object",
+			map[string]any{"name": "checkout", "dest_server": "https://kubernetes.default.svc"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("DecodeParsedFileDataArgoCDApplications() error = %v, want nil (malformed element skipped)", err)
+	}
+	if len(applications) != 1 || applications[0].Name != "checkout" {
+		t.Fatalf("applications = %#v, want one row for the well-formed element", applications)
 	}
 }

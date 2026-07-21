@@ -11,33 +11,29 @@ import (
 
 // This file holds the typed accessors for three more closed-shape
 // parsed_file_data inner keys (issue #5445 slice 1): terraform_modules,
-// terragrunt_dependencies, and terragrunt_configs. It follows the exact
-// pattern decode_parsed_file_data.go established for the #4750 S1 batch --
-// see that file's package-level doc comment for the tolerant-decode
-// contract (absent key -> empty/false with no error, present-but-wrong-shape
-// -> a wrapped error, malformed element -> a wrapped error).
+// terragrunt_dependencies, and terragrunt_configs. Each uses
+// decodeParsedFileDataTolerantSlice (decode_parsed_file_data_tolerant.go),
+// NOT the abort-on-first-malformed-element asObjectSlice the #4750 S1 batch
+// uses -- see that helper's doc comment for why: these accessors migrate
+// real go/internal/relationships call sites whose pre-typing raw-map read
+// tolerated one malformed row in an otherwise-good multi-row bucket, and
+// this batch preserves that tolerance exactly rather than regressing it.
 
 // DecodeParsedFileDataTerraformModules decodes the "terraform_modules" inner
 // slice of a parsed_file_data map into a typed []codegraphv1.TerraformModule.
-// An absent key decodes to a nil slice with no error, matching
+// An absent key decodes to a nil slice with no error, and a malformed
+// element is skipped rather than failing the whole decode, matching
 // discoverStructuredTerraformEvidence's prior raw-map tolerant read
-// (go/internal/relationships/terraform_evidence.go).
+// (go/internal/relationships/terraform_evidence.go). An error is returned
+// only when the key is present but not any recognized slice shape at all.
 func DecodeParsedFileDataTerraformModules(parsedFileData map[string]any) ([]codegraphv1.TerraformModule, error) {
 	raw, present := parsedFileData["terraform_modules"]
 	if !present || raw == nil {
 		return nil, nil
 	}
-	elems, ok := asObjectSlice(raw)
+	modules, ok := decodeParsedFileDataTolerantSlice[codegraphv1.TerraformModule](raw)
 	if !ok {
 		return nil, fmt.Errorf("factschema: terraform_modules: want slice of JSON objects, got %T", raw)
-	}
-	modules := make([]codegraphv1.TerraformModule, 0, len(elems))
-	for i, elem := range elems {
-		var module codegraphv1.TerraformModule
-		if err := decodeMapInto(elem, &module); err != nil {
-			return nil, fmt.Errorf("factschema: terraform_modules[%d]: %w", i, err)
-		}
-		modules = append(modules, module)
 	}
 	return modules, nil
 }
@@ -45,24 +41,17 @@ func DecodeParsedFileDataTerraformModules(parsedFileData map[string]any) ([]code
 // DecodeParsedFileDataTerragruntDependencies decodes the
 // "terragrunt_dependencies" inner slice of a parsed_file_data map into a
 // typed []codegraphv1.TerragruntDependency. An absent key decodes to a nil
-// slice with no error, matching discoverStructuredTerraformEvidence's prior
-// raw-map tolerant read (go/internal/relationships/terraform_evidence.go).
+// slice with no error, and a malformed element is skipped rather than
+// failing the whole decode, matching discoverStructuredTerraformEvidence's
+// prior raw-map tolerant read (go/internal/relationships/terraform_evidence.go).
 func DecodeParsedFileDataTerragruntDependencies(parsedFileData map[string]any) ([]codegraphv1.TerragruntDependency, error) {
 	raw, present := parsedFileData["terragrunt_dependencies"]
 	if !present || raw == nil {
 		return nil, nil
 	}
-	elems, ok := asObjectSlice(raw)
+	dependencies, ok := decodeParsedFileDataTolerantSlice[codegraphv1.TerragruntDependency](raw)
 	if !ok {
 		return nil, fmt.Errorf("factschema: terragrunt_dependencies: want slice of JSON objects, got %T", raw)
-	}
-	dependencies := make([]codegraphv1.TerragruntDependency, 0, len(elems))
-	for i, elem := range elems {
-		var dependency codegraphv1.TerragruntDependency
-		if err := decodeMapInto(elem, &dependency); err != nil {
-			return nil, fmt.Errorf("factschema: terragrunt_dependencies[%d]: %w", i, err)
-		}
-		dependencies = append(dependencies, dependency)
 	}
 	return dependencies, nil
 }
@@ -70,7 +59,8 @@ func DecodeParsedFileDataTerragruntDependencies(parsedFileData map[string]any) (
 // DecodeParsedFileDataTerragruntConfigs decodes the "terragrunt_configs"
 // inner slice of a parsed_file_data map into a typed
 // []codegraphv1.TerragruntConfig. An absent key decodes to a nil slice with
-// no error, matching discoverStructuredTerragruntConfigEvidence's prior
+// no error, and a malformed element is skipped rather than failing the whole
+// decode, matching discoverStructuredTerragruntConfigEvidence's prior
 // raw-map tolerant read
 // (go/internal/relationships/terragrunt_helper_evidence.go). The producer
 // (parseTerragruntConfig) emits at most one row per terragrunt.hcl file, but
@@ -81,17 +71,9 @@ func DecodeParsedFileDataTerragruntConfigs(parsedFileData map[string]any) ([]cod
 	if !present || raw == nil {
 		return nil, nil
 	}
-	elems, ok := asObjectSlice(raw)
+	configs, ok := decodeParsedFileDataTolerantSlice[codegraphv1.TerragruntConfig](raw)
 	if !ok {
 		return nil, fmt.Errorf("factschema: terragrunt_configs: want slice of JSON objects, got %T", raw)
-	}
-	configs := make([]codegraphv1.TerragruntConfig, 0, len(elems))
-	for i, elem := range elems {
-		var config codegraphv1.TerragruntConfig
-		if err := decodeMapInto(elem, &config); err != nil {
-			return nil, fmt.Errorf("factschema: terragrunt_configs[%d]: %w", i, err)
-		}
-		configs = append(configs, config)
 	}
 	return configs, nil
 }
