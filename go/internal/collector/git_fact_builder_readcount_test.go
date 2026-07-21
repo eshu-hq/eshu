@@ -70,7 +70,7 @@ func TestStreamFactBodyReadCountBeforeAfter(t *testing.T) {
 	for k := range reads {
 		delete(reads, k)
 	}
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, freshSnapshot(), false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, freshSnapshot(), false, "")
 	_ = drainFactChannel(collected.Facts)
 	afterTotal := 0
 	for _, rel := range relPaths {
@@ -94,7 +94,7 @@ func TestStreamFactBodyReadCountBeforeAfter(t *testing.T) {
 			t.Fatalf("reconstructed count read %s: %v", rel, err)
 		}
 	}
-	collectedBefore := buildStreamingGeneration(repoPath, repo, "run-2", observedAt, freshSnapshot(), false)
+	collectedBefore := buildStreamingGeneration(repoPath, repo, "run-2", observedAt, freshSnapshot(), false, "")
 	_ = drainFactChannel(collectedBefore.Facts)
 	beforeTotal := 0
 	for _, rel := range relPaths {

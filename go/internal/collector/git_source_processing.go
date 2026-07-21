@@ -265,6 +265,7 @@ func (s *GitSource) snapshotOneRepository(
 		observedAt,
 		snapshot,
 		repository.IsDependency,
+		repository.Ref,
 	)
 	enrichDiscoveryAdvisoryRun(
 		generation.DiscoveryAdvisory,
@@ -361,7 +362,7 @@ func (s *GitSource) repoSizeTier(fileCount int) string {
 	return "small"
 }
 
-func buildScope(repo repositoryidentity.Metadata) scope.IngestionScope {
+func buildScope(repo repositoryidentity.Metadata, ref string) scope.IngestionScope {
 	metadata := map[string]string{
 		"repo_id":    repo.ID,
 		"repo_name":  repo.Name,
@@ -377,10 +378,18 @@ func buildScope(repo repositoryidentity.Metadata) scope.IngestionScope {
 		metadata["local_path"] = repo.LocalPath
 	}
 
+	scopeID := "git-repository-scope:" + repo.ID
+	scopeKind := scope.KindRepository
+	if ref != "" {
+		scopeID = scopeID + "@" + ref
+		scopeKind = scope.KindRepositoryRef
+		metadata["ref"] = ref
+	}
+
 	return scope.IngestionScope{
-		ScopeID:       "git-repository-scope:" + repo.ID,
+		ScopeID:       scopeID,
 		SourceSystem:  "git",
-		ScopeKind:     scope.KindRepository,
+		ScopeKind:     scopeKind,
 		CollectorKind: scope.CollectorGit,
 		PartitionKey:  repo.ID,
 		Metadata:      metadata,

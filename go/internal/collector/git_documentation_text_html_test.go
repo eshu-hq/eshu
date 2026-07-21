@@ -37,7 +37,7 @@ func TestStreamFactsEmitsLightweightTextDocumentationFormats(t *testing.T) {
 		},
 	}
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
 	sourceFacts := factsByKind(envelopes, facts.DocumentationSourceFactKind)
@@ -117,7 +117,7 @@ func TestStreamFactsEmitsHTMLDocumentationFacts(t *testing.T) {
 		},
 	}
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
 	documentFacts := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
@@ -193,6 +193,7 @@ func TestNativeRepositorySnapshotterIncludesDocumentationMetasWithoutParsingDocs
 		time.Date(2026, time.June, 9, 2, 0, 0, 0, time.UTC),
 		got,
 		false,
+		"",
 	)
 	documentFacts := factsByKind(drainFactChannel(collected.Facts), facts.DocumentationDocumentFactKind)
 	if got, want := len(documentFacts), 2; got != want {
@@ -234,6 +235,7 @@ func TestNativeRepositorySnapshotterEmitsDocumentationOnlyRepository(t *testing.
 		time.Date(2026, time.June, 9, 2, 15, 0, 0, time.UTC),
 		got,
 		false,
+		"",
 	)
 	documentFacts := factsByKind(drainFactChannel(collected.Facts), facts.DocumentationDocumentFactKind)
 	if got, want := len(documentFacts), 2; got != want {

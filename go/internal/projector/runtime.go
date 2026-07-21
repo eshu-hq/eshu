@@ -98,6 +98,25 @@ func (r Runtime) Project(ctx context.Context, scopeValue scope.IngestionScope, g
 		return Result{}, err
 	}
 
+	// Ref-scoped repository scopes are gated from canonical projection. The
+	// canonical graph must contain only the default branch; multi-ref overlays
+	// are isolated to their own namespace (epic #5393, enabler #5417).
+	// This is a fail-closed gate: return immediately with an empty result,
+	// performing NO content writes and NO canonical graph writes.
+	if scopeValue.ScopeKind == scope.KindRepositoryRef {
+		if r.Logger != nil {
+			r.Logger.InfoContext(ctx, "projector gated ref scope (non-default-branch facts excluded from canonical graph)",
+				slog.String("scope_id", scopeValue.ScopeID),
+				slog.String("ref", scopeValue.Metadata["ref"]),
+				slog.String("reason", "ref_scope_gated"),
+			)
+		}
+		return Result{
+			ScopeID:      scopeValue.ScopeID,
+			GenerationID: generation.GenerationID,
+		}, nil
+	}
+
 	buildStart := time.Now()
 	projection, err := buildProjection(scopeValue, generation, inputFacts)
 	if err != nil {
@@ -217,6 +236,15 @@ type projection struct {
 }
 
 func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGeneration, inputFacts []facts.Envelope) (projection, error) {
+	// Ref-scoped repository scopes are gated from canonical projection. The
+	// canonical graph must contain only the default branch; multi-ref overlays
+	// belong to their own isolated namespace (epic #5393, enabler #5417).
+	// This gate is fail-closed: an unrecognized ref scope MUST NOT silently
+	// project into the canonical graph. Return an empty projection with zero
+	// canonical rows, zero content rows, and zero reducer intents.
+	if scopeValue.ScopeKind == scope.KindRepositoryRef {
+		return projection{}, nil
+	}
 	repoID := scopeRepoID(scopeValue)
 	contentMaterialization := content.Materialization{
 		RepoID:       repoID,

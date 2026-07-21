@@ -331,3 +331,32 @@ No-Observability-Change: The `fact_count` structured log attribute (service.go)
   the exact count is at least as good. The `FactsEmitted` and `FactsCommitted`
   counters in `service.go` and bootstrap use `FactCount()` which after drain
   returns the exact total.
+
+### Branch-aware sync plumbing — selectable refs, ref stamped on facts (#5417)
+
+No-Regression Evidence: Feature-off path (ESHU_PINNED_REFS_JSON empty) is
+byte-identical to pre-change. TestBuildStreamingGenerationDefaultBranchByteIdentical
+proves default-branch ScopeKind stays KindRepository with no ref in metadata.
+The PinnedRefsByRepoID lookup is O(1) map access with nil map when unset;
+the factStreamWriter.ref stamp is a nil-string check per emit. 28 existing
+test files updated only with an empty-string ref parameter — no behavior
+change. Full collector test suite (5.6s) matches pre-change baseline. Input
+shape: small repos via TempDir fixtures, no remote sync.
+
+Benchmark Evidence (feature-on per-extra-ref cost): each pinned ref adds
+one git-fetch subprocess + one git-worktree-add (or reset for existing)
+per sync cycle. Most of the cost is I/O (network for clone/fetch, disk
+for checkout). Per-ref fact volume is identical to the default-branch
+snapshot for the same repo. The per-repo cap (default 3) and fleet cap
+(ESHU_PINNED_REF_FLEET_CAP) bound the total additional work. Measured
+on small fixture: zero additional facts emitted for empty corpus.
+
+Observability Evidence: The projector gate for KindRepositoryRef scopes
+emits a structured log (scope_id, ref, reason=ref_scope_gated) from
+Runtime.Project when a ref-scoped generation is skipped. The existing
+"projector runtime stage completed" log does NOT fire for gated scopes
+(the gate returns before any stage instrumentation runs), so the
+dedicated skip log is the operator-visible signal that a ref scope was
+excluded from canonical projection. No new metric instrument was added;
+the gated-ref count is derivable from the structured log filter. Future
+work (#5393) may add a counter when ref-overlay consumers are built.

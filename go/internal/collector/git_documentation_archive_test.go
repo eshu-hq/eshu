@@ -316,6 +316,7 @@ func streamArchiveFacts(t *testing.T, repoPath string, relativePath string, dige
 			}},
 		},
 		false,
+		"",
 	)
 	return drainFactChannel(collected.Facts)
 }

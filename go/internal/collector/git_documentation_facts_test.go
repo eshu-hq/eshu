@@ -42,7 +42,7 @@ Run the rollback checklist.
 		}},
 	}
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
 	sourceFacts := factsByKind(envelopes, facts.DocumentationSourceFactKind)
@@ -124,7 +124,7 @@ func TestStreamFactsEmitsDocumentationTruthMentionsAndClaimCandidates(t *testing
 		}},
 	}
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
 	mentionFacts := factsByKind(envelopes, facts.DocumentationEntityMentionFactKind)
@@ -174,7 +174,7 @@ func TestStreamFactsEmitsDocumentationDocumentsForMarkdownFamily(t *testing.T) {
 		},
 	}
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
 	documentFacts := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
@@ -217,7 +217,7 @@ func TestStreamFactsDisambiguatesDuplicateMarkdownHeadingAnchors(t *testing.T) {
 		}},
 	}
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	sections := factsByKind(drainFactChannel(collected.Facts), facts.DocumentationSectionFactKind)
 	if got, want := len(sections), 3; got != want {
 		t.Fatalf("documentation_section count = %d, want %d", got, want)

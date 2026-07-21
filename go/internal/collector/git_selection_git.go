@@ -38,6 +38,9 @@ func syncGitRepositoriesWithLogger(
 	refsByRepoPath := make(map[string][]GitRef)
 	reconcileByRepoPath := make(map[string]bool)
 	sourceSHAByRepoPath := make(map[string]string)
+	refWorktreesByRepoPath := make(map[string][]RefWorktreeEntry)
+	fleetRefCount := 0
+	fleetCap := config.PinnedRefFleetCap
 	reconciledThisCycle := 0
 	for i, repoID := range repositoryIDs {
 		if err := ctx.Err(); err != nil {
@@ -49,6 +52,8 @@ func syncGitRepositoriesWithLogger(
 		}
 		repoPath := filepath.Join(config.ReposDir, filepath.FromSlash(checkoutName))
 		event := gitSyncLogEventFor(repoID, i+1, len(repositoryIDs))
+		hasPinnedRefs := len(config.PinnedRefsByRepoID[repoID]) > 0
+
 		if !hasGitMarker(repoPath) {
 			cloned, cloneErr := cloneRepository(ctx, config, repoID, repoPath, token, logger, event)
 			if cloneErr == nil && cloned {
@@ -60,30 +65,60 @@ func syncGitRepositoriesWithLogger(
 				}
 				refsByRepoPath[repoPath] = refs
 			}
-			continue
+		} else {
+			forceReconcile := reconcileBudgetRemaining(baseline.Reconcile, reconciledThisCycle) &&
+				baseline.reconcileDue(ctx, config, repoPath)
+			updated, delta, sourceSHA, updateErr := syncExistingRepository(ctx, config, repoPath, token, logger, event, baseline, forceReconcile)
+			if updateErr == nil && updated {
+				selected = append(selected, repoPath)
+				refs, refsErr := remoteGitRefs(ctx, config, repoPath, token)
+				if refsErr != nil {
+					logGitSyncFailed(ctx, logger, event.withOperation("list_refs"), refsErr)
+					return GitSyncSelection{}, refsErr
+				}
+				refsByRepoPath[repoPath] = refs
+				if !delta.IsEmpty() {
+					deltaByRepoPath[repoPath] = delta
+				}
+				sourceSHAByRepoPath[repoPath] = sourceSHA
+				if forceReconcile {
+					reconcileByRepoPath[repoPath] = true
+					reconciledThisCycle++
+					baseline.recordReconciliation(ctx)
+				}
+			}
 		}
-		// Reconciliation is bounded per cycle so a fleet of overdue scopes does
-		// not stampede into simultaneous full snapshots.
-		forceReconcile := reconcileBudgetRemaining(baseline.Reconcile, reconciledThisCycle) &&
-			baseline.reconcileDue(ctx, config, repoPath)
-		updated, delta, sourceSHA, updateErr := syncExistingRepository(ctx, config, repoPath, token, logger, event, baseline, forceReconcile)
-		if updateErr == nil && updated {
-			selected = append(selected, repoPath)
-			refs, refsErr := remoteGitRefs(ctx, config, repoPath, token)
-			if refsErr != nil {
-				logGitSyncFailed(ctx, logger, event.withOperation("list_refs"), refsErr)
-				return GitSyncSelection{}, refsErr
+
+		// Ref worktrees run EVERY cycle when pinned refs exist, independent
+		// of whether the default branch moved (N1 fix: the epic #5393
+		// motivating scenario is a quiet default branch with an actively
+		// deployed pinned branch — without this, the pinned branch never
+		// refreshes between reconciliation cycles).
+		if hasPinnedRefs {
+			entries, newCount, wtErr := createRefWorktrees(ctx, config, repoPath, repoID, token, logger, event, fleetRefCount, fleetCap)
+			if wtErr != nil {
+				return GitSyncSelection{}, wtErr
 			}
-			refsByRepoPath[repoPath] = refs
-			if !delta.IsEmpty() {
-				deltaByRepoPath[repoPath] = delta
+			fleetRefCount = newCount
+			if len(entries) > 0 {
+				refWorktreesByRepoPath[repoPath] = entries
+				// N5 fix: when only pinned refs advanced (default branch
+				// unchanged), do NOT add the main repoPath to selected.
+				// The main-line entry would trigger a full file-tree walk +
+				// parse on the default branch every cycle, wasting fleet CPU.
+				// buildSelectedRepositories processes ref-worktree-only paths
+				// separately, emitting only the ref-scoped entries.
 			}
-			sourceSHAByRepoPath[repoPath] = sourceSHA
-			if forceReconcile {
-				reconcileByRepoPath[repoPath] = true
-				reconciledThisCycle++
-				baseline.recordReconciliation(ctx)
-			}
+		} else {
+			// Unpinning must prune leftover ref worktrees so the reserved
+			// .eshu-ref-worktrees checkout does not leak: cleanManaged
+			// workspace preserves the .eshu- prefix, so once created these
+			// entries only ever go away via reconcileRefWorktrees. When a
+			// repo has zero current pins (all pins removed, or it never had
+			// any), pass an empty pinned set so any stale entries under its
+			// ref dir are pruned; reconcileRefWorktrees already returns
+			// cleanly when the dir doesn't exist.
+			reconcileRefWorktrees(ctx, config, repoID, nil, logger)
 		}
 	}
 	return GitSyncSelection{
@@ -92,6 +127,7 @@ func syncGitRepositoriesWithLogger(
 		RefsByRepoPath:            refsByRepoPath,
 		ReconcileByRepoPath:       reconcileByRepoPath,
 		SourceCommitSHAByRepoPath: sourceSHAByRepoPath,
+		RefWorktreesByRepoPath:    refWorktreesByRepoPath,
 	}, nil
 }
 
@@ -449,52 +485,4 @@ func flushProgressWriter(writer io.Writer) {
 	if ok {
 		flusher.Flush()
 	}
-}
-
-func gitCommandEnv(config RepoSyncConfig, token string) []string {
-	env := os.Environ()
-	authMethod := strings.ToLower(strings.TrimSpace(config.GitAuthMethod))
-	switch authMethod {
-	case "token", "githubapp":
-		if strings.TrimSpace(token) == "" {
-			return env
-		}
-		index := len(env)
-		env = append(
-			env,
-			fmt.Sprintf("GIT_CONFIG_COUNT=%d", 1),
-			"GIT_CONFIG_KEY_0=http.https://github.com/.extraheader",
-			"GIT_CONFIG_VALUE_0="+githubHTTPExtraHeader(token),
-		)
-		_ = index
-	case "ssh":
-		command := buildSSHCommand(config)
-		if command != "" {
-			env = append(env, "GIT_SSH_COMMAND="+command)
-		}
-	}
-	return env
-}
-
-func buildSSHCommand(config RepoSyncConfig) string {
-	privateKeyPath := strings.TrimSpace(config.SSHPrivateKeyPath)
-	if privateKeyPath == "" {
-		privateKeyPath = "/var/run/secrets/eshu-ssh/id_rsa"
-	}
-	knownHostsPath := strings.TrimSpace(config.SSHKnownHostsPath)
-	if knownHostsPath == "" {
-		knownHostsPath = "/var/run/secrets/eshu-ssh/known_hosts"
-	}
-	strictHosts := "no"
-	knownHostsOpt := ""
-	if _, err := os.Stat(knownHostsPath); err == nil {
-		strictHosts = "yes"
-		knownHostsOpt = fmt.Sprintf("-o UserKnownHostsFile=%s", knownHostsPath)
-	}
-	return strings.TrimSpace(fmt.Sprintf(
-		"ssh -i %s %s -o StrictHostKeyChecking=%s",
-		privateKeyPath,
-		knownHostsOpt,
-		strictHosts,
-	))
 }

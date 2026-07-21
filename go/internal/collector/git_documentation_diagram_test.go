@@ -76,7 +76,7 @@ api.link: docs/service-map.md
 		},
 	}
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
 	documentFacts := factsByKind(envelopes, facts.DocumentationDocumentFactKind)
@@ -162,7 +162,7 @@ func TestTextDiagramDocumentationUnsafePreflightSuppressesContent(t *testing.T) 
 		},
 	}
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
 	documentFacts := factsByKind(envelopes, facts.DocumentationDocumentFactKind)

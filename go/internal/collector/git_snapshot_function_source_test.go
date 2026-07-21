@@ -43,8 +43,8 @@ func TestFunctionSourceFactEmittedAndCounted(t *testing.T) {
 	withSrc.FunctionSources = []FunctionSourceSnapshot{
 		{FunctionID: "repo-1\x1fpkg\x1f\x1fhandle", ParamIndex: 0, Kind: "http_request", Language: "go"},
 	}
-	baseFacts := drainFactChannel(buildStreamingGeneration(repoPath, repo, "run-1", observedAt, base, false).Facts)
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, withSrc, false)
+	baseFacts := drainFactChannel(buildStreamingGeneration(repoPath, repo, "run-1", observedAt, base, false, "").Facts)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, withSrc, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
 	if got, want := len(envelopes), collected.FactCount(); got != want {

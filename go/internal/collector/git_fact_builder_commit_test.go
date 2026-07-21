@@ -19,7 +19,7 @@ func TestBuildStreamingGenerationRecordsSourceCommitSHA(t *testing.T) {
 	snapshot := testCollectorSnapshot(repoPath, "package main\n", "digest-1")
 	snapshot.HeadCommitSHA = "0123456789abcdef0123456789abcdef01234567"
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 
 	if got, want := collected.Generation.SourceCommitSHA, snapshot.HeadCommitSHA; got != want {
 		t.Fatalf("generation SourceCommitSHA = %q, want %q", got, want)
@@ -35,7 +35,7 @@ func TestBuildStreamingGenerationOmitsSourceCommitSHAWhenUnknown(t *testing.T) {
 	repo := testCollectorRepositoryMetadata(repoPath)
 	snapshot := testCollectorSnapshot(repoPath, "package main\n", "digest-1")
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-1", observedAt, snapshot, false, "")
 
 	if collected.Generation.SourceCommitSHA != "" {
 		t.Fatalf("generation SourceCommitSHA = %q, want empty", collected.Generation.SourceCommitSHA)
@@ -52,7 +52,7 @@ func TestBuildStreamingGenerationReconcileClearsFreshnessHint(t *testing.T) {
 	snapshot := testCollectorSnapshot(repoPath, "package main\n", "digest-1")
 	snapshot.Reconcile = true
 
-	collected := buildStreamingGeneration(repoPath, repo, "run-reconcile", observedAt, snapshot, false)
+	collected := buildStreamingGeneration(repoPath, repo, "run-reconcile", observedAt, snapshot, false, "")
 
 	// An empty freshness hint guarantees the commit-time skip never elides the
 	// reconciliation generation, so it always re-projects and retracts drift.
@@ -77,7 +77,7 @@ func TestBuildStreamingGenerationRecordsDeltaFlag(t *testing.T) {
 	repo := testCollectorRepositoryMetadata(repoPath)
 
 	full := testCollectorSnapshot(repoPath, "package main\n", "digest-full")
-	if got := buildStreamingGeneration(repoPath, repo, "run-full", observedAt, full, false); got.Generation.IsDelta {
+	if got := buildStreamingGeneration(repoPath, repo, "run-full", observedAt, full, false, ""); got.Generation.IsDelta {
 		drainFactChannel(got.Facts)
 		t.Fatal("full snapshot generation IsDelta = true, want false")
 	} else {
@@ -86,7 +86,7 @@ func TestBuildStreamingGenerationRecordsDeltaFlag(t *testing.T) {
 
 	delta := testCollectorSnapshot(repoPath, "package main\n", "digest-delta")
 	delta.Delta = true
-	got := buildStreamingGeneration(repoPath, repo, "run-delta", observedAt, delta, false)
+	got := buildStreamingGeneration(repoPath, repo, "run-delta", observedAt, delta, false, "")
 	if !got.Generation.IsDelta {
 		t.Fatal("delta snapshot generation IsDelta = false, want true")
 	}
