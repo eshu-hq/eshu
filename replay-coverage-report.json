@@ -2,8 +2,8 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 420,
-    "covered": 410,
+    "total": 421,
+    "covered": 411,
     "uncovered": 0,
     "unresolved": 0,
     "exempt": 10,
@@ -93,8 +93,8 @@
     },
     {
       "registry": "retractable_type",
-      "total": 94,
-      "covered": 94,
+      "total": 95,
+      "covered": 95,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -140,8 +140,8 @@
     },
     {
       "scenario_type": "delta_tombstone",
-      "total": 153,
-      "covered": 153,
+      "total": 154,
+      "covered": 154,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -3904,6 +3904,16 @@
     {
       "registry": "retractable_type",
       "key": "retractable_node:TerraformResource",
+      "scenario_type": "delta_tombstone",
+      "status": "covered",
+      "scenario": "cassette",
+      "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:TerraformStateResource",
       "scenario_type": "delta_tombstone",
       "status": "covered",
       "scenario": "cassette",
