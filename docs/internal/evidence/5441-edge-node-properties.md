@@ -364,10 +364,10 @@ the input `Attributes` map upstream, so a dedicated benchmark was judged not
 load-bearing for this change; the `TestPromoteTerraformResourceAttributes*`
 suite proves correctness and the redaction/size-cap guards.
 
-Performance Evidence (#5441 review round 3, P2 — re-measured against final
+Performance Evidence: #5441 review round 3, P2 — re-measured against final
 HEAD and reframed per review's decision; see "Edge write benchmark (current,
 reproducible)" and "Superseded hypothesis: Map Bucket-Growth Pre-Sizing"
-above for the full context): `BenchmarkEdgeWriterRepoDependencyWrite` on the
+above for the full context. `BenchmarkEdgeWriterRepoDependencyWrite` on the
 same 5000-row input, no-op executor, Apple M1 Max,
 `-benchtime=3x -benchmem -count=3` (3 runs each), OLD and NEW both re-run at
 the current true merge-base `a5350625f` — OLD 4,839,055 ns/op avg /
