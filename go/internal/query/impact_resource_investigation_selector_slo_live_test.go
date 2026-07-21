@@ -34,6 +34,16 @@ func TestResourceInvestigationSelectorInteractiveSLO(t *testing.T) {
 	driver, database := openResourceSelectorSLOGraph(ctx, t)
 	defer func() { _ = driver.Close(context.Background()) }()
 	seedResourceSelectorSLOGraph(ctx, t, driver, database)
+	if os.Getenv("ESHU_RESOURCE_SELECTOR_COMPARISON") == "1" {
+		legacy := measureResourceSelectorSLOLegacy(ctx, t, driver, database)
+		t.Logf(
+			"selector OLD_CURRENT cold=%s warm_median=%s rows=%d db_hits=%d",
+			legacy.cold,
+			legacy.warm,
+			legacy.rows,
+			legacy.dbHits,
+		)
+	}
 
 	handler := &ImpactHandler{Neo4j: NewNeo4jReader(driver, database)}
 	exactReq := resourceInvestigationRequest{Query: "orders-db", Limit: 25}
@@ -103,6 +113,16 @@ func TestResourceInvestigationSelectorInteractiveSLO(t *testing.T) {
 		)
 		t.Logf("selector PROFILE exact_db_hits=%d fuzzy_db_hits=%d", exactHits, fuzzyHits)
 	}
+	if os.Getenv("ESHU_RESOURCE_SELECTOR_COMPARISON") == "1" {
+		exactWarm := measureResourceSelectorSLOWarm(ctx, t, handler, exactReq)
+		fuzzyWarm := measureResourceSelectorSLOWarm(
+			ctx,
+			t,
+			handler,
+			resourceInvestigationRequest{Query: "fuzzy-only", Limit: 25},
+		)
+		t.Logf("selector CANDIDATE warm_exact=%s warm_fuzzy=%s", exactWarm, fuzzyWarm)
+	}
 
 	t.Logf(
 		"selector SLO exact=%s fuzzy=%s limit=%s noise_nodes=%d",
@@ -111,6 +131,86 @@ func TestResourceInvestigationSelectorInteractiveSLO(t *testing.T) {
 		resourceSelectorSLOLimit,
 		resourceSelectorSLONoiseNodes,
 	)
+}
+
+type resourceSelectorSLOLegacyMeasurement struct {
+	cold   time.Duration
+	warm   time.Duration
+	rows   int
+	dbHits int64
+}
+
+func measureResourceSelectorSLOLegacy(
+	ctx context.Context,
+	t *testing.T,
+	driver neo4jdriver.DriverWithContext,
+	database string,
+) resourceSelectorSLOLegacyMeasurement {
+	t.Helper()
+	req := resourceInvestigationRequest{Query: "orders-db", Limit: 25}
+	cypher := resourceSelectorSLOLegacyCypher(req)
+	params := map[string]any{"selector": req.selector(), "environment": "", "limit": req.Limit + 1}
+	durations := make([]time.Duration, 0, 4)
+	rows := 0
+	for range 4 {
+		session := driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeRead, DatabaseName: database})
+		started := time.Now()
+		result, err := session.Run(ctx, cypher, params)
+		if err != nil {
+			_ = session.Close(context.Background())
+			t.Fatalf("run OLD/CURRENT selector: %v", err)
+		}
+		records, err := result.Collect(ctx)
+		closeErr := session.Close(context.Background())
+		if err != nil || closeErr != nil {
+			t.Fatalf("collect/close OLD/CURRENT selector: collect=%v close=%v", err, closeErr)
+		}
+		durations = append(durations, time.Since(started))
+		rows = len(records)
+	}
+	warm := append([]time.Duration(nil), durations[1:]...)
+	sort.Slice(warm, func(i, j int) bool { return warm[i] < warm[j] })
+	measurement := resourceSelectorSLOLegacyMeasurement{cold: durations[0], warm: warm[1], rows: rows}
+	if os.Getenv("ESHU_RESOURCE_SELECTOR_PROFILE") == "1" {
+		measurement.dbHits = profileResourceSelectorSLOQuery(ctx, t, driver, database, cypher, params)
+	}
+	return measurement
+}
+
+func measureResourceSelectorSLOWarm(
+	ctx context.Context,
+	t *testing.T,
+	handler *ImpactHandler,
+	req resourceInvestigationRequest,
+) time.Duration {
+	t.Helper()
+	durations := make([]time.Duration, 0, 3)
+	for range 3 {
+		started := time.Now()
+		if _, _, err := handler.resolveResourceInvestigationTarget(ctx, req); err != nil {
+			t.Fatalf("warm selector %q: %v", req.Query, err)
+		}
+		durations = append(durations, time.Since(started))
+	}
+	sort.Slice(durations, func(i, j int) bool { return durations[i] < durations[j] })
+	return durations[1]
+}
+
+func resourceSelectorSLOLegacyCypher(req resourceInvestigationRequest) string {
+	return fmt.Sprintf(`MATCH (n)
+WHERE %s
+  AND %s
+  AND (n.id = $selector OR n.uid = $selector OR n.resource_id = $selector OR
+       n.arn = $selector OR n.name = $selector OR n.name CONTAINS $selector OR
+       n.kind = $selector OR coalesce(n.resource_type, n.data_type, '') = $selector OR
+       coalesce(n.resource_type, n.data_type, '') CONTAINS $selector OR
+       coalesce(n.arn, '') CONTAINS $selector OR coalesce(n.source, '') CONTAINS $selector OR
+       coalesce(n.config_path, '') CONTAINS $selector)
+  AND ($environment = '' OR coalesce(n.environment, '') = '' OR n.environment = $environment)
+RETURN coalesce(n.id, n.uid, n.resource_id, n.name) AS id,
+       n.name AS name, labels(n) AS labels
+ORDER BY name, id
+LIMIT $limit`, resourceInvestigationLabelPredicate(req.ResourceType), resourceInvestigationTypePredicate(req.ResourceType))
 }
 
 func profileResourceSelectorSLOQueries(
@@ -129,31 +229,35 @@ func profileResourceSelectorSLOQueries(
 	)
 	params := map[string]any{"selector": req.selector(), "limit": req.Limit + 1}
 	var total int64
-	for index, cypher := range queries {
-		session := driver.NewSession(ctx, neo4jdriver.SessionConfig{
-			AccessMode:   neo4jdriver.AccessModeRead,
-			DatabaseName: database,
-		})
-		result, err := session.Run(ctx, "PROFILE "+cypher, params)
-		if err != nil {
-			_ = session.Close(context.Background())
-			t.Fatalf("PROFILE selector query %d: %v", index, err)
-		}
-		summary, err := result.Consume(ctx)
-		closeErr := session.Close(context.Background())
-		if err != nil {
-			t.Fatalf("consume selector PROFILE query %d: %v", index, err)
-		}
-		if closeErr != nil {
-			t.Fatalf("close selector PROFILE query %d: %v", index, closeErr)
-		}
-		profile := summary.Profile()
-		if profile == nil {
-			t.Fatalf("selector PROFILE query %d returned no plan", index)
-		}
-		total += resourceSelectorSLOPlanDBHits(profile)
+	for _, cypher := range queries {
+		total += profileResourceSelectorSLOQuery(ctx, t, driver, database, cypher, params)
 	}
 	return total
+}
+
+func profileResourceSelectorSLOQuery(
+	ctx context.Context,
+	t *testing.T,
+	driver neo4jdriver.DriverWithContext,
+	database string,
+	cypher string,
+	params map[string]any,
+) int64 {
+	t.Helper()
+	session := driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeRead, DatabaseName: database})
+	defer func() { _ = session.Close(context.Background()) }()
+	result, err := session.Run(ctx, "PROFILE "+cypher, params)
+	if err != nil {
+		t.Fatalf("PROFILE selector query: %v", err)
+	}
+	summary, err := result.Consume(ctx)
+	if err != nil {
+		t.Fatalf("consume selector PROFILE query: %v", err)
+	}
+	if summary.Profile() == nil {
+		t.Fatal("selector PROFILE query returned no plan")
+	}
+	return resourceSelectorSLOPlanDBHits(summary.Profile())
 }
 
 func resourceSelectorSLOPlanDBHits(plan neo4jdriver.ProfiledPlan) int64 {
