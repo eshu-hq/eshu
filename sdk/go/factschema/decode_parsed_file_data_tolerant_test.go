@@ -23,7 +23,12 @@ import (
 // records the skipped-element count, closing that absence-of-data-vs
 // -absence-of-evaluation gap.
 //
-// This test does not call t.Parallel(): it mutates the process-wide slog
+diff --git a/sdk/go/factschema/decode_parsed_file_data_tolerant_test.go b/sdk/go/factschema/decode_parsed_file_data_tolerant_test.go
+--- a/sdk/go/factschema/decode_parsed_file_data_tolerant_test.go
++++ b/sdk/go/factschema/decode_parsed_file_data_tolerant_test.go
+@@ -24 +24 @@
+-// This test asserts a debug-level log
++// This test asserts a warn-level log
 // default logger for the duration of the call and restores it before
 // returning, and relies on Go's sequential-then-parallel test ordering (all
 // non-parallel top-level tests in this package complete before any parked
