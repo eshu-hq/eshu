@@ -4,6 +4,8 @@
 package postgres
 
 import (
+	"encoding/json"
+	"math"
 	"os"
 	"regexp"
 	"strings"
@@ -156,5 +158,60 @@ func TestDefensiveCopyEnvelopesIsOneLevel(t *testing.T) {
 	}
 	if got := srcNested["inner"]; got != "mutated" {
 		t.Fatalf("nested mutation did not reach src (one-level copy contract broken): got %v, want %q", got, "mutated")
+	}
+}
+
+// TestEstimateEnvelopesByteSizeSumsMarshalableSize proves the happy path of
+// estimateEnvelopesByteSize (identity_epoch_cache.go): a marshalable Payload
+// contributes its own JSON-encoded length to the total, on top of the summed
+// string-field lengths and the fixed per-envelope overhead, and no error is
+// returned.
+func TestEstimateEnvelopesByteSizeSumsMarshalableSize(t *testing.T) {
+	t.Parallel()
+
+	env := facts.Envelope{
+		FactID:        "fact-1",  // 6 bytes
+		ScopeID:       "scope-1", // 7 bytes
+		StableFactKey: "key-1",   // 5 bytes
+		Payload:       map[string]any{"a": "b"},
+	}
+	payloadJSON, err := json.Marshal(env.Payload)
+	if err != nil {
+		t.Fatalf("marshal test payload: %v", err)
+	}
+
+	got, err := estimateEnvelopesByteSize([]facts.Envelope{env})
+	if err != nil {
+		t.Fatalf("estimateEnvelopesByteSize returned unexpected error: %v", err)
+	}
+
+	want := int64(len(env.FactID)+len(env.ScopeID)+len(env.StableFactKey)+len(payloadJSON)) + 40
+	if got != want {
+		t.Fatalf("estimateEnvelopesByteSize = %d, want %d (fields + %d payload bytes + 40 overhead)", got, want, len(payloadJSON))
+	}
+	if got <= 0 {
+		t.Fatalf("estimateEnvelopesByteSize = %d, want > 0", got)
+	}
+}
+
+// TestEstimateEnvelopesByteSizeErrorsOnUnsizablePayload proves the defensive
+// error path of estimateEnvelopesByteSize (identity_epoch_cache.go, issue
+// #5438 P2-2): when a Payload value cannot be sized by json.Marshal (here, a
+// NaN float — json.Marshal rejects NaN/Inf), estimateEnvelopesByteSize
+// returns a non-nil error rather than silently treating the unsizable
+// envelope as 0 bytes. The caller (IdentityEpochCache.get) treats this error
+// the same as cap-exceeded and serves the set uncached, so an unsizable
+// payload can never slip under the cache's maxBytes cap by being undercounted.
+func TestEstimateEnvelopesByteSizeErrorsOnUnsizablePayload(t *testing.T) {
+	t.Parallel()
+
+	env := facts.Envelope{
+		FactID:  "fact-unsizable",
+		Payload: map[string]any{"nan": math.NaN()},
+	}
+
+	_, err := estimateEnvelopesByteSize([]facts.Envelope{env})
+	if err == nil {
+		t.Fatalf("estimateEnvelopesByteSize returned nil error for a NaN payload, want a marshal error")
 	}
 }

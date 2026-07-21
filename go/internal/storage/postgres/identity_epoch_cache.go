@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -173,8 +174,11 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 	}
 
 	// Cap check: if estimated bytes exceed maxBytes, passthrough uncached.
-	estBytes := estimateEnvelopesByteSize(loaded)
-	if c.maxBytes > 0 && estBytes > c.maxBytes {
+	// A sizing error (json.Marshal failed on some envelope's Payload) is
+	// treated the same as cap-exceeded: if the set can't be sized, it can't
+	// be proven to fit, so it is not safe to cache.
+	estBytes, sizeErr := estimateEnvelopesByteSize(loaded)
+	if sizeErr != nil || (c.maxBytes > 0 && estBytes > c.maxBytes) {
 		c.inst.IdentityCachePassthroughTotal.Add(ctx, 1)
 		c.mu.Lock()
 		close(c.loading)
@@ -199,8 +203,13 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 }
 
 // estimateEnvelopesByteSize returns a conservative byte estimate for a set of
-// fact envelopes, used for the cache cap check.
-func estimateEnvelopesByteSize(loaded []facts.Envelope) int64 {
+// fact envelopes, used for the cache cap check. It returns an error if any
+// envelope's Payload cannot be sized via json.Marshal (e.g. a NaN/Inf float or
+// another value json.Marshal rejects). Callers MUST treat a non-nil error as
+// "unsizable, do not cache" rather than substituting a 0 or estimated size:
+// silently under-counting an unsizable payload could let it slip under the
+// cache's maxBytes cap.
+func estimateEnvelopesByteSize(loaded []facts.Envelope) (int64, error) {
 	var total int64
 	for _, env := range loaded {
 		total += int64(len(env.FactID))
@@ -217,13 +226,16 @@ func estimateEnvelopesByteSize(loaded []facts.Envelope) int64 {
 		total += int64(len(env.SourceRef.SourceRecordID))
 		// Estimate payload as its JSON serialization size.
 		if env.Payload != nil {
-			b, _ := json.Marshal(env.Payload)
+			b, err := json.Marshal(env.Payload)
+			if err != nil {
+				return 0, fmt.Errorf("estimate envelope %s payload size: %w", env.FactID, err)
+			}
 			total += int64(len(b))
 		}
 		// Fixed overhead: each time.Time, int64, bool ~ 40 bytes.
 		total += 40
 	}
-	return total
+	return total, nil
 }
 
 // defensiveCopyEnvelopes returns a fresh slice with a one-level copy of each
