@@ -79,10 +79,8 @@ func NewIdentityEpochCache(inst *telemetry.Instruments, maxBytes int64) (*Identi
 // get serves the identity fact set, transparently applying the epoch cache
 // and singleflight reload.
 func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts.Envelope, error) {
-	// Fast path: check cache under lock.
+	// Fast path: check whether a reload is already in flight, under lock.
 	c.mu.Lock()
-
-	// If a reload is already in flight, wait for it, then retry.
 	if c.loading != nil {
 		waitCh := c.loading
 		c.mu.Unlock()
@@ -94,14 +92,30 @@ func (c *IdentityEpochCache) get(ctx context.Context, store *FactStore) ([]facts
 		// After the flight lands, retry: the cache may now be populated.
 		return c.get(ctx, store)
 	}
+	c.mu.Unlock() // Release before I/O: mu must never be held across the probe.
 
-	// Probe the epoch.
+	// Probe the epoch WITHOUT the lock held, so concurrent callers' probes
+	// overlap instead of serializing behind mu (and behind each other's
+	// possibly-uncancellable lock wait).
 	probeStart := time.Now()
 	probe, err := store.probeIdentityEpoch(ctx)
 	c.inst.IdentityCacheProbeDuration.Record(ctx, time.Since(probeStart).Seconds())
 	if err != nil {
-		c.mu.Unlock()
 		return nil, err
+	}
+
+	c.mu.Lock()
+	// Double-check: another goroutine may have started a reload, or
+	// repopulated the cache, while we were probing without the lock.
+	if c.loading != nil {
+		waitCh := c.loading
+		c.mu.Unlock()
+		select {
+		case <-waitCh:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		return c.get(ctx, store)
 	}
 
 	// Check cache hit.

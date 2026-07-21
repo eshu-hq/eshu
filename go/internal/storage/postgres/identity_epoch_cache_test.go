@@ -5,6 +5,8 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -163,6 +165,60 @@ func TestIdentityEpochCacheMissChangedCount(t *testing.T) {
 	}
 }
 
+// concurrentSingleflightQueryer is a query-text-routing fake used only by
+// TestIdentityEpochCacheConcurrentSingleflight. The corrected get() (issue
+// #5438 P1-A: mu released across the epoch probe) legitimately lets many
+// concurrent callers probe in parallel before exactly one wins the
+// double-checked-locking loading-flag race and becomes the reload leader —
+// so the number and interleaving of probe calls is not deterministic. The
+// shared fakeExecQueryer's strict FIFO response queue assumes a fixed call
+// order and breaks under that real race (a probe call can consume a
+// load-page response or vice versa, failing on a Scan column-count
+// mismatch — reproduced before writing this fake). This fake instead
+// returns a stable probe row on every probe call (idempotent, matching a
+// stable epoch) and fails loudly if the load-page query — which singleflight
+// must serialize to exactly one caller — is ever issued more than once.
+// probeDelay simulates a DB round-trip so the test can prove non-serialization:
+// under the P1-A bug (mu held across the probe), N concurrent callers would
+// each wait for their own probe behind the lock, so wall time would scale
+// with N x probeDelay; under the fix, concurrent probes overlap and the
+// whole batch completes in a small constant multiple of probeDelay.
+type concurrentSingleflightQueryer struct {
+	mu         sync.Mutex
+	probeCalls int
+	loadCalls  int
+	probeDelay time.Duration
+	factRow    []any
+	probeRow   []any
+}
+
+func (q *concurrentSingleflightQueryer) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+	return nil, fmt.Errorf("concurrentSingleflightQueryer: unexpected ExecContext call")
+}
+
+func (q *concurrentSingleflightQueryer) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+	if strings.Contains(query, "LIMIT") {
+		q.mu.Lock()
+		q.loadCalls++
+		n := q.loadCalls
+		q.mu.Unlock()
+		if n > 1 {
+			return nil, fmt.Errorf("load page query called %d times, want at most 1 (singleflight broken)", n)
+		}
+		return &queueFakeRows{rows: [][]any{q.factRow}}, nil
+	}
+
+	// Probe query: simulate a DB round-trip so concurrent probes overlap in
+	// wall time only if mu is genuinely released across the probe.
+	if q.probeDelay > 0 {
+		time.Sleep(q.probeDelay)
+	}
+	q.mu.Lock()
+	q.probeCalls++
+	q.mu.Unlock()
+	return &queueFakeRows{rows: [][]any{q.probeRow}}, nil
+}
+
 func TestIdentityEpochCacheConcurrentSingleflight(t *testing.T) {
 	t.Parallel()
 
@@ -176,20 +232,14 @@ func TestIdentityEpochCacheConcurrentSingleflight(t *testing.T) {
 		[]byte(`{}`),
 	}
 
-	responses := []queueFakeRows{
-		probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
-		{rows: [][]any{factRow}},
-		probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
-	}
-	for range 31 {
-		responses = append(responses, probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0))
+	const probeDelay = 20 * time.Millisecond
+	q := &concurrentSingleflightQueryer{
+		probeDelay: probeDelay,
+		factRow:    factRow,
+		probeRow:   []any{int64(1), time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), int64(0)},
 	}
 
-	db := &fakeExecQueryer{
-		queryResponses: responses,
-	}
-
-	store := newFactStoreWithCache(db, 0)
+	store := newFactStoreWithCache(q, 0)
 
 	const numGoroutines = 32
 	var wg sync.WaitGroup
@@ -197,6 +247,7 @@ func TestIdentityEpochCacheConcurrentSingleflight(t *testing.T) {
 	results := make([][]facts.Envelope, numGoroutines)
 	errs := make([]error, numGoroutines)
 
+	start := time.Now()
 	for i := range numGoroutines {
 		go func(idx int) {
 			defer wg.Done()
@@ -206,6 +257,7 @@ func TestIdentityEpochCacheConcurrentSingleflight(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
+	elapsed := time.Since(start)
 
 	for i := range numGoroutines {
 		if errs[i] != nil {
@@ -216,14 +268,25 @@ func TestIdentityEpochCacheConcurrentSingleflight(t *testing.T) {
 		}
 	}
 
-	var loadQueries int
-	for _, q := range db.queries {
-		if strings.Contains(q.query, "LIMIT") {
-			loadQueries++
-		}
+	q.mu.Lock()
+	loadCalls, probeCalls := q.loadCalls, q.probeCalls
+	q.mu.Unlock()
+	if loadCalls != 1 {
+		t.Fatalf("load page queries = %d, want 1 (singleflight)", loadCalls)
 	}
-	if loadQueries != 1 {
-		t.Fatalf("load page queries = %d, want 1 (singleflight)", loadQueries)
+	t.Logf("probeCalls=%d loadCalls=%d elapsed=%v (probeDelay=%v)", probeCalls, loadCalls, elapsed, probeDelay)
+
+	// Non-serialization proof (P1-A fix): 32 concurrent callers each need at
+	// least one probe. If mu were held across the probe (the bug), those
+	// probes would serialize behind the lock and wall time would scale
+	// with N x probeDelay (32 x 20ms = 640ms). With mu released across the
+	// probe (the fix), concurrent probes overlap, bounding wall time to a
+	// small constant multiple of probeDelay regardless of N. The bound below
+	// is generous enough to absorb scheduler jitter while still failing on
+	// real O(N) serialization.
+	maxAllowed := 10 * probeDelay
+	if elapsed > maxAllowed {
+		t.Fatalf("32 concurrent callers took %v, want <= %v (mu must not serialize the epoch probe across callers)", elapsed, maxAllowed)
 	}
 }
 
