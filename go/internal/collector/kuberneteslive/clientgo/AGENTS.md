@@ -5,9 +5,11 @@
 1. `go/internal/collector/kuberneteslive/clientgo/README.md` - adapter contract
 2. `go/internal/collector/kuberneteslive/clientgo/config.go` - auth modes
 3. `go/internal/collector/kuberneteslive/clientgo/client.go` - list + mapping
-4. `go/internal/collector/kuberneteslive/clientgo/identity_rbac.go` -
+4. `go/internal/collector/kuberneteslive/clientgo/client_workload_kinds.go` -
+   StatefulSet/DaemonSet/Job/CronJob list + mapping
+5. `go/internal/collector/kuberneteslive/clientgo/identity_rbac.go` -
    ServiceAccount and RBAC list + mapping
-5. `go/internal/collector/kuberneteslive/client.go` - the neutral Client interface
+6. `go/internal/collector/kuberneteslive/client.go` - the neutral Client interface
 
 ## Invariants This Package Enforces
 

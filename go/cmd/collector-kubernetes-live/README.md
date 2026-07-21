@@ -65,9 +65,18 @@ emitted as GCP Workload Identity evidence.
 
 ## RBAC
 
-Grant only `get`, `list`, and `watch` on namespaces, pods, deployments,
-replicasets, services, and ingresses. Exclude Secret values. Prefer a namespace
-`RoleBinding` when namespace-scoped collection is enough.
+Grant only `get`, `list`, and `watch` on:
+
+- core (`""`): namespaces, pods, services, serviceaccounts
+- `apps`: deployments, replicasets, statefulsets, daemonsets
+- `batch`: jobs, cronjobs
+- `networking.k8s.io`: ingresses
+- `rbac.authorization.k8s.io`: roles, clusterroles, rolebindings,
+  clusterrolebindings
+
+Exclude Secret values. Prefer a namespace `RoleBinding` when namespace-scoped
+collection is enough (ClusterRoles and ClusterRoleBindings still require
+cluster-scoped read access to list).
 
 ## Telemetry
 

@@ -41,9 +41,9 @@
         "note": "logical workload-instance nodes correlated from kubernetes_live facts"
       },
       "KubernetesWorkload": {
-        "min": 3,
+        "min": 5,
         "max": 20,
-        "note": "raw k8s Deployment/ReplicaSet/Pod workload nodes; source of RUNS_IMAGE edges; +1 pod from #5432; #5431 adds observed-vs-desired runtime-status fields (desired/ready/available replicas, pod phase) to the underlying pod_template facts, fact-level only, no node/edge count change"
+        "note": "raw k8s Deployment/ReplicaSet/StatefulSet/DaemonSet/Pod workload nodes; source of RUNS_IMAGE edges; +1 pod from #5432; #5431 adds observed-vs-desired runtime-status fields (desired/ready/available replicas, pod phase) to the underlying pod_template facts, fact-level only, no node/edge count change; #5433 adds StatefulSet and DaemonSet nodes (+2, min 3->5) plus Job/CronJob collection (no new cassette node for those two kinds), using images that do not correlate to the OciImageManifest cassette so RUNS_IMAGE stays unchanged"
       },
       "Workload": {
         "min": 1,

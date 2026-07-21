@@ -21,6 +21,10 @@ type fakeClient struct {
 	pods                ListResult[WorkloadObject]
 	deployments         ListResult[WorkloadObject]
 	replicasets         ListResult[WorkloadObject]
+	statefulsets        ListResult[WorkloadObject]
+	daemonsets          ListResult[WorkloadObject]
+	jobs                ListResult[WorkloadObject]
+	cronjobs            ListResult[WorkloadObject]
 	services            ListResult[ServiceObject]
 	ingresses           ListResult[IngressObject]
 	serviceAccounts     ListResult[ServiceAccountObject]
@@ -45,6 +49,22 @@ func (f *fakeClient) ListDeployments(context.Context) (ListResult[WorkloadObject
 
 func (f *fakeClient) ListReplicaSets(context.Context) (ListResult[WorkloadObject], error) {
 	return f.replicasets, nil
+}
+
+func (f *fakeClient) ListStatefulSets(context.Context) (ListResult[WorkloadObject], error) {
+	return f.statefulsets, nil
+}
+
+func (f *fakeClient) ListDaemonSets(context.Context) (ListResult[WorkloadObject], error) {
+	return f.daemonsets, nil
+}
+
+func (f *fakeClient) ListJobs(context.Context) (ListResult[WorkloadObject], error) {
+	return f.jobs, nil
+}
+
+func (f *fakeClient) ListCronJobs(context.Context) (ListResult[WorkloadObject], error) {
+	return f.cronjobs, nil
 }
 
 func (f *fakeClient) ListServices(context.Context) (ListResult[ServiceObject], error) {
@@ -146,6 +166,13 @@ func TestSourceHappyPathEmitsTypedFacts(t *testing.T) {
 		},
 		Containers: []ContainerSummary{{Name: "app", Image: "img:1"}},
 	}
+	statefulset := WorkloadObject{
+		Meta: ObjectMeta{
+			APIGroup: "apps", Version: "v1", Resource: "statefulsets",
+			Namespace: "payments", Name: "checkout-db", UID: "uid-ss",
+		},
+		Containers: []ContainerSummary{{Name: "db", Image: "img-db:1"}},
+	}
 	service := ServiceObject{
 		Meta: ObjectMeta{
 			Version: "v1", Resource: "services",
@@ -161,11 +188,12 @@ func TestSourceHappyPathEmitsTypedFacts(t *testing.T) {
 	}
 
 	client := &fakeClient{
-		namespaces:  ListResult[ObjectMeta]{Items: []ObjectMeta{{Version: "v1", Resource: "namespaces", Name: "payments", UID: "uid-ns"}}},
-		deployments: ListResult[WorkloadObject]{Items: []WorkloadObject{deployment}},
-		replicasets: ListResult[WorkloadObject]{Items: []WorkloadObject{replicaset}},
-		services:    ListResult[ServiceObject]{Items: []ServiceObject{service}},
-		ingresses:   ListResult[IngressObject]{Items: []IngressObject{ingress}},
+		namespaces:   ListResult[ObjectMeta]{Items: []ObjectMeta{{Version: "v1", Resource: "namespaces", Name: "payments", UID: "uid-ns"}}},
+		deployments:  ListResult[WorkloadObject]{Items: []WorkloadObject{deployment}},
+		replicasets:  ListResult[WorkloadObject]{Items: []WorkloadObject{replicaset}},
+		statefulsets: ListResult[WorkloadObject]{Items: []WorkloadObject{statefulset}},
+		services:     ListResult[ServiceObject]{Items: []ServiceObject{service}},
+		ingresses:    ListResult[IngressObject]{Items: []IngressObject{ingress}},
 	}
 
 	source := newSource(client)
@@ -187,8 +215,8 @@ func TestSourceHappyPathEmitsTypedFacts(t *testing.T) {
 	}
 
 	envs := drain(t, collected.Facts)
-	if got := countKind(envs, facts.KubernetesPodTemplateFactKind); got != 2 {
-		t.Fatalf("pod_template facts = %d, want 2", got)
+	if got := countKind(envs, facts.KubernetesPodTemplateFactKind); got != 3 {
+		t.Fatalf("pod_template facts = %d, want 3 (deployment + replicaset + statefulset)", got)
 	}
 	if got := countKind(envs, facts.KubernetesRelationshipFactKind); got != 2 {
 		t.Fatalf("relationship facts = %d, want 2 (owner + ingress), got %d", got, got)
@@ -266,6 +294,63 @@ func TestSourceInvalidOwnerReferenceWarns(t *testing.T) {
 	}
 	if got := countKind(envs, facts.KubernetesWarningFactKind); got != 1 {
 		t.Fatalf("warning facts = %d, want 1 (invalid owner reference)", got)
+	}
+}
+
+// TestSourceJobOwnedByCronJobEmitsOwnerEdge is a regression test for the
+// owner-edge ordering bug: collectWorkloads must index parent kinds before
+// their children so addOwnerEdges can resolve the owner UID on first pass.
+// A CronJob's UID must be indexed before its owned Jobs are processed, the
+// same reason Deployments are listed before ReplicaSets and both before Pods.
+func TestSourceJobOwnedByCronJobEmitsOwnerEdge(t *testing.T) {
+	t.Parallel()
+
+	cronjob := WorkloadObject{
+		Meta: ObjectMeta{
+			APIGroup: "batch", Version: "v1", Resource: "cronjobs",
+			Namespace: "n", Name: "nightly", UID: "uid-cronjob",
+		},
+	}
+	job := WorkloadObject{
+		Meta: ObjectMeta{
+			APIGroup: "batch", Version: "v1", Resource: "jobs",
+			Namespace: "n", Name: "nightly-28234500", UID: "uid-job",
+			OwnerReferences: []OwnerReference{{Kind: "CronJob", Name: "nightly", UID: "uid-cronjob"}},
+		},
+		Containers: []ContainerSummary{{Name: "app", Image: "img:1"}},
+	}
+	client := &fakeClient{
+		jobs:     ListResult[WorkloadObject]{Items: []WorkloadObject{job}},
+		cronjobs: ListResult[WorkloadObject]{Items: []WorkloadObject{cronjob}},
+	}
+	source := newSource(client)
+	collected, _, err := source.Next(context.Background())
+	if err != nil {
+		t.Fatalf("Next() error = %v", err)
+	}
+	envs := drain(t, collected.Facts)
+
+	clusterID := source.Config.Clusters[0].ClusterID
+	wantFromID := identityFromMeta(clusterID, job.Meta).ObjectID()
+	wantToID := identityFromMeta(clusterID, cronjob.Meta).ObjectID()
+
+	foundOwnerEdge := false
+	for _, env := range envelopesOfKind(envs, facts.KubernetesRelationshipFactKind) {
+		if env.Payload["relationship_type"] != string(RelationshipOwnerReference) {
+			continue
+		}
+		if env.Payload["from_object_id"] == wantFromID && env.Payload["to_object_id"] == wantToID {
+			foundOwnerEdge = true
+		}
+	}
+	if !foundOwnerEdge {
+		t.Fatalf("no owner-reference relationship fact From=Job To=CronJob found in %d relationship facts", countKind(envs, facts.KubernetesRelationshipFactKind))
+	}
+
+	for _, env := range envelopesOfKind(envs, facts.KubernetesWarningFactKind) {
+		if env.Payload["reason"] == WarningInvalidOwnerReference {
+			t.Fatalf("unexpected invalid_owner_reference warning for a Job whose CronJob owner was collected: %+v", env.Payload)
+		}
 	}
 }
 
