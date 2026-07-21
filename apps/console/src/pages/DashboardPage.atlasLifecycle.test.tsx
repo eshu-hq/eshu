@@ -91,4 +91,51 @@ describe("DashboardPage atlas lifecycle", () => {
     expect(resolveCalls).toHaveLength(1);
     expect(entityMapCalls).toHaveLength(1);
   });
+
+  it("starts a new atlas owner when a seed keeps its identity but changes scope", async () => {
+    const resolveBodies: unknown[] = [];
+    const client = {
+      postJson: vi.fn(async (_path: string, body: unknown) => {
+        resolveBodies.push(body);
+        return { entities: [] };
+      }),
+      post: vi.fn(async () => ({
+        data: { evidence: { relationships: [] }, resolution: { candidates: [] } },
+        error: null,
+        truth: null,
+      })),
+    } as unknown as EshuApiClient;
+    const { rerender } = render(<DashboardPage client={client} model={liveSeedModel("service")} />);
+
+    await waitFor(() =>
+      expect(resolveBodies).toEqual([{ limit: 1, name: "shared-seed", type: "workload" }]),
+    );
+
+    rerender(<DashboardPage client={client} model={liveSeedModel("repo")} />);
+
+    await waitFor(() =>
+      expect(resolveBodies).toEqual([
+        { limit: 1, name: "shared-seed", type: "workload" },
+        { limit: 1, name: "shared-seed", repo_id: "seed:shared" },
+      ]),
+    );
+  });
 });
+
+function liveSeedModel(kind: string) {
+  return modelFromSnapshot({
+    ...emptySnapshot(),
+    provenance: { services: "live" },
+    services: [
+      {
+        environments: [],
+        freshness: "fresh",
+        id: "seed:shared",
+        kind,
+        name: "shared-seed",
+        repo: "",
+        truth: "exact",
+      },
+    ],
+  });
+}
