@@ -27,9 +27,15 @@ representative, not exhaustive; the authoritative label set lives in
 - **`TerraformModule`**, **`TerraformResource`** (config-declared, from parsed
   `.tf` files), **`TerraformStateResource`** (state-observed, from a
   Terraform state backend; matched to its declaring `TerraformResource` by a
-  `MATCHES_STATE` edge on exact address equality when the address is not
-  module/count/for_each-expanded), **`TerraformDataSource`**,
-  **`TerraformProvider`**, **`CloudFormationResource`**
+  `MATCHES_STATE` edge only when all three hold: the state backend resolves
+  to exactly one owning config repository, the state address exactly equals
+  the config-declared address (never normalized, so a
+  module/count/for_each-expanded address such as
+  `module.vpc.aws_instance.foo["us-east-1"]` stays applied-only), and exactly
+  one `TerraformResource` in that repository declares that address --
+  an unresolved owner or an ambiguous address match records no edge rather
+  than guessing), **`TerraformDataSource`**, **`TerraformProvider`**,
+  **`CloudFormationResource`**
 - **`CloudResource`**, **`Platform`**, **`CloudAction`**, **`ExternalPrincipal`**
 
 **Supply chain and security:**
