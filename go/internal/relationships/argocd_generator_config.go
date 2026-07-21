@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // ArgoCDGeneratorConfigRef names a config repository an ArgoCD ApplicationSet's
@@ -76,11 +77,13 @@ func ResolveArgoCDGeneratorConfigRepos(
 		envelope := envelopes[i]
 		controlRepoID := sourceRepositoryIDFromEnvelope(envelope)
 
-		// TODO(#4799 W2f / #4750): parsed_file_data is codegraphv1.File.ParsedFileData
-		// (an open map[string]any); its argocd_applicationsets inner key
-		// (read by structuredApplicationSetGeneratorRepos) is not yet typed in
-		// sdk/go/factschema/decode_parsed_file_data.go. Route through the typed
-		// DecodeCodegraphFile / DecodeParsedFileData* seam once #4750 types it.
+		// envelope.Payload["parsed_file_data"] is read raw here deliberately
+		// (not through factschema.DecodeCodegraphFile): this is a
+		// fact-kind-agnostic helper called across every envelope regardless of
+		// fact kind, mirroring the same raw extraction evidence.go uses for the
+		// identical reason (see that file's discoverFromEnvelopeWithIndex
+		// comment). The argocd_applicationsets inner key itself IS typed (issue
+		// #5445 slice 1) -- see structuredApplicationSetGeneratorRepos below.
 		if parsedFileData, ok := envelope.Payload["parsed_file_data"].(map[string]any); ok {
 			for _, generatorRepoURL := range structuredApplicationSetGeneratorRepos(parsedFileData) {
 				add(controlRepoID, generatorRepoURL)
@@ -108,18 +111,17 @@ func ResolveArgoCDGeneratorConfigRepos(
 // structuredApplicationSetGeneratorRepos extracts the git-generator config
 // repository URLs from a parsed_file_data payload's argocd_applicationsets, the
 // same generator_source_repos field discoverStructuredArgoCDEvidence reads.
+// It reads the bucket through the typed
+// factschema.DecodeParsedFileDataArgoCDApplicationSets accessor (issue #5445
+// slice 1) rather than a raw map lookup; the accessor skips a malformed row
+// rather than failing the whole bucket, so the ignored error return matches
+// the pre-typing raw-map read's silent tolerance of an absent/wrong-shape
+// bucket.
 func structuredApplicationSetGeneratorRepos(parsedFileData map[string]any) []string {
-	appSets, ok := parsedFileData["argocd_applicationsets"].([]any)
-	if !ok {
-		return nil
-	}
+	appSets, _ := factschema.DecodeParsedFileDataArgoCDApplicationSets(parsedFileData)
 	var repos []string
-	for _, item := range appSets {
-		appSet, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-		repos = append(repos, csvValues(appSet["generator_source_repos"])...)
+	for _, appSet := range appSets {
+		repos = append(repos, csvValues(appSet.GeneratorSourceRepos)...)
 	}
 	return repos
 }

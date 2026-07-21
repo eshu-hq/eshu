@@ -404,14 +404,6 @@ func defaultRawPayloadExemptions() []RawPayloadExemption {
 		{Path: "go/internal/relationships/evidence_content_index.go", Accessor: rawPayloadIndexAccessor, Key: "content_path"},
 		{Path: "go/internal/relationships/evidence_content_index.go", Accessor: rawPayloadIndexAccessor, Key: "relative_path"},
 		{Path: "go/internal/relationships/evidence_byte_citation.go", Accessor: rawPayloadIndexAccessor, Key: "commit_sha"},
-		{Path: "go/internal/relationships/structured_family_evidence.go", Accessor: "payloadString", Key: "dest_name"},
-		{Path: "go/internal/relationships/structured_family_evidence.go", Accessor: "payloadString", Key: "dest_namespace"},
-		{Path: "go/internal/relationships/structured_family_evidence.go", Accessor: "payloadString", Key: "dest_server"},
-		{Path: "go/internal/relationships/structured_family_evidence.go", Accessor: "payloadString", Key: "name"},
-		{Path: "go/internal/relationships/terraform_evidence.go", Accessor: "payloadString", Key: "config_path"},
-		{Path: "go/internal/relationships/terraform_evidence.go", Accessor: "payloadString", Key: "name"},
-		{Path: "go/internal/relationships/terraform_evidence.go", Accessor: "payloadString", Key: "source"},
-		{Path: "go/internal/relationships/terragrunt_helper_evidence.go", Accessor: "payloadString", Key: rawPayloadDynamicKey},
 		{Path: "go/internal/storage/postgres/incident_routing_evidence_loader.go", Accessor: "incidentRoutingPayloadMap", Key: "service"},
 		// The repository-catalog payload parser moved from the Postgres ingestion
 		// path to relationships.RepositoryCatalogEntry so Ifá can derive the same
@@ -427,12 +419,6 @@ func defaultRawPayloadExemptions() []RawPayloadExemption {
 		// C2). Same untyped repository-payload pattern as the sibling reads
 		// above; the repository fact kind has no typed struct yet.
 		{Path: "go/internal/relationships/catalog.go", Accessor: "catalogPayloadString", Key: "remote_url"},
-		// flux_evidence.go reads the flux_git_repositories parsed_file_data
-		// bucket's url/name fields, an untyped inner key of the "file" fact kind
-		// (same TODO(#4799 W2f) gap structured_family_evidence.go's helm/argocd
-		// extractors already carry exemptions for).
-		{Path: "go/internal/relationships/flux_evidence.go", Accessor: "payloadString", Key: "url"},
-		{Path: "go/internal/relationships/flux_evidence.go", Accessor: "payloadString", Key: "name"},
 		{Path: "go/internal/replay/offlinetier/delta.go", Accessor: rawPayloadIndexAccessor, Key: "path"},
 		{Path: "go/internal/replay/offlinetier/materialization.go", Accessor: "optionalString", Key: "needs"},
 		{Path: "go/internal/replay/offlinetier/materialization.go", Accessor: "requireInt", Key: "depth"},

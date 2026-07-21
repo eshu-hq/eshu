@@ -332,11 +332,6 @@ func extractYAMLStringValues(content string) []string {
 	return values
 }
 
-func payloadString(payload map[string]any, key string) string {
-	value, _ := payload[key].(string)
-	return value
-}
-
 // isHelmArtifact checks if a file is a Helm chart file.
 func isHelmArtifact(artifactType, filePath string) bool {
 	if artifactType == "helm" {

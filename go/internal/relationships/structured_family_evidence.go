@@ -3,16 +3,23 @@
 
 package relationships
 
-import "strings"
+import (
+	"strings"
 
-// TODO(#4799 W2f / #4750): the discoverStructured*Evidence extractors below read
-// parsed_file_data inner keys (helm_charts, helm_values, argocd_applications,
-// argocd_applicationsets) raw. parsed_file_data is codegraphv1.File.ParsedFileData
-// (an open map[string]any), and these inner keys are not yet typed in
-// sdk/go/factschema/decode_parsed_file_data.go — only the #4750 S1 batch
-// (gomod_state, function_calls_scip, dockerfile_stages, pipeline_calls,
-// dead_code_file_root_kinds) has typed accessors. Route these reads through typed
-// DecodeParsedFileData* accessors once #4750 types these inner keys.
+	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
+
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+)
+
+// discoverStructuredHelmEvidence and discoverStructuredArgoCDEvidence below
+// read the parsed_file_data helm_charts, helm_values, argocd_applications,
+// and argocd_applicationsets inner keys through the typed
+// factschema.DecodeParsedFileData* accessors (issue #5445 slice 1) rather
+// than a raw map lookup. Each accessor skips a malformed row rather than
+// failing the whole bucket, so a decode error here is always nil in
+// practice; the error return is ignored deliberately, matching the
+// pre-typing raw-map read's silent tolerance of an absent/wrong-shape
+// bucket.
 
 func discoverStructuredHelmEvidence(
 	sourceRepoID, filePath string,
@@ -22,67 +29,57 @@ func discoverStructuredHelmEvidence(
 ) []EvidenceFact {
 	var evidence []EvidenceFact
 
-	if charts, ok := parsedFileData["helm_charts"].([]any); ok {
-		for _, item := range charts {
-			chart, ok := item.(map[string]any)
-			if !ok {
-				continue
-			}
-			chartName := strings.TrimSpace(payloadString(chart, "name"))
-			for _, candidate := range csvValues(chart["dependencies"]) {
-				details := withFirstPartyRefDetails(
-					map[string]any{"helm_chart_name": chartName},
-					"helm_dependency_name", chartName, "", "", "", candidate,
-				)
-				evidence = append(evidence, matchCatalog(
-					sourceRepoID, candidate, filePath,
-					EvidenceKindHelmChart, RelDeploysFrom, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindHelmChart),
-					"Helm chart metadata references the target repository",
-					"helm", matcher, seen, details,
-				)...)
-			}
-			for _, candidate := range csvValues(chart["dependency_repositories"]) {
-				normalized := normalizeHelmRefValue(candidate)
-				details := withFirstPartyRefDetails(
-					map[string]any{
-						"helm_chart_name":       chartName,
-						"dependency_repository": candidate,
-					},
-					"helm_dependency_repository", chartName, "", "", "", normalized,
-				)
-				evidence = append(evidence, matchCatalog(
-					sourceRepoID, normalized, filePath,
-					EvidenceKindHelmChart, RelDeploysFrom, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindHelmChart),
-					"Helm chart metadata references the target repository",
-					"helm", matcher, seen, details,
-				)...)
-			}
+	charts, _ := factschema.DecodeParsedFileDataHelmCharts(parsedFileData)
+	for _, chart := range charts {
+		chartName := strings.TrimSpace(chart.Name)
+		for _, candidate := range csvValues(chart.Dependencies) {
+			details := withFirstPartyRefDetails(
+				map[string]any{"helm_chart_name": chartName},
+				"helm_dependency_name", chartName, "", "", "", candidate,
+			)
+			evidence = append(evidence, matchCatalog(
+				sourceRepoID, candidate, filePath,
+				EvidenceKindHelmChart, RelDeploysFrom, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindHelmChart),
+				"Helm chart metadata references the target repository",
+				"helm", matcher, seen, details,
+			)...)
+		}
+		for _, candidate := range csvValues(chart.DependencyRepositories) {
+			normalized := normalizeHelmRefValue(candidate)
+			details := withFirstPartyRefDetails(
+				map[string]any{
+					"helm_chart_name":       chartName,
+					"dependency_repository": candidate,
+				},
+				"helm_dependency_repository", chartName, "", "", "", normalized,
+			)
+			evidence = append(evidence, matchCatalog(
+				sourceRepoID, normalized, filePath,
+				EvidenceKindHelmChart, RelDeploysFrom, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindHelmChart),
+				"Helm chart metadata references the target repository",
+				"helm", matcher, seen, details,
+			)...)
 		}
 	}
 
-	if valuesRows, ok := parsedFileData["helm_values"].([]any); ok {
-		for _, item := range valuesRows {
-			valuesRow, ok := item.(map[string]any)
-			if !ok {
-				continue
-			}
-			valuesName := strings.TrimSpace(payloadString(valuesRow, "name"))
-			for _, candidate := range csvValues(valuesRow["image_repositories"]) {
-				normalized := normalizeHelmRefValue(candidate)
-				details := withFirstPartyRefDetails(
-					map[string]any{
-						"helm_values_name": valuesName,
-						"image_repository": candidate,
-					},
-					"helm_image_repository", valuesName, "", "", "", normalized,
-				)
-				evidence = append(evidence, matchCatalog(
-					sourceRepoID, normalized, filePath,
-					EvidenceKindHelmValues, RelDeploysFrom, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindHelmValues),
-					"Helm values reference the target repository",
-					"helm", matcher, seen, details,
-				)...)
-			}
+	valuesRows, _ := factschema.DecodeParsedFileDataHelmValues(parsedFileData)
+	for _, valuesRow := range valuesRows {
+		valuesName := strings.TrimSpace(valuesRow.Name)
+		for _, candidate := range csvValues(valuesRow.ImageRepositories) {
+			normalized := normalizeHelmRefValue(candidate)
+			details := withFirstPartyRefDetails(
+				map[string]any{
+					"helm_values_name": valuesName,
+					"image_repository": candidate,
+				},
+				"helm_image_repository", valuesName, "", "", "", normalized,
+			)
+			evidence = append(evidence, matchCatalog(
+				sourceRepoID, normalized, filePath,
+				EvidenceKindHelmValues, RelDeploysFrom, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindHelmValues),
+				"Helm values reference the target repository",
+				"helm", matcher, seen, details,
+			)...)
 		}
 	}
 
@@ -97,113 +94,103 @@ func discoverStructuredArgoCDEvidence(
 ) []EvidenceFact {
 	var evidence []EvidenceFact
 
-	if applications, ok := parsedFileData["argocd_applications"].([]any); ok {
-		for _, item := range applications {
-			application, ok := item.(map[string]any)
-			if !ok {
-				continue
-			}
-			appName := strings.TrimSpace(payloadString(application, "name"))
-			for _, source := range argoApplicationSourceRefs(application) {
-				details := withFirstPartyRefDetails(
-					map[string]any{
-						"argocd_application_name": appName,
-						"source_revision":         source.revision,
-					},
-					"argocd_application_source",
-					appName,
-					source.path,
-					source.root,
-					source.revision,
-					source.repoURL,
-				)
-				evidence = append(evidence, matchCatalog(
-					sourceRepoID, source.repoURL, filePath,
-					EvidenceKindArgoCDAppSource, RelDeploysFrom, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindArgoCDAppSource),
-					"ArgoCD Application source references the target repository",
-					"argocd", matcher, seen, details,
-				)...)
+	applications, _ := factschema.DecodeParsedFileDataArgoCDApplications(parsedFileData)
+	for _, application := range applications {
+		appName := strings.TrimSpace(application.Name)
+		for _, source := range argoApplicationSourceRefs(application) {
+			details := withFirstPartyRefDetails(
+				map[string]any{
+					"argocd_application_name": appName,
+					"source_revision":         source.revision,
+				},
+				"argocd_application_source",
+				appName,
+				source.path,
+				source.root,
+				source.revision,
+				source.repoURL,
+			)
+			evidence = append(evidence, matchCatalog(
+				sourceRepoID, source.repoURL, filePath,
+				EvidenceKindArgoCDAppSource, RelDeploysFrom, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindArgoCDAppSource),
+				"ArgoCD Application source references the target repository",
+				"argocd", matcher, seen, details,
+			)...)
 
-				for _, deployedRepo := range matchingCatalogEntries(source.repoURL, matcher) {
-					evidence = append(evidence, appendDestinationPlatformEvidence(
-						deployedRepo.RepoID,
-						filePath,
-						argocdDestination{
-							name:      payloadString(application, "dest_name"),
-							namespace: payloadString(application, "dest_namespace"),
-							server:    payloadString(application, "dest_server"),
-						},
-						seen,
-					)...)
-				}
+			for _, deployedRepo := range matchingCatalogEntries(source.repoURL, matcher) {
+				evidence = append(evidence, appendDestinationPlatformEvidence(
+					deployedRepo.RepoID,
+					filePath,
+					argocdDestination{
+						name:      application.DestName,
+						namespace: application.DestNamespace,
+						server:    application.DestServer,
+					},
+					seen,
+				)...)
 			}
 		}
 	}
 
-	if appSets, ok := parsedFileData["argocd_applicationsets"].([]any); ok {
-		for _, item := range appSets {
-			appSet, ok := item.(map[string]any)
-			if !ok {
-				continue
-			}
-			appSetName := strings.TrimSpace(payloadString(appSet, "name"))
-			discoveryRepos := csvValues(appSet["generator_source_repos"])
-			discoveryPaths := csvValues(appSet["generator_source_paths"])
-			discoveryRoots := csvValues(appSet["generator_source_roots"])
-			if len(discoveryRoots) == 0 {
-				discoveryRoots = csvValues(appSet["source_roots"])
-			}
-			templateRepos := csvValues(appSet["template_source_repos"])
-			templatePaths := csvValues(appSet["template_source_paths"])
-			templateRoots := csvValues(appSet["template_source_roots"])
-			if len(templateRoots) == 0 {
-				templateRoots = csvValues(appSet["source_roots"])
-			}
+	appSets, _ := factschema.DecodeParsedFileDataArgoCDApplicationSets(parsedFileData)
+	for _, appSet := range appSets {
+		appSetName := strings.TrimSpace(appSet.Name)
+		discoveryRepos := csvValues(appSet.GeneratorSourceRepos)
+		discoveryPaths := csvValues(appSet.GeneratorSourcePaths)
+		discoveryRoots := csvValues(appSet.GeneratorSourceRoots)
+		if len(discoveryRoots) == 0 {
+			discoveryRoots = csvValues(appSet.SourceRoots)
+		}
+		templateRepos := csvValues(appSet.TemplateSourceRepos)
+		templatePaths := csvValues(appSet.TemplateSourcePaths)
+		templateRoots := csvValues(appSet.TemplateSourceRoots)
+		if len(templateRoots) == 0 {
+			templateRoots = csvValues(appSet.SourceRoots)
+		}
 
-			for _, repoURL := range discoveryRepos {
-				root := firstCSV(discoveryRoots)
-				path := firstCSV(discoveryPaths)
-				for _, configRepo := range matchingCatalogEntries(repoURL, matcher) {
-					if configRepo.RepoID == sourceRepoID {
-						continue
-					}
-					evidence = append(evidence, appendDiscoveryEvidence(
-						sourceRepoID, configRepo, filePath, path, seen,
-					)...)
-					applyStructuredRefDetails(evidence, EvidenceKindArgoCDApplicationSetDiscovery, configRepo.RepoID, func(details map[string]any) map[string]any {
-						return withFirstPartyRefDetails(
-							mergeDetails(details, map[string]any{"argocd_applicationset_name": appSetName}),
-							"argocd_applicationset_discovery", appSetName, path, root, "", repoURL,
-						)
-					})
+		for _, repoURL := range discoveryRepos {
+			root := firstCSV(discoveryRoots)
+			path := firstCSV(discoveryPaths)
+			for _, configRepo := range matchingCatalogEntries(repoURL, matcher) {
+				if configRepo.RepoID == sourceRepoID {
+					continue
+				}
+				evidence = append(evidence, appendDiscoveryEvidence(
+					sourceRepoID, configRepo, filePath, path, seen,
+				)...)
+				applyStructuredRefDetails(evidence, EvidenceKindArgoCDApplicationSetDiscovery, configRepo.RepoID, func(details map[string]any) map[string]any {
+					return withFirstPartyRefDetails(
+						mergeDetails(details, map[string]any{"argocd_applicationset_name": appSetName}),
+						"argocd_applicationset_discovery", appSetName, path, root, "", repoURL,
+					)
+				})
 
-					for _, templateRepoURL := range templateRepos {
-						templatePath := firstCSV(templatePaths)
-						templateRoot := firstCSV(templateRoots)
-						for _, deployedRepo := range matchingCatalogEntries(templateRepoURL, matcher) {
-							if deployedRepo.RepoID == configRepo.RepoID || deployedRepo.RepoID == sourceRepoID {
-								continue
-							}
-							evidence = append(evidence, appendDeploySourceEvidence(
-								sourceRepoID, deployedRepo, configRepo, filePath, path, templateRepoURL, seen,
-							)...)
-							applyStructuredRefDetails(evidence, EvidenceKindArgoCDApplicationSetDeploySource, configRepo.RepoID, func(details map[string]any) map[string]any {
-								return withFirstPartyRefDetails(
-									mergeDetails(details, map[string]any{"argocd_applicationset_name": appSetName}),
-									"argocd_applicationset_template_source", appSetName, templatePath, templateRoot, "", templateRepoURL,
-								)
-							})
-							evidence = append(evidence, appendDestinationPlatformEvidence(
-								deployedRepo.RepoID,
-								filePath,
-								argocdDestination{
-									name:      payloadString(appSet, "dest_name"),
-									namespace: payloadString(appSet, "dest_namespace"),
-									server:    payloadString(appSet, "dest_server"),
-								},
-								seen,
-							)...)
+				for _, templateRepoURL := range templateRepos {
+					templatePath := firstCSV(templatePaths)
+					templateRoot := firstCSV(templateRoots)
+					for _, deployedRepo := range matchingCatalogEntries(templateRepoURL, matcher) {
+						if deployedRepo.RepoID == configRepo.RepoID || deployedRepo.RepoID == sourceRepoID {
+							continue
 						}
+						evidence = append(evidence, appendDeploySourceEvidence(
+							sourceRepoID, deployedRepo, configRepo, filePath, path, templateRepoURL, seen,
+						)...)
+						applyStructuredRefDetails(evidence, EvidenceKindArgoCDApplicationSetDeploySource, configRepo.RepoID, func(details map[string]any) map[string]any {
+							return withFirstPartyRefDetails(
+								mergeDetails(details, map[string]any{"argocd_applicationset_name": appSetName}),
+								"argocd_applicationset_template_source", appSetName, templatePath, templateRoot, "", templateRepoURL,
+							)
+						})
+						evidence = append(evidence, appendDestinationPlatformEvidence(
+							deployedRepo.RepoID,
+							filePath,
+							argocdDestination{
+								name:      appSet.DestName,
+								namespace: appSet.DestNamespace,
+								server:    appSet.DestServer,
+							},
+							seen,
+						)...)
 					}
 				}
 			}
@@ -220,18 +207,18 @@ type argoApplicationSourceRef struct {
 	revision string
 }
 
-func argoApplicationSourceRefs(application map[string]any) []argoApplicationSourceRef {
-	repos := tupleCSVValues(application["source_repos"])
+func argoApplicationSourceRefs(application codegraphv1.ArgoCDApplication) []argoApplicationSourceRef {
+	repos := tupleCSVValues(application.SourceRepos)
 	if len(repos) == 0 {
-		repos = csvValues(application["source_repo"])
+		repos = csvValues(application.SourceRepo)
 	}
-	paths := tupleCSVValues(application["source_paths"])
-	roots := tupleCSVValues(application["source_roots"])
-	revisions := tupleCSVValues(application["source_revisions"])
+	paths := tupleCSVValues(application.SourcePaths)
+	roots := tupleCSVValues(application.SourceRoots)
+	revisions := tupleCSVValues(application.SourceRevisions)
 	if len(repos) == 1 {
-		paths = fallbackCSV(paths, application["source_path"])
-		roots = fallbackCSV(roots, application["source_root"])
-		revisions = fallbackCSV(revisions, application["source_revision"])
+		paths = fallbackCSV(paths, application.SourcePath)
+		roots = fallbackCSV(roots, application.SourceRoot)
+		revisions = fallbackCSV(revisions, application.SourceRevision)
 	}
 
 	refs := make([]argoApplicationSourceRef, 0, len(repos))

@@ -7,6 +7,9 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
+	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
+
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // Flux cross-repo URL resolution outcomes (issue #5483 C2). This is the
@@ -86,6 +89,14 @@ func (s *FluxCrossRepoURLResolutionStats) record(outcome string) {
 // never carries an OCIRepository's oci:// url (that lives in the sibling
 // flux_oci_repositories bucket, which this function does not read), so an
 // OCIRepository registry reference is never resolved as a Repository node.
+// discoverStructuredFluxEvidence reads the parsed_file_data
+// flux_git_repositories inner key through the typed
+// factschema.DecodeParsedFileDataFluxGitRepositories accessor (issue #5445
+// slice 1) rather than a raw map lookup. The accessor skips a malformed row
+// rather than failing the whole bucket, so a decode error here is always
+// nil in practice; the error return is ignored deliberately, matching the
+// pre-typing raw-map read's silent tolerance of an absent/wrong-shape
+// bucket.
 func discoverStructuredFluxEvidence(
 	sourceRepoID, filePath string,
 	parsedFileData map[string]any,
@@ -93,17 +104,10 @@ func discoverStructuredFluxEvidence(
 	seen map[evidenceKey]struct{},
 	stats *DiscoveryStats,
 ) []EvidenceFact {
-	gitRepositories, ok := parsedFileData["flux_git_repositories"].([]any)
-	if !ok {
-		return nil
-	}
+	gitRepositories, _ := factschema.DecodeParsedFileDataFluxGitRepositories(parsedFileData)
 
 	var evidence []EvidenceFact
-	for _, item := range gitRepositories {
-		row, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
+	for _, row := range gitRepositories {
 		fact, ok := discoverFluxGitRepositoryEvidence(sourceRepoID, filePath, row, matcher, seen, stats)
 		if ok {
 			evidence = append(evidence, fact)
@@ -119,12 +123,12 @@ func discoverStructuredFluxEvidence(
 // produces an EvidenceFact.
 func discoverFluxGitRepositoryEvidence(
 	sourceRepoID, filePath string,
-	row map[string]any,
+	row codegraphv1.FluxGitRepository,
 	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 	stats *DiscoveryStats,
 ) (EvidenceFact, bool) {
-	url := strings.TrimSpace(payloadString(row, "url"))
+	url := strings.TrimSpace(row.URL)
 	if url == "" {
 		return EvidenceFact{}, false
 	}
@@ -145,7 +149,7 @@ func discoverFluxGitRepositoryEvidence(
 			return EvidenceFact{}, false
 		}
 
-		fluxGitRepositoryName := strings.TrimSpace(payloadString(row, "name"))
+		fluxGitRepositoryName := strings.TrimSpace(row.Name)
 		key := evidenceKey{
 			EvidenceKind: EvidenceKindFluxGitRepositorySource,
 			SourceRepoID: sourceRepoID,
