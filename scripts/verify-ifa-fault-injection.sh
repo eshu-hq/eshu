@@ -132,7 +132,7 @@ drive_workers=4
 # then compared byte-identical to that baseline, so a fault that silently
 # dropped a SQL edge on recovery diverges the digest and fails.
 sql_cassette="${repo_root}/testdata/cassettes/sqlrelationships/ifa-sql-family.json"
-sql_expected_edges="${repo_root}/testdata/cassettes/sqlrelationships/ifa-sql-family-expected-edges.json"
+sql_expected_edges="${repo_root}/go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
 
 : "${SYNTH_MULTISCOPE_SEED:=4580}"
 : "${SYNTH_MULTISCOPE_PROJECTS:=8}"

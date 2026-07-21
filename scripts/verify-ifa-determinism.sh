@@ -166,7 +166,7 @@ worker_counts=(1 2 4)
 # `ifa assert-edges` call after the drain): digest equality across N cannot
 # catch a family silently empty in ALL cells, the absolute expected set can.
 sql_cassette="${repo_root}/testdata/cassettes/sqlrelationships/ifa-sql-family.json"
-sql_expected_edges="${repo_root}/testdata/cassettes/sqlrelationships/ifa-sql-family-expected-edges.json"
+sql_expected_edges="${repo_root}/go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
 
 # synth-multiscope cassette settings (issue #4396 slice 6b): a fixed seed so
 # the generated cassette is byte-identical across every cell (and across

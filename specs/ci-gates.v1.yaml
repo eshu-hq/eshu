@@ -1404,6 +1404,7 @@ gates:
       - "specs/ci-gates.v1.yaml"
       - "specs/ifa-materialized-edge-coverage.v1.yaml"
       - "testdata/cassettes/sqlrelationships/**"
+      - "go/internal/ifa/testdata/sqlrelationships/**"
     local:
       command: "cd go && go test ./internal/ifa -run 'TestMaterializedEdge|TestSQLRelationship|TestSQLFamily' -count=1 && go test ./internal/reducer -run TestMaterializedEdgeFamilies -count=1"
       test_command: "cd go && go test ./internal/ifa -run 'TestMaterializedEdge|TestSQLRelationship|TestSQLFamily' -count=1 && go test ./internal/reducer -run TestMaterializedEdgeFamilies -count=1"
@@ -1433,6 +1434,7 @@ gates:
       - "go/internal/reducer/sql_relationship_embedded_query.go"
       - "go/internal/storage/cypher/edge_writer_sql.go"
       - "testdata/cassettes/sqlrelationships/**"
+      - "go/internal/ifa/testdata/sqlrelationships/**"
       - "scripts/verify-ifa-determinism.sh"
       - "scripts/test-verify-ifa-determinism.sh"
       - "scripts/lib/ifa_determinism_common.sh"
@@ -1486,6 +1488,7 @@ gates:
       - "go/internal/reducer/sql_relationship_embedded_query.go"
       - "go/internal/storage/cypher/edge_writer_sql.go"
       - "testdata/cassettes/sqlrelationships/**"
+      - "go/internal/ifa/testdata/sqlrelationships/**"
       - "scripts/verify-ifa-fault-injection.sh"
       - "scripts/test-verify-ifa-fault-injection.sh"
       - "scripts/lib/ifa_fault_injection_common.sh"

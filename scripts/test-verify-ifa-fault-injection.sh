@@ -78,7 +78,7 @@ require "vacuous-drive guard" "vacuous drain proof"
 # Backs the materialized_edges:sql_relationships manifest row's proof_gate:
 # ifa-fault-injection claim.
 require "SQL cassette path" "testdata/cassettes/sqlrelationships/ifa-sql-family.json"
-require "SQL expected-edge set path" "testdata/cassettes/sqlrelationships/ifa-sql-family-expected-edges.json"
+require "SQL expected-edge set path" "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
 require "SQL cassette existence guard" 'SQL cassette not found'
 require "SQL expected-edge set existence guard" 'SQL expected-edge set not found'
 require "SQL cassette driven into every cell" 'eshu-ifa" drive -cassette "${sql_cassette}" -workers "${drive_workers}"'

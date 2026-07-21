@@ -106,7 +106,7 @@ require "combined-graph digest framing" "demo-org + synth-multiscope + SQL famil
 # family silently empty in ALL cells has an identical digest in every cell and
 # passes the digest comparison vacuously; the absolute expected set catches it.
 require "SQL cassette path" "testdata/cassettes/sqlrelationships/ifa-sql-family.json"
-require "SQL expected-edge set path" "testdata/cassettes/sqlrelationships/ifa-sql-family-expected-edges.json"
+require "SQL expected-edge set path" "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
 require "SQL cassette existence guard" 'SQL cassette not found'
 require "SQL expected-edge set existence guard" 'SQL expected-edge set not found'
 require "SQL cassette drive into every cell" 'eshu-ifa" drive -cassette "${sql_cassette}" -workers "${n}"'

@@ -65,6 +65,12 @@ on:
       - 'go/internal/storage/cypher/edge_writer_sql.go'
       - 'specs/ifa-materialized-edge-coverage.v1.yaml'
       - 'testdata/cassettes/sqlrelationships/**'
+      # The expected-edge-set assertion files `ifa assert-edges` compares the
+      # live graph against live under this package-local testdata tree (NOT
+      # testdata/cassettes/, which the offline cassette validator scans). A
+      # change to the expected set changes what the live lanes assert, so it
+      # MUST retrigger them.
+      - 'go/internal/ifa/testdata/sqlrelationships/**'
       - '.github/workflows/ifa-determinism-gate.yml'
 
 concurrency:

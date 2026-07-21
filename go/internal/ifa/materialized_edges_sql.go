@@ -15,13 +15,20 @@ import (
 
 // sqlRelationshipExpectedEdgesRelPath and sqlRelationshipDeltaExpectedEdgesRelPath
 // are repo-root-relative paths to the hand-derived expected SQL relationship
-// edge sets (#5351). They live under testdata/cassettes/sqlrelationships
-// alongside the live-drive JSON cassettes they describe, but are loaded
-// directly by this package's pure vacuity guard — never captured from a live
-// run (that would make the gate a snapshot test, not an exhaustiveness proof).
+// edge sets (#5351). They live under this package's own testdata/ tree, NOT
+// under testdata/cassettes/: they are Ifá gate ASSERTION files (fields
+// edges/odu/note), not replay cassettes (which require schema_version +
+// scopes), and the offline cassette validator globs every
+// testdata/cassettes/*/*.json as a cassette (internal/replay/schema's
+// TestCommittedCassettesValid). The live-drive cassettes they describe
+// (ifa-sql-family.json + the delta) ARE valid cassettes and stay under
+// testdata/cassettes/sqlrelationships/. These assertion files are loaded
+// directly by this package's pure vacuity guard and by `ifa assert-edges` —
+// never captured from a live run (that would make the gate a snapshot test,
+// not an exhaustiveness proof).
 const (
-	sqlRelationshipExpectedEdgesRelPath      = "testdata/cassettes/sqlrelationships/ifa-sql-family-expected-edges.json"
-	sqlRelationshipDeltaExpectedEdgesRelPath = "testdata/cassettes/sqlrelationships/ifa-sql-family-delta-expected-edges.json"
+	sqlRelationshipExpectedEdgesRelPath      = "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
+	sqlRelationshipDeltaExpectedEdgesRelPath = "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-delta-expected-edges.json"
 )
 
 // sqlFamilyExpectedEdgesPath joins repoRoot onto the v1 Odù's expected-edge-set
