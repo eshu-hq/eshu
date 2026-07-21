@@ -11,11 +11,13 @@
 // kind-keyed seam (factschema.DecodeCodeownersOwnership,
 // decode_codeowners.go).
 //
-// This is Phase 1 of issue #5419's branch-aware CODEOWNERS ingestion epic
-// (#5415): the contract only. The collector that parses CODEOWNERS files and
-// emits this fact, and the reducer/query consumer that decodes it, land in
-// later phases. Until then this struct has no decode-side caller other than
-// this module's own conformance tests.
+// This package is the payload contract for issue #5419's branch-aware
+// CODEOWNERS ingestion (#5415). The collector that parses CODEOWNERS files and
+// emits this fact (go/internal/collector), the reducer that decodes it and
+// projects DECLARES_CODEOWNER edges (go/internal/reducer), and the query/MCP
+// read surface (go/internal/query, go/internal/mcp) all consume it — that
+// runtime wiring lives in those go/internal packages, keeping this SDK module
+// standalone with no Eshu-internal imports.
 //
 // RepoID, SourcePath, Pattern, Owners, and OrderIndex are all required:
 // non-pointer fields with no omitempty tag decode-reject a payload that

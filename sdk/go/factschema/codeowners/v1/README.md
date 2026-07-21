@@ -23,13 +23,15 @@ repository's CODEOWNERS file (`repo_id`, `source_path`, `pattern`, `owners`,
 
 ## Phase 1 of issue #5419
 
-This package is Phase 1 of the branch-aware CODEOWNERS ingestion epic
-(#5415): the contract only (fact-kind constant, payload struct, JSON schema,
-registry entry, fixture pack). No collector emits this fact kind yet, and no
-reducer or query handler decodes it yet — those are later phases of the same
-issue. `specs/fact-kind-registry.v1.yaml`'s `codeowners` family sets
-`read_surface: none` for the same reason: there is no live route to point at
-yet.
+This package is the payload contract (fact-kind constant, payload struct, JSON
+schema, registry entry, fixture pack) for the branch-aware CODEOWNERS
+ingestion epic (#5415, issue #5419). The runtime that consumes it lives in the
+`go/internal` tree, not here: the collector emits `codeowners.ownership`, the
+reducer's `codeowners_ownership` domain projects `DECLARES_CODEOWNER` edges,
+and the read surface serves them via `GET /api/v0/codeowners/ownership` and the
+`list_codeowners_ownership` MCP tool (`specs/fact-kind-registry.v1.yaml`'s
+`codeowners` family now points `read_surface` at that route). This module stays
+standalone with no Eshu-internal imports.
 
 ## Ownership boundary
 
