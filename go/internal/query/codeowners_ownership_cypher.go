@@ -64,3 +64,24 @@ RETURN rel.pattern AS pattern,
 ORDER BY rel.order_index, rel.pattern, team.ref
 LIMIT $limit`, params
 }
+
+// codeownersLastMatchOwnerCypher builds the single-row Cypher the precedence
+// resolver (codeowners_ownership_precedence.go) uses to find a repository's
+// last-match-wins CODEOWNERS owner: CODEOWNERS resolves ownership by the LAST
+// pattern in the file that matches, so the rule with the highest order_index
+// is the repository-wide fallback candidate. This is deliberately a separate,
+// descending-order, LIMIT-1 query rather than reusing the paginated
+// ascending-order codeownersOwnershipCypher list: the highest order_index row
+// can be arbitrarily far past the first page a caller happens to have
+// fetched, so only a dedicated DESC-ordered read finds it correctly. Same
+// anchors and non-null guards as codeownersOwnershipCypher; team.ref ASC
+// breaks a tie between two owners declared on the same last-matching line
+// deterministically.
+func codeownersLastMatchOwnerCypher(repoID string) (string, map[string]any) {
+	params := map[string]any{"repo_id": repoID}
+	return `MATCH (repo:Repository {id: $repo_id})-[rel:DECLARES_CODEOWNER]->(team:CodeownerTeam)
+WHERE team.ref IS NOT NULL AND team.ref <> ''
+RETURN team.ref AS owner_ref
+ORDER BY rel.order_index DESC, team.ref ASC
+LIMIT 1`, params
+}
