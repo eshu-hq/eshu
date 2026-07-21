@@ -150,6 +150,13 @@ reducer/query adapter.
 
 **Shared projection**
 
+- `GraphNodeOwnerStore` / `NewGraphNodeOwnerStore` — per-uid advisory-lock and
+  max-order-key resolver for canonical CloudResource and KubernetesWorkload
+  writers.
+- `GraphNodeOwnerBackfillStore` / `NewGraphNodeOwnerBackfillStore` — bounded,
+  monotonic seed and durable completion marker for CloudResource graph rows
+  written before the owner ledger existed.
+
 - `SharedIntentStore` / `NewSharedIntentStore` — reads
   `shared_projection_intents` and writes shared projection intents in bounded
   multi-row batches (`shared_intents_upsert.go:62`). It also exposes history

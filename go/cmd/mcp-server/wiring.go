@@ -187,6 +187,16 @@ func wireAPI(
 	// Build query layer
 	neo4jReader := query.NewNeo4jReader(driver, neo4jDB)
 	contentReader := query.NewContentReader(db)
+	// #5563 upgrade gate: seed pre-ledger CloudResource graph rows before the
+	// indexed owner-ledger list path is mounted. Graph-disabled profiles skip
+	// this because the capability is unsupported and no graph can be read.
+	if driver != nil {
+		if err := query.BackfillCloudResourceOwnerLedger(ctx, db, neo4jReader); err != nil {
+			_ = db.Close()
+			_ = driver.Close(ctx)
+			return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("backfill cloud resource owner ledger: %w", err)
+		}
+	}
 	statusReader := status.WithSemanticProviderProfiles(
 		newStatusStore(pgstatus.SQLQueryer{DB: db}, instruments),
 		semanticProviderProfiles...,

@@ -8,6 +8,14 @@ selects at most `limit+1` current, authorized identities from
 values from the graph. Authorization is part of the correlated active-fact
 probe and therefore runs before the outer page limit.
 
+API and MCP startup first run a one-time compatibility backfill for deployments
+that already contain CloudResource graph nodes. The backfill walks the unique
+`CloudResource.uid` key in 500-row pages, preserves each graph row in
+`winning_row`, and seeds it with a year-1 order key. A normal reducer key always
+sorts later, so a concurrent reducer write wins without a read-side snapshot
+overwriting newer graph truth. The route is not mounted until the backfill has
+either completed or been skipped through its durable completion marker.
+
 The production variant family contains 64 SQL shapes: all 32 combinations of
 provider, resource type, region, account, and cursor for both all-scope and
 scoped access. `queryplan_production_variants_test.go` freezes the complete
@@ -46,11 +54,25 @@ reapplied against a populated 20,000-row ledger. Catalog readback reported all
 four indexes ready and valid, and the isolated proof schema was absent after
 test cleanup.
 
+The upgrade backfill seeded 20,000 existing graph-owner rows into an isolated
+Postgres 18 schema in 254.485 ms on the shared local host. The same live test
+preloaded a real reducer owner for an overlapping uid and then applied the
+minimum-key backfill row; the real key and fact id remained unchanged. The
+final ledger contained all 20,001 expected rows, the completion marker read
+back as true, and cleanup removed the isolated schema. This is a one-time
+startup cost; the steady-state request remains the indexed `limit+1` selection
+and bounded graph hydration measured above.
+
 ## Exactness
 
 - Retained parity before implementation found 38 graph CloudResource nodes and
   38 matching owner-ledger identities, with no graph-only or ledger-only rows
   and an identical identity digest.
+- The upgrade regression starts with a graph-only CloudResource row and an
+  incomplete marker. It proves the row is seeded before completion, a partial
+  seed never marks completion, a second startup skips the graph, malformed
+  unattributable rows fail closed, and multi-page enumeration advances by the
+  last uid without gaps.
 - Filtered current and candidate reads returned identical sets. The candidate
   corrects the old graph backend's non-semantic filtered ordering by enforcing
   `(resource_type, uid)` in Postgres.

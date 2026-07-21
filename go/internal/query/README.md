@@ -114,8 +114,11 @@ Read-model details stay package-local but out of the top-level index:
   observed blockers, and the language-specific suppression contract.
 - [evidence-5563-cloud-resource-paging.md](evidence-5563-cloud-resource-paging.md)
   records the authorized owner-ledger page boundary, exact graph hydration,
-  production variant family, interactive SLO, and retained/synthetic evidence
-  for cloud resource browsing.
+  upgrade backfill, production variant family, interactive SLO, and
+  retained/synthetic evidence for cloud resource browsing. API and MCP startup
+  run the backfill before mounting routes. It keyset-pages existing
+  `CloudResource.uid` values into `graph_node_owner`, then records a durable
+  completion marker so later restarts skip the graph scan.
 
 At the package boundary, all query routes stay anchored, bounded, and explicit
 about truth level. Graph reads go through `GraphQuery`, content reads go through
