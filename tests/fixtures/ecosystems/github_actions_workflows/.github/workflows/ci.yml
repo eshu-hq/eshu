@@ -1,0 +1,29 @@
+name: ci
+on:
+  push:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # actions/checkout is deliberately excluded from DEPENDS_ON action edges.
+      - uses: actions/checkout@v4
+      # POSITIVE (#5337): a genuine step-level third-party action reference
+      # produces a DEPENDS_ON / github_actions_action_repository edge whose
+      # target Repository is the bare slug hashicorp/setup-terraform.
+      - uses: hashicorp/setup-terraform@v3
+      # FOIL (#5337): the `uses:` lines below live inside a `run: |` block
+      # scalar (a heredoc writing an example workflow file). The structured YAML
+      # decode sees the block as an opaque string, so octocat/example-action
+      # must NOT become a DEPENDS_ON edge. A regression to the old raw-line
+      # scanner would fabricate that edge.
+      - name: Write an example workflow file
+        run: |
+          cat <<'EOF' > example-workflow.yaml
+          jobs:
+            example:
+              steps:
+                - uses: octocat/example-action@v1
+                - uses: actions/checkout@v4
+                  with:
+                    repository: octocat/some-config
+          EOF

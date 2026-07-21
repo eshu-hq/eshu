@@ -74,7 +74,8 @@ next drift is caught mechanically instead of by another manual re-grade.
   snapshot or cassette. Any external repository and pinned commit SHA is
   recorded only as provenance metadata, never as a CI-fetched dependency. This
   grade defines the promotion path off `fixture-backed`. Dart, Java, Scala, and
-  Swift earned it in #5399 (spun off from #5336's downgrade): each has a
+  Swift earned it in #5399 (spun off from #5336's downgrade); Swift has since
+  been promoted to `supported` via its golden-corpus staging in #5378. Each has a
   `scripts/dogfood-<language>.sh` script that runs a standing
   `TestDogfood<Language>RealRepoSnapshot` regression test
   (`go/internal/parser/<language>/dogfood_real_repo_test.go`) against a
@@ -149,7 +150,7 @@ feature supported with deterministic proof.
 | Dart | `DefaultEngine (dart)` | supported | supported | derived roots | Flutter `build`/`createState`, public `lib/` API, constructors, overrides | supported | real-repo-validated | fixture-backed |
 | Elixir | `DefaultEngine (elixir)` | supported | supported | derived roots | Phoenix, LiveView, GenServer, Supervisor, Mix, protocols, behaviours, public macros/guards | supported | fixture-backed | fixture-backed |
 | Go | `DefaultEngine (go)` | supported | supported | derived roots | `net/http`, Cobra, controller-runtime `Reconcile`, package exports, interfaces, function values, dependency-injection callbacks | supported | supported | supported |
-| Groovy | `DefaultEngine (groovy)` | supported | supported | derived roots | Jenkins Pipeline entrypoints, shared-library calls, deployment hints | supported | fixture-backed | fixture-backed |
+| Groovy | `DefaultEngine (groovy)` | supported | supported | derived roots | Jenkins Pipeline entrypoints, shared-library calls, deployment hints | supported | supported | supported |
 | Haskell | `DefaultEngine (haskell)` | supported | supported | derived roots | module exports, typeclasses, instances, `main` | supported | fixture-backed | fixture-backed |
 | Helm | `DefaultEngine (yaml)` | - | - | unsupported | chart/template evidence only | - | - | - |
 | Java | `DefaultEngine (java)` | supported | supported | derived roots plus exact Spring MVC/WebFlux, JAX-RS, and Micronaut route entries | Spring, Gradle, JUnit, Jenkins, Stapler, ServiceLoader, serialization, bounded reflection | supported | real-repo-validated | fixture-backed |
@@ -161,11 +162,11 @@ feature supported with deterministic proof.
 | Perl | `DefaultEngine (perl)` | supported | supported | derived roots | Exporter, package namespaces, constructors, special blocks, `AUTOLOAD`, `DESTROY` | supported | fixture-backed | fixture-backed |
 | PHP | `DefaultEngine (php)` | supported | supported | derived roots plus exact Symfony attribute route entries | Symfony route attributes, exact literal Symfony `route_entries`, route-backed controller actions, magic methods, interfaces, traits, WordPress hooks (dead-code suppression only, not `route_entries`) | supported | fixture-backed | fixture-backed |
 | Python | `DefaultEngine (python)` | supported | supported | derived roots | FastAPI, Flask, bounded Django/DRF/aiohttp/Tornado route entries, Celery, Click, Typer, AWS Lambda, dataclasses, properties, dunder protocols, `__all__`, package reexports | supported | supported | supported |
-| Ruby | `DefaultEngine (ruby)` | supported | supported | derived roots plus exact Rails/Sinatra route entries | Rails controller actions, Rails callbacks, script guards, literal method-reference targets, dynamic dispatch hooks, literal Rails `to: "controller#action"` route entries, named Sinatra `&method(:handler)` routes | supported | fixture-backed | fixture-backed |
+| Ruby | `DefaultEngine (ruby)` | supported | supported | derived roots plus exact Rails/Sinatra route entries | Rails controller actions, Rails callbacks, script guards, literal method-reference targets, dynamic dispatch hooks, literal Rails `to: "controller#action"` route entries, named Sinatra `&method(:handler)` routes | supported | supported | supported |
 | Rust | `DefaultEngine (rust)` | supported | supported | derived roots plus exact Axum/Actix/Rocket route entries | Cargo entrypoints, tests, Tokio, Criterion, `pub` API, trait implementations, exact literal Axum/Actix/Rocket `route_entries` | supported | fixture-backed | fixture-backed |
 | Scala | `DefaultEngine (scala)` | supported | supported | derived roots plus exact Play/http4s route entries | Play, Akka, JUnit, ScalaTest, lifecycle callbacks, traits, `App` objects, literal Play route files, literal http4s `HttpRoutes.of` routes | supported | real-repo-validated | fixture-backed |
 | SQL | `DefaultEngine (sql)` | supported | supported | derived roots | stored routines and trigger-to-function evidence | supported | fixture-backed | fixture-backed |
-| Swift | `DefaultEngine (swift)` | supported | supported | derived roots | SwiftUI, UIKit, Vapor, XCTest, Swift Testing, protocols, constructors, overrides | supported | real-repo-validated | fixture-backed |
+| Swift | `DefaultEngine (swift)` | supported | supported | derived roots | SwiftUI, UIKit, Vapor, XCTest, Swift Testing, protocols, constructors, overrides | supported | supported | supported |
 | Terraform | `DefaultEngine (hcl)` | supported | supported | non-code evidence | resources, modules, variables, outputs, providers, backend and state evidence | supported | supported | supported |
 | Terragrunt | `DefaultEngine (hcl)` | supported | supported | non-code evidence | includes, dependency blocks, remote state, Terraform source evidence | supported | supported | supported |
 | TypeScript | `DefaultEngine (typescript)` | supported | supported | derived roots | JavaScript-family framework roots plus interface implementations, module-contract exports, public API exports/reexports, type references | supported | fixture-backed | fixture-backed |

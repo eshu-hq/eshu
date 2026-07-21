@@ -357,7 +357,13 @@ Terraform-state rows are written as `TerraformResource`, `TerraformModule`, and
 `TerraformOutput` nodes keyed by `uid`. The rows keep lineage, serial, provider
 binding, tag-key hashes, and hashed correlation anchors on the node without
 creating cloud-resource joins. Those joins are reducer work after the
-Terraform-state readiness checkpoints exist.
+Terraform-state readiness checkpoints exist. `TerraformResource` also gets a
+bounded, allowlisted subset of the resource's classified attributes flattened
+onto prefixed scalar node properties (`tf_attr_*`) via an additive
+`r += row.attrs` merge on the existing upsert template — see
+`terraform_attribute_promotion.go` and its redaction guard against the full
+IAM policy documents the drift package's attribute allowlist also carries
+(#5441).
 
 OCI registry rows are written as `OciRegistryRepository`,
 `ContainerImage`/`OciImageManifest`, `ContainerImageIndex`/`OciImageIndex`,
@@ -1458,7 +1464,7 @@ why these values diverge across worker counts.
 gains two `SET` lines, `artifact.ref_value = row.ref_value` and
 `artifact.ref_pinned = row.ref_pinned`, following the same pattern as the
 existing `start_line`/`end_line`/`commit_sha` properties. `repoEvidenceArtifactRowsFromIntent`
-(`edge_writer_retract.go`) carries the two fields through from the reducer's
+(`edge_writer_row_metadata.go`) carries the two fields through from the reducer's
 evidence-artifact map onto the graph-write row when present; it does not
 compute them -- `go/internal/reducer/cross_repo_evidence_artifacts.go` is the
 sole place `ref_pinned` is classified (via `go/internal/ghactionsref`'s

@@ -4,5 +4,9 @@ metadata:
   name: fixture-service
 spec:
   source:
-    repoURL: https://github.com/example/fixture-service
+    repoURL: https://github.com/acme/deployable-source.git
     path: chart
+    targetRevision: v1.4.0
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: fixture-service

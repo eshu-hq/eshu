@@ -292,9 +292,11 @@ No-Regression Evidence: `go test ./internal/mcp -run
 -count=1` covers MCP schema advertisement and dispatch forwarding.
 
 `investigate_import_dependencies` passes paging and scope arguments directly to
-the HTTP handler. The handler rejects negative bounds and returns exactly one
-canonical row key for each `query_type`: `dependencies`, `modules`, `cycles`, or
-`cross_module_calls`.
+the HTTP handler. The handler rejects negative bounds, accepts `target_file`
+only for cycle and cross-module queries, and returns exactly one canonical row
+key for each `query_type`: `dependencies`, `modules`, `cycles`, or
+`cross_module_calls`. Internal candidate scans stop at 25,000 rows and return
+HTTP 422 with an instruction to narrow scope rather than raising the timeout.
 
 `inspect_call_graph_metrics` keeps MCP as transport for recursive and
 hub-function prompts. Dispatch forwards `repo_id`, `language`, `metric_type`,

@@ -20,7 +20,15 @@ module "s3_bucket" {
 }
 
 module "eks" {
-  source = "git::https://github.com/example/terraform-aws-eks.git?ref=v1.0.0"
+  # #5441 golden-corpus fix: this source previously pointed at
+  # github.com/example/terraform-aws-eks.git, an org not in the 20-repo
+  # catalog, so it never resolved to a real USES_MODULE edge -- exactly the
+  # "no in-corpus target" gap that let source_revision sit uncovered before
+  # the live gate caught it. Repointed at the in-corpus deployable-source
+  # repo (the same established cross-fixture target every other tool
+  # fixture in this corpus uses) so the module-source pin (ref=v1.0.0) is
+  # observable end to end.
+  source = "git::https://github.com/acme/deployable-source.git?ref=v1.0.0"
 
   cluster_name = "comprehensive-cluster"
   vpc_id       = module.vpc.vpc_id

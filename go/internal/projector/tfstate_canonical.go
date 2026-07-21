@@ -34,7 +34,16 @@ type TerraformStateResourceRow struct {
 	CollectorKind      string
 	CorrelationAnchors []string
 	TagKeyHashes       []string
-	ObservedAt         time.Time
+	// Attributes is the collector's classified Terraform resource-attribute
+	// object, carried unmodified from tfstatev1.Resource.Attributes (#5441).
+	// It is untyped provider-specific pass-through, exactly as documented on
+	// that field; the canonical graph writer
+	// (go/internal/storage/cypher/terraform_attribute_promotion.go) is
+	// responsible for reducing it to a bounded, redaction-safe, allowlisted
+	// subset before any value reaches a graph node. Nothing in this package
+	// filters or persists it directly.
+	Attributes map[string]any
+	ObservedAt time.Time
 }
 
 // TerraformStateModuleRow carries one Terraform module observed in state.
@@ -251,6 +260,7 @@ func terraformStateResourceRow(
 		CollectorKind:      envelope.CollectorKind,
 		CorrelationAnchors: terraformStateCorrelationAnchors(resource.CorrelationAnchors),
 		TagKeyHashes:       tagHashesByResource[address],
+		Attributes:         terraformStateResourceAttributes(resource.Attributes),
 		ObservedAt:         envelope.ObservedAt,
 	}, true, nil
 }

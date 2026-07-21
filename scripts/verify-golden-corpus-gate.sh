@@ -81,6 +81,8 @@ corpus_fixtures=(
 	api-svc
 	ruby_rails_app
 	dart_comprehensive
+	swift_vapor_app
+	github_actions_workflows
 )
 
 # 9 credentialed collectors and their B-10 cassette directories.

@@ -117,6 +117,16 @@ At the package boundary, all query routes stay anchored, bounded, and explicit
 about truth level. Graph reads go through `GraphQuery`, content reads go through
 `ContentStore`, and response models keep provenance-only evidence separate from
 canonical graph or reducer truth.
+Import-dependency investigation uses one connected graph pattern per read.
+Module filters anchor the exact module name, resolve bounded repository-file
+membership, and reject path collisions before import or call paging. Python
+cycles are rebuilt from one ordered edge scan, then directional file and module
+filters are applied to the completed cycles so reciprocal edges remain visible.
+Internal candidate reads stop at 25,000 rows and return HTTP 422 when the caller
+must narrow scope. Package pages are distinct and ordered by repository, module,
+and language. The
+`query.import_dependency_investigation` span records query type, result count,
+truncation, and scan overflow.
 Semantic and hybrid search freshness reads require both an identity-scoped
 `search_vector_ready` watermark, no active document projection in a non-ready
 state, and no pending versioned vector scope for a non-empty ready projection.
