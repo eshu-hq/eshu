@@ -11082,8 +11082,8 @@
     {
       "capability": "terraform_config_state_drift.findings.list",
       "display_name": "Terraform Config State Drift Findings List",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "list_terraform_config_state_drift_findings",
@@ -11112,7 +11112,7 @@
           "max_scope_size": "terraform_state_snapshot_scope"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "derived",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 5000,
@@ -11131,10 +11131,6 @@
         {
           "kind": "integration_test",
           "ref": "local-lightweight-unsupported-terraform-config-state-drift-findings"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-terraform-config-state-drift-read-model"
         }
       ],
       "console": false,
