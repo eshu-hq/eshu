@@ -41,7 +41,10 @@ export interface RouteWorkflowObservation {
   readonly detail: string;
   readonly dataShapes?: readonly WorkflowDataShapeObservation[];
   readonly requests?: readonly WorkflowRequestObservation[];
+  readonly routeResponseEvidence?: RouteResponseEvidenceSource;
 }
+
+export type RouteResponseEvidenceSource = "fresh" | "same_session_cache";
 
 export interface WorkflowDataShapeObservation {
   readonly selector: string;

@@ -2,6 +2,7 @@ import type { Page } from "playwright";
 
 import type {
   NetworkObservation,
+  RouteResponseEvidenceSource,
   RouteWorkflowObservation,
   RouteWorkflowSpec,
 } from "../src/e2e/routeAssertions.ts";
@@ -24,6 +25,7 @@ export async function executeStateWorkflow(
   network: readonly NetworkObservation[],
   bootstrapNetwork: readonly NetworkObservation[],
   waitForQuiet: WaitForApiQuiet,
+  routeResponseEvidence: RouteResponseEvidenceSource = "fresh",
 ): Promise<RouteWorkflowObservation> {
   const requiredResponses = workflow.requiredResponses ?? [];
   const requiredBootstrapResponses = workflow.requiredBootstrapResponses ?? [];
@@ -82,14 +84,20 @@ export async function executeStateWorkflow(
         return {
           ...controlProof,
           requests: [...requests, ...(controlProof.requests ?? [])],
+          ...(routeProof.requests.length > 0 ? { routeResponseEvidence } : {}),
         };
       }
-      return passed(
-        workflow.id,
-        `rendered response-backed visible ${selector}`,
-        [dataShape(selector, count)],
-        [...requests, ...retainedDataProof.requests, ...retainedDataBootstrapProof.requests],
-      );
+      return {
+        ...passed(
+          workflow.id,
+          `rendered response-backed visible ${selector}`,
+          [dataShape(selector, count)],
+          [...requests, ...retainedDataProof.requests, ...retainedDataBootstrapProof.requests],
+        ),
+        ...(routeProof.requests.length + retainedDataProof.requests.length > 0
+          ? { routeResponseEvidence }
+          : {}),
+      };
     }
   }
   for (const emptyState of workflow.emptyStates ?? []) {
@@ -102,12 +110,15 @@ export async function executeStateWorkflow(
     if (forbidden) {
       return failed(workflow.id, forbidden, [dataShape(emptyState.selector, count)]);
     }
-    return passed(
-      workflow.id,
-      `rendered response-backed truthful empty state ${emptyState.exactText}`,
-      [dataShape(emptyState.selector, count)],
-      requests,
-    );
+    return {
+      ...passed(
+        workflow.id,
+        `rendered response-backed truthful empty state ${emptyState.exactText}`,
+        [dataShape(emptyState.selector, count)],
+        requests,
+      ),
+      ...(routeProof.requests.length > 0 ? { routeResponseEvidence } : {}),
+    };
   }
   return failed(
     workflow.id,

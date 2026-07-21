@@ -38,6 +38,7 @@ import {
 } from "./liveE2EBrowserSession.ts";
 import {
   awaitApiQuiet,
+  allowedConsoleStatuses,
   filterAllowedResourceConsoleErrors,
   installApiQuietTracker,
   installNetworkObservationRecorder,
@@ -76,6 +77,11 @@ import {
   type RoutePerformanceRecorder,
 } from "./routePerformanceRecorder.ts";
 import { selectLiveE2ERoutes } from "./liveE2ERouteSelection.ts";
+import { readRouteDOMState } from "./routeDOMState.ts";
+import {
+  RouteResponseEvidenceCache,
+  routeResponseEvidenceKey,
+} from "./routeResponseEvidenceCache.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const consoleDir = resolve(here, "..");
@@ -111,25 +117,6 @@ async function waitForApiQuiet(page: Page, tracker: ApiQuietTracker) {
   return awaitApiQuiet(tracker, (duration) => page.waitForTimeout(duration));
 }
 
-function allowedConsoleStatuses(network: readonly NetworkObservation[]): readonly number[] {
-  return network.flatMap((observation) => {
-    let pathname = "";
-    try {
-      pathname = new URL(observation.url).pathname;
-    } catch {
-      return [];
-    }
-    return defaultNetworkAllowList.some(
-      (rule) =>
-        rule.method === observation.method.toUpperCase() &&
-        rule.pathname === pathname &&
-        rule.status === observation.status,
-    )
-      ? [observation.status]
-      : [];
-  });
-}
-
 export interface CapturedRouteSignals extends RouteSignals {
   readonly performance?: RoutePerformanceDiagnostics;
 }
@@ -145,6 +132,7 @@ export async function captureRoute(
   loadImpactFindings?: LoadImpactFindings,
   performanceRecorder?: RoutePerformanceRecorder,
   loadAdvisoryCatalog?: LoadAdvisoryCatalog,
+  responseEvidenceCache?: RouteResponseEvidenceCache,
 ): Promise<CapturedRouteSignals> {
   const startedAt = Date.now();
   const performanceCapture = performanceRecorder?.beginCapture();
@@ -206,6 +194,15 @@ export async function captureRoute(
   const routeNetwork = allNetwork.slice(networkStart);
   const safeName = route.label.replace(/[^a-z0-9]+/gi, "_").toLowerCase();
   await captureLandingScreenshotIfRequired(page, route, screenshotsDir, safeName);
+  const dom = await readRouteDOMState(page);
+  const responseEvidenceKey =
+    route.workflow?.kind === "state" && responseEvidenceCache !== undefined
+      ? routeResponseEvidenceKey(route.path, route.workflow.id, dom.input)
+      : null;
+  const responseEvidence =
+    responseEvidenceKey === null || responseEvidenceCache === undefined
+      ? { network: routeNetwork, source: "fresh" as const }
+      : responseEvidenceCache.select(responseEvidenceKey, routeNetwork);
   const workflow = route.workflow
     ? await executeRouteWorkflow(
         page,
@@ -214,36 +211,14 @@ export async function captureRoute(
           const result = await waitForApiQuiet(page, tracker);
           if (!result.settled) throw new Error(`${result.inFlight} API request(s) remained active`);
         },
-        routeNetwork,
+        responseEvidence.network,
         bootstrapNetwork,
         loadImpactFindings,
         indexedRepositoryInventory,
         loadAdvisoryCatalog,
+        responseEvidence.source,
       )
     : null;
-
-  const dom = await page.evaluate(() => {
-    const pill = document.querySelector(".source-pill");
-    const main = document.querySelector(".main");
-    const demoBanner = Array.from(document.querySelectorAll(".prov-banner")).some(
-      (node) =>
-        (node.textContent ?? "").includes("Prospect demo") ||
-        (node.textContent ?? "").toLowerCase().includes("demo fixtures"),
-    );
-    const pillText = (pill?.textContent ?? "").trim();
-    const connected = pill?.className.includes("src-connected") ?? false;
-    const sourceMode = connected
-      ? pillText.toLowerCase().includes("demo")
-        ? "demo"
-        : "live"
-      : pillText.toLowerCase().replace(/[^a-z]+/g, "-") || "unknown";
-    return {
-      connected,
-      sourceMode,
-      demoBannerPresent: demoBanner,
-      mainContentChars: (main?.textContent ?? "").trim().length,
-    };
-  });
 
   await page.screenshot({ path: resolve(screenshotsDir, `${safeName}.png`), fullPage: true });
 
@@ -251,7 +226,7 @@ export async function captureRoute(
   page.off("pageerror", onPageError);
   const network = allNetwork.slice(networkStart);
 
-  return {
+  const signals = {
     route,
     connected: dom.connected,
     sourceMode: dom.sourceMode,
@@ -267,6 +242,14 @@ export async function captureRoute(
     durationMs: Date.now() - startedAt,
     performance,
   };
+  if (responseEvidenceKey !== null && responseEvidence.source === "fresh") {
+    responseEvidenceCache?.remember(
+      responseEvidenceKey,
+      routeNetwork,
+      evaluateRoute(signals, defaultNetworkAllowList).passed,
+    );
+  }
+  return signals;
 }
 
 // runConsoleLiveE2E returns an exit code and always tears down owned processes.
@@ -415,6 +398,7 @@ export async function runConsoleLiveE2E(): Promise<number> {
 
     const results: RouteResult[] = [];
     const observations = [];
+    const responseEvidenceCache = new RouteResponseEvidenceCache();
     for (const route of selectedRoutes) {
       const signals = await captureRoute(
         page,
@@ -427,6 +411,7 @@ export async function runConsoleLiveE2E(): Promise<number> {
         loadImpactFindings,
         performanceRecorder,
         loadAdvisoryCatalog,
+        responseEvidenceCache,
       );
       observations.push({
         ...buildRouteReportObservation(signals),

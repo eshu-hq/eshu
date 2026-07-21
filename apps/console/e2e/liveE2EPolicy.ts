@@ -1,8 +1,27 @@
 import { eshuDefaultTimeoutMs } from "../src/api/client.ts";
-import type { NetworkObservation } from "../src/e2e/routeAssertions.ts";
+import { defaultNetworkAllowList, type NetworkObservation } from "../src/e2e/routeAssertions.ts";
 import type { Page } from "playwright";
 
 const apiTimeoutGraceMs = 3_000;
+
+export function allowedConsoleStatuses(network: readonly NetworkObservation[]): readonly number[] {
+  return network.flatMap((observation) => {
+    let pathname = "";
+    try {
+      pathname = new URL(observation.url).pathname;
+    } catch {
+      return [];
+    }
+    return defaultNetworkAllowList.some(
+      (rule) =>
+        rule.method === observation.method.toUpperCase() &&
+        rule.pathname === pathname &&
+        rule.status === observation.status,
+    )
+      ? [observation.status]
+      : [];
+  });
+}
 
 // apiQuietPolicy keeps route ownership deterministic. The harness must remain
 // on a route long enough for EshuApiClient's own timeout to abort a slow
