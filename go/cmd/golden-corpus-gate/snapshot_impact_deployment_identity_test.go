@@ -83,7 +83,7 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 	if got, want := shape.RequiredJSONValues["data.deployment_fact_summary.deployment_truth_tier"], "runtime_confirmed"; got != want {
 		t.Fatalf("trace_deployment_chain deployment_truth_tier pin = %#v, want %#v", got, want)
 	}
-	if got, want := mcpShape.RequiredJSONValues["data.deployment_fact_summary.deployment_truth_tier"], "config_only"; got != want {
+	if got, want := mcpShape.RequiredJSONValues["data.deployment_fact_summary.overall_confidence_reason"], "no_deployment_evidence"; got != want {
 		t.Fatalf("MCP trace_deployment_chain deployment_truth_tier pin = %#v, want %#v", got, want)
 	}
 }

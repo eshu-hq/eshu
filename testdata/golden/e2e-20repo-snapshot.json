@@ -2432,7 +2432,7 @@
         }
       },
       "trace_deployment_chain": {
-        "description": "MCP tool coverage shape for trace_deployment_chain; asserted live through the MCP tool layer. deployment_truth_tier pinned to config_only because the api-svc fixture k8s image (ghcr.io/acme/api-svc:1.0.0) does not match the kuberneteslive cassette image that produces exact correlation rows. The HTTP deployable-config shape pins runtime_confirmed — that is the primary live-tier proof.",
+        "description": "MCP tool coverage shape for trace_deployment_chain; asserted live through the MCP tool layer. Stays on the rich api-svc fixture for field coverage and pins the negative tier path: api-svc has no deployment evidence, so no deployment_truth_tier is emitted and overall_confidence_reason is no_deployment_evidence — the tier can never be bluffed absent evidence. The HTTP deployable-config shape is the non-vacuous runtime_confirmed proof (#5471).",
         "required_response_fields": [
           "api_surface",
           "cloud_resources",
@@ -2472,7 +2472,7 @@
         ],
         "minimum_results": 0,
         "required_json_values": {
-          "data.deployment_fact_summary.deployment_truth_tier": "config_only"
+          "data.deployment_fact_summary.overall_confidence_reason": "no_deployment_evidence"
         },
         "arguments": {
           "service_name": "api-svc",

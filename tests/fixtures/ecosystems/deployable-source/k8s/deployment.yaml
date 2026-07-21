@@ -1,0 +1,26 @@
+# Deployment manifest for the deployable-source workload. The deployable-config
+# repo's ArgoCD Application declares spec.source.path: k8s in this repo, so this
+# manifest is what the GitOps path converges on. The digest-pinned image matches
+# the kuberneteslive cassette's live pod image, which produces an exact
+# reducer_kubernetes_correlation row and the RUNS_IMAGE edge — the live-evidence
+# fixture the deployment-truth runtime tier (#5471) is proven against.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployable-source
+  namespace: production
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: deployable-source
+  template:
+    metadata:
+      labels:
+        app: deployable-source
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab
+          ports:
+            - containerPort: 8080
