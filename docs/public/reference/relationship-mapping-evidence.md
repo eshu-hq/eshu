@@ -158,6 +158,26 @@ action/workflow ITSELF) is not captured by either signal today. This is a
 known non-signal, tracked as future scope, not a partial implementation to
 rely on.
 
+### Declared-Revision Edge Properties (issue #5441)
+
+The `source_revision` and `first_party_ref_version` `Details` fields
+described above are, as of issue #5441, also persisted directly as
+properties on the resolved graph edge itself -- not only carried through
+`Details` to the evidence-artifact surface -- for the five canonical
+cross-repository relationship types: `DEPLOYS_FROM`,
+`DISCOVERS_CONFIG_IN`, `PROVISIONS_DEPENDENCY_FOR`, `USES_MODULE`, and
+`READS_CONFIG_FROM`. This lets a query answer "which git revision, or which
+first-party module/workflow version, is this deployment/dependency edge
+declared against" directly from the edge, without a second read through the
+evidence-details layer this page documents.
+
+See [Edge Source-Tool Provenance](edge-source-tool-provenance.md) for the
+full edge-property contract: absent-value semantics on the pinned NornicDB
+backend, the resolver's cross-fact winner rule when evidence disagrees, and
+why a third candidate property (`destination_namespace`) was scoped,
+implemented, and then deliberately removed before merge rather than shipped
+as a property with no evidence producer on any of the five edge types.
+
 ## Matching Rules
 
 Relationship extraction uses the catalog passed into `DiscoverEvidence`.

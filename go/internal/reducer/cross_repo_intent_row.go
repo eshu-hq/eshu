@@ -69,6 +69,29 @@ func buildResolvedEdgeIntentRow(
 		"rationale":         r.Rationale,
 		"resolution_source": string(r.ResolutionSource),
 	}
+	// #5441: allowlist exactly two fields onto the edge itself. These answer
+	// "which git revision / which module version is declared for env Y"
+	// directly from the graph edge, which is otherwise unanswerable without
+	// a Postgres lookup at query time. Read as typed ResolvedRelationship
+	// fields, NOT from the untyped r.Details map — r.Details (built by
+	// relationships.aggregateCandidate) carries only
+	// "evidence_kinds"/"evidence_preview" and never held these keys; reading
+	// them from Details was the #5441 P0 (this data always resolved to "" in
+	// production). See relationships.evidenceFactSourceRevision/
+	// evidenceFactFirstPartyRefVersion
+	// (go/internal/relationships/evidence_edge_fields.go) for where these
+	// typed fields are actually populated from raw evidence facts, and
+	// copyRepoRelationshipMetadata in edge_writer_retract.go for the second
+	// half of this allowlist (Postgres payload -> graph row).
+	//
+	// A third field, destination_namespace, was deliberately removed before
+	// merge (#5441 review round 2, DECISION NEEDED item): it has no evidence
+	// producer on any of the five widened relationship types (see the
+	// Candidate doc comment in relationships/models.go), so it would have
+	// shipped as a permanently-empty property with no producer, forever.
+	payload["source_revision"] = r.SourceRevision
+	payload["first_party_ref_version"] = r.FirstPartyRefVersion
+
 	if evidenceType := resolvedRelationshipEvidenceType(r); evidenceType != "" {
 		payload["evidence_type"] = evidenceType
 	}

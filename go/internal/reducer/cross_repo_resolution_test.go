@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package reducer //nolint:filelength // Pre-existing 841-line cross-repo resolution end-to-end coverage predates the 500-line hook (already over the cap before #5441 touched it). #5441 only adds/edits a handful of assertions and moves the buildResolvedEdgeIntentRow-focused tests out to cross_repo_intent_row_test.go; a full split of the remaining resolution-flow suite is out of scope for this change.
 
 import (
 	"bytes"
@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log/slog"
 	"testing"
-	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
@@ -715,66 +714,6 @@ func TestCrossRepoResolutionDeduplicatesEvidence(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("Resolve() = %d, want 1 (deduped)", count)
-	}
-}
-
-func TestBuildResolvedEdgeIntentRowsCarriesEvidenceArtifactsForGraphStory(t *testing.T) {
-	t.Parallel()
-
-	resolved := []relationships.ResolvedRelationship{
-		{
-			SourceRepoID:     "repo-deploy",
-			TargetRepoID:     "repo-service",
-			RelationshipType: relationships.RelDeploysFrom,
-			Confidence:       0.9,
-			EvidenceCount:    2,
-			Rationale:        "deployment config references service repository",
-			ResolutionSource: relationships.ResolutionSourceInferred,
-			Details: map[string]any{
-				"evidence_kinds": []string{
-					string(relationships.EvidenceKindHelmValues),
-					string(relationships.EvidenceKindKustomizeResource),
-				},
-				"evidence_preview": []map[string]any{
-					{
-						"kind":       string(relationships.EvidenceKindHelmValues),
-						"confidence": 0.84,
-						"details": map[string]any{
-							"path":          "argocd/service-api/overlays/prod/values.yaml",
-							"extractor":     "helm",
-							"matched_alias": "service-api",
-							"matched_value": "registry.example.test/service-api",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	rows, _ := buildResolvedEdgeIntentRows(resolved, "scope-1", "source-run-1", "gen-1", time.Now().UTC())
-	if got, want := len(rows), 1; got != want {
-		t.Fatalf("len(rows) = %d, want %d", got, want)
-	}
-	artifacts := mapSliceValueForTest(rows[0].Payload["evidence_artifacts"])
-	if got, want := len(artifacts), 1; got != want {
-		t.Fatalf("len(evidence_artifacts) = %d, want %d: %#v", got, want, rows[0].Payload)
-	}
-	artifact := artifacts[0]
-	for key, want := range map[string]string{
-		"evidence_kind":   string(relationships.EvidenceKindHelmValues),
-		"artifact_family": "helm",
-		"path":            "argocd/service-api/overlays/prod/values.yaml",
-		"extractor":       "helm",
-		"environment":     "prod",
-		"matched_alias":   "service-api",
-		"matched_value":   "registry.example.test/service-api",
-	} {
-		if got := stringValue(artifact[key]); got != want {
-			t.Fatalf("artifact[%s] = %q, want %q; artifact=%#v", key, got, want, artifact)
-		}
-	}
-	if got := floatValueForTest(artifact["confidence"]); got != 0.84 {
-		t.Fatalf("artifact confidence = %v, want 0.84", got)
 	}
 }
 

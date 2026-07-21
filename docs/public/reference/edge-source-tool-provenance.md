@@ -50,7 +50,7 @@ materialized edge type into one of three tiers:
   `EVIDENCES_REPOSITORY_RELATIONSHIP`, …) have no tool concept at all. Their
   lack of a `source_tool` is **intentional**, not a coverage gap.
 
-## The three edge properties (and why `evidence_source` is not the tool)
+## The provenance edge properties (and why `evidence_source` is not the tool)
 
 Every Tier-2 resolver edge carries three distinct provenance properties. They
 are easy to confuse; only the first two encode the tool.
@@ -72,6 +72,44 @@ distinct Terraform evidence kinds all map to six different `evidence_type`
 values, all of which are the tool `terraform`. Normalizing those down to a
 single `source_tool` token is exactly the work of #3999; the mapping below is
 the target.
+
+### #5441: declared-revision properties on the five canonical repo-relationship edges
+
+[#5441](https://github.com/eshu-hq/eshu/issues/5441) added two further
+properties, narrower in scope than the three above: they are allowlisted onto
+only the five canonical repo-to-repo relationship edges (`DEPLOYS_FROM`,
+`DISCOVERS_CONFIG_IN`, `PROVISIONS_DEPENDENCY_FOR`, `USES_MODULE`,
+`READS_CONFIG_FROM`) — not `RUNS_ON`, not `DEPENDS_ON`, and not any Tier-1 or
+Tier-3 edge. They answer "which git revision / which module version is
+declared for env Y" directly from the edge, without a Postgres round trip at
+query time.
+
+| Property | Holds | Set at | Populated for |
+| --- | --- | --- | --- |
+| `source_revision` | The declared git revision (branch/tag/SHA), e.g. an ArgoCD `Application.spec.source.targetRevision` | `evidenceFactSourceRevision`/`aggregateCandidate` (`go/internal/relationships/`), written in `canonical_relationships.go` | `DEPLOYS_FROM` edges from ArgoCD evidence (both the structured and document-level ArgoCD discovery paths) |
+| `first_party_ref_version` | The pinned module/reference version, e.g. the `ref=` query parameter on a `git::https://...?ref=v1.2.3` Terraform module source, or the `@ref` pin on a GitHub Actions `uses:` reference | `evidenceFactFirstPartyRefVersion` (prefers `Details["first_party_ref_version"]` when an evidence family sets it directly — GitHub Actions, ArgoCD — falling back to `ExtractTerraformRefPin` deriving it from `Details["source_ref"]` for Terraform/Terragrunt/Ansible/Dockerfile evidence) | `DEPLOYS_FROM` edges from GitHub Actions reusable-workflow evidence; `USES_MODULE`/`PROVISIONS_DEPENDENCY_FOR` edges from pinned Terraform module sources |
+
+Both are absent-safe: an edge whose evidence carries neither value gets `""`
+(never a Cypher `null`, matching the existing `rationale`/`resolution_source`
+convention — the pinned NornicDB Go module, `github.com/orneryd/nornicdb
+v1.0.45` per `go/go.mod`, stores a `null` RHS as a literal nil-valued
+property instead of removing it (verified in-process against that exact
+module), so `""` is the only value this writer treats uniformly across both
+backends). When multiple evidence facts in one
+candidate disagree, the highest-confidence fact wins (a confidence tie keeps
+whichever fact was discovered first, never Go map order) —
+`evidenceFieldWinner` in `go/internal/relationships/evidence_edge_fields.go`.
+
+**`destination_namespace` was scoped, implemented, and then deliberately
+removed before merge.** Its only evidence producer
+(`appendDestinationPlatformEvidence` in `yaml_iac_evidence.go`) attaches the
+declared Kubernetes namespace to a `RUNS_ON` fact targeting a `Platform`
+entity, never to a fact of one of the five edges above — `RUNS_ON` and
+`DEPLOYS_FROM` land in different resolver candidate buckets even for the same
+ArgoCD Application, so it would have shipped as a permanently-empty property
+on every edge, forever, with no real producer. See
+`docs/internal/evidence/5441-edge-node-properties.md` for the full mechanism
+probe and the cross-candidate join a real fix would need.
 
 ## Canonical `source_tool` vocabulary
 
