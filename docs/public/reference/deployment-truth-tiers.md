@@ -7,17 +7,19 @@ query surfaces.
 
 ## Tiers
 
-| Tier | Wire String | Rank | Evidence Class |
+| Tier | Wire String | Priority (`Rank()`, higher = stronger) | Evidence Class |
 |------|------------|------|---------------|
-| Runtime Confirmed | `runtime_confirmed` | 1 (strongest) | Live observation confirms the workload runs (e.g. exact kubernetes_live correlation producing a `RUNS_IMAGE` edge, or a cloud-observed instance). |
-| Provenance CI/CD Declared | `provenance_ci_declared` | 2 | CI/CD or supply-chain provenance declares a deployment (e.g. ci_cd run correlation, attestation). |
-| Declared Ref | `declared_ref` | 3 | A named ref (branch/SHA) is declared deployed through a `DEPLOYS_REF` edge (#5393). *Constant defined; evidence source not yet wired.* |
-| Config Only | `config_only` | 4 (weakest) | Only config materialization evidence (config-derived `WorkloadInstance`, deployment sources, or config environments) exists. |
+| Runtime Confirmed | `runtime_confirmed` | 4 (strongest) | Live observation confirms the workload runs (e.g. exact kubernetes_live correlation producing a `RUNS_IMAGE` edge, or a cloud-observed instance). |
+| Provenance CI/CD Declared | `provenance_ci_declared` | 3 | CI/CD or supply-chain provenance declares a deployment (e.g. ci_cd run correlation, attestation). |
+| Declared Ref | `declared_ref` | 2 | A named ref (branch/SHA) is declared deployed through a `DEPLOYS_REF` edge (#5393). *Constant defined; evidence source not yet wired.* |
+| Config Only | `config_only` | 1 (weakest) | Only config materialization evidence (config-derived `WorkloadInstance`, deployment sources, or config environments) exists. |
 
 The tiers are strictly ordered. A workload classified as `runtime_confirmed`
 has stronger evidence than one classified as `provenance_ci_declared`, and so
-on. The constants live in `go/internal/truth/deployment_tiers.go` and every
-consumer reads through the same `ClassifyDeploymentTruthTier` helper.
+on. The Priority column is exactly the integer `DeploymentTruthTier.Rank()`
+returns (higher wins; see `Compare`) -- the constants and `rank()` switch live
+in `go/internal/truth/deployment_tiers.go`, and every consumer reads through
+the same `ClassifyDeploymentTruthTier` helper.
 
 ## What qualifies (and what does not)
 
