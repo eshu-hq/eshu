@@ -271,6 +271,134 @@ func TestFluxHelmReconcilesFromChartBlockWithoutSourceRefPlusChartRefSkips(t *te
 	}
 }
 
+// TestFluxHelmReconcilesFromEmptyChartBlockPlusChartRefSkips is the codex-P1 /
+// reviewer-P2 accuracy fix (extends P3-1): a triply-malformed HelmRelease
+// whose spec.chart block is PRESENT but empty (no chart name, no sourceRef --
+// so the parser captures neither `chart` nor `source_ref_name`, only the
+// `chart_present` presence signal) WHILE spec.chartRef is also set. Flux
+// rejects this CR at admission (chart/chartRef mutually exclusive), so it
+// never reconciles; writing a chartRef edge for it is an accuracy defect.
+// P3-1's guard (chart != "" || source_ref_name != "") could not see the empty
+// chart block and would write the chartRef edge -- this asserts the
+// chart_present-keyed guard suppresses it. RED before the chart_present fix
+// (an edge is written), GREEN after (honest non-link).
+func TestFluxHelmReconcilesFromEmptyChartBlockPlusChartRefSkips(t *testing.T) {
+	t.Parallel()
+
+	// spec.chart present-but-empty: only chart_present is set, NOT chart or any
+	// source_ref_* field. spec.chartRef is also set. fluxHelmReleaseRowEntity
+	// does not set chart_present, so build the row directly.
+	helmRelease := projector.EntityRow{
+		Label:      "FluxHelmRelease",
+		EntityID:   "uid-hr",
+		EntityName: "helmrelease",
+		FilePath:   "/repo/helmrelease.yaml",
+		Metadata: map[string]any{
+			"namespace":           "flux-system",
+			"chart_present":       "true",
+			"chart_ref_kind":      "OCIRepository",
+			"chart_ref_name":      "podinfo-oci",
+			"chart_ref_namespace": "flux-system",
+		},
+	}
+
+	mat := projector.CanonicalMaterialization{
+		GenerationID: "gen-1",
+		Entities: []projector.EntityRow{
+			helmRelease,
+			fluxSourceRowEntity("FluxOCIRepository", "uid-oci", "podinfo-oci", "flux-system", "/repo/sources.yaml"),
+		},
+	}
+
+	stmts := fluxReconcilesFromEdgeStatements(mat)
+	for _, stmt := range stmts {
+		if stmt.Operation == OperationCanonicalUpsert {
+			t.Fatalf("expected no MERGE statement for an empty-spec.chart-block-plus-chartRef malformed CR (Flux rejects it; it never reconciles), got %+v", stmt.Parameters["rows"])
+		}
+	}
+}
+
+// TestFluxHelmReconcilesFromWellFormedChartWithChartPresentStillResolves is
+// the golden-neutrality proof: the real kubernetes_comprehensive
+// flux-helmrelease.yaml fixture has a populated spec.chart block, so the
+// parser now stamps chart_present="true" on it. This proves that a well-formed
+// CR (chart_present + sourceRef, NO chartRef) still resolves its edge
+// identically -- the chart_present-keyed guard only fires when chartRef is ALSO
+// set, so adding chart_present to every well-formed HelmRelease cannot move the
+// golden rc-154 edge count.
+func TestFluxHelmReconcilesFromWellFormedChartWithChartPresentStillResolves(t *testing.T) {
+	t.Parallel()
+
+	helmRelease := projector.EntityRow{
+		Label:      "FluxHelmRelease",
+		EntityID:   "uid-hr",
+		EntityName: "podinfo",
+		FilePath:   "/repo/helmrelease.yaml",
+		Metadata: map[string]any{
+			"namespace":            "flux-system",
+			"chart_present":        "true",
+			"chart":                "podinfo",
+			"source_ref_kind":      "HelmRepository",
+			"source_ref_name":      "podinfo",
+			"source_ref_namespace": "flux-system",
+		},
+	}
+
+	mat := projector.CanonicalMaterialization{
+		GenerationID: "gen-1",
+		Entities: []projector.EntityRow{
+			helmRelease,
+			fluxSourceRowEntity("FluxHelmRepository", "uid-repo", "podinfo", "flux-system", "/repo/sources.yaml"),
+		},
+	}
+
+	stmts := fluxReconcilesFromEdgeStatements(mat)
+	merge := mergeStatementContaining(t, stmts, "FluxHelmRepository {uid: row.target_uid}")
+	rows := merge.Parameters["rows"].([]map[string]any)
+	if len(rows) != 1 || rows[0]["target_uid"] != "uid-repo" {
+		t.Fatalf("well-formed chart+sourceRef CR (with chart_present) must resolve: rows = %+v, want one row targeting uid-repo", rows)
+	}
+	if rows[0]["resolution_mode"] != "namespace_exact" {
+		t.Fatalf("resolution_mode = %v, want namespace_exact", rows[0]["resolution_mode"])
+	}
+}
+
+// TestFluxHelmReconcilesFromChartRefOnlyStillResolves guards against the
+// chart_present fix over-suppressing the legitimate chartRef-only case: a
+// well-formed HelmRelease with ONLY spec.chartRef (no spec.chart block at all,
+// so chart_present is absent) must still resolve its chartRef edge.
+func TestFluxHelmReconcilesFromChartRefOnlyStillResolves(t *testing.T) {
+	t.Parallel()
+
+	helmRelease := projector.EntityRow{
+		Label:      "FluxHelmRelease",
+		EntityID:   "uid-hr",
+		EntityName: "helmrelease",
+		FilePath:   "/repo/helmrelease.yaml",
+		Metadata: map[string]any{
+			"namespace":           "flux-system",
+			"chart_ref_kind":      "OCIRepository",
+			"chart_ref_name":      "podinfo-oci",
+			"chart_ref_namespace": "flux-system",
+		},
+	}
+
+	mat := projector.CanonicalMaterialization{
+		GenerationID: "gen-1",
+		Entities: []projector.EntityRow{
+			helmRelease,
+			fluxSourceRowEntity("FluxOCIRepository", "uid-oci", "podinfo-oci", "flux-system", "/repo/sources.yaml"),
+		},
+	}
+
+	stmts := fluxReconcilesFromEdgeStatements(mat)
+	merge := mergeStatementContaining(t, stmts, "FluxHelmRelease {uid: row.source_uid})\nMATCH (s:FluxOCIRepository")
+	rows := merge.Parameters["rows"].([]map[string]any)
+	if len(rows) != 1 || rows[0]["target_uid"] != "uid-oci" {
+		t.Fatalf("chartRef-only CR should still resolve: rows = %+v, want one row targeting uid-oci", rows)
+	}
+}
+
 // TestFluxHelmReconcilesFromNeitherChartNorChartRefSetSkips proves the
 // sibling guard: a HelmRelease with NEITHER a resolvable sourceRef NOR a
 // chartRef (an incomplete/invalid CR) produces no row -- never a fabricated

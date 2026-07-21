@@ -40,11 +40,22 @@ func isFluxHelmRelease(apiVersion string, kind string) bool {
 // shapes (invalid, but the parser is honest capture only) and collapsing them
 // would silently discard which one was actually set.
 //
+// The presence of a spec.chart mapping is recorded as chart_present="true"
+// even when the block is EMPTY (no chart name, no sourceRef). This is the
+// only signal the edge resolver has for "a spec.chart block exists" when the
+// block yields no populated field, and it is load-bearing for the
+// exactly-one-of chart/chartRef non-link guard: a HelmRelease with an empty
+// spec.chart block AND a spec.chartRef is invalid (Flux rejects it at
+// admission), and without this signal the resolver would fabricate a chartRef
+// edge for a CR that can never reconcile (codex-P1). It is omitted only when
+// spec.chart is entirely absent, so a legitimate chartRef-only HelmRelease
+// keeps chart_present unset and resolves normally.
+//
 // Fields are parsed defensively: an absent or empty field is omitted from the
 // row, never fabricated.
 func parseFluxHelmRelease(document map[string]any, metadata map[string]any, path string, lineNumber int) map[string]any {
 	spec, _ := document["spec"].(map[string]any)
-	chart, _ := spec["chart"].(map[string]any)
+	chart, chartPresent := spec["chart"].(map[string]any)
 	chartSpec, _ := chart["spec"].(map[string]any)
 	sourceRef, _ := chartSpec["sourceRef"].(map[string]any)
 	chartRef, _ := spec["chartRef"].(map[string]any)
@@ -65,6 +76,12 @@ func parseFluxHelmRelease(document map[string]any, metadata map[string]any, path
 	// it, never fabricate "<nil>" (fmt.Sprint(nil)) or an empty string.
 	if namespace := cleanYAMLString(metadata["namespace"]); namespace != "" {
 		row["namespace"] = namespace
+	}
+	// Record the spec.chart block's presence even when empty (see the doc
+	// comment): the resolver's exactly-one-of chart/chartRef non-link guard
+	// keys on this when the block yields no chart name or sourceRef.
+	if chartPresent {
+		row["chart_present"] = "true"
 	}
 	if chartName := cleanYAMLString(chartSpec["chart"]); chartName != "" {
 		row["chart"] = chartName

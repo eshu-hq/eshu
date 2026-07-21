@@ -141,6 +141,7 @@ func collectFluxHelmReleaseEntities(entities []projector.EntityRow) ([]fluxRecon
 			uids = append(uids, entity.EntityID)
 		}
 
+		chartPresent := metadataString(entity.Metadata, "chart_present") == "true"
 		chart := metadataString(entity.Metadata, "chart")
 		sourceRefKind := metadataString(entity.Metadata, "source_ref_kind")
 		sourceRefName := metadataString(entity.Metadata, "source_ref_name")
@@ -149,11 +150,16 @@ func collectFluxHelmReleaseEntities(entities []projector.EntityRow) ([]fluxRecon
 		chartRefName := metadataString(entity.Metadata, "chart_ref_name")
 		chartRefNamespace := metadataString(entity.Metadata, "chart_ref_namespace")
 
-		// A spec.chart block is present when either the chart name or its
-		// nested sourceRef.name was captured -- key the mutual-exclusion guard
-		// on the block, not just a resolvable sourceRef name, so a chart block
-		// with no sourceRef plus a chartRef is still caught (P3-1).
-		hasChartBlock := chart != "" || sourceRefName != ""
+		// A spec.chart block is present when the parser recorded chart_present
+		// (the block exists as a mapping node, even if empty), or when the
+		// chart name or its nested sourceRef.name was captured. Key the
+		// mutual-exclusion guard on the block's PRESENCE, not on whether it
+		// yielded a value, so an EMPTY spec.chart block plus a spec.chartRef --
+		// which Flux rejects at admission -- is an honest non-link and never
+		// fabricates a chartRef edge for a CR that can never reconcile
+		// (codex-P1, extending P3-1). chart_present is absent on a legitimate
+		// chartRef-only HelmRelease, so that case still resolves.
+		hasChartBlock := chartPresent || chart != "" || sourceRefName != ""
 		hasChartRef := chartRefKind != "" || chartRefName != ""
 		if hasChartBlock && hasChartRef {
 			// Both spec.chart and spec.chartRef set: an invalid CR per the

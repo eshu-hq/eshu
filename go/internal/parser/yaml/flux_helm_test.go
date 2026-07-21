@@ -85,6 +85,10 @@ func TestParseFluxHelmReleaseCapturesChartSourceRef(t *testing.T) {
 	if row["target_namespace"] != "production" {
 		t.Fatalf("target_namespace = %#v, want production", row["target_namespace"])
 	}
+	// A populated spec.chart block also records its presence.
+	if row["chart_present"] != "true" {
+		t.Fatalf("chart_present = %#v, want \"true\" when spec.chart is present", row["chart_present"])
+	}
 	for _, key := range []string{"chart_ref_kind", "chart_ref_name", "chart_ref_namespace"} {
 		if _, present := row[key]; present {
 			t.Fatalf("row[%q] = %#v, want absent when spec.chartRef is absent (never fabricated)", key, row[key])
@@ -125,10 +129,71 @@ func TestParseFluxHelmReleaseCapturesChartRef(t *testing.T) {
 	if row["chart_ref_namespace"] != "flux-system" {
 		t.Fatalf("chart_ref_namespace = %#v, want flux-system", row["chart_ref_namespace"])
 	}
+	for _, key := range []string{"chart", "chart_version", "source_ref_kind", "source_ref_name", "source_ref_namespace", "chart_present"} {
+		if _, present := row[key]; present {
+			t.Fatalf("row[%q] = %#v, want absent when spec.chart is absent (chartRef-only CR: chart_present must stay unset so the edge resolves)", key, row[key])
+		}
+	}
+}
+
+// TestParseFluxHelmReleaseEmptyChartBlockEmitsChartPresent is the codex-P1
+// parser-signal proof: a spec.chart block present but EMPTY (no chart name, no
+// sourceRef) still records chart_present="true" so the edge resolver can
+// enforce the exactly-one-of chart/chartRef non-link rule against a malformed
+// CR that also sets spec.chartRef. The chart/source_ref_* value fields stay
+// absent (nothing to capture), but the presence signal is load-bearing.
+func TestParseFluxHelmReleaseEmptyChartBlockEmitsChartPresent(t *testing.T) {
+	t.Parallel()
+
+	// spec.chart present as an (empty) mapping, spec.chartRef also set.
+	document := map[string]any{
+		"spec": map[string]any{
+			"chart": map[string]any{},
+			"chartRef": map[string]any{
+				"kind": "OCIRepository",
+				"name": "podinfo-oci",
+			},
+		},
+	}
+	metadata := map[string]any{"name": "podinfo-invalid-empty-chart"}
+
+	row := parseFluxHelmRelease(document, metadata, "/repo/empty-chart.yaml", 1)
+
+	if row["chart_present"] != "true" {
+		t.Fatalf("chart_present = %#v, want \"true\" when an empty spec.chart mapping is present", row["chart_present"])
+	}
 	for _, key := range []string{"chart", "chart_version", "source_ref_kind", "source_ref_name", "source_ref_namespace"} {
 		if _, present := row[key]; present {
-			t.Fatalf("row[%q] = %#v, want absent when spec.chart is absent (never fabricated)", key, row[key])
+			t.Fatalf("row[%q] = %#v, want absent when the spec.chart block is empty (never fabricated)", key, row[key])
 		}
+	}
+	// The chartRef fields are still captured verbatim (honest capture; the
+	// non-link decision belongs to the resolver).
+	if row["chart_ref_kind"] != "OCIRepository" {
+		t.Fatalf("chart_ref_kind = %#v, want OCIRepository (verbatim capture)", row["chart_ref_kind"])
+	}
+}
+
+// TestParseFluxHelmReleaseChartBlockWithNestedSpecOnlyEmitsChartPresent proves
+// chart_present is emitted for the realistic empty-block shape where
+// spec.chart exists with a nested spec that yields no chart/sourceRef.
+func TestParseFluxHelmReleaseChartBlockWithNestedSpecOnlyEmitsChartPresent(t *testing.T) {
+	t.Parallel()
+
+	document := map[string]any{
+		"spec": map[string]any{
+			"chart": map[string]any{"spec": map[string]any{}},
+		},
+	}
+	metadata := map[string]any{"name": "podinfo"}
+
+	row := parseFluxHelmRelease(document, metadata, "/repo/nested-empty.yaml", 1)
+
+	if row["chart_present"] != "true" {
+		t.Fatalf("chart_present = %#v, want \"true\" when spec.chart (with empty nested spec) is present", row["chart_present"])
+	}
+	if _, present := row["chart"]; present {
+		t.Fatalf("chart = %#v, want absent when spec.chart.spec.chart is empty", row["chart"])
 	}
 }
 
@@ -147,9 +212,10 @@ func TestParseFluxHelmReleaseOmitsAbsentFields(t *testing.T) {
 	for _, key := range []string{
 		"chart", "chart_version", "source_ref_kind", "source_ref_name", "source_ref_namespace",
 		"chart_ref_kind", "chart_ref_name", "chart_ref_namespace", "target_namespace", "namespace",
+		"chart_present",
 	} {
 		if _, present := row[key]; present {
-			t.Fatalf("row[%q] = %#v, want absent when spec has no matching field", key, row[key])
+			t.Fatalf("row[%q] = %#v, want absent when spec has no matching field (spec.chart entirely absent -> chart_present unset)", key, row[key])
 		}
 	}
 }
