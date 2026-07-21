@@ -106,6 +106,11 @@ source while also emitting positional `source_repos`, `source_paths`,
 path, revision, or root positions are preserved so downstream consumers do not
 mis-associate source details with the wrong repository.
 
+Kubernetes-family entity rows never fabricate scalar metadata from absent
+fields. A missing `metadata.name` remains the empty base `name` so path and line
+identity stay available, while a missing `metadata.namespace` is omitted;
+neither field may contain the string `<nil>`.
+
 CloudFormation/SAM classification and row extraction belong to the sibling
 internal/parser/cloudformation package. YAML owns file decoding and intrinsic
 tag normalization before passing a decoded document to that package.

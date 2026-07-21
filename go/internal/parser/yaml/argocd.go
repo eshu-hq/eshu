@@ -25,15 +25,17 @@ func parseArgoCDApplication(document map[string]any, metadata map[string]any, pa
 	destination, _ := spec["destination"].(map[string]any)
 	syncPolicy, syncOptions := collectArgoSyncPolicy(spec["syncPolicy"])
 	row := map[string]any{
-		"name":           strings.TrimSpace(fmt.Sprint(metadata["name"])),
+		"name":           cleanYAMLString(metadata["name"]),
 		"line_number":    lineNumber,
-		"namespace":      strings.TrimSpace(fmt.Sprint(metadata["namespace"])),
 		"project":        strings.TrimSpace(fmt.Sprint(spec["project"])),
 		"dest_name":      cleanYAMLString(destination["name"]),
 		"dest_server":    cleanYAMLString(destination["server"]),
 		"dest_namespace": cleanYAMLString(destination["namespace"]),
 		"path":           path,
 		"lang":           "yaml",
+	}
+	if namespace := cleanYAMLString(metadata["namespace"]); namespace != "" {
+		row["namespace"] = namespace
 	}
 	appendArgoApplicationSourceFields(row, extractArgoApplicationSources(spec))
 	if labels := collectMetadataLabels(metadata); labels != "" {
@@ -173,10 +175,9 @@ func parseArgoCDApplicationSet(document map[string]any, metadata map[string]any,
 			sourceRoots = append(sourceRoots, root)
 		}
 	}
-	return map[string]any{
-		"name":                   strings.TrimSpace(fmt.Sprint(metadata["name"])),
+	row := map[string]any{
+		"name":                   cleanYAMLString(metadata["name"]),
 		"line_number":            lineNumber,
-		"namespace":              strings.TrimSpace(fmt.Sprint(metadata["namespace"])),
 		"generators":             strings.Join(dedupeAndSortStrings(generatorTypes), ","),
 		"project":                strings.TrimSpace(fmt.Sprint(templateSpec["project"])),
 		"dest_name":              strings.TrimSpace(fmt.Sprint(nestedMapValue(templateSpec, "destination", "name"))),
@@ -194,6 +195,10 @@ func parseArgoCDApplicationSet(document map[string]any, metadata map[string]any,
 		"path":                   path,
 		"lang":                   "yaml",
 	}
+	if namespace := cleanYAMLString(metadata["namespace"]); namespace != "" {
+		row["namespace"] = namespace
+	}
+	return row
 }
 
 func normalizeArgoSourceRoots(paths []string) []string {

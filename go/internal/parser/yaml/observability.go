@@ -4,7 +4,6 @@
 package yaml
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
@@ -89,8 +88,8 @@ func appendGrafanaObservabilityFromDocument(
 	kind string,
 	lineNumber int,
 ) {
-	name := strings.TrimSpace(fmt.Sprint(metadata["name"]))
-	namespace := strings.TrimSpace(fmt.Sprint(metadata["namespace"]))
+	name := cleanYAMLString(metadata["name"])
+	namespace := cleanYAMLString(metadata["namespace"])
 	ctx := grafanaSourceContext{
 		path:         path,
 		sourceKind:   "kubernetes",
