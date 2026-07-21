@@ -66,6 +66,36 @@ func TestMigration069PredicateMatchesIdentityFactFilter(t *testing.T) {
 	}
 }
 
+// TestProbeIdentityEpochQueryUsesCollisionResistantFingerprint locks the
+// active_fingerprint subquery in probeIdentityEpochQuery
+// (facts_active_container_image_identity.go) to the collision-resistant
+// md5-digest-of-ordered-mapping shape (issue #5438 P1-B). The prior shape,
+// `sum(hashtext(scope_id || ':' || active_generation_id))`, could silently
+// fail to detect a real active-generation supersession — either via a
+// 32-bit hashtext collision between two different active mappings, or via
+// two offsetting per-scope deltas that cancel out in the sum — leaving the
+// cache serving stale identity facts with no self-heal, since the
+// fingerprint is deterministic for a given active mapping. This is a pure
+// SQL-shape assertion (no DB required); TestIdentityEpochProbeDetectsSupersessionLive
+// in identity_epoch_cache_live_test.go proves the fix against real Postgres.
+func TestProbeIdentityEpochQueryUsesCollisionResistantFingerprint(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"md5(",
+		"string_agg(",
+		"ORDER BY scope_id",
+	} {
+		if !strings.Contains(probeIdentityEpochQuery, want) {
+			t.Fatalf("probeIdentityEpochQuery missing %q:\n%s", want, probeIdentityEpochQuery)
+		}
+	}
+
+	if strings.Contains(probeIdentityEpochQuery, "hashtext") {
+		t.Fatalf("probeIdentityEpochQuery still uses the summed hashtext fingerprint, which can silently miss a real supersession (32-bit collision or offsetting deltas):\n%s", probeIdentityEpochQuery)
+	}
+}
+
 var identityFilterWhitespaceRE = regexp.MustCompile(`\s+`)
 
 // normalizeIdentityFilterPredicate strips the "fact." table alias (present

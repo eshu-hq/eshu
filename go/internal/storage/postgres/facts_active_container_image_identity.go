@@ -84,17 +84,22 @@ LIMIT $3
 
 // probeIdentityEpochQuery returns (count, COALESCE(max(observed_at), '-infinity'),
 // active_fingerprint) — the count+max of identity facts over all generations
-// FROM fact_records plus a cheap fingerprint of the active generation mapping
-// from ingestion_scopes. The fingerprint detects supersession (active_generation_id
-// flip) so the cache misses when a new generation becomes active even when total
-// fact count and max observed_at are unchanged.
+// FROM fact_records plus a collision-resistant md5 digest of the active
+// generation mapping from ingestion_scopes (every scope's
+// "scope_id:active_generation_id" pair, ORDER BY scope_id, joined with '|').
+// The fingerprint detects supersession (active_generation_id flip) so the
+// cache misses when a new generation becomes active even when total fact
+// count and max observed_at are unchanged. Unlike a summed hash, the ordered
+// digest has no collision mode where two different active mappings (a 32-bit
+// hashtext collision, or offsetting deltas that cancel in a sum) produce the
+// same fingerprint.
 // Backed by the partial B-tree index fact_records_identity_epoch_idx
 // ON (observed_at, fact_id) WHERE <filter> AND is_tombstone = FALSE.
 const probeIdentityEpochQuery = `
 SELECT
     f.cnt,
     COALESCE(f.max_obs, '-infinity'::timestamptz),
-    COALESCE(s.fingerprint, 0)
+    COALESCE(s.fingerprint, '')
 FROM (
     SELECT count(*) AS cnt, max(observed_at) AS max_obs
     FROM fact_records AS fact
@@ -102,7 +107,7 @@ FROM (
       AND is_tombstone = FALSE
 ) f
 CROSS JOIN (
-    SELECT sum(hashtext(scope_id || ':' || active_generation_id)) AS fingerprint
+    SELECT md5(COALESCE(string_agg(scope_id::text || ':' || active_generation_id::text, '|' ORDER BY scope_id), '')) AS fingerprint
     FROM ingestion_scopes
 ) s
 `
@@ -158,7 +163,7 @@ func (s *FactStore) probeIdentityEpoch(ctx context.Context) (identityEpoch, erro
 	}
 	var count int64
 	var maxObservedAt time.Time
-	var fingerprint int64
+	var fingerprint string
 	if err := rows.Scan(&count, &maxObservedAt, &fingerprint); err != nil {
 		return identityEpoch{}, fmt.Errorf("probe identity epoch scan: %w", err)
 	}

@@ -28,14 +28,17 @@ const defaultIdentityCacheMaxBytes = 500 * 1024 * 1024 // 500 MiB
 // ingestion_scopes so a supersession (active_generation_id flip) is detected
 // even when total fact count and max observed_at are unchanged.
 //
-// Collision: hastext is a 32-bit hash summed over scopes. With N scopes,
-// the probability of two different active mappings producing the same
-// fingerprint sum is ~2^-32 × N²/2 (birthday bound). For 2000 scopes
-// ~10^-6; for 100k ~10^-3. The cache self-heals on the next probe.
+// The fingerprint is a collision-resistant md5 digest of the ordered active-
+// generation mapping (every scope's "scope_id:active_generation_id" pair,
+// ORDER BY scope_id, joined with '|'), not a summed 32-bit hash. Any change
+// to the active mapping — including two different mappings that would
+// collide under a 32-bit hashtext sum, or offsetting deltas that would
+// cancel out in a sum — changes the digest deterministically, so the epoch
+// always changes when the active mapping changes.
 type identityEpoch struct {
 	count             int
 	maxObservedAt     time.Time
-	activeFingerprint int64
+	activeFingerprint string
 }
 
 // IdentityEpochCache caches the full set of active container-image identity

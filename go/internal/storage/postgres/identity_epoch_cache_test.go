@@ -28,8 +28,9 @@ func testInstruments() *telemetry.Instruments {
 }
 
 // probeQueryRow returns a single-row fake response for the epoch probe:
-// count, COALESCE(max(observed_at), ...), active_fingerprint.
-func probeQueryRow(count int, maxObservedAt time.Time, fingerprint int64) queueFakeRows {
+// count, COALESCE(max(observed_at), ...), active_fingerprint. fingerprint is
+// a string (md5 digest in production; tests use short literals for clarity).
+func probeQueryRow(count int, maxObservedAt time.Time, fingerprint string) queueFakeRows {
 	return queueFakeRows{
 		rows: [][]any{{
 			int64(count),
@@ -66,10 +67,10 @@ func TestIdentityEpochCacheHit(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""),
 			{rows: [][]any{factRow}},
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""),
 		},
 	}
 
@@ -127,12 +128,12 @@ func TestIdentityEpochCacheMissChangedCount(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""),
 			{rows: [][]any{factRow}},
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
-			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), 0),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""),
+			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), ""),
 			{rows: [][]any{factRow, factRow2}},
-			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), 0),
+			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), ""),
 		},
 	}
 
@@ -236,7 +237,7 @@ func TestIdentityEpochCacheConcurrentSingleflight(t *testing.T) {
 	q := &concurrentSingleflightQueryer{
 		probeDelay: probeDelay,
 		factRow:    factRow,
-		probeRow:   []any{int64(1), time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), int64(0)},
+		probeRow:   []any{int64(1), time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""},
 	}
 
 	store := newFactStoreWithCache(q, 0)
@@ -305,12 +306,12 @@ func TestIdentityEpochCacheCommitMidLoad(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""),
 			{rows: [][]any{factRow}},
-			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), 0),
-			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), 0),
+			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), ""),
+			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), ""),
 			{rows: [][]any{factRow, factRow}},
-			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), 0),
+			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), ""),
 		},
 	}
 
@@ -364,12 +365,12 @@ func TestIdentityEpochCacheCapExceeded(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""),
 			{rows: [][]any{factRow}},
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""),
 			{rows: [][]any{factRow}},
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""),
 		},
 	}
 
@@ -443,10 +444,10 @@ func TestIdentityEpochCacheDefensiveCopy(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""),
 			{rows: [][]any{factRow}},
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""),
 		},
 	}
 

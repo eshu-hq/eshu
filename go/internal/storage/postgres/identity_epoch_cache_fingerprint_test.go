@@ -32,13 +32,13 @@ func TestIdentityEpochCacheMissOnFingerprintChange(t *testing.T) {
 	// Second call: same count and max but fingerprint=99 → must reload.
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 42),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), "fingerprint-42"),
 			{rows: [][]any{factRow}},
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 42),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), "fingerprint-42"),
 			// Second call: same count+max, different fingerprint
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 99),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), "fingerprint-99"),
 			{rows: [][]any{factRow}},
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 99),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), "fingerprint-99"),
 		},
 	}
 
