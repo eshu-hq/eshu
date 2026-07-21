@@ -98,7 +98,7 @@ func TestBuildSelectedRepositoriesCarriesGitDeltaFileTargets(t *testing.T) {
 		},
 	}
 
-	selected := buildSelectedRepositories(config, selection.SelectedRepoPaths, selection.DeltaByRepoPath, selection.ReconcileByRepoPath, nil, nil, nil, nil)
+	selected := buildSelectedRepositories(config, selection.SelectedRepoPaths, selection.DeltaByRepoPath, selection.ReconcileByRepoPath, nil, nil, nil)
 	if len(selected) != 1 {
 		t.Fatalf("selected repositories = %d, want 1", len(selected))
 	}

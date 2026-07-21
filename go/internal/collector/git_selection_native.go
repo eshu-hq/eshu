@@ -111,7 +111,7 @@ func (s NativeRepositorySelector) SelectRepositories(
 		}
 		return SelectionBatch{
 			ObservedAt:   observedAt,
-			Repositories: buildSelectedRepositories(s.Config, repoPaths, nil, nil, nil, collectLocalRefs(ctx, s.Logger, s.Config, selection.RepositoryIDs, repoPaths), nil, nil),
+			Repositories: buildSelectedRepositories(s.Config, repoPaths, nil, nil, nil, collectLocalRefs(ctx, s.Logger, s.Config, selection.RepositoryIDs, repoPaths), nil),
 		}, nil
 	case "explicit", "githubOrg":
 		syncGitFn := s.SyncGit
@@ -138,7 +138,6 @@ func (s NativeRepositorySelector) SelectRepositories(
 				synced.ReconcileByRepoPath,
 				synced.SourceCommitSHAByRepoPath,
 				synced.RefsByRepoPath,
-				nil,
 				synced.RefWorktreesByRepoPath,
 			),
 		}, nil
@@ -154,7 +153,6 @@ func buildSelectedRepositories(
 	reconcileByRepoPath map[string]bool,
 	sourceCommitSHAByRepoPath map[string]string,
 	refsByRepoPath map[string][]GitRef,
-	_ map[string][]RefWorktreeEntry, // ignored (past v1), kept for signature stability
 	refWorktreesByRepoPath map[string][]RefWorktreeEntry,
 ) []SelectedRepository {
 	repositories := make([]SelectedRepository, 0, len(repoPaths))

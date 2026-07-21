@@ -214,7 +214,6 @@ func TestBuildSelectedRepositoriesCarriesGitRefs(t *testing.T) {
 		nil,
 		map[string][]GitRef{repoPath: refs},
 		nil,
-		nil,
 	)
 	if gotLen, wantLen := len(got), 1; gotLen != wantLen {
 		t.Fatalf("len(got) = %d, want %d", gotLen, wantLen)

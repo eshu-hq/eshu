@@ -311,7 +311,6 @@ func TestBuildSelectedRepositoriesRefOnlyEmitsNoMainline(t *testing.T) {
 		map[string][]GitRef{
 			mainRepoPath: {{Name: "main", Kind: "branch", HeadSHA: "def456"}},
 		},
-		nil,
 		refWorktreesByRepoPath,
 	)
 
