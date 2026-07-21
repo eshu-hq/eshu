@@ -169,17 +169,24 @@ are either unreachable with today's evidence or intentionally not persisted.
   drift writers' bound. There is no prior baseline to compare against — the
   domain emitted no durable write before this issue — so this is the starting
   measurement, not a before/after delta.
-- **Read path — structural argument, NOT a measurement.** No `EXPLAIN
-  ANALYZE` was run against a live Postgres instance for
-  `buildTerraformConfigStateDriftFindingQuery`
-  (`go/internal/storage/postgres/terraform_config_state_drift_findings.go`).
-  The claim that its cost matches the already-proven
-  `reducer_aws_cloud_runtime_drift_finding` query is a structural
-  observation only — same `fact_records` table, same
-  `fact_kind = $1 AND fact.scope_id = $2` predicate shape, same
-  `ingestion_scopes` join on `active_generation_id` — not a benchmark. This
-  should be independently measured against representative data before
-  relying on it as a performance guarantee.
+- **Read path — measured with `EXPLAIN ANALYZE`.** Ran a live Postgres
+  (`docker compose`, `COMPOSE_PROJECT_NAME=eshu-explain-5442`, torn down
+  after) seeded with representative volume — 256,000 `fact_records` rows
+  total, 6,000 `reducer_terraform_config_state_drift_finding` rows spread
+  across 300 distinct `state_snapshot` scopes (20 rows/scope) — and ran
+  `EXPLAIN (ANALYZE, BUFFERS)` for both the list and count queries
+  `buildTerraformConfigStateDriftFindingQuery` builds
+  (`go/internal/storage/postgres/terraform_config_state_drift_findings.go`),
+  plus the `Scoped` variant with the `scope_id = ANY(...)` grant predicate.
+  All three plans use `Index Scan using fact_records_scope_generation_idx`
+  (the `(scope_id, generation_id, fact_kind, observed_at DESC)` composite
+  index) joined via `Index Scan using ingestion_scopes_pkey` — no
+  sequential scan anywhere in any plan. Execution times: list query
+  0.31ms, count query 0.05-0.10ms, scoped list query 0.30ms (`Buffers:
+  shared hit` only, no disk reads). This independently confirms the
+  earlier structural argument (byte-for-byte the same predicate/join/index
+  shape as the already-proven `reducer_aws_cloud_runtime_drift_finding`
+  query) rather than resting on it.
 - **Golden-corpus fixture coverage — measured, closed.** A first live
   `scripts/verify-golden-corpus-gate.sh` run found zero
   `list_terraform_config_state_drift_findings` results. Root-caused to two

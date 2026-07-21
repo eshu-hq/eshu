@@ -37,11 +37,13 @@ func configStateDriftDomainDefinition() DomainDefinition {
 		// write, not a replacement for it.
 		//
 		// The previous version of this comment cited "design doc §10" for
-		// the graph-projection deferral; that document
-		// (docs/internal/design/391-observability-coverage-correlation.md)
-		// was deleted in commit 52d998301, and its §10 was about an
-		// unrelated state_to_cloud_arn rule pack even before the deletion —
-		// the citation was wrong when it was written, not merely stale.
+		// the graph-projection deferral. That citation was wrong when it was
+		// written: §10 of docs/internal/design/391-observability-coverage-
+		// correlation.md (still present, 624 lines) covers an unrelated
+		// state_to_cloud_arn rule pack, not this domain's graph-projection
+		// decision — commit 52d998301 deleted a different document entirely
+		// (docs/superpowers/plans/2026-05-10-tfstate-config-state-drift-
+		// design.md), so the deletion is not why the old citation was wrong.
 		Ownership: OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
