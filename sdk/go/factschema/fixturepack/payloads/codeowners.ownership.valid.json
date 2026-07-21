@@ -1,0 +1,7 @@
+{
+  "repo_id": "github.com/eshu-hq/eshu",
+  "source_path": ".github/CODEOWNERS",
+  "pattern": "/go/internal/reducer/",
+  "owners": ["@eshu-hq/platform"],
+  "order_index": 3
+}
