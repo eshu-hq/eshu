@@ -53,22 +53,34 @@ func buildDeploymentSourceControllerEntity(entity EntityContent) (map[string]any
 // workload (not a heuristic), but that alone does not make every controller
 // found there safe to trust: a GitOps config repo commonly hosts MANY
 // workloads' controllers in one app-of-apps monorepo (see the repo-helm
-// fixture below, and TestSelectRelevantDeploymentSourceControllersRequires
-// TokenMatchWhenOwnRepoHostsMultipleControllers). Trust is therefore gated on
-// STRUCTURAL uniqueness, not repo identity alone: when workloadRepoID
-// contains exactly one GitOps controller entity, there is no other candidate
-// it could be confused with, so that one controller is accepted even when
-// its own entity name or path (e.g. an ArgoCD Application named after the
-// app it deploys, not after the config repo that hosts it) does not
-// textually contain the service name (#5471 defect A). When workloadRepoID
-// contains two or more controllers, every controller found there --
-// including ones in the workload's own repo -- falls back to the same
-// service-name-token match required for controllers named only by
-// deploymentSources (a shared multi-service GitOps repo), so tracing service
-// A can never pull service B's controller out of a shared repo.
+// fixture below). Trust is gated on WORKLOAD cardinality, via
+// ownRepoWorkloadCount (the number of Workload nodes workloadRepoID DEFINES,
+// capped at ownRepoWorkloadCountProbeLimit -- see
+// countWorkloadsDefinedByRepo): when workloadRepoID defines exactly one
+// workload, that workload IS the one being traced, so every controller found
+// in that repo is unambiguously its controller, even when the controller's
+// own entity name or path (e.g. an ArgoCD Application named after the app it
+// deploys, not after the config repo that hosts it) does not textually
+// contain the service name (#5471 defect A).
+//
+// ownRepoWorkloadCount is deliberately NOT how many controller ENTITIES are
+// indexed in workloadRepoID -- an earlier version of this gate counted
+// controllers instead of workloads and was itself a reachable leak (#5471
+// review round 3 P0): a shared repo can define workloads A and B while only
+// B's controller has been indexed so far (ordinary partial discovery, not a
+// data error), so a controller-count of 1 does not prove there is only one
+// workload the lone indexed controller could belong to. Tracing A against
+// that repo must still fall back to the service-name-token match below and
+// correctly reject B's controller. When workloadRepoID defines two or more
+// workloads, every controller found there -- including ones token-matching
+// nothing -- falls back to the same service-name-token match required for
+// controllers named only by deploymentSources (a shared multi-service GitOps
+// repo), so tracing service A can never pull service B's controller out of a
+// shared repo, whether or not A's own controller happens to be indexed yet.
 func selectRelevantDeploymentSourceControllers(
 	serviceName string,
 	workloadRepoID string,
+	ownRepoWorkloadCount int,
 	deploymentSources []map[string]any,
 	entities []EntityContent,
 ) []map[string]any {
@@ -84,7 +96,7 @@ func selectRelevantDeploymentSourceControllers(
 		repoIDs[workloadRepoID] = struct{}{}
 	}
 
-	trustOwnRepo := workloadRepoID != "" && countControllerEntitiesInRepo(entities, workloadRepoID) == 1
+	trustOwnRepo := workloadRepoID != "" && ownRepoWorkloadCount == 1
 
 	serviceToken := normalizedDeploymentTraceMatch(serviceName)
 	filtered := make([]map[string]any, 0, len(entities))
@@ -103,23 +115,6 @@ func selectRelevantDeploymentSourceControllers(
 	}
 	sortDeploymentTraceMaps(filtered)
 	return filtered
-}
-
-// countControllerEntitiesInRepo counts entities of a GitOps controller type
-// (controllerEntityTypes) scoped to one repo, used to decide whether that
-// repo's controller(s) are structurally unambiguous (see
-// selectRelevantDeploymentSourceControllers).
-func countControllerEntitiesInRepo(entities []EntityContent, repoID string) int {
-	count := 0
-	for _, entity := range entities {
-		if entity.RepoID != repoID {
-			continue
-		}
-		if _, ok := controllerEntityTypes[entity.EntityType]; ok {
-			count++
-		}
-	}
-	return count
 }
 
 func collectDeploymentSourceK8sResources(

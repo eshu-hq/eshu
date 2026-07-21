@@ -111,7 +111,26 @@ func (h *ImpactHandler) fetchDeploymentSourceGitOpsResult(
 		entities = append(entities, rows...)
 	}
 
-	observedControllers := selectRelevantDeploymentSourceControllers(serviceName, workloadRepoID, deploymentSources, entities)
+	// #5471 review round 3 P0: own-repo controller trust is gated on
+	// WORKLOAD cardinality, not on how many controller entities happen to be
+	// indexed for workloadRepoID (see selectRelevantDeploymentSourceControllers).
+	// A controller-count-only gate is reachable-leak: a shared app-of-apps
+	// repo can define workloads A and B while only B's controller has been
+	// indexed so far (ordinary partial discovery, nothing requires both to be
+	// indexed atomically) -- tracing A would see countControllerEntitiesInRepo
+	// == 1 and wrongly trust B's controller. Counting DEFINES-edge workloads
+	// instead asks the right question: does this repo define more than one
+	// workload at all, independent of how much of its content has been
+	// indexed. A query error fails closed to ownRepoWorkloadCount == 0 (never
+	// trusted), mirroring fetchWorkloadLiveEvidence's fail-closed convention.
+	ownRepoWorkloadCount := 0
+	if workloadRepoID != "" {
+		if count, err := countWorkloadsDefinedByRepo(ctx, h.Neo4j, workloadRepoID); err == nil {
+			ownRepoWorkloadCount = count
+		}
+	}
+
+	observedControllers := selectRelevantDeploymentSourceControllers(serviceName, workloadRepoID, ownRepoWorkloadCount, deploymentSources, entities)
 	controllers, controllersTruncated := capMapRows(observedControllers, serviceStoryItemLimit)
 	k8sResources, imageRefs := collectDeploymentSourceK8sResources(controllers, entities)
 	controllerObservedCountIsLowerBound := observedCountIsLowerBound
@@ -131,6 +150,36 @@ func (h *ImpactHandler) fetchDeploymentSourceGitOpsResult(
 		k8sObservedCountIsLowerBound: controllerTruncated,
 		k8sResources:                 k8sResources,
 	}, nil
+}
+
+// ownRepoWorkloadCountProbeLimit bounds the DEFINES-edge workload-count probe
+// countWorkloadsDefinedByRepo runs. The caller only needs to distinguish
+// "exactly one" workload from "zero" or "more than one", so LIMIT 2 is
+// sufficient and keeps the probe O(1) regardless of how many workloads a
+// repository actually defines.
+const ownRepoWorkloadCountProbeLimit = 2
+
+// countWorkloadsDefinedByRepo returns how many Workload nodes the repository
+// DEFINES, capped at ownRepoWorkloadCountProbeLimit. It answers "does this
+// repo define more than one workload" for
+// selectRelevantDeploymentSourceControllers' own-repo trust gate (#5471
+// review round 3 P0) -- a question about workload OWNERSHIP cardinality, not
+// about how much of the repo's content has been indexed. Nil-safe: returns 0
+// when the graph reader or repoID is unset, matching the graceful-degrade
+// convention the rest of this file follows (e.g. fetchWorkloadLiveEvidence).
+func countWorkloadsDefinedByRepo(ctx context.Context, graph GraphQuery, repoID string) (int, error) {
+	if graph == nil || strings.TrimSpace(repoID) == "" {
+		return 0, nil
+	}
+	rows, err := graph.Run(ctx, `
+		MATCH (r:Repository {id: $repo_id})-[:DEFINES]->(w:Workload)
+		RETURN DISTINCT w.id as workload_id
+		LIMIT $limit
+	`, map[string]any{"repo_id": repoID, "limit": ownRepoWorkloadCountProbeLimit})
+	if err != nil {
+		return 0, err
+	}
+	return len(rows), nil
 }
 
 func buildControllerOverview(

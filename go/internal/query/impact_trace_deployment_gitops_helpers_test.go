@@ -62,7 +62,7 @@ func TestSelectRelevantDeploymentSourceControllersFiltersToServiceScopedArgoCDRo
 		},
 	}
 
-	got := selectRelevantDeploymentSourceControllers("sample-service-api", "", deploymentSources, entities)
+	got := selectRelevantDeploymentSourceControllers("sample-service-api", "", 0, deploymentSources, entities)
 	if len(got) != 2 {
 		t.Fatalf("len(selectRelevantDeploymentSourceControllers()) = %d, want 2", len(got))
 	}
@@ -105,21 +105,22 @@ func TestSelectRelevantDeploymentSourceControllersDoesNotFallBackToUnrelatedCont
 		},
 	}}
 
-	got := selectRelevantDeploymentSourceControllers("orders-api", "", deploymentSources, entities)
+	got := selectRelevantDeploymentSourceControllers("orders-api", "", 0, deploymentSources, entities)
 	if len(got) != 0 {
 		t.Fatalf("selected unrelated controllers = %#v, want none", got)
 	}
 }
 
-// TestSelectRelevantDeploymentSourceControllersTrustsUnambiguousOwnRepoController
+// TestSelectRelevantDeploymentSourceControllersTrustsSoleWorkloadOwnRepoController
 // models the deployable-config fixture (#5471 defect A): the traced
-// workload's own repo (workloadRepoID) hosts exactly one GitOps controller,
-// and that controller's own entity name/path names the DEPLOYED APP
+// workload's own repo (workloadRepoID) DEFINES exactly one workload
+// (ownRepoWorkloadCount=1 -- deployable-config itself), and its lone GitOps
+// controller's own entity name/path names the DEPLOYED APP
 // ("deployable-source") rather than the config repo/workload being traced
 // ("deployable-config") -- the service-name-token match can never pass for
-// it. Because it is the ONLY controller in that repo, there is no other
-// candidate it could be confused with, so it must still be selected.
-func TestSelectRelevantDeploymentSourceControllersTrustsUnambiguousOwnRepoController(t *testing.T) {
+// it. Because the repo defines only one workload, that workload IS the one
+// being traced, so its controller must still be selected.
+func TestSelectRelevantDeploymentSourceControllersTrustsSoleWorkloadOwnRepoController(t *testing.T) {
 	t.Parallel()
 
 	// deploymentSources names a DIFFERENT repo (the application's
@@ -142,25 +143,28 @@ func TestSelectRelevantDeploymentSourceControllersTrustsUnambiguousOwnRepoContro
 		},
 	}}
 
-	got := selectRelevantDeploymentSourceControllers("deployable-config", "repository:deployable-config", deploymentSources, entities)
+	got := selectRelevantDeploymentSourceControllers("deployable-config", "repository:deployable-config", 1, deploymentSources, entities)
 	if len(got) != 1 {
-		t.Fatalf("len(selectRelevantDeploymentSourceControllers()) = %d, want 1 (unambiguous own-repo controller): %#v", len(got), got)
+		t.Fatalf("len(selectRelevantDeploymentSourceControllers()) = %d, want 1 (sole-workload own-repo controller): %#v", len(got), got)
 	}
 	if got, want := StringVal(got[0], "entity_id"), "argocd-app-1"; got != want {
 		t.Fatalf("selected controller id = %q, want %q", got, want)
 	}
 }
 
-// TestSelectRelevantDeploymentSourceControllersRequiresTokenMatchWhenOwnRepoHostsMultipleControllers
-// is the P0 regression test for #5471 review round 2: a GitOps config repo
+// TestSelectRelevantDeploymentSourceControllersRequiresTokenMatchWhenOwnRepoDefinesMultipleWorkloadsAndBothControllersIndexed
+// is a P0 regression test for #5471 review round 2: a GitOps config repo
 // used as the traced workload's own repo can be an app-of-apps monorepo
-// hosting MANY services' ArgoCD Applications (the repo-helm fixture's shape,
-// reused here as workloadRepoID). Tracing "sample-service-api" must select
-// ONLY its own controller and must NEVER pull "payments-api"'s controller
-// into the response merely because both live in the traced workload's own
-// repo -- that would leak payments-api's k8s_resources/image_refs into
-// sample-service-api's deployment-truth-tier evidence.
-func TestSelectRelevantDeploymentSourceControllersRequiresTokenMatchWhenOwnRepoHostsMultipleControllers(t *testing.T) {
+// DEFINING MANY workloads, each with its own ArgoCD Application (the
+// repo-helm fixture's shape, reused here as workloadRepoID;
+// ownRepoWorkloadCount=2 reflects that both sample-service-api and
+// payments-api are DEFINES'd by this repo). Tracing "sample-service-api"
+// must select ONLY its own controller and must NEVER pull "payments-api"'s
+// controller into the response merely because both live in the traced
+// workload's own repo -- that would leak payments-api's
+// k8s_resources/image_refs into sample-service-api's deployment-truth-tier
+// evidence.
+func TestSelectRelevantDeploymentSourceControllersRequiresTokenMatchWhenOwnRepoDefinesMultipleWorkloadsAndBothControllersIndexed(t *testing.T) {
 	t.Parallel()
 
 	entities := []EntityContent{
@@ -186,12 +190,50 @@ func TestSelectRelevantDeploymentSourceControllersRequiresTokenMatchWhenOwnRepoH
 		},
 	}
 
-	got := selectRelevantDeploymentSourceControllers("sample-service-api", "repo-helm", nil, entities)
+	got := selectRelevantDeploymentSourceControllers("sample-service-api", "repo-helm", 2, nil, entities)
 	if len(got) != 1 {
-		t.Fatalf("len(selectRelevantDeploymentSourceControllers()) = %d, want 1 (own repo hosts 2 controllers -> token match required): %#v", len(got), got)
+		t.Fatalf("len(selectRelevantDeploymentSourceControllers()) = %d, want 1 (own repo defines 2 workloads -> token match required): %#v", len(got), got)
 	}
 	if got, want := StringVal(got[0], "entity_id"), "app-1"; got != want {
 		t.Fatalf("selected controller id = %q, want %q (payments-api's controller must not leak)", got, want)
+	}
+}
+
+// TestSelectRelevantDeploymentSourceControllersRequiresTokenMatchWhenOwnRepoDefinesMultipleWorkloadsButOnlyOtherControllerIndexed
+// is the P0 regression test for #5471 review round 3: the round-2 fix gated
+// own-repo trust on countControllerEntitiesInRepo == 1, which conflated
+// controller-entity uniqueness with workload OWNERSHIP uniqueness. A shared
+// app-of-apps repo can DEFINE workloads A ("sample-service-api") and B
+// ("payments-api") while ONLY B's controller has been indexed so far --
+// ordinary partial discovery, nothing requires both workloads' controllers to
+// be indexed atomically. Tracing A against that repo must still see
+// ownRepoWorkloadCount=2 (the repo defines two workloads, independent of how
+// many controller entities are indexed) and fall back to the service-name
+// token match, which correctly rejects B's controller for A's trace. RED
+// under a controller-count==1 gate (which would wrongly trust B's
+// controller solely because it is the only one indexed); GREEN under the
+// workload-count gate.
+func TestSelectRelevantDeploymentSourceControllersRequiresTokenMatchWhenOwnRepoDefinesMultipleWorkloadsButOnlyOtherControllerIndexed(t *testing.T) {
+	t.Parallel()
+
+	// Only payments-api's controller is indexed; sample-service-api's own
+	// controller has not been discovered/indexed yet.
+	entities := []EntityContent{
+		{
+			EntityID:     "payments-app",
+			RepoID:       "repo-helm",
+			RelativePath: "services/payments-api/argocd/application.yaml",
+			EntityType:   "ArgoCDApplication",
+			EntityName:   "payments-api",
+			Metadata: map[string]any{
+				"source_path": "services/payments-api/overlays/prod",
+			},
+		},
+	}
+
+	got := selectRelevantDeploymentSourceControllers("sample-service-api", "repo-helm", 2, nil, entities)
+	if len(got) != 0 {
+		t.Fatalf("selectRelevantDeploymentSourceControllers() = %#v, want none (payments-api's controller must not leak into sample-service-api's trace merely because it is the only controller indexed in their shared repo)", got)
 	}
 }
 
@@ -225,7 +267,7 @@ func TestSelectRelevantDeploymentSourceControllersRejectsShortNameCollisions(t *
 		},
 	}
 
-	got := selectRelevantDeploymentSourceControllers("api", "", deploymentSources, entities)
+	got := selectRelevantDeploymentSourceControllers("api", "", 0, deploymentSources, entities)
 	if len(got) != 1 {
 		t.Fatalf("len(selectRelevantDeploymentSourceControllers()) = %d, want 1: %#v", len(got), got)
 	}

@@ -190,6 +190,17 @@ func TestTraceDeploymentChainOwnRepoAppOfAposMonorepoDoesNotLeakOtherServiceEvid
 						"repo_name": "app-of-apps",
 					}}, nil
 				}
+				if strings.Contains(cypher, "DEFINES]->(w:Workload)") {
+					// The shared app-of-apps repo DEFINES two workloads
+					// (sample-service-api, payments-api). ownRepoWorkloadCount
+					// must come out to 2, not 1 -- own-repo trust must NOT
+					// apply here; only the service-name-token match may
+					// select a controller.
+					return []map[string]any{
+						{"workload_id": "workload:sample-service-api"},
+						{"workload_id": "workload:payments-api"},
+					}, nil
+				}
 				return nil, nil
 			},
 		},
@@ -225,6 +236,116 @@ func TestTraceDeploymentChainOwnRepoAppOfAposMonorepoDoesNotLeakOtherServiceEvid
 		if StringVal(resource, "entity_name") == "payments-api" {
 			t.Fatalf("k8s_resources = %#v, payments-api's Deployment leaked from the shared app-of-apps repo", k8sResources)
 		}
+	}
+}
+
+// TestTraceDeploymentChainOwnRepoPartialControllerDiscoveryDoesNotLeakOtherWorkloadEvidence
+// is the full-trace-path regression test for #5471 review round 3 P0: the
+// round-2 fix gated own-repo trust on countControllerEntitiesInRepo == 1,
+// which conflated controller-entity uniqueness with workload OWNERSHIP
+// uniqueness. This models the reachable leak the round-3 review named: the
+// traced workload's own repo (ctx["repo_id"] -> workloadRepoID) DEFINES TWO
+// workloads (sample-service-api, payments-api), but ONLY payments-api's
+// ArgoCD Application/Deployment have been indexed so far -- ordinary partial
+// discovery, nothing requires both workloads' controllers to be indexed
+// atomically. Under a controller-count gate this looks like "exactly one
+// controller in my own repo" and would be wrongly trusted; under the
+// workload-count gate (ownRepoWorkloadCount=2, from the DEFINES query) it
+// must NOT be trusted, so payments-api's Deployment/image_ref must never
+// appear in sample-service-api's trace and sample-service-api must not be
+// wrongly promoted to runtime_confirmed on payments-api's evidence.
+func TestTraceDeploymentChainOwnRepoPartialControllerDiscoveryDoesNotLeakOtherWorkloadEvidence(t *testing.T) {
+	t.Parallel()
+
+	workload := map[string]any{
+		"id":        "workload:sample-service-api",
+		"name":      "sample-service-api",
+		"kind":      "service",
+		"repo_id":   "repository:app-of-apps",
+		"repo_name": "app-of-apps",
+		"instances": []any{},
+	}
+	// Only payments-api's controller and Deployment are indexed;
+	// sample-service-api's own controller has not been discovered yet.
+	entities := []EntityContent{
+		{
+			EntityID:     "payments-app",
+			RepoID:       "repository:app-of-apps",
+			RelativePath: "services/payments-api/argocd/application.yaml",
+			EntityType:   "ArgoCDApplication",
+			EntityName:   "payments-api",
+			Metadata: map[string]any{
+				"source_path": "services/payments-api/overlays/prod",
+			},
+		},
+		{
+			EntityID:     "payments-deploy",
+			RepoID:       "repository:app-of-apps",
+			RelativePath: "services/payments-api/overlays/prod/deployment.yaml",
+			EntityType:   "K8sResource",
+			EntityName:   "payments-api",
+			Metadata: map[string]any{
+				"kind":             "Deployment",
+				"container_images": []any{"registry.example/payments-api:9.9.9"},
+			},
+		},
+	}
+	handler := &ImpactHandler{
+		Neo4j: fakeWorkloadGraphReader{
+			runSingleByMatch: map[string]map[string]any{
+				"w.name = $service_name": workload,
+				"w.id = $workload_id":    workload,
+			},
+			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+				if strings.Contains(cypher, "DEFINES]-(r:Repository)") {
+					return []map[string]any{{
+						"repo_id":   "repository:app-of-apps",
+						"repo_name": "app-of-apps",
+					}}, nil
+				}
+				if strings.Contains(cypher, "DEFINES]->(w:Workload)") {
+					return []map[string]any{
+						{"workload_id": "workload:sample-service-api"},
+						{"workload_id": "workload:payments-api"},
+					}, nil
+				}
+				return nil, nil
+			},
+		},
+		Content: &recordingDeploymentSourceGitOpsContentStore{rows: entities},
+	}
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/impact/trace-deployment-chain",
+		strings.NewReader(`{"service_name":"sample-service-api"}`),
+	)
+	w := httptest.NewRecorder()
+
+	handler.traceDeploymentChain(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("traceDeploymentChain status = %d, body = %s", w.Code, w.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode trace response: %v", err)
+	}
+
+	imageRefs := StringSliceVal(body, "image_refs")
+	if slicesContains(imageRefs, "registry.example/payments-api:9.9.9") {
+		t.Fatalf("image_refs = %#v, payments-api's image_ref leaked into sample-service-api's trace merely because it was the only controller indexed in their shared repo", imageRefs)
+	}
+
+	k8sResources := mapSliceValue(body, "k8s_resources")
+	for _, resource := range k8sResources {
+		if StringVal(resource, "entity_name") == "payments-api" {
+			t.Fatalf("k8s_resources = %#v, payments-api's Deployment leaked into sample-service-api's trace", k8sResources)
+		}
+	}
+
+	summary := mapValue(body, "deployment_fact_summary")
+	if got, want := StringVal(summary, "deployment_truth_tier"), "runtime_confirmed"; got == want {
+		t.Fatalf("deployment_fact_summary.deployment_truth_tier = %q, sample-service-api must not be wrongly promoted using payments-api's evidence", got)
 	}
 }
 
