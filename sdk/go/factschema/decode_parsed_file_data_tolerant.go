@@ -37,7 +37,7 @@ import (
 // bucket." Issue #5445 finding 2: a producer regression that starts emitting
 // a malformed element for one bucket would silently degrade that bucket's
 // evidence to zero with no operator signal. When at least one element is
-// skipped, this helper emits one slog.Debug record naming the decoded
+// skipped, this helper emits one slog.Warn record naming the decoded
 // element type, the total element count, and the skipped count, so an
 // operator grepping logs (or a future metric reader) can tell "zero rows,
 // evaluated" apart from "zero rows, quietly dropped." The common

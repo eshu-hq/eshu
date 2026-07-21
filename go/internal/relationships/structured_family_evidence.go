@@ -292,6 +292,13 @@ func tupleCSVValues(value any) []string {
 		for index, part := range parts {
 			values[index] = strings.TrimSpace(part)
 		}
+	// DEAD as of #5445 slice 1: every caller now passes a typed string field
+	// (ArgoCDApplication.SourceRepos etc.), decode-enforced by assignField's
+	// reflect.String case, so only the string case above executes. These two
+	// branches are retained deliberately, not as a live safety net -- do not
+	// rely on them handling a []string or []any value, because a value of that
+	// shape can no longer reach this function. Removal is tracked as follow-up;
+	// see the doc comment on argoApplicationSourceRefs.
 	case []string:
 		values = make([]string, len(typed))
 		for index, part := range typed {
