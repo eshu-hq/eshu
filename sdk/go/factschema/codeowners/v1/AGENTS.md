@@ -5,11 +5,14 @@ This directory is part of the public
 schema-version-1 typed payload struct for the `codeowners` fact family's one
 kind: `Ownership`. It must remain independent from Eshu internals.
 
-This package is Phase 1 of issue #5419's branch-aware CODEOWNERS ingestion
-epic (#5415): the contract only. No collector emits `codeowners.ownership`
-yet, and no reducer or query handler decodes it yet — those land in later
-phases of the same issue. Do NOT add a collector, reducer wiring, or read
-surface here; that is out of this package's scope until its phase lands.
+This package is the `codeowners.ownership` payload contract for issue #5419's
+branch-aware CODEOWNERS ingestion (epic #5415). The collector
+(`go/internal/collector`), reducer materializer (`go/internal/reducer`), and
+query/MCP read surface (`go/internal/query`, `go/internal/mcp`) now emit,
+project, and serve this fact kind — but that runtime wiring lives in those
+`go/internal/...` packages, never here. This SDK package stays the standalone
+payload contract only: do NOT add a collector, reducer wiring, or read surface
+in this directory (it would also break the module-independence rule below).
 
 ## Required Checks
 
