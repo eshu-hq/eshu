@@ -248,6 +248,22 @@ func loadRealConsumerEvidence(repoRoot string) (realConsumerEvidence, error) {
 		return realConsumerEvidence{}, err
 	}
 
+	postgresReaderKinds, err := postgresPayloadReaderKinds(filepath.Join(repoRoot, "go/internal/storage/postgres"), factsConstValues)
+	if err != nil {
+		return realConsumerEvidence{}, err
+	}
+	for kind := range postgresReaderKinds {
+		dispatchKinds[kind] = true
+	}
+
+	pqArrayKinds, err := pqArraySliceFactKinds(filepath.Join(repoRoot, realConsumerRawSQLDir))
+	if err != nil {
+		return realConsumerEvidence{}, err
+	}
+	for kind := range pqArrayKinds {
+		rawSQLKinds[kind] = true
+	}
+
 	return realConsumerEvidence{decodeSeamKinds: seamKinds, rawSQLKinds: rawSQLKinds, dispatchKinds: dispatchKinds}, nil
 }
 

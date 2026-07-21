@@ -265,7 +265,7 @@ package test. No separate workflow.
 fact kind in the generated registry (`facts.FactKindRegistry()`) and asserting
 each kind either has a detectable consumer or an explicit disclosure entry.
 
-### Consumer taxonomy (v2, #5474 signal rebuild)
+### Consumer taxonomy (v3, #5474 signal rebuild round 2)
 
 v1 of this gate treated `PayloadSchema` non-empty (a checked-in JSON Schema
 file *path*) and a fully-populated `ReducerDomain`/`ProjectionHook`/
@@ -294,9 +294,14 @@ of these:
    `terraform_state_candidate`, does NOT count; that precedent comes from
    `package_registry.vulnerability_hint`'s own disclosure reason,
    "join-key-only ... no decode, no query read-model consumer").
-4. **Reducer dispatch** — a `case facts.<Kind>:` or `== facts.<Kind>`
-   equality dispatch on the raw envelope kind, scoped to
-   `go/internal/reducer` only (never the projector — see
+4. **Reducer dispatch** — a `case facts.<Kind>:`, `== facts.<Kind>`, or
+   `!= facts.<Kind>` (round 2: the `!=`/"skip-unless-this-kind" idiom,
+   `if envelope.FactKind != facts.<Kind>FactKind { continue }`, is extremely
+   common — ~50 occurrences in `go/internal/reducer` alone — and was missing
+   from round 1's `token.EQL`-only match; it is what
+   `go/internal/reducer/package_source_correlation.go:98` uses to consume
+   `package_registry.source_hint`) dispatch on the raw envelope kind, scoped
+   to `go/internal/reducer` only (never the projector — see
    `factsDispatchedKinds`'s doc comment for why
    `go/internal/projector/runtime_phase.go`'s readiness-phase-tracking
    dispatch on `terraform_state_warning` must not count as consumption).
@@ -307,9 +312,31 @@ of these:
    sibling of signal 3, for kinds like `reducer_multi_cloud_runtime_drift_finding`
    whose Store binds `fact.fact_kind = $1` to a locally named constant
    instead of a literal).
-6. **Disclosure ledger** — the kind is pinned in
+6. **storage/postgres raw-JSON payload reader** (round 2,
+   `postgresPayloadReaderKinds`) — a function in `go/internal/storage/postgres`
+   whose body BOTH compares a fact kind against `facts.<Kind>FactKind`
+   (`==` or `!=`, no locally-declared const) AND reads a payload field in
+   that same function (`json.Unmarshal`, or an index expression on an
+   identifier/selector named like `payload`/`decoded`). The payload-read
+   requirement is what distinguishes this from the projector's readiness
+   bookkeeping (signal 4's exclusion): a bare kind comparison with no field
+   extraction does not count. `azure_identity_observation` and
+   `azure_resource_change` (`cloud_identity_policy_evidence.go:85`,
+   `cloud_resource_change_evidence.go:90`) are the concrete round-2 cases.
+7. **`pq.Array`-bound fact-kind slice** (round 2, `pqArraySliceFactKinds`) —
+   a package-level `<name> = []string{"a", "b", ...}` declaration in
+   `go/internal/query` that is passed as `pq.Array(<name>)` into a live
+   query — the parameterized sibling of signal 3's literal
+   `fact_kind = '<kind>'` match, for a `fact_kind = ANY($N::text[])` bind.
+   `vulnerability.source_snapshot`
+   (`supply_chain_impact_readiness_postgres_query.go:179`, feeding
+   `payload->>'source'` and similar reads into the readiness API response)
+   is the concrete round-2 case. Requiring the `pq.Array` call site (not mere
+   declaration) keeps a future dead `*FactKinds` slice from silently
+   counting as a consumer.
+8. **Disclosure ledger** — the kind is pinned in
    `grandfatheredUnconsumedKinds` with a code-anchor citation, AND none of
-   signals 1–5 fire for it (see "Disclosures are load-bearing" below).
+   signals 1–7 fire for it (see "Disclosures are load-bearing" below).
 
 ### Disclosures are load-bearing
 
@@ -345,16 +372,26 @@ Seed entries (from #5475):
 - Three `ci_cd_run` kinds (`ci.job`, `ci.pipeline_definition`, `ci.warning`) —
   emitted by collector, no reducer decode call (Wave 4d deferred).
 
-Backfill entries (from the #5474 signal rebuild, citing
-`noRealConsumerFound2026Q3`): 25 additional kinds the v1 gate passed only via
-the retired `PayloadSchema`/pipeline-consumer signals. Each was checked
-against all six v2 signals plus a manual repo-wide grep and found to have no
-real consumer. See `docs/internal/design/5474-ifa-coverage-backfill-plan.md`
-(agent-internal, not part of this published site) for the tracked backfill
-plan; these 25 kinds still need either a real consumer wired up or a
-per-kind owner decision, and their disclosure reason is intentionally less
-specific than the #5475 seed entries' code-anchor citations — it documents a
-signal-accuracy stopgap, not a considered per-kind design decision.
+Backfill entries (from the #5474 signal rebuild): 21 additional kinds the v1
+gate passed only via the retired `PayloadSchema`/pipeline-consumer signals.
+Round 1 disclosed 25 kinds here under one shared, unfalsifiable reason
+(`noRealConsumerFound2026Q3`); a round-2 review found the detector at that
+time had blind spots (only `==`, never `!=`; no storage/postgres raw-JSON
+reader signal; no `pq.Array`-bound parameterized-query signal) and named 3
+wrongly-disclosed kinds, and re-verification found a 4th
+(`vulnerability.source_snapshot`). All four —
+`package_registry.source_hint`, `azure_identity_observation`,
+`azure_resource_change`, `vulnerability.source_snapshot` — are removed from
+this ledger; they pass via the new signals 6 and 7 above. Every remaining
+entry now carries its own falsifiable reason instead of the shared one: the
+exact `rg` commands run against every real-consumer-signal directory for
+both the kind's `facts.<Kind>FactKind` identifier and its wire-string
+literal, with the confirmed-empty result — matching the #5475 seed entries'
+auditability standard. See
+`docs/internal/design/5474-ifa-coverage-backfill-plan.md` (agent-internal,
+not part of this published site) for the tracked backfill plan; these 21
+kinds still need either a real consumer wired up or a per-kind owner
+decision to remove them from the registry.
 
 ### Fail-closed enumeration
 
@@ -386,6 +423,19 @@ hand-rolled struct, and proves two RED cases the v1 signal missed:
 
 A third subtest confirms a genuinely consumed production kind (`aws_resource`,
 via its reducer decode seam) passes without any disclosure.
+
+`TestKindConsumerExistenceBITES_RoundTwoBlindSpots` is the round-2 companion:
+it seeds the four kinds round 1 wrongly disclosed
+(`package_registry.source_hint`, `azure_identity_observation`,
+`azure_resource_change`, `vulnerability.source_snapshot`) from the
+PRODUCTION registry and proves each is now detected as consumed via its
+specific round-2 signal (the `!=` dispatch, the storage/postgres payload
+reader, or the `pq.Array` slice signal), is no longer in the disclosure
+ledger, and — via `classifyKindConsumer`'s explicit parameters — would go RED
+under the contradiction check if it were still (wrongly) disclosed. Manually
+reverting the round-2 detector code and re-running this test reproduces the
+round-1 RED state: all four subtests, plus
+`TestEveryRegistryKindHasConsumerOrDisclosure`, fail.
 
 ### Mount
 

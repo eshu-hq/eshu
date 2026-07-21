@@ -8,25 +8,36 @@ import (
 	"fmt"
 )
 
-// noRealConsumerFound2026Q3 is the shared disclosure reason for the #5474 D2
-// signal-rebuild backfill: every entry citing it was checked against all
-// four real-consumption signals loadRealConsumerEvidence computes (decode
-// seam, direct factschema.Decode<Kind> call, query-layer literal fact_kind
-// SQL/identifier reference, reducer-level facts.<Kind> dispatch) plus a
-// manual repo-wide grep for the kind's wire string and its facts.<Kind>
-// constant outside go/internal/facts and go/internal/collector, and none
-// found a live consumer. These kinds previously passed the pre-#5474-fix D2
-// gate only because it treated a non-empty PayloadSchema path or a
-// fully-populated ReducerDomain/ProjectionHook/AdmissionHook triple as
-// consumption — both are registry metadata populated identically for
-// terraform_state_candidate (proven unconsumed by
-// go/internal/projector/tfstate_canonical.go:113-116), so neither is real
-// evidence. Each kind here needs its own real consumer (typed decode seam,
-// reducer dispatch, or query read model) or a per-kind owner decision to
-// remove it from the registry; this shared reason documents that the
-// disclosure is a stopgap from a signal-accuracy fix, not a considered
-// per-kind design decision the way the #5475 seed entries were.
-const noRealConsumerFound2026Q3 = "no decode seam, no literal fact_kind SQL predicate/identifier reference, and no facts.<Kind> reducer dispatch found repo-wide as of #5474's real-consumption signal (kind_real_consumer.go) — collector-emitted only; needs a real consumer or registry removal, owner TBD"
+// noRealConsumerFound2026Q3 documents the #5474 D2 signal-rebuild backfill's
+// auditability standard: round 1 disclosed 25 kinds under one shared,
+// unfalsifiable reason. A round-2 review found the detector at that time had
+// two blind spots — it only matched `== facts.<Kind>` (never
+// `!= facts.<Kind>`, the extremely common "skip-unless-this-kind" idiom) and
+// could not see raw-JSON storage/postgres readers or `pq.Array`-bound
+// `fact_kind = ANY($N)` queries with no locally-declared const — and named 3
+// kinds (a 4th, vulnerability.source_snapshot, surfaced during the round-2
+// re-verification this comment describes) that were wrongly disclosed
+// despite being genuinely, production-wired consumed:
+// package_registry.source_hint (go/internal/reducer/package_source_correlation.go:98),
+// azure_identity_observation (go/internal/storage/postgres/cloud_identity_policy_evidence.go:85),
+// azure_resource_change (go/internal/storage/postgres/cloud_resource_change_evidence.go:90),
+// and vulnerability.source_snapshot
+// (go/internal/query/supply_chain_impact_readiness_postgres_query.go:179).
+// All four are removed from this ledger (kind_real_consumer_dispatch.go now
+// matches token.NEQ; kind_real_consumer_postgres_reader.go and
+// kind_real_consumer_query_slice.go are the two round-2 additions that would
+// have caught them).
+//
+// Per the #5475 seed entries' auditability standard, every remaining entry
+// below now carries its own falsifiable reason: the exact `rg` command run
+// against every real-consumer-signal directory (go/internal/reducer,
+// go/internal/projector, go/internal/query, go/internal/storage/postgres,
+// go/internal/relationships), searching both the kind's facts.<Kind>FactKind
+// identifier and its wire string literal, with the confirmed-empty result.
+// A kind here still needs its own real consumer (typed decode seam, reducer
+// dispatch, or query read model) or a per-kind owner decision to remove it
+// from the registry — these are round-2-verified "no live consumer found",
+// not "not yet checked."
 
 // grandfatheredUnconsumedKind is the digest-pinned disclosure ledger for
 // fact kinds that are in the registry but have no real consumer today. It
@@ -64,11 +75,15 @@ const noRealConsumerFound2026Q3 = "no decode seam, no literal fact_kind SQL pred
 //   - ci.job, ci.pipeline_definition, ci.warning: emitted by collector but
 //     no reducer decode call today (Wave 4d intentionally deferred)
 //
-// Backfill entries (from #5474's real-consumption signal rebuild, all citing
-// noRealConsumerFound2026Q3): 25 additional kinds the pre-fix D2 gate passed
-// only via the toothless PayloadSchema/pipeline-consumer signals. See
+// Backfill entries (from #5474's real-consumption signal rebuild): 21
+// additional kinds the pre-fix D2 gate passed only via the toothless
+// PayloadSchema/pipeline-consumer signals, round-2-verified with per-kind
+// falsifiable evidence (see noRealConsumerFound2026Q3). Four kinds round 1
+// wrongly put here (package_registry.source_hint, azure_identity_observation,
+// azure_resource_change, vulnerability.source_snapshot) were removed once
+// round 2 found their real consumers. See
 // docs/internal/design/5474-ifa-coverage-backfill-plan.md for the tracked
-// backfill plan these kinds still need.
+// backfill plan the remaining 21 still need.
 var grandfatheredUnconsumedKinds = map[string]string{
 	// terraform_state family — projector/tfstate_canonical.go:104-106
 	"terraform_state_candidate":        "237d492637756acd33f62cbf1664ebdbad6cc83a464ee5a592c372dee36622ba",
@@ -95,32 +110,29 @@ var grandfatheredUnconsumedKinds = map[string]string{
 	"ci.pipeline_definition": "94e3e6d031de09f8a5f084ca448269cfef2c74cda9e22d64450ff70c8d390618",
 	"ci.warning":             "f7ae3d4ea5b7be1a1ac60c0b89b8a5711ed48c4ff6fae3774329ae0242d8d0e5",
 
-	// #5474 signal-rebuild backfill — see noRealConsumerFound2026Q3.
-	"aws_dns_record":                                  "03a734cc9bbabac931db4f1096e6aab2d0510ec865cbedbb2407950db3f038de",
-	"aws_iam_access_analyzer_finding":                 "5b1be1c7125859ab72c6dab2fa91632eef43d380d2a1a9a63e6395c34c0c4cab",
-	"aws_iam_instance_profile":                        "e7d79f2dd86610fcb0830bcbc8a2c4760ef4757f44bf923a35cedc4bf5c60b95",
-	"aws_tag_observation":                             "9b8fe24fef311f4a0f9e0e99095813d5cbe5038e88aa39f2e1b0396cdc6a35a8",
-	"aws_warning":                                     "d68bb5446a8889064b7c678543a03748d2d2eda086d17341a2e9d43591b4c70f",
-	"azure_collection_warning":                        "2e58111c160fcb3d44c514d27732963f6b9a768562b8864da3fa9bb718de3b50",
-	"azure_dns_record":                                "22236777f79f8c1678b9dd7fb9f4aa7c42d899acd741f9f931de6877af59f2b5",
-	"azure_identity_observation":                      "4671736d979e181b77194c3b3e59a6a3300ec72c1b2a59226a6acdda08ef7bce",
-	"azure_resource_change":                           "f96a8fa4777a2f34967a8f248cbdad9854d59318c7112f96c50a103f73f07737",
-	"gcp_collection_warning":                          "bbf565d90d04b725bae02510020911640f885dc38d68e11ab20e093381b7a476",
-	"gcp_dns_record":                                  "12dbebf967345587b2445c1be61ecc4fc6d80d545abb6cd337a8d80ee859dbb3",
-	"gcp_iam_policy_observation":                      "206c32f881790513041f9f6888819185d563a29860c459a9e75a0f9ce35a5237",
-	"incident_routing.applied_alert_route":            "f765c99aa527c86edefb84c7b6f9a5fb05ceb13a290184f2a1ec9641ea3c0365",
-	"incident_routing.observed_pagerduty_integration": "b203f56df44d3afc864c288c958a68b0aabd166d8d52fc980d67fa437c2383b3",
-	"k8s_rbac_binding":                                "6400a3e340377816fa39e03062ba488756b0d2d9272b180c00b810364897bd0c",
-	"k8s_rbac_role":                                   "6a158bc6270316acf67b6366f1647eb0c43465a7b9946c41bd2b5b874d8bc8e0",
-	"package_registry.package_artifact":               "ee272c183709b2c09d20a9f2053f6b44278a44f9f229c6ec823fc545c334d8a5",
-	"package_registry.registry_event":                 "34ea2e685c495e374d1aa5ea0073fad668c812401cf6e0cbeb91d88a6defdf68",
-	"package_registry.repository_hosting":             "1268632c083b22afb79d04399ef1ea8483bdf142460f5871c628a00c89023d75",
-	"package_registry.source_hint":                    "bcf797b1f488c1f444db311e4f78a0b6848c44061ea0cf82f29d45f65ece981c",
-	"vault_auth_mount":                                "d55a179b0d58824eba5c2566049124b82e8325a9cb89e61b4e3ded0211a5a9b2",
-	"vault_identity_alias":                            "84a1e8bd1704ebbaf654cb444df72f89e05152b6e939734400f00a43f5de75b2",
-	"vault_identity_entity":                           "cba170f378d3963e265630824ba3460e6c2553cb7802e5ce3b32431a0af230e1",
-	"vault_secret_engine_mount":                       "8061b276c4bafc6113a8d221d02ac891d11e2f7fc4ec74b94b9c381bf3f05433",
-	"vulnerability.source_snapshot":                   "71b3345b9d13a07bf01b546170fb810cbea4805f25be07059288db82dc3f6916",
+	// #5474 signal-rebuild backfill — round-2-verified, each with its own
+	// falsifiable rg-command evidence in kindDisclosureEntries below.
+	"aws_dns_record":                                  "1b053df313390f41e2c24b90be866942c7efac322d4493a64a3774989db1654b",
+	"aws_iam_access_analyzer_finding":                 "8267f1b1f99314ef295973497d36373fad7211b1c60abb140d71801285d5adf0",
+	"aws_iam_instance_profile":                        "c4302b9f5aa99163053fde7048a698be47db987d9f565a795b286524c10d520d",
+	"aws_tag_observation":                             "e149c53f64d163051885dde8bdfc670ef1ebe7c7b9df097ee87746a7b6973dd2",
+	"aws_warning":                                     "34b02986c03c2ab526ed7814edc1ee255e2c7ca6c6f86d53d633855a3b515f25",
+	"azure_collection_warning":                        "bbcc21157a215477b96e07f980c67f2379822e806a8e569a522d09ccf550144a",
+	"azure_dns_record":                                "f51d8e6dd4235cf3e5a46ee1da21b74cf7c2f298c274aa23179ae40af5d10597",
+	"gcp_collection_warning":                          "6f195acc2bea8448d03257bdf3f13867ca2f21563f8121a38d718b88173a64db",
+	"gcp_dns_record":                                  "3e2bcbf325b149581ef1d02bbc19618ba34e8199f9f8bb44004e76a50f1cff63",
+	"gcp_iam_policy_observation":                      "f4617527dd25265d8ef3b44e466c56416b0fbdb2160551f7954103a84e6a99c5",
+	"incident_routing.applied_alert_route":            "5f5c8e11a7ac1d6b863df90bebd01e31cf8140360cefed0e4ff4078dfbed434a",
+	"incident_routing.observed_pagerduty_integration": "af8343c4bae224b45d7e72fa66d00ca5c61e9272315e84c2d33f2e166fd8dfea",
+	"k8s_rbac_binding":                                "3c21a5404a9f56d283de9c756fa29d6e956e8e56f708dfde4cc44e619c90206d",
+	"k8s_rbac_role":                                   "2573747ed14d6c4278c5f93b07a3e82ec8f73dc74784da47d012586073e29ad0",
+	"package_registry.package_artifact":               "a69cf5b389a97ccba6011af05a69b15b068e61e77ee95eda599cb398d6ba44b5",
+	"package_registry.registry_event":                 "dc46aefb230f539feec68c4fd3531a50d5e331523baccfca33858ceda6ddfd73",
+	"package_registry.repository_hosting":             "e42b971c90d524571b3b3605a89ba5b3d955f957a6b392df157fa103eef24689",
+	"vault_auth_mount":                                "fc8cb7c193a71b33969618eac04aeb256ed2ecc84514067159d9dcc6f7368e78",
+	"vault_identity_alias":                            "d4764e55b34e45dee4023385fc8609119d44e55a3bfabcab6a48ef2fe8021767",
+	"vault_identity_entity":                           "738d59bc2a82269eeba3b28ed698fcd3315addd99d72855a10c1ce3ab497a02c",
+	"vault_secret_engine_mount":                       "8f7ca30ced8d2e2d219bc06ddd46d382ee19b58212c2354861f183df2e717ce5",
 }
 
 // kindDisclosureDigest computes the SHA-256 digest of the disclosure entry
@@ -184,32 +196,34 @@ var kindDisclosureEntries = []kindDisclosureEntry{
 	{Family: "ci_cd_run", Kind: "ci.pipeline_definition", Reason: "emitted by collector, no reducer decode (Wave 4d deferred)"},
 	{Family: "ci_cd_run", Kind: "ci.warning", Reason: "emitted by collector, no reducer decode (Wave 4d deferred)"},
 
-	// #5474 signal-rebuild backfill.
-	{Family: "aws_cloud_runtime_drift", Kind: "aws_dns_record", Reason: noRealConsumerFound2026Q3},
-	{Family: "secrets_iam_trust_chain", Kind: "aws_iam_access_analyzer_finding", Reason: noRealConsumerFound2026Q3},
-	{Family: "secrets_iam_trust_chain", Kind: "aws_iam_instance_profile", Reason: noRealConsumerFound2026Q3},
-	{Family: "aws_cloud_runtime_drift", Kind: "aws_tag_observation", Reason: noRealConsumerFound2026Q3},
-	{Family: "aws_cloud_runtime_drift", Kind: "aws_warning", Reason: noRealConsumerFound2026Q3},
-	{Family: "azure_resource_materialization", Kind: "azure_collection_warning", Reason: noRealConsumerFound2026Q3},
-	{Family: "azure_resource_materialization", Kind: "azure_dns_record", Reason: noRealConsumerFound2026Q3},
-	{Family: "azure_resource_materialization", Kind: "azure_identity_observation", Reason: noRealConsumerFound2026Q3},
-	{Family: "azure_resource_materialization", Kind: "azure_resource_change", Reason: noRealConsumerFound2026Q3},
-	{Family: "gcp_resource_materialization", Kind: "gcp_collection_warning", Reason: noRealConsumerFound2026Q3},
-	{Family: "gcp_resource_materialization", Kind: "gcp_dns_record", Reason: noRealConsumerFound2026Q3},
-	{Family: "gcp_resource_materialization", Kind: "gcp_iam_policy_observation", Reason: noRealConsumerFound2026Q3},
-	{Family: "incident_routing_materialization", Kind: "incident_routing.applied_alert_route", Reason: noRealConsumerFound2026Q3},
-	{Family: "incident_routing_materialization", Kind: "incident_routing.observed_pagerduty_integration", Reason: noRealConsumerFound2026Q3},
-	{Family: "secrets_iam_trust_chain", Kind: "k8s_rbac_binding", Reason: noRealConsumerFound2026Q3},
-	{Family: "secrets_iam_trust_chain", Kind: "k8s_rbac_role", Reason: noRealConsumerFound2026Q3},
-	{Family: "package_source_correlation", Kind: "package_registry.package_artifact", Reason: noRealConsumerFound2026Q3},
-	{Family: "package_source_correlation", Kind: "package_registry.registry_event", Reason: noRealConsumerFound2026Q3},
-	{Family: "package_source_correlation", Kind: "package_registry.repository_hosting", Reason: noRealConsumerFound2026Q3},
-	{Family: "package_source_correlation", Kind: "package_registry.source_hint", Reason: noRealConsumerFound2026Q3},
-	{Family: "secrets_iam_trust_chain", Kind: "vault_auth_mount", Reason: noRealConsumerFound2026Q3},
-	{Family: "secrets_iam_trust_chain", Kind: "vault_identity_alias", Reason: noRealConsumerFound2026Q3},
-	{Family: "secrets_iam_trust_chain", Kind: "vault_identity_entity", Reason: noRealConsumerFound2026Q3},
-	{Family: "secrets_iam_trust_chain", Kind: "vault_secret_engine_mount", Reason: noRealConsumerFound2026Q3},
-	{Family: "supply_chain_impact", Kind: "vulnerability.source_snapshot", Reason: noRealConsumerFound2026Q3},
+	// #5474 signal-rebuild backfill, round-2-verified. Each Reason is the
+	// exact `rg` commands run against every real-consumer-signal directory
+	// (go/internal/reducer, go/internal/projector, go/internal/query,
+	// go/internal/storage/postgres, go/internal/relationships) for both the
+	// kind's facts.<Kind>FactKind identifier and its wire-string literal,
+	// with the confirmed-empty result — independently falsifiable per kind,
+	// per noRealConsumerFound2026Q3's auditability standard.
+	{Family: "aws_cloud_runtime_drift", Kind: "aws_dns_record", Reason: "round-2 re-verify (2026-07-21): `rg -n \"AWSDNSRecordFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"aws_dns_record\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+	{Family: "secrets_iam_trust_chain", Kind: "aws_iam_access_analyzer_finding", Reason: "round-2 re-verify (2026-07-21): `rg -n \"AWSIAMAccessAnalyzerFindingFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"aws_iam_access_analyzer_finding\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+	{Family: "secrets_iam_trust_chain", Kind: "aws_iam_instance_profile", Reason: "round-2 re-verify (2026-07-21): `rg -n \"AWSIAMInstanceProfileFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"aws_iam_instance_profile\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger); the ONE wire-string hit outside those dirs — iamInstanceProfileRoleResourceTypeInstanceProfile in go/internal/reducer/iam_instance_profile_role_edge_rows.go and go/internal/projector/iam_instance_profile_role_materialization_intents.go — compares a decoded aws_resource struct's ResourceType FIELD against this literal, not the envelope FactKind; it does not consume the aws_iam_instance_profile fact kind"},
+	{Family: "aws_cloud_runtime_drift", Kind: "aws_tag_observation", Reason: "round-2 re-verify (2026-07-21): `rg -n \"AWSTagObservationFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"aws_tag_observation\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+	{Family: "aws_cloud_runtime_drift", Kind: "aws_warning", Reason: "round-2 re-verify (2026-07-21): `rg -n \"AWSWarningFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"aws_warning\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+	{Family: "azure_resource_materialization", Kind: "azure_collection_warning", Reason: "round-2 re-verify (2026-07-21): `rg -n \"AzureCollectionWarningFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"azure_collection_warning\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+	{Family: "azure_resource_materialization", Kind: "azure_dns_record", Reason: "round-2 re-verify (2026-07-21): `rg -n \"AzureDNSRecordFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"azure_dns_record\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+	{Family: "gcp_resource_materialization", Kind: "gcp_collection_warning", Reason: "round-2 re-verify (2026-07-21): `rg -n \"GCPCollectionWarningFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"gcp_collection_warning\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+	{Family: "gcp_resource_materialization", Kind: "gcp_dns_record", Reason: "round-2 re-verify (2026-07-21): `rg -n \"GCPDNSRecordFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"gcp_dns_record\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+	{Family: "gcp_resource_materialization", Kind: "gcp_iam_policy_observation", Reason: "round-2 re-verify (2026-07-21): `rg -n \"GCPIAMPolicyObservationFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"gcp_iam_policy_observation\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+	{Family: "incident_routing_materialization", Kind: "incident_routing.applied_alert_route", Reason: "round-2 re-verify (2026-07-21): `rg -n \"IncidentRoutingAppliedAlertRouteFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"incident_routing.applied_alert_route\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+	{Family: "incident_routing_materialization", Kind: "incident_routing.observed_pagerduty_integration", Reason: "round-2 re-verify (2026-07-21): `rg -n \"IncidentRoutingObservedPagerDutyIntegrationFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"incident_routing.observed_pagerduty_integration\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+	{Family: "secrets_iam_trust_chain", Kind: "k8s_rbac_binding", Reason: "round-2 re-verify (2026-07-21): `rg -n \"KubernetesRBACBindingFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"k8s_rbac_binding\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+	{Family: "secrets_iam_trust_chain", Kind: "k8s_rbac_role", Reason: "round-2 re-verify (2026-07-21): `rg -n \"KubernetesRBACRoleFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"k8s_rbac_role\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+	{Family: "package_source_correlation", Kind: "package_registry.package_artifact", Reason: "round-2 re-verify (2026-07-21): `rg -n \"PackageRegistryPackageArtifactFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"package_registry.package_artifact\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+	{Family: "package_source_correlation", Kind: "package_registry.registry_event", Reason: "round-2 re-verify (2026-07-21): `rg -n \"PackageRegistryRegistryEventFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"package_registry.registry_event\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+	{Family: "package_source_correlation", Kind: "package_registry.repository_hosting", Reason: "round-2 re-verify (2026-07-21): `rg -n \"PackageRegistryRepositoryHostingFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"package_registry.repository_hosting\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+	{Family: "secrets_iam_trust_chain", Kind: "vault_auth_mount", Reason: "round-2 re-verify (2026-07-21): `rg -n \"VaultAuthMountFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"vault_auth_mount\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+	{Family: "secrets_iam_trust_chain", Kind: "vault_identity_alias", Reason: "round-2 re-verify (2026-07-21): `rg -n \"VaultIdentityAliasFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"vault_identity_alias\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+	{Family: "secrets_iam_trust_chain", Kind: "vault_identity_entity", Reason: "round-2 re-verify (2026-07-21): `rg -n \"VaultIdentityEntityFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"vault_identity_entity\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+	{Family: "secrets_iam_trust_chain", Kind: "vault_secret_engine_mount", Reason: "round-2 re-verify (2026-07-21): `rg -n \"VaultSecretEngineMountFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"vault_secret_engine_mount\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
 }
 
 // isKindDisclosed returns true if kind is pinned in the disclosure ledger at

@@ -12,9 +12,23 @@ import (
 )
 
 // factsDispatchedKinds scans every non-test .go file under each dir in dirs
-// for a switch `case facts.<Kind>:` clause or an `== facts.<Kind>` /
-// `facts.<Kind> ==` equality comparison, and returns the set of wire
+// for a switch `case facts.<Kind>:` clause, an `== facts.<Kind>` /
+// `facts.<Kind> ==` equality comparison, or a `!= facts.<Kind>` /
+// `facts.<Kind> !=` inequality comparison, and returns the set of wire
 // fact-kind strings dispatched on, resolved through factsConstValues.
+//
+// The `!=` form is the "skip-unless-this-kind" idiom — round 2 of the #5474
+// review found ~50 occurrences of
+// `if envelope.FactKind != facts.<Kind>FactKind { continue }` (or `return
+// false`) in go/internal/reducer alone, immediately followed by real payload
+// field reads. go/internal/reducer/package_source_correlation.go:98's
+// `if envelope.FactKind != facts.PackageRegistrySourceHintFactKind {
+// continue }` — followed by payloadStr(envelope.Payload, "normalized_url")
+// and friends — is the concrete case that was missed when this scan only
+// matched token.EQL: package_registry.source_hint was wrongly disclosed as
+// unconsumed despite being read here and wired live through
+// BuildPackageSourceCorrelationDecisions
+// (package_source_correlation_handler.go:58,94, DomainPackageSourceCorrelation).
 //
 // This is the raw-envelope sibling of the decode-seam and direct-decode-call
 // signals: several reducer handlers switch on envelope.FactKind and process
@@ -81,7 +95,7 @@ func factsDispatchedKinds(dirs []string, factsConstValues map[string]string) (ma
 						}
 					}
 				case *ast.BinaryExpr:
-					if node.Op != token.EQL {
+					if node.Op != token.EQL && node.Op != token.NEQ {
 						return true
 					}
 					if wire, ok := factsSelectorWireKind(node.X, factsConstValues); ok {

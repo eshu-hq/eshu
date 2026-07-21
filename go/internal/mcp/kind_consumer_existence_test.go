@@ -214,6 +214,98 @@ func TestKindConsumerExistenceBITES_TeethProof(t *testing.T) {
 	})
 }
 
+// TestKindConsumerExistenceBITES_RoundTwoBlindSpots is the round-2 #5474
+// review's BITES proof. Round 1's detector only matched `== facts.<Kind>`
+// (token.EQL) dispatch and a locally-declared named string constant in
+// storage/postgres, missing two extremely common real-consumer shapes that
+// carry no such marker:
+//
+//  1. The "skip-unless-this-kind" idiom,
+//     `if envelope.FactKind != facts.<Kind>FactKind { continue }` (token.NEQ),
+//     immediately followed by real payload field reads — seeded here with
+//     the PRODUCTION package_registry.source_hint entry, consumed at
+//     go/internal/reducer/package_source_correlation.go:98.
+//  2. A raw-JSON storage/postgres reader that compares the fact kind
+//     directly against `facts.<Kind>FactKind` (no locally-declared const)
+//     and then json.Unmarshals the payload and reads specific fields —
+//     seeded with the PRODUCTION azure_identity_observation and
+//     azure_resource_change entries
+//     (cloud_identity_policy_evidence.go:85, cloud_resource_change_evidence.go:90).
+//
+// A third, independently-discovered blind spot during this round's
+// re-verification: a `pq.Array(<kind-list-var>)`-bound `fact_kind = ANY($N)`
+// parameterized query — seeded with the PRODUCTION vulnerability.source_snapshot
+// entry (supply_chain_impact_readiness_postgres_query.go:179, reading
+// payload->>'source' and friends).
+//
+// All four kinds were WRONGLY added to grandfatheredUnconsumedKinds in round
+// 1 because the detector at that time could not see any of these three
+// shapes. This test proves the round-2 detector (factsDispatchedKinds now
+// matching token.NEQ, postgresPayloadReaderKinds, and
+// pqArraySliceFactKinds) correctly classifies them CONSUMED, and that none
+// of the four remain in the disclosure ledger.
+func TestKindConsumerExistenceBITES_RoundTwoBlindSpots(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := kindConsumerGateRepoRoot(t)
+	real, err := loadRealConsumerEvidence(repoRoot)
+	if err != nil {
+		t.Fatalf("loadRealConsumerEvidence: %v", err)
+	}
+
+	cases := []struct {
+		kind   string
+		signal string
+	}{
+		{kind: "package_registry.source_hint", signal: "reducer != (skip-unless) dispatch"},
+		{kind: "azure_identity_observation", signal: "storage/postgres raw-JSON payload reader"},
+		{kind: "azure_resource_change", signal: "storage/postgres raw-JSON payload reader"},
+		{kind: "vulnerability.source_snapshot", signal: "pq.Array-bound fact_kind = ANY($N) query"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.kind, func(t *testing.T) {
+			entry, ok := facts.FactKindRegistryEntryFor(tc.kind)
+			if !ok {
+				t.Fatalf("production registry has no entry for %q", tc.kind)
+			}
+
+			// GREEN: the round-2 detector now reports a real consumer.
+			if !real.hasRealConsumer(entry.Kind) {
+				t.Fatalf("BITES FAILED: %q has no detected real consumer via %s — the round-2 detector regressed", tc.kind, tc.signal)
+			}
+
+			// The kind must NOT remain disclosed — it has a real consumer
+			// now, so a lingering disclosure would be a stale, contradictory
+			// entry (caught separately by resolveKindConsumer's contradiction
+			// check, proven below).
+			if isKindDisclosed(entry.Kind) {
+				t.Fatalf("%q still has a disclosure ledger entry after gaining a real consumer via %s — remove it from grandfatheredUnconsumedKinds and kindDisclosureEntries", tc.kind, tc.signal)
+			}
+
+			// Passes cleanly via the real consumer, no disclosure needed.
+			ok2, reason := resolveKindConsumer(factKindRegistryConsumerEvidence{
+				Kind: entry.Kind, ReducerDomain: entry.ReducerDomain, PayloadSchema: entry.PayloadSchema,
+				AdmissionExempt: entry.AdmissionExempt, ProjectionHook: entry.ProjectionHook, AdmissionHook: entry.AdmissionHook,
+			}, real)
+			if !ok2 {
+				t.Fatalf("%q should pass via its real consumer (%s), got RED: %s", tc.kind, tc.signal, reason)
+			}
+
+			// Contradiction proof: if this kind WERE still (wrongly)
+			// disclosed while having a real consumer, the gate must go RED —
+			// this is exactly the round-1 mistake this round fixes.
+			okContradiction, reasonContradiction := classifyKindConsumer(entry.Kind, entry.ReducerDomain, true /* hasConsumer */, true /* disclosed */, entry.AdmissionExempt)
+			if okContradiction {
+				t.Fatalf("BITES FAILED: %q simulated as both disclosed and consumed must be RED (stale disclosure)", tc.kind)
+			}
+			if !substrIn(reasonContradiction, "stale") {
+				t.Errorf("contradiction message doesn't name the stale-disclosure fix: %s", reasonContradiction)
+			}
+		})
+	}
+}
+
 // TestDisclosureLedgerDigestPinned verifies that every entry in
 // grandfatheredUnconsumedKinds has a matching source-of-truth entry in
 // kindDisclosureEntries. An entry in the ledger without a source-of-truth
