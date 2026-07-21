@@ -6,6 +6,7 @@ package capabilitycatalog
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -67,6 +68,47 @@ capabilities:
 	}
 	if first.Tools[0] != "find_code" {
 		t.Fatalf("tools = %v", first.Tools)
+	}
+}
+
+func TestLoadMatrixRejectsUnknownVerificationKind(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "capability-matrix.v1.yaml"), `
+capabilities:
+  - capability: code_search.exact_symbol
+    tools: [find_code]
+    profiles:
+      production: {status: supported, max_truth_level: exact, verification: [{smoke_test: some-ref}]}
+`)
+
+	_, err := LoadMatrix(dir)
+	if err == nil {
+		t.Fatal("LoadMatrix() error = nil, want unknown verification kind error")
+	}
+	if got := err.Error(); !strings.Contains(got, "smoke_test") {
+		t.Fatalf("LoadMatrix() error = %q, want it to name the unknown kind %q", got, "smoke_test")
+	}
+}
+
+func TestLoadMatrixAcceptsEveryAllowedVerificationKind(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "capability-matrix.v1.yaml"), `
+capabilities:
+  - capability: code_search.exact_symbol
+    tools: [find_code]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: exact, verification: [{go_test: ./internal/query}]}
+      local_authoritative: {status: supported, max_truth_level: exact, verification: [{integration_test: ./internal/query}]}
+      local_full_stack: {status: supported, max_truth_level: exact, verification: [{compose_e2e: some-scenario}]}
+      production: {status: supported, max_truth_level: exact, verification: [{remote_validation: prod-code-search-exact}]}
+`)
+
+	if _, err := LoadMatrix(dir); err != nil {
+		t.Fatalf("LoadMatrix() with every allowed verification kind: %v", err)
 	}
 }
 
