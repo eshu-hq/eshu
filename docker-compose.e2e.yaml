@@ -154,7 +154,18 @@ services:
         target: /data
         volume:
           nocopy: true
-      - ./apps/console/e2e/fixtures/oidc-static-config.json:/e2e/oidc-static-config.json:ro
+      # ESHU_E2E_OIDC_STATIC_CONFIG_PATH lets a sibling suite mount a variant
+      # of this fixture with a different redirect_url host port (F-9, issue
+      # #5170): the fixture's pc_e2e_admin_static provider hardcodes an
+      # ABSOLUTE http://127.0.0.1:<port>/eshu-api/... redirect_url (it must be
+      # absolute — see this file's mock-oidc-idp comment), so a suite whose
+      # dev server runs on a DIFFERENT port than #4971's fixed 5185 (this
+      # suite's own devServerPort is 5195, intentionally distinct so both
+      # suites can run concurrently — see runAuthMcpE2E.ts) needs its own
+      # fixture or the admin SSO login's final redirect hop 404s/connection-
+      # refuses against a port nothing listens on. Defaults to #4971's
+      # original path, byte-identical when unset.
+      - ${ESHU_E2E_OIDC_STATIC_CONFIG_PATH:-./apps/console/e2e/fixtures/oidc-static-config.json}:/e2e/oidc-static-config.json:ro
       - ./apps/console/e2e/fixtures/oidc-static-client-secret:/e2e/oidc-static-client-secret:ro
 
   # Synthetic OIDC Authorization Code IdP (go/cmd/mock-oidc-idp). Serves

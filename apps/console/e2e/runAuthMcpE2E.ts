@@ -37,7 +37,9 @@ import {
 import { startAuthE2EDevServer, stopAuthE2EDevServer, type AuthE2EDevServer } from "./authE2EDevServer.ts";
 import { assertFreshStackShowsSetupWizard, driveSetupWizard } from "./authE2ESetupWizard.ts";
 import { recordAuthE2EStep, type StepResult } from "./authE2EStepRecorder.ts";
-import { chromiumLaunchArgsWithGithub, runShapeC, type ShapeCContext } from "./authMcpE2EGithubFlow.ts";
+import { chromiumLaunchArgsWithGithub, runShapeC } from "./authMcpE2EGithubFlow.ts";
+import type { HostRewriteTable } from "./authMcpE2EOauthClient.ts";
+import { runShapeB, type ShapeBContext } from "./authMcpE2EShapeB.ts";
 import { runShapeA, type ShapeAContext } from "./authMcpE2ETokenFlow.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -107,6 +109,8 @@ export async function runAuthMcpE2E(): Promise<number> {
       return "SetupPage rendered on first navigation";
     });
 
+    let credentialUsername = "";
+    let breakglassRecoveryCode = "";
     await step("bootstrap_setup_wizard_completes", async () => {
       const retrieval = await retrieveInitialCredential(repoGoDir, postgresDSN, authSecretEncKey);
       if (retrieval.status !== "available" || !retrieval.credential) {
@@ -114,7 +118,8 @@ export async function runAuthMcpE2E(): Promise<number> {
           `eshu admin initial-credential unavailable on a fresh stack (${retrieval.failureReason ?? "credential_command_failed"})`,
         );
       }
-      await driveSetupWizard(
+      credentialUsername = retrieval.credential.username;
+      breakglassRecoveryCode = await driveSetupWizard(
         adminPage,
         retrieval.credential.username,
         retrieval.credential.password,
@@ -125,7 +130,18 @@ export async function runAuthMcpE2E(): Promise<number> {
       return `wizard completed as ${retrieval.credential.username}; dashboard reached`;
     });
 
-    const shapeCtx: ShapeCContext = {
+    // Maps the in-network Compose hostnames (only reachable from inside the
+    // stack's own network) to their host-published ports, for the scripted
+    // OAuth client's plain fetch() calls (Node has no --host-resolver-rules
+    // equivalent — see authMcpE2EOauthClient.ts's header comment). Mirrors
+    // chromiumLaunchArgsWithGithub's browser-side mapping exactly.
+    const hostRewrite: HostRewriteTable = {
+      "mock-oidc-idp:8080": `127.0.0.1:${mockOidcPort}`,
+      "mock-oidc-idp-admin:8080": `127.0.0.1:${mockOidcAdminPort}`,
+      "mock-github:8080": `127.0.0.1:${mockGithubPort}`,
+    };
+
+    const shapeCtx: ShapeBContext = {
       browser,
       baseUrl: devServer.baseUrl,
       mcpBase,
@@ -134,6 +150,11 @@ export async function runAuthMcpE2E(): Promise<number> {
       repoGoDir,
       project: composeProject,
       navTimeoutMs,
+      hostRewrite,
+      screenshotsDir,
+      credentialUsername,
+      wizardNewPassword,
+      breakglassRecoveryCode,
     };
 
     let personalToken = "";
@@ -142,6 +163,9 @@ export async function runAuthMcpE2E(): Promise<number> {
     }
     if (moduleSelected("shapeC")) {
       await runShapeC(step, adminPage, shapeCtx, personalToken);
+    }
+    if (moduleSelected("shapeB")) {
+      await runShapeB(step, adminPage, shapeCtx, personalToken);
     }
 
     const failed = results.filter((r) => r.status === "fail");

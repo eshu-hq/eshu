@@ -65,6 +65,13 @@ export ESHU_E2E_MCP_PORT="$mcp_port"
 export ESHU_E2E_MOCK_GITHUB_PORT="$mock_github_port"
 export ESHU_E2E_NORNICDB_HTTP_PORT="$nornicdb_http_port"
 export ESHU_E2E_NORNICDB_BOLT_PORT="$nornicdb_bolt_port"
+# This suite's dev server runs on devServerPort 5195 (runAuthMcpE2E.ts),
+# distinct from #4971's fixed 5185 -- the shared oidc-static-config.json
+# fixture's pc_e2e_admin_static provider hardcodes redirect_url to an
+# ABSOLUTE http://127.0.0.1:5185/... URL, so this suite needs its OWN
+# fixture variant with the matching port (docker-compose.e2e.yaml's
+# ESHU_E2E_OIDC_STATIC_CONFIG_PATH comment has the full story).
+export ESHU_E2E_OIDC_STATIC_CONFIG_PATH="./apps/console/e2e/fixtures/oidc-static-config-mcp-e2e.json"
 # This suite uses `up --build`, so it intentionally inherits the repository's
 # exact-source NornicDB default -- see run-auth-e2e.sh's identical comment.
 

@@ -6,6 +6,9 @@ package main
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -103,6 +106,17 @@ type authorizeRequest struct {
 	// /token call, matching how a real resource-indicator-aware client can
 	// carry the value on either or both requests.
 	Resource string
+	// CodeChallenge is the RFC 7636 PKCE code_challenge, when the /authorize
+	// call carried one (issue #5170: `eshu mcp setup`'s SSO snippets
+	// advertise Code+PKCE, so the scripted MCP OAuth client exercises a real
+	// S256 challenge/verifier round trip rather than skipping PKCE against
+	// the mock). Empty means this authorization was NOT PKCE-protected —
+	// handleToken then ignores any code_verifier the /token call sends,
+	// keeping every existing non-PKCE caller (including #4971's suite)
+	// byte-stable. Only "S256" is accepted as a challenge method (this mock
+	// never implements the deprecated "plain" method); handleAuthorize
+	// rejects any other value.
+	CodeChallenge string
 }
 
 // NewServer builds a Server ready to mount with Mux.
@@ -175,7 +189,7 @@ func (s *Server) handleDiscovery(w http.ResponseWriter, _ *http.Request) {
 		"id_token_signing_alg_values_supported": []string{"RS256"},
 		"scopes_supported":                      []string{"openid", "profile", "email", "groups"},
 		"claims_supported":                      []string{"sub", "email", s.groupClaim},
-		"code_challenge_methods_supported":      []string{},
+		"code_challenge_methods_supported":      []string{"S256"},
 		"token_endpoint_auth_methods_supported": []string{"client_secret_post", "client_secret_basic"},
 	})
 }
@@ -197,10 +211,17 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	codeChallenge := strings.TrimSpace(query.Get("code_challenge"))
+	if codeChallengeMethod := strings.TrimSpace(query.Get("code_challenge_method")); codeChallenge != "" && codeChallengeMethod != "S256" {
+		http.Error(w, "code_challenge_method must be S256", http.StatusBadRequest)
+		return
+	}
+
 	code := s.issueCode(authorizeRequest{
-		RedirectURI: redirectURI,
-		Nonce:       strings.TrimSpace(query.Get("nonce")),
-		Resource:    strings.TrimSpace(query.Get("resource")),
+		RedirectURI:   redirectURI,
+		Nonce:         strings.TrimSpace(query.Get("nonce")),
+		Resource:      strings.TrimSpace(query.Get("resource")),
+		CodeChallenge: codeChallenge,
 	})
 
 	callback := url.Values{"code": {code}}
@@ -233,6 +254,29 @@ func mergeQuery(existing string, add url.Values) string {
 		}
 	}
 	return values.Encode()
+}
+
+// verifyPKCE enforces RFC 7636 section 4.6: when the authorization that
+// issued this code carried a code_challenge, the matching /token call MUST
+// present the code_verifier it derives from, and it must actually hash
+// (S256) to that challenge. When codeChallenge is empty (the authorization
+// was not PKCE-protected), this is a no-op regardless of what code_verifier
+// carries — keeping every non-PKCE caller (#4971's suite included)
+// byte-stable. Uses constant-time comparison since this is a real secret
+// check, not decoration.
+func verifyPKCE(codeChallenge, codeVerifier string) error {
+	if codeChallenge == "" {
+		return nil
+	}
+	if codeVerifier == "" {
+		return fmt.Errorf("code_verifier is required: this authorization was made with a PKCE code_challenge")
+	}
+	sum := sha256.Sum256([]byte(codeVerifier))
+	computed := base64.RawURLEncoding.EncodeToString(sum[:])
+	if subtle.ConstantTimeCompare([]byte(computed), []byte(codeChallenge)) != 1 {
+		return fmt.Errorf("code_verifier does not match the code_challenge from /authorize")
+	}
+	return nil
 }
 
 // issueCode records req under a fresh random code and returns the code. The
@@ -283,6 +327,10 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 	}
 	if redirectURI := strings.TrimSpace(r.PostFormValue("redirect_uri")); redirectURI != "" && redirectURI != req.RedirectURI {
 		http.Error(w, "redirect_uri mismatch", http.StatusBadRequest)
+		return
+	}
+	if err := verifyPKCE(req.CodeChallenge, strings.TrimSpace(r.PostFormValue("code_verifier"))); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
