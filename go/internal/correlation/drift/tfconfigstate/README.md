@@ -341,4 +341,39 @@ are either unreachable with today's evidence or intentionally not persisted.
   both times — no config resource nodes were added, only the backend
   pointer changed). `testdata/golden/e2e-20repo-snapshot.json`'s
   `list_terraform_config_state_drift_findings` shape now asserts
-  `minimum_results: 1`, backed by that observed run.
+  `minimum_results: 1`, backed by that observed run. The sibling
+  `POST /api/v0/terraform/config-state-drift/findings` entry under
+  `query_shapes.http` was added later (issue #5442, replay-coverage-gate
+  P1 fix below) and independently proves the HTTP route itself, not just
+  the MCP tool that happens to call it internally.
+- **Why the MCP and HTTP query-shape entries read unwrapped
+  (`envelope` omitted, defaulting false), not why MCP happens to skip the
+  envelope header — it does not.** MCP dispatch sets
+  `Accept: application/eshu.envelope+json` on every HTTP call it makes,
+  unconditionally
+  (`go/internal/mcp/dispatch.go:65`); an earlier version of this note
+  claimed otherwise and was wrong. The real reason both this domain's
+  shapes assert unwrapped fields (`drift_findings`, `address`, `outcome`,
+  ...) directly at the top level, with no `data`/`truth`/`error` wrapper
+  in `required_response_fields`, is that the **gate harness** — not MCP
+  dispatch — controls whether the assertion sees the envelope or not:
+  `cmd/golden-corpus-gate/mcp.go:174` passes each shape's own
+  `shape.Envelope` field into `callTool`, which
+  `maybeUnwrapTruthEnvelope` (`cmd/golden-corpus-gate/mcp.go:130-135`)
+  uses to decide whether to strip the envelope before handing the body to
+  the assertion. The HTTP client side mirrors this independently:
+  `cmd/golden-corpus-gate/query.go:68` sends the envelope `Accept` header
+  on an HTTP query shape only when that shape's own `envelope` field is
+  `true`. So `envelope: true` vs. omitted is a per-`QueryShape` assertion
+  choice made when authoring the snapshot entry, unrelated to what MCP
+  dispatch or the API itself do at runtime — both AWS/cloud sibling HTTP
+  entries chose `envelope: true` (asserting the wrapped shape with
+  `required_json_values` dotted paths into `data.*`); this domain's two
+  entries chose the unwrapped form (asserting `minimum_results` directly
+  against the top-level array field, which the shared evaluator
+  `EvaluateQueryShape` can only count when the array is a top-level
+  required field — see `go/internal/goldengate/evaluate.go`'s "Locate the
+  first array-valued required field" comment). Anyone deciding whether a
+  *new* `query_shapes.http`/`query_shapes.mcp` entry should set
+  `envelope: true` should pick based on that trade-off, not on any
+  property of MCP dispatch itself.
