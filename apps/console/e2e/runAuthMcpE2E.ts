@@ -11,19 +11,21 @@
 //
 //   Shape A (token-only)   -> apps/console/e2e/authMcpE2ETokenFlow.ts
 //   Shape C (GitHub, next) -> apps/console/e2e/authMcpE2EGithubFlow.ts
-//   Shape B (OIDC, last)   -> apps/console/e2e/authMcpE2EOauthClient.ts /
-//                             authMcpE2EOidcFlow reuse
+//   Shape B (OIDC, last)   -> apps/console/e2e/authMcpE2EShapeB.ts +
+//                             authMcpE2EOauthClient.ts (scripted RFC 9728/PKCE)
+//   Negative-leakage       -> apps/console/e2e/authMcpE2ELeakage.ts (runs last)
 //
 // Phase order is load-bearing (design §1): A needs zero providers; C's
 // GitHub-only provider must NOT enable discovery (asserted before B's OIDC
-// provider does); B ends with the require_sso flip. Modules land in that
-// order across steps 4-6 of the work breakdown; this file only wires Shape A
-// for step 4 and gains the later calls (each its own commit) as they land.
+// provider does); B ends with the require_sso flip; the leakage module runs
+// last (it needs the OIDC provider active and both credential types).
 //
-// ESHU_E2E_MCP_MODULE selects a single module to run (currently only "shapeA"
-// is defined) — used by scripts/verify-auth-mcp-e2e-sensitivity.sh (step 8) to
-// re-run just the negative/challenge module against a mutated service without
-// paying for the full suite's wall time. Empty/unset runs every module.
+// ESHU_E2E_MCP_MODULE selects a single module to run — "shapeA", "shapeC",
+// "shapeB", or "leakage" (a lone module still needs the earlier shapes' state,
+// so this is mainly for iterative debugging), or the standalone
+// "credentialless" fast path (no browser/wizard) that
+// scripts/verify-auth-mcp-e2e-sensitivity.sh (step 8) drives against a mutated
+// mcp-server. Empty/unset runs every module.
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";

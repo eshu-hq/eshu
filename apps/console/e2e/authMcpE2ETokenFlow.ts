@@ -15,7 +15,7 @@ import {
   mcpToolsCall,
   mcpToolsList,
 } from "./authMcpE2EJsonRpc.ts";
-import { pollForGovernanceAuditEvent } from "./authMcpE2EPsql.ts";
+import { countGovernanceAuditEvents, pollForNewGovernanceAuditEvent } from "./authMcpE2EPsql.ts";
 
 export interface ShapeAContext {
   readonly browser: Browser;
@@ -92,20 +92,24 @@ async function assertDiscoveryRoute404(ctx: ShapeAContext): Promise<string> {
 // assertMcpToolCallRowFiltered drives a full initialize -> tools/list ->
 // tools/call round trip authenticated with the personal token, asserting
 // 200s, a genuinely non-empty tool catalog (proving auth let the call
-// through, not merely that the transport accepted the credential), and a
-// well-formed (bounded) tool result.
+// through, not merely that the transport accepted the credential), and — the
+// load-bearing part — that the personal token sees EXACTLY ZERO repositories.
 //
-// It does NOT assert the personal token SEES any repository: a personal
-// identity token resolves to AuthModeScoped with an EMPTY repository/scope
-// grant (go/internal/scopedtoken/identity.go — no AllScopes), so
-// repositoryAccessFilterFromContext fail-closes it to zero rows regardless of
-// corpus (verified live). The non-vacuous row-filter proof — an AllScopes
-// cookie session seeing the seeded node while this scoped bearer sees zero —
-// lives in the leakage module, which has both credentials on hand. (This
-// replaces an earlier assertion that filtered rows by a `tenant_id` field:
-// repositories carry no tenant_id, only id/name, so that check both passed
-// vacuously and probed a nonexistent field — the isolation dimension is the
-// scoped repository/scope grant, not tenant.)
+// This is Shape A's identity claim, and it is NON-VACUOUS: the suite seeds one
+// Repository node into the graph BEFORE this step runs (runAuthMcpE2E.ts's
+// seed_graph_repository), and the leakage module proves that same node IS
+// visible to an AllScopes cookie session. A personal identity token resolves
+// to AuthModeScoped with an EMPTY repository/scope grant
+// (go/internal/scopedtoken/identity.go — no AllScopes), so
+// repositoryAccessFilterFromContext fail-closes it to zero rows even though
+// the graph is non-empty. Asserting rows.length === 0 here therefore catches a
+// real personal-token scope-escalation regression: if the token could see the
+// seeded repo, this throws (and that would be a genuine product leak, not a
+// test artefact). (This replaces an earlier assertion that filtered rows by a
+// `tenant_id` field — repositories carry no tenant_id, only id/name — which
+// passed vacuously and probed a nonexistent field; and a later revision that
+// captured rows.length into the message but never asserted it, so the isolation
+// was proven nowhere.)
 async function assertMcpToolCallRowFiltered(ctx: ShapeAContext, token: string): Promise<string> {
   const init = await mcpInitialize(ctx.mcpBase, token);
   if (init.httpStatus !== 200) {
@@ -128,19 +132,36 @@ async function assertMcpToolCallRowFiltered(ctx: ShapeAContext, token: string): 
     total?: number;
   };
   const rows = parsed.repositories ?? [];
-  return `${toolsArray.length} tools listed; scoped personal token's list_indexed_repositories returned ${rows.length} row(s) (total=${parsed.total ?? 0})`;
+  if (rows.length !== 0) {
+    throw new Error(
+      `scope-escalation: the scoped personal token (empty repo grant) saw ${rows.length} repository row(s) ` +
+        `despite an empty grant — the seeded node must be filtered out. ids: ${JSON.stringify(rows.map((r) => r.id))}`,
+    );
+  }
+  return `${toolsArray.length} tools listed; scoped personal token (empty grant) correctly saw 0 of the seeded graph (total=${parsed.total ?? 0})`;
 }
 
+// scopedReadAllowedFilter names the async allowed-read audit event shape A's
+// MCP reads produce (F-9 part 1).
+const scopedReadAllowedFilter = {
+  eventType: "read_authorization",
+  decision: "allowed",
+  reasonCode: "scoped_read_allowed",
+} as const;
+
 // assertAllowedReadAuditRecorded polls governance_audit_events (bounded, the
-// F-9-part-1 async-appender path — see f9-design.md §9 decision 4) for the
-// scoped_read_allowed event the tools/call above should have produced, and
-// asserts its actor identity is a non-reversible hash, never the raw token.
-async function assertAllowedReadAuditRecorded(ctx: ShapeAContext, token: string, sinceIso: string): Promise<string> {
-  const row = await pollForGovernanceAuditEvent(
+// F-9-part-1 async-appender path — see f9-design.md §9 decision 4) for a NEW
+// scoped_read_allowed event beyond baselineCount (captured before the tools/call
+// above), and asserts its actor identity is a non-reversible hash, never the
+// raw token. Counting new rows rather than comparing occurred_at against a
+// host-captured timestamp keeps this immune to host/container clock skew — see
+// pollForNewGovernanceAuditEvent.
+async function assertAllowedReadAuditRecorded(ctx: ShapeAContext, token: string, baselineCount: number): Promise<string> {
+  const row = await pollForNewGovernanceAuditEvent(
     ctx.repoRoot,
     ctx.project,
-    { eventType: "read_authorization", decision: "allowed", reasonCode: "scoped_read_allowed" },
-    sinceIso,
+    scopedReadAllowedFilter,
+    baselineCount,
     10000,
   );
   if (row.actorClass !== "scoped_token") {
@@ -152,7 +173,7 @@ async function assertAllowedReadAuditRecorded(ctx: ShapeAContext, token: string,
   if (row.actorIdHash.includes(token)) {
     throw new Error("allowed-read audit row's actor_id_hash contains the raw token value");
   }
-  return `scoped_read_allowed audit row observed within 10s poll: actor_class=${row.actorClass}, tenant_id=${row.tenantId}, actor_id_hash non-empty and not the raw token`;
+  return `new scoped_read_allowed audit row observed within 10s poll (count-delta): actor_class=${row.actorClass}, tenant_id=${row.tenantId}, actor_id_hash non-empty and not the raw token`;
 }
 
 // assertCredentialLessChallengeIsBare proves a credential-less MCP request on
@@ -189,10 +210,14 @@ export async function runShapeA(step: AuthE2EStep, adminPage: Page, ctx: ShapeAC
     return `personal API token minted via /profile's Create-token control (${personalToken.length} chars)`;
   });
 
-  const beforeCallIso = new Date().toISOString();
+  // Capture the DB-side baseline count of scoped_read_allowed events BEFORE the
+  // reads, so the audit-poll asserts a count INCREASE (a new event landed)
+  // rather than comparing occurred_at against a host wall-clock — immune to
+  // host/container clock skew (see pollForNewGovernanceAuditEvent).
+  const baselineAuditCount = await countGovernanceAuditEvents(ctx.repoRoot, ctx.project, scopedReadAllowedFilter);
   await step("shapeA_mcp_tool_call_row_filtered", () => assertMcpToolCallRowFiltered(ctx, personalToken));
   await step("shapeA_allowed_read_audit_recorded", () =>
-    assertAllowedReadAuditRecorded(ctx, personalToken, beforeCallIso),
+    assertAllowedReadAuditRecorded(ctx, personalToken, baselineAuditCount),
   );
   await step("shapeA_credentialless_challenge_is_bare", () => assertCredentialLessChallengeIsBare(ctx));
 

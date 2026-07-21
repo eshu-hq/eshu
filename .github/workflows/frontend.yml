@@ -88,6 +88,12 @@ on:
       - "go/cmd/mcp-server/**"
       - "go/internal/oidcbearer/**"
       - "go/internal/githublogin/**"
+      # The query auth surface (public-route allowlist, transport-auth
+      # middleware, OAuth discovery/challenge, bearer resolution) and the MCP
+      # transport itself: a revert of the public-route fix or an MCP-transport
+      # auth regression MUST re-trigger this gate (design §7).
+      - "go/internal/query/**"
+      - "go/internal/mcp/**"
   workflow_dispatch:
 
 concurrency:

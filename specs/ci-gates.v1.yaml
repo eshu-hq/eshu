@@ -1692,6 +1692,8 @@ gates:
       - "go/cmd/mcp-server/**"
       - "go/internal/oidcbearer/**"
       - "go/internal/githublogin/**"
+      - "go/internal/query/**"
+      - "go/internal/mcp/**"
     local:
       command: "bash scripts/run-auth-mcp-e2e.sh"
       test_command: ""

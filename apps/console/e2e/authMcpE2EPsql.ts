@@ -54,7 +54,7 @@ export interface GovernanceAuditEventRow {
 // occurred_at DESC. Returns null when no matching row exists yet — callers
 // that need "eventually appears" semantics (the async allowed-read audit path,
 // F-9 part 1) wrap this in a bounded poll rather than treating a single miss
-// as failure; see pollForGovernanceAuditEvent below.
+// as failure; see pollForNewGovernanceAuditEvent below.
 export async function findLatestGovernanceAuditEvent(
   repoRoot: string,
   project: string,
@@ -85,35 +85,77 @@ export async function findLatestGovernanceAuditEvent(
   };
 }
 
-// pollForGovernanceAuditEvent polls findLatestGovernanceAuditEvent until a row
-// newer than sinceIso appears or deadlineMs elapses. The F-9 part-1 allowed-read
-// audit path is async (governanceauditasync.AsyncAppender): the event is not
-// guaranteed to be durable the instant the MCP response returns, so this bounds
-// the wait instead of asserting on a single synchronous read (design §9
-// decision: "Shape-A asserts it via psql with a BOUNDED poll <=10s since
-// emission is async").
-export async function pollForGovernanceAuditEvent(
+export interface GovernanceAuditFilter {
+  readonly eventType: string;
+  readonly decision: string;
+  readonly reasonCode?: string;
+}
+
+// governanceAuditWhereClause builds the shared WHERE fragment for a filter.
+function governanceAuditWhereClause(filter: GovernanceAuditFilter): string {
+  const reasonClause = filter.reasonCode
+    ? ` AND reason_code = '${filter.reasonCode.replace(/'/g, "''")}'`
+    : "";
+  return (
+    `WHERE event_type = '${filter.eventType.replace(/'/g, "''")}' ` +
+    `AND decision = '${filter.decision.replace(/'/g, "''")}'${reasonClause}`
+  );
+}
+
+// countGovernanceAuditEvents returns the number of matching rows. Callers
+// capture a BASELINE count before an action, then poll until the count
+// increases (pollForNewGovernanceAuditEvent) — a DB-state-vs-DB-state
+// comparison that is immune to host/container wall-clock skew, unlike a
+// timestamp comparison.
+export async function countGovernanceAuditEvents(
   repoRoot: string,
   project: string,
-  filter: { readonly eventType: string; readonly decision: string; readonly reasonCode?: string },
-  sinceIso: string,
+  filter: GovernanceAuditFilter,
+): Promise<number> {
+  const sql = `SELECT COUNT(*) FROM governance_audit_events ${governanceAuditWhereClause(filter)};`;
+  const stdout = await runPsql(repoRoot, project, sql);
+  const rows = splitPsqlRows(stdout);
+  const n = rows.length > 0 ? Number.parseInt(rows[0]![0] ?? "", 10) : NaN;
+  if (Number.isNaN(n)) {
+    throw new Error(`countGovernanceAuditEvents: unparseable COUNT output: ${JSON.stringify(stdout)}`);
+  }
+  return n;
+}
+
+// pollForNewGovernanceAuditEvent polls until the matching-row COUNT exceeds
+// baselineCount (a NEW event has landed) or deadlineMs elapses, then returns
+// the latest matching row. The F-9 part-1 allowed-read audit path is async
+// (governanceauditasync.AsyncAppender): the event is not durable the instant
+// the MCP response returns, so this bounds the wait (design §9: "Shape-A
+// asserts it via psql with a BOUNDED poll <=10s since emission is async").
+//
+// It counts new rows rather than comparing occurred_at against a caller-side
+// timestamp: the runner (host clock) and the mcp-server (container clock) can
+// skew by tens of milliseconds, so an event that genuinely landed AFTER the
+// request can carry an occurred_at that reads as slightly BEFORE a host-captured
+// `since` — a real cross-clock flake this design avoids by construction.
+export async function pollForNewGovernanceAuditEvent(
+  repoRoot: string,
+  project: string,
+  filter: GovernanceAuditFilter,
+  baselineCount: number,
   deadlineMs: number,
 ): Promise<GovernanceAuditEventRow> {
-  const sinceMs = Date.parse(sinceIso);
   const start = Date.now();
-  let lastMiss = "no matching row found yet";
+  let lastCount = baselineCount;
   while (Date.now() - start < deadlineMs) {
-    const row = await findLatestGovernanceAuditEvent(repoRoot, project, filter);
-    if (row) {
-      const occurredMs = Date.parse(row.occurredAt);
-      if (!Number.isNaN(occurredMs) && occurredMs >= sinceMs) {
+    lastCount = await countGovernanceAuditEvents(repoRoot, project, filter);
+    if (lastCount > baselineCount) {
+      const row = await findLatestGovernanceAuditEvent(repoRoot, project, filter);
+      if (row) {
         return row;
       }
-      lastMiss = `latest matching row is older than the request (occurred_at=${row.occurredAt}, since=${sinceIso})`;
     }
     await new Promise((r) => setTimeout(r, 500));
   }
   throw new Error(
-    `governance_audit_events: no ${filter.eventType}/${filter.decision}${filter.reasonCode ? `/${filter.reasonCode}` : ""} row observed within ${deadlineMs}ms: ${lastMiss}`,
+    `governance_audit_events: no NEW ${filter.eventType}/${filter.decision}` +
+      `${filter.reasonCode ? `/${filter.reasonCode}` : ""} row within ${deadlineMs}ms ` +
+      `(baseline count ${baselineCount}, last observed ${lastCount})`,
   );
 }
