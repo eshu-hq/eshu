@@ -794,6 +794,13 @@ the canonical graph resource id, provider resource id, or cloud ARN returned by
 `/infra/resources/search`. `max_depth` defaults to 4 and caps at 8; `limit`
 defaults to 25 and caps at 100.
 
+Resolution checks exact resource properties first. A `query` uses bounded
+substring matching only when the exact phase returns no candidates;
+`resource_id` is exact-only. Distinct exact matches remain ambiguous and are
+returned as candidates instead of being selected arbitrarily. Repository access
+is applied before each selection limit, so an unauthorized match cannot consume
+a visible candidate slot.
+
 When the target resource resolves but no workload usage edge or repository
 provenance path is materialized, the response keeps `workloads` and
 `provisioning_paths` empty and reports structured `missing_evidence` instead of

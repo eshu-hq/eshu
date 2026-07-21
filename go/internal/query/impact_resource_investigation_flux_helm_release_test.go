@@ -51,6 +51,7 @@ func TestInvestigateResourceDefaultPredicateReachesProjectedFluxHelmReleaseNode(
 	t.Parallel()
 
 	graph := &recordingResourceInvestigationGraph{
+		selectorLabel: "FluxHelmRelease",
 		runRows: [][]map[string]any{{
 			{
 				"id": "flux:helmrelease:podinfo", "name": "podinfo", "labels": []any{"FluxHelmRelease"},
@@ -70,8 +71,15 @@ func TestInvestigateResourceDefaultPredicateReachesProjectedFluxHelmReleaseNode(
 	if err != nil {
 		t.Fatalf("resolveResourceInvestigationTarget() error = %v, want nil", err)
 	}
-	if !strings.Contains(graph.runCalls[0].cypher, "n:FluxHelmRelease") {
-		t.Fatalf("resolver cypher does not carry the default n:FluxHelmRelease disjunct: %s", graph.runCalls[0].cypher)
+	var fluxQuery string
+	for _, call := range graph.runCalls {
+		if strings.Contains(call.cypher, "MATCH (n:FluxHelmRelease)") {
+			fluxQuery = call.cypher
+			break
+		}
+	}
+	if fluxQuery == "" {
+		t.Fatal("resolver fanout does not carry a direct n:FluxHelmRelease query")
 	}
 	if got, want := resolution["status"], "resolved"; got != want {
 		t.Fatalf("resolution.status = %#v, want %#v (the FluxHelmRelease fixture node must resolve through the default predicate)", got, want)
