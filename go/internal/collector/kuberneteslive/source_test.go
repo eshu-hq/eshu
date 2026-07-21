@@ -21,6 +21,10 @@ type fakeClient struct {
 	pods                ListResult[WorkloadObject]
 	deployments         ListResult[WorkloadObject]
 	replicasets         ListResult[WorkloadObject]
+	statefulsets        ListResult[WorkloadObject]
+	daemonsets          ListResult[WorkloadObject]
+	jobs                ListResult[WorkloadObject]
+	cronjobs            ListResult[WorkloadObject]
 	services            ListResult[ServiceObject]
 	ingresses           ListResult[IngressObject]
 	serviceAccounts     ListResult[ServiceAccountObject]
@@ -45,6 +49,22 @@ func (f *fakeClient) ListDeployments(context.Context) (ListResult[WorkloadObject
 
 func (f *fakeClient) ListReplicaSets(context.Context) (ListResult[WorkloadObject], error) {
 	return f.replicasets, nil
+}
+
+func (f *fakeClient) ListStatefulSets(context.Context) (ListResult[WorkloadObject], error) {
+	return f.statefulsets, nil
+}
+
+func (f *fakeClient) ListDaemonSets(context.Context) (ListResult[WorkloadObject], error) {
+	return f.daemonsets, nil
+}
+
+func (f *fakeClient) ListJobs(context.Context) (ListResult[WorkloadObject], error) {
+	return f.jobs, nil
+}
+
+func (f *fakeClient) ListCronJobs(context.Context) (ListResult[WorkloadObject], error) {
+	return f.cronjobs, nil
 }
 
 func (f *fakeClient) ListServices(context.Context) (ListResult[ServiceObject], error) {
