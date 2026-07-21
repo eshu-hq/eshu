@@ -174,7 +174,7 @@ func (s *FactStore) probeIdentityEpoch(ctx context.Context) (identityEpoch, erro
 	return identityEpoch{count: int(count), maxObservedAt: maxObservedAt, activeFingerprint: fingerprint}, nil
 }
 
-func (s FactStore) listActiveContainerImageIdentityFactsPage(
+func (s *FactStore) listActiveContainerImageIdentityFactsPage(
 	ctx context.Context,
 	cursorObservedAt *time.Time,
 	cursorFactID string,
