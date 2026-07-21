@@ -1,7 +1,7 @@
 {
   "schema_version": "1",
   "corpus_id": "supply-chain-demo-20repo",
-  "description": "Golden graph and query truth snapshot for the B-7 end-to-end corpus gate. B-7 diffs a live run against this file. Update this file under review when intentional graph behaviour changes; never update silently.",
+  "description": "Golden graph and query truth snapshot for the B-7 end-to-end corpus gate. B-7 diffs a live run against this file. Update this file under review when intentional graph behaviour changes; never update silently. `corpus_id` is a stable identifier (its historical `-20repo` suffix is not a live count); `corpus_composition.git_repos` is the authoritative repository count.",
   "tolerance_policy": "count ranges are [min, max] inclusive; a live run outside the range fails B-7(b). required_correlations assertions must all pass; a missing edge fails B-7(b). query_shapes define required response fields; a missing field fails B-7(c).",
   "corpus_composition": {
     "git_repos": 24,
@@ -28,7 +28,7 @@
       "File": {
         "min": 40,
         "max": 20000,
-        "note": "all source files parsed across the deterministic 20-repo corpus (observed 78); floor catches a major projection drop (e.g. #4019), ceiling stays wide for parser growth"
+        "note": "all source files parsed across the deterministic corpus (observed 78); floor catches a major projection drop (e.g. #4019), ceiling stays wide for parser growth"
       },
       "Function": {
         "min": 100,
