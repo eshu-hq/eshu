@@ -9,8 +9,10 @@ label onto a new `TerraformStateResource` label
 per tfstate materialization cycle: one migration relabel statement (batched
 by uid), two generation-gated `DETACH DELETE` retraction statements, and one
 batched `MATCHES_STATE` edge-write statement scoped to rows with a resolved
-config-repo owner. Wires the real ownership resolver into
-`go/cmd/projector/runtime_wiring.go`.
+config-repo owner. Wires the real ownership resolver into every cmd/*
+canonical-writer wiring site: `go/cmd/projector/runtime_wiring.go`,
+`go/cmd/ingester/wiring_canonical_writer_open.go`, and
+`go/cmd/bootstrap-index/wiring.go`.
 
 **Post-review correction (P0 fixes):** a separate-context review found two
 defects this change's own live test could not catch, both fixed in the same
@@ -214,7 +216,10 @@ already emits `canonical phase completed` / `canonical phase failed`
 structured logs and the existing `CanonicalProjectionDuration` /
 `CanonicalWrites` / `ProjectorStageDuration` instruments
 (`canonical_node_writer.go`'s `Write`); `scripts/verify-telemetry-coverage.sh`
-passed with no diff. The ownership-resolver query failure path
-(`cmd/projector/terraform_state_ownership.go`) logs a structured
-`slog.WarnContext` on failure (backend_kind, locator_hash, error) rather than
-silently swallowing it.
+passed with no diff. The ownership-resolver query failure path logs a
+structured `slog.WarnContext` on failure (backend_kind, locator_hash, error)
+rather than silently swallowing it; all three wiring sites carry
+byte-identical logging
+(`cmd/projector/terraform_state_ownership.go`,
+`cmd/ingester/terraform_state_ownership.go`,
+`cmd/bootstrap-index/terraform_state_ownership.go`).

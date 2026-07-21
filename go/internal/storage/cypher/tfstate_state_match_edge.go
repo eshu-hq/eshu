@@ -17,8 +17,8 @@ import (
 // to "not found"). Defined here rather than importing
 // internal/relationships/tfstatebackend directly so this package depends on
 // a narrow port, not the resolver's full Postgres-backed implementation;
-// production wiring (cmd/projector) adapts *tfstatebackend.Resolver to this
-// interface.
+// every cmd/* canonical-writer wiring site (cmd/projector, cmd/ingester,
+// cmd/bootstrap-index) adapts *tfstatebackend.Resolver to this interface.
 type TerraformStateOwnershipResolver interface {
 	// ResolveOwningRepoID returns the single config repo ID that owns the
 	// given (backend_kind, locator_hash) pair, and false when no repo or more
@@ -52,8 +52,9 @@ type TerraformStateConfigMatchQuery struct {
 // in canonicalTerraformStateMatchesConfigEdgeCypher would otherwise fan an
 // edge out to every match. Defined here rather than importing a graph driver
 // directly so this package depends on a narrow port, not a Bolt client;
-// production wiring (cmd/projector) adapts a read session to this interface,
-// running the count as a genuinely separate single-clause query (never a
+// every cmd/* canonical-writer wiring site (cmd/projector, cmd/ingester,
+// cmd/bootstrap-index) adapts a read session to this interface, running the
+// count as a genuinely separate single-clause query (never a
 // WITH/aggregate/WHERE chain fused into the same statement as the write --
 // see docs/public/reference/nornicdb-query-pitfalls.md's "Multi-Clause Read
 // Queries Silently Corrupt The Projection": that exact chained shape was

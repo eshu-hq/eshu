@@ -96,9 +96,10 @@ func (w *CanonicalNodeWriter) WithTerraformStateOwnershipResolver(resolver Terra
 // same address. Optional: a nil resolver (the default) leaves
 // ConfigMatchAmbiguous at its zero value for every row, matching every unit
 // test in this package that constructs rows directly without exercising
-// resolver wiring. Production wiring (cmd/projector) always wires a real
-// resolver, so this default only affects hand-built test fixtures, never the
-// production write path. See tfstate_state_match_edge.go.
+// resolver wiring. Every cmd/* canonical-writer wiring site (cmd/projector,
+// cmd/ingester, cmd/bootstrap-index) always wires a real resolver, so this
+// default only affects hand-built test fixtures, never a production write
+// path. See tfstate_state_match_edge.go.
 func (w *CanonicalNodeWriter) WithTerraformStateConfigMatchResolver(resolver TerraformStateConfigMatchResolver) *CanonicalNodeWriter {
 	if w == nil {
 		return nil
