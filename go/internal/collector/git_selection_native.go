@@ -271,6 +271,15 @@ func buildSelectedRepositories(
 		// Emit ref-scoped entries only, no main-line SelectedRepository (N5 fix).
 		refRepoID := repoIDFromManagedPath(config.ReposDir, absMain)
 		remoteURL := repoRemoteURL(config, refRepoID)
+		// Mirror the main-loop refs lookup so ref-only entries carry the same
+		// git_refs payload as entries emitted on a default-branch-move cycle
+		// (N5a alignment; both forms keyed like the other maps above).
+		var gitRefs []GitRef
+		if refs, ok := refsByRepoPath[mainPath]; ok {
+			gitRefs = cloneGitRefs(refs)
+		} else if refs, ok := refsByRepoPath[absMain]; ok {
+			gitRefs = cloneGitRefs(refs)
+		}
 		for _, entry := range entries {
 			repositories = append(repositories, SelectedRepository{
 				RepoPath:        entry.WorktreePath,
@@ -278,6 +287,7 @@ func buildSelectedRepositories(
 				IsDependency:    config.DependencyMode,
 				DisplayName:     strings.TrimSpace(config.DependencyName),
 				Language:        strings.TrimSpace(config.DependencyLanguage),
+				GitRefs:         gitRefs,
 				SourceCommitSHA: entry.HeadSHA,
 				Ref:             entry.Ref,
 			})

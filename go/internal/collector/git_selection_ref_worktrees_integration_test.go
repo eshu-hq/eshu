@@ -307,7 +307,11 @@ func TestBuildSelectedRepositoriesRefOnlyEmitsNoMainline(t *testing.T) {
 	got := buildSelectedRepositories(
 		RepoSyncConfig{ReposDir: reposDir, SourceMode: "githubOrg", GithubOrg: "test", CloneDepth: 1},
 		[]string{}, // no main-line paths selected
-		nil, nil, nil, nil, nil,
+		nil, nil, nil,
+		map[string][]GitRef{
+			mainRepoPath: {{Name: "main", Kind: "branch", HeadSHA: "def456"}},
+		},
+		nil,
 		refWorktreesByRepoPath,
 	)
 
@@ -320,6 +324,9 @@ func TestBuildSelectedRepositoriesRefOnlyEmitsNoMainline(t *testing.T) {
 	}
 	if got[0].RepoPath != refWorktreesByRepoPath[mainRepoPath][0].WorktreePath {
 		t.Fatalf("entry RepoPath = %q, want ref worktree path", got[0].RepoPath)
+	}
+	if len(got[0].GitRefs) != 1 || got[0].GitRefs[0].Name != "main" {
+		t.Fatalf("entry GitRefs = %+v, want the refs map entry carried over (N5a alignment)", got[0].GitRefs)
 	}
 	t.Logf("N5: %d entries produced (ref-only, zero main-line)", len(got))
 }
