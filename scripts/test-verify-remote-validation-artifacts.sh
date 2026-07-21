@@ -199,20 +199,20 @@ capabilities:
   - capability: cap.a
     tools: [find_code]
     profiles:
-      production: {status: supported, max_truth_level: exact, verification: [{remote_validation: prod-case8-a}]}
+      production: {status: supported, max_truth_level: exact, verification: [{remote_validation: c8-a}]}
   - capability: cap.b
     tools: [find_code]
     profiles:
-      production: {status: supported, max_truth_level: exact, verification: [{remote_validation: prod-case8-b}]}
+      production: {status: supported, max_truth_level: exact, verification: [{remote_validation: c8-b}]}
   - capability: cap.c
     tools: [find_code]
     profiles:
-      production: {status: supported, max_truth_level: exact, verification: [{remote_validation: prod-case8-smuggled}]}
+      production: {status: supported, max_truth_level: exact, verification: [{remote_validation: c8-smug}]}
 YAML
 mkdir -p "${case8_root}/docs/internal/remote-validation"
-printf '# evidence\n' >"${case8_root}/docs/internal/remote-validation/prod-case8-a.md"
-write_frozen "${case8_specs}" "prod-case8-a" "prod-case8-b"
-printf '# FROZEN_MAX: 2\nprod-case8-b\nprod-case8-smuggled\n' \
+printf '# evidence\n' >"${case8_root}/docs/internal/remote-validation/c8-a.md"
+write_frozen "${case8_specs}" "c8-a" "c8-b"
+printf '# FROZEN_MAX: 2\nc8-b\nc8-smug\n' \
 	>"${case8_specs}/remote-validation-baseline.txt"
 if "${verifier}" --specs "${case8_specs}" --root "${case8_root}" \
 	--baseline "${case8_specs}/remote-validation-baseline.txt" \
@@ -220,7 +220,7 @@ if "${verifier}" --specs "${case8_specs}" --root "${case8_root}" \
 	record_fail "atomic swap (constant count) fails the frozen-membership guard"
 	cat "${tmp_root}/case8.out" >&2
 else
-	if rg -q --fixed-strings "prod-case8-smuggled" "${tmp_root}/case8.out" &&
+	if rg -q --fixed-strings "c8-smug" "${tmp_root}/case8.out" &&
 		rg -q --fixed-strings "not in frozen set" "${tmp_root}/case8.out"; then
 		record_pass "atomic swap (constant count) fails the frozen-membership guard"
 	else
