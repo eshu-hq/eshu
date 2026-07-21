@@ -99,7 +99,53 @@ measured in isolation:
   (indexed) and `TerraformResource.{repo_id, name}`, backed by the new
   `tf_resource_name` index (`graph/schema_tables.go`) rather than the
   existing `(name, path, line_number)` composite constraint, which does not
-  serve a 2-property `{repo_id, name}` lookup.
+  serve a 2-property `{repo_id, name}` lookup. **No query-plan trace was
+  captured for this statement at original ship time -- see "MATCHES_STATE
+  query-plan evidence" below for the corrected status.**
+
+## MATCHES_STATE query-plan evidence (P2 fix)
+
+A P2 review finding required a `PROFILE`/`EXPLAIN` trace for
+`canonicalTerraformStateMatchesConfigEdgeCypher`
+(`tfstate_state_match_edge.go`), since it is generated hot-path Cypher using
+the new `tf_resource_name` index. This was attempted against the same
+standalone NornicDB container (`eshu-nornicdb-pr261:149245885258`) used for
+the P0-2 measurement above, seeded with one `TerraformResource` node
+(`repo_id: "profile-repo", name: "aws_instance.web", path:
+"envs/a/main.tf"`) and one matching `TerraformStateResource` node.
+
+Attempted via two paths:
+
+1. HTTP `tx/commit` with a literal `EXPLAIN` prefix on the statement text:
+   the endpoint accepted the request (200, no error) but returned an empty
+   result set with no plan payload in the response body.
+2. Bolt driver `PROFILE`-prefixed `session.Run`, reading the returned
+   `ResultSummary`: `summary.Plan()` and `summary.Profile()` both returned
+   `nil` (`HasPlan=false HasProfile=false`). The statement itself executed
+   correctly (the `MATCHES_STATE` edge was created), so this is not a
+   statement-shape failure -- the pinned NornicDB build accepts `PROFILE`
+   syntactically but does not surface plan/profile metadata through the
+   Bolt driver summary for this statement.
+
+**Deferred, stated plainly:** the pinned NornicDB build
+(`eshu-nornicdb-pr261:149245885258`, `orneryd/NornicDB` commit
+`1492458852588c884c32f70d27ea2ee07086769c`) does not return plan or profile
+data for this query through either the HTTP transaction endpoint or the Bolt
+`ResultSummary`, so no `PROFILE`/`EXPLAIN` trace can be captured for it on
+this backend today. This matches existing precedent already recorded in
+`docs/public/reference/cypher-performance.md` ("no live PROFILE was
+available because no local NornicDB-New" -- multiple prior entries), and
+`cypher-performance.md`'s own framing that a NornicDB "statement summary" is
+used only "when available." The anchor/index reasoning above (uid uniqueness
+constraint on the state side, `tf_resource_name` index on the config side)
+remains the correctness argument for why this statement should not fall back
+to a label scan; it is index-shape reasoning, not a captured plan, and is
+labeled as such here rather than presented as PROFILE evidence.
+`TestCanonicalNodeWriterSkipsAmbiguousMatchesStateEdgeLive` and
+`TestProjectorTerraformStateConfigMatchResolverLive` (added for the P1 fix)
+are this repository's real backend-level correctness proof for this
+statement family; they are not substitutes for a query plan and are not
+represented as one.
 
 ## Retraction cost class re-measured (P0-2 fix)
 
