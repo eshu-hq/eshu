@@ -36,8 +36,8 @@ import {
 } from "./authE2ECredential.ts";
 import { startAuthE2EDevServer, stopAuthE2EDevServer, type AuthE2EDevServer } from "./authE2EDevServer.ts";
 import { assertFreshStackShowsSetupWizard, driveSetupWizard } from "./authE2ESetupWizard.ts";
-import { chromiumLaunchArgs } from "./authE2EOidcFlow.ts";
 import { recordAuthE2EStep, type StepResult } from "./authE2EStepRecorder.ts";
+import { chromiumLaunchArgsWithGithub, runShapeC, type ShapeCContext } from "./authMcpE2EGithubFlow.ts";
 import { runShapeA, type ShapeAContext } from "./authMcpE2ETokenFlow.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -66,6 +66,7 @@ const devServerPort = 5195;
 const navTimeoutMs = 30000;
 const mockOidcPort = (process.env.ESHU_E2E_MOCK_OIDC_PORT ?? "29090").trim();
 const mockOidcAdminPort = (process.env.ESHU_E2E_MOCK_OIDC_ADMIN_PORT ?? "29091").trim();
+const mockGithubPort = (process.env.ESHU_E2E_MOCK_GITHUB_PORT ?? "29092").trim();
 const wizardNewPassword = "E2E-auth-mcp-runner-P@ssw0rd-1";
 const selectedModule = (process.env.ESHU_E2E_MCP_MODULE ?? "").trim();
 
@@ -91,7 +92,9 @@ export async function runAuthMcpE2E(): Promise<number> {
   let browser: Browser | undefined;
   try {
     devServer = await startAuthE2EDevServer(repoRoot, apiBase, devServerPort);
-    browser = await chromium.launch({ args: chromiumLaunchArgs(mockOidcPort, mockOidcAdminPort) });
+    browser = await chromium.launch({
+      args: chromiumLaunchArgsWithGithub(mockOidcPort, mockOidcAdminPort, mockGithubPort),
+    });
     const context = await browser.newContext({ baseURL: devServer.baseUrl });
     const adminPage = await context.newPage();
 
@@ -122,18 +125,23 @@ export async function runAuthMcpE2E(): Promise<number> {
       return `wizard completed as ${retrieval.credential.username}; dashboard reached`;
     });
 
-    const shapeCtx: ShapeAContext = {
+    const shapeCtx: ShapeCContext = {
       browser,
       baseUrl: devServer.baseUrl,
       mcpBase,
       apiBase,
       repoRoot,
+      repoGoDir,
       project: composeProject,
       navTimeoutMs,
     };
 
+    let personalToken = "";
     if (moduleSelected("shapeA")) {
-      await runShapeA(step, adminPage, shapeCtx);
+      personalToken = await runShapeA(step, adminPage, shapeCtx as ShapeAContext);
+    }
+    if (moduleSelected("shapeC")) {
+      await runShapeC(step, adminPage, shapeCtx, personalToken);
     }
 
     const failed = results.filter((r) => r.status === "fail");

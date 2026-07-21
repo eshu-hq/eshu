@@ -132,6 +132,17 @@ services:
       # with no CORS involved (see runAuthE2E.ts's apiBaseUrl comment).
       ESHU_AUTH_OIDC_ENABLED: "true"
       ESHU_AUTH_OIDC_CONFIG_FILE: /e2e/oidc-static-config.json
+      # F-9 (issue #5170) shape C: the GitHub login runtime (GET/POST
+      # /api/v0/auth/github/{login,callback}) only mounts at all when
+      # ESHU_AUTH_GITHUB_ENABLED=true OR an env config file is set
+      # (go/cmd/api/github_login.go's newGitHubLoginHandler). This stack uses
+      # the DB-only provider path (admin-registered GitHub providers via the
+      # Add-provider UI, mirroring the OIDC member provider above) — no
+      # config file — so the flag alone is what enables it. Without this, a
+      # DB-backed GitHub provider config can be created and shown "active" in
+      # the admin list, yet its login button never renders on /login at all
+      # (auth_providers.go's githubRuntimeEnabled gate) and the route 404s.
+      ESHU_AUTH_GITHUB_ENABLED: "true"
     # Bind to loopback by default. This stack keeps normal (non-open) read
     # auth, unlike docker-compose.demo.yaml, but there is still no reason to
     # publish it beyond the host that started it.
