@@ -143,6 +143,20 @@ jobs:
               - 'specs/fact-kind-registry.v1.yaml'
               - 'specs/replay-coverage-manifest.v1.yaml'
               - 'testdata/golden/e2e-20repo-snapshot.json'
+              # #5351 materialized-edge exhaustiveness gate: the SQL relationship
+              # family's write path (edge_writer_sql.go, sql_relationship_*.go)
+              # and its fixtures/manifest. A write-path-only regression here is
+              # exactly the silent-no-op class the gate exists for and the pure
+              # seam cannot catch, so it MUST retrigger the Ifa contract-layer
+              # gate (which runs the pure ifa-materialized-edge-coverage go test).
+              - 'go/internal/reducer/materialized_edge_families.go'
+              - 'go/internal/reducer/shared_projection.go'
+              - 'go/internal/reducer/sql_relationship_materialization.go'
+              - 'go/internal/reducer/sql_relationship_embedded_query.go'
+              - 'go/internal/reducer/sql_relationship_metadata.go'
+              - 'go/internal/storage/cypher/edge_writer_sql.go'
+              - 'specs/ifa-materialized-edge-coverage.v1.yaml'
+              - 'testdata/cassettes/sqlrelationships/**'
             ifaload:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'

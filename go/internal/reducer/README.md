@@ -275,6 +275,15 @@ superset of the partition worker's `sharedProjectionDomains`: it also covers the
 domains driven by dedicated projection runners (`code_calls`, `repo_dependency`,
 `deployable_unit_edges`).
 
+`MaterializedEdgeFamilies` (`materialized_edge_families.go`, #5351) returns
+`allProjectionDomains` as `[]string`, sorted: the drift-proof enumeration the
+Ifá `materialized_edges:<domain>` exhaustiveness gate
+(`go/internal/ifa/materialized_edges.go`) binds an Odù expectation to, so a
+reducer materialization silently ceasing to produce an edge family is caught.
+A domain added to or removed from `allProjectionDomains` moves this
+enumeration in the same change; `TestMaterializedEdgeFamiliesLocksToAllProjectionDomains`
+locks the two together.
+
 | Domain constant | Summary |
 | --- | --- |
 | `DomainWorkloadIdentity` | Resolve canonical workload identity across sources |

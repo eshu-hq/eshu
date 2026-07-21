@@ -1387,6 +1387,34 @@ gates:
       - go
     ci_only_reason: ""
 
+  - id: ifa-materialized-edge-coverage
+    name: Ifa materialized-edge exhaustiveness gate (#5351)
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/ifa/materialized_edges*.go"
+      - "go/internal/ifa/sql_relationship_odu*.go"
+      - "go/internal/reducer/materialized_edge_families.go"
+      - "go/internal/reducer/shared_projection.go"
+      - "go/internal/reducer/sql_relationship_materialization.go"
+      - "go/internal/reducer/sql_relationship_embedded_query.go"
+      - "go/internal/reducer/sql_relationship_metadata.go"
+      - "go/internal/storage/cypher/edge_writer_sql.go"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ifa-materialized-edge-coverage.v1.yaml"
+      - "testdata/cassettes/sqlrelationships/**"
+      - "go/internal/ifa/testdata/sqlrelationships/**"
+    local:
+      command: "cd go && go test ./internal/ifa -run 'TestMaterializedEdge|TestSQLRelationship|TestSQLFamily' -count=1 && go test ./internal/reducer -run TestMaterializedEdgeFamilies -count=1"
+      test_command: "cd go && go test ./internal/ifa -run 'TestMaterializedEdge|TestSQLRelationship|TestSQLFamily' -count=1 && go test ./internal/reducer -run TestMaterializedEdgeFamilies -count=1"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify Ifa contract-layer gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
   - id: ifa-determinism
     name: Ifa P3 graph-determinism matrix (+ --teeth non-idempotent-write gate)
     category: exactness
@@ -1402,6 +1430,11 @@ gates:
       - "go/internal/storage/cypher/cloud_resource_node_writer.go"
       - "go/internal/storage/cypher/cloud_resource_node_writer_teeth.go"
       - "go/internal/storage/cypher/cloud_resource_node_writer_teeth_off.go"
+      - "go/internal/reducer/sql_relationship_materialization.go"
+      - "go/internal/reducer/sql_relationship_embedded_query.go"
+      - "go/internal/storage/cypher/edge_writer_sql.go"
+      - "testdata/cassettes/sqlrelationships/**"
+      - "go/internal/ifa/testdata/sqlrelationships/**"
       - "scripts/verify-ifa-determinism.sh"
       - "scripts/test-verify-ifa-determinism.sh"
       - "scripts/lib/ifa_determinism_common.sh"
@@ -1450,6 +1483,12 @@ gates:
       - "go/internal/replay/faultreplay/**"
       - "go/cmd/reducer/ifa_fault_wiring.go"
       - "go/cmd/reducer/ifa_fault_wiring_off.go"
+      - "go/cmd/ifa/assert_edges.go"
+      - "go/internal/reducer/sql_relationship_materialization.go"
+      - "go/internal/reducer/sql_relationship_embedded_query.go"
+      - "go/internal/storage/cypher/edge_writer_sql.go"
+      - "testdata/cassettes/sqlrelationships/**"
+      - "go/internal/ifa/testdata/sqlrelationships/**"
       - "scripts/verify-ifa-fault-injection.sh"
       - "scripts/test-verify-ifa-fault-injection.sh"
       - "scripts/lib/ifa_fault_injection_common.sh"

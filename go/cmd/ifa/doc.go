@@ -37,6 +37,17 @@
 // canonical byte form (or, with -digest, its sha256 hex digest) to -out or
 // stdout. It is read-only: it applies no schema DDL and performs no write.
 //
+// `ifa assert-edges -domain DOMAIN -expected FILE` (#5351) is the
+// materialized-edge exhaustiveness gate's live, set-exact non-vacuity
+// assertion. Over the same read-only Bolt connection graph-dump uses, it reads
+// every edge of the named family's registry edge types and asserts the
+// family's materialized edges are exactly the hand-derived expected set in
+// -expected. It backs the materialized_edges:<domain> coverage manifest rows'
+// proof_gate claims from inside the ifa-determinism (per cell) and
+// ifa-fault-injection (baseline) live gates: digest equality alone cannot
+// catch a family silently empty in every cell, an absolute expected set can.
+// Read-only: no schema DDL, no write.
+//
 // `ifa synth-cassette -seed N [-projects K] [-resources R] -out FILE` (issue
 // #4396 slice 6b) wraps go/internal/synth/gcp.GenerateMultiScope, generating a
 // deterministic, seeded cassette with K independent GCP project scopes and
