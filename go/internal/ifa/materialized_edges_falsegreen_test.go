@@ -16,21 +16,21 @@ import (
 // TestMaterializedEdgeFalseGreenBaselineSQLRelationshipsCovered proves the
 // honest-green case FIRST (apirecording discipline, mirrored from
 // coverage_falsegreen_test.go): the real manifest's materialized_edges:
-// sql_relationships must resolve covered for both scenario types before
-// either deliberate break below is trusted to mean anything.
+// sql_relationships must resolve covered for the determinism (baseline) gate
+// before either deliberate break below is trusted to mean anything. Only the
+// baseline is a covered claim as of #5351 — the fault gate is waived (#5555),
+// not resolved, so it is not asserted covered here.
 func TestMaterializedEdgeFalseGreenBaselineSQLRelationshipsCovered(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
 
 	resolver := MaterializedEdgeOduResolver{Catalog: CatalogByName(), RepoRoot: repoRoot}
-	for _, proofGate := range []string{"ifa-determinism", "ifa-fault-injection"} {
-		ok, detail := resolver.Resolve(replaycoverage.CoverageEntry{
-			Surface: MaterializedEdgeSurfacePrefix + "sql_relationships", Scenario: replaycoverage.ScenarioOdu,
-			Ref: sqlFamilyOduName, ProofGate: proofGate,
-		})
-		if !ok {
-			t.Fatalf("baseline resolve(sql_relationships, proof_gate=%s) = false, detail=%q, want true", proofGate, detail)
-		}
+	ok, detail := resolver.Resolve(replaycoverage.CoverageEntry{
+		Surface: MaterializedEdgeSurfacePrefix + "sql_relationships", Scenario: replaycoverage.ScenarioOdu,
+		Ref: sqlFamilyOduName, ProofGate: materializedEdgeProofGateBaseline,
+	})
+	if !ok {
+		t.Fatalf("baseline resolve(sql_relationships, proof_gate=%s) = false, detail=%q, want true", materializedEdgeProofGateBaseline, detail)
 	}
 }
 
@@ -57,10 +57,12 @@ func TestMaterializedEdgeFalseGreenWrongOduBreaksSQLRelationships(t *testing.T) 
 }
 
 // TestMaterializedEdgeFalseGreenMissingWaiverFailsNamingFamily proves an
-// uncovered family with NO waiver is a required, blocking failure — removing
-// one real waiver row (code_calls) from the loaded set and re-running the
-// gate must fail, and the failing finding must be traceable back to that
-// exact family.
+// uncovered (surface × proof_gate) row with NO waiver is a required, blocking
+// failure — removing the code_calls BASELINE waiver (leaving its fault waiver
+// in place) and re-running the gate must fail on the baseline row, and the
+// failing finding must be traceable back to that exact family. Leaving the
+// fault waiver untouched also proves per-(surface, proof_gate) isolation: the
+// surviving fault waiver does not rescue the now-unwaived baseline row.
 func TestMaterializedEdgeFalseGreenMissingWaiverFailsNamingFamily(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
@@ -78,14 +80,14 @@ func TestMaterializedEdgeFalseGreenMissingWaiverFailsNamingFamily(t *testing.T) 
 	var trimmed []MaterializedEdgeWaiver
 	removed := false
 	for _, w := range waivers {
-		if w.Surface == MaterializedEdgeSurfacePrefix+"code_calls" {
+		if w.Surface == MaterializedEdgeSurfacePrefix+"code_calls" && w.ProofGate == materializedEdgeProofGateBaseline {
 			removed = true
 			continue
 		}
 		trimmed = append(trimmed, w)
 	}
 	if !removed {
-		t.Fatal("test setup: materialized_edges:code_calls waiver not found in the real manifest (fixture drifted)")
+		t.Fatal("test setup: materialized_edges:code_calls baseline waiver not found in the real manifest (fixture drifted)")
 	}
 
 	_, gate, _ := RunMaterializedEdgeCoverage(MaterializedEdgeCoverageInputs{

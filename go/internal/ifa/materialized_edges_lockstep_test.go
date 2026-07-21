@@ -64,34 +64,44 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 		t.Fatal("materialized-edge coverage gate failed in blocking mode: every family must be either covered (both scenario types) or waived with a tracked issue")
 	}
 
-	// The one family with real coverage as of #5351.
-	for _, scenarioType := range []replaycoverage.DepthScenarioType{replaycoverage.ScenarioTypeBaseline, replaycoverage.ScenarioTypeFault} {
-		sc := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"sql_relationships", scenarioType)
-		if sc.Status != replaycoverage.StatusCovered {
-			t.Errorf("materialized_edges:sql_relationships (%s) status = %q, detail=%q, want covered", scenarioType, sc.Status, sc.Detail)
-		}
+	// sql_relationships is the one family with a genuinely-proven row as of
+	// #5351: the BASELINE (ifa-determinism) is covered. The FAULT
+	// (ifa-fault-injection) is NOT covered — it is a confirmed-false fault
+	// (#5555) that is waived, not proven. Asserting them separately is the
+	// honest-landing shape: baseline green, fault waived, at (surface × proof_gate)
+	// granularity.
+	baseline := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"sql_relationships", replaycoverage.ScenarioTypeBaseline)
+	if baseline.Status != replaycoverage.StatusCovered {
+		t.Errorf("materialized_edges:sql_relationships (baseline) status = %q, detail=%q, want covered", baseline.Status, baseline.Detail)
+	}
+	fault := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"sql_relationships", replaycoverage.ScenarioTypeFault)
+	if fault.Status == replaycoverage.StatusCovered {
+		t.Errorf("materialized_edges:sql_relationships (fault) status = %q, want NOT covered (waived on #5555, not proven)", fault.Status)
 	}
 
-	// Every OTHER allProjectionDomains family must be waived, not silently
-	// dropped from the manifest entirely (a family present in neither
-	// coverage nor waivers is the exact drift class this gate exists to
-	// catch — proven not to slip past by gate.Failed() above, but assert the
-	// waiver count directly too so a future family added without EITHER a
-	// coverage row or a waiver fails loudly here, not just via a generic
-	// "gate failed" message).
-	waivedCount := 0
+	// Every OTHER allProjectionDomains family must be waived on BOTH gates, not
+	// silently dropped from the manifest (a (surface × proof_gate) row present in
+	// neither coverage nor waivers is the exact drift this gate exists to catch —
+	// proven not to slip past by gate.Failed() above, but assert the waiver keys
+	// directly too so a future family added without either a coverage row or a
+	// waiver fails loudly here). sql_relationships is asserted separately: its
+	// baseline is covered (no waiver) and only its fault gate is waived.
+	byKey := materializedEdgeWaiversByKey(waivers)
 	for _, f := range families {
 		if f == "sql_relationships" {
+			if _, ok := byKey[materializedEdgeWaiverKey{Surface: MaterializedEdgeSurfacePrefix + f, ProofGate: materializedEdgeProofGateFault}]; !ok {
+				t.Error("sql_relationships fault gate must carry a waiver (#5555)")
+			}
+			if _, ok := byKey[materializedEdgeWaiverKey{Surface: MaterializedEdgeSurfacePrefix + f, ProofGate: materializedEdgeProofGateBaseline}]; ok {
+				t.Error("sql_relationships baseline is proven; it must NOT carry a waiver")
+			}
 			continue
 		}
-		if _, ok := materializedEdgeWaiversBySurface(waivers)[MaterializedEdgeSurfacePrefix+f]; !ok {
-			t.Errorf("family %q has neither coverage nor a waiver", f)
-			continue
+		for _, gate := range []string{materializedEdgeProofGateBaseline, materializedEdgeProofGateFault} {
+			if _, ok := byKey[materializedEdgeWaiverKey{Surface: MaterializedEdgeSurfacePrefix + f, ProofGate: gate}]; !ok {
+				t.Errorf("family %q gate %q has neither coverage nor a waiver", f, gate)
+			}
 		}
-		waivedCount++
-	}
-	if want := len(families) - 1; waivedCount != want {
-		t.Errorf("waived family count = %d, want %d (every allProjectionDomains family except sql_relationships)", waivedCount, want)
 	}
 
 	// Assert both proof gates this manifest references are CI-blocking with a

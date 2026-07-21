@@ -78,8 +78,19 @@ authoring; it does not build a second coverage framework.
   `reducer.MaterializedEdgeFamilies()` entry, mirroring `RunCoverage`'s shape
   with one addition — a `waivers:` section (parsed separately from the
   standard `replaycoverage.Manifest` `coverage:`/`scenario_requirements:`
-  rows) that softens an otherwise-required uncovered family into an advisory
+  rows) that softens an otherwise-required uncovered row into an advisory
   finding naming a tracked child issue, instead of silently exempting it.
+  Waivers are keyed per `(surface, proof_gate)` — equal to the reconciled row
+  key — so waiving a family's `fault` (`ifa-fault-injection`) row never revokes
+  credit for a proven `baseline` (`ifa-determinism`) row. The manifest is a
+  CLAIMS LEDGER, not a roadmap: a `(surface × proof_gate)` dimension with
+  neither a `coverage:` row nor a matching waiver is UNCLAIMED / not covered,
+  and is never inferred as covered. As of #5351 only the `sql_relationships`
+  baseline is proven; its `fault` row is waived on #5555 (a confirmed-false
+  fault anchored to a `CloudResource` MERGE), and SQL delta-live coverage is
+  intentionally unclaimed pending the reducer refresh-fence fix #5554 (proven
+  credential-free only by the pure-derivation delta lockstep, not a manifest
+  row).
   `materialized_edges_sql.go`'s `resolveSQLRelationshipMaterializedEdges` is
   the first family vacuity guard (`sql_relationships`): it asserts the
   hand-derived expected-edge-set fixture covers every

@@ -87,11 +87,23 @@
   `specs/ifa-materialized-edge-coverage.v1.yaml` — it would be ignored (the
   loaded value is always overwritten before `Reconcile` runs) and would mislead
   a reviewer into thinking the file controls the requirement.
-- An uncovered family MUST be either bound to real coverage rows or listed in
-  the manifest's `waivers:` section with a tracked issue; a family in neither
-  fails the blocking gate. A waiver on a family that later gains real
-  coverage is flagged as stale — remove the `waivers:` row in the same change
-  that adds the coverage rows.
+- An uncovered `(surface, proof_gate)` row MUST be either bound to a real
+  coverage row or listed in the manifest's `waivers:` section with a tracked
+  issue; a row in neither fails the blocking gate. Waivers are keyed per
+  `(surface, proof_gate)` (each waiver row carries a `proof_gate:` — one of
+  `ifa-determinism` / `ifa-fault-injection`), so a per-family waiver with no
+  `proof_gate` is too coarse and fails to load. Waiving the `fault` gate does
+  NOT green the `baseline` row and vice versa — this is how `sql_relationships`
+  keeps a proven baseline while its confirmed-false fault (#5555) is waived. A
+  waiver on a `(surface, proof_gate)` that later gains real coverage is flagged
+  as stale — remove the `waivers:` row in the same change that adds the
+  coverage row.
+- The manifest is a CLAIMS LEDGER, not a roadmap: absence of a
+  `(surface × proof_gate)` row means NOT CLAIMED / not covered, never inferred
+  covered. Do NOT add a permanently-waived row for a dimension you cannot prove
+  live (e.g. SQL delta-live, blocked on the reducer refresh-fence bug #5554) —
+  leave it unclaimed and record the gap in the manifest's roadmap block, so the
+  ledger never claims coverage it does not have.
 - Before trusting a new family's expected-edge-set fixture against a live
   backend, read `README.md`'s Gotchas note on the #5351 live-proof finding: a
   `content_entity` fact whose `relative_path` has no matching `file` fact

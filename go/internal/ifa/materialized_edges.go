@@ -31,7 +31,51 @@ const (
 	// manifest inside specs/, sibling to ManifestFileName
 	// (ifa-coverage-manifest.v1.yaml).
 	MaterializedEdgeManifestFileName = "ifa-materialized-edge-coverage.v1.yaml"
+
+	// materializedEdgeProofGateBaseline and materializedEdgeProofGateFault are
+	// the two CI proof gates the exhaustiveness contract pairs with each
+	// family's required scenario types: the P2 determinism matrix proves the
+	// baseline row, the P4 fault-injection matrix proves the fault row. This
+	// pairing is the structural claim granularity — one manifest row per
+	// (surface, proof_gate) — so a waiver is keyed by (surface, proof_gate) too,
+	// never per-family. Absence of a (surface, proof_gate) row means NOT CLAIMED
+	// (an unproven dimension is never inferred covered).
+	materializedEdgeProofGateBaseline = "ifa-determinism"
+	materializedEdgeProofGateFault    = "ifa-fault-injection"
 )
+
+// validMaterializedEdgeWaiverProofGates is the closed set of proof gates a
+// waiver may name: exactly the two gates the required baseline/fault
+// scenario-type pair maps to. A waiver naming anything else would waive a row
+// no gate proves, so LoadMaterializedEdgeWaivers rejects it.
+var validMaterializedEdgeWaiverProofGates = map[string]struct{}{
+	materializedEdgeProofGateBaseline: {},
+	materializedEdgeProofGateFault:    {},
+}
+
+// materializedEdgeProofGateFor maps a required depth scenario type to the CI
+// proof gate that proves it, so a reconciled (surface, scenario_type) row lines
+// up 1:1 with a waiver keyed by (surface, proof_gate). An unrecognized scenario
+// type returns "" — no waiver can then match the row, which fails closed rather
+// than softening a row whose gate is unknown.
+func materializedEdgeProofGateFor(scenarioType replaycoverage.DepthScenarioType) string {
+	switch scenarioType {
+	case replaycoverage.ScenarioTypeBaseline:
+		return materializedEdgeProofGateBaseline
+	case replaycoverage.ScenarioTypeFault:
+		return materializedEdgeProofGateFault
+	default:
+		return ""
+	}
+}
+
+// materializedEdgeWaiverKey is the (surface, proof_gate) identity a waiver is
+// matched on — equal to the reconciled row key, so a fault-injection waiver can
+// never revoke credit for a proven determinism (baseline) row and vice versa.
+type materializedEdgeWaiverKey struct {
+	Surface   string
+	ProofGate string
+}
 
 // EnumerateMaterializedEdgeSurfaces flattens the drift-proof family list
 // (reducer.MaterializedEdgeFamilies()) into the deterministic
@@ -116,20 +160,26 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 type MaterializedEdgeWaiver struct {
 	// Surface is the materialized_edges:<family> key the waiver applies to.
 	Surface string
+	// ProofGate is the CI proof gate this waiver softens for the surface, one of
+	// materializedEdgeProofGateBaseline / materializedEdgeProofGateFault. It is
+	// what makes a waiver per-(surface, proof_gate): waiving the fault gate does
+	// not touch the surface's baseline row.
+	ProofGate string
 	// Issue is the tracked child issue reference, e.g. "#5352".
 	Issue string
 	// Waived is the ISO-8601 (YYYY-MM-DD) date the waiver was recorded.
 	Waived string
-	// Reason is a short human explanation of why the family has no Odù yet.
+	// Reason is a short human explanation of why the family's proof_gate row has
+	// no Odù coverage yet.
 	Reason string
 }
 
-// materializedEdgeWaiversBySurface indexes waivers by their surface key for
-// O(1) lookup during finding rendering.
-func materializedEdgeWaiversBySurface(waivers []MaterializedEdgeWaiver) map[string]MaterializedEdgeWaiver {
-	out := make(map[string]MaterializedEdgeWaiver, len(waivers))
+// materializedEdgeWaiversByKey indexes waivers by their (surface, proof_gate)
+// key for O(1) lookup during finding rendering.
+func materializedEdgeWaiversByKey(waivers []MaterializedEdgeWaiver) map[materializedEdgeWaiverKey]MaterializedEdgeWaiver {
+	out := make(map[materializedEdgeWaiverKey]MaterializedEdgeWaiver, len(waivers))
 	for _, w := range waivers {
-		out[w.Surface] = w
+		out[materializedEdgeWaiverKey{Surface: w.Surface, ProofGate: w.ProofGate}] = w
 	}
 	return out
 }
@@ -159,8 +209,17 @@ type MaterializedEdgeCoverageInputs struct {
 }
 
 // RunMaterializedEdgeCoverage reconciles the drift-proof materialized-edge
-// family enumeration against Ifá's own materialized-edge coverage manifest,
-// mirroring RunCoverage's shape (coverage.go) with one addition: waivers.
+// family enumeration against Ifá's own materialized-edge coverage manifest.
+//
+// The manifest is a CLAIMS LEDGER, not a roadmap: the unit of a claim is one
+// (surface × proof_gate) row. A dimension with neither a coverage row nor a
+// matching waiver is UNCLAIMED / not covered — this function never infers
+// coverage for a dimension the ledger is silent about, and a required-but-
+// unclaimed dimension fails the blocking gate. Waivers are per-(surface,
+// proof_gate) so a waived fault row never revokes credit for a proven baseline
+// row (see materializedEdgeWaiverKey).
+//
+// It mirrors RunCoverage's shape (coverage.go) with one addition: waivers.
 // Reconcile/BuildReport/Findings are reused wholesale from replaycoverage;
 // only the final finding render is bespoke, because "a waived family is
 // advisory but must still name its issue" has no equivalent in
@@ -183,17 +242,23 @@ func RunMaterializedEdgeCoverage(in MaterializedEdgeCoverageInputs) (replaycover
 		}
 	}
 
-	waiverList := materializedEdgeWaiversBySurface(in.Waivers)
+	waiverList := materializedEdgeWaiversByKey(in.Waivers)
 	familySet := make(map[string]struct{}, len(in.Families))
 	for _, f := range in.Families {
 		familySet[MaterializedEdgeSurfacePrefix+f] = struct{}{}
 	}
 
-	var danglingWaivers []string
-	for surface := range waiverList {
-		if _, ok := familySet[surface]; !ok {
-			danglingWaivers = append(danglingWaivers, surface)
+	// A waiver whose surface is not an enumerated family is dangling. Dedupe by
+	// surface so a family's baseline+fault waivers do not report twice.
+	danglingSet := make(map[string]struct{}, len(waiverList))
+	for key := range waiverList {
+		if _, ok := familySet[key.Surface]; !ok {
+			danglingSet[key.Surface] = struct{}{}
 		}
+	}
+	danglingWaivers := make([]string, 0, len(danglingSet))
+	for surface := range danglingSet {
+		danglingWaivers = append(danglingWaivers, surface)
 	}
 	sort.Strings(danglingWaivers)
 	for _, surface := range danglingWaivers {
@@ -203,23 +268,27 @@ func RunMaterializedEdgeCoverage(in MaterializedEdgeCoverageInputs) (replaycover
 		})
 	}
 
-	coveredSurfaces := make(map[string]struct{}, len(cov.Surfaces))
+	// A waiver for a (surface, proof_gate) row that is now genuinely covered is
+	// stale and must be removed — checked at row granularity so a still-honest
+	// fault waiver survives even after the baseline row of the same surface
+	// gains real coverage (the SQL family's exact shape).
+	coveredKeys := make(map[materializedEdgeWaiverKey]struct{}, len(cov.Surfaces))
 	for _, sc := range cov.Surfaces {
 		if sc.Status == replaycoverage.StatusCovered {
-			coveredSurfaces[sc.Surface.Key] = struct{}{}
+			coveredKeys[materializedEdgeWaiverKey{Surface: sc.Surface.Key, ProofGate: materializedEdgeProofGateFor(sc.ScenarioType)}] = struct{}{}
 		}
 	}
 	var staleWaivers []string
-	for surface := range waiverList {
-		if _, covered := coveredSurfaces[surface]; covered {
-			staleWaivers = append(staleWaivers, surface)
+	for key := range waiverList {
+		if _, covered := coveredKeys[key]; covered {
+			staleWaivers = append(staleWaivers, materializedEdgeWaiverDisplayKey(key))
 		}
 	}
 	sort.Strings(staleWaivers)
-	for _, surface := range staleWaivers {
+	for _, display := range staleWaivers {
 		gr.Add(goldengate.Finding{
-			Phase: "manifest", Check: surface, OK: false, Required: in.Blocking,
-			Detail: fmt.Sprintf("stale waiver: %q now has real coverage; remove its waivers: row", surface),
+			Phase: "manifest", Check: display, OK: false, Required: in.Blocking,
+			Detail: fmt.Sprintf("stale waiver: %q now has real coverage; remove its waivers: row", display),
 		})
 	}
 
@@ -244,7 +313,7 @@ func RunMaterializedEdgeCoverage(in MaterializedEdgeCoverageInputs) (replaycover
 // in place after real coverage landed) is reported separately by
 // RunMaterializedEdgeCoverage comparing cov to in.Waivers before this
 // function runs, not here — this function only renders the coverage side.
-func materializedEdgeFinding(sc replaycoverage.SurfaceCoverage, waivers map[string]MaterializedEdgeWaiver, blocking bool) goldengate.Finding {
+func materializedEdgeFinding(sc replaycoverage.SurfaceCoverage, waivers map[materializedEdgeWaiverKey]MaterializedEdgeWaiver, blocking bool) goldengate.Finding {
 	ok := sc.Status == replaycoverage.StatusCovered || sc.Status == replaycoverage.StatusExempt
 	check := sc.Surface.Key
 	if sc.ScenarioType != "" && sc.ScenarioType != replaycoverage.ScenarioTypeBaseline {
@@ -256,7 +325,8 @@ func materializedEdgeFinding(sc replaycoverage.SurfaceCoverage, waivers map[stri
 			Detail: fmt.Sprintf("%s: %s", sc.Status, sc.Detail),
 		}
 	}
-	if w, waived := waivers[sc.Surface.Key]; waived {
+	key := materializedEdgeWaiverKey{Surface: sc.Surface.Key, ProofGate: materializedEdgeProofGateFor(sc.ScenarioType)}
+	if w, waived := waivers[key]; waived {
 		return goldengate.Finding{
 			Phase: string(sc.Surface.Registry), Check: check, OK: true, Required: false,
 			Detail: fmt.Sprintf("waived (tracked in %s, %s): %s", w.Issue, w.Waived, w.Reason),
@@ -266,4 +336,14 @@ func materializedEdgeFinding(sc replaycoverage.SurfaceCoverage, waivers map[stri
 		Phase: string(sc.Surface.Registry), Check: check, OK: false, Required: blocking,
 		Detail: fmt.Sprintf("%s: %s (no waiver on file)", sc.Status, sc.Detail),
 	}
+}
+
+// materializedEdgeWaiverDisplayKey renders a waiver key for a finding message:
+// bare surface for the baseline gate (so it matches the baseline row's own
+// display key), surface|proof_gate otherwise.
+func materializedEdgeWaiverDisplayKey(key materializedEdgeWaiverKey) string {
+	if key.ProofGate == materializedEdgeProofGateBaseline {
+		return key.Surface
+	}
+	return fmt.Sprintf("%s|%s", key.Surface, key.ProofGate)
 }
