@@ -49,7 +49,13 @@
 // docs/internal/remote-validation/<ref>.md artifact or appear in the
 // burn-down baseline (specs/remote-validation-baseline.txt), so a
 // production-supported claim can never rest solely on an unverifiable
-// remote-validation reference.
+// remote-validation reference. LoadRemoteValidationBaseline also parses the
+// baseline's mandatory FROZEN_MAX ceiling, and
+// RemoteValidationBaselineCeilingExceeded reports growth past it: the frozen
+// debt set may shrink but never grow, so a new unverified production:supported
+// row cannot be smuggled in by appending its ref and regenerating.
+// RenderRemoteValidationBaseline ratchets that ceiling down on burn-down and
+// never raises it.
 //
 // Load returns the committed, generated artifact embedded from
 // data/catalog.generated.json. It is the runtime entry point for the API, MCP,

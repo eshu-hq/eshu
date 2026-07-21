@@ -4,6 +4,7 @@
 package capabilitycatalog
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -117,7 +118,7 @@ func TestLoadRemoteValidationBaselineParsesSlugsIgnoringCommentsAndBlanks(t *tes
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "remote-validation-baseline.txt")
-	body := "# header comment\n\nprod-alpha\nprod-beta-two\n"
+	body := "# header comment\n# FROZEN_MAX: 2\n\nprod-alpha\nprod-beta-two\n"
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatalf("write baseline: %v", err)
 	}
@@ -126,14 +127,61 @@ func TestLoadRemoteValidationBaselineParsesSlugsIgnoringCommentsAndBlanks(t *tes
 	if err != nil {
 		t.Fatalf("LoadRemoteValidationBaseline: %v", err)
 	}
-	if _, ok := baseline["prod-alpha"]; !ok {
+	if _, ok := baseline.Entries["prod-alpha"]; !ok {
 		t.Fatal("baseline missing prod-alpha")
 	}
-	if _, ok := baseline["prod-beta-two"]; !ok {
+	if _, ok := baseline.Entries["prod-beta-two"]; !ok {
 		t.Fatal("baseline missing prod-beta-two")
 	}
-	if len(baseline) != 2 {
-		t.Fatalf("baseline = %+v, want exactly 2 entries", baseline)
+	if len(baseline.Entries) != 2 {
+		t.Fatalf("baseline entries = %+v, want exactly 2 entries", baseline.Entries)
+	}
+	if baseline.Ceiling != 2 {
+		t.Fatalf("baseline ceiling = %d, want 2", baseline.Ceiling)
+	}
+}
+
+// TestLoadRemoteValidationBaselineParsesCeilingDirective covers the FROZEN_MAX
+// directive: a well-formed value is parsed, and absent/duplicate/malformed
+// directives fail closed.
+func TestLoadRemoteValidationBaselineParsesCeilingDirective(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		body    string
+		wantErr bool
+		ceiling int
+	}{
+		{"well-formed directive", "# FROZEN_MAX: 5\nprod-a\n", false, 5},
+		{"zero ceiling", "# FROZEN_MAX: 0\n", false, 0},
+		{"absent directive fails closed", "prod-a\n", true, 0},
+		{"duplicate directive fails closed", "# FROZEN_MAX: 1\n# FROZEN_MAX: 2\n", true, 0},
+		{"non-numeric value fails closed", "# FROZEN_MAX: many\nprod-a\n", true, 0},
+		{"negative value fails closed", "# FROZEN_MAX: -1\nprod-a\n", true, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			path := filepath.Join(dir, "remote-validation-baseline.txt")
+			if err := os.WriteFile(path, []byte(tc.body), 0o644); err != nil {
+				t.Fatalf("write baseline: %v", err)
+			}
+			baseline, err := LoadRemoteValidationBaseline(path)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("LoadRemoteValidationBaseline(%q) error = nil, want fail-closed", tc.body)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("LoadRemoteValidationBaseline(%q): %v", tc.body, err)
+			}
+			if baseline.Ceiling != tc.ceiling {
+				t.Fatalf("ceiling = %d, want %d", baseline.Ceiling, tc.ceiling)
+			}
+		})
 	}
 }
 
@@ -144,8 +192,13 @@ func TestLoadRemoteValidationBaselineMissingFileIsEmptyNotError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadRemoteValidationBaseline(missing): %v", err)
 	}
-	if len(baseline) != 0 {
-		t.Fatalf("baseline = %+v, want empty", baseline)
+	if len(baseline.Entries) != 0 {
+		t.Fatalf("baseline entries = %+v, want empty", baseline.Entries)
+	}
+	// A missing file has a zero ceiling: no debt tracked and no growth
+	// allowance, so any dangling ref still fails the artifact check.
+	if baseline.Ceiling != 0 {
+		t.Fatalf("baseline ceiling = %d, want 0 for a missing file", baseline.Ceiling)
 	}
 }
 
@@ -175,6 +228,42 @@ func TestLoadRemoteValidationBaselineFailsClosedOnMalformedLine(t *testing.T) {
 	}
 }
 
+// TestRemoteValidationBaselineRejectsGrowthAboveCeiling proves the ratcheting
+// high-water-mark: an entry count that EXCEEDS the frozen ceiling is baseline
+// GROWTH and must be rejected, while count == ceiling and count < ceiling both
+// pass. This is the anti-append-smuggling guard: a new unverified
+// production:supported row appended to the baseline pushes the count past the
+// ceiling and fails the gate.
+func TestRemoteValidationBaselineRejectsGrowthAboveCeiling(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		entries  int
+		ceiling  int
+		exceeded bool
+	}{
+		{"count over ceiling grows the set", 2, 1, true},
+		{"count equal to ceiling holds", 1, 1, false},
+		{"count under ceiling is a burn-down", 0, 1, false},
+		{"zero entries under zero ceiling", 0, 0, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			entries := map[string]struct{}{}
+			for i := 0; i < tc.entries; i++ {
+				entries[fmt.Sprintf("prod-slug-%d", i)] = struct{}{}
+			}
+			b := RemoteValidationBaseline{Entries: entries, Ceiling: tc.ceiling}
+			if got := RemoteValidationBaselineCeilingExceeded(b); got != tc.exceeded {
+				t.Fatalf("RemoteValidationBaselineCeilingExceeded(entries=%d, ceiling=%d) = %v, want %v",
+					tc.entries, tc.ceiling, got, tc.exceeded)
+			}
+		})
+	}
+}
+
 func TestRenderRemoteValidationBaselineListsOnlyDanglingRefsSorted(t *testing.T) {
 	t.Parallel()
 
@@ -186,7 +275,8 @@ func TestRenderRemoteValidationBaselineListsOnlyDanglingRefsSorted(t *testing.T)
 		matrixRefSpec{capability: "m.mid", ref: "prod-has-artifact"},
 	)
 
-	rendered := RenderRemoteValidationBaseline(matrix, repoRoot)
+	// First generation: no prior ceiling, so FROZEN_MAX is the dangling count (2).
+	rendered := RenderRemoteValidationBaseline(matrix, repoRoot, 0, false)
 	if strings.Contains(rendered, "prod-has-artifact") {
 		t.Fatalf("rendered baseline must not list a ref with a committed artifact:\n%s", rendered)
 	}
@@ -194,6 +284,55 @@ func TestRenderRemoteValidationBaselineListsOnlyDanglingRefsSorted(t *testing.T)
 	idxZ := strings.Index(rendered, "prod-dangling-z")
 	if idxA == -1 || idxZ == -1 || idxA > idxZ {
 		t.Fatalf("rendered baseline not sorted (a must precede z):\n%s", rendered)
+	}
+	if !strings.Contains(rendered, "# FROZEN_MAX: 2\n") {
+		t.Fatalf("rendered baseline missing FROZEN_MAX: 2 for first generation:\n%s", rendered)
+	}
+	// The rendered baseline must round-trip through the loader with a matching
+	// ceiling and no growth violation.
+	dir := t.TempDir()
+	path := filepath.Join(dir, "remote-validation-baseline.txt")
+	if err := os.WriteFile(path, []byte(rendered), 0o644); err != nil {
+		t.Fatalf("write rendered baseline: %v", err)
+	}
+	loaded, err := LoadRemoteValidationBaseline(path)
+	if err != nil {
+		t.Fatalf("round-trip load of rendered baseline: %v", err)
+	}
+	if loaded.Ceiling != 2 || len(loaded.Entries) != 2 {
+		t.Fatalf("round-trip: entries=%d ceiling=%d, want 2/2", len(loaded.Entries), loaded.Ceiling)
+	}
+	if RemoteValidationBaselineCeilingExceeded(loaded) {
+		t.Fatal("freshly rendered baseline must not exceed its own ceiling")
+	}
+}
+
+// TestRenderRemoteValidationBaselineRatchetsCeilingDown proves regeneration
+// never raises the ceiling: with a smaller prior ceiling the rendered file
+// keeps the prior (lower) ceiling even when more refs dangle, and with a larger
+// prior ceiling the ceiling ratchets down to the current count.
+func TestRenderRemoteValidationBaselineRatchetsCeilingDown(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	matrix := matrixWithRemoteValidationRefs(
+		matrixRefSpec{capability: "a.one", ref: "prod-dangling-a"},
+		matrixRefSpec{capability: "b.two", ref: "prod-dangling-b"},
+	)
+
+	// Prior ceiling 1 is below the current dangling count 2: -update must NOT
+	// raise it, so the rendered file holds 2 entries but a ceiling of 1 and
+	// therefore fails the growth check.
+	renderedLow := RenderRemoteValidationBaseline(matrix, repoRoot, 1, true)
+	if !strings.Contains(renderedLow, "# FROZEN_MAX: 1\n") {
+		t.Fatalf("prior ceiling 1 must not be raised:\n%s", renderedLow)
+	}
+
+	// Prior ceiling 5 is above the current dangling count 2: the ceiling
+	// ratchets DOWN to 2.
+	renderedHigh := RenderRemoteValidationBaseline(matrix, repoRoot, 5, true)
+	if !strings.Contains(renderedHigh, "# FROZEN_MAX: 2\n") {
+		t.Fatalf("prior ceiling 5 must ratchet down to 2:\n%s", renderedHigh)
 	}
 }
 
@@ -212,7 +351,7 @@ func TestRemoteValidationRealSpecsRespectBaseline(t *testing.T) {
 		t.Fatalf("LoadRemoteValidationBaseline(real baseline): %v", err)
 	}
 
-	findings := CheckRemoteValidationArtifacts(matrix, repoRoot, baseline)
+	findings := CheckRemoteValidationArtifacts(matrix, repoRoot, baseline.Entries)
 	if len(findings) != 0 {
 		var lines []string
 		for _, finding := range findings {
@@ -222,5 +361,10 @@ func TestRemoteValidationRealSpecsRespectBaseline(t *testing.T) {
 			"%d remote_validation ref(s) have no committed artifact and are not in %s; add the artifact or baseline the ref:\n%s",
 			len(findings), baselinePath, strings.Join(lines, "\n"),
 		)
+	}
+	// The committed baseline must not itself exceed its frozen ceiling.
+	if RemoteValidationBaselineCeilingExceeded(baseline) {
+		t.Fatalf("committed baseline %s holds %d entries above its FROZEN_MAX ceiling %d",
+			baselinePath, len(baseline.Entries), baseline.Ceiling)
 	}
 }
