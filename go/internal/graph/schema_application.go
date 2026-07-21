@@ -25,7 +25,17 @@ type SchemaApplication struct {
 
 const (
 	graphSchemaNeo4jFingerprint    = "ad2a8291d1aa3766839c46d708f3641a1ec7c6fc0d2126de1c901f5b1997ebd7"
-	graphSchemaNornicDBFingerprint = "9b67c40d329b0309bb1247cf86c1f0574f9ddf31b8e6ab47de9416e960af0b70"
+	graphSchemaNornicDBFingerprint = "905727bfaac618616fefe55dd70dc3f7ef0ef6f03b0eb464cdf92c31abb47978"
+
+	// graphSchemaNornicDBPreKubernetesWorkloadIDLookupFingerprint is the schema
+	// fingerprint immediately before the NornicDB-only KubernetesWorkload.id
+	// lookup index was added (#5436), giving the RUNS_IMAGE edge read path a
+	// seek-consistent anchor to match the other by-id-anchored labels
+	// analyze_infra_relationships serves. The bump is additive and NornicDB-only
+	// (Neo4j's fingerprint is unaffected): older writers do not rely on the
+	// index being absent, and newer writers only gain a faster
+	// KubernetesWorkload lookup instead of falling back to a label scan.
+	graphSchemaNornicDBPreKubernetesWorkloadIDLookupFingerprint = "9b67c40d329b0309bb1247cf86c1f0574f9ddf31b8e6ab47de9416e960af0b70"
 
 	// graphSchemaNeo4jPreFluxHelmEntitiesFingerprint and its NornicDB peer are
 	// the schema fingerprints immediately before the FluxHelmRelease /
@@ -137,6 +147,7 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	},
 	SchemaBackendNornicDB: {
 		graphSchemaNornicDBFingerprint: {
+			graphSchemaNornicDBPreKubernetesWorkloadIDLookupFingerprint,
 			graphSchemaNornicDBPreFluxHelmEntitiesFingerprint,
 			graphSchemaNornicDBPreFluxTypedEntitiesFingerprint,
 			graphSchemaNornicDBPreSqlMigrationFingerprint,

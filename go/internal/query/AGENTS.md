@@ -386,8 +386,9 @@
   `getRelationships` (`infra_relationship_filter.go`) decodes the optional
   `relationship_type` and resolves it through `resolveInfraRelationshipTypes`'s
   fixed allowlist (semantic MCP aliases `what_deploys` / `what_provisions` /
-  `module_consumers` / `who_consumes_xrd` plus canonical edge types such as
-  `DEPLOYS_FROM`, `USES_MODULE`). The resolved types render into the
+  `module_consumers` / `who_consumes_xrd` / `what_runs_image` plus canonical
+  edge types such as `DEPLOYS_FROM`, `USES_MODULE`, `RUNS_IMAGE`). The resolved
+  types render into the
   `OPTIONAL MATCH (n)-[r:TYPE_A|TYPE_B]->(...)` pattern as an inline
   relationship-type filter. An empty argument keeps the prior bare untyped
   pattern (whole-relationship); an unrecognized value returns 400. Do not feed
