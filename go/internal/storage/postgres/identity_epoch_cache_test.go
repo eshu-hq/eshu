@@ -5,7 +5,6 @@ package postgres
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -17,19 +16,23 @@ import (
 )
 
 // probeQueryRow returns a single-row fake response for the epoch probe:
-// count, COALESCE(max(observed_at), ...).
-func probeQueryRow(count int, maxObservedAt time.Time) queueFakeRows {
+// count, COALESCE(max(observed_at), ...), active_fingerprint.
+func probeQueryRow(count int, maxObservedAt time.Time, fingerprint int64) queueFakeRows {
 	return queueFakeRows{
 		rows: [][]any{{
 			int64(count),
 			maxObservedAt,
+			fingerprint,
 		}},
 	}
 }
 
 // newFactStoreWithCache creates a FactStore with a wired identity cache for testing.
 func newFactStoreWithCache(db ExecQueryer, maxBytes int64) *FactStore {
-	cache := newIdentityEpochCache(noop.NewMeterProvider().Meter("test"), maxBytes)
+	cache, err := newIdentityEpochCache(noop.NewMeterProvider().Meter("test"), maxBytes)
+	if err != nil {
+		panic("newIdentityEpochCache in test: " + err.Error())
+	}
 	return &FactStore{
 		db:            db,
 		identityCache: cache,
@@ -51,16 +54,15 @@ func TestIdentityEpochCacheHit(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)), // call 1: probe (miss → load)
-			{rows: [][]any{factRow}}, // call 1: load page
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)), // call 1: post-load probe (match)
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)), // call 2: probe (hit → serve cached)
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
+			{rows: [][]any{factRow}},
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
 		},
 	}
 
-	store := newFactStoreWithCache(db, 0 /* unlimited cap */)
+	store := newFactStoreWithCache(db, 0)
 
-	// First call: cache miss, loads from DB.
 	loaded1, err := store.ListActiveContainerImageIdentityFacts(context.Background())
 	if err != nil {
 		t.Fatalf("first ListActiveContainerImageIdentityFacts: %v", err)
@@ -69,7 +71,6 @@ func TestIdentityEpochCacheHit(t *testing.T) {
 		t.Fatalf("first call len = %d, want 1", len(loaded1))
 	}
 
-	// Second call: cache hit, no DB load.
 	loaded2, err := store.ListActiveContainerImageIdentityFacts(context.Background())
 	if err != nil {
 		t.Fatalf("second ListActiveContainerImageIdentityFacts: %v", err)
@@ -78,7 +79,6 @@ func TestIdentityEpochCacheHit(t *testing.T) {
 		t.Fatalf("second call len = %d, want 1", len(loaded2))
 	}
 
-	// Verify: only one load page was executed.
 	var loadQueries int
 	for _, q := range db.queries {
 		if strings.Contains(q.query, "LIMIT") {
@@ -115,14 +115,12 @@ func TestIdentityEpochCacheMissChangedCount(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			// First call
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
 			{rows: [][]any{factRow}},
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)),
-			// Second call: probe shows count changed
-			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
+			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), 0),
 			{rows: [][]any{factRow, factRow2}},
-			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)),
+			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), 0),
 		},
 	}
 
@@ -169,12 +167,12 @@ func TestIdentityEpochCacheConcurrentSingleflight(t *testing.T) {
 	}
 
 	responses := []queueFakeRows{
-		probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)),
+		probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
 		{rows: [][]any{factRow}},
-		probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)),
+		probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
 	}
 	for range 31 {
-		responses = append(responses, probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)))
+		responses = append(responses, probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0))
 	}
 
 	db := &fakeExecQueryer{
@@ -234,14 +232,12 @@ func TestIdentityEpochCacheCommitMidLoad(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
 			{rows: [][]any{factRow}},
-			// Post-load probe disagrees (mid-load commit)
-			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)),
-			// Second call: reload with 2 facts
-			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)),
+			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), 0),
+			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), 0),
 			{rows: [][]any{factRow, factRow}},
-			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)),
+			probeQueryRow(2, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), 0),
 		},
 	}
 
@@ -277,10 +273,8 @@ func TestIdentityEpochCacheCommitMidLoad(t *testing.T) {
 func TestIdentityEpochCacheCapExceeded(t *testing.T) {
 	t.Parallel()
 
-	// Build a large valid JSON payload so the estimated byte size exceeds a small cap.
 	largePayload := make([]byte, 0, 5100)
 	largePayload = append(largePayload, []byte(`{"data":"`)...)
-	// Fill with enough 'a' characters to make the payload >5KB when encoded.
 	for i := 0; i < 5000; i++ {
 		largePayload = append(largePayload, 'a')
 	}
@@ -297,17 +291,15 @@ func TestIdentityEpochCacheCapExceeded(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
 			{rows: [][]any{factRow}},
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)),
-			// Second call: cap exceeded → no cache stored, reload
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
 			{rows: [][]any{factRow}},
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
 		},
 	}
 
-	// Cap set to 100 bytes — loaded set is ~5KB, far exceeding it.
 	store := newFactStoreWithCache(db, 100)
 
 	loaded1, err := store.ListActiveContainerImageIdentityFacts(context.Background())
@@ -378,10 +370,10 @@ func TestIdentityEpochCacheDefensiveCopy(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
 			{rows: [][]any{factRow}},
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)),
-			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
+			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 0),
 		},
 	}
 
@@ -400,7 +392,6 @@ func TestIdentityEpochCacheDefensiveCopy(t *testing.T) {
 		t.Fatalf("second call: %v", err)
 	}
 
-	// Mutate the first call's result; second call's result must be unaffected.
 	if loaded1[0].Payload == nil || loaded2[0].Payload == nil {
 		t.Fatal("Payload is nil")
 	}
@@ -411,50 +402,4 @@ func TestIdentityEpochCacheDefensiveCopy(t *testing.T) {
 	if _, ok := loaded2[0].Payload["mutated"]; ok {
 		t.Fatal("Second call's payload was mutated (defensive copy failed)")
 	}
-}
-
-// extractIdentityFilter extracts the parenthesized 6-arm filter from a SQL query.
-func extractIdentityFilter(query string) string {
-	whereIdx := strings.Index(query, "WHERE")
-	if whereIdx < 0 {
-		panic(fmt.Sprintf("cannot find WHERE in query: %s", query))
-	}
-	rest := query[whereIdx+5:]
-	parenStart := strings.Index(rest, "(")
-	if parenStart < 0 {
-		panic(fmt.Sprintf("cannot find opening paren after WHERE in query: %s", query))
-	}
-	start := whereIdx + 5 + parenStart
-
-	depth := 0
-	inSingle := false
-	end := -1
-	for i := start; i < len(query); i++ {
-		ch := query[i]
-		if inSingle {
-			if ch == '\'' {
-				inSingle = false
-			}
-			continue
-		}
-		if ch == '\'' {
-			inSingle = true
-			continue
-		}
-		switch ch {
-		case '(':
-			depth++
-		case ')':
-			depth--
-			if depth == 0 {
-				end = i + 1
-				goto done
-			}
-		}
-	}
-done:
-	if end < 0 {
-		panic(fmt.Sprintf("cannot find filter end in query: %s", query))
-	}
-	return query[start:end]
 }

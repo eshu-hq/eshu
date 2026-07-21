@@ -445,7 +445,7 @@ func loadBoolOrDefault(getenv func(string) string, key string, defaultValue bool
 
 // identityCacheMaxBytes reads ESHU_IDENTITY_CACHE_MAX_BYTES. Zero or unset
 // uses the evidence-based default (500 MiB). Negative disables the cache
-// entirely (returns -1 so NewIdentityEpochCache returns nil).
+// entirely (returns -1 so NewIdentityEpochCache returns nil, nil).
 func identityCacheMaxBytes(getenv func(string) string) int64 {
 	raw := strings.TrimSpace(getenv("ESHU_IDENTITY_CACHE_MAX_BYTES"))
 	if raw == "" {

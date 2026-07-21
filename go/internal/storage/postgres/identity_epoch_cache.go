@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -24,10 +25,19 @@ import (
 const defaultIdentityCacheMaxBytes = 500 * 1024 * 1024 // 500 MiB
 
 // identityEpoch is the set-identity probe for the identity-fact cache.
-// Two epochs are equal when both the count and the max observed_at match.
+// Two epochs are equal when count, max observed_at, and active_fingerprint
+// all match. The fingerprint captures the active-generation mapping from
+// ingestion_scopes so a supersession (active_generation_id flip) is detected
+// even when total fact count and max observed_at are unchanged.
+//
+// Collision: hastext is a 32-bit hash summed over scopes. With N scopes,
+// the probability of two different active mappings producing the same
+// fingerprint sum is ~2^-32 × N²/2 (birthday bound). For 2000 scopes
+// ~10^-6; for 100k ~10^-3. The cache self-heals on the next probe.
 type identityEpoch struct {
-	count         int
-	maxObservedAt time.Time
+	count             int
+	maxObservedAt     time.Time
+	activeFingerprint int64
 }
 
 // IdentityEpochCache caches the full set of active container-image identity
@@ -57,11 +67,11 @@ type IdentityEpochCache struct {
 
 // NewIdentityEpochCache constructs the identity epoch cache. maxBytes caps
 // the cached set; 0 disables the cap (uses defaultIdentityCacheMaxBytes).
-// Returns nil if maxBytes is negative (cache disabled — callers use the
+// Returns (nil, nil) if maxBytes is negative (cache disabled — callers use the
 // uncached path). meter must be non-nil when cache is enabled.
-func NewIdentityEpochCache(meter metric.Meter, maxBytes int64) *IdentityEpochCache {
+func NewIdentityEpochCache(meter metric.Meter, maxBytes int64) (*IdentityEpochCache, error) {
 	if maxBytes < 0 {
-		return nil
+		return nil, nil
 	}
 	if maxBytes == 0 {
 		maxBytes = defaultIdentityCacheMaxBytes
@@ -72,7 +82,7 @@ func NewIdentityEpochCache(meter metric.Meter, maxBytes int64) *IdentityEpochCac
 // newIdentityEpochCache constructs a ready-to-use identity epoch cache.
 // maxBytes caps the cached set; 0 disables the cap (unlimited).
 // meter must be non-nil.
-func newIdentityEpochCache(meter metric.Meter, maxBytes int64) *IdentityEpochCache {
+func newIdentityEpochCache(meter metric.Meter, maxBytes int64) (*IdentityEpochCache, error) {
 	c := &IdentityEpochCache{
 		maxBytes: maxBytes,
 	}
@@ -87,45 +97,45 @@ func newIdentityEpochCache(meter metric.Meter, maxBytes int64) *IdentityEpochCac
 		metric.WithDescription("Total identity-fact cache hits"),
 	)
 	if err != nil {
-		panic("register identity cache hit counter: " + err.Error())
+		return nil, fmt.Errorf("register identity cache hit counter: %w", err)
 	}
 	c.missCounter, err = meter.Int64Counter(
 		"eshu_dp_identity_cache_miss_total",
 		metric.WithDescription("Total identity-fact cache misses (epoch changed → reload)"),
 	)
 	if err != nil {
-		panic("register identity cache miss counter: " + err.Error())
+		return nil, fmt.Errorf("register identity cache miss counter: %w", err)
 	}
 	c.reloadCounter, err = meter.Int64Counter(
 		"eshu_dp_identity_cache_reload_total",
 		metric.WithDescription("Total identity-fact cache reloads (singleflight leader)"),
 	)
 	if err != nil {
-		panic("register identity cache reload counter: " + err.Error())
+		return nil, fmt.Errorf("register identity cache reload counter: %w", err)
 	}
 	c.passthroughCounter, err = meter.Int64Counter(
 		"eshu_dp_identity_cache_passthrough_total",
 		metric.WithDescription("Total identity-fact cache passthroughs (cap exceeded or mid-load commit)"),
 	)
 	if err != nil {
-		panic("register identity cache passthrough counter: " + err.Error())
+		return nil, fmt.Errorf("register identity cache passthrough counter: %w", err)
 	}
 	c.reloadDuration, err = meter.Float64Histogram(
 		"eshu_dp_identity_cache_reload_duration_seconds",
 		metric.WithDescription("Duration of identity-fact cache reloads"),
 	)
 	if err != nil {
-		panic("register identity cache reload duration histogram: " + err.Error())
+		return nil, fmt.Errorf("register identity cache reload duration histogram: %w", err)
 	}
 	c.probeDuration, err = meter.Float64Histogram(
 		"eshu_dp_identity_cache_probe_duration_seconds",
 		metric.WithDescription("Duration of identity-fact epoch probe queries"),
 	)
 	if err != nil {
-		panic("register identity cache probe duration histogram: " + err.Error())
+		return nil, fmt.Errorf("register identity cache probe duration histogram: %w", err)
 	}
 
-	return c
+	return c, nil
 }
 
 // get serves the identity fact set, transparently applying the epoch cache

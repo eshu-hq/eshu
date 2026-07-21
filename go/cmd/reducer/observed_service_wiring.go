@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log/slog"
 	"sync/atomic"
 
@@ -44,7 +45,10 @@ func buildObservedReducerService(
 		Instruments: instruments,
 	}
 	intentStore := postgres.NewSharedIntentStore(instrumentedDB)
-	identityCache := postgres.NewIdentityEpochCache(meter, identityCacheMaxBytes(getenv))
+	identityCache, err := postgres.NewIdentityEpochCache(meter, identityCacheMaxBytes(getenv))
+	if err != nil {
+		return reducer.Service{}, fmt.Errorf("identity epoch cache: %w", err)
+	}
 	serviceRunner, err := buildReducerService(
 		ctx,
 		instrumentedDB,

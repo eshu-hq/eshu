@@ -82,18 +82,29 @@ ORDER BY fact.observed_at ASC, fact.fact_id ASC
 LIMIT $3
 `
 
-// probeIdentityEpochQuery returns (count, COALESCE(max(observed_at), '-infinity'))
-// over the exact same 6-arm fact_kind/source_system filter as the load query,
-// but FROM fact_records alone (no ingestion_scopes/scope_generations JOIN).
+// probeIdentityEpochQuery returns (count, COALESCE(max(observed_at), '-infinity'),
+// active_fingerprint) — the count+max of identity facts over all generations
+// FROM fact_records plus a cheap fingerprint of the active generation mapping
+// from ingestion_scopes. The fingerprint detects supersession (active_generation_id
+// flip) so the cache misses when a new generation becomes active even when total
+// fact count and max observed_at are unchanged.
 // Backed by the partial B-tree index fact_records_identity_epoch_idx
 // ON (observed_at, fact_id) WHERE <filter> AND is_tombstone = FALSE.
 const probeIdentityEpochQuery = `
 SELECT
-    count(*),
-    COALESCE(max(observed_at), '-infinity'::timestamptz)
-FROM fact_records
-WHERE ` + identityFactFilterSQL + `
-  AND is_tombstone = FALSE
+    f.cnt,
+    COALESCE(f.max_obs, '-infinity'::timestamptz),
+    COALESCE(s.fingerprint, 0)
+FROM (
+    SELECT count(*) AS cnt, max(observed_at) AS max_obs
+    FROM fact_records AS fact
+    WHERE ` + identityFactFilterSQL + `
+      AND is_tombstone = FALSE
+) f
+CROSS JOIN (
+    SELECT sum(hashtext(scope_id || ':' || active_generation_id)) AS fingerprint
+    FROM ingestion_scopes
+) s
 `
 
 // ListActiveContainerImageIdentityFacts loads active OCI registry facts and
@@ -147,14 +158,15 @@ func (s *FactStore) probeIdentityEpoch(ctx context.Context) (identityEpoch, erro
 	}
 	var count int64
 	var maxObservedAt time.Time
-	if err := rows.Scan(&count, &maxObservedAt); err != nil {
+	var fingerprint int64
+	if err := rows.Scan(&count, &maxObservedAt, &fingerprint); err != nil {
 		return identityEpoch{}, fmt.Errorf("probe identity epoch scan: %w", err)
 	}
 	if err := rows.Err(); err != nil {
 		return identityEpoch{}, fmt.Errorf("probe identity epoch rows: %w", err)
 	}
 
-	return identityEpoch{count: int(count), maxObservedAt: maxObservedAt}, nil
+	return identityEpoch{count: int(count), maxObservedAt: maxObservedAt, activeFingerprint: fingerprint}, nil
 }
 
 func (s FactStore) listActiveContainerImageIdentityFactsPage(

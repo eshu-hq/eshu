@@ -811,8 +811,8 @@ path is unchanged.
 The identity epoch cache (`identityEpochCache`) holds the full set of active
 container-image identity facts, reloaded under singleflight on epoch mismatch.
 
-- **Shared state**: `epoch` (count + max observed_at), `facts` slice, `loading`
-  channel. All guarded by `sync.Mutex mu`.
+- **Shared state**: `epoch` (count + max_observed_at + active_fingerprint),
+  `facts` slice, `loading` channel. All guarded by `sync.Mutex mu`.
 - **Lock scope**: `mu` is held ONLY for map/state reads, state swaps, and the
   channel handoff. It is NEVER held across DB loads or epoch probes — both
   release the lock before I/O.
@@ -831,8 +831,27 @@ container-image identity facts, reloaded under singleflight on epoch mismatch.
   mixed-epoch pagination, and the next call retries the cache. The cache is
   strictly more consistent per serving window than the unbounded pagination it
   replaces.
-- **Staleness bound**: one probe window (~microseconds). Self-heals on the next
-  reducer intent execution.
+- **Staleness bound**: one probe window (~65 ms on 500k-fact shim). Self-heals
+  on the next reducer intent execution.
+- **Epoch semantics (3-tuple)**: The cached epoch is `(fact_count_all,
+  fact_max_observed_all, active_fingerprint)`:
+  * `fact_count_all` + `fact_max_observed_all` — computed FROM fact_records
+    alone (no JOIN) using the partial index `fact_records_identity_epoch_idx`
+    (Index Only Scan, ~51 ms on 500k facts). These detect raw fact insertions/
+    deletions that change the identity set.
+  * `active_fingerprint` — `COALESCE(sum(hashtext(scope_id || ':' ||
+    active_generation_id)), 0) FROM ingestion_scopes` (Seq Scan on tiny table,
+    ~2 ms on 2000 scopes). This detects a supersession (active_generation_id
+    flip) that changes the active identity set without changing the raw
+    fact count or max observed_at.
+  * **False-hit analysis**: with only (count, max), a supersession that swaps
+    `active_generation_id` to a new generation with equal identity-fact
+    cardinality would produce a false cache hit (stale evidence). The
+    fingerprint closes this gap. The only residual is the 32-bit hash
+    collision: with N scopes, P(collision) ~ 2^-32 × N²/2 (birthday bound).
+    For 2000 scopes ~10^-6; for 100k scopes ~10^-3. A collision produces a
+    false cache miss (reload), not a false hit — safe. Self-heals on the
+    next probe.
 - **Cap behavior**: `ESHU_IDENTITY_CACHE_MAX_BYTES` (default 500 MiB, measured).
   Loaded set exceeding the cap is served DIRECTLY (passthrough, never partial,
   never cached) and increments `eshu_dp_identity_cache_passthrough_total`.
@@ -850,6 +869,31 @@ container-image identity facts, reloaded under singleflight on epoch mismatch.
   getting rows from different snapshot points.
 - **Defensive copy**: every cache hit returns a deep copy of the Payload map
   (`defensiveCopyEnvelopes`). Callers cannot mutate the shared cache.
+  Note: the copy is one-level — nested map values inside Payload (e.g.
+  `payload["entity_metadata"]`) share the underlying `map[string]any`
+  reference. All identity-load callers (container_image_identity,
+  kubernetes_correlation handlers) were audited: they read the Payload
+  immutably and do not mutate nested maps. A follow-up can add deep-clone
+  for nested payloads if a future caller needs mutation safety.
+
+- **Cap sizing overhead**: `estimateEnvelopesByteSize` counts string field
+  lengths + JSON-serialized payload + 40 bytes fixed overhead. It omits
+  Go `map[string]any` interface-boxing overhead (~16 bytes per key/value
+  entry) and `interface{}` wrapping for nested values. The 2.2× headroom
+  (500 MiB cap vs ~226 MB measured Postgres bytes) absorbs this gap.
+  A follow-up heap-profile pass can tighten the estimate if needed.
+
+- **Telemetry self-registration**: the six `eshu_dp_identity_cache_*`
+  instruments are registered on the cache's own meter in
+  `identity_epoch_cache.go:44`, not in the central
+  `go/internal/telemetry/instruments.go`. This is an intentional exception:
+  the cache is a self-contained postgres-layer component with its own
+  meter. The X2 verifier documents this as a known limitation ("Does not
+  catch: a metric that lives outside `go/internal/telemetry/`"). The
+  instruments appear on the `/metrics` endpoint via the shared
+  `providers.MeterProvider`. The X1 contract doc
+  (`docs/public/observability/telemetry-coverage.md`) correctly lists all
+  six metric names.
 
 ### Evidence notes
 
