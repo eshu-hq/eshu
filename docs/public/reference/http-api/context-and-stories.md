@@ -350,6 +350,23 @@ Story routes return structured narrative first and drilldown handles second.
 They are the right entry point for onboarding, support, service explanation,
 and documentation generation prompts.
 
+`GET /api/v0/workloads/{workload_id}/story`, `GET /api/v0/services/{service_name}/story`,
+`GET /api/v0/repositories/{repo_id}/story`, and `POST /api/v0/impact/trace-deployment-chain`
+may each include `evidence_boundaries`: a static, closed-vocabulary array of
+`{domain, read_surface, reason}` objects disclosing Postgres-only reducer
+domains that route's graph-sourced sections omit (see the
+graph-projection-policy design doc). The field is present only when a
+boundary applies to that route and is absent (not an empty array) otherwise; a
+domain already served by a sibling top-level response field is never listed as
+a boundary for that route, since there is no omission to disclose. Service
+story never emits `evidence_boundaries` today: its `ci_cd_evidence` field
+already serves ci_cd_run_correlation, and `code_to_runtime_trace`'s
+`image_package` segment already serves container_image_identity, so both
+candidate domains are fully covered and `evidence_boundaries` is absent from
+every service story response. `evidence_graph` alone omits ci_cd/supply-chain
+graph edges (no BUILT_FROM edge is projected yet for either domain), but that
+narrower sub-surface gap is not disclosed as a whole-route boundary.
+
 Service story `evidence_graph.nodes[]` assigns source-backed roles for the
 workload anchor, source repository, deployment configuration, runtime instance,
 and downstream consumer. Repository nodes may also carry privacy-safe

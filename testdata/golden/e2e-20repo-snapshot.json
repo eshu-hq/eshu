@@ -2543,6 +2543,7 @@
           "deployment_source_limits",
           "documentation_overview",
           "drilldowns",
+          "evidence_boundaries",
           "gitops_overview",
           "image_refs",
           "instances",
@@ -2567,7 +2568,8 @@
         ],
         "minimum_results": 0,
         "required_json_values": {
-          "deployment_fact_summary.overall_confidence_reason": "no_deployment_evidence"
+          "deployment_fact_summary.overall_confidence_reason": "no_deployment_evidence",
+          "evidence_boundaries[].domain": "ci_cd_run_correlation"
         },
         "arguments": {
           "service_name": "api-svc",
@@ -2814,6 +2816,7 @@
           "deployment_overview",
           "documentation_overview",
           "drilldowns",
+          "evidence_boundaries",
           "gitops_overview",
           "infrastructure_overview",
           "limitations",
@@ -2825,6 +2828,9 @@
           "support_overview"
         ],
         "minimum_results": 0,
+        "required_json_values": {
+          "evidence_boundaries[].domain": "container_image_identity"
+        },
         "arguments": {
           "repo_id": "orders-api"
         }
@@ -3657,6 +3663,7 @@
       "get_workload_story": {
         "description": "MCP tool coverage shape for get_workload_story; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
         "required_response_fields": [
+          "evidence_boundaries",
           "name",
           "partial_reasons",
           "result_limits",
@@ -3664,6 +3671,9 @@
           "workload_id"
         ],
         "minimum_results": 0,
+        "required_json_values": {
+          "evidence_boundaries[].domain": "ci_cd_run_correlation"
+        },
         "arguments": {
           "workload_id": "workload:api-svc"
         }

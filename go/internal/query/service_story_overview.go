@@ -32,6 +32,7 @@ func buildServiceStoryResponse(serviceName string, workloadContext map[string]an
 	}
 	enrichServiceStoryDossierResponseWithContext(response, buildCtx)
 	response["investigation"] = buildServiceInvestigationPacketWithContext(serviceName, buildCtx, serviceInvestigationOptions{})
+	attachEvidenceBoundaries(response, "get_service_story")
 	return attachAnswerMetadata(response)
 }
 

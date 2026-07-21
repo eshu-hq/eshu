@@ -246,7 +246,8 @@ const openAPIPathsImpact = `
                     },
                     "runtime_overview": {"type": "object"},
                     "deployment_fact_summary": {"type": "object"},
-                    "drilldowns": {"type": "object"}
+                    "drilldowns": {"type": "object"},
+                    "evidence_boundaries": ` + openAPIEvidenceBoundariesSchema + `
                   }
                 }
               }

@@ -70,7 +70,7 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"neo4j.go:(*Neo4jReader).RunSingle":                                                                   "3c8a24c80d618aa49cb81676ccd9a6a479743fa66150d790f644f26e9b1228c1",
 	"package_registry_aggregates.go:(GraphPackageRegistryAggregateStore).CountPackageRegistryPackages":    "17436e4034f0d986cc2c8c9342783a36803d087ab9a44f791ac4f4922a6ad623",
 	"package_registry_aggregates.go:(GraphPackageRegistryAggregateStore).PackageRegistryPackageInventory": "2c5afd11d4b433375b7be7ad70b28e4a679db8f8a063243f6c3c6355c20b1482",
-	"repository.go:(*RepositoryHandler).getRepositoryStory":                                               "bae39b0909def877cd13f22f226faa49bff2867406aa6e5cb8655421450ec2e1",
+	"repository.go:(*RepositoryHandler).getRepositoryStory":                                               "158134db4d5bc6dc57120b7e70e6d8acb0d6048127a4b40f9356d3a7a2dbf18d",
 	"repository.go:(*RepositoryHandler).listRepositories":                                                 "07fa08de96351f397a313a36bb05c2f384e3ad75cc216b81b135451610f36512",
 	"repository.go:queryRepositoryTotal":                                                                  "e603a18a6dd3f1973a5e2aff4e22f7e7f98bd89352edf2de52c18cf88a539e9a",
 	"repository_api_surface.go:queryRepoAPISurface":                                                       "0cf56ba43a52fad022d03be7959ce494527fa2372bbbbf9f0415688a94c76f46",

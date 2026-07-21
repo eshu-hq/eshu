@@ -212,7 +212,9 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		ctx["_has_live_evidence"] = liveEvidence
 	}
 
-	WriteSuccess(w, r, http.StatusOK, buildDeploymentTraceResponse(req.ServiceName, ctx), BuildTruthEnvelope(h.profile(), "platform_impact.deployment_chain", TruthBasisHybrid, "resolved from deployment topology and service evidence"))
+	response := buildDeploymentTraceResponse(req.ServiceName, ctx)
+	attachEvidenceBoundaries(response, "trace_deployment_chain")
+	WriteSuccess(w, r, http.StatusOK, response, BuildTruthEnvelope(h.profile(), "platform_impact.deployment_chain", TruthBasisHybrid, "resolved from deployment topology and service evidence"))
 }
 
 func fetchServiceTraceContext(

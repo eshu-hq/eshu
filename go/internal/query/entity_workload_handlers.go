@@ -94,11 +94,13 @@ func (h *EntityHandler) getWorkloadStory(w http.ResponseWriter, r *http.Request)
 	}
 
 	story := buildWorkloadStory(ctx)
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
+	response := map[string]any{
 		"workload_id":     workloadID,
 		"name":            ctx["name"],
 		"story":           story,
 		"result_limits":   workloadContextResultLimits(ctx, workloadID, "story"),
 		"partial_reasons": contextPartialReasons(ctx),
-	}, workloadContextTruthEnvelope(h.profile(), "story"))
+	}
+	attachEvidenceBoundaries(response, "get_workload_story")
+	WriteSuccess(w, r, http.StatusOK, response, workloadContextTruthEnvelope(h.profile(), "story"))
 }

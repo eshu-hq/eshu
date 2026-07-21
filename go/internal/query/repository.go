@@ -403,6 +403,7 @@ func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Re
 		response["support_overview"] = supportOverview
 	}
 	enrichRepositoryStoryResponseWithEvidence(response, semanticOverview, narrativeFiles)
+	attachEvidenceBoundaries(response, "get_repo_story")
 
 	WriteSuccess(
 		w,
