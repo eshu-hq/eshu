@@ -111,10 +111,38 @@ not invent environment truth.
 
 Canonicalizing `ExtractOverlayEnvironments` changes `WorkloadInstance` identity
 keys for alias or mixed-case inputs (`workload-instance:api:production` becomes
-`workload-instance:api:prod`). The workload materializer is MERGE-based and has
-no stale-instance retraction, so a pre-change instance with an alias-cased ID
-becomes an orphan on first regeneration. This is a pre-existing condition of
-the materializer, not a new hazard class: the orphan carries no edges the new
-projection would write differently, and no cleanup mechanism existed before
-this contract either. Deployments that never used alias or mixed-case overlay
-directories are unaffected.
+`workload-instance:api:prod`). The workload materializer is MERGE-based, so a
+pre-change instance with an alias-cased ID would otherwise survive forever
+alongside the new canonical key — duplicate deployment and runtime truth. A
+retraction pass closes this gap (`ReconcileWorkloadInstanceRetraction` /
+`WorkloadMaterializer.RetractInstances` in `go/internal/reducer`):
+
+- **Scope.** A superseded instance is only eligible for retraction if it is
+  owned by a repository materialized in the current pass (by `repo_id`) and
+  tagged with the workload-materialization evidence source
+  (`evidence_source`). Retraction can never cross a repository or evidence
+  source it does not own.
+- **Positive-evidence guard.** A repository must have written at least one
+  `WorkloadInstance` row in the *current* pass before any of its existing
+  instances are considered superseded. A repository that produced zero
+  instance rows this pass — for example a transient gap in one of the seven
+  environment-alias evidence classes — supplies no signal that its
+  environments actually changed, so none of its prior instances are touched.
+- **Delete-time predicate.** The retract statement re-validates
+  `i.repo_id IN $repo_ids AND i.evidence_source = $evidence_source` at DETACH
+  DELETE time, not just when the retraction decision is computed. Instance ids
+  are not repository-namespaced and separate-scope materialization passes can
+  drain concurrently, so a decision computed from a stale snapshot could
+  otherwise delete a node a different scope has since re-owned; the delete-time
+  predicate makes that impossible — a node whose current owner no longer
+  matches survives.
+- **Ordering.** Retraction runs after the replacement generation's MERGE write
+  is confirmed, so a failed write can never retract an instance before its
+  canonical replacement is durable.
+- **Blast radius.** DETACH DELETE removes every relationship incident to the
+  retracted node — INSTANCE_OF, DEPLOYMENT_SOURCE, and RUNS_ON, plus any USES
+  edge as collateral (USES has its own independent scope-retraction pass
+  elsewhere; that pass is not made redundant by this one).
+
+Deployments that never used alias or mixed-case overlay directories are
+unaffected: they produce no pre-canonical instance keys to retract.

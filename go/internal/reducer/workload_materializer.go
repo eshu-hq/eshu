@@ -317,29 +317,6 @@ func (m *WorkloadMaterializer) MaterializeDependencies(
 	return result, nil
 }
 
-// RetractInstances DETACH-deletes the WorkloadInstance nodes identified by
-// instanceIDs, removing their INSTANCE_OF, DEPLOYMENT_SOURCE, and RUNS_ON
-// edges (DETACH DELETE removes every incident relationship regardless of
-// direction or type) in the same statement. Callers MUST only pass instance
-// ids already confirmed superseded by a durable replacement — see
-// ReconcileWorkloadInstanceRetraction — and MUST call this after Materialize
-// has confirmed the replacement generation's MERGE write, so a mid-write
-// failure can never retract an instance before its canonical replacement is
-// durable.
-func (m *WorkloadMaterializer) RetractInstances(ctx context.Context, instanceIDs []string) error {
-	if len(instanceIDs) == 0 {
-		return nil
-	}
-	if m.executor == nil {
-		return fmt.Errorf("workload materializer executor is required")
-	}
-	rows := make([]map[string]any, len(instanceIDs))
-	for i, id := range instanceIDs {
-		rows[i] = map[string]any{"instance_id": id}
-	}
-	return m.executeBatched(ctx, batchWorkloadInstanceRetractCypher, rows)
-}
-
 func runtimePlatformConfidence(confidence float64) float64 {
 	if confidence <= 0 {
 		return DefaultRuntimePlatformEdgeConfidence
@@ -437,16 +414,6 @@ MERGE (i)-[rel:RUNS_ON]->(p)
 SET rel.confidence = row.platform_confidence,
     rel.reason = 'Workload instance runs on inferred platform',
     rel.evidence_source = row.evidence_source`
-
-	// batchWorkloadInstanceRetractCypher DETACH-deletes superseded
-	// WorkloadInstance nodes by durable id. DETACH DELETE removes every
-	// relationship incident to the node — INSTANCE_OF, DEPLOYMENT_SOURCE, and
-	// RUNS_ON for this label — so a superseded instance (e.g. a pre-canonical
-	// environment alias key such as workload-instance:api:production replaced
-	// by workload-instance:api:prod, #5473) leaves no orphaned edges behind.
-	batchWorkloadInstanceRetractCypher = `UNWIND $rows AS row
-MATCH (i:WorkloadInstance {id: row.instance_id})
-DETACH DELETE i`
 
 	batchRepoDependencyUpsertCypher = `UNWIND $rows AS row
 MATCH (source_repo:Repository {id: row.repo_id})

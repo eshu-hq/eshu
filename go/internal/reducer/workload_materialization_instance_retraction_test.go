@@ -206,6 +206,22 @@ func TestWorkloadMaterializationHandlerRetractsSupersededPreCanonicalInstance(t 
 		t.Fatalf("superseded instance %q not retracted; rows = %#v", oldInstanceID, retractRows)
 	}
 
+	// The retract call must carry the delete-time ownership predicate params
+	// (CRITICAL 2): repo_ids scoped to exactly this pass's repository, and the
+	// workload materialization evidence source.
+	for _, call := range executor.calls {
+		if call.Cypher != batchWorkloadInstanceRetractCypher {
+			continue
+		}
+		gotRepoIDs, ok := call.Parameters["repo_ids"].([]string)
+		if !ok || len(gotRepoIDs) != 1 || gotRepoIDs[0] != "repo-api" {
+			t.Fatalf("retract call repo_ids = %#v, want [repo-api]", call.Parameters["repo_ids"])
+		}
+		if got := call.Parameters["evidence_source"]; got != EvidenceSourceWorkloads {
+			t.Fatalf("retract call evidence_source = %#v, want %q", got, EvidenceSourceWorkloads)
+		}
+	}
+
 	// Ordering: retraction must be issued strictly after the canonical write is
 	// confirmed, never interleaved before it.
 	newWriteIndex, retractIndex := -1, -1

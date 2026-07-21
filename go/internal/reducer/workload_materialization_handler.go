@@ -269,7 +269,7 @@ func (h WorkloadMaterializationHandler) Handle(
 	instanceRetractRows := 0
 	if h.InstanceRetractionLookup != nil {
 		retractStarted := time.Now()
-		supersededInstanceIDs, err := ReconcileWorkloadInstanceRetraction(
+		instanceRetractRepoIDs, supersededInstanceIDs, err := ReconcileWorkloadInstanceRetraction(
 			ctx,
 			projection.RepoDescriptors,
 			projection.InstanceRows,
@@ -279,7 +279,17 @@ func (h WorkloadMaterializationHandler) Handle(
 			return Result{}, fmt.Errorf("reconcile workload instance retraction: %w", err)
 		}
 		if len(supersededInstanceIDs) > 0 {
-			if err := h.Materializer.RetractInstances(ctx, supersededInstanceIDs); err != nil {
+			// instanceRetractRepoIDs is the exact scope ReconcileWorkloadInstanceRetraction
+			// used to decide supersession; it MUST be threaded unmodified into the
+			// delete-time predicate (see batchWorkloadInstanceRetractCypher) so a
+			// concurrent write that re-owns one of these ids under a different repo
+			// is never deleted by this stale decision.
+			if err := h.Materializer.RetractInstances(
+				ctx,
+				supersededInstanceIDs,
+				instanceRetractRepoIDs,
+				EvidenceSourceWorkloads,
+			); err != nil {
 				return Result{}, fmt.Errorf("retract superseded workload instances: %w", err)
 			}
 			instanceRetractRows = len(supersededInstanceIDs)
