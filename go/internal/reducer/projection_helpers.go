@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -185,13 +186,13 @@ func normalizedCandidateConfidence(confidence float64) float64 {
 }
 
 func namespaceEnvironmentFallback(namespace string) string {
-	namespace = strings.TrimSpace(namespace)
+	namespace = environment.Normalize(namespace)
 	if namespace == "" {
 		return ""
 	}
-	switch strings.ToLower(namespace) {
+	switch namespace {
 	case "prod", "production", "qa", "stage", "staging", "dev", "development", "test", "sandbox", "preview":
-		return namespace
+		return environment.Canonical(namespace)
 	default:
 		return ""
 	}

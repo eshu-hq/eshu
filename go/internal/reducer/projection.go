@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/environment"
 )
 
 // EvidenceSourceWorkloads identifies workload finalization evidence emitted by
@@ -218,6 +220,7 @@ func ExtractOverlayEnvironments(paths []string) []string {
 			if env == "" {
 				continue
 			}
+			env = environment.Canonical(env)
 			if _, ok := seen[env]; ok {
 				break
 			}

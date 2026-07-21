@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package reducer //nolint:filelength // 896 lines: correlated workload projection input loader test suite.
 
 import (
 	"context"
@@ -405,10 +405,10 @@ func TestCorrelatedWorkloadProjectionInputLoaderEnrichesDeploymentRepoEnvironmen
 	// Critical assertion: deployment repo overlay environments must be populated.
 	envs := deploymentEnvs["repo-deploy"]
 	if len(envs) != 2 {
-		t.Fatalf("deploymentEnvs[repo-deploy] = %v, want 2 environments (production, qa)", envs)
+		t.Fatalf("deploymentEnvs[repo-deploy] = %v, want 2 environments (prod, qa)", envs)
 	}
-	if envs[0] != "production" || envs[1] != "qa" {
-		t.Fatalf("deploymentEnvs[repo-deploy] = %v, want [production qa]", envs)
+	if envs[0] != "prod" || envs[1] != "qa" {
+		t.Fatalf("deploymentEnvs[repo-deploy] = %v, want [prod qa]", envs)
 	}
 	if got, want := factLoader.kindCalls[0].scopeID, "scope-app"; got != want {
 		t.Fatalf("kindCalls[0].scopeID = %q, want %q", got, want)
@@ -817,8 +817,8 @@ func TestCorrelatedWorkloadProjectionInputLoaderSkipsSameRepoDeployment(t *testi
 	}
 
 	// Source repo's own overlays should be present.
-	if envs := deploymentEnvs["repo-self-deploy"]; len(envs) != 1 || envs[0] != "staging" {
-		t.Fatalf("deploymentEnvs[repo-self-deploy] = %v, want [staging]", envs)
+	if envs := deploymentEnvs["repo-self-deploy"]; len(envs) != 1 || envs[0] != "stage" {
+		t.Fatalf("deploymentEnvs[repo-self-deploy] = %v, want [stage]", envs)
 	}
 
 	// ScopeResolver should NOT be called for same-repo deployment.

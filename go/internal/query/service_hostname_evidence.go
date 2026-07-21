@@ -8,20 +8,12 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/contentrefs"
+	"github.com/eshu-hq/eshu/go/internal/environment"
 )
 
-var environmentAliases = []struct {
-	canonical string
-	aliases   []string
-}{
-	{canonical: "prod", aliases: []string{"prod", "production"}},
-	{canonical: "qa", aliases: []string{"qa"}},
-	{canonical: "stage", aliases: []string{"stage", "staging"}},
-	{canonical: "dev", aliases: []string{"dev", "development"}},
-	{canonical: "test", aliases: []string{"test"}},
-	{canonical: "sandbox", aliases: []string{"sandbox"}},
-	{canonical: "preview", aliases: []string{"preview"}},
-}
+// environmentAliases caches the shared alias table from the environment
+// contract package at init time for substring-based alias detection.
+var environmentAliases = environment.Aliases()
 
 func extractObservedHostnames(content string) []string {
 	return contentrefs.Hostnames(content)
@@ -89,9 +81,9 @@ func detectEnvironmentAliases(text string) []string {
 	}
 	seen := map[string]struct{}{}
 	for _, row := range environmentAliases {
-		for _, alias := range row.aliases {
+		for _, alias := range row.Aliases {
 			if strings.Contains(normalized, "_"+alias+"_") {
-				seen[row.canonical] = struct{}{}
+				seen[row.Canonical] = struct{}{}
 				break
 			}
 		}
