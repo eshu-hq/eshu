@@ -1,53 +1,36 @@
-# specs/remote-validation-baseline.txt
+# specs/remote-validation-frozen.txt
 #
-# FROZEN AUDITED DEBT — remote_validation artifact-existence gate
-# (#5407, PR 2 of #5336).
+# IMMUTABLE — remote_validation frozen membership set (#5407, #5552).
 #
-# Every slug below is a capability-matrix row whose production profile claims
-# {status: supported} and whose SOLE verification evidence is a
-# remote_validation ref that resolves to NO committed artifact. The evidence
-# directory docs/internal/remote-validation/ did not exist when this gate was
-# introduced, so each of these is a top-tier production-support claim resting
-# on zero committed proof.
+# These slugs are the AUDITED-AT-INTRODUCTION set of remote_validation refs:
+# every capability-matrix row that, at the time the artifact-existence gate was
+# introduced, claimed {status: supported} with its SOLE verification evidence a
+# remote_validation ref resolving to NO committed artifact. This file is the
+# membership authority for the burn-down baseline
+# (specs/remote-validation-baseline.txt): the gate requires
 #
-# This file FREEZES that audited set so the debt cannot grow. It does NOT cure
-# the claims: a slug listed here is tracked, not verified.
+#     baseline ⊆ frozen
 #
-# MEMBERSHIP IS BOUNDED BY THE FROZEN SET. Every slug below MUST also appear in
-# specs/remote-validation-frozen.txt (the immutable audited-at-introduction
-# set); the gate enforces baseline ⊆ frozen and fails closed if the frozen file
-# is missing or malformed. This defeats the atomic swap the FROZEN_MAX ceiling
-# alone cannot catch — burning down one baselined ref while adding a NEW
-# unbacked claim keeps the entry count constant, but the new claim is absent
-# from the frozen set and is rejected. A new claim can never be baselined; it
-# clears the gate only with a committed artifact or a real tier downgrade.
+# so a slug may be listed in the baseline ONLY if it is also frozen here.
 #
-# The only honest way to remove a slug is one of:
-#   1. Run the production validation and commit the reproducible evidence
-#      artifact at docs/internal/remote-validation/<slug>.md, or
-#   2. Downgrade the row's claimed tier in the capability matrix so it no
-#      longer asserts production:supported on unverified evidence.
-# Editing this prose, or any other text, is never an exit — only a committed
-# artifact or a real tier downgrade clears a slug.
+# NEVER ADD to this file. Adding an entry defeats its entire purpose: it exists
+# so a NEW unbacked production:supported claim cannot be smuggled into the
+# baseline by an atomic swap (burning down one baselined ref while adding
+# another, keeping the entry count at or under FROZEN_MAX). A ref that is not
+# frozen here cannot be baselined; its only honest path to green is a committed
+# docs/internal/remote-validation/<slug>.md artifact or a real tier downgrade.
+#
+# A ref LEAVES this set only when its row is validated-or-downgraded and its
+# slug is removed from BOTH this file and the baseline, in the same reviewed
+# edit that lands the artifact or the downgrade. The `-update` regenerator NEVER
+# touches this file; it only regenerates the baseline (the dangling subset of
+# these slugs).
+#
+# A missing or malformed frozen file fails the gate closed: the atomic-swap
+# defense must never be silently absent.
 #
 # The systemic per-row validate-or-downgrade of every slug below is tracked in
 # issue #5552, which blocks epic #5344 closure.
-#
-# GROWTH IS FORBIDDEN. The FROZEN_MAX directive below is a ratcheting
-# high-water mark: the gate fails when the entry count EXCEEDS it, so a new
-# unverified production:supported row cannot be smuggled in by appending its
-# ref and running -update. Burning down a slug (committing its artifact or
-# downgrading its row) and running -update lowers FROZEN_MAX to the new,
-# smaller count; -update never raises it. Raising the ceiling requires an
-# explicit, separately-reviewed one-line edit that a reviewer can catch.
-#
-# Two capability/profile rows citing the same ref collapse to one line here
-# (the artifact question is per-ref, not per-row).
-#
-# Regenerate with:
-#   cd go && go run ./cmd/capability-inventory -mode remote-validation -update
-#
-# FROZEN_MAX: 115
 #
 # <remote-validation-ref-slug>
 prod-admission-decisions

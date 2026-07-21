@@ -61,6 +61,9 @@ func TestRemoteValidationModeFailsOnCeilingGrowth(t *testing.T) {
 	specsDir := filepath.Join(tmp, "specs")
 	writeRemoteValidationSpecs(t, specsDir, "prod-dangling-example")
 	baseline := filepath.Join(specsDir, "remote-validation-baseline.txt")
+	// Both baseline entries are in the frozen set, so this test isolates the
+	// FROZEN_MAX ceiling violation (not the frozen-membership guard).
+	writeRemoteValidationFrozen(t, specsDir, "prod-dangling-example", "prod-smuggled-extra")
 	// The cited ref IS baselined (no artifact finding), but a second entry
 	// pushes the count to 2 over a frozen ceiling of 1: growth is rejected.
 	if err := os.WriteFile(baseline, []byte("# FROZEN_MAX: 1\nprod-dangling-example\nprod-smuggled-extra\n"), 0o644); err != nil {
@@ -101,6 +104,10 @@ func TestRemoteValidationModeRatchetsCeilingDownThenRejectsRegrowth(t *testing.T
 		}, extra...)
 	}
 
+	// All refs the steps use are frozen, so this test isolates the ceiling
+	// ratchet (the frozen-membership guard is exercised separately).
+	writeRemoteValidationFrozen(t, specsDir, "prod-ref-a", "prod-ref-b", "prod-ref-c")
+
 	// Step 1: two dangling refs, -update freezes the ceiling at 2.
 	writeRemoteValidationSpecsMulti(t, specsDir, "prod-ref-a", "prod-ref-b")
 	var out bytes.Buffer
@@ -138,6 +145,75 @@ func TestRemoteValidationModeRatchetsCeilingDownThenRejectsRegrowth(t *testing.T
 	}
 }
 
+// writeRemoteValidationFrozen writes the immutable frozen-set file next to the
+// baseline (specsDir/remote-validation-frozen.txt) holding the given slugs.
+func writeRemoteValidationFrozen(t *testing.T, specsDir string, slugs ...string) {
+	t.Helper()
+	if err := os.MkdirAll(specsDir, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", specsDir, err)
+	}
+	var b strings.Builder
+	b.WriteString("# FROZEN — immutable audited-at-introduction set\n")
+	for _, s := range slugs {
+		b.WriteString(s)
+		b.WriteString("\n")
+	}
+	path := filepath.Join(specsDir, capabilitycatalog.RemoteValidationFrozenFileName)
+	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
+		t.Fatalf("write frozen set: %v", err)
+	}
+}
+
+// TestRemoteValidationModeRejectsAtomicSwap proves the frozen-membership guard
+// (FIX 2, #5407) defeats the constant-count atomic swap the FROZEN_MAX ceiling
+// alone cannot catch: in one edit an attacker burns down a legitimately
+// baselined ref A (commits its artifact, so A leaves the baseline) AND adds a
+// new unbacked claim C to the baseline. The entry count stays at the ceiling
+// and every dangling ref is baselined, so the count-only gate passes — but C
+// is not in the frozen set, so baseline ⊄ frozen and the gate must fail naming
+// C. Pre-fix this test is RED because the gate returns nil (C is smuggled).
+func TestRemoteValidationModeRejectsAtomicSwap(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	specsDir := filepath.Join(tmp, "specs")
+	// Matrix cites three refs: A now has a committed artifact (burned down),
+	// B and C both dangle.
+	writeRemoteValidationSpecsMulti(t, specsDir, "prod-ref-a", "prod-ref-b", "prod-ref-c")
+	artifactDir := filepath.Join(tmp, "docs", "internal", "remote-validation")
+	if err := os.MkdirAll(artifactDir, 0o755); err != nil {
+		t.Fatalf("mkdir artifact dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(artifactDir, "prod-ref-a.md"), []byte("# evidence\n"), 0o644); err != nil {
+		t.Fatalf("write artifact: %v", err)
+	}
+
+	// The immutable frozen set is the original audited pair {A, B}. C was never
+	// audited at introduction.
+	writeRemoteValidationFrozen(t, specsDir, "prod-ref-a", "prod-ref-b")
+
+	// The swapped baseline: A dropped (burned down), C added. Count 2 == ceiling
+	// 2, so the ceiling check alone is satisfied.
+	baseline := filepath.Join(specsDir, "remote-validation-baseline.txt")
+	if err := os.WriteFile(baseline, []byte("# FROZEN_MAX: 2\nprod-ref-b\nprod-ref-c\n"), 0o644); err != nil {
+		t.Fatalf("write baseline: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	err := run([]string{
+		"-mode", "remote-validation",
+		"-specs", specsDir,
+		"-root", tmp,
+		"-remote-validation-baseline", baseline,
+	}, &stdout, &stderr)
+	if err == nil {
+		t.Fatalf("expected the atomic swap to fail the frozen-membership gate, stdout:\n%s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "prod-ref-c") {
+		t.Fatalf("expected output to name the smuggled ref prod-ref-c, got:\n%s", stdout.String())
+	}
+}
+
 // capabilitycatalogCeiling reads the FROZEN_MAX ceiling from a baseline file via
 // the package's own best-effort reader, so the test asserts on the real parse.
 func capabilitycatalogCeiling(t *testing.T, path string) (int, bool) {
@@ -155,6 +231,9 @@ func TestRemoteValidationModeFailsOnUnbaselinedDanglingRef(t *testing.T) {
 	specsDir := filepath.Join(tmp, "specs")
 	writeRemoteValidationSpecs(t, specsDir, "prod-dangling-example")
 	baseline := filepath.Join(specsDir, "remote-validation-baseline.txt")
+	// A present frozen set lets the check reach the artifact-existence stage;
+	// the baseline is absent (empty), so the dangling ref surfaces as a finding.
+	writeRemoteValidationFrozen(t, specsDir, "prod-dangling-example")
 
 	var stdout, stderr bytes.Buffer
 	err := run([]string{
@@ -180,6 +259,7 @@ func TestRemoteValidationModePassesWhenBaselined(t *testing.T) {
 	specsDir := filepath.Join(tmp, "specs")
 	writeRemoteValidationSpecs(t, specsDir, "prod-dangling-example")
 	baseline := filepath.Join(specsDir, "remote-validation-baseline.txt")
+	writeRemoteValidationFrozen(t, specsDir, "prod-dangling-example")
 	if err := os.WriteFile(baseline, []byte("# FROZEN_MAX: 1\nprod-dangling-example\n"), 0o644); err != nil {
 		t.Fatalf("write baseline: %v", err)
 	}
@@ -205,6 +285,9 @@ func TestRemoteValidationModePassesWhenArtifactCommitted(t *testing.T) {
 	specsDir := filepath.Join(tmp, "specs")
 	writeRemoteValidationSpecs(t, specsDir, "prod-has-artifact-example")
 	baseline := filepath.Join(specsDir, "remote-validation-baseline.txt")
+	// An empty-but-present frozen set: the baseline is empty (the ref clears via
+	// its committed artifact), so baseline ⊆ frozen holds trivially.
+	writeRemoteValidationFrozen(t, specsDir)
 	artifactDir := filepath.Join(tmp, "docs", "internal", "remote-validation")
 	if err := os.MkdirAll(artifactDir, 0o755); err != nil {
 		t.Fatalf("mkdir artifact dir: %v", err)
@@ -234,6 +317,10 @@ func TestRemoteValidationModeUpdateRegeneratesBaseline(t *testing.T) {
 	specsDir := filepath.Join(tmp, "specs")
 	writeRemoteValidationSpecs(t, specsDir, "prod-regen-example")
 	baseline := filepath.Join(specsDir, "remote-validation-baseline.txt")
+	// -update never writes the frozen set, so the post-update check needs the
+	// regenerated ref to already be frozen — proving -update alone is not enough
+	// to green a NEW claim.
+	writeRemoteValidationFrozen(t, specsDir, "prod-regen-example")
 
 	var stdout, stderr bytes.Buffer
 	if err := run([]string{

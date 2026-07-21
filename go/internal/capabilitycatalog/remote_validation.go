@@ -27,6 +27,14 @@ const RemoteValidationArtifactDir = "docs/internal/remote-validation"
 // debt exempted from the artifact-existence gate.
 const RemoteValidationBaselineFileName = "remote-validation-baseline.txt"
 
+// RemoteValidationFrozenFileName is the immutable frozen-set file inside the
+// specs directory: the audited-at-introduction set of remote_validation slugs.
+// The gate requires the burn-down baseline to be a subset of this set, so a
+// NEW unbacked claim cannot be baselined even at constant entry count (the
+// atomic-swap defense, #5407). It is never written by -update: a slug leaves
+// only when its row is validated-or-downgraded and removed from BOTH files.
+const RemoteValidationFrozenFileName = "remote-validation-frozen.txt"
+
 // remoteValidationRefPattern is the slug shape every remote_validation ref
 // (and therefore every baseline entry) must match: lowercase alphanumeric
 // segments joined by single hyphens. This is the filename-safety and
@@ -50,6 +58,15 @@ const remoteValidationBaselineHeaderProse = `# specs/remote-validation-baseline.
 #
 # This file FREEZES that audited set so the debt cannot grow. It does NOT cure
 # the claims: a slug listed here is tracked, not verified.
+#
+# MEMBERSHIP IS BOUNDED BY THE FROZEN SET. Every slug below MUST also appear in
+# specs/remote-validation-frozen.txt (the immutable audited-at-introduction
+# set); the gate enforces baseline ⊆ frozen and fails closed if the frozen file
+# is missing or malformed. This defeats the atomic swap the FROZEN_MAX ceiling
+# alone cannot catch — burning down one baselined ref while adding a NEW
+# unbacked claim keeps the entry count constant, but the new claim is absent
+# from the frozen set and is rejected. A new claim can never be baselined; it
+# clears the gate only with a committed artifact or a real tier downgrade.
 #
 # The only honest way to remove a slug is one of:
 #   1. Run the production validation and commit the reproducible evidence
@@ -235,6 +252,53 @@ func LoadRemoteValidationBaseline(path string) (RemoteValidationBaseline, error)
 		return RemoteValidationBaseline{}, fmt.Errorf("remote-validation baseline %s: missing required FROZEN_MAX directive (expected a line like '# FROZEN_MAX: %d')", path, len(entries))
 	}
 	return RemoteValidationBaseline{Entries: entries, Ceiling: ceiling}, nil
+}
+
+// LoadRemoteValidationFrozenSet reads the immutable frozen set: one
+// remote_validation slug per line, blank lines and '#'-prefixed comments
+// ignored. It fails closed — a missing file, a read error, or any line that is
+// not a bare, valid slug returns an error — because the frozen set is the
+// membership authority the baseline is checked against (#5407). A gate that
+// cannot load the frozen set MUST NOT pass: without it, the atomic-swap defense
+// is silently absent. An empty-but-present file (only comments) yields an empty
+// set, which correctly rejects every baseline entry.
+func LoadRemoteValidationFrozenSet(path string) (map[string]struct{}, error) {
+	raw, err := os.ReadFile(path) // #nosec G304 -- caller supplies the fixed repo-relative frozen-set path
+	if err != nil {
+		return nil, fmt.Errorf("read remote-validation frozen set %s: %w", path, err)
+	}
+	frozen := map[string]struct{}{}
+	for i, line := range strings.Split(string(raw), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		if !remoteValidationRefValid(trimmed) {
+			return nil, fmt.Errorf("remote-validation frozen set %s:%d: malformed entry %q (expected a bare lowercase-hyphen slug)", path, i+1, trimmed)
+		}
+		frozen[trimmed] = struct{}{}
+	}
+	return frozen, nil
+}
+
+// RemoteValidationBaselineNotFrozen returns the sorted baseline entries that are
+// NOT present in the frozen set, i.e. the witnesses that baseline ⊄ frozen. A
+// non-empty result means a ref was added to the burn-down baseline that was not
+// in the audited-at-introduction frozen set — a NEW unbacked claim smuggled in.
+// This is the atomic-swap defense the FROZEN_MAX ceiling alone cannot provide:
+// burning down one baselined ref while adding a new one keeps the count
+// constant, but the new ref is absent from the frozen set. Burn-down (removing
+// a ref from the baseline once its artifact lands) never triggers this, because
+// a smaller baseline is still a subset of the frozen set.
+func RemoteValidationBaselineNotFrozen(baseline RemoteValidationBaseline, frozen map[string]struct{}) []string {
+	var offenders []string
+	for entry := range baseline.Entries {
+		if _, ok := frozen[entry]; !ok {
+			offenders = append(offenders, entry)
+		}
+	}
+	sort.Strings(offenders)
+	return offenders
 }
 
 // parseRemoteValidationCeilingLine parses a FROZEN_MAX directive line, already

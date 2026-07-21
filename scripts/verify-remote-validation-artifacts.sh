@@ -24,6 +24,11 @@
 # unverified production:supported claim by appending its ref and regenerating
 # leaves the count above the ceiling and fails the gate — the offender must
 # commit an artifact or raise FROZEN_MAX in an explicit, reviewed one-line edit.
+# The ceiling alone cannot catch a constant-count atomic swap (burning down one
+# baselined ref while adding another), so the baseline is also bounded by the
+# immutable frozen membership set specs/remote-validation-frozen.txt: the gate
+# enforces baseline ⊆ frozen and fails closed if that file is missing or
+# malformed. -update never writes the frozen set.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
