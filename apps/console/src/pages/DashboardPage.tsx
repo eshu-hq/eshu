@@ -77,7 +77,7 @@ export function DashboardPage({
   const atlasLoadOwner = useRef<AtlasLoadOwner | null>(null);
   const atlasAbortTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const atlasLoadKey = useMemo(
-    () => JSON.stringify(atlasSeeds.map((seed) => [seed.id, seed.label])),
+    () => JSON.stringify(atlasSeeds.map((seed) => [seed.id, seed.kind, seed.label])),
     [atlasSeeds],
   );
   const baseGraph = liveGraph ?? seededGraph;
