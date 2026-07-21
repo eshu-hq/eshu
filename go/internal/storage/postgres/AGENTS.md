@@ -850,8 +850,9 @@ container-image identity facts, reloaded under singleflight on epoch mismatch.
     fingerprint closes this gap. The only residual is the 32-bit hash
     collision: with N scopes, P(collision) ~ 2^-32 × N²/2 (birthday bound).
     For 2000 scopes ~10^-6; for 100k scopes ~10^-3. A collision produces a
-    false cache miss (reload), not a false hit — safe. Self-heals on the
-    next probe.
+    false cache hit (the stale set is served for one drain cycle), not a
+    false miss — the probability is negligible and the cache self-heals on
+    the next probe.
 - **Cap behavior**: `ESHU_IDENTITY_CACHE_MAX_BYTES` (default 500 MiB, measured).
   Loaded set exceeding the cap is served DIRECTLY (passthrough, never partial,
   never cached) and increments `eshu_dp_identity_cache_passthrough_total`.

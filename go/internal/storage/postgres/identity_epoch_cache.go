@@ -271,8 +271,11 @@ func estimateEnvelopesByteSize(loaded []facts.Envelope) int64 {
 	return total
 }
 
-// defensiveCopyEnvelopes returns a shallow copy of the slice and a deep copy
-// of each envelope's Payload map, so callers cannot mutate the shared cache.
+// defensiveCopyEnvelopes returns a fresh slice with a one-level copy of each
+// envelope's Payload map, so callers cannot mutate the shared cache through
+// top-level payload keys. Nested payload values (e.g. entity_metadata maps)
+// are shared by reference; identity-load callers are read-only by audit, and
+// new callers must not mutate nested payload values.
 func defensiveCopyEnvelopes(src []facts.Envelope) []facts.Envelope {
 	dst := make([]facts.Envelope, len(src))
 	for i, env := range src {
