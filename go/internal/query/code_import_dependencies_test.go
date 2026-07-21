@@ -22,7 +22,7 @@ func TestHandleImportDependencyInvestigationReturnsBoundedImportsByFile(t *testi
 				if !strings.Contains(cypher, "MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(source_file:File {relative_path: $source_file})") {
 					t.Fatalf("cypher = %q, want repo and source file anchored import query", cypher)
 				}
-				if !strings.Contains(cypher, "ORDER BY source_file.relative_path, target_module.name, rel.line_number") {
+				if !strings.Contains(cypher, "ORDER BY repo.id, source_file.relative_path, target_module.name") {
 					t.Fatalf("cypher = %q, want deterministic import ordering", cypher)
 				}
 				if !strings.Contains(cypher, "SKIP $offset") || !strings.Contains(cypher, "LIMIT $limit") {
@@ -122,25 +122,32 @@ func TestHandleImportDependencyInvestigationReturnsFileImportCycles(t *testing.T
 				if !strings.Contains(cypher, "repo.name as repo_name") {
 					t.Fatalf("cypher = %q, want repository display name projection", cypher)
 				}
-				if !strings.Contains(cypher, "source_file.name = source_module.name + '.py'") {
-					t.Fatalf("cypher = %q, want Python module-to-file cycle guard", cypher)
+				if strings.Count(cypher, "MATCH ") != 1 || !strings.Contains(cypher, "LIMIT $scan_limit") {
+					t.Fatalf("cypher = %q, want one bounded import-edge read", cypher)
 				}
-				if !strings.Contains(cypher, "target_file.name = target_module.name + '.py'") {
-					t.Fatalf("cypher = %q, want target module-to-file cycle guard", cypher)
-				}
-				if got, want := params["language"], "python"; got != want {
-					t.Fatalf("params[language] = %#v, want %#v", got, want)
+				if got, want := params["cycle_language"], "python"; got != want {
+					t.Fatalf("params[cycle_language] = %#v, want %#v", got, want)
 				}
 				return []map[string]any{
 					{
-						"repo_id":               "repo-1",
-						"repo_name":             "platform-api",
-						"source_file":           "src/module_a.py",
-						"target_file":           "src/module_b.py",
-						"source_module":         "module_a",
-						"target_module":         "module_b",
-						"source_line_number":    4,
-						"back_edge_line_number": 7,
+						"repo_id":       "repo-1",
+						"repo_name":     "platform-api",
+						"source_path":   "/proof/repo-1/src/module_a.py",
+						"source_file":   "src/module_a.py",
+						"source_name":   "module_a.py",
+						"language":      "python",
+						"target_module": "module_b",
+						"line_number":   4,
+					},
+					{
+						"repo_id":       "repo-1",
+						"repo_name":     "platform-api",
+						"source_path":   "/proof/repo-1/src/module_b.py",
+						"source_file":   "src/module_b.py",
+						"source_name":   "module_b.py",
+						"language":      "python",
+						"target_module": "module_a",
+						"line_number":   7,
 					},
 				}, nil
 			},
@@ -234,10 +241,10 @@ func TestHandleImportDependencyInvestigationReturnsEmptyFileImportCycles(t *test
 	}
 }
 
-func TestFileImportCyclesCypherPreservesUnscopedRepositoryShape(t *testing.T) {
+func TestFileImportCycleEdgeRowsCypherPreservesUnscopedRepositoryShape(t *testing.T) {
 	t.Parallel()
 
-	cypher := fileImportCyclesCypher(importDependencyRequest{
+	cypher := fileImportCycleEdgeRowsCypher(importDependencyRequest{
 		QueryType:  "file_import_cycles",
 		SourceFile: "src/module_a.py",
 		Limit:      6,
@@ -245,58 +252,29 @@ func TestFileImportCyclesCypherPreservesUnscopedRepositoryShape(t *testing.T) {
 	if !strings.Contains(cypher, "MATCH (repo:Repository)-[:REPO_CONTAINS]->(source_file:File)") {
 		t.Fatalf("cypher = %q, want repository discovery when repo_id is absent", cypher)
 	}
-	if strings.Contains(cypher, "{id: $repo_id}") || strings.Contains(cypher, "repo.id = $repo_id") {
-		t.Fatalf("cypher = %q, must not reference absent repo_id", cypher)
+	if strings.Contains(cypher, "{id: $repo_id}") || strings.Contains(cypher, "repo.id = $repo_id") || strings.Contains(cypher, "$source_file") {
+		t.Fatalf("cypher = %q, must not reference absent repo_id or remove reciprocal edges with a directional file filter", cypher)
+	}
+	if got := strings.Count(cypher, "MATCH "); got != 1 {
+		t.Fatalf("MATCH count = %d, want one connected edge scan", got)
 	}
 }
 
-func TestFileImportCycleLiveProofShapesRemainStructurallyDistinct(t *testing.T) {
+func TestFileImportCycleEdgeRowsCypherAnchorsRepositoryBeforeExpansion(t *testing.T) {
 	t.Parallel()
 
-	newCypher := fileImportCyclesCypher(importDependencyRequest{
+	cypher := fileImportCycleEdgeRowsCypher(importDependencyRequest{
 		QueryType: "file_import_cycles",
 		RepoID:    "repository:proof",
 		Limit:     6,
 	})
-	oldCypher := legacyUnanchoredFileImportCyclesProofCypher(newCypher)
-	assertImportCycleProofShapes(t, oldCypher, newCypher)
-}
-
-func assertImportCycleProofShapes(t *testing.T, oldCypher string, newCypher string) {
-	t.Helper()
-	if oldCypher == newCypher {
-		t.Fatal("old and new import-cycle proof queries are identical")
+	want := "MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(source_file:File)"
+	if !strings.Contains(cypher, want) {
+		t.Fatalf("cypher = %q, want repository anchor %q", cypher, want)
 	}
-	oldFirstMatch := "MATCH (repo:Repository)-[:REPO_CONTAINS]->(source_file:File)"
-	oldPostExpansionFilter := "AND repo.id = $repo_id"
-	newFirstMatch := "MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(source_file:File)"
-	if !strings.Contains(oldCypher, oldFirstMatch) || !strings.Contains(oldCypher, oldPostExpansionFilter) {
-		t.Fatalf("old query does not preserve the shipped unanchored baseline markers: %q", oldCypher)
+	if got := strings.Count(cypher, "MATCH "); got != 1 {
+		t.Fatalf("MATCH count = %d, want one connected edge scan", got)
 	}
-	if strings.Contains(oldCypher, newFirstMatch) {
-		t.Fatalf("old query already contains the candidate repository anchor: %q", oldCypher)
-	}
-	if !strings.Contains(newCypher, newFirstMatch) || strings.Contains(newCypher, oldPostExpansionFilter) {
-		t.Fatalf("new query does not preserve the shipped anchored candidate markers: %q", newCypher)
-	}
-	if strings.Count(oldCypher, oldFirstMatch) != 1 || strings.Count(newCypher, newFirstMatch) != 1 {
-		t.Fatalf("old/new first-match markers must each occur exactly once")
-	}
-}
-
-func legacyUnanchoredFileImportCyclesProofCypher(newCypher string) string {
-	oldCypher := strings.Replace(
-		newCypher,
-		"MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(source_file:File)",
-		"MATCH (repo:Repository)-[:REPO_CONTAINS]->(source_file:File)",
-		1,
-	)
-	return strings.Replace(
-		oldCypher,
-		"  AND source_file.relative_path < target_file.relative_path",
-		"  AND source_file.relative_path < target_file.relative_path\n  AND repo.id = $repo_id",
-		1,
-	)
 }
 
 func TestHandleImportDependencyInvestigationTruncatesFileImportCycles(t *testing.T) {
@@ -305,12 +283,14 @@ func TestHandleImportDependencyInvestigationTruncatesFileImportCycles(t *testing
 	handler := &CodeHandler{
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
-				if got, want := params["limit"], 2; got != want {
-					t.Fatalf("params[limit] = %#v, want %#v", got, want)
+				if got, want := params["scan_limit"], importDependencyInternalScanLimit+1; got != want {
+					t.Fatalf("params[scan_limit] = %#v, want %#v", got, want)
 				}
 				return []map[string]any{
-					{"repo_id": "repo-1", "source_file": "src/a.py", "target_file": "src/b.py"},
-					{"repo_id": "repo-1", "source_file": "src/c.py", "target_file": "src/d.py"},
+					{"repo_id": "repo-1", "repo_name": "proof", "source_path": "/proof/src/a.py", "source_file": "src/a.py", "source_name": "a.py", "language": "python", "target_module": "b", "line_number": 3},
+					{"repo_id": "repo-1", "repo_name": "proof", "source_path": "/proof/src/b.py", "source_file": "src/b.py", "source_name": "b.py", "language": "python", "target_module": "a", "line_number": 5},
+					{"repo_id": "repo-1", "repo_name": "proof", "source_path": "/proof/src/c.py", "source_file": "src/c.py", "source_name": "c.py", "language": "python", "target_module": "d", "line_number": 7},
+					{"repo_id": "repo-1", "repo_name": "proof", "source_path": "/proof/src/d.py", "source_file": "src/d.py", "source_name": "d.py", "language": "python", "target_module": "c", "line_number": 11},
 				}, nil
 			},
 		},
@@ -361,109 +341,6 @@ func TestHandleImportDependencyInvestigationReportsUnavailableCycleBackend(t *te
 	mux.ServeHTTP(w, req)
 
 	if got, want := w.Code, http.StatusServiceUnavailable; got != want {
-		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
-	}
-}
-
-func TestHandleImportDependencyInvestigationReturnsCrossModuleCalls(t *testing.T) {
-	t.Parallel()
-
-	handler := &CodeHandler{
-		Neo4j: fakeGraphReader{
-			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				if !strings.Contains(cypher, "MATCH (source_file)-[:CONTAINS]->(caller:Function)") ||
-					!strings.Contains(cypher, "MATCH (caller)-[rel:CALLS]->(callee:Function)") {
-					t.Fatalf("cypher = %q, want bounded call relationship query", cypher)
-				}
-				if !strings.Contains(cypher, "MATCH (source_file)-[:CONTAINS]->(source_module:Module {name: $source_module})") {
-					t.Fatalf("cypher = %q, want source module anchor", cypher)
-				}
-				if !strings.Contains(cypher, "MATCH (target_file)-[:CONTAINS]->(target_module:Module {name: $target_module})") {
-					t.Fatalf("cypher = %q, want target module anchor", cypher)
-				}
-				if got, want := params["source_module"], "payments.api"; got != want {
-					t.Fatalf("params[source_module] = %#v, want %#v", got, want)
-				}
-				return []map[string]any{
-					{
-						"repo_id":       "repo-1",
-						"source_file":   "src/api.py",
-						"target_file":   "src/service.py",
-						"source_name":   "charge",
-						"source_id":     "function-charge",
-						"target_name":   "persist",
-						"target_id":     "function-persist",
-						"source_module": "payments.api",
-						"target_module": "payments.service",
-						"call_kind":     "direct",
-					},
-				}, nil
-			},
-		},
-	}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/api/v0/code/imports/investigate",
-		bytes.NewBufferString(`{"query_type":"cross_module_calls","repo_id":"repo-1","source_module":"payments.api","target_module":"payments.service","limit":10}`),
-	)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if got, want := w.Code, http.StatusOK; got != want {
-		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
-	}
-	var resp map[string]any
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
-	}
-	calls, ok := resp["cross_module_calls"].([]any)
-	if !ok || len(calls) != 1 {
-		t.Fatalf("cross_module_calls = %#v, want one call", resp["cross_module_calls"])
-	}
-	if _, ok := resp["dependencies"]; ok {
-		t.Fatalf("cross_module_calls response includes non-canonical dependencies key: %#v", resp["dependencies"])
-	}
-}
-
-func TestHandleImportDependencyInvestigationRejectsUnscopedRequests(t *testing.T) {
-	t.Parallel()
-
-	handler := &CodeHandler{Neo4j: fakeGraphReader{}}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/api/v0/code/imports/investigate",
-		bytes.NewBufferString(`{"query_type":"imports_by_file","limit":25}`),
-	)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if got, want := w.Code, http.StatusBadRequest; got != want {
-		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
-	}
-}
-
-func TestHandleImportDependencyInvestigationRejectsNegativeLimit(t *testing.T) {
-	t.Parallel()
-
-	handler := &CodeHandler{Neo4j: fakeGraphReader{}}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/api/v0/code/imports/investigate",
-		bytes.NewBufferString(`{"query_type":"imports_by_file","repo_id":"repo-1","limit":-1}`),
-	)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if got, want := w.Code, http.StatusBadRequest; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
 }

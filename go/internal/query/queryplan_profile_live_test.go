@@ -199,6 +199,8 @@ func assertProductionVariantOperators(t *testing.T, name string, operators []str
 
 func queryplanProductionVariantAnchorOperators(name string) []string {
 	switch {
+	case strings.HasPrefix(name, "import-dependencies/"):
+		return []string{"NodeIndexSeek", "NodeUniqueIndexSeek", "NodeByLabelScan", "DirectedRelationshipTypeScan"}
 	case strings.HasPrefix(name, "cloud-resource-list/") &&
 		!strings.Contains(name, "resource-type") &&
 		!strings.Contains(name, "cursor"):
@@ -265,6 +267,7 @@ func queryplanProfileParams() map[string]any {
 		"after_version_id":       "proof-version",
 		"allowed_repository_ids": []string{"proof-repository"},
 		"allowed_scope_ids":      []string{"proof-scope"},
+		"cycle_language":         "python",
 		"ecosystem":              "proof-ecosystem",
 		"entity_id":              "proof-entity",
 		"environment":            "",
@@ -290,9 +293,15 @@ func queryplanProfileParams() map[string]any {
 		"resource_type_query":    "proof-type",
 		"semantic_filter":        "proof",
 		"service_id":             "proof-service",
-		"source_file":            "proof.go",
+		"scan_limit":             importDependencyInternalScanLimit + 1,
+		"source_file":            "src/proof.py",
+		"source_module":          "proof.source",
+		"source_paths":           []string{"/proof/src/proof.py"},
 		"source_tool":            "proof-tool",
+		"target_file":            "src/target.py",
 		"target_id":              "proof-target",
+		"target_module":          "proof.target",
+		"target_paths":           []string{"/proof/src/target.py"},
 		"type":                   "Function",
 		"version_id":             "proof-version",
 		"workload_id":            "proof-workload",

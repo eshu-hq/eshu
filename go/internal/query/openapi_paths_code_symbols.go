@@ -118,7 +118,7 @@ const openAPIPathsCodeSymbols = `
       "post": {
         "tags": ["code"],
         "summary": "Investigate import and module dependencies",
-        "description": "Returns bounded graph-backed import dependencies, package imports, direct Python file import cycles, and cross-module calls. Requests must include at least one scope filter: repo_id, source_file, target_file, source_module, or target_module. The row payload uses one canonical key by query type: dependencies, modules, cycles, or cross_module_calls.",
+        "description": "Returns bounded graph-backed import dependencies, package imports, direct Python file import cycles, and cross-module calls. Requests must include at least one scope filter: repo_id, source_file, target_file, source_module, or target_module. target_file is accepted only for file_import_cycles and cross_module_calls. Internal candidate scans are capped at 25000 rows and return 422 with an instruction to narrow scope when that bound is exceeded. The row payload uses one canonical key by query type: dependencies, modules, cycles, or cross_module_calls.",
         "operationId": "investigateImportDependencies",
         "requestBody": {
           "required": true,
@@ -206,6 +206,14 @@ const openAPIPathsCodeSymbols = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "422": {
+            "description": "The candidate scan exceeded the internal bound; narrow the repository, file, or module scope.",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+              }
+            }
+          },
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }

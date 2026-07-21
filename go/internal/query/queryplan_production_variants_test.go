@@ -14,7 +14,7 @@ import (
 const handlerQueryplanRegisteredCloudResourceListVariant = "cloud-resource-list/resource-type"
 
 const (
-	handlerQueryplanSafeVariantFamilySHA256       = "b01b91652a1bd8146b9ca4a3e1d4e4e4001ba72bbc05697e943e182e57f1fa15"
+	handlerQueryplanSafeVariantFamilySHA256       = "e82b7d7dc386f1b785a704d24a436365d1ee4f220b0f8a3cd42e8acc12b824e8"
 	entityNameSearchQueryplanVariantFamilySHA256  = "4d4f47c1555b8a42caa91d20a5971902fc19b6ef65d3c77440f9be5df4333ef5"
 	entityNameSearchQueryplanBuilderSourceSHA256  = "3057a508e8b5acf4e07b4d5567b00dbf5e900b360eed82b3102f358e2a1e1523"
 	entityNameSearchQueryplanExpectedVariantCount = 17
@@ -24,7 +24,7 @@ func TestHandlerQueryplanProductionVariantFamiliesStayExplicit(t *testing.T) {
 	t.Parallel()
 
 	safe := handlerQueryplanSafeCypherVariants()
-	wantSafe := 13 + len(allInfraLabels)*10 + 31
+	wantSafe := 13 + len(allInfraLabels)*10 + 31 + importDependencyQueryplanExpectedVariantCount
 	if got := len(safe); got != wantSafe {
 		t.Fatalf("safe production variant count = %d, want %d", got, wantSafe)
 	}
@@ -214,7 +214,11 @@ func cloudResourceListQueryplanVariants() map[string]string {
 func handlerQueryplanSafeCypherVariants() map[string]string {
 	allAccess := repositoryAccessFilter{allScopes: true}
 	scopedAccess := queryplanScopedRepositoryAccess()
-	variants := make(map[string]string, 13+len(allInfraLabels)*10+31)
+	variants := make(map[string]string, 13+len(allInfraLabels)*10+31+importDependencyQueryplanExpectedVariantCount)
+
+	for name, cypher := range importDependencyQueryplanVariants() {
+		variants[name] = cypher
+	}
 
 	for name, cypher := range cloudResourceListQueryplanVariants() {
 		if name == handlerQueryplanRegisteredCloudResourceListVariant {

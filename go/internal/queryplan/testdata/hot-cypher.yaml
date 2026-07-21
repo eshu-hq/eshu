@@ -408,10 +408,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/code_import_dependencies.go
-      symbol: fileImportCyclesCypher
-      source_sha256: bc80a62dfd1662bb0b12fa1d3d819b33c19ccca3b32098c3ec0791dfa20cede1
-      line_hint: 280
+      file: go/internal/query/code_import_dependencies_queries.go
+      symbol: fileImportCycleEdgeRowsCypher
+      source_sha256: 7933770f8693f37d674b2969bd7ba31d4150f1d22b9df3a68fd05da7d7afb1a9
+      line_hint: 146
     required_anchors:
       - label: Repository
         property: id
@@ -419,10 +419,11 @@ entries:
       - repository_id
       - nornicdb_repository_id_lookup
     required_limits:
-      - $limit
+      - $scan_limit
     requires_order: true
     caveats:
-      - Repo-scoped file-cycle investigation must seek the indexed repository before expanding either IMPORTS path. Requests scoped only by file or module retain the broader repository-discovery shape because no repo_id exists to anchor.
+      - The graph read returns one bounded ordered IMPORTS edge set; exact reciprocal Python cycles are reconstructed, deduplicated, filtered, and paged in Go.
+      - The exact-hash import-dependency variant family profiles every reachable optional-filter shape, including unscoped label-bounded variants.
     plan:
       operators:
         - NodeIndexSeek
@@ -432,7 +433,7 @@ entries:
         - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
-    cypher_sha256: "4b91024d77867e6f7ffbe0e502a2d069c797b878fee5d57f74753fb7033e88a1"
+    cypher_sha256: "03d641efabac1a59818e790354ed551d528db1cc3b6ee8755ec608a3d2917569"
   - id: QP-READINESS-HOSTED
     domain: readiness
     backend: nornicdb
