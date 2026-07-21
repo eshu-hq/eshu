@@ -4,7 +4,9 @@
 # (#5399, spun off from #5336). Runs TestDogfoodScalaRealRepoSnapshot
 # (go/internal/parser/scala/dogfood_real_repo_test.go) against the
 # committed tests/fixtures/dogfood/scala_real_repo corpus and diffs the
-# parser's bucket counts against the checked-in snapshot at
+# parser's row-level output (one line per emitted entity/relationship with
+# its identifying fields, not just per-bucket counts) against the checked-in
+# snapshot at
 # go/internal/parser/scala/testdata/dogfood_real_repo_snapshot.txt. Zero
 # network calls. playframework/playframework (pinned SHA
 # bcdc682de2250bbd0f2788bc5acc06f6d66ad5a7) and scala/scala (pinned SHA

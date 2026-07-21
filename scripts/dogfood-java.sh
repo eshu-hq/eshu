@@ -4,7 +4,9 @@
 # (#5399, spun off from #5336). Runs TestDogfoodJavaRealRepoSnapshot
 # (go/internal/parser/java/dogfood_real_repo_test.go) against the committed
 # tests/fixtures/dogfood/java_real_repo corpus and diffs the parser's
-# bucket counts against the checked-in snapshot at
+# row-level output (one line per emitted entity/relationship with its
+# identifying fields, not just per-bucket counts) against the checked-in
+# snapshot at
 # go/internal/parser/java/testdata/dogfood_real_repo_snapshot.txt. Zero
 # network calls. No external repository or pinned SHA is cited as
 # provenance for this fixture: docs/public/languages/java.md never carried

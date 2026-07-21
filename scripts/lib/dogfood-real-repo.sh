@@ -5,7 +5,10 @@
 # language key and the Go test that proves it: a standing regression test
 # under go/internal/parser/<lang>/dogfood_real_repo_test.go that parses the
 # committed, app-shaped corpus at tests/fixtures/dogfood/<lang>_real_repo
-# and diffs the parser's bucket counts against a checked-in snapshot at
+# and diffs the parser's row-level output -- one line per emitted
+# entity/relationship with its identifying fields (name, line number, call
+# target, dead-code root metadata, route method/path/handler), not just the
+# per-bucket counts -- against a checked-in snapshot at
 # go/internal/parser/<lang>/testdata/dogfood_real_repo_snapshot.txt.
 #
 # This is the "real-repo-validated" bar defined in
