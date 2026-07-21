@@ -190,6 +190,10 @@ func streamFacts(
 	// Content file facts — two-phase re-read path or legacy path.
 	gitDocumentationSourceEmitted := false
 	documentationPaths := documentationMetaRelativePaths(snapshot.DocumentationFileMetas)
+	// codeownersCandidates accumulates recognized CODEOWNERS bodies across both
+	// content branches; GitHub honors one file per repo, so emission happens
+	// once after both branches close (see noteCodeownersCandidate).
+	codeownersCandidates := map[string]string{}
 	if len(snapshot.ContentFileMetas) > 0 {
 		for i, meta := range snapshot.ContentFileMetas {
 			body, err := streamContentBodyReadFile(filepath.Join(repoPath, filepath.FromSlash(meta.RelativePath))) // #nosec G304 -- reads indexed repo content file at a path derived from the scan target, not user-supplied input
@@ -199,6 +203,7 @@ func streamFacts(
 				continue
 			}
 			bodyStr := string(body)
+			noteCodeownersCandidate(codeownersCandidates, meta.RelativePath, bodyStr)
 
 			w.send(contentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, ContentFileSnapshot{
 				RelativePath:    meta.RelativePath,
@@ -241,6 +246,7 @@ func streamFacts(
 		snapshot.ContentFileMetas = nil
 	} else {
 		for i, fileSnapshot := range snapshot.ContentFiles {
+			noteCodeownersCandidate(codeownersCandidates, fileSnapshot.RelativePath, fileSnapshot.Body)
 			w.send(contentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, fileSnapshot))
 			emitServiceCatalogFactsForContentFile(
 				w,
@@ -279,6 +285,7 @@ func streamFacts(
 		}
 		snapshot.ContentFiles = nil
 	}
+	emitCodeownersFactsForCandidates(w, repo.ID, scopeID, generationID, observedAt, codeownersCandidates)
 	for i, meta := range snapshot.DocumentationFileMetas {
 		body, ok := readDocumentationBody(repoPath, meta.RelativePath, nil)
 		if !ok {

@@ -277,7 +277,10 @@ func resolveNativeSnapshotFileSet(
 				return true
 			}
 			_, ok := registry.LookupByPath(path)
-			return ok || isGitDocumentationPath(path)
+			if ok || isGitDocumentationPath(path) {
+				return true
+			}
+			return isCodeownersCandidatePath(repoPath, path)
 		},
 		opts,
 	)

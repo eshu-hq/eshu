@@ -162,6 +162,14 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	deltaRelativePaths := sortUniquePathStrings(append(deltaChangedRelativePaths, deltaDeletedRelativePaths...))
 	var tfstateCandidates []TerraformStateCandidate
 	fileSet.Files, tfstateCandidates = extractTerraformStateCandidates(repoPath, fileSet.Files)
+	// CODEOWNERS candidates are diverted the same way tfstate candidates are:
+	// removed from fileSet.Files before the language-parser pipeline sees
+	// them, since CODEOWNERS has no file extension and no registered
+	// parser.Definition. Their ContentFileMeta entries are built directly
+	// from a content digest below (see codeownersFileMetasForPaths), not
+	// through shape.Materialize.
+	var codeownersCandidateRelativePaths []string
+	fileSet.Files, codeownersCandidateRelativePaths = extractCodeownersCandidateFiles(repoPath, fileSet.Files)
 	parserFiles, documentationFiles := partitionNativeSnapshotFiles(fileSet.Files, registry)
 	fullParserFiles, _ := partitionNativeSnapshotFiles(fullFileSet.Files, registry)
 	parserFileSet := fileSet
@@ -199,13 +207,18 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		commitSHA = gitCommitSHAFn(ctx, repoPath)
 	}
 	snapshot.HeadCommitSHA = commitSHA
+	// Built here (before the zero-remaining-files early return) so a
+	// repository whose only discovered file is a CODEOWNERS candidate still
+	// carries it, mirroring how TerraformStateCandidates above survives that
+	// same early return.
+	snapshot.ContentFileMetas = codeownersFileMetasForPaths(repoPath, codeownersCandidateRelativePaths, commitSHA)
 	if len(fileSet.Files) == 0 {
 		snapshot.DiscoveryAdvisory = buildDiscoveryAdvisoryReport(
 			repoPath,
 			s.now(),
 			discoveryStats,
 			fileSet.FilePaths(),
-			nil,
+			snapshot.ContentFileMetas,
 			nil,
 			commitSHA,
 		)
@@ -357,7 +370,10 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		slog.Bool("dataflow_scanned", s.EmitDataflow),
 	)
 	snapshot.FileData = parsedFiles
-	snapshot.ContentFileMetas = materializationRecordsToMetas(materialization.Records)
+	// snapshot.ContentFileMetas already carries the codeowners candidate
+	// metas set earlier (before the zero-files early return); append the
+	// materialized content metas rather than overwrite them.
+	snapshot.ContentFileMetas = append(snapshot.ContentFileMetas, materializationRecordsToMetas(materialization.Records)...)
 	snapshot.DocumentationFileMetas = documentationFileMetasForPaths(repoPath, discovery.FilePaths(documentationFiles), commitSHA)
 	snapshot.ContentEntities = materializationEntitiesToSnapshots(materialization.Entities, s.now())
 	snapshot.DiscoveryAdvisory = buildDiscoveryAdvisoryReport(
