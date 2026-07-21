@@ -439,6 +439,41 @@ no plan change. `go test ./internal/relationships ./internal/reducer ./internal/
 No-Observability-Change: no metrics, spans, or structured logs are added or
 altered; the citation flows as evidence-fact and edge-property data only.
 
+## GitHub Actions @ref pin signal (#5372)
+
+`parseGitHubRefParts` (`first_party_refs.go`) delegates to the new leaf
+package `go/internal/ghactionsref`'s `Parse` -- the single ref-splitting
+implementation this package and `go/internal/query` both depend on, so the
+reducer/graph-projection path and the query/read-model path cannot silently
+diverge on how a GitHub Actions `uses:` ref splits. The delegation is
+behavior-preserving: every existing evidence `Details` key this package
+populates (`first_party_ref_path`, `first_party_ref_version`,
+`action_ref_name`, `workflow_ref_name`, ...) is unchanged.
+
+The reducer (`go/internal/reducer/cross_repo_evidence_artifacts.go`) reads
+those `Details` keys and projects `ref_value`/`ref_pinned` onto the graph
+`EvidenceArtifact` node, scoped strictly to `GITHUB_ACTIONS_*` evidence kinds
+-- `first_party_ref_version` is also populated by unrelated evidence families
+(Terraform, Ansible, Chef, ...) via `withFirstPartyRefDetails`, so the kind
+gate prevents mislabeling those as a GitHub Actions pin signal. `ref_pinned`
+is `true` only for a full-length (40- or 64-hex) commit SHA, per
+`ghactionsref.Pinned`; see
+`docs/public/reference/relationship-mapping-evidence.md` for the full
+contract and why branch vs. tag is deliberately not classified.
+
+No-Regression Evidence: `ghactionsref.Parse` is a leaf-package extraction of
+the prior `parseGitHubRefParts` body (byte-identical logic), so this is a
+behavior-preserving delegation, confirmed by the existing
+`go/internal/relationships` test suite staying green with no changes to
+expected values. `go list -deps ./internal/ghactionsref/` shows zero
+`eshu-hq/eshu` imports, confirming the new package introduces no import
+cycle with `go/internal/reducer`, `go/internal/storage/cypher`, or
+`go/internal/query`.
+
+No-Observability-Change: no metrics, spans, or structured logs are added or
+altered; ref_value/ref_pinned flow as evidence-fact and graph-node-property
+data only, following the existing citation-field pattern above.
+
 ## Shared repository-catalog derivation (#4394)
 
 `RepositoryCatalogEntry` (`catalog.go`) is the single source of truth for

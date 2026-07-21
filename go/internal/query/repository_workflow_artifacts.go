@@ -25,7 +25,8 @@ func enrichWorkflowArtifactRow(row map[string]any, content string) {
 		environments,
 		jobTimeoutMinutes,
 		matrixKeys,
-		matrixCombinationCount := workflowArtifactDetails(content)
+		matrixCombinationCount,
+		unpinnedActionRefs := workflowArtifactDetails(content)
 	signals := stringSliceValue(row, "signals")
 
 	if len(reusableWorkflowRepositories) > 0 {
@@ -43,6 +44,10 @@ func enrichWorkflowArtifactRow(row map[string]any, content string) {
 	if len(actionRepositories) > 0 {
 		row["action_repositories"] = actionRepositories
 		signals = append(signals, "action_repositories")
+	}
+	if len(unpinnedActionRefs) > 0 {
+		row["unpinned_action_refs"] = unpinnedActionRefs
+		signals = append(signals, "unpinned_action_refs")
 	}
 	if len(workflowInputRepositories) > 0 {
 		row["workflow_input_repositories"] = workflowInputRepositories
@@ -104,10 +109,18 @@ func enrichWorkflowArtifactRow(row map[string]any, content string) {
 	}
 }
 
-func workflowArtifactDetails(content string) ([]string, []string, []string, []string, []string, []string, []string, []string, []string, []string, []string, []string, []string, []string, []string, int) {
+// workflowArtifactDetails returns, as its final value, unpinnedActionRefs
+// (issue #5372): the raw `owner/repo@ref` string for every third-party
+// action step (dependencyRefs.actionRepositories' paired raw ref,
+// dependencyRefs.actionRefs) whose ref is not a full-length commit SHA, per
+// ghactionsref.Pinned. A step with no @ref at all (which
+// githubActionsActionRepositoryRef would not have matched as an action
+// repository in the first place) never appears here -- honest absence, not a
+// fabricated unpinned claim.
+func workflowArtifactDetails(content string) ([]string, []string, []string, []string, []string, []string, []string, []string, []string, []string, []string, []string, []string, []string, []string, int, []string) {
 	documents, err := decodeYAMLMaps(content)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, 0
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, 0, nil
 	}
 
 	// The five GitHub Actions dependency-reference classes come from the
@@ -194,7 +207,8 @@ func workflowArtifactDetails(content string) ([]string, []string, []string, []st
 		sortedUniqueWorkflowStrings(environments),
 		sortedUniqueWorkflowStrings(jobTimeoutMinutes),
 		sortedUniqueWorkflowStrings(matrixKeys),
-		matrixCombinationCount
+		matrixCombinationCount,
+		sortedUniqueWorkflowStrings(unpinnedActionRefs(dependencyRefs.actionRepositories, dependencyRefs.actionRefs))
 }
 
 func githubActionsTriggerEvents(rawOn any) []string {

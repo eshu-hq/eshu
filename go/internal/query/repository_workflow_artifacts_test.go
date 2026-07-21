@@ -233,7 +233,15 @@ jobs:
 	if got, want := StringSliceVal(row, "action_repositories"), []string{"hashicorp/setup-terraform", "peter-evans/create-pull-request"}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("workflow_artifacts[0].action_repositories = %#v, want %#v", got, want)
 	}
-	if got, want := StringSliceVal(row, "signals"), []string{"workflow_file", "action_repositories"}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+	// hashicorp/setup-terraform@v3 and peter-evans/create-pull-request@v5 are
+	// both pinned to a mutable tag, not a full commit SHA, so issue #5372's
+	// unpinned_action_refs signal must surface both (actions/checkout is
+	// excluded from action-repository detection entirely, and the local
+	// ./.github/actions/local-helper step has no @ref to classify).
+	if got, want := StringSliceVal(row, "unpinned_action_refs"), []string{"hashicorp/setup-terraform@v3", "peter-evans/create-pull-request@v5"}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("workflow_artifacts[0].unpinned_action_refs = %#v, want %#v", got, want)
+	}
+	if got, want := StringSliceVal(row, "signals"), []string{"workflow_file", "action_repositories", "unpinned_action_refs"}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
 		t.Fatalf("workflow_artifacts[0].signals = %#v, want %#v", got, want)
 	}
 }

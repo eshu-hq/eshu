@@ -149,6 +149,8 @@ func queryRepoDeploymentEvidence(ctx context.Context, reader GraphQuery, content
 		       artifact.start_line AS start_line,
 		       artifact.end_line AS end_line,
 		       artifact.commit_sha AS commit_sha,
+		       artifact.ref_value AS ref_value,
+		       artifact.ref_pinned AS ref_pinned,
 		       r.id AS source_repo_id,
 		       r.name AS source_repo_name,
 		       r.remote_url AS source_repo_remote_url,
@@ -183,6 +185,8 @@ func queryRepoDeploymentEvidence(ctx context.Context, reader GraphQuery, content
 		       artifact.start_line AS start_line,
 		       artifact.end_line AS end_line,
 		       artifact.commit_sha AS commit_sha,
+		       artifact.ref_value AS ref_value,
+		       artifact.ref_pinned AS ref_pinned,
 		       source.id AS source_repo_id,
 		       source.name AS source_repo_name,
 		       source.remote_url AS source_repo_remote_url,
@@ -414,6 +418,16 @@ func copyOptionalDeploymentEvidenceFields(dst map[string]any, src map[string]any
 	}
 	if commitSHA := StringVal(src, "commit_sha"); commitSHA != "" {
 		dst["commit_sha"] = commitSHA
+	}
+	// GitHub Actions @ref pin signal (issue #5372). ref_pinned is copied
+	// through together with ref_value -- and only when ref_value is
+	// present -- because ref_pinned:false is itself a real classification
+	// (a mutable branch/tag), not an absence marker; gating on ref_value's
+	// presence is what keeps a local ./ workflow (no ref_value node
+	// property at all) from getting a fabricated ref_pinned.
+	if refValue := StringVal(src, "ref_value"); refValue != "" {
+		dst["ref_value"] = refValue
+		dst["ref_pinned"] = BoolVal(src, "ref_pinned")
 	}
 }
 

@@ -97,13 +97,65 @@ Current extraction families:
 requires a storage compatibility plan.
 
 GitHub Actions evidence details additionally carry `first_party_ref_version`/
-`action_ref_name`/`workflow_ref_name` sub-fields (the pinned ref, tag, or SHA
-from `owner/repo@ref`) computed in `go/internal/relationships/github_actions_evidence.go`.
-These are marshaled into the `Details` JSON persisted by
-`relationship_evidence_batch.go`, but no downstream reducer or edge writer
-reads them when it materializes the `DEPLOYS_FROM`/`DEPENDS_ON` edge, so the
-pinned ref/version never reaches the graph. Tracked in
-[#5372](https://github.com/eshu-hq/eshu/issues/5372).
+`action_ref_name`/`workflow_ref_name` sub-fields (the ref, tag, or SHA from
+`owner/repo@ref`) computed in `go/internal/relationships/github_actions_evidence.go`
+via the shared `go/internal/ghactionsref` package's `Parse`. These are
+marshaled into the `Details` JSON persisted by `relationship_evidence_batch.go`
+and, as of issue #5372, are also projected onto the deployment-evidence
+artifact surface (graph `EvidenceArtifact` node properties and the equivalent
+Postgres read-model row) as two normalized fields:
+
+- `ref_value` (string): the raw `@ref` value (a branch name, a tag, or a
+  commit SHA). Omitted entirely when the workflow declares no ref at all --
+  a local `./` reusable workflow, a Docker action (`docker://...`), or an
+  action step whose `uses:` has no `@` segment. `ref_value` is never
+  defaulted or fabricated for these cases.
+- `ref_pinned` (bool): present only when `ref_value` is present. `true` if
+  and only if `ref_value` is a full-length commit SHA -- 40 hexadecimal
+  characters (the SHA-1 object id GitHub uses today) or 64 hexadecimal
+  characters (reserved for a future SHA-256 object id). Every other ref,
+  including an abbreviated/short SHA, is `false`.
+
+There is deliberately no `ref_kind` classification distinguishing a branch
+from a tag. Both are just ref strings inside the workflow file -- resolving
+which one a name actually refers to requires calling GitHub, which this
+static extraction does not do -- and a tag is mutable regardless of which one
+it is. Full-commit-SHA immutability is the only property of a ref string that
+is statically provable without contacting GitHub, so it is the only claim
+`ref_pinned` makes. This mirrors GitHub's own hardening guidance: "Pinning an
+action to a full-length commit SHA is currently the only way to use an action
+as an immutable release," while "specifying a tag ... can be moved or deleted
+if a bad actor gains access to the repository storing the action" (GitHub,
+[Secure use reference](https://docs.github.com/en/actions/reference/security/secure-use),
+verified current as of this change).
+
+`ref_value`/`ref_pinned` are scoped strictly to `GITHUB_ACTIONS_*` evidence
+kinds -- `first_party_ref_version` is also populated by unrelated evidence
+families (Terraform module versions, Ansible role refs, Chef cookbook
+versions, and others via the shared `withFirstPartyRefDetails` helper), and
+attaching a GitHub Actions pin-safety label to one of those would be
+fabrication. The raw ref was already reaching the graph unstructured, inside
+`matched_value` (`catalog_matcher.go`), before this change; the two new
+fields make it structured and consistent instead of stripping it, since a
+consistent strip is not honestly achievable without redacting
+`matched_value` too.
+
+The repository workflow-artifact rollup (`repository_workflow_artifacts.go`)
+separately surfaces `unpinned_action_refs`: the raw `owner/repo@ref` string
+for each action step whose ref is not a full-length commit SHA, using the
+same `ghactionsref.Pinned` classifier. This list draws from the same
+action-repository detection the rollup uses elsewhere, which excludes
+`actions/checkout` specifically (only `actions/checkout`, not all `actions/*`
+actions) because that step is modeled through its own checkout-repository
+signal, not as a plain action dependency. A mutable `actions/checkout@<tag>`
+therefore does not appear in `unpinned_action_refs`; the list is not an
+exhaustive audit of every unpinned `uses:` in the file.
+
+A `with: ref:` value passed to `actions/checkout` (checking out a specific
+ref of the TARGET repository, distinct from the `uses:` ref pinning the
+action/workflow ITSELF) is not captured by either signal today. This is a
+known non-signal, tracked as future scope, not a partial implementation to
+rely on.
 
 ## Matching Rules
 

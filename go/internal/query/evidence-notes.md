@@ -1111,3 +1111,49 @@ Observability Evidence / No-Observability-Change: no new env var, metric series,
 span, graph write, or queue consumer is added; the existing repository-context
 query span and structured logs remain the diagnostic surface, and the new field
 is additive on the existing `deployment_evidence` response object.
+
+## #5372 ref_value/ref_pinned GitHub Actions @ref pin signal
+
+Follows the #3650 `commit_sha` precedent above exactly, for a new pair of
+fields instead of one. `queryRepoDeploymentEvidence`'s Cypher `RETURN` clauses
+(both outgoing and incoming) now project `artifact.ref_value`/
+`artifact.ref_pinned`, `copyOptionalDeploymentEvidenceFields` copies them into
+the graph-path artifact (gated on `ref_value`'s presence, since
+`ref_pinned:false` is itself a real classification, not an absence marker),
+and `deploymentEvidenceArtifactFromPreview` derives the same pair from the
+Postgres preview `Details` for the read-model path -- scoped to
+`GITHUB_ACTIONS_*` evidence kinds, since `first_party_ref_version` is also
+populated by unrelated evidence families. `ref_pinned` uses
+`go/internal/ghactionsref`'s `Pinned`, the same classifier
+`go/internal/reducer/cross_repo_evidence_artifacts.go` uses on the write side,
+so graph node, read-model row, and reducer artifact map all agree. Both
+fields are omitted together when no ref exists (a local `./` reusable
+workflow, a Docker action): `ref_pinned` is never defaulted to `true` for a
+workflow with no ref.
+
+The repository workflow-artifact rollup (`repository_workflow_artifacts.go`)
+separately gains `unpinned_action_refs`: the raw `owner/repo@ref` string for
+every third-party action step whose ref is not a full-length commit SHA,
+derived in `repository_workflow_artifacts_unpinned.go` from
+`githubActionsDependencyRefs.actionRepositories` paired with its new
+index-aligned `actionRefs` field (`content_relationships_github_actions.go`).
+
+Accuracy Evidence: `go test ./internal/query -run
+'TestGraphDeploymentEvidenceReturnsGHARefFields|TestGraphDeploymentEvidenceOmitsGHARefFieldsWhenAbsent|TestDeploymentEvidenceArtifactFromPreviewGHARefPinned|TestDeploymentEvidenceArtifactFromPreviewGHARefMutable|TestDeploymentEvidenceArtifactFromPreviewGHARefAbsentWhenMissing|TestDeploymentEvidenceArtifactFromPreviewScopesGHARefToGitHubActions|TestContentReaderDeploymentEvidenceHydratesGHARef|TestEnrichWorkflowArtifactRowUnpinnedActionRefs|TestEnrichWorkflowArtifactRowOmitsUnpinnedActionRefsWhenAllPinned|TestGitHubActionsRefPinParity_QueryPath'
+-count=1` covers the pinned/mutable/absent/scope-gated cases on both the graph
+path and the read-model path, the unpinned-rollup positive/negative cases, and
+the both-paths-agree parity fixture shared with
+`go/internal/relationships/github_actions_ref_pin_parity_test.go`. The full
+`./internal/query` suite stays green (no sibling-field regression).
+
+Performance Evidence / No-Regression Evidence: two already-indexed node
+properties added to the same bounded `EvidenceArtifact` projection the #3650
+`commit_sha` precedent already covers -- no new `MATCH`, traversal, hop,
+aggregate, sort, or round trip. The 20-repo golden corpus carries no GitHub
+Actions workflow fixtures, so this surface is no-diff against the B-12
+snapshot.
+
+Observability Evidence / No-Observability-Change: no new env var, metric
+series, span, graph write, or queue consumer is added; the new fields are
+additive on the existing `deployment_evidence` and workflow-artifact response
+objects.

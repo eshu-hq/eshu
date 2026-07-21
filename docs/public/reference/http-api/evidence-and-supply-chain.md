@@ -23,7 +23,30 @@ pointers instead of embedding every Postgres evidence row.
   The response never exposes the raw scope identifier through these fields.
 - `artifacts[].source_location` records `repo_id`, `repo_name`, `path`, and
   line range when the extractor emitted line data.
+- `artifacts[].ref_value` and `artifacts[].ref_pinned` (issue #5372, GitHub
+  Actions artifacts only): the raw `@ref` an action or reusable workflow
+  step pins to, and whether that ref is a full-length commit SHA (the only
+  ref shape that is immutable). Both fields are omitted together when the
+  workflow declares no ref at all (a local `./` reusable workflow, a Docker
+  action, or no `@` segment) -- never defaulted. See
+  [Relationship Mapping Evidence](../relationship-mapping-evidence.md) for
+  the full contract, including why a branch and a tag are not distinguished
+  beyond "not pinned."
 - `evidence_index.lookup_basis` is `resolved_id`.
+
+`deployment_evidence` (and therefore `ref_value`/`ref_pinned`) is surfaced by
+the repository, service, and workload context/story MCP tools and their HTTP
+equivalents: `get_repo_context`, `get_repo_story`, `get_service_context`,
+`get_service_story`, `get_workload_context`, `get_workload_story`,
+`trace_deployment_chain`, `investigate_deployment_config`, and
+`investigate_service`. The repository workflow-artifact rollup's
+`unpinned_action_refs` signal (the raw `owner/repo@ref` string for each action
+pinned to something other than a full commit SHA, excluding `actions/checkout`,
+which is modeled through its own checkout-repository signal, so the list is not
+an exhaustive audit of every unpinned `uses:`) is surfaced through the same
+repository-context/story surfaces via the workflow-artifact loader
+(`repository_workflow_artifacts_loader.go`, reached through
+`repository_deployment_artifacts_loader.go`).
 
 ## Relationship Evidence
 

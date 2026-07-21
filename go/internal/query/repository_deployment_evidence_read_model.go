@@ -11,6 +11,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/ghactionsref"
 )
 
 type repositoryDeploymentEvidenceReadModel struct {
@@ -258,6 +260,22 @@ func deploymentEvidenceArtifactFromPreview(preview map[string]any, direction, re
 	}
 	if commitSHA := firstDeploymentArtifactString(details, "commit_sha"); commitSHA != "" {
 		artifact["commit_sha"] = commitSHA
+	}
+	// GitHub Actions @ref pin signal (issue #5372), scoped strictly to
+	// GITHUB_ACTIONS_* evidence kinds -- first_party_ref_version is also
+	// populated by unrelated evidence families (Terraform module versions,
+	// Ansible role refs, ...), and attaching a pin-safety label to one of
+	// those would fabricate a claim the evidence never made. ref_pinned uses
+	// ghactionsref.Pinned, the same classifier the reducer/graph-projection
+	// path uses (cross_repo_evidence_artifacts.go), so this read-model path
+	// and the graph path agree. Both fields are omitted together when no ref
+	// exists (local ./ workflow, docker action): never default ref_pinned to
+	// true for a workflow with no ref.
+	if strings.HasPrefix(kind, "GITHUB_ACTIONS_") {
+		if refValue := firstDeploymentArtifactString(details, "first_party_ref_version", "action_ref_name", "workflow_ref_name"); refValue != "" {
+			artifact["ref_value"] = refValue
+			artifact["ref_pinned"] = ghactionsref.Pinned(refValue)
+		}
 	}
 	return artifact
 }

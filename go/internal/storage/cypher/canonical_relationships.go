@@ -258,7 +258,9 @@ SET artifact.name = row.name,
     artifact.evidence_source = row.evidence_source,
     artifact.start_line = row.start_line,
     artifact.end_line = row.end_line,
-    artifact.commit_sha = row.commit_sha
+    artifact.commit_sha = row.commit_sha,
+    artifact.ref_value = row.ref_value,
+    artifact.ref_pinned = row.ref_pinned
 MERGE (source_repo)-[source_rel:HAS_DEPLOYMENT_EVIDENCE]->(artifact)
 SET source_rel.evidence_source = row.evidence_source,
     source_rel.resolved_id = row.resolved_id,
