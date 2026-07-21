@@ -591,6 +591,9 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindServiceCatalogOperationalLink:
 		_, err := DecodeServiceCatalogOperationalLink(env)
 		return err
+	case FactKindCodeownersOwnership:
+		_, err := DecodeCodeownersOwnership(env)
+		return err
 	case FactKindObservabilityDeclaredFolder:
 		_, err := DecodeObservabilityDeclaredFolder(env)
 		return err
@@ -825,6 +828,7 @@ var allDecodedKinds = []string{
 	FactKindServiceCatalogOwnership,
 	FactKindServiceCatalogRepositoryLink,
 	FactKindServiceCatalogOperationalLink,
+	FactKindCodeownersOwnership,
 }
 
 // TestDecodeEachKind_MissingEachRequiredFieldDeadLetters proves, for every
@@ -1262,6 +1266,8 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeServiceCatalogRepositoryLink(env)
 			case FactKindServiceCatalogOperationalLink:
 				_, err = DecodeServiceCatalogOperationalLink(env)
+			case FactKindCodeownersOwnership:
+				_, err = DecodeCodeownersOwnership(env)
 			}
 			if !errors.Is(err, ErrUnsupportedSchemaMajor) {
 				t.Fatalf("decode %s unsupported major: error = %v, want errors.Is ErrUnsupportedSchemaMajor", factKind, err)

@@ -19,6 +19,7 @@ import (
 	cicdrunv1 "github.com/eshu-hq/eshu/sdk/go/factschema/cicdrun/v1"
 	codedataflowv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codedataflow/v1"
 	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
+	codeownersv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codeowners/v1"
 	documentationv1 "github.com/eshu-hq/eshu/sdk/go/factschema/documentation/v1"
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 	iamv1 "github.com/eshu-hq/eshu/sdk/go/factschema/iam/v1"
@@ -459,6 +460,7 @@ var payloadContracts = []struct {
 	{FactKindServiceCatalogOwnership, "service_catalog.ownership.v1.schema.json", reflect.TypeOf(servicecatalogv1.Ownership{})},
 	{FactKindServiceCatalogRepositoryLink, "service_catalog.repository_link.v1.schema.json", reflect.TypeOf(servicecatalogv1.RepositoryLink{})},
 	{FactKindServiceCatalogOperationalLink, "service_catalog.operational_link.v1.schema.json", reflect.TypeOf(servicecatalogv1.OperationalLink{})},
+	{FactKindCodeownersOwnership, "codeowners.ownership.v1.schema.json", reflect.TypeOf(codeownersv1.Ownership{})},
 }
 
 // TestPayloadContractsCoverAllSchemas fails if the payloadContracts registry

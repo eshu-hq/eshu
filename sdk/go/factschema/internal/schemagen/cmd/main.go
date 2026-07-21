@@ -294,6 +294,10 @@ func run() error {
 		{name: "service_catalog.ownership.v1.schema.json", generate: schemagen.ServiceCatalogOwnershipSchema},
 		{name: "service_catalog.repository_link.v1.schema.json", generate: schemagen.ServiceCatalogRepositoryLinkSchema},
 		{name: "service_catalog.operational_link.v1.schema.json", generate: schemagen.ServiceCatalogOperationalLinkSchema},
+		// The codeowners family is Phase 1 of issue #5419 (branch-aware
+		// CODEOWNERS ingestion, epic #5415): the contract only. No collector
+		// or reducer/query consumer exists yet for this kind.
+		{name: "codeowners.ownership.v1.schema.json", generate: schemagen.CodeownersOwnershipSchema},
 	}
 
 	for _, target := range targets {
