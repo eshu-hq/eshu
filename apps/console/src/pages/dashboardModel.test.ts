@@ -30,16 +30,34 @@ describe("liveAtlasSeeds", () => {
 describe("selectSeedGraph", () => {
   it("scopes catalog service seeds to the canonical workload resolver", async () => {
     const resolveBodies: unknown[] = [];
-    const client = seedClient(resolveBodies);
+    const entityMapBodies: unknown[] = [];
+    const client = seedClient(resolveBodies, entityMapBodies, [
+      {
+        entity_id: "workload:checkout",
+        labels: ["Workload"],
+        name: "checkout",
+      },
+    ]);
 
     await selectSeedGraph(client, [seedNode("svc-checkout", "service", "checkout")], () => false);
 
     expect(resolveBodies).toEqual([{ limit: 1, name: "checkout", type: "workload" }]);
+    expect(entityMapBodies).toEqual([
+      { depth: 2, from: "workload:checkout", from_type: "workload" },
+    ]);
   });
 
   it("scopes repository seeds with their canonical repository identity", async () => {
     const resolveBodies: unknown[] = [];
-    const client = seedClient(resolveBodies);
+    const entityMapBodies: unknown[] = [];
+    const client = seedClient(resolveBodies, entityMapBodies, [
+      {
+        id: "repository:r_platform",
+        labels: ["Repository"],
+        name: "platform",
+        repo_id: "repository:r_platform",
+      },
+    ]);
 
     await selectSeedGraph(
       client,
@@ -48,7 +66,20 @@ describe("selectSeedGraph", () => {
     );
 
     expect(resolveBodies).toEqual([
-      { limit: 1, name: "platform", repo_id: "repository:r_platform" },
+      {
+        limit: 1,
+        name: "platform",
+        repo_id: "repository:r_platform",
+        type: "repository",
+      },
+    ]);
+    expect(entityMapBodies).toEqual([
+      {
+        depth: 2,
+        from: "repository:r_platform",
+        from_type: "repository",
+        repo_id: "repository:r_platform",
+      },
     ]);
   });
 
@@ -69,11 +100,15 @@ describe("selectSeedGraph", () => {
   });
 });
 
-function seedClient(resolveBodies: unknown[], entityMapBodies: unknown[] = []): EshuApiClient {
+function seedClient(
+  resolveBodies: unknown[],
+  entityMapBodies: unknown[] = [],
+  entities: readonly unknown[] = [],
+): EshuApiClient {
   return {
     postJson: async (_path: string, body: unknown) => {
       resolveBodies.push(body);
-      return { entities: [] };
+      return { entities };
     },
     post: async (_path: string, body: unknown) => {
       entityMapBodies.push(body);

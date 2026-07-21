@@ -2,11 +2,19 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 
 import { DashboardPage } from "./DashboardPage";
+import {
+  graphLabel,
+  liveModelWithRepositoriesOnly,
+  liveModelWithServices,
+  liveModelWithTrivialThenHub,
+  repoItem,
+  requestFrom,
+  requestName,
+  resolveEntityMap,
+} from "./dashboardPageTestSupport";
 import type { EshuApiClient } from "../api/client";
-import type { RepoListItem } from "../api/repoCatalog";
 import { demoModel } from "../console/demoModel";
 import { emptySnapshot, modelFromSnapshot } from "../console/liveModel";
-import type { ConsoleModel } from "../console/types";
 
 describe("DashboardPage", () => {
   it("renders runtime stat tiles and panels from the model", () => {
@@ -14,7 +22,9 @@ describe("DashboardPage", () => {
 
     const atlasTitle = screen.getByText("Code-to-cloud topology");
     const statTitle = screen.getByText("Graph nodes");
-    expect(Boolean(atlasTitle.compareDocumentPosition(statTitle) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(
+      Boolean(atlasTitle.compareDocumentPosition(statTitle) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
 
     expect(screen.getByText("Graph nodes")).toBeInTheDocument();
     expect(screen.getByText("Relationships")).toBeInTheDocument();
@@ -22,8 +32,12 @@ describe("DashboardPage", () => {
     expect(screen.getByText("Queue outstanding")).toBeInTheDocument();
 
     expect(screen.getByText("Hot entities")).toBeInTheDocument();
-    expect(screen.getByText("Seeded from the live graph neighbourhood (probes capped at 8).")).toBeInTheDocument();
-    expect(screen.getByText(/click any node or relationship edge to read its evidence/i)).toBeInTheDocument();
+    expect(
+      screen.getByText("Seeded from the live graph neighbourhood (probes capped at 8)."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/click any node or relationship edge to read its evidence/i),
+    ).toBeInTheDocument();
     expect(screen.getByText("Relationship coverage")).toBeInTheDocument();
     expect(screen.getByText("Needs attention")).toBeInTheDocument();
   });
@@ -62,9 +76,9 @@ describe("DashboardPage", () => {
           {
             entity_id: "workload:checkout-service",
             labels: ["Workload"],
-            name: "checkout-service"
-          }
-        ]
+            name: "checkout-service",
+          },
+        ],
       }),
       post: async (path: string, body: unknown) => {
         calls.push({ path, body });
@@ -76,9 +90,9 @@ describe("DashboardPage", () => {
                 {
                   id: "workload:checkout-service",
                   labels: ["Workload"],
-                  name: "checkout-service"
-                }
-              ]
+                  name: "checkout-service",
+                },
+              ],
             },
             evidence: {
               relationships: [
@@ -87,15 +101,15 @@ describe("DashboardPage", () => {
                   entity_id: "workload:payments-api",
                   entity_labels: ["Workload"],
                   entity_name: "payments-api",
-                  relationship_type: "DEPENDS_ON"
-                }
-              ]
-            }
+                  relationship_type: "DEPENDS_ON",
+                },
+              ],
+            },
           },
           error: null,
-          truth: null
+          truth: null,
         };
-      }
+      },
     } as unknown as EshuApiClient;
 
     render(<DashboardPage model={liveModelWithServices()} client={client} />);
@@ -110,8 +124,8 @@ describe("DashboardPage", () => {
     expect(calls).toEqual([
       {
         path: "/api/v0/impact/entity-map",
-        body: { from: "checkout-service", depth: 2 }
-      }
+        body: { from: "workload:checkout-service", from_type: "workload", depth: 2 },
+      },
     ]);
   });
 
@@ -130,28 +144,59 @@ describe("DashboardPage", () => {
           return {
             data: {
               from,
-              resolution: { candidates: [{ id: "workload:trivial-service", labels: ["Workload"], name: "trivial-service" }] },
+              resolution: {
+                candidates: [
+                  { id: "workload:trivial-service", labels: ["Workload"], name: "trivial-service" },
+                ],
+              },
               // Self-edge only: the lone neighbour carries the same name as the
               // center, producing the weak 2-node / 1-edge landing graph.
-              evidence: { relationships: [{ direction: "incoming", entity_name: "trivial-service", entity_labels: ["Repository"], relationship_types: [] }] }
+              evidence: {
+                relationships: [
+                  {
+                    direction: "incoming",
+                    entity_name: "trivial-service",
+                    entity_labels: ["Repository"],
+                    relationship_types: [],
+                  },
+                ],
+              },
             },
             error: null,
-            truth: null
+            truth: null,
           };
         }
         return {
           data: {
             from,
-            resolution: { candidates: [{ id: "workload:hub-service", labels: ["Repository"], name: "hub-service" }] },
-            evidence: { relationships: [
-              { direction: "incoming", entity_id: "workload:a", entity_name: "neighbour-a", entity_labels: ["Repository"], relationship_types: ["DEPENDS_ON"] },
-              { direction: "incoming", entity_id: "workload:b", entity_name: "neighbour-b", entity_labels: ["Repository"], relationship_types: ["DEPENDS_ON"] }
-            ] }
+            resolution: {
+              candidates: [
+                { id: "workload:hub-service", labels: ["Repository"], name: "hub-service" },
+              ],
+            },
+            evidence: {
+              relationships: [
+                {
+                  direction: "incoming",
+                  entity_id: "workload:a",
+                  entity_name: "neighbour-a",
+                  entity_labels: ["Repository"],
+                  relationship_types: ["DEPENDS_ON"],
+                },
+                {
+                  direction: "incoming",
+                  entity_id: "workload:b",
+                  entity_name: "neighbour-b",
+                  entity_labels: ["Repository"],
+                  relationship_types: ["DEPENDS_ON"],
+                },
+              ],
+            },
           },
           error: null,
-          truth: null
+          truth: null,
         };
-      }
+      },
     } as unknown as EshuApiClient;
 
     render(<DashboardPage model={liveModelWithTrivialThenHub()} client={client} />);
@@ -163,8 +208,14 @@ describe("DashboardPage", () => {
     expect(await screen.findByText("neighbour-b")).toBeInTheDocument();
     // It probed the trivial seed first, then settled on the meaningful one.
     expect(calls).toEqual([
-      { path: "/api/v0/impact/entity-map", body: { from: "trivial-service", depth: 2 } },
-      { path: "/api/v0/impact/entity-map", body: { from: "hub-service", depth: 2 } }
+      {
+        path: "/api/v0/impact/entity-map",
+        body: { from: "trivial-service", from_type: "workload", depth: 2 },
+      },
+      {
+        path: "/api/v0/impact/entity-map",
+        body: { from: "hub-service", from_type: "workload", depth: 2 },
+      },
     ]);
   });
 
@@ -180,13 +231,24 @@ describe("DashboardPage", () => {
         return {
           data: {
             from,
-            resolution: { candidates: [{ id: `workload:${from}`, labels: ["Workload"], name: from }] },
-            evidence: { relationships: [{ direction: "incoming", entity_name: from, entity_labels: ["Repository"], relationship_types: [] }] }
+            resolution: {
+              candidates: [{ id: `workload:${from}`, labels: ["Workload"], name: from }],
+            },
+            evidence: {
+              relationships: [
+                {
+                  direction: "incoming",
+                  entity_name: from,
+                  entity_labels: ["Repository"],
+                  relationship_types: [],
+                },
+              ],
+            },
           },
           error: null,
-          truth: null
+          truth: null,
         };
-      }
+      },
     } as unknown as EshuApiClient;
 
     render(<DashboardPage model={liveModelWithTrivialThenHub()} client={client} />);
@@ -196,8 +258,14 @@ describe("DashboardPage", () => {
     });
     // Probed both candidates, neither cleared the bar, fell back to the first.
     expect(calls).toEqual([
-      { path: "/api/v0/impact/entity-map", body: { from: "trivial-service", depth: 2 } },
-      { path: "/api/v0/impact/entity-map", body: { from: "hub-service", depth: 2 } }
+      {
+        path: "/api/v0/impact/entity-map",
+        body: { from: "trivial-service", from_type: "workload", depth: 2 },
+      },
+      {
+        path: "/api/v0/impact/entity-map",
+        body: { from: "hub-service", from_type: "workload", depth: 2 },
+      },
     ]);
     expect(await screen.findAllByText("trivial-service")).not.toHaveLength(0);
   });
@@ -212,9 +280,9 @@ describe("DashboardPage", () => {
             {
               entity_id: `workload:${name}`,
               labels: ["Workload"],
-              name
-            }
-          ]
+              name,
+            },
+          ],
         };
       },
       post: async (path: string, body: unknown) => {
@@ -229,9 +297,9 @@ describe("DashboardPage", () => {
                 {
                   id: `workload:${from}`,
                   labels: ["Workload"],
-                  name: from
-                }
-              ]
+                  name: from,
+                },
+              ],
             },
             evidence: {
               relationships: [
@@ -240,15 +308,15 @@ describe("DashboardPage", () => {
                   entity_id: `workload:${related}`,
                   entity_labels: ["Workload"],
                   entity_name: related,
-                  relationship_type: "DEPENDS_ON"
-                }
-              ]
-            }
+                  relationship_type: "DEPENDS_ON",
+                },
+              ],
+            },
           },
           error: null,
-          truth: null
+          truth: null,
         };
-      }
+      },
     } as unknown as EshuApiClient;
 
     render(<DashboardPage model={liveModelWithServices()} client={client} />);
@@ -260,12 +328,12 @@ describe("DashboardPage", () => {
     expect(calls).toEqual([
       {
         path: "/api/v0/impact/entity-map",
-        body: { from: "checkout-service", depth: 2 }
+        body: { from: "workload:checkout-service", from_type: "workload", depth: 2 },
       },
       {
         path: "/api/v0/impact/entity-map",
-        body: { from: "payments-api", depth: 2 }
-      }
+        body: { from: "payments-api", depth: 2 },
+      },
     ]);
   });
 
@@ -277,24 +345,25 @@ describe("DashboardPage", () => {
           {
             entity_id: `workload:${requestName(body)}`,
             labels: ["Workload"],
-            name: requestName(body)
-          }
-        ]
+            name: requestName(body),
+          },
+        ],
       }),
-      post: (path: string, body: unknown) => new Promise((resolve) => {
-        resolvers.set(requestFrom(body), resolve);
-        if (path !== "/api/v0/impact/entity-map") {
-          throw new Error(`unexpected path ${path}`);
-        }
-      })
+      post: (path: string, body: unknown) =>
+        new Promise((resolve) => {
+          resolvers.set(requestFrom(body), resolve);
+          if (path !== "/api/v0/impact/entity-map") {
+            throw new Error(`unexpected path ${path}`);
+          }
+        }),
     } as unknown as EshuApiClient;
 
     render(<DashboardPage model={liveModelWithServices()} client={client} />);
 
     await waitFor(() => {
-      expect(resolvers.has("checkout-service")).toBe(true);
+      expect(resolvers.has("workload:checkout-service")).toBe(true);
     });
-    resolveEntityMap(resolvers, "checkout-service", "payments-api");
+    resolveEntityMap(resolvers, "workload:checkout-service", "payments-api");
     await screen.findByText("payments-api");
 
     fireEvent.click(graphLabel("checkout-service"));
@@ -329,8 +398,8 @@ describe("DashboardPage", () => {
             from: "platform-repo",
             resolution: {
               candidates: [
-                { id: "repository:platform-repo", labels: ["Repository"], name: "platform-repo" }
-              ]
+                { id: "repository:platform-repo", labels: ["Repository"], name: "platform-repo" },
+              ],
             },
             evidence: {
               relationships: [
@@ -339,15 +408,15 @@ describe("DashboardPage", () => {
                   entity_id: "workload:checkout-service",
                   entity_labels: ["Workload"],
                   entity_name: "checkout-service",
-                  relationship_type: "DEFINES"
-                }
-              ]
-            }
+                  relationship_type: "DEFINES",
+                },
+              ],
+            },
           },
           error: null,
-          truth: null
+          truth: null,
         };
-      }
+      },
     } as unknown as EshuApiClient;
 
     render(
@@ -355,7 +424,7 @@ describe("DashboardPage", () => {
         model={liveModelWithRepositoriesOnly()}
         client={client}
         repositories={[repoItem("repository:platform-repo", "platform-repo")]}
-      />
+      />,
     );
 
     await waitFor(() => {
@@ -364,145 +433,36 @@ describe("DashboardPage", () => {
     expect(await screen.findByText("checkout-service")).toBeInTheDocument();
     expect(await screen.findAllByText("platform-repo")).not.toHaveLength(0);
     expect(calls).toEqual([
-      { path: "/api/v0/impact/entity-map", body: { from: "platform-repo", depth: 2 } }
+      {
+        path: "/api/v0/impact/entity-map",
+        body: {
+          from: "repository:platform-repo",
+          from_type: "repository",
+          repo_id: "repository:platform-repo",
+          depth: 2,
+        },
+      },
     ]);
   });
 
   it("does not invent an atlas seed when live data has no entities", () => {
     const client = {
       postJson: vi.fn(),
-      post: vi.fn()
+      post: vi.fn(),
     } as unknown as EshuApiClient;
 
-    render(<DashboardPage model={modelFromSnapshot(emptySnapshot("empty"))} client={client} repositories={[]} />);
+    render(
+      <DashboardPage
+        model={modelFromSnapshot(emptySnapshot("empty"))}
+        client={client}
+        repositories={[]}
+      />,
+    );
 
-    expect(screen.getByText("No graph entities are available from the live model yet.")).toBeInTheDocument();
+    expect(
+      screen.getByText("No graph entities are available from the live model yet."),
+    ).toBeInTheDocument();
     expect(client.postJson).not.toHaveBeenCalled();
     expect(client.post).not.toHaveBeenCalled();
   });
 });
-
-function repoItem(id: string, name: string): RepoListItem {
-  return {
-    groupKey: "",
-    groupKind: "",
-    groupReason: "",
-    groupSource: "",
-    groupTruth: "",
-    id,
-    isDependency: false,
-    name,
-    remoteUrl: "",
-    repoSlug: name
-  };
-}
-
-function liveModelWithRepositoriesOnly(): ConsoleModel {
-  return modelFromSnapshot({
-    ...emptySnapshot(),
-    provenance: { runtime: "live" },
-    runtime: {
-      deadLetters: 0, inFlight: 0, indexStatus: "complete", instances: 0, platforms: 0,
-      profile: "local_full_stack", queueOutstanding: 0, repositories: 951, succeeded: 951, workloads: 0
-    }
-  });
-}
-
-function liveModelWithServices(): ConsoleModel {
-  const model = modelFromSnapshot({
-    ...emptySnapshot(),
-    services: [
-      {
-        environments: ["prod"],
-        freshness: "fresh",
-        id: "svc-checkout",
-        kind: "service",
-        name: "checkout-service",
-        repo: "checkout",
-        truth: "exact"
-      }
-    ],
-    provenance: { services: "live" },
-    runtime: {
-      deadLetters: 0,
-      inFlight: 0,
-      indexStatus: "complete",
-      instances: 0,
-      platforms: 0,
-      profile: "local_full_stack",
-      queueOutstanding: 0,
-      repositories: 1,
-      succeeded: 1,
-      workloads: 1
-    }
-  });
-  return model;
-}
-
-function liveModelWithTrivialThenHub(): ConsoleModel {
-  return modelFromSnapshot({
-    ...emptySnapshot(),
-    services: [
-      { environments: [], freshness: "fresh", id: "svc-trivial", kind: "service", name: "trivial-service", repo: "trivial", truth: "exact" },
-      { environments: [], freshness: "fresh", id: "svc-hub", kind: "service", name: "hub-service", repo: "hub", truth: "exact" }
-    ],
-    provenance: { services: "live" },
-    runtime: {
-      deadLetters: 0, inFlight: 0, indexStatus: "complete", instances: 0, platforms: 0,
-      profile: "local_full_stack", queueOutstanding: 0, repositories: 2, succeeded: 2, workloads: 2
-    }
-  });
-}
-
-function resolveEntityMap(resolvers: Map<string, (value: unknown) => void>, from: string, related: string): void {
-  const resolve = resolvers.get(from);
-  if (!resolve) throw new Error(`missing resolver for ${from}`);
-  resolvers.delete(from);
-  resolve({
-    data: {
-      from,
-      resolution: {
-        candidates: [
-          {
-            id: `workload:${from}`,
-            labels: ["Workload"],
-            name: from
-          }
-        ]
-      },
-      evidence: {
-        relationships: [
-          {
-            direction: "outgoing",
-            entity_id: `workload:${related}`,
-            entity_labels: ["Workload"],
-            entity_name: related,
-            relationship_type: "DEPENDS_ON"
-          }
-        ]
-      }
-    },
-    error: null,
-    truth: null
-  });
-}
-
-function graphLabel(label: string): HTMLElement {
-  const text = screen.getAllByText(label).find((element) => element.tagName.toLowerCase() === "text");
-  if (!text) throw new Error(`missing graph label ${label}`);
-  return text;
-}
-
-function requestFrom(body: unknown): string {
-  if (typeof body === "object" && body !== null && "from" in body && typeof body.from === "string") {
-    return body.from;
-  }
-  return "";
-}
-
-function requestName(body: unknown): string {
-  if (typeof body === "object" && body !== null && "name" in body && typeof body.name === "string") {
-    return body.name;
-  }
-  return "";
-}

@@ -116,7 +116,7 @@ describe("DashboardPage atlas lifecycle", () => {
     await waitFor(() =>
       expect(resolveBodies).toEqual([
         { limit: 1, name: "shared-seed", type: "workload" },
-        { limit: 1, name: "shared-seed", repo_id: "seed:shared" },
+        { limit: 1, name: "shared-seed", repo_id: "seed:shared", type: "repository" },
       ]),
     );
   });

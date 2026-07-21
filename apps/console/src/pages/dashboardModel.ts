@@ -156,25 +156,41 @@ export async function selectSeedGraph(
     if (isCancelled()) return best;
     const resolution = atlasSeedResolution(seed);
     if (!resolution) continue;
-    const result = await resolveEntity({ client, limit: 1, ...resolution });
-    const resolved = result.candidates[0]?.name ?? resolution.name;
-    const graph = await loadEntityMapGraph(client, resolved);
+    const result = await resolveEntity({
+      client,
+      limit: 1,
+      name: resolution.name,
+      repoId: resolution.repoId,
+      type: resolution.type,
+    });
+    const candidate = result.candidates[0];
+    const resolved = candidate?.name.trim() || resolution.name;
+    const graph = await loadEntityMapGraph(client, resolved, {
+      from: candidate?.id.trim() || resolution.from,
+      fromType: resolution.type,
+      repoId: resolution.repoId,
+    });
     if (graph.edges.length >= MEANINGFUL_SEED_EDGES) return { seed, graph };
     if (!best || graph.edges.length > best.graph.edges.length) best = { seed, graph };
   }
   return best;
 }
 
-function atlasSeedResolution(
-  seed: GraphNode,
-): { readonly name: string; readonly repoId?: string; readonly type?: string } | null {
+function atlasSeedResolution(seed: GraphNode): {
+  readonly from: string;
+  readonly name: string;
+  readonly repoId?: string;
+  readonly type: "repository" | "workload";
+} | null {
   const name = seed.label.trim();
   if (name === "") return null;
   const kind = seed.kind.trim().toLowerCase();
-  if (kind === "service" || kind === "workload") return { name, type: "workload" };
+  if (kind === "service" || kind === "workload") {
+    return { from: name, name, type: "workload" };
+  }
   if (kind !== "repo" && kind !== "repository") return null;
   const repoId = seed.id.trim();
-  return repoId === "" ? null : { name, repoId };
+  return repoId === "" ? null : { from: repoId, name, repoId, type: "repository" };
 }
 
 function serviceSeedNode(service: ServiceRow): GraphNode {
