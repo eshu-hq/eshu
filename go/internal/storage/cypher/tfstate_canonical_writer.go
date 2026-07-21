@@ -191,16 +191,7 @@ SET o.id = row.uid,
 //     any pre-#5443 TerraformResource node whose uid reappears in this
 //     batch to TerraformStateResource. Must run before every other phase so
 //     the phases below only ever see the current label.
-//  2. Retraction (terraformStateResourceRetractStatements, #5443):
-//     generation-gated DETACH DELETE for resources genuinely no longer in
-//     state, scoped to BOTH labels (TerraformStateResource for steady-state
-//     staleness, TerraformResource for legacy nodes migration never touched
-//     because their uid was absent from this batch). Must run after
-//     migration -- otherwise it would delete, instead of relabel, a legacy
-//     node for a resource that is still present in state, since that node
-//     still carries a stale generation_id until migration or the upsert
-//     below touches it.
-//  3. REMOVE-before-upsert (terraformStateResourceAttributeRemoveStatements,
+//  2. REMOVE-before-upsert (terraformStateResourceAttributeRemoveStatements,
 //     #5441 review round 9, P0): ordering here is load-bearing, not
 //     cosmetic. It unconditionally clears each allowlisted type's FULL
 //     closed set of possible tf_attr_* properties for every UID in this
@@ -209,8 +200,30 @@ SET o.id = row.uid,
 //     REMOVE that follows it would immediately strip every tf_attr_*
 //     property the upsert just wrote -- corrupting every write, not only
 //     refreshes. REMOVE-then-SET is correct; SET-then-REMOVE is not.
-//  4. Resource/module/output upserts (unchanged from before #5443 other than
-//     the resource upsert's label).
+//  3. Resource upsert: refreshes every resource this batch actually saw,
+//     including its generation_id.
+//  4. Retraction (terraformStateResourceRetractStatements, #5443):
+//     generation-gated DETACH DELETE for resources genuinely no longer in
+//     state, scoped to BOTH labels (TerraformStateResource for steady-state
+//     staleness, TerraformResource for legacy nodes migration never touched
+//     because their uid was absent from this batch). MUST run after BOTH
+//     migration and the resource upsert -- this ordering is itself load-
+//     bearing, not cosmetic (fixed after a P0 review finding: an earlier
+//     version of this writer ran retraction before the upsert, so every
+//     resource in the batch still carried the PREVIOUS cycle's generation_id
+//     at the moment retraction's `generation_id <> $generation_id` predicate
+//     evaluated it -- deleting the ENTIRE existing population every cycle,
+//     not just genuinely stale nodes, with the upsert immediately
+//     recreating everything). Running after the upsert instead matches this
+//     writer's own "entities" -> "entity_retract" precedent
+//     (canonical_node_writer.go's buildPhases): surviving nodes already
+//     carry the current generation_id by the time retraction runs, so only
+//     nodes this batch genuinely did not touch are deleted. Also running
+//     after migration, so a still-present resource is relabeled rather than
+//     deleted, since a legacy node still carries a stale generation_id until
+//     migration or the upsert above touches it.
+//  5. Module/output upserts (unchanged from before #5443).
+//  6. MATCHES_STATE config-edge write (terraformStateMatchesConfigEdgeStatements).
 //
 // Partial-failure note: every phase above is a separate statement, not one
 // atomic transaction (this repo's own precedent -- rds_posture_node_writer.go,
@@ -223,7 +236,6 @@ SET o.id = row.uid,
 func (w *CanonicalNodeWriter) buildTerraformStateStatements(mat projector.CanonicalMaterialization) []Statement {
 	var statements []Statement
 	statements = append(statements, w.terraformStateResourceMigrationStatements(mat)...)
-	statements = append(statements, w.terraformStateResourceRetractStatements(mat)...)
 	statements = append(statements, w.terraformStateResourceAttributeRemoveStatements(mat)...)
 	statements = append(
 		statements,
@@ -235,6 +247,7 @@ func (w *CanonicalNodeWriter) buildTerraformStateStatements(mat projector.Canoni
 			mat,
 		)...,
 	)
+	statements = append(statements, w.terraformStateResourceRetractStatements(mat)...)
 	statements = append(
 		statements,
 		tfstateBatchedStatements(

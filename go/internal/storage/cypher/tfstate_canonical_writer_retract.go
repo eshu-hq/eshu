@@ -60,7 +60,16 @@ REMOVE r:TerraformResource`
 // TerraformStateResource nodes this scope owns that were not refreshed by
 // the current generation -- the steady-state case: a resource that no
 // longer exists in state, whether it was created before or after the #5443
-// label split.
+// label split. This claim is only true because
+// buildTerraformStateStatements runs this statement AFTER the resource
+// upsert (see that function's doc comment): every resource this batch
+// actually saw already carries the CURRENT generation_id by the time this
+// WHERE clause evaluates it, so "not refreshed by the current generation"
+// genuinely means "absent from this batch," not "not yet processed this
+// cycle." Running this statement before the upsert makes the predicate true
+// for the ENTIRE population on every cycle -- a P0 regression this repo
+// already shipped and fixed once; do not reorder these two phases without
+// re-reading buildTerraformStateStatements's doc comment.
 const canonicalTerraformStateResourceRetractCurrentLabelCypher = `MATCH (r:TerraformStateResource)
 WHERE r.scope_id = $scope_id AND r.evidence_source = 'projector/tfstate' AND r.generation_id <> $generation_id
 DETACH DELETE r`

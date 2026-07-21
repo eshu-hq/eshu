@@ -35,6 +35,28 @@ import (
 //     statement must DETACH DELETE it -- it must not survive under either
 //     label.
 //
+// IDENTITY, not just properties: a review finding on this test proved a
+// property-only assertion ("the still-present resource's address/
+// generation_id/evidence_source look right afterward") is a false-green for
+// the bug this test claims to guard. Relabel-then-DELETE-then-recreate
+// produces IDENTICAL final properties to an in-place SET+REMOVE relabel --
+// both end with a TerraformStateResource node carrying the same uid and the
+// same refreshed fields. This test previously could not have failed even
+// under the P0 retract-before-upsert bug this repository shipped and fixed
+// (see terraformStateResourceRetractStatements's doc comment): under that
+// bug, migration relabeled the still-present node in place, but the
+// retraction statement that ran immediately after it (before the upsert
+// refreshed generation_id) DETACH DELETEd that very node because it still
+// carried the OLD generation_id -- and the upsert then MERGEd a BRAND NEW
+// node under the same uid. The final property read looked identical either
+// way. To make this distinguishable, this test attaches a relationship to
+// the still-present node BEFORE running the writer and asserts that
+// relationship survives afterward: DETACH DELETE unconditionally severs
+// every relationship on the node it removes, and a MERGE-by-uid on a
+// brand-new node never recreates an edge nothing asked it to write. A
+// surviving relationship is direct proof of node-identity preservation
+// across the whole statement sequence, not merely equal property values.
+//
 // Opt-in, matching every other _live_test.go in this package: set
 // ESHU_CYPHER_BOLT_DSN (and optionally ESHU_CYPHER_BOLT_DATABASE) to run it
 // against a running graph backend. Skipped otherwise.
@@ -43,12 +65,21 @@ func TestTerraformStateResourceMigrationLive(t *testing.T) {
 	t.Cleanup(func() { runner.close(context.Background()) })
 
 	const (
-		stillPresentUID = "tf-resource-5443-live-still-present"
-		removedUID      = "tf-resource-5443-live-removed"
-		scopeID         = "tf-scope-5443-live"
+		stillPresentUID  = "tf-resource-5443-live-still-present"
+		removedUID       = "tf-resource-5443-live-removed"
+		scopeID          = "tf-scope-5443-live"
+		identityMarkerID = "tf-resource-5443-live-identity-marker"
 	)
 	ctx := context.Background()
 	t.Cleanup(func() {
+		if err := boltWriteStatement(
+			context.Background(),
+			runner,
+			"MATCH (m:TestIdentityMarker {marker_id: $marker_id}) DETACH DELETE m",
+			map[string]any{"marker_id": identityMarkerID},
+		); err != nil {
+			t.Errorf("cleanup identity marker node: %v", err)
+		}
 		for _, uid := range []string{stillPresentUID, removedUID} {
 			for _, label := range []string{"TerraformResource", "TerraformStateResource"} {
 				if err := boltWriteStatement(
@@ -85,7 +116,38 @@ SET r.address = $address,
 		}
 	}
 
-	// Confirm the seed landed as expected before exercising the writer.
+	// Attach an identity-probe relationship to the still-present node BEFORE
+	// running the writer -- see the identity-preservation doc above for why
+	// this, not a property read, is the assertion that actually proves the
+	// node was relabeled in place rather than deleted and recreated.
+	//
+	// Two statements, not a single MERGE ... WITH ... MATCH ... MERGE chain:
+	// an empirical probe against the pinned NornicDB backend showed that
+	// chained-clause shape does not execute as written (the text following
+	// the first MERGE's closing brace gets absorbed into the marker_id
+	// property value instead of starting a new clause). The two-independent-
+	// MATCH-clauses-then-MERGE shape below is this repository's own proven
+	// precedent for anchoring an edge between two already-existing nodes
+	// (canonicalTerraformStateMatchesConfigEdgeCypher in
+	// tfstate_state_match_edge.go uses the identical MATCH ... MATCH ...
+	// MERGE shape), so the marker node is created in its own statement first.
+	if err := boltWriteStatement(ctx, runner, `MERGE (m:TestIdentityMarker {marker_id: $marker_id})`, map[string]any{
+		"marker_id": identityMarkerID,
+	}); err != nil {
+		t.Fatalf("create identity marker node: %v", err)
+	}
+	attachMarkerCypher := `MATCH (r:TerraformResource {uid: $uid})
+MATCH (m:TestIdentityMarker {marker_id: $marker_id})
+MERGE (r)-[:TEST_IDENTITY_PROBE]->(m)`
+	if err := boltWriteStatement(ctx, runner, attachMarkerCypher, map[string]any{
+		"marker_id": identityMarkerID,
+		"uid":       stillPresentUID,
+	}); err != nil {
+		t.Fatalf("attach identity-probe relationship to still-present resource: %v", err)
+	}
+
+	// Confirm the seed (including the identity probe) landed as expected
+	// before exercising the writer.
 	rows, err := runner.runCypher(ctx, `MATCH (r:TerraformResource) WHERE r.uid IN $uids RETURN r.uid AS uid`, map[string]any{
 		"uids": []string{stillPresentUID, removedUID},
 	})
@@ -94,6 +156,17 @@ SET r.address = $address,
 	}
 	if len(rows) != 2 {
 		t.Fatalf("seed verification: got %d legacy TerraformResource nodes, want 2", len(rows))
+	}
+	probeSeedRows, err := runner.runCypher(
+		ctx,
+		`MATCH (r:TerraformResource {uid: $uid})-[:TEST_IDENTITY_PROBE]->(m:TestIdentityMarker {marker_id: $marker_id}) RETURN r.uid AS uid`,
+		map[string]any{"uid": stillPresentUID, "marker_id": identityMarkerID},
+	)
+	if err != nil {
+		t.Fatalf("verify identity-probe seed: %v", err)
+	}
+	if len(probeSeedRows) != 1 {
+		t.Fatalf("identity-probe seed verification: got %d matching rows, want 1", len(probeSeedRows))
 	}
 
 	writer := NewCanonicalNodeWriter(&boltTestExecutor{runner: runner}, 500, nil)
@@ -150,7 +223,32 @@ SET r.address = $address,
 		t.Fatalf("relabeled node evidence_source = %#v, want %q", got, want)
 	}
 
-	// ASSERTION 3: the removed resource does not survive under EITHER label
+	// ASSERTION 3 (IDENTITY, not just properties): the identity-probe
+	// relationship attached to the still-present node BEFORE the writer ran
+	// must still exist afterward, now anchored on the NEW label. If the
+	// still-present node was deleted (by a mis-ordered retract statement, as
+	// this repository's P0 review finding proved happened) and a brand-new
+	// node was recreated under the same uid by the upsert, this
+	// relationship would be gone: DETACH DELETE severs every relationship on
+	// the node it removes, and nothing in this writer ever recreates a
+	// TEST_IDENTITY_PROBE edge. ASSERTION 2 above cannot distinguish these
+	// two cases; this one can.
+	identityProbeAfter, err := runner.runCypher(
+		ctx,
+		`MATCH (r:TerraformStateResource {uid: $uid})-[:TEST_IDENTITY_PROBE]->(m:TestIdentityMarker {marker_id: $marker_id}) RETURN r.uid AS uid`,
+		map[string]any{"uid": stillPresentUID, "marker_id": identityMarkerID},
+	)
+	if err != nil {
+		t.Fatalf("read identity-probe relationship after migration: %v", err)
+	}
+	if len(identityProbeAfter) != 1 {
+		t.Fatalf(
+			"IDENTITY PRESERVATION FAILED: still-present resource's pre-attached relationship did not survive under the new label -- got %d matching rows, want 1. This means the node was DELETED AND RECREATED rather than relabeled in place (relabel-then-delete-then-recreate produces identical properties in ASSERTION 2 but severs relationships): %#v",
+			len(identityProbeAfter), identityProbeAfter,
+		)
+	}
+
+	// ASSERTION 4: the removed resource does not survive under EITHER label
 	// -- migration never touched it (its uid was absent from this batch), so
 	// the legacy-label retraction statement must have DETACH DELETEd it.
 	legacyRemoved, err := runner.runCypher(ctx, `MATCH (r:TerraformResource {uid: $uid}) RETURN r.uid AS uid`, map[string]any{"uid": removedUID})

@@ -73,14 +73,19 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 	}
 
 	statements := writer.buildTerraformStateStatements(mat)
-	// #5443: buildTerraformStateStatements now emits, in order: the migration
-	// relabel, the two generation-gated retraction statements, the
-	// allowlisted-type REMOVE statement (#5441 review round 9, P0), the
-	// resource upsert, the module upsert, and the output upsert -- 7
-	// statements, not 4. MATCHES_STATE stays absent (0 statements) because
-	// this test wires no TerraformStateOwnershipResolver, so OwningRepoID is
-	// never resolved. See TestTerraformStateStatementsEmitRemoveBeforeUpsert
-	// (tfstate_canonical_writer_stale_attrs_test.go) for the general
+	// #5443/P0-2: buildTerraformStateStatements now emits, in order: the
+	// migration relabel, the allowlisted-type REMOVE statement (#5441 review
+	// round 9, P0), the resource upsert, the two generation-gated retraction
+	// statements, the module upsert, and the output upsert -- 7 statements,
+	// not 4. Retraction MUST follow the resource upsert (not precede it, as
+	// an earlier P0 review finding proved): see
+	// TestTerraformStateStatementsEmitRetractAfterUpsert
+	// (tfstate_canonical_writer_stale_attrs_test.go) for that ordering
+	// contract and buildTerraformStateStatements' doc comment for why.
+	// MATCHES_STATE stays absent (0 statements) because this test wires no
+	// TerraformStateOwnershipResolver, so OwningRepoID is never resolved. See
+	// TestTerraformStateStatementsEmitRemoveBeforeUpsert
+	// (tfstate_canonical_writer_stale_attrs_test.go) for the REMOVE/upsert
 	// ordering contract; this test asserts each statement's own shape.
 	if got, want := len(statements), 7; got != want {
 		t.Fatalf("buildTerraformStateStatements() count = %d, want %d:\n%#v", got, want, statements)
@@ -97,22 +102,9 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 		t.Fatalf("migration Cypher = %q, want a MATCH TerraformResource / SET TerraformStateResource / REMOVE TerraformResource relabel", migration.Cypher)
 	}
 
-	retractCurrent := statements[1]
-	if !strings.Contains(retractCurrent.Cypher, "MATCH (r:TerraformStateResource)") || !strings.Contains(retractCurrent.Cypher, "DETACH DELETE r") {
-		t.Fatalf("retract-current-label Cypher = %q, want a generation-gated TerraformStateResource DETACH DELETE", retractCurrent.Cypher)
-	}
-	if got, want := retractCurrent.Parameters["scope_id"], "tf-scope-1"; got != want {
-		t.Fatalf("retract-current-label scope_id = %#v, want %q", got, want)
-	}
-
-	retractLegacy := statements[2]
-	if !strings.Contains(retractLegacy.Cypher, "MATCH (r:TerraformResource)") || !strings.Contains(retractLegacy.Cypher, "DETACH DELETE r") {
-		t.Fatalf("retract-legacy-label Cypher = %q, want a generation-gated TerraformResource DETACH DELETE", retractLegacy.Cypher)
-	}
-
-	remove := statements[3]
+	remove := statements[1]
 	if _, ok := remove.Parameters["uids"]; !ok {
-		t.Fatalf("statements[3] has no uids parameter, want the standalone REMOVE statement: %#v", remove)
+		t.Fatalf("statements[1] has no uids parameter, want the standalone REMOVE statement: %#v", remove)
 	}
 	if strings.Contains(remove.Cypher, "SET") || strings.Contains(remove.Cypher, "MERGE") || strings.Contains(remove.Cypher, "UNWIND") {
 		t.Fatalf("REMOVE statement Cypher = %q, must not combine MERGE/SET/UNWIND with REMOVE (#5441 review round 9 P0)", remove.Cypher)
@@ -128,7 +120,7 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 		t.Fatalf("REMOVE statement uids = %#v, want [tf-resource-uid-1]", remove.Parameters["uids"])
 	}
 
-	resource := statements[4]
+	resource := statements[2]
 	if !strings.Contains(resource.Cypher, "MERGE (r:TerraformStateResource {uid: row.uid})") {
 		t.Fatalf("resource Cypher = %q, want TerraformStateResource uid merge (#5443)", resource.Cypher)
 	}
@@ -167,6 +159,19 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 
 	if got, want := rows[0]["config_repo_id"], any(nil); got != want {
 		t.Fatalf("config_repo_id = %#v, want nil (no ownership resolver wired)", got)
+	}
+
+	retractCurrent := statements[3]
+	if !strings.Contains(retractCurrent.Cypher, "MATCH (r:TerraformStateResource)") || !strings.Contains(retractCurrent.Cypher, "DETACH DELETE r") {
+		t.Fatalf("retract-current-label Cypher = %q, want a generation-gated TerraformStateResource DETACH DELETE", retractCurrent.Cypher)
+	}
+	if got, want := retractCurrent.Parameters["scope_id"], "tf-scope-1"; got != want {
+		t.Fatalf("retract-current-label scope_id = %#v, want %q", got, want)
+	}
+
+	retractLegacy := statements[4]
+	if !strings.Contains(retractLegacy.Cypher, "MATCH (r:TerraformResource)") || !strings.Contains(retractLegacy.Cypher, "DETACH DELETE r") {
+		t.Fatalf("retract-legacy-label Cypher = %q, want a generation-gated TerraformResource DETACH DELETE", retractLegacy.Cypher)
 	}
 
 	if !strings.Contains(statements[5].Cypher, "MERGE (m:TerraformModule {uid: row.uid})") {

@@ -12,6 +12,31 @@ batched `MATCHES_STATE` edge-write statement scoped to rows with a resolved
 config-repo owner. Wires the real ownership resolver into
 `go/cmd/projector/runtime_wiring.go`.
 
+**Post-review correction (P0 fixes):** a separate-context review found two
+defects this change's own live test could not catch, both fixed in the same
+branch:
+
+1. `terraformStateResourceRetractStatements` guarded only
+   `mat.FirstGeneration`, not `mat.DeltaProjection`. A file-scoped delta cycle
+   unrelated to Terraform state carries an empty
+   `mat.TerraformStateResources`, so the retract statements would DETACH
+   DELETE the entire existing population with nothing to recreate it. Fixed
+   by skipping retraction outright under `DeltaProjection`, matching
+   `buildRepositoryCleanupStatements`'s existing precedent.
+2. `buildTerraformStateStatements` ran retraction BEFORE the resource upsert.
+   Every existing node still carried the PREVIOUS cycle's `generation_id` at
+   the moment retraction's `generation_id <> $generation_id` predicate
+   evaluated it, so retraction deleted the ENTIRE population every cycle, not
+   just genuinely stale nodes, and the upsert immediately recreated
+   everything. Fixed by reordering to migration -> REMOVE -> upsert ->
+   retract, matching this writer's own "entities" -> "entity_retract"
+   precedent (`canonical_node_writer.go`'s `buildPhases`).
+
+The "No-Regression Evidence" section below is the ORIGINAL evidence from
+before this correction. The retraction cost-class claim in that section was
+wrong as implemented (see "Retraction cost class re-measured" below for the
+corrected claim and the real measurement that replaces it).
+
 ## No-Regression Evidence
 
 Baseline: `docker-compose.yaml`'s pinned NornicDB
@@ -59,21 +84,83 @@ measured in isolation:
 - Retraction: `MATCH (r:TerraformStateResource) WHERE r.scope_id = $scope_id
   AND r.evidence_source = 'projector/tfstate' AND r.generation_id <>
   $generation_id DETACH DELETE r` (and the legacy-label twin) filter on
-  `scope_id`, which has no backing index on either label. This is the SAME
-  cost class as every other generation-gated entity retraction already
-  shipped in this writer (`canonicalNodeRetractEntityTemplate` filters on
-  `repo_id`, also unindexed, across ~50 entity labels) -- consistent with
-  existing precedent, not a new class of risk this change introduces. It
-  scales with the per-scope TerraformStateResource population, which is
-  expected to be small to moderate (hundreds to low thousands of resources
-  per Terraform state backend) in the deployments this feature targets.
+  `scope_id`, which has no backing index on either label. **This claim was
+  false as originally implemented and is corrected below** ("Retraction cost
+  class re-measured"): as shipped, this statement ran BEFORE the resource
+  upsert, so it matched and deleted the SCOPE'S ENTIRE TerraformStateResource
+  population on every cycle (not just genuinely stale rows), which the
+  upsert then fully recreated -- a materially worse cost class than
+  `canonicalNodeRetractEntityTemplate`'s steady-state behavior, not the same
+  one. Once reordered to run AFTER the resource upsert (this writer's own
+  "entities" -> "entity_retract" precedent), the claim of an equivalent cost
+  class to the existing entity retraction becomes true, and is now backed by
+  a real measurement instead of an unmeasured assertion.
 - `MATCHES_STATE` edge write: anchored on `TerraformStateResource.uid`
   (indexed) and `TerraformResource.{repo_id, name}`, backed by the new
   `tf_resource_name` index (`graph/schema_tables.go`) rather than the
   existing `(name, path, line_number)` composite constraint, which does not
   serve a 2-property `{repo_id, name}` lookup.
 
-## No-Observability-Change
+## Retraction cost class re-measured (P0-2 fix)
+
+Baseline: a standalone NornicDB container running
+`eshu-nornicdb-pr261:149245885258` (the pinned image, already built locally;
+no schema/index bootstrap applied -- this measurement is about relative
+before/after cost of the SAME statement shape at the SAME schema state, not
+absolute index-backed throughput), `nornic` database, one container per run,
+torn down and its `TerraformStateResource` population cleared between runs.
+
+Theory: the original retract-before-upsert ordering makes every
+steady-state cycle (no resources added, changed, or removed since the last
+cycle -- the common case) DETACH DELETE the scope's entire
+`TerraformStateResource` population and have the upsert immediately
+recreate it, rather than the near-zero-row retraction the "entities" ->
+"entity_retract" precedent produces. The originally shipped doc claimed
+this was "the SAME cost class ... consistent with existing precedent" --
+that claim was never measured. This section replaces it with a real
+measurement at `n=500` synthetic resources per scope (the original claim's
+corpus had 3), scaled up specifically to make full-population churn visible
+against a null steady-state cost, run against the real backend via the
+production `buildTerraformStateStatements` statement sequence (not a shim):
+
+Procedure per run: seed `n=500` `TerraformStateResource` rows via a
+`FirstGeneration=true` materialization (gen-1), tag every resulting node with
+a `churn_probe: true` property, then run a STEADY-STATE materialization
+(gen-2: the identical 500 rows, unchanged, only `generation_id` bumped) and
+measure (a) wall time for `buildTerraformStateStatements`'s full statement
+sequence and (b) how many of the 500 nodes still carry `churn_probe: true`
+afterward (survived in place) versus how many do not (deleted and
+recreated by the upsert, which never sets `churn_probe`).
+
+| Statement order | Steady-state elapsed (n=500) | Survived in place | Churned (deleted + recreated) |
+|---|---|---|---|
+| OLD: retract before upsert (pre-fix) | 2.089s | 0 / 500 | 500 / 500 |
+| NEW: retract after upsert (this fix) | 0.087s–0.093s (two repeat runs) | 500 / 500 | 0 / 500 |
+
+Both runs used the identical Cypher statement text; the only variable was
+the order `buildTerraformStateStatements` emits `terraformStateResourceRetractStatements`
+in relative to the resource upsert (proven by toggling only that function's
+call order and re-running, byte-identical Cypher templates otherwise).
+
+Equivalence / expected delta: this is a behavior-changing correctness fix,
+not a pure optimization, so the required proof is the expected delta, not
+result identity with the old (wrong) behavior: the OLD order deleted and
+recreated every node every cycle (0/500 survived in place); the NEW order
+performs zero deletions in the steady-state case (500/500 survived in
+place), matching `buildEntityRetractStatements`'s own steady-state behavior.
+`TestTerraformStateResourceMigrationLive`'s ASSERTION 3 (identity
+preservation via a pre-attached relationship) is the corresponding
+permanent regression test for this exact property.
+
+Honest scope note: this measurement used synthetic single-property rows at
+n=500, not the "hundreds to low thousands of resources per Terraform state
+backend" the original doc estimated for real deployments, and did not
+re-run the full `verify-golden-corpus-gate.sh` pipeline (that would need a
+fixture corpus with hundreds of real `terraform_state` facts, which does not
+exist today). The n=500 steady-state result is sufficient to prove the
+COST CLASS difference (full-population churn vs near-zero) the original doc
+asserted without measuring; it is not a claim about absolute production
+wall-clock cost at real corpus scale.
 
 No new runtime stage, worker, queue, or metric was added. The new statements
 execute inside the existing `terraform_state` canonical-write phase, which
