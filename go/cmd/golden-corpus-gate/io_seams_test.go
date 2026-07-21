@@ -166,27 +166,33 @@ func dartSelfLoopFloor() map[string]int64 {
 // source-ref, rn-flux-helm-repository-url,
 // rn-terraform-resource-attribute-promotion, rn-codeowner-team-ref) so a
 // minimal-gate test can satisfy the snapshot's required nodes while focusing
-// on its own assertion. Each entry pins identity via one node carrying the
-// required property: CloudResource/resource_type (2 GCP posture-only rows),
-// the Flux PR A/Helm rows (source_ref_kind/url/bucket_name, issues #5360 and
-// #5483 C1), TerraformResource/tf_attr_instance_type (#5441), and
-// CodeownerTeam/ref (#5419 Phase 5); see testdata/golden/e2e-20repo-snapshot.json.
+// on its own assertion. The two GCP posture-only entries pin identity via a
+// single CloudResource node carrying the matching resource_type value; the
+// four Flux PR A entries (issue #5360 PR A) pin identity via a
+// FluxKustomization node carrying source_ref_kind, a FluxGitRepository node
+// carrying url, a FluxOCIRepository node carrying url, and a FluxBucket node
+// carrying bucket_name; the two Flux Helm entries (issue #5483 C1) pin
+// identity via a FluxHelmRelease node carrying source_ref_kind and a
+// FluxHelmRepository node carrying url; the #5441 entry pins identity via a
+// TerraformStateResource node (renamed from TerraformResource by #5443)
+// carrying tf_attr_instance_type; and CodeownerTeam/ref (#5419 Phase 5); see
+// testdata/golden/e2e-20repo-snapshot.json.
 func fileLanguageFloor() (map[string]int64, map[string][]string) {
 	langs := make([]string, 10)
 	for i := range langs {
 		langs[i] = "go"
 	}
 	nodes := map[string]int64{
-		"File":               int64(len(langs)),
-		"CloudResource":      2,
-		"FluxKustomization":  1,
-		"FluxGitRepository":  1,
-		"FluxOCIRepository":  1,
-		"FluxBucket":         1,
-		"FluxHelmRelease":    1,
-		"FluxHelmRepository": 1,
-		"TerraformResource":  1,
-		"CodeownerTeam":      1,
+		"File":                   int64(len(langs)),
+		"CloudResource":          2,
+		"FluxKustomization":      1,
+		"FluxGitRepository":      1,
+		"FluxOCIRepository":      1,
+		"FluxBucket":             1,
+		"FluxHelmRelease":        1,
+		"FluxHelmRepository":     1,
+		"TerraformStateResource": 1,
+		"CodeownerTeam":          1,
 	}
 	nodeProp := map[string][]string{
 		"File|language": langs,
@@ -194,14 +200,14 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 			"dataplex.googleapis.com/EntryGroup",
 			"identitytoolkit.googleapis.com/Config",
 		},
-		"FluxKustomization|source_ref_kind":       {"GitRepository"},
-		"FluxGitRepository|url":                   {"https://github.com/acme/flux-system"},
-		"FluxOCIRepository|url":                   {"oci://ghcr.io/acme/app-manifests"},
-		"FluxBucket|bucket_name":                  {"flux-artifacts"},
-		"FluxHelmRelease|source_ref_kind":         {"HelmRepository"},
-		"FluxHelmRepository|url":                  {"https://stefanprodan.github.io/podinfo"},
-		"TerraformResource|tf_attr_instance_type": {"t3.micro"},
-		"CodeownerTeam|ref":                       {"@eshu-hq/platform"},
+		"FluxKustomization|source_ref_kind":            {"GitRepository"},
+		"FluxGitRepository|url":                        {"https://github.com/acme/flux-system"},
+		"FluxOCIRepository|url":                        {"oci://ghcr.io/acme/app-manifests"},
+		"FluxBucket|bucket_name":                       {"flux-artifacts"},
+		"FluxHelmRelease|source_ref_kind":              {"HelmRepository"},
+		"FluxHelmRepository|url":                       {"https://stefanprodan.github.io/podinfo"},
+		"TerraformStateResource|tf_attr_instance_type": {"t3.micro"},
+		"CodeownerTeam|ref":                            {"@eshu-hq/platform"},
 	}
 	return nodes, nodeProp
 }
