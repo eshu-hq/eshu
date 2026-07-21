@@ -24,7 +24,11 @@ representative, not exhaustive; the authoritative label set lives in
 
 **Infrastructure:**
 
-- **`TerraformModule`**, **`TerraformResource`**, **`TerraformDataSource`**,
+- **`TerraformModule`**, **`TerraformResource`** (config-declared, from parsed
+  `.tf` files), **`TerraformStateResource`** (state-observed, from a
+  Terraform state backend; matched to its declaring `TerraformResource` by a
+  `MATCHES_STATE` edge on exact address equality when the address is not
+  module/count/for_each-expanded), **`TerraformDataSource`**,
   **`TerraformProvider`**, **`CloudFormationResource`**
 - **`CloudResource`**, **`Platform`**, **`CloudAction`**, **`ExternalPrincipal`**
 
