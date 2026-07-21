@@ -50,6 +50,29 @@ public artifact that binds every supported budget row to measured API/MCP
 evidence, scope/truncation proof, freshness, backend/version, sanitized artifact
 handle, and retry/dead-letter invariants.
 
+## Verification-kind allow-list and remote_validation artifacts
+
+`convertVerification` (in `matrix.go`) only accepts `go_test`,
+`integration_test`, `compose_e2e`, and `remote_validation` as verification
+kinds; an unrecognized key is a hard `LoadMatrix` error, not a silently
+accepted proof signal (#5407, PR 2 of #5336).
+
+`CheckRemoteValidationArtifacts` (in `remote_validation.go`) closes the
+second half of that finding: every `remote_validation` ref cited in the
+matrix must resolve to a committed
+`docs/internal/remote-validation/<ref>.md` artifact, or be listed in the
+burn-down baseline at `specs/remote-validation-baseline.txt`. A dangling ref
+not in the baseline fails; regenerate the baseline (after adding real
+evidence, which shrinks it, or after adding a new still-unverified ref) with:
+
+```bash
+bash scripts/verify-remote-validation-artifacts.sh -update
+```
+
+`bash scripts/verify-remote-validation-artifacts.sh` runs the check; see
+[CI Gates Reference](../../../docs/public/reference/ci-gates.md) for the
+`remote-validation-artifacts` gate entry.
+
 ## Maturity
 
 Maturity is derived from the matrix support statuses

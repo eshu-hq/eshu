@@ -29,21 +29,27 @@
 //	docs            fail when a capability-state marker contradicts the catalog, a
 //	                collector-state marker contradicts the surface inventory, or a broad
 //	                public product claim is missing marker-to-proof ledger evidence
-//	product-claims  narrower than docs: fail only on the product claim ledger guard
-//	                (guarded marker <-> ledger row <-> proof chain, plus the live
-//	                issue-state check under ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE=1).
-//	                Skips the capability-state and collector-state marker scans that
-//	                mcp-schema-drift.yml already runs on every PR via -mode docs, so
-//	                the product-claim-ledger workflow does not repeat that docs-tree
-//	                scan just to reach the ledger check it needs (#4073).
+//	product-claims     narrower than docs: fail only on the product claim ledger guard
+//	                   (guarded marker <-> ledger row <-> proof chain, plus the live
+//	                   issue-state check under ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE=1).
+//	                   Skips the capability-state and collector-state marker scans that
+//	                   mcp-schema-drift.yml already runs on every PR via -mode docs, so
+//	                   the product-claim-ledger workflow does not repeat that docs-tree
+//	                   scan just to reach the ledger check it needs (#4073).
+//	remote-validation  fail when a matrix remote_validation ref has no committed
+//	                   docs/internal/remote-validation/<ref>.md artifact and is not
+//	                   listed in the burn-down baseline (#5407); with -update,
+//	                   regenerate the baseline from the current tree instead.
 //
 // Flags:
 //
-//	-specs        path to the specs directory (matrix, overlay, surface overlay)
-//	-docs         path to the docs directory (docs and product-claims modes)
-//	-root         path to the repository root (surface enumeration)
-//	-out          catalog artifact output path (generate mode)
-//	-surface-out  surface inventory artifact output path (generate mode)
+//	-specs                        path to the specs directory (matrix, overlay, surface overlay)
+//	-docs                         path to the docs directory (docs and product-claims modes)
+//	-root                         path to the repository root (surface enumeration, remote-validation mode)
+//	-out                          catalog artifact output path (generate mode)
+//	-surface-out                  surface inventory artifact output path (generate mode)
+//	-remote-validation-baseline   path to the remote_validation burn-down baseline (remote-validation mode)
+//	-update                       regenerate instead of check (remote-validation mode)
 //
 // Run from the go module directory:
 //
@@ -51,4 +57,5 @@
 //	go run ./cmd/capability-inventory -mode verify
 //	go run ./cmd/capability-inventory -mode product-claims
 //	go run ./cmd/capability-inventory -mode budget-proof -budget-artifact ../capability-budget-proof.json
+//	go run ./cmd/capability-inventory -mode remote-validation
 package main

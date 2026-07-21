@@ -44,6 +44,7 @@ jobs:
       heredoc: ${{ steps.filter.outputs.heredoc }}
       docsrefs: ${{ steps.filter.outputs.docsrefs }}
       doccitations: ${{ steps.filter.outputs.doccitations }}
+      remotevalidation: ${{ steps.filter.outputs.remotevalidation }}
       maturitydrift: ${{ steps.filter.outputs.maturitydrift }}
       matrix: ${{ steps.gate-matrix.outputs.matrix }}
       any: ${{ steps.gate-matrix.outputs.any }}
@@ -185,6 +186,17 @@ jobs:
               - 'scripts/verify-doc-citations.sh'
               - 'scripts/test-verify-doc-citations.sh'
               - 'scripts/docs-citations-baseline.txt'
+            remotevalidation:
+              - '.github/workflows/static-contract-gates.yml'
+              - 'specs/ci-gates.v1.yaml'
+              - 'specs/capability-matrix.v1.yaml'
+              - 'specs/capability-matrix/**'
+              - 'go/internal/capabilitycatalog/**'
+              - 'go/cmd/capability-inventory/**'
+              - 'docs/internal/remote-validation/**'
+              - 'specs/remote-validation-baseline.txt'
+              - 'scripts/verify-remote-validation-artifacts.sh'
+              - 'scripts/test-verify-remote-validation-artifacts.sh'
             maturitydrift:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'
@@ -235,6 +247,7 @@ jobs:
           append_gate "${{ steps.filter.outputs.heredoc }}" "heredoc" "Verify heredoc budget gate" "cd go && go test ./cmd/heredoc-budget -count=1" "cd go && go run ./cmd/heredoc-budget -baseline ../scripts/heredoc-budget-baseline.txt"
           append_gate "${{ steps.filter.outputs.docsrefs }}" "docsrefs" "Verify docs-refs gate" "bash scripts/test-verify-docs-refs.sh" "bash scripts/verify-docs-refs.sh"
           append_gate "${{ steps.filter.outputs.doccitations }}" "doccitations" "Verify doc-citations gate" "bash scripts/test-verify-doc-citations.sh" "bash scripts/verify-doc-citations.sh"
+          append_gate "${{ steps.filter.outputs.remotevalidation }}" "remotevalidation" "Verify remote-validation-artifacts gate" "bash scripts/test-verify-remote-validation-artifacts.sh" "bash scripts/verify-remote-validation-artifacts.sh"
           append_gate "${{ steps.filter.outputs.maturitydrift }}" "maturitydrift" "Verify maturity-drift-guard gate" "bash scripts/test-verify-maturity-drift-guard.sh" "bash scripts/verify-maturity-drift-guard.sh"
 
           printf 'matrix={"include":[%s]}\n' "${matrix_items}" >>"${GITHUB_OUTPUT}"

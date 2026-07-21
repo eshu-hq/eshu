@@ -35,6 +35,14 @@
   and a focused test; resolve any real-spec findings it surfaces in the overlay.
 - **Matrix shape change** → update `matrixFile*` structs and `convertCapability`;
   keep `effectiveStatus` correct for rows that omit `status`.
+- **New verification kind** → add it to `allowedVerificationKinds` in
+  `matrix.go` first; an unlisted key is a hard `LoadMatrix` error by design
+  (#5407). Do not loosen the allow-list to unblock a one-off spec change.
+- **New or moved `remote_validation` ref** → either commit the evidence at
+  `docs/internal/remote-validation/<ref>.md`, or run
+  `bash scripts/verify-remote-validation-artifacts.sh -update` to add it to
+  `specs/remote-validation-baseline.txt` as tracked debt. Never hand-edit the
+  baseline file — it is machine-generated and shrink-only.
 
 ## Failure modes and how to debug
 

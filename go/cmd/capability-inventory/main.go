@@ -25,6 +25,10 @@ const (
 	envVerifyIssues    = "ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE"
 	// #nosec G101 -- this is the public environment variable name; the token value is read at runtime.
 	envGitHubToken = "GITHUB_TOKEN"
+	// defaultRemoteValidationBaseline is the remote-validation mode's default
+	// burn-down baseline path, relative to the process's working directory
+	// (go/cmd/capability-inventory), matching defaultSpecsDir's convention.
+	defaultRemoteValidationBaseline = "../specs/remote-validation-baseline.txt"
 )
 
 func main() {
@@ -40,19 +44,25 @@ func main() {
 func run(args []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("capability-inventory", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	mode := flags.String("mode", "report", "report | generate | verify | docs | product-claims | budget-proof")
+	mode := flags.String("mode", "report", "report | generate | verify | docs | product-claims | budget-proof | remote-validation")
 	specsDir := flags.String("specs", defaultSpecsDir, "path to the specs directory")
 	out := flags.String("out", defaultArtifactOut, "catalog artifact output path (generate mode)")
 	surfaceOut := flags.String("surface-out", defaultSurfaceArtifactOut, "surface inventory artifact output path (generate mode)")
 	budgetArtifact := flags.String("budget-artifact", "", "public capability budget proof artifact path (budget-proof mode)")
 	docsDir := flags.String("docs", defaultDocsDir, "path to the docs directory (docs and product-claims modes)")
-	root := flags.String("root", defaultRoot, "path to the repository root (surface enumeration)")
+	root := flags.String("root", defaultRoot, "path to the repository root (surface enumeration, remote-validation mode)")
+	remoteValidationBaseline := flags.String("remote-validation-baseline", defaultRemoteValidationBaseline, "path to the remote_validation burn-down baseline (remote-validation mode)")
+	remoteValidationUpdate := flags.Bool("update", false, "regenerate the remote-validation baseline from the current tree instead of checking it (remote-validation mode)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 
 	if *mode == "budget-proof" {
 		return checkBudgetProof(stdout, *specsDir, *budgetArtifact)
+	}
+
+	if *mode == "remote-validation" {
+		return checkRemoteValidation(stdout, *specsDir, *root, *remoteValidationBaseline, *remoteValidationUpdate)
 	}
 
 	signals := mcpSignals()

@@ -45,19 +45,29 @@ go run ./cmd/capability-inventory -mode product-claims
 # not bind every supported p95/max-scope budget row to measured API/MCP proof.
 go run ./cmd/capability-inventory -mode budget-proof \
   -budget-artifact ../capability-budget-proof.json
+
+# Remote-validation artifact-existence gate: fail when a matrix
+# remote_validation ref has no committed docs/internal/remote-validation/<ref>.md
+# artifact and is not listed in specs/remote-validation-baseline.txt.
+go run ./cmd/capability-inventory -mode remote-validation
+
+# Regenerate the burn-down baseline from the current tree.
+go run ./cmd/capability-inventory -mode remote-validation -update
 ```
 
 ## Flags
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
-| `-mode` | `report` | `report`, `generate`, `verify`, `docs`, `product-claims`, or `budget-proof` |
+| `-mode` | `report` | `report`, `generate`, `verify`, `docs`, `product-claims`, `budget-proof`, or `remote-validation` |
 | `-specs` | `../specs` | path to the specs directory (matrix, overlay, surface overlay) |
 | `-out` | `internal/capabilitycatalog/data/catalog.generated.json` | catalog artifact output path (generate mode) |
 | `-surface-out` | `internal/capabilitycatalog/data/surface-inventory.generated.json` | surface artifact output path (generate mode) |
 | `-budget-artifact` | empty | public capability budget proof artifact path (budget-proof mode) |
 | `-docs` | `../docs/public` | path to the docs directory (docs and product-claims modes) |
-| `-root` | `..` | path to the repository root (surface enumeration) |
+| `-root` | `..` | path to the repository root (surface enumeration, remote-validation mode) |
+| `-remote-validation-baseline` | `../specs/remote-validation-baseline.txt` | path to the remote_validation burn-down baseline (remote-validation mode) |
+| `-update` | `false` | regenerate the remote-validation baseline instead of checking it (remote-validation mode) |
 
 ## Invariants
 
@@ -88,6 +98,13 @@ go run ./cmd/capability-inventory -mode budget-proof \
   inventory; the same inputs always produce the same bytes, so a regenerated
   artifact only changes when the matrix, overlay, registry, or a live surface
   changed.
+- `remote-validation` mode (`remote_validation_mode.go`) is the artifact-
+  existence gate for `remote_validation` proof-IDs (#5407): it never builds
+  the full catalog, only `capabilitycatalog.LoadMatrix` plus
+  `CheckRemoteValidationArtifacts`, so it stays cheap enough to run on every
+  matrix or baseline change. `-update` regenerates
+  `specs/remote-validation-baseline.txt` from the current tree; it never
+  requires a human to hand-edit the file.
 
 ## Related
 
