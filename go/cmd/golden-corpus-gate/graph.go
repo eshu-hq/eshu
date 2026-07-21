@@ -220,14 +220,31 @@ func (b *boltGraphCounter) ListNodeProperty(ctx context.Context, label, prop str
 }
 
 // CountSelfLoopEdges implements graphCounter: it counts (n:label {property:
-// value})-[r:relationship]->(n) self-loop edges, reusing the SAME bound node
-// variable as both the source and target of the pattern — the standard Cypher
-// shape for a self-loop match. property/value are node property scoping (e.g.
-// language="dart") so a shared label like Function does not conflate one
-// language's self-loop count with another's; value is passed as a query
-// parameter (not interpolated), only label/relationship/property are validated
-// against identRE and interpolated, matching the other Count* methods' safety
-// posture.
+// value})-[r:relationship]->(n) self-loop edges — same source and target node.
+// property/value are node property scoping (e.g. language="dart") so a shared
+// label like Function does not conflate one language's self-loop count with
+// another's; value is passed as a query parameter (not interpolated), only
+// label/relationship/property are validated against identRE and interpolated,
+// matching the other Count* methods' safety posture.
+//
+// The self-loop identity test is performed in Go, not in Cypher, because
+// NornicDB does not enforce cross-variable node identity in this pattern shape.
+// The intuitive shape MATCH (n)-[r]->(n) (reusing one bound variable for both
+// endpoints) does NOT bind the target back to the same node on NornicDB: it
+// silently degenerates to MATCH (n)-[r]->() and returns every OUTGOING edge, not
+// only the self-loops (verified live against the pinned NornicDB image — the
+// golden corpus' 12 outgoing dart Function CALLS edges were all returned when
+// only 2 are genuine self-loops). Every in-query identity predicate that could
+// re-impose it — WHERE elementId(n)=elementId(m), WHERE n.uid=m.uid, WHERE
+// startNode(r)=endNode(r), even a plain WHERE n.name=m.name — degenerates to
+// zero matches on NornicDB instead. So the gate does the identity comparison
+// itself: it returns both endpoints' elementId and counts the edges whose ends
+// are the same node. This mirrors ListCorrelationEdgeProperty, which already
+// filters in Go for the same class of NornicDB WHERE-clause limitation; the
+// gate corpus has at most a handful of edges per relationship type, so returning
+// both endpoint ids is cheap and bounded. The shape is also correct on Neo4j
+// (where the elementIds simply always differ for non-self edges), keeping the
+// gate backend-neutral.
 func (b *boltGraphCounter) CountSelfLoopEdges(ctx context.Context, label, relationship, property, value string) (int64, error) {
 	for _, id := range []string{label, relationship, property} {
 		if !identRE.MatchString(id) {
@@ -235,20 +252,23 @@ func (b *boltGraphCounter) CountSelfLoopEdges(ctx context.Context, label, relati
 		}
 	}
 	result, err := neo4j.ExecuteQuery(ctx, b.driver,
-		fmt.Sprintf("MATCH (n:%s {%s: $value})-[r:%s]->(n) RETURN count(r) AS c", label, property, relationship),
+		fmt.Sprintf("MATCH (n:%s {%s: $value})-[r:%s]->(m) RETURN elementId(n) AS a, elementId(m) AS b", label, property, relationship),
 		map[string]any{"value": value},
 		neo4j.EagerResultTransformer, neo4j.ExecuteQueryWithDatabase(b.db))
 	if err != nil {
 		return 0, fmt.Errorf("execute self-loop count query: %w", err)
 	}
-	if len(result.Records) == 0 {
-		return 0, nil
+	var count int64
+	for _, rec := range result.Records {
+		a, _ := rec.Get("a")
+		bEnd, _ := rec.Get("b")
+		as, aok := a.(string)
+		bs, bok := bEnd.(string)
+		if aok && bok && as != "" && as == bs {
+			count++
+		}
 	}
-	val, _, err := neo4j.GetRecordValue[int64](result.Records[0], "c")
-	if err != nil {
-		return 0, fmt.Errorf("read self-loop count column: %w", err)
-	}
-	return val, nil
+	return count, nil
 }
 
 // boltPropertyString coerces a Bolt-decoded property value to a string for the
