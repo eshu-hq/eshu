@@ -83,7 +83,34 @@ DOES NOT QUALIFY:
 | Service story | `deployment_overview.deployment_truth_tier` | `GET /api/v0/services/{name}/story` |
 
 All surfaces use the same `ClassifyDeploymentTruthTier` helper from
-`go/internal/truth`, so the tier vocabulary is applied consistently.
+`go/internal/truth`, so the *vocabulary* is applied consistently — the same
+four tier strings, the same rank order, the same closed set. The *inputs*
+each surface feeds that helper are not yet uniform; see "Known surface gaps"
+below for the surfaces where that still under-reports a workload's true tier.
+
+## Known surface gaps
+
+The same workload can report a stronger tier from one surface than another
+today, because a surface has not yet been wired to feed
+`ClassifyDeploymentTruthTier` every signal it is entitled to. These are
+tracked disclosure gaps, not vocabulary inconsistencies — closing them is a
+matter of wiring more evidence into the existing classifier, not changing
+the tier semantics above.
+
+- **Service story** (`deployment_overview.deployment_truth_tier`,
+  `go/internal/query/service_story_overview.go`): `hasLiveEvidence` and
+  `hasDeploymentSources` are hardcoded `false`, so a workload
+  `trace_deployment_chain` reports as `runtime_confirmed` can report only
+  `config_only` or no tier at all from the service story surface for the
+  same workload. Tracked in [#5582](https://github.com/eshu-hq/eshu/issues/5582).
+- **Supply-chain impact** (`deployment_context.deployment_truth_tier`,
+  `go/internal/query/supply_chain_impact_result.go`): live runtime evidence
+  (`runtime_confirmed`) and CI provenance (`provenance_ci_declared`) are not
+  yet differentiated in the reducer's finding payload, so every
+  deployment-anchored finding classifies as `config_only` today. Tracked in
+  [#5472](https://github.com/eshu-hq/eshu/issues/5472) (CI/CD correlation
+  graph projection) and [#5474](https://github.com/eshu-hq/eshu/issues/5474)
+  (gate extensions).
 
 ## Legacy reason → tier mapping
 

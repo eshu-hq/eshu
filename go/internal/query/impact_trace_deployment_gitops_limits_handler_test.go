@@ -111,6 +111,123 @@ func TestTraceDeploymentChainPropagatesGitOpsBoundsAndExcludesOmittedImages(t *t
 	}
 }
 
+// TestTraceDeploymentChainOwnRepoAppOfAposMonorepoDoesNotLeakOtherServiceEvidence
+// is the full-trace-path regression test for #5471 review round 2 P0: the
+// traced workload's own repo (ctx["repo_id"] -> workloadRepoID) is an
+// app-of-apps GitOps monorepo hosting BOTH "sample-service-api"'s and
+// "payments-api"'s ArgoCD Applications and K8s manifests -- mirroring the
+// repo-helm fixture, but reached through the real HTTP handler instead of
+// the selectRelevantDeploymentSourceControllers unit test. Tracing
+// "sample-service-api" must return ONLY its own k8s_resources/image_refs;
+// payments-api's Deployment and image ref must never appear in the
+// response, or a wrong workload's live-cluster evidence could promote
+// sample-service-api's deployment truth tier.
+func TestTraceDeploymentChainOwnRepoAppOfAposMonorepoDoesNotLeakOtherServiceEvidence(t *testing.T) {
+	t.Parallel()
+
+	workload := map[string]any{
+		"id":        "workload:sample-service-api",
+		"name":      "sample-service-api",
+		"kind":      "service",
+		"repo_id":   "repository:app-of-apps",
+		"repo_name": "app-of-apps",
+		"instances": []any{},
+	}
+	entities := []EntityContent{
+		{
+			EntityID:     "app-1",
+			RepoID:       "repository:app-of-apps",
+			RelativePath: "services/sample-service-api/argocd/application.yaml",
+			EntityType:   "ArgoCDApplication",
+			EntityName:   "sample-service-api",
+			Metadata: map[string]any{
+				"source_path": "services/sample-service-api/overlays/prod",
+			},
+		},
+		{
+			EntityID:     "sample-deploy",
+			RepoID:       "repository:app-of-apps",
+			RelativePath: "services/sample-service-api/overlays/prod/deployment.yaml",
+			EntityType:   "K8sResource",
+			EntityName:   "sample-service-api",
+			Metadata: map[string]any{
+				"kind":             "Deployment",
+				"container_images": []any{"registry.example/sample-service-api:1.2.3"},
+			},
+		},
+		{
+			EntityID:     "payments-app",
+			RepoID:       "repository:app-of-apps",
+			RelativePath: "services/payments-api/argocd/application.yaml",
+			EntityType:   "ArgoCDApplication",
+			EntityName:   "payments-api",
+			Metadata: map[string]any{
+				"source_path": "services/payments-api/overlays/prod",
+			},
+		},
+		{
+			EntityID:     "payments-deploy",
+			RepoID:       "repository:app-of-apps",
+			RelativePath: "services/payments-api/overlays/prod/deployment.yaml",
+			EntityType:   "K8sResource",
+			EntityName:   "payments-api",
+			Metadata: map[string]any{
+				"kind":             "Deployment",
+				"container_images": []any{"registry.example/payments-api:9.9.9"},
+			},
+		},
+	}
+	handler := &ImpactHandler{
+		Neo4j: fakeWorkloadGraphReader{
+			runSingleByMatch: map[string]map[string]any{
+				"w.name = $service_name": workload,
+				"w.id = $workload_id":    workload,
+			},
+			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+				if strings.Contains(cypher, "DEFINES]-(r:Repository)") {
+					return []map[string]any{{
+						"repo_id":   "repository:app-of-apps",
+						"repo_name": "app-of-apps",
+					}}, nil
+				}
+				return nil, nil
+			},
+		},
+		Content: &recordingDeploymentSourceGitOpsContentStore{rows: entities},
+	}
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/impact/trace-deployment-chain",
+		strings.NewReader(`{"service_name":"sample-service-api"}`),
+	)
+	w := httptest.NewRecorder()
+
+	handler.traceDeploymentChain(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("traceDeploymentChain status = %d, body = %s", w.Code, w.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode trace response: %v", err)
+	}
+
+	imageRefs := StringSliceVal(body, "image_refs")
+	if !slicesContains(imageRefs, "registry.example/sample-service-api:1.2.3") {
+		t.Fatalf("image_refs = %#v, want sample-service-api's own image_ref present", imageRefs)
+	}
+	if slicesContains(imageRefs, "registry.example/payments-api:9.9.9") {
+		t.Fatalf("image_refs = %#v, payments-api's image_ref leaked from the shared app-of-apps repo", imageRefs)
+	}
+
+	k8sResources := mapSliceValue(body, "k8s_resources")
+	for _, resource := range k8sResources {
+		if StringVal(resource, "entity_name") == "payments-api" {
+			t.Fatalf("k8s_resources = %#v, payments-api's Deployment leaked from the shared app-of-apps repo", k8sResources)
+		}
+	}
+}
+
 func deploymentSourceControllerFixture(index int) EntityContent {
 	return EntityContent{
 		EntityID:     fmt.Sprintf("controller-%02d", index),

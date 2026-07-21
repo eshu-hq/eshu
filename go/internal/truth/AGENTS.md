@@ -7,6 +7,13 @@
    entire surface fits in one file
 3. `go/internal/reducer/registry.go` — how `Contract` is used during
    reducer domain registration
+4. `go/internal/truth/deployment_tiers.go` — `DeploymentTruthTier`,
+   `ClassifyDeploymentTruthTier`; every tier-emitting query surface
+   (`trace_deployment_chain`, `supply_chain_impact`, service story) calls
+   through this classifier
+5. `docs/public/reference/deployment-truth-tiers.md` — the tier vocabulary
+   contract: what qualifies per tier, the no-invented-tiers rule, and the
+   legacy-reason-to-tier mapping
 
 ## Invariants this package enforces
 
@@ -31,6 +38,25 @@
 
 - **Add a `Contract` method** — keep it pure value logic with no I/O.
   Add a test in `model_test.go` before implementing.
+
+- **Add a deployment truth tier** — the vocabulary is closed
+  (`docs/public/reference/deployment-truth-tiers.md`'s "No-invented-tiers
+  rule"). Do not add a tier string without: a new constant in
+  `deployment_tiers.go`, a `rank()` slot in strict descending evidence-
+  strength order, an entry in `AllDeploymentTruthTiers`, and an update to
+  that doc. Run `go test ./internal/truth -count=1`; tests
+  `TestDeploymentTruthTierConstantsExhaustive` and
+  `TestAllDeploymentTruthTiersOrder` cover the exhaustiveness and ordering
+  gates.
+
+- **Change `ClassifyDeploymentTruthTier`'s precedence** — every
+  tier-emitting consumer (`go/internal/query/impact_trace_deployment_resources.go`,
+  `supply_chain_impact`, service story) reads through this one function, so
+  a precedence change is a cross-surface behavior change. Update
+  `docs/public/reference/deployment-truth-tiers.md`'s "What qualifies (and
+  what does not)" section in the same change, and re-run the golden-corpus
+  gate's deployment-truth-tier pins (`testdata/golden/e2e-20repo-snapshot.json`,
+  `trace_deployment_chain` shapes).
 
 ## Failure modes and how to debug
 

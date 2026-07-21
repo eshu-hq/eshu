@@ -1,17 +1,32 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// No-Observability-Change: the fetchWorkloadLiveEvidence path reads the
-// existing Postgres active-fact read model through the same bounded,
-// instrumented KubernetesCorrelationStore.ListKubernetesCorrelations
-// query the list_kubernetes_correlations handler already uses. Operators
-// diagnose the path through existing eshu_dp_postgres_query_duration_seconds,
-// postgres.query spans, and the kubernetes_correlations read-model contract
-// documented in go/internal/query/read-models.md.
+// Observability Evidence: fetchWorkloadLiveEvidence reads the same bounded,
+// instrumented KubernetesCorrelationStore.ListKubernetesCorrelations query
+// the list_kubernetes_correlations handler uses, so the underlying Postgres
+// read is already covered by eshu_dp_postgres_query_duration_seconds and
+// postgres.query spans. That coverage does NOT extend to the tier-promotion
+// DECISION this probe makes (config_only -> runtime_confirmed): the generic
+// per-route "query.*" span and eshu_dp_api_request_duration_seconds
+// (go/internal/query/handler_tracing.go, go/internal/query/request_metrics.go)
+// record that trace_deployment_chain ran, not why a specific workload's tier
+// did or did not flip. fetchWorkloadLiveEvidence therefore starts its own
+// "impact.live_evidence_probe" child span (queryHandlerTracer, shared with
+// handler_tracing.go) carrying the image_ref count probed, whether an exact
+// correlation matched, and the tier that decision implies -- an operator can
+// read that span at 3 AM to see exactly why a workload's deployment truth
+// tier changed (or did not) without reproducing the trace call (#5471 review
+// round 2, P1).
 
 package query
 
-import "context"
+import (
+	"context"
+
+	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/eshu-hq/eshu/go/internal/truth"
+)
 
 // fetchWorkloadLiveEvidence returns true when the Postgres active-fact
 // read model contains at least one exact-outcome kubernetes correlation
@@ -34,13 +49,29 @@ func (h *ImpactHandler) fetchWorkloadLiveEvidence(
 	imageRefs []string,
 	access repositoryAccessFilter,
 ) (bool, error) {
-	if h == nil || h.KubernetesCorrelations == nil || len(imageRefs) == 0 {
+	if h == nil {
+		return false, nil
+	}
+
+	ctx, span := queryHandlerTracer.Start(ctx, "impact.live_evidence_probe")
+	defer span.End()
+	span.SetAttributes(attribute.Int("eshu.image_ref_count", len(imageRefs)))
+
+	if h.KubernetesCorrelations == nil || len(imageRefs) == 0 {
+		span.SetAttributes(
+			attribute.String("eshu.live_evidence_skip_reason", "store_unwired_or_no_image_refs"),
+			attribute.Bool("eshu.live_evidence_matched", false),
+		)
 		return false, nil
 	}
 	// #5167 access-scoping discipline, mirroring listCorrelations
 	// (go/internal/query/kubernetes.go:108-122): a scoped caller with no
 	// granted repositories never queries the store.
 	if access.empty() {
+		span.SetAttributes(
+			attribute.String("eshu.live_evidence_skip_reason", "scoped_caller_no_grants"),
+			attribute.Bool("eshu.live_evidence_matched", false),
+		)
 		return false, nil
 	}
 
@@ -63,11 +94,18 @@ func (h *ImpactHandler) fetchWorkloadLiveEvidence(
 			// errors: log the error and continue with the next
 			// image_ref or return false. A transient Postgres
 			// failure must not 500 the whole deployment trace.
+			span.RecordError(err)
+			span.SetAttributes(attribute.Bool("eshu.live_evidence_matched", false))
 			return false, err
 		}
 		if len(rows) > 0 {
+			span.SetAttributes(
+				attribute.Bool("eshu.live_evidence_matched", true),
+				attribute.String("eshu.deployment_truth_tier", string(truth.TierRuntimeConfirmed)),
+			)
 			return true, nil
 		}
 	}
+	span.SetAttributes(attribute.Bool("eshu.live_evidence_matched", false))
 	return false, nil
 }

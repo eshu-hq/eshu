@@ -111,6 +111,90 @@ func TestSelectRelevantDeploymentSourceControllersDoesNotFallBackToUnrelatedCont
 	}
 }
 
+// TestSelectRelevantDeploymentSourceControllersTrustsUnambiguousOwnRepoController
+// models the deployable-config fixture (#5471 defect A): the traced
+// workload's own repo (workloadRepoID) hosts exactly one GitOps controller,
+// and that controller's own entity name/path names the DEPLOYED APP
+// ("deployable-source") rather than the config repo/workload being traced
+// ("deployable-config") -- the service-name-token match can never pass for
+// it. Because it is the ONLY controller in that repo, there is no other
+// candidate it could be confused with, so it must still be selected.
+func TestSelectRelevantDeploymentSourceControllersTrustsUnambiguousOwnRepoController(t *testing.T) {
+	t.Parallel()
+
+	// deploymentSources names a DIFFERENT repo (the application's
+	// source-code repo), mirroring how deployable-config's canonical
+	// DEPLOYMENT_SOURCE graph edge points at deployable-source, not at
+	// deployable-config's own repo. It carries no controllers at all.
+	deploymentSources := []map[string]any{{
+		"repo_id":   "repository:deployable-source",
+		"repo_name": "deployable-source",
+	}}
+	entities := []EntityContent{{
+		EntityID:     "argocd-app-1",
+		RepoID:       "repository:deployable-config",
+		RelativePath: "application.yaml",
+		EntityType:   "ArgoCDApplication",
+		EntityName:   "deployable-source",
+		Metadata: map[string]any{
+			"source_repo": "https://github.com/acme/deployable-source",
+			"source_path": "k8s",
+		},
+	}}
+
+	got := selectRelevantDeploymentSourceControllers("deployable-config", "repository:deployable-config", deploymentSources, entities)
+	if len(got) != 1 {
+		t.Fatalf("len(selectRelevantDeploymentSourceControllers()) = %d, want 1 (unambiguous own-repo controller): %#v", len(got), got)
+	}
+	if got, want := StringVal(got[0], "entity_id"), "argocd-app-1"; got != want {
+		t.Fatalf("selected controller id = %q, want %q", got, want)
+	}
+}
+
+// TestSelectRelevantDeploymentSourceControllersRequiresTokenMatchWhenOwnRepoHostsMultipleControllers
+// is the P0 regression test for #5471 review round 2: a GitOps config repo
+// used as the traced workload's own repo can be an app-of-apps monorepo
+// hosting MANY services' ArgoCD Applications (the repo-helm fixture's shape,
+// reused here as workloadRepoID). Tracing "sample-service-api" must select
+// ONLY its own controller and must NEVER pull "payments-api"'s controller
+// into the response merely because both live in the traced workload's own
+// repo -- that would leak payments-api's k8s_resources/image_refs into
+// sample-service-api's deployment-truth-tier evidence.
+func TestSelectRelevantDeploymentSourceControllersRequiresTokenMatchWhenOwnRepoHostsMultipleControllers(t *testing.T) {
+	t.Parallel()
+
+	entities := []EntityContent{
+		{
+			EntityID:     "app-1",
+			RepoID:       "repo-helm",
+			RelativePath: "services/sample-service-api/argocd/application.yaml",
+			EntityType:   "ArgoCDApplication",
+			EntityName:   "sample-service-api",
+			Metadata: map[string]any{
+				"source_path": "services/sample-service-api/overlays/prod",
+			},
+		},
+		{
+			EntityID:     "payments-app",
+			RepoID:       "repo-helm",
+			RelativePath: "services/payments-api/argocd/application.yaml",
+			EntityType:   "ArgoCDApplication",
+			EntityName:   "payments-api",
+			Metadata: map[string]any{
+				"source_path": "services/payments-api/overlays/prod",
+			},
+		},
+	}
+
+	got := selectRelevantDeploymentSourceControllers("sample-service-api", "repo-helm", nil, entities)
+	if len(got) != 1 {
+		t.Fatalf("len(selectRelevantDeploymentSourceControllers()) = %d, want 1 (own repo hosts 2 controllers -> token match required): %#v", len(got), got)
+	}
+	if got, want := StringVal(got[0], "entity_id"), "app-1"; got != want {
+		t.Fatalf("selected controller id = %q, want %q (payments-api's controller must not leak)", got, want)
+	}
+}
+
 func TestSelectRelevantDeploymentSourceControllersRejectsShortNameCollisions(t *testing.T) {
 	t.Parallel()
 
