@@ -87,8 +87,10 @@
 
 - **Heuristic namespace or folder selectors** — do not add selectors based on
   repository folder names, namespace prefixes, or repo-name patterns to infer
-  environment or platform placement. CLAUDE.md explicitly forbids namespace,
-  folder, or repo-name heuristics that invent environment truth.
+  environment or platform placement. The environment-alias contract
+  (go/internal/environment, docs/public/reference/environment-alias-contract.md)
+  is the authority for canonical environment names; do not invent aliases or
+  add folder-name, namespace, or repo-name heuristics.
 
 - **Lowering MinAdmissionConfidence to "fix" admission failures** — a
   confidence gate is the first signal that evidence quality is low. Lowering

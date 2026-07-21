@@ -137,6 +137,7 @@ nav:
       - Hosted Retention And Deletion Policy: reference/hosted-retention-deletion-policy.md
     - Contract Reference:
       - Overview: reference/contracts.md
+      - Environment Alias Contract: reference/environment-alias-contract.md
       - Docs Catalog Metadata: reference/docs-catalog.md
       - Docs Prose Quality: reference/prose-quality.md
       - Docs Self-Contradiction Gate: reference/docs-contradiction.md

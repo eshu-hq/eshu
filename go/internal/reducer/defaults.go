@@ -28,6 +28,12 @@ type DefaultHandlers struct {
 	SemanticEntityWriter               SemanticEntityWriter
 	WorkloadProjectionInputLoader      WorkloadProjectionInputLoader
 	WorkloadDependencyLookup           WorkloadDependencyGraphLookup
+	// InstanceRetractionLookup resolves superseded WorkloadInstance ids (e.g. a
+	// pre-canonical environment alias key retired by the #5473 environment-alias
+	// contract) so workload materialization can retract the orphaned node and its
+	// INSTANCE_OF/DEPLOYMENT_SOURCE/RUNS_ON edges after the replacement MERGE
+	// write commits. Nil keeps existing reducer behavior (no retraction).
+	InstanceRetractionLookup WorkloadInstanceRetractionLookup
 
 	// FactLoader loads fact envelopes for workload and infrastructure
 	// platform materialization.
