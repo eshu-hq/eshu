@@ -97,6 +97,13 @@ const (
 	// values.yaml. It isolates the intra-chart usage->definition REFERENCES edge
 	// from the code-symbol REFERENCES edges that share the edge type.
 	EvidenceKindHelmTemplateValueReference EvidenceKind = "HELM_TEMPLATE_VALUE_REFERENCE"
+	// EvidenceKindFluxGitRepositorySource is a cross-repository DEPLOYS_FROM
+	// edge from a Flux GitRepository's spec.url resolving, by STRICT
+	// repositoryidentity.NormalizeRemoteURL equality against the target
+	// repository's catalog RemoteURL, to exactly one repository (issue #5483
+	// C2). Never a fuzzy match: an unresolved or ambiguous url produces no
+	// evidence, only an honest tally.
+	EvidenceKindFluxGitRepositorySource EvidenceKind = "FLUX_GIT_REPOSITORY_SOURCE"
 )
 
 // RelationshipType classifies the kind of link between two entities.

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package relationships extracts Terraform, Helm, Kustomize, Argo CD, GCP
-// provider-resource, Terraform-provider schema, and related deployment evidence
-// before reducer admission.
+// Package relationships extracts Terraform, Helm, Kustomize, Argo CD, Flux,
+// GCP provider-resource, Terraform-provider schema, and related deployment
+// evidence before reducer admission.
 //
 // The package describes evidence rather than inventing deployment truth:
 // extractors emit candidate references, template parameters, and

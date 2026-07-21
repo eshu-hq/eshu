@@ -189,7 +189,7 @@ func (c *repositoryCatalogCache) mergeChangedRepositories(
 	changed := false
 	for repoID, committed := range currentGenerationRepos {
 		cached, known := c.entryByID[repoID]
-		if !known || (!catalogAliasesEqual(cached.Aliases, committed.Aliases) && !staleLocked(repoID)) {
+		if !known || (!catalogEntriesEqual(cached, committed) && !staleLocked(repoID)) {
 			changed = true
 			break
 		}
@@ -245,6 +245,18 @@ func catalogEntryByID(entries []relationships.CatalogEntry) map[string]relations
 		index[entry.RepoID] = entry
 	}
 	return index
+}
+
+// catalogEntriesEqual reports whether two catalog entries describe the same
+// repository identity: the same alias set AND the same normalized remote URL.
+// RemoteURL is compared in addition to Aliases (issue #5483 C2) so a
+// repository's remote URL changing (a mirror migration, a host rename) merges
+// a fresh entry into the cache -- discoverStructuredFluxEvidence resolves by
+// STRICT CatalogEntry.RemoteURL equality, so a stale cached URL would keep
+// failing to resolve (or resolve to the wrong repository) until the process
+// restarted, with no alias-comparison signal to catch it.
+func catalogEntriesEqual(a, b relationships.CatalogEntry) bool {
+	return catalogAliasesEqual(a.Aliases, b.Aliases) && a.RemoteURL == b.RemoteURL
 }
 
 // catalogAliasesEqual reports whether two alias lists describe the same identity

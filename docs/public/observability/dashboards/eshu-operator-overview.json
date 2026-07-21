@@ -530,12 +530,33 @@
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
     },
     {
+      "id": 22,
+      "type": "timeseries",
+      "title": "Flux Cross-Repo URL Resolution (by outcome)",
+      "description": "Per-second rate of Flux GitRepository spec.url cross-repo resolution attempts by outcome (issue #5483 C2). linked is the healthy steady state; a sustained unresolved or ambiguous rate means cross-repo Flux lineage is under-linking (a url naming an unindexed repository, or two catalog repos sharing a normalized remote), and self is a same-repo GitRepository already covered by RECONCILES_FROM. Never fabricated: unresolved and ambiguous are honest non-links, not guessed edges.",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 55},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum(rate(eshu_dp_flux_cross_repo_url_resolution_total[5m])) by (outcome)",
+          "legendFormat": "{{outcome}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "ops", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10}},
+        "overrides": []
+      },
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
       "id": 21,
       "type": "timeseries",
       "title": "Collector Reconciliation (full snapshots / drift / convergence)",
       "description": "Per-second rate of collector reconciliation outcomes. Convergence dominates in a steady state; spikes in drift retraction flag collector disagreement.",
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 55},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 63},
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
@@ -568,7 +589,7 @@
       "title": "Edges by Source Tool (current)",
       "description": "Current exact graph edge count by closed source_tool label, summed across the Tier-2 relationship types that carry source_tool (relationship-type-index answered). A series dropping to zero means the corresponding parser or ingester stopped writing that edge type. ESHU_GRAPH_COUNT_LIMIT (default 10 000) caps returned label groups, not the rows counted, so per-tool counts are exact.",
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 63},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 71},
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
@@ -589,7 +610,7 @@
       "title": "Files by Language (current)",
       "description": "Current exact File node count by language (File-label-anchored group). A series dropping to zero means the corresponding parser stopped indexing files. ESHU_GRAPH_COUNT_LIMIT (default 10 000) caps returned language groups, not the rows counted, so per-language counts are exact.",
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 63},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 71},
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},

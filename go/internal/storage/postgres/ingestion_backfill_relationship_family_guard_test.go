@@ -167,6 +167,34 @@ func TestDeferredRelationshipFamilyGuardKeepsSaltGitfsFallback(t *testing.T) {
 	}
 }
 
+// TestDeferredRelationshipFamilyGuardKeepsFluxGitRepositoryCarveOut pins the
+// #5483 C2 fix: the deferred backfill candidate predicate must admit a "file"
+// fact whose parsed_file_data captured a non-empty flux_git_repositories array,
+// so the corpus-wide re-discovery can recover the cross-repo DEPLOYS_FROM edge
+// on a catalog change (source-before-target ordering, or an existing repo's
+// remote_url change). Without this arm a Flux GitRepository file fact — which
+// carries no artifact_type, no content, and can live under any path — matches
+// no other arm and is silently dropped from the deferred load.
+func TestDeferredRelationshipFamilyGuardKeepsFluxGitRepositoryCarveOut(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"jsonb_typeof(fact.payload -> 'parsed_file_data' -> 'flux_git_repositories') = 'array'",
+		"jsonb_array_length(fact.payload -> 'parsed_file_data' -> 'flux_git_repositories') > 0",
+	} {
+		if !strings.Contains(deferredRelationshipFamilyCandidatePredicateSQL, want) {
+			t.Fatalf("relationship-family predicate missing Flux GitRepository carve-out fragment %q", want)
+		}
+	}
+	// The empty-array guard is load-bearing: the YAML parser serializes an empty
+	// flux_git_repositories: [] into every YAML file's parsed_file_data, so a
+	// bare key-presence test would admit every YAML file (the #3624 empty-struct-
+	// key false-positive class). The array-length check prevents that.
+	if !strings.Contains(deferredRelationshipFamilyFluxGitRepositoryMarkerSQL, "> 0") {
+		t.Fatal("Flux GitRepository carve-out must require a NON-EMPTY parsed array, never bare key presence")
+	}
+}
+
 func TestDeferredRelationshipFamilyGuardPathGatesSaltGitfsFallback(t *testing.T) {
 	t.Parallel()
 

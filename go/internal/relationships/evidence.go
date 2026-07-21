@@ -14,26 +14,61 @@ import (
 type CatalogEntry struct {
 	RepoID  string
 	Aliases []string
+	// RemoteURL is the repositoryidentity.NormalizeRemoteURL-normalized git
+	// remote for this repository (issue #5483 C2). It is used ONLY by
+	// discoverStructuredFluxEvidence's STRICT equality resolution -- never
+	// folded into Aliases, because Aliases feeds the fuzzy token matcher
+	// (catalog_matcher.go) and the #3521 alias-drift comparison, and a raw
+	// URL would perturb both. Empty when the repository fact carried no
+	// remote_url.
+	RemoteURL string
 }
 
 // DiscoverEvidence scans fact envelopes for IaC relationship evidence
-// (Terraform, Helm, ArgoCD, Kustomize) and returns discovered evidence facts.
+// (Terraform, Helm, ArgoCD, Kustomize, Flux) and returns discovered evidence
+// facts. It discards the DiscoveryStats tallies DiscoverEvidenceWithStats
+// returns; callers that need those tallies (for example, to emit the Flux
+// cross-repo URL resolution telemetry) must call DiscoverEvidenceWithStats
+// directly.
 func DiscoverEvidence(envelopes []facts.Envelope, catalog []CatalogEntry) []EvidenceFact {
+	evidence, _ := DiscoverEvidenceWithStats(envelopes, catalog)
+	return evidence
+}
+
+// DiscoveryStats aggregates DiscoverEvidenceWithStats outcomes that are not
+// representable as an EvidenceFact row -- today, only the Flux cross-repo URL
+// resolution tally (issue #5483 C2). It is additive so future extractors can
+// grow their own tally without widening DiscoverEvidence's signature for
+// every caller.
+type DiscoveryStats struct {
+	FluxCrossRepoURLResolution FluxCrossRepoURLResolutionStats
+}
+
+// DiscoverEvidenceWithStats is DiscoverEvidence plus the DiscoveryStats tally
+// for outcomes an extractor intentionally does not turn into an EvidenceFact
+// (an unresolved, ambiguous, or same-repo Flux GitRepository url). This is a
+// new seam rather than a widened DiscoverEvidence signature (issue #5483 C2
+// design note): every existing DiscoverEvidence caller stays untouched, and
+// only the Postgres ingestion commit path -- the sole caller that needs the
+// tally to emit eshu_dp_flux_cross_repo_url_resolution_total -- calls this
+// function directly.
+func DiscoverEvidenceWithStats(envelopes []facts.Envelope, catalog []CatalogEntry) ([]EvidenceFact, DiscoveryStats) {
 	if len(envelopes) == 0 {
-		return nil
+		return nil, DiscoveryStats{}
 	}
 
 	var evidence []EvidenceFact
+	var stats DiscoveryStats
 	seen := make(map[evidenceKey]struct{})
 	contentIndex := buildEvidenceContentIndex(envelopes)
 	matcher := newCatalogMatcher(catalog)
 
 	for i := range envelopes {
-		discovered := discoverFromEnvelopeWithIndex(envelopes[i], matcher, seen, contentIndex)
+		discovered := discoverFromEnvelopeWithIndex(envelopes[i], matcher, seen, contentIndex, &stats)
 		evidence = append(evidence, discovered...)
 	}
 
-	return evidence
+	return evidence, stats
 }
 
 // evidenceKey deduplicates evidence within a single discovery pass.
@@ -64,6 +99,7 @@ func discoverFromEnvelopeWithIndex(
 	matcher *catalogMatcher,
 	seen map[evidenceKey]struct{},
 	contentIndex evidenceContentIndex,
+	stats *DiscoveryStats,
 ) []EvidenceFact {
 	if envelope.FactKind == facts.GCPCloudRelationshipFactKind {
 		return discoverGCPCloudRelationshipEvidence(envelope, matcher, seen)
@@ -101,6 +137,9 @@ func discoverFromEnvelopeWithIndex(
 		)...)
 		evidence = append(evidence, discoverStructuredArgoCDEvidence(
 			sourceRepoID, filePath, parsedFileData, matcher, seen,
+		)...)
+		evidence = append(evidence, discoverStructuredFluxEvidence(
+			sourceRepoID, filePath, parsedFileData, matcher, seen, stats,
 		)...)
 	}
 

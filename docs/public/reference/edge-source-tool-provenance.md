@@ -95,7 +95,7 @@ addition, never by free-form values.
 | `docker_compose` | `DOCKER_COMPOSE_*` evidence kinds | Tier 2 |
 | `gcp` | `GCP_CLOUD_RELATIONSHIP`; GCP cloud writers | Tier 2 / Tier 1 |
 | `atlantis` | `MANAGES`, `ATLANTIS_DEPENDS_ON`, `USES_WORKFLOW` edge types | Tier 1 |
-| `flux` | `RECONCILES_FROM` edge type | Tier 1 |
+| `flux` | `RECONCILES_FROM` edge type (issue #5483 C1); `FLUX_GIT_REPOSITORY_SOURCE` evidence kind (issue #5483 C2) | Tier 1 / Tier 2 |
 | `gitlab` | `DEFINES_JOB`, `NEEDS` edge types | Tier 1 |
 | `gomod` | `HAS_VERSION`/`DECLARES_DEPENDENCY`/`DEPENDS_ON_PACKAGE` (Go ecosystem) | Tier 1 |
 | `npm` | package-registry edges (npm ecosystem) | Tier 1 |
@@ -131,8 +131,8 @@ same enum across both axes.
 
 ## `EvidenceKind` → `source_tool` mapping
 
-The 33 persisted `EvidenceKind` constants (`go/internal/relationships/models.go:20-91`)
-collapse to 13 tools. This is the family→tool map #3999 implements (distinct
+The 34 persisted `EvidenceKind` constants (`go/internal/relationships/models.go:20-99`)
+collapse to 14 tools. This is the family→tool map #3999 implements (distinct
 from the existing `evidenceKindToType` sub-kind map, which keeps each kind
 separate).
 
@@ -144,6 +144,7 @@ separate).
 | `HELM_CHART_REFERENCE`, `HELM_VALUES_REFERENCE` | `helm` |
 | `KUSTOMIZE_RESOURCE_REFERENCE`, `KUSTOMIZE_HELM_CHART_REFERENCE`, `KUSTOMIZE_IMAGE_REFERENCE` | `kustomize` |
 | `ARGOCD_APPLICATION_SOURCE`, `ARGOCD_APPLICATIONSET_DISCOVERY`, `ARGOCD_APPLICATIONSET_DEPLOY_SOURCE`, `ARGOCD_DESTINATION_PLATFORM` | `argocd` |
+| `FLUX_GIT_REPOSITORY_SOURCE` | `flux` |
 | `GITHUB_ACTIONS_REUSABLE_WORKFLOW`, `GITHUB_ACTIONS_LOCAL_REUSABLE_WORKFLOW`, `GITHUB_ACTIONS_CHECKOUT_REPOSITORY`, `GITHUB_ACTIONS_WORKFLOW_INPUT_REPOSITORY`, `GITHUB_ACTIONS_ACTION_REPOSITORY` | `github_actions` |
 | `JENKINS_SHARED_LIBRARY`, `JENKINS_GITHUB_REPOSITORY` | `jenkins` |
 | `DOCKER_COMPOSE_BUILD_CONTEXT`, `DOCKER_COMPOSE_IMAGE`, `DOCKER_COMPOSE_DEPENDS_ON` | `docker_compose` |
@@ -213,7 +214,7 @@ and written through the canonical relationship upserts
 | Edge type | Tools observed (via evidence kinds) | Emitter |
 | --- | --- | --- |
 | `DEPENDS_ON` | `ansible`, `puppet`, `chef`, `salt`, `docker_compose`, `github_actions`, `jenkins`, `gcp`, … | `canonical.go:78` (repo), `:93` (workload) |
-| `DEPLOYS_FROM` | `helm`, `kustomize`, `argocd`, `docker`, `docker_compose`, `github_actions` | `canonical_relationships.go:37` |
+| `DEPLOYS_FROM` | `helm`, `kustomize`, `argocd`, `docker`, `docker_compose`, `github_actions`, `flux` (cross-repo Flux GitRepository url resolution, issue #5483 C2) | `canonical_relationships.go:37` |
 | `DISCOVERS_CONFIG_IN` | `terragrunt`, `argocd`, `jenkins` | `canonical_relationships.go:56` |
 | `PROVISIONS_DEPENDENCY_FOR` | `terraform`, `terragrunt` | `canonical_relationships.go:75` |
 | `USES_MODULE` | `terraform` (¹ terragrunt) | `canonical_relationships.go:94` |
