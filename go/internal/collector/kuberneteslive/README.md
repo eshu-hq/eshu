@@ -29,8 +29,11 @@ correlation and drift remain reducer-owned and are not in this package.
   normalization strips container-runtime scheme prefixes (`docker-pullable://`,
   `docker://`, `cri-o://`, etc.) and rejects bare `sha256:` values with no
   repository (unjoinable). See `NormalizeCRIImageID` in `envelope.go` and the
-  `clientgo` adapter's `workloadFromPod` which reads `.Status` — the ONLY
-  `.Status` field the adapter reads (#5432).
+  `clientgo` adapter's `workloadFromPod`, which reads
+  `pod.Status.ContainerStatuses`/`InitContainerStatuses` for this digest
+  (#5432). This is one of the adapter's bounded `.Status` reads; the others —
+  `pod.Status.Phase` and the Deployment/ReplicaSet
+  `.Status.ReadyReplicas`/`.Status.AvailableReplicas` — are described next.
 - A `pod_template` fact also carries optional observed-vs-desired runtime-status
   fields, self-describing by name (#5431): `desired_replicas` (DESIRED, from a
   Deployment/ReplicaSet's `.Spec.Replicas`), `ready_replicas` and
