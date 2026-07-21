@@ -95,6 +95,7 @@ func OpenAPISpec() string {
 			openAPIPathsPackageRegistry+
 			openAPIPathsPackageRegistryAggregate+
 			openAPIPathsDependencies+
+			openAPIPathsCodeowners+
 			openAPIPathsCICD+
 			openAPIPathsCICDRunCorrelationAggregate+
 			openAPIPathsServiceCatalog+
