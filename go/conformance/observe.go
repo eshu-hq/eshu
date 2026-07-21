@@ -48,11 +48,32 @@ type EdgeObservation struct {
 	Properties map[string]string
 }
 
+// SelfLoopObservation is one observed self-loop edge (n)-[rel]->(n): the same
+// node is both endpoints. It carries the node's label, the relationship type,
+// and the node's string properties so a RequiredSelfLoop scoped by
+// node_property=value is counted offline exactly as the live gate's
+// CountSelfLoopEdges narrows on the graph. Node identity is decided by the
+// projector here (the observation only records edges it knows are self-loops),
+// mirroring the live gate, which resolves identity in Go rather than in Cypher
+// because NornicDB does not enforce cross-variable node identity in the
+// (n)-[r]->(n) pattern shape.
+type SelfLoopObservation struct {
+	// Label is the label of the node the self-loop is anchored on.
+	Label string
+	// Relationship is the self-loop edge's relationship type.
+	Relationship string
+	// Properties holds the anchor node's string properties (e.g. language); a
+	// value is "" when absent or non-string, matching the gate's node-property
+	// coercion.
+	Properties map[string]string
+}
+
 // Observation is the in-memory, backend-free view of what the replayed collector
 // facts would project to the graph: per-label node counts, per-edge counts, the
 // directed correlation edges the required_correlations assertions read (with
-// their evidence/properties), and the per-label property values the
-// required_nodes property floor reads.
+// their evidence/properties), the per-label property values the required_nodes
+// property floor reads, and the self-loop edges the required_self_loops bound
+// reads.
 //
 // It is the contributor analogue of the values the in-repo gate reads back from
 // a live graph over Bolt — derived here from the materialization seam instead,
@@ -69,6 +90,12 @@ type Observation struct {
 	// NodeProps holds, per label and property name, the property value of every
 	// node carrying the label ("" when the node has no value for that property).
 	NodeProps map[string]map[string][]string
+	// SelfLoops holds every observed (n)-[rel]->(n) self-loop edge, the input the
+	// required_self_loops bound reads. The starter schema projects no self-loops,
+	// so it is empty for the starter tape — a genuine observed count of 0, which
+	// the two-sided [min,max] bound asserts (a spurious self-loop, the
+	// eshu-hq/eshu#5332 class, would push it above a max=0 ceiling and fail).
+	SelfLoops []SelfLoopObservation
 }
 
 // correlationKey is the stable map key for a directed correlation triple.
@@ -97,6 +124,26 @@ func (o Observation) matchingCorrelationEdges(rc goldengate.RequiredCorrelation)
 		}
 	}
 	return out
+}
+
+// selfLoopCount returns the number of observed self-loop edges that match rsl:
+// same node label and relationship, and (when rsl.NodeProperty is set) an anchor
+// node whose property value equals rsl.NodePropertyValue. It is the offline
+// analogue of the live gate's CountSelfLoopEdges — the value fed into the shared
+// goldengate.EvaluateRequiredSelfLoop bound so the offline and live paths assert
+// self-loops identically.
+func (o Observation) selfLoopCount(rsl goldengate.RequiredSelfLoop) int64 {
+	var n int64
+	for _, sl := range o.SelfLoops {
+		if sl.Label != rsl.Label || sl.Relationship != rsl.Relationship {
+			continue
+		}
+		if rsl.NodeProperty != "" && sl.Properties[rsl.NodeProperty] != rsl.NodePropertyValue {
+			continue
+		}
+		n++
+	}
+	return n
 }
 
 // NodeProperty returns the property values observed across all nodes of label
