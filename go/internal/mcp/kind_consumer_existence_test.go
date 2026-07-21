@@ -4,6 +4,8 @@
 package mcp
 
 import (
+	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -11,11 +13,26 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
+// kindConsumerGateRepoRoot resolves the repository root from this test
+// file's location (mcp -> internal -> go -> repo root), the same pattern
+// readSurfaceGateSpecsDir uses for the specs/ directory.
+func kindConsumerGateRepoRoot(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller(0) failed")
+	}
+	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", ".."))
+}
+
 // TestEveryRegistryKindHasConsumerOrDisclosure is the #5474 D2 per-kind
 // consumer existence gate. It walks every fact kind in the generated registry
 // (facts.FactKindRegistry()) and asserts that each kind either has a
-// detectable consumer (non-empty PayloadSchema, typed decode seam) or an
-// explicit entry in the grandfatheredUnconsumedKinds disclosure ledger.
+// detectable REAL consumer (a decode<Kind> seam call site, a direct
+// factschema.Decode<Kind> call, a literal fact_kind SQL predicate or
+// facts.<Kind> identifier reference in the query layer, or a reducer-level
+// case/equality dispatch — see kind_real_consumer.go) or an explicit entry
+// in the grandfatheredUnconsumedKinds disclosure ledger.
 //
 // The gate is fail-closed: a NEW registry kind with no consumer and no
 // disclosure entry fails the gate. This is the point — a kind registered
@@ -36,6 +53,11 @@ func TestEveryRegistryKindHasConsumerOrDisclosure(t *testing.T) {
 		t.Fatalf("disclosure ledger integrity check failed: %v", err)
 	}
 
+	real, err := loadRealConsumerEvidence(kindConsumerGateRepoRoot(t))
+	if err != nil {
+		t.Fatalf("loadRealConsumerEvidence: %v", err)
+	}
+
 	failures := 0
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Kind < entries[j].Kind })
 
@@ -48,7 +70,7 @@ func TestEveryRegistryKindHasConsumerOrDisclosure(t *testing.T) {
 			ProjectionHook:  entry.ProjectionHook,
 			AdmissionHook:   entry.AdmissionHook,
 		}
-		ok, reason := resolveKindConsumer(evidence)
+		ok, reason := resolveKindConsumer(evidence, real)
 		if !ok {
 			t.Errorf("%s", reason)
 			failures++
@@ -60,67 +82,136 @@ func TestEveryRegistryKindHasConsumerOrDisclosure(t *testing.T) {
 	}
 }
 
-// TestKindConsumerExistenceBITES_UnconsumedKindMustFail is the #5474 D2 BITES
-// proof. It proves the gate catches a consumer-less, undisclosed kind by
-// constructing one in isolation:
-//
-//  1. Seed a synthetic kind with no PayloadSchema, not AdmissionExempt, and not
-//     in the disclosure ledger → RED (gate rejects it, naming the three legal
-//     exits).
-//  2. Add the same kind to the disclosure ledger → GREEN.
-//  3. Remove it from the disclosure ledger again → RED.
-//
-// The production registry stays GREEN (asserted by the separate
-// TestEveryRegistryKindHasConsumerOrDisclosure).
-func TestKindConsumerExistenceBITES_UnconsumedKindMustFail(t *testing.T) {
+// TestKindConsumerExistenceBITES_TeethProof is the #5474 D2 BITES proof. It
+// seeds every case from the PRODUCTION fact-kind registry
+// (facts.FactKindRegistryEntryFor), never a hand-rolled struct, and proves
+// the gate has teeth on two RED cases the pre-fix toothless signal
+// (PayloadSchema non-empty, or ReducerDomain+ProjectionHook+AdmissionHook
+// all non-empty) would have missed.
+func TestKindConsumerExistenceBITES_TeethProof(t *testing.T) {
 	t.Parallel()
 
-	const fakeKind = "test_bites.fake_unconsumed_kind"
-	const fakeDomain = "test_domain"
-
-	evidence := factKindRegistryConsumerEvidence{
-		Kind:            fakeKind,
-		ReducerDomain:   fakeDomain,
-		PayloadSchema:   "", // no typed decode seam
-		AdmissionExempt: false,
+	repoRoot := kindConsumerGateRepoRoot(t)
+	real, err := loadRealConsumerEvidence(repoRoot)
+	if err != nil {
+		t.Fatalf("loadRealConsumerEvidence: %v", err)
 	}
 
-	// Phase 1: seeded-RED — the kind has no consumer and is not disclosed.
-	ok, reason := resolveKindConsumer(evidence)
-	if ok {
-		t.Fatalf("BITES FAILED: resolveKindConsumer returned true for %q — an unconsumed, undisclosed kind must fail", fakeKind)
-	}
-	if !substrIn(reason, "add a consumer") || !substrIn(reason, "grandfatheredUnconsumedKinds") || !substrIn(reason, "remove the kind") {
-		t.Errorf("RED message does not name all three legal exits: %s", reason)
-	}
-
-	// Phase 2: revert to GREEN — disclose the kind.
-	t.Run("disclosed_passes", func(t *testing.T) {
-		// Simulate disclosure by confirming isKindDisclosed behavior.
-		if isKindDisclosed(fakeKind) {
-			t.Fatalf("test premise broken: %q must not be in grandfatheredUnconsumedKinds for the BITES test", fakeKind)
-		}
-		// Prove that a disclosed kind would pass: check a real disclosed kind.
-		if !isKindDisclosed("terraform_state_candidate") {
-			t.Fatal("terraform_state_candidate must be in grandfatheredUnconsumedKinds — disclosure ledger is broken")
-		}
-		realDisclosedEvidence := factKindRegistryConsumerEvidence{
-			Kind:            "terraform_state_candidate",
-			ReducerDomain:   "config_state_drift",
-			PayloadSchema:   "", // has schema file but no consumer
-			AdmissionExempt: false,
-		}
-		ok, _ := resolveKindConsumer(realDisclosedEvidence)
+	// Teeth case 1: disclosures are load-bearing. A disclosed-unconsumed
+	// kind that gains a real consumer must flip the gate RED, not stay
+	// silently green forever. Seed with the real, production
+	// terraform_state_candidate entry — currently and correctly disclosed —
+	// and simulate the moment a consumer lands for it without the
+	// disclosure being removed.
+	t.Run("disclosed_kind_with_real_consumer_is_red", func(t *testing.T) {
+		entry, ok := facts.FactKindRegistryEntryFor("terraform_state_candidate")
 		if !ok {
-			t.Fatal("terraform_state_candidate should pass via disclosure — grandfatheredUnconsumedKinds integrity is broken")
+			t.Fatal("production registry has no entry for terraform_state_candidate")
+		}
+		if !isKindDisclosed(entry.Kind) {
+			t.Fatal("test premise broken: terraform_state_candidate must be disclosed in production")
+		}
+
+		// RED: disclosed (true, production state) AND a real consumer is
+		// present (simulated — this kind has none today, but the check must
+		// fire the moment one lands while the stale disclosure remains).
+		okResult, reason := classifyKindConsumer(entry.Kind, entry.ReducerDomain, true /* hasConsumer */, true /* disclosed */, entry.AdmissionExempt)
+		if okResult {
+			t.Fatalf("BITES FAILED: a disclosed kind with a real consumer must be RED (stale disclosure), got GREEN")
+		}
+		if !substrIn(reason, "stale") || !substrIn(reason, "grandfatheredUnconsumedKinds") {
+			t.Errorf("contradiction RED message doesn't name the stale-disclosure fix: %s", reason)
+		}
+
+		// GREEN: the disclosure is removed once the real consumer lands —
+		// no contradiction, passes via the real consumer alone.
+		okResult2, _ := classifyKindConsumer(entry.Kind, entry.ReducerDomain, true, false, entry.AdmissionExempt)
+		if !okResult2 {
+			t.Fatalf("a kind with a real consumer and no disclosure must pass")
+		}
+
+		// Honest production steady-state: today this kind has NO real
+		// consumer (proven by the toothless-signal case below) and IS
+		// disclosed — passes via disclosure alone, no contradiction.
+		prodHasConsumer := kindHasConsumer(factKindRegistryConsumerEvidence{
+			Kind: entry.Kind, ReducerDomain: entry.ReducerDomain, PayloadSchema: entry.PayloadSchema,
+			AdmissionExempt: entry.AdmissionExempt, ProjectionHook: entry.ProjectionHook, AdmissionHook: entry.AdmissionHook,
+		}, real)
+		if prodHasConsumer {
+			t.Fatalf("terraform_state_candidate must have no real consumer in production today — real-consumer signal or disclosure ledger has drifted")
+		}
+		okProd, _ := classifyKindConsumer(entry.Kind, entry.ReducerDomain, prodHasConsumer, isKindDisclosed(entry.Kind), entry.AdmissionExempt)
+		if !okProd {
+			t.Fatalf("production terraform_state_candidate should pass via its real, non-contradictory disclosure")
 		}
 	})
 
-	// Phase 3: confirm the fake kind stays RED after the disclosure check.
-	ok2, _ := resolveKindConsumer(evidence)
-	if ok2 {
-		t.Fatalf("BITES FAILED: resolveKindConsumer returned true for %q after disclosure check — it should stay RED", fakeKind)
-	}
+	// Teeth case 2: the pre-fix toothless signal (PayloadSchema non-empty)
+	// passed terraform_state_candidate; the new real-consumer signal must
+	// correctly classify it unconsumed absent its disclosure. Seed with the
+	// real, production registry entry.
+	t.Run("toothless_signal_would_pass_but_real_signal_fails", func(t *testing.T) {
+		entry, ok := facts.FactKindRegistryEntryFor("terraform_state_candidate")
+		if !ok {
+			t.Fatal("production registry has no entry for terraform_state_candidate")
+		}
+
+		// The OLD false-green precondition: PayloadSchema is non-empty, so
+		// the pre-#5474-fix kindHasConsumer (which returned true whenever
+		// PayloadSchema != "") would have wrongly reported this kind
+		// consumed.
+		if strings.TrimSpace(entry.PayloadSchema) == "" {
+			t.Fatal("test premise broken: terraform_state_candidate must have a non-empty PayloadSchema to prove the toothless-signal false-green")
+		}
+
+		// The NEW real-consumer signal correctly finds no decode seam, no
+		// query-layer SQL/identifier reference, and no reducer dispatch for
+		// this kind — go/internal/projector/tfstate_canonical.go:113-116
+		// documents it as intentionally unhandled.
+		hasRealConsumer := real.hasRealConsumer(entry.Kind)
+		if hasRealConsumer {
+			t.Fatalf("BITES FAILED: real-consumer signal reports a consumer for terraform_state_candidate — the false-green this gate exists to close has resurfaced")
+		}
+
+		// RED: without its disclosure, the correctly-computed "no real
+		// consumer" classification must fail the gate — proving the fix has
+		// teeth where the old PayloadSchema-only check did not.
+		okResult, reason := classifyKindConsumer(entry.Kind, entry.ReducerDomain, hasRealConsumer, false /* disclosed */, entry.AdmissionExempt)
+		if okResult {
+			t.Fatalf("BITES FAILED: terraform_state_candidate without its disclosure must be RED")
+		}
+		if !substrIn(reason, "add a consumer") || !substrIn(reason, "grandfatheredUnconsumedKinds") || !substrIn(reason, "remove the kind") {
+			t.Errorf("RED message does not name all three legal exits: %s", reason)
+		}
+
+		// GREEN: restoring the real, production disclosure passes it.
+		okResult2, _ := classifyKindConsumer(entry.Kind, entry.ReducerDomain, hasRealConsumer, true, entry.AdmissionExempt)
+		if !okResult2 {
+			t.Fatalf("terraform_state_candidate with its real disclosure restored must pass")
+		}
+	})
+
+	// Steady state: a genuinely consumed production kind (typed decode seam)
+	// passes without any disclosure.
+	t.Run("genuinely_consumed_kind_passes_without_disclosure", func(t *testing.T) {
+		entry, ok := facts.FactKindRegistryEntryFor("aws_resource")
+		if !ok {
+			t.Fatal("production registry has no entry for aws_resource")
+		}
+		if isKindDisclosed(entry.Kind) {
+			t.Fatal("test premise broken: aws_resource must not be in the disclosure ledger")
+		}
+		if !real.hasRealConsumer(entry.Kind) {
+			t.Fatalf("aws_resource must have a real decode-seam consumer (go/internal/reducer/factschema_decode.go)")
+		}
+		ok2, _ := resolveKindConsumer(factKindRegistryConsumerEvidence{
+			Kind: entry.Kind, ReducerDomain: entry.ReducerDomain, PayloadSchema: entry.PayloadSchema,
+			AdmissionExempt: entry.AdmissionExempt, ProjectionHook: entry.ProjectionHook, AdmissionHook: entry.AdmissionHook,
+		}, real)
+		if !ok2 {
+			t.Fatalf("aws_resource should pass via its real decode-seam consumer")
+		}
+	})
 }
 
 // TestDisclosureLedgerDigestPinned verifies that every entry in
@@ -154,65 +245,59 @@ func TestDisclosureLedgerDigestPinned(t *testing.T) {
 }
 
 // TestKindConsumerExistenceEdgeCases validates the edge cases of
-// resolveKindConsumer against known registry entries.
+// resolveKindConsumer against known production registry entries.
 func TestKindConsumerExistenceEdgeCases(t *testing.T) {
 	t.Parallel()
 
+	real, err := loadRealConsumerEvidence(kindConsumerGateRepoRoot(t))
+	if err != nil {
+		t.Fatalf("loadRealConsumerEvidence: %v", err)
+	}
+
 	tests := []struct {
 		name    string
-		entry   factKindRegistryConsumerEvidence
+		kind    string
 		wantOK  bool
 		wantMsg string // expected substring in failure reason
 	}{
-		{
-			name: "payload_schema_non_empty_passes",
-			entry: factKindRegistryConsumerEvidence{
-				Kind:          "kubernetes_live.pod_template",
-				ReducerDomain: "kubernetes_correlation",
-				PayloadSchema: "sdk/go/factschema/schema/kubernetes_live.pod_template.v1.schema.json",
-			},
-			wantOK: true,
-		},
-		{
-			name: "admission_exempt_passes",
-			entry: factKindRegistryConsumerEvidence{
-				Kind:            "file",
-				ReducerDomain:   "code_graph_projection",
-				PayloadSchema:   "",
-				AdmissionExempt: true,
-			},
-			wantOK: true,
-		},
-		{
-			name: "disclosed_passes",
-			entry: factKindRegistryConsumerEvidence{
-				Kind:          "terraform_state_candidate",
-				ReducerDomain: "config_state_drift",
-				PayloadSchema: "",
-			},
-			wantOK: true,
-		},
-		{
-			name: "unconsumed_undisclosed_fails",
-			entry: factKindRegistryConsumerEvidence{
-				Kind:          "totally_made_up_kind",
-				ReducerDomain: "some_domain",
-				PayloadSchema: "",
-			},
-			wantOK:  false,
-			wantMsg: "no detectable consumer",
-		},
+		{name: "decode_seam_consumer_passes", kind: "kubernetes_live.pod_template", wantOK: true},
+		{name: "admission_exempt_passes", kind: "file", wantOK: true},
+		{name: "disclosed_passes", kind: "terraform_state_candidate", wantOK: true},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ok, reason := resolveKindConsumer(tc.entry)
-			if ok != tc.wantOK {
-				t.Errorf("resolveKindConsumer(%q) = %v, want %v (reason: %s)", tc.entry.Kind, ok, tc.wantOK, reason)
+			entry, ok := facts.FactKindRegistryEntryFor(tc.kind)
+			if !ok {
+				t.Fatalf("production registry has no entry for %q", tc.kind)
+			}
+			evidence := factKindRegistryConsumerEvidence{
+				Kind: entry.Kind, ReducerDomain: entry.ReducerDomain, PayloadSchema: entry.PayloadSchema,
+				AdmissionExempt: entry.AdmissionExempt, ProjectionHook: entry.ProjectionHook, AdmissionHook: entry.AdmissionHook,
+			}
+			okResult, reason := resolveKindConsumer(evidence, real)
+			if okResult != tc.wantOK {
+				t.Errorf("resolveKindConsumer(%q) = %v, want %v (reason: %s)", tc.kind, okResult, tc.wantOK, reason)
 			}
 			if tc.wantMsg != "" && !substrIn(strings.ToLower(reason), strings.ToLower(tc.wantMsg)) {
 				t.Errorf("expected reason to contain %q, got: %s", tc.wantMsg, reason)
 			}
 		})
 	}
+
+	// The "unconsumed and undisclosed fails" edge case cannot be seeded from
+	// a production registry entry (every production entry is either
+	// consumed or disclosed, by construction of the gate this test file
+	// asserts). classifyKindConsumer's pure signature lets this case be
+	// proven without a synthetic factKindRegistryConsumerEvidence: pass
+	// hasConsumer=false, disclosed=false directly.
+	t.Run("unconsumed_undisclosed_fails", func(t *testing.T) {
+		okResult, reason := classifyKindConsumer("totally_made_up_kind", "some_domain", false, false, false)
+		if okResult {
+			t.Errorf("classifyKindConsumer(hasConsumer=false, disclosed=false) = true, want false")
+		}
+		if !substrIn(strings.ToLower(reason), "no detectable consumer") {
+			t.Errorf("expected reason to contain %q, got: %s", "no detectable consumer", reason)
+		}
+	})
 }

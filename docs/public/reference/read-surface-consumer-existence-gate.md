@@ -198,16 +198,27 @@ mis-mapping is the canonical example.
 
 ### Backing map
 
-`routeServesDataBackingMap` is a closed, hand-maintained, digest-pinned map
-from each distinct `read_surface` route literal to the `reducer_domain`
-values whose data that route surfaces. It covers all 17 distinct route
+`routeServesDataBackingMap` is a closed, hand-maintained map from each
+distinct `read_surface` route literal to the `reducer_domain` values whose
+data that route surfaces. Unlike `grandfatheredUnconsumedKinds` (GATE 4
+below), this map is NOT digest-pinned — there is no SHA-256 hash guarding an
+entry against silent drift; the gate's protection here is purely the
+forward/reverse staleness check
+(`TestRouteServesDataBackingMapStaleness`). It covers all 17 distinct route
 literals the registry uses today. A route missing from the map fails closed.
 
 Entry discipline:
 - **Add an entry** for every distinct `read_surface` the registry uses.
 - **ServedDomains** lists every `reducer_domain` whose produced data is
-  surfaced through that route. When a new family shares an existing route,
-  add its `reducer_domain` here.
+  surfaced through that route. The relationship is many-to-many, not one
+  route per domain: when a new family shares an EXISTING route with another
+  domain, add its `reducer_domain` to that route's `ServedDomains`
+  (`GET /api/v0/cloud/inventory` already lists three domains this way). The
+  reverse also happens — one domain's data can be surfaced through more than
+  one route (`incident_repository_correlation` appears under both
+  `GET /api/v0/incidents/{incident_id}/context` and
+  `GET /api/v0/work-items/evidence`) — so a domain is never assumed to have
+  exactly one route.
 - **read_surface_overrides** (per-kind route substitutions) are excluded from
   v1 scope. A family that uses overrides passes as long as its family-level
   route is consistent.
@@ -254,25 +265,62 @@ package test. No separate workflow.
 fact kind in the generated registry (`facts.FactKindRegistry()`) and asserting
 each kind either has a detectable consumer or an explicit disclosure entry.
 
-### Consumer taxonomy (v1)
+### Consumer taxonomy (v2, #5474 signal rebuild)
 
-A kind passes if it has at least one of these signals:
+v1 of this gate treated `PayloadSchema` non-empty (a checked-in JSON Schema
+file *path*) and a fully-populated `ReducerDomain`/`ProjectionHook`/
+`AdmissionHook` triple ("pipeline consumer") as evidence of consumption. Both
+are registry METADATA, populated identically whether or not any code
+actually reads the kind: `terraform_state_candidate` carries a non-empty
+`PayloadSchema` and a full pipeline triple despite
+`go/internal/projector/tfstate_canonical.go:113-116` documenting it as
+intentionally unhandled, so v1 passed it (and every kind sharing that shape)
+for the wrong reason. `go/internal/mcp/kind_real_consumer*.go` replaces both
+signals with real source-code evidence. A kind passes if it has at least one
+of these:
 
-1. **PayloadSchema non-empty** — the kind has a typed decode seam (a
-   `sdk/go/factschema` struct + decode wrapper, consumed at the reducer
-   level).
+1. **Decode seam** — a local `decode<Kind>` wrapper (payloadusage's own
+   derivation, reused via `payloadusage.ParseDecodeSeamsGlob` across the
+   reducer, projector, query, storage/postgres, relationships, and replay
+   directories) or a direct call to factschema's exported
+   `Decode<Kind>(...)` from one of those directories.
 2. **AdmissionExempt** — legacy code kinds (`file`, `repository`) are
    deliberately outside the versioned-admission regime but still consumed.
-3. **Pipeline consumer** — the kind has a non-empty `ReducerDomain`,
-   `ProjectionHook`, and a real (non-`"none"`) `AdmissionHook`, meaning it
-   flows through the full admission→projection→read pipeline and is consumed
-   at the pre-typing raw-payload level.
-4. **Disclosure ledger** — the kind is pinned in
-   `grandfatheredUnconsumedKinds` with a code-anchor citation. This covers
-   kinds that are legitimately registered but intentionally unconsumed (e.g.
-   `terraform_state_candidate`, consumed by the projector but not by the
-   reducer's decode seam; `package_registry.vulnerability_hint`, join-key-only
-   with no decode-side consumer).
+3. **Query-layer raw SQL / identifier evidence** — a literal
+   `fact_kind = '<kind>'` / `fact_kind IN (...)` SQL predicate, or a
+   `facts.<Kind>` constant reference, in `go/internal/query` (the read-surface
+   serving layer only — a `storage/postgres` filter, such as
+   `tfstate_backend_queries.go`'s backend-path-resolution join on
+   `terraform_state_candidate`, does NOT count; that precedent comes from
+   `package_registry.vulnerability_hint`'s own disclosure reason,
+   "join-key-only ... no decode, no query read-model consumer").
+4. **Reducer dispatch** — a `case facts.<Kind>:` or `== facts.<Kind>`
+   equality dispatch on the raw envelope kind, scoped to
+   `go/internal/reducer` only (never the projector — see
+   `factsDispatchedKinds`'s doc comment for why
+   `go/internal/projector/runtime_phase.go`'s readiness-phase-tracking
+   dispatch on `terraform_state_warning` must not count as consumption).
+5. **Named per-kind store constant** — a `go/internal/storage/postgres` or
+   `go/internal/replay/schedulereplay` file that declares its own top-level
+   exported string constant equal to the kind and also references
+   `fact_kind`/`FactKind` elsewhere in that file (the parameterized-query
+   sibling of signal 3, for kinds like `reducer_multi_cloud_runtime_drift_finding`
+   whose Store binds `fact.fact_kind = $1` to a locally named constant
+   instead of a literal).
+6. **Disclosure ledger** — the kind is pinned in
+   `grandfatheredUnconsumedKinds` with a code-anchor citation, AND none of
+   signals 1–5 fire for it (see "Disclosures are load-bearing" below).
+
+### Disclosures are load-bearing
+
+v1's disclosure ledger and consumer signals were independent: a kind that
+was BOTH disclosed and (wrongly) judged consumed still passed, so the gate's
+result never depended on whether a disclosure was accurate.
+`resolveKindConsumer` (via the pure `classifyKindConsumer`) now fails a kind
+that is disclosed AND has a real consumer — the disclosure is stale and must
+be removed. Symmetrically, removing an entry from `grandfatheredUnconsumedKinds`
+for a kind that still has no real consumer flips that kind's gate result to
+RED (the ordinary fail-closed path). Either direction of drift is caught.
 
 ### Disclosure ledger
 
@@ -290,8 +338,23 @@ Seed entries (from #5475):
 - Five `service_catalog` kinds (`api_link`, `dependency`, `scorecard_definition`,
   `scorecard_result`, `warning`) — no decode-side consumer today.
 - `vulnerability.warning` — no reducer decode, no query reader (#5462 owns).
+  Also has no pipeline-consumer signal now that v1's pipeline-consumer check
+  is gone — it was the P1 the #5474 signal-rebuild found: v1's registry
+  metadata reported it consumed via the pipeline signal while it was
+  simultaneously disclosed as unconsumed.
 - Three `ci_cd_run` kinds (`ci.job`, `ci.pipeline_definition`, `ci.warning`) —
   emitted by collector, no reducer decode call (Wave 4d deferred).
+
+Backfill entries (from the #5474 signal rebuild, citing
+`noRealConsumerFound2026Q3`): 25 additional kinds the v1 gate passed only via
+the retired `PayloadSchema`/pipeline-consumer signals. Each was checked
+against all six v2 signals plus a manual repo-wide grep and found to have no
+real consumer. See `docs/internal/design/5474-ifa-coverage-backfill-plan.md`
+(agent-internal, not part of this published site) for the tracked backfill
+plan; these 25 kinds still need either a real consumer wired up or a
+per-kind owner decision, and their disclosure reason is intentionally less
+specific than the #5475 seed entries' code-anchor citations — it documents a
+signal-accuracy stopgap, not a considered per-kind design decision.
 
 ### Fail-closed enumeration
 
@@ -306,11 +369,23 @@ the gate — this is the point. The RED message names the kind, the family
 
 ### BITES proof
 
-`TestKindConsumerExistenceBITES_UnconsumedKindMustFail` constructs a synthetic
-kind with no `PayloadSchema`, not `AdmissionExempt`, no pipeline consumer, and
-not in the disclosure ledger → the gate goes RED with a message naming all
-three exits. A disclosed kind (`terraform_state_candidate`) is proven to pass
-via the disclosure path.
+`TestKindConsumerExistenceBITES_TeethProof` seeds every case from the
+PRODUCTION fact-kind registry (`facts.FactKindRegistryEntryFor`), never a
+hand-rolled struct, and proves two RED cases the v1 signal missed:
+
+1. **Disclosures are load-bearing** — the real, disclosed
+   `terraform_state_candidate` entry, with a real consumer simulated via
+   `classifyKindConsumer`'s explicit boolean parameters, goes RED (a stale
+   disclosure must be removed); with the disclosure removed instead, the
+   same simulated consumer passes.
+2. **The v1 false-green is closed** — `terraform_state_candidate`'s real
+   `PayloadSchema` is confirmed non-empty (the v1 false-green precondition),
+   but `realConsumerEvidence.hasRealConsumer` correctly reports no consumer;
+   without its disclosure that classification goes RED, naming all three
+   legal exits; with its real, production disclosure restored, it passes.
+
+A third subtest confirms a genuinely consumed production kind (`aws_resource`,
+via its reducer decode seam) passes without any disclosure.
 
 ### Mount
 

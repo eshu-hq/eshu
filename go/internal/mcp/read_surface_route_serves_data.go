@@ -34,7 +34,17 @@ type routeServesDataBacking struct {
 //   - Every distinct read_surface literal the registry uses (17 today) must
 //     have an entry. A missing route fails closed.
 //   - ServedDomains lists every reducer_domain whose data the route surfaces.
-//     When a new family shares an existing route, add its reducer_domain.
+//     The relationship is many-to-many, not one route per domain: when a new
+//     family shares an EXISTING route with another domain (e.g.
+//     "GET /api/v0/cloud/inventory" already lists aws_cloud_runtime_drift,
+//     azure_resource_materialization, and gcp_resource_materialization), add
+//     its reducer_domain to that route's ServedDomains. The reverse also
+//     happens — one domain's data can be surfaced through more than one
+//     route (incident_repository_correlation appears in BOTH
+//     "GET /api/v0/incidents/{incident_id}/context" and
+//     "GET /api/v0/work-items/evidence" below) — so a domain is not assumed
+//     to have exactly one route, and adding a domain to a second route's
+//     ServedDomains is equally legitimate.
 //   - read_surface_overrides (per-kind substitutions) are excluded from v1.
 var routeServesDataBackingMap = map[string]routeServesDataBacking{
 	"GET /api/v0/documentation/facts":                          {ServedDomains: []string{"documentation_materialization"}},

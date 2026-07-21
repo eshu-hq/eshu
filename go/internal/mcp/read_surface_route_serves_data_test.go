@@ -203,3 +203,36 @@ func indexSubstr(s, sub string) int {
 	}
 	return -1
 }
+
+// TestSubstrIn exercises substrIn against the same cases strings.Contains
+// documents, since every BITES/RED-message assertion in this package
+// (TestKindConsumerExistenceBITES_TeethProof, TestRouteServesDataBITES_*)
+// depends on substrIn correctly finding (or correctly failing to find) a
+// substring in a failure reason string.
+func TestSubstrIn(t *testing.T) {
+	tests := []struct {
+		name string
+		s    string
+		sub  string
+		want bool
+	}{
+		{name: "substring_present_start", s: "hello world", sub: "hello", want: true},
+		{name: "substring_present_middle", s: "hello world", sub: "lo wo", want: true},
+		{name: "substring_present_end", s: "hello world", sub: "world", want: true},
+		{name: "substring_absent", s: "hello world", sub: "xyz", want: false},
+		{name: "substring_equals_string", s: "hello", sub: "hello", want: true},
+		{name: "substring_longer_than_string", s: "hi", sub: "hello", want: false},
+		{name: "empty_substring_always_found", s: "hello", sub: "", want: true},
+		{name: "both_empty", s: "", sub: "", want: true},
+		{name: "empty_string_nonempty_substring", s: "", sub: "x", want: false},
+		{name: "case_sensitive_mismatch", s: "Hello World", sub: "hello", want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := substrIn(tc.s, tc.sub); got != tc.want {
+				t.Errorf("substrIn(%q, %q) = %v, want %v", tc.s, tc.sub, got, tc.want)
+			}
+		})
+	}
+}
