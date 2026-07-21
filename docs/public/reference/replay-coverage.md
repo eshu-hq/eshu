@@ -4,16 +4,16 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 422/422 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 423/424 surfaces satisfied (99.76%)** — mode: blocking.
 
 ## Coverage by axis
 
 | Axis | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | authorization_catalog | 24 | 24 | 100.00% | 0 | 0 |
-| Capability claims | 135 | 135 | 100.00% | 0 | 0 |
+| Capability claims | 136 | 136 | 100.00% | 0 | 0 |
 | Read surfaces (CLI) | 7 | 7 | 100.00% | 0 | 0 |
-| Read surfaces (API/MCP) | 24 | 24 | 100.00% | 0 | 1 |
+| Read surfaces (API/MCP) | 24 | 25 | 96.00% | 1 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
 | Projections (cost/ordering) | 28 | 28 | 100.00% | 0 | 1 |
@@ -21,13 +21,13 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Retractable edge types (delta) | 59 | 59 | 100.00% | 0 | 1 |
 | Retractable node types (delta) | 95 | 95 | 100.00% | 0 | 1 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **422** | **422** | **100.00%** | **0** | **12** |
+| **Total** | **423** | **424** | **99.76%** | **1** | **12** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 218 | 218 | 100.00% | 0 | 5 |
+| baseline | 219 | 220 | 99.55% | 1 | 5 |
 | cost | 27 | 27 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 155 | 155 | 100.00% | 0 | 2 |
@@ -44,9 +44,13 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 ## Gaps — surfaces still needing a replay scenario
 
-None. Every supported surface has a replay scenario.
+1 surface(s) uncovered or unresolved:
 
-## Covered surfaces (422)
+### Read surfaces (API/MCP) (1)
+
+- `read_surface:POST /api/v0/terraform/config-state-drift/findings` (baseline)
+
+## Covered surfaces (423)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -206,6 +210,7 @@ None. Every supported surface has a replay scenario.
 | `capability:symbol_graph.import_dependencies` | baseline | capability_claim | capability-inventory | `symbol_graph.import_dependencies` |
 | `capability:symbol_graph.imports` | baseline | capability_claim | capability-inventory | `symbol_graph.imports` |
 | `capability:symbol_graph.inheritance` | baseline | correlation | golden-corpus-gate | `rc-12` |
+| `capability:terraform_config_state_drift.findings.list` | baseline | capability_claim | capability-inventory | `terraform_config_state_drift.findings.list` |
 | `capability:visualization.graph_query` | baseline | capability_claim | capability-inventory | `visualization.graph_query` |
 | `capability:visualization.packet_derivation` | baseline | capability_claim | capability-inventory | `visualization.packet_derivation` |
 | `capability:work_item.evidence.list` | baseline | capability_claim | capability-inventory | `work_item.evidence.list` |

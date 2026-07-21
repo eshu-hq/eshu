@@ -220,6 +220,7 @@ var scopedTokenAdvertisedRoutes = map[string]struct{}{
 	"POST /api/v0/auth/local/mfa/totp/confirm":                                      {},
 	"POST /api/v0/aws/runtime-drift/findings":                                       {},
 	"POST /api/v0/cloud/runtime-drift/findings":                                     {},
+	"POST /api/v0/terraform/config-state-drift/findings":                            {},
 	"POST /api/v0/code/flow/cfg-summary":                                            {},
 	"POST /api/v0/code/flow/pdg-summary":                                            {},
 	"POST /api/v0/code/flow/reaching-def":                                           {},

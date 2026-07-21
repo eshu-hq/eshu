@@ -301,6 +301,8 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		return &route{method: "POST", path: "/api/v0/replatforming/plans", body: replatformingPlanBody(args)}, nil
 	case "list_aws_runtime_drift_findings":
 		return &route{method: "POST", path: "/api/v0/aws/runtime-drift/findings", body: awsRuntimeDriftFindingsBody(args)}, nil
+	case "list_terraform_config_state_drift_findings":
+		return &route{method: "POST", path: "/api/v0/terraform/config-state-drift/findings", body: terraformConfigStateDriftFindingsBody(args)}, nil
 	case "get_replatforming_rollups":
 		return &route{method: "POST", path: "/api/v0/replatforming/rollups", body: replatformingRollupsBody(args)}, nil
 	case "find_unmanaged_resource_owners":

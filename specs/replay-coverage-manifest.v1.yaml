@@ -235,6 +235,7 @@ coverage:
   - {surface: capability:operations.status, scenario: capability_claim, scenario_type: baseline, ref: operations.status, proof_gate: capability-inventory}
   - {surface: capability:ask.natural_language_answer, scenario: capability_claim, scenario_type: baseline, ref: ask.natural_language_answer, proof_gate: capability-inventory}
   - {surface: capability:aws_runtime_drift.findings.list, scenario: capability_claim, scenario_type: baseline, ref: aws_runtime_drift.findings.list, proof_gate: capability-inventory}
+  - {surface: capability:terraform_config_state_drift.findings.list, scenario: capability_claim, scenario_type: baseline, ref: terraform_config_state_drift.findings.list, proof_gate: capability-inventory}
   - {surface: capability:capability_catalog.list, scenario: capability_claim, scenario_type: baseline, ref: capability_catalog.list, proof_gate: capability-inventory}
   - {surface: capability:ci_cd.run_correlations.aggregate, scenario: capability_claim, scenario_type: baseline, ref: ci_cd.run_correlations.aggregate, proof_gate: capability-inventory}
   - {surface: capability:ci_cd.run_correlations.list, scenario: capability_claim, scenario_type: baseline, ref: ci_cd.run_correlations.list, proof_gate: capability-inventory}

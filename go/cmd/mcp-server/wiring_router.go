@@ -221,6 +221,10 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			Store:   query.NewPostgresMultiCloudRuntimeDriftStore(db),
 			Profile: queryProfile,
 		},
+		TerraformConfigStateDrift: &query.TerraformConfigStateDriftHandler{
+			Store:   query.NewPostgresTerraformConfigStateDriftFindingStore(db),
+			Profile: queryProfile,
+		},
 		SupplyChain: &query.SupplyChainHandler{
 			Neo4j:                    neo4jReader,
 			Content:                  contentReader,

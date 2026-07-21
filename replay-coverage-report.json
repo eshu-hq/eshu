@@ -2,12 +2,12 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 422,
-    "covered": 410,
-    "uncovered": 0,
+    "total": 424,
+    "covered": 411,
+    "uncovered": 1,
     "unresolved": 0,
     "exempt": 12,
-    "percent_satisfied": 100
+    "percent_satisfied": 99.76
   },
   "registry_summaries": [
     {
@@ -21,8 +21,8 @@
     },
     {
       "registry": "capability_matrix",
-      "total": 135,
-      "covered": 135,
+      "total": 136,
+      "covered": 136,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -39,12 +39,12 @@
     },
     {
       "registry": "fact_kind_registry",
-      "total": 24,
+      "total": 25,
       "covered": 23,
-      "uncovered": 0,
+      "uncovered": 1,
       "unresolved": 0,
       "exempt": 1,
-      "percent_satisfied": 100
+      "percent_satisfied": 96
     },
     {
       "registry": "parser_backing_ledger",
@@ -113,12 +113,12 @@
   "scenario_type_summaries": [
     {
       "scenario_type": "baseline",
-      "total": 218,
-      "covered": 213,
-      "uncovered": 0,
+      "total": 220,
+      "covered": 214,
+      "uncovered": 1,
       "unresolved": 0,
       "exempt": 5,
-      "percent_satisfied": 100
+      "percent_satisfied": 99.55
     },
     {
       "scenario_type": "cost",
@@ -1729,6 +1729,16 @@
     },
     {
       "registry": "capability_matrix",
+      "key": "capability:terraform_config_state_drift.findings.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "terraform_config_state_drift.findings.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"terraform_config_state_drift.findings.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
       "key": "capability:visualization.graph_query",
       "scenario_type": "baseline",
       "status": "covered",
@@ -2053,6 +2063,13 @@
       "ref": "POST /api/v0/cloud/runtime-drift/findings",
       "proof_gate": "golden-corpus-gate",
       "detail": "snapshot HTTP query shape \"POST /api/v0/cloud/runtime-drift/findings\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:POST /api/v0/terraform/config-state-drift/findings",
+      "scenario_type": "baseline",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type baseline"
     },
     {
       "registry": "fact_kind_registry",
@@ -4352,7 +4369,9 @@
       "detail": "Inbound webhook sink, not a pollable source. The webhook collector verifies and normalizes inbound deliveries into refresh triggers; it never polls an upstream, so there is no generation to record into a cassette."
     }
   ],
-  "gaps": null,
+  "gaps": [
+    "read_surface:POST /api/v0/terraform/config-state-drift/findings"
+  ],
   "stale_manifest_surfaces": null,
   "language_scoreboard": {
     "total": 33,

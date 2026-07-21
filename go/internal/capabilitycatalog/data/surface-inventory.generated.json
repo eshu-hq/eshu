@@ -1248,6 +1248,11 @@
     },
     {
       "category": "api_route",
+      "name": "POST /api/v0/terraform/config-state-drift/findings",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "POST /api/v0/visualizations/derive",
       "readiness": "implemented"
     },
@@ -3376,6 +3381,11 @@
     {
       "category": "mcp_tool",
       "name": "list_supply_chain_impact_findings",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
+      "name": "list_terraform_config_state_drift_findings",
       "readiness": "implemented"
     },
     {

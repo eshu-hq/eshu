@@ -12,6 +12,7 @@ comparison. The route list is verified against `go/internal/query`.
 | IaC quality | `POST /api/v0/iac/dead` |
 | AWS management and drift | `POST /api/v0/iac/unmanaged-resources`, `POST /api/v0/iac/management-status`, `POST /api/v0/iac/management-status/explain`, `POST /api/v0/iac/terraform-import-plan/candidates`, `POST /api/v0/aws/runtime-drift/findings` |
 | Provider-neutral cloud runtime drift | `POST /api/v0/cloud/runtime-drift/findings` |
+| Terraform config-vs-state drift | `POST /api/v0/terraform/config-state-drift/findings` |
 | Replatforming selectors | `GET /api/v0/replatforming/selectors` |
 | Replatforming | `POST /api/v0/replatforming/plans` |
 | Replatforming rollups | `POST /api/v0/replatforming/rollups` |
@@ -294,6 +295,51 @@ No-Observability-Change: this read uses the shared query-handler request metrics
 and `query.cloud_runtime_drift_findings` span with stable `http.route` and
 `eshu.capability` attributes. Per-resource identifiers stay in the bounded
 response body and out of metric labels.
+
+## Terraform Config-vs-State Drift
+
+`POST /api/v0/terraform/config-state-drift/findings` reads active
+`reducer_terraform_config_state_drift_finding` rows for one bounded Terraform
+state-snapshot scope (issue #5442). It requires an exact `scope_id` in the
+`state_snapshot:<backend_kind>:<locator_hash>` shape; there is no
+account-wide fallback for this domain, unlike the AWS route's `account_id`
+filter. Optional `address`, `outcome` (`exact` or `ambiguous`), and
+`drift_kinds` filters narrow the page. `limit` defaults to 100 and is capped
+at 500; use `offset` with `next_offset` when `truncated` is true.
+
+This route is provider-neutral and separate from the AWS and multi-cloud
+runtime-drift routes above: config-vs-state drift is not cloud-specific.
+
+Each `drift_findings[]` item carries an `outcome`:
+
+- `exact` — a classified per-address finding. `address` and `drift_kind` are
+  populated; `drift_kind` is one of `added_in_state`, `added_in_config`,
+  `attribute_drift`, `removed_from_state`, or `removed_from_config`.
+- `ambiguous` — backend-owner resolution found more than one candidate config
+  repo for the state snapshot, so no per-address classification ran.
+  `address` and `drift_kind` are empty; `ambiguous_owner_candidates` carries
+  every competing repo's identity (`repo_id`, `scope_id`, `commit_id`) without
+  picking a winner.
+
+`stale`, `derived`, `unresolved`, and `rejected` outcomes are not emitted by
+this version; see
+`go/internal/correlation/drift/tfconfigstate/doc.go` for why each is either
+unreachable with the evidence this handler has today or intentionally not
+persisted. This route never runs Terraform, imports resources, or mutates
+Terraform state. Graph projection remains deferred, mirroring the AWS and
+multi-cloud runtime drift routes.
+
+Scoped tokens and signed-in scoped browser sessions see only findings whose
+`scope_id` is in the caller's exact `allowed_scope_ids`; a scoped caller
+without a matching grant receives an honest empty page rather than a 403 or
+another tenant's findings.
+
+### Terraform config-vs-state drift observability
+
+No-Observability-Change: this read uses the shared query-handler request
+metrics and `query.terraform_config_state_drift_findings` span with stable
+`http.route` and `eshu.capability` attributes. Resource addresses and evidence
+identifiers stay in the bounded response body and out of metric labels.
 
 ## Replatforming Selectors
 

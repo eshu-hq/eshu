@@ -589,6 +589,7 @@
           "iac_quality.",
           "iac_management.",
           "aws_runtime_drift.",
+          "terraform_config_state_drift.",
           "iac_inventory.",
           "cloud_inventory.",
           "cloud_runtime_drift.",
@@ -11073,6 +11074,84 @@
         ],
         "default_roles": [
           "developer",
+          "owner"
+        ],
+        "sensitive_data": true
+      }
+    },
+    {
+      "capability": "terraform_config_state_drift.findings.list",
+      "display_name": "Terraform Config State Drift Findings List",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
+      "surfaces": [
+        {
+          "tool": "list_terraform_config_state_drift_findings",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "terraform_state_snapshot_scope"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "terraform_state_snapshot_scope"
+        },
+        "local_lightweight": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host",
+          "max_scope_size": "terraform_state_snapshot_scope"
+        },
+        "production": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 5000,
+          "max_scope_size": "terraform_state_snapshot_scope"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "compose_e2e",
+          "ref": "terraform-config-state-drift-read-model"
+        },
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        },
+        {
+          "kind": "integration_test",
+          "ref": "local-lightweight-unsupported-terraform-config-state-drift-findings"
+        },
+        {
+          "kind": "remote_validation",
+          "ref": "prod-terraform-config-state-drift-read-model"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "cloud_iac",
+        "action": "cloud.iac.read",
+        "data_classes": [
+          "cloud_iac"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace",
+          "repository",
+          "source_scope"
+        ],
+        "default_roles": [
+          "security_analyst",
           "owner"
         ],
         "sensitive_data": true
