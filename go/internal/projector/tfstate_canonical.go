@@ -44,6 +44,17 @@ type TerraformStateResourceRow struct {
 	// filters or persists it directly.
 	Attributes map[string]any
 	ObservedAt time.Time
+	// OwningRepoID is the config repository resolved to own this resource's
+	// Terraform backend (#5443), matched by (BackendKind, LocatorHash) the
+	// same way tfstatebackend.Resolver.ResolveConfigCommitForBackend already
+	// resolves ownership for drift correlation. Empty when ownership could
+	// not be resolved (no config repo has emitted a matching
+	// terraform_backends fact, or more than one repo claims the same
+	// backend). Populated by an enrichment pass the graph writer runs before
+	// projection — extractTerraformStateRows itself stays pure and has no
+	// database access, so this field is always empty immediately after
+	// extraction and is filled in later, outside this package.
+	OwningRepoID string
 }
 
 // TerraformStateModuleRow carries one Terraform module observed in state.

@@ -231,7 +231,7 @@ func TestTerraformStateStatementsEmitRemoveBeforeUpsert(t *testing.T) {
 			sawRemove = true
 			continue
 		}
-		if _, ok := stmt.Parameters["rows"]; ok && stmt.Parameters[StatementMetadataEntityLabelKey] == "TerraformResource" {
+		if _, ok := stmt.Parameters["rows"]; ok && stmt.Parameters[StatementMetadataEntityLabelKey] == "TerraformStateResource" {
 			sawUpsert = true
 		}
 	}

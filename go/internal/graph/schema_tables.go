@@ -330,6 +330,13 @@ var schemaPerformanceIndexes = []string{
 	"CREATE INDEX tf_resource_environment IF NOT EXISTS FOR (r:TerraformResource) ON (r.environment)",
 	"CREATE INDEX tf_resource_service IF NOT EXISTS FOR (r:TerraformResource) ON (r.resource_service)",
 	"CREATE INDEX tf_resource_category IF NOT EXISTS FOR (r:TerraformResource) ON (r.resource_category)",
+	// Backs the #5443 MATCHES_STATE edge write: the graph writer anchors on
+	// `{repo_id, name}` where name is the config-declared bare address (e.g.
+	// "aws_instance.web") -- the most selective property available (an
+	// address is typically unique within a repo), so this index, not
+	// tf_resource_unique's (name, path, line_number) composite, is the
+	// intended lookup path.
+	"CREATE INDEX tf_resource_name IF NOT EXISTS FOR (r:TerraformResource) ON (r.name)",
 	"CREATE INDEX workload_name IF NOT EXISTS FOR (w:Workload) ON (w.name)",
 	"CREATE INDEX workload_repo_id IF NOT EXISTS FOR (w:Workload) ON (w.repo_id)",
 	"CREATE INDEX workload_instance_environment IF NOT EXISTS FOR (i:WorkloadInstance) ON (i.environment)",

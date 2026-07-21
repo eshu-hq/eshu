@@ -13,6 +13,19 @@ import (
 
 const canonicalPhaseTerraformState = "terraform_state"
 
+// #5443: Terraform-state-observed resources MERGE under their own
+// TerraformStateResource label, distinct from the config-declared
+// TerraformResource label the HCL parser's generic content-entity pipeline
+// writes (canonical_node_cypher.go's canonicalNodeEntityUpsertTemplate). The
+// two identity domains were always structurally disjoint (a 64-hex sha256
+// terraformStateUID vs a 12-hex blake2s content-entity ID) but shared one
+// label, which meant no query could distinguish "declared in config",
+// "applied in state", or "both" without inspecting evidence_source and
+// guessing at property shape (see the now-simplified iac_resources.go). See
+// tfstate_canonical_writer_retract.go for the migration that relabels
+// pre-#5443 TerraformResource nodes carrying evidence_source =
+// 'projector/tfstate' and the retraction that clears genuinely stale ones.
+//
 // canonicalTerraformStateResourceUpsertCypher is unchanged from before #5441
 // review round 8's P1-a fix attempt: one unified UNWIND/MERGE/SET template
 // for every resource type, ending in the additive `r += row.attrs` map-merge.
@@ -39,7 +52,7 @@ const canonicalPhaseTerraformState = "terraform_state"
 // terraformStateResourceAttributeRemoveStatements runs a genuinely separate
 // REMOVE-only statement first.
 const canonicalTerraformStateResourceUpsertCypher = `UNWIND $rows AS row
-MERGE (r:TerraformResource {uid: row.uid})
+MERGE (r:TerraformStateResource {uid: row.uid})
 SET r.id = row.uid,
     r.name = row.address,
     r.address = row.address,
@@ -65,6 +78,7 @@ SET r.id = row.uid,
     r.scope_id = row.scope_id,
     r.generation_id = row.generation_id,
     r.evidence_source = 'projector/tfstate',
+    r.config_repo_id = row.config_repo_id,
     r += row.attrs`
 
 // terraformStateResourceAttributeRemoveCypherByType holds one generated
@@ -121,7 +135,7 @@ func buildTerraformStateResourceAttributeRemoveCypherByType() map[string]string 
 		for i, key := range keys {
 			removeItems[i] = "r." + key
 		}
-		out[resourceType] = "MATCH (r:TerraformResource) WHERE r.uid IN $uids\nREMOVE " +
+		out[resourceType] = "MATCH (r:TerraformStateResource) WHERE r.uid IN $uids\nREMOVE " +
 			strings.Join(removeItems, ", ")
 	}
 	return out
@@ -170,30 +184,46 @@ SET o.id = row.uid,
     o.generation_id = row.generation_id,
     o.evidence_source = 'projector/tfstate'`
 
-// buildTerraformStateStatements returns the REMOVE statements before the
-// upsert statements, in that order (#5441 review round 9, P0). Ordering is
-// load-bearing, not cosmetic: terraformStateResourceAttributeRemoveStatements
-// unconditionally clears each allowlisted type's FULL closed set of possible
-// tf_attr_* properties for every UID in this batch, and the upsert's
-// additive `r += row.attrs` merge re-establishes only the subset the
-// current row promotes. If the upsert ran first, the REMOVE that follows it
-// would immediately strip every tf_attr_* property the upsert just wrote --
-// corrupting every write, not only refreshes. REMOVE-then-SET is correct;
-// SET-then-REMOVE is not.
+// buildTerraformStateStatements returns every statement this writer emits for
+// one tfstate materialization, in strict phase order:
 //
-// Partial-failure note: these are two separate statements, not one atomic
-// transaction (this repo's own precedent -- rds_posture_node_writer.go,
+//  1. Migration (terraformStateResourceMigrationStatements, #5443): relabels
+//     any pre-#5443 TerraformResource node whose uid reappears in this
+//     batch to TerraformStateResource. Must run before every other phase so
+//     the phases below only ever see the current label.
+//  2. Retraction (terraformStateResourceRetractStatements, #5443):
+//     generation-gated DETACH DELETE for resources genuinely no longer in
+//     state, scoped to BOTH labels (TerraformStateResource for steady-state
+//     staleness, TerraformResource for legacy nodes migration never touched
+//     because their uid was absent from this batch). Must run after
+//     migration -- otherwise it would delete, instead of relabel, a legacy
+//     node for a resource that is still present in state, since that node
+//     still carries a stale generation_id until migration or the upsert
+//     below touches it.
+//  3. REMOVE-before-upsert (terraformStateResourceAttributeRemoveStatements,
+//     #5441 review round 9, P0): ordering here is load-bearing, not
+//     cosmetic. It unconditionally clears each allowlisted type's FULL
+//     closed set of possible tf_attr_* properties for every UID in this
+//     batch, and the upsert's additive `r += row.attrs` merge re-establishes
+//     only the subset the current row promotes. If the upsert ran first, the
+//     REMOVE that follows it would immediately strip every tf_attr_*
+//     property the upsert just wrote -- corrupting every write, not only
+//     refreshes. REMOVE-then-SET is correct; SET-then-REMOVE is not.
+//  4. Resource/module/output upserts (unchanged from before #5443 other than
+//     the resource upsert's label).
+//
+// Partial-failure note: every phase above is a separate statement, not one
+// atomic transaction (this repo's own precedent -- rds_posture_node_writer.go,
 // ec2_block_device_kms_posture_node_writer.go -- does not bind its
-// upsert/retract pair atomically either). If REMOVE succeeds and the
-// following upsert fails before completing, the affected nodes temporarily
-// carry no tf_attr_* properties until the next successful run of this same
-// generation reapplies both statements. Both statements are idempotent
-// (REMOVE on an already-absent property, or SET to an already-current
-// value, are no-ops), so a retry of the whole generation is self-healing.
-// This is judged an acceptable, visibly-empty gap under a transient
-// failure, not the silently-wrong-forever state the original bug produced.
+// upsert/retract pair atomically either). Every phase is independently
+// idempotent (a relabel of an already-relabeled node, a DETACH DELETE of an
+// already-absent node, a REMOVE of an already-absent property, or a SET to
+// an already-current value are all no-ops), so a retry of the whole
+// generation after a partial failure is self-healing.
 func (w *CanonicalNodeWriter) buildTerraformStateStatements(mat projector.CanonicalMaterialization) []Statement {
 	var statements []Statement
+	statements = append(statements, w.terraformStateResourceMigrationStatements(mat)...)
+	statements = append(statements, w.terraformStateResourceRetractStatements(mat)...)
 	statements = append(statements, w.terraformStateResourceAttributeRemoveStatements(mat)...)
 	statements = append(
 		statements,
@@ -201,7 +231,7 @@ func (w *CanonicalNodeWriter) buildTerraformStateStatements(mat projector.Canoni
 			canonicalTerraformStateResourceUpsertCypher,
 			terraformStateResourceRows(mat),
 			w.batchSize,
-			"TerraformResource",
+			"TerraformStateResource",
 			mat,
 		)...,
 	)
@@ -225,6 +255,7 @@ func (w *CanonicalNodeWriter) buildTerraformStateStatements(mat projector.Canoni
 			mat,
 		)...,
 	)
+	statements = append(statements, w.terraformStateMatchesConfigEdgeStatements(mat)...)
 	return statements
 }
 
@@ -268,7 +299,7 @@ func (w *CanonicalNodeWriter) terraformStateResourceAttributeRemoveStatements(ma
 				Parameters: map[string]any{
 					"uids":                           uids[start:end],
 					StatementMetadataPhaseKey:        canonicalPhaseTerraformState,
-					StatementMetadataEntityLabelKey:  "TerraformResource",
+					StatementMetadataEntityLabelKey:  "TerraformStateResource",
 					StatementMetadataScopeIDKey:      mat.ScopeID,
 					StatementMetadataGenerationIDKey: mat.GenerationID,
 					StatementMetadataSummaryKey: fmt.Sprintf(
@@ -346,6 +377,7 @@ func terraformStateResourceRows(mat projector.CanonicalMaterialization) []map[st
 			"tag_key_hashes":      row.TagKeyHashes,
 			"scope_id":            mat.ScopeID,
 			"generation_id":       mat.GenerationID,
+			"config_repo_id":      terraformStateOwningRepoIDValue(row.OwningRepoID),
 			"attrs":               attrs,
 		})
 	}

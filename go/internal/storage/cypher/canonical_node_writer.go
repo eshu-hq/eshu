@@ -30,6 +30,7 @@ type CanonicalNodeWriter struct {
 	tracer                            trace.Tracer
 	instruments                       *telemetry.Instruments
 	packageRegistryLocks              *packageRegistryIdentityLocks
+	tfStateOwnershipResolver          TerraformStateOwnershipResolver
 }
 
 type canonicalWritePhase struct {
@@ -70,6 +71,20 @@ func (w *CanonicalNodeWriter) WithEntityBatchSize(batchSize int) *CanonicalNodeW
 	if batchSize > 0 {
 		w.entityBatchSize = batchSize
 	}
+	return w
+}
+
+// WithTerraformStateOwnershipResolver injects the port used to scope the
+// #5443 MATCHES_STATE edge to the config repository that owns a Terraform
+// state resource's backend. Optional: a nil resolver (the default) means no
+// MATCHES_STATE edges are written and every TerraformStateResource node's
+// config_repo_id property stays null, which is a safe, honest "ownership not
+// resolved" state rather than a wrong match. See tfstate_state_match_edge.go.
+func (w *CanonicalNodeWriter) WithTerraformStateOwnershipResolver(resolver TerraformStateOwnershipResolver) *CanonicalNodeWriter {
+	if w == nil {
+		return nil
+	}
+	w.tfStateOwnershipResolver = resolver
 	return w
 }
 
@@ -159,6 +174,8 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat projector.Canonical
 	if mat.IsEmpty() {
 		return nil
 	}
+
+	mat.TerraformStateResources = w.resolveTerraformStateOwnership(ctx, mat.TerraformStateResources)
 
 	phases := annotateCanonicalWritePhases(w.buildPhases(mat))
 	if mat.ReconciliationProjection {

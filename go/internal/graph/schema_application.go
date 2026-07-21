@@ -27,12 +27,13 @@ const (
 	// graphSchemaNeo4jFingerprint and graphSchemaNornicDBFingerprint are the
 	// current schema digests for the merged schema: the CodeownerTeam.ref
 	// constraint/index from #5419, the KubernetesWorkload.id lookup index from
-	// #5436, and the TerraformStateResource uid constraint from #5443 (schema
-	// split prep) are all present. The KubernetesWorkload.id lookup index is
+	// #5436, and the TerraformStateResource uid constraint plus the
+	// tf_resource_name index from #5443 (the label split and its MATCHES_STATE
+	// anchor index) are all present. The KubernetesWorkload.id lookup index is
 	// NornicDB-only, so it does not shift the Neo4j digest independently of
-	// the other two additions.
-	graphSchemaNeo4jFingerprint    = "93f707ac685bd77d643f95f42175f0d781419d7d1ee3baaaa944b3ab17363c69"
-	graphSchemaNornicDBFingerprint = "5195da852e63bf76c5a4e76dab15a68b77403b304ea18d749553cad505f748c6"
+	// the other additions.
+	graphSchemaNeo4jFingerprint    = "705027c6a334f58378432a69f8bbccc02f8533707bf2b94f7a8a80bb57acb2df"
+	graphSchemaNornicDBFingerprint = "0d8bf637854c05e1ddfe4ce8a8e73f38970e974fd2f97318d03876fa7b3e3a9b"
 
 	// graphSchemaNeo4jPreCodeownersOwnershipFingerprint and its NornicDB peer
 	// are the schema fingerprints immediately before the CodeownerTeam.ref
