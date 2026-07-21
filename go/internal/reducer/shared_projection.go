@@ -42,6 +42,15 @@ const (
 	// canonical-nodes; the CloudAction node is created inline by the same MERGE,
 	// so unlike HANDLES_ROUTE there is no cross-acceptance-unit MATCH dependency.
 	DomainInvokesCloudAction = "invokes_cloud_action"
+	// DomainCodeownersOwnershipEdges projects Repository-[:DECLARES_CODEOWNER]->
+	// CodeownerTeam edges from directly-emitted codeowners.ownership facts
+	// (issue #5419 Phase 3). It is a distinct shared-projection domain from the
+	// routed DomainCodeownersOwnership reducer domain that builds the intent
+	// rows, mirroring the DomainDocumentationEdges/DomainDocumentationMaterialization
+	// split: both the Repository and CodeownerTeam nodes are MERGEd inline by the
+	// same edge write, so there is no cross-acceptance-unit MATCH dependency and
+	// no readiness gate is required.
+	DomainCodeownersOwnershipEdges = "codeowners_ownership_edges"
 )
 
 // allProjectionDomains is the complete set of reducer-owned shared/edge
@@ -64,6 +73,7 @@ var allProjectionDomains = []Domain{
 	DomainHandlesRoute,
 	DomainRunsIn,
 	DomainInvokesCloudAction,
+	DomainCodeownersOwnershipEdges,
 }
 
 // SharedProjectionIntentRow is one durable shared-domain projection intent.

@@ -345,5 +345,20 @@ func DefaultDomainDefinitions() []DomainDefinition {
 				},
 			},
 		},
+		{
+			Domain:  DomainCodeownersOwnership,
+			Summary: "materialize canonical DECLARES_CODEOWNER edges from directly-emitted codeowners.ownership facts to the CodeownerTeam a CODEOWNERS rule pattern names",
+			Ownership: OwnershipShape{
+				CrossSource:    true,
+				CrossScope:     true,
+				CanonicalWrite: true,
+			},
+			TruthContract: truth.Contract{
+				CanonicalKind: "codeowners_ownership",
+				SourceLayers: []truth.Layer{
+					truth.LayerSourceDeclaration,
+				},
+			},
+		},
 	}
 }

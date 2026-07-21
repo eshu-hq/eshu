@@ -13,10 +13,11 @@ import (
 )
 
 const (
-	factKindContentEntity = "content_entity"
-	factKindFile          = "file"
-	factKindParsedFile    = "parsed_file_data"
-	factKindRepository    = "repository"
+	factKindContentEntity       = "content_entity"
+	factKindFile                = "file"
+	factKindParsedFile          = "parsed_file_data"
+	factKindRepository          = "repository"
+	factKindCodeownersOwnership = "codeowners.ownership"
 )
 
 // factKindLoader is an optional fast path for handlers that need only a small
