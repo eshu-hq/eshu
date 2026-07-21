@@ -101,10 +101,13 @@ go run ./cmd/capability-inventory -mode remote-validation -update
 - `remote-validation` mode (`remote_validation_mode.go`) is the artifact-
   existence gate for `remote_validation` proof-IDs (#5407): it never builds
   the full catalog, only `capabilitycatalog.LoadMatrix` plus
-  `CheckRemoteValidationArtifacts`, so it stays cheap enough to run on every
-  matrix or baseline change. `-update` regenerates
-  `specs/remote-validation-baseline.txt` from the current tree; it never
-  requires a human to hand-edit the file.
+  `CheckRemoteValidationArtifacts` and the baseline's ratcheting FROZEN_MAX
+  ceiling check (`RemoteValidationBaselineCeilingExceeded`), so it stays cheap
+  enough to run on every matrix or baseline change. The ceiling fails the gate
+  when the baseline entry count exceeds it, so the frozen debt set cannot grow.
+  `-update` regenerates `specs/remote-validation-baseline.txt` from the current
+  tree and ratchets FROZEN_MAX down to the new count; it never raises the
+  ceiling and never requires a human to hand-edit the file.
 
 ## Related
 

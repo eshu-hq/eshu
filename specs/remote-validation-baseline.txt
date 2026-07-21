@@ -1,18 +1,44 @@
 # specs/remote-validation-baseline.txt
 #
-# Burn-down baseline for the remote_validation artifact-existence gate
-# (#5407, PR 2 of #5336). Every remote_validation proof-ID cited in
-# specs/capability-matrix*.yaml must resolve to a committed artifact at
-# docs/internal/remote-validation/<ref>.md, or be listed here as known debt.
-# A dangling ref NOT listed here fails the gate; a listed ref that is still
-# dangling passes (tracked, not fixed). Once a committed artifact exists for
-# a ref, remove it from this file on the next -update run — shrinking this
-# file is the only way it changes; a ref is never re-added once its artifact
-# lands. Two capability/profile rows citing the same ref collapse to one line
-# here (the artifact question is per-ref, not per-row).
+# FROZEN AUDITED DEBT — remote_validation artifact-existence gate
+# (#5407, PR 2 of #5336).
+#
+# Every slug below is a capability-matrix row whose production profile claims
+# {status: supported} and whose SOLE verification evidence is a
+# remote_validation ref that resolves to NO committed artifact. The evidence
+# directory docs/internal/remote-validation/ did not exist when this gate was
+# introduced, so each of these is a top-tier production-support claim resting
+# on zero committed proof.
+#
+# This file FREEZES that audited set so the debt cannot grow. It does NOT cure
+# the claims: a slug listed here is tracked, not verified.
+#
+# The only honest way to remove a slug is one of:
+#   1. Run the production validation and commit the reproducible evidence
+#      artifact at docs/internal/remote-validation/<slug>.md, or
+#   2. Downgrade the row's claimed tier in the capability matrix so it no
+#      longer asserts production:supported on unverified evidence.
+# Editing this prose, or any other text, is never an exit — only a committed
+# artifact or a real tier downgrade clears a slug.
+#
+# The systemic per-row validate-or-downgrade of every slug below is tracked in
+# issue #5552, which blocks epic #5344 closure.
+#
+# GROWTH IS FORBIDDEN. The FROZEN_MAX directive below is a ratcheting
+# high-water mark: the gate fails when the entry count EXCEEDS it, so a new
+# unverified production:supported row cannot be smuggled in by appending its
+# ref and running -update. Burning down a slug (committing its artifact or
+# downgrading its row) and running -update lowers FROZEN_MAX to the new,
+# smaller count; -update never raises it. Raising the ceiling requires an
+# explicit, separately-reviewed one-line edit that a reviewer can catch.
+#
+# Two capability/profile rows citing the same ref collapse to one line here
+# (the artifact question is per-ref, not per-row).
 #
 # Regenerate with:
 #   cd go && go run ./cmd/capability-inventory -mode remote-validation -update
+#
+# FROZEN_MAX: 115
 #
 # <remote-validation-ref-slug>
 prod-admission-decisions

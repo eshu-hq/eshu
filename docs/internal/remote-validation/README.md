@@ -26,6 +26,23 @@ docs/internal/remote-validation/prod-code-search-exact.md
 resolves to no file here fails the gate unless it is listed in the burn-down
 baseline, `specs/remote-validation-baseline.txt`.
 
+The baseline is a **frozen audited set**, not a soft "known debt" list. Every
+slug in it is a capability-matrix row whose `production` profile claims
+`{status: supported}` and whose sole verification evidence is a
+`remote_validation` ref that resolves to no committed artifact — this directory
+did not exist when the gate was introduced, so each is a top-tier
+production-support claim resting on zero committed proof. Freezing the set stops
+the debt from growing; it does not cure the claims. The systemic per-row
+validate-or-downgrade of every baselined slug is tracked in **#5552, which
+blocks epic #5344 closure**.
+
+The baseline carries a `# FROZEN_MAX: <N>` directive that acts as a ratcheting
+high-water mark. The gate fails when the entry count **exceeds** the ceiling, so
+a new unverified `production:supported` row cannot be smuggled in by appending
+its ref and running `-update`. Burning down a slug and running `-update` lowers
+`FROZEN_MAX` to the new, smaller count; `-update` never raises it. Raising the
+ceiling requires an explicit, separately-reviewed one-line edit.
+
 ## Writing an artifact
 
 An evidence file should record what was actually run against a real
@@ -36,18 +53,20 @@ needs to be enough for a reviewer to judge whether the claim it backs is
 real. Once the file exists, remove the ref from
 `specs/remote-validation-baseline.txt` (or run
 `bash scripts/verify-remote-validation-artifacts.sh -update`, which drops it
-automatically because `remoteValidationArtifactExists` now returns true).
+automatically because `remoteValidationArtifactExists` now returns true and
+also ratchets `FROZEN_MAX` down to the new, smaller count).
 
 ## Current state
 
 This directory is empty as of #5407: every `remote_validation` ref currently
-cited in the matrix (115 as of this writing, including
+cited in the matrix (115 unique slugs across 120 row-occurrences, including
 `prod-component-extension-inventory` and
 `prod-component-extension-diagnostics`, the pair #5336 originally flagged)
-predates this gate and has no committed evidence file yet. All of them are
-tracked as burn-down debt in `specs/remote-validation-baseline.txt` rather
-than downgraded, per that issue's acceptance criteria (state whether the
+predates this gate and has no committed evidence file yet. All 115 are frozen
+in `specs/remote-validation-baseline.txt` under `FROZEN_MAX: 115` rather than
+downgraded, per that issue's acceptance criteria (state whether the
 component_extensions pair is baselined or downgraded — baselined is the
 explicit default here). Closing an entry requires either committing a real
 artifact or an explicit, separately-reviewed decision to downgrade the
-capability's claimed status.
+capability's claimed status. The systemic burn-down of all 115 is tracked in
+#5552, which blocks epic #5344 closure.

@@ -17,10 +17,13 @@
 # A remote_validation ref resolves against
 # docs/internal/remote-validation/<ref>.md. A ref with no file there passes
 # only if it is listed in specs/remote-validation-baseline.txt (known debt);
-# otherwise the gate fails. Regenerate the baseline with -update after either
-# committing a real evidence artifact (which shrinks it) or confirming a
-# newly-added ref is still unverified debt (which grows it, but only to
-# exactly the current dangling set - never a stale carry-forward).
+# otherwise the gate fails. The baseline also carries a FROZEN_MAX ceiling: the
+# gate fails when the entry count EXCEEDS it, so the debt set cannot grow. Run
+# -update after committing a real evidence artifact (which shrinks the set and
+# ratchets FROZEN_MAX down); -update never raises the ceiling. Smuggling a new
+# unverified production:supported claim by appending its ref and regenerating
+# leaves the count above the ceiling and fails the gate — the offender must
+# commit an artifact or raise FROZEN_MAX in an explicit, reviewed one-line edit.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

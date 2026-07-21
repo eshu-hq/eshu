@@ -62,11 +62,12 @@ else
 	fi
 fi
 
-# Case 2: the same ref passes once listed in the baseline.
+# Case 2: the same ref passes once listed in the baseline (with a FROZEN_MAX
+# ceiling that the single entry does not exceed).
 case2_root="${tmp_root}/case2"
 case2_specs="${case2_root}/specs"
 write_matrix "${case2_specs}" "prod-case2-baselined"
-printf 'prod-case2-baselined\n' >"${case2_specs}/remote-validation-baseline.txt"
+printf '# FROZEN_MAX: 1\nprod-case2-baselined\n' >"${case2_specs}/remote-validation-baseline.txt"
 if "${verifier}" --specs "${case2_specs}" --root "${case2_root}" \
 	--baseline "${case2_specs}/remote-validation-baseline.txt" \
 	>"${tmp_root}/case2.out" 2>&1; then
@@ -135,6 +136,28 @@ if "${verifier}" >"${tmp_root}/case6.out" 2>&1; then
 else
 	record_fail "real repo tree passes against the committed baseline"
 	cat "${tmp_root}/case6.out" >&2
+fi
+
+# Case 7: baseline GROWTH past FROZEN_MAX fails closed. The cited ref is
+# baselined (no artifact finding), but a second entry pushes the count over a
+# frozen ceiling of 1 — the anti-append-smuggling guard.
+case7_root="${tmp_root}/case7"
+case7_specs="${case7_root}/specs"
+write_matrix "${case7_specs}" "prod-case7-baselined"
+printf '# FROZEN_MAX: 1\nprod-case7-baselined\nprod-case7-smuggled\n' \
+	>"${case7_specs}/remote-validation-baseline.txt"
+if "${verifier}" --specs "${case7_specs}" --root "${case7_root}" \
+	--baseline "${case7_specs}/remote-validation-baseline.txt" \
+	>"${tmp_root}/case7.out" 2>&1; then
+	record_fail "baseline growth past FROZEN_MAX fails closed"
+	cat "${tmp_root}/case7.out" >&2
+else
+	if rg -q --fixed-strings "EXCEEDS frozen ceiling" "${tmp_root}/case7.out"; then
+		record_pass "baseline growth past FROZEN_MAX fails closed"
+	else
+		record_fail "baseline growth past FROZEN_MAX fails closed (missing ceiling message)"
+		cat "${tmp_root}/case7.out" >&2
+	fi
 fi
 
 printf '\n%d passed, %d failed\n' "${PASS}" "${FAIL}"

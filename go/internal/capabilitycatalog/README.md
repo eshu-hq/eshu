@@ -62,8 +62,17 @@ second half of that finding: every `remote_validation` ref cited in the
 matrix must resolve to a committed
 `docs/internal/remote-validation/<ref>.md` artifact, or be listed in the
 burn-down baseline at `specs/remote-validation-baseline.txt`. A dangling ref
-not in the baseline fails; regenerate the baseline (after adding real
-evidence, which shrinks it, or after adding a new still-unverified ref) with:
+not in the baseline fails.
+
+The baseline is a frozen audited set, not a soft debt list, and carries a
+mandatory `# FROZEN_MAX: <N>` ceiling. `LoadRemoteValidationBaseline` parses
+it (an absent, duplicate, or malformed directive fails closed), and
+`RemoteValidationBaselineCeilingExceeded` fails the gate when the entry count
+exceeds the ceiling — so the set may shrink but never grow, blocking a new
+unverified `production:supported` row from being appended and regenerated in.
+`RenderRemoteValidationBaseline` ratchets the ceiling down on burn-down and
+never raises it. Regenerate the baseline (after committing real evidence,
+which shrinks it) with:
 
 ```bash
 bash scripts/verify-remote-validation-artifacts.sh -update
