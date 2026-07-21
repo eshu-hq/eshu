@@ -252,3 +252,54 @@ gofumpt -l <every touched/added file>              # clean
 
 All green except the noted pre-existing `schema_bytes.go` staticcheck finding,
 which this change does not touch.
+
+## Golden-corpus gate proof (re-review finding F1)
+
+This migration moves 8 evidence extractors from emitting nothing to emitting
+real evidence on the always-on streaming path — deterministic fact emission
+that, per this repo's proof-tier table, requires cassette/golden replay, not
+just the in-package unit/benchmark proof above. Ran the B-7 golden-corpus
+gate against this exact rebased head (`4e1c637c9`'s descendant, 9 commits
+ahead / 0 behind `origin/main`):
+
+```
+COMPOSE_PROJECT_NAME=eshu5445rereview \
+ESHU_POSTGRES_PORT=25433 \
+NEO4J_BOLT_PORT=25688 \
+NEO4J_HTTP_PORT=25475 \
+GATE_API_PORT=25081 \
+GATE_MCP_PORT=25092 \
+GATE_COLLECTOR_SETTLE_SECONDS=45 \
+bash scripts/verify-golden-corpus-gate.sh
+```
+
+Result: **`PASS: B-7 golden corpus gate green (elapsed 63s, budget ceiling
+1800s)`**, summary `450 pass, 0 required-fail, 1 advisory-warn` (the one
+advisory is `phase_collect: observed=46.0s, baseline=20.0s, ceiling=25.0s`,
+a timing band, not a correctness assertion).
+
+The six required correlations the reviewer named as exercising these exact
+families all passed, including their evidence-kind predicates:
+
+```
+[PASS] rc-1:   (Repository)-[:CORRELATES_DEPLOYABLE_UNIT]->(Repository) count=2, want >= 1
+[PASS] rc-19:  (Repository)-[:DEPLOYS_FROM]->(Repository) count=4, want >= 1
+[PASS] rc-156: (Repository)-[:DEPLOYS_FROM]->(Repository) evidence_kinds⊇[ARGOCD_APPLICATION_SOURCE] count=2, want >= 1
+[PASS] rc-155: (Repository)-[:USES_MODULE]->(Repository) evidence_kinds⊇[TERRAFORM_MODULE_SOURCE] count=1, want >= 1
+[PASS] rc-29:  (Repository)-[:DEPLOYS_FROM]->(Repository) evidence_kinds⊇[KUSTOMIZE_RESOURCE_REFERENCE] count=1, want >= 1
+[PASS] rc-34:  (Repository)-[:DEPLOYS_FROM]->(Repository) evidence_kinds⊇[HELM_CHART_REFERENCE] count=1, want >= 1
+```
+
+The snapshot (`testdata/golden/e2e-20repo-snapshot.json`) did not drift: no
+count range, required correlation, or query shape needed adjustment to pass.
+This confirms the reviewer's structural hypothesis (minimum_count tolerances,
+generation-scoped evidenceID dedup between streaming and backfill, and
+backfill already deriving this evidence today) rather than merely assuming
+it — the gate replayed the real cassette + fixture corpus through the actual
+streaming path this change modifies and the committed golden truth held.
+
+Stack was isolated (unique compose project + host ports) and torn down
+automatically by the gate script's own cleanup trap on exit; no containers,
+volumes, or networks remained afterward. The `eshu5218postmerge1` project
+belonging to a separate concurrent session was not referenced and was
+confirmed still absent/untouched on this host both before and after the run.
