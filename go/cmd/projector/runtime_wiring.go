@@ -187,6 +187,8 @@ func openProjectorCanonicalWriter(
 		instruments,
 	).WithTracer(tracer).WithTerraformStateOwnershipResolver(
 		projectorTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.PostgresTerraformBackendQuery{DB: database})},
+	).WithTerraformStateConfigMatchResolver(
+		projectorTerraformStateConfigMatchResolver{driver: driver, databaseName: cfg.DatabaseName},
 	)
 	writer = configureProjectorCanonicalWriter(writer, graphBackend, nornicDBConfig)
 

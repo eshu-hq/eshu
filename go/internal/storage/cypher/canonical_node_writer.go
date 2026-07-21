@@ -31,6 +31,7 @@ type CanonicalNodeWriter struct {
 	instruments                       *telemetry.Instruments
 	packageRegistryLocks              *packageRegistryIdentityLocks
 	tfStateOwnershipResolver          TerraformStateOwnershipResolver
+	tfStateConfigMatchResolver        TerraformStateConfigMatchResolver
 }
 
 type canonicalWritePhase struct {
@@ -85,6 +86,24 @@ func (w *CanonicalNodeWriter) WithTerraformStateOwnershipResolver(resolver Terra
 		return nil
 	}
 	w.tfStateOwnershipResolver = resolver
+	return w
+}
+
+// WithTerraformStateConfigMatchResolver injects the port used to detect
+// whether a #5443 MATCHES_STATE edge candidate is ambiguous: (repo_id, name)
+// carries no uniqueness constraint (tf_resource_unique is (name, path,
+// line_number)), so two Terraform roots in one monorepo can both declare the
+// same address. Optional: a nil resolver (the default) leaves
+// ConfigMatchAmbiguous at its zero value for every row, matching every unit
+// test in this package that constructs rows directly without exercising
+// resolver wiring. Production wiring (cmd/projector) always wires a real
+// resolver, so this default only affects hand-built test fixtures, never the
+// production write path. See tfstate_state_match_edge.go.
+func (w *CanonicalNodeWriter) WithTerraformStateConfigMatchResolver(resolver TerraformStateConfigMatchResolver) *CanonicalNodeWriter {
+	if w == nil {
+		return nil
+	}
+	w.tfStateConfigMatchResolver = resolver
 	return w
 }
 
@@ -176,6 +195,7 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat projector.Canonical
 	}
 
 	mat.TerraformStateResources = w.resolveTerraformStateOwnership(ctx, mat.TerraformStateResources)
+	mat.TerraformStateResources = w.resolveTerraformStateConfigMatchAmbiguity(ctx, mat.TerraformStateResources)
 
 	phases := annotateCanonicalWritePhases(w.buildPhases(mat))
 	if mat.ReconciliationProjection {
