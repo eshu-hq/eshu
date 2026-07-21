@@ -113,6 +113,79 @@ func TestCheckRemoteValidationArtifactsDedupesRefAcrossCapabilities(t *testing.T
 	}
 }
 
+// TestRemoteValidationArtifactExistsRejectsPathTraversal proves the
+// filename-safety guard (FIX 1, #5407): a ref that is not a valid slug — a
+// path-traversal payload or any ref carrying a slash — must never be turned
+// into a filesystem path and probed with os.Stat. Without the guard, a crafted
+// ref like "../../evil" resolves under repoRoot to an unrelated existing file
+// and remoteValidationArtifactExists returns true, silently "verifying" a claim
+// that has no committed remote-validation artifact.
+func TestRemoteValidationArtifactExistsRejectsPathTraversal(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	// Plant a real file at the location a "../../evil" ref would resolve to:
+	// filepath.Join(repoRoot, "docs/internal/remote-validation", "../../evil.md")
+	// == repoRoot/docs/evil.md. Pre-guard, os.Stat finds it and the ref is
+	// falsely treated as backed by a committed artifact.
+	docsDir := filepath.Join(repoRoot, "docs")
+	if err := os.MkdirAll(docsDir, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", docsDir, err)
+	}
+	if err := os.WriteFile(filepath.Join(docsDir, "evil.md"), []byte("# unrelated\n"), 0o644); err != nil {
+		t.Fatalf("write decoy: %v", err)
+	}
+
+	traversalRefs := []string{
+		"../../evil",
+		"../../../etc/passwd",
+		"nested/slash",
+		"..",
+	}
+	for _, ref := range traversalRefs {
+		if remoteValidationArtifactExists(repoRoot, ref) {
+			t.Fatalf("remoteValidationArtifactExists(repoRoot, %q) = true; a non-slug ref must never resolve to a real file", ref)
+		}
+	}
+	// A well-formed slug still resolves when its artifact exists.
+	writeRemoteValidationArtifact(t, repoRoot, "prod-valid-slug")
+	if !remoteValidationArtifactExists(repoRoot, "prod-valid-slug") {
+		t.Fatal("remoteValidationArtifactExists must still resolve a valid slug with a committed artifact")
+	}
+}
+
+// TestCheckRemoteValidationArtifactsFlagsTraversalRefAsHardFinding proves a
+// malformed/traversal ref cited in the matrix is a hard gate failure that names
+// the ref and its capability/profile, and cannot be excused by an artifact that
+// happens to exist at the resolved-outside path or by a baseline entry.
+func TestCheckRemoteValidationArtifactsFlagsTraversalRefAsHardFinding(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	docsDir := filepath.Join(repoRoot, "docs")
+	if err := os.MkdirAll(docsDir, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", docsDir, err)
+	}
+	if err := os.WriteFile(filepath.Join(docsDir, "evil.md"), []byte("# unrelated\n"), 0o644); err != nil {
+		t.Fatalf("write decoy: %v", err)
+	}
+	matrix := matrixWithRemoteValidationRefs(matrixRefSpec{capability: "code_search.exact_symbol", ref: "../../evil"})
+
+	// Even if an attacker also lists the traversal ref in the baseline, it must
+	// still be a finding — a non-slug ref is never valid burn-down debt.
+	baseline := map[string]struct{}{"../../evil": {}}
+	findings := CheckRemoteValidationArtifacts(matrix, repoRoot, baseline)
+	if len(findings) != 1 {
+		t.Fatalf("findings = %+v, want exactly one hard finding for the traversal ref", findings)
+	}
+	if findings[0].Ref != "../../evil" {
+		t.Fatalf("finding ref = %q, want the offending traversal ref", findings[0].Ref)
+	}
+	if len(findings[0].Subjects) != 1 || findings[0].Subjects[0] != "code_search.exact_symbol/production" {
+		t.Fatalf("finding subjects = %+v, want [code_search.exact_symbol/production]", findings[0].Subjects)
+	}
+}
+
 func TestLoadRemoteValidationBaselineParsesSlugsIgnoringCommentsAndBlanks(t *testing.T) {
 	t.Parallel()
 

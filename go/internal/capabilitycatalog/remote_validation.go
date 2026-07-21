@@ -139,11 +139,18 @@ func CheckRemoteValidationArtifacts(matrix Matrix, repoRoot string, baseline map
 
 	var findings []RemoteValidationFinding
 	for ref, subjects := range subjectsByRef {
-		if remoteValidationArtifactExists(repoRoot, ref) {
-			continue
-		}
-		if _, baselined := baseline[ref]; baselined {
-			continue
+		// A ref that is not a valid slug is a hard finding: it can never be
+		// turned into a safe filesystem path, so it is neither artifact-backed
+		// nor eligible burn-down debt. Treating it as a finding (rather than
+		// skipping the os.Stat) blocks a path-traversal ref from resolving to
+		// an unrelated file and from being excused by a baseline entry.
+		if remoteValidationRefValid(ref) {
+			if remoteValidationArtifactExists(repoRoot, ref) {
+				continue
+			}
+			if _, baselined := baseline[ref]; baselined {
+				continue
+			}
 		}
 		sorted := append([]string(nil), subjects...)
 		sort.Strings(sorted)
@@ -153,11 +160,32 @@ func CheckRemoteValidationArtifacts(matrix Matrix, repoRoot string, baseline map
 	return findings
 }
 
+// remoteValidationRefValid reports whether ref matches the remote_validation
+// slug contract (lowercase alphanumeric segments joined by single hyphens).
+// The slug shape carries no path separators or "." segments, so a valid ref can
+// never escape RemoteValidationArtifactDir. This is the filename-safety gate:
+// every ref MUST pass it before it is joined into a filesystem path.
+func remoteValidationRefValid(ref string) bool {
+	return remoteValidationRefPattern.MatchString(ref)
+}
+
 // remoteValidationArtifactExists reports whether a committed, non-directory
-// artifact exists for ref under repoRoot.
+// artifact exists for ref under repoRoot. It refuses to probe any ref that is
+// not a valid slug (FIX 1, #5407): a path-traversal payload such as
+// "../../etc/passwd" would otherwise resolve to an arbitrary file and be
+// falsely reported as a committed artifact. As defense in depth, the resolved
+// path is re-verified to stay under RemoteValidationArtifactDir after cleaning,
+// so even a future regex weakening cannot let os.Stat escape the directory.
 func remoteValidationArtifactExists(repoRoot, ref string) bool {
-	path := filepath.Join(repoRoot, RemoteValidationArtifactDir, ref+".md")
-	info, err := os.Stat(path) // #nosec G304 -- path is program-constructed from the caller-supplied repoRoot joined with a matrix-declared ref, mirroring readMatrixFile's own accepted pattern
+	if !remoteValidationRefValid(ref) {
+		return false
+	}
+	dir := filepath.Clean(filepath.Join(repoRoot, RemoteValidationArtifactDir))
+	path := filepath.Clean(filepath.Join(dir, ref+".md"))
+	if path != dir && !strings.HasPrefix(path, dir+string(filepath.Separator)) {
+		return false
+	}
+	info, err := os.Stat(path) // #nosec G304 -- ref is slug-validated (remoteValidationRefValid) and the resolved path is confirmed under RemoteValidationArtifactDir before this stat, so it cannot escape the evidence directory
 	return err == nil && !info.IsDir()
 }
 
@@ -266,6 +294,14 @@ func RenderRemoteValidationBaseline(matrix Matrix, repoRoot string, priorCeiling
 		for _, profile := range capability.Profiles {
 			for _, verification := range profile.Verification {
 				if verification.Kind != "remote_validation" {
+					continue
+				}
+				// An invalid ref is never written into the baseline: it is not a
+				// legal slug, so it cannot be turned into a path (FIX 1, #5407)
+				// and could never load back through LoadRemoteValidationBaseline.
+				// It stays out of the burn-down set and surfaces as a hard
+				// finding in check mode instead.
+				if !remoteValidationRefValid(verification.Ref) {
 					continue
 				}
 				if remoteValidationArtifactExists(repoRoot, verification.Ref) {
