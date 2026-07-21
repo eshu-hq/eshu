@@ -413,6 +413,7 @@ func liveFamilies() []liveFamily {
 		{"aws", facts.AWSFactKinds, facts.AWSSchemaVersion},
 		{"azure", facts.AzureFactKinds, facts.AzureSchemaVersion},
 		{"ci_cd_run", facts.CICDRunFactKinds, facts.CICDRunSchemaVersion},
+		{"codeowners", facts.CodeownersFactKinds, facts.CodeownersSchemaVersion},
 		{"documentation", facts.DocumentationFactKinds, facts.DocumentationSchemaVersion},
 		{"ec2_instance_posture", facts.EC2InstancePostureFactKinds, facts.EC2InstancePostureSchemaVersion},
 		{"gcp", facts.GCPFactKinds, facts.GCPSchemaVersion},
