@@ -18,6 +18,10 @@ flowchart LR
     Classify --> Allowlist["AllowlistFor (attribute_drift)"]
     Build --> Engine["engine.Evaluate"]
     Engine --> Counters["correlation_rule_matches_total + correlation_drift_detected_total"]
+    Engine --> Writer["reducer.PostgresTerraformConfigStateDriftWriter"]
+    Resolver -.ambiguous owner.-> Writer
+    Writer --> Store["reducer_terraform_config_state_drift_finding fact"]
+    Store --> Query["POST /api/v0/terraform/config-state-drift/findings"]
 ```
 
 ## Internal flow
@@ -136,3 +140,20 @@ paths) out of label space — those live in `slog` log keys instead.
 - No graph projection of drift nodes until a current relationship-mapping
   contract and query surface exist.
 - No state-to-cloud ARN joins (blocked by issue #48).
+
+## Durability and outcome model (issue #5442)
+
+Every admitted candidate this package builds and every ambiguous-owner
+rejection the handler observes is now written as a durable
+`reducer_terraform_config_state_drift_finding` Postgres fact
+(`go/internal/reducer/terraform_config_state_drift_writer.go`), read back
+through `POST /api/v0/terraform/config-state-drift/findings` and the
+`list_terraform_config_state_drift_findings` MCP tool. Counters and structured
+logs stay a parallel signal, not a replacement.
+
+Every durable finding carries an `outcome`: `exact` for a per-address
+classification, or `ambiguous` for a whole-scope backend-owner rejection with
+no per-address classification. See `doc.go`'s "Outcome model" section for the
+full reasoning on which of the design doc's six outcomes (exact, derived,
+ambiguous, unresolved, stale, rejected) this domain reaches and why the rest
+are either unreachable with today's evidence or intentionally not persisted.

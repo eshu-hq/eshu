@@ -27,6 +27,17 @@ func ReducerAWSCloudRuntimeDriftFindingSchema() ([]byte, error) {
 	return reflectSchema(ReducerAWSCloudRuntimeDriftFindingSchemaID, "Eshu reducer_aws_cloud_runtime_drift_finding Payload (schema version 1)", &reducerderivedv1.AWSCloudRuntimeDriftFinding{})
 }
 
+// ReducerTerraformConfigStateDriftFindingSchemaID is the checked-in JSON
+// Schema $id for the schema-version-1
+// "reducer_terraform_config_state_drift_finding" payload.
+const ReducerTerraformConfigStateDriftFindingSchemaID = schemaBaseID + "reducerderived/v1/terraform_config_state_drift_finding.schema.json"
+
+// ReducerTerraformConfigStateDriftFindingSchema returns the JSON Schema bytes
+// for reducerderivedv1.TerraformConfigStateDriftFinding.
+func ReducerTerraformConfigStateDriftFindingSchema() ([]byte, error) {
+	return reflectSchema(ReducerTerraformConfigStateDriftFindingSchemaID, "Eshu reducer_terraform_config_state_drift_finding Payload (schema version 1)", &reducerderivedv1.TerraformConfigStateDriftFinding{})
+}
+
 // ReducerMultiCloudRuntimeDriftFindingSchemaID is the checked-in JSON Schema
 // $id for the schema-version-1
 // "reducer_multi_cloud_runtime_drift_finding" payload.

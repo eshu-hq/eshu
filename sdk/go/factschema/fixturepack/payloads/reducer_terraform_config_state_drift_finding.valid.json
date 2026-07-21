@@ -1,0 +1,19 @@
+{
+  "address": "aws_s3_bucket.orphan",
+  "backend_kind": "s3",
+  "candidate_id": "drift:hash-1:aws_s3_bucket.orphan:added_in_state",
+  "candidate_kind": "terraform_config_state_drift",
+  "canonical_id": "canonical:terraform_config_state_drift:state_snapshot:s3:hash-1:generation-1:aws_s3_bucket.orphan:added_in_state",
+  "cause": "drift intent",
+  "confidence": 1,
+  "drift_kind": "added_in_state",
+  "evidence": [],
+  "generation_id": "generation-1",
+  "intent_id": "intent-1",
+  "locator_hash": "hash-1",
+  "outcome": "exact",
+  "reducer_domain": "config_state_drift",
+  "scope_id": "state_snapshot:s3:hash-1",
+  "source_layers": ["source_declaration", "observed_resource"],
+  "source_system": "collector/terraform-state"
+}

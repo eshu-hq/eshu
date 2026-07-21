@@ -543,6 +543,9 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindReducerMultiCloudRuntimeDriftFinding:
 		_, err := DecodeReducerMultiCloudRuntimeDriftFinding(env)
 		return err
+	case FactKindReducerTerraformConfigStateDriftFinding:
+		_, err := DecodeReducerTerraformConfigStateDriftFinding(env)
+		return err
 	case FactKindReducerPackageOwnershipCorrelation:
 		_, err := DecodeReducerPackageOwnershipCorrelation(env)
 		return err
@@ -797,6 +800,7 @@ var allDecodedKinds = []string{
 	FactKindReducerSupplyChainImpactFinding,
 	FactKindReducerAWSCloudRuntimeDriftFinding,
 	FactKindReducerMultiCloudRuntimeDriftFinding,
+	FactKindReducerTerraformConfigStateDriftFinding,
 	FactKindReducerPackageOwnershipCorrelation,
 	FactKindReducerPackageConsumptionCorrelation,
 	FactKindReducerPackagePublicationCorrelation,
@@ -1202,6 +1206,8 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeReducerAWSCloudRuntimeDriftFinding(env)
 			case FactKindReducerMultiCloudRuntimeDriftFinding:
 				_, err = DecodeReducerMultiCloudRuntimeDriftFinding(env)
+			case FactKindReducerTerraformConfigStateDriftFinding:
+				_, err = DecodeReducerTerraformConfigStateDriftFinding(env)
 			case FactKindReducerPackageOwnershipCorrelation:
 				_, err = DecodeReducerPackageOwnershipCorrelation(env)
 			case FactKindReducerPackageConsumptionCorrelation:
