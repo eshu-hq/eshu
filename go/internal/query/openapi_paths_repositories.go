@@ -318,7 +318,8 @@ const openAPIPathsRepositories = `
                     "coverage_summary": {"type": "object"},
                     "limitations": {"type": "array", "items": {"type": "string"}},
                     "drilldowns": {"type": "object"},
-                    "answer_metadata": {"type": "object", "description": "Normalized additive answer metadata with schema_version, evidence_handles, missing_evidence, limitations, truncated, coverage, partial_reasons, and recommended_next_calls."}
+                    "answer_metadata": {"type": "object", "description": "Normalized additive answer metadata with schema_version, evidence_handles, missing_evidence, limitations, truncated, coverage, partial_reasons, and recommended_next_calls."},
+                    "evidence_boundaries": ` + openAPIEvidenceBoundariesSchema + `
                   }
                 }
               }

@@ -96,6 +96,10 @@ families:
       ci.step: "sdk/go/factschema/schema/ci.step.v1.schema.json"
       ci.workflow_image_evidence: "sdk/go/factschema/schema/ci.workflow_image_evidence.v1.schema.json"
     kinds: [ci.artifact, ci.environment_observation, ci.job, ci.pipeline_definition, ci.run, ci.step, ci.trigger_edge, ci.warning, ci.workflow_image_evidence]
+    # ci.job, ci.pipeline_definition, and ci.warning are registry-disclosed:
+    # they have no reducer decode call today and no graph-projection path in
+    # policy v1 (#5472). They carry payload_schema contracts for future use
+    # but produce no graph or Postgres read-model output.
   # code is an admission-exempt family (registry v1.1, issue #4752). It records
   # the payload_schema contract for the legacy git code-graph kinds (file,
   # repository) WITHOUT enrolling them in schema-version admission. These kinds
