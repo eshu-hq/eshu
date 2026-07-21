@@ -103,8 +103,18 @@ spec:
 }
 
 // TestDiscoverArgoCDDocumentEvidenceCarriesSourceRevisionFromMultiSource
-// covers the spec.sources[] (multi-source Application) shape: the first
-// source carrying a non-empty targetRevision wins.
+// covers the spec.sources[] (multi-source Application) shape at the
+// DiscoverEvidence layer: only one of the two declared sources
+// (payments-service) matches a catalog entry, so this fixture cannot by
+// itself distinguish "each source carries its own revision" from the older,
+// buggy "first non-empty revision anywhere in the document" behavior --
+// TestBuildResolvedEdgeIntentRowsPerSourceRevisionForMultiSourceApplication
+// (go/internal/reducer/cross_repo_intent_row_argocd_multisource_test.go) is
+// the real-pipeline regression guard for per-source revision correctness
+// (#5441 review round 8, P1-b), using two sources that both match catalog
+// entries with different revisions. This test stays as coverage for the
+// DiscoverEvidence layer alone: the matched source's own revision reaches
+// Details, unaffected by an unmatched sibling source.
 func TestDiscoverArgoCDDocumentEvidenceCarriesSourceRevisionFromMultiSource(t *testing.T) {
 	t.Parallel()
 

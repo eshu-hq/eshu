@@ -3,49 +3,40 @@
 
 package relationships
 
-// argocdApplicationSourceRevisionDetails reads the declared targetRevision
-// off an ArgoCD Application document's spec.source (or the first
-// spec.sources[] entry carrying one) and returns it as the
-// EvidenceFact.Details map matchCatalog's extraDetails parameter expects.
+// argocdApplicationSource pairs one ArgoCD Application source's repository
+// URL with its own declared targetRevision (#5441 review round 8, P1-b).
+type argocdApplicationSource struct {
+	repoURL        string
+	targetRevision string
+}
+
+// argocdApplicationSources walks an ArgoCD Application document's
+// spec.source (singular) and spec.sources[] (plural, multi-source
+// Applications) and returns each declared source's own repoURL/targetRevision
+// pair, in document order. A source with no repoURL is skipped. A source
+// with no targetRevision is kept (its repoURL still resolves a DEPLOYS_FROM
+// edge) with an empty targetRevision -- never borrowed from a sibling
+// source.
 //
-// This is the #5441 second-P0 fix: discoverArgoCDDocumentEvidence
-// (yaml_iac_evidence.go), not discoverStructuredArgoCDEvidence
-// (structured_family_evidence.go), is the path that actually fires for a
-// bare top-level ArgoCD Application YAML manifest — the structured path
-// requires a parser to have already populated
-// parsedFileData["argocd_applications"], which a plain Application YAML file
-// does not trigger in this corpus. Before this fix,
-// discoverArgoCDDocumentEvidence's matchCatalog call passed a hard-coded nil
-// for extraDetails, so every EvidenceKindArgoCDAppSource fact produced by
-// this dominant path carried no source_revision key at all. The reducer-side
-// #5441 fix (evidenceFactSourceRevision reading
-// EvidenceFact.Details["source_revision"] in aggregateCandidate,
-// evidence_edge_fields.go) was correct but had no data to read; the live
-// golden-corpus gate caught the gap (rc-156_edge_prop_source_revision failed
-// "2/2 matching edges offending" even after the reducer fix landed).
-//
-// Only the first source carrying a non-empty targetRevision is used, even
-// for a multi-source Application with several spec.sources[] entries with
-// different revisions — a real ArgoCD Application overwhelmingly declares one
-// meaningful revision-bearing primary source plus zero or more value-file-only
-// sources, so attaching the primary revision to every resulting edge is the
-// correct common-case behavior; per-source revision pairing (matching each
-// resulting DEPLOYS_FROM edge to its own source's revision) would require
-// restructuring argocdApplicationRepoURLs itself and is out of scope for this
-// fix.
-//
-// Returns nil when no source declares a targetRevision, so the resulting
-// evidence fact's Details carries no source_revision key at all rather than
-// a fabricated empty one — matchCatalog already handles a nil extraDetails
-// safely (ranging over a nil map merges nothing).
-func argocdApplicationSourceRevisionDetails(document map[string]any) map[string]any {
+// This is deliberately per-source, unlike argocdApplicationRepoURLs
+// (yaml_iac_evidence.go), which flattens and dedupes every source down to a
+// bare []string and is still the right shape for callers that only need
+// distinct URLs (ApplicationSet template-source discovery). Discovering
+// which repository an Application deploys from and which revision that
+// deployment declares are two different questions, and the second one is
+// answered per source, not once for the whole document.
+func argocdApplicationSources(document map[string]any) []argocdApplicationSource {
 	spec, _ := nestedMap(document, "spec")
 	if spec == nil {
 		return nil
 	}
+	var result []argocdApplicationSource
 	if source, _ := nestedMap(spec, "source"); source != nil {
-		if revision := stringValue(source["targetRevision"]); revision != "" {
-			return map[string]any{"source_revision": revision}
+		if repoURL := stringValue(source["repoURL"]); repoURL != "" {
+			result = append(result, argocdApplicationSource{
+				repoURL:        repoURL,
+				targetRevision: stringValue(source["targetRevision"]),
+			})
 		}
 	}
 	for _, item := range sliceValue(spec["sources"]) {
@@ -53,9 +44,36 @@ func argocdApplicationSourceRevisionDetails(document map[string]any) map[string]
 		if !ok {
 			continue
 		}
-		if revision := stringValue(source["targetRevision"]); revision != "" {
-			return map[string]any{"source_revision": revision}
+		if repoURL := stringValue(source["repoURL"]); repoURL != "" {
+			result = append(result, argocdApplicationSource{
+				repoURL:        repoURL,
+				targetRevision: stringValue(source["targetRevision"]),
+			})
 		}
 	}
-	return nil
+	return result
+}
+
+// argocdSourceRevisionDetails wraps one source's own targetRevision as the
+// EvidenceFact.Details map matchCatalog's extraDetails parameter expects.
+//
+// This is the #5441 second-P0 fix (discoverArgoCDDocumentEvidence,
+// yaml_iac_evidence.go, is the evidence path that actually fires for a bare
+// top-level ArgoCD Application YAML manifest, not discoverStructuredArgoCDEvidence
+// — see the caller for the full mechanism), now paired per source (#5441
+// review round 8, P1-b) instead of computing one document-wide revision and
+// stamping it onto every resulting DEPLOYS_FROM edge: a multi-source
+// Application declaring different revisions for different repositories
+// would otherwise fabricate the first repo's revision onto every other
+// repo's edge.
+//
+// Returns nil when the source declares no targetRevision, so the resulting
+// evidence fact's Details carries no source_revision key at all rather than
+// a fabricated empty one — matchCatalog already handles a nil extraDetails
+// safely (ranging over a nil map merges nothing).
+func argocdSourceRevisionDetails(targetRevision string) map[string]any {
+	if targetRevision == "" {
+		return nil
+	}
+	return map[string]any{"source_revision": targetRevision}
 }

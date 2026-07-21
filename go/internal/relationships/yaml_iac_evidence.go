@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package relationships //nolint:filelength // 511 lines: YAML IaC evidence relationship resolver, already over the 500-line cap at base (pre-existing debt, not introduced by #5441; the file's prior citation of "audit § T8" was itself wrong -- T8 tracks git_snapshot_native.go/ingestion.go/cmd/bootstrap-index/main.go, not this file -- see #5539). #5441 grew it from 502 to 511 lines: a call-site doc comment plus a one-line source-revision lookup call in discoverArgoCDDocumentEvidence; the actual new logic was correctly extracted into argocd_document_source_revision.go instead of growing this file further. Splitting this file's pre-existing debt is out of scope for #5441.
+package relationships //nolint:filelength // 518 lines: YAML IaC evidence relationship resolver, already over the 500-line cap at base (pre-existing debt, not introduced by #5441; the file's prior citation of "audit § T8" was itself wrong -- T8 tracks git_snapshot_native.go/ingestion.go/cmd/bootstrap-index/main.go, not this file -- see #5539). #5441 grew it from 502 to 511 lines (a call-site doc comment plus a one-line source-revision lookup call in discoverArgoCDDocumentEvidence) then to 518 (review round 8, P1-b: the source-revision loop now iterates per-source instead of the whole document, fixing a real multi-source Application bug -- fabricating one source's revision onto every other source's edge); the actual logic for both lives in argocd_document_source_revision.go instead of growing this file further. Splitting this file's pre-existing debt is out of scope for #5441.
 
 import (
 	"io"
@@ -28,11 +28,18 @@ func discoverArgoCDDocumentEvidence(
 	// "2/2 matching edges offending" even after the reducer-side P0 fix
 	// landed, because both corpus DEPLOYS_FROM edges came through here with
 	// no source_revision key at all (extraDetails was a hard-coded nil).
-	sourceRevisionDetails := argocdApplicationSourceRevisionDetails(document)
-	for _, repoURL := range argocdApplicationRepoURLs(document) {
-		for _, deployedRepo := range matchingCatalogEntries(repoURL, matcher) {
+	//
+	// #5441 review round 8, P1-b: iterates argocdApplicationSources, not
+	// argocdApplicationRepoURLs, and computes sourceRevisionDetails per
+	// source inside the loop -- a multi-source Application can declare a
+	// different targetRevision for each repository, and each resulting
+	// DEPLOYS_FROM edge must carry its own source's revision, not the first
+	// non-empty revision found anywhere in the document.
+	for _, source := range argocdApplicationSources(document) {
+		sourceRevisionDetails := argocdSourceRevisionDetails(source.targetRevision)
+		for _, deployedRepo := range matchingCatalogEntries(source.repoURL, matcher) {
 			evidence = append(evidence, matchCatalog(
-				controlRepoID, repoURL, filePath,
+				controlRepoID, source.repoURL, filePath,
 				EvidenceKindArgoCDAppSource, RelDeploysFrom, DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindArgoCDAppSource),
 				"ArgoCD Application source references the target repository",
 				"argocd", matcher, seen, sourceRevisionDetails,

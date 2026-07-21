@@ -125,6 +125,31 @@ func promoteTerraformResourceAttributes(resourceType string, attributes map[stri
 	return result
 }
 
+// terraformAttributePromotionKeysForType returns every tf_attr_* node
+// property key promoteTerraformResourceAttributes can possibly write for
+// resourceType, in allowlist declaration order. Returns nil for a
+// resourceType with no allowlist entry.
+//
+// This is the REMOVE-clause source of truth for the TerraformResource
+// writer (#5441 review round 8, P1-a): `r += row.attrs` is an additive
+// map-merge, so a key absent from the current row's promoted attrs (removed
+// from state, now malformed, or newly oversize under the 512-byte cap)
+// leaves whatever value a PRIOR write left on the node -- stale graph truth
+// that no longer matches the source state. Deriving the REMOVE key set from
+// this same allowlist (rather than hand-maintaining a parallel list) is
+// deliberate: the two can never drift out of sync.
+func terraformAttributePromotionKeysForType(resourceType string) []string {
+	allowlist, ok := terraformAttributePromotionAllowlist[resourceType]
+	if !ok || len(allowlist) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(allowlist))
+	for _, path := range allowlist {
+		keys = append(keys, terraformAttributePromotionKeyPrefix+strings.ReplaceAll(path, ".", "_"))
+	}
+	return keys
+}
+
 // terraformAttributeScalarValue gates canonicalGraphPropertyValue to true
 // scalars only (string/bool/int-family/float), rejecting the []string/[]any
 // list shapes canonicalGraphPropertyValue accepts for the generic
