@@ -306,6 +306,16 @@ source run has already completed a chunk. Code-call projection uses the latter
 lookup to process very large accepted units in chunks without retracting edges
 written by earlier chunks from the same run.
 
+The generic repo-refresh fence uses the narrower
+`HasCompletedAcceptanceUnitSourceRunGenerationPartitionDomainIntents` lookup.
+It requires a completion for the exact generation, bounded by acceptance
+identity and partition key. Exact same-generation delivery reuses deterministic
+intent IDs, and `SharedIntentStore.UpsertIntents` preserves an existing
+`completed_at`, so it does not reopen the refresh or edge rows. A later
+generation that reuses `source_run_id` still gets distinct IDs and must complete
+its own refresh before its per-edge rows proceed. This preserves at-least-once
+delivery without serializing unrelated repositories or partitions.
+
 ### Graph projection phase state
 
 `GraphProjectionPhaseStateStore` persists `canonical_nodes_committed` phase

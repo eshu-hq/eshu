@@ -81,6 +81,8 @@
 - A `materialized_edges:<family>` coverage row is not exhaustively covered
   until BOTH its `baseline` (proof_gate `ifa-determinism`) and `fault`
   (proof_gate `ifa-fault-injection`) scenario_type rows resolve covered.
+  `sql_relationships` additionally requires `delta_tombstone`, proven live by
+  `ifa-determinism` after its baseline assertion (#5554).
   `materializedEdgeScenarioRequirements` computes this requirement directly
   from `reducer.MaterializedEdgeFamilies()` in code; do not add a
   `scenario_requirements:` section to
@@ -98,12 +100,11 @@
   waiver on a `(surface, proof_gate)` that later gains real coverage is flagged
   as stale — remove the `waivers:` row in the same change that adds the
   coverage row.
-- The manifest is a CLAIMS LEDGER, not a roadmap: absence of a
-  `(surface × proof_gate)` row means NOT CLAIMED / not covered, never inferred
-  covered. Do NOT add a permanently-waived row for a dimension you cannot prove
-  live (e.g. SQL delta-live, blocked on the reducer refresh-fence bug #5554) —
-  leave it unclaimed and record the gap in the manifest's roadmap block, so the
-  ledger never claims coverage it does not have.
+- The manifest is a CLAIMS LEDGER, not a roadmap: absence of a required
+  `(surface × scenario_type)` row means NOT CLAIMED / not covered, never
+  inferred covered. Do NOT add a permanently-waived row for a dimension you
+  cannot prove live. SQL delta-live is now an unwaived required row; its proof
+  must keep driving gen 2 and checking the accumulated exact set.
 - Before trusting a new family's expected-edge-set fixture against a live
   backend, read `README.md`'s Gotchas note on the #5351 live-proof finding: a
   `content_entity` fact whose `relative_path` has no matching `file` fact

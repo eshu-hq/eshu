@@ -51,6 +51,21 @@ SELECT EXISTS (
 )
 `
 
+const hasCompletedAcceptanceUnitSourceRunGenerationPartitionDomainIntentsSQL = `
+SELECT EXISTS (
+    SELECT 1
+    FROM shared_projection_intents
+    WHERE scope_id = $1
+      AND acceptance_unit_id = $2
+      AND source_run_id = $3
+      AND generation_id = $4
+      AND partition_key = $5
+      AND projection_domain = $6
+      AND completed_at IS NOT NULL
+    LIMIT 1
+)
+`
+
 const hasCompletedAcceptanceUnitSourceRunRefreshDomainIntentsSQL = `
 SELECT EXISTS (
     SELECT 1
@@ -292,6 +307,43 @@ func (s *SharedIntentStore) HasCompletedAcceptanceUnitSourceRunPartitionDomainIn
 		return false, fmt.Errorf("scan completed source-run partition shared projection history: %w", err)
 	}
 	return exists, sqlRows.Err()
+}
+
+// HasCompletedAcceptanceUnitSourceRunGenerationPartitionDomainIntents requires
+// an exact-generation completion. Exact same-generation redelivery reuses the
+// deterministic intent ID and preserves completed_at during upsert, while the
+// generation predicate prevents a reused source run from opening a later
+// generation's fence (#5554).
+func (s *SharedIntentStore) HasCompletedAcceptanceUnitSourceRunGenerationPartitionDomainIntents(
+	ctx context.Context,
+	key reducer.SharedProjectionAcceptanceKey,
+	generationID string,
+	partitionKey string,
+	domain string,
+) (bool, error) {
+	sqlRows, err := s.db.QueryContext(
+		ctx,
+		hasCompletedAcceptanceUnitSourceRunGenerationPartitionDomainIntentsSQL,
+		key.ScopeID,
+		key.AcceptanceUnitID,
+		key.SourceRunID,
+		generationID,
+		partitionKey,
+		domain,
+	)
+	if err != nil {
+		return false, fmt.Errorf("query completed generation refresh fence history: %w", err)
+	}
+	defer func() { _ = sqlRows.Close() }()
+
+	if !sqlRows.Next() {
+		return false, nil
+	}
+	var ready bool
+	if err := sqlRows.Scan(&ready); err != nil {
+		return false, fmt.Errorf("scan completed generation refresh fence history: %w", err)
+	}
+	return ready, sqlRows.Err()
 }
 
 // HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents reports whether a

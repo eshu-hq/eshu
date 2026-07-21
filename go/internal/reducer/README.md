@@ -3300,6 +3300,12 @@ runner projects them through the #2898 refresh fence. The retract Cypher and edg
 templates are unchanged; only the path that reaches them moved. See
 `shared-projection.md` (SQL and inheritance domains).
 
+The refresh fence is generation-local (#5554). Exact same-generation retries
+reuse deterministic intent IDs and remain completed; if a later generation
+reuses `source_run_id`, its per-edge rows wait for that generation's own refresh
+completion. The N=1/2/4 Ifá matrix drives the SQL gen-2 delta after gen 1 and
+asserts the accumulated exact seven-edge set before comparing graph digests.
+
 ## EXPLAINS edges (#2230)
 
 `RationaleEdgeMaterializationHandler` (domain `rationale_materialization`)

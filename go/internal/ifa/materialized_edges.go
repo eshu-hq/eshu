@@ -35,11 +35,10 @@ const (
 	// materializedEdgeProofGateBaseline and materializedEdgeProofGateFault are
 	// the two CI proof gates the exhaustiveness contract pairs with each
 	// family's required scenario types: the P2 determinism matrix proves the
-	// baseline row, the P4 fault-injection matrix proves the fault row. This
-	// pairing is the structural claim granularity — one manifest row per
-	// (surface, proof_gate) — so a waiver is keyed by (surface, proof_gate) too,
-	// never per-family. Absence of a (surface, proof_gate) row means NOT CLAIMED
-	// (an unproven dimension is never inferred covered).
+	// baseline row (and SQL's delta row), while the P4 fault-injection matrix
+	// proves the fault row. Waivers remain keyed by (surface, proof_gate) because
+	// only the baseline/fault dimensions may be waived; SQL delta-live is a
+	// required, unwaived claim.
 	materializedEdgeProofGateBaseline = "ifa-determinism"
 	materializedEdgeProofGateFault    = "ifa-fault-injection"
 )
@@ -53,12 +52,12 @@ var validMaterializedEdgeWaiverProofGates = map[string]struct{}{
 	materializedEdgeProofGateFault:    {},
 }
 
-// materializedEdgeProofGateFor maps a required depth scenario type to the CI
-// proof gate that proves it, so a reconciled (surface, scenario_type) row lines
-// up 1:1 with a waiver keyed by (surface, proof_gate). An unrecognized scenario
-// type returns "" — no waiver can then match the row, which fails closed rather
-// than softening a row whose gate is unknown.
-func materializedEdgeProofGateFor(scenarioType replaycoverage.DepthScenarioType) string {
+// materializedEdgeWaiverProofGateFor maps only waivable baseline/fault scenarios to
+// their waiver proof-gate key. Delta-live is deliberately unwaivable even
+// though ifa-determinism proves it, so delta_tombstone returns "": it can
+// neither consume a baseline waiver nor make that distinct waiver look stale.
+// Unknown scenario types also return "" and therefore fail closed.
+func materializedEdgeWaiverProofGateFor(scenarioType replaycoverage.DepthScenarioType) string {
 	switch scenarioType {
 	case replaycoverage.ScenarioTypeBaseline:
 		return materializedEdgeProofGateBaseline
@@ -96,22 +95,27 @@ func EnumerateMaterializedEdgeSurfaces(families []string) []replaycoverage.Suppo
 }
 
 // materializedEdgeScenarioRequirements builds the [baseline, fault]
-// requirement every materialized-edge family carries, computed directly from
-// families rather than hand-maintained in the manifest YAML: "exhaustive
-// coverage = both rows present" (#5351 design §1) is a structural rule of
-// every family, not a per-family editorial choice, so encoding it in code
-// means a 13th family added to reducer.MaterializedEdgeFamilies() can never
-// drift out of sync with its own required-scenario-type pair the way a
-// hand-authored YAML row could.
+// requirement every materialized-edge family carries, plus SQL's live delta
+// requirement (#5554). The requirements are computed here rather than trusted
+// from hand-maintained manifest YAML, so the structural coverage contract
+// cannot silently drift.
 func materializedEdgeScenarioRequirements(families []string) []replaycoverage.ScenarioRequirement {
 	out := make([]replaycoverage.ScenarioRequirement, 0, len(families))
 	for _, family := range families {
-		out = append(out, replaycoverage.ScenarioRequirement{
-			Surface: MaterializedEdgeSurfacePrefix + family,
-			ScenarioTypes: []replaycoverage.DepthScenarioType{
+		scenarioTypes := []replaycoverage.DepthScenarioType{
+			replaycoverage.ScenarioTypeBaseline,
+			replaycoverage.ScenarioTypeFault,
+		}
+		if family == "sql_relationships" {
+			scenarioTypes = []replaycoverage.DepthScenarioType{
 				replaycoverage.ScenarioTypeBaseline,
+				replaycoverage.ScenarioTypeDeltaTombstone,
 				replaycoverage.ScenarioTypeFault,
-			},
+			}
+		}
+		out = append(out, replaycoverage.ScenarioRequirement{
+			Surface:       MaterializedEdgeSurfacePrefix + family,
+			ScenarioTypes: scenarioTypes,
 		})
 	}
 	return out
@@ -146,6 +150,17 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 	family := strings.TrimPrefix(entry.Surface, MaterializedEdgeSurfacePrefix)
 	switch family {
 	case "sql_relationships":
+		if entry.ScenarioType == replaycoverage.ScenarioTypeDeltaTombstone {
+			baseline, exists := r.Catalog[sqlFamilyOduName]
+			if !exists {
+				return false, fmt.Sprintf("no cataloged baseline Odù named %q", sqlFamilyOduName)
+			}
+			return resolveSQLRelationshipDeltaMaterializedEdges(
+				baseline,
+				odu,
+				sqlFamilyDeltaLiveExpectedEdgesPath(r.RepoRoot),
+			)
+		}
 		return resolveSQLRelationshipMaterializedEdges(odu, sqlFamilyExpectedEdgesPath(r.RepoRoot))
 	default:
 		return false, fmt.Sprintf("no vacuity guard registered for materialized-edge family %q", family)
@@ -212,12 +227,10 @@ type MaterializedEdgeCoverageInputs struct {
 // family enumeration against Ifá's own materialized-edge coverage manifest.
 //
 // The manifest is a CLAIMS LEDGER, not a roadmap: the unit of a claim is one
-// (surface × proof_gate) row. A dimension with neither a coverage row nor a
-// matching waiver is UNCLAIMED / not covered — this function never infers
-// coverage for a dimension the ledger is silent about, and a required-but-
-// unclaimed dimension fails the blocking gate. Waivers are per-(surface,
-// proof_gate) so a waived fault row never revokes credit for a proven baseline
-// row (see materializedEdgeWaiverKey).
+// (surface × scenario_type) row bound to a proof gate. This function never
+// infers coverage for a dimension the ledger is silent about, and a required-
+// but-unclaimed dimension fails the blocking gate. Baseline/fault waivers are
+// per-(surface, proof_gate), while SQL delta-live is required and unwaived.
 //
 // It mirrors RunCoverage's shape (coverage.go) with one addition: waivers.
 // Reconcile/BuildReport/Findings are reused wholesale from replaycoverage;
@@ -275,7 +288,7 @@ func RunMaterializedEdgeCoverage(in MaterializedEdgeCoverageInputs) (replaycover
 	coveredKeys := make(map[materializedEdgeWaiverKey]struct{}, len(cov.Surfaces))
 	for _, sc := range cov.Surfaces {
 		if sc.Status == replaycoverage.StatusCovered {
-			coveredKeys[materializedEdgeWaiverKey{Surface: sc.Surface.Key, ProofGate: materializedEdgeProofGateFor(sc.ScenarioType)}] = struct{}{}
+			coveredKeys[materializedEdgeWaiverKey{Surface: sc.Surface.Key, ProofGate: materializedEdgeWaiverProofGateFor(sc.ScenarioType)}] = struct{}{}
 		}
 	}
 	var staleWaivers []string
@@ -325,7 +338,7 @@ func materializedEdgeFinding(sc replaycoverage.SurfaceCoverage, waivers map[mate
 			Detail: fmt.Sprintf("%s: %s", sc.Status, sc.Detail),
 		}
 	}
-	key := materializedEdgeWaiverKey{Surface: sc.Surface.Key, ProofGate: materializedEdgeProofGateFor(sc.ScenarioType)}
+	key := materializedEdgeWaiverKey{Surface: sc.Surface.Key, ProofGate: materializedEdgeWaiverProofGateFor(sc.ScenarioType)}
 	if w, waived := waivers[key]; waived {
 		return goldengate.Finding{
 			Phase: string(sc.Surface.Registry), Check: check, OK: true, Required: false,

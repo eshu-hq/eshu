@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -27,8 +29,9 @@ import (
 // never captured from a live run (that would make the gate a snapshot test,
 // not an exhaustiveness proof).
 const (
-	sqlRelationshipExpectedEdgesRelPath      = "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
-	sqlRelationshipDeltaExpectedEdgesRelPath = "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-delta-expected-edges.json"
+	sqlRelationshipExpectedEdgesRelPath          = "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
+	sqlRelationshipDeltaExpectedEdgesRelPath     = "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-delta-expected-edges.json"
+	sqlRelationshipDeltaLiveExpectedEdgesRelPath = "go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-delta-live-expected-edges.json"
 )
 
 // sqlFamilyExpectedEdgesPath joins repoRoot onto the v1 Odù's expected-edge-set
@@ -41,6 +44,12 @@ func sqlFamilyExpectedEdgesPath(repoRoot string) string {
 // expected-edge-set fixture path.
 func sqlFamilyDeltaExpectedEdgesPath(repoRoot string) string {
 	return filepath.Join(repoRoot, sqlRelationshipDeltaExpectedEdgesRelPath)
+}
+
+// sqlFamilyDeltaLiveExpectedEdgesPath joins repoRoot onto the accumulated
+// gen-1 + gen-2 live expected-edge-set fixture path.
+func sqlFamilyDeltaLiveExpectedEdgesPath(repoRoot string) string {
+	return filepath.Join(repoRoot, sqlRelationshipDeltaLiveExpectedEdgesRelPath)
 }
 
 // sqlRelationshipExpectedEdge is one hand-derived expected SQL relationship
@@ -141,6 +150,105 @@ func resolveSQLRelationshipMaterializedEdges(odu Odu, expectedEdgesPath string) 
 	}
 
 	registry := cypher.SQLRelationshipMaterializedEdgeTypes()
+	if missingTypes := missingSQLRelationshipExpectedTypes(expected, registry); len(missingTypes) > 0 {
+		return false, fmt.Sprintf("odù %q: expected-edge-set %s does not cover every registry edge type, missing: %v", odu.Name, expectedEdgesPath, missingTypes)
+	}
+
+	_, rows, _ := reducer.ExtractSQLRelationshipRows(odu.Facts)
+	actual := sqlRelationshipRowsToExpectedEdges(rows)
+	if mismatch := compareSQLRelationshipExpectedSets(odu.Name, expected, actual); mismatch != "" {
+		return false, mismatch
+	}
+
+	return true, fmt.Sprintf("odù %q: ExtractSQLRelationshipRows reproduces the expected %d-edge set exactly, covering all %d registry types", odu.Name, len(expected), len(registry))
+}
+
+// resolveSQLRelationshipDeltaMaterializedEdges derives the accumulated live
+// graph from the baseline and delta Odùs: baseline rows sourced from a changed
+// file are retracted, unchanged-file rows survive, and delta rows are added.
+// That exact pure set must match the same fixture the live matrix asserts.
+func resolveSQLRelationshipDeltaMaterializedEdges(
+	baseline Odu,
+	delta Odu,
+	expectedEdgesPath string,
+) (bool, string) {
+	expected, err := loadSQLRelationshipExpectedEdges(expectedEdgesPath)
+	if err != nil {
+		return false, err.Error()
+	}
+	registry := cypher.SQLRelationshipMaterializedEdgeTypes()
+	if missingTypes := missingSQLRelationshipExpectedTypes(expected, registry); len(missingTypes) > 0 {
+		return false, fmt.Sprintf("odù %q: delta-live expected-edge-set %s does not cover every registry edge type, missing: %v", delta.Name, expectedEdgesPath, missingTypes)
+	}
+
+	_, baselineRows, _ := reducer.ExtractSQLRelationshipRows(baseline.Facts)
+	_, deltaRows, _ := reducer.ExtractSQLRelationshipRows(delta.Facts)
+	changedPaths := sqlRelationshipDeltaRelativePaths(delta)
+	if len(changedPaths) == 0 {
+		return false, fmt.Sprintf("odù %q: repository fact identifies no delta_relative_paths", delta.Name)
+	}
+	baselineEntityPaths := sqlRelationshipEntityRelativePaths(baseline)
+
+	accumulatedRows := make([]map[string]any, 0, len(baselineRows)+len(deltaRows))
+	for _, row := range baselineRows {
+		sourceEntityID := anyToStringValue(row["source_entity_id"])
+		if _, changed := changedPaths[baselineEntityPaths[sourceEntityID]]; changed {
+			continue
+		}
+		accumulatedRows = append(accumulatedRows, row)
+	}
+	accumulatedRows = append(accumulatedRows, deltaRows...)
+	actual := sqlRelationshipRowsToExpectedEdges(accumulatedRows)
+	if mismatch := compareSQLRelationshipExpectedSets(delta.Name+" accumulated", expected, actual); mismatch != "" {
+		return false, mismatch
+	}
+
+	return true, fmt.Sprintf("odù %q: baseline + delta derivation reproduces the expected accumulated %d-edge set exactly, covering all %d registry types", delta.Name, len(expected), len(registry))
+}
+
+func sqlRelationshipDeltaRelativePaths(odu Odu) map[string]struct{} {
+	paths := make(map[string]struct{})
+	for _, envelope := range odu.Facts {
+		if envelope.FactKind != repositoryFactKind {
+			continue
+		}
+		switch values := envelope.Payload["delta_relative_paths"].(type) {
+		case []string:
+			for _, value := range values {
+				if value = strings.TrimSpace(value); value != "" {
+					paths[value] = struct{}{}
+				}
+			}
+		case []any:
+			for _, raw := range values {
+				if value := strings.TrimSpace(anyToStringValue(raw)); value != "" {
+					paths[value] = struct{}{}
+				}
+			}
+		}
+	}
+	return paths
+}
+
+func sqlRelationshipEntityRelativePaths(odu Odu) map[string]string {
+	paths := make(map[string]string)
+	for _, envelope := range odu.Facts {
+		if envelope.FactKind != contentEntityFactKind {
+			continue
+		}
+		entityID := strings.TrimSpace(anyToStringValue(envelope.Payload["entity_id"]))
+		relativePath := strings.TrimSpace(anyToStringValue(envelope.Payload["relative_path"]))
+		if entityID != "" && relativePath != "" {
+			paths[entityID] = relativePath
+		}
+	}
+	return paths
+}
+
+func missingSQLRelationshipExpectedTypes(
+	expected []sqlRelationshipExpectedEdge,
+	registry map[string]string,
+) []string {
 	seenTypes := make(map[string]struct{}, len(expected))
 	for _, e := range expected {
 		seenTypes[e.RelationshipType] = struct{}{}
@@ -151,28 +259,30 @@ func resolveSQLRelationshipMaterializedEdges(odu Odu, expectedEdgesPath string) 
 			missingTypes = append(missingTypes, edgeType)
 		}
 	}
-	if len(missingTypes) > 0 {
-		return false, fmt.Sprintf("odù %q: expected-edge-set %s does not cover every registry edge type, missing: %v", odu.Name, expectedEdgesPath, missingTypes)
-	}
+	sort.Strings(missingTypes)
+	return missingTypes
+}
 
+func compareSQLRelationshipExpectedSets(
+	label string,
+	expected []sqlRelationshipExpectedEdge,
+	actual []sqlRelationshipExpectedEdge,
+) string {
 	expectedSet := sqlRelationshipEdgeSet(expected)
-	_, rows, _ := reducer.ExtractSQLRelationshipRows(odu.Facts)
-	actual := sqlRelationshipRowsToExpectedEdges(rows)
 	actualSet := sqlRelationshipEdgeSet(actual)
 
 	if len(actualSet) != len(expectedSet) {
-		return false, fmt.Sprintf("odù %q: ExtractSQLRelationshipRows produced %d distinct edges, expected-edge-set names %d", odu.Name, len(actualSet), len(expectedSet))
+		return fmt.Sprintf("odù %q: derived %d distinct edges, expected-edge-set names %d", label, len(actualSet), len(expectedSet))
 	}
 	for key := range expectedSet {
 		if _, ok := actualSet[key]; !ok {
-			return false, fmt.Sprintf("odù %q: expected edge %s not reproduced by ExtractSQLRelationshipRows", odu.Name, key)
+			return fmt.Sprintf("odù %q: expected edge %s not reproduced", label, key)
 		}
 	}
 	for key := range actualSet {
 		if _, ok := expectedSet[key]; !ok {
-			return false, fmt.Sprintf("odù %q: ExtractSQLRelationshipRows produced unexpected edge %s not in the expected-edge-set", odu.Name, key)
+			return fmt.Sprintf("odù %q: derived unexpected edge %s not in the expected-edge-set", label, key)
 		}
 	}
-
-	return true, fmt.Sprintf("odù %q: ExtractSQLRelationshipRows reproduces the expected %d-edge set exactly, covering all %d registry types", odu.Name, len(expectedSet), len(registry))
+	return ""
 }

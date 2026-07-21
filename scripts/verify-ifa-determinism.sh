@@ -127,9 +127,8 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
-
-# shellcheck source=scripts/lib/ifa_determinism_common.sh
 source "${repo_root}/scripts/lib/ifa_determinism_common.sh"
+source "${repo_root}/scripts/lib/ifa_sql_delta_live.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration (override via environment). One Compose project + one port
@@ -167,6 +166,8 @@ worker_counts=(1 2 4)
 # catch a family silently empty in ALL cells, the absolute expected set can.
 sql_cassette="${repo_root}/testdata/cassettes/sqlrelationships/ifa-sql-family.json"
 sql_expected_edges="${repo_root}/go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
+sql_delta_cassette="${repo_root}/testdata/cassettes/sqlrelationships/ifa-sql-family-delta.json"
+sql_delta_expected_edges="${repo_root}/go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-delta-live-expected-edges.json"
 
 # synth-multiscope cassette settings (issue #4396 slice 6b): a fixed seed so
 # the generated cassette is byte-identical across every cell (and across
@@ -222,6 +223,8 @@ fi
 [[ -f "${cassette}" ]] || { echo "verify-ifa-determinism: cassette not found: ${cassette}" >&2; exit 1; }
 [[ -f "${sql_cassette}" ]] || { echo "verify-ifa-determinism: SQL cassette not found: ${sql_cassette}" >&2; exit 1; }
 [[ -f "${sql_expected_edges}" ]] || { echo "verify-ifa-determinism: SQL expected-edge set not found: ${sql_expected_edges}" >&2; exit 1; }
+[[ -f "${sql_delta_cassette}" ]] || { echo "verify-ifa-determinism: SQL delta cassette not found: ${sql_delta_cassette}" >&2; exit 1; }
+[[ -f "${sql_delta_expected_edges}" ]] || { echo "verify-ifa-determinism: SQL delta expected-edge set not found: ${sql_delta_expected_edges}" >&2; exit 1; }
 
 work_dir="$(mktemp -d -t ifa-determinism.XXXXXX)"
 bin_dir="${work_dir}/bin"
@@ -368,20 +371,9 @@ for n in "${worker_counts[@]}"; do
 	fi
 	cat "${log_dir}/ifa-drive-synth-n${n}.log"
 
-	# Third drive: the committed SQL relationship family cassette (#5351). Driven
-	# at the SAME -workers N into the same cell stack, so its seven materialized
-	# SQL edge types (QUERIES_TABLE/READS_FROM/HAS_COLUMN/TRIGGERS/EXECUTES/
-	# INDEXES/MIGRATES) are part of the combined graph the digest below covers,
-	# AND become the subject of the per-cell absolute-set assertion after the
-	# drain. This is what backs the materialized_edges:sql_relationships manifest
-	# row's proof_gate: ifa-determinism claim with an actual replay of the family.
-	log "N=${n}: drive SQL relationship family cassette through eshu-ifa drive -workers ${n}"
-	if ! "${bin_dir}/eshu-ifa" drive -cassette "${sql_cassette}" -workers "${n}" \
-		>"${log_dir}/ifa-drive-sql-n${n}.log" 2>&1; then
-		tail -40 "${log_dir}/ifa-drive-sql-n${n}.log" >&2 || true
-		die "N=${n}: eshu-ifa drive (SQL relationship family) failed"
-	fi
-	cat "${log_dir}/ifa-drive-sql-n${n}.log"
+	# Add the committed seven-edge SQL family to the same durable cell.
+	ifa_det_drive_sql_baseline "${n}" "${bin_dir}" "${sql_cassette}" "${log_dir}" \
+		|| die "N=${n}: SQL relationship baseline drive failed"
 
 	# Fourth drive (opt-in --contention): the #5007 overlapping-identity cassette.
 	# Its K scopes all contend on the same CloudResource nodes; the owner ledger
@@ -422,28 +414,23 @@ for n in "${worker_counts[@]}"; do
 	fi
 	kill "${projector_pid}" "${reducer_pid}" >/dev/null 2>&1 || true
 
-	log "N=${n}: canonicalize graph (ifa graph-dump)"
+	ifa_det_assert_sql_baseline "${n}" "${bin_dir}" "${sql_expected_edges}" \
+		|| die "N=${n}: SQL relationship baseline assertion failed"
+
+	# #5554: gen 2 reuses source_run_id in this same durable cell and retargets
+	# INDEXES, exercising the generation-aware refresh fence end to end.
+	ifa_det_run_sql_delta_live \
+		"${n}" "${bin_dir}" "${sql_delta_cassette}" "${sql_delta_expected_edges}" "${log_dir}" \
+		"${DETERMINISM_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${GATE_DRAIN_TIMEOUT}" \
+		|| die "N=${n}: SQL delta-live proof failed"
+
+	log "N=${n}: canonicalize post-delta graph (ifa graph-dump)"
 	"${bin_dir}/eshu-ifa" graph-dump -out "${work_dir}/graph-n${n}.dump" \
 		|| die "N=${n}: ifa graph-dump (canonical bytes) failed"
 	digest_n="$("${bin_dir}/eshu-ifa" graph-dump -digest | tr -d '[:space:]')"
 	[[ -n "${digest_n}" ]] || die "N=${n}: ifa graph-dump -digest returned empty output"
 	digests[${n}]="${digest_n}"
-	printf 'N=%s digest: %s\n' "${n}" "${digest_n}"
-
-	# Absolute-set assertion for the SQL relationship family (#5351): the
-	# non-vacuity check the digest cannot make. Digest equality across N proves
-	# worker-count invariance, but a family that materialized ZERO edges in ALL
-	# cells has an identical (empty-for-that-family) digest in every cell and
-	# would pass the digest comparison vacuously. `ifa assert-edges` reads the
-	# live graph and asserts the SQL family's materialized edges are EXACTLY the
-	# committed expected set (all seven edge types), per cell, so a silently
-	# non-materializing family fails here even when the digest is stable.
-	log "N=${n}: assert SQL relationship family materialized edges (absolute set, non-vacuity)"
-	if ! "${bin_dir}/eshu-ifa" assert-edges \
-		-domain sql_relationships \
-		-expected "${sql_expected_edges}"; then
-		die "N=${n}: SQL relationship family materialized edge set did not match the expected set — a family silently not materializing (or spurious edges); do NOT normalize this away"
-	fi
+	printf 'N=%s post-delta digest: %s\n' "${n}" "${digest_n}"
 
 	if [[ "${use_compose}" -eq 1 ]]; then
 		log "N=${n}: tear down cell (fresh stack for the next cell)"

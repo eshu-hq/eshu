@@ -76,11 +76,11 @@ func stateModelingRepoIDs(rows []SharedProjectionIntentRow) []string {
 
 // fenceTrackingIntentStore models the durable shared_projection_intents table for
 // the worker's refresh fence: it lists not-yet-completed intents, records
-// completion, and answers HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents
-// from that recorded completion — exactly the Postgres contract the fence relies
-// on. A completed intent is removed from the pending listing (so it is not
-// re-projected) and its (scope, acceptance_unit, source_run, partition_key,
-// domain) tuple becomes visible to the fence.
+// completion, and answers both the code-call partition-history lookup and the
+// generation-scoped refresh-fence lookup from that durable state. A completed
+// intent is removed from the pending listing (so it is not re-projected); an
+// exact retry preserves that completion because production intent IDs are
+// deterministic and Postgres does not reopen completed rows during upsert.
 type fenceTrackingIntentStore struct {
 	pending   []SharedProjectionIntentRow
 	byID      map[string]SharedProjectionIntentRow
@@ -138,6 +138,29 @@ func (s *fenceTrackingIntentStore) HasCompletedAcceptanceUnitSourceRunPartitionD
 ) (bool, error) {
 	_, ok := s.fenceKeys[fenceTupleKey(key.ScopeID, key.AcceptanceUnitID, key.SourceRunID, partitionKey, domain)]
 	return ok, nil
+}
+
+func (s *fenceTrackingIntentStore) HasCompletedAcceptanceUnitSourceRunGenerationPartitionDomainIntents(
+	_ context.Context,
+	key SharedProjectionAcceptanceKey,
+	generationID string,
+	partitionKey string,
+	domain string,
+) (bool, error) {
+	for intentID, intent := range s.byID {
+		if intent.ScopeID != key.ScopeID ||
+			intent.AcceptanceUnitID != key.AcceptanceUnitID ||
+			intent.SourceRunID != key.SourceRunID ||
+			intent.GenerationID != generationID ||
+			intent.PartitionKey != partitionKey ||
+			intent.ProjectionDomain != domain {
+			continue
+		}
+		if _, done := s.completed[intentID]; done {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func fenceTupleKey(scope, au, run, partitionKey, domain string) string {
