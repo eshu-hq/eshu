@@ -3514,6 +3514,16 @@
     },
     {
       "category": "reducer_domain",
+      "name": "codeowners_ownership",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "codeowners_ownership_edges",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
       "name": "config_state_drift",
       "readiness": "implemented"
     },

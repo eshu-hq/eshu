@@ -162,6 +162,7 @@ type APIRouter struct {
 	SemanticSearch               *SemanticSearchHandler
 	PackageRegistry              *PackageRegistryHandler
 	Dependencies                 *DependenciesHandler
+	CodeownersOwnership          *CodeownersOwnershipHandler
 	CICD                         *CICDHandler
 	ServiceCatalog               *ServiceCatalogHandler
 	Kubernetes                   *KubernetesHandler
@@ -342,6 +343,11 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Dependency inventory
 	if a.Dependencies != nil {
 		a.Dependencies.Mount(mux)
+	}
+
+	// Codeowners ownership
+	if a.CodeownersOwnership != nil {
+		a.CodeownersOwnership.Mount(mux)
 	}
 
 	// CI/CD
