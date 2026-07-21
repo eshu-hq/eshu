@@ -37,10 +37,11 @@ func TestResourceInvestigationSelectorInteractiveSLO(t *testing.T) {
 	if os.Getenv("ESHU_RESOURCE_SELECTOR_COMPARISON") == "1" {
 		legacy := measureResourceSelectorSLOLegacy(ctx, t, driver, database)
 		t.Logf(
-			"selector OLD_CURRENT cold=%s warm_median=%s rows=%d db_hits=%d",
+			"selector OLD_CURRENT cold=%s warm_median=%s rows=%d ids=%v db_hits=%d",
 			legacy.cold,
 			legacy.warm,
 			legacy.rows,
+			legacy.ids,
 			legacy.dbHits,
 		)
 	}
@@ -137,6 +138,7 @@ type resourceSelectorSLOLegacyMeasurement struct {
 	cold   time.Duration
 	warm   time.Duration
 	rows   int
+	ids    []string
 	dbHits int64
 }
 
@@ -152,6 +154,7 @@ func measureResourceSelectorSLOLegacy(
 	params := map[string]any{"selector": req.selector(), "environment": "", "limit": req.Limit + 1}
 	durations := make([]time.Duration, 0, 4)
 	rows := 0
+	var ids []string
 	for range 4 {
 		session := driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeRead, DatabaseName: database})
 		started := time.Now()
@@ -167,10 +170,20 @@ func measureResourceSelectorSLOLegacy(
 		}
 		durations = append(durations, time.Since(started))
 		rows = len(records)
+		if ids == nil {
+			ids = make([]string, 0, len(records))
+			for _, record := range records {
+				value, ok := record.Get("id")
+				if id, isString := value.(string); ok && isString {
+					ids = append(ids, id)
+				}
+			}
+			sort.Strings(ids)
+		}
 	}
 	warm := append([]time.Duration(nil), durations[1:]...)
 	sort.Slice(warm, func(i, j int) bool { return warm[i] < warm[j] })
-	measurement := resourceSelectorSLOLegacyMeasurement{cold: durations[0], warm: warm[1], rows: rows}
+	measurement := resourceSelectorSLOLegacyMeasurement{cold: durations[0], warm: warm[1], rows: rows, ids: ids}
 	if os.Getenv("ESHU_RESOURCE_SELECTOR_PROFILE") == "1" {
 		measurement.dbHits = profileResourceSelectorSLOQuery(ctx, t, driver, database, cypher, params)
 	}
@@ -208,7 +221,18 @@ WHERE %s
        coalesce(n.config_path, '') CONTAINS $selector)
   AND ($environment = '' OR coalesce(n.environment, '') = '' OR n.environment = $environment)
 RETURN coalesce(n.id, n.uid, n.resource_id, n.name) AS id,
-       n.name AS name, labels(n) AS labels
+       n.name AS name,
+       labels(n) AS labels,
+       coalesce(n.resource_type, n.data_type, n.kind, '') AS resource_type,
+       coalesce(n.provider, '') AS provider,
+       coalesce(n.environment, '') AS environment,
+       coalesce(n.repo_id, '') AS repo_id,
+       coalesce(n.config_path, '') AS config_path,
+       coalesce(n.source, '') AS source,
+       coalesce(n.resource_id, '') AS resource_id,
+       coalesce(n.arn, '') AS arn,
+       coalesce(n.kind, '') AS resource_kind,
+       coalesce(n.resource_category, '') AS resource_class
 ORDER BY name, id
 LIMIT $limit`, resourceInvestigationLabelPredicate(req.ResourceType), resourceInvestigationTypePredicate(req.ResourceType))
 }
