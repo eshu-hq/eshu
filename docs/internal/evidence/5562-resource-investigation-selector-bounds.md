@@ -2,11 +2,12 @@
 
 `POST /api/v0/impact/resource-investigation` no longer resolves a selector with
 an unlabeled `MATCH (n)` and one mixed exact-or-substring predicate. Resolution
-now runs seven label-anchored exact property reads. It runs the five bounded
-substring reads only when those exact reads return no candidates and the caller
-used `query`; `resource_id` never falls back to substring matching.
+now runs one direct query per reachable infrastructure label, with the seven
+exact properties grouped inside that label. It runs the five bounded substring
+properties only when the exact phase returns no candidates and the caller used
+`query`; `resource_id` never falls back to substring matching.
 
-Authorization is part of every label branch before `LIMIT`. The reads use four
+Authorization is part of every label query before `LIMIT`. The reads use four
 concurrent, independent read sessions and merge only after fan-in. There are no
 writes, retries, locks, or shared result slices. Duplicate label/property hits
 collapse to one stable candidate, while distinct entities with the same exact
@@ -21,58 +22,66 @@ match, one prefix-only name, and one fuzzy-only name. OLD and CURRENT are the
 same query bytes because #5302 changed the traversal reads, not selector
 resolution.
 
-On pinned NornicDB image `eshu-nornicdb-pr261:149245885258`, CURRENT filled its
-26-row page with unrelated rows, including 21 unrelated
-`ArgoCDApplication` nodes and the fuzzy-only resource. The candidate exact phase
-returned only the three exact fixtures. Scoped candidate reads returned only the
-two authorized exact fixtures, and the fuzzy-only resource appeared only after
-an exact miss. NornicDB did not return a Bolt PROFILE plan, so its canonical
-evidence is output truth plus wall time; no db-hit value is invented.
-
-The checked-in live gate rebuilds the same synthetic shape and drives the
-production resolver. Its fresh NornicDB run completed exact resolution in
-`0.018228s` (18.228 ms) and exact-miss plus fuzzy fallback in `0.029801s`
-(29.801 ms), both below the `2s` interactive ceiling. It also rechecks scoped
-authorization on the full candidate set.
+The mixed OLD/CURRENT predicate behaved differently across backends. On pinned
+NornicDB image `eshu-nornicdb-pr261:149245885258`, it returned the three exact
+fixtures but incorrectly omitted the prefix match that its `CONTAINS` clause
+claimed to include. On Neo4j 2026.05.0 it mixed that prefix row into the three
+exact rows, making an exact selector ambiguous. The final exact phase returns
+the same three exact fixtures on both backends; scoped reads return only the two
+authorized fixtures, and the fuzzy-only resource appears only after an exact
+miss. NornicDB does not return a Bolt PROFILE plan, so its canonical evidence is
+output truth plus wall time; no db-hit value is invented.
 
 ## Performance Evidence:
 
 Performance Evidence: OLD, CURRENT, and CANDIDATE were measured on the same
-200,401-node synthetic graph, with the same selector, `limit=26`, backend data,
-and single request start/terminal boundaries. OLD and CURRENT are intentionally
-identical. Cold is the first read; warm is the median of the next three reads.
-The candidate figures use the accepted four-slot fanout.
+200,401-node synthetic graph on the same remote reference machine, with the same
+selector, `limit=26`, backend data, and request start/terminal boundaries. OLD
+and CURRENT are intentionally identical. Cold is the first read; warm is the
+median of the next three reads. The candidate uses the accepted four-slot
+fanout. The fuzzy candidate row includes the exact-miss phase and the subsequent
+fuzzy phase, matching end-to-end request behavior.
 
 | Backend and phase | Rows | Cold | Warm median | Summed db hits | Bounded operator evidence |
 |---|---:|---:|---:|---:|---|
-| NornicDB OLD | polluted 26-row page | 0.687259s | 0.000670s | unavailable | PROFILE unavailable |
-| NornicDB CURRENT | polluted 26-row page | 0.687259s | 0.000670s | unavailable | PROFILE unavailable |
-| NornicDB CANDIDATE exact | 3 exact rows | 0.031760s | 0.005239s | unavailable | per-label branches |
-| NornicDB CANDIDATE fuzzy | 1 fuzzy row after exact miss | 0.016772s | 0.001998s | unavailable | per-label branches |
-| Neo4j OLD | exact, prefix, fuzzy, and unrelated matches | 0.020847s | 0.005752s | 4,442 | `UnionNodeByLabelsScan` |
-| Neo4j CURRENT | same as OLD | 0.020847s | 0.005752s | 4,442 | `UnionNodeByLabelsScan` |
-| Neo4j CANDIDATE exact | 3 exact rows | 1.074118s | 0.009131s | 5,757 | `NodeByLabelScan`, `Union` |
-| Neo4j CANDIDATE fuzzy | 1 fuzzy row after exact miss | 0.947973s | 0.007314s | 4,087 | `NodeByLabelScan`, `Union` |
+| NornicDB OLD | 3 exact rows; prefix omitted | 1.093031s | 0.000242s | unavailable | PROFILE unavailable |
+| NornicDB CURRENT | same as OLD | 1.093031s | 0.000242s | unavailable | PROFILE unavailable |
+| NornicDB CANDIDATE exact | 3 exact rows | 0.015931s | 0.000904s | unavailable | direct label queries |
+| NornicDB CANDIDATE fuzzy fallback | 1 fuzzy row after exact miss | 0.022883s | 0.001207s | unavailable | direct label queries |
+| Neo4j OLD | 3 exact rows plus 1 prefix row | 0.513403s | 0.006073s | 4,442 | `UnionNodeByLabelsScan` |
+| Neo4j CURRENT | same as OLD | 0.513403s | 0.006073s | 4,442 | `UnionNodeByLabelsScan` |
+| Neo4j CANDIDATE exact | 3 exact rows | 0.367004s | 0.005350s | 3,255 | `NodeByLabelScan` |
+| Neo4j CANDIDATE fuzzy fallback | 1 fuzzy row after exact miss | 0.262657s | 0.009867s | 5,686 | `NodeByLabelScan` |
 
-The candidate does more summed compatibility-backend db hits because it proves
-seven independent exact properties instead of accepting one mixed predicate's
-incorrect page. Accuracy is the required delta: the old answer is not a valid
-performance baseline. The candidate remains below the 2-second compatibility
-ceiling in the same-data cold PROFILE proof and is substantially faster on the
-canonical NornicDB target.
+The accepted exact phase reduces Neo4j db hits by 1,187 (26.7%) while keeping
+the intended exact output. Fuzzy fallback performs both phases and therefore
+uses 3,255 exact-miss hits plus 2,431 fuzzy hits, but it runs only after an exact
+miss and returns the row OLD/CURRENT could not represent consistently. Both
+backends stay below the 2-second cold ceiling.
 
-The cap-7 alternative was rejected. On a warm same-data Neo4j sweep it improved
-the median from 24.058 ms to 15.315 ms, but a fresh run regressed to 2.229s and
-amplified each request to seven simultaneous connections. The accepted cap stays
-at four; this is bounded concurrency, not serialization.
+Two measured alternatives were rejected. A property-oriented `CALL { UNION }`
+fanout was correct on NornicDB but exceeded the cold Neo4j ceiling at 2.500s.
+Raising that design from four to seven concurrent sessions regressed a fresh
+Neo4j run to 2.229s and increased connection amplification. The accepted design
+keeps four sessions and changes the query boundary to one direct read per label;
+this is bounded concurrency, not serialization.
+
+The remote run used the accepted Linux amd64 reference profile (16 logical CPUs,
+132,209,926,144 bytes visible RAM) and immutable images
+`sha256:5627b816bb5e...` for NornicDB and `sha256:dba3898f324b...` for Neo4j.
+An unrelated retained Eshu stack remained active, so these targeted numbers are
+conservative rather than a clean-host full-corpus baseline. The run directory
+basename is `5562-resource-selector-slo`; every disposable proof container and
+volume was removed, while the clean detached checkout remains for review
+follow-up.
 
 No-Regression Evidence: `TestResourceInvestigationSelectorInteractiveSLO`
 enforces the 200,000-noise-node corpus, exact preference, fuzzy-on-miss behavior,
 scoped filtering, and the two-second ceiling. The query-plan family registers
-all 336 reachable combinations: seven label/type shapes, two access shapes, two
-environment shapes, and all seven exact plus five fuzzy properties. Live PROFILE
-policy rejects `AllNodesScan`, `CartesianProduct`, and `UnboundedExpand` for
-every registered variant.
+all 304 reachable combinations: 38 label/type query shapes across two access
+shapes, two environment shapes, and exact/fuzzy phases. Live PROFILE checked all
+304 variants in 39.104s and rejected `AllNodesScan`, `CartesianProduct`, and
+`UnboundedExpand` for every registered variant.
 
 ## Observability Evidence:
 
@@ -105,6 +114,7 @@ Target-backend live gate (isolated disposable graph):
 ESHU_RESOURCE_SELECTOR_SLO_LIVE=1 \
 ESHU_RESOURCE_SELECTOR_ISOLATED=1 \
 ESHU_RESOURCE_SELECTOR_FRESH=1 \
+ESHU_RESOURCE_SELECTOR_COMPARISON=1 \
 go test -tags resource_selector_slo_live ./internal/query \
   -run '^TestResourceInvestigationSelectorInteractiveSLO$' -count=1 -v
 ```
