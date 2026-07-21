@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:filelength // 934 lines: projection row builder and overlay extraction test suite.
+package reducer //nolint:filelength // 982 lines: projection row builder and overlay extraction test suite.
 
 import (
 	"testing"
@@ -927,6 +927,39 @@ func TestBuildProjectionRowsSkipsNamespaceFallbackForNonEnvironmentNamespace(t *
 	}
 	if got := len(result.RuntimePlatformRows); got != 0 {
 		t.Fatalf("len(RuntimePlatformRows) = %d, want 0 for non-environment namespace fallback", got)
+	}
+}
+
+// TestNamespaceEnvironmentFallbackNormalizesMixedCase proves the
+// case-normalization delta the environment-alias contract (#5473) introduced
+// to namespaceEnvironmentFallback (projection_helpers.go): it now returns
+// environment.Canonical(namespace) instead of the original-case namespace, so
+// a mixed-case namespace like "Production" resolves to the canonical "prod"
+// (not "Production" and not the lowercased-but-still-aliased "production").
+func TestNamespaceEnvironmentFallbackNormalizesMixedCase(t *testing.T) {
+	t.Parallel()
+
+	candidates := []WorkloadCandidate{
+		{
+			RepoID:         "repo-mixed-case-ns",
+			RepoName:       "mixed-case-ns",
+			Classification: "service",
+			Confidence:     0.98,
+			Namespaces:     []string{"Production"},
+			Provenance:     []string{"k8s_resource", "dockerfile_runtime"},
+		},
+	}
+
+	result := BuildProjectionRows(candidates, nil)
+
+	if got, want := len(result.InstanceRows), 1; got != want {
+		t.Fatalf("len(InstanceRows) = %d, want %d", got, want)
+	}
+	if got, want := result.InstanceRows[0].Environment, "prod"; got != want {
+		t.Fatalf("InstanceRows[0].Environment = %q, want %q (namespace %q must canonicalize, not just lowercase)", got, want, "Production")
+	}
+	if got, want := result.InstanceRows[0].InstanceID, "workload-instance:mixed-case-ns:prod"; got != want {
+		t.Fatalf("InstanceRows[0].InstanceID = %q, want %q", got, want)
 	}
 }
 
