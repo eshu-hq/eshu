@@ -157,6 +157,13 @@ func GitHubActionsFixtureEnvelopes(raw []byte, ctx FixtureContext) ([]facts.Enve
 		}
 		envelopes = append(envelopes, warning)
 	}
+	if fixture.ArtifactsPartial {
+		warning, err := warningEnvelope(ctx, fixture.Run, "artifacts:partial", "partial_artifacts_payload", "artifact metadata was partial or unavailable")
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, warning)
+	}
 	return deduplicateEnvelopes(envelopes), nil
 }
 

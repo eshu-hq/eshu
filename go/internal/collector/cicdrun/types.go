@@ -28,13 +28,14 @@ type FixtureContext struct {
 }
 
 type githubActionsFixture struct {
-	Workflow    githubWorkflow   `json:"workflow"`
-	Run         githubRun        `json:"run"`
-	Jobs        []githubJob      `json:"jobs"`
-	JobsPartial bool             `json:"jobs_partial"`
-	Artifacts   []githubArtifact `json:"artifacts"`
-	Triggers    []githubTrigger  `json:"triggers"`
-	Warnings    []githubWarning  `json:"warnings"`
+	Workflow         githubWorkflow   `json:"workflow"`
+	Run              githubRun        `json:"run"`
+	Jobs             []githubJob      `json:"jobs"`
+	JobsPartial      bool             `json:"jobs_partial"`
+	Artifacts        []githubArtifact `json:"artifacts"`
+	ArtifactsPartial bool             `json:"artifacts_partial"`
+	Triggers         []githubTrigger  `json:"triggers"`
+	Warnings         []githubWarning  `json:"warnings"`
 }
 
 type githubWorkflow struct {

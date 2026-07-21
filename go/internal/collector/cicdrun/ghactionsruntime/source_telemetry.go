@@ -77,25 +77,31 @@ func (s ClaimedSource) recordFacts(ctx context.Context, envelopes []facts.Envelo
 	}
 }
 
-// recordPartialGeneration reports three independent partial-generation
+// recordPartialGeneration reports four independent partial-generation
 // reasons across the whole fetched page: jobs_truncated (summed across every
-// run in the window whose jobs page was itself truncated), provider_warning
-// (summed across every run's own Warnings), and runs_truncated (one signal
-// per generation when the runs page itself was full, mirroring the
-// jobs_partial/jobs_truncated pattern at the run-window level). It reads the
-// original, unmutated page rather than the runs_truncated-warning-attached
-// copy buildRunEnvelopes emits, so the runs_truncated fact (counted here
-// under provider_warning once it lands in a snapshot's Warnings) is not
-// double-counted against the dedicated runs_truncated reason below.
+// run in the window whose jobs page was itself truncated), artifacts_truncated
+// (summed across every run in the window whose artifact page was itself
+// truncated, mirroring jobs_truncated), provider_warning (summed across every
+// run's own Warnings), and runs_truncated (one signal per generation when the
+// runs page itself was full, mirroring the jobs_partial/jobs_truncated
+// pattern at the run-window level). It reads the original, unmutated page
+// rather than the runs_truncated-warning-attached copy buildRunEnvelopes
+// emits, so the runs_truncated fact (counted here under provider_warning once
+// it lands in a snapshot's Warnings) is not double-counted against the
+// dedicated runs_truncated reason below.
 func (s ClaimedSource) recordPartialGeneration(ctx context.Context, page RunPage) {
 	if s.instruments == nil {
 		return
 	}
 	jobsPartialCount := 0
+	artifactsPartialCount := 0
 	warningsCount := 0
 	for _, snapshot := range page.Snapshots {
 		if snapshot.JobsPartial {
 			jobsPartialCount++
+		}
+		if snapshot.ArtifactsPartial {
+			artifactsPartialCount++
 		}
 		warningsCount += len(snapshot.Warnings)
 	}
@@ -103,6 +109,12 @@ func (s ClaimedSource) recordPartialGeneration(ctx context.Context, page RunPage
 		s.instruments.CICDRunPartialGenerations.Add(ctx, int64(jobsPartialCount), metric.WithAttributes(
 			telemetry.AttrProvider(string(cicdrun.ProviderGitHubActions)),
 			telemetry.AttrReason("jobs_truncated"),
+		))
+	}
+	if artifactsPartialCount > 0 {
+		s.instruments.CICDRunPartialGenerations.Add(ctx, int64(artifactsPartialCount), metric.WithAttributes(
+			telemetry.AttrProvider(string(cicdrun.ProviderGitHubActions)),
+			telemetry.AttrReason("artifacts_truncated"),
 		))
 	}
 	if warningsCount > 0 {

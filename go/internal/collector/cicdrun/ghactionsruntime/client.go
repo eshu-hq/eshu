@@ -55,16 +55,17 @@ func (c GitHubClient) FetchRuns(ctx context.Context, target TargetConfig) (RunPa
 		if err != nil {
 			return RunPage{}, err
 		}
-		artifacts, err := c.fetchArtifacts(ctx, target, runID)
+		artifacts, artifactsPartial, err := c.fetchArtifacts(ctx, target, runID)
 		if err != nil {
 			return RunPage{}, err
 		}
 		snapshots = append(snapshots, RunSnapshot{
-			Workflow:    workflowMap(run),
-			Run:         run,
-			Jobs:        jobs,
-			JobsPartial: jobsPartial,
-			Artifacts:   artifacts,
+			Workflow:         workflowMap(run),
+			Run:              run,
+			Jobs:             jobs,
+			JobsPartial:      jobsPartial,
+			Artifacts:        artifacts,
+			ArtifactsPartial: artifactsPartial,
 		})
 	}
 	return RunPage{
@@ -130,21 +131,22 @@ func (c GitHubClient) fetchArtifacts(
 	ctx context.Context,
 	target TargetConfig,
 	runID string,
-) ([]map[string]any, error) {
+) ([]map[string]any, bool, error) {
 	path := fmt.Sprintf("/repos/%s/actions/runs/%s/artifacts", target.Repository, url.PathEscape(runID))
 	endpoint, err := targetURL(target, path, map[string]string{
 		"per_page": strconv.Itoa(target.MaxArtifacts),
 	})
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	var decoded struct {
-		Artifacts []map[string]any `json:"artifacts"`
+		TotalCount int              `json:"total_count"`
+		Artifacts  []map[string]any `json:"artifacts"`
 	}
 	if err := c.getJSON(ctx, target, endpoint, &decoded); err != nil {
-		return nil, fmt.Errorf("fetch github actions artifacts: %w", err)
+		return nil, false, fmt.Errorf("fetch github actions artifacts: %w", err)
 	}
-	return decoded.Artifacts, nil
+	return decoded.Artifacts, decoded.TotalCount > len(decoded.Artifacts), nil
 }
 
 func (c GitHubClient) getJSON(ctx context.Context, target TargetConfig, endpoint string, out any) error {

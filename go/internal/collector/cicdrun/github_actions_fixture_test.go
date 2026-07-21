@@ -131,7 +131,7 @@ func TestGitHubActionsFixtureEmitsPartialWarnings(t *testing.T) {
 	byKind := envelopesByKind(envelopes)
 	assertKindCount(t, byKind, facts.CICDRunFactKind, 1)
 	assertKindCount(t, byKind, facts.CICDArtifactFactKind, 1)
-	assertKindCount(t, byKind, facts.CICDWarningFactKind, 2)
+	assertKindCount(t, byKind, facts.CICDWarningFactKind, 3)
 
 	artifact := byKind[facts.CICDArtifactFactKind][0]
 	if got := artifact.Payload["artifact_digest"]; got != "" {
@@ -140,8 +140,9 @@ func TestGitHubActionsFixtureEmitsPartialWarnings(t *testing.T) {
 
 	warnings := byKind[facts.CICDWarningFactKind]
 	wantReasons := map[string]bool{
-		"partial_jobs_payload":    false,
-		"artifact_missing_digest": false,
+		"partial_jobs_payload":      false,
+		"artifact_missing_digest":   false,
+		"partial_artifacts_payload": false,
 	}
 	for _, warning := range warnings {
 		wantReasons[warning.Payload["reason"].(string)] = true
