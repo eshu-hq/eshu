@@ -75,20 +75,27 @@ SET r.id = row.uid,
 // drift from the allowlist it must fully cover.
 //
 // This is the ONLY property-removal shape proven to execute correctly
-// against the pinned NornicDB executor (#5441 review round 9, P0):
-//   - `pkg/cypher/ast_builder.go` parseRemove parses only `variable.property`
-//     and `variable:Label` REMOVE items -- no dynamic `REMOVE r[key]`
-//     bracket-index support, ruling out a per-row FOREACH-based removal
-//     inside a shared UNWIND template.
-//   - `pkg/cypher/executor_query_routing.go`'s top-level dispatch checks
-//     `containsKeywordOutsideStrings(cypher, "REMOVE")` and routes straight
-//     to `executeRemove` for any statement that reaches it with no MERGE,
-//     UNWIND, or SET keyword -- before any of the MERGE/SET-oriented routing
-//     branches can misparse it.
-//   - `pkg/cypher/executor_mutations.go` executeRemove splits the statement
-//     into `MATCH ... WHERE ... RETURN *` (executed through the general
-//     matcher, which supports `WHERE x IN $list`) and a REMOVE item list
-//     parsed from the tail -- exactly the shape here.
+// against the pinned NornicDB executor, github.com/orneryd/nornicdb v1.0.45
+// per go/go.mod, verified directly against that resolved module -- not a
+// fork checkout -- after review round 9's P0 fix cited a fork-HEAD-only file
+// that does not exist at the pinned version (#5441 review round 9 follow-up;
+// see docs/internal/evidence/5441-edge-node-properties.md for the durable
+// note on why the pinned module, not a local fork checkout, is the citation
+// source of truth going forward):
+//   - `pkg/cypher/ast_builder.go` parseRemove (v1.0.45 line 664) parses only
+//     `variable.property` and `variable:Label` REMOVE items -- no dynamic
+//     `REMOVE r[key]` bracket-index support, ruling out a per-row
+//     FOREACH-based removal inside a shared UNWIND template.
+//   - `pkg/cypher/executor.go` executeWithoutTransaction (v1.0.45 line 2446)
+//     is the top-level dispatch; its REMOVE branch
+//     (`containsKeywordOutsideStrings(cypher, "REMOVE")`, line 2581) routes
+//     straight to `executeRemove` for any statement that reaches it with no
+//     MERGE, UNWIND, or SET keyword -- before any of the MERGE/SET-oriented
+//     routing branches can misparse it.
+//   - `pkg/cypher/executor_mutations.go` executeRemove (v1.0.45 line 2032)
+//     splits the statement into `MATCH ... WHERE ... RETURN *` (executed
+//     through the general matcher, which supports `WHERE x IN $list`) and a
+//     REMOVE item list parsed from the tail -- exactly the shape here.
 //
 // This also matches the actual precedent this repo already ships:
 // rds_posture_node_writer.go and ec2_block_device_kms_posture_node_writer.go

@@ -33,50 +33,76 @@ Two additive, SET-clause-only changes:
 
 ## Research The Pinned Backend
 
-Absent-value semantics for the two new edge properties (source_revision,
-first_party_ref_version — most edges carry neither) were decided against the
-pinned NornicDB-New fork checkout (path per user-local config), not by
-assumption. NornicDB
-v1.1.11's per-property `SET rel.x = row.x` path resolves the batch row
-reference and stores the result directly into `edge.Properties[propName]`
-without a nil-removal branch:
+**Correction (#5441 review round 9 follow-up):** the section below originally
+cited the NornicDB-New fork checkout at fork HEAD (labeled "v1.1.11" there)
+as "the pinned backend." That was wrong in exactly the way review round 9's
+P0 finding later exposed for a different citation in this same document:
+`go/go.mod` pins `github.com/orneryd/nornicdb v1.0.45`, with no `replace`
+directive, and the fork checkout is 369 commits ahead of that tag. The
+citations below are corrected to the actual pinned module (resolved from the
+module proxy, not the fork checkout, and verified with a fresh empirical
+run against that exact resolved module -- not only a source-path trace this
+time), and the conclusion is re-confirmed to hold. See "A P0 Found By
+Review, Not By Tests" below for the fuller account of why citing the fork
+checkout as "the pinned backend" is a methodology error going forward, not a
+one-off.
 
-- `pkg/cypher/merge.go` `applySetToRelationshipWithContext` (~line 2211):
-  `edge.Properties[propName] = normalizePropValue(v)`.
-- `pkg/cypher/executor_mutations.go` `normalizePropValue` (~line 2166): the
-  `default` case returns the value unchanged, including a Go `nil`.
+Absent-value semantics for the two new edge properties (source_revision,
+first_party_ref_version — most edges carry neither) were decided against
+`github.com/orneryd/nornicdb v1.0.45` (the actual pinned module), not by
+assumption. Traced through the resolved module
+(`$(go list -m -f '{{.Dir}}' github.com/orneryd/nornicdb)`):
+
+- `pkg/cypher/merge.go` `applySetToRelationshipWithContext` (v1.0.45 line
+  1832) resolves a relationship SET assignment's right-hand side via
+  `evaluateSetExpressionWithContext` (merge.go line 1940, a thin wrapper
+  over the general expression evaluator `evaluateExpressionWithContext`) and
+  assigns the result directly into `edge.Properties[propName]` (merge.go
+  line 1890) -- no nil-removal branch anywhere in that path.
+- Empirically confirmed against this exact resolved module (a second
+  throwaway Go module requiring `github.com/orneryd/nornicdb v1.0.45`
+  directly, no `replace` directive -- the module proxy resolves it): seeded
+  a `DEPLOYS_FROM` relationship with `source_revision: "v1.0.0"`, then ran
+  `SET r.source_revision = null`, then read it back. Result:
+  `rev=<nil> allKeys=[]interface{}{"source_revision"}` -- the property key
+  survives in `keys(r)` with a nil value; it is not removed.
 
 So `SET rel.x = null` inside an `UNWIND $rows` batch does not remove the
-property on NornicDB — it stores a literal nil-valued property key, diverging
-from Cypher's standard "SET x = null removes the property" semantics. Writing
-Cypher `null` for an absent value would therefore behave inconsistently
-between NornicDB (property key persists as null) and any Neo4j-compat reader
-expecting removal. The existing repo convention for every other optional edge
-property here (`rationale`, `resolution_source`, `source_tool`) already writes
-`""` uniformly via the `payloadString` family regardless of presence
+property on the pinned NornicDB module — it stores a literal nil-valued
+property key, diverging from Cypher's standard "SET x = null removes the
+property" semantics. Writing Cypher `null` for an absent value would
+therefore behave inconsistently between NornicDB (property key persists as
+null) and any Neo4j-compat reader expecting removal. The existing repo
+convention for every other optional edge property here (`rationale`,
+`resolution_source`, `source_tool`) already writes `""` uniformly via the
+`payloadString` family regardless of presence
 (`go/internal/storage/cypher/edge_writer_payload.go`) — the two new
 properties follow the same convention. This is the conservative,
-backend-consistent choice; it was not guessed.
+backend-consistent choice; it was not guessed, and it is now proven against
+the module that actually ships, not a fork checkout that does not.
 
 The additive `r += row.attrs` node-property merge for `TerraformResource`
 mixes literal `r.x = row.x` assignments and a bare `r += row.attrs` map-merge
 in one `SET` clause — a shape not previously exercised in this repo (the
 existing `n += row.props` code-entity template uses only the map-merge form,
-nothing else, in its `SET` clause). Traced against the pinned executor:
-`pkg/cypher/set_helpers.go` `splitSetAssignments` splits a `SET` clause on
-top-level commas (respecting quotes/bracket depth) before dispatch, so each
-`r.x = row.x` and the trailing `r += row.attrs` become independent assignment
-strings; `applySetToNodeWithContext` (`pkg/cypher/merge.go`) then dispatches
-each assignment independently, checking for `+=` first and routing it to
+nothing else, in its `SET` clause). Traced against the pinned module
+(`github.com/orneryd/nornicdb v1.0.45`): `pkg/cypher/set_helpers.go`
+`splitSetAssignments` splits a `SET` clause on top-level commas (respecting
+quotes/bracket depth) before dispatch, so each `r.x = row.x` and the
+trailing `r += row.attrs` become independent assignment strings;
+`applySetToNodeWithContext` (`pkg/cypher/merge.go`) then dispatches each
+assignment independently, checking for `+=` first and routing it to
 `applySetMapMergeToNode`. The mixed-clause shape is therefore handled
 correctly by construction. `row.attrs` is always emitted as a non-nil map
-(never Go nil / Cypher null) — see
-`applySetMapMergeToNode` in `pkg/cypher/set_helpers.go`, which requires the
-resolved value to type-assert as `map[string]any` before merging anything, so
-a genuinely empty map is a safe no-op. No live `PROFILE`/execution against a
-running NornicDB instance was captured in this environment (no local Compose
-stack stood up for this change); the proof above is a full source-path trace
-of the pinned executor, not a guess.
+(never Go nil / Cypher null) — see `applySetMapMergeToNode` in
+`pkg/cypher/set_helpers.go`, which requires the resolved value to
+type-assert as `map[string]any` before merging anything, so a genuinely
+empty map is a safe no-op. No live `PROFILE`/execution against a running
+NornicDB instance was captured for this specific claim (the additive
+`r += row.attrs` mixed-clause parsing); this one remains a source-path trace
+of the pinned module, not an empirical run, and would benefit from the same
+throwaway-harness treatment used elsewhere in this document if it is ever
+in question.
 
 ## destination_namespace: Investigated And Removed
 
@@ -607,29 +633,51 @@ the following were true on **every write**, not only refreshes:
    (`"'projector/tfstate'\nREMOVE r.tf_attr_instance_type"` instead of the
    clean `"projector/tfstate"`), on all five allowlisted resource types.
 
-### Root cause, traced through the pinned executor
+### Root cause, traced through the pinned module
 
-1. `pkg/cypher/clauses.go` `executeUnwind` splits the `MERGE...REMOVE...SET`
-   tail as a `restQuery`.
+**Methodology correction:** these citations were originally traced against
+the NornicDB-New fork checkout at fork HEAD, not the pinned
+`github.com/orneryd/nornicdb v1.0.45` module `go/go.mod` actually resolves
+(#5441 review round 9 follow-up). `pkg/cypher/executor_query_routing.go`,
+cited below in an earlier version of this section, does not exist at
+v1.0.45 at all -- it is a fork-HEAD-only refactor (`go/go.mod` has no
+`replace` directive, so the module proxy's v1.0.45 is what actually builds).
+The routing citation below is corrected to the pinned module's real
+top-level dispatch, verified directly against the resolved module (`go list
+-m -f '{{.Dir}}' github.com/orneryd/nornicdb`), not the fork checkout. Every
+other file cited (`clauses.go`, `merge.go`, `executor_mutations.go`,
+`ast_builder.go`) exists at v1.0.45 too, with the traced logic confirmed
+byte-for-byte identical at different line numbers; only the routing file
+itself is fork-HEAD-only. The causal conclusion is unchanged and re-verified
+below, but the earlier citation was luck, not a correct method -- the fork
+happened to still route the same way this batch of logic does at the pinned
+tag, and that will not always be true for future fork-vs-pinned drift.
+
+1. `pkg/cypher/clauses.go` `executeUnwind` (v1.0.45 line 361) splits the
+   `MERGE...REMOVE...SET` tail as a `restQuery`.
 2. The batched UNWIND fast path, `parseUnwindMergeChainPattern`
-   (`clauses.go` ~1810), bails out (`return plan` with `supported: false`)
-   whenever `REMOVE` appears anywhere in the mutation text -- confirmed by
-   reading the bail-out keyword list directly (`CALL`, `DELETE`, `DETACH`,
-   `REMOVE`, `FOREACH`, `UNWIND`, `RETURN`).
+   (`clauses.go`, v1.0.45 line 1516), bails out (`return plan` with
+   `supported: false`) whenever `REMOVE` appears anywhere in the mutation
+   text -- confirmed by reading the bail-out keyword list directly
+   (`CALL`, `DELETE`, `DETACH`, `REMOVE`, `FOREACH`, `UNWIND`, `RETURN`,
+   v1.0.45 line 1525).
 3. That falls through to the per-row execution loop, which sees `+=` and
    calls `executeInternal` with the WHOLE statement text, once per row --
    itself a real performance regression (every allowlisted-type row falls
    off the batched path into per-row execution; not measured or disclosed
    in the round-8 evidence).
-4. Top-level routing (`pkg/cypher/executor_query_routing.go` ~234) sees a
-   leading `MERGE` with no `WITH`/`WHERE`/`OPTIONAL MATCH` and no second
-   `MERGE`, so it calls `executeMerge`.
-5. `pkg/cypher/merge.go` `executeMerge` (~448-672) has **zero** knowledge of
-   `REMOVE`. Verified directly: its standalone-SET clause's end boundary
-   (`setEnd`) is computed by scanning only for `withIdx` and `returnIdx`
-   (merge.go ~639-646) -- never a `removeIdx`. With no `WITH`/`RETURN` in
-   the statement, `setEnd = len(cypher)`, so the entire `REMOVE ...` clause
-   and everything after it is swallowed into the SET clause's text.
+4. Top-level routing -- `pkg/cypher/executor.go` `executeWithoutTransaction`
+   (v1.0.45 line 2446; the pinned module has no
+   `executor_query_routing.go`) -- sees a leading `MERGE` with no
+   `WITH`/`WHERE`/`OPTIONAL MATCH` and no second `MERGE`, so it calls
+   `executeMerge`.
+5. `pkg/cypher/merge.go` `executeMerge` (v1.0.45 line 397) has **zero**
+   knowledge of `REMOVE`. Verified directly: its standalone-SET clause's end
+   boundary (`setEnd`) is computed by scanning only for `withIdx` and
+   `returnIdx` (merge.go, v1.0.45 lines 594-600) -- never a `removeIdx`.
+   With no `WITH`/`RETURN` in the statement, `setEnd = len(cypher)`, so the
+   entire `REMOVE ...` clause and everything after it is swallowed into the
+   SET clause's text.
 6. That corrupted text then glues onto the immediately preceding property
    assignment (`r.evidence_source = 'projector/tfstate'` in the shipped
    round-8 shape), producing the corrupted value observed.
@@ -671,6 +719,54 @@ ASSERTION 2 (tf_attr_ami still present, untouched): true
 ASSERTION 3 (evidence_source exactly "projector/tfstate", uncorrupted): true
 RESULT: PASS
 ```
+
+### Independent re-verification against the actual pinned module, not the fork
+
+The proof above was built against the NornicDB-New fork checkout, per the
+reviewer's own recommendation at the time -- which review round 9's own
+follow-up finding (see "Root cause, traced through the pinned module" above)
+showed is not automatically the same code as `go/go.mod`'s actual pin,
+`github.com/orneryd/nornicdb v1.0.45` (no `replace` directive; the fork is
+369 commits ahead). The coordinator's instruction was explicit: verify this
+independently against the resolved pinned module, not on the reviewer's
+word or the coordinator's. Built a second throwaway module requiring
+`github.com/orneryd/nornicdb v1.0.45` directly (no `replace` directive --
+the module proxy resolves the exact tag `go.sum` pins), reran both
+scenarios, reproduced 3x, deterministic:
+
+```
+=== PINNED v1.0.45 -- Scenario 1: BUGGY fused MERGE+SET+REMOVE+SET (round-8 shape) ===
+after first projection:  uid="row.uid" tf_attr_instance_type=<nil>  evidence_source="'projector/tfstate'\nREMOVE r.tf_attr_instance_type"
+after second projection: uid="row.uid" tf_attr_instance_type=<nil>  evidence_source="'projector/tfstate'\nREMOVE r.tf_attr_instance_type"
+staleness bug reproduced (attr survived): false
+evidence_source corrupted: true
+uid itself corrupted (worse than originally described): true
+
+=== PINNED v1.0.45 -- Scenario 2: FIXED two-statement design (round-9) ===
+after first projection:  tf_attr_instance_type="t3.micro"  tf_attr_ami="ami-0abcdef1234567890"  evidence_source="projector/tfstate"
+after second projection: tf_attr_instance_type=<nil>  tf_attr_ami="ami-0abcdef1234567890"  evidence_source="projector/tfstate"
+
+ASSERTION 1 (stale tf_attr_instance_type gone): true
+ASSERTION 2 (tf_attr_ami still present, untouched): true
+ASSERTION 3 (evidence_source exactly "projector/tfstate", uncorrupted): true
+RESULT: PASS
+```
+
+At the actual pinned module the round-8 shape corrupts even more severely
+than the fork-based reproduction above showed: `uid` itself comes back as
+the literal string `"row.uid"`, not the substituted value -- the entire
+per-row UNWIND template collapsed to literal text, not only the trailing
+REMOVE clause. This independently matches, on a from-scratch harness against
+the pinned module rather than the fork, what the round-9 review's own
+negative control separately found. The staleness-bug assertion reads `false`
+here only because the corruption is total enough that `tf_attr_instance_type`
+was never set to a real value in the first place (it stays `<nil>` on both
+projections, rather than surviving a real value from the first write) --
+still a correctness failure, just a different symptom of the same root
+cause. The round-9 fix (Scenario 2) passes all three assertions cleanly
+against this exact pinned module, with no `uid` corruption at all: the fixed
+upsert statement carries no REMOVE clause, so it never leaves the batched
+UNWIND fast path that correctly substitutes `row.uid`.
 
 ### Why the round-8 fake test passed anyway
 
@@ -789,28 +885,65 @@ completely independently. The REMOVE statement is not UNWIND-based at all
 so it is one added statement per (allowlisted type, batch) -- not a
 per-resource cost multiplied across the corpus.
 
-Quantified the REMOVE statement's own added cost with the same throwaway
-harness used for the correctness proof (in-process `StorageExecutor` timing,
-no network -- production cost additionally includes one Bolt round trip per
-added statement, not captured here), `-benchtime=100x -benchmem`, Apple M1
-Max, 500-UID/500-row batches (matching `DefaultBatchSize`):
+**The real reason this cost is acceptable: it is bounded by allowlisted-type
+count, not resource count.** Only 5 resource types are allowlisted today
+(`terraformAttributePromotionAllowlist`). A materialization with any number
+of Terraform resources adds at most 5 extra REMOVE statements total (one per
+allowlisted type actually present, batched the same way the upsert already
+batches), never one per resource. This is the argument that carries the
+acceptance decision; the variance discussion below is a secondary honesty
+note about the measurement itself, not the reason the cost is acceptable.
 
-| Benchmark | ns/op | B/op | allocs/op |
+Performance Evidence: #5441 review round 9 -- committed, reproducible
+benchmarks replace the throwaway-harness numbers an earlier version of this
+section cited (review round 9 P2: uncommitted numbers are not reproducible
+and carry no regression guard) --
+`go/internal/storage/cypher/tfstate_canonical_writer_stale_attrs_live_bench_test.go`,
+`BenchmarkTerraformResourceUpsertOnlyLive` /
+`BenchmarkTerraformResourceRemoveOnlyLive` /
+`BenchmarkTerraformResourceRemoveThenUpsertLive`. Opt-in via
+`ESHU_CYPHER_BOLT_DSN`, matching this package's other live tests/benchmarks;
+run against a real Bolt-connected NornicDB (local Compose, `docker compose
+-f docker-compose.yaml up -d nornicdb postgres`, unique
+`COMPOSE_PROJECT_NAME` and ports per this repo's shared-machine convention),
+500-row/UID batches (`DefaultBatchSize`), `-benchtime=10x -benchmem
+-count=3`, Apple M1 Max, machine under real concurrent load from other
+agents' Docker stacks (`uptime` load averages 4.81/5.89/5.85 during this
+run):
+
+| Benchmark | ns/op (avg of 3) | B/op (avg of 3) | allocs/op (avg of 3) |
 | --- | ---: | ---: | ---: |
-| `BenchmarkUpsertOnly_500` (upsert alone, unchanged shape) | 4,489,910 | 3,852,073 | 62,732 |
-| `BenchmarkRemoveOnly_500` (the new REMOVE statement alone) | 14,930,090 | 9,782,397 | 142,966 |
-| `BenchmarkRemoveThenUpsert_500` (shipped: REMOVE then upsert) | 37,566,329 | 25,665,898 | 363,031 |
+| `BenchmarkTerraformResourceUpsertOnlyLive` (upsert alone) | 189,387,271 | 31,974 | 74 |
+| `BenchmarkTerraformResourceRemoveOnlyLive` (REMOVE alone) | 40,175,314 | 3,586 | 73 |
+| `BenchmarkTerraformResourceRemoveThenUpsertLive` (shipped sequence) | 925,213,217 | 28,729 | 158 |
 
-Per 500-row/UID batch: the added REMOVE statement costs ~29.9μs/UID
-in-process (`14,930,090 / 500`); the shipped combined sequence adds
-~66.2μs/row over the upsert-alone baseline (`(37,566,329 - 4,489,910) /
-500`), somewhat more than the isolated REMOVE-only number, consistent with
-ordinary run-to-run variance on a shared machine rather than a distinct
-cost. This is in-process Go/data-structure cost only, not end-to-end
-graph-write latency; the real production cost per (allowlisted type, batch)
-additionally includes one extra Bolt round trip, bounded by the number of
-allowlisted-type batches in a materialization, not the total resource
-count. No live Compose stack was stood up to measure the network-inclusive
-cost in this round; the in-process numbers above are the theory-proof this
-repo's Prove-The-Theory-First discipline requires before shipping, not a
-substitute for a full-corpus remote proof if the coordinator wants one.
+These are real, network-inclusive numbers (one Bolt round trip per
+statement, unlike the in-process throwaway-harness numbers an earlier
+version of this section led with) and they are noisy: `ns/op` for the same
+benchmark ranged from 134.9ms to 239.4ms across the 3 runs -- a real
+symptom of the concurrent load on this shared machine, not a defect in the
+benchmark. `B/op`/`allocs/op` are far more stable (74 vs 74 vs 74 for
+upsert-alone across all 3 runs) and are the trustworthy signal for shape,
+same as elsewhere in this document.
+
+**On the combined-vs-sum-of-parts gap (#5441 review round 9 P2):** the
+shipped sequence's `ns/op` (925.2ms avg) is roughly 4x the naive sum of
+upsert-alone and REMOVE-alone (189.4ms + 40.2ms = 229.6ms) -- a bigger gap
+than the in-process throwaway harness showed earlier in this investigation
+(that harness measured a ~93% overage; this network-inclusive run shows a
+much larger one). An earlier version of this section called a smaller
+version of this same gap "ordinary run-to-run variance" without support.
+The coordinator's own independent harness reproduced the same DIRECTION
+(combined cost exceeding the sum of parts) on its own run, so the
+phenomenon is real, not an artifact of one harness. The magnitude is not
+reliable under the current concurrent load on this shared machine -- both
+harnesses' `ns/op` swung by 1.5-4x run to run purely from machine
+contention, and this section does not claim a precise multiplier. A
+plausible mechanism (not fully isolated here): `boltRetractTestRunner`'s
+`runCypherSingle` opens and closes its own Bolt session per call
+(`code_evidence_bolt_retract_test.go`), so two sequential statements in one
+iteration pay two full session-lifecycle costs, not one -- a real,
+structural reason combined cost is more than additive, independent of
+noise. **The bounded-cost argument above (5 allowlisted types today, not a
+per-resource cost) is why this is accepted, not a claim that the exact
+multiplier is small or precisely known.**
