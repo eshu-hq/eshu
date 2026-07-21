@@ -13,13 +13,32 @@ import (
 
 const canonicalPhaseTerraformState = "terraform_state"
 
-// canonicalTerraformStateResourceUpsertBaseCypher sets every fixed
-// TerraformResource field except the promoted-attribute merge. It is shared
-// by canonicalTerraformStateResourceUpsertCypher (non-allowlisted resource
-// types, unchanged shape) and every per-resource-type template
-// terraformStateResourceUpsertCypherForType builds (#5441 review round 8,
-// P1-a).
-const canonicalTerraformStateResourceUpsertBaseCypher = `UNWIND $rows AS row
+// canonicalTerraformStateResourceUpsertCypher is unchanged from before #5441
+// review round 8's P1-a fix attempt: one unified UNWIND/MERGE/SET template
+// for every resource type, ending in the additive `r += row.attrs` map-merge.
+//
+// #5441 review round 9, P0: an earlier version of this fix combined a
+// REMOVE clause into this same MERGE...SET statement, per resource type, to
+// clear stale tf_attr_* properties before re-setting the current subset.
+// That shape does not execute as written on the pinned NornicDB executor.
+// Traced and proven against the real backend (see
+// terraformStateResourceAttributeRemoveCypherByType's doc comment below for
+// the full trace and docs/internal/evidence/5441-edge-node-properties.md for
+// the empirical reproduction): a MERGE statement with no WITH/RETURN routes
+// to executeMerge (pkg/cypher/merge.go), whose standalone-SET boundary is
+// delimited only by a following WITH or RETURN -- it has no REMOVE
+// awareness at all, so the entire `REMOVE ...` clause and everything after
+// it get swallowed into the SET clause text and corrupt the immediately
+// preceding property assignment (r.evidence_source, in the shipped
+// #5441 shape) with literal Cypher source text, on every write, not only
+// refreshes. The stale-attribute bug this was meant to fix was ALSO not
+// actually fixed by that shape.
+//
+// The fix is the two-statement design below: this upsert template stays
+// exactly as it was (no REMOVE, no per-type variants), and
+// terraformStateResourceAttributeRemoveStatements runs a genuinely separate
+// REMOVE-only statement first.
+const canonicalTerraformStateResourceUpsertCypher = `UNWIND $rows AS row
 MERGE (r:TerraformResource {uid: row.uid})
 SET r.id = row.uid,
     r.name = row.address,
@@ -45,35 +64,40 @@ SET r.id = row.uid,
     r.tag_key_hashes = row.tag_key_hashes,
     r.scope_id = row.scope_id,
     r.generation_id = row.generation_id,
-    r.evidence_source = 'projector/tfstate'`
-
-// canonicalTerraformStateResourceUpsertCypher is used for resource types with
-// no entry in terraformAttributePromotionAllowlist: promoteTerraformResourceAttributes
-// never writes a tf_attr_* property for them, so `r += row.attrs` (always an
-// empty-map no-op here) cannot leave a stale property behind and no REMOVE
-// clause is needed.
-const canonicalTerraformStateResourceUpsertCypher = canonicalTerraformStateResourceUpsertBaseCypher + `,
+    r.evidence_source = 'projector/tfstate',
     r += row.attrs`
 
-// terraformStateResourceUpsertCypherByType holds one generated Cypher
-// template per allowlisted resource type, each REMOVE-ing that type's full
-// closed set of possible tf_attr_* properties before re-setting only the
-// subset promoteTerraformResourceAttributes currently produces. Built once at
-// package init from terraformAttributePromotionAllowlist via
-// terraformAttributePromotionKeysForType, so the REMOVE list can never drift
-// from the allowlist it must fully cover.
+// terraformStateResourceAttributeRemoveCypherByType holds one generated
+// Cypher template per allowlisted resource type: a standalone
+// `MATCH ... WHERE r.uid IN $uids REMOVE ...` statement, no MERGE, no SET,
+// no UNWIND. Built once at package init from terraformAttributePromotionAllowlist
+// via terraformAttributePromotionKeysForType, so the REMOVE list can never
+// drift from the allowlist it must fully cover.
 //
-// Static per-property REMOVE names, not a dynamic REMOVE r[key] loop, are
-// required: traced against the pinned NornicDB executor
-// (pkg/cypher/ast_builder.go parseRemove) and confirmed it parses only the
-// `variable.property` and `variable:Label` REMOVE forms -- there is no
-// dynamic bracket-index property removal support, so a per-row variable key
-// list cannot be REMOVE-d in one shared UNWIND template. Per-resource-type
-// static templates, dispatched like batchCanonicalTypedRepoRelationshipUpsertCypher
-// dispatches per relationship type, are the only executor-safe shape.
-var terraformStateResourceUpsertCypherByType = buildTerraformStateResourceUpsertCypherByType()
+// This is the ONLY property-removal shape proven to execute correctly
+// against the pinned NornicDB executor (#5441 review round 9, P0):
+//   - `pkg/cypher/ast_builder.go` parseRemove parses only `variable.property`
+//     and `variable:Label` REMOVE items -- no dynamic `REMOVE r[key]`
+//     bracket-index support, ruling out a per-row FOREACH-based removal
+//     inside a shared UNWIND template.
+//   - `pkg/cypher/executor_query_routing.go`'s top-level dispatch checks
+//     `containsKeywordOutsideStrings(cypher, "REMOVE")` and routes straight
+//     to `executeRemove` for any statement that reaches it with no MERGE,
+//     UNWIND, or SET keyword -- before any of the MERGE/SET-oriented routing
+//     branches can misparse it.
+//   - `pkg/cypher/executor_mutations.go` executeRemove splits the statement
+//     into `MATCH ... WHERE ... RETURN *` (executed through the general
+//     matcher, which supports `WHERE x IN $list`) and a REMOVE item list
+//     parsed from the tail -- exactly the shape here.
+//
+// This also matches the actual precedent this repo already ships:
+// rds_posture_node_writer.go and ec2_block_device_kms_posture_node_writer.go
+// each pair a plain upsert SET statement with a SEPARATE, standalone
+// `MATCH ... REMOVE ...` statement with no trailing SET -- never a REMOVE
+// fused into the same MERGE statement as a SET.
+var terraformStateResourceAttributeRemoveCypherByType = buildTerraformStateResourceAttributeRemoveCypherByType()
 
-func buildTerraformStateResourceUpsertCypherByType() map[string]string {
+func buildTerraformStateResourceAttributeRemoveCypherByType() map[string]string {
 	resourceTypes := make([]string, 0, len(terraformAttributePromotionAllowlist))
 	for resourceType := range terraformAttributePromotionAllowlist {
 		resourceTypes = append(resourceTypes, resourceType)
@@ -90,22 +114,10 @@ func buildTerraformStateResourceUpsertCypherByType() map[string]string {
 		for i, key := range keys {
 			removeItems[i] = "r." + key
 		}
-		out[resourceType] = canonicalTerraformStateResourceUpsertBaseCypher +
-			"\nREMOVE " + strings.Join(removeItems, ", ") +
-			"\nSET r += row.attrs"
+		out[resourceType] = "MATCH (r:TerraformResource) WHERE r.uid IN $uids\nREMOVE " +
+			strings.Join(removeItems, ", ")
 	}
 	return out
-}
-
-// terraformStateResourceUpsertCypherForType returns the Cypher template to
-// use for a resource row of the given resourceType: the per-type
-// REMOVE-then-SET template for an allowlisted type, or the shared
-// no-REMOVE-needed template otherwise.
-func terraformStateResourceUpsertCypherForType(resourceType string) string {
-	if cypher, ok := terraformStateResourceUpsertCypherByType[resourceType]; ok {
-		return cypher
-	}
-	return canonicalTerraformStateResourceUpsertCypher
 }
 
 const canonicalTerraformStateModuleUpsertCypher = `UNWIND $rows AS row
@@ -151,20 +163,41 @@ SET o.id = row.uid,
     o.generation_id = row.generation_id,
     o.evidence_source = 'projector/tfstate'`
 
+// buildTerraformStateStatements returns the REMOVE statements before the
+// upsert statements, in that order (#5441 review round 9, P0). Ordering is
+// load-bearing, not cosmetic: terraformStateResourceAttributeRemoveStatements
+// unconditionally clears each allowlisted type's FULL closed set of possible
+// tf_attr_* properties for every UID in this batch, and the upsert's
+// additive `r += row.attrs` merge re-establishes only the subset the
+// current row promotes. If the upsert ran first, the REMOVE that follows it
+// would immediately strip every tf_attr_* property the upsert just wrote --
+// corrupting every write, not only refreshes. REMOVE-then-SET is correct;
+// SET-then-REMOVE is not.
+//
+// Partial-failure note: these are two separate statements, not one atomic
+// transaction (this repo's own precedent -- rds_posture_node_writer.go,
+// ec2_block_device_kms_posture_node_writer.go -- does not bind its
+// upsert/retract pair atomically either). If REMOVE succeeds and the
+// following upsert fails before completing, the affected nodes temporarily
+// carry no tf_attr_* properties until the next successful run of this same
+// generation reapplies both statements. Both statements are idempotent
+// (REMOVE on an already-absent property, or SET to an already-current
+// value, are no-ops), so a retry of the whole generation is self-healing.
+// This is judged an acceptable, visibly-empty gap under a transient
+// failure, not the silently-wrong-forever state the original bug produced.
 func (w *CanonicalNodeWriter) buildTerraformStateStatements(mat projector.CanonicalMaterialization) []Statement {
 	var statements []Statement
-	for _, group := range terraformStateResourceRowGroups(mat) {
-		statements = append(
-			statements,
-			tfstateBatchedStatements(
-				terraformStateResourceUpsertCypherForType(group.resourceType),
-				group.rows,
-				w.batchSize,
-				"TerraformResource",
-				mat,
-			)...,
-		)
-	}
+	statements = append(statements, w.terraformStateResourceAttributeRemoveStatements(mat)...)
+	statements = append(
+		statements,
+		tfstateBatchedStatements(
+			canonicalTerraformStateResourceUpsertCypher,
+			terraformStateResourceRows(mat),
+			w.batchSize,
+			"TerraformResource",
+			mat,
+		)...,
+	)
 	statements = append(
 		statements,
 		tfstateBatchedStatements(
@@ -185,6 +218,61 @@ func (w *CanonicalNodeWriter) buildTerraformStateStatements(mat projector.Canoni
 			mat,
 		)...,
 	)
+	return statements
+}
+
+// terraformStateResourceAttributeRemoveStatements builds one standalone
+// REMOVE-only statement per allowlisted-resource-type batch of UIDs (#5441
+// review round 9, P0). See terraformStateResourceAttributeRemoveCypherByType
+// for why this must be a separate statement, never fused with the upsert.
+// Batched the same way as the upsert rows (w.batchSize UIDs per statement)
+// so a single materialization with many resources of one allowlisted type
+// does not send an unbounded parameter list in one statement.
+func (w *CanonicalNodeWriter) terraformStateResourceAttributeRemoveStatements(mat projector.CanonicalMaterialization) []Statement {
+	byType := make(map[string][]string, len(terraformStateResourceAttributeRemoveCypherByType))
+	for _, row := range mat.TerraformStateResources {
+		if _, ok := terraformStateResourceAttributeRemoveCypherByType[row.ResourceType]; !ok {
+			continue
+		}
+		byType[row.ResourceType] = append(byType[row.ResourceType], row.UID)
+	}
+	if len(byType) == 0 {
+		return nil
+	}
+
+	resourceTypes := make([]string, 0, len(byType))
+	for resourceType := range byType {
+		resourceTypes = append(resourceTypes, resourceType)
+	}
+	sort.Strings(resourceTypes)
+
+	var statements []Statement
+	for _, resourceType := range resourceTypes {
+		uids := byType[resourceType]
+		cypher := terraformStateResourceAttributeRemoveCypherByType[resourceType]
+		for start := 0; start < len(uids); start += w.batchSize {
+			end := start + w.batchSize
+			if end > len(uids) {
+				end = len(uids)
+			}
+			statements = append(statements, Statement{
+				Operation: OperationCanonicalRetract,
+				Cypher:    cypher,
+				Parameters: map[string]any{
+					"uids":                           uids[start:end],
+					StatementMetadataPhaseKey:        canonicalPhaseTerraformState,
+					StatementMetadataEntityLabelKey:  "TerraformResource",
+					StatementMetadataScopeIDKey:      mat.ScopeID,
+					StatementMetadataGenerationIDKey: mat.GenerationID,
+					StatementMetadataSummaryKey: fmt.Sprintf(
+						"resource_type=%s remove_stale_attrs uids=%d",
+						resourceType,
+						end-start,
+					),
+				},
+			})
+		}
+	}
 	return statements
 }
 
@@ -255,52 +343,6 @@ func terraformStateResourceRows(mat projector.CanonicalMaterialization) []map[st
 		})
 	}
 	return rows
-}
-
-// terraformStateResourceRowGroup bundles the rows that share one Cypher
-// template. resourceType is "" for the shared bucket of non-allowlisted
-// resource types (no REMOVE clause needed); otherwise it names the
-// allowlisted resource type whose REMOVE-then-SET template applies.
-type terraformStateResourceRowGroup struct {
-	resourceType string
-	rows         []map[string]any
-}
-
-// terraformStateResourceRowGroups buckets terraformStateResourceRows(mat)'s
-// output by resource type so each allowlisted type gets its own
-// REMOVE-then-SET Cypher template (#5441 review round 8, P1-a) instead of
-// every resource sharing one additive-only template. Every non-allowlisted
-// type still shares a single no-REMOVE-needed template, exactly as before
-// this fix. Returned in sorted-resourceType order with the shared bucket
-// last, for deterministic statement ordering across runs.
-func terraformStateResourceRowGroups(mat projector.CanonicalMaterialization) []terraformStateResourceRowGroup {
-	byType := make(map[string][]map[string]any)
-	for _, row := range terraformStateResourceRows(mat) {
-		resourceType, _ := row["resource_type"].(string)
-		key := resourceType
-		if _, allowlisted := terraformStateResourceUpsertCypherByType[resourceType]; !allowlisted {
-			key = ""
-		}
-		byType[key] = append(byType[key], row)
-	}
-
-	types := make([]string, 0, len(byType))
-	for resourceType := range byType {
-		if resourceType == "" {
-			continue
-		}
-		types = append(types, resourceType)
-	}
-	sort.Strings(types)
-
-	groups := make([]terraformStateResourceRowGroup, 0, len(byType))
-	for _, resourceType := range types {
-		groups = append(groups, terraformStateResourceRowGroup{resourceType: resourceType, rows: byType[resourceType]})
-	}
-	if rows, ok := byType[""]; ok {
-		groups = append(groups, terraformStateResourceRowGroup{resourceType: "", rows: rows})
-	}
-	return groups
 }
 
 func terraformStateModuleRows(mat projector.CanonicalMaterialization) []map[string]any {

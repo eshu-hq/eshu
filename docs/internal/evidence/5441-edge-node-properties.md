@@ -588,3 +588,229 @@ duplicate scan (empty result, see "Verify and report" below) and a re-run of
 the golden-corpus unit tests and `scripts/test-verify-golden-corpus-gate.sh`.
 `#5483`'s `rc-154` (Flux HelmRelease `RECONCILES_FROM`) is unrelated to
 #5441 and was left untouched throughout.
+
+## Stale `tf_attr_*` Removal: A P0 Found By Review, Not By Tests (#5441 review round 9)
+
+Round 8's fix for the additive-merge staleness bug (a `MATCH (r) WHERE r.uid
+IN $uids REMOVE ...` clause fused into the same `MERGE ... SET` upsert
+statement, per allowlisted resource type) did not work on the pinned
+NornicDB executor, and it made things worse, not better. An independent
+reviewer built a throwaway Go module with a `replace` directive at the
+pinned NornicDB-New fork checkout (path per user-local config) and ran the
+exact shipped Cypher template through the real `StorageExecutor`. Both of
+the following were true on **every write**, not only refreshes:
+
+1. The staleness bug the round-8 fix was meant to close was NOT closed --
+   `tf_attr_instance_type` survived a re-projection without it, unchanged
+   from the original bug.
+2. NEW: `r.evidence_source` was corrupted with literal Cypher source text
+   (`"'projector/tfstate'\nREMOVE r.tf_attr_instance_type"` instead of the
+   clean `"projector/tfstate"`), on all five allowlisted resource types.
+
+### Root cause, traced through the pinned executor
+
+1. `pkg/cypher/clauses.go` `executeUnwind` splits the `MERGE...REMOVE...SET`
+   tail as a `restQuery`.
+2. The batched UNWIND fast path, `parseUnwindMergeChainPattern`
+   (`clauses.go` ~1810), bails out (`return plan` with `supported: false`)
+   whenever `REMOVE` appears anywhere in the mutation text -- confirmed by
+   reading the bail-out keyword list directly (`CALL`, `DELETE`, `DETACH`,
+   `REMOVE`, `FOREACH`, `UNWIND`, `RETURN`).
+3. That falls through to the per-row execution loop, which sees `+=` and
+   calls `executeInternal` with the WHOLE statement text, once per row --
+   itself a real performance regression (every allowlisted-type row falls
+   off the batched path into per-row execution; not measured or disclosed
+   in the round-8 evidence).
+4. Top-level routing (`pkg/cypher/executor_query_routing.go` ~234) sees a
+   leading `MERGE` with no `WITH`/`WHERE`/`OPTIONAL MATCH` and no second
+   `MERGE`, so it calls `executeMerge`.
+5. `pkg/cypher/merge.go` `executeMerge` (~448-672) has **zero** knowledge of
+   `REMOVE`. Verified directly: its standalone-SET clause's end boundary
+   (`setEnd`) is computed by scanning only for `withIdx` and `returnIdx`
+   (merge.go ~639-646) -- never a `removeIdx`. With no `WITH`/`RETURN` in
+   the statement, `setEnd = len(cypher)`, so the entire `REMOVE ...` clause
+   and everything after it is swallowed into the SET clause's text.
+6. That corrupted text then glues onto the immediately preceding property
+   assignment (`r.evidence_source = 'projector/tfstate'` in the shipped
+   round-8 shape), producing the corrupted value observed.
+
+### Real-backend reproduction and fix verification
+
+Built the reviewer's exact recommended harness: a throwaway Go module
+(`go.mod` with `replace github.com/orneryd/nornicdb => <pinned NornicDB-New
+fork checkout, path per user-local config>`) constructing a real
+`cypher.NewStorageExecutor` over an in-memory `storage.Engine`, running the
+production statement text through `Execute`. (Building against this fork
+requires the `nolocalllm` build tag -- `go run -tags nolocalllm .` -- to
+select the pure-Go localllm stub instead of the CGo `llama.go` binding,
+which needs a prebuilt native library this environment does not have; this
+is unrelated to the Cypher bug and does not affect correctness, only local
+buildability of the throwaway harness.)
+
+**Scenario 1 (baseline reproduction of the round-8 shape, reproduced 3x):**
+
+```
+after first projection:  tf_attr_instance_type="t3.micro"  evidence_source="'projector/tfstate'\nREMOVE r.tf_attr_instance_type"
+after second projection: tf_attr_instance_type="t3.micro"  evidence_source="'projector/tfstate'\nREMOVE r.tf_attr_instance_type"
+staleness bug reproduced (attr survived): true
+evidence_source corrupted: true
+```
+
+Matches the reviewer's report exactly, confirming the diagnosis before
+touching any fix code.
+
+**Scenario 2 (the round-9 two-statement fix, reproduced 3x, deterministic
+across all runs):**
+
+```
+after first projection:  tf_attr_instance_type="t3.micro"  tf_attr_ami="ami-0abcdef1234567890"  evidence_source="projector/tfstate"
+after second projection: tf_attr_instance_type=<nil>  tf_attr_ami="ami-0abcdef1234567890"  evidence_source="projector/tfstate"
+
+ASSERTION 1 (stale tf_attr_instance_type gone): true
+ASSERTION 2 (tf_attr_ami still present, untouched): true
+ASSERTION 3 (evidence_source exactly "projector/tfstate", uncorrupted): true
+RESULT: PASS
+```
+
+### Why the round-8 fake test passed anyway
+
+`fakeTerraformResourceGraph.Execute()` (the round-8
+`tfstate_canonical_writer_stale_attrs_test.go`) regex-extracted the REMOVE
+key list from the Cypher TEXT and manually `delete()`d from a Go map. It
+never invoked NornicDB's parser or executor, so it proved the semantics the
+round-8 fix INTENDED, not that the pinned backend executes the shape as
+written -- it stayed green while the real backend failed both assertions.
+The golden-corpus gate would not have caught it either: the cassette adds
+the `aws_instance` resource in a single projection and never re-projects the
+same UID with the attribute removed, and the B-12 snapshot floor does not
+assert `evidence_source`'s exact value.
+
+### The precedent the round-8 fix cited did not support the shape it built
+
+Round 8 cited `rds_posture_node_writer.go` /
+`ec2_block_device_kms_posture_node_writer.go` as precedent for a
+REMOVE-then-SET shape, but read too loosely: both writers ship **two
+separate statements** -- a plain `UNWIND ... MATCH/MERGE ... SET` upsert,
+and a standalone `MATCH (resource:CloudResource) WHERE ... REMOVE r.x, r.y`
+retract with no trailing SET (exactly the shape `pkg/cypher/executor_mutations.go`
+`executeRemove` supports). Nothing in this codebase combines
+MERGE + SET + REMOVE + SET in one statement. Re-read correctly, the
+precedent validates the two-statement design below, not the fused one round
+8 shipped.
+
+### The fix: two statements, REMOVE before SET
+
+- `canonicalTerraformStateResourceUpsertCypher` (`tfstate_canonical_writer.go`)
+  reverts to exactly what it was before round 8's fix attempt -- one unified
+  `UNWIND $rows AS row MERGE ... SET ..., r += row.attrs` template for every
+  resource type, byte-identical to the pre-round-8 shape. No REMOVE clause,
+  no per-type variants.
+- `terraformStateResourceAttributeRemoveCypherByType` builds a genuinely
+  standalone `MATCH (r:TerraformResource) WHERE r.uid IN $uids REMOVE ...`
+  statement per allowlisted resource type -- no MERGE, no SET, no UNWIND --
+  still derived from `terraformAttributePromotionAllowlist` via
+  `terraformAttributePromotionKeysForType` so the REMOVE list can never
+  drift from the allowlist it must fully cover (this part of round 8's
+  design was correct and is unchanged).
+- `buildTerraformStateStatements` returns the REMOVE statements **before**
+  the upsert statement, in that order.
+
+**Ordering reasoning:** REMOVE-then-SET is the only correct order. The
+REMOVE statement unconditionally clears the allowlisted type's FULL closed
+set of possible `tf_attr_*` properties for every UID in the batch; the
+upsert's additive `r += row.attrs` merge then re-establishes only the
+subset the current row promotes. If the upsert ran first and REMOVE ran
+second, REMOVE's unconditional full-key-set clear would immediately strip
+every `tf_attr_*` property the upsert just wrote -- corrupting every write,
+not only refreshes. SET-then-REMOVE was considered and rejected for exactly
+this reason.
+
+**Partial-failure reasoning:** these are two separate statements, not one
+atomic transaction -- matching this repo's own precedent
+(`rds_posture_node_writer.go` / `ec2_block_device_kms_posture_node_writer.go`
+do not bind their upsert/retract pair atomically either). If REMOVE succeeds
+and the following upsert fails before completing, the affected nodes
+temporarily carry no `tf_attr_*` properties until the next successful run of
+the same generation reapplies both statements. Both statements are
+idempotent (REMOVE on an already-absent property, or SET to an
+already-current value, are no-ops), so a retry of the whole generation is
+self-healing. Judged an acceptable, visibly-empty gap under a transient
+failure -- not the silently-wrong-forever state the original bug produced,
+and not a new failure mode this repo's existing retry model doesn't already
+handle for its other two-statement writers.
+
+### Test strategy: the fake alone is not sufficient, kept two additional guards
+
+The fake fixture is not worthless -- it cheaply documents the Go-level
+sequencing contract (REMOVE built and ordered before the upsert, with the
+right UIDs and property names) and still catches a regression in that
+contract fast, without a live backend. But per the review finding above, it
+must not be the only guard for backend-execution correctness. Updated it to
+handle both statement shapes (a `uids`-keyed REMOVE statement and a
+`rows`-keyed upsert statement) with an explicit doc comment stating its
+limitation and pointing at the two guards below, and added a
+`TestTerraformStateStatementsEmitRemoveBeforeUpsert` unit test asserting the
+ordering contract directly.
+
+Chose to add a real-backend regression test to the committed suite
+(`tfstate_canonical_writer_stale_attrs_live_test.go`), following this
+package's existing `_live_test.go` convention exactly:
+`openBoltTestRunner`/`boltTestExecutor` (shared with
+`edge_writer_retract_repo_live_test.go` and others), gated on
+`ESHU_CYPHER_BOLT_DSN`, skipped by default, opt-in against a real running
+Bolt-speaking backend (NornicDB or Neo4j-compatible). It runs the exact
+production `buildTerraformStateStatements` output through a real backend
+for both projections and asserts both the stale-attribute removal and the
+uncorrupted `evidence_source` value -- the same two assertions proven above
+against the throwaway harness, now available as an opt-in CI/local lane
+without needing a separate ad hoc harness.
+
+Did **not** extend the golden-corpus cassette to re-project the same UID
+twice in this round. That would require establishing whether/how the B-7
+cassette-replay pipeline models a same-UID re-observation at all within one
+gate run (the `eshu-golden-corpus-rigor` skill describes one fixed-input
+replay per run, not a temporal sequence) -- a real architectural question in
+its own right, not a small data edit, and not one to answer under this
+finding's time pressure against a fixture shared by every PR. The
+committed live test already provides real-backend proof without that
+additional, less-understood fixture surgery. Flagging this as a deliberate
+scope decision, not an oversight: a cassette-level refresh-replay guard
+remains a legitimate follow-up if the golden-corpus pipeline turns out to
+support it cleanly.
+
+### Fast-path and performance measurement
+
+The upsert statement's own Cypher text is byte-identical to its pre-round-8
+shape, so its fast-path eligibility (`parseUnwindMergeChainPattern`) is
+unaffected by this fix -- fast-path selection is determined by parsing a
+statement's own text, and the two statements are parsed and routed
+completely independently. The REMOVE statement is not UNWIND-based at all
+(a single `WHERE r.uid IN $uids` list-membership match, not a per-row loop),
+so it is one added statement per (allowlisted type, batch) -- not a
+per-resource cost multiplied across the corpus.
+
+Quantified the REMOVE statement's own added cost with the same throwaway
+harness used for the correctness proof (in-process `StorageExecutor` timing,
+no network -- production cost additionally includes one Bolt round trip per
+added statement, not captured here), `-benchtime=100x -benchmem`, Apple M1
+Max, 500-UID/500-row batches (matching `DefaultBatchSize`):
+
+| Benchmark | ns/op | B/op | allocs/op |
+| --- | ---: | ---: | ---: |
+| `BenchmarkUpsertOnly_500` (upsert alone, unchanged shape) | 4,489,910 | 3,852,073 | 62,732 |
+| `BenchmarkRemoveOnly_500` (the new REMOVE statement alone) | 14,930,090 | 9,782,397 | 142,966 |
+| `BenchmarkRemoveThenUpsert_500` (shipped: REMOVE then upsert) | 37,566,329 | 25,665,898 | 363,031 |
+
+Per 500-row/UID batch: the added REMOVE statement costs ~29.9μs/UID
+in-process (`14,930,090 / 500`); the shipped combined sequence adds
+~66.2μs/row over the upsert-alone baseline (`(37,566,329 - 4,489,910) /
+500`), somewhat more than the isolated REMOVE-only number, consistent with
+ordinary run-to-run variance on a shared machine rather than a distinct
+cost. This is in-process Go/data-structure cost only, not end-to-end
+graph-write latency; the real production cost per (allowlisted type, batch)
+additionally includes one extra Bolt round trip, bounded by the number of
+allowlisted-type batches in a materialization, not the total resource
+count. No live Compose stack was stood up to measure the network-inclusive
+cost in this round; the in-process numbers above are the theory-proof this
+repo's Prove-The-Theory-First discipline requires before shipping, not a
+substitute for a full-corpus remote proof if the coordinator wants one.

@@ -73,13 +73,37 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 	}
 
 	statements := writer.buildTerraformStateStatements(mat)
-	if got, want := len(statements), 3; got != want {
+	// #5441 review round 9, P0: buildTerraformStateStatements now emits a
+	// standalone REMOVE statement for aws_instance (an allowlisted type)
+	// before the resource upsert -- 4 statements, not 3. See
+	// TestTerraformStateStatementsEmitRemoveBeforeUpsert
+	// (tfstate_canonical_writer_stale_attrs_test.go) for the general
+	// ordering contract; this test asserts the REMOVE statement's own shape.
+	if got, want := len(statements), 4; got != want {
 		t.Fatalf("buildTerraformStateStatements() count = %d, want %d", got, want)
 	}
 
-	resource := statements[0]
+	remove := statements[0]
+	if _, ok := remove.Parameters["uids"]; !ok {
+		t.Fatalf("statements[0] has no uids parameter, want the standalone REMOVE statement first: %#v", remove)
+	}
+	if strings.Contains(remove.Cypher, "SET") || strings.Contains(remove.Cypher, "MERGE") || strings.Contains(remove.Cypher, "UNWIND") {
+		t.Fatalf("REMOVE statement Cypher = %q, must not combine MERGE/SET/UNWIND with REMOVE (#5441 review round 9 P0)", remove.Cypher)
+	}
+	if !strings.Contains(remove.Cypher, "REMOVE r.tf_attr_instance_type") || !strings.Contains(remove.Cypher, "r.tf_attr_ami") {
+		t.Fatalf("REMOVE statement Cypher = %q, want tf_attr_instance_type and tf_attr_ami", remove.Cypher)
+	}
+	uids, ok := remove.Parameters["uids"].([]string)
+	if !ok || len(uids) != 1 || uids[0] != "tf-resource-uid-1" {
+		t.Fatalf("REMOVE statement uids = %#v, want [tf-resource-uid-1]", remove.Parameters["uids"])
+	}
+
+	resource := statements[1]
 	if !strings.Contains(resource.Cypher, "MERGE (r:TerraformResource {uid: row.uid})") {
 		t.Fatalf("resource Cypher = %q, want TerraformResource uid merge", resource.Cypher)
+	}
+	if strings.Contains(resource.Cypher, "REMOVE") {
+		t.Fatalf("resource upsert Cypher = %q, must not contain REMOVE (#5441 review round 9 P0)", resource.Cypher)
 	}
 	rows := resource.Parameters["rows"].([]map[string]any)
 	if got, want := rows[0]["provider_address"], "provider[\"registry.terraform.io/hashicorp/aws\"]"; got != want {
@@ -111,10 +135,10 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 		t.Fatalf("non-allowlisted user_data attribute was promoted: %#v", attrs)
 	}
 
-	if !strings.Contains(statements[1].Cypher, "MERGE (m:TerraformModule {uid: row.uid})") {
-		t.Fatalf("module Cypher = %q, want TerraformModule uid merge", statements[1].Cypher)
+	if !strings.Contains(statements[2].Cypher, "MERGE (m:TerraformModule {uid: row.uid})") {
+		t.Fatalf("module Cypher = %q, want TerraformModule uid merge", statements[2].Cypher)
 	}
-	if !strings.Contains(statements[2].Cypher, "MERGE (o:TerraformOutput {uid: row.uid})") {
-		t.Fatalf("output Cypher = %q, want TerraformOutput uid merge", statements[2].Cypher)
+	if !strings.Contains(statements[3].Cypher, "MERGE (o:TerraformOutput {uid: row.uid})") {
+		t.Fatalf("output Cypher = %q, want TerraformOutput uid merge", statements[3].Cypher)
 	}
 }
