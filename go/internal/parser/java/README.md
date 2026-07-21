@@ -119,7 +119,18 @@ rows, then passed after the Java lowering and catalog were added. The gate-off
 test proves default Java payloads remain byte-identical except for the opt-in
 value-flow buckets when the gate is enabled.
 
+`dogfood_real_repo_test.go` is a standing regression test (#5399), not an
+opt-in dump: `TestDogfoodJavaRealRepoSnapshot` parses the committed, Spring
+Boot-shaped corpus at `tests/fixtures/dogfood/java_real_repo` and diffs the
+bucket counts against `testdata/dogfood_real_repo_snapshot.txt`. It backs
+the `real-repo-validated` grade in
+`docs/public/languages/support-maturity.md#grade-definitions`. Regenerate
+the snapshot after an intentional parser change with
+`DOGFOOD_UPDATE_SNAPSHOT=1 bash scripts/dogfood-java.sh`.
+
 ## Related docs
 
 - `docs/public/reference/local-testing.md`
 - `docs/public/architecture.md`
+- `docs/public/languages/support-maturity.md`
+- `docs/public/languages/java.md`

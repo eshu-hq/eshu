@@ -14,7 +14,7 @@ parser mechanics live in `go/internal/parser/java/README.md`.
 | Package detail | `go/internal/parser/java/README.md` |
 | Fixture repo | `tests/fixtures/ecosystems/java_comprehensive/` |
 | Main parser tests | `go/internal/parser/engine_managed_oo_test.go`, `go/internal/parser/java_*_test.go` |
-| Runtime validation | Compose-backed fixture verification; see [Local Testing](../reference/local-testing.md) |
+| Runtime validation | Compose-backed fixture verification; see [Local Testing](../reference/local-testing.md), plus the offline real-repo dogfood check `scripts/dogfood-java.sh` (see [Support Maturity](#support-maturity)) |
 
 ## Supported Surfaces
 
@@ -67,9 +67,26 @@ Modeled roots and evidence include:
 | Normalization | `supported` |
 | Framework packs | Spring, Gradle, JUnit, Jenkins, Stapler, ServiceLoader, serialization, bounded reflection |
 | Query surfacing | `supported` |
-| Real-repo validation | `fixture-backed` |
+| Real-repo validation | `real-repo-validated` (#5399) |
 | End-to-end indexing | `fixture-backed` |
 | Dead-code exactness | `derived`, not cleanup-safe exact truth |
+
+Real-Repo Validation earned `real-repo-validated` (#5399) through a committed,
+offline-reproducible dogfood artifact: `scripts/dogfood-java.sh` runs the
+standing `TestDogfoodJavaRealRepoSnapshot` regression test
+(`go/internal/parser/java/dogfood_real_repo_test.go`) against the committed
+app-shaped corpus at `tests/fixtures/dogfood/java_real_repo` (a synthetic
+Spring Boot-style `src/main/java` + `src/test/java`
+controller/service/model layout; no external repository or pinned SHA is
+cited as provenance here, since this page never carried a specific
+external-repo dogfood claim to preserve) and diffs the parser's bucket counts
+against the checked-in snapshot at
+`go/internal/parser/java/testdata/dogfood_real_repo_snapshot.txt`. The script
+requires no network access or Docker. End-to-end indexing stays
+`fixture-backed`: the corpus is not staged in `corpus_fixtures` in
+`scripts/verify-golden-corpus-gate.sh` and has no B-12 attribution, so it does
+not clear the `supported` bar (see
+[Parser Support Matrix](support-maturity.md#grade-definitions)).
 
 ## Framework And Library Support
 

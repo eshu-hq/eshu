@@ -9,6 +9,9 @@
 5. calls.go - AST call-site detection (dartCallChain, function_calls rows),
    folded into syntax_index.go's single collect traversal (#5350)
 6. parser_test.go - behavior coverage for payload shape
+7. dogfood_real_repo_test.go - standing real-repo-validated snapshot test
+   (#5399); do not edit testdata/dogfood_real_repo_snapshot.txt by hand,
+   regenerate with `DOGFOOD_UPDATE_SNAPSHOT=1 bash scripts/dogfood-dart.sh`
 
 ## Invariants this package enforces
 
@@ -44,6 +47,10 @@
   signature subtrees.
 - Duplicate import rows usually mean wrapper and concrete import/export nodes
   are both being emitted.
+- A `TestDogfoodDartRealRepoSnapshot` mismatch means a code change altered
+  bucket counts for `tests/fixtures/dogfood/dart_real_repo`; verify the delta
+  is intended, then regenerate with `DOGFOOD_UPDATE_SNAPSHOT=1 bash
+  scripts/dogfood-dart.sh`.
 
 ## Anti-patterns specific to this package
 

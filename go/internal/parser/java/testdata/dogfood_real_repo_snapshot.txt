@@ -1,0 +1,77 @@
+src/main/java/com/example/dogfood/User.java	annotations	kind="applied" lang="java" line_number=33 name="Override" target_kind="method_declaration"
+src/main/java/com/example/dogfood/User.java	classes	end_line=37 lang="java" line_number=10 name="User"
+src/main/java/com/example/dogfood/User.java	framework_semantics	{frameworks=[]}
+src/main/java/com/example/dogfood/User.java	functions	class_context="User" cyclomatic_complexity=1 dead_code_root_kinds=["java.constructor"] end_line=19 lang="java" line_number=15 name="User" parameter_count=3 parameter_types=["String","String","String"]
+src/main/java/com/example/dogfood/User.java	functions	class_context="User" cyclomatic_complexity=1 dead_code_root_kinds=["java.override_method"] decorators=["@Override"] end_line=36 lang="java" line_number=34 name="toString" parameter_count=0
+src/main/java/com/example/dogfood/User.java	functions	class_context="User" cyclomatic_complexity=1 end_line=23 lang="java" line_number=21 name="getId" parameter_count=0
+src/main/java/com/example/dogfood/User.java	functions	class_context="User" cyclomatic_complexity=1 end_line=27 lang="java" line_number=25 name="getName" parameter_count=0
+src/main/java/com/example/dogfood/User.java	functions	class_context="User" cyclomatic_complexity=1 end_line=31 lang="java" line_number=29 name="getEmail" parameter_count=0
+src/main/java/com/example/dogfood/User.java	variables	end_line=11 lang="java" line_number=11 name="id"
+src/main/java/com/example/dogfood/User.java	variables	end_line=12 lang="java" line_number=12 name="name"
+src/main/java/com/example/dogfood/User.java	variables	end_line=13 lang="java" line_number=13 name="email"
+src/main/java/com/example/dogfood/UserController.java	annotations	kind="applied" lang="java" line_number=15 name="RestController" target_kind="class_declaration"
+src/main/java/com/example/dogfood/UserController.java	annotations	kind="applied" lang="java" line_number=23 name="GetMapping" target_kind="method_declaration"
+src/main/java/com/example/dogfood/UserController.java	annotations	kind="applied" lang="java" line_number=24 name="PathVariable" target_kind="method_declaration"
+src/main/java/com/example/dogfood/UserController.java	annotations	kind="applied" lang="java" line_number=28 name="PostMapping" target_kind="method_declaration"
+src/main/java/com/example/dogfood/UserController.java	annotations	kind="applied" lang="java" line_number=29 name="RequestParam" target_kind="method_declaration"
+src/main/java/com/example/dogfood/UserController.java	annotations	kind="applied" lang="java" line_number=29 name="RequestParam" target_kind="method_declaration"
+src/main/java/com/example/dogfood/UserController.java	annotations	kind="applied" lang="java" line_number=33 name="GetMapping" target_kind="method_declaration"
+src/main/java/com/example/dogfood/UserController.java	classes	dead_code_root_kinds=["java.spring_component_class"] decorators=["@RestController"] end_line=37 lang="java" line_number=16 name="UserController"
+src/main/java/com/example/dogfood/UserController.java	framework_semantics	{frameworks=["spring"] spring={route_entries=[{handler="show" method="GET" path="/users/{id}"},{handler="create" method="POST" path="/users"},{handler="healthCheck" method="GET" path="/health"}] route_methods=["GET","POST"] route_paths=["/users/{id}","/users","/health"]}}
+src/main/java/com/example/dogfood/UserController.java	function_calls	argument_count=1 argument_types=["String"] full_name="userService.getOrThrow" inferred_obj_type="UserService" lang="java" line_number=25 name="getOrThrow"
+src/main/java/com/example/dogfood/UserController.java	function_calls	argument_count=2 argument_types=["String","String"] full_name="userService.create" inferred_obj_type="UserService" lang="java" line_number=30 name="create"
+src/main/java/com/example/dogfood/UserController.java	functions	class_context="UserController" cyclomatic_complexity=1 dead_code_root_kinds=["java.constructor"] end_line=21 lang="java" line_number=19 name="UserController" parameter_count=1 parameter_types=["UserService"]
+src/main/java/com/example/dogfood/UserController.java	functions	class_context="UserController" cyclomatic_complexity=1 dead_code_root_kinds=["java.spring_request_mapping_method"] decorators=["@GetMapping(\"/health\")"] end_line=36 lang="java" line_number=34 name="healthCheck" parameter_count=0
+src/main/java/com/example/dogfood/UserController.java	functions	class_context="UserController" cyclomatic_complexity=1 dead_code_root_kinds=["java.spring_request_mapping_method"] decorators=["@GetMapping(\"/users/{id}\")"] end_line=26 lang="java" line_number=24 name="show" parameter_count=1 parameter_types=["String"]
+src/main/java/com/example/dogfood/UserController.java	functions	class_context="UserController" cyclomatic_complexity=1 dead_code_root_kinds=["java.spring_request_mapping_method"] decorators=["@PostMapping(\"/users\")"] end_line=31 lang="java" line_number=29 name="create" parameter_count=2 parameter_types=["String","String"]
+src/main/java/com/example/dogfood/UserController.java	imports	alias="GetMapping" full_import_name="import org.springframework.web.bind.annotation.GetMapping;" import_type="import" lang="java" line_number=9 name="org.springframework.web.bind.annotation.GetMapping" source="org.springframework.web.bind.annotation.GetMapping"
+src/main/java/com/example/dogfood/UserController.java	imports	alias="PathVariable" full_import_name="import org.springframework.web.bind.annotation.PathVariable;" import_type="import" lang="java" line_number=10 name="org.springframework.web.bind.annotation.PathVariable" source="org.springframework.web.bind.annotation.PathVariable"
+src/main/java/com/example/dogfood/UserController.java	imports	alias="PostMapping" full_import_name="import org.springframework.web.bind.annotation.PostMapping;" import_type="import" lang="java" line_number=11 name="org.springframework.web.bind.annotation.PostMapping" source="org.springframework.web.bind.annotation.PostMapping"
+src/main/java/com/example/dogfood/UserController.java	imports	alias="RequestParam" full_import_name="import org.springframework.web.bind.annotation.RequestParam;" import_type="import" lang="java" line_number=12 name="org.springframework.web.bind.annotation.RequestParam" source="org.springframework.web.bind.annotation.RequestParam"
+src/main/java/com/example/dogfood/UserController.java	imports	alias="RestController" full_import_name="import org.springframework.web.bind.annotation.RestController;" import_type="import" lang="java" line_number=13 name="org.springframework.web.bind.annotation.RestController" source="org.springframework.web.bind.annotation.RestController"
+src/main/java/com/example/dogfood/UserController.java	variables	end_line=17 lang="java" line_number=17 name="userService"
+src/main/java/com/example/dogfood/UserNotFoundException.java	classes	end_line=9 lang="java" line_number=5 name="UserNotFoundException"
+src/main/java/com/example/dogfood/UserNotFoundException.java	framework_semantics	{frameworks=[]}
+src/main/java/com/example/dogfood/UserNotFoundException.java	functions	class_context="UserNotFoundException" cyclomatic_complexity=1 dead_code_root_kinds=["java.constructor"] end_line=8 lang="java" line_number=6 name="UserNotFoundException" parameter_count=1 parameter_types=["String"]
+src/main/java/com/example/dogfood/UserService.java	annotations	kind="applied" lang="java" line_number=13 name="Service" target_kind="class_declaration"
+src/main/java/com/example/dogfood/UserService.java	classes	dead_code_root_kinds=["java.spring_component_class"] decorators=["@Service"] end_line=34 lang="java" line_number=14 name="UserService"
+src/main/java/com/example/dogfood/UserService.java	framework_semantics	{frameworks=[]}
+src/main/java/com/example/dogfood/UserService.java	function_calls	argument_count=0 class_context="UserService" full_name="generateId" lang="java" line_number=22 name="generateId"
+src/main/java/com/example/dogfood/UserService.java	function_calls	argument_count=0 full_name="HashMap<>" lang="java" line_number=15 name="HashMap<>"
+src/main/java/com/example/dogfood/UserService.java	function_calls	argument_count=0 full_name="java.util.UUID.randomUUID" lang="java" line_number=32 name="randomUUID"
+src/main/java/com/example/dogfood/UserService.java	function_calls	argument_count=0 full_name="java.util.UUID.randomUUID().toString" lang="java" line_number=32 name="toString"
+src/main/java/com/example/dogfood/UserService.java	function_calls	argument_count=0 full_name="user.getId" inferred_obj_type="User" lang="java" line_number=23 name="getId"
+src/main/java/com/example/dogfood/UserService.java	function_calls	argument_count=1 argument_types=["String"] class_context="UserService" full_name="findById" lang="java" line_number=28 name="findById"
+src/main/java/com/example/dogfood/UserService.java	function_calls	argument_count=1 argument_types=["String"] full_name="users.get" inferred_obj_type="Map" lang="java" line_number=18 name="get"
+src/main/java/com/example/dogfood/UserService.java	function_calls	argument_count=1 full_name="Optional.ofNullable" lang="java" line_number=18 name="ofNullable"
+src/main/java/com/example/dogfood/UserService.java	function_calls	argument_count=1 full_name="UserNotFoundException" lang="java" line_number=28 name="UserNotFoundException"
+src/main/java/com/example/dogfood/UserService.java	function_calls	argument_count=1 full_name="findById(id).orElseThrow" lang="java" line_number=28 name="orElseThrow"
+src/main/java/com/example/dogfood/UserService.java	function_calls	argument_count=2 argument_types=["","User"] full_name="users.put" inferred_obj_type="Map" lang="java" line_number=23 name="put"
+src/main/java/com/example/dogfood/UserService.java	function_calls	argument_count=3 full_name="User" lang="java" line_number=22 name="User"
+src/main/java/com/example/dogfood/UserService.java	functions	class_context="UserService" cyclomatic_complexity=1 end_line=19 lang="java" line_number=17 name="findById" parameter_count=1 parameter_types=["String"]
+src/main/java/com/example/dogfood/UserService.java	functions	class_context="UserService" cyclomatic_complexity=1 end_line=25 lang="java" line_number=21 name="create" parameter_count=2 parameter_types=["String","String"]
+src/main/java/com/example/dogfood/UserService.java	functions	class_context="UserService" cyclomatic_complexity=1 end_line=29 lang="java" line_number=27 name="getOrThrow" parameter_count=1 parameter_types=["String"]
+src/main/java/com/example/dogfood/UserService.java	functions	class_context="UserService" cyclomatic_complexity=1 end_line=33 lang="java" line_number=31 name="generateId" parameter_count=0
+src/main/java/com/example/dogfood/UserService.java	imports	alias="HashMap" full_import_name="import java.util.HashMap;" import_type="import" lang="java" line_number=8 name="java.util.HashMap" source="java.util.HashMap"
+src/main/java/com/example/dogfood/UserService.java	imports	alias="Map" full_import_name="import java.util.Map;" import_type="import" lang="java" line_number=9 name="java.util.Map" source="java.util.Map"
+src/main/java/com/example/dogfood/UserService.java	imports	alias="Optional" full_import_name="import java.util.Optional;" import_type="import" lang="java" line_number=10 name="java.util.Optional" source="java.util.Optional"
+src/main/java/com/example/dogfood/UserService.java	imports	alias="Service" full_import_name="import org.springframework.stereotype.Service;" import_type="import" lang="java" line_number=11 name="org.springframework.stereotype.Service" source="org.springframework.stereotype.Service"
+src/main/java/com/example/dogfood/UserService.java	variables	end_line=15 lang="java" line_number=15 name="users"
+src/test/java/com/example/dogfood/UserServiceTest.java	annotations	kind="applied" lang="java" line_number=14 name="Test" target_kind="method_declaration"
+src/test/java/com/example/dogfood/UserServiceTest.java	annotations	kind="applied" lang="java" line_number=21 name="Test" target_kind="method_declaration"
+src/test/java/com/example/dogfood/UserServiceTest.java	classes	end_line=26 lang="java" line_number=13 name="UserServiceTest"
+src/test/java/com/example/dogfood/UserServiceTest.java	framework_semantics	{frameworks=[]}
+src/test/java/com/example/dogfood/UserServiceTest.java	function_calls	argument_count=0 full_name="UserService" lang="java" line_number=16 name="UserService"
+src/test/java/com/example/dogfood/UserServiceTest.java	function_calls	argument_count=0 full_name="UserService" lang="java" line_number=23 name="UserService"
+src/test/java/com/example/dogfood/UserServiceTest.java	function_calls	argument_count=0 full_name="created.getId" inferred_obj_type="User" lang="java" line_number=18 name="getId"
+src/test/java/com/example/dogfood/UserServiceTest.java	function_calls	argument_count=0 full_name="service.getOrThrow(created.getId()).getName" lang="java" line_number=18 name="getName"
+src/test/java/com/example/dogfood/UserServiceTest.java	function_calls	argument_count=1 full_name="service.getOrThrow" inferred_obj_type="UserService" lang="java" line_number=18 name="getOrThrow"
+src/test/java/com/example/dogfood/UserServiceTest.java	function_calls	argument_count=1 full_name="service.getOrThrow" inferred_obj_type="UserService" lang="java" line_number=24 name="getOrThrow"
+src/test/java/com/example/dogfood/UserServiceTest.java	function_calls	argument_count=2 class_context="UserServiceTest" full_name="assertEquals" lang="java" line_number=18 name="assertEquals"
+src/test/java/com/example/dogfood/UserServiceTest.java	function_calls	argument_count=2 class_context="UserServiceTest" full_name="assertThrows" lang="java" line_number=24 name="assertThrows"
+src/test/java/com/example/dogfood/UserServiceTest.java	function_calls	argument_count=2 full_name="service.create" inferred_obj_type="UserService" lang="java" line_number=17 name="create"
+src/test/java/com/example/dogfood/UserServiceTest.java	functions	class_context="UserServiceTest" cyclomatic_complexity=1 dead_code_root_kinds=["java.junit_test_method"] decorators=["@Test"] end_line=19 lang="java" line_number=15 name="createReturnsPersistedUser" parameter_count=0
+src/test/java/com/example/dogfood/UserServiceTest.java	functions	class_context="UserServiceTest" cyclomatic_complexity=1 dead_code_root_kinds=["java.junit_test_method"] decorators=["@Test"] end_line=25 lang="java" line_number=22 name="getOrThrowRaisesWhenMissing" parameter_count=0
+src/test/java/com/example/dogfood/UserServiceTest.java	imports	alias="Test" full_import_name="import org.junit.jupiter.api.Test;" import_type="import" lang="java" line_number=11 name="org.junit.jupiter.api.Test" source="org.junit.jupiter.api.Test"
+src/test/java/com/example/dogfood/UserServiceTest.java	imports	alias="assertEquals" full_import_name="import static org.junit.jupiter.api.Assertions.assertEquals;" import_type="static" lang="java" line_number=8 name="org.junit.jupiter.api.Assertions.assertEquals" source="org.junit.jupiter.api.Assertions.assertEquals"
+src/test/java/com/example/dogfood/UserServiceTest.java	imports	alias="assertThrows" full_import_name="import static org.junit.jupiter.api.Assertions.assertThrows;" import_type="static" lang="java" line_number=9 name="org.junit.jupiter.api.Assertions.assertThrows" source="org.junit.jupiter.api.Assertions.assertThrows"
