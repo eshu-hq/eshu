@@ -14,8 +14,9 @@ package v1
 // producer field is dropped and the wire schema for parsed_file_data stays
 // byte-identical (no schema major bump).
 //
-// The five keys typed here are the low-risk batch: each is produced by exactly
-// one parser subsystem with a stable, closed element shape, unlike the wide
+// The first five keys below (GomodState through DockerfileStage) are #4750
+// S1's original low-risk batch: each is produced by exactly one parser
+// subsystem with a stable, closed element shape, unlike the wide
 // per-language AST buckets (imports/functions/function_calls/classes/variables/
 // framework_semantics) whose element shape is a union of many independently
 // evolving per-language field sets, deferred to later #4750 increments. The
@@ -23,6 +24,24 @@ package v1
 // github_actions_workflow_triggers, github_actions_reusable_workflow_refs,
 // jenkins_pipeline_calls) have zero producers on this branch and are tracked
 // separately by cleanup issue #4771, not typed here.
+//
+// ImageOverride (added by issue #5440) follows the same closed-shape,
+// single-key-per-struct pattern but is typed proactively, ahead of any
+// reducer read: #5440 only adds the parser-side image_overrides bucket, and
+// this typed struct has no consumer yet (round-4 review corrected an
+// earlier, inaccurate #5441 citation here and at seven other sites -- #5441
+// is "iac: persist relationship Details and Terraform attributes at the
+// graph write" and has nothing to do with image_overrides). Issue #5445
+// ("contract the extraction surface: registry entries + typed accessors")
+// governs the typed-accessor CONTRACT this struct follows. Issue #5469
+// ("vuln: tiered deployed-version resolution") aims to judge a
+// vulnerability finding's version from the strongest available tier,
+// including branch-resolved manifest evidence; a Helm/Kustomize declared
+// image tag/digest (this struct's data) is the kind of evidence that tier
+// would use, though #5469 does not yet name this bucket explicitly -- do
+// not read that as a commitment. The accessor exists from day one so a
+// future consumer decodes through a typed struct rather than a raw map
+// lookup.
 
 // GomodState is the typed view of a parsed_file_data "gomod_state" inner key,
 // the per-file parse-state envelope the Go module manifest parser emits
@@ -126,4 +145,61 @@ type DockerfileStage struct {
 	// non-empty (platform, copies_from, workdir, entrypoint, cmd, user,
 	// healthcheck) plus the "lang" tag, preserving their JSON-native types.
 	Attributes map[string]any `json:"-"`
+}
+
+// ImageOverride is the typed view of one entry in a parsed_file_data
+// "image_overrides" inner slice, one declared container image override the
+// Helm values and Kustomize image-list parsers each emit
+// (go/internal/parser/yaml/image_overrides.go collectHelmImageOverrides /
+// collectKustomizeImageOverrides, issue #5440). It carries the per-image
+// tag/digest version truth that helm_values[].image_repositories and
+// kustomize_overlays[].image_refs intentionally discard from their own
+// stable, tag-less identity buckets. Both producers write the identical
+// closed row shape, so every field is named here with no open Attributes
+// pass-through -- unlike DockerfileStage above, no third producer can add an
+// unlisted field to this key.
+type ImageOverride struct {
+	// Name's meaning is SOURCE-DEPENDENT -- do not read it as "the image"
+	// without checking Source first. For a Helm row, Name is the declared
+	// repository (which may itself carry an inline tag/digest, e.g.
+	// "repo:v1"). For a Kustomize row, Name is the images[].name MATCH
+	// TARGET -- the image reference Kustomize is patching, NOT the image
+	// that actually gets deployed. When a Kustomize row's newName is set
+	// (Repository != Name), Name is the REPLACED image, not the deployed
+	// one; Repository is what actually ships. Repository is the only field
+	// safe to use for image identity across BOTH sources -- use it, not
+	// Name, unless the caller has already branched on Source and
+	// specifically wants the Kustomize match target. This is a one-bucket,
+	// two-meaning field by construction (issue #5440 review); splitting it
+	// into source-specific fields is a design decision issue #5445 (the
+	// extraction-surface/typed-accessor contract) would own, not made here.
+	Name string `json:"name,omitempty"`
+	// Repository is the resolved, version-stripped image repository: Helm's
+	// repository with any inline tag/digest removed
+	// (normalizeContainerImageRepository), or Kustomize's newName when set,
+	// else name.
+	Repository string `json:"repository,omitempty"`
+	// Tag is the declared image tag: a Helm sibling `tag:` key (or a tag
+	// parsed out of an inline "repo:tag" repository string when no sibling
+	// key is present) or Kustomize's newTag. Empty when no tag is declared.
+	Tag string `json:"tag,omitempty"`
+	// Digest is the declared image digest in full "sha256:..." form: a Helm
+	// sibling `digest:` key (or a digest parsed out of an inline
+	// "repo@sha256:..." repository string) or Kustomize's digest. Empty when
+	// no digest is declared.
+	Digest string `json:"digest,omitempty"`
+	// Environment is the inferred deployment environment ("prod", "staging",
+	// ...), or "" when it cannot be confidently inferred. See
+	// go/internal/parser/yaml/image_overrides.go for the conservative,
+	// filename/path-based inference rule; issue #5444 owns broader
+	// environment detection.
+	Environment string `json:"environment,omitempty"`
+	// Source identifies the producing parser: "helm" or "kustomize".
+	Source string `json:"source,omitempty"`
+	// Path is the source file path.
+	Path string `json:"path,omitempty"`
+	// LineNumber is the declaring document's source line number.
+	LineNumber int `json:"line_number,omitempty"`
+	// Lang is always "yaml", both producers being YAML-family parsers.
+	Lang string `json:"lang,omitempty"`
 }

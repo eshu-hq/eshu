@@ -28,6 +28,77 @@ deterministic payload buckets. The parent internal/parser package still owns
 registry lookup, engine dispatch, repository path resolution, and content
 metadata inference.
 
+`image_overrides.go` builds the `image_overrides` bucket (issue #5440;
+`environment` field resolution split into the sibling
+`image_overrides_environment.go` to keep both files under the 500-line
+package-file cap): one row per declared container image version override,
+carrying the tag/digest
+version truth that `helm_values[].image_repositories` and
+`kustomize_overlays[].image_refs` intentionally discard from their own
+tag-less identity buckets. It is purely additive -- adding it does not
+change either existing bucket's output. Helm rows come from every nested
+`image:` map in a values file (mirroring `collectHelmImageRepositories`'s
+own walk); Kustomize rows come from a `kustomization.yaml`'s `images[]`
+list, skipping an entry that declares only `name` with none of
+`newName`/`newTag`/`digest` -- a no-op match-target entry with no actual
+version override, so it does not get a phantom row (issue #5440 review P2).
+Both producers' rows are sorted deterministically by full row content
+(`sortImageOverrideRowsByContent`) before dedupe and before the caller's own
+bucket sort, so the same file always parses to the same row order (issue
+#5440 review; see Performance below for why an unsorted input would
+otherwise make that order vary run to run). Both producers also dedupe
+exact-duplicate rows (`dedupeImageOverrideRows`): two declarations identical
+on every field carry no distinguishing information, so they collapse to
+one; a row differing in any field (the same repository under a different
+tag) is kept.
+
+`environment` is inferred from two independent signals, in priority order.
+`imageOverrideDirectoryEnvironment` resolves the
+`.../environments/<env>/...` path-segment signal: `<env>` must be a real
+DIRECTORY (at least one further path segment -- the file itself, or a
+deeper directory -- must follow it, so `environments/values.yaml` on its
+own is NOT a signal, only `environments/<env>/values.yaml` is), the result
+is lowercased, and when a path contains more than one `environments/`
+marker the LAST one that satisfies the directory guard wins -- the
+declaration closest to the file, not the first one encountered in the path
+(issue #5440 P1 and P2-1, independent review; a later marker that fails the
+directory guard is skipped, not treated as clearing an earlier valid one).
+A captured `<env>` segment that is itself the marker keyword
+`"environments"` (two markers back to back, e.g.
+`environments/environments/values.yaml`) is ALSO treated as guard-failing,
+never recorded as a value (issue #5440 P2, round-3 independent review) --
+recording it would be worse than `""`: `helmImageOverrideEnvironment` only
+falls through to the filename inference when the path signal is empty, so a
+phantom `"environments"` path result would silently suppress a correct
+`values-prod.yaml` -> `"prod"` filename match. This path signal is an
+explicit author declaration and is NOT gated by an
+environment-token allowlist: an author who laid a repo out with an
+"environments" directory chose that name deliberately, whatever it is. A
+`values-<env>.yaml`/`values.<env>.yaml` filename match for Helm is a
+separate, lower-priority signal used only when the path signal is absent --
+an INFERENCE, not a declaration -- and IS gated behind
+`helmImageOverrideEnvironmentTokens`, a closed allowlist mirroring
+`isDeploymentEnvironmentToken`
+(`go/internal/query/repository_deployment_evidence_read_model.go`), so a
+non-environment suffix such as `values.schema.yaml` or `values.example.yaml`
+resolves to `""` rather than a fabricated environment. Neither signal scans
+arbitrary path segments for environment-like keywords -- broader
+environment detection is issue #5444's scope.
+
+This bucket has no consumer yet (round-4 review corrected an earlier,
+inaccurate #5441 citation here and at seven other sites -- #5441 is "iac:
+persist relationship Details and Terraform attributes at the graph write"
+and has nothing to do with image_overrides). Issue #5445 ("contract the
+extraction surface: registry entries + typed accessors") governs the
+typed-accessor CONTRACT this bucket follows. Issue #5469 ("vuln: tiered
+deployed-version resolution") aims to judge a vulnerability finding's
+version from the strongest available tier, including branch-resolved
+manifest evidence -- a Helm/Kustomize declared image tag/digest is the kind
+of evidence that tier would use, though #5469 does not yet name this bucket
+explicitly. Graph projection of this bucket (a node label and reducer
+materialization) has no assigned issue; it is not this package's scope
+regardless.
+
 Argo CD Application rows preserve the existing singular `source_repo`,
 `source_path`, `source_revision`, and `source_root` fields from the primary
 source while also emitting positional `source_repos`, `source_paths`,
@@ -157,6 +228,207 @@ through `eshu_dp_cloudformation_position_fallback_total`
 `docs/public/observability/telemetry-coverage.md`. An operator can use this
 counter to see how often the position walk is not paying for a real
 per-entity line gain.
+
+Performance Evidence (`image_overrides`, issue #5440): this is additive new
+extraction, not a rewrite, so there is no output-equivalence claim to prove --
+only the added cost. `BenchmarkParseHelmValuesRepresentativeImages` (20 nested
+`image:` blocks) and `BenchmarkParseKustomizationRepresentativeImages` (20
+`images[]` entries), both in `image_overrides_bench_test.go`, drive the stable
+public `Parse()` entrypoint unchanged, so the identical benchmark body ran on
+origin/main commit `6f780442a` (before, via a `git worktree add --detach`
+scratch copy, removed after measurement) and on this branch (after). `go test
+./internal/parser/yaml -run '^$' -bench
+'BenchmarkParseHelmValuesRepresentativeImages|BenchmarkParseKustomizationRepresentativeImages'
+-benchmem -count=3` on darwin/arm64 (Apple M1 Max), mean of 3 runs:
+
+| Fixture (20 images) | Before ns/op | After ns/op | Δ ns/op | Before B/op | After B/op | Δ B/op | Before allocs/op | After allocs/op | Δ allocs/op |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Helm values.yaml | 367.2us | 360.7us | -1.8% (noise) | 248,979 | 266,682 | +7.1% | 3,689 | 3,944 | +255 (+6.9%) |
+| Kustomize kustomization.yaml | 101.5us | 107.4us | +5.8% | 67,594 | 84,827 | +25.5% | 871 | 1,135 | +264 (+30.3%) |
+
+No-Regression Evidence: the added cost is bounded, proportional to the number
+of declared images in the file (a second small map built per image, no new
+document decode or tree walk beyond the existing `collectHelmImageRepositories`
+walk for Helm and the existing `images[]` list iteration for Kustomize), and
+stays inside the same async collector snapshot/parse stage as the rest of this
+package -- never a query-serving or graph-write hot path. The Helm ns/op delta
+is within run-to-run noise (both directions observed across repeat runs); the
+B/op and allocs/op deltas are the real, expected cost of populating the new
+bucket's per-image rows and are not compounding: they hold on both the modest
+(20-image) representative fixture and the empty/no-image case, which adds zero
+rows (`TestParseHelmValuesImageOverridesEmptyWhenNoImages`).
+
+Accuracy-fix follow-up (same issue, same benchmarks): a review found
+`helmValuesEnvironment` was inventing environments from any
+`values-<X>.yaml`/`values.<X>.yaml` suffix (`values.schema.yaml` ->
+`"schema"`), and that two Helm `image:` blocks or Kustomize `images[]`
+entries declaring the exact same repository/tag/digest produced duplicate
+rows with no field to distinguish them. The fix gates the filename inference
+behind a closed environment-token allowlist (one map lookup per Helm values
+file, negligible and not separately isolated below) and adds an
+exact-duplicate-row dedupe pass to both producers. The dedupe pass went
+through three implementations before landing; per this repo's
+Prove-The-Theory-First discipline, the second was proposed as a theory,
+measured, and disproven, so the numbers for all three are kept below rather
+than only the final one.
+
+`go test ./internal/parser/yaml -run '^$' -bench
+'BenchmarkParseHelmValuesRepresentativeImages|BenchmarkParseKustomizationRepresentativeImages'
+-benchmem -count=5` on darwin/arm64 (Apple M1 Max), same machine, same
+session, run back to back in the order below:
+
+1. **origin/main baseline** -- no `image_overrides` bucket at all.
+2. **Sprintf dedupe** (first shipped version) -- `dedupeImageOverrideRows`
+   built a `fmt.Sprintf`-formatted string as the seen-set key.
+3. **Struct-key dedupe (disproven theory)** -- replaced the string key with a
+   flat, directly-comparable 9-field struct (`name, repository, tag, digest,
+   environment, source, path, lang string; lineNumber int`), on the theory
+   that a comparable struct needs no string-building allocation. Measured:
+   `unsafe.Sizeof` put the struct at 136 bytes, over the Go runtime's
+   128-byte `maxKeySize` threshold for in-bucket map-key storage, so the
+   runtime silently fell back to indirect (pointer-boxed) key storage --
+   allocs/op came back byte-for-byte identical to the Sprintf version on both
+   fixtures (3,968 / 1,159), proving the theory wrong: it removed the string
+   formatting but not the allocation.
+4. **Linear-scan dedupe (shipped)** -- dropped the map entirely.
+   `dedupeImageOverrideRows` scans the already-deduped slice so far
+   (pre-sized to `len(rows)`, so `append` never reallocates) and compares
+   every field via `imageOverrideRowsEqual`. This is O(n^2) in declared
+   images per file, not O(n), but needs exactly ONE allocation total
+   (the pre-sized slice) regardless of row count -- see
+   `BenchmarkParseHelmValuesLargeImages`/`...LargeImages` below for the
+   200-image worst-case-partition proof that this stays linear-looking in
+   practice at realistic file sizes.
+
+| Fixture (20 images) | 1. origin/main ns/op | 2. Sprintf ns/op | 3. struct-key ns/op | 4. linear-scan ns/op (shipped) | 1. B/op | 2. B/op | 3. B/op | 4. B/op | 1. allocs/op | 2. allocs/op | 3. allocs/op | 4. allocs/op |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Helm values.yaml | 360.7us | 391.0us | 410.2us | 397.2us | 248,979†/266,682 | 272,855 | 270,345 | 266,848 | 3,689†/3,944 | 3,968 | 3,968 | **3,945** |
+| Kustomize kustomization.yaml | 101.5us†/107.4us | ~122.5us | ~123.3us | ~123.4us (one 145.5us outlier) | 67,594†/84,827 | 90,385 | 88,486 | 84,989 | 871†/1,135 | 1,159 | 1,159 | **1,136** |
+
+†origin/main's own pre-`image_overrides` number, from the original PR's
+before/after table above -- included as the true zero-feature baseline;
+column 1's other value is `image_overrides` with no dedupe at all (the
+"before-fix" row from the original accuracy-fix report), the correct
+before/after pair for the dedupe-only cost this table isolates.
+
+The allocation counts are the reliable signal here (Go's `-benchmem` counts
+are exact and stable to a byte/zero allocs across every repeat run; ns/op has
+real machine-level jitter, visible in the Kustomize outlier column 4). Column
+4 (shipped) recovers allocs/op to +1 over the no-dedupe baseline on Helm
+(3,944 -> 3,945) and +1 on Kustomize (1,135 -> 1,136) -- within the "+0 to
++2" target, not the +24 both prior implementations carried. B/op is
+similarly back within 0.06%-0.19% of the no-dedupe baseline on both
+fixtures. ns/op stayed elevated by a similar magnitude across ALL THREE
+dedupe implementations (roughly +8% to +14% over the origin/main baseline,
+regardless of algorithm), which points to session-level machine timing
+variance across this benchmark run rather than a cost specific to any one
+dedupe design -- it is reported as-is rather than explained away, since it
+was not isolated with a true same-binary A/B run.
+
+`BenchmarkParseHelmValuesLargeImages`/`BenchmarkParseKustomizationLargeImages`
+(200 images, 10x the representative fixture) confirm the O(n^2) scan does
+not dominate at realistic file sizes: ns/op, B/op, and allocs/op all scaled
+roughly 9-10x for a 10x increase in image count (Helm: 397.2us/266,848B/
+3,945allocs at 20 images -> ~4.06ms/2.428MB/37,173allocs at 200 images, a
+~9.4-10.2x scale-up; Kustomize: ~123.4us/84,989B/1,136allocs at 20 images ->
+~1.25ms/666,084B/9,126allocs at 200 images, a ~7.9-10.1x scale-up) --
+consistent with the O(n) row-construction/YAML-decode cost that already
+dominates `Parse()`, not the O(n^2) comparison scan, which allocates nothing
+and only matters at file sizes far beyond what a real Helm values file or
+kustomization images[] list declares.
+
+No-Regression Evidence: the shipped dedupe pass's allocation cost is now
+indistinguishable from not deduping at all (+1 alloc/op on both fixtures),
+and its CPU cost stays inside the same async collector snapshot/parse stage
+as the rest of this package -- never a query-serving or graph-write hot
+path. The whole feature (allowlist gate + dedupe) buys a P1 accuracy fix (no
+fabricated `values.schema.yaml`/`values.example.yaml` environments) plus
+phantom-duplicate-row elimination for effectively free allocation cost.
+
+Determinism-fix follow-up (same issue, same benchmarks): a second
+independent review found `image_overrides` row order was nondeterministic
+for Helm -- two rows tied on `line_number` (Helm hardcodes it to 1) and
+`name` (the same repository declared under two different tags) fell through
+to `collectHelmImageOverrides`'s map-walk arrival order, and Go deliberately
+randomizes map iteration per call (reviewer reproduction: 300 parses of
+byte-identical input, 5 different orderings). `sortImageOverrideRowsByContent`
+(image_overrides.go) now content-sorts both producers' rows before dedupe,
+using the same `imageOverrideRowFields` list dedupe compares on
+(`slices.SortFunc`). The same round also skips a Kustomize no-op
+`images[]` entry (only `name`, no `newName`/`newTag`/`digest`) rather than
+emitting a phantom override row (issue #5440 review P2) -- the 20/200-image
+Kustomize fixtures below each have roughly 1-in-3 such entries by
+construction, so this round's numbers include that legitimate row-count
+reduction alongside the sort's own cost. `-count=5`, same session:
+
+| Fixture | ns/op (prev -> now) | B/op (prev -> now) | allocs/op (prev -> now) |
+| --- | --- | --- | --- |
+| Helm 20 images | 397.2us -> ~410.4us (+3.3%) | 266,848 -> 266,844 (flat) | 3,945 -> 3,945 (+0) |
+| Helm 200 images | ~4.06ms -> ~4.20ms (+3.4%) | 2,427,953 -> 2,427,990 (flat) | 37,173 -> 37,174 (+1) |
+| Kustomize 20 images | ~123.4us -> ~116.5us (-5.6%, P2 fewer rows) | 84,989 -> 80,266 (-5.6%, P2) | 1,136 -> 1,087 (-49, P2) |
+| Kustomize 200 images | ~1.25ms -> ~1.03ms (-17.6%, P2 fewer rows) | 666,084 -> 614,540 (-7.7%, P2) | 9,126 -> 8,597 (-5.8%, P2) |
+
+The sort itself adds zero measurable allocations (`slices.SortFunc` sorts a
+slice already in memory) and a small, expected CPU cost on Helm, where the
+fixture has no no-op entries to mask it (+3.3-3.4%, an `O(n log n)`
+content-comparison sort over 15-20 already-in-memory rows). Kustomize's
+numbers move in the OPPOSITE direction -- faster, less memory -- because its
+representative fixture's 1-in-3 no-op entries are now skipped entirely
+(P2), a real, intended reduction in work, not noise. No fixture shows a
+regression that would concern the repo-scale performance contract; the sort
+runs once per file, over a small in-memory row count, inside the same async
+parse stage as everything else in this package.
+
+Marker-selection-fix follow-up (same issue, same benchmarks): a third
+independent review found `imageOverrideDirectoryEnvironment` returned on
+the FIRST `environments` path marker that satisfied the directory guard,
+which is not necessarily the correct one --
+`modules/environments/scripts/environments/prod/values.yaml` resolved to
+`"scripts"` instead of `"prod"` (issue #5440 review P2-1). The fix scans
+every marker instead of stopping at the first, keeping the LAST
+guard-passing one. None of this package's benchmark fixtures contain an
+`environments/` path segment, so this is a pure correctness fix with no
+expected cost on the representative/large fixtures; re-measured to confirm
+rather than assumed. `-count=5`, same session:
+
+| Fixture | ns/op (prev -> now) | B/op (prev -> now) | allocs/op (prev -> now) |
+| --- | --- | --- | --- |
+| Helm 20 images | ~410.4us -> ~392.2us (noise) | 266,844 -> 266,840 (flat) | 3,945 -> 3,945 (+0) |
+| Helm 200 images | ~4.20ms -> ~4.16ms (noise) | 2,427,990 -> 2,427,970 (flat) | 37,174 -> ~37,174 (flat) |
+| Kustomize 20 images | ~116.5us -> ~113.9us (noise) | 80,266 -> 80,266 (flat) | 1,087 -> 1,087 (+0) |
+| Kustomize 200 images | ~1.03ms -> ~1.03ms (flat) | 614,540 -> 614,544 (flat) | 8,597 -> 8,597 (+0) |
+
+Confirmed, not assumed: B/op and allocs/op are unchanged (within a few
+bytes -- normal small map-growth variance) on every fixture, and ns/op
+deltas are within the same few-percent run-to-run band this session has
+shown throughout, not a directional regression.
+
+Keyword-collision-fix follow-up (same issue, same benchmarks): a fourth
+independent review found the captured `<env>` segment could itself be the
+marker keyword `"environments"` when two markers sit back to back
+(`environments/environments/values.yaml` -> `"environments"`), and that this
+phantom value silently suppressed a correct filename-inferred fallback
+(`environments/environments/values-prod.yaml` -> `"environments"` instead of
+`"prod"`) -- issue #5440 P2, round-3 independent review. The fix adds one
+more string comparison per marker occurrence (reject a captured segment
+equal to `"environments"`, case-insensitively). No benchmark fixture
+contains an `environments/` path segment, so again no cost is expected;
+re-measured to confirm:
+
+| Fixture | ns/op (prev -> now) | B/op (prev -> now) | allocs/op (prev -> now) |
+| --- | --- | --- | --- |
+| Helm 20 images | ~392.2us -> ~394.9us (noise) | 266,840 -> 266,844 (flat) | 3,945 -> 3,945 (+0) |
+| Helm 200 images | ~4.16ms -> ~4.33ms (noise) | 2,427,970 -> 2,427,968 (flat) | ~37,174 -> ~37,174 (flat) |
+| Kustomize 20 images | ~113.9us -> ~128.6us (noise, elevated jitter this run) | 80,266 -> 80,266 (flat) | 1,087 -> 1,087 (+0) |
+| Kustomize 200 images | ~1.03ms -> ~1.02ms (flat) | 614,544 -> 614,539 (flat) | 8,597 -> 8,597 (+0) |
+
+B/op and allocs/op -- the reliable, deterministic signal -- are unchanged on
+every fixture, exactly as expected for a branch that only executes when a
+captured segment equals the literal marker keyword, which none of these
+fixtures' paths ever produce. The Kustomize 20-image ns/op figure is the
+noisiest measurement across this whole session (it has shown a wide spread
+independent of any code change since round 3); it is reported as-is rather
+than smoothed over.
 
 ## Gotchas / invariants
 

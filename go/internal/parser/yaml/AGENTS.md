@@ -8,11 +8,13 @@
 4. semantics.go - Kubernetes, Crossplane, Kustomize, and shared YAML metadata helpers
 5. argocd.go - Argo CD Application and ApplicationSet extraction
 6. helm.go - Helm chart, values, and template-manifest handling
-7. flux.go - Flux CD Kustomization custom resource detection and capture
-8. flux_source.go - Flux CD source-of-truth custom resource (GitRepository/OCIRepository/Bucket/HelmRepository) detection and capture
-9. flux_helm.go - Flux CD HelmRelease custom resource detection and capture (chart/chartRef resolution evidence)
-10. ../cloudformation/README.md - shared CloudFormation/SAM extraction contract
-11. ../shared/README.md - dependency-safe helper contracts for child parser packages
+7. image_overrides.go - image_overrides bucket: per-image tag/digest overrides from Helm values image: blocks and Kustomize images[] entries, row ordering, and dedupe
+8. image_overrides_environment.go - image_overrides `environment` field resolution: the environments/<env>/ path signal and the values-<env>.yaml filename inference, split from image_overrides.go to stay under the 500-line cap
+9. flux.go - Flux CD Kustomization custom resource detection and capture
+10. flux_source.go - Flux CD source-of-truth custom resource (GitRepository/OCIRepository/Bucket/HelmRepository) detection and capture
+11. flux_helm.go - Flux CD HelmRelease custom resource detection and capture (chart/chartRef resolution evidence)
+12. ../cloudformation/README.md - shared CloudFormation/SAM extraction contract
+13. ../shared/README.md - dependency-safe helper contracts for child parser packages
 
 ## Invariants this package enforces
 
@@ -36,6 +38,13 @@
   cases separate enough that generator and template evidence remain visible.
 - Add Helm behavior in helm.go and include path-sensitive coverage for chart,
   values, or template-manifest classification.
+- Add image_overrides row/field changes in image_overrides.go and environment
+  signal changes in image_overrides_environment.go only -- never in
+  environmentFromPath (observability_helpers.go), which has six unrelated
+  observability callers this package must not change. Keep
+  imageOverrideRowFields (the dedupe/sort/drift-guard field list) and every
+  row builder in sync; TestImageOverrideKeyStaysInSyncWithRowShape fails loud
+  when they drift.
 - Add/adjust Flux Kustomization capture in flux.go (sourceRef/source_path/
   targetNamespace fields, never a platform-kind string); do not widen
   isKustomization's generic apiVersion/filename match to catch Flux's group
