@@ -28,8 +28,9 @@ import (
 // relationship_type is optional. When omitted the handler returns every
 // relationship in both directions (the pre-#3492 behavior). When set it must be
 // a recognized analyze_infra_relationships query_type alias (what_deploys,
-// what_provisions, who_consumes_xrd, module_consumers) or a canonical edge type
-// (e.g. DEPLOYS_FROM); the read is then bounded to the matching edge types.
+// what_provisions, who_consumes_xrd, module_consumers, what_runs_image) or a
+// canonical edge type (e.g. DEPLOYS_FROM); the read is then bounded to the
+// matching edge types.
 // An unrecognized value is rejected with 400 rather than silently ignored.
 func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
@@ -185,11 +186,20 @@ func filterNullRelationships(v any) []map[string]any {
 // consumption is modeled today as a module-reference edge; there is no distinct
 // XRD-consumption edge type in the canonical graph. If one is added later, add
 // it here without changing the wire contract.
+//
+// what_runs_image resolves to RUNS_IMAGE, the live-workload image edge
+// (KubernetesWorkload)-[:RUNS_IMAGE]->(OciImageManifest|OciImageIndex|
+// OciImageDescriptor) written by kubernetes_correlation_edge_writer.go (#388).
+// The edge existed only as a graph write with no declared query/MCP read path
+// before #5436; this alias gives it one through the existing bidirectional
+// getRelationships pattern (anchor on the workload to see the image, or anchor
+// on the image to see the workloads running it).
 var infraRelationshipTypeAliases = map[string][]string{
 	"what_deploys":     {"DEPLOYS_FROM", "DEPLOYMENT_SOURCE", "HAS_DEPLOYMENT_EVIDENCE"},
 	"what_provisions":  {"PROVISIONS_DEPENDENCY_FOR", "PROVISIONS_PLATFORM"},
 	"module_consumers": {"USES_MODULE"},
 	"who_consumes_xrd": {"USES_MODULE"},
+	"what_runs_image":  {"RUNS_IMAGE"},
 }
 
 // infraCanonicalEdgeTypes is the set of canonical edge types a caller may pass
@@ -207,6 +217,7 @@ var infraCanonicalEdgeTypes = map[string]struct{}{
 	"DEPENDS_ON":                {},
 	"INSTANCE_OF":               {},
 	"RUNS_ON":                   {},
+	"RUNS_IMAGE":                {},
 	"DISCOVERS_CONFIG_IN":       {},
 	"READS_CONFIG_FROM":         {},
 	"DEFINES":                   {},

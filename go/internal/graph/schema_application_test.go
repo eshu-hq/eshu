@@ -56,6 +56,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			fingerprint: graphSchemaNornicDBFingerprint,
 			compatible: []string{
 				graphSchemaNornicDBPreCodeownersOwnershipFingerprint,
+				graphSchemaNornicDBPreKubernetesWorkloadIDLookupFingerprint,
 				graphSchemaNornicDBPreFluxHelmEntitiesFingerprint,
 				graphSchemaNornicDBPreFluxTypedEntitiesFingerprint,
 				graphSchemaNornicDBPreSqlMigrationFingerprint,

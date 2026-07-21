@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
+//nolint:filelength // Graph schema test suite: crossed 500 lines when the
+// #5419 CodeownerTeam constraint tests and the concurrent #5436
+// KubernetesWorkload lookup-index tests merged. Test files are exempt from the
+// whole-tree cap (scripts/dev/precommit-go.sh); this marker only satisfies the
+// stricter changed-files pre-commit variant.
+
 package graph
 
 import (
@@ -104,6 +110,7 @@ func TestSchemaStatementsForBackendAddsNornicDBMergeLookupIndexes(t *testing.T) 
 		"CREATE INDEX nornicdb_platform_id_lookup IF NOT EXISTS FOR (p:Platform) ON (p.id)",
 		"CREATE INDEX nornicdb_endpoint_id_lookup IF NOT EXISTS FOR (e:Endpoint) ON (e.id)",
 		"CREATE INDEX nornicdb_evidence_artifact_id_lookup IF NOT EXISTS FOR (a:EvidenceArtifact) ON (a.id)",
+		"CREATE INDEX nornicdb_kubernetes_workload_id_lookup IF NOT EXISTS FOR (w:KubernetesWorkload) ON (w.id)",
 		"CREATE INDEX nornicdb_environment_name_lookup IF NOT EXISTS FOR (e:Environment) ON (e.name)",
 		// SourceLocalRecord and Parameter declare composite UNIQUE constraints
 		// for MERGE performance on Neo4j (schema.go:113-119). NornicDB silently

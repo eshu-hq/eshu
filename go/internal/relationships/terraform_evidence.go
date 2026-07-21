@@ -6,6 +6,8 @@ package relationships
 import (
 	"regexp"
 	"strings"
+
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // terraformPattern describes one regex-based Terraform evidence extractor.
@@ -200,13 +202,15 @@ func discoverTerraformEvidence(
 	return evidence
 }
 
-// TODO(#4799 W2f / #4750): discoverStructuredTerraformEvidence reads
-// parsed_file_data inner keys (terraform_modules, terragrunt_dependencies) raw.
-// parsed_file_data is codegraphv1.File.ParsedFileData (an open map[string]any),
-// and these inner keys are not yet typed in
-// sdk/go/factschema/decode_parsed_file_data.go (only the #4750 S1 batch has typed
-// accessors). Route these reads through typed DecodeParsedFileData* accessors once
-// #4750 types these inner keys.
+// discoverStructuredTerraformEvidence reads the parsed_file_data
+// terraform_modules and terragrunt_dependencies inner keys through the
+// typed factschema.DecodeParsedFileDataTerraformModules /
+// DecodeParsedFileDataTerragruntDependencies accessors (issue #5445 slice
+// 1) rather than a raw map lookup. Both accessors skip a malformed row
+// rather than failing the whole bucket, so a decode error here is always
+// nil in practice; the error return is ignored deliberately, matching the
+// pre-typing raw-map read's silent tolerance of an absent/wrong-shape
+// bucket.
 func discoverStructuredTerraformEvidence(
 	sourceRepoID, filePath string,
 	parsedFileData map[string]any,
@@ -215,94 +219,84 @@ func discoverStructuredTerraformEvidence(
 ) []EvidenceFact {
 	var evidence []EvidenceFact
 
-	if modules, ok := parsedFileData["terraform_modules"].([]any); ok {
-		for _, item := range modules {
-			module, ok := item.(map[string]any)
-			if !ok {
-				continue
-			}
-			source := strings.TrimSpace(payloadString(module, "source"))
-			helperDerived := false
-			if normalized := normalizeTerraformEvidencePathExpression(source); normalized != "" {
-				source = normalized
-				helperDerived = normalized != strings.TrimSpace(payloadString(module, "source"))
-			}
-			if source == "" {
-				continue
-			}
-			if !helperDerived && !looksLikeRemoteModuleSource(source) {
-				continue
-			}
-			evidence = append(evidence, matchCatalog(
-				sourceRepoID,
-				source,
-				filePath,
-				EvidenceKindTerraformModuleSource,
-				RelUsesModule,
-				DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindTerraformModuleSource),
-				"Terraform or Terragrunt module source points at the target module repository",
-				"terraform-module-source",
-				matcher,
-				seen,
-				withFirstPartyRefDetails(
-					map[string]any{
-						"module_name": module["name"],
-						"source_ref":  source,
-					},
-					"terraform_module_source",
-					payloadString(module, "name"),
-					"",
-					"",
-					"",
-					normalizeTerraformFirstPartyRef(source),
-				),
-			)...)
+	modules, _ := factschema.DecodeParsedFileDataTerraformModules(parsedFileData)
+	for _, module := range modules {
+		source := strings.TrimSpace(module.Source)
+		helperDerived := false
+		if normalized := normalizeTerraformEvidencePathExpression(source); normalized != "" {
+			source = normalized
+			helperDerived = normalized != strings.TrimSpace(module.Source)
 		}
+		if source == "" {
+			continue
+		}
+		if !helperDerived && !looksLikeRemoteModuleSource(source) {
+			continue
+		}
+		evidence = append(evidence, matchCatalog(
+			sourceRepoID,
+			source,
+			filePath,
+			EvidenceKindTerraformModuleSource,
+			RelUsesModule,
+			DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindTerraformModuleSource),
+			"Terraform or Terragrunt module source points at the target module repository",
+			"terraform-module-source",
+			matcher,
+			seen,
+			withFirstPartyRefDetails(
+				map[string]any{
+					"module_name": module.Name,
+					"source_ref":  source,
+				},
+				"terraform_module_source",
+				module.Name,
+				"",
+				"",
+				"",
+				normalizeTerraformFirstPartyRef(source),
+			),
+		)...)
 	}
 
-	if dependencies, ok := parsedFileData["terragrunt_dependencies"].([]any); ok {
-		for _, item := range dependencies {
-			dependency, ok := item.(map[string]any)
-			if !ok {
-				continue
-			}
-			configPath := strings.TrimSpace(payloadString(dependency, "config_path"))
-			helperDerived := false
-			if normalized := normalizeTerraformEvidencePathExpression(configPath); normalized != "" {
-				configPath = normalized
-				helperDerived = normalized != strings.TrimSpace(payloadString(dependency, "config_path"))
-			}
-			if configPath == "" {
-				continue
-			}
-			if !helperDerived && !looksLikeRemoteModuleSource(configPath) {
-				continue
-			}
-			evidence = append(evidence, matchCatalog(
-				sourceRepoID,
-				configPath,
-				filePath,
-				EvidenceKindTerragruntDependencyConfigPath,
-				RelDiscoversConfigIn,
-				DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindTerragruntDependencyConfigPath),
-				"Terragrunt dependency config_path points at the target repository",
-				"terragrunt-dependency-config-path",
-				matcher,
-				seen,
-				withFirstPartyRefDetails(
-					map[string]any{
-						"dependency_name": dependency["name"],
-						"config_path":     configPath,
-					},
-					"terragrunt_dependency_config_path",
-					payloadString(dependency, "name"),
-					configPath,
-					"",
-					"",
-					normalizeTerraformFirstPartyRef(configPath),
-				),
-			)...)
+	dependencies, _ := factschema.DecodeParsedFileDataTerragruntDependencies(parsedFileData)
+	for _, dependency := range dependencies {
+		configPath := strings.TrimSpace(dependency.ConfigPath)
+		helperDerived := false
+		if normalized := normalizeTerraformEvidencePathExpression(configPath); normalized != "" {
+			configPath = normalized
+			helperDerived = normalized != strings.TrimSpace(dependency.ConfigPath)
 		}
+		if configPath == "" {
+			continue
+		}
+		if !helperDerived && !looksLikeRemoteModuleSource(configPath) {
+			continue
+		}
+		evidence = append(evidence, matchCatalog(
+			sourceRepoID,
+			configPath,
+			filePath,
+			EvidenceKindTerragruntDependencyConfigPath,
+			RelDiscoversConfigIn,
+			DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindTerragruntDependencyConfigPath),
+			"Terragrunt dependency config_path points at the target repository",
+			"terragrunt-dependency-config-path",
+			matcher,
+			seen,
+			withFirstPartyRefDetails(
+				map[string]any{
+					"dependency_name": dependency.Name,
+					"config_path":     configPath,
+				},
+				"terragrunt_dependency_config_path",
+				dependency.Name,
+				configPath,
+				"",
+				"",
+				normalizeTerraformFirstPartyRef(configPath),
+			),
+		)...)
 	}
 
 	return evidence

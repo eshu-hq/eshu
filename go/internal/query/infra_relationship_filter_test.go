@@ -208,6 +208,130 @@ func TestWhatDeploysSurfacesRuntimeDeploymentSourceEdge(t *testing.T) {
 	}
 }
 
+// TestInfraRelationshipsWhatRunsImageSurfacesOutgoingEdge is the #5436
+// regression guard for the KubernetesWorkload-[:RUNS_IMAGE]->OciImageManifest
+// edge, which storage/cypher/kubernetes_correlation_edge_writer.go writes but
+// which had no declared query/MCP read path before this change. Anchored on a
+// KubernetesWorkload, what_runs_image must bound the Cypher to :RUNS_IMAGE and
+// the response must surface the resolved image as an outgoing relationship.
+//
+// The fake reader only returns the RUNS_IMAGE edge when the Cypher's
+// relationship-type filter admits RUNS_IMAGE, so this proves the edge reaches
+// the caller through the actual filter rather than a hardcoded fixture. Before
+// the Stage-1 allowlist entry, "what_runs_image" and "RUNS_IMAGE" were both
+// unrecognized by resolveInfraRelationshipTypes and this request was rejected
+// with 400 (see TestResolveInfraRelationshipTypes's "what_runs_image alias"
+// and "canonical RUNS_IMAGE edge type" cases, which fail without that entry).
+func TestInfraRelationshipsWhatRunsImageSurfacesOutgoingEdge(t *testing.T) {
+	t.Parallel()
+
+	runsImageEdge := map[string]any{
+		"direction":     "outgoing",
+		"type":          "RUNS_IMAGE",
+		"target_name":   "supply-chain-demo",
+		"target_id":     "sha256:demo-manifest-digest",
+		"target_labels": []any{"OciImageManifest"},
+	}
+
+	handler := &InfraHandler{
+		Profile: ProfileLocalAuthoritative,
+		Neo4j: fakeRepoGraphReader{
+			runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+				outgoing := []any{}
+				if strings.Contains(cypher, ":RUNS_IMAGE") {
+					outgoing = []any{runsImageEdge}
+				}
+				return map[string]any{
+					"id":       "k8sworkload:supply-chain-demo",
+					"name":     "supply-chain-demo",
+					"labels":   []any{"KubernetesWorkload"},
+					"outgoing": outgoing,
+					"incoming": []any{},
+				}, nil
+			},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/infra/relationships", bytes.NewBufferString(`{"entity_id":"k8sworkload:supply-chain-demo","relationship_type":"what_runs_image"}`))
+	rec := httptest.NewRecorder()
+	handler.getRelationships(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	payload := decodeInfraData(t, rec.Body.Bytes())
+	outgoing, ok := payload["outgoing"].([]any)
+	if !ok || len(outgoing) != 1 {
+		t.Fatalf("what_runs_image dropped the RUNS_IMAGE edge: outgoing = %#v", payload["outgoing"])
+	}
+	edge, _ := outgoing[0].(map[string]any)
+	if got := StringVal(edge, "type"); got != "RUNS_IMAGE" {
+		t.Fatalf("outgoing[0].type = %q, want RUNS_IMAGE", got)
+	}
+	if got := StringVal(edge, "target_id"); got != "sha256:demo-manifest-digest" {
+		t.Fatalf("outgoing[0].target_id = %q, want the resolved image id", got)
+	}
+}
+
+// TestInfraRelationshipsWhatRunsImageSurfacesIncomingEdge proves the same
+// RUNS_IMAGE edge is readable anchored the other direction: from an
+// OciImageManifest, what_runs_image must surface the KubernetesWorkload(s)
+// running it as incoming relationships (the reverse of the outgoing case
+// above), matching the bidirectional pattern getRelationships already uses for
+// every other alias.
+func TestInfraRelationshipsWhatRunsImageSurfacesIncomingEdge(t *testing.T) {
+	t.Parallel()
+
+	runsImageEdge := map[string]any{
+		"direction":     "incoming",
+		"type":          "RUNS_IMAGE",
+		"source_name":   "supply-chain-demo",
+		"source_id":     "k8sworkload:supply-chain-demo",
+		"source_labels": []any{"KubernetesWorkload"},
+	}
+
+	handler := &InfraHandler{
+		Profile: ProfileLocalAuthoritative,
+		Neo4j: fakeRepoGraphReader{
+			runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+				incoming := []any{}
+				if strings.Contains(cypher, ":RUNS_IMAGE") {
+					incoming = []any{runsImageEdge}
+				}
+				return map[string]any{
+					"id":       "sha256:demo-manifest-digest",
+					"name":     "supply-chain-demo",
+					"labels":   []any{"OciImageManifest"},
+					"outgoing": []any{},
+					"incoming": incoming,
+				}, nil
+			},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/infra/relationships", bytes.NewBufferString(`{"entity_id":"sha256:demo-manifest-digest","relationship_type":"RUNS_IMAGE"}`))
+	rec := httptest.NewRecorder()
+	handler.getRelationships(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	payload := decodeInfraData(t, rec.Body.Bytes())
+	incoming, ok := payload["incoming"].([]any)
+	if !ok || len(incoming) != 1 {
+		t.Fatalf("RUNS_IMAGE (canonical) dropped the incoming workload edge: incoming = %#v", payload["incoming"])
+	}
+	edge, _ := incoming[0].(map[string]any)
+	if got := StringVal(edge, "type"); got != "RUNS_IMAGE" {
+		t.Fatalf("incoming[0].type = %q, want RUNS_IMAGE", got)
+	}
+	if got := StringVal(edge, "source_id"); got != "k8sworkload:supply-chain-demo" {
+		t.Fatalf("incoming[0].source_id = %q, want the workload id", got)
+	}
+}
+
 // TestResolveInfraRelationshipTypes covers every dispatch variant of the
 // alias/canonical resolver, including the empty (backward-compatible) and
 // rejected cases.
@@ -226,9 +350,11 @@ func TestResolveInfraRelationshipTypes(t *testing.T) {
 		{name: "what_provisions alias", input: "what_provisions", wantTypes: []string{"PROVISIONS_DEPENDENCY_FOR", "PROVISIONS_PLATFORM"}, wantOK: true},
 		{name: "module_consumers alias", input: "module_consumers", wantTypes: []string{"USES_MODULE"}, wantOK: true},
 		{name: "who_consumes_xrd alias", input: "who_consumes_xrd", wantTypes: []string{"USES_MODULE"}, wantOK: true},
+		{name: "what_runs_image alias", input: "what_runs_image", wantTypes: []string{"RUNS_IMAGE"}, wantOK: true},
 		{name: "alias is case-insensitive", input: "WHAT_DEPLOYS", wantTypes: []string{"DEPLOYS_FROM", "DEPLOYMENT_SOURCE", "HAS_DEPLOYMENT_EVIDENCE"}, wantOK: true},
 		{name: "canonical edge type", input: "DEPLOYS_FROM", wantTypes: []string{"DEPLOYS_FROM"}, wantOK: true},
 		{name: "canonical edge type lower", input: "uses_module", wantTypes: []string{"USES_MODULE"}, wantOK: true},
+		{name: "canonical RUNS_IMAGE edge type", input: "RUNS_IMAGE", wantTypes: []string{"RUNS_IMAGE"}, wantOK: true},
 		{name: "unknown is rejected", input: "not_a_real_filter", wantTypes: nil, wantOK: false},
 	}
 

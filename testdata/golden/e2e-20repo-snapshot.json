@@ -4791,6 +4791,38 @@
           ]
         }
       },
+      "POST /api/v0/infra/relationships": {
+        "description": "#5436: RUNS_IMAGE read-path proof. Anchored on the supply-chain-demo KubernetesWorkload (the digest-pinned Deployment from the kuberneteslive cassette), what_runs_image must resolve the RUNS_IMAGE edge to the OciImageManifest node the oci_registry cassette's image_manifest fact projects (digest sha256:abcdef...ab). Non-vacuous: the edge only exists because the kuberneteslive pod_template fact's image_refs digest matches the ociregistry image_manifest fact's digest via BuildSourceImageDigestJoinIndex (kubernetes_workload_source_image_join.go) -- neither cassette alone produces it, and before the #5436 Stage-1 allowlist entry this request was rejected 400 (unknown relationship_type).",
+        "envelope": true,
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "minimum_results": 0,
+        "request_body": {
+          "entity_id": "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:supply-chain-demo",
+          "relationship_type": "what_runs_image"
+        },
+        "required_json_paths": [
+          "data.id",
+          "data.outgoing[].type",
+          "data.outgoing[].target_id",
+          "data.outgoing[].target_labels"
+        ],
+        "required_json_values": {
+          "data.id": "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:supply-chain-demo",
+          "data.outgoing[].type": "RUNS_IMAGE"
+        },
+        "required_json_object_matches": {
+          "data.outgoing[]": [
+            {
+              "type": "RUNS_IMAGE",
+              "target_id": "oci-descriptor://ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
+            }
+          ]
+        }
+      },
       "GET /api/v0/repositories": {
         "description": "Repository list endpoint (not /api/v0/repos)",
         "truth_class": "deterministic",
