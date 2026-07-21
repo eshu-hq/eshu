@@ -166,6 +166,13 @@ func TestSourceHappyPathEmitsTypedFacts(t *testing.T) {
 		},
 		Containers: []ContainerSummary{{Name: "app", Image: "img:1"}},
 	}
+	statefulset := WorkloadObject{
+		Meta: ObjectMeta{
+			APIGroup: "apps", Version: "v1", Resource: "statefulsets",
+			Namespace: "payments", Name: "checkout-db", UID: "uid-ss",
+		},
+		Containers: []ContainerSummary{{Name: "db", Image: "img-db:1"}},
+	}
 	service := ServiceObject{
 		Meta: ObjectMeta{
 			Version: "v1", Resource: "services",
@@ -181,11 +188,12 @@ func TestSourceHappyPathEmitsTypedFacts(t *testing.T) {
 	}
 
 	client := &fakeClient{
-		namespaces:  ListResult[ObjectMeta]{Items: []ObjectMeta{{Version: "v1", Resource: "namespaces", Name: "payments", UID: "uid-ns"}}},
-		deployments: ListResult[WorkloadObject]{Items: []WorkloadObject{deployment}},
-		replicasets: ListResult[WorkloadObject]{Items: []WorkloadObject{replicaset}},
-		services:    ListResult[ServiceObject]{Items: []ServiceObject{service}},
-		ingresses:   ListResult[IngressObject]{Items: []IngressObject{ingress}},
+		namespaces:   ListResult[ObjectMeta]{Items: []ObjectMeta{{Version: "v1", Resource: "namespaces", Name: "payments", UID: "uid-ns"}}},
+		deployments:  ListResult[WorkloadObject]{Items: []WorkloadObject{deployment}},
+		replicasets:  ListResult[WorkloadObject]{Items: []WorkloadObject{replicaset}},
+		statefulsets: ListResult[WorkloadObject]{Items: []WorkloadObject{statefulset}},
+		services:     ListResult[ServiceObject]{Items: []ServiceObject{service}},
+		ingresses:    ListResult[IngressObject]{Items: []IngressObject{ingress}},
 	}
 
 	source := newSource(client)
@@ -207,8 +215,8 @@ func TestSourceHappyPathEmitsTypedFacts(t *testing.T) {
 	}
 
 	envs := drain(t, collected.Facts)
-	if got := countKind(envs, facts.KubernetesPodTemplateFactKind); got != 2 {
-		t.Fatalf("pod_template facts = %d, want 2", got)
+	if got := countKind(envs, facts.KubernetesPodTemplateFactKind); got != 3 {
+		t.Fatalf("pod_template facts = %d, want 3 (deployment + replicaset + statefulset)", got)
 	}
 	if got := countKind(envs, facts.KubernetesRelationshipFactKind); got != 2 {
 		t.Fatalf("relationship facts = %d, want 2 (owner + ingress), got %d", got, got)
