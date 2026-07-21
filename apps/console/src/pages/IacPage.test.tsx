@@ -262,7 +262,7 @@ describe("IacPage", () => {
     const get = vi.fn(
       (_path: string, options?: { readonly signal?: AbortSignal }) =>
         new Promise((resolve, reject) => {
-          options?.signal?.addEventListener("abort", () => reject(options.signal?.reason));
+          options?.signal?.addEventListener("abort", () => reject(new Error("request aborted")));
           if (get.mock.calls.length > 1) resolve(authoritativeEnvelope([]));
         }),
     );
@@ -285,7 +285,7 @@ describe("IacPage", () => {
 
   it("aborts the active pagination request when the page unmounts", async () => {
     const get = vi
-      .fn()
+      .fn<(_path: string, options?: { readonly signal?: AbortSignal }) => Promise<unknown>>()
       .mockResolvedValueOnce(
         envelope([row("r1", "aws_s3_bucket.logs")], {
           truncated: true,
@@ -296,7 +296,7 @@ describe("IacPage", () => {
       .mockImplementationOnce(
         (_path: string, options?: { readonly signal?: AbortSignal }) =>
           new Promise((_resolve, reject) => {
-            options?.signal?.addEventListener("abort", () => reject(options.signal?.reason));
+            options?.signal?.addEventListener("abort", () => reject(new Error("request aborted")));
           }),
       );
     const client = { get } as unknown as EshuApiClient;
@@ -318,7 +318,7 @@ describe("IacPage", () => {
     const get = vi.fn(
       (_path: string, options?: { readonly signal?: AbortSignal }) =>
         new Promise((_resolve, reject) => {
-          options?.signal?.addEventListener("abort", () => reject(options.signal?.reason));
+          options?.signal?.addEventListener("abort", () => reject(new Error("request aborted")));
         }),
     );
     const client = { get } as unknown as EshuApiClient;
@@ -346,7 +346,7 @@ describe("IacPage", () => {
 
   it("does not surface an aborted pagination error after switching to demo", async () => {
     const get = vi
-      .fn()
+      .fn<(_path: string, options?: { readonly signal?: AbortSignal }) => Promise<unknown>>()
       .mockResolvedValueOnce(
         envelope([row("r1", "aws_s3_bucket.logs")], {
           truncated: true,
@@ -357,7 +357,7 @@ describe("IacPage", () => {
       .mockImplementationOnce(
         (_path: string, options?: { readonly signal?: AbortSignal }) =>
           new Promise((_resolve, reject) => {
-            options?.signal?.addEventListener("abort", () => reject(options.signal?.reason));
+            options?.signal?.addEventListener("abort", () => reject(new Error("request aborted")));
           }),
       );
     const client = { get } as unknown as EshuApiClient;
@@ -384,7 +384,7 @@ describe("IacPage", () => {
 
   it("aborts pagination when the page switches to model-only mode", async () => {
     const get = vi
-      .fn()
+      .fn<(_path: string, options?: { readonly signal?: AbortSignal }) => Promise<unknown>>()
       .mockResolvedValueOnce(
         envelope([row("r1", "aws_s3_bucket.logs")], {
           truncated: true,
@@ -395,7 +395,7 @@ describe("IacPage", () => {
       .mockImplementationOnce(
         (_path: string, options?: { readonly signal?: AbortSignal }) =>
           new Promise((_resolve, reject) => {
-            options?.signal?.addEventListener("abort", () => reject(options.signal?.reason));
+            options?.signal?.addEventListener("abort", () => reject(new Error("request aborted")));
           }),
       );
     const client = { get } as unknown as EshuApiClient;

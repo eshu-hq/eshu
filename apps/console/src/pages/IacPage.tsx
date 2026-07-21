@@ -47,7 +47,10 @@ export function IacPage({
   const requestController = useRef<AbortController | null>(null);
   const isDemo = sourceLabel === "demo fixtures";
   const localRows = !client || isDemo;
-  const all = localRows ? model.iacResources : (livePage?.rows ?? []);
+  const all = useMemo(
+    () => (localRows ? model.iacResources : (livePage?.rows ?? [])),
+    [livePage?.rows, localRows, model.iacResources],
+  );
   const provenance = localRows
     ? model.provenance.iacResources
     : livePage

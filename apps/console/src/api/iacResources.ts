@@ -100,6 +100,12 @@ interface IacInventoryFacetRecord {
   readonly count?: number;
 }
 
+interface ValidIacInventoryFacetRecord {
+  readonly kind?: IacResourceKind;
+  readonly value: string;
+  readonly count: number;
+}
+
 interface IacInventorySummaryRecord {
   readonly total?: number;
   readonly by_kind?: Readonly<Record<string, number>>;
@@ -206,31 +212,26 @@ function iacInventorySummary(
 }
 
 function validIacInventoryFacets(
-  records: readonly IacInventoryFacetRecord[] | undefined,
-): records is readonly IacInventoryFacetRecord[] {
+  records: unknown,
+): records is readonly ValidIacInventoryFacetRecord[] {
+  return Array.isArray(records) && records.every(validIacInventoryFacet);
+}
+
+function validIacInventoryFacet(value: unknown): value is ValidIacInventoryFacetRecord {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  const kind = record.kind;
   return (
-    Array.isArray(records) &&
-    records.every(
-      (record) =>
-        typeof record.value === "string" &&
-        record.value !== "" &&
-        isInventoryCount(record.count) &&
-        (record.kind === undefined ||
-          record.kind === "resource" ||
-          record.kind === "module" ||
-          record.kind === "data-source"),
-    )
+    typeof record.value === "string" &&
+    record.value !== "" &&
+    isInventoryCount(record.count) &&
+    (kind === undefined || kind === "resource" || kind === "module" || kind === "data-source")
   );
 }
 
-function iacInventoryFacets(records: readonly IacInventoryFacetRecord[]): IacInventoryFacet[] {
+function iacInventoryFacets(records: readonly ValidIacInventoryFacetRecord[]): IacInventoryFacet[] {
   return records.map((record) => {
-    const rawKind = record.kind;
-    const kind =
-      rawKind === "resource" || rawKind === "module" || rawKind === "data-source"
-        ? rawKind
-        : undefined;
-    return { count: record.count as number, kind, value: record.value as string };
+    return { count: record.count, kind: record.kind, value: record.value };
   });
 }
 
@@ -273,6 +274,6 @@ function numberOrNull(value: number | undefined): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function isInventoryCount(value: number | undefined): value is number {
+function isInventoryCount(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 0;
 }
