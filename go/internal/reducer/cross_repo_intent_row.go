@@ -81,8 +81,8 @@ func buildResolvedEdgeIntentRow(
 	// evidenceFactFirstPartyRefVersion
 	// (go/internal/relationships/evidence_edge_fields.go) for where these
 	// typed fields are actually populated from raw evidence facts, and
-	// copyRepoRelationshipMetadata in edge_writer_retract.go for the second
-	// half of this allowlist (Postgres payload -> graph row).
+	// copyRepoRelationshipMetadata in edge_writer_row_metadata.go for the
+	// second half of this allowlist (Postgres payload -> graph row).
 	//
 	// A third field, destination_namespace, was deliberately removed before
 	// merge (#5441 review round 2, DECISION NEEDED item): it has no evidence
