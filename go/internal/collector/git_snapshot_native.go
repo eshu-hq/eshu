@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/metric"
@@ -50,6 +51,12 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	}
 	if resolvedPath, resolveErr := filepath.EvalSymlinks(repoPath); resolveErr == nil {
 		repoPath = resolvedPath
+	}
+	gitTreePath := strings.TrimSpace(repository.GitTreePath)
+	if gitTreePath == "" {
+		gitTreePath = repoPath
+	} else {
+		gitTreePath = canonicalLocalPath(gitTreePath)
 	}
 
 	engine, err := s.engine()
@@ -109,6 +116,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 
 	snapshot := RepositorySnapshot{
 		RepoPath:                 repoPath,
+		GitTreePath:              gitTreePath,
 		RemoteURL:                repository.RemoteURL,
 		FileCount:                len(fileSet.Files),
 		ImportsMap:               map[string][]string{},
@@ -395,27 +403,4 @@ func (s NativeRepositorySnapshotter) recordSnapshotStageAt(
 		logAttrs = append(logAttrs, attrs...)
 		s.Logger.InfoContext(ctx, "collector snapshot stage completed", logAttrs...)
 	}
-}
-
-// effectiveSnapshotParseWorkers reports the actual parser worker cardinality
-// when the zero-value configuration falls back to the sequential parser path.
-func effectiveSnapshotParseWorkers(configured int) int {
-	if configured <= 1 {
-		return 1
-	}
-	return configured
-}
-
-func (s NativeRepositorySnapshotter) engine() (*parser.Engine, error) {
-	if s.Engine != nil {
-		return s.Engine, nil
-	}
-	return parser.DefaultEngine()
-}
-
-func (s NativeRepositorySnapshotter) registry() parser.Registry {
-	if len(s.Registry.ParserKeys()) > 0 {
-		return s.Registry
-	}
-	return parser.DefaultRegistry()
 }

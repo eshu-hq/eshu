@@ -148,8 +148,11 @@ func TestEmitSubmoduleFactsForCandidatesResolvesPinnedSHA(t *testing.T) {
 
 	repo := testCollectorRepositoryMetadata(repoRoot)
 	observedAt := time.Date(2026, time.July, 21, 13, 0, 0, 0, time.UTC)
+	managedRepoRoot := t.TempDir()
+	writeGitFile(t, filepath.Join(managedRepoRoot, ".gitmodules"), gitmodulesBody)
 	snapshot := RepositorySnapshot{
-		FileCount: 1,
+		FileCount:   1,
+		GitTreePath: repoRoot,
 		ContentFiles: []ContentFileSnapshot{{
 			RelativePath: ".gitmodules",
 			Body:         gitmodulesBody,
@@ -157,7 +160,7 @@ func TestEmitSubmoduleFactsForCandidatesResolvesPinnedSHA(t *testing.T) {
 		}},
 	}
 
-	collected := buildStreamingGeneration(repoRoot, repo, "run-1", observedAt, snapshot, false, "")
+	collected := buildStreamingGeneration(managedRepoRoot, repo, "run-1", observedAt, snapshot, false, "")
 	envelopes := drainFactChannel(collected.Facts)
 
 	pinFacts := factsByKind(envelopes, facts.SubmodulePinFactKind)

@@ -88,6 +88,9 @@ workspaces. The manifest hashes the files the collector can actually use:
 `.gitignore` and `.eshuignore` rule files are included, while files excluded by
 those rules are skipped. This keeps local watch mode from creating new
 generations for ignored logs, build outputs, or editor scratch files.
+The managed copy preserves `.gitmodules` for content discovery but deliberately
+omits `.git`; `SelectedRepository.GitTreePath` therefore points committed-tree
+reads such as submodule gitlink resolution at the original source checkout.
 For hosted Git sources, update sync lists remote branch heads with
 `git ls-remote --symref` without fetching every branch, then update sync
 computes a `git diff --name-status -z --find-renames` delta between the previous

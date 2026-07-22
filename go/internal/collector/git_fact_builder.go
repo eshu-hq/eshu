@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -290,7 +291,11 @@ func streamFacts(
 		}
 		snapshot.ContentFiles = nil
 	}
-	emitSubmoduleFactsForCandidates(ctx, w, repo.ID, repoPath, scopeID, generationID, observedAt, gitmodulesCandidates)
+	gitTreePath := strings.TrimSpace(snapshot.GitTreePath)
+	if gitTreePath == "" {
+		gitTreePath = repoPath
+	}
+	emitSubmoduleFactsForCandidates(ctx, w, repo.ID, gitTreePath, scopeID, generationID, observedAt, gitmodulesCandidates)
 	emitCodeownersFactsForCandidates(w, repo.ID, scopeID, generationID, observedAt, codeownersCandidates)
 	for i, meta := range snapshot.DocumentationFileMetas {
 		body, ok := readDocumentationBody(repoPath, meta.RelativePath, nil)
