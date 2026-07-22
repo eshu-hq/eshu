@@ -58,6 +58,17 @@ type domainDataSignature struct {
 // writer also MERGEs) would drown the scan in known-shared-surface noise.
 // Known shared surfaces that are real but not signature-encoded are
 // documented in docs/internal/design/5584-route-serves-data-registry.md.
+//
+// Grouped-signature tradeoff (#5584 review P2): three co-declared groups
+// share one signature — {aws, azure, gcp} cloud inventory (all read
+// reducer_cloud_resource_identity), {ec2, rds, s3_internet} cloud
+// resources (all materialize onto :CloudResource), and {reducer_derived_findings,
+// supply_chain_impact} (one shared finding kind). Within a group the scan
+// cannot tell members apart, so a misroute that swaps one group member for
+// another is NOT detectable by signature — the tradeoff fails toward
+// under-detection inside the group, never toward a false pass for a domain
+// outside it. All group members are co-served on one route today, so the
+// intra-group distinction has no route boundary to cross.
 var domainDataSignatures = map[string]domainDataSignature{
 	// documentation_read_model.go builds its IN (...) list from the
 	// facts.Documentation*FactKind constants, not inline literals.

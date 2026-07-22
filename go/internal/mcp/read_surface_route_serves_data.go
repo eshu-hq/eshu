@@ -47,21 +47,28 @@ type routeServesDataBacking struct {
 //     ServedDomains is equally legitimate.
 //   - read_surface_overrides (per-kind substitutions) are excluded from v1.
 //
-// Self-certification: CLOSED map-wide by the #5584 route-serves-data
-// registry (route_serves_data_registry.go + route_serves_data_registry_routes.go,
+// Self-certification: closed by the #5584 route-serves-data registry
+// (route_serves_data_registry.go + route_serves_data_registry_routes*.go,
 // verified by route_serves_data_registry_check.go). Every ServedDomains
 // entry below must exactly match the handler-derived, source-verified
 // routeServesDataRegistry — a claim with no verified evidence must be an
 // explicit, reasoned MapOnly disclosure — and no route's read path may
 // contain a foreign domain's signature without a reviewed disclosure
-// (TestRouteServesDataRegistryHonestStateGreen). Poisoning this map alone
+// (TestRouteServesDataRegistryHonestStateGreen). Strength, precisely:
+// store-backed claims are structurally map-independent (the handler struct
+// field and method-body reference are AST-verified against real source);
+// marker-only Served claims must be evidenced ON the route's own read path
+// (an off-read-path citation such as the domain's writer is rejected); and
+// MapOnly claims are positive "declared but not served" assertions whose
+// signature must be ABSENT from the read path. Poisoning this map alone
 // contradicts the registry cross-check
-// (TestRouteServesDataRegistryBITES_PoisonedMapGoesRed), and co-poisoning
-// the registry fails its structural verification against the REAL handler
-// source (TestRouteServesDataRegistryBITES_PoisonedRegistryGoesRed), so the
-// pre-#5584 bypass — "add the domain to
-// routeServesDataBackingMap[route].ServedDomains" to paper over a
-// #5480-class misrouting — no longer passes.
+// (TestRouteServesDataRegistryBITES_PoisonedMapGoesRed), and the known
+// registry co-poisoning shapes fail against real source
+// (TestRouteServesDataRegistryBITES_PoisonedRegistryGoesRed). Residual
+// trust: the anti-poison scan is only as complete as each route's
+// reviewer-maintained ScanFiles list (MethodFile membership is enforced;
+// query/store helper files are review-owned), so registry diffs that touch
+// ScanFiles or signatures still deserve reviewer attention.
 // TestRouteServesData_CloudResourcesStructurallyExcludesKubernetesCorrelation
 // (route_serves_data_structural_test.go) remains as the dedicated #5480
 // historical-pair proof.

@@ -50,6 +50,30 @@ served-domain claim (enrichment, anchors, evidence side-channels). A
 **MapOnly** claim is a backing-map row with no read-path evidence at all,
 kept green but explicit and contradiction-checked.
 
+## Gate strength and residual trust
+
+The gate's independence from the backing map is tiered, not absolute:
+
+- **Store-backed Served claims** (10 of 19 routes) are structurally
+  map-independent: the handler struct field and the registered method
+  body's `h.<Field>` reference are AST-verified against real source.
+- **Marker-only Served claims** must be evidenced ON the route's own read
+  path: at least one evidence marker must appear in the route's ScanFiles.
+  A citation whose marker exists only off the read path (e.g. in the
+  domain's own writer file) is rejected — declaring a claim is not enough.
+- **MapOnly claims** are positive "declared but not served" assertions:
+  the domain's signature markers must be ABSENT from the route's read
+  path, so evidence appearing later forces the claim to move to Served,
+  and a laundered misroute (MapOnly-ing a domain the route actually
+  serves) is a contradiction.
+- **Residual trust**: the anti-poison scan is only as complete as each
+  route's ScanFiles list. MethodFile membership is machine-enforced; the
+  query/store helper files are reviewer-maintained registry data — the
+  fail direction is asymmetric (omitting a file that carries an honest
+  claim's marker fails CLOSED via the read-path anchor; omitting a file
+  that carries a foreign domain's marker under-scans gate C), so registry
+  diffs touching ScanFiles or signatures deserve focused review.
+
 ## Route → domain derivation table
 
 | Route | Handler.method | Served domain(s) | Load-bearing query evidence |
@@ -125,7 +149,7 @@ plus test-time verification that reads committed source files; the touched
 production surface (`read_surface_route_serves_data.go`) changed only a doc
 comment. Gate runtime:
 `go test ./internal/mcp -run TestRouteServesDataRegistry -count=1` completes
-in under one second on the full 19-route × 24-domain matrix.
+in under one second on the full 19-route × 25-domain matrix.
 
 No-Observability-Change: no runtime code path is added or altered; the gate
 is a test-only surface, so no metrics, spans, or logs change.

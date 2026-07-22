@@ -14,7 +14,7 @@ compile-time registry data plus test-time verification that reads committed
 source files with `os.ReadFile` and `go/parser`; the only touched production
 file (`read_surface_route_serves_data.go`) changed a doc comment. The gate
 itself (`go test ./internal/mcp -run TestRouteServesDataRegistry -count=1`)
-runs the full 19-route x 24-domain matrix in under one second on the local
+runs the full 19-route x 25-domain matrix in under one second on the local
 toolchain, and the full `./internal/mcp/... ./internal/query/...` suites
 pass unchanged (`ok` in 2.4s / 1.5s).
 

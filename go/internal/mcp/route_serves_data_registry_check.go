@@ -94,6 +94,16 @@ func verifyRouteServesDataRegistry(
 		if !strings.Contains(reg, want) {
 			appendf("route %q: %s does not contain the registration %q — the route is not wired to the claimed method", route, entry.RegistrationFile, want)
 		}
+		// The anti-poison scan (gate C) is only as complete as ScanFiles, so
+		// the method file — the one read-path file the wiring itself names —
+		// must always be part of the scanned surface.
+		scanFileSet := map[string]bool{}
+		for _, f := range entry.ScanFiles {
+			scanFileSet[f] = true
+		}
+		if !scanFileSet[entry.MethodFile] {
+			appendf("route %q: MethodFile %s is not in ScanFiles — the registered method's own body must be part of the scanned read-path surface", route, entry.MethodFile)
+		}
 		fields, err := registryStructFields(filepath.Join(repoRoot, entry.StructFile), entry.HandlerStruct)
 		if err != nil {
 			appendf("route %q: %v", route, err)
@@ -120,6 +130,16 @@ func verifyRouteServesDataRegistry(
 				}
 			}
 			findings = append(findings, verifyEvidence(repoRoot, route, served.Domain, "served", served.Evidence)...)
+			// Read-path anchoring (#5584 review P1): a Served claim must be
+			// evidenced ON the route's own read path, not only in an
+			// off-path file such as the domain's writer — otherwise a
+			// misroute could be laundered by citing a file where the marker
+			// trivially exists. At least one evidence marker must appear in
+			// the route's ScanFiles; store-backed claims are additionally
+			// anchored by the struct-field + method-body checks above.
+			if !servedEvidenceOnReadPath(repoRoot, entry.ScanFiles, served.Evidence) {
+				appendf("route %q domain %q: no evidence marker appears in the route's own read path (ScanFiles) — off-read-path citations alone cannot prove the route serves this domain", route, served.Domain)
+			}
 		}
 		for _, disc := range entry.Disclosed {
 			if _, ok := signatures[disc.Domain]; !ok {
@@ -143,6 +163,25 @@ func verifyRouteServesDataRegistry(
 		}
 	}
 	return findings
+}
+
+// servedEvidenceOnReadPath reports whether at least one of the claim's
+// evidence markers appears in one of the route's own ScanFiles. File-read
+// errors count as "not on the read path" — the per-citation checks in
+// verifyEvidence already report unreadable files.
+func servedEvidenceOnReadPath(repoRoot string, scanFiles []string, evidence []routeReadEvidence) bool {
+	for _, f := range scanFiles {
+		contents, err := readRepoFile(repoRoot, f)
+		if err != nil {
+			continue
+		}
+		for _, ev := range evidence {
+			if strings.Contains(contents, ev.Marker) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // verifyEvidence asserts every cited marker appears verbatim in its file.
@@ -184,6 +223,14 @@ func verifyRouteServesDataScan(
 		for _, d := range entry.Disclosed {
 			allowed[d.Domain] = true
 		}
+		// MapOnly domains are deliberately NOT in allowed: a MapOnly claim
+		// is a positive "declared but NOT served" assertion, so its
+		// signature must be ABSENT from the read path — presence is a
+		// contradiction (#5584 review P1 fix 2).
+		mapOnly := map[string]bool{}
+		for _, m := range entry.MapOnly {
+			mapOnly[m.Domain] = true
+		}
 		var scans []string
 		for _, f := range entry.ScanFiles {
 			contents, err := readRepoFile(repoRoot, f)
@@ -202,9 +249,14 @@ func verifyRouteServesDataScan(
 			sig := signatures[domain]
 			for _, marker := range sig.Markers {
 				for i, contents := range scans {
-					if strings.Contains(contents, marker) {
-						findings = append(findings, fmt.Sprintf("route %q read path (%s) contains domain %q signature marker %q, but the pair is neither Served nor Disclosed — either the route really serves that domain (add verified Served evidence and a backing-map entry) or the touch needs a reviewed disclosure", route, entry.ScanFiles[i], domain, marker))
+					if !strings.Contains(contents, marker) {
+						continue
 					}
+					if mapOnly[domain] {
+						findings = append(findings, fmt.Sprintf("route %q read path (%s) contains domain %q signature marker %q, but the domain is declared MapOnly (\"declared but not served\") — the positive absence assertion is contradicted; move the claim to Served with verified evidence", route, entry.ScanFiles[i], domain, marker))
+						continue
+					}
+					findings = append(findings, fmt.Sprintf("route %q read path (%s) contains domain %q signature marker %q, but the pair is neither Served nor Disclosed — either the route really serves that domain (add verified Served evidence and a backing-map entry) or the touch needs a reviewed disclosure", route, entry.ScanFiles[i], domain, marker))
 				}
 			}
 			if fieldsErr != nil || bodyErr != nil {

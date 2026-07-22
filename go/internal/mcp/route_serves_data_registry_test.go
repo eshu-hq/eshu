@@ -125,10 +125,41 @@ func TestRouteServesDataRegistryBITES_PoisonedRegistryGoesRed(t *testing.T) {
 		}
 	})
 
+	// Laundering vector (#5584 review P1): a marker-only Served claim whose
+	// evidence cites an OFF-read-path file — the domain's own writer, where
+	// the marker trivially exists — must be rejected. This is the exact
+	// hole the review found: gate B used to accept any cited file, and
+	// gate C exempts Served pairs, so declaring the claim was enough. The
+	// read-path anchoring check closes it: at least one marker must appear
+	// in the route's own ScanFiles.
+	t.Run("off_read_path_served_claim_rejected", func(t *testing.T) {
+		poisoned := map[string]routeServesDataSource{}
+		for r, e := range routeServesDataRegistry {
+			poisoned[r] = e
+		}
+		secrets := poisoned["GET /api/v0/secrets-iam/posture-summary"]
+		secrets.MapOnly = nil
+		secrets.Served = append(append([]routeServedDomain(nil), secrets.Served...), routeServedDomain{
+			Domain: "s3_external_principal_grant_materialization",
+			// Marker genuinely present in the cited file — but the file is
+			// the domain's writer, not this route's read path.
+			Evidence: []routeReadEvidence{
+				{File: "go/internal/storage/cypher/s3_external_principal_grant_writer.go", Marker: "ExternalPrincipal"},
+			},
+		})
+		poisoned["GET /api/v0/secrets-iam/posture-summary"] = secrets
+
+		findings := verifyRouteServesDataRegistry(repoRoot, poisoned, domainDataSignatures)
+		joined := strings.Join(findings, "\n")
+		if !strings.Contains(joined, "no evidence marker appears in the route's own read path") {
+			t.Errorf("BITES FAILED: an off-read-path marker-only Served claim was accepted — the laundering vector is open: %v", findings)
+		}
+	})
+
 	// Dodge attempt: move a genuinely-served domain to MapOnly so it needs
-	// no evidence. The anti-poison scan catches the contradiction — the
-	// route's read path still contains the domain's signature while the
-	// pair is no longer Served or Disclosed.
+	// no evidence. MapOnly is a positive "declared but not served"
+	// assertion, so the scan requires the domain's signature to be ABSENT
+	// from the read path — here it is present, which is a contradiction.
 	t.Run("map_only_dodge_contradicts_scan", func(t *testing.T) {
 		poisoned := map[string]routeServesDataSource{}
 		for r, e := range routeServesDataRegistry {
@@ -143,6 +174,9 @@ func TestRouteServesDataRegistryBITES_PoisonedRegistryGoesRed(t *testing.T) {
 		joined := strings.Join(findings, "\n")
 		if !strings.Contains(joined, "reducer_kubernetes_correlation") {
 			t.Errorf("BITES FAILED: MapOnly dodge for a genuinely-served domain was not contradicted by the scan: %v", findings)
+		}
+		if !strings.Contains(joined, "declared MapOnly") {
+			t.Errorf("BITES: the contradiction finding does not name the MapOnly declaration — got: %v", findings)
 		}
 	})
 
