@@ -58,8 +58,6 @@ prod-code-quality-refactoring
 prod-code-search-exact
 prod-code-search-fuzzy
 prod-complexity
-prod-component-extension-diagnostics
-prod-component-extension-inventory
 prod-container-image-identities
 prod-container-image-identity-aggregate
 prod-container-image-list
