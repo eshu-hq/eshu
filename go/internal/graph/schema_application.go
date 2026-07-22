@@ -25,21 +25,31 @@ type SchemaApplication struct {
 
 const (
 	// graphSchemaNeo4jFingerprint and graphSchemaNornicDBFingerprint are the
-	// current schema digests for the merged schema: the CodeownerTeam.ref
-	// constraint/index from #5419, the KubernetesWorkload.id lookup index from
-	// #5436, the TerraformStateResource uid constraint plus the
-	// tf_resource_name index from #5443 (the label split and its MATCHES_STATE
-	// anchor index), the #5443 P1 review finding's fix -- the
-	// tf_state_resource_type / tf_state_resource_name TerraformStateResource
-	// property indexes and TerraformStateResource joining the
-	// infra_search_index fulltext label set --, and a second #5443 P1 review
-	// finding's fix -- the tf_state_resource_address TerraformStateResource
-	// property index, backing entity_map_resolver.go's higher-priority
-	// address lookup that the first indexes bump missed -- are all present.
-	// The KubernetesWorkload.id lookup index is NornicDB-only, so it does not
-	// shift the Neo4j digest independently of the other additions.
-	graphSchemaNeo4jFingerprint    = "764422ab57449b6c2671eb60c15c8a957607d6f27c47c1100fc5e9ce4e12b582"
-	graphSchemaNornicDBFingerprint = "50844cbba41348beebe489ead92a498ac59b1b34842edfd5dbd2fa028bf1319d"
+	// current schema digests, now including the #5445 EXTENDS_BASE resolver's
+	// kustomize_overlay_repo_id index (a repo-scoped KustomizeOverlay.repo_id
+	// index; see schema_tables.go). The bump is additive and index-only: a
+	// writer running the predecessor schema still writes and reads correctly,
+	// it only lacks the faster repo-scoped KustomizeOverlay lookup until its
+	// own schema catches up, so the predecessor
+	// (graphSchemaNeo4jPreKustomizeOverlayRepoIDIndexFingerprint /
+	// graphSchemaNornicDBPreKustomizeOverlayRepoIDIndexFingerprint) stays
+	// compatible.
+	graphSchemaNeo4jFingerprint    = "2e67a8b4e803a76934025267f5b8ff750a021dbc737c250909fd50033fd8bfef"
+	graphSchemaNornicDBFingerprint = "24ca51d4d323ac10d426ee75defb32fa85c51c471f831c7058eaf909f40c2891"
+
+	// graphSchemaNeo4jPreKustomizeOverlayRepoIDIndexFingerprint and its
+	// NornicDB peer are the schema fingerprints immediately before the #5445
+	// kustomize_overlay_repo_id index was added. The bump is additive: a
+	// writer running the predecessor schema still writes and reads correctly,
+	// it only lacks the faster repo-scoped KustomizeOverlay lookup the #5445
+	// EXTENDS_BASE resolver needs until its own schema catches up, so the
+	// predecessor stays compatible. These equal graphSchemaNeo4jFingerprint /
+	// graphSchemaNornicDBFingerprint's value before this addition, which was
+	// the merged schema described immediately below (CodeownerTeam.ref,
+	// KubernetesWorkload.id lookup, and the #5443 TerraformStateResource
+	// bumps).
+	graphSchemaNeo4jPreKustomizeOverlayRepoIDIndexFingerprint    = "764422ab57449b6c2671eb60c15c8a957607d6f27c47c1100fc5e9ce4e12b582"
+	graphSchemaNornicDBPreKustomizeOverlayRepoIDIndexFingerprint = "50844cbba41348beebe489ead92a498ac59b1b34842edfd5dbd2fa028bf1319d"
 
 	// graphSchemaNeo4jPreTerraformStateResourceAddressIndexFingerprint and its
 	// NornicDB peer are the schema fingerprints immediately before the second
@@ -200,6 +210,7 @@ const (
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
 		graphSchemaNeo4jFingerprint: {
+			graphSchemaNeo4jPreKustomizeOverlayRepoIDIndexFingerprint,
 			graphSchemaNeo4jPreTerraformStateResourceAddressIndexFingerprint,
 			graphSchemaNeo4jPreTerraformStateResourceIndexesFingerprint,
 			graphSchemaNeo4jPreTerraformStateResourceSplitFingerprint,
@@ -216,6 +227,7 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	},
 	SchemaBackendNornicDB: {
 		graphSchemaNornicDBFingerprint: {
+			graphSchemaNornicDBPreKustomizeOverlayRepoIDIndexFingerprint,
 			graphSchemaNornicDBPreTerraformStateResourceAddressIndexFingerprint,
 			graphSchemaNornicDBPreTerraformStateResourceIndexesFingerprint,
 			graphSchemaNornicDBPreTerraformStateResourceSplitFingerprint,

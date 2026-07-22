@@ -71,6 +71,18 @@ const (
 	Explains EdgeType = "EXPLAINS"
 	// ExposesEndpoint is the "EXPOSES_ENDPOINT" graph relationship type.
 	ExposesEndpoint EdgeType = "EXPOSES_ENDPOINT"
+	// ExtendsBase is the "EXTENDS_BASE" graph relationship type (issue #5445
+	// slice 3: a Kustomize overlay's KustomizeOverlay node to the
+	// KustomizeOverlay node of a local (same-repo, non-remote) base directory
+	// it declares via the deprecated `bases:` field or a directory-shaped
+	// `resources:` entry). Same-repo only: a remote Kustomize base resolves
+	// through the existing cross-repo DEPLOYS_FROM evidence path instead
+	// (go/internal/relationships/kustomize_yaml_evidence.go), never this edge.
+	// Many-to-many and cycle-tolerant by construction (Kustomize does not
+	// forbid a base cycle at parse time), so any future [:EXTENDS_BASE*]
+	// variable-length traversal MUST bound its depth explicitly; an
+	// unbounded traversal over a cyclic overlay graph does not terminate.
+	ExtendsBase EdgeType = "EXTENDS_BASE"
 	// GrantsAccessTo is the "GRANTS_ACCESS_TO" graph relationship type.
 	GrantsAccessTo EdgeType = "GRANTS_ACCESS_TO"
 	// HandlesRoute is the "HANDLES_ROUTE" graph relationship type.
@@ -207,7 +219,7 @@ var registered = []EdgeType{
 	CorrelatesDeployableUnit, DeclaresCodeowner, DeclaresDependency, Defines, DefinesJob, DependsOn,
 	DependsOnPackage, DeploymentSource, DeploysFrom, DiscoversConfigIn,
 	Documents, EvidencesRepositoryRelationship, Executes, ExecutesShell,
-	Explains, ExposesEndpoint, GrantsAccessTo, HandlesRoute,
+	Explains, ExposesEndpoint, ExtendsBase, GrantsAccessTo, HandlesRoute,
 	HasAppliedRouting, HasColumn, HasDeploymentEvidence, HasIntendedRouting,
 	HasLiveRouting, HasParameter, HasRole, HasTaintEvidence,
 	HasVersion, HelmValueReference, Implements, Imports, Indexes,

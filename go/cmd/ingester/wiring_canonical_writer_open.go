@@ -165,6 +165,8 @@ func openIngesterCanonicalWriter(
 		ingesterTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.PostgresTerraformBackendQuery{DB: database})},
 	).WithTerraformStateConfigMatchResolver(
 		ingesterTerraformStateConfigMatchResolver{driver: driver, databaseName: cfg.DatabaseName},
+	).WithKustomizeOverlayResolver(
+		ingesterKustomizeOverlayResolver{driver: driver, databaseName: cfg.DatabaseName},
 	)
 	labelBatchSizes := map[string]int(nil)
 	if graphBackend == runtimecfg.GraphBackendNornicDB {

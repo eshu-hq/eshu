@@ -6,10 +6,22 @@ kind: Kustomization
 # this repo DEPLOYS_FROM deployable-source. This mirrors the ArgoCD
 # deployable-config -> deployable-source mapping but expressed through Kustomize,
 # exercising the KUSTOMIZE_RESOURCE_REFERENCE evidence path in the B-7 gate.
+#
+# The local ./base entry is a SEPARATE fixture concern (issue #5445 slice 3):
+# a same-repo Kustomize base (tests/fixtures/ecosystems/kustomize-deployable-overlay/base),
+# exercising the EXTENDS_BASE graph edge (KustomizeOverlay -> KustomizeOverlay),
+# distinct from the remote deployable-source base above.
+# collectKustomizeBaseRefs classifies "./base" as a local base because it
+# contains no "://" and has no .yaml/.yml/.json suffix; the remote entry below
+# stays classified as a resource, not a base. This file sits at this fixture
+# repo's root (relative path "kustomization.yaml"), so "./base" resolves to
+# the repo-relative directory "base" -- not "../base", which would escape the
+# repo root from here.
 namespace: production
 
 resources:
   - github.com/acme/deployable-source//k8s?ref=v1.4.0
+  - ./base
 
 patches:
   - path: replica-count.yaml

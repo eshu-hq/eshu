@@ -1676,6 +1676,14 @@
         "from_label": "SqlFunction",
         "to_label": "SqlTable",
         "minimum_count": 1
+      },
+      {
+        "id": "rc-162",
+        "description": "Kustomize overlay EXTENDS_BASE truth (issue #5445 slice 3): the kustomize-deployable-overlay fixture's root kustomization.yaml declares a same-repo local base (\"./base\", collectKustomizeBaseRefs' own local-vs-remote classification), and the KustomizeOverlayResolver-driven canonical writer resolves it by directory equality against the sibling base/kustomization.yaml KustomizeOverlay node. Provably zero without the fixture's local base entry and zero without the EXTENDS_BASE edge writer (go/internal/storage/cypher/canonical_kustomize_edges.go).",
+        "relationship": "EXTENDS_BASE",
+        "from_label": "KustomizeOverlay",
+        "to_label": "KustomizeOverlay",
+        "minimum_count": 1
       }
     ],
     "required_nodes": [
