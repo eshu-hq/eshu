@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 424/424 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 425/425 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -16,19 +16,19 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Read surfaces (API/MCP) | 25 | 25 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
-| Projections (cost/ordering) | 28 | 28 | 100.00% | 0 | 1 |
+| Projections (cost/ordering) | 29 | 29 | 100.00% | 0 | 1 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
 | Retractable edge types (delta) | 59 | 59 | 100.00% | 0 | 1 |
 | Retractable node types (delta) | 95 | 95 | 100.00% | 0 | 1 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **424** | **424** | **100.00%** | **0** | **12** |
+| **Total** | **425** | **425** | **100.00%** | **0** | **12** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | baseline | 220 | 220 | 100.00% | 0 | 5 |
-| cost | 27 | 27 | 100.00% | 0 | 1 |
+| cost | 28 | 28 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 155 | 155 | 100.00% | 0 | 2 |
 | fault | 17 | 17 | 100.00% | 0 | 4 |
@@ -46,7 +46,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 None. Every supported surface has a replay scenario.
 
-## Covered surfaces (424)
+## Covered surfaces (425)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -283,6 +283,7 @@ None. Every supported surface has a replay scenario.
 | `projection:security_alert_reconciliation` | cost | go_test | go-test-race | `go/internal/replay/costcounting/security_alert_reconciliation_cost_test.go` |
 | `projection:semantic_entity_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/semantic_entity_cost_test.go` |
 | `projection:service_catalog_correlation` | cost | go_test | go-test-race | `go/internal/replay/costcounting/service_catalog_correlation_cost_test.go` |
+| `projection:submodule_pin` | cost | go_test | go-test-race | `go/internal/replay/costcounting/submodule_pin_cost_test.go` |
 | `projection:supply_chain_impact` | ordering | go_test | go-test-race | `go/internal/replay/schedulereplay/projection_ordering_scenario_test.go` |
 | `projection:supply_chain_impact` | cost | go_test | go-test-race | `go/internal/replay/costcounting/supply_chain_impact_cost_test.go` |
 | `reducer_drain:reducer-projection-drain` | crash | go_test | go-test-race | `go/internal/replay/crashreplay/scenario_test.go` |

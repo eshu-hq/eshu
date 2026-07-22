@@ -102,6 +102,10 @@ type DefaultHandlers struct {
 	// directly-emitted codeowners.ownership facts (issue #5419 Phase 3).
 	CodeownersOwnershipEdgeWriter SharedProjectionEdgeWriter
 
+	// SubmodulePinEdgeWriter writes canonical PINS_SUBMODULE edges from
+	// directly-emitted submodule.pin facts (issue #5420 Phase 3).
+	SubmodulePinEdgeWriter SharedProjectionEdgeWriter
+
 	// RationaleEdgeWriter is retained for compatibility with older reducer tests
 	// and wiring. Rationale materialization no longer uses it directly: it rides the
 	// shared-projection intent path via RationaleEdgeIntentWriter (#2869).

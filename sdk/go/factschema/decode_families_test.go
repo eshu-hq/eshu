@@ -597,6 +597,9 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindServiceCatalogOperationalLink:
 		_, err := DecodeServiceCatalogOperationalLink(env)
 		return err
+	case FactKindSubmodulePin:
+		_, err := DecodeSubmodulePin(env)
+		return err
 	case FactKindCodeownersOwnership:
 		_, err := DecodeCodeownersOwnership(env)
 		return err
@@ -836,6 +839,7 @@ var allDecodedKinds = []string{
 	FactKindServiceCatalogOwnership,
 	FactKindServiceCatalogRepositoryLink,
 	FactKindServiceCatalogOperationalLink,
+	FactKindSubmodulePin,
 	FactKindCodeownersOwnership,
 }
 
@@ -1278,6 +1282,8 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeServiceCatalogRepositoryLink(env)
 			case FactKindServiceCatalogOperationalLink:
 				_, err = DecodeServiceCatalogOperationalLink(env)
+			case FactKindSubmodulePin:
+				_, err = DecodeSubmodulePin(env)
 			case FactKindCodeownersOwnership:
 				_, err = DecodeCodeownersOwnership(env)
 			}

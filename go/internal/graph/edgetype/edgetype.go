@@ -132,6 +132,10 @@ const (
 	Migrates EdgeType = "MIGRATES"
 	// Overrides is the "OVERRIDES" graph relationship type.
 	Overrides EdgeType = "OVERRIDES"
+	// PinsSubmodule is the "PINS_SUBMODULE" graph relationship type (a parent
+	// Repository to the Repository it pins as a git submodule at a specific
+	// commit SHA, issue #5420).
+	PinsSubmodule EdgeType = "PINS_SUBMODULE"
 	// ProvisionsDependencyFor is the "PROVISIONS_DEPENDENCY_FOR" graph relationship type.
 	ProvisionsDependencyFor EdgeType = "PROVISIONS_DEPENDENCY_FOR"
 	// ProvisionsPlatform is the "PROVISIONS_PLATFORM" graph relationship type.
@@ -209,6 +213,7 @@ var registered = []EdgeType{
 	HasVersion, HelmValueReference, Implements, Imports, Indexes,
 	Inherits, InstanceOf, Instantiates, InvokesCloudAction,
 	LogsTo, Manages, MapsToTable, MatchesState, Migrates, Needs, Overrides,
+	PinsSubmodule,
 	ProvisionsDependencyFor, ProvisionsPlatform, QueriesTable, ReadsConfigFrom,
 	ReadsFrom, ReconcilesFrom, References, ReferencesTable, RepoContains,
 	RunsImage, RunsIn, RunsOn, SatisfiedBy,

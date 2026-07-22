@@ -1,0 +1,10 @@
+{
+  "scenario": "submodule-pin",
+  "cassette": "none: cypher.EdgeWriter.WriteEdges operates over flat reducer.SharedProjectionIntentRow values, not a CanonicalMaterialization; the two fixture rows (repo-1 pinning two submodule paths, reusing the real Phase 5 deployable-config fixture's vendor/deployable-source submodule path) live inline in go/internal/replay/costcounting/submodule_pin_cost_test.go",
+  "description": "Two PINS_SUBMODULE edge rows for one parent repository, driven through the production cypher.EdgeWriter.WriteEdges (DomainSubmodulePinEdges) over a GroupExecutor-capable executor with EdgeWriter.Instruments set. Like codeowners_ownership, both submodule rows route to the SAME single Cypher template (batchCanonicalSubmodulePinEdgeCypher), so WriteEdges batches them into one UNWIND statement and calls ExecuteGroup exactly once, giving eshu_dp_shared_edge_write_groups_total=1 and statements_executed=1 regardless of row count. Any increase to the group counter means the reducer handler is issuing more than one write transaction per intent -- the N+1 pattern this gate exists to catch.",
+  "refresh_path": "manual: edit the inline fixture rows in submodule_pin_cost_test.go and this file together, reviewed in the same diff (no credentialed cassette refresh applies since there is no cassette)",
+  "budgets": {
+    "eshu_dp_shared_edge_write_groups_total": 1,
+    "statements_executed": 1
+  }
+}

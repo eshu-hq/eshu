@@ -445,6 +445,24 @@ families:
       service_catalog.repository_link: "sdk/go/factschema/schema/service_catalog.repository_link.v1.schema.json"
       service_catalog.operational_link: "sdk/go/factschema/schema/service_catalog.operational_link.v1.schema.json"
     kinds: [service_catalog.api_link, service_catalog.dependency, service_catalog.entity, service_catalog.operational_link, service_catalog.ownership, service_catalog.repository_link, service_catalog.scorecard_definition, service_catalog.scorecard_result, service_catalog.warning]
+  submodule:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: submodule_pin
+    projection_hook: submodule_pin
+    admission_hook: facts.ValidateSchemaVersion
+    # read_surface: none is intentional, not a placeholder. The submodule.pin
+    # family is consumed end to end (issue #5420 Phase 3): the collector emits
+    # it and the submodule_pin reducer domain projects
+    # Repository-[:PINS_SUBMODULE]->Repository edges, which are queryable through
+    # the generic graph tools, so this family needs no dedicated read_surface
+    # route.
+    read_surface: none
+    truth_profile: deterministic
+    provider_key_independent: true
+    payload_schema_overrides:
+      submodule.pin: "sdk/go/factschema/schema/submodule.pin.v1.schema.json"
+    kinds: [submodule.pin]
   codeowners:
     lifecycle_owner: go/internal/facts
     schema_version: "1.0.0"

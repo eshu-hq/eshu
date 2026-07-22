@@ -263,6 +263,7 @@ func TestSharedProjectionDomainsIncludesAllExpected(t *testing.T) {
 		DomainRunsIn:                   false,
 		DomainInvokesCloudAction:       false,
 		DomainCodeownersOwnershipEdges: false,
+		DomainSubmodulePinEdges:        false,
 	}
 
 	for _, domain := range sharedProjectionDomains {

@@ -296,6 +296,11 @@ func run() error {
 		{name: "service_catalog.ownership.v1.schema.json", generate: schemagen.ServiceCatalogOwnershipSchema},
 		{name: "service_catalog.repository_link.v1.schema.json", generate: schemagen.ServiceCatalogRepositoryLinkSchema},
 		{name: "service_catalog.operational_link.v1.schema.json", generate: schemagen.ServiceCatalogOperationalLinkSchema},
+		// The submodule family fact kind is DOTTED, matching the incident/
+		// service_catalog convention above. The git collector emits it and
+		// the reducer decodes and projects it into PINS_SUBMODULE graph
+		// edges (issue #5420).
+		{name: "submodule.pin.v1.schema.json", generate: schemagen.SubmodulePinSchema},
 		// The codeowners family is Phase 1 of issue #5419 (branch-aware
 		// CODEOWNERS ingestion, epic #5415): the contract only. No collector
 		// or reducer/query consumer exists yet for this kind.

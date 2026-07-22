@@ -185,6 +185,16 @@ waivers:
     issue: "#5543"
     waived: "2026-07-21"
     reason: "reducer.DomainCodeownersOwnershipEdges (DECLARES_CODEOWNER edges, #5419); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+  - surface: "materialized_edges:submodule_pin_edges"
+    proof_gate: ifa-determinism
+    issue: "#5543"
+    waived: "2026-07-21"
+    reason: "reducer.DomainSubmodulePinEdges (PINS_SUBMODULE edges, #5420); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+  - surface: "materialized_edges:submodule_pin_edges"
+    proof_gate: ifa-fault-injection
+    issue: "#5543"
+    waived: "2026-07-21"
+    reason: "reducer.DomainSubmodulePinEdges (PINS_SUBMODULE edges, #5420); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:rationale_edges"
     proof_gate: ifa-determinism
     issue: "#5543"
@@ -250,6 +260,6 @@ waivers:
 #     fault is anchored to a CloudResource MERGE and never exercises the SQL
 #     work item. A corrected fault that targets the sql_relationship_
 #     materialization work item replaces that waiver with a real coverage row.
-#   - The 11 other allProjectionDomains families are blocked on the epic #5344
+#   - The 13 other allProjectionDomains families are blocked on the epic #5344
 #     umbrella #5543 pending per-domain child issues (both gates each).
 # ---------------------------------------------------------------------------

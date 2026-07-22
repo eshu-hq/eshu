@@ -254,6 +254,7 @@ func TestNewDefaultRegistryRegistersImplementedDomainsOnly(t *testing.T) {
 		DomainSemanticEntityMaterialization,
 		DomainShellExecMaterialization,
 		DomainSQLRelationshipMaterialization,
+		DomainSubmodulePin,
 		DomainWorkloadIdentity,
 		DomainWorkloadMaterialization,
 	}; !slices.Equal(got, want) {

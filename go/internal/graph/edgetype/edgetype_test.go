@@ -62,6 +62,7 @@ func TestEdgeTypeStringParity(t *testing.T) {
 		Migrates:                           "MIGRATES",
 		Needs:                              "NEEDS",
 		Overrides:                          "OVERRIDES",
+		PinsSubmodule:                      "PINS_SUBMODULE",
 		ProvisionsDependencyFor:            "PROVISIONS_DEPENDENCY_FOR",
 		ProvisionsPlatform:                 "PROVISIONS_PLATFORM",
 		QueriesTable:                       "QUERIES_TABLE",

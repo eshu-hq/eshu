@@ -115,6 +115,13 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				PriorGenerationCheck: handlers.PriorGenerationCheck,
 				Instruments:          handlers.Instruments,
 			}
+		case DomainSubmodulePin:
+			def.Handler = SubmodulePinEdgeMaterializationHandler{
+				FactLoader:           handlers.FactLoader,
+				EdgeWriter:           handlers.SubmodulePinEdgeWriter,
+				PriorGenerationCheck: handlers.PriorGenerationCheck,
+				Instruments:          handlers.Instruments,
+			}
 		}
 		definitions = append(definitions, def)
 	}
