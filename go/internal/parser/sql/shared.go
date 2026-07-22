@@ -71,9 +71,9 @@ func normalizeSQLName(raw string) string {
 
 // collectMentionsFromNode walks a query/body subtree and returns the bounded
 // table references it contains, tagged by operation. Relations inside FROM/JOIN
-// clauses yield "select" reads; INSERT/UPDATE/DELETE/REFERENCES/ALTER yield the
-// matching mutation operation. Offsets are absolute byte positions in the
-// original source so callers can map line numbers.
+// clauses yield "select" reads; INSERT/UPDATE/DELETE/REFERENCES/ALTER/DROP
+// yield the matching mutation operation. Offsets are absolute byte positions
+// in the original source so callers can map line numbers.
 func collectMentionsFromNode(node *tree_sitter.Node, source []byte, includeReads bool) []sqlMention {
 	mentions := make([]sqlMention, 0)
 	seen := make(map[string]struct{})
@@ -114,6 +114,10 @@ func collectMentionsFromNode(node *tree_sitter.Node, source []byte, includeReads
 			// The altered table is the first object_reference child. A migration
 			// that only does ALTER TABLE must still record the table it touches.
 			add(firstDirectChildByKind(n, "object_reference"), "alter")
+		case "drop_table":
+			// DROP TABLE is migration evidence for an existing table, not a new
+			// SqlTable entity. The grammar exposes its target directly.
+			add(firstDirectChildByKind(n, "object_reference"), "drop")
 		}
 		for _, child := range namedChildren(n) {
 			visit(child, operation)

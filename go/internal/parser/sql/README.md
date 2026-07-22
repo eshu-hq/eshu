@@ -93,8 +93,9 @@ prior regex behavior:
   mentions also live under the single `SqlMigration` entity's
   `migration_targets` metadata (#5346), which the reducer resolves into
   `MIGRATES`. A target reached only through `select` is excluded because a
-  read-only backfill does not migrate its source table. Migration DROP targets
-  and migration-order reachability are not parsed.
+  read-only backfill does not migrate its source table. `DROP TABLE` targets
+  are recorded with `operation: "drop"` without emitting a new `SqlTable`
+  entity; migration-order reachability and head-state absence remain unresolved.
 - Highly dialect-specific statements outside the extracted construct set
   (sequences, types, policies, grants, vendor pragmas) are not extracted, the
   same as before.
@@ -147,6 +148,12 @@ tracked before/after evidence here.
   segment (`defer tree.Close()` in `parseSegment`), so there is no retained
   growth across files. Reproduce with:
   `go test ./internal/parser/sql -run '^$' -bench BenchmarkParseComprehensive -benchmem -count=3`.
+- No-Regression Evidence (#5482): `DROP TABLE` adds one direct-child lookup in
+  the existing AST mention walk; it adds no parse pass, queue work, graph write,
+  or new entity. The existing 64-target `migration_targets` cap remains in
+  force. `go test ./internal/parser/sql -count=1` passes after the change; the
+  intentional output delta is one `operation: "drop"` target for a recognized
+  DROP migration.
 - Observability Evidence: No-Observability-Change. This package emits no
   metrics, spans, or logs by contract (see Telemetry above); parse timing
   remains owned by the collector snapshot path and the parent parser engine,

@@ -57,6 +57,24 @@ func TestParseMigrationTargetsFromAlterAndReferences(t *testing.T) {
 	assertSQLMigrationExists(t, gotReferences, "prisma", "SqlTable", "public.orders")
 }
 
+// TestParseMigrationTargetsFromDropTable guards #5482: DROP TABLE is migration
+// evidence for an existing table, not a declaration of a new SqlTable entity.
+func TestParseMigrationTargetsFromDropTable(t *testing.T) {
+	t.Parallel()
+
+	path := writeSQLTestFile(
+		t,
+		filepath.Join("prisma", "migrations", "20260722_drop_users", "migration.sql"),
+		`DROP TABLE IF EXISTS public.users;
+`,
+	)
+
+	got := parseSQLTestFile(t, path)
+
+	assertSQLMigrationTarget(t, got, "prisma", "SqlTable", "public.users", "drop", 1)
+	assertSQLBucketMissingName(t, got, "sql_tables", "public.users")
+}
+
 func TestParseDMLDeleteMigrationTarget(t *testing.T) {
 	t.Parallel()
 
@@ -135,6 +153,45 @@ func assertSQLMigrationExists(
 		tool,
 		targetKind,
 		targetName,
+		items,
+	)
+}
+
+func assertSQLMigrationTarget(
+	t *testing.T,
+	payload map[string]any,
+	tool string,
+	targetKind string,
+	targetName string,
+	operation string,
+	lineNumber int,
+) {
+	t.Helper()
+
+	items, _ := payload["sql_migrations"].([]map[string]any)
+	for _, item := range items {
+		gotTool, _ := item["tool"].(string)
+		if gotTool != tool {
+			continue
+		}
+		targets, _ := item["migration_targets"].([]map[string]any)
+		for _, target := range targets {
+			gotKind, _ := target["kind"].(string)
+			gotName, _ := target["name"].(string)
+			gotOperation, _ := target["operation"].(string)
+			gotLineNumber, _ := target["line_number"].(int)
+			if gotKind == targetKind && gotName == targetName && gotOperation == operation && gotLineNumber == lineNumber {
+				return
+			}
+		}
+	}
+	t.Fatalf(
+		"sql_migrations missing tool=%q kind=%q name=%q operation=%q line_number=%d in %#v",
+		tool,
+		targetKind,
+		targetName,
+		operation,
+		lineNumber,
 		items,
 	)
 }
