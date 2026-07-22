@@ -88,6 +88,14 @@ type DiscoveryAdvisorySkipBreakdown struct {
 	FilesHidden      int            `json:"files_hidden,omitempty"`
 	FilesGitignore   int            `json:"files_gitignore,omitempty"`
 	FilesEshuIgnore  int            `json:"files_eshuignore,omitempty"`
+	// TrackedFilesEshuIgnore counts files git tracks that repo-local
+	// .eshuignore rules still skipped (issue #5591). Unlike .gitignore,
+	// which #5591 makes defer to git's own tracked set, .eshuignore remains
+	// a deliberate operator opt-out that CAN skip a tracked file. This is a
+	// subset of FilesEshuIgnore, broken out so operators can distinguish "the
+	// operator explicitly chose to keep this tracked file out of the index"
+	// from an ordinary untracked-file eshuignore skip.
+	TrackedFilesEshuIgnore int `json:"tracked_files_eshuignore,omitempty"`
 }
 
 func buildDiscoveryAdvisoryReport(
@@ -130,6 +138,8 @@ func buildDiscoveryAdvisoryReport(
 			FilesHidden:      stats.FilesSkippedHidden,
 			FilesGitignore:   stats.FilesSkippedGitignore,
 			FilesEshuIgnore:  stats.FilesSkippedEshuIgnore,
+			TrackedFilesEshuIgnore: len(stats.TrackedFilesSkippedEshuIgnore) +
+				stats.TrackedFilesSkippedEshuIgnoreOverflow,
 		},
 	}
 
