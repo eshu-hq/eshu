@@ -702,18 +702,25 @@ repository ids, node ids, and statements stay out of metric labels.
   retract
 - `S3InternetExposureNodeWriter` — writes reducer-owned S3 internet-exposure
   properties onto existing S3 `CloudResource` nodes (issue #1232); constructed
-  with `NewS3InternetExposureNodeWriter`. Uses batched `UNWIND` + `MATCH
-  (resource:CloudResource {uid})` and never `MERGE`, so a missing bucket node is
-  a no-op rather than a fabricated node. Unknown exposure rows set
-  `s3_internet_exposure_state=unknown` and remove the boolean
-  `s3_internet_exposed` property. Retract removes only
+  with `NewS3InternetExposureNodeWriter(executor, reader, batchSize)`. Uses
+  batched `UNWIND` + `MERGE (resource:CloudResource {uid})` (issue #5652: a
+  bare `MATCH` anchor here silently drops its `SET` on the pinned production
+  NornicDB v1.1.11 image). Never-create is enforced in Go instead of at the
+  anchor clause: `PostureExistenceReader` confirms a candidate uid already
+  exists via a separate read before the row ever reaches the write, so a
+  missing bucket node is dropped before the statement runs rather than
+  fabricated by `MERGE`. See `posture_node_existence.go` and
+  `docs/internal/evidence/5652-nornic-bare-match-writeloss.md`. Unknown
+  exposure rows set `s3_internet_exposure_state=unknown` and remove the
+  boolean `s3_internet_exposed` property. Retract removes only
   `s3_internet_exposure_*` properties scoped by reducer evidence source and
   scope id.
 - `EC2InternetExposureNodeWriter` — writes reducer-owned EC2 internet-exposure
   properties onto existing EC2 `CloudResource` nodes (issue #1301); constructed
-  with `NewEC2InternetExposureNodeWriter`. Uses batched `UNWIND` + `MATCH
-  (resource:CloudResource {uid})` and never `MERGE`, so a missing EC2 instance
-  node is a no-op rather than a fabricated node. Unknown exposure rows set
+  with `NewEC2InternetExposureNodeWriter(executor, reader, batchSize)`. Same
+  MERGE-plus-existence-read fix as `S3InternetExposureNodeWriter` above
+  (issue #5652): a missing EC2 instance node is dropped in Go before the
+  write, never fabricated. Unknown exposure rows set
   `ec2_internet_exposure_state=unknown` and remove the boolean
   `ec2_internet_exposed` property. Retract removes only
   `ec2_internet_exposure_*` properties scoped by reducer evidence source and
@@ -740,9 +747,10 @@ backend-specific branch.
   at batch 500 in `1.35 ms/op`, `1.33 ms/op`, and `1.33 ms/op` on darwin/arm64
   Apple M4 Pro, about `1.97 MB/op` and `25,068 allocs/op`.
   No-Regression Evidence: `go test ./internal/storage/cypher -run
-  EC2InternetExposure -count=1` proves empty-row no-op behavior, uid-anchored
-  MATCH+SET, no node fabrication, scope/evidence annotation, unknown boolean
-  removal, raw public-IP redaction, and property-only retract.
+  EC2InternetExposure -count=1` proves empty-row no-op behavior,
+  MERGE-anchored SET on a confirmed-existing uid, never-create for an
+  unconfirmed uid, scope/evidence annotation, unknown boolean removal, raw
+  public-IP redaction, and property-only retract.
   Observability Evidence: statement summaries and operation metadata
   (`phase=ec2_internet_exposure`, `label=CloudResource:EC2InternetExposure`)
   ride each statement for the existing InstrumentedExecutor
@@ -751,10 +759,11 @@ backend-specific branch.
   completion log.
 - `EC2BlockDeviceKMSPostureNodeWriter` — writes reducer-owned EC2 block-device
   KMS posture properties onto existing EC2 `CloudResource` nodes (issue #1304);
-  constructed with `NewEC2BlockDeviceKMSPostureNodeWriter`. Uses batched
-  `UNWIND` + `MATCH (resource:CloudResource {uid})` + `SET`, never `MERGE` or
-  `CREATE`, so missing EC2 nodes are no-ops rather than fabricated nodes. Scoped
-  retract removes only `ec2_block_device_*` posture fields owned by
+  constructed with `NewEC2BlockDeviceKMSPostureNodeWriter(executor, reader,
+  batchSize)`. Same MERGE-plus-existence-read fix as `S3InternetExposureNodeWriter`
+  above (issue #5652): a missing EC2 node is dropped in Go, before the write,
+  via `PostureExistenceReader`, rather than fabricated. Scoped retract removes
+  only `ec2_block_device_*` posture fields owned by
   `reducer/ec2-block-device-kms-posture`.
 - `S3ExternalPrincipalGrantWriter` — writes metadata-only S3 bucket-policy
   access evidence as `(:CloudResource)-[:GRANTS_ACCESS_TO]->(:ExternalPrincipal)`
@@ -926,16 +935,21 @@ backend-specific branch.
 - `RDSPostureNodeWriter` — stamps RDS security and operations posture properties
   onto existing RDS DB instance and Aurora cluster `CloudResource` nodes for the
   RDS posture materialization reducer domain (issue #1233); constructed with
-  `NewRDSPostureNodeWriter`. Batched `UNWIND` +
-  `MATCH (r:CloudResource {uid})` + `SET` keeps the writer node-property-only:
-  a missing RDS node is a no-op and the writer never `MERGE`s or `CREATE`s a
-  CloudResource. The scoped retract matches only nodes with
-  `rds_posture_scope_id` and `rds_posture_evidence_source`, then `REMOVE`s only
-  reducer-owned `rds_*` posture fields.
+  `NewRDSPostureNodeWriter(executor, reader, batchSize)`. Batched `UNWIND` +
+  `MERGE (r:CloudResource {uid})` + `SET` (issue #5652: a bare `MATCH` anchor
+  here silently drops its `SET` on the pinned production NornicDB v1.1.11
+  image). Node-property-only is preserved in Go, not at the anchor clause: the
+  writer reads which candidate uids already exist via `PostureExistenceReader`
+  before writing and drops rows for uids that do not, so a missing RDS node is
+  a no-op and the writer never fabricates a CloudResource. The scoped retract
+  matches only nodes with `rds_posture_scope_id` and
+  `rds_posture_evidence_source`, then `REMOVE`s only reducer-owned `rds_*`
+  posture fields.
 
   No-Regression Evidence: `go test ./internal/storage/cypher -run
-  RDSPosture -count=1` proves empty-row no-op behavior, uid-anchored MATCH+SET,
-  no node fabrication, scope/evidence annotation, and property-only retract.
+  RDSPosture -count=1` proves empty-row no-op behavior, MERGE-anchored SET on
+  a confirmed-existing uid, never-create for an unconfirmed uid,
+  scope/evidence annotation, and property-only retract.
   Observability Evidence: statement summaries and operation metadata
   (`phase=rds_posture`, `label=CloudResource:RDSPosture`) ride each statement
   for the existing InstrumentedExecutor `eshu_dp_neo4j_query_duration_seconds`
@@ -945,11 +959,14 @@ backend-specific branch.
   posture properties (`ec2_block_device_kms_state`, reason, volume counts,
   unresolved count, sorted volume ids, and sorted KMS key ids) onto existing EC2
   `CloudResource` nodes for issue #1304. It is node-property-only: a missing EC2
-  node is a no-op, the writer never creates CloudResource nodes, and the scoped
-  retract removes only reducer-owned `ec2_block_device_*` properties.
+  node is dropped in Go via `PostureExistenceReader` before the write runs, so
+  the writer never creates CloudResource nodes even though its statement is
+  MERGE-anchored (issue #5652), and the scoped retract removes only
+  reducer-owned `ec2_block_device_*` properties.
 
-  Tests cover empty-row no-op behavior, uid-anchored MATCH+SET, no node
-  fabrication, scope/evidence annotation, and property-only retract. Statement
+  Tests cover empty-row no-op behavior, MERGE-anchored SET on a
+  confirmed-existing uid, never-create for an unconfirmed uid,
+  scope/evidence annotation, and property-only retract. Statement
   summaries and operation metadata (`phase=ec2_block_device_kms_posture`,
   `label=CloudResource:EC2BlockDeviceKMSPosture`) ride each statement for the
   existing graph query duration and batch-size metrics. Durable benchmark

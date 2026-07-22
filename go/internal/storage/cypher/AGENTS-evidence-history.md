@@ -192,3 +192,24 @@ and `slog.Any("skipped_by_label", ...)`. These reuses the existing reducer run
 spans and `eshu_dp_graph_orphan_nodes` metric; no new metric instrument, metric
 label, span, route, graph query shape, queue table, worker, lease, or runtime
 knob is added.
+
+## #5652 — UNWIND bare-MATCH SET silent write-loss (posture writers)
+
+Confirmed live on the pinned production NornicDB v1.1.11 image: an
+`UNWIND $rows AS row MATCH (n:Label {uid: row.uid}) SET ...` statement with no
+`MERGE` anywhere in it silently drops its `SET` — reports success, the
+property never persists. All four AWS posture node writers
+(`ec2_internet_exposure`, `ec2_block_device_kms_posture`, `rds_posture`,
+`s3_internet_exposure`) shipped exactly this shape. Fixed by switching the
+anchor to `MERGE` plus a separate existence read
+(`posture_node_existence.go`, `PostureExistenceReader`,
+`filterRowsToExistingCloudResourceUIDs`) that confirms a candidate uid exists
+before the row ever reaches the write, preserving each writer's never-create
+contract without relying on `MATCH` to enforce it. `unwind_bare_match_set_gate_test.go`
+statically fails any future reintroduction of the bare shape. Live proof:
+`posture_node_writers_live_test.go` (`ESHU_CYPHER_BOLT_DSN`-gated). Full
+per-writer analysis, live before/after evidence, and two related-but-distinct
+NornicDB write-loss shapes found but not fixed in the same change (a
+`WITH`-chained multi-clause edge-MERGE no-op in `canonicalNodeFileUpdateExistingCypher`,
+and an `UNWIND`-batched `DELETE` no-op in the retract/refresh statements) are
+in `docs/internal/evidence/5652-nornic-bare-match-writeloss.md`.

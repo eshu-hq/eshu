@@ -30,7 +30,7 @@ func benchS3InternetExposureRows(n int) []map[string]any {
 // lookup or node fabrication path.
 func BenchmarkS3InternetExposureNodeWriter(b *testing.B) {
 	rows := benchS3InternetExposureRows(5000)
-	writer := NewS3InternetExposureNodeWriter(noopGroupExecutor{}, 500)
+	writer := NewS3InternetExposureNodeWriter(noopGroupExecutor{}, &echoingPostureExistenceReader{}, 500)
 	ctx := context.Background()
 	b.ReportAllocs()
 	b.ResetTimer()

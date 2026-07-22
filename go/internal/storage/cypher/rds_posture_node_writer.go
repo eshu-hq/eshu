@@ -13,8 +13,18 @@ const (
 	rdsPostureNodeLabel      = "CloudResource:RDSPosture"
 )
 
+// canonicalRDSPostureUpdateCypher anchors with MERGE, not a bare MATCH.
+// Issue #5652: on the pinned production NornicDB image
+// (nornicdb-cpu-bge:v1.1.11) a bare-MATCH-anchored UNWIND SET silently drops
+// its write (statement reports success; the property is never persisted).
+// MERGE is not a blind substitute for this writer's never-create contract —
+// WriteRDSPostureNodes only ever MERGEs a uid that
+// filterRowsToExistingCloudResourceUIDs already confirmed exists via a
+// separate read, so MERGE always matches and never creates. See
+// posture_node_existence.go and
+// docs/internal/evidence/5652-nornic-bare-match-writeloss.md.
 const canonicalRDSPostureUpdateCypher = `UNWIND $rows AS row
-MATCH (r:CloudResource {uid: row.uid})
+MERGE (r:CloudResource {uid: row.uid})
 SET r.rds_identifier = row.rds_identifier,
     r.rds_resource_type = row.rds_resource_type,
     r.rds_engine = row.rds_engine,
@@ -65,19 +75,23 @@ REMOVE r.rds_identifier,
        r.rds_posture_source_fact_id`
 
 // RDSPostureNodeWriter updates RDS posture properties on existing CloudResource
-// nodes. It never creates nodes: rows whose uid is absent are no-ops.
+// nodes. It never creates nodes: WriteRDSPostureNodes reads which candidate
+// uids already exist first and drops rows for uids that do not, so a missing
+// uid is a no-op before the write ever runs.
 type RDSPostureNodeWriter struct {
 	executor  Executor
+	reader    PostureExistenceReader
 	batchSize int
 }
 
 // NewRDSPostureNodeWriter returns an RDSPostureNodeWriter backed by the given
-// Executor. A batchSize of 0 or less uses DefaultBatchSize.
-func NewRDSPostureNodeWriter(executor Executor, batchSize int) *RDSPostureNodeWriter {
+// Executor and PostureExistenceReader. A batchSize of 0 or less uses
+// DefaultBatchSize.
+func NewRDSPostureNodeWriter(executor Executor, reader PostureExistenceReader, batchSize int) *RDSPostureNodeWriter {
 	if batchSize <= 0 {
 		batchSize = DefaultBatchSize
 	}
-	return &RDSPostureNodeWriter{executor: executor, batchSize: batchSize}
+	return &RDSPostureNodeWriter{executor: executor, reader: reader, batchSize: batchSize}
 }
 
 // WriteRDSPostureNodes stamps reducer-owned RDS posture properties onto
@@ -106,7 +120,15 @@ func (w *RDSPostureNodeWriter) WriteRDSPostureNodes(
 		}))
 	}
 
-	stmts := buildBatchedStatements(canonicalRDSPostureUpdateCypher, annotated, w.batchSize)
+	existing, err := filterRowsToExistingCloudResourceUIDs(ctx, w.reader, annotated)
+	if err != nil {
+		return fmt.Errorf("rds posture node writer: %w", err)
+	}
+	if len(existing) == 0 {
+		return nil
+	}
+
+	stmts := buildBatchedStatements(canonicalRDSPostureUpdateCypher, existing, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Operation = OperationCanonicalUpsert

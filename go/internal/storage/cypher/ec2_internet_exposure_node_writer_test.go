@@ -23,7 +23,7 @@ func TestEC2InternetExposureNodeWriterEmptyRowsIsNoOp(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := NewEC2InternetExposureNodeWriter(executor, 0)
+	writer := NewEC2InternetExposureNodeWriter(executor, &echoingPostureExistenceReader{}, 0)
 
 	if err := writer.WriteEC2InternetExposureNodes(context.Background(), nil, "scope-1", "gen-1", "reducer/ec2-internet-exposure"); err != nil {
 		t.Fatalf("WriteEC2InternetExposureNodes returned error: %v", err)
@@ -33,11 +33,11 @@ func TestEC2InternetExposureNodeWriterEmptyRowsIsNoOp(t *testing.T) {
 	}
 }
 
-func TestEC2InternetExposureNodeWriterMatchesExistingCloudResourceAndSetsProperties(t *testing.T) {
+func TestEC2InternetExposureNodeWriterMergesConfirmedExistingCloudResourceAndSetsProperties(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := NewEC2InternetExposureNodeWriter(executor, 0)
+	writer := NewEC2InternetExposureNodeWriter(executor, &echoingPostureExistenceReader{}, 0)
 
 	if err := writer.WriteEC2InternetExposureNodes(context.Background(), ec2InternetExposureRows(), "scope-1", "gen-1", "reducer/ec2-internet-exposure"); err != nil {
 		t.Fatalf("WriteEC2InternetExposureNodes returned error: %v", err)
@@ -49,11 +49,15 @@ func TestEC2InternetExposureNodeWriterMatchesExistingCloudResourceAndSetsPropert
 	if !strings.Contains(cypher, "UNWIND $rows AS row") {
 		t.Fatalf("cypher missing UNWIND batch shape:\n%s", cypher)
 	}
-	if !strings.Contains(cypher, "MATCH (resource:CloudResource {uid: row.uid})") {
-		t.Fatalf("cypher must MATCH the existing CloudResource by uid:\n%s", cypher)
-	}
-	if strings.Contains(cypher, "MERGE") {
-		t.Fatalf("ec2 internet exposure must never fabricate nodes with MERGE:\n%s", cypher)
+	// Issue #5652: a bare-MATCH-anchored UNWIND SET silently drops its write
+	// on the pinned production NornicDB image, so the shipped statement
+	// anchors with MERGE. Never-create is enforced in Go instead: a row only
+	// reaches this statement once filterRowsToExistingCloudResourceUIDs has
+	// confirmed its uid already exists (see
+	// TestEC2InternetExposureNodeWriterNeverCreatesUnconfirmedCloudResource
+	// below), so MERGE always matches and never creates.
+	if !strings.Contains(cypher, "MERGE (resource:CloudResource {uid: row.uid})") {
+		t.Fatalf("cypher must MERGE-anchor on the CloudResource uid:\n%s", cypher)
 	}
 	for _, want := range []string{
 		"resource.ec2_internet_exposure_state = row.state",
@@ -77,11 +81,77 @@ func TestEC2InternetExposureNodeWriterMatchesExistingCloudResourceAndSetsPropert
 	}
 }
 
+// TestEC2InternetExposureNodeWriterNeverCreatesUnconfirmedCloudResource proves
+// the never-create contract survives the MATCH->MERGE fix (issue #5652): a
+// row whose uid the reader does not confirm as existing is dropped before it
+// ever reaches the MERGE-anchored write statement, so the executor never sees
+// it and cannot fabricate a node for it.
+func TestEC2InternetExposureNodeWriterNeverCreatesUnconfirmedCloudResource(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	reader := &echoingPostureExistenceReader{ExistingUIDs: map[string]bool{"cloud-resource-ec2-exists": true}}
+	writer := NewEC2InternetExposureNodeWriter(executor, reader, 0)
+
+	rows := []map[string]any{
+		{"uid": "cloud-resource-ec2-exists", "state": "exposed", "internet_exposed": true, "reason": "sg", "source_fact_id": "fact-1"},
+		{"uid": "cloud-resource-ec2-missing", "state": "exposed", "internet_exposed": true, "reason": "sg", "source_fact_id": "fact-2"},
+	}
+	if err := writer.WriteEC2InternetExposureNodes(context.Background(), rows, "scope-1", "gen-1", "reducer/ec2-internet-exposure"); err != nil {
+		t.Fatalf("WriteEC2InternetExposureNodes returned error: %v", err)
+	}
+	if len(executor.calls) != 1 {
+		t.Fatalf("len(calls) = %d, want 1", len(executor.calls))
+	}
+	writtenRows := executor.calls[0].Parameters["rows"].([]map[string]any)
+	if len(writtenRows) != 1 {
+		t.Fatalf("len(writtenRows) = %d, want 1 (only the confirmed-existing uid)", len(writtenRows))
+	}
+	if got := writtenRows[0]["uid"]; got != "cloud-resource-ec2-exists" {
+		t.Fatalf("writtenRows[0][uid] = %v, want cloud-resource-ec2-exists", got)
+	}
+}
+
+// TestEC2InternetExposureNodeWriterAllRowsUnconfirmedSkipsWriteEntirely proves
+// the writer issues no statement at all when the existence read confirms
+// nothing, rather than sending an empty-but-present batch.
+func TestEC2InternetExposureNodeWriterAllRowsUnconfirmedSkipsWriteEntirely(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	reader := &echoingPostureExistenceReader{ExistingUIDs: map[string]bool{}}
+	writer := NewEC2InternetExposureNodeWriter(executor, reader, 0)
+
+	if err := writer.WriteEC2InternetExposureNodes(context.Background(), ec2InternetExposureRows(), "scope-1", "gen-1", "reducer/ec2-internet-exposure"); err != nil {
+		t.Fatalf("WriteEC2InternetExposureNodes returned error: %v", err)
+	}
+	if len(executor.calls) != 0 {
+		t.Fatalf("len(calls) = %d, want 0 when no candidate uid is confirmed", len(executor.calls))
+	}
+}
+
+// TestEC2InternetExposureNodeWriterRequiresReader proves the writer fails
+// fast instead of silently defaulting to MATCH-only (bare-MATCH) semantics
+// when no PostureExistenceReader is wired.
+func TestEC2InternetExposureNodeWriterRequiresReader(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEC2InternetExposureNodeWriter(executor, nil, 0)
+
+	if err := writer.WriteEC2InternetExposureNodes(context.Background(), ec2InternetExposureRows(), "scope-1", "gen-1", "reducer/ec2-internet-exposure"); err == nil {
+		t.Fatal("WriteEC2InternetExposureNodes() error = nil, want error for nil reader")
+	}
+	if len(executor.calls) != 0 {
+		t.Fatalf("len(calls) = %d, want 0 when reader is nil", len(executor.calls))
+	}
+}
+
 func TestEC2InternetExposureNodeWriterRetractRemovesOnlyReducerOwnedProperties(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := NewEC2InternetExposureNodeWriter(executor, 0)
+	writer := NewEC2InternetExposureNodeWriter(executor, &echoingPostureExistenceReader{}, 0)
 
 	if err := writer.RetractEC2InternetExposureNodes(context.Background(), []string{"scope-1"}, "gen-1", "reducer/ec2-internet-exposure"); err != nil {
 		t.Fatalf("RetractEC2InternetExposureNodes returned error: %v", err)

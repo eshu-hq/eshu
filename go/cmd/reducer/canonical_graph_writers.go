@@ -48,15 +48,22 @@ type canonicalGraphWriters struct {
 	s3InternetExposureNode       *graphowner.S3InternetExposureLockedWriter
 }
 
-func newCanonicalGraphWriters(exec sourcecypher.Executor, batchSize int, ownerGate *graphowner.Gate, lockGate *graphowner.LockOnlyGate) canonicalGraphWriters {
+// newCanonicalGraphWriters wires the canonical graph writers. reader backs
+// the four posture node writers' pre-write CloudResource-existence check
+// (issue #5652: a bare-MATCH-anchored UNWIND SET silently drops its write on
+// the pinned production NornicDB image, so those writers now confirm a uid
+// exists via a separate read before running a MERGE-anchored write) — it is
+// typically the same query.GraphQuery graph-read port already wired for other
+// reducer read paths.
+func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.PostureExistenceReader, batchSize int, ownerGate *graphowner.Gate, lockGate *graphowner.LockOnlyGate) canonicalGraphWriters {
 	rawCloudResourceNode := sourcecypher.NewCloudResourceNodeWriter(exec, batchSize)
 	rawEC2InstanceNode := sourcecypher.NewEC2InstanceNodeWriter(exec, batchSize)
 	rawKubernetesWorkloadNode := sourcecypher.NewKubernetesWorkloadNodeWriter(exec, batchSize)
 	kubernetesNamespaceNode := sourcecypher.NewKubernetesNamespaceNodeWriter(exec, batchSize)
-	rawRDSPostureNode := sourcecypher.NewRDSPostureNodeWriter(exec, batchSize)
-	rawEC2InternetExposureNode := sourcecypher.NewEC2InternetExposureNodeWriter(exec, batchSize)
-	rawEC2BlockDeviceKMSPostureNode := sourcecypher.NewEC2BlockDeviceKMSPostureNodeWriter(exec, batchSize)
-	rawS3InternetExposureNode := sourcecypher.NewS3InternetExposureNodeWriter(exec, batchSize)
+	rawRDSPostureNode := sourcecypher.NewRDSPostureNodeWriter(exec, reader, batchSize)
+	rawEC2InternetExposureNode := sourcecypher.NewEC2InternetExposureNodeWriter(exec, reader, batchSize)
+	rawEC2BlockDeviceKMSPostureNode := sourcecypher.NewEC2BlockDeviceKMSPostureNodeWriter(exec, reader, batchSize)
+	rawS3InternetExposureNode := sourcecypher.NewS3InternetExposureNodeWriter(exec, reader, batchSize)
 	return canonicalGraphWriters{
 		cloudResourceNode:             graphowner.NewCloudResourceGatedWriter(ownerGate, rawCloudResourceNode.WriteCloudResourceNodes),
 		ec2InstanceNode:               graphowner.NewEC2InstanceGatedWriter(ownerGate, rawEC2InstanceNode.WriteEC2InstanceNodes),

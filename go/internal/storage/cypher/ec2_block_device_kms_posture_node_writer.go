@@ -12,8 +12,18 @@ const canonicalPhaseEC2BlockDeviceKMSPosture = "ec2_block_device_kms_posture"
 
 const ec2BlockDeviceKMSPostureNodeLabel = "CloudResource:EC2BlockDeviceKMSPosture"
 
+// canonicalEC2BlockDeviceKMSPostureNodeUpsertCypher anchors with MERGE, not a
+// bare MATCH. Issue #5652: on the pinned production NornicDB image
+// (nornicdb-cpu-bge:v1.1.11) a bare-MATCH-anchored UNWIND SET silently drops
+// its write (statement reports success; the property is never persisted).
+// MERGE is not a blind substitute for this writer's never-create contract —
+// WriteEC2BlockDeviceKMSPostureNodes only ever MERGEs a uid that
+// filterRowsToExistingCloudResourceUIDs already confirmed exists via a
+// separate read, so MERGE always matches and never creates. See
+// posture_node_existence.go and
+// docs/internal/evidence/5652-nornic-bare-match-writeloss.md.
 const canonicalEC2BlockDeviceKMSPostureNodeUpsertCypher = `UNWIND $rows AS row
-MATCH (resource:CloudResource {uid: row.uid})
+MERGE (resource:CloudResource {uid: row.uid})
 SET resource.ec2_block_device_kms_state = row.state,
     resource.ec2_block_device_kms_reason = row.reason,
     resource.ec2_block_device_volume_count = row.volume_count,
@@ -46,21 +56,24 @@ REMOVE resource.ec2_block_device_kms_state,
        resource.ec2_block_device_kms_source_fact_id`
 
 // EC2BlockDeviceKMSPostureNodeWriter writes reducer-owned block-device KMS
-// posture properties onto already-materialized EC2 CloudResource nodes. It never
-// creates CloudResource nodes; a missing uid is a no-op at the MATCH.
+// posture properties onto already-materialized EC2 CloudResource nodes. It
+// never creates CloudResource nodes: WriteEC2BlockDeviceKMSPostureNodes reads
+// which candidate uids already exist first and drops rows for uids that do
+// not, so a missing uid is a no-op before the write ever runs.
 type EC2BlockDeviceKMSPostureNodeWriter struct {
 	executor  Executor
+	reader    PostureExistenceReader
 	batchSize int
 }
 
 // NewEC2BlockDeviceKMSPostureNodeWriter returns an
-// EC2BlockDeviceKMSPostureNodeWriter backed by the given Executor. A batchSize
-// of 0 or less uses DefaultBatchSize (500).
-func NewEC2BlockDeviceKMSPostureNodeWriter(executor Executor, batchSize int) *EC2BlockDeviceKMSPostureNodeWriter {
+// EC2BlockDeviceKMSPostureNodeWriter backed by the given Executor and
+// PostureExistenceReader. A batchSize of 0 or less uses DefaultBatchSize (500).
+func NewEC2BlockDeviceKMSPostureNodeWriter(executor Executor, reader PostureExistenceReader, batchSize int) *EC2BlockDeviceKMSPostureNodeWriter {
 	if batchSize <= 0 {
 		batchSize = DefaultBatchSize
 	}
-	return &EC2BlockDeviceKMSPostureNodeWriter{executor: executor, batchSize: batchSize}
+	return &EC2BlockDeviceKMSPostureNodeWriter{executor: executor, reader: reader, batchSize: batchSize}
 }
 
 // WriteEC2BlockDeviceKMSPostureNodes sets reducer-owned posture properties on
@@ -90,7 +103,15 @@ func (w *EC2BlockDeviceKMSPostureNodeWriter) WriteEC2BlockDeviceKMSPostureNodes(
 		}))
 	}
 
-	stmts := buildBatchedStatements(canonicalEC2BlockDeviceKMSPostureNodeUpsertCypher, annotated, w.batchSize)
+	existing, err := filterRowsToExistingCloudResourceUIDs(ctx, w.reader, annotated)
+	if err != nil {
+		return fmt.Errorf("ec2 block-device KMS posture node writer: %w", err)
+	}
+	if len(existing) == 0 {
+		return nil
+	}
+
+	stmts := buildBatchedStatements(canonicalEC2BlockDeviceKMSPostureNodeUpsertCypher, existing, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseEC2BlockDeviceKMSPosture

@@ -104,7 +104,7 @@ func buildReducerService(
 	ownerGate.Instruments = instruments
 	// #5062: lockGate serializes posture/exposure writers against ownerGate's same-uid base-property writes (same advisory lock, no ledger row).
 	lockGate := graphowner.NewLockOnlyGate(reducerBeginner(database))
-	graphWriters := newCanonicalGraphWriters(neo4jExec, neo4jBatchSize(getenv), ownerGate, lockGate)
+	graphWriters := newCanonicalGraphWriters(neo4jExec, graphReader, neo4jBatchSize(getenv), ownerGate, lockGate)
 	secretsIAMGraphWriter, err := secretsIAMGraphProjectionWriter(getenv, neo4jExec, neo4jBatchSize(getenv), logger)
 	if err != nil {
 		return reducer.Service{}, err
