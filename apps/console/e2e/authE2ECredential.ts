@@ -18,24 +18,36 @@ const execFileAsync = promisify(execFile);
 const prebuiltCredentialCommandTimeoutMs = 15_000;
 const goRunCredentialCommandTimeoutMs = 60_000;
 
-export interface CredentialCommand {
+export interface EshuCommand {
   readonly file: string;
   readonly args: string[];
+}
+
+// resolveEshuCommand centralizes the exact-source CLI selection for fresh-stack
+// E2E commands. Callers without a wrapper-owned build keep the explicit go-run
+// fallback, while wrappers that already built the CLI never rebuild it inside a
+// command timeout.
+export function resolveEshuCommand(
+  eshuBinary: string,
+  repoGoDir: string,
+  args: readonly string[],
+): EshuCommand {
+  const binary = eshuBinary.trim();
+  if (binary !== "") {
+    return { file: binary, args: [...args] };
+  }
+  return {
+    file: "go",
+    args: ["-C", repoGoDir, "run", "./cmd/eshu", ...args],
+  };
 }
 
 // resolveCredentialCommand keeps retained-proof callers compatible while the
 // fresh-stack gates pass an exact-source binary built before the runtime
 // timeout starts. The fallback remains intentionally visible: it is slower,
 // but existing retained workflows do not yet promise a prebuilt CLI.
-export function resolveCredentialCommand(eshuBinary: string, repoGoDir: string): CredentialCommand {
-  const binary = eshuBinary.trim();
-  if (binary !== "") {
-    return { file: binary, args: ["admin", "initial-credential"] };
-  }
-  return {
-    file: "go",
-    args: ["-C", repoGoDir, "run", "./cmd/eshu", "admin", "initial-credential"],
-  };
+export function resolveCredentialCommand(eshuBinary: string, repoGoDir: string): EshuCommand {
+  return resolveEshuCommand(eshuBinary, repoGoDir, ["admin", "initial-credential"]);
 }
 
 // e2eDefaultAuthSecretEncKey is the fixed, publicly-known, all-zero dev-only

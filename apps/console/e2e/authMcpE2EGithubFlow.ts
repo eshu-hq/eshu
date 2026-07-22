@@ -13,6 +13,7 @@ import { promisify } from "node:util";
 import type { Browser, Page } from "playwright";
 
 import { apiFetchInPage, chromiumLaunchArgs as baseChromiumLaunchArgs } from "./authE2EOidcFlow.ts";
+import { resolveEshuCommand, type EshuCommand } from "./authE2ECredential.ts";
 import type { AuthE2EStep } from "./authE2EStepRecorder.ts";
 import { assertMcpToolCallRowFiltered, type ShapeAContext } from "./authMcpE2ETokenFlow.ts";
 
@@ -51,7 +52,10 @@ export interface GithubProviderOpts {
 // authE2EOidcFlow.ts's driveAddOidcProviderViaUI — see that function's doc
 // comment for the deterministic-gate reasoning (network response over
 // transient DOM, drawer's own React state before Save).
-export async function driveAddGithubProviderViaUI(page: Page, opts: GithubProviderOpts): Promise<void> {
+export async function driveAddGithubProviderViaUI(
+  page: Page,
+  opts: GithubProviderOpts,
+): Promise<void> {
   await page.goto("/admin", { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
   await page.waitForSelector(".identity-access-panel", { timeout: navTimeoutMs });
   await page.click('button:has-text("Add provider")');
@@ -79,13 +83,17 @@ export async function driveAddGithubProviderViaUI(page: Page, opts: GithubProvid
     );
   }
   if (testConnectionResponse.status() !== 200) {
-    throw new Error(`GitHub provider test-connection returned ${testConnectionResponse.status()} instead of 200`);
+    throw new Error(
+      `GitHub provider test-connection returned ${testConnectionResponse.status()} instead of 200`,
+    );
   }
   const testConnectionBody: { ok?: boolean } = await testConnectionResponse
     .json()
     .catch(() => ({}) as { ok?: boolean });
   if (testConnectionBody.ok !== true) {
-    throw new Error(`GitHub provider test-connection responded 200 but body.ok was not true: ${JSON.stringify(testConnectionBody)}`);
+    throw new Error(
+      `GitHub provider test-connection responded 200 but body.ok was not true: ${JSON.stringify(testConnectionBody)}`,
+    );
   }
 
   await page.waitForFunction(
@@ -99,7 +107,9 @@ export async function driveAddGithubProviderViaUI(page: Page, opts: GithubProvid
   );
 
   await page.click('.drawer button:has-text("Save")');
-  await page.waitForSelector('.drawer p[role="status"]:has-text("Saved and enabled")', { timeout: navTimeoutMs });
+  await page.waitForSelector('.drawer p[role="status"]:has-text("Saved and enabled")', {
+    timeout: navTimeoutMs,
+  });
   await page.click('.drawer button[aria-label="Close"]');
   await page.waitForSelector(".drawer", { state: "detached", timeout: navTimeoutMs });
 }
@@ -146,7 +156,9 @@ export async function findGithubProviderConfigId(page: Page, baseUrl: string): P
     );
   }
   if (match.status !== "active") {
-    throw new Error(`github provider config ${match.provider_config_id} is not active (status=${match.status})`);
+    throw new Error(
+      `github provider config ${match.provider_config_id} is not active (status=${match.status})`,
+    );
   }
   return match.provider_config_id;
 }
@@ -156,14 +168,20 @@ export async function findGithubProviderConfigId(page: Page, baseUrl: string): P
 // admin API and constraint authE2EOidcFlow.ts's createMemberGroupRoleMapping
 // uses for OIDC groups (identity_provider_group_role_mappings is shared
 // across provider kinds).
-export async function createGithubTeamRoleMapping(page: Page, providerConfigId: string, teamHandle: string): Promise<void> {
+export async function createGithubTeamRoleMapping(
+  page: Page,
+  providerConfigId: string,
+  teamHandle: string,
+): Promise<void> {
   const result = await apiFetchInPage(page, "POST", "/api/v0/auth/admin/idp-group-mappings", {
     provider_config_id: providerConfigId,
     external_group: teamHandle,
     role_id: "owner",
   });
   if (result.status >= 300) {
-    throw new Error(`create idp group mapping (${teamHandle} -> owner) failed (${result.status}): ${result.text}`);
+    throw new Error(
+      `create idp group mapping (${teamHandle} -> owner) failed (${result.status}): ${result.text}`,
+    );
   }
 }
 
@@ -174,14 +192,22 @@ export async function createGithubTeamRoleMapping(page: Page, providerConfigId: 
 // to succeed at all, not merely for permissions (CompleteGitHubLogin returns
 // ErrGitHubLoginDenied when zero role grants resolve, mirroring
 // CompleteOIDCLogin's identical guard).
-export async function attemptGithubLoginExpectDenied(browser: Browser, baseUrl: string): Promise<string> {
+export async function attemptGithubLoginExpectDenied(
+  browser: Browser,
+  baseUrl: string,
+): Promise<string> {
   const context = await browser.newContext({ baseURL: baseUrl });
   try {
     const page = await context.newPage();
-    await page.goto("/login?tenant_id=default", { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
+    await page.goto("/login?tenant_id=default", {
+      waitUntil: "domcontentloaded",
+      timeout: navTimeoutMs,
+    });
     await page.locator(".btn-sso").first().waitFor({ state: "visible", timeout: navTimeoutMs });
     const [callbackResponse] = await Promise.all([
-      page.waitForResponse((resp) => resp.url().includes("/github/callback"), { timeout: navTimeoutMs }),
+      page.waitForResponse((resp) => resp.url().includes("/github/callback"), {
+        timeout: navTimeoutMs,
+      }),
       page.locator(".btn-sso").first().click(),
     ]);
     if (callbackResponse.status() !== 403) {
@@ -205,7 +231,10 @@ export async function driveGithubLoginExpectSuccess(
 ): Promise<Awaited<ReturnType<Browser["newContext"]>>> {
   const context = await browser.newContext({ baseURL: baseUrl });
   const page = await context.newPage();
-  await page.goto("/login?tenant_id=default", { waitUntil: "domcontentloaded", timeout: navTimeoutMs });
+  await page.goto("/login?tenant_id=default", {
+    waitUntil: "domcontentloaded",
+    timeout: navTimeoutMs,
+  });
   await page.locator(".btn-sso").first().waitFor({ state: "visible", timeout: navTimeoutMs });
   // App.tsx's AppSidebar renders UNCONDITIONALLY as soon as the post-login
   // shell mounts, using a fail-open (show-everything) allowedNav set until
@@ -247,7 +276,9 @@ export async function driveGithubLoginExpectSuccess(
 async function assertDiscoveryStillNotEnabled(mcpBase: string): Promise<string> {
   const discoveryRes = await fetch(`${mcpBase}/.well-known/oauth-protected-resource`);
   if (discoveryRes.status !== 404) {
-    throw new Error(`expected discovery to STILL 404 with only a GitHub provider configured, got ${discoveryRes.status}`);
+    throw new Error(
+      `expected discovery to STILL 404 with only a GitHub provider configured, got ${discoveryRes.status}`,
+    );
   }
   const initRes = await fetch(`${mcpBase}/mcp/message`, {
     method: "POST",
@@ -259,9 +290,25 @@ async function assertDiscoveryStillNotEnabled(mcpBase: string): Promise<string> 
   }
   const challenge = initRes.headers.get("WWW-Authenticate");
   if (challenge !== "Bearer") {
-    throw new Error(`expected the bare "Bearer" challenge with only a GitHub provider configured, got: ${challenge}`);
+    throw new Error(
+      `expected the bare "Bearer" challenge with only a GitHub provider configured, got: ${challenge}`,
+    );
   }
   return "discovery route STILL 404s and the credential-less 401 challenge STILL bare with only a GitHub provider configured";
+}
+
+export function resolveMcpSetupCommand(
+  eshuBinary: string,
+  repoGoDir: string,
+  mcpBase: string,
+): EshuCommand {
+  return resolveEshuCommand(eshuBinary, repoGoDir, [
+    "mcp",
+    "setup",
+    "--hosted",
+    "--service-url",
+    mcpBase,
+  ]);
 }
 
 // assertMcpSetupPostureIsToken shells out to `eshu mcp setup --hosted
@@ -269,14 +316,17 @@ async function assertDiscoveryStillNotEnabled(mcpBase: string): Promise<string> 
 // snippet references the per-user token env var, not an OAuth-only shape —
 // the CLI's own discovery probe against mcpBase should resolve postureToken
 // because the discovery route still 404s (see assertDiscoveryStillNotEnabled).
-async function assertMcpSetupPostureIsToken(repoGoDir: string, mcpBase: string): Promise<string> {
-  const { stdout } = await execFileAsync(
-    "go",
-    ["-C", repoGoDir, "run", "./cmd/eshu", "mcp", "setup", "--hosted", "--service-url", mcpBase],
-    { timeout: 60000 },
-  );
+async function assertMcpSetupPostureIsToken(
+  repoGoDir: string,
+  mcpBase: string,
+  eshuBinary = process.env.ESHU_E2E_ESHU_BINARY ?? "",
+): Promise<string> {
+  const command = resolveMcpSetupCommand(eshuBinary, repoGoDir, mcpBase);
+  const { stdout } = await execFileAsync(command.file, command.args, { timeout: 60000 });
   if (!stdout.includes("ESHU_MCP_TOKEN")) {
-    throw new Error(`expected the printed MCP setup snippet to reference ESHU_MCP_TOKEN (token posture): ${stdout}`);
+    throw new Error(
+      `expected the printed MCP setup snippet to reference ESHU_MCP_TOKEN (token posture): ${stdout}`,
+    );
   }
   return "eshu mcp setup --hosted resolved token posture (snippet references ESHU_MCP_TOKEN)";
 }
@@ -354,11 +404,15 @@ export async function runShapeC(
   });
   if (memberContext) await memberContext.close();
 
-  await step("shapeC_discovery_and_challenge_unaffected", () => assertDiscoveryStillNotEnabled(ctx.mcpBase));
+  await step("shapeC_discovery_and_challenge_unaffected", () =>
+    assertDiscoveryStillNotEnabled(ctx.mcpBase),
+  );
 
   await step("shapeC_mcp_still_works_via_personal_token", () =>
     assertMcpToolCallRowFiltered(ctx, personalToken),
   );
 
-  await step("shapeC_mcp_setup_posture_is_token", () => assertMcpSetupPostureIsToken(ctx.repoGoDir, ctx.mcpBase));
+  await step("shapeC_mcp_setup_posture_is_token", () =>
+    assertMcpSetupPostureIsToken(ctx.repoGoDir, ctx.mcpBase),
+  );
 }
