@@ -122,6 +122,25 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		)
 		return err
 	})
+	fluxBindingsGraph := &legacyQueryplanCaptureGraph{runRows: func(run int) []map[string]any {
+		if run == 0 {
+			return []map[string]any{{"artifact_id": "artifact:proof"}}
+		}
+		return nil
+	}}
+	if _, err := fetchFluxDeploymentSourceTargetBindings(
+		context.Background(),
+		fluxBindingsGraph,
+		"repository:target",
+		[]string{"repository:source"},
+		51,
+		repositoryAccessFilter{allScopes: true},
+	); err != nil {
+		t.Fatalf("capture Flux deployment bindings Cypher: %v", err)
+	}
+	if len(fluxBindingsGraph.cypher) != 2 {
+		t.Fatalf("captured Flux deployment binding Cypher count = %d, want 2", len(fluxBindingsGraph.cypher))
+	}
 	infraSearch := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
 		handler := &InfraHandler{Neo4j: graphQuery}
 		request := httptest.NewRequest(
@@ -160,6 +179,8 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		"QP-CODE-IMPORT-CYCLES":                           fileImportCycleEdgeRowsCypher(importDependencyRequest{QueryType: "file_import_cycles", RepoID: "proof-repository", Limit: 10}),
 		"QP-READINESS-HOSTED":                             hostedRepositoryCount,
 		"QP-IMPACT-CHANGE-SURFACE":                        changeSurface,
+		"QP-IMPACT-FLUX-BINDINGS-FIRST-HOP":               fluxBindingsGraph.cypher[0],
+		"QP-IMPACT-FLUX-BINDINGS-TARGET-EXPANSION":        fluxBindingsGraph.cypher[1],
 		"QP-RELATIONSHIPS-CATALOG-COUNT":                  relationshipCountCypher(relationshipVerbByName["CALLS"]),
 		"QP-RELATIONSHIPS-EDGES":                          relationshipEdgesCypher(relationshipVerbByName["CALLS"], repositoryAccessFilter{allScopes: true}),
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY": sourceToolQueries[0],
@@ -180,7 +201,8 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 }
 
 type legacyQueryplanCaptureGraph struct {
-	cypher []string
+	cypher  []string
+	runRows func(int) []map[string]any
 }
 
 func (g *legacyQueryplanCaptureGraph) Run(
@@ -188,7 +210,11 @@ func (g *legacyQueryplanCaptureGraph) Run(
 	cypher string,
 	_ map[string]any,
 ) ([]map[string]any, error) {
+	run := len(g.cypher)
 	g.cypher = append(g.cypher, cypher)
+	if g.runRows != nil {
+		return g.runRows(run), nil
+	}
 	return nil, nil
 }
 

@@ -17,6 +17,8 @@ required_ids:
   - QP-READINESS-HOSTED
   - QP-READINESS-SC-IMPACT
   - QP-IMPACT-CHANGE-SURFACE
+  - QP-IMPACT-FLUX-BINDINGS-FIRST-HOP
+  - QP-IMPACT-FLUX-BINDINGS-TARGET-EXPANSION
   - QP-RELATIONSHIPS-CATALOG-COUNT
   - QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY
   - QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE
@@ -500,6 +502,65 @@ entries:
         - CartesianProduct
         - UnboundedExpand
     cypher_sha256: "5e78165ee7bbde33ec370dac7baced49f8a62b9b07ce6e6230685f523a4acea0"
+  - id: QP-IMPACT-FLUX-BINDINGS-FIRST-HOP
+    domain: impact
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/impact_trace_deployment_flux_bindings.go
+      symbol: fetchFluxDeploymentSourceTargetBindings
+      source_sha256: 4fb49a5ad5c2dc10f5ce4cfc058a0cfd1f54daa07f49d86882767d4b1c94810d
+      line_hint: 18
+    required_anchors:
+      - label: Repository
+        property: id
+    required_schema:
+      - repository_id
+      - nornicdb_repository_id_lookup
+    required_limits:
+      - $source_limit
+    caveats:
+      - The first hop is a 51-row sentinel over the already bounded deployment-source repository IDs. Saturation stops the target expansion so the result is never a partial attribution set.
+    plan:
+      operators:
+        - NodeIndexSeek
+        - Expand
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+        - UnboundedExpand
+    cypher_sha256: "da11d286386c199f8bb79be0ff341992129f63b8a205626953429774d78fadd2"
+  - id: QP-IMPACT-FLUX-BINDINGS-TARGET-EXPANSION
+    domain: impact
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/impact_trace_deployment_flux_bindings.go
+      symbol: fetchFluxDeploymentSourceTargetBindings
+      source_sha256: 4fb49a5ad5c2dc10f5ce4cfc058a0cfd1f54daa07f49d86882767d4b1c94810d
+      line_hint: 18
+    required_anchors:
+      - label: EvidenceArtifact
+        property: id
+      - label: Repository
+        property: id
+    required_schema:
+      - evidence_artifact_id
+      - nornicdb_evidence_artifact_id_lookup
+      - repository_id
+      - nornicdb_repository_id_lookup
+    allow_unlabeled: true
+    caveats:
+      - Expansion receives only distinct artifact IDs from a non-saturated 51-row first-hop sentinel, then anchors the target repository by exact id. The second MATCH reuses the first-match artifact variable; Go sorts and deduplicates the binding identities before response assembly.
+    plan:
+      operators:
+        - NodeIndexSeek
+        - Expand
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+        - UnboundedExpand
+    cypher_sha256: "51a52e966308dfb470b80594aaade4d6f6f933e704af28d470800e3aa78f5303"
   - id: QP-RELATIONSHIPS-CATALOG-COUNT
     domain: relationships
     backend: nornicdb
