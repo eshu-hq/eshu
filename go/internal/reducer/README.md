@@ -1511,6 +1511,18 @@ Key metrics (all prefixed `eshu_dp_`):
   workload materialization completed` structured log with per-stage durations and
   the node count. See issue #388 and
   `docs/internal/design/388-kubernetes-workload-node.md`.
+- `DomainKubernetesNamespaceMaterialization` emits NO new metric instrument
+  (issue #5434). A malformed `kubernetes_live.namespace` fact still increments
+  the existing `instruments.ReducerInputInvalidFacts` counter (new
+  `domain`/`fact_kind` attribute values on the existing closed label set), and
+  completion is logged via a `kubernetes namespace materialization completed`
+  structured log (fact count, node count, environment-bound count, per-stage
+  durations) mirroring the workload handler's log shape. No-Observability-Change:
+  reusing `kubernetes_workload_nodes_total` for this domain's node count would
+  corrupt that counter's KubernetesWorkload-specific meaning, so this domain
+  deliberately adds neither a new instrument nor a reused one; a
+  `kubernetes_namespace_nodes_total` counter (dimensioned by
+  `environment_bound`) is a documented follow-up, not required for #5434.
 - `kubernetes_correlation_edges_total` — canonical `RUNS_IMAGE` live-workload
   edges committed by `DomainKubernetesCorrelationMaterialization`, dimensioned by
   `resolution_mode` (`digest`). It counts only materialized exact edges;
