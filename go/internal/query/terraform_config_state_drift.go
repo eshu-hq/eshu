@@ -288,6 +288,11 @@ func (h *TerraformConfigStateDriftHandler) handleFindings(w http.ResponseWriter,
 	// scope_id grant check above, so they must be filtered against the
 	// caller's grant independently before the response is written.
 	findings = filterTerraformConfigStateDriftAmbiguousOwnerCandidates(findings, access)
+	// #5442 P3: an exact finding's Evidence[] config atom carries the config
+	// repo's own scope_id (anchor.ScopeID), not the finding's own granted
+	// state_snapshot scope_id checked above, so it must be redacted against
+	// the caller's grant independently before the response is written.
+	findings = filterTerraformConfigStateDriftEvidence(findings, access)
 	writeTerraformConfigStateDriftFindings(w, r, h, filter, findings, totalFindings)
 }
 
