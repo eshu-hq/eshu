@@ -35,7 +35,7 @@ func callGraphMetricFunctions(req callGraphMetricsRequest, rows []map[string]any
 		item["rank"] = req.Offset + index + 1
 		item["source_backend"] = "graph"
 		item["source_handle"] = callGraphMetricSourceHandle(row)
-		if functionID := StringVal(row, "function_id"); functionID != "" {
+		if functionID := callGraphMetricIdentity(row, "function_key", "function_id"); functionID != "" {
 			item["entity_handle"] = "entity:" + functionID
 		}
 		if req.metricType() == "recursive_functions" {
@@ -54,6 +54,13 @@ func callGraphMetricSourceHandle(row map[string]any) map[string]any {
 		"relative_path": StringVal(row, "file_path"),
 		"content_tool":  "get_file_content",
 	}
+}
+
+func callGraphMetricIdentity(row map[string]any, canonicalKey string, legacyKey string) string {
+	if canonicalID := StringVal(row, canonicalKey); canonicalID != "" {
+		return canonicalID
+	}
+	return StringVal(row, legacyKey)
 }
 
 func callGraphRecursionKind(row map[string]any) string {
@@ -87,7 +94,7 @@ func callGraphRecursionEvidence(row map[string]any) map[string]any {
 			"content_tool":  "get_file_content",
 		}
 	}
-	if partnerID := StringVal(row, "partner_id"); partnerID != "" {
+	if partnerID := callGraphMetricIdentity(row, "partner_key", "partner_id"); partnerID != "" {
 		evidence["partner_entity_handle"] = "entity:" + partnerID
 	}
 	return evidence

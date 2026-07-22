@@ -157,6 +157,13 @@ func TestCallGraphMetricsRowsUsesCanonicalUIDsForRecursivePairs(t *testing.T) {
 	if got, want := StringVal(functions[0], "recursion_kind"), "mutual_call"; got != want {
 		t.Fatalf("recursion_kind = %q, want %q; row=%#v", got, want, functions[0])
 	}
+	if got, want := StringVal(functions[0], "entity_handle"), "entity:uid-first"; got != want {
+		t.Fatalf("entity_handle = %q, want canonical handle %q", got, want)
+	}
+	recursionEvidence, _ := functions[0]["recursion_evidence"].(map[string]any)
+	if got, want := StringVal(recursionEvidence, "partner_entity_handle"), "entity:uid-second"; got != want {
+		t.Fatalf("partner_entity_handle = %q, want canonical handle %q", got, want)
+	}
 	for _, internalKey := range []string{"function_key", "partner_key"} {
 		if _, ok := functions[0][internalKey]; ok {
 			t.Fatalf("response leaked internal canonical key %q: %#v", internalKey, functions[0])
@@ -164,6 +171,15 @@ func TestCallGraphMetricsRowsUsesCanonicalUIDsForRecursivePairs(t *testing.T) {
 	}
 	if StringVal(functions[0], "file_path") == StringVal(functions[0], "partner_file") {
 		t.Fatalf("recursive pair collapsed to one legacy-id node: %#v", functions[0])
+	}
+}
+
+func TestCallGraphMetricIdentityFallsBackToLegacyID(t *testing.T) {
+	t.Parallel()
+
+	row := map[string]any{"function_id": "legacy-only"}
+	if got, want := callGraphMetricIdentity(row, "function_key", "function_id"), "legacy-only"; got != want {
+		t.Fatalf("callGraphMetricIdentity() = %q, want legacy fallback %q", got, want)
 	}
 }
 
