@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
-	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -482,25 +481,4 @@ func wireAPI(
 	}
 
 	return final, cleanup, instruments, nil
-}
-
-func openQueryGraph(
-	ctx context.Context,
-	getenv func(string) string,
-	queryProfile query.QueryProfile,
-	logger *slog.Logger,
-) (neo4jdriver.DriverWithContext, string, error) {
-	neo4jDB := envOrDefault(getenv, "DEFAULT_DATABASE", "nornic")
-	if queryProfile == query.ProfileLocalLightweight || strings.EqualFold(envOrDefault(getenv, "ESHU_DISABLE_NEO4J", ""), "true") {
-		return nil, neo4jDB, nil
-	}
-
-	driver, cfg, err := internalruntime.OpenNeo4jDriver(ctx, getenv)
-	if err != nil {
-		return nil, "", err
-	}
-	if logger != nil {
-		logger.Info("neo4j connected", telemetry.EventAttr("runtime.neo4j.connected"), slog.String("neo4j_uri", cfg.URI))
-	}
-	return driver, cfg.DatabaseName, nil
 }
