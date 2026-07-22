@@ -31,8 +31,9 @@
 // identities. Internal candidate scans stop at 25,000 rows and return a scope-
 // narrowing error instead of extending the request timeout.
 // Call-graph metric handlers read the repository's directed CALLS edges in one
-// Function.repo_id-indexed pass with a 50,001-edge sentinel, then compute
-// distinct hub degree and recursive pairs in Go before deterministic paging.
+// Function.repo_id-indexed pass with a 50,001-edge sentinel, key functions by
+// canonical Function.uid with a legacy id fallback, then compute distinct hub
+// degree and recursive pairs in Go before deterministic paging.
 // Repositories above the 50,000-edge exactness bound fail closed with HTTP 422
 // and no partial rows. This bounds materialization without relying on
 // backend-specific multi-clause aggregation shortcuts on the read path.

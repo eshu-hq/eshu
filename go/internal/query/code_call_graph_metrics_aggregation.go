@@ -6,6 +6,7 @@ package query
 import "sort"
 
 type callGraphMetricFunction struct {
+	key       string
 	id        string
 	path      string
 	language  string
@@ -20,8 +21,8 @@ type callGraphMetricEdge struct {
 }
 
 type callGraphMetricEdgeKey struct {
-	sourceID string
-	targetID string
+	sourceKey string
+	targetKey string
 }
 
 type callGraphMetricsStats struct {
@@ -59,19 +60,25 @@ func normalizedCallGraphMetricEdges(
 			source: callGraphMetricFunctionFromRow(row, "source"),
 			target: callGraphMetricFunctionFromRow(row, "target"),
 		}
-		if edge.source.id == "" || edge.target.id == "" {
+		if edge.source.key == "" || edge.target.key == "" {
 			continue
 		}
-		functions[edge.source.id] = edge.source
-		functions[edge.target.id] = edge.target
-		edges[callGraphMetricEdgeKey{sourceID: edge.source.id, targetID: edge.target.id}] = struct{}{}
+		functions[edge.source.key] = edge.source
+		functions[edge.target.key] = edge.target
+		edges[callGraphMetricEdgeKey{sourceKey: edge.source.key, targetKey: edge.target.key}] = struct{}{}
 	}
 	return edges, functions
 }
 
 func callGraphMetricFunctionFromRow(row map[string]any, prefix string) callGraphMetricFunction {
+	id := StringVal(row, prefix+"_id")
+	key := StringVal(row, prefix+"_uid")
+	if key == "" {
+		key = id
+	}
 	return callGraphMetricFunction{
-		id:        StringVal(row, prefix+"_id"),
+		key:       key,
+		id:        id,
 		path:      StringVal(row, prefix+"_path"),
 		language:  StringVal(row, prefix+"_language"),
 		name:      StringVal(row, prefix+"_name"),
@@ -88,8 +95,8 @@ func hubCallGraphMetricRows(
 	incoming := make(map[string]int, len(functions))
 	outgoing := make(map[string]int, len(functions))
 	for edge := range edges {
-		outgoing[edge.sourceID]++
-		incoming[edge.targetID]++
+		outgoing[edge.sourceKey]++
+		incoming[edge.targetKey]++
 	}
 
 	rows := make([]map[string]any, 0, len(functions))
@@ -125,18 +132,19 @@ func recursiveCallGraphMetricRows(
 ) []map[string]any {
 	rows := make([]map[string]any, 0)
 	for edge := range edges {
-		if edge.sourceID > edge.targetID {
+		if edge.sourceKey > edge.targetKey {
 			continue
 		}
-		if _, ok := edges[callGraphMetricEdgeKey{sourceID: edge.targetID, targetID: edge.sourceID}]; !ok {
+		if _, ok := edges[callGraphMetricEdgeKey{sourceKey: edge.targetKey, targetKey: edge.sourceKey}]; !ok {
 			continue
 		}
-		source := functions[edge.sourceID]
-		target := functions[edge.targetID]
+		source := functions[edge.sourceKey]
+		target := functions[edge.targetKey]
 		if !callGraphMetricLanguageMatches(req, source) || !callGraphMetricLanguageMatches(req, target) {
 			continue
 		}
 		rows = append(rows, callGraphMetricFunctionRow(req.RepoID, source, map[string]any{
+			"partner_key":        target.key,
 			"partner_file":       target.path,
 			"partner_id":         target.id,
 			"partner_name":       target.name,
@@ -161,6 +169,7 @@ func callGraphMetricFunctionRow(
 	extra map[string]any,
 ) map[string]any {
 	row := map[string]any{
+		"function_key":  function.key,
 		"repo_id":       repoID,
 		"file_path":     function.path,
 		"language":      function.language,
@@ -181,12 +190,12 @@ func callGraphMetricFunctionRowLess(
 	leftPartnerPrefix string,
 	rightPartnerPrefix string,
 ) bool {
-	for _, key := range []string{"file_path", "start_line", "function_name", "function_id"} {
+	for _, key := range []string{"file_path", "start_line", "function_name", "function_id", "function_key"} {
 		if less, decided := callGraphMetricValueLess(left, right, key, key); decided {
 			return less
 		}
 	}
-	for _, suffix := range []string{"file", "start_line", "name", "id"} {
+	for _, suffix := range []string{"file", "start_line", "name", "id", "key"} {
 		leftKey := leftPartnerPrefix + suffix
 		rightKey := rightPartnerPrefix + suffix
 		if less, decided := callGraphMetricValueLess(left, right, leftKey, rightKey); decided {

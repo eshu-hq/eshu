@@ -30,6 +30,8 @@ func callGraphMetricFunctions(req callGraphMetricsRequest, rows []map[string]any
 	functions := make([]map[string]any, 0, len(rows))
 	for index, row := range rows {
 		item := cloneQueryAnyMap(row)
+		delete(item, "function_key")
+		delete(item, "partner_key")
 		item["rank"] = req.Offset + index + 1
 		item["source_backend"] = "graph"
 		item["source_handle"] = callGraphMetricSourceHandle(row)
@@ -55,7 +57,15 @@ func callGraphMetricSourceHandle(row map[string]any) map[string]any {
 }
 
 func callGraphRecursionKind(row map[string]any) string {
-	if StringVal(row, "function_id") == StringVal(row, "partner_id") {
+	functionKey := StringVal(row, "function_key")
+	if functionKey == "" {
+		functionKey = StringVal(row, "function_id")
+	}
+	partnerKey := StringVal(row, "partner_key")
+	if partnerKey == "" {
+		partnerKey = StringVal(row, "partner_id")
+	}
+	if functionKey == partnerKey {
 		return "self_call"
 	}
 	return "mutual_call"

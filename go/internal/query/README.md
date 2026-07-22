@@ -137,9 +137,10 @@ truncation, and scan overflow.
 Call-graph metrics also use one repository-scoped edge pass. The graph query
 anchors both `Function` endpoints by indexed `repo_id` and reads each physical
 directed `CALLS` edge in one pass, with a 50,001-edge sentinel. Go then
-deduplicates caller/callee pairs, computes hub degree or reverse-edge recursion,
-applies the language filter, sorts exact ties by function identity, and pages
-the finished result. Repositories with more than 50,000 physical `CALLS` edges
+deduplicates caller/callee pairs by canonical `Function.uid` with a legacy `id`
+fallback, computes hub degree or reverse-edge recursion, applies the language
+filter, sorts exact ties by canonical identity, and pages the finished result.
+Repositories with more than 50,000 physical `CALLS` edges
 fail closed with HTTP 422 and no partial metric rows. This avoids unbounded
 materialization and avoids backend-specific multi-clause aggregate and
 mutual-edge shapes on this path while preserving self-calls and duplicate-edge

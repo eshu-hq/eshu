@@ -197,12 +197,14 @@ func (h *CodeHandler) callGraphMetricsData(ctx context.Context, req callGraphMet
 
 func callGraphMetricsEdgesCypher(repoID string) (string, map[string]any) {
 	return `MATCH (source:Function {repo_id: $repo_id})-[call:CALLS]->(target:Function {repo_id: $repo_id})
-RETURN coalesce(source.id, source.uid) AS source_id,
+RETURN source.uid AS source_uid,
+       coalesce(source.id, source.uid) AS source_id,
        source.relative_path AS source_path,
        source.language AS source_language,
        source.name AS source_name,
        source.start_line AS source_start_line,
        source.end_line AS source_end_line,
+       target.uid AS target_uid,
        coalesce(target.id, target.uid) AS target_id,
        target.relative_path AS target_path,
        target.language AS target_language,

@@ -8,8 +8,9 @@ a 75-second request deadline even though the repository contained only 42,197
 `CALLS` relationships.
 
 The finished path reads the repository's directed `CALLS` edges once. Go then
-deduplicates source-target pairs, calculates distinct in/out degree or reverse
-pairs, applies the language filter, sorts with complete tie breakers, and takes
+deduplicates source-target pairs by canonical `Function.uid` with a legacy `id`
+fallback, calculates distinct in/out degree or reverse pairs, applies the
+language filter, sorts with complete tie breakers, and takes
 the requested `limit+1` page. A 50,001-edge sentinel bounds materialization:
 repositories through 50,000 physical edges receive exact metrics, while larger
 repositories receive HTTP 422 with no partial rows. Runtime settings do not
@@ -22,6 +23,7 @@ change.
 | Hub functions | The graph repeatedly expanded repository containment while counting each function's callers and callees. | One repository-scoped edge read feeds exact distinct-degree aggregation. |
 | Recursive functions | The graph expanded both call directions and repeated repository membership checks. | One edge read builds a reverse-edge lookup and emits each self or mutual pair once. |
 | Duplicate `CALLS` edges | Duplicate physical edges could do extra work and could repeat recursive matches. | A directed source-target pair contributes once. |
+| Functions sharing a legacy `id` | Distinct canonical functions could collapse into one metric row. | Canonical `uid` keeps hub degree and recursive pairs separate; older UID-less nodes fall back to `id`. |
 | Paging ties | Path, line, and name ties had no final stable key. | Function and partner IDs finish the ordering before offset and limit are applied. |
 | Repository above the exact edge bound | The handler could materialize every physical edge even when the user requested one row. | The query stops at a 50,001-edge sentinel and returns HTTP 422 without partial metrics. |
 
@@ -81,9 +83,10 @@ concurrency setting changed.
 
 The checked-in production-path SLO gate independently seeds the same corpus and
 runs `CodeHandler.callGraphMetricsData` four times per variant. After adding
-the 50,001-edge sentinel, the final rebased branch measured hub at 613.966041 ms
-on the first read and 276.316583 ms warm median; recursive measured 265.731042 ms
-on the first read and 193.070875 ms warm median. These
+the 50,001-edge sentinel and canonical-UID collision fix, the final branch
+measured hub at 574.495917 ms on the first read and 285.635333 ms warm median;
+recursive measured 209.164958 ms on the first read and 195.713166 ms warm
+median. These
 post-seed timings verify the executable regression gate. The restart-separated
 table above remains the cold-process comparison and is not replaced by them.
 
@@ -98,6 +101,8 @@ backend separately because it is not numerically comparable with Neo4j.
 Focused tests cover:
 
 - duplicate physical edges without inflated hub counts;
+- distinct canonical functions that share a legacy `id` without collapsed hub
+  degree or recursive-pair identity;
 - self-calls counting once in each direction;
 - one stable row for self and mutual recursion;
 - non-mutual calls excluded from recursive results;
@@ -107,6 +112,11 @@ Focused tests cover:
 - offset plus `limit+1` truncation behavior;
 - exact success through 50,000 physical edges and fail-closed HTTP 422 at the
   50,001-edge sentinel, without partial rows.
+
+The UID-collision regression failed before the fix with one merged legacy-ID
+row and an outgoing degree of two. It now returns two canonical rows with one
+outgoing edge each, and the reciprocal fixture remains a mutual pair rather
+than being mislabeled as a self-call.
 
 ## Query-plan and observability evidence
 

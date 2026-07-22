@@ -30,6 +30,11 @@ func TestCallGraphMetricsEdgesCypherUsesOneRepoIndexedEdgePass(t *testing.T) {
 	if !strings.Contains(cypher, "LIMIT $edge_scan_limit") {
 		t.Fatalf("cypher = %q, want bounded edge sentinel", cypher)
 	}
+	for _, projection := range []string{"source.uid AS source_uid", "target.uid AS target_uid"} {
+		if !strings.Contains(cypher, projection) {
+			t.Fatalf("cypher = %q, want canonical identity projection %q", cypher, projection)
+		}
+	}
 	for _, forbidden := range []string{"OPTIONAL MATCH", "REPO_CONTAINS", "SKIP $offset", "LIMIT $limit"} {
 		if strings.Contains(cypher, forbidden) {
 			t.Fatalf("cypher = %q, must not contain %q", cypher, forbidden)
@@ -73,6 +78,92 @@ func TestCallGraphMetricsRowsAggregatesHubFunctionsExactly(t *testing.T) {
 	}
 	if got, want := IntVal(rows[2], "total_degree"), 2; got != want {
 		t.Fatalf("self total_degree = %d, want %d", got, want)
+	}
+}
+
+func TestCallGraphMetricsRowsKeepsCanonicalUIDsDistinctWhenLegacyIDsCollide(t *testing.T) {
+	t.Parallel()
+
+	first := callGraphMetricEdgeRow(
+		"legacy-shared", "a.go", "go", "first", 10,
+		"target-a", "target-a.go", "go", "targetA", 20,
+	)
+	first["source_uid"] = "uid-first"
+	first["target_uid"] = "uid-target-a"
+	second := callGraphMetricEdgeRow(
+		"legacy-shared", "b.go", "go", "second", 30,
+		"target-b", "target-b.go", "go", "targetB", 40,
+	)
+	second["source_uid"] = "uid-second"
+	second["target_uid"] = "uid-target-b"
+
+	rows := callGraphMetricsRows(callGraphMetricsRequest{
+		MetricType: "hub_functions",
+		RepoID:     "repo-1",
+		Limit:      intPtr(25),
+	}, []map[string]any{first, second})
+
+	legacyRows := make([]map[string]any, 0, 2)
+	for _, row := range rows {
+		if StringVal(row, "function_id") == "legacy-shared" {
+			legacyRows = append(legacyRows, row)
+		}
+	}
+	if got, want := len(legacyRows), 2; got != want {
+		t.Fatalf("legacy-id rows = %d, want %d canonical functions; rows=%#v", got, want, rows)
+	}
+	if got, want := []string{
+		StringVal(legacyRows[0], "file_path"),
+		StringVal(legacyRows[1], "file_path"),
+	}, []string{"a.go", "b.go"}; !slices.Equal(got, want) {
+		t.Fatalf("legacy-id row paths = %#v, want %#v", got, want)
+	}
+	for _, row := range legacyRows {
+		if got, want := IntVal(row, "outgoing_calls"), 1; got != want {
+			t.Fatalf("%s outgoing_calls = %d, want %d", StringVal(row, "file_path"), got, want)
+		}
+	}
+}
+
+func TestCallGraphMetricsRowsUsesCanonicalUIDsForRecursivePairs(t *testing.T) {
+	t.Parallel()
+
+	forward := callGraphMetricEdgeRow(
+		"legacy-shared", "a.go", "go", "first", 10,
+		"legacy-shared", "b.go", "go", "second", 20,
+	)
+	forward["source_uid"] = "uid-first"
+	forward["target_uid"] = "uid-second"
+	reverse := callGraphMetricEdgeRow(
+		"legacy-shared", "b.go", "go", "second", 20,
+		"legacy-shared", "a.go", "go", "first", 10,
+	)
+	reverse["source_uid"] = "uid-second"
+	reverse["target_uid"] = "uid-first"
+
+	data := callGraphMetricsResponse(callGraphMetricsRequest{
+		MetricType: "recursive_functions",
+		RepoID:     "repo-1",
+		Limit:      intPtr(25),
+	}, callGraphMetricsRows(callGraphMetricsRequest{
+		MetricType: "recursive_functions",
+		RepoID:     "repo-1",
+		Limit:      intPtr(25),
+	}, []map[string]any{forward, reverse}))
+	functions, _ := data["functions"].([]map[string]any)
+	if got, want := len(functions), 1; got != want {
+		t.Fatalf("recursive rows = %d, want %d canonical pair; data=%#v", got, want, data)
+	}
+	if got, want := StringVal(functions[0], "recursion_kind"), "mutual_call"; got != want {
+		t.Fatalf("recursion_kind = %q, want %q; row=%#v", got, want, functions[0])
+	}
+	for _, internalKey := range []string{"function_key", "partner_key"} {
+		if _, ok := functions[0][internalKey]; ok {
+			t.Fatalf("response leaked internal canonical key %q: %#v", internalKey, functions[0])
+		}
+	}
+	if StringVal(functions[0], "file_path") == StringVal(functions[0], "partner_file") {
+		t.Fatalf("recursive pair collapsed to one legacy-id node: %#v", functions[0])
 	}
 }
 
