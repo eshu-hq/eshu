@@ -80,6 +80,9 @@ const (
 	FactKindKubernetesLiveRelationship = "kubernetes_live.relationship"
 	// FactKindKubernetesLiveWarning is the "kubernetes_live.warning" fact kind.
 	FactKindKubernetesLiveWarning = "kubernetes_live.warning"
+	// FactKindKubernetesLiveNamespace is the "kubernetes_live.namespace" fact
+	// kind (issue #5434).
+	FactKindKubernetesLiveNamespace = "kubernetes_live.namespace"
 
 	// The oci_registry family fact-kind strings are DOTTED, like the incident
 	// family. The dots are part of the wire kind the collector already emits

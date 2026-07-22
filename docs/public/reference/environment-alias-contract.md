@@ -53,7 +53,7 @@ classes:
 | hostname_inference | Emitted today |
 | explicit_alias_config | Defined for later wiring |
 | argocd_destination | Defined for #5444 |
-| namespace_label | Defined for #5434 |
+| namespace_label | Landed for #5434 |
 
 The defined-for-later classes exist in the vocabulary so callers can reference
 them by constant; their producers land in follow-on work.
@@ -61,13 +61,17 @@ them by constant; their producers land in follow-on work.
 ## Environment-unbound state
 
 `StateEnvironmentUnbound` (`"environment-unbound"`) is the contract-level
-vocabulary for a workload with no resolved environment. This PR defines the
-constant; existing `'unknown'` buckets, `missing_environment` tallies, and
-compare-handler messages are **not** rewired to this value and remain
-wire-compatible. The constant's runtime wiring lands with the consumers that
-emit the new evidence classes: #5434 (namespace labels) and #5444 (ArgoCD
-destination), which surface unbindable evidence as `environment-unbound`
-instead of dropping it silently.
+vocabulary for a workload with no resolved environment. The constant's
+runtime wiring is landing incrementally with the consumers that emit the new
+evidence classes, which surface unbindable evidence as `environment-unbound`
+instead of dropping it silently: #5434 (namespace labels) has landed --
+`go/internal/reducer/kubernetes_namespace_materialization.go`'s
+`KubernetesNamespaceMaterializationHandler` classifies every
+`kubernetes_live.namespace` fact whose labels carry no alias-recognized
+environment value as `StateEnvironmentUnbound` and writes NO `Environment`
+node for it. #5444 (ArgoCD destination) is not yet wired. Existing `'unknown'`
+buckets, `missing_environment` tallies, and compare-handler messages are
+**not** rewired to this value and remain wire-compatible.
 
 ## Comparison semantics
 

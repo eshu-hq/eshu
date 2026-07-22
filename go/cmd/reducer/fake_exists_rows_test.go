@@ -8,6 +8,14 @@ import (
 	"fmt"
 )
 
+// fakeEmptyRows models a successful query with no result rows.
+type fakeEmptyRows struct{}
+
+func (*fakeEmptyRows) Next() bool        { return false }
+func (*fakeEmptyRows) Scan(...any) error { return nil }
+func (*fakeEmptyRows) Err() error        { return nil }
+func (*fakeEmptyRows) Close() error      { return nil }
+
 // fakeExistsRows returns a single boolean row, modeling a `SELECT EXISTS(...)`
 // query result. It is used by fakeReducerDB.QueryContext (main_test.go) to
 // answer the CodeValueFlowBackfillStateStore.IsComplete check the

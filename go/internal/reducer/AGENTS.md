@@ -200,6 +200,40 @@ path — `WorkSink.Fail` -> `deadLetterTriageMetadata` -> the durable
 counters/spans operators already use. The decode error self-classifies via the
 existing `FailureClass()`/`Retryable()` reducer error interface.
 
+### Namespace environment-alias binding (#5434)
+
+No-Regression Evidence: `DomainKubernetesNamespaceMaterialization`
+(`kubernetes_namespace_materialization.go`) is a NEW additive domain, gated on
+`FactLoader`+`KubernetesNamespaceNodeWriter` exactly like
+`kubernetesWorkloadMaterializationDomainDefinition`; it registers and runs only
+when the reducer binary explicitly wires the new writer
+(`cmd/reducer/canonical_graph_writers.go`/`wiring_handlers.go`), so no existing
+domain's registration order, intent shape, or handler behavior changes. No
+existing fact kind, decode seam, or writer is touched. `go test
+./internal/reducer/... ./internal/storage/cypher/... ./internal/payloadusage/...
+./internal/facts/... ./cmd/reducer/... -count=1 -race` passes byte-identical for
+every pre-#5434 path (4336 passed). The write path is a bounded batched `UNWIND`
++ `MERGE` on the collector-emitted `object_id` uid (mirrors
+`KubernetesWorkloadNodeWriter`'s proven shape, same NornicDB schema-backed uid
+lookup), split into at most two statements per batch (bound vs. unbound rows) --
+no new lock, transaction, or shared-state path; each row's own `environment`
+property purely local-decides its Cypher variant, so there is no cross-row or
+cross-namespace contention.
+
+No-Observability-Change: no new metric instrument, metric label, span, status
+field, queue domain, worker count, batch size, or runtime knob. The domain
+reuses the EXISTING `instruments.ReducerInputInvalidFacts` counter (via
+`recordQuarantinedFacts`) for a malformed `kubernetes_live.namespace` fact --
+same instrument, new `domain`/`fact_kind` attribute VALUES on the existing
+closed low-cardinality label set, not a new label or instrument. Completion is
+logged via the existing `slog` domain-completion pattern
+(`kubernetes namespace materialization completed`), mirroring
+`logKubernetesWorkloadMaterializationCompleted`'s fields with no new log key
+family. Deliberately does NOT reuse `KubernetesWorkloadNodes` for the
+node-materialized count (that would corrupt an existing counter's semantics
+by mixing two distinct node kinds under one instrument), and does not add a
+replacement counter in this change -- see `README.md`'s Telemetry section.
+
 No-Regression Evidence: `go test ./internal/reducer -run 'TestSecurityAlertReconciliationFactIdentitySurvivesProviderOnlyToMatched|TestSecurityAlertReconciliationFactIdentitySurvivesMatchedToStale' -count=1` failed before reducer fact identity ignored mutable repository/source-fact fields, then passed. `go test ./internal/query -run 'TestPostgresSecurityAlertReconciliationQueryShape|TestSecurityAlertReconciliationAggregateQueriesUseCurrentProviderAlertRows' -count=1` failed before default list/count/inventory reads ranked one current provider-alert row before status and state filters, then passed.
 
 No-Observability-Change: the change only adjusts reducer fact replacement identity and the existing Postgres read-model selection for security-alert reconciliations. It adds no route, graph query, queue, worker, runtime knob, metric instrument, or metric label; operators still diagnose the path through existing reducer run spans, reducer execution counters, durable `reducer_security_alert_reconciliation` payloads, query handler spans, and Postgres query duration metrics.

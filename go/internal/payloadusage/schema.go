@@ -81,6 +81,7 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	"FactKindKubernetesLivePodTemplate":  "kubernetes_live.pod_template.v1.schema.json",
 	"FactKindKubernetesLiveRelationship": "kubernetes_live.relationship.v1.schema.json",
 	"FactKindKubernetesLiveWarning":      "kubernetes_live.warning.v1.schema.json",
+	"FactKindKubernetesLiveNamespace":    "kubernetes_live.namespace.v1.schema.json",
 	// OCI registry family: the six consumed kinds a decode seam references
 	// (the projector canonical extractor decodes all six; the reducer registry
 	// index decodes manifest/index/tag). oci_registry.warning has no decode

@@ -70,7 +70,20 @@ func (b *generationBuilder) collectNamespaces(ctx context.Context, client Client
 	b.markPartial(ctx, ResourceScopeNamespaces, result.Partial, result.Reason)
 	b.source.recordResourcesListed(ctx, ResourceScopeNamespaces, len(result.Items), result.Partial)
 	for _, meta := range result.Items {
-		b.indexObject(meta)
+		identity := b.indexObject(meta)
+		envelope, err := NewNamespaceEnvelope(NamespaceObservation{
+			Identity:            identity,
+			Labels:              meta.Labels,
+			GenerationID:        b.generationID(),
+			CollectorInstanceID: b.collectorInstanceID,
+			FencingToken:        b.target.FencingToken,
+			ObservedAt:          b.observedAt,
+			SourceURI:           b.target.SourceURI,
+		})
+		if err != nil {
+			return err
+		}
+		b.append(ctx, envelope)
 	}
 	return nil
 }

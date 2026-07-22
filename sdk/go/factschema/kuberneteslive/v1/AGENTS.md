@@ -3,8 +3,8 @@
 This directory is part of the public
 `github.com/eshu-hq/eshu/sdk/go/factschema` Go module. It holds the
 schema-version-1 typed payload structs for the `kubernetes_live` fact
-family: `PodTemplate`, `PodTemplateContainer`, `Relationship`, and `Warning`.
-It must remain independent from Eshu internals.
+family: `PodTemplate`, `PodTemplateContainer`, `Relationship`, `Warning`, and
+`Namespace`. It must remain independent from Eshu internals.
 
 ## Required Checks
 
@@ -36,16 +36,16 @@ It must remain independent from Eshu internals.
   conversion shim in the parent package's decode seam (`decodeLatestMajor` in
   `../../decode.go`), not a silent edit here.
 - **No Attributes pass-through in this family**: unlike `awsv1.Resource` /
-  `gcpv1.Resource`, none of `PodTemplate`, `Relationship`, or `Warning` is a
-  polymorphic generic envelope. Each fact kind describes one fixed
-  observation shape, so every collector-emitted payload key is a named
+  `gcpv1.Resource`, none of `PodTemplate`, `Relationship`, `Warning`, or
+  `Namespace` is a polymorphic generic envelope. Each fact kind describes one
+  fixed observation shape, so every collector-emitted payload key is a named
   field. Do not add an `Attributes map[string]any` catch-all here without
   discussing scope — it would be a shape change for this family, not a
   mirror of the AWS/GCP pattern.
-- Only `ObjectID` (`PodTemplate`), `RelationshipType`/`FromObjectID`/
-  `ToObjectID` (`Relationship`), and `Reason`/`ClusterID` (`Warning`) are
-  required. Every other field stays optional even though the collector
-  emitter (`go/internal/collector/kuberneteslive/envelope.go`)
+- Only `ObjectID` (`PodTemplate`, `Namespace`), `RelationshipType`/
+  `FromObjectID`/`ToObjectID` (`Relationship`), and `Reason`/`ClusterID`
+  (`Warning`) are required. Every other field stays optional even though the
+  collector emitter (`go/internal/collector/kuberneteslive/envelope.go`)
   unconditionally writes most of them: the emitter can validly write an
   empty string for a cluster-scoped or unlabeled object (for example a
   cluster-scoped resource has no namespace), and the reducer's existing read
@@ -54,9 +54,17 @@ It must remain independent from Eshu internals.
   tolerates an absent or empty value for all of them. Making one of these
   required would dead-letter a valid fact — do not "round up" to required
   just because the emitter usually writes a field.
-- This package defines three fact kinds (`kubernetes_live.pod_template`,
-  `kubernetes_live.relationship`, `kubernetes_live.warning`). Adding a fourth
-  kind or a `v2` major is follow-on epic work, not a casual edit.
+- This package defines four fact kinds (`kubernetes_live.pod_template`,
+  `kubernetes_live.relationship`, `kubernetes_live.warning`, and
+  `kubernetes_live.namespace`). Adding a fifth kind or a `v2` major is
+  follow-on epic work, not a casual edit.
+- `Namespace.Annotations` is a RESERVED field slot for #5444
+  (ArgoCD-destination evidence). #5434's scope is labels only — the
+  collector never populates `Annotations` today (always nil/absent on the
+  wire) because annotations may carry operator-authored or sensitive data
+  that has not been through a redaction review. Do not start populating it
+  without first extending `client_redaction_test.go`-style coverage for
+  whatever annotation keys #5444 decides to collect.
 - `PodTemplateContainer.EnvKeys` carries environment variable NAMES only —
   never values. Do not add a values field; it would violate the collector's
   redaction contract (see `go/internal/collector/kuberneteslive/doc.go` /

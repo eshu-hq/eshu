@@ -338,6 +338,7 @@ var payloadContracts = []struct {
 	{FactKindKubernetesLivePodTemplate, "kubernetes_live.pod_template.v1.schema.json", reflect.TypeOf(kuberneteslivev1.PodTemplate{})},
 	{FactKindKubernetesLiveRelationship, "kubernetes_live.relationship.v1.schema.json", reflect.TypeOf(kuberneteslivev1.Relationship{})},
 	{FactKindKubernetesLiveWarning, "kubernetes_live.warning.v1.schema.json", reflect.TypeOf(kuberneteslivev1.Warning{})},
+	{FactKindKubernetesLiveNamespace, "kubernetes_live.namespace.v1.schema.json", reflect.TypeOf(kuberneteslivev1.Namespace{})},
 	{FactKindOCIRegistryRepository, "oci_registry.repository.v1.schema.json", reflect.TypeOf(ociregistryv1.Repository{})},
 	{FactKindOCIImageManifest, "oci_registry.image_manifest.v1.schema.json", reflect.TypeOf(ociregistryv1.ImageManifest{})},
 	{FactKindOCIImageIndex, "oci_registry.image_index.v1.schema.json", reflect.TypeOf(ociregistryv1.ImageIndex{})},

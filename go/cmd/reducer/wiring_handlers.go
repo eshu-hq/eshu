@@ -116,6 +116,7 @@ func buildReducerKubernetesHandlers(
 			DB: database,
 		},
 		KubernetesWorkloadNodeWriter:    graphWriters.kubernetesWorkloadNode,
+		KubernetesNamespaceNodeWriter:   graphWriters.kubernetesNamespaceNode,
 		KubernetesCorrelationEdgeWriter: graphWriters.kubernetesCorrelationEdge,
 	}
 }

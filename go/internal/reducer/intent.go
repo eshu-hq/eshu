@@ -249,6 +249,22 @@ const (
 	// provenance-only and fabricate no edge. See issue #388 and
 	// docs/internal/design/388-kubernetes-correlation-readmodel.md.
 	DomainKubernetesCorrelationMaterialization Domain = "kubernetes_correlation_materialization"
+	// DomainKubernetesNamespaceMaterialization materializes
+	// kubernetes_live.namespace facts into canonical KubernetesNamespace graph
+	// nodes keyed by the collector-emitted object_id ((cluster_id, namespace)
+	// identity). For each namespace it checks a small documented set of label
+	// keys against go/internal/environment's known-token vocabulary
+	// (environment.IsKnownToken); a recognized value binds the namespace to a
+	// canonical Environment node with EvidenceClassNamespaceLabel evidence, a
+	// TARGETS_ENVIRONMENT edge (the same edge type
+	// batchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher uses), and
+	// StateBound. No recognized label leaves the namespace
+	// StateEnvironmentUnbound and creates NO Environment node -- namespace,
+	// folder, and repo-name heuristics never invent environment truth (see
+	// docs/public/reference/environment-alias-contract.md). This is the FIRST
+	// live-cluster namespace->environment binding; ClusterTarget.Environment
+	// stays inert. See issue #5434.
+	DomainKubernetesNamespaceMaterialization Domain = "kubernetes_namespace_materialization"
 	// DomainCrossplaneSatisfiedByMaterialization projects Crossplane Claim ->
 	// XRD classification decisions into canonical SATISFIED_BY edges between a
 	// K8sResource node (the Claim — never parser-labeled, see issue #5347) and

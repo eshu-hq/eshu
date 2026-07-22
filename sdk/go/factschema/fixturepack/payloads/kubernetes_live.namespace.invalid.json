@@ -1,0 +1,7 @@
+{
+  "cluster_id": "demo-cluster",
+  "namespace": "payments-prod",
+  "labels": {
+    "environment": "prod"
+  }
+}

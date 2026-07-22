@@ -8,7 +8,8 @@ package reducer
 // and security-group helpers, preserving the exact registration order of the
 // original monolithic appendAdditiveDomainDefinitions: AWS resource nodes, the
 // GCP and Azure resource/relationship domains, EC2 instance nodes, kubernetes
-// workload nodes, and the security-group endpoint/reachability domains. Each
+// workload nodes, kubernetes namespace nodes (issue #5434), and the
+// security-group endpoint/reachability domains. Each
 // inline registration is gated on the fact loader plus its node writer so the
 // runtime never registers a domain without a durable publication path.
 // Registration is keyed by Domain, so the append order is not runtime-observable.
@@ -48,6 +49,15 @@ func appendCloudResourceNodeAdditiveDomains(definitions []DomainDefinition, hand
 			Instruments:    handlers.Instruments,
 		}
 		definitions = append(definitions, kubernetesWorkloads)
+	}
+	if handlers.FactLoader != nil && handlers.KubernetesNamespaceNodeWriter != nil {
+		kubernetesNamespaces := kubernetesNamespaceMaterializationDomainDefinition()
+		kubernetesNamespaces.Handler = KubernetesNamespaceMaterializationHandler{
+			FactLoader:  handlers.FactLoader,
+			NodeWriter:  handlers.KubernetesNamespaceNodeWriter,
+			Instruments: handlers.Instruments,
+		}
+		definitions = append(definitions, kubernetesNamespaces)
 	}
 	definitions = appendSecurityGroupEndpointDomain(definitions, handlers)
 	definitions = appendSecurityGroupReachabilityDomains(definitions, handlers)

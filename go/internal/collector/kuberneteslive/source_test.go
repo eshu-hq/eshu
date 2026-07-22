@@ -188,7 +188,10 @@ func TestSourceHappyPathEmitsTypedFacts(t *testing.T) {
 	}
 
 	client := &fakeClient{
-		namespaces:   ListResult[ObjectMeta]{Items: []ObjectMeta{{Version: "v1", Resource: "namespaces", Name: "payments", UID: "uid-ns"}}},
+		namespaces: ListResult[ObjectMeta]{Items: []ObjectMeta{{
+			Version: "v1", Resource: "namespaces", Name: "payments", UID: "uid-ns",
+			Labels: map[string]string{"environment": "prod"},
+		}}},
 		deployments:  ListResult[WorkloadObject]{Items: []WorkloadObject{deployment}},
 		replicasets:  ListResult[WorkloadObject]{Items: []WorkloadObject{replicaset}},
 		statefulsets: ListResult[WorkloadObject]{Items: []WorkloadObject{statefulset}},
@@ -223,6 +226,17 @@ func TestSourceHappyPathEmitsTypedFacts(t *testing.T) {
 	}
 	if got := countKind(envs, facts.KubernetesWarningFactKind); got != 0 {
 		t.Fatalf("warning facts = %d, want 0", got)
+	}
+	nsEnvs := envelopesOfKind(envs, facts.KubernetesNamespaceFactKind)
+	if len(nsEnvs) != 1 {
+		t.Fatalf("namespace facts = %d, want 1", len(nsEnvs))
+	}
+	if got := nsEnvs[0].Payload["namespace"]; got != "payments" {
+		t.Fatalf("namespace fact payload[namespace] = %#v, want %q", got, "payments")
+	}
+	nsLabels, ok := nsEnvs[0].Payload["labels"].(map[string]string)
+	if !ok || nsLabels["environment"] != "prod" {
+		t.Fatalf("namespace fact payload[labels] = %#v, want {environment: prod}", nsEnvs[0].Payload["labels"])
 	}
 	for _, env := range envs {
 		if env.GenerationID != collected.Generation.GenerationID {

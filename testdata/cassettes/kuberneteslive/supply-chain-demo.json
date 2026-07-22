@@ -291,6 +291,48 @@
               "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:supply-chain-demo"
             ]
           }
+        },
+        {
+          "fact_kind": "kubernetes_live.namespace",
+          "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:namespace::payments-prod",
+          "schema_version": "1.0.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "collector_instance_id": "kubernetes_live:cluster:supply-chain-demo",
+            "cluster_id": "supply-chain-demo",
+            "object_id": "kubernetes_live:supply-chain-demo:core/v1/namespaces::payments-prod",
+            "namespace": "payments-prod",
+            "labels": {
+              "environment": "prod",
+              "team": "payments"
+            },
+            "correlation_anchors": [
+              "kubernetes_live:supply-chain-demo:core/v1/namespaces::payments-prod"
+            ]
+          }
+        },
+        {
+          "fact_kind": "kubernetes_live.namespace",
+          "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:namespace::default",
+          "schema_version": "1.0.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "collector_instance_id": "kubernetes_live:cluster:supply-chain-demo",
+            "cluster_id": "supply-chain-demo",
+            "object_id": "kubernetes_live:supply-chain-demo:core/v1/namespaces::default",
+            "namespace": "default",
+            "labels": {
+              "kubernetes.io/metadata.name": "default",
+              "environment": "misc-team"
+            },
+            "correlation_anchors": [
+              "kubernetes_live:supply-chain-demo:core/v1/namespaces::default"
+            ]
+          }
         }
       ]
     }

@@ -19,6 +19,11 @@ correlation and drift remain reducer-owned and are not in this package.
     ingress-to-service edges between durable object identities.
   - `kubernetes_live.warning` — non-fatal capability gaps (forbidden resource,
     partial list, invalid owner reference, ambiguous selector).
+  - `kubernetes_live.namespace` — one fact per listed namespace, carrying only
+    its labels (issue #5434). This is the sole evidence surface the reducer's
+    environment-alias binding domain reads to decide whether a namespace binds
+    to an Environment node; annotations are reserved for #5444 and never
+    populated by this collector.
 - Each container in a `pod_template` fact may carry an optional
   `resolved_image_digest` — the CRI-resolved digest from
   `pod.Status.ContainerStatuses[].ImageID`, normalized to the bare

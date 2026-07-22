@@ -12,13 +12,14 @@ structs, validated.
 
 ## Purpose
 
-Three Kubernetes live fact kinds decode through this package:
+Four Kubernetes live fact kinds decode through this package:
 
 | Fact kind | Struct | Decode function |
 | --- | --- | --- |
 | `kubernetes_live.pod_template` | `PodTemplate` | `factschema.DecodeKubernetesLivePodTemplate` |
 | `kubernetes_live.relationship` | `Relationship` | `factschema.DecodeKubernetesLiveRelationship` |
 | `kubernetes_live.warning` | `Warning` | `factschema.DecodeKubernetesLiveWarning` |
+| `kubernetes_live.namespace` | `Namespace` | `factschema.DecodeKubernetesLiveNamespace` |
 
 ## Ownership boundary
 
@@ -31,9 +32,9 @@ the decoded structs but live outside this module.
 
 ## Exported surface
 
-`PodTemplate`, `PodTemplateContainer`, `Relationship`, and `Warning`. See each
-struct's godoc comment for its full field list; the required/optional split
-below is the contract most callers need first.
+`PodTemplate`, `PodTemplateContainer`, `Relationship`, `Warning`, and
+`Namespace`. See each struct's godoc comment for its full field list; the
+required/optional split below is the contract most callers need first.
 
 ## Dependencies
 
@@ -61,6 +62,7 @@ Field mutability encodes the contract, per Contract System v1 §3.1
 | `PodTemplate` | `ObjectID` | The collector emitter (`kuberneteslive.NewPodTemplateEnvelope`) builds it from the validated `ObjectIdentity` before the envelope exists, and the reducer's node-row gate (`kubernetesWorkloadNodeRow`) already drops a pod template lacking it rather than fabricating a `KubernetesWorkload` node. |
 | `Relationship` | `RelationshipType`, `FromObjectID`, `ToObjectID` | The collector emitter (`kuberneteslive.NewRelationshipEnvelope`) rejects a blank type or an invalid endpoint identity before the envelope is built, and the reducer's edge classifier (`kubernetesCorrelationIndex.ingestRelationship`) already drops an edge missing any of the three. |
 | `Warning` | `Reason`, `ClusterID` | The collector emitter (`kuberneteslive.NewWarningEnvelope`) rejects a blank reason or cluster id before the envelope is built, and the reducer's ingest gate (`kubernetesCorrelationIndex.ingestWarning`) already drops a warning missing `Reason`. |
+| `Namespace` | `ObjectID` | The collector emitter (`kuberneteslive.NewNamespaceEnvelope`) builds `ObjectID` from the validated `ObjectIdentity` before the envelope exists, mirroring `PodTemplate`. |
 
 Missing a required identity field dead-letters as `input_invalid` rather than
 forming an empty-string graph identity or a partial edge — this is the
@@ -78,9 +80,10 @@ stay optional rather than mirroring "always emitted" as "always required."
 ## No Attributes pass-through
 
 Unlike `awsv1.Resource`/`gcpv1.Resource`, none of `PodTemplate`,
-`Relationship`, or `Warning` is a polymorphic generic envelope: each fact kind
-in this family describes one fixed observation shape (a pod template, a
-directed object relationship, or a collection warning), so the
+`Relationship`, `Warning`, or `Namespace` is a polymorphic generic envelope:
+each fact kind in this family describes one fixed observation shape (a pod
+template, a directed object relationship, a collection warning, or a
+namespace's label evidence), so the
 reducer-consumed payload keys are modeled as named fields rather than an opaque
 map. The collector also emits boundary and context keys (for example
 `collector_instance_id`); the generated schemas are open

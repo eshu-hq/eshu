@@ -279,6 +279,9 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindKubernetesLiveWarning:
 		_, err := DecodeKubernetesLiveWarning(env)
 		return err
+	case FactKindKubernetesLiveNamespace:
+		_, err := DecodeKubernetesLiveNamespace(env)
+		return err
 	case FactKindOCIRegistryRepository:
 		_, err := DecodeOCIRegistryRepository(env)
 		return err
@@ -706,6 +709,7 @@ var allDecodedKinds = []string{
 	FactKindKubernetesLivePodTemplate,
 	FactKindKubernetesLiveRelationship,
 	FactKindKubernetesLiveWarning,
+	FactKindKubernetesLiveNamespace,
 	FactKindOCIRegistryRepository,
 	FactKindOCIImageManifest,
 	FactKindOCIImageIndex,
@@ -1022,6 +1026,8 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeKubernetesLiveRelationship(env)
 			case FactKindKubernetesLiveWarning:
 				_, err = DecodeKubernetesLiveWarning(env)
+			case FactKindKubernetesLiveNamespace:
+				_, err = DecodeKubernetesLiveNamespace(env)
 			case FactKindOCIRegistryRepository:
 				_, err = DecodeOCIRegistryRepository(env)
 			case FactKindOCIImageManifest:
