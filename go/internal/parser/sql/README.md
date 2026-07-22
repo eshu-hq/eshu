@@ -124,6 +124,11 @@ stamped identifier is the migration's parent directory name instead of the
 basename; every other supported tool's filename is already a meaningful
 identifier.
 
+`migration_targets` deduplicates only identical `(kind, name, operation)`
+entries, retaining the first source line. A migration that creates and later
+drops the same target therefore preserves both operation records, while the
+reducer still emits one `MIGRATES` edge for that migration-target pair.
+
 SQL relationship extraction is conservative. Table constraints such as
 `PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `CHECK`, and `EXCLUDE` are not SQL column
 rows, but their bounded `REFERENCES` clauses still emit table relationships and

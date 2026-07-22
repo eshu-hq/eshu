@@ -75,6 +75,39 @@ func TestParseMigrationTargetsFromDropTable(t *testing.T) {
 	assertSQLBucketMissingName(t, got, "sql_tables", "public.users")
 }
 
+// TestParseMigrationTargetsPreserveDistinctOperationsForSameTarget proves the
+// real SQL parser retains operation metadata when one migration both creates
+// and drops a table. A repeated DROP is one operation entry at its first line,
+// but it must not erase or be erased by the distinct CREATE operation.
+func TestParseMigrationTargetsPreserveDistinctOperationsForSameTarget(t *testing.T) {
+	t.Parallel()
+
+	path := writeSQLTestFile(
+		t,
+		filepath.Join("prisma", "migrations", "20260722_create_then_drop", "migration.sql"),
+		`CREATE TABLE public.t (id BIGINT PRIMARY KEY);
+DROP TABLE public.t;
+DROP TABLE public.t;
+`,
+	)
+
+	targets := sqlMigrationTargetsForTool(t, parseSQLTestFile(t, path), "prisma")
+	if got, want := len(targets), 2; got != want {
+		t.Fatalf("migration target count = %d, want %d: %#v", got, want, targets)
+	}
+	want := []map[string]any{
+		{"kind": "SqlTable", "name": "public.t", "operation": "create", "line_number": 1},
+		{"kind": "SqlTable", "name": "public.t", "operation": "drop", "line_number": 2},
+	}
+	for index, wantTarget := range want {
+		for key, wantValue := range wantTarget {
+			if got := targets[index][key]; got != wantValue {
+				t.Fatalf("targets[%d][%q] = %#v, want %#v; all targets = %#v", index, key, got, wantValue, targets)
+			}
+		}
+	}
+}
+
 func TestParseDMLDeleteMigrationTarget(t *testing.T) {
 	t.Parallel()
 

@@ -77,7 +77,7 @@ func buildSQLMigrationEntries(
 		if strings.TrimSpace(name) == "" {
 			return
 		}
-		key := kind + "|" + name
+		key := kind + "|" + name + "|" + operation
 		if _, ok := seenTargets[key]; ok {
 			return
 		}
@@ -93,7 +93,8 @@ func buildSQLMigrationEntries(
 	// Entities this same migration file CREATEs (new tables/views/functions/
 	// triggers/indexes) are forward migration targets in their own right.
 	// Processed first so a table both created and later altered in the same
-	// file keeps its "create" operation (seenTargets dedupes by kind+name).
+	// file keeps its "create" operation (seenTargets dedupes only an identical
+	// kind, name, and operation; a distinct later operation remains metadata).
 	for _, bucket := range []struct {
 		name string
 		kind string
