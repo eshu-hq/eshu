@@ -215,3 +215,51 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 		t.Fatalf("edge-retract scope_id = %#v, want %q", got, want)
 	}
 }
+
+// TestTerraformStateResourceRowsEmitEmptyProviderWhenUnbound is a #5446
+// defense-in-depth regression: terraformStateResourceRows must emit
+// provider/provider_source_address/provider_alias as present, empty-string
+// keys -- never omit them -- when a resource carries no provider binding
+// (Provider/ProviderSourceAddress/ProviderAlias all unset). This matters
+// because canonicalTerraformStateResourceUpsertCypher's SET clause is
+// unconditional (r.provider = row.provider, etc, see #5446 comment on
+// canonicalTerraformStateResourceUpsertCypher): if a future change made row
+// construction conditional and omitted these keys instead of defaulting them
+// to "", the Cypher engine would receive a missing map key at execute time
+// rather than the empty string this writer's contract promises.
+func TestTerraformStateResourceRowsEmitEmptyProviderWhenUnbound(t *testing.T) {
+	t.Parallel()
+
+	mat := projector.CanonicalMaterialization{
+		ScopeID:      "tf-scope-unbound",
+		GenerationID: "tf-generation-unbound",
+		TerraformStateResources: []projector.TerraformStateResourceRow{{
+			UID:              "tf-resource-uid-unbound",
+			Address:          "aws_instance.unbound",
+			Mode:             "managed",
+			ResourceType:     "aws_instance",
+			Name:             "unbound",
+			SourceConfidence: facts.SourceConfidenceObserved,
+			CollectorKind:    "terraform_state",
+			// Provider, ProviderSourceAddress, and ProviderAlias are all
+			// intentionally left unset: no provider-binding fact was
+			// observed for this resource.
+		}},
+	}
+
+	rows := terraformStateResourceRows(mat)
+	if len(rows) != 1 {
+		t.Fatalf("terraformStateResourceRows() len = %d, want 1", len(rows))
+	}
+	row := rows[0]
+
+	for _, key := range []string{"provider", "provider_source_address", "provider_alias"} {
+		value, ok := row[key]
+		if !ok {
+			t.Fatalf("row[%q] absent, want present with empty-string value", key)
+		}
+		if value != "" {
+			t.Fatalf("row[%q] = %#v, want empty string", key, value)
+		}
+	}
+}
