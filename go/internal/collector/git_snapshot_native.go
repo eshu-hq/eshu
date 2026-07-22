@@ -65,7 +65,15 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	}
 	registry := s.registry()
 	discoveryStartedAt := time.Now()
-	fullFileSet, discoveryStats, err := resolveNativeSnapshotFileSet(repoPath, registry, s.discoveryOptions())
+	discoveryOpts := s.discoveryOptions()
+	// GitTrackedResolver lets discovery keep a file gitignore would otherwise
+	// drop when git itself still tracks it (issue #5591: `git add -f` past a
+	// .gitignore rule keeps a file tracked). gitTreePath (computed above) is
+	// scanRoot itself in ordinary git-sync mode but the SOURCE checkout in
+	// filesystem managed-copy mode, where repoPath (the managed copy) has no
+	// .git of its own — see buildGitTrackedResolver's doc comment.
+	discoveryOpts.GitTrackedResolver = buildGitTrackedResolver(ctx, repoPath, gitTreePath, s.Logger)
+	fullFileSet, discoveryStats, err := resolveNativeSnapshotFileSet(repoPath, registry, discoveryOpts)
 	fileSet := fullFileSet
 	if len(repository.FileTargets) > 0 {
 		fileSet, err = resolveNativeSnapshotFileSetForTargets(repoPath, repository.FileTargets, registry)

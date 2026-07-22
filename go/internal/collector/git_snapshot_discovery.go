@@ -195,8 +195,46 @@ func (s NativeRepositorySnapshotter) logDiscoveryStats(ctx context.Context, repo
 	if stats.FilesSkippedEshuIgnore > 0 {
 		attrs = append(attrs, slog.Int("files_skipped.eshuignore", stats.FilesSkippedEshuIgnore))
 	}
+	if stats.TrackedFilesSkippedEshuIgnoreOverflow > 0 {
+		attrs = append(attrs, slog.Int("files_skipped.tracked_eshuignore_overflow", stats.TrackedFilesSkippedEshuIgnoreOverflow))
+	}
 
 	logger.InfoContext(ctx, "discovery stats", attrs...)
+
+	// Each tracked-but-eshuignored file (issue #5591) gets its own log line
+	// rather than folding an unbounded path list into the aggregate stats
+	// line above: .eshuignore remains a deliberate operator opt-out that can
+	// skip a file git tracks, and that skip must stay individually visible.
+	for _, relativePath := range stats.TrackedFilesSkippedEshuIgnore {
+		logTrackedFileSkippedByEshuIgnore(ctx, logger, "git_native_discovery", repoPath, relativePath)
+	}
+}
+
+// logTrackedFileSkippedByEshuIgnore logs, at INFO level, a single git-tracked
+// file that repo-local .eshuignore rules skipped (issue #5591). Unlike
+// .gitignore, which #5591 makes defer to git's own tracked set, .eshuignore
+// remains a deliberate operator opt-out that can still skip a tracked file —
+// but that skip must stay individually visible rather than disappearing into
+// an aggregate count, so operators can distinguish an intentional exclusion
+// from a silently dropped fact source. Shared between the native-discovery
+// path (logDiscoveryStats above) and the filesystem managed-copy path
+// (copyRepositoryTree in git_selection_filesystem.go).
+func logTrackedFileSkippedByEshuIgnore(
+	ctx context.Context,
+	logger *slog.Logger,
+	source string,
+	repoPath string,
+	relativePath string,
+) {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	logger.InfoContext(
+		ctx, "tracked file skipped by eshuignore",
+		slog.String("source", source),
+		log.RepoPath(filepath.Base(repoPath)),
+		slog.String("relative_path", relativePath),
+	)
 }
 
 func (s NativeRepositorySnapshotter) recordDiscoveryMetrics(ctx context.Context, stats discovery.DiscoveryStats) {
