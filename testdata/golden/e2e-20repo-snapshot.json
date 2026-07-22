@@ -60,10 +60,10 @@
         "max": 123,
         "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 112: 2 AWS + 110 GCP -- BigQuery Dataset+Table+Routine, Network, Subnetwork, Image, Snapshot, CryptoKey, Disk, Instance, Firewall, VPC Access Connector, Secret Manager Secret+SecretVersion, Cloud Run Service+Revision, custom IAM Role, IAM ServiceAccount+ServiceAccountKey, Artifact Registry Repository+DockerImage+CMEK repo, Pub/Sub Topic (x2), Pub/Sub Schema, Pub/Sub Subscription (x4), Router, VpnGateway, VpnTunnel, HealthCheck, BackendService, UrlMap, GKE Cluster, Storage Bucket, Cloud SQL Instance, DNS Managed Zone, KMS KeyRing+CryptoKey+CryptoKeyVersion, Forwarding Rule, Memorystore Redis Instance, Firestore Database, Dataproc Cluster, compute Route (x3), Bigtable Table, compute Static Address, App Engine Application+Service+Version, Cloud Tasks Queue, Cloud Scheduler Job, Eventarc Trigger (x3)+Channel+Function+Workflow targets, Logging LogSink (x4)+LogBucket, Cloud Functions Function (gen2)+CloudFunction (gen1), BigQuery Connection, Dataform Repository, Firebase Project+Ruleset+AppInfo, CloudResourceManager Project, reCAPTCHA Enterprise Key, API Key, IAM Workload Identity Pool+Provider, BigQuery Data Transfer Config, Dataplex Entry Group, Identity Platform Config, Cloud Build Build (x2)+BuildTrigger, Cloud Source Repositories Repository, Interconnect Attachment, InstanceGroup, SecurityPolicy (x2), ExternalVpnGateway, TargetVpnGateway, BackendBucket, second usage-logging Bucket, Cloud SQL read-replica Instance, DNS peering ManagedZone, ForwardingRule (x4 additional target-kind fixtures)+TargetPool+TargetHttpProxy+TargetInstance+ServiceAttachment, Memorystore Memcached Instance); floor raised from 4 to catch GCP node projection regression across the #4377/#4378/#4381/#4383/#4385/#4388/#4401/#4404/#4406/#4409/#4552/#4553/#4554/#4556/#4557/#4539/#4537/#4540/#4538/#4541/#4542/#4555/#4411/#4418/#4426/#4437/#4420/#4412/#4500/#4498/#4489/#4493/#4486/#4484/#4480/#4490/#4431/#4452/#4416/#4441/#4462/#4438/#4414/#4504/#4501/#4495/#4482/#4463/#4453/#4434/#4468/#4478/#4475/#4470/#4618/#4655 golden-corpus follow-ups, ceiling wide for richer cloud cassettes"
       },
-      "TerraformResource": {
+      "TerraformStateResource": {
         "min": 1,
         "max": 30,
-        "note": "Terraform state resources from terraform_state cassette; at least one ECS resource expected"
+        "note": "Terraform state resources from terraform_state cassette; at least one ECS resource expected. Split off the shared TerraformResource label by #5443 -- state-observed resources MERGE under this label now, config-declared resources stay under TerraformResource."
       },
       "OciImageManifest": {
         "min": 1,
@@ -1665,8 +1665,8 @@
     "required_nodes": [
       {
         "id": "rn-terraform-resource-attribute-promotion",
-        "description": "#5441 P1 finding 3 regression guard: at least 1 TerraformResource node carries a non-empty tf_attr_instance_type property. The terraformstate supply-chain-demo cassette's module.ecs.aws_instance.supply-chain-demo resource declares attributes.instance_type = \"t3.micro\", which promoteTerraformResourceAttributes (go/internal/storage/cypher/terraform_attribute_promotion.go) flattens onto the node as tf_attr_instance_type via the additive `r += row.attrs` merge in the TerraformResource upsert template. Zero without the fix (the property did not exist before #5441) and zero without the new cassette resource (the pre-existing aws_ecs_cluster/aws_ecs_service resources are not in the promotion allowlist).",
-        "label": "TerraformResource",
+        "description": "#5441 P1 finding 3 regression guard: at least 1 TerraformStateResource node carries a non-empty tf_attr_instance_type property. The terraformstate supply-chain-demo cassette's module.ecs.aws_instance.supply-chain-demo resource declares attributes.instance_type = \"t3.micro\", which promoteTerraformResourceAttributes (go/internal/storage/cypher/terraform_attribute_promotion.go) flattens onto the node as tf_attr_instance_type via the additive `r += row.attrs` merge in the TerraformStateResource upsert template. Zero without the fix (the property did not exist before #5441) and zero without the new cassette resource (the pre-existing aws_ecs_cluster/aws_ecs_service resources are not in the promotion allowlist). Label renamed from TerraformResource to TerraformStateResource by #5443.",
+        "label": "TerraformStateResource",
         "minimum_count": 1,
         "required_node_properties": [
           "tf_attr_instance_type"

@@ -12,8 +12,10 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graphbackpressure"
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -44,9 +46,15 @@ func newIngesterCanonicalGate(
 
 // openIngesterCanonicalWriter opens the canonical graph writer for the
 // configured backend (Neo4j or NornicDB), applying the backend-specific
-// batching and phase-group tuning knobs read from the environment.
+// batching and phase-group tuning knobs read from the environment. database
+// is the already-open Postgres handle the ingester's main() owns (see
+// cmd/ingester/main.go); it is threaded in, not opened here, so the
+// #5443 MATCHES_STATE ownership resolver reuses the process's single
+// Postgres connection pool instead of duplicating a lifecycle
+// (cmd/projector's openProjectorCanonicalWriter follows the same pattern).
 func openIngesterCanonicalWriter(
 	parent context.Context,
+	database postgres.SQLDB,
 	getenv func(string) string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
@@ -153,7 +161,11 @@ func openIngesterCanonicalWriter(
 		canonicalExecutor,
 		neo4jBatchSize(getenv),
 		instruments,
-	).WithTracer(tracer)
+	).WithTracer(tracer).WithTerraformStateOwnershipResolver(
+		ingesterTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.PostgresTerraformBackendQuery{DB: database})},
+	).WithTerraformStateConfigMatchResolver(
+		ingesterTerraformStateConfigMatchResolver{driver: driver, databaseName: cfg.DatabaseName},
+	)
 	labelBatchSizes := map[string]int(nil)
 	if graphBackend == runtimecfg.GraphBackendNornicDB {
 		if nornicDBBatchedEntityContainment {

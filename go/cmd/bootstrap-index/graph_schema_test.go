@@ -46,7 +46,7 @@ func TestRunEnsuresGraphSchemaBeforeOpeningGraph(t *testing.T) {
 			graphSchemaEnsured = true
 			return nil
 		},
-		func(context.Context, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error) {
+		func(context.Context, bootstrapDB, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error) {
 			if !graphSchemaEnsured {
 				t.Fatal("graph opened before graph schema was ensured")
 			}
@@ -109,7 +109,7 @@ func TestRunReturnsGraphSchemaErrorBeforeOpeningGraph(t *testing.T) {
 		func(context.Context, bootstrapDB, func(string) string, *slog.Logger) error {
 			return graphSchemaErr
 		},
-		func(context.Context, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error) {
+		func(context.Context, bootstrapDB, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error) {
 			t.Fatal("graph opener should not be called after graph schema error")
 			return graphDeps{}, nil
 		},

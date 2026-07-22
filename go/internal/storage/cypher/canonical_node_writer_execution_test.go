@@ -184,10 +184,16 @@ func TestCanonicalNodeWriterAtomicGroupExecutor(t *testing.T) {
 		t.Fatalf("first statement operation = %q, want %q", stmts[0].Operation, OperationCanonicalRetract)
 	}
 
-	// Last statements should be upserts
+	// Last statements should be upserts, or the #5443 terraform_state
+	// migration/retract statements when this materialization has no data in
+	// any phase positioned after terraform_state (as here: no modules,
+	// imports, or structural-edge data), since terraform_state's retraction
+	// runs unconditionally every generation like every other generation-gated
+	// retraction in this writer.
 	last := stmts[len(stmts)-1]
-	if last.Operation != OperationCanonicalUpsert {
-		t.Fatalf("last statement operation = %q, want %q", last.Operation, OperationCanonicalUpsert)
+	lastPhase, _ := last.Parameters[StatementMetadataPhaseKey].(string)
+	if last.Operation != OperationCanonicalUpsert && lastPhase != canonicalPhaseTerraformState {
+		t.Fatalf("last statement operation = %q phase = %q, want %q or phase %q", last.Operation, lastPhase, OperationCanonicalUpsert, canonicalPhaseTerraformState)
 	}
 
 	lastEarlyRetractIdx := -1
@@ -198,7 +204,8 @@ func TestCanonicalNodeWriterAtomicGroupExecutor(t *testing.T) {
 		phase, _ := stmt.Parameters[StatementMetadataPhaseKey].(string)
 		if stmt.Operation == OperationCanonicalRetract &&
 			phase != "directory_cleanup" &&
-			phase != "entity_retract" {
+			phase != "entity_retract" &&
+			phase != canonicalPhaseTerraformState {
 			lastEarlyRetractIdx = i
 		}
 		if stmt.Operation == OperationCanonicalUpsert && firstUpsertIdx == -1 {

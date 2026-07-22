@@ -32,6 +32,11 @@ longer agrees with the selected inventory rather than returning stale rows.
 
 - `kind` selects the node label: `resource` (default, `TerraformResource`),
   `module` (`TerraformModule`), or `data-source` (`TerraformDataSource`).
+  `resource` always means config-declared resources parsed from `.tf` files;
+  it never includes `TerraformStateResource`, the state-observed sibling
+  label a Terraform state backend materializes, because this endpoint's
+  candidate identities come from the current-inventory Postgres index, which
+  only ever indexes parsed content-entity facts.
 - `type` filters by Terraform resource type (e.g. `aws_iam_role`); for
   `data-source` it filters the data type. `provider` filters by provider (e.g.
   `aws`); provider is present only on canonical-sourced nodes, so a provider

@@ -63,7 +63,11 @@ var schemaConstraints = []string{
 	"CREATE CONSTRAINT helm_value_definition_unique IF NOT EXISTS FOR (hvd:HelmValueDefinition) REQUIRE (hvd.name, hvd.path, hvd.line_number) IS UNIQUE",
 	"CREATE CONSTRAINT helm_template_value_usage_unique IF NOT EXISTS FOR (htvu:HelmTemplateValueUsage) REQUIRE (htvu.name, htvu.path, htvu.line_number) IS UNIQUE",
 
-	// Terraform entity constraints
+	// Terraform entity constraints. TerraformResource is config-declared only
+	// as of #5443 (state-observed resources now MERGE under
+	// TerraformStateResource, uid-constrained only — see uidConstraintLabels
+	// below); this composite constraint's (name, path, line_number) shape is
+	// meaningful again because every row now has a real file path and line.
 	"CREATE CONSTRAINT tf_resource_unique IF NOT EXISTS FOR (r:TerraformResource) REQUIRE (r.name, r.path, r.line_number) IS UNIQUE",
 	"CREATE CONSTRAINT tf_variable_unique IF NOT EXISTS FOR (v:TerraformVariable) REQUIRE (v.name, v.path, v.line_number) IS UNIQUE",
 	"CREATE CONSTRAINT tf_output_unique IF NOT EXISTS FOR (o:TerraformOutput) REQUIRE (o.name, o.path, o.line_number) IS UNIQUE",
@@ -211,6 +215,19 @@ var uidConstraintLabels = []string{
 	"TerraformProvider",
 	"TerraformRemovedBlock",
 	"TerraformResource",
+	// TerraformStateResource is the state-side sibling of TerraformResource
+	// (#5443). Before this split, both config-declared and Terraform-state-
+	// observed resources shared the TerraformResource label; the state-side
+	// canonical writer (tfstate_canonical_writer.go) now MERGEs its own label
+	// so config-declared and state-applied resources are distinguishable by
+	// label alone, with zero heuristics. Only a uid uniqueness constraint is
+	// registered here (see schema_tables.go's Terraform entity constraints
+	// comment for why the composite (name, path, line_number) shape does not
+	// carry over: state rows use a synthetic tfstate:// path and a hardcoded
+	// line_number of 1, so uid — already a collision-resistant sha256 over
+	// kind/scope/lineage/address — is state resources' only meaningful
+	// identity key).
+	"TerraformStateResource",
 	"TerraformVariable",
 	"TerragruntConfig",
 	"TerragruntDependency",
@@ -313,6 +330,53 @@ var schemaPerformanceIndexes = []string{
 	"CREATE INDEX tf_resource_environment IF NOT EXISTS FOR (r:TerraformResource) ON (r.environment)",
 	"CREATE INDEX tf_resource_service IF NOT EXISTS FOR (r:TerraformResource) ON (r.resource_service)",
 	"CREATE INDEX tf_resource_category IF NOT EXISTS FOR (r:TerraformResource) ON (r.resource_category)",
+	// Backs the #5443 MATCHES_STATE edge write: the graph writer anchors on
+	// `{repo_id, name}` where name is the config-declared bare address (e.g.
+	// "aws_instance.web") -- the most selective property available (an
+	// address is typically unique within a repo), so this index, not
+	// tf_resource_unique's (name, path, line_number) composite, is the
+	// intended lookup path.
+	"CREATE INDEX tf_resource_name IF NOT EXISTS FOR (r:TerraformResource) ON (r.name)",
+	// TerraformStateResource property indexes (#5443 P1 review finding).
+	// TerraformStateResource joined every query path TerraformResource's six
+	// property indexes above back (infra_resource_aggregates.go's per-label
+	// aggregate branches and entity_map_resolver.go's terraform candidate
+	// lookups both iterate every label in infraCategoryLabels["terraform"] /
+	// entityMapResolverQueries' terraform case with the SAME filter clauses
+	// regardless of label), so without a matching index those become
+	// unindexed TerraformStateResource label scans. Only three of
+	// TerraformResource's six sibling properties are ever actually written
+	// onto a TerraformStateResource node
+	// (canonicalTerraformStateResourceUpsertCypher, tfstate_canonical_writer.go):
+	// resource_type, name, and address (name and address both hold the state
+	// address; address is the field entity_map_resolver.go actually filters
+	// on). provider, environment, resource_service, and resource_category
+	// are config-only concepts with no TerraformStateResource equivalent
+	// field, so no state-side node ever carries them -- an index there would
+	// back a predicate that can never match a single row, so it is
+	// deliberately not added.
+	//   - tf_state_resource_type backs infra_resource_aggregates.go's
+	//     ResourceType/Kind filter clauses
+	//     ("(n.resource_type = $resource_type OR ...)",
+	//     "(n.kind = $kind OR n.resource_type = $kind OR ...)"), which run
+	//     against the TerraformStateResource branch whenever
+	//     filter.Category is "terraform" or unset.
+	//   - tf_state_resource_name backs entity_map_resolver.go's
+	//     `MATCH (n:TerraformStateResource {name: $from})` candidate lookup
+	//     (entityMapResolverQueries' "terraform"/"tf"/"terraform_resource"
+	//     case and entityMapGenericResolverQueries' fallback), a
+	//     bound-property MATCH that falls back to a full label scan without
+	//     a backing index on the pinned NornicDB executor.
+	//   - tf_state_resource_address backs entity_map_resolver.go's
+	//     `MATCH (n:TerraformStateResource {address: $from})` candidate
+	//     lookup, which both call sites try BEFORE the name lookup above
+	//     (rank 3 vs. rank 5 in the terraform/tf case; the only
+	//     TerraformStateResource property lookup besides uid in
+	//     entityMapGenericResolverQueries' fallback) -- the higher-priority,
+	//     more commonly hit branch, and the one the prior fix missed.
+	"CREATE INDEX tf_state_resource_type IF NOT EXISTS FOR (r:TerraformStateResource) ON (r.resource_type)",
+	"CREATE INDEX tf_state_resource_name IF NOT EXISTS FOR (r:TerraformStateResource) ON (r.name)",
+	"CREATE INDEX tf_state_resource_address IF NOT EXISTS FOR (r:TerraformStateResource) ON (r.address)",
 	"CREATE INDEX workload_name IF NOT EXISTS FOR (w:Workload) ON (w.name)",
 	"CREATE INDEX workload_repo_id IF NOT EXISTS FOR (w:Workload) ON (w.repo_id)",
 	"CREATE INDEX workload_instance_environment IF NOT EXISTS FOR (i:WorkloadInstance) ON (i.environment)",
@@ -387,7 +451,8 @@ var schemaFulltextIndexes = []fulltextIndex{
 	},
 	{
 		primary: "CALL db.index.fulltext.createNodeIndex('infra_search_index', " +
-			"['K8sResource', 'TerraformResource', 'ArgoCDApplication', " +
+			"['K8sResource', 'TerraformResource', 'TerraformStateResource', " +
+			"'ArgoCDApplication', " +
 			"'ArgoCDApplicationSet', 'AtlantisProject', 'AtlantisWorkflow', 'GitlabPipeline', 'GitlabJob', 'CrossplaneXRD', 'CrossplaneComposition', " +
 			"'CrossplaneClaim', 'KustomizeOverlay', 'HelmChart', 'HelmValues', " +
 			"'TerraformVariable', 'TerraformOutput', 'TerraformModule', " +
@@ -397,8 +462,18 @@ var schemaFulltextIndexes = []fulltextIndex{
 			"'TerragruntConfig', 'CloudFormationResource', " +
 			"'CloudFormationParameter', 'CloudFormationOutput'], " +
 			"['name', 'kind', 'resource_type'])",
+		// TerraformStateResource joins the infra_search_index label set
+		// (#5443 P1 review finding): it is already in allInfraLabels
+		// (internal/query/infra.go) and infraCategoryLabels["terraform"], but
+		// this fulltext label set previously listed every other Terraform*
+		// label and omitted it, so a fulltext infra search silently never
+		// surfaced state-observed Terraform resources. It carries the same
+		// `name` and `resource_type` properties every other label in this
+		// index carries (canonicalTerraformStateResourceUpsertCypher,
+		// tfstate_canonical_writer.go), so no property-list change is needed.
 		fallback: "CREATE FULLTEXT INDEX infra_search_index IF NOT EXISTS " +
-			"FOR (n:K8sResource|TerraformResource|ArgoCDApplication|" +
+			"FOR (n:K8sResource|TerraformResource|TerraformStateResource|" +
+			"ArgoCDApplication|" +
 			"ArgoCDApplicationSet|AtlantisProject|AtlantisWorkflow|GitlabPipeline|GitlabJob|CrossplaneXRD|CrossplaneComposition|" +
 			"CrossplaneClaim|KustomizeOverlay|HelmChart|HelmValues|" +
 			"TerraformVariable|TerraformOutput|TerraformModule|" +

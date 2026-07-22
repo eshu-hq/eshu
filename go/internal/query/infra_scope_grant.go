@@ -208,6 +208,20 @@ func (f repositoryAccessFilter) scopeGrantInlineScalars() (scalars []string, cap
 // inbound DEFINES), so a single predicate string applies uniformly across the
 // per-label aggregate scans and the label-free relationship read.
 //
+// TerraformStateResource (#5443, state-observed Terraform resources) carries
+// no `repo_id` -- it is not defined by a repository the way config-declared
+// TerraformResource is, only optionally matched to one via the MATCHES_STATE
+// edge and the node's own config_repo_id property once backend ownership
+// resolves. None of the four disjuncts above admit it, so it is
+// fail-closed: invisible to every scoped-token infra read even though it is
+// included in allInfraLabels (infra.go). This is the SAFE failure mode
+// (nothing over-authorized), not a security gap, but it is a real coverage
+// gap -- a scoped caller cannot see state-observed resources through this
+// path at all today. Tracked as issue #5623. A future change adding a
+// `config_repo_id`-based disjunct needs the same tenant-isolation scrutiny as
+// disjuncts 1-4 (see eshu-code-review's scoped-route guidance) before
+// shipping.
+//
 // `scalars` MUST be the slice returned by scopeGrantInlineScalars for the same
 // grant set the params bind (see infraResourceAggregateParams and the search /
 // relationship handlers). The predicate renders only in scoped mode; the

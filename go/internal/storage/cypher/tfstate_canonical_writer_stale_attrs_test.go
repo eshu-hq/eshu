@@ -231,7 +231,7 @@ func TestTerraformStateStatementsEmitRemoveBeforeUpsert(t *testing.T) {
 			sawRemove = true
 			continue
 		}
-		if _, ok := stmt.Parameters["rows"]; ok && stmt.Parameters[StatementMetadataEntityLabelKey] == "TerraformResource" {
+		if _, ok := stmt.Parameters["rows"]; ok && stmt.Parameters[StatementMetadataEntityLabelKey] == "TerraformStateResource" {
 			sawUpsert = true
 		}
 	}
@@ -240,5 +240,56 @@ func TestTerraformStateStatementsEmitRemoveBeforeUpsert(t *testing.T) {
 	}
 	if !sawUpsert {
 		t.Fatalf("no upsert statement found")
+	}
+}
+
+// TestTerraformStateStatementsEmitRetractAfterUpsert proves the P0 statement
+// ORDERING contract buildTerraformStateStatements' doc comment states: the
+// generation-gated retraction statements must follow the resource upsert
+// statement in the returned slice, never precede it. Retracting before the
+// upsert means every pre-existing node in the scope still carries the
+// PREVIOUS cycle's generation_id at the moment the retract statement's
+// `generation_id <> $generation_id` predicate evaluates it, so the retract
+// would DETACH DELETE the entire live population every cycle instead of only
+// genuinely stale nodes -- the upsert would then recreate everything,
+// meaning every steady-state refresh silently churns the whole population.
+// This is a plain Cypher-text/shape assertion (no fake execution semantics
+// involved), mirroring TestTerraformStateStatementsEmitRemoveBeforeUpsert's
+// approach for the REMOVE/upsert ordering contract.
+func TestTerraformStateStatementsEmitRetractAfterUpsert(t *testing.T) {
+	t.Parallel()
+
+	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
+	mat := baseTerraformStateResourceMat(map[string]any{
+		"instance_type": "t3.micro",
+	})
+
+	statements := writer.buildTerraformStateStatements(mat)
+	sawUpsert := false
+	sawRetract := false
+	for _, stmt := range statements {
+		_, hasUIDs := stmt.Parameters["uids"]
+		_, hasRows := stmt.Parameters["rows"]
+		isUpsert := hasRows && stmt.Parameters[StatementMetadataEntityLabelKey] == "TerraformStateResource"
+		isRetract := !hasUIDs && !hasRows && stmt.Parameters["scope_id"] != nil
+
+		if isRetract {
+			if !sawUpsert {
+				t.Fatalf(
+					"retract statement found BEFORE the resource upsert statement; retract must run after the upsert so surviving nodes already carry the current generation_id, or every cycle deletes the whole scope population: %#v",
+					stmt,
+				)
+			}
+			sawRetract = true
+		}
+		if isUpsert {
+			sawUpsert = true
+		}
+	}
+	if !sawUpsert {
+		t.Fatalf("no resource upsert statement found")
+	}
+	if !sawRetract {
+		t.Fatalf("no retract statement found")
 	}
 }

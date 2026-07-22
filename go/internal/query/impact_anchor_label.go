@@ -18,9 +18,13 @@ package query
 //
 //  2. Labels whose canonical writer sets `.id = row.uid` alongside the stable
 //     `.uid` identity: CloudResource (cloud_resource_node_writer.go),
-//     TerraformResource (tfstate_canonical_writer.go:13),
-//     TerraformModule (tfstate_canonical_writer.go:41),
-//     TerraformOutput (tfstate_canonical_writer.go:62),
+//     TerraformResource (config-declared, canonical_node_cypher.go's generic
+//     content-entity pipeline), TerraformStateResource (state-observed,
+//     tfstate_canonical_writer.go -- #5443 split this off TerraformResource;
+//     it still sets `.id = row.uid`, so it must stay in this disjunction too,
+//     or by-id impact reads silently stop finding state-observed resources),
+//     TerraformModule (tfstate_canonical_writer.go),
+//     TerraformOutput (tfstate_canonical_writer.go),
 //     KubernetesWorkload (kubernetes_workload_node_writer.go).
 //     For these labels the `id` value equals the `uid` value, so a caller that
 //     passes the node's uid as the query parameter will resolve via `id`.
@@ -33,4 +37,4 @@ package query
 // The disjunction-with-property anchor is the shared Cypher/Bolt contract
 // shape used by the canonical edge writers, so it is portable across NornicDB
 // and Neo4j and does not introduce a backend branch.
-const impactAnchorLabelDisjunction = "Repository|Workload|WorkloadInstance|CloudResource|TerraformResource|TerraformModule|TerraformOutput|KubernetesWorkload|DataAsset|Platform|Endpoint|CloudAction|EvidenceArtifact"
+const impactAnchorLabelDisjunction = "Repository|Workload|WorkloadInstance|CloudResource|TerraformResource|TerraformStateResource|TerraformModule|TerraformOutput|KubernetesWorkload|DataAsset|Platform|Endpoint|CloudAction|EvidenceArtifact"

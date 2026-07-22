@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 420/420 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 422/422 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -18,10 +18,10 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
 | Projections (cost/ordering) | 28 | 28 | 100.00% | 0 | 1 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
-| Retractable edge types (delta) | 58 | 58 | 100.00% | 0 | 0 |
-| Retractable node types (delta) | 94 | 94 | 100.00% | 0 | 0 |
+| Retractable edge types (delta) | 59 | 59 | 100.00% | 0 | 1 |
+| Retractable node types (delta) | 95 | 95 | 100.00% | 0 | 1 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **420** | **420** | **100.00%** | **0** | **10** |
+| **Total** | **422** | **422** | **100.00%** | **0** | **12** |
 
 ## Coverage by scenario type
 
@@ -30,7 +30,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | baseline | 218 | 218 | 100.00% | 0 | 5 |
 | cost | 27 | 27 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
-| delta_tombstone | 153 | 153 | 100.00% | 0 | 0 |
+| delta_tombstone | 155 | 155 | 100.00% | 0 | 2 |
 | fault | 17 | 17 | 100.00% | 0 | 4 |
 | ordering | 3 | 3 | 100.00% | 0 | 0 |
 
@@ -46,7 +46,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 None. Every supported surface has a replay scenario.
 
-## Covered surfaces (420)
+## Covered surfaces (422)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -317,6 +317,7 @@ None. Every supported surface has a replay scenario.
 | `retractable_edge:INVOKES_CLOUD_ACTION` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go` |
 | `retractable_edge:LOGS_TO` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go` |
 | `retractable_edge:MANAGES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go` |
+| `retractable_edge:MATCHES_STATE` | delta_tombstone | exempt | — | — |
 | `retractable_edge:MIGRATES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go` |
 | `retractable_edge:NEEDS` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_edge:OVERRIDES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go` |
@@ -425,6 +426,7 @@ None. Every supported surface has a replay scenario.
 | `retractable_node:TerraformProvider` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:TerraformRemovedBlock` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:TerraformResource` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
+| `retractable_node:TerraformStateResource` | delta_tombstone | exempt | — | — |
 | `retractable_node:TerraformVariable` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:TerragruntConfig` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:TerragruntDependency` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |

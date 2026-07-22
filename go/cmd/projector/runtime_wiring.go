@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	"github.com/eshu-hq/eshu/go/internal/graphbackpressure"
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
@@ -140,6 +141,7 @@ func buildProjectorRuntime(
 
 func openProjectorCanonicalWriter(
 	parent context.Context,
+	database postgres.SQLDB,
 	getenv func(string) string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
@@ -183,7 +185,11 @@ func openProjectorCanonicalWriter(
 		executor,
 		neo4jBatchSize(getenv),
 		instruments,
-	).WithTracer(tracer)
+	).WithTracer(tracer).WithTerraformStateOwnershipResolver(
+		projectorTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.PostgresTerraformBackendQuery{DB: database})},
+	).WithTerraformStateConfigMatchResolver(
+		projectorTerraformStateConfigMatchResolver{driver: driver, databaseName: cfg.DatabaseName},
+	)
 	writer = configureProjectorCanonicalWriter(writer, graphBackend, nornicDBConfig)
 
 	return writer,

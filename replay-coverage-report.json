@@ -2,11 +2,11 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 420,
+    "total": 422,
     "covered": 410,
     "uncovered": 0,
     "unresolved": 0,
-    "exempt": 10,
+    "exempt": 12,
     "percent_satisfied": 100
   },
   "registry_summaries": [
@@ -84,20 +84,20 @@
     },
     {
       "registry": "retractable_edge_type",
-      "total": 58,
+      "total": 59,
       "covered": 58,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 0,
+      "exempt": 1,
       "percent_satisfied": 100
     },
     {
       "registry": "retractable_type",
-      "total": 94,
+      "total": 95,
       "covered": 94,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 0,
+      "exempt": 1,
       "percent_satisfied": 100
     },
     {
@@ -140,11 +140,11 @@
     },
     {
       "scenario_type": "delta_tombstone",
-      "total": 153,
+      "total": 155,
       "covered": 153,
       "uncovered": 0,
       "unresolved": 0,
-      "exempt": 0,
+      "exempt": 2,
       "percent_satisfied": 100
     },
     {
@@ -2833,6 +2833,13 @@
     },
     {
       "registry": "retractable_edge_type",
+      "key": "retractable_edge:MATCHES_STATE",
+      "scenario_type": "delta_tombstone",
+      "status": "exempt",
+      "detail": "MATCHES_STATE retraction is unconditionally skipped on a delta cycle: terraformStateMatchesConfigEdgeRetractStatements (go/internal/storage/cypher/tfstate_state_match_edge_retract.go) returns nil whenever mat.FirstGeneration || mat.DeltaProjection is true, before building any retract statement -- the exact same skip condition as the TerraformStateResource node exemption above, since mat.TerraformStateResources is populated only from terraform_state envelopes present in the current materialization's input, so a delta cycle triggered by an unrelated file edit carries none and the s.generation_id anchor would never select a state resource to retract a stale edge from. This is not an authored-scenario gap (C-14) but a structural impossibility: no input can ever reach the retract statement on a delta cycle for this edge type. Genuine MATCHES_STATE edge changes missed by a delta cycle are still caught by the periodic full reconciliation generation (mat.ReconciliationProjection forces DeltaProjection=false; see internal/projector/canonical_builder.go), the same mechanism the TerraformStateResource node retraction and buildRepositoryCleanupStatements already rely on, within the reconcile interval. Registered directly as exempt rather than as a claimed delta_tombstone coverage row: no cassette exercises a MATCHES_STATE retract, and claiming cassette coverage without one would repeat the exact false-green the TerraformStateResource node exemption above corrected. Remove this exemption only if a future change adds a delta-scoped retract path for MATCHES_STATE (e.g. by threading a backend-scoped exclusion list through the delta materialization)."
+    },
+    {
+      "registry": "retractable_edge_type",
       "key": "retractable_edge:MIGRATES",
       "scenario_type": "delta_tombstone",
       "status": "covered",
@@ -3910,6 +3917,13 @@
       "ref": "testdata/cassettes/replaydelta/multi-generation-tombstone.json",
       "proof_gate": "replay-tier",
       "detail": "artifact present: testdata/cassettes/replaydelta/multi-generation-tombstone.json"
+    },
+    {
+      "registry": "retractable_type",
+      "key": "retractable_node:TerraformStateResource",
+      "scenario_type": "delta_tombstone",
+      "status": "exempt",
+      "detail": "TerraformStateResource retraction is unconditionally skipped on a delta cycle: terraformStateResourceRetractStatements (go/internal/storage/cypher/tfstate_canonical_writer_retract.go) returns nil whenever mat.DeltaProjection is true, before building any retract statement. A tfstate resource has no file-path scope this writer can use to build a delta-scoped retract the way file- and entity-scoped retraction do, and a delta materialization carries no positive list of untouched backends to safely exclude from a scoped delete -- so a delta_tombstone scenario for this node type is not an authored-scenario gap (C-14) but a structural impossibility: no input can ever reach the retract statement on a delta cycle for this label. Genuine deletions are still caught by the periodic full reconciliation generation (mat.ReconciliationProjection forces DeltaProjection=false; see internal/projector/canonical_builder.go), the same mechanism buildRepositoryCleanupStatements already relies on for repository-node cleanup, within the reconcile interval. A prior manifest row (specs/replay-coverage-manifest.v1.yaml) claimed cassette coverage of this exact surface/scenario_type via testdata/cassettes/replaydelta/multi-generation-tombstone.json; that cassette contains zero TerraformStateResource references, so the row was removed as a false coverage claim rather than an accurate one. Remove this exemption only if a future change adds a delta-scoped retract path for TerraformStateResource (e.g. by threading a backend-scoped exclusion list through the delta materialization)."
     },
     {
       "registry": "retractable_type",

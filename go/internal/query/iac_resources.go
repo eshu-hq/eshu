@@ -45,10 +45,16 @@ var iacResourceKindLabels = map[iacResourceKind]string{
 	iacResourceKindDataSource: "TerraformDataSource",
 }
 
-// iacResourceRow is one row in the bounded IaC resource list. Optional fields
-// are omitted when empty because tfstate-sourced TerraformResource nodes carry
-// only identity and type, while canonical-sourced nodes also carry provider,
-// service, category, and repository attribution.
+// iacResourceRow is one row in the bounded IaC resource list. Candidates for
+// this list always come from the current-inventory Postgres CTE
+// (iac_inventory_postgres.go), which filters to fact_kind = 'content_entity'
+// -- the config-side generic parser/entity pipeline only, never
+// terraform_state_resource facts -- so kind=resource has only ever hydrated
+// config-declared TerraformResource nodes, both before and after #5443 split
+// state-observed resources onto their own TerraformStateResource label.
+// Optional fields are still omitted when empty because not every
+// canonical-sourced node carries provider, service, category, and repository
+// attribution (e.g. a resource type Eshu has not classified yet).
 type iacResourceRow struct {
 	ID           string `json:"id"`
 	Kind         string `json:"kind"`
