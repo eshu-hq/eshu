@@ -45,10 +45,13 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			// never apply to it. The FluxHelmRelease/FluxHelmRepository bump
 			// (issue #5483 C1: uid constraints for two new Flux labels,
 			// immediate predecessor = the Flux typed-entity tip) is additive
-			// the same way. The #5443 P1 review finding's fix (TerraformStateResource
-			// property indexes plus its infra_search_index fulltext label) is
-			// index-only and additive too.
+			// the same way. Both #5443 P1 review finding fixes
+			// (TerraformStateResource type/name property indexes plus its
+			// infra_search_index fulltext label, then the follow-on
+			// TerraformStateResource address property index) are index-only
+			// and additive too.
 			compatible: []string{
+				graphSchemaNeo4jPreTerraformStateResourceAddressIndexFingerprint,
 				graphSchemaNeo4jPreTerraformStateResourceIndexesFingerprint,
 				graphSchemaNeo4jPreTerraformStateResourceSplitFingerprint,
 				graphSchemaNeo4jPreCodeownersOwnershipFingerprint,
@@ -67,6 +70,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			backend:     SchemaBackendNornicDB,
 			fingerprint: graphSchemaNornicDBFingerprint,
 			compatible: []string{
+				graphSchemaNornicDBPreTerraformStateResourceAddressIndexFingerprint,
 				graphSchemaNornicDBPreTerraformStateResourceIndexesFingerprint,
 				graphSchemaNornicDBPreTerraformStateResourceSplitFingerprint,
 				graphSchemaNornicDBPreCodeownersOwnershipFingerprint,

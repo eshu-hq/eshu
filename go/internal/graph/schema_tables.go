@@ -344,16 +344,17 @@ var schemaPerformanceIndexes = []string{
 	// lookups both iterate every label in infraCategoryLabels["terraform"] /
 	// entityMapResolverQueries' terraform case with the SAME filter clauses
 	// regardless of label), so without a matching index those become
-	// unindexed TerraformStateResource label scans. Only two of
+	// unindexed TerraformStateResource label scans. Only three of
 	// TerraformResource's six sibling properties are ever actually written
 	// onto a TerraformStateResource node
 	// (canonicalTerraformStateResourceUpsertCypher, tfstate_canonical_writer.go):
-	// resource_type and name (name holds the state address, never a
-	// separately-declared config name). provider, environment,
-	// resource_service, and resource_category are config-only concepts with
-	// no TerraformStateResource equivalent field, so no state-side node ever
-	// carries them -- an index there would back a predicate that can never
-	// match a single row, so it is deliberately not added.
+	// resource_type, name, and address (name and address both hold the state
+	// address; address is the field entity_map_resolver.go actually filters
+	// on). provider, environment, resource_service, and resource_category
+	// are config-only concepts with no TerraformStateResource equivalent
+	// field, so no state-side node ever carries them -- an index there would
+	// back a predicate that can never match a single row, so it is
+	// deliberately not added.
 	//   - tf_state_resource_type backs infra_resource_aggregates.go's
 	//     ResourceType/Kind filter clauses
 	//     ("(n.resource_type = $resource_type OR ...)",
@@ -366,8 +367,16 @@ var schemaPerformanceIndexes = []string{
 	//     case and entityMapGenericResolverQueries' fallback), a
 	//     bound-property MATCH that falls back to a full label scan without
 	//     a backing index on the pinned NornicDB executor.
+	//   - tf_state_resource_address backs entity_map_resolver.go's
+	//     `MATCH (n:TerraformStateResource {address: $from})` candidate
+	//     lookup, which both call sites try BEFORE the name lookup above
+	//     (rank 3 vs. rank 5 in the terraform/tf case; the only
+	//     TerraformStateResource property lookup besides uid in
+	//     entityMapGenericResolverQueries' fallback) -- the higher-priority,
+	//     more commonly hit branch, and the one the prior fix missed.
 	"CREATE INDEX tf_state_resource_type IF NOT EXISTS FOR (r:TerraformStateResource) ON (r.resource_type)",
 	"CREATE INDEX tf_state_resource_name IF NOT EXISTS FOR (r:TerraformStateResource) ON (r.name)",
+	"CREATE INDEX tf_state_resource_address IF NOT EXISTS FOR (r:TerraformStateResource) ON (r.address)",
 	"CREATE INDEX workload_name IF NOT EXISTS FOR (w:Workload) ON (w.name)",
 	"CREATE INDEX workload_repo_id IF NOT EXISTS FOR (w:Workload) ON (w.repo_id)",
 	"CREATE INDEX workload_instance_environment IF NOT EXISTS FOR (i:WorkloadInstance) ON (i.environment)",

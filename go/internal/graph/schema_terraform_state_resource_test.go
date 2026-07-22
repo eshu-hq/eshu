@@ -15,19 +15,24 @@ import (
 // lookups) with the SAME filter clauses TerraformResource's six sibling
 // indexes serve, but only received a uid uniqueness constraint
 // (uidConstraintLabels), leaving those TerraformStateResource query branches
-// as unindexed full-label scans. Only resource_type and name are ever
-// actually written onto a TerraformStateResource node
+// as unindexed full-label scans. resource_type, name, and address are the
+// three TerraformResource-sibling properties actually written onto a
+// TerraformStateResource node
 // (canonicalTerraformStateResourceUpsertCypher in
-// internal/storage/cypher/tfstate_canonical_writer.go), so those are the
-// only two of TerraformResource's six indexed properties that apply here --
+// internal/storage/cypher/tfstate_canonical_writer.go) --
 // provider/environment/resource_service/resource_category are config-only
-// concepts no TerraformStateResource node ever carries.
+// concepts no TerraformStateResource node ever carries. address also backs
+// entity_map_resolver.go's higher-priority (rank 3, ahead of the name
+// lookup at rank 5) TerraformStateResource candidate query, and is the ONLY
+// TerraformStateResource lookup in entityMapGenericResolverQueries' fallback
+// besides uid.
 func TestSchemaPerformanceIndexesCoverTerraformStateResource(t *testing.T) {
 	t.Parallel()
 
 	want := []string{
 		"CREATE INDEX tf_state_resource_type IF NOT EXISTS FOR (r:TerraformStateResource) ON (r.resource_type)",
 		"CREATE INDEX tf_state_resource_name IF NOT EXISTS FOR (r:TerraformStateResource) ON (r.name)",
+		"CREATE INDEX tf_state_resource_address IF NOT EXISTS FOR (r:TerraformStateResource) ON (r.address)",
 	}
 	for _, stmt := range want {
 		found := false
