@@ -1811,7 +1811,18 @@ changes. A real Postgres concurrency gate
 skipped without `ESHU_POSTGRES_DSN`/`ESHU_LOCAL_IDENTITY_MFA_RESET_PROOF_DSN`)
 drives two concurrent `ResetLocalIdentityMFA` calls for the same user and
 proves exactly one active, unrevoked `identity_mfa_factors` row survives;
-before the lock, all 5 rounds reproduced two active rows.
+before the lock, all 5 rounds reproduced two active rows. Two deterministic
+lock-contention proofs in `identity_local_mfa_reset_lock_contention_test.go`
+are the primary regression gates for the lock itself:
+`TestLocalIdentityMFAResetLockBlocksConcurrentResetForSameUser` holds the
+per-user advisory lock open in one transaction and asserts a second reset
+parks in `pg_locks` as an ungranted advisory-lock waiter until the first
+commits, and
+`TestLocalIdentityMFAResetRaceWithoutLockDuplicatesActiveFactor` drives the
+same revoke/insert statement sequence with the lock omitted and a barrier
+between the revokes and inserts, proving the unserialized path lands two
+simultaneously active factor rows (the hazard the lock closes). Both skip
+without `ESHU_LOCAL_IDENTITY_MFA_RESET_PROOF_DSN`/`ESHU_POSTGRES_DSN`.
 
 No-Observability-Change: the lock adds no metric, span, log field, status
 payload field, route, worker, queue, index, or table. `ResetLocalIdentityMFA`
