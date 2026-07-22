@@ -97,3 +97,16 @@ No-Observability-Change: #3464 adds no metrics, spans, log fields, status
 payload fields, or telemetry labels. Operator-visible evidence remains the
 validation output and generated environment-variable docs; API/MCP auth
 telemetry is owned by the runtime auth code, which is unchanged here.
+
+No-Regression Evidence: #5605 only extends the `Description` string of the
+existing `ESHU_AUTH_GITHUB_ENABLED` registry entry (a docs clarification) and
+regenerates the reference doc from it. No new variable, no runtime code, and no
+service request, graph-write, reducer, queue, goroutine, worker, lease, or
+Cypher path changes — the registry is read by `eshu config validate` and the
+doc-generator test, not by any hot path. Terminal graph/queue counts are
+unchanged. Verified by `go test ./internal/envregistry ./cmd/api -count=1` and
+`mkdocs build --strict`.
+
+No-Observability-Change: #5605 adds no metrics, spans, log fields, status
+payload fields, or telemetry labels; it is a documentation-only change to an
+existing env var's description plus the generated reference doc.
