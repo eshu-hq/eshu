@@ -91,6 +91,42 @@ handler metrics and span. Inventory-search, summary, graph, and consistency
 failures retain distinct bounded error reasons without adding high-cardinality
 labels.
 
+## Graph Entity Inventory
+
+`GET /api/v0/graph/entities` backs the console Nodes page. Every response
+includes exact counts for services, repositories, libraries, container images,
+environments, cloud resources, identity/IAM, and networking. Set `kind` to one
+of those facet keys to add a bounded entity page; `q`, `limit`, and `offset`
+apply only to that selected label.
+
+The count phase makes one graph request containing eight scalar `CALL`
+subqueries. Each subquery is anchored on one concrete label and returns one
+named count column, including when that label is empty. A plain outer projection
+returns the eight columns. The handler rejects missing, extra, malformed, or
+negative columns, restores the catalog display order, and sums the total in Go.
+This avoids both the former eight serial round trips and NornicDB's corrupt
+grouped-literal and outer-aggregation paths. A selected facet adds one list
+request using `limit + 1` to report `truncated`; an unfiltered request performs
+no list read.
+
+Performance Evidence: on pinned NornicDB v1.1.11 with 91,000 synthetic nodes
+(5,600 facet nodes and 85,400 unrelated nodes), the old eight-query sequence
+measured 21.165 ms on the first read and 1.286 ms warm median. The production
+one-query path measured 3.397 ms first and 0.206 ms warm median with identical
+facet rows and total. The zero-label differential also preserved the named zero
+count. All four production-path runs stayed below the checked-in 3-second
+interactive SLO. NornicDB did not expose PROFILE db-hit counters; the same
+91,000-node test on pinned Neo4j reported 8 db hits for both shapes.
+
+Observability Evidence: the `query.graph_entity_inventory` span records bounded
+`eshu.query.graph_entity_inventory.round_trip_count`,
+`eshu.query.graph_entity_inventory.facet_row_count`,
+`eshu.query.graph_entity_inventory.result_count`, and
+`eshu.query.graph_entity_inventory.truncated` attributes. The shared
+per-endpoint metrics continue to report route latency and 5xx rate. No facet
+key, graph label, entity ID, name, account, repository, tenant, or credential is
+used as a metric label.
+
 ## Graph Summary Packet
 
 `POST /api/v0/ecosystem/graph-summary` returns a bounded, summary-first graph

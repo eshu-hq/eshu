@@ -180,6 +180,7 @@ func TestSpanNames(t *testing.T) {
 		"query.dead_code_investigation",
 		"query.call_graph_metrics",
 		"query.graph_summary_packet",
+		"query.graph_entity_inventory",
 		"query.change_surface_investigation",
 		"query.resource_investigation",
 		"query.package_registry_packages",

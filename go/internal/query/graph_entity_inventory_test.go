@@ -12,28 +12,104 @@ import (
 	"testing"
 )
 
-// graphEntityCountReader returns a fixed count for every per-label count query
-// and serves the bounded list rows from listRows for any list query.
+// graphEntityCountReader returns one fixed scalar count row and serves the
+// bounded list rows from listRows for any list query.
 type graphEntityCountReader struct {
 	countByLabel map[string]int
 	listRows     []map[string]any
+	countRows    []map[string]any
+	runCalls     int
+	singleCalls  int
+	lastCountCy  string
 	lastListCy   string
 	lastParams   map[string]any
 }
 
 func (f *graphEntityCountReader) Run(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	f.runCalls++
+	if cypher == graphEntityKindCountsCypher(graphEntityKinds) {
+		f.lastCountCy = cypher
+		if f.countRows != nil {
+			return f.countRows, nil
+		}
+		row := make(map[string]any, len(graphEntityKinds))
+		for _, kind := range graphEntityKinds {
+			row[kind.key] = f.countByLabel[kind.label]
+		}
+		return []map[string]any{row}, nil
+	}
 	f.lastListCy = cypher
 	f.lastParams = params
 	return f.listRows, nil
 }
 
 func (f *graphEntityCountReader) RunSingle(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+	f.singleCalls++
 	for label, count := range f.countByLabel {
 		if strings.Contains(cypher, "(n:"+label+")") {
 			return map[string]any{"c": count}, nil
 		}
 	}
 	return map[string]any{"c": 0}, nil
+}
+
+func TestGraphEntityCountReaderDoesNotTreatListAliasAsFacetCount(t *testing.T) {
+	t.Parallel()
+
+	reader := &graphEntityCountReader{
+		listRows: []map[string]any{{"name": "example-service"}},
+	}
+	rows, err := reader.Run(
+		context.Background(),
+		"MATCH (n:Workload) RETURN n.name AS services",
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if got, want := len(rows), 1; got != want {
+		t.Fatalf("len(rows) = %d, want %d", got, want)
+	}
+	if got, want := StringVal(rows[0], "name"), "example-service"; got != want {
+		t.Fatalf("rows[0].name = %q, want %q", got, want)
+	}
+	if reader.lastCountCy != "" {
+		t.Fatalf("lastCountCy = %q, want empty for a list query", reader.lastCountCy)
+	}
+}
+
+func TestGraphEntityInventoryUsesOneFacetCountRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	reader := &graphEntityCountReader{
+		countByLabel: map[string]int{"Workload": 15, "Repository": 21, "Module": 6},
+	}
+	handler := &GraphEntityInventoryHandler{Neo4j: reader, Profile: ProfileProduction}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/graph/entities", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	handler.listEntities(rec, req)
+
+	data := decodeGraphEntityBody(t, rec)
+	if got, want := reader.runCalls, 1; got != want {
+		t.Fatalf("Run calls = %d, want %d (one facet-count round trip)", got, want)
+	}
+	if got := reader.singleCalls; got != 0 {
+		t.Fatalf("RunSingle calls = %d, want 0 (serial per-label counts removed)", got)
+	}
+	if !strings.HasPrefix(strings.TrimSpace(reader.lastCountCy), "CALL {") {
+		t.Fatalf("count cypher = %q, want scalar CALL subqueries", reader.lastCountCy)
+	}
+	if strings.Contains(reader.lastCountCy, "MATCH (n) ") {
+		t.Fatalf("count cypher = %q, must not contain an all-node MATCH", reader.lastCountCy)
+	}
+	if got, want := strings.Count(reader.lastCountCy, "CALL {\n"), len(graphEntityKinds); got != want {
+		t.Fatalf("count CALL subqueries = %d, want %d", got, want)
+	}
+	if got := data["total"].(float64); got != 42 {
+		t.Fatalf("total = %v, want 42", got)
+	}
 }
 
 func decodeGraphEntityBody(t *testing.T, rec *httptest.ResponseRecorder) map[string]any {
@@ -93,6 +169,58 @@ func TestGraphEntityInventoryReturnsPerKindCountsWithoutFilter(t *testing.T) {
 	}
 	if got := data["total"].(float64); got != 42 {
 		t.Fatalf("total = %v, want 42", got)
+	}
+}
+
+func TestGraphEntityInventoryCountsEmptyAndSingleLabelGraphs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		countByLabel  map[string]int
+		wantTotal     float64
+		populatedKind string
+		wantCount     float64
+	}{
+		{name: "empty graph", countByLabel: map[string]int{}},
+		{
+			name:          "one populated label",
+			countByLabel:  map[string]int{"Repository": 9},
+			wantTotal:     9,
+			populatedKind: "repositories",
+			wantCount:     9,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			reader := &graphEntityCountReader{countByLabel: tt.countByLabel}
+			handler := &GraphEntityInventoryHandler{Neo4j: reader, Profile: ProfileProduction}
+			req := httptest.NewRequest(http.MethodGet, "/api/v0/graph/entities", nil)
+			req.Header.Set("Accept", EnvelopeMIMEType)
+			rec := httptest.NewRecorder()
+			handler.listEntities(rec, req)
+
+			data := decodeGraphEntityBody(t, rec)
+			if got := data["total"].(float64); got != tt.wantTotal {
+				t.Fatalf("total = %v, want %v", got, tt.wantTotal)
+			}
+			kinds := data["kinds"].([]any)
+			if got, want := len(kinds), len(graphEntityKinds); got != want {
+				t.Fatalf("len(kinds) = %d, want %d", got, want)
+			}
+			for _, rawKind := range kinds {
+				kind := rawKind.(map[string]any)
+				want := float64(0)
+				if kind["kind"] == tt.populatedKind {
+					want = tt.wantCount
+				}
+				if got := kind["count"].(float64); got != want {
+					t.Fatalf("%s count = %v, want %v", kind["kind"], got, want)
+				}
+			}
+		})
 	}
 }
 

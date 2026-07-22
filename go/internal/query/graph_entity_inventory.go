@@ -7,6 +7,9 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // graphEntityInventoryCapability gates the graph entity inventory readback. It
@@ -84,13 +87,6 @@ func (h *GraphEntityInventoryHandler) profile() QueryProfile {
 	return NormalizeQueryProfile(string(h.Profile))
 }
 
-// graphEntityKindCountCypher builds the bounded single-label count query for one
-// facet. A bare per-label count is portable across Neo4j and NornicDB and never
-// collapses when an adjacent label is empty (see getEcosystemOverview).
-func graphEntityKindCountCypher(kind graphEntityKind) string {
-	return "MATCH (n:" + kind.label + ") RETURN count(n) AS c"
-}
-
 // graphEntityKindListCypher builds the bounded list query for one facet. The
 // match is anchored on a single label, name search uses a case-insensitive
 // CONTAINS, and ORDER BY + LIMIT keep the read bounded for the few-seconds SLA.
@@ -120,6 +116,26 @@ func graphEntityKindListCypher(kind graphEntityKind, hasSearch bool) string {
 // per-kind counts always accompany the response so the console can render the
 // filter chips with live counts on every request.
 func (h *GraphEntityInventoryHandler) listEntities(w http.ResponseWriter, r *http.Request) {
+	r, span := startQueryHandlerSpan(
+		r,
+		telemetry.SpanQueryGraphEntityInventory,
+		"GET /api/v0/graph/entities",
+		graphEntityInventoryCapability,
+	)
+	roundTrips := 0
+	facetRows := 0
+	resultCount := 0
+	truncated := false
+	defer func() {
+		span.SetAttributes(
+			attribute.Int("eshu.query.graph_entity_inventory.round_trip_count", roundTrips),
+			attribute.Int("eshu.query.graph_entity_inventory.facet_row_count", facetRows),
+			attribute.Int("eshu.query.graph_entity_inventory.result_count", resultCount),
+			attribute.Bool("eshu.query.graph_entity_inventory.truncated", truncated),
+		)
+		span.End()
+	}()
+
 	if capabilityUnsupported(h.profile(), graphEntityInventoryCapability) {
 		WriteContractError(
 			w,
@@ -149,25 +165,22 @@ func (h *GraphEntityInventoryHandler) listEntities(w http.ResponseWriter, r *htt
 	offset := graphEntityInventoryOffset(r)
 	search := strings.ToLower(QueryParam(r, "q"))
 
-	kindCounts := make([]map[string]any, 0, len(graphEntityKinds))
-	total := 0
-	for _, kind := range graphEntityKinds {
-		row, err := h.Neo4j.RunSingle(r.Context(), graphEntityKindCountCypher(kind), nil)
-		if err != nil {
-			WriteError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		count := IntVal(row, "c")
-		total += count
-		kindCounts = append(kindCounts, map[string]any{
-			"kind":  kind.key,
-			"label": kind.label,
-			"count": count,
-		})
+	countRows, err := h.Neo4j.Run(r.Context(), graphEntityKindCountsCypher(graphEntityKinds), nil)
+	roundTrips++
+	if err != nil {
+		span.RecordError(err)
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	facetRows = len(countRows)
+	kindCounts, total, err := decodeGraphEntityKindCounts(countRows)
+	if err != nil {
+		span.RecordError(err)
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 
 	entities := make([]map[string]any, 0)
-	truncated := false
 	if selected != nil {
 		params := map[string]any{
 			"limit":  limit + 1,
@@ -177,7 +190,9 @@ func (h *GraphEntityInventoryHandler) listEntities(w http.ResponseWriter, r *htt
 			params["q"] = search
 		}
 		rows, err := h.Neo4j.Run(r.Context(), graphEntityKindListCypher(*selected, search != ""), params)
+		roundTrips++
 		if err != nil {
+			span.RecordError(err)
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -194,6 +209,7 @@ func (h *GraphEntityInventoryHandler) listEntities(w http.ResponseWriter, r *htt
 			})
 		}
 	}
+	resultCount = len(entities)
 
 	body := map[string]any{
 		"kinds":     kindCounts,
@@ -212,7 +228,7 @@ func (h *GraphEntityInventoryHandler) listEntities(w http.ResponseWriter, r *htt
 		h.profile(),
 		graphEntityInventoryCapability,
 		TruthBasisHybrid,
-		"resolved from per-label graph entity inventory counts and bounded list",
+		"resolved from one label-bounded facet-count read and an optional bounded list",
 	))
 }
 

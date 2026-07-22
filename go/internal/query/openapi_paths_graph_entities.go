@@ -8,7 +8,7 @@ const openAPIPathsGraphEntities = `
       "get": {
         "tags": ["infrastructure"],
         "summary": "Browse graph entity inventory",
-        "description": "Returns the browsable graph entity inventory that backs the console Nodes page: per-kind facet counts always, plus a bounded, name-searchable, paginated slice of one kind's first-class entities when kind is set. Each per-kind count is a single bounded label-count scan and the entity list is anchored on one label, ordered by name, and limited, keeping the read within a few-seconds SLA.",
+        "description": "Returns the browsable graph entity inventory that backs the console Nodes page: per-kind facet counts always, plus a bounded, name-searchable, paginated slice of one kind's first-class entities when kind is set. One graph round trip returns all eight facet counts through scalar label-anchored subqueries; the optional entity list is anchored on one label, ordered by name, and limited, keeping the read within the interactive SLA.",
         "operationId": "browseGraphEntityInventory",
         "parameters": [
           {"name": "kind", "in": "query", "required": false, "description": "Facet key to list. Omit to return only the per-kind counts.", "schema": {"type": "string", "enum": ["services", "repositories", "libraries", "container_images", "environments", "cloud_resources", "identity_iam", "networking"]}},

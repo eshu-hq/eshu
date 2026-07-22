@@ -24,6 +24,15 @@ entity type, and case-sensitive exact or substring matching before a stable
 limit. Untyped global entity resolution, unknown types, graph-only container
 types, and global substrings shorter than three Unicode characters fail closed.
 
+`GET /api/v0/graph/entities` reads the eight fixed facet counts in one graph
+round trip. Each scalar `CALL` subquery stays anchored on its concrete label and
+returns one named count column, including when the label is empty. The outer
+projection does not aggregate the columns because NornicDB corrupts that shape.
+Go validates every count before restoring the display order. A selected facet
+adds one bounded label-anchored list read; an unfiltered request performs no
+second graph call. Missing, extra, malformed, or negative count columns return
+an error rather than an incomplete inventory.
+
 NornicDB direct-relationship metadata uses the content entity type as its graph
 label. When the content row is absent, the compatibility fallback probes the
 fixed supported label vocabulary by `uid` and then legacy `id`, optionally

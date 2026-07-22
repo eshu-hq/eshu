@@ -224,13 +224,13 @@ entries:
     domain: graph
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/graph_entity_inventory.go, symbol: graphEntityKindCountCypher, source_sha256: 4d23e6854ac1e0db31e947b55d246c30ae99aa9025fbad786182fcf703e2d9c2}
+    source: {file: go/internal/query/graph_entity_inventory_counts.go, symbol: graphEntityKindCountsCypher, source_sha256: 4b7d78fcf696b40530cdc3d028858627bf17359d3db47cab12a25c89cdfea36c}
     query_fragment: 'MATCH (n:'
-    cypher_sha256: 1f2e1be042ad073986974cce741a960bdb5321fd26c2d4a20823876182192a25
-    caveats: [Neo4j may use the label count store; NornicDB must remain label-bounded and must not use an all-node scan.]
+    cypher_sha256: d24c086f0478b8672c612e0c4985b13980ba839e757ae81ed08543af24da4ead
+    caveats: [Eight scalar CALL subqueries return all fixed facet counts in one round trip; every subquery returns exactly one row and stays label-bounded, the live Neo4j gate requires exactly seven bounded one-row CartesianProduct joins plus eight count-store anchors, and no all-node scan is permitted.]
     plan:
-      operators: [NodeCountFromCountStore]
-      forbidden_operators: [AllNodesScan, CartesianProduct, UnboundedExpand]
+      operators: [NodeCountFromCountStore, CartesianProduct]
+      forbidden_operators: [AllNodesScan, UnboundedExpand]
 
   - id: QP-GRAPH-ENTITY-LIST
     domain: graph
