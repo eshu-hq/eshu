@@ -89,8 +89,23 @@ DELETE r`
 // (canonicalEntityMetadataProperties). Writing base_refs explicitly, instead
 // of relying on that passthrough, keeps this contract-owned field
 // unambiguous and independent of the generic pipeline's reserved-key policy.
+//
+// MERGE, not MATCH, anchors the row despite the KustomizeOverlay node always
+// already existing by the time this statement runs (created earlier in the
+// same materialization's entities phase): reproduced directly against the
+// pinned NornicDB backend (isolated Compose project, torn down after
+// capture) that `UNWIND $rows AS row MATCH (n:Label {uid: row.uid}) SET
+// n.prop = row.val` (bare MATCH, no MERGE, no other clause) silently applies
+// no SET at all, regardless of same- or cross-transaction timing, while the
+// byte-identical shape with MERGE in place of MATCH persists correctly every
+// time. The uid MERGE key makes this a true match-not-create in practice
+// (the node already exists), so behavior is unaffected beyond routing around
+// the defect. Matches this codebase's existing MERGE-over-bare-MATCH
+// precedent for UNWIND-batched property writes (e.g.
+// canonicalNodeGitlabNeedsEdgeCypher never bare-MATCHes its own anchors
+// either).
 const canonicalKustomizeOverlayBaseRefsSetCypher = `UNWIND $rows AS row
-MATCH (ko:KustomizeOverlay {uid: row.uid})
+MERGE (ko:KustomizeOverlay {uid: row.uid})
 SET ko.base_refs = row.base_refs`
 
 // collectKustomizeOverlayEntities extracts KustomizeOverlay rows from the
