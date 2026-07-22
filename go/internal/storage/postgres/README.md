@@ -1813,6 +1813,13 @@ drives two concurrent `ResetLocalIdentityMFA` calls for the same user and
 proves exactly one active, unrevoked `identity_mfa_factors` row survives;
 before the lock, all 5 rounds reproduced two active rows.
 
+No-Observability-Change: the lock adds no metric, span, log field, status
+payload field, route, worker, queue, index, or table. `ResetLocalIdentityMFA`
+is an explicit rare admin/operator action, not a hot path, and the advisory
+lock is transaction-scoped and released automatically on commit/rollback;
+operator-visible evidence remains the reset's own success/error and the
+existing identity telemetry, which is unchanged here.
+
 ## Browser-session permission-catalog persistence (#3684)
 
 `browser_sessions` gains three additive columns —
