@@ -30,6 +30,11 @@ const (
 // manifest-vs-codeowners effective_owner resolved via
 // resolveEffectiveRepositoryOwner. It never writes to the graph or the
 // service-catalog correlation store; both are read-only dependencies.
+// listOwnership resolves the request's repository_id (a canonical
+// Repository.id, a human slug, or another repository_selector.go alias) to
+// the canonical Repository.id via resolveRepositorySelectorForRequestWithAccess
+// before touching either read path (issue #5606), since DECLARES_CODEOWNER
+// edges and access grants are both keyed by canonical id.
 type CodeownersOwnershipHandler struct {
 	Neo4j        GraphQuery
 	Correlations ServiceCatalogCorrelationStore
@@ -82,8 +87,8 @@ func (h *CodeownersOwnershipHandler) listOwnership(w http.ResponseWriter, r *htt
 		return
 	}
 
-	repoID := QueryParam(r, "repository_id")
-	if repoID == "" {
+	repoSelector := QueryParam(r, "repository_id")
+	if repoSelector == "" {
 		WriteError(w, http.StatusBadRequest, "repository_id is required")
 		return
 	}
@@ -93,19 +98,6 @@ func (h *CodeownersOwnershipHandler) listOwnership(w http.ResponseWriter, r *htt
 	}
 	afterOrderIndex, afterPattern, afterRef, ok := codeownersOwnershipCursor(w, r)
 	if !ok {
-		return
-	}
-
-	// Resolve the caller's scoped grant before touching either read path (the
-	// DECLARES_CODEOWNER graph and the service-catalog correlation store used
-	// by resolveEffectiveRepositoryOwner). A scoped caller not granted
-	// repository_id gets the bounded empty page below rather than the repo's
-	// real ownership/effective_owner -- otherwise a caller granted only repo-a
-	// could pass ?repository_id=repo-b and read repo-b's CODEOWNERS ownership
-	// and manifest owner (cross-tenant leak).
-	access := repositoryAccessFilterFromContext(r.Context())
-	if access.scoped() && !access.allowsRepositoryID(repoID) {
-		h.writeEmptyCodeownersOwnership(w, r, repoID, limit)
 		return
 	}
 
@@ -120,6 +112,40 @@ func (h *CodeownersOwnershipHandler) listOwnership(w http.ResponseWriter, r *htt
 			h.profile(),
 			requiredProfile(codeownersOwnershipCapability),
 		)
+		return
+	}
+
+	// Resolve repository_id -- a canonical Repository.id, a human slug
+	// (Repository.name), or any other repository_selector.go alias -- to the
+	// canonical Repository.id BEFORE evaluating the caller's scoped grant or
+	// touching either read path. DECLARES_CODEOWNER edges and access grants
+	// are both keyed by canonical id, so passing a slug straight into the
+	// Cypher $repo_id anchor (the pre-#5606-fix behavior) matched nothing.
+	// Resolution here is deliberately access-agnostic (allScopes: true
+	// overrides the caller's real grant for this lookup only, mirroring
+	// resolveSupplyChainRepositorySelector): existence/ambiguity resolution
+	// must stay independent of authorization so the empty-page check below
+	// can run against the correct canonical id for every caller, granted or
+	// not.
+	repoID, ok := resolveRepositorySelectorForRequestWithAccess(
+		w, r, h.Neo4j, nil, repoSelector, repositoryAccessFilter{allScopes: true},
+	)
+	if !ok {
+		return
+	}
+
+	// Cross-tenant leak guard (issue #5419 Phase 4b): check the caller's
+	// scoped grant against the just-resolved CANONICAL id, not the raw
+	// selector -- grants are canonical-id-keyed, so checking the raw slug
+	// here would incorrectly deny a caller who legitimately owns the
+	// repository. A scoped caller not granted repoID gets the bounded empty
+	// page below rather than the repo's real ownership/effective_owner --
+	// otherwise a caller granted only repo-a could pass
+	// ?repository_id=repo-b (or repo-b's slug) and read repo-b's CODEOWNERS
+	// ownership and manifest owner (cross-tenant leak).
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.scoped() && !access.allowsRepositoryID(repoID) {
+		h.writeEmptyCodeownersOwnership(w, r, repoID, limit)
 		return
 	}
 
