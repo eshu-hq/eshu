@@ -222,8 +222,8 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 
 		// #5638: read-side live_instance_count, over the SAME identity-bound
 		// facts the probe above just checked for existence -- a separate
-		// probe because it needs the actual matched rows (ready_replicas,
-		// cluster_id, namespace), not a bare existence bool. Errors
+		// probe because it needs the actual matched rows (ready_replicas),
+		// not a bare existence bool. Errors
 		// log-and-continue exactly like the live-evidence probe above: a
 		// count failure must not 500 the trace and must never touch
 		// _has_live_evidence (this probe never writes that key).
