@@ -250,6 +250,44 @@ func TestCanonicalNodeWriterRetractCoversProjectableEntityLabels(t *testing.T) {
 	}
 }
 
+// TestCanonicalNodeWriterRetractRetainsCrossplaneClaimForLegacySweep guards
+// issue #5478: a Crossplane Claim has been edge-only since #5347 (it stays a
+// K8sResource node; the SATISFIED_BY edge to its CrossplaneXRD is the
+// classification), so no writer emits the CrossplaneClaim label anymore. The
+// retract registry must still scan for it, though: a graph provisioned before
+// #5347 can hold nodes carrying the literal CrossplaneClaim label, and only
+// the retract phase's DETACH DELETE sweeps them once the Claim re-projects as
+// a K8sResource node in a later reconciliation generation. Dropping this
+// entry would orphan those legacy nodes forever for a deployment that
+// upgrades straight from a pre-#5347 binary to a post-#5478 one.
+func TestCanonicalNodeWriterRetractRetainsCrossplaneClaimForLegacySweep(t *testing.T) {
+	t.Parallel()
+
+	if _, ok := canonicalNodeRetractInfraEntityLabels["CrossplaneClaim"]; !ok {
+		t.Fatal("canonicalNodeRetractInfraEntityLabels must retain CrossplaneClaim to sweep legacy pre-#5347 nodes (issue #5478)")
+	}
+	found := false
+	for _, label := range canonicalNodeRetractEntityLabels() {
+		if label == "CrossplaneClaim" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("canonicalNodeRetractEntityLabels() must retain CrossplaneClaim to sweep legacy pre-#5347 nodes (issue #5478)")
+	}
+	found = false
+	for _, label := range RetractableNodeEntityLabels() {
+		if label == "CrossplaneClaim" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("RetractableNodeEntityLabels() must retain CrossplaneClaim to sweep legacy pre-#5347 nodes (issue #5478)")
+	}
+}
+
 func TestCanonicalNodeWriterEmptyMaterialization(t *testing.T) {
 	t.Parallel()
 

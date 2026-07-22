@@ -86,7 +86,7 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"repository_coverage.go:(*RepositoryHandler).queryRepositoryGraphCoverageStats":                       "03a1169e19cecd151db58a7b04bd73951442ea968ec6adb7fa4167441dd92282",
 	"repository_dependency_cluster.go:loadRepositoryDependencyClusters":                                   "aaf933633f9106b0098ed672a4a112c7fbfe9e6e00feaf3f92ac3c66e1b76e66",
 	"repository_deployment_evidence.go:queryRepoDeploymentEvidenceDirection":                              "193c9096efd810ce6fd21db44a0c765d6afbb5ad1a1114d78d2240fa8c4ba906",
-	"repository_infrastructure.go:queryRepoInfrastructureFromGraph":                                       "7c7ed9efc3eb1ba444778aa8f3da00c78d1bbe0e0266abff97ca53076df59d46",
+	"repository_infrastructure.go:queryRepoInfrastructureFromGraph":                                       "3a3eae6ff6ccd65534e8e3ccd9279e6d744dd9b162592687728fb0b57f096864",
 	"repository_name_lookup.go:queryRepositoryNamesByID":                                                  "bc5bc4ba6a121331df4503d2fcc3e6dce99dbcd9f6577be390cfed2836b7ff42",
 	"repository_selector.go:resolveRepositorySelectorExactForAccess":                                      "22b199c4f91eb8661ebe90d0232b42556d9881a18bf746fc74cb131de623e823",
 	"repository_stats.go:(*RepositoryHandler).repositoryStatsRepositoryRef":                               "d77ea6fafc6b643991204c6aef8cff77b0a6c3a96b07293d1da2e46f5435340d",

@@ -51,7 +51,10 @@ func infraFamilyForEntityType(entityType string) string {
 		return "helm"
 	case "KustomizeOverlay":
 		return "kustomize"
-	case "CrossplaneXRD", "CrossplaneComposition", "CrossplaneClaim":
+	// CrossplaneClaim is intentionally absent: a Claim is edge-only (issue
+	// #5347) and stays a K8sResource node, so no entity ever carries that
+	// type here (issue #5478).
+	case "CrossplaneXRD", "CrossplaneComposition":
 		return "crossplane"
 	case "TerraformModule", "TerraformResource", "TerraformVariable", "TerraformOutput",
 		"TerraformDataSource", "TerraformProvider", "TerraformLocal", "TerraformBackend",

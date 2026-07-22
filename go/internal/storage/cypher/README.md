@@ -48,6 +48,42 @@ the lockstep source the replay depth-coverage gate (C-13, #4366) mirrors so ever
 retractable node type is required to have a delta/tombstone replay scenario;
 adding a label to a retract set makes that gate demand a new scenario for it.
 
+`canonicalNodeRetractInfraEntityLabels` retains `CrossplaneClaim` even though
+no writer has emitted that label since #5347 (a Crossplane Claim is edge-only:
+it stays a `K8sResource` node, and the `SATISFIED_BY` edge to its
+`CrossplaneXRD` is the classification). The entry is a legacy-node reaper, not
+dead code: a graph provisioned before #5347 can still hold nodes carrying the
+literal `CrossplaneClaim` label, and only this retract entry's `DETACH DELETE`
+sweeps them once a full reconciliation generation re-projects the Claim as a
+`K8sResource` node plus a `SATISFIED_BY` edge. Dropping the entry would orphan
+those legacy nodes forever for a deployment that upgrades straight from a
+pre-#5347 binary to a post-#5478 one with no intervening release that still
+retracted the label. Issue #5478 removed the label from every registry that
+only affects live query classification (infra category/family lookups,
+resource-investigation label fanout, repository infrastructure listings, the
+collector/content-shape/projector bucket-to-label projection tables, and the
+`claim_unique`/uid/fulltext graph schema entries stay untouched pending a
+future change once no legacy nodes remain) but kept it in this retract
+registry and its lockstep specs (`specs/replay-depth-requirements.v1.yaml`,
+`specs/replay-coverage-manifest.v1.yaml`) for exactly this reason.
+
+No-Regression Evidence: this file's `Statement` shape, batch size, and
+dispatch order are unchanged by #5478 -- `canonicalNodeRetractInfraEntityLabels`
+is restored to its pre-#5478 membership (`CrossplaneClaim` re-added), so the
+generated retract Cypher text, its UNWIND/DETACH DELETE plan, and the phase
+ordering in `canonical_node_writer_retract.go` are byte-identical to the
+`origin/main` baseline; only dead QUERY-CLASSIFICATION predicates (never
+executed for a Claim under the edge-only model) were removed elsewhere in this
+change. `go test ./internal/storage/cypher -run
+'TestCanonicalNodeWriterRetractRetainsCrossplaneClaimForLegacySweep|TestCanonicalNodeWriterRetractCoversStructuralFamiliesFromIssue3987|TestCanonicalNodeWriterRetractCoversProjectableEntityLabels'
+-count=1` proves the retract registry still retracts `CrossplaneClaim` and
+stays internally consistent. No before/after benchmark applies: no Cypher
+statement shape changed.
+
+No-Observability-Change: the retract phase emits the same statement summaries
+and operation metadata it always has for the infra entity-label family; no
+metric, span, or log was added, removed, or renamed by this change.
+
 `OrphanSweepStore` is the cleanup seam for disconnected graph nodes that remain
 after owned retractions. It only handles the closed labels
 `Repository`, `Platform`, `EvidenceArtifact`, `File`, `Directory`, and

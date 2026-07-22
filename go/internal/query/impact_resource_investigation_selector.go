@@ -51,7 +51,10 @@ var resourceInvestigationDefaultLabels = []string{
 	"CloudFormationResource",
 	"ArgoCDApplication",
 	"ArgoCDApplicationSet",
-	"CrossplaneClaim",
+	// CrossplaneClaim is intentionally absent: a Claim is edge-only (issue
+	// #5347) and stays a K8sResource node (already covered above), so a
+	// CrossplaneClaim-labeled MATCH branch would always return zero rows
+	// (issue #5478).
 	"CrossplaneXRD",
 	"FluxHelmRelease",
 }
