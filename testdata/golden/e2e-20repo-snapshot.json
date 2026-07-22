@@ -2642,6 +2642,20 @@
           "deployment_fact_summary.overall_confidence_reason": "no_deployment_evidence",
           "evidence_boundaries[].domain": "ci_cd_run_correlation"
         },
+        "required_absent_when_present": [
+          {
+            "description": "ci_cd_run_correlation must not be disclosed absent while a sibling ci_cd_evidence field serves it (#5472, #5581)",
+            "domain_path": "evidence_boundaries[].domain",
+            "domain_value": "ci_cd_run_correlation",
+            "sibling_path": "ci_cd_evidence"
+          },
+          {
+            "description": "container_image_identity must not be disclosed absent while a sibling code_to_runtime_trace image_package segment serves it (#5472, #5581)",
+            "domain_path": "evidence_boundaries[].domain",
+            "domain_value": "container_image_identity",
+            "sibling_path": "code_to_runtime_trace.segments[].evidence[].identity_outcome"
+          }
+        ],
         "arguments": {
           "service_name": "api-svc",
           "max_depth": 4
@@ -2902,6 +2916,20 @@
         "required_json_values": {
           "evidence_boundaries[].domain": "container_image_identity"
         },
+        "required_absent_when_present": [
+          {
+            "description": "ci_cd_run_correlation must not be disclosed absent while a sibling ci_cd_evidence field serves it (#5472, #5581)",
+            "domain_path": "evidence_boundaries[].domain",
+            "domain_value": "ci_cd_run_correlation",
+            "sibling_path": "ci_cd_evidence"
+          },
+          {
+            "description": "container_image_identity must not be disclosed absent while a sibling code_to_runtime_trace image_package segment serves it (#5472, #5581)",
+            "domain_path": "evidence_boundaries[].domain",
+            "domain_value": "container_image_identity",
+            "sibling_path": "code_to_runtime_trace.segments[].evidence[].identity_outcome"
+          }
+        ],
         "arguments": {
           "repo_id": "orders-api"
         }
@@ -3761,6 +3789,20 @@
         "required_json_values": {
           "evidence_boundaries[].domain": "ci_cd_run_correlation"
         },
+        "required_absent_when_present": [
+          {
+            "description": "ci_cd_run_correlation must not be disclosed absent while a sibling ci_cd_evidence field serves it (#5472, #5581)",
+            "domain_path": "evidence_boundaries[].domain",
+            "domain_value": "ci_cd_run_correlation",
+            "sibling_path": "ci_cd_evidence"
+          },
+          {
+            "description": "container_image_identity must not be disclosed absent while a sibling code_to_runtime_trace image_package segment serves it (#5472, #5581)",
+            "domain_path": "evidence_boundaries[].domain",
+            "domain_value": "container_image_identity",
+            "sibling_path": "code_to_runtime_trace.segments[].evidence[].identity_outcome"
+          }
+        ],
         "arguments": {
           "workload_id": "workload:api-svc"
         }
@@ -3817,6 +3859,20 @@
           "upstream_dependencies"
         ],
         "minimum_results": 0,
+        "required_absent_when_present": [
+          {
+            "description": "ci_cd_run_correlation must not be disclosed absent while a sibling ci_cd_evidence field serves it (#5472, #5581)",
+            "domain_path": "evidence_boundaries[].domain",
+            "domain_value": "ci_cd_run_correlation",
+            "sibling_path": "ci_cd_evidence"
+          },
+          {
+            "description": "container_image_identity must not be disclosed absent while a sibling code_to_runtime_trace image_package segment serves it (#5472, #5581)",
+            "domain_path": "evidence_boundaries[].domain",
+            "domain_value": "container_image_identity",
+            "sibling_path": "code_to_runtime_trace.segments[].evidence[].identity_outcome"
+          }
+        ],
         "arguments": {
           "workload_id": "workload:api-svc"
         }
