@@ -155,6 +155,7 @@ func TestSecretsIAMPostureSummaryIncludesGrantPosture(t *testing.T) {
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/secrets-iam/posture-summary?scope_id=scope-1", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -165,12 +166,17 @@ func TestSecretsIAMPostureSummaryIncludesGrantPosture(t *testing.T) {
 		t.Fatalf("grant posture lastScopeID = %q, want scope-1", grants.lastScopeID)
 	}
 	var resp struct {
-		Summary SecretsIAMPostureSummary `json:"summary"`
+		Data struct {
+			Summary SecretsIAMPostureSummary `json:"summary"`
+		} `json:"data"`
+		Truth struct {
+			Basis string `json:"basis"`
+		} `json:"truth"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
-	got := resp.Summary.S3ExternalPrincipalGrantPosture
+	got := resp.Data.Summary.S3ExternalPrincipalGrantPosture
 	if got == nil {
 		t.Fatalf("summary missing s3_external_principal_grant_posture: %s", w.Body.String())
 	}
@@ -178,6 +184,12 @@ func TestSecretsIAMPostureSummaryIncludesGrantPosture(t *testing.T) {
 		got.ServicePrincipalGrants != 1 || len(got.GrantsByOutcome) != 2 ||
 		got.GrantsByOutcome[0].Bucket != "allowed" || got.GrantsByOutcome[0].Count != 3 {
 		t.Fatalf("unexpected grant posture: %+v", got)
+	}
+	// When the graph-backed grant section is present, the response blends
+	// reducer semantic facts with canonical GRANTS_ACCESS_TO graph aggregates,
+	// so the truth basis is hybrid, not pure semantic_facts.
+	if got, want := resp.Truth.Basis, string(TruthBasisHybrid); got != want {
+		t.Fatalf("truth.basis = %q, want %q", got, want)
 	}
 }
 
@@ -189,6 +201,7 @@ func TestSecretsIAMPostureSummaryOmitsGrantPostureWhenUnwired(t *testing.T) {
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/secrets-iam/posture-summary?scope_id=scope-1", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -197,6 +210,18 @@ func TestSecretsIAMPostureSummaryOmitsGrantPostureWhenUnwired(t *testing.T) {
 	}
 	if strings.Contains(w.Body.String(), "s3_external_principal_grant_posture") {
 		t.Fatalf("unwired grant posture must be omitted, got body: %s", w.Body.String())
+	}
+	// With no graph section, the response is pure reducer semantic facts.
+	var resp struct {
+		Truth struct {
+			Basis string `json:"basis"`
+		} `json:"truth"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got, want := resp.Truth.Basis, string(TruthBasisSemanticFacts); got != want {
+		t.Fatalf("truth.basis = %q, want %q", got, want)
 	}
 }
 

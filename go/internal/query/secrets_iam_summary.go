@@ -203,11 +203,22 @@ func (h *SecretsIAMHandler) summary(w http.ResponseWriter, r *http.Request) {
 		}
 		summary.S3ExternalPrincipalGrantPosture = &grantPosture
 	}
+	// The base summary is reducer-owned semantic facts. When the grant section
+	// is present, the response also blends canonical GRANTS_ACCESS_TO graph
+	// aggregates, so the truth basis is hybrid rather than pure semantic facts;
+	// downstream consumers key AnswerTruthSemanticObservation off
+	// semantic_facts+exact, so the fallback (no graph section) must stay
+	// semantic_facts.
+	truthBasis := TruthBasisSemanticFacts
+	truthReason := "resolved from reducer-owned secrets/IAM read models as grouped counts by state, risk type, severity, and gap type; provenance-only rollup, no fingerprints or evidence exposed"
+	if summary.S3ExternalPrincipalGrantPosture != nil {
+		truthBasis = TruthBasisHybrid
+		truthReason = "resolved from reducer-owned secrets/IAM read models as grouped counts by state, risk type, severity, and gap type, blended with S3 external-principal grant counts read from the canonical GRANTS_ACCESS_TO graph edges; provenance-only rollup, no fingerprints or evidence exposed"
+	}
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"scope_id": scopeID,
 		"summary":  summary,
 	}, BuildTruthEnvelope(
-		h.profile(), secretsIAMPostureSummaryCapability, TruthBasisSemanticFacts,
-		"resolved from reducer-owned secrets/IAM read models as grouped counts by state, risk type, severity, and gap type, plus S3 external-principal grant counts read from the canonical GRANTS_ACCESS_TO graph edges; provenance-only rollup, no fingerprints or evidence exposed",
+		h.profile(), secretsIAMPostureSummaryCapability, truthBasis, truthReason,
 	))
 }
