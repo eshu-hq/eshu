@@ -16,6 +16,7 @@ registry="${repo_root}/specs/ci-gates.v1.yaml"
 static_contract_workflow="${repo_root}/.github/workflows/static-contract-gates.yml"
 build_test_workflow="${repo_root}/.github/workflows/test.yml"
 frontend_workflow="${repo_root}/.github/workflows/frontend.yml"
+registry_workflow="${repo_root}/.github/workflows/verify-ci-gate-registry.yml"
 
 fail() {
 	printf 'test-verify-ci-gates-registry: %s\n' "$*" >&2
@@ -48,6 +49,43 @@ require "gates section"     "gates:"          "${registry}"
 require "id field present"  "  - id:"         "${registry}"
 require "triggers present"  "    triggers:"   "${registry}"
 require "ci_only_reason"    "ci_only_reason:" "${registry}"
+
+# The registry validator proves test_command scripts exist but does not execute
+# them. Keep the CI mirror explicit so the cache-isolation regression cannot be
+# present in metadata while absent from the workflow that claims to run it.
+[[ -f "${registry_workflow}" ]] || fail "missing ${registry_workflow}"
+require "pre-pr cache-isolation CI mirror" \
+	"scripts/test-pre-pr-whole-module-gates.sh" \
+	"${registry_workflow}"
+require "generated CI-gates doc CI mirror" \
+	"scripts/test-generate-ci-gates-doc.sh" \
+	"${registry_workflow}"
+
+# A registry gate's own test inputs must select that gate. Otherwise changing a
+# regression test can silently skip the check that is supposed to execute it.
+ci_gate_registry="$(
+	sed -n '/^  - id: ci-gate-registry$/,/^  - id:/p' "${registry}"
+)"
+ci_gate_registry_test_command="$(
+	printf '%s\n' "${ci_gate_registry}" |
+		sed -n 's/^[[:space:]]*test_command: "\(.*\)"$/\1/p'
+)"
+[[ -n "${ci_gate_registry_test_command}" ]] ||
+	fail "ci-gate-registry has no local test_command"
+while IFS= read -r registry_test_input; do
+	selection="$(
+		printf '%s\n' "${registry_test_input}" |
+			(cd "${repo_root}/go" && go run ./cmd/ci-gates select \
+				--registry "${registry}" --tier pre-pr --paths-from - --explain)
+	)"
+	printf '%s\n' "${selection}" |
+		rg --quiet '^SELECTED[[:space:]]+ci-gate-registry[[:space:]]' ||
+		fail "ci-gate-registry test input does not select its gate (${registry_test_input})"
+done < <(
+	printf '%s\n' "${ci_gate_registry_test_command}" |
+		rg --only-matching 'scripts/[[:alnum:]_./-]+\.sh' |
+		sort -u
+)
 
 # Retained-console SQL fixtures are executable proof inputs. A fixture-only
 # change must select the same frontend gate in both GitHub and local parity.
