@@ -393,7 +393,7 @@ func wireAPI(
 
 	providerConfigTester := newProviderConfigConnectionTester(db, providerSecretKeyring)
 	router.AdminProviderConfigReads = newAdminProviderConfigReadHandler(db, oidcLoginHandler, samlHandler, logger)
-	router.AdminProviderConfigMutations = newAdminProviderConfigMutationHandler(db, governanceAudit, providerSecretKeyring, providerConfigTester, oidcLoginHandler, samlHandler)
+	router.AdminProviderConfigMutations = newAdminProviderConfigMutationHandler(db, governanceAudit, providerSecretKeyring, providerConfigTester, oidcLoginHandler, samlHandler, logger)
 
 	// Tenant sign-in policy (epic #4962, issue #4968): built before
 	// router.LocalIdentity below so its SignInPolicyReadStore can be wired
