@@ -56,7 +56,11 @@ func (s *IdentitySubjectStore) ResetLocalIdentityPassword(
 }
 
 // ResetLocalIdentityMFA revokes active MFA factors and recovery codes before
-// installing the replacement factor and recovery hashes.
+// installing the replacement factor and recovery hashes. It first acquires
+// lockLocalIdentityMFAReset's per-user advisory lock so two concurrent
+// resets for the same user_id serialize instead of both landing an active
+// factor row — see that function's doc comment for the race this closes and
+// the lock-ordering invariant it establishes for future callers.
 func (s *IdentitySubjectStore) ResetLocalIdentityMFA(
 	ctx context.Context,
 	reset LocalIdentityMFAReset,
@@ -76,6 +80,9 @@ func (s *IdentitySubjectStore) ResetLocalIdentityMFA(
 		}
 	}()
 
+	if err := lockLocalIdentityMFAReset(ctx, tx, reset.UserID); err != nil {
+		return err
+	}
 	if _, err := tx.ExecContext(ctx, revokeLocalIdentityRecoveryCodesQuery, reset.UserID, reset.ResetAt); err != nil {
 		return fmt.Errorf("revoke local identity recovery codes: %w", err)
 	}

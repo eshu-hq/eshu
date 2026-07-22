@@ -1765,6 +1765,54 @@ banner (`bootstrapBannerWriter`), the `eshu admin initial-credential`/
 SQL-exec-argument leak checks in `identity_bootstrap_credential_test.go` and
 `identity_bootstrap_credential_concurrency_test.go`.
 
+## Local-identity MFA reset serialization
+
+`ResetLocalIdentityMFA` (`identity_local_lifecycle.go`) revokes a user's
+active `identity_mfa_factors`/`identity_mfa_recovery_codes` rows and inserts
+the replacement factor and recovery hashes in one transaction.
+`identity_mfa_factors_user_active_idx` (`identity_subjects.go`) is a
+non-unique partial index — there is no unique constraint enforcing "at most
+one active factor per `(user_id, factor_kind)`" — so without serialization,
+two concurrent resets for the same user could each run their revoke `UPDATE`
+against zero matching rows and then both `INSERT` an unconditionally
+successful new active row, leaving two simultaneously active recovery-code
+factors for one user. `ResetLocalIdentityMFA` now calls
+`lockLocalIdentityMFAReset` (`identity_local_mfa_reset_lock.go`) first, which
+acquires a transaction-scoped `pg_advisory_xact_lock` keyed by a Go-computed
+FNV-64a hash of `"eshu:local_identity_mfa_reset:" + user_id` — the same
+per-entity advisory-lock pattern `PlatformGraphLocker` and
+`PackageRegistryIdentityLocker` use — so two resets for the same user
+serialize instead of racing.
+
+Lock-ordering invariant: `ResetLocalIdentityMFA` takes only this one
+per-user key; it never takes `pg_advisory_xact_lock(3455)`
+(`BootstrapLocalIdentity`, `identity_local_sql.go`) or `pg_advisory_xact_lock(3456)`
+(`GenerateBootstrapCredential`/`ResetBootstrapCredential`,
+`identity_bootstrap_credential_sql.go`). Any future caller that also mutates
+`identity_mfa_factors`/`identity_mfa_recovery_codes` for a user inside a
+3456-guarded transaction (for example, a bootstrap-credential MFA
+re-enrollment path added to `ResetBootstrapCredential`) MUST acquire this
+same per-user key via `localIdentityMFAResetAdvisoryLockKey`, and MUST
+acquire 3456 first, then this key — mirroring
+`GenerateBootstrapAdminWithCredential`'s fixed 3455-then-3456 ordering.
+Because `ResetLocalIdentityMFA` never takes 3456, and any such future caller
+would always take 3456 before this key, no wait-for cycle can form: this
+per-user key stays the innermost (last-acquired, first-released) lock in any
+transaction that holds it, and is never held by a transaction that is also
+waiting on 3456.
+
+No-Regression Evidence: the lock is a single additional
+`pg_advisory_xact_lock($1::bigint)` statement inside the existing
+`ResetLocalIdentityMFA` transaction — an explicit, rare operator/admin
+action, not a per-login hot path; no other statement, index, or read path
+changes. A real Postgres concurrency gate
+(`identity_local_mfa_reset_concurrency_test.go`,
+`TestLocalIdentityMFAResetConcurrencyGateSingleActiveFactor`, 5 rounds,
+skipped without `ESHU_POSTGRES_DSN`/`ESHU_LOCAL_IDENTITY_MFA_RESET_PROOF_DSN`)
+drives two concurrent `ResetLocalIdentityMFA` calls for the same user and
+proves exactly one active, unrevoked `identity_mfa_factors` row survives;
+before the lock, all 5 rounds reproduced two active rows.
+
 ## Browser-session permission-catalog persistence (#3684)
 
 `browser_sessions` gains three additive columns —
