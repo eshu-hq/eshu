@@ -125,3 +125,19 @@ WHERE user_id = $1
   AND status = 'active'
   AND revoked_at IS NULL
 `
+
+// revokeBootstrapCredentialRecoveryFactorsQuery revokes only the $2-kind MFA
+// factor(s) for a user (ResetBootstrapCredential always passes
+// localIdentityRecoveryCodeFactorKind). This is deliberately narrower than
+// revokeLocalIdentityMFAFactorsQuery (identity_local_sql.go), which revokes
+// every active factor regardless of kind: a bootstrap credential reset must
+// never revoke a TOTP factor the admin enrolled after bootstrap.
+const revokeBootstrapCredentialRecoveryFactorsQuery = `
+UPDATE identity_mfa_factors
+SET status = 'revoked',
+    revoked_at = $3
+WHERE user_id = $1
+  AND factor_kind = $2
+  AND status = 'active'
+  AND revoked_at IS NULL
+`
