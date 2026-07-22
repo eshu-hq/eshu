@@ -3190,7 +3190,7 @@
         }
       },
       "list_codeowners_ownership": {
-        "description": "MCP tool coverage shape for list_codeowners_ownership; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Upgraded to non-vacuous (issue #5419 Phase 5): the go_comprehensive fixture's .github/CODEOWNERS declares 2 rules, each materializing a real DECLARES_CODEOWNER edge, so this now asserts at least 1 ownership row instead of the Phase 4 structural placeholder.",
+        "description": "MCP tool coverage shape for list_codeowners_ownership; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Upgraded to non-vacuous (issue #5419 Phase 5): the go_comprehensive fixture's .github/CODEOWNERS declares 2 rules, each materializing a real DECLARES_CODEOWNER edge, and the query uses the deterministic canonical Repository.id for the synthesized github.com/acme/go_comprehensive remote, so this asserts at least 1 ownership row instead of the Phase 4 structural placeholder.",
         "required_response_fields": [
           "count",
           "effective_owner",
@@ -3201,7 +3201,7 @@
         ],
         "minimum_results": 1,
         "arguments": {
-          "repository_id": "go_comprehensive",
+          "repository_id": "repository:r_8477a002",
           "limit": 10
         }
       },
@@ -5050,8 +5050,8 @@
         ],
         "minimum_results": 1
       },
-      "GET /api/v0/codeowners/ownership?repository_id=go_comprehensive&limit=50": {
-        "description": "CODEOWNERS ownership rows for the go_comprehensive repository; confirms the codeowners ownership read surface (issue #5419 Phase 4/5) is mounted and queryable through the HTTP route, and non-vacuous now that the go_comprehensive fixture carries a real .github/CODEOWNERS (mirrors the already-proven list_codeowners_ownership MCP shape).",
+      "GET /api/v0/codeowners/ownership?repository_id=repository:r_8477a002&limit=50": {
+        "description": "CODEOWNERS ownership rows for the go_comprehensive repository, selected by its deterministic canonical Repository.id for the synthesized github.com/acme/go_comprehensive remote; confirms the codeowners ownership read surface (issue #5419 Phase 4/5) is mounted and queryable through the HTTP route, and non-vacuous now that the fixture carries a real .github/CODEOWNERS (mirrors the already-proven list_codeowners_ownership MCP shape).",
         "required_response_fields": [
           "count",
           "effective_owner",

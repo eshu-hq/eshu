@@ -544,6 +544,14 @@ Inventory responses are bounded by `limit` and carry `count`, `total_count`,
 and `truncated`; neither inventory nor diagnostics exposes local manifest paths,
 activation config paths, or community-index membership as trust.
 
+CODEOWNERS ownership reads use one indexed graph query for an initial page and
+three mutually exclusive indexed queries for a cursor page. The handler merges
+the cursor branches back into the documented `(order_index, pattern,
+owner_ref)` order and retains only `limit+1` rows. This avoids a pinned
+NornicDB mixed-`OR` failure that silently produced an empty page while keeping
+the maximum in-process merge bounded to 603 rows. The live exactness and timing
+proof is recorded in `evidence-5419-codeowners-nornicdb-pagination.md`.
+
 ## Exported surface
 
 The package exports four groups of contracts:

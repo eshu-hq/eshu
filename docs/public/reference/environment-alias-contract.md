@@ -69,7 +69,11 @@ instead of dropping it silently: #5434 (namespace labels) has landed --
 `KubernetesNamespaceMaterializationHandler` classifies every
 `kubernetes_live.namespace` fact whose labels carry no alias-recognized
 environment value as `StateEnvironmentUnbound` and writes NO `Environment`
-node for it. #5444 (ArgoCD destination) is not yet wired. Existing `'unknown'`
+node for it. Complete Kubernetes live cluster snapshots also retract
+`KubernetesNamespace` nodes absent from the new generation (including a
+successful empty list) and their incident environment edge; partial snapshots
+and generations containing an invalid namespace fact remain additive and never
+delete prior truth. #5444 (ArgoCD destination) is not yet wired. Existing `'unknown'`
 buckets, `missing_environment` tallies, and compare-handler messages are
 **not** rewired to this value and remain wire-compatible.
 

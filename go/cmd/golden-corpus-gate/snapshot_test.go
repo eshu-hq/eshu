@@ -10,12 +10,39 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/mcp"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
 // goldenSnapshotPath returns the repo-relative path to the committed B-12
 // snapshot from this package's working directory (go/cmd/golden-corpus-gate).
 func goldenSnapshotPath() string {
 	return filepath.Join("..", "..", "..", "testdata", "golden", "e2e-20repo-snapshot.json")
+}
+
+func TestGoldenSnapshotCodeownersQueriesUseCanonicalRepositoryID(t *testing.T) {
+	t.Parallel()
+
+	snap, err := LoadSnapshot(goldenSnapshotPath())
+	if err != nil {
+		t.Fatalf("LoadSnapshot() error = %v", err)
+	}
+	expectedRepoID, err := repositoryidentity.CanonicalRepositoryID("https://github.com/acme/go_comprehensive", "")
+	if err != nil {
+		t.Fatalf("CanonicalRepositoryID() error = %v", err)
+	}
+
+	mcpShape, ok := snap.QueryShapes.MCP["list_codeowners_ownership"]
+	if !ok {
+		t.Fatal("query_shapes.mcp missing list_codeowners_ownership")
+	}
+	if got := mcpShape.Arguments["repository_id"]; got != expectedRepoID {
+		t.Fatalf("list_codeowners_ownership repository_id = %v, want canonical id %q", got, expectedRepoID)
+	}
+
+	httpKey := "GET /api/v0/codeowners/ownership?repository_id=" + expectedRepoID + "&limit=50"
+	if _, ok := snap.QueryShapes.HTTP[httpKey]; !ok {
+		t.Fatalf("query_shapes.http missing canonical CODEOWNERS query %q", httpKey)
+	}
 }
 
 func TestLoadSnapshotParsesGoldenContract(t *testing.T) {

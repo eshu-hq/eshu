@@ -24,6 +24,9 @@ required_ids:
   - QP-INFRA-RESOURCE-SEARCH
   - QP-INFRA-RESOURCE-AGGREGATE
   - QP-CODEOWNERS-OWNERSHIP-LIST
+  - QP-CODEOWNERS-OWNERSHIP-CURSOR-ORDER
+  - QP-CODEOWNERS-OWNERSHIP-CURSOR-PATTERN
+  - QP-CODEOWNERS-OWNERSHIP-CURSOR-REF
   - QP-CODEOWNERS-LAST-MATCH-OWNER
 entries:
   - id: QP-SC-DEPS
@@ -638,9 +641,9 @@ entries:
     query_kind: cypher
     source:
       file: go/internal/query/codeowners_ownership_cypher.go
-      symbol: codeownersOwnershipCypher
-      source_sha256: 4b7ae0350eb66ea9aabd79af5717e5c3bbd4bda50d58aa3978216ebbd4248a87
-      line_hint: 38
+      symbol: codeownersOwnershipCyphers
+      source_sha256: 6e37ed945ff3466120bff49dc5a07680861da2254a53b6ce15b84bc08dc5be18
+      line_hint: 49
     required_anchors:
       - label: Repository
         property: id
@@ -654,7 +657,7 @@ entries:
     requires_order: true
     caveats:
       - The only NodeIndexSeek anchor is Repository.id (repository_id constraint, nornicdb_repository_id_lookup index); CodeownerTeam is reached by Expand over the DECLARES_CODEOWNER relationship, then filtered by the team.ref IS NOT NULL/<>'' guard, not by an independent property seek, so CodeownerTeam is intentionally not declared as a required_anchors entry (same distinction QP-INFRA-RESOURCE-SEARCH's caveats document for an unfiltered RETURN field). codeowner_team_ref/nornicdb_codeowner_team_ref_lookup are still declared in required_schema because CodeownerTeam.ref is separately uniqueness-constrained and that constraint is load-bearing for the canonical DECLARES_CODEOWNER MERGE writer (go/internal/storage/cypher/canonical_codeowners_edges.go) this query reads back.
-      - Ordering is a three-column keyset (rel.order_index, rel.pattern, team.ref) because one repository can declare the same pattern with more than one owner token, projected as sibling DECLARES_CODEOWNER edges sharing order_index/pattern and differing only in the target team.ref (see the codeownersOwnershipCypher doc comment); team.ref is required as the final tie-breaker for an unambiguous cursor, mirroring dependenciesCypher's two-column keyset shape.
+      - This is the no-cursor page. Ordering is a three-column keyset (rel.order_index, rel.pattern, team.ref) because one repository can declare the same pattern with more than one owner token, projected as sibling DECLARES_CODEOWNER edges sharing order_index/pattern and differing only in the target team.ref; team.ref is required as the final tie-breaker for an unambiguous cursor.
     plan:
       operators:
         - NodeIndexSeek
@@ -664,7 +667,70 @@ entries:
         - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
-    cypher_sha256: "bc5d48ac8b894f377b696e6ac64c38b4998bb4e98bc85cd4ae44f3f5650b1171"
+    cypher_sha256: "06032344e19c7986a918a147ae1713bffec21ad0e42774fb523ef503e7fcea12"
+  - id: QP-CODEOWNERS-OWNERSHIP-CURSOR-ORDER
+    domain: codeowners
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/codeowners_ownership_cypher.go
+      symbol: codeownersOwnershipCyphers
+      source_sha256: 6e37ed945ff3466120bff49dc5a07680861da2254a53b6ce15b84bc08dc5be18
+      line_hint: 49
+    required_anchors:
+      - label: Repository
+        property: id
+    required_schema: [repository_id, nornicdb_repository_id_lookup, codeowner_team_ref, nornicdb_codeowner_team_ref_lookup]
+    required_limits: [$limit]
+    requires_order: true
+    caveats:
+      - First of three mutually exclusive cursor branches; selects rows with a larger order_index. The handler merges the three bounded branch results and retains limit+1 rows.
+    plan:
+      operators: [NodeIndexSeek, Expand, Sort]
+      forbidden_operators: [AllNodesScan, CartesianProduct, UnboundedExpand]
+    cypher_sha256: "e15ec98bf46edc11192f125f3d2c7f7643f6b1c6a50e00f05284df098970cae4"
+  - id: QP-CODEOWNERS-OWNERSHIP-CURSOR-PATTERN
+    domain: codeowners
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/codeowners_ownership_cypher.go
+      symbol: codeownersOwnershipCyphers
+      source_sha256: 6e37ed945ff3466120bff49dc5a07680861da2254a53b6ce15b84bc08dc5be18
+      line_hint: 49
+    required_anchors:
+      - label: Repository
+        property: id
+    required_schema: [repository_id, nornicdb_repository_id_lookup, codeowner_team_ref, nornicdb_codeowner_team_ref_lookup]
+    required_limits: [$limit]
+    requires_order: true
+    caveats:
+      - Second mutually exclusive cursor branch; holds order_index equal and selects a larger pattern. It avoids the pinned NornicDB mixed-OR false-empty behavior.
+    plan:
+      operators: [NodeIndexSeek, Expand, Sort]
+      forbidden_operators: [AllNodesScan, CartesianProduct, UnboundedExpand]
+    cypher_sha256: "51bc6c9a6f029cce81ef857cf0c676218e945f4036112a3be1cd70576858955c"
+  - id: QP-CODEOWNERS-OWNERSHIP-CURSOR-REF
+    domain: codeowners
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/codeowners_ownership_cypher.go
+      symbol: codeownersOwnershipCyphers
+      source_sha256: 6e37ed945ff3466120bff49dc5a07680861da2254a53b6ce15b84bc08dc5be18
+      line_hint: 49
+    required_anchors:
+      - label: Repository
+        property: id
+    required_schema: [repository_id, nornicdb_repository_id_lookup, codeowner_team_ref, nornicdb_codeowner_team_ref_lookup]
+    required_limits: [$limit]
+    requires_order: true
+    caveats:
+      - Third mutually exclusive cursor branch; holds order_index and pattern equal and selects a larger owner ref, completing the lexicographic suffix without OR.
+    plan:
+      operators: [NodeIndexSeek, Expand, Sort]
+      forbidden_operators: [AllNodesScan, CartesianProduct, UnboundedExpand]
+    cypher_sha256: "94ab89b32f69843998d6f80eeeb21cf6ecde5ba038e6e1cc00245d7cca85724e"
   - id: QP-CODEOWNERS-LAST-MATCH-OWNER
     domain: codeowners
     backend: nornicdb

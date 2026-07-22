@@ -131,6 +131,9 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildKubernetesWorkloadMaterializationReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
+	if intent, ok := buildKubernetesNamespaceMaterializationReducerIntent(scopeValue, generation, index); ok {
+		intents = append(intents, intent)
+	}
 	if intent, ok := buildKubernetesCorrelationMaterializationReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}

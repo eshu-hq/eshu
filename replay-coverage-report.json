@@ -1863,9 +1863,9 @@
       "scenario_type": "baseline",
       "status": "covered",
       "scenario": "api_mcp_golden",
-      "ref": "GET /api/v0/codeowners/ownership?repository_id=go_comprehensive\u0026limit=50",
+      "ref": "GET /api/v0/codeowners/ownership?repository_id=repository:r_8477a002\u0026limit=50",
       "proof_gate": "golden-corpus-gate",
-      "detail": "snapshot HTTP query shape \"GET /api/v0/codeowners/ownership?repository_id=go_comprehensive\u0026limit=50\""
+      "detail": "snapshot HTTP query shape \"GET /api/v0/codeowners/ownership?repository_id=repository:r_8477a002\u0026limit=50\""
     },
     {
       "registry": "fact_kind_registry",

@@ -26,7 +26,7 @@ func fanOutParityScopeAndGeneration() (scope.IngestionScope, scope.ScopeGenerati
 	return scopeValue, generation
 }
 
-// fanOutParityFixture builds one inputFacts slice spanning most of the 38
+// fanOutParityFixture builds one inputFacts slice spanning most of the 40
 // build*ReducerIntent probes appendScopeGenerationReducerIntents fans out to
 // (issue #4875). It exists to prove the shared reducerIntentFactIndex
 // refactor is behavior-preserving: TestAppendScopeGenerationReducerIntentsFanOutParity
@@ -196,6 +196,7 @@ func fanOutParityFixture(scopeValue scope.IngestionScope, generation scope.Scope
 		{FactID: "decoy-4", FactKind: "code_symbol_reference"},
 
 		kubernetesPodTemplateEnvelope("k8s-pod-template-1", scopeID, generationID),
+		kubernetesNamespaceEnvelope("k8s-namespace-1", scopeID, generationID),
 
 		// oci_registry.image_manifest: a supply_chain_impact candidate kind,
 		// but container_image_identity's earliest candidate is still
