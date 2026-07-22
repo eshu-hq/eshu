@@ -61,8 +61,8 @@ func fetchDeploymentSourceResultFromGraph(
 	if err != nil {
 		return deploymentSourceResult{}, err
 	}
-	fluxTargetBindingsReachedSentinel := len(fluxTargetBindings) >= queryLimit
-	repositoryRows = attachFluxDeploymentSourceTargetBindings(repositoryRows, fluxTargetBindings, fluxTargetBindingsReachedSentinel)
+	fluxTargetBindingsReachedSentinel := fluxTargetBindings.firstHopSaturated
+	repositoryRows = attachFluxDeploymentSourceTargetBindings(repositoryRows, fluxTargetBindings.rows, fluxTargetBindingsReachedSentinel)
 	repositoryRows = deploymentSourceRowsWithCanonicalEndpoints(repositoryRows)
 	merged, err := normalizedDeploymentSources(mergeDeploymentSourceRows(canonicalRows, repositoryRows))
 	if err != nil {
@@ -82,7 +82,7 @@ func fetchDeploymentSourceResultFromGraph(
 			"observed_count_is_lower_bound":                     lowerBound,
 			"canonical_observed_count":                          len(canonicalRows),
 			"repository_observed_count":                         len(repositoryRows),
-			"flux_target_binding_observed_count":                len(fluxTargetBindings),
+			"flux_target_binding_observed_count":                fluxTargetBindings.firstHopCount,
 			"flux_target_binding_observed_count_is_lower_bound": fluxTargetBindingsReachedSentinel,
 			"truncated":                                         lowerBound || mergedTruncated,
 			"ordering": []string{
