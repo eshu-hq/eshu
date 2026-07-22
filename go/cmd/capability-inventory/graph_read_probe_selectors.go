@@ -4,8 +4,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,9 +18,8 @@ import (
 
 func discoverProbeSelectors(client *http.Client, apiBaseURL, userToken string) (map[string]string, error) {
 	selectors := map[string]string{
-		"relative_path": "README.md",
-		"search_term":   "main",
-		"language":      "go",
+		"search_term": "main",
+		"language":    "go",
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -29,13 +30,13 @@ func discoverProbeSelectors(client *http.Client, apiBaseURL, userToken string) (
 		nil,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("build bounded selector discovery request: %w", err)
+		return nil, errors.New("build bounded selector discovery request failed")
 	}
 	request.Header.Set("Authorization", "Bearer "+userToken)
 	request.Header.Set("Accept", "application/json")
 	response, err := client.Do(request)
 	if err != nil {
-		return nil, fmt.Errorf("bounded selector discovery: %w", err)
+		return nil, errors.New("bounded selector discovery request failed")
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
@@ -45,8 +46,8 @@ func discoverProbeSelectors(client *http.Client, apiBaseURL, userToken string) (
 	if err := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&payload); err != nil {
 		return nil, fmt.Errorf("decode bounded selector discovery: %w", err)
 	}
-	collectSelectorValues(payload, selectors)
 	collectRepositorySelector(payload, selectors)
+	discoverRepositoryScopedSelectors(client, apiBaseURL, userToken, selectors)
 	discoverAdditionalSelectors(client, apiBaseURL, userToken, selectors)
 	return selectors, nil
 }
@@ -56,13 +57,77 @@ type selectorDiscoverySource struct {
 	classes map[string][]string
 }
 
+func discoverRepositoryScopedSelectors(client *http.Client, apiBaseURL, userToken string, selectors map[string]string) {
+	repositoryID := selectors["repository_id"]
+	if repositoryID == "" {
+		return
+	}
+	for _, source := range []selectorDiscoverySource{
+		{
+			path: "/api/v0/freshness/generations?repository=" + url.QueryEscape(repositoryID) + "&limit=1",
+			classes: map[string][]string{
+				"scope_id": {"scope_id"}, "generation_id": {"generation_id"},
+			},
+		},
+		{
+			path: "/api/v0/repositories/" + url.PathEscape(repositoryID) + "/context",
+			classes: map[string][]string{
+				"relationship_id": {"resolved_id"},
+			},
+		},
+		{
+			path: "/api/v0/service-catalog/correlations?repository_id=" + url.QueryEscape(repositoryID) + "&limit=1",
+			classes: map[string][]string{
+				"workload_id": {"workload_id"}, "service_id": {"service_id"}, "service_name": {"display_name"},
+			},
+		},
+	} {
+		collectSelectorsFromSource(client, apiBaseURL, userToken, selectors, source)
+	}
+	for _, source := range []struct {
+		path    string
+		body    map[string]any
+		classes map[string][]string
+	}{
+		{
+			path: "/api/v0/content/entities/search",
+			body: map[string]any{"repo_id": repositoryID, "query": "main", "limit": 1},
+			classes: map[string][]string{
+				"entity_id": {"entity_id", "id"},
+			},
+		},
+		{
+			path: "/api/v0/content/files/search",
+			body: map[string]any{"repo_id": repositoryID, "query": "main", "limit": 1},
+			classes: map[string][]string{
+				"relative_path": {"relative_path", "path"},
+			},
+		},
+	} {
+		payload, err := fetchOptionalSelectorJSONSource(client, apiBaseURL, userToken, source.path, source.body)
+		if err != nil {
+			continue
+		}
+		collectSelectorClasses(payload, selectors, source.classes)
+	}
+	payload, err := fetchOptionalSelectorSource(client, apiBaseURL, userToken, "/api/v0/freshness/generations?limit=500")
+	if err == nil {
+		if scope := findFirstStringWithPrefix(payload, []string{"scope_id"}, "state_snapshot:"); scope != "" {
+			selectors["terraform_state_scope"] = scope
+		}
+	}
+}
+
 func discoverAdditionalSelectors(client *http.Client, apiBaseURL, userToken string, selectors map[string]string) {
 	sources := []selectorDiscoverySource{
-		{path: "/api/v0/graph/entities?kind=services&limit=1", classes: map[string][]string{
-			"service_id": {"service_id", "id"}, "service_name": {"service_name", "name"},
+		{path: "/api/v0/cloud/inventory?limit=1", classes: map[string][]string{
+			"cloud_resource_id": {"cloud_resource_uid", "resource_id", "id"},
 		}},
 		{path: "/api/v0/cloud/resources?limit=1", classes: map[string][]string{
-			"cloud_resource_id": {"resource_id", "id"}, "scope_id": {"scope_id"},
+			"arn": {"arn"},
+		}},
+		{path: "/api/v0/fact-schema-versions?limit=1", classes: map[string][]string{
+			"fact_kind": {"fact_kind"},
 		}},
 		{path: "/api/v0/package-registry/packages?limit=1", classes: map[string][]string{
 			"package_id": {"package_id", "uid", "id"},
@@ -84,31 +149,72 @@ func discoverAdditionalSelectors(client *http.Client, apiBaseURL, userToken stri
 		}},
 	}
 	for _, source := range sources {
-		payload, err := fetchOptionalSelectorSource(client, apiBaseURL, userToken, source.path)
-		if err != nil {
+		collectSelectorsFromSource(client, apiBaseURL, userToken, selectors, source)
+	}
+}
+
+func collectSelectorsFromSource(
+	client *http.Client,
+	apiBaseURL string,
+	userToken string,
+	selectors map[string]string,
+	source selectorDiscoverySource,
+) {
+	payload, err := fetchOptionalSelectorSource(client, apiBaseURL, userToken, source.path)
+	if err != nil {
+		return
+	}
+	collectSelectorClasses(payload, selectors, source.classes)
+}
+
+func collectSelectorClasses(payload any, selectors map[string]string, classes map[string][]string) {
+	for class, keys := range classes {
+		if _, exists := selectors[class]; exists {
 			continue
 		}
-		collectSelectorValues(payload, selectors)
-		for class, keys := range source.classes {
-			if _, exists := selectors[class]; exists {
-				continue
-			}
-			if value := findFirstStringField(payload, keys); value != "" {
-				selectors[class] = value
-			}
+		if value := findFirstStringField(payload, keys); value != "" {
+			selectors[class] = value
 		}
 	}
 }
 
 func fetchOptionalSelectorSource(client *http.Client, apiBaseURL, userToken, path string) (any, error) {
+	return fetchOptionalSelectorRequest(client, apiBaseURL, userToken, http.MethodGet, path, nil)
+}
+
+func fetchOptionalSelectorJSONSource(
+	client *http.Client,
+	apiBaseURL string,
+	userToken string,
+	path string,
+	payload map[string]any,
+) (any, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	return fetchOptionalSelectorRequest(client, apiBaseURL, userToken, http.MethodPost, path, bytes.NewReader(body))
+}
+
+func fetchOptionalSelectorRequest(
+	client *http.Client,
+	apiBaseURL string,
+	userToken string,
+	method string,
+	path string,
+	body io.Reader,
+) (any, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(apiBaseURL, "/")+path, nil)
+	request, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(apiBaseURL, "/")+path, body)
 	if err != nil {
 		return nil, err
 	}
 	request.Header.Set("Authorization", "Bearer "+userToken)
 	request.Header.Set("Accept", "application/json")
+	if body != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
 	response, err := client.Do(request)
 	if err != nil {
 		return nil, err
@@ -122,6 +228,29 @@ func fetchOptionalSelectorSource(client *http.Client, apiBaseURL, userToken, pat
 		return nil, err
 	}
 	return payload, nil
+}
+
+func findFirstStringWithPrefix(value any, keys []string, prefix string) string {
+	switch typed := value.(type) {
+	case map[string]any:
+		for _, key := range keys {
+			if text, ok := typed[key].(string); ok && strings.HasPrefix(text, prefix) {
+				return text
+			}
+		}
+		for _, child := range typed {
+			if text := findFirstStringWithPrefix(child, keys, prefix); text != "" {
+				return text
+			}
+		}
+	case []any:
+		for _, child := range typed {
+			if text := findFirstStringWithPrefix(child, keys, prefix); text != "" {
+				return text
+			}
+		}
+	}
+	return ""
 }
 
 func findFirstStringField(value any, keys []string) string {
@@ -145,27 +274,6 @@ func findFirstStringField(value any, keys []string) string {
 		}
 	}
 	return ""
-}
-
-func collectSelectorValues(value any, selectors map[string]string) {
-	switch typed := value.(type) {
-	case map[string]any:
-		for name, child := range typed {
-			if text, ok := child.(string); ok && strings.TrimSpace(text) != "" {
-				class := selectorClass(name)
-				if class != name || isDeclaredSelectorClass(name) {
-					if _, exists := selectors[class]; !exists {
-						selectors[class] = text
-					}
-				}
-			}
-			collectSelectorValues(child, selectors)
-		}
-	case []any:
-		for _, child := range typed {
-			collectSelectorValues(child, selectors)
-		}
-	}
 }
 
 func collectRepositorySelector(value any, selectors map[string]string) {
@@ -196,20 +304,6 @@ func collectRepositorySelector(value any, selectors map[string]string) {
 		}
 		return
 	}
-}
-
-func isDeclaredSelectorClass(name string) bool {
-	for _, class := range []string{
-		"repository_id", "repository_name", "service_id", "service_name", "workload_id", "entity_id",
-		"cloud_resource_id", "scope_id", "generation_id", "terraform_state_scope", "package_id", "fact_kind",
-		"collector_family", "component_id", "finding_id", "packet_id", "incident_id", "relationship_id",
-		"workflow_id", "playbook_id",
-	} {
-		if name == class {
-			return true
-		}
-	}
-	return false
 }
 
 func resolveProbeSelectors(probe graphReadProbe, selectors map[string]string) (graphReadProbe, error) {

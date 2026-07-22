@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -135,10 +136,10 @@ func runGraphReadProbe(
 		return fmt.Errorf("graph-read probe HTTP client is required")
 	}
 	if _, err := url.ParseRequestURI(apiBaseURL); err != nil {
-		return fmt.Errorf("invalid API base URL: %w", err)
+		return errors.New("invalid API base URL")
 	}
 	if _, err := url.ParseRequestURI(mcpURL); err != nil {
-		return fmt.Errorf("invalid MCP URL: %w", err)
+		return errors.New("invalid MCP URL")
 	}
 	registry, err := buildCurrentProbeRegistry()
 	if err != nil {
@@ -214,7 +215,7 @@ func executeGraphReadProbe(
 	defer cancel()
 	request, err := http.NewRequestWithContext(ctx, method, requestURL, body)
 	if err != nil {
-		return fmt.Errorf("build request: %w", err)
+		return errors.New("build request failed")
 	}
 	if token != "" {
 		request.Header.Set("Authorization", "Bearer "+token)
@@ -225,7 +226,7 @@ func executeGraphReadProbe(
 	}
 	response, err := client.Do(request)
 	if err != nil {
-		return fmt.Errorf("request: %w", err)
+		return errors.New("request failed")
 	}
 	defer func() { _ = response.Body.Close() }()
 	if !probeAcceptsStatus(probe, response.StatusCode) {

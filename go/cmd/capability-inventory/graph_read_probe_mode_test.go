@@ -5,6 +5,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,105 @@ import (
 	"strings"
 	"testing"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (function roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return function(request)
+}
+
+func TestGraphReadProbeSanitizesHostileTransportErrors(t *testing.T) {
+	const privateCause = "dial https://private.example.invalid/api/v0/repositories?repo_id=repository:r_private Authorization=Bearer secret-marker"
+	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, errors.New(privateCause)
+	})}
+	probe := graphReadProbe{
+		identity: "api:GET /api/v0/repositories", transport: "api", method: http.MethodGet,
+		path: "/api/v0/repositories", auth: graphReadProbeUserAuth, execute: true,
+	}
+	if err := executeGraphReadProbe(client, "https://private.example.invalid", "https://mcp.private.invalid", "secret-marker", 1, probe); err == nil {
+		t.Fatal("executeGraphReadProbe() error = nil, want sanitized transport failure")
+	} else {
+		assertSanitizedProbeError(t, err, privateCause)
+	}
+	if _, err := discoverProbeSelectors(client, "https://private.example.invalid", "secret-marker"); err == nil {
+		t.Fatal("discoverProbeSelectors() error = nil, want sanitized transport failure")
+	} else {
+		assertSanitizedProbeError(t, err, privateCause)
+	}
+}
+
+func assertSanitizedProbeError(t *testing.T, err error, privateCause string) {
+	t.Helper()
+	for _, forbidden := range []string{privateCause, "private.example.invalid", "/api/v0/repositories", "repository:r_private", "secret-marker", "Bearer"} {
+		if strings.Contains(err.Error(), forbidden) {
+			t.Fatalf("probe error exposed %q: %v", forbidden, err)
+		}
+	}
+}
+
+func TestDiscoverProbeSelectorsUsesRepositoryScopedAuthoritativeSources(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch request.URL.Path {
+		case "/api/v0/repositories":
+			_, _ = w.Write([]byte(`{"repositories":[{"id":"repo-fixture","name":"repo-name"}]}`))
+		case "/api/v0/freshness/generations":
+			if request.URL.Query().Get("repository") == "repo-fixture" {
+				_, _ = w.Write([]byte(`{"generations":[{"scope_id":"repo-scope","generation_id":"repo-generation"}]}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"generations":[{"scope_id":"state_snapshot:s3:fixture"}]}`))
+		case "/api/v0/repositories/repo-fixture/context":
+			_, _ = w.Write([]byte(`{"deployment_evidence":{"resolved_id":"relationship-fixture"}}`))
+		case "/api/v0/content/entities/search":
+			assertRepositoryScopedDiscoveryBody(t, request)
+			_, _ = w.Write([]byte(`{"results":[{"entity_id":"entity-fixture"}]}`))
+		case "/api/v0/content/files/search":
+			assertRepositoryScopedDiscoveryBody(t, request)
+			_, _ = w.Write([]byte(`{"results":[{"relative_path":"README.md"}]}`))
+		case "/api/v0/service-catalog/correlations":
+			if got, want := request.URL.Query().Get("repository_id"), "repo-fixture"; got != want {
+				t.Errorf("service-catalog repository_id = %q, want %q", got, want)
+			}
+			_, _ = w.Write([]byte(`{"correlations":[{"workload_id":"workload-fixture","service_id":"service-fixture","display_name":"service-name"}]}`))
+		default:
+			_, _ = w.Write([]byte(`{}`))
+		}
+	}))
+	defer server.Close()
+
+	selectors, err := discoverProbeSelectors(server.Client(), server.URL, "user-token")
+	if err != nil {
+		t.Fatalf("discoverProbeSelectors() error = %v", err)
+	}
+	for class, want := range map[string]string{
+		"repository_id": "repo-fixture", "repository_name": "repo-name",
+		"scope_id": "repo-scope", "generation_id": "repo-generation",
+		"terraform_state_scope": "state_snapshot:s3:fixture", "relationship_id": "relationship-fixture",
+		"entity_id": "entity-fixture", "relative_path": "README.md", "workload_id": "workload-fixture",
+		"service_id": "service-fixture", "service_name": "service-name",
+	} {
+		if got := selectors[class]; got != want {
+			t.Errorf("selector %s = %q, want %q; selectors = %#v", class, got, want, selectors)
+		}
+	}
+}
+
+func assertRepositoryScopedDiscoveryBody(t *testing.T, request *http.Request) {
+	t.Helper()
+	if request.Method != http.MethodPost {
+		t.Errorf("discovery method = %s, want POST", request.Method)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+		t.Errorf("decode discovery body: %v", err)
+		return
+	}
+	if got, want := body["repo_id"], "repo-fixture"; got != want {
+		t.Errorf("discovery repo_id = %#v, want %#v", got, want)
+	}
+}
 
 func TestGraphReadProbeRegistryCoversCurrentDirectSurfaces(t *testing.T) {
 	if err := validateGraphReadProbeRegistry(); err != nil {
@@ -46,6 +146,21 @@ func TestCurrentProbeRegistryClassifiesEverySurfaceWithoutGenericUnsupported(t *
 	}
 }
 
+func TestCurrentProbeRegistrySynthesizesAWSRuntimeDriftAnyOfScope(t *testing.T) {
+	registry, err := buildCurrentProbeRegistry()
+	if err != nil {
+		t.Fatalf("buildCurrentProbeRegistry() error = %v", err)
+	}
+
+	probe := requireProbeIdentity(t, registry, "api:POST /api/v0/aws/runtime-drift/findings")
+	if got, want := probe.arguments["scope_id"], selector("scope_id"); got != want {
+		t.Fatalf("AWS runtime-drift scope_id = %#v, want %#v; arguments = %#v", got, want, probe.arguments)
+	}
+	if _, ok := probe.arguments["account_id"]; ok {
+		t.Fatalf("AWS runtime-drift arguments = %#v, want deterministic first anyOf branch only", probe.arguments)
+	}
+}
+
 func TestCurrentProbeRegistryIsRedactedAndClassifiesMappedDelta(t *testing.T) {
 	registry, err := buildCurrentProbeRegistry()
 	if err != nil {
@@ -66,7 +181,7 @@ func TestCurrentProbeRegistryIsRedactedAndClassifiesMappedDelta(t *testing.T) {
 	}
 	allowedSelectors := map[string]struct{}{
 		"repository_id": {}, "repository_name": {}, "service_id": {}, "service_name": {}, "workload_id": {},
-		"entity_id": {}, "cloud_resource_id": {}, "search_term": {}, "relative_path": {}, "scope_id": {},
+		"entity_id": {}, "cloud_resource_id": {}, "arn": {}, "search_term": {}, "relative_path": {}, "scope_id": {},
 		"generation_id": {}, "terraform_state_scope": {}, "package_id": {}, "fact_kind": {}, "collector_family": {},
 		"component_id": {}, "finding_id": {}, "packet_id": {}, "incident_id": {}, "relationship_id": {},
 		"workflow_id": {}, "playbook_id": {},
@@ -199,6 +314,37 @@ func TestRunGraphReadProbeUsesDeclaredArgumentsAuthAndExplicitSelectorFailure(t 
 	}
 	if !strings.Contains(output.String(), "PASS") || !strings.Contains(output.String(), "SKIP") {
 		t.Fatalf("output = %q, want classified PASS and mutation SKIP rows", output.String())
+	}
+}
+
+func TestCurrentProbeRegistryResolvesEveryExecutableFixture(t *testing.T) {
+	registry, err := buildCurrentProbeRegistry()
+	if err != nil {
+		t.Fatalf("buildCurrentProbeRegistry() error = %v", err)
+	}
+	selectors := map[string]string{
+		"repository_id": "repo-fixture", "repository_name": "repo-name",
+		"service_id": "service-fixture", "service_name": "service-name", "workload_id": "workload-fixture",
+		"entity_id": "entity-fixture", "cloud_resource_id": "cloud-fixture",
+		"arn": "arn:aws:lambda:us-east-1:123456789012:function:fixture", "search_term": "main",
+		"relative_path": "README.md", "scope_id": "repo-scope-fixture", "generation_id": "generation-fixture",
+		"terraform_state_scope": "state_snapshot:s3:fixture", "package_id": "package-fixture",
+		"fact_kind": "repository", "collector_family": "repository", "component_id": "component-fixture",
+		"finding_id": "finding-fixture", "packet_id": "packet-fixture", "relationship_id": "relationship-fixture",
+		"workflow_id": "workflow-fixture", "playbook_id": "playbook-fixture",
+	}
+	classified := 0
+	for _, probe := range registry {
+		classified++
+		if !probe.execute {
+			continue
+		}
+		if _, err := resolveProbeSelectors(probe, selectors); err != nil {
+			t.Errorf("resolveProbeSelectors(%s) error = %v", probe.identity, err)
+		}
+	}
+	if got, want := classified, 415; got != want {
+		t.Fatalf("classified registry entries = %d, want %d", got, want)
 	}
 }
 

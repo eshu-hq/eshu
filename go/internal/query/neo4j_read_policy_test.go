@@ -248,6 +248,61 @@ func TestNeo4jReaderRetriesTypedConnectivityOnceInsideSameBudget(t *testing.T) {
 	}
 }
 
+func TestNeo4jReaderRetriesRetryableNeo4jAvailabilityErrorOnce(t *testing.T) {
+	attempts := 0
+	reader := newPolicyTestNeo4jReader(func(context.Context, neo4jdriver.SessionConfig) neo4jReadSession {
+		attempts++
+		if attempts == 1 {
+			return &fakeNeo4jReadSession{run: func(
+				context.Context,
+				string,
+				map[string]any,
+				...func(*neo4jdriver.TransactionConfig),
+			) (neo4jReadResult, error) {
+				return nil, &neo4jdriver.Neo4jError{
+					Code: "Neo.TransientError.General.DatabaseUnavailable",
+					Msg:  "private availability detail",
+				}
+			}}
+		}
+		return &fakeNeo4jReadSession{result: &fakeNeo4jReadResult{records: []*neo4jdriver.Record{{
+			Keys: []string{"ok"}, Values: []any{true},
+		}}}}
+	})
+
+	rows, err := reader.Run(context.Background(), "RETURN true AS ok", nil)
+	if err != nil || attempts != maxGraphReadAttempts || !BoolVal(rows[0], "ok") {
+		t.Fatalf("Run() = (%#v, %v, %d attempts), want recovered availability retry", rows, err, attempts)
+	}
+}
+
+func TestNeo4jReaderTerminalRetryableNeo4jErrorIsUnavailableAndSanitized(t *testing.T) {
+	const privateCause = "bolt://private-availability.example.invalid:7687"
+	attempts := 0
+	reader := newPolicyTestNeo4jReader(func(context.Context, neo4jdriver.SessionConfig) neo4jReadSession {
+		attempts++
+		return &fakeNeo4jReadSession{run: func(
+			context.Context,
+			string,
+			map[string]any,
+			...func(*neo4jdriver.TransactionConfig),
+		) (neo4jReadResult, error) {
+			return nil, &neo4jdriver.Neo4jError{
+				Code: "Neo.TransientError.General.DatabaseUnavailable",
+				Msg:  privateCause,
+			}
+		}}
+	})
+
+	_, err := reader.Run(context.Background(), "RETURN 1", nil)
+	if !errors.Is(err, ErrGraphUnavailable) || attempts != maxGraphReadAttempts {
+		t.Fatalf("Run() = (%v, %d attempts), want unavailable after bounded retry", err, attempts)
+	}
+	if strings.Contains(err.Error(), privateCause) {
+		t.Fatalf("Run() exposed Neo4j error detail: %v", err)
+	}
+}
+
 func TestNeo4jReaderUnavailableAtStartIsRetriedAndSanitized(t *testing.T) {
 	const privateCause = "bolt://private.example.invalid:7687"
 	attempts := 0

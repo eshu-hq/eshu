@@ -70,3 +70,36 @@ func TestCypherRouteComposesThirtySecondOuterWithTenSecondReaderBudget(t *testin
 		t.Fatalf("reader/backend budget difference = %s, want <= 20ms", budgetDifference)
 	}
 }
+
+func TestCypherRouteMapsRetryableNeo4jAvailabilityFailureToSanitized503(t *testing.T) {
+	const privateCause = "bolt://private-availability.example.invalid:7687"
+	attempts := 0
+	reader := newPolicyTestNeo4jReader(func(context.Context, neo4jdriver.SessionConfig) neo4jReadSession {
+		attempts++
+		return &fakeNeo4jReadSession{run: func(
+			context.Context,
+			string,
+			map[string]any,
+			...func(*neo4jdriver.TransactionConfig),
+		) (neo4jReadResult, error) {
+			return nil, &neo4jdriver.Neo4jError{
+				Code: "Neo.TransientError.General.DatabaseUnavailable",
+				Msg:  privateCause,
+			}
+		}}
+	})
+	handler := &CodeHandler{Neo4j: reader}
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/cypher", strings.NewReader(`{"cypher_query":"RETURN 1"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+
+	handler.handleCypherQuery(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable || attempts != maxGraphReadAttempts {
+		t.Fatalf("response = %d after %d attempts body=%s, want sanitized 503 after bounded retry", rec.Code, attempts, rec.Body.String())
+	}
+	if body := rec.Body.String(); !strings.Contains(body, `"code":"backend_unavailable"`) || strings.Contains(body, privateCause) {
+		t.Fatalf("response body = %s, want backend_unavailable without private cause", body)
+	}
+}

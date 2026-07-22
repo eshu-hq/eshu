@@ -42,9 +42,10 @@ func buildCurrentProbeRegistry() ([]graphReadProbe, error) {
 		if !ok {
 			return nil, fmt.Errorf("current MCP surface %q has no tool definition", name)
 		}
+		execute, reason := classifyMCPExecution(name)
 		registry = append(registry, graphReadProbe{
 			identity: identity, name: "mcp_" + name, transport: "mcp", tool: name,
-			arguments: synthesizeToolArguments(tool.InputSchema), auth: mcpProbeAuth(name), execute: true,
+			arguments: synthesizeToolArguments(tool.InputSchema), auth: mcpProbeAuth(name), execute: execute, unsafeReason: reason,
 		})
 	}
 	if err := enrichAPIProbeFixtures(registry); err != nil {
@@ -140,6 +141,9 @@ func synthesizeOpenAPISchemaValue(document map[string]any, name string, raw any)
 	if variants, ok := schema["oneOf"].([]any); ok && len(variants) > 0 {
 		return synthesizeOpenAPISchemaValue(document, name, variants[0])
 	}
+	if variants, ok := schema["anyOf"].([]any); ok && len(variants) > 0 {
+		return synthesizeOpenAPISchemaValue(document, name, mergeOpenAPISchemaVariant(document, schema, variants[0]))
+	}
 	switch schema["type"] {
 	case "object", nil:
 		properties, _ := schema["properties"].(map[string]any)
@@ -154,6 +158,52 @@ func synthesizeOpenAPISchemaValue(document map[string]any, name string, raw any)
 	default:
 		return synthesizeSchemaValue(name, schema)
 	}
+}
+
+func mergeOpenAPISchemaVariant(document map[string]any, parent map[string]any, rawVariant any) map[string]any {
+	merged := make(map[string]any, len(parent))
+	for key, value := range parent {
+		if key != "anyOf" {
+			merged[key] = value
+		}
+	}
+	variant := resolveOpenAPISchema(document, rawVariant)
+	for key, value := range variant {
+		if key != "properties" && key != "required" {
+			merged[key] = value
+		}
+	}
+	properties := map[string]any{}
+	for key, value := range openAPIObject(parent["properties"]) {
+		properties[key] = value
+	}
+	for key, value := range openAPIObject(variant["properties"]) {
+		properties[key] = value
+	}
+	if len(properties) > 0 {
+		merged["properties"] = properties
+	}
+	merged["required"] = appendUniqueStrings(stringSlice(parent["required"]), stringSlice(variant["required"])...)
+	return merged
+}
+
+func openAPIObject(value any) map[string]any {
+	object, _ := value.(map[string]any)
+	return object
+}
+
+func appendUniqueStrings(values []string, additions ...string) []string {
+	seen := make(map[string]struct{}, len(values)+len(additions))
+	for _, value := range values {
+		seen[value] = struct{}{}
+	}
+	for _, value := range additions {
+		if _, ok := seen[value]; !ok {
+			values = append(values, value)
+			seen[value] = struct{}{}
+		}
+	}
+	return values
 }
 
 func resolveOpenAPISchema(document map[string]any, raw any) map[string]any {
@@ -200,6 +250,9 @@ func sanitizeProbeName(path string) string {
 }
 
 func classifyAPIExecution(method, path string) (bool, string) {
+	if strings.Contains(path, "{incident_id}") {
+		return false, "incident context needs a caller-selected provider incident identifier; no bounded discovery route exists"
+	}
 	if method == http.MethodDelete || method == http.MethodPatch || method == http.MethodPut {
 		return false, strings.ToLower(method) + " route mutates persisted authentication or platform state"
 	}
@@ -211,6 +264,13 @@ func classifyAPIExecution(method, path string) (bool, string) {
 	}
 	if method == http.MethodPost && strings.HasPrefix(path, "/api/v0/admin/") && !strings.HasSuffix(path, "/query") {
 		return false, "admin route may mutate queue, generation, replay, backfill, or reindex state"
+	}
+	return true, ""
+}
+
+func classifyMCPExecution(name string) (bool, string) {
+	if name == "get_incident_context" {
+		return false, "incident context needs a caller-selected provider incident identifier; no bounded discovery tool exists"
 	}
 	return true, ""
 }
@@ -300,7 +360,8 @@ func synthesizeSchemaValue(name string, raw any) any {
 func selectorClass(name string) string {
 	aliases := map[string]string{
 		"repo_id": "repository_id", "repository_id": "repository_id", "repo_name": "repository_name",
-		"service_id": "service_id", "service_name": "service_name", "workload_id": "workload_id",
+		"provider_repo_id": "repository_id",
+		"service_id":       "service_id", "service_name": "service_name", "workload_id": "workload_id",
 		"entity_id": "entity_id", "target": "entity_id", "from": "entity_id", "resource_id": "cloud_resource_id",
 		"relative_path": "relative_path", "scope_id": "scope_id", "generation_id": "generation_id",
 		"package_id": "package_id", "fact_kind": "fact_kind", "family": "collector_family",
@@ -309,7 +370,8 @@ func selectorClass(name string) string {
 		"workflow_id": "workflow_id", "playbook_id": "playbook_id", "terraform_state_scope": "terraform_state_scope",
 		"advisory_id": "finding_id", "since_generation_id": "generation_id", "name": "service_name",
 		"path": "relative_path", "source": "entity_id", "start": "entity_id", "symbol": "entity_id",
-		"ingester": "collector_family",
+		"changed_paths": "relative_path",
+		"ingester":      "collector_family",
 	}
 	if class, ok := aliases[name]; ok {
 		return class

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -158,7 +159,7 @@ func (r *Neo4jReader) runReadAttempts(
 		if err == nil {
 			return rows, attempt, nil
 		}
-		if attempt == maxGraphReadAttempts || !isRetryableGraphConnectivityError(err) {
+		if attempt == maxGraphReadAttempts || !isRetryableGraphAvailabilityError(err) {
 			return nil, attempt, err
 		}
 		if err := waitForGraphReadRetry(ctx, r.policy.retryDelay); err != nil {
@@ -258,12 +259,28 @@ func waitForGraphReadRetry(ctx context.Context, delay time.Duration) error {
 	}
 }
 
-func isRetryableGraphConnectivityError(err error) bool {
+func isRetryableGraphAvailabilityError(err error) bool {
 	var connectivityErr *neo4jdriver.ConnectivityError
-	if !errors.As(err, &connectivityErr) || connectivityErr.Inner == nil {
+	if errors.As(err, &connectivityErr) && connectivityErr.Inner != nil {
+		return neo4jdriver.IsRetryable(connectivityErr)
+	}
+	var databaseErr *neo4jdriver.Neo4jError
+	if !errors.As(err, &databaseErr) || !neo4jdriver.IsRetryable(databaseErr) {
 		return false
 	}
-	return neo4jdriver.IsRetryable(connectivityErr)
+	if strings.HasPrefix(databaseErr.Code, "Neo.TransientError.") {
+		return true
+	}
+	return databaseErr.Code == "Neo.ClientError.Cluster.NotALeader" ||
+		databaseErr.Code == "Neo.ClientError.General.ForbiddenOnReadOnlyDatabase"
+}
+
+func isGraphUnavailableError(err error) bool {
+	var connectivityErr *neo4jdriver.ConnectivityError
+	if errors.As(err, &connectivityErr) {
+		return true
+	}
+	return isRetryableGraphAvailabilityError(err)
 }
 
 func graphReadResult(
@@ -299,9 +316,8 @@ func graphReadResult(
 	if errors.Is(readCtx.Err(), context.Canceled) || errors.Is(err, context.Canceled) {
 		return graphReadOutcomeCanceled, fmt.Errorf("graph query canceled: %w", context.Canceled)
 	}
-	var connectivityErr *neo4jdriver.ConnectivityError
-	if errors.As(err, &connectivityErr) {
-		return graphReadOutcomeUnavailable, &graphReadError{public: ErrGraphUnavailable, cause: connectivityErr}
+	if isGraphUnavailableError(err) {
+		return graphReadOutcomeUnavailable, &graphReadError{public: ErrGraphUnavailable, cause: err}
 	}
 	return graphReadOutcomeError, err
 }

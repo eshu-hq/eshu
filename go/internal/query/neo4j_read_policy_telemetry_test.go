@@ -155,6 +155,42 @@ func TestNeo4jReaderRecoveredReadAnnotatesBoundedSpanOutcome(t *testing.T) {
 	}
 }
 
+func TestNeo4jReaderNeo4jAvailabilityFailureEmitsSanitizedUnavailableTelemetry(t *testing.T) {
+	const privateCause = "bolt://private-availability.example.invalid:7687"
+	var logs bytes.Buffer
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+	reader := newPolicyTestNeo4jReader(func(context.Context, neo4jdriver.SessionConfig) neo4jReadSession {
+		return &fakeNeo4jReadSession{run: func(
+			context.Context,
+			string,
+			map[string]any,
+			...func(*neo4jdriver.TransactionConfig),
+		) (neo4jReadResult, error) {
+			return nil, &neo4jdriver.Neo4jError{
+				Code: "Neo.TransientError.General.DatabaseUnavailable",
+				Msg:  privateCause,
+			}
+		}}
+	})
+	reader.tracer = provider.Tracer("neo4j-read-policy-test")
+	reader.policy.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+
+	if _, err := reader.Run(context.Background(), "RETURN 1", nil); !errors.Is(err, ErrGraphUnavailable) {
+		t.Fatalf("Run() error = %v, want ErrGraphUnavailable", err)
+	}
+	spans := recorder.Ended()
+	if len(spans) != 1 || graphReadSpanString(spans[0].Attributes(), telemetry.SpanAttrGraphReadOutcome) != string(graphReadOutcomeUnavailable) ||
+		graphReadSpanInt(spans[0].Attributes(), telemetry.SpanAttrGraphReadAttempts) != maxGraphReadAttempts {
+		t.Fatalf("availability span = %#v, want unavailable with %d attempts", spans, maxGraphReadAttempts)
+	}
+	got := logs.String()
+	if !strings.Contains(got, `"failure_class":"unavailable"`) || strings.Contains(got, privateCause) {
+		t.Fatalf("availability warning = %s, want sanitized unavailable event", got)
+	}
+}
+
 func TestNeo4jReaderSlowSuccessEmitsBoundedWarning(t *testing.T) {
 	var logs bytes.Buffer
 	reader := newPolicyTestNeo4jReader(func(context.Context, neo4jdriver.SessionConfig) neo4jReadSession {
