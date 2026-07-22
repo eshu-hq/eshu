@@ -1,9 +1,9 @@
 {
   "schema_version": "replay-coverage-report.v4",
-  "blocking": true,
+  "blocking": false,
   "totals": {
-    "total": 424,
-    "covered": 412,
+    "total": 425,
+    "covered": 413,
     "uncovered": 0,
     "unresolved": 0,
     "exempt": 12,
@@ -66,8 +66,8 @@
     },
     {
       "registry": "projection",
-      "total": 28,
-      "covered": 27,
+      "total": 29,
+      "covered": 28,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 1,
@@ -122,8 +122,8 @@
     },
     {
       "scenario_type": "cost",
-      "total": 27,
-      "covered": 26,
+      "total": 28,
+      "covered": 27,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 1,
@@ -2490,6 +2490,16 @@
       "ref": "go/internal/replay/costcounting/service_catalog_correlation_cost_test.go",
       "proof_gate": "go-test-race",
       "detail": "artifact present: go/internal/replay/costcounting/service_catalog_correlation_cost_test.go"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:submodule_pin",
+      "scenario_type": "cost",
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/submodule_pin_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/submodule_pin_cost_test.go"
     },
     {
       "registry": "projection",

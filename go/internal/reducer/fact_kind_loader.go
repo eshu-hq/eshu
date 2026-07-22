@@ -18,6 +18,7 @@ const (
 	factKindParsedFile          = "parsed_file_data"
 	factKindRepository          = "repository"
 	factKindCodeownersOwnership = "codeowners.ownership"
+	factKindSubmodulePin        = "submodule.pin"
 )
 
 // factKindLoader is an optional fast path for handlers that need only a small

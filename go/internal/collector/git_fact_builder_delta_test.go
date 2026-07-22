@@ -193,7 +193,15 @@ func TestBuildStreamingGenerationDeltaChangedFileFactsMatchFullSnapshot(t *testi
 	}
 }
 
-func TestBuildStreamingGenerationDeltaEmitsShellExecFollowupOnly(t *testing.T) {
+// TestBuildStreamingGenerationDeltaEmitsWholeRepoResolveFollowups proves a
+// delta generation emits the shared_followup marker for every reducer domain
+// that re-resolves the whole-repo candidate set from current disk state
+// (codex P1 finding on #5420/#5419: codeowners_ownership and submodule_pin
+// carry dedicated delta-scope retract logic that is dead unless their marker
+// fires on delta, same as shell_exec_materialization already did). Without
+// this, a delta that removes CODEOWNERS/.gitmodules never re-projects and
+// leaves stale edges in the graph.
+func TestBuildStreamingGenerationDeltaEmitsWholeRepoResolveFollowups(t *testing.T) {
 	t.Parallel()
 
 	repoPath := t.TempDir()
@@ -203,17 +211,22 @@ func TestBuildStreamingGenerationDeltaEmitsShellExecFollowupOnly(t *testing.T) {
 	snapshot.DeltaRelativePaths = []string{"app.py"}
 
 	collected := buildStreamingGeneration(repoPath, repo, "run-delta", time.Now().UTC(), snapshot, false, "")
-	var followups []facts.Envelope
+	domainCounts := map[string]int{}
 	for _, envelope := range drainFactChannel(collected.Facts) {
-		if envelope.FactKind == "shared_followup" {
-			followups = append(followups, envelope)
+		if envelope.FactKind != "shared_followup" {
+			continue
 		}
+		domain, _ := envelope.Payload["reducer_domain"].(string)
+		domainCounts[domain]++
 	}
-	if len(followups) != 1 {
-		t.Fatalf("delta generation emitted %d shared followups, want only shell exec: %#v", len(followups), followups)
+
+	want := map[string]int{
+		"shell_exec_materialization": 1,
+		"codeowners_ownership":       1,
+		"submodule_pin":              1,
 	}
-	if got, want := followups[0].Payload["reducer_domain"], "shell_exec_materialization"; got != want {
-		t.Fatalf("delta followup domain = %v, want %v; payload = %#v", got, want, followups[0].Payload)
+	if !reflect.DeepEqual(domainCounts, want) {
+		t.Fatalf("delta generation shared_followup reducer_domain counts = %#v, want %#v", domainCounts, want)
 	}
 }
 
@@ -252,6 +265,45 @@ func TestBuildStreamingGenerationEmitsCodeownersOwnershipFollowup(t *testing.T) 
 	}
 	if reason, _ := marker.Payload["reason"].(string); reason == "" {
 		t.Fatal("codeowners_ownership followup reason is empty, want non-empty")
+	}
+}
+
+// TestBuildStreamingGenerationEmitsSubmodulePinFollowup proves the git
+// collector wires the submodule_pin shared_followup marker (issue #5420
+// Phase 3) so the reducer domain the Phase 3 handler registered actually
+// receives an intent. Without this marker the handler is dead code: no fact
+// ever carries reducer_domain "submodule_pin". Mirrors
+// TestBuildStreamingGenerationEmitsCodeownersOwnershipFollowup.
+func TestBuildStreamingGenerationEmitsSubmodulePinFollowup(t *testing.T) {
+	t.Parallel()
+
+	repoPath := t.TempDir()
+	repo := testCollectorRepositoryMetadata(repoPath)
+	snapshot := testCollectorSnapshot(repoPath, "package main\n", "digest-full")
+
+	collected := buildStreamingGeneration(repoPath, repo, "run-full", time.Now().UTC(), snapshot, false, "")
+	var marker facts.Envelope
+	var found bool
+	for _, envelope := range drainFactChannel(collected.Facts) {
+		if envelope.FactKind != "shared_followup" {
+			continue
+		}
+		if domain, _ := envelope.Payload["reducer_domain"].(string); domain == "submodule_pin" {
+			marker = envelope
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("full generation missing shared_followup marker for reducer_domain submodule_pin")
+	}
+	if got, want := marker.Payload["entity_key"], "submodule:"+filepath.Base(repoPath); got != want {
+		t.Fatalf("submodule_pin followup entity_key = %#v, want %#v", got, want)
+	}
+	if got, want := marker.StableFactKey, "shared_followup:"+repo.ID+":submodule_pin"; got != want {
+		t.Fatalf("submodule_pin followup StableFactKey = %q, want %q", got, want)
+	}
+	if reason, _ := marker.Payload["reason"].(string); reason == "" {
+		t.Fatal("submodule_pin followup reason is empty, want non-empty")
 	}
 }
 

@@ -360,5 +360,20 @@ func DefaultDomainDefinitions() []DomainDefinition {
 				},
 			},
 		},
+		{
+			Domain:  DomainSubmodulePin,
+			Summary: "materialize canonical PINS_SUBMODULE edges from directly-emitted submodule.pin facts between a parent Repository and the Repository its submodule URL resolved to",
+			Ownership: OwnershipShape{
+				CrossSource:    true,
+				CrossScope:     true,
+				CanonicalWrite: true,
+			},
+			TruthContract: truth.Contract{
+				CanonicalKind: "submodule_pin",
+				SourceLayers: []truth.Layer{
+					truth.LayerSourceDeclaration,
+				},
+			},
+		},
 	}
 }

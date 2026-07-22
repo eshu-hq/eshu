@@ -433,6 +433,7 @@ func liveFamilies() []liveFamily {
 		{"security_alert", facts.SecurityAlertFactKinds, facts.SecurityAlertSchemaVersion},
 		{"semantic", facts.SemanticFactKinds, facts.SemanticSchemaVersion},
 		{"service_catalog", facts.ServiceCatalogFactKinds, facts.ServiceCatalogSchemaVersion},
+		{"submodule", facts.SubmoduleFactKinds, facts.SubmoduleSchemaVersion},
 		{"terraform_state", facts.TerraformStateFactKinds, facts.TerraformStateSchemaVersion},
 		{"vulnerability_intelligence", facts.VulnerabilityIntelligenceFactKinds, facts.VulnerabilityIntelligenceSchemaVersion},
 		{"vulnerability_suppression", facts.VulnerabilitySuppressionFactKinds, facts.VulnerabilitySuppressionSchemaVersion},

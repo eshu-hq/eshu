@@ -3835,6 +3835,16 @@
     },
     {
       "category": "reducer_domain",
+      "name": "submodule_pin",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "submodule_pin_edges",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
       "name": "supply_chain_impact",
       "readiness": "implemented"
     },

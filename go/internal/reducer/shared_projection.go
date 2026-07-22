@@ -51,6 +51,16 @@ const (
 	// same edge write, so there is no cross-acceptance-unit MATCH dependency and
 	// no readiness gate is required.
 	DomainCodeownersOwnershipEdges = "codeowners_ownership_edges"
+	// DomainSubmodulePinEdges projects Repository-[:PINS_SUBMODULE]->Repository
+	// edges from directly-emitted submodule.pin facts (issue #5420 Phase 3). It
+	// is a distinct shared-projection domain from the routed DomainSubmodulePin
+	// reducer domain that builds the intent rows, mirroring the
+	// DomainCodeownersOwnershipEdges/DomainCodeownersOwnership split. Both
+	// endpoints are existing Repository nodes MERGEd inline by the same edge
+	// write (no new node label, unlike codeowners' CodeownerTeam), so there is
+	// no cross-acceptance-unit MATCH dependency and no readiness gate is
+	// required.
+	DomainSubmodulePinEdges = "submodule_pin_edges"
 )
 
 // allProjectionDomains is the complete set of reducer-owned shared/edge
@@ -74,6 +84,7 @@ var allProjectionDomains = []Domain{
 	DomainRunsIn,
 	DomainInvokesCloudAction,
 	DomainCodeownersOwnershipEdges,
+	DomainSubmodulePinEdges,
 }
 
 // SharedProjectionIntentRow is one durable shared-domain projection intent.

@@ -710,6 +710,11 @@ coverage:
   # writes DECLARES_CODEOWNER edges through the same shared cypher.EdgeWriter
   # path documentation_materialization uses, so the scenario mirrors it.
   - {surface: projection:codeowners_ownership, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/codeowners_ownership_cost_test.go, proof_gate: go-test-race}
+  # submodule_pin (#5420 Phase 5): closes the replay-coverage gap left open
+  # through Phase 3 -- SubmodulePinEdgeMaterializationHandler writes
+  # PINS_SUBMODULE edges through the same shared cypher.EdgeWriter path
+  # codeowners_ownership uses, so the scenario mirrors it.
+  - {surface: projection:submodule_pin, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/submodule_pin_cost_test.go, proof_gate: go-test-race}
 
   # C-14 (#4367) cloud-posture projection-COST slice: six more reducer_domain
   # cost scenarios, each driving that domain's real production writer per the

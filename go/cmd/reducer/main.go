@@ -311,6 +311,7 @@ func buildReducerService(
 		RepoDependencyIntentWriter:          repoDependencyIntentWriter,
 		RepoDependencyEdgeWriter:            edgeWriterForHandlers,
 		WorkloadDependencyEdgeWriter:        edgeWriterForHandlers,
+		SubmodulePinEdgeWriter:              edgeWriterForHandlers,
 		GenerationCheck:                     postgres.NewGenerationFreshnessCheck(database),
 		PriorGenerationCheck:                postgres.NewPriorGenerationCheck(database),
 		Tracer:                              tracer,
