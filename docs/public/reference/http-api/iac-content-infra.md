@@ -341,7 +341,10 @@ Scoped tokens and signed-in scoped browser sessions see only findings whose
 `scope_id` is in the caller's exact `allowed_scope_ids`; a scoped caller
 without a matching grant receives an honest empty page rather than a 403 or
 another tenant's findings. The same grant also bounds
-`ambiguous_owner_candidates` per finding (see above).
+`ambiguous_owner_candidates` per finding (see above), and is enforced twice:
+once by the handler's own precheck and again at the SQL layer via the query
+filter's `Scoped`/`AllowedScopeIDs` fields, so a defect in either guard alone
+cannot leak another tenant's findings.
 
 ### Terraform config-vs-state drift observability
 

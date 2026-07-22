@@ -33,6 +33,18 @@ type TerraformConfigStateDriftFindingStore interface {
 
 // TerraformConfigStateDriftFindingFilter is the query-layer request shape for
 // the Terraform config-vs-state drift read surface.
+//
+// Scoped and AllowedScopeIDs carry the caller's exact granted
+// repository/ingestion-scope grant (#5442 P2, bindTerraformConfigStateDriftFilterAccess)
+// through to PostgresTerraformConfigStateDriftFindingStore ->
+// postgres.TerraformConfigStateDriftFindingFilter, the same defense-in-depth
+// double guard IaCManagementFilter uses (#5167 W4, bindIaCManagementFilterAccess):
+// when Scoped is true, the postgres store intersects every row with
+// AllowedScopeIDs via `fact.scope_id = ANY(...)`, and returns zero rows
+// WITHOUT querying Postgres at all when AllowedScopeIDs is empty. The zero
+// value (Scoped false) preserves the pre-#5442-P2 all-scopes behavior, so
+// every existing fakeTerraformConfigStateDriftStore test that builds this
+// struct without setting Scoped stays correct.
 type TerraformConfigStateDriftFindingFilter struct {
 	ScopeID    string
 	Address    string
@@ -40,6 +52,9 @@ type TerraformConfigStateDriftFindingFilter struct {
 	DriftKinds []string
 	Limit      int
 	Offset     int
+
+	Scoped          bool
+	AllowedScopeIDs []string
 }
 
 // TerraformConfigStateDriftFindingRow is one active finding as read back from
@@ -99,14 +114,7 @@ func (s *PostgresTerraformConfigStateDriftFindingStore) ListActiveFindings(
 	if s == nil {
 		return nil, nil
 	}
-	rows, err := s.store.ListActiveFindings(ctx, postgres.TerraformConfigStateDriftFindingFilter{
-		ScopeID:    filter.ScopeID,
-		Address:    filter.Address,
-		Outcome:    filter.Outcome,
-		DriftKinds: filter.DriftKinds,
-		Limit:      filter.Limit,
-		Offset:     filter.Offset,
-	})
+	rows, err := s.store.ListActiveFindings(ctx, terraformConfigStateDriftFilterToPostgres(filter))
 	if err != nil {
 		return nil, err
 	}
@@ -125,14 +133,29 @@ func (s *PostgresTerraformConfigStateDriftFindingStore) CountActiveFindings(
 	if s == nil {
 		return 0, nil
 	}
-	return s.store.CountActiveFindings(ctx, postgres.TerraformConfigStateDriftFindingFilter{
-		ScopeID:    filter.ScopeID,
-		Address:    filter.Address,
-		Outcome:    filter.Outcome,
-		DriftKinds: filter.DriftKinds,
-		Limit:      filter.Limit,
-		Offset:     filter.Offset,
-	})
+	return s.store.CountActiveFindings(ctx, terraformConfigStateDriftFilterToPostgres(filter))
+}
+
+// terraformConfigStateDriftFilterToPostgres maps the query-layer filter onto
+// the postgres-layer filter shape. It is the single choke point both
+// ListActiveFindings and CountActiveFindings use, so a field added to either
+// filter struct cannot silently stop flowing through here (#5442 P2: Scoped
+// and AllowedScopeIDs were previously dropped by this mapping, leaving the
+// postgres store's SQL-layer grant intersection permanently inert for this
+// domain even though the store itself supports it).
+func terraformConfigStateDriftFilterToPostgres(
+	filter TerraformConfigStateDriftFindingFilter,
+) postgres.TerraformConfigStateDriftFindingFilter {
+	return postgres.TerraformConfigStateDriftFindingFilter{
+		ScopeID:         filter.ScopeID,
+		Address:         filter.Address,
+		Outcome:         filter.Outcome,
+		DriftKinds:      filter.DriftKinds,
+		Limit:           filter.Limit,
+		Offset:          filter.Offset,
+		Scoped:          filter.Scoped,
+		AllowedScopeIDs: filter.AllowedScopeIDs,
+	}
 }
 
 func terraformConfigStateDriftRowFromPostgres(row postgres.TerraformConfigStateDriftFindingRow) TerraformConfigStateDriftFindingRow {
@@ -244,6 +267,10 @@ func (h *TerraformConfigStateDriftHandler) handleFindings(w http.ResponseWriter,
 		writeTerraformConfigStateDriftFindings(w, r, h, filter, nil, 0)
 		return
 	}
+	// #5442 P2 defense-in-depth: bind Scoped/AllowedScopeIDs onto the filter
+	// so the SQL layer also enforces the caller's grant, not only this
+	// handler's own precheck above.
+	filter = bindTerraformConfigStateDriftFilterAccess(access, filter)
 
 	totalFindings, err := h.Store.CountActiveFindings(r.Context(), filter)
 	if err != nil {
@@ -262,6 +289,35 @@ func (h *TerraformConfigStateDriftHandler) handleFindings(w http.ResponseWriter,
 	// caller's grant independently before the response is written.
 	findings = filterTerraformConfigStateDriftAmbiguousOwnerCandidates(findings, access)
 	writeTerraformConfigStateDriftFindings(w, r, h, filter, findings, totalFindings)
+}
+
+// bindTerraformConfigStateDriftFilterAccess binds a
+// TerraformConfigStateDriftFindingFilter to the caller's exact granted
+// repository/ingestion-scope grant (#5442 P2), mirroring
+// bindIaCManagementFilterAccess (#5167 W4). It is the one place
+// Scoped/AllowedScopeIDs get set, and PostgresTerraformConfigStateDriftFindingStore
+// carries them through to postgres.TerraformConfigStateDriftFindingFilter,
+// which intersects every row with the grant (or returns zero rows without
+// querying, for an empty grant). An all-scopes caller (no AuthContext,
+// admin, or shared-key token) is unaffected: repositoryAccessFilterFromContext
+// returns allScopes true, so filter.Scoped stays false and the
+// handler-supplied scope_id alone bounds the read exactly as before this
+// field existed. AllowedScopeIDs uses the caller's merged
+// repository-and-ingestion-scope grant (repositorySearchIDs) rather than
+// AllowedScopeIDs alone, because this domain's handler-level precheck
+// (access.allowsRepositoryID) already accepts a grant on either list -- the
+// state-snapshot scope_id itself is commonly granted as a repository ID (see
+// terraform_config_state_drift_test.go) -- so the SQL-layer guard must
+// intersect the same merged set the precheck already validated against.
+func bindTerraformConfigStateDriftFilterAccess(
+	access repositoryAccessFilter,
+	filter TerraformConfigStateDriftFindingFilter,
+) TerraformConfigStateDriftFindingFilter {
+	filter.Scoped = access.scoped()
+	if filter.Scoped {
+		filter.AllowedScopeIDs = access.repositorySearchIDs()
+	}
+	return filter
 }
 
 // filterTerraformConfigStateDriftAmbiguousOwnerCandidates removes
