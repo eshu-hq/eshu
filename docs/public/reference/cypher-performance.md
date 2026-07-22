@@ -93,11 +93,11 @@ profiles 22 handler entries and 28 legacy entries through Neo4j `PROFILE` using
 production-owned bytes, plus 735 hash-frozen safe production variants: 785
 shapes in total. The production-variant family includes 140 distinct
 import-dependency queries mapped from all 244 valid API and MCP request shapes.
-It also includes the 31 cloud-resource list shapes not already represented by
-the registered resource-type-only entry, covering every combination of
-optional provider, resource type, region, account, and keyset cursor
-predicates. A label or relationship-type scan is accepted only by the closed
-code-level operator policy; manifest data cannot add an exception.
+Cloud-resource browsing is covered separately by one UID-bounded graph
+hydration plan and 64 hash-frozen Postgres page variants: 32 filter/cursor
+combinations each for all-scope and scoped access. A label or relationship-type
+scan is accepted only by the closed code-level operator policy; manifest data
+cannot add an exception.
 Static validation
 does not replace live backend `EXPLAIN`,
 `PROFILE`, or before/after runtime measurements for production Cypher changes.
