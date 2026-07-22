@@ -1941,14 +1941,44 @@
         }
       },
       "trace_route_callers": {
-        "description": "MCP tool coverage shape for trace_route_callers; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
-        "required_response_fields": [],
+        "description": "Positive Laravel route-to-caller proof through the MCP tool layer. The php_comprehensive fixture emits UserController@index; the reducer must normalize that exact Class@method token to the indexed UserController.index candidate and materialize HANDLES_ROUTE before this query can return the handler.",
+        "required_response_fields": [
+          "status",
+          "partial",
+          "truncated",
+          "unsupported",
+          "route",
+          "handler",
+          "callers",
+          "callees",
+          "impact",
+          "max_depth",
+          "limit",
+          "truth_source"
+        ],
+        "required_json_paths": [
+          "handler.name",
+          "handler.language",
+          "handler.truth_edge",
+          "handler.truth_level"
+        ],
+        "required_json_values": {
+          "status": "complete",
+          "partial": false,
+          "truncated": false,
+          "route.method": "GET",
+          "route.path": "user",
+          "handler.name": "index",
+          "handler.language": "php",
+          "handler.truth_edge": "HANDLES_ROUTE",
+          "handler.truth_level": "exact",
+          "truth_source": "HANDLES_ROUTE"
+        },
         "minimum_results": 0,
-        "expected_error_contains": "route not found",
         "arguments": {
-          "repo_id": "orders-api",
+          "repo_id": "repository:r_d14bf326",
           "method": "GET",
-          "path": "/",
+          "path": "user",
           "limit": 10
         }
       },

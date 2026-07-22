@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: php-comprehensive
+  namespace: default
+  labels:
+    app: php-comprehensive
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: php-comprehensive
+  template:
+    metadata:
+      labels:
+        app: php-comprehensive
+    spec:
+      containers:
+        - name: php-comprehensive
+          image: ghcr.io/acme/php-comprehensive:1.0.0
+          ports:
+            - containerPort: 8080

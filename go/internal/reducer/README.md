@@ -3855,6 +3855,26 @@ metric label, span, or log line; operators continue to diagnose endpoint and
 counters, projection intent payloads, and shared projection status/readiness
 surfaces.
 
+## Laravel `Class@method` Route Resolution (#5513)
+
+No-Regression Evidence: Laravel string-callable route handlers now add one
+bounded exact candidate during `handles_route`/`runs_in` intent extraction:
+`Class@method` is normalized to the already-indexed `Class.method` name. The
+baseline for non-Laravel frameworks is byte-identical (one candidate and the
+same path-first, repository-second exact map lookups). A Laravel `@` token adds
+at most one candidate; it never falls back to the bare method, performs no graph
+or Postgres read, and preserves the existing uniqueness fence, so a wrong or
+ambiguous controller still emits no edge. Focused proof:
+`go test ./internal/reducer -run 'TestBuildHandlesRouteIntentRows.*(PHP|Laravel|AtJoined)' -count=1`
+and `go test ./internal/query -run '^TestRouteQueryProofMatrix$/^(php_laravel|php_symfony)$' -count=1`.
+
+No-Observability-Change: the change only selects an existing exact Function
+candidate before the existing shared-projection intent is built. It adds no
+route, graph query or write shape, queue domain, worker, lease, runtime knob,
+metric instrument, metric label, span, status field, or log key. Operators keep
+diagnosing the path through existing reducer execution counters/spans,
+`handles_route` shared-intent status, and `HANDLES_ROUTE` graph/query truth.
+
 ## Reducer-Derived Package Correlation Typed Decode (#4799)
 
 No-Regression Evidence: package ownership, consumption, and publication

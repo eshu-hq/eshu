@@ -71,7 +71,8 @@ func buildHandlesRouteIntentRows(
 			if handler == "" || routePath == "" {
 				continue
 			}
-			functionID, method := resolveHandlesRouteFunction(index, repositoryID, pathKeys, handler)
+			framework := strings.TrimSpace(anyToString(entry["framework"]))
+			functionID, method := resolveHandlesRouteFunction(index, repositoryID, pathKeys, framework, handler)
 			if functionID == "" {
 				continue
 			}
@@ -87,7 +88,7 @@ func buildHandlesRouteIntentRows(
 				"repo_id":            repositoryID,
 				"path":               routePath,
 				"http_method":        httpMethod,
-				"framework":          strings.TrimSpace(anyToString(entry["framework"])),
+				"framework":          framework,
 				"relative_path":      relativePath,
 				"evidence_source":    evidenceSource,
 				"resolution_method":  method,
@@ -150,17 +151,46 @@ func resolveHandlesRouteFunction(
 	index codeEntityIndex,
 	repositoryID string,
 	pathKeys []string,
+	framework string,
 	handler string,
 ) (string, codeprovenance.Method) {
+	candidateNames := handlesRouteHandlerCandidateNames(framework, handler)
 	for _, pathKey := range pathKeys {
-		if entityID := index.uniqueNameByPath[pathKey][handler]; entityID != "" {
-			return entityID, codeprovenance.MethodSameFile
+		for _, candidateName := range candidateNames {
+			if entityID := index.uniqueNameByPath[pathKey][candidateName]; entityID != "" {
+				return entityID, codeprovenance.MethodSameFile
+			}
 		}
 	}
-	if entityID := index.uniqueNameByRepo[repositoryID][handler]; entityID != "" {
-		return entityID, codeprovenance.MethodRepoUniqueName
+	for _, candidateName := range candidateNames {
+		if entityID := index.uniqueNameByRepo[repositoryID][candidateName]; entityID != "" {
+			return entityID, codeprovenance.MethodRepoUniqueName
+		}
 	}
 	return "", codeprovenance.MethodUnspecified
+}
+
+// handlesRouteHandlerCandidateNames preserves the parser-emitted handler token
+// and, for Laravel only, adds the exact dotted form for its Class@method
+// string-callable convention. It never falls back to the bare method, so a
+// mismatched class cannot bind merely because that method name is unique in the
+// repository, and unrelated frameworks keep their existing token semantics.
+func handlesRouteHandlerCandidateNames(framework string, handler string) []string {
+	handler = strings.TrimSpace(handler)
+	if handler == "" {
+		return nil
+	}
+	candidates := []string{handler}
+	if !strings.EqualFold(strings.TrimSpace(framework), "laravel") || strings.Count(handler, "@") != 1 {
+		return candidates
+	}
+	className, methodName, _ := strings.Cut(handler, "@")
+	className = strings.TrimSpace(className)
+	methodName = strings.TrimSpace(methodName)
+	if className == "" || methodName == "" {
+		return candidates
+	}
+	return append(candidates, className+"."+methodName)
 }
 
 // handlesRouteEntries returns the framework route entries declared for a file,
