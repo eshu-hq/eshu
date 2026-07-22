@@ -122,3 +122,100 @@ func apiVersionGroup(apiVersion string) string {
 	}
 	return group
 }
+
+// liveIdentityAnchorKind discriminates the two identity anchor families
+// resolveLiveIdentityAnchors produces (#5639). It is also the discriminator
+// carried on KubernetesPodTemplateFilter.AnchorKind
+// (impact_trace_deployment_live_evidence_store.go), so the query layer knows
+// which per-kind SQL predicate to dispatch to.
+type liveIdentityAnchorKind string
+
+const (
+	// liveIdentityAnchorArgoCDTrackingID anchors on the
+	// argocd.argoproj.io/tracking-id annotation identity
+	// (expectedArgoCDTrackingIDs). The stronger anchor: ranked first.
+	liveIdentityAnchorArgoCDTrackingID liveIdentityAnchorKind = "argocd_tracking_id"
+	// liveIdentityAnchorDeclaredObject anchors on the declared
+	// kind+namespace+name identity (declaredObjectAnchors,
+	// impact_trace_deployment_live_evidence_identity_declared.go). The
+	// weaker anchor -- it requires no GitOps controller at all -- ranked
+	// last.
+	liveIdentityAnchorDeclaredObject liveIdentityAnchorKind = "declared_object"
+)
+
+// liveIdentityAnchor is one candidate declared->live identity binding
+// resolveLiveIdentityAnchors produces for a traced workload. Exactly one of
+// the two field groups is populated, discriminated by Kind:
+//   - Kind == liveIdentityAnchorArgoCDTrackingID: only TrackingID is set.
+//   - Kind == liveIdentityAnchorDeclaredObject: GroupVersionResource,
+//     Namespace, and Name are set; TrackingID is empty.
+type liveIdentityAnchor struct {
+	Kind liveIdentityAnchorKind
+
+	// TrackingID is the expected argocd.argoproj.io/tracking-id value
+	// (buildArgoCDTrackingID). Set only for the ArgoCD anchor kind.
+	TrackingID string
+
+	// GroupVersionResource, Namespace, and Name are the declared object's
+	// own identity (declaredObjectAnchors). Set only for the
+	// declared-object anchor kind.
+	GroupVersionResource string
+	Namespace            string
+	Name                 string
+}
+
+// resolveLiveIdentityAnchors is the single shared seam
+// fetchWorkloadLiveEvidence and fetchWorkloadLiveInstanceSummary both consume
+// (#5639): it builds the ordered candidate identity-anchor list for a traced
+// workload from its declared controllers and k8sResources, ArgoCD
+// tracking-id anchors FIRST (the stronger anchor -- expectedArgoCDTrackingIDs,
+// unchanged), declared-object anchors LAST (the weaker anchor --
+// declaredObjectAnchors, new in #5639). Neither probe forks its own anchor
+// list; both call this one resolver so widening the anchor set never drifts
+// between the existence check and the count aggregation.
+//
+// The combined list is capped at expectedArgoCDTrackingIDsQueryLimit,
+// truncating from the tail -- since ArgoCD anchors sort first, a truncation
+// only ever drops declared-object (weaker) anchors, never an ArgoCD identity.
+// An empty result (no ArgoCD identity AND no mappable declared object) is the
+// core fail-closed contract both callers rely on: it means the store must
+// never be queried at all.
+func resolveLiveIdentityAnchors(controllers []map[string]any, k8sResources []map[string]any) []liveIdentityAnchor {
+	trackingIDs := expectedArgoCDTrackingIDs(controllers, k8sResources)
+	anchors := make([]liveIdentityAnchor, 0, len(trackingIDs)+len(k8sResources))
+	for _, trackingID := range trackingIDs {
+		anchors = append(anchors, liveIdentityAnchor{
+			Kind:       liveIdentityAnchorArgoCDTrackingID,
+			TrackingID: trackingID,
+		})
+	}
+	anchors = append(anchors, declaredObjectAnchors(k8sResources)...)
+	if len(anchors) > expectedArgoCDTrackingIDsQueryLimit {
+		anchors = anchors[:expectedArgoCDTrackingIDsQueryLimit]
+	}
+	return anchors
+}
+
+// liveIdentityAnchorFilter builds the KubernetesPodTemplateFilter for one
+// candidate anchor, carrying the caller's image-refs and #5167 access-scoping
+// bound. Shared by fetchWorkloadLiveEvidence and
+// fetchWorkloadLiveInstanceSummary so the filter shape never forks between
+// the two probes.
+func liveIdentityAnchorFilter(anchor liveIdentityAnchor, imageRefs []string, access repositoryAccessFilter) KubernetesPodTemplateFilter {
+	filter := KubernetesPodTemplateFilter{
+		AnchorKind:           anchor.Kind,
+		ImageRefs:            imageRefs,
+		AllScopes:            !access.scoped(),
+		AllowedRepositoryIDs: access.grantedRepositoryIDs(),
+		AllowedScopeIDs:      access.grantedScopeIDs(),
+	}
+	switch anchor.Kind {
+	case liveIdentityAnchorDeclaredObject:
+		filter.GroupVersionResource = anchor.GroupVersionResource
+		filter.Namespace = anchor.Namespace
+		filter.Name = anchor.Name
+	default:
+		filter.TrackingID = anchor.TrackingID
+	}
+	return filter
+}
