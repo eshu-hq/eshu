@@ -177,6 +177,7 @@ retractable_edge_types:
   - HANDLES_ROUTE
   - EVIDENCES_REPOSITORY_RELATIONSHIP
   - HAS_DEPLOYMENT_EVIDENCE
+  - MATCHES_STATE
   - PROVISIONS_DEPENDENCY_FOR
   - READS_CONFIG_FROM
   - RUNS_IMAGE
@@ -271,4 +272,31 @@ exemptions:
       was removed as a false coverage claim rather than an accurate one.
       Remove this exemption only if a future change adds a delta-scoped
       retract path for TerraformStateResource (e.g. by threading a
+      backend-scoped exclusion list through the delta materialization).
+  - surface: retractable_edge:MATCHES_STATE
+    scenario_type: delta_tombstone
+    reason: >-
+      MATCHES_STATE retraction is unconditionally skipped on a delta cycle:
+      terraformStateMatchesConfigEdgeRetractStatements
+      (go/internal/storage/cypher/tfstate_state_match_edge_retract.go) returns
+      nil whenever mat.FirstGeneration || mat.DeltaProjection is true, before
+      building any retract statement -- the exact same skip condition as the
+      TerraformStateResource node exemption above, since mat.TerraformStateResources
+      is populated only from terraform_state envelopes present in the current
+      materialization's input, so a delta cycle triggered by an unrelated file
+      edit carries none and the s.generation_id anchor would never select a
+      state resource to retract a stale edge from. This is not an
+      authored-scenario gap (C-14) but a structural impossibility: no input can
+      ever reach the retract statement on a delta cycle for this edge type.
+      Genuine MATCHES_STATE edge changes missed by a delta cycle are still
+      caught by the periodic full reconciliation generation
+      (mat.ReconciliationProjection forces DeltaProjection=false; see
+      internal/projector/canonical_builder.go), the same mechanism the
+      TerraformStateResource node retraction and buildRepositoryCleanupStatements
+      already rely on, within the reconcile interval. Registered directly as
+      exempt rather than as a claimed delta_tombstone coverage row: no cassette
+      exercises a MATCHES_STATE retract, and claiming cassette coverage without
+      one would repeat the exact false-green the TerraformStateResource node
+      exemption above corrected. Remove this exemption only if a future change
+      adds a delta-scoped retract path for MATCHES_STATE (e.g. by threading a
       backend-scoped exclusion list through the delta materialization).
