@@ -457,6 +457,22 @@ with identifiers are never used as labels. Requests that match no route are
 labeled `route="unmatched"`. The admin surface (probes, `/metrics`) is served by
 a separate mux and is intentionally not counted.
 
+Cloud resource paging also emits route-specific, label-safe signals:
+
+- `eshu_dp_cloud_resource_list_duration_seconds` records total page selection
+  plus graph hydration time by bounded outcome.
+- `eshu_dp_cloud_resource_list_scanned_rows` records the owner-ledger candidates
+  returned by the bounded `limit+1` selection.
+- `eshu_dp_cloud_resource_list_page_size` records resources emitted to the
+  caller.
+- `eshu_dp_cloud_resource_list_truncations_total` counts pages with a
+  continuation cursor.
+- `eshu_dp_cloud_resource_list_errors_total` counts bounded store, graph, and
+  ledger/graph parity failures.
+
+These metrics never label resource IDs, account IDs, regions, providers,
+tenant IDs, or cursor values.
+
 Observability Evidence: before this change, sampled query/API handlers recorded
 few read-path metrics and there was no per-endpoint latency or error signal, so
 an operator could not tell which route was slow or failing from metrics alone.

@@ -522,7 +522,8 @@ catalog; per-route variants share the same `route` label dimension.
 | --- | --- | --- | --- |
 | HTTP API/MCP per-route latency | go/internal/query/request_metrics.go:75 | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query surface |
 | HTTP API/MCP per-route span | go/internal/query/handler_tracing.go:16 | `eshu_dp_api_request_duration_seconds` (parent), `query.*` span | query surface |
-| Cloud resources (list, inventory) | go/internal/query/cloud_resources.go:58 | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total`, `eshu_dp_cloud_resource_list_duration_seconds`, `eshu_dp_cloud_resource_list_errors_total` | query cloud |
+| Cloud resource owner-ledger upgrade backfill | go/internal/query/cloud_resource_owner_backfill.go | `No-Observability-Change: one-time API/MCP startup migration before the route is mounted; each graph page carries the existing neo4j.query span, completion emits the structured "cloud resource owner ledger backfill complete" log with pages_seeded, rows_seeded, and duration_seconds, startup errors fail the process with context, and steady-state requests retain eshu_dp_cloud_resource_list_duration_seconds` | query cloud |
+| Cloud resources (bounded page selection and hydration) | go/internal/query/cloud_resources.go:58 | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total`, `eshu_dp_cloud_resource_list_duration_seconds`, `eshu_dp_cloud_resource_list_errors_total`, `eshu_dp_cloud_resource_list_scanned_rows` (logical owner-ledger candidates returned by the bounded `limit+1` selection), `eshu_dp_cloud_resource_list_page_size`, `eshu_dp_cloud_resource_list_truncations_total` | query cloud |
 | IaC resources | go/internal/query/iac_resources.go | `eshu_dp_iac_resource_list_duration_seconds`, `eshu_dp_iac_resource_list_errors_total`, `eshu_dp_api_request_duration_seconds` | query IaC |
 | Dependencies | go/internal/query/dependencies.go | `eshu_dp_dependency_list_duration_seconds`, `eshu_dp_dependency_list_errors_total`, `eshu_dp_api_request_duration_seconds` | query dependencies |
 | Live operations board (#5137) | go/internal/storage/postgres/status_operations.go | `eshu_dp_status_operations_live_activity_query_duration_seconds`, `eshu_dp_status_operations_live_activity_query_errors_total`, `eshu_dp_api_request_duration_seconds` | query status |
@@ -782,6 +783,7 @@ set, and every documented set has a matching variable in the code.
 | large-repo-semaphore-seconds | 0, 0.1, 0.5, 1, 5, 10, 30, 60, 120, 300 |
 | batch-claim-count | 1, 4, 8, 16, 32, 64, 128 |
 | neo4j-batch-count | 1, 10, 50, 100, 250, 500, 1000 |
+| cloud-resource-page-count | 0, 1, 2, 5, 10, 25, 50, 100, 201 |
 | shared-edge-statement-count | 1, 2, 4, 8, 16, 32, 64, 128 |
 | code-call-edge-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5 |
 | cross-repo-resolution-seconds | 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30 |

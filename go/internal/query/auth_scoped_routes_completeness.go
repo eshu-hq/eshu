@@ -98,6 +98,7 @@ var scopedTokenAdvertisedRoutes = map[string]struct{}{
 	"GET /api/v0/ci-cd/run-correlations/count":                                      {},
 	"GET /api/v0/ci-cd/run-correlations/inventory":                                  {},
 	"GET /api/v0/cloud/inventory":                                                   {},
+	"GET /api/v0/cloud/resources":                                                   {},
 	"GET /api/v0/collector-extraction-readiness":                                    {},
 	"GET /api/v0/collector-extraction-readiness/{family}":                           {},
 	"GET /api/v0/codeowners/ownership":                                              {},
