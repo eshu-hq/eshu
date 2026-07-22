@@ -217,9 +217,10 @@ func (f repositoryAccessFilter) scopeGrantInlineScalars() (scalars []string, cap
 // included in allInfraLabels (infra.go). This is the SAFE failure mode
 // (nothing over-authorized), not a security gap, but it is a real coverage
 // gap -- a scoped caller cannot see state-observed resources through this
-// path at all today. A future change adding a `config_repo_id`-based
-// disjunct needs the same tenant-isolation scrutiny as disjuncts 1-4 (see
-// eshu-code-review's scoped-route guidance) before shipping.
+// path at all today. Tracked as issue #5623. A future change adding a
+// `config_repo_id`-based disjunct needs the same tenant-isolation scrutiny as
+// disjuncts 1-4 (see eshu-code-review's scoped-route guidance) before
+// shipping.
 //
 // `scalars` MUST be the slice returned by scopeGrantInlineScalars for the same
 // grant set the params bind (see infraResourceAggregateParams and the search /
