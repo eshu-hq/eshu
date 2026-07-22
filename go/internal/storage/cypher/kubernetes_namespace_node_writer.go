@@ -6,6 +6,7 @@ package cypher
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 // canonicalPhaseKubernetesNamespace names the live KubernetesNamespace node
@@ -52,6 +53,7 @@ SET n.id = row.uid,
     n.source_record_id = row.source_record_id,
     n.source_confidence = row.source_confidence,
     n.collector_kind = row.collector_kind,
+    n.generation_id = row.generation_id,
     n.evidence_source = row.evidence_source,
     n.environment = null,
     n.evidence_class = null`
@@ -82,6 +84,7 @@ SET n.id = row.uid,
     n.source_record_id = row.source_record_id,
     n.source_confidence = row.source_confidence,
     n.collector_kind = row.collector_kind,
+    n.generation_id = row.generation_id,
     n.evidence_source = row.evidence_source
 MERGE (env:Environment {name: row.environment})
 MERGE (n)-[env_rel:TARGETS_ENVIRONMENT]->(env)
@@ -119,6 +122,18 @@ MATCH (n:KubernetesNamespace {uid: row.uid})-[rel:TARGETS_ENVIRONMENT]->(old_env
 WHERE rel.evidence_source = $evidence_source
   AND old_env.name <> row.environment
 DELETE rel`
+
+// retractStaleKubernetesNamespaceNodesCypher removes namespace nodes owned by
+// this reducer that were not refreshed by the current complete cluster
+// snapshot. The handler runs current-generation upserts before this sweep, so
+// retries converge and a failure cannot delete current truth before it has been
+// restored. Partial snapshots never call this path. The cluster_id and
+// evidence_source predicates keep the sweep inside one producer-owned cluster
+// partition; generation_id distinguishes current rows from absent rows.
+const retractStaleKubernetesNamespaceNodesCypher = `MATCH (n:KubernetesNamespace {cluster_id: $cluster_id})
+WHERE n.evidence_source = $evidence_source
+  AND coalesce(n.generation_id, "") <> $generation_id
+DETACH DELETE n`
 
 // KubernetesNamespaceNodeWriter materializes kubernetes_live.namespace facts
 // into canonical KubernetesNamespace graph nodes, binding an Environment node
@@ -217,6 +232,51 @@ func (w *KubernetesNamespaceNodeWriter) WriteKubernetesNamespaceNodes(
 		if err := w.executor.Execute(ctx, stmt); err != nil {
 			return WrapRetryableNeo4jError(err)
 		}
+	}
+	return nil
+}
+
+// RetractStaleKubernetesNamespaceNodes removes reducer-owned namespace nodes
+// absent from one complete cluster snapshot. The statement is drain-marked so
+// NornicDB-aware executors can bound the DETACH DELETE; reducer executors that
+// do not expose the phase-drain seam execute the cluster-scoped statement once.
+func (w *KubernetesNamespaceNodeWriter) RetractStaleKubernetesNamespaceNodes(
+	ctx context.Context,
+	clusterID string,
+	generationID string,
+	evidenceSource string,
+) error {
+	clusterID = strings.TrimSpace(clusterID)
+	generationID = strings.TrimSpace(generationID)
+	evidenceSource = strings.TrimSpace(evidenceSource)
+	if clusterID == "" {
+		return fmt.Errorf("kubernetes namespace stale-node retract cluster_id is required")
+	}
+	if generationID == "" {
+		return fmt.Errorf("kubernetes namespace stale-node retract generation_id is required")
+	}
+	if evidenceSource == "" {
+		return fmt.Errorf("kubernetes namespace stale-node retract evidence_source is required")
+	}
+	if w.executor == nil {
+		return fmt.Errorf("kubernetes namespace node writer executor is required")
+	}
+	stmt := Statement{
+		Operation: OperationCanonicalRetract,
+		Cypher:    retractStaleKubernetesNamespaceNodesCypher,
+		Parameters: map[string]any{
+			"cluster_id":                    clusterID,
+			"generation_id":                 generationID,
+			"evidence_source":               evidenceSource,
+			StatementMetadataPhaseKey:       canonicalPhaseKubernetesNamespace,
+			StatementMetadataEntityLabelKey: "KubernetesNamespace",
+			StatementMetadataSummaryKey:     "label=KubernetesNamespace retract_absent complete_snapshot=true",
+		},
+		Drain:    true,
+		DrainVar: "n",
+	}
+	if err := w.executor.Execute(ctx, stmt); err != nil {
+		return WrapRetryableNeo4jError(err)
 	}
 	return nil
 }

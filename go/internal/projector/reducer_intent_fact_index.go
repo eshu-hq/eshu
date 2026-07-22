@@ -8,16 +8,15 @@ import "github.com/eshu-hq/eshu/go/internal/facts"
 // reducerIntentFactIndex is a shared, read-only, order-preserving index over
 // one scope generation's inputFacts, built once per generation and passed to
 // every build*ReducerIntent probe appendScopeGenerationReducerIntents calls
-// (issue #4875). Each of those ~38 probes previously re-scanned the full
-// inputFacts slice looking for its own trigger fact kind(s), so a generation
-// with N facts paid O(38*N) comparisons even though most probes only care
-// about a handful of kinds. The index groups fact positions by FactKind in a
-// single O(N) pass; every probe then looks up only the positions for the
-// kind(s) it cares about.
+// (issue #4875). Before the index, the then-38 probes independently re-scanned
+// the full inputFacts slice, so a generation with N facts paid O(38*N)
+// comparisons. The current 40 probes all use the index: it groups fact
+// positions by FactKind in one O(N) pass, then each probe looks up only the
+// positions for the kind(s) it cares about.
 //
 // inputFacts is immutable once a scope generation is claimed for projection
 // (buildProjection never mutates it — see TestBuildProjectionDoesNotMutateInputFactPayloads),
-// so building this index once and sharing it read-only across all 38 probes
+// so building this index once and sharing it read-only across all 40 probes
 // is concurrency-safe: there is no writer to race against, and the index
 // itself is never mutated after newReducerIntentFactIndex returns.
 //

@@ -140,7 +140,8 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 	if len(sourceToolQueries) != 2 {
 		t.Fatalf("source-tool query count = %d, want 2", len(sourceToolQueries))
 	}
-	codeownersOwnershipList, _ := codeownersOwnershipCypher("proof-repository", -1, "", "", 51)
+	codeownersOwnershipList := codeownersOwnershipCyphers("proof-repository", -1, "", "", 51)[0].cypher
+	codeownersOwnershipCursor := codeownersOwnershipCyphers("proof-repository", 1, "*.go", "@proof/team", 51)
 	codeownersLastMatchOwner, _ := codeownersLastMatchOwnerCypher("proof-repository")
 	return map[string]string{
 		"QP-SC-DEPS":                                      forwardDependenciesCypher("proof"),
@@ -170,8 +171,11 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 			"RETURN head(labels(n)) AS bucket, count(n) AS bucket_count",
 			"RETURN bucket, bucket_count",
 		),
-		"QP-CODEOWNERS-OWNERSHIP-LIST":   codeownersOwnershipList,
-		"QP-CODEOWNERS-LAST-MATCH-OWNER": codeownersLastMatchOwner,
+		"QP-CODEOWNERS-OWNERSHIP-LIST":           codeownersOwnershipList,
+		"QP-CODEOWNERS-OWNERSHIP-CURSOR-ORDER":   codeownersOwnershipCursor[0].cypher,
+		"QP-CODEOWNERS-OWNERSHIP-CURSOR-PATTERN": codeownersOwnershipCursor[1].cypher,
+		"QP-CODEOWNERS-OWNERSHIP-CURSOR-REF":     codeownersOwnershipCursor[2].cypher,
+		"QP-CODEOWNERS-LAST-MATCH-OWNER":         codeownersLastMatchOwner,
 	}
 }
 

@@ -6,8 +6,10 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -17,6 +19,10 @@ import (
 type recordingCodeownersGraphReader struct {
 	runRows        []map[string]any
 	runErr         error
+	runRowsByCall  [][]map[string]any
+	runErrByCall   []error
+	runCyphers     []string
+	runParams      []map[string]any
 	lastRunCypher  string
 	lastRunParams  map[string]any
 	sawDeadline    bool
@@ -32,7 +38,16 @@ func (r *recordingCodeownersGraphReader) Run(
 ) ([]map[string]any, error) {
 	r.lastRunCypher = cypher
 	r.lastRunParams = params
+	r.runCyphers = append(r.runCyphers, cypher)
+	r.runParams = append(r.runParams, params)
 	_, r.sawDeadline = ctx.Deadline()
+	callIndex := len(r.runCyphers) - 1
+	if callIndex < len(r.runErrByCall) && r.runErrByCall[callIndex] != nil {
+		return nil, r.runErrByCall[callIndex]
+	}
+	if callIndex < len(r.runRowsByCall) {
+		return r.runRowsByCall[callIndex], nil
+	}
 	if r.runErr != nil {
 		return nil, r.runErr
 	}
@@ -284,12 +299,18 @@ func TestCodeownersOwnershipTruncatesAndEmitsKeysetCursor(t *testing.T) {
 func TestCodeownersOwnershipCursorThreadsKeysetParams(t *testing.T) {
 	t.Parallel()
 
-	graph := &recordingCodeownersGraphReader{}
+	graph := &recordingCodeownersGraphReader{
+		runRowsByCall: [][]map[string]any{
+			{{"pattern": "*.md", "source_path": "CODEOWNERS", "order_index": int64(3), "owner_ref": "@org/team-z"}},
+			{{"pattern": "z*", "source_path": "CODEOWNERS", "order_index": int64(2), "owner_ref": "@org/team-a"}},
+			{{"pattern": "*.go", "source_path": "CODEOWNERS", "order_index": int64(2), "owner_ref": "@org/team-b"}},
+		},
+	}
 	mux := newCodeownersOwnershipMux(graph, &fakeCodeownersCorrelationStore{})
 
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/api/v0/codeowners/ownership?repository_id=repo-1&after_order_index=2&after_pattern=*.go&after_ref=@org/team-a&limit=5",
+		"/api/v0/codeowners/ownership?repository_id=repo-1&after_order_index=2&after_pattern=*.go&after_ref=@org/team-a&limit=2",
 		nil,
 	)
 	w := httptest.NewRecorder()
@@ -298,13 +319,70 @@ func TestCodeownersOwnershipCursorThreadsKeysetParams(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if got, want := graph.lastRunParams["after_order_index"], 2; got != want {
-		t.Fatalf("params[after_order_index] = %#v, want %#v", got, want)
+	if got, want := len(graph.runCyphers), 3; got != want {
+		t.Fatalf("graph Run calls = %d, want %d", got, want)
 	}
-	if got, want := graph.lastRunParams["after_pattern"], "*.go"; got != want {
-		t.Fatalf("params[after_pattern] = %#v, want %#v", got, want)
+	for i, cypher := range graph.runCyphers {
+		if strings.Contains(cypher, " OR ") || strings.Contains(cypher, "\n  OR ") {
+			t.Fatalf("query %d contains NornicDB-incompatible cursor OR: %q", i, cypher)
+		}
+		if got, want := graph.runParams[i]["limit"], 3; got != want {
+			t.Fatalf("query %d limit = %#v, want %#v", i, got, want)
+		}
 	}
-	if got, want := graph.lastRunParams["after_ref"], "@org/team-a"; got != want {
-		t.Fatalf("params[after_ref] = %#v, want %#v", got, want)
+
+	var resp struct {
+		Ownership []CodeownersOwnershipRow `json:"ownership"`
+		Truncated bool                     `json:"truncated"`
+		Next      struct {
+			AfterOrderIndex int    `json:"after_order_index"`
+			AfterPattern    string `json:"after_pattern"`
+			AfterRef        string `json:"after_ref"`
+		} `json:"next_cursor"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got, want := len(resp.Ownership), 2; got != want {
+		t.Fatalf("len(ownership) = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	want := []CodeownersOwnershipRow{
+		{Pattern: "*.go", SourcePath: "CODEOWNERS", OrderIndex: 2, OwnerRef: "@org/team-b"},
+		{Pattern: "z*", SourcePath: "CODEOWNERS", OrderIndex: 2, OwnerRef: "@org/team-a"},
+	}
+	for i := range want {
+		if got := resp.Ownership[i]; got != want[i] {
+			t.Fatalf("ownership[%d] = %+v, want %+v", i, got, want[i])
+		}
+	}
+	if !resp.Truncated {
+		t.Fatal("truncated = false, want true")
+	}
+	if got := resp.Next; got.AfterOrderIndex != 2 || got.AfterPattern != "z*" || got.AfterRef != "@org/team-a" {
+		t.Fatalf("next_cursor = %+v, want cursor for second globally sorted row", got)
+	}
+}
+
+func TestCodeownersOwnershipCursorStopsWhenOneBranchFails(t *testing.T) {
+	t.Parallel()
+
+	graph := &recordingCodeownersGraphReader{
+		runRowsByCall: [][]map[string]any{{}},
+		runErrByCall:  []error{nil, errors.New("cursor branch failed")},
+	}
+	mux := newCodeownersOwnershipMux(graph, &fakeCodeownersCorrelationStore{})
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/codeowners/ownership?repository_id=repo-1&after_order_index=2&after_pattern=*.go&after_ref=@org/team-a",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusInternalServerError; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := len(graph.runCyphers), 2; got != want {
+		t.Fatalf("graph Run calls = %d, want %d after second branch failure", got, want)
 	}
 }

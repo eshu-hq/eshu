@@ -100,9 +100,9 @@ source_coverage:
       - {symbol: "(*CodeHandler).routeToCallerHandlerLabel", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*CodeHandler).routeToCallerHandlerRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*CodeHandler).routeToCallerImpactRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-  - file: codeowners_ownership.go
+  - file: codeowners_ownership_rows.go
     calls:
-      - {symbol: "(*CodeownersOwnershipHandler).listOwnership", count: 1, source_sha256: 8a65cb12714f9e295cfe30a522e44358a238e8da6a80dda76c3f7c202ba50561, entry_ids: [QP-CODEOWNERS-OWNERSHIP-LIST]}
+      - {symbol: "loadCodeownersOwnershipRows", count: 1, source_sha256: 9461b13f87e7ab84b26e2df8fb5733eb2e0b135ffc21aa312777b7d5ab6a9945, entry_ids: [QP-CODEOWNERS-OWNERSHIP-LIST, QP-CODEOWNERS-OWNERSHIP-CURSOR-ORDER, QP-CODEOWNERS-OWNERSHIP-CURSOR-PATTERN, QP-CODEOWNERS-OWNERSHIP-CURSOR-REF]}
   - file: codeowners_ownership_precedence.go
     calls:
       - {symbol: "resolveEffectiveRepositoryOwner", count: 1, source_sha256: 8b2979b2256a4df8794b19ab4f648600000ddf10d1e7d0b76e0fc3cbdcb35b17, entry_ids: [QP-CODEOWNERS-LAST-MATCH-OWNER]}

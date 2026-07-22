@@ -403,5 +403,8 @@
 // is a zero value rather than an error. A scoped caller not granted the
 // requested repository_id gets the same bounded empty-ownership shape a
 // genuinely CODEOWNERS-less repository would return, so an out-of-grant probe
-// cannot be distinguished from a real empty answer.
+// cannot be distinguished from a real empty answer. Initial pages execute one
+// indexed graph query. Cursor pages execute three mutually exclusive bounded
+// predicates and merge them into the same global keyset order, avoiding a
+// pinned NornicDB mixed-OR predicate bug without changing the wire contract.
 package query
