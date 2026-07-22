@@ -36,9 +36,9 @@
         "note": "all parsed function definitions across the corpus"
       },
       "WorkloadInstance": {
-        "min": 1,
+        "min": 4,
         "max": 20,
-        "note": "logical workload-instance nodes derived from config materialization and deployment mapping"
+        "note": "logical workload-instance nodes derived from config materialization and deployment mapping. Floor raised 1->4 by #5444 (broadened environment detection beyond path regexes, full-corpus-mode-only per doc.go -- required_nodes is existence-mode-blocking with no full/existence split, so a corpus-scale floor belongs here, not there): before #5444 only workload-instance:deployable-config:prod and workload-instance:kubernetes_comprehensive:prod existed (count=2, empirically verified on origin/main e15b3089c with this exact 25-repo corpus). #5444 reads kustomize-deployable-overlay/kustomization.yaml's namespace: production field (kustomize_overlays[].namespace, alias-canonicalized to prod by namespaceEnvironment in go/internal/reducer/environment_signals.go) into deploymentEnvironments[\"kustomize-deployable-overlay\"] -- read directly by kustomize-deployable-overlay's own candidate and, via deployable-source's resolved DeploymentRepoIDs=[kustomize-deployable-overlay], by deployable-source's candidate too -- adding workload-instance:deployable-source:prod and workload-instance:kustomize-deployable-overlay:prod (count=4, empirically verified on branch 5444-broaden-env-detection). Neither new instance's own repo files match ExtractOverlayEnvironments's four directory-pattern regexes, and deployable-source carries no k8s_resources of its own (so namespaceEnvironmentFallback is also empty), so this floor fails at 2 if the broadened detection is reverted. See rc-20 for the companion DEPLOYMENT_SOURCE edge-count proof."
       },
       "KubernetesWorkload": {
         "min": 5,
@@ -1786,15 +1786,6 @@
         "minimum_count": 1,
         "required_node_properties": [
           "ref"
-        ]
-      },
-      {
-        "id": "rn-5444-broadened-environment-workload-instances",
-        "description": "At least 4 WorkloadInstance nodes carry a non-empty environment property. #5444 (broadened environment detection beyond path regexes) adds two of these on this exact 25-repo corpus: workload-instance:deployable-source:prod and workload-instance:kustomize-deployable-overlay:prod. Neither repo's own files match any of the four directory-pattern regexes (ExtractOverlayEnvironments); deployable-source additionally carries zero k8s_resources of its own, so its namespace fallback (namespaceEnvironmentFallback) is also empty. The only environment signal for either repo is kustomize-deployable-overlay/kustomization.yaml's namespace: production field (kustomize_overlays[].namespace), which namespaceEnvironment (go/internal/reducer/environment_signals.go) alias-canonicalizes to prod and feeds into deploymentEnvironments[\"kustomize-deployable-overlay\"] -- read directly by kustomize-deployable-overlay's own candidate (deploymentEnvironments[candidate.RepoID]) and, via deployable-source's resolved DeploymentRepoIDs=[kustomize-deployable-overlay], by deployable-source's candidate too (projection.go's environments-resolution block, BuildProjectionRowsWithInfrastructurePlatforms). Empirically verified on this exact corpus: origin/main e15b3089c (before #5444) produces exactly 2 WorkloadInstance nodes (workload-instance:deployable-config:prod, workload-instance:kubernetes_comprehensive:prod); branch 5444-broaden-env-detection produces exactly 4. This floor fails at 2 if the broadened detection is reverted.",
-        "label": "WorkloadInstance",
-        "minimum_count": 4,
-        "required_node_properties": [
-          "environment"
         ]
       }
     ],
