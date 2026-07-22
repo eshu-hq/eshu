@@ -48,10 +48,6 @@ func handlerQueryplanProductionCypher() map[string]string {
 	cloudCypher, _ := buildCloudResourceHydrationQuery([]CloudResourceListIdentity{{
 		UID: "proof-cloud-resource", ResourceType: "proof-type",
 	}})
-	workloadKind, ok := graphEntityKindByKey("services")
-	if !ok {
-		panic("services graph entity kind is not registered")
-	}
 	selectedResource := &resourceInvestigationCandidate{
 		ID:     "proof-resource",
 		Labels: []string{"CloudResource"},
@@ -93,12 +89,13 @@ func handlerQueryplanProductionCypher() map[string]string {
 			RepoID:       "proof-repository",
 			SourceModule: "proof.source",
 		}, []map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/proof.py"}}),
-		"QP-CODE-IMPORT-CROSS-MODULE-CALLS": crossModuleCallRowsCypher(importDependencyRequest{
-			QueryType:    "cross_module_calls",
-			RepoID:       "proof-repository",
-			SourceModule: "proof.source",
-			TargetModule: "proof.target",
-		},
+		"QP-CODE-IMPORT-CROSS-MODULE-CALLS": crossModuleCallRowsCypher(
+			importDependencyRequest{
+				QueryType:    "cross_module_calls",
+				RepoID:       "proof-repository",
+				SourceModule: "proof.source",
+				TargetModule: "proof.target",
+			},
 			[]map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/proof.py"}},
 			[]map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/target.py"}},
 		),
@@ -121,8 +118,8 @@ func handlerQueryplanProductionCypher() map[string]string {
 		"QP-CLOUD-RESOURCE-LIST-HYDRATION": cloudCypher,
 		"QP-CALL-GRAPH-HUBS":               mustCallGraphMetricsEdgesCypher("proof-repository"),
 		"QP-CALL-GRAPH-RECURSIVE":          mustCallGraphMetricsEdgesCypher("proof-repository"),
-		"QP-GRAPH-ENTITY-COUNT":            graphEntityKindCountCypher(workloadKind),
-		"QP-GRAPH-ENTITY-LIST":             graphEntityKindListCypher(workloadKind, true),
+		"QP-GRAPH-ENTITY-COUNT":            graphEntityKindCountsCypher(graphEntityKinds),
+		"QP-GRAPH-ENTITY-LIST":             graphEntityKindListCypher(graphEntityKinds[0], true),
 		"QP-WORKLOAD-RESOLVE-PROPERTY":     workloadPropertyCypher,
 		"QP-WORKLOAD-RESOLVE-RELATIONSHIP": workloadRelationshipCypher,
 		"QP-RESOURCE-INVESTIGATION-WORKLOADS": resourceInvestigationWorkloadsCypher(

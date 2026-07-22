@@ -38,6 +38,11 @@
 // Repositories above the 50,000-edge exactness bound fail closed with HTTP 422
 // and no partial rows. This bounds materialization without relying on
 // backend-specific multi-clause aggregation shortcuts on the read path.
+// Graph entity inventory reads return all fixed facet counts in one request
+// containing scalar, per-label count subqueries, then run at most one optional
+// label-anchored list query. The handler restores catalog order and rejects
+// missing, extra, malformed, or negative count columns rather than publishing
+// incomplete totals.
 //
 // Handler behavior, OpenAPI fragments, docs/public/reference/http-api.md,
 // truth-envelope fields, and MCP tool dispatch must stay aligned whenever a

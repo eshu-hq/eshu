@@ -27,6 +27,7 @@ const (
 
 func TestQueryplanBoundedAnchorOperatorPolicyIsClosed(t *testing.T) {
 	tests := map[string][]string{
+		"QP-GRAPH-ENTITY-COUNT":                           {"NodeCountFromCountStore"},
 		"QP-GRAPH-ENTITY-LIST":                            {"NodeByLabelScan"},
 		"QP-RESOURCE-INVESTIGATION-SELECTOR":              {"NodeByLabelScan"},
 		"QP-RESOURCE-INVESTIGATION-WORKLOADS":             {"DirectedRelationshipTypeScan"},
@@ -64,6 +65,10 @@ func TestQueryplanForbiddenOperatorPolicyIsClosed(t *testing.T) {
 	want := []string{"AllNodesScan", "CartesianProduct", "UnboundedExpand", "Eager"}
 	if got := queryplanForbiddenOperators(entry); !slices.Equal(got, want) {
 		t.Fatalf("queryplanForbiddenOperators() = %v, want %v", got, want)
+	}
+	scalarEntry := queryplan.Entry{ID: "QP-GRAPH-ENTITY-COUNT"}
+	if got, want := queryplanForbiddenOperators(scalarEntry), []string{"AllNodesScan", "UnboundedExpand"}; !slices.Equal(got, want) {
+		t.Fatalf("queryplanForbiddenOperators(scalar count) = %v, want %v", got, want)
 	}
 }
 
@@ -138,6 +143,7 @@ func TestProductionQueryplanProfilesRejectWholeGraphScans(t *testing.T) {
 			}
 			operators := profiledPlanOperators(profile)
 			assertProfileExcludesOperators(t, entry, operators)
+			assertProfileCartesianBound(t, entry, operators)
 			assertProfileHasBoundedAnchor(t, entry, operators)
 			t.Logf("operators=%s", strings.Join(operators, ","))
 		})
@@ -340,11 +346,17 @@ func assertProfileExcludesOperators(t *testing.T, entry queryplan.Entry, operato
 }
 
 func queryplanForbiddenOperators(entry queryplan.Entry) []string {
-	forbidden := []string{"AllNodesScan", "CartesianProduct", "UnboundedExpand"}
+	forbidden := []string{"AllNodesScan"}
+	if entry.ID != "QP-GRAPH-ENTITY-COUNT" {
+		forbidden = append(forbidden, "CartesianProduct")
+	}
+	forbidden = append(forbidden, "UnboundedExpand")
 	seen := map[string]struct{}{
-		"AllNodesScan":     {},
-		"CartesianProduct": {},
-		"UnboundedExpand":  {},
+		"AllNodesScan":    {},
+		"UnboundedExpand": {},
+	}
+	if entry.ID != "QP-GRAPH-ENTITY-COUNT" {
+		seen["CartesianProduct"] = struct{}{}
 	}
 	for _, operator := range entry.Plan.ForbiddenOperators {
 		operator = strings.TrimSpace(operator)
@@ -358,6 +370,36 @@ func queryplanForbiddenOperators(entry queryplan.Entry) []string {
 		forbidden = append(forbidden, operator)
 	}
 	return forbidden
+}
+
+func assertProfileCartesianBound(t *testing.T, entry queryplan.Entry, operators []string) {
+	t.Helper()
+	want := 0
+	if entry.ID == "QP-GRAPH-ENTITY-COUNT" {
+		want = len(graphEntityKinds) - 1
+	}
+	got := 0
+	for _, operator := range operators {
+		if strings.EqualFold(operator, "CartesianProduct") {
+			got++
+		}
+	}
+	if got != want {
+		t.Fatalf("PROFILE CartesianProduct count = %d, want exactly %d: %v", got, want, operators)
+	}
+	if entry.ID != "QP-GRAPH-ENTITY-COUNT" {
+		return
+	}
+	countStoreAnchors := 0
+	for _, operator := range operators {
+		if strings.EqualFold(operator, "NodeCountFromCountStore") {
+			countStoreAnchors++
+		}
+	}
+	if countStoreAnchors != len(graphEntityKinds) {
+		t.Fatalf("PROFILE NodeCountFromCountStore count = %d, want exactly %d: %v",
+			countStoreAnchors, len(graphEntityKinds), operators)
+	}
 }
 
 func assertProfileHasBoundedAnchor(t *testing.T, entry queryplan.Entry, operators []string) {
@@ -385,6 +427,8 @@ func queryplanBoundedAnchorOperators(entryID string) []string {
 		return []string{"DirectedRelationshipTypeScan"}
 	case "QP-RELATIONSHIPS-CATALOG-COUNT":
 		return []string{"RelationshipCountFromCountStore"}
+	case "QP-GRAPH-ENTITY-COUNT":
+		return []string{"NodeCountFromCountStore"}
 	default:
 		return []string{"NodeIndexSeek", "NodeUniqueIndexSeek", "NodeCountFromCountStore"}
 	}
