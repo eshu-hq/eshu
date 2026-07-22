@@ -5,6 +5,7 @@ package shape
 
 import (
 	"fmt"
+	pathpkg "path"
 	"sort"
 	"strings"
 
@@ -12,6 +13,8 @@ import (
 )
 
 const (
+	githubActionsWorkflowArtifactType = "github_actions_workflow"
+
 	// MaxFileEntityCount is the maximum number of content entities emitted for a
 	// single file. Files whose parser output would exceed this limit have entity
 	// materialization skipped entirely: the content record (body, digest) is still
@@ -165,6 +168,9 @@ func normalizeFileMetadata(file File) map[string]string {
 // PackageConsumptionDecision for supply-chain impact and security alerts.
 func materializeEntities(repoID string, path string, file File) ([]content.EntityRecord, bool, error) {
 	indexedItems := make([]indexedEntity, 0)
+	if workflow, ok := githubActionsWorkflowFileEntity(file); ok {
+		indexedItems = append(indexedItems, workflow)
+	}
 	for _, bucket := range contentEntityBuckets {
 		items := file.EntityBuckets[bucket.bucket]
 		for _, item := range items {
@@ -223,6 +229,35 @@ func materializeEntities(repoID string, path string, file File) ([]content.Entit
 	}
 
 	return entities, false, nil
+}
+
+// githubActionsWorkflowFileEntity creates the content-only File entity that
+// lets the entity-context fallback inspect GitHub Actions workflow source. It
+// deliberately has no parser or graph counterpart.
+func githubActionsWorkflowFileEntity(file File) (indexedEntity, bool) {
+	if file.Deleted || strings.TrimSpace(file.ArtifactType) != githubActionsWorkflowArtifactType {
+		return indexedEntity{}, false
+	}
+
+	filename := pathpkg.Base(strings.TrimSpace(file.Path))
+	name := strings.TrimSuffix(filename, pathpkg.Ext(filename))
+	if name == "" || name == "." {
+		return indexedEntity{}, false
+	}
+
+	return indexedEntity{
+		label: "File",
+		item: Entity{
+			Name:            name,
+			LineNumber:      1,
+			EndLine:         lineCount(file.Body),
+			Language:        file.Language,
+			ArtifactType:    file.ArtifactType,
+			TemplateDialect: file.TemplateDialect,
+			IACRelevant:     cloneBoolPtr(file.IACRelevant),
+			Source:          file.Body,
+		},
+	}, true
 }
 
 func entityEndLine(items []indexedEntity, index int, body string, startLine int) int {

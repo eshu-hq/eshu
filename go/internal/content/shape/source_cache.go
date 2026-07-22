@@ -23,6 +23,10 @@ var entitySourceCacheByteLimits = map[string]int{
 // entitySourceCache returns the best source snippet for one entity using parser
 // source first, then falling back to the owning file line range.
 func entitySourceCache(label string, item Entity, body string, startLine int, endLine int) string {
+	if label == "File" && item.ArtifactType == githubActionsWorkflowArtifactType {
+		return item.Source
+	}
+
 	if isCodeSourceLabel(label) && strings.TrimSpace(item.Source) != "" {
 		return withTrailingNewline(item.Source, label)
 	}
