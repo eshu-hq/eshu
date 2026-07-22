@@ -331,3 +331,17 @@ func (w *CanonicalNodeWriter) kustomizeExtendsBaseEdgeStatements(
 	}
 	return stmts
 }
+
+// KustomizeOverlayResolverConfigured reports whether the #5445
+// KustomizeOverlayResolver is wired on this writer. Mirrors
+// TerraformStateResolversConfigured (canonical_node_writer_tfstate_resolvers.go):
+// cmd/*-level wiring tests type-assert their constructed
+// projector.CanonicalWriter to *CanonicalNodeWriter and call this accessor to
+// prove the deployed construction path actually attaches the resolver, not
+// just that the isolated adapter type behaves correctly in unit tests.
+func (w *CanonicalNodeWriter) KustomizeOverlayResolverConfigured() bool {
+	if w == nil {
+		return false
+	}
+	return w.kustomizeOverlayResolver != nil
+}

@@ -84,4 +84,8 @@ func TestOpenIngesterCanonicalWriterWiresTerraformStateResolversLive(t *testing.
 		t.Error("openIngesterCanonicalWriter() left the #5443 TerraformStateConfigMatchResolver nil; " +
 			"ambiguous MATCHES_STATE candidates will not fail closed on the deployed ingester")
 	}
+	if !canonicalWriter.KustomizeOverlayResolverConfigured() {
+		t.Error("openIngesterCanonicalWriter() left the #5445 KustomizeOverlayResolver nil; " +
+			"EXTENDS_BASE edges will never be materialized by the deployed ingester")
+	}
 }

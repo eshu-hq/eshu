@@ -32,6 +32,14 @@ import (
 // test ./cmd/bootstrap-index/..., golangci-lint, race-graph-writes, and
 // golden-corpus-gate all green -- this test is the guard that actually
 // catches that regression, unconditionally, without a live backend.
+//
+// The same class of gap applies to .WithKustomizeOverlayResolver(...) (issue
+// #5445 slice 3): deleting that call leaves the resolver nil in production,
+// so kustomizeExtendsBaseEdgeStatements fails closed on every write -- the
+// EXTENDS_BASE edge is never wrong, but it is never MATERIALIZED either,
+// which is the exact #5443-class dead-feature regression (a feature built
+// and unit-tested but wired into only one binary, or none). This test checks
+// the same source-string presence for it, unconditionally.
 func TestOpenBootstrapCanonicalWriterSourceWiresTerraformStateResolvers(t *testing.T) {
 	t.Parallel()
 
@@ -39,6 +47,7 @@ func TestOpenBootstrapCanonicalWriterSourceWiresTerraformStateResolvers(t *testi
 	for _, call := range []string{
 		".WithTerraformStateOwnershipResolver(",
 		".WithTerraformStateConfigMatchResolver(",
+		".WithKustomizeOverlayResolver(",
 	} {
 		if !strings.Contains(source, call) {
 			t.Errorf("openBootstrapCanonicalWriter source missing %s wiring call", call)
