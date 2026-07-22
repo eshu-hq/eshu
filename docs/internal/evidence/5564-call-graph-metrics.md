@@ -85,8 +85,8 @@ concurrency setting changed.
 The checked-in production-path SLO gate independently seeds the same corpus and
 runs `CodeHandler.callGraphMetricsData` four times per variant. After adding
 the 50,001-edge sentinel and canonical-UID collision fix, the final branch
-measured hub at 534.380375 ms on the first read and 288.822167 ms warm median;
-recursive measured 198.964958 ms on the first read and 194.622708 ms warm
+measured hub at 595.511125 ms on the first read and 300.554833 ms warm median;
+recursive measured 189.185875 ms on the first read and 208.180375 ms warm
 median. These
 post-seed timings verify the executable regression gate. The restart-separated
 table above remains the cold-process comparison and is not replaced by them.
