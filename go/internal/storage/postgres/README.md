@@ -1711,6 +1711,28 @@ supplies. `AuthenticateLocalIdentity` (`identity_local.go`) calls
 it is a no-op UPDATE affecting zero rows for every subject except the
 bootstrap admin's own first login.
 
+`ResetBootstrapCredential` also atomically re-enrolls the owner's MFA
+recovery-code factor (issue #5602, `identity_bootstrap_credential_mfa.go`'s
+`reenrollBootstrapCredentialRecoveryFactor`), in the SAME transaction as the
+password rotation and envelope reseal: before this fix, the CLI generated and
+printed a fresh recovery code but never persisted it, so only the original
+first-run code (if the operator still had it) could satisfy the admin's
+mandatory MFA gate at login. The helper revokes the user's existing active
+`identity_mfa_recovery_codes` rows and active `factor_kind='recovery_code'`
+`identity_mfa_factors` rows (`revokeBootstrapCredentialRecoveryFactorsQuery`,
+`identity_bootstrap_credential_sql.go`), then inserts a fresh factor and
+recovery-code hash via the existing `insertLocalIdentityMFA` helper. The
+revoke is deliberately scoped by `factor_kind`, unlike `ResetLocalIdentityMFA`
+(`identity_local_lifecycle.go`)'s general operator "reset a user's MFA" path,
+which revokes every active factor regardless of kind — a bootstrap credential
+reset must never revoke a TOTP factor the admin enrolled after bootstrap.
+`TestBootstrapCredentialConcurrencyGateGenerateConsumeReset` (below) asserts
+exactly one active recovery-code row carries the reset's new hash after the
+concurrent round; `TestAdminInitialCredentialAndResetRoundTrip`
+(`go/cmd/eshu/admin_initial_credential_test.go`) is the real-Postgres proof
+that the printed code actually authenticates, the code it replaced does not,
+and a pre-seeded active TOTP factor survives untouched.
+
 No-Regression Evidence: this is a net-new table and net-new statements on it;
 no existing query, index, or write path changes. Backend PostgreSQL 16. Input
 shape: exactly one `(tenant_id, workspace_id)` row ever exists in practice

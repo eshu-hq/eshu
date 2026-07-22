@@ -67,7 +67,12 @@ Operator rules:
    (`ESHU_AUTH_SECRET_ENC_KEY`); `sso-only` and `disabled` skip local admin
    seeding entirely. An operator may instead seed a specific admin identity
    with `ESHU_ADMIN_USERNAME`/`ESHU_ADMIN_PASSWORD` before first boot, which
-   still requires the wizard's Secure step to enroll MFA.
+   still requires the wizard's Secure step to enroll MFA. If the one-time
+   credential is lost, expired under a rotated `ESHU_AUTH_SECRET_ENC_KEY`, or
+   already consumed, `eshu admin reset-initial-credential` atomically rotates
+   the password AND re-enrolls the MFA recovery-code factor (issue #5602), so
+   the printed recovery code authenticates; it never touches a TOTP factor the
+   admin enrolled after bootstrap.
 2. Require MFA for admin accounts before protected tenants become active.
 3. Keep non-admin MFA policy explicit; do not imply it is mandatory unless the
    tenant policy says so.

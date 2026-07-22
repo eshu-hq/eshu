@@ -75,7 +75,18 @@ type ResetBootstrapCredentialInput struct {
 	PasswordHash           string
 	PasswordAlgorithm      string
 	PasswordParametersHash string
-	ResetAt                time.Time
+	// MFAFactorID is a caller-generated fresh identity_mfa_factors.factor_id
+	// for the re-enrolled recovery-code factor (issue #5602). Required: a
+	// reset that rotates the password without also re-enrolling the MFA
+	// recovery factor leaves the printed recovery code unable to
+	// authenticate, which is the bug this field exists to close.
+	MFAFactorID string
+	// RecoveryCodeHash is query.IdentityHash(<the freshly generated plaintext
+	// recovery code>), the same hash-only shape every other recovery-code
+	// field this store persists uses. ResetBootstrapCredential never sees or
+	// generates the plaintext.
+	RecoveryCodeHash string
+	ResetAt          time.Time
 }
 
 // HasBootstrappedLocalIdentity reports whether any local identity already
@@ -312,11 +323,16 @@ func (s *IdentitySubjectStore) ConsumeBootstrapCredential(
 }
 
 // ResetBootstrapCredential atomically regenerates and re-seals the bootstrap
-// credential envelope and rotates the matching bcrypt hash in
-// identity_local_credentials in the same transaction, so the database
-// password and the sealed envelope can never diverge. It always clears
-// consumed_at (a reset re-arms retrieval regardless of prior consumption) and
-// increments reset_count. Guarded by the same pg_advisory_xact_lock(3456) as
+// credential envelope, rotates the matching bcrypt hash in
+// identity_local_credentials, AND re-enrolls the owner's MFA recovery-code
+// factor (reenrollBootstrapCredentialRecoveryFactor) in the same transaction,
+// so the database password, the sealed envelope, and the actual MFA recovery
+// factor a login checks can never diverge. Before issue #5602 this method
+// rotated only the envelope and the password: the printed recovery code was
+// never persisted, so only the original first-run code (if still held) could
+// authenticate. It always clears consumed_at (a reset re-arms retrieval
+// regardless of prior consumption) and increments reset_count. Guarded by the
+// same pg_advisory_xact_lock(3456) as
 // GenerateBootstrapCredential/GenerateBootstrapAdminWithCredential, so a
 // concurrent Generate/Reset on the same row serializes correctly.
 // ConsumeBootstrapCredential is deliberately lock-free (its atomic
@@ -377,6 +393,9 @@ func (s *IdentitySubjectStore) ResetBootstrapCredential(
 	if affected == 0 {
 		return fmt.Errorf("rotate bootstrap credential password: no active local credential for owning user")
 	}
+	if err := reenrollBootstrapCredentialRecoveryFactor(ctx, tx, userID, in.MFAFactorID, in.RecoveryCodeHash, in.ResetAt); err != nil {
+		return err
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit reset bootstrap credential: %w", err)
 	}
@@ -430,49 +449,7 @@ func selectBootstrapCredentialOwnerUserID(
 	return userID, rows.Err()
 }
 
-func normalizeBootstrapCredentialSeal(seal BootstrapCredentialSeal) BootstrapCredentialSeal {
-	seal.TenantID = strings.TrimSpace(seal.TenantID)
-	seal.WorkspaceID = strings.TrimSpace(seal.WorkspaceID)
-	seal.SubjectIDHash = strings.TrimSpace(seal.SubjectIDHash)
-	seal.UsernameHash = strings.TrimSpace(seal.UsernameHash)
-	seal.SealedCredential = strings.TrimSpace(seal.SealedCredential)
-	seal.KeyID = strings.TrimSpace(seal.KeyID)
-	if seal.GeneratedAt.IsZero() {
-		seal.GeneratedAt = time.Now().UTC()
-	} else {
-		seal.GeneratedAt = seal.GeneratedAt.UTC()
-	}
-	return seal
-}
-
-func validateBootstrapCredentialSeal(seal BootstrapCredentialSeal) error {
-	if seal.TenantID == "" || seal.WorkspaceID == "" || seal.SubjectIDHash == "" ||
-		seal.UsernameHash == "" || seal.SealedCredential == "" || seal.KeyID == "" {
-		return errors.New("bootstrap credential seal is incomplete")
-	}
-	return nil
-}
-
-func normalizeResetBootstrapCredentialInput(in ResetBootstrapCredentialInput) ResetBootstrapCredentialInput {
-	in.TenantID = strings.TrimSpace(in.TenantID)
-	in.WorkspaceID = strings.TrimSpace(in.WorkspaceID)
-	in.SealedCredential = strings.TrimSpace(in.SealedCredential)
-	in.KeyID = strings.TrimSpace(in.KeyID)
-	in.PasswordHash = strings.TrimSpace(in.PasswordHash)
-	in.PasswordAlgorithm = strings.TrimSpace(in.PasswordAlgorithm)
-	in.PasswordParametersHash = strings.TrimSpace(in.PasswordParametersHash)
-	if in.ResetAt.IsZero() {
-		in.ResetAt = time.Now().UTC()
-	} else {
-		in.ResetAt = in.ResetAt.UTC()
-	}
-	return in
-}
-
-func validateResetBootstrapCredentialInput(in ResetBootstrapCredentialInput) error {
-	if in.TenantID == "" || in.WorkspaceID == "" || in.SealedCredential == "" || in.KeyID == "" ||
-		in.PasswordHash == "" || in.PasswordAlgorithm == "" || in.PasswordParametersHash == "" {
-		return errors.New("reset bootstrap credential input is incomplete")
-	}
-	return nil
-}
+// normalizeBootstrapCredentialSeal, validateBootstrapCredentialSeal,
+// normalizeResetBootstrapCredentialInput, and validateResetBootstrapCredentialInput
+// live in identity_bootstrap_credential_validate.go (split out to keep this
+// file under the 500-line cap).

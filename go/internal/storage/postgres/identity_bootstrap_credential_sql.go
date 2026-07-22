@@ -125,3 +125,50 @@ WHERE user_id = $1
   AND status = 'active'
   AND revoked_at IS NULL
 `
+
+// revokeBootstrapCredentialRecoveryFactorsQuery revokes only the $2-kind MFA
+// factor(s) for a user (ResetBootstrapCredential always passes
+// localIdentityRecoveryCodeFactorKind). This is deliberately narrower than
+// revokeLocalIdentityMFAFactorsQuery (identity_local_sql.go), which revokes
+// every active factor regardless of kind: a bootstrap credential reset must
+// never revoke a TOTP factor the admin enrolled after bootstrap.
+const revokeBootstrapCredentialRecoveryFactorsQuery = `
+UPDATE identity_mfa_factors
+SET status = 'revoked',
+    revoked_at = $3
+WHERE user_id = $1
+  AND factor_kind = $2
+  AND status = 'active'
+  AND revoked_at IS NULL
+`
+
+// revokeBootstrapCredentialRecoveryCodesQuery revokes only the recovery codes
+// owned by a $2-kind MFA factor (ResetBootstrapCredential always passes
+// localIdentityRecoveryCodeFactorKind). identity_mfa_recovery_codes.factor_id
+// is a plain foreign key into identity_mfa_factors with no kind constraint of
+// its own, and insertLocalIdentityMFA (identity_local_helpers.go) is a shared
+// helper the general admin MFA-reset endpoint (ResetLocalIdentityMFA,
+// identity_local_lifecycle.go) also calls with an operator-supplied
+// mfa_factor_kind alongside recovery codes — so a TOTP-kind factor can end up
+// owning rows in identity_mfa_recovery_codes even though TOTP enrollment
+// itself never inserts there. Reusing the unscoped
+// revokeLocalIdentityRecoveryCodesQuery (identity_local_sql.go) here would
+// therefore silently destroy that TOTP factor's backup codes on every
+// bootstrap credential reset (issue #5602 codex review). Scoping this query
+// by owning factor_kind, mirroring revokeBootstrapCredentialRecoveryFactorsQuery
+// above, keeps the reset from ever touching a factor kind other than
+// recovery_code.
+const revokeBootstrapCredentialRecoveryCodesQuery = `
+UPDATE identity_mfa_recovery_codes
+SET status = 'revoked',
+    revoked_at = $3
+WHERE user_id = $1
+  AND status = 'active'
+  AND revoked_at IS NULL
+  AND factor_id IN (
+      SELECT factor_id
+      FROM identity_mfa_factors
+      WHERE user_id = $1
+        AND factor_kind = $2
+  )
+`
