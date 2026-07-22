@@ -68,6 +68,49 @@ func TestBuildRunsInIntentRowsBindsResolvedRouteHandler(t *testing.T) {
 	}
 }
 
+func TestBuildRunsInIntentRowsEmitsPHPLaravelAtJoinedRouteMatches(t *testing.T) {
+	t.Parallel()
+
+	for _, handler := range []string{
+		"UserController@index",
+		`App\Http\Controllers\UserController@index`,
+	} {
+		handler := handler
+		t.Run(handler, func(t *testing.T) {
+			t.Parallel()
+			envelopes := []facts.Envelope{
+				handlesRouteRepoEnvelope("repo-1"),
+				handlesRouteFileEnvelope(
+					"repo-1",
+					"routes/web.php",
+					[]map[string]any{{
+						"name":          "index",
+						"class_context": "UserController",
+						"uid":           "content-entity:user-index",
+						"line_number":   8,
+						"end_line":      10,
+						"lang":          "php",
+					}},
+					"laravel",
+					[]any{map[string]any{
+						"method":  "GET",
+						"path":    "/users",
+						"handler": handler,
+					}},
+				),
+			}
+
+			intents := buildRunsInIntentsForTest(t, envelopes)
+			if len(intents) != 1 {
+				t.Fatalf("expected exactly 1 RUNS_IN intent, got %d", len(intents))
+			}
+			if got, want := payloadStr(intents[0].Payload, "function_id"), "content-entity:user-index"; got != want {
+				t.Fatalf("function_id = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 func TestBuildRunsInIntentRowsEmitsOnePerHandlerFunction(t *testing.T) {
 	t.Parallel()
 

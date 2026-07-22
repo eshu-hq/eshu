@@ -141,12 +141,13 @@ func BuildHandlesRouteIntentRowsForQueryProof(envelopes []facts.Envelope) []Shar
 }
 
 // resolveHandlesRouteFunction resolves a route handler name to exactly one
-// Function entity id. It first tries a same-file unique match across the route
-// file's path keys, then a repository-wide unique name. It returns the entity id
-// and the provenance method that resolved it, or an empty id when the name is
-// unknown or ambiguous. The underlying index maps store a name only when it is
-// unique in that scope, so a hit is always a single Function and a miss covers
-// both the zero- and multiple-match cases.
+// Function entity id. It first normalizes the parser-emitted handler token via
+// handlesRouteHandlerCandidateNames; for Laravel, that adds dotted candidates
+// for Class@method string callables and extracts the short class name from a
+// fully-qualified token. It then tries a same-file unique match across the route
+// file's path keys, followed by a repository-wide unique name. It returns the
+// entity id and provenance method, or an empty id when the name is unknown or
+// ambiguous. The index maps retain a name only when it is unique in that scope.
 func resolveHandlesRouteFunction(
 	index codeEntityIndex,
 	repositoryID string,
