@@ -98,6 +98,10 @@ type DefaultHandlers struct {
 	// exact documentation entity mentions.
 	DocumentationEdgeWriter SharedProjectionEdgeWriter
 
+	// CodeownersOwnershipEdgeWriter writes canonical DECLARES_CODEOWNER edges from
+	// directly-emitted codeowners.ownership facts (issue #5419 Phase 3).
+	CodeownersOwnershipEdgeWriter SharedProjectionEdgeWriter
+
 	// RationaleEdgeWriter is retained for compatibility with older reducer tests
 	// and wiring. Rationale materialization no longer uses it directly: it rides the
 	// shared-projection intent path via RationaleEdgeIntentWriter (#2869).

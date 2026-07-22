@@ -392,4 +392,16 @@
 // ASC) with a schema_version envelope. AdminInputInvalidFactListHandler mounts
 // only this read (no admin mutations) for cmd/mcp-server, mirroring
 // AdminDeadLetterListHandler.
+//
+// CodeownersOwnershipHandler serves GET /api/v0/codeowners/ownership (issue
+// #5419 Phase 4): a bounded, keyset-paginated read of one repository's Phase 3
+// DECLARES_CODEOWNER graph edges, plus an effective_owner field resolved by
+// resolveEffectiveRepositoryOwner's manifest-vs-codeowners precedence -- a
+// service-catalog manifest declaration with an exact or derived reducer
+// outcome wins, otherwise the repository's CODEOWNERS last-match-wins rule
+// (the edge with the highest order_index) applies, otherwise effective_owner
+// is a zero value rather than an error. A scoped caller not granted the
+// requested repository_id gets the same bounded empty-ownership shape a
+// genuinely CODEOWNERS-less repository would return, so an out-of-grant probe
+// cannot be distinguished from a real empty answer.
 package query

@@ -548,7 +548,8 @@ The package exports four groups of contracts:
 - Handler structs: `APIRouter` plus route owners including repository, entity,
   code, content, component-extension, infrastructure, IaC, impact, evidence,
   documentation, semantic-evidence, supply-chain, incident, work-item,
-  freshness, status, metrics, compare, and admin handlers.
+  codeowners-ownership, freshness, status, metrics, compare, and admin
+  handlers.
 - Response contracts: `ResponseEnvelope`, `TruthEnvelope`, `ErrorEnvelope`,
   `AnswerPacket`, query playbooks, investigation workflows, visualization
   packets, and the typed constants that describe truth level, freshness,

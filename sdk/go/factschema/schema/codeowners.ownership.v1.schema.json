@@ -1,0 +1,40 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/codeowners/v1/ownership.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "collector_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "order_index": {
+      "type": "integer"
+    },
+    "owners": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "pattern": {
+      "type": "string"
+    },
+    "repo_id": {
+      "type": "string"
+    },
+    "source_path": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "repo_id",
+    "source_path",
+    "pattern",
+    "owners",
+    "order_index"
+  ],
+  "title": "Eshu codeowners.ownership Payload (schema version 1)",
+  "type": "object"
+}

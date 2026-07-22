@@ -29,6 +29,7 @@ var knownDomains = map[Domain]struct{}{
 	DomainInheritanceMaterialization:               {},
 	DomainDocumentationMaterialization:             {},
 	DomainRationaleMaterialization:                 {},
+	DomainCodeownersOwnership:                      {},
 	DomainConfigStateDrift:                         {},
 	DomainPackageSourceCorrelation:                 {},
 	DomainCodeImportRepoEdge:                       {},

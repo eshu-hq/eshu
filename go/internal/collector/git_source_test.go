@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
+//nolint:filelength // Pre-existing 1200+ line collector test suite. Test files
+// are exempt from the whole-tree 500-line cap (scripts/dev/precommit-go.sh);
+// this marker only satisfies the stricter changed-files pre-commit variant.
+// #5419 touches it solely for per-repo follow-up fact-count updates.
+
 package collector
 
 import (
@@ -122,16 +127,16 @@ func TestGitSourceNextBuildsCollectedGenerationFromSelectionAndPerRepoSnapshots(
 	var fullFacts []facts.Envelope
 	var emptyFacts []facts.Envelope
 	switch {
-	case len(facts1) == 14 && len(facts2) == 11:
+	case len(facts1) == 15 && len(facts2) == 12:
 		fullCollected = collected1
 		fullFacts = facts1
 		emptyFacts = facts2
-	case len(facts1) == 11 && len(facts2) == 14:
+	case len(facts1) == 12 && len(facts2) == 15:
 		fullCollected = collected2
 		fullFacts = facts2
 		emptyFacts = facts1
 	default:
-		t.Fatalf("unexpected fact counts: %d and %d, want 14 and 11", len(facts1), len(facts2))
+		t.Fatalf("unexpected fact counts: %d and %d, want 15 and 12", len(facts1), len(facts2))
 	}
 
 	// Validate common scope/generation fields on the full repo.
@@ -150,6 +155,7 @@ func TestGitSourceNextBuildsCollectedGenerationFromSelectionAndPerRepoSnapshots(
 		"file",
 		"content",
 		"content_entity",
+		"shared_followup",
 		"shared_followup",
 		"shared_followup",
 		"shared_followup",
@@ -225,14 +231,15 @@ func TestGitSourceNextBuildsCollectedGenerationFromSelectionAndPerRepoSnapshots(
 		"shell_exec_materialization",
 		"inheritance_materialization",
 		"code_import_repo_edge",
+		"codeowners_ownership",
 	} {
 		if _, ok := followupDomains[wantDomain]; !ok {
 			t.Fatalf("empty repo followups missing %s domain: %#v", wantDomain, emptyFacts[1:])
 		}
 	}
 
-	// Validate empty repo has repo + 10 followups.
-	if got, want := len(emptyFacts), 11; got != want {
+	// Validate empty repo has repo + 11 followups.
+	if got, want := len(emptyFacts), 12; got != want {
 		t.Fatalf("len(empty facts) = %d, want %d", got, want)
 	}
 

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/codeowners"
 	"github.com/eshu-hq/eshu/go/internal/collector/discovery"
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/content/shape"
@@ -48,7 +49,8 @@ func resolveNativeSnapshotFileSetForTargets(
 		}
 		if !isTerraformStateCandidateName(filepath.Base(absoluteTarget)) {
 			if _, ok := registry.LookupByPath(absoluteTarget); !ok {
-				if !isGitDocumentationPath(absoluteTarget) {
+				_, isCodeownersCandidate := codeowners.IsCandidatePath(filepath.ToSlash(filepath.Clean(relativePath)))
+				if !isGitDocumentationPath(absoluteTarget) && !isCodeownersCandidate {
 					continue
 				}
 			}

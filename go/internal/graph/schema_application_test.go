@@ -39,6 +39,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			// immediate predecessor = the Flux typed-entity tip) is additive
 			// the same way.
 			compatible: []string{
+				graphSchemaNeo4jPreCodeownersOwnershipFingerprint,
 				graphSchemaNeo4jPreFluxHelmEntitiesFingerprint,
 				graphSchemaNeo4jPreFluxTypedEntitiesFingerprint,
 				graphSchemaNeo4jPreSqlMigrationFingerprint,
@@ -54,6 +55,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			backend:     SchemaBackendNornicDB,
 			fingerprint: graphSchemaNornicDBFingerprint,
 			compatible: []string{
+				graphSchemaNornicDBPreCodeownersOwnershipFingerprint,
 				graphSchemaNornicDBPreKubernetesWorkloadIDLookupFingerprint,
 				graphSchemaNornicDBPreFluxHelmEntitiesFingerprint,
 				graphSchemaNornicDBPreFluxTypedEntitiesFingerprint,

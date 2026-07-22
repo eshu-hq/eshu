@@ -473,24 +473,9 @@ var capabilityMatrix = map[string]capabilitySupport{
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	},
-	// Java value-flow reachability is operationally gated by ESHU_EMIT_DATAFLOW
-	// (off by default), so it is unsupported in every profile here, mirroring the
-	// other value-flow ecosystems (#3069). The gated overlay maturity lives in
-	// specs/capability-catalog.v1.yaml.
-	"reachability.java.value_flow": {
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: nil,
-		LocalFullStackMax:     nil,
-		ProductionMax:         nil,
-	},
-	// C# value-flow reachability is operationally gated by ESHU_EMIT_DATAFLOW
-	// (off by default), so it is unsupported in every profile here, mirroring the
-	// other value-flow ecosystems (#3069). The gated overlay maturity lives in
-	// specs/capability-catalog.v1.yaml.
-	"reachability.csharp.value_flow": {
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: nil,
-		LocalFullStackMax:     nil,
-		ProductionMax:         nil,
-	},
 }
+
+// The remaining capability entries live in
+// contract_capability_matrix_ext.go's init(), which appends to this map --
+// this file is at the repo's 500-line cap (golang-engineering skill), so a
+// new entry here would exceed it. See that file's doc comment.

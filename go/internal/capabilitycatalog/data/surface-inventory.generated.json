@@ -178,6 +178,11 @@
     },
     {
       "category": "api_route",
+      "name": "GET /api/v0/codeowners/ownership",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "GET /api/v0/collector-extraction-readiness",
       "readiness": "implemented"
     },
@@ -3209,6 +3214,11 @@
     },
     {
       "category": "mcp_tool",
+      "name": "list_codeowners_ownership",
+      "readiness": "implemented"
+    },
+    {
+      "category": "mcp_tool",
       "name": "list_collector_extraction_readiness",
       "readiness": "implemented"
     },
@@ -3510,6 +3520,16 @@
     {
       "category": "reducer_domain",
       "name": "code_taint_evidence",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "codeowners_ownership",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "codeowners_ownership_edges",
       "readiness": "implemented"
     },
     {

@@ -175,6 +175,16 @@ waivers:
     issue: "#5543"
     waived: "2026-07-20"
     reason: "reducer.DomainDocumentationEdges; pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+  - surface: "materialized_edges:codeowners_ownership_edges"
+    proof_gate: ifa-determinism
+    issue: "#5543"
+    waived: "2026-07-21"
+    reason: "reducer.DomainCodeownersOwnershipEdges (DECLARES_CODEOWNER edges, #5419); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+  - surface: "materialized_edges:codeowners_ownership_edges"
+    proof_gate: ifa-fault-injection
+    issue: "#5543"
+    waived: "2026-07-21"
+    reason: "reducer.DomainCodeownersOwnershipEdges (DECLARES_CODEOWNER edges, #5419); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:rationale_edges"
     proof_gate: ifa-determinism
     issue: "#5543"

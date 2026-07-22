@@ -23,6 +23,8 @@ required_ids:
   - QP-RELATIONSHIPS-EDGES
   - QP-INFRA-RESOURCE-SEARCH
   - QP-INFRA-RESOURCE-AGGREGATE
+  - QP-CODEOWNERS-OWNERSHIP-LIST
+  - QP-CODEOWNERS-LAST-MATCH-OWNER
 entries:
   - id: QP-SC-DEPS
     domain: supply_chain
@@ -630,3 +632,69 @@ entries:
         - CartesianProduct
         - UnboundedExpand
     cypher_sha256: "c5c0da930b9583c73ffff79fdea9a7118da9a7ce65d2cc9ea32d052d63efd750"
+  - id: QP-CODEOWNERS-OWNERSHIP-LIST
+    domain: codeowners
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/codeowners_ownership_cypher.go
+      symbol: codeownersOwnershipCypher
+      source_sha256: 4b7ae0350eb66ea9aabd79af5717e5c3bbd4bda50d58aa3978216ebbd4248a87
+      line_hint: 38
+    required_anchors:
+      - label: Repository
+        property: id
+    required_schema:
+      - repository_id
+      - nornicdb_repository_id_lookup
+      - codeowner_team_ref
+      - nornicdb_codeowner_team_ref_lookup
+    required_limits:
+      - $limit
+    requires_order: true
+    caveats:
+      - The only NodeIndexSeek anchor is Repository.id (repository_id constraint, nornicdb_repository_id_lookup index); CodeownerTeam is reached by Expand over the DECLARES_CODEOWNER relationship, then filtered by the team.ref IS NOT NULL/<>'' guard, not by an independent property seek, so CodeownerTeam is intentionally not declared as a required_anchors entry (same distinction QP-INFRA-RESOURCE-SEARCH's caveats document for an unfiltered RETURN field). codeowner_team_ref/nornicdb_codeowner_team_ref_lookup are still declared in required_schema because CodeownerTeam.ref is separately uniqueness-constrained and that constraint is load-bearing for the canonical DECLARES_CODEOWNER MERGE writer (go/internal/storage/cypher/canonical_codeowners_edges.go) this query reads back.
+      - Ordering is a three-column keyset (rel.order_index, rel.pattern, team.ref) because one repository can declare the same pattern with more than one owner token, projected as sibling DECLARES_CODEOWNER edges sharing order_index/pattern and differing only in the target team.ref (see the codeownersOwnershipCypher doc comment); team.ref is required as the final tie-breaker for an unambiguous cursor, mirroring dependenciesCypher's two-column keyset shape.
+    plan:
+      operators:
+        - NodeIndexSeek
+        - Expand
+        - Sort
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+        - UnboundedExpand
+    cypher_sha256: "bc5d48ac8b894f377b696e6ac64c38b4998bb4e98bc85cd4ae44f3f5650b1171"
+  - id: QP-CODEOWNERS-LAST-MATCH-OWNER
+    domain: codeowners
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/codeowners_ownership_cypher.go
+      symbol: codeownersLastMatchOwnerCypher
+      source_sha256: 61e65f83b6f0f3ada8a21df306a6150dc29c5ba750e531166fe87bfaba252c34
+      line_hint: 80
+    required_anchors:
+      - label: Repository
+        property: id
+    required_schema:
+      - repository_id
+      - nornicdb_repository_id_lookup
+      - codeowner_team_ref
+      - nornicdb_codeowner_team_ref_lookup
+    required_limits:
+      - "1"
+    requires_order: true
+    caveats:
+      - resolveEffectiveRepositoryOwner's manifest-vs-codeowners precedence resolver (go/internal/query/codeowners_ownership_precedence.go) uses this single-row query to find a repository's last-match-wins CODEOWNERS owner (CODEOWNERS resolves ownership by the LAST pattern in the file that matches, so the highest order_index row is the repository-wide fallback candidate); it is deliberately a separate DESC-ordered, LIMIT-1 read rather than reusing the paginated ascending QP-CODEOWNERS-OWNERSHIP-LIST query, since the highest order_index row can be arbitrarily far past the first page a caller happens to have fetched.
+      - Same anchor and required_schema as QP-CODEOWNERS-OWNERSHIP-LIST -- Repository.id is the only NodeIndexSeek anchor; CodeownerTeam is reached by Expand, not an independent seek, so it is not declared as a required_anchors entry.
+    plan:
+      operators:
+        - NodeIndexSeek
+        - Expand
+        - Sort
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+        - UnboundedExpand
+    cypher_sha256: "b18dcd0994646aea41750cec8817cd4464e58c737300ad4435e8121373d7bffd"

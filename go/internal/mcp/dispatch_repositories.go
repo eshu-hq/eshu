@@ -81,6 +81,8 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool, error)
 		return cicdRunCorrelationAggregateInventoryRoute(args), true, nil
 	case "list_service_catalog_correlations":
 		return serviceCatalogCorrelationsRoute(args), true, nil
+	case "list_codeowners_ownership":
+		return codeownersOwnershipRoute(args), true, nil
 	case "list_kubernetes_correlations":
 		return kubernetesCorrelationsRoute(args), true, nil
 	case "list_secrets_iam_identity_trust_chains":

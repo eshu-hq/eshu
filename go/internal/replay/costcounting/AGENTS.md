@@ -42,6 +42,15 @@ path-parameterized budget loader) live in `cost_scenario_helpers_test.go`. See
 README.md for the full instrument/budget table before adding another
 scenario.
 
+`codeowners_ownership` (`codeowners_ownership_cost_test.go`, issue #5419 Phase
+6) closes the replay-coverage gap left open through Phase 5: it mirrors
+`documentation_materialization` exactly (same `cypher.EdgeWriter.WriteEdges`
+path, same `eshu_dp_shared_edge_write_groups_total` primary instrument), with
+one difference — both fixture rows route to the SAME Cypher template
+(`batchCanonicalCodeownersOwnershipEdgeCypher`, no per-kind branch), so they
+batch into one statement and `statements_executed=1` rather than
+documentation's 2.
+
 The C-14 closeout added 15 more scenarios (5 graph writers —
 `azure_resource_materialization`, `gcp_resource_materialization`,
 `kubernetes_correlation`, `observability_coverage_correlation`,

@@ -108,6 +108,13 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				FactLoader:   handlers.FactLoader,
 				IntentWriter: handlers.RationaleEdgeIntentWriter,
 			}
+		case DomainCodeownersOwnership:
+			def.Handler = CodeownersOwnershipEdgeMaterializationHandler{
+				FactLoader:           handlers.FactLoader,
+				EdgeWriter:           handlers.CodeownersOwnershipEdgeWriter,
+				PriorGenerationCheck: handlers.PriorGenerationCheck,
+				Instruments:          handlers.Instruments,
+			}
 		}
 		definitions = append(definitions, def)
 	}

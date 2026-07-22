@@ -38,6 +38,7 @@ var sharedProjectionDomains = []string{
 	DomainHandlesRoute,
 	DomainRunsIn,
 	DomainInvokesCloudAction,
+	DomainCodeownersOwnershipEdges,
 }
 
 // SharedProjectionRunnerConfig holds configuration for the shared projection

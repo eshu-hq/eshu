@@ -100,6 +100,7 @@ var scopedTokenAdvertisedRoutes = map[string]struct{}{
 	"GET /api/v0/cloud/inventory":                                                   {},
 	"GET /api/v0/collector-extraction-readiness":                                    {},
 	"GET /api/v0/collector-extraction-readiness/{family}":                           {},
+	"GET /api/v0/codeowners/ownership":                                              {},
 	"GET /api/v0/collector-readiness":                                               {},
 	"GET /api/v0/component-extensions":                                              {},
 	"GET /api/v0/component-extensions/{component_id}/diagnostics":                   {},

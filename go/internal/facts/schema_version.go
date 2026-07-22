@@ -75,6 +75,7 @@ var schemaVersionFamilies = []schemaVersionFamily{
 	{AWSFactKinds, AWSSchemaVersion},
 	{AzureFactKinds, AzureSchemaVersion},
 	{CICDRunFactKinds, CICDRunSchemaVersion},
+	{CodeownersFactKinds, CodeownersSchemaVersion},
 	{EC2InstancePostureFactKinds, EC2InstancePostureSchemaVersion},
 	{GCPFactKinds, GCPSchemaVersion},
 	{IncidentContextFactKinds, IncidentContextSchemaVersion},

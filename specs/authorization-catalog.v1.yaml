@@ -219,8 +219,8 @@ permission_families:
     scope_levels: [tenant, workspace]
     default_roles: [tenant_admin, owner]
   - family: repository_content
-    description: Repository, source, content, code graph, code-quality, relationships, evidence citation, dependency, and visualization reads.
-    capability_prefixes: [code_search., code_inventory., code_flow., graph_query., symbol_graph., code_quality., security.hardcoded_secrets, call_graph., code_to_cloud., relationship_evidence., evidence_citation., dependencies., visualization.]
+    description: Repository, source, content, code graph, code-quality, relationships, evidence citation, dependency, codeowners ownership, and visualization reads.
+    capability_prefixes: [code_search., code_inventory., code_flow., graph_query., symbol_graph., code_quality., security.hardcoded_secrets, call_graph., code_to_cloud., relationship_evidence., evidence_citation., dependencies., codeowners., visualization.]
     action: repository.content.read
     data_classes: [repository_metadata, source_content]
     scope_levels: [tenant, workspace, repository]

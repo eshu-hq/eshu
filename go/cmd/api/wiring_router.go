@@ -204,6 +204,12 @@ func newRouterWithSemanticEmbedding(
 			Profile:     queryProfile,
 			Instruments: instruments,
 		},
+		CodeownersOwnership: &query.CodeownersOwnershipHandler{
+			Neo4j:        neo4jReader,
+			Correlations: query.NewPostgresServiceCatalogCorrelationStore(db),
+			Profile:      queryProfile,
+			Instruments:  instruments,
+		},
 		CICD:                  newCICDHandler(db, contentReader, queryProfile),
 		ServiceCatalog:        newServiceCatalogHandler(db, contentReader, queryProfile),
 		Kubernetes:            newKubernetesHandler(db, queryProfile),
