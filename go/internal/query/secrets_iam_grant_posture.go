@@ -70,6 +70,9 @@ func NewGraphSecretsIAMGrantPostureStore(graph GraphQuery) GraphSecretsIAMGrantP
 // template on the pinned NornicDB binary. Grouping keys are closed
 // low-cardinality vocabularies (grant_outcome, resolution_mode), so output
 // stays at a handful of rows per statement.
+// #nosec G101 -- Cypher graph-query fragment (a MATCH pattern over the
+// GRANTS_ACCESS_TO edge), not a credential; scope_id is bound via the
+// $scope_id parameter and no request-derived value is concatenated in.
 const secretsIAMGrantPostureMatch = `MATCH (:CloudResource)-[rel:GRANTS_ACCESS_TO]->(:ExternalPrincipal)
 WHERE rel.scope_id = $scope_id`
 
