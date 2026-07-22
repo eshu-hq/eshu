@@ -16,13 +16,17 @@ import (
 )
 
 const (
-	callGraphMetricsCapability   = "call_graph.metrics"
-	callGraphMetricsDefaultLimit = 25
-	callGraphMetricsMaxLimit     = 200
-	callGraphMetricsMaxOffset    = 10000
+	callGraphMetricsCapability    = "call_graph.metrics"
+	callGraphMetricsDefaultLimit  = 25
+	callGraphMetricsEdgeScanLimit = 50000
+	callGraphMetricsMaxLimit      = 200
+	callGraphMetricsMaxOffset     = 10000
 )
 
-var errCallGraphMetricsUnavailable = errors.New("call graph metrics are unavailable")
+var (
+	errCallGraphMetricsScopeTooBroad = errors.New("call graph metrics scope exceeds internal edge scan limit")
+	errCallGraphMetricsUnavailable   = errors.New("call graph metrics are unavailable")
+)
 
 type callGraphMetricsRequest struct {
 	MetricType string `json:"metric_type"`
@@ -69,8 +73,13 @@ func (h *CodeHandler) handleCallGraphMetrics(w http.ResponseWriter, r *http.Requ
 
 	data, err := h.callGraphMetricsData(r.Context(), req)
 	if err != nil {
+		span.RecordError(err)
 		if errors.Is(err, errCallGraphMetricsUnavailable) {
 			WriteError(w, http.StatusServiceUnavailable, err.Error())
+			return
+		}
+		if errors.Is(err, errCallGraphMetricsScopeTooBroad) {
+			WriteError(w, http.StatusUnprocessableEntity, err.Error())
 			return
 		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
@@ -153,16 +162,32 @@ func (h *CodeHandler) callGraphMetricsData(ctx context.Context, req callGraphMet
 	if h == nil || h.Neo4j == nil {
 		return nil, errCallGraphMetricsUnavailable
 	}
+	span := trace.SpanFromContext(ctx)
+	span.SetAttributes(
+		attribute.String("eshu.query.call_graph.metric_type", req.metricType()),
+		attribute.Int("eshu.query.call_graph.edge_scan_limit", callGraphMetricsEdgeScanLimit),
+	)
 	cypher, params := callGraphMetricsEdgesCypher(req.RepoID)
 	edges, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {
 		return nil, err
 	}
+	scanOverflow := len(edges) > callGraphMetricsEdgeScanLimit
+	span.SetAttributes(
+		attribute.Int("eshu.query.call_graph.expanded_edge_count", len(edges)),
+		attribute.Bool("eshu.query.call_graph.scan_overflow", scanOverflow),
+	)
+	if scanOverflow {
+		return nil, fmt.Errorf(
+			"%w: reached the %d-edge sentinel; maximum exact scope is %d",
+			errCallGraphMetricsScopeTooBroad,
+			len(edges),
+			callGraphMetricsEdgeScanLimit,
+		)
+	}
 	rows, stats := callGraphMetricsRowsWithStats(req, edges)
 	data := callGraphMetricsResponse(req, rows)
-	trace.SpanFromContext(ctx).SetAttributes(
-		attribute.String("eshu.query.call_graph.metric_type", req.metricType()),
-		attribute.Int("eshu.query.call_graph.expanded_edge_count", stats.expandedEdges),
+	span.SetAttributes(
 		attribute.Int("eshu.query.call_graph.expanded_node_count", stats.expandedNodes),
 		attribute.Int("eshu.query.call_graph.result_count", IntVal(data, "count")),
 		attribute.Bool("eshu.query.call_graph.truncated", BoolVal(data, "truncated")),
@@ -183,7 +208,9 @@ RETURN coalesce(source.id, source.uid) AS source_id,
        target.language AS target_language,
        target.name AS target_name,
        target.start_line AS target_start_line,
-       target.end_line AS target_end_line`, map[string]any{
-			"repo_id": strings.TrimSpace(repoID),
+       target.end_line AS target_end_line
+LIMIT $edge_scan_limit`, map[string]any{
+			"edge_scan_limit": callGraphMetricsEdgeScanLimit + 1,
+			"repo_id":         strings.TrimSpace(repoID),
 		}
 }

@@ -167,6 +167,44 @@ func TestHandleCallGraphMetricsRejectsUnscopedRequests(t *testing.T) {
 	}
 }
 
+func TestHandleCallGraphMetricsFailsClosedWhenEdgeScanLimitExceeded(t *testing.T) {
+	t.Parallel()
+
+	handler := &CodeHandler{
+		Neo4j: fakeGraphReader{
+			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				if !strings.Contains(cypher, "LIMIT $edge_scan_limit") {
+					t.Fatalf("cypher = %q, want bounded edge sentinel", cypher)
+				}
+				if got, want := params["edge_scan_limit"], 50001; got != want {
+					t.Fatalf("params[edge_scan_limit] = %#v, want %#v", got, want)
+				}
+				return make([]map[string]any, 50001), nil
+			},
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/call-graph/metrics",
+		bytes.NewBufferString(`{"metric_type":"hub_functions","repo_id":"repo-1","limit":1}`),
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusUnprocessableEntity; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "call graph metrics scope exceeds internal edge scan limit") {
+		t.Fatalf("body = %q, want bounded-scope error", w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "functions") {
+		t.Fatalf("body = %q, must not return partial metric rows", w.Body.String())
+	}
+}
+
 func TestHandleCallGraphMetricsRejectsNegativeLimit(t *testing.T) {
 	t.Parallel()
 

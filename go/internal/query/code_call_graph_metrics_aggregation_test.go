@@ -5,6 +5,7 @@ package query
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -20,8 +21,14 @@ func TestCallGraphMetricsEdgesCypherUsesOneRepoIndexedEdgePass(t *testing.T) {
 	if got, want := params["repo_id"], "repo-1"; got != want {
 		t.Fatalf("params[repo_id] = %#v, want %#v", got, want)
 	}
+	if got, want := params["edge_scan_limit"], 50001; got != want {
+		t.Fatalf("params[edge_scan_limit] = %#v, want %#v", got, want)
+	}
 	if !strings.Contains(cypher, "MATCH (source:Function {repo_id: $repo_id})-[call:CALLS]->(target:Function {repo_id: $repo_id})") {
 		t.Fatalf("cypher = %q, want one repo-indexed CALLS pass", cypher)
+	}
+	if !strings.Contains(cypher, "LIMIT $edge_scan_limit") {
+		t.Fatalf("cypher = %q, want bounded edge sentinel", cypher)
 	}
 	for _, forbidden := range []string{"OPTIONAL MATCH", "REPO_CONTAINS", "SKIP $offset", "LIMIT $limit"} {
 		if strings.Contains(cypher, forbidden) {
@@ -193,10 +200,53 @@ func TestCallGraphMetricsDataRecordsExpansionAndResultTelemetry(t *testing.T) {
 	}
 	for key, want := range map[string]any{
 		"eshu.query.call_graph.metric_type":         "hub_functions",
+		"eshu.query.call_graph.edge_scan_limit":     int64(50000),
 		"eshu.query.call_graph.expanded_edge_count": int64(3),
 		"eshu.query.call_graph.expanded_node_count": int64(2),
 		"eshu.query.call_graph.result_count":        int64(1),
+		"eshu.query.call_graph.scan_overflow":       false,
 		"eshu.query.call_graph.truncated":           true,
+	} {
+		if got := attributes[key]; got != want {
+			t.Fatalf("span attribute %s = %#v, want %#v; attributes=%#v", key, got, want, attributes)
+		}
+	}
+}
+
+func TestCallGraphMetricsDataFailsClosedAndRecordsScanOverflow(t *testing.T) {
+	t.Parallel()
+
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+	ctx, span := provider.Tracer("test").Start(context.Background(), "call-graph-overflow-test")
+	handler := &CodeHandler{Neo4j: fakeGraphReader{run: func(
+		_ context.Context,
+		_ string,
+		_ map[string]any,
+	) ([]map[string]any, error) {
+		return make([]map[string]any, 50001), nil
+	}}}
+	data, err := handler.callGraphMetricsData(ctx, callGraphMetricsRequest{
+		RepoID: "repo-1",
+		Limit:  intPtr(1),
+	})
+	span.End()
+	if !errors.Is(err, errCallGraphMetricsScopeTooBroad) {
+		t.Fatalf("callGraphMetricsData() error = %v, want errCallGraphMetricsScopeTooBroad", err)
+	}
+	if data != nil {
+		t.Fatalf("callGraphMetricsData() data = %#v, want nil on overflow", data)
+	}
+	attributes := make(map[string]any)
+	for _, spanAttribute := range recorder.Ended()[0].Attributes() {
+		attributes[string(spanAttribute.Key)] = spanAttribute.Value.AsInterface()
+	}
+	for key, want := range map[string]any{
+		"eshu.query.call_graph.metric_type":         "hub_functions",
+		"eshu.query.call_graph.edge_scan_limit":     int64(50000),
+		"eshu.query.call_graph.expanded_edge_count": int64(50001),
+		"eshu.query.call_graph.scan_overflow":       true,
 	} {
 		if got := attributes[key]; got != want {
 			t.Fatalf("span attribute %s = %#v, want %#v; attributes=%#v", key, got, want, attributes)
