@@ -51,10 +51,15 @@ type KubernetesPodTemplateFilter struct {
 	// TrackingID is the expected argocd.argoproj.io/tracking-id value
 	// (expectedArgoCDTrackingIDs) the caller is probing for. Required.
 	TrackingID string
-	// ImageRefs optionally narrows the match to a live pod template whose
+	// ImageRefs narrows the match to a live pod template whose
 	// payload.image_refs array contains at least one of these declared
-	// image references (digest confirmation on top of identity). Empty
-	// means identity alone is sufficient.
+	// image references (digest confirmation on top of identity). The
+	// current caller, fetchWorkloadLiveEvidence
+	// (impact_trace_deployment_live_evidence.go), never queries the store
+	// with an empty ImageRefs -- it returns false before querying when
+	// imageRefs is empty -- so every live match today pairs the tracking-id
+	// identity with a non-empty digest confirmation; an identity-only match
+	// is not a supported mode of the current caller.
 	ImageRefs []string
 	// AllScopes, AllowedRepositoryIDs, and AllowedScopeIDs carry the #5167
 	// access-scoping bound, identical in shape and intent to
