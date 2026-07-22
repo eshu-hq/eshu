@@ -262,6 +262,63 @@ func TestFetchWorkloadLiveInstanceSummaryTwoTrackingIDsSum(t *testing.T) {
 	}
 }
 
+// TestFetchWorkloadLiveInstanceSummaryTwoDistinctNamespacePairs proves the
+// per-pair environment loop over N>1 distinct (cluster_id, namespace) pairs:
+// two tracking-ids matched in two different namespaces produce two environment
+// entries, each carrying its OWN pair's cluster_id/namespace (attached in Go,
+// never from Cypher), and issue exactly one graph query per distinct pair.
+func TestFetchWorkloadLiveInstanceSummaryTwoDistinctNamespacePairs(t *testing.T) {
+	t.Parallel()
+
+	controllers := []map[string]any{argoCDControllerFixture("app-a")}
+	resources := []map[string]any{
+		k8sResourceFixture("Deployment", "workload-a", "ns-a", "apps/v1"),
+		k8sResourceFixture("Deployment", "workload-b", "ns-b", "apps/v1"),
+	}
+	trackingIDs := expectedArgoCDTrackingIDs(controllers, resources)
+	if len(trackingIDs) != 2 {
+		t.Fatalf("test fixture bug: want 2 tracking ids, got %d", len(trackingIDs))
+	}
+	store := &stubKubernetesPodTemplateListStore{
+		matchesByTrackingID: map[string][]LiveIdentityMatch{
+			trackingIDs[0]: {{ClusterID: "c1", Namespace: "ns-a", ReadyReplicas: int32Ptr(3)}},
+			trackingIDs[1]: {{ClusterID: "c1", Namespace: "ns-b", ReadyReplicas: int32Ptr(3)}},
+		},
+	}
+	// No KubernetesNamespace node for either pair -> zero rows each -> both
+	// default to environment-unbound; the point is the loop runs once per pair.
+	graph := &stubLiveInstanceGraphQuery{rows: []map[string]any{}}
+	h := &ImpactHandler{KubernetesPodTemplates: store, Neo4j: graph}
+	summary, err := h.fetchWorkloadLiveInstanceSummary(
+		t.Context(), controllers, resources, []string{"img@sha256:shared"}, repositoryAccessFilter{allScopes: true},
+	)
+	if err != nil {
+		t.Fatalf("error = %v, want nil", err)
+	}
+	if summary == nil || summary.count != 6 {
+		t.Fatalf("summary = %v, want count 6 (3 + 3)", summary)
+	}
+	if graph.calls != 2 {
+		t.Fatalf("graph queried %d times, want exactly 2 (one per distinct namespace pair)", graph.calls)
+	}
+	if len(summary.environments) != 2 {
+		t.Fatalf("environments = %v, want exactly 2 entries", summary.environments)
+	}
+	gotNamespaces := map[string]bool{}
+	for _, env := range summary.environments {
+		if env["cluster_id"] != "c1" {
+			t.Fatalf("cluster_id = %v, want c1", env["cluster_id"])
+		}
+		if env["state"] != "environment-unbound" {
+			t.Fatalf("state = %v, want environment-unbound", env["state"])
+		}
+		gotNamespaces[fmt.Sprint(env["namespace"])] = true
+	}
+	if !gotNamespaces["ns-a"] || !gotNamespaces["ns-b"] {
+		t.Fatalf("namespaces = %v, want both ns-a and ns-b", gotNamespaces)
+	}
+}
+
 // TestFetchWorkloadLiveInstanceSummaryAllNilReadyReplicasOmitsCount proves a
 // matched-but-unobserved case (every matched fact carries a nil
 // ReadyReplicas, e.g. bare Pod objects) never fabricates a count: absent
