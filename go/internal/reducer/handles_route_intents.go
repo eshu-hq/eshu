@@ -143,11 +143,11 @@ func BuildHandlesRouteIntentRowsForQueryProof(envelopes []facts.Envelope) []Shar
 // resolveHandlesRouteFunction resolves a route handler name to exactly one
 // Function entity id. It first normalizes the parser-emitted handler token via
 // handlesRouteHandlerCandidateNames; for Laravel, that adds dotted candidates
-// for Class@method string callables and extracts the short class name from a
-// fully-qualified token. It then tries a same-file unique match across the route
-// file's path keys, followed by a repository-wide unique name. It returns the
-// entity id and provenance method, or an empty id when the name is unknown or
-// ambiguous. The index maps retain a name only when it is unique in that scope.
+// for short Class@method string callables. It then tries a same-file unique
+// match across the route file's path keys, followed by a repository-wide unique
+// name. It returns the entity id and provenance method, or an empty id when the
+// name is unknown or ambiguous. The index maps retain a name only when it is
+// unique in that scope.
 func resolveHandlesRouteFunction(
 	index codeEntityIndex,
 	repositoryID string,
@@ -173,11 +173,12 @@ func resolveHandlesRouteFunction(
 
 // handlesRouteHandlerCandidateNames preserves the parser-emitted handler token
 // and, for Laravel only, adds dotted forms for its Class@method string-callable
-// convention. A fully-qualified PHP controller is also reduced to the parser's
-// short class-context representation. It never falls back to the bare method,
-// so a mismatched class cannot bind merely because that method name is unique
-// in the repository, and unrelated frameworks keep their existing token
-// semantics.
+// convention when Class is unqualified. Fully-qualified PHP controllers stay
+// unresolved because the parser currently exposes only file-level namespace
+// evidence, which is insufficient for files containing multiple namespace
+// blocks. It never falls back to a short class or bare method, so a controller
+// in another namespace cannot bind merely because its terminal class or method
+// name is unique, and unrelated frameworks keep their existing token semantics.
 func handlesRouteHandlerCandidateNames(framework string, handler string) []string {
 	handler = strings.TrimSpace(handler)
 	if handler == "" {
@@ -193,13 +194,10 @@ func handlesRouteHandlerCandidateNames(framework string, handler string) []strin
 	if className == "" || methodName == "" {
 		return candidates
 	}
-	candidates = append(candidates, className+"."+methodName)
-	if namespaceSeparator := strings.LastIndex(className, `\`); namespaceSeparator >= 0 {
-		shortClassName := className[namespaceSeparator+1:]
-		if shortClassName != "" {
-			candidates = append(candidates, shortClassName+"."+methodName)
-		}
+	if strings.Contains(className, `\`) {
+		return candidates
 	}
+	candidates = append(candidates, className+"."+methodName)
 	return candidates
 }
 

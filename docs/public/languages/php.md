@@ -139,7 +139,11 @@ Not claimed today:
 - Composer/autoload public surfaces remain outside the exactness boundary.
 - Laravel `Route::resource()` expansion and non-literal group prefixes are
   deferred. Literal `Controller@method` string callables are supported through
-  exact class-qualified resolution; dynamic callables remain unclaimed.
+  exact short-class-qualified resolution. Fully-qualified
+  `Namespace\Controller@method` tokens remain unresolved until the parser
+  carries per-declaration namespace evidence; shortening them to
+  `Controller.method` would permit cross-namespace false matches. Dynamic
+  callables remain unclaimed.
 
 ## Known Limitations
 

@@ -71,33 +71,31 @@ func TestBuildRunsInIntentRowsBindsResolvedRouteHandler(t *testing.T) {
 func TestBuildRunsInIntentRowsEmitsPHPLaravelAtJoinedRouteMatches(t *testing.T) {
 	t.Parallel()
 
-	for _, handler := range []string{
-		"UserController@index",
-		`App\Http\Controllers\UserController@index`,
-	} {
+	for _, handler := range []string{"UserController@index"} {
 		handler := handler
 		t.Run(handler, func(t *testing.T) {
 			t.Parallel()
+			controller := handlesRouteFileEnvelope(
+				"repo-1",
+				"routes/web.php",
+				[]map[string]any{{
+					"name":          "index",
+					"class_context": "UserController",
+					"uid":           "content-entity:user-index",
+					"line_number":   8,
+					"end_line":      10,
+					"lang":          "php",
+				}},
+				"laravel",
+				[]any{map[string]any{
+					"method":  "GET",
+					"path":    "/users",
+					"handler": handler,
+				}},
+			)
 			envelopes := []facts.Envelope{
 				handlesRouteRepoEnvelope("repo-1"),
-				handlesRouteFileEnvelope(
-					"repo-1",
-					"routes/web.php",
-					[]map[string]any{{
-						"name":          "index",
-						"class_context": "UserController",
-						"uid":           "content-entity:user-index",
-						"line_number":   8,
-						"end_line":      10,
-						"lang":          "php",
-					}},
-					"laravel",
-					[]any{map[string]any{
-						"method":  "GET",
-						"path":    "/users",
-						"handler": handler,
-					}},
-				),
+				controller,
 			}
 
 			intents := buildRunsInIntentsForTest(t, envelopes)
@@ -108,6 +106,46 @@ func TestBuildRunsInIntentRowsEmitsPHPLaravelAtJoinedRouteMatches(t *testing.T) 
 				t.Fatalf("function_id = %q, want %q", got, want)
 			}
 		})
+	}
+}
+
+func TestBuildRunsInIntentRowsDoesNotResolveLaravelControllerFQN(t *testing.T) {
+	t.Parallel()
+
+	controller := handlesRouteFileEnvelope(
+		"repo-1",
+		"src/UserController.php",
+		[]map[string]any{{
+			"name":          "index",
+			"class_context": "UserController",
+			"uid":           "content-entity:other-user-index",
+			"line_number":   8,
+			"end_line":      10,
+			"lang":          "php",
+		}},
+		"",
+		nil,
+	)
+	controller.Payload["parsed_file_data"].(map[string]any)["namespace"] = `App\Http\Controllers`
+
+	envelopes := []facts.Envelope{
+		handlesRouteRepoEnvelope("repo-1"),
+		controller,
+		handlesRouteFileEnvelope(
+			"repo-1",
+			"routes/web.php",
+			nil,
+			"laravel",
+			[]any{map[string]any{
+				"method":  "GET",
+				"path":    "/users",
+				"handler": `App\Http\Controllers\UserController@index`,
+			}},
+		),
+	}
+
+	if intents := buildRunsInIntentsForTest(t, envelopes); len(intents) != 0 {
+		t.Fatalf("expected no RUNS_IN intent for an FQN without per-declaration namespace evidence, got %#v", intents)
 	}
 }
 

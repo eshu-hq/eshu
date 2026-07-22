@@ -145,41 +145,40 @@ func TestBuildHandlesRouteIntentRowsEmitsPHPLaravelAtJoinedRouteMatches(t *testi
 	}
 }
 
-func TestBuildHandlesRouteIntentRowsEmitsPHPLaravelNamespacedAtJoinedRouteMatches(t *testing.T) {
+func TestBuildHandlesRouteIntentRowsDoesNotResolvePHPLaravelNamespacedAtJoinedRoute(t *testing.T) {
 	t.Parallel()
+
+	controller := handlesRouteFileEnvelope(
+		"repo-1",
+		"routes/web.php",
+		[]map[string]any{
+			{
+				"name":          "index",
+				"class_context": "UserController",
+				"uid":           "content-entity:user-index",
+				"line_number":   8,
+				"end_line":      10,
+				"lang":          "php",
+			},
+		},
+		"laravel",
+		[]any{
+			map[string]any{
+				"method":  "GET",
+				"path":    "/users",
+				"handler": `App\Http\Controllers\UserController@index`,
+			},
+		},
+	)
+	controller.Payload["parsed_file_data"].(map[string]any)["namespace"] = `App\Http\Controllers`
 
 	envelopes := []facts.Envelope{
 		handlesRouteRepoEnvelope("repo-1"),
-		handlesRouteFileEnvelope(
-			"repo-1",
-			"routes/web.php",
-			[]map[string]any{
-				{
-					"name":          "index",
-					"class_context": "UserController",
-					"uid":           "content-entity:user-index",
-					"line_number":   8,
-					"end_line":      10,
-					"lang":          "php",
-				},
-			},
-			"laravel",
-			[]any{
-				map[string]any{
-					"method":  "GET",
-					"path":    "/users",
-					"handler": `App\Http\Controllers\UserController@index`,
-				},
-			},
-		),
+		controller,
 	}
 
-	intents := buildHandlesRouteIntentsForTest(t, envelopes)
-	if len(intents) != 1 {
-		t.Fatalf("expected exactly 1 HANDLES_ROUTE intent, got %d", len(intents))
-	}
-	if got, want := payloadStr(intents[0].Payload, "function_entity_id"), "content-entity:user-index"; got != want {
-		t.Fatalf("function_entity_id = %q, want %q", got, want)
+	if intents := buildHandlesRouteIntentsForTest(t, envelopes); len(intents) != 0 {
+		t.Fatalf("expected no HANDLES_ROUTE intent for an FQN without per-declaration namespace evidence, got %#v", intents)
 	}
 }
 
@@ -210,6 +209,50 @@ func TestBuildHandlesRouteIntentRowsDoesNotBareMatchWrongLaravelController(t *te
 
 	if intents := buildHandlesRouteIntentsForTest(t, envelopes); len(intents) != 0 {
 		t.Fatalf("expected no HANDLES_ROUTE intent for a mismatched controller, got %#v", intents)
+	}
+}
+
+func TestBuildHandlesRouteIntentRowsDoesNotShortenLaravelControllerNamespace(t *testing.T) {
+	t.Parallel()
+
+	controller := handlesRouteFileEnvelope(
+		"repo-1",
+		"src/UserController.php",
+		[]map[string]any{
+			{
+				"name":          "index",
+				"class_context": "UserController",
+				"uid":           "content-entity:other-user-index",
+				"line_number":   8,
+				"end_line":      10,
+				"lang":          "php",
+			},
+		},
+		"",
+		nil,
+	)
+	controller.Payload["parsed_file_data"].(map[string]any)["namespace"] = `Other\Namespace`
+
+	envelopes := []facts.Envelope{
+		handlesRouteRepoEnvelope("repo-1"),
+		controller,
+		handlesRouteFileEnvelope(
+			"repo-1",
+			"routes/web.php",
+			nil,
+			"laravel",
+			[]any{
+				map[string]any{
+					"method":  "GET",
+					"path":    "/users",
+					"handler": `App\Http\Controllers\UserController@index`,
+				},
+			},
+		),
+	}
+
+	if intents := buildHandlesRouteIntentsForTest(t, envelopes); len(intents) != 0 {
+		t.Fatalf("expected no HANDLES_ROUTE intent across mismatched namespaces, got %#v", intents)
 	}
 }
 
