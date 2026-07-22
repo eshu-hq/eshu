@@ -27,11 +27,11 @@ func TestOIDCLoginHandlerCallbackAuditsSuccessfulLogin(t *testing.T) {
 				TenantID:      "tenant_a",
 				WorkspaceID:   "workspace_a",
 				SubjectClass:  "external_oidc_user",
-				SubjectIDHash: "sha256:subject",
+				SubjectIDHash: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
 				RoleIDs:       []string{"developer"},
 			},
 			ProviderConfigID:  "okta-dev",
-			ProviderSubjectID: "sha256:subject",
+			ProviderSubjectID: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
 			ProviderProofAt:   now.Add(-time.Minute),
 		},
 	}
@@ -66,7 +66,7 @@ func TestOIDCLoginHandlerCallbackAuditsSuccessfulLogin(t *testing.T) {
 	if event.Decision != governanceaudit.DecisionAllowed || event.ReasonCode != "sso_login_authenticated" {
 		t.Fatalf("decision/reason = %q/%q, want allowed/sso_login_authenticated", event.Decision, event.ReasonCode)
 	}
-	if event.ActorIDHash != "sha256:subject" {
+	if event.ActorIDHash != "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234" {
 		t.Fatalf("actor id hash = %q, want the hashed external subject", event.ActorIDHash)
 	}
 	if event.TenantID != "tenant_a" {
@@ -120,10 +120,13 @@ func TestOIDCLoginHandlerCallbackAuditsDeniedLogin(t *testing.T) {
 	}
 }
 
-// TestOIDCLoginHandlerCallbackDoesNotAuditMalformedRequest mirrors the
-// GitHub-path equivalent: a request that never reaches CompleteOIDCLogin's
-// classification (ErrOIDCLoginInvalidRequest) is not audited.
-func TestOIDCLoginHandlerCallbackDoesNotAuditMalformedRequest(t *testing.T) {
+// TestOIDCLoginHandlerCallbackAuditsUnclassifiedCompleteError mirrors the
+// GitHub-path equivalent (P1a/P1b review fix): an error CompleteOIDCLogin
+// returns that is neither ErrOIDCLoginUnavailable nor ErrOIDCLoginDenied — a
+// raw, unwrapped ErrOIDCLoginInvalidRequest is the example used here — is
+// still audited via auditOIDCSSOLogin's default case, as denied with reason
+// "sso_login_error", instead of silently recording nothing.
+func TestOIDCLoginHandlerCallbackAuditsUnclassifiedCompleteError(t *testing.T) {
 	t.Parallel()
 
 	audit := &fakeGovernanceAuditAppender{}
@@ -146,7 +149,47 @@ func TestOIDCLoginHandlerCallbackDoesNotAuditMalformedRequest(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusBadRequest, rec.Body.String())
 	}
-	if len(audit.events) != 0 {
-		t.Fatalf("audit events = %d, want 0 for a malformed callback: %#v", len(audit.events), audit.events)
+	if len(audit.events) != 1 {
+		t.Fatalf("audit events = %d, want 1 for an unclassified CompleteOIDCLogin error: %#v", len(audit.events), audit.events)
+	}
+	event := audit.events[0]
+	if event.Decision != governanceaudit.DecisionDenied {
+		t.Fatalf("decision = %q, want denied", event.Decision)
+	}
+	if event.ReasonCode != "sso_login_error" {
+		t.Fatalf("reason code = %q, want sso_login_error", event.ReasonCode)
+	}
+}
+
+// TestOIDCLoginHandlerCallbackNilAuditIsSafe proves a handler with no Audit
+// wired (e.g. an older deployment) never panics, mirroring
+// TestGitHubLoginHandlerCallbackNilAuditIsSafe. nil Audit is a valid
+// deployment configuration (adminRecoveryAuditAppender can return nil), and
+// recordSSOLoginAuthentication already guards on it.
+func TestOIDCLoginHandlerCallbackNilAuditIsSafe(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeOIDCLoginService{
+		complete: OIDCLoginCompleteResponse{
+			Auth:              AuthContext{Mode: AuthModeScoped, TenantID: "tenant_a", WorkspaceID: "workspace_a"},
+			ProviderSubjectID: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
+		},
+	}
+	handler := &OIDCLoginHandler{
+		Service: service,
+		SessionIssuer: &BrowserSessionHandler{
+			Store: &fakeBrowserSessionStore{},
+			Now:   func() time.Time { return time.Date(2026, 7, 21, 11, 20, 0, 0, time.UTC) },
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/auth/oidc/callback?state=state-secret&code=auth-code", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusCreated, rec.Body.String())
 	}
 }

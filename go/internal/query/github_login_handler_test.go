@@ -30,11 +30,11 @@ func TestGitHubLoginHandlerCallbackAuditsSuccessfulLogin(t *testing.T) {
 				TenantID:      "tenant_a",
 				WorkspaceID:   "workspace_a",
 				SubjectClass:  "external_github_user",
-				SubjectIDHash: "sha256:subject",
+				SubjectIDHash: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
 				RoleIDs:       []string{"developer"},
 			},
 			ProviderConfigID:  "github-dev",
-			ProviderSubjectID: "sha256:subject",
+			ProviderSubjectID: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
 			ProviderProofAt:   now.Add(-time.Minute),
 		},
 	}
@@ -72,7 +72,7 @@ func TestGitHubLoginHandlerCallbackAuditsSuccessfulLogin(t *testing.T) {
 	if event.ReasonCode != "sso_login_authenticated" {
 		t.Fatalf("reason code = %q, want sso_login_authenticated", event.ReasonCode)
 	}
-	if event.ActorIDHash != "sha256:subject" {
+	if event.ActorIDHash != "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234" {
 		t.Fatalf("actor id hash = %q, want the hashed external subject", event.ActorIDHash)
 	}
 	if event.ActorClass != governanceaudit.ActorClassOperator {
@@ -174,12 +174,16 @@ func TestGitHubLoginHandlerCallbackAuditsUnavailableLogin(t *testing.T) {
 	}
 }
 
-// TestGitHubLoginHandlerCallbackDoesNotAuditMalformedRequest mirrors
-// LocalIdentityHandler not auditing a request-parsing failure: a malformed
-// callback (unknown state/code combination that never reaches an
-// authentication attempt) is not a completed login attempt and is not
-// audited.
-func TestGitHubLoginHandlerCallbackDoesNotAuditMalformedRequest(t *testing.T) {
+// TestGitHubLoginHandlerCallbackAuditsUnclassifiedCompleteError proves the
+// P1a review fix: an error CompleteGitHubLogin returns that is neither
+// ErrGitHubLoginUnavailable nor ErrGitHubLoginDenied — a raw, unwrapped
+// ErrGitHubLoginInvalidRequest is the example used here, e.g. the provider
+// config was deleted between login-start and callback — is still audited via
+// auditGitHubSSOLogin's default case, as denied with reason "sso_login_error".
+// Before the fix this outcome fell through both switch cases and recorded no
+// event at all, defeating the "audit every callback outcome" guarantee (issue
+// #5601).
+func TestGitHubLoginHandlerCallbackAuditsUnclassifiedCompleteError(t *testing.T) {
 	t.Parallel()
 
 	audit := &fakeGovernanceAuditAppender{}
@@ -202,8 +206,15 @@ func TestGitHubLoginHandlerCallbackDoesNotAuditMalformedRequest(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusBadRequest, rec.Body.String())
 	}
-	if len(audit.events) != 0 {
-		t.Fatalf("audit events = %d, want 0 for a malformed callback: %#v", len(audit.events), audit.events)
+	if len(audit.events) != 1 {
+		t.Fatalf("audit events = %d, want 1 for an unclassified CompleteGitHubLogin error: %#v", len(audit.events), audit.events)
+	}
+	event := audit.events[0]
+	if event.Decision != governanceaudit.DecisionDenied {
+		t.Fatalf("decision = %q, want denied", event.Decision)
+	}
+	if event.ReasonCode != "sso_login_error" {
+		t.Fatalf("reason code = %q, want sso_login_error", event.ReasonCode)
 	}
 }
 
@@ -215,7 +226,7 @@ func TestGitHubLoginHandlerCallbackNilAuditIsSafe(t *testing.T) {
 	service := &fakeGitHubLoginService{
 		complete: GitHubLoginCompleteResponse{
 			Auth:              AuthContext{Mode: AuthModeScoped, TenantID: "tenant_a", WorkspaceID: "workspace_a"},
-			ProviderSubjectID: "sha256:subject",
+			ProviderSubjectID: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
 		},
 	}
 	handler := &GitHubLoginHandler{

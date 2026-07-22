@@ -33,7 +33,7 @@ func TestSAMLHandlerACSAuditsSuccessfulLogin(t *testing.T) {
 			TenantID:      "tenant_a",
 			WorkspaceID:   "workspace_a",
 			SubjectClass:  "external_saml",
-			SubjectIDHash: "sha256:subject",
+			SubjectIDHash: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
 		},
 	}
 	handler := &SAMLHandler{
@@ -69,7 +69,7 @@ func TestSAMLHandlerACSAuditsSuccessfulLogin(t *testing.T) {
 	if event.Decision != governanceaudit.DecisionAllowed || event.ReasonCode != "sso_login_authenticated" {
 		t.Fatalf("decision/reason = %q/%q, want allowed/sso_login_authenticated", event.Decision, event.ReasonCode)
 	}
-	if event.ActorIDHash != "sha256:subject" {
+	if event.ActorIDHash != "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234" {
 		t.Fatalf("actor id hash = %q, want the resolved SAML subject hash", event.ActorIDHash)
 	}
 	if event.TenantID != "tenant_a" {
@@ -173,5 +173,52 @@ func TestSAMLHandlerACSAuditsNoGrantsDenial(t *testing.T) {
 	}
 	if got := audit.events[0].ReasonCode; got != "no_grants" {
 		t.Fatalf("reason code = %q, want no_grants", got)
+	}
+}
+
+// TestSAMLHandlerACSNilAuditIsSafe proves a handler with no Audit wired
+// (e.g. an older deployment) never panics, mirroring
+// TestGitHubLoginHandlerCallbackNilAuditIsSafe and
+// TestOIDCLoginHandlerCallbackNilAuditIsSafe. nil Audit is a valid
+// deployment configuration (adminRecoveryAuditAppender can return nil), and
+// recordSSOLoginAuthentication already guards on it.
+func TestSAMLHandlerACSNilAuditIsSafe(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 22, 16, 0, 0, 0, time.UTC)
+	store := &fakeSAMLStore{
+		provider:  testSAMLProvider(),
+		requestOK: true,
+		resolveOK: true,
+		replayOK:  true,
+		sessionAuth: AuthContext{
+			Mode:          AuthModeBrowserSession,
+			TenantID:      "tenant_a",
+			WorkspaceID:   "workspace_a",
+			SubjectClass:  "external_saml",
+			SubjectIDHash: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
+		},
+	}
+	handler := &SAMLHandler{
+		Store:     store,
+		Sessions:  store,
+		Verifier:  fakeSAMLVerifier{},
+		NewSecret: sequenceSecrets("session-secret", "csrf-secret"),
+		Now:       func() time.Time { return now },
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	form := url.Values{}
+	form.Set("RelayState", "relay-secret")
+	form.Set("SAMLResponse", testSAMLResponseForRequest("request-1"))
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/saml/providers/provider_a/acs", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusCreated, rec.Body.String())
 	}
 }

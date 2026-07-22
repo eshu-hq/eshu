@@ -118,11 +118,19 @@ func recordSSOLoginAuthentication(
 
 // auditGitHubSSOLogin classifies a GitHub CompleteGitHubLogin outcome and
 // records the resulting identity_authentication event. err == nil records
-// the successful outcome ("sso_login_authenticated") with subjectIDHash. A
-// malformed callback (ErrGitHubLoginInvalidRequest — missing state/code, an
-// unknown provider_config_id) never reaches an authentication attempt and is
-// not audited, mirroring LocalIdentityHandler not auditing a ReadJSON parse
-// failure before Store.AuthenticateLocalIdentity is ever called.
+// the successful outcome ("sso_login_authenticated") with subjectIDHash.
+// Every non-nil error is audited, including an error that is neither
+// ErrGitHubLoginUnavailable nor ErrGitHubLoginDenied — for example
+// ErrGitHubLoginInvalidRequest returned by CompleteGitHubLogin itself (the
+// provider config was deleted between login-start and callback) or an
+// unwrapped connector-factory error — via the default case below, so the
+// "audit every callback outcome" guarantee (issue #5601) holds for every
+// outcome CompleteGitHubLogin can return. A callback that never reaches
+// CompleteGitHubLogin at all (h.ready returns false: the service or session
+// store is unavailable) is not audited, mirroring LocalIdentityHandler not
+// auditing a ReadJSON parse failure before Store.AuthenticateLocalIdentity is
+// ever called — this function is only ever invoked with the error
+// CompleteGitHubLogin returned.
 func auditGitHubSSOLogin(
 	r *http.Request,
 	audit GovernanceAuditAppender,
@@ -143,11 +151,16 @@ func auditGitHubSSOLogin(
 	case errors.Is(err, ErrGitHubLoginDenied):
 		reason := SSOLoginDenialReason(err, "sso_login_denied")
 		recordSSOLoginAuthentication(r, audit, now, governanceaudit.DecisionDenied, reason, subjectIDHash, tenantID, workspaceID)
+	default:
+		reason := SSOLoginDenialReason(err, "sso_login_error")
+		recordSSOLoginAuthentication(r, audit, now, governanceaudit.DecisionDenied, reason, subjectIDHash, tenantID, workspaceID)
 	}
 }
 
 // auditOIDCSSOLogin is auditGitHubSSOLogin's OIDC mirror, classifying
-// against ErrOIDCLoginUnavailable/ErrOIDCLoginDenied instead.
+// against ErrOIDCLoginUnavailable/ErrOIDCLoginDenied instead, with the same
+// default-case guarantee that every non-nil error CompleteOIDCLogin returns
+// is audited.
 func auditOIDCSSOLogin(
 	r *http.Request,
 	audit GovernanceAuditAppender,
@@ -167,6 +180,9 @@ func auditOIDCSSOLogin(
 		recordSSOLoginAuthentication(r, audit, now, governanceaudit.DecisionUnavailable, reason, subjectIDHash, tenantID, workspaceID)
 	case errors.Is(err, ErrOIDCLoginDenied):
 		reason := SSOLoginDenialReason(err, "sso_login_denied")
+		recordSSOLoginAuthentication(r, audit, now, governanceaudit.DecisionDenied, reason, subjectIDHash, tenantID, workspaceID)
+	default:
+		reason := SSOLoginDenialReason(err, "sso_login_error")
 		recordSSOLoginAuthentication(r, audit, now, governanceaudit.DecisionDenied, reason, subjectIDHash, tenantID, workspaceID)
 	}
 }
