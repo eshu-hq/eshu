@@ -34,7 +34,7 @@ func resolvedRelationshipEvidenceArtifacts(r relationships.ResolvedRelationship)
 		details := artifactDetails(item["details"])
 		path := firstArtifactString(details, "path", "first_party_ref_path", "config_path", "file_path")
 		matchedValue := firstArtifactString(details, "matched_value", "first_party_ref_normalized", "source_ref", "image_ref")
-		matchedAlias := firstArtifactString(details, "matched_alias", "first_party_ref_name", "name")
+		matchedAlias := firstArtifactString(details, "matched_alias", "first_party_ref_name", "flux_git_repository_name", "name")
 		if kind == "" || (path == "" && matchedValue == "" && matchedAlias == "") {
 			continue
 		}

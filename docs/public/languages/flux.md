@@ -37,7 +37,7 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | HelmRepository url | `flux-helm-repository-url` | supported | `flux_helm_repositories` | `name, line_number, url` | `property:FluxHelmRepository.url` | `go/internal/parser/yaml/flux_source_test.go::TestParseFluxHelmRepositoryCapturesURLAndType` | Compose-backed fixture verification | `spec.url` is the chart-index coordinate. |
 | HelmRepository type | `flux-helm-repository-type` | supported | `flux_helm_repositories` | `name, line_number, repo_type` | `property:FluxHelmRepository.repo_type` | `go/internal/parser/yaml/flux_source_test.go::TestParseFluxHelmRepositoryCapturesURLAndType` | Compose-backed fixture verification | Captured under `repo_type`, deliberately NOT the generic `type` key, to avoid a collision at the content-metadata/query layer. |
 | HelmRelease `RECONCILES_FROM` source edge | `flux-helmrelease-reconciles-from-edge` | supported | n/a (projector-canonical, not a parser bucket) | `resolution_mode, source_ref_kind, source_ref_name, source_ref_namespace, namespace_defaulted, reconciler_kind, via` | `edge:FluxHelmRelease-[RECONCILES_FROM]->FluxHelmRepository/FluxGitRepository/FluxOCIRepository/FluxBucket` | `go/internal/storage/cypher/canonical_flux_helm_edges_test.go` | B-12 `rc-` HelmRelease correlation | Reuses the SAME T1-T4 resolution tiers as Kustomization, verbatim (issue #5483 C1). `via` (`chart_source_ref`\|`chart_ref`) records which reference field resolved the edge. `chartRef.kind: HelmChart` is a deliberate honest non-link (see Known Limitations); reachable only through `get_entity_context`, not `list_relationship_edges` (the catalog slice stays anchored on `FluxKustomization`). |
-| GitRepository cross-repo `DEPLOYS_FROM` lineage | `flux-git-repository-cross-repo-deploys-from` | supported | n/a (reducer-resolved evidence, not a parser bucket) | `url, normalized_url, flux_git_repository_name` | `edge:Repository-[DEPLOYS_FROM]->Repository` | `go/internal/relationships/flux_evidence_test.go` | `go/internal/query/impact_trace_deployment_flux_test.go`, `go/internal/storage/postgres/ingestion_flux_cross_repo_evidence_integration_test.go` | Query-supported cross-repo lineage: resolved in Go at ingestion-commit time (`discoverStructuredFluxEvidence`, issue #5483 C2), never in the parser: STRICT `repositoryidentity.NormalizeRemoteURL` equality between `spec.url` and each catalog repository's `RemoteURL` -- never the fuzzy alias/token matcher. Exactly one OTHER-repository match emits the edge; a same-repo match, zero matches, or 2+ matches are honest non-links tallied by `eshu_dp_flux_cross_repo_url_resolution_total` (outcome=`linked`\|`self`\|`unresolved`\|`ambiguous`), never guessed. The `DEPLOYS_FROM` hop is consumed by the `trace_deployment_chain` read surface: `POST /api/v0/impact/trace-deployment-chain` -> `fetchRepositoryDeploymentSourceRows` (`impact_trace_deployment_sources.go`) traverses `(targetRepo:Repository)<-[:DEPLOYS_FROM]-(repo:Repository)`, and the same handler surfaces `FluxKustomization`/`FluxHelmRelease` controllers wired into `controllerEntityTypes`. The TARGET-repo-root manifest match remains a follow-up (see Known Limitations). |
+| GitRepository cross-repo `DEPLOYS_FROM` lineage | `flux-git-repository-cross-repo-deploys-from` | supported | n/a (reducer-resolved evidence, not a parser bucket) | `url, normalized_url, flux_git_repository_name` | `edge:Repository-[DEPLOYS_FROM]->Repository` | `go/internal/relationships/flux_evidence_test.go` | `go/internal/query/impact_trace_deployment_flux_test.go`, `go/internal/storage/postgres/ingestion_flux_cross_repo_evidence_integration_test.go` | Query-supported cross-repo lineage: resolved in Go at ingestion-commit time (`discoverStructuredFluxEvidence`, issue #5483 C2), never in the parser: STRICT `repositoryidentity.NormalizeRemoteURL` equality between `spec.url` and each catalog repository's `RemoteURL` -- never the fuzzy alias/token matcher. Exactly one OTHER-repository match emits the edge; a same-repo match, zero matches, or 2+ matches are honest non-links tallied by `eshu_dp_flux_cross_repo_url_resolution_total` (outcome=`linked`\|`self`\|`unresolved`\|`ambiguous`), never guessed. The `trace_deployment_chain` read binds a Flux controller only when its `sourceRef.kind` is `GitRepository`, its `sourceRef.name` exactly matches the projected `flux_git_repository_name`, and that name resolves to exactly one target repository; only then are target-repo manifests under the declared Flux path/chart root attributed. Missing, ambiguous, and saturated bindings are skipped and surfaced in the trace's controller limits. |
 
 ## Framework And Library Support
 
@@ -104,21 +104,13 @@ Not claimed today:
   join, and is deliberately never used to paper over this same-repo-only
   `RECONCILES_FROM` gap (see the Framework And Library Support cross-repo
   lineage note above and the target-repo-root limitation below).
-- **Deployment-trace reachability covers repo-local matching only; the
-  cross-repo hop stays outside the manifest match.**
-  `FluxKustomization`/`FluxHelmRelease` are registered as deployment-trace
-  controller entities (`controllerEntityTypes`, issue #5483 C2), the same
-  surface `ArgoCDApplication` uses, so a trace's controller and
-  `deploymentSources` rows include Flux controllers once a `DEPLOYS_FROM` or
-  `RECONCILES_FROM` edge resolves. But `collectDeploymentSourceK8sResources`
-  matches a controller's `spec.path`/chart-path roots against manifests in
-  the controller's OWN repository (ArgoCD parity). For a cross-repo Flux
-  Kustomization whose `DEPLOYS_FROM` target is a DIFFERENT repository than
-  the one hosting the Kustomization manifest, `spec.path` roots apply to the
-  TARGET repository, not the source -- so the target repo's own K8s
-  resources are not yet matched against those roots. v1 ships repo-local
-  matching parity with ArgoCD; per-controller TARGET-repo-root matching is a
-  tracked follow-up, not silently claimed.
+- **Cross-repo target matching is deliberately narrow.**
+  `FluxKustomization`/`FluxHelmRelease` target-repo path matching requires an
+  exact `GitRepository` sourceRef name and exactly one evidence-backed target
+  repository. A missing identity, multiple targets, or a saturated binding
+  read is an honest skip; the trace never applies a controller root to every
+  repository with a `DEPLOYS_FROM` edge. Other controller kinds retain their
+  repo-local matching behavior.
 - **HelmRelease resolves through `get_entity_context` only, never
   `list_relationship_edges`.** `HelmRelease.spec.chart.spec.sourceRef`
   (`HelmRepository`/`GitRepository`/`Bucket`) or `spec.chartRef`
@@ -143,13 +135,6 @@ Not claimed today:
   validation.** A HelmRelease manifest that sets BOTH (invalid per the Flux
   API) or NEITHER is captured verbatim by the parser; the edge resolver
   treats either case as an honest non-link, never an arbitrary pick.
-- **Cross-repo lineage resolves the URL identity only; it does not yet widen
-  which manifests a trace matches.** `FluxGitRepository.spec.url` resolving
-  to a `Repository` identity (issue #5483 C2, see Framework And Library
-  Support above) closes the `DEPLOYS_FROM` edge and the controller-entity
-  surface, but the deferred target-repo-root gap immediately above means the
-  target repository's K8s manifests are not yet attributed to the
-  cross-repo controller in `deploymentSources`/`k8sResources` trace rows.
 - Namespace defaulting (Flux's own rule: an empty `sourceRef.namespace`
   defaults to the Kustomization's own namespace) is not applied by the
   parser -- an absent `source_ref_namespace` property is recorded as absent,

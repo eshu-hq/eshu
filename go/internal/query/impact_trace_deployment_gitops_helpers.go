@@ -27,6 +27,8 @@ func buildDeploymentSourceControllerEntity(entity EntityContent) (map[string]any
 		"relative_path":          entity.RelativePath,
 		"source_repo":            metadataNonEmptyStringValue(entity.Metadata, "source_repo"),
 		"source_path":            metadataNonEmptyStringValue(entity.Metadata, "source_path"),
+		"source_ref_kind":        metadataNonEmptyStringValue(entity.Metadata, "source_ref_kind"),
+		"source_ref_name":        metadataNonEmptyStringValue(entity.Metadata, "source_ref_name"),
 		"generator_source_repos": slices.Clone(metadataStringSlice(entity.Metadata, "generator_source_repos")),
 		"generator_source_paths": slices.Clone(metadataStringSlice(entity.Metadata, "generator_source_paths")),
 		"template_source_repos":  slices.Clone(metadataStringSlice(entity.Metadata, "template_source_repos")),
@@ -132,6 +134,9 @@ func collectDeploymentSourceK8sResources(
 			continue
 		}
 		controllersByRepo[repoID] = append(controllersByRepo[repoID], controller)
+		if targetRepoID := StringVal(controller, "flux_target_repo_id"); targetRepoID != "" && targetRepoID != repoID {
+			controllersByRepo[targetRepoID] = append(controllersByRepo[targetRepoID], controller)
+		}
 	}
 
 	resources := make([]map[string]any, 0, len(entities))

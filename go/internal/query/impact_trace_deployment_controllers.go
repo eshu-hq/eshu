@@ -144,19 +144,21 @@ func (h *ImpactHandler) fetchDeploymentSourceGitOpsResult(
 
 	observedControllers := selectRelevantDeploymentSourceControllers(serviceName, workloadRepoID, ownRepoWorkloadCount, deploymentSources, entities)
 	controllers, controllersTruncated := capMapRows(observedControllers, serviceStoryItemLimit)
+	fluxTargetAttribution := bindFluxControllersToCrossRepoTargets(controllers, deploymentSources)
 	k8sResources, imageRefs := collectDeploymentSourceK8sResources(controllers, entities)
 	controllerObservedCountIsLowerBound := observedCountIsLowerBound
 	controllerTruncated := controllerObservedCountIsLowerBound || controllersTruncated
 	return deploymentSourceGitOpsResult{
 		controllers: controllers,
 		controllerLimits: map[string]any{
-			"limit":                         serviceStoryItemLimit,
-			"source_query_sentinel_limit":   repositorySemanticEntityLimit + 1,
-			"returned_count":                len(controllers),
-			"observed_count":                len(observedControllers),
-			"observed_count_is_lower_bound": controllerObservedCountIsLowerBound,
-			"truncated":                     controllerTruncated,
-			"ordering":                      []string{"repo_id", "relative_path", "entity_id"},
+			"cross_repo_flux_target_attribution": fluxTargetAttribution.asMap(),
+			"limit":                              serviceStoryItemLimit,
+			"source_query_sentinel_limit":        repositorySemanticEntityLimit + 1,
+			"returned_count":                     len(controllers),
+			"observed_count":                     len(observedControllers),
+			"observed_count_is_lower_bound":      controllerObservedCountIsLowerBound,
+			"truncated":                          controllerTruncated,
+			"ordering":                           []string{"repo_id", "relative_path", "entity_id"},
 		},
 		imageRefs:                    imageRefs,
 		k8sObservedCountIsLowerBound: controllerTruncated,

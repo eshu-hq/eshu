@@ -9,6 +9,19 @@ import (
 	"testing"
 )
 
+type fluxCrossRepoContentStore struct {
+	fakePortContentStore
+	entitiesByRepo map[string][]EntityContent
+}
+
+func (s fluxCrossRepoContentStore) ListRepoEntities(_ context.Context, repoID string, limit int) ([]EntityContent, error) {
+	rows := append([]EntityContent(nil), s.entitiesByRepo[repoID]...)
+	if limit > 0 && len(rows) > limit {
+		rows = rows[:limit]
+	}
+	return rows, nil
+}
+
 // TestBuildDeploymentSourceControllerEntityFluxKustomizationUsesSourcePathAsIs
 // proves FluxKustomization needs no special-casing: the Flux parser already
 // emits spec.path under the same "source_path" metadata key ArgoCD uses, so
@@ -181,5 +194,49 @@ func TestFetchControllerEntitiesReturnsFluxControllersFromDeploymentSources(t *t
 	roots, _ := helmRelease["source_roots"].([]string)
 	if len(roots) != 1 || roots[0] != "charts/podinfo" {
 		t.Fatalf("FluxHelmRelease source_roots = %#v, want [charts/podinfo] (GitRepository source treats chart as a path)", roots)
+	}
+}
+
+func TestFetchDeploymentSourceGitOpsResultAttributesCrossRepoFluxTargetResources(t *testing.T) {
+	t.Parallel()
+
+	handler := &ImpactHandler{Content: fluxCrossRepoContentStore{entitiesByRepo: map[string][]EntityContent{
+		"repo-deploy": {{
+			EntityID:     "flux-kustomization:payments",
+			RepoID:       "repo-deploy",
+			EntityType:   "FluxKustomization",
+			EntityName:   "payments-api",
+			RelativePath: "clusters/prod/payments.yaml",
+			Metadata: map[string]any{
+				"source_path":     "apps/payments",
+				"source_ref_kind": "GitRepository",
+				"source_ref_name": "app-source",
+			},
+		}},
+		"repo-app": {{
+			EntityID:     "k8s:payments-deployment",
+			RepoID:       "repo-app",
+			EntityType:   "K8sResource",
+			EntityName:   "payments-api",
+			RelativePath: "apps/payments/deployment.yaml",
+			Metadata:     map[string]any{"kind": "Deployment"},
+		}},
+	}}}
+
+	result, err := handler.fetchDeploymentSourceGitOpsResult(t.Context(), "payments-api", "repo-app", []map[string]any{{
+		"repo_id":                   "repo-deploy",
+		"relationship_type":         "DEPLOYS_FROM",
+		"source_id":                 "repo-deploy",
+		"target_id":                 "repo-app",
+		"flux_git_repository_names": []string{"app-source"},
+	}})
+	if err != nil {
+		t.Fatalf("fetchDeploymentSourceGitOpsResult() error = %v", err)
+	}
+	if got, want := len(result.k8sResources), 1; got != want {
+		t.Fatalf("len(k8sResources) = %d, want %d; result = %#v", got, want, result)
+	}
+	if got, want := StringVal(result.k8sResources[0], "repo_id"), "repo-app"; got != want {
+		t.Fatalf("k8s resource repo_id = %q, want %q", got, want)
 	}
 }
