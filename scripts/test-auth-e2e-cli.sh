@@ -50,6 +50,28 @@ build_dir="$AUTH_E2E_CLI_DIR"
 auth_e2e_cli_cleanup
 [[ ! -e "$build_dir" ]]
 
+mkdir -p "$tmp_root/fail-bin"
+cat >"$tmp_root/fail-bin/rm" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$tmp_root/fail-bin/rm"
+
+failed_cleanup_dir="$TMPDIR/eshu-auth-e2e-cli.cleanup-failure"
+mkdir -p "$failed_cleanup_dir"
+AUTH_E2E_CLI_DIR="$failed_cleanup_dir"
+AUTH_E2E_CLI_BIN="$failed_cleanup_dir/eshu"
+if PATH="$tmp_root/fail-bin:$PATH" auth_e2e_cli_cleanup 2>/dev/null; then
+  echo "test-auth-e2e-cli: cleanup hid an rm failure" >&2
+  exit 1
+fi
+[[ -d "$failed_cleanup_dir" ]]
+[[ "$AUTH_E2E_CLI_DIR" == "$failed_cleanup_dir" ]]
+[[ "$AUTH_E2E_CLI_BIN" == "$failed_cleanup_dir/eshu" ]]
+rm -rf -- "$failed_cleanup_dir"
+AUTH_E2E_CLI_DIR=""
+AUTH_E2E_CLI_BIN=""
+
 for runner in scripts/run-auth-e2e.sh scripts/run-auth-mcp-e2e.sh; do
   rg -q 'auth_e2e_cli_build "\$repo_root"' "$repo_root/$runner"
   rg -q 'ESHU_E2E_ESHU_BINARY="\$AUTH_E2E_CLI_BIN"' "$repo_root/$runner"

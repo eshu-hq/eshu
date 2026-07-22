@@ -35,7 +35,10 @@ auth_e2e_cli_cleanup() {
   temp_parent="${temp_parent%/}"
   case "$AUTH_E2E_CLI_DIR" in
     "${temp_parent}"/eshu-auth-e2e-cli.*)
-      rm -rf -- "$AUTH_E2E_CLI_DIR"
+      if ! rm -rf -- "$AUTH_E2E_CLI_DIR"; then
+        echo "auth-e2e-cli: failed to remove owned build directory" >&2
+        return 1
+      fi
       AUTH_E2E_CLI_DIR=""
       AUTH_E2E_CLI_BIN=""
       ;;
