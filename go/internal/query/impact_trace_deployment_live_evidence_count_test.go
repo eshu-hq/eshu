@@ -140,7 +140,7 @@ func TestFetchWorkloadLiveInstanceSummaryEmptyAccess(t *testing.T) {
 	controllers, resources, trackingID := singleTrackingIDFixture("app-a", "Deployment", "workload-a", "ns", "apps/v1")
 	store := &stubKubernetesPodTemplateListStore{
 		matchesByTrackingID: map[string][]LiveIdentityMatch{
-			trackingID: {{ClusterID: "c1", Namespace: "ns", ReadyReplicas: int32Ptr(3)}},
+			trackingID: {{ReadyReplicas: int32Ptr(3)}},
 		},
 	}
 	h := &ImpactHandler{KubernetesPodTemplates: store}
@@ -171,8 +171,8 @@ func TestFetchWorkloadLiveInstanceSummaryMaxNotSum(t *testing.T) {
 	store := &stubKubernetesPodTemplateListStore{
 		matchesByTrackingID: map[string][]LiveIdentityMatch{
 			trackingID: {
-				{ClusterID: "supply-chain-demo", Namespace: "default", ReadyReplicas: int32Ptr(3)}, // Deployment
-				{ClusterID: "supply-chain-demo", Namespace: "default", ReadyReplicas: int32Ptr(3)}, // ReplicaSet, same tracking-id
+				{ReadyReplicas: int32Ptr(3)}, // Deployment
+				{ReadyReplicas: int32Ptr(3)}, // ReplicaSet, same tracking-id
 			},
 		},
 	}
@@ -211,8 +211,8 @@ func TestFetchWorkloadLiveInstanceSummaryTwoTrackingIDsSum(t *testing.T) {
 	}
 	store := &stubKubernetesPodTemplateListStore{
 		matchesByTrackingID: map[string][]LiveIdentityMatch{
-			trackingIDs[0]: {{ClusterID: "c1", Namespace: "ns", ReadyReplicas: int32Ptr(2)}},
-			trackingIDs[1]: {{ClusterID: "c1", Namespace: "ns", ReadyReplicas: int32Ptr(5)}},
+			trackingIDs[0]: {{ReadyReplicas: int32Ptr(2)}},
+			trackingIDs[1]: {{ReadyReplicas: int32Ptr(5)}},
 		},
 	}
 	h := &ImpactHandler{KubernetesPodTemplates: store}
@@ -241,8 +241,8 @@ func TestFetchWorkloadLiveInstanceSummaryAllNilReadyReplicasOmitsCount(t *testin
 	store := &stubKubernetesPodTemplateListStore{
 		matchesByTrackingID: map[string][]LiveIdentityMatch{
 			trackingID: {
-				{ClusterID: "c1", Namespace: "ns", ReadyReplicas: nil},
-				{ClusterID: "c1", Namespace: "ns", ReadyReplicas: nil},
+				{ReadyReplicas: nil},
+				{ReadyReplicas: nil},
 			},
 		},
 	}
@@ -267,7 +267,7 @@ func TestFetchWorkloadLiveInstanceSummaryReadyZeroIsPresent(t *testing.T) {
 	controllers, resources, trackingID := singleTrackingIDFixture("app-a", "Deployment", "workload-a", "ns", "apps/v1")
 	store := &stubKubernetesPodTemplateListStore{
 		matchesByTrackingID: map[string][]LiveIdentityMatch{
-			trackingID: {{ClusterID: "c1", Namespace: "ns", ReadyReplicas: int32Ptr(0)}},
+			trackingID: {{ReadyReplicas: int32Ptr(0)}},
 		},
 	}
 	h := &ImpactHandler{KubernetesPodTemplates: store}

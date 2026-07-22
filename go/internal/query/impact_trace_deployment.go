@@ -244,9 +244,6 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 			}
 		} else if liveInstances != nil {
 			ctx["_live_instance_count"] = liveInstances.count
-			if len(liveInstances.environments) > 0 {
-				ctx["_live_instance_environments"] = liveInstances.environments
-			}
 		}
 	}
 

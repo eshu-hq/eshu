@@ -136,34 +136,6 @@ func TestBuildDeploymentFactSummaryLiveInstanceCountAbsentWhenNoObservation(t *t
 	if _, ok := summary["live_instance_count"]; ok {
 		t.Fatalf("live_instance_count = %v, want absent when no observation was made", summary["live_instance_count"])
 	}
-	if _, ok := summary["live_instance_environments"]; ok {
-		t.Fatal("live_instance_environments must be absent when no observation was made")
-	}
-}
-
-// TestBuildDeploymentFactSummaryLiveInstanceEnvironmentsAttached proves
-// live_instance_environments round-trips from
-// workloadContext["_live_instance_environments"] into the summary.
-func TestBuildDeploymentFactSummaryLiveInstanceEnvironmentsAttached(t *testing.T) {
-	t.Parallel()
-
-	ctx := sampleServiceDossierContext()
-	ctx["_live_instance_count"] = 3
-	ctx["_live_instance_environments"] = []map[string]any{
-		{"state": "bound", "environment": "prod", "cluster_id": "supply-chain-demo", "namespace": "default"},
-	}
-	instances, _ := ctx["instances"].([]map[string]any)
-	summary := buildDeploymentFactSummary(
-		ctx, instances, []string{"production"}, nil, []string{"eks-prod"},
-		nil, nil, nil, nil, nil, "controller", true,
-	)
-	environments, ok := summary["live_instance_environments"].([]map[string]any)
-	if !ok || len(environments) != 1 {
-		t.Fatalf("live_instance_environments = %v, want 1 entry", summary["live_instance_environments"])
-	}
-	if environments[0]["environment"] != "prod" {
-		t.Fatalf("live_instance_environments[0].environment = %v, want prod", environments[0]["environment"])
-	}
 }
 
 func TestBuildDeploymentFactSummaryTierEmptyWhenNoEvidence(t *testing.T) {

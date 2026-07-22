@@ -56,10 +56,9 @@ func buildDeploymentFactSummary(
 	if tier != "" {
 		summary["deployment_truth_tier"] = string(tier)
 	}
-	// #5638: live_instance_count/live_instance_environments are attached
-	// here (read from workloadContext, set by the handler at
-	// ctx["_live_instance_count"]/ctx["_live_instance_environments"]) so
-	// every deployment_fact_summary field originates from this one builder,
+	// #5638: live_instance_count is attached here (read from workloadContext,
+	// set by the handler at ctx["_live_instance_count"]) so every
+	// deployment_fact_summary field originates from this one builder,
 	// matching how hasLiveEvidence itself arrives via
 	// workloadContext["_has_live_evidence"]
 	// (impact_trace_deployment_response.go). Conditional like the tier key:
@@ -68,9 +67,6 @@ func buildDeploymentFactSummary(
 	// fabricated zero.
 	if count, ok := workloadContext["_live_instance_count"].(int); ok {
 		summary["live_instance_count"] = count
-	}
-	if environments := mapSliceValue(workloadContext, "_live_instance_environments"); len(environments) > 0 {
-		summary["live_instance_environments"] = environments
 	}
 	if len(uncorrelatedCloudResources) > 0 {
 		summary["uncorrelated_cloud_resource_count"] = len(uncorrelatedCloudResources)

@@ -4932,10 +4932,7 @@
           "data.k8s_resource_limits.deployment_source_observed_count_is_lower_bound",
           "data.k8s_resource_limits.truncated",
           "data.k8s_resource_limits.k8s_select_candidate_sentinel_limit",
-          "data.k8s_resource_limits.k8s_relationships_complete",
-          "data.deployment_fact_summary.live_instance_environments[].state",
-          "data.deployment_fact_summary.live_instance_environments[].cluster_id",
-          "data.deployment_fact_summary.live_instance_environments[].namespace"
+          "data.k8s_resource_limits.k8s_relationships_complete"
         ],
         "required_json_values": {
           "data.repo_id": "repository:r_217415d9",
@@ -4991,13 +4988,6 @@
               "container_images": [
                 "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
               ]
-            }
-          ],
-          "data.deployment_fact_summary.live_instance_environments[]": [
-            {
-              "state": "environment-unbound",
-              "cluster_id": "supply-chain-demo",
-              "namespace": "default"
             }
           ]
         }

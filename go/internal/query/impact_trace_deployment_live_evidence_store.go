@@ -46,12 +46,12 @@ type KubernetesPodTemplateStore interface {
 	// fact matching filter (same identity+image-refs predicate
 	// HasLiveIdentityMatch uses), carrying the columns
 	// fetchWorkloadLiveInstanceSummary (impact_trace_deployment_live_evidence_count.go)
-	// needs to derive a live_instance_count: cluster_id, namespace, object_id,
-	// group_version_resource, and the observed ready_replicas (nil when the
-	// matched fact never carried one, e.g. a bare Pod object -- absent is never
-	// coerced to zero). Bounded to serviceStoryItemLimit rows (existence checks
-	// use LIMIT 1; this read needs the actual rows, so it is capped instead at
-	// the same per-tracking-id fan-out ceiling expectedArgoCDTrackingIDsQueryLimit
+	// needs to derive a live_instance_count: object_id, group_version_resource,
+	// and the observed ready_replicas (nil when the matched fact never carried
+	// one, e.g. a bare Pod object -- absent is never coerced to zero). Bounded
+	// to serviceStoryItemLimit rows (existence checks use LIMIT 1; this read
+	// needs the actual rows, so it is capped instead at the same
+	// per-tracking-id fan-out ceiling expectedArgoCDTrackingIDsQueryLimit
 	// already bounds the caller to).
 	ListLiveIdentityMatches(context.Context, KubernetesPodTemplateFilter) ([]LiveIdentityMatch, error)
 }
@@ -61,14 +61,6 @@ type KubernetesPodTemplateStore interface {
 // ready_replicas observation (a bare Pod object has no replica status) --
 // callers MUST treat nil as "not observed", never as a present zero.
 type LiveIdentityMatch struct {
-	// ClusterID is the fact's observed payload.cluster_id.
-	ClusterID string
-	// Namespace is the fact's observed payload.namespace -- the namespace the
-	// object actually runs in, which may differ from the namespace segment
-	// encoded in the ArgoCD tracking-id (a declared/config-side value used
-	// only to build the expected identity string, not the live object's own
-	// location).
-	Namespace string
 	// ObjectID is the fact's observed payload.object_id.
 	ObjectID string
 	// GroupVersionResource is the fact's observed
@@ -229,15 +221,13 @@ LIMIT 1
 // listLiveKubernetesPodTemplateIdentityMatchesQuery is the SELECT-columns
 // sibling of hasLiveKubernetesPodTemplateIdentityQuery: the identical
 // ACTIVE-generation join, is_tombstone predicate, and identity/image-refs
-// filter, but selecting the row data ListLiveIdentityMatches needs (cluster_id,
-// namespace, object_id, group_version_resource, ready_replicas) instead of a
-// bare existence marker. LIMIT is bound as a parameter ($6) rather than a
-// literal so it always matches serviceStoryItemLimit without risking drift
-// between the SQL text and the Go constant.
+// filter, but selecting the row data ListLiveIdentityMatches needs
+// (object_id, group_version_resource, ready_replicas) instead of a bare
+// existence marker. LIMIT is bound as a parameter ($6) rather than a literal
+// so it always matches serviceStoryItemLimit without risking drift between
+// the SQL text and the Go constant.
 const listLiveKubernetesPodTemplateIdentityMatchesQuery = `
 SELECT
-  fact.payload->>'cluster_id' AS cluster_id,
-  fact.payload->>'namespace' AS namespace,
   fact.payload->>'object_id' AS object_id,
   fact.payload->>'group_version_resource' AS group_version_resource,
   (fact.payload->>'ready_replicas')::int AS ready_replicas
@@ -264,8 +254,6 @@ LIMIT $6
 // for the two scope-id array parameters ($6, $7).
 const listLiveKubernetesPodTemplateIdentityMatchesScopedQuery = `
 SELECT
-  fact.payload->>'cluster_id' AS cluster_id,
-  fact.payload->>'namespace' AS namespace,
   fact.payload->>'object_id' AS object_id,
   fact.payload->>'group_version_resource' AS group_version_resource,
   (fact.payload->>'ready_replicas')::int AS ready_replicas
@@ -328,15 +316,13 @@ func (s PostgresKubernetesPodTemplateStore) ListLiveIdentityMatches(
 	var matches []LiveIdentityMatch
 	for rows.Next() {
 		var (
-			clusterID, namespace, objectID, groupVersionResource sql.NullString
-			readyReplicas                                        sql.NullInt64
+			objectID, groupVersionResource sql.NullString
+			readyReplicas                  sql.NullInt64
 		)
-		if err := rows.Scan(&clusterID, &namespace, &objectID, &groupVersionResource, &readyReplicas); err != nil {
+		if err := rows.Scan(&objectID, &groupVersionResource, &readyReplicas); err != nil {
 			return nil, fmt.Errorf("list live kubernetes pod template identity matches: scan row: %w", err)
 		}
 		match := LiveIdentityMatch{
-			ClusterID:            clusterID.String,
-			Namespace:            namespace.String,
 			ObjectID:             objectID.String,
 			GroupVersionResource: groupVersionResource.String,
 		}

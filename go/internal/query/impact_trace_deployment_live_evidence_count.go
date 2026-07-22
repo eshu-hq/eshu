@@ -5,15 +5,12 @@
 // bounded, instrumented KubernetesPodTemplateStore read
 // (ListLiveIdentityMatches) fetchWorkloadLiveEvidence's HasLiveIdentityMatch
 // sibling uses, so the underlying Postgres read is covered by the same
-// eshu_dp_postgres_query_duration_seconds and postgres.query spans. The
-// namespace/environment lookup runs through the same GraphQuery dependency
-// fetchServiceTraceContext uses, so it is covered by the graph backend's
-// existing query instrumentation. Neither of those cover the AGGREGATION
-// decision this probe makes (which matched facts contributed to the count,
-// and why), so it starts its own "impact.live_instance_count" child span
-// (queryHandlerTracer, shared with handler_tracing.go and
-// impact_trace_deployment_live_evidence.go) carrying the expected
-// tracking-id count, the resulting instance count, and whether an
+// eshu_dp_postgres_query_duration_seconds and postgres.query spans. Neither of
+// that covers the AGGREGATION decision this probe makes (which matched facts
+// contributed to the count, and why), so it starts its own
+// "impact.live_instance_count" child span (queryHandlerTracer, shared with
+// handler_tracing.go and impact_trace_deployment_live_evidence.go) carrying
+// the expected tracking-id count, the resulting instance count, and whether an
 // observation was found at all -- an operator can read that span at 3 AM to
 // see exactly why a workload's live_instance_count is present, absent, or a
 // particular value, mirroring the sibling live-evidence probe's telemetry
@@ -25,16 +22,13 @@ import (
 	"context"
 
 	"go.opentelemetry.io/otel/attribute"
-
-	"github.com/eshu-hq/eshu/go/internal/environment"
 )
 
 // liveInstanceSummary is the read-side result of fetchWorkloadLiveInstanceSummary:
-// a total observed live instance count plus the distinct cluster/namespace
-// environments those observations came from. A nil *liveInstanceSummary
-// (returned alongside a nil error) means "no countable observation" -- the
-// caller must omit the corresponding response fields entirely, never emit a
-// fabricated zero.
+// a total observed live instance count. A nil *liveInstanceSummary (returned
+// alongside a nil error) means "no countable observation" -- the caller must
+// omit the corresponding response fields entirely, never emit a fabricated
+// zero.
 type liveInstanceSummary struct {
 	// count is the SUM, across every distinct expected ArgoCD tracking-id,
 	// of the MAX observed ready_replicas among that tracking-id's matched
@@ -42,31 +36,17 @@ type liveInstanceSummary struct {
 	// returns a nil *liveInstanceSummary instead of a non-nil summary with a
 	// nil count.
 	count int
-	// environments are the distinct (cluster_id, namespace) pairs the
-	// matched facts were observed in, each resolved to a bound/unbound
-	// environment state via fetchLiveInstanceEnvironments. May be empty when
-	// no matched fact carried a non-empty cluster_id/namespace pair.
-	environments []map[string]any
 }
 
-// namespacePair identifies one distinct (cluster_id, namespace) location a
-// matched live fact was observed in, the unit fetchLiveInstanceEnvironments
-// resolves to a bound/unbound environment state.
-type namespacePair struct {
-	ClusterID string
-	Namespace string
-}
-
-// fetchWorkloadLiveInstanceSummary derives a read-side live_instance_count and
-// its environment locations from the same identity-bound
-// kubernetes_live.pod_template facts fetchWorkloadLiveEvidence probes for,
-// via the ListLiveIdentityMatches row-returning sibling of
-// HasLiveIdentityMatch. It shares fetchWorkloadLiveEvidence's exact
-// fail-closed preamble (nil handler, no resolvable ArgoCD identity, an
-// unwired store or no declared image refs, and a scoped caller with no
-// grants all return a nil summary without querying the store) and reuses
-// expectedArgoCDTrackingIDs verbatim -- the anchor set is a single shared
-// seam, never forked between the two probes.
+// fetchWorkloadLiveInstanceSummary derives a read-side live_instance_count
+// from the same identity-bound kubernetes_live.pod_template facts
+// fetchWorkloadLiveEvidence probes for, via the ListLiveIdentityMatches
+// row-returning sibling of HasLiveIdentityMatch. It shares
+// fetchWorkloadLiveEvidence's exact fail-closed preamble (nil handler, no
+// resolvable ArgoCD identity, an unwired store or no declared image refs, and
+// a scoped caller with no grants all return a nil summary without querying
+// the store) and reuses expectedArgoCDTrackingIDs verbatim -- the anchor set
+// is a single shared seam, never forked between the two probes.
 //
 // Aggregation happens in Go, not SQL, so it stays testable: per distinct
 // tracking-id, take the MAX observed ready_replicas across that tracking-id's
@@ -83,11 +63,10 @@ type namespacePair struct {
 // fabricated 0. A present ready_replicas of 0 (a real scaled-to-zero
 // observation) IS counted and reported.
 //
-// A store or graph-read error returns (nil, err): the caller MUST log and
-// continue without setting the count/environment response fields, mirroring
-// fetchWorkloadLiveEvidence's convention -- a count failure must not 500 the
-// trace and must never touch _has_live_evidence, which this probe never
-// writes to at all.
+// A store error returns (nil, err): the caller MUST log and continue without
+// setting the count response field, mirroring fetchWorkloadLiveEvidence's
+// convention -- a count failure must not 500 the trace and must never touch
+// _has_live_evidence, which this probe never writes to at all.
 func (h *ImpactHandler) fetchWorkloadLiveInstanceSummary(
 	ctx context.Context,
 	controllers []map[string]any,
@@ -119,8 +98,6 @@ func (h *ImpactHandler) fetchWorkloadLiveInstanceSummary(
 
 	var total int32
 	observed := false
-	seenPairs := make(map[namespacePair]struct{})
-	var pairs []namespacePair
 	for _, trackingID := range trackingIDs {
 		filter := KubernetesPodTemplateFilter{
 			TrackingID:           trackingID,
@@ -137,13 +114,6 @@ func (h *ImpactHandler) fetchWorkloadLiveInstanceSummary(
 
 		var maxReady *int32
 		for _, match := range matches {
-			if match.ClusterID != "" && match.Namespace != "" {
-				pair := namespacePair{ClusterID: match.ClusterID, Namespace: match.Namespace}
-				if _, ok := seenPairs[pair]; !ok {
-					seenPairs[pair] = struct{}{}
-					pairs = append(pairs, pair)
-				}
-			}
 			if match.ReadyReplicas == nil {
 				continue
 			}
@@ -168,82 +138,5 @@ func (h *ImpactHandler) fetchWorkloadLiveInstanceSummary(
 		attribute.Bool("eshu.live_instance_count_observed", true),
 		attribute.Int("eshu.live_instance_count", summary.count),
 	)
-
-	if len(pairs) > 0 {
-		environments, err := h.fetchLiveInstanceEnvironments(ctx, pairs)
-		if err != nil {
-			span.RecordError(err)
-			return nil, err
-		}
-		summary.environments = environments
-	}
 	return summary, nil
-}
-
-// liveInstanceNamespaceEnvironmentQuery resolves one (cluster_id, namespace)
-// pair a matched live fact was observed in to its already-gated environment
-// binding: the reducer-owned KubernetesNamespace node (issue #5434,
-// go/internal/storage/cypher/kubernetes_namespace_node_writer.go) plus its
-// optional TARGETS_ENVIRONMENT->Environment edge. This is a read of an existing
-// decision, never a re-derivation: the fact's own labels are the object's
-// labels, not the namespace's, so there is no label evidence here to recompute
-// a binding from even if this query wanted to.
-//
-// It is run once per pair with scalar params, NOT an `UNWIND $pairs AS pair`
-// over map rows: NornicDB does not project `pair.<field>` after unwinding map
-// rows (it returns the raw `pair` map), so the pair's cluster_id/namespace are
-// attached in Go by the caller and only the environment binding is read here.
-// The driving `MATCH` binds `n` so its properties project correctly (an
-// OPTIONAL MATCH with no bound driving row nulls even literal projections on
-// NornicDB); an absent KubernetesNamespace node yields zero rows and the caller
-// reports environment.StateEnvironmentUnbound. The statement is MATCH-only: it
-// never MERGEs or CREATEs a node or edge, so a trace read can never fabricate
-// environment truth.
-const liveInstanceNamespaceEnvironmentQuery = `
-MATCH (n:KubernetesNamespace {cluster_id: $cluster_id, namespace: $namespace})
-OPTIONAL MATCH (n)-[:TARGETS_ENVIRONMENT]->(env:Environment)
-RETURN n.environment_state AS environment_state, env.name AS environment_name
-`
-
-// fetchLiveInstanceEnvironments resolves each distinct pair to its bound/unbound
-// environment state via liveInstanceNamespaceEnvironmentQuery, through the same
-// GraphQuery dependency fetchServiceTraceContext uses. Returns nil, nil when the
-// handler or its graph dependency is unwired, or pairs is empty -- nil-safe,
-// mirroring every other enrichment fetch in this handler. One bounded query per
-// distinct pair (pairs are the distinct namespaces of the identity-matched
-// facts, typically one).
-func (h *ImpactHandler) fetchLiveInstanceEnvironments(
-	ctx context.Context,
-	pairs []namespacePair,
-) ([]map[string]any, error) {
-	if h == nil || h.Neo4j == nil || len(pairs) == 0 {
-		return nil, nil
-	}
-
-	environments := make([]map[string]any, 0, len(pairs))
-	for _, pair := range pairs {
-		rows, err := h.Neo4j.Run(ctx, liveInstanceNamespaceEnvironmentQuery, map[string]any{
-			"cluster_id": pair.ClusterID,
-			"namespace":  pair.Namespace,
-		})
-		if err != nil {
-			return nil, err
-		}
-		// cluster_id/namespace come from the pair (Go-side), never from Cypher.
-		entry := map[string]any{
-			"cluster_id": pair.ClusterID,
-			"namespace":  pair.Namespace,
-			"state":      string(environment.StateEnvironmentUnbound),
-		}
-		if len(rows) > 0 {
-			state := StringVal(rows[0], "environment_state")
-			envName := StringVal(rows[0], "environment_name")
-			if state == string(environment.StateBound) && envName != "" {
-				entry["state"] = string(environment.StateBound)
-				entry["environment"] = environment.Canonical(envName)
-			}
-		}
-		environments = append(environments, entry)
-	}
-	return environments, nil
 }

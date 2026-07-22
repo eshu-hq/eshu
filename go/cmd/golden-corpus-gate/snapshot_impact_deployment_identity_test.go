@@ -71,9 +71,6 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 		"data.k8s_resource_limits.content_observed_count_is_lower_bound",
 		"data.k8s_resource_limits.deployment_source_observed_count_is_lower_bound",
 		"data.k8s_resource_limits.truncated",
-		"data.deployment_fact_summary.live_instance_environments[].state",
-		"data.deployment_fact_summary.live_instance_environments[].cluster_id",
-		"data.deployment_fact_summary.live_instance_environments[].namespace",
 	} {
 		if !slices.Contains(shape.RequiredJSONPaths, identityPath) {
 			t.Fatalf("trace_deployment_chain.required_json_paths missing %q", identityPath)
@@ -159,24 +156,6 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 				"container_images": []any{
 					"ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
 				},
-			},
-		},
-		// #5638: the deployable-config Deployment's own OBSERVED namespace
-		// (payload.namespace = "default" in the kuberneteslive cassette) is
-		// NOT the declared "production" segment the ArgoCD tracking-id
-		// encodes -- the tracking-id namespace is a config-side identity
-		// value, never the live object's actual location. The
-		// kuberneteslive cassette's "default" kubernetes_live.namespace fact
-		// carries labels.environment="misc-team", not a recognized
-		// environment token, so the reducer materializes the
-		// KubernetesNamespace node existing-but-unbound: this proves the
-		// existing-node-but-unbound branch of the environment lookup, not
-		// merely the no-node-at-all default.
-		"data.deployment_fact_summary.live_instance_environments[]": {
-			{
-				"state":      "environment-unbound",
-				"cluster_id": "supply-chain-demo",
-				"namespace":  "default",
 			},
 		},
 	}

@@ -145,13 +145,13 @@ func TestKubernetesPodTemplateHasLiveIdentityMatchNoMatch(t *testing.T) {
 }
 
 var listLiveIdentityMatchesColumns = []string{
-	"cluster_id", "namespace", "object_id", "group_version_resource", "ready_replicas",
+	"object_id", "group_version_resource", "ready_replicas",
 }
 
 // TestListLiveIdentityMatchesQueriesUseSelectColumnsShape proves the
 // SELECT-columns query text carries the same ACTIVE-generation join,
 // is_tombstone, and identity/image-refs predicate as the existence-check
-// query, plus the five projected columns ListLiveIdentityMatches scans.
+// query, plus the three projected columns ListLiveIdentityMatches scans.
 func TestListLiveIdentityMatchesQueriesUseSelectColumnsShape(t *testing.T) {
 	t.Parallel()
 
@@ -161,8 +161,6 @@ func TestListLiveIdentityMatchesQueriesUseSelectColumnsShape(t *testing.T) {
 		"generation.status = 'active'",
 		"fact.payload->'annotations'->>$2 = $3",
 		"fact.payload->'image_refs' ?| $5",
-		"fact.payload->>'cluster_id' AS cluster_id",
-		"fact.payload->>'namespace' AS namespace",
 		"fact.payload->>'object_id' AS object_id",
 		"fact.payload->>'group_version_resource' AS group_version_resource",
 		"(fact.payload->>'ready_replicas')::int AS ready_replicas",
@@ -256,8 +254,8 @@ func TestListLiveIdentityMatchesReturnsRows(t *testing.T) {
 	t.Parallel()
 
 	db, recorder := openScopeQueryerTestDB(t, listLiveIdentityMatchesColumns, [][]driver.Value{
-		{"supply-chain-demo", "default", "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:demo", "apps/v1/deployments", int64(3)},
-		{"supply-chain-demo", "default", "kubernetes_live:supply-chain-demo:/v1/pods:default:demo-pod", "/v1/pods", nil},
+		{"kubernetes_live:supply-chain-demo:apps/v1/deployments:default:demo", "apps/v1/deployments", int64(3)},
+		{"kubernetes_live:supply-chain-demo:/v1/pods:default:demo-pod", "/v1/pods", nil},
 	})
 	store := NewPostgresKubernetesPodTemplateStore(db)
 
@@ -291,7 +289,7 @@ func TestListLiveIdentityMatchesReadyZeroIsPresentNotOmitted(t *testing.T) {
 	t.Parallel()
 
 	db, _ := openScopeQueryerTestDB(t, listLiveIdentityMatchesColumns, [][]driver.Value{
-		{"supply-chain-demo", "default", "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:demo", "apps/v1/deployments", int64(0)},
+		{"kubernetes_live:supply-chain-demo:apps/v1/deployments:default:demo", "apps/v1/deployments", int64(0)},
 	})
 	store := NewPostgresKubernetesPodTemplateStore(db)
 
