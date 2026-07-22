@@ -183,3 +183,108 @@ func TestSourceSelectorMatchHandlesMultipleMatches(t *testing.T) {
 		t.Fatalf("relationship facts = %d, want %d (exactly the four selector_match edges)", got, len(want))
 	}
 }
+
+// TestSourceSelectorMatchNamespaceIsolation is the issue #5437 namespace
+// isolation regression (cold-review finding 2): a Service in namespace "a"
+// whose selector is a subset of a Pod's labels in a DIFFERENT namespace ("b")
+// must emit no selector_match edge. Every other test in this file uses
+// namespace "n" on both Service and Pod, so this is the only coverage that
+// exercises matchSelectors's `pod.identity.Namespace != service.identity.Namespace`
+// guard (selector_match.go) — without this test, deleting that guard would
+// not fail any test in this package.
+func TestSourceSelectorMatchNamespaceIsolation(t *testing.T) {
+	t.Parallel()
+
+	service := ServiceObject{
+		Meta: ObjectMeta{
+			Version: "v1", Resource: "services",
+			Namespace: "a", Name: "checkout-svc", UID: "uid-svc",
+		},
+		Selector: map[string]string{"app": "checkout"},
+	}
+	pod := WorkloadObject{
+		Meta: ObjectMeta{
+			Version: "v1", Resource: "pods",
+			Namespace: "b", Name: "checkout-abc12", UID: "uid-pod",
+			// Labels satisfy the selector; only the namespace differs.
+			Labels: map[string]string{"app": "checkout"},
+		},
+	}
+	client := &fakeClient{
+		services: ListResult[ServiceObject]{Items: []ServiceObject{service}},
+		pods:     ListResult[WorkloadObject]{Items: []WorkloadObject{pod}},
+	}
+	source := newSource(client)
+	collected, _, err := source.Next(context.Background())
+	if err != nil {
+		t.Fatalf("Next() error = %v", err)
+	}
+	envs := drain(t, collected.Facts)
+
+	for _, env := range envelopesOfKind(envs, facts.KubernetesRelationshipFactKind) {
+		if env.Payload["relationship_type"] == string(RelationshipSelectorMatch) {
+			t.Fatalf("unexpected selector_match edge across namespaces (service ns=a, pod ns=b): %+v", env.Payload)
+		}
+	}
+}
+
+// TestSourceHeadlessServiceEmitsNoSelectorMatchEdge is the issue #5437
+// empty-selector regression (cold-review finding 3b): a Service with no
+// selector (headless, Endpoints managed manually per Kubernetes semantics)
+// must never emit a selector_match edge, even when a same-namespace Pod whose
+// labels would satisfy any non-empty selector exists. collectServices already
+// excludes an empty-selector Service from serviceSelectorIndex, so this also
+// proves that exclusion holds end to end through the real Source.Next path.
+func TestSourceHeadlessServiceEmitsNoSelectorMatchEdge(t *testing.T) {
+	t.Parallel()
+
+	service := ServiceObject{
+		Meta: ObjectMeta{
+			Version: "v1", Resource: "services",
+			Namespace: "n", Name: "headless-svc", UID: "uid-svc",
+		},
+		Selector: map[string]string{},
+	}
+	pod := WorkloadObject{
+		Meta: ObjectMeta{
+			Version: "v1", Resource: "pods",
+			Namespace: "n", Name: "checkout-abc12", UID: "uid-pod",
+			Labels: map[string]string{"app": "checkout"},
+		},
+	}
+	client := &fakeClient{
+		services: ListResult[ServiceObject]{Items: []ServiceObject{service}},
+		pods:     ListResult[WorkloadObject]{Items: []WorkloadObject{pod}},
+	}
+	source := newSource(client)
+	collected, _, err := source.Next(context.Background())
+	if err != nil {
+		t.Fatalf("Next() error = %v", err)
+	}
+	envs := drain(t, collected.Facts)
+
+	for _, env := range envelopesOfKind(envs, facts.KubernetesRelationshipFactKind) {
+		if env.Payload["relationship_type"] == string(RelationshipSelectorMatch) {
+			t.Fatalf("unexpected selector_match edge for a headless (empty-selector) Service: %+v", env.Payload)
+		}
+	}
+}
+
+// TestSelectorMatchesLabelsEmptySelectorNeverMatches is the issue #5437
+// empty-selector regression (cold-review finding 3a): selectorMatchesLabels
+// is a pure helper, and its len(selector)==0 guard is currently unreachable
+// from matchSelectors (collectServices filters empty selectors before
+// indexing) — but a pure helper should not assume its caller pre-filters, so
+// this locks the guard directly regardless of caller behavior.
+func TestSelectorMatchesLabelsEmptySelectorNeverMatches(t *testing.T) {
+	t.Parallel()
+
+	populated := map[string]string{"app": "checkout", "tier": "backend"}
+
+	if selectorMatchesLabels(nil, populated) {
+		t.Fatalf("selectorMatchesLabels(nil, populated) = true, want false: a nil selector must never match")
+	}
+	if selectorMatchesLabels(map[string]string{}, populated) {
+		t.Fatalf("selectorMatchesLabels(map[string]string{}, populated) = true, want false: an empty selector must never match")
+	}
+}
