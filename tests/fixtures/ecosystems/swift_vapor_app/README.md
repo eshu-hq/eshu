@@ -2,8 +2,8 @@
 
 Golden-corpus fixture for the Swift Vapor route-handler dead-code detector
 (#5337, #5378). The `swift.vapor_route_handler` root is gated on a per-file
-`import Vapor`, so the two files carry the identical `use:` shape with only the
-import differing:
+`import Vapor`, so the two discrimination files carry the identical `use:`
+shape with only the import differing:
 
 - `Sources/App/routes.swift` — POSITIVE: `import Vapor` present, so the
   `app.get("health", use: healthCheck)` registration marks `healthCheck` as a
@@ -12,6 +12,25 @@ import differing:
 - `Sources/App/plain.swift` — FOIL: no `import Vapor`, so the byte-identical
   `use: statusReport` shape does NOT root `statusReport`; being unreferenced and
   unrooted, it must surface as a dead-code candidate.
+
+These two pinned files are byte-for-byte load-bearing for the golden
+discrimination below and are never edited to add richness. Corpus-quality
+enrichment (#5569) instead adds a controller/model/middleware layer alongside
+them, in the same app-shaped convention as
+`tests/fixtures/dogfood/swift_real_repo`, so the fixture reads as more than a
+two-file route-handler sliver:
+
+- `Sources/App/Models/Widget.swift` — a `Content`-backed model plus an
+  in-memory store.
+- `Sources/App/Controllers/WidgetController.swift` — a `RouteCollection`
+  controller with grouped `use:` route handlers.
+- `Sources/App/Middleware/RequestLoggingMiddleware.swift` — a `Middleware`
+  conformance.
+
+None of the added files reference `healthCheck`, `statusReport`, or any other
+symbol from the two pinned discrimination files, so they add new,
+independently-classified dead-code candidates without moving the pinned pair
+between buckets.
 
 ## Golden gate coverage & Ifá determination
 

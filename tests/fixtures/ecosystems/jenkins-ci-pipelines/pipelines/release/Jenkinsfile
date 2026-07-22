@@ -1,0 +1,29 @@
+// Second CI pipeline for the platform, staged alongside the repo-root
+// Jenkinsfile (#5569) so the fixture exercises a multi-pipeline repository
+// shape rather than a single top-level file. isJenkinsfile() matches on
+// basename only (go/internal/parser/groovy/entities.go), so this nested
+// Jenkinsfile is rooted as its own groovy.jenkins_pipeline_entrypoint the
+// same way the root Jenkinsfile is, proving the root is basename-driven
+// rather than path-driven. Calls the pipelineRelease(...) step defined in
+// ../../vars/pipelineRelease.groovy: real Jenkins controllers typically
+// register a shared library as a global trusted pipeline library at the
+// controller level rather than declaring it per Jenkinsfile, so this
+// pipeline calls the global step with no library declaration in this file.
+// (Deliberately no quote characters in this comment block -- see the
+// jenkins-ci-pipelines README for why a stray quote near that word is
+// unsafe here.)
+pipeline {
+    agent any
+    stages {
+        stage('Build') {
+            steps {
+                sh './gradlew build'
+            }
+        }
+        stage('Release') {
+            steps {
+                pipelineRelease(version: env.BUILD_NUMBER)
+            }
+        }
+    }
+}

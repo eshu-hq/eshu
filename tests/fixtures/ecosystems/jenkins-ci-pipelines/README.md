@@ -31,4 +31,41 @@ writes no reducer/graph edge and adds no `reducer.MaterializedEdgeFamilies()`
 domain. (The `DISCOVERS_CONFIG_IN` config-discovery edge above is a separate
 detector.)
 
+## Second pipeline and shared-library structure (#5569)
+
+The `Jenkinsfile` and `src/DeployHelper.groovy` above are byte-for-byte
+load-bearing for the golden discrimination and are never edited to add
+richness. Corpus-quality enrichment instead adds a second pipeline plus a
+shared-library `vars/` directory, so the fixture reads as more than a
+single-pipeline repository:
+
+- `pipelines/release/Jenkinsfile` — a second, nested pipeline. `isJenkinsfile`
+  matches on basename only, so this is rooted as its own
+  `groovy.jenkins_pipeline_entrypoint` exactly like the root `Jenkinsfile`,
+  proving the root is basename-driven rather than path-driven. It calls the
+  `pipelineRelease(...)` global step as a real Jenkins controller would
+  (library configured server-side, not declared per-Jenkinsfile via
+  `@Library(...)`), so no `JENKINS_SHARED_LIBRARY` catalog-matching evidence
+  is emitted by this file.
+- `vars/pipelineRelease.groovy` — the shared-library step backing that call.
+  `isSharedLibraryVarsFile` roots its `call(...)` entrypoint as
+  `groovy.shared_library_call`, a dead-code root shape this fixture
+  previously did not exercise.
+
+Neither addition references `deployApp` or any other symbol from the pinned
+discrimination pair above, so they add new, independently-classified
+dead-code candidates without moving `Jenkinsfile`/`deployApp` between
+buckets, and neither resolves against the `deployable-source` catalog entry
+used by the `DISCOVERS_CONFIG_IN` assertion above.
+
+Trap for future edits to any `.groovy`/`Jenkinsfile` source in this fixture:
+`groovyLibraryStepPattern` in `go/internal/parser/groovy/metadata.go` matches
+the word `library` against raw source text (comments included) and then
+captures everything up to the *next* quote character in the file, unbounded
+across lines. A comment that puts a quote character right after the word
+`library` (for example a quoted phrase ending in `..."library"`) turns
+everything up to the following quote elsewhere in the file into fabricated
+`shared_libraries` evidence. `pipelines/release/Jenkinsfile` deliberately
+avoids any quote character in its comment block for this reason.
+
 No proprietary data: all identifiers are synthetic (`acme` org).
