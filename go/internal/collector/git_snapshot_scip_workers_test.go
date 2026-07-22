@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
@@ -77,7 +76,8 @@ func TestSCIPLanguageSubtreesRunWithBoundedWorkers(t *testing.T) {
 
 	indexer := &concurrentSCIPIndexer{
 		available: map[string]bool{"python": true},
-		delay:     20 * time.Millisecond,
+		barrier:   make(chan struct{}),
+		waitFor:   2,
 	}
 	resultParser := rootSCIPParser{resultsByRoot: map[string]parser.SCIPParseResult{
 		apiRoot: {
@@ -93,9 +93,11 @@ func TestSCIPLanguageSubtreesRunWithBoundedWorkers(t *testing.T) {
 	}}
 	snapshotter := NativeRepositorySnapshotter{SCIP: SnapshotSCIPConfig{Workers: 2}}
 	groups := parser.DetectSCIPProjectLanguageGroups([]string{apiPath, jobsPath}, []string{"python"})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	scipFiles, usedAny, err := snapshotter.collectSCIPLanguageGroupFiles(
-		context.Background(),
+		ctx,
 		repoRoot,
 		groups,
 		indexer,
@@ -412,46 +414,6 @@ func BenchmarkSCIPLanguageSubtreeWorkers(b *testing.B) {
 			}
 		})
 	}
-}
-
-type concurrentSCIPIndexer struct {
-	mu        sync.Mutex
-	available map[string]bool
-	active    int
-	max       int
-	delay     time.Duration
-}
-
-func (i *concurrentSCIPIndexer) IsAvailable(language string) bool {
-	return i.available[language]
-}
-
-func (i *concurrentSCIPIndexer) Run(ctx context.Context, projectPath string, language string, outputDir string) (string, error) {
-	i.mu.Lock()
-	i.active++
-	if i.active > i.max {
-		i.max = i.active
-	}
-	i.mu.Unlock()
-	defer func() {
-		i.mu.Lock()
-		i.active--
-		i.mu.Unlock()
-	}()
-
-	select {
-	case <-time.After(i.delay):
-	case <-ctx.Done():
-		return "", ctx.Err()
-	}
-
-	return filepath.Join(outputDir, language+".scip"), nil
-}
-
-func (i *concurrentSCIPIndexer) maxActive() int {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	return i.max
 }
 
 type delayedSCIPIndexer struct {
