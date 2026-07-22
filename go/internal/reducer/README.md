@@ -1393,7 +1393,21 @@ Domain and intent helpers:
 - `ParseDomain(raw)` — `domain.go:24`.
 - `IsRetryable(err)` — `intent.go:127`.
 - `GraphProjectionPhaseRepairsFromStates` — `graph_projection_phase_repair.go:45`.
-- `ExtractOverlayEnvironments` — `projection.go:207`.
+- `ExtractOverlayEnvironments` — `projection.go:207` — the four directory-pattern
+  regexes (`overlays/<env>/`, `env|environments/<env>/`, `inventory/<env>`,
+  `group_vars/<env>`).
+- `helmValuesFilenameEnvironment`, `namespaceEnvironment`,
+  `collectNamespaceEnvironmentsFromFileData` — `environment_signals.go` —
+  broaden `deploymentEnvironments` detection (issue #5444) beyond
+  `ExtractOverlayEnvironments`'s directory patterns: the Helm
+  `values-<env>.yaml`/`values.<env>.yaml` filename convention, and the
+  destination namespace ArgoCD Applications/ApplicationSets
+  (`argocd_applications`/`argocd_applicationsets[].dest_namespace`) and
+  Kustomize overlays (`kustomize_overlays[].namespace`) already parse but
+  `extractOverlayEnvs` (`candidate_loader.go`) never read. Every candidate is
+  alias-gated through `environment.IsKnownToken`/`environment.Canonical`
+  (`internal/environment`) so an unrecognized namespace or filename suffix
+  never invents an environment.
 - `InferWorkloadKind`, `InferWorkloadClassification` — `projection.go:152, 169`.
 
 ## Dependencies
