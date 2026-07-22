@@ -40,19 +40,22 @@ const (
 // Lock-ordering invariant: this is the ONLY advisory lock
 // ResetLocalIdentityMFA ever takes. It never takes 3455
 // (localIdentityBootstrapLockQuery, identity_local_sql.go) or 3456
-// (bootstrapCredentialLockQuery, identity_bootstrap_credential_sql.go). A
-// future caller that also mutates identity_mfa_factors /
+// (bootstrapCredentialLockQuery, identity_bootstrap_credential_sql.go). Every
+// OTHER caller that also mutates identity_mfa_factors /
 // identity_mfa_recovery_codes for a user inside a 3456-guarded transaction
-// (for example, a bootstrap-credential MFA re-enrollment path added to
-// ResetBootstrapCredential) MUST acquire this same per-user key derived from
-// localIdentityMFAResetAdvisoryLockKey, and MUST acquire 3456 first, then
-// this key — mirroring GenerateBootstrapAdminWithCredential's fixed
-// 3455-then-3456 ordering (identity_bootstrap_credential.go). Because
-// ResetLocalIdentityMFA never takes 3456, and any such future caller would
-// always take 3456 before this key, no wait-for cycle can form: this
-// per-user key is always the innermost (last-acquired, first-released)
-// lock in any transaction that holds it, never held by a transaction that is
-// also waiting on 3456.
+// acquires this same per-user key derived from
+// localIdentityMFAResetAdvisoryLockKey AFTER 3456, mirroring
+// GenerateBootstrapAdminWithCredential's fixed 3455-then-3456 ordering
+// (identity_bootstrap_credential.go). The two such callers are
+// ResetBootstrapCredential (its reenrollBootstrapCredentialRecoveryFactor
+// step, identity_bootstrap_credential.go) and CompleteSetupMFA
+// (identity_setup_completion.go); both take 3456 first, then this key.
+// Because ResetLocalIdentityMFA never takes 3456, and those callers always
+// take 3456 before this key, no wait-for cycle can form: the lock hierarchy
+// is a strict linear 3455 -> 3456 -> per-user chain, so this per-user key is
+// always the innermost (last-acquired, first-released) lock in any
+// transaction that holds it, never held by a transaction that is also
+// waiting on 3456.
 func lockLocalIdentityMFAReset(ctx context.Context, tx Transaction, userID string) error {
 	if _, err := tx.ExecContext(
 		ctx,

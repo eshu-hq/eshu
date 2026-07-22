@@ -53,6 +53,12 @@ func TestCompleteSetupMFAHappyPathLocksRotatesAndConsumes(t *testing.T) {
 	if len(db.execs) == 0 || !strings.Contains(db.execs[0].query, "pg_advisory_xact_lock(3456)") {
 		t.Fatalf("first exec did not acquire advisory lock 3456: %#v", db.execs)
 	}
+	// The per-user MFA-reset advisory lock is taken second — after 3456, before
+	// any factor mutation — so a concurrent ResetLocalIdentityMFA (which takes
+	// only that per-user key) serializes against this rotation.
+	if len(db.execs) < 2 || !strings.Contains(db.execs[1].query, "pg_advisory_xact_lock($1") {
+		t.Fatalf("second exec did not acquire the per-user MFA-reset advisory lock: %#v", db.execs)
+	}
 	var sawRevokeRecoveryCodes, sawRevokeFactors, sawInsertFactor, sawConsume bool
 	for _, exec := range db.execs {
 		switch {
@@ -129,13 +135,15 @@ func TestCompleteSetupMFAFailsClosedWhenConsumeAffectsNoRows(t *testing.T) {
 	// The fake's execResults queue is positional (FIFO across every
 	// ExecContext call, not routed by query text), so it must be padded to
 	// the exact call count preceding the consume UPDATE this test cares
-	// about: lock, revoke recovery codes, revoke mfa factors, insert mfa
-	// factor, insert one recovery code hash — five calls — before the
-	// consume UPDATE (the sixth) returns the zero-rows-affected result.
+	// about: lock 3456, per-user MFA-reset lock, revoke recovery codes,
+	// revoke mfa factors, insert mfa factor, insert one recovery code hash —
+	// six calls — before the consume UPDATE (the seventh) returns the
+	// zero-rows-affected result.
 	db := &fakeBeginnerExecQueryer{
 		fakeExecQueryer: fakeExecQueryer{
 			queryResponses: []queueFakeRows{{rows: [][]any{{false}}}},
 			execResults: []sql.Result{
+				fakeResultWithRowsAffected{rowsAffected: 1},
 				fakeResultWithRowsAffected{rowsAffected: 1},
 				fakeResultWithRowsAffected{rowsAffected: 1},
 				fakeResultWithRowsAffected{rowsAffected: 1},
