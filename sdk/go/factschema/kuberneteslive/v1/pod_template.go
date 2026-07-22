@@ -77,16 +77,22 @@ type PodTemplate struct {
 	// Labels are the object's labels. Optional.
 	Labels map[string]string `json:"labels,omitempty"`
 
-	// Annotations are the object's declared annotations, redacted to
-	// key/value strings the same way Labels is. It exists to carry the
-	// ArgoCD argocd.argoproj.io/tracking-id annotation — the
-	// production-faithful declared->live identity signal that survives a
-	// Helm/Kustomize rename — so the reducer can bind a live workload back to
-	// its declared source without relying on a shared image digest (#5471
-	// F2). Optional: absent when the object carries no annotations or the
-	// collector observed none; an absent map must decode to nil, never an
-	// empty map, so callers can distinguish "not observed" from "observed
-	// empty".
+	// Annotations are the object's identity-binding annotations, allowlisted
+	// at the collector boundary to a fixed, small key set — currently
+	// argocd.argoproj.io/tracking-id and the Kustomize/Helm app.kubernetes.io
+	// instance/name convention — never the full Kubernetes annotation map.
+	// It exists to carry the production-faithful declared->live identity
+	// signal that survives a Helm/Kustomize rename — so the reducer can bind
+	// a live workload back to its declared source without relying on a
+	// shared image digest (#5471 F2). This schema places no upper bound on
+	// map size or value length; the collector (see
+	// go/internal/collector/kuberneteslive/clientgo, identityAnnotationAllowlist)
+	// is responsible for the allowlist because raw Kubernetes annotation
+	// values are unbounded and can embed secret material (e.g.
+	// kubectl.kubernetes.io/last-applied-configuration). Optional: absent
+	// when the object carries no allowlisted annotation or the collector
+	// observed none; an absent map must decode to nil, never an empty map,
+	// so callers can distinguish "not observed" from "observed empty".
 	Annotations map[string]string `json:"annotations,omitempty"`
 
 	// CorrelationAnchors are redaction-safe join anchors (the object id plus
