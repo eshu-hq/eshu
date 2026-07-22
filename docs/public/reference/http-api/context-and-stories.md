@@ -86,9 +86,11 @@ Entity context additionally reports incomplete relationship truth with
 - `github_actions_source_cache_truncated` means a GitHub Actions workflow's
   32 KiB `source_cache` cap prevented complete dependency extraction.
 
-Both causes also appear in `partial_reasons` and set
-`result_limits.truncated=true`; clients must not treat the returned relationship
-list as complete in either case.
+The GitHub Actions source-cache condition also appears in `partial_reasons`.
+The K8s candidate-scan condition is instead disclosed through
+`relationships_complete=false` and `relationships_truncation_reason`; it is not
+added to `partial_reasons`. Both conditions set `result_limits.truncated=true`,
+so clients must not treat the returned relationship list as complete.
 
 ### Deployment Trace Relationship Endpoints
 
