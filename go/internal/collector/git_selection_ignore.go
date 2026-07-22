@@ -200,6 +200,45 @@ func (p collectorGitignorePattern) matchesGlob(rel string) bool {
 	return false
 }
 
+// isCollectorTrackedFile reports whether rel — a path already relative to
+// the repo root the tracked set was resolved against — is a member of
+// tracked (issue #5591). A nil/empty tracked set (no resolver, or the
+// resolver reported ok=false) always reports false, matching the pre-#5591
+// behavior of not knowing which files git tracks.
+func isCollectorTrackedFile(rel string, tracked map[string]struct{}) bool {
+	if len(tracked) == 0 {
+		return false
+	}
+	rel = filepath.ToSlash(filepath.Clean(rel))
+	_, ok := tracked[rel]
+	return ok
+}
+
+// collectorTrackedPathsUnderDir reports whether any path in tracked is
+// dirRel itself or lives beneath it (issue #5591). shouldSkipFilesystemEntry
+// uses this before pruning a whole directory on a gitignore match: a
+// directory-level prune (filepath.SkipDir) would hide every file beneath it,
+// including a tracked file that a per-file gitignore check would otherwise
+// have kept, so the directory must not be pruned via gitignore when it
+// contains at least one tracked path. This does not affect .eshuignore,
+// which still prunes the directory unconditionally.
+func collectorTrackedPathsUnderDir(dirRel string, tracked map[string]struct{}) bool {
+	if len(tracked) == 0 {
+		return false
+	}
+	dirRel = filepath.ToSlash(filepath.Clean(dirRel))
+	if dirRel == "." {
+		return true
+	}
+	prefix := dirRel + "/"
+	for trackedPath := range tracked {
+		if trackedPath == dirRel || strings.HasPrefix(trackedPath, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 func collectorPathHasSegment(rel string, segment string) bool {
 	for {
 		before, after, ok := strings.Cut(rel, "/")

@@ -83,7 +83,7 @@ func syncFilesystemRepositories(
 		if err != nil {
 			return nil, false, err
 		}
-		if err := copyRepositoryTree(sourcePath, targetPath); err != nil {
+		if err := copyRepositoryTree(ctx, sourcePath, targetPath); err != nil {
 			return nil, false, fmt.Errorf("copy filesystem repository %q: %w", repoID, err)
 		}
 		selectedPaths = append(selectedPaths, targetPath)
@@ -212,7 +212,17 @@ func cleanManagedWorkspace(reposDir string) error {
 	return nil
 }
 
-func copyRepositoryTree(sourceRoot string, targetRoot string) error {
+// copyRepositoryTree materializes one repository's tracked/discoverable files
+// into the managed workspace at targetRoot. sourceRoot IS the git checkout
+// (unlike targetRoot, which carries no .git of its own — issue #5649), so
+// this is the one filesystem-mode walk that resolves gitTrackedFiles: doing
+// so here, once per repository, lets shouldSkipFilesystemEntry keep a
+// gitignore-matched file that git still tracks (issue #5591). fingerprintTree
+// deliberately does NOT resolve a tracked set (its collectorIgnoreCaches.tracked
+// stays nil): it fingerprints the raw FilesystemRoot, which may contain many
+// repositories or no git checkout at all, so there is no single sourceRoot to
+// resolve ls-files against there.
+func copyRepositoryTree(ctx context.Context, sourceRoot string, targetRoot string) error {
 	sourceRoot, err := filepath.Abs(sourceRoot)
 	if err != nil {
 		return fmt.Errorf("resolve source repo %q: %w", sourceRoot, err)
@@ -233,6 +243,10 @@ func copyRepositoryTree(sourceRoot string, targetRoot string) error {
 	}
 
 	ignoreCaches := newCollectorIgnoreCaches()
+	if tracked, ok := gitTrackedFiles(ctx, sourceRoot); ok {
+		ignoreCaches.tracked = tracked
+	}
+
 	return filepath.WalkDir(sourceRoot, func(current string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			// Skip entries we cannot read (permission denied, etc.)
@@ -250,6 +264,17 @@ func copyRepositoryTree(sourceRoot string, targetRoot string) error {
 		}
 		rel = filepath.ToSlash(filepath.Clean(rel))
 		name := entry.Name()
+
+		// .eshuignore remains a deliberate operator opt-out that can still
+		// skip a file git tracks (issue #5591 leaves this filter's semantics
+		// untouched); unlike a plain untracked-file skip, that decision must
+		// stay individually visible to operators rather than disappearing
+		// into an aggregate count.
+		if !entry.IsDir() &&
+			isCollectorTrackedFile(rel, ignoreCaches.tracked) &&
+			isCollectorEshuignoredInRepo(sourceRoot, current, ignoreCaches.eshuignore) {
+			logTrackedFileSkippedByEshuIgnore(ctx, nil, "filesystem_managed_copy", sourceRoot, rel)
+		}
 
 		if shouldSkipFilesystemEntry(sourceRoot, current, rel, name, entry.IsDir(), ignoreCaches) {
 			if entry.IsDir() {
@@ -323,14 +348,31 @@ func shouldSkipFilesystemEntry(
 	if strings.HasPrefix(name, ".") && !preserveFilesystemHiddenPath(rel) {
 		return true
 	}
-	if isCollectorGitignoredInRepo(repoRoot, fullPath, caches.gitignore) ||
-		isCollectorEshuignoredInRepo(repoRoot, fullPath, caches.eshuignore) {
+	// .eshuignore is the operator's own opt-out and applies unconditionally,
+	// tracked or not. Check it first and independently of the gitignore
+	// check below.
+	if isCollectorEshuignoredInRepo(repoRoot, fullPath, caches.eshuignore) {
+		return true
+	}
+	// A file git tracks is never git-ignored (issue #5591): git itself only
+	// applies .gitignore to untracked paths, so a force-committed
+	// (`git add -f`) file that matches a gitignore rule stays tracked and
+	// must stay discoverable in the managed-copy workspace too.
+	if isCollectorGitignoredInRepo(repoRoot, fullPath, caches.gitignore) &&
+		!isCollectorTrackedFile(rel, caches.tracked) {
 		return true
 	}
 	if isDir {
 		probePath := filepath.Join(fullPath, "__eshu_dir_probe__")
-		if isCollectorGitignoredInRepo(repoRoot, probePath, caches.gitignore) ||
-			isCollectorEshuignoredInRepo(repoRoot, probePath, caches.eshuignore) {
+		if isCollectorEshuignoredInRepo(repoRoot, probePath, caches.eshuignore) {
+			return true
+		}
+		// A directory-level prune (filepath.SkipDir) would hide every
+		// tracked file beneath it too, so a gitignore match on the
+		// directory itself must not prune it when a tracked file lives
+		// somewhere in that subtree (issue #5591).
+		if isCollectorGitignoredInRepo(repoRoot, probePath, caches.gitignore) &&
+			!collectorTrackedPathsUnderDir(rel, caches.tracked) {
 			return true
 		}
 	}
@@ -371,6 +413,14 @@ func preserveFilesystemHiddenPath(rel string) bool {
 type collectorIgnoreCaches struct {
 	gitignore  map[string]*collectorGitignoreSpec
 	eshuignore map[string]*collectorGitignoreSpec
+	// tracked holds the repo-relative, slash-separated paths git tracks in
+	// the repo being walked (issue #5591), so a gitignore match never
+	// excludes a file git still tracks. Left nil when the walk root is not
+	// resolvable as a git checkout (fingerprintTree does not set this field
+	// at all — see copyRepositoryTree's doc comment for why only the
+	// managed-copy path resolves it), matching the pre-#5591 behavior of not
+	// knowing which files git tracks.
+	tracked map[string]struct{}
 }
 
 func newCollectorIgnoreCaches() collectorIgnoreCaches {
