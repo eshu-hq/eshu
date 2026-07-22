@@ -308,7 +308,7 @@ const openAPIPathsImpact = `
                     "truncated": {"type": "boolean"},
                     "complete": {
                       "type": "boolean",
-                      "description": "False when target_type is sql_table or crossplane_xrd and any edge type the surface conceptually covers (see coverage) has no graph writer, so affected_count may undercount. Always false for crossplane_xrd today (SATISFIED_BY has no writer). Always true for target_type values with no registered coverage gap (repository, terraform_module)."
+                      "description": "False when target_type is sql_table or crossplane_xrd and any edge type the surface conceptually covers (see coverage) has no graph writer, so affected_count may undercount. True for crossplane_xrd today (CONTAINS and SATISFIED_BY both have graph writers as of #5347). Always true for target_type values with no registered coverage gap (repository, terraform_module)."
                     },
                     "coverage": {
                       "type": "array",

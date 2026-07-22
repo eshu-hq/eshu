@@ -18,17 +18,23 @@ const (
 
 // SecretsIAMHandler exposes reducer-owned secrets/IAM trust-chain reads (issue
 // #25). It is a bounded, paginated, read-only surface over the durable
-// reducer_secrets_iam_* facts produced by the trust-chain reducer; it performs
-// no graph writes and adds no reducer logic. Rows are fingerprints, join keys,
-// states, and evidence IDs only, so no secret value, raw path, or token claim
-// crosses the wire.
+// reducer_secrets_iam_* facts produced by the trust-chain reducer, plus the
+// canonical GRANTS_ACCESS_TO grant edges read by GrantPosture (issue #5643);
+// it performs no graph writes and adds no reducer logic. Rows are
+// fingerprints, join keys, states, and evidence IDs only, so no secret value,
+// raw path, or token claim crosses the wire.
 type SecretsIAMHandler struct {
 	IdentityTrustChains          SecretsIAMIdentityTrustChainStore
 	PrivilegePostureObservations SecretsIAMPrivilegePostureObservationStore
 	SecretAccessPaths            SecretsIAMSecretAccessPathStore
 	PostureGaps                  SecretsIAMPostureGapStore
 	Summary                      SecretsIAMPostureSummaryStore
-	Profile                      QueryProfile
+	// GrantPosture reads the S3 external-principal grant section of the
+	// posture summary from the canonical graph edges. When nil (a deployment
+	// without a graph reader wired), the summary omits the grant section
+	// instead of failing the whole rollup.
+	GrantPosture SecretsIAMGrantPostureStore
+	Profile      QueryProfile
 }
 
 // SecretsIAMIdentityTrustChainResult is one reducer-owned identity trust-chain

@@ -46,10 +46,22 @@ It returns provenance-only grouped counts:
 - privilege posture observations by severity
 - secret access paths by state
 - posture gaps by gap type
+- S3 external-principal grant posture
+  (`s3_external_principal_grant_posture`): total grants, grants by grant
+  outcome, grants by resolution mode, and public / cross-account /
+  service-principal tallies
 
 Summary buckets use low-cardinality reducer payload fields. Empty or missing
 bucket values are reported as `unknown` so callers can see data quality gaps
 without inspecting raw evidence.
+
+The grant posture section is read from the canonical
+`(:CloudResource)-[:GRANTS_ACCESS_TO]->(:ExternalPrincipal)` graph edges
+materialized by the `s3_external_principal_grant_materialization` reducer
+domain, so it reflects materialized graph truth: unsupported grants and grants
+whose source bucket never materialized are excluded. No principal identity,
+ARN, or bucket name is returned — counts only. On deployments without a graph
+reader the section is omitted from the summary.
 
 ## Identity Trust Chains
 

@@ -24,7 +24,7 @@ func askToolAnnotations() map[string]Annotation {
 		"count_package_registry_packages":                 {Backend: BackendNornicDB, Cost: CostLow},
 		"count_repositories_by_language":                  {Backend: BackendPostgres, Cost: CostLow},
 		"count_sbom_attestation_attachments":              {Backend: BackendPostgres, Cost: CostLow},
-		"count_secrets_iam_posture":                       {Backend: BackendPostgres, Cost: CostLow},
+		"count_secrets_iam_posture":                       {Backend: BackendBoth, Cost: CostLow},
 		"count_security_alert_reconciliations":            {Backend: BackendPostgres, Cost: CostLow},
 		"count_supply_chain_impact_findings":              {Backend: BackendPostgres, Cost: CostLow},
 		"derive_visualization_packet":                     {Backend: BackendEmbedded, Cost: CostLow},

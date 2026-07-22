@@ -9,7 +9,7 @@ const openAPIPathsSecretsIAM = `
       "get": {
         "tags": ["secrets-iam"],
         "summary": "Summarize secrets/IAM posture for a scope",
-        "description": "Returns a bounded, scope-anchored rollup of the secrets/IAM reducer read models as provenance-only grouped counts: identity trust chains by state, privilege posture observations by risk type and severity, secret access paths by state, and posture gaps by gap type. No fingerprints, paths, or evidence are exposed.",
+        "description": "Returns a bounded, scope-anchored rollup of the secrets/IAM reducer read models as provenance-only grouped counts: identity trust chains by state, privilege posture observations by risk type and severity, secret access paths by state, and posture gaps by gap type, plus S3 external-principal grant posture counts (total, by grant outcome, by resolution mode, and public/cross-account/service-principal tallies) read from the canonical GRANTS_ACCESS_TO graph edges. The grant section is omitted on deployments without a graph reader. No fingerprints, principal identities, paths, or evidence are exposed.",
         "operationId": "countSecretsIAMPosture",
         "x-scoped-token-support": true,
         "parameters": [
@@ -25,7 +25,15 @@ const openAPIPathsSecretsIAM = `
                 "privilege_observations_by_risk_type": {"type": "array", "items": {"type": "object", "properties": {"bucket": {"type": "string"}, "count": {"type": "integer"}}, "required": ["bucket", "count"]}},
                 "privilege_observations_by_severity": {"type": "array", "items": {"type": "object", "properties": {"bucket": {"type": "string"}, "count": {"type": "integer"}}, "required": ["bucket", "count"]}},
                 "secret_access_paths_by_state": {"type": "array", "items": {"type": "object", "properties": {"bucket": {"type": "string"}, "count": {"type": "integer"}}, "required": ["bucket", "count"]}},
-                "posture_gaps_by_gap_type": {"type": "array", "items": {"type": "object", "properties": {"bucket": {"type": "string"}, "count": {"type": "integer"}}, "required": ["bucket", "count"]}}
+                "posture_gaps_by_gap_type": {"type": "array", "items": {"type": "object", "properties": {"bucket": {"type": "string"}, "count": {"type": "integer"}}, "required": ["bucket", "count"]}},
+                "s3_external_principal_grant_posture": {"type": "object", "description": "S3 external-principal grant posture counts read from the canonical GRANTS_ACCESS_TO graph edges. Omitted on deployments without a graph reader.", "properties": {
+                  "total_grants": {"type": "integer"},
+                  "grants_by_outcome": {"type": "array", "items": {"type": "object", "properties": {"bucket": {"type": "string"}, "count": {"type": "integer"}}, "required": ["bucket", "count"]}},
+                  "grants_by_resolution_mode": {"type": "array", "items": {"type": "object", "properties": {"bucket": {"type": "string"}, "count": {"type": "integer"}}, "required": ["bucket", "count"]}},
+                  "public_grants": {"type": "integer"},
+                  "cross_account_grants": {"type": "integer"},
+                  "service_principal_grants": {"type": "integer"}
+                }, "required": ["total_grants", "grants_by_outcome", "grants_by_resolution_mode", "public_grants", "cross_account_grants", "service_principal_grants"]}
               }}
             }, "required": ["scope_id", "summary"]}}}
           },

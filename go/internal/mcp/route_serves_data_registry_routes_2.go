@@ -47,14 +47,18 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 		}},
 	},
 
-	// SecretsIAMHandler.summary -> h.Summary
+	// SecretsIAMHandler.summary reads TWO stores: h.Summary
 	// (PostgresSecretsIAMPostureSummaryStore) buckets exactly four
 	// reducer-owned kinds (secrets_iam_summary.go:69-81):
 	// reducer_secrets_iam_{identity_trust_chain,privilege_posture_observation,
 	// secret_access_path,posture_gap} — all written under
-	// secrets_iam_trust_chain (reducer/secrets_iam_trust_chain_writer.go:18-21).
-	// The s3_external_principal_grant_materialization claim has NO read-path
-	// evidence — see MapOnly.
+	// secrets_iam_trust_chain (reducer/secrets_iam_trust_chain_writer.go:18-21)
+	// — and h.GrantPosture (GraphSecretsIAMGrantPostureStore, #5643) reads the
+	// s3_external_principal_grant_materialization domain's canonical
+	// (:CloudResource)-[:GRANTS_ACCESS_TO]->(:ExternalPrincipal) edges
+	// (secrets_iam_grant_posture.go), closing the former MapOnly gap: the
+	// family's declared read_surface (specs/fact-kind-registry.v1.yaml)
+	// now genuinely serves the domain's grant-posture counts.
 	"GET /api/v0/secrets-iam/posture-summary": {
 		RegistrationFile: "go/internal/query/secrets_iam.go",
 		HandlerStruct:    "SecretsIAMHandler",
@@ -65,20 +69,57 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 			"go/internal/query/secrets_iam_summary.go",
 			"go/internal/query/secrets_iam_trust_chain.go",
 			"go/internal/query/secrets_iam_posture_stores.go",
+			"go/internal/query/secrets_iam_grant_posture.go",
 		},
-		Served: []routeServedDomain{{
-			Domain:     "secrets_iam_trust_chain",
-			StoreField: "Summary",
-			StoreType:  "SecretsIAMPostureSummaryStore",
-			Evidence: []routeReadEvidence{
-				{File: "go/internal/query/secrets_iam_trust_chain.go", Marker: "reducer_secrets_iam_identity_trust_chain"},
-				{File: "go/internal/query/secrets_iam_posture_stores.go", Marker: "reducer_secrets_iam_posture_gap"},
+		Served: []routeServedDomain{
+			{
+				Domain:     "secrets_iam_trust_chain",
+				StoreField: "Summary",
+				StoreType:  "SecretsIAMPostureSummaryStore",
+				Evidence: []routeReadEvidence{
+					{File: "go/internal/query/secrets_iam_trust_chain.go", Marker: "reducer_secrets_iam_identity_trust_chain"},
+					{File: "go/internal/query/secrets_iam_posture_stores.go", Marker: "reducer_secrets_iam_posture_gap"},
+				},
 			},
-		}},
-		MapOnly: []routeMapOnlyClaim{{
-			Domain: "s3_external_principal_grant_materialization",
-			Reason: "specs/fact-kind-registry.v1.yaml:307-317 declares this read_surface for the s3_external_principal_grant family, but the summary handler reads only the four reducer_secrets_iam_* kinds; the domain materializes (:CloudResource)-[:GRANTS_ACCESS_TO]->(:ExternalPrincipal) graph truth (storage/cypher/s3_external_principal_grant_writer.go) that no read-surface route queries today. Flagged in #5584 for architect review: either surface the grants through this route (moving this to Served with real evidence) or re-point the family's read_surface.",
-		}},
+			{
+				Domain:     "s3_external_principal_grant_materialization",
+				StoreField: "GrantPosture",
+				StoreType:  "SecretsIAMGrantPostureStore",
+				Evidence: []routeReadEvidence{
+					{File: "go/internal/query/secrets_iam_grant_posture.go", Marker: "MATCH (:CloudResource)-[rel:GRANTS_ACCESS_TO]->(:ExternalPrincipal)"},
+					{File: "go/internal/storage/cypher/s3_external_principal_grant_writer.go", Marker: "GRANTS_ACCESS_TO"},
+				},
+			},
+		},
+		Disclosed: []routeDisclosure{
+			// The grant-posture Cypher anchors its traversal on the
+			// CloudResource source-node label to reach GRANTS_ACCESS_TO
+			// edges; no CloudResource rows are returned. The label is the
+			// shared signature marker for the three cloud-resource
+			// materialization domains, so each needs the anchor-only
+			// disclosure (the codeowners :Repository precedent).
+			{
+				Domain: "ec2_instance_node_materialization",
+				Reason: "anchor only: the grant-posture Cypher anchors on the CloudResource source node to reach GRANTS_ACCESS_TO edges; no CloudResource rows are returned. CloudResource rows are served by GET /api/v0/cloud/resources",
+				Evidence: []routeReadEvidence{
+					{File: "go/internal/query/secrets_iam_grant_posture.go", Marker: ":CloudResource"},
+				},
+			},
+			{
+				Domain: "rds_posture_materialization",
+				Reason: "anchor only: the grant-posture Cypher anchors on the CloudResource source node to reach GRANTS_ACCESS_TO edges; no CloudResource rows are returned. CloudResource rows are served by GET /api/v0/cloud/resources",
+				Evidence: []routeReadEvidence{
+					{File: "go/internal/query/secrets_iam_grant_posture.go", Marker: ":CloudResource"},
+				},
+			},
+			{
+				Domain: "s3_internet_exposure_materialization",
+				Reason: "anchor only: the grant-posture Cypher anchors on the CloudResource source node to reach GRANTS_ACCESS_TO edges; no CloudResource rows are returned. CloudResource rows are served by GET /api/v0/cloud/resources",
+				Evidence: []routeReadEvidence{
+					{File: "go/internal/query/secrets_iam_grant_posture.go", Marker: ":CloudResource"},
+				},
+			},
+		},
 	},
 
 	// SupplyChainHandler.listSBOMAttachments -> h.SBOMAttachments

@@ -79,7 +79,7 @@ func askRouteAnnotations() map[string]Annotation {
 		"GET /api/v0/repositories/{repo_id}/tree":                            {Backend: BackendPostgres, Cost: CostModerate},
 		"GET /api/v0/secrets-iam/identity-trust-chains":                      {Backend: BackendPostgres, Cost: CostModerate},
 		"GET /api/v0/secrets-iam/posture-gaps":                               {Backend: BackendPostgres, Cost: CostModerate},
-		"GET /api/v0/secrets-iam/posture-summary":                            {Backend: BackendPostgres, Cost: CostLow},
+		"GET /api/v0/secrets-iam/posture-summary":                            {Backend: BackendBoth, Cost: CostLow},
 		"GET /api/v0/secrets-iam/privilege-posture-observations":             {Backend: BackendPostgres, Cost: CostModerate},
 		"GET /api/v0/secrets-iam/secret-access-paths":                        {Backend: BackendPostgres, Cost: CostModerate},
 		"GET /api/v0/semantic/code-hints":                                    {Backend: BackendPostgres, Cost: CostModerate},
