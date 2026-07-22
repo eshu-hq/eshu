@@ -4943,6 +4943,7 @@
           "data.deployment_fact_summary.deployment_truth_tier": "runtime_confirmed",
           "data.deployment_fact_summary.image_ref_count": 1,
           "data.deployment_fact_summary.k8s_resource_count": 1,
+          "data.deployment_fact_summary.live_instance_count": 3,
           "data.image_refs[]": "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
           "truth.level": "derived",
           "truth.basis": "hybrid"

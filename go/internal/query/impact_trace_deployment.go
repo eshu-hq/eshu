@@ -219,6 +219,32 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 			}
 		}
 		ctx["_has_live_evidence"] = liveEvidence
+
+		// #5638: read-side live_instance_count, over the SAME identity-bound
+		// facts the probe above just checked for existence -- a separate
+		// probe because it needs the actual matched rows (ready_replicas),
+		// not a bare existence bool. Errors
+		// log-and-continue exactly like the live-evidence probe above: a
+		// count failure must not 500 the trace and must never touch
+		// _has_live_evidence (this probe never writes that key).
+		liveInstances, err := h.fetchWorkloadLiveInstanceSummary(
+			r.Context(),
+			deploymentSourceGitOps.controllers,
+			k8sResources,
+			imageRefs,
+			access,
+		)
+		if err != nil {
+			if h.Logger != nil {
+				h.Logger.Warn(
+					"impact handler: live instance count probe failed, omitting count",
+					"service_name", req.ServiceName,
+					"error", err.Error(),
+				)
+			}
+		} else if liveInstances != nil {
+			ctx["_live_instance_count"] = liveInstances.count
+		}
 	}
 
 	response := buildDeploymentTraceResponse(req.ServiceName, ctx)
