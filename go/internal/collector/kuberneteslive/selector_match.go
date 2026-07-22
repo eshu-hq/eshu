@@ -12,16 +12,18 @@ import "context"
 // relative to ingresses does not matter; this keeps run() grouped by
 // dependency: Services and Pods must both be indexed first).
 //
-// The pass is a full cross product of b.serviceSelectorIndex x b.podLabelIndex
-// filtered to matching namespaces. A cluster's metadata-only Service and Pod
-// counts are small enough that this is not a hot path; if that changes,
-// bucket both indexes by namespace first.
+// The pass is bucketed by namespace: b.podLabelIndex is a map keyed by
+// namespace (builder.go), so for each Service this looks up only the Pods in
+// that Service's namespace instead of scanning every Pod in the cluster and
+// discarding cross-namespace pairs — O(services x pods-in-namespace) rather
+// than O(services x all-pods). Iteration order is deterministic: services are
+// visited in list order (b.serviceSelectorIndex is an ordered slice), and
+// within each service the matched namespace's pods are visited in list order
+// (each b.podLabelIndex bucket retains insertion order), which is a stable
+// subsequence of the pre-bucketing full-scan order.
 func (b *generationBuilder) matchSelectors(ctx context.Context) error {
 	for _, service := range b.serviceSelectorIndex {
-		for _, pod := range b.podLabelIndex {
-			if pod.identity.Namespace != service.identity.Namespace {
-				continue
-			}
+		for _, pod := range b.podLabelIndex[service.identity.Namespace] {
 			if !selectorMatchesLabels(service.selector, pod.labels) {
 				continue
 			}

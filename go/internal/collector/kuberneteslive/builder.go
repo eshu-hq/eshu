@@ -36,12 +36,18 @@ type generationBuilder struct {
 	// so the selector-match pass (run after collectWorkloads) can find which
 	// Pods it actually routes to. A Service with an empty selector is excluded:
 	// Kubernetes never treats an empty selector as "match every Pod", so
-	// indexing it would only add unproductive comparisons.
+	// indexing it would only add unproductive comparisons. Kept as an ordered
+	// slice (list order) so selector_match emission order stays deterministic.
 	serviceSelectorIndex []serviceSelectorEntry
 	// podLabelIndex retains each Pod's identity and labels for the
-	// selector-match pass. Only Pods are indexed here — a Service selector
-	// targets Pods, never Deployments, ReplicaSets, or other workload kinds.
-	podLabelIndex []podLabelEntry
+	// selector-match pass, bucketed by namespace: a Service selector can only
+	// ever match a Pod in the same namespace (selector_match.go), so
+	// matchSelectors looks up exactly one bucket per Service instead of
+	// scanning every Pod in the cluster and discarding cross-namespace pairs.
+	// Only Pods are indexed here — a Service selector targets Pods, never
+	// Deployments, ReplicaSets, or other workload kinds. Each bucket retains
+	// list order so selector_match emission order stays deterministic.
+	podLabelIndex map[string][]podLabelEntry
 }
 
 // serviceSelectorEntry is one Service's identity and non-empty label selector,
@@ -62,6 +68,7 @@ func (b *generationBuilder) run(ctx context.Context, client Client) error {
 	b.uidIndex = make(map[string]ObjectIdentity)
 	b.serviceIndex = make(map[string]ObjectIdentity)
 	b.serviceAccountIndex = make(map[string]ServiceAccountObject)
+	b.podLabelIndex = make(map[string][]podLabelEntry)
 
 	if err := b.collectNamespaces(ctx, client); err != nil {
 		return err
@@ -166,7 +173,8 @@ func (b *generationBuilder) collectWorkloads(ctx context.Context, client Client)
 				return err
 			}
 			if entry.resourceScope == ResourceScopePods {
-				b.podLabelIndex = append(b.podLabelIndex, podLabelEntry{
+				ns := identity.Namespace
+				b.podLabelIndex[ns] = append(b.podLabelIndex[ns], podLabelEntry{
 					identity: identity,
 					labels:   workload.Meta.Labels,
 				})
