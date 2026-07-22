@@ -3867,7 +3867,10 @@ is byte-identical (one handler candidate and the same path-first,
 repository-second exact map lookups). A short Laravel `@` token adds exactly one
 dotted candidate. There is no bare-method or FQN-to-short-class fallback, no
 graph or Postgres read, and the existing uniqueness fence remains in force, so
-a wrong or ambiguous controller emits no edge. Focused proof:
+a wrong or ambiguous controller emits no edge. Tests cover both the same-file
+lookup and the conventional cross-file Laravel layout, where `routes/routes.php`
+resolves `app/Http/Controllers/UserController.php` through the repository-unique
+candidate map; the B-7 fixture uses that cross-file layout too. Focused proof:
 `go test ./internal/reducer -run 'TestBuild(HandlesRoute|RunsIn)IntentRows(EmitsPHPLaravel|DoesNot(ResolvePHPLaravelNamespacedAtJoinedRoute|ResolveLaravelControllerFQN|ShortenLaravelControllerNamespace|BareMatchWrongLaravelController))' -count=1`
 and `go test ./internal/query -run '^TestRouteQueryProofMatrix$/^(php_laravel|php_symfony)$' -count=1`.
 

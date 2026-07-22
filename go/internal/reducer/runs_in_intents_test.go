@@ -75,9 +75,20 @@ func TestBuildRunsInIntentRowsEmitsPHPLaravelAtJoinedRouteMatches(t *testing.T) 
 		handler := handler
 		t.Run(handler, func(t *testing.T) {
 			t.Parallel()
-			controller := handlesRouteFileEnvelope(
+			route := handlesRouteFileEnvelope(
 				"repo-1",
 				"routes/web.php",
+				nil,
+				"laravel",
+				[]any{map[string]any{
+					"method":  "GET",
+					"path":    "/users",
+					"handler": handler,
+				}},
+			)
+			controller := handlesRouteFileEnvelope(
+				"repo-1",
+				"app/Http/Controllers/UserController.php",
 				[]map[string]any{{
 					"name":          "index",
 					"class_context": "UserController",
@@ -86,15 +97,12 @@ func TestBuildRunsInIntentRowsEmitsPHPLaravelAtJoinedRouteMatches(t *testing.T) 
 					"end_line":      10,
 					"lang":          "php",
 				}},
-				"laravel",
-				[]any{map[string]any{
-					"method":  "GET",
-					"path":    "/users",
-					"handler": handler,
-				}},
+				"",
+				nil,
 			)
 			envelopes := []facts.Envelope{
 				handlesRouteRepoEnvelope("repo-1"),
+				route,
 				controller,
 			}
 
@@ -104,6 +112,9 @@ func TestBuildRunsInIntentRowsEmitsPHPLaravelAtJoinedRouteMatches(t *testing.T) 
 			}
 			if got, want := payloadStr(intents[0].Payload, "function_id"), "content-entity:user-index"; got != want {
 				t.Fatalf("function_id = %q, want %q", got, want)
+			}
+			if got, want := payloadStr(intents[0].Payload, "resolution_method"), "repo_unique_name"; got != want {
+				t.Fatalf("resolution_method = %q, want %q", got, want)
 			}
 		})
 	}

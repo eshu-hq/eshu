@@ -133,12 +133,13 @@ func TestRouteQueryProofMatrix(t *testing.T) {
 			expectResolved: true,
 		},
 		{
-			language:       "php",
-			framework:      "laravel",
-			ecosystemDir:   "php_comprehensive",
-			fixtureRelPath: "routes/routes.php",
-			handlerFn:      "index",
-			expectResolved: true,
+			language:              "php",
+			framework:             "laravel",
+			ecosystemDir:          "php_comprehensive",
+			fixtureRelPath:        "routes/routes.php",
+			handlerFixtureRelPath: "app/Http/Controllers/UserController.php",
+			handlerFn:             "index",
+			expectResolved:        true,
 		},
 		{
 			// Companion PHP case: proves PHP still has a real
@@ -175,8 +176,12 @@ type routeQueryProofCase struct {
 	framework      string
 	ecosystemDir   string
 	fixtureRelPath string
-	handlerFn      string
-	expectResolved bool
+	// handlerFixtureRelPath identifies a separate controller/handler file for
+	// frameworks whose route declarations and handlers normally live apart. An
+	// empty value keeps the historical same-file proof shape.
+	handlerFixtureRelPath string
+	handlerFn             string
+	expectResolved        bool
 	// seamNote documents the exact resolution seam for a non-resolving case;
 	// asserted only via t.Logf so it stays discoverable in verbose test
 	// output without duplicating the doc comment above.
@@ -205,8 +210,17 @@ func runRouteQueryProofCase(t *testing.T, tc routeQueryProofCase) {
 	handlerUID := "content-entity:" + tc.language + ":" + tc.handlerFn
 
 	payload, relativePath := parseRouteFixtureFileForQueryProof(t, tc.ecosystemDir, tc.fixtureRelPath)
-	assignQueryProofFunctionUID(t, payload, tc.handlerFn, handlerUID)
-	handlerName, handlerLanguage, handlerStartLine, handlerEndLine := queryProofFunctionFields(t, payload, tc.handlerFn)
+	handlerPayload := payload
+	handlerRelativePath := relativePath
+	if tc.handlerFixtureRelPath != "" {
+		handlerPayload, handlerRelativePath = parseRouteFixtureFileForQueryProof(
+			t,
+			tc.ecosystemDir,
+			tc.handlerFixtureRelPath,
+		)
+	}
+	assignQueryProofFunctionUID(t, handlerPayload, tc.handlerFn, handlerUID)
+	handlerName, handlerLanguage, handlerStartLine, handlerEndLine := queryProofFunctionFields(t, handlerPayload, tc.handlerFn)
 
 	envelopes := []facts.Envelope{
 		{
@@ -224,6 +238,16 @@ func runRouteQueryProofCase(t *testing.T, tc routeQueryProofCase) {
 				"parsed_file_data": jsonRoundTripQueryProofPayload(t, payload),
 			},
 		},
+	}
+	if tc.handlerFixtureRelPath != "" {
+		envelopes = append(envelopes, facts.Envelope{
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":          repoID,
+				"relative_path":    handlerRelativePath,
+				"parsed_file_data": jsonRoundTripQueryProofPayload(t, handlerPayload),
+			},
+		})
 	}
 	intents := reducer.BuildHandlesRouteIntentRowsForQueryProof(envelopes)
 	intent, resolved := findQueryProofIntentByFunctionEntityID(intents, handlerUID)
@@ -296,7 +320,7 @@ func runRouteQueryProofCase(t *testing.T, tc routeQueryProofCase) {
 					return []map[string]any{{
 						"endpoint_id": endpointID, "http_method": httpMethod, "route_framework": framework,
 						"handler_id": functionEntityID, "handler_name": handlerName,
-						"handler_file_path":  relativePath,
+						"handler_file_path":  handlerRelativePath,
 						"handler_language":   handlerLanguage,
 						"handler_start_line": int64(handlerStartLine), "handler_end_line": int64(handlerEndLine),
 					}}, nil
@@ -357,7 +381,7 @@ func runRouteQueryProofCase(t *testing.T, tc routeQueryProofCase) {
 	if got, want := handlerResp["language"], handlerLanguage; got != want {
 		t.Fatalf("%s: handler.language = %#v, want %#v", tc.language, got, want)
 	}
-	if got, want := handlerResp["file_path"], relativePath; got != want {
+	if got, want := handlerResp["file_path"], handlerRelativePath; got != want {
 		t.Fatalf("%s: handler.file_path = %#v, want %#v", tc.language, got, want)
 	}
 	if got, want := handlerResp["truth_edge"], "HANDLES_ROUTE"; got != want {
