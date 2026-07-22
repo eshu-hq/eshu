@@ -100,7 +100,7 @@ func fetchWorkloadRuntimeTopology(
 	// binding that path to the selected repository keeps the scalar repository
 	// and its observed DEFINES edge internally consistent.
 	rows, err := reader.Run(ctx, fmt.Sprintf(`
-		MATCH (repo:Repository)-[defines:DEFINES]->(w:Workload)<-[instanceOf:INSTANCE_OF]-(i:WorkloadInstance)
+		MATCH (i:WorkloadInstance)-[instanceOf:INSTANCE_OF]->(w:Workload)<-[defines:DEFINES]-(repo:Repository)
 		WHERE %s
 		RETURN repo.id as repo_id, repo.name as repo_name,
 		       w.id as workload_id, w.name as workload_name,
