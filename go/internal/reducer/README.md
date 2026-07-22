@@ -3857,15 +3857,16 @@ surfaces.
 
 ## Laravel `Class@method` Route Resolution (#5513)
 
-No-Regression Evidence: Laravel string-callable route handlers now add one
-bounded exact candidate during `handles_route`/`runs_in` intent extraction:
-`Class@method` is normalized to the already-indexed `Class.method` name. The
-baseline for non-Laravel frameworks is byte-identical (one candidate and the
-same path-first, repository-second exact map lookups). A Laravel `@` token adds
-at most one candidate; it never falls back to the bare method, performs no graph
-or Postgres read, and preserves the existing uniqueness fence, so a wrong or
+No-Regression Evidence: Laravel string-callable route handlers now add a bounded
+set of exact candidates during `handles_route`/`runs_in` intent extraction:
+`Class@method` adds `Class.method`; a fully-qualified class additionally adds the
+parser's short `Class.method` representation. The baseline for non-Laravel
+frameworks is byte-identical (one candidate and the same path-first,
+repository-second exact map lookups). A Laravel `@` token therefore adds at most
+two candidates; it never falls back to the bare method, performs no graph or
+Postgres read, and preserves the existing uniqueness fence, so a wrong or
 ambiguous controller still emits no edge. Focused proof:
-`go test ./internal/reducer -run 'TestBuildHandlesRouteIntentRows.*(PHP|Laravel|AtJoined)' -count=1`
+`go test ./internal/reducer -run 'Test(BuildHandlesRouteIntentRows.*(PHP|Laravel|AtJoined)|BuildRunsInIntentRowsEmitsPHPLaravelAtJoinedRouteMatches)' -count=1`
 and `go test ./internal/query -run '^TestRouteQueryProofMatrix$/^(php_laravel|php_symfony)$' -count=1`.
 
 No-Observability-Change: the change only selects an existing exact Function
