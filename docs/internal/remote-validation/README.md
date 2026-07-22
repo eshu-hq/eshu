@@ -81,23 +81,34 @@ files aligned; `-update` does not touch the frozen file.
 
 ## Current state
 
-This directory is empty as of #5407: every `remote_validation` ref cited in
-the matrix at freeze time (115 unique slugs across 120 row-occurrences) predates
-this gate and had no committed evidence file. All 115 were frozen in
-`specs/remote-validation-frozen.txt` (the immutable audited-at-introduction set)
-and, at the time, also carried in `specs/remote-validation-baseline.txt` under
-`FROZEN_MAX: 115`. Closing an entry requires either committing a real artifact
-or an explicit, separately-reviewed decision to downgrade the capability's
-claimed status; the frozen set only shrinks when a slug is validated-or-
-downgraded and removed from both files in the same reviewed edit. The
-systemic burn-down of all 115 is tracked in #5552, which blocks epic #5344
-closure.
+At freeze time (#5407) every `remote_validation` ref cited in the matrix (115
+unique slugs across 120 row-occurrences) predated this gate and had no committed
+evidence file. All 115 were frozen in `specs/remote-validation-frozen.txt` (the
+immutable audited-at-introduction set) and also carried in
+`specs/remote-validation-baseline.txt` under `FROZEN_MAX: 115`. Closing an entry
+requires either committing a real artifact (the capability keeps its claimed
+status) or an explicit, separately-reviewed decision to downgrade the
+capability's claimed status. The systemic burn-down of all 115 is tracked in
+#5552, which blocks epic #5344 closure.
 
-TRANCHE 1 (#5552) closed the pair #5336 originally flagged,
-`prod-component-extension-inventory` and `prod-component-extension-diagnostics`
-(`component_extensions.inventory` / `component_extensions.diagnostics`), by
-**downgrading** both capabilities' `production` profile from
-`supported` to `experimental` rather than committing a deployed-registry
-evidence artifact. See [DISPOSITIONS.md](DISPOSITIONS.md) for the per-row
-record and rationale. `FROZEN_MAX` is now 113, and both slugs are removed from
-`specs/remote-validation-baseline.txt` and `specs/remote-validation-frozen.txt`.
+Burn-down progress:
+
+- **#5666** downgraded the pair #5336 originally flagged —
+  `prod-component-extension-inventory` / `prod-component-extension-diagnostics`
+  (`component_extensions.inventory` / `.diagnostics`) — from `production:
+  supported` to `experimental`. Their committed deployed **read-surface**
+  evidence is still missing (the OCI e2e driver starts the collector but does
+  not exercise `list_component_extensions` / `get_component_extension_diagnostics`
+  through the API/MCP); wiring a deployed API/MCP run (then restoring
+  `supported`) is tracked in #5681.
+- **This directory now holds 99 committed production-validation artifacts** —
+  each capability whose committed evidence (the `go_test` suites its local
+  profiles cite, `docs/internal/evidence/*.md` live-backend validations, and
+  `scripts/run-remote-e2e-*` deployed drivers) substantiates its `production`
+  profile. Those rows keep `production: supported`; their refs now resolve, so
+  `-update` removed them from the baseline.
+- **`FROZEN_MAX` is now 14.** The 14 remaining baseline slugs have thinner
+  evidence (generic-handler-served, or a matrix `compose_e2e`/`integration_test`
+  label with no committed script) and are getting capability-specific tests
+  before validation, tracked in #5681. The frozen set stays at 115 (immutable);
+  only the baseline shrinks.
