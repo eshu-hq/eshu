@@ -8,23 +8,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 )
 
 // recordingCodeownersGraphReader is a GraphQuery test double covering both
 // the paginated ownership list (Run) and the effective-owner last-match
 // lookup (RunSingle), recording the cypher/params each saw.
-//
-// It also serves repository-selector resolution (repository_selector.go's
-// resolveRepositorySelectorExactForAccess), which listOwnership now runs
-// before the DECLARES_CODEOWNER read paths to turn a slug/alias
-// repository_id into the canonical Repository.id grants are keyed by. That
-// resolution query and RunSingle fallback never mention DECLARES_CODEOWNER,
-// while both codeownersOwnershipCypher and codeownersLastMatchOwnerCypher
-// always do, so dispatching on that substring routes each call to the right
-// fixture (selectorRows/selectorSingleRow vs runRows/singleRow) without the
-// fake needing to parse Cypher.
 type recordingCodeownersGraphReader struct {
 	runRows        []map[string]any
 	runErr         error
@@ -34,12 +23,6 @@ type recordingCodeownersGraphReader struct {
 	singleRow      map[string]any
 	singleErr      error
 	lastSingleArgs map[string]any
-
-	// selectorRows and selectorSingleRow answer the repository-selector
-	// resolution query and its zero-row RunSingle fallback respectively.
-	// Left nil, resolution finds no match (repositorySelectorNotFoundError).
-	selectorRows      []map[string]any
-	selectorSingleRow map[string]any
 }
 
 func (r *recordingCodeownersGraphReader) Run(
@@ -50,9 +33,6 @@ func (r *recordingCodeownersGraphReader) Run(
 	r.lastRunCypher = cypher
 	r.lastRunParams = params
 	_, r.sawDeadline = ctx.Deadline()
-	if !strings.Contains(cypher, "DECLARES_CODEOWNER") {
-		return r.selectorRows, nil
-	}
 	if r.runErr != nil {
 		return nil, r.runErr
 	}
@@ -61,13 +41,10 @@ func (r *recordingCodeownersGraphReader) Run(
 
 func (r *recordingCodeownersGraphReader) RunSingle(
 	_ context.Context,
-	cypher string,
+	_ string,
 	params map[string]any,
 ) (map[string]any, error) {
 	r.lastSingleArgs = params
-	if !strings.Contains(cypher, "DECLARES_CODEOWNER") {
-		return r.selectorSingleRow, nil
-	}
 	if r.singleErr != nil {
 		return nil, r.singleErr
 	}
