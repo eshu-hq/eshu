@@ -84,7 +84,7 @@ type (
 	openBootstrapDBFn              func(context.Context, func(string) string) (bootstrapDB, error)
 	applyBootstrapFn               func(context.Context, bootstrapDB) error
 	finalizeContentSearchIndexesFn func(context.Context, bootstrapDB) error
-	openGraphFn                    func(context.Context, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error)
+	openGraphFn                    func(context.Context, bootstrapDB, func(string) string, trace.Tracer, *telemetry.Instruments) (graphDeps, error)
 	buildCollectorFn               func(context.Context, bootstrapDB, func(string) string, trace.Tracer, *telemetry.Instruments, *slog.Logger) (collectorDeps, error)
 	buildProjectorFn               func(context.Context, bootstrapDB, projector.CanonicalWriter, func(string) string, trace.Tracer, *telemetry.Instruments, *slog.Logger) (projectorDeps, error)
 	discoveryAdvisorySink          func(collector.DiscoveryAdvisoryReport) error
@@ -196,7 +196,7 @@ func run(
 		return err
 	}
 
-	gd, err := graphFn(ctx, getenv, tracer, instruments)
+	gd, err := graphFn(ctx, db, getenv, tracer, instruments)
 	if err != nil {
 		return err
 	}

@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -18,7 +19,18 @@ import (
 // admin write endpoints (#4966). keyring may be nil (no DEK configured); a
 // write carrying a secret then fails closed with a 503, never silently
 // unsealed. tester may be nil; enable and test-connection then fail closed
-// with a 503 rather than skipping the connection-test gate.
+// with a 503 rather than skipping the connection-test gate. logger may be
+// nil; it only backs a warning on a malformed stored configuration (see
+// decodeProviderConfiguration).
+//
+// ReadStore is wired to a SEPARATE providerConfigReadAdapter instance (not
+// the one newAdminProviderConfigReadHandler builds) purely to keep this
+// function self-contained given the existing db/oidcLoginHandler/samlHandler
+// parameters already available here; both adapters read the identical
+// Postgres-backed store and env-registered provider set, so this costs one
+// extra lightweight adapter value, not a second source of truth. It backs
+// the issue #5604 enable-time login-readiness guard — see
+// query.AdminProviderConfigMutationHandler.ReadStore's doc comment.
 func newAdminProviderConfigMutationHandler(
 	db *sql.DB,
 	governanceAudit query.GovernanceAuditSummaryReader,
@@ -26,6 +38,7 @@ func newAdminProviderConfigMutationHandler(
 	tester query.ProviderConfigConnectionTester,
 	oidcLoginHandler *query.OIDCLoginHandler,
 	samlHandler *query.SAMLHandler,
+	logger *slog.Logger,
 ) *query.AdminProviderConfigMutationHandler {
 	handler := &query.AdminProviderConfigMutationHandler{
 		Audit:  adminRecoveryAuditAppender(governanceAudit),
@@ -33,6 +46,9 @@ func newAdminProviderConfigMutationHandler(
 	}
 	if store := newProviderConfigMutationAdapter(db, keyring, oidcLoginHandler, samlHandler); store != nil {
 		handler.Store = store
+	}
+	if readStore := newProviderConfigReadAdapter(db, oidcLoginHandler, samlHandler, logger); readStore != nil {
+		handler.ReadStore = readStore
 	}
 	return handler
 }

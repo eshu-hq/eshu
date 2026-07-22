@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/samlauth"
 )
 
@@ -108,6 +109,12 @@ type SAMLHandler struct {
 	// IdleTimeout/AbsoluteTimeout for every tenant, matching pre-#4968
 	// behavior.
 	SignInPolicy SignInPolicyReadStore
+	// Audit records an identity_authentication governance-audit event for
+	// every ACS outcome (issue #5601): allowed ("sso_login_authenticated")
+	// and denied (a classification such as "assertion_invalid" or
+	// "no_grants"). Nil is safe — auditing is skipped, matching
+	// LocalIdentityHandler.Audit's nil-safe convention.
+	Audit GovernanceAuditAppender
 }
 
 // RegisteredProviderIDs returns the set of provider_config_ids managed by the
@@ -220,15 +227,18 @@ func (h *SAMLHandler) handleACS(w http.ResponseWriter, r *http.Request) {
 	providerID := PathParam(r, "provider_id")
 	provider, ok, err := h.Store.GetSAMLProvider(r.Context(), providerID)
 	if err != nil {
+		h.auditSAMLLogin(r, now, governanceaudit.DecisionUnavailable, "provider_lookup_error")
 		WriteError(w, http.StatusInternalServerError, "failed to load saml provider")
 		return
 	}
 	if !ok {
+		h.auditSAMLLogin(r, now, governanceaudit.DecisionDenied, "provider_not_found")
 		unauthorizedResponse(w, r)
 		return
 	}
 	requestID, err := requestIDFromSAMLResponse(samlResponse)
 	if err != nil {
+		h.auditSAMLLogin(r, now, governanceaudit.DecisionDenied, "malformed_response")
 		unauthorizedResponse(w, r)
 		return
 	}
@@ -241,10 +251,12 @@ func (h *SAMLHandler) handleACS(w http.ResponseWriter, r *http.Request) {
 		now,
 	)
 	if err != nil {
+		h.auditSAMLLogin(r, now, governanceaudit.DecisionUnavailable, "request_consume_error")
 		WriteError(w, http.StatusInternalServerError, "failed to consume saml request")
 		return
 	}
 	if !requestConsumed {
+		h.auditSAMLLogin(r, now, governanceaudit.DecisionDenied, "request_not_found")
 		unauthorizedResponse(w, r)
 		return
 	}
@@ -256,15 +268,18 @@ func (h *SAMLHandler) handleACS(w http.ResponseWriter, r *http.Request) {
 		[]string{requestIDHash},
 	)
 	if err != nil {
+		h.auditSAMLLogin(r, now, governanceaudit.DecisionDenied, "assertion_invalid")
 		unauthorizedResponse(w, r)
 		return
 	}
 	if err := samlauth.ValidateAssertionWindow(now, assertion.Window); err != nil {
+		h.auditSAMLLogin(r, now, governanceaudit.DecisionDenied, "assertion_expired")
 		unauthorizedResponse(w, r)
 		return
 	}
 	principal, err := samlauth.NormalizeClaims(assertion.Claims, provider.GroupMapping)
 	if err != nil {
+		h.auditSAMLLogin(r, now, governanceaudit.DecisionDenied, "claims_invalid")
 		unauthorizedResponse(w, r)
 		return
 	}
@@ -275,6 +290,7 @@ func (h *SAMLHandler) handleACS(w http.ResponseWriter, r *http.Request) {
 		AssertionID:      assertion.AssertionID,
 	})
 	if err != nil {
+		h.auditSAMLLogin(r, now, governanceaudit.DecisionDenied, "replay_fingerprint_error")
 		unauthorizedResponse(w, r)
 		return
 	}
@@ -289,10 +305,12 @@ func (h *SAMLHandler) handleACS(w http.ResponseWriter, r *http.Request) {
 		replayExpiresAt,
 	)
 	if err != nil {
+		h.auditSAMLLogin(r, now, governanceaudit.DecisionUnavailable, "replay_reserve_error")
 		WriteError(w, http.StatusInternalServerError, "failed to reserve saml replay key")
 		return
 	}
 	if !replayReserved {
+		h.auditSAMLLogin(r, now, governanceaudit.DecisionDenied, "replay_detected")
 		unauthorizedResponse(w, r)
 		return
 	}
@@ -303,14 +321,27 @@ func (h *SAMLHandler) handleACS(w http.ResponseWriter, r *http.Request) {
 		now,
 	)
 	if err != nil {
+		h.auditSAMLLogin(r, now, governanceaudit.DecisionUnavailable, "principal_resolve_error")
 		WriteError(w, http.StatusInternalServerError, "failed to resolve saml principal")
 		return
 	}
 	if !ok {
+		h.auditSAMLLogin(r, now, governanceaudit.DecisionDenied, "no_grants")
 		unauthorizedResponse(w, r)
 		return
 	}
+	recordSSOLoginAuthentication(r, h.Audit, now, governanceaudit.DecisionAllowed, "sso_login_authenticated", auth.SubjectIDHash, auth.TenantID, auth.WorkspaceID)
 	h.createSession(w, r, auth, returnToPath, now)
+}
+
+// auditSAMLLogin records one identity_authentication governance-audit event
+// for a denied or infra-unavailable ACS outcome (issue #5601). Every branch
+// that calls this runs before ResolveSAMLPrincipal returns a verified
+// identity, so there is never a subject hash to attach — mirroring
+// recordSSOLoginAuthentication's GitHub/OIDC denial branches, which are
+// unconditionally pre-identity for the same reason.
+func (h *SAMLHandler) auditSAMLLogin(r *http.Request, now time.Time, decision governanceaudit.Decision, reasonCode string) {
+	recordSSOLoginAuthentication(r, h.Audit, now, decision, reasonCode, "", "", "")
 }
 
 func (h *SAMLHandler) readyForACS(w http.ResponseWriter) bool {

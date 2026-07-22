@@ -90,6 +90,37 @@ var ErrNoConfigRepoOwnsBackend = errors.New("no config repo owns this backend")
 // failure_class="ambiguous_backend_owner". Future ADRs may add tie breaking.
 var ErrAmbiguousBackendOwner = errors.New("ambiguous backend owner")
 
+// AmbiguousBackendOwnerError wraps ErrAmbiguousBackendOwner with every
+// competing candidate row. ResolveConfigCommitForBackend returns this type
+// (not the bare sentinel) so a caller that needs to record the ambiguity as
+// durable, provenance-only evidence — the terraform_config_state_drift
+// reducer handler, issue #5442 — can recover which repos were competing.
+// errors.Is(err, ErrAmbiguousBackendOwner) still reports true via Unwrap, so
+// every pre-existing caller that only checks the sentinel (
+// go/internal/storage/postgres/aws_cloud_runtime_drift_evidence.go,
+// go/internal/storage/postgres/incident_repository_correlation_loader.go) is
+// unaffected.
+type AmbiguousBackendOwnerError struct {
+	// Candidates holds every distinct-repo row that matched the requested
+	// (backend_kind, locator_hash), in the order the query port returned
+	// them. No winner is picked — that is the point of surfacing this type.
+	Candidates []TerraformBackendRow
+}
+
+// Error implements the error interface. The message intentionally matches
+// ErrAmbiguousBackendOwner's message so log lines and error-string assertions
+// written against the bare sentinel keep working unchanged.
+func (e *AmbiguousBackendOwnerError) Error() string {
+	return ErrAmbiguousBackendOwner.Error()
+}
+
+// Unwrap exposes ErrAmbiguousBackendOwner so errors.Is(err,
+// ErrAmbiguousBackendOwner) keeps matching for every caller that does not
+// need the candidate rows.
+func (e *AmbiguousBackendOwnerError) Unwrap() error {
+	return ErrAmbiguousBackendOwner
+}
+
 // ResolveConfigCommitForBackend selects the latest sealed config snapshot
 // whose terraform_backends parser fact matches the input composite key.
 // Inputs must be non-blank. The resolver returns:
@@ -135,7 +166,7 @@ func (r *Resolver) ResolveConfigCommitForBackend(
 		repoIDs[row.RepoID] = struct{}{}
 	}
 	if len(repoIDs) > 1 {
-		return CommitAnchor{}, ErrAmbiguousBackendOwner
+		return CommitAnchor{}, &AmbiguousBackendOwnerError{Candidates: slices.Clone(rows)}
 	}
 
 	// Single-owner: pick the latest sealed snapshot.

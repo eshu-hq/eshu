@@ -137,6 +137,17 @@ func TestCanonicalNodeWriterWritePhaseOrder(t *testing.T) {
 				if len(phaseOrder) == 0 || phaseOrder[len(phaseOrder)-1] != "entity_retract" {
 					phaseOrder = append(phaseOrder, "entity_retract")
 				}
+			} else if phase == canonicalPhaseTerraformState {
+				// #5443: the tfstate migration/retract statements share the
+				// "terraform_state" phase with the upsert statements below
+				// (buildTerraformStateStatements) and run unconditionally
+				// every generation, exactly like every other generation-gated
+				// retraction in this writer -- the WHERE filter makes them a
+				// cheap no-op for a repo (like this test's) with no Terraform
+				// state resources.
+				if len(phaseOrder) == 0 || phaseOrder[len(phaseOrder)-1] != "terraform_state_retract" {
+					phaseOrder = append(phaseOrder, "terraform_state_retract")
+				}
 			} else if len(phaseOrder) == 0 || phaseOrder[len(phaseOrder)-1] != "retract" {
 				phaseOrder = append(phaseOrder, "retract")
 			}
@@ -175,7 +186,7 @@ func TestCanonicalNodeWriterWritePhaseOrder(t *testing.T) {
 		}
 	}
 
-	expected := []string{"retract", "repository_cleanup", "repository", "directories", "files", "entities", "entity_retract", "entity_containment", "modules", "structural_edges"}
+	expected := []string{"retract", "repository_cleanup", "repository", "directories", "files", "entities", "entity_retract", "entity_containment", "terraform_state_retract", "modules", "structural_edges"}
 	if len(phaseOrder) != len(expected) {
 		t.Fatalf("phase order = %v, want %v", phaseOrder, expected)
 	}

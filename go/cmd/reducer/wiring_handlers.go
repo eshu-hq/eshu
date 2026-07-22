@@ -45,6 +45,11 @@ func buildReducerDriftHandlers(
 			// production runs.
 			Instruments: instruments,
 		},
+		// DriftWriter makes Terraform config-vs-state drift durable and
+		// queryable (issue #5442): every admitted per-address finding and
+		// every ambiguous-owner rejection now lands in fact_records instead
+		// of only incrementing counters.
+		DriftWriter: reducer.PostgresTerraformConfigStateDriftWriter{DB: database},
 		DriftLogger: logger,
 		// AWS runtime drift joins current AWS resource facts to active
 		// Terraform-state resources by ARN, then resolves the state backend to

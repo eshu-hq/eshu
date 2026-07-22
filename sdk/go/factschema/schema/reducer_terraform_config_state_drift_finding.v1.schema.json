@@ -1,0 +1,94 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/reducerderived/v1/terraform_config_state_drift_finding.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "address": {
+      "type": "string"
+    },
+    "ambiguous_owner_candidates": {
+      "items": {
+        "type": "object"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "backend_kind": {
+      "type": "string"
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "candidate_kind": {
+      "type": "string"
+    },
+    "canonical_id": {
+      "type": "string"
+    },
+    "cause": {
+      "type": "string"
+    },
+    "confidence": {
+      "type": "number"
+    },
+    "drift_kind": {
+      "type": "string"
+    },
+    "evidence": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "generation_id": {
+      "type": "string"
+    },
+    "intent_id": {
+      "type": "string"
+    },
+    "locator_hash": {
+      "type": "string"
+    },
+    "outcome": {
+      "type": "string"
+    },
+    "reducer_domain": {
+      "type": "string"
+    },
+    "scope_id": {
+      "type": "string"
+    },
+    "source_layers": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "source_system": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "reducer_domain",
+    "intent_id",
+    "scope_id",
+    "generation_id",
+    "source_system",
+    "cause",
+    "canonical_id",
+    "candidate_id",
+    "candidate_kind",
+    "outcome",
+    "address",
+    "drift_kind",
+    "backend_kind",
+    "locator_hash",
+    "confidence",
+    "evidence",
+    "source_layers"
+  ],
+  "title": "Eshu reducer_terraform_config_state_drift_finding Payload (schema version 1)",
+  "type": "object"
+}

@@ -154,6 +154,7 @@ type APIRouter struct {
 	GraphEntityInventory         *GraphEntityInventoryHandler
 	CloudInventory               *CloudInventoryHandler
 	CloudRuntimeDrift            *CloudRuntimeDriftHandler
+	TerraformConfigStateDrift    *TerraformConfigStateDriftHandler
 	IaC                          *IaCHandler
 	Impact                       *ImpactHandler
 	Evidence                     *EvidenceHandler
@@ -300,6 +301,12 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Cloud inventory readback (canonical reducer_cloud_resource_identity rows)
 	if a.CloudRuntimeDrift != nil {
 		a.CloudRuntimeDrift.Mount(mux)
+	}
+	// Terraform config-vs-state drift readback (issue #5442): a separate,
+	// provider-neutral handler/route/capability from CloudRuntimeDrift and
+	// IaC.Management -- config-vs-state drift is not cloud-specific.
+	if a.TerraformConfigStateDrift != nil {
+		a.TerraformConfigStateDrift.Mount(mux)
 	}
 	if a.CloudInventory != nil {
 		a.CloudInventory.Mount(mux)

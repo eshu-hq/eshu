@@ -17,6 +17,9 @@ const (
 	// FactKindReducerMultiCloudRuntimeDriftFinding identifies one provider-neutral
 	// runtime drift finding written by the reducer.
 	FactKindReducerMultiCloudRuntimeDriftFinding = "reducer_multi_cloud_runtime_drift_finding"
+	// FactKindReducerTerraformConfigStateDriftFinding identifies one Terraform
+	// config-vs-state drift finding written by the reducer (issue #5442).
+	FactKindReducerTerraformConfigStateDriftFinding = "reducer_terraform_config_state_drift_finding"
 	// FactKindReducerPackageOwnershipCorrelation identifies one reducer-owned
 	// package source-hint ownership decision.
 	FactKindReducerPackageOwnershipCorrelation = "reducer_package_ownership_correlation"
@@ -61,6 +64,18 @@ func DecodeReducerMultiCloudRuntimeDriftFinding(env Envelope) (reducerderivedv1.
 // EncodeReducerMultiCloudRuntimeDriftFinding marshals a typed provider-neutral
 // runtime drift finding into the map payload shape an Envelope carries.
 func EncodeReducerMultiCloudRuntimeDriftFinding(finding reducerderivedv1.MultiCloudRuntimeDriftFinding) (map[string]any, error) {
+	return encodeDirectPayload(finding)
+}
+
+// DecodeReducerTerraformConfigStateDriftFinding decodes env.Payload into the
+// latest reducerderivedv1.TerraformConfigStateDriftFinding struct.
+func DecodeReducerTerraformConfigStateDriftFinding(env Envelope) (reducerderivedv1.TerraformConfigStateDriftFinding, error) {
+	return decodeLatestMajor[reducerderivedv1.TerraformConfigStateDriftFinding](FactKindReducerTerraformConfigStateDriftFinding, env)
+}
+
+// EncodeReducerTerraformConfigStateDriftFinding marshals a typed Terraform
+// config-vs-state drift finding into the map payload shape an Envelope carries.
+func EncodeReducerTerraformConfigStateDriftFinding(finding reducerderivedv1.TerraformConfigStateDriftFinding) (map[string]any, error) {
 	return encodeDirectPayload(finding)
 }
 

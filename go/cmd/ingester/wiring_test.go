@@ -404,7 +404,7 @@ func TestCompositeRunnerExitsOnContextCancel(t *testing.T) {
 func TestOpenIngesterCanonicalWriterAcceptsNornicDBOnSharedBoltPath(t *testing.T) {
 	t.Parallel()
 
-	_, closer, err := openIngesterCanonicalWriter(context.Background(), func(key string) string {
+	_, closer, err := openIngesterCanonicalWriter(context.Background(), postgres.SQLDB{}, func(key string) string {
 		switch key {
 		case "ESHU_GRAPH_BACKEND":
 			return "nornicdb"

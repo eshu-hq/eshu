@@ -43,6 +43,7 @@ var retractableGraphEdgeTypes = []edgetype.EdgeType{
 	edgetype.InvokesCloudAction,
 	edgetype.LogsTo,
 	edgetype.Manages,
+	edgetype.MatchesState,
 	edgetype.Migrates,
 	edgetype.Needs,
 	edgetype.Overrides,

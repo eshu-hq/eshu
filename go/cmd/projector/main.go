@@ -98,7 +98,7 @@ func run(parent context.Context) error {
 		return err
 	}
 
-	canonicalWriter, canonicalCloser, err := openProjectorCanonicalWriter(parent, os.Getenv, tracer, instruments)
+	canonicalWriter, canonicalCloser, err := openProjectorCanonicalWriter(parent, postgres.SQLDB{DB: db}, os.Getenv, tracer, instruments)
 	if err != nil {
 		return err
 	}

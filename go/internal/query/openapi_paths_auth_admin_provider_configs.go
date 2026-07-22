@@ -214,7 +214,7 @@ const openAPIPathsAuthAdminProviderConfigs = `
       "post": {
         "tags": ["auth"],
         "summary": "Enable a provider config",
-        "description": "All-scopes admin route. Re-runs a test-connection for the current active revision synchronously and only transitions the provider to active if it passes; a draft provider without a passing test cannot be enabled. Emits a governance audit event.",
+        "description": "All-scopes admin route. Re-runs a test-connection for the current active revision synchronously and only transitions the provider to active if it passes; a draft provider without a passing test cannot be enabled. For a login-capable provider kind (oidc, saml, github), also rejects if the stored configuration is missing a field required to resolve the provider for login (redirect_url for oidc/github; service_provider_entity_id, service_provider_acs_url, or inline metadata_xml for saml) even though those fields are optional at create/test-connection time. Emits a governance audit event.",
         "operationId": "enableAdminProviderConfig",
         "x-scoped-token-support": true,
         "parameters": [{"name": "provider_config_id", "in": "path", "required": true, "schema": {"type": "string"}}],
@@ -227,7 +227,7 @@ const openAPIPathsAuthAdminProviderConfigs = `
               }
             }
           },
-          "400": {"description": "The provider cannot be enabled: connection test did not pass."},
+          "400": {"description": "The provider cannot be enabled: either the connection test did not pass, or the stored configuration is missing a field required to resolve the provider for login."},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "500": {"$ref": "#/components/responses/InternalError"},

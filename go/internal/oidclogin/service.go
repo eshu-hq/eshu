@@ -136,17 +136,17 @@ func (s *Service) CompleteOIDCLogin(
 	now := s.now().UTC()
 	record, ok, err := s.stateStore.ConsumeState(ctx, SHA256Hash(state), now)
 	if err != nil {
-		return query.OIDCLoginCompleteResponse{}, fmt.Errorf("%w: consume state", query.ErrOIDCLoginUnavailable)
+		return query.OIDCLoginCompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: query.ErrOIDCLoginUnavailable, Reason: "state_store_unavailable"}
 	}
 	if !ok {
-		return query.OIDCLoginCompleteResponse{}, query.ErrOIDCLoginDenied
+		return query.OIDCLoginCompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: query.ErrOIDCLoginDenied, Reason: "state_invalid"}
 	}
 	provider, err := s.provider(ctx, record.ProviderConfigID, record.TenantID, record.WorkspaceID)
 	if err != nil {
 		return query.OIDCLoginCompleteResponse{}, err
 	}
 	if record.RedirectURIHash != SHA256Hash(provider.RedirectURL) {
-		return query.OIDCLoginCompleteResponse{}, query.ErrOIDCLoginDenied
+		return query.OIDCLoginCompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: query.ErrOIDCLoginDenied, Reason: "redirect_mismatch"}
 	}
 	connector, err := s.connector(ctx, provider)
 	if err != nil {
@@ -154,18 +154,21 @@ func (s *Service) CompleteOIDCLogin(
 	}
 	tokens, err := connector.Exchange(ctx, code)
 	if err != nil {
-		return query.OIDCLoginCompleteResponse{}, fmt.Errorf("%w: exchange code", query.ErrOIDCLoginDenied)
+		return query.OIDCLoginCompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: query.ErrOIDCLoginDenied, Reason: "code_exchange_failed"}
 	}
 	claims, err := connector.VerifyIDToken(ctx, strings.TrimSpace(tokens.IDToken))
 	if err != nil {
-		return query.OIDCLoginCompleteResponse{}, fmt.Errorf("%w: verify id token", query.ErrOIDCLoginDenied)
+		return query.OIDCLoginCompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: query.ErrOIDCLoginDenied, Reason: "id_token_invalid"}
 	}
-	if SHA256Hash(claims.Nonce) != record.NonceHash || strings.TrimSpace(claims.Subject) == "" {
-		return query.OIDCLoginCompleteResponse{}, query.ErrOIDCLoginDenied
+	if SHA256Hash(claims.Nonce) != record.NonceHash {
+		return query.OIDCLoginCompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: query.ErrOIDCLoginDenied, Reason: "nonce_mismatch"}
+	}
+	if strings.TrimSpace(claims.Subject) == "" {
+		return query.OIDCLoginCompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: query.ErrOIDCLoginDenied, Reason: "subject_missing"}
 	}
 	groupHashes := hashStrings(claims.Groups)
 	if len(groupHashes) == 0 {
-		return query.OIDCLoginCompleteResponse{}, query.ErrOIDCLoginDenied
+		return query.OIDCLoginCompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: query.ErrOIDCLoginDenied, Reason: "no_group_claim"}
 	}
 	grants, ok, err := s.grantResolver.ResolveGroupGrants(ctx, GrantQuery{
 		ProviderConfigID: provider.ProviderConfigID,
@@ -175,10 +178,10 @@ func (s *Service) CompleteOIDCLogin(
 		AsOf:             now,
 	})
 	if err != nil {
-		return query.OIDCLoginCompleteResponse{}, fmt.Errorf("%w: resolve grants", query.ErrOIDCLoginUnavailable)
+		return query.OIDCLoginCompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: query.ErrOIDCLoginUnavailable, Reason: "grant_resolution_unavailable"}
 	}
 	if !ok || len(grants.RoleIDs) == 0 {
-		return query.OIDCLoginCompleteResponse{}, query.ErrOIDCLoginDenied
+		return query.OIDCLoginCompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: query.ErrOIDCLoginDenied, Reason: "no_grants"}
 	}
 	subjectIDHash := SHA256Hash(provider.ProviderConfigID + ":" + strings.TrimSpace(claims.Subject))
 	return query.OIDCLoginCompleteResponse{

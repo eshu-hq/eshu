@@ -67,15 +67,79 @@ else
 	sed -n '1,80p' "${tmp_root}/generator.err" >&2 || true
 fi
 
-require "fixture total coverage" "Total Go code coverage: **33.3%**" "${out_report}"
-require "fixture low coverage list" "go/internal/uncovered" "${out_report}"
+canonical_profile_a="${tmp_root}/canonical-a.out"
+canonical_profile_b="${tmp_root}/canonical-b.out"
+cat >"${canonical_profile_a}" <<'PROFILE'
+mode: count
+go/internal/concurrent/concurrent.go:1.1,2.1 3333 1
+go/internal/concurrent/concurrent.go:3.1,4.1 6667 0
+PROFILE
+cat >"${canonical_profile_b}" <<'PROFILE'
+mode: count
+go/internal/concurrent/concurrent.go:1.1,2.1 3334 1
+go/internal/concurrent/concurrent.go:3.1,4.1 6666 0
+PROFILE
+canonical_report_a="${tmp_root}/canonical-a.md"
+canonical_report_b="${tmp_root}/canonical-b.md"
+canonical_shield_a="${tmp_root}/canonical-a.json"
+canonical_shield_b="${tmp_root}/canonical-b.json"
+ESHU_CODE_COVERAGE_RUN_TESTS=0 \
+	ESHU_CODE_COVERAGE_PROFILE_IN="${canonical_profile_a}" \
+	ESHU_CODE_COVERAGE_REPORT_OUT="${canonical_report_a}" \
+	ESHU_CODE_COVERAGE_SHIELD_OUT="${canonical_shield_a}" \
+	"${generator}" >/dev/null
+ESHU_CODE_COVERAGE_RUN_TESTS=0 \
+	ESHU_CODE_COVERAGE_PROFILE_IN="${canonical_profile_b}" \
+	ESHU_CODE_COVERAGE_REPORT_OUT="${canonical_report_b}" \
+	ESHU_CODE_COVERAGE_SHIELD_OUT="${canonical_shield_b}" \
+	"${generator}" >/dev/null
+if cmp -s "${canonical_report_a}" "${canonical_report_b}" && cmp -s "${canonical_shield_a}" "${canonical_shield_b}"; then
+	record_pass "equivalent rounded coverage renders byte-identically"
+else
+	record_fail "equivalent rounded coverage must not churn checked-in artifacts"
+fi
+
+boundary_profile_a="${tmp_root}/boundary-a.out"
+boundary_profile_b="${tmp_root}/boundary-b.out"
+cat >"${boundary_profile_a}" <<'PROFILE'
+mode: count
+go/internal/concurrent/concurrent.go:1.1,2.1 7574 1
+go/internal/concurrent/concurrent.go:3.1,4.1 2426 0
+PROFILE
+cat >"${boundary_profile_b}" <<'PROFILE'
+mode: count
+go/internal/concurrent/concurrent.go:1.1,2.1 7576 1
+go/internal/concurrent/concurrent.go:3.1,4.1 2424 0
+PROFILE
+boundary_report_a="${tmp_root}/boundary-a.md"
+boundary_report_b="${tmp_root}/boundary-b.md"
+boundary_shield_a="${tmp_root}/boundary-a.json"
+boundary_shield_b="${tmp_root}/boundary-b.json"
+ESHU_CODE_COVERAGE_RUN_TESTS=0 \
+	ESHU_CODE_COVERAGE_PROFILE_IN="${boundary_profile_a}" \
+	ESHU_CODE_COVERAGE_REPORT_OUT="${boundary_report_a}" \
+	ESHU_CODE_COVERAGE_SHIELD_OUT="${boundary_shield_a}" \
+	"${generator}" >/dev/null
+ESHU_CODE_COVERAGE_RUN_TESTS=0 \
+	ESHU_CODE_COVERAGE_PROFILE_IN="${boundary_profile_b}" \
+	ESHU_CODE_COVERAGE_REPORT_OUT="${boundary_report_b}" \
+	ESHU_CODE_COVERAGE_SHIELD_OUT="${boundary_shield_b}" \
+	"${generator}" >/dev/null
+if cmp -s "${boundary_report_a}" "${boundary_report_b}" && cmp -s "${boundary_shield_a}" "${boundary_shield_b}"; then
+	record_pass "scheduler-equivalent profiles across a tenth boundary render byte-identically"
+else
+	record_fail "scheduler-equivalent profiles across a tenth boundary must not churn checked-in artifacts"
+fi
+
+require "fixture total coverage" "Total Go code coverage: **33%**" "${out_report}"
+require "fixture package drilldown boundary" "raw Go coverage profile" "${out_report}"
 require "fixture generated exclusion" "Generated Go files" "${out_report}"
 if [[ "$(wc -l <"${out_report}")" -lt 500 ]]; then
 	record_pass "fixture report stays under the file cap"
 else
 	record_fail "fixture report exceeds the file cap"
 fi
-if jq -e '.schemaVersion == 1 and .label == "go coverage" and .message == "33.3%"' "${out_shield}" >/dev/null; then
+if jq -e '.schemaVersion == 1 and .label == "go coverage" and .message == "33%"' "${out_shield}" >/dev/null; then
 	record_pass "fixture shield JSON has the expected endpoint shape"
 else
 	record_fail "fixture shield JSON shape mismatch"

@@ -9,69 +9,19 @@ This report is ordinary executable Go test coverage. It is one signal, not a rep
 ## Source Of Truth
 
 - Scope: Go package coverage from `go test ./... -covermode=count`.
+- Reproducibility: the checked-in summary conservatively floors the repository percentage to a whole percent. Exact covered-statement counts remain available in the uploaded raw profile, and the workflow log retains the one-decimal percentage, because equivalent passing concurrency tests can execute different scheduler branches.
 - Frontend/TypeScript coverage: not included yet; Vitest exists, but this baseline avoids adding new JS coverage infrastructure in #4227.
 - Policy: advisory baseline. The report exposes gaps without failing unrelated PRs solely because historical coverage is low.
 - Follow-up: make package-level no-regression checks blocking after the baseline is trustworthy.
 
 ## Exclusions
 
-The generator excludes Generated Go files (`*.pb.go`, `*.gen.go`, `zz_generated*`), vendored code, fixture corpora, `testdata`, mocks, and docs-site output. In this run it included 4574 files and excluded 0 files (0 statements).
+The generator excludes Generated Go files (`*.pb.go`, `*.gen.go`, `zz_generated*`), vendored code, fixture corpora, `testdata`, mocks, and docs-site output. In this run it included 4585 files and excluded 0 files (0 statements).
 
-## Lowest-Covered Packages
+## Package Drilldown
 
-| Package | Covered statements | Total statements | Coverage |
-| --- | ---: | ---: | ---: |
-| `github.com/eshu-hq/eshu/go/internal/collector/awscloud/checkpoint` | 0 | 21 | 0.0% |
-| `github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/amplify/awssdk` | 0 | 103 | 0.0% |
-| `github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/fms/awssdk` | 0 | 70 | 0.0% |
-| `github.com/eshu-hq/eshu/go/internal/parser/csharp` | 0 | 1324 | 0.0% |
-| `github.com/eshu-hq/eshu/go/internal/tfstatewarning` | 0 | 27 | 0.0% |
-| `github.com/eshu-hq/eshu/go/cmd/workflow-coordinator` | 3 | 94 | 3.2% |
-| `github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/directconnect/awssdk` | 10 | 126 | 7.9% |
-| `github.com/eshu-hq/eshu/go/cmd/fact-envelope-adapter` | 4 | 48 | 8.3% |
-| `github.com/eshu-hq/eshu/go/cmd/ci-gates` | 25 | 257 | 9.7% |
-| `github.com/eshu-hq/eshu/go/cmd/collector-confluence` | 8 | 61 | 13.1% |
-| `github.com/eshu-hq/eshu/go/internal/parser/kotlin` | 207 | 1483 | 14.0% |
-| `github.com/eshu-hq/eshu/go/internal/testutil/postgresproof` | 8 | 57 | 14.0% |
-| `github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/elasticbeanstalk/awssdk` | 22 | 139 | 15.8% |
-| `github.com/eshu-hq/eshu/go/cmd/collector-git` | 11 | 65 | 16.9% |
-| `github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/vpc/awssdk` | 50 | 256 | 19.5% |
-| `github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/transitgateway/awssdk` | 27 | 136 | 19.9% |
-| `github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/batch/awssdk` | 42 | 181 | 23.2% |
-| `github.com/eshu-hq/eshu/go/cmd/search-bench` | 65 | 267 | 24.3% |
-| `github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/apprunner/awssdk` | 75 | 307 | 24.4% |
-| `github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ecs/awssdk` | 47 | 189 | 24.9% |
-| `github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/autoscaling/awssdk` | 34 | 131 | 26.0% |
-| `github.com/eshu-hq/eshu/go/cmd/collector-sbom-attestation` | 49 | 179 | 27.4% |
-| `github.com/eshu-hq/eshu/go/internal/parser/javascript` | 1173 | 4167 | 28.1% |
-| `github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/elbv2/awssdk` | 64 | 222 | 28.8% |
-| `github.com/eshu-hq/eshu/go/cmd/collector-package-registry` | 57 | 179 | 31.8% |
-| `github.com/eshu-hq/eshu/go/cmd/collector-kubernetes-live` | 50 | 151 | 33.1% |
-| `github.com/eshu-hq/eshu/go/internal/correlation/model` | 10 | 30 | 33.3% |
-| `github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/elb/awssdk` | 38 | 113 | 33.6% |
-| `github.com/eshu-hq/eshu/go/cmd/collector-oci-registry` | 95 | 277 | 34.3% |
-| `github.com/eshu-hq/eshu/go/cmd/collector-pagerduty` | 64 | 186 | 34.4% |
-| `github.com/eshu-hq/eshu/go/internal/storage/nornicdb` | 185 | 537 | 34.5% |
-| `github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam/awssdk` | 202 | 542 | 37.3% |
-| `github.com/eshu-hq/eshu/go/cmd/collector-vault-live` | 81 | 207 | 39.1% |
-| `github.com/eshu-hq/eshu/go/cmd/projector` | 126 | 318 | 39.6% |
-| `github.com/eshu-hq/eshu/go/cmd/collector-security-alerts` | 89 | 223 | 39.9% |
-| `github.com/eshu-hq/eshu/go/cmd/mcp-server` | 143 | 357 | 40.1% |
-| `github.com/eshu-hq/eshu/go/internal/askwiring` | 42 | 104 | 40.4% |
-| `github.com/eshu-hq/eshu/go/internal/parser/java` | 709 | 1748 | 40.6% |
-| `github.com/eshu-hq/eshu/go/internal/parser/elixir` | 307 | 744 | 41.3% |
-| `github.com/eshu-hq/eshu/go/cmd/collector-vulnerability-intelligence` | 95 | 226 | 42.0% |
-| `github.com/eshu-hq/eshu/go/cmd/fact-kind-registry` | 104 | 245 | 42.4% |
-| `github.com/eshu-hq/eshu/go/cmd/api` | 735 | 1703 | 43.2% |
-| `github.com/eshu-hq/eshu/go/cmd/collector-grafana` | 84 | 193 | 43.5% |
-| `github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ec2/awssdk` | 112 | 251 | 44.6% |
-| `github.com/eshu-hq/eshu/go/cmd/collector-jira` | 89 | 197 | 45.2% |
-| `github.com/eshu-hq/eshu/go/cmd/collector-prometheus-mimir` | 92 | 203 | 45.3% |
-| `github.com/eshu-hq/eshu/go/cmd/collector-tempo` | 99 | 211 | 46.9% |
-| `github.com/eshu-hq/eshu/go/cmd/collector-loki` | 100 | 211 | 47.4% |
-| `github.com/eshu-hq/eshu/go/cmd/golden-corpus-gate` | 258 | 529 | 48.8% |
-| `github.com/eshu-hq/eshu/go/cmd/collector-cicd-run` | 78 | 156 | 50.0% |
+The coverage workflow uploads the raw Go coverage profile for exact statement- and package-level drilldown. Those volatile counts are intentionally not copied into this checked-in summary: equivalent passing concurrency tests can execute different scheduler branches while preserving the same rounded repository-level signal.
 
 ## Report Boundaries
 
-The public report intentionally lists only the 50 lowest-covered packages so the checked-in artifact stays reviewable and under the repository file-size cap. The workflow also uploads the raw coverage profile for package-level drilldown.
+The checked-in report stays canonical at conservative whole-percent repository precision. Use the workflow artifact and log for the one-decimal percentage, exact package rankings, and source-line detail.

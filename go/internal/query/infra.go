@@ -33,6 +33,7 @@ var infraCategoryLabels = map[string][]string{
 	},
 	"terraform": {
 		"TerraformResource",
+		"TerraformStateResource",
 		"TerraformModule",
 		"TerraformVariable",
 		"TerraformOutput",
@@ -73,6 +74,7 @@ var allInfraLabels = []string{
 	"K8sResource",
 	"KustomizeOverlay",
 	"TerraformResource",
+	"TerraformStateResource",
 	"TerraformModule",
 	"TerraformVariable",
 	"TerraformOutput",

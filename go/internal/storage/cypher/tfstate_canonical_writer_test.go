@@ -73,19 +73,42 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 	}
 
 	statements := writer.buildTerraformStateStatements(mat)
-	// #5441 review round 9, P0: buildTerraformStateStatements now emits a
-	// standalone REMOVE statement for aws_instance (an allowlisted type)
-	// before the resource upsert -- 4 statements, not 3. See
-	// TestTerraformStateStatementsEmitRemoveBeforeUpsert
-	// (tfstate_canonical_writer_stale_attrs_test.go) for the general
-	// ordering contract; this test asserts the REMOVE statement's own shape.
-	if got, want := len(statements), 4; got != want {
-		t.Fatalf("buildTerraformStateStatements() count = %d, want %d", got, want)
+	// #5443/P0-2: buildTerraformStateStatements now emits, in order: the
+	// migration relabel, the allowlisted-type REMOVE statement (#5441 review
+	// round 9, P0), the resource upsert, the two generation-gated retraction
+	// statements, the module upsert, the output upsert, and the
+	// generation-gated MATCHES_STATE edge retract (#5443 P1 review finding)
+	// -- 8 statements, not 4. Retraction MUST follow the resource upsert (not
+	// precede it, as an earlier P0 review finding proved): see
+	// TestTerraformStateStatementsEmitRetractAfterUpsert
+	// (tfstate_canonical_writer_stale_attrs_test.go) for that ordering
+	// contract and buildTerraformStateStatements' doc comment for why.
+	// The MATCHES_STATE MERGE stays absent (this test wires no
+	// TerraformStateOwnershipResolver, so OwningRepoID is never resolved),
+	// but the edge retract statement itself is unconditional -- it only
+	// ever deletes edges this writer's own evidence_source previously
+	// wrote, so it is a harmless no-op when this cycle resolved no
+	// ownership at all. See TestTerraformStateStatementsEmitRemoveBeforeUpsert
+	// (tfstate_canonical_writer_stale_attrs_test.go) for the REMOVE/upsert
+	// ordering contract; this test asserts each statement's own shape.
+	if got, want := len(statements), 8; got != want {
+		t.Fatalf("buildTerraformStateStatements() count = %d, want %d:\n%#v", got, want, statements)
 	}
 
-	remove := statements[0]
+	migration := statements[0]
+	migrationUIDs, ok := migration.Parameters["uids"].([]string)
+	if !ok || len(migrationUIDs) != 1 || migrationUIDs[0] != "tf-resource-uid-1" {
+		t.Fatalf("migration statement uids = %#v, want [tf-resource-uid-1]", migration.Parameters["uids"])
+	}
+	if !strings.Contains(migration.Cypher, "MATCH (r:TerraformResource)") ||
+		!strings.Contains(migration.Cypher, "SET r:TerraformStateResource") ||
+		!strings.Contains(migration.Cypher, "REMOVE r:TerraformResource") {
+		t.Fatalf("migration Cypher = %q, want a MATCH TerraformResource / SET TerraformStateResource / REMOVE TerraformResource relabel", migration.Cypher)
+	}
+
+	remove := statements[1]
 	if _, ok := remove.Parameters["uids"]; !ok {
-		t.Fatalf("statements[0] has no uids parameter, want the standalone REMOVE statement first: %#v", remove)
+		t.Fatalf("statements[1] has no uids parameter, want the standalone REMOVE statement: %#v", remove)
 	}
 	if strings.Contains(remove.Cypher, "SET") || strings.Contains(remove.Cypher, "MERGE") || strings.Contains(remove.Cypher, "UNWIND") {
 		t.Fatalf("REMOVE statement Cypher = %q, must not combine MERGE/SET/UNWIND with REMOVE (#5441 review round 9 P0)", remove.Cypher)
@@ -93,14 +116,17 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 	if !strings.Contains(remove.Cypher, "REMOVE r.tf_attr_instance_type") || !strings.Contains(remove.Cypher, "r.tf_attr_ami") {
 		t.Fatalf("REMOVE statement Cypher = %q, want tf_attr_instance_type and tf_attr_ami", remove.Cypher)
 	}
+	if !strings.Contains(remove.Cypher, "MATCH (r:TerraformStateResource)") {
+		t.Fatalf("REMOVE statement Cypher = %q, want the TerraformStateResource label (#5443)", remove.Cypher)
+	}
 	uids, ok := remove.Parameters["uids"].([]string)
 	if !ok || len(uids) != 1 || uids[0] != "tf-resource-uid-1" {
 		t.Fatalf("REMOVE statement uids = %#v, want [tf-resource-uid-1]", remove.Parameters["uids"])
 	}
 
-	resource := statements[1]
-	if !strings.Contains(resource.Cypher, "MERGE (r:TerraformResource {uid: row.uid})") {
-		t.Fatalf("resource Cypher = %q, want TerraformResource uid merge", resource.Cypher)
+	resource := statements[2]
+	if !strings.Contains(resource.Cypher, "MERGE (r:TerraformStateResource {uid: row.uid})") {
+		t.Fatalf("resource Cypher = %q, want TerraformStateResource uid merge (#5443)", resource.Cypher)
 	}
 	if strings.Contains(resource.Cypher, "REMOVE") {
 		t.Fatalf("resource upsert Cypher = %q, must not contain REMOVE (#5441 review round 9 P0)", resource.Cypher)
@@ -135,10 +161,40 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 		t.Fatalf("non-allowlisted user_data attribute was promoted: %#v", attrs)
 	}
 
-	if !strings.Contains(statements[2].Cypher, "MERGE (m:TerraformModule {uid: row.uid})") {
-		t.Fatalf("module Cypher = %q, want TerraformModule uid merge", statements[2].Cypher)
+	if got, want := rows[0]["config_repo_id"], any(nil); got != want {
+		t.Fatalf("config_repo_id = %#v, want nil (no ownership resolver wired)", got)
 	}
-	if !strings.Contains(statements[3].Cypher, "MERGE (o:TerraformOutput {uid: row.uid})") {
-		t.Fatalf("output Cypher = %q, want TerraformOutput uid merge", statements[3].Cypher)
+
+	retractCurrent := statements[3]
+	if !strings.Contains(retractCurrent.Cypher, "MATCH (r:TerraformStateResource)") || !strings.Contains(retractCurrent.Cypher, "DETACH DELETE r") {
+		t.Fatalf("retract-current-label Cypher = %q, want a generation-gated TerraformStateResource DETACH DELETE", retractCurrent.Cypher)
+	}
+	if got, want := retractCurrent.Parameters["scope_id"], "tf-scope-1"; got != want {
+		t.Fatalf("retract-current-label scope_id = %#v, want %q", got, want)
+	}
+
+	retractLegacy := statements[4]
+	if !strings.Contains(retractLegacy.Cypher, "MATCH (r:TerraformResource)") || !strings.Contains(retractLegacy.Cypher, "DETACH DELETE r") {
+		t.Fatalf("retract-legacy-label Cypher = %q, want a generation-gated TerraformResource DETACH DELETE", retractLegacy.Cypher)
+	}
+
+	if !strings.Contains(statements[5].Cypher, "MERGE (m:TerraformModule {uid: row.uid})") {
+		t.Fatalf("module Cypher = %q, want TerraformModule uid merge", statements[5].Cypher)
+	}
+	if !strings.Contains(statements[6].Cypher, "MERGE (o:TerraformOutput {uid: row.uid})") {
+		t.Fatalf("output Cypher = %q, want TerraformOutput uid merge", statements[6].Cypher)
+	}
+
+	edgeRetract := statements[7]
+	if !strings.Contains(edgeRetract.Cypher, "MATCH (s:TerraformStateResource)") ||
+		!strings.Contains(edgeRetract.Cypher, "MATCHES_STATE") ||
+		!strings.Contains(edgeRetract.Cypher, "DELETE e") {
+		t.Fatalf("edge-retract Cypher = %q, want a generation-gated MATCHES_STATE relationship DELETE anchored on TerraformStateResource (#5443 P1 review finding)", edgeRetract.Cypher)
+	}
+	if !edgeRetract.Drain || edgeRetract.DrainVar != "" {
+		t.Fatalf("edge-retract Drain/DrainVar = %v/%q, want true/\"\" (bounded mixed-phase relationship retract)", edgeRetract.Drain, edgeRetract.DrainVar)
+	}
+	if got, want := edgeRetract.Parameters["scope_id"], "tf-scope-1"; got != want {
+		t.Fatalf("edge-retract scope_id = %#v, want %q", got, want)
 	}
 }

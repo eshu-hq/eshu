@@ -96,7 +96,7 @@ func run(parent context.Context) error {
 		return fmt.Errorf("register observable gauges: %w", err)
 	}
 
-	canonicalWriter, canonicalCloser, err := openIngesterCanonicalWriter(parent, os.Getenv, tracer, instruments)
+	canonicalWriter, canonicalCloser, err := openIngesterCanonicalWriter(parent, postgres.SQLDB{DB: db}, os.Getenv, tracer, instruments)
 	if err != nil {
 		return err
 	}

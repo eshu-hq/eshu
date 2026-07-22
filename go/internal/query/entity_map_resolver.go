@@ -86,12 +86,21 @@ func entityMapResolverQueries(req entityMapRequest, limit int) []entityMapResolv
 			entityMapNodeResolverQuery("CloudResource", "name", from, "id", 2, limit),
 		}
 	case "terraform", "tf", "terraform_resource":
+		// #5443: TerraformResource (config-declared) and TerraformStateResource
+		// (state-observed) are tried as distinct candidates, never a label
+		// disjunction (MATCH (n:A|B) returns 0 rows on the pinned NornicDB
+		// executor -- see docs/public/reference/nornicdb-pitfalls.md), so a
+		// caller's address/uid/name resolves against whichever kind actually
+		// has it.
 		return []entityMapResolverQuery{
 			entityMapNodeResolverQuery("TerraformResource", "address", from, "uid", 0, limit),
 			entityMapNodeResolverQuery("TerraformResource", "uid", from, "uid", 1, limit),
 			entityMapNodeResolverQuery("TerraformResource", "name", from, "uid", 2, limit),
-			entityMapNodeResolverQuery("TerraformDataSource", "address", from, "uid", 3, limit),
-			entityMapNodeResolverQuery("TerraformDataSource", "uid", from, "uid", 4, limit),
+			entityMapNodeResolverQuery("TerraformStateResource", "address", from, "uid", 3, limit),
+			entityMapNodeResolverQuery("TerraformStateResource", "uid", from, "uid", 4, limit),
+			entityMapNodeResolverQuery("TerraformStateResource", "name", from, "uid", 5, limit),
+			entityMapNodeResolverQuery("TerraformDataSource", "address", from, "uid", 6, limit),
+			entityMapNodeResolverQuery("TerraformDataSource", "uid", from, "uid", 7, limit),
 		}
 	case "terraform_datasource":
 		return []entityMapResolverQuery{
@@ -135,9 +144,14 @@ func entityMapGenericResolverQueries(from string, limit int) []entityMapResolver
 		entityMapNodeResolverQuery("CloudResource", "resource_id", from, "id", 6, limit),
 		entityMapNodeResolverQuery("TerraformResource", "address", from, "uid", 7, limit),
 		entityMapNodeResolverQuery("TerraformResource", "uid", from, "uid", 8, limit),
-		entityMapNodeResolverQuery("TerraformDataSource", "address", from, "uid", 9, limit),
-		entityMapNodeResolverQuery("K8sResource", "qualified_name", from, "id", 10, limit),
-		entityMapNodeResolverQuery("File", "path", from, "path", 11, limit),
+		// #5443: TerraformStateResource is the state-observed sibling label;
+		// tried as a distinct candidate, never a label disjunction (see the
+		// terraform/tf case above for why).
+		entityMapNodeResolverQuery("TerraformStateResource", "address", from, "uid", 9, limit),
+		entityMapNodeResolverQuery("TerraformStateResource", "uid", from, "uid", 10, limit),
+		entityMapNodeResolverQuery("TerraformDataSource", "address", from, "uid", 11, limit),
+		entityMapNodeResolverQuery("K8sResource", "qualified_name", from, "id", 12, limit),
+		entityMapNodeResolverQuery("File", "path", from, "path", 13, limit),
 	)
 	return queries
 }

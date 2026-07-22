@@ -16,10 +16,20 @@ import "sort"
 // exact node types #4186 is about.
 var fileAndDirectoryRetractLabels = []string{"Directory", "File"}
 
+// terraformStateRetractLabels are the tfstate canonical writer's own
+// dedicated-statement retract labels (#5443:
+// terraformStateResourceRetractStatements in
+// tfstate_canonical_writer_retract.go), outside the per-domain entity-label
+// sets for the same reason fileAndDirectoryRetractLabels is: they are
+// retracted by standalone generation-gated DETACH DELETE statements scoped
+// by scope_id, not the repo_id-scoped generic entity-label scan.
+var terraformStateRetractLabels = []string{"TerraformStateResource"}
+
 // RetractableNodeEntityLabels returns the sorted, de-duplicated set of graph node
 // labels the canonical retract phase can tombstone: the per-domain entity-label
 // sets the retract phase scans, plus the structural File and Directory labels the
-// dedicated file/directory retract statements remove.
+// dedicated file/directory retract statements remove, plus the tfstate writer's
+// own dedicated-statement labels.
 //
 // It is the lockstep source of truth for replay depth coverage (epic #4172,
 // C-13 issue #4366): the replay-coverage gate requires a delta/tombstone replay
@@ -30,6 +40,7 @@ var fileAndDirectoryRetractLabels = []string{"Directory", "File"}
 func RetractableNodeEntityLabels() []string {
 	labels := canonicalNodeRetractEntityLabels()
 	labels = append(labels, fileAndDirectoryRetractLabels...)
+	labels = append(labels, terraformStateRetractLabels...)
 	sort.Strings(labels)
 	return labels
 }

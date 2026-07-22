@@ -319,7 +319,9 @@ func entityMapEvidenceLabel(row map[string]any) string {
 	if hasEntityMapLabel(labels, "CloudResource") {
 		return "cloud_or_runtime_graph"
 	}
-	if hasEntityMapLabel(labels, "TerraformResource") || hasEntityMapLabel(labels, "TerraformDataSource") {
+	if hasEntityMapLabel(labels, "TerraformResource") ||
+		hasEntityMapLabel(labels, "TerraformStateResource") ||
+		hasEntityMapLabel(labels, "TerraformDataSource") {
 		return "iac_graph"
 	}
 	if hasEntityMapLabel(labels, "K8sResource") {

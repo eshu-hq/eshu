@@ -196,6 +196,22 @@ type QueryShape struct {
 	// Envelope keeps a query response wrapped in Eshu's {data,truth,error}
 	// envelope for assertion. The default false preserves the historical
 	// behaviour where MCP envelopes are unwrapped before shape checks.
+	//
+	// This is a per-shape assertion choice, not a property of any transport:
+	// MCP dispatch itself always sends Accept: application/eshu.envelope+json
+	// on every HTTP call it makes (go/internal/mcp/dispatch.go:65,
+	// unconditional). It is this gate's own harness that decides whether an
+	// individual shape sees the envelope or not, driven by this field on both
+	// sides — the HTTP client sends the envelope Accept header only when
+	// Envelope is true (query.go:68's `if shape.Envelope`), and the MCP
+	// client's maybeUnwrapTruthEnvelope (mcp.go:130-135) strips the envelope
+	// from the tool result before assertion when Envelope is false. Set it to
+	// true to assert the wrapped shape via RequiredJSONValues/RequiredJSONPaths
+	// dotted into "data.*"; leave it false (and list the unwrapped field names
+	// directly in RequiredResponseFields) when the shape needs
+	// MinimumResults-based array counting, since EvaluateQueryShape only
+	// locates the first array-valued field among top-level
+	// RequiredResponseFields.
 	Envelope bool `json:"envelope,omitempty"`
 	// RequestBody is the JSON body for an HTTP query shape. Empty means the gate
 	// sends no body, which is the historical GET-only behaviour.

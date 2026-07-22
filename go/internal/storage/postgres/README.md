@@ -1711,6 +1711,28 @@ supplies. `AuthenticateLocalIdentity` (`identity_local.go`) calls
 it is a no-op UPDATE affecting zero rows for every subject except the
 bootstrap admin's own first login.
 
+`ResetBootstrapCredential` also atomically re-enrolls the owner's MFA
+recovery-code factor (issue #5602, `identity_bootstrap_credential_mfa.go`'s
+`reenrollBootstrapCredentialRecoveryFactor`), in the SAME transaction as the
+password rotation and envelope reseal: before this fix, the CLI generated and
+printed a fresh recovery code but never persisted it, so only the original
+first-run code (if the operator still had it) could satisfy the admin's
+mandatory MFA gate at login. The helper revokes the user's existing active
+`identity_mfa_recovery_codes` rows and active `factor_kind='recovery_code'`
+`identity_mfa_factors` rows (`revokeBootstrapCredentialRecoveryFactorsQuery`,
+`identity_bootstrap_credential_sql.go`), then inserts a fresh factor and
+recovery-code hash via the existing `insertLocalIdentityMFA` helper. The
+revoke is deliberately scoped by `factor_kind`, unlike `ResetLocalIdentityMFA`
+(`identity_local_lifecycle.go`)'s general operator "reset a user's MFA" path,
+which revokes every active factor regardless of kind — a bootstrap credential
+reset must never revoke a TOTP factor the admin enrolled after bootstrap.
+`TestBootstrapCredentialConcurrencyGateGenerateConsumeReset` (below) asserts
+exactly one active recovery-code row carries the reset's new hash after the
+concurrent round; `TestAdminInitialCredentialAndResetRoundTrip`
+(`go/cmd/eshu/admin_initial_credential_test.go`) is the real-Postgres proof
+that the printed code actually authenticates, the code it replaced does not,
+and a pre-seeded active TOTP factor survives untouched.
+
 No-Regression Evidence: this is a net-new table and net-new statements on it;
 no existing query, index, or write path changes. Backend PostgreSQL 16. Input
 shape: exactly one `(tenant_id, workspace_id)` row ever exists in practice
@@ -1764,6 +1786,72 @@ banner (`bootstrapBannerWriter`), the `eshu admin initial-credential`/
 `TestSeedInitialAdminNegativeLeakage` (structured-log capture) and the
 SQL-exec-argument leak checks in `identity_bootstrap_credential_test.go` and
 `identity_bootstrap_credential_concurrency_test.go`.
+
+## Local-identity MFA reset serialization
+
+`ResetLocalIdentityMFA` (`identity_local_lifecycle.go`) revokes a user's
+active `identity_mfa_factors`/`identity_mfa_recovery_codes` rows and inserts
+the replacement factor and recovery hashes in one transaction.
+`identity_mfa_factors_user_active_idx` (`identity_subjects.go`) is a
+non-unique partial index — there is no unique constraint enforcing "at most
+one active factor per `(user_id, factor_kind)`" — so without serialization,
+two concurrent resets for the same user could each run their revoke `UPDATE`
+against zero matching rows and then both `INSERT` an unconditionally
+successful new active row, leaving two simultaneously active recovery-code
+factors for one user. `ResetLocalIdentityMFA` now calls
+`lockLocalIdentityMFAReset` (`identity_local_mfa_reset_lock.go`) first, which
+acquires a transaction-scoped `pg_advisory_xact_lock` keyed by a Go-computed
+FNV-64a hash of `"eshu:local_identity_mfa_reset:" + user_id` — the same
+per-entity advisory-lock pattern `PlatformGraphLocker` and
+`PackageRegistryIdentityLocker` use — so two resets for the same user
+serialize instead of racing.
+
+Lock-ordering invariant: `ResetLocalIdentityMFA` takes only this one
+per-user key; it never takes `pg_advisory_xact_lock(3455)`
+(`BootstrapLocalIdentity`, `identity_local_sql.go`) or `pg_advisory_xact_lock(3456)`
+(`GenerateBootstrapCredential`/`ResetBootstrapCredential`,
+`identity_bootstrap_credential_sql.go`). Any future caller that also mutates
+`identity_mfa_factors`/`identity_mfa_recovery_codes` for a user inside a
+3456-guarded transaction (for example, a bootstrap-credential MFA
+re-enrollment path added to `ResetBootstrapCredential`) MUST acquire this
+same per-user key via `localIdentityMFAResetAdvisoryLockKey`, and MUST
+acquire 3456 first, then this key — mirroring
+`GenerateBootstrapAdminWithCredential`'s fixed 3455-then-3456 ordering.
+Because `ResetLocalIdentityMFA` never takes 3456, and any such future caller
+would always take 3456 before this key, no wait-for cycle can form: this
+per-user key stays the innermost (last-acquired, first-released) lock in any
+transaction that holds it, and is never held by a transaction that is also
+waiting on 3456.
+
+No-Regression Evidence: the lock is a single additional
+`pg_advisory_xact_lock($1::bigint)` statement inside the existing
+`ResetLocalIdentityMFA` transaction — an explicit, rare operator/admin
+action, not a per-login hot path; no other statement, index, or read path
+changes. A real Postgres concurrency gate
+(`identity_local_mfa_reset_concurrency_test.go`,
+`TestLocalIdentityMFAResetConcurrencyGateSingleActiveFactor`, 5 rounds,
+skipped without `ESHU_POSTGRES_DSN`/`ESHU_LOCAL_IDENTITY_MFA_RESET_PROOF_DSN`)
+drives two concurrent `ResetLocalIdentityMFA` calls for the same user and
+proves exactly one active, unrevoked `identity_mfa_factors` row survives;
+before the lock, all 5 rounds reproduced two active rows. Two deterministic
+lock-contention proofs in `identity_local_mfa_reset_lock_contention_test.go`
+are the primary regression gates for the lock itself:
+`TestLocalIdentityMFAResetLockBlocksConcurrentResetForSameUser` holds the
+per-user advisory lock open in one transaction and asserts a second reset
+parks in `pg_locks` as an ungranted advisory-lock waiter until the first
+commits, and
+`TestLocalIdentityMFAResetRaceWithoutLockDuplicatesActiveFactor` drives the
+same revoke/insert statement sequence with the lock omitted and a barrier
+between the revokes and inserts, proving the unserialized path lands two
+simultaneously active factor rows (the hazard the lock closes). Both skip
+without `ESHU_LOCAL_IDENTITY_MFA_RESET_PROOF_DSN`/`ESHU_POSTGRES_DSN`.
+
+No-Observability-Change: the lock adds no metric, span, log field, status
+payload field, route, worker, queue, index, or table. `ResetLocalIdentityMFA`
+is an explicit rare admin/operator action, not a hot path, and the advisory
+lock is transaction-scoped and released automatically on commit/rollback;
+operator-visible evidence remains the reset's own success/error and the
+existing identity telemetry, which is unchanged here.
 
 ## Browser-session permission-catalog persistence (#3684)
 
