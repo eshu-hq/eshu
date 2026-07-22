@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/environment"
@@ -91,9 +92,12 @@ const kubernetesNamespaceEvidenceSource = "reducer/kubernetes-namespaces"
 // idempotent by node uid (the collector-emitted object_id) so reducer
 // retries and duplicate facts converge on one node rather than duplicating
 // or fabricating graph state, and MUST NOT create an Environment node for a
-// row with no environment value.
+// row with no environment value. Implementations MUST also retract stale
+// namespace nodes only when the handler explicitly identifies a complete
+// cluster snapshot; partial snapshots must remain additive.
 type KubernetesNamespaceNodeWriter interface {
 	WriteKubernetesNamespaceNodes(ctx context.Context, rows []map[string]any, evidenceSource string) error
+	RetractStaleKubernetesNamespaceNodes(ctx context.Context, clusterID, generationID, evidenceSource string) error
 }
 
 // KubernetesNamespaceMaterializationHandler reduces one live Kubernetes
@@ -148,6 +152,28 @@ func (h KubernetesNamespaceMaterializationHandler) Handle(
 		return Result{}, err
 	}
 	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainKubernetesNamespaceMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	reconcileComplete, _ := intent.Payload["reconcile_complete"].(bool)
+	clusterID := ""
+	if reconcileComplete {
+		clusterID, _ = intent.Payload["cluster_id"].(string)
+		clusterID = strings.TrimSpace(clusterID)
+		if clusterID == "" {
+			return Result{}, fmt.Errorf("reconcile complete kubernetes namespace snapshot requires cluster_id")
+		}
+		for _, row := range rows {
+			rowClusterID, _ := row["cluster_id"].(string)
+			if strings.TrimSpace(rowClusterID) != clusterID {
+				return Result{}, fmt.Errorf(
+					"reconcile complete kubernetes namespace snapshot cluster_id %q does not match row cluster_id %q",
+					clusterID,
+					strings.TrimSpace(rowClusterID),
+				)
+			}
+		}
+	}
+	for _, row := range rows {
+		row["generation_id"] = intent.GenerationID
+	}
 	extractDuration := time.Since(extractStart)
 
 	var writeDuration time.Duration
@@ -158,12 +184,30 @@ func (h KubernetesNamespaceMaterializationHandler) Handle(
 		}
 		writeDuration = time.Since(writeStart)
 	}
+	reconciliationStatus := "not_requested"
+	if reconcileComplete {
+		reconciliationStatus = "suppressed_input_invalid"
+	}
+	if reconcileComplete && inputInvalidCount == 0 {
+		writeStart := time.Now()
+		if err := h.NodeWriter.RetractStaleKubernetesNamespaceNodes(
+			ctx,
+			clusterID,
+			intent.GenerationID,
+			kubernetesNamespaceEvidenceSource,
+		); err != nil {
+			return Result{}, fmt.Errorf("retract stale canonical kubernetes namespace nodes: %w", err)
+		}
+		writeDuration += time.Since(writeStart)
+		reconciliationStatus = "applied"
+	}
 
 	logKubernetesNamespaceMaterializationCompleted(ctx, kubernetesNamespaceMaterializationTiming{
 		intent:          intent,
 		factCount:       len(envelopes),
 		nodeCount:       len(rows),
 		boundCount:      boundCount,
+		reconciliation:  reconciliationStatus,
 		loadDuration:    loadDuration,
 		extractDuration: extractDuration,
 		writeDuration:   writeDuration,
@@ -175,11 +219,12 @@ func (h KubernetesNamespaceMaterializationHandler) Handle(
 		Domain:   DomainKubernetesNamespaceMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d canonical kubernetes namespace node(s) (%d environment-bound) from %d namespace fact(s); %d input_invalid fact(s) quarantined",
+			"materialized %d canonical kubernetes namespace node(s) (%d environment-bound) from %d namespace fact(s); %d input_invalid fact(s) quarantined; reconciliation=%s",
 			len(rows),
 			boundCount,
 			len(envelopes),
 			inputInvalidCount,
+			reconciliationStatus,
 		),
 		CanonicalWrites: len(rows),
 		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
@@ -302,6 +347,7 @@ type kubernetesNamespaceMaterializationTiming struct {
 	factCount       int
 	nodeCount       int
 	boundCount      int
+	reconciliation  string
 	loadDuration    time.Duration
 	extractDuration time.Duration
 	writeDuration   time.Duration
@@ -320,6 +366,7 @@ func logKubernetesNamespaceMaterializationCompleted(
 		slog.Int("fact_count", timing.factCount),
 		slog.Int("node_count", timing.nodeCount),
 		slog.Int("environment_bound_count", timing.boundCount),
+		slog.String("reconciliation_status", timing.reconciliation),
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("extract_duration_seconds", timing.extractDuration.Seconds()),
 		slog.Float64("graph_write_duration_seconds", timing.writeDuration.Seconds()),

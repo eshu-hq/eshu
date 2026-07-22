@@ -206,12 +206,16 @@ does not create GCP nodes or edges itself. The scope-generation-level intent
 builders are assembled in `appendScopeGenerationReducerIntents`.
 
 Live Kubernetes namespace facts follow the same reducer-owned handoff. When a
-generation contains `kubernetes_live.namespace`,
+generation contains `kubernetes_live.namespace`, or when a Kubernetes live
+cluster generation is explicitly marked `FreshnessHint=complete`,
 `buildKubernetesNamespaceMaterializationReducerIntent` emits one
 `kubernetes_namespace_materialization` intent keyed to the scope. The reducer
 loads all namespace facts for that generation and materializes their canonical
-`KubernetesNamespace` nodes and recognized environment bindings. A generation
-without namespace facts emits no work for this domain.
+`KubernetesNamespace` nodes and recognized environment bindings. A complete
+snapshot also carries the cluster identity so the reducer can retract nodes
+absent from the new generation, including deletion of the last namespace. A
+partial empty snapshot emits no work and can never retract previously observed
+truth.
 
 `appendScopeGenerationReducerIntents` builds one shared, read-only
 `reducerIntentFactIndex` (`reducer_intent_fact_index.go`) over `inputFacts` and

@@ -749,14 +749,18 @@ backend-specific branch.
   `MERGE (n:KubernetesNamespace {uid: row.uid})` on the collector-emitted
   `object_id` only. Routes each row to one of two Cypher variants purely by
   whether `row.environment` is non-empty:
-  `canonicalKubernetesNamespaceUpsertCypher` (no `Environment` node, `REMOVE`s
-  any stale `environment`/`evidence_class` from a prior bound generation) or
+  `canonicalKubernetesNamespaceUpsertCypher` (no `Environment` node, clears
+  stale `environment`/`evidence_class` from a prior bound generation) or
   `canonicalKubernetesNamespaceWithEnvironmentUpsertCypher` (also `MERGE`s
   `(:Environment {name: row.environment})` and a `TARGETS_ENVIRONMENT` edge —
   the same edge type `batchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher`
   uses for the repo-manifest environment-alias path). A namespace with no
   alias-recognized label NEVER reaches the with-environment variant, so it can
-  never fabricate environment truth.
+  never fabricate environment truth. Both upsert variants stamp the current
+  generation. After a complete cluster snapshot, the writer runs a
+  cluster- and evidence-source-scoped stale-node retract; an empty complete
+  snapshot therefore removes the last namespace, while partial snapshots never
+  enter the absent-node retract path.
 - `EC2InstanceNodeWriter` — writes canonical EC2 instance `:CloudResource` nodes
   for the EC2 instance node materialization reducer domain (issue #1146 PR-A);
   constructed with `NewEC2InstanceNodeWriter`. Batched `UNWIND` +

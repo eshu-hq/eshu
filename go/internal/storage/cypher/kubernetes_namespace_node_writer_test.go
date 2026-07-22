@@ -290,6 +290,7 @@ func TestKubernetesNamespaceNodeWriterSatisfiesReducerInterface(t *testing.T) {
 	// consumer interface. This test fails to compile if the method set drifts.
 	var _ interface {
 		WriteKubernetesNamespaceNodes(ctx context.Context, rows []map[string]any, evidenceSource string) error
+		RetractStaleKubernetesNamespaceNodes(ctx context.Context, clusterID, generationID, evidenceSource string) error
 	} = NewKubernetesNamespaceNodeWriter(&recordingExecutor{}, 0)
 }
 

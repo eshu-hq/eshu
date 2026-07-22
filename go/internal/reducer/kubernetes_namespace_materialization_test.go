@@ -15,10 +15,29 @@ import (
 // recordingKubernetesNamespaceNodeWriter captures the rows handed to the
 // node writer so tests can assert on the exact materialization request.
 type recordingKubernetesNamespaceNodeWriter struct {
-	calls          int
-	rows           []map[string]any
-	evidenceSource string
-	err            error
+	calls               int
+	rows                []map[string]any
+	evidenceSource      string
+	err                 error
+	retractCalls        int
+	retractClusterID    string
+	retractGenerationID string
+	retractErr          error
+	events              []string
+}
+
+func (w *recordingKubernetesNamespaceNodeWriter) RetractStaleKubernetesNamespaceNodes(
+	_ context.Context,
+	clusterID string,
+	generationID string,
+	evidenceSource string,
+) error {
+	w.retractCalls++
+	w.events = append(w.events, "retract")
+	w.retractClusterID = clusterID
+	w.retractGenerationID = generationID
+	w.evidenceSource = evidenceSource
+	return w.retractErr
 }
 
 func (w *recordingKubernetesNamespaceNodeWriter) WriteKubernetesNamespaceNodes(
@@ -27,6 +46,7 @@ func (w *recordingKubernetesNamespaceNodeWriter) WriteKubernetesNamespaceNodes(
 	evidenceSource string,
 ) error {
 	w.calls++
+	w.events = append(w.events, "write")
 	w.rows = append(w.rows, rows...)
 	w.evidenceSource = evidenceSource
 	return w.err
@@ -402,6 +422,9 @@ func TestKubernetesNamespaceMaterializationHandleWritesNodes(t *testing.T) {
 	}
 	if writer.calls != 1 {
 		t.Fatalf("writer.calls = %d, want 1", writer.calls)
+	}
+	if writer.retractCalls != 0 {
+		t.Fatalf("writer.retractCalls = %d, want 0 without a complete-snapshot marker", writer.retractCalls)
 	}
 	if len(writer.rows) != 2 {
 		t.Fatalf("len(writer.rows) = %d, want 2", len(writer.rows))

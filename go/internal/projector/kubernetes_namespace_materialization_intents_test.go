@@ -82,6 +82,77 @@ func TestBuildProjectionQueuesNoKubernetesNamespaceMaterializationIntentWithoutN
 	}
 }
 
+func TestBuildProjectionQueuesKubernetesNamespaceReconciliationIntentForCompleteEmptySnapshot(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:       "k8s://prod-us-east-1",
+		ScopeKind:     scope.KindCluster,
+		SourceSystem:  "kubernetes_live",
+		CollectorKind: scope.CollectorKubernetesLive,
+		Metadata:      map[string]string{"cluster_id": "prod-us-east-1"},
+	}
+	generation := scope.ScopeGeneration{
+		ScopeID:       scopeValue.ScopeID,
+		GenerationID:  "k8s-generation-empty",
+		ObservedAt:    time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),
+		IngestedAt:    time.Date(2026, time.May, 15, 10, 0, 1, 0, time.UTC),
+		Status:        scope.GenerationStatusPending,
+		FreshnessHint: "complete",
+	}
+
+	projection, err := buildProjection(scopeValue, generation, nil)
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+	for _, intent := range projection.reducerIntents {
+		if intent.Domain != reducer.DomainKubernetesNamespaceMaterialization {
+			continue
+		}
+		if got, want := intent.FactID, ""; got != want {
+			t.Fatalf("intent.FactID = %q, want empty for generation-triggered reconciliation", got)
+		}
+		if got, want := intent.Payload["cluster_id"], "prod-us-east-1"; got != want {
+			t.Fatalf("intent.Payload[cluster_id] = %#v, want %#v", got, want)
+		}
+		if got, want := intent.Payload["reconcile_complete"], true; got != want {
+			t.Fatalf("intent.Payload[reconcile_complete] = %#v, want %#v", got, want)
+		}
+		return
+	}
+	t.Fatalf("no kubernetes namespace reconciliation intent enqueued for complete empty snapshot; intents=%+v", projection.reducerIntents)
+}
+
+func TestBuildProjectionDoesNotReconcileKubernetesNamespacesForPartialEmptySnapshot(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:       "k8s://prod-us-east-1",
+		ScopeKind:     scope.KindCluster,
+		SourceSystem:  "kubernetes_live",
+		CollectorKind: scope.CollectorKubernetesLive,
+		Metadata:      map[string]string{"cluster_id": "prod-us-east-1"},
+	}
+	generation := scope.ScopeGeneration{
+		ScopeID:       scopeValue.ScopeID,
+		GenerationID:  "k8s-generation-partial-empty",
+		ObservedAt:    time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),
+		IngestedAt:    time.Date(2026, time.May, 15, 10, 0, 1, 0, time.UTC),
+		Status:        scope.GenerationStatusPending,
+		FreshnessHint: "partial",
+	}
+
+	projection, err := buildProjection(scopeValue, generation, nil)
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+	for _, intent := range projection.reducerIntents {
+		if intent.Domain == reducer.DomainKubernetesNamespaceMaterialization {
+			t.Fatalf("partial empty snapshot must not enqueue namespace reconciliation: %+v", intent)
+		}
+	}
+}
+
 func kubernetesNamespaceEnvelope(factID, scopeID, generationID string) facts.Envelope {
 	return facts.Envelope{
 		FactID:           factID,
