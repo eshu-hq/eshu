@@ -127,9 +127,9 @@ returns `503`. The truth envelope uses capability
 ### Graph summary packet performance and observability
 
 No-Regression Evidence: the tool introduces no new Cypher shapes. It reuses only
-already-shipped, proven bounded shapes: the repo-anchored hub-function
-degree-centrality query from `hubFunctionsCypher`
-(`go/internal/query/code_call_graph_metrics.go`), bounded with `LIMIT $limit`
+already-shipped, proven bounded shapes: its dedicated repo-anchored hub-function
+degree-centrality query, `graphSummaryHotEntitiesCypher`
+(`go/internal/query/infra_graph_summary_packet_cypher.go`), bounded with `LIMIT $limit`
 (default 10, max 100, probed at `limit+1` for the truncation flag); per-type
 relationship counts that are each a single bounded, repo-anchored
 `MATCH (repo:Repository {id:$repo_id})-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(src)-[r:TYPE]->() RETURN count(r)`

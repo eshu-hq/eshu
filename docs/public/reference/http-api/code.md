@@ -107,7 +107,18 @@ or runtime setting.
 
 `POST /api/v0/code/call-graph/metrics` requires `repo_id`. It supports
 `hub_functions` and `recursive_functions`, deterministic ordering, paging,
-truncation metadata, source handles, and coverage.
+truncation metadata, source handles, and coverage. Both variants read one
+repository-scoped `CALLS` edge stream, then compute distinct hub degree or
+reverse-edge recursion before applying language filters and paging. Duplicate
+edges do not inflate degree counts or repeat recursive pairs; a self-call counts
+once in each hub direction and appears as one `self_call` row. Exact ties use
+canonical `Function.uid` as the final stable sort key, with legacy `id` fallback
+for older nodes. Distinct canonical functions are not collapsed when their
+legacy IDs collide, and their source and recursive-partner entity handles use
+the canonical UID so clients can follow each result. The edge read requests a
+50,001st sentinel row. Repositories with at most 50,000 physical `CALLS` edges
+return exact metrics; larger repositories receive HTTP 422 explaining that the
+exact edge bound was exceeded, with no partial `functions` rows.
 
 ## Code Flow
 

@@ -473,6 +473,16 @@ Cloud resource paging also emits route-specific, label-safe signals:
 These metrics never label resource IDs, account IDs, regions, providers,
 tenant IDs, or cursor values.
 
+`POST /api/v0/code/call-graph/metrics` keeps route latency and failures in the
+same two per-endpoint metrics. Its `query.call_graph.metrics` span adds the
+bounded metric variant plus `edge_scan_limit`, `expanded_edge_count`,
+`scan_overflow`, `expanded_node_count`, `result_count`, and `truncated`.
+`scan_overflow=true` identifies a fail-closed HTTP 422 at the 50,001-edge
+sentinel; successful requests record the exact expanded edge count. These
+attributes show whether time was spent reading a large repository edge set or
+processing a small result page. They do not include repository IDs, function
+IDs, names, or paths.
+
 Observability Evidence: before this change, sampled query/API handlers recorded
 few read-path metrics and there was no per-endpoint latency or error signal, so
 an operator could not tell which route was slow or failing from metrics alone.

@@ -30,10 +30,12 @@ func callGraphMetricFunctions(req callGraphMetricsRequest, rows []map[string]any
 	functions := make([]map[string]any, 0, len(rows))
 	for index, row := range rows {
 		item := cloneQueryAnyMap(row)
+		delete(item, "function_key")
+		delete(item, "partner_key")
 		item["rank"] = req.Offset + index + 1
 		item["source_backend"] = "graph"
 		item["source_handle"] = callGraphMetricSourceHandle(row)
-		if functionID := StringVal(row, "function_id"); functionID != "" {
+		if functionID := callGraphMetricIdentity(row, "function_key", "function_id"); functionID != "" {
 			item["entity_handle"] = "entity:" + functionID
 		}
 		if req.metricType() == "recursive_functions" {
@@ -54,8 +56,23 @@ func callGraphMetricSourceHandle(row map[string]any) map[string]any {
 	}
 }
 
+func callGraphMetricIdentity(row map[string]any, canonicalKey string, legacyKey string) string {
+	if canonicalID := StringVal(row, canonicalKey); canonicalID != "" {
+		return canonicalID
+	}
+	return StringVal(row, legacyKey)
+}
+
 func callGraphRecursionKind(row map[string]any) string {
-	if StringVal(row, "function_id") == StringVal(row, "partner_id") {
+	functionKey := StringVal(row, "function_key")
+	if functionKey == "" {
+		functionKey = StringVal(row, "function_id")
+	}
+	partnerKey := StringVal(row, "partner_key")
+	if partnerKey == "" {
+		partnerKey = StringVal(row, "partner_id")
+	}
+	if functionKey == partnerKey {
 		return "self_call"
 	}
 	return "mutual_call"
@@ -77,7 +94,7 @@ func callGraphRecursionEvidence(row map[string]any) map[string]any {
 			"content_tool":  "get_file_content",
 		}
 	}
-	if partnerID := StringVal(row, "partner_id"); partnerID != "" {
+	if partnerID := callGraphMetricIdentity(row, "partner_key", "partner_id"); partnerID != "" {
 		evidence["partner_entity_handle"] = "entity:" + partnerID
 	}
 	return evidence
