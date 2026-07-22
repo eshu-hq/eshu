@@ -119,8 +119,8 @@ func handlerQueryplanProductionCypher() map[string]string {
 			entityMapTraversalSpec{direction: "outgoing", relationships: []string{"DEPENDS_ON"}, minHops: 2, maxHops: 3},
 		),
 		"QP-CLOUD-RESOURCE-LIST-HYDRATION": cloudCypher,
-		"QP-CALL-GRAPH-HUBS":               hubFunctionsCypher(callGraphMetricsRequest{RepoID: "proof-repository"}),
-		"QP-CALL-GRAPH-RECURSIVE":          recursiveFunctionsCypher(callGraphMetricsRequest{RepoID: "proof-repository"}),
+		"QP-CALL-GRAPH-HUBS":               mustCallGraphMetricsEdgesCypher("proof-repository"),
+		"QP-CALL-GRAPH-RECURSIVE":          mustCallGraphMetricsEdgesCypher("proof-repository"),
 		"QP-GRAPH-ENTITY-COUNT":            graphEntityKindCountCypher(workloadKind),
 		"QP-GRAPH-ENTITY-LIST":             graphEntityKindListCypher(workloadKind, true),
 		"QP-WORKLOAD-RESOLVE-PROPERTY":     workloadPropertyCypher,
@@ -141,4 +141,9 @@ func handlerQueryplanProductionCypher() map[string]string {
 			"outgoing",
 		),
 	}
+}
+
+func mustCallGraphMetricsEdgesCypher(repoID string) string {
+	cypher, _ := callGraphMetricsEdgesCypher(repoID)
+	return cypher
 }

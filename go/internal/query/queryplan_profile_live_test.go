@@ -275,6 +275,7 @@ func queryplanProfileParams() map[string]any {
 		"allowed_repository_ids": []string{"proof-repository"},
 		"allowed_scope_ids":      []string{"proof-scope"},
 		"cycle_language":         "python",
+		"edge_scan_limit":        callGraphMetricsEdgeScanLimit + 1,
 		"ecosystem":              "proof-ecosystem",
 		"entity_id":              "proof-entity",
 		"environment":            "",
