@@ -81,16 +81,23 @@ files aligned; `-update` does not touch the frozen file.
 
 ## Current state
 
-This directory is empty as of #5407: every `remote_validation` ref currently
-cited in the matrix (115 unique slugs across 120 row-occurrences, including
-`prod-component-extension-inventory` and
-`prod-component-extension-diagnostics`, the pair #5336 originally flagged)
-predates this gate and has no committed evidence file yet. All 115 are frozen
-in `specs/remote-validation-baseline.txt` under `FROZEN_MAX: 115` — and mirrored
-as the immutable membership set `specs/remote-validation-frozen.txt` — rather
-than downgraded, per that issue's acceptance criteria (state whether the
-component_extensions pair is baselined or downgraded — baselined is the
-explicit default here). Closing an entry requires either committing a real
-artifact or an explicit, separately-reviewed decision to downgrade the
-capability's claimed status. The systemic burn-down of all 115 is tracked in
-#5552, which blocks epic #5344 closure.
+This directory is empty as of #5407: every `remote_validation` ref cited in
+the matrix at freeze time (115 unique slugs across 120 row-occurrences) predates
+this gate and had no committed evidence file. All 115 were frozen in
+`specs/remote-validation-frozen.txt` (the immutable audited-at-introduction set)
+and, at the time, also carried in `specs/remote-validation-baseline.txt` under
+`FROZEN_MAX: 115`. Closing an entry requires either committing a real artifact
+or an explicit, separately-reviewed decision to downgrade the capability's
+claimed status; the frozen set only shrinks when a slug is validated-or-
+downgraded and removed from both files in the same reviewed edit. The
+systemic burn-down of all 115 is tracked in #5552, which blocks epic #5344
+closure.
+
+TRANCHE 1 (#5552) closed the pair #5336 originally flagged,
+`prod-component-extension-inventory` and `prod-component-extension-diagnostics`
+(`component_extensions.inventory` / `component_extensions.diagnostics`), by
+**downgrading** both capabilities' `production` profile from
+`supported` to `experimental` rather than committing a deployed-registry
+evidence artifact. See [DISPOSITIONS.md](DISPOSITIONS.md) for the per-row
+record and rationale. `FROZEN_MAX` is now 113, and both slugs are removed from
+`specs/remote-validation-baseline.txt` and `specs/remote-validation-frozen.txt`.
