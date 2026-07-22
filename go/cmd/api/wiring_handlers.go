@@ -69,14 +69,21 @@ func newSupplyChainHandler(
 }
 
 // newSecretsIAMHandler builds the secrets/IAM posture read handler over its
-// Postgres trust-chain, privilege-posture, access-path, gap, and summary stores.
-func newSecretsIAMHandler(db *sql.DB, profile query.QueryProfile) *query.SecretsIAMHandler {
+// Postgres trust-chain, privilege-posture, access-path, gap, and summary
+// stores plus the graph-backed S3 external-principal grant posture reader
+// (issue #5643).
+func newSecretsIAMHandler(
+	db *sql.DB,
+	neo4jReader query.GraphQuery,
+	profile query.QueryProfile,
+) *query.SecretsIAMHandler {
 	return &query.SecretsIAMHandler{
 		IdentityTrustChains:          query.NewPostgresSecretsIAMIdentityTrustChainStore(db),
 		PrivilegePostureObservations: query.NewPostgresSecretsIAMPrivilegePostureObservationStore(db),
 		SecretAccessPaths:            query.NewPostgresSecretsIAMSecretAccessPathStore(db),
 		PostureGaps:                  query.NewPostgresSecretsIAMPostureGapStore(db),
 		Summary:                      query.NewPostgresSecretsIAMPostureSummaryStore(db),
+		GrantPosture:                 query.NewGraphSecretsIAMGrantPostureStore(neo4jReader),
 		Profile:                      profile,
 	}
 }

@@ -97,7 +97,7 @@ The gate's independence from the backing map is tiered, not absolute:
 | GET /api/v0/observability/coverage/correlations | ObservabilityCoverageHandler.listCorrelations | observability_coverage_correlation | `fact.fact_kind = $1` = `reducer_observability_coverage_correlation` (query/observability_coverage_correlations.go:15,172) |
 | GET /api/v0/images | ImageHandler.listImages | container_image_identity | `MATCH (img:ContainerImage)` (query/images.go:30-49); label projected by container_image_identity (projector/canonical.go:251) |
 | GET /api/v0/package-registry/packages | PackageRegistryHandler.listPackages | package_source_correlation | `MATCH (p:Package ...)` anchors (query/package_registry_cypher.go:6-18); label projected by package_source_correlation (projector/canonical.go:263, projector/package_registry_canonical.go) |
-| GET /api/v0/secrets-iam/posture-summary | SecretsIAMHandler.summary | secrets_iam_trust_chain (+ MapOnly: s3_external_principal_grant_materialization) | four `reducer_secrets_iam_*` kinds bucketed (query/secrets_iam_summary.go:69-81,134); writer reducer/secrets_iam_trust_chain_writer.go:18-21 |
+| GET /api/v0/secrets-iam/posture-summary | SecretsIAMHandler.summary | secrets_iam_trust_chain, s3_external_principal_grant_materialization | four `reducer_secrets_iam_*` kinds bucketed (query/secrets_iam_summary.go:69-81,134; writer reducer/secrets_iam_trust_chain_writer.go:18-21) plus `(:CloudResource)-[:GRANTS_ACCESS_TO]->(:ExternalPrincipal)` grant-posture aggregates via h.GrantPosture (query/secrets_iam_grant_posture.go, #5643; writer storage/cypher/s3_external_principal_grant_writer.go) |
 | GET /api/v0/supply-chain/sbom-attestations/attachments | SupplyChainHandler.listSBOMAttachments | sbom_attestation_attachment | `fact.fact_kind = $1` = `reducer_sbom_attestation_attachment` (query/sbom_attestation_attachments.go:28,223) |
 | GET /api/v0/supply-chain/security-alerts/reconciliations | SupplyChainHandler.listSecurityAlertReconciliations | security_alert_reconciliation | `fact.fact_kind = $1` = `reducer_security_alert_reconciliation` (query/security_alert_reconciliation.go:18, _queries.go:47) |
 | GET /api/v0/semantic/documentation-observations | SemanticEvidenceHandler.listDocumentationObservations | semantic_entity_materialization | SQL built from `facts.SemanticDocumentationObservationFactKind` (query/semantic_evidence.go:91, semantic_evidence_read_model.go:16-18) — a SOURCE-fact read (semanticdocs emitter), no reducer indirection |
@@ -115,16 +115,19 @@ The gate's independence from the backing map is tiered, not absolute:
 | sbom-attestations/attachments | container_image_identity | `reducer_container_image_identity` appears only in the missing-evidence CTE (sbom_attestation_attachments.go:253) |
 | codeowners/ownership | service_catalog_correlation | effective-owner precedence enrichment via `h.Correlations` (codeowners_ownership.go:162) |
 | codeowners/ownership | code_graph_projection | `repo:Repository` is the Cypher anchor, not served rows |
+| secrets-iam/posture-summary | ec2_instance_node_materialization, rds_posture_materialization, s3_internet_exposure_materialization | `:CloudResource` is the grant-posture Cypher's traversal anchor (query/secrets_iam_grant_posture.go), not served rows; the label is those domains' shared signature marker |
 
 ## Flagged for architect review (#5584 follow-ups)
 
-1. **MapOnly: secrets-iam/posture-summary → s3_external_principal_grant_materialization.**
-   The family declares this read_surface (specs:307-317) but the summary
-   handler reads none of its data; the domain materializes
-   `(:CloudResource)-[:GRANTS_ACCESS_TO]->(:ExternalPrincipal)` graph truth
-   (storage/cypher/s3_external_principal_grant_writer.go) that no
-   read-surface route queries today. Either surface the grants through this
-   route or re-point the family's read_surface.
+1. **RESOLVED by #5643 — secrets-iam/posture-summary →
+   s3_external_principal_grant_materialization is now Served.** The flag
+   originally recorded that the family declared this read_surface
+   (specs:307-317) while the summary handler read none of its data. #5643
+   built the reader: `GraphSecretsIAMGrantPostureStore`
+   (query/secrets_iam_grant_posture.go) aggregates the domain's canonical
+   `(:CloudResource)-[:GRANTS_ACCESS_TO]->(:ExternalPrincipal)` edges into
+   the summary's `s3_external_principal_grant_posture` section, and the
+   registry row moved from MapOnly to Served with read-path evidence.
 2. **Shared CloudResource creators.** The base
    `MERGE (r:CloudResource {uid: row.uid})` writer
    (storage/cypher/cloud_resource_node_writer.go:22, aws_resource facts →

@@ -16,7 +16,7 @@ This report is ordinary executable Go test coverage. It is one signal, not a rep
 
 ## Exclusions
 
-The generator excludes Generated Go files (`*.pb.go`, `*.gen.go`, `zz_generated*`), vendored code, fixture corpora, `testdata`, mocks, and docs-site output. In this run it included 4618 files and excluded 0 files (0 statements).
+The generator excludes Generated Go files (`*.pb.go`, `*.gen.go`, `zz_generated*`), vendored code, fixture corpora, `testdata`, mocks, and docs-site output. In this run it included 4615 files and excluded 0 files (0 statements).
 
 ## Package Drilldown
 

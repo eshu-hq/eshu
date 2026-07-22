@@ -152,23 +152,28 @@ func TestRouteServesDataRegistryBITES_PoisonedRegistryGoesRed(t *testing.T) {
 	// hole the review found: gate B used to accept any cited file, and
 	// gate C exempts Served pairs, so declaring the claim was enough. The
 	// read-path anchoring check closes it: at least one marker must appear
-	// in the route's own ScanFiles.
+	// in the route's own ScanFiles. The poison subject is the iac route's
+	// config_state_drift MapOnly claim (the s3 grant claim originally used
+	// here became genuinely Served in #5643, so its markers now legitimately
+	// appear on the secrets-iam read path).
 	t.Run("off_read_path_served_claim_rejected", func(t *testing.T) {
 		poisoned := map[string]routeServesDataSource{}
 		for r, e := range routeServesDataRegistry {
 			poisoned[r] = e
 		}
-		secrets := poisoned["GET /api/v0/secrets-iam/posture-summary"]
-		secrets.MapOnly = nil
-		secrets.Served = append(append([]routeServedDomain(nil), secrets.Served...), routeServedDomain{
-			Domain: "s3_external_principal_grant_materialization",
+		iac := poisoned["GET /api/v0/iac/resources"]
+		iac.MapOnly = nil
+		iac.Served = append(append([]routeServedDomain(nil), iac.Served...), routeServedDomain{
+			Domain: "config_state_drift",
 			// Marker genuinely present in the cited file — but the file is
-			// the domain's writer, not this route's read path.
+			// the domain's state-projection writer, not this route's read
+			// path (iac_resources.go / iac_inventory_postgres.go carry no
+			// MATCHES_STATE signature; see the #5641 P1 withdrawal).
 			Evidence: []routeReadEvidence{
-				{File: "go/internal/storage/cypher/s3_external_principal_grant_writer.go", Marker: "ExternalPrincipal"},
+				{File: "go/internal/storage/cypher/tfstate_state_match_edge.go", Marker: "MATCHES_STATE"},
 			},
 		})
-		poisoned["GET /api/v0/secrets-iam/posture-summary"] = secrets
+		poisoned["GET /api/v0/iac/resources"] = iac
 
 		findings := verifyRouteServesDataRegistry(repoRoot, poisoned, domainDataSignatures)
 		joined := strings.Join(findings, "\n")

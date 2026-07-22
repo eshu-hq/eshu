@@ -380,6 +380,10 @@ source_coverage:
   - file: repository_story_counts.go
     calls:
       - {symbol: "queryRepositoryStoryStringRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+  - file: secrets_iam_grant_posture.go
+    calls:
+      - {symbol: "(GraphSecretsIAMGrantPostureStore).grantFlagCount", count: 1, non_hot: {class: keyed_support, source_sha256: 3179505b903a57581ee6114a7b20f2cb2befdf6ba245901aab6752fc2db1091d, key_bound: single_key, max_results: 1}}
+      - {symbol: "(GraphSecretsIAMGrantPostureStore).groupedGrantCounts", count: 1, non_hot: {class: keyed_support, source_sha256: 530eb02376389b2188d35fffb65926c1fa8d62305c7e69d14d4241a0c62f3bbb, key_bound: single_key, max_results: 32}}
   - file: service_ingress_posture.go
     calls:
       - {symbol: "ingressPostureEdgeSet", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
