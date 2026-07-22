@@ -6,7 +6,7 @@
 // docs/internal/design/contract-system-v1.md), decoded through the parent
 // factschema package's kind-keyed seam (decode.go, decode_terraformstate.go).
 //
-// Eight fact kinds live here. Five are CONSUMED today by the projector's
+// Eight fact kinds live here. Six are CONSUMED today by the projector's
 // source-local canonical extractor (go/internal/projector/tfstate_canonical.go)
 // and decode through the seam on the read path:
 //
@@ -15,19 +15,19 @@
 //   - Module              (terraform_state_module)
 //   - Output              (terraform_state_output)
 //   - TagObservation      (terraform_state_tag_observation)
+//   - ProviderBinding     (terraform_state_provider_binding, consumed since #5446)
 //
-// Three are TYPED-BUT-NOT-YET-CONSUMED: their payloads have no read-side
+// Two are TYPED-BUT-NOT-YET-CONSUMED: their payloads have no read-side
 // decode consumer in the current codebase (a candidate fact is discovery
-// provenance, a provider binding is emitted but not yet projected, and a
-// warning is metadata the projector routes on fact kind alone without reading
-// its payload). They are typed here so the contract, schema, and fixture pack
-// are ready the moment a consumer is added, matching how the gcp family typed
-// gcp_image_reference / gcp_tag_observation ahead of their shared consumer
-// (gcp/v1/doc.go). They gain a decode-site conversion, a regression test, and
-// a benchmark in the change that first reads them, not in this wave:
+// provenance, and a warning is metadata the projector routes on fact kind
+// alone without reading its payload). They are typed here so the contract,
+// schema, and fixture pack are ready the moment a consumer is added, matching
+// how the gcp family typed gcp_image_reference / gcp_tag_observation ahead of
+// their shared consumer (gcp/v1/doc.go). They gain a decode-site conversion, a
+// regression test, and a benchmark in the change that first reads them, not in
+// this wave:
 //
 //   - Candidate           (terraform_state_candidate)
-//   - ProviderBinding     (terraform_state_provider_binding)
 //   - Warning             (terraform_state_warning)
 //
 // Required vs optional. Each struct's required fields are non-pointer with no

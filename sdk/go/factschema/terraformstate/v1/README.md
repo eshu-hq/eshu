@@ -28,8 +28,8 @@ dead-letter instead of silent wrong graph truth (Contract System v1 §3.2).
 | `Module` | `terraform_state_module` | consumed | `module_address` |
 | `Output` | `terraform_state_output` | consumed | `name` |
 | `TagObservation` | `terraform_state_tag_observation` | consumed | `resource_address`, `tag_key_hash` |
+| `ProviderBinding` | `terraform_state_provider_binding` | consumed (#5446) | `resource_address`, `provider_address` |
 | `Candidate` | `terraform_state_candidate` | typed, not yet consumed | `candidate_source`, `backend_kind`, `repo_id`, `relative_path`, `path_hash` |
-| `ProviderBinding` | `terraform_state_provider_binding` | typed, not yet consumed | `resource_address`, `provider_address` |
 | `Warning` | `terraform_state_warning` | typed, not yet consumed | `warning_kind`, `reason`, `source` |
 
 ### The required set is the identity gate, nothing more
@@ -42,6 +42,9 @@ ABSENCE breaks the graph identity in the projector today:
 - `Output.Name` is the output node uid key.
 - `TagObservation` joins to its resource on both `ResourceAddress` and
   `TagKeyHash`; either absent breaks the join.
+- `ProviderBinding` joins to its resource on `ResourceAddress`; the projector
+  reads `provider`/`provider_source_address`/`provider_alias` onto the resource
+  node (consumed since #5446).
 - `Snapshot` has NO required field. The projector reads lineage, serial,
   backend_kind, and locator_hash best-effort and tolerates any being empty (it
   falls back to the scope id for the state path), so no snapshot field's absence
@@ -55,10 +58,9 @@ ABSENT key (or explicit null) dead-letters.
 
 ### Typed but not yet consumed
 
-`Candidate`, `ProviderBinding`, and `Warning` have no read-side decode consumer
-in the current codebase (a candidate is discovery provenance, a provider
-binding is emitted but not yet projected, and a warning is routed on fact kind
-alone without reading its payload). They are typed here so the contract, schema,
+`Candidate` and `Warning` have no read-side decode consumer in the current
+codebase (a candidate is discovery provenance, and a warning is routed on fact
+kind alone without reading its payload). They are typed here so the contract, schema,
 and fixture pack are ready the moment a consumer is added, matching how the GCP
 family typed `gcp_image_reference` / `gcp_tag_observation` ahead of their shared
 consumer. Their decode-site conversion, `input_invalid` regression test, and
