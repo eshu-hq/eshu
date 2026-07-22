@@ -10,7 +10,8 @@ Backends:
 - NornicDB v1.1.11, image digest
   `sha256:36e0eb79ddf8`, source revision
   `1492458852588c884c32f70d27ea2ee07086769c`.
-- Neo4j 2026.05.0, image digest `sha256:6c162e2432f8`.
+- Neo4j 2026.05.0, immutable image digest
+  `sha256:ba2b859bdbe7017a9baa1a7b5681ac9732198753719b0a502e3645feddfdec72`.
 
 The representative graph had one canonical row, 20 repository rows and 20
 binding artifacts. The saturated graph had one canonical row, 60 repository
@@ -62,26 +63,39 @@ COMPOSE_PROJECT_NAME=eshu5540nornic NEO4J_HTTP_PORT=27474 NEO4J_BOLT_PORT=27687 
   docker compose -f docker-compose.yaml down -v
 ```
 
-The Neo4j command uses the repository-pinned `neo4j:2026-community` service:
+The Neo4j command uses the exact immutable digest measured above. Set
+`ESHU_TMPDIR` to a caller-owned directory with enough free space for Go build
+temporary files and cache:
 
 ```bash
-COMPOSE_PROJECT_NAME=eshu5540neo4j NEO4J_HTTP_PORT=28474 NEO4J_BOLT_PORT=28687 \
-  ESHU_NEO4J_PASSWORD=change-me docker compose -f docker-compose.neo4j.yml \
-  up --wait -d neo4j
+docker run --rm -d --name eshu5540neo4j-pinned \
+  -p 127.0.0.1:28474:7474 -p 127.0.0.1:28687:7687 \
+  -e NEO4J_AUTH=neo4j/change-me \
+  neo4j@sha256:ba2b859bdbe7017a9baa1a7b5681ac9732198753719b0a502e3645feddfdec72
+ready=0
+for attempt in $(seq 1 60); do
+  if docker exec eshu5540neo4j-pinned cypher-shell -u neo4j -p change-me \
+    'RETURN 1' >/dev/null 2>&1; then ready=1; break; fi
+  sleep 1
+done
+test "$ready" -eq 1
+mkdir -p "$ESHU_TMPDIR/build" "$ESHU_TMPDIR/cache"
 cd go && ESHU_5540_FLUX_BINDINGS_LIVE=1 ESHU_5540_BACKEND=neo4j \
   ESHU_NEO4J_URI=bolt://localhost:28687 ESHU_NEO4J_DATABASE=neo4j \
   ESHU_NEO4J_USERNAME=neo4j ESHU_NEO4J_PASSWORD=change-me \
-  GOCACHE=/tmp/eshu-5540-live-neo4j go test ./internal/query \
+  TMPDIR="$ESHU_TMPDIR/build" GOCACHE="$ESHU_TMPDIR/cache" \
+  go test ./internal/query \
   -run '^TestLiveFluxDeploymentSourceTargetBindings$' -count=1 -v
-COMPOSE_PROJECT_NAME=eshu5540neo4j NEO4J_HTTP_PORT=28474 NEO4J_BOLT_PORT=28687 \
-  ESHU_NEO4J_PASSWORD=change-me docker compose -f docker-compose.neo4j.yml down -v
+docker stop eshu5540neo4j-pinned
 ```
 
 Both commands were executed on final implementation commit `54f952ee5` after
 the external preflight released the shared resource. NornicDB passed the live
-test in 0.09 seconds, and Neo4j passed it in 1.96 seconds. Each backend ran
-alone; its Compose project, container, network, and volume were removed before
-the next backend started.
+test in 0.09 seconds. Neo4j passed against the immutable digest above in 1.98
+seconds, with Go build temp and cache redirected to a data volume because the
+system volume had only 2.9 GiB free under concurrent builds. Each backend ran
+alone; its project/container resources were removed before the next backend
+started.
 
 No-Regression Evidence: qualified namespace/name identity preserves distinct
 GitRepository resources in one file and target, exact matching rejects missing
