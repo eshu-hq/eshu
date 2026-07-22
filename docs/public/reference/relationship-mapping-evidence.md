@@ -158,6 +158,25 @@ action/workflow ITSELF) is not captured by either signal today. This is a
 known non-signal, tracked as future scope, not a partial implementation to
 rely on.
 
+**Slug-detector consolidation (issue #5526).** The owner/repo (or in-repo
+path) slug detectors behind the `DEPLOYS_FROM`/`DEPENDS_ON` targets above --
+remote reusable-workflow repo, third-party action repo, and local
+reusable-workflow path -- used to be reimplemented once per package
+(`go/internal/relationships/github_actions_evidence.go` and
+`go/internal/query/content_relationships_github_actions.go` /
+`repository_workflow_artifacts.go` each carried their own `@`-index parsing).
+They now delegate to `go/internal/ghactionsref`'s `ReusableWorkflowRepo`,
+`ActionRepo`, and `LocalReusableWorkflowPath`, the same package that already
+supplied `Parse` and `Pinned` for the `ref_value`/`ref_pinned` fields
+documented above. This is a behavior-preserving refactor -- differential
+tests assert byte-identical slug output between the pre-#5526 per-package
+implementations and the shared `ghactionsref` functions -- so no extraction
+family, canonical relationship type, resolver behavior, or graph/query truth
+in this document changed. See `go/internal/ghactionsref/README.md` for the
+package's ownership boundary and the one preserved quirk
+(`ActionRepo`'s non-stripped trailing `@ref` for a two-segment
+`owner/repo@ref` value).
+
 ### Declared-Revision Edge Properties (issue #5441)
 
 The `source_revision` and `first_party_ref_version` `Details` fields

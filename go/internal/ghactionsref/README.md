@@ -3,23 +3,27 @@
 ## Purpose
 
 `ghactionsref` is the single implementation of GitHub Actions `uses:`
-reference splitting and full-commit-SHA pin classification. Issue #5372
-exposes the GitHub Actions action/workflow `@ref` as a normalized pin signal
-(`ref_value` + `ref_pinned`) on the deployment-evidence artifact surface
-instead of leaving it unstructured inside `matched_value`. Two independent
-call sites need to agree on exactly how a ref splits and exactly which refs
-count as pinned: the reducer/graph-projection path
-(`go/internal/relationships`, `go/internal/reducer`,
-`go/internal/storage/cypher`) and the query/read-model path
-(`go/internal/query`). This package is the one place that logic lives so the
-two paths cannot re-diverge.
+reference splitting, edge-target slug detection, and full-commit-SHA pin
+classification. Issue #5372 exposes the GitHub Actions action/workflow `@ref`
+as a normalized pin signal (`ref_value` + `ref_pinned`) on the
+deployment-evidence artifact surface instead of leaving it unstructured
+inside `matched_value`. Issue #5526 consolidates the shape-specific
+owner/repo (or in-repo path) slug detectors that had independently
+reimplemented `@`-index logic once per package. Two independent call sites
+need to agree on exactly how a ref splits, exactly which owner/repo a `uses:`
+value resolves to, and exactly which refs count as pinned: the
+reducer/graph-projection path (`go/internal/relationships`,
+`go/internal/reducer`, `go/internal/storage/cypher`) and the query/read-model
+path (`go/internal/query`). This package is the one place that logic lives so
+the two paths cannot re-diverge.
 
 ## Ownership boundary
 
-Owns `Parse` (ref-string splitting) and `Pinned` (full-hex classification).
-Nothing else. It has no knowledge of evidence facts, graph nodes, Postgres
-rows, or HTTP/MCP response shapes -- those stay owned by the packages that
-call in.
+Owns `Parse` (ref-string splitting), `ReusableWorkflowRepo`, `ActionRepo`,
+and `LocalReusableWorkflowPath` (edge-target slug detection per `uses:`
+shape), and `Pinned` (full-hex classification). Nothing else. It has no
+knowledge of evidence facts, graph nodes, Postgres rows, or HTTP/MCP response
+shapes -- those stay owned by the packages that call in.
 
 ## Exported surface
 
@@ -27,6 +31,21 @@ call in.
   or local reusable-workflow path into its repository slug, in-repo path, and
   `@ref` value. Returns empty strings for any component that is not present;
   never fabricates a ref when none exists.
+- `ReusableWorkflowRepo(value string) string` -- the owner/repo slug for a
+  REMOTE reusable-workflow `uses:` value
+  (`owner/repo/.github/workflows/*.yml@ref`). `""` for a local (`./`-prefixed)
+  reusable workflow, a bare action reference with no path segment, or a path
+  whose third segment is not literally `.github`.
+- `ActionRepo(value string) string` -- the owner/repo slug for a
+  marketplace/third-party action step `uses:` value. `""` for a Docker
+  action, `actions/checkout`, a local action, or a reusable-workflow-shaped
+  value. Does NOT strip a trailing `@ref` for the common two-segment
+  `owner/repo@ref` shape -- see the doc comment on `ActionRepo` for why this
+  preserved quirk exists and how a caller gets a clean slug instead.
+- `LocalReusableWorkflowPath(value string) string` -- the in-repo workflow
+  path for a LOCAL reusable-workflow `uses:` value, with or without the
+  conventional `./` prefix. `""` for anything that does not resolve to a
+  `.github/workflows/*` path in the same repository.
 - `Pinned(refValue string) bool` -- true if and only if `refValue` is a
   full-length commit SHA: exactly 40 or exactly 64 hexadecimal characters
   (case-insensitive). Everything else -- branch, tag, abbreviated SHA, or an
@@ -65,6 +84,15 @@ response fields own their own telemetry.
   fabricated one. Local `./` reusable workflows and Docker actions have no
   ref at all -- callers must omit `ref_value`/`ref_pinned` entirely for those,
   never default them.
+- `ActionRepo` keeps a preserved-on-purpose quirk from issue #5526's
+  consolidation: for a plain two-segment `owner/repo@ref` action reference it
+  does NOT strip `@ref` from its return value (`go/internal/relationships`'s
+  pre-#5526 behavior, unchanged so the refactor stays behavior-preserving).
+  `go/internal/query`'s caller re-splits the result through `Parse` to get a
+  clean slug; `go/internal/relationships`'s caller relies on downstream
+  catalog matching being tolerant of the suffix. Do not "fix" this without
+  filing a separate behavior-change issue and re-checking every consumer of
+  the `action_repository` evidence Details field.
 - This package must stay import-free of `go/internal/*`. Adding an import
   here reopens the exact import-cycle risk the package exists to avoid.
 

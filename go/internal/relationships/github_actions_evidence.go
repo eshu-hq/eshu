@@ -3,7 +3,11 @@
 
 package relationships
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/ghactionsref"
+)
 
 func discoverGitHubActionsEvidence(
 	sourceRepoID, filePath, content string,
@@ -272,61 +276,28 @@ func githubActionsActionRepositoryRefs(document map[string]any) []string {
 	return uniqueStrings(refs)
 }
 
+// reusableWorkflowRepoRef delegates to ghactionsref.ReusableWorkflowRepo --
+// the single remote-reusable-workflow slug detector issue #5526 consolidates.
+// Behavior-preserving: byte-identical to the implementation this function
+// used to contain.
 func reusableWorkflowRepoRef(value string) string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return ""
-	}
-	at := strings.Index(trimmed, "@")
-	if at >= 0 {
-		trimmed = trimmed[:at]
-	}
-	parts := strings.Split(trimmed, "/")
-	if len(parts) < 3 {
-		return ""
-	}
-	if parts[0] == "." {
-		return ""
-	}
-	if parts[2] != ".github" {
-		return ""
-	}
-	return strings.Join(parts[:2], "/")
+	return ghactionsref.ReusableWorkflowRepo(value)
 }
 
+// githubActionsActionRepoRef delegates to ghactionsref.ActionRepo -- the
+// single third-party-action slug detector issue #5526 consolidates.
+// Behavior-preserving, including ActionRepo's preserved ref-retention quirk
+// for a plain two-segment "owner/repo@ref" value (see ActionRepo's doc
+// comment): byte-identical to the implementation this function used to
+// contain.
 func githubActionsActionRepoRef(value string) string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" || strings.HasPrefix(trimmed, "docker://") {
-		return ""
-	}
-	if strings.HasPrefix(trimmed, "actions/checkout@") {
-		return ""
-	}
-	if strings.HasPrefix(trimmed, "./") || strings.HasPrefix(trimmed, ".github/") {
-		return ""
-	}
-	if repoRef := reusableWorkflowRepoRef(trimmed); repoRef != "" {
-		return ""
-	}
-	parts := strings.Split(trimmed, "/")
-	if len(parts) < 2 || parts[0] == "." {
-		return ""
-	}
-	return strings.Join(parts[:2], "/")
+	return ghactionsref.ActionRepo(value)
 }
 
+// githubActionsLocalReusableWorkflowPath delegates to
+// ghactionsref.LocalReusableWorkflowPath -- the single local-reusable-workflow
+// path detector issue #5526 consolidates. Behavior-preserving: byte-identical
+// to the implementation this function used to contain.
 func githubActionsLocalReusableWorkflowPath(value string) string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return ""
-	}
-	if at := strings.Index(trimmed, "@"); at >= 0 {
-		trimmed = trimmed[:at]
-	}
-	trimmed = strings.TrimPrefix(trimmed, "./")
-	trimmed = strings.TrimPrefix(trimmed, "/")
-	if !strings.HasPrefix(trimmed, ".github/workflows/") {
-		return ""
-	}
-	return trimmed
+	return ghactionsref.LocalReusableWorkflowPath(value)
 }

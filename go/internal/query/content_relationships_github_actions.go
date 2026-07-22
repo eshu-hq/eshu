@@ -3,7 +3,11 @@
 
 package query
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/ghactionsref"
+)
 
 type githubActionsRelationship struct {
 	reason           string
@@ -303,26 +307,15 @@ func githubActionsWorkflowInputRepositories(metadata map[string]any) []string {
 	return refs
 }
 
+// githubActionsReusableWorkflowRepoRef delegates to
+// ghactionsref.ReusableWorkflowRepo -- the single remote-reusable-workflow
+// slug detector issue #5526 consolidates. Behavior-preserving: byte-identical
+// to the implementation this function used to contain, modulo the
+// trimGitHubActionsScalar quote-strip this package's callers need (a
+// decoded-YAML `uses:` scalar can still carry literal quote characters in a
+// few edge cases -- see trimGitHubActionsScalar's own callers).
 func githubActionsReusableWorkflowRepoRef(value string) string {
-	trimmed := strings.TrimSpace(trimGitHubActionsScalar(value))
-	if trimmed == "" {
-		return ""
-	}
-	at := strings.Index(trimmed, "@")
-	if at >= 0 {
-		trimmed = trimmed[:at]
-	}
-	parts := strings.Split(trimmed, "/")
-	if len(parts) < 3 {
-		return ""
-	}
-	if parts[0] == "." {
-		return ""
-	}
-	if parts[2] != ".github" {
-		return ""
-	}
-	return strings.Join(parts[:2], "/")
+	return ghactionsref.ReusableWorkflowRepo(trimGitHubActionsScalar(value))
 }
 
 func githubActionsRepositoryRef(value string) string {
@@ -339,28 +332,20 @@ func githubActionsRepositoryRef(value string) string {
 	return ""
 }
 
+// githubActionsActionRepositoryRef delegates to ghactionsref.ActionRepo for
+// the shared docker://\actions/checkout@\reusable-workflow-shape guard and
+// owner/repo extraction, then re-splits the result through
+// ghactionsref.Parse to strip a trailing "@ref" -- unlike
+// go/internal/relationships's sibling (githubActionsActionRepoRef), this
+// package's callers want a clean, ref-free slug. Parse is idempotent on an
+// already ref-free value (the subdirectory-action shape, where ActionRepo's
+// own join never carries an "@ref" suffix in the first place) and strips one
+// off cleanly when ActionRepo's plain two-segment "owner/repo@ref" shape
+// still has it attached. Behavior-preserving: byte-identical to the
+// implementation this function used to contain.
 func githubActionsActionRepositoryRef(value string) string {
-	trimmed := strings.TrimSpace(trimGitHubActionsScalar(value))
-	if trimmed == "" || strings.HasPrefix(trimmed, "docker://") {
-		return ""
-	}
-	if strings.HasPrefix(trimmed, "actions/checkout@") {
-		return ""
-	}
-	if repoRef := githubActionsReusableWorkflowRepoRef(trimmed); repoRef != "" {
-		return ""
-	}
-	if at := strings.Index(trimmed, "@"); at >= 0 {
-		trimmed = trimmed[:at]
-	}
-	if strings.HasPrefix(trimmed, "./") || strings.HasPrefix(trimmed, ".github/") {
-		return ""
-	}
-	parts := strings.Split(trimmed, "/")
-	if len(parts) < 2 || parts[0] == "." {
-		return ""
-	}
-	return strings.Join(parts[:2], "/")
+	repo, _, _ := ghactionsref.Parse(ghactionsref.ActionRepo(trimGitHubActionsScalar(value)))
+	return repo
 }
 
 func isGitHubRepoSlug(value string) bool {
