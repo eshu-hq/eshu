@@ -76,6 +76,18 @@ func (s *IdentitySubjectStore) CompleteSetupMFA(
 	}
 
 	mfa := in.MFA
+	// Serialize the recovery-factor rotation below against any concurrent
+	// ResetLocalIdentityMFA for the same user. Like ResetBootstrapCredential's
+	// re-enroll path, this revoke-then-insert of an active recovery_code factor
+	// has no unique "one active factor per user" constraint to fall back on, so
+	// without a shared lock a concurrent ResetLocalIdentityMFA (which takes only
+	// the per-user key, never 3456) can interleave and leave two simultaneously
+	// active recovery-code factors (identity_local_mfa_reset_lock.go documents
+	// the hazard). Taken AFTER 3456, preserving the acyclic
+	// 3455 -> 3456 -> per-user lock hierarchy.
+	if err := lockLocalIdentityMFAReset(ctx, tx, mfa.UserID); err != nil {
+		return false, err
+	}
 	if _, err := tx.ExecContext(ctx, revokeLocalIdentityRecoveryCodesQuery, mfa.UserID, mfa.ResetAt); err != nil {
 		return false, fmt.Errorf("revoke local identity recovery codes: %w", err)
 	}

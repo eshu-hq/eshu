@@ -1853,6 +1853,47 @@ lock is transaction-scoped and released automatically on commit/rollback;
 operator-visible evidence remains the reset's own success/error and the
 existing identity telemetry, which is unchanged here.
 
+### Sibling factor-mutating paths join the per-user lock
+
+The per-user lock above only closes the duplicate-active-factor hazard for
+`ResetLocalIdentityMFA`. Two other paths mutate a user's active
+`identity_mfa_factors` rows inside a `pg_advisory_xact_lock(3456)`-guarded
+transaction: `ResetBootstrapCredential` (its
+`reenrollBootstrapCredentialRecoveryFactor` step) and `CompleteSetupMFA`. Each
+took only 3456; `ResetLocalIdentityMFA` takes only the per-user key. The lock
+sets were disjoint, so either sibling could interleave with a concurrent
+`ResetLocalIdentityMFA` for the same user into the exact two-active-factor
+state the per-user lock exists to prevent. Both now acquire
+`lockLocalIdentityMFAReset` for the user AFTER 3456, before their factor
+revoke/insert, so the lock hierarchy stays a strict linear
+`3455 -> 3456 -> per-user` chain (no reverse-ordering site exists, so no
+wait-for cycle can form).
+
+No-Regression Evidence: the change is one additional
+`pg_advisory_xact_lock($1::bigint)` statement inside each of two existing,
+already-3456-serialized rare admin/setup transactions — no new statement on any
+login or read hot path, and no query, index, or read-path change. RED->GREEN
+gate `identity_bootstrap_reenroll_mfa_lock_contention_test.go`
+(`TestResetBootstrapCredentialBlocksOnConcurrentMFAResetLock`,
+`TestCompleteSetupMFABlocksOnConcurrentMFAResetLock`, skipped without
+`ESHU_BOOTSTRAP_CREDENTIAL_PROOF_DSN`/`ESHU_POSTGRES_DSN`): each holds the
+per-user lock open in one transaction and proves the full production method on
+a second connection parks in `pg_locks` as an ungranted advisory-lock waiter
+until release. Before the fix both returned immediately (RED); after, both
+block then complete (GREEN). The existing
+`TestBootstrapCredentialConcurrencyGateGenerateConsumeReset` and setup-completion
+concurrency gates still pass, and
+`TestLocalIdentityMFAResetRaceWithoutLockDuplicatesActiveFactor` documents the
+identical revoke/insert statement shapes whose duplicate-factor outcome this
+lock closes.
+
+No-Observability-Change: the two added locks introduce no metric, span, log
+field, status payload field, route, worker, queue, index, or table. Both host
+methods are explicit rare admin/setup actions, not hot paths, and each advisory
+lock is transaction-scoped and released automatically on commit/rollback;
+operator-visible evidence remains each method's own success/error and the
+existing identity telemetry, which is unchanged here.
+
 ## Browser-session permission-catalog persistence (#3684)
 
 `browser_sessions` gains three additive columns —

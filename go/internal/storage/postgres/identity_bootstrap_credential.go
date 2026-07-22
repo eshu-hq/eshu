@@ -393,6 +393,18 @@ func (s *IdentitySubjectStore) ResetBootstrapCredential(
 	if affected == 0 {
 		return fmt.Errorf("rotate bootstrap credential password: no active local credential for owning user")
 	}
+	// Serialize the recovery-factor re-enrollment below against any concurrent
+	// ResetLocalIdentityMFA for the same user. Both paths revoke-then-insert an
+	// active recovery_code factor with no unique "one active factor per user"
+	// constraint to fall back on, so without a shared lock they can each
+	// observe zero active rows and both insert one, leaving two simultaneously
+	// active recovery-code factors (identity_local_mfa_reset_lock.go documents
+	// the hazard). This 3456-guarded transaction takes the per-user key AFTER
+	// 3456, exactly as that lock helper's ordering invariant requires, keeping
+	// the 3455 -> 3456 -> per-user hierarchy acyclic.
+	if err := lockLocalIdentityMFAReset(ctx, tx, userID); err != nil {
+		return err
+	}
 	if err := reenrollBootstrapCredentialRecoveryFactor(ctx, tx, userID, in.MFAFactorID, in.RecoveryCodeHash, in.ResetAt); err != nil {
 		return err
 	}
