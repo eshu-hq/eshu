@@ -51,7 +51,28 @@ func TestResetBootstrapCredentialReenrollsRecoveryCodeMFAAtomically(t *testing.T
 		t.Fatalf("transaction committed=%t rolledBack=%t, want commit only", db.committed, db.rolledBack)
 	}
 
-	if !fakeExecsContainQuery(db.execs, "UPDATE identity_mfa_recovery_codes") {
+	revokeCodesIdx := -1
+	for i, exec := range db.execs {
+		if strings.Contains(exec.query, "UPDATE identity_mfa_recovery_codes") {
+			revokeCodesIdx = i
+			// issue #5602 codex P1: the recovery-code revocation must scope to
+			// recovery_code-kind factors only (via a factor_id IN (SELECT ...
+			// factor_kind = $2) subquery), matching the factor revocation right
+			// below it — otherwise it silently destroys a TOTP factor's backup
+			// codes (insertLocalIdentityMFA lets ResetLocalIdentityMFA store
+			// recovery codes under an arbitrary operator-supplied factor kind).
+			if !strings.Contains(exec.query, "factor_kind") {
+				t.Fatalf("recovery code revocation query is not scoped by factor_kind: %#v", exec)
+			}
+			if !fakeExecArgsContain(exec.args, "recovery_code") {
+				t.Fatalf("recovery code revocation did not scope to recovery_code kind: %#v", exec)
+			}
+			if fakeExecArgsContain(exec.args, "totp") {
+				t.Fatalf("recovery code revocation must never reference totp: %#v", exec)
+			}
+		}
+	}
+	if revokeCodesIdx == -1 {
 		t.Fatalf("reset execs missing recovery code revocation: %#v", db.execs)
 	}
 	revokeFactorIdx := -1

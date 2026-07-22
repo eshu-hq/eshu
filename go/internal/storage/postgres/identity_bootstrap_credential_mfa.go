@@ -34,13 +34,17 @@ const localIdentityRecoveryCodeFactorKind = "recovery_code"
 // ResetBootstrapCredential must never revoke a TOTP factor the admin enrolled
 // after bootstrap — restoring the bootstrap credential means restoring the
 // password and its original recovery-code factor, not silently discarding an
-// unrelated MFA method the admin added later. Reusing
-// revokeLocalIdentityRecoveryCodesQuery unscoped by kind is still safe:
-// identity_mfa_recovery_codes only ever receives rows from a
-// recovery_code-kind factor (TOTP enrollment seals its secret elsewhere and
-// never inserts here — see ConfirmLocalIdentityTOTPEnrollment in
-// identity_local_totp.go), so revoking every active row for this user_id can
-// never reach into TOTP state.
+// unrelated MFA method the admin added later. Both the factor revocation and
+// the recovery-code revocation below are scoped to
+// localIdentityRecoveryCodeFactorKind: identity_mfa_recovery_codes.factor_id
+// is a plain foreign key with no kind constraint of its own, and
+// insertLocalIdentityMFA (identity_local_helpers.go) is a shared helper
+// ResetLocalIdentityMFA also calls with an operator-supplied mfa_factor_kind
+// alongside recovery codes, so a TOTP-kind factor can legitimately own rows
+// in identity_mfa_recovery_codes even though TOTP enrollment itself never
+// inserts there. Revoking recovery codes unscoped by owning factor_kind would
+// silently destroy that TOTP factor's backup codes on every bootstrap
+// credential reset (issue #5602 codex review).
 func reenrollBootstrapCredentialRecoveryFactor(
 	ctx context.Context,
 	tx Transaction,
@@ -49,7 +53,9 @@ func reenrollBootstrapCredentialRecoveryFactor(
 	recoveryCodeHash string,
 	resetAt time.Time,
 ) error {
-	if _, err := tx.ExecContext(ctx, revokeLocalIdentityRecoveryCodesQuery, userID, resetAt); err != nil {
+	if _, err := tx.ExecContext(
+		ctx, revokeBootstrapCredentialRecoveryCodesQuery, userID, localIdentityRecoveryCodeFactorKind, resetAt,
+	); err != nil {
 		return fmt.Errorf("revoke bootstrap credential recovery codes: %w", err)
 	}
 	if _, err := tx.ExecContext(
