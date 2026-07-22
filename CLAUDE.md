@@ -330,6 +330,33 @@ works with focused tests or an integration gate, and runtime-affecting changes
 MUST include performance proof or a no-regression measurement for the touched
 path.
 
+## Claim Evidence Lives In Known Locations
+
+A dangling evidence pointer is NOT proof of absence. Before downgrading any
+capability, maturity, or support claim as "unvalidated" — especially an
+outward-facing, marketing-visible one such as a `capability-matrix` support
+tier or a `product-claims` maturity — agents MUST exhaustively check the
+committed-evidence locations below. Downgrading a genuinely-validated claim is
+a marketing-damaging false negative: when committed evidence exists, VALIDATE
+(wire the pointer to the real evidence) instead of downgrading, and confirm
+with the owner before any bulk claim downgrade. A specific proof-ID resolving
+to nothing (e.g. a `remote_validation` ref with no artifact) means the pointer
+was never wired — NOT that the capability is unvalidated; the evidence usually
+lives elsewhere in this list.
+
+Committed validation evidence lives in:
+
+- `docs/internal/evidence/*.md` — per-issue validation records, including live
+  NornicDB Bolt-driver before/after validations of query/graph truth.
+- `docs/internal/remote-validation/<slug>.md` — production-validation artifacts
+  for capability-matrix `remote_validation` proof-IDs (#5407 gate).
+- `go/internal/**/*_test.go` (e.g. `internal/query`, `internal/mcp`) — the
+  `go_test` suites the matrix local profiles cite.
+- `scripts/run-remote-e2e-*.sh` plus `docs/public/run-locally/docker-compose.*.yaml`
+  — deployed / e2e drivers (the matrix `compose_e2e` evidence kind).
+- `testdata/cassettes/` and `testdata/golden/e2e-20repo-snapshot.json` (the B-12
+  golden snapshot) — replay/golden evidence.
+
 ## Serialization Is Not A Fix
 
 Agents MUST NOT ship worker-count reductions, single-threaded drains, batch
