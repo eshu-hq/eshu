@@ -17,6 +17,7 @@ required_ids:
   - QP-READINESS-HOSTED
   - QP-READINESS-SC-IMPACT
   - QP-IMPACT-CHANGE-SURFACE
+  - QP-IMPACT-LIVE-INSTANCE-ENV
   - QP-RELATIONSHIPS-CATALOG-COUNT
   - QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY
   - QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE
@@ -500,6 +501,24 @@ entries:
         - CartesianProduct
         - UnboundedExpand
     cypher_sha256: "5e78165ee7bbde33ec370dac7baced49f8a62b9b07ce6e6230685f523a4acea0"
+  - id: QP-IMPACT-LIVE-INSTANCE-ENV
+    domain: impact
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/impact_trace_deployment_live_evidence_count.go
+      symbol: (*ImpactHandler).fetchLiveInstanceEnvironments
+      source_sha256: dcad3631977b92ab3c07f3ea269feb28a2e7373462df18c996d4c3b2184054dd
+      line_hint: 215
+    required_anchors:
+      - label: KubernetesNamespace
+        property: cluster_id
+      - label: KubernetesNamespace
+        property: namespace
+    allow_unlabeled: true
+    caveats:
+      - Bounded MATCH-only read of reducer-owned KubernetesNamespace nodes (issue #5434); one query per distinct (cluster_id, namespace) pair drawn from the matched live-identity facts, a tiny cardinality set (typically one). There is currently no property index or constraint on KubernetesNamespace(cluster_id, namespace) -- the writer keys on n.uid -- so this callsite is NOT seek-eligible today; follow-up issue #5651 tracks adding that index. This entry is registered honestly as a tracked caveat rather than a blessed NodeIndexSeek the query cannot achieve. The second MATCH re-references the already-bound n after the driving MATCH; allow_unlabeled documents that bound-variable reuse rather than an unlabeled scan.
+    cypher_sha256: "b18282c03be6515367d4886544bc3265f28fa734a41bf65b6fe37684bec9d442"
   - id: QP-RELATIONSHIPS-CATALOG-COUNT
     domain: relationships
     backend: nornicdb

@@ -228,6 +228,9 @@ source_coverage:
   - file: impact_trace_deployment_resources.go
     calls:
       - {symbol: "(*ImpactHandler).fetchCloudResourceResult", count: 1, non_hot: {class: keyed_support, source_sha256: 091b1012856094f82620e946d611f772b69a5377ce3c3dc6e24009b9278b0135, key_bound: single_key, max_results: 2501}}
+  - file: impact_trace_deployment_live_evidence_count.go
+    calls:
+      - {symbol: "(*ImpactHandler).fetchLiveInstanceEnvironments", count: 1, source_sha256: dcad3631977b92ab3c07f3ea269feb28a2e7373462df18c996d4c3b2184054dd, entry_ids: [QP-IMPACT-LIVE-INSTANCE-ENV]}
   - file: impact_trace_workload_selection.go
     calls:
       - {symbol: "resolveTraceWorkloadSelector", count: 1, non_hot: {class: keyed_support, source_sha256: 1ef726a82e1024e33d396eade2571b2a8215086146102bca94fb6de650e1b8ad, key_bound: single_key, max_results: 1}}

@@ -122,6 +122,14 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		)
 		return err
 	})
+	liveInstanceEnvironment := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
+		handler := &ImpactHandler{Neo4j: graphQuery}
+		_, err := handler.fetchLiveInstanceEnvironments(
+			context.Background(),
+			[]namespacePair{{ClusterID: "proof-cluster", Namespace: "proof-namespace"}},
+		)
+		return err
+	})
 	infraSearch := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
 		handler := &InfraHandler{Neo4j: graphQuery}
 		request := httptest.NewRequest(
@@ -160,6 +168,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		"QP-CODE-IMPORT-CYCLES":                           fileImportCycleEdgeRowsCypher(importDependencyRequest{QueryType: "file_import_cycles", RepoID: "proof-repository", Limit: 10}),
 		"QP-READINESS-HOSTED":                             hostedRepositoryCount,
 		"QP-IMPACT-CHANGE-SURFACE":                        changeSurface,
+		"QP-IMPACT-LIVE-INSTANCE-ENV":                     liveInstanceEnvironment,
 		"QP-RELATIONSHIPS-CATALOG-COUNT":                  relationshipCountCypher(relationshipVerbByName["CALLS"]),
 		"QP-RELATIONSHIPS-EDGES":                          relationshipEdgesCypher(relationshipVerbByName["CALLS"], repositoryAccessFilter{allScopes: true}),
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY": sourceToolQueries[0],
