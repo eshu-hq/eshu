@@ -3,19 +3,26 @@
 
 package v1
 
-// The three types in this file — Candidate, ProviderBinding, and Warning — are
-// TYPED-BUT-NOT-YET-CONSUMED (see doc.go). No read-side decode consumer exists
-// for their fact kinds today, so this wave ships their struct, schema, and
-// fixture pack without converting a decode site, adding a regression test, or
-// benchmarking a read path (there is none to benchmark). The decode-site
-// conversion, the input_invalid regression test, and the No-Regression
-// benchmark land in the change that first reads each kind, matching how the gcp
-// family typed gcp_image_reference / gcp_tag_observation ahead of their shared
-// consumer.
+// Candidate and Warning in this file are TYPED-BUT-NOT-YET-CONSUMED (see
+// doc.go). No read-side decode consumer exists for their fact kinds today, so
+// this wave ships their struct, schema, and fixture pack without converting a
+// decode site, adding a regression test, or benchmarking a read path (there is
+// none to benchmark). The decode-site conversion, the input_invalid
+// regression test, and the No-Regression benchmark land in the change that
+// first reads each kind, matching how the gcp family typed
+// gcp_image_reference / gcp_tag_observation ahead of their shared consumer.
+//
+// ProviderBinding gained its first projector consumer in #5446
+// (go/internal/projector/tfstate_canonical.go's
+// terraformStateProviderBindingsByResource, wrapped by
+// decodeTerraformStateProviderBinding in
+// go/internal/projector/factschema_decode_terraformstate.go) — it is no
+// longer typed-but-unconsumed; its input_invalid regression coverage and
+// No-Regression benchmark now exist alongside that consumer.
 //
 // Their required sets still follow the absent-vs-present-empty rule against the
 // collector emitter's own fail-closed invariants, so the contract is correct
-// and ready the moment a consumer arrives.
+// and ready the moment a consumer arrives (or, for ProviderBinding, already did).
 
 // Candidate is the schema-version-1 typed payload for the
 // "terraform_state_candidate" fact kind (Contract System v1 §3.1).

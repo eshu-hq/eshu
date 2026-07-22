@@ -38,6 +38,26 @@ type TerraformStateResourceRow struct {
 	// filters or persists it directly.
 	Attributes map[string]any
 	ObservedAt time.Time
+	// Provider is the provider type (for example "aws") this resource
+	// instance is bound to in state, threaded from the
+	// terraform_state_provider_binding fact joined by ResourceAddress (#5446,
+	// terraformStateProviderBindingsByResource in tfstate_canonical.go).
+	// Empty when no binding fact was observed for this resource. This is
+	// deliberately NOT a duplicate of ProviderAddress: ProviderAddress is the
+	// raw provider["registry.terraform.io/hashicorp/aws"] configuration
+	// reference the resource fact itself already carries (Resource.Provider);
+	// Provider is the short, query-friendly type parsed from the separate
+	// binding fact's ProviderType.
+	Provider string
+	// ProviderSourceAddress is the provider's registry source address (for
+	// example "registry.terraform.io/hashicorp/aws"), parsed from the same
+	// provider binding fact. Empty when no binding fact was observed.
+	ProviderSourceAddress string
+	// ProviderAlias is the provider configuration alias (for example
+	// "us_west_2" for provider.aws.us_west_2), when the binding uses an
+	// aliased provider configuration. Empty when absent or no binding fact
+	// was observed.
+	ProviderAlias string
 	// OwningRepoID is the config repository resolved to own this resource's
 	// Terraform backend (#5443), matched by (BackendKind, LocatorHash) the
 	// same way tfstatebackend.Resolver.ResolveConfigCommitForBackend already
@@ -117,4 +137,16 @@ type terraformStateSnapshotContext struct {
 	BackendKind string
 	LocatorHash string
 	StatePath   string
+}
+
+// terraformStateProviderBindingInfo carries the parsed provider-binding
+// fields terraformStateProviderBindingsByResource joins onto a resource row
+// by ResourceAddress (#5446). Only the three fields the graph writer
+// promotes onto TerraformStateResource are carried here (ProviderHostname
+// and ProviderNamespace, also present on the decoded tfstatev1.ProviderBinding,
+// are substrings of ProviderSourceAddress and are not separately persisted).
+type terraformStateProviderBindingInfo struct {
+	Provider              string
+	ProviderSourceAddress string
+	ProviderAlias         string
 }

@@ -173,7 +173,8 @@ func dartSelfLoopFloor() map[string]int64 {
 // rn-flux-kustomization-source-ref, rn-flux-git-repository-url,
 // rn-flux-oci-repository-url, rn-flux-bucket-name, rn-flux-helm-release-
 // source-ref, rn-flux-helm-repository-url,
-// rn-terraform-resource-attribute-promotion, rn-codeowner-team-ref) so a
+// rn-terraform-resource-attribute-promotion,
+// rn-terraform-state-provider-binding, rn-codeowner-team-ref) so a
 // minimal-gate test can satisfy the snapshot's required nodes while focusing
 // on its own assertion. The two GCP posture-only entries pin identity via a
 // single CloudResource node carrying the matching resource_type value; the
@@ -184,7 +185,9 @@ func dartSelfLoopFloor() map[string]int64 {
 // identity via a FluxHelmRelease node carrying source_ref_kind and a
 // FluxHelmRepository node carrying url; the #5441 entry pins identity via a
 // TerraformStateResource node (renamed from TerraformResource by #5443)
-// carrying tf_attr_instance_type; and CodeownerTeam/ref (#5419 Phase 5); see
+// carrying tf_attr_instance_type; the #5446 entry pins identity via the SAME
+// TerraformStateResource node additionally carrying provider="aws"; and
+// CodeownerTeam/ref (#5419 Phase 5); see
 // testdata/golden/e2e-20repo-snapshot.json.
 func fileLanguageFloor() (map[string]int64, map[string][]string) {
 	langs := make([]string, 10)
@@ -216,6 +219,7 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 		"FluxHelmRelease|source_ref_kind":              {"HelmRepository"},
 		"FluxHelmRepository|url":                       {"https://stefanprodan.github.io/podinfo"},
 		"TerraformStateResource|tf_attr_instance_type": {"t3.micro"},
+		"TerraformStateResource|provider":              {"aws"},
 		"CodeownerTeam|ref":                            {"@eshu-hq/platform"},
 	}
 	return nodes, nodeProp

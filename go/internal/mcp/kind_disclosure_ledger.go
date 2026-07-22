@@ -87,10 +87,12 @@ import (
 // #nosec G101 -- map values are sha256 source-content digests for the
 // consumer-disclosure ledger, not credentials.
 var grandfatheredUnconsumedKinds = map[string]string{
-	// terraform_state family — projector/tfstate_canonical.go:104-106
-	"terraform_state_candidate":        "237d492637756acd33f62cbf1664ebdbad6cc83a464ee5a592c372dee36622ba",
-	"terraform_state_provider_binding": "e2e87c5f2b5fba399561f9c233aa62cdbb7896c01ac17a5bfa74d9982e5421f5",
-	"terraform_state_warning":          "bfb82f94e9bdfff4d7ebaf2a4daad186edbd3bf738de97f7654b91d1b65c77ef",
+	// terraform_state family — projector/tfstate_canonical.go's extractor doc
+	// comment. terraform_state_provider_binding gained a real projector
+	// consumer in #5446 (terraformStateProviderBindingsByResource) and was
+	// removed from this ledger; candidate and warning remain unconsumed.
+	"terraform_state_candidate": "5563c81346264cd987969e68c93f4e22eb7862ba80eadea9904cdedcb6afc7e7",
+	"terraform_state_warning":   "0ce119d0c368e25ebd19958bedcb460e494c609a01fdaf95be8b5bff8143fed6",
 
 	// package_registry.vulnerability_hint — join-key-only
 	"package_registry.vulnerability_hint": "7b8323b2e7fee6e4111dd8358eccf0e563c922ad3bc97741304eeb5360e705a7",
@@ -219,9 +221,8 @@ func disclosedKindsUnchanged(expected []kindDisclosureEntry) error {
 // are intentionally unconsumed. Tests compute the expected ledger from this
 // and assert it matches grandfatheredUnconsumedKinds.
 var kindDisclosureEntries = []kindDisclosureEntry{
-	{Family: "terraform_state", Kind: "terraform_state_candidate", Reason: "projector/tfstate_canonical.go:104-106"},
-	{Family: "terraform_state", Kind: "terraform_state_provider_binding", Reason: "projector/tfstate_canonical.go:104-106"},
-	{Family: "terraform_state", Kind: "terraform_state_warning", Reason: "projector/tfstate_canonical.go:104-106"},
+	{Family: "terraform_state", Kind: "terraform_state_candidate", Reason: "projector/tfstate_canonical.go's extractTerraformStateRows doc comment"},
+	{Family: "terraform_state", Kind: "terraform_state_warning", Reason: "projector/tfstate_canonical.go's extractTerraformStateRows doc comment"},
 	{Family: "package_registry", Kind: "package_registry.vulnerability_hint", Reason: "join-key-only: facts_active_supply_chain_impact.go:46 filter only, no decode"},
 	{Family: "service_catalog", Kind: "service_catalog.api_link", Reason: "no decode-side consumer (registry YAML ~428-435)"},
 	{Family: "service_catalog", Kind: "service_catalog.dependency", Reason: "no decode-side consumer (registry YAML ~428-435)"},

@@ -27,10 +27,15 @@ const terraformStateCanonicalStage = "terraform_state_canonical"
 // valid decode that the row builders' own identity gate still drops,
 // byte-identical to the pre-typing behavior.
 //
-// terraform_state_candidate, terraform_state_provider_binding, and
-// terraform_state_warning are intentionally not consumed here
-// (typed-but-deferred, no projector read site today), so no case handles
-// them.
+// terraform_state_candidate and terraform_state_warning are intentionally
+// not consumed here (typed-but-deferred, no projector read site today), so
+// no case handles them. terraform_state_provider_binding IS consumed
+// (#5446), but not through the switch below: terraformStateProviderBindingsByResource
+// pre-passes every provider_binding envelope (mirroring
+// terraformStateTagHashesByResource) into a per-resource-address map BEFORE
+// the switch runs, so terraformStateResourceRow can join a resource's
+// Provider/ProviderSourceAddress/ProviderAlias fields the same way it
+// already joins TagKeyHashes.
 func extractTerraformStateRows(mat *CanonicalMaterialization, envelopes []facts.Envelope) []quarantinedFact {
 	if mat == nil || len(envelopes) == 0 {
 		return nil
@@ -48,6 +53,8 @@ func extractTerraformStateRows(mat *CanonicalMaterialization, envelopes []facts.
 	}
 	tagHashesByResource, tagQuarantined := terraformStateTagHashesByResource(envelopes)
 	quarantined = append(quarantined, tagQuarantined...)
+	providerBindingsByResource, providerQuarantined := terraformStateProviderBindingsByResource(envelopes)
+	quarantined = append(quarantined, providerQuarantined...)
 	moduleRows := []TerraformStateModuleRow{}
 	for _, envelope := range envelopes {
 		var err error
@@ -57,6 +64,7 @@ func extractTerraformStateRows(mat *CanonicalMaterialization, envelopes []facts.
 				mat.ScopeID,
 				snapshot,
 				tagHashesByResource,
+				providerBindingsByResource,
 				envelope,
 			); ok {
 				mat.TerraformStateResources = append(mat.TerraformStateResources, row)
@@ -140,6 +148,7 @@ func terraformStateResourceRow(
 	scopeID string,
 	snapshot terraformStateSnapshotContext,
 	tagHashesByResource map[string][]string,
+	providerBindingsByResource map[string]terraformStateProviderBindingInfo,
 	envelope facts.Envelope,
 ) (TerraformStateResourceRow, bool, error) {
 	resource, err := decodeTerraformStateResource(envelope)
@@ -156,29 +165,33 @@ func terraformStateResourceRow(
 		return TerraformStateResourceRow{}, false, nil
 	}
 	sourceSystem := terraformStateSourceSystem(envelope)
+	providerBinding := providerBindingsByResource[address]
 	return TerraformStateResourceRow{
-		UID:                terraformStateUID("resource", scopeID, snapshot.Lineage, address),
-		Address:            address,
-		Mode:               tfstateDerefString(resource.Mode),
-		ResourceType:       tfstateDerefString(resource.ResourceType),
-		Name:               tfstateDerefString(resource.Name),
-		ModuleAddress:      tfstateDerefString(resource.Module),
-		ProviderAddress:    tfstateDerefString(resource.Provider),
-		Lineage:            snapshot.Lineage,
-		Serial:             snapshot.Serial,
-		BackendKind:        snapshot.BackendKind,
-		LocatorHash:        snapshot.LocatorHash,
-		StatePath:          snapshot.StatePath,
-		SourceFactID:       envelope.FactID,
-		StableFactKey:      envelope.StableFactKey,
-		SourceSystem:       sourceSystem,
-		SourceRecordID:     envelope.SourceRef.SourceRecordID,
-		SourceConfidence:   envelope.SourceConfidence,
-		CollectorKind:      envelope.CollectorKind,
-		CorrelationAnchors: terraformStateCorrelationAnchors(resource.CorrelationAnchors),
-		TagKeyHashes:       tagHashesByResource[address],
-		Attributes:         terraformStateResourceAttributes(resource.Attributes),
-		ObservedAt:         envelope.ObservedAt,
+		UID:                   terraformStateUID("resource", scopeID, snapshot.Lineage, address),
+		Address:               address,
+		Mode:                  tfstateDerefString(resource.Mode),
+		ResourceType:          tfstateDerefString(resource.ResourceType),
+		Name:                  tfstateDerefString(resource.Name),
+		ModuleAddress:         tfstateDerefString(resource.Module),
+		ProviderAddress:       tfstateDerefString(resource.Provider),
+		Lineage:               snapshot.Lineage,
+		Serial:                snapshot.Serial,
+		BackendKind:           snapshot.BackendKind,
+		LocatorHash:           snapshot.LocatorHash,
+		StatePath:             snapshot.StatePath,
+		SourceFactID:          envelope.FactID,
+		StableFactKey:         envelope.StableFactKey,
+		SourceSystem:          sourceSystem,
+		SourceRecordID:        envelope.SourceRef.SourceRecordID,
+		SourceConfidence:      envelope.SourceConfidence,
+		CollectorKind:         envelope.CollectorKind,
+		CorrelationAnchors:    terraformStateCorrelationAnchors(resource.CorrelationAnchors),
+		TagKeyHashes:          tagHashesByResource[address],
+		Attributes:            terraformStateResourceAttributes(resource.Attributes),
+		ObservedAt:            envelope.ObservedAt,
+		Provider:              providerBinding.Provider,
+		ProviderSourceAddress: providerBinding.ProviderSourceAddress,
+		ProviderAlias:         providerBinding.ProviderAlias,
 	}, true, nil
 }
 
@@ -390,4 +403,53 @@ func terraformStateTagHashesByResource(envelopes []facts.Envelope) (map[string][
 		sort.Strings(tagHashes[address])
 	}
 	return tagHashes, quarantined
+}
+
+// terraformStateProviderBindingsByResource decodes every
+// terraform_state_provider_binding envelope through the typed factschema seam
+// and indexes each valid binding by its bound resource address (#5446),
+// mirroring terraformStateTagHashesByResource's per-fact isolation contract:
+// a fact missing either required join key (resource_address,
+// provider_address) is QUARANTINED per-fact rather than silently dropped.
+//
+// Unlike tag observations, a resource has exactly one provider binding in
+// practice (Terraform state always binds one resource instance to exactly
+// one provider configuration), so this returns a single info struct per
+// address rather than a slice. The FIRST valid binding observed for a given
+// address wins; a later duplicate for the same address (an anomaly, not a
+// legitimate state shape) is ignored rather than silently overwriting it —
+// deterministic given envelopes' stable input order, matching
+// terraformStateSnapshot's own "first match wins" precedent for another
+// single-valued terraform_state fact.
+func terraformStateProviderBindingsByResource(envelopes []facts.Envelope) (map[string]terraformStateProviderBindingInfo, []quarantinedFact) {
+	bindings := map[string]terraformStateProviderBindingInfo{}
+	var quarantined []quarantinedFact
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.TerraformStateProviderBindingFactKind {
+			continue
+		}
+		binding, err := decodeTerraformStateProviderBinding(envelope)
+		if err != nil {
+			if q, isQuarantine, fatal := partitionProjectorDecodeFailures(envelope, err); fatal == nil && isQuarantine {
+				quarantined = append(quarantined, q)
+			}
+			continue
+		}
+		address := strings.TrimSpace(binding.ResourceAddress)
+		if address == "" {
+			// Whitespace-only join key is a valid decode dropped as
+			// non-materializable, matching the pre-typing payloadString trim
+			// (see terraformStateResourceRow).
+			continue
+		}
+		if _, exists := bindings[address]; exists {
+			continue
+		}
+		bindings[address] = terraformStateProviderBindingInfo{
+			Provider:              tfstateDerefString(binding.ProviderType),
+			ProviderSourceAddress: tfstateDerefString(binding.ProviderSourceAddress),
+			ProviderAlias:         tfstateDerefString(binding.ProviderAlias),
+		}
+	}
+	return bindings, quarantined
 }

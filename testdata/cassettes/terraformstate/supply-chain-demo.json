@@ -155,6 +155,20 @@
           }
         },
         {
+          "fact_kind": "terraform_state_provider_binding",
+          "stable_fact_key": "terraform_state_provider_binding:module.ecs.aws_ecs_cluster.supply-chain-demo",
+          "schema_version": "1.0.0",
+          "collector_kind": "terraform_state",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "resource_address": "module.ecs.aws_ecs_cluster.supply-chain-demo",
+            "provider_address": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+            "provider_source_address": "registry.terraform.io/hashicorp/aws",
+            "provider_type": "aws"
+          }
+        },
+        {
           "fact_kind": "terraform_state_tag_observation",
           "stable_fact_key": "terraform_state_tag_observation:tag_observation:module.ecs.aws_ecs_cluster.supply-chain-demo:tags:tag-key-hash-env",
           "schema_version": "1.0.0",

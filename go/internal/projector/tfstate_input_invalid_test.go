@@ -189,3 +189,99 @@ func TestExtractTerraformStateRowsQuarantinesMissingTagObservationJoinKey(t *tes
 		t.Fatalf("len(TagKeyHashes) = %d, want 1; the valid tag observation must still join despite the quarantined sibling", len(mat.TerraformStateResources[0].TagKeyHashes))
 	}
 }
+
+// TestExtractTerraformStateRowsQuarantinesMissingProviderBindingJoinKey is the
+// #5446 input_invalid regression for the new provider-binding pre-pass: a
+// terraform_state_provider_binding fact missing its required
+// resource_address join key is quarantined, and does not silently break the
+// provider->resource join for the rest of the batch.
+func TestExtractTerraformStateRowsQuarantinesMissingProviderBindingJoinKey(t *testing.T) {
+	t.Parallel()
+
+	malformed := facts.Envelope{
+		FactID:        "tf-provider-binding-bad",
+		ScopeID:       "tf-scope-1",
+		GenerationID:  "tf-generation-1",
+		FactKind:      facts.TerraformStateProviderBindingFactKind,
+		SchemaVersion: facts.TerraformStateProviderBindingSchemaVersion,
+		Payload: map[string]any{
+			// "resource_address" intentionally absent.
+			"provider_address": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+		},
+	}
+
+	mat := &CanonicalMaterialization{ScopeID: "tf-scope-1"}
+	quarantined := extractTerraformStateRows(mat, append(terraformStateFacts(), malformed))
+
+	var found bool
+	for _, q := range quarantined {
+		if q.factID == "tf-provider-binding-bad" {
+			found = true
+			if q.factKind != facts.TerraformStateProviderBindingFactKind {
+				t.Fatalf("quarantined fact kind = %q, want %q", q.factKind, facts.TerraformStateProviderBindingFactKind)
+			}
+			if q.field != "resource_address" {
+				t.Fatalf("quarantined field = %q, want %q", q.field, "resource_address")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("tf-provider-binding-bad was not quarantined; a missing resource_address join key must dead-letter as input_invalid")
+	}
+
+	// The valid resource from terraformStateFacts() must still project,
+	// simply without a provider binding joined (no valid binding fact for it
+	// in this batch).
+	if len(mat.TerraformStateResources) != 1 {
+		t.Fatalf("len(TerraformStateResources) = %d, want 1; a poisoned provider_binding sibling must never suppress valid resource projection", len(mat.TerraformStateResources))
+	}
+}
+
+// TestExtractTerraformStateRowsProviderBindingDuplicateAddressFirstWins
+// proves the pre-pass's documented "first valid binding wins" policy for a
+// resource address seen in more than one terraform_state_provider_binding
+// fact (an anomaly — Terraform state always binds a resource to exactly one
+// provider configuration — but the pre-pass must still behave
+// deterministically rather than silently reordering under map iteration).
+func TestExtractTerraformStateRowsProviderBindingDuplicateAddressFirstWins(t *testing.T) {
+	t.Parallel()
+
+	address := "module.app.aws_instance.web"
+	first := facts.Envelope{
+		FactID:        "tf-provider-binding-first",
+		ScopeID:       "tf-scope-1",
+		GenerationID:  "tf-generation-1",
+		FactKind:      facts.TerraformStateProviderBindingFactKind,
+		SchemaVersion: facts.TerraformStateProviderBindingSchemaVersion,
+		Payload: map[string]any{
+			"resource_address": address,
+			"provider_address": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+			"provider_type":    "aws",
+		},
+	}
+	duplicate := facts.Envelope{
+		FactID:        "tf-provider-binding-duplicate",
+		ScopeID:       "tf-scope-1",
+		GenerationID:  "tf-generation-1",
+		FactKind:      facts.TerraformStateProviderBindingFactKind,
+		SchemaVersion: facts.TerraformStateProviderBindingSchemaVersion,
+		Payload: map[string]any{
+			"resource_address": address,
+			"provider_address": "provider[\"registry.terraform.io/hashicorp/google\"]",
+			"provider_type":    "google",
+		},
+	}
+
+	mat := &CanonicalMaterialization{ScopeID: "tf-scope-1"}
+	quarantined := extractTerraformStateRows(mat, append(terraformStateFacts(), first, duplicate))
+
+	if len(quarantined) != 0 {
+		t.Fatalf("len(quarantined) = %d, want 0; a duplicate provider binding for the same resource is dropped, not quarantined", len(quarantined))
+	}
+	if len(mat.TerraformStateResources) != 1 {
+		t.Fatalf("len(TerraformStateResources) = %d, want 1", len(mat.TerraformStateResources))
+	}
+	if got, want := mat.TerraformStateResources[0].Provider, "aws"; got != want {
+		t.Fatalf("resource.Provider = %q, want %q (first valid binding must win over the duplicate)", got, want)
+	}
+}

@@ -118,6 +118,80 @@ func TestBuildCanonicalMaterializationCarriesTerraformStateResourceAttributes(t 
 	}
 }
 
+// TestBuildCanonicalMaterializationJoinsTerraformStateProviderBinding is the
+// #5446 flagship regression for the provider-binding pre-pass: a
+// terraform_state_provider_binding fact joined by (ResourceAddress) must
+// populate the resource row's Provider/ProviderSourceAddress/ProviderAlias
+// fields, mirroring how a tag_observation fact joins TagKeyHashes.
+func TestBuildCanonicalMaterializationJoinsTerraformStateProviderBinding(t *testing.T) {
+	t.Parallel()
+
+	sc := terraformStateScope()
+	gen := terraformStateGeneration()
+	input := append(terraformStateFacts(), facts.Envelope{
+		FactID:           "tf-provider-binding-1",
+		ScopeID:          "tf-scope-1",
+		GenerationID:     "tf-generation-1",
+		FactKind:         facts.TerraformStateProviderBindingFactKind,
+		StableFactKey:    "terraform_state_provider_binding:module.app.aws_instance.web",
+		SchemaVersion:    facts.TerraformStateProviderBindingSchemaVersion,
+		CollectorKind:    string(scope.CollectorTerraformState),
+		SourceConfidence: facts.SourceConfidenceObserved,
+		ObservedAt:       gen.ObservedAt,
+		Payload: map[string]any{
+			"resource_address":        "module.app.aws_instance.web",
+			"provider_address":        "provider[\"registry.terraform.io/hashicorp/aws\"].us_west_2",
+			"provider_source_address": "registry.terraform.io/hashicorp/aws",
+			"provider_type":           "aws",
+			"provider_alias":          "us_west_2",
+		},
+	})
+
+	result, _ := buildCanonicalMaterialization(sc, gen, input)
+
+	if got, want := len(result.TerraformStateResources), 1; got != want {
+		t.Fatalf("len(TerraformStateResources) = %d, want %d", got, want)
+	}
+	resource := result.TerraformStateResources[0]
+	if got, want := resource.Provider, "aws"; got != want {
+		t.Fatalf("resource.Provider = %q, want %q", got, want)
+	}
+	if got, want := resource.ProviderSourceAddress, "registry.terraform.io/hashicorp/aws"; got != want {
+		t.Fatalf("resource.ProviderSourceAddress = %q, want %q", got, want)
+	}
+	if got, want := resource.ProviderAlias, "us_west_2"; got != want {
+		t.Fatalf("resource.ProviderAlias = %q, want %q", got, want)
+	}
+}
+
+// TestBuildCanonicalMaterializationResourceWithoutProviderBindingHasEmptyProviderFields
+// proves the absent-binding case: a resource with no matching
+// terraform_state_provider_binding fact must carry empty Provider/
+// ProviderSourceAddress/ProviderAlias fields rather than an error or a
+// zero-value crash, matching every other optional-join field on this row
+// (e.g. TagKeyHashes is nil when no tag observation joins).
+func TestBuildCanonicalMaterializationResourceWithoutProviderBindingHasEmptyProviderFields(t *testing.T) {
+	t.Parallel()
+
+	sc := terraformStateScope()
+	gen := terraformStateGeneration()
+	result, _ := buildCanonicalMaterialization(sc, gen, terraformStateFacts())
+
+	if got, want := len(result.TerraformStateResources), 1; got != want {
+		t.Fatalf("len(TerraformStateResources) = %d, want %d", got, want)
+	}
+	resource := result.TerraformStateResources[0]
+	if resource.Provider != "" {
+		t.Fatalf("resource.Provider = %q, want empty (no provider_binding fact in input)", resource.Provider)
+	}
+	if resource.ProviderSourceAddress != "" {
+		t.Fatalf("resource.ProviderSourceAddress = %q, want empty", resource.ProviderSourceAddress)
+	}
+	if resource.ProviderAlias != "" {
+		t.Fatalf("resource.ProviderAlias = %q, want empty", resource.ProviderAlias)
+	}
+}
+
 func TestBuildCanonicalMaterializationAggregatesTerraformStateModuleObservations(t *testing.T) {
 	t.Parallel()
 
