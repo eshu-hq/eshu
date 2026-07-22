@@ -149,6 +149,26 @@ including branch-resolved manifest evidence, which this bucket's declared
 Helm/Kustomize tag/digest is the kind of evidence for -- though #5469 does
 not yet name this bucket explicitly.
 
+Issue #5445 slice 1 typed eight more keys the same way, split across two
+sibling files by source family: `parsed_file_data_terraform.go`
+(`TerraformModule`, `TerragruntDependency`, `TerragruntConfig`, from
+`go/internal/parser/hcl/parser.go`) and `parsed_file_data_gitops.go`
+(`HelmChart`, `HelmValues`, `ArgoCDApplication`, `ArgoCDApplicationSet`,
+`FluxGitRepository`, from `go/internal/parser/yaml`). These keys are NOT
+consumed by the code-graph-core reducer — their consumer is
+`go/internal/relationships` (IaC deploy/dependency evidence discovery:
+`terraform_evidence.go`, `terragrunt_helper_evidence.go`,
+`structured_family_evidence.go`, `argocd_generator_config.go`,
+`flux_evidence.go`), a different read site than the #4750 S1 batch's
+code-call-materialization reducer handlers, but the same open-container,
+typed-inner-key contract applies regardless of which package decodes the
+key. Every multi-value field in this batch (`dependencies`, `source_repos`,
+`generator_source_repos`, ...) is a comma-joined CSV string on the wire, not
+a JSON array — both the HCL and YAML parsers always emit these fields
+pre-joined, and the CSV split (`csvValues`/`tupleCSVValues`) stays business
+logic in `go/internal/relationships`, not the payload contract, so the
+typed field is a plain `string`, matching the wire shape exactly.
+
 Typing an inner key here adds a struct + accessor, NOT a new fact kind: these
 structs have no `payloadContracts` row, no `schema/` artifact, and no schemagen
 entry (they are not envelopes), so they do not change the `file.v1.schema.json`

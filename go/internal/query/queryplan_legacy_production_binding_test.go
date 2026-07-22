@@ -140,6 +140,8 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 	if len(sourceToolQueries) != 2 {
 		t.Fatalf("source-tool query count = %d, want 2", len(sourceToolQueries))
 	}
+	codeownersOwnershipList, _ := codeownersOwnershipCypher("proof-repository", -1, "", "", 51)
+	codeownersLastMatchOwner, _ := codeownersLastMatchOwnerCypher("proof-repository")
 	return map[string]string{
 		"QP-SC-DEPS":                                      forwardDependenciesCypher("proof"),
 		"QP-SC-PKGREG-DEPS":                               packageRegistryDependencies,
@@ -168,6 +170,8 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 			"RETURN head(labels(n)) AS bucket, count(n) AS bucket_count",
 			"RETURN bucket, bucket_count",
 		),
+		"QP-CODEOWNERS-OWNERSHIP-LIST":   codeownersOwnershipList,
+		"QP-CODEOWNERS-LAST-MATCH-OWNER": codeownersLastMatchOwner,
 	}
 }
 

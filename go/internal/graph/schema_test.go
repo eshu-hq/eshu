@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
+//nolint:filelength // Graph schema test suite: crossed 500 lines when the
+// #5419 CodeownerTeam constraint tests and the concurrent #5436
+// KubernetesWorkload lookup-index tests merged. Test files are exempt from the
+// whole-tree cap (scripts/dev/precommit-go.sh); this marker only satisfies the
+// stricter changed-files pre-commit variant.
+
 package graph
 
 import (
@@ -30,6 +36,7 @@ func TestSchemaStatementsContainsExpectedConstraints(t *testing.T) {
 		"CREATE CONSTRAINT parameter_unique IF NOT EXISTS",
 		"CREATE CONSTRAINT platform_id IF NOT EXISTS",
 		"CREATE CONSTRAINT source_local_record_unique IF NOT EXISTS",
+		"CREATE CONSTRAINT codeowner_team_ref IF NOT EXISTS FOR (t:CodeownerTeam) REQUIRE t.ref IS UNIQUE",
 	}
 	for _, want := range expected {
 		found := false
@@ -103,6 +110,7 @@ func TestSchemaStatementsForBackendAddsNornicDBMergeLookupIndexes(t *testing.T) 
 		"CREATE INDEX nornicdb_platform_id_lookup IF NOT EXISTS FOR (p:Platform) ON (p.id)",
 		"CREATE INDEX nornicdb_endpoint_id_lookup IF NOT EXISTS FOR (e:Endpoint) ON (e.id)",
 		"CREATE INDEX nornicdb_evidence_artifact_id_lookup IF NOT EXISTS FOR (a:EvidenceArtifact) ON (a.id)",
+		"CREATE INDEX nornicdb_kubernetes_workload_id_lookup IF NOT EXISTS FOR (w:KubernetesWorkload) ON (w.id)",
 		"CREATE INDEX nornicdb_environment_name_lookup IF NOT EXISTS FOR (e:Environment) ON (e.name)",
 		// SourceLocalRecord and Parameter declare composite UNIQUE constraints
 		// for MERGE performance on Neo4j (schema.go:113-119). NornicDB silently
@@ -115,6 +123,7 @@ func TestSchemaStatementsForBackendAddsNornicDBMergeLookupIndexes(t *testing.T) 
 		// comment calls out as "O(n²)".
 		"CREATE INDEX nornicdb_source_local_record_scope_lookup IF NOT EXISTS FOR (n:SourceLocalRecord) ON (n.scope_id)",
 		"CREATE INDEX nornicdb_parameter_path_lookup IF NOT EXISTS FOR (n:Parameter) ON (n.path)",
+		"CREATE INDEX nornicdb_codeowner_team_ref_lookup IF NOT EXISTS FOR (t:CodeownerTeam) ON (t.ref)", // #5419 Phase 3 DECLARES_CODEOWNER MERGE
 	}
 	for _, want := range expected {
 		assertContainsStatement(t, stmts, want)

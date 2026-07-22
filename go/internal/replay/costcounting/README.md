@@ -17,6 +17,7 @@ graph writer:
 | `code_graph_projection` | `cost_counting_test.go` | `storage/cypher.CanonicalNodeWriter` | `eshu_dp_canonical_atomic_writes_total` |
 | `semantic_entity_materialization` | `semantic_entity_cost_test.go` | `storage/cypher.SemanticEntityWriter` | `eshu_dp_neo4j_batches_executed_total` |
 | `documentation_materialization` | `documentation_edges_cost_test.go` | `storage/cypher.EdgeWriter` | `eshu_dp_shared_edge_write_groups_total` |
+| `codeowners_ownership` | `codeowners_ownership_cost_test.go` | `storage/cypher.EdgeWriter` | `eshu_dp_shared_edge_write_groups_total` |
 | `aws_cloud_runtime_drift` | `aws_cloud_runtime_drift_cost_test.go` | `reducer.PostgresAWSCloudRuntimeDriftWriter` | `eshu_dp_postgres_query_duration_seconds` (observation count) |
 | `ec2_instance_node_materialization` | `ec2_instance_node_cost_test.go` | `storage/cypher.EC2InstanceNodeWriter` | `eshu_dp_neo4j_batches_executed_total` |
 | `rds_posture_materialization` | `rds_posture_cost_test.go` | `storage/cypher.RDSPostureNodeWriter` | `eshu_dp_neo4j_batches_executed_total` |

@@ -140,10 +140,11 @@ func newRouterWithSemanticEmbedding(
 			HybridRanker: newContentHybridRanker(semanticSearchEmbedding),
 		},
 		Infra: &query.InfraHandler{
-			Neo4j:       neo4jReader,
-			Aggregates:  query.NewGraphInfraResourceAggregateStore(neo4jReader),
-			Profile:     queryProfile,
-			Instruments: instruments,
+			Neo4j:          neo4jReader,
+			Aggregates:     query.NewGraphInfraResourceAggregateStore(neo4jReader),
+			CloudResources: query.NewPostgresCloudResourceListStore(db),
+			Profile:        queryProfile,
+			Instruments:    instruments,
 		},
 		GraphEntityInventory: &query.GraphEntityInventoryHandler{
 			Neo4j:   neo4jReader,
@@ -204,6 +205,12 @@ func newRouterWithSemanticEmbedding(
 			Neo4j:       neo4jReader,
 			Profile:     queryProfile,
 			Instruments: instruments,
+		},
+		CodeownersOwnership: &query.CodeownersOwnershipHandler{
+			Neo4j:        neo4jReader,
+			Correlations: query.NewPostgresServiceCatalogCorrelationStore(db),
+			Profile:      queryProfile,
+			Instruments:  instruments,
 		},
 		CICD:                  newCICDHandler(db, contentReader, queryProfile),
 		ServiceCatalog:        newServiceCatalogHandler(db, contentReader, queryProfile),

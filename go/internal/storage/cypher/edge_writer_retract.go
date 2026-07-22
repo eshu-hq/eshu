@@ -114,6 +114,16 @@ func (w *EdgeWriter) RetractEdges(
 	if domain == reducer.DomainRepoDependency {
 		return w.executeRepoDependencyRetractStatements(ctx, repoIDs, evidenceSource)
 	}
+	if domain == reducer.DomainCodeownersOwnershipEdges {
+		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
+		if err != nil {
+			return err
+		}
+		if hasDeltaScope {
+			stmt := BuildRetractCodeownersOwnershipEdgesByFilePath(repoIDs, filePaths, evidenceSource)
+			return WrapRetryableNeo4jError(w.executor.Execute(ctx, stmt))
+		}
+	}
 
 	stmt, err := buildRetractStatement(domain, repoIDs, evidenceSource)
 	if err != nil {
@@ -234,6 +244,8 @@ func buildRetractStatement(
 				"evidence_source": evidenceSource,
 			},
 		}, nil
+	case reducer.DomainCodeownersOwnershipEdges:
+		return BuildRetractCodeownersOwnershipEdges(repoIDs, evidenceSource), nil
 	default:
 		return Statement{}, fmt.Errorf("unsupported domain for retract: %q", domain)
 	}

@@ -36,6 +36,10 @@ const (
 	Contains EdgeType = "CONTAINS"
 	// CorrelatesDeployableUnit is the "CORRELATES_DEPLOYABLE_UNIT" graph relationship type.
 	CorrelatesDeployableUnit EdgeType = "CORRELATES_DEPLOYABLE_UNIT"
+	// DeclaresCodeowner is the "DECLARES_CODEOWNER" graph relationship type (a
+	// Repository to the CodeownerTeam a CODEOWNERS rule pattern names as
+	// owner, issue #5419 Phase 3).
+	DeclaresCodeowner EdgeType = "DECLARES_CODEOWNER"
 	// DeclaresDependency is the "DECLARES_DEPENDENCY" graph relationship type.
 	DeclaresDependency EdgeType = "DECLARES_DEPENDENCY"
 	// Defines is the "DEFINES" graph relationship type.
@@ -190,7 +194,7 @@ const (
 var registered = []EdgeType{
 	Aliases, AllowsEgress, AllowsIngress, AtlantisDependsOn, Calls,
 	CanAssume, CanEscalateTo, CanPerform, Contains,
-	CorrelatesDeployableUnit, DeclaresDependency, Defines, DefinesJob, DependsOn,
+	CorrelatesDeployableUnit, DeclaresCodeowner, DeclaresDependency, Defines, DefinesJob, DependsOn,
 	DependsOnPackage, DeploymentSource, DeploysFrom, DiscoversConfigIn,
 	Documents, EvidencesRepositoryRelationship, Executes, ExecutesShell,
 	Explains, ExposesEndpoint, GrantsAccessTo, HandlesRoute,

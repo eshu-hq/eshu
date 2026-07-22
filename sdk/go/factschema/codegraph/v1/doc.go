@@ -33,17 +33,24 @@
 // "must be a JSON object" guarantee with no extra code here.
 //
 // Specific INNER keys of ParsedFileData are typed incrementally, key by key, as
-// the code-graph-core reducer read sites migrate off raw map lookups (issue
-// #4750). The typed inner structs live in parsed_file_data.go and are decoded on
-// demand through the parent module's DecodeParsedFileData* accessors
-// (decode_parsed_file_data.go); the container itself stays open so a key that is
-// not yet typed is still read raw exactly as before. S1 (issue #4750) types the
-// five closed-shape, single-producer keys — gomod_state, function_calls_scip,
-// dockerfile_stages, pipeline_calls, dead_code_file_root_kinds. The wide
-// per-language AST buckets (imports, functions, function_calls, classes,
-// variables, framework_semantics), whose element shape is a union of many
-// per-language field sets, are deferred to later #4750 increments and continue
-// to be read as untyped map slices until then.
+// consuming read sites migrate off raw map lookups (issue #4750, extended by
+// issue #5445's extraction-surface contract). The typed inner structs live in
+// parsed_file_data.go / parsed_file_data_terraform.go /
+// parsed_file_data_gitops.go and are decoded on demand through the parent
+// module's DecodeParsedFileData* accessors (decode_parsed_file_data.go and
+// its per-source siblings); the container itself stays open so a key that is
+// not yet typed is still read raw exactly as before. S1 (issue #4750) types
+// the five closed-shape, single-producer keys — gomod_state,
+// function_calls_scip, dockerfile_stages, pipeline_calls,
+// dead_code_file_root_kinds. Issue #5440 added image_overrides. Issue #5445
+// slice 1 added eight more IaC-evidence keys consumed by
+// go/internal/relationships: terraform_modules, terragrunt_dependencies,
+// terragrunt_configs, helm_charts, helm_values, argocd_applications,
+// argocd_applicationsets, and flux_git_repositories. The wide per-language AST
+// buckets (imports, functions, function_calls, classes, variables,
+// framework_semantics), whose element shape is a union of many per-language
+// field sets, are deferred to later increments and continue to be read as
+// untyped map slices until then.
 //
 // Each struct's required fields are non-pointer with no omitempty tag; the
 // decode seam rejects a payload that omits one, or supplies an explicit JSON

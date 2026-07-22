@@ -24,8 +24,33 @@ type SchemaApplication struct {
 }
 
 const (
-	graphSchemaNeo4jFingerprint    = "ad2a8291d1aa3766839c46d708f3641a1ec7c6fc0d2126de1c901f5b1997ebd7"
-	graphSchemaNornicDBFingerprint = "9b67c40d329b0309bb1247cf86c1f0574f9ddf31b8e6ab47de9416e960af0b70"
+	// graphSchemaNeo4jFingerprint and graphSchemaNornicDBFingerprint are the
+	// current schema digests for the merged schema (both the CodeownerTeam.ref
+	// constraint/index from #5419 and the KubernetesWorkload.id lookup index
+	// from #5436 present). The KubernetesWorkload.id lookup index is
+	// NornicDB-only, so the Neo4j digest is unchanged from #5419's value; the
+	// NornicDB digest reflects both additions.
+	graphSchemaNeo4jFingerprint    = "f69cb50986b83d379d7372b4ea9bcbc488d93b2b520d2dd8f67aea91ee381baf"
+	graphSchemaNornicDBFingerprint = "be6a2e36e20dd5b234332c39e723e11f3374990191f62d7fa5e514487720d1c7"
+
+	// graphSchemaNeo4jPreCodeownersOwnershipFingerprint and its NornicDB peer
+	// are the schema fingerprints immediately before the CodeownerTeam.ref
+	// uniqueness constraint and NornicDB lookup index were added (issue #5419
+	// Phase 3, the DECLARES_CODEOWNER edge target). The bump is additive: a
+	// writer running the predecessor schema creates no CodeownerTeam nodes, so
+	// the new constraint never applies to it.
+	graphSchemaNeo4jPreCodeownersOwnershipFingerprint    = "ad2a8291d1aa3766839c46d708f3641a1ec7c6fc0d2126de1c901f5b1997ebd7"
+	graphSchemaNornicDBPreCodeownersOwnershipFingerprint = "9b67c40d329b0309bb1247cf86c1f0574f9ddf31b8e6ab47de9416e960af0b70"
+
+	// graphSchemaNornicDBPreKubernetesWorkloadIDLookupFingerprint is the schema
+	// fingerprint immediately before the NornicDB-only KubernetesWorkload.id
+	// lookup index was added (#5436), giving the RUNS_IMAGE edge read path a
+	// seek-consistent anchor to match the other by-id-anchored labels
+	// analyze_infra_relationships serves. The bump is additive and NornicDB-only
+	// (Neo4j's fingerprint is unaffected): older writers do not rely on the
+	// index being absent, and newer writers only gain a faster
+	// KubernetesWorkload lookup instead of falling back to a label scan.
+	graphSchemaNornicDBPreKubernetesWorkloadIDLookupFingerprint = "9b67c40d329b0309bb1247cf86c1f0574f9ddf31b8e6ab47de9416e960af0b70"
 
 	// graphSchemaNeo4jPreFluxHelmEntitiesFingerprint and its NornicDB peer are
 	// the schema fingerprints immediately before the FluxHelmRelease /
@@ -125,6 +150,7 @@ const (
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
 		graphSchemaNeo4jFingerprint: {
+			graphSchemaNeo4jPreCodeownersOwnershipFingerprint,
 			graphSchemaNeo4jPreFluxHelmEntitiesFingerprint,
 			graphSchemaNeo4jPreFluxTypedEntitiesFingerprint,
 			graphSchemaNeo4jPreSqlMigrationFingerprint,
@@ -137,6 +163,8 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	},
 	SchemaBackendNornicDB: {
 		graphSchemaNornicDBFingerprint: {
+			graphSchemaNornicDBPreCodeownersOwnershipFingerprint,
+			graphSchemaNornicDBPreKubernetesWorkloadIDLookupFingerprint,
 			graphSchemaNornicDBPreFluxHelmEntitiesFingerprint,
 			graphSchemaNornicDBPreFluxTypedEntitiesFingerprint,
 			graphSchemaNornicDBPreSqlMigrationFingerprint,

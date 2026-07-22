@@ -147,6 +147,7 @@ var spanNames = []string{
 	SpanQueryPackageRegistryVersions,
 	SpanQueryPackageRegistryDependencies,
 	SpanQueryDependencies,
+	SpanQueryCodeownersOwnership,
 	SpanTerraformStateClaimProcess,
 	SpanTerraformStateDiscoveryResolve,
 	SpanTerraformStateSourceOpen,

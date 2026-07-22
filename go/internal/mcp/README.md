@@ -131,7 +131,7 @@ dispatch observability surface.
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 157 tools from the tool definition files.
+`ReadOnlyTools` assembles 160 tools from the tool definition files.
 `ReadOnlyTools()` (and the `Verify ReadOnlyTools count` gate) is the authoritative
 count; the per-group table below lists the major static groups for orientation
 and is not an exhaustive enumeration (some groups — e.g. reachability and ask —
@@ -152,6 +152,7 @@ are assembled dynamically and are not broken out here).
 | `cicdTools` | 1 | `tools_cicd.go` |
 | `cicdRunCorrelationAggregateTools` | 2 | `tools_cicd_aggregates.go` |
 | `serviceCatalogTools` | 1 | `tools_service_catalog.go` |
+| `codeownersTools` | 1 | `tools_codeowners.go` |
 | `kubernetesTools` | 1 | `tools_kubernetes.go` |
 | `secretsIAMTools` | 5 | `tools_secrets_iam.go` |
 | `observabilityCoverageTools` | 1 | `tools_observability_coverage.go` |
@@ -211,6 +212,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_package_registry_correlations` | GET | `/api/v0/package-registry/correlations` |
 | `list_ci_cd_run_correlations` | GET | `/api/v0/ci-cd/run-correlations` |
 | `list_service_catalog_correlations` | GET | `/api/v0/service-catalog/correlations` |
+| `list_codeowners_ownership` | GET | `/api/v0/codeowners/ownership` |
 | `list_kubernetes_correlations` | GET | `/api/v0/kubernetes/correlations` |
 | `list_secrets_iam_identity_trust_chains` | GET | `/api/v0/secrets-iam/identity-trust-chains` |
 | `list_secrets_iam_privilege_posture_observations` | GET | `/api/v0/secrets-iam/privilege-posture-observations` |

@@ -102,6 +102,12 @@ var schemaConstraints = []string{
 	// is an O(1) lookup rather than a CloudAction label scan per row.
 	"CREATE CONSTRAINT cloud_action_id IF NOT EXISTS FOR (a:CloudAction) REQUIRE a.id IS UNIQUE",
 
+	// Codeowners team identity — the owner token a CODEOWNERS rule names
+	// verbatim (issue #5419 Phase 3). Keyed by ref so the inline
+	// DECLARES_CODEOWNER MERGE is an O(1) lookup rather than a CodeownerTeam
+	// label scan per row.
+	"CREATE CONSTRAINT codeowner_team_ref IF NOT EXISTS FOR (t:CodeownerTeam) REQUIRE t.ref IS UNIQUE",
+
 	// Platform identity
 	"CREATE CONSTRAINT platform_id IF NOT EXISTS FOR (p:Platform) REQUIRE p.id IS UNIQUE",
 
@@ -355,7 +361,15 @@ var nornicDBMergeLookupIndexes = []string{
 	"CREATE INDEX nornicdb_platform_id_lookup IF NOT EXISTS FOR (p:Platform) ON (p.id)",
 	"CREATE INDEX nornicdb_endpoint_id_lookup IF NOT EXISTS FOR (e:Endpoint) ON (e.id)",
 	"CREATE INDEX nornicdb_cloud_action_id_lookup IF NOT EXISTS FOR (a:CloudAction) ON (a.id)",
+	"CREATE INDEX nornicdb_codeowner_team_ref_lookup IF NOT EXISTS FOR (t:CodeownerTeam) ON (t.ref)",
 	"CREATE INDEX nornicdb_evidence_artifact_id_lookup IF NOT EXISTS FOR (a:EvidenceArtifact) ON (a.id)",
+	// KubernetesWorkload has a cluster_id/namespace index pair above but no
+	// .id-property index, unlike the other by-id-anchored labels this handler
+	// serves. The kubernetes_workload_node_writer sets w.id = row.uid (the live
+	// object identity), and analyze_infra_relationships/getRelationships anchors
+	// its MATCH on n.id; without this index that anchor falls back to a
+	// KubernetesWorkload label scan (#5436).
+	"CREATE INDEX nornicdb_kubernetes_workload_id_lookup IF NOT EXISTS FOR (w:KubernetesWorkload) ON (w.id)",
 	"CREATE INDEX nornicdb_environment_name_lookup IF NOT EXISTS FOR (e:Environment) ON (e.name)",
 	"CREATE INDEX nornicdb_source_local_record_scope_lookup IF NOT EXISTS FOR (n:SourceLocalRecord) ON (n.scope_id)",
 	"CREATE INDEX nornicdb_parameter_path_lookup IF NOT EXISTS FOR (n:Parameter) ON (n.path)",

@@ -1,0 +1,4 @@
+-- #5563: keep account-filtered CloudResource pages index ordered.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS graph_node_owner_cloud_resource_account_page_idx
+    ON graph_node_owner (((winning_row->>'account_id')), ((winning_row->>'resource_type')), uid)
+    WHERE winning_row->>'resource_type' IS NOT NULL;

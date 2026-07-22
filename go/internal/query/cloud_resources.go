@@ -6,7 +6,6 @@ package query
 import (
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -87,7 +86,7 @@ func (h *InfraHandler) listCloudResources(w http.ResponseWriter, r *http.Request
 		)
 		return
 	}
-	if h.Neo4j == nil {
+	if h.Neo4j == nil || h.CloudResources == nil {
 		WriteContractError(
 			w,
 			r,
@@ -106,29 +105,76 @@ func (h *InfraHandler) listCloudResources(w http.ResponseWriter, r *http.Request
 		return
 	}
 	filter := cloudResourceListFilterFromRequest(r)
-	cursor := cloudResourceListCursorFromRequest(r)
-
-	cypher, params := buildCloudResourceListQuery(filter, cursor, limit+1)
-
-	start := time.Now()
-	rows, err := h.Neo4j.Run(r.Context(), cypher, params)
-	if err != nil {
-		recordCloudResourceList(r.Context(), start, true)
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+	cursor, ok := parseCloudResourceListCursor(w, r)
+	if !ok {
 		return
 	}
-	recordCloudResourceList(r.Context(), start, false)
+	start := time.Now()
+	access := repositoryAccessFilterFromContext(r.Context())
+	if access.empty() {
+		recordCloudResourceList(r.Context(), start, 0, 0, false, "ok")
+		writeCloudResourceListResponse(w, r, h.profile(), filter, limit, nil, false)
+		return
+	}
 
-	truncated := len(rows) > limit
+	identities, err := h.CloudResources.ListCloudResourceIdentities(r.Context(), CloudResourceListPageFilter{
+		Provider:             filter.Provider,
+		ResourceType:         filter.ResourceType,
+		Region:               filter.Region,
+		AccountID:            filter.AccountID,
+		AfterResourceType:    cursor.AfterResourceType,
+		AfterID:              cursor.AfterID,
+		Limit:                limit + 1,
+		AllScopes:            !access.scoped(),
+		AllowedRepositoryIDs: access.grantedRepositoryIDs(),
+		AllowedScopeIDs:      access.grantedScopeIDs(),
+	})
+	if err != nil {
+		recordCloudResourceList(r.Context(), start, 0, 0, false, "store_error")
+		WriteError(w, http.StatusInternalServerError, "cloud resource page selection failed")
+		return
+	}
+
+	selectedRows := len(identities)
+	truncated := len(identities) > limit
 	if truncated {
-		rows = rows[:limit]
+		identities = identities[:limit]
+	}
+	if len(identities) == 0 {
+		recordCloudResourceList(r.Context(), start, selectedRows, 0, truncated, "ok")
+		writeCloudResourceListResponse(w, r, h.profile(), filter, limit, nil, truncated)
+		return
 	}
 
-	results := make([]CloudResourceRow, 0, len(rows))
-	for _, row := range rows {
-		results = append(results, cloudResourceRowFromGraph(row))
+	cypher, params := buildCloudResourceHydrationQuery(identities)
+	rows, err := h.Neo4j.Run(r.Context(), cypher, params)
+	if err != nil {
+		recordCloudResourceList(r.Context(), start, selectedRows, 0, truncated, "graph_error")
+		WriteError(w, http.StatusInternalServerError, "cloud resource graph hydration failed")
+		return
 	}
+	results, err := hydrateCloudResourcePage(identities, rows)
+	if err != nil {
+		recordCloudResourceList(r.Context(), start, selectedRows, 0, truncated, "parity_error")
+		WriteError(w, http.StatusInternalServerError, "cloud resource graph projection is inconsistent")
+		return
+	}
+	recordCloudResourceList(r.Context(), start, selectedRows, len(results), truncated, "ok")
+	writeCloudResourceListResponse(w, r, h.profile(), filter, limit, results, truncated)
+}
 
+func writeCloudResourceListResponse(
+	w http.ResponseWriter,
+	r *http.Request,
+	profile QueryProfile,
+	filter cloudResourceListFilter,
+	limit int,
+	results []CloudResourceRow,
+	truncated bool,
+) {
+	if results == nil {
+		results = []CloudResourceRow{}
+	}
 	body := map[string]any{
 		"resources": results,
 		"count":     len(results),
@@ -145,54 +191,25 @@ func (h *InfraHandler) listCloudResources(w http.ResponseWriter, r *http.Request
 	}
 
 	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
-		h.profile(),
+		profile,
 		cloudResourceListCapability,
 		TruthBasisAuthoritativeGraph,
-		"resolved from the authoritative cloud resource graph; ordered by resource_type then id, keyset-paged",
+		"authorized and keyset-paged from the current graph owner ledger, then hydrated from the authoritative cloud resource graph",
 	))
 }
 
-// buildCloudResourceListQuery assembles the bounded Cypher list query and its
-// parameters. The query anchors on the CloudResource label, applies optional
-// equality filters and the keyset cursor predicate as bound parameters, orders
-// deterministically by resource_type then id, and returns a narrow projection.
-// resource_type and arn are indexed; id is unique, so the keyset resume stays
-// selective.
-func buildCloudResourceListQuery(filter cloudResourceListFilter, cursor cloudResourceListCursor, fetchLimit int) (string, map[string]any) {
-	params := map[string]any{"limit": fetchLimit}
-	var conditions []string
-
-	if filter.Provider != "" {
-		conditions = append(conditions, "n.collector_kind = $provider")
-		params["provider"] = filter.Provider
+// buildCloudResourceHydrationQuery fetches only the page identities already
+// selected, authorized, filtered, and ordered by Postgres.
+func buildCloudResourceHydrationQuery(identities []CloudResourceListIdentity) (string, map[string]any) {
+	uids := make([]string, 0, len(identities))
+	for _, identity := range identities {
+		uids = append(uids, identity.UID)
 	}
-	if filter.ResourceType != "" {
-		conditions = append(conditions, "n.resource_type = $resource_type")
-		params["resource_type"] = filter.ResourceType
-	}
-	if filter.Region != "" {
-		conditions = append(conditions, "n.region = $region")
-		params["region"] = filter.Region
-	}
-	if filter.AccountID != "" {
-		conditions = append(conditions, "n.account_id = $account_id")
-		params["account_id"] = filter.AccountID
-	}
-	if cursor.AfterID != "" {
-		conditions = append(conditions,
-			"(n.resource_type > $after_resource_type OR (n.resource_type = $after_resource_type AND n.id > $after_id))")
-		params["after_resource_type"] = cursor.AfterResourceType
-		params["after_id"] = cursor.AfterID
-	}
-
-	var where string
-	if len(conditions) > 0 {
-		where = "WHERE " + strings.Join(conditions, " AND ") + "\n"
-	}
-
-	cypher := fmt.Sprintf(`
+	cypher := `
 		MATCH (n:CloudResource)
-		%sRETURN n.id AS id,
+		WHERE n.uid IN $uids
+		RETURN n.uid AS uid,
+		       n.id AS id,
 		       n.resource_type AS resource_type,
 		       n.name AS name,
 		       n.collector_kind AS provider,
@@ -201,10 +218,49 @@ func buildCloudResourceListQuery(filter cloudResourceListFilter, cursor cloudRes
 		       n.arn AS arn,
 		       n.service_name AS service_name,
 		       n.state AS state
-		ORDER BY n.resource_type, n.id
-		LIMIT $limit
-	`, where)
-	return cypher, params
+	`
+	return cypher, map[string]any{"uids": uids}
+}
+
+func hydrateCloudResourcePage(
+	identities []CloudResourceListIdentity,
+	rows []map[string]any,
+) ([]CloudResourceRow, error) {
+	want := make(map[string]CloudResourceListIdentity, len(identities))
+	for _, identity := range identities {
+		if identity.UID == "" || identity.ResourceType == "" {
+			return nil, fmt.Errorf("invalid owner-ledger identity")
+		}
+		if _, duplicate := want[identity.UID]; duplicate {
+			return nil, fmt.Errorf("duplicate owner-ledger identity")
+		}
+		want[identity.UID] = identity
+	}
+	byUID := make(map[string]CloudResourceRow, len(rows))
+	for _, graphRow := range rows {
+		uid := StringVal(graphRow, "uid")
+		identity, expected := want[uid]
+		if !expected {
+			return nil, fmt.Errorf("unexpected graph identity")
+		}
+		if _, duplicate := byUID[uid]; duplicate {
+			return nil, fmt.Errorf("duplicate graph identity")
+		}
+		row := cloudResourceRowFromGraph(graphRow)
+		if row.ID != uid || row.ResourceType != identity.ResourceType {
+			return nil, fmt.Errorf("graph identity differs from owner ledger")
+		}
+		byUID[uid] = row
+	}
+	results := make([]CloudResourceRow, 0, len(identities))
+	for _, identity := range identities {
+		row, ok := byUID[identity.UID]
+		if !ok {
+			return nil, fmt.Errorf("graph identity is missing")
+		}
+		results = append(results, row)
+	}
+	return results, nil
 }
 
 // cloudResourceRowFromGraph converts a graph result row into the wire shape.

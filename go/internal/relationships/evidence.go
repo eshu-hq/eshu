@@ -110,8 +110,17 @@ func discoverFromEnvelopeWithIndex(
 	// content_path/content_body, etc.); route through the decode seam once the
 	// content family lands in sdk/go/factschema.
 	artifactType, _ := envelope.Payload["artifact_type"].(string)
-	// TODO(#4799 W2f): route parsed_file_data reads through the typed decode seam
-	// (codegraphv1.File.ParsedFileData via factschema.DecodeCodegraphFile).
+	// This raw read of parsed_file_data itself is DELIBERATE, not a pending
+	// migration (issue #5445 slice 1 review): routing it through
+	// factschema.DecodeCodegraphFile would newly impose the "file" fact
+	// kind's required-field dead-lettering (repo_id, relative_path,
+	// parsed_file_data) on a pipeline that today tolerates a missing or
+	// malformed parsed_file_data by producing no structured evidence -- a
+	// much bigger behavior change than typing the INNER keys warrants. The
+	// inner keys this map feeds ARE typed: discoverStructuredTerraformEvidence,
+	// discoverStructuredHelmEvidence, discoverStructuredArgoCDEvidence, and
+	// discoverStructuredFluxEvidence below each decode their own bucket
+	// through a factschema.DecodeParsedFileData* accessor.
 	parsedFileData, _ := envelope.Payload["parsed_file_data"].(map[string]any)
 	sourceRepoID, filePath, content := envelopeContentIdentity(envelope)
 	commitSHA := envelopeCommitSHA(envelope.Payload)
@@ -330,11 +339,6 @@ func extractYAMLStringValues(content string) []string {
 		values = append(values, val)
 	}
 	return values
-}
-
-func payloadString(payload map[string]any, key string) string {
-	value, _ := payload[key].(string)
-	return value
 }
 
 // isHelmArtifact checks if a file is a Helm chart file.

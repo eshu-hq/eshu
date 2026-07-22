@@ -1,0 +1,6 @@
+# Golden-corpus CODEOWNERS fixture (issue #5419 Phase 5). Gives the
+# go_comprehensive repo at least one real DECLARES_CODEOWNER edge so the B-7
+# golden-corpus gate can assert non-vacuous codeowners ownership truth instead
+# of the Phase 4 structural (minimum_results: 0) placeholder.
+*.go @eshu-hq/platform
+/docs/ @eshu-hq/docs

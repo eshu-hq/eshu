@@ -129,10 +129,11 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			HybridRanker: newContentHybridRanker(semanticSearchEmbedding),
 		},
 		Infra: &query.InfraHandler{
-			Neo4j:       neo4jReader,
-			Aggregates:  query.NewGraphInfraResourceAggregateStore(neo4jReader),
-			Profile:     queryProfile,
-			Instruments: instruments,
+			Neo4j:          neo4jReader,
+			Aggregates:     query.NewGraphInfraResourceAggregateStore(neo4jReader),
+			CloudResources: query.NewPostgresCloudResourceListStore(db),
+			Profile:        queryProfile,
+			Instruments:    instruments,
 		},
 		IaC: newMCPQueryIaCHandler(db, contentReader, neo4jReader, queryProfile),
 		Impact: &query.ImpactHandler{
@@ -176,6 +177,16 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			Aggregates:         query.NewGraphPackageRegistryAggregateStore(neo4jReader),
 			CollectorReadiness: query.NewPostgresCollectorListReadinessStore(db),
 			Profile:            queryProfile,
+		},
+		// CodeownersOwnership backs the list_codeowners_ownership MCP tool
+		// (issue #5419 Phase 4c). It must be wired here (mirroring
+		// cmd/api/wiring_router.go) or the advertised tool re-dispatches into a
+		// nil handler on the standalone MCP server.
+		CodeownersOwnership: &query.CodeownersOwnershipHandler{
+			Neo4j:        neo4jReader,
+			Correlations: query.NewPostgresServiceCatalogCorrelationStore(db),
+			Profile:      queryProfile,
+			Instruments:  instruments,
 		},
 		CICD: &query.CICDHandler{
 			Content:            contentReader,

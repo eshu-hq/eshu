@@ -307,6 +307,11 @@ module prefixes across generations.
 | `Neo4jQueryDuration` | `eshu_dp_neo4j_query_duration_seconds` | 0.001–10 s |
 | `IaCResourceListDuration` | `eshu_dp_iac_resource_list_duration_seconds` | 0.001–5 s |
 | `IaCResourceListErrors` | `eshu_dp_iac_resource_list_errors_total` (Int64) | counter |
+| `CloudResourceListDuration` | `eshu_dp_cloud_resource_list_duration_seconds` | 0.001–10 s |
+| `CloudResourceListErrors` | `eshu_dp_cloud_resource_list_errors_total` (Int64) | counter |
+| `CloudResourceListScannedRows` | `eshu_dp_cloud_resource_list_scanned_rows` (Int64) | 0–201 logical owner-ledger candidates |
+| `CloudResourceListPageSize` | `eshu_dp_cloud_resource_list_page_size` (Int64) | 0–201 resources |
+| `CloudResourceListTruncations` | `eshu_dp_cloud_resource_list_truncations_total` (Int64) | counter |
 | `APIRequestDuration` | `eshu_dp_api_request_duration_seconds` (labels: `route`, `status_class`) | 0.001–10 s |
 | `APIRequestErrors` | `eshu_dp_api_request_errors_total` (Int64; labels: `route`, `status_class`) | counter |
 | `RelationshipBreakdownPermitWaitDuration` | `eshu_dp_relationship_breakdown_permit_wait_seconds` | 0–30 s; no labels |

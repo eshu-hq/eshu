@@ -27,6 +27,13 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if r.Method == http.MethodGet && r.URL.Path == "/api/v0/repositories" {
 		return true
 	}
+	// #5419 Phase 4b: GET /api/v0/codeowners/ownership now gates both its read
+	// paths (the DECLARES_CODEOWNER graph and the service-catalog correlation
+	// store used by resolveEffectiveRepositoryOwner) on the caller's grant --
+	// see writeEmptyCodeownersOwnership in codeowners_ownership.go.
+	if r.Method == http.MethodGet && r.URL.Path == "/api/v0/codeowners/ownership" {
+		return true
+	}
 	// Single-repository {repo_id} routes are matched against the ESCAPED path,
 	// not r.URL.Path. The MCP dispatchers build the path with url.PathEscape
 	// (go/internal/mcp/dispatch_repositories.go), so an org/repo-style selector

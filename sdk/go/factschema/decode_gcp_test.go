@@ -121,6 +121,11 @@ var intentionalRequiredCollections = map[requiredCollectionKey]struct{}{
 	// File with a nil parser payload the code-graph-core reducer handlers
 	// would then silently skip.
 	{FactKindCodegraphFile, "parsed_file_data"}: {},
+	// codeowners.ownership.owners: a CODEOWNERS pattern line with zero owner
+	// tokens carries no ownership claim at all, so the collector never emits
+	// an Ownership fact for one (codeowners/v1/ownership.go doc comment).
+	// Issue #5419 Phase 1.
+	{FactKindCodeownersOwnership, "owners"}: {},
 	// reducer_supply_chain_impact_finding collection keys are emitted
 	// unconditionally by PostgresSupplyChainImpactWriter. Empty collections are
 	// encoded as [] rather than null, so an absent key indicates a malformed

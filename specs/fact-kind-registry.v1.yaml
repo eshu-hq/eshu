@@ -444,6 +444,33 @@ families:
       service_catalog.repository_link: "sdk/go/factschema/schema/service_catalog.repository_link.v1.schema.json"
       service_catalog.operational_link: "sdk/go/factschema/schema/service_catalog.operational_link.v1.schema.json"
     kinds: [service_catalog.api_link, service_catalog.dependency, service_catalog.entity, service_catalog.operational_link, service_catalog.ownership, service_catalog.repository_link, service_catalog.scorecard_definition, service_catalog.scorecard_result, service_catalog.warning]
+  codeowners:
+    lifecycle_owner: go/internal/facts
+    schema_version: "1.0.0"
+    reducer_domain: codeowners_ownership
+    projection_hook: codeowners_ownership
+    admission_hook: facts.ValidateSchemaVersion
+    # Issue #5419 Phase 4 (branch-aware CODEOWNERS ingestion, epic #5415) wired
+    # the live read surface: GET /api/v0/codeowners/ownership
+    # (go/internal/query/codeowners_ownership.go) reads the Phase 3
+    # DECLARES_CODEOWNER graph edges and resolves an effective_owner via
+    # manifest-vs-codeowners precedence. TestFactKindRegistryReadSurfacesResolveToLiveRoutes
+    # (go/internal/mcp/read_surface_consumer_existence_test.go) checks this
+    # literal against the live, implemented API route inventory.
+    read_surface: "GET /api/v0/codeowners/ownership"
+    truth_profile: deterministic
+    provider_key_independent: true
+    # payload_schema_overrides is set even though no decode-side consumer
+    # exists yet (unlike the service_catalog convention above): the consumer
+    # (a reducer or query handler calling factschema.DecodeCodeownersOwnership)
+    # lands in Phase 3 of this same issue (#5419), in a later change. This
+    # struct/schema/fixture-pack landed in Phase 1 so Phase 3 has a validated
+    # seam ready, mirroring how service_catalog.operational_link and several
+    # other kinds across this registry are typed ahead of their read-path
+    # consumer.
+    payload_schema_overrides:
+      codeowners.ownership: "sdk/go/factschema/schema/codeowners.ownership.v1.schema.json"
+    kinds: [codeowners.ownership]
   terraform_state:
     lifecycle_owner: go/internal/facts
     schema_version: "1.0.0"

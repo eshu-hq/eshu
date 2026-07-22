@@ -39,20 +39,30 @@ func cloudResourceListFilterFromRequest(r *http.Request) cloudResourceListFilter
 	}
 }
 
-// cloudResourceListCursorFromRequest extracts the keyset continuation anchor.
-// Both halves must be present for the cursor predicate to apply; a lone
-// after_resource_type without after_id is treated as no cursor so the query
-// cannot silently drop the first page.
-func cloudResourceListCursorFromRequest(r *http.Request) cloudResourceListCursor {
+// parseCloudResourceListCursor extracts and validates the keyset continuation
+// anchor. Both parameters are required together; rejecting a partial cursor
+// avoids silently restarting at the first page.
+func parseCloudResourceListCursor(w http.ResponseWriter, r *http.Request) (cloudResourceListCursor, bool) {
+	values := r.URL.Query()
+	hasResourceType := values.Has("after_resource_type")
+	hasID := values.Has("after_id")
+	if hasResourceType != hasID {
+		WriteError(w, http.StatusBadRequest, "after_resource_type and after_id must be provided together")
+		return cloudResourceListCursor{}, false
+	}
+	if !hasResourceType {
+		return cloudResourceListCursor{}, true
+	}
 	afterResourceType := strings.TrimSpace(QueryParam(r, "after_resource_type"))
 	afterID := strings.TrimSpace(QueryParam(r, "after_id"))
-	if afterResourceType == "" || afterID == "" {
-		return cloudResourceListCursor{}
+	if afterID == "" {
+		WriteError(w, http.StatusBadRequest, "after_id must not be empty")
+		return cloudResourceListCursor{}, false
 	}
 	return cloudResourceListCursor{
 		AfterResourceType: afterResourceType,
 		AfterID:           afterID,
-	}
+	}, true
 }
 
 // cloudResourceListScope echoes the applied filters back to the caller so the

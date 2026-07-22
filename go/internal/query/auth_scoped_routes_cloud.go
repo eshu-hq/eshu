@@ -24,6 +24,7 @@ import (
 func scopedCloudFamilyRoute(r *http.Request) bool {
 	switch {
 	case scopedCloudInventoryRoute(r),
+		scopedCloudResourceListRoute(r),
 		scopedCloudRuntimeDriftFindingsRoute(r),
 		scopedAWSRuntimeDriftFindingsRoute(r),
 		scopedKubernetesCorrelationsRoute(r),
@@ -38,6 +39,14 @@ func scopedCloudFamilyRoute(r *http.Request) bool {
 	default:
 		return false
 	}
+}
+
+// scopedCloudResourceListRoute reports whether the request targets the
+// graph-backed cloud resource browse page. listCloudResources selects only
+// owner-ledger identities whose active source fact is within the caller's
+// repository/scope grant before LIMIT, and short-circuits an empty grant.
+func scopedCloudResourceListRoute(r *http.Request) bool {
+	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/cloud/resources"
 }
 
 // scopedCloudInventoryRoute reports whether the request targets the canonical

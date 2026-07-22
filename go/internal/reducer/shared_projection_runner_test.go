@@ -253,15 +253,16 @@ func TestSharedProjectionDomainsIncludesAllExpected(t *testing.T) {
 	t.Parallel()
 
 	expected := map[string]bool{
-		DomainWorkloadDependency: false,
-		DomainInheritanceEdges:   false,
-		DomainDocumentationEdges: false,
-		DomainRationaleEdges:     false,
-		DomainSQLRelationships:   false,
-		DomainShellExec:          false,
-		DomainHandlesRoute:       false,
-		DomainRunsIn:             false,
-		DomainInvokesCloudAction: false,
+		DomainWorkloadDependency:       false,
+		DomainInheritanceEdges:         false,
+		DomainDocumentationEdges:       false,
+		DomainRationaleEdges:           false,
+		DomainSQLRelationships:         false,
+		DomainShellExec:                false,
+		DomainHandlesRoute:             false,
+		DomainRunsIn:                   false,
+		DomainInvokesCloudAction:       false,
+		DomainCodeownersOwnershipEdges: false,
 	}
 
 	for _, domain := range sharedProjectionDomains {
