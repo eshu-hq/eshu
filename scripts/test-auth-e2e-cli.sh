@@ -97,6 +97,13 @@ rg -Fq 'run: bash scripts/test-auth-e2e-cli.sh' "$frontend_workflow" || {
   exit 1
 }
 
+rg --multiline --multiline-dotall -q \
+  '  auth-sso-e2e:.*?run: scripts/ci/install-apt-packages\.sh ripgrep.*?run: bash scripts/test-auth-e2e-cli\.sh' \
+  "$frontend_workflow" || {
+  echo "test-auth-e2e-cli: auth-sso-e2e does not install ripgrep before the contract test" >&2
+  exit 1
+}
+
 AUTH_E2E_CLI_DIR="$tmp_root/not-owned"
 if auth_e2e_cli_cleanup 2>/dev/null; then
   echo "test-auth-e2e-cli: cleanup accepted a non-owned directory" >&2

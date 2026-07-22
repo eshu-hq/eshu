@@ -198,6 +198,9 @@ jobs:
       - name: Install dependencies (clean, lockfile-pinned)
         run: npm ci
 
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
+
       - name: Verify the auth E2E CLI build contract
         run: bash scripts/test-auth-e2e-cli.sh
 
