@@ -76,6 +76,13 @@ type TerraformConfigStateDriftHandler struct {
 	// drift candidate and every operator-actionable rejection. May be nil;
 	// the handler then drops logs.
 	Logger *slog.Logger
+	// Writer persists admitted per-address findings and ambiguous-owner
+	// rejections as durable reducer facts (issue #5442). May be nil; the
+	// handler then keeps today's counter+log-only behavior and does not
+	// publish a durable read model. Counters and logs remain a parallel
+	// signal to the durable write, not a replacement for it, when Writer is
+	// set.
+	Writer TerraformConfigStateDriftFindingWriter
 }
 
 // Handle executes the drift pipeline for one reducer intent. The handler:
@@ -146,6 +153,7 @@ func (h TerraformConfigStateDriftHandler) Handle(
 			FailureClass: "ambiguous_backend_owner",
 			Reason:       resolveErr.Error(),
 		})
+		h.writeAmbiguousOwner(ctx, intent, backendKind, locatorHash, resolveErr)
 		return Result{
 			IntentID: intent.IntentID,
 			Domain:   intent.Domain,
@@ -182,12 +190,102 @@ func (h TerraformConfigStateDriftHandler) Handle(
 
 	admitted := h.emitTelemetry(ctx, intent, pack, evaluation)
 
+	canonicalWrites := 0
+	if h.Writer != nil {
+		admittedCandidates := admittedDriftCandidates(evaluation)
+		if len(admittedCandidates) > 0 {
+			writeResult, writeErr := h.Writer.WriteTerraformConfigStateDriftFindings(ctx, TerraformConfigStateDriftWrite{
+				IntentID:     intent.IntentID,
+				ScopeID:      intent.ScopeID,
+				GenerationID: intent.GenerationID,
+				SourceSystem: intent.SourceSystem,
+				Cause:        intent.Cause,
+				BackendKind:  backendKind,
+				LocatorHash:  locatorHash,
+				Candidates:   admittedCandidates,
+			})
+			if writeErr != nil {
+				return Result{}, fmt.Errorf("write terraform config state drift findings: %w", writeErr)
+			}
+			canonicalWrites = writeResult.CanonicalWrites
+		}
+	}
+
 	return Result{
 		IntentID:        intent.IntentID,
 		Domain:          intent.Domain,
 		Status:          ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf("drift candidates admitted: %d", admitted),
+		CanonicalWrites: canonicalWrites,
 	}, nil
+}
+
+// admittedDriftCandidates filters the engine evaluation down to admitted
+// candidates in evaluation order (CorrelationKey-sorted; see engine.Evaluate),
+// giving the writer a deterministic input order.
+func admittedDriftCandidates(evaluation engine.Evaluation) []model.Candidate {
+	out := make([]model.Candidate, 0, len(evaluation.Results))
+	for _, result := range evaluation.Results {
+		if result.Candidate.State == model.CandidateStateAdmitted {
+			out = append(out, result.Candidate)
+		}
+	}
+	return out
+}
+
+// writeAmbiguousOwner persists one durable "ambiguous" finding for the whole
+// state-snapshot scope when backend-owner resolution finds more than one
+// candidate config repo. No-op when Writer is nil (counters/logs-only mode)
+// or when resolveErr does not carry the candidate rows (should not happen
+// given the errors.Is(resolveErr, tfstatebackend.ErrAmbiguousBackendOwner)
+// guard at the call site, but the handler must not panic on a future
+// tfstatebackend change that stops wrapping the sentinel with candidates).
+// Write failures are logged, not returned as a Handle() error: the ambiguous
+// case is already a non-fatal, operator-actionable rejection per
+// DriftRejection's contract (Result{Status: Succeeded}), and failing the
+// whole intent over a best-effort durability write would turn an
+// operator-actionable warning into a retry storm.
+func (h TerraformConfigStateDriftHandler) writeAmbiguousOwner(
+	ctx context.Context,
+	intent Intent,
+	backendKind string,
+	locatorHash string,
+	resolveErr error,
+) {
+	if h.Writer == nil {
+		return
+	}
+	var ambiguous *tfstatebackend.AmbiguousBackendOwnerError
+	if !errors.As(resolveErr, &ambiguous) || len(ambiguous.Candidates) == 0 {
+		return
+	}
+	_, writeErr := h.Writer.WriteTerraformConfigStateDriftFindings(ctx, TerraformConfigStateDriftWrite{
+		IntentID:        intent.IntentID,
+		ScopeID:         intent.ScopeID,
+		GenerationID:    intent.GenerationID,
+		SourceSystem:    intent.SourceSystem,
+		Cause:           intent.Cause,
+		BackendKind:     backendKind,
+		LocatorHash:     locatorHash,
+		AmbiguousOwners: ambiguous.Candidates,
+	})
+	if writeErr == nil {
+		return
+	}
+	if h.Instruments != nil && h.Instruments.DriftAmbiguousOwnerWriteFailed != nil {
+		h.Instruments.DriftAmbiguousOwnerWriteFailed.Add(ctx, 1, metric.WithAttributes(
+			attribute.String(telemetry.MetricDimensionPack, rules.TerraformConfigStateDriftPackName),
+		))
+	}
+	if h.Logger != nil {
+		h.Logger.LogAttrs(
+			ctx, slog.LevelWarn, "drift ambiguous owner durable write failed",
+			log.Domain(string(intent.Domain)),
+			log.ScopeID(intent.ScopeID),
+			log.GenerationID(intent.GenerationID),
+			slog.String("write.error", writeErr.Error()),
+		)
+	}
 }
 
 // driftIntentScopePrefix is the canonical state_snapshot scope prefix per

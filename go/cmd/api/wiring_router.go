@@ -158,6 +158,10 @@ func newRouterWithSemanticEmbedding(
 			Store:   query.NewPostgresMultiCloudRuntimeDriftStore(db),
 			Profile: queryProfile,
 		},
+		TerraformConfigStateDrift: &query.TerraformConfigStateDriftHandler{
+			Store:   query.NewPostgresTerraformConfigStateDriftFindingStore(db),
+			Profile: queryProfile,
+		},
 		IaC: &query.IaCHandler{
 			Content:      contentReader,
 			Reachability: query.NewPostgresIaCReachabilityStore(db),

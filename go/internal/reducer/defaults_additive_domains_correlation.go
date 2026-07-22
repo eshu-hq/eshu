@@ -15,6 +15,7 @@ package reducer
 func appendCorrelationCoreAdditiveDomains(definitions []DomainDefinition, handlers DefaultHandlers) []DomainDefinition {
 	if handlers.TerraformBackendResolver != nil &&
 		handlers.DriftEvidenceLoader != nil &&
+		handlers.DriftWriter != nil &&
 		handlers.DriftLogger != nil {
 		drift := configStateDriftDomainDefinition()
 		drift.Handler = TerraformConfigStateDriftHandler{
@@ -22,6 +23,7 @@ func appendCorrelationCoreAdditiveDomains(definitions []DomainDefinition, handle
 			EvidenceLoader: handlers.DriftEvidenceLoader,
 			Instruments:    handlers.Instruments,
 			Logger:         handlers.DriftLogger,
+			Writer:         handlers.DriftWriter,
 		}
 		definitions = append(definitions, drift)
 	}

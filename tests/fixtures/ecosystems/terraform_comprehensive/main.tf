@@ -8,9 +8,17 @@ terraform {
     }
   }
 
+  # bucket/key intentionally match testdata/cassettes/terraformstate/
+  # supply-chain-demo.json's backend locator (issue #5442) so
+  # tfstatebackend.ResolveConfigCommitForBackend resolves this repo as the
+  # sole owner of that state snapshot in the golden corpus, letting the
+  # terraform_config_state_drift domain materialize real drift findings
+  # (this fixture's ~12 declared resources vs. the cassette's 2 ECS state
+  # resources; none of the addresses overlap, so both added_in_config and
+  # added_in_state fire).
   backend "s3" {
-    bucket = "my-terraform-state"
-    key    = "comprehensive/terraform.tfstate"
+    bucket = "supply-chain-demo-tfstate"
+    key    = "supply-chain-demo/terraform.tfstate"
     region = "us-east-1"
   }
 }

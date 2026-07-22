@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:filelength // pre-existing test file exceeding the 500-line cap; this change only bumps an existing domain-count assertion (issue #5419 Phase 3), new coverage lives in codeowners_ownership_materialization_test.go
+package reducer //nolint:filelength // Pre-existing test file exceeding the 500-line cap; issue #5419 Phase 3 only bumped an existing domain-count assertion (new coverage lives in codeowners_ownership_materialization_test.go), and issue #5442 only removed content (two tests moved to defaults_config_state_drift_writer_gate_test.go, netting -28 lines here, down to 703). Splitting the remaining wiring-catalog coverage by domain is a separate, unfiled, larger refactor out of scope for both.
 
 import (
 	"context"
-	"log/slog"
 	"testing"
 	"time"
 
@@ -383,33 +382,6 @@ func TestImplementedDefaultDomainDefinitionsOmitsConfigStateDriftWithoutAdapters
 		if def.Domain == DomainConfigStateDrift {
 			t.Fatalf("config_state_drift registered without adapters; want omitted to avoid silent intent drops")
 		}
-	}
-}
-
-func TestImplementedDefaultDomainDefinitionsIncludesConfigStateDriftWhenAdaptersPresent(t *testing.T) {
-	t.Parallel()
-
-	resolver := tfstatebackend.NewResolver(nil)
-	loader := stubDriftEvidenceLoader{}
-	logger := slog.New(slog.DiscardHandler)
-	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
-		DriftHandlers: DriftHandlers{
-			TerraformBackendResolver: resolver,
-			DriftEvidenceLoader:      loader,
-			DriftLogger:              logger,
-		},
-	})
-	found := false
-	for _, def := range definitions {
-		if def.Domain == DomainConfigStateDrift {
-			found = true
-			if _, ok := def.Handler.(TerraformConfigStateDriftHandler); !ok {
-				t.Fatalf("config_state_drift handler type = %T, want TerraformConfigStateDriftHandler", def.Handler)
-			}
-		}
-	}
-	if !found {
-		t.Fatal("config_state_drift not registered after wiring resolver+loader+logger")
 	}
 }
 

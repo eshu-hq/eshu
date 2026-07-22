@@ -71,6 +71,7 @@ func OpenAPISpec() string {
 			openAPIPathsIaC+
 			openAPIPathsIaCResources+
 			openAPIPathsAWSRuntimeDrift+
+			openAPIPathsTerraformConfigStateDrift+
 			openAPIPathsReplatformingSelectors+
 			openAPIPathsReplatformingRollups+
 			openAPIPathsReplatforming+

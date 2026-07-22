@@ -26,6 +26,17 @@ const (
 	// ReducerPackagePublicationCorrelationFactKind identifies one reducer-owned
 	// package publication correlation persisted for package provenance read surfaces.
 	ReducerPackagePublicationCorrelationFactKind = "reducer_package_publication_correlation"
+	// ReducerTerraformConfigStateDriftFindingFactKind identifies one
+	// reducer-owned Terraform config-vs-state drift finding persisted for the
+	// provider-neutral Terraform drift read surface (issue #5442). Unlike the
+	// AWS/multi-cloud runtime drift kinds, this kind carries two distinct row
+	// shapes distinguished by its outcome field: a per-address row (outcome
+	// "exact") for each of the five DriftKind classifications, and a
+	// per-state-scope row (outcome "ambiguous") recorded when backend-owner
+	// resolution finds more than one candidate config repo. See
+	// go/internal/correlation/drift/tfconfigstate/doc.go for the outcome-model
+	// reasoning.
+	ReducerTerraformConfigStateDriftFindingFactKind = "reducer_terraform_config_state_drift_finding"
 	// ReducerCloudAssetResolutionFactKind identifies the reducer-internal cloud
 	// asset resolution canonicalization row. It is registered as
 	// admission-exempt, not versioned.
@@ -43,15 +54,17 @@ var reducerDerivedFactKinds = []string{
 	ReducerPackageOwnershipCorrelationFactKind,
 	ReducerPackageConsumptionCorrelationFactKind,
 	ReducerPackagePublicationCorrelationFactKind,
+	ReducerTerraformConfigStateDriftFindingFactKind,
 }
 
 var reducerDerivedSchemaVersions = map[string]string{
-	ReducerSupplyChainImpactFindingFactKind:      ReducerDerivedSchemaVersionV1,
-	ReducerAWSCloudRuntimeDriftFindingFactKind:   ReducerDerivedSchemaVersionV1,
-	ReducerMultiCloudRuntimeDriftFindingFactKind: ReducerDerivedSchemaVersionV1,
-	ReducerPackageOwnershipCorrelationFactKind:   ReducerDerivedSchemaVersionV1,
-	ReducerPackageConsumptionCorrelationFactKind: ReducerDerivedSchemaVersionV1,
-	ReducerPackagePublicationCorrelationFactKind: ReducerDerivedSchemaVersionV1,
+	ReducerSupplyChainImpactFindingFactKind:         ReducerDerivedSchemaVersionV1,
+	ReducerAWSCloudRuntimeDriftFindingFactKind:      ReducerDerivedSchemaVersionV1,
+	ReducerMultiCloudRuntimeDriftFindingFactKind:    ReducerDerivedSchemaVersionV1,
+	ReducerPackageOwnershipCorrelationFactKind:      ReducerDerivedSchemaVersionV1,
+	ReducerPackageConsumptionCorrelationFactKind:    ReducerDerivedSchemaVersionV1,
+	ReducerPackagePublicationCorrelationFactKind:    ReducerDerivedSchemaVersionV1,
+	ReducerTerraformConfigStateDriftFindingFactKind: ReducerDerivedSchemaVersionV1,
 }
 
 // ReducerDerivedFactKinds returns governed reducer-derived fact kinds.
