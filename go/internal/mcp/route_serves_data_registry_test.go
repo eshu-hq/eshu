@@ -43,6 +43,27 @@ func TestRouteServesDataRegistryHonestStateGreen(t *testing.T) {
 	}
 }
 
+// TestStripGoCommentsBlanksCommentsKeepsStrings proves the PR #5641 P2 fix:
+// a marker inside a comment cannot satisfy (or trip) any registry check,
+// while markers inside string literals — where the registry's SQL/Cypher
+// evidence actually lives — survive untouched, and offsets are preserved.
+func TestStripGoCommentsBlanksCommentsKeepsStrings(t *testing.T) {
+	src := []byte("package x\n\n// formerly used reducer_kubernetes_correlation here\nconst q = `fact_kind = 'reducer_ci_cd_run_correlation'` // trailing reducer_kubernetes_correlation\n/* block reducer_kubernetes_correlation */\nvar url = \"https://example.com//not-a-comment\"\n")
+	out := string(stripGoComments(src))
+	if len(out) != len(src) {
+		t.Fatalf("stripGoComments changed length: %d != %d — offset preservation broken", len(out), len(src))
+	}
+	if strings.Contains(out, "reducer_kubernetes_correlation") {
+		t.Errorf("comment-only marker survived the strip:\n%s", out)
+	}
+	if !strings.Contains(out, "fact_kind = 'reducer_ci_cd_run_correlation'") {
+		t.Errorf("string-literal marker was damaged by the strip:\n%s", out)
+	}
+	if !strings.Contains(out, "https://example.com//not-a-comment") {
+		t.Errorf("comment-looking text inside a string literal was stripped:\n%s", out)
+	}
+}
+
 // poisonedBackingCopy returns a deep copy of backing with foreignDomain
 // appended to route's ServedDomains.
 func poisonedBackingCopy(backing map[string]routeServesDataBacking, route, foreignDomain string) map[string]routeServesDataBacking {

@@ -138,12 +138,16 @@ var domainDataSignatures = map[string]domainDataSignature{
 	// (:CodeownerTeam) graph truth (storage/cypher/canonical_codeowners_edges.go:34-35).
 	"codeowners_ownership": {Markers: []string{"DECLARES_CODEOWNER"}},
 
-	// config_state_drift materializes tfstate truth onto TerraformStateResource
-	// and TerraformModule nodes (storage/cypher/tfstate_canonical_writer.go);
-	// TerraformStateResource is its unique label. Its served-domain claim on
-	// /iac/resources rests on the shared TerraformModule label — see the
-	// registry entry and the design doc.
-	"config_state_drift": {Markers: []string{":TerraformStateResource"}},
+	// config_state_drift materializes tfstate truth onto its OWN state
+	// labels and properties (storage/cypher/tfstate_canonical_writer.go):
+	// TerraformStateResource nodes, MATCHES_STATE config↔state edges, and
+	// tf_attr_* promoted attributes. The signature deliberately names only
+	// those state-specific markers — NOT the TerraformModule label the
+	// writer also MERGEs, because config-side content reads share that
+	// label and a shared marker cannot discriminate (PR #5641 codex P1:
+	// the shared label falsely certified /iac/resources as serving this
+	// domain).
+	"config_state_drift": {Markers: []string{":TerraformStateResource", "MATCHES_STATE", "tf_attr_"}},
 }
 
 // routeReadEvidence is one falsifiable citation: Marker must appear verbatim

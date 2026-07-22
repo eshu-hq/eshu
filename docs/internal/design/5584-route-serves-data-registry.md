@@ -66,6 +66,14 @@ The gate's independence from the backing map is tiered, not absolute:
   path, so evidence appearing later forces the claim to move to Served,
   and a laundered misroute (MapOnly-ing a domain the route actually
   serves) is a contradiction.
+- **Comment stripping**: marker matching runs on comment-stripped Go
+  source (`stripGoComments`, length-preserving, via `go/scanner`), so a
+  `// formerly used <marker>` remark can neither keep a stale citation
+  green nor trip the anti-poison scan, and a commented-out registration
+  or `h.<Field>` reference cannot satisfy the wiring checks. Residual:
+  matching inside string literals is still textual (a marker embedded in
+  an unrelated string constant would match), and non-Go evidence files —
+  none today — would be matched raw.
 - **Residual trust**: the anti-poison scan is only as complete as each
   route's ScanFiles list. MethodFile membership is machine-enforced; the
   query/store helper files are reviewer-maintained registry data — the
@@ -95,7 +103,7 @@ The gate's independence from the backing map is tiered, not absolute:
 | GET /api/v0/semantic/documentation-observations | SemanticEvidenceHandler.listDocumentationObservations | semantic_entity_materialization | SQL built from `facts.SemanticDocumentationObservationFactKind` (query/semantic_evidence.go:91, semantic_evidence_read_model.go:16-18) — a SOURCE-fact read (semanticdocs emitter), no reducer indirection |
 | GET /api/v0/service-catalog/correlations | ServiceCatalogHandler.listCorrelations | service_catalog_correlation | `fact.fact_kind = $1` = `reducer_service_catalog_correlation` (query/service_catalog_correlations.go:16,199) |
 | GET /api/v0/codeowners/ownership | CodeownersOwnershipHandler.listOwnership | codeowners_ownership | `(repo:Repository)-[rel:DECLARES_CODEOWNER]->(team:CodeownerTeam)` (query/codeowners_ownership_cypher.go:11-21); writer storage/cypher/canonical_codeowners_edges.go:34-35 |
-| GET /api/v0/iac/resources | IaCHandler.listResources | config_state_drift | candidates from `fact_kind = 'content_entity'` (query/iac_inventory_postgres.go:64) hydrated over TerraformResource/TerraformModule/TerraformDataSource (query/iac_resources.go:42-46,300-323); config_state_drift MERGEs TerraformModule nodes (storage/cypher/tfstate_canonical_writer.go:145) |
+| GET /api/v0/iac/resources | IaCHandler.listResources | (none served; MapOnly: config_state_drift) | candidates from `fact_kind = 'content_entity'` CONFIG entities only (query/iac_inventory_postgres.go:64-70), hydrated by `uid IN` those candidates (query/iac_resources.go:167-170,306-320) — the state projection's own uid keyspace (TerraformStateResource, MATCHES_STATE, tf_attr_*; tfstate_canonical_writer.go) is never reached (PR #5641 codex P1) |
 | GET /api/v0/work-items/evidence | WorkItemHandler.listWorkItemEvidence | incident_repository_correlation | `fact.fact_kind = ANY($1)` = `facts.WorkItemFactKinds()` (query/work_item_evidence_read_kinds.go:22, work_item_evidence_sql.go); the work_item family declares reducer_domain incident_repository_correlation (specs:540-543) |
 
 ## Disclosures (verified touches that are not served-domain claims)
@@ -128,14 +136,21 @@ The gate's independence from the backing map is tiered, not absolute:
    inventory derived-kind so the scan stays discriminative. If the
    architect wants the map to state the full creator set, add them to
    ServedDomains with label evidence.
-3. **iac/resources candidate provenance.** The rows served are
-   `content_entity` candidates (config-side parser pipeline) hydrated over
-   labels the canonical code-graph projection creates
-   (projector/canonical.go:200); config_state_drift's map row rests on its
-   TerraformModule MERGE (tfstate_canonical_writer.go:145) plus its
-   `tf_attr_*` promotion onto state nodes. Whether the terraform_state
-   family's read_surface should instead point at a state-specific surface is
-   an owner call.
+3. **MapOnly: iac/resources → config_state_drift** (upgraded from a
+   served-domain claim after PR #5641 codex P1). The endpoint hydrates only
+   `content_entity`-derived CONFIG candidates (iac_inventory_postgres.go:64-70)
+   and never reaches the state projection's uid keyspace; the earlier claim
+   rested on the shared, non-discriminative TerraformModule label. The
+   domain's drift-finding readback
+   (`POST /api/v0/terraform/config-state-drift/findings`,
+   storage/postgres/terraform_config_state_drift_findings.go:18) reads
+   `reducer_terraform_config_state_drift_finding`, which the registry
+   assigns to reducer_derived_findings via `read_surface_overrides` — so no
+   registry read_surface serves config_state_drift's state projection
+   today; its nodes are only browsable through generic infra/entity-map/
+   impact surfaces. Owner decision: re-point the terraform_state family's
+   read_surface (likely the drift-findings route) or build a
+   state-projection reader on /iac/resources.
 4. **work-items/evidence domain label.** The route serves `work_item.*`
    source facts; `incident_repository_correlation` is registry-declared for
    the family (specs:543) but semantically shared with the incident_context

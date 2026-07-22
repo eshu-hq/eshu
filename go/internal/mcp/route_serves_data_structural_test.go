@@ -16,7 +16,7 @@ import (
 // structFieldTypeNames parses path and returns the field type names declared
 // on the named struct (e.g. "InfraHandler" -> ["GraphQuery",
 // "InfraResourceAggregateStore", "QueryProfile", "*telemetry.Instruments",
-// "sync.Once", ...]), stringified via exprString so a caller can
+// "sync.Once", ...]), stringified via astExprString so a caller can
 // substring-match a target type name regardless of pointer/selector
 // wrapping.
 func structFieldTypeNames(t *testing.T, path, structName string) []string {
@@ -42,29 +42,13 @@ func structFieldTypeNames(t *testing.T, path, structName string) []string {
 			}
 			names := make([]string, 0, len(structType.Fields.List))
 			for _, field := range structType.Fields.List {
-				names = append(names, exprString(field.Type))
+				names = append(names, astExprString(field.Type))
 			}
 			return names
 		}
 	}
 	t.Fatalf("struct %q not found in %s", structName, path)
 	return nil
-}
-
-// exprString renders an AST type expression back to source-shaped text
-// (e.g. "*telemetry.Instruments", "KubernetesCorrelationStore") without
-// pulling in go/printer for one field-type stringification.
-func exprString(expr ast.Expr) string {
-	switch e := expr.(type) {
-	case *ast.Ident:
-		return e.Name
-	case *ast.StarExpr:
-		return "*" + exprString(e.X)
-	case *ast.SelectorExpr:
-		return exprString(e.X) + "." + e.Sel.Name
-	default:
-		return ""
-	}
 }
 
 // methodBodySource parses path, finds the method with the given pointer
@@ -88,7 +72,7 @@ func methodBodySource(t *testing.T, path, receiverType, methodName string) strin
 		if !ok || fn.Recv == nil || fn.Name.Name != methodName || fn.Body == nil {
 			continue
 		}
-		if len(fn.Recv.List) != 1 || exprString(fn.Recv.List[0].Type) != receiverType {
+		if len(fn.Recv.List) != 1 || astExprString(fn.Recv.List[0].Type) != receiverType {
 			continue
 		}
 		start := fset.Position(fn.Body.Pos()).Offset

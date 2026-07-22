@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/parser"
+	"go/scanner"
 	"go/token"
 	"os"
 	"path/filepath"
@@ -325,7 +326,7 @@ func registryStructFields(path, structName string) (map[string]string, error) {
 			}
 			fields := map[string]string{}
 			for _, field := range structType.Fields.List {
-				rendered := registryExprString(field.Type)
+				rendered := astExprString(field.Type)
 				if len(field.Names) == 0 {
 					fields[rendered] = rendered
 					continue
@@ -358,39 +359,84 @@ func registryMethodBody(path, receiverType, methodName string) (string, error) {
 		if !ok || fn.Recv == nil || fn.Name.Name != methodName || fn.Body == nil {
 			continue
 		}
-		if len(fn.Recv.List) != 1 || registryExprString(fn.Recv.List[0].Type) != receiverType {
+		if len(fn.Recv.List) != 1 || astExprString(fn.Recv.List[0].Type) != receiverType {
 			continue
 		}
 		start := fset.Position(fn.Body.Pos()).Offset
 		end := fset.Position(fn.Body.End()).Offset
-		return string(src[start:end]), nil
+		// stripGoComments is length-preserving, so the AST offsets computed
+		// on the raw source slice the stripped copy exactly; a commented-out
+		// h.<Field> reference inside the body cannot satisfy the
+		// store-wiring check (PR #5641 review P2).
+		return string(stripGoComments(src)[start:end]), nil
 	}
 	return "", fmt.Errorf("method (%s) %s not found in %s", receiverType, methodName, path)
 }
 
-// registryExprString renders an AST type expression back to source-shaped
+// astExprString renders an AST type expression back to source-shaped
 // text ("*telemetry.Instruments", "KubernetesCorrelationStore") without
-// pulling in go/printer.
-func registryExprString(expr ast.Expr) string {
+// pulling in go/printer. Shared, package-level: both this production
+// engine and route_serves_data_structural_test.go use it, so the two
+// renderings can never diverge (PR #5641 review P2).
+func astExprString(expr ast.Expr) string {
 	switch e := expr.(type) {
 	case *ast.Ident:
 		return e.Name
 	case *ast.StarExpr:
-		return "*" + registryExprString(e.X)
+		return "*" + astExprString(e.X)
 	case *ast.SelectorExpr:
-		return registryExprString(e.X) + "." + e.Sel.Name
+		return astExprString(e.X) + "." + e.Sel.Name
 	default:
 		return ""
 	}
 }
 
-// readRepoFile reads a repo-relative file under repoRoot.
+// readRepoFile reads a repo-relative file under repoRoot with comments
+// stripped for .go files (PR #5641 review P2): a marker match must come from
+// active code — string literals, identifiers, SQL/Cypher constants — never
+// from a comment, so a `// formerly used <marker>` remark can neither keep a
+// stale citation green nor trip the anti-poison scan. Non-Go files are
+// returned raw.
 func readRepoFile(repoRoot, rel string) (string, error) {
 	data, err := os.ReadFile(filepath.Join(repoRoot, rel)) // #nosec G304 -- rel comes from the committed registry, not user input
 	if err != nil {
 		return "", fmt.Errorf("read %s: %w", rel, err)
 	}
+	if strings.HasSuffix(rel, ".go") {
+		return string(stripGoComments(data)), nil
+	}
 	return string(data), nil
+}
+
+// stripGoComments blanks every comment in src with spaces (newlines kept so
+// nothing shifts), leaving all non-comment bytes — including string-literal
+// contents, where the registry's SQL/Cypher markers live — untouched.
+// go/scanner tokenizes real Go syntax, so comment-looking text INSIDE a
+// string (e.g. a URL or a SQL "--" remark) is not treated as a comment.
+// Scanner errors are ignored: on unscannable input the unblanked remainder
+// is returned as-is, which only errs toward matching more, never less.
+func stripGoComments(src []byte) []byte {
+	out := append([]byte(nil), src...)
+	fset := token.NewFileSet()
+	file := fset.AddFile("", fset.Base(), len(src))
+	var s scanner.Scanner
+	s.Init(file, src, nil, scanner.ScanComments)
+	for {
+		pos, tok, lit := s.Scan()
+		if tok == token.EOF {
+			break
+		}
+		if tok != token.COMMENT {
+			continue
+		}
+		off := file.Offset(pos)
+		for i := 0; i < len(lit) && off+i < len(out); i++ {
+			if out[off+i] != '\n' && out[off+i] != '\r' {
+				out[off+i] = ' '
+			}
+		}
+	}
+	return out
 }
 
 // sortedKeys returns map keys in deterministic order for stable findings.
