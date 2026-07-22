@@ -210,6 +210,7 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			SecretAccessPaths:            query.NewPostgresSecretsIAMSecretAccessPathStore(db),
 			PostureGaps:                  query.NewPostgresSecretsIAMPostureGapStore(db),
 			Summary:                      query.NewPostgresSecretsIAMPostureSummaryStore(db),
+			GrantPosture:                 query.NewGraphSecretsIAMGrantPostureStore(neo4jReader),
 			Profile:                      queryProfile,
 		},
 		ObservabilityCoverage: &query.ObservabilityCoverageHandler{

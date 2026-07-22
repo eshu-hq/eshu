@@ -6,6 +6,7 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -113,6 +114,109 @@ func TestSecretsIAMPostureSummaryRejectsOffAllowlistBucketField(t *testing.T) {
 	_, err := store.bucketCounts(context.Background(), secretsIAMPostureGapFactKind, "evil; DROP TABLE fact_records", "scope-1")
 	if err == nil || !strings.Contains(err.Error(), "unsupported summary bucket field") {
 		t.Fatalf("bucketCounts off-allowlist error = %v, want unsupported summary bucket field", err)
+	}
+}
+
+type recordingGrantPostureStore struct {
+	posture     SecretsIAMGrantPosture
+	err         error
+	lastScopeID string
+}
+
+func (s *recordingGrantPostureStore) SummarizeS3ExternalPrincipalGrantPosture(
+	_ context.Context, scopeID string,
+) (SecretsIAMGrantPosture, error) {
+	s.lastScopeID = scopeID
+	if s.err != nil {
+		return SecretsIAMGrantPosture{}, s.err
+	}
+	return s.posture, nil
+}
+
+func TestSecretsIAMPostureSummaryIncludesGrantPosture(t *testing.T) {
+	t.Parallel()
+
+	grants := &recordingGrantPostureStore{
+		posture: SecretsIAMGrantPosture{
+			TotalGrants:            4,
+			GrantsByOutcome:        []SecretsIAMBucketCount{{Bucket: "allowed", Count: 3}, {Bucket: "unknown", Count: 1}},
+			GrantsByResolutionMode: []SecretsIAMBucketCount{{Bucket: "exact_arn", Count: 2}, {Bucket: "unknown", Count: 2}},
+			PublicGrants:           1,
+			CrossAccountGrants:     2,
+			ServicePrincipalGrants: 1,
+		},
+	}
+	handler := &SecretsIAMHandler{
+		Summary:      &recordingPostureSummaryStore{},
+		GrantPosture: grants,
+		Profile:      ProfileProduction,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/secrets-iam/posture-summary?scope_id=scope-1", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if grants.lastScopeID != "scope-1" {
+		t.Fatalf("grant posture lastScopeID = %q, want scope-1", grants.lastScopeID)
+	}
+	var resp struct {
+		Summary SecretsIAMPostureSummary `json:"summary"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	got := resp.Summary.S3ExternalPrincipalGrantPosture
+	if got == nil {
+		t.Fatalf("summary missing s3_external_principal_grant_posture: %s", w.Body.String())
+	}
+	if got.TotalGrants != 4 || got.PublicGrants != 1 || got.CrossAccountGrants != 2 ||
+		got.ServicePrincipalGrants != 1 || len(got.GrantsByOutcome) != 2 ||
+		got.GrantsByOutcome[0].Bucket != "allowed" || got.GrantsByOutcome[0].Count != 3 {
+		t.Fatalf("unexpected grant posture: %+v", got)
+	}
+}
+
+func TestSecretsIAMPostureSummaryOmitsGrantPostureWhenUnwired(t *testing.T) {
+	t.Parallel()
+
+	handler := &SecretsIAMHandler{Summary: &recordingPostureSummaryStore{}, Profile: ProfileProduction}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/secrets-iam/posture-summary?scope_id=scope-1", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "s3_external_principal_grant_posture") {
+		t.Fatalf("unwired grant posture must be omitted, got body: %s", w.Body.String())
+	}
+}
+
+func TestSecretsIAMPostureSummaryGrantPostureErrorFailsRequest(t *testing.T) {
+	t.Parallel()
+
+	handler := &SecretsIAMHandler{
+		Summary:      &recordingPostureSummaryStore{},
+		GrantPosture: &recordingGrantPostureStore{err: fmt.Errorf("graph unavailable")},
+		Profile:      ProfileProduction,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/secrets-iam/posture-summary?scope_id=scope-1", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusInternalServerError; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 }
 

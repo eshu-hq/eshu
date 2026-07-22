@@ -219,7 +219,7 @@ func newRouterWithSemanticEmbedding(
 		CICD:                  newCICDHandler(db, contentReader, queryProfile),
 		ServiceCatalog:        newServiceCatalogHandler(db, contentReader, queryProfile),
 		Kubernetes:            newKubernetesHandler(db, queryProfile),
-		SecretsIAM:            newSecretsIAMHandler(db, queryProfile),
+		SecretsIAM:            newSecretsIAMHandler(db, neo4jReader, queryProfile),
 		ObservabilityCoverage: newObservabilityCoverageHandler(db, contentReader, queryProfile),
 		Images: &query.ImageHandler{
 			Neo4j:   neo4jReader,

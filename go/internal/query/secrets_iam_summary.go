@@ -22,15 +22,23 @@ type SecretsIAMBucketCount struct {
 }
 
 // SecretsIAMPostureSummary is a bounded, scope-anchored rollup of the four
-// secrets/IAM reducer read models, for dashboards. It is provenance-only counts;
-// it exposes no fingerprints, paths, or evidence — only low-cardinality bucket
-// labels and totals.
+// secrets/IAM reducer read models plus the S3 external-principal grant graph
+// truth, for dashboards. It is provenance-only counts; it exposes no
+// fingerprints, paths, or evidence — only low-cardinality bucket labels and
+// totals.
 type SecretsIAMPostureSummary struct {
 	IdentityTrustChainsByState      []SecretsIAMBucketCount `json:"identity_trust_chains_by_state"`
 	PrivilegeObservationsByRiskType []SecretsIAMBucketCount `json:"privilege_observations_by_risk_type"`
 	PrivilegeObservationsBySeverity []SecretsIAMBucketCount `json:"privilege_observations_by_severity"`
 	SecretAccessPathsByState        []SecretsIAMBucketCount `json:"secret_access_paths_by_state"`
 	PostureGapsByGapType            []SecretsIAMBucketCount `json:"posture_gaps_by_gap_type"`
+	// S3ExternalPrincipalGrantPosture is the issue-#5643 grant section read
+	// from the canonical GRANTS_ACCESS_TO edges (the
+	// s3_external_principal_grant fact family's read surface per
+	// specs/fact-kind-registry.v1.yaml). Populated by the handler from its
+	// GrantPosture store, not by the Postgres summary store; omitted when no
+	// graph reader is wired.
+	S3ExternalPrincipalGrantPosture *SecretsIAMGrantPosture `json:"s3_external_principal_grant_posture,omitempty"`
 }
 
 // SecretsIAMPostureSummaryStore reads grouped counts over the secrets/IAM
@@ -187,11 +195,19 @@ func (h *SecretsIAMHandler) summary(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	if h.GrantPosture != nil {
+		grantPosture, err := h.GrantPosture.SummarizeS3ExternalPrincipalGrantPosture(r.Context(), scopeID)
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		summary.S3ExternalPrincipalGrantPosture = &grantPosture
+	}
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"scope_id": scopeID,
 		"summary":  summary,
 	}, BuildTruthEnvelope(
 		h.profile(), secretsIAMPostureSummaryCapability, TruthBasisSemanticFacts,
-		"resolved from reducer-owned secrets/IAM read models as grouped counts by state, risk type, severity, and gap type; provenance-only rollup, no fingerprints or evidence exposed",
+		"resolved from reducer-owned secrets/IAM read models as grouped counts by state, risk type, severity, and gap type, plus S3 external-principal grant counts read from the canonical GRANTS_ACCESS_TO graph edges; provenance-only rollup, no fingerprints or evidence exposed",
 	))
 }
