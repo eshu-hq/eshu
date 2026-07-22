@@ -19,16 +19,11 @@ import (
 // result indistinguishable from "this file legitimately has no rows for
 // this bucket." A producer regression that starts emitting a wrong element
 // shape for one bucket would silently degrade that bucket's evidence to
-// zero with no operator-visible signal. This test asserts a debug-level log
+// zero with no operator-visible signal. This test asserts a warn-level log
 // records the skipped-element count, closing that absence-of-data-vs
 // -absence-of-evaluation gap.
 //
-diff --git a/sdk/go/factschema/decode_parsed_file_data_tolerant_test.go b/sdk/go/factschema/decode_parsed_file_data_tolerant_test.go
---- a/sdk/go/factschema/decode_parsed_file_data_tolerant_test.go
-+++ b/sdk/go/factschema/decode_parsed_file_data_tolerant_test.go
-@@ -24 +24 @@
--// This test asserts a debug-level log
-+// This test asserts a warn-level log
+// This test swaps the process-wide slog default logger, so it sets the
 // default logger for the duration of the call and restores it before
 // returning, and relies on Go's sequential-then-parallel test ordering (all
 // non-parallel top-level tests in this package complete before any parked
