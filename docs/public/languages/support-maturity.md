@@ -60,14 +60,25 @@ next drift is caught mechanically instead of by another manual re-grade.
   read this same live bar through different lenses:
     - *End-to-End Indexing* `supported` = the fixture is staged in B-7 and its
       projected graph or query truth is asserted in B-12.
-    - *Real-Repo Validation* `supported` = a whole corpus repository of that
-      language clears the same live gate — an app-shaped source repo (for
-      example `lib-common`, `orders-api`, or `api-svc`) for programming
-      languages, or a comprehensive infrastructure/config corpus (for example
-      `terraform_comprehensive`, `terragrunt_comprehensive`) for IaC languages,
-      as opposed to a hand-authored single-feature parser fixture. Eshu's "real
-      repos" are in-repo synthetic corpora, not external third-party checkouts;
-      the bar here is the full-pipeline gate, not third-party provenance.
+    - *Real-Repo Validation* `supported` = a `corpus_fixtures` entry staged as
+      its own repository in the corpus, for that language, clears the same
+      live gate with a language-attributed B-12 assertion. This is exactly
+      what `scripts/verify-maturity-drift-guard.sh` mechanically re-derives
+      and checks the matrix against — the guard has no signal for a fixture's
+      internal shape or richness, only for `corpus_fixtures` staging plus B-12
+      attribution, so that intersection is the entire bar this page may claim
+      here.
+
+      By authoring convention, not as part of the checked bar above, corpus
+      repos are written app-shaped where the language permits — for example
+      `ruby_rails_app`, `orders-api`, `lib-common`, `api-svc` — or as a
+      comprehensive infrastructure/config corpus for IaC languages (for
+      example `terraform_comprehensive`, `terragrunt_comprehensive`);
+      single-feature parser files live in `*_comprehensive` fixtures instead.
+      A language may earn `supported` here off a `*_comprehensive` fixture
+      alone, as Python currently does. Eshu's "real repos" are in-repo
+      synthetic corpora, not external third-party checkouts; the bar here is
+      the full-pipeline gate, not third-party provenance.
 - **`real-repo-validated`** — an intermediate grade for a language that has a
   committed, offline-reproducible dogfood artifact but is not yet wired into the
   live gate: a script under `scripts/` PLUS a checked-in expected-output
