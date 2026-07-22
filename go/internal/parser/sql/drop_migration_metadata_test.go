@@ -6,6 +6,7 @@ package sql
 import (
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -32,6 +33,53 @@ CASCADE;
 	assertSQLBucketMissingName(t, got, "sql_tables", "audit.old-users")
 	assertSQLBucketMissingName(t, got, "sql_tables", "public.accounts")
 	assertSQLBucketMissingName(t, got, "sql_tables", "legacy.events")
+}
+
+// TestGoldenCorpusDropMigrationRecordsBothTargets exercises the exact static
+// fixture that B-7 copies into sql_comprehensive. Its one-line IF EXISTS comma
+// list must retain both targets, not only the grammar production's one parsed
+// object_reference (#5482).
+func TestGoldenCorpusDropMigrationRecordsBothTargets(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(
+		"..", "..", "..", "..",
+		"tests", "fixtures", "ecosystems", "sql_comprehensive", "migrations",
+		"V2__drop_legacy_tables.sql",
+	)
+	targets := sqlMigrationTargetsForTool(t, parseSQLTestFile(t, path), "flyway")
+	if got, want := len(targets), 2; got != want {
+		t.Fatalf("B-7 DROP migration target count = %d, want %d: %#v", got, want, targets)
+	}
+	payload := map[string]any{"sql_migrations": []map[string]any{{"tool": "flyway", "migration_targets": targets}}}
+	assertSQLMigrationTarget(t, payload, "flyway", "SqlTable", "public.users", "drop", 2)
+	assertSQLMigrationTarget(t, payload, "flyway", "SqlTable", "public.orgs", "drop", 2)
+}
+
+func TestParseDropTargetTailAcceptsCompleteCommaList(t *testing.T) {
+	t.Parallel()
+
+	targets, ok := parseDropTargetTail(", \"audit\".\"old-users\", legacy.events CASCADE;")
+	if !ok {
+		t.Fatal("parseDropTargetTail() rejected a complete comma list")
+	}
+	if got, want := targets, []recoveredDropTarget{
+		{name: "audit.old-users", offset: 2},
+		{name: "legacy.events", offset: 23},
+	}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("parseDropTargetTail() = %#v, want %#v", got, want)
+	}
+}
+
+func TestParseDropTargetTailRejectsMalformedTrailingSQL(t *testing.T) {
+	t.Parallel()
+
+	if _, ok := parseDropTargetTail(", public.orgs SELECT * FROM public.users;"); ok {
+		t.Fatal("parseDropTargetTail() accepted malformed trailing SQL")
+	}
+	if _, ok := parseDropTargetTail(", public.orgs /* unterminated"); ok {
+		t.Fatal("parseDropTargetTail() accepted an unterminated block comment")
+	}
 }
 
 func TestParseMigrationTargetsFromDropTableDeduplicatesNames(t *testing.T) {

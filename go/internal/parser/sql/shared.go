@@ -78,21 +78,22 @@ func collectMentionsFromNode(node *tree_sitter.Node, source []byte, includeReads
 	mentions := make([]sqlMention, 0)
 	seen := make(map[string]struct{})
 	var visit func(n *tree_sitter.Node, operation string)
-	add := func(ref *tree_sitter.Node, operation string) {
-		if ref == nil {
-			return
-		}
-		name := objectReferenceName(ref, source)
+	addName := func(name, operation string, offset int) {
 		if name == "" {
 			return
 		}
-		offset := int(ref.StartByte())
 		key := operation + "|" + name + "|" + strconv.Itoa(offset)
 		if _, ok := seen[key]; ok {
 			return
 		}
 		seen[key] = struct{}{}
 		mentions = append(mentions, sqlMention{name: name, operation: operation, offset: offset})
+	}
+	add := func(ref *tree_sitter.Node, operation string) {
+		if ref == nil {
+			return
+		}
+		addName(objectReferenceName(ref, source), operation, int(ref.StartByte()))
 	}
 	visit = func(n *tree_sitter.Node, operation string) {
 		switch n.GrammarName() {
@@ -116,12 +117,11 @@ func collectMentionsFromNode(node *tree_sitter.Node, source []byte, includeReads
 			add(firstDirectChildByKind(n, "object_reference"), "alter")
 		case "drop_table":
 			// DROP TABLE is migration evidence for an existing table, not a new
-			// SqlTable entity. For a valid comma-separated target list the grammar
-			// keeps the final object_reference directly under drop_table and places
-			// preceding references directly under an ERROR recovery child. Restrict
-			// collection to those two direct shapes so unrelated descendant
-			// references cannot become DROP targets.
-			collectDropTableTargets(n, add)
+			// SqlTable entity. The grammar recovers valid comma-separated target
+			// lists in more than one shape; collectDropTableTargets keeps recovery
+			// structurally bounded so unrelated trailing SQL cannot become DROP
+			// evidence.
+			collectDropTableTargets(n, source, add, addName)
 		}
 		for _, child := range namedChildren(n) {
 			visit(child, operation)
@@ -135,11 +135,18 @@ func collectMentionsFromNode(node *tree_sitter.Node, source []byte, includeReads
 
 // collectDropTableTargets records every target in a DROP TABLE statement.
 // DerekStride/tree-sitter-sql accepts one target in the grammar production;
-// valid comma-separated targets before the final target therefore appear as
-// direct object_reference children of a direct ERROR node. Do not recurse
-// beyond that recovery layer: a broader descendant walk could misclassify an
-// object reference from malformed trailing SQL as a DROP target.
-func collectDropTableTargets(node *tree_sitter.Node, add func(ref *tree_sitter.Node, operation string)) {
+// valid comma-separated targets before the final target therefore usually
+// appear as direct object_reference children of a direct ERROR node. Some
+// otherwise-valid forms instead put the remaining comma list after the
+// drop_table node as a sibling ERROR. The bounded source-tail recovery handles
+// only a complete comma-separated identifier list and never walks arbitrary
+// ERROR descendants, so malformed trailing SQL cannot become DROP evidence.
+func collectDropTableTargets(
+	node *tree_sitter.Node,
+	source []byte,
+	add func(ref *tree_sitter.Node, operation string),
+	addName func(name, operation string, offset int),
+) {
 	for _, child := range namedChildren(node) {
 		switch child.GrammarName() {
 		case "object_reference":
@@ -152,6 +159,7 @@ func collectDropTableTargets(node *tree_sitter.Node, add func(ref *tree_sitter.N
 			}
 		}
 	}
+	recoverDropTableTargetsFromTail(int(node.EndByte()), source, addName)
 }
 
 // dropShadowedReads removes "select" mentions that are actually mutation
