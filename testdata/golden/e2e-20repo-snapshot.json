@@ -3261,11 +3261,14 @@
         }
       },
       "list_kubernetes_correlations": {
-        "description": "Returns k8s workload correlations for a cluster; confirms the WorkloadInstance correlation ran. Needs a cluster selector.",
+        "description": "Returns k8s workload correlations for a cluster; confirms the WorkloadInstance correlation ran. Needs a cluster selector. Also isolates the #5437 selector_match verb (cold-review finding 1): minimum_results:1 alone was already satisfied by the pre-existing owner_reference correlation, so a broken selector_match pass would pass this shape undetected without the required_json_values pin.",
         "required_response_fields": [
           "correlations"
         ],
         "minimum_results": 1,
+        "required_json_values": {
+          "correlations[].relationship_type": "selector_match"
+        },
         "arguments": {
           "cluster_id": "supply-chain-demo"
         }
@@ -5169,7 +5172,7 @@
         "minimum_results": 1
       },
       "GET /api/v0/kubernetes/correlations?cluster_id=supply-chain-demo&limit=50": {
-        "description": "Kubernetes workload ownership/drift correlations for the demo cluster; confirms the kubernetes reducer read surface is mounted and queryable through the HTTP route (mirrors the already-proven list_kubernetes_correlations MCP shape).",
+        "description": "Kubernetes workload ownership/drift correlations for the demo cluster; confirms the kubernetes reducer read surface is mounted and queryable through the HTTP route (mirrors the already-proven list_kubernetes_correlations MCP shape). Also isolates the #5437 selector_match verb (cold-review finding 1): minimum_results:1 alone was already satisfied by the pre-existing owner_reference correlation, so a broken selector_match pass would pass this shape undetected without the required_json_values pin.",
         "required_response_fields": [
           "correlations",
           "count"
@@ -5177,6 +5180,9 @@
         "required_json_paths": [
           "correlations[].outcome"
         ],
+        "required_json_values": {
+          "correlations[].relationship_type": "selector_match"
+        },
         "minimum_results": 1
       },
       "GET /api/v0/codeowners/ownership?repository_id=repository:r_8477a002&limit=50": {
