@@ -32,7 +32,7 @@ case "${git_common}" in /*) ;; *) git_common="${repo_root}/${git_common}" ;; esa
 git_dir="$(git -C "${repo_root}" rev-parse --git-dir 2>/dev/null || echo "${repo_root}/.git")"
 case "${git_dir}" in /*) ;; *) git_dir="${repo_root}/${git_dir}" ;; esac
 tool_cache_dir="${git_common}/eshu-precommit"
-worktree_cache_dir="${git_dir}/eshu-precommit"
+worktree_cache_dir="${git_dir}/eshu-precommit-state"
 golangci_cache_dir="${worktree_cache_dir}/golangci-lint"
 mkdir -p "${tool_cache_dir}" "${worktree_cache_dir}" "${golangci_cache_dir}"
 

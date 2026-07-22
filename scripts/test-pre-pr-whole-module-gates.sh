@@ -58,7 +58,7 @@ case "${expected_git_dir}" in
 	*) expected_git_dir="${repo_root}/${expected_git_dir}" ;;
 esac
 expected_tool_cache="${expected_git_common}/eshu-precommit"
-expected_worktree_cache="${expected_git_dir}/eshu-precommit"
+expected_worktree_cache="${expected_git_dir}/eshu-precommit-state"
 
 [[ "${tool_cache_dir}" == "${expected_tool_cache}" ]] ||
 	fail "tool cache = ${tool_cache_dir}, want ${expected_tool_cache}"
@@ -92,8 +92,10 @@ linked_worktree_cache="$(printf '%s\n' "${linked_paths}" | rg '^worktree_cache_d
 	fail "linked worktrees did not share the tool cache"
 [[ "${main_tool_cache}" == "${canonical_mini_repo}/.git/eshu-precommit" ]] ||
 	fail "normal-checkout tool cache = ${main_tool_cache}, want ${canonical_mini_repo}/.git/eshu-precommit"
-[[ "${main_worktree_cache}" == "${canonical_mini_repo}/.git/eshu-precommit" ]] ||
-	fail "normal-checkout mutable cache = ${main_worktree_cache}, want ${canonical_mini_repo}/.git/eshu-precommit"
+[[ "${main_worktree_cache}" == "${canonical_mini_repo}/.git/eshu-precommit-state" ]] ||
+	fail "normal-checkout mutable cache = ${main_worktree_cache}, want ${canonical_mini_repo}/.git/eshu-precommit-state"
+[[ "${main_tool_cache}" != "${main_worktree_cache}" ]] ||
+	fail "normal checkout unexpectedly mixed tool binaries and mutable state"
 [[ "${main_worktree_cache}" != "${linked_worktree_cache}" ]] ||
 	fail "linked worktrees unexpectedly shared mutable precommit state"
 
