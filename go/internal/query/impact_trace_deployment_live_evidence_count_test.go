@@ -70,12 +70,15 @@ func TestFetchWorkloadLiveInstanceSummaryNilHandler(t *testing.T) {
 	}
 }
 
-// TestFetchWorkloadLiveInstanceSummaryNoIdentityNeverQueriesStore proves the
-// same fail-closed anchor-first discipline as
-// TestFetchWorkloadLiveEvidenceNoArgoCDControllerNeverQueriesStore: no
-// resolvable ArgoCD identity means the store is never queried and the count
-// is absent.
-func TestFetchWorkloadLiveInstanceSummaryNoIdentityNeverQueriesStore(t *testing.T) {
+// TestFetchWorkloadLiveInstanceSummaryNoAnchorOfAnyKindNeverQueriesStore
+// proves the same fail-closed anchor-first discipline as
+// TestFetchWorkloadLiveEvidenceNoAnchorOfAnyKindNeverQueriesStore, widened
+// for #5639: no resolvable ArgoCD identity AND no mappable declared-object
+// anchor (ConfigMap is outside the closed kind map) means the store is never
+// queried and the count is absent. Renamed from
+// TestFetchWorkloadLiveInstanceSummaryNoIdentityNeverQueriesStore: its
+// meaning changed from "no ArgoCD controller" to "no anchor of ANY kind".
+func TestFetchWorkloadLiveInstanceSummaryNoAnchorOfAnyKindNeverQueriesStore(t *testing.T) {
 	t.Parallel()
 
 	store := &stubKubernetesPodTemplateListStore{}
@@ -83,7 +86,7 @@ func TestFetchWorkloadLiveInstanceSummaryNoIdentityNeverQueriesStore(t *testing.
 	summary, err := h.fetchWorkloadLiveInstanceSummary(
 		t.Context(),
 		nil, // no controllers at all
-		[]map[string]any{k8sResourceFixture("Deployment", "workload-a", "shared-ns", "apps/v1")},
+		[]map[string]any{k8sResourceFixture("ConfigMap", "workload-a", "shared-ns", "v1")},
 		[]string{"ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"},
 		repositoryAccessFilter{allScopes: true},
 	)
@@ -91,7 +94,7 @@ func TestFetchWorkloadLiveInstanceSummaryNoIdentityNeverQueriesStore(t *testing.
 		t.Fatalf("error = %v, want nil", err)
 	}
 	if summary != nil {
-		t.Fatal("no ArgoCD controller returned a non-nil summary, want nil")
+		t.Fatal("no anchor of any kind returned a non-nil summary, want nil")
 	}
 	if got := len(store.calls); got != 0 {
 		t.Fatalf("store was queried %d times, want 0 (fail-closed at the identity layer)", got)
@@ -321,6 +324,47 @@ func TestFetchWorkloadLiveInstanceSummaryReadyZeroIsPresent(t *testing.T) {
 // TestFetchWorkloadLiveInstanceSummaryStoreError proves a store failure
 // returns a nil summary and the error, so the call site can log-and-continue
 // without setting the count/environment response fields.
+// TestFetchWorkloadLiveInstanceSummaryDeclaredObjectAnchorContributesCount is
+// the #5639 positive case for the count probe: a workload with no ArgoCD
+// controller but a mappable declared Deployment counts its live replicas
+// purely from the declared-object anchor's matched facts.
+func TestFetchWorkloadLiveInstanceSummaryDeclaredObjectAnchorContributesCount(t *testing.T) {
+	t.Parallel()
+
+	resources := []map[string]any{k8sResourceFixture("Deployment", "deployable-source", "production", "apps/v1")}
+	anchors := declaredObjectAnchors(resources)
+	if len(anchors) != 1 {
+		t.Fatalf("test fixture bug: want exactly 1 declared-object anchor, got %d", len(anchors))
+	}
+	trackingID := "" // declared-object anchor filters carry no TrackingID
+	store := &stubKubernetesPodTemplateListStore{
+		matchesByTrackingID: map[string][]LiveIdentityMatch{
+			trackingID: {{ClusterID: "prod-cluster", ReadyReplicas: int32Ptr(4)}},
+		},
+	}
+	h := &ImpactHandler{KubernetesPodTemplates: store}
+	summary, err := h.fetchWorkloadLiveInstanceSummary(
+		t.Context(), nil, resources,
+		[]string{"ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"},
+		repositoryAccessFilter{allScopes: true},
+	)
+	if err != nil {
+		t.Fatalf("error = %v, want nil", err)
+	}
+	if summary == nil {
+		t.Fatal("summary = nil, want non-nil (declared-object anchor observed a match)")
+	}
+	if summary.count != 4 {
+		t.Fatalf("count = %d, want 4", summary.count)
+	}
+	if len(store.calls) != 1 {
+		t.Fatalf("store queried %d times, want 1 (declared-object anchor only, no ArgoCD controller)", len(store.calls))
+	}
+	if got := store.calls[0].AnchorKind; got != liveIdentityAnchorDeclaredObject {
+		t.Fatalf("store.calls[0].AnchorKind = %q, want declared-object", got)
+	}
+}
+
 func TestFetchWorkloadLiveInstanceSummaryStoreError(t *testing.T) {
 	t.Parallel()
 

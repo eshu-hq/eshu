@@ -81,9 +81,9 @@ func (h *ImpactHandler) fetchWorkloadLiveInstanceSummary(
 	ctx, span := queryHandlerTracer.Start(ctx, "impact.live_instance_count")
 	defer span.End()
 
-	trackingIDs := expectedArgoCDTrackingIDs(controllers, k8sResources)
-	span.SetAttributes(attribute.Int("eshu.expected_tracking_id_count", len(trackingIDs)))
-	if len(trackingIDs) == 0 {
+	anchors := resolveLiveIdentityAnchors(controllers, k8sResources)
+	span.SetAttributes(attribute.Int("eshu.expected_tracking_id_count", len(anchors)))
+	if len(anchors) == 0 {
 		span.SetAttributes(attribute.String("eshu.live_instance_count_skip_reason", "no_identity_binding"))
 		return nil, nil
 	}
@@ -98,14 +98,8 @@ func (h *ImpactHandler) fetchWorkloadLiveInstanceSummary(
 
 	var total int32
 	observed := false
-	for _, trackingID := range trackingIDs {
-		filter := KubernetesPodTemplateFilter{
-			TrackingID:           trackingID,
-			ImageRefs:            imageRefs,
-			AllScopes:            !access.scoped(),
-			AllowedRepositoryIDs: access.grantedRepositoryIDs(),
-			AllowedScopeIDs:      access.grantedScopeIDs(),
-		}
+	for _, anchor := range anchors {
+		filter := liveIdentityAnchorFilter(anchor, imageRefs, access)
 		matches, err := h.KubernetesPodTemplates.ListLiveIdentityMatches(ctx, filter)
 		if err != nil {
 			span.RecordError(err)
