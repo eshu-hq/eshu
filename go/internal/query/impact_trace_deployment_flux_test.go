@@ -37,9 +37,11 @@ func TestBuildDeploymentSourceControllerEntityFluxKustomizationUsesSourcePathAsI
 		EntityType:   "FluxKustomization",
 		EntityName:   "payments-app",
 		Metadata: map[string]any{
-			"source_path":     "apps/payments/overlays/prod",
-			"source_ref_kind": "GitRepository",
-			"source_ref_name": "app-source",
+			"namespace":            "flux-system",
+			"source_path":          "apps/payments/overlays/prod",
+			"source_ref_kind":      "GitRepository",
+			"source_ref_name":      "app-source",
+			"source_ref_namespace": "source-system",
 		},
 	}
 
@@ -49,6 +51,12 @@ func TestBuildDeploymentSourceControllerEntityFluxKustomizationUsesSourcePathAsI
 	}
 	if got, want := controller["controller_kind"], "flux_kustomization"; got != want {
 		t.Fatalf("controller_kind = %#v, want %#v", got, want)
+	}
+	if got, want := controller["namespace"], "flux-system"; got != want {
+		t.Fatalf("namespace = %#v, want %#v", got, want)
+	}
+	if got, want := controller["source_ref_namespace"], "source-system"; got != want {
+		t.Fatalf("source_ref_namespace = %#v, want %#v", got, want)
 	}
 	roots, _ := controller["source_roots"].([]string)
 	if len(roots) != 1 || roots[0] != "apps/payments/overlays/prod" {
@@ -208,6 +216,7 @@ func TestFetchDeploymentSourceGitOpsResultAttributesCrossRepoFluxTargetResources
 			EntityName:   "payments-api",
 			RelativePath: "clusters/prod/payments.yaml",
 			Metadata: map[string]any{
+				"namespace":       "flux-system",
 				"source_path":     "apps/payments",
 				"source_ref_kind": "GitRepository",
 				"source_ref_name": "app-source",
@@ -224,11 +233,11 @@ func TestFetchDeploymentSourceGitOpsResultAttributesCrossRepoFluxTargetResources
 	}}}
 
 	result, err := handler.fetchDeploymentSourceGitOpsResult(t.Context(), "payments-api", "repo-app", []map[string]any{{
-		"repo_id":                   "repo-deploy",
-		"relationship_type":         "DEPLOYS_FROM",
-		"source_id":                 "repo-deploy",
-		"target_id":                 "repo-app",
-		"flux_git_repository_names": []string{"app-source"},
+		"repo_id":                      "repo-deploy",
+		"relationship_type":            "DEPLOYS_FROM",
+		"source_id":                    "repo-deploy",
+		"target_id":                    "repo-app",
+		"flux_git_repository_bindings": []map[string]any{{"namespace": "flux-system", "name": "app-source"}},
 	}})
 	if err != nil {
 		t.Fatalf("fetchDeploymentSourceGitOpsResult() error = %v", err)

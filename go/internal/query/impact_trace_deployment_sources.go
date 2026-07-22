@@ -57,7 +57,7 @@ func fetchDeploymentSourceResultFromGraph(
 	}
 	repositoryReachedSentinel := len(repositoryRows) >= queryLimit
 	repositoryRows = deploymentSourceRowsWithEndpoints(repositoryRows, "DEPLOYS_FROM", repoID)
-	fluxTargetBindings, err := fetchFluxDeploymentSourceTargetBindings(ctx, reader, repoID, queryLimit, access)
+	fluxTargetBindings, err := fetchFluxDeploymentSourceTargetBindings(ctx, reader, repoID, deploymentSourceRepoIDs(repositoryRows), queryLimit, access)
 	if err != nil {
 		return deploymentSourceResult{}, err
 	}
@@ -189,8 +189,8 @@ func normalizedDeploymentSources(rows []map[string]any) ([]map[string]any, error
 			"confidence":        confidence,
 			"reason":            StringVal(row, "reason"),
 		}
-		if names := StringSliceVal(row, "flux_git_repository_names"); len(names) > 0 {
-			source["flux_git_repository_names"] = names
+		if bindings, ok := row["flux_git_repository_bindings"].([]map[string]any); ok && len(bindings) > 0 {
+			source["flux_git_repository_bindings"] = bindings
 		}
 		if BoolVal(row, "flux_target_bindings_saturated") {
 			source["flux_target_bindings_saturated"] = true
@@ -198,6 +198,16 @@ func normalizedDeploymentSources(rows []map[string]any) ([]map[string]any, error
 		sources = append(sources, source)
 	}
 	return sources, nil
+}
+
+func deploymentSourceRepoIDs(rows []map[string]any) []string {
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if id := StringVal(row, "source_id"); id != "" {
+			ids = append(ids, id)
+		}
+	}
+	return sortedUniqueStrings(ids)
 }
 
 func deploymentSourceRowsWithEndpoints(

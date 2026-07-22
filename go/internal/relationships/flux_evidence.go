@@ -150,12 +150,14 @@ func discoverFluxGitRepositoryEvidence(
 		}
 
 		fluxGitRepositoryName := strings.TrimSpace(row.Name)
+		fluxGitRepositoryNamespace := strings.TrimSpace(row.Namespace)
 		key := evidenceKey{
-			EvidenceKind: EvidenceKindFluxGitRepositorySource,
-			SourceRepoID: sourceRepoID,
-			TargetRepoID: target.RepoID,
-			Path:         filePath,
-			MatchedValue: normalizedURL,
+			EvidenceKind:   EvidenceKindFluxGitRepositorySource,
+			SourceRepoID:   sourceRepoID,
+			TargetRepoID:   target.RepoID,
+			Path:           filePath,
+			MatchedValue:   normalizedURL,
+			SourceEntityID: strings.Join([]string{"FluxGitRepository", fluxGitRepositoryNamespace, fluxGitRepositoryName}, "\x00"),
 		}
 		stats.recordFluxCrossRepoURLResolution(FluxCrossRepoURLResolutionOutcomeLinked)
 		if _, exists := seen[key]; exists {
@@ -167,15 +169,17 @@ func discoverFluxGitRepositoryEvidence(
 			EvidenceKind:     EvidenceKindFluxGitRepositorySource,
 			RelationshipType: RelDeploysFrom,
 			SourceRepoID:     sourceRepoID,
+			SourceEntityID:   key.SourceEntityID,
 			TargetRepoID:     target.RepoID,
 			Confidence:       DefaultConfidenceRegistry.ConfidenceFor(EvidenceKindFluxGitRepositorySource),
 			Rationale:        "a Flux GitRepository spec.url resolves by exact normalized-URL identity to exactly one catalog repository",
 			Details: map[string]any{
-				"path":                     filePath,
-				"extractor":                "flux",
-				"flux_git_repository_name": fluxGitRepositoryName,
-				"url":                      url,
-				"normalized_url":           normalizedURL,
+				"path":                          filePath,
+				"extractor":                     "flux",
+				"flux_git_repository_name":      fluxGitRepositoryName,
+				"flux_git_repository_namespace": fluxGitRepositoryNamespace,
+				"url":                           url,
+				"normalized_url":                normalizedURL,
 			},
 		}, true
 	default:

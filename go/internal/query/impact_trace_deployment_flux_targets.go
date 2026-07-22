@@ -3,7 +3,10 @@
 
 package query
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 type fluxTargetAttributionTally struct {
 	Ambiguous   int
@@ -36,7 +39,7 @@ func bindFluxControllersToCrossRepoTargets(
 			tally.Unsupported++
 			continue
 		}
-		if strings.TrimSpace(StringVal(controller, "source_ref_name")) == "" {
+		if strings.TrimSpace(StringVal(controller, "source_ref_name")) == "" || effectiveFluxSourceRefNamespace(controller) == "" {
 			tally.Missing++
 			continue
 		}
@@ -57,6 +60,13 @@ func bindFluxControllersToCrossRepoTargets(
 		}
 	}
 	return tally
+}
+
+func effectiveFluxSourceRefNamespace(controller map[string]any) string {
+	if namespace := strings.TrimSpace(StringVal(controller, "source_ref_namespace")); namespace != "" {
+		return namespace
+	}
+	return strings.TrimSpace(StringVal(controller, "namespace"))
 }
 
 func isFluxController(controller map[string]any) bool {
@@ -80,14 +90,16 @@ func fluxTargetBindingsSaturated(deploymentSources []map[string]any) bool {
 func matchingFluxControllerTargetRepoIDs(controller map[string]any, deploymentSources []map[string]any) []string {
 	controllerRepoID := StringVal(controller, "repo_id")
 	sourceRefName := StringVal(controller, "source_ref_name")
+	sourceRefNamespace := effectiveFluxSourceRefNamespace(controller)
 	targets := make(map[string]struct{})
 	for _, source := range deploymentSources {
 		if StringVal(source, "relationship_type") != "DEPLOYS_FROM" ||
 			StringVal(source, "source_id") != controllerRepoID {
 			continue
 		}
-		for _, name := range StringSliceVal(source, "flux_git_repository_names") {
-			if name != sourceRefName {
+		bindings, _ := source["flux_git_repository_bindings"].([]map[string]any)
+		for _, binding := range bindings {
+			if StringVal(binding, "name") != sourceRefName || StringVal(binding, "namespace") != sourceRefNamespace {
 				continue
 			}
 			targetRepoID := StringVal(source, "target_id")
@@ -100,5 +112,6 @@ func matchingFluxControllerTargetRepoIDs(controller map[string]any, deploymentSo
 	for targetRepoID := range targets {
 		result = append(result, targetRepoID)
 	}
+	sort.Strings(result)
 	return result
 }

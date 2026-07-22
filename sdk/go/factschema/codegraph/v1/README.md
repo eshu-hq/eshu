@@ -169,6 +169,11 @@ pre-joined, and the CSV split (`csvValues`/`tupleCSVValues`) stays business
 logic in `go/internal/relationships`, not the payload contract, so the
 typed field is a plain `string`, matching the wire shape exactly.
 
+`FluxGitRepository` names `metadata.namespace` alongside `name` and `url` so
+cross-repository Flux attribution can preserve Kubernetes namespace/name
+identity. An absent namespace remains empty and unknown; the contract never
+invents `default`.
+
 Typing an inner key here adds a struct + accessor, NOT a new fact kind: these
 structs have no `payloadContracts` row, no `schema/` artifact, and no schemagen
 entry (they are not envelopes), so they do not change the `file.v1.schema.json`

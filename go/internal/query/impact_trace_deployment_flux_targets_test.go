@@ -17,21 +17,27 @@ func TestBindFluxControllersToCrossRepoTargetsFailsClosed(t *testing.T) {
 		{
 			name:       "missing matching Flux GitRepository evidence",
 			controller: fluxTargetTestController("GitRepository", "app-source"),
-			sources:    []map[string]any{fluxTargetTestSource("repo-app", []string{"other-source"})},
+			sources:    []map[string]any{fluxTargetTestSource("repo-app", "flux-system", "other-source")},
 			wantTally:  fluxTargetAttributionTally{Missing: 1},
 		},
 		{
 			name:       "missing Flux sourceRef name",
 			controller: fluxTargetTestController("GitRepository", ""),
-			sources:    []map[string]any{fluxTargetTestSource("repo-app", []string{"app-source"})},
+			sources:    []map[string]any{fluxTargetTestSource("repo-app", "flux-system", "app-source")},
+			wantTally:  fluxTargetAttributionTally{Missing: 1},
+		},
+		{
+			name:       "missing effective namespace",
+			controller: map[string]any{"controller_kind": "flux_kustomization", "repo_id": "repo-deploy", "source_ref_kind": "GitRepository", "source_ref_name": "app-source"},
+			sources:    []map[string]any{fluxTargetTestSource("repo-app", "flux-system", "app-source")},
 			wantTally:  fluxTargetAttributionTally{Missing: 1},
 		},
 		{
 			name:       "ambiguous matching targets",
 			controller: fluxTargetTestController("GitRepository", "app-source"),
 			sources: []map[string]any{
-				fluxTargetTestSource("repo-app-a", []string{"app-source"}),
-				fluxTargetTestSource("repo-app-b", []string{"app-source"}),
+				fluxTargetTestSource("repo-app-a", "flux-system", "app-source"),
+				fluxTargetTestSource("repo-app-b", "flux-system", "app-source"),
 			},
 			wantTally: fluxTargetAttributionTally{Ambiguous: 1},
 		},
@@ -49,7 +55,7 @@ func TestBindFluxControllersToCrossRepoTargetsFailsClosed(t *testing.T) {
 		{
 			name:       "non GitRepository Flux source",
 			controller: fluxTargetTestController("HelmRepository", "app-source"),
-			sources:    []map[string]any{fluxTargetTestSource("repo-app", []string{"app-source"})},
+			sources:    []map[string]any{fluxTargetTestSource("repo-app", "flux-system", "app-source")},
 			wantTally:  fluxTargetAttributionTally{Unsupported: 1},
 		},
 	}
@@ -67,6 +73,44 @@ func TestBindFluxControllersToCrossRepoTargetsFailsClosed(t *testing.T) {
 				t.Fatalf("flux_target_repo_id = %q, want omitted", got)
 			}
 		})
+	}
+}
+
+func TestBindFluxControllersUsesExplicitAndControllerNamespaceExactly(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		controller map[string]any
+		want       string
+	}{
+		{"explicit", map[string]any{"source_ref_namespace": "team-a", "namespace": "wrong"}, "repo-a"},
+		{"defaulted", map[string]any{"namespace": "team-b"}, "repo-b"},
+	}
+	sources := []map[string]any{fluxTargetTestSource("repo-a", "team-a", "app-source"), fluxTargetTestSource("repo-b", "team-b", "app-source")}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			controller := fluxTargetTestController("GitRepository", "app-source")
+			for key, value := range tt.controller {
+				controller[key] = value
+			}
+			tally := bindFluxControllersToCrossRepoTargets([]map[string]any{controller}, sources)
+			if tally.Linked != 1 || StringVal(controller, "flux_target_repo_id") != tt.want {
+				t.Fatalf("controller/tally = %#v/%#v", controller, tally)
+			}
+		})
+	}
+}
+
+func TestBindFluxControllersDeduplicatesSameQualifiedTarget(t *testing.T) {
+	t.Parallel()
+	controller := fluxTargetTestController("GitRepository", "app-source")
+	source := fluxTargetTestSource("repo-app", "flux-system", "app-source")
+	bindings := source["flux_git_repository_bindings"].([]map[string]any)
+	source["flux_git_repository_bindings"] = append(bindings, map[string]any{"namespace": "flux-system", "name": "app-source"})
+	tally := bindFluxControllersToCrossRepoTargets([]map[string]any{controller}, []map[string]any{source})
+	if tally.Linked != 1 || StringVal(controller, "flux_target_repo_id") != "repo-app" {
+		t.Fatalf("controller/tally = %#v/%#v", controller, tally)
 	}
 }
 
@@ -97,14 +141,15 @@ func fluxTargetTestController(sourceRefKind string, sourceRefName string) map[st
 		"repo_id":         "repo-deploy",
 		"source_ref_kind": sourceRefKind,
 		"source_ref_name": sourceRefName,
+		"namespace":       "flux-system",
 	}
 }
 
-func fluxTargetTestSource(targetRepoID string, names []string) map[string]any {
+func fluxTargetTestSource(targetRepoID string, namespace string, name string) map[string]any {
 	return map[string]any{
-		"relationship_type":         "DEPLOYS_FROM",
-		"source_id":                 "repo-deploy",
-		"target_id":                 targetRepoID,
-		"flux_git_repository_names": names,
+		"relationship_type":            "DEPLOYS_FROM",
+		"source_id":                    "repo-deploy",
+		"target_id":                    targetRepoID,
+		"flux_git_repository_bindings": []map[string]any{{"namespace": namespace, "name": name}},
 	}
 }

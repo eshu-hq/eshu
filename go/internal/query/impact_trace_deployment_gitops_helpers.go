@@ -29,6 +29,8 @@ func buildDeploymentSourceControllerEntity(entity EntityContent) (map[string]any
 		"source_path":            metadataNonEmptyStringValue(entity.Metadata, "source_path"),
 		"source_ref_kind":        metadataNonEmptyStringValue(entity.Metadata, "source_ref_kind"),
 		"source_ref_name":        metadataNonEmptyStringValue(entity.Metadata, "source_ref_name"),
+		"source_ref_namespace":   metadataNonEmptyStringValue(entity.Metadata, "source_ref_namespace"),
+		"namespace":              metadataNonEmptyStringValue(entity.Metadata, "namespace"),
 		"generator_source_repos": slices.Clone(metadataStringSlice(entity.Metadata, "generator_source_repos")),
 		"generator_source_paths": slices.Clone(metadataStringSlice(entity.Metadata, "generator_source_paths")),
 		"template_source_repos":  slices.Clone(metadataStringSlice(entity.Metadata, "template_source_repos")),

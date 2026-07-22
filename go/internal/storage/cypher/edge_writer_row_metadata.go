@@ -77,29 +77,37 @@ func repoEvidenceArtifactRowsFromIntent(
 		evidenceKind := payloadString(artifact, "evidence_kind")
 		path := payloadString(artifact, "path")
 		matchedValue := payloadString(artifact, "matched_value")
+		fluxName := payloadString(artifact, "flux_git_repository_name")
+		fluxNamespace := payloadString(artifact, "flux_git_repository_namespace")
 		name := path
 		if name == "" {
 			name = evidenceKind
 		}
-		artifactID := repoEvidenceArtifactID(resolvedID, evidenceKind, path, matchedValue)
+		identitySuffix := []string(nil)
+		if evidenceKind == "FLUX_GIT_REPOSITORY_SOURCE" {
+			identitySuffix = []string{fluxNamespace, fluxName}
+		}
+		artifactID := repoEvidenceArtifactID(resolvedID, evidenceKind, path, matchedValue, identitySuffix...)
 		row := map[string]any{
-			"artifact_id":           artifactID,
-			"name":                  name,
-			"repo_id":               repoID,
-			"target_repo_id":        targetRepoID,
-			"relationship_type":     relationshipType,
-			"resolved_id":           resolvedID,
-			"generation_id":         generationID,
-			"evidence_kind":         evidenceKind,
-			"artifact_family":       payloadString(artifact, "artifact_family"),
-			"path":                  path,
-			"extractor":             payloadString(artifact, "extractor"),
-			"environment":           payloadString(artifact, "environment"),
-			"runtime_platform_kind": payloadString(artifact, "runtime_platform_kind"),
-			"matched_alias":         payloadString(artifact, "matched_alias"),
-			"matched_value":         matchedValue,
-			"confidence":            payloadFloat(artifact, "confidence"),
-			"evidence_source":       evidenceSource,
+			"artifact_id":                   artifactID,
+			"name":                          name,
+			"repo_id":                       repoID,
+			"target_repo_id":                targetRepoID,
+			"relationship_type":             relationshipType,
+			"resolved_id":                   resolvedID,
+			"generation_id":                 generationID,
+			"evidence_kind":                 evidenceKind,
+			"artifact_family":               payloadString(artifact, "artifact_family"),
+			"path":                          path,
+			"extractor":                     payloadString(artifact, "extractor"),
+			"environment":                   payloadString(artifact, "environment"),
+			"runtime_platform_kind":         payloadString(artifact, "runtime_platform_kind"),
+			"matched_alias":                 payloadString(artifact, "matched_alias"),
+			"matched_value":                 matchedValue,
+			"flux_git_repository_name":      fluxName,
+			"flux_git_repository_namespace": fluxNamespace,
+			"confidence":                    payloadFloat(artifact, "confidence"),
+			"evidence_source":               evidenceSource,
 		}
 		// Propagate byte-level citation fields when the artifact carries them so
 		// the EvidenceArtifact graph node exposes start_line/end_line/commit_sha
@@ -130,7 +138,8 @@ func repoEvidenceArtifactRowsFromIntent(
 	return rows
 }
 
-func repoEvidenceArtifactID(resolvedID string, evidenceKind string, path string, matchedValue string) string {
-	hash := sha1.Sum([]byte(strings.Join([]string{resolvedID, evidenceKind, path, matchedValue}, "\x00"))) // #nosec G401 -- non-cryptographic stable evidence artifact ID, not a security primitive
+func repoEvidenceArtifactID(resolvedID string, evidenceKind string, path string, matchedValue string, identitySuffix ...string) string {
+	identity := append([]string{resolvedID, evidenceKind, path, matchedValue}, identitySuffix...)
+	hash := sha1.Sum([]byte(strings.Join(identity, "\x00"))) // #nosec G401 -- non-cryptographic stable evidence artifact ID, not a security primitive
 	return "evidence-artifact:" + hex.EncodeToString(hash[:8])
 }

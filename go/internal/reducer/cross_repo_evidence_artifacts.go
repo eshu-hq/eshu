@@ -35,6 +35,9 @@ func resolvedRelationshipEvidenceArtifacts(r relationships.ResolvedRelationship)
 		path := firstArtifactString(details, "path", "first_party_ref_path", "config_path", "file_path")
 		matchedValue := firstArtifactString(details, "matched_value", "first_party_ref_normalized", "source_ref", "image_ref")
 		matchedAlias := firstArtifactString(details, "matched_alias", "first_party_ref_name", "flux_git_repository_name", "name")
+		if kind == string(relationships.EvidenceKindFluxGitRepositorySource) {
+			matchedValue = firstArtifactString(details, "normalized_url", "url", "matched_value")
+		}
 		if kind == "" || (path == "" && matchedValue == "" && matchedAlias == "") {
 			continue
 		}
@@ -47,6 +50,10 @@ func resolvedRelationshipEvidenceArtifacts(r relationships.ResolvedRelationship)
 			"matched_alias":   matchedAlias,
 			"matched_value":   matchedValue,
 			"confidence":      artifactConfidence(item["confidence"]),
+		}
+		if kind == string(relationships.EvidenceKindFluxGitRepositorySource) {
+			artifact["flux_git_repository_name"] = firstArtifactString(details, "flux_git_repository_name")
+			artifact["flux_git_repository_namespace"] = firstArtifactString(details, "flux_git_repository_namespace")
 		}
 		if runtimeKind := firstArtifactString(details, "runtime_platform_kind", "platform_kind"); runtimeKind != "" {
 			artifact["runtime_platform_kind"] = runtimeKind

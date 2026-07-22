@@ -167,7 +167,7 @@ type ArgoCDApplicationSet struct {
 // FluxGitRepository is the typed view of one entry in a parsed_file_data
 // "flux_git_repositories" inner slice: a Flux CD GitRepository custom
 // resource (go/internal/parser/yaml/flux_source.go
-// parseFluxSourceRepository). Only Name and URL are named -- the two fields
+// parseFluxSourceRepository). Name, Namespace, and URL are named -- the fields
 // discoverStructuredFluxEvidence
 // (go/internal/relationships/flux_evidence.go) reads to resolve spec.url by
 // strict normalized-URL equality to a catalog repository.
@@ -176,13 +176,16 @@ type FluxGitRepository struct {
 	// metadata.generateName instead (cleanYAMLString never fabricates a
 	// "<nil>" placeholder).
 	Name string `json:"name,omitempty"`
+	// Namespace is metadata.namespace. An empty value is unknown; consumers
+	// must not invent Kubernetes' default namespace.
+	Namespace string `json:"namespace,omitempty"`
 	// URL is spec.url, the Git remote Flux reconciles from. Omitted from the
 	// producer row entirely when spec.url is absent or empty (never an empty
 	// string), so an absent URL here means "no url declared," not "url
 	// decoded as empty."
 	URL string `json:"url,omitempty"`
 	// Attributes carries every producer field with no named struct field
-	// above (line_number, path, lang, generate_name, namespace, ref_branch,
+	// above (line_number, path, lang, generate_name, ref_branch,
 	// ref_tag, ref_semver, ref_commit, labels), preserving each value's
 	// JSON-native Go type.
 	Attributes map[string]any `json:"-"`
