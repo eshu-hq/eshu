@@ -122,10 +122,14 @@ go run ./cmd/capability-inventory -mode graph-read-probe
   ceiling and never requires a human to hand-edit the file.
 - `graph-read-probe` derives the complete current API/MCP name set from the
   served OpenAPI and MCP registries plus the five known directly registered
-  HTTP surfaces. Its checked-in fixture registry currently executes the seven
-  direct #5273 graph-read entry points, then fails explicitly with a count and
-  first name for every current surface that still lacks a safe fixture. It
-  never silently skips an unsupported target or prints token values.
+  HTTP surfaces. Its checked-in registry classifies all 415 unique identities:
+  safe read/validation fixtures are synthesized from current OpenAPI and MCP
+  schemas, while mutation-only routes carry `execute=false` and a specific
+  safety reason. Before execution it performs a bounded repository inventory
+  read to discover selector values, resolves only declared selector classes,
+  and fails rather than inventing a missing identifier. Public validation,
+  user-token reads, and admin-only Cypher surfaces keep separate auth postures.
+  It never prints token values.
 
 ## Related
 

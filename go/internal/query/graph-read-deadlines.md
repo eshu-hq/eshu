@@ -112,14 +112,20 @@ tool from silently bypassing the inventory.
 
 The generated inventory is exhaustive for current OpenAPI and MCP registry
 names; the probe manifest adds five directly registered HTTP surfaces that are
-not all represented in OpenAPI. The
-checked-in `graph-read-probe` registry is deliberately narrower: it covers the
-seven direct #5273 graph-read entry points across API and MCP, including
-repository inventory, empty-selector repository statistics, direct Cypher,
-and visualization. It supplies valid bounded arguments, labels the required
-user-token versus admin/all-scope posture, validates its API/MCP names against
-the current registries, and fails closed on authentication, unsupported
-routes/tools, non-2xx responses, JSON-RPC errors, or MCP tool-error results.
+not all represented in OpenAPI. The checked-in `graph-read-probe` registry
+classifies all 415 unique identities. Safe read/validation request shapes are
+derived from current OpenAPI parameters/bodies and MCP input schemas, with
+explicit overrides for the eight surfaces added since the recovered run.
+Mutation-only routes are `execute=false` with a route-specific safety reason;
+there is no generic unsupported bucket.
+
+The runner discovers selectors through a bounded repository inventory request,
+then resolves only redacted selector classes such as repository, service,
+workload, entity, cloud resource, scope/generation, package, finding, workflow,
+and playbook. A missing class fails the run instead of substituting a retained
+local identifier. Public validation fixtures, normal user-token reads, and
+admin-only Cypher/visualization use separate auth postures. Transport errors,
+unexpected statuses, JSON-RPC errors, and MCP tool-error results fail closed.
 
 Run it against branch-built exact-head API and MCP endpoints from the `go`
 directory:
@@ -141,10 +147,8 @@ current exact-head remote run has occurred.
 The recovered historical exhaustive harness enumerated 248 HTTP routes and
 159 MCP tools (407 targets) on an older commit. Its retained rows contain local
 identifiers and stack metadata and are not copied into this repository. The
-current code-derived manifest contains 415 unique targets (the current OpenAPI and MCP
-registries plus five directly registered HTTP surfaces). Only seven currently
-have safe checked-in fixtures, so the command intentionally exits non-zero
-after those probes and reports that 408 current surfaces remain unsupported.
-That explicit failure is the exact-head burn-down gate: unsupported surfaces
-cannot be silently counted as validated, and no current exhaustive remote run
-is claimed until the fixture count reaches the manifest count.
+current code-derived manifest contains 415 unique targets (the current OpenAPI
+and MCP registries plus five directly registered HTTP surfaces). Registry tests
+prove identity deduplication, classification completeness, redaction, auth
+posture, and mutation safety. A current remote sweep has not been run, so this
+is fixture/harness proof only and no exact-head runtime result is claimed.

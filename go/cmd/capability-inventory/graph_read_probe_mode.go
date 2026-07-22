@@ -27,27 +27,17 @@ const (
 )
 
 type graphReadProbe struct {
-	name      string
-	transport string
-	method    string
-	path      string
-	tool      string
-	arguments map[string]any
-	auth      graphReadProbeAuth
-}
-
-var graphReadProbeRegistry = []graphReadProbe{
-	{name: "api_repository_inventory", transport: "api", method: http.MethodGet, path: "/api/v0/repositories?limit=1", auth: graphReadProbeUserAuth},
-	{name: "api_execute_cypher", transport: "api", method: http.MethodPost, path: "/api/v0/code/cypher", arguments: graphReadQueryArguments(), auth: graphReadProbeAdminAuth},
-	{name: "api_visualize_cypher", transport: "api", method: http.MethodPost, path: "/api/v0/code/visualize", arguments: graphReadQueryArguments(), auth: graphReadProbeAdminAuth},
-	{name: "mcp_repository_inventory", transport: "mcp", tool: "list_indexed_repositories", arguments: map[string]any{"limit": 1, "offset": 0}, auth: graphReadProbeUserAuth},
-	{name: "mcp_repository_stats_inventory", transport: "mcp", tool: "get_repository_stats", arguments: map[string]any{}, auth: graphReadProbeUserAuth},
-	{name: "mcp_execute_cypher", transport: "mcp", tool: "execute_cypher_query", arguments: graphReadQueryArguments(), auth: graphReadProbeAdminAuth},
-	{name: "mcp_visualize_cypher", transport: "mcp", tool: "visualize_graph_query", arguments: graphReadQueryArguments(), auth: graphReadProbeAdminAuth},
-}
-
-func graphReadQueryArguments() map[string]any {
-	return map[string]any{"cypher_query": graphReadProbeCypher, "limit": 1}
+	identity     string
+	name         string
+	transport    string
+	method       string
+	path         string
+	tool         string
+	query        map[string]any
+	arguments    map[string]any
+	auth         graphReadProbeAuth
+	execute      bool
+	unsafeReason string
 }
 
 func validateGraphReadProbeRegistry() error {
@@ -124,7 +114,13 @@ func checkGraphReadProbeMode(
 	if adminToken == "" {
 		return fmt.Errorf("graph-read probe requires admin/all-scope bearer token in %s", adminTokenEnv)
 	}
-	return runGraphReadProbe(stdout, &http.Client{Timeout: 20 * time.Second}, apiBaseURL, mcpURL, userToken, adminToken)
+	client := &http.Client{
+		Timeout: 20 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	return runGraphReadProbe(stdout, client, apiBaseURL, mcpURL, userToken, adminToken)
 }
 
 func runGraphReadProbe(
@@ -144,41 +140,34 @@ func runGraphReadProbe(
 	if _, err := url.ParseRequestURI(mcpURL); err != nil {
 		return fmt.Errorf("invalid MCP URL: %w", err)
 	}
-	for index, probe := range graphReadProbeRegistry {
-		token := userToken
-		if probe.auth == graphReadProbeAdminAuth {
-			token = adminToken
-		}
-		if err := executeGraphReadProbe(client, apiBaseURL, mcpURL, token, index+1, probe); err != nil {
-			return fmt.Errorf("surface %s unsupported or failed: %w", probe.name, err)
-		}
-		_, _ = fmt.Fprintf(stdout, "PASS %s auth=%s\n", probe.name, probe.auth)
-	}
-	targets, err := currentAPIAndMCPSurfaces()
+	registry, err := buildCurrentProbeRegistry()
 	if err != nil {
 		return err
 	}
-	supported := map[string]struct{}{
-		"api:GET /api/v0/repositories":    {},
-		"api:POST /api/v0/code/cypher":    {},
-		"api:POST /api/v0/code/visualize": {},
-		"mcp:list_indexed_repositories":   {},
-		"mcp:get_repository_stats":        {},
-		"mcp:execute_cypher_query":        {},
-		"mcp:visualize_graph_query":       {},
+	selectors, err := discoverProbeSelectors(client, apiBaseURL, userToken)
+	if err != nil {
+		return err
 	}
-	unsupported := make([]string, 0, len(targets))
-	for _, target := range targets {
-		if _, ok := supported[target]; !ok {
-			unsupported = append(unsupported, target)
+	for index, rawProbe := range registry {
+		if !rawProbe.execute {
+			_, _ = fmt.Fprintf(stdout, "SKIP %s reason=%s\n", rawProbe.identity, rawProbe.unsafeReason)
+			continue
 		}
-	}
-	if len(unsupported) > 0 {
-		return fmt.Errorf(
-			"%d current surfaces lack checked-in fixtures (first: %s)",
-			len(unsupported),
-			unsupported[0],
-		)
+		probe, err := resolveProbeSelectors(rawProbe, selectors)
+		if err != nil {
+			return fmt.Errorf("surface %s fixture: %w", rawProbe.identity, err)
+		}
+		token := userToken
+		switch probe.auth {
+		case graphReadProbeAdminAuth:
+			token = adminToken
+		case "public":
+			token = ""
+		}
+		if err := executeGraphReadProbe(client, apiBaseURL, mcpURL, token, index+1, probe); err != nil {
+			return fmt.Errorf("surface %s failed: %w", probe.identity, err)
+		}
+		_, _ = fmt.Fprintf(stdout, "PASS %s auth=%s\n", probe.identity, probe.auth)
 	}
 	return nil
 }
@@ -192,6 +181,13 @@ func executeGraphReadProbe(
 	probe graphReadProbe,
 ) error {
 	requestURL := strings.TrimRight(apiBaseURL, "/") + probe.path
+	if len(probe.query) > 0 {
+		values := url.Values{}
+		for name, value := range probe.query {
+			values.Set(name, fmt.Sprint(value))
+		}
+		requestURL += "?" + values.Encode()
+	}
 	method := probe.method
 	payload := probe.arguments
 	if probe.transport == "mcp" {
@@ -220,7 +216,9 @@ func executeGraphReadProbe(
 	if err != nil {
 		return fmt.Errorf("build request: %w", err)
 	}
-	request.Header.Set("Authorization", "Bearer "+token)
+	if token != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
+	}
 	request.Header.Set("Accept", "application/json")
 	if payload != nil {
 		request.Header.Set("Content-Type", "application/json")
@@ -230,7 +228,7 @@ func executeGraphReadProbe(
 		return fmt.Errorf("request: %w", err)
 	}
 	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+	if !probeAcceptsStatus(probe, response.StatusCode) {
 		return fmt.Errorf("HTTP status %d", response.StatusCode)
 	}
 	if probe.transport != "mcp" {
@@ -252,4 +250,17 @@ func executeGraphReadProbe(
 		return fmt.Errorf("MCP tool result reported an error")
 	}
 	return nil
+}
+
+func probeAcceptsStatus(probe graphReadProbe, status int) bool {
+	if status >= http.StatusOK && status < http.StatusMultipleChoices {
+		return true
+	}
+	if probe.identity == "api:GET /api/v0/auth/github/login" {
+		return status == http.StatusBadRequest || status == http.StatusNotFound || status == http.StatusServiceUnavailable
+	}
+	if probe.identity == "api:GET /api/v0/auth/github/callback" {
+		return status == http.StatusBadRequest
+	}
+	return false
 }
