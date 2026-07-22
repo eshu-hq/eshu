@@ -372,10 +372,6 @@ func TestEvaluateQueryShapeRequiredJSONObjectMatches(t *testing.T) {
 	}
 }
 
-// TestEvaluateQueryShapeRequiredAbsentWhenPresent proves the four cell
-// combinations of the mutual-exclusion primitive in isolation: the assertion
-// must fail only when the sibling is present AND the domain is disclosed
-// absent in the SAME response; every other combination passes.
 func TestEvaluateTiming(t *testing.T) {
 	baseline := 100 * time.Second
 	t.Run("within 2x", func(t *testing.T) {
