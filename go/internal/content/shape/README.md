@@ -88,7 +88,8 @@ around the `Materialize` call.
   `sourceFieldContainsCode`, then falls back to a file-body line range, then
   falls back to `item.Source` again for non-code labels. The distinction matters
   for IaC entity types that carry structured YAML rather than source code.
-- `limitEntitySourceCache` truncates `Variable` snippets at 4096 bytes and
+- `limitEntitySourceCache` truncates `Variable` snippets at 4096 bytes and the
+  content-only GitHub Actions workflow `File` entity at 32 KiB, and
   writes `source_cache_truncated`, `source_cache_original_bytes`, and
   `source_cache_limit_bytes` into entity metadata so API clients can detect the
   cut. Truncation is UTF-8-safe (`truncateUTF8ByBytes`).
@@ -150,6 +151,63 @@ in `internal/content/dependency_identity.go` for the exact five conditions.
 - `go/internal/content/README.md` — the `Writer` port and `Materialization` shape
 - `docs/public/architecture.md` — pipeline and Postgres content store role
 - `docs/public/reference/local-testing.md`
+
+## GitHub Actions workflow content entity (#5568)
+
+`Materialize` creates one content-only `File` entity for a workflow only when
+the repository-relative path is exactly
+`.github/workflows/<name>.yml` or `.github/workflows/<name>.yaml`. The path gate
+rejects nested workflow subdirectories, paths that merely contain the directory
+substring, and non-YAML suffixes. It is deliberately independent of the
+parser's `artifact_type`: a valid workflow that a broad YAML parser labels as
+an Ansible playbook remains reachable. The query-side GitHub Actions classifier
+uses the same exact path contract.
+
+The entity identity is
+`CanonicalEntityID(repo_id, relative_path, "File", basename-without-extension, 1)`.
+Its persisted artifact type is the canonical `github_actions_workflow`, and its
+source comes from the whole workflow file rather than a parser symbol bucket.
+This package owns that content row only; it does not add a parser fact, graph
+node, graph edge, or reducer projection.
+
+Retraction follows the existing writer contract. A deleted or renamed old path
+is represented by a tombstoned `content.Record`, which removes the old file and
+its entities. A row carrying the legacy workflow artifact classification at a
+now-ineligible path sets `Record.PurgeEntities`, which removes stale entities
+without deleting the still-valid file. Eligible files participate in the
+normal path-scoped stale-entity reap, whose keep-set contains the one fresh
+canonical workflow entity id.
+
+Workflow `source_cache` is hard-capped at 32 KiB using the shared UTF-8-safe
+limiter. A truncated row carries `source_cache_truncated=true`, the original
+byte count in `source_cache_original_bytes`, and `32768` in
+`source_cache_limit_bytes`. Entity context treats that row as incomplete
+relationship truth: `relationships_complete=false`,
+`partial_reasons=["github_actions_source_cache_truncated"]`, and
+`result_limits.truncated=true`. Multi-job workflow extraction walks jobs in
+stable name order. Over-limit entity-context relationships are sorted before
+the deterministic 50-row cap and retain the pre-cap count in
+`result_limits.relationship_count`.
+
+Performance Evidence: the measured 38-workflow local corpus (29 repository
+workflows plus 9 fixture workflows) had p50 2,290 bytes, p95 14,602 bytes,
+maximum 16,172 bytes, and 162,839 total bytes. A same-data Postgres 16 shim
+replicated the 29 repository workflows across 100 repositories (2,900 rows,
+15,901,500 source bytes). Blank `source_cache` wrote in 11.107 ms, generated
+1,989,650 WAL bytes, and occupied 876,544 total bytes. Unbounded full source
+took 1,326.369 ms, generated 59,215,648 WAL bytes, and occupied 18,710,528
+bytes (8,855,552 table bytes and 9,854,976 index bytes, including 9,420,800 for
+the source GIN index). The unbounded shape therefore cost about 0.454 ms per
+workflow, 57,225,998 additional WAL bytes, and 17,833,984 additional disk
+bytes in this representative write. The 32 KiB cap preserves every measured
+workflow while bounding future outliers; focused exact-boundary, +1-byte,
+UTF-8, and repeat-materialization tests prove the limiter's output.
+
+No-Observability-Change: no metric, span, log key, worker, queue, graph write,
+or runtime knob is added. Operators retain the existing content-writer
+`prepare_files`/entity-upsert stage logs and instrumented Postgres query
+duration signals. Clients receive the existing bounded-response metadata plus
+the stable source truncation metadata and partial-reason disclosure above.
 
 ## Performance Evidence: entity-cap debloat (#3676)
 

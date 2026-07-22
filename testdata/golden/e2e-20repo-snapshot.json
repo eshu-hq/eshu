@@ -3935,12 +3935,37 @@
         }
       },
       "get_entity_context": {
-        "description": "MCP tool coverage shape for get_entity_context; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
-        "required_response_fields": [],
-        "minimum_results": 0,
-        "expected_error_contains": "entity not found",
+        "description": "Canonical GitHub Actions workflow entity context proves one structured DEPENDS_ON edge and excludes the run-block octocat foil.",
+        "required_response_fields": [
+          "relationships",
+          "id",
+          "entity_id",
+          "result_limits",
+          "partial_reasons"
+        ],
+        "minimum_results": 1,
+        "result_item_required_fields": [
+          "type",
+          "target_name",
+          "reason"
+        ],
+        "required_json_values": {
+          "id": "content-entity:e_1dc76e780ac6",
+          "entity_id": "content-entity:e_1dc76e780ac6",
+          "result_limits.relationship_count": 1,
+          "result_limits.truncated": false
+        },
+        "required_json_object_matches": {
+          "relationships[]": [
+            {
+              "type": "DEPENDS_ON",
+              "target_name": "hashicorp/setup-terraform",
+              "reason": "github_actions_action_repository"
+            }
+          ]
+        },
         "arguments": {
-          "entity_id": "Function:orders-api:main"
+          "entity_id": "content-entity:e_1dc76e780ac6"
         }
       },
       "get_workload_context": {
@@ -4990,6 +5015,37 @@
       }
     },
     "http": {
+      "GET /api/v0/entities/content-entity:e_1dc76e780ac6/context": {
+        "description": "Canonical GitHub Actions workflow entity context proves one structured DEPENDS_ON edge and excludes the run-block octocat foil.",
+        "required_response_fields": [
+          "relationships",
+          "id",
+          "entity_id",
+          "result_limits",
+          "partial_reasons"
+        ],
+        "minimum_results": 1,
+        "result_item_required_fields": [
+          "type",
+          "target_name",
+          "reason"
+        ],
+        "required_json_values": {
+          "id": "content-entity:e_1dc76e780ac6",
+          "entity_id": "content-entity:e_1dc76e780ac6",
+          "result_limits.relationship_count": 1,
+          "result_limits.truncated": false
+        },
+        "required_json_object_matches": {
+          "relationships[]": [
+            {
+              "type": "DEPENDS_ON",
+              "target_name": "hashicorp/setup-terraform",
+              "reason": "github_actions_action_repository"
+            }
+          ]
+        }
+      },
       "POST /api/v0/code/search": {
         "description": "Global exact code-name search overflow proof; limit=1 must return one deterministic row and report that the duplicate name has another result.",
         "truth_class": "content_index",

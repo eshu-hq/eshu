@@ -4,6 +4,7 @@
 package query
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/ghactionsref"
@@ -98,7 +99,13 @@ func extractGitHubActionsDependencyRefsFromDocuments(documents []map[string]any)
 	refs := &githubActionsDependencyRefs{}
 	for _, document := range documents {
 		if jobs, ok := document["jobs"].(map[string]any); ok {
-			for _, rawJob := range jobs {
+			jobNames := make([]string, 0, len(jobs))
+			for jobName := range jobs {
+				jobNames = append(jobNames, jobName)
+			}
+			sort.Strings(jobNames)
+			for _, jobName := range jobNames {
+				rawJob := jobs[jobName]
 				job, ok := rawJob.(map[string]any)
 				if !ok {
 					continue
@@ -196,12 +203,18 @@ func githubActionsExpressionRef(value string) bool {
 // that returns any edge, that false positive would also prevent later
 // classifiers from handling the entity (issue #5337, codex P1 on PR #5379).
 func isGitHubActionsArtifactPath(entity EntityContent) bool {
-	path := strings.ToLower(entity.RelativePath)
-	if strings.Contains(path, ".github/workflows/") &&
-		(strings.HasSuffix(path, ".yml") || strings.HasSuffix(path, ".yaml")) {
-		return true
+	path := strings.TrimSpace(entity.RelativePath)
+	parts := strings.Split(path, "/")
+	if len(parts) == 3 && parts[0] == ".github" && parts[1] == "workflows" {
+		filename := parts[2]
+		for _, extension := range []string{".yml", ".yaml"} {
+			if strings.HasSuffix(filename, extension) && strings.TrimSuffix(filename, extension) != "" {
+				return true
+			}
+		}
 	}
-	switch path[strings.LastIndex(path, "/")+1:] {
+	lowerPath := strings.ToLower(path)
+	switch lowerPath[strings.LastIndex(lowerPath, "/")+1:] {
 	case "action.yml", "action.yaml":
 		return true
 	default:

@@ -24,7 +24,7 @@ func TestMaterializeGitHubActionsWorkflowCreatesFileEntity(t *testing.T) {
 			Path:         path,
 			Body:         body,
 			Language:     "yaml",
-			ArtifactType: "github_actions_workflow",
+			ArtifactType: "ansible_playbook",
 		}},
 	}
 
@@ -55,6 +55,9 @@ func TestMaterializeGitHubActionsWorkflowCreatesFileEntity(t *testing.T) {
 	if got, want := entity.SourceCache, body; got != want {
 		t.Fatalf("SourceCache = %q, want full workflow source %q", got, want)
 	}
+	if got, want := entity.ArtifactType, githubActionsWorkflowArtifactType; got != want {
+		t.Fatalf("ArtifactType = %q, want canonical workflow type %q", got, want)
+	}
 	if got := first.Records[0].PurgeEntities; got {
 		t.Fatal("PurgeEntities = true, want false because the fresh workflow entity drives normal path-scoped stale reaping")
 	}
@@ -65,6 +68,67 @@ func TestMaterializeGitHubActionsWorkflowCreatesFileEntity(t *testing.T) {
 	}
 	if got, want := second.Entities[0].EntityID, entity.EntityID; got != want {
 		t.Fatalf("repeat EntityID = %q, want stable %q", got, want)
+	}
+}
+
+func TestMaterializeGitHubActionsWorkflowPathGate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		path         string
+		artifactType string
+		wantEntity   bool
+		wantPurge    bool
+	}{
+		{name: "direct yml", path: ".github/workflows/ci.yml", wantEntity: true},
+		{name: "direct yaml", path: ".github/workflows/ci.yaml", artifactType: "ansible_playbook", wantEntity: true},
+		{name: "nested", path: ".github/workflows/team/ci.yml", artifactType: githubActionsWorkflowArtifactType, wantPurge: true},
+		{name: "substring", path: "examples/.github/workflows/ci.yml", artifactType: githubActionsWorkflowArtifactType, wantPurge: true},
+		{name: "non yaml", path: ".github/workflows/ci.json", artifactType: githubActionsWorkflowArtifactType, wantPurge: true},
+		{name: "ordinary yaml", path: "deploy/config.yaml"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := Materialize(Input{RepoID: "repository:path-gate", Files: []File{{
+				Path:         test.path,
+				Body:         "name: test\n",
+				ArtifactType: test.artifactType,
+			}}})
+			if err != nil {
+				t.Fatalf("Materialize() error = %v, want nil", err)
+			}
+			if gotEntity := len(got.Entities) == 1; gotEntity != test.wantEntity {
+				t.Fatalf("workflow entity present = %t, want %t; entities = %#v", gotEntity, test.wantEntity, got.Entities)
+			}
+			if gotPurge := got.Records[0].PurgeEntities; gotPurge != test.wantPurge {
+				t.Fatalf("PurgeEntities = %t, want %t", gotPurge, test.wantPurge)
+			}
+		})
+	}
+}
+
+func TestMaterializeGitHubActionsWorkflowRenameUsesTombstoneAndFreshIdentity(t *testing.T) {
+	t.Parallel()
+
+	const repoID = "repository:renamed-workflow"
+	got, err := Materialize(Input{RepoID: repoID, Files: []File{
+		{Path: ".github/workflows/old.yml", Deleted: true},
+		{Path: ".github/workflows/new.yml", Body: "name: new\n"},
+	}})
+	if err != nil {
+		t.Fatalf("Materialize() error = %v, want nil", err)
+	}
+	if !got.Records[0].Deleted {
+		t.Fatal("old workflow record is not tombstoned")
+	}
+	if got, want := len(got.Entities), 1; got != want {
+		t.Fatalf("len(Entities) = %d, want %d", got, want)
+	}
+	if got, want := got.Entities[0].EntityID, content.CanonicalEntityID(repoID, ".github/workflows/new.yml", "File", "new", 1); got != want {
+		t.Fatalf("renamed EntityID = %q, want %q", got, want)
 	}
 }
 

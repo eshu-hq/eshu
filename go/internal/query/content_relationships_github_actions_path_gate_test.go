@@ -5,6 +5,7 @@ package query
 
 import (
 	"context"
+	"reflect"
 	"testing"
 )
 
@@ -123,5 +124,53 @@ runs:
 
 	if !relationshipHasTarget(relationships, "DEPENDS_ON", "github_actions_action_repository", "some-org/x") {
 		t.Fatalf("missing composite-action DEPENDS_ON some-org/x for my-action/action.yml: %#v", relationships.outgoing)
+	}
+}
+
+func TestGitHubActionsSourceRelationshipsRejectsInexactWorkflowPaths(t *testing.T) {
+	t.Parallel()
+
+	for _, relativePath := range []string{
+		".github/workflows/team/ci.yml",
+		"examples/.github/workflows/ci.yml",
+		".github/workflows/ci.json",
+		".github/workflows/.yml",
+		".github/workflows.yml",
+	} {
+		relativePath := relativePath
+		t.Run(relativePath, func(t *testing.T) {
+			t.Parallel()
+			if isGitHubActionsArtifactPath(EntityContent{RelativePath: relativePath}) {
+				t.Fatalf("isGitHubActionsArtifactPath(%q) = true, want false", relativePath)
+			}
+		})
+	}
+}
+
+func TestGitHubActionsSourceRelationshipsMultiJobOrderIsRepeatable(t *testing.T) {
+	t.Parallel()
+
+	entity := EntityContent{
+		RelativePath: ".github/workflows/ci.yml",
+		SourceCache: `jobs:
+  zeta:
+    steps:
+      - uses: z-org/z-action@v1
+  alpha:
+    steps:
+      - uses: a-org/a-action@v1
+  middle:
+    steps:
+      - uses: m-org/m-action@v1
+`,
+	}
+	want := githubActionsSourceRelationships(entity)
+	for run := 0; run < 25; run++ {
+		if got := githubActionsSourceRelationships(entity); !reflect.DeepEqual(got, want) {
+			t.Fatalf("run %d relationships = %#v, want stable %#v", run, got, want)
+		}
+	}
+	if got, wantTarget := want[0].targetName, "a-org/a-action"; got != wantTarget {
+		t.Fatalf("first target = %q, want deterministic job-name order %q", got, wantTarget)
 	}
 }

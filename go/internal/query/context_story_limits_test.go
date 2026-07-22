@@ -5,6 +5,7 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -75,6 +76,54 @@ func TestGetEntityContextReturnsResultLimitsAndPartialReasons(t *testing.T) {
 
 	data := contextEnvelopeHTTPData(t, mux, "/api/v0/entities/entity-1/context", "entity_id", "entity-1")
 	requireContextResultLimits(t, data, "get_relationship_evidence", "/api/v0/entities/entity-1/context")
+}
+
+func TestGetEntityContextHTTPDeterministicallyCapsRelationships(t *testing.T) {
+	t.Parallel()
+
+	relationships := make([]any, contextStoryItemLimit+10)
+	for i := range relationships {
+		index := len(relationships) - i - 1
+		relationships[i] = map[string]any{
+			"type":        "DEPENDS_ON",
+			"target_name": fmt.Sprintf("target-%03d", index),
+			"target_id":   fmt.Sprintf("repository:%03d", index),
+		}
+	}
+	handler := &EntityHandler{Neo4j: fakeGraphReader{runSingle: func(_ context.Context, _ string, _ map[string]any) (map[string]any, error) {
+		return map[string]any{
+			"id":            "entity-1",
+			"labels":        []any{"File"},
+			"name":          "ci",
+			"file_path":     ".github/workflows/ci.yml",
+			"repo_id":       "repo-1",
+			"relationships": relationships,
+		}, nil
+	}}}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	first := contextEnvelopeHTTPData(t, mux, "/api/v0/entities/entity-1/context", "entity_id", "entity-1")
+	second := contextEnvelopeHTTPData(t, mux, "/api/v0/entities/entity-1/context", "entity_id", "entity-1")
+	for run, data := range []map[string]any{first, second} {
+		rows := mapSliceValue(data, "relationships")
+		if got, want := len(rows), contextStoryItemLimit; got != want {
+			t.Fatalf("run %d relationship payload len = %d, want %d", run, got, want)
+		}
+		limits := mapValue(data, "result_limits")
+		if got, want := IntVal(limits, "relationship_count"), contextStoryItemLimit+10; got != want {
+			t.Fatalf("run %d relationship_count = %d, want %d", run, got, want)
+		}
+		if truncated, _ := limits["truncated"].(bool); !truncated {
+			t.Fatalf("run %d result_limits.truncated = false, want true", run)
+		}
+		if got, want := StringVal(rows[0], "target_name"), "target-000"; got != want {
+			t.Fatalf("run %d first target = %q, want %q", run, got, want)
+		}
+		if got, want := StringVal(rows[len(rows)-1], "target_name"), "target-049"; got != want {
+			t.Fatalf("run %d last target = %q, want %q", run, got, want)
+		}
+	}
 }
 
 // TestWorkloadContextResultLimitsCapsFanoutInPlace proves the workload limits

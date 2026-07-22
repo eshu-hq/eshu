@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	sourceCacheTruncatedMetadataKey     = "source_cache_truncated"
-	sourceCacheOriginalBytesMetadataKey = "source_cache_original_bytes"
-	sourceCacheLimitBytesMetadataKey    = "source_cache_limit_bytes"
+	sourceCacheTruncatedMetadataKey           = "source_cache_truncated"
+	sourceCacheOriginalBytesMetadataKey       = "source_cache_original_bytes"
+	sourceCacheLimitBytesMetadataKey          = "source_cache_limit_bytes"
+	githubActionsWorkflowSourceCacheByteLimit = 32 * 1024
 )
 
 var entitySourceCacheByteLimits = map[string]int{
@@ -54,8 +55,11 @@ func entitySourceCache(label string, item Entity, body string, startLine int, en
 
 // limitEntitySourceCache bounds oversized low-signal snippets while preserving
 // exact full-file search in content_files and recording metadata for clients.
-func limitEntitySourceCache(label string, sourceCache string, metadata map[string]any) (string, map[string]any) {
+func limitEntitySourceCache(label string, artifactType string, sourceCache string, metadata map[string]any) (string, map[string]any) {
 	limit, ok := entitySourceCacheByteLimits[label]
+	if label == "File" && artifactType == githubActionsWorkflowArtifactType {
+		limit, ok = githubActionsWorkflowSourceCacheByteLimit, true
+	}
 	if !ok || limit <= 0 || len(sourceCache) <= limit {
 		return sourceCache, metadata
 	}

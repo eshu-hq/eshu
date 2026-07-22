@@ -134,7 +134,9 @@ func materializeFile(repoID string, file File) (content.Record, []content.Entity
 	if err != nil {
 		return content.Record{}, nil, false, err
 	}
-	if fileEntityCapHit || file.ParseBounded {
+	legacyWorkflowPathIneligible := strings.TrimSpace(file.ArtifactType) == githubActionsWorkflowArtifactType &&
+		!isDirectGitHubActionsWorkflowPath(path)
+	if fileEntityCapHit || file.ParseBounded || legacyWorkflowPathIneligible {
 		record.PurgeEntities = true
 	}
 
@@ -208,7 +210,7 @@ func materializeEntities(repoID string, path string, file File) ([]content.Entit
 		endLine := entityEndLine(indexedItems, index, file.Body, startLine)
 		sourceCache := entitySourceCache(indexed.label, indexed.item, file.Body, startLine, endLine)
 		metadata := cloneAnyMap(indexed.item.Metadata)
-		sourceCache, metadata = limitEntitySourceCache(indexed.label, sourceCache, metadata)
+		sourceCache, metadata = limitEntitySourceCache(indexed.label, indexed.item.ArtifactType, sourceCache, metadata)
 		entities = append(entities, content.EntityRecord{
 			EntityID:        content.CanonicalEntityIDWithMetadata(repoID, path, indexed.label, indexed.item.Name, startLine, metadata),
 			Path:            path,
@@ -235,7 +237,7 @@ func materializeEntities(repoID string, path string, file File) ([]content.Entit
 // lets the entity-context fallback inspect GitHub Actions workflow source. It
 // deliberately has no parser or graph counterpart.
 func githubActionsWorkflowFileEntity(file File) (indexedEntity, bool) {
-	if file.Deleted || strings.TrimSpace(file.ArtifactType) != githubActionsWorkflowArtifactType {
+	if file.Deleted || !isDirectGitHubActionsWorkflowPath(file.Path) {
 		return indexedEntity{}, false
 	}
 
@@ -252,12 +254,22 @@ func githubActionsWorkflowFileEntity(file File) (indexedEntity, bool) {
 			LineNumber:      1,
 			EndLine:         lineCount(file.Body),
 			Language:        file.Language,
-			ArtifactType:    file.ArtifactType,
+			ArtifactType:    githubActionsWorkflowArtifactType,
 			TemplateDialect: file.TemplateDialect,
 			IACRelevant:     cloneBoolPtr(file.IACRelevant),
 			Source:          file.Body,
 		},
 	}, true
+}
+
+// isDirectGitHubActionsWorkflowPath is the content-entity identity gate. GitHub
+// discovers workflow files only in the direct .github/workflows directory.
+func isDirectGitHubActionsWorkflowPath(value string) bool {
+	parts := strings.Split(strings.TrimSpace(value), "/")
+	if len(parts) != 3 || parts[0] != ".github" || parts[1] != "workflows" || parts[2] == "" {
+		return false
+	}
+	return pathpkg.Ext(parts[2]) == ".yml" || pathpkg.Ext(parts[2]) == ".yaml"
 }
 
 func entityEndLine(items []indexedEntity, index int, body string, startLine int) int {

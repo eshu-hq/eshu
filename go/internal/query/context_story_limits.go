@@ -17,7 +17,14 @@ const contextStoryItemLimit = 50
 func entityContextResultLimits(response map[string]any, entityID string) map[string]any {
 	relationships := mapSliceValue(response, "relationships")
 	total := len(relationships)
-	capped, truncated := capMapRows(relationships, contextStoryItemLimit)
+	if total > contextStoryItemLimit {
+		sort.SliceStable(relationships, func(i, j int) bool {
+			return relationshipRowLess(relationships[i], relationships[j])
+		})
+	}
+	capped, capTruncated := capMapRows(relationships, contextStoryItemLimit)
+	relationshipsComplete, completenessKnown := response["relationships_complete"].(bool)
+	truncated := capTruncated || (completenessKnown && !relationshipsComplete)
 	if total > 0 {
 		response["relationships"] = capped
 	}
@@ -30,6 +37,17 @@ func entityContextResultLimits(response map[string]any, entityID string) map[str
 		"drilldown_tool":     "get_relationship_evidence",
 		"context_path":       "/api/v0/entities/" + entityID + "/context",
 	}
+}
+
+func relationshipRowLess(left, right map[string]any) bool {
+	for _, key := range []string{"type", "source_id", "source_name", "target_id", "target_name", "reason"} {
+		leftValue := StringVal(left, key)
+		rightValue := StringVal(right, key)
+		if leftValue != rightValue {
+			return leftValue < rightValue
+		}
+	}
+	return false
 }
 
 // workloadContextResultLimits builds the shared result_limits drilldown block

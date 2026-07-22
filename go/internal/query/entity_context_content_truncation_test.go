@@ -143,3 +143,39 @@ func TestGetEntityContextFromContentOmitsTruncationFieldsBelowLimit(t *testing.T
 		t.Fatalf("response[relationships_truncation_reason] present = %#v, want absent (not truncated)", response["relationships_truncation_reason"])
 	}
 }
+
+func TestGetEntityContextFromContentDisclosesTruncatedWorkflowSource(t *testing.T) {
+	t.Parallel()
+
+	workflow := EntityContent{
+		EntityID:     "workflow-1",
+		RepoID:       "repo-1",
+		RelativePath: ".github/workflows/ci.yml",
+		EntityType:   "File",
+		EntityName:   "ci",
+		Metadata: map[string]any{
+			"source_cache_truncated":      true,
+			"source_cache_original_bytes": 40000,
+			"source_cache_limit_bytes":    32768,
+		},
+	}
+
+	handler := &EntityHandler{Content: entityContextFakeContentStore{entity: &workflow}}
+	response, err := handler.getEntityContextFromContent(context.Background(), workflow.EntityID)
+	if err != nil {
+		t.Fatalf("getEntityContextFromContent() error = %v, want nil", err)
+	}
+	if got, want := response["relationships_complete"], false; got != want {
+		t.Fatalf("relationships_complete = %#v, want %#v", got, want)
+	}
+	if got, want := response["relationships_truncation_reason"], githubActionsSourceCacheTruncationReason; got != want {
+		t.Fatalf("relationships_truncation_reason = %#v, want %#v", got, want)
+	}
+	if got := contextPartialReasons(response); len(got) != 1 || got[0] != githubActionsSourceCacheTruncationReason {
+		t.Fatalf("partial_reasons = %#v, want [%q]", got, githubActionsSourceCacheTruncationReason)
+	}
+	limits := entityContextResultLimits(response, workflow.EntityID)
+	if truncated, _ := limits["truncated"].(bool); !truncated {
+		t.Fatal("result_limits.truncated = false, want true for incomplete workflow relationship truth")
+	}
+}

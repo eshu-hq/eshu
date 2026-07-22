@@ -5,6 +5,7 @@ package mcp
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -45,6 +46,54 @@ func TestDispatchToolEntityContextReturnsHardenedEnvelope(t *testing.T) {
 
 	data := dispatchContextEnvelopeData(t, "get_entity_context", map[string]any{"entity_id": "entity-1"})
 	requireContextLimitsAndReasons(t, data, "get_relationship_evidence", "/api/v0/entities/entity-1/context")
+}
+
+func TestDispatchToolEntityContextDeterministicallyCapsRelationships(t *testing.T) {
+	t.Parallel()
+
+	handler := &query.EntityHandler{Neo4j: overLimitEntityContextGraphReader{}}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	for run := 0; run < 2; run++ {
+		result, err := dispatchTool(
+			context.Background(),
+			mux,
+			"get_entity_context",
+			map[string]any{"entity_id": "entity-1"},
+			"",
+			slog.New(slog.NewTextHandler(io.Discard, nil)),
+		)
+		if err != nil {
+			t.Fatalf("run %d dispatchTool() error = %v, want nil", run, err)
+		}
+		data, ok := result.Envelope.Data.(map[string]any)
+		if !ok {
+			t.Fatalf("run %d data type = %T, want map[string]any", run, result.Envelope.Data)
+		}
+		rows, ok := data["relationships"].([]any)
+		if !ok {
+			t.Fatalf("run %d relationships type = %T, want []any", run, data["relationships"])
+		}
+		if got, want := len(rows), 50; got != want {
+			t.Fatalf("run %d relationship payload len = %d, want %d", run, got, want)
+		}
+		first, _ := rows[0].(map[string]any)
+		last, _ := rows[len(rows)-1].(map[string]any)
+		if got, want := query.StringVal(first, "target_name"), "target-000"; got != want {
+			t.Fatalf("run %d first target = %q, want %q", run, got, want)
+		}
+		if got, want := query.StringVal(last, "target_name"), "target-049"; got != want {
+			t.Fatalf("run %d last target = %q, want %q", run, got, want)
+		}
+		limits := mcpMapValue(data, "result_limits")
+		if got, want := query.IntVal(limits, "relationship_count"), 60; got != want {
+			t.Fatalf("run %d relationship_count = %d, want %d", run, got, want)
+		}
+		if truncated, _ := limits["truncated"].(bool); !truncated {
+			t.Fatalf("run %d result_limits.truncated = false, want true", run)
+		}
+	}
 }
 
 func dispatchContextEnvelopeData(t *testing.T, tool string, args map[string]any) map[string]any {
@@ -123,6 +172,35 @@ type contextEnvelopeGraphReader struct{}
 
 func (contextEnvelopeGraphReader) Run(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 	return nil, nil
+}
+
+type overLimitEntityContextGraphReader struct{}
+
+func (overLimitEntityContextGraphReader) Run(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+	return nil, nil
+}
+
+func (overLimitEntityContextGraphReader) RunSingle(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+	if !strings.Contains(cypher, "WHERE e.id = $entity_id") {
+		return nil, nil
+	}
+	relationships := make([]any, 60)
+	for i := range relationships {
+		index := len(relationships) - i - 1
+		relationships[i] = map[string]any{
+			"type":        "DEPENDS_ON",
+			"target_name": fmt.Sprintf("target-%03d", index),
+			"target_id":   fmt.Sprintf("repository:%03d", index),
+		}
+	}
+	return map[string]any{
+		"id":            "entity-1",
+		"labels":        []any{"File"},
+		"name":          "ci",
+		"file_path":     ".github/workflows/ci.yml",
+		"repo_id":       "repo-1",
+		"relationships": relationships,
+	}, nil
 }
 
 func (contextEnvelopeGraphReader) RunSingle(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
