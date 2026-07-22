@@ -139,6 +139,22 @@ scans an entire response.
 - `report.go` — finding aggregation, severity, and rendering.
 - `runner.go` / `main.go` — flag parsing and phase orchestration.
 
+## SQL relationship and CODEOWNERS query coverage (#5410)
+
+The orchestrator stages `sql_comprehensive` explicitly because the snapshot's
+`REFERENCES_TABLE` and `WRITES_TO` requirements are non-vacuous pipeline
+assertions: `public.users` references `public.orgs`, and
+`public.touch_updated_at` writes to `public.users`. The structural shell test
+pins that fixture membership so the gate cannot claim these edges while
+silently omitting their source corpus.
+
+CODEOWNERS API and MCP shapes use the canonical Repository ID derived from the
+fixture's synthesized remote, not its display name. A snapshot test derives the
+ID with the production repository-identity helper and rejects drift. On the
+25-repository corpus, the rebuilt query phase returned two ownership rows from
+both HTTP and MCP and finished with 201 pass, 0 required failures, and 0
+advisory warnings.
+
 ## Self-loop counting — performance & observability evidence (#5349)
 
 `graph.go`'s `CountSelfLoopEdges` backs the `required_self_loops` B-12

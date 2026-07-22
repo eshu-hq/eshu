@@ -94,7 +94,11 @@ authoring; it does not build a second coverage framework.
   hand-derived expected-edge-set fixture covers every
   `cypher.SQLRelationshipMaterializedEdgeTypes()` key, then reproduces it
   exactly by running the Odù's facts through the pure
-  `reducer.ExtractSQLRelationshipRows` seam.
+  `reducer.ExtractSQLRelationshipRows` seam. The SQL-family Odù now proves all
+  nine writer-registry types, including table-to-table `REFERENCES_TABLE` and
+  routine-to-table `WRITES_TO`, in both its baseline and accumulated delta set.
+  Because the expected type inventory is registry-derived, adding a tenth type
+  without extending the Odù fails closed instead of preserving a stale count.
 - `ExpectedEdge`, `LoadExpectedEdges`, `MaterializedEdgeDomainEdgeTypes`
   (`materialized_edges_assert.go`, #5351) - the exported surface `cmd/ifa`'s
   `assert-edges` verb uses for the LIVE, set-exact non-vacuity assertion: it

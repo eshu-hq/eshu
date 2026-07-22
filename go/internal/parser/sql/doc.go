@@ -15,6 +15,9 @@
 // and by deduplicating entity and relationship keys before returning.
 // Constraint clauses are scanned for bounded table references without being
 // reported as column definitions.
+// Foreign-key targets and routine read/write targets are also stamped into
+// bounded entity metadata so downstream reducers can materialize the parser's
+// relationship truth without reparsing SQL.
 //
 // A statement segment larger than maxSQLSegmentBytes is bounded before it
 // reaches tree-sitter: an opaque dollar-quoted routine body of that size

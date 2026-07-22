@@ -296,7 +296,7 @@ locks the two together.
 | `DomainWorkloadMaterialization` | Materialize canonical workload graph nodes |
 | `DomainCodeCallMaterialization` | Materialize canonical code-call edges |
 | `DomainSemanticEntityMaterialization` | Materialize Annotation, Typedef, TypeAlias, Component semantic nodes |
-| `DomainSQLRelationshipMaterialization` | Materialize canonical SQL relationship edges |
+| `DomainSQLRelationshipMaterialization` | Resolve bounded SQL entity metadata into canonical `READS_FROM`, `REFERENCES_TABLE`, `WRITES_TO`, `HAS_COLUMN`, `TRIGGERS`, `EXECUTES`, `INDEXES`, `MIGRATES`, and embedded-query `QUERIES_TABLE` edges; ambiguous or missing FK/write targets are counted and skipped, never guessed (#5410) |
 | `DomainShellExecMaterialization` | Materialize canonical shell execution edges |
 | `DomainInheritanceMaterialization` | Materialize inheritance, override, and alias edges |
 | `DomainPackageSourceCorrelation` | Classify package-registry source hints and package-version publication evidence without ownership promotion |

@@ -114,7 +114,7 @@ var impactBlastRadiusGateQueries = func() []impactBlastRadiusGateQuery {
 		{ConstName: "blastRadiusTerraformSourceReposCypher", Cypher: blastRadiusTerraformSourceReposQuery(unscoped), MinDistinctEdgeTypes: 2},
 		{ConstName: "blastRadiusDependentsByIDCypher", Cypher: blastRadiusDependentsByIDQuery(unscoped), MinDistinctEdgeTypes: 1},
 		{ConstName: "blastRadiusCrossplaneCypher", Cypher: blastRadiusCrossplaneQuery(unscoped), CoverageEdgeTypes: crossplaneXrdBlastRadiusEdgeTypes, MinDistinctEdgeTypes: 3},
-		{ConstName: "blastRadiusSqlTableCypher", Cypher: blastRadiusSqlTableQuery(unscoped), CoverageEdgeTypes: sqlTableBlastRadiusEdgeTypes, MinDistinctEdgeTypes: 7},
+		{ConstName: "blastRadiusSqlTableCypher", Cypher: blastRadiusSqlTableQuery(unscoped), CoverageEdgeTypes: sqlTableBlastRadiusEdgeTypes, MinDistinctEdgeTypes: 9},
 		{ConstName: "blastRadiusTierLookupCypher", Cypher: blastRadiusTierLookupCypher, MinDistinctEdgeTypes: 1},
 	}
 }()

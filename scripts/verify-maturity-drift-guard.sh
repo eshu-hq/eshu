@@ -109,6 +109,7 @@ set -euo pipefail
 repo_root="${ESHU_MATURITY_DRIFT_GUARD_REPO_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 gate_script="${repo_root}/scripts/verify-golden-corpus-gate.sh"
+fixture_inventory="${repo_root}/scripts/lib/golden-corpus-fixtures.sh"
 snapshot_path="${repo_root}/testdata/golden/e2e-20repo-snapshot.json"
 ledger_path="${repo_root}/specs/language-feature-parity-ledger.v1.yaml"
 matrix_path="${repo_root}/docs/public/languages/support-maturity.md"
@@ -166,8 +167,14 @@ transliterate_language_name() {
 }
 
 # extract_corpus_fixtures prints one fixture name per line from the
-# `corpus_fixtures=( ... )` bash array in scripts/verify-golden-corpus-gate.sh.
+# `corpus_fixtures=( ... )` bash array in the golden gate orchestrator or its
+# sourced fixture inventory. Keeping the orchestrator under the file cap must
+# not make maturity grading vacuous.
 extract_corpus_fixtures() {
+	local sources=("${gate_script}")
+	if [[ -f "${fixture_inventory}" ]]; then
+		sources+=("${fixture_inventory}")
+	fi
 	awk '
     /^corpus_fixtures=\(/ { in_block = 1; next }
     in_block && /^\)/ { in_block = 0; next }
@@ -177,7 +184,7 @@ extract_corpus_fixtures() {
       gsub(/^[ \t]+|[ \t]+$/, "", line)
       if (line != "") print line
     }
-  ' "${gate_script}"
+  ' "${sources[@]}"
 }
 
 # extract_ledger_languages prints one ledger key per line from every
@@ -257,7 +264,7 @@ main() {
 	extract_corpus_fixtures >"${fixtures_file}"
 	local fixture_count
 	fixture_count="$(awk 'NF' "${fixtures_file}" | wc -l | tr -d ' ')"
-	[[ "${fixture_count}" -gt 0 ]] || die "parsed zero corpus_fixtures entries from ${gate_script} (regex regression?)"
+	[[ "${fixture_count}" -gt 0 ]] || die "parsed zero corpus_fixtures entries from ${gate_script} and sourced inventories (regex regression?)"
 
 	local fixture
 	while IFS= read -r fixture; do

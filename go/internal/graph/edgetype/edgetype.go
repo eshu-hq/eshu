@@ -176,6 +176,8 @@ const (
 	Triggers EdgeType = "TRIGGERS"
 	// TriggersOn is the "TRIGGERS_ON" graph relationship type.
 	TriggersOn EdgeType = "TRIGGERS_ON"
+	// WritesTo is the "WRITES_TO" graph relationship type.
+	WritesTo EdgeType = "WRITES_TO"
 	// Uses is the "USES" graph relationship type.
 	Uses EdgeType = "USES"
 	// UsesMetaclass is the "USES_METACLASS" graph relationship type.
@@ -208,7 +210,7 @@ var registered = []EdgeType{
 	RunsImage, RunsIn, RunsOn, SatisfiedBy,
 	SecretsIamAssumesIamRole, SecretsIamAuthenticatesToVaultRole, SecretsIamGrantsSecretRead, SecretsIamUsesServiceAccount,
 	SecretsIamUsesVaultPolicy, TaintFlowsTo, TargetsEnvironment, To,
-	Triggers, TriggersOn, Uses, UsesMetaclass,
+	Triggers, TriggersOn, WritesTo, Uses, UsesMetaclass,
 	UsesModule, UsesProfile, UsesWorkflow,
 }
 

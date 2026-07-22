@@ -9,8 +9,6 @@ import (
 	"log/slog"
 	"time"
 
-	"go.opentelemetry.io/otel/metric"
-
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -35,6 +33,11 @@ type EdgeWriter struct {
 	CodeCallGroupBatchSize        int
 	InheritanceGroupBatchSize     int
 	SQLRelationshipGroupBatchSize int
+	// SQLRelationshipSequentialWrites routes SQL relationship statements through
+	// auto-commit Execute even when the executor supports managed groups. The
+	// pinned NornicDB backend acknowledges these UNWIND/MATCH/MERGE statements in
+	// a managed transaction without persisting their edges (#5410).
+	SQLRelationshipSequentialWrites bool
 	// RepoDependencyRetractStatementTiming is retained for environment
 	// compatibility (ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING) but no
 	// longer changes behavior: repo_dependency retracts run their source-capable
@@ -174,8 +177,10 @@ func (w *EdgeWriter) WriteEdges(
 		stmts = append(stmts, routeStatements...)
 	}
 
-	// Prefer atomic grouped execution; fall back to sequential.
-	if ge, ok := w.executor.(GroupExecutor); ok {
+	// Prefer atomic grouped execution except where the backend requires the SQL
+	// relationship write path to use auto-commit for accurate graph truth.
+	sequentialSQL := domain == reducer.DomainSQLRelationships && w.SQLRelationshipSequentialWrites
+	if ge, ok := w.executor.(GroupExecutor); ok && !sequentialSQL {
 		if groupSize := w.groupBatchSizeForDomain(domain); groupSize > 0 {
 			for i := 0; i < len(stmts); i += groupSize {
 				end := i + groupSize
@@ -219,36 +224,6 @@ func (w *EdgeWriter) WriteEdges(
 	return nil
 }
 
-func (w *EdgeWriter) recordGroupedWrite(
-	ctx context.Context,
-	domain string,
-	duration float64,
-	stmts []Statement,
-) {
-	if w.Instruments == nil || len(stmts) == 0 {
-		return
-	}
-
-	attrs := metric.WithAttributes(
-		telemetry.AttrDomain(domain),
-	)
-	w.Instruments.SharedEdgeWriteGroups.Add(ctx, 1, attrs)
-	w.Instruments.SharedEdgeWriteGroupDuration.Record(ctx, duration, attrs)
-	w.Instruments.SharedEdgeWriteGroupStatementCount.Record(ctx, int64(len(stmts)), attrs)
-}
-
-func (w *EdgeWriter) recordCodeCallBatch(ctx context.Context, duration float64) {
-	if w.Instruments == nil {
-		return
-	}
-
-	attrs := metric.WithAttributes(
-		telemetry.AttrDomain(reducer.DomainCodeCalls),
-	)
-	w.Instruments.CodeCallEdgeBatches.Add(ctx, 1, attrs)
-	w.Instruments.CodeCallEdgeDuration.Record(ctx, duration, attrs)
-}
-
 // batchCypherForDomain returns the batched UNWIND Cypher template for the
 // given shared projection domain. WriteEdges uses it only as a
 // domain-recognition gate (its returned template is discarded there; each row's
@@ -273,7 +248,7 @@ func batchCypherForDomain(domain string) (string, error) {
 		// SQL relationship edges have no single-template batch: each row is
 		// dispatched per relationship type by buildSQLRelationshipRowMap — a
 		// label-scoped MERGE for SqlView/SqlFunction/SqlTable/SqlMigration/... endpoints
-		// (READS_FROM, INDEXES, HAS_COLUMN, TRIGGERS, MIGRATES, ...) or the
+		// (READS_FROM, WRITES_TO, REFERENCES_TABLE, INDEXES, MIGRATES, ...) or the
 		// QUERIES_TABLE/HAS_COLUMN/TRIGGERS/EXECUTES fallback templates for
 		// mixed-label endpoints. This case exists only to satisfy WriteEdges'
 		// domain-recognition gate. It deliberately returns an empty template

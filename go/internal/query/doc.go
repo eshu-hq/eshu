@@ -58,6 +58,9 @@
 // stale, missing-evidence, permission-hidden, unsupported, and unsafe candidate
 // rows under a domain/scope/generation boundary; they explain graph writes but
 // are not themselves canonical graph edges.
+// SQL-table blast radius traverses only writer-backed SQL edges, bounds
+// view-on-view READS_FROM expansion to two hops, and reports any remaining
+// unmaterialized relationship family through its coverage envelope.
 //
 // Supply-chain reads expose source-only advisory evidence separately from
 // reducer-owned impact findings. Advisory evidence groups active

@@ -234,6 +234,9 @@
                 "line_number": 7,
                 "name": "invoices",
                 "qualified_name": "invoices",
+                "referenced_tables": [
+                  "accounts"
+                ],
                 "schema": "",
                 "sql_entity_type": "SqlTable",
                 "type": "content_entity"

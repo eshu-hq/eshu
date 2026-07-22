@@ -377,7 +377,7 @@ log "baseline: assert SQL relationship family materialized edges (absolute set, 
 "${bin_dir}/eshu-ifa" assert-edges \
 	-domain sql_relationships \
 	-expected "${sql_expected_edges}" \
-	|| die "baseline: SQL relationship family materialized edge set did not match the expected set (fault-free baseline must materialize all seven SQL edges before the recovery cells compare against it)"
+	|| die "baseline: SQL relationship family materialized edge set did not match the expected set (fault-free baseline must materialize all nine SQL edges before the recovery cells compare against it)"
 # Snapshot the fault-free retry count so cell 4 can prove the injected fault
 # ADDED a retry this identical drive did not produce on its own (guards the
 # non-vacuity check against a natural counting-class retry greening it while the

@@ -83,6 +83,7 @@ func TestEdgeTypeStringParity(t *testing.T) {
 		TargetsEnvironment:                 "TARGETS_ENVIRONMENT",
 		To:                                 "TO",
 		Triggers:                           "TRIGGERS",
+		WritesTo:                           "WRITES_TO",
 		TriggersOn:                         "TRIGGERS_ON",
 		Uses:                               "USES",
 		UsesMetaclass:                      "USES_METACLASS",

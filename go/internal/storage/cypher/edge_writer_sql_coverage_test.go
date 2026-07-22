@@ -25,6 +25,11 @@ func TestSQLRelationshipMaterializedEdgeTypesMatchesWriteReasons(t *testing.T) {
 	if _, ok := got["INDEXES"]; !ok {
 		t.Error(`got["INDEXES"] missing, want present`)
 	}
+	for _, edgeType := range []string{"REFERENCES_TABLE", "WRITES_TO"} {
+		if _, ok := got[edgeType]; !ok {
+			t.Errorf("got[%q] missing, want present", edgeType)
+		}
+	}
 	// Defensive copy: mutating the result must not corrupt the package state.
 	got["INJECTED"] = "should not leak"
 	again := SQLRelationshipMaterializedEdgeTypes()

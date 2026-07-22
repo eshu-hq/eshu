@@ -32,7 +32,7 @@ import "fmt"
 // edges still in the graph from the SqlView/SqlFunction source_tables writer.
 // MIGRATES was added in #5346 (SqlMigration -> SqlTable/View/Function/
 // Trigger/Index).
-const sqlRelationshipRetractRelTypes = "QUERIES_TABLE|REFERENCES_TABLE|READS_FROM|HAS_COLUMN|TRIGGERS|EXECUTES|INDEXES|MIGRATES"
+const sqlRelationshipRetractRelTypes = "QUERIES_TABLE|REFERENCES_TABLE|READS_FROM|WRITES_TO|HAS_COLUMN|TRIGGERS|EXECUTES|INDEXES|MIGRATES"
 
 // sqlRelationshipRetractSourceLabels lists the source node labels a SQL
 // relationship edge retract must cover. It MUST include every label the write
@@ -94,13 +94,15 @@ var sqlRelationshipEntityLabels = map[string]struct{}{
 // TestSQLRelationshipRetractCoversEveryWriteRelationshipType — or its edges
 // would be written but never retracted.
 var sqlRelationshipWriteReasons = map[string]string{
-	"QUERIES_TABLE": "Parser embedded SQL evidence resolved a function table query edge",
-	"READS_FROM":    "SQL view/function metadata resolved a table read edge",
-	"HAS_COLUMN":    "SQL entity metadata resolved a table-column containment edge",
-	"TRIGGERS":      "SQL entity metadata resolved a trigger edge",
-	"EXECUTES":      "SQL trigger metadata resolved a routine execution edge",
-	"INDEXES":       "SQL entity metadata resolved an index-to-table edge",
-	"MIGRATES":      "SQL migration metadata resolved a migration-to-target edge",
+	"QUERIES_TABLE":    "Parser embedded SQL evidence resolved a function table query edge",
+	"REFERENCES_TABLE": "SQL table metadata resolved a foreign-key table reference edge",
+	"READS_FROM":       "SQL view/function metadata resolved a table read edge",
+	"WRITES_TO":        "SQL routine metadata resolved a table write edge",
+	"HAS_COLUMN":       "SQL entity metadata resolved a table-column containment edge",
+	"TRIGGERS":         "SQL entity metadata resolved a trigger edge",
+	"EXECUTES":         "SQL trigger metadata resolved a routine execution edge",
+	"INDEXES":          "SQL entity metadata resolved an index-to-table edge",
+	"MIGRATES":         "SQL migration metadata resolved a migration-to-target edge",
 }
 
 // SQLRelationshipMaterializedEdgeTypes returns a defensive copy of

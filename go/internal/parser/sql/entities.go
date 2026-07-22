@@ -78,37 +78,45 @@ func (x *sqlExtractor) originalLineForOffset(segmentOffset int) int {
 func (x *sqlExtractor) parseTable(node *tree_sitter.Node, src []byte) {
 	name := objectReferenceName(node, src)
 	line := x.lineFor(node, src)
-	x.appendEntity("sql_tables", name, map[string]any{
+	item := map[string]any{
 		"name":            name,
 		"line_number":     line,
 		"type":            "content_entity",
 		"sql_entity_type": "SqlTable",
 		"schema":          sqlSchema(name),
 		"qualified_name":  name,
-	}, node, src)
+	}
 
 	definitions := firstChildByKind(node, "column_definitions")
-	if definitions == nil {
-		return
-	}
-	for _, child := range namedChildren(definitions) {
-		switch child.GrammarName() {
-		case "column_definition":
-			x.appendColumn(name, child, src)
-		case "constraints":
-			x.parseTableConstraints(name, child, src)
+	var referencedTables []string
+	if definitions != nil {
+		for _, child := range namedChildren(definitions) {
+			switch child.GrammarName() {
+			case "column_definition":
+				if target := x.appendColumn(name, child, src); target != "" {
+					referencedTables = append(referencedTables, target)
+				}
+			case "constraints":
+				referencedTables = append(referencedTables, x.parseTableConstraints(name, child, src)...)
+			}
 		}
 	}
+	if targets := boundedSQLTargetNames(referencedTables); len(targets) > 0 {
+		// referenced_tables is the durable parser-to-reducer bridge for FK
+		// table-to-table REFERENCES_TABLE edges (#5410).
+		item["referenced_tables"] = targets
+	}
+	x.appendEntity("sql_tables", name, item, node, src)
 }
 
-func (x *sqlExtractor) appendColumn(tableName string, definition *tree_sitter.Node, src []byte) {
+func (x *sqlExtractor) appendColumn(tableName string, definition *tree_sitter.Node, src []byte) string {
 	columnNode := firstDirectChildByKind(definition, "identifier")
 	if columnNode == nil {
-		return
+		return ""
 	}
 	columnName := normalizeSQLName(nodeText(columnNode, src))
 	if columnName == "" {
-		return
+		return ""
 	}
 	dataType := sqlColumnDataType(definition, columnNode, src)
 	qualified := tableName + "." + columnName
@@ -128,14 +136,19 @@ func (x *sqlExtractor) appendColumn(tableName string, definition *tree_sitter.No
 	if ref := inlineColumnReference(definition); ref != nil {
 		target := objectReferenceName(ref, src)
 		x.appendRelationship("REFERENCES_TABLE", tableName, target, line)
+		return target
 	}
+	return ""
 }
 
-func (x *sqlExtractor) parseTableConstraints(tableName string, constraints *tree_sitter.Node, src []byte) {
+func (x *sqlExtractor) parseTableConstraints(tableName string, constraints *tree_sitter.Node, src []byte) []string {
+	var targets []string
 	for _, mention := range collectConstraintReferences(constraints, src) {
 		x.appendRelationship("REFERENCES_TABLE", tableName, mention.name,
 			x.originalLineForOffset(mention.offset))
+		targets = append(targets, mention.name)
 	}
+	return targets
 }
 
 func (x *sqlExtractor) parseView(node *tree_sitter.Node, src []byte, kind string) {
@@ -202,20 +215,25 @@ func (x *sqlExtractor) parseRoutine(node *tree_sitter.Node, src []byte) {
 		// reducer's READS_FROM derivation reads (#5345).
 		item["source_tables"] = sourceTables
 	}
+	if writeTables := routineWriteTargets(mentions); len(writeTables) > 0 {
+		// write_tables keeps INSERT/UPDATE/DELETE targets distinct from
+		// source_tables so the reducer emits WRITES_TO, never a false read.
+		item["write_tables"] = writeTables
+	}
 	x.appendEntity("sql_functions", name, item, node, src)
 
 	if body == nil {
 		return
 	}
 	for _, mention := range mentions {
-		// A routine body mixes reads with INSERT/UPDATE/DELETE mutation
-		// targets. Only "select" mentions are genuine reads; a write target
-		// mislabeled as a read would be wrong graph truth (#5345).
-		if mention.operation != "select" {
-			continue
+		switch mention.operation {
+		case "select":
+			x.appendRelationship("READS_FROM", name, mention.name,
+				x.originalLineForOffset(mention.offset))
+		case "insert", "update", "delete":
+			x.appendRelationship("WRITES_TO", name, mention.name,
+				x.originalLineForOffset(mention.offset))
 		}
-		x.appendRelationship("READS_FROM", name, mention.name,
-			x.originalLineForOffset(mention.offset))
 	}
 }
 
@@ -224,23 +242,49 @@ func (x *sqlExtractor) parseRoutine(node *tree_sitter.Node, src []byte) {
 // metadata with source_tables so the reducer can derive READS_FROM edges
 // without re-parsing SQL (#5345).
 func selectReadTargets(mentions []sqlMention) []string {
-	seen := make(map[string]struct{}, len(mentions))
-	names := make([]string, 0, len(mentions))
+	var names []string
 	for _, mention := range mentions {
 		if mention.operation != "select" {
 			continue
 		}
-		if _, ok := seen[mention.name]; ok {
-			continue
-		}
-		seen[mention.name] = struct{}{}
 		names = append(names, mention.name)
 	}
-	sort.Strings(names)
-	if len(names) > sqlSourceTablesCap {
-		names = names[:sqlSourceTablesCap]
+	return boundedSQLTargetNames(names)
+}
+
+// routineWriteTargets returns the bounded INSERT/UPDATE/DELETE target set for
+// one routine body. SELECT mentions remain exclusively in source_tables.
+func routineWriteTargets(mentions []sqlMention) []string {
+	var names []string
+	for _, mention := range mentions {
+		switch mention.operation {
+		case "insert", "update", "delete":
+			names = append(names, mention.name)
+		}
 	}
-	return names
+	return boundedSQLTargetNames(names)
+}
+
+// boundedSQLTargetNames deduplicates, sorts, and caps entity metadata targets
+// so FK, read, and write fan-out stays deterministic and payload-bounded.
+func boundedSQLTargetNames(names []string) []string {
+	seen := make(map[string]struct{}, len(names))
+	unique := make([]string, 0, len(names))
+	for _, name := range names {
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		unique = append(unique, name)
+	}
+	sort.Strings(unique)
+	if len(unique) > sqlSourceTablesCap {
+		unique = unique[:sqlSourceTablesCap]
+	}
+	return unique
 }
 
 func (x *sqlExtractor) parseIndex(node *tree_sitter.Node, src []byte) {

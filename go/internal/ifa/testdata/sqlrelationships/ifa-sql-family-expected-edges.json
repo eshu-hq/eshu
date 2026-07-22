@@ -13,6 +13,16 @@
       "target_entity_id": "content-entity:sql-tbl-users"
     },
     {
+      "relationship_type": "REFERENCES_TABLE",
+      "source_entity_id": "content-entity:sql-tbl-users",
+      "target_entity_id": "content-entity:sql-tbl-orders"
+    },
+    {
+      "relationship_type": "WRITES_TO",
+      "source_entity_id": "content-entity:sql-fn-touch-updated-at",
+      "target_entity_id": "content-entity:sql-tbl-users"
+    },
+    {
       "relationship_type": "TRIGGERS",
       "source_entity_id": "content-entity:sql-trig-users-touch",
       "target_entity_id": "content-entity:sql-tbl-users"

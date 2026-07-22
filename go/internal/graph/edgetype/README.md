@@ -4,7 +4,7 @@
 
 `edgetype` is the central registry of Cypher graph relationship (edge) types.
 Every statically-named edge type Eshu writes or reads — `DEPENDS_ON`, `CALLS`,
-`RUNS_IN`, `CAN_ASSUME`, and the rest — is named once here as a typed
+`WRITES_TO`, `RUNS_IN`, `CAN_ASSUME`, and the rest — is named once here as a typed
 `EdgeType` constant. Before this package, edge-type names were scattered as raw
 string literals inside Cypher templates and as ad hoc per-writer Go constants,
 with no compile-time guard against typos or write/read divergence.
@@ -50,7 +50,9 @@ registry.
   `TestNoUnregisteredEdgeLiteral` scans all production Go for relationship-type
   literals and fails CI if any names an edge type not registered here.
 - Adding a new edge type means adding the constant, the `registered` entry, and
-  the parity-table row together; the parity test enforces lockstep.
+  the parity-table row together; the parity test enforces lockstep. Additive
+  edge types also need their writer, reader, and replay/retraction contracts
+  updated in the owning packages.
 
 ## Related docs
 

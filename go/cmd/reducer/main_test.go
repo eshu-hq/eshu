@@ -139,12 +139,7 @@ func TestBuildReducerServiceWiresDefaultRuntimeAndQueue(t *testing.T) {
 	if got, want := codeCallEdgeWriter.CodeCallGroupBatchSize, defaultCodeCallEdgeGroupBatchSize; got != want {
 		t.Fatalf("code call edge group batch size = %d, want %d", got, want)
 	}
-	if got, want := codeCallEdgeWriter.InheritanceGroupBatchSize, defaultInheritanceEdgeGroupBatchSize; got != want {
-		t.Fatalf("inheritance edge group batch size = %d, want %d", got, want)
-	}
-	if got, want := codeCallEdgeWriter.SQLRelationshipGroupBatchSize, defaultSQLRelationshipEdgeGroupBatchSize; got != want {
-		t.Fatalf("sql relationship edge group batch size = %d, want %d", got, want)
-	}
+	assertSharedEdgeWriterConfig(t, codeCallEdgeWriter, defaultInheritanceEdgeGroupBatchSize, defaultSQLRelationshipEdgeGroupBatchSize, true)
 	if codeCallEdgeWriter.RepoDependencyRetractStatementTiming {
 		t.Fatal("repo dependency retract statement timing = true, want default false")
 	}
@@ -241,6 +236,7 @@ func TestBuildReducerServiceWiresSharedEdgeGroupBatchOverrides(t *testing.T) {
 	t.Parallel()
 
 	env := map[string]string{
+		"ESHU_GRAPH_BACKEND":                 "neo4j",
 		inheritanceEdgeGroupBatchSizeEnv:     "3",
 		sqlRelationshipEdgeGroupBatchSizeEnv: "4",
 	}
@@ -269,12 +265,7 @@ func TestBuildReducerServiceWiresSharedEdgeGroupBatchOverrides(t *testing.T) {
 	if !ok {
 		t.Fatalf("shared projection edge writer type = %T, want *cypher.EdgeWriter", service.SharedProjectionRunner.EdgeWriter)
 	}
-	if got, want := edgeWriter.InheritanceGroupBatchSize, 3; got != want {
-		t.Fatalf("inheritance edge group batch size = %d, want %d", got, want)
-	}
-	if got, want := edgeWriter.SQLRelationshipGroupBatchSize, 4; got != want {
-		t.Fatalf("sql relationship edge group batch size = %d, want %d", got, want)
-	}
+	assertSharedEdgeWriterConfig(t, edgeWriter, 3, 4, false)
 }
 
 func TestBuildReducerServiceWiresRepoDependencyRetractStatementTiming(t *testing.T) {

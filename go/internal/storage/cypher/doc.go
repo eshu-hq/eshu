@@ -24,15 +24,19 @@
 // Cypher SET clause persists CALLS, REFERENCES, INHERITS, IMPLEMENTS,
 // OVERRIDES, ALIASES, INSTANTIATES, or USES_METACLASS. Go and TypeScript
 // type-reference metadata must remain REFERENCES so graph truth does not claim
-// that type literals are invocations. SQL
-// relationship rows may materialize as QUERIES_TABLE, TRIGGERS, EXECUTES,
-// INDEXES, table references, or column containment, with EXECUTES preserving
-// trigger-bound
-// SqlFunction reachability for dead-code analysis. Shell execution rows
+// that type literals are invocations. SQL relationship rows may materialize as
+// QUERIES_TABLE, READS_FROM, REFERENCES_TABLE, WRITES_TO, TRIGGERS, EXECUTES,
+// INDEXES, MIGRATES, or column containment, with exact endpoint labels and
+// EXECUTES preserving trigger-bound SqlFunction reachability for dead-code
+// analysis. NornicDB SQL relationship writes use auto-commit because its
+// managed transaction acknowledges these MERGE statements without persisting
+// them; batching, backpressure, retry idempotency, and worker concurrency remain
+// intact, while Neo4j retains grouped execution. Shell execution rows
 // materialize Function-[:EXECUTES_SHELL]->ShellCommand using structural
 // call-site metadata only; command text and arguments are not stored. When
-// reducer evidence includes endpoint entity labels, EdgeWriter anchors code and SQL relationship writes on
-// whitelisted exact labels such as Function, Class, File, Interface, Struct,
+// reducer evidence includes endpoint entity labels, EdgeWriter anchors code and
+// SQL relationship writes on whitelisted exact labels such as Function, Class,
+// File, Interface, Struct,
 // TypeAlias, SqlTrigger, SqlTable, and SqlFunction plus uid, and falls back to
 // the older label-family shape only for legacy rows with supported fallback
 // templates.

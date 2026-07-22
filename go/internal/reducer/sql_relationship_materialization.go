@@ -50,10 +50,11 @@ type SQLRelationshipIntentWriter interface {
 }
 
 // SQLRelationshipMaterializationHandler reduces one SQL relationship follow-up
-// into durable shared-projection intent emission for READS_FROM, HAS_COLUMN,
-// TRIGGERS, EXECUTES, and INDEXES edges. Each repository gets one
-// whole-scope refresh intent that owns the retract, and each edge gets a write-only per-edge
-// intent under a file-scoped partition key fenced behind that refresh (#2868).
+// into durable shared-projection intent emission for READS_FROM, WRITES_TO,
+// REFERENCES_TABLE, HAS_COLUMN, TRIGGERS, EXECUTES, and INDEXES edges. Each
+// repository gets one whole-scope refresh intent that owns the retract, and
+// each edge gets a write-only per-edge intent under a file-scoped partition
+// key fenced behind that refresh (#2868).
 type SQLRelationshipMaterializationHandler struct {
 	FactLoader   FactLoader
 	IntentWriter SQLRelationshipIntentWriter
@@ -127,6 +128,10 @@ func (h SQLRelationshipMaterializationHandler) Handle(
 		// re-deriving it from the graph (#5345).
 		slog.Int("unresolved_read_targets", rowStats.UnresolvedReadTargets),
 		slog.Int("ambiguous_read_targets", rowStats.AmbiguousReadTargets),
+		slog.Int("unresolved_reference_targets", rowStats.UnresolvedReferenceTargets),
+		slog.Int("ambiguous_reference_targets", rowStats.AmbiguousReferenceTargets),
+		slog.Int("unresolved_write_targets", rowStats.UnresolvedWriteTargets),
+		slog.Int("ambiguous_write_targets", rowStats.AmbiguousWriteTargets),
 		// unresolved/ambiguous_migration_targets mirror the read-target pair
 		// above for MIGRATES migration_targets entries resolveSQLMigrationTarget
 		// could not (unresolved) or refused to (ambiguous, #5346 Trap 1) turn
@@ -225,10 +230,11 @@ func ExtractSQLRelationshipRows(
 		entityID := semanticPayloadString(env.Payload, "entity_id")
 		relativePath := semanticPayloadString(env.Payload, "relative_path")
 		// entityPath is the repo-qualified path of THIS entity. It is the edge
-		// source for READS_FROM/TRIGGERS/EXECUTES (the iterated entity is the
-		// source), so it anchors the file-scoped partition key and the source.path
-		// delta retract for those edges (#2868). HAS_COLUMN's source is the resolved
-		// table, so that edge takes its source_path from the table instead.
+		// source for READS_FROM/WRITES_TO/REFERENCES_TABLE/TRIGGERS/EXECUTES
+		// (the iterated entity is the source), so it anchors the file-scoped
+		// partition key and the source.path delta retract for those edges (#2868).
+		// HAS_COLUMN's source is the resolved table, so that edge takes its
+		// source_path from the table instead.
 		entityPath := semanticPayloadString(env.Payload, "path")
 
 		if repoID == "" || entityID == "" || !isSQLEntityType(entityType) {
@@ -236,8 +242,28 @@ func ExtractSQLRelationshipRows(
 		}
 
 		metadata := payloadMap(env.Payload, "entity_metadata")
+		source := sqlRelationshipEntity{
+			entityID:     entityID,
+			entityType:   entityType,
+			repoID:       repoID,
+			relativePath: relativePath,
+			path:         entityPath,
+		}
 
 		switch entityType {
+		case "SqlTable":
+			var unresolved, ambiguous int
+			rows, unresolved, ambiguous = appendSQLTableTargetRows(
+				rows,
+				seenEdges,
+				entityByName,
+				sqlMetadataStringSlice(metadata, "referenced_tables"),
+				source,
+				"REFERENCES_TABLE",
+			)
+			stats.UnresolvedReferenceTargets += unresolved
+			stats.AmbiguousReferenceTargets += ambiguous
+
 		case "SqlView", "SqlFunction":
 			// source_tables metadata -> READS_FROM edges. Resolution tries a
 			// SqlTable target first, then a SqlView target (so a view-on-view
@@ -268,6 +294,19 @@ func ExtractSQLRelationshipRows(
 					"repo_id":            repoID,
 					"relationship_type":  "READS_FROM",
 				})
+			}
+			if entityType == "SqlFunction" {
+				var unresolved, ambiguous int
+				rows, unresolved, ambiguous = appendSQLTableTargetRows(
+					rows,
+					seenEdges,
+					entityByName,
+					sqlMetadataStringSlice(metadata, "write_tables"),
+					source,
+					"WRITES_TO",
+				)
+				stats.UnresolvedWriteTargets += unresolved
+				stats.AmbiguousWriteTargets += ambiguous
 			}
 
 		case "SqlTrigger":

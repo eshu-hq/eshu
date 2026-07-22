@@ -62,12 +62,11 @@ const (
 // sqlFamilyOdu carries one repository fact, a second-table-plus-six-more SQL
 // content_entity set, and one file fact with an embedded SQL query, wired so
 // reducer.ExtractSQLRelationshipRows (go/internal/reducer/sql_relationship_
-// materialization.go:167) derives exactly one edge of each of the seven
+// materialization.go) derives exactly one edge of each of the nine
 // materialized SQL relationship types (cypher.SQLRelationshipMaterializedEdgeTypes,
-// go/internal/storage/cypher/edge_writer_sql.go:115): QUERIES_TABLE,
-// READS_FROM, HAS_COLUMN, TRIGGERS, EXECUTES, INDEXES, MIGRATES.
-// REFERENCES_TABLE is deliberately absent: it is retract-superset-only since
-// #5345 (edge_writer_sql.go:28-35) and must never appear in an expectation.
+// go/internal/storage/cypher/edge_writer_sql.go): QUERIES_TABLE, READS_FROM,
+// REFERENCES_TABLE, WRITES_TO, HAS_COLUMN, TRIGGERS, EXECUTES, INDEXES, and
+// MIGRATES.
 //
 // The repository fact carries both repo_id and source_run_id: without
 // source_run_id, buildCodeCallProjectionContexts (code_call_materialization_
@@ -91,7 +90,10 @@ func sqlFamilyOdu() CatalogOdu {
 			sqlFamilyRepositoryFact(sqlFamilyGenerationID, false, nil),
 			sqlFamilySchemaFileFact(sqlFamilyGenerationID),
 			sqlFamilyGetUserFunctionEntity(sqlFamilyGenerationID),
-			sqlFamilyContentEntity(sqlFamilyGenerationID, "content-entity:sql-tbl-users", "SqlTable", "public.users", nil),
+			sqlFamilyContentEntity(sqlFamilyGenerationID, "content-entity:sql-tbl-users", "SqlTable", "public.users", map[string]any{
+				"referenced_tables": []string{"public.orders"},
+				"sql_entity_type":   "SqlTable",
+			}),
 			sqlFamilyContentEntity(sqlFamilyGenerationID, "content-entity:sql-tbl-orders", "SqlTable", "public.orders", nil),
 			sqlFamilyContentEntity(sqlFamilyGenerationID, "content-entity:sql-col-email", "SqlColumn", "public.users.email", map[string]any{
 				"table_name":      "public.users",
@@ -101,7 +103,10 @@ func sqlFamilyOdu() CatalogOdu {
 				"source_tables":   []string{"public.users"},
 				"sql_entity_type": "SqlView",
 			}),
-			sqlFamilyContentEntity(sqlFamilyGenerationID, "content-entity:sql-fn-touch-updated-at", "SqlFunction", "public.touch_updated_at", nil),
+			sqlFamilyContentEntity(sqlFamilyGenerationID, "content-entity:sql-fn-touch-updated-at", "SqlFunction", "public.touch_updated_at", map[string]any{
+				"write_tables":    []string{"public.users"},
+				"sql_entity_type": "SqlFunction",
+			}),
 			sqlFamilyContentEntity(sqlFamilyGenerationID, "content-entity:sql-trig-users-touch", "SqlTrigger", "users_touch", map[string]any{
 				"table_name":      "public.users",
 				"function_name":   "public.touch_updated_at",
@@ -124,7 +129,7 @@ func sqlFamilyOdu() CatalogOdu {
 	}
 	return CatalogOdu{
 		Odu:    odu,
-		Detail: "one repo, two SqlTable, one SqlColumn/SqlView/SqlFunction/SqlTrigger/SqlIndex/SqlMigration each, one embedded-SQL-query file, and the production shared_followup trigger fact, deriving exactly one edge of each of the seven materialized SQL relationship types (QUERIES_TABLE/READS_FROM/HAS_COLUMN/TRIGGERS/EXECUTES/INDEXES/MIGRATES)",
+		Detail: "one repo, two SqlTable, one SqlColumn/SqlView/SqlFunction/SqlTrigger/SqlIndex/SqlMigration each, one embedded-SQL-query file, and the production shared_followup trigger fact, deriving exactly one edge of each of the nine materialized SQL relationship types (QUERIES_TABLE/READS_FROM/REFERENCES_TABLE/WRITES_TO/HAS_COLUMN/TRIGGERS/EXECUTES/INDEXES/MIGRATES)",
 	}
 }
 
@@ -149,7 +154,10 @@ func sqlFamilyDeltaOdu() CatalogOdu {
 		Facts: []facts.Envelope{
 			sqlFamilyRepositoryFact(sqlFamilyDeltaGenID, true, []string{sqlFamilySchemaPath}),
 			sqlFamilySchemaFileFact(sqlFamilyDeltaGenID),
-			sqlFamilyContentEntity(sqlFamilyDeltaGenID, "content-entity:sql-tbl-users", "SqlTable", "public.users", nil),
+			sqlFamilyContentEntity(sqlFamilyDeltaGenID, "content-entity:sql-tbl-users", "SqlTable", "public.users", map[string]any{
+				"referenced_tables": []string{"public.orders"},
+				"sql_entity_type":   "SqlTable",
+			}),
 			sqlFamilyContentEntity(sqlFamilyDeltaGenID, "content-entity:sql-tbl-orders", "SqlTable", "public.orders", nil),
 			sqlFamilyContentEntity(sqlFamilyDeltaGenID, "content-entity:sql-col-email", "SqlColumn", "public.users.email", map[string]any{
 				"table_name":      "public.users",
@@ -159,7 +167,10 @@ func sqlFamilyDeltaOdu() CatalogOdu {
 				"source_tables":   []string{"public.users"},
 				"sql_entity_type": "SqlView",
 			}),
-			sqlFamilyContentEntity(sqlFamilyDeltaGenID, "content-entity:sql-fn-touch-updated-at", "SqlFunction", "public.touch_updated_at", nil),
+			sqlFamilyContentEntity(sqlFamilyDeltaGenID, "content-entity:sql-fn-touch-updated-at", "SqlFunction", "public.touch_updated_at", map[string]any{
+				"write_tables":    []string{"public.users"},
+				"sql_entity_type": "SqlFunction",
+			}),
 			sqlFamilyContentEntity(sqlFamilyDeltaGenID, "content-entity:sql-trig-users-touch", "SqlTrigger", "users_touch", map[string]any{
 				"table_name":      "public.users",
 				"function_name":   "public.touch_updated_at",

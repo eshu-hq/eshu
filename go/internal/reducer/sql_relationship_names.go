@@ -41,6 +41,18 @@ type SQLRelationshipRowStats struct {
 	// SqlTable and a SqlView under the same name; the resolver refuses to
 	// guess which one the read targets and skips the edge.
 	AmbiguousReadTargets int
+	// UnresolvedReferenceTargets counts referenced_tables entries that matched
+	// no in-repo SqlTable, including after the unqualified-name fallback.
+	UnresolvedReferenceTargets int
+	// AmbiguousReferenceTargets counts referenced_tables entries with multiple
+	// same-repo SqlTable candidates and no unique same-file target.
+	AmbiguousReferenceTargets int
+	// UnresolvedWriteTargets counts routine write_tables entries that matched no
+	// in-repo SqlTable, including after the unqualified-name fallback.
+	UnresolvedWriteTargets int
+	// AmbiguousWriteTargets counts write_tables entries with multiple same-repo
+	// SqlTable candidates and no unique same-file target.
+	AmbiguousWriteTargets int
 	// UnresolvedMigrationTargets counts migration_targets entries that matched
 	// no in-repo entity of the stamped kind (#5346).
 	UnresolvedMigrationTargets int

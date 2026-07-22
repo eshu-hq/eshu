@@ -9,14 +9,17 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/verify-golden-corpus-gate.sh"
+fixture_lib="${repo_root}/scripts/lib/golden-corpus-fixtures.sh"
 
 fail() { printf 'test-verify-golden-corpus-gate: %s\n' "$*" >&2; exit 1; }
 
 [[ -f "${script}" ]] || fail "missing ${script}"
 [[ -x "${script}" ]] || fail "verify-golden-corpus-gate.sh must be executable"
+[[ -f "${fixture_lib}" ]] || fail "missing ${fixture_lib}"
 
 # Parses under bash -n.
 bash -n "${script}" || fail "verify-golden-corpus-gate.sh has a syntax error"
+bash -n "${fixture_lib}" || fail "golden-corpus-fixtures.sh has a syntax error"
 
 require() {
 	local label="$1" needle="$2"
@@ -42,6 +45,9 @@ require "projector drain" "eshu-projector"
 require "reducer drain" "eshu-reducer"
 require "api for query truth" "eshu-api"
 require "gate binary" "eshu-golden-corpus-gate"
+require "corpus fixture inventory source" "golden-corpus-fixtures.sh"
+rg --fixed-strings --quiet -- $'\tsql_comprehensive' "${fixture_lib}" \
+	|| fail "missing SQL relationship corpus fixture in ${fixture_lib}"
 
 # Asserts all four B-7 buckets.
 require "drains phase" "-phase=drains"

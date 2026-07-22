@@ -44,6 +44,9 @@
 // workers default to NumCPU, while Neo4j remains capped lower by default; the
 // local-authoritative NornicDB profile also wires a reducer graph-drain gate for
 // code-call projection so graph write lanes do not compete unnecessarily.
+// NornicDB SQL relationship writes use one-statement autocommit because its
+// managed-transaction path can acknowledge UNWIND/MATCH/MERGE without
+// persisting the relationship; Neo4j retains grouped transaction dispatch.
 // SIGINT and SIGTERM trigger clean shutdown through the hosted runtime drain.
 //
 // When ESHU_PPROF_ADDR is set, the binary also exposes an opt-in

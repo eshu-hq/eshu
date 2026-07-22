@@ -2,8 +2,8 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 418,
-    "covered": 408,
+    "total": 420,
+    "covered": 410,
     "uncovered": 0,
     "unresolved": 0,
     "exempt": 10,
@@ -84,8 +84,8 @@
     },
     {
       "registry": "retractable_edge_type",
-      "total": 56,
-      "covered": 56,
+      "total": 58,
+      "covered": 58,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -140,8 +140,8 @@
     },
     {
       "scenario_type": "delta_tombstone",
-      "total": 151,
-      "covered": 151,
+      "total": 153,
+      "covered": 153,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -2923,6 +2923,16 @@
     },
     {
       "registry": "retractable_edge_type",
+      "key": "retractable_edge:REFERENCES_TABLE",
+      "scenario_type": "delta_tombstone",
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go"
+    },
+    {
+      "registry": "retractable_edge_type",
       "key": "retractable_edge:RUNS_IMAGE",
       "scenario_type": "delta_tombstone",
       "status": "covered",
@@ -3060,6 +3070,16 @@
       "ref": "go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
       "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:WRITES_TO",
+      "scenario_type": "delta_tombstone",
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go"
     },
     {
       "registry": "retractable_type",

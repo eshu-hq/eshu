@@ -39,13 +39,6 @@ func TestSQLRelationshipExpectedEdgesCoverEveryRegistryType(t *testing.T) {
 			t.Errorf("expected-edge-set file names no edge of registry type %q", edgeType)
 		}
 	}
-
-	// REFERENCES_TABLE is retract-superset-only since #5345
-	// (edge_writer_sql.go:28-35) and must never appear in an expectation: it
-	// would assert a graph write the materialization handler never performs.
-	if seenTypes["REFERENCES_TABLE"] != 0 {
-		t.Error("expected-edge-set file names REFERENCES_TABLE, which is retract-only and must never appear in a materialization expectation")
-	}
 }
 
 // TestSQLRelationshipPureDerivationMatchesExpectedEdgesExactly is the #5351
@@ -81,6 +74,12 @@ func TestSQLRelationshipPureDerivationMatchesExpectedEdgesExactly(t *testing.T) 
 	}
 	if stats.UnresolvedMigrationTargets != 0 || stats.AmbiguousMigrationTargets != 0 {
 		t.Errorf("unexpected MIGRATES resolution stats: unresolved=%d ambiguous=%d", stats.UnresolvedMigrationTargets, stats.AmbiguousMigrationTargets)
+	}
+	if stats.UnresolvedReferenceTargets != 0 || stats.AmbiguousReferenceTargets != 0 {
+		t.Errorf("unexpected REFERENCES_TABLE resolution stats: unresolved=%d ambiguous=%d", stats.UnresolvedReferenceTargets, stats.AmbiguousReferenceTargets)
+	}
+	if stats.UnresolvedWriteTargets != 0 || stats.AmbiguousWriteTargets != 0 {
+		t.Errorf("unexpected WRITES_TO resolution stats: unresolved=%d ambiguous=%d", stats.UnresolvedWriteTargets, stats.AmbiguousWriteTargets)
 	}
 
 	if len(actual) != len(expected) {

@@ -616,19 +616,16 @@ coverage:
   # proof drives cypher.NewSecretsIAMGraphWriter directly and never touches
   # cmd/reducer's domain registry or that flag (go/cmd/reducer/secrets_iam_graph_wiring.go).
   - {surface: retractable_edge:SECRETS_IAM_USES_SERVICE_ACCOUNT, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_secrets_iam_edge_retract_live_test.go, proof_gate: replay-tier}
-  # Reducer-materialized SQL relationships (#5116): all six source-label query
+  # Reducer-materialized SQL relationships (#5116): every source-label query
   # shapes are proven through the live production EdgeWriter for both repository
   # and delta-file retract scopes. READS_FROM is exercised from SqlView and
-  # SqlFunction sources by the same test (#5345 renamed this from
-  # REFERENCES_TABLE: the parser now stamps source_tables on the view/function
-  # entity and the reducer emits READS_FROM instead -- REFERENCES_TABLE is no
-  # longer produced by any writer, so it is no longer a retractable-edge
-  # requirement here; the retract Cypher disjunction still lists it as cheap
-  # hygiene for any pre-#5345 edge, but that is not something the write path
-  # can prove round-trip anymore). INDEXES (#5330) was added to the same
-  # fixture table and retract disjunction (SqlIndex -[:INDEXES]-> SqlTable).
+  # SqlFunction sources by the same test (#5345). REFERENCES_TABLE and
+  # WRITES_TO join the live round-trip table in #5410. INDEXES (#5330) and
+  # MIGRATES (#5346) use the same fixture and retract disjunction.
   - {surface: retractable_edge:QUERIES_TABLE, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:REFERENCES_TABLE, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:READS_FROM, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
+  - {surface: retractable_edge:WRITES_TO, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:HAS_COLUMN, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:TRIGGERS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:EXECUTES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go, proof_gate: replay-tier}
