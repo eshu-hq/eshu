@@ -142,17 +142,19 @@ ALTER TABLE public.users ADD COLUMN email TEXT;
 	if !ok {
 		t.Fatalf("migration_targets = %T, want []map[string]any", items[0]["migration_targets"])
 	}
-	if len(targets) != 1 {
-		t.Fatalf("len(migration_targets) = %d, want 1", len(targets))
+	wantTargets := []map[string]any{
+		{"kind": "SqlTable", "name": "public.users", "operation": "create", "line_number": 1},
+		{"kind": "SqlTable", "name": "public.users", "operation": "alter", "line_number": 5},
 	}
-	if targets[0]["kind"] != "SqlTable" {
-		t.Fatalf("migration_targets[0].kind = %#v, want %#v", targets[0]["kind"], "SqlTable")
+	if len(targets) != len(wantTargets) {
+		t.Fatalf("len(migration_targets) = %d, want %d", len(targets), len(wantTargets))
 	}
-	if targets[0]["name"] != "public.users" {
-		t.Fatalf("migration_targets[0].name = %#v, want %#v", targets[0]["name"], "public.users")
-	}
-	if targets[0]["operation"] != "create" {
-		t.Fatalf("migration_targets[0].operation = %#v, want %#v (CREATE TABLE wins over the later ALTER)", targets[0]["operation"], "create")
+	for index, wantTarget := range wantTargets {
+		for key, wantValue := range wantTarget {
+			if got := targets[index][key]; got != wantValue {
+				t.Fatalf("migration_targets[%d].%s = %#v, want %#v", index, key, got, wantValue)
+			}
+		}
 	}
 }
 
