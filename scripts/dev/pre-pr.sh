@@ -21,9 +21,9 @@
 # The whole-module gates keep their full scope while reducing stacked wall
 # time: go build and go vet run alongside the precommit helper lane, and that
 # lane runs gofumpt before golangci-lint. fmt/lint stay serialized because both
-# call scripts/dev/precommit-go.sh, whose shared tool/config cache is not a
-# concurrency boundary. On an 18-core/128GB dev box this keeps most of the
-# speedup while avoiding first-run cache races.
+# call scripts/dev/precommit-go.sh, whose result/config cache is worktree-local
+# but remains single-writer within this preflight. On an 18-core/128GB dev box
+# this keeps most of the speedup while avoiding first-run cache races.
 #
 # Every step runs even if an earlier one fails (accumulate), so you see all
 # problems at once. Exit status is non-zero if any step failed.
@@ -127,7 +127,8 @@ capture_whole_module_gate() {
 	return 0
 }
 
-# run_precommit_gates_serial keeps the shared precommit-go cache single-writer.
+# run_precommit_gates_serial keeps this worktree's precommit-go cache
+# single-writer.
 # Build and vet still overlap with this lane, but fmt and lint do not overlap
 # with each other.
 run_precommit_gates_serial() {

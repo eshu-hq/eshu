@@ -4,7 +4,7 @@
 # capability surface-inventory drift) so they are caught at commit time instead
 # of on GitHub.
 #
-# Usage: scripts/dev/precommit-go.sh <fmt|lint|lint-all|fmt-all|filecap|filecap-all|gosec|gosec-all|govulncheck|nancy|surface> [files...]
+# Usage: scripts/dev/precommit-go.sh <fmt|lint|lint-all|fmt-all|filecap|filecap-all|gosec|gosec-all|govulncheck|nancy|surface|cache-paths> [files...]
 #   lint-all / fmt-all run over the whole module (./...); the pre-pr gate
 #   (scripts/dev/pre-pr.sh) uses them to mirror CI before the first push.
 #
@@ -17,17 +17,24 @@
 #     plugin stripped, because that plugin is the one piece that needs an exact
 #     toolchain match. The 500-line cap is enforced separately by `filecap`, so
 #     coverage is equivalent to CI without the cross-machine fragility.
+#   - Versioned tool binaries are shared across worktrees. Generated configs,
+#     analyzer caches, and SARIF results are isolated to the current worktree.
 set -euo pipefail
 
 script_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s\n' "${script_root}")"
 go_dir="${repo_root}/go"
-# Cache tools/config under the git common dir (works from a worktree, where
-# .git is a file, not a directory; the common dir is shared and never committed).
+# Share immutable tool binaries through the git common dir, but keep mutable
+# config and analyzer results under the current worktree's git dir. Sharing the
+# latter lets one worktree reuse findings or overwrite config for another.
 git_common="$(git -C "${repo_root}" rev-parse --git-common-dir 2>/dev/null || echo "${repo_root}/.git")"
 case "${git_common}" in /*) ;; *) git_common="${repo_root}/${git_common}" ;; esac
-cache_dir="${git_common}/eshu-precommit"
-mkdir -p "${cache_dir}"
+git_dir="$(git -C "${repo_root}" rev-parse --git-dir 2>/dev/null || echo "${repo_root}/.git")"
+case "${git_dir}" in /*) ;; *) git_dir="${repo_root}/${git_dir}" ;; esac
+tool_cache_dir="${git_common}/eshu-precommit"
+worktree_cache_dir="${git_dir}/eshu-precommit"
+golangci_cache_dir="${worktree_cache_dir}/golangci-lint"
+mkdir -p "${tool_cache_dir}" "${worktree_cache_dir}" "${golangci_cache_dir}"
 
 # Tool versions — keep in lockstep with the CI install steps.
 golangci_version="$(rg -o 'golangci-lint@v[0-9.]+' "${repo_root}/.github/workflows/test.yml" 2>/dev/null | head -1 | sed 's/.*@//')"
@@ -64,48 +71,48 @@ collect_dirs() {
 }
 
 ensure_golangci() {
-	local bin="${cache_dir}/golangci-lint-${golangci_version}"
+	local bin="${tool_cache_dir}/golangci-lint-${golangci_version}"
 	if [[ ! -x "${bin}" ]]; then
 		note "installing golangci-lint ${golangci_version} (one-time, local toolchain)"
-		GOBIN="${cache_dir}" GOFLAGS=-mod=mod go install \
+		GOBIN="${tool_cache_dir}" GOFLAGS=-mod=mod go install \
 			"github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${golangci_version}" \
 			|| die "failed to install golangci-lint ${golangci_version}"
-		mv "${cache_dir}/golangci-lint" "${bin}"
+		mv "${tool_cache_dir}/golangci-lint" "${bin}"
 	fi
 	printf '%s' "${bin}"
 }
 
 ensure_gosec() {
-	local bin="${cache_dir}/gosec-${gosec_version}"
+	local bin="${tool_cache_dir}/gosec-${gosec_version}"
 	if [[ ! -x "${bin}" ]]; then
 		note "installing gosec ${gosec_version} (one-time, local toolchain)"
-		GOBIN="${cache_dir}" GOFLAGS=-mod=mod go install \
+		GOBIN="${tool_cache_dir}" GOFLAGS=-mod=mod go install \
 			"github.com/securego/gosec/v2/cmd/gosec@${gosec_version}" \
 			|| die "failed to install gosec ${gosec_version}"
-		mv "${cache_dir}/gosec" "${bin}"
+		mv "${tool_cache_dir}/gosec" "${bin}"
 	fi
 	printf '%s' "${bin}"
 }
 
 ensure_govulncheck() {
-	local bin="${cache_dir}/govulncheck"
+	local bin="${tool_cache_dir}/govulncheck"
 	# CI installs @latest on every run. Always reinstall @latest here too rather
 	# than freezing the first-resolved binary in the cache — go's module/build
 	# cache makes a no-change reinstall fast, and this keeps the local advisory
 	# database tooling in lockstep with CI instead of silently drifting stale.
 	note "installing govulncheck@latest (local toolchain)"
-	GOBIN="${cache_dir}" GOFLAGS=-mod=mod go install \
+	GOBIN="${tool_cache_dir}" GOFLAGS=-mod=mod go install \
 		"golang.org/x/vuln/cmd/govulncheck@latest" \
 		|| die "failed to install govulncheck"
 	printf '%s' "${bin}"
 }
 
 ensure_nancy() {
-	local bin="${cache_dir}/nancy"
+	local bin="${tool_cache_dir}/nancy"
 	# Always reinstall @latest (see ensure_govulncheck) to match CI and avoid
 	# freezing a stale nancy in the cache.
 	note "installing nancy@latest (local toolchain)"
-	GOBIN="${cache_dir}" GOFLAGS=-mod=mod go install \
+	GOBIN="${tool_cache_dir}" GOFLAGS=-mod=mod go install \
 		"github.com/sonatype-nexus-community/nancy@latest" \
 		|| die "failed to install nancy"
 	printf '%s' "${bin}"
@@ -114,7 +121,7 @@ ensure_nancy() {
 # stripped_config writes a golangci config copy without the custom filelength
 # plugin (the only linter needing an exact toolchain match) and prints its path.
 stripped_config() {
-	local out="${cache_dir}/golangci-nocustom.yml"
+	local out="${worktree_cache_dir}/golangci-nocustom.yml"
 	awk '
 		$0 ~ /^[[:space:]]*- filelength[[:space:]]*$/ { next }
 		/^    custom:/ { skip = 1; next }
@@ -124,16 +131,25 @@ stripped_config() {
 	printf '%s' "${out}"
 }
 
+run_golangci() {
+	GOLANGCI_LINT_CACHE="${GOLANGCI_LINT_CACHE:-${golangci_cache_dir}}" "$@"
+}
+
 cmd="${1:-}"
 shift || true
 
 case "${cmd}" in
+	cache-paths)
+		printf 'tool_cache_dir=%s\n' "${tool_cache_dir}"
+		printf 'worktree_cache_dir=%s\n' "${worktree_cache_dir}"
+		printf 'golangci_cache_dir=%s\n' "${golangci_cache_dir}"
+		;;
 	fmt)
 		collect_dirs "$@"
 		[[ ${#dirs[@]} -gt 0 ]] || exit 0
 		bin="$(ensure_golangci)"
 		cfg="$(stripped_config)"
-		( cd "${go_dir}" && "${bin}" fmt --diff --config "${cfg}" "${dirs[@]}" ) \
+		( cd "${go_dir}" && run_golangci "${bin}" fmt --diff --config "${cfg}" "${dirs[@]}" ) \
 			|| die "gofumpt formatting differences — run: cd go && golangci-lint fmt"
 		;;
 	lint)
@@ -141,7 +157,8 @@ case "${cmd}" in
 		[[ ${#dirs[@]} -gt 0 ]] || exit 0
 		bin="$(ensure_golangci)"
 		cfg="$(stripped_config)"
-		( cd "${go_dir}" && "${bin}" run --config "${cfg}" "${dirs[@]}" )
+		( cd "${go_dir}" && run_golangci "${bin}" run \
+			--allow-parallel-runners --config "${cfg}" "${dirs[@]}" )
 		;;
 	filecap)
 		# 500-line cap (the filelength plugin's job), honouring //nolint:filelength.
@@ -164,7 +181,7 @@ case "${cmd}" in
 		bin="$(ensure_gosec)"
 		pkgs=()
 		for d in "${dirs[@]}"; do pkgs+=("${d}/..."); done
-		out="${cache_dir}/gosec.sarif"
+		out="${worktree_cache_dir}/gosec.sarif"
 		( cd "${go_dir}" && "${bin}" -severity=low -confidence=low -no-fail \
 			-fmt=sarif -out "${out}" "${pkgs[@]}" >/dev/null 2>&1 )
 		findings="$(jq '[.runs[].results[]] | length' "${out}" 2>/dev/null || echo 0)"
@@ -223,12 +240,13 @@ case "${cmd}" in
 		# pre-pr gate to mirror CI's "Lint Go" step.
 		bin="$(ensure_golangci)"
 		cfg="$(stripped_config)"
-		( cd "${go_dir}" && "${bin}" run --config "${cfg}" ./... )
+		( cd "${go_dir}" && run_golangci "${bin}" run \
+			--allow-parallel-runners --config "${cfg}" ./... )
 		;;
 	fmt-all)
 		bin="$(ensure_golangci)"
 		cfg="$(stripped_config)"
-		( cd "${go_dir}" && "${bin}" fmt --diff --config "${cfg}" ./... ) \
+		( cd "${go_dir}" && run_golangci "${bin}" fmt --diff --config "${cfg}" ./... ) \
 			|| die "gofumpt formatting differences — run: cd go && golangci-lint fmt"
 		;;
 	filecap-all)
@@ -261,7 +279,7 @@ case "${cmd}" in
 		# SSA-heavy on Go 1.26); used by the ci-gates runner where no file list is
 		# passed. The local security lane in #4217 narrows this to changed packages.
 		bin="$(ensure_gosec)"
-		out="${cache_dir}/gosec-all.sarif"
+		out="${worktree_cache_dir}/gosec-all.sarif"
 		( cd "${go_dir}" && "${bin}" -severity=low -confidence=low -no-fail \
 			-fmt=sarif -out "${out}" ./... >/dev/null 2>&1 )
 		findings="$(jq '[.runs[].results[]] | length' "${out}" 2>/dev/null || echo 0)"
@@ -288,6 +306,6 @@ case "${cmd}" in
 			|| die "nancy: vulnerable dependencies found (see output above)"
 		;;
 	*)
-		die "unknown subcommand '${cmd}' (want fmt|lint|lint-all|fmt-all|filecap|filecap-all|gosec|gosec-all|govulncheck|nancy|surface|perf-evidence|telemetry)"
+		die "unknown subcommand '${cmd}' (want fmt|lint|lint-all|fmt-all|filecap|filecap-all|gosec|gosec-all|govulncheck|nancy|surface|perf-evidence|telemetry|cache-paths)"
 		;;
 esac
