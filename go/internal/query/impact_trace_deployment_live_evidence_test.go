@@ -84,6 +84,13 @@ func TestBuildDeploymentFactSummaryTierConfigOnly(t *testing.T) {
 	t.Parallel()
 
 	ctx := sampleServiceDossierContext()
+	// #5638 TIER GUARDRAIL (the non-negotiable): a live_instance_count CAN be
+	// present on the context (a matched fact carried a replica observation)
+	// while hasLiveEvidence is STILL false (e.g. the identity-bound match
+	// exists but some other live-evidence precondition did not hold). The
+	// count must never leak into the tier or confidence-reason decision --
+	// only hasLiveEvidence does that.
+	ctx["_live_instance_count"] = 3
 	instances, _ := ctx["instances"].([]map[string]any)
 	summary := buildDeploymentFactSummary(
 		ctx,
@@ -102,10 +109,60 @@ func TestBuildDeploymentFactSummaryTierConfigOnly(t *testing.T) {
 	if tier, ok := summary["deployment_truth_tier"]; !ok {
 		t.Fatal("deployment_truth_tier missing")
 	} else if tier != "config_only" {
-		t.Fatalf("deployment_truth_tier = %q, want %q", tier, "config_only")
+		t.Fatalf("deployment_truth_tier = %q, want %q (count present must not promote the tier)", tier, "config_only")
 	}
 	if reason := summary["overall_confidence_reason"]; reason != "materialized_runtime_instances" {
-		t.Fatalf("overall_confidence_reason = %q, want %q", reason, "materialized_runtime_instances")
+		t.Fatalf("overall_confidence_reason = %q, want %q (count present must not promote the confidence reason)", reason, "materialized_runtime_instances")
+	}
+	if count := summary["live_instance_count"]; count != 3 {
+		t.Fatalf("live_instance_count = %v, want 3 (the count itself still surfaces even though the tier stays config_only)", count)
+	}
+}
+
+// TestBuildDeploymentFactSummaryLiveInstanceCountAbsentWhenNoObservation
+// proves live_instance_count is omitted entirely (not a fabricated 0) when
+// the handler never set workloadContext["_live_instance_count"] at all --
+// the no-countable-observation case fetchWorkloadLiveInstanceSummary reports
+// via a nil *liveInstanceSummary.
+func TestBuildDeploymentFactSummaryLiveInstanceCountAbsentWhenNoObservation(t *testing.T) {
+	t.Parallel()
+
+	ctx := sampleServiceDossierContext()
+	instances, _ := ctx["instances"].([]map[string]any)
+	summary := buildDeploymentFactSummary(
+		ctx, instances, []string{"production"}, nil, []string{"eks-prod"},
+		nil, nil, nil, nil, nil, "controller", false,
+	)
+	if _, ok := summary["live_instance_count"]; ok {
+		t.Fatalf("live_instance_count = %v, want absent when no observation was made", summary["live_instance_count"])
+	}
+	if _, ok := summary["live_instance_environments"]; ok {
+		t.Fatal("live_instance_environments must be absent when no observation was made")
+	}
+}
+
+// TestBuildDeploymentFactSummaryLiveInstanceEnvironmentsAttached proves
+// live_instance_environments round-trips from
+// workloadContext["_live_instance_environments"] into the summary.
+func TestBuildDeploymentFactSummaryLiveInstanceEnvironmentsAttached(t *testing.T) {
+	t.Parallel()
+
+	ctx := sampleServiceDossierContext()
+	ctx["_live_instance_count"] = 3
+	ctx["_live_instance_environments"] = []map[string]any{
+		{"state": "bound", "environment": "prod", "cluster_id": "supply-chain-demo", "namespace": "default"},
+	}
+	instances, _ := ctx["instances"].([]map[string]any)
+	summary := buildDeploymentFactSummary(
+		ctx, instances, []string{"production"}, nil, []string{"eks-prod"},
+		nil, nil, nil, nil, nil, "controller", true,
+	)
+	environments, ok := summary["live_instance_environments"].([]map[string]any)
+	if !ok || len(environments) != 1 {
+		t.Fatalf("live_instance_environments = %v, want 1 entry", summary["live_instance_environments"])
+	}
+	if environments[0]["environment"] != "prod" {
+		t.Fatalf("live_instance_environments[0].environment = %v, want prod", environments[0]["environment"])
 	}
 }
 
@@ -146,6 +203,18 @@ func (s *stubKubernetesPodTemplateStore) HasLiveIdentityMatch(
 	}
 	_, matched := s.matchingTrackingIDs[filter.TrackingID]
 	return matched, nil
+}
+
+// ListLiveIdentityMatches satisfies KubernetesPodTemplateStore for tests that
+// only exercise HasLiveIdentityMatch. It is never called by
+// fetchWorkloadLiveEvidence; fetchWorkloadLiveInstanceSummary's own tests use
+// the richer stubKubernetesPodTemplateListStore instead
+// (impact_trace_deployment_live_evidence_count_test.go).
+func (s *stubKubernetesPodTemplateStore) ListLiveIdentityMatches(
+	context.Context,
+	KubernetesPodTemplateFilter,
+) ([]LiveIdentityMatch, error) {
+	return nil, nil
 }
 
 // argoCDControllerFixture builds a minimal argocd_application controller map

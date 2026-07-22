@@ -245,7 +245,10 @@ const openAPIPathsImpact = `
                       }
                     },
                     "runtime_overview": {"type": "object"},
-                    "deployment_fact_summary": {"type": "object"},
+                    "deployment_fact_summary": {
+                      "type": "object",
+                      "description": "Includes deployment_truth_tier and overall_confidence_reason (config_only vs runtime_confirmed, driven solely by live-evidence identity matching). live_instance_count (#5638) is a read-side sum of observed ready replicas across the workload's identity-bound live facts, emitted only when at least one matched fact carried a replica observation; it never influences deployment_truth_tier or overall_confidence_reason. live_instance_environments lists the distinct {state, environment?, cluster_id, namespace} locations those facts were observed in, state being \"bound\" or \"environment-unbound\"."
+                    },
                     "drilldowns": {"type": "object"},
                     "evidence_boundaries": ` + openAPIEvidenceBoundariesSchema + `
                   }

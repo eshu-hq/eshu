@@ -71,6 +71,9 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 		"data.k8s_resource_limits.content_observed_count_is_lower_bound",
 		"data.k8s_resource_limits.deployment_source_observed_count_is_lower_bound",
 		"data.k8s_resource_limits.truncated",
+		"data.deployment_fact_summary.live_instance_environments[].state",
+		"data.deployment_fact_summary.live_instance_environments[].cluster_id",
+		"data.deployment_fact_summary.live_instance_environments[].namespace",
 	} {
 		if !slices.Contains(shape.RequiredJSONPaths, identityPath) {
 			t.Fatalf("trace_deployment_chain.required_json_paths missing %q", identityPath)
@@ -107,6 +110,10 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 	for path, want := range map[string]float64{
 		"data.deployment_fact_summary.image_ref_count":    1,
 		"data.deployment_fact_summary.k8s_resource_count": 1,
+		// #5638: pins the read-side live_instance_count derived from the
+		// identity-bound Deployment+ReplicaSet facts (both ready_replicas=3,
+		// same ArgoCD tracking-id -- MAX not SUM, so 3, never 6).
+		"data.deployment_fact_summary.live_instance_count": 3,
 	} {
 		if got := shape.RequiredJSONValues[path]; got != want {
 			t.Fatalf("trace_deployment_chain required_json_values[%q] = %#v, want %v", path, got, want)
@@ -152,6 +159,24 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 				"container_images": []any{
 					"ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
 				},
+			},
+		},
+		// #5638: the deployable-config Deployment's own OBSERVED namespace
+		// (payload.namespace = "default" in the kuberneteslive cassette) is
+		// NOT the declared "production" segment the ArgoCD tracking-id
+		// encodes -- the tracking-id namespace is a config-side identity
+		// value, never the live object's actual location. The
+		// kuberneteslive cassette's "default" kubernetes_live.namespace fact
+		// carries labels.environment="misc-team", not a recognized
+		// environment token, so the reducer materializes the
+		// KubernetesNamespace node existing-but-unbound: this proves the
+		// existing-node-but-unbound branch of the environment lookup, not
+		// merely the no-node-at-all default.
+		"data.deployment_fact_summary.live_instance_environments[]": {
+			{
+				"state":      "environment-unbound",
+				"cluster_id": "supply-chain-demo",
+				"namespace":  "default",
 			},
 		},
 	}
