@@ -362,3 +362,48 @@ func TestKustomizeExtendsBaseEdgeStatements_NoKustomizeTouchIsNoop(t *testing.T)
 		t.Fatalf("expected no statements for a non-Kustomize materialization, got %+v", stmts)
 	}
 }
+
+// TestKustomizeExtendsBaseEdgeStatements_DirectoryCollisionPicksStableWinner
+// proves a directory collision -- two KustomizeOverlay nodes whose paths
+// resolve to the SAME directory, an invalid Kustomize state (Kustomize
+// itself forbids two kustomization files in one directory) that Eshu can
+// still ingest from an untrusted or malformed repo, since the only schema
+// guard is ko.path uniqueness, never directory uniqueness -- always resolves
+// to the SAME edge target: the lexicographically smallest colliding uid.
+// Run repeatedly because Go's map iteration order is randomized per
+// iteration; a build that iterates the byUID map directly to populate
+// dirToUID would occasionally pick the other colliding uid.
+func TestKustomizeExtendsBaseEdgeStatements_DirectoryCollisionPicksStableWinner(t *testing.T) {
+	t.Parallel()
+
+	w := &CanonicalNodeWriter{
+		kustomizeOverlayResolver: &fakeKustomizeOverlayResolver{
+			rows: map[string][]KustomizeOverlayRow{
+				"repo-1": {
+					{UID: "uid-zzz-second", Path: "team/kustomization.yml"},
+					{UID: "uid-aaa-first", Path: "team/kustomization.yaml"},
+				},
+			},
+		},
+	}
+	mat := projector.CanonicalMaterialization{
+		RepoID:       "repo-1",
+		GenerationID: "gen-1",
+		Entities: []projector.EntityRow{
+			kustomizeOverlayEntityRow("uid-overlay", "overlay/kustomization.yaml", []string{"../team"}),
+		},
+	}
+
+	for i := 0; i < 20; i++ {
+		stmts := w.kustomizeExtendsBaseEdgeStatements(context.Background(), mat)
+		merge := mergeStatementContaining(t, stmts, "MERGE (o)-[r:EXTENDS_BASE]->(b)")
+		rows := merge.Parameters["rows"].([]map[string]any)
+		if len(rows) != 1 {
+			t.Fatalf("iteration %d: EXTENDS_BASE rows = %d, want 1; %+v", i, len(rows), rows)
+		}
+		if rows[0]["target_uid"] != "uid-aaa-first" {
+			t.Fatalf("iteration %d: target_uid = %v, want the lexicographically smallest colliding uid %q (stable winner)",
+				i, rows[0]["target_uid"], "uid-aaa-first")
+		}
+	}
+}

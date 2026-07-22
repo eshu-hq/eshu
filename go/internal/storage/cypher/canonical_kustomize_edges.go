@@ -7,6 +7,7 @@ import (
 	"context"
 	"log/slog"
 	"path"
+	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
@@ -35,6 +36,12 @@ type KustomizeOverlayRow struct {
 // tfstate_state_match_edge.go): defined here as a narrow port so this package
 // depends on an interface, not a graph driver, and every cmd/* canonical-writer
 // wiring site (cmd/ingester, cmd/bootstrap-index) adapts a read session to it.
+// cmd/projector is deliberately NOT wired: mirroring
+// go/cmd/ingester/terraform_state_ownership.go's own precedent
+// ("cmd/projector exists only for [...] no Helm template deploys
+// cmd/projector"), it is a non-deployed binary, so an unwired resolver there
+// is safe (WithKustomizeOverlayResolver's nil default already fails closed,
+// see its doc comment) rather than a production gap.
 //
 // This full-repo read exists because of a DeltaProjection accuracy hole a
 // per-touched-file read cannot close: under a delta cycle a materialization
@@ -180,6 +187,34 @@ func kustomizeBaseDirectory(overlayPath, baseRef string) (dir string, ok bool) {
 	return cleaned, true
 }
 
+// kustomizeOverlayDirToUID maps each directory to the uid of the
+// KustomizeOverlay node occupying it, deterministically. Iterating byUID
+// (a Go map) directly to populate this would be nondeterministic run-to-run
+// on a directory collision -- two KustomizeOverlay nodes whose paths resolve
+// to the same directory. Kustomize itself forbids this (one kustomization
+// file per directory), but Eshu ingests untrusted or malformed repos and the
+// only schema guard is ko.path uniqueness, never directory uniqueness, so a
+// collision is a real, if rare, input shape. Sorting uids ascending first
+// and keeping only the first-seen (smallest) uid per directory makes the
+// winner a stable function of the data, never of map iteration order.
+func kustomizeOverlayDirToUID(byUID map[string]KustomizeOverlayRow) map[string]string {
+	uids := make([]string, 0, len(byUID))
+	for uid := range byUID {
+		uids = append(uids, uid)
+	}
+	sort.Strings(uids)
+
+	dirToUID := make(map[string]string, len(byUID))
+	for _, uid := range uids {
+		dir := kustomizeOverlayDirectory(byUID[uid].Path)
+		if _, collided := dirToUID[dir]; collided {
+			continue // keep the lexicographically smallest uid already recorded
+		}
+		dirToUID[dir] = uid
+	}
+	return dirToUID
+}
+
 // kustomizeRetractSourceUIDs returns the deduplicated union of every overlay
 // uid the rebuilt repo set considered -- both the resolver's persisted rows
 // and this cycle's touched rows -- so the retract statement scopes to the
@@ -302,10 +337,7 @@ func (w *CanonicalNodeWriter) kustomizeExtendsBaseEdgeStatements(
 		byUID[row.UID] = row
 	}
 
-	dirToUID := make(map[string]string, len(byUID))
-	for _, row := range byUID {
-		dirToUID[kustomizeOverlayDirectory(row.Path)] = row.UID
-	}
+	dirToUID := kustomizeOverlayDirToUID(byUID)
 
 	var mergeRows []map[string]any
 	for _, row := range byUID {
