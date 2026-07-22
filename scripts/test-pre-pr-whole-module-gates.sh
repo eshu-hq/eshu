@@ -47,8 +47,18 @@ cache_paths="$("${precommit_script}" cache-paths)" ||
 tool_cache_dir="$(printf '%s\n' "${cache_paths}" | rg '^tool_cache_dir=' | cut -d= -f2-)"
 worktree_cache_dir="$(printf '%s\n' "${cache_paths}" | rg '^worktree_cache_dir=' | cut -d= -f2-)"
 golangci_cache_dir="$(printf '%s\n' "${cache_paths}" | rg '^golangci_cache_dir=' | cut -d= -f2-)"
-expected_tool_cache="$(git -C "${repo_root}" rev-parse --git-common-dir)/eshu-precommit"
-expected_worktree_cache="$(git -C "${repo_root}" rev-parse --git-dir)/eshu-precommit"
+expected_git_common="$(git -C "${repo_root}" rev-parse --git-common-dir)"
+case "${expected_git_common}" in
+	/*) ;;
+	*) expected_git_common="${repo_root}/${expected_git_common}" ;;
+esac
+expected_git_dir="$(git -C "${repo_root}" rev-parse --git-dir)"
+case "${expected_git_dir}" in
+	/*) ;;
+	*) expected_git_dir="${repo_root}/${expected_git_dir}" ;;
+esac
+expected_tool_cache="${expected_git_common}/eshu-precommit"
+expected_worktree_cache="${expected_git_dir}/eshu-precommit"
 
 [[ "${tool_cache_dir}" == "${expected_tool_cache}" ]] ||
 	fail "tool cache = ${tool_cache_dir}, want ${expected_tool_cache}"
@@ -62,6 +72,7 @@ trap 'rm -rf "${temp_root}"' EXIT
 mini_repo="${temp_root}/repo"
 linked_worktree="${temp_root}/linked"
 git init -q "${mini_repo}"
+canonical_mini_repo="$(git -C "${mini_repo}" rev-parse --show-toplevel)"
 mkdir -p "${mini_repo}/scripts/dev" "${mini_repo}/.github/workflows"
 cp "${precommit_script}" "${mini_repo}/scripts/dev/precommit-go.sh"
 printf '%s\n' 'run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2' > "${mini_repo}/.github/workflows/test.yml"
@@ -79,6 +90,10 @@ linked_worktree_cache="$(printf '%s\n' "${linked_paths}" | rg '^worktree_cache_d
 
 [[ "${main_tool_cache}" == "${linked_tool_cache}" ]] ||
 	fail "linked worktrees did not share the tool cache"
+[[ "${main_tool_cache}" == "${canonical_mini_repo}/.git/eshu-precommit" ]] ||
+	fail "normal-checkout tool cache = ${main_tool_cache}, want ${canonical_mini_repo}/.git/eshu-precommit"
+[[ "${main_worktree_cache}" == "${canonical_mini_repo}/.git/eshu-precommit" ]] ||
+	fail "normal-checkout mutable cache = ${main_worktree_cache}, want ${canonical_mini_repo}/.git/eshu-precommit"
 [[ "${main_worktree_cache}" != "${linked_worktree_cache}" ]] ||
 	fail "linked worktrees unexpectedly shared mutable precommit state"
 
