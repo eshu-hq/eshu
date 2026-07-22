@@ -167,6 +167,7 @@ retractable_edge_types:
   - USES_WORKFLOW
   # structural and canonical containment/import refresh
   - CONTAINS
+  - EXTENDS_BASE
   - HELM_VALUE_REFERENCE
   - IMPORTS
   # repository, deployment, and runtime relationships
