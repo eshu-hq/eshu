@@ -336,13 +336,25 @@ A dangling evidence pointer is NOT proof of absence. Before downgrading any
 capability, maturity, or support claim as "unvalidated" — especially an
 outward-facing, marketing-visible one such as a `capability-matrix` support
 tier or a `product-claims` maturity — agents MUST exhaustively check the
-committed-evidence locations below. Downgrading a genuinely-validated claim is
-a marketing-damaging false negative: when committed evidence exists, VALIDATE
-(wire the pointer to the real evidence) instead of downgrading, and confirm
-with the owner before any bulk claim downgrade. A specific proof-ID resolving
-to nothing (e.g. a `remote_validation` ref with no artifact) means the pointer
-was never wired — NOT that the capability is unvalidated; the evidence usually
-lives elsewhere in this list.
+committed-evidence locations below. A specific proof-ID resolving to nothing
+(e.g. a `remote_validation` ref with no artifact) means the pointer was never
+wired, NOT that the capability is unvalidated; the evidence usually lives
+elsewhere in this list. Downgrading a genuinely-validated claim is a
+marketing-damaging false negative.
+
+The evidence found MUST substantiate the specific tier the claim asserts —
+this does NOT license retaining a top-tier claim on lower-tier proof. A
+`production` / deployed-tier `supported` claim needs deployed evidence: a
+committed `docs/internal/remote-validation/<slug>.md` production artifact, a
+`scripts/run-remote-e2e-*` / compose driver, or a live-backend
+`docs/internal/evidence/*.md` — NOT merely a local unit test that only
+exercises a lower profile. When matching-tier evidence genuinely exists,
+VALIDATE (wire the pointer to it), keep the claim, and confirm with the owner
+before any bulk change. When it does NOT, take the action the remote-validation
+contract already mandates: commit the matching deployed-validation artifact, or
+downgrade the claim to the tier its committed evidence actually supports. Never
+retain a `production:supported` matrix row (or a GA `product-claims` maturity)
+whose sole committed evidence is a lower-tier test.
 
 Committed validation evidence lives in:
 
