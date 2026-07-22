@@ -451,12 +451,12 @@ families:
     reducer_domain: submodule_pin
     projection_hook: submodule_pin
     admission_hook: facts.ValidateSchemaVersion
-    # read_surface: none is intentional, not a placeholder. Issue #5420
-    # Phase 1 defines the submodule.pin contract only; the eventual
-    # submodule dependency edge is queryable through the generic graph
-    # tools, so this family needs no dedicated route. A consumer surface
-    # (reducer domain, projection hook, and/or a real read_surface route)
-    # lands in a later phase of the same epic (#5415).
+    # read_surface: none is intentional, not a placeholder. The submodule.pin
+    # family is consumed end to end (issue #5420 Phase 3): the collector emits
+    # it and the submodule_pin reducer domain projects
+    # Repository-[:PINS_SUBMODULE]->Repository edges, which are queryable through
+    # the generic graph tools, so this family needs no dedicated read_surface
+    # route.
     read_surface: none
     truth_profile: deterministic
     provider_key_independent: true
