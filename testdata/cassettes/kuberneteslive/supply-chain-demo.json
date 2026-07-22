@@ -320,7 +320,8 @@
             "object_id": "kubernetes_live:supply-chain-demo:core/v1/namespaces::default",
             "namespace": "default",
             "labels": {
-              "kubernetes.io/metadata.name": "default"
+              "kubernetes.io/metadata.name": "default",
+              "environment": "misc-team"
             },
             "correlation_anchors": [
               "kubernetes_live:supply-chain-demo:core/v1/namespaces::default"
