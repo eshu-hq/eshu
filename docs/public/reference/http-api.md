@@ -178,6 +178,14 @@ The Console browser flow uses these `/api/v0` routes:
 | `GET /api/v0/auth/saml/providers/{provider_id}/login` | Starts SP-initiated SAML login by storing a RelayState hash and redirecting to the IdP. Accepts an optional `return_to` query parameter (same-origin path only; absolute URLs and protocol-relative paths are silently discarded). |
 | `POST /api/v0/auth/saml/providers/{provider_id}/acs` | Completes SAML login from IdP POST binding after RelayState, signature, replay, clock, NameID, and group-claim validation. Returns `201` with a JSON session body when no return path was stored, or `303` redirecting to the stored same-origin path when one was. |
 
+GitHub login needs two things active at once (issue #5605): an active DB
+provider config and `ESHU_AUTH_GITHUB_ENABLED=true` at API startup. Enabling a
+provider through `POST /api/v0/auth/admin/provider-configs` does not mount the
+route by itself — see `ESHU_AUTH_GITHUB_ENABLED` in the
+[Environment Variable Reference](env-registry.md#api). Until the flag is set
+and the API restarted, `GET /api/v0/auth/github/login` returns 404 even with
+an active provider.
+
 OIDC login is optional and disabled until API startup receives an
 operator-managed OIDC config file. The callback verifies provider metadata/JWKS,
 state, nonce, redirect URI proof, and subject claims before creating a session.

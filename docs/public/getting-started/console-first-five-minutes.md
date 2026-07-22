@@ -228,6 +228,7 @@ directly.
 | Session does not stay signed in | Console reached over a non-loopback plain-HTTP origin | See [Insecure-origin cookie note](#insecure-origin-cookie-note) above. |
 | "The provider cannot be enabled: connection test did not pass" | Save was clicked before Run test sign-in passed for the current fields | Click **Run test sign-in** again, confirm it passes, then Save without editing the fields in between. |
 | Console shows "Providers unavailable from this source" | The Console is not connected to a live API (demo mode, or the API is unreachable) | Confirm `docker compose ps` shows the `eshu` service healthy and the Console's proxy target matches its published port. |
+| GitHub provider shows **active**, but no GitHub button appears and `GET /api/v0/auth/github/login` 404s | An active DB provider alone does not mount the route (issue #5605) | Set `ESHU_AUTH_GITHUB_ENABLED=true` and restart the API — see [HTTP API Reference](../reference/http-api.md#dashboard-browser-sessions) and [Environment Variable Reference](../reference/env-registry.md#api). |
 
 ## Related docs
 
