@@ -45,11 +45,9 @@ func handlerQueryplanProductionCypher() map[string]string {
 		true,
 		allAccess,
 	)
-	cloudCypher, _ := buildCloudResourceListQuery(
-		cloudResourceListFilter{ResourceType: "proof-type"},
-		cloudResourceListCursor{},
-		10,
-	)
+	cloudCypher, _ := buildCloudResourceHydrationQuery([]CloudResourceListIdentity{{
+		UID: "proof-cloud-resource", ResourceType: "proof-type",
+	}})
 	workloadKind, ok := graphEntityKindByKey("services")
 	if !ok {
 		panic("services graph entity kind is not registered")
@@ -120,7 +118,7 @@ func handlerQueryplanProductionCypher() map[string]string {
 			entityMapCandidate{AnchorLabel: "Repository", AnchorProperty: "id"},
 			entityMapTraversalSpec{direction: "outgoing", relationships: []string{"DEPENDS_ON"}, minHops: 2, maxHops: 3},
 		),
-		"QP-CLOUD-RESOURCE-LIST":           cloudCypher,
+		"QP-CLOUD-RESOURCE-LIST-HYDRATION": cloudCypher,
 		"QP-CALL-GRAPH-HUBS":               hubFunctionsCypher(callGraphMetricsRequest{RepoID: "proof-repository"}),
 		"QP-CALL-GRAPH-RECURSIVE":          recursiveFunctionsCypher(callGraphMetricsRequest{RepoID: "proof-repository"}),
 		"QP-GRAPH-ENTITY-COUNT":            graphEntityKindCountCypher(workloadKind),

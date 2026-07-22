@@ -436,6 +436,77 @@ Postgres query instrumentation, and HTTP/MCP envelope paths. It adds no graph
 write, queue, worker, metric instrument, metric label, or runtime deployment
 knob.
 
+## Codeowners Ownership
+
+`GET /api/v0/codeowners/ownership` (issue #5419 Phase 4) is a bounded,
+repository-anchored read over the Phase 3 `DECLARES_CODEOWNER` graph edges
+(`Repository -[:DECLARES_CODEOWNER]-> CodeownerTeam`, one edge per CODEOWNERS
+rule pattern and owner pair), plus an `effective_owner` resolved by
+manifest-vs-codeowners precedence.
+
+Parameters:
+
+- `repository_id` is required.
+- `limit` bounds the page (1..200, default 50). The read requests `limit+1`
+  internally to set `truncated` and a keyset `next_cursor`.
+- `after_order_index`, `after_pattern`, and `after_ref` page a prior
+  `next_cursor`; they must be sent together.
+
+Each ownership row carries `pattern`, `source_path`, `order_index`, and
+`owner_ref`, ordered deterministically on `(order_index, pattern, owner_ref)`
+since one repository can declare the same pattern with more than one owner
+token.
+
+`effective_owner` resolves precedence in this order:
+
+1. A service-catalog manifest declaration wins when
+   `list_service_catalog_correlations`'s reducer store returns a row for the
+   repository with a non-empty `owner_ref` and an `exact` or `derived`
+   outcome. `effective_owner.source` is `service_catalog`.
+2. Otherwise, the repository's CODEOWNERS rules resolve last-match-wins: the
+   `DECLARES_CODEOWNER` edge with the highest `order_index` is the last
+   pattern in the file that would match, so its owner is the fallback.
+   `effective_owner.source` is `codeowners`.
+3. Otherwise `effective_owner` is empty (neither `owner_ref` nor `source` is
+   present) -- this is a normal, non-error outcome for a repository with no
+   resolvable owner.
+
+Scoped tokens may read ownership only for a granted `repository_id`. An
+out-of-grant `repository_id` returns a bounded empty page (`ownership: []`,
+`effective_owner: {}`) without reading the `DECLARES_CODEOWNER` graph or the
+service-catalog correlation store, so a caller cannot use either read path to
+probe another tenant's CODEOWNERS rules or manifest owner.
+
+Responses are `exact` truth from the authoritative graph with deterministic
+ordering and keyset paging. The equivalent MCP tool is
+`list_codeowners_ownership`, which re-dispatches into this same route rather
+than running its own Cypher.
+
+No-Regression Evidence: this is a new read surface, not a rewrite of an
+existing hot-path query, so there is no prior-shape baseline to diff against.
+Both the paginated list and the effective-owner last-match lookup anchor on
+uniquely constrained properties (`Repository.id`, `CodeownerTeam.ref`), so
+each traversal resolves through an index rather than a label scan; no local
+NornicDB/Neo4j checkout was available to capture a live `PROFILE` (stated per
+cypher-query-rigor). `go test ./internal/query -run
+'TestCodeownersOwnership|TestResolveEffectiveRepositoryOwner' -count=1` and
+`go test ./internal/mcp -run 'TestCodeownersOwnershipToolIsRegistered|TestResolveRouteMapsCodeownersOwnership'
+-count=1` cover the bounded list (defaults, invalid limit, truncation,
+keyset cursor threading, backend-unavailable) and all three effective-owner
+precedence branches plus both dependency error paths.
+`TestCodeownersOwnershipScopedCallerCannotReadUngrantedRepository` (issue
+#5419 Phase 4b) is the scoped-grant cross-tenant leak proof: a caller granted
+only `repo-a` requesting `repository_id=repo-b` gets an empty page even
+though the graph and correlation store both hold real `repo-b` data, while a
+caller granted `repo-b` (or unscoped) sees it.
+
+Observability Evidence: the handler reuses the existing query-handler
+envelope (`WriteSuccess` + `BuildTruthEnvelope` with
+`TruthBasisAuthoritativeGraph`) and the shared `GraphQuery.Run`/`RunSingle`
+adapters, and registers one new span name, `query.codeowners_ownership`
+(`telemetry.SpanQueryCodeownersOwnership`), alongside every other
+query-handler span. It adds no graph write, queue, worker, or runtime knob.
+
 ## CI/CD Run Correlation
 
 `GET /api/v0/ci-cd/run-correlations`

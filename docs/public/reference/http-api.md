@@ -31,7 +31,7 @@ The mounted Go runtime admin OpenAPI contract lives in
 | Component extension inventory and diagnostics | [Status and admin routes](http-api/status-admin.md#component-extension-inventory) and [Component Package Manager](component-package-manager.md) |
 | Optional semantic observations and code hints | [Semantic evidence routes](http-api/semantic-evidence.md) |
 | Repository-bounded semantic retrieval over curated search documents | [Semantic search route](http-api/semantic-search.md) |
-| Deployment evidence, admission decisions, citations, documentation findings, packages, CI/CD, SBOM, vulnerability impact | [Evidence and supply-chain routes](http-api/evidence-and-supply-chain.md) |
+| Deployment evidence, admission decisions, citations, documentation findings, packages, CI/CD, SBOM, vulnerability impact, codeowners ownership | [Evidence and supply-chain routes](http-api/evidence-and-supply-chain.md) |
 | Investigation evidence packets for supply-chain impact, deployable-unit truth, and runtime drift | [Investigation Evidence Packet Contract](investigation-evidence-packet.md#http-and-mcp-surfaces) |
 | Source repository to container image identity bridge | [Container image source bridge](http-api/container-image-source-bridge.md) |
 | Secrets/IAM trust chains, posture evidence, access paths, gaps, and posture summary | [Secrets/IAM routes](http-api/secrets-iam.md) |
@@ -453,6 +453,23 @@ The `attributes` field is present only when the provider source fact carried
 bounded typed-depth metadata. It is currently populated for GCP resources
 (BigQuery tables and similar) and is omitted entirely for resources without
 provider-specific attribute evidence.
+
+## Cloud Resource Graph Paging
+
+`GET /api/v0/cloud/resources` returns a bounded browse page from the authoritative CloudResource graph. Optional `provider`, `resource_type`, `region`, and
+`account_id` filters are applied before paging. Continue a truncated page by
+passing both `next_cursor.after_resource_type` and `next_cursor.after_id`;
+sending only one cursor field returns HTTP 400.
+
+The route first selects a current, authorized `limit+1` identity page from the
+Postgres graph-owner ledger, then hydrates only the returned `uid` values from
+the graph. Scoped-token grants are evaluated before the page limit. An empty
+grant returns an empty page without reading either backend, and graph/ledger
+disagreement fails closed rather than serving partial data.
+
+The response remains ordered by `resource_type`, then `id`, and includes
+`resources`, `count`, `limit`, `truncated`, the applied `scope`, and `next_cursor`
+only when another page exists. `local_lightweight` returns `unsupported_capability`.
 
 ## Related References
 

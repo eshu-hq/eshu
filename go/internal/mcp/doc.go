@@ -118,4 +118,11 @@
 // timeout_ms are required, optional domain/fact_kind filters pass through
 // unchanged, and the response is the durable reducer_input_invalid_facts
 // read model rather than a raw fact payload.
+// list_codeowners_ownership (issue #5419 Phase 4) resolves 1:1 to
+// GET /api/v0/codeowners/ownership: it forwards repository_id, limit, and the
+// three-part after_order_index/after_pattern/after_ref keyset cursor
+// unchanged and preserves the effective_owner field the HTTP handler resolves
+// from manifest-vs-codeowners precedence, so a scoped caller sees the same
+// bounded empty-ownership shape over MCP that the HTTP route returns for an
+// out-of-grant repository.
 package mcp

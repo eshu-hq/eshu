@@ -4,31 +4,31 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 415/415 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 418/418 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
 | Axis | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | authorization_catalog | 24 | 24 | 100.00% | 0 | 0 |
-| Capability claims | 134 | 134 | 100.00% | 0 | 0 |
+| Capability claims | 135 | 135 | 100.00% | 0 | 0 |
 | Read surfaces (CLI) | 7 | 7 | 100.00% | 0 | 0 |
-| Read surfaces (API/MCP) | 23 | 23 | 100.00% | 0 | 1 |
+| Read surfaces (API/MCP) | 24 | 24 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
-| Projections (cost/ordering) | 27 | 27 | 100.00% | 0 | 1 |
+| Projections (cost/ordering) | 28 | 28 | 100.00% | 0 | 1 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
 | Retractable edge types (delta) | 56 | 56 | 100.00% | 0 | 0 |
 | Retractable node types (delta) | 94 | 94 | 100.00% | 0 | 0 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **415** | **415** | **100.00%** | **0** | **10** |
+| **Total** | **418** | **418** | **100.00%** | **0** | **10** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 216 | 216 | 100.00% | 0 | 5 |
-| cost | 26 | 26 | 100.00% | 0 | 1 |
+| baseline | 218 | 218 | 100.00% | 0 | 5 |
+| cost | 27 | 27 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 151 | 151 | 100.00% | 0 | 0 |
 | fault | 17 | 17 | 100.00% | 0 | 4 |
@@ -46,7 +46,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 None. Every supported surface has a replay scenario.
 
-## Covered surfaces (415)
+## Covered surfaces (418)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -107,6 +107,7 @@ None. Every supported surface has a replay scenario.
 | `capability:code_search.topic_investigation` | baseline | capability_claim | capability-inventory | `code_search.topic_investigation` |
 | `capability:code_search.variable_lookup` | baseline | capability_claim | capability-inventory | `code_search.variable_lookup` |
 | `capability:code_to_cloud.trace_exposure_path` | baseline | capability_claim | capability-inventory | `code_to_cloud.trace_exposure_path` |
+| `capability:codeowners.ownership.list` | baseline | correlation | golden-corpus-gate | `rc-157` |
 | `capability:collector_extraction_readiness.family` | baseline | capability_claim | capability-inventory | `collector_extraction_readiness.family` |
 | `capability:collector_extraction_readiness.list` | baseline | capability_claim | capability-inventory | `collector_extraction_readiness.list` |
 | `capability:component_extensions.diagnostics` | baseline | capability_claim | capability-inventory | `component_extensions.diagnostics` |
@@ -218,6 +219,7 @@ None. Every supported surface has a replay scenario.
 | `read_surface:GET /api/v0/ci-cd/run-correlations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/ci-cd/run-correlations?limit=50&scope_id=supply-chain-demo` |
 | `read_surface:GET /api/v0/cloud/inventory` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/cloud/inventory` |
 | `read_surface:GET /api/v0/cloud/resources` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/cloud/resources` |
+| `read_surface:GET /api/v0/codeowners/ownership` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/codeowners/ownership?repository_id=go_comprehensive&limit=50` |
 | `read_surface:GET /api/v0/documentation/facts` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/documentation/facts?fact_kind=source` |
 | `read_surface:GET /api/v0/iac/resources` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/iac/resources?limit=50&include_facets=true` |
 | `read_surface:GET /api/v0/images` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/images` |
@@ -258,6 +260,7 @@ None. Every supported surface has a replay scenario.
 | `projection:ci_cd_run_correlation` | cost | go_test | go-test-race | `go/internal/replay/costcounting/ci_cd_run_correlation_cost_test.go` |
 | `projection:cloud_asset_resolution` | cost | go_test | go-test-race | `go/internal/replay/costcounting/cloud_asset_resolution_cost_test.go` |
 | `projection:code_graph_projection` | cost | go_test | go-test-race | `go/internal/replay/costcounting/cost_counting_test.go` |
+| `projection:codeowners_ownership` | cost | go_test | go-test-race | `go/internal/replay/costcounting/codeowners_ownership_cost_test.go` |
 | `projection:config_state_drift` | cost | exempt | — | — |
 | `projection:container_image_identity` | cost | go_test | go-test-race | `go/internal/replay/costcounting/container_image_identity_cost_test.go` |
 | `projection:documentation_materialization` | cost | go_test | go-test-race | `go/internal/replay/costcounting/documentation_edges_cost_test.go` |

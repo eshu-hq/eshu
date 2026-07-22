@@ -138,6 +138,16 @@ func wireAPI(
 	// Build query layer
 	neo4jReader := query.NewNeo4jReader(driver, neo4jDB)
 	contentReader := query.NewContentReader(db)
+	// #5563 upgrade gate: seed pre-ledger CloudResource graph rows before the
+	// indexed owner-ledger list path is mounted. Graph-disabled profiles skip
+	// this because the capability is unsupported and no graph can be read.
+	if driver != nil {
+		if err := query.BackfillCloudResourceOwnerLedger(ctx, db, neo4jReader); err != nil {
+			_ = db.Close()
+			_ = driver.Close(ctx)
+			return nil, nil, nil, fmt.Errorf("backfill cloud resource owner ledger: %w", err)
+		}
+	}
 	// Build instruments before the status reader so the StatusStore can carry
 	// the shared meter provider (see newStatusStore): the status query cache
 	// metric eshu_dp_status_stage_counts_cache_total only emits when the

@@ -28,7 +28,22 @@ func (s *stubCloudGraphQuery) Run(_ context.Context, cypher string, params map[s
 	if s.err != nil {
 		return nil, s.err
 	}
-	return append([]map[string]any(nil), s.rows...), nil
+	rows := append([]map[string]any(nil), s.rows...)
+	uids, bounded := params["uids"].([]string)
+	if !bounded {
+		return rows, nil
+	}
+	allowed := make(map[string]struct{}, len(uids))
+	for _, uid := range uids {
+		allowed[uid] = struct{}{}
+	}
+	filtered := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		if _, ok := allowed[StringVal(row, "uid")]; ok {
+			filtered = append(filtered, row)
+		}
+	}
+	return filtered, nil
 }
 
 func (s *stubCloudGraphQuery) RunSingle(_ context.Context, _ string, _ map[string]any) (map[string]any, error) {
@@ -37,6 +52,7 @@ func (s *stubCloudGraphQuery) RunSingle(_ context.Context, _ string, _ map[strin
 
 func cloudRow(id, resourceType, name string) map[string]any {
 	return map[string]any{
+		"uid":           id,
 		"id":            id,
 		"resource_type": resourceType,
 		"name":          name,
@@ -50,7 +66,15 @@ func cloudRow(id, resourceType, name string) map[string]any {
 }
 
 func newCloudHandlerWith(graph GraphQuery) http.Handler {
-	handler := &InfraHandler{Neo4j: graph}
+	store := &stubCloudResourceListStore{}
+	if stub, ok := graph.(*stubCloudGraphQuery); ok {
+		for _, row := range stub.rows {
+			store.rows = append(store.rows, CloudResourceListIdentity{
+				UID: StringVal(row, "uid"), ResourceType: StringVal(row, "resource_type"),
+			})
+		}
+	}
+	handler := &InfraHandler{Neo4j: graph, CloudResources: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 	return mux
@@ -100,12 +124,8 @@ func TestListCloudResourcesHappyPath(t *testing.T) {
 	if _, present := first["service_name"]; present {
 		t.Fatalf("service_name placeholder leaked: %#v", first)
 	}
-	// fetch limit+1 must be requested to detect truncation.
-	if got, want := graph.lastParams["limit"], 51; got != want {
-		t.Fatalf("fetch limit = %v, want %d", got, want)
-	}
-	if !strings.Contains(graph.lastCypher, "ORDER BY n.resource_type, n.id") {
-		t.Fatalf("query missing deterministic ORDER BY: %s", graph.lastCypher)
+	if !strings.Contains(graph.lastCypher, "WHERE n.uid IN $uids") {
+		t.Fatalf("query missing bounded uid hydration: %s", graph.lastCypher)
 	}
 }
 
@@ -191,7 +211,8 @@ func TestListCloudResourcesCursorAppliesKeysetPredicate(t *testing.T) {
 	t.Parallel()
 
 	graph := &stubCloudGraphQuery{rows: nil}
-	mux := newCloudHandlerWith(graph)
+	store := &stubCloudResourceListStore{}
+	mux := newPagedCloudHandler(graph, store)
 
 	req := httptest.NewRequest(http.MethodGet,
 		"/api/v0/cloud/resources?after_resource_type=aws_iam_role&after_id=b2", nil)
@@ -201,18 +222,15 @@ func TestListCloudResourcesCursorAppliesKeysetPredicate(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if got, want := graph.lastParams["after_resource_type"], "aws_iam_role"; got != want {
+	if got, want := store.filter.AfterResourceType, "aws_iam_role"; got != want {
 		t.Fatalf("after_resource_type param = %v, want %v", got, want)
 	}
-	if got, want := graph.lastParams["after_id"], "b2"; got != want {
+	if got, want := store.filter.AfterID, "b2"; got != want {
 		t.Fatalf("after_id param = %v, want %v", got, want)
-	}
-	if !strings.Contains(graph.lastCypher, "n.resource_type > $after_resource_type") {
-		t.Fatalf("keyset predicate missing from query: %s", graph.lastCypher)
 	}
 }
 
-func TestListCloudResourcesIgnoresIncompleteCursor(t *testing.T) {
+func TestListCloudResourcesRejectsIncompleteCursor(t *testing.T) {
 	t.Parallel()
 
 	graph := &stubCloudGraphQuery{rows: nil}
@@ -222,14 +240,8 @@ func TestListCloudResourcesIgnoresIncompleteCursor(t *testing.T) {
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
-	if got, want := w.Code, http.StatusOK; got != want {
+	if got, want := w.Code, http.StatusBadRequest; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
-	}
-	if _, present := graph.lastParams["after_id"]; present {
-		t.Fatalf("after_id param present for incomplete cursor: %#v", graph.lastParams)
-	}
-	if strings.Contains(graph.lastCypher, "$after_id") {
-		t.Fatalf("incomplete cursor added keyset predicate: %s", graph.lastCypher)
 	}
 }
 
@@ -237,7 +249,8 @@ func TestListCloudResourcesProviderFilter(t *testing.T) {
 	t.Parallel()
 
 	graph := &stubCloudGraphQuery{rows: []map[string]any{cloudRow("a1", "aws_iam_role", "role-a")}}
-	mux := newCloudHandlerWith(graph)
+	store := &stubCloudResourceListStore{rows: []CloudResourceListIdentity{{UID: "a1", ResourceType: "aws_iam_role"}}}
+	mux := newPagedCloudHandler(graph, store)
 
 	req := httptest.NewRequest(http.MethodGet,
 		"/api/v0/cloud/resources?provider=aws&resource_type=aws_iam_role&region=us-east-1&account_id=123456789012", nil)
@@ -247,14 +260,11 @@ func TestListCloudResourcesProviderFilter(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if got, want := graph.lastParams["provider"], "aws"; got != want {
+	if got, want := store.filter.Provider, "aws"; got != want {
 		t.Fatalf("provider param = %v, want %v", got, want)
 	}
-	if !strings.Contains(graph.lastCypher, "n.collector_kind = $provider") {
-		t.Fatalf("provider filter missing from query: %s", graph.lastCypher)
-	}
-	if !strings.Contains(graph.lastCypher, "n.resource_type = $resource_type") {
-		t.Fatalf("resource_type filter missing from query: %s", graph.lastCypher)
+	if got, want := store.filter.ResourceType, "aws_iam_role"; got != want {
+		t.Fatalf("resource type param = %v, want %v", got, want)
 	}
 	body := decodeCloudBody(t, w)
 	scope := body["scope"].(map[string]any)
@@ -282,7 +292,11 @@ func TestListCloudResourcesBackendUnavailable(t *testing.T) {
 func TestListCloudResourcesQueryError(t *testing.T) {
 	t.Parallel()
 
-	mux := newCloudHandlerWith(&stubCloudGraphQuery{err: errors.New("boom")})
+	graph := &stubCloudGraphQuery{err: errors.New("boom")}
+	store := &stubCloudResourceListStore{rows: []CloudResourceListIdentity{{
+		UID: "a1", ResourceType: "aws_iam_role",
+	}}}
+	mux := newPagedCloudHandler(graph, store)
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/cloud/resources", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)

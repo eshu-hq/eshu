@@ -4,6 +4,7 @@
 package reducer
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -43,7 +44,7 @@ var idempotencyExemptDomains = map[Domain]string{
 
 // idempotencyReplayCases returns one replay case per covered reducer domain.
 //
-// The covered set is the 10 of 12 DefaultDomainDefinitions() base-catalog domains
+// The covered set is the 11 of 13 DefaultDomainDefinitions() base-catalog domains
 // whose emit path is drivable with an in-memory recording fake and a static fact
 // fixture. The two base graph-read-back domains are exempted above with cited
 // coverage. The additive, adapter-gated domains registered by
@@ -63,6 +64,7 @@ func idempotencyReplayCases() []idempotencyReplayCase {
 		semanticEntityReplayCase(),
 		documentationReplayCase(),
 		platformInfraReplayCase(),
+		codeownersOwnershipReplayCase(),
 	}
 }
 
@@ -302,6 +304,34 @@ func documentationReplayCase() idempotencyReplayCase {
 			}
 			return sharedIntentRows(writer.writeRows)
 		},
+	}
+}
+
+func codeownersOwnershipReplayCase() idempotencyReplayCase {
+	return idempotencyReplayCase{
+		domain: DomainCodeownersOwnership,
+		run: func(t *testing.T) []idempotencyRow {
+			t.Helper()
+			writer := &recordingCodeownersOwnershipEdgeWriter{}
+			handler := CodeownersOwnershipEdgeMaterializationHandler{
+				FactLoader: &stubFactLoader{envelopes: fencedFacts(codeownersOwnershipReplayFacts())},
+				EdgeWriter: writer,
+				PriorGenerationCheck: func(context.Context, string, string) (bool, error) {
+					return true, nil
+				},
+			}
+			intent := replayIntent(DomainCodeownersOwnership, "scope-codeowners", nil)
+			if _, err := handler.Handle(drainContext(), intent); err != nil {
+				t.Fatalf("codeowners ownership Handle: %v", err)
+			}
+			return sharedIntentRows(writer.writeRows)
+		},
+	}
+}
+
+func codeownersOwnershipReplayFacts() []facts.Envelope {
+	return []facts.Envelope{
+		codeownersOwnershipEnvelope("repo-co", "CODEOWNERS", "*.go", []string{"@org/backend"}, 0),
 	}
 }
 

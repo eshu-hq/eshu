@@ -67,6 +67,12 @@ const (
 	// DomainRationaleMaterialization materializes canonical EXPLAINS edges from
 	// intent-comment rationale to the code entities they precede.
 	DomainRationaleMaterialization Domain = "rationale_materialization"
+	// DomainCodeownersOwnership materializes canonical DECLARES_CODEOWNER edges
+	// from directly-emitted codeowners.ownership facts to the CodeownerTeam a
+	// CODEOWNERS rule pattern names (issue #5419 Phase 3). One rule with N
+	// owners projects N edges (owners are per-rule), riding the shared-projection
+	// intent-queue path the same way DomainDocumentationMaterialization does.
+	DomainCodeownersOwnership Domain = "codeowners_ownership"
 	// DomainConfigStateDrift correlates Terraform config (parsed HCL) against
 	// Terraform state to detect five drift kinds. Cross-source, cross-scope,
 	// non-canonical-write — counters and structured logs are the v1 surface.

@@ -85,6 +85,9 @@ type Paths struct {
 	// ReducerDerivedStructDir is sdk/go/factschema/reducerderived/v1 (reducer-owned
 	// durable read-model and correlation facts).
 	ReducerDerivedStructDir string
+	// CodeownersStructDir is sdk/go/factschema/codeowners/v1 (issue #5419 Phase
+	// 3: the codeowners.ownership fact the reducer decodes).
+	CodeownersStructDir string
 	// ProjectorDir is go/internal/projector — the source of the projector's
 	// decode-seam files (ProjectorDecodeFiles) and the canonical-extractor files
 	// ScanDecodeUsage walks for the projector-side decode sites. The projector is
@@ -190,6 +193,7 @@ func ResolvePaths(p Paths) Paths {
 		{&resolved.CodedataflowStructDir, "codedataflow"},
 		{&resolved.ServiceCatalogStructDir, "servicecatalog"},
 		{&resolved.ReducerDerivedStructDir, "reducerderived"},
+		{&resolved.CodeownersStructDir, "codeowners"},
 	} {
 		if strings.TrimSpace(*family.dir) == "" {
 			*family.dir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", family.name, "v1")

@@ -15,7 +15,7 @@ This report is ordinary executable Go test coverage. It is one signal, not a rep
 
 ## Exclusions
 
-The generator excludes Generated Go files (`*.pb.go`, `*.gen.go`, `zz_generated*`), vendored code, fixture corpora, `testdata`, mocks, and docs-site output. In this run it included 4543 files and excluded 0 files (0 statements).
+The generator excludes Generated Go files (`*.pb.go`, `*.gen.go`, `zz_generated*`), vendored code, fixture corpora, `testdata`, mocks, and docs-site output. In this run it included 4546 files and excluded 0 files (0 statements).
 
 ## Lowest-Covered Packages
 
@@ -56,13 +56,13 @@ The generator excludes Generated Go files (`*.pb.go`, `*.gen.go`, `zz_generated*
 | `github.com/eshu-hq/eshu/go/cmd/collector-vault-live` | 81 | 207 | 39.1% |
 | `github.com/eshu-hq/eshu/go/cmd/projector` | 126 | 318 | 39.6% |
 | `github.com/eshu-hq/eshu/go/cmd/collector-security-alerts` | 89 | 223 | 39.9% |
+| `github.com/eshu-hq/eshu/go/cmd/mcp-server` | 143 | 357 | 40.1% |
 | `github.com/eshu-hq/eshu/go/internal/askwiring` | 42 | 104 | 40.4% |
-| `github.com/eshu-hq/eshu/go/cmd/mcp-server` | 143 | 352 | 40.6% |
 | `github.com/eshu-hq/eshu/go/internal/parser/java` | 709 | 1748 | 40.6% |
 | `github.com/eshu-hq/eshu/go/internal/parser/elixir` | 307 | 744 | 41.3% |
 | `github.com/eshu-hq/eshu/go/cmd/collector-vulnerability-intelligence` | 95 | 226 | 42.0% |
 | `github.com/eshu-hq/eshu/go/cmd/fact-kind-registry` | 104 | 245 | 42.4% |
-| `github.com/eshu-hq/eshu/go/cmd/api` | 735 | 1698 | 43.3% |
+| `github.com/eshu-hq/eshu/go/cmd/api` | 735 | 1703 | 43.2% |
 | `github.com/eshu-hq/eshu/go/cmd/collector-grafana` | 84 | 193 | 43.5% |
 | `github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ec2/awssdk` | 112 | 251 | 44.6% |
 | `github.com/eshu-hq/eshu/go/cmd/collector-jira` | 89 | 197 | 45.2% |

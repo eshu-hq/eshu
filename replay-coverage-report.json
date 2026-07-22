@@ -2,8 +2,8 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 415,
-    "covered": 405,
+    "total": 418,
+    "covered": 408,
     "uncovered": 0,
     "unresolved": 0,
     "exempt": 10,
@@ -21,8 +21,8 @@
     },
     {
       "registry": "capability_matrix",
-      "total": 134,
-      "covered": 134,
+      "total": 135,
+      "covered": 135,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -39,8 +39,8 @@
     },
     {
       "registry": "fact_kind_registry",
-      "total": 23,
-      "covered": 22,
+      "total": 24,
+      "covered": 23,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 1,
@@ -66,8 +66,8 @@
     },
     {
       "registry": "projection",
-      "total": 27,
-      "covered": 26,
+      "total": 28,
+      "covered": 27,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 1,
@@ -113,8 +113,8 @@
   "scenario_type_summaries": [
     {
       "scenario_type": "baseline",
-      "total": 216,
-      "covered": 211,
+      "total": 218,
+      "covered": 213,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 5,
@@ -122,8 +122,8 @@
     },
     {
       "scenario_type": "cost",
-      "total": 26,
-      "covered": 25,
+      "total": 27,
+      "covered": 26,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 1,
@@ -736,6 +736,16 @@
       "ref": "code_to_cloud.trace_exposure_path",
       "proof_gate": "capability-inventory",
       "detail": "capability \"code_to_cloud.trace_exposure_path\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:codeowners.ownership.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "correlation",
+      "ref": "rc-157",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot required correlation \"rc-157\""
     },
     {
       "registry": "capability_matrix",
@@ -1849,6 +1859,16 @@
     },
     {
       "registry": "fact_kind_registry",
+      "key": "read_surface:GET /api/v0/codeowners/ownership",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "GET /api/v0/codeowners/ownership?repository_id=go_comprehensive\u0026limit=50",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"GET /api/v0/codeowners/ownership?repository_id=go_comprehensive\u0026limit=50\""
+    },
+    {
+      "registry": "fact_kind_registry",
       "key": "read_surface:GET /api/v0/documentation/facts",
       "scenario_type": "baseline",
       "status": "covered",
@@ -2243,6 +2263,16 @@
       "ref": "go/internal/replay/costcounting/cost_counting_test.go",
       "proof_gate": "go-test-race",
       "detail": "artifact present: go/internal/replay/costcounting/cost_counting_test.go"
+    },
+    {
+      "registry": "projection",
+      "key": "projection:codeowners_ownership",
+      "scenario_type": "cost",
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/costcounting/codeowners_ownership_cost_test.go",
+      "proof_gate": "go-test-race",
+      "detail": "artifact present: go/internal/replay/costcounting/codeowners_ownership_cost_test.go"
     },
     {
       "registry": "projection",

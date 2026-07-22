@@ -112,6 +112,13 @@ Read-model details stay package-local but out of the top-level index:
 - [dead-code-reachability.md](dead-code-reachability.md) covers dead-code
   language reachability, exactness blockers, candidate paging, hydration,
   observed blockers, and the language-specific suppression contract.
+- [evidence-5563-cloud-resource-paging.md](evidence-5563-cloud-resource-paging.md)
+  records the authorized owner-ledger page boundary, exact graph hydration,
+  upgrade backfill, production variant family, interactive SLO, and
+  retained/synthetic evidence for cloud resource browsing. API and MCP startup
+  run the backfill before mounting routes. It keyset-pages existing
+  `CloudResource.uid` values into `graph_node_owner`, then records a durable
+  completion marker so later restarts skip the graph scan.
 
 At the package boundary, all query routes stay anchored, bounded, and explicit
 about truth level. Graph reads go through `GraphQuery`, content reads go through
@@ -548,7 +555,8 @@ The package exports four groups of contracts:
 - Handler structs: `APIRouter` plus route owners including repository, entity,
   code, content, component-extension, infrastructure, IaC, impact, evidence,
   documentation, semantic-evidence, supply-chain, incident, work-item,
-  freshness, status, metrics, compare, and admin handlers.
+  codeowners-ownership, freshness, status, metrics, compare, and admin
+  handlers.
 - Response contracts: `ResponseEnvelope`, `TruthEnvelope`, `ErrorEnvelope`,
   `AnswerPacket`, query playbooks, investigation workflows, visualization
   packets, and the typed constants that describe truth level, freshness,

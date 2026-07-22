@@ -16,10 +16,11 @@ const infraSearchMaxLimit = 200
 // InfraHandler serves HTTP endpoints for querying infrastructure resources
 // and relationships from the Neo4j canonical graph.
 type InfraHandler struct {
-	Neo4j       GraphQuery
-	Aggregates  InfraResourceAggregateStore
-	Profile     QueryProfile
-	Instruments *telemetry.Instruments
+	Neo4j          GraphQuery
+	Aggregates     InfraResourceAggregateStore
+	CloudResources CloudResourceListStore
+	Profile        QueryProfile
+	Instruments    *telemetry.Instruments
 
 	relationshipBreakdownOnce  sync.Once
 	relationshipBreakdownSlots chan struct{}

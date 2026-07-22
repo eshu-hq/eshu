@@ -88,6 +88,12 @@ coverage:
   # kubernetes handling — a copy-paste error) to the real mounted kubernetes
   # correlations route so the surface key and the proven route match.
   - {surface: "read_surface:GET /api/v0/kubernetes/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/kubernetes/correlations?cluster_id=supply-chain-demo&limit=50", proof_gate: golden-corpus-gate}
+  # codeowners (#5419 Phase 4/5): the fact-kind registry read_surface was
+  # flipped from "none" to the live GET /api/v0/codeowners/ownership route in
+  # Phase 4 seam 8, making this surface required; Phase 5 covers it here and
+  # makes the underlying B-12 query shape non-vacuous (a real .github/CODEOWNERS
+  # fixture now backs the go_comprehensive corpus repo).
+  - {surface: "read_surface:GET /api/v0/codeowners/ownership", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/codeowners/ownership?repository_id=go_comprehensive&limit=50", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/images", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/images", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/package-registry/packages", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/package-registry/packages?ecosystem=go&limit=50", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/package-registry/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/package-registry/correlations?package_id=github.com/acme/lib-common&limit=50", proof_gate: golden-corpus-gate}
@@ -200,6 +206,12 @@ coverage:
   - {surface: "capability:call_graph.transitive_callees", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}
   - {surface: "capability:call_graph.transitive_callers", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}
   - {surface: "capability:code_quality.dead_code", scenario: api_mcp_golden, scenario_type: baseline, ref: "POST /api/v0/code/dead-code/cross-repo", proof_gate: golden-corpus-gate}
+  # codeowners.ownership.list (#5419 Phase 5): a capability-matrix entry added in
+  # Phase 4 (go/internal/query/contract_capability_matrix_ext.go) with no
+  # matching manifest row until now. The claim is exercised by the same rc-157
+  # DECLARES_CODEOWNER correlation the read_surface row above proves, mirroring
+  # the dependencies.list -> rc-9 precedent immediately below.
+  - {surface: "capability:codeowners.ownership.list", scenario: correlation, scenario_type: baseline, ref: "rc-157", proof_gate: golden-corpus-gate}
   - {surface: "capability:dependencies.list", scenario: correlation, scenario_type: baseline, ref: "rc-9", proof_gate: golden-corpus-gate}
   - {surface: "capability:kubernetes.correlations.list", scenario: correlation, scenario_type: baseline, ref: "rc-4", proof_gate: golden-corpus-gate}
   - {surface: "capability:package_registry.correlations.list", scenario: correlation, scenario_type: baseline, ref: "rc-9", proof_gate: golden-corpus-gate}
@@ -694,6 +706,11 @@ coverage:
   - {surface: projection:code_graph_projection, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/cost_counting_test.go, proof_gate: go-test-race}
   - {surface: projection:semantic_entity_materialization, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/semantic_entity_cost_test.go, proof_gate: go-test-race}
   - {surface: projection:documentation_materialization, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/documentation_edges_cost_test.go, proof_gate: go-test-race}
+  # codeowners_ownership (#5419 Phase 6): closes the replay-coverage gap this
+  # domain left open through Phase 5 — CodeownersOwnershipEdgeMaterializationHandler
+  # writes DECLARES_CODEOWNER edges through the same shared cypher.EdgeWriter
+  # path documentation_materialization uses, so the scenario mirrors it.
+  - {surface: projection:codeowners_ownership, scenario: go_test, scenario_type: cost, ref: go/internal/replay/costcounting/codeowners_ownership_cost_test.go, proof_gate: go-test-race}
 
   # C-14 (#4367) cloud-posture projection-COST slice: six more reducer_domain
   # cost scenarios, each driving that domain's real production writer per the

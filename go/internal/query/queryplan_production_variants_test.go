@@ -11,10 +11,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/queryplan"
 )
 
-const handlerQueryplanRegisteredCloudResourceListVariant = "cloud-resource-list/resource-type"
-
 const (
-	handlerQueryplanSafeVariantFamilySHA256       = "c1f7266aec8424853bda7947950f8bafd38d146507dd388ee90f5005027a38b1"
+	handlerQueryplanSafeVariantFamilySHA256       = "e208c54ce65fc4bdf5889d434525b44379dc00db15cccc234ce31712eee31a25"
+	cloudResourcePageQueryplanFamilySHA256        = "712236c6413a22d03897649a0ac0a58115531537557d9bb3fed5604acd23f2b2"
 	entityNameSearchQueryplanVariantFamilySHA256  = "4d4f47c1555b8a42caa91d20a5971902fc19b6ef65d3c77440f9be5df4333ef5"
 	entityNameSearchQueryplanBuilderSourceSHA256  = "3057a508e8b5acf4e07b4d5567b00dbf5e900b360eed82b3102f358e2a1e1523"
 	entityNameSearchQueryplanExpectedVariantCount = 17
@@ -25,7 +24,7 @@ func TestHandlerQueryplanProductionVariantFamiliesStayExplicit(t *testing.T) {
 	t.Parallel()
 
 	safe := handlerQueryplanSafeCypherVariants()
-	wantSafe := 13 + len(allInfraLabels)*10 + 31 + importDependencyQueryplanExpectedVariantCount + resourceSelectorQueryplanExpectedVariantCount
+	wantSafe := 13 + len(allInfraLabels)*10 + importDependencyQueryplanExpectedVariantCount + resourceSelectorQueryplanExpectedVariantCount
 	if got := len(safe); got != wantSafe {
 		t.Fatalf("safe production variant count = %d, want %d", got, wantSafe)
 	}
@@ -54,22 +53,12 @@ func TestResourceSelectorQueryplanVariantsCoverEveryReachableShape(t *testing.T)
 func TestHandlerQueryplanCloudResourceListVariantsStayCovered(t *testing.T) {
 	t.Parallel()
 
-	expected := cloudResourceListQueryplanVariants()
-	if got, want := len(expected), 32; got != want {
+	variants := cloudResourceListQueryplanVariants()
+	if got, want := len(variants), 64; got != want {
 		t.Fatalf("cloud resource list reachable variant count = %d, want %d", got, want)
 	}
-	covered := map[string]string{
-		handlerQueryplanRegisteredCloudResourceListVariant: handlerQueryplanProductionCypher()["QP-CLOUD-RESOURCE-LIST"],
-	}
-	for name, cypher := range handlerQueryplanSafeCypherVariants() {
-		if strings.HasPrefix(name, "cloud-resource-list/") {
-			covered[name] = cypher
-		}
-	}
-	for name, cypher := range expected {
-		if covered[name] != cypher {
-			t.Errorf("cloud resource list variant %q is not bound to its production query", name)
-		}
+	if got := queryplan.ProductionCypherFamilySHA256(variants); got != cloudResourcePageQueryplanFamilySHA256 {
+		t.Fatalf("cloud resource SQL family SHA-256 = %s, want %s; all production variants must remain registered", got, cloudResourcePageQueryplanFamilySHA256)
 	}
 }
 
@@ -195,36 +184,48 @@ func entityNameSearchQueryplanSourceManifest() queryplan.Manifest {
 }
 
 func cloudResourceListQueryplanVariants() map[string]string {
-	variants := make(map[string]string, 32)
-	for mask := 0; mask < 32; mask++ {
-		filter := cloudResourceListFilter{}
-		cursor := cloudResourceListCursor{}
-		parts := make([]string, 0, 5)
-		if mask&1 != 0 {
-			filter.Provider = "proof-provider"
-			parts = append(parts, "provider")
+	variants := make(map[string]string, 64)
+	for _, access := range []struct {
+		name   string
+		filter CloudResourceListPageFilter
+	}{
+		{name: "all", filter: CloudResourceListPageFilter{AllScopes: true}},
+		{name: "scoped", filter: CloudResourceListPageFilter{
+			AllowedRepositoryIDs: []string{"proof-repository"},
+			AllowedScopeIDs:      []string{"proof-scope"},
+		}},
+	} {
+		for mask := 0; mask < 32; mask++ {
+			filter := access.filter
+			filter.Limit = 10
+			parts := make([]string, 0, 5)
+			if mask&1 != 0 {
+				filter.Provider = "proof-provider"
+				parts = append(parts, "provider")
+			}
+			if mask&2 != 0 {
+				filter.ResourceType = "proof-type"
+				parts = append(parts, "resource-type")
+			}
+			if mask&4 != 0 {
+				filter.Region = "proof-region"
+				parts = append(parts, "region")
+			}
+			if mask&8 != 0 {
+				filter.AccountID = "proof-account"
+				parts = append(parts, "account")
+			}
+			if mask&16 != 0 {
+				filter.AfterResourceType = "proof-type"
+				filter.AfterID = "proof-id"
+				parts = append(parts, "cursor")
+			}
+			if len(parts) == 0 {
+				parts = append(parts, "unfiltered")
+			}
+			query, _ := buildCloudResourceIdentityListQuery(filter)
+			variants["cloud-resource-list/"+access.name+"/"+strings.Join(parts, "+")] = query
 		}
-		if mask&2 != 0 {
-			filter.ResourceType = "proof-type"
-			parts = append(parts, "resource-type")
-		}
-		if mask&4 != 0 {
-			filter.Region = "proof-region"
-			parts = append(parts, "region")
-		}
-		if mask&8 != 0 {
-			filter.AccountID = "proof-account"
-			parts = append(parts, "account")
-		}
-		if mask&16 != 0 {
-			cursor = cloudResourceListCursor{AfterResourceType: "proof-type", AfterID: "proof-id"}
-			parts = append(parts, "cursor")
-		}
-		if len(parts) == 0 {
-			parts = append(parts, "unfiltered")
-		}
-		cypher, _ := buildCloudResourceListQuery(filter, cursor, 10)
-		variants["cloud-resource-list/"+strings.Join(parts, "+")] = cypher
 	}
 	return variants
 }
@@ -232,18 +233,12 @@ func cloudResourceListQueryplanVariants() map[string]string {
 func handlerQueryplanSafeCypherVariants() map[string]string {
 	allAccess := repositoryAccessFilter{allScopes: true}
 	scopedAccess := queryplanScopedRepositoryAccess()
-	variants := make(map[string]string, 13+len(allInfraLabels)*10+31+importDependencyQueryplanExpectedVariantCount+resourceSelectorQueryplanExpectedVariantCount)
+	variants := make(map[string]string, 13+len(allInfraLabels)*10+importDependencyQueryplanExpectedVariantCount+resourceSelectorQueryplanExpectedVariantCount)
 
 	for name, cypher := range importDependencyQueryplanVariants() {
 		variants[name] = cypher
 	}
 
-	for name, cypher := range cloudResourceListQueryplanVariants() {
-		if name == handlerQueryplanRegisteredCloudResourceListVariant {
-			continue
-		}
-		variants[name] = cypher
-	}
 	for name, cypher := range resourceSelectorQueryplanVariants() {
 		variants[name] = cypher
 	}
