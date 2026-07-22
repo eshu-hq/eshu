@@ -99,6 +99,56 @@ type AWSCloudRuntimeDriftFinding struct {
 	SourceLayers                 []string         `json:"source_layers"`
 }
 
+// TerraformConfigStateDriftFinding is the schema-version-1 payload for
+// "reducer_terraform_config_state_drift_finding" (issue #5442). It carries two
+// distinct row shapes distinguished by Outcome:
+//
+//   - Outcome "exact": one row per drifted Terraform resource address, the
+//     durable form of the per-candidate telemetry the reducer already emits.
+//     Address and DriftKind are populated; AmbiguousOwnerCandidates is empty.
+//   - Outcome "ambiguous": one row per rejected state-snapshot scope where
+//     backend-owner resolution found more than one candidate config repo
+//     (tfstatebackend.ErrAmbiguousBackendOwner). Address and DriftKind are
+//     empty — no per-address classification ran because no single anchor was
+//     resolved — and AmbiguousOwnerCandidates carries every competing owner's
+//     identity so the finding stays provenance-only (no repo is picked).
+//
+// "stale", "derived", "unresolved", and "rejected" are not emitted by this
+// version: see go/internal/correlation/drift/tfconfigstate/doc.go for why each
+// is either unreachable with the evidence this handler has today or
+// intentionally not persisted.
+type TerraformConfigStateDriftFinding struct {
+	ReducerDomain string `json:"reducer_domain"`
+	IntentID      string `json:"intent_id"`
+	ScopeID       string `json:"scope_id"`
+	GenerationID  string `json:"generation_id"`
+	SourceSystem  string `json:"source_system"`
+	Cause         string `json:"cause"`
+	CanonicalID   string `json:"canonical_id"`
+	CandidateID   string `json:"candidate_id"`
+	CandidateKind string `json:"candidate_kind"`
+	// Outcome is the closed join-confidence label: "exact" or "ambiguous".
+	Outcome string `json:"outcome"`
+	// Address is the Terraform resource address (e.g.
+	// "module.app.aws_instance.web"). Empty for an "ambiguous" row.
+	Address string `json:"address"`
+	// DriftKind is one of the five tfconfigstate.DriftKind values. Empty for
+	// an "ambiguous" row.
+	DriftKind string `json:"drift_kind"`
+	// BackendKind and LocatorHash identify the Terraform state backend the
+	// finding was joined against (state_snapshot:<backend_kind>:<locator_hash>
+	// scope shape).
+	BackendKind string  `json:"backend_kind"`
+	LocatorHash string  `json:"locator_hash"`
+	Confidence  float64 `json:"confidence"`
+	// AmbiguousOwnerCandidates carries the competing config-repo identities
+	// for an "ambiguous" row (repo_id, scope_id, commit_id per candidate).
+	// Always empty for an "exact" row.
+	AmbiguousOwnerCandidates []map[string]any `json:"ambiguous_owner_candidates,omitempty"`
+	Evidence                 []map[string]any `json:"evidence"`
+	SourceLayers             []string         `json:"source_layers"`
+}
+
 // MultiCloudRuntimeDriftFinding is the schema-version-1 payload for
 // "reducer_multi_cloud_runtime_drift_finding". It is the provider-neutral
 // runtime drift read model keyed by canonical cloud_resource_uid.

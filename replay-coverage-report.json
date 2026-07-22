@@ -2,8 +2,8 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 422,
-    "covered": 410,
+    "total": 424,
+    "covered": 412,
     "uncovered": 0,
     "unresolved": 0,
     "exempt": 12,
@@ -21,8 +21,8 @@
     },
     {
       "registry": "capability_matrix",
-      "total": 135,
-      "covered": 135,
+      "total": 136,
+      "covered": 136,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -39,8 +39,8 @@
     },
     {
       "registry": "fact_kind_registry",
-      "total": 24,
-      "covered": 23,
+      "total": 25,
+      "covered": 24,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 1,
@@ -113,8 +113,8 @@
   "scenario_type_summaries": [
     {
       "scenario_type": "baseline",
-      "total": 218,
-      "covered": 213,
+      "total": 220,
+      "covered": 215,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 5,
@@ -1729,6 +1729,16 @@
     },
     {
       "registry": "capability_matrix",
+      "key": "capability:terraform_config_state_drift.findings.list",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "terraform_config_state_drift.findings.list",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"terraform_config_state_drift.findings.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
       "key": "capability:visualization.graph_query",
       "scenario_type": "baseline",
       "status": "covered",
@@ -2053,6 +2063,16 @@
       "ref": "POST /api/v0/cloud/runtime-drift/findings",
       "proof_gate": "golden-corpus-gate",
       "detail": "snapshot HTTP query shape \"POST /api/v0/cloud/runtime-drift/findings\""
+    },
+    {
+      "registry": "fact_kind_registry",
+      "key": "read_surface:POST /api/v0/terraform/config-state-drift/findings",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "POST /api/v0/terraform/config-state-drift/findings",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot HTTP query shape \"POST /api/v0/terraform/config-state-drift/findings\""
     },
     {
       "registry": "fact_kind_registry",

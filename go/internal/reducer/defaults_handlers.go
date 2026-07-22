@@ -21,12 +21,16 @@ import (
 // short-circuit or stay unregistered rather than drop evidence or admit findings
 // with no durable truth surface.
 type DriftHandlers struct {
-	// Terraform config-vs-state drift adapters (chunk #43). Optional; nil
-	// values cause the DomainConfigStateDrift handler to short-circuit with
-	// success and emit a structured log only — drift detection requires the
-	// resolver and the evidence loader to be wired.
+	// Terraform config-vs-state drift adapters (chunk #43; durable write added
+	// issue #5442). TerraformBackendResolver, DriftEvidenceLoader, DriftWriter,
+	// and DriftLogger must all be non-nil for the registry to register
+	// DomainConfigStateDrift: a missing resolver/loader would leave the
+	// handler with no observable input, and a missing writer would admit
+	// findings with no durable truth surface — the same "no consumer-less
+	// kind" bar the AWS/multi-cloud runtime drift adapters below hold.
 	TerraformBackendResolver *tfstatebackend.Resolver
 	DriftEvidenceLoader      DriftEvidenceLoader
+	DriftWriter              TerraformConfigStateDriftFindingWriter
 	DriftLogger              *slog.Logger
 
 	// AWS cloud-runtime drift adapters (issue #39). Both must be non-nil for

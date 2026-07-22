@@ -234,7 +234,7 @@ permission_families:
     default_roles: [developer, operator, owner]
   - family: cloud_iac
     description: Cloud inventory, IaC quality, drift, import, unmanaged resource, replatforming, and cloud-resource impact reads.
-    capability_prefixes: [iac_quality., iac_management., aws_runtime_drift., iac_inventory., cloud_inventory., cloud_runtime_drift., replatforming., platform_impact.cloud_resource_list, platform_impact.infra_resource_aggregate]
+    capability_prefixes: [iac_quality., iac_management., aws_runtime_drift., terraform_config_state_drift., iac_inventory., cloud_inventory., cloud_runtime_drift., replatforming., platform_impact.cloud_resource_list, platform_impact.infra_resource_aggregate]
     action: cloud.iac.read
     data_classes: [cloud_iac]
     scope_levels: [tenant, workspace, repository, source_scope]

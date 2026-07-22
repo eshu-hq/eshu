@@ -117,6 +117,7 @@ func askToolAnnotations() map[string]Annotation {
 		"list_admission_decisions":                        {Backend: BackendPostgres, Cost: CostModerate},
 		"list_advisory_evidence":                          {Backend: BackendPostgres, Cost: CostModerate},
 		"list_aws_runtime_drift_findings":                 {Backend: BackendPostgres, Cost: CostModerate},
+		"list_terraform_config_state_drift_findings":      {Backend: BackendPostgres, Cost: CostModerate},
 		"list_ci_cd_run_correlations":                     {Backend: BackendPostgres, Cost: CostModerate},
 		"list_cloud_resource_inventory":                   {Backend: BackendPostgres, Cost: CostModerate},
 		"list_cloud_runtime_drift_findings":               {Backend: BackendPostgres, Cost: CostModerate},

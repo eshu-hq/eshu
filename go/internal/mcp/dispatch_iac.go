@@ -59,6 +59,17 @@ func awsRuntimeDriftFindingsBody(args map[string]any) map[string]any {
 	}
 }
 
+func terraformConfigStateDriftFindingsBody(args map[string]any) map[string]any {
+	return map[string]any{
+		"scope_id":    str(args, "scope_id"),
+		"address":     str(args, "address"),
+		"outcome":     str(args, "outcome"),
+		"drift_kinds": stringSlice(args, "drift_kinds"),
+		"limit":       intOr(args, "limit", 100),
+		"offset":      intOr(args, "offset", 0),
+	}
+}
+
 func replatformingRollupsBody(args map[string]any) map[string]any {
 	return map[string]any{
 		"scope_id":      str(args, "scope_id"),

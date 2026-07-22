@@ -64,6 +64,51 @@ func TestResolverReturnsErrAmbiguousBackendOwner(t *testing.T) {
 	}
 }
 
+// TestResolverAmbiguousOwnerExposesCandidateRows proves the ambiguous-owner
+// error carries every competing candidate row so a caller (the config-vs-state
+// drift handler in particular) can record their identities as
+// provenance-only evidence rather than dropping them once errors.Is confirms
+// the ambiguous case. Before this, ErrAmbiguousBackendOwner was a bare
+// sentinel with no way to recover which repos were competing.
+func TestResolverAmbiguousOwnerExposesCandidateRows(t *testing.T) {
+	t.Parallel()
+
+	rows := []TerraformBackendRow{
+		{
+			RepoID:           "repo-a",
+			ScopeID:          "repo:repo-a@1",
+			CommitID:         "aaa",
+			CommitObservedAt: time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC),
+			BackendKind:      "s3",
+			LocatorHash:      "hash-1",
+		},
+		{
+			RepoID:           "repo-b",
+			ScopeID:          "repo:repo-b@1",
+			CommitID:         "bbb",
+			CommitObservedAt: time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC),
+			BackendKind:      "s3",
+			LocatorHash:      "hash-1",
+		},
+	}
+	r := NewResolver(&stubQuery{rows: rows})
+	_, err := r.ResolveConfigCommitForBackend(context.Background(), "s3", "hash-1")
+
+	var ambiguous *AmbiguousBackendOwnerError
+	if !errors.As(err, &ambiguous) {
+		t.Fatalf("errors.As(err, *AmbiguousBackendOwnerError) = false, err = %v", err)
+	}
+	if got, want := len(ambiguous.Candidates), 2; got != want {
+		t.Fatalf("len(Candidates) = %d, want %d", got, want)
+	}
+	// errors.Is must still see through to the bare sentinel: every existing
+	// caller (aws_cloud_runtime_drift_evidence.go, incident_repository_
+	// correlation_loader.go) matches on ErrAmbiguousBackendOwner directly.
+	if !errors.Is(err, ErrAmbiguousBackendOwner) {
+		t.Fatalf("errors.Is(err, ErrAmbiguousBackendOwner) = false, want true")
+	}
+}
+
 func TestResolverSingleOwnerReturnsLatestByObservedAt(t *testing.T) {
 	t.Parallel()
 

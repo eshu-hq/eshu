@@ -937,6 +937,17 @@ live in [evidence-notes.md](evidence-notes.md).
   cookies as the explicit credential exchange. SAML claims identify an external
   subject; they do not grant permissions until the store resolves them to an
   Eshu `AuthContext`.
+- `GitHubLoginHandler.handleCallback`, `OIDCLoginHandler.handleCallback`, and
+  `SAMLHandler.handleACS` each record an `identity_authentication`
+  governance-audit event for every callback outcome through their `Audit`
+  field, mirroring `LocalIdentityHandler.auditLocalIdentity` (issue #5601):
+  `sso_login_authenticated` on success, and a denial classification (e.g.
+  `org_not_allowed`, `no_grants`) on failure. `sso_login_audit.go` carries the
+  classification from `githublogin`/`oidclogin`'s `CompleteXLogin` up through
+  `SSOLoginDeniedError`, since that is where the org/grant checks that produce
+  it actually run. Before this, SSO logins left no durable trace once their
+  `browser_sessions` row expired — the local-login path already audited every
+  outcome, but SSO audited none.
 - `RequestMetricsMiddleware` (`request_metrics.go`) wraps the application mux and
   records `eshu_dp_api_request_duration_seconds` and
   `eshu_dp_api_request_errors_total` per endpoint, labeled by the matched route

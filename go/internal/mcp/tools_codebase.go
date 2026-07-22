@@ -223,6 +223,7 @@ func codebaseTools() []ToolDefinition {
 		terraformImportPlanTool(),
 		composeReplatformingPlanTool(),
 		awsRuntimeDriftFindingsTool(),
+		terraformConfigStateDriftFindingsTool(),
 		replatformingRollupsTool(),
 		replatformingOwnershipTool(),
 		{

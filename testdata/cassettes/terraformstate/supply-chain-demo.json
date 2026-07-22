@@ -3,11 +3,11 @@
   "schema_version": "1",
   "scopes": [
     {
-      "scope_id": "terraform_state:s3:supply-chain-demo-tfstate:supply-chain-demo/terraform.tfstate",
+      "scope_id": "state_snapshot:s3:299b28d40110e54bf81beb51e9459bdef688dbc58419782b29aa83a5930b48a7",
       "source_system": "terraform_state",
       "scope_kind": "state_snapshot",
       "collector_kind": "terraform_state",
-      "partition_key": "terraform_state:s3:supply-chain-demo-tfstate:supply-chain-demo/terraform.tfstate",
+      "partition_key": "state_snapshot:s3:299b28d40110e54bf81beb51e9459bdef688dbc58419782b29aa83a5930b48a7",
       "metadata": {
         "backend_kind": "s3",
         "locator_hash": "supply-chain-demo-tfstate/supply-chain-demo/terraform.tfstate"
@@ -29,7 +29,7 @@
             "serial": 4,
             "lineage": "supply-chain-demo-lineage",
             "backend_kind": "s3",
-            "locator_hash": "supply-chain-demo-tfstate/supply-chain-demo/terraform.tfstate",
+            "locator_hash": "299b28d40110e54bf81beb51e9459bdef688dbc58419782b29aa83a5930b48a7",
             "source_size_bytes": 4096
           }
         },

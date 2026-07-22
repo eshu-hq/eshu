@@ -892,6 +892,24 @@ type Instruments struct {
 	// handle through an interface adapter so tests can substitute a
 	// stub recorder.
 	DriftUnresolvedModuleCalls metric.Int64Counter
+	// DriftAmbiguousOwnerWriteFailed counts failed durable writes of an
+	// "ambiguous" terraform_config_state_drift finding — the
+	// TerraformConfigStateDriftFindingWriter call
+	// TerraformConfigStateDriftHandler.writeAmbiguousOwner issues when
+	// backend-owner resolution finds more than one candidate config repo.
+	// That write failure is deliberately non-fatal (Handle() still returns
+	// Status=Succeeded and logs a warning — retrying an ambiguous-owner
+	// rejection cannot resolve it), which makes it invisible to an operator
+	// who is not grepping logs; this counter is the metric-visible signal.
+	//
+	// Unlike CorrelationDriftDetected (the per-address admitted-candidate
+	// path, which already has metric plus reducer-retry coverage via the
+	// non-ambiguous write failure returning a Handle() error), the ambiguous
+	// path has no retry to recover through, so this counter is the only
+	// durability signal for it. Labels: pack (frozen string
+	// "terraform_config_state_drift", matching CorrelationDriftDetected and
+	// CorrelationRuleMatches so operators can group all three by pack).
+	DriftAmbiguousOwnerWriteFailed metric.Int64Counter
 	// WebhookRequests counts public webhook requests by provider, bounded
 	// outcome, and reason. Provider is one of github, gitlab, bitbucket, or
 	// unknown; reason values are closed enums from the webhook listener.
@@ -3072,6 +3090,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register DriftUnresolvedModuleCalls counter: %w", err)
+	}
+
+	inst.DriftAmbiguousOwnerWriteFailed, err = meter.Int64Counter(
+		"eshu_dp_drift_ambiguous_owner_write_failed_total",
+		metric.WithDescription("Total failed durable writes of an ambiguous-owner terraform_config_state_drift finding, labeled by pack"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DriftAmbiguousOwnerWriteFailed counter: %w", err)
 	}
 
 	inst.DriftSchemaUnknownComposite, err = meter.Int64Counter(

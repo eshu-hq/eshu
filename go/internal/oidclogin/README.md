@@ -46,6 +46,17 @@ This package emits no spans or metrics directly. API route metrics and
 Postgres-store instrumentation live in `cmd/api` and
 `internal/storage/postgres`.
 
+`CompleteOIDCLogin` wraps every denied/unavailable return with
+`query.SSOLoginDeniedError`, carrying a stable reason classification
+(`state_invalid`, `redirect_mismatch`, `code_exchange_failed`,
+`id_token_invalid`, `nonce_mismatch`, `subject_missing`, `no_group_claim`,
+`no_grants`, `state_store_unavailable`, `grant_resolution_unavailable`).
+`query.OIDCLoginHandler` uses that classification to record an
+`identity_authentication` governance-audit event for every callback outcome
+— success (`sso_login_authenticated`) and denial alike — closing the gap
+issue #5601 found: an OIDC sign-in previously left no durable, queryable
+trace once its `browser_sessions` row expired.
+
 ## Gotchas / invariants
 
 Only hashes of state, nonce, redirect URI, subject, and group claim values may

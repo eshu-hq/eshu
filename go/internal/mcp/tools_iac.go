@@ -269,6 +269,50 @@ func composeReplatformingPlanSchema() map[string]any {
 	}
 }
 
+func terraformConfigStateDriftFindingsTool() ToolDefinition {
+	return ToolDefinition{
+		Name:        "list_terraform_config_state_drift_findings",
+		Description: "List active Terraform config-vs-state drift reducer findings for one bounded state-snapshot scope, with the exact/ambiguous outcome and drift kind for each finding. Provider-neutral: config-vs-state drift is not cloud-specific. Provide scope_id.",
+		InputSchema: terraformConfigStateDriftFindingsSchema(),
+	}
+}
+
+func terraformConfigStateDriftFindingsSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"scope_id": map[string]any{
+				"type":        "string",
+				"description": "Exact Terraform state-snapshot scope, for example state_snapshot:s3:hash-1",
+			},
+			"address": map[string]any{
+				"type":        "string",
+				"description": "Optional exact Terraform resource address to inspect",
+			},
+			"outcome": map[string]any{
+				"type":        "string",
+				"description": "Optional outcome filter: exact or ambiguous",
+			},
+			"drift_kinds": map[string]any{
+				"type":        "array",
+				"items":       map[string]any{"type": "string"},
+				"description": "Optional drift kinds: added_in_state, added_in_config, attribute_drift, removed_from_state, or removed_from_config",
+			},
+			"limit": map[string]any{
+				"type":        "integer",
+				"description": "Maximum drift findings to return",
+				"default":     100,
+			},
+			"offset": map[string]any{
+				"type":        "integer",
+				"description": "Zero-based result offset for paging findings",
+				"default":     0,
+			},
+		},
+		"required": []string{"scope_id"},
+	}
+}
+
 func awsRuntimeDriftFindingsSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
