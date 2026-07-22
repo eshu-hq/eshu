@@ -34,13 +34,15 @@ covered by the live golden gate:
   existing `repo_dependency` reducer materialized-edge family when the action
   target is an **in-corpus** repository; this fixture points at an external
   action, so nothing materializes.
-- There is **no** B-12 live `query_shape` for it. GitHub Actions workflows are
-  indexed as content_files, not content_entities, and `get_entity_context`
-  resolves only a content_entity or a `CONTAINS`-parented graph node — neither of
-  which exists for `ci.yml` — so no live query surface reaches the
-  content-relationship builder for this workflow. The discrimination therefore
-  stays at the unit-test tier above; the golden gate carries the fixture (so the
-  workflow is parsed end-to-end) without an entity-context query shape.
+- `ci.yml` is reachable as a content-only `File` entity. It has a canonical
+  content-entity id derived from the fixture repository, workflow path, `File`
+  label, `ci` name, and line 1; it still has no parser or graph counterpart.
+  B-12 exercises that entity through both the HTTP entity-context route and the
+  MCP `get_entity_context` tool. Each live shape requires
+  `result_limits.relationship_count=1` and the exact `DEPENDS_ON`
+  `hashicorp/setup-terraform` relationship. The paired mutation proof rejects a
+  second `octocat/example-action` relationship, keeping the `run:`-block foil
+  excluded from both surfaces.
 
 Ifá materialized-edge coverage is **N/A**: no reducer/graph edge is produced for
 this fixture's external action target, and the detector adds no
