@@ -743,6 +743,20 @@ backend-specific branch.
   retries and duplicate facts. Mirrors the proven CloudResource node writer so
   it engages the same schema-backed uid lookup; the #388 edge slice (PR3)
   resolves its workload endpoint against these nodes
+- `KubernetesNamespaceNodeWriter` — writes canonical `KubernetesNamespace` nodes
+  for the namespace environment-alias binding reducer domain (issue #5434);
+  constructed with `NewKubernetesNamespaceNodeWriter`. Batched `UNWIND` +
+  `MERGE (n:KubernetesNamespace {uid: row.uid})` on the collector-emitted
+  `object_id` only. Routes each row to one of two Cypher variants purely by
+  whether `row.environment` is non-empty:
+  `canonicalKubernetesNamespaceUpsertCypher` (no `Environment` node, `REMOVE`s
+  any stale `environment`/`evidence_class` from a prior bound generation) or
+  `canonicalKubernetesNamespaceWithEnvironmentUpsertCypher` (also `MERGE`s
+  `(:Environment {name: row.environment})` and a `TARGETS_ENVIRONMENT` edge —
+  the same edge type `batchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher`
+  uses for the repo-manifest environment-alias path). A namespace with no
+  alias-recognized label NEVER reaches the with-environment variant, so it can
+  never fabricate environment truth.
 - `EC2InstanceNodeWriter` — writes canonical EC2 instance `:CloudResource` nodes
   for the EC2 instance node materialization reducer domain (issue #1146 PR-A);
   constructed with `NewEC2InstanceNodeWriter`. Batched `UNWIND` +

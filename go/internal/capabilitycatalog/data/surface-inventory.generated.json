@@ -1635,6 +1635,7 @@
           "k8s_service_account",
           "k8s_service_account_token_posture",
           "k8s_workload_identity_use",
+          "kubernetes_live.namespace",
           "kubernetes_live.pod_template",
           "kubernetes_live.relationship",
           "kubernetes_live.warning"
@@ -3675,6 +3676,11 @@
     {
       "category": "reducer_domain",
       "name": "kubernetes_correlation_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
+      "name": "kubernetes_namespace_materialization",
       "readiness": "implemented"
     },
     {

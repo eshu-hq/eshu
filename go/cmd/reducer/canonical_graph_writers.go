@@ -20,6 +20,7 @@ type canonicalGraphWriters struct {
 	azureCloudResourceEdge        *sourcecypher.AzureCloudResourceEdgeWriter
 	workloadCloudRelationshipEdge *sourcecypher.WorkloadCloudRelationshipWriter
 	kubernetesWorkloadNode        *graphowner.KubernetesWorkloadGatedWriter
+	kubernetesNamespaceNode       *sourcecypher.KubernetesNamespaceNodeWriter
 	securityGroupEndpointNode     *sourcecypher.SecurityGroupEndpointNodeWriter
 	securityGroupReachability     *sourcecypher.SecurityGroupReachabilityWriter
 	kubernetesCorrelationEdge     *sourcecypher.KubernetesCorrelationEdgeWriter
@@ -51,6 +52,7 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, batchSize int, ownerGa
 	rawCloudResourceNode := sourcecypher.NewCloudResourceNodeWriter(exec, batchSize)
 	rawEC2InstanceNode := sourcecypher.NewEC2InstanceNodeWriter(exec, batchSize)
 	rawKubernetesWorkloadNode := sourcecypher.NewKubernetesWorkloadNodeWriter(exec, batchSize)
+	kubernetesNamespaceNode := sourcecypher.NewKubernetesNamespaceNodeWriter(exec, batchSize)
 	rawRDSPostureNode := sourcecypher.NewRDSPostureNodeWriter(exec, batchSize)
 	rawEC2InternetExposureNode := sourcecypher.NewEC2InternetExposureNodeWriter(exec, batchSize)
 	rawEC2BlockDeviceKMSPostureNode := sourcecypher.NewEC2BlockDeviceKMSPostureNodeWriter(exec, batchSize)
@@ -63,6 +65,7 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, batchSize int, ownerGa
 		azureCloudResourceEdge:        sourcecypher.NewAzureCloudResourceEdgeWriter(exec, batchSize),
 		workloadCloudRelationshipEdge: sourcecypher.NewWorkloadCloudRelationshipWriter(exec, batchSize),
 		kubernetesWorkloadNode:        graphowner.NewKubernetesWorkloadGatedWriter(ownerGate, rawKubernetesWorkloadNode.WriteKubernetesWorkloadNodes),
+		kubernetesNamespaceNode:       kubernetesNamespaceNode,
 		securityGroupEndpointNode:     sourcecypher.NewSecurityGroupEndpointNodeWriter(exec, batchSize),
 		securityGroupReachability:     sourcecypher.NewSecurityGroupReachabilityWriter(exec, batchSize),
 		kubernetesCorrelationEdge:     sourcecypher.NewKubernetesCorrelationEdgeWriter(exec, batchSize),

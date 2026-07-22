@@ -108,6 +108,15 @@ type KubernetesHandlers struct {
 	// relationship edge gates on the CloudResource node phase (#805).
 	KubernetesWorkloadNodeWriter KubernetesWorkloadNodeWriter
 
+	// KubernetesNamespaceNodeWriter materializes kubernetes_live.namespace
+	// facts into canonical KubernetesNamespace graph nodes, binding an
+	// Environment node only for a namespace whose label declared a
+	// recognized environment (issue #5434). It must be non-nil alongside
+	// FactLoader for the registry to register
+	// DomainKubernetesNamespaceMaterialization; missing either one would drop
+	// every namespace fact before it reaches the graph.
+	KubernetesNamespaceNodeWriter KubernetesNamespaceNodeWriter
+
 	// KubernetesCorrelationEdgeWriter projects exact live-workload correlation
 	// decisions into canonical RUNS_IMAGE edges between a KubernetesWorkload node
 	// and the digest-addressed OCI source node it runs (issue #388 PR3). It must be
