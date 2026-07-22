@@ -72,7 +72,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	// scanRoot itself in ordinary git-sync mode but the SOURCE checkout in
 	// filesystem managed-copy mode, where repoPath (the managed copy) has no
 	// .git of its own — see buildGitTrackedResolver's doc comment.
-	discoveryOpts.GitTrackedResolver = buildGitTrackedResolver(ctx, repoPath, gitTreePath)
+	discoveryOpts.GitTrackedResolver = buildGitTrackedResolver(ctx, repoPath, gitTreePath, s.Logger)
 	fullFileSet, discoveryStats, err := resolveNativeSnapshotFileSet(repoPath, registry, discoveryOpts)
 	fileSet := fullFileSet
 	if len(repository.FileTargets) > 0 {

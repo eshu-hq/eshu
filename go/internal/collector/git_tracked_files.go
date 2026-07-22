@@ -5,10 +5,13 @@ package collector
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // gitTrackedFiles resolves the set of repo-relative, slash-separated paths
@@ -95,14 +98,32 @@ func hasGitDirMarker(dir string) bool {
 //  4. Anything else — gitTreePath empty/blank, or repoRoot outside scanRoot —
 //     reports ok=false: tracked status unknown, caller keeps its pre-#5591
 //     behavior.
+//
+// logger receives a WARN when — and only when — case 1 applies but
+// gitTrackedFiles still reports ok=false: repoRoot has its own ".git" marker,
+// so ls-files was EXPECTED to succeed, and a failure there (corrupt index,
+// permissions, an incompatible git version) is not the ordinary "this isn't a
+// git repo" case. Without that warning, discovery falls back to
+// pattern-only .gitignore filtering with nothing telling the operator a
+// tracked file might be silently dropped again — recreating the exact
+// silent-failure class issue #5591 fixes. Cases 2-4 never warn: a directory
+// with no .git marker of its own (a managed copy, or a scan root that simply
+// isn't a git checkout) is the legitimate, expected shape ok=false already
+// covered before #5591. logger may be nil; a nil logger defaults to
+// slog.Default() only at the point a warning actually fires.
 func buildGitTrackedResolver(
 	ctx context.Context,
 	scanRoot string,
 	gitTreePath string,
+	logger *slog.Logger,
 ) func(repoRoot string) (map[string]struct{}, bool) {
 	return func(repoRoot string) (map[string]struct{}, bool) {
 		if hasGitDirMarker(repoRoot) {
-			return gitTrackedFiles(ctx, repoRoot)
+			tracked, ok := gitTrackedFiles(ctx, repoRoot)
+			if !ok {
+				warnGitTrackedFilesUnavailable(ctx, logger, repoRoot)
+			}
+			return tracked, ok
 		}
 		gitTreePath = strings.TrimSpace(gitTreePath)
 		if gitTreePath == "" {
@@ -125,4 +146,20 @@ func buildGitTrackedResolver(
 		}
 		return gitTrackedFiles(ctx, filepath.Join(gitTreePath, filepath.FromSlash(rel)))
 	}
+}
+
+// warnGitTrackedFilesUnavailable logs, at WARN level, that gitDir has its own
+// ".git" marker — so `git ls-files` was expected to succeed — but
+// gitTrackedFiles still reported ok=false. This is the operator-diagnosability
+// half of the #5591 fix: .gitignore filtering falls back to pattern-only
+// matching in this case, and without this log nothing tells the operator that
+// happened, or why.
+func warnGitTrackedFilesUnavailable(ctx context.Context, logger *slog.Logger, gitDir string) {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	logger.WarnContext(
+		ctx, "git-tracked file status unavailable; applying .gitignore without tracked-file exception",
+		log.RepoPath(filepath.Base(gitDir)),
+	)
 }

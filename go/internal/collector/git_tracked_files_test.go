@@ -4,9 +4,12 @@
 package collector
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -87,7 +90,7 @@ func TestBuildGitTrackedResolverGitModeUsesRepoRootDirectly(t *testing.T) {
 	runGit(t, repoRoot, "add", "-f", "tracked.tfstate")
 	runGit(t, repoRoot, "commit", "-m", "initial")
 
-	resolver := buildGitTrackedResolver(context.Background(), repoRoot, repoRoot)
+	resolver := buildGitTrackedResolver(context.Background(), repoRoot, repoRoot, nil)
 	tracked, ok := resolver(repoRoot)
 	if !ok {
 		t.Fatal("resolver() ok = false, want true")
@@ -112,7 +115,7 @@ func TestBuildGitTrackedResolverManagedCopyModeUsesGitTreePath(t *testing.T) {
 
 	managedCopyRoot := t.TempDir() // no .git here — mirrors a filesystem-mode managed copy
 
-	resolver := buildGitTrackedResolver(context.Background(), managedCopyRoot, sourceRoot)
+	resolver := buildGitTrackedResolver(context.Background(), managedCopyRoot, sourceRoot, nil)
 	tracked, ok := resolver(managedCopyRoot)
 	if !ok {
 		t.Fatal("resolver() ok = false, want true (must defer to gitTreePath)")
@@ -146,7 +149,7 @@ func TestBuildGitTrackedResolverManagedCopyModeMirrorsNestedRepoRoot(t *testing.
 		t.Fatalf("mkdir nested copy repo: %v", err)
 	}
 
-	resolver := buildGitTrackedResolver(context.Background(), managedCopyRoot, sourceRoot)
+	resolver := buildGitTrackedResolver(context.Background(), managedCopyRoot, sourceRoot, nil)
 	tracked, ok := resolver(nestedCopyRepo)
 	if !ok {
 		t.Fatal("resolver() ok = false, want true (must mirror rel path under gitTreePath)")
@@ -178,7 +181,7 @@ func TestBuildGitTrackedResolverInvokedPerNestedGitRepoRoot(t *testing.T) {
 	runGit(t, nestedRoot, "add", "-f", "nested.tfstate")
 	runGit(t, nestedRoot, "commit", "-m", "nested initial")
 
-	resolver := buildGitTrackedResolver(context.Background(), outerRoot, outerRoot)
+	resolver := buildGitTrackedResolver(context.Background(), outerRoot, outerRoot, nil)
 
 	outerTracked, ok := resolver(outerRoot)
 	if !ok {
@@ -212,13 +215,80 @@ func TestBuildGitTrackedResolverReportsNotOKOutsideScanRootOrWithoutGitTreePath(
 	scanRoot := t.TempDir()
 	outsideRoot := t.TempDir()
 
-	resolver := buildGitTrackedResolver(context.Background(), scanRoot, "")
+	resolver := buildGitTrackedResolver(context.Background(), scanRoot, "", nil)
 	if _, ok := resolver(scanRoot); ok {
 		t.Error("resolver(scanRoot) ok = true, want false when gitTreePath is empty and scanRoot has no .git")
 	}
 
-	resolverWithTreePath := buildGitTrackedResolver(context.Background(), scanRoot, scanRoot)
+	resolverWithTreePath := buildGitTrackedResolver(context.Background(), scanRoot, scanRoot, nil)
 	if _, ok := resolverWithTreePath(outsideRoot); ok {
 		t.Error("resolver(outsideRoot) ok = true, want false for a repoRoot outside scanRoot")
+	}
+}
+
+// TestBuildGitTrackedResolverWarnsWhenGitMarkerPresentButLsFilesFails proves
+// the P2 fix: a repoRoot with its own ".git" marker is a real, expected git
+// checkout, so a `git ls-files` failure there (corrupt repo state,
+// permissions, an incompatible git version — never "this isn't a git repo")
+// must not fail silently. Without the warning, discovery falls back to
+// pattern-only .gitignore filtering with nothing telling the operator why,
+// recreating the exact silent-drop failure class issue #5591 fixes.
+//
+// An empty ".git" directory (no HEAD/objects/refs) reliably reproduces this:
+// hasGitDirMarker reports true (the directory exists), but `git ls-files`
+// exits non-zero because it is not a valid repository.
+func TestBuildGitTrackedResolverWarnsWhenGitMarkerPresentButLsFilesFails(t *testing.T) {
+	t.Parallel()
+
+	corruptRepo := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(corruptRepo, ".git"), 0o755); err != nil {
+		t.Fatalf("mkdir empty .git marker: %v", err)
+	}
+
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+
+	resolver := buildGitTrackedResolver(context.Background(), corruptRepo, corruptRepo, logger)
+	tracked, ok := resolver(corruptRepo)
+
+	// Behavior preserved: still falls back to pattern-only filtering.
+	if ok {
+		t.Fatalf("resolver() ok = true, want false for a corrupt .git directory; tracked=%v", tracked)
+	}
+	if tracked != nil {
+		t.Fatalf("resolver() tracked = %v, want nil when ok=false", tracked)
+	}
+
+	logged := logBuf.String()
+	if !strings.Contains(logged, "level=WARN") {
+		t.Fatalf("log output missing WARN level; got: %s", logged)
+	}
+	if !strings.Contains(logged, "git-tracked file status unavailable") {
+		t.Fatalf("log output missing tracked-status-unavailable message; got: %s", logged)
+	}
+	if !strings.Contains(logged, filepath.Base(corruptRepo)) {
+		t.Fatalf("log output missing repo identifier %q; got: %s", filepath.Base(corruptRepo), logged)
+	}
+}
+
+// TestBuildGitTrackedResolverNoWarnForNonGitDirectory proves the warning is
+// scoped to the "marker present but ls-files failed" case only: an ordinary
+// non-git directory (no ".git" marker at all, the legitimate case discovery
+// already handled correctly before #5591) must not warn.
+func TestBuildGitTrackedResolverNoWarnForNonGitDirectory(t *testing.T) {
+	t.Parallel()
+
+	plainDir := t.TempDir()
+
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+
+	resolver := buildGitTrackedResolver(context.Background(), plainDir, plainDir, logger)
+	if _, ok := resolver(plainDir); ok {
+		t.Fatal("resolver() ok = true, want false for a non-git directory")
+	}
+
+	if logged := logBuf.String(); logged != "" {
+		t.Fatalf("log output = %q, want empty (no .git marker means no warning)", logged)
 	}
 }
