@@ -272,6 +272,52 @@
           }
         },
         {
+          "fact_kind": "kubernetes_live.pod_template",
+          "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:pod:default:supply-chain-demo-pod-2",
+          "schema_version": "1.2.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "collector_instance_id": "kubernetes_live:cluster:supply-chain-demo",
+            "cluster_id": "supply-chain-demo",
+            "object_id": "kubernetes_live:supply-chain-demo:/v1/pods:default:supply-chain-demo-pod-2",
+            "uid": "66666666-7777-8888-9999-aaaaaaaaaaaa",
+            "group_version_resource": "/v1/pods",
+            "namespace": "default",
+            "name": "supply-chain-demo-pod-2",
+            "service_account": "supply-chain-demo",
+            "labels": {
+              "app": "supply-chain-demo"
+            },
+            "containers": [
+              {
+                "name": "sidecar",
+                "image": "ghcr.io/eshu-hq/internal-tools/sidecar-agent:1.0.0",
+                "init": false,
+                "ports": [
+                  8080
+                ],
+                "env_keys": [
+                  "SIDECAR_MODE"
+                ],
+                "env_from_secret": false
+              }
+            ],
+            "image_refs": [
+              "ghcr.io/eshu-hq/internal-tools/sidecar-agent:1.0.0"
+            ],
+            "selector": {
+              "app": "supply-chain-demo"
+            },
+            "correlation_anchors": [
+              "kubernetes_live:supply-chain-demo:/v1/pods:default:supply-chain-demo-pod-2",
+              "ghcr.io/eshu-hq/internal-tools/sidecar-agent:1.0.0"
+            ],
+            "pod_phase": "Running"
+          }
+        },
+        {
           "fact_kind": "kubernetes_live.relationship",
           "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:rel:owner_reference:replicaset:deployment:supply-chain-demo",
           "schema_version": "1.0.0",
@@ -289,6 +335,48 @@
             "correlation_anchors": [
               "kubernetes_live:supply-chain-demo:apps/v1/replicasets:default:supply-chain-demo-7f8d9",
               "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:supply-chain-demo"
+            ]
+          }
+        },
+        {
+          "fact_kind": "kubernetes_live.relationship",
+          "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:rel:selector_match:service:pod:supply-chain-demo-pod",
+          "schema_version": "1.0.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "collector_instance_id": "kubernetes_live:cluster:supply-chain-demo",
+            "cluster_id": "supply-chain-demo",
+            "relationship_type": "selector_match",
+            "from_object_id": "kubernetes_live:supply-chain-demo:/v1/services:default:supply-chain-demo-svc",
+            "to_object_id": "kubernetes_live:supply-chain-demo:/v1/pods:default:supply-chain-demo-pod",
+            "from_group_version_resource": "/v1/services",
+            "to_group_version_resource": "/v1/pods",
+            "correlation_anchors": [
+              "kubernetes_live:supply-chain-demo:/v1/services:default:supply-chain-demo-svc",
+              "kubernetes_live:supply-chain-demo:/v1/pods:default:supply-chain-demo-pod"
+            ]
+          }
+        },
+        {
+          "fact_kind": "kubernetes_live.relationship",
+          "stable_fact_key": "kubernetes_live:cluster:supply-chain-demo:rel:selector_match:service:pod:supply-chain-demo-pod-2",
+          "schema_version": "1.0.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "collector_instance_id": "kubernetes_live:cluster:supply-chain-demo",
+            "cluster_id": "supply-chain-demo",
+            "relationship_type": "selector_match",
+            "from_object_id": "kubernetes_live:supply-chain-demo:/v1/services:default:supply-chain-demo-svc",
+            "to_object_id": "kubernetes_live:supply-chain-demo:/v1/pods:default:supply-chain-demo-pod-2",
+            "from_group_version_resource": "/v1/services",
+            "to_group_version_resource": "/v1/pods",
+            "correlation_anchors": [
+              "kubernetes_live:supply-chain-demo:/v1/services:default:supply-chain-demo-svc",
+              "kubernetes_live:supply-chain-demo:/v1/pods:default:supply-chain-demo-pod-2"
             ]
           }
         },
