@@ -4,35 +4,81 @@
 package query
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
 
+var queryplanCypherParameterPattern = regexp.MustCompile(`\$([A-Za-z_][A-Za-z0-9_]*)`)
+
 func TestQueryplanProfileParamsCoverFluxDeploymentBindingQueries(t *testing.T) {
-	production := legacyQueryplanProductionCypher(t)
-	params := queryplanProfileParams()
-	for entryID, names := range map[string][]string{
-		"QP-IMPACT-FLUX-BINDINGS-FIRST-HOP":        {"source_repo_ids", "source_limit"},
-		"QP-IMPACT-FLUX-BINDINGS-TARGET-EXPANSION": {"artifact_ids", "source_repo_ids"},
-	} {
-		cypher := production[entryID]
-		for _, name := range names {
-			if !strings.Contains(cypher, "$"+name) {
-				t.Fatalf("%s does not bind $%s", entryID, name)
+	profileParams := queryplanProfileParams()
+	production := captureFluxDeploymentBindingQueryplanRuns(t)
+	tests := []struct {
+		entryID string
+		run     int
+		params  map[string]string
+	}{
+		{
+			entryID: "QP-IMPACT-FLUX-BINDINGS-FIRST-HOP",
+			run:     0,
+			params: map[string]string{
+				"repo_id":         "string",
+				"source_limit":    "int",
+				"source_repo_ids": "[]string",
+			},
+		},
+		{
+			entryID: "QP-IMPACT-FLUX-BINDINGS-TARGET-EXPANSION",
+			run:     1,
+			params: map[string]string{
+				"artifact_ids":    "[]string",
+				"repo_id":         "string",
+				"source_limit":    "int",
+				"source_repo_ids": "[]string",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.entryID, func(t *testing.T) {
+			for _, match := range queryplanCypherParameterPattern.FindAllStringSubmatch(production.cypher[tt.run], -1) {
+				if _, ok := tt.params[match[1]]; !ok {
+					t.Fatalf("captured production Cypher binds $%s without a profile parameter expectation", match[1])
+				}
 			}
-			if _, ok := params[name]; !ok {
-				t.Fatalf("profile params missing %s for %s", name, entryID)
+			for name, wantType := range tt.params {
+				productionValue, ok := production.params[tt.run][name]
+				if !ok {
+					t.Fatalf("captured production params missing %s", name)
+				}
+				profileValue, ok := profileParams[name]
+				if !ok {
+					t.Fatalf("profile params missing %s", name)
+				}
+				if !queryplanProfileParamMatchesType(productionValue, wantType) {
+					t.Fatalf("captured production %s = %#v, want %s", name, productionValue, wantType)
+				}
+				if !queryplanProfileParamMatchesType(profileValue, wantType) {
+					t.Fatalf("profile %s = %#v, want %s", name, profileValue, wantType)
+				}
 			}
-		}
+		})
 	}
-	if sourceRepoIDs, ok := params["source_repo_ids"].([]string); !ok || len(sourceRepoIDs) != 1 {
-		t.Fatalf("source_repo_ids = %#v, want one repository id", params["source_repo_ids"])
-	}
-	if sourceLimit, ok := params["source_limit"].(int); !ok || sourceLimit != 51 {
-		t.Fatalf("source_limit = %#v, want int 51", params["source_limit"])
-	}
-	if artifactIDs, ok := params["artifact_ids"].([]string); !ok || len(artifactIDs) != 1 {
-		t.Fatalf("artifact_ids = %#v, want one artifact id", params["artifact_ids"])
+}
+
+func queryplanProfileParamMatchesType(value any, wantType string) bool {
+	switch wantType {
+	case "string":
+		value, ok := value.(string)
+		return ok && strings.TrimSpace(value) != ""
+	case "int":
+		value, ok := value.(int)
+		return ok && value == 51
+	case "[]string":
+		value, ok := value.([]string)
+		return ok && len(value) == 1 && strings.TrimSpace(value[0]) != ""
+	default:
+		return false
 	}
 }
 
