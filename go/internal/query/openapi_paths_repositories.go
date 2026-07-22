@@ -62,6 +62,8 @@ const openAPIPathsRepositories = `
               }
             }
           },
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }

@@ -13,84 +13,40 @@ import (
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
 // Neo4jReader executes read-only Cypher queries against a Neo4j database.
 type Neo4jReader struct {
-	driver   neo4jdriver.DriverWithContext
-	database string
-	tracer   trace.Tracer
+	driver         neo4jdriver.DriverWithContext
+	database       string
+	tracer         trace.Tracer
+	policy         neo4jReadPolicy
+	sessionFactory neo4jReadSessionFactory
 }
 
 // NewNeo4jReader constructs a read-only Neo4j query executor.
-func NewNeo4jReader(driver neo4jdriver.DriverWithContext, database string) *Neo4jReader {
-	return &Neo4jReader{
+func NewNeo4jReader(driver neo4jdriver.DriverWithContext, database string, options ...Neo4jReaderOption) *Neo4jReader {
+	reader := &Neo4jReader{
 		driver:   driver,
 		database: database,
 		tracer:   otel.Tracer("eshu/go/internal/query"),
+		policy:   defaultNeo4jReadPolicy(),
 	}
+	for _, option := range options {
+		option(reader)
+	}
+	return reader
 }
 
 // Run executes a read-only Cypher query and returns results as maps.
 func (r *Neo4jReader) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-	ctx, span := r.tracer.Start(
-		ctx, "neo4j.query",
-		trace.WithAttributes(
-			attribute.String("db.system", "neo4j"),
-			attribute.String("db.name", r.database),
-			attribute.String("db.statement", cypher),
-		),
-	)
-	defer span.End()
-
-	if r.driver == nil {
-		err := fmt.Errorf("neo4j driver is required")
-		span.RecordError(err)
-		return nil, err
-	}
-
-	session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{
-		AccessMode:   neo4jdriver.AccessModeRead,
-		DatabaseName: r.database,
-	})
-	defer func() { _ = session.Close(ctx) }()
-
-	result, err := session.Run(ctx, cypher, params)
-	if err != nil {
-		span.RecordError(err)
-		return nil, fmt.Errorf("neo4j query: %w", err)
-	}
-
-	records, err := result.Collect(ctx)
-	if err != nil {
-		span.RecordError(err)
-		return nil, fmt.Errorf("neo4j collect: %w", err)
-	}
-
-	rows := make([]map[string]any, 0, len(records))
-	for _, record := range records {
-		row := make(map[string]any, len(record.Keys))
-		for i, key := range record.Keys {
-			row[key] = record.Values[i]
-		}
-		rows = append(rows, row)
-	}
-
-	return rows, nil
+	return r.runRead(ctx, cypher, params)
 }
 
 // RunSingle executes a Cypher query expecting at most one result row.
 func (r *Neo4jReader) RunSingle(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
-	ctx, span := r.tracer.Start(
-		ctx, "neo4j.query.single",
-		trace.WithAttributes(
-			attribute.String("db.system", "neo4j"),
-			attribute.String("db.name", r.database),
-			attribute.String("db.statement", cypher),
-		),
-	)
+	ctx, span := r.tracer.Start(ctx, "neo4j.query.single")
 	defer span.End()
 
 	rows, err := r.Run(ctx, cypher, params)

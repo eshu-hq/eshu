@@ -343,11 +343,15 @@ API/MCP parity claims.
 
 `POST /api/v0/code/cypher` is diagnostics-only. It accepts `cypher_query` plus
 optional `limit`, rejects mutation keywords, caps query length, uses a request
-timeout, and appends or enforces bounded `LIMIT` values. Use purpose-built
-code, story, impact, and content routes for normal client workflows.
+timeout, and appends or enforces bounded `LIMIT` values. Graph execution has a
+tighter 10-second deadline than the 30-second route budget. The route returns
+`backend_unavailable` with HTTP 503 when the graph cannot serve the read and
+`backend_timeout` with HTTP 504 when the graph-read deadline expires. Use
+purpose-built code, story, impact, and content routes for normal workflows.
 `POST /api/v0/code/visualize` shares the same read-only Cypher path and
 projects the result into a bounded, renderable graph visualization packet
-instead of raw rows. Both routes are shared-key/all-scope callers only (#5167
+instead of raw rows, including the same 503 and 504 backend error contract.
+Both routes are shared-key/all-scope callers only (#5167
 Group C): the query text is caller-supplied and unbounded, so there is no
 selector to intersect against a scoped-token or browser-session tenant grant,
 and both are rejected before the handler runs.

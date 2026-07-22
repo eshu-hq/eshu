@@ -43,6 +43,14 @@ Older examples such as `resolution.work_item.completed` and
 `graph.batch.commit.started` are not universal Go event families in the current
 code.
 
+`query.graph_read.warning` is emitted only for slow, deadline, or unavailable
+graph-read outcomes. It carries `pipeline_phase="query"`, a bounded
+`failure_class`, and `duration_seconds`; it deliberately omits Cypher text,
+graph addresses, and raw driver errors.
+
+See [Graph-read safety](graph-read-safety.md) for the shared deadline and
+operator triage contract.
+
 ## Structured Keys
 
 `telemetry.LogKeys()` exposes the frozen registry. Start with these groups:

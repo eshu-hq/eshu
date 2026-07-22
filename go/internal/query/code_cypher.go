@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	// cypherQueryTimeout caps how long a user-submitted Cypher query can run.
+	// cypherQueryTimeout caps the whole route. Neo4jReader's tighter ten-second
+	// backend-read budget remains authoritative for graph execution.
 	cypherQueryTimeout = 30 * time.Second
 
 	// cypherMaxQueryLength rejects excessively long query strings.
@@ -74,6 +75,9 @@ func (h *CodeHandler) handleCypherQuery(w http.ResponseWriter, r *http.Request) 
 
 	rows, err := h.Neo4j.Run(ctx, cypher, nil)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, readOnlyCypherCapability) {
+			return
+		}
 		writeCypherQueryError(w, r, readOnlyCypherCapability, http.StatusInternalServerError, ErrorCodeInternalError, err.Error())
 		return
 	}
@@ -393,6 +397,9 @@ func (h *CodeHandler) handleVisualizeQuery(w http.ResponseWriter, r *http.Reques
 
 	rows, err := h.Neo4j.Run(ctx, cypher, nil)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, visualizationGraphQueryCapability) {
+			return
+		}
 		writeCypherQueryError(w, r, visualizationGraphQueryCapability, http.StatusInternalServerError, ErrorCodeInternalError, err.Error())
 		return
 	}

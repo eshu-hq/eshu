@@ -67,6 +67,14 @@ const openAPIComponentsResponses = `    "responses": {
             "schema": {"$ref": "#/components/schemas/ErrorResponse"}
           }
         }
+      },
+      "GatewayTimeout": {
+        "description": "Backend operation exceeded its deadline",
+        "content": {
+          "application/json": {
+            "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+          }
+        }
       }
     }
 `

@@ -115,6 +115,7 @@ Current query error codes are:
 - `invalid_argument`
 - `not_found`
 - `permission_denied`
+- `backend_timeout`
 - `backend_unavailable`
 - `index_building`
 - `scope_not_found`

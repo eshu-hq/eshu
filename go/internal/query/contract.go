@@ -119,6 +119,7 @@ const (
 	ErrorCodeNotFound                     ErrorCode = "not_found"
 	ErrorCodePermissionDenied             ErrorCode = "permission_denied"
 	ErrorCodeBackendUnavailable           ErrorCode = "backend_unavailable"
+	ErrorCodeBackendTimeout               ErrorCode = "backend_timeout"
 	ErrorCodeIndexBuilding                ErrorCode = "index_building"
 	ErrorCodeScopeNotFound                ErrorCode = "scope_not_found"
 	ErrorCodeServiceNotFound              ErrorCode = "service_not_found"

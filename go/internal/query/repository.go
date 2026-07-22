@@ -157,6 +157,9 @@ func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Requ
 	// with the page query on any graph backend at production scale.
 	total, err := queryRepositoryTotal(r.Context(), h.Neo4j, access)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 		return
 	}
@@ -172,6 +175,9 @@ func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Requ
 
 	rows, err := h.Neo4j.Run(r.Context(), cypher, access.graphParams(map[string]any{"offset": page.Offset, "limit": page.Limit + 1}))
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 		return
 	}

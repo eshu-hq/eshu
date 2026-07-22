@@ -143,6 +143,27 @@ func TestCloudResourceOwnerBackfillerSeedFailureDoesNotMarkComplete(t *testing.T
 	}
 }
 
+func TestCloudResourceOwnerBackfillerGraphReadIsDeadlineBounded(t *testing.T) {
+	t.Parallel()
+
+	reader := newPolicyTestNeo4jReader(blockingPolicySession)
+	reader.policy.readTimeout = 20 * time.Millisecond
+	store := &recordingCloudResourceBackfillStore{}
+	backfiller := CloudResourceOwnerBackfiller{Graph: reader, Store: store}
+
+	started := time.Now()
+	err := backfiller.Backfill(context.Background())
+	if !errors.Is(err, ErrGraphReadDeadline) {
+		t.Fatalf("Backfill() error = %v, want ErrGraphReadDeadline", err)
+	}
+	if elapsed := time.Since(started); elapsed > 250*time.Millisecond {
+		t.Fatalf("Backfill() elapsed = %s, want bounded startup read", elapsed)
+	}
+	if store.markedComplete {
+		t.Fatal("deadline-expired startup backfill marked complete")
+	}
+}
+
 func TestCloudResourceOwnerBackfillQueriesAreUIDKeysetBounded(t *testing.T) {
 	t.Parallel()
 

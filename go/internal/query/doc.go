@@ -9,7 +9,12 @@
 // capability gates for each runtime profile. Handlers read through ports such
 // as GraphQuery and ContentStore rather than concrete Neo4j, NornicDB, or
 // Postgres drivers, so backend-specific behavior stays behind narrow adapter
-// seams. The static capabilities route exposes the embedded capability catalog,
+// seams. Neo4jReader bounds each logical graph read to ten seconds or an
+// earlier caller deadline, passes the remaining transaction timeout to the
+// backend, and retries at most once only for a typed retryable connectivity
+// failure. Parent cancellation attribution remains unchanged, while graph
+// deadline and availability responses stay sanitized. The static capabilities
+// route exposes the embedded capability catalog,
 // including built-in roles, grants, data classes, and per-capability
 // authorization metadata, so API and MCP callers see the same grant contract;
 // profile rows include the capability matrix's p95 latency and max-scope

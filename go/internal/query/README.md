@@ -776,6 +776,12 @@ filtering is tracked as a follow-up.
 - Metrics: `eshu_dp_neo4j_query_duration_seconds` and
   `eshu_dp_postgres_query_duration_seconds` (instruments live in
   `internal/telemetry/instruments.go`).
+- Graph-read policy: every `Neo4jReader` call, including startup owner-ledger
+  backfill pages, shares one 10-second client/backend budget and at most one
+  fresh-session retry for a typed retryable connectivity failure. The Neo4j
+  duration metric uses `operation="read"` with a closed outcome vocabulary;
+  caller deadlines remain distinct from graph-policy deadlines. See
+  [graph-read-deadlines.md](graph-read-deadlines.md) for the proof record.
 - Log events: `repository_query.stage_started`, `repository_query.stage_completed`
   (via `repositoryQueryStageTimer`); `service_query.stage_started`,
   `service_query.stage_completed` (via `serviceQueryStageTimer`). Both emit

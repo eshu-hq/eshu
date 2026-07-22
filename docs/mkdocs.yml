@@ -280,6 +280,7 @@ nav:
       - Metrics: reference/telemetry/metrics.md
       - Ingestion And Collector Metrics: reference/telemetry/metrics-ingestion-collectors.md
       - Reducer And Storage Metrics: reference/telemetry/metrics-reducer-storage.md
+      - Graph-read Safety: reference/telemetry/graph-read-safety.md
       - Traces: reference/telemetry/traces.md
       - Logs: reference/telemetry/logs.md
       - Cross-Service Correlation: reference/telemetry/cross-service-correlation.md

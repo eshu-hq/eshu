@@ -38,6 +38,12 @@
   belong in span attributes or log fields. Dashboards and alert rules depend on
   bounded label cardinality.
 
+- **Graph-read outcomes stay closed and sanitized** — `neo4j.query` read spans
+  use the constants in `contract_graph_read.go`; the duration histogram uses
+  only `operation="read"` and the same closed outcome vocabulary. Slow,
+  deadline, and unavailable warnings must not include Cypher text, graph
+  addresses, or raw driver errors.
+
 ## How to add a new metric
 
 1. Add the field to `Instruments` in `instruments.go`. For example, a new
