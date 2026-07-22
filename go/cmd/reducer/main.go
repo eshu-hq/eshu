@@ -301,6 +301,7 @@ func buildReducerService(
 		// partitioned runner + #2898 refresh fence project them.
 		RationaleEdgeIntentWriter:           repoDependencyIntentWriter,
 		DocumentationEdgeWriter:             edgeWriterForHandlers,
+		CodeownersOwnershipEdgeWriter:       edgeWriterForHandlers,
 		RationaleEdgeWriter:                 edgeWriterForHandlers,
 		EvidenceFactLoader:                  relationshipStore,
 		AssertionLoader:                     relationshipStore,
