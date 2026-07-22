@@ -55,10 +55,15 @@ var infraCategoryLabels = map[string][]string{
 		"ArgoCDApplication",
 		"ArgoCDApplicationSet",
 	},
+	// A Crossplane Claim is edge-only (issue #5347): it stays a K8sResource
+	// node and the SATISFIED_BY edge to its CrossplaneXRD is the
+	// classification, so no node ever carries a CrossplaneClaim label. The
+	// crossplane category therefore lists only the labels a Claim search can
+	// actually match (issue #5478); it is not itself dead — XRDs and
+	// Compositions are live materialized labels.
 	"crossplane": {
 		"CrossplaneXRD",
 		"CrossplaneComposition",
-		"CrossplaneClaim",
 	},
 	"helm": {
 		"HelmChart",
@@ -95,7 +100,6 @@ var allInfraLabels = []string{
 	"ArgoCDApplicationSet",
 	"CrossplaneXRD",
 	"CrossplaneComposition",
-	"CrossplaneClaim",
 	"HelmChart",
 	"HelmValues",
 }

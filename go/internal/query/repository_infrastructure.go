@@ -67,6 +67,10 @@ func queryRepoInfrastructureFromContent(ctx context.Context, content ContentStor
 }
 
 func queryRepoInfrastructureFromGraph(ctx context.Context, reader GraphQuery, params map[string]any) []map[string]any {
+	// infra:K8sResource also covers Crossplane Claims: a Claim is edge-only
+	// (issue #5347) and stays a K8sResource node, so a separate
+	// infra:CrossplaneClaim predicate would always match zero rows and is
+	// intentionally absent (issue #5478).
 	rows, err := reader.Run(ctx, `
 		MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(infra)
 		WHERE infra:K8sResource OR infra:TerraformResource OR infra:TerraformModule
@@ -78,7 +82,7 @@ func queryRepoInfrastructureFromGraph(ctx context.Context, reader GraphQuery, pa
 		      OR infra:ArgoCDApplication OR infra:ArgoCDApplicationSet
 		      OR infra:HelmChart OR infra:HelmValues
 		      OR infra:KustomizeOverlay
-		      OR infra:CrossplaneXRD OR infra:CrossplaneComposition OR infra:CrossplaneClaim
+		      OR infra:CrossplaneXRD OR infra:CrossplaneComposition
 		      OR infra:CloudFormationResource
 		RETURN labels(infra)[0] AS type, infra.name AS name,
 		       infra.kind AS kind, infra.source AS source,
@@ -161,7 +165,7 @@ func repositoryInfrastructureEntryFromContent(entity EntityContent) (map[string]
 			entry["config_path"] = configPath
 		}
 	case "ArgoCDApplication", "ArgoCDApplicationSet", "KustomizeOverlay", "HelmChart",
-		"HelmValues", "CrossplaneXRD", "CrossplaneComposition", "CrossplaneClaim",
+		"HelmValues", "CrossplaneXRD", "CrossplaneComposition",
 		"CloudFormationResource", "K8sResource", "TerraformResource", "TerraformDataSource",
 		"TerraformBackend", "TerraformImport", "TerraformMovedBlock", "TerraformRemovedBlock",
 		"TerraformCheck", "TerraformLockProvider":
@@ -188,7 +192,7 @@ func isRepositoryInfrastructureType(entityType string) bool {
 		"TerragruntConfig", "TerragruntDependency",
 		"ArgoCDApplication", "ArgoCDApplicationSet",
 		"HelmChart", "HelmValues", "KustomizeOverlay",
-		"CrossplaneXRD", "CrossplaneComposition", "CrossplaneClaim",
+		"CrossplaneXRD", "CrossplaneComposition",
 		"CloudFormationResource":
 		return true
 	default:

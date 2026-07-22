@@ -16,13 +16,19 @@ const (
 	// package test) after each production-variant-affecting change; it must
 	// reflect BOTH the RUNS_IMAGE/#5600 and TerraformStateResource/#5443
 	// additions to allInfraLabels and the resource-investigation selector
-	// labels once this file lands on main.
-	handlerQueryplanSafeVariantFamilySHA256       = "9898a740cde00e39fc1e0f3e8d82d83548621f9b42d05ea19ae09621432f1993"
+	// labels, and the CrossplaneClaim/#5478 removal from both, once this file
+	// lands on main.
+	handlerQueryplanSafeVariantFamilySHA256       = "1c92f90f31c42cf65bf53e417ec51dad943ce514de1de611fb6a76c21c36553e"
 	cloudResourcePageQueryplanFamilySHA256        = "712236c6413a22d03897649a0ac0a58115531537557d9bb3fed5604acd23f2b2"
 	entityNameSearchQueryplanVariantFamilySHA256  = "4d4f47c1555b8a42caa91d20a5971902fc19b6ef65d3c77440f9be5df4333ef5"
 	entityNameSearchQueryplanBuilderSourceSHA256  = "3057a508e8b5acf4e07b4d5567b00dbf5e900b360eed82b3102f358e2a1e1523"
 	entityNameSearchQueryplanExpectedVariantCount = 17
-	resourceSelectorQueryplanExpectedVariantCount = 336
+	// resourceSelectorQueryplanExpectedVariantCount dropped by 24 (issue
+	// #5478): CrossplaneClaim's removal from resourceInvestigationDefaultLabels
+	// drops one label from the default/queue/database shapes, each spanning
+	// access(2) x environment(2) x phase(2) = 8 combinations, for 3 x 8 = 24
+	// fewer variants.
+	resourceSelectorQueryplanExpectedVariantCount = 312
 )
 
 func TestHandlerQueryplanProductionVariantFamiliesStayExplicit(t *testing.T) {
