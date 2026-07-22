@@ -252,6 +252,11 @@
         "max": 10,
         "note": "Repository->CodeownerTeam CODEOWNERS rule-to-owner edges (issue #5419 Phase 3); the go_comprehensive fixture's .github/CODEOWNERS declares 2 rules each naming 1 owner, ceiling wide for future fixture CODEOWNERS growth"
       },
+      "PINS_SUBMODULE": {
+        "min": 1,
+        "max": 5,
+        "note": "Repository->Repository submodule-pin edges (issue #5420 Phase 5); the deployable-config fixture's .gitmodules pins vendor/deployable-source at a gitlink (git tree mode 160000) whose URL resolves to the in-corpus deployable-source repository, ceiling wide for future fixture .gitmodules growth"
+      },
       "REFERENCES_TABLE": {
         "min": 1,
         "max": 1000,
@@ -1643,6 +1648,17 @@
         "required_edge_properties": [
           "pattern",
           "source_path"
+        ]
+      },
+      {
+        "id": "rc-161",
+        "description": "At least one Repository PINS_SUBMODULE a Repository; confirms the Phase 3 submodule pin materializer ran and produced a real, non-vacuous edge (issue #5420 Phase 5). The deployable-config fixture's .gitmodules declares a 'vendor/deployable-source' submodule whose URL (https://github.com/acme/deployable-source.git) normalizes, via repositoryidentity with ESHU_GITHUB_ORG=acme, to the exact same repo_id the in-corpus deployable-source fixture's own Repository node resolves to -- proven identical (repository:r_1f68383d) by go/internal/repositoryidentity in isolation before this fixture change landed. scripts/verify-golden-corpus-gate.sh registers the pin as a real git gitlink (tree mode 160000) via `git update-index --cacheinfo`, so gitSubmoduleGitlinkSHA's `git ls-tree HEAD -- <path>` read resolves it without a nested checkout. pinned_sha is intentionally excluded from required_edge_properties: it is a synthetic placeholder SHA, not a meaningful assertion target; only path (the PINS_SUBMODULE relationship's MERGE key) is asserted.",
+        "relationship": "PINS_SUBMODULE",
+        "from_label": "Repository",
+        "to_label": "Repository",
+        "minimum_count": 1,
+        "required_edge_properties": [
+          "path"
         ]
       },
       {

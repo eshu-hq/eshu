@@ -73,6 +73,13 @@ const (
 	// owners projects N edges (owners are per-rule), riding the shared-projection
 	// intent-queue path the same way DomainDocumentationMaterialization does.
 	DomainCodeownersOwnership Domain = "codeowners_ownership"
+	// DomainSubmodulePin materializes canonical Repository-[:PINS_SUBMODULE]->
+	// Repository edges from directly-emitted submodule.pin facts (issue #5420
+	// Phase 3). Each fact is one parent-repository ".gitmodules"/gitlink
+	// declaration; a fact whose submodule URL never resolved to a known
+	// repository (ResolvedRepoID nil) projects no edge, mirroring
+	// DomainCodeownersOwnership's shared-projection intent-queue path.
+	DomainSubmodulePin Domain = "submodule_pin"
 	// DomainConfigStateDrift correlates Terraform config (parsed HCL) against
 	// Terraform state to detect five drift kinds. Cross-source, cross-scope,
 	// non-canonical-write — counters and structured logs are the v1 surface.

@@ -44,7 +44,7 @@ var idempotencyExemptDomains = map[Domain]string{
 
 // idempotencyReplayCases returns one replay case per covered reducer domain.
 //
-// The covered set is the 11 of 13 DefaultDomainDefinitions() base-catalog domains
+// The covered set is the 12 of 14 DefaultDomainDefinitions() base-catalog domains
 // whose emit path is drivable with an in-memory recording fake and a static fact
 // fixture. The two base graph-read-back domains are exempted above with cited
 // coverage. The additive, adapter-gated domains registered by
@@ -65,6 +65,7 @@ func idempotencyReplayCases() []idempotencyReplayCase {
 		documentationReplayCase(),
 		platformInfraReplayCase(),
 		codeownersOwnershipReplayCase(),
+		submodulePinReplayCase(),
 	}
 }
 
@@ -332,6 +333,34 @@ func codeownersOwnershipReplayCase() idempotencyReplayCase {
 func codeownersOwnershipReplayFacts() []facts.Envelope {
 	return []facts.Envelope{
 		codeownersOwnershipEnvelope("repo-co", "CODEOWNERS", "*.go", []string{"@org/backend"}, 0),
+	}
+}
+
+func submodulePinReplayCase() idempotencyReplayCase {
+	return idempotencyReplayCase{
+		domain: DomainSubmodulePin,
+		run: func(t *testing.T) []idempotencyRow {
+			t.Helper()
+			writer := &recordingSubmodulePinEdgeWriter{}
+			handler := SubmodulePinEdgeMaterializationHandler{
+				FactLoader: &stubFactLoader{envelopes: fencedFacts(submodulePinReplayFacts())},
+				EdgeWriter: writer,
+				PriorGenerationCheck: func(context.Context, string, string) (bool, error) {
+					return true, nil
+				},
+			}
+			intent := replayIntent(DomainSubmodulePin, "scope-submodule", nil)
+			if _, err := handler.Handle(drainContext(), intent); err != nil {
+				t.Fatalf("submodule pin Handle: %v", err)
+			}
+			return sharedIntentRows(writer.writeRows)
+		},
+	}
+}
+
+func submodulePinReplayFacts() []facts.Envelope {
+	return []facts.Envelope{
+		submodulePinEnvelope("repo-parent", "vendor/lib-a", strPtr("repo-lib-a"), strPtr("abc123")),
 	}
 }
 

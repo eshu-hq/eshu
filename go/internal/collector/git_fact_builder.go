@@ -5,10 +5,8 @@ package collector
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -72,7 +70,7 @@ func buildStreamingGenerationWithContext(
 	if len(snapshot.ContentFileMetas) > 0 {
 		contentFileCount = len(snapshot.ContentFileMetas)
 	}
-	followupFactCount := 11
+	followupFactCount := 12
 	if snapshot.Delta {
 		followupFactCount = 1
 	}
@@ -190,6 +188,11 @@ func streamFacts(
 	// Content file facts — two-phase re-read path or legacy path.
 	gitDocumentationSourceEmitted := false
 	documentationPaths := documentationMetaRelativePaths(snapshot.DocumentationFileMetas)
+	// gitmodulesCandidates accumulates the .gitmodules body if present across
+	// both content branches; there is exactly one recognized location (see
+	// submodule.IsGitmodulesPath), so emission happens once after both
+	// branches close (see noteSubmoduleCandidate).
+	gitmodulesCandidates := map[string]string{}
 	// codeownersCandidates accumulates recognized CODEOWNERS bodies across both
 	// content branches; GitHub honors one file per repo, so emission happens
 	// once after both branches close (see noteCodeownersCandidate).
@@ -203,6 +206,7 @@ func streamFacts(
 				continue
 			}
 			bodyStr := string(body)
+			noteSubmoduleCandidate(gitmodulesCandidates, meta.RelativePath, bodyStr)
 			noteCodeownersCandidate(codeownersCandidates, meta.RelativePath, bodyStr)
 
 			w.send(contentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, ContentFileSnapshot{
@@ -246,6 +250,7 @@ func streamFacts(
 		snapshot.ContentFileMetas = nil
 	} else {
 		for i, fileSnapshot := range snapshot.ContentFiles {
+			noteSubmoduleCandidate(gitmodulesCandidates, fileSnapshot.RelativePath, fileSnapshot.Body)
 			noteCodeownersCandidate(codeownersCandidates, fileSnapshot.RelativePath, fileSnapshot.Body)
 			w.send(contentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, fileSnapshot))
 			emitServiceCatalogFactsForContentFile(
@@ -285,6 +290,7 @@ func streamFacts(
 		}
 		snapshot.ContentFiles = nil
 	}
+	emitSubmoduleFactsForCandidates(ctx, w, repo.ID, repoPath, scopeID, generationID, observedAt, gitmodulesCandidates)
 	emitCodeownersFactsForCandidates(w, repo.ID, scopeID, generationID, observedAt, codeownersCandidates)
 	for i, meta := range snapshot.DocumentationFileMetas {
 		body, ok := readDocumentationBody(repoPath, meta.RelativePath, nil)
@@ -356,6 +362,15 @@ func streamFacts(
 	snapshot.DataflowFunctions = nil
 
 	// Reducer follow-up facts — trigger downstream materialization domains.
+	// codeowners_ownership and submodule_pin re-resolve the whole-repo candidate
+	// set every generation and their reducer domains carry dedicated delta-scope
+	// retract logic that is dead unless the marker fires on delta. Emit BEFORE the
+	// delta early-return below so a delta that changes or removes CODEOWNERS/.gitmodules
+	// re-projects (and sweeps stale edges). The data facts they consume are emitted
+	// above (emitSubmoduleFactsForCandidates/emitCodeownersFactsForCandidates, which
+	// re-read current disk state on both delta and full generations).
+	w.send(codeownersOwnershipFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
+	w.send(submodulePinFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	if snapshot.Delta {
 		w.send(shellExecMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 		return
@@ -383,9 +398,6 @@ func streamFacts(
 	w.send(shellExecMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	w.send(inheritanceMaterializationFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 	w.send(codeImportRepoEdgeFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
-	// Unconditional (not gated on CODEOWNERS presence): runs the domain every
-	// generation so delta-retract sweeps stale edges even when CODEOWNERS is removed.
-	w.send(codeownersOwnershipFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt))
 }
 
 // streamContentBodyReadFile is the seam streamFacts uses to read each content
@@ -412,87 +424,4 @@ func (w factStreamWriter) send(env facts.Envelope) {
 	}
 	w.count.Add(1)
 	w.ch <- env
-}
-
-func repositoryFactEnvelope(
-	repoPath string,
-	repo repositoryidentity.Metadata,
-	sourceRunID string,
-	scopeID string,
-	generationID string,
-	observedAt time.Time,
-	parsedFileCount int,
-	importsMap map[string][]string,
-	isDependency bool,
-	gitRefs []GitRef,
-	delta bool,
-	deltaRelativePaths []string,
-	deltaDeletedRelativePaths []string,
-	reconcile bool,
-) facts.Envelope {
-	payload := map[string]any{
-		"graph_id":          repo.ID,
-		"graph_kind":        "repository",
-		"name":              repo.Name,
-		"repo_id":           repo.ID,
-		"parsed_file_count": fmt.Sprintf("%d", parsedFileCount),
-		"is_dependency":     isDependency,
-	}
-	if repo.RepoSlug != "" {
-		payload["repo_slug"] = repo.RepoSlug
-	}
-	if repo.RemoteURL != "" {
-		payload["remote_url"] = repo.RemoteURL
-	}
-	if repo.LocalPath != "" {
-		payload["local_path"] = repo.LocalPath
-	}
-	if len(importsMap) > 0 {
-		payload["imports_map"] = importsMap
-	}
-	if defaultBranch := repositoryDefaultBranch(gitRefs); defaultBranch != "" {
-		payload["default_branch"] = defaultBranch
-	}
-	if refsPayload := repositoryFactGitRefsPayload(gitRefs); len(refsPayload) > 0 {
-		payload["git_refs"] = refsPayload
-	}
-	if delta {
-		payload["delta_generation"] = true
-		payload["delta_relative_paths"] = append([]string(nil), deltaRelativePaths...)
-		payload["delta_deleted_relative_paths"] = append([]string(nil), deltaDeletedRelativePaths...)
-	}
-	if reconcile {
-		payload["reconciliation_generation"] = true
-	}
-	if strings.TrimSpace(sourceRunID) != "" {
-		payload["source_run_id"] = sourceRunID
-	}
-
-	return factEnvelope("repository", scopeID, generationID, observedAt, "repository:"+repo.ID, payload, repoPath)
-}
-
-func fileFactEnvelope(
-	repoPath string,
-	repoID string,
-	scopeID string,
-	generationID string,
-	observedAt time.Time,
-	fileData map[string]any,
-	isDependency bool,
-) facts.Envelope {
-	filePath := payloadPath(fileData, "path")
-	relativePath := repositoryRelativePath(repoPath, filePath)
-	payload := map[string]any{
-		"graph_id":         repoID + ":" + relativePath,
-		"graph_kind":       "file",
-		"repo_id":          repoID,
-		"relative_path":    relativePath,
-		"parsed_file_data": fileData,
-		"is_dependency":    isDependency,
-	}
-	if language := payloadString(fileData, "language", "lang"); language != "" {
-		payload["language"] = language
-	}
-
-	return factEnvelope("file", scopeID, generationID, observedAt, "file:"+repoID+":"+relativePath, payload, filePath)
 }

@@ -221,7 +221,25 @@ for fixture in "${corpus_fixtures[@]}"; do
 		git -C "${corpus_dir}/${fixture}" -c init.defaultBranch=main init >/dev/null 2>&1
 		git -C "${corpus_dir}/${fixture}" config user.email "gate@eshu.local" >/dev/null 2>&1
 		git -C "${corpus_dir}/${fixture}" config user.name "Golden Gate" >/dev/null 2>&1
+		# submodule PINS_SUBMODULE non-vacuous coverage (issue #5420 Phase 5): a
+		# pinned submodule SHA is a git gitlink (tree mode 160000), which only
+		# exists in a real git tree -- unlike CODEOWNERS, a plain file copy is not
+		# enough. Declare the submodule in .gitmodules pointing at the in-corpus
+		# deployable-source repository (its URL normalizes, via
+		# repositoryidentity with ESHU_GITHUB_ORG=acme below, to the exact same
+		# repo_id the filesystem-synthesized "https://github.com/acme/deployable-source.git"
+		# remote produces for that fixture's own Repository node -- see
+		# go/internal/collector/submodule/resolve.go), then register the gitlink
+		# via `git update-index --cacheinfo` rather than a real nested checkout:
+		# gitSubmoduleGitlinkSHA (go/internal/collector/git_submodule_pinned_sha.go)
+		# reads the pin from the committed tree via `git ls-tree HEAD --
+		# <path>`, never the working directory, so no submodule checkout is
+		# needed for the pin to resolve.
+		printf '[submodule "vendor/deployable-source"]\n\tpath = vendor/deployable-source\n\turl = https://github.com/acme/deployable-source.git\n' \
+			>"${corpus_dir}/${fixture}/.gitmodules"
 		git -C "${corpus_dir}/${fixture}" add -A >/dev/null 2>&1
+		git -C "${corpus_dir}/${fixture}" update-index --add --cacheinfo \
+			160000,5420542054205420542054205420542054205420,vendor/deployable-source >/dev/null 2>&1
 		git -C "${corpus_dir}/${fixture}" commit -m "initial" >/dev/null 2>&1
 		# Annotated tag for peeled-SHA coverage.
 		git -C "${corpus_dir}/${fixture}" tag -a v1.0.0-annotated -m "annotated tag" HEAD >/dev/null 2>&1

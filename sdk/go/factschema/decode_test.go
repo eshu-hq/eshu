@@ -35,6 +35,7 @@ import (
 	securityalertv1 "github.com/eshu-hq/eshu/sdk/go/factschema/securityalert/v1"
 	semanticv1 "github.com/eshu-hq/eshu/sdk/go/factschema/semantic/v1"
 	servicecatalogv1 "github.com/eshu-hq/eshu/sdk/go/factschema/servicecatalog/v1"
+	submodulev1 "github.com/eshu-hq/eshu/sdk/go/factschema/submodule/v1"
 	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 	vulnerabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerability/v1"
 	workitemv1 "github.com/eshu-hq/eshu/sdk/go/factschema/workitem/v1"
@@ -462,6 +463,7 @@ var payloadContracts = []struct {
 	{FactKindServiceCatalogOwnership, "service_catalog.ownership.v1.schema.json", reflect.TypeOf(servicecatalogv1.Ownership{})},
 	{FactKindServiceCatalogRepositoryLink, "service_catalog.repository_link.v1.schema.json", reflect.TypeOf(servicecatalogv1.RepositoryLink{})},
 	{FactKindServiceCatalogOperationalLink, "service_catalog.operational_link.v1.schema.json", reflect.TypeOf(servicecatalogv1.OperationalLink{})},
+	{FactKindSubmodulePin, "submodule.pin.v1.schema.json", reflect.TypeOf(submodulev1.Pin{})},
 	{FactKindCodeownersOwnership, "codeowners.ownership.v1.schema.json", reflect.TypeOf(codeownersv1.Ownership{})},
 }
 

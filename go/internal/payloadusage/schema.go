@@ -271,6 +271,10 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	// directly-emitted fact decoded by the reducer through the typed seam
 	// (factschema_decode_codeowners.go).
 	"FactKindCodeownersOwnership": "codeowners.ownership.v1.schema.json",
+	// submodule family (issue #5420 Phase 3): submodule.pin is a
+	// directly-emitted fact decoded by the reducer through the typed seam
+	// (factschema_decode_submodule.go).
+	"FactKindSubmodulePin": "submodule.pin.v1.schema.json",
 }
 
 // jsonSchemaDocument is the subset of a checked-in factschema JSON Schema

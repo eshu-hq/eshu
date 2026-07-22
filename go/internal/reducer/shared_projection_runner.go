@@ -39,6 +39,7 @@ var sharedProjectionDomains = []string{
 	DomainRunsIn,
 	DomainInvokesCloudAction,
 	DomainCodeownersOwnershipEdges,
+	DomainSubmodulePinEdges,
 }
 
 // SharedProjectionRunnerConfig holds configuration for the shared projection

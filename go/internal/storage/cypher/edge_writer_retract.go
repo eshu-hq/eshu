@@ -12,6 +12,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
+// RetractEdges retracts canonical domain edges for the given rows. Retraction
+// collects repo IDs from all rows and executes one batched DELETE statement,
+// except for the domains special-cased below (delta-scoped, per-source-label,
+// or scope-anchored retracts) whose Cypher shape differs from the single
+// repo-id-bound statement buildRetractStatement returns.
 func (w *EdgeWriter) RetractEdges(
 	ctx context.Context,
 	domain string,
@@ -246,6 +251,14 @@ func buildRetractStatement(
 		}, nil
 	case reducer.DomainCodeownersOwnershipEdges:
 		return BuildRetractCodeownersOwnershipEdges(repoIDs, evidenceSource), nil
+	// DomainSubmodulePinEdges never reaches the file-path-scoped
+	// collectDeltaFilePaths branch above: buildSubmodulePinRetractRows
+	// (submodule_pin_delta_scope.go) only ever emits Payload-less
+	// whole-repository retract rows (or skips a repo entirely when its delta
+	// did not touch ".gitmodules"), so every retract row lands here with the
+	// single repo-anchored whole-repository statement below.
+	case reducer.DomainSubmodulePinEdges:
+		return BuildRetractSubmodulePinEdges(repoIDs, evidenceSource), nil
 	default:
 		return Statement{}, fmt.Errorf("unsupported domain for retract: %q", domain)
 	}

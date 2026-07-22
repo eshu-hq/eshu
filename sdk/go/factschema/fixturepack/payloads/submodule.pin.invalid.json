@@ -1,0 +1,5 @@
+{
+  "collector_instance_id": "collector-1",
+  "parent_repo_id": "github.com/eshu-hq/eshu",
+  "submodule_url": "https://github.com/eshu-hq/thirdparty.git"
+}

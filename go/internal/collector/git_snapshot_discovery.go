@@ -280,7 +280,7 @@ func resolveNativeSnapshotFileSet(
 			if ok || isGitDocumentationPath(path) {
 				return true
 			}
-			return isCodeownersCandidatePath(repoPath, path)
+			return isGitmodulesCandidatePath(repoPath, path) || isCodeownersCandidatePath(repoPath, path)
 		},
 		opts,
 	)

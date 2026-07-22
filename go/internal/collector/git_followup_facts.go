@@ -335,6 +335,39 @@ func codeownersOwnershipFactEnvelope(
 	)
 }
 
+// submodulePinFactEnvelope builds the per-repository follow-up marker that
+// triggers the submodule_pin reducer domain (const DomainSubmodulePin, issue
+// #5420 Phase 3). The handler materializes canonical PINS_SUBMODULE edges
+// from directly-emitted submodule.pin facts. It is emitted unconditionally
+// per repository, not gated on ".gitmodules" presence, mirroring
+// codeownersOwnershipFactEnvelope: this makes the domain run every generation
+// so its delta-retract sweeps stale edges even when ".gitmodules" is removed
+// (no submodule.pin facts survive to re-cycle the retract-then-write).
+func submodulePinFactEnvelope(
+	repoPath string,
+	repoID string,
+	scopeID string,
+	generationID string,
+	observedAt time.Time,
+) facts.Envelope {
+	payload := map[string]any{
+		"reducer_domain": "submodule_pin",
+		"entity_key":     "submodule:" + filepath.Base(repoPath),
+		"reason":         "repository snapshot emitted submodule pin follow-up",
+		"repo_id":        repoID,
+	}
+
+	return factEnvelope(
+		"shared_followup",
+		scopeID,
+		generationID,
+		observedAt,
+		"shared_followup:"+repoID+":submodule_pin",
+		payload,
+		repoPath,
+	)
+}
+
 func factEnvelope(
 	factKind string,
 	scopeID string,
