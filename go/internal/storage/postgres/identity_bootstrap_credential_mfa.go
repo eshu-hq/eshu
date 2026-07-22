@@ -34,9 +34,11 @@ const localIdentityRecoveryCodeFactorKind = "recovery_code"
 // ResetBootstrapCredential must never revoke a TOTP factor the admin enrolled
 // after bootstrap — restoring the bootstrap credential means restoring the
 // password and its original recovery-code factor, not silently discarding an
-// unrelated MFA method the admin added later. Both the factor revocation and
-// the recovery-code revocation below are scoped to
-// localIdentityRecoveryCodeFactorKind: identity_mfa_recovery_codes.factor_id
+// unrelated MFA method the admin added later. Both the factor revocation
+// (revokeBootstrapCredentialRecoveryFactorsQuery, a factor_kind = $2 predicate)
+// and the recovery-code revocation (revokeBootstrapCredentialRecoveryCodesQuery,
+// a factor_id IN (SELECT ... WHERE factor_kind = $2) subquery) below are scoped
+// to localIdentityRecoveryCodeFactorKind: identity_mfa_recovery_codes.factor_id
 // is a plain foreign key with no kind constraint of its own, and
 // insertLocalIdentityMFA (identity_local_helpers.go) is a shared helper
 // ResetLocalIdentityMFA also calls with an operator-supplied mfa_factor_kind
