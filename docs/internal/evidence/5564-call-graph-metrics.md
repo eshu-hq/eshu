@@ -141,10 +141,12 @@ The exact NornicDB proof used the pinned source commit and
 Connection details, hostnames, retained repository identifiers, and credentials
 are intentionally omitted.
 
-The full live golden-corpus gate was rerun after rebasing onto the CODEOWNERS
-edge-writer change. All three drains passed with zero residual fact work, zero
-dead letters, and zero nonterminal shared intents. The graph/query phase then
-finished with 459 passing checks and two required failures: the CODEOWNERS HTTP
-and MCP queries both returned zero ownership rows for the fixture repository.
-This branch has no CODEOWNERS diff, so the focused B-7 unit/static contracts are
-green while the full live gate remains blocked by that base read-truth failure.
+The full live golden-corpus gate was rerun after the final base rebase. All
+three drains passed with zero residual fact work, zero dead letters, and zero
+nonterminal shared intents. The graph/query phase finished with 459 passing
+checks and four required failures. The CODEOWNERS HTTP and MCP queries returned
+zero ownership rows. The new namespace snapshot also expected at least one
+`TARGETS_ENVIRONMENT` edge and two `KubernetesNamespace` nodes, but the live
+corpus produced zero of each. This branch has no CODEOWNERS or Kubernetes diff,
+so the focused B-7 unit/static contracts are green while the full live gate
+remains blocked by those base read-truth failures.
