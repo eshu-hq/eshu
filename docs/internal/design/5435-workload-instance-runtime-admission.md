@@ -1,11 +1,76 @@
 # WorkloadInstance runtime admission — cluster→repo cross-scope fan-out design
 
-Status: design accepted for the concurrency contract of #5435; implementation
-gated on spine #5471 (PR #5608, branch `5471-deployment-truth-tiers`) landing
-first — the trace-origin edit surface (`impact_trace_deployment_resources.go`)
-is shared with that PR and must not be forked. This note is the mandated
-"concurrency design artifact lands BEFORE implementation" acceptance gate, and
-records the prove-theory-first digest-join cardinality shim (§7).
+Status: **SUPERSEDED for the tier-flip goal by spine #5471/#5608 (now merged).**
+The cross-scope fan-out implementation (§2–§5, §8–§9) is **not being built** —
+see "Supersession" below. §6 (environment-unbound instance state) and §7
+(digest-join cardinality findings) are carried into follow-up issues. This note
+remains the mandated "concurrency design artifact lands BEFORE implementation"
+acceptance record for #5435 and the prove-theory-first cardinality shim (§7);
+it is retained as the durable rationale for why the materialization approach was
+not pursued.
+
+## Supersession — why the materialization approach is not built
+
+Spine #5471 (PR #5608, merged as `bcd41455db`) delivered the user-visible goal of
+#5435 — "`trace_deployment_chain` stops answering `config_only` when runtime
+evidence exists" — through a **read-path** mechanism that is architecturally
+superior for a liveness question, and that this materialization design would
+conflict with:
+
+- **The runtime tier is decided read-side, not from the graph.**
+  `truth.ClassifyDeploymentTruthTier(hasLiveEvidence, hasInstances, …)`
+  (`go/internal/truth/deployment_tiers.go`) promotes to `runtime_confirmed` only
+  on `hasLiveEvidence`, which is computed by `fetchWorkloadLiveEvidence` →
+  `KubernetesPodTemplateStore.HasLiveIdentityMatch` (a bounded, access-scoped,
+  ArgoCD-tracking-id-anchored existence read on active `kubernetes_live.pod_template`
+  facts). `hasInstances` (the `WorkloadInstance` count this design would raise) is
+  **deliberately bucketed with `config_only`** — the tier doc
+  (`docs/public/reference/deployment-truth-tiers.md`) maps the legacy
+  `materialized_runtime_instances` reason to `config_only` ("config-derived, not
+  live observations") and lists config-materialized `WorkloadInstance` rows under
+  "DOES NOT QUALIFY" for `runtime_confirmed`. Materializing live pods as
+  `WorkloadInstance` rows therefore **cannot** flip the tier — the causal chain in
+  §1 is void against the merged contract.
+
+- **Building it would be worse than a no-op — it reopens a just-closed hazard.**
+  Where the live probe already matches, pod-derived instances add nothing. Where
+  it fails closed (no ArgoCD identity), this design's label×digest deployable-unit
+  join would raise confidence `0.45 → ~0.9` under the reason string the tier doc
+  calls misleading, while the tier stays `config_only` — laundering runtime
+  evidence past the exact identity-binding gate the spine's codex-P1 fix installed.
+  That fix closed "a shared image digest alone promotes workload A on workload B's
+  live pod" (`TestFetchWorkloadLiveEvidenceDistinctWorkloadsSharedDigest`); the
+  deployable-unit digest join here is that same false-positive vector rebuilt one
+  layer down, in durable graph write state instead of a per-query probe.
+
+- **Two node labels for one pod is a modeling error.** Live pods already have a
+  canonical graph identity: `KubernetesWorkload` + `RUNS_IMAGE` (issue #388),
+  keyed on the full live-object tuple including `metadata.uid`. A second
+  `WorkloadInstance` projection of the same pods gives them two identities with
+  different lifecycles.
+
+Criterion 1 ("a `kubernetes_live` fixture drives `trace_deployment_chain` off
+`config_only`") is already proven end-to-end by the spine, not just at unit level:
+the B-12 snapshot pins `data.deployment_fact_summary.deployment_truth_tier =
+runtime_confirmed` on the HTTP `trace-deployment-chain` shape (the cassette carries
+`argocd.argoproj.io/tracking-id` pods), and `impact_trace_deployment_gitops_own_repo_test.go`
+exercises the real HTTP handler including the fail-closed negatives. Criterion 3
+(this artifact + the §7 shim) is delivered by this commit. Criterion 2
+(environment-unbound instance evidence state) is genuinely residual and moves to a
+follow-up as a **read-side** field, never a fabricated environment.
+
+Residual work is split into follow-ups (see the closing comment on #5435):
+- **Follow-up A** — read-side `live_instance_count` + environment-unbound evidence
+  state on `trace_deployment_chain`, computed from the existing pod_template
+  Postgres read model / `KubernetesWorkload` graph, with no materialization, no
+  cross-scope fan-out, and no new conflict domain. Reuses §6 semantics and §7
+  cardinality findings.
+- **Follow-up B** — widen the live-evidence probe's identity anchors beyond ArgoCD
+  (Helm release annotations, owner-reference chains, declared kind+namespace+name),
+  each with the same fail-closed discipline. This is the one place runtime evidence
+  still goes unanswered, and the correct fix — not a labels×digest join.
+
+Everything below is retained as the original (pre-spine-merge) design record.
 
 Issue: #5435 (k8s-live: WorkloadInstance join capstone). Part of epic #5430
 (kubernetes-live). Depends on merged #5432 (CRI-resolved digest → `RUNS_IMAGE`)
