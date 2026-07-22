@@ -156,13 +156,17 @@ tracked before/after evidence here.
   segment (`defer tree.Close()` in `parseSegment`), so there is no retained
   growth across files. Reproduce with:
   `go test ./internal/parser/sql -run '^$' -bench BenchmarkParseComprehensive -benchmem -count=3`.
-- No-Regression Evidence (#5482): `DROP TABLE` scans only direct target
-  references in the existing AST mention walk, including the grammar's direct
-  `ERROR` recovery child for valid comma-separated lists. It adds no parse pass,
-  queue work, graph write, or new entity. The existing 64-target
-  `migration_targets` cap remains in force. `go test ./internal/parser/sql
-  -count=1` passes after the change; the intentional output delta is bounded
-  `operation: "drop"` target metadata for recognized DROP migrations.
+- No-Regression Evidence (#5482): `DROP TABLE` records direct target references
+  from the `drop_table` AST node and its direct `ERROR` recovery child. When the
+  grammar leaves the remaining comma-separated targets after that node in a
+  sibling `ERROR`, a bounded source-tail recognizer recovers only a complete
+  comma-prefixed list of qualified identifiers, with an optional `CASCADE` or
+  `RESTRICT` clause and statement terminator. This augments the existing AST
+  mention walk without another tree-sitter parse pass, queue work, graph write,
+  or new entity. The existing 64-target `migration_targets` cap remains in
+  force. `go test ./internal/parser/sql -count=1` passes after the change; the
+  intentional output delta is bounded `operation: "drop"` target metadata for
+  recognized DROP migrations.
 - Observability Evidence: No-Observability-Change. This package emits no new
   metric, span, log, status field, or runtime knob for #5482. Its existing
   oversized-segment path may still emit `slog.Warn("sql parse segment
