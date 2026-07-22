@@ -1867,6 +1867,7 @@ gates:
       - "go/cmd/ci-gates/**"
       - ".pre-commit-config.yaml"
       - "scripts/dev/pre-pr.sh"
+      - "scripts/dev/precommit-go.sh"
       - "scripts/test-pre-pr-whole-module-gates.sh"
       - ".github/workflows/**"
     local:
