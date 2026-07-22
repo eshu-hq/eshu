@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -151,87 +153,37 @@ func (h *CodeHandler) callGraphMetricsData(ctx context.Context, req callGraphMet
 	if h == nil || h.Neo4j == nil {
 		return nil, errCallGraphMetricsUnavailable
 	}
-	cypher, params := callGraphMetricsCypher(req)
-	rows, err := h.Neo4j.Run(ctx, cypher, params)
+	cypher, params := callGraphMetricsEdgesCypher(req.RepoID)
+	edges, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {
 		return nil, err
 	}
-	return callGraphMetricsResponse(req, rows), nil
+	rows, stats := callGraphMetricsRowsWithStats(req, edges)
+	data := callGraphMetricsResponse(req, rows)
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.String("eshu.query.call_graph.metric_type", req.metricType()),
+		attribute.Int("eshu.query.call_graph.expanded_edge_count", stats.expandedEdges),
+		attribute.Int("eshu.query.call_graph.expanded_node_count", stats.expandedNodes),
+		attribute.Int("eshu.query.call_graph.result_count", IntVal(data, "count")),
+		attribute.Bool("eshu.query.call_graph.truncated", BoolVal(data, "truncated")),
+	)
+	return data, nil
 }
 
-func callGraphMetricsCypher(req callGraphMetricsRequest) (string, map[string]any) {
-	params := map[string]any{
-		"repo_id": strings.TrimSpace(req.RepoID),
-		"limit":   req.queryLimit(),
-		"offset":  req.Offset,
-	}
-	if language := req.normalizedLanguage(); language != "" {
-		params["language"] = language
-	}
-	if req.metricType() == "recursive_functions" {
-		return recursiveFunctionsCypher(req), params
-	}
-	return hubFunctionsCypher(req), params
-}
-
-func hubFunctionsCypher(req callGraphMetricsRequest) string {
-	var cypher strings.Builder
-	cypher.WriteString(`MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(source_file:File)-[:CONTAINS]->(fn:Function)
-`)
-	if req.normalizedLanguage() != "" {
-		cypher.WriteString("WHERE coalesce(fn.language, source_file.language) = $language\n")
-	}
-	cypher.WriteString(`OPTIONAL MATCH (repo)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(caller:Function)-[:CALLS]->(fn)
-WITH repo, source_file, fn, count(DISTINCT caller) AS incoming_calls
-OPTIONAL MATCH (repo)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(callee:Function)<-[:CALLS]-(fn)
-WITH repo, source_file, fn, incoming_calls, count(DISTINCT callee) AS outgoing_calls
-WITH repo, source_file, fn, incoming_calls, outgoing_calls, incoming_calls + outgoing_calls AS total_degree
-WHERE total_degree > 0
-RETURN repo.id as repo_id,
-       source_file.relative_path as file_path,
-       coalesce(fn.language, source_file.language) as language,
-       coalesce(fn.id, fn.uid) as function_id,
-       fn.name as function_name,
-       fn.start_line as start_line,
-       fn.end_line as end_line,
-       incoming_calls as incoming_calls,
-       outgoing_calls as outgoing_calls,
-       total_degree as total_degree
-ORDER BY total_degree DESC, incoming_calls DESC, outgoing_calls DESC, source_file.relative_path, fn.start_line, fn.name
-SKIP $offset
-LIMIT $limit`)
-	return cypher.String()
-}
-
-func recursiveFunctionsCypher(req callGraphMetricsRequest) string {
-	var cypher strings.Builder
-	cypher.WriteString(`MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(source_file:File)-[:CONTAINS]->(fn:Function)
-MATCH (fn)-[:CALLS]->(partner:Function)
-MATCH (partner)-[:CALLS]->(fn)
-MATCH (repo)-[:REPO_CONTAINS]->(partner_file:File)-[:CONTAINS]->(partner)
-WITH repo, source_file, fn, partner_file, partner,
-     coalesce(fn.id, fn.uid, fn.name) AS source_key,
-     coalesce(partner.id, partner.uid, partner.name) AS partner_key
-WHERE source_key <= partner_key`)
-	if req.normalizedLanguage() != "" {
-		cypher.WriteString("\n  AND coalesce(fn.language, source_file.language) = $language")
-		cypher.WriteString("\n  AND coalesce(partner.language, partner_file.language) = $language")
-	}
-	cypher.WriteString(`
-RETURN repo.id as repo_id,
-       source_file.relative_path as file_path,
-       coalesce(fn.language, source_file.language) as language,
-       coalesce(fn.id, fn.uid) as function_id,
-       fn.name as function_name,
-       fn.start_line as start_line,
-       fn.end_line as end_line,
-       partner_file.relative_path as partner_file,
-       coalesce(partner.id, partner.uid) as partner_id,
-       partner.name as partner_name,
-       partner.start_line as partner_start_line,
-       partner.end_line as partner_end_line
-ORDER BY source_file.relative_path, fn.start_line, fn.name, partner_file.relative_path, partner.start_line, partner.name
-SKIP $offset
-LIMIT $limit`)
-	return cypher.String()
+func callGraphMetricsEdgesCypher(repoID string) (string, map[string]any) {
+	return `MATCH (source:Function {repo_id: $repo_id})-[call:CALLS]->(target:Function {repo_id: $repo_id})
+RETURN coalesce(source.id, source.uid) AS source_id,
+       source.relative_path AS source_path,
+       source.language AS source_language,
+       source.name AS source_name,
+       source.start_line AS source_start_line,
+       source.end_line AS source_end_line,
+       coalesce(target.id, target.uid) AS target_id,
+       target.relative_path AS target_path,
+       target.language AS target_language,
+       target.name AS target_name,
+       target.start_line AS target_start_line,
+       target.end_line AS target_end_line`, map[string]any{
+			"repo_id": strings.TrimSpace(repoID),
+		}
 }

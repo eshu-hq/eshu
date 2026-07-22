@@ -30,6 +30,11 @@
 // reconstruct Python cycles from a bounded edge set, and page distinct package
 // identities. Internal candidate scans stop at 25,000 rows and return a scope-
 // narrowing error instead of extending the request timeout.
+// Call-graph metric handlers read the repository's directed CALLS edges in one
+// Function.repo_id-indexed pass, then compute distinct hub degree and recursive
+// pairs in Go before deterministic paging. This keeps the public page bounded
+// without relying on NornicDB multi-clause aggregation shortcuts that lose
+// repository scope or corrupt projected values.
 //
 // Handler behavior, OpenAPI fragments, docs/public/reference/http-api.md,
 // truth-envelope fields, and MCP tool dispatch must stay aligned whenever a

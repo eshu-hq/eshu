@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -19,55 +20,29 @@ func TestHandleCallGraphMetricsReturnsBoundedHubFunctions(t *testing.T) {
 	handler := &CodeHandler{
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				if !strings.Contains(cypher, "MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(source_file:File)-[:CONTAINS]->(fn:Function)") {
-					t.Fatalf("cypher = %q, want repo-anchored function query", cypher)
+				if !strings.Contains(cypher, "MATCH (source:Function {repo_id: $repo_id})-[call:CALLS]->(target:Function {repo_id: $repo_id})") {
+					t.Fatalf("cypher = %q, want one repo-indexed CALLS pass", cypher)
 				}
-				if !strings.Contains(cypher, "caller:Function)-[:CALLS]->(fn)") ||
-					!strings.Contains(cypher, "callee:Function)<-[:CALLS]-(fn)") {
-					t.Fatalf("cypher = %q, want repo-scoped incoming and outgoing call counts", cypher)
-				}
-				if !strings.Contains(cypher, "OPTIONAL MATCH (repo)-[:REPO_CONTAINS]") {
-					t.Fatalf("cypher = %q, want repo-scoped call degree expansion", cypher)
-				}
-				if !strings.Contains(cypher, "ORDER BY total_degree DESC, incoming_calls DESC, outgoing_calls DESC, source_file.relative_path, fn.start_line, fn.name") {
-					t.Fatalf("cypher = %q, want deterministic hub ordering", cypher)
-				}
-				if !strings.Contains(cypher, "SKIP $offset") || !strings.Contains(cypher, "LIMIT $limit") {
-					t.Fatalf("cypher = %q, want bounded pagination", cypher)
+				if strings.Contains(cypher, "OPTIONAL MATCH") || strings.Contains(cypher, "REPO_CONTAINS") {
+					t.Fatalf("cypher = %q, want no repeated repository expansion", cypher)
 				}
 				if got, want := params["repo_id"], "repo-1"; got != want {
 					t.Fatalf("params[repo_id] = %#v, want %#v", got, want)
 				}
-				if got, want := params["language"], "go"; got != want {
-					t.Fatalf("params[language] = %#v, want %#v", got, want)
+				edges := make([]map[string]any, 0, 12)
+				for index := range 7 {
+					edges = append(edges, callGraphMetricEdgeRow(
+						fmt.Sprintf("caller-%d", index), "go/internal/api/callers.go", "go", "caller", index+1,
+						"fn-start", "go/internal/api/server.go", "go", "Start", 42,
+					))
 				}
-				if got, want := params["limit"], 2; got != want {
-					t.Fatalf("params[limit] = %#v, want %#v", got, want)
+				for index := range 5 {
+					edges = append(edges, callGraphMetricEdgeRow(
+						"fn-start", "go/internal/api/server.go", "go", "Start", 42,
+						fmt.Sprintf("callee-%d", index), "go/internal/api/callees.go", "go", "callee", index+1,
+					))
 				}
-				return []map[string]any{
-					{
-						"repo_id":        "repo-1",
-						"file_path":      "go/internal/api/server.go",
-						"language":       "go",
-						"function_id":    "fn-start",
-						"function_name":  "Start",
-						"start_line":     42,
-						"end_line":       76,
-						"incoming_calls": 7,
-						"outgoing_calls": 5,
-						"total_degree":   12,
-					},
-					{
-						"repo_id":        "repo-1",
-						"file_path":      "go/internal/api/routes.go",
-						"language":       "go",
-						"function_id":    "fn-route",
-						"function_name":  "Route",
-						"incoming_calls": 2,
-						"outgoing_calls": 1,
-						"total_degree":   3,
-					},
-				}, nil
+				return edges, nil
 			},
 		},
 	}
@@ -123,41 +98,16 @@ func TestHandleCallGraphMetricsReturnsRecursiveFunctions(t *testing.T) {
 	handler := &CodeHandler{
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				if !strings.Contains(cypher, "MATCH (fn)-[:CALLS]->(partner:Function)") ||
-					!strings.Contains(cypher, "MATCH (partner)-[:CALLS]->(fn)") {
-					t.Fatalf("cypher = %q, want two-hop recursion evidence", cypher)
+				if !strings.Contains(cypher, "MATCH (source:Function {repo_id: $repo_id})-[call:CALLS]->(target:Function {repo_id: $repo_id})") {
+					t.Fatalf("cypher = %q, want one repo-indexed CALLS pass", cypher)
 				}
-				if !strings.Contains(cypher, "WHERE source_key <= partner_key") {
-					t.Fatalf("cypher = %q, want duplicate mutual-recursion guard", cypher)
-				}
-				if got, want := params["limit"], 3; got != want {
-					t.Fatalf("params[limit] = %#v, want %#v", got, want)
+				if got, want := params["repo_id"], "repo-1"; got != want {
+					t.Fatalf("params[repo_id] = %#v, want %#v", got, want)
 				}
 				return []map[string]any{
-					{
-						"repo_id":        "repo-1",
-						"file_path":      "src/tree.ts",
-						"language":       "typescript",
-						"function_id":    "fn-walk",
-						"function_name":  "walk",
-						"partner_id":     "fn-walk",
-						"partner_name":   "walk",
-						"partner_file":   "src/tree.ts",
-						"incoming_calls": 1,
-						"outgoing_calls": 1,
-					},
-					{
-						"repo_id":        "repo-1",
-						"file_path":      "src/parser.ts",
-						"language":       "typescript",
-						"function_id":    "fn-a",
-						"function_name":  "parseA",
-						"partner_id":     "fn-b",
-						"partner_name":   "parseB",
-						"partner_file":   "src/parser.ts",
-						"incoming_calls": 2,
-						"outgoing_calls": 2,
-					},
+					callGraphMetricEdgeRow("fn-walk", "src/a-tree.ts", "typescript", "walk", 1, "fn-walk", "src/a-tree.ts", "typescript", "walk", 1),
+					callGraphMetricEdgeRow("fn-a", "src/z-parser.ts", "typescript", "parseA", 10, "fn-b", "src/z-parser.ts", "typescript", "parseB", 20),
+					callGraphMetricEdgeRow("fn-b", "src/z-parser.ts", "typescript", "parseB", 20, "fn-a", "src/z-parser.ts", "typescript", "parseA", 10),
 				}, nil
 			},
 		},

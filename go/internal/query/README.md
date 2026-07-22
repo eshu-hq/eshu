@@ -134,6 +134,13 @@ must narrow scope. Package pages are distinct and ordered by repository, module,
 and language. The
 `query.import_dependency_investigation` span records query type, result count,
 truncation, and scan overflow.
+Call-graph metrics also use one repository-scoped edge pass. The graph query
+anchors both `Function` endpoints by indexed `repo_id` and returns each directed
+`CALLS` edge once. Go then deduplicates caller/callee pairs, computes hub degree
+or reverse-edge recursion, applies the language filter, sorts exact ties by
+function identity, and pages the finished result. This avoids NornicDB's
+incorrect multi-clause aggregate and mutual-edge shortcuts while preserving
+self-calls and duplicate-edge semantics.
 Semantic and hybrid search freshness reads require both an identity-scoped
 `search_vector_ready` watermark, no active document projection in a non-ready
 state, and no pending versioned vector scope for a non-empty ready projection.

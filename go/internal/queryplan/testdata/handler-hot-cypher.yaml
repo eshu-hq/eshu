@@ -198,30 +198,24 @@ entries:
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/code_call_graph_metrics.go, symbol: hubFunctionsCypher, source_sha256: f6e8dd1b0bff52b4ee6229d6c2c2687f5d811e905f917e3d29774dcd11237675}
-    query_fragment: 'MATCH (repo:Repository {id: $repo_id})'
-    cypher_sha256: 37ca49895cf10169757e3e28914309611849c224d1d834c05b576b703e865e73
-    required_anchors: [{label: Repository, property: id}]
-    required_schema: [repository_id]
-    required_limits: [$limit]
-    requires_order: true
-    allow_unlabeled: true
-    caveats: [The OPTIONAL MATCH reuses repo and fn already bound by the indexed Repository path.]
+    source: {file: go/internal/query/code_call_graph_metrics.go, symbol: callGraphMetricsEdgesCypher, source_sha256: 96ccb27437ff9ce4b90a16666ca35fa33a79a7036c03190f73ee9a3b79377232}
+    query_fragment: 'MATCH (source:Function {repo_id: $repo_id})-[call:CALLS]->(target:Function {repo_id: $repo_id})'
+    cypher_sha256: af56a49b3688c0e7c17d03a9a5b71e2cd0bd26d9ac292b0f5a1cf5f90ea423c5
+    required_anchors: [{label: Function, property: repo_id}]
+    required_schema: [function_repo_id]
+    caveats: [One indexed repository edge pass is aggregated and deterministically paged in Go; the Cypher result is intentionally not page-limited because both metric variants require the complete repository CALLS set for exact counts and reverse-edge detection.]
     plan: *indexed_plan
 
   - id: QP-CALL-GRAPH-RECURSIVE
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/code_call_graph_metrics.go, symbol: recursiveFunctionsCypher, source_sha256: 8fb4d87b9ebc0549c95ba2ccafe017d28e1ee58f911f45ad6e80a659282619fe}
-    query_fragment: 'MATCH (repo:Repository {id: $repo_id})'
-    cypher_sha256: f98c39acc149acb709da084f82154be331c9affa3adb573ca81ffc47535ccac1
-    required_anchors: [{label: Repository, property: id}]
-    required_schema: [repository_id]
-    required_limits: [$limit]
-    requires_order: true
-    allow_unlabeled: true
-    caveats: [The later MATCH clauses reuse fn and partner already bound by the indexed Repository path.]
+    source: {file: go/internal/query/code_call_graph_metrics.go, symbol: callGraphMetricsEdgesCypher, source_sha256: 96ccb27437ff9ce4b90a16666ca35fa33a79a7036c03190f73ee9a3b79377232}
+    query_fragment: 'MATCH (source:Function {repo_id: $repo_id})-[call:CALLS]->(target:Function {repo_id: $repo_id})'
+    cypher_sha256: af56a49b3688c0e7c17d03a9a5b71e2cd0bd26d9ac292b0f5a1cf5f90ea423c5
+    required_anchors: [{label: Function, property: repo_id}]
+    required_schema: [function_repo_id]
+    caveats: [One indexed repository edge pass is aggregated and deterministically paged in Go; the Cypher result is intentionally not page-limited because both metric variants require the complete repository CALLS set for exact counts and reverse-edge detection.]
     plan: *indexed_plan
 
   - id: QP-GRAPH-ENTITY-COUNT
