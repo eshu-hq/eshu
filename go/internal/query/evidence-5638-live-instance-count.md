@@ -30,9 +30,12 @@ bounded by `expectedArgoCDTrackingIDs` (already capped at
 `serviceStoryItemLimit`). No new write, lock, transaction, worker, graph call,
 or hot-path graph write is added, so there is no throughput or latency
 regression surface to measure; store errors log-and-continue and never block
-or slow the trace. Correctness of the aggregation (MAX-per-tracking-id then
-SUM across distinct tracking-ids; absent ready_replicas ≠ 0; count never feeds
-the deployment-truth tier) is proven by the unit tests in
+or slow the trace. Correctness of the aggregation (MAX per (tracking-id,
+cluster_id) then SUM across distinct cluster/tracking-id groups, so
+Deployment→ReplicaSet annotation copies are de-duplicated within a cluster
+while the same Application deployed to multiple clusters is summed, not
+max'd; absent ready_replicas ≠ 0; count never feeds the deployment-truth tier)
+is proven by the unit tests in
 `impact_trace_deployment_live_evidence_count_test.go` and end-to-end by the
 B-12 golden snapshot pin (`live_instance_count = 3`, the MAX-not-SUM value)
 driven through the full `scripts/verify-golden-corpus-gate.sh` replay.

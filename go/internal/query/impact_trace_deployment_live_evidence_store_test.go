@@ -145,13 +145,13 @@ func TestKubernetesPodTemplateHasLiveIdentityMatchNoMatch(t *testing.T) {
 }
 
 var listLiveIdentityMatchesColumns = []string{
-	"object_id", "group_version_resource", "ready_replicas",
+	"cluster_id", "object_id", "group_version_resource", "ready_replicas",
 }
 
 // TestListLiveIdentityMatchesQueriesUseSelectColumnsShape proves the
 // SELECT-columns query text carries the same ACTIVE-generation join,
 // is_tombstone, and identity/image-refs predicate as the existence-check
-// query, plus the three projected columns ListLiveIdentityMatches scans.
+// query, plus the four projected columns ListLiveIdentityMatches scans.
 func TestListLiveIdentityMatchesQueriesUseSelectColumnsShape(t *testing.T) {
 	t.Parallel()
 
@@ -161,9 +161,11 @@ func TestListLiveIdentityMatchesQueriesUseSelectColumnsShape(t *testing.T) {
 		"generation.status = 'active'",
 		"fact.payload->'annotations'->>$2 = $3",
 		"fact.payload->'image_refs' ?| $5",
+		"fact.payload->>'cluster_id' AS cluster_id",
 		"fact.payload->>'object_id' AS object_id",
 		"fact.payload->>'group_version_resource' AS group_version_resource",
 		"(fact.payload->>'ready_replicas')::int AS ready_replicas",
+		"ORDER BY fact.payload->>'object_id'",
 		"LIMIT $6",
 	} {
 		if !strings.Contains(listLiveKubernetesPodTemplateIdentityMatchesQuery, want) {
@@ -254,8 +256,8 @@ func TestListLiveIdentityMatchesReturnsRows(t *testing.T) {
 	t.Parallel()
 
 	db, recorder := openScopeQueryerTestDB(t, listLiveIdentityMatchesColumns, [][]driver.Value{
-		{"kubernetes_live:supply-chain-demo:apps/v1/deployments:default:demo", "apps/v1/deployments", int64(3)},
-		{"kubernetes_live:supply-chain-demo:/v1/pods:default:demo-pod", "/v1/pods", nil},
+		{"supply-chain-demo", "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:demo", "apps/v1/deployments", int64(3)},
+		{"supply-chain-demo", "kubernetes_live:supply-chain-demo:/v1/pods:default:demo-pod", "/v1/pods", nil},
 	})
 	store := NewPostgresKubernetesPodTemplateStore(db)
 
@@ -273,6 +275,9 @@ func TestListLiveIdentityMatchesReturnsRows(t *testing.T) {
 	if matches[0].ReadyReplicas == nil || *matches[0].ReadyReplicas != 3 {
 		t.Fatalf("matches[0].ReadyReplicas = %v, want *3", matches[0].ReadyReplicas)
 	}
+	if matches[0].ClusterID != "supply-chain-demo" {
+		t.Fatalf("matches[0].ClusterID = %q, want supply-chain-demo", matches[0].ClusterID)
+	}
 	if matches[1].ReadyReplicas != nil {
 		t.Fatalf("matches[1].ReadyReplicas = %v, want nil (absent, not a fabricated zero)", *matches[1].ReadyReplicas)
 	}
@@ -289,7 +294,7 @@ func TestListLiveIdentityMatchesReadyZeroIsPresentNotOmitted(t *testing.T) {
 	t.Parallel()
 
 	db, _ := openScopeQueryerTestDB(t, listLiveIdentityMatchesColumns, [][]driver.Value{
-		{"kubernetes_live:supply-chain-demo:apps/v1/deployments:default:demo", "apps/v1/deployments", int64(0)},
+		{"supply-chain-demo", "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:demo", "apps/v1/deployments", int64(0)},
 	})
 	store := NewPostgresKubernetesPodTemplateStore(db)
 

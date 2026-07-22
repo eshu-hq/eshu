@@ -61,6 +61,11 @@ type KubernetesPodTemplateStore interface {
 // ready_replicas observation (a bare Pod object has no replica status) --
 // callers MUST treat nil as "not observed", never as a present zero.
 type LiveIdentityMatch struct {
+	// ClusterID is the fact's observed payload.cluster_id -- the cluster the
+	// live object runs in. One ArgoCD tracking-id can appear in several clusters
+	// (one Application deployed to many clusters), each a separate running
+	// deployment, so the count MUST group by cluster before summing.
+	ClusterID string
 	// ObjectID is the fact's observed payload.object_id.
 	ObjectID string
 	// GroupVersionResource is the fact's observed
@@ -222,12 +227,15 @@ LIMIT 1
 // sibling of hasLiveKubernetesPodTemplateIdentityQuery: the identical
 // ACTIVE-generation join, is_tombstone predicate, and identity/image-refs
 // filter, but selecting the row data ListLiveIdentityMatches needs
-// (object_id, group_version_resource, ready_replicas) instead of a bare
-// existence marker. LIMIT is bound as a parameter ($6) rather than a literal
-// so it always matches serviceStoryItemLimit without risking drift between
-// the SQL text and the Go constant.
+// (cluster_id, object_id, group_version_resource, ready_replicas) instead of a
+// bare existence marker. A deterministic ORDER BY object_id makes the row set
+// stable when it is truncated at LIMIT (unlike the existence-check sibling,
+// where any matching row suffices so order is irrelevant). LIMIT is bound as a
+// parameter ($6) rather than a literal so it always matches serviceStoryItemLimit
+// without risking drift between the SQL text and the Go constant.
 const listLiveKubernetesPodTemplateIdentityMatchesQuery = `
 SELECT
+  fact.payload->>'cluster_id' AS cluster_id,
   fact.payload->>'object_id' AS object_id,
   fact.payload->>'group_version_resource' AS group_version_resource,
   (fact.payload->>'ready_replicas')::int AS ready_replicas
@@ -243,6 +251,7 @@ WHERE fact.fact_kind = $1
   AND generation.status = 'active'
   AND fact.payload->'annotations'->>$2 = $3
   AND ($4 OR fact.payload->'image_refs' ?| $5)
+ORDER BY fact.payload->>'object_id'
 LIMIT $6
 `
 
@@ -254,6 +263,7 @@ LIMIT $6
 // for the two scope-id array parameters ($6, $7).
 const listLiveKubernetesPodTemplateIdentityMatchesScopedQuery = `
 SELECT
+  fact.payload->>'cluster_id' AS cluster_id,
   fact.payload->>'object_id' AS object_id,
   fact.payload->>'group_version_resource' AS group_version_resource,
   (fact.payload->>'ready_replicas')::int AS ready_replicas
@@ -270,6 +280,7 @@ WHERE fact.fact_kind = $1
   AND fact.payload->'annotations'->>$2 = $3
   AND ($4 OR fact.payload->'image_refs' ?| $5)
   AND (fact.scope_id = ANY($6) OR fact.scope_id = ANY($7))
+ORDER BY fact.payload->>'object_id'
 LIMIT $8
 `
 
@@ -316,13 +327,14 @@ func (s PostgresKubernetesPodTemplateStore) ListLiveIdentityMatches(
 	var matches []LiveIdentityMatch
 	for rows.Next() {
 		var (
-			objectID, groupVersionResource sql.NullString
-			readyReplicas                  sql.NullInt64
+			clusterID, objectID, groupVersionResource sql.NullString
+			readyReplicas                             sql.NullInt64
 		)
-		if err := rows.Scan(&objectID, &groupVersionResource, &readyReplicas); err != nil {
+		if err := rows.Scan(&clusterID, &objectID, &groupVersionResource, &readyReplicas); err != nil {
 			return nil, fmt.Errorf("list live kubernetes pod template identity matches: scan row: %w", err)
 		}
 		match := LiveIdentityMatch{
+			ClusterID:            clusterID.String,
 			ObjectID:             objectID.String,
 			GroupVersionResource: groupVersionResource.String,
 		}

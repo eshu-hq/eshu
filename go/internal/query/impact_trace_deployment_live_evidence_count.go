@@ -112,19 +112,25 @@ func (h *ImpactHandler) fetchWorkloadLiveInstanceSummary(
 			return nil, err
 		}
 
-		var maxReady *int32
+		// The same tracking-id can span multiple clusters (one ArgoCD
+		// Application deployed to many clusters), each a separate running
+		// deployment. Within one cluster a Deployment copies its tracking-id
+		// annotation onto its ReplicaSets, so take the MAX ready_replicas per
+		// cluster (dedup the controller copies), then SUM across distinct
+		// clusters. A cross-cluster MAX would under-count (clusters at 3 and 5
+		// would report 5, not 8).
+		maxByCluster := map[string]int32{}
 		for _, match := range matches {
 			if match.ReadyReplicas == nil {
 				continue
 			}
-			if maxReady == nil || *match.ReadyReplicas > *maxReady {
-				ready := *match.ReadyReplicas
-				maxReady = &ready
+			if cur, ok := maxByCluster[match.ClusterID]; !ok || *match.ReadyReplicas > cur {
+				maxByCluster[match.ClusterID] = *match.ReadyReplicas
 			}
 		}
-		if maxReady != nil {
+		for _, ready := range maxByCluster {
 			observed = true
-			total += *maxReady
+			total += ready
 		}
 	}
 

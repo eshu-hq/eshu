@@ -171,8 +171,8 @@ func TestFetchWorkloadLiveInstanceSummaryMaxNotSum(t *testing.T) {
 	store := &stubKubernetesPodTemplateListStore{
 		matchesByTrackingID: map[string][]LiveIdentityMatch{
 			trackingID: {
-				{ReadyReplicas: int32Ptr(3)}, // Deployment
-				{ReadyReplicas: int32Ptr(3)}, // ReplicaSet, same tracking-id
+				{ClusterID: "prod-cluster", ReadyReplicas: int32Ptr(3)}, // Deployment
+				{ClusterID: "prod-cluster", ReadyReplicas: int32Ptr(3)}, // ReplicaSet, same tracking-id, same cluster
 			},
 		},
 	}
@@ -189,7 +189,40 @@ func TestFetchWorkloadLiveInstanceSummaryMaxNotSum(t *testing.T) {
 		t.Fatal("summary = nil, want non-nil (an observation was made)")
 	}
 	if summary.count != 3 {
-		t.Fatalf("count = %d, want 3 (MAX across same-tracking-id matches, not SUM which would give 6)", summary.count)
+		t.Fatalf("count = %d, want 3 (MAX across same-tracking-id, same-cluster matches, not SUM which would give 6)", summary.count)
+	}
+}
+
+// TestFetchWorkloadLiveInstanceSummaryMultiClusterSumsAcrossClusters is the
+// codex #5661 P1 regression: one ArgoCD Application deployed to two clusters
+// shares ONE tracking-id, but each cluster is a separate running deployment.
+// The count MAXes within each cluster (dedup the Deployment/ReplicaSet copies)
+// then SUMs across clusters -- clusters at 3 and 5 ready replicas make 8, never
+// 5 (which a cross-cluster MAX would wrongly report).
+func TestFetchWorkloadLiveInstanceSummaryMultiClusterSumsAcrossClusters(t *testing.T) {
+	t.Parallel()
+
+	controllers, resources, trackingID := singleTrackingIDFixture("deployable-source", "Deployment", "deployable-source", "production", "apps/v1")
+	store := &stubKubernetesPodTemplateListStore{
+		matchesByTrackingID: map[string][]LiveIdentityMatch{
+			trackingID: {
+				{ClusterID: "cluster-a", ReadyReplicas: int32Ptr(3)}, // cluster A: Deployment
+				{ClusterID: "cluster-a", ReadyReplicas: int32Ptr(3)}, // cluster A: ReplicaSet copy (same tracking-id)
+				{ClusterID: "cluster-b", ReadyReplicas: int32Ptr(5)}, // cluster B: a separate running deployment
+			},
+		},
+	}
+	h := &ImpactHandler{KubernetesPodTemplates: store}
+	summary, err := h.fetchWorkloadLiveInstanceSummary(
+		t.Context(), controllers, resources,
+		[]string{"ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"},
+		repositoryAccessFilter{allScopes: true},
+	)
+	if err != nil {
+		t.Fatalf("error = %v, want nil", err)
+	}
+	if summary == nil || summary.count != 8 {
+		t.Fatalf("summary = %v, want count 8 (MAX 3 in cluster-a + 5 in cluster-b; a cross-cluster MAX gives 5)", summary)
 	}
 }
 
