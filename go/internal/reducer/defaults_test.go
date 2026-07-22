@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:filelength // Pre-existing test file exceeding the 500-line cap; issue #5419 Phase 3 only bumped an existing domain-count assertion (new coverage lives in codeowners_ownership_materialization_test.go), and issue #5442 only removed content (two tests moved to defaults_config_state_drift_writer_gate_test.go, netting -28 lines here). Splitting the remaining wiring-catalog coverage by domain is a separate, larger refactor out of scope for both.
+package reducer //nolint:filelength // Pre-existing test file exceeding the 500-line cap; issue #5419 Phase 3 only bumped an existing domain-count assertion (new coverage lives in codeowners_ownership_materialization_test.go), and issue #5442 only removed content (two tests moved to defaults_config_state_drift_writer_gate_test.go, netting -28 lines here, down to 703). Splitting the remaining wiring-catalog coverage by domain is a separate, unfiled, larger refactor out of scope for both.
 
 import (
 	"context"

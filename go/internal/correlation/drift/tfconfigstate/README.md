@@ -157,3 +157,51 @@ no per-address classification. See `doc.go`'s "Outcome model" section for the
 full reasoning on which of the design doc's six outcomes (exact, derived,
 ambiguous, unresolved, stale, rejected) this domain reaches and why the rest
 are either unreachable with today's evidence or intentionally not persisted.
+
+### Performance evidence (issue #5442)
+
+- **Write path — measured.** `BenchmarkWriteTerraformConfigStateDriftFindings`
+  (`terraform_config_state_drift_writer_test.go`) measured 500 candidates
+  through encode + marshal + one batched `ExecContext` call against a fake DB
+  (no real Postgres I/O): 3.76ms/op, ~7.5µs/candidate CPU cost.
+  `TestWriteTerraformConfigStateDriftFindingsBoundedExecCount` proves
+  O(N/1000) round trips for N=1500, mirroring the AWS/multi-cloud runtime
+  drift writers' bound. There is no prior baseline to compare against — the
+  domain emitted no durable write before this issue — so this is the starting
+  measurement, not a before/after delta.
+- **Read path — structural argument, NOT a measurement.** No `EXPLAIN
+  ANALYZE` was run against a live Postgres instance for
+  `buildTerraformConfigStateDriftFindingQuery`
+  (`go/internal/storage/postgres/terraform_config_state_drift_findings.go`).
+  The claim that its cost matches the already-proven
+  `reducer_aws_cloud_runtime_drift_finding` query is a structural
+  observation only — same `fact_records` table, same
+  `fact_kind = $1 AND fact.scope_id = $2` predicate shape, same
+  `ingestion_scopes` join on `active_generation_id` — not a benchmark. This
+  should be independently measured against representative data before
+  relying on it as a performance guarantee.
+- **Golden-corpus fixture coverage — measured, and a real gap.** A live
+  `scripts/verify-golden-corpus-gate.sh` run (`GATE_COLLECTOR_SETTLE_
+  SECONDS=45`, unique compose project/ports) against the shared 20-repo
+  corpus returned zero `list_terraform_config_state_drift_findings` results
+  for the corpus's only Terraform state scope
+  (`state_snapshot:s3:517dc802bb6c5ddfaf17a5e4b8fa9e8bb913a01fbacc87524ef
+  4349265e3c812`, derived from
+  `testdata/cassettes/terraformstate/supply-chain-demo.json`). Root cause:
+  that cassette's backend locator (`s3` bucket `supply-chain-demo-tfstate`,
+  key `supply-chain-demo/terraform.tfstate`) does not match the corpus's
+  only Terraform config fixture's declared backend
+  (`tests/fixtures/ecosystems/terraform_comprehensive/main.tf`: bucket
+  `my-terraform-state`, key `comprehensive/terraform.tfstate`), so
+  `tfstatebackend.ResolveConfigCommitForBackend` returns
+  `ErrNoConfigRepoOwnsBackend` and the reducer correctly persists nothing
+  (the no-owner case is intentionally not durable — see the outcome model
+  above). This is a corpus fixture-coverage gap, not a handler defect: the
+  demo/golden corpus has no Terraform config+state fixture pair sharing a
+  backend locator, so this domain's `exact` and `ambiguous` durable-write
+  paths are exercised only by the unit and writer-integration tests, not by
+  the golden corpus. `testdata/golden/e2e-20repo-snapshot.json`'s
+  `list_terraform_config_state_drift_findings` shape keeps
+  `minimum_results: 0` for this reason; raising it needs a new fixture pair
+  with a matching backend locator (or an existing fixture's backend
+  corrected to match), which is a separate, unfiled follow-up.

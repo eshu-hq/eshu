@@ -4588,29 +4588,29 @@
         }
       },
       "list_terraform_config_state_drift_findings": {
-        "description": "MCP tool coverage shape for list_terraform_config_state_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). minimum_results is 0 pending a live golden-corpus-gate run that produces a real Terraform config-vs-state drift finding for the demo corpus (issue #5442 follow-up).",
+        "description": "MCP tool coverage shape for list_terraform_config_state_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). scope_id is state_snapshot:s3:<sha256(backend_kind + NUL + locator)> derived from testdata/cassettes/terraformstate/supply-chain-demo.json's scope metadata (backend_kind=s3, locator_hash=supply-chain-demo-tfstate/supply-chain-demo/terraform.tfstate) via go/internal/scope/tfstate.go's hashStateLocator. minimum_results is 0: a live golden-corpus-gate run (issue #5442 follow-up investigation) confirmed 0 results -- the corpus's only Terraform STATE cassette (this one) declares an S3 backend locator that does not match any Terraform CONFIG fixture's declared backend in the corpus (tests/fixtures/ecosystems/terraform_comprehensive/main.tf declares bucket=my-terraform-state key=comprehensive/terraform.tfstate, a different backend entirely), so tfstatebackend.ResolveConfigCommitForBackend never finds an owning config repo for this state scope and the reducer correctly persists nothing (the unresolved/no-owner case is intentionally not durable, see tfconfigstate/doc.go). This is a corpus fixture-coverage gap, not a handler defect; raising minimum_results requires adding a config+state fixture pair that share a backend locator.",
         "required_response_fields": [
-          "scope_id",
           "address",
-          "outcome",
-          "drift_kinds",
-          "story",
-          "outcome_groups",
-          "drift_findings",
-          "findings_count",
-          "total_findings_count",
-          "limit",
-          "offset",
-          "truncated",
-          "next_offset",
-          "truth_basis",
           "analysis_status",
+          "drift_findings",
+          "drift_kinds",
+          "findings_count",
           "graph_projection_note",
-          "limitations"
+          "limit",
+          "limitations",
+          "next_offset",
+          "offset",
+          "outcome",
+          "outcome_groups",
+          "scope_id",
+          "story",
+          "total_findings_count",
+          "truncated",
+          "truth_basis"
         ],
         "minimum_results": 0,
         "arguments": {
-          "scope_id": "state_snapshot:s3:supply-chain-demo",
+          "scope_id": "state_snapshot:s3:517dc802bb6c5ddfaf17a5e4b8fa9e8bb913a01fbacc87524ef4349265e3c812",
           "limit": 10
         }
       }
