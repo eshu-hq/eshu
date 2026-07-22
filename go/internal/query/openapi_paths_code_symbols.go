@@ -223,7 +223,7 @@ const openAPIPathsCodeSymbols = `
       "post": {
         "tags": ["code"],
         "summary": "Inspect call graph metrics",
-        "description": "Returns bounded graph-backed call graph metrics for recursive functions and highly connected hub functions. Requests require repo_id and use deterministic ordering, paging, truncation metadata, source handles, and one canonical functions row key.",
+        "description": "Returns exact graph-backed call graph metrics for recursive functions and highly connected hub functions when the repository has at most 50,000 physical CALLS edges. Requests require repo_id and use deterministic ordering, paging, truncation metadata, source handles, and one canonical functions row key. Larger scopes fail closed with HTTP 422 and no partial metric rows.",
         "operationId": "inspectCallGraphMetrics",
         "requestBody": {
           "required": true,
@@ -271,6 +271,14 @@ const openAPIPathsCodeSymbols = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "422": {
+            "description": "The repository has more than 50,000 physical CALLS edges; narrow the repository scope. No partial metric rows are returned.",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+              }
+            }
+          },
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }

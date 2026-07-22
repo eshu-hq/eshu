@@ -31,10 +31,12 @@
 // identities. Internal candidate scans stop at 25,000 rows and return a scope-
 // narrowing error instead of extending the request timeout.
 // Call-graph metric handlers read the repository's directed CALLS edges in one
-// Function.repo_id-indexed pass, then compute distinct hub degree and recursive
-// pairs in Go before deterministic paging. This keeps the public page bounded
-// without relying on NornicDB multi-clause aggregation shortcuts that lose
-// repository scope or corrupt projected values.
+// Function.repo_id-indexed pass with a 50,001-edge sentinel, then compute
+// distinct hub degree and recursive pairs in Go before deterministic paging.
+// Repositories above the 50,000-edge exactness bound fail closed with HTTP 422
+// and no partial rows. This bounds materialization without relying on NornicDB
+// multi-clause aggregation shortcuts that lose repository scope or corrupt
+// projected values.
 //
 // Handler behavior, OpenAPI fragments, docs/public/reference/http-api.md,
 // truth-envelope fields, and MCP tool dispatch must stay aligned whenever a

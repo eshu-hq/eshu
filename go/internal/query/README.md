@@ -136,11 +136,13 @@ and language. The
 truncation, and scan overflow.
 Call-graph metrics also use one repository-scoped edge pass. The graph query
 anchors both `Function` endpoints by indexed `repo_id` and returns each directed
-`CALLS` edge once. Go then deduplicates caller/callee pairs, computes hub degree
-or reverse-edge recursion, applies the language filter, sorts exact ties by
-function identity, and pages the finished result. This avoids NornicDB's
-incorrect multi-clause aggregate and mutual-edge shortcuts while preserving
-self-calls and duplicate-edge semantics.
+`CALLS` edge once, with a 50,001-edge sentinel. Go then deduplicates
+caller/callee pairs, computes hub degree or reverse-edge recursion, applies the
+language filter, sorts exact ties by function identity, and pages the finished
+result. Repositories with more than 50,000 physical `CALLS` edges fail closed
+with HTTP 422 and no partial metric rows. This avoids unbounded materialization
+and NornicDB's incorrect multi-clause aggregate and mutual-edge shortcuts while
+preserving self-calls and duplicate-edge semantics within the exact bound.
 Semantic and hybrid search freshness reads require both an identity-scoped
 `search_vector_ready` watermark, no active document projection in a non-ready
 state, and no pending versioned vector scope for a non-empty ready projection.

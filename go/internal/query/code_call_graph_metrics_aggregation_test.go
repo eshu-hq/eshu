@@ -254,6 +254,28 @@ func TestCallGraphMetricsDataFailsClosedAndRecordsScanOverflow(t *testing.T) {
 	}
 }
 
+func TestCallGraphMetricsDataAcceptsExactEdgeScanLimit(t *testing.T) {
+	t.Parallel()
+
+	handler := &CodeHandler{Neo4j: fakeGraphReader{run: func(
+		_ context.Context,
+		_ string,
+		_ map[string]any,
+	) ([]map[string]any, error) {
+		return make([]map[string]any, callGraphMetricsEdgeScanLimit), nil
+	}}}
+	data, err := handler.callGraphMetricsData(context.Background(), callGraphMetricsRequest{
+		RepoID: "repo-1",
+		Limit:  intPtr(1),
+	})
+	if err != nil {
+		t.Fatalf("callGraphMetricsData() error = %v, want nil at exact edge scan limit", err)
+	}
+	if got := IntVal(data, "count"); got != 0 {
+		t.Fatalf("callGraphMetricsData() count = %d, want 0 for empty sentinel rows", got)
+	}
+}
+
 func callGraphMetricEdgeRow(
 	sourceID string,
 	sourcePath string,

@@ -31,6 +31,9 @@ func TestOpenAPICallGraphMetrics(t *testing.T) {
 		t.Fatalf("limit minimum = %#v, want %#v", got, want)
 	}
 	metricsResponses := mustMapField(t, metricsPost, "responses")
+	if _, ok := metricsResponses["422"]; !ok {
+		t.Fatal("code/call-graph/metrics responses missing exact-scope overflow status 422")
+	}
 	metricsOK := mustMapField(t, metricsResponses, "200")
 	metricsContent := mustMapField(t, mustMapField(t, metricsOK, "content"), "application/json")
 	metricsResponse := mustMapField(t, mustMapField(t, metricsContent, "schema"), "properties")

@@ -198,24 +198,26 @@ entries:
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/code_call_graph_metrics.go, symbol: callGraphMetricsEdgesCypher, source_sha256: 96ccb27437ff9ce4b90a16666ca35fa33a79a7036c03190f73ee9a3b79377232}
+    source: {file: go/internal/query/code_call_graph_metrics.go, symbol: callGraphMetricsEdgesCypher, source_sha256: 4df771d0780e0952720942678162c9126ff0b37811fbba3fda8862eadf2633e6}
     query_fragment: 'MATCH (source:Function {repo_id: $repo_id})-[call:CALLS]->(target:Function {repo_id: $repo_id})'
-    cypher_sha256: af56a49b3688c0e7c17d03a9a5b71e2cd0bd26d9ac292b0f5a1cf5f90ea423c5
+    cypher_sha256: 6179ae5218e21e2db31a60495d815f0846436842bfc1ff0d1b44819e71eed425
     required_anchors: [{label: Function, property: repo_id}]
     required_schema: [function_repo_id]
-    caveats: [One indexed repository edge pass is aggregated and deterministically paged in Go; the Cypher result is intentionally not page-limited because both metric variants require the complete repository CALLS set for exact counts and reverse-edge detection.]
+    required_limits: [$edge_scan_limit]
+    caveats: [One indexed repository edge pass requests a 50001-edge sentinel; Go computes exact metrics through 50000 physical CALLS edges and fails closed without partial rows above that bound.]
     plan: *indexed_plan
 
   - id: QP-CALL-GRAPH-RECURSIVE
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/code_call_graph_metrics.go, symbol: callGraphMetricsEdgesCypher, source_sha256: 96ccb27437ff9ce4b90a16666ca35fa33a79a7036c03190f73ee9a3b79377232}
+    source: {file: go/internal/query/code_call_graph_metrics.go, symbol: callGraphMetricsEdgesCypher, source_sha256: 4df771d0780e0952720942678162c9126ff0b37811fbba3fda8862eadf2633e6}
     query_fragment: 'MATCH (source:Function {repo_id: $repo_id})-[call:CALLS]->(target:Function {repo_id: $repo_id})'
-    cypher_sha256: af56a49b3688c0e7c17d03a9a5b71e2cd0bd26d9ac292b0f5a1cf5f90ea423c5
+    cypher_sha256: 6179ae5218e21e2db31a60495d815f0846436842bfc1ff0d1b44819e71eed425
     required_anchors: [{label: Function, property: repo_id}]
     required_schema: [function_repo_id]
-    caveats: [One indexed repository edge pass is aggregated and deterministically paged in Go; the Cypher result is intentionally not page-limited because both metric variants require the complete repository CALLS set for exact counts and reverse-edge detection.]
+    required_limits: [$edge_scan_limit]
+    caveats: [One indexed repository edge pass requests a 50001-edge sentinel; Go computes exact metrics through 50000 physical CALLS edges and fails closed without partial rows above that bound.]
     plan: *indexed_plan
 
   - id: QP-GRAPH-ENTITY-COUNT
