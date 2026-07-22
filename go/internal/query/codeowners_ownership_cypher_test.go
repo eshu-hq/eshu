@@ -11,7 +11,11 @@ import (
 func TestCodeownersOwnershipCypherAnchorsOnRepositoryAndOrdersDeterministically(t *testing.T) {
 	t.Parallel()
 
-	cypher, params := codeownersOwnershipCypher("repo-1", -1, "", "", 51)
+	queries := codeownersOwnershipCyphers("repo-1", -1, "", "", 51)
+	if got, want := len(queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d without a cursor", got, want)
+	}
+	cypher, params := queries[0].cypher, queries[0].params
 
 	for _, fragment := range []string{
 		"MATCH (repo:Repository {id: $repo_id})-[rel:DECLARES_CODEOWNER]->(team:CodeownerTeam)",
@@ -33,8 +37,11 @@ func TestCodeownersOwnershipCypherAnchorsOnRepositoryAndOrdersDeterministically(
 	if got, want := params["repo_id"], "repo-1"; got != want {
 		t.Fatalf("params[repo_id] = %#v, want %#v", got, want)
 	}
-	if got, want := params["after_order_index"], -1; got != want {
-		t.Fatalf("params[after_order_index] = %#v, want %#v", got, want)
+	if _, ok := params["after_order_index"]; ok {
+		t.Fatalf("params contains after_order_index without a cursor: %#v", params)
+	}
+	if strings.Contains(cypher, "$after_") {
+		t.Fatalf("cypher contains cursor predicate without a cursor: %q", cypher)
 	}
 	if got, want := params["limit"], 51; got != want {
 		t.Fatalf("params[limit] = %#v, want %#v", got, want)
@@ -44,21 +51,33 @@ func TestCodeownersOwnershipCypherAnchorsOnRepositoryAndOrdersDeterministically(
 func TestCodeownersOwnershipCypherThreadsKeysetCursorParams(t *testing.T) {
 	t.Parallel()
 
-	cypher, params := codeownersOwnershipCypher("repo-1", 3, "*.go", "@org/team-a", 10)
-
-	if want := "$after_order_index < 0" +
-		"\n       OR rel.order_index > $after_order_index" +
-		"\n       OR (rel.order_index = $after_order_index AND rel.pattern > $after_pattern)" +
-		"\n       OR (rel.order_index = $after_order_index AND rel.pattern = $after_pattern AND team.ref > $after_ref)"; !strings.Contains(cypher, want) {
-		t.Fatalf("cypher = %q, want keyset cursor fragment %q", cypher, want)
+	queries := codeownersOwnershipCyphers("repo-1", 3, "*.go", "@org/team-a", 10)
+	if got, want := len(queries), 3; got != want {
+		t.Fatalf("query count = %d, want %d with a cursor", got, want)
 	}
-	if got, want := params["after_order_index"], 3; got != want {
-		t.Fatalf("params[after_order_index] = %#v, want %#v", got, want)
+	wantPredicates := []string{
+		"rel.order_index > $after_order_index",
+		"rel.order_index = $after_order_index AND rel.pattern > $after_pattern",
+		"rel.order_index = $after_order_index AND rel.pattern = $after_pattern AND team.ref > $after_ref",
 	}
-	if got, want := params["after_pattern"], "*.go"; got != want {
-		t.Fatalf("params[after_pattern] = %#v, want %#v", got, want)
+	for i, query := range queries {
+		if !strings.Contains(query.cypher, wantPredicates[i]) {
+			t.Fatalf("query %d = %q, want predicate %q", i, query.cypher, wantPredicates[i])
+		}
+		if strings.Contains(query.cypher, " OR ") || strings.Contains(query.cypher, "\n  OR ") {
+			t.Fatalf("query %d contains NornicDB-incompatible cursor OR: %q", i, query.cypher)
+		}
+		if got, want := query.params["after_order_index"], 3; got != want {
+			t.Fatalf("query %d after_order_index = %#v, want %#v", i, got, want)
+		}
+		if got, want := query.params["limit"], 10; got != want {
+			t.Fatalf("query %d limit = %#v, want %#v", i, got, want)
+		}
 	}
-	if got, want := params["after_ref"], "@org/team-a"; got != want {
-		t.Fatalf("params[after_ref] = %#v, want %#v", got, want)
+	if got, want := queries[1].params["after_pattern"], "*.go"; got != want {
+		t.Fatalf("query 1 after_pattern = %#v, want %#v", got, want)
+	}
+	if got, want := queries[2].params["after_ref"], "@org/team-a"; got != want {
+		t.Fatalf("query 2 after_ref = %#v, want %#v", got, want)
 	}
 }

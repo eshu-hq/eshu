@@ -204,15 +204,24 @@ generation also emits one `gcp_relationship_materialization` intent via
 GCP CloudResource substrate before projecting `GCP_<TYPE>` edges. The projector
 does not create GCP nodes or edges itself. The scope-generation-level intent
 builders are assembled in `appendScopeGenerationReducerIntents`.
+
+Live Kubernetes namespace facts follow the same reducer-owned handoff. When a
+generation contains `kubernetes_live.namespace`,
+`buildKubernetesNamespaceMaterializationReducerIntent` emits one
+`kubernetes_namespace_materialization` intent keyed to the scope. The reducer
+loads all namespace facts for that generation and materializes their canonical
+`KubernetesNamespace` nodes and recognized environment bindings. A generation
+without namespace facts emits no work for this domain.
+
 `appendScopeGenerationReducerIntents` builds one shared, read-only
 `reducerIntentFactIndex` (`reducer_intent_fact_index.go`) over `inputFacts` and
-passes it to all ~38 `build*ReducerIntent` probes instead of the raw
+passes it to all 40 `build*ReducerIntent` probes instead of the raw
 `inputFacts` slice (issue #4875). Each probe used to independently re-scan the
 full generation for its own trigger fact kind(s); the shared index groups fact
 positions by `FactKind` once, so a probe that only cares about one or a
 handful of kinds looks them up directly instead of walking every fact in the
 generation. `inputFacts` is immutable once a scope generation is claimed for
-projection, so sharing one read-only index across all 38 probes is
+projection, so sharing one read-only index across all 40 probes is
 concurrency-safe. Probes that pick their anchor fact from more than one
 candidate kind (e.g. `buildSupplyChainImpactReducerIntent`,
 `buildContainerImageIdentityReducerIntent`) use the index's

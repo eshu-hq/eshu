@@ -24,10 +24,10 @@ type fanOutParityExpectation struct {
 // fanOutParityExpectations is the golden set this file pins: it was captured
 // by running appendScopeGenerationReducerIntents (the pre-#4875 full-scan
 // implementation, unmodified) against fanOutParityFixture, before the shared
-// reducerIntentFactIndex refactor touched any of the 38 build*ReducerIntent
-// probes. TestAppendScopeGenerationReducerIntentsFanOutParity asserts the
-// current implementation still produces this exact set — the "0/0 symmetric
-// diff of emitted intents" the #4875 accuracy gate requires. A change that
+// reducerIntentFactIndex refactor touched any of the then-39
+// build*ReducerIntent probes. New probes extend the same fixture and expectation
+// map. TestAppendScopeGenerationReducerIntentsFanOutParity asserts the current
+// implementation produces this exact set. A change that
 // intentionally alters a probe's emission decision must update this map in
 // the same change, with the new expectation re-derived from the intended
 // behavior (never from "whatever the new code happens to output").
@@ -130,6 +130,10 @@ var fanOutParityExpectations = map[reducer.Domain]fanOutParityExpectation{
 		factID: "k8s-pod-template-1", entityKey: "kubernetes_workload_materialization:mixed:fanout:demo",
 		reason: "kubernetes live workload pod-template facts observed", sourceSystem: "kubernetes_live",
 	},
+	reducer.DomainKubernetesNamespaceMaterialization: {
+		factID: "k8s-namespace-1", entityKey: "kubernetes_namespace_materialization:mixed:fanout:demo",
+		reason: "kubernetes live namespace facts observed", sourceSystem: "kubernetes_live",
+	},
 	reducer.DomainKubernetesWorkloadMaterialization: {
 		factID: "k8s-pod-template-1", entityKey: "kubernetes_workload_materialization:mixed:fanout:demo",
 		reason: "kubernetes live workload pod-template facts observed", sourceSystem: "kubernetes_live",
@@ -215,7 +219,7 @@ var fanOutParityExpectations = map[reducer.Domain]fanOutParityExpectation{
 
 // TestAppendScopeGenerationReducerIntentsFanOutParity is the #4875 accuracy
 // gate: it proves appendScopeGenerationReducerIntents (and, after the shared
-// reducerIntentFactIndex lands, the 38 build*ReducerIntent probes it fans out
+// reducerIntentFactIndex lands, the 40 build*ReducerIntent probes it fans out
 // to) emits byte-identical intents — same anchor fact, entity key, reason,
 // source system, and payload for every domain — before and after the index
 // refactor. fanOutParityExpectations was captured from the pre-refactor

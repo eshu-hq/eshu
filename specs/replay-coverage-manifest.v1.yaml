@@ -93,7 +93,7 @@ coverage:
   # Phase 4 seam 8, making this surface required; Phase 5 covers it here and
   # makes the underlying B-12 query shape non-vacuous (a real .github/CODEOWNERS
   # fixture now backs the go_comprehensive corpus repo).
-  - {surface: "read_surface:GET /api/v0/codeowners/ownership", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/codeowners/ownership?repository_id=go_comprehensive&limit=50", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/codeowners/ownership", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/codeowners/ownership?repository_id=repository:r_8477a002&limit=50", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/images", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/images", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/package-registry/packages", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/package-registry/packages?ecosystem=go&limit=50", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/package-registry/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/package-registry/correlations?package_id=github.com/acme/lib-common&limit=50", proof_gate: golden-corpus-gate}

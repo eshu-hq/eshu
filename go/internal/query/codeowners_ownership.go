@@ -21,7 +21,7 @@ const (
 	codeownersOwnershipReadTimeout  = 10 * time.Second
 	// codeownersOwnershipNoCursor is the "no keyset cursor" sentinel for
 	// after_order_index (order_index is always >= 0), mirroring
-	// codeownersOwnershipCypher's own doc comment.
+	// codeownersOwnershipCyphers' own doc comment.
 	codeownersOwnershipNoCursor = -1
 )
 
@@ -126,8 +126,15 @@ func (h *CodeownersOwnershipHandler) listOwnership(w http.ResponseWriter, r *htt
 	queryCtx, cancel := context.WithTimeout(r.Context(), codeownersOwnershipReadTimeout)
 	defer cancel()
 
-	cypher, params := codeownersOwnershipCypher(repoID, afterOrderIndex, afterPattern, afterRef, limit+1)
-	rows, err := h.Neo4j.Run(queryCtx, cypher, params)
+	rows, err := loadCodeownersOwnershipRows(
+		queryCtx,
+		h.Neo4j,
+		repoID,
+		afterOrderIndex,
+		afterPattern,
+		afterRef,
+		limit+1,
+	)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
