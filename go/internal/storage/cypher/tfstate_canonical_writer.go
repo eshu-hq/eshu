@@ -223,7 +223,17 @@ SET o.id = row.uid,
 //     deleted, since a legacy node still carries a stale generation_id until
 //     migration or the upsert above touches it.
 //  5. Module/output upserts (unchanged from before #5443).
-//  6. MATCHES_STATE config-edge write (terraformStateMatchesConfigEdgeStatements).
+//  6. MATCHES_STATE config-edge retract-then-write
+//     (terraformStateMatchesConfigEdgeRetractStatements, then
+//     terraformStateMatchesConfigEdgeStatements, #5443 P1 review finding):
+//     the retract deletes a stale edge from a state resource refreshed this
+//     generation whose resolved config match changed or became ambiguous --
+//     node retraction alone never catches this because both endpoints
+//     survive, only the relationship is wrong. Retract runs BEFORE the MERGE,
+//     mirroring canonical_atlantis_edges.go's own retract-then-MERGE
+//     ordering for the same reason: both are relationship DELETEs mixed into
+//     a phase of otherwise-MERGE statements and need the Drain-marked
+//     standalone-autocommit treatment (#4476 class).
 //
 // Partial-failure note: every phase above is a separate statement, not one
 // atomic transaction (this repo's own precedent -- rds_posture_node_writer.go,
@@ -268,6 +278,7 @@ func (w *CanonicalNodeWriter) buildTerraformStateStatements(mat projector.Canoni
 			mat,
 		)...,
 	)
+	statements = append(statements, w.terraformStateMatchesConfigEdgeRetractStatements(mat)...)
 	statements = append(statements, w.terraformStateMatchesConfigEdgeStatements(mat)...)
 	return statements
 }
