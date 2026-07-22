@@ -337,6 +337,37 @@ var schemaPerformanceIndexes = []string{
 	// tf_resource_unique's (name, path, line_number) composite, is the
 	// intended lookup path.
 	"CREATE INDEX tf_resource_name IF NOT EXISTS FOR (r:TerraformResource) ON (r.name)",
+	// TerraformStateResource property indexes (#5443 P1 review finding).
+	// TerraformStateResource joined every query path TerraformResource's six
+	// property indexes above back (infra_resource_aggregates.go's per-label
+	// aggregate branches and entity_map_resolver.go's terraform candidate
+	// lookups both iterate every label in infraCategoryLabels["terraform"] /
+	// entityMapResolverQueries' terraform case with the SAME filter clauses
+	// regardless of label), so without a matching index those become
+	// unindexed TerraformStateResource label scans. Only two of
+	// TerraformResource's six sibling properties are ever actually written
+	// onto a TerraformStateResource node
+	// (canonicalTerraformStateResourceUpsertCypher, tfstate_canonical_writer.go):
+	// resource_type and name (name holds the state address, never a
+	// separately-declared config name). provider, environment,
+	// resource_service, and resource_category are config-only concepts with
+	// no TerraformStateResource equivalent field, so no state-side node ever
+	// carries them -- an index there would back a predicate that can never
+	// match a single row, so it is deliberately not added.
+	//   - tf_state_resource_type backs infra_resource_aggregates.go's
+	//     ResourceType/Kind filter clauses
+	//     ("(n.resource_type = $resource_type OR ...)",
+	//     "(n.kind = $kind OR n.resource_type = $kind OR ...)"), which run
+	//     against the TerraformStateResource branch whenever
+	//     filter.Category is "terraform" or unset.
+	//   - tf_state_resource_name backs entity_map_resolver.go's
+	//     `MATCH (n:TerraformStateResource {name: $from})` candidate lookup
+	//     (entityMapResolverQueries' "terraform"/"tf"/"terraform_resource"
+	//     case and entityMapGenericResolverQueries' fallback), a
+	//     bound-property MATCH that falls back to a full label scan without
+	//     a backing index on the pinned NornicDB executor.
+	"CREATE INDEX tf_state_resource_type IF NOT EXISTS FOR (r:TerraformStateResource) ON (r.resource_type)",
+	"CREATE INDEX tf_state_resource_name IF NOT EXISTS FOR (r:TerraformStateResource) ON (r.name)",
 	"CREATE INDEX workload_name IF NOT EXISTS FOR (w:Workload) ON (w.name)",
 	"CREATE INDEX workload_repo_id IF NOT EXISTS FOR (w:Workload) ON (w.repo_id)",
 	"CREATE INDEX workload_instance_environment IF NOT EXISTS FOR (i:WorkloadInstance) ON (i.environment)",
@@ -411,7 +442,8 @@ var schemaFulltextIndexes = []fulltextIndex{
 	},
 	{
 		primary: "CALL db.index.fulltext.createNodeIndex('infra_search_index', " +
-			"['K8sResource', 'TerraformResource', 'ArgoCDApplication', " +
+			"['K8sResource', 'TerraformResource', 'TerraformStateResource', " +
+			"'ArgoCDApplication', " +
 			"'ArgoCDApplicationSet', 'AtlantisProject', 'AtlantisWorkflow', 'GitlabPipeline', 'GitlabJob', 'CrossplaneXRD', 'CrossplaneComposition', " +
 			"'CrossplaneClaim', 'KustomizeOverlay', 'HelmChart', 'HelmValues', " +
 			"'TerraformVariable', 'TerraformOutput', 'TerraformModule', " +
@@ -421,8 +453,18 @@ var schemaFulltextIndexes = []fulltextIndex{
 			"'TerragruntConfig', 'CloudFormationResource', " +
 			"'CloudFormationParameter', 'CloudFormationOutput'], " +
 			"['name', 'kind', 'resource_type'])",
+		// TerraformStateResource joins the infra_search_index label set
+		// (#5443 P1 review finding): it is already in allInfraLabels
+		// (internal/query/infra.go) and infraCategoryLabels["terraform"], but
+		// this fulltext label set previously listed every other Terraform*
+		// label and omitted it, so a fulltext infra search silently never
+		// surfaced state-observed Terraform resources. It carries the same
+		// `name` and `resource_type` properties every other label in this
+		// index carries (canonicalTerraformStateResourceUpsertCypher,
+		// tfstate_canonical_writer.go), so no property-list change is needed.
 		fallback: "CREATE FULLTEXT INDEX infra_search_index IF NOT EXISTS " +
-			"FOR (n:K8sResource|TerraformResource|ArgoCDApplication|" +
+			"FOR (n:K8sResource|TerraformResource|TerraformStateResource|" +
+			"ArgoCDApplication|" +
 			"ArgoCDApplicationSet|AtlantisProject|AtlantisWorkflow|GitlabPipeline|GitlabJob|CrossplaneXRD|CrossplaneComposition|" +
 			"CrossplaneClaim|KustomizeOverlay|HelmChart|HelmValues|" +
 			"TerraformVariable|TerraformOutput|TerraformModule|" +
