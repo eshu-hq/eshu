@@ -134,6 +134,25 @@ path, Drain-marked or not — calls `e.Inner.Execute` (auto-commit), never
 built for the unrelated #4367/#5116/#5128 incidents; it happens to also
 protect these three statements.
 
+**This routing is specific to all-retract phases, not a general property of
+`OperationCanonicalRetract`.** `PhaseGroupExecutor.ExecutePhaseGroup` only
+takes the `executeSequentialRetractPhase` path when every statement in the
+phase shares the retract operation (`allStatementsUseOperation`); entity
+phases get the equivalent per-statement Execute/ExecuteGroup split inside
+`executeEntityPhaseGroup`. A MIXED phase — retract statements alongside an
+upsert, outside both of those paths — falls into
+`executeGroupedChunksWithDrain`, which pulls out only Drain-marked statements
+to run auto-commit; a non-Drain `OperationCanonicalRetract` statement in a
+mixed phase stays in the grouped batch and gets dispatched through
+`ExecuteGroup`, the exact managed-transaction mode this investigation proved
+silently drops retract DELETEs. That is a real, separate production defect,
+found while chasing review feedback on this PR's own dispatch guard: the
+`terraform_state` phase mixes a non-Drain retract with an upsert today and is
+affected. It is tracked and fixed in #5680 (an order-preserving dispatcher
+rewrite, plus a corrected two-part-invariant guard — no retract statement
+ever dispatches via `ExecuteGroup`, and retract-before-upsert ordering is
+preserved), not in this PR.
+
 Live proof at the real call site, through the real `PhaseGroupExecutor`,
 confirms the shipped statements are correct in production as a result:
 

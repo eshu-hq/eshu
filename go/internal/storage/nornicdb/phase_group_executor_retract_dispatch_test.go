@@ -39,13 +39,29 @@ func (e *dispatchRecordingExecutor) ExecuteGroup(_ context.Context, _ []sourcecy
 // through a managed Bolt transaction (ExecuteGroup), but delete correctly
 // when dispatched auto-commit (Execute) -- matching
 // docs/public/reference/nornicdb-query-pitfalls.md's "treat every retract
-// DELETE as auto-commit-only" rule. Production is safe ONLY because
-// PhaseGroupExecutor.executeSequentialRetractPhase unconditionally routes
-// every OperationCanonicalRetract statement through Execute, never
-// ExecuteGroup. This test locks that routing in place: a future change that
-// starts grouping retract-only phases through ExecuteGroup (e.g. an
-// unreviewed "batch retracts for fewer round trips" optimization) would
-// silently reintroduce the write-loss class this guards.
+// DELETE as auto-commit-only" rule. These three statements are safe today
+// because they always ship together in the homogeneous "retract" phase
+// (buildRetractStatements), where PhaseGroupExecutor.ExecutePhaseGroup's
+// allStatementsUseOperation gate routes the whole phase through
+// executeSequentialRetractPhase, which calls Execute for every statement and
+// never ExecuteGroup. This test locks THAT routing in place for an all-retract
+// phase: a future change that starts grouping retract-only phases through
+// ExecuteGroup (e.g. an unreviewed "batch retracts for fewer round trips"
+// optimization) would silently reintroduce the write-loss class this guards.
+//
+// This guard does NOT cover a MIXED phase (retract statements alongside an
+// upsert in the same phase). In that shape, a non-Drain
+// OperationCanonicalRetract statement is not routed through
+// executeSequentialRetractPhase -- it falls into
+// executeGroupedChunksWithDrain, which only pulls Drain-marked statements out
+// to run auto-commit and leaves everything else, non-Drain retracts included,
+// to go through ExecuteGroup. That turned out to be a real, separate
+// production defect, found while chasing this PR's own mixed-phase review
+// feedback: the terraform_state phase mixes a non-Drain retract with an
+// upsert today and is affected (tracked as #5680). The corrected two-part
+// invariant guard (no retract statement ever dispatches via ExecuteGroup, and
+// retract-before-upsert ordering is preserved) plus the order-preserving
+// dispatcher fix land in #5680, not here.
 func TestPhaseGroupExecutorRetractPhaseNeverUsesExecuteGroup(t *testing.T) {
 	t.Parallel()
 
