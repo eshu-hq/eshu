@@ -53,13 +53,13 @@ const sqlMigrationTargetsCap = sqlSourceTablesCap
 // (materializeEntities -> content.CanonicalEntityID) minted a garbage
 // empty-name uid, and nothing downstream ever consumed the bucket. The
 // entity's migration_targets metadata carries every forward
-// (create/alter/reference/DML-write) target the reducer's MIGRATES derivation
+// (create/alter/reference/DML-write/drop) target the reducer's MIGRATES derivation
 // resolves against SqlTable/SqlView/SqlFunction/SqlTrigger/SqlIndex entities.
 // A target mentioned ONLY via a SELECT read is deliberately excluded --
 // write-not-read honesty, mirroring dropShadowedReads (#5345): a backfill
-// migration's read-only table is not "migrated". DROP targets are out of
-// scope for #5346 (the grammar walk does not capture DROP at all yet); a
-// follow-up adds them additively via the same operation field.
+// migration's read-only table is not "migrated". DROP targets are recorded as
+// operation="drop" metadata; that operation does not imply the target's
+// head-state presence or absence.
 func buildSQLMigrationEntries(
 	path string,
 	lineIndex sqlLineIndex,
@@ -112,7 +112,7 @@ func buildSQLMigrationEntries(
 		}
 	}
 
-	// Bounded table mentions record ALTER/INSERT/UPDATE/DELETE/REFERENCES
+	// Bounded table mentions record ALTER/INSERT/UPDATE/DELETE/REFERENCES/DROP
 	// touches against an existing table. A "select" mention is read-only and
 	// must never be recorded as a migration target (#5346).
 	for _, mention := range tableMentions {

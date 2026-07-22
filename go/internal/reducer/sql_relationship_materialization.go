@@ -386,8 +386,10 @@ func ExtractSQLRelationshipRows(
 			// migration_targets metadata -> MIGRATES edges (#5346). Each target
 			// carries its own resolved kind (stamped by the parser from the
 			// bucket it was captured in, or "SqlTable" for a bounded DML/ALTER/
-			// REFERENCES mention), so resolution is direct: no SqlTable/SqlView
-			// dual-kind fallback the way READS_FROM needs. A same-kind,
+			// REFERENCES/DROP mention). The operation remains target metadata;
+			// MIGRATES represents migration adjacency/provenance and does not infer
+			// a target's head-state presence or absence. Resolution is direct: no
+			// SqlTable/SqlView dual-kind fallback the way READS_FROM needs. A same-kind,
 			// same-name collision across files is reported as ambiguous rather
 			// than guessed (Trap 1); a target naming nothing in the repo is
 			// unresolved.

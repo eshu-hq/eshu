@@ -29,6 +29,8 @@ func sqlMigrationTarget(kind, name, operation string, lineNumber int) map[string
 // metadata names an existing SqlTable produces a MIGRATES edge resolved
 // directly against that table, with source_path anchored to the migration
 // file (mirrors READS_FROM/TRIGGERS/EXECUTES/INDEXES resolution, #5345/#5330).
+// A drop operation stays metadata-only: MIGRATES records adjacency/provenance
+// without encoding target head-state presence or absence on the edge.
 func TestExtractSQLRelationshipRowsMigratesResolvesTarget(t *testing.T) {
 	t.Parallel()
 
@@ -38,7 +40,7 @@ func TestExtractSQLRelationshipRowsMigratesResolvesTarget(t *testing.T) {
 		sqlRelationshipContentEntity("content-entity:e_mig1", "SqlMigration", "V1__add_users", "db/migrations/V1__add_users.sql", map[string]any{
 			"sql_entity_type":   "SqlMigration",
 			"tool":              "flyway",
-			"migration_targets": []any{sqlMigrationTarget("SqlTable", "public.users", "create", 1)},
+			"migration_targets": []any{sqlMigrationTarget("SqlTable", "public.users", "drop", 1)},
 		}),
 	}
 
@@ -71,6 +73,9 @@ func TestExtractSQLRelationshipRowsMigratesResolvesTarget(t *testing.T) {
 		}
 		if got, want := row["source_path"], "/repo/db/migrations/V1__add_users.sql"; got != want {
 			t.Errorf("source_path = %v, want %v", got, want)
+		}
+		if _, ok := row["operation"]; ok {
+			t.Errorf("MIGRATES row unexpectedly carries metadata-only operation: %#v", row)
 		}
 	}
 	if !found {
