@@ -6,10 +6,12 @@ measurements disproved that theory. The dominant cost was a connected
 runtime-topology query inside the existing `instance_lookup` stage.
 
 This change reorders that one connected pattern so the textual traversal starts
-from the selective `WorkloadInstance.workload_id` predicate and its existing
-index. It does not add a cache or materialized story projection, and it does not
-change any predicate, returned column, ordering key, result limit, response
-field, or authorization rule.
+from `WorkloadInstance` while preserving the selective `workload_id` predicate.
+The retained NornicDB timing proves the traversal-order win, but its exposed
+plan data does not prove a property-index seek. The change does not add a cache
+or materialized story projection, and it does not change any predicate,
+returned column, ordering key, result limit, response field, or authorization
+rule.
 
 ## User-visible before and after
 
@@ -25,7 +27,7 @@ storage state before and after the query reorder.
 
 | User action and statistic | Samples | Before | After | Result |
 | --- | ---: | ---: | ---: | ---: |
-| First uncached runtime-topology read, median | 20 selectors | 1.580 s | 0.012 s | about 130x faster |
+| First-use runtime-topology read, median | 20 selectors | 1.580 s | 0.012 s | about 130x faster |
 | Open a service story through HTTP, mean | 20 selectors | 3.907 s | 2.404 s | 38.5% lower |
 | Open a service story through MCP, successful-call mean | 13 selectors | 4.388 s | 2.912 s | 33.6% lower |
 | Investigate a service through HTTP, mean | 20 selectors | 2.976 s | 0.905 s | 69.6% lower |
@@ -33,11 +35,12 @@ storage state before and after the query reorder.
 | Open a repository story through HTTP, mean | 20 selectors | 0.324 s | 0.276 s | no regression |
 | Open a repository story through MCP, median | 5 selectors | 0.174 s | 0.180 s | no material change |
 
-The API service-story comparison produced 20 valid paired envelopes. The
-structured response was equal in all 20 pairs: 17 pairs were byte-for-byte
-exact after canonicalization, while three differed only in derived prose
-affected by the pre-existing ordering defect tracked in #5644. Repository
-stories and service investigations were exact in all 20 API pairs.
+The API service-story comparison produced 20 valid paired envelopes. Non-prose
+structured evidence was equal in all 20 pairs. Seventeen complete canonical
+envelopes were exact; three differed only at the derived-prose paths
+`data.story` and `data.answer_packet.summary`, affected by the pre-existing
+ordering defect tracked in #5644. Repository stories and service investigations
+were exact in all 20 API pairs.
 
 The MCP service-story sweep had the same outcome for every selector: 13 paired
 successes and seven paired `mcp_response_over_budget` refusals, with no
@@ -117,10 +120,10 @@ The production result contract remains:
   carry canonical repository ownership.
 
 The 60-pair raw gate found nine row-order permutations with equal value sets.
-The 20-pair API gate found three derived-prose differences with equal structured
-truth. Both are manifestations of the independent pre-existing ordering defect
-tracked as #5644, a direct child of epic #5267. This performance change neither
-hides nor expands that defect.
+The 20-pair API gate found three derived-prose differences with equal non-prose
+structured evidence. Both are manifestations of the independent pre-existing
+ordering defect tracked as #5644, a direct child of epic #5267. This performance
+change neither hides nor expands that defect.
 
 ## Query-plan and observability evidence
 
@@ -157,7 +160,7 @@ identical, and focused verification was rerun after the rebase.
 
 ```text
 cd go
-go test ./internal/query -run '^(TestFetchWorkloadRuntimeTopologyStartsFromIndexedWorkloadInstance|TestFetchWorkloadDeploymentTopologyReturnsStructuredEmptyLimits|TestFetchWorkloadRuntimeTopologyReturnsObservedIdentityEdges|TestLegacyQueryplanManifestBindsProductionQueries)$' -count=1
+go test ./internal/query -run '^(TestFetchWorkloadRuntimeTopologyStartsFromWorkloadInstanceTraversal|TestFetchWorkloadDeploymentTopologyReturnsStructuredEmptyLimits|TestFetchWorkloadRuntimeTopologyReturnsObservedIdentityEdges|TestLegacyQueryplanManifestBindsProductionQueries)$' -count=1
 go test ./internal/queryplan -run '^TestHotCypherManifestCoversEveryProductionQueryCall$' -count=1
 ```
 

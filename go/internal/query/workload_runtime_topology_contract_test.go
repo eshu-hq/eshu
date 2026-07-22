@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-func TestFetchWorkloadRuntimeTopologyStartsFromIndexedWorkloadInstance(t *testing.T) {
+func TestFetchWorkloadRuntimeTopologyStartsFromWorkloadInstanceTraversal(t *testing.T) {
 	t.Parallel()
 
 	var capturedCypher string
@@ -27,15 +27,15 @@ func TestFetchWorkloadRuntimeTopologyStartsFromIndexedWorkloadInstance(t *testin
 	if err != nil {
 		t.Fatalf("fetchWorkloadRuntimeTopology() error = %v", err)
 	}
-	const indexedTraversal = "MATCH (i:WorkloadInstance)-[instanceOf:INSTANCE_OF]->(w:Workload)<-[defines:DEFINES]-(repo:Repository)"
-	if !strings.Contains(capturedCypher, indexedTraversal) {
-		t.Fatalf("runtime topology cypher = %q, want indexed WorkloadInstance-first traversal %q", capturedCypher, indexedTraversal)
+	const workloadFirstTraversal = "MATCH (i:WorkloadInstance)-[instanceOf:INSTANCE_OF]->(w:Workload)<-[defines:DEFINES]-(repo:Repository)"
+	if !strings.Contains(capturedCypher, workloadFirstTraversal) {
+		t.Fatalf("runtime topology cypher = %q, want WorkloadInstance-first traversal %q", capturedCypher, workloadFirstTraversal)
 	}
 	if strings.Contains(capturedCypher, "MATCH (repo:Repository)-[defines:DEFINES]->") {
 		t.Fatalf("runtime topology cypher = %q, must not start from Repository", capturedCypher)
 	}
 	if !strings.Contains(capturedCypher, "WHERE i.workload_id = $workload_id") {
-		t.Fatalf("runtime topology cypher = %q, want workload_id index predicate", capturedCypher)
+		t.Fatalf("runtime topology cypher = %q, want workload_id predicate", capturedCypher)
 	}
 }
 

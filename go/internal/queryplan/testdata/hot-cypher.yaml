@@ -253,6 +253,7 @@ entries:
     requires_order: true
     caveats:
       - The WorkloadInstance workload_id predicate must remain the textual traversal anchor; retained NornicDB evidence showed repository-first traversal was about 75 times slower for the same rows (issue #5272).
+      - NodeIndexSeek is proved by the hermetic Neo4j PROFILE gate only; retained NornicDB timing proves the WorkloadInstance-first traversal win but does not expose or prove a property-index seek.
     plan:
       operators:
         - NodeIndexSeek
