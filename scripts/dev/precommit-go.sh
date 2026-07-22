@@ -132,7 +132,7 @@ stripped_config() {
 }
 
 run_golangci() {
-	GOLANGCI_LINT_CACHE="${GOLANGCI_LINT_CACHE:-${golangci_cache_dir}}" "$@"
+	GOLANGCI_LINT_CACHE="${golangci_cache_dir}" "$@"
 }
 
 cmd="${1:-}"

@@ -105,7 +105,9 @@ linked_worktree_cache="$(printf '%s\n' "${linked_paths}" | rg '^worktree_cache_d
 # shellcheck disable=SC2016 # The needles must stay literal shell source.
 require_precommit "worktree-local stripped config" 'local out="${worktree_cache_dir}/golangci-nocustom.yml"'
 # shellcheck disable=SC2016
-require_precommit "worktree-local golangci cache" 'GOLANGCI_LINT_CACHE="${GOLANGCI_LINT_CACHE:-${golangci_cache_dir}}" "$@"'
+require_precommit "worktree-local golangci cache" 'GOLANGCI_LINT_CACHE="${golangci_cache_dir}" "$@"'
+# shellcheck disable=SC2016
+reject_precommit "ambient golangci cache override" 'GOLANGCI_LINT_CACHE:-'
 # shellcheck disable=SC2016
 parallel_run_count="$(rg --fixed-strings -c -- '--allow-parallel-runners --config "${cfg}"' "${precommit_script}")"
 [[ "${parallel_run_count}" == "2" ]] ||
