@@ -151,11 +151,11 @@ func (h *GitHubLoginHandler) handleCallback(w http.ResponseWriter, r *http.Reque
 	}
 	complete, err := h.Service.CompleteGitHubLogin(r.Context(), req)
 	if err != nil {
-		auditGitHubSSOLogin(r, h.Audit, h.SessionIssuer.now(), err, "")
+		auditGitHubSSOLogin(r, h.Audit, h.SessionIssuer.now(), err, "", "", "")
 		writeGitHubLoginError(w, err)
 		return
 	}
-	auditGitHubSSOLogin(r, h.Audit, h.SessionIssuer.now(), nil, complete.ProviderSubjectID)
+	auditGitHubSSOLogin(r, h.Audit, h.SessionIssuer.now(), nil, complete.ProviderSubjectID, complete.Auth.TenantID, complete.Auth.WorkspaceID)
 	proofAt := complete.ProviderProofAt.UTC()
 	if proofAt.IsZero() {
 		proofAt = h.SessionIssuer.now()

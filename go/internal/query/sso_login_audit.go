@@ -76,6 +76,15 @@ func SSOLoginDenialReason(err error, fallback string) string {
 // CompleteGitHubLogin/CompleteOIDCLogin denial branch (state_invalid,
 // org_not_allowed, no_grants, ...) returns before a verified identity is
 // resolved, so no subject hash exists yet to attach to a denied attempt.
+//
+// tenantID and workspaceID scope the event to the tenant/workspace the
+// session was issued into, mirroring AuthContext.TenantID/WorkspaceID (issue
+// #5601 follow-up: without this, GovernanceAuditStore.List/SummaryForTenant
+// exclude NULL-tenant rows for a tenant admin, making every SSO login
+// invisible to the tenant that must audit it). They are only ever non-empty
+// on a successful callback for the same reason subjectIDHash is: every
+// denial branch returns before identity/tenant resolution completes, so
+// there is no tenant/workspace yet to attach to a denied attempt.
 func recordSSOLoginAuthentication(
 	r *http.Request,
 	audit GovernanceAuditAppender,
@@ -83,6 +92,8 @@ func recordSSOLoginAuthentication(
 	decision governanceaudit.Decision,
 	reasonCode string,
 	subjectIDHash string,
+	tenantID string,
+	workspaceID string,
 ) {
 	if audit == nil {
 		return
@@ -99,6 +110,8 @@ func recordSSOLoginAuthentication(
 		Decision:    decision,
 		ReasonCode:  reasonCode,
 		OccurredAt:  now,
+		TenantID:    tenantID,
+		WorkspaceID: workspaceID,
 	}
 	_ = audit.Append(r.Context(), []governanceaudit.Event{event})
 }
@@ -116,18 +129,20 @@ func auditGitHubSSOLogin(
 	now time.Time,
 	err error,
 	subjectIDHash string,
+	tenantID string,
+	workspaceID string,
 ) {
 	if err == nil {
-		recordSSOLoginAuthentication(r, audit, now, governanceaudit.DecisionAllowed, "sso_login_authenticated", subjectIDHash)
+		recordSSOLoginAuthentication(r, audit, now, governanceaudit.DecisionAllowed, "sso_login_authenticated", subjectIDHash, tenantID, workspaceID)
 		return
 	}
 	switch {
 	case errors.Is(err, ErrGitHubLoginUnavailable):
 		reason := SSOLoginDenialReason(err, "sso_login_unavailable")
-		recordSSOLoginAuthentication(r, audit, now, governanceaudit.DecisionUnavailable, reason, subjectIDHash)
+		recordSSOLoginAuthentication(r, audit, now, governanceaudit.DecisionUnavailable, reason, subjectIDHash, tenantID, workspaceID)
 	case errors.Is(err, ErrGitHubLoginDenied):
 		reason := SSOLoginDenialReason(err, "sso_login_denied")
-		recordSSOLoginAuthentication(r, audit, now, governanceaudit.DecisionDenied, reason, subjectIDHash)
+		recordSSOLoginAuthentication(r, audit, now, governanceaudit.DecisionDenied, reason, subjectIDHash, tenantID, workspaceID)
 	}
 }
 
@@ -139,17 +154,19 @@ func auditOIDCSSOLogin(
 	now time.Time,
 	err error,
 	subjectIDHash string,
+	tenantID string,
+	workspaceID string,
 ) {
 	if err == nil {
-		recordSSOLoginAuthentication(r, audit, now, governanceaudit.DecisionAllowed, "sso_login_authenticated", subjectIDHash)
+		recordSSOLoginAuthentication(r, audit, now, governanceaudit.DecisionAllowed, "sso_login_authenticated", subjectIDHash, tenantID, workspaceID)
 		return
 	}
 	switch {
 	case errors.Is(err, ErrOIDCLoginUnavailable):
 		reason := SSOLoginDenialReason(err, "sso_login_unavailable")
-		recordSSOLoginAuthentication(r, audit, now, governanceaudit.DecisionUnavailable, reason, subjectIDHash)
+		recordSSOLoginAuthentication(r, audit, now, governanceaudit.DecisionUnavailable, reason, subjectIDHash, tenantID, workspaceID)
 	case errors.Is(err, ErrOIDCLoginDenied):
 		reason := SSOLoginDenialReason(err, "sso_login_denied")
-		recordSSOLoginAuthentication(r, audit, now, governanceaudit.DecisionDenied, reason, subjectIDHash)
+		recordSSOLoginAuthentication(r, audit, now, governanceaudit.DecisionDenied, reason, subjectIDHash, tenantID, workspaceID)
 	}
 }

@@ -154,11 +154,11 @@ func (h *OIDCLoginHandler) handleCallback(w http.ResponseWriter, r *http.Request
 	}
 	complete, err := h.Service.CompleteOIDCLogin(r.Context(), req)
 	if err != nil {
-		auditOIDCSSOLogin(r, h.Audit, h.SessionIssuer.now(), err, "")
+		auditOIDCSSOLogin(r, h.Audit, h.SessionIssuer.now(), err, "", "", "")
 		writeOIDCLoginError(w, err)
 		return
 	}
-	auditOIDCSSOLogin(r, h.Audit, h.SessionIssuer.now(), nil, complete.ProviderSubjectID)
+	auditOIDCSSOLogin(r, h.Audit, h.SessionIssuer.now(), nil, complete.ProviderSubjectID, complete.Auth.TenantID, complete.Auth.WorkspaceID)
 	proofAt := complete.ProviderProofAt.UTC()
 	if proofAt.IsZero() {
 		proofAt = h.SessionIssuer.now()

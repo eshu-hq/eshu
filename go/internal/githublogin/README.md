@@ -57,7 +57,7 @@ This package emits no spans or metrics directly, matching `oidclogin`'s
 convention: API route metrics live in `cmd/api`. It does emit structured
 `slog` WARN lines with a stable `reason` field
 (`code_exchange_failed`, `identity_fetch_failed`, `email_not_verified`,
-`org_not_allowed`, `no_team_role_mapping`, `no_grants`) for every denied
+`org_not_allowed`, `no_team_role_mapping`, `no_role_grant`) for every denied
 login, which is the audited-denial trail issue #5166 requires ("user
 outside allowed orgs is rejected with an audited denied reason").
 

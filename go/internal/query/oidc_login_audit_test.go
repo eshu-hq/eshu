@@ -69,6 +69,12 @@ func TestOIDCLoginHandlerCallbackAuditsSuccessfulLogin(t *testing.T) {
 	if event.ActorIDHash != "sha256:subject" {
 		t.Fatalf("actor id hash = %q, want the hashed external subject", event.ActorIDHash)
 	}
+	if event.TenantID != "tenant_a" {
+		t.Fatalf("tenant id = %q, want tenant_a", event.TenantID)
+	}
+	if event.WorkspaceID != "workspace_a" {
+		t.Fatalf("workspace id = %q, want workspace_a", event.WorkspaceID)
+	}
 }
 
 // TestOIDCLoginHandlerCallbackAuditsDeniedLogin proves the denial half: an

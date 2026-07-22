@@ -78,6 +78,12 @@ func TestGitHubLoginHandlerCallbackAuditsSuccessfulLogin(t *testing.T) {
 	if event.ActorClass != governanceaudit.ActorClassOperator {
 		t.Fatalf("actor class = %q, want operator", event.ActorClass)
 	}
+	if event.TenantID != "tenant_a" {
+		t.Fatalf("tenant id = %q, want tenant_a", event.TenantID)
+	}
+	if event.WorkspaceID != "workspace_a" {
+		t.Fatalf("workspace id = %q, want workspace_a", event.WorkspaceID)
+	}
 }
 
 // TestGitHubLoginHandlerCallbackAuditsDeniedLogin proves the second half of

@@ -184,8 +184,8 @@ func (s *Service) CompleteGitHubLogin(ctx context.Context, req CompleteRequest) 
 	}
 	if !ok || len(grants.RoleIDs) == 0 {
 		slog.WarnContext(ctx, "github login denied: team hashes resolved to no active role grant",
-			"provider_config_id", provider.ProviderConfigID, "reason", "no_grants")
-		return CompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: ErrGitHubLoginDenied, Reason: "no_grants"}
+			"provider_config_id", provider.ProviderConfigID, "reason", "no_role_grant")
+		return CompleteResponse{}, &query.SSOLoginDeniedError{Sentinel: ErrGitHubLoginDenied, Reason: "no_role_grant"}
 	}
 	subjectIDHash := SHA256Hash(provider.ProviderConfigID + ":" + strings.TrimSpace(identity.Subject))
 	return CompleteResponse{

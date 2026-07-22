@@ -330,7 +330,7 @@ func (h *SAMLHandler) handleACS(w http.ResponseWriter, r *http.Request) {
 		unauthorizedResponse(w, r)
 		return
 	}
-	recordSSOLoginAuthentication(r, h.Audit, now, governanceaudit.DecisionAllowed, "sso_login_authenticated", auth.SubjectIDHash)
+	recordSSOLoginAuthentication(r, h.Audit, now, governanceaudit.DecisionAllowed, "sso_login_authenticated", auth.SubjectIDHash, auth.TenantID, auth.WorkspaceID)
 	h.createSession(w, r, auth, returnToPath, now)
 }
 
@@ -341,7 +341,7 @@ func (h *SAMLHandler) handleACS(w http.ResponseWriter, r *http.Request) {
 // recordSSOLoginAuthentication's GitHub/OIDC denial branches, which are
 // unconditionally pre-identity for the same reason.
 func (h *SAMLHandler) auditSAMLLogin(r *http.Request, now time.Time, decision governanceaudit.Decision, reasonCode string) {
-	recordSSOLoginAuthentication(r, h.Audit, now, decision, reasonCode, "")
+	recordSSOLoginAuthentication(r, h.Audit, now, decision, reasonCode, "", "", "")
 }
 
 func (h *SAMLHandler) readyForACS(w http.ResponseWriter) bool {
