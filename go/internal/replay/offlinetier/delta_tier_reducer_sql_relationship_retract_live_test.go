@@ -44,8 +44,10 @@ type sqlRetractFixture struct {
 
 var sqlRetractInScopeFixtures = []sqlRetractFixture{
 	{"queries-table", "Function", "sql-retract:fn", "SqlTable", "sql-retract:qt", "QUERIES_TABLE", sqlRetractInRepoID, sqlRetractInPath, sqlRetractEvidence},
+	{"references-table", "SqlTable", "sql-retract:fk-table", "SqlTable", "sql-retract:referenced-table", "REFERENCES_TABLE", sqlRetractInRepoID, sqlRetractInPath, sqlRetractEvidence},
 	{"view-reads-from-table", "SqlView", "sql-retract:view", "SqlTable", "sql-retract:vrt", "READS_FROM", sqlRetractInRepoID, sqlRetractInPath, sqlRetractEvidence},
 	{"function-reads-from-table", "SqlFunction", "sql-retract:sql-fn", "SqlTable", "sql-retract:frt", "READS_FROM", sqlRetractInRepoID, sqlRetractInPath, sqlRetractEvidence},
+	{"function-writes-to-table", "SqlFunction", "sql-retract:writer-fn", "SqlTable", "sql-retract:written-table", "WRITES_TO", sqlRetractInRepoID, sqlRetractInPath, sqlRetractEvidence},
 	{"has-column", "SqlTable", "sql-retract:table", "SqlColumn", "sql-retract:column", "HAS_COLUMN", sqlRetractInRepoID, sqlRetractInPath, sqlRetractEvidence},
 	{"triggers", "SqlTrigger", "sql-retract:trigger-table", "SqlTable", "sql-retract:triggered-table", "TRIGGERS", sqlRetractInRepoID, sqlRetractInPath, sqlRetractEvidence},
 	{"executes", "SqlTrigger", "sql-retract:trigger-fn", "SqlFunction", "sql-retract:executed-fn", "EXECUTES", sqlRetractInRepoID, sqlRetractInPath, sqlRetractEvidence},
@@ -101,9 +103,14 @@ func TestReducerSQLRelationshipRetractGraphTruth(t *testing.T) {
 			seedSQLRetractNodes(ctx, t, exec, fixtures)
 
 			writer := cypher.NewEdgeWriter(exec, 0)
+			writer.SQLRelationshipSequentialWrites = true
 			writeSQLRetractFixtures(ctx, t, writer, fixtures)
 			for _, fixture := range fixtures {
 				assertSQLRetractFixtureCount(ctx, t, exec, fixture, 1, "write")
+			}
+			writeSQLRetractFixtures(ctx, t, writer, fixtures)
+			for _, fixture := range fixtures {
+				assertSQLRetractFixtureCount(ctx, t, exec, fixture, 1, "idempotent duplicate write")
 			}
 
 			rows := []reducer.SharedProjectionIntentRow{{

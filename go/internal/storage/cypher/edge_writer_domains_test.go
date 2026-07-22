@@ -7,7 +7,6 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -394,21 +393,3 @@ func TestBatchedWriteEdgesUsesUNWINDCypherIncludesNewDomains(t *testing.T) {
 		})
 	}
 }
-
-type recordingGroupExecutor struct {
-	groupCalls [][]Statement
-}
-
-func (r *recordingGroupExecutor) Execute(context.Context, Statement) error {
-	return nil
-}
-
-func (r *recordingGroupExecutor) ExecuteGroup(_ context.Context, stmts []Statement) error {
-	cloned := make([]Statement, len(stmts))
-	copy(cloned, stmts)
-	r.groupCalls = append(r.groupCalls, cloned)
-	return nil
-}
-
-// Suppress unused import for time package used only by SharedProjectionIntentRow.
-var _ = time.Now

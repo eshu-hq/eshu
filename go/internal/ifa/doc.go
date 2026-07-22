@@ -40,7 +40,10 @@
 // resolves them against hand-derived Odù expectations. SQL relationships
 // require baseline, delta-tombstone, and fault dimensions; the determinism
 // matrix proves baseline and accumulated gen-2 delta truth with live exact-set
-// assertions, while an unproven fault dimension remains explicitly waived.
+// assertions across all nine SQL writer-registry types, including
+// REFERENCES_TABLE and WRITES_TO, while an unproven fault dimension remains
+// explicitly waived. The registry-derived inventory fails closed if a future
+// SQL edge type is added without a matching Odù expectation.
 //
 // P5 adds the Layer 3 load vocabulary. AmplifyAtSlot (amplify.go) replays one
 // base Odù across a scale-lab slot's disjoint synthetic scopes through the

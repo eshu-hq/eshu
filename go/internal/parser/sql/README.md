@@ -3,7 +3,7 @@
 ## Purpose
 
 `internal/parser/sql` owns SQL source extraction for schema objects, columns,
-routine references, trigger/index relationships, and migration metadata. It
+routine reads and writes, trigger/index relationships, and migration metadata. It
 exists so SQL parsing behavior can evolve behind a language-owned package
 without depending on the parent parser dispatcher.
 
@@ -84,27 +84,25 @@ prior regex behavior:
   bounded `CREATE FUNCTION` rewrite above. A procedure whose header the rewrite
   cannot locate (no balanced argument list) is still parsed for its body but may
   miss the `RETURNS`-shim insertion.
-- Only `select` mentions inside routine and view bodies materialize as
-  `READS_FROM` relationships (and are stamped onto the entity's
-  `source_tables` metadata, #5345); `INSERT`/`UPDATE`/`DELETE`/`ALTER`/
-  `REFERENCES` mutation targets inside a recognized migration file are instead
-  nested under a single `SqlMigration` entity's `migration_targets` metadata
-  (`sql_migrations` bucket, #5346), which the reducer resolves into `MIGRATES`
-  edges — but they are never emitted as a `READS_FROM` edge; a write
-  mislabeled as a read would be wrong graph truth. There is no
-  mutation-specific relationship type (`WRITES_TO` and similar) yet. A target
-  reached ONLY via a `select` mention inside a migration file is excluded from
-  `migration_targets` for the same reason (a read-only backfill migration does
-  not "migrate" its source table). Migration DROP targets and migration-order
-  reachability are not parsed at all yet (tracked as a #5346 follow-up).
+- `select` mentions inside routine and view bodies emit `READS_FROM` and stamp
+  the entity's bounded `source_tables` metadata (#5345). Routine
+  `INSERT`/`UPDATE`/`DELETE` targets emit `WRITES_TO` and stamp bounded
+  `write_tables` metadata (#5410); they never become reads. Table-level and
+  inline foreign keys stamp bounded `referenced_tables` metadata for
+  `REFERENCES_TABLE` (#5410). In recognized migration files, non-select target
+  mentions also live under the single `SqlMigration` entity's
+  `migration_targets` metadata (#5346), which the reducer resolves into
+  `MIGRATES`. A target reached only through `select` is excluded because a
+  read-only backfill does not migrate its source table. Migration DROP targets
+  and migration-order reachability are not parsed.
 - Highly dialect-specific statements outside the extracted construct set
   (sequences, types, policies, grants, vendor pragmas) are not extracted, the
   same as before.
 - A statement segment over `maxSQLSegmentBytes` (256 KiB) has its dollar-quoted
   body elided, or its tree-sitter parse skipped entirely if still oversized
   after elision (#4422, see below). The routine's own body-level table
-  mentions (`READS_FROM` relationships sourced from inside the elided or
-  skipped body) are lost in that case; the routine's signature entity is not.
+  mentions (`READS_FROM` and `WRITES_TO` relationships sourced from inside the
+  elided or skipped body) are lost in that case; the routine's signature entity is not.
   This is recorded in `payload["sql_parse_bounded"]`, never silently dropped.
 
 ## Gotchas / invariants
@@ -125,7 +123,8 @@ identifier.
 
 SQL relationship extraction is conservative. Table constraints such as
 `PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `CHECK`, and `EXCLUDE` are not SQL column
-rows, but their bounded `REFERENCES` clauses still emit table relationships.
+rows, but their bounded `REFERENCES` clauses still emit table relationships and
+stamp reducer-consumable entity metadata.
 
 ## Performance and observability evidence
 

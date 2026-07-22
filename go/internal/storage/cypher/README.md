@@ -443,7 +443,9 @@ use the label-family fallback.
 trigger, and embedded-query evidence with label-scoped endpoints. Function rows
 can emit `QUERIES_TABLE` to a `SqlTable`; trigger rows can emit both `TRIGGERS`
 to a `SqlTable` and `EXECUTES` to a `SqlFunction`; index rows emit `INDEXES` to
-a `SqlTable` (#5330); `SqlMigration` rows emit `MIGRATES` to the
+a `SqlTable` (#5330); table rows emit FK-correct `REFERENCES_TABLE` to another
+`SqlTable`, and function/procedure rows emit `WRITES_TO` to a `SqlTable`
+(#5410); `SqlMigration` rows emit `MIGRATES` to the
 `SqlTable`/`SqlView`/`SqlFunction`/`SqlTrigger`/`SqlIndex` objects a migration
 file touches (#5346). `EXECUTES` remains part of
 dead-code reachability for stored routines and must stay in the relationship
@@ -452,6 +454,15 @@ retraction set.
 command-call evidence. The ShellCommand node is keyed by a deterministic uid and
 stores API, language, source path, and line number only; raw command text,
 arguments, and environment values are not graph properties.
+
+On NornicDB, reducer wiring sets `SQLRelationshipSequentialWrites`: SQL edge
+statements use auto-commit `Execute` even when the shared executor supports
+managed groups. The pinned backend acknowledges the managed-transaction shape
+without persisting its relationships. This does not serialize workers or reduce
+row batching; production already grouped one SQL statement per transaction. A
+concurrency regression holds two reducer calls inside auto-commit execution at
+the same time, while the live backend proof repeats each MERGE to lock duplicate
+delivery at one edge.
 
 No-Regression Evidence: `go test ./internal/storage/cypher -run
 'TestEdgeWriter(WriteEdgesShellExec|RetractEdgesShellExecDeltaUsesFileScope)'
@@ -1256,7 +1267,9 @@ committed zero nodes.
   `SqlIndex` to `SqlTable` with `INDEXES`,
   `SqlMigration` to `SqlTable`/`SqlView`/`SqlFunction`/`SqlTrigger`/`SqlIndex`
   with `MIGRATES` (#5346),
-  and `SqlFunction` / `SqlView` to `SqlTable` with table-reference edges. Keep
+  `SqlFunction`/`SqlView` to `SqlTable`/`SqlView` with `READS_FROM`,
+  `SqlFunction` to `SqlTable` with `WRITES_TO`, and `SqlTable` to `SqlTable`
+  with `REFERENCES_TABLE` (#5410). Keep
   `EXECUTES` in both write and retract paths, or trigger-bound stored routines
   can look unreachable to dead-code queries.
 - Canonical stale entity retractions run after current entity upserts and are

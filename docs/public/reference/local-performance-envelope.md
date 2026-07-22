@@ -764,8 +764,9 @@ metric name, label, queue domain, or runtime knob.
 
 ### SQL Relationships File-Scoped Partition Promotion (#2868)
 
-`SQLRelationshipMaterializationHandler` wrote REFERENCES_TABLE / HAS_COLUMN /
-TRIGGERS / EXECUTES edges directly; #2868 promotes it onto the partitioned runner
+`SQLRelationshipMaterializationHandler` writes QUERIES_TABLE / READS_FROM /
+REFERENCES_TABLE / WRITES_TO / HAS_COLUMN / TRIGGERS / EXECUTES / INDEXES /
+MIGRATES edges; #2868 promotes it onto the partitioned runner
 exactly like #2867, anchored on `source.path`/`source.repo_id`. Per-edge write-only
 intents key on `sql-relationships:v1:files:<repo>:<sha256(repo,source_path,edge)>`
 (edge identity mixed in to avoid the dedup collapse), fenced behind one per-repo

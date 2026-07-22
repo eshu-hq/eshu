@@ -641,15 +641,17 @@ response includes `complete` (bool) and `coverage` (array of
 `{edge_type, materialized, reason}`), which report whether the affected set is
 known-complete for the query surface: for `sql_table`, `coverage` lists every
 graph relationship type the surface conceptually covers (`CONTAINS`,
-`QUERIES_TABLE`, `READS_FROM`, `TRIGGERS`, `INDEXES`, `MIGRATES`,
-`REFERENCES_TABLE`, `MAPS_TO_TABLE`) with its current materialization status,
+`QUERIES_TABLE`, `READS_FROM`, `WRITES_TO`, `REFERENCES_TABLE`, `TRIGGERS`,
+`INDEXES`, `MIGRATES`, `MAPS_TO_TABLE`) with its current materialization status,
 and `complete` is `false` whenever any of them has no graph writer — so a
 table reachable only through an unmaterialized edge type is surfaced as a
 known gap instead of a silent zero. `MIGRATES` (migration file -> table/view/
 function/trigger/index it creates, alters, or DML-writes) is materialized as
-of issue #5346. `REFERENCES_TABLE` is parsed but not materialized (see
+of issue #5346. `REFERENCES_TABLE` and `WRITES_TO` are materialized as of
+issue #5410; `MAPS_TO_TABLE` remains the disclosed unwritten gap (see
 [SQL parser](../../languages/sql.md) and
-[Edge Source-Tool Provenance](../edge-source-tool-provenance.md)).
+[Edge Source-Tool Provenance](../edge-source-tool-provenance.md)). SQL-table
+blast radius follows view `READS_FROM` edges through at most two hops.
 
 For `crossplane_xrd`, `coverage` lists `CONTAINS` (materialized) and
 `SATISFIED_BY` (Claim -> XRD; materialized as of issue #5347 —

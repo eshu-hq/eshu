@@ -55,6 +55,8 @@ func TestRetractableEdgeTypesCoverStaticRetractFamilies(t *testing.T) {
 		edgetype.DefinesJob,
 		edgetype.AtlantisDependsOn,
 		edgetype.Triggers,
+		edgetype.ReferencesTable,
+		edgetype.WritesTo,
 		edgetype.RunsImage,
 		edgetype.EvidencesRepositoryRelationship,
 		edgetype.TargetsEnvironment,

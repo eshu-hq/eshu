@@ -12,6 +12,10 @@
 // Repo-wide shared-projection refresh fences are generation-local: an exact
 // same-generation retry reuses completed deterministic intent IDs, while a
 // later generation must complete its own refresh before its edge rows write.
+// SQL relationship materialization resolves bounded parser metadata within one
+// repository and emits exact-label read, foreign-key, routine-write, trigger,
+// index, migration, column, and embedded-query edges; missing or ambiguous
+// targets are counted and skipped rather than guessed.
 //
 // Changes in this package must preserve the evidence path from raw facts to
 // admitted candidate, projected row, graph or fact write, and API/MCP query

@@ -95,6 +95,7 @@ func buildReducerService(
 	cypherExec = graphWriteGate.boundCypherExecutor(cypherExec)
 
 	edgeWriterForHandlers := newHandlerEdgeWriter(neo4jExec, neo4jBatchSize(getenv), instruments, logger, inheritanceEdgeGroupBatchSize, sqlRelationshipEdgeGroupBatchSize)
+	edgeWriterForHandlers.SQLRelationshipSequentialWrites = graphBackend == runtimecfg.GraphBackendNornicDB
 	// #5007: gate the canonical cloud/EC2/K8s node writers on the Postgres owner
 	// ledger so cross-scope same-uid nodes resolve deterministically to the
 	// max-(observed_at, source_fact_id) contributor. A database that does not
@@ -401,6 +402,7 @@ func buildReducerService(
 	edgeWriter.CodeCallGroupBatchSize = codeCallEdgeGroupBatchSize
 	edgeWriter.InheritanceGroupBatchSize = inheritanceEdgeGroupBatchSize
 	edgeWriter.SQLRelationshipGroupBatchSize = sqlRelationshipEdgeGroupBatchSize
+	edgeWriter.SQLRelationshipSequentialWrites = graphBackend == runtimecfg.GraphBackendNornicDB
 	edgeWriter.RepoDependencyRetractStatementTiming = repoDependencyRetractStatementTiming
 
 	reducerGraphDrain := reducerGraphDrainFor(projectorDrainGate, database)

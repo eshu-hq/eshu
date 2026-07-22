@@ -67,6 +67,22 @@ write_gate_script() {
 	} >"${root}/scripts/verify-golden-corpus-gate.sh"
 }
 
+write_sourced_gate_script() {
+	local root="$1"
+	shift
+	mkdir -p "${root}/scripts/lib"
+	printf 'source "${repo_root}/scripts/lib/golden-corpus-fixtures.sh"\n' \
+		>"${root}/scripts/verify-golden-corpus-gate.sh"
+	{
+		printf 'corpus_fixtures=(\n'
+		local fixture
+		for fixture in "$@"; do
+			printf '\t%s\n' "${fixture}"
+		done
+		printf ')\n'
+	} >"${root}/scripts/lib/golden-corpus-fixtures.sh"
+}
+
 # write_ledger writes a minimal specs/language-feature-parity-ledger.v1.yaml
 # with one "- language: <key>" entry per argument.
 write_ledger() {
@@ -254,6 +270,25 @@ else
 	else
 		record_fail "case 6: failed as expected but wrong message: ${out6}"
 	fi
+fi
+
+# ---------------------------------------------------------------------------
+# Case 6b: a corpus_fixtures array extracted into the sourced inventory is
+# still authoritative for maturity grading.
+# ---------------------------------------------------------------------------
+root6b="$(new_scratch_root)"
+write_sourced_gate_script "${root6b}" go_comprehensive
+write_ledger "${root6b}" go
+write_fixture_source "${root6b}" go_comprehensive go
+cat >"${root6b}/testdata/golden/e2e-20repo-snapshot.json" <<'JSON'
+{"graph": {"required_correlations": [{"id": "rc-go", "source_label": "Function", "relationship": "CALLS", "target_label": "Function"}]}, "query_shapes": {}}
+JSON
+write_matrix "${root6b}" \
+	'| Go | `DefaultEngine (go)` | supported | supported | derived roots | net/http | supported | fixture-backed | fixture-backed |'
+if out6b="$(ESHU_MATURITY_DRIFT_GUARD_ROW_FLOOR=1 run_verifier "${root6b}" 2>&1)"; then
+	record_pass "case 6b: sourced corpus fixture inventory is graded"
+else
+	record_fail "case 6b: sourced corpus fixture inventory should pass: ${out6b}"
 fi
 
 # ---------------------------------------------------------------------------

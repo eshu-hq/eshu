@@ -74,7 +74,7 @@ require "vacuous-drive guard" "vacuous drain proof"
 # (lease-expiry / kill-worker) exercise the SQL relationship materialization
 # handler's replay through the real durable fault path, plus a baseline
 # absolute-set assertion (`ifa assert-edges`) proving the fault-free graph
-# carries all seven SQL edges before the recovery cells compare against it.
+# carries all nine SQL edges before the recovery cells compare against it.
 # Backs the materialized_edges:sql_relationships manifest row's proof_gate:
 # ifa-fault-injection claim.
 require "SQL cassette path" "testdata/cassettes/sqlrelationships/ifa-sql-family.json"
@@ -158,6 +158,8 @@ require "wall time in summary" "wall=%ss"
 require_lib "once-script function signature" 'ifa_fault_write_once_script() {'
 require_lib "restart-script function signature" 'ifa_fault_write_restart_script() {'
 require_lib "claimed-wait function signature" 'ifa_fault_wait_for_claimed() {'
+require_lib "claimed-wait uses one server-side polling connection" 'pg_temp.ifa_wait_for_claimed'
+require_lib "claimed-wait validates the SQL budget" 'budget must be a positive integer'
 require_lib "sentinel-watch function signature" 'ifa_fault_watch_restart_sentinel() {'
 require_lib "dead-letter-count function signature" 'ifa_fault_dead_letter_count() {'
 
@@ -184,6 +186,15 @@ if rg --pcre2 --quiet -- "${private_pattern}" "${script}"; then
 fi
 if rg --pcre2 --quiet -- "${private_pattern}" "${fault_lib}"; then
 	fail "ifa_fault_injection_common.sh looks like it contains private data"
+fi
+
+# The wait budget is interpolated into the server-side function call. Reject a
+# malformed environment override before it can reach psql.
+# shellcheck source=scripts/lib/ifa_fault_injection_common.sh
+source "${fault_lib}"
+ifa_det_pg() { printf '1\n'; }
+if ifa_fault_wait_for_claimed test-project 1 test-dsn test-compose.yml '1; SELECT 1'; then
+	fail "claimed-wait accepted a non-integer SQL budget"
 fi
 
 printf 'test-verify-ifa-fault-injection: pass\n'

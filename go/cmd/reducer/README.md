@@ -237,7 +237,13 @@ to the subsequent canonical upsert group, not to these retract statements.
 | `ESHU_CODE_CALL_EDGE_BATCH_SIZE` | `1000` | Code-call edge rows per graph write |
 | `ESHU_CODE_CALL_EDGE_GROUP_BATCH_SIZE` | `1` | Code-call grouped-write batch |
 | `ESHU_INHERITANCE_EDGE_GROUP_BATCH_SIZE` | `1` | Inheritance grouped-write batch |
-| `ESHU_SQL_RELATIONSHIP_EDGE_GROUP_BATCH_SIZE` | `1` | SQL relationship grouped-write batch |
+| `ESHU_SQL_RELATIONSHIP_EDGE_GROUP_BATCH_SIZE` | `1` | SQL relationship grouped-write batch on Neo4j; NornicDB routes SQL relationship writes through one-statement autocommit because its managed-transaction path acknowledges these writes without persisting edges (#5410) |
+
+NornicDB SQL relationship writes keep the same row batching, statement count,
+retry wrapper, backpressure permits, and worker concurrency as the grouped path.
+Only the driver transaction API changes. `MERGE` keeps duplicate delivery and
+retry idempotent, and production already used a group size of one, so the fix
+does not split a formerly atomic multi-statement SQL write.
 
 The canonical handler edge writer is also wired into the direct-emitted
 CODEOWNERS ownership domain, so `codeowners.ownership` facts can materialize

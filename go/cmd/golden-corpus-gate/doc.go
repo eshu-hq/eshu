@@ -22,6 +22,9 @@
 //     20-repo mode (-graph-required-only=false, #3866); the ranges are calibrated
 //     to the real deterministic corpus output, not aspirational values.
 //   - query: canonical HTTP responses carry their required shape.
+//     CODEOWNERS HTTP and MCP assertions use the fixture's deterministic
+//     canonical Repository.id rather than its display name; SQL relationship
+//     assertions are backed by the explicitly staged sql_comprehensive fixture.
 //   - demo-answers: the five specs/demo-first-answers.v1.yaml questions are
 //     executed live with their SPECIFIC pinned arguments (via
 //     go/internal/demospec) and each must return a populated answer. The query

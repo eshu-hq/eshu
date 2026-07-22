@@ -251,6 +251,16 @@
         "min": 1,
         "max": 10,
         "note": "Repository->CodeownerTeam CODEOWNERS rule-to-owner edges (issue #5419 Phase 3); the go_comprehensive fixture's .github/CODEOWNERS declares 2 rules each naming 1 owner, ceiling wide for future fixture CODEOWNERS growth"
+      },
+      "REFERENCES_TABLE": {
+        "min": 1,
+        "max": 1000,
+        "note": "SqlTable->SqlTable foreign-key edges from referenced_tables metadata; sql_comprehensive users references orgs (#5410)"
+      },
+      "WRITES_TO": {
+        "min": 1,
+        "max": 1000,
+        "note": "SqlFunction->SqlTable routine mutation edges from write_tables metadata; sql_comprehensive touch_updated_at updates users (#5410)"
       }
     },
     "required_correlations": [
@@ -1634,6 +1644,22 @@
           "pattern",
           "source_path"
         ]
+      },
+      {
+        "id": "rc-159",
+        "description": "SQL foreign-key truth: sql_comprehensive/schema.sql public.users REFERENCES_TABLE public.orgs from the parser referenced_tables metadata bridge through reducer resolution and the SQL edge writer (#5410).",
+        "relationship": "REFERENCES_TABLE",
+        "from_label": "SqlTable",
+        "to_label": "SqlTable",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-160",
+        "description": "SQL routine write truth: sql_comprehensive/schema.sql public.touch_updated_at WRITES_TO public.users from its UPDATE statement through parser write_tables metadata, reducer resolution, and the SQL edge writer (#5410).",
+        "relationship": "WRITES_TO",
+        "from_label": "SqlFunction",
+        "to_label": "SqlTable",
+        "minimum_count": 1
       }
     ],
     "required_nodes": [

@@ -20,7 +20,7 @@ full matrix, see [Parser Feature Matrix](feature-matrix.md) and
 | Surface | Current contract |
 | --- | --- |
 | Schema objects | Tables, columns, views, materialized views, indexes, functions, procedures, triggers, and migration metadata. |
-| Relationships | Parsed and materialized to the graph: `HAS_COLUMN`, `READS_FROM` (view/function -> table or view, select-only reads; direct edges, no transitive closure, #5345), `TRIGGERS` (trigger -> table trigger evidence), `EXECUTES` (trigger -> routine), `QUERIES_TABLE`, `INDEXES` (index -> table, #5330), and `MIGRATES` (migration file -> table/view/function/trigger/index it creates, alters, or DML-writes; select-only mentions are excluded, and forward targets only -- DROP is not parsed, #5346). Parsed but not currently materialized to the graph: `REFERENCES_TABLE` (table-level FK/constraint evidence, reserved for a future table-to-table edge) — see [Edge Source-Tool Provenance](../reference/edge-source-tool-provenance.md#tier-3-no-edge-level-tool-intentional) for the full registered-vs-materialized audit. |
+| Relationships | Parsed and materialized to the graph: `HAS_COLUMN`; `READS_FROM` (view/function -> table or view, select-only direct edges, #5345); `REFERENCES_TABLE` (FK table -> table, #5410); `WRITES_TO` (function/procedure -> table for `INSERT`/`UPDATE`/`DELETE`, #5410); `TRIGGERS`; `EXECUTES`; `QUERIES_TABLE`; `INDEXES`; and `MIGRATES` (migration file -> forward target it creates, alters, or DML-writes; select-only mentions and DROP targets are excluded, #5346). SQL-table blast radius follows `READS_FROM` through at most two view hops; stored graph edges remain direct. See [Edge Source-Tool Provenance](../reference/edge-source-tool-provenance.md#tier-3-no-edge-level-tool-intentional). |
 | Routine metadata | Bounded Postgres-style function and procedure bodies, including dollar-quoted bodies and `LANGUAGE` metadata. |
 | dbt lineage | Compiled-model lineage for supported select expressions, safe scalar wrappers, and documented unresolved summaries. Parsed into the `data_relationships` payload bucket (`COMPILES_TO`, `ASSET_DERIVES_FROM`, `COLUMN_DERIVES_FROM`, `USES_MACRO`) but not currently materialized to the graph or exposed through `content_relationships` — see [Edge Source-Tool Provenance](../reference/edge-source-tool-provenance.md#tier-3-no-edge-level-tool-intentional). |
 | Query fallback | SQL content entities can surface through entity resolve/context when materialized content rows exist. |
@@ -69,7 +69,7 @@ Not claimed today:
   routine body elided (or, if still oversized, its parse skipped) before
   tree-sitter runs, to bound a superlinear/aborting parse on very large routine
   bodies (#4422). The routine's signature entity is still extracted;
-  `READS_FROM` mentions sourced from inside the elided body are not. The bound
+  `READS_FROM` and `WRITES_TO` mentions sourced from inside the elided body are not. The bound
   is recorded in `payload["sql_parse_bounded"]` and logged, never silently
   dropped.
 

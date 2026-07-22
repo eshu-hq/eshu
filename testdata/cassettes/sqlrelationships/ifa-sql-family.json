@@ -66,7 +66,13 @@
             "entity_id": "content-entity:sql-tbl-users",
             "entity_type": "SqlTable",
             "entity_name": "public.users",
-            "relative_path": "db/schema.sql"
+            "relative_path": "db/schema.sql",
+            "entity_metadata": {
+              "referenced_tables": [
+                "public.orders"
+              ],
+              "sql_entity_type": "SqlTable"
+            }
           }
         },
         {
@@ -132,7 +138,13 @@
             "entity_id": "content-entity:sql-fn-touch-updated-at",
             "entity_type": "SqlFunction",
             "entity_name": "public.touch_updated_at",
-            "relative_path": "db/schema.sql"
+            "relative_path": "db/schema.sql",
+            "entity_metadata": {
+              "write_tables": [
+                "public.users"
+              ],
+              "sql_entity_type": "SqlFunction"
+            }
           }
         },
         {

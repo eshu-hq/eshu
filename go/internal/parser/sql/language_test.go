@@ -45,6 +45,8 @@ func TestParseDoesNotMaterializeTableConstraintsAsColumns(t *testing.T) {
 	assertSQLBucketContainsName(t, got, "sql_columns", "public.users.email")
 	assertSQLBucketMissingName(t, got, "sql_columns", "public.users.PRIMARY")
 	assertSQLBucketMissingName(t, got, "sql_columns", "public.users.FOREIGN")
+	assertSQLBucketStringSlice(t, got, "sql_tables", "public.users", "referenced_tables",
+		[]string{"public.orgs"})
 	assertSQLRelationshipExists(t, got, "REFERENCES_TABLE", "public.users", "public.orgs")
 }
 
@@ -96,6 +98,10 @@ $proc$;
 	// be stamped as a READS_FROM edge (#5345).
 	assertSQLRelationshipMissing(t, got, "READS_FROM", "public.archive_users", "public.user_archive")
 	assertSQLRelationshipExists(t, got, "READS_FROM", "public.archive_users", "public.users")
+	assertSQLBucketStringSlice(t, got, "sql_functions", "public.archive_users", "write_tables",
+		[]string{"public.user_archive", "public.users"})
+	assertSQLRelationshipExists(t, got, "WRITES_TO", "public.archive_users", "public.user_archive")
+	assertSQLRelationshipExists(t, got, "WRITES_TO", "public.archive_users", "public.users")
 	assertSQLMigrationExists(t, got, "prisma", "SqlTable", "public.user_archive")
 	// Prisma names every migration file "migration.sql"; the stamped identifier
 	// must be the migration's parent directory name instead (#5346).
@@ -168,7 +174,10 @@ $$;
 		[]string{"public.orders", "public.users"})
 	assertSQLBucketStringSlice(t, got, "sql_functions", "public.archive_orders", "source_tables",
 		[]string{"public.orders"})
+	assertSQLBucketStringSlice(t, got, "sql_functions", "public.archive_orders", "write_tables",
+		[]string{"public.order_archive"})
 	assertSQLRelationshipMissing(t, got, "READS_FROM", "public.archive_orders", "public.order_archive")
+	assertSQLRelationshipExists(t, got, "WRITES_TO", "public.archive_orders", "public.order_archive")
 }
 
 func TestParseMySQLBacktickQuotedIdentifiers(t *testing.T) {

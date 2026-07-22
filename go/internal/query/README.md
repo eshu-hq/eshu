@@ -151,6 +151,10 @@ Relationship-story rows expose the same distinction through a uniform
 state, and derived/heuristic/unsupported flags. The block is built from already
 returned row metadata and does not change canonical admission, graph writes, or
 the answer-level truth envelope.
+SQL-table blast radius uses only writer-backed branches for `READS_FROM`,
+`REFERENCES_TABLE`, `WRITES_TO`, `TRIGGERS`, `INDEXES`, `MIGRATES`, and embedded
+queries. View reads are followed through at most two `READS_FROM` edges, while
+the response keeps `MAPS_TO_TABLE` as an explicit unmaterialized coverage gap.
 Pre-change impact reads (`POST /api/v0/impact/pre-change`) are a productized
 entrypoint over the existing change-surface investigation contract. They accept
 repo-relative changed paths or structured file changes, preserve deleted,

@@ -80,31 +80,46 @@ ifa_fault_write_restart_script() {
 # and expire-lease-mid-handler both need before they act -- acting before any
 # row is actually claimed would make the fault vacuous, matching this
 # platform's "measured inert" lesson), printing the observed count to stdout on
-# success. Returns non-zero if the budget (in whole seconds, ~1 poll/second)
-# elapses first.
+# success. The polling loop runs inside Postgres on one connection: starting a
+# fresh docker-exec + psql process per sample is slower than the reducer's
+# millisecond-scale claimed window and can miss every real claim. Returns
+# non-zero if the budget (in whole seconds) elapses first.
 #
 # Args: compose_project use_compose dsn compose_file [budget_seconds=60]
 ifa_fault_wait_for_claimed() {
 	local compose_project="$1" use_compose="$2" dsn="$3" compose_file="$4"
 	local budget="${5:-60}"
-	# Poll ~3x/second rather than once, because the reducer can drain the small
-	# per-cell demo-org + synth drive in ~1-2s on a fast host, so its
-	# claimed/running window is often narrower than a whole second. A 1s poll
-	# (plus docker-exec latency) can land entirely in the gaps between claims and
-	# miss it, failing this non-vacuous precondition even though the reducer did
-	# claim work. budget stays expressed in seconds.
-	local i count iters
-	iters=$(( budget * 3 ))
-	for i in $(seq 1 "${iters}"); do
-		count="$(ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \
-			"SELECT count(*) FROM fact_work_items WHERE stage = 'reducer' AND status IN ('claimed', 'running');" \
-			"${compose_file}" | tr -d '[:space:]')"
-		if [[ -n "${count}" && "${count}" -gt 0 ]]; then
-			printf '%s' "${count}"
-			return 0
-		fi
-		sleep 0.3
-	done
+	if [[ ! "${budget}" =~ ^[1-9][0-9]*$ ]]; then
+		echo "ifa_fault_wait_for_claimed: budget must be a positive integer, got ${budget}" >&2
+		return 1
+	fi
+	local count
+	count="$(ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \
+		"CREATE OR REPLACE FUNCTION pg_temp.ifa_wait_for_claimed(wait_seconds integer)
+		 RETURNS integer LANGUAGE plpgsql AS \$\$
+		 DECLARE
+		   observed integer;
+		   deadline timestamptz := clock_timestamp() + make_interval(secs => wait_seconds);
+		 BEGIN
+		   LOOP
+		     SELECT count(*) INTO observed
+		       FROM fact_work_items
+		      WHERE stage = 'reducer' AND status IN ('claimed', 'running');
+		     IF observed > 0 THEN
+		       RETURN observed;
+		     END IF;
+		     EXIT WHEN clock_timestamp() >= deadline;
+		     PERFORM pg_sleep(0.001);
+		   END LOOP;
+		   RETURN 0;
+		 END
+		 \$\$;
+		 SELECT pg_temp.ifa_wait_for_claimed(${budget});" \
+		"${compose_file}" | tail -n 1 | tr -d '[:space:]')"
+	if [[ -n "${count}" && "${count}" -gt 0 ]]; then
+		printf '%s' "${count}"
+		return 0
+	fi
 	echo "ifa_fault_wait_for_claimed: no claimed/running fact_work_items row appeared within ${budget}s" >&2
 	return 1
 }

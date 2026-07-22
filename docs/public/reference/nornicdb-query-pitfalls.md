@@ -99,7 +99,11 @@ Further managed-transaction refinement (probed while fixing the
 TAINT_FLOWS_TO retract): even a SINGLE `DELETE` statement dispatched through a
 managed transaction (`ExecuteGroup`) can fail to apply on v1.1.11 — the same
 statement auto-committed deletes the edge. Treat every retract `DELETE` as
-auto-commit-only; grouped dispatch is safe only for MERGE-shaped writes.
+auto-commit-only. Grouped dispatch also silently drops the SQL relationship
+writer's `UNWIND`/`MATCH`/`MERGE` statement on v1.1.11, even with a one-statement
+group; the identical auto-commit statement persists the edge. Treat grouped
+execution as shape-specific and require live persistence proof before enabling
+it, rather than assuming MERGE makes a managed transaction safe.
 
 Two orphan-cleanup shapes are also broken on v1.1.11 (probed while fixing the
 shell-exec cleanup): a negated pattern predicate (`WHERE NOT (n)--()`) matches

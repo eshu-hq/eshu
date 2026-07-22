@@ -14,16 +14,17 @@ import (
 )
 
 // TestBlastRadiusSqlTableCypherDropsDeadBranchesKeepsLiveOnes guards the
-// #5330 rewrite (extended in #5345, #5346): the SqlTable UNION must drop every
-// branch that has no writer (MAPS_TO_TABLE, REFERENCES_TABLE, and the
+// #5330 rewrite (extended in #5345, #5346, #5410): the SqlTable UNION must drop every
+// branch that has no writer (MAPS_TO_TABLE and the
 // combined READS_FROM|TRIGGERS_ON|INDEXES EXISTS branch), keep the branches
 // that do have writers (CONTAINS, QUERIES_TABLE), and add
-// endpoint-label-constrained TRIGGERS, INDEXES, READS_FROM, and MIGRATES
+// endpoint-label-constrained TRIGGERS, INDEXES, READS_FROM, WRITES_TO,
+// REFERENCES_TABLE, and MIGRATES
 // branches now that all have real writers (TRIGGERS reconciled from the
 // never-written TRIGGERS_ON name; INDEXES wired in #5330 Task 3; READS_FROM's
-// SqlView/SqlFunction source_tables bridge wired in #5345, replacing the dead
-// SqlTable-REFERENCES_TABLE branch; MIGRATES' SqlMigration migration_targets
-// bridge wired in #5346). READS_FROM gets two branches (SqlView and
+// SqlView/SqlFunction source_tables bridge wired in #5345; MIGRATES'
+// SqlMigration migration_targets bridge wired in #5346; FK REFERENCES_TABLE
+// and routine WRITES_TO wired in #5410). READS_FROM gets two branches (SqlView and
 // SqlFunction sources) since NornicDB matches zero rows on a node-label
 // disjunction (#5116), so a single branch cannot cover both source labels.
 func TestBlastRadiusSqlTableCypherDropsDeadBranchesKeepsLiveOnes(t *testing.T) {
@@ -31,7 +32,7 @@ func TestBlastRadiusSqlTableCypherDropsDeadBranchesKeepsLiveOnes(t *testing.T) {
 
 	q := blastRadiusSqlTableQuery(repositoryAccessFilter{allScopes: true})
 
-	for _, dead := range []string{"MAPS_TO_TABLE", "REFERENCES_TABLE", "TRIGGERS_ON"} {
+	for _, dead := range []string{"MAPS_TO_TABLE", "TRIGGERS_ON"} {
 		if strings.Contains(q, dead) {
 			t.Errorf("sql_table query must not reference dead edge type %q (no writer produces it): %s", dead, q)
 		}
@@ -42,8 +43,10 @@ func TestBlastRadiusSqlTableCypherDropsDeadBranchesKeepsLiveOnes(t *testing.T) {
 		"[:CONTAINS]->(:Function)-[:QUERIES_TABLE]->(table)",
 		"[:CONTAINS]->(:SqlTrigger)-[:TRIGGERS]->(table)",
 		"[:CONTAINS]->(:SqlIndex)-[:INDEXES]->(table)",
-		"[:CONTAINS]->(:SqlView)-[:READS_FROM]->(table)",
+		"(table:SqlTable)<-[:READS_FROM*1..2]-(:SqlView)<-[:CONTAINS]-(:File)<-[:REPO_CONTAINS]-(repo:Repository)",
 		"[:CONTAINS]->(:SqlFunction)-[:READS_FROM]->(table)",
+		"[:CONTAINS]->(:SqlFunction)-[:WRITES_TO]->(table)",
+		"[:CONTAINS]->(:SqlTable)-[:REFERENCES_TABLE]->(table)",
 		"[:CONTAINS]->(:SqlMigration)-[:MIGRATES]->(table)",
 	} {
 		if !strings.Contains(q, live) {
@@ -52,9 +55,9 @@ func TestBlastRadiusSqlTableCypherDropsDeadBranchesKeepsLiveOnes(t *testing.T) {
 	}
 
 	// The branch multiplier constant must track the live branch count exactly
-	// (7), or the over-fetch-before-dedup math in blastRadiusAffected drifts.
-	if blastRadiusSqlTableBranches != 7 {
-		t.Errorf("blastRadiusSqlTableBranches = %d, want 7 (CONTAINS, QUERIES_TABLE, TRIGGERS, INDEXES, READS_FROM x2, MIGRATES)", blastRadiusSqlTableBranches)
+	// (9), or the over-fetch-before-dedup math in blastRadiusAffected drifts.
+	if blastRadiusSqlTableBranches != 9 {
+		t.Errorf("blastRadiusSqlTableBranches = %d, want 9 (CONTAINS, QUERIES_TABLE, TRIGGERS, INDEXES, READS_FROM x2, WRITES_TO, REFERENCES_TABLE, MIGRATES)", blastRadiusSqlTableBranches)
 	}
 	if got := strings.Count(q, " UNION\n") + 1; got != blastRadiusSqlTableBranches {
 		t.Errorf("sql_table query has %d UNION branches, want %d (blastRadiusSqlTableBranches)", got, blastRadiusSqlTableBranches)
@@ -74,11 +77,11 @@ type decodedBlastRadiusResponse struct {
 }
 
 // TestFindBlastRadiusSqlTableReportsUnmaterializedCoverage proves the
-// sql_table response is honest: dead branches (REFERENCES_TABLE,
-// MAPS_TO_TABLE) are reported in coverage as materialized:false with
+// sql_table response is honest: MAPS_TO_TABLE is reported as
+// materialized:false with
 // reason "no_writer" and drive complete:false, while the live branches
 // (CONTAINS, QUERIES_TABLE, READS_FROM, TRIGGERS, INDEXES, MIGRATES) are
-// reported materialized:true (#5330 Task 2, #5345, #5346).
+// reported materialized:true (#5330 Task 2, #5345, #5346, #5410).
 func TestFindBlastRadiusSqlTableReportsUnmaterializedCoverage(t *testing.T) {
 	t.Parallel()
 
@@ -114,7 +117,7 @@ func TestFindBlastRadiusSqlTableReportsUnmaterializedCoverage(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 	if resp.Complete {
-		t.Fatal("complete = true, want false (REFERENCES_TABLE/MAPS_TO_TABLE have no writer)")
+		t.Fatal("complete = true, want false (MAPS_TO_TABLE has no writer)")
 	}
 
 	byType := map[string]struct {
@@ -128,7 +131,7 @@ func TestFindBlastRadiusSqlTableReportsUnmaterializedCoverage(t *testing.T) {
 		}{c.Materialized, c.Reason}
 	}
 
-	for _, dead := range []string{"REFERENCES_TABLE", "MAPS_TO_TABLE"} {
+	for _, dead := range []string{"MAPS_TO_TABLE"} {
 		got, ok := byType[dead]
 		if !ok {
 			t.Errorf("coverage missing entry for %q", dead)
@@ -141,7 +144,7 @@ func TestFindBlastRadiusSqlTableReportsUnmaterializedCoverage(t *testing.T) {
 			t.Errorf("coverage[%q].reason = %q, want %q", dead, got.Reason, "no_writer")
 		}
 	}
-	for _, live := range []string{"CONTAINS", "QUERIES_TABLE", "READS_FROM", "TRIGGERS", "INDEXES", "MIGRATES"} {
+	for _, live := range []string{"CONTAINS", "QUERIES_TABLE", "READS_FROM", "WRITES_TO", "REFERENCES_TABLE", "TRIGGERS", "INDEXES", "MIGRATES"} {
 		got, ok := byType[live]
 		if !ok {
 			t.Errorf("coverage missing entry for %q", live)

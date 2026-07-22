@@ -140,7 +140,7 @@ Each extracted token must be disclosed rather than silent:
    (empty today).
 
 The invariant is **"no edge is traversed silently,"** not "every edge has a
-writer" — an annotated, disclosed, unwritten edge (`SATISFIED_BY` today)
+writer" — an annotated, disclosed, unwritten edge (`MAPS_TO_TABLE` today)
 passes. `DEPENDS_ON` and `REPO_CONTAINS`, traversed by queries with no
 per-query coverage list at all (`repository`, `terraform_module`), are
 registered in `EdgeMaterializationCoverage`'s registry
@@ -152,17 +152,17 @@ Bidirectional: `TestImpactBlastRadiusCoverageEdgeTypesAreStillTraversed`
 fails a coverage-edge-type list entry that is neither traversed by any
 audited query nor a registered relationship type
 (`internal/graph/edgetype.IsRegistered`) — distinguishing the deliberate
-`sql_table` honesty pattern (`REFERENCES_TABLE`, `MAPS_TO_TABLE` are listed as
-conceptually covered even though no UNION branch queries them, so the
-response can disclose the gap) from a genuinely stale or fake entry. `MIGRATES`
-left this list in #5346: it now has its own UNION branch and a real writer.
+`sql_table` honesty pattern (`MAPS_TO_TABLE` is listed as conceptually covered
+even though no UNION branch queries it, so the response can disclose the gap)
+from a genuinely stale or fake entry. `MIGRATES` left this list in #5346;
+`REFERENCES_TABLE` left it in #5410. Both now have a UNION branch and writer.
 
 Two anti-false-green mitigations:
 
 - **Positive-extraction floor** — each query has a `MinDistinctEdgeTypes`
   seeded from its current known token count (repository: 1,
   terraform-source-repos: 2, dependents-by-id: 1, crossplane: 3, sql_table:
-  7, tier-lookup: 1), so a tokenizer regression that silently drops tokens
+  9, tier-lookup: 1), so a tokenizer regression that silently drops tokens
   fails the floor instead of vacuously passing.
 - **Literal-only discipline** — `TestImpactBlastRadiusGateQueriesAreLiteralConstants`
   AST-parses `impact_blast_radius.go` and requires every audited query to be

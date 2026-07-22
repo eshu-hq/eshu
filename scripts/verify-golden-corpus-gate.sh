@@ -52,39 +52,8 @@ if [[ "${ESHU_GRAPH_BACKEND}" == "neo4j" ]]; then
 	database="neo4j"
 fi
 
-# Minimal corpus. The comprehensive fixtures exercise the per-language parsers.
-# lib-common (publisher of @acme/lib-common) + orders-api (consumer of it)
-# form a cross-repo DEPENDS_ON (rc-3): the package-registry cassette carries a
-# source_hint mapping @acme/lib-common -> github.com/acme/lib-common, and
-# ESHU_GITHUB_ORG=acme (set below) makes both fixtures' synthesized remotes match
-# that org so consumption resolves to the in-corpus owner repo.
-corpus_fixtures=(
-	go_comprehensive
-	python_comprehensive
-	terraform_comprehensive
-	terragrunt_comprehensive
-	kubernetes_comprehensive
-	helm_argocd_platform
-	lib-common
-	orders-api
-	deployable-source
-	deployable-config
-	kustomize-deployable-overlay
-	ansible-platform-playbooks
-	ansible-shared-roles
-	jenkins-ci-pipelines
-	puppet-platform-modules
-	chef-cookbooks
-	salt-formulas
-	helm-umbrella-chart
-	helm-template-chart
-	api-svc
-	ruby_rails_app
-	dart_comprehensive
-	swift_vapor_app
-	github_actions_workflows
-)
-
+# shellcheck source=scripts/lib/golden-corpus-fixtures.sh
+source "${repo_root}/scripts/lib/golden-corpus-fixtures.sh"
 # 9 credentialed collectors and their B-10 cassette directories.
 collector_specs=(
 	"collector-kubernetes-live:kuberneteslive"
@@ -105,7 +74,6 @@ collector_specs=(
 	"collector-sbom-attestation:sbomattestation"
 	"collector-vulnerability-intelligence:vulnerabilityintelligence"
 )
-
 cassette_recording="supply-chain-demo.json"
 
 use_compose=1

@@ -1726,6 +1726,29 @@ report as materialized changed (`sqlTableBlastRadiusEdgeTypes`), computed in
 Go from the existing `EdgeMaterializationCoverage` registry with no new graph
 read.
 
+### SQL Table Bounded View Traversal and FK/Write Branches (#5410)
+
+The SQL-table blast-radius query now follows reverse view `READS_FROM` edges
+through `*1..2` and includes `WRITES_TO` and `REFERENCES_TABLE` branches. The
+bounded traversal was proven before implementation against an isolated pinned
+NornicDB graph with 500 direct-view repositories, 500 second-level-view
+repositories, and 100 third-level controls. The old direct branch returned 500;
+the bounded branch returned exactly 1,000 and excluded all third-level controls.
+
+Warm Bolt medians were 1.246 ms for the old 500-row shape and 2.194 ms for the
+new 1,000-row shape; all new-shape samples stayed below 2.5 ms. The intended
+accuracy gain doubles the useful result set while keeping traversal depth and
+latency bounded. See
+the repository evidence note at
+`docs/internal/evidence/5410-sql-relationships-performance.md`
+for the graph shape, samples, source-executor PROFILE result, and NornicDB
+PROFILE-display limitation.
+
+No-Observability-Change: the query still uses the existing graph adapter and
+per-query telemetry. Reducer target-resolution misses reuse the existing SQL
+materialization completion log through new unresolved/ambiguous reference and
+write counters; no metric, span, queue, or runtime knob was added.
+
 ## Related Docs
 
 - [NornicDB Pitfalls](nornicdb-pitfalls.md)

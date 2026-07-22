@@ -199,11 +199,6 @@ retractable_edge_types:
   - TO
   - USES_PROFILE
   # documentation, rationale, SQL, and shell relationships.
-  # REFERENCES_TABLE is intentionally absent: #5345 renamed the view/function
-  # read edge to READS_FROM, leaving REFERENCES_TABLE with no writer, so no
-  # delta round-trip proof is possible for it. It is retained in the SQL retract
-  # Cypher disjunction (sqlRelationshipRetractRelTypes) as legacy-edge hygiene
-  # only, not as a write-path edge requiring replay depth.
   - DOCUMENTS
   - EXECUTES
   - EXECUTES_SHELL
@@ -213,7 +208,9 @@ retractable_edge_types:
   - MIGRATES
   - QUERIES_TABLE
   - READS_FROM
+  - REFERENCES_TABLE
   - TRIGGERS
+  - WRITES_TO
 
 # The single reducer projection drain path. A mid-run crash must recover
 # deterministically (R-14, deterministic replay design 11). The crash scenario is

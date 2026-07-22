@@ -19,6 +19,8 @@
 // this registry by TestNoUnregisteredEdgeLiteral, which fails CI if any
 // production Cypher names an edge type absent from the registry. Use
 // IsRegistered to check membership and All to enumerate the registered set.
+// Adding a constant is additive only when its owning writer, reader, and
+// retraction contracts move in lockstep.
 //
 // Out of scope: data-driven edge-type families synthesized from collector row
 // data at runtime rather than named in source — the AWS_* and GCP_* cloud

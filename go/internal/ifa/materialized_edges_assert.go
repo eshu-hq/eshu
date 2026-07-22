@@ -58,7 +58,7 @@ func LoadExpectedEdges(path string) ([]ExpectedEdge, error) {
 // is asserting (and ignores every unrelated edge type — CONTAINS, DEPENDS_ON,
 // the GCP families, etc. — that shares the same graph). It is registry-derived
 // (#5330 pattern), never hand-listed: the sql_relationships set comes straight
-// from cypher.SQLRelationshipMaterializedEdgeTypes(), so an 8th SQL edge type
+// from cypher.SQLRelationshipMaterializedEdgeTypes(), so an additional SQL edge type
 // added to that writer registry is asserted here without a second edit. An
 // unknown family returns nil so the caller can fail closed with a clear
 // message rather than silently asserting an empty type set (which would make

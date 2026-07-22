@@ -232,11 +232,9 @@ func TestMaterializedEdgeFalseGreenExtraExpectedEdgeNotProducedFails(t *testing.
 	}
 }
 
-// TestMaterializedEdgeFalseGreenReferencesTableNeverExpected proves
-// REFERENCES_TABLE (retract-superset-only since #5345) can never satisfy the
-// exhaustiveness check: it is not in the writer registry, so an
-// expected-edge-set containing ONLY REFERENCES_TABLE edges (and none of the
-// seven real registry types) must fail as missing every real type.
+// TestMaterializedEdgeFalseGreenPartialRegistrySet proves an expected-edge-set
+// containing only REFERENCES_TABLE cannot satisfy the exhaustiveness check:
+// every other materialized registry type is absent.
 func TestMaterializedEdgeFalseGreenReferencesTableNeverExpected(t *testing.T) {
 	t.Parallel()
 

@@ -68,3 +68,31 @@ func TestSelectReadTargetsDedupesAndFiltersNonSelect(t *testing.T) {
 		}
 	}
 }
+
+// TestRoutineWriteTargetsCapTruncatesDeterministically proves routine write
+// metadata shares the same bounded, sorted contract as source_tables while
+// excluding SELECT-only mentions.
+func TestRoutineWriteTargetsCapTruncatesDeterministically(t *testing.T) {
+	const overCap = sqlSourceTablesCap + 6
+
+	mentions := make([]sqlMention, 0, overCap+1)
+	for i := overCap - 1; i >= 0; i-- {
+		mentions = append(mentions, sqlMention{
+			name:      fmt.Sprintf("table_%03d", i),
+			operation: []string{"insert", "update", "delete"}[i%3],
+			offset:    i,
+		})
+	}
+	mentions = append(mentions, sqlMention{name: "ignored_read", operation: "select"})
+
+	got := routineWriteTargets(mentions)
+	if len(got) != sqlSourceTablesCap {
+		t.Fatalf("routineWriteTargets len = %d, want %d (cap)", len(got), sqlSourceTablesCap)
+	}
+	for i := 0; i < sqlSourceTablesCap; i++ {
+		want := fmt.Sprintf("table_%03d", i)
+		if got[i] != want {
+			t.Fatalf("routineWriteTargets[%d] = %q, want %q (sorted-then-capped)", i, got[i], want)
+		}
+	}
+}

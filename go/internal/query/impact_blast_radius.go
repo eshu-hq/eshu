@@ -119,7 +119,7 @@ func blastRadiusCrossplaneQuery(access repositoryAccessFilter) string {
 // caller over-fetches by this factor before the app-side min-hop dedup and
 // trim, ensuring the requested unique-repo limit is met. MUST track the exact
 // branch count below (guarded by TestBlastRadiusSqlTableCypherDropsDeadBranchesKeepsLiveOnes).
-const blastRadiusSqlTableBranches = 7
+const blastRadiusSqlTableBranches = 9
 
 // blastRadiusSqlTableCypher resolves repositories touching the matched SqlTable
 // through any of the code/schema relationship kinds that have a real graph
@@ -174,10 +174,13 @@ const blastRadiusSqlTableCypher = `CALL {
 	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:SqlTrigger)-[:TRIGGERS]->(table)%[1]s RETURN repo, 1 AS hops UNION
 	MATCH (table:SqlTable) WHERE table.name CONTAINS $target_name
 	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:SqlIndex)-[:INDEXES]->(table)%[1]s RETURN repo, 1 AS hops UNION
-	MATCH (table:SqlTable) WHERE table.name CONTAINS $target_name
-	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:SqlView)-[:READS_FROM]->(table)%[1]s RETURN repo, 1 AS hops UNION
+	MATCH (table:SqlTable)<-[:READS_FROM*1..2]-(:SqlView)<-[:CONTAINS]-(:File)<-[:REPO_CONTAINS]-(repo:Repository) WHERE table.name CONTAINS $target_name%[2]s RETURN repo, 1 AS hops UNION
 	MATCH (table:SqlTable) WHERE table.name CONTAINS $target_name
 	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:SqlFunction)-[:READS_FROM]->(table)%[1]s RETURN repo, 1 AS hops UNION
+	MATCH (table:SqlTable) WHERE table.name CONTAINS $target_name
+	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:SqlFunction)-[:WRITES_TO]->(table)%[1]s RETURN repo, 1 AS hops UNION
+	MATCH (table:SqlTable) WHERE table.name CONTAINS $target_name
+	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:SqlTable)-[:REFERENCES_TABLE]->(table)%[1]s RETURN repo, 1 AS hops UNION
 	MATCH (table:SqlTable) WHERE table.name CONTAINS $target_name
 	MATCH (repo:Repository)-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(:SqlMigration)-[:MIGRATES]->(table)%[1]s RETURN repo, 1 AS hops
 }
@@ -187,10 +190,13 @@ LIMIT $limit`
 
 func blastRadiusSqlTableQuery(access repositoryAccessFilter) string {
 	branchGrant := ""
+	anchoredBranchGrant := ""
 	if access.scoped() {
-		branchGrant = " WHERE " + access.graphConditionOnProperty("repo", "id")
+		condition := access.graphConditionOnProperty("repo", "id")
+		branchGrant = " WHERE " + condition
+		anchoredBranchGrant = " AND " + condition
 	}
-	return fmt.Sprintf(blastRadiusSqlTableCypher, branchGrant)
+	return fmt.Sprintf(blastRadiusSqlTableCypher, branchGrant, anchoredBranchGrant)
 }
 
 // sqlTableBlastRadiusEdgeTypes lists the graph relationship types the
@@ -198,17 +204,13 @@ func blastRadiusSqlTableQuery(access repositoryAccessFilter) string {
 // ones currently have a UNION branch in blastRadiusSqlTableCypher. Each is
 // checked against the materialized-edge registry (EdgeMaterializationCoverage,
 // #5330 Task 1) to build the response's honest coverage/complete fields:
-// CONTAINS, QUERIES_TABLE, READS_FROM, TRIGGERS, INDEXES, and MIGRATES are the
-// live UNION branches above (#5345 moved READS_FROM here once the
-// parser/reducer bridge was wired; #5346 added MIGRATES the same way).
-// MAPS_TO_TABLE still has no writer. REFERENCES_TABLE joined the unmaterialized
-// set in #5345: the only prior producer was the SqlView/SqlFunction case,
-// which now writes READS_FROM instead, so REFERENCES_TABLE is honestly
-// reserved for a future table-level FK edge rather than claimed as
-// materialized. Both are reported as unmaterialized rather than silently
-// contributing a zero to affected_count.
+// CONTAINS, QUERIES_TABLE, READS_FROM, WRITES_TO, REFERENCES_TABLE, TRIGGERS,
+// INDEXES, and MIGRATES are the live UNION branches above (#5345 moved
+// READS_FROM here, #5346 added MIGRATES, and #5410 added FK/write impact).
+// MAPS_TO_TABLE still has no writer and is reported as unmaterialized rather
+// than silently contributing a zero to affected_count.
 var sqlTableBlastRadiusEdgeTypes = []string{
-	"CONTAINS", "QUERIES_TABLE", "READS_FROM", "TRIGGERS", "INDEXES", "MIGRATES",
+	"CONTAINS", "QUERIES_TABLE", "READS_FROM", "WRITES_TO", "TRIGGERS", "INDEXES", "MIGRATES",
 	"REFERENCES_TABLE", "MAPS_TO_TABLE",
 }
 
