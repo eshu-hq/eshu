@@ -77,8 +77,11 @@ func TestKubernetesNamespaceNodeWriterUnboundRowNeverCreatesEnvironment(t *testi
 	if !strings.Contains(cypher, "MERGE (n:KubernetesNamespace {uid: row.uid})") {
 		t.Fatalf("cypher must MERGE on uid identity only:\n%s", cypher)
 	}
-	if !strings.Contains(cypher, "REMOVE n.environment, n.evidence_class") {
-		t.Fatalf("unbound-row statement must REMOVE any stale environment/evidence_class from a prior bound generation:\n%s", cypher)
+	if !strings.Contains(cypher, "n.environment = null") || !strings.Contains(cypher, "n.evidence_class = null") {
+		t.Fatalf("unbound-row statement must SET environment/evidence_class to null to clear any stale value from a prior bound generation:\n%s", cypher)
+	}
+	if strings.Contains(cypher, "REMOVE") {
+		t.Fatalf("unbound-row statement must clear environment/evidence_class via SET ... = null, not REMOVE (REMOVE fails under the managed ExecuteWrite transaction on NornicDB v1.1.11):\n%s", cypher)
 	}
 }
 

@@ -21,6 +21,23 @@ const canonicalPhaseKubernetesNamespace = "kubernetes_namespace"
 // converge on one node rather than fabricating or duplicating graph state.
 // This variant writes NO Environment node and NO TARGETS_ENVIRONMENT edge --
 // an unbound namespace must never invent environment truth.
+//
+// n.environment/n.evidence_class are cleared with SET ... = null rather than
+// a trailing REMOVE clause: on the pinned NornicDB v1.1.11, a bare REMOVE
+// dispatched through the Bolt driver's managed ExecuteWrite transaction (the
+// real production reducer path -- cmd/reducer wires this writer's executor
+// through reducerNeo4jExecutor.ExecuteGroup, one managed Bolt transaction,
+// unconditionally for every backend) fails with
+// Neo.ClientError.Statement.SyntaxError ("REMOVE requires a MATCH clause
+// first"), even though the identical statement succeeds via plain autocommit
+// Execute -- confirmed with a minimal Bolt-driver probe and a live
+// bound->unbound regression
+// (TestReducerKubernetesNamespaceEnvironmentRetractGraphTruth,
+// go/internal/replay/offlinetier). SET prop = null is the openCypher-standard
+// property-delete form and, unlike REMOVE, was proven live to apply
+// correctly under the same managed-transaction path -- consistent with every
+// OTHER property clear in this writer already using SET, never REMOVE. See
+// evidence-5434-namespace-environment-retract.md.
 const canonicalKubernetesNamespaceUpsertCypher = `UNWIND $rows AS row
 MERGE (n:KubernetesNamespace {uid: row.uid})
 SET n.id = row.uid,
@@ -35,8 +52,9 @@ SET n.id = row.uid,
     n.source_record_id = row.source_record_id,
     n.source_confidence = row.source_confidence,
     n.collector_kind = row.collector_kind,
-    n.evidence_source = row.evidence_source
-REMOVE n.environment, n.evidence_class`
+    n.evidence_source = row.evidence_source,
+    n.environment = null,
+    n.evidence_class = null`
 
 // canonicalKubernetesNamespaceWithEnvironmentUpsertCypher is the sibling
 // variant for a namespace whose label declared a recognized environment. It

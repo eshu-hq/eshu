@@ -1,26 +1,38 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// KubernetesNamespace TARGETS_ENVIRONMENT stale-edge retract coverage (codex
-// review finding P1, #5434).
+// KubernetesNamespace TARGETS_ENVIRONMENT stale-edge retract and
+// node-property clear coverage (codex review finding P1 + follow-up,
+// #5434).
 //
 // KubernetesNamespaceNodeWriter.WriteKubernetesNamespaceNodes MERGEs a
 // (:KubernetesNamespace)-[:TARGETS_ENVIRONMENT]->(:Environment) edge for
-// environment-bound rows and REMOVEs node properties (never the edge) for
-// unbound rows, but never retracted a PRE-EXISTING TARGETS_ENVIRONMENT edge:
-// a namespace that lost its recognized environment label kept asserting the
-// old environment forever, and a namespace re-bound from one environment to
-// another (e.g. prod -> stage) accumulated a SECOND edge instead of
-// replacing the first, since MERGE only matches an edge to the SAME target
-// node. The fix adds retractKubernetesNamespaceStaleTargetsEnvironmentCypher,
-// dispatched via KubernetesNamespaceNodeWriter.dispatchRetract -- sequential
-// Execute calls, NEVER ExecuteGroup -- mirroring
-// AzureCloudResourceEdgeWriter.dispatchRetract (evidence-4367-cloud-edge-
-// retract.md): on the pinned NornicDB v1.1.11 a relationship DELETE
-// dispatched through ExecuteGroup (the real production reducer executor for
-// this writer, cmd/reducer's reducerNeo4jExecutor.ExecuteGroup) can
-// under-apply even as the sole statement in the group, while the identical
-// statement run auto-commit deletes correctly.
+// environment-bound rows and clears the node's environment/evidence_class
+// properties (never the edge) for unbound rows, but never retracted a
+// PRE-EXISTING TARGETS_ENVIRONMENT edge: a namespace that lost its
+// recognized environment label kept asserting the old environment forever,
+// and a namespace re-bound from one environment to another (e.g. prod ->
+// stage) accumulated a SECOND edge instead of replacing the first, since
+// MERGE only matches an edge to the SAME target node. The fix adds
+// retractKubernetesNamespaceStaleTargetsEnvironmentCypher, dispatched via
+// KubernetesNamespaceNodeWriter.dispatchRetract -- sequential Execute calls,
+// NEVER ExecuteGroup -- mirroring AzureCloudResourceEdgeWriter.dispatchRetract
+// (evidence-4367-cloud-edge-retract.md): on the pinned NornicDB v1.1.11 a
+// relationship DELETE dispatched through ExecuteGroup (the real production
+// reducer executor for this writer, cmd/reducer's
+// reducerNeo4jExecutor.ExecuteGroup) can under-apply even as the sole
+// statement in the group, while the identical statement run auto-commit
+// deletes correctly.
+//
+// Proving that fix live also surfaced a second, related defect: the
+// sibling canonicalKubernetesNamespaceUpsertCypher (#5434's own code) used a
+// trailing REMOVE n.environment, n.evidence_class to clear those node
+// properties, and REMOVE fails outright under the SAME ExecuteGroup managed-
+// transaction path with Neo.ClientError.Statement.SyntaxError. Fixed by
+// replacing REMOVE with SET n.environment = null, n.evidence_class = null --
+// the openCypher-standard property-delete form, proven live below to apply
+// correctly under ExecuteGroup, consistent with every other property clear
+// in this writer already using SET.
 //
 // This test drives the REAL production write path
 // (cypher.KubernetesNamespaceNodeWriter.WriteKubernetesNamespaceNodes) twice
@@ -39,7 +51,6 @@ package offlinetier_test
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -120,37 +131,35 @@ func TestReducerKubernetesNamespaceEnvironmentRetractGraphTruth(t *testing.T) {
 
 	edgeQ := "MATCH (:KubernetesNamespace {uid: $uid})-[r:TARGETS_ENVIRONMENT]->(e:Environment) RETURN e.name AS env"
 	nodeQ := "MATCH (n:KubernetesNamespace {uid: $uid}) RETURN count(n)"
+	nodePropsQ := "MATCH (n:KubernetesNamespace {uid: $uid}) RETURN n.environment AS environment, n.evidence_class AS evidence_class, n.environment_state AS environment_state"
 
-	t.Run("bound to unbound removes the edge", func(t *testing.T) {
+	t.Run("bound to unbound removes the edge and clears node properties", func(t *testing.T) {
 		if err := writer.WriteKubernetesNamespaceNodes(ctx, []map[string]any{nsEnvRetractRow(nsEnvRetractUID1, nsEnvRetractEnvProd)}, evidenceSource); err != nil {
 			t.Fatalf("first (bound) write: %v", err)
 		}
 		assertNamespaceEnvironmentEdges(ctx, t, exec, edgeQ, nsEnvRetractUID1, []string{nsEnvRetractEnvProd}, "write: bound edge present")
+		// Positive control: the node-property read itself returns the bound
+		// values, so the negative assertion below is trusted to actually read
+		// through to graph state, not a query that always returns empty.
+		assertNamespaceNodeProperties(ctx, t, exec, nodePropsQ, nsEnvRetractUID1, nsEnvRetractEnvProd, "namespace_label", "bound", "write: bound node properties present")
 
-		// The second write's own upsert half hits an UNRELATED, pre-existing
-		// NornicDB v1.1.11 defect: canonicalKubernetesNamespaceUpsertCypher's
-		// trailing "REMOVE n.environment, n.evidence_class" fails with
-		// Neo.ClientError.Statement.SyntaxError specifically when dispatched
-		// through the Bolt driver's managed-transaction ExecuteWrite (the real
-		// production reducer path here), while the identical statement
-		// succeeds via plain autocommit Run -- confirmed with a minimal Bolt
-		// probe outside this test. That defect is independent of this fix
-		// (retractKubernetesNamespaceStaleTargetsEnvironmentCypher /
-		// dispatchRetract) and is tracked separately; it is NOT swallowed
-		// here, only tolerated so this test can still prove ITS claim.
-		// dispatchRetract runs to completion (its own autocommit Execute,
-		// already durably committed) BEFORE WriteKubernetesNamespaceNodes ever
-		// attempts the upsert half, so the retracted edge state below is
-		// proof of the retract succeeding even though the overall call errors.
-		err := writer.WriteKubernetesNamespaceNodes(ctx, []map[string]any{nsEnvRetractRow(nsEnvRetractUID1, "")}, evidenceSource)
-		if err == nil {
-			t.Fatal("second (unbound) write unexpectedly succeeded -- the tracked NornicDB managed-transaction REMOVE defect may have been fixed; if so, tighten this assertion to require err == nil")
+		// canonicalKubernetesNamespaceUpsertCypher clears n.environment /
+		// n.evidence_class with "SET ... = null" (not REMOVE): on the pinned
+		// NornicDB v1.1.11, a bare REMOVE dispatched through the Bolt
+		// driver's managed ExecuteWrite transaction (the real production
+		// reducer path -- reducerNeo4jExecutor.ExecuteGroup) fails with
+		// Neo.ClientError.Statement.SyntaxError, even though the identical
+		// statement succeeds via plain autocommit Run -- confirmed with a
+		// minimal Bolt-driver probe before choosing SET ... = null. This
+		// write, and the node-property assertions below, are the live proof
+		// that SET ... = null correctly clears the properties under the
+		// SAME managed-transaction path the edge retract also proves.
+		if err := writer.WriteKubernetesNamespaceNodes(ctx, []map[string]any{nsEnvRetractRow(nsEnvRetractUID1, "")}, evidenceSource); err != nil {
+			t.Fatalf("second (unbound) write: %v", err)
 		}
-		if !strings.Contains(err.Error(), "REMOVE requires a MATCH clause first") {
-			t.Fatalf("second (unbound) write failed for an unexpected reason (want the tracked NornicDB REMOVE-in-managed-transaction defect): %v", err)
-		}
-		assertNamespaceEnvironmentEdges(ctx, t, exec, edgeQ, nsEnvRetractUID1, nil, "retract: bound->unbound edge gone (proven despite the unrelated upsert-side defect)")
+		assertNamespaceEnvironmentEdges(ctx, t, exec, edgeQ, nsEnvRetractUID1, nil, "retract: bound->unbound edge gone")
 		assertEdgeCount(ctx, t, exec, nodeQ, map[string]any{"uid": nsEnvRetractUID1}, 1, "node survives: bound->unbound")
+		assertNamespaceNodeProperties(ctx, t, exec, nodePropsQ, nsEnvRetractUID1, "", "", "environment-unbound", "write: bound->unbound clears environment/evidence_class node properties")
 	})
 
 	t.Run("bound prod to bound stage leaves exactly one edge pointing at stage", func(t *testing.T) {
@@ -189,6 +198,50 @@ func assertNamespaceEnvironmentEdges(ctx context.Context, t *testing.T, exec liv
 		if got[i] != want[i] {
 			t.Fatalf("%s: TARGETS_ENVIRONMENT edges = %v, want %v", msg, got, want)
 		}
+	}
+}
+
+// assertNamespaceNodeProperties asserts the KubernetesNamespace node at uid
+// has n.environment/n.evidence_class matching wantEnvironment/
+// wantEvidenceClass and n.environment_state matching wantState. An empty
+// wantEnvironment or wantEvidenceClass means the property must be
+// null/absent -- the postcondition
+// canonicalKubernetesNamespaceUpsertCypher's "SET n.environment = null,
+// n.evidence_class = null" is responsible for under the real production
+// managed-transaction ExecuteGroup dispatch path (codex review follow-up,
+// #5434): a REMOVE-based clear was proven live to fail under that path (see
+// evidence-5434-namespace-environment-retract.md), so this assertion is the
+// live proof the SET ... = null replacement actually clears node-property
+// truth, not just the TARGETS_ENVIRONMENT edge.
+func assertNamespaceNodeProperties(ctx context.Context, t *testing.T, exec liveExecutor, cypherText, uid, wantEnvironment, wantEvidenceClass, wantState, msg string) {
+	t.Helper()
+	rows, err := exec.Run(ctx, cypherText, map[string]any{"uid": uid})
+	if err != nil {
+		t.Fatalf("%s: query error: %v", msg, err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("%s: node read returned %d rows, want 1", msg, len(rows))
+	}
+	row := rows[0]
+
+	if wantEnvironment == "" {
+		if row["environment"] != nil {
+			t.Fatalf("%s: n.environment = %v, want null/absent", msg, row["environment"])
+		}
+	} else if got, _ := row["environment"].(string); got != wantEnvironment {
+		t.Fatalf("%s: n.environment = %v, want %q", msg, row["environment"], wantEnvironment)
+	}
+
+	if wantEvidenceClass == "" {
+		if row["evidence_class"] != nil {
+			t.Fatalf("%s: n.evidence_class = %v, want null/absent", msg, row["evidence_class"])
+		}
+	} else if got, _ := row["evidence_class"].(string); got != wantEvidenceClass {
+		t.Fatalf("%s: n.evidence_class = %v, want %q", msg, row["evidence_class"], wantEvidenceClass)
+	}
+
+	if got, _ := row["environment_state"].(string); got != wantState {
+		t.Fatalf("%s: n.environment_state = %v, want %q", msg, row["environment_state"], wantState)
 	}
 }
 
