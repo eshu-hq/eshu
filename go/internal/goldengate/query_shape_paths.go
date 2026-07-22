@@ -13,7 +13,7 @@ import (
 
 func evaluateJSONPathRequirements(shape QueryShape, body []byte) (bool, string) {
 	if len(shape.RequiredJSONPaths) == 0 && len(shape.RequiredJSONValues) == 0 &&
-		len(shape.RequiredJSONObjectMatches) == 0 {
+		len(shape.RequiredJSONObjectMatches) == 0 && len(shape.RequiredAbsentWhenPresent) == 0 {
 		return true, ""
 	}
 	var root any
@@ -50,11 +50,43 @@ func evaluateJSONPathRequirements(shape QueryShape, body []byte) (bool, string) 
 			}
 		}
 	}
-	return true, fmt.Sprintf("json paths %v, values %v, and object matches %v present",
+	for _, absent := range shape.RequiredAbsentWhenPresent {
+		if ok, detail := evaluateAbsentWhenPresent(root, absent); !ok {
+			return false, detail
+		}
+	}
+	return true, fmt.Sprintf(
+		"json paths %v, values %v, object matches %v, and mutual-exclusion checks %d present",
 		shape.RequiredJSONPaths,
 		sortedJSONValuePaths(shape.RequiredJSONValues),
 		sortedJSONObjectMatchPaths(shape.RequiredJSONObjectMatches),
+		len(shape.RequiredAbsentWhenPresent),
 	)
+}
+
+// evaluateAbsentWhenPresent checks one AbsentWhenPresent mutual-exclusion
+// assertion against the parsed response root. It fails only when SiblingPath
+// resolves to a non-empty value AND DomainPath resolves DomainValue among its
+// values in the SAME response; an unresolvable or empty SiblingPath (nothing
+// served) or a DomainPath that never matches DomainValue (the domain is not
+// disclosed as absent) both pass vacuously, matching the "existence assertions
+// guard the rest" contract documented on AbsentWhenPresent.
+func evaluateAbsentWhenPresent(root any, absent AbsentWhenPresent) (bool, string) {
+	siblingValues, err := resolveJSONPath(root, absent.SiblingPath)
+	if err != nil || !hasNonEmptyJSONValue(siblingValues) {
+		return true, ""
+	}
+	domainValues, err := resolveJSONPath(root, absent.DomainPath)
+	if err != nil {
+		return true, ""
+	}
+	if hasMatchingJSONValue(domainValues, absent.DomainValue) {
+		return false, fmt.Sprintf(
+			"disclosure-vs-served contradiction: domain %q disclosed absent at %q while sibling %q is present",
+			absent.DomainValue, absent.DomainPath, absent.SiblingPath,
+		)
+	}
+	return true, ""
 }
 
 func resolveJSONPath(root any, path string) ([]any, error) {

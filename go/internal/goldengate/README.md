@@ -29,7 +29,7 @@ tests are unchanged.
 
 | File | Holds |
 |------|-------|
-| `snapshot.go` | `Snapshot` and its nested contract types (`GraphSnapshot`, `CountRange`, `RequiredCorrelation`, `RequiredNode`, `RequiredSelfLoop`, `DrainAssertions`, `DrainBound`, `QueryShapes`, `QueryShape`) plus `LoadSnapshot`. |
+| `snapshot.go` | `Snapshot` and its nested contract types (`GraphSnapshot`, `CountRange`, `RequiredCorrelation`, `RequiredNode`, `RequiredSelfLoop`, `DrainAssertions`, `DrainBound`, `QueryShapes`, `QueryShape`, `AbsentWhenPresent`) plus `LoadSnapshot`. |
 | `report.go` | `Finding` and `Report` — the pass/fail accumulator with the required/advisory split. |
 | `evaluate.go` | `DrainCounts` and every `Evaluate*` function (drains, required correlations, edge/node properties, required/present nodes, required self-loops, node/edge counts, query shape, API/MCP/CLI parity, timing). |
 | `query_shape_paths.go` | Bounded deep JSON path/value assertions for query shapes, including array traversal with `[]`. |
@@ -61,6 +61,30 @@ tests are unchanged.
   suffix traverses a non-empty array, which lets the dead-code replay library
   assert evidence citations and confidence labels without an unbounded response
   scan.
+- **Mutual-exclusion assertions catch disclosure-vs-served contradictions.**
+  `RequiredAbsentWhenPresent` (`AbsentWhenPresent`) fails only when a sibling
+  JSON path is present AND a domain marker path (e.g.
+  `evidence_boundaries[].domain`) resolves the matching domain value in the
+  SAME response — the class of bug that shipped twice on
+  [#5472](https://github.com/eshu-hq/eshu/issues/5472): a tool claims a domain
+  is absent while a sibling field in its own response actually serves it. Both
+  sides passing vacuously when the sibling is absent keeps existing, honest
+  boundary disclosures green; the companion existence assertions
+  (`RequiredJSONPaths`/`RequiredJSONValues` on `evidence_boundaries[].domain`)
+  still guard that a real boundary is disclosed in the first place.
+- **Not every wired `RequiredAbsentWhenPresent` check can fail today.** The
+  snapshot wires both checks (`ci_cd_evidence`, `code_to_runtime_trace`) on
+  all four tools that disclose these domains (`get_service_story`,
+  `get_repo_story`, `get_workload_story`, `trace_deployment_chain`), but only
+  3 of those 8 checks can currently go red: both checks on
+  `get_service_story`, and the `ci_cd_evidence` check on `get_repo_story` —
+  these are the handlers that emit the sibling field the assertion inspects.
+  The other 5 (both checks on `get_workload_story` and
+  `trace_deployment_chain`, plus `get_repo_story`'s `code_to_runtime_trace`
+  check) pass vacuously today because those handlers do not yet emit the
+  sibling field; they stay wired as defense-in-depth so a future handler that
+  adds `ci_cd_evidence` or `code_to_runtime_trace` to one of those tools while
+  still disclosing the domain absent is caught immediately.
 - **CLI parity is explicit metadata.** `query_shapes.cli` rows must name their
   CLI argv and truth class. `EvaluateQuerySurfaceParity` checks every
   `parity_with` peer exists and carries the same truth class, so API/MCP/CLI
