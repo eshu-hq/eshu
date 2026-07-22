@@ -71,6 +71,14 @@ Residual work is split into follow-ups (see the closing comment on #5435):
   still goes unanswered, and the correct fix — not a labels×digest join.
 
 Everything below is retained as the original (pre-spine-merge) design record.
+**It reflects the pre-spine tree**: the retained sections' `file:line`
+references and code-structure claims (notably §1's `deploymentOverallConfidence`
+waterfall — the current function takes `hasLiveEvidence` as a parameter and
+checks live evidence first, and the `instance_count = len(instances)` anchor has
+shifted) describe main *before* #5608 merged and will not match the current
+tree. Do not verify those line numbers against current `main`; read them as
+historical. The §7 cardinality claim also carries a codex-review correction
+(see §7).
 
 Issue: #5435 (k8s-live: WorkloadInstance join capstone). Part of epic #5430
 (kubernetes-live). Depends on merged #5432 (CRI-resolved digest → `RUNS_IMAGE`)
@@ -311,11 +319,20 @@ prove the join here, so the deterministic golden corpus is the substrate.
 
 **The three join axes and their bounds:**
 
-1. **digest → image manifest**: 1:1 by construction. A sha256 digest is
-   content-addressed; the join (`BuildSourceImageDigestJoinIndex`,
-   `kubernetes_workload_source_image_join.go`) matches the pod_template
-   `image_refs` digest against the ociregistry `image_manifest` digest. The
-   corpus confirms 5 pods → 3 exact matches, no multiplication.
+1. **digest → image manifest**: content-addressed, but **not proven 1:1** — see
+   correction below. A sha256 digest identifies image *content*, but the same
+   digest can appear on multiple OCI records (mirrored or republished across
+   repositories). The join (`BuildSourceImageDigestJoinIndex`,
+   `kubernetes_workload_source_image_join.go:91`) stores only one node per
+   digest by overwriting `byDigest[digest]`, so the corpus's 5 pods → 3 matches
+   does **not** establish a no-multiplication bound when several OCI records
+   carry one digest — it only reflects that the corpus happens to have no
+   duplicate-digest records. **Correction (codex review, PR #5640):** before
+   this axis can be called proven, the retained-for-reuse shim must actually
+   count duplicate-digest OCI records and define an explicit ambiguous /
+   fail-closed policy for them (a shared digest must never silently pick one
+   repo). That measurement + policy is carried into follow-up #5638, which owns
+   the read-side count; it was **not** proven here.
 2. **pod → WorkloadInstance**: 1:1 on pod uid (§5). N replicas → N instances,
    which is the intended `instance_count`, not a fan-out defect.
 3. **image → `source_repository_ids`**: the **only** multi-valued axis. A shared
@@ -402,6 +419,11 @@ counter), whether the fan-out bound holds (`skipped_ambiguous_identity` > 0 with
 no instance explosion), and whether pod storms coalesced.
 
 ## 11. Spine Dependency And Sequencing
+
+*Editorial note: this section was written before #5608 merged (as
+`bcd41455db`); the spine is now on `main`. Its "currently unmerged" language and
+"deferred until #5608 merges" sequencing describe a state that has already
+passed — see the Supersession section at the top for the current disposition.*
 
 The typed deployment-truth-tier vocabulary does **not** exist on `origin/main`
 today (`rg 'truth_tier|TruthTier|deployment_truth'` → 0 matches); it is added by
