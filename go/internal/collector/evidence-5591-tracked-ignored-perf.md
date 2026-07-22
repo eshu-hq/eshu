@@ -94,8 +94,10 @@ triggers it) where tracked status can change the outcome. At the same
 40-60 ms/spawn measured above, that bounds the aggregate serial cost to
 roughly 129 × [40, 60] ms ≈ **5.2-7.7 seconds** for a full 906-repo ingest —
 down from 36-54 seconds eager, and the remaining ~777-785 repos with no
-ignore match at all now pay **zero** added subprocess cost from this fix,
-identical to the pre-#5591 baseline.
+ignore match at all now pay **zero** added subprocess cost from this fix on
+**both** lazy paths — discovery (`ResolveRepositoryFileSetsWithStats`, lazy per
+repo root) and the filesystem managed copy (`copyRepositoryTree`, lazy per
+nearest enclosing git root) — identical to the pre-#5591 baseline.
 
 ### Bound and gate
 
@@ -110,6 +112,19 @@ This cost is:
   at most one subprocess spawn even when both the gitignore and eshuignore
   paths need a tracked-status decision for it (proven by
   `TestResolveRepositoryFileSetsGitTrackedResolverInvokedOnceWhenDecisionRelevant`).
+- **Managed-copy path (site 2) is gated and memoized the same way**:
+  `shouldSkipFilesystemEntry` consults the tracked resolver only after a
+  `.gitignore` match (and the `.eshuignore` skip log only after an
+  `.eshuignore` match); `copyRepositoryTree` no longer resolves `git ls-files`
+  eagerly (issue #5658 P1b). Memoization is per NEAREST enclosing git root, so
+  a source checkout containing N nested git repos with decision-relevant
+  matches spawns at most N+1 subprocesses, and a repo with no match spawns
+  zero. A nested repo's tracked file is resolved against its OWN git root's
+  `ls-files` set (issue #5658 P1a) — an intended expected-diff, not part of the
+  output-preserving timing claim above: a force-added file inside a nested repo
+  is now preserved in the managed copy (proven by
+  `TestNativeRepositorySelectorSelectRepositoriesFilesystemCopiesNestedRepoTrackedIgnoredFile`
+  and the per-nearest-root lazy-count tests).
 - **Linear in ignore-matched repo count, not total repo count**: N repos
   with at least one ignore match cost roughly N × [40, 60] ms; repos with no
   match cost nothing, regardless of how large the total corpus grows.

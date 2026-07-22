@@ -215,13 +215,16 @@ func cleanManagedWorkspace(reposDir string) error {
 // copyRepositoryTree materializes one repository's tracked/discoverable files
 // into the managed workspace at targetRoot. sourceRoot IS the git checkout
 // (unlike targetRoot, which carries no .git of its own — issue #5649), so
-// this is the one filesystem-mode walk that resolves gitTrackedFiles: doing
-// so here, once per repository, lets shouldSkipFilesystemEntry keep a
-// gitignore-matched file that git still tracks (issue #5591). fingerprintTree
-// deliberately does NOT resolve a tracked set (its collectorIgnoreCaches.tracked
-// stays nil): it fingerprints the raw FilesystemRoot, which may contain many
-// repositories or no git checkout at all, so there is no single sourceRoot to
-// resolve ls-files against there.
+// this is the one filesystem-mode walk that resolves git-tracked status via
+// collectorTrackedResolver: doing so lazily, memoized per NEAREST enclosing
+// git root (issue #5658 P1a/P1b — a nested repository under sourceRoot, e.g.
+// a submodule, has its own tracked set the outer repo's ls-files never
+// lists), lets shouldSkipFilesystemEntry keep a gitignore-matched file that
+// git still tracks (issue #5591). fingerprintTree deliberately does NOT
+// resolve a tracked set (its collectorIgnoreCaches.tracked stays nil): it
+// fingerprints the raw FilesystemRoot, which may contain many repositories
+// or no git checkout at all, so there is no single sourceRoot to resolve
+// ls-files against there.
 func copyRepositoryTree(ctx context.Context, sourceRoot string, targetRoot string) error {
 	sourceRoot, err := filepath.Abs(sourceRoot)
 	if err != nil {
@@ -243,8 +246,14 @@ func copyRepositoryTree(ctx context.Context, sourceRoot string, targetRoot strin
 	}
 
 	ignoreCaches := newCollectorIgnoreCaches()
-	if tracked, ok := gitTrackedFiles(ctx, sourceRoot); ok {
-		ignoreCaches.tracked = tracked
+	ignoreCaches.tracked = &collectorTrackedResolver{
+		resolve: func(gitRoot string) (map[string]struct{}, bool) {
+			return gitTrackedFiles(ctx, gitRoot)
+		},
+		walkRoot:  sourceRoot,
+		ctx:       ctx,
+		rootByDir: make(map[string]string),
+		setByRoot: make(map[string]map[string]struct{}),
 	}
 
 	return filepath.WalkDir(sourceRoot, func(current string, entry os.DirEntry, walkErr error) error {
@@ -270,9 +279,16 @@ func copyRepositoryTree(ctx context.Context, sourceRoot string, targetRoot strin
 		// untouched); unlike a plain untracked-file skip, that decision must
 		// stay individually visible to operators rather than disappearing
 		// into an aggregate count.
+		//
+		// The eshuignore check runs FIRST (issue #5658 P1b): trackedFile
+		// resolves (and may spawn) the nearest git root's `git ls-files`
+		// subprocess, so it must never fire for a file .eshuignore was never
+		// going to skip anyway — mirrors discovery's
+		// recordTrackedEshuIgnoreSkips gating on a non-empty skip set before
+		// touching the tracked set.
 		if !entry.IsDir() &&
-			isCollectorTrackedFile(rel, ignoreCaches.tracked) &&
-			isCollectorEshuignoredInRepo(sourceRoot, current, ignoreCaches.eshuignore) {
+			isCollectorEshuignoredInRepo(sourceRoot, current, ignoreCaches.eshuignore) &&
+			ignoreCaches.tracked.trackedFile(current) {
 			logTrackedFileSkippedByEshuIgnore(ctx, nil, "filesystem_managed_copy", sourceRoot, rel)
 		}
 
@@ -357,9 +373,12 @@ func shouldSkipFilesystemEntry(
 	// A file git tracks is never git-ignored (issue #5591): git itself only
 	// applies .gitignore to untracked paths, so a force-committed
 	// (`git add -f`) file that matches a gitignore rule stays tracked and
-	// must stay discoverable in the managed-copy workspace too.
+	// must stay discoverable in the managed-copy workspace too. The gitignore
+	// check runs FIRST so trackedFile — which may spawn the nearest git
+	// root's `git ls-files` subprocess — is only ever called on a match
+	// (issue #5658 P1b).
 	if isCollectorGitignoredInRepo(repoRoot, fullPath, caches.gitignore) &&
-		!isCollectorTrackedFile(rel, caches.tracked) {
+		!caches.tracked.trackedFile(fullPath) {
 		return true
 	}
 	if isDir {
@@ -370,9 +389,12 @@ func shouldSkipFilesystemEntry(
 		// A directory-level prune (filepath.SkipDir) would hide every
 		// tracked file beneath it too, so a gitignore match on the
 		// directory itself must not prune it when a tracked file lives
-		// somewhere in that subtree (issue #5591).
+		// somewhere in that subtree (issue #5591) — including a NESTED
+		// repository's own tracked file, which trackedUnderDir resolves
+		// against that nested repo's own git root, not fullPath's outer
+		// repo (issue #5658 P1a).
 		if isCollectorGitignoredInRepo(repoRoot, probePath, caches.gitignore) &&
-			!collectorTrackedPathsUnderDir(rel, caches.tracked) {
+			!caches.tracked.trackedUnderDir(fullPath) {
 			return true
 		}
 	}
@@ -413,14 +435,16 @@ func preserveFilesystemHiddenPath(rel string) bool {
 type collectorIgnoreCaches struct {
 	gitignore  map[string]*collectorGitignoreSpec
 	eshuignore map[string]*collectorGitignoreSpec
-	// tracked holds the repo-relative, slash-separated paths git tracks in
-	// the repo being walked (issue #5591), so a gitignore match never
-	// excludes a file git still tracks. Left nil when the walk root is not
-	// resolvable as a git checkout (fingerprintTree does not set this field
-	// at all — see copyRepositoryTree's doc comment for why only the
-	// managed-copy path resolves it), matching the pre-#5591 behavior of not
+	// tracked lazily and memoized resolves, per NEAREST enclosing git root
+	// (issue #5658 P1a), which paths git tracks in the repo being walked
+	// (issue #5591), so a gitignore match never excludes a file git still
+	// tracks. Left nil when the walk root is not resolvable as a git
+	// checkout (fingerprintTree does not set this field at all — see
+	// copyRepositoryTree's doc comment for why only the managed-copy path
+	// resolves it); a nil *collectorTrackedResolver is always safe to query
+	// (see its own doc comment), matching the pre-#5591 behavior of not
 	// knowing which files git tracks.
-	tracked map[string]struct{}
+	tracked *collectorTrackedResolver
 }
 
 func newCollectorIgnoreCaches() collectorIgnoreCaches {

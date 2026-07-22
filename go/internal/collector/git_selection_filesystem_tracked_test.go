@@ -109,3 +109,77 @@ func TestNativeRepositorySelectorSelectRepositoriesFilesystemStillSkipsEshuIgnor
 		t.Fatalf("managed copy unexpectedly contains eshuignored terraform.tfstate (stat err = %v, want IsNotExist)", err)
 	}
 }
+
+// TestNativeRepositorySelectorSelectRepositoriesFilesystemCopiesNestedRepoTrackedIgnoredFile
+// is the issue #5658 P1a repro: a nested repository inside a filesystem-source
+// checkout (e.g. an embedded/submodule-like repo at modules/nested, its own
+// ".git") has its own tracked set, distinct from the outer repo's. The outer
+// repo's own `git ls-files` lists the nested repo's gitlink path
+// ("modules/nested") but NOT the nested repo's own tracked files
+// ("modules/nested/terraform.tfstate") — resolving tracked status only once
+// at the outer sourceRoot would silently drop a force-added file inside the
+// nested repo whose OWN .gitignore matches it. copyRepositoryTree must
+// resolve tracked status against the NEAREST enclosing git root (the nested
+// repo itself), not always sourceRoot.
+func TestNativeRepositorySelectorSelectRepositoriesFilesystemCopiesNestedRepoTrackedIgnoredFile(t *testing.T) {
+	t.Parallel()
+
+	filesystemRoot := t.TempDir()
+	reposDir := t.TempDir()
+	sourceRepo := filepath.Join(filesystemRoot, "eshu-hq", "service-nested")
+	if err := os.MkdirAll(sourceRepo, 0o755); err != nil {
+		t.Fatalf("mkdir source repo: %v", err)
+	}
+	mustInitGitRepo(t, sourceRepo)
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "main.go"), "package main\n")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, ".gitignore"), "*.tfstate\n")
+	runGit(t, sourceRepo, "add", "main.go", ".gitignore")
+	runGit(t, sourceRepo, "commit", "-m", "outer initial")
+
+	nestedRepo := filepath.Join(sourceRepo, "modules", "nested")
+	if err := os.MkdirAll(nestedRepo, 0o755); err != nil {
+		t.Fatalf("mkdir nested repo: %v", err)
+	}
+	mustInitGitRepo(t, nestedRepo)
+	writeSelectionTestFile(t, filepath.Join(nestedRepo, ".gitignore"), "*.tfstate\n")
+	writeSelectionTestFile(t, filepath.Join(nestedRepo, "terraform.tfstate"), "{}")
+	writeSelectionTestFile(t, filepath.Join(nestedRepo, "scratch.tfstate"), "{}")
+	runGit(t, nestedRepo, "add", ".gitignore")
+	runGit(t, nestedRepo, "add", "-f", "terraform.tfstate")
+	runGit(t, nestedRepo, "commit", "-m", "nested initial")
+	// scratch.tfstate is intentionally never `git add`ed inside the nested repo.
+
+	// Records the nested repo as an embedded gitlink in the outer repo's
+	// tree — this is what makes the outer repo's own `git ls-files` list
+	// "modules/nested" without listing anything beneath it.
+	runGit(t, sourceRepo, "add", "modules/nested")
+	runGit(t, sourceRepo, "commit", "-m", "add nested gitlink")
+
+	selector := NativeRepositorySelector{
+		Config: RepoSyncConfig{
+			ReposDir:       reposDir,
+			SourceMode:     "filesystem",
+			FilesystemRoot: filesystemRoot,
+			Component:      "collector-git",
+			CloneDepth:     1,
+			RepoLimit:      4000,
+			GitAuthMethod:  "none",
+		},
+	}
+
+	batch, err := selector.SelectRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("SelectRepositories() error = %v, want nil", err)
+	}
+	if got, want := len(batch.Repositories), 1; got != want {
+		t.Fatalf("len(Repositories) = %d, want %d", got, want)
+	}
+
+	copiedRoot := filepath.Join(reposDir, "eshu-hq", "service-nested")
+	if _, err := os.Stat(filepath.Join(copiedRoot, "modules", "nested", "terraform.tfstate")); err != nil {
+		t.Fatalf("managed copy missing nested tracked terraform.tfstate: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(copiedRoot, "modules", "nested", "scratch.tfstate")); !os.IsNotExist(err) {
+		t.Fatalf("managed copy unexpectedly contains nested untracked scratch.tfstate (stat err = %v, want IsNotExist)", err)
+	}
+}
