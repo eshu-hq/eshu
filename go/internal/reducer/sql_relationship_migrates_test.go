@@ -83,6 +83,52 @@ func TestExtractSQLRelationshipRowsMigratesResolvesTarget(t *testing.T) {
 	}
 }
 
+// TestExtractSQLRelationshipRowsMigratesDeduplicatesDistinctTargetOperations
+// guards #5482: parser metadata preserves CREATE and DROP for the same target,
+// but graph truth has one migration-to-target adjacency edge with no operation
+// property. The operation remains evidence metadata, not edge cardinality.
+func TestExtractSQLRelationshipRowsMigratesDeduplicatesDistinctTargetOperations(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		sqlRelationshipRepositoryEnvelope(false, nil),
+		sqlRelationshipContentEntity("content-entity:e_tbl1", "SqlTable", "public.users", "db/schema.sql", nil),
+		sqlRelationshipContentEntity("content-entity:e_mig1", "SqlMigration", "V1__create_then_drop_users", "db/migrations/V1__create_then_drop_users.sql", map[string]any{
+			"sql_entity_type": "SqlMigration",
+			"tool":            "flyway",
+			"migration_targets": []any{
+				sqlMigrationTarget("SqlTable", "public.users", "create", 1),
+				sqlMigrationTarget("SqlTable", "public.users", "drop", 2),
+			},
+		}),
+	}
+
+	_, rows, stats := ExtractSQLRelationshipRows(envelopes)
+	if stats.UnresolvedMigrationTargets != 0 || stats.AmbiguousMigrationTargets != 0 {
+		t.Fatalf("migration target stats = %#v, want no unresolved or ambiguous targets", stats)
+	}
+
+	migratesRows := 0
+	for _, row := range rows {
+		if anyToString(row["relationship_type"]) != "MIGRATES" {
+			continue
+		}
+		migratesRows++
+		if got, want := row["source_entity_id"], "content-entity:e_mig1"; got != want {
+			t.Errorf("source_entity_id = %v, want %v", got, want)
+		}
+		if got, want := row["target_entity_id"], "content-entity:e_tbl1"; got != want {
+			t.Errorf("target_entity_id = %v, want %v", got, want)
+		}
+		if _, ok := row["operation"]; ok {
+			t.Errorf("MIGRATES row unexpectedly carries metadata-only operation: %#v", row)
+		}
+	}
+	if got, want := migratesRows, 1; got != want {
+		t.Fatalf("MIGRATES row count = %d, want %d; rows = %#v", got, want, rows)
+	}
+}
+
 // TestExtractSQLRelationshipRowsMigratesResolvesQualifiedTargetAgainstBareEntity
 // is the #5346 codex regression: a migration that names a schema-qualified
 // target (ALTER TABLE public.orders) must still resolve against a bare
