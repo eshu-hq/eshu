@@ -3,11 +3,12 @@
 
 // This golden-corpus io-seams test crossed the 500-line cap (497 -> 503) when
 // the #5443 TerraformStateResource node/property floor fixtures were added on
-// top of the #5419 CodeownerTeam floor entry. The fixture floors are a single
-// source of truth for the required-graph check; splitting the map across files
-// would obscure that. Test files are exempt from the whole-tree cap
-// (scripts/dev/precommit-go.sh); this marker only satisfies the per-file
-// filelength plugin.
+// top of the #5419 CodeownerTeam floor entry, and grew further (512 -> 516)
+// when #5446 added the rn-terraform-state-provider-binding floor fixture. The
+// fixture floors are a single source of truth for the required-graph check;
+// splitting the map across files would obscure that. Test files are exempt
+// from the whole-tree cap (scripts/dev/precommit-go.sh); this marker only
+// satisfies the per-file filelength plugin.
 //
 //nolint:filelength // fixture-floor test; rationale in the note above.
 package main
