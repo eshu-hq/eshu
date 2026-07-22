@@ -180,35 +180,38 @@ func (h *ImpactHandler) fetchWorkloadLiveInstanceSummary(
 	return summary, nil
 }
 
-// liveInstanceNamespaceEnvironmentQuery resolves each distinct (cluster_id,
-// namespace) pair a matched live fact was observed in to its already-gated
-// environment binding: the reducer-owned KubernetesNamespace node (issue
-// #5434, go/internal/storage/cypher/kubernetes_namespace_node_writer.go) plus
-// its optional TARGETS_ENVIRONMENT->Environment edge. This is a read of an
-// existing decision, never a re-derivation: the fact's own labels are the
-// object's labels, not the namespace's, so there is no label evidence here to
-// recompute a binding from even if this query wanted to.
+// liveInstanceNamespaceEnvironmentQuery resolves one (cluster_id, namespace)
+// pair a matched live fact was observed in to its already-gated environment
+// binding: the reducer-owned KubernetesNamespace node (issue #5434,
+// go/internal/storage/cypher/kubernetes_namespace_node_writer.go) plus its
+// optional TARGETS_ENVIRONMENT->Environment edge. This is a read of an existing
+// decision, never a re-derivation: the fact's own labels are the object's
+// labels, not the namespace's, so there is no label evidence here to recompute
+// a binding from even if this query wanted to.
 //
-// Both hops are OPTIONAL MATCH so every input pair returns exactly one row,
-// even when no KubernetesNamespace node exists for it at all (an absent node
-// and an existing-but-unbound node both surface as
-// environment_state = NULL/"environment-unbound" to the Go caller, matching
-// environment.StateEnvironmentUnbound's documented default). This statement
-// is MATCH-only: it never MERGEs or CREATEs a node or edge, so a trace read
-// can never fabricate environment truth.
+// It is run once per pair with scalar params, NOT an `UNWIND $pairs AS pair`
+// over map rows: NornicDB does not project `pair.<field>` after unwinding map
+// rows (it returns the raw `pair` map), so the pair's cluster_id/namespace are
+// attached in Go by the caller and only the environment binding is read here.
+// The driving `MATCH` binds `n` so its properties project correctly (an
+// OPTIONAL MATCH with no bound driving row nulls even literal projections on
+// NornicDB); an absent KubernetesNamespace node yields zero rows and the caller
+// reports environment.StateEnvironmentUnbound. The statement is MATCH-only: it
+// never MERGEs or CREATEs a node or edge, so a trace read can never fabricate
+// environment truth.
 const liveInstanceNamespaceEnvironmentQuery = `
-UNWIND $pairs AS pair
-OPTIONAL MATCH (n:KubernetesNamespace {cluster_id: pair.cluster_id, namespace: pair.namespace})
+MATCH (n:KubernetesNamespace {cluster_id: $cluster_id, namespace: $namespace})
 OPTIONAL MATCH (n)-[:TARGETS_ENVIRONMENT]->(env:Environment)
-RETURN pair.cluster_id AS cluster_id, pair.namespace AS namespace,
-       n.environment_state AS environment_state, env.name AS environment_name
+RETURN n.environment_state AS environment_state, env.name AS environment_name
 `
 
-// fetchLiveInstanceEnvironments resolves pairs to their bound/unbound
-// environment state via liveInstanceNamespaceEnvironmentQuery, through the
-// same GraphQuery dependency fetchServiceTraceContext uses. Returns nil, nil
-// when the handler or its graph dependency is unwired, or pairs is empty --
-// nil-safe, mirroring every other enrichment fetch in this handler.
+// fetchLiveInstanceEnvironments resolves each distinct pair to its bound/unbound
+// environment state via liveInstanceNamespaceEnvironmentQuery, through the same
+// GraphQuery dependency fetchServiceTraceContext uses. Returns nil, nil when the
+// handler or its graph dependency is unwired, or pairs is empty -- nil-safe,
+// mirroring every other enrichment fetch in this handler. One bounded query per
+// distinct pair (pairs are the distinct namespaces of the identity-matched
+// facts, typically one).
 func (h *ImpactHandler) fetchLiveInstanceEnvironments(
 	ctx context.Context,
 	pairs []namespacePair,
@@ -217,31 +220,28 @@ func (h *ImpactHandler) fetchLiveInstanceEnvironments(
 		return nil, nil
 	}
 
-	rowPairs := make([]map[string]any, 0, len(pairs))
+	environments := make([]map[string]any, 0, len(pairs))
 	for _, pair := range pairs {
-		rowPairs = append(rowPairs, map[string]any{
+		rows, err := h.Neo4j.Run(ctx, liveInstanceNamespaceEnvironmentQuery, map[string]any{
 			"cluster_id": pair.ClusterID,
 			"namespace":  pair.Namespace,
 		})
-	}
-	rows, err := h.Neo4j.Run(ctx, liveInstanceNamespaceEnvironmentQuery, map[string]any{"pairs": rowPairs})
-	if err != nil {
-		return nil, err
-	}
-
-	environments := make([]map[string]any, 0, len(rows))
-	for _, row := range rows {
-		entry := map[string]any{
-			"cluster_id": StringVal(row, "cluster_id"),
-			"namespace":  StringVal(row, "namespace"),
+		if err != nil {
+			return nil, err
 		}
-		state := StringVal(row, "environment_state")
-		envName := StringVal(row, "environment_name")
-		if state == string(environment.StateBound) && envName != "" {
-			entry["state"] = string(environment.StateBound)
-			entry["environment"] = environment.Canonical(envName)
-		} else {
-			entry["state"] = string(environment.StateEnvironmentUnbound)
+		// cluster_id/namespace come from the pair (Go-side), never from Cypher.
+		entry := map[string]any{
+			"cluster_id": pair.ClusterID,
+			"namespace":  pair.Namespace,
+			"state":      string(environment.StateEnvironmentUnbound),
+		}
+		if len(rows) > 0 {
+			state := StringVal(rows[0], "environment_state")
+			envName := StringVal(rows[0], "environment_name")
+			if state == string(environment.StateBound) && envName != "" {
+				entry["state"] = string(environment.StateBound)
+				entry["environment"] = environment.Canonical(envName)
+			}
 		}
 		environments = append(environments, entry)
 	}

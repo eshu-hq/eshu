@@ -48,9 +48,10 @@ func (s *stubKubernetesPodTemplateListStore) ListLiveIdentityMatches(
 type stubLiveInstanceGraphQuery struct {
 	rows []map[string]any
 	err  error
-	// cypher and params record the single call this handler makes per
-	// trace (fetchLiveInstanceEnvironments issues exactly one Run call for
-	// every distinct namespace pair, batched via UNWIND).
+	// cypher and params record the last call; fetchLiveInstanceEnvironments
+	// issues one Run call per distinct namespace pair with scalar params
+	// (cluster_id/namespace), never an UNWIND over map rows -- NornicDB does not
+	// project pair.<field> after unwinding maps.
 	cypher string
 	params map[string]any
 	calls  int
@@ -348,8 +349,12 @@ func TestFetchWorkloadLiveInstanceSummaryEnvironmentBound(t *testing.T) {
 			trackingID: {{ClusterID: "supply-chain-demo", Namespace: "default", ReadyReplicas: int32Ptr(3)}},
 		},
 	}
+	// The real query returns ONLY environment_state/environment_name; cluster_id
+	// and namespace are attached in Go from the pair (NornicDB will not project
+	// pair.<field> after an UNWIND of maps). The stub mirrors that shape so the
+	// test would have caught the projection gap the golden gate found.
 	graph := &stubLiveInstanceGraphQuery{rows: []map[string]any{
-		{"cluster_id": "supply-chain-demo", "namespace": "default", "environment_state": "bound", "environment_name": "prod"},
+		{"environment_state": "bound", "environment_name": "prod"},
 	}}
 	h := &ImpactHandler{KubernetesPodTemplates: store, Neo4j: graph}
 	summary, err := h.fetchWorkloadLiveInstanceSummary(
@@ -397,7 +402,7 @@ func TestLiveInstanceNamespaceEnvironmentQueryIsMatchOnly(t *testing.T) {
 			t.Fatalf("liveInstanceNamespaceEnvironmentQuery contains %q, must be MATCH-only:\n%s", forbidden, liveInstanceNamespaceEnvironmentQuery)
 		}
 	}
-	for _, want := range []string{"UNWIND $pairs AS pair", "OPTIONAL MATCH (n:KubernetesNamespace", "OPTIONAL MATCH (n)-[:TARGETS_ENVIRONMENT]->(env:Environment)"} {
+	for _, want := range []string{"MATCH (n:KubernetesNamespace {cluster_id: $cluster_id, namespace: $namespace})", "OPTIONAL MATCH (n)-[:TARGETS_ENVIRONMENT]->(env:Environment)"} {
 		if !strings.Contains(liveInstanceNamespaceEnvironmentQuery, want) {
 			t.Fatalf("liveInstanceNamespaceEnvironmentQuery missing %q:\n%s", want, liveInstanceNamespaceEnvironmentQuery)
 		}
@@ -418,7 +423,7 @@ func TestFetchWorkloadLiveInstanceSummaryEnvironmentUnboundExistingNode(t *testi
 		},
 	}
 	graph := &stubLiveInstanceGraphQuery{rows: []map[string]any{
-		{"cluster_id": "supply-chain-demo", "namespace": "default", "environment_state": "environment-unbound", "environment_name": nil},
+		{"environment_state": "environment-unbound", "environment_name": nil},
 	}}
 	h := &ImpactHandler{KubernetesPodTemplates: store, Neo4j: graph}
 	summary, err := h.fetchWorkloadLiveInstanceSummary(
@@ -438,8 +443,8 @@ func TestFetchWorkloadLiveInstanceSummaryEnvironmentUnboundExistingNode(t *testi
 
 // TestFetchWorkloadLiveInstanceSummaryEnvironmentNoNodeDefaultsUnbound proves
 // the no-node-at-all default: when no KubernetesNamespace node exists for a
-// pair, OPTIONAL MATCH returns nulls and the Go side defaults to unbound,
-// never invents a bound environment.
+// pair, the driving MATCH returns ZERO rows and the Go side defaults to
+// unbound, never invents a bound environment.
 func TestFetchWorkloadLiveInstanceSummaryEnvironmentNoNodeDefaultsUnbound(t *testing.T) {
 	t.Parallel()
 
@@ -449,9 +454,8 @@ func TestFetchWorkloadLiveInstanceSummaryEnvironmentNoNodeDefaultsUnbound(t *tes
 			trackingID: {{ClusterID: "supply-chain-demo", Namespace: "production", ReadyReplicas: int32Ptr(3)}},
 		},
 	}
-	graph := &stubLiveInstanceGraphQuery{rows: []map[string]any{
-		{"cluster_id": "supply-chain-demo", "namespace": "production", "environment_state": nil, "environment_name": nil},
-	}}
+	// No KubernetesNamespace node -> the driving MATCH returns zero rows.
+	graph := &stubLiveInstanceGraphQuery{rows: []map[string]any{}}
 	h := &ImpactHandler{KubernetesPodTemplates: store, Neo4j: graph}
 	summary, err := h.fetchWorkloadLiveInstanceSummary(
 		t.Context(), controllers, resources, []string{"img@sha256:a"}, repositoryAccessFilter{allScopes: true},
