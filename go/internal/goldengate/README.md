@@ -29,7 +29,7 @@ tests are unchanged.
 
 | File | Holds |
 |------|-------|
-| `snapshot.go` | `Snapshot` and its nested contract types (`GraphSnapshot`, `CountRange`, `RequiredCorrelation`, `RequiredNode`, `RequiredSelfLoop`, `DrainAssertions`, `DrainBound`, `QueryShapes`, `QueryShape`) plus `LoadSnapshot`. |
+| `snapshot.go` | `Snapshot` and its nested contract types (`GraphSnapshot`, `CountRange`, `RequiredCorrelation`, `RequiredNode`, `RequiredSelfLoop`, `DrainAssertions`, `DrainBound`, `QueryShapes`, `QueryShape`, `AbsentWhenPresent`) plus `LoadSnapshot`. |
 | `report.go` | `Finding` and `Report` — the pass/fail accumulator with the required/advisory split. |
 | `evaluate.go` | `DrainCounts` and every `Evaluate*` function (drains, required correlations, edge/node properties, required/present nodes, required self-loops, node/edge counts, query shape, API/MCP/CLI parity, timing). |
 | `query_shape_paths.go` | Bounded deep JSON path/value assertions for query shapes, including array traversal with `[]`. |
@@ -61,6 +61,17 @@ tests are unchanged.
   suffix traverses a non-empty array, which lets the dead-code replay library
   assert evidence citations and confidence labels without an unbounded response
   scan.
+- **Mutual-exclusion assertions catch disclosure-vs-served contradictions.**
+  `RequiredAbsentWhenPresent` (`AbsentWhenPresent`) fails only when a sibling
+  JSON path is present AND a domain marker path (e.g.
+  `evidence_boundaries[].domain`) resolves the matching domain value in the
+  SAME response — the class of bug that shipped twice on
+  [#5472](https://github.com/eshu-hq/eshu/issues/5472): a tool claims a domain
+  is absent while a sibling field in its own response actually serves it. Both
+  sides passing vacuously when the sibling is absent keeps existing, honest
+  boundary disclosures green; the companion existence assertions
+  (`RequiredJSONPaths`/`RequiredJSONValues` on `evidence_boundaries[].domain`)
+  still guard that a real boundary is disclosed in the first place.
 - **CLI parity is explicit metadata.** `query_shapes.cli` rows must name their
   CLI argv and truth class. `EvaluateQuerySurfaceParity` checks every
   `parity_with` peer exists and carries the same truth class, so API/MCP/CLI

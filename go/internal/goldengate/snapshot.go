@@ -213,6 +213,14 @@ type QueryShape struct {
 	// match a single resolved object. This prevents independent wildcard value
 	// checks from accepting reversed or unrelated relationship endpoints.
 	RequiredJSONObjectMatches map[string][]map[string]any `json:"required_json_object_matches,omitempty"`
+	// RequiredAbsentWhenPresent asserts mutual exclusion between a disclosed-
+	// absent domain marker (e.g. an evidence_boundaries entry) and the sibling
+	// JSON path that would actually serve that domain in the SAME response. It
+	// catches a disclosure-vs-served contradiction (eshu-hq/eshu#5472, #5581):
+	// a tool claiming a domain is absent from its response while a sibling
+	// field in that same response actually serves the exact domain. See
+	// AbsentWhenPresent.
+	RequiredAbsentWhenPresent []AbsentWhenPresent `json:"required_absent_when_present,omitempty"`
 	// ExpectedErrorContains declares a deliberate MCP refusal/error shape. It is
 	// used only for MCP tools whose local-full-stack proof is an explicit
 	// profile, fixture, or runtime-ceiling refusal rather than a successful data
@@ -231,6 +239,36 @@ type QueryShape struct {
 	// ParityWith names peer query shapes this shape must agree with, using
 	// "http:<shape-key>", "mcp:<tool-name>", or "cli:<command-key>" refs.
 	ParityWith []string `json:"parity_with,omitempty"`
+}
+
+// AbsentWhenPresent is a mutual-exclusion assertion between a disclosed-absent
+// domain marker and the sibling field that would actually serve that domain.
+// DomainPath/DomainValue name the marker (e.g. evidence_boundaries[].domain
+// resolving to "ci_cd_run_correlation"); SiblingPath names the domain's served
+// field in the same response (e.g. ci_cd_evidence). The assertion FAILS only
+// when SiblingPath resolves to a non-empty value AND DomainPath resolves
+// DomainValue among its values in that SAME response — a shipped-twice defect
+// class (eshu-hq/eshu#5472, #5581): a tool's evidence_boundaries claims a
+// domain is absent while a sibling top-level field actually serves it. The
+// check passes vacuously whenever SiblingPath is absent/empty (nothing served,
+// so no contradiction is possible) or DomainPath does not resolve DomainValue
+// (the domain is not disclosed as absent, whether or not it is genuinely
+// absent), regardless of the other side — existence-style assertions
+// (RequiredJSONPaths, EvaluateRequiredCorrelation, ...) independently guard
+// that the domain and sibling are exercised in the first place.
+type AbsentWhenPresent struct {
+	// Description is a human-facing note; not asserted.
+	Description string `json:"description,omitempty"`
+	// DomainPath is the dot-separated response path naming the disclosed-absent
+	// domain marker, e.g. evidence_boundaries[].domain.
+	DomainPath string `json:"domain_path"`
+	// DomainValue is the marker value that must not co-occur with SiblingPath
+	// being present, e.g. "ci_cd_run_correlation".
+	DomainValue string `json:"domain_value"`
+	// SiblingPath is the dot-separated response path that serves DomainValue's
+	// domain when present, e.g. ci_cd_evidence or
+	// code_to_runtime_trace.segments[].evidence[].identity_outcome.
+	SiblingPath string `json:"sibling_path"`
 }
 
 // LoadSnapshot reads and parses the golden snapshot at path.
