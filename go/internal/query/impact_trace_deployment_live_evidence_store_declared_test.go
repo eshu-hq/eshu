@@ -169,7 +169,7 @@ func TestKubernetesPodTemplateDeclaredObjectScopedEmptyGrantReturnsNoMatchWithou
 		GroupVersionResource: "apps/v1/deployments",
 		Namespace:            "ns",
 		Name:                 "workload-a",
-		AllScopes:             false, // scoped, but no grants below
+		AllScopes:            false, // scoped, but no grants below
 	})
 	if err != nil {
 		t.Fatalf("HasLiveIdentityMatch() error = %v, want nil", err)
@@ -189,14 +189,14 @@ func TestKubernetesPodTemplateHasLiveIdentityMatchDeclaredObjectScopedGrantHitsR
 	store := NewPostgresKubernetesPodTemplateStore(db)
 
 	matched, err := store.HasLiveIdentityMatch(context.Background(), KubernetesPodTemplateFilter{
-		AnchorKind:            liveIdentityAnchorDeclaredObject,
-		GroupVersionResource:  "apps/v1/deployments",
-		Namespace:             "production",
-		Name:                  "deployable-source",
-		ImageRefs:             []string{"ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"},
-		AllScopes:             false,
-		AllowedRepositoryIDs:  []string{"repo-tenant-a"},
-		AllowedScopeIDs:       []string{"cluster-scope:tenant-a"},
+		AnchorKind:           liveIdentityAnchorDeclaredObject,
+		GroupVersionResource: "apps/v1/deployments",
+		Namespace:            "production",
+		Name:                 "deployable-source",
+		ImageRefs:            []string{"ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"},
+		AllScopes:            false,
+		AllowedRepositoryIDs: []string{"repo-tenant-a"},
+		AllowedScopeIDs:      []string{"cluster-scope:tenant-a"},
 	})
 	if err != nil {
 		t.Fatalf("HasLiveIdentityMatch() error = %v, want nil", err)
@@ -267,12 +267,12 @@ func TestListLiveIdentityMatchesDeclaredObjectReturnsRows(t *testing.T) {
 	store := NewPostgresKubernetesPodTemplateStore(db)
 
 	matches, err := store.ListLiveIdentityMatches(context.Background(), KubernetesPodTemplateFilter{
-		AnchorKind:            liveIdentityAnchorDeclaredObject,
-		GroupVersionResource:  "apps/v1/deployments",
-		Namespace:             "production",
-		Name:                  "deployable-source",
-		ImageRefs:             []string{"ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"},
-		AllScopes:             true,
+		AnchorKind:           liveIdentityAnchorDeclaredObject,
+		GroupVersionResource: "apps/v1/deployments",
+		Namespace:            "production",
+		Name:                 "deployable-source",
+		ImageRefs:            []string{"ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"},
+		AllScopes:            true,
 	})
 	if err != nil {
 		t.Fatalf("ListLiveIdentityMatches() error = %v, want nil", err)
@@ -312,11 +312,11 @@ func TestKubernetesPodTemplateHasLiveIdentityMatchDispatchesOnAnchorKind(t *test
 
 	store := PostgresKubernetesPodTemplateStore{DB: declaredObjectQueryerSpy{t: t, columns: []string{"?column?"}, rows: [][]driver.Value{{int64(1)}}}}
 	matched, err := store.HasLiveIdentityMatch(context.Background(), KubernetesPodTemplateFilter{
-		AnchorKind:            liveIdentityAnchorDeclaredObject,
-		GroupVersionResource:  "apps/v1/deployments",
-		Namespace:             "production",
-		Name:                  "deployable-source",
-		AllScopes:             true,
+		AnchorKind:           liveIdentityAnchorDeclaredObject,
+		GroupVersionResource: "apps/v1/deployments",
+		Namespace:            "production",
+		Name:                 "deployable-source",
+		AllScopes:            true,
 	})
 	if err != nil {
 		t.Fatalf("HasLiveIdentityMatch() error = %v, want nil", err)
