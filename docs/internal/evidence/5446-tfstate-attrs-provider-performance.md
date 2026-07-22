@@ -42,6 +42,17 @@ which this change leaves untouched.
 
 ## Benchmark Evidence
 
+Benchmark Evidence: attribute promotion is an O(1) map lookup per resource row
+(412.3 ns/op pre-existing 2-attr shape, 767.1 ns/op post-#5446 6-attr shape,
+8.5 ns/op on a type miss); the provider pre-pass adds one decode per resource
+fact and three fixed scalar SET keys — full numbers below.
+
+No-Regression Evidence: the write path keeps the shipped REMOVE-before-upsert
+two-statement shape unchanged (cited from `docs/internal/evidence/5441-edge-node-properties.md`,
+not re-proven here); the payload grows only by a bounded, enumerated scalar set,
+and `BenchmarkBuildTerraformStateStatementsSyntheticCorpus` (10k resources)
+below shows the statement count and wall stay bounded.
+
 All in-process benchmarks run on this machine (Apple M1 Max, `darwin/arm64`),
 `go test -bench` against the built package, no live backend required except
 where noted.
