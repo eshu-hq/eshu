@@ -129,7 +129,22 @@ func TestAdminInitialCredentialAndResetRoundTrip(t *testing.T) {
 	now := time.Now().UTC()
 	userID := "user-cli-round-trip"
 	subjectIDHash := "sha256:cli-round-trip-subject"
-	seedIdentityFixture(t, ctx, db, userID, subjectIDHash, now)
+	originalRecoveryCode := "original-first-run-recovery-code"
+	seedIdentityFixture(t, ctx, db, userID, subjectIDHash, originalRecoveryCode, now)
+
+	// Seed an ACTIVE TOTP factor the admin enrolled after bootstrap, the
+	// documented invariant this reset must never touch. A raw fixture insert
+	// (rather than driving the full totp-package enroll/confirm code
+	// exchange) is deliberate: it proves ResetBootstrapCredential's SQL
+	// scoping directly against a real row, independent of whether the totp
+	// package itself is exercised elsewhere.
+	totpFactorID := "id_cli-round-trip-totp"
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO identity_mfa_factors (factor_id, user_id, factor_kind, status, secret_credential_handle, public_key_hash, created_at, verified_at, last_used_at, revoked_at)
+VALUES ($1, $2, 'totp', 'active', 'sha256:totp-handle', NULL, $3, $3, NULL, NULL)
+`, totpFactorID, userID, now); err != nil {
+		t.Fatalf("seed totp factor fixture: %v", err)
+	}
 
 	keyring, err := secretcrypto.KeyringFromEnv(func(k string) string {
 		if k == "ESHU_AUTH_SECRET_ENC_KEY" {
@@ -206,6 +221,11 @@ func TestAdminInitialCredentialAndResetRoundTrip(t *testing.T) {
 	if newKeyID == "" {
 		t.Fatalf("EnvelopeKeyID() returned empty for a freshly sealed envelope: %q", newSealed)
 	}
+	newMFAFactorID, err := newLocalIdentityFactorID()
+	if err != nil {
+		t.Fatalf("newLocalIdentityFactorID() error = %v", err)
+	}
+	newRecoveryCodeHash := query.IdentityHash(newRecovery)
 	if err := store.ResetBootstrapCredential(ctx, pgstorage.ResetBootstrapCredentialInput{
 		TenantID:               pgstorage.BootstrapAdminTenantID,
 		WorkspaceID:            pgstorage.BootstrapAdminWorkspaceID,
@@ -214,6 +234,8 @@ func TestAdminInitialCredentialAndResetRoundTrip(t *testing.T) {
 		PasswordHash:           newHash,
 		PasswordAlgorithm:      "bcrypt",
 		PasswordParametersHash: query.IdentityHash("bcrypt"),
+		MFAFactorID:            newMFAFactorID,
+		RecoveryCodeHash:       newRecoveryCodeHash,
 		ResetAt:                time.Now().UTC(),
 	}); err != nil {
 		t.Fatalf("ResetBootstrapCredential() error = %v", err)
@@ -243,33 +265,114 @@ func TestAdminInitialCredentialAndResetRoundTrip(t *testing.T) {
 	if storedHash != newHash {
 		t.Fatalf("stored password_hash = %q, want %q (reset did not rotate identity_local_credentials)", storedHash, newHash)
 	}
+
+	// The TOTP factor seeded above must be completely untouched: same status,
+	// same revoked_at, same last_used_at. ResetBootstrapCredential's recovery-
+	// factor revocation is scoped to factor_kind='recovery_code' — this is the
+	// live-Postgres proof of that scoping, not just a read of the SQL text.
+	var (
+		totpStatus     string
+		totpRevokedAt  sql.NullTime
+		totpLastUsedAt sql.NullTime
+	)
+	row2 := db.QueryRowContext(ctx, `SELECT status, revoked_at, last_used_at FROM identity_mfa_factors WHERE factor_id = $1`, totpFactorID)
+	if err := row2.Scan(&totpStatus, &totpRevokedAt, &totpLastUsedAt); err != nil {
+		t.Fatalf("read totp factor row after reset: %v", err)
+	}
+	if totpStatus != "active" || totpRevokedAt.Valid {
+		t.Fatalf(
+			"reset touched the TOTP factor it must never touch: status=%q revoked_at.Valid=%t (want active, revoked_at NULL)",
+			totpStatus, totpRevokedAt.Valid,
+		)
+	}
+	if totpLastUsedAt.Valid {
+		t.Fatalf("reset modified the TOTP factor's last_used_at, want untouched NULL: %v", totpLastUsedAt.Time)
+	}
+
+	// The core proof for issue #5602: the recovery code this command PRINTS
+	// after a reset must actually authenticate, and the code it replaced must
+	// not. Neither check below drives AuthenticateLocalIdentity into a FAILED
+	// attempt (the no-MFA-proof call short-circuits to mfa_required before
+	// any lockout bookkeeping runs), so this never touches account lockout.
+	noMFA, err := store.AuthenticateLocalIdentity(ctx, pgstorage.LocalIdentityAuthenticationAttempt{
+		SubjectIDHash: subjectIDHash,
+		Password:      newPassword,
+		Now:           time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("AuthenticateLocalIdentity() (no MFA proof) error = %v", err)
+	}
+	if noMFA.Status != pgstorage.LocalIdentityAuthMFARequired {
+		t.Fatalf("post-reset password-only login status = %q, want %q", noMFA.Status, pgstorage.LocalIdentityAuthMFARequired)
+	}
+
+	// Prove the ORIGINAL recovery code row was revoked directly against the
+	// table AuthenticateLocalIdentity reads (rather than by driving another
+	// failed AuthenticateLocalIdentity call): a failed-login attempt also
+	// exercises identity_local_auth_attempts' lockout bookkeeping, an
+	// unrelated code path with its own pgx NULL-timestamp binding issue this
+	// test must not couple to.
+	originalRecoveryCodeHash := query.IdentityHash(originalRecoveryCode)
+	var originalCodeStatus string
+	row = db.QueryRowContext(ctx, `SELECT status FROM identity_mfa_recovery_codes WHERE user_id = $1 AND recovery_code_hash = $2`, userID, originalRecoveryCodeHash)
+	if err := row.Scan(&originalCodeStatus); err != nil {
+		t.Fatalf("read original recovery code row: %v", err)
+	}
+	if originalCodeStatus != "revoked" {
+		t.Fatalf("original recovery code status = %q, want %q (reset must revoke the code it replaces)", originalCodeStatus, "revoked")
+	}
+
+	freshAttempt, err := store.AuthenticateLocalIdentity(ctx, pgstorage.LocalIdentityAuthenticationAttempt{
+		SubjectIDHash:       subjectIDHash,
+		Password:            newPassword,
+		MFARecoveryCodeHash: newRecoveryCodeHash,
+		Now:                 time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("AuthenticateLocalIdentity() (fresh recovery code) error = %v", err)
+	}
+	if !freshAttempt.Authenticated || freshAttempt.Status != pgstorage.LocalIdentityAuthAuthenticated {
+		t.Fatalf(
+			"the recovery code printed by reset-initial-credential did not authenticate (issue #5602): result = %#v",
+			freshAttempt,
+		)
+	}
 }
 
-func seedIdentityFixture(t *testing.T, ctx context.Context, db *sql.DB, userID, subjectIDHash string, now time.Time) {
+// seedIdentityFixture seeds a real bootstrap admin identity through
+// store.BootstrapLocalIdentity — the same production path
+// go/cmd/api/seed_initial_admin.go uses — rather than hand-built SQL, so the
+// resulting row set includes the owner role/membership grants and the
+// original recovery-code MFA factor AuthenticateLocalIdentity actually reads.
+// recoveryCode is the plaintext of the ORIGINAL (pre-reset) recovery code;
+// the test hashes it to prove the reset revokes it.
+func seedIdentityFixture(
+	t *testing.T, ctx context.Context, db *sql.DB, userID, subjectIDHash, recoveryCode string, now time.Time,
+) {
 	t.Helper()
-	if _, err := db.ExecContext(ctx, `
-INSERT INTO tenants (tenant_id, status, display_handle_hash, policy_revision_hash, created_at, updated_at, tombstoned_at)
-VALUES ($1, 'active', '', 'sha256:policy', $2, $2, NULL)
-`, pgstorage.BootstrapAdminTenantID, now); err != nil {
-		t.Fatalf("seed tenant: %v", err)
+	store := pgstorage.NewIdentitySubjectStore(pgstorage.SQLDB{DB: db})
+	mfaFactorID, err := newLocalIdentityFactorID()
+	if err != nil {
+		t.Fatalf("newLocalIdentityFactorID() error = %v", err)
 	}
-	if _, err := db.ExecContext(ctx, `
-INSERT INTO workspaces (tenant_id, workspace_id, status, display_handle_hash, policy_revision_hash, created_at, updated_at, tombstoned_at)
-VALUES ($1, $2, 'active', '', 'sha256:policy', $3, $3, NULL)
-`, pgstorage.BootstrapAdminTenantID, pgstorage.BootstrapAdminWorkspaceID, now); err != nil {
-		t.Fatalf("seed workspace: %v", err)
-	}
-	if _, err := db.ExecContext(ctx, `
-INSERT INTO identity_users (user_id, subject_id_hash, status, profile_handle_hash, created_at, updated_at, disabled_at, tombstoned_at)
-VALUES ($1, $2, 'active', '', $3, $3, NULL, NULL)
-`, userID, subjectIDHash, now); err != nil {
-		t.Fatalf("seed identity user: %v", err)
-	}
-	if _, err := db.ExecContext(ctx, `
-INSERT INTO identity_local_credentials (credential_id, user_id, password_hash, password_algorithm, password_parameters_hash, status, created_at, rotated_at, expires_at, revoked_at)
-VALUES ($1, $2, 'bcrypt:initial-hash', 'bcrypt', 'sha256:bcrypt-cost', 'active', $3, $3, NULL, NULL)
-`, userID+"-cred", userID, now); err != nil {
-		t.Fatalf("seed local credential: %v", err)
+	err = store.BootstrapLocalIdentity(ctx, pgstorage.LocalIdentityBootstrapRecord{
+		TenantID:               pgstorage.BootstrapAdminTenantID,
+		WorkspaceID:            pgstorage.BootstrapAdminWorkspaceID,
+		UserID:                 userID,
+		SubjectIDHash:          subjectIDHash,
+		ProfileHandleHash:      "sha256:cli-round-trip-handle",
+		PasswordHash:           "bcrypt:initial-hash",
+		PasswordAlgorithm:      "bcrypt",
+		PasswordParametersHash: "sha256:bcrypt-cost",
+		MFAFactorID:            mfaFactorID,
+		MFAFactorKind:          "recovery_code",
+		RecoveryCodeHashes:     []string{query.IdentityHash(recoveryCode)},
+		PolicyRevisionHash:     "sha256:policy",
+		CreatedAt:              now,
+		MustChangePassword:     false,
+	})
+	if err != nil {
+		t.Fatalf("BootstrapLocalIdentity() error = %v", err)
 	}
 }
 

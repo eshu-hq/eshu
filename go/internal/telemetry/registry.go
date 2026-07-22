@@ -127,6 +127,7 @@ var spanNames = []string{
 	SpanQueryIaCManagementExplanation,
 	SpanQueryIaCTerraformImportPlan,
 	SpanQueryAWSRuntimeDriftFindings,
+	SpanQueryTerraformConfigStateDriftFindings,
 	SpanQueryReplatformingSelectors,
 	SpanQueryReplatformingPlan,
 	SpanQueryIaCResources,

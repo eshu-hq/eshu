@@ -27,6 +27,7 @@ func scopedCloudFamilyRoute(r *http.Request) bool {
 		scopedCloudResourceListRoute(r),
 		scopedCloudRuntimeDriftFindingsRoute(r),
 		scopedAWSRuntimeDriftFindingsRoute(r),
+		scopedTerraformConfigStateDriftFindingsRoute(r),
 		scopedKubernetesCorrelationsRoute(r),
 		scopedObservabilityCoverageCorrelationsRoute(r),
 		scopedEcosystemOverviewRoute(r),
@@ -79,6 +80,16 @@ func scopedCloudRuntimeDriftFindingsRoute(r *http.Request) bool {
 // this precheck cannot safely narrow) and never calls the store otherwise.
 func scopedAWSRuntimeDriftFindingsRoute(r *http.Request) bool {
 	return r.Method == http.MethodPost && r.URL.Path == "/api/v0/aws/runtime-drift/findings"
+}
+
+// scopedTerraformConfigStateDriftFindingsRoute reports whether the request
+// targets the Terraform config-vs-state drift readback (issue #5442).
+// handleFindings (terraform_config_state_drift.go) requires a scoped caller
+// to supply an exact granted scope_id -- this domain has no account-wide
+// fallback to fan out over, unlike AWS's account_id-only filter -- and never
+// calls the store for a scoped caller without that grant.
+func scopedTerraformConfigStateDriftFindingsRoute(r *http.Request) bool {
+	return r.Method == http.MethodPost && r.URL.Path == "/api/v0/terraform/config-state-drift/findings"
 }
 
 // scopedKubernetesCorrelationsRoute reports whether the request targets the

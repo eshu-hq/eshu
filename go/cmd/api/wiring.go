@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
-	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -314,6 +313,12 @@ func wireAPI(
 		}
 		return nil, nil, nil, fmt.Errorf("configure oidc login: %w", err)
 	}
+	if oidcLoginHandler != nil {
+		// Governance audit for SSO callback outcomes (issue #5601): reuses
+		// the same governanceAudit appender local login, break-glass, and
+		// bootstrap already write identity_authentication events through.
+		oidcLoginHandler.Audit = adminRecoveryAuditAppender(governanceAudit)
+	}
 	router.OIDCLogin = oidcLoginHandler
 	oidcSessionRefreshWorker, err := newOIDCSessionRefreshWorker(getenv, db, instruments, logger)
 	if err != nil {
@@ -348,6 +353,8 @@ func wireAPI(
 		// session issuance resolves the same override BrowserSessionHandler
 		// and LocalIdentityHandler do.
 		samlHandler.SignInPolicy = browserSessionAdapter
+		// Governance audit for SSO callback outcomes (issue #5601).
+		samlHandler.Audit = adminRecoveryAuditAppender(governanceAudit)
 	}
 	githubLoginHandler, err := newGitHubLoginHandler(getenv, db, instruments, providerSecretKeyring)
 	if err != nil {
@@ -356,6 +363,10 @@ func wireAPI(
 			_ = driver.Close(ctx)
 		}
 		return nil, nil, nil, fmt.Errorf("configure github login: %w", err)
+	}
+	if githubLoginHandler != nil {
+		// Governance audit for SSO callback outcomes (issue #5601).
+		githubLoginHandler.Audit = adminRecoveryAuditAppender(governanceAudit)
 	}
 	router.GitHubLogin = githubLoginHandler
 	authProviders := &query.AuthProviderListHandler{
@@ -470,25 +481,4 @@ func wireAPI(
 	}
 
 	return final, cleanup, instruments, nil
-}
-
-func openQueryGraph(
-	ctx context.Context,
-	getenv func(string) string,
-	queryProfile query.QueryProfile,
-	logger *slog.Logger,
-) (neo4jdriver.DriverWithContext, string, error) {
-	neo4jDB := envOrDefault(getenv, "DEFAULT_DATABASE", "nornic")
-	if queryProfile == query.ProfileLocalLightweight || strings.EqualFold(envOrDefault(getenv, "ESHU_DISABLE_NEO4J", ""), "true") {
-		return nil, neo4jDB, nil
-	}
-
-	driver, cfg, err := internalruntime.OpenNeo4jDriver(ctx, getenv)
-	if err != nil {
-		return nil, "", err
-	}
-	if logger != nil {
-		logger.Info("neo4j connected", telemetry.EventAttr("runtime.neo4j.connected"), slog.String("neo4j_uri", cfg.URI))
-	}
-	return driver, cfg.DatabaseName, nil
 }

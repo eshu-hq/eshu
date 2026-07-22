@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -64,7 +65,13 @@ func init() {
 	resetInitialCredentialCmd := &cobra.Command{
 		Use:   "reset-initial-credential",
 		Short: "Regenerate and reseal the bootstrap admin credential",
-		RunE:  runAdminResetInitialCredential,
+		Long: "reset-initial-credential atomically rotates the bootstrap admin's " +
+			"password AND re-enrolls its MFA recovery-code factor (issue #5602), " +
+			"so the printed recovery code below actually authenticates. It never " +
+			"touches a TOTP factor the admin enrolled after bootstrap. Use this " +
+			"when the original one-time credential was lost, expired under the " +
+			"configured data-encryption key, or already consumed.",
+		RunE: runAdminResetInitialCredential,
 	}
 	resetInitialCredentialCmd.Flags().String("username", "", "Username to seal into the new credential bundle; required only if the prior credential cannot be recovered to carry it forward")
 	adminCmd.AddCommand(resetInitialCredentialCmd)
@@ -156,6 +163,18 @@ func runAdminResetInitialCredential(cmd *cobra.Command, _ []string) error {
 	}
 
 	now := time.Now().UTC()
+	// The recovery-code factor is re-enrolled atomically alongside the
+	// password rotation and envelope reseal (issue #5602): before this, the
+	// printed recovery code below was never persisted anywhere, so it could
+	// never authenticate. mfaFactorID is a fresh factor row id — a reset
+	// always installs a NEW factor rather than reusing the old one, so a
+	// concurrent login racing this reset can never observe a factor row with
+	// a hash that has not been committed yet.
+	mfaFactorID, err := newLocalIdentityFactorID()
+	if err != nil {
+		return fmt.Errorf("generate replacement mfa factor id: %w", err)
+	}
+	recoveryCodeHash := query.IdentityHash(recoveryCode)
 	resetErr := store.ResetBootstrapCredential(ctx, pgstorage.ResetBootstrapCredentialInput{
 		TenantID:               pgstorage.BootstrapAdminTenantID,
 		WorkspaceID:            pgstorage.BootstrapAdminWorkspaceID,
@@ -164,6 +183,8 @@ func runAdminResetInitialCredential(cmd *cobra.Command, _ []string) error {
 		PasswordHash:           string(passwordHash),
 		PasswordAlgorithm:      "bcrypt",
 		PasswordParametersHash: query.IdentityHash("bcrypt"),
+		MFAFactorID:            mfaFactorID,
+		RecoveryCodeHash:       recoveryCodeHash,
 		ResetAt:                now,
 	})
 	auditAppender := newAdminCredentialAuditAppender(pgstorage.SQLDB{DB: db})
@@ -252,4 +273,19 @@ func generateSecret(n int) (string, error) {
 		return "", fmt.Errorf("generate secret: %w", err)
 	}
 	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
+// newLocalIdentityFactorID returns a fresh opaque MFA factor identifier for
+// the recovery-code factor a reset re-enrolls (issue #5602), matching the
+// "id_<32 hex chars>" shape go/cmd/api/seed_initial_admin_helpers.go's
+// newBootstrapID uses for every other bootstrap-identity primary key. The two
+// main packages cannot share an unexported helper across binaries (see
+// bootstrapCredentialPayloadCLI's doc comment above), so this is a small
+// independent implementation of the same shape.
+func newLocalIdentityFactorID() (string, error) {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("generate mfa factor id: %w", err)
+	}
+	return "id_" + hex.EncodeToString(buf), nil
 }

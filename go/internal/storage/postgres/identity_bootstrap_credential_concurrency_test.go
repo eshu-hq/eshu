@@ -143,6 +143,8 @@ func runBootstrapCredentialConcurrencyRound(
 			PasswordHash:           resetPasswordHash,
 			PasswordAlgorithm:      "bcrypt",
 			PasswordParametersHash: "sha256:bcrypt-cost",
+			MFAFactorID:            fmt.Sprintf("id_reset-recovery-factor-%d", round),
+			RecoveryCodeHash:       fmt.Sprintf("sha256:reset-recovery-code-%d", round),
 			ResetAt:                time.Now().UTC(),
 		})
 		if err != nil {
@@ -156,7 +158,8 @@ func runBootstrapCredentialConcurrencyRound(
 		t.Error(err)
 	}
 
-	assertBootstrapCredentialRowConsistent(t, ctx, ownerDB, tenantID, workspaceID, userID, resetPasswordHash)
+	resetRecoveryCodeHash := fmt.Sprintf("sha256:reset-recovery-code-%d", round)
+	assertBootstrapCredentialRowConsistent(t, ctx, ownerDB, tenantID, workspaceID, userID, resetPasswordHash, resetRecoveryCodeHash)
 }
 
 // assertBootstrapCredentialRowConsistent reads the final row state directly
@@ -167,7 +170,7 @@ func assertBootstrapCredentialRowConsistent(
 	t *testing.T,
 	ctx context.Context,
 	db *sql.DB,
-	tenantID, workspaceID, userID, resetPasswordHash string,
+	tenantID, workspaceID, userID, resetPasswordHash, resetRecoveryCodeHash string,
 ) {
 	t.Helper()
 
@@ -211,6 +214,23 @@ WHERE user_id = $1 AND status = 'active' AND revoked_at IS NULL
 	}
 	if passwordHash != resetPasswordHash {
 		t.Fatalf("password_hash = %q, want %q (envelope and database password diverged under concurrency)", passwordHash, resetPasswordHash)
+	}
+
+	// The reset must also have re-enrolled exactly one active recovery-code
+	// row carrying the NEW hash (issue #5602): concurrent Consume/Generate
+	// pressure on the unrelated bootstrap-credential row must never leave the
+	// MFA recovery factor stale, duplicated, or missing.
+	var activeRecoveryCodeCount int
+	row = db.QueryRowContext(ctx, `
+SELECT COUNT(*)
+FROM identity_mfa_recovery_codes
+WHERE user_id = $1 AND recovery_code_hash = $2 AND status = 'active' AND revoked_at IS NULL
+`, userID, resetRecoveryCodeHash)
+	if err := row.Scan(&activeRecoveryCodeCount); err != nil {
+		t.Fatalf("read reset recovery code row: %v", err)
+	}
+	if activeRecoveryCodeCount != 1 {
+		t.Fatalf("active recovery codes matching the reset hash = %d, want exactly 1", activeRecoveryCodeCount)
 	}
 }
 

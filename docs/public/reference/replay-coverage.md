@@ -4,16 +4,16 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 422/422 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 424/424 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
 | Axis | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | authorization_catalog | 24 | 24 | 100.00% | 0 | 0 |
-| Capability claims | 135 | 135 | 100.00% | 0 | 0 |
+| Capability claims | 136 | 136 | 100.00% | 0 | 0 |
 | Read surfaces (CLI) | 7 | 7 | 100.00% | 0 | 0 |
-| Read surfaces (API/MCP) | 24 | 24 | 100.00% | 0 | 1 |
+| Read surfaces (API/MCP) | 25 | 25 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
 | Projections (cost/ordering) | 28 | 28 | 100.00% | 0 | 1 |
@@ -21,13 +21,13 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Retractable edge types (delta) | 59 | 59 | 100.00% | 0 | 1 |
 | Retractable node types (delta) | 95 | 95 | 100.00% | 0 | 1 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **422** | **422** | **100.00%** | **0** | **12** |
+| **Total** | **424** | **424** | **100.00%** | **0** | **12** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 218 | 218 | 100.00% | 0 | 5 |
+| baseline | 220 | 220 | 100.00% | 0 | 5 |
 | cost | 27 | 27 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 155 | 155 | 100.00% | 0 | 2 |
@@ -46,7 +46,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 None. Every supported surface has a replay scenario.
 
-## Covered surfaces (422)
+## Covered surfaces (424)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -206,6 +206,7 @@ None. Every supported surface has a replay scenario.
 | `capability:symbol_graph.import_dependencies` | baseline | capability_claim | capability-inventory | `symbol_graph.import_dependencies` |
 | `capability:symbol_graph.imports` | baseline | capability_claim | capability-inventory | `symbol_graph.imports` |
 | `capability:symbol_graph.inheritance` | baseline | correlation | golden-corpus-gate | `rc-12` |
+| `capability:terraform_config_state_drift.findings.list` | baseline | capability_claim | capability-inventory | `terraform_config_state_drift.findings.list` |
 | `capability:visualization.graph_query` | baseline | capability_claim | capability-inventory | `visualization.graph_query` |
 | `capability:visualization.packet_derivation` | baseline | capability_claim | capability-inventory | `visualization.packet_derivation` |
 | `capability:work_item.evidence.list` | baseline | capability_claim | capability-inventory | `work_item.evidence.list` |
@@ -239,6 +240,7 @@ None. Every supported surface has a replay scenario.
 | `read_surface:GET /api/v0/work-items/evidence` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/work-items/evidence?limit=50&scope_id=jira:supply-chain-demo:SCD` |
 | `read_surface:POST /api/v0/aws/runtime-drift/findings` | baseline | api_mcp_golden | golden-corpus-gate | `POST /api/v0/aws/runtime-drift/findings` |
 | `read_surface:POST /api/v0/cloud/runtime-drift/findings` | baseline | api_mcp_golden | golden-corpus-gate | `POST /api/v0/cloud/runtime-drift/findings` |
+| `read_surface:POST /api/v0/terraform/config-state-drift/findings` | baseline | api_mcp_golden | golden-corpus-gate | `POST /api/v0/terraform/config-state-drift/findings` |
 | `read_surface:list_repository_files` | baseline | api_mcp_golden | golden-corpus-gate | `list_repository_files` |
 | `parser:cloudformation` | baseline | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/cloudformation.fixture.json` |
 | `parser:dockerfile` | baseline | parser_fixture | parserfixture-tests | `go/internal/replay/parserfixture/testdata/fixtures/dockerfile.fixture.json` |

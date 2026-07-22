@@ -361,6 +361,8 @@ func TestResetBootstrapCredentialRegeneratesAndRotatesAtomically(t *testing.T) {
 		PasswordHash:           "bcrypt:new-hash",
 		PasswordAlgorithm:      "bcrypt",
 		PasswordParametersHash: "sha256:bcrypt-cost",
+		MFAFactorID:            "id_new-recovery-factor",
+		RecoveryCodeHash:       "sha256:new-recovery-code",
 		ResetAt:                resetAt,
 	})
 	if err != nil {
@@ -403,6 +405,8 @@ func TestResetBootstrapCredentialReturnsNotFoundWhenRowMissing(t *testing.T) {
 		PasswordHash:           "bcrypt:new-hash",
 		PasswordAlgorithm:      "bcrypt",
 		PasswordParametersHash: "sha256:bcrypt-cost",
+		MFAFactorID:            "id_new-recovery-factor",
+		RecoveryCodeHash:       "sha256:new-recovery-code",
 	})
 	if !errors.Is(err, ErrBootstrapCredentialNotFound) {
 		t.Fatalf("ResetBootstrapCredential() error = %v, want ErrBootstrapCredentialNotFound", err)

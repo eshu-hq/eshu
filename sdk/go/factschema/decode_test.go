@@ -426,6 +426,7 @@ var payloadContracts = []struct {
 	{FactKindReducerSupplyChainImpactFinding, "reducer_supply_chain_impact_finding.v1.schema.json", reflect.TypeOf(reducerderivedv1.SupplyChainImpactFinding{})},
 	{FactKindReducerAWSCloudRuntimeDriftFinding, "reducer_aws_cloud_runtime_drift_finding.v1.schema.json", reflect.TypeOf(reducerderivedv1.AWSCloudRuntimeDriftFinding{})},
 	{FactKindReducerMultiCloudRuntimeDriftFinding, "reducer_multi_cloud_runtime_drift_finding.v1.schema.json", reflect.TypeOf(reducerderivedv1.MultiCloudRuntimeDriftFinding{})},
+	{FactKindReducerTerraformConfigStateDriftFinding, "reducer_terraform_config_state_drift_finding.v1.schema.json", reflect.TypeOf(reducerderivedv1.TerraformConfigStateDriftFinding{})},
 	{FactKindReducerPackageOwnershipCorrelation, "reducer_package_ownership_correlation.v1.schema.json", reflect.TypeOf(reducerderivedv1.PackageOwnershipCorrelation{})},
 	{FactKindReducerPackageConsumptionCorrelation, "reducer_package_consumption_correlation.v1.schema.json", reflect.TypeOf(reducerderivedv1.PackageConsumptionCorrelation{})},
 	{FactKindReducerPackagePublicationCorrelation, "reducer_package_publication_correlation.v1.schema.json", reflect.TypeOf(reducerderivedv1.PackagePublicationCorrelation{})},

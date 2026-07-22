@@ -467,6 +467,13 @@ const (
 	SpanQueryIaCManagementExplanation = "query.iac_management_explanation"
 	SpanQueryIaCTerraformImportPlan   = "query.iac_terraform_import_plan"
 	SpanQueryAWSRuntimeDriftFindings  = "query.aws_runtime_drift_findings"
+	// SpanQueryTerraformConfigStateDriftFindings wraps the bounded active
+	// Terraform config-vs-state drift finding read
+	// (POST /api/v0/terraform/config-state-drift/findings, issue #5442). The
+	// span carries only stable route and capability attributes; state-snapshot
+	// scope, resource address, and evidence identifiers remain in the
+	// authorized response and out of telemetry.
+	SpanQueryTerraformConfigStateDriftFindings = "query.terraform_config_state_drift_findings"
 	// SpanQueryReplatformingSelectors wraps the bounded active AWS collector
 	// scope inventory read (GET /api/v0/replatforming/selectors). The span carries
 	// only stable route and capability attributes; account, region, service, and

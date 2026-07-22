@@ -152,4 +152,11 @@ var intentionalRequiredCollections = map[requiredCollectionKey]struct{}{
 	{FactKindReducerMultiCloudRuntimeDriftFinding, "warning_flags"}:    {},
 	{FactKindReducerMultiCloudRuntimeDriftFinding, "evidence"}:         {},
 	{FactKindReducerMultiCloudRuntimeDriftFinding, "source_layers"}:    {},
+	// PostgresTerraformConfigStateDriftWriter (issue #5442) emits these
+	// collections unconditionally and normalizes empty values to [] so the
+	// read model never sees a null list. ambiguous_owner_candidates stays
+	// omitempty (genuinely absent for every "exact" row) and is not listed
+	// here on purpose.
+	{FactKindReducerTerraformConfigStateDriftFinding, "evidence"}:      {},
+	{FactKindReducerTerraformConfigStateDriftFinding, "source_layers"}: {},
 }
