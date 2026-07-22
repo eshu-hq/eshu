@@ -53,4 +53,12 @@
 // Pod's .Status.Phase and nil for every other workload kind. This is
 // fact-level emission only; no reducer, graph node, or query surface consumes
 // these fields yet (deferred to the #5435 materialization capstone).
+//
+// Selector-match relationship edges (#5437): the collector retains each
+// Service's label selector and each Pod's labels, then emits one
+// kubernetes_live.relationship fact (RelationshipType selector_match) per
+// Service whose selector is a subset of a Pod's labels in the same
+// namespace. An empty selector never matches. Unlike owner_reference, a
+// selector-match edge cannot prove exact ownership; the reducer classifies
+// it ambiguous and provenance-only, never promoting it to exact.
 package kuberneteslive

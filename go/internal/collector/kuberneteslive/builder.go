@@ -32,12 +32,43 @@ type generationBuilder struct {
 	// serviceAccountIndex maps namespace/name -> ServiceAccount metadata so
 	// workload identity-use facts can include UID posture when available.
 	serviceAccountIndex map[string]ServiceAccountObject
+	// serviceSelectorIndex retains each Service's identity and label selector
+	// so the selector-match pass (run after collectWorkloads) can find which
+	// Pods it actually routes to. A Service with an empty selector is excluded:
+	// Kubernetes never treats an empty selector as "match every Pod", so
+	// indexing it would only add unproductive comparisons. Kept as an ordered
+	// slice (list order) so selector_match emission order stays deterministic.
+	serviceSelectorIndex []serviceSelectorEntry
+	// podLabelIndex retains each Pod's identity and labels for the
+	// selector-match pass, bucketed by namespace: a Service selector can only
+	// ever match a Pod in the same namespace (selector_match.go), so
+	// matchSelectors looks up exactly one bucket per Service instead of
+	// scanning every Pod in the cluster and discarding cross-namespace pairs.
+	// Only Pods are indexed here — a Service selector targets Pods, never
+	// Deployments, ReplicaSets, or other workload kinds. Each bucket retains
+	// list order so selector_match emission order stays deterministic.
+	podLabelIndex map[string][]podLabelEntry
+}
+
+// serviceSelectorEntry is one Service's identity and non-empty label selector,
+// captured by collectServices for the selector-match pass.
+type serviceSelectorEntry struct {
+	identity ObjectIdentity
+	selector map[string]string
+}
+
+// podLabelEntry is one Pod's identity and labels, captured by collectWorkloads
+// for the selector-match pass.
+type podLabelEntry struct {
+	identity ObjectIdentity
+	labels   map[string]string
 }
 
 func (b *generationBuilder) run(ctx context.Context, client Client) error {
 	b.uidIndex = make(map[string]ObjectIdentity)
 	b.serviceIndex = make(map[string]ObjectIdentity)
 	b.serviceAccountIndex = make(map[string]ServiceAccountObject)
+	b.podLabelIndex = make(map[string][]podLabelEntry)
 
 	if err := b.collectNamespaces(ctx, client); err != nil {
 		return err
@@ -54,6 +85,9 @@ func (b *generationBuilder) run(ctx context.Context, client Client) error {
 		return err
 	}
 	if err := b.collectWorkloads(ctx, client); err != nil {
+		return err
+	}
+	if err := b.matchSelectors(ctx); err != nil {
 		return err
 	}
 	if err := b.collectIngresses(ctx, client, services); err != nil {
@@ -98,6 +132,12 @@ func (b *generationBuilder) collectServices(ctx context.Context, client Client) 
 	for _, service := range result.Items {
 		identity := b.indexObject(service.Meta)
 		b.serviceIndex[namespacedName(identity.Namespace, identity.Name)] = identity
+		if len(service.Selector) > 0 {
+			b.serviceSelectorIndex = append(b.serviceSelectorIndex, serviceSelectorEntry{
+				identity: identity,
+				selector: service.Selector,
+			})
+		}
 	}
 	return result.Items, nil
 }
@@ -128,15 +168,23 @@ func (b *generationBuilder) collectWorkloads(ctx context.Context, client Client)
 		b.markPartial(ctx, entry.resourceScope, result.Partial, result.Reason)
 		b.source.recordResourcesListed(ctx, entry.resourceScope, len(result.Items), result.Partial)
 		for _, workload := range result.Items {
-			if err := b.addWorkload(ctx, workload); err != nil {
+			identity, err := b.addWorkload(ctx, workload)
+			if err != nil {
 				return err
+			}
+			if entry.resourceScope == ResourceScopePods {
+				ns := identity.Namespace
+				b.podLabelIndex[ns] = append(b.podLabelIndex[ns], podLabelEntry{
+					identity: identity,
+					labels:   workload.Meta.Labels,
+				})
 			}
 		}
 	}
 	return nil
 }
 
-func (b *generationBuilder) addWorkload(ctx context.Context, workload WorkloadObject) error {
+func (b *generationBuilder) addWorkload(ctx context.Context, workload WorkloadObject) (ObjectIdentity, error) {
 	identity := b.indexObject(workload.Meta)
 	envelope, err := NewPodTemplateEnvelope(PodTemplateObservation{
 		Identity:            identity,
@@ -156,13 +204,16 @@ func (b *generationBuilder) addWorkload(ctx context.Context, workload WorkloadOb
 		PodPhase:            workload.PodPhase,
 	})
 	if err != nil {
-		return err
+		return ObjectIdentity{}, err
 	}
 	b.append(ctx, envelope)
 	if err := b.addWorkloadIdentityUse(ctx, identity, workload); err != nil {
-		return err
+		return ObjectIdentity{}, err
 	}
-	return b.addOwnerEdges(ctx, identity, workload.Meta.OwnerReferences)
+	if err := b.addOwnerEdges(ctx, identity, workload.Meta.OwnerReferences); err != nil {
+		return ObjectIdentity{}, err
+	}
+	return identity, nil
 }
 
 func (b *generationBuilder) addOwnerEdges(ctx context.Context, owned ObjectIdentity, owners []OwnerReference) error {

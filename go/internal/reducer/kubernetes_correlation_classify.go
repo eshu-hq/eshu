@@ -242,7 +242,7 @@ func classifyIdentityEdge(
 	index kubernetesCorrelationIndex,
 ) (KubernetesCorrelationDecision, bool) {
 	base := KubernetesCorrelationDecision{
-		ClusterID:        edgeClusterID(edge),
+		ClusterID:        edge.clusterID,
 		WorkloadObjectID: edge.fromObjectID,
 		IdentityEdgeKey:  edge.fromObjectID + "->" + edge.toObjectID,
 		RelationshipType: edge.relationshipType,
@@ -270,23 +270,6 @@ func classifyIdentityEdge(
 	default:
 		return KubernetesCorrelationDecision{}, false
 	}
-}
-
-func edgeClusterID(edge kubernetesIdentityEdge) string {
-	// Object ids are k8s://<cluster_id>/...; the cluster id is the first path
-	// segment after the scheme.
-	const scheme = "k8s://"
-	trimmed := edge.fromObjectID
-	if len(trimmed) > len(scheme) && trimmed[:len(scheme)] == scheme {
-		rest := trimmed[len(scheme):]
-		for i := 0; i < len(rest); i++ {
-			if rest[i] == '/' {
-				return rest[:i]
-			}
-		}
-		return rest
-	}
-	return ""
 }
 
 func baseImageDecision(

@@ -43,7 +43,7 @@
       "KubernetesWorkload": {
         "min": 5,
         "max": 20,
-        "note": "raw k8s Deployment/ReplicaSet/StatefulSet/DaemonSet/Pod workload nodes; source of RUNS_IMAGE edges; +1 pod from #5432; #5431 adds observed-vs-desired runtime-status fields (desired/ready/available replicas, pod phase) to the underlying pod_template facts, fact-level only, no node/edge count change; #5433 adds StatefulSet and DaemonSet nodes (+2, min 3->5) plus Job/CronJob collection (no new cassette node for those two kinds), using images that do not correlate to the OciImageManifest cassette so RUNS_IMAGE stays unchanged"
+        "note": "raw k8s Deployment/ReplicaSet/StatefulSet/DaemonSet/Pod workload nodes; source of RUNS_IMAGE edges; +1 pod from #5432; #5431 adds observed-vs-desired runtime-status fields (desired/ready/available replicas, pod phase) to the underlying pod_template facts, fact-level only, no node/edge count change; #5433 adds StatefulSet and DaemonSet nodes (+2, min 3->5) plus Job/CronJob collection (no new cassette node for those two kinds), using images that do not correlate to the OciImageManifest cassette so RUNS_IMAGE stays unchanged; #5437 adds a second Pod node (supply-chain-demo-pod-2, +1) plus two kubernetes_live.relationship selector_match facts (a synthetic Service's selector matching both supply-chain-demo-pod and supply-chain-demo-pod-2, proving the one-selector-to-many-pods case), using an image that does not correlate to the OciImageManifest cassette so RUNS_IMAGE stays unchanged; selector_match is provenance-only correlation evidence like owner_reference and ingress_to_service -- it never becomes a Cypher edge, so it surfaces only through the existing list_kubernetes_correlations/GET /api/v0/kubernetes/correlations query shapes, not a new required_correlations or edge_counts entry"
       },
       "KubernetesNamespace": {
         "min": 2,
@@ -3261,11 +3261,14 @@
         }
       },
       "list_kubernetes_correlations": {
-        "description": "Returns k8s workload correlations for a cluster; confirms the WorkloadInstance correlation ran. Needs a cluster selector.",
+        "description": "Returns k8s workload correlations for a cluster; confirms the WorkloadInstance correlation ran. Needs a cluster selector. Also isolates the #5437 selector_match verb (cold-review finding 1): minimum_results:1 alone was already satisfied by the pre-existing owner_reference correlation, so a broken selector_match pass would pass this shape undetected without the required_json_values pin.",
         "required_response_fields": [
           "correlations"
         ],
         "minimum_results": 1,
+        "required_json_values": {
+          "correlations[].relationship_type": "selector_match"
+        },
         "arguments": {
           "cluster_id": "supply-chain-demo"
         }
@@ -5169,7 +5172,7 @@
         "minimum_results": 1
       },
       "GET /api/v0/kubernetes/correlations?cluster_id=supply-chain-demo&limit=50": {
-        "description": "Kubernetes workload ownership/drift correlations for the demo cluster; confirms the kubernetes reducer read surface is mounted and queryable through the HTTP route (mirrors the already-proven list_kubernetes_correlations MCP shape).",
+        "description": "Kubernetes workload ownership/drift correlations for the demo cluster; confirms the kubernetes reducer read surface is mounted and queryable through the HTTP route (mirrors the already-proven list_kubernetes_correlations MCP shape). Also isolates the #5437 selector_match verb (cold-review finding 1): minimum_results:1 alone was already satisfied by the pre-existing owner_reference correlation, so a broken selector_match pass would pass this shape undetected without the required_json_values pin.",
         "required_response_fields": [
           "correlations",
           "count"
@@ -5177,6 +5180,9 @@
         "required_json_paths": [
           "correlations[].outcome"
         ],
+        "required_json_values": {
+          "correlations[].relationship_type": "selector_match"
+        },
         "minimum_results": 1
       },
       "GET /api/v0/codeowners/ownership?repository_id=repository:r_8477a002&limit=50": {

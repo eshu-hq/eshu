@@ -53,6 +53,12 @@ type kubernetesIdentityEdge struct {
 	relationshipType string
 	fromObjectID     string
 	toObjectID       string
+	// clusterID is the relationship fact's own operator-declared cluster
+	// identity (kuberneteslivev1.Relationship.ClusterID). It is the correlation
+	// decision's cluster_id; it must never be re-derived from fromObjectID,
+	// which is an opaque stable-id hash for real collector facts, not a
+	// "k8s://<cluster>/..." string (issue #5437).
+	clusterID string
 }
 
 // kubernetesSourceDigest is one deployment-source digest observation a live
@@ -201,6 +207,7 @@ func (index *kubernetesCorrelationIndex) ingestRelationship(env facts.Envelope) 
 		relationshipType: relationship.RelationshipType,
 		fromObjectID:     relationship.FromObjectID,
 		toObjectID:       relationship.ToObjectID,
+		clusterID:        derefString(relationship.ClusterID),
 	})
 	return nil
 }

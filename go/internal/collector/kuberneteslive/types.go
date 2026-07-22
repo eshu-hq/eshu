@@ -90,6 +90,12 @@ const (
 	// RelationshipIngressToService is an ingress-backend edge from an Ingress to
 	// a Service it routes to.
 	RelationshipIngressToService RelationshipType = "ingress_to_service"
+	// RelationshipSelectorMatch is a label-selector-derived edge from a Service
+	// to a Pod whose labels satisfy the Service's selector. Unlike
+	// RelationshipOwnerReference, it cannot prove exact ownership (the reducer
+	// classifies it ambiguous, provenance-only); it exists so the graph can show
+	// which Pods a Service actually routes traffic to.
+	RelationshipSelectorMatch RelationshipType = "selector_match"
 )
 
 // ClusterTarget is one configured Kubernetes cluster collection boundary. The

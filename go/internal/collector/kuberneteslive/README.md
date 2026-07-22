@@ -15,8 +15,13 @@ correlation and drift remain reducer-owned and are not in this package.
   - `kubernetes_live.pod_template` — container/init-container image refs,
     declared ports, environment variable NAMES, service account, selector and
     label metadata.
-  - `kubernetes_live.relationship` — directed owner-reference and
-    ingress-to-service edges between durable object identities.
+  - `kubernetes_live.relationship` — directed owner-reference,
+    ingress-to-service, and selector-match edges between durable object
+    identities. A selector-match edge (`selector_match`, #5437) runs
+    Service -> Pod and is emitted whenever a Service's label selector is a
+    subset of a Pod's labels in the same namespace; an empty selector never
+    matches. Unlike `owner_reference`, it cannot prove exact ownership — the
+    reducer's edge classifier keeps it ambiguous and provenance-only.
   - `kubernetes_live.warning` — non-fatal capability gaps (forbidden resource,
     partial list, invalid owner reference, ambiguous selector).
   - `kubernetes_live.namespace` — one fact per listed namespace, carrying only
