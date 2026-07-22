@@ -318,8 +318,16 @@ Each `drift_findings[]` item carries an `outcome`:
 - `ambiguous` — backend-owner resolution found more than one candidate config
   repo for the state snapshot, so no per-address classification ran.
   `address` and `drift_kind` are empty; `ambiguous_owner_candidates` carries
-  every competing repo's identity (`repo_id`, `scope_id`, `commit_id`) without
-  picking a winner.
+  every competing repo's identity (`repo_id`, `scope_id`, `commit_id`,
+  `commit_observed_at`) without picking a winner, for an unscoped (admin,
+  local, or shared-key) caller. A scoped token or signed-in scoped browser
+  session only ever sees the competing repos it is itself granted: any
+  candidate whose `repo_id` is outside the caller's grant is removed from
+  `ambiguous_owner_candidates` rather than leaked, and
+  `ambiguous_owner_candidates_withheld_count` reports how many were removed.
+  The finding's `outcome` always stays `"ambiguous"` in that case -- filtering
+  never downgrades a genuinely ambiguous finding into something that looks
+  clean just because the caller cannot see every competing repo.
 
 `stale`, `derived`, `unresolved`, and `rejected` outcomes are not emitted by
 this version; see
@@ -332,7 +340,8 @@ multi-cloud runtime drift routes.
 Scoped tokens and signed-in scoped browser sessions see only findings whose
 `scope_id` is in the caller's exact `allowed_scope_ids`; a scoped caller
 without a matching grant receives an honest empty page rather than a 403 or
-another tenant's findings.
+another tenant's findings. The same grant also bounds
+`ambiguous_owner_candidates` per finding (see above).
 
 ### Terraform config-vs-state drift observability
 

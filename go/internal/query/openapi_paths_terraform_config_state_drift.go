@@ -76,7 +76,8 @@ const openAPIPathsTerraformConfigStateDrift = `
                           "backend_kind": {"type": "string"},
                           "locator_hash": {"type": "string"},
                           "confidence": {"type": "number"},
-                          "ambiguous_owner_candidates": {"type": "array", "items": {"type": "object"}},
+                          "ambiguous_owner_candidates": {"type": "array", "items": {"type": "object"}, "description": "Every competing config repo's identity for an admin/unscoped caller. A scoped caller only sees candidates inside its own grant; out-of-grant candidates are removed, not returned redacted."},
+                          "ambiguous_owner_candidates_withheld_count": {"type": "integer", "description": "Count of ambiguous_owner_candidates entries removed because their repo_id was outside a scoped caller's grant. Omitted (zero) for an unscoped caller."},
                           "evidence": {"type": "array", "items": {"type": "object"}}
                         }
                       }

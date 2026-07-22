@@ -44,22 +44,31 @@ type TerraformConfigStateDriftFindingFilter struct {
 
 // TerraformConfigStateDriftFindingRow is one active finding as read back from
 // storage.
+//
+// AmbiguousOwnerCandidatesWithheldCount is set (#5442 P1) when a scoped
+// caller's grant excludes one or more of the finding's competing config
+// repos: those candidates are removed from AmbiguousOwnerCandidates rather
+// than leaked, and this field records how many were withheld so the caller
+// can tell "ambiguous with a visible subset" apart from "ambiguous with no
+// competing evidence at all." It is always zero (and omitted) for an
+// unscoped caller, who always sees every candidate.
 type TerraformConfigStateDriftFindingRow struct {
-	FactID                   string           `json:"fact_id"`
-	ScopeID                  string           `json:"scope_id"`
-	GenerationID             string           `json:"generation_id"`
-	SourceSystem             string           `json:"source_system"`
-	CanonicalID              string           `json:"canonical_id"`
-	CandidateID              string           `json:"candidate_id"`
-	CandidateKind            string           `json:"candidate_kind"`
-	Outcome                  string           `json:"outcome"`
-	Address                  string           `json:"address,omitempty"`
-	DriftKind                string           `json:"drift_kind,omitempty"`
-	BackendKind              string           `json:"backend_kind"`
-	LocatorHash              string           `json:"locator_hash"`
-	Confidence               float64          `json:"confidence"`
-	AmbiguousOwnerCandidates []map[string]any `json:"ambiguous_owner_candidates,omitempty"`
-	Evidence                 []map[string]any `json:"evidence,omitempty"`
+	FactID                                string           `json:"fact_id"`
+	ScopeID                               string           `json:"scope_id"`
+	GenerationID                          string           `json:"generation_id"`
+	SourceSystem                          string           `json:"source_system"`
+	CanonicalID                           string           `json:"canonical_id"`
+	CandidateID                           string           `json:"candidate_id"`
+	CandidateKind                         string           `json:"candidate_kind"`
+	Outcome                               string           `json:"outcome"`
+	Address                               string           `json:"address,omitempty"`
+	DriftKind                             string           `json:"drift_kind,omitempty"`
+	BackendKind                           string           `json:"backend_kind"`
+	LocatorHash                           string           `json:"locator_hash"`
+	Confidence                            float64          `json:"confidence"`
+	AmbiguousOwnerCandidates              []map[string]any `json:"ambiguous_owner_candidates,omitempty"`
+	AmbiguousOwnerCandidatesWithheldCount int              `json:"ambiguous_owner_candidates_withheld_count,omitempty"`
+	Evidence                              []map[string]any `json:"evidence,omitempty"`
 }
 
 // PostgresTerraformConfigStateDriftFindingStore adapts
@@ -247,7 +256,51 @@ func (h *TerraformConfigStateDriftHandler) handleFindings(w http.ResponseWriter,
 		return
 	}
 	findings := terraformConfigStateDriftFindingRows(rows)
+	// #5442 P1: an ambiguous finding's competing-owner candidates are
+	// per-candidate cross-repo identifiers, not gated by the finding's own
+	// scope_id grant check above, so they must be filtered against the
+	// caller's grant independently before the response is written.
+	findings = filterTerraformConfigStateDriftAmbiguousOwnerCandidates(findings, access)
 	writeTerraformConfigStateDriftFindings(w, r, h, filter, findings, totalFindings)
+}
+
+// filterTerraformConfigStateDriftAmbiguousOwnerCandidates removes
+// ambiguous_owner_candidates entries whose repo_id is outside a scoped
+// caller's grant (#5442 P1), mirroring repositoryAccessFilter.filterRepositoryMaps's
+// filter-out behavior for repository-keyed map lists. It never changes a
+// finding's Outcome: an ambiguous finding stays reported as ambiguous even
+// when every candidate is withheld, with AmbiguousOwnerCandidatesWithheldCount
+// recording how many were removed, so a scoped caller can tell "ambiguous
+// with a visible subset" apart from "ambiguous with no competing evidence at
+// all" rather than seeing a payload that looks like a clean finding. An
+// unscoped (admin) caller is unaffected and always sees every candidate.
+func filterTerraformConfigStateDriftAmbiguousOwnerCandidates(
+	findings []TerraformConfigStateDriftFindingRow,
+	access repositoryAccessFilter,
+) []TerraformConfigStateDriftFindingRow {
+	if !access.scoped() || len(findings) == 0 {
+		return findings
+	}
+	for i := range findings {
+		if len(findings[i].AmbiguousOwnerCandidates) == 0 {
+			continue
+		}
+		filtered := make([]map[string]any, 0, len(findings[i].AmbiguousOwnerCandidates))
+		withheld := 0
+		for _, candidate := range findings[i].AmbiguousOwnerCandidates {
+			if access.allowsRepositoryID(StringVal(candidate, "repo_id")) {
+				filtered = append(filtered, candidate)
+				continue
+			}
+			withheld++
+		}
+		if len(filtered) == 0 {
+			filtered = nil
+		}
+		findings[i].AmbiguousOwnerCandidates = filtered
+		findings[i].AmbiguousOwnerCandidatesWithheldCount = withheld
+	}
+	return findings
 }
 
 func writeTerraformConfigStateDriftFindings(
