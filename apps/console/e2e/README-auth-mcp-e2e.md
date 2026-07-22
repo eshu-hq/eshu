@@ -13,6 +13,12 @@ project + 29xxx ports):
 bash scripts/run-auth-mcp-e2e.sh
 ```
 
+The wrapper builds the exact-source `eshu` CLI once in an owned temporary
+directory before it starts the browser runner. Credential retrieval then calls
+that binary directly with a 15-second runtime timeout, so a cold Go compile
+cannot be misreported as a Postgres outage. Cleanup removes the temporary
+binary whether the gate passes, fails, or keeps the Compose stack for debugging.
+
 ## Module map
 
 | File | Role |

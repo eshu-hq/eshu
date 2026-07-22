@@ -59,6 +59,8 @@ on:
       # the mock OIDC IdP it drives, and the backend auth/OIDC/session handlers
       # it exercises end to end. A regression in any of these must re-run the
       # fresh-stack browser gate on that same PR rather than merge false-green.
+      - "scripts/lib/auth_e2e_cli.sh"
+      - "scripts/test-auth-e2e-cli.sh"
       - "scripts/run-auth-e2e.sh"
       - "scripts/console-auth-e2e-runtime.mjs"
       - "docker-compose.e2e.yaml"
@@ -195,6 +197,9 @@ jobs:
 
       - name: Install dependencies (clean, lockfile-pinned)
         run: npm ci
+
+      - name: Verify the auth E2E CLI build contract
+        run: bash scripts/test-auth-e2e-cli.sh
 
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps

@@ -18,6 +18,9 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
+# shellcheck source=scripts/lib/auth_e2e_cli.sh
+source "$repo_root/scripts/lib/auth_e2e_cli.sh"
+
 project="${ESHU_E2E_PROJECT_NAME:-eshu-e2e-auth}"
 bind_addr="${ESHU_E2E_BIND_ADDR:-127.0.0.1}"
 api_port="${ESHU_E2E_API_PORT:-28080}"
@@ -46,17 +49,31 @@ for tool in docker node go; do
 done
 
 teardown() {
+  local exit_code=$?
+  trap - EXIT
+
+  if ! auth_e2e_cli_cleanup; then
+    echo "run-auth-e2e: temporary CLI cleanup failed" >&2
+    exit_code=1
+  fi
   if [[ "$keep_stack" == "true" ]]; then
     echo "run-auth-e2e: ESHU_KEEP_COMPOSE_STACK=true — leaving stack up: docker compose -p $project -f docker-compose.e2e.yaml down -v"
-    return
+    exit "$exit_code"
   fi
   echo "run-auth-e2e: tearing down project $project"
-  docker compose -p "$project" -f docker-compose.e2e.yaml down -v --remove-orphans >/dev/null 2>&1 || true
+  if ! docker compose -p "$project" -f docker-compose.e2e.yaml down -v --remove-orphans >/dev/null 2>&1; then
+    echo "run-auth-e2e: Compose teardown failed for project $project" >&2
+    exit_code=1
+  fi
+  exit "$exit_code"
 }
 trap teardown EXIT
 
 echo "run-auth-e2e: typechecking the gate"
 npx tsc -p apps/console/e2e/tsconfig.json
+
+echo "run-auth-e2e: building the exact-source eshu CLI"
+auth_e2e_cli_build "$repo_root"
 
 echo "run-auth-e2e: bringing up a FRESH stack (project $project) — zero identities required for the acceptance items"
 docker compose -p "$project" -f docker-compose.e2e.yaml up -d --build --wait
@@ -78,4 +95,5 @@ ESHU_E2E_API_BASE="$api_base" \
   ESHU_E2E_POSTGRES_PASSWORD="$postgres_password" \
   ESHU_E2E_MOCK_OIDC_PORT="$mock_oidc_port" \
   ESHU_E2E_MOCK_OIDC_ADMIN_PORT="$mock_oidc_admin_port" \
+  ESHU_E2E_ESHU_BINARY="$AUTH_E2E_CLI_BIN" \
   node scripts/console-auth-e2e-runtime.mjs

@@ -678,8 +678,11 @@ assertion passes (its earlier failure caught a real, since-fixed gap — missing
 `GET`/`PATCH /api/v0/auth/admin/sign-in-policy` entries in
 `go/internal/query/auth_scoped_routes.go`'s browser-session allowlist, fixed
 in #5004/#5006). The gate also runs in CI as the `auth-sso-e2e` job in
-`.github/workflows/frontend.yml`. The mock IdP is reachable from both the API
-container (Compose network) and the host browser (via Chromium
+`.github/workflows/frontend.yml`. Its wrapper builds the exact-source `eshu`
+CLI once before launching the browser runner, then gives the direct credential
+read its own 15-second timeout; cold Go compilation is not charged to the
+Postgres operation. The mock IdP is reachable from both the API container
+(Compose network) and the host browser (via Chromium
 `--host-resolver-rules`); see `go/cmd/mock-oidc-idp/README.md` for its endpoint
 contract.
 

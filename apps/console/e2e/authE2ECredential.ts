@@ -5,14 +5,38 @@
 // (see go/cmd/eshu/admin_initial_credential.go); the only supported way to
 // read it is the `eshu` CLI itself, run directly against the same Postgres
 // DSN and data-encryption key the `eshu` API container uses. This module
-// shells out to `go run ./cmd/eshu admin initial-credential` from the go/
-// module root (mirrors scripts/verify-pagerduty-marketplace-readiness.sh's
-// `go -C "$repo_root/go" run ./cmd/eshu "$@"` pattern) rather than requiring
-// a prebuilt `eshu` binary on PATH, so the gate has no separate build step.
+// runs an explicit exact-source `eshu` binary when the fresh-stack wrappers
+// provide ESHU_E2E_ESHU_BINARY. Retained-proof callers keep a `go run`
+// fallback because they do not yet own a CLI build lifecycle. Separating the
+// fresh-stack build from this command keeps its timeout scoped to the actual
+// Postgres credential read.
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
+
+const prebuiltCredentialCommandTimeoutMs = 15_000;
+const goRunCredentialCommandTimeoutMs = 60_000;
+
+export interface CredentialCommand {
+  readonly file: string;
+  readonly args: string[];
+}
+
+// resolveCredentialCommand keeps retained-proof callers compatible while the
+// fresh-stack gates pass an exact-source binary built before the runtime
+// timeout starts. The fallback remains intentionally visible: it is slower,
+// but existing retained workflows do not yet promise a prebuilt CLI.
+export function resolveCredentialCommand(eshuBinary: string, repoGoDir: string): CredentialCommand {
+  const binary = eshuBinary.trim();
+  if (binary !== "") {
+    return { file: binary, args: ["admin", "initial-credential"] };
+  }
+  return {
+    file: "go",
+    args: ["-C", repoGoDir, "run", "./cmd/eshu", "admin", "initial-credential"],
+  };
+}
 
 // e2eDefaultAuthSecretEncKey is the fixed, publicly-known, all-zero dev-only
 // data-encryption key docker-compose.yaml ships as ESHU_AUTH_SECRET_ENC_KEY's
@@ -85,6 +109,32 @@ export function classifyCredentialFailure(diagnostic: string): {
   return { status: "error", reason: "credential_command_failed" };
 }
 
+export function classifyCredentialExecutionFailure(error: unknown): {
+  readonly status: "unavailable" | "error";
+  readonly reason: CredentialFailureReason;
+  readonly diagnostic: string;
+} {
+  const diagnostic =
+    error !== null && typeof error === "object" && "stderr" in error
+      ? String((error as { stderr: unknown }).stderr)
+      : error instanceof Error
+        ? error.message
+        : String(error);
+  if (
+    error !== null &&
+    typeof error === "object" &&
+    "killed" in error &&
+    (error as { killed: unknown }).killed === true
+  ) {
+    return {
+      status: "error",
+      reason: "credential_command_timeout",
+      diagnostic,
+    };
+  }
+  return { ...classifyCredentialFailure(diagnostic), diagnostic };
+}
+
 const usernameLine = /^username:\s+(\S+)/m;
 const passwordLine = /^password:\s+(\S+)/m;
 const recoveryLine = /^recovery code:\s+(\S+)/m;
@@ -101,20 +151,21 @@ export async function retrieveInitialCredential(
   repoGoDir: string,
   postgresDSN: string,
   authSecretEncKey: string,
+  eshuBinary = process.env.ESHU_E2E_ESHU_BINARY ?? "",
 ): Promise<RetrieveCredentialResult> {
+  const command = resolveCredentialCommand(eshuBinary, repoGoDir);
   try {
-    const { stdout } = await execFileAsync(
-      "go",
-      ["-C", repoGoDir, "run", "./cmd/eshu", "admin", "initial-credential"],
-      {
-        env: {
-          ...process.env,
-          ESHU_POSTGRES_DSN: postgresDSN,
-          ESHU_AUTH_SECRET_ENC_KEY: authSecretEncKey,
-        },
-        timeout: 60000,
+    const { stdout } = await execFileAsync(command.file, command.args, {
+      env: {
+        ...process.env,
+        ESHU_POSTGRES_DSN: postgresDSN,
+        ESHU_AUTH_SECRET_ENC_KEY: authSecretEncKey,
       },
-    );
+      timeout:
+        eshuBinary.trim() === ""
+          ? goRunCredentialCommandTimeoutMs
+          : prebuiltCredentialCommandTimeoutMs,
+    });
     const username = usernameLine.exec(stdout)?.[1];
     const password = passwordLine.exec(stdout)?.[1];
     const recoveryCode = recoveryLine.exec(stdout)?.[1];
@@ -137,18 +188,12 @@ export async function retrieveInitialCredential(
       rawStderr: "",
     };
   } catch (err) {
-    const stderr =
-      err !== null && typeof err === "object" && "stderr" in err
-        ? String((err as { stderr: unknown }).stderr)
-        : err instanceof Error
-          ? err.message
-          : String(err);
-    const failure = classifyCredentialFailure(stderr);
+    const failure = classifyCredentialExecutionFailure(err);
     return {
       status: failure.status,
       credential: null,
       failureReason: failure.reason,
-      rawStderr: stderr,
+      rawStderr: failure.diagnostic,
     };
   }
 }
