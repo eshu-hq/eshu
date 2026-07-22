@@ -966,6 +966,7 @@ gates:
       - "go/cmd/capability-inventory/**"
       - "docs/internal/remote-validation/**"
       - "specs/remote-validation-baseline.txt"
+      - "specs/remote-validation-frozen.txt"
       - "scripts/verify-remote-validation-artifacts.sh"
       - "scripts/test-verify-remote-validation-artifacts.sh"
       - "specs/ci-gates.v1.yaml"
