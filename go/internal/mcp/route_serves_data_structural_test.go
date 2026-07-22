@@ -131,13 +131,11 @@ func methodBodySource(t *testing.T, path, receiverType, methodName string) strin
 // still fail, because it never reads that map — its oracle is the real
 // handler source.
 //
-// Scope: this closes the #5480 regression class for ONE pair only.
-// Generalizing to a real derivation for all 17 routes (making the whole
-// backing map handler-derived instead of hand-maintained, so no route needs
-// its own dedicated structural test like this one) is tracked in #5584 —
-// until that lands, routeServesDataBackingMap remains partially
-// self-certifying for the other 16 routes by design-for-now (see its doc
-// comment in read_surface_route_serves_data.go).
+// Scope: this closes the #5480 regression class for ONE pair. The #5584
+// generalization (route_serves_data_registry.go and its gate in
+// route_serves_data_registry_test.go) now covers every route with a
+// handler-derived, source-verified registry; this test remains as the
+// dedicated, independent proof of the historical pair.
 func TestRouteServesData_CloudResourcesStructurallyExcludesKubernetesCorrelation(t *testing.T) {
 	repoRoot := kindConsumerGateRepoRoot(t)
 	infraPath := filepath.Join(repoRoot, "go/internal/query/infra.go")
