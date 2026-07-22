@@ -78,7 +78,7 @@ func ExtractWorkloadCandidates(envelopes []facts.Envelope) ([]WorkloadCandidate,
 		extractK8sSignals(fileData, sig)
 		extractArgoCDSignals(fileData, sig)
 		extractArtifactSignals(payloadStr(env.Payload, "language"), relativePath, fileData, sig)
-		extractOverlayEnvs(repoID, relativePath, deploymentEnvs)
+		extractOverlayEnvs(repoID, relativePath, fileData, deploymentEnvs)
 	}
 
 	// Pass 3: build candidates for repos that have workload signals.
@@ -132,7 +132,8 @@ func ExtractOverlayEnvironmentsFromEnvelopes(envelopes []facts.Envelope) map[str
 			continue
 		}
 		relativePath := payloadStr(env.Payload, "relative_path")
-		extractOverlayEnvs(repoID, relativePath, deploymentEnvs)
+		fileData, _ := env.Payload["parsed_file_data"].(map[string]any)
+		extractOverlayEnvs(repoID, relativePath, fileData, deploymentEnvs)
 	}
 
 	result := make(map[string][]string, len(deploymentEnvs))
@@ -264,11 +265,27 @@ func isJenkinsArtifact(relativePath string, fileData map[string]any) bool {
 	return len(sliceValue(fileData["pipeline_calls"])) > 0
 }
 
-func extractOverlayEnvs(repoID, relativePath string, deploymentEnvs map[string]map[string]struct{}) {
-	if relativePath == "" {
+// extractOverlayEnvs unions every deployment-environment signal for one file
+// fact: the four directory-pattern regexes (ExtractOverlayEnvironments), the
+// Helm values-<env>.yaml/values.<env>.yaml filename convention
+// (helmValuesFilenameEnvironment), and the ArgoCD/Kustomize destination
+// namespace evidence already present in fileData
+// (collectNamespaceEnvironmentsFromFileData). The filename and namespace
+// signals are independently alias-gated (issue #5444) so an unrecognized
+// value never invents an environment even when relativePath itself matches
+// no directory pattern.
+func extractOverlayEnvs(repoID, relativePath string, fileData map[string]any, deploymentEnvs map[string]map[string]struct{}) {
+	if repoID == "" {
 		return
 	}
-	environments := ExtractOverlayEnvironments([]string{relativePath})
+	var environments []string
+	if relativePath != "" {
+		environments = append(environments, ExtractOverlayEnvironments([]string{relativePath})...)
+		if env := helmValuesFilenameEnvironment(relativePath); env != "" {
+			environments = append(environments, env)
+		}
+	}
+	environments = append(environments, collectNamespaceEnvironmentsFromFileData(fileData)...)
 	if len(environments) == 0 {
 		return
 	}
