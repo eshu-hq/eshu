@@ -93,9 +93,10 @@ prior regex behavior:
   mentions also live under the single `SqlMigration` entity's
   `migration_targets` metadata (#5346), which the reducer resolves into
   `MIGRATES`. A target reached only through `select` is excluded because a
-  read-only backfill does not migrate its source table. Every comma-separated
-  `DROP TABLE` target is recorded with `operation: "drop"` without emitting a
-  new `SqlTable` entity. The operation remains migration-target metadata:
+  read-only backfill does not migrate its source table. Comma-separated
+  `DROP TABLE` targets are recorded with `operation: "drop"` up to the shared
+  64-target cap; truncation is deterministic and does not emit a new `SqlTable`
+  entity. The operation remains migration-target metadata:
   `MIGRATES` continues to represent adjacency/provenance, and migration-order
   reachability and head-state absence are not inferred.
 - Highly dialect-specific statements outside the extracted construct set
