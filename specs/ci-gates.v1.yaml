@@ -1868,11 +1868,16 @@ gates:
       - ".pre-commit-config.yaml"
       - "scripts/dev/pre-pr.sh"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/test-verify-ci-gates-registry.sh"
       - "scripts/test-pre-pr-whole-module-gates.sh"
+      - "scripts/generate-ci-gates-doc.sh"
+      - "scripts/lib/ci-gates-doc-parse.awk"
+      - "scripts/test-generate-ci-gates-doc.sh"
+      - "docs/public/reference/ci-gates.md"
       - ".github/workflows/**"
     local:
       command: "bash scripts/verify-ci-gates-registry.sh --drift"
-      test_command: "bash scripts/test-verify-ci-gates-registry.sh && bash scripts/test-pre-pr-whole-module-gates.sh"
+      test_command: "bash scripts/test-verify-ci-gates-registry.sh && bash scripts/test-pre-pr-whole-module-gates.sh && bash scripts/test-generate-ci-gates-doc.sh"
     ci:
       workflow: verify-ci-gate-registry.yml
       job: "Verify ci-gate registry + drift"

@@ -35,6 +35,7 @@ jobs:
         run: |
           scripts/test-verify-ci-gates-registry.sh
           scripts/test-pre-pr-whole-module-gates.sh
+          scripts/test-generate-ci-gates-doc.sh
 
   verify:
     name: Verify ci-gate registry + drift
