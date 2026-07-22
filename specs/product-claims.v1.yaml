@@ -17,11 +17,11 @@ claims:
     source:
       path: README.md
       line: 55
-      quote: "| Code intelligence | Find symbols, callers, call chains, imports, inheritance, complexity, and dead-code candidates across 20+ languages. <!-- capability-state: id=code_search.symbol_lookup state=general_availability --> <!-- product-claim: id=readme.code-intelligence.language-breadth --> |"
-    claim_text: "Code intelligence covers symbols, callers, call chains, imports, inheritance, complexity, and dead-code candidates across 20+ languages."
+      quote: "| Code intelligence | Find symbols, callers, call chains, imports, inheritance, complexity, and dead-code candidates across 20+ languages; production-tier deployed-scale validation for these reads is not yet committed evidence (tracked in issue 5552). <!-- capability-state: id=code_search.symbol_lookup state=experimental --> <!-- product-claim: id=readme.code-intelligence.language-breadth --> |"
+    claim_text: "Code intelligence covers symbols, callers, call chains, imports, inheritance, complexity, and dead-code candidates across 20+ languages; production-tier deployed-scale validation is not yet committed evidence."
     capabilities:
       - id: code_search.symbol_lookup
-        claimed_maturity: general_availability
+        claimed_maturity: experimental
     truth_level: exact
     owner_packages: [internal/query]
     implementation_paths: [go/internal/query, go/internal/parser]
@@ -34,6 +34,9 @@ claims:
         - capability: code_search.symbol_lookup
           kind: go_test
           ref: ./internal/query
+    issues:
+      - number: 5552
+        state: open
 
   - id: readme.code-to-cloud.evidence-continuity
     source:

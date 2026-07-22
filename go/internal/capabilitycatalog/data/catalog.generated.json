@@ -1187,8 +1187,8 @@
     {
       "capability": "call_graph.call_chain_path",
       "display_name": "Call Graph Call Chain Path",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "find_function_call_chain",
@@ -1217,7 +1217,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 5000,
@@ -1236,10 +1236,6 @@
         {
           "kind": "integration_test",
           "ref": "local-lightweight-unsupported-call-chain"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-call-chain-path"
         }
       ],
       "console": false,
@@ -1265,8 +1261,8 @@
     {
       "capability": "call_graph.direct_callees",
       "display_name": "Call Graph Direct Callees",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "analyze_code_relationships",
@@ -1296,7 +1292,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 3000,
@@ -1315,10 +1311,6 @@
         {
           "kind": "integration_test",
           "ref": "local-direct-callees-derived"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-direct-callees"
         }
       ],
       "console": false,
@@ -1344,8 +1336,8 @@
     {
       "capability": "call_graph.direct_callers",
       "display_name": "Call Graph Direct Callers",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "analyze_code_relationships",
@@ -1375,7 +1367,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 3000,
@@ -1394,10 +1386,6 @@
         {
           "kind": "integration_test",
           "ref": "local-direct-callers-derived"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-direct-callers"
         }
       ],
       "console": false,
@@ -1423,8 +1411,8 @@
     {
       "capability": "call_graph.metrics",
       "display_name": "Call Graph Metrics",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "inspect_call_graph_metrics",
@@ -1453,7 +1441,7 @@
           "max_scope_size": "none"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 5000,
@@ -1464,10 +1452,6 @@
         {
           "kind": "go_test",
           "ref": "./internal/query"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-call-graph-metrics"
         }
       ],
       "console": false,
@@ -1564,8 +1548,8 @@
     {
       "capability": "call_graph.route_to_caller",
       "display_name": "Call Graph Route To Caller",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "trace_route_callers",
@@ -1594,7 +1578,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 5000,
@@ -1605,10 +1589,6 @@
         {
           "kind": "go_test",
           "ref": "./internal/query"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-route-to-caller"
         }
       ],
       "console": false,
@@ -1634,8 +1614,8 @@
     {
       "capability": "call_graph.transitive_callees",
       "display_name": "Call Graph Transitive Callees",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "analyze_code_relationships",
@@ -1664,7 +1644,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 5000,
@@ -1683,10 +1663,6 @@
         {
           "kind": "integration_test",
           "ref": "local-lightweight-unsupported-transitive-callees"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-transitive-callees"
         }
       ],
       "console": false,
@@ -1712,8 +1688,8 @@
     {
       "capability": "call_graph.transitive_callers",
       "display_name": "Call Graph Transitive Callers",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "analyze_code_relationships",
@@ -1742,7 +1718,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 5000,
@@ -1761,10 +1737,6 @@
         {
           "kind": "integration_test",
           "ref": "local-lightweight-unsupported-transitive-callers"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-transitive-callers"
         }
       ],
       "console": false,
@@ -2182,8 +2154,8 @@
     {
       "capability": "code_flow.cfg_summary",
       "display_name": "Code Flow Cfg Summary",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "POST /api/v0/code/flow/cfg-summary",
@@ -2216,7 +2188,7 @@
           "max_scope_size": "none"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1500,
@@ -2231,10 +2203,6 @@
         {
           "kind": "go_test",
           "ref": "./internal/query"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-code-flow-cfg-summary"
         }
       ],
       "console": false,
@@ -2260,8 +2228,8 @@
     {
       "capability": "code_flow.pdg_summary",
       "display_name": "Code Flow Pdg Summary",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "POST /api/v0/code/flow/pdg-summary",
@@ -2294,7 +2262,7 @@
           "max_scope_size": "none"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "derived",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1500,
@@ -2309,10 +2277,6 @@
         {
           "kind": "go_test",
           "ref": "./internal/query"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-code-flow-pdg-summary"
         }
       ],
       "console": false,
@@ -2338,8 +2302,8 @@
     {
       "capability": "code_flow.reaching_def",
       "display_name": "Code Flow Reaching Def",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "POST /api/v0/code/flow/reaching-def",
@@ -2372,7 +2336,7 @@
           "max_scope_size": "none"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1500,
@@ -2387,10 +2351,6 @@
         {
           "kind": "go_test",
           "ref": "./internal/query"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-code-flow-reaching-def"
         }
       ],
       "console": false,
@@ -2416,8 +2376,8 @@
     {
       "capability": "code_flow.taint_path",
       "display_name": "Code Flow Taint Path",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "POST /api/v0/code/flow/taint-path",
@@ -2450,7 +2410,7 @@
           "max_scope_size": "none"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "derived",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1500,
@@ -2465,10 +2425,6 @@
         {
           "kind": "go_test",
           "ref": "./internal/query"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-code-flow-taint-path"
         }
       ],
       "console": false,
@@ -2494,8 +2450,8 @@
     {
       "capability": "code_inventory.structural",
       "display_name": "Code Inventory Structural",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "inspect_code_inventory",
@@ -2525,7 +2481,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "derived",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1200,
@@ -2536,10 +2492,6 @@
         {
           "kind": "go_test",
           "ref": "./internal/query"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-structural-inventory"
         }
       ],
       "console": false,
@@ -2565,8 +2517,8 @@
     {
       "capability": "code_quality.complexity",
       "display_name": "Code Quality Complexity",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "calculate_cyclomatic_complexity",
@@ -2600,7 +2552,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "derived",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 2000,
@@ -2611,10 +2563,6 @@
         {
           "kind": "go_test",
           "ref": "./internal/query"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-complexity"
         }
       ],
       "console": false,
@@ -2640,8 +2588,8 @@
     {
       "capability": "code_quality.dead_code",
       "display_name": "Code Quality Dead Code",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "find_cross_repo_dead_code",
@@ -2678,7 +2626,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "derived",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 7000,
@@ -2697,10 +2645,6 @@
         {
           "kind": "integration_test",
           "ref": "local-lightweight-unsupported-dead-code"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-dead-code"
         }
       ],
       "console": false,
@@ -2726,8 +2670,8 @@
     {
       "capability": "code_quality.refactoring",
       "display_name": "Code Quality Refactoring",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "inspect_code_quality",
@@ -2756,7 +2700,7 @@
           "max_scope_size": "none"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1800,
@@ -2767,10 +2711,6 @@
         {
           "kind": "go_test",
           "ref": "./internal/query"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-code-quality-refactoring"
         }
       ],
       "console": false,
@@ -2796,8 +2736,8 @@
     {
       "capability": "code_search.content_search",
       "display_name": "Code Search Content Search",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "search_file_content",
@@ -2827,7 +2767,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "derived",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1200,
@@ -2838,10 +2778,6 @@
         {
           "kind": "go_test",
           "ref": "./internal/query"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-content-search"
         }
       ],
       "console": false,
@@ -2867,8 +2803,8 @@
     {
       "capability": "code_search.exact_symbol",
       "display_name": "Code Search Exact Symbol",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "find_code",
@@ -2898,7 +2834,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 800,
@@ -2909,10 +2845,6 @@
         {
           "kind": "go_test",
           "ref": "./internal/query"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-code-search-exact"
         }
       ],
       "console": false,
@@ -2938,8 +2870,8 @@
     {
       "capability": "code_search.fuzzy_symbol",
       "display_name": "Code Search Fuzzy Symbol",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "find_code",
@@ -2969,7 +2901,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "derived",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1000,
@@ -2980,10 +2912,6 @@
         {
           "kind": "go_test",
           "ref": "./internal/query"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-code-search-fuzzy"
         }
       ],
       "console": false,
@@ -3009,8 +2937,8 @@
     {
       "capability": "code_search.symbol_lookup",
       "display_name": "Code Search Symbol Lookup",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "find_symbol",
@@ -3040,7 +2968,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 800,
@@ -3051,10 +2979,6 @@
         {
           "kind": "go_test",
           "ref": "./internal/query"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-symbol-lookup"
         }
       ],
       "console": false,
@@ -3151,8 +3075,8 @@
     {
       "capability": "code_search.variable_lookup",
       "display_name": "Code Search Variable Lookup",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "find_code",
@@ -3182,7 +3106,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1000,
@@ -3197,10 +3121,6 @@
         {
           "kind": "integration_test",
           "ref": "local-authoritative-variable-lookup"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-variable-lookup"
         }
       ],
       "console": false,
@@ -6963,8 +6883,8 @@
     {
       "capability": "platform_impact.entity_map",
       "display_name": "Platform Impact Entity Map",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "entity_map",
@@ -6993,7 +6913,7 @@
           "max_scope_size": "active_monofolder"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 7000,
@@ -7012,10 +6932,6 @@
         {
           "kind": "integration_test",
           "ref": "local-lightweight-unsupported-entity-map"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-entity-map"
         }
       ],
       "console": false,
@@ -7521,8 +7437,8 @@
     {
       "capability": "platform_impact.resource_to_code",
       "display_name": "Platform Impact Resource To Code",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "trace_resource_to_code",
@@ -7551,7 +7467,7 @@
           "max_scope_size": "active_monofolder"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 7000,
@@ -7570,10 +7486,6 @@
         {
           "kind": "integration_test",
           "ref": "local-lightweight-unsupported-resource-to-code"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-resource-to-code"
         }
       ],
       "console": false,
@@ -10620,8 +10532,8 @@
     {
       "capability": "symbol_graph.argument_names",
       "display_name": "Symbol Graph Argument Names",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "execute_language_query",
@@ -10651,7 +10563,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1200,
@@ -10666,10 +10578,6 @@
         {
           "kind": "integration_test",
           "ref": "local-authoritative-argument-names"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-argument-names"
         }
       ],
       "console": false,
@@ -10695,8 +10603,8 @@
     {
       "capability": "symbol_graph.class_methods",
       "display_name": "Symbol Graph Class Methods",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "analyze_code_relationships",
@@ -10730,7 +10638,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1200,
@@ -10745,10 +10653,6 @@
         {
           "kind": "integration_test",
           "ref": "local-authoritative-class-methods"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-class-methods"
         }
       ],
       "console": false,
@@ -10774,8 +10678,8 @@
     {
       "capability": "symbol_graph.decorators",
       "display_name": "Symbol Graph Decorators",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "execute_language_query",
@@ -10805,7 +10709,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1200,
@@ -10820,10 +10724,6 @@
         {
           "kind": "integration_test",
           "ref": "local-authoritative-decorators"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-decorators"
         }
       ],
       "console": false,
@@ -10849,8 +10749,8 @@
     {
       "capability": "symbol_graph.import_dependencies",
       "display_name": "Symbol Graph Import Dependencies",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "investigate_import_dependencies",
@@ -10880,7 +10780,7 @@
           "max_scope_size": "none"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1500,
@@ -10891,10 +10791,6 @@
         {
           "kind": "go_test",
           "ref": "./internal/query"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-import-dependencies"
         }
       ],
       "console": false,
@@ -10920,8 +10816,8 @@
     {
       "capability": "symbol_graph.imports",
       "display_name": "Symbol Graph Imports",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "execute_language_query",
@@ -10951,7 +10847,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1200,
@@ -10966,10 +10862,6 @@
         {
           "kind": "integration_test",
           "ref": "local-authoritative-imports"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-imports"
         }
       ],
       "console": false,
@@ -10995,8 +10887,8 @@
     {
       "capability": "symbol_graph.inheritance",
       "display_name": "Symbol Graph Inheritance",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "analyze_code_relationships",
@@ -11030,7 +10922,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1500,
@@ -11045,10 +10937,6 @@
         {
           "kind": "integration_test",
           "ref": "local-authoritative-inheritance"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-inheritance"
         }
       ],
       "console": false,

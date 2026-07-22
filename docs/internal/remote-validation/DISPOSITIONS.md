@@ -141,3 +141,93 @@ Run from the worktree root unless noted:
 7. Run the full proof list (verify, docs, remote-validation-artifacts,
    maturity-drift-guard, focused Go tests, mkdocs strict build, `git diff
    --check`) before committing.
+
+## TRANCHE 2 — code-intelligence cluster (closed by #5552)
+
+**Capabilities:** the 28 code-intelligence slugs listed below (code search,
+symbol graph, code flow, call graph, code quality, and the two
+platform-impact code-to-infrastructure reads that share this cluster's
+evidence shape).
+**Disposition:** DOWNGRADED, `production` profile `supported` ->
+`experimental`, for every row.
+**Tracking:** #5336 (original finding), #5552 (systemic burn-down), #5407
+(freeze that bounded the debt)
+
+Each row below replaces the `production` profile's sole `remote_validation`
+evidence with the real committed evidence that backs that capability's
+`local_full_stack` profile — the runtime tier immediately below `production`
+on the local_host -> local_host_plus_graph -> full_stack -> deployed_services
+ladder. `p95_latency_ms`, `max_scope_size`, and `required_runtime` were kept
+as declared-but-unproven production targets, not stripped.
+
+For 8 of the 28 rows (marked below) the `local_full_stack` profile's
+committed evidence is a `compose_e2e` scenario rather than `go_test`, and
+that scenario name differs from what `local_lightweight` and
+`local_authoritative` cite for the same capability (each of those three
+tiers uses a different verification kind: `integration_test` for
+lightweight/authoritative-only rows, `go_test` for authoritative, and
+`compose_e2e` for full_stack). This is the "unexpected local evidence" case
+flagged per the tranche-2 instructions: the row's three local profiles do
+not share one identical proof signal the way TRANCHE 1's pair did, so the
+mirrored production evidence is the nearest-tier (`local_full_stack`)
+signal rather than a signal common to all three local profiles.
+
+### Per-row disposition
+
+- `prod-code-search-exact` (`code_search.exact_symbol`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `go_test ./internal/query`
+- `prod-code-search-fuzzy` (`code_search.fuzzy_symbol`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `go_test ./internal/query`
+- `prod-symbol-lookup` (`code_search.symbol_lookup`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `go_test ./internal/query`
+- `prod-variable-lookup` (`code_search.variable_lookup`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `go_test ./internal/query`
+- `prod-argument-names` (`symbol_graph.argument_names`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `go_test ./internal/query`
+- `prod-class-methods` (`symbol_graph.class_methods`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `go_test ./internal/query`
+- `prod-decorators` (`symbol_graph.decorators`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `go_test ./internal/query`
+- `prod-structural-inventory` (`code_inventory.structural`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `go_test ./internal/query`
+- `prod-complexity` (`code_quality.complexity`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `go_test ./internal/query`
+- `prod-imports` (`symbol_graph.imports`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `go_test ./internal/query`
+- `prod-import-dependencies` (`symbol_graph.import_dependencies`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `go_test ./internal/query`
+- `prod-inheritance` (`symbol_graph.inheritance`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `go_test ./internal/query`
+- `prod-dead-code` (`code_quality.dead_code`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `compose_e2e dead-code-reachability` (unexpected: local profiles use three different verification kinds; mirrored the local_full_stack tier)
+- `prod-code-quality-refactoring` (`code_quality.refactoring`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `go_test ./internal/query`
+- `prod-code-flow-taint-path` (`code_flow.taint_path`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `go_test ./internal/query, go_test ./internal/mcp`
+- `prod-code-flow-reaching-def` (`code_flow.reaching_def`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `go_test ./internal/query, go_test ./internal/mcp`
+- `prod-code-flow-cfg-summary` (`code_flow.cfg_summary`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `go_test ./internal/query, go_test ./internal/mcp`
+- `prod-code-flow-pdg-summary` (`code_flow.pdg_summary`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `go_test ./internal/query, go_test ./internal/mcp`
+- `prod-direct-callees` (`call_graph.direct_callees`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `compose_e2e direct-callees` (unexpected: local profiles use three different verification kinds; mirrored the local_full_stack tier)
+- `prod-direct-callers` (`call_graph.direct_callers`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `compose_e2e direct-callers` (unexpected: local profiles use three different verification kinds; mirrored the local_full_stack tier)
+- `prod-transitive-callees` (`call_graph.transitive_callees`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `compose_e2e transitive-callees` (unexpected: local profiles use three different verification kinds; mirrored the local_full_stack tier)
+- `prod-transitive-callers` (`call_graph.transitive_callers`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `compose_e2e transitive-callers` (unexpected: local profiles use three different verification kinds; mirrored the local_full_stack tier)
+- `prod-call-chain-path` (`call_graph.call_chain_path`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `compose_e2e call-chain-path` (unexpected: local profiles use three different verification kinds; mirrored the local_full_stack tier)
+- `prod-call-graph-metrics` (`call_graph.metrics`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `go_test ./internal/query`
+- `prod-content-search` (`code_search.content_search`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `go_test ./internal/query`
+- `prod-entity-map` (`platform_impact.entity_map`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `compose_e2e entity-map` (unexpected: local profiles use three different verification kinds; mirrored the local_full_stack tier)
+- `prod-route-to-caller` (`call_graph.route_to_caller`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `go_test ./internal/query`
+- `prod-resource-to-code` (`platform_impact.resource_to_code`) — DOWNGRADED `production` `supported` -> `experimental`; remote_validation ref dropped; remaining evidence: `compose_e2e resource-to-code` (unexpected: local profiles use three different verification kinds; mirrored the local_full_stack tier)
+
+### Disposition options considered
+
+Same three options as TRANCHE 1 (see above), decided the same way for all 28
+rows: **(A) Validate** was not taken because no deployed-scale evidence
+artifact exists for any of the 28 rows to commit. **(B) Downgrade** was
+taken uniformly — the remaining local-profile evidence proves functional
+correctness against the query/MCP/compose_e2e handler, which maps to
+`experimental`, not `unsupported` (every one of these 28 rows has a
+`supported` `local_authoritative` and `local_full_stack` profile, so there
+is no case in this tranche where the edge-case `unsupported` disposition
+applied). **(C) Evidence-pending marker** was rejected for the same reason
+as TRANCHE 1: it would let a row escape the closed
+validated/downgraded vocabulary without an honest status change.
+
+### Regeneration recipe used (TRANCHE 2)
+
+Same recipe as TRANCHE 1, run once across all 28 rows in
+`specs/capability-matrix.v1.yaml` (not the `component-extensions.v1.yaml`
+fragment): edit all 28 `production:` rows, `cd go && go run
+./cmd/capability-inventory -mode generate`, `cd go && go run
+./cmd/capability-inventory -mode docs` (this tranche's only marker was
+`README.md:55`'s `code_search.symbol_lookup` `capability-state` comment plus
+its `specs/product-claims.v1.yaml` ledger entry — `general_availability` ->
+`experimental`, with a new `issues: [{number: 5552, state: open}]` block
+added to satisfy the ledger's non-GA-claim-needs-a-tracking-issue check),
+`cd go && go run ./cmd/capability-inventory -mode remote-validation
+-update` (FROZEN_MAX 113 -> 85), then hand-edit
+`specs/remote-validation-frozen.txt` to remove the same 28 slugs.

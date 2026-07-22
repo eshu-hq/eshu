@@ -99,5 +99,15 @@ TRANCHE 1 (#5552) closed the pair #5336 originally flagged,
 **downgrading** both capabilities' `production` profile from
 `supported` to `experimental` rather than committing a deployed-registry
 evidence artifact. See [DISPOSITIONS.md](DISPOSITIONS.md) for the per-row
-record and rationale. `FROZEN_MAX` is now 113, and both slugs are removed from
-`specs/remote-validation-baseline.txt` and `specs/remote-validation-frozen.txt`.
+record and rationale. `FROZEN_MAX` was 113 after this tranche, and both slugs
+were removed from `specs/remote-validation-baseline.txt` and
+`specs/remote-validation-frozen.txt`.
+
+TRANCHE 2 (#5552) closed the 28 code-intelligence slugs (code search, symbol
+graph, code flow, call graph, code quality, and platform-impact
+code-to-infrastructure reads), by **downgrading** each capability's
+`production` profile from `supported` to `experimental` rather than
+committing deployed-scale evidence artifacts. See
+[DISPOSITIONS.md](DISPOSITIONS.md) for the per-row record. `FROZEN_MAX` is now
+85, and all 28 slugs are removed from `specs/remote-validation-baseline.txt`
+and `specs/remote-validation-frozen.txt`.
