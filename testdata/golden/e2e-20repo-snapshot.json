@@ -45,6 +45,11 @@
         "max": 20,
         "note": "raw k8s Deployment/ReplicaSet/StatefulSet/DaemonSet/Pod workload nodes; source of RUNS_IMAGE edges; +1 pod from #5432; #5431 adds observed-vs-desired runtime-status fields (desired/ready/available replicas, pod phase) to the underlying pod_template facts, fact-level only, no node/edge count change; #5433 adds StatefulSet and DaemonSet nodes (+2, min 3->5) plus Job/CronJob collection (no new cassette node for those two kinds), using images that do not correlate to the OciImageManifest cassette so RUNS_IMAGE stays unchanged"
       },
+      "KubernetesNamespace": {
+        "min": 2,
+        "max": 10,
+        "note": "raw k8s Namespace nodes materialized from kubernetes_live.namespace facts (issue #5434); the cassette carries exactly 2 -- payments-prod (labeled environment=prod, binds an Environment via TARGETS_ENVIRONMENT, see rc-157) and default (no alias-recognized label, stays environment-unbound, no Environment edge)"
+      },
       "Workload": {
         "min": 1,
         "max": 10,
@@ -404,6 +409,15 @@
             "argocd"
           ]
         }
+      },
+      {
+        "id": "rc-157",
+        "description": "#5434 namespace environment-alias binding, closed bound (both a floor and a ceiling, mirroring sl-dart-calls-recursion's pattern): the cassette carries exactly 2 kubernetes_live.namespace facts -- payments-prod, labeled environment=prod (a recognized token), and default, labeled only kubernetes.io/metadata.name=default (no alias-recognized environment label). minimum_count=1 is non-vacuous: it is provably zero without the payments-prod fact's binding logic running (KubernetesNamespaceMaterializationHandler / namespaceEnvironmentFromLabels), proving the POSITIVE case -- an alias-recognized label binds a TARGETS_ENVIRONMENT edge to a canonical Environment node. maximum_count=1 is the NEGATIVE regression anchor: if the environment.IsKnownToken guard in namespaceEnvironmentFromLabels were removed or the writer's environment-presence split (canonicalKubernetesNamespaceUpsertCypher vs. ...WithEnvironmentUpsertCypher) were broken, the default namespace would ALSO bind an Environment (there being no other real environment label to reject), pushing this count to 2 and failing the ceiling. from_label/relationship/to_label alone isolate the producer: no other domain writes a TARGETS_ENVIRONMENT edge FROM a KubernetesNamespace node.",
+        "relationship": "TARGETS_ENVIRONMENT",
+        "from_label": "KubernetesNamespace",
+        "to_label": "Environment",
+        "minimum_count": 1,
+        "maximum_count": 1
       },
       {
         "id": "rc-155",
