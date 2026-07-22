@@ -33,7 +33,11 @@ type SelectionBatch struct {
 
 // SelectedRepository is one repository chosen for the current collector cycle.
 type SelectedRepository struct {
-	RepoPath             string   `json:"repo_path"`
+	RepoPath string `json:"repo_path"`
+	// GitTreePath is the local Git checkout used for committed-tree reads when
+	// RepoPath is a managed filesystem copy without its source .git directory.
+	// Empty means RepoPath itself is the Git tree source.
+	GitTreePath          string   `json:"git_tree_path,omitempty"`
 	RemoteURL            string   `json:"remote_url"`
 	IsDependency         bool     `json:"is_dependency"`
 	DisplayName          string   `json:"display_name"`
@@ -64,9 +68,10 @@ type SelectedRepository struct {
 
 // RepositorySnapshot captures one repository parse snapshot and content transport.
 type RepositorySnapshot struct {
-	RepoPath  string `json:"repo_path"`
-	RemoteURL string `json:"remote_url"`
-	FileCount int    `json:"file_count"`
+	RepoPath    string `json:"repo_path"`
+	GitTreePath string `json:"git_tree_path,omitempty"`
+	RemoteURL   string `json:"remote_url"`
+	FileCount   int    `json:"file_count"`
 	// HeadCommitSHA is the Git commit the snapshot content reflects (the
 	// checked-out HEAD). It becomes ScopeGeneration.SourceCommitSHA, the durable
 	// baseline a later delta sync diffs against. Empty for non-git snapshots.
