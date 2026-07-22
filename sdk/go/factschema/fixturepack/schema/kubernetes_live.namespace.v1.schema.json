@@ -1,0 +1,54 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/kuberneteslive/v1/namespace.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "annotations": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "cluster_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "correlation_anchors": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "labels": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "namespace": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "object_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "object_id"
+  ],
+  "title": "Eshu kubernetes_live.namespace Payload (schema version 1)",
+  "type": "object"
+}

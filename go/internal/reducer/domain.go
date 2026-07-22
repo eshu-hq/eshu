@@ -55,6 +55,7 @@ var knownDomains = map[Domain]struct{}{
 	DomainKubernetesCorrelation:                    {},
 	DomainKubernetesWorkloadMaterialization:        {},
 	DomainKubernetesCorrelationMaterialization:     {},
+	DomainKubernetesNamespaceMaterialization:       {},
 	DomainCrossplaneSatisfiedByMaterialization:     {},
 	DomainSecurityGroupCidrMaterialization:         {},
 	DomainSecurityGroupRuleMaterialization:         {},

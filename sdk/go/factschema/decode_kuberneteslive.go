@@ -96,6 +96,32 @@ func EncodeKubernetesLiveWarning(warning kuberneteslivev1.Warning) (map[string]a
 	return payload, nil
 }
 
+// DecodeKubernetesLiveNamespace decodes env.Payload into the latest
+// kuberneteslivev1.Namespace struct for the "kubernetes_live.namespace" fact
+// kind. See DecodeKubernetesLivePodTemplate for the dispatch and error
+// contract. A payload missing the required object_id key dead-letters as
+// input_invalid rather than producing an empty-string namespace identity.
+func DecodeKubernetesLiveNamespace(env Envelope) (kuberneteslivev1.Namespace, error) {
+	return decodeLatestMajor[kuberneteslivev1.Namespace](FactKindKubernetesLiveNamespace, env)
+}
+
+// EncodeKubernetesLiveNamespace marshals a kuberneteslivev1.Namespace into
+// the map[string]any payload shape an Envelope carries. It is the inverse of
+// DecodeKubernetesLiveNamespace for schema-version-1 payloads. Annotations is
+// reserved for #5444 and is expected to be nil today; when set, it encodes
+// like Labels for forward compatibility.
+func EncodeKubernetesLiveNamespace(namespace kuberneteslivev1.Namespace) (map[string]any, error) {
+	payload := map[string]any{
+		"object_id": namespace.ObjectID,
+	}
+	addStringPtr(payload, "cluster_id", namespace.ClusterID)
+	addStringPtr(payload, "namespace", namespace.Namespace)
+	addStringMap(payload, "labels", namespace.Labels)
+	addStringMap(payload, "annotations", namespace.Annotations)
+	addStringSlice(payload, "correlation_anchors", namespace.CorrelationAnchors)
+	return payload, nil
+}
+
 func encodeKubernetesLiveContainers(containers []kuberneteslivev1.PodTemplateContainer) []map[string]any {
 	out := make([]map[string]any, 0, len(containers))
 	for _, container := range containers {

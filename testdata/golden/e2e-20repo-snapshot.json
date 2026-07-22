@@ -45,6 +45,11 @@
         "max": 20,
         "note": "raw k8s Deployment/ReplicaSet/StatefulSet/DaemonSet/Pod workload nodes; source of RUNS_IMAGE edges; +1 pod from #5432; #5431 adds observed-vs-desired runtime-status fields (desired/ready/available replicas, pod phase) to the underlying pod_template facts, fact-level only, no node/edge count change; #5433 adds StatefulSet and DaemonSet nodes (+2, min 3->5) plus Job/CronJob collection (no new cassette node for those two kinds), using images that do not correlate to the OciImageManifest cassette so RUNS_IMAGE stays unchanged"
       },
+      "KubernetesNamespace": {
+        "min": 2,
+        "max": 10,
+        "note": "raw k8s Namespace nodes materialized from kubernetes_live.namespace facts (issue #5434); the cassette carries exactly 2 -- payments-prod (labeled environment=prod, binds an Environment via TARGETS_ENVIRONMENT, see rc-158) and default (labeled environment=misc-team, a recognized label KEY with an unrecognized VALUE, so it stays environment-unbound with no Environment edge -- the IsKnownToken negative control)"
+      },
       "Workload": {
         "min": 1,
         "max": 10,
@@ -404,6 +409,15 @@
             "argocd"
           ]
         }
+      },
+      {
+        "id": "rc-158",
+        "description": "#5434 namespace environment-alias binding, closed bound (both a floor and a ceiling, mirroring sl-dart-calls-recursion's pattern): the cassette carries exactly 2 kubernetes_live.namespace facts -- payments-prod, labeled environment=prod (a recognized token), and default, labeled environment=misc-team (a RECOGNIZED label key with an UNRECOGNIZED value -- not IsKnownToken -- so it stays environment-unbound). minimum_count=1 is non-vacuous: it is provably zero without the payments-prod fact's binding logic running (KubernetesNamespaceMaterializationHandler / namespaceEnvironmentFromLabels), proving the POSITIVE case -- an alias-recognized label binds a TARGETS_ENVIRONMENT edge to a canonical Environment node. maximum_count=1 is the NEGATIVE regression anchor and now genuinely exercises the environment.IsKnownToken guard (codex review finding P2, #5434): the prior default fixture carried NO environment-ish label key at all, so it stayed unbound regardless of the guard and the ceiling passed vacuously even with IsKnownToken removed. With a recognized key (environment) but an unrecognized value (misc-team), removing IsKnownToken from namespaceEnvironmentFromLabels would canonicalize and bind default too, pushing this count to 2 and failing the ceiling; the guard in place keeps it unbound and the count at 1. from_label/relationship/to_label alone isolate the producer: no other domain writes a TARGETS_ENVIRONMENT edge FROM a KubernetesNamespace node.",
+        "relationship": "TARGETS_ENVIRONMENT",
+        "from_label": "KubernetesNamespace",
+        "to_label": "Environment",
+        "minimum_count": 1,
+        "maximum_count": 1
       },
       {
         "id": "rc-155",

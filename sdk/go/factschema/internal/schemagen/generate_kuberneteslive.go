@@ -36,3 +36,13 @@ const KubernetesLiveWarningSchemaID = schemaBaseID + "kuberneteslive/v1/warning.
 func KubernetesLiveWarningSchema() ([]byte, error) {
 	return reflectSchema(KubernetesLiveWarningSchemaID, "Eshu kubernetes_live.warning Payload (schema version 1)", &kuberneteslivev1.Warning{})
 }
+
+// KubernetesLiveNamespaceSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "kubernetes_live.namespace" payload.
+const KubernetesLiveNamespaceSchemaID = schemaBaseID + "kuberneteslive/v1/namespace.schema.json"
+
+// KubernetesLiveNamespaceSchema returns the JSON Schema bytes for
+// kuberneteslivev1.Namespace.
+func KubernetesLiveNamespaceSchema() ([]byte, error) {
+	return reflectSchema(KubernetesLiveNamespaceSchemaID, "Eshu kubernetes_live.namespace Payload (schema version 1)", &kuberneteslivev1.Namespace{})
+}

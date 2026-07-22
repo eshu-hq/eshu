@@ -1,0 +1,10 @@
+{
+  "object_id": "kubernetes_live:demo-cluster:core/v1/namespaces::payments-prod",
+  "cluster_id": "demo-cluster",
+  "namespace": "payments-prod",
+  "labels": {
+    "environment": "prod",
+    "team": "payments"
+  },
+  "correlation_anchors": ["kubernetes_live:demo-cluster:core/v1/namespaces::payments-prod"]
+}

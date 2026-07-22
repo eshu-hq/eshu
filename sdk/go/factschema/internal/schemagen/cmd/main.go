@@ -83,6 +83,7 @@ func run() error {
 		{name: "kubernetes_live.pod_template.v1.schema.json", generate: schemagen.KubernetesLivePodTemplateSchema},
 		{name: "kubernetes_live.relationship.v1.schema.json", generate: schemagen.KubernetesLiveRelationshipSchema},
 		{name: "kubernetes_live.warning.v1.schema.json", generate: schemagen.KubernetesLiveWarningSchema},
+		{name: "kubernetes_live.namespace.v1.schema.json", generate: schemagen.KubernetesLiveNamespaceSchema},
 		// The oci_registry family fact kinds are DOTTED (like the incident
 		// family). The schema filename is the dotted kind plus the version
 		// suffix; a dot in a filename is valid and needs no transform.

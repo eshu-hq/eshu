@@ -331,7 +331,7 @@ surfaces:
       (GET /api/v0/kubernetes/correlations, list_kubernetes_correlations) have
       landed; claim-driven runtime and watch mode remain pending.
     collector_contract:
-      fact_kinds: [eks_irsa_annotation, eks_pod_identity_association, k8s_gcp_workload_identity_binding, k8s_rbac_binding, k8s_rbac_role, k8s_service_account, k8s_service_account_token_posture, k8s_workload_identity_use, kubernetes_live.pod_template, kubernetes_live.relationship, kubernetes_live.warning]
+      fact_kinds: [eks_irsa_annotation, eks_pod_identity_association, k8s_gcp_workload_identity_binding, k8s_rbac_binding, k8s_rbac_role, k8s_service_account, k8s_service_account_token_posture, k8s_workload_identity_use, kubernetes_live.namespace, kubernetes_live.pod_template, kubernetes_live.relationship, kubernetes_live.warning]
       projection_surfaces: [kubernetes_correlation, secrets_iam_trust_chain]
       read_surfaces: [GET /api/v0/kubernetes/correlations, list_kubernetes_correlations]
       proof_gates: [cd go && go test ./cmd/collector-kubernetes-live ./internal/collector/kuberneteslive ./internal/reducer ./internal/query -count=1]

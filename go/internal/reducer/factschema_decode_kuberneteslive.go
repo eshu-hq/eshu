@@ -61,3 +61,17 @@ func decodeKubernetesLiveWarning(env facts.Envelope) (kuberneteslivev1.Warning, 
 	}
 	return warning, nil
 }
+
+// decodeKubernetesLiveNamespace decodes one kubernetes_live.namespace
+// envelope into the typed kuberneteslivev1.Namespace struct through the
+// contracts seam, returning a self-classifying *factDecodeError when the
+// payload is missing its required field (object_id) or is otherwise
+// malformed. It is the single decode site for the kubernetes_live.namespace
+// kind on the reducer side (issue #5434).
+func decodeKubernetesLiveNamespace(env facts.Envelope) (kuberneteslivev1.Namespace, error) {
+	namespace, err := factschema.DecodeKubernetesLiveNamespace(factschemaEnvelope(env))
+	if err != nil {
+		return kuberneteslivev1.Namespace{}, newFactDecodeError(factschema.FactKindKubernetesLiveNamespace, err)
+	}
+	return namespace, nil
+}
