@@ -350,6 +350,7 @@ func isCollectorIgnoreControlFile(name string) bool {
 var preservedHiddenFilesystemFileNames = map[string]struct{}{
 	".gitlab-ci.yml":  {},
 	".gitlab-ci.yaml": {},
+	".gitmodules":     {},
 }
 
 func preserveFilesystemHiddenPath(rel string) bool {

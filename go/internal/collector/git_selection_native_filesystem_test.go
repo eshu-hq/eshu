@@ -74,6 +74,11 @@ func TestNativeRepositorySelectorSelectRepositoriesFilesystemPreservesGitlabCI(t
 		filepath.Join(sourceRepo, "nested", ".gitlab-ci.yaml"),
 		"stages: [test]\nunit:\n  stage: test\n  script: [\"go test ./...\"]\n",
 	)
+	writeSelectionTestFile(
+		t,
+		filepath.Join(sourceRepo, ".gitmodules"),
+		"[submodule \"libfoo\"]\n\tpath = lib/foo\n\turl = https://github.com/example/libfoo.git\n",
+	)
 
 	selector := NativeRepositorySelector{
 		Config: RepoSyncConfig{
@@ -95,7 +100,7 @@ func TestNativeRepositorySelectorSelectRepositoriesFilesystemPreservesGitlabCI(t
 		t.Fatalf("len(Repositories) = %d, want %d", got, want)
 	}
 
-	for _, rel := range []string{".gitlab-ci.yml", filepath.Join("nested", ".gitlab-ci.yaml")} {
+	for _, rel := range []string{".gitlab-ci.yml", filepath.Join("nested", ".gitlab-ci.yaml"), ".gitmodules"} {
 		wantPath := filepath.Join(reposDir, "eshu-hq", "service-a", rel)
 		if _, err := os.Stat(wantPath); err != nil {
 			t.Fatalf("copied repository missing GitLab CI config %q: %v", wantPath, err)
@@ -299,6 +304,9 @@ func TestNativeRepositorySelectorSelectRepositoriesFilesystemRootRepository(t *t
 	wantRepoPath := filepath.Join(reposDir, filepath.Base(sourceRepo))
 	if got, want := selectedRepo.RepoPath, resolveRepoPathForAssertion(t, wantRepoPath); got != want {
 		t.Fatalf("RepoPath = %q, want %q", got, want)
+	}
+	if got, want := selectedRepo.GitTreePath, resolveRepoPathForAssertion(t, sourceRepo); got != want {
+		t.Fatalf("GitTreePath = %q, want source repository %q", got, want)
 	}
 	if _, err := os.Stat(filepath.Join(wantRepoPath, "main.go")); err != nil {
 		t.Fatalf("copied repository missing main.go: %v", err)

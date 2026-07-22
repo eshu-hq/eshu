@@ -88,6 +88,9 @@ workspaces. The manifest hashes the files the collector can actually use:
 `.gitignore` and `.eshuignore` rule files are included, while files excluded by
 those rules are skipped. This keeps local watch mode from creating new
 generations for ignored logs, build outputs, or editor scratch files.
+The managed copy preserves `.gitmodules` for content discovery but deliberately
+omits `.git`; `SelectedRepository.GitTreePath` therefore points committed-tree
+reads such as submodule gitlink resolution at the original source checkout.
 For hosted Git sources, update sync lists remote branch heads with
 `git ls-remote --symref` without fetching every branch, then update sync
 computes a `git diff --name-status -z --find-renames` delta between the previous
@@ -199,13 +202,14 @@ No-Observability-Change) lives in `OPERATIONS.md`.
   unsupported providers, and returns successful syncs as a targeted batch
 - `RepositorySnapshotter` — interface: `SnapshotRepository(context.Context, SelectedRepository) (RepositorySnapshot, error)`
 - `SelectionBatch` — `ObservedAt` + `[]SelectedRepository`
-- `SelectedRepository` — `RepoPath`, `RemoteURL`, `IsDependency`, `DisplayName`,
-  `Language`, `FileTargets`, source-observed `GitRefs`, `Delta`, and
-  `DeletedRelativePaths`
-- `RepositorySnapshot` — `RepoPath`, `RemoteURL`, `FileCount`, `ImportsMap`,
-  `FileData`, `ContentFileMetas`, `DocumentationFileMetas`, `ContentEntities`,
-  source-observed `GitRefs`, `DiscoveryAdvisory`, optional delta metadata
-  for file-scoped Git resyncs, `TaintEvidence`, and dataflow freshness metadata
+- `SelectedRepository` — `RepoPath`, optional source-checkout `GitTreePath`,
+  `RemoteURL`, `IsDependency`, `DisplayName`, `Language`, `FileTargets`,
+  source-observed `GitRefs`, `Delta`, and `DeletedRelativePaths`
+- `RepositorySnapshot` — `RepoPath`, optional source-checkout `GitTreePath`,
+  `RemoteURL`, `FileCount`, `ImportsMap`, `FileData`, `ContentFileMetas`,
+  `DocumentationFileMetas`, `ContentEntities`, source-observed `GitRefs`,
+  `DiscoveryAdvisory`, optional delta metadata for file-scoped Git resyncs,
+  `TaintEvidence`, and dataflow freshness metadata
 - `TaintEvidenceSnapshot` — one intraprocedural value-flow taint finding resolved
   to its graph `Function` entity uid, carried as evidence (confidence +
   provenance). Populated only when the parser emits `taint_findings` (gated by

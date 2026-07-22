@@ -109,10 +109,9 @@ func (s NativeRepositorySelector) SelectRepositories(
 		if s.Config.RepoShardIndex == 0 && corpusChanged {
 			reportRepositoryBasenameCollisions(ctx, selection.RepositoryIDs, s.Logger, s.Instruments)
 		}
-		return SelectionBatch{
-			ObservedAt:   observedAt,
-			Repositories: buildSelectedRepositories(s.Config, repoPaths, nil, nil, nil, collectLocalRefs(ctx, s.Logger, s.Config, selection.RepositoryIDs, repoPaths), nil),
-		}, nil
+		repositories := buildSelectedRepositories(s.Config, repoPaths, nil, nil, nil, collectLocalRefs(ctx, s.Logger, s.Config, selection.RepositoryIDs, repoPaths), nil)
+		attachFilesystemGitTreePaths(s.Config, selection.RepositoryIDs, repositories)
+		return SelectionBatch{ObservedAt: observedAt, Repositories: repositories}, nil
 	case "explicit", "githubOrg":
 		syncGitFn := s.SyncGit
 		if syncGitFn == nil {
@@ -144,6 +143,42 @@ func (s NativeRepositorySelector) SelectRepositories(
 	default:
 		return SelectionBatch{}, fmt.Errorf("unsupported ESHU_REPO_SOURCE_MODE=%q", s.Config.SourceMode)
 	}
+}
+
+// attachFilesystemGitTreePaths preserves the source checkout used for Git
+// committed-tree reads. Filesystem mode intentionally strips .git from its
+// managed copy, so submodule gitlink resolution must read the original source
+// while content discovery continues to read the isolated managed workspace.
+func attachFilesystemGitTreePaths(config RepoSyncConfig, repositoryIDs []string, repositories []SelectedRepository) {
+	sourceBySelectedPath := make(map[string]string, len(repositoryIDs))
+	for _, repositoryID := range repositoryIDs {
+		sourcePath, targetPath, err := filesystemRepoPaths(config, repositoryID)
+		if err != nil {
+			continue
+		}
+		selectedPath := targetPath
+		if config.FilesystemDirect {
+			selectedPath = sourcePath
+		}
+		selectedPath = canonicalLocalPath(selectedPath)
+		sourceBySelectedPath[selectedPath] = canonicalLocalPath(sourcePath)
+	}
+	for index := range repositories {
+		if sourcePath := sourceBySelectedPath[canonicalLocalPath(repositories[index].RepoPath)]; sourcePath != "" {
+			repositories[index].GitTreePath = sourcePath
+		}
+	}
+}
+
+func canonicalLocalPath(localPath string) string {
+	absolutePath, err := filepath.Abs(localPath)
+	if err != nil {
+		return localPath
+	}
+	if resolvedPath, resolveErr := filepath.EvalSymlinks(absolutePath); resolveErr == nil {
+		return resolvedPath
+	}
+	return absolutePath
 }
 
 func buildSelectedRepositories(
