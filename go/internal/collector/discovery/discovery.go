@@ -6,7 +6,6 @@ package discovery
 import (
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -42,6 +41,21 @@ type Options struct {
 	// PreservedPathGlobs lists repo-relative path globs that remain indexable
 	// even when a broader ignored path glob covers an ancestor.
 	PreservedPathGlobs []string
+	// GitTrackedResolver resolves the set of repo-relative, slash-separated
+	// paths git tracks in the repository rooted at repoRoot, and reports
+	// whether that resolution succeeded (ok=false means "unknown," e.g.
+	// repoRoot is not a git checkout or git itself is unavailable — callers
+	// MUST NOT treat ok=false as "nothing is tracked").
+	//
+	// When set and HonorGitignore is true, a file this resolver reports as
+	// tracked is never filtered by .gitignore (issue #5591): git itself only
+	// applies .gitignore to UNTRACKED paths, so a force-committed
+	// (`git add -f`) file that matches a gitignore rule stays tracked and
+	// must stay discoverable. This package stays git-free — the collector
+	// package is responsible for constructing a resolver that shells out to
+	// `git ls-files`. HonorEshuIgnore is unaffected: .eshuignore remains the
+	// operator's own opt-out and still skips a tracked file.
+	GitTrackedResolver func(repoRoot string) (tracked map[string]struct{}, ok bool)
 }
 
 // PathGlobRule describes a repo-relative path glob and the operator-facing
@@ -76,7 +90,27 @@ type DiscoveryStats struct {
 	FilesSkippedGitignore int
 	// FilesSkippedEshuIgnore counts files filtered by repo-local .eshuignore rules.
 	FilesSkippedEshuIgnore int
+	// TrackedFilesSkippedEshuIgnore lists the repo-relative, slash-separated
+	// paths of files git tracks (per GitTrackedResolver) that repo-local
+	// .eshuignore rules still skipped (issue #5591 acceptance: unlike
+	// .gitignore, which #5591 makes defer to git's own tracked set,
+	// .eshuignore remains a deliberate operator opt-out that CAN skip a
+	// tracked file — but that skip must stay individually visible to
+	// operators rather than disappearing into the aggregate
+	// FilesSkippedEshuIgnore count). Capped at
+	// trackedFilesSkippedEshuIgnoreCap entries; additional skips beyond the
+	// cap are counted in TrackedFilesSkippedEshuIgnoreOverflow instead of
+	// growing this slice without bound.
+	TrackedFilesSkippedEshuIgnore []string
+	// TrackedFilesSkippedEshuIgnoreOverflow counts tracked-file .eshuignore
+	// skips beyond the TrackedFilesSkippedEshuIgnore cap.
+	TrackedFilesSkippedEshuIgnoreOverflow int
 }
+
+// trackedFilesSkippedEshuIgnoreCap bounds DiscoveryStats.TrackedFilesSkippedEshuIgnore
+// so a repo with a large number of tracked-but-eshuignored files cannot grow
+// one generation's stats (and its downstream structured logs) unbounded.
+const trackedFilesSkippedEshuIgnoreCap = 100
 
 // TotalDirsSkipped returns the aggregate count of pruned directories.
 func (s DiscoveryStats) TotalDirsSkipped() int {
@@ -152,15 +186,30 @@ func ResolveRepositoryFileSetsWithStats(
 	for _, repoRoot := range repoRoots {
 		files := append([]FileWithSize(nil), groups[repoRoot]...)
 		sortFileWithSizeSlice(files)
+
+		// Resolved once per repo root (not per file) and reused by both
+		// filters below: the gitignore filter needs it to keep a tracked
+		// file despite a match, and the eshuignore filter needs it to
+		// classify which of its skips are tracked-file skips worth
+		// surfacing individually (issue #5591).
+		var tracked map[string]struct{}
+		if opts.GitTrackedResolver != nil && (opts.HonorGitignore || opts.HonorEshuIgnore) {
+			if resolved, ok := opts.GitTrackedResolver(repoRoot); ok {
+				tracked = resolved
+			}
+		}
+
 		if opts.HonorGitignore {
 			before := len(files)
-			files = filterRepoFilesByGitignore(repoRoot, files)
+			files = filterRepoFilesByGitignore(repoRoot, files, tracked)
 			stats.FilesSkippedGitignore += before - len(files)
 		}
 		if opts.HonorEshuIgnore {
 			before := len(files)
-			files = filterRepoFilesByEshuIgnore(repoRoot, files)
+			var skippedPaths []string
+			files, skippedPaths = filterRepoFilesByEshuIgnore(repoRoot, files)
 			stats.FilesSkippedEshuIgnore += before - len(files)
+			recordTrackedEshuIgnoreSkips(&stats, repoRoot, skippedPaths, tracked)
 		}
 		result = append(result, RepoFileSet{
 			RepoRoot: repoRoot,
@@ -168,6 +217,33 @@ func ResolveRepositoryFileSetsWithStats(
 		})
 	}
 	return stats, result, nil
+}
+
+// recordTrackedEshuIgnoreSkips appends the repo-relative path of every
+// skippedPath that is also a member of tracked into
+// stats.TrackedFilesSkippedEshuIgnore, capped at
+// trackedFilesSkippedEshuIgnoreCap with an overflow counter beyond the cap.
+// A nil/empty tracked set (resolver absent or reported ok=false) is a no-op,
+// matching the pre-#5591 behavior of not knowing which files git tracks.
+func recordTrackedEshuIgnoreSkips(stats *DiscoveryStats, repoRoot string, skippedPaths []string, tracked map[string]struct{}) {
+	if len(tracked) == 0 {
+		return
+	}
+	for _, skippedPath := range skippedPaths {
+		rel, err := filepath.Rel(repoRoot, skippedPath)
+		if err != nil {
+			continue
+		}
+		rel = filepath.ToSlash(filepath.Clean(rel))
+		if _, ok := tracked[rel]; !ok {
+			continue
+		}
+		if len(stats.TrackedFilesSkippedEshuIgnore) >= trackedFilesSkippedEshuIgnoreCap {
+			stats.TrackedFilesSkippedEshuIgnoreOverflow++
+			continue
+		}
+		stats.TrackedFilesSkippedEshuIgnore = append(stats.TrackedFilesSkippedEshuIgnore, rel)
+	}
 }
 
 func normalizeScanRoot(root string) (string, error) {
@@ -192,300 +268,4 @@ func normalizeScanRoot(root string) (string, error) {
 		return "", fmt.Errorf("scan root %q is not a directory", root)
 	}
 	return absRoot, nil
-}
-
-func collectSupportedFiles(
-	scanRoot string,
-	supported SupportedFileMatcher,
-	opts Options,
-) ([]FileWithSize, DiscoveryStats, error) {
-	ignoredDirs := normalizeIgnoredDirs(opts.IgnoredDirs)
-	ignoredExts := normalizeExtensions(opts.IgnoredExtensions)
-	preservedHidden := normalizePrefixes(opts.PreservedHiddenPrefixes)
-	ignoredPathGlobs := normalizePathGlobRules(opts.IgnoredPathGlobs)
-	preservedPathGlobs := normalizePathGlobPatterns(opts.PreservedPathGlobs)
-
-	stats := DiscoveryStats{
-		DirsSkippedByName:       make(map[string]int),
-		FilesSkippedByExtension: make(map[string]int),
-		FilesSkippedByContent:   make(map[string]int),
-		DirsSkippedByUser:       make(map[string]int),
-		FilesSkippedByUser:      make(map[string]int),
-	}
-	files := make([]FileWithSize, 0)
-	if err := filepath.WalkDir(scanRoot, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			if errors.Is(walkErr, fs.ErrPermission) {
-				if entry != nil && entry.IsDir() {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			return walkErr
-		}
-		if path == scanRoot {
-			return nil
-		}
-
-		rel, err := filepath.Rel(scanRoot, path)
-		if err != nil {
-			return err
-		}
-		rel = filepath.ToSlash(filepath.Clean(rel))
-
-		if entry.IsDir() {
-			if isIgnoredDir(entry.Name(), ignoredDirs) {
-				stats.DirsSkippedByName[strings.ToLower(entry.Name())]++
-				return filepath.SkipDir
-			}
-			if opts.IgnoreHidden && isHiddenPath(rel) && !preservesHiddenPath(rel, preservedHidden) {
-				stats.DirsSkippedByName[".hidden"]++
-				return filepath.SkipDir
-			}
-			if reason, ok := matchedIgnoredPathGlob(rel, true, ignoredPathGlobs, preservedPathGlobs); ok {
-				stats.DirsSkippedByUser[reason]++
-				return filepath.SkipDir
-			}
-			return nil
-		}
-
-		if shouldSkipFile(rel, opts.IgnoreHidden, preservedHidden) {
-			stats.FilesSkippedHidden++
-			return nil
-		}
-		if ext := matchedIgnoredExtension(entry.Name(), ignoredExts); ext != "" {
-			stats.FilesSkippedByExtension[ext]++
-			return nil
-		}
-		if !supported(path) {
-			return nil
-		}
-		if reason, ok := matchedIgnoredPathGlob(rel, false, ignoredPathGlobs, preservedPathGlobs); ok {
-			stats.FilesSkippedByUser[reason]++
-			return nil
-		}
-		external, info, ok := classifyPath(scanRoot, path)
-		if !ok || external {
-			return nil
-		}
-
-		fileEntry := FileWithSize{Path: path}
-		if info.Mode()&os.ModeSymlink != 0 {
-			// Included symlink: follow-Stat for the target size so
-			// partition balancing is byte-identical to the old
-			// code that called os.Stat (which follows symlinks).
-			if targetInfo, targetErr := os.Stat(path); targetErr == nil {
-				fileEntry.Size = targetInfo.Size()
-			} else {
-				// Target could not be followed — mark unavailable so the
-				// partition weighter applies its default, matching the old
-				// os.Stat-failure path (not the zero-byte floor).
-				fileEntry.Size = SizeUnavailable
-			}
-		} else {
-			// Regular file: size harvested from the single Lstat
-			// classifyPath already performed (0 for a genuine empty file).
-			fileEntry.Size = info.Size()
-		}
-		files = append(files, fileEntry)
-		return nil
-	}); err != nil {
-		return nil, stats, err
-	}
-
-	sortFileWithSizeSlice(files)
-	return files, stats, nil
-}
-
-func groupFilesByRepository(scanRoot string, files []FileWithSize) map[string][]FileWithSize {
-	groups := make(map[string][]FileWithSize)
-	repoCache := make(map[string]string)
-	for _, file := range files {
-		repoRoot := nearestRepositoryRoot(scanRoot, filepath.Dir(file.Path), repoCache)
-		if repoRoot == "" {
-			repoRoot = scanRoot
-		}
-		groups[repoRoot] = append(groups[repoRoot], file)
-	}
-	return groups
-}
-
-func nearestRepositoryRoot(scanRoot, dir string, cache map[string]string) string {
-	current := filepath.Clean(dir)
-	walked := make([]string, 0, 8)
-	for {
-		if cached, ok := cache[current]; ok {
-			for _, path := range walked {
-				cache[path] = cached
-			}
-			return cached
-		}
-
-		walked = append(walked, current)
-		if hasGitMarker(current) {
-			for _, path := range walked {
-				cache[path] = current
-			}
-			return current
-		}
-		if current == scanRoot {
-			break
-		}
-
-		parent := filepath.Dir(current)
-		if parent == current {
-			break
-		}
-		current = parent
-	}
-
-	for _, path := range walked {
-		cache[path] = ""
-	}
-	return ""
-}
-
-func hasGitMarker(dir string) bool {
-	info, err := os.Stat(filepath.Join(dir, ".git"))
-	if err != nil {
-		return false
-	}
-	return info.IsDir() || info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0
-}
-
-// classifyPath does a single os.Lstat and returns the symlink-external verdict,
-// the FileInfo for size harvesting, and an ok flag. For regular files, info.Size()
-// is the on-disk size. For included symlinks the caller must follow-Stat for the
-// target size (to match the old partition os.Stat behavior that followed symlinks).
-func classifyPath(scanRoot, path string) (external bool, info os.FileInfo, ok bool) {
-	info, err := os.Lstat(path)
-	if err != nil {
-		return true, nil, false
-	}
-	if info.Mode()&os.ModeSymlink == 0 {
-		return false, info, true
-	}
-
-	resolved, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		return true, info, true
-	}
-	absResolved, err := filepath.Abs(resolved)
-	if err != nil {
-		return true, info, true
-	}
-	external = !pathWithinRoot(scanRoot, absResolved)
-	return external, info, true
-}
-
-func pathWithinRoot(root, candidate string) bool {
-	rel, err := filepath.Rel(root, candidate)
-	if err != nil {
-		return false
-	}
-	rel = filepath.ToSlash(filepath.Clean(rel))
-	return rel == "." || !strings.HasPrefix(rel, "../")
-}
-
-func shouldSkipFile(rel string, ignoreHidden bool, preservedHidden []string) bool {
-	if !ignoreHidden {
-		return false
-	}
-	return isHiddenPath(rel) && !preservesHiddenPath(rel, preservedHidden)
-}
-
-func isIgnoredDir(name string, ignoredDirs map[string]struct{}) bool {
-	_, ok := ignoredDirs[strings.ToLower(name)]
-	return ok
-}
-
-func isHiddenPath(rel string) bool {
-	if rel == "." {
-		return false
-	}
-	for _, segment := range strings.Split(rel, "/") {
-		if strings.HasPrefix(segment, ".") && segment != "." && segment != ".." {
-			return true
-		}
-	}
-	return false
-}
-
-func preservesHiddenPath(rel string, preserved []string) bool {
-	if len(preserved) == 0 {
-		return false
-	}
-	rel = filepath.ToSlash(filepath.Clean(rel))
-	parts := strings.Split(rel, "/")
-	for start := 0; start < len(parts); start++ {
-		candidate := strings.Join(parts[start:], "/")
-		for _, prefix := range preserved {
-			if pathPrefixMatches(candidate, prefix) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func pathPrefixMatches(path string, prefix string) bool {
-	path = filepath.ToSlash(filepath.Clean(path))
-	prefix = filepath.ToSlash(filepath.Clean(prefix))
-	if path == prefix {
-		return true
-	}
-	if strings.HasPrefix(path, prefix+"/") {
-		return true
-	}
-	return strings.HasPrefix(prefix, path+"/")
-}
-
-func normalizeExtensions(exts []string) []string {
-	normalized := make([]string, 0, len(exts))
-	for _, ext := range exts {
-		ext = strings.TrimSpace(ext)
-		if ext == "" {
-			continue
-		}
-		normalized = append(normalized, strings.ToLower(ext))
-	}
-	return normalized
-}
-
-// matchedIgnoredExtension returns the specific extension that matched, or ""
-// if no extension matched. Used by collectSupportedFiles to record per-extension
-// skip counts.
-func matchedIgnoredExtension(name string, exts []string) string {
-	lower := strings.ToLower(name)
-	for _, ext := range exts {
-		if strings.HasSuffix(lower, ext) {
-			return ext
-		}
-	}
-	return ""
-}
-
-func normalizeIgnoredDirs(dirs []string) map[string]struct{} {
-	normalized := make(map[string]struct{}, len(dirs))
-	for _, dir := range dirs {
-		dir = strings.TrimSpace(dir)
-		if dir == "" {
-			continue
-		}
-		normalized[strings.ToLower(dir)] = struct{}{}
-	}
-	return normalized
-}
-
-func normalizePrefixes(prefixes []string) []string {
-	normalized := make([]string, 0, len(prefixes))
-	for _, prefix := range prefixes {
-		prefix = strings.TrimSpace(prefix)
-		if prefix == "" {
-			continue
-		}
-		normalized = append(normalized, filepath.ToSlash(filepath.Clean(prefix)))
-	}
-	sort.Strings(normalized)
-	return normalized
 }

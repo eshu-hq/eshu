@@ -21,23 +21,60 @@ type gitignorePattern struct {
 	anchored bool
 }
 
-func filterRepoFilesByGitignore(repoRoot string, files []FileWithSize) []FileWithSize {
-	return filterRepoFilesByIgnoreFile(repoRoot, files, ".gitignore")
-}
-
-func filterRepoFilesByEshuIgnore(repoRoot string, files []FileWithSize) []FileWithSize {
-	return filterRepoFilesByIgnoreFile(repoRoot, files, ".eshuignore")
-}
-
-func filterRepoFilesByIgnoreFile(repoRoot string, files []FileWithSize, ignoreFileName string) []FileWithSize {
+// filterRepoFilesByGitignore drops files matching a repo-local .gitignore
+// rule, EXCEPT a file whose repo-relative path is a member of tracked
+// (issue #5591): git only applies .gitignore to UNTRACKED paths, so a
+// force-committed file that matches a gitignore rule stays tracked and must
+// stay discoverable. A nil/empty tracked set (no resolver, or the resolver
+// reported ok=false) filters exactly as it did before #5591.
+func filterRepoFilesByGitignore(repoRoot string, files []FileWithSize, tracked map[string]struct{}) []FileWithSize {
 	cache := make(map[string]*gitignoreSpec)
 	kept := make([]FileWithSize, 0, len(files))
 	for _, file := range files {
-		if !isIgnoredByRepoIgnoreFile(repoRoot, file.Path, ignoreFileName, cache) {
+		if isTrackedRepoFile(repoRoot, file.Path, tracked) {
+			kept = append(kept, file)
+			continue
+		}
+		if !isIgnoredByRepoIgnoreFile(repoRoot, file.Path, ".gitignore", cache) {
 			kept = append(kept, file)
 		}
 	}
 	return kept
+}
+
+// filterRepoFilesByEshuIgnore drops files matching a repo-local .eshuignore
+// rule. Unlike .gitignore, .eshuignore is the operator's own opt-out and
+// applies regardless of git-tracked status (issue #5591 leaves this filter's
+// semantics unchanged). It also returns the absolute paths of every file it
+// skipped so the caller can classify which skips are tracked-file skips
+// worth surfacing individually (see recordTrackedEshuIgnoreSkips).
+func filterRepoFilesByEshuIgnore(repoRoot string, files []FileWithSize) (kept []FileWithSize, skipped []string) {
+	cache := make(map[string]*gitignoreSpec)
+	kept = make([]FileWithSize, 0, len(files))
+	for _, file := range files {
+		if isIgnoredByRepoIgnoreFile(repoRoot, file.Path, ".eshuignore", cache) {
+			skipped = append(skipped, file.Path)
+			continue
+		}
+		kept = append(kept, file)
+	}
+	return kept, skipped
+}
+
+// isTrackedRepoFile reports whether filePath's repo-relative, slash-separated
+// path is a member of tracked. A nil/empty tracked set always reports false,
+// matching the pre-#5591 behavior of not knowing which files git tracks.
+func isTrackedRepoFile(repoRoot string, filePath string, tracked map[string]struct{}) bool {
+	if len(tracked) == 0 {
+		return false
+	}
+	rel, err := filepath.Rel(repoRoot, filePath)
+	if err != nil {
+		return false
+	}
+	rel = filepath.ToSlash(filepath.Clean(rel))
+	_, ok := tracked[rel]
+	return ok
 }
 
 func isIgnoredByRepoIgnoreFile(
