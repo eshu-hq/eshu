@@ -16,6 +16,7 @@ registry="${repo_root}/specs/ci-gates.v1.yaml"
 static_contract_workflow="${repo_root}/.github/workflows/static-contract-gates.yml"
 build_test_workflow="${repo_root}/.github/workflows/test.yml"
 frontend_workflow="${repo_root}/.github/workflows/frontend.yml"
+registry_workflow="${repo_root}/.github/workflows/verify-ci-gate-registry.yml"
 
 fail() {
 	printf 'test-verify-ci-gates-registry: %s\n' "$*" >&2
@@ -48,6 +49,14 @@ require "gates section"     "gates:"          "${registry}"
 require "id field present"  "  - id:"         "${registry}"
 require "triggers present"  "    triggers:"   "${registry}"
 require "ci_only_reason"    "ci_only_reason:" "${registry}"
+
+# The registry validator proves test_command scripts exist but does not execute
+# them. Keep the CI mirror explicit so the cache-isolation regression cannot be
+# present in metadata while absent from the workflow that claims to run it.
+[[ -f "${registry_workflow}" ]] || fail "missing ${registry_workflow}"
+require "pre-pr cache-isolation CI mirror" \
+	"scripts/test-pre-pr-whole-module-gates.sh" \
+	"${registry_workflow}"
 
 # Retained-console SQL fixtures are executable proof inputs. A fixture-only
 # change must select the same frontend gate in both GitHub and local parity.

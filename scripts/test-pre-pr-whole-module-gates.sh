@@ -109,6 +109,8 @@ require_precommit "worktree-local golangci cache" 'GOLANGCI_LINT_CACHE="${golang
 # shellcheck disable=SC2016
 reject_precommit "ambient golangci cache override" 'GOLANGCI_LINT_CACHE:-'
 # shellcheck disable=SC2016
+require_precommit "disabled ambient golangci cache program" 'GOLANGCI_LINT_CACHEPROG='
+# shellcheck disable=SC2016
 parallel_run_count="$(rg --fixed-strings -c -- '--allow-parallel-runners --config "${cfg}"' "${precommit_script}")"
 [[ "${parallel_run_count}" == "2" ]] ||
 	fail "parallel-runner flag count = ${parallel_run_count}, want 2 lint entrypoints"
