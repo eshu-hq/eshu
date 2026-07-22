@@ -22,6 +22,7 @@ const (
 	defaultGraphReadTimeout        = 10 * time.Second
 	defaultGraphReadSlowThreshold  = 2 * time.Second
 	defaultGraphReadRetryDelay     = 25 * time.Millisecond
+	graphReadSessionCloseTimeout   = time.Second
 	maxGraphReadAttempts           = 2
 	neo4jTransactionTimedOutCode   = "Neo.ClientError.Transaction.TransactionTimedOut"
 	neo4jTransactionTerminatedCode = "Neo.ClientError.Transaction.Terminated"
@@ -180,7 +181,7 @@ func (r *Neo4jReader) runReadAttempt(
 	if session == nil {
 		return nil, errors.New("neo4j read session is required")
 	}
-	defer closeNeo4jReadSession(ctx, session)
+	defer r.closeNeo4jReadSession(ctx, session)
 
 	deadline, ok := ctx.Deadline()
 	if !ok {
@@ -225,8 +226,22 @@ func (r *Neo4jReader) newReadSession(ctx context.Context) neo4jReadSession {
 	return neo4jReadSessionAdapter{session: r.driver.NewSession(ctx, config)}
 }
 
-func closeNeo4jReadSession(ctx context.Context, session neo4jReadSession) {
-	_ = session.Close(ctx)
+func (r *Neo4jReader) closeNeo4jReadSession(readCtx context.Context, session neo4jReadSession) {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(readCtx), graphReadSessionCloseTimeout)
+	defer cancel()
+	if err := session.Close(cleanupCtx); err != nil {
+		logger := r.policy.logger
+		if logger == nil {
+			logger = slog.Default()
+		}
+		logger.WarnContext(
+			cleanupCtx,
+			"graph read session cleanup failed",
+			telemetry.EventAttr("query.graph_read.session_close_failed"),
+			telemetry.PhaseAttr(telemetry.PhaseQuery),
+			telemetry.FailureClassAttr("session_close_error"),
+		)
+	}
 }
 
 func waitForGraphReadRetry(ctx context.Context, delay time.Duration) error {

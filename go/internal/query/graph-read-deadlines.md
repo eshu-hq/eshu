@@ -8,6 +8,13 @@ caller deadline is earlier. The remaining time is also passed to
 may open one replacement read session, for two attempts total under the
 original budget. Other errors are not retried.
 
+Session cleanup does not reuse the expired read context. The reader waits for
+`Session.Close` with a separate one-second bound so the driver can return the
+connection to its pool. Cleanup failure does not replace an otherwise valid
+read result, but emits the sanitized
+`query.graph_read.session_close_failed` warning without driver text, query
+text, or backend addresses.
+
 The caller context is classified before the policy child context. An enclosing
 deadline or cancellation therefore returns unchanged and records
 `caller_deadline` or `canceled`; it cannot be counted as a graph-policy
@@ -38,13 +45,17 @@ private-cause suppression.
 ## Performance and concurrency evidence
 
 Performance Evidence: the policy does not change query shape, result
-conversion, graph writes, or
-healthy backend round trips. A fixed-input Go microbenchmark
-(`BenchmarkNeo4jReaderHealthyPolicyOverhead`, 10,000 iterations, five runs,
-darwin/arm64) measured the former shape at 150.3-207.3 ns/op, 392 B/op, and 4
-allocs/op. The bounded reader measured 679.4-827.6 ns/op, 1144 B/op, and 17
-allocs/op, adding about 0.5-0.7 microseconds per logical read. This measures
-only fixed in-process overhead, not a Bolt round trip.
+conversion, graph writes, or healthy backend round trips. A fixed-input Go
+microbenchmark (`BenchmarkNeo4jReaderHealthyPolicyOverhead`, 10,000
+iterations, five runs, darwin/arm64) uses the same fake driver/session factory,
+query and parameters, no-op tracing, row conversion, and one
+session/Run/Collect/Close lifecycle for both readers. The unbounded control
+measured 793.1-903.9 ns/op (837.2 ns/op median), 1,248 B/op, and 19 allocs/op.
+The bounded reader measured 1,272-1,420 ns/op (1,395 ns/op median), 1,544 B/op,
+and 25 allocs/op: a 557.8 ns median fixed-cost increase, 296 B, and 6
+allocations per healthy logical read. The widest cross-run difference was
+626.9 ns. This measures only fixed in-process overhead, not a Bolt
+round trip.
 
 Concurrency Evidence: the policy adds no lock, queue, lease, worker, goroutine,
 or shared mutable state. A retry uses a fresh session only for a typed
@@ -89,7 +100,7 @@ proof, and both disposable containers were removed. The retained API,
 Postgres, NornicDB, MCP, projector, and collector container identities matched
 their pre-proof identities and all remained healthy.
 
-## Current surface inventory and remaining probe gap
+## Current surface inventory and exact-head probe
 
 The current target manifest is generated from authoritative code instead of a
 fixed historical count. `go run ./cmd/capability-inventory -mode verify` reads
@@ -99,10 +110,41 @@ every HTTP method and path from `query.OpenAPISpec`, every MCP tool from
 `TestSurfaceInventoryDriftAgainstRealCode` prevents an added or removed route or
 tool from silently bypassing the inventory.
 
-The generated inventory is exhaustive for current API and MCP names, but it
-does not contain authenticated fixture setup, path selectors, or valid request
-arguments for every row. It therefore replaces the unavailable stale target
-list without pretending to be an executable all-surface probe. The shared
-adapter, representative API/MCP paths, and startup backfill are covered by the
-focused tests above. A fully live all-surface sweep still needs a checked-in
-fixture and argument registry keyed by the generated surface names.
+The generated inventory is exhaustive for current OpenAPI and MCP registry
+names; the probe manifest adds five directly registered HTTP surfaces that are
+not all represented in OpenAPI. The
+checked-in `graph-read-probe` registry is deliberately narrower: it covers the
+seven direct #5273 graph-read entry points across API and MCP, including
+repository inventory, empty-selector repository statistics, direct Cypher,
+and visualization. It supplies valid bounded arguments, labels the required
+user-token versus admin/all-scope posture, validates its API/MCP names against
+the current registries, and fails closed on authentication, unsupported
+routes/tools, non-2xx responses, JSON-RPC errors, or MCP tool-error results.
+
+Run it against branch-built exact-head API and MCP endpoints from the `go`
+directory:
+
+```bash
+ESHU_API_BASE_URL=https://api.example.invalid \
+ESHU_MCP_URL=https://mcp.example.invalid/mcp \
+ESHU_MCP_TOKEN=... ESHU_API_KEY=... \
+go run ./cmd/capability-inventory -mode graph-read-probe
+```
+
+`ESHU_MCP_TOKEN` is the normal user bearer credential used for repository
+reads. Direct Cypher and visualization are intentionally shared-key/all-scope
+surfaces, so the runner requires the separately labeled admin credential in
+`ESHU_API_KEY`; it never prints either value. This commit adds the executable
+runner and local transport/authentication proof only. It does not claim that a
+current exact-head remote run has occurred.
+
+The recovered historical exhaustive harness enumerated 248 HTTP routes and
+159 MCP tools (407 targets) on an older commit. Its retained rows contain local
+identifiers and stack metadata and are not copied into this repository. The
+current code-derived manifest contains 415 unique targets (the current OpenAPI and MCP
+registries plus five directly registered HTTP surfaces). Only seven currently
+have safe checked-in fixtures, so the command intentionally exits non-zero
+after those probes and reports that 408 current surfaces remain unsupported.
+That explicit failure is the exact-head burn-down gate: unsupported surfaces
+cannot be silently counted as validated, and no current exhaustive remote run
+is claimed until the fixture count reaches the manifest count.

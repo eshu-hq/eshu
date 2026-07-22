@@ -59,7 +59,8 @@ func TestNeo4jReaderPolicyDeadlineIsPublicGraphDeadline(t *testing.T) {
 	}
 }
 
-func TestNeo4jReaderPolicyDeadlineDoesNotWaitForSessionCleanup(t *testing.T) {
+func TestNeo4jReaderPolicyDeadlineAllowsSessionCleanupToComplete(t *testing.T) {
+	cleanupCompleted := false
 	reader := newPolicyTestNeo4jReader(func(context.Context, neo4jdriver.SessionConfig) neo4jReadSession {
 		return &fakeNeo4jReadSession{
 			result: &fakeNeo4jReadResult{collect: func(ctx context.Context) ([]*neo4jdriver.Record, error) {
@@ -67,8 +68,13 @@ func TestNeo4jReaderPolicyDeadlineDoesNotWaitForSessionCleanup(t *testing.T) {
 				return nil, ctx.Err()
 			}},
 			close: func(ctx context.Context) error {
-				<-ctx.Done()
-				return ctx.Err()
+				select {
+				case <-time.After(10 * time.Millisecond):
+					cleanupCompleted = true
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
 			},
 		}
 	})
@@ -79,8 +85,70 @@ func TestNeo4jReaderPolicyDeadlineDoesNotWaitForSessionCleanup(t *testing.T) {
 	if !errors.Is(err, ErrGraphReadDeadline) {
 		t.Fatalf("Run() error = %v, want ErrGraphReadDeadline", err)
 	}
+	if !cleanupCompleted {
+		t.Fatal("Run() returned before session cleanup completed")
+	}
 	if elapsed := time.Since(started); elapsed >= 250*time.Millisecond {
-		t.Fatalf("Run() elapsed = %s, want cleanup bounded by original read budget", elapsed)
+		t.Fatalf("Run() elapsed = %s, want completed cleanup within its separate bound", elapsed)
+	}
+}
+
+func TestNeo4jReaderSessionCleanupUsesLiveBoundedContext(t *testing.T) {
+	cleanupDeadline := time.Duration(0)
+	reader := newPolicyTestNeo4jReader(func(context.Context, neo4jdriver.SessionConfig) neo4jReadSession {
+		return &fakeNeo4jReadSession{
+			result: &fakeNeo4jReadResult{records: []*neo4jdriver.Record{}},
+			close: func(ctx context.Context) error {
+				if err := ctx.Err(); err != nil {
+					t.Fatalf("session cleanup context already expired: %v", err)
+				}
+				deadline, ok := ctx.Deadline()
+				if !ok {
+					t.Fatal("session cleanup context has no deadline")
+				}
+				cleanupDeadline = time.Until(deadline)
+				return nil
+			},
+		}
+	})
+
+	if _, err := reader.Run(context.Background(), "RETURN 1", nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if cleanupDeadline <= 0 || cleanupDeadline > graphReadSessionCloseTimeout {
+		t.Fatalf("cleanup deadline = %s, want (0, %s]", cleanupDeadline, graphReadSessionCloseTimeout)
+	}
+}
+
+func TestNeo4jReaderRepeatedTimeoutsCloseEverySession(t *testing.T) {
+	const reads = 4
+	sessions := 0
+	closed := 0
+	reader := newPolicyTestNeo4jReader(func(context.Context, neo4jdriver.SessionConfig) neo4jReadSession {
+		sessions++
+		return &fakeNeo4jReadSession{
+			result: &fakeNeo4jReadResult{collect: func(ctx context.Context) ([]*neo4jdriver.Record, error) {
+				<-ctx.Done()
+				return nil, ctx.Err()
+			}},
+			close: func(ctx context.Context) error {
+				if err := ctx.Err(); err != nil {
+					t.Fatalf("session %d cleanup context already expired: %v", sessions, err)
+				}
+				closed++
+				return nil
+			},
+		}
+	})
+	reader.policy.readTimeout = 5 * time.Millisecond
+
+	for range reads {
+		if _, err := reader.Run(context.Background(), "RETURN 1", nil); !errors.Is(err, ErrGraphReadDeadline) {
+			t.Fatalf("Run() error = %v, want ErrGraphReadDeadline", err)
+		}
+	}
+	if sessions != reads || closed != reads {
+		t.Fatalf("sessions/closed = %d/%d, want %d/%d", sessions, closed, reads, reads)
 	}
 }
 

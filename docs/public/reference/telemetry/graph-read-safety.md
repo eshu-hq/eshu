@@ -6,6 +6,12 @@ remaining budget to the backend transaction, so collection and backend work
 share the same clock. A typed retryable connectivity failure may open one fresh
 session, but both attempts remain inside the original budget.
 
+After execution, Eshu closes the driver session with a separate one-second
+cleanup context. This lets the driver return connections to its pool even when
+the read budget expired. A cleanup failure emits a sanitized
+`query.graph_read.session_close_failed` warning; it does not expose driver
+text, query text, or backend addresses.
+
 The policy also covers graph reads performed during API and MCP startup,
 including the cloud-resource owner-ledger backfill. Each backfill page uses the
 same bounded reader rather than a raw driver session.
@@ -43,6 +49,11 @@ The `neo4j.query` span records the same outcome plus
 `eshu.graph_read.configured_deadline_ms`. Slow, deadline, and unavailable
 reads also emit `query.graph_read.warning` with `pipeline_phase="query"`, a
 bounded `failure_class`, and `duration_seconds`.
+
+Session-close failures emit `query.graph_read.session_close_failed` with
+`pipeline_phase="query"` and `failure_class="session_close_error"`. Because
+cleanup has its own one-second bound, total request wall time may extend beyond
+the graph-execution budget by up to that cleanup allowance.
 
 Treat `slow` as completed work that remained inside the budget. Treat
 `deadline` as exhausted graph-read work and investigate the query plan. Treat

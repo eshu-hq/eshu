@@ -102,6 +102,30 @@ func TestNeo4jReaderWarningDoesNotExposeQueryOrDriverCause(t *testing.T) {
 	}
 }
 
+func TestNeo4jReaderSessionCleanupFailureIsObservableAndSanitized(t *testing.T) {
+	const privateCause = "bolt://private-cleanup.example.invalid:7687"
+	var logs bytes.Buffer
+	reader := newPolicyTestNeo4jReader(func(context.Context, neo4jdriver.SessionConfig) neo4jReadSession {
+		return &fakeNeo4jReadSession{
+			result: &fakeNeo4jReadResult{records: []*neo4jdriver.Record{}},
+			close:  func(context.Context) error { return errors.New(privateCause) },
+		}
+	})
+	reader.policy.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+
+	if _, err := reader.Run(context.Background(), "RETURN 1", nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	got := logs.String()
+	if !strings.Contains(got, `"event_name":"query.graph_read.session_close_failed"`) ||
+		!strings.Contains(got, `"failure_class":"session_close_error"`) {
+		t.Fatalf("cleanup warning = %s, want bounded event and failure class", got)
+	}
+	if strings.Contains(got, privateCause) {
+		t.Fatalf("cleanup warning exposed driver cause: %s", got)
+	}
+}
+
 func TestNeo4jReaderRecoveredReadAnnotatesBoundedSpanOutcome(t *testing.T) {
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
