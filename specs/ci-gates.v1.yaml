@@ -1678,6 +1678,8 @@ gates:
     blocking: true
     triggers:
       - "apps/console/e2e/**"
+      - "scripts/lib/auth_e2e_cli.sh"
+      - "scripts/test-auth-e2e-cli.sh"
       - "scripts/run-auth-mcp-e2e.sh"
       - "scripts/auth-mcp-e2e-runtime.mjs"
       - "scripts/verify-auth-mcp-e2e-sensitivity.sh"

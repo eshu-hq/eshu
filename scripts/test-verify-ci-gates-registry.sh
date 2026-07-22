@@ -77,6 +77,24 @@ for sql_fixture in \
 		fail "frontend-console-checks selected for the wrong reason (${sql_fixture})"
 done
 
+# The exact-source auth CLI helper is shared by both fresh-stack auth gates.
+# CI-heavy gates are never selected in the local lane (select.go enforces that
+# before trigger matching), so prove parity directly in both sources of truth;
+# the live validate --drift below proves the resulting registry is valid.
+auth_mcp_gate="$(
+	sed -n '/^  - id: auth-mcp-e2e$/,/^  - id:/p' "${registry}"
+)"
+for auth_cli_path in \
+	'scripts/lib/auth_e2e_cli.sh' \
+	'scripts/test-auth-e2e-cli.sh'; do
+	printf '%s\n' "${auth_mcp_gate}" |
+		rg --fixed-strings --quiet -- "- \"${auth_cli_path}\"" ||
+		fail "auth-mcp-e2e registry triggers omit ${auth_cli_path}"
+	printf '%s\n' "${frontend_pull_request_paths}" |
+		rg --fixed-strings --quiet -- "- \"${auth_cli_path}\"" ||
+		fail "frontend pull_request paths omit ${auth_cli_path}"
+done
+
 # Every gate must declare a tier. Spot-check the enumerated tiers.
 require "pre-commit tier"  "tier: pre-commit" "${registry}"
 require "pre-push tier"    "tier: pre-push"   "${registry}"
