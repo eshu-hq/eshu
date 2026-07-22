@@ -1,0 +1,42 @@
+# Declared k8sResource for the #5639 declared kind+namespace+name identity
+# anchor proof. This repo's own workload name resolves to its repo/fixture
+# name ("supply-chain-demo-db", no ArgoCD Application to redirect it via a
+# GitOps-target name -- see impact_trace_deployment.go's
+# fetchK8sResourceResult, which name-anchors the surfaced k8s_resources pool
+# to the traced workload's own resolved name), so this StatefulSet's
+# metadata.name must match the repo/workload name for it to surface as this
+# workload's declared k8sResource at all.
+#
+# Its kind+namespace+name and container image are hand-matched to the
+# UNANCHORED kubernetes_live.pod_template fact
+# "kubernetes_live:cluster:supply-chain-demo:statefulset:default:supply-chain-demo-db"
+# in testdata/cassettes/kuberneteslive/supply-chain-demo.json -- that live
+# fact carries no argocd.argoproj.io/tracking-id annotation, and this repo
+# declares no ArgoCD Application (or any GitOps controller) at all, so ONLY
+# the declared-object anchor (group_version_resource+namespace+name, plus the
+# image_ref intersection) can promote this workload's deployment truth tier
+# to runtime_confirmed -- the ArgoCD tracking-id anchor path structurally
+# cannot fire for this workload (resolveLiveIdentityAnchors's ArgoCD half
+# reads only argocd_application/argocd_applicationset controllers, and this
+# repo has none).
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: supply-chain-demo-db
+  namespace: default
+spec:
+  serviceName: supply-chain-demo-db
+  replicas: 2
+  selector:
+    matchLabels:
+      app: supply-chain-demo-db
+  template:
+    metadata:
+      labels:
+        app: supply-chain-demo-db
+    spec:
+      containers:
+        - name: db
+          image: ghcr.io/eshu-hq/internal-tools/db-migrator:1.0.0
+          ports:
+            - containerPort: 5432

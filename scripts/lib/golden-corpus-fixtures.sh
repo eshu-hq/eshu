@@ -36,4 +36,5 @@ corpus_fixtures=(
 	dart_comprehensive
 	swift_vapor_app
 	github_actions_workflows
+	supply-chain-demo-db
 )
