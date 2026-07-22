@@ -351,12 +351,9 @@ func queryplanForbiddenOperators(entry queryplan.Entry) []string {
 		forbidden = append(forbidden, "CartesianProduct")
 	}
 	forbidden = append(forbidden, "UnboundedExpand")
-	seen := map[string]struct{}{
-		"AllNodesScan":    {},
-		"UnboundedExpand": {},
-	}
-	if entry.ID != "QP-GRAPH-ENTITY-COUNT" {
-		seen["CartesianProduct"] = struct{}{}
+	seen := make(map[string]struct{}, len(forbidden))
+	for _, operator := range forbidden {
+		seen[operator] = struct{}{}
 	}
 	for _, operator := range entry.Plan.ForbiddenOperators {
 		operator = strings.TrimSpace(operator)

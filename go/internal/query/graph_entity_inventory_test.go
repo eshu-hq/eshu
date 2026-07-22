@@ -27,7 +27,7 @@ type graphEntityCountReader struct {
 
 func (f *graphEntityCountReader) Run(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 	f.runCalls++
-	if strings.Contains(cypher, "AS "+graphEntityKinds[0].key) {
+	if cypher == graphEntityKindCountsCypher(graphEntityKinds) {
 		f.lastCountCy = cypher
 		if f.countRows != nil {
 			return f.countRows, nil
@@ -51,6 +51,31 @@ func (f *graphEntityCountReader) RunSingle(_ context.Context, cypher string, _ m
 		}
 	}
 	return map[string]any{"c": 0}, nil
+}
+
+func TestGraphEntityCountReaderDoesNotTreatListAliasAsFacetCount(t *testing.T) {
+	t.Parallel()
+
+	reader := &graphEntityCountReader{
+		listRows: []map[string]any{{"name": "example-service"}},
+	}
+	rows, err := reader.Run(
+		context.Background(),
+		"MATCH (n:Workload) RETURN n.name AS services",
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if got, want := len(rows), 1; got != want {
+		t.Fatalf("len(rows) = %d, want %d", got, want)
+	}
+	if got, want := StringVal(rows[0], "name"), "example-service"; got != want {
+		t.Fatalf("rows[0].name = %q, want %q", got, want)
+	}
+	if reader.lastCountCy != "" {
+		t.Fatalf("lastCountCy = %q, want empty for a list query", reader.lastCountCy)
+	}
 }
 
 func TestGraphEntityInventoryUsesOneFacetCountRoundTrip(t *testing.T) {
