@@ -65,6 +65,20 @@ type AdminProviderConfigMutationHandler struct {
 	Tester ProviderConfigConnectionTester
 	Audit  GovernanceAuditAppender
 	Now    func() time.Time
+	// ReadStore backs the enable-time login-readiness guard (issue #5604): it
+	// is used ONLY to re-read the provider config's stored non-secret
+	// configuration so handleStatusChange can check for fields
+	// ResolveSealedProviderConfig requires for login (redirect_url, and for
+	// SAML also the SP endpoint / metadata_xml fields) but that are optional
+	// at create/test-connection time — see
+	// admin_provider_config_login_readiness.go. It is deliberately optional:
+	// a nil ReadStore (or a lookup that errors or finds nothing) makes this
+	// secondary guard a no-op rather than a new hard dependency for the
+	// primary enable path, which is still gated by the mandatory
+	// test-connection pass above. In production this is always wired
+	// alongside Store, backed by the same database as
+	// AdminProviderConfigReadHandler.Store (see cmd/api/wiring.go).
+	ReadStore AdminProviderConfigReadStore
 }
 
 // Mount registers the admin provider-config mutation routes.
@@ -369,6 +383,13 @@ func (h *AdminProviderConfigMutationHandler) handleStatusChange(w http.ResponseW
 			return
 		}
 		testedRevisionID = testResult.RevisionID
+
+		if missingField, ok := h.loginReadinessGap(r, providerConfigID, tenantID); ok {
+			h.audit(r, eventType, governanceaudit.DecisionDenied, "provider_config_enable_missing_login_field", "")
+			WriteError(w, http.StatusBadRequest, "provider cannot be enabled: "+missingField+
+				" is required to resolve this provider for login (it is optional at create/test-connection time, but every login attempt would 503 without it)")
+			return
+		}
 	}
 	var result AdminProviderConfigWriteResult
 	var err error
@@ -390,6 +411,28 @@ func (h *AdminProviderConfigMutationHandler) handleStatusChange(w http.ResponseW
 	reason := "provider_config_status_changed"
 	h.audit(r, eventType, governanceaudit.DecisionAllowed, reason, "")
 	WriteJSON(w, http.StatusOK, providerConfigWriteResponse(result))
+}
+
+// loginReadinessGap re-reads providerConfigID's current stored configuration
+// via h.ReadStore and reports the first field missing for login (see
+// admin_provider_config_login_readiness.go's providerConfigMissingLoginField
+// for the per-kind field list and the doc comment on the ReadStore field for
+// why this fails open — never blocking the enable path — when ReadStore is
+// nil or the lookup itself fails or finds nothing: those are the same
+// conditions under which Store.EnableProviderConfig below is left to report
+// its own, authoritative not-found/error outcome.
+func (h *AdminProviderConfigMutationHandler) loginReadinessGap(
+	r *http.Request, providerConfigID, tenantID string,
+) (field string, missing bool) {
+	if h.ReadStore == nil {
+		return "", false
+	}
+	detail, found, err := h.ReadStore.GetProviderConfigDetail(r.Context(), providerConfigID, tenantID)
+	if err != nil || !found {
+		return "", false
+	}
+	missingField := providerConfigMissingLoginField(detail.ProviderKind, detail.Configuration)
+	return missingField, missingField != ""
 }
 
 func (h *AdminProviderConfigMutationHandler) handleTestConnection(w http.ResponseWriter, r *http.Request) {

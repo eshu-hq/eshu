@@ -93,11 +93,41 @@ func providerConfigAdminAuth() AuthContext {
 	return AuthContext{Mode: AuthModeShared, TenantID: providerConfigAdminTenant, AllScopes: true}
 }
 
-func newProviderConfigMutationMux(store AdminProviderConfigMutationStore, tester ProviderConfigConnectionTester, audit GovernanceAuditAppender) *http.ServeMux {
-	handler := &AdminProviderConfigMutationHandler{Store: store, Tester: tester, Audit: audit}
+// newProviderConfigMutationMux builds a mux over a fresh
+// AdminProviderConfigMutationHandler. readStore is optional (variadic so
+// every pre-existing call site is unaffected): when omitted, it defaults to
+// defaultProviderConfigLoginReadyReadStore so the issue #5604 enable-time
+// login-readiness guard (see admin_provider_config_login_readiness.go) never
+// trips for tests that are not specifically exercising it. Tests that DO
+// exercise the guard pass their own readStore explicitly.
+func newProviderConfigMutationMux(store AdminProviderConfigMutationStore, tester ProviderConfigConnectionTester, audit GovernanceAuditAppender, readStore ...AdminProviderConfigReadStore) *http.ServeMux {
+	handler := &AdminProviderConfigMutationHandler{Store: store, Tester: tester, Audit: audit, ReadStore: defaultProviderConfigLoginReadyReadStore()}
+	if len(readStore) > 0 {
+		handler.ReadStore = readStore[0]
+	}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 	return mux
+}
+
+// defaultProviderConfigLoginReadyReadStore returns a fake ReadStore whose
+// pc_1 detail already carries every field ResolveSealedProviderConfig
+// requires for login (redirect_url, for the default external_oidc kind), so
+// the default mux used by every pre-existing create/update/revert/enable/
+// disable/test-connection test in this package is unaffected by the issue
+// #5604 guard added to handleStatusChange.
+func defaultProviderConfigLoginReadyReadStore() AdminProviderConfigReadStore {
+	return &fakeAdminProviderConfigReadStore{details: map[string]AdminProviderConfigDetail{
+		"pc_1": {
+			ProviderConfigID: "pc_1",
+			ProviderKind:     "external_oidc",
+			Status:           "draft",
+			Configuration: map[string]any{
+				"issuer": "https://idp.example.test", "client_id": "client-1",
+				"redirect_url": "https://admin.example.test/auth/oidc/callback",
+			},
+		},
+	}}
 }
 
 const validOIDCCreateBody = `{"provider_kind":"oidc","issuer":"https://idp.example.test","client_id":"client-1","client_secret":"s3cr3t-value","scopes":["openid","email"],"group_claim":"groups"}`
