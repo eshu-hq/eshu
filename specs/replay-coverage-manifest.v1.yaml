@@ -663,6 +663,16 @@ coverage:
   # scenario file (not folded into the governance test) so a future Flux-only
   # regression is isolated from Atlantis/Helm/GitLab structural-edge coverage.
   - {surface: retractable_edge:RECONCILES_FROM, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_canonical_flux_edge_retract_live_test.go, proof_gate: replay-tier}
+  # Kustomize overlay EXTENDS_BASE edge (issue #5445 slice 3): a
+  # projector-canonical structural edge, but unlike its siblings above it is
+  # resolved via a live KustomizeOverlayResolver read (the full repo's
+  # KustomizeOverlay set), not purely from mat.Entities -- the delta-safety
+  # scenario this test proves (gen2 deletes the base file with the overlay
+  # entity absent from gen2 entirely) is exactly the hole a same-cycle-only
+  # Go join cannot close. Not exempt the way MATCHES_STATE is: this edge is
+  # designed to resolve correctly across delta cycles, so it earns a real
+  # scenario row instead of a documented structural-impossibility exemption.
+  - {surface: retractable_edge:EXTENDS_BASE, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_canonical_kustomize_extends_base_edge_retract_live_test.go, proof_gate: replay-tier}
   # Workload/cloud usage edges (#4367 sibling, #5152): both
   # WorkloadCloudRelationshipWriter.RetractWorkloadCloudRelationshipEdges (USES)
   # and EC2UsesProfileEdgeWriter.RetractEC2UsesProfileEdges (USES_PROFILE)
