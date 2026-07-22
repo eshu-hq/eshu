@@ -477,6 +477,12 @@ func (f *fakeReducerDB) QueryContext(_ context.Context, query string, args ...an
 		}
 		return &fakeGenerationRows{value: &scopeGenID, read: false}, nil
 	}
+	if strings.Contains(query, "FROM fact_records") {
+		return &fakeEmptyRows{}, nil
+	}
+	if strings.Contains(query, "FROM scope_generations") {
+		return &fakeExistsRows{value: false}, nil
+	}
 	// ProjectedSourceEdgeBackfiller has no count guard, so it always checks
 	// backfill-state completion at startup; report "not complete".
 	if strings.Contains(query, "code_value_flow_backfill_state") {

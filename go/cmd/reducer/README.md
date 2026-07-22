@@ -239,6 +239,18 @@ to the subsequent canonical upsert group, not to these retract statements.
 | `ESHU_INHERITANCE_EDGE_GROUP_BATCH_SIZE` | `1` | Inheritance grouped-write batch |
 | `ESHU_SQL_RELATIONSHIP_EDGE_GROUP_BATCH_SIZE` | `1` | SQL relationship grouped-write batch |
 
+The canonical handler edge writer is also wired into the direct-emitted
+CODEOWNERS ownership domain, so `codeowners.ownership` facts can materialize
+`Repository-[:DECLARES_CODEOWNER]->CodeownerTeam` without a nil adapter.
+
+No-Regression Evidence: on the same fresh 24-repository corpus and pinned
+NornicDB topology, `scripts/verify-golden-corpus-gate.sh` previously waited its
+10-minute drain timeout with 24 `codeowners_ownership` dead letters carrying
+`codeowners ownership materialization edge writer is required`. With this
+wiring, all three drain passes reported residual=0 and dead_letter=0, and the
+graph/API/MCP gate passed with phase timings bootstrap=3s, collect=20s,
+first_drain=6s, maintenance_drains=7s, and graph_query=2s (38s total).
+
 ### Graph write backpressure (#3560, #3652, #4448)
 
 | Variable | Default | Purpose |
