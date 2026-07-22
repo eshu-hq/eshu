@@ -31,34 +31,18 @@ import (
 //
 // Each case runs the SAME chain as the Java test: real fixture file -> real
 // parser.DefaultEngine().ParsePath -> reducer.BuildHandlesRouteIntentRowsForQueryProof
-// -> (for a resolving case) drive handleRouteToCaller with reducer-derived
-// fakeGraphReader rows and assert the handler entity/language/truth_edge come
-// back; (for a non-resolving case) assert the handler stays unresolved -- no
-// HANDLES_ROUTE intent, no edge, no error -- which is the exact silent seam
-// codex flagged.
+// -> drive handleRouteToCaller with reducer-derived fakeGraphReader rows and
+// assert the handler entity/language/truth_edge come back. A non-resolving case
+// can still assert the exact silent seam directly when a future language gap is
+// added to the matrix.
 //
-// PHP/Laravel is the one confirmed non-resolving case, and the reason is the
-// handler-token separator, NOT bare-vs-qualified. codeCallFunctionCandidateNames
-// (go/internal/reducer/code_call_materialization_helpers.go) indexes each
-// method under its bare name ("index"/"show") AND a "."-joined class-qualified
-// candidate ("UserController.index"/"ReportController.show") -- but never an
-// "@"-joined one.
-//
-//   - Symfony (php_symfony, resolves): the parser emits the #[Route] handler
-//     as the class-qualified, DOT-joined string "ReportController.show", which
-//     exact-matches the "."-joined candidate the index builds. It resolves
-//     because the separator matches, not because the token is bare.
-//   - Laravel (php_laravel, does NOT resolve): the parser emits the idiomatic
-//     string-callable handler as "UserController@index" -- an "@"-joined
-//     controller/method reference. No candidate the index builds is "@"-joined,
-//     so resolveHandlesRouteFunction's exact-map lookup returns "" and the real,
-//     existing UserController::index method is never bound. The route entry is
-//     dropped with no edge and no error.
-//
-// So PHP keeps a real trace_route_callers consumer (Symfony's dot-joined
-// convention resolves end to end) even though laravel-route-facade-truth
-// specifically is downgraded for the "@"-join gap (see
-// specs/language-feature-parity-ledger.v1.yaml and #5513).
+// PHP covers both supported handler-token conventions. Symfony emits the
+// class-qualified dotted token "ReportController.show", which exact-matches the
+// candidate index. Laravel emits the idiomatic string-callable token
+// "UserController@index"; resolveHandlesRouteFunction normalizes exactly one
+// Class@method token to the same class-qualified dotted candidate. It never
+// falls back to the bare method, so a wrong or ambiguous controller still does
+// not fabricate a HANDLES_ROUTE edge (#5513).
 func TestRouteQueryProofMatrix(t *testing.T) {
 	t.Parallel()
 
@@ -149,27 +133,22 @@ func TestRouteQueryProofMatrix(t *testing.T) {
 			expectResolved: true,
 		},
 		{
-			language:       "php",
-			framework:      "laravel",
-			ecosystemDir:   "php_comprehensive",
-			fixtureRelPath: "routes/routes.php",
-			handlerFn:      "index",
-			expectResolved: false,
-			seamNote: "Laravel's 'UserController@index' string-callable handler is " +
-				"'@'-joined; resolveHandlesRouteFunction/codeCallFunctionCandidateNames " +
-				"only index bare (\"index\") and '.'-joined (\"UserController.index\") " +
-				"candidates, so the real, existing UserController.index method never " +
-				"matches and the route entry is silently dropped (no edge, no error)",
-			wantEmittedHandlerSubstring: "@",
+			language:              "php",
+			framework:             "laravel",
+			ecosystemDir:          "php_comprehensive",
+			fixtureRelPath:        "routes/routes.php",
+			handlerFixtureRelPath: "app/Http/Controllers/UserController.php",
+			handlerFn:             "index",
+			expectResolved:        true,
 		},
 		{
 			// Companion PHP case: proves PHP still has a real
 			// trace_route_callers consumer. Symfony's #[Route] attribute
 			// emits the class-qualified, DOT-joined handler
 			// "ReportController.show", which exact-matches the "."-joined
-			// candidate the index builds -- unlike Laravel's "@"-joined
-			// "UserController@index" above. The distinction is the separator,
-			// not bare-vs-qualified.
+			// candidate the index builds. Laravel's "@"-joined token above
+			// reaches the same exact dotted candidate through the bounded
+			// Class@method normalization.
 			language:       "php",
 			framework:      "symfony",
 			ecosystemDir:   "php_comprehensive",
@@ -197,8 +176,12 @@ type routeQueryProofCase struct {
 	framework      string
 	ecosystemDir   string
 	fixtureRelPath string
-	handlerFn      string
-	expectResolved bool
+	// handlerFixtureRelPath identifies a separate controller/handler file for
+	// frameworks whose route declarations and handlers normally live apart. An
+	// empty value keeps the historical same-file proof shape.
+	handlerFixtureRelPath string
+	handlerFn             string
+	expectResolved        bool
 	// seamNote documents the exact resolution seam for a non-resolving case;
 	// asserted only via t.Logf so it stays discoverable in verbose test
 	// output without duplicating the doc comment above.
@@ -227,8 +210,17 @@ func runRouteQueryProofCase(t *testing.T, tc routeQueryProofCase) {
 	handlerUID := "content-entity:" + tc.language + ":" + tc.handlerFn
 
 	payload, relativePath := parseRouteFixtureFileForQueryProof(t, tc.ecosystemDir, tc.fixtureRelPath)
-	assignQueryProofFunctionUID(t, payload, tc.handlerFn, handlerUID)
-	handlerName, handlerLanguage, handlerStartLine, handlerEndLine := queryProofFunctionFields(t, payload, tc.handlerFn)
+	handlerPayload := payload
+	handlerRelativePath := relativePath
+	if tc.handlerFixtureRelPath != "" {
+		handlerPayload, handlerRelativePath = parseRouteFixtureFileForQueryProof(
+			t,
+			tc.ecosystemDir,
+			tc.handlerFixtureRelPath,
+		)
+	}
+	assignQueryProofFunctionUID(t, handlerPayload, tc.handlerFn, handlerUID)
+	handlerName, handlerLanguage, handlerStartLine, handlerEndLine := queryProofFunctionFields(t, handlerPayload, tc.handlerFn)
 
 	envelopes := []facts.Envelope{
 		{
@@ -246,6 +238,16 @@ func runRouteQueryProofCase(t *testing.T, tc routeQueryProofCase) {
 				"parsed_file_data": jsonRoundTripQueryProofPayload(t, payload),
 			},
 		},
+	}
+	if tc.handlerFixtureRelPath != "" {
+		envelopes = append(envelopes, facts.Envelope{
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id":          repoID,
+				"relative_path":    handlerRelativePath,
+				"parsed_file_data": jsonRoundTripQueryProofPayload(t, handlerPayload),
+			},
+		})
 	}
 	intents := reducer.BuildHandlesRouteIntentRowsForQueryProof(envelopes)
 	intent, resolved := findQueryProofIntentByFunctionEntityID(intents, handlerUID)
@@ -318,7 +320,7 @@ func runRouteQueryProofCase(t *testing.T, tc routeQueryProofCase) {
 					return []map[string]any{{
 						"endpoint_id": endpointID, "http_method": httpMethod, "route_framework": framework,
 						"handler_id": functionEntityID, "handler_name": handlerName,
-						"handler_file_path":  relativePath,
+						"handler_file_path":  handlerRelativePath,
 						"handler_language":   handlerLanguage,
 						"handler_start_line": int64(handlerStartLine), "handler_end_line": int64(handlerEndLine),
 					}}, nil
@@ -379,7 +381,7 @@ func runRouteQueryProofCase(t *testing.T, tc routeQueryProofCase) {
 	if got, want := handlerResp["language"], handlerLanguage; got != want {
 		t.Fatalf("%s: handler.language = %#v, want %#v", tc.language, got, want)
 	}
-	if got, want := handlerResp["file_path"], relativePath; got != want {
+	if got, want := handlerResp["file_path"], handlerRelativePath; got != want {
 		t.Fatalf("%s: handler.file_path = %#v, want %#v", tc.language, got, want)
 	}
 	if got, want := handlerResp["truth_edge"], "HANDLES_ROUTE"; got != want {

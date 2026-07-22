@@ -466,7 +466,9 @@ log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # cassette, mirroring the Atlantis rc-5/rc-6 pattern.
 # rc-8 (HANDLES_ROUTE) is now required too — the same api-svc fixture that drives
 # rc-2 (RUNS_IN) binds its Flask @app.route handler Functions to their Endpoint
-# nodes via Function-[:HANDLES_ROUTE]->Endpoint. Code-path edge, no new cassette.
+# nodes via Function-[:HANDLES_ROUTE]->Endpoint. The php_comprehensive fixture
+# additionally drives the positive trace_route_callers Laravel query shape,
+# proving its Class@method token survives exact reducer resolution (#5513).
 # rc-11..rc-23 promote edges that already materialize in this corpus from the
 # same proven machinery as rc-1..rc-8 (code structure: CALLS/INHERITS/REFERENCES/
 # DEFINES/INSTANTIATES/USES_METACLASS; workload materialization: INSTANCE_OF/

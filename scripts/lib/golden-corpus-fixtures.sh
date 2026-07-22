@@ -11,6 +11,7 @@
 
 corpus_fixtures=(
 	go_comprehensive
+	php_comprehensive
 	python_comprehensive
 	sql_comprehensive
 	terraform_comprehensive

@@ -68,6 +68,98 @@ func TestBuildRunsInIntentRowsBindsResolvedRouteHandler(t *testing.T) {
 	}
 }
 
+func TestBuildRunsInIntentRowsEmitsPHPLaravelAtJoinedRouteMatches(t *testing.T) {
+	t.Parallel()
+
+	for _, handler := range []string{"UserController@index"} {
+		handler := handler
+		t.Run(handler, func(t *testing.T) {
+			t.Parallel()
+			route := handlesRouteFileEnvelope(
+				"repo-1",
+				"routes/web.php",
+				nil,
+				"laravel",
+				[]any{map[string]any{
+					"method":  "GET",
+					"path":    "/users",
+					"handler": handler,
+				}},
+			)
+			controller := handlesRouteFileEnvelope(
+				"repo-1",
+				"app/Http/Controllers/UserController.php",
+				[]map[string]any{{
+					"name":          "index",
+					"class_context": "UserController",
+					"uid":           "content-entity:user-index",
+					"line_number":   8,
+					"end_line":      10,
+					"lang":          "php",
+				}},
+				"",
+				nil,
+			)
+			envelopes := []facts.Envelope{
+				handlesRouteRepoEnvelope("repo-1"),
+				route,
+				controller,
+			}
+
+			intents := buildRunsInIntentsForTest(t, envelopes)
+			if len(intents) != 1 {
+				t.Fatalf("expected exactly 1 RUNS_IN intent, got %d", len(intents))
+			}
+			if got, want := payloadStr(intents[0].Payload, "function_id"), "content-entity:user-index"; got != want {
+				t.Fatalf("function_id = %q, want %q", got, want)
+			}
+			if got, want := payloadStr(intents[0].Payload, "resolution_method"), "repo_unique_name"; got != want {
+				t.Fatalf("resolution_method = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestBuildRunsInIntentRowsDoesNotResolveLaravelControllerFQN(t *testing.T) {
+	t.Parallel()
+
+	controller := handlesRouteFileEnvelope(
+		"repo-1",
+		"src/UserController.php",
+		[]map[string]any{{
+			"name":          "index",
+			"class_context": "UserController",
+			"uid":           "content-entity:other-user-index",
+			"line_number":   8,
+			"end_line":      10,
+			"lang":          "php",
+		}},
+		"",
+		nil,
+	)
+	controller.Payload["parsed_file_data"].(map[string]any)["namespace"] = `App\Http\Controllers`
+
+	envelopes := []facts.Envelope{
+		handlesRouteRepoEnvelope("repo-1"),
+		controller,
+		handlesRouteFileEnvelope(
+			"repo-1",
+			"routes/web.php",
+			nil,
+			"laravel",
+			[]any{map[string]any{
+				"method":  "GET",
+				"path":    "/users",
+				"handler": `App\Http\Controllers\UserController@index`,
+			}},
+		),
+	}
+
+	if intents := buildRunsInIntentsForTest(t, envelopes); len(intents) != 0 {
+		t.Fatalf("expected no RUNS_IN intent for an FQN without per-declaration namespace evidence, got %#v", intents)
+	}
+}
+
 func TestBuildRunsInIntentRowsEmitsOnePerHandlerFunction(t *testing.T) {
 	t.Parallel()
 

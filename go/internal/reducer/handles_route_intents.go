@@ -71,7 +71,8 @@ func buildHandlesRouteIntentRows(
 			if handler == "" || routePath == "" {
 				continue
 			}
-			functionID, method := resolveHandlesRouteFunction(index, repositoryID, pathKeys, handler)
+			framework := strings.TrimSpace(anyToString(entry["framework"]))
+			functionID, method := resolveHandlesRouteFunction(index, repositoryID, pathKeys, framework, handler)
 			if functionID == "" {
 				continue
 			}
@@ -87,7 +88,7 @@ func buildHandlesRouteIntentRows(
 				"repo_id":            repositoryID,
 				"path":               routePath,
 				"http_method":        httpMethod,
-				"framework":          strings.TrimSpace(anyToString(entry["framework"])),
+				"framework":          framework,
 				"relative_path":      relativePath,
 				"evidence_source":    evidenceSource,
 				"resolution_method":  method,
@@ -140,27 +141,64 @@ func BuildHandlesRouteIntentRowsForQueryProof(envelopes []facts.Envelope) []Shar
 }
 
 // resolveHandlesRouteFunction resolves a route handler name to exactly one
-// Function entity id. It first tries a same-file unique match across the route
-// file's path keys, then a repository-wide unique name. It returns the entity id
-// and the provenance method that resolved it, or an empty id when the name is
-// unknown or ambiguous. The underlying index maps store a name only when it is
-// unique in that scope, so a hit is always a single Function and a miss covers
-// both the zero- and multiple-match cases.
+// Function entity id. It first normalizes the parser-emitted handler token via
+// handlesRouteHandlerCandidateNames; for Laravel, that adds dotted candidates
+// for short Class@method string callables. It then tries a same-file unique
+// match across the route file's path keys, followed by a repository-wide unique
+// name. It returns the entity id and provenance method, or an empty id when the
+// name is unknown or ambiguous. The index maps retain a name only when it is
+// unique in that scope.
 func resolveHandlesRouteFunction(
 	index codeEntityIndex,
 	repositoryID string,
 	pathKeys []string,
+	framework string,
 	handler string,
 ) (string, codeprovenance.Method) {
+	candidateNames := handlesRouteHandlerCandidateNames(framework, handler)
 	for _, pathKey := range pathKeys {
-		if entityID := index.uniqueNameByPath[pathKey][handler]; entityID != "" {
-			return entityID, codeprovenance.MethodSameFile
+		for _, candidateName := range candidateNames {
+			if entityID := index.uniqueNameByPath[pathKey][candidateName]; entityID != "" {
+				return entityID, codeprovenance.MethodSameFile
+			}
 		}
 	}
-	if entityID := index.uniqueNameByRepo[repositoryID][handler]; entityID != "" {
-		return entityID, codeprovenance.MethodRepoUniqueName
+	for _, candidateName := range candidateNames {
+		if entityID := index.uniqueNameByRepo[repositoryID][candidateName]; entityID != "" {
+			return entityID, codeprovenance.MethodRepoUniqueName
+		}
 	}
 	return "", codeprovenance.MethodUnspecified
+}
+
+// handlesRouteHandlerCandidateNames preserves the parser-emitted handler token
+// and, for Laravel only, adds dotted forms for its Class@method string-callable
+// convention when Class is unqualified. Fully-qualified PHP controllers stay
+// unresolved because the parser currently exposes only file-level namespace
+// evidence, which is insufficient for files containing multiple namespace
+// blocks. It never falls back to a short class or bare method, so a controller
+// in another namespace cannot bind merely because its terminal class or method
+// name is unique, and unrelated frameworks keep their existing token semantics.
+func handlesRouteHandlerCandidateNames(framework string, handler string) []string {
+	handler = strings.TrimSpace(handler)
+	if handler == "" {
+		return nil
+	}
+	candidates := []string{handler}
+	if !strings.EqualFold(strings.TrimSpace(framework), "laravel") || strings.Count(handler, "@") != 1 {
+		return candidates
+	}
+	className, methodName, _ := strings.Cut(handler, "@")
+	className = strings.Trim(strings.TrimSpace(className), `\`)
+	methodName = strings.TrimSpace(methodName)
+	if className == "" || methodName == "" {
+		return candidates
+	}
+	if strings.Contains(className, `\`) {
+		return candidates
+	}
+	candidates = append(candidates, className+"."+methodName)
+	return candidates
 }
 
 // handlesRouteEntries returns the framework route entries declared for a file,
