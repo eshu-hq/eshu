@@ -483,6 +483,16 @@ attributes show whether time was spent reading a large repository edge set or
 processing a small result page. They do not include repository IDs, function
 IDs, names, or paths.
 
+`GET /api/v0/graph/entities` uses the same per-endpoint metrics and adds the
+`query.graph_entity_inventory` span. Its bounded attributes are
+`eshu.query.graph_entity_inventory.round_trip_count`,
+`eshu.query.graph_entity_inventory.facet_row_count`,
+`eshu.query.graph_entity_inventory.result_count`, and
+`eshu.query.graph_entity_inventory.truncated`. The first two distinguish the one
+fixed facet-count request from the optional list request; the latter two show
+page size and continuation state. No entity, repository, account, tenant, or
+credential value is recorded.
+
 Observability Evidence: before this change, sampled query/API handlers recorded
 few read-path metrics and there was no per-endpoint latency or error signal, so
 an operator could not tell which route was slow or failing from metrics alone.

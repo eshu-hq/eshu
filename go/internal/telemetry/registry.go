@@ -142,6 +142,7 @@ var spanNames = []string{
 	SpanQueryDeadCodeInvestigation,
 	SpanQueryCallGraphMetrics,
 	SpanQueryGraphSummaryPacket,
+	SpanQueryGraphEntityInventory,
 	SpanQueryChangeSurfaceInvestigation,
 	SpanQueryResourceInvestigation,
 	SpanQueryPackageRegistryPackages,

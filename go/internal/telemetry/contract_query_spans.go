@@ -17,3 +17,7 @@ const SpanQueryCallGraphMetrics = "query.call_graph_metrics"
 // SpanQueryGraphSummaryPacket wraps the bounded graph summary packet route
 // (hot entities, key relationships, ecosystem map).
 const SpanQueryGraphSummaryPacket = "query.graph_summary_packet"
+
+// SpanQueryGraphEntityInventory wraps the graph entity facet-count and
+// optional bounded-list route.
+const SpanQueryGraphEntityInventory = "query.graph_entity_inventory"

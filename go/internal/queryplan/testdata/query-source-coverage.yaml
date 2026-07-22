@@ -153,7 +153,7 @@ source_coverage:
       - {symbol: "(*ImpactHandler).exposurePathCandidates", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: graph_entity_inventory.go
     calls:
-      - {symbol: "(*GraphEntityInventoryHandler).listEntities", count: 2, source_sha256: a55aef265d6c25d1b558062a3b66ed1421777374ddfcd92c3721bb4959bb9a00, entry_ids: [QP-GRAPH-ENTITY-COUNT, QP-GRAPH-ENTITY-LIST]}
+      - {symbol: "(*GraphEntityInventoryHandler).listEntities", count: 2, source_sha256: 8dd8b2b2786ba8a276e1edfbe979612f883ca3246bfd7348636b4675bf376e83, entry_ids: [QP-GRAPH-ENTITY-COUNT, QP-GRAPH-ENTITY-LIST]}
   - file: iac_resources.go
     calls:
       - symbol: "(*IaCHandler).listResources"
