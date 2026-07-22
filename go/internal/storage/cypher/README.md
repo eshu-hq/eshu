@@ -1511,6 +1511,26 @@ stays green.
 No-Observability-Change: no metric, span, or log is added or changed; the two
 new properties flow as graph-node data only.
 
+## Retract helper split (#5528)
+
+`edge_writer_retract.go` was split along a move-only seam to keep headroom under
+the 500-line source cap: the `RetractEdges` dispatch, its
+`execute*RetractStatements` helpers, and `buildRetractStatement` stay in
+`edge_writer_retract.go`; the pure, receiverless row/scope-collection helpers
+(`collectRepoIDs`, `collectScopeIDs`, `collectDeltaFilePaths`,
+`documentationRetractScope`, `collectDocumentationDeltaScope`,
+`buildDocumentationDeltaRetractStatements`) moved verbatim to
+`edge_writer_retract_scope.go`.
+
+No-Regression Evidence: pure code motion -- the moved region is byte-identical to
+the pre-split source, and no retract Cypher statement, `MATCH`/`DETACH DELETE`
+shape, batch size, or dispatch path changed, so there is no plan change and no
+runtime delta. `go test ./internal/storage/cypher -count=1` stays green.
+
+No-Observability-Change: no metric, span, or log is added, moved, or changed;
+statement summaries and operation metadata still flow through the unchanged
+`RetractEdges` path.
+
 ## Related docs
 
 - `docs/public/architecture.md` — pipeline and ownership table
