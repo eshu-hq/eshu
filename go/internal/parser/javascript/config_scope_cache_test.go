@@ -269,6 +269,37 @@ func TestConfigScopeCacheSingleFlightSurvivesConcurrentGenerationChange(t *testi
 	}
 }
 
+// TestConfigScopeCacheReturnsSettledSingleFlightValue deterministically covers
+// the same-key waiter path. Concurrent callers exercise this path in production,
+// but scheduler timing must not decide whether the generated coverage report
+// counts it as covered.
+func TestConfigScopeCacheReturnsSettledSingleFlightValue(t *testing.T) {
+	cache := newConfigScopeCache[string]()
+	key := configScopeCacheKey{
+		path: "/repo/tsconfig.json",
+		stat: configScopeCacheStat{modTimeUnixNano: 1, size: 10},
+	}
+	ready := &sync.WaitGroup{}
+	ready.Add(1)
+	ready.Done()
+	node := &configScopeCacheLRUNode[string]{
+		key: key,
+		entry: &configScopeCacheEntry[string]{
+			value: "settled-value",
+			ready: ready,
+		},
+	}
+	cache.entries[key] = cache.order.PushFront(node)
+
+	got := cache.get(key.path, key.stat, func() string {
+		t.Fatal("compute called for an existing single-flight entry")
+		return ""
+	})
+	if got != "settled-value" {
+		t.Fatalf("cache.get() = %q, want %q", got, "settled-value")
+	}
+}
+
 // TestConfigScopeCacheDistinctPathsNeverShareSingleFlightWaitGroup mirrors
 // TestConfigScopeCacheSingleFlightSurvivesConcurrentGenerationChange for two
 // DIFFERENT paths (rather than two generations of one path) to prove
