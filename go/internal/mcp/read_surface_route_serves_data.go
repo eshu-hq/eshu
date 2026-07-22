@@ -47,23 +47,31 @@ type routeServesDataBacking struct {
 //     ServedDomains is equally legitimate.
 //   - read_surface_overrides (per-kind substitutions) are excluded from v1.
 //
-// Self-certification caveat (PR #5583 round-3 P1b, codex): this map is
-// hand-maintained, not derived from the real handler/read-model wiring, for
-// all 17 routes. Nothing here cross-checks a ServedDomains claim against the
-// actual Go handler registered for that route, so the documented
-// remediation for a genuine mismatch ("add the domain to
-// routeServesDataBackingMap[route].ServedDomains") could — if misapplied —
-// paper over a real #5480-class misrouting instead of fixing it.
+// Self-certification: closed by the #5584 route-serves-data registry
+// (route_serves_data_registry.go + route_serves_data_registry_routes*.go,
+// verified by route_serves_data_registry_check.go). Every ServedDomains
+// entry below must exactly match the handler-derived, source-verified
+// routeServesDataRegistry — a claim with no verified evidence must be an
+// explicit, reasoned MapOnly disclosure — and no route's read path may
+// contain a foreign domain's signature without a reviewed disclosure
+// (TestRouteServesDataRegistryHonestStateGreen). Strength, precisely:
+// store-backed claims are structurally map-independent (the handler struct
+// field and method-body reference are AST-verified against real source);
+// marker-only Served claims must be evidenced ON the route's own read path
+// (an off-read-path citation such as the domain's writer is rejected); and
+// MapOnly claims are positive "declared but not served" assertions whose
+// signature must be ABSENT from the read path. Poisoning this map alone
+// contradicts the registry cross-check
+// (TestRouteServesDataRegistryBITES_PoisonedMapGoesRed), and the known
+// registry co-poisoning shapes fail against real source
+// (TestRouteServesDataRegistryBITES_PoisonedRegistryGoesRed). Residual
+// trust: the anti-poison scan is only as complete as each route's
+// reviewer-maintained ScanFiles list (MethodFile membership is enforced;
+// query/store helper files are review-owned), so registry diffs that touch
+// ScanFiles or signatures still deserve reviewer attention.
 // TestRouteServesData_CloudResourcesStructurallyExcludesKubernetesCorrelation
-// (route_serves_data_structural_test.go) closes this gap for the ONE
-// historical #5480 pair (kubernetes_live must not resolve to
-// GET /api/v0/cloud/resources) by inspecting the real InfraHandler/
-// KubernetesHandler source instead of this map, so that specific regression
-// stays impossible even if this map is poisoned. Generalizing to a real,
-// handler-derived expectation for all 17 routes (removing the
-// self-certification gap map-wide) is tracked in issue #5584; until that
-// lands, every route other than the kubernetes_live/cloud-resources pair
-// remains self-certifying by design-for-now.
+// (route_serves_data_structural_test.go) remains as the dedicated #5480
+// historical-pair proof.
 var routeServesDataBackingMap = map[string]routeServesDataBacking{
 	"GET /api/v0/documentation/facts":                          {ServedDomains: []string{"documentation_materialization"}},
 	"GET /api/v0/cloud/inventory":                              {ServedDomains: []string{"aws_cloud_runtime_drift", "azure_resource_materialization", "gcp_resource_materialization"}},

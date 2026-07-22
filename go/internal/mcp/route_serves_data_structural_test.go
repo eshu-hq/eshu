@@ -16,7 +16,7 @@ import (
 // structFieldTypeNames parses path and returns the field type names declared
 // on the named struct (e.g. "InfraHandler" -> ["GraphQuery",
 // "InfraResourceAggregateStore", "QueryProfile", "*telemetry.Instruments",
-// "sync.Once", ...]), stringified via exprString so a caller can
+// "sync.Once", ...]), stringified via astExprString so a caller can
 // substring-match a target type name regardless of pointer/selector
 // wrapping.
 func structFieldTypeNames(t *testing.T, path, structName string) []string {
@@ -42,29 +42,13 @@ func structFieldTypeNames(t *testing.T, path, structName string) []string {
 			}
 			names := make([]string, 0, len(structType.Fields.List))
 			for _, field := range structType.Fields.List {
-				names = append(names, exprString(field.Type))
+				names = append(names, astExprString(field.Type))
 			}
 			return names
 		}
 	}
 	t.Fatalf("struct %q not found in %s", structName, path)
 	return nil
-}
-
-// exprString renders an AST type expression back to source-shaped text
-// (e.g. "*telemetry.Instruments", "KubernetesCorrelationStore") without
-// pulling in go/printer for one field-type stringification.
-func exprString(expr ast.Expr) string {
-	switch e := expr.(type) {
-	case *ast.Ident:
-		return e.Name
-	case *ast.StarExpr:
-		return "*" + exprString(e.X)
-	case *ast.SelectorExpr:
-		return exprString(e.X) + "." + e.Sel.Name
-	default:
-		return ""
-	}
 }
 
 // methodBodySource parses path, finds the method with the given pointer
@@ -88,7 +72,7 @@ func methodBodySource(t *testing.T, path, receiverType, methodName string) strin
 		if !ok || fn.Recv == nil || fn.Name.Name != methodName || fn.Body == nil {
 			continue
 		}
-		if len(fn.Recv.List) != 1 || exprString(fn.Recv.List[0].Type) != receiverType {
+		if len(fn.Recv.List) != 1 || astExprString(fn.Recv.List[0].Type) != receiverType {
 			continue
 		}
 		start := fset.Position(fn.Body.Pos()).Offset
@@ -131,13 +115,11 @@ func methodBodySource(t *testing.T, path, receiverType, methodName string) strin
 // still fail, because it never reads that map — its oracle is the real
 // handler source.
 //
-// Scope: this closes the #5480 regression class for ONE pair only.
-// Generalizing to a real derivation for all 17 routes (making the whole
-// backing map handler-derived instead of hand-maintained, so no route needs
-// its own dedicated structural test like this one) is tracked in #5584 —
-// until that lands, routeServesDataBackingMap remains partially
-// self-certifying for the other 16 routes by design-for-now (see its doc
-// comment in read_surface_route_serves_data.go).
+// Scope: this closes the #5480 regression class for ONE pair. The #5584
+// generalization (route_serves_data_registry.go and its gate in
+// route_serves_data_registry_test.go) now covers every route with a
+// handler-derived, source-verified registry; this test remains as the
+// dedicated, independent proof of the historical pair.
 func TestRouteServesData_CloudResourcesStructurallyExcludesKubernetesCorrelation(t *testing.T) {
 	repoRoot := kindConsumerGateRepoRoot(t)
 	infraPath := filepath.Join(repoRoot, "go/internal/query/infra.go")
