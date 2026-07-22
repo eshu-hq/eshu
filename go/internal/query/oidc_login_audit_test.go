@@ -161,6 +161,46 @@ func TestOIDCLoginHandlerCallbackAuditsUnclassifiedCompleteError(t *testing.T) {
 	}
 }
 
+// TestOIDCLoginHandlerCallbackAuditsUnavailableLogin proves a technical
+// failure downstream of state validation (e.g. grant resolution unreachable)
+// is audited as unavailable, distinct from a denied login — the OIDC mirror
+// of TestGitHubLoginHandlerCallbackAuditsUnavailableLogin.
+func TestOIDCLoginHandlerCallbackAuditsUnavailableLogin(t *testing.T) {
+	t.Parallel()
+
+	audit := &fakeGovernanceAuditAppender{}
+	service := &fakeOIDCLoginService{
+		completeErr: &SSOLoginDeniedError{Sentinel: ErrOIDCLoginUnavailable, Reason: "grant_resolution_unavailable"},
+	}
+	handler := &OIDCLoginHandler{
+		Service: service,
+		Audit:   audit,
+		SessionIssuer: &BrowserSessionHandler{
+			Store: &fakeBrowserSessionStore{},
+			Now:   func() time.Time { return time.Date(2026, 7, 21, 10, 10, 0, 0, time.UTC) },
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/auth/oidc/callback?state=state-secret&code=auth-code", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusServiceUnavailable, rec.Body.String())
+	}
+	if len(audit.events) != 1 {
+		t.Fatalf("audit events = %d, want 1: %#v", len(audit.events), audit.events)
+	}
+	if got := audit.events[0].Decision; got != governanceaudit.DecisionUnavailable {
+		t.Fatalf("decision = %q, want unavailable", got)
+	}
+	if got := audit.events[0].ReasonCode; got != "grant_resolution_unavailable" {
+		t.Fatalf("reason code = %q, want grant_resolution_unavailable", got)
+	}
+}
+
 // TestOIDCLoginHandlerCallbackNilAuditIsSafe proves a handler with no Audit
 // wired (e.g. an older deployment) never panics, mirroring
 // TestGitHubLoginHandlerCallbackNilAuditIsSafe. nil Audit is a valid
