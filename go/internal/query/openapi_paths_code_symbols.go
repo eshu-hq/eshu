@@ -272,7 +272,7 @@ const openAPIPathsCodeSymbols = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "422": {
-            "description": "The repository has more than 50,000 physical CALLS edges; narrow the repository scope. No partial metric rows are returned.",
+            "description": "The repository has more than 50,000 physical CALLS edges and exceeds the exact metric bound. No partial metric rows are returned.",
             "content": {
               "application/json": {
                 "schema": {"$ref": "#/components/schemas/ErrorResponse"}

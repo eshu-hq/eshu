@@ -34,9 +34,8 @@
 // Function.repo_id-indexed pass with a 50,001-edge sentinel, then compute
 // distinct hub degree and recursive pairs in Go before deterministic paging.
 // Repositories above the 50,000-edge exactness bound fail closed with HTTP 422
-// and no partial rows. This bounds materialization without relying on NornicDB
-// multi-clause aggregation shortcuts that lose repository scope or corrupt
-// projected values.
+// and no partial rows. This bounds materialization without relying on
+// backend-specific multi-clause aggregation shortcuts on the read path.
 //
 // Handler behavior, OpenAPI fragments, docs/public/reference/http-api.md,
 // truth-envelope fields, and MCP tool dispatch must stay aligned whenever a

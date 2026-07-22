@@ -54,6 +54,10 @@ one-way edges, self-calls, mutual pairs, non-mutual calls, two languages, and
 stable ordering ties. The baseline rows use the old multi-clause Cypher. The
 one-pass rows use the implementation in this branch.
 
+At the theory gate, OLD and CURRENT were the same unchanged production builder,
+so the baseline row below represents both rather than repeating identical
+numbers. CANDIDATE is the one-pass implementation.
+
 Each first-read number followed a graph-process restart. The immediate repeat
 used the same query, parameters, data, and result boundary. Hub rows are the
 requested 25 plus the truncation sentinel; recursive rows are the four exact
@@ -77,11 +81,17 @@ concurrency setting changed.
 
 The checked-in production-path SLO gate independently seeds the same corpus and
 runs `CodeHandler.callGraphMetricsData` four times per variant. After adding
-the 50,001-edge sentinel, it measured hub at 587.122875 ms on the first read
-and 316.043792 ms warm median; recursive measured 215.902 ms on the first read
-and 215.922625 ms warm median. These
+the 50,001-edge sentinel, the final rebased branch measured hub at 613.966041 ms
+on the first read and 276.316583 ms warm median; recursive measured 265.731042 ms
+on the first read and 193.070875 ms warm median. These
 post-seed timings verify the executable regression gate. The restart-separated
 table above remains the cold-process comparison and is not replaced by them.
+
+Performance Evidence: the same-data table records OLD/CURRENT against CANDIDATE
+for both hub and recursive variants, including result equality, first-read and
+immediate-repeat wall time, and PROFILE db hits. The pinned NornicDB proof uses
+the same 43,167-function and 42,197-edge cardinality and records the target
+backend separately because it is not numerically comparable with Neo4j.
 
 ## Accuracy and edge cases
 
@@ -119,6 +129,12 @@ The existing `query.call_graph.metrics` span now records:
 These are bounded values or counts. They do not expose repository IDs, function
 IDs, names, paths, source text, or credentials.
 
+Observability Evidence: the existing `query.call_graph.metrics` span now carries
+the bounded variant, scan ceiling, expanded edge and node counts, overflow
+state, result count, and truncation state. Existing per-route request metrics
+continue to provide latency and error rates without adding an identity-bearing
+metric label.
+
 ## Verification
 
 ```text
@@ -134,6 +150,9 @@ go test -tags call_graph_metrics_slo_live ./internal/query \
 cd ..
 bash scripts/test-verify-golden-corpus-gate.sh
 bash scripts/verify-query-plan-profile.sh
+bash scripts/verify-golden-corpus-gate.sh
+bash scripts/run-auth-e2e.sh
+bash scripts/run-auth-mcp-e2e.sh
 ```
 
 The exact NornicDB proof used the pinned source commit and
@@ -141,12 +160,14 @@ The exact NornicDB proof used the pinned source commit and
 Connection details, hostnames, retained repository identifiers, and credentials
 are intentionally omitted.
 
-The full live golden-corpus gate was rerun after the final base rebase. All
-three drains passed with zero residual fact work, zero dead letters, and zero
-nonterminal shared intents. The graph/query phase finished with 459 passing
-checks and four required failures. The CODEOWNERS HTTP and MCP queries returned
-zero ownership rows. The new namespace snapshot also expected at least one
-`TARGETS_ENVIRONMENT` edge and two `KubernetesNamespace` nodes, but the live
-corpus produced zero of each. This branch has no CODEOWNERS or Kubernetes diff,
-so the focused B-7 unit/static contracts are green while the full live gate
-remains blocked by those base read-truth failures.
+The full live golden-corpus gate was rerun after the final base rebase. The
+initial drain and both maintenance drains passed with zero residual fact work,
+zero dead letters, and zero nonterminal shared intents. The graph/query phase
+finished with 463 passing checks, zero required failures, and zero advisory
+warnings in 35 seconds. The restored base now supplies the expected CODEOWNERS
+ownership rows, `TARGETS_ENVIRONMENT` edge, and `KubernetesNamespace` nodes.
+
+The fresh-stack authentication gates also passed on the rebased branch. The SSO
+gate completed 24 of 24 steps in 43.971 seconds, and the MCP-identity gate
+completed 40 of 40 steps in 29.565 seconds. Both runners tore down their owned
+stacks and volumes cleanly.

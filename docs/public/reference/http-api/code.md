@@ -114,8 +114,8 @@ edges do not inflate degree counts or repeat recursive pairs; a self-call counts
 once in each hub direction and appears as one `self_call` row. Exact ties use
 function identity as the final stable sort key. The edge read requests a
 50,001st sentinel row. Repositories with at most 50,000 physical `CALLS` edges
-return exact metrics; larger repositories receive HTTP 422 with an instruction
-to narrow scope and no partial `functions` rows.
+return exact metrics; larger repositories receive HTTP 422 explaining that the
+exact edge bound was exceeded, with no partial `functions` rows.
 
 ## Code Flow
 
