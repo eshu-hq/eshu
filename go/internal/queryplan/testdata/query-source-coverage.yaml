@@ -207,6 +207,11 @@ source_coverage:
       - {symbol: "(*ImpactHandler).resourceInvestigationInstanceWorkloads", count: 1, source_sha256: 3c3cae8c5c8b8822f10a0e68fe0eb89a7e24c8a4febd5699e88e3dcf2867a442, entry_ids: [QP-RESOURCE-INVESTIGATION-INSTANCE-WORKLOADS]}
       - {symbol: "(*ImpactHandler).resourceInvestigationRepoPaths", count: 1, source_sha256: 2eb5d9a7bfdb90837012816f3440ae1ecbab98430307b41d93f72ab94adf1b09, entry_ids: [QP-RESOURCE-INVESTIGATION-REPO-PATHS]}
       - {symbol: "(*ImpactHandler).resourceInvestigationWorkloads", count: 1, source_sha256: 00c5f56bc81d1adf4ea1db1cbd2dbcad1e5a3b569ca26440ae4495f87956b2f4, entry_ids: [QP-RESOURCE-INVESTIGATION-WORKLOADS]}
+  - file: impact_trace_deployment_controllers.go
+    calls:
+      - symbol: "countWorkloadsDefinedByRepo"
+        count: 1
+        non_hot: {class: keyed_support, source_sha256: 6b2603cd740a418737d8b0b2e386f16e668e121455fd07494ee1108fee7f366e, key_bound: single_key, max_results: 2}
   - file: impact_trace_deployment_sources.go
     calls:
       - symbol: "fetchCanonicalDeploymentSourceRows"

@@ -19,6 +19,18 @@ type ObjectMeta struct {
 	UID             string
 	ResourceVersion string
 	Labels          map[string]string
+	// Annotations are the object's identity-binding annotations ONLY, not the
+	// full Kubernetes ObjectMeta.Annotations map. The client-go adapter
+	// allowlist-filters at capture time (see
+	// clientgo.identityAnnotationAllowlist) to a fixed, small key set —
+	// currently argocd.argoproj.io/tracking-id and the Kustomize/Helm
+	// app.kubernetes.io instance/name convention — the declared->live identity
+	// signal #5471 F2 threads through to the kubernetes_live.pod_template
+	// fact's optional Annotations field. Annotation values are otherwise
+	// unbounded and can embed secret material (e.g.
+	// kubectl.kubernetes.io/last-applied-configuration), so nothing outside
+	// the allowlist may reach this field.
+	Annotations     map[string]string
 	OwnerReferences []OwnerReference
 }
 

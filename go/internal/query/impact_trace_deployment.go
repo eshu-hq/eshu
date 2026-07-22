@@ -147,6 +147,7 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		deploymentSourceGitOps, err := h.fetchDeploymentSourceGitOpsResult(
 			r.Context(),
 			safeStr(ctx, "name"),
+			safeStr(ctx, "repo_id"),
 			deploymentSources,
 		)
 		if err != nil {
@@ -181,6 +182,43 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		}
 		ctx["controller_entities"] = deploymentSourceGitOps.controllers
 		ctx["controller_entity_limits"] = deploymentSourceGitOps.controllerLimits
+
+		// D2 (#5471): re-derive the repository access filter for the
+		// live-evidence probe. #5530 removed the handler's earlier
+		// access uses as redundant with fetchWorkloadContext filtering,
+		// but this probe is a separate scope-sensitive Postgres read
+		// (#5167 discipline) and must carry the caller's grant set — a
+		// zero-value filter would read all scopes cross-tenant.
+		access := repositoryAccessFilterFromContext(r.Context())
+		// D2 (#5471), rebound to identity in the codex P1 fix: probe for a
+		// live kubernetes_live.pod_template fact whose ArgoCD tracking-id
+		// matches an identity the traced workload's OWN declared ArgoCD
+		// Application + k8sResources would carry, and whose image_refs
+		// intersect the workload's config-declared image refs. An
+		// identity-bound match means a live cluster observably runs THIS
+		// workload's declared image — that promotes the deployment truth
+		// tier from config_only to runtime_confirmed. A shared image digest
+		// alone (the pre-fix behavior) is no longer sufficient.
+		liveEvidence, err := h.fetchWorkloadLiveEvidence(
+			r.Context(),
+			deploymentSourceGitOps.controllers,
+			k8sResources,
+			imageRefs,
+			access,
+		)
+		if err != nil {
+			// Store errors fail closed to the config tier.
+			// Record the live-evidence probe failed but do not
+			// 500 the whole trace.
+			if h.Logger != nil {
+				h.Logger.Warn(
+					"impact handler: live evidence probe failed, falling back to config tier",
+					"service_name", req.ServiceName,
+					"error", err.Error(),
+				)
+			}
+		}
+		ctx["_has_live_evidence"] = liveEvidence
 	}
 
 	response := buildDeploymentTraceResponse(req.ServiceName, ctx)

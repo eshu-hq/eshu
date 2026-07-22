@@ -1,0 +1,394 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package query
+
+import (
+	"context"
+	"fmt"
+	"testing"
+)
+
+func TestDeploymentOverallConfidenceLiveEvidence(t *testing.T) {
+	t.Parallel()
+
+	confidence, reason := deploymentOverallConfidence(nil, nil, nil, true)
+	if confidence != 0.95 {
+		t.Fatalf("deploymentOverallConfidence(live=true) confidence = %v, want 0.95", confidence)
+	}
+	if reason != "live_runtime_observation" {
+		t.Fatalf("deploymentOverallConfidence(live=true) reason = %q, want %q", reason, "live_runtime_observation")
+	}
+}
+
+func TestDeploymentOverallConfidenceLiveEvidenceOverridesInstances(t *testing.T) {
+	t.Parallel()
+
+	instances := []map[string]any{
+		{"materialization_confidence": 0.9},
+	}
+	confidence, reason := deploymentOverallConfidence(instances, nil, nil, true)
+	if confidence != 0.95 {
+		t.Fatalf("confidence = %v, want 0.95", confidence)
+	}
+	if reason != "live_runtime_observation" {
+		t.Fatalf("reason = %q, want %q", reason, "live_runtime_observation")
+	}
+}
+
+func TestDeploymentOverallConfidenceNoEvidence(t *testing.T) {
+	t.Parallel()
+
+	confidence, reason := deploymentOverallConfidence(nil, nil, nil, false)
+	if confidence != 0 {
+		t.Fatalf("confidence = %v, want 0", confidence)
+	}
+	if reason != "no_deployment_evidence" {
+		t.Fatalf("reason = %q, want %q", reason, "no_deployment_evidence")
+	}
+}
+
+func TestBuildDeploymentFactSummaryTierLiveEvidence(t *testing.T) {
+	t.Parallel()
+
+	ctx := sampleServiceDossierContext()
+	instances, _ := ctx["instances"].([]map[string]any)
+	summary := buildDeploymentFactSummary(
+		ctx,
+		instances,
+		[]string{"production", "qa"},
+		nil,
+		[]string{"eks-prod", "ecs-qa"},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		"controller",
+		true, // hasLiveEvidence
+	)
+	if tier, ok := summary["deployment_truth_tier"]; !ok {
+		t.Fatal("deployment_truth_tier missing from summary")
+	} else if tier != "runtime_confirmed" {
+		t.Fatalf("deployment_truth_tier = %q, want %q", tier, "runtime_confirmed")
+	}
+	if confidence := summary["overall_confidence"]; confidence != 0.95 {
+		t.Fatalf("overall_confidence = %v, want 0.95", confidence)
+	}
+	if reason := summary["overall_confidence_reason"]; reason != "live_runtime_observation" {
+		t.Fatalf("overall_confidence_reason = %q, want %q", reason, "live_runtime_observation")
+	}
+}
+
+func TestBuildDeploymentFactSummaryTierConfigOnly(t *testing.T) {
+	t.Parallel()
+
+	ctx := sampleServiceDossierContext()
+	instances, _ := ctx["instances"].([]map[string]any)
+	summary := buildDeploymentFactSummary(
+		ctx,
+		instances,
+		[]string{"production", "qa"},
+		nil,
+		[]string{"eks-prod", "ecs-qa"},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		"controller",
+		false,
+	)
+	if tier, ok := summary["deployment_truth_tier"]; !ok {
+		t.Fatal("deployment_truth_tier missing")
+	} else if tier != "config_only" {
+		t.Fatalf("deployment_truth_tier = %q, want %q", tier, "config_only")
+	}
+	if reason := summary["overall_confidence_reason"]; reason != "materialized_runtime_instances" {
+		t.Fatalf("overall_confidence_reason = %q, want %q", reason, "materialized_runtime_instances")
+	}
+}
+
+func TestBuildDeploymentFactSummaryTierEmptyWhenNoEvidence(t *testing.T) {
+	t.Parallel()
+
+	ctx := map[string]any{}
+	summary := buildDeploymentFactSummary(
+		ctx,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		"",
+		false,
+	)
+	if _, ok := summary["deployment_truth_tier"]; ok {
+		t.Fatal("deployment_truth_tier must be absent when no evidence exists")
+	}
+}
+
+// stubKubernetesPodTemplateStore is a test fake implementing
+// KubernetesPodTemplateStore: it records every filter it was called with and
+// reports a match only for filters whose TrackingID is in matchingTrackingIDs.
+type stubKubernetesPodTemplateStore struct {
+	matchingTrackingIDs map[string]struct{}
+	err                 error
+	// calls records every filter passed to HasLiveIdentityMatch, so tests
+	// can assert the probe never queried the store (call-count = 0) and
+	// inspect access-scoping fields.
+	calls []KubernetesPodTemplateFilter
+}
+
+func (s *stubKubernetesPodTemplateStore) HasLiveIdentityMatch(
+	_ context.Context,
+	filter KubernetesPodTemplateFilter,
+) (bool, error) {
+	s.calls = append(s.calls, filter)
+	if s.err != nil {
+		return false, s.err
+	}
+	_, matched := s.matchingTrackingIDs[filter.TrackingID]
+	return matched, nil
+}
+
+// argoCDControllerFixture builds a minimal argocd_application controller map
+// as buildDeploymentSourceControllerEntity would produce it.
+func argoCDControllerFixture(appName string) map[string]any {
+	return map[string]any{"controller_kind": "argocd_application", "entity_name": appName}
+}
+
+// k8sResourceFixture builds a minimal declared k8sResource map as
+// collectDeploymentSourceK8sResources/k8sResourceWireRow would produce it.
+func k8sResourceFixture(kind, name, namespace, apiVersion string) map[string]any {
+	return map[string]any{
+		"kind":        kind,
+		"entity_name": name,
+		"namespace":   namespace,
+		"api_version": apiVersion,
+	}
+}
+
+func TestFetchWorkloadLiveEvidenceNilHandler(t *testing.T) {
+	t.Parallel()
+
+	var h *ImpactHandler
+	live, err := h.fetchWorkloadLiveEvidence(t.Context(), nil, nil, nil, repositoryAccessFilter{})
+	if err != nil {
+		t.Fatalf("error = %v, want nil", err)
+	}
+	if live {
+		t.Fatal("nil handler returned true, want false")
+	}
+}
+
+// TestFetchWorkloadLiveEvidenceNoArgoCDControllerNeverQueriesStore is the
+// #5471 codex P1 core fail-closed proof: a workload with no
+// argocd_application controller has no computable identity, so the probe
+// must return config_only WITHOUT ever calling the store, even when the
+// store is wired and would have returned a match for every tracking-id.
+func TestFetchWorkloadLiveEvidenceNoArgoCDControllerNeverQueriesStore(t *testing.T) {
+	t.Parallel()
+
+	store := &stubKubernetesPodTemplateStore{matchingTrackingIDs: map[string]struct{}{}}
+	h := &ImpactHandler{KubernetesPodTemplates: store}
+	live, err := h.fetchWorkloadLiveEvidence(
+		t.Context(),
+		nil, // no controllers at all
+		[]map[string]any{k8sResourceFixture("Deployment", "workload-a", "shared-ns", "apps/v1")},
+		[]string{"ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"},
+		repositoryAccessFilter{allScopes: true},
+	)
+	if err != nil {
+		t.Fatalf("error = %v, want nil", err)
+	}
+	if live {
+		t.Fatal("no ArgoCD controller returned true, want false (config_only)")
+	}
+	if got := len(store.calls); got != 0 {
+		t.Fatalf("store was queried %d times, want 0 (fail-closed at the identity layer)", got)
+	}
+}
+
+func TestFetchWorkloadLiveEvidenceNilStore(t *testing.T) {
+	t.Parallel()
+
+	h := &ImpactHandler{} // KubernetesPodTemplates is nil
+	live, err := h.fetchWorkloadLiveEvidence(
+		t.Context(),
+		[]map[string]any{argoCDControllerFixture("app-a")},
+		[]map[string]any{k8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1")},
+		[]string{"img:latest"},
+		repositoryAccessFilter{allScopes: true},
+	)
+	if err != nil {
+		t.Fatalf("error = %v, want nil", err)
+	}
+	if live {
+		t.Fatal("nil store returned true, want false")
+	}
+}
+
+func TestFetchWorkloadLiveEvidenceEmptyImageRefs(t *testing.T) {
+	t.Parallel()
+
+	store := &stubKubernetesPodTemplateStore{}
+	h := &ImpactHandler{KubernetesPodTemplates: store}
+	live, err := h.fetchWorkloadLiveEvidence(
+		t.Context(),
+		[]map[string]any{argoCDControllerFixture("app-a")},
+		[]map[string]any{k8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1")},
+		nil,
+		repositoryAccessFilter{allScopes: true},
+	)
+	if err != nil {
+		t.Fatalf("error = %v, want nil", err)
+	}
+	if live {
+		t.Fatal("empty image_refs returned true, want false")
+	}
+	if got := len(store.calls); got != 0 {
+		t.Fatalf("store was queried %d times, want 0", got)
+	}
+}
+
+// TestFetchWorkloadLiveEvidenceDistinctWorkloadsSharedDigest is the #5471
+// codex P1 end-to-end regression proof: workloads A and B declare DIFFERENT
+// ArgoCD Applications (and therefore different identities) but happen to
+// declare the SAME image digest. A fake store that only matches B's
+// tracking-id must promote trace(B) to runtime_confirmed and must NOT
+// promote trace(A), even though A's image_refs are identical to B's.
+func TestFetchWorkloadLiveEvidenceDistinctWorkloadsSharedDigest(t *testing.T) {
+	t.Parallel()
+
+	sharedDigest := "ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"
+	controllersA := []map[string]any{argoCDControllerFixture("app-a")}
+	resourcesA := []map[string]any{k8sResourceFixture("Deployment", "workload-a", "shared-ns", "apps/v1")}
+	controllersB := []map[string]any{argoCDControllerFixture("app-b")}
+	resourcesB := []map[string]any{k8sResourceFixture("Deployment", "workload-b", "shared-ns", "apps/v1")}
+
+	trackingIDB := "app-b:apps/Deployment:shared-ns/workload-b"
+	trackingIDA := "app-a:apps/Deployment:shared-ns/workload-a"
+	if trackingIDA == trackingIDB {
+		t.Fatal("test fixture bug: tracking ids must differ")
+	}
+
+	store := &stubKubernetesPodTemplateStore{
+		matchingTrackingIDs: map[string]struct{}{trackingIDB: {}},
+	}
+	h := &ImpactHandler{KubernetesPodTemplates: store}
+
+	liveA, err := h.fetchWorkloadLiveEvidence(t.Context(), controllersA, resourcesA, []string{sharedDigest}, repositoryAccessFilter{allScopes: true})
+	if err != nil {
+		t.Fatalf("trace(A) error = %v, want nil", err)
+	}
+	if liveA {
+		t.Fatal("trace(A) promoted to runtime_confirmed on workload B's live row -- #5471 codex P1 regression")
+	}
+
+	liveB, err := h.fetchWorkloadLiveEvidence(t.Context(), controllersB, resourcesB, []string{sharedDigest}, repositoryAccessFilter{allScopes: true})
+	if err != nil {
+		t.Fatalf("trace(B) error = %v, want nil", err)
+	}
+	if !liveB {
+		t.Fatal("trace(B) did not promote on its OWN identity-bound live row, want true")
+	}
+
+	if got := len(store.calls); got != 2 {
+		t.Fatalf("store was queried %d times, want exactly 2 (one per trace call)", got)
+	}
+	if got := store.calls[0].TrackingID; got != trackingIDA {
+		t.Fatalf("trace(A) queried tracking id %q, want %q", got, trackingIDA)
+	}
+	if got := store.calls[1].TrackingID; got != trackingIDB {
+		t.Fatalf("trace(B) queried tracking id %q, want %q", got, trackingIDB)
+	}
+}
+
+func TestFetchWorkloadLiveEvidenceStoreError(t *testing.T) {
+	t.Parallel()
+
+	store := &stubKubernetesPodTemplateStore{
+		err: fmt.Errorf("postgres offline"),
+	}
+	h := &ImpactHandler{KubernetesPodTemplates: store}
+	_, err := h.fetchWorkloadLiveEvidence(
+		t.Context(),
+		[]map[string]any{argoCDControllerFixture("app-a")},
+		[]map[string]any{k8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1")},
+		[]string{"img:latest"},
+		repositoryAccessFilter{allScopes: true},
+	)
+	if err == nil {
+		t.Fatal("store error must be surfaced, got nil")
+	}
+}
+
+func TestFetchWorkloadLiveEvidenceScopedAccessFilter(t *testing.T) {
+	t.Parallel()
+
+	trackingID := "app-a:apps/Deployment:ns/workload-a"
+	store := &stubKubernetesPodTemplateStore{
+		matchingTrackingIDs: map[string]struct{}{trackingID: {}},
+	}
+	h := &ImpactHandler{KubernetesPodTemplates: store}
+	access := repositoryAccessFilter{
+		allScopes:            false,
+		allowedRepositoryIDs: []string{"repo:sample-service-api"},
+		allowedScopeIDs:      []string{"scope:test"},
+		allowed: map[string]struct{}{
+			"repo:sample-service-api": {},
+			"scope:test":              {},
+		},
+	}
+	live, err := h.fetchWorkloadLiveEvidence(
+		t.Context(),
+		[]map[string]any{argoCDControllerFixture("app-a")},
+		[]map[string]any{k8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1")},
+		[]string{"img@sha256:a"},
+		access,
+	)
+	if err != nil {
+		t.Fatalf("error = %v, want nil", err)
+	}
+	if !live {
+		t.Fatal("exact match with scoped access returned false")
+	}
+	// The store must have received the access-scoping fields.
+	if len(store.calls) != 1 {
+		t.Fatalf("store queried %d times, want 1", len(store.calls))
+	}
+	if store.calls[0].AllScopes {
+		t.Fatal("AllScopes must be false for scoped access")
+	}
+	if len(store.calls[0].AllowedRepositoryIDs) == 0 {
+		t.Fatal("AllowedRepositoryIDs must be populated for scoped access")
+	}
+	if len(store.calls[0].AllowedScopeIDs) == 0 {
+		t.Fatal("AllowedScopeIDs must be populated for scoped access")
+	}
+}
+
+func TestFetchWorkloadLiveEvidenceEmptyAccess(t *testing.T) {
+	t.Parallel()
+
+	// An empty access filter (no grants, not all-scopes) means a scoped
+	// caller with zero grants. The store must never be called.
+	trackingID := "app-a:apps/Deployment:ns/workload-a"
+	store := &stubKubernetesPodTemplateStore{
+		matchingTrackingIDs: map[string]struct{}{trackingID: {}},
+	}
+	h := &ImpactHandler{KubernetesPodTemplates: store}
+	live, err := h.fetchWorkloadLiveEvidence(
+		t.Context(),
+		[]map[string]any{argoCDControllerFixture("app-a")},
+		[]map[string]any{k8sResourceFixture("Deployment", "workload-a", "ns", "apps/v1")},
+		[]string{"img@sha256:a"},
+		repositoryAccessFilter{}, // empty: no grants, scoped
+	)
+	if err != nil {
+		t.Fatalf("error = %v, want nil", err)
+	}
+	if live {
+		t.Fatal("empty access filter must return false without querying")
+	}
+	if got := len(store.calls); got != 0 {
+		t.Fatalf("store was queried %d times, want 0", got)
+	}
+}

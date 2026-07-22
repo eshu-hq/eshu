@@ -82,14 +82,34 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 	if got, want := shape.RequiredJSONValues["data.instances[].platforms[].topology_edges[].relationship_type"], "RUNS_ON"; got != want {
 		t.Fatalf("trace_deployment_chain RUNS_ON pin = %#v, want %#v", got, want)
 	}
+	if got, want := shape.RequiredJSONValues["data.deployment_fact_summary.deployment_truth_tier"], "runtime_confirmed"; got != want {
+		t.Fatalf("trace_deployment_chain deployment_truth_tier pin = %#v, want %#v", got, want)
+	}
+	if got, want := mcpShape.RequiredJSONValues["deployment_fact_summary.overall_confidence_reason"], "no_deployment_evidence"; got != want {
+		t.Fatalf("MCP trace_deployment_chain deployment_truth_tier pin = %#v, want %#v", got, want)
+	}
 	for path, want := range map[string]any{
 		"data.repo_id":                             "repository:r_217415d9",
 		"data.workload_id":                         "workload:deployable-config",
 		"data.instances[].instance_id":             "workload-instance:deployable-config:prod",
 		"data.instances[].platforms[].platform_id": "platform:kubernetes:none:prod:prod:none",
+		"data.image_refs[]":                        "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
 	} {
 		if got := shape.RequiredJSONValues[path]; got != want {
 			t.Fatalf("trace_deployment_chain required_json_values[%q] = %#v, want %#v", path, got, want)
+		}
+	}
+	// #5471 review round 2 P2: pin exact counts alongside the image_refs[]/
+	// k8s_resources[] contains-check above so a P0-class leak (an extra,
+	// wrong image_ref or k8s_resource row from a DIFFERENT workload) fails
+	// the gate even when the correct row is also present. JSON numbers
+	// decode to float64 through LoadSnapshot's json.Unmarshal into `any`.
+	for path, want := range map[string]float64{
+		"data.deployment_fact_summary.image_ref_count":    1,
+		"data.deployment_fact_summary.k8s_resource_count": 1,
+	} {
+		if got := shape.RequiredJSONValues[path]; got != want {
+			t.Fatalf("trace_deployment_chain required_json_values[%q] = %#v, want %v", path, got, want)
 		}
 	}
 	wantObjectMatches := map[string][]map[string]any{
@@ -117,6 +137,21 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 				"relationship_type": "DEPLOYMENT_SOURCE",
 				"source_id":         "workload-instance:deployable-config:prod",
 				"target_id":         "repository:r_1f68383d",
+			},
+		},
+		"data.k8s_resources[]": {
+			{
+				"entity_name":     "deployable-source",
+				"entity_type":     "K8sResource",
+				"kind":            "Deployment",
+				"namespace":       "production",
+				"repo_id":         "repository:r_217415d9",
+				"relative_path":   "k8s/deployment.yaml",
+				"source_root":     "k8s",
+				"controller_kind": "argocd_application",
+				"container_images": []any{
+					"ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
+				},
 			},
 		},
 	}

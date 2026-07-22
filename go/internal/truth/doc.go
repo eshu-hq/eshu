@@ -18,4 +18,15 @@
 // citation records (byte citation, no confidence), and documentation packets.
 // Validate bounds confidence, rejects inconsistent citations, and requires a
 // known provenance basis.
+//
+// DeploymentTruthTier is the closed, strictly-ranked vocabulary for the
+// strongest class of deployment evidence available for a traced workload
+// (#5471): runtime_confirmed (a live observation, e.g. an exact
+// kubernetes_live correlation) outranks provenance_ci_declared (CI/CD or
+// supply-chain provenance), which outranks declared_ref (a named ref
+// declared deployed; not yet wired), which outranks config_only (only
+// config-materialized evidence). ClassifyDeploymentTruthTier is the single
+// shared classifier trace_deployment_chain, supply_chain_impact, and
+// service story all read through, so the tier a workload reports is
+// consistent across every surface that emits it.
 package truth

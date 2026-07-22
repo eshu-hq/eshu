@@ -236,6 +236,7 @@ nav:
       - Surface Inventory: reference/surface-inventory.md
       - Competitive Audit Preflight: reference/competitive-audit-preflight.md
       - Truth Label Protocol: reference/truth-label-protocol.md
+      - Deployment Truth Tiers: reference/deployment-truth-tiers.md
       - Replatforming Source-State Taxonomy: reference/replatforming-source-state-taxonomy.md
       - Replatforming Plan Contract: reference/replatforming-plan-contract.md
       - Answer Packet Contract: reference/answer-packets.md

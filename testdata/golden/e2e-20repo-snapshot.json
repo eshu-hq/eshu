@@ -38,7 +38,7 @@
       "WorkloadInstance": {
         "min": 1,
         "max": 20,
-        "note": "logical workload-instance nodes correlated from kubernetes_live facts"
+        "note": "logical workload-instance nodes derived from config materialization and deployment mapping"
       },
       "KubernetesWorkload": {
         "min": 5,
@@ -2572,7 +2572,7 @@
         }
       },
       "trace_deployment_chain": {
-        "description": "MCP tool coverage shape for trace_deployment_chain; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for trace_deployment_chain; asserted live through the MCP tool layer. Stays on the rich api-svc fixture for field coverage and pins the negative tier path: api-svc has no deployment evidence, so no deployment_truth_tier is emitted and overall_confidence_reason is no_deployment_evidence — the tier can never be bluffed absent evidence. The HTTP deployable-config shape is the non-vacuous runtime_confirmed proof (#5471).",
         "required_response_fields": [
           "api_surface",
           "cloud_resources",
@@ -2613,6 +2613,7 @@
         ],
         "minimum_results": 0,
         "required_json_values": {
+          "deployment_fact_summary.overall_confidence_reason": "no_deployment_evidence",
           "evidence_boundaries[].domain": "ci_cd_run_correlation"
         },
         "arguments": {
@@ -4773,6 +4774,10 @@
           "data.instances[].instance_id": "workload-instance:deployable-config:prod",
           "data.instances[].platforms[].platform_id": "platform:kubernetes:none:prod:prod:none",
           "data.instances[].platforms[].topology_edges[].relationship_type": "RUNS_ON",
+          "data.deployment_fact_summary.deployment_truth_tier": "runtime_confirmed",
+          "data.deployment_fact_summary.image_ref_count": 1,
+          "data.deployment_fact_summary.k8s_resource_count": 1,
+          "data.image_refs[]": "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
           "truth.level": "derived",
           "truth.basis": "hybrid"
         },
@@ -4801,6 +4806,21 @@
               "relationship_type": "DEPLOYMENT_SOURCE",
               "source_id": "workload-instance:deployable-config:prod",
               "target_id": "repository:r_1f68383d"
+            }
+          ],
+          "data.k8s_resources[]": [
+            {
+              "entity_name": "deployable-source",
+              "entity_type": "K8sResource",
+              "kind": "Deployment",
+              "namespace": "production",
+              "repo_id": "repository:r_217415d9",
+              "relative_path": "k8s/deployment.yaml",
+              "source_root": "k8s",
+              "controller_kind": "argocd_application",
+              "container_images": [
+                "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
+              ]
             }
           ]
         }

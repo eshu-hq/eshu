@@ -141,6 +141,9 @@ type SupplyChainImpactFindingRow struct {
 	// landed will leave this nil; callers must treat that as "no
 	// remediation computed" rather than "no fix available".
 	Remediation *SupplyChainImpactRemediation
+	// DeploymentTruthTier classifies the strongest deployment evidence
+	// available for this finding's repository or workload context (#5471).
+	DeploymentTruthTier string
 }
 
 // SupplyChainSuppressionDecisionRow is the API-shaped suppression decision

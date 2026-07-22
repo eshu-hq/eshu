@@ -88,6 +88,13 @@ relationship families distinct. Every `deployment_sources[]` row includes
 - `DEPLOYS_FROM` is `Repository -> Repository` deployment configuration
   evidence.
 
+`deployment_fact_summary.deployment_truth_tier` classifies the strongest
+deployment evidence available for the traced workload using the closed
+[deployment truth tier vocabulary](../deployment-truth-tiers.md):
+`runtime_confirmed`, `provenance_ci_declared`, `declared_ref`, or
+`config_only`. The tier is additive; existing `overall_confidence` and
+`overall_confidence_reason` fields are unchanged.
+
 Consumers must render the returned direction and endpoints. A deployment-source
 repository name is display text, not permission to convert an instance edge into
 a repository edge. Deployment-source expansion is capped at 50 rows. The

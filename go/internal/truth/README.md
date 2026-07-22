@@ -30,6 +30,26 @@ and the `ContentHash` / `CommitSHA` that pin the cited bytes. `Provenance`
 records the `Basis` (source content, graph projection, assertion, derived),
 `Rationale`, `Actor`, and `Source`.
 
+### Deployment truth tiers (#5471)
+
+`DeploymentTruthTier` is a closed, strictly-ranked vocabulary classifying the
+strongest class of deployment evidence available for a traced workload:
+
+| Tier | Rank | Evidence class |
+| --- | --- | --- |
+| `runtime_confirmed` | 4 (strongest) | Live observation confirms the workload runs (exact `kubernetes_live` correlation, cloud-observed instance). |
+| `provenance_ci_declared` | 3 | CI/CD or supply-chain provenance declares a deployment. |
+| `declared_ref` | 2 | A named ref declared deployed via a future `DEPLOYS_REF` edge (constant defined; evidence source not yet wired, #5393). |
+| `config_only` | 1 (weakest) | Only config-materialization evidence (config-derived `WorkloadInstance`, deployment sources, config environments) exists. |
+
+`ClassifyDeploymentTruthTier(hasLiveEvidence, hasInstances,
+hasDeploymentSources, hasConfigEnvironments)` is the single shared classifier:
+`trace_deployment_chain`, `supply_chain_impact`, and the service story all
+call through it, so the tier vocabulary reads the same way on every surface
+that emits it. Full tier semantics — including what qualifies and what does
+not per tier — live in
+[`docs/public/reference/deployment-truth-tiers.md`](../../../docs/public/reference/deployment-truth-tiers.md).
+
 ## Where this fits
 
 ```mermaid
@@ -62,6 +82,17 @@ The package has no internal-package imports and no runtime state.
 - `ProvenanceBasis` — enum: `ProvenanceBasisSourceContent`,
   `ProvenanceBasisGraphProjection`, `ProvenanceBasisAssertion`,
   `ProvenanceBasisDerived`. Method: `ProvenanceBasis.Validate`.
+- `DeploymentTruthTier` — string-typed enum for the deployment evidence
+  vocabulary. Constants: `TierRuntimeConfirmed`, `TierProvenanceCIDeclared`,
+  `TierDeclaredRef`, `TierConfigOnly`. Methods: `DeploymentTruthTier.Rank`,
+  `DeploymentTruthTier.Compare`.
+- `ParseDeploymentTruthTier(raw string) (DeploymentTruthTier, error)` —
+  trims whitespace and validates one tier string against the known set.
+- `AllDeploymentTruthTiers() []DeploymentTruthTier` — every known tier in
+  strict descending rank order.
+- `ClassifyDeploymentTruthTier(hasLiveEvidence, hasInstances,
+  hasDeploymentSources, hasConfigEnvironments bool) DeploymentTruthTier` —
+  the shared classifier every tier-emitting query surface calls through.
 
 See `doc.go` for the godoc contract.
 
@@ -96,5 +127,7 @@ None. This is a pure value-type package with no runtime I/O.
 - `docs/public/architecture.md` — ownership table and pipeline overview
 - `docs/public/reference/http-api.md` — `truth.layer` and `truth.backend`
   response fields
+- `docs/public/reference/deployment-truth-tiers.md` — full deployment truth
+  tier semantics, what qualifies per tier, and consumer surfaces
 - `go/internal/reducer/README.md` — reducer domain registration and
   `Contract` usage

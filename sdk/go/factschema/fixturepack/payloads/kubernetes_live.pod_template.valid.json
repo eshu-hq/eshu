@@ -18,5 +18,6 @@
   "image_refs": ["registry.example.com/checkout@sha256:0000000000000000000000000000000000000000000000000000000000000001"],
   "selector": {"app": "checkout"},
   "labels": {"app": "checkout", "team": "payments"},
+  "annotations": {"argocd.argoproj.io/tracking-id": "checkout:apps/Deployment:payments/checkout"},
   "correlation_anchors": ["kube-obj:demo-cluster:apps-v1-deployments:payments:checkout:1a2b3c4d"]
 }

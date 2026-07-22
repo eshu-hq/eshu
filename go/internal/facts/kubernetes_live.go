@@ -37,8 +37,11 @@ const (
 	// Bumped 1.0.0 -> 1.1.0 for the additive optional resolved_image_digest field
 	// on PodTemplateContainer (issue #5432). Bumped 1.1.0 -> 1.2.0 for the
 	// additive optional runtime-status fields (desired_replicas, ready_replicas,
-	// available_replicas, pod_phase) on PodTemplate (issue #5431).
-	KubernetesPodTemplateSchemaVersion = "1.2.0"
+	// available_replicas, pod_phase) on PodTemplate (issue #5431). Bumped 1.2.0
+	// -> 1.3.0 for the additive optional annotations field on PodTemplate,
+	// carrying the ArgoCD argocd.argoproj.io/tracking-id declared->live
+	// identity signal (issue #5471 F2).
+	KubernetesPodTemplateSchemaVersion = "1.3.0"
 	// KubernetesRelationshipSchemaVersion is the first relationship fact schema.
 	KubernetesRelationshipSchemaVersion = "1.0.0"
 	// KubernetesWarningSchemaVersion is the first warning fact schema.

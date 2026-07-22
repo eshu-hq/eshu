@@ -251,6 +251,7 @@ func objectMeta(apiGroup, version, resource string, meta metav1.ObjectMeta) kube
 		UID:             string(meta.UID),
 		ResourceVersion: meta.ResourceVersion,
 		Labels:          copyStringMap(meta.Labels),
+		Annotations:     filterIdentityAnnotations(meta.Annotations),
 		OwnerReferences: owners,
 	}
 }
@@ -384,6 +385,49 @@ func copyStringMap(input map[string]string) map[string]string {
 	}
 	output := make(map[string]string, len(input))
 	for key, value := range input {
+		output[key] = value
+	}
+	return output
+}
+
+// identityAnnotationAllowlist is the fixed set of ObjectMeta annotation keys
+// the collector captures into a workload's kubernetes_live.pod_template fact,
+// via filterIdentityAnnotations. Kubernetes annotation values are unbounded —
+// kubectl.kubernetes.io/last-applied-configuration is commonly the full
+// applied manifest re-serialized as JSON (KB to tens of KB) and can embed
+// Secret data verbatim when the applied object was a Secret — so copying the
+// full ObjectMeta.Annotations map into every collected workload would make
+// annotation capture an unbounded, potentially secret-leaking cost on this
+// hot collection path. The design intent (#5471 F2) is narrow: surface only
+// the declared->live identity-binding signals the reducer's
+// BINDS_LIVE_WORKLOAD correlation needs — the ArgoCD app-instance tracking
+// annotation and the Kustomize/Helm app.kubernetes.io instance/name
+// convention. Nothing else is a known consumer.
+var identityAnnotationAllowlist = map[string]struct{}{
+	"argocd.argoproj.io/tracking-id": {},
+	"app.kubernetes.io/instance":     {},
+	"app.kubernetes.io/name":         {},
+}
+
+// filterIdentityAnnotations returns a copy of input restricted to
+// identityAnnotationAllowlist. It is the single point where an object's
+// annotations are captured for the kubernetes_live.pod_template fact, so the
+// unbounded full ObjectMeta.Annotations map never reaches a fact payload; see
+// identityAnnotationAllowlist for why. It returns nil, never an empty map,
+// when input has no allowlisted key — this must decode identically to "no
+// annotations observed" for backward compatibility.
+func filterIdentityAnnotations(input map[string]string) map[string]string {
+	if len(input) == 0 {
+		return nil
+	}
+	var output map[string]string
+	for key, value := range input {
+		if _, ok := identityAnnotationAllowlist[key]; !ok {
+			continue
+		}
+		if output == nil {
+			output = make(map[string]string, len(identityAnnotationAllowlist))
+		}
 		output[key] = value
 	}
 	return output

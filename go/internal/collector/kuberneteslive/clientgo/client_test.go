@@ -26,7 +26,10 @@ func TestAdapterMapsDeploymentMetadataOnly(t *testing.T) {
 	t.Parallel()
 
 	deployment := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{Namespace: "payments", Name: "checkout", UID: "uid-d"},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "payments", Name: "checkout", UID: "uid-d",
+			Annotations: map[string]string{"argocd.argoproj.io/tracking-id": "checkout:apps/Deployment:payments/checkout"},
+		},
 		Spec: appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "checkout"}},
 			Template: corev1.PodTemplateSpec{
@@ -59,6 +62,9 @@ func TestAdapterMapsDeploymentMetadataOnly(t *testing.T) {
 	workload := result.Items[0]
 	if workload.Meta.Resource != "deployments" || workload.Meta.APIGroup != "apps" {
 		t.Fatalf("meta GVR mismatch: %+v", workload.Meta)
+	}
+	if got := workload.Meta.Annotations["argocd.argoproj.io/tracking-id"]; got != "checkout:apps/Deployment:payments/checkout" {
+		t.Fatalf("meta annotations tracking-id = %q, want %q", got, "checkout:apps/Deployment:payments/checkout")
 	}
 	if workload.ServiceAccount != "checkout-sa" {
 		t.Fatalf("service account = %q", workload.ServiceAccount)

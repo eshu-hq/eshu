@@ -44,19 +44,59 @@ func buildDeploymentSourceControllerEntity(entity EntityContent) (map[string]any
 	return controller, true
 }
 
+// selectRelevantDeploymentSourceControllers keeps the GitOps controller
+// entities (ArgoCD/Flux) that are relevant to the traced service, out of the
+// full entity set observed across deploymentSources' repos plus the
+// workload's own repo (workloadRepoID).
+//
+// workloadRepoID is the grant-verified identity of the SPECIFIC traced
+// workload (not a heuristic), but that alone does not make every controller
+// found there safe to trust: a GitOps config repo commonly hosts MANY
+// workloads' controllers in one app-of-apps monorepo (see the repo-helm
+// fixture below). Trust is gated on WORKLOAD cardinality, via
+// ownRepoWorkloadCount (the number of Workload nodes workloadRepoID DEFINES,
+// capped at ownRepoWorkloadCountProbeLimit -- see
+// countWorkloadsDefinedByRepo): when workloadRepoID defines exactly one
+// workload, that workload IS the one being traced, so every controller found
+// in that repo is unambiguously its controller, even when the controller's
+// own entity name or path (e.g. an ArgoCD Application named after the app it
+// deploys, not after the config repo that hosts it) does not textually
+// contain the service name (#5471 defect A).
+//
+// ownRepoWorkloadCount is deliberately NOT how many controller ENTITIES are
+// indexed in workloadRepoID -- an earlier version of this gate counted
+// controllers instead of workloads and was itself a reachable leak (#5471
+// review round 3 P0): a shared repo can define workloads A and B while only
+// B's controller has been indexed so far (ordinary partial discovery, not a
+// data error), so a controller-count of 1 does not prove there is only one
+// workload the lone indexed controller could belong to. Tracing A against
+// that repo must still fall back to the service-name-token match below and
+// correctly reject B's controller. When workloadRepoID defines two or more
+// workloads, every controller found there -- including ones token-matching
+// nothing -- falls back to the same service-name-token match required for
+// controllers named only by deploymentSources (a shared multi-service GitOps
+// repo), so tracing service A can never pull service B's controller out of a
+// shared repo, whether or not A's own controller happens to be indexed yet.
 func selectRelevantDeploymentSourceControllers(
 	serviceName string,
+	workloadRepoID string,
+	ownRepoWorkloadCount int,
 	deploymentSources []map[string]any,
 	entities []EntityContent,
 ) []map[string]any {
-	if serviceName == "" || len(deploymentSources) == 0 || len(entities) == 0 {
+	if serviceName == "" || (len(deploymentSources) == 0 && workloadRepoID == "") || len(entities) == 0 {
 		return nil
 	}
 
-	repoIDs := make(map[string]struct{}, len(deploymentSources))
+	repoIDs := make(map[string]struct{}, len(deploymentSources)+1)
 	for _, repoID := range uniqueNonEmptyRepoIDs(deploymentSources) {
 		repoIDs[repoID] = struct{}{}
 	}
+	if workloadRepoID != "" {
+		repoIDs[workloadRepoID] = struct{}{}
+	}
+
+	trustOwnRepo := workloadRepoID != "" && ownRepoWorkloadCount == 1
 
 	serviceToken := normalizedDeploymentTraceMatch(serviceName)
 	filtered := make([]map[string]any, 0, len(entities))
@@ -68,7 +108,8 @@ func selectRelevantDeploymentSourceControllers(
 		if !ok {
 			continue
 		}
-		if deploymentTraceControllerMatchesService(controller, serviceToken) {
+		if (trustOwnRepo && entity.RepoID == workloadRepoID) ||
+			deploymentTraceControllerMatchesService(controller, serviceToken) {
 			filtered = append(filtered, controller)
 		}
 	}
@@ -131,6 +172,13 @@ func collectDeploymentSourceK8sResources(
 			"controller_entity_id": StringVal(controller, "entity_id"),
 			"controller_path":      StringVal(controller, "relative_path"),
 			"namespace":            k8sNamespace(entity.Metadata),
+			// api_version is the resource's raw apiVersion string ("apps/v1",
+			// "v1", ...), captured from the parsed K8sResource content row
+			// (go/internal/parser/yaml/semantics.go:149) so query-time ArgoCD
+			// tracking-id derivation (apiVersionGroup,
+			// expectedArgoCDTrackingIDs, #5471 codex P1) can compute the
+			// resource's API group without re-parsing content.
+			"api_version": metadataNonEmptyStringValue(entity.Metadata, "api_version"),
 		}
 		// selector/pod_template_labels presence carries tri-state meaning
 		// for k8sSelectMatch (see content_relationships_k8s_match.go): the

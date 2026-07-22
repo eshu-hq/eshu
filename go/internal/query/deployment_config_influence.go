@@ -111,7 +111,7 @@ func (h *ImpactHandler) enrichDeploymentConfigInfluenceContext(ctx context.Conte
 	// the grant here before feeding the influencing-repositories and gitops
 	// enrichment below.
 	sourceResult.result.rows = filterRowsByRepoIDForAccess(sourceResult.result.rows, repositoryAccessFilterFromContext(ctx))
-	controllerEntities, deploymentRepoK8s, _, deploymentRepoLowerBound, err := h.fetchDeploymentSourceGitOps(ctx, safeStr(workload, "name"), sourceResult.result.rows)
+	controllerEntities, deploymentRepoK8s, _, deploymentRepoLowerBound, err := h.fetchDeploymentSourceGitOps(ctx, safeStr(workload, "name"), repoID, sourceResult.result.rows)
 	if err != nil {
 		return fmt.Errorf("query deployment source gitops evidence: %w", err)
 	}

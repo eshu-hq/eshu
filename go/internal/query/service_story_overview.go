@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
 func buildServiceStoryResponse(serviceName string, workloadContext map[string]any) map[string]any {
@@ -101,6 +103,23 @@ func buildServiceDeploymentOverviewWithContext(buildCtx serviceStoryBuildContext
 	materializedEnvironments := distinctSortedInstanceField(instances, "environment")
 	configEnvironments := StringSliceVal(workloadContext, "observed_config_environments")
 
+	// Known disclosure gap (#5582, follow-up to #5471 review round 2 P2):
+	// hasLiveEvidence and hasDeploymentSources are hardcoded false here, so
+	// a workload that trace_deployment_chain reports as runtime_confirmed
+	// (via fetchWorkloadLiveEvidence) can report only config_only or no
+	// tier at all from the service story surface for the SAME workload.
+	// deployment-truth-tiers.md documents all three surfaces as applying
+	// the vocabulary "consistently" through this one classifier; that is
+	// true for the classifier call itself but not yet for the inputs each
+	// surface feeds it. #5582 tracks wiring the story build context's
+	// live-evidence and deployment-source signals so this asymmetry closes.
+	// Mirrors the supply-chain-impact disclosure pattern (#5472/#5474).
+	tier := truth.ClassifyDeploymentTruthTier(
+		false, // hasLiveEvidence: story context has no live probe today (#5582)
+		len(instances) > 0,
+		false, // deployment sources not surfaced in story overview (#5582)
+		len(configEnvironments) > 0,
+	)
 	overview := map[string]any{
 		"instance_count":                 len(instances),
 		"environment_count":              len(materializedEnvironments),
@@ -110,6 +129,9 @@ func buildServiceDeploymentOverviewWithContext(buildCtx serviceStoryBuildContext
 		"platforms":                      platforms,
 		"environments":                   materializedEnvironments,
 		"materialized_environments":      materializedEnvironments,
+	}
+	if tier != "" {
+		overview["deployment_truth_tier"] = string(tier)
 	}
 	if len(configEnvironments) > 0 {
 		overview["config_environments"] = configEnvironments

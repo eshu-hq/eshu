@@ -142,6 +142,7 @@ func TestFetchDeploymentSourceGitOpsReportsRepositoryProbeLowerBound(t *testing.
 	_, _, _, lowerBound, err := handler.fetchDeploymentSourceGitOps(
 		t.Context(),
 		"payments-api",
+		"",
 		[]map[string]any{{"repo_id": "repository:deploy"}},
 	)
 	if err != nil {

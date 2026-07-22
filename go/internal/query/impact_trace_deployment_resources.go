@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
 func buildDeploymentFactSummary(
@@ -22,8 +24,10 @@ func buildDeploymentFactSummary(
 	imageRefs []string,
 	deploymentFacts []map[string]any,
 	mappingMode string,
+	hasLiveEvidence bool,
 ) map[string]any {
-	overallConfidence, confidenceReason := deploymentOverallConfidence(instances, deploymentSources, configEnvironments)
+	overallConfidence, confidenceReason := deploymentOverallConfidence(instances, deploymentSources, configEnvironments, hasLiveEvidence)
+	tier := truth.ClassifyDeploymentTruthTier(hasLiveEvidence, len(instances) > 0, len(deploymentSources) > 0, len(configEnvironments) > 0)
 	uncorrelatedCloudResources := mapSliceValue(workloadContext, "uncorrelated_cloud_resources")
 	summary := map[string]any{
 		"instance_count":                 len(instances),
@@ -41,6 +45,9 @@ func buildDeploymentFactSummary(
 		"overall_confidence":             overallConfidence,
 		"overall_confidence_reason":      confidenceReason,
 	}
+	if tier != "" {
+		summary["deployment_truth_tier"] = string(tier)
+	}
 	if len(uncorrelatedCloudResources) > 0 {
 		summary["uncorrelated_cloud_resource_count"] = len(uncorrelatedCloudResources)
 		summary["missing_evidence"] = []string{"workload_cloud_relationship_missing"}
@@ -55,7 +62,16 @@ func deploymentOverallConfidence(
 	instances []map[string]any,
 	deploymentSources []map[string]any,
 	configEnvironments []string,
+	hasLiveEvidence bool,
 ) (float64, string) {
+	// Live runtime observation is the strongest evidence tier — it means a
+	// kubernetes_live correlation (or equivalent live observation) confirmed
+	// the workload is running. The confidence is calibrated at 0.95: higher
+	// than the materialized-runtime-instances baseline (0.9) because live
+	// evidence is a direct observation, not a config-derived inference.
+	if hasLiveEvidence {
+		return 0.95, "live_runtime_observation"
+	}
 	if len(instances) > 0 {
 		minConfidence := 1.0
 		found := false

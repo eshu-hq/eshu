@@ -273,6 +273,7 @@ func mustPodTemplatePayload(t *testing.T, workload kuberneteslive.WorkloadObject
 		ServiceAccount:      workload.ServiceAccount,
 		Selector:            workload.Selector,
 		Labels:              workload.Meta.Labels,
+		Annotations:         workload.Meta.Annotations,
 		GenerationID:        "gen-1",
 		CollectorInstanceID: "k8s-prod",
 		DesiredReplicas:     workload.DesiredReplicas,

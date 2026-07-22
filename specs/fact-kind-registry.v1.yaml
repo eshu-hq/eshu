@@ -203,7 +203,7 @@ families:
   kubernetes_live:
     lifecycle_owner: go/internal/facts
     schema_version: "1.0.0"
-    schema_version_overrides: {kubernetes_live.pod_template: "1.2.0"}
+    schema_version_overrides: {kubernetes_live.pod_template: "1.3.0"}
     reducer_domain: kubernetes_correlation
     projection_hook: kubernetes_correlation
     admission_hook: facts.ValidateSchemaVersion

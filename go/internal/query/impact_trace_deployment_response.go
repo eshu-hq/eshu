@@ -102,9 +102,15 @@ func buildDeploymentTraceFields(serviceName string, workloadContext map[string]a
 		f.deploymentSources, f.cloudResources, f.k8sResources, f.imageRefs, f.k8sRelationships, f.deploymentEvidence,
 	)
 	f.applyDeploymentOverviewCounts()
+	// D2 (#5471): thread the live-evidence probe result (set by the handler
+	// on workloadContext["_has_live_evidence"]) through to the fact summary
+	// so an exact-match live cluster observation can promote the deployment
+	// truth tier from config_only to runtime_confirmed.
+	hasLiveEvidence, _ := workloadContext["_has_live_evidence"].(bool)
 	f.deploymentFactSummary = buildDeploymentFactSummary(
 		workloadContext, f.instances, f.materializedEnvironments, f.configEnvironments, f.platforms,
 		f.deploymentSources, f.cloudResources, f.k8sResources, f.imageRefs, f.deploymentFacts, f.mappingMode,
+		hasLiveEvidence,
 	)
 	return f
 }
