@@ -16,9 +16,11 @@ must remain unchanged.
 ## Performance Evidence:
 
 The candidate adds one bounded map construction over the selected repository
-set, one canonical local-path lookup per selected repository, and copies one
-small root control file when it exists. It does not change worker counts,
-queue behavior, batch sizes, graph-write concurrency, or retry policy.
+set, up to four canonical local-path normalizations per selected repository
+(source, managed target, selected-path lookup, and the snapshot's non-empty
+`GitTreePath`), and copies one small root control file when it exists. It does
+not change worker counts, queue behavior, batch sizes, graph-write concurrency,
+or retry policy.
 
 Comparable local B-7 runs used clean volumes, the same 25-repository corpus,
 the `local_full_stack` profile, Postgres `18-alpine`, and NornicDB source commit

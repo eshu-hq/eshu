@@ -202,13 +202,14 @@ No-Observability-Change) lives in `OPERATIONS.md`.
   unsupported providers, and returns successful syncs as a targeted batch
 - `RepositorySnapshotter` — interface: `SnapshotRepository(context.Context, SelectedRepository) (RepositorySnapshot, error)`
 - `SelectionBatch` — `ObservedAt` + `[]SelectedRepository`
-- `SelectedRepository` — `RepoPath`, `RemoteURL`, `IsDependency`, `DisplayName`,
-  `Language`, `FileTargets`, source-observed `GitRefs`, `Delta`, and
-  `DeletedRelativePaths`
-- `RepositorySnapshot` — `RepoPath`, `RemoteURL`, `FileCount`, `ImportsMap`,
-  `FileData`, `ContentFileMetas`, `DocumentationFileMetas`, `ContentEntities`,
-  source-observed `GitRefs`, `DiscoveryAdvisory`, optional delta metadata
-  for file-scoped Git resyncs, `TaintEvidence`, and dataflow freshness metadata
+- `SelectedRepository` — `RepoPath`, optional source-checkout `GitTreePath`,
+  `RemoteURL`, `IsDependency`, `DisplayName`, `Language`, `FileTargets`,
+  source-observed `GitRefs`, `Delta`, and `DeletedRelativePaths`
+- `RepositorySnapshot` — `RepoPath`, optional source-checkout `GitTreePath`,
+  `RemoteURL`, `FileCount`, `ImportsMap`, `FileData`, `ContentFileMetas`,
+  `DocumentationFileMetas`, `ContentEntities`, source-observed `GitRefs`,
+  `DiscoveryAdvisory`, optional delta metadata for file-scoped Git resyncs,
+  `TaintEvidence`, and dataflow freshness metadata
 - `TaintEvidenceSnapshot` — one intraprocedural value-flow taint finding resolved
   to its graph `Function` entity uid, carried as evidence (confidence +
   provenance). Populated only when the parser emits `taint_findings` (gated by
