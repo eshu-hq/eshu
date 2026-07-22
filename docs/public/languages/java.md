@@ -24,7 +24,7 @@ parser mechanics live in `go/internal/parser/java/README.md`.
 | Call metadata | Method and constructor arity, local receiver type inference, argument counts, typed receiver variables, records, nested-class context, and same-class helper return types. |
 | Annotation metadata | Applied annotations persist as first-class graph entities and remain graph-first on `code/language-query`, with content fallback when the graph is empty. |
 | Dead-code roots | Parser metadata and reducer `REFERENCES` edges suppress parser-proven runtime and framework roots from cleanup candidates. |
-| Framework route entries | Literal Spring MVC/WebFlux, JAX-RS, and Micronaut route annotations emit exact `framework_semantics.<framework>.route_entries` with handler names. The shared reducer resolves each entry to a `HANDLES_ROUTE` edge, queryable end to end through the `trace_route_callers` surface. |
+| Framework route entries | Literal Spring MVC/WebFlux, JAX-RS, and Micronaut route annotations emit exact `framework_semantics.<framework>.route_entries` with handler names. The shared reducer resolves each entry to a `HANDLES_ROUTE` edge, proven through the reducer's real `HANDLES_ROUTE` intent resolution and the `trace_route_callers` surface reading graph rows derived from that intent (a fake graph reader, not a materialized graph). |
 
 Primary proof:
 
@@ -104,9 +104,19 @@ Supported today:
   path is source-literal and the handler is the annotated method.
 - `HANDLES_ROUTE` materialization is framework-agnostic (the same reducer path
   every language uses) and is proven for Spring, JAX-RS, and Micronaut with
-  positive, unknown-handler, and ambiguous-handler fixtures. The materialized
-  edge is queryable end to end through the `trace_route_callers` MCP/API
-  surface, proven against a Spring handler.
+  positive, unknown-handler, and ambiguous-handler fixtures. Proven at parser,
+  reducer, and query tiers: `TestHandleRouteToCallerResolvesJavaSpringHandler`
+  parses a real Spring MVC fixture, resolves the handler through the reducer's
+  real `HANDLES_ROUTE` intent resolution, and asserts `trace_route_callers`
+  returns that handler from graph rows derived from the reducer's intent (a
+  fake graph reader, not a materialized graph). The stages the case does not
+  execute — intent-to-edge projection and the live-graph read — contain no
+  per-framework code paths and are proven generically by
+  `go/internal/reducer/handles_route_projection_process_test.go` (intent to
+  `HANDLES_ROUTE` edge write with endpoint-presence gating),
+  `go/internal/storage/cypher/edge_writer_handles_route_test.go` (edge Cypher
+  dispatch), and `go/internal/query/code_route_to_caller_live_test.go` (live
+  NornicDB read of a materialized `HANDLES_ROUTE` edge).
 - Gradle plugin/task/DSL roots, JUnit tests and lifecycle methods,
   Jenkins/Stapler extension points, serialization hooks, ServiceLoader
   providers, and Spring Boot autoconfiguration metadata are modeled roots.
