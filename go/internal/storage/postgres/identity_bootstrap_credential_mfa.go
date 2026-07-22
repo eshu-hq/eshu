@@ -66,7 +66,7 @@ func reenrollBootstrapCredentialRecoveryFactor(
 	if err := insertLocalIdentityMFA(
 		ctx, tx, userID, mfaFactorID, localIdentityRecoveryCodeFactorKind, "", []string{recoveryCodeHash}, resetAt,
 	); err != nil {
-		return err
+		return fmt.Errorf("re-enroll bootstrap credential recovery factor: %w", err)
 	}
 	return nil
 }
