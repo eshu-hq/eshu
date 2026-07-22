@@ -281,16 +281,20 @@ func TestGetRepositoryBranchesTagSameNameAsBranch(t *testing.T) {
 	}
 }
 
+// TestGetRepositoryBranchesTagsExceedingCapAreTruncated exercises the old
+// tag-cap scenario (600 tags) under the #5503 combined-paging contract: the
+// per-tag cap is retired in favor of one limit+cursor over the combined
+// branches+tags stream (default limit 100), and tags_truncated keeps its
+// original meaning -- computed from the exact in-memory remainder -- but is
+// now page-relative rather than a fixed 500-tag cap.
 func TestGetRepositoryBranchesTagsExceedingCapAreTruncated(t *testing.T) {
-	// tagResultCap is 500; build 600 tag refs to exceed it.
-	tagResultCap := 500
 	observedAt := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
 	indexedAt := time.Date(2026, 6, 1, 9, 5, 0, 0, time.UTC)
 
 	refs := []RepositoryRef{
 		{Name: "main", Kind: "branch", HeadSHA: "abc123", Default: true, ObservedAt: observedAt, IndexedAt: indexedAt},
 	}
-	for i := 0; i < tagResultCap+100; i++ {
+	for i := 0; i < 600; i++ {
 		refs = append(refs, RepositoryRef{
 			Name:       fmt.Sprintf("v1.%d.0", i),
 			Kind:       "tag",
@@ -315,16 +319,29 @@ func TestGetRepositoryBranchesTagsExceedingCapAreTruncated(t *testing.T) {
 		t.Fatalf("unmarshal: %v", err)
 	}
 
+	// Default page size is 100: 1 default branch + 99 tags fill the page.
+	branches, ok := resp["branches"].([]any)
+	if !ok || len(branches) != 1 {
+		t.Fatalf("branches = %#v, want 1", resp["branches"])
+	}
 	tags, ok := resp["tags"].([]any)
 	if !ok {
 		t.Fatal("tags key missing")
 	}
-	if got, want := len(tags), tagResultCap; got != want {
-		t.Fatalf("len(tags) = %d, want %d (capped)", got, want)
+	if got, want := len(tags), 99; got != want {
+		t.Fatalf("len(tags) = %d, want %d (page fill after 1 branch)", got, want)
 	}
+	if truncated, _ := resp["truncated"].(bool); !truncated {
+		t.Fatal("truncated = false, want true when more refs remain")
+	}
+	if _, ok := resp["next_cursor"].(string); !ok {
+		t.Fatal("next_cursor missing on a truncated page")
+	}
+	// Deprecated field keeps its original meaning: more tags exist beyond
+	// what tags[] carries in this page.
 	truncated, _ := resp["tags_truncated"].(bool)
 	if !truncated {
-		t.Fatal("tags_truncated = false, want true when cap exceeded")
+		t.Fatal("tags_truncated = false, want true when more tags remain beyond this page")
 	}
 	// Default branch still correct.
 	if got, want := resp["default_branch"], "main"; got != want {

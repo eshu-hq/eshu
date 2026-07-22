@@ -1,8 +1,8 @@
 // api/repoSource.ts
 // Repository source browsing loaders, wired to the merged content endpoints:
-//   GET /api/v0/repositories/{id}/tree?path=     (#1431)
-//   GET /api/v0/repositories/{id}/content?path=  (#1432)
-//   GET /api/v0/repositories/{id}/branches       (#1433)
+//   GET /api/v0/repositories/{id}/tree?path=              (#1431)
+//   GET /api/v0/repositories/{id}/content?path=            (#1432)
+//   GET /api/v0/repositories/{id}/branches?limit=&cursor=  (#1433, paged #5503)
 // Defensive over response shape; never fabricates files or branch names.
 
 import type { EshuApiClient } from "./client";
@@ -67,7 +67,14 @@ interface BranchesResponse {
     readonly head_sha?: string;
     readonly last_indexed_at?: string;
   }>;
+  readonly truncated?: boolean;
+  readonly next_cursor?: string;
 }
+
+// loadRepoBranches pages are bounded to this many requests so a very large or
+// misbehaving ref stream can never turn one branch-selector load into an
+// unbounded fetch loop (#5503).
+const MAX_REPO_BRANCH_PAGES = 10;
 
 function num(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
@@ -76,22 +83,35 @@ function str(v: unknown): string {
   return typeof v === "string" ? v : "";
 }
 
+// loadRepoBranches follows the branches endpoint's next_cursor across pages
+// (bounded to MAX_REPO_BRANCH_PAGES) so the branch selector still sees every
+// branch even though the server now bounds each response to a default
+// limit=100 combined branches+tags page (#5503). Tags are not surfaced to the
+// console today, so only the branches[] rows from each page are collected.
 export async function loadRepoBranches(client: EshuApiClient, id: string): Promise<RepoBranches> {
-  const env = await client.get<BranchesResponse>(
-    `/api/v0/repositories/${encodeURIComponent(id)}/branches`,
-  );
-  if (env.error) throw new EshuEnvelopeError(env.error);
-  const data = env.data ?? {};
-  const branches: RepoBranch[] = (data.branches ?? [])
-    .map(
-      (branch): RepoBranch => ({
+  let defaultBranch = "";
+  const branches: RepoBranch[] = [];
+  let cursor = "";
+  for (let page = 0; page < MAX_REPO_BRANCH_PAGES; page++) {
+    const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+    const env = await client.get<BranchesResponse>(
+      `/api/v0/repositories/${encodeURIComponent(id)}/branches${qs}`,
+    );
+    if (env.error) throw new EshuEnvelopeError(env.error);
+    const data = env.data ?? {};
+    if (page === 0) defaultBranch = str(data.default_branch);
+    for (const branch of data.branches ?? []) {
+      const mapped: RepoBranch = {
         name: str(branch.name),
         headSha: str(branch.head_sha),
         lastIndexedAt: branch.last_indexed_at ? str(branch.last_indexed_at) : null,
-      }),
-    )
-    .filter((branch) => branch.name !== "" || branch.headSha !== "");
-  return { defaultBranch: str(data.default_branch), branches };
+      };
+      if (mapped.name !== "" || mapped.headSha !== "") branches.push(mapped);
+    }
+    if (data.truncated !== true || !data.next_cursor) break;
+    cursor = data.next_cursor;
+  }
+  return { defaultBranch, branches };
 }
 
 export async function loadRepoTree(

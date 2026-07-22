@@ -31,6 +31,78 @@ describe("repoSource", () => {
     });
   });
 
+  it("follows next_cursor across pages so the branch selector gets all branches", async () => {
+    const calledPaths: string[] = [];
+    const client = {
+      get: async (path: string) => {
+        calledPaths.push(path);
+        if (!path.includes("cursor=")) {
+          return {
+            data: {
+              default_branch: "main",
+              branches: [
+                { name: "main", head_sha: "sha-main", last_indexed_at: "2026-06-01T09:00:00Z" },
+              ],
+              truncated: true,
+              next_cursor: "page-2-cursor",
+            },
+            error: null,
+            truth: null,
+          };
+        }
+        return {
+          data: {
+            default_branch: "main",
+            branches: [
+              { name: "release", head_sha: "sha-release", last_indexed_at: "2026-06-01T09:00:00Z" },
+            ],
+            truncated: false,
+          },
+          error: null,
+          truth: null,
+        };
+      },
+    } as unknown as EshuApiClient;
+
+    const refs = await loadRepoBranches(client, "repo-1");
+
+    expect(calledPaths).toEqual([
+      "/api/v0/repositories/repo-1/branches",
+      "/api/v0/repositories/repo-1/branches?cursor=page-2-cursor",
+    ]);
+    expect(refs).toEqual({
+      defaultBranch: "main",
+      branches: [
+        { name: "main", headSha: "sha-main", lastIndexedAt: "2026-06-01T09:00:00Z" },
+        { name: "release", headSha: "sha-release", lastIndexedAt: "2026-06-01T09:00:00Z" },
+      ],
+    });
+  });
+
+  it("stops paging branches at the bounded page cap even if the server never stops truncating", async () => {
+    let calls = 0;
+    const client = {
+      get: async () => {
+        calls++;
+        return {
+          data: {
+            default_branch: "main",
+            branches: [{ name: `branch-${calls}`, head_sha: `sha-${calls}` }],
+            truncated: true,
+            next_cursor: `cursor-${calls}`,
+          },
+          error: null,
+          truth: null,
+        };
+      },
+    } as unknown as EshuApiClient;
+
+    const refs = await loadRepoBranches(client, "repo-1");
+
+    expect(calls).toBe(10);
+    expect(refs.branches).toHaveLength(10);
+  });
+
   it("maps tree entries (dir child_count + file size/language) and the ref", async () => {
     let calledPath = "";
     const client = {
