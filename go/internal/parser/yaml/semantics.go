@@ -77,7 +77,7 @@ func parseCrossplaneXRD(document map[string]any, metadata map[string]any, path s
 	names, _ := spec["names"].(map[string]any)
 	claimNames, _ := spec["claimNames"].(map[string]any)
 	return map[string]any{
-		"name":         strings.TrimSpace(fmt.Sprint(metadata["name"])),
+		"name":         cleanYAMLString(metadata["name"]),
 		"line_number":  lineNumber,
 		"group":        strings.TrimSpace(fmt.Sprint(spec["group"])),
 		"kind":         strings.TrimSpace(fmt.Sprint(names["kind"])),
@@ -111,7 +111,7 @@ func parseCrossplaneComposition(document map[string]any, metadata map[string]any
 	}
 	sort.Strings(resourceNames)
 	return map[string]any{
-		"name":                  strings.TrimSpace(fmt.Sprint(metadata["name"])),
+		"name":                  cleanYAMLString(metadata["name"]),
 		"line_number":           lineNumber,
 		"composite_api_version": strings.TrimSpace(fmt.Sprint(compositeRef["apiVersion"])),
 		"composite_kind":        strings.TrimSpace(fmt.Sprint(compositeRef["kind"])),
@@ -140,17 +140,19 @@ func parseCrossplaneComposition(document map[string]any, metadata map[string]any
 // parse-time label.
 
 func parseK8sResource(document map[string]any, metadata map[string]any, apiVersion string, kind string, path string, lineNumber int) map[string]any {
-	name := strings.TrimSpace(fmt.Sprint(metadata["name"]))
-	namespace := strings.TrimSpace(fmt.Sprint(metadata["namespace"]))
+	name := cleanYAMLString(metadata["name"])
+	namespace := cleanYAMLString(metadata["namespace"])
 	row := map[string]any{
 		"name":           name,
 		"line_number":    lineNumber,
 		"kind":           kind,
 		"api_version":    apiVersion,
-		"namespace":      namespace,
 		"qualified_name": normalizeK8sQualifiedName(namespace, kind, name),
 		"path":           path,
 		"lang":           "yaml",
+	}
+	if namespace != "" {
+		row["namespace"] = namespace
 	}
 	if labels := collectMetadataLabels(metadata); labels != "" {
 		row["labels"] = labels
