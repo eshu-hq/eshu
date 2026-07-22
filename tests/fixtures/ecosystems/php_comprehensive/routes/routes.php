@@ -10,11 +10,3 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('user', 'UserController@index');
 Route::post('users/login', 'AuthController@login');
-
-class UserController
-{
-    public function index()
-    {
-        return [];
-    }
-}

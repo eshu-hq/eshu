@@ -88,7 +88,8 @@ func buildRunsInIntentRows(
 			if handler == "" || routePath == "" {
 				continue
 			}
-			functionID, method := resolveHandlesRouteFunction(index, repositoryID, pathKeys, handler)
+			framework := strings.TrimSpace(anyToString(entry["framework"]))
+			functionID, method := resolveHandlesRouteFunction(index, repositoryID, pathKeys, framework, handler)
 			if functionID == "" {
 				continue
 			}
