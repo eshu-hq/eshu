@@ -30,11 +30,13 @@ import (
 // omit the corresponding response fields entirely, never emit a fabricated
 // zero.
 type liveInstanceSummary struct {
-	// count is the SUM, across every distinct expected ArgoCD tracking-id,
-	// of the MAX observed ready_replicas among that tracking-id's matched
-	// facts. Nil is never valid here; fetchWorkloadLiveInstanceSummary
-	// returns a nil *liveInstanceSummary instead of a non-nil summary with a
-	// nil count.
+	// count is the SUM, across every distinct identity anchor (ArgoCD
+	// tracking-id or declared object, #5639), of the MAX observed
+	// ready_replicas among that anchor's matched facts, after dedupping any
+	// live object matched by more than one anchor (cluster_id+object_id) so
+	// the same running object is never counted twice. Nil is never valid
+	// here; fetchWorkloadLiveInstanceSummary returns a nil
+	// *liveInstanceSummary instead of a non-nil summary with a nil count.
 	count int
 }
 
@@ -49,19 +51,25 @@ type liveInstanceSummary struct {
 // is a single shared seam, never forked between the two probes.
 //
 // Aggregation happens in Go, not SQL, so it stays testable: per distinct
-// tracking-id, take the MAX observed ready_replicas across that tracking-id's
-// matched facts (a Deployment's annotations are copied onto its ReplicaSets,
-// so two matched facts commonly share one tracking-id; SUMming them would
+// anchor, take the MAX observed ready_replicas across that anchor's matched
+// facts (a Deployment's annotations are copied onto its ReplicaSets, so two
+// matched facts commonly share one tracking-id; SUMming them would
 // double-count the same running pods twice, since a Deployment's
 // status.readyReplicas already equals its active ReplicaSet's -- MAX
-// de-duplicates that controller-copy fan-out). The per-tracking-id maxima are
-// then summed across distinct tracking-ids, since two different tracking-ids
-// genuinely are two different observed workloads. A matched fact with a nil
-// ReadyReplicas contributes nothing to its tracking-id's max (absent is never
-// coerced to zero); when every matched fact across every tracking-id is nil,
-// the whole probe returns a nil summary (no countable observation), never a
-// fabricated 0. A present ready_replicas of 0 (a real scaled-to-zero
-// observation) IS counted and reported.
+// de-duplicates that controller-copy fan-out). The per-anchor maxima are then
+// summed across distinct anchors, since two different anchors genuinely are
+// two different observed workloads -- EXCEPT when resolveLiveIdentityAnchors
+// produced both an ArgoCD tracking-id anchor and a declared-object anchor for
+// the SAME workload (#5639): the same live fact can then be matched by both
+// anchors' independent queries, so a cluster_id+object_id dedup spanning the
+// whole anchor loop collapses that re-hit before it reaches the per-cluster
+// MAX, keeping the stronger (ArgoCD) anchor's count authoritative and never
+// double-counting the one running object as two. A matched fact with a nil
+// ReadyReplicas contributes nothing to its anchor's max (absent is never
+// coerced to zero) and is never marked as seen; when every matched fact
+// across every anchor is nil, the whole probe returns a nil summary (no
+// countable observation), never a fabricated 0. A present ready_replicas of 0
+// (a real scaled-to-zero observation) IS counted and reported.
 //
 // A store error returns (nil, err): the caller MUST log and continue without
 // setting the count response field, mirroring fetchWorkloadLiveEvidence's
@@ -98,6 +106,18 @@ func (h *ImpactHandler) fetchWorkloadLiveInstanceSummary(
 
 	var total int32
 	observed := false
+	// seen dedups matched live objects by cluster_id+object_id ACROSS anchor
+	// families (#5639 P1 fix): an ArgoCD-managed workload that also has a
+	// mappable declared object gets BOTH a tracking-id anchor and a
+	// declared-object anchor from resolveLiveIdentityAnchors, and the same
+	// live kubernetes_live.pod_template fact is legitimately matched by
+	// both (via the ArgoCD annotation, and via
+	// group_version_resource/namespace/name) -- it is one running object
+	// observed through two independent identity paths, not two objects.
+	// ArgoCD anchors sort first, so the declared-object anchor's re-hit of
+	// an already-counted object is the one skipped here, keeping the
+	// stronger anchor's count authoritative.
+	seen := map[string]struct{}{}
 	for _, anchor := range anchors {
 		filter := liveIdentityAnchorFilter(anchor, imageRefs, access)
 		matches, err := h.KubernetesPodTemplates.ListLiveIdentityMatches(ctx, filter)
@@ -118,6 +138,11 @@ func (h *ImpactHandler) fetchWorkloadLiveInstanceSummary(
 			if match.ReadyReplicas == nil {
 				continue
 			}
+			key := match.ClusterID + "|" + match.ObjectID
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
 			if cur, ok := maxByCluster[match.ClusterID]; !ok || *match.ReadyReplicas > cur {
 				maxByCluster[match.ClusterID] = *match.ReadyReplicas
 			}

@@ -12,13 +12,25 @@ import (
 // stubKubernetesPodTemplateListStore is a test fake implementing
 // KubernetesPodTemplateStore for fetchWorkloadLiveInstanceSummary's tests: it
 // records every filter ListLiveIdentityMatches was called with and returns
-// canned matches keyed by TrackingID. HasLiveIdentityMatch is never called by
-// the probe under test here; it panics if reached so a wiring mistake fails
-// loudly instead of silently returning a wrong bool.
+// canned matches keyed by TrackingID for ArgoCD tracking-id anchor filters,
+// or by declaredObjectMatchKey (GroupVersionResource|Namespace|Name) for
+// declared-object anchor filters (#5639) -- the two anchor kinds never share
+// a keyspace, mirroring how the real store dispatches on
+// filter.AnchorKind. HasLiveIdentityMatch is never called by the probe under
+// test here; it panics if reached so a wiring mistake fails loudly instead of
+// silently returning a wrong bool.
 type stubKubernetesPodTemplateListStore struct {
-	matchesByTrackingID map[string][]LiveIdentityMatch
-	err                 error
-	calls               []KubernetesPodTemplateFilter
+	matchesByTrackingID        map[string][]LiveIdentityMatch
+	matchesByDeclaredObjectKey map[string][]LiveIdentityMatch
+	err                        error
+	calls                      []KubernetesPodTemplateFilter
+}
+
+// declaredObjectMatchKey builds the stub's lookup key for a declared-object
+// anchor filter, matching declaredObjectAnchors' own key shape
+// (impact_trace_deployment_live_evidence_identity_declared.go:84).
+func declaredObjectMatchKey(gvr, namespace, name string) string {
+	return gvr + "|" + namespace + "|" + name
 }
 
 func (s *stubKubernetesPodTemplateListStore) HasLiveIdentityMatch(
@@ -35,6 +47,10 @@ func (s *stubKubernetesPodTemplateListStore) ListLiveIdentityMatches(
 	s.calls = append(s.calls, filter)
 	if s.err != nil {
 		return nil, s.err
+	}
+	if filter.AnchorKind == liveIdentityAnchorDeclaredObject {
+		key := declaredObjectMatchKey(filter.GroupVersionResource, filter.Namespace, filter.Name)
+		return s.matchesByDeclaredObjectKey[key], nil
 	}
 	return s.matchesByTrackingID[filter.TrackingID], nil
 }
@@ -232,7 +248,11 @@ func TestFetchWorkloadLiveInstanceSummaryMultiClusterSumsAcrossClusters(t *testi
 // TestFetchWorkloadLiveInstanceSummaryTwoTrackingIDsSum proves the second
 // half of the aggregation contract: two DISTINCT tracking-ids (two different
 // declared k8sResources under the traced workload) each contribute their own
-// max, and the totals are summed across tracking-ids.
+// max, and the totals are summed across tracking-ids. The two matches carry
+// distinct ObjectIDs, as two genuinely different live objects always would in
+// production (object_id is never empty on a real fact) -- this keeps the
+// cross-anchor cluster_id+object_id dedup (#5639 P1 fix) from mistaking two
+// distinct objects for a re-hit of the same one.
 func TestFetchWorkloadLiveInstanceSummaryTwoTrackingIDsSum(t *testing.T) {
 	t.Parallel()
 
@@ -247,8 +267,8 @@ func TestFetchWorkloadLiveInstanceSummaryTwoTrackingIDsSum(t *testing.T) {
 	}
 	store := &stubKubernetesPodTemplateListStore{
 		matchesByTrackingID: map[string][]LiveIdentityMatch{
-			trackingIDs[0]: {{ReadyReplicas: int32Ptr(2)}},
-			trackingIDs[1]: {{ReadyReplicas: int32Ptr(5)}},
+			trackingIDs[0]: {{ObjectID: "obj-a", ReadyReplicas: int32Ptr(2)}},
+			trackingIDs[1]: {{ObjectID: "obj-b", ReadyReplicas: int32Ptr(5)}},
 		},
 	}
 	h := &ImpactHandler{KubernetesPodTemplates: store}
@@ -336,10 +356,10 @@ func TestFetchWorkloadLiveInstanceSummaryDeclaredObjectAnchorContributesCount(t 
 	if len(anchors) != 1 {
 		t.Fatalf("test fixture bug: want exactly 1 declared-object anchor, got %d", len(anchors))
 	}
-	trackingID := "" // declared-object anchor filters carry no TrackingID
+	key := declaredObjectMatchKey(anchors[0].GroupVersionResource, anchors[0].Namespace, anchors[0].Name)
 	store := &stubKubernetesPodTemplateListStore{
-		matchesByTrackingID: map[string][]LiveIdentityMatch{
-			trackingID: {{ClusterID: "prod-cluster", ReadyReplicas: int32Ptr(4)}},
+		matchesByDeclaredObjectKey: map[string][]LiveIdentityMatch{
+			key: {{ClusterID: "prod-cluster", ReadyReplicas: int32Ptr(4)}},
 		},
 	}
 	h := &ImpactHandler{KubernetesPodTemplates: store}
@@ -362,6 +382,58 @@ func TestFetchWorkloadLiveInstanceSummaryDeclaredObjectAnchorContributesCount(t 
 	}
 	if got := store.calls[0].AnchorKind; got != liveIdentityAnchorDeclaredObject {
 		t.Fatalf("store.calls[0].AnchorKind = %q, want declared-object", got)
+	}
+}
+
+// TestFetchWorkloadLiveInstanceSummaryArgoCDAndDeclaredObjectAnchorsNoDoubleCount
+// is the #5639 P1 regression: an ArgoCD-managed workload also has a mappable
+// declared Deployment, so resolveLiveIdentityAnchors produces BOTH a
+// tracking-id anchor and a declared-object anchor for it
+// (impact_trace_deployment_live_evidence_identity.go). In production the SAME
+// live pod-template fact (same cluster_id + object_id) is matched by both the
+// tracking-id query (via the ArgoCD annotation) and the declared-object query
+// (via group_version_resource/namespace/name), because it is one running
+// Deployment observed through two independent identity paths. The
+// aggregation MUST dedup that re-hit by (cluster_id, object_id) across anchor
+// families -- summing both anchors' per-cluster maxima would double the
+// count (3 + 3 = 6) even though only one Deployment with 3 ready replicas
+// exists.
+func TestFetchWorkloadLiveInstanceSummaryArgoCDAndDeclaredObjectAnchorsNoDoubleCount(t *testing.T) {
+	t.Parallel()
+
+	controllers, resources, trackingID := singleTrackingIDFixture("app-a", "Deployment", "workload-a", "ns", "apps/v1")
+	anchors := declaredObjectAnchors(resources)
+	if len(anchors) != 1 {
+		t.Fatalf("test fixture bug: want exactly 1 declared-object anchor, got %d", len(anchors))
+	}
+	declaredKey := declaredObjectMatchKey(anchors[0].GroupVersionResource, anchors[0].Namespace, anchors[0].Name)
+
+	// The same live fact (object-D, prod-cluster, 3 ready replicas) is
+	// returned for BOTH the tracking-id anchor and the declared-object
+	// anchor, modelling the real store where the fact matches both queries.
+	sharedMatch := LiveIdentityMatch{ObjectID: "obj-D", ClusterID: "c", ReadyReplicas: int32Ptr(3)}
+	store := &stubKubernetesPodTemplateListStore{
+		matchesByTrackingID: map[string][]LiveIdentityMatch{
+			trackingID: {sharedMatch},
+		},
+		matchesByDeclaredObjectKey: map[string][]LiveIdentityMatch{
+			declaredKey: {sharedMatch},
+		},
+	}
+	h := &ImpactHandler{KubernetesPodTemplates: store}
+	summary, err := h.fetchWorkloadLiveInstanceSummary(
+		t.Context(), controllers, resources,
+		[]string{"ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"},
+		repositoryAccessFilter{allScopes: true},
+	)
+	if err != nil {
+		t.Fatalf("error = %v, want nil", err)
+	}
+	if summary == nil {
+		t.Fatal("summary = nil, want non-nil (an observation was made)")
+	}
+	if summary.count != 3 {
+		t.Fatalf("count = %d, want 3 (same live object matched by both an ArgoCD and a declared-object anchor must be counted once, not summed to 6)", summary.count)
 	}
 }
 

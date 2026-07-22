@@ -73,6 +73,11 @@ promoted the workload -- an operator can now distinguish an ArgoCD-anchored
 promotion from a declared-object-anchored one without reproducing the trace
 call. No other span, metric, or log key changes; the sibling
 `impact.live_instance_count` span keeps its existing attribute set
-unchanged (the count aggregation is anchor-kind-agnostic by design). The
-span is recorded in the telemetry-coverage contract doc
+unchanged. The count aggregation itself dedups matched live objects by
+`cluster_id`+`object_id` ACROSS anchor families, not per anchor: a workload
+matched by both an ArgoCD tracking-id anchor and a declared-object anchor is
+counted once, not summed twice, because the two anchors can legitimately
+observe the same live fact through two independent identity paths (P1 fix,
+`TestFetchWorkloadLiveInstanceSummaryArgoCDAndDeclaredObjectAnchorsNoDoubleCount`).
+The span is recorded in the telemetry-coverage contract doc
 (`docs/public/observability/telemetry-coverage.md`).
