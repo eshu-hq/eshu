@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 )
 
 // SupportedFileMatcher reports whether the caller wants to index one file path.
@@ -187,21 +188,32 @@ func ResolveRepositoryFileSetsWithStats(
 		files := append([]FileWithSize(nil), groups[repoRoot]...)
 		sortFileWithSizeSlice(files)
 
-		// Resolved once per repo root (not per file) and reused by both
-		// filters below: the gitignore filter needs it to keep a tracked
-		// file despite a match, and the eshuignore filter needs it to
-		// classify which of its skips are tracked-file skips worth
-		// surfacing individually (issue #5591).
-		var tracked map[string]struct{}
-		if opts.GitTrackedResolver != nil && (opts.HonorGitignore || opts.HonorEshuIgnore) {
-			if resolved, ok := opts.GitTrackedResolver(repoRoot); ok {
-				tracked = resolved
+		// resolveTracked defers the GitTrackedResolver call (one `git
+		// ls-files` subprocess, ~26-29ms measured — see
+		// evidence-5591-tracked-ignored-perf.md) until a filter below
+		// actually needs a tracked-status decision for THIS repo root: a
+		// .gitignore match (filterRepoFilesByGitignore) or a non-empty
+		// .eshuignore skip set (recordTrackedEshuIgnoreSkips). A repo with
+		// no ignore-matched candidate at all never calls the resolver.
+		// sync.OnceValue memoizes across both call sites so a repo that
+		// needs it for both filters still pays the subprocess only once.
+		// This loop iterates repoRoots on a single goroutine; OnceValue
+		// documents "called at most once" regardless, so this stays correct
+		// if a future change parallelizes the loop.
+		resolveTracked := sync.OnceValue(func() map[string]struct{} {
+			if opts.GitTrackedResolver == nil {
+				return nil
 			}
-		}
+			resolved, ok := opts.GitTrackedResolver(repoRoot)
+			if !ok {
+				return nil
+			}
+			return resolved
+		})
 
 		if opts.HonorGitignore {
 			before := len(files)
-			files = filterRepoFilesByGitignore(repoRoot, files, tracked)
+			files = filterRepoFilesByGitignore(repoRoot, files, resolveTracked)
 			stats.FilesSkippedGitignore += before - len(files)
 		}
 		if opts.HonorEshuIgnore {
@@ -209,7 +221,7 @@ func ResolveRepositoryFileSetsWithStats(
 			var skippedPaths []string
 			files, skippedPaths = filterRepoFilesByEshuIgnore(repoRoot, files)
 			stats.FilesSkippedEshuIgnore += before - len(files)
-			recordTrackedEshuIgnoreSkips(&stats, repoRoot, skippedPaths, tracked)
+			recordTrackedEshuIgnoreSkips(&stats, repoRoot, skippedPaths, resolveTracked)
 		}
 		result = append(result, RepoFileSet{
 			RepoRoot: repoRoot,
@@ -220,13 +232,21 @@ func ResolveRepositoryFileSetsWithStats(
 }
 
 // recordTrackedEshuIgnoreSkips appends the repo-relative path of every
-// skippedPath that is also a member of tracked into
+// skippedPath that is also a member of tracked() into
 // stats.TrackedFilesSkippedEshuIgnore, capped at
 // trackedFilesSkippedEshuIgnoreCap with an overflow counter beyond the cap.
-// A nil/empty tracked set (resolver absent or reported ok=false) is a no-op,
-// matching the pre-#5591 behavior of not knowing which files git tracks.
-func recordTrackedEshuIgnoreSkips(stats *DiscoveryStats, repoRoot string, skippedPaths []string, tracked map[string]struct{}) {
-	if len(tracked) == 0 {
+//
+// It checks len(skippedPaths) == 0 BEFORE calling tracked(): a repo with no
+// .eshuignore skips at all must never spawn the `git ls-files` subprocess
+// tracked() lazily resolves. A nil/empty resolved set (resolver absent, or
+// reported ok=false) is then a no-op, matching the pre-#5591 behavior of not
+// knowing which files git tracks.
+func recordTrackedEshuIgnoreSkips(stats *DiscoveryStats, repoRoot string, skippedPaths []string, tracked func() map[string]struct{}) {
+	if len(skippedPaths) == 0 {
+		return
+	}
+	trackedSet := tracked()
+	if len(trackedSet) == 0 {
 		return
 	}
 	for _, skippedPath := range skippedPaths {
@@ -235,7 +255,7 @@ func recordTrackedEshuIgnoreSkips(stats *DiscoveryStats, repoRoot string, skippe
 			continue
 		}
 		rel = filepath.ToSlash(filepath.Clean(rel))
-		if _, ok := tracked[rel]; !ok {
+		if _, ok := trackedSet[rel]; !ok {
 			continue
 		}
 		if len(stats.TrackedFilesSkippedEshuIgnore) >= trackedFilesSkippedEshuIgnoreCap {

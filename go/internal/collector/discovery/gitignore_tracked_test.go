@@ -207,3 +207,92 @@ func TestResolveRepositoryFileSetsGitTrackedResolverInvokedPerRepoRoot(t *testin
 		t.Fatalf("FilesSkippedGitignore = %d, want %d", got, want)
 	}
 }
+
+// TestResolveRepositoryFileSetsGitTrackedResolverIsLazyWhenNoIgnoreMatch
+// proves the resolver is called lazily: fable's measurement found the
+// eager `git ls-files` call cost ~26-29ms per repo root and fired
+// unconditionally, even for the ~86% of repos with no .gitignore match at
+// all (evidence-5591-tracked-ignored-perf.md). A repo whose only discovered
+// file never matches its own .gitignore rule must never invoke the
+// resolver — tracked status is never decision-relevant there.
+func TestResolveRepositoryFileSetsGitTrackedResolverIsLazyWhenNoIgnoreMatch(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	repo := filepath.Join(root, "repo")
+	mustMkdirGit(t, repo)
+	mustWriteFile(t, filepath.Join(repo, ".gitignore"), "*.tfstate\n")
+	// kept.py never matches the *.tfstate rule, so gitignore filtering never
+	// needs a tracked-status decision for it.
+	mustWriteFile(t, filepath.Join(repo, "kept.py"), "print('kept')\n")
+
+	var calls int
+	resolver := func(string) (map[string]struct{}, bool) {
+		calls++
+		return map[string]struct{}{}, true
+	}
+
+	_, got, err := ResolveRepositoryFileSetsWithStats(
+		root,
+		func(path string) bool {
+			ext := filepath.Ext(path)
+			return ext == ".py" || ext == ".tfstate"
+		},
+		Options{
+			IgnoredDirs:        []string{".git"},
+			HonorGitignore:     true,
+			GitTrackedResolver: resolver,
+		},
+	)
+	if err != nil {
+		t.Fatalf("ResolveRepositoryFileSetsWithStats() error = %v, want nil", err)
+	}
+	if calls != 0 {
+		t.Fatalf("resolver invoked %d times, want 0 (no discovered file matched .gitignore; tracked status was never decision-relevant)", calls)
+	}
+	if !repoFileSetsContainSuffix(got, "kept.py") {
+		t.Fatalf("fileSets missing kept.py; fileSets=%v", got)
+	}
+}
+
+// TestResolveRepositoryFileSetsGitTrackedResolverInvokedOnceWhenDecisionRelevant
+// proves the lazy resolver still fires — and only once, even though both
+// filterRepoFilesByGitignore and recordTrackedEshuIgnoreSkips can each
+// trigger it for the same repo root — when a discovered file actually
+// matches .gitignore. sync.OnceValue memoization is what bounds this to
+// exactly one `git ls-files` subprocess per repo root per snapshot.
+func TestResolveRepositoryFileSetsGitTrackedResolverInvokedOnceWhenDecisionRelevant(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	repo := filepath.Join(root, "repo")
+	mustMkdirGit(t, repo)
+	mustWriteFile(t, filepath.Join(repo, ".gitignore"), "*.tfstate\n")
+	mustWriteFile(t, filepath.Join(repo, "terraform.tfstate"), "{}")
+
+	var calls int
+	resolver := func(string) (map[string]struct{}, bool) {
+		calls++
+		return map[string]struct{}{"terraform.tfstate": {}}, true
+	}
+
+	_, got, err := ResolveRepositoryFileSetsWithStats(
+		root,
+		func(path string) bool { return filepath.Ext(path) == ".tfstate" },
+		Options{
+			IgnoredDirs:        []string{".git"},
+			HonorGitignore:     true,
+			HonorEshuIgnore:    true,
+			GitTrackedResolver: resolver,
+		},
+	)
+	if err != nil {
+		t.Fatalf("ResolveRepositoryFileSetsWithStats() error = %v, want nil", err)
+	}
+	if calls != 1 {
+		t.Fatalf("resolver invoked %d times, want exactly 1 (memoized across the gitignore and eshuignore filters for one repo root)", calls)
+	}
+	if !repoFileSetsContainSuffix(got, "terraform.tfstate") {
+		t.Fatalf("fileSets missing tracked terraform.tfstate; fileSets=%v", got)
+	}
+}

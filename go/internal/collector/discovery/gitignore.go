@@ -22,20 +22,28 @@ type gitignorePattern struct {
 }
 
 // filterRepoFilesByGitignore drops files matching a repo-local .gitignore
-// rule, EXCEPT a file whose repo-relative path is a member of tracked
+// rule, EXCEPT a file whose repo-relative path is a member of tracked()
 // (issue #5591): git only applies .gitignore to UNTRACKED paths, so a
 // force-committed file that matches a gitignore rule stays tracked and must
-// stay discoverable. A nil/empty tracked set (no resolver, or the resolver
-// reported ok=false) filters exactly as it did before #5591.
-func filterRepoFilesByGitignore(repoRoot string, files []FileWithSize, tracked map[string]struct{}) []FileWithSize {
+// stay discoverable.
+//
+// tracked() (a resolveTracked closure, memoized per repo root via
+// sync.OnceValue by the caller) is called ONLY when a file actually matches
+// the gitignore pattern — never for a file gitignore would keep anyway. A
+// repository whose files never match a .gitignore rule therefore never
+// invokes the resolver, and never pays its `git ls-files` subprocess cost
+// (see evidence-5591-tracked-ignored-perf.md). A tracked() result that is
+// nil/empty (no resolver, or the resolver reported ok=false) then filters
+// exactly as it did before #5591.
+func filterRepoFilesByGitignore(repoRoot string, files []FileWithSize, tracked func() map[string]struct{}) []FileWithSize {
 	cache := make(map[string]*gitignoreSpec)
 	kept := make([]FileWithSize, 0, len(files))
 	for _, file := range files {
-		if isTrackedRepoFile(repoRoot, file.Path, tracked) {
+		if !isIgnoredByRepoIgnoreFile(repoRoot, file.Path, ".gitignore", cache) {
 			kept = append(kept, file)
 			continue
 		}
-		if !isIgnoredByRepoIgnoreFile(repoRoot, file.Path, ".gitignore", cache) {
+		if isTrackedRepoFile(repoRoot, file.Path, tracked()) {
 			kept = append(kept, file)
 		}
 	}
