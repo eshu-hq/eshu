@@ -58,6 +58,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			// TerraformStateResource address property index) are index-only
 			// and additive too.
 			compatible: []string{
+				graphSchemaNeo4jPreKubernetesNamespaceIndexesFingerprint,
 				graphSchemaNeo4jPreKustomizeOverlayRepoIDIndexFingerprint,
 				graphSchemaNeo4jPreTerraformStateResourceAddressIndexFingerprint,
 				graphSchemaNeo4jPreTerraformStateResourceIndexesFingerprint,
@@ -78,6 +79,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			backend:     SchemaBackendNornicDB,
 			fingerprint: graphSchemaNornicDBFingerprint,
 			compatible: []string{
+				graphSchemaNornicDBPreKubernetesNamespaceIndexesFingerprint,
 				graphSchemaNornicDBPreKustomizeOverlayRepoIDIndexFingerprint,
 				graphSchemaNornicDBPreTerraformStateResourceAddressIndexFingerprint,
 				graphSchemaNornicDBPreTerraformStateResourceIndexesFingerprint,

@@ -1211,10 +1211,16 @@ func TestEntityTypeLabelMapCoversAllSchemaLabels(t *testing.T) {
 	// canonical writer (storage/cypher/tfstate_canonical_writer.go) from typed
 	// terraform_state_resource facts (#5443), not from parsed content-entity
 	// facts, so it has no entity_type mapping in this source-local map either.
+	// KubernetesNamespace is materialized by the kubernetes_namespace_materialization
+	// reducer domain from kubernetes_namespace facts (issue #5434), not from parsed
+	// content-entity facts, so — exactly like its sibling KubernetesWorkload above —
+	// it has no entity_type mapping in this source-local map. Its uid uniqueness
+	// constraint was added in #5651.
 	sourceLocalNonEntityLabels := map[string]struct{}{
 		"File":                         {},
 		"CloudResource":                {},
 		"KubernetesWorkload":           {},
+		"KubernetesNamespace":          {},
 		"CidrBlock":                    {},
 		"PrefixList":                   {},
 		"SecurityGroupRule":            {},

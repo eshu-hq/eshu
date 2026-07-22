@@ -114,8 +114,10 @@ SET env_rel.evidence_source = row.evidence_source,
 // when the namespace's environment actually changed, so the steady-state
 // case (unchanged binding) matches nothing and never deletes+recreates its
 // own edge. Scoped by uid (this writer's own MERGE identity, matching the
-// KubernetesNamespace.uid index the upsert MERGE already anchors on) and
-// evidence_source (this writer's own edges only), so it never touches an
+// KubernetesNamespace.uid uniqueness constraint -- and, on NornicDB, the
+// matching uid lookup index -- the upsert MERGE anchors on via
+// uidConstraintLabels in go/internal/graph/schema_tables.go, issue #5651)
+// and evidence_source (this writer's own edges only), so it never touches an
 // edge a different producer wrote to the same Environment node.
 const retractKubernetesNamespaceStaleTargetsEnvironmentCypher = `UNWIND $rows AS row
 MATCH (n:KubernetesNamespace {uid: row.uid})-[rel:TARGETS_ENVIRONMENT]->(old_env:Environment)
