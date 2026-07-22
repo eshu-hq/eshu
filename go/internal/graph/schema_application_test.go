@@ -21,6 +21,13 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			name:        "neo4j",
 			backend:     SchemaBackendNeo4j,
 			fingerprint: graphSchemaNeo4jFingerprint,
+			// The #5445 kustomize_overlay_repo_id index only adds a
+			// repo-scoped index on an existing label; an older writer creates
+			// no fewer KustomizeOverlay nodes and needs no schema change to
+			// keep writing, so its predecessor (the merged
+			// CodeownersOwnership/KubernetesWorkloadIDLookup/TerraformStateResource
+			// tip below) stays compatible, and the chain beneath it is
+			// cumulative per the existing reasoning.
 			// The TerraformStateResource split (#5443) only adds a uid
 			// uniqueness constraint for a brand-new label; an older writer
 			// creates no nodes under that label, so its predecessor schema
@@ -51,6 +58,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			// TerraformStateResource address property index) are index-only
 			// and additive too.
 			compatible: []string{
+				graphSchemaNeo4jPreKustomizeOverlayRepoIDIndexFingerprint,
 				graphSchemaNeo4jPreTerraformStateResourceAddressIndexFingerprint,
 				graphSchemaNeo4jPreTerraformStateResourceIndexesFingerprint,
 				graphSchemaNeo4jPreTerraformStateResourceSplitFingerprint,
@@ -70,6 +78,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			backend:     SchemaBackendNornicDB,
 			fingerprint: graphSchemaNornicDBFingerprint,
 			compatible: []string{
+				graphSchemaNornicDBPreKustomizeOverlayRepoIDIndexFingerprint,
 				graphSchemaNornicDBPreTerraformStateResourceAddressIndexFingerprint,
 				graphSchemaNornicDBPreTerraformStateResourceIndexesFingerprint,
 				graphSchemaNornicDBPreTerraformStateResourceSplitFingerprint,

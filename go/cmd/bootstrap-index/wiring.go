@@ -247,6 +247,8 @@ func openBootstrapCanonicalWriter(
 		bootstrapTerraformStateOwnershipResolver{resolver: tfstatebackend.NewResolver(postgres.PostgresTerraformBackendQuery{DB: database})},
 	).WithTerraformStateConfigMatchResolver(
 		bootstrapTerraformStateConfigMatchResolver{driver: driver, databaseName: cfg.DatabaseName},
+	).WithKustomizeOverlayResolver(
+		bootstrapKustomizeOverlayResolver{driver: driver, databaseName: cfg.DatabaseName},
 	)
 	labelBatchSizes := map[string]int(nil)
 	orderedLabels := []string(nil)

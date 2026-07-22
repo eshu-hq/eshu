@@ -79,4 +79,8 @@ func TestOpenBootstrapCanonicalWriterWiresTerraformStateResolversLive(t *testing
 		t.Error("openBootstrapCanonicalWriter() left the #5443 TerraformStateConfigMatchResolver nil; " +
 			"ambiguous MATCHES_STATE candidates will not fail closed on the initial bootstrap index")
 	}
+	if !canonicalWriter.KustomizeOverlayResolverConfigured() {
+		t.Error("openBootstrapCanonicalWriter() left the #5445 KustomizeOverlayResolver nil; " +
+			"EXTENDS_BASE edges will never be materialized by the initial bootstrap index")
+	}
 }

@@ -241,17 +241,6 @@ linters:
           # tables are legitimately long; the function-length cap targets
           # production code, not test scaffolding.
           - funlen
-      # SA5011 loses t.Fatal/t.Fatalf noreturn inference under golangci-lint
-      # v2.12.2 + go1.26.5, flagging the standard
-      # `if x == nil { t.Fatal(...) }`-then-dereference test pattern as a
-      # possible nil dereference (34 false positives across go/internal/mcp
-      # alone as of 2026-07-22, PR #5641). Scoped to _test.go AND to SA5011
-      # only: every other staticcheck check still runs in tests, and
-      # production-code SA5011 nil-deref coverage is unaffected.
-      - path: _test\.go
-        linters:
-          - staticcheck
-        text: 'SA5011'
       # ── funlen baseline (#3789): these files contain pre-existing
       #    functions over the 150-line cap. They are grandfathered via
       #    path-level exclusion (not inline //nolint) so the guarded

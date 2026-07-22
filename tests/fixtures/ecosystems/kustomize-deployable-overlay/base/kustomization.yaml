@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Minimal same-repo Kustomize base (issue #5445 slice 3). The production
+# overlay's kustomization.yaml (one directory up) declares this directory as a
+# local resources entry ("./base"), which exercises the EXTENDS_BASE graph
+# edge: (:KustomizeOverlay {path: "kustomization.yaml"})-[:EXTENDS_BASE]->
+# (:KustomizeOverlay {path: "base/kustomization.yaml"}).
+
+resources:
+  - deployment.yaml

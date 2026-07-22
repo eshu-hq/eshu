@@ -2,8 +2,8 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 425,
-    "covered": 413,
+    "total": 426,
+    "covered": 414,
     "uncovered": 0,
     "unresolved": 0,
     "exempt": 12,
@@ -84,8 +84,8 @@
     },
     {
       "registry": "retractable_edge_type",
-      "total": 59,
-      "covered": 58,
+      "total": 60,
+      "covered": 59,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 1,
@@ -140,8 +140,8 @@
     },
     {
       "scenario_type": "delta_tombstone",
-      "total": 155,
-      "covered": 153,
+      "total": 156,
+      "covered": 154,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 2,
@@ -2720,6 +2720,16 @@
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_rationale_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
       "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_reducer_rationale_edge_retract_live_test.go"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:EXTENDS_BASE",
+      "scenario_type": "delta_tombstone",
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/offlinetier/delta_tier_canonical_kustomize_extends_base_edge_retract_live_test.go",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_canonical_kustomize_extends_base_edge_retract_live_test.go"
     },
     {
       "registry": "retractable_edge_type",

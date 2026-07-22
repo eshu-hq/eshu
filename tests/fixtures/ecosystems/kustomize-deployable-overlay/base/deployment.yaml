@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployable-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: deployable-app
+  template:
+    metadata:
+      labels:
+        app: deployable-app
+    spec:
+      containers:
+        - name: deployable-app
+          image: ghcr.io/example/deployable-app:latest

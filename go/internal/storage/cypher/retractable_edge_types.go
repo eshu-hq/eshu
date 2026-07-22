@@ -29,6 +29,7 @@ var retractableGraphEdgeTypes = []edgetype.EdgeType{
 	edgetype.Executes,
 	edgetype.ExecutesShell,
 	edgetype.Explains,
+	edgetype.ExtendsBase,
 	edgetype.GrantsAccessTo,
 	edgetype.HandlesRoute,
 	edgetype.HasColumn,

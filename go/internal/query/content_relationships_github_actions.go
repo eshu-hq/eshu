@@ -126,12 +126,12 @@ func (refs *githubActionsDependencyRefs) collectJob(job map[string]any) {
 	}
 	refs.workflowInputRepositories = append(
 		refs.workflowInputRepositories,
-		githubActionsWorkflowInputRepositoryMetadata(job)...,
+		githubActionsWorkflowInputRepositories(job)...,
 	)
 	if with, ok := job["with"].(map[string]any); ok {
 		refs.workflowInputRepositories = append(
 			refs.workflowInputRepositories,
-			githubActionsWorkflowInputRepositoryMetadata(with)...,
+			githubActionsWorkflowInputRepositories(with)...,
 		)
 	}
 	refs.collectSteps(job["steps"])
@@ -164,7 +164,7 @@ func (refs *githubActionsDependencyRefs) collectSteps(rawSteps any) {
 		if with, ok := step["with"].(map[string]any); ok {
 			refs.workflowInputRepositories = append(
 				refs.workflowInputRepositories,
-				githubActionsWorkflowInputRepositoryMetadata(with)...,
+				githubActionsWorkflowInputRepositories(with)...,
 			)
 		}
 	}
@@ -290,7 +290,12 @@ func githubActionsSourceRelationships(entity EntityContent) []githubActionsRelat
 	return relationships
 }
 
-func githubActionsWorkflowInputRepositoryMetadata(metadata map[string]any) []string {
+// githubActionsWorkflowInputRepositories extracts repository slugs from the
+// known input-repository keys (workflow_input_repository,
+// workflow_input_repositories, automation-repo, automation_repo) of a
+// job/with/step map decoded from a workflow's SourceCache YAML. It is called
+// from collectJob and collectSteps, not from entity.Metadata.
+func githubActionsWorkflowInputRepositories(metadata map[string]any) []string {
 	refs := make([]string, 0, 2)
 	for _, key := range []string{"workflow_input_repository", "workflow_input_repositories", "automation-repo", "automation_repo"} {
 		refs = append(refs, metadataStringSlice(metadata, key)...)
