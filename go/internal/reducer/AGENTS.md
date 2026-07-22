@@ -1993,6 +1993,54 @@ its OUTER envelope, already dead-lettered by `partitionCodegraphFileFacts` (Wave
 4f S1). Operators diagnose the path through the same code-call materialization
 completion logs, reducer run spans, and execution counters as before.
 
+## #5444 — broadened environment detection beyond path regexes (evidence)
+
+`extractOverlayEnvs` (`candidate_loader.go`) previously unioned only
+`ExtractOverlayEnvironments`'s four directory-pattern regexes
+(`overlays/<env>/`, `env|environments/<env>/`, `inventory/<env>`,
+`group_vars/<env>`). `environment_signals.go` adds two more sources, each
+independently alias-gated through `environment.IsKnownToken`/
+`environment.Canonical` (`internal/environment`, #5473) so an unrecognized
+value never invents an environment:
+
+- `helmValuesFilenameEnvironment` — the Helm `values-<env>.yaml`/
+  `values.<env>.yaml` filename convention. Whole-suffix match, not a token
+  split, so `values-production-notes.yaml` and `values.schema.yaml` are
+  correctly rejected rather than matching `production`/`schema` as a false
+  positive.
+- `namespaceEnvironment` (via `collectNamespaceEnvironmentsFromFileData`) —
+  the destination namespace ArgoCD Applications/ApplicationSets
+  (`dest_namespace`, parsed by `internal/parser/yaml/argocd.go`) and
+  Kustomize overlays (`namespace`, parsed by
+  `internal/parser/yaml/kustomize_semantics.go`) already carried but
+  `deploymentEnvironments` never read. Exact-token or `-`/`_`/`.`-delimited
+  compound-token match (mirrors `environmentFromArtifactPath`,
+  `cross_repo_evidence_artifacts.go`), so `kube-system` and `product-catalog`
+  do not falsely resolve to an environment via substring matching.
+
+Deliberately excludes the generic `k8s_resources[].namespace` field: an
+arbitrary Deployment/Service namespace is workload-placement evidence
+(`WorkloadCandidate.Namespaces`), not deployment-environment evidence, and
+folding it in would over-admit environments the alias contract's
+no-invention rule forbids.
+
+Both call sites of `extractOverlayEnvs` pick up the broadened detection: the
+per-repo candidate-extraction loop in `ExtractWorkloadCandidates`, and the
+cross-repo deployment-source enrichment path
+(`ExtractOverlayEnvironmentsFromEnvelopes`, consumed by
+`enrichDeploymentRepoEnvironments` in
+`correlated_workload_projection_input_loader.go`) — so a config-only
+deploy-manifests repo referenced as a candidate's `DeploymentRepoID` gets the
+same environment evidence a service repo would.
+
+No-Observability-Change: pure string/map functions with no new I/O, route,
+graph query shape, queue table, worker, lease, runtime knob, metric
+instrument, metric label, or log key. `deploymentEnvironments` values feed
+the existing `InstanceRow.Environment`/`DeploymentSourceRow.Environment`
+projection path unchanged; operators diagnose materialization the same way
+they already do (reducer execution counters, workload materialization
+completion logs).
+
 ## Anti-patterns
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain

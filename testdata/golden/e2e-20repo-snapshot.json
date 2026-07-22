@@ -36,9 +36,9 @@
         "note": "all parsed function definitions across the corpus"
       },
       "WorkloadInstance": {
-        "min": 1,
+        "min": 4,
         "max": 20,
-        "note": "logical workload-instance nodes derived from config materialization and deployment mapping"
+        "note": "logical workload-instance nodes derived from config materialization and deployment mapping. Floor raised 1->4 by #5444 (broadened environment detection beyond path regexes, full-corpus-mode-only per doc.go -- required_nodes is existence-mode-blocking with no full/existence split, so a corpus-scale floor belongs here, not there): before #5444 only workload-instance:deployable-config:prod and workload-instance:kubernetes_comprehensive:prod existed (count=2, empirically verified on origin/main e15b3089c with this exact 25-repo corpus). #5444 reads kustomize-deployable-overlay/kustomization.yaml's namespace: production field (kustomize_overlays[].namespace, alias-canonicalized to prod by namespaceEnvironment in go/internal/reducer/environment_signals.go) into deploymentEnvironments[\"kustomize-deployable-overlay\"] -- read directly by kustomize-deployable-overlay's own candidate and, via deployable-source's resolved DeploymentRepoIDs=[kustomize-deployable-overlay], by deployable-source's candidate too -- adding workload-instance:deployable-source:prod and workload-instance:kustomize-deployable-overlay:prod (count=4, empirically verified on branch 5444-broaden-env-detection). Neither new instance's own repo files match ExtractOverlayEnvironments's four directory-pattern regexes, and deployable-source carries no k8s_resources of its own (so namespaceEnvironmentFallback is also empty), so this floor fails at 2 if the broadened detection is reverted. See rc-20 for the companion DEPLOYMENT_SOURCE edge-count proof."
       },
       "KubernetesWorkload": {
         "min": 5,
@@ -456,11 +456,11 @@
       },
       {
         "id": "rc-20",
-        "description": "A WorkloadInstance DEPLOYMENT_SOURCE a Repository; runtime-to-source correlation (workload materialization).",
+        "description": "A WorkloadInstance DEPLOYMENT_SOURCE a Repository; runtime-to-source correlation (workload materialization). Floor raised 1->3 by #5444 (broadened environment detection beyond path regexes): before #5444 only workload-instance:deployable-config:prod produced this edge (count=1, empirically verified on origin/main e15b3089c with this exact 25-repo corpus). #5444 reads kustomize-deployable-overlay's kustomization.yaml namespace:production (kustomize_overlays[].namespace, alias-canonicalized to prod) into deploymentEnvironments, which the deployable-source candidate's DeploymentRepoIDs=[kustomize-deployable-overlay] resolves into a NEW workload-instance:deployable-source:prod carrying two more DEPLOYMENT_SOURCE edges (to kustomize-deployable-overlay and to its own deployable-config-app dependency), for a total of 3 (empirically verified on branch 5444-broaden-env-detection). This floor fails at 1 if the broadened detection is reverted -- see graph.node_counts.WorkloadInstance for the companion WorkloadInstance node-count proof (also full-mode-only).",
         "relationship": "DEPLOYMENT_SOURCE",
         "from_label": "WorkloadInstance",
         "to_label": "Repository",
-        "minimum_count": 1
+        "minimum_count": 3
       },
       {
         "id": "rc-21",
