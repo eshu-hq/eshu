@@ -25,13 +25,22 @@ type ImpactHandler struct {
 	// skipped) so tests can construct ImpactHandler without wiring the full
 	// telemetry stack.
 	Instruments *telemetry.Instruments
-	// KubernetesCorrelations is the Postgres-backed exact-outcome
-	// kubernetes correlation read model. When non-nil, trace_deployment_chain
-	// probes it for exact live-evidence rows to promote the deployment truth
-	// tier from config_only to runtime_confirmed (#5471). Nil is tolerated
-	// (tests, unwired profiles) and degrades gracefully to config-only
-	// classification.
-	KubernetesCorrelations KubernetesCorrelationStore
+	// KubernetesPodTemplates is the Postgres-backed identity-bound
+	// kubernetes_live.pod_template read model. When non-nil,
+	// trace_deployment_chain probes it (via fetchWorkloadLiveEvidence) for a
+	// live pod matching the traced workload's OWN declared ArgoCD identity
+	// (argocd.argoproj.io/tracking-id) to promote the deployment truth tier
+	// from config_only to runtime_confirmed (#5471 codex P1). Nil is
+	// tolerated (tests, unwired profiles) and degrades gracefully to
+	// config-only classification.
+	//
+	// This replaced an earlier KubernetesCorrelations-backed probe
+	// (PostgresKubernetesCorrelationStore) that promoted on an
+	// image-digest-only match with no binding to the traced workload's own
+	// identity -- two workloads sharing a base image digest could promote
+	// one workload on another's live row. KubernetesPodTemplates fixes that
+	// by requiring an identity match first.
+	KubernetesPodTemplates KubernetesPodTemplateStore
 }
 
 // Mount registers impact analysis routes on the given mux.

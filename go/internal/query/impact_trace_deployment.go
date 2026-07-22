@@ -190,13 +190,22 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		// (#5167 discipline) and must carry the caller's grant set — a
 		// zero-value filter would read all scopes cross-tenant.
 		access := repositoryAccessFilterFromContext(r.Context())
-		// D2 (#5471): probe for exact-outcome kubernetes correlation
-		// rows matching the workload's config-declared image refs.
-		// An exact match (outcome=exact, image_ref matches) means a
-		// live cluster observably runs the workload's declared image
-		// — that promotes the deployment truth tier from config_only
-		// to runtime_confirmed.
-		liveEvidence, err := h.fetchWorkloadLiveEvidence(r.Context(), imageRefs, access)
+		// D2 (#5471), rebound to identity in the codex P1 fix: probe for a
+		// live kubernetes_live.pod_template fact whose ArgoCD tracking-id
+		// matches an identity the traced workload's OWN declared ArgoCD
+		// Application + k8sResources would carry, and whose image_refs
+		// intersect the workload's config-declared image refs. An
+		// identity-bound match means a live cluster observably runs THIS
+		// workload's declared image — that promotes the deployment truth
+		// tier from config_only to runtime_confirmed. A shared image digest
+		// alone (the pre-fix behavior) is no longer sufficient.
+		liveEvidence, err := h.fetchWorkloadLiveEvidence(
+			r.Context(),
+			deploymentSourceGitOps.controllers,
+			k8sResources,
+			imageRefs,
+			access,
+		)
 		if err != nil {
 			// Store errors fail closed to the config tier.
 			// Record the live-evidence probe failed but do not

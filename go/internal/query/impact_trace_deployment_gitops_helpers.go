@@ -172,6 +172,13 @@ func collectDeploymentSourceK8sResources(
 			"controller_entity_id": StringVal(controller, "entity_id"),
 			"controller_path":      StringVal(controller, "relative_path"),
 			"namespace":            k8sNamespace(entity.Metadata),
+			// api_version is the resource's raw apiVersion string ("apps/v1",
+			// "v1", ...), captured from the parsed K8sResource content row
+			// (go/internal/parser/yaml/semantics.go:149) so query-time ArgoCD
+			// tracking-id derivation (apiVersionGroup,
+			// expectedArgoCDTrackingIDs, #5471 codex P1) can compute the
+			// resource's API group without re-parsing content.
+			"api_version": metadataNonEmptyStringValue(entity.Metadata, "api_version"),
 		}
 		// selector/pod_template_labels presence carries tri-state meaning
 		// for k8sSelectMatch (see content_relationships_k8s_match.go): the

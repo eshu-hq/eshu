@@ -171,7 +171,7 @@ func newRouterWithSemanticEmbedding(
 			Profile:                queryProfile,
 			Logger:                 logger,
 			Instruments:            instruments,
-			KubernetesCorrelations: query.NewPostgresKubernetesCorrelationStore(db),
+			KubernetesPodTemplates: query.NewPostgresKubernetesPodTemplateStore(db),
 		},
 		Evidence: &query.EvidenceHandler{
 			Content:            contentReader,

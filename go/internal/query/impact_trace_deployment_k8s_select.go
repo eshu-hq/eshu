@@ -43,6 +43,16 @@ type anchoredDeploymentTarget struct {
 // the key is omitted entirely, never set to "", when the source content row
 // lacks it. Shared by the name-anchored phase and the matched-by-ID hydration
 // phase so both surfaced-row shapes are byte-identical.
+//
+// api_version is projected here too, not only by
+// collectDeploymentSourceK8sResources (impact_trace_deployment_gitops_helpers.go):
+// mergeDeploymentTraceRows (impact_trace_deployment_resources.go) dedups the
+// two resource sources by entity_id and keeps whichever row it saw FIRST, so
+// a resource entity discovered by BOTH this name-anchored scan and the
+// GitOps controller scan would otherwise silently lose its api_version if
+// only the GitOps-derived map carried it. expectedArgoCDTrackingIDs
+// (#5471 codex P1) needs api_version on every k8sResource it reaches,
+// regardless of which discovery path produced the surfaced row.
 func k8sResourceWireRow(row EntityContent) map[string]any {
 	kind, _ := metadataNonEmptyString(row.Metadata, "kind")
 	qualifiedName, _ := metadataNonEmptyString(row.Metadata, "qualified_name")
@@ -56,6 +66,7 @@ func k8sResourceWireRow(row EntityContent) map[string]any {
 		"relative_path":    row.RelativePath,
 		"container_images": images,
 		"namespace":        k8sNamespace(row.Metadata),
+		"api_version":      metadataNonEmptyStringValue(row.Metadata, "api_version"),
 	}
 	if selector, ok := row.Metadata["selector"].(string); ok {
 		resource["selector"] = selector

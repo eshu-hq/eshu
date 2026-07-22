@@ -123,10 +123,22 @@ func (h *ImpactHandler) fetchDeploymentSourceGitOpsResult(
 	// workload at all, independent of how much of its content has been
 	// indexed. A query error fails closed to ownRepoWorkloadCount == 0 (never
 	// trusted), mirroring fetchWorkloadLiveEvidence's fail-closed convention.
+	// #5471 review P2: the error itself was previously discarded, so an
+	// operator could not tell "the repo genuinely defines zero workloads"
+	// apart from "the probe query failed" -- log it (guarded by h.Logger !=
+	// nil, mirroring fetchWorkloadLiveEvidence's error-log precedent above
+	// in this call chain) so that distinction is diagnosable.
 	ownRepoWorkloadCount := 0
 	if workloadRepoID != "" {
-		if count, err := countWorkloadsDefinedByRepo(ctx, h.Neo4j, workloadRepoID); err == nil {
+		count, err := countWorkloadsDefinedByRepo(ctx, h.Neo4j, workloadRepoID)
+		if err == nil {
 			ownRepoWorkloadCount = count
+		} else if h.Logger != nil {
+			h.Logger.Warn(
+				"impact handler: own-repo workload count probe failed, own-repo controller trust disabled fail-closed",
+				"repo_id", workloadRepoID,
+				"error", err.Error(),
+			)
 		}
 	}
 
