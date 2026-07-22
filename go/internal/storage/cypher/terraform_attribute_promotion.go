@@ -53,6 +53,29 @@ const terraformAttributePromotionValueSizeCapBytes = 512
 // scalar (or a scalar nested behind a Terraform MaxItems=1 block) and after
 // running it past the redaction guard in
 // terraform_attribute_promotion_test.go.
+//
+// #5446 extends this allowlist with deployment-topology-shaped scalars for
+// aws_ecs_task_definition, aws_ecs_service, and three more attributes on the
+// two families already present (aws_lambda_function, aws_db_instance), plus
+// three new resource types (aws_rds_cluster, aws_lb,
+// aws_elasticache_replication_group). Three attributes considered for this
+// extension were deliberately excluded, each for a different reason:
+//
+//   - aws_ecs_task_definition.container_definitions is a JSON document that
+//     can embed container environment variables and secret ARNs/ValueFrom
+//     references — the exact policy-document risk class this file's own
+//     top-of-block comment already excludes aws_iam_role.assume_role_policy
+//     and aws_iam_policy.policy for (multi-KB free-form JSON, not a bounded
+//     scalar).
+//   - aws_lambda_function.qualified_arn is redundant with the function's
+//     unqualified arn/name identity already resolvable from the node's other
+//     properties and is a version-specific derived value, not additional
+//     deployment-topology signal worth a dedicated promoted property.
+//   - aws_elasticache_replication_group.cache_nodes is a list of per-node
+//     blocks (arbitrary cardinality, not a Terraform MaxItems=1 block this
+//     file's dot-path walker can unwrap), so no single scalar path exists to
+//     promote; primary_endpoint_address is the single-valued cluster-mode-
+//     disabled connection endpoint this allowlist promotes instead.
 var terraformAttributePromotionAllowlist = map[string][]string{
 	"aws_instance": {
 		"instance_type",
@@ -62,12 +85,15 @@ var terraformAttributePromotionAllowlist = map[string][]string{
 		"engine",
 		"engine_version",
 		"instance_class",
+		"endpoint",
 	},
 	"aws_lambda_function": {
 		"runtime",
 		"handler",
 		"memory_size",
 		"timeout",
+		"version",
+		"image_uri",
 	},
 	"aws_s3_bucket": {
 		"versioning.enabled",
@@ -76,6 +102,23 @@ var terraformAttributePromotionAllowlist = map[string][]string{
 	},
 	"aws_iam_role_policy_attachment": {
 		"policy_arn",
+	},
+	"aws_ecs_task_definition": {
+		"family",
+		"revision",
+	},
+	"aws_ecs_service": {
+		"task_definition",
+	},
+	"aws_rds_cluster": {
+		"endpoint",
+		"reader_endpoint",
+	},
+	"aws_lb": {
+		"dns_name",
+	},
+	"aws_elasticache_replication_group": {
+		"primary_endpoint_address",
 	},
 }
 

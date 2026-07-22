@@ -19,26 +19,29 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 		ScopeID:      "tf-scope-1",
 		GenerationID: "tf-generation-1",
 		TerraformStateResources: []projector.TerraformStateResourceRow{{
-			UID:                "tf-resource-uid-1",
-			Address:            "module.app.aws_instance.web",
-			Mode:               "managed",
-			ResourceType:       "aws_instance",
-			Name:               "web",
-			ModuleAddress:      "module.app",
-			ProviderAddress:    "provider[\"registry.terraform.io/hashicorp/aws\"]",
-			Lineage:            "lineage-123",
-			Serial:             17,
-			BackendKind:        "s3",
-			LocatorHash:        "locator-hash-1",
-			StatePath:          "tfstate://s3/locator-hash-1",
-			SourceFactID:       "tf-resource-1",
-			StableFactKey:      "terraform_state_resource:resource:module.app.aws_instance.web",
-			SourceSystem:       "terraform_state",
-			SourceRecordID:     "module.app.aws_instance.web",
-			SourceConfidence:   facts.SourceConfidenceObserved,
-			CollectorKind:      "terraform_state",
-			CorrelationAnchors: []string{"arn:anchor-hash-1"},
-			TagKeyHashes:       []string{"tag-key-hash-1"},
+			UID:                   "tf-resource-uid-1",
+			Address:               "module.app.aws_instance.web",
+			Mode:                  "managed",
+			ResourceType:          "aws_instance",
+			Name:                  "web",
+			ModuleAddress:         "module.app",
+			ProviderAddress:       "provider[\"registry.terraform.io/hashicorp/aws\"]",
+			Lineage:               "lineage-123",
+			Serial:                17,
+			BackendKind:           "s3",
+			LocatorHash:           "locator-hash-1",
+			StatePath:             "tfstate://s3/locator-hash-1",
+			SourceFactID:          "tf-resource-1",
+			StableFactKey:         "terraform_state_resource:resource:module.app.aws_instance.web",
+			SourceSystem:          "terraform_state",
+			SourceRecordID:        "module.app.aws_instance.web",
+			SourceConfidence:      facts.SourceConfidenceObserved,
+			CollectorKind:         "terraform_state",
+			CorrelationAnchors:    []string{"arn:anchor-hash-1"},
+			TagKeyHashes:          []string{"tag-key-hash-1"},
+			Provider:              "aws",
+			ProviderSourceAddress: "registry.terraform.io/hashicorp/aws",
+			ProviderAlias:         "us_west_2",
 			Attributes: map[string]any{
 				"instance_type": "t3.micro",
 				"ami":           "ami-0abcdef1234567890",
@@ -144,6 +147,20 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 	if got, want := rows[0]["tag_key_hashes"].([]string)[0], "tag-key-hash-1"; got != want {
 		t.Fatalf("tag_key_hashes[0] = %q, want %q", got, want)
 	}
+	if got, want := rows[0]["provider"], "aws"; got != want {
+		t.Fatalf("provider = %#v, want %q", got, want)
+	}
+	if got, want := rows[0]["provider_source_address"], "registry.terraform.io/hashicorp/aws"; got != want {
+		t.Fatalf("provider_source_address = %#v, want %q", got, want)
+	}
+	if got, want := rows[0]["provider_alias"], "us_west_2"; got != want {
+		t.Fatalf("provider_alias = %#v, want %q", got, want)
+	}
+	if !strings.Contains(resource.Cypher, "r.provider = row.provider") ||
+		!strings.Contains(resource.Cypher, "r.provider_source_address = row.provider_source_address") ||
+		!strings.Contains(resource.Cypher, "r.provider_alias = row.provider_alias") {
+		t.Fatalf("resource Cypher = %q, want unconditional SET clauses for provider/provider_source_address/provider_alias (#5446)", resource.Cypher)
+	}
 	if !strings.Contains(resource.Cypher, "r += row.attrs") {
 		t.Fatalf("resource Cypher = %q, want an additive row.attrs merge", resource.Cypher)
 	}
@@ -196,5 +213,53 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 	}
 	if got, want := edgeRetract.Parameters["scope_id"], "tf-scope-1"; got != want {
 		t.Fatalf("edge-retract scope_id = %#v, want %q", got, want)
+	}
+}
+
+// TestTerraformStateResourceRowsEmitEmptyProviderWhenUnbound is a #5446
+// defense-in-depth regression: terraformStateResourceRows must emit
+// provider/provider_source_address/provider_alias as present, empty-string
+// keys -- never omit them -- when a resource carries no provider binding
+// (Provider/ProviderSourceAddress/ProviderAlias all unset). This matters
+// because canonicalTerraformStateResourceUpsertCypher's SET clause is
+// unconditional (r.provider = row.provider, etc, see #5446 comment on
+// canonicalTerraformStateResourceUpsertCypher): if a future change made row
+// construction conditional and omitted these keys instead of defaulting them
+// to "", the Cypher engine would receive a missing map key at execute time
+// rather than the empty string this writer's contract promises.
+func TestTerraformStateResourceRowsEmitEmptyProviderWhenUnbound(t *testing.T) {
+	t.Parallel()
+
+	mat := projector.CanonicalMaterialization{
+		ScopeID:      "tf-scope-unbound",
+		GenerationID: "tf-generation-unbound",
+		TerraformStateResources: []projector.TerraformStateResourceRow{{
+			UID:              "tf-resource-uid-unbound",
+			Address:          "aws_instance.unbound",
+			Mode:             "managed",
+			ResourceType:     "aws_instance",
+			Name:             "unbound",
+			SourceConfidence: facts.SourceConfidenceObserved,
+			CollectorKind:    "terraform_state",
+			// Provider, ProviderSourceAddress, and ProviderAlias are all
+			// intentionally left unset: no provider-binding fact was
+			// observed for this resource.
+		}},
+	}
+
+	rows := terraformStateResourceRows(mat)
+	if len(rows) != 1 {
+		t.Fatalf("terraformStateResourceRows() len = %d, want 1", len(rows))
+	}
+	row := rows[0]
+
+	for _, key := range []string{"provider", "provider_source_address", "provider_alias"} {
+		value, ok := row[key]
+		if !ok {
+			t.Fatalf("row[%q] absent, want present with empty-string value", key)
+		}
+		if value != "" {
+			t.Fatalf("row[%q] = %#v, want empty string", key, value)
+		}
 	}
 }

@@ -102,6 +102,103 @@ func TestPromoteTerraformResourceAttributesAllowlistedScalars(t *testing.T) {
 			},
 		},
 		{
+			name:         "aws_ecs_task_definition",
+			resourceType: "aws_ecs_task_definition",
+			attributes: map[string]any{
+				"family":                "supply-chain-demo",
+				"revision":              float64(4),
+				"container_definitions": `[{"name":"app","environment":[{"name":"SECRET","value":"shh"}]}]`,
+				"arn":                   "arn:aws:ecs:us-east-1:123456789012:task-definition/supply-chain-demo:4",
+			},
+			want: map[string]any{
+				"tf_attr_family":   "supply-chain-demo",
+				"tf_attr_revision": float64(4),
+			},
+		},
+		{
+			name:         "aws_ecs_service",
+			resourceType: "aws_ecs_service",
+			attributes: map[string]any{
+				"task_definition": "arn:aws:ecs:us-east-1:123456789012:task-definition/supply-chain-demo:4",
+				"desired_count":   float64(2),
+			},
+			want: map[string]any{
+				"tf_attr_task_definition": "arn:aws:ecs:us-east-1:123456789012:task-definition/supply-chain-demo:4",
+			},
+		},
+		{
+			name:         "aws_db_instance endpoint",
+			resourceType: "aws_db_instance",
+			attributes: map[string]any{
+				"engine":         "postgres",
+				"engine_version": "15.4",
+				"instance_class": "db.t3.medium",
+				"endpoint":       "supply-chain-demo.abc123.us-east-1.rds.amazonaws.com:5432",
+			},
+			want: map[string]any{
+				"tf_attr_engine":         "postgres",
+				"tf_attr_engine_version": "15.4",
+				"tf_attr_instance_class": "db.t3.medium",
+				"tf_attr_endpoint":       "supply-chain-demo.abc123.us-east-1.rds.amazonaws.com:5432",
+			},
+		},
+		{
+			name:         "aws_lambda_function version and image_uri",
+			resourceType: "aws_lambda_function",
+			attributes: map[string]any{
+				"runtime":       "python3.12",
+				"handler":       "index.handler",
+				"memory_size":   float64(512),
+				"timeout":       float64(30),
+				"version":       "3",
+				"image_uri":     "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
+				"qualified_arn": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo:3",
+			},
+			want: map[string]any{
+				"tf_attr_runtime":     "python3.12",
+				"tf_attr_handler":     "index.handler",
+				"tf_attr_memory_size": float64(512),
+				"tf_attr_timeout":     float64(30),
+				"tf_attr_version":     "3",
+				"tf_attr_image_uri":   "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
+			},
+		},
+		{
+			name:         "aws_rds_cluster",
+			resourceType: "aws_rds_cluster",
+			attributes: map[string]any{
+				"endpoint":        "supply-chain-demo.cluster-abc123.us-east-1.rds.amazonaws.com",
+				"reader_endpoint": "supply-chain-demo.cluster-ro-abc123.us-east-1.rds.amazonaws.com",
+			},
+			want: map[string]any{
+				"tf_attr_endpoint":        "supply-chain-demo.cluster-abc123.us-east-1.rds.amazonaws.com",
+				"tf_attr_reader_endpoint": "supply-chain-demo.cluster-ro-abc123.us-east-1.rds.amazonaws.com",
+			},
+		},
+		{
+			name:         "aws_lb",
+			resourceType: "aws_lb",
+			attributes: map[string]any{
+				"dns_name": "supply-chain-demo-123456789.us-east-1.elb.amazonaws.com",
+			},
+			want: map[string]any{
+				"tf_attr_dns_name": "supply-chain-demo-123456789.us-east-1.elb.amazonaws.com",
+			},
+		},
+		{
+			name:         "aws_elasticache_replication_group",
+			resourceType: "aws_elasticache_replication_group",
+			attributes: map[string]any{
+				"primary_endpoint_address": "supply-chain-demo.abc123.ng.0001.use1.cache.amazonaws.com",
+				"cache_nodes": []any{
+					map[string]any{"id": "0001"},
+				},
+			},
+			want: map[string]any{
+				"tf_attr_primary_endpoint_address": "supply-chain-demo.abc123.ng.0001.use1.cache.amazonaws.com",
+			},
+		},
+		{
 			name:         "unknown resource type promotes nothing",
 			resourceType: "aws_glue_job",
 			attributes: map[string]any{
@@ -157,6 +254,68 @@ func TestPromoteTerraformResourceAttributesNonAllowlistedFieldExcluded(t *testin
 	}
 	if got["tf_attr_instance_type"] != "t3.micro" {
 		t.Fatalf("allowlisted instance_type dropped: %#v", got)
+	}
+}
+
+// TestPromoteTerraformResourceAttributesExcludesSensitiveOrUnbounded is the
+// #5446 redaction regression guard for the three attributes considered and
+// deliberately rejected during that allowlist extension: a JSON policy-shaped
+// document, a redundant version-qualified duplicate, and a non-scalar list.
+// See terraformAttributePromotionAllowlist's doc comment for the reasoning
+// behind each exclusion.
+func TestPromoteTerraformResourceAttributesExcludesSensitiveOrUnbounded(t *testing.T) {
+	t.Parallel()
+
+	taskDefGot := promoteTerraformResourceAttributes("aws_ecs_task_definition", map[string]any{
+		"family":                "supply-chain-demo",
+		"revision":              float64(4),
+		"container_definitions": `[{"name":"app","environment":[{"name":"SECRET","value":"shh"}]}]`,
+	})
+	if _, ok := taskDefGot["tf_attr_container_definitions"]; ok {
+		t.Fatalf("promoted container_definitions JSON document: %#v", taskDefGot)
+	}
+	if taskDefGot["tf_attr_family"] != "supply-chain-demo" {
+		t.Fatalf("allowlisted family dropped alongside excluded container_definitions: %#v", taskDefGot)
+	}
+
+	lambdaGot := promoteTerraformResourceAttributes("aws_lambda_function", map[string]any{
+		"version":       "3",
+		"qualified_arn": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo:3",
+	})
+	if _, ok := lambdaGot["tf_attr_qualified_arn"]; ok {
+		t.Fatalf("promoted non-allowlisted qualified_arn attribute: %#v", lambdaGot)
+	}
+	if lambdaGot["tf_attr_version"] != "3" {
+		t.Fatalf("allowlisted version dropped alongside excluded qualified_arn: %#v", lambdaGot)
+	}
+
+	cacheGot := promoteTerraformResourceAttributes("aws_elasticache_replication_group", map[string]any{
+		"primary_endpoint_address": "supply-chain-demo.abc123.ng.0001.use1.cache.amazonaws.com",
+		"cache_nodes": []any{
+			map[string]any{"id": "0001"},
+		},
+	})
+	if _, ok := cacheGot["tf_attr_cache_nodes"]; ok {
+		t.Fatalf("promoted non-allowlisted composite cache_nodes attribute: %#v", cacheGot)
+	}
+	if cacheGot["tf_attr_primary_endpoint_address"] == nil {
+		t.Fatalf("allowlisted primary_endpoint_address dropped: %#v", cacheGot)
+	}
+
+	// Guard the allowlist definition itself so a future edit cannot silently
+	// reopen any of the three exclusions.
+	for resourceType, attrs := range terraformAttributePromotionAllowlist {
+		for _, attr := range attrs {
+			if attr == "container_definitions" {
+				t.Fatalf("terraformAttributePromotionAllowlist[%s] allowlists the JSON policy-shaped container_definitions attribute", resourceType)
+			}
+			if attr == "qualified_arn" {
+				t.Fatalf("terraformAttributePromotionAllowlist[%s] allowlists the redundant qualified_arn attribute", resourceType)
+			}
+			if attr == "cache_nodes" {
+				t.Fatalf("terraformAttributePromotionAllowlist[%s] allowlists the composite cache_nodes attribute", resourceType)
+			}
+		}
 	}
 }
 

@@ -126,6 +126,48 @@ func TestTerraformStateCassetteResourcesCarryDriftAttributes(t *testing.T) {
 	}
 }
 
+// TestTerraformStateCassetteResourceCarriesProviderBinding is the #5446
+// non-vacuous regression guard for the provider-binding pre-pass: the
+// terraformstate supply-chain-demo cassette carries a
+// terraform_state_provider_binding fact for module.ecs.aws_ecs_cluster.supply-chain-demo
+// (provider_type "aws"), which terraformStateProviderBindingsByResource joins
+// onto that resource's row by ResourceAddress. This proves the join is
+// non-vacuous through the SAME extractTerraformStateRows path the projector
+// runs in production and the golden-corpus gate replays -- zero without the
+// #5446 pre-pass (the field did not exist before), and zero without the new
+// cassette fact (no other resource in this cassette has a provider binding
+// fact). This is the hermetic, no-Docker counterpart to the golden-corpus
+// gate's `MATCH (r:TerraformStateResource) WHERE r.provider = 'aws' RETURN
+// count(r)` non-vacuous assertion (testdata/golden/e2e-20repo-snapshot.json's
+// rn-terraform-state-provider-binding required_node entry).
+func TestTerraformStateCassetteResourceCarriesProviderBinding(t *testing.T) {
+	t.Parallel()
+
+	envelopes := loadTerraformStateCassetteEnvelopes(t)
+	mat := &CanonicalMaterialization{ScopeID: "cassette-tfstate-scd"}
+	quarantined := extractTerraformStateRows(mat, envelopes)
+	if len(quarantined) != 0 {
+		t.Fatalf("extractTerraformStateRows quarantined %d facts, want 0: %#v", len(quarantined), quarantined)
+	}
+
+	var sawProvider bool
+	for _, resource := range mat.TerraformStateResources {
+		if resource.Address != "module.ecs.aws_ecs_cluster.supply-chain-demo" {
+			continue
+		}
+		if resource.Provider != "aws" {
+			t.Fatalf("resource %s Provider = %q, want %q", resource.Address, resource.Provider, "aws")
+		}
+		if resource.ProviderSourceAddress != "registry.terraform.io/hashicorp/aws" {
+			t.Fatalf("resource %s ProviderSourceAddress = %q, want %q", resource.Address, resource.ProviderSourceAddress, "registry.terraform.io/hashicorp/aws")
+		}
+		sawProvider = true
+	}
+	if !sawProvider {
+		t.Fatal("cassette provider_binding fact did not join to module.ecs.aws_ecs_cluster.supply-chain-demo; the golden-corpus gate's r.provider='aws' non-vacuous check would fail")
+	}
+}
+
 // loadTerraformStateCassetteEnvelopes reads the real checked-in terraform_state
 // cassette and converts each recorded fact into a facts.Envelope carrying the
 // fact kind, schema version, and payload the projector's

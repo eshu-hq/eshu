@@ -3,11 +3,12 @@
 
 // This golden-corpus io-seams test crossed the 500-line cap (497 -> 503) when
 // the #5443 TerraformStateResource node/property floor fixtures were added on
-// top of the #5419 CodeownerTeam floor entry. The fixture floors are a single
-// source of truth for the required-graph check; splitting the map across files
-// would obscure that. Test files are exempt from the whole-tree cap
-// (scripts/dev/precommit-go.sh); this marker only satisfies the per-file
-// filelength plugin.
+// top of the #5419 CodeownerTeam floor entry, and grew further (512 -> 517)
+// when #5446 added the rn-terraform-state-provider-binding floor fixture. The
+// fixture floors are a single source of truth for the required-graph check;
+// splitting the map across files would obscure that. Test files are exempt
+// from the whole-tree cap (scripts/dev/precommit-go.sh); this marker only
+// satisfies the per-file filelength plugin.
 //
 //nolint:filelength // fixture-floor test; rationale in the note above.
 package main
@@ -173,7 +174,8 @@ func dartSelfLoopFloor() map[string]int64 {
 // rn-flux-kustomization-source-ref, rn-flux-git-repository-url,
 // rn-flux-oci-repository-url, rn-flux-bucket-name, rn-flux-helm-release-
 // source-ref, rn-flux-helm-repository-url,
-// rn-terraform-resource-attribute-promotion, rn-codeowner-team-ref) so a
+// rn-terraform-resource-attribute-promotion,
+// rn-terraform-state-provider-binding, rn-codeowner-team-ref) so a
 // minimal-gate test can satisfy the snapshot's required nodes while focusing
 // on its own assertion. The two GCP posture-only entries pin identity via a
 // single CloudResource node carrying the matching resource_type value; the
@@ -184,7 +186,9 @@ func dartSelfLoopFloor() map[string]int64 {
 // identity via a FluxHelmRelease node carrying source_ref_kind and a
 // FluxHelmRepository node carrying url; the #5441 entry pins identity via a
 // TerraformStateResource node (renamed from TerraformResource by #5443)
-// carrying tf_attr_instance_type; and CodeownerTeam/ref (#5419 Phase 5); see
+// carrying tf_attr_instance_type; the #5446 entry pins identity via the SAME
+// TerraformStateResource node additionally carrying provider="aws"; and
+// CodeownerTeam/ref (#5419 Phase 5); see
 // testdata/golden/e2e-20repo-snapshot.json.
 func fileLanguageFloor() (map[string]int64, map[string][]string) {
 	langs := make([]string, 10)
@@ -216,6 +220,7 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 		"FluxHelmRelease|source_ref_kind":              {"HelmRepository"},
 		"FluxHelmRepository|url":                       {"https://stefanprodan.github.io/podinfo"},
 		"TerraformStateResource|tf_attr_instance_type": {"t3.micro"},
+		"TerraformStateResource|provider":              {"aws"},
 		"CodeownerTeam|ref":                            {"@eshu-hq/platform"},
 	}
 	return nodes, nodeProp

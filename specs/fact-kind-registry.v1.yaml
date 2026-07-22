@@ -502,10 +502,25 @@ families:
     # terraform_state_resource, _module, _output, _snapshot, and
     # _tag_observation are consumed by the projector (go/internal/projector/
     # tfstate_canonical.go) and/or the reducer (aws_cloud_runtime_drift_writer.go,
-    # multi_cloud_runtime_drift_writer.go). terraform_state_candidate,
-    # _provider_binding, and _warning have NO reducer/projector consumer
-    # (projector/tfstate_canonical.go:104-106 declares them intentionally not
-    # consumed). None are consumed by go/internal/relationships.
+    # multi_cloud_runtime_drift_writer.go). terraform_state_provider_binding
+    # gained a projector consumer in #5446
+    # (terraformStateProviderBindingsByResource in
+    # go/internal/projector/tfstate_canonical.go), joined onto each
+    # TerraformStateResource row's Provider/ProviderSourceAddress/
+    # ProviderAlias fields. terraform_state_candidate and _warning still have
+    # NO reducer/projector consumer (projector/tfstate_canonical.go's
+    # extractTerraformStateRows doc comment declares them intentionally not
+    # consumed). candidate's own storage/postgres touch
+    # (tfstate_backend_queries.go:313, a backend-path-resolution SQL filter
+    # reading payload->>'relative_path') is deliberately excluded from the mcp
+    # package's real-consumer signal by design
+    # (go/internal/mcp/kind_real_consumer.go's realConsumerRawSQLDir doc
+    # comment scopes that signal to go/internal/query only) and is not treated
+    # as consumption here either -- see
+    # TestKindConsumerExistenceBITES_TeethProof's
+    # toothless_signal_would_pass_but_real_signal_fails case for the test
+    # proof that candidate has no detected real consumer today. None are
+    # consumed by go/internal/relationships.
     payload_schema_overrides:
       terraform_state_snapshot: "sdk/go/factschema/schema/terraform_state_snapshot.v1.schema.json"
       terraform_state_resource: "sdk/go/factschema/schema/terraform_state_resource.v1.schema.json"

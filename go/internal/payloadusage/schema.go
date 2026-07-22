@@ -92,17 +92,20 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	"FactKindOCIImageDescriptor":     "oci_registry.image_descriptor.v1.schema.json",
 	"FactKindOCIImageTagObservation": "oci_registry.image_tag_observation.v1.schema.json",
 	"FactKindOCIImageReferrer":       "oci_registry.image_referrer.v1.schema.json",
-	// terraform_state family: only the five kinds the projector's canonical
-	// extractor decodes (factschema_decode_terraformstate.go). The three
-	// typed-but-not-yet-consumed kinds (candidate, provider_binding, warning)
-	// carry a schema but no projector decode call, so they are intentionally
-	// absent here — mapping them would assert a gate contract for a kind no
-	// extractor reads.
-	"FactKindTerraformStateSnapshot":       "terraform_state_snapshot.v1.schema.json",
-	"FactKindTerraformStateResource":       "terraform_state_resource.v1.schema.json",
-	"FactKindTerraformStateModule":         "terraform_state_module.v1.schema.json",
-	"FactKindTerraformStateOutput":         "terraform_state_output.v1.schema.json",
-	"FactKindTerraformStateTagObservation": "terraform_state_tag_observation.v1.schema.json",
+	// terraform_state family: the six kinds the projector's canonical
+	// extractor decodes (factschema_decode_terraformstate.go), including
+	// provider_binding (#5446, terraformStateProviderBindingsByResource's
+	// decodeTerraformStateProviderBinding wrapper). The two remaining
+	// typed-but-not-yet-consumed kinds (candidate, warning) carry a schema
+	// but no projector decode call, so they are intentionally absent here —
+	// mapping them would assert a gate contract for a kind no extractor
+	// reads.
+	"FactKindTerraformStateSnapshot":        "terraform_state_snapshot.v1.schema.json",
+	"FactKindTerraformStateResource":        "terraform_state_resource.v1.schema.json",
+	"FactKindTerraformStateModule":          "terraform_state_module.v1.schema.json",
+	"FactKindTerraformStateOutput":          "terraform_state_output.v1.schema.json",
+	"FactKindTerraformStateTagObservation":  "terraform_state_tag_observation.v1.schema.json",
+	"FactKindTerraformStateProviderBinding": "terraform_state_provider_binding.v1.schema.json",
 	// package_registry family: only the three kinds the projector's canonical
 	// extractor decodes (factschema_decode_packageregistry.go). The six
 	// typed-but-not-yet-consumed kinds (source_hint, package_artifact,

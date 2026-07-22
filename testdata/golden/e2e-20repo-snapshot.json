@@ -1688,6 +1688,18 @@
     ],
     "required_nodes": [
       {
+        "id": "rn-terraform-state-provider-binding",
+        "description": "#5446 provider-binding pre-pass non-vacuous regression guard: at least 1 TerraformStateResource node carries provider='aws'. The terraformstate supply-chain-demo cassette's module.ecs.aws_ecs_cluster.supply-chain-demo resource now carries a terraform_state_provider_binding fact (provider_type='aws', provider_source_address='registry.terraform.io/hashicorp/aws'), which terraformStateProviderBindingsByResource (go/internal/projector/tfstate_canonical.go) joins by resource_address onto that row's Provider field, and canonicalTerraformStateResourceUpsertCypher (go/internal/storage/cypher/tfstate_canonical_writer.go) writes as an unconditional r.provider SET. Zero without the fix (the property did not exist before #5446) and zero without the new cassette fact (no other resource in this cassette carries a provider binding). See TestTerraformStateCassetteResourceCarriesProviderBinding (go/internal/projector/tfstate_cassette_test.go) for the hermetic, no-Docker counterpart to this assertion.",
+        "label": "TerraformStateResource",
+        "minimum_count": 1,
+        "required_node_properties": [
+          "provider"
+        ],
+        "allowed_node_property_values": {
+          "provider": ["aws"]
+        }
+      },
+      {
         "id": "rn-terraform-resource-attribute-promotion",
         "description": "#5441 P1 finding 3 regression guard: at least 1 TerraformStateResource node carries a non-empty tf_attr_instance_type property. The terraformstate supply-chain-demo cassette's module.ecs.aws_instance.supply-chain-demo resource declares attributes.instance_type = \"t3.micro\", which promoteTerraformResourceAttributes (go/internal/storage/cypher/terraform_attribute_promotion.go) flattens onto the node as tf_attr_instance_type via the additive `r += row.attrs` merge in the TerraformStateResource upsert template. Zero without the fix (the property did not exist before #5441) and zero without the new cassette resource (the pre-existing aws_ecs_cluster/aws_ecs_service resources are not in the promotion allowlist). Label renamed from TerraformResource to TerraformStateResource by #5443.",
         "label": "TerraformStateResource",

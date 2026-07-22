@@ -14,12 +14,15 @@ import (
 // classified *factschema.DecodeError (a missing/null required identity
 // field), returns a *projectorDecodeError so partitionProjectorDecodeFailures
 // can quarantine the fact per-fact rather than the extractor computing a
-// graph identity from an empty-string segment. Only the CONSUMED terraform_state
-// kinds get a wrapper here: snapshot, resource, module, output, and
-// tag_observation. The three typed-but-not-yet-consumed kinds (candidate,
-// provider_binding, warning) have no projector read site and therefore no
-// wrapper — decode_terraformstate.go's Decode* seam exists for them already,
-// but wiring a projector wrapper with no caller would be dead code.
+// graph identity from an empty-string segment. The CONSUMED terraform_state
+// kinds get a wrapper here: snapshot, resource, module, output,
+// tag_observation, and (#5446) provider_binding, joined onto a resource row's
+// Provider/ProviderSourceAddress/ProviderAlias fields by
+// terraformStateProviderBindingsByResource in tfstate_canonical.go. The two
+// remaining typed-but-not-yet-consumed kinds (candidate, warning) have no
+// projector read site and therefore no wrapper — decode_terraformstate.go's
+// Decode* seam exists for them already, but wiring a projector wrapper with
+// no caller would be dead code.
 
 // decodeTerraformStateSnapshot decodes one terraform_state_snapshot envelope
 // into the typed struct through the contracts seam. Snapshot has no required
@@ -76,6 +79,18 @@ func decodeTerraformStateTagObservation(env facts.Envelope) (tfstatev1.TagObserv
 		return tfstatev1.TagObservation{}, newProjectorDecodeError(factschema.FactKindTerraformStateTagObservation, err)
 	}
 	return observation, nil
+}
+
+// decodeTerraformStateProviderBinding decodes one
+// terraform_state_provider_binding envelope into the typed struct (#5446). A
+// missing required join key (resource_address, provider_address) yields a
+// self-classifying *projectorDecodeError.
+func decodeTerraformStateProviderBinding(env facts.Envelope) (tfstatev1.ProviderBinding, error) {
+	binding, err := factschema.DecodeTerraformStateProviderBinding(factschemaEnvelope(env))
+	if err != nil {
+		return tfstatev1.ProviderBinding{}, newProjectorDecodeError(factschema.FactKindTerraformStateProviderBinding, err)
+	}
+	return binding, nil
 }
 
 // tfstateDerefString returns the value a *string points at, or "" when it is

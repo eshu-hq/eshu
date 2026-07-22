@@ -60,14 +60,16 @@ internals.
 ## Consumed vs deferred
 
 - **Consumed today** (decode through the seam on the projector read path):
-  `Snapshot`, `Resource`, `Module`, `Output`, `TagObservation`.
-- **Typed-but-not-yet-consumed**: `Candidate`, `ProviderBinding`, and `Warning`
-  have no read-side decode consumer in the current codebase. They ship a
-  struct, schema, and fixture pack so the contract is ready, but their
-  decode-site conversion, regression test, and benchmark land in the change
-  that first reads each kind — matching how the GCP family typed
-  `gcp_image_reference` / `gcp_tag_observation` ahead of their shared consumer.
-  Do not add a decode site for them here.
+  `Snapshot`, `Resource`, `Module`, `Output`, `TagObservation`, and
+  `ProviderBinding` (gained its projector consumer,
+  `terraformStateProviderBindingsByResource`, in #5446).
+- **Typed-but-not-yet-consumed**: `Candidate` and `Warning` have no read-side
+  decode consumer in the current codebase. They ship a struct, schema, and
+  fixture pack so the contract is ready, but their decode-site conversion,
+  regression test, and benchmark land in the change that first reads each kind,
+  matching how the GCP family typed `gcp_image_reference` /
+  `gcp_tag_observation` ahead of their shared consumer. Do not add a decode
+  site for them here.
 
 ## Family boundary
 
