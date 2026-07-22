@@ -145,6 +145,44 @@ func TestBuildHandlesRouteIntentRowsEmitsPHPLaravelAtJoinedRouteMatches(t *testi
 	}
 }
 
+func TestBuildHandlesRouteIntentRowsEmitsPHPLaravelNamespacedAtJoinedRouteMatches(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		handlesRouteRepoEnvelope("repo-1"),
+		handlesRouteFileEnvelope(
+			"repo-1",
+			"routes/web.php",
+			[]map[string]any{
+				{
+					"name":          "index",
+					"class_context": "UserController",
+					"uid":           "content-entity:user-index",
+					"line_number":   8,
+					"end_line":      10,
+					"lang":          "php",
+				},
+			},
+			"laravel",
+			[]any{
+				map[string]any{
+					"method":  "GET",
+					"path":    "/users",
+					"handler": `App\Http\Controllers\UserController@index`,
+				},
+			},
+		),
+	}
+
+	intents := buildHandlesRouteIntentsForTest(t, envelopes)
+	if len(intents) != 1 {
+		t.Fatalf("expected exactly 1 HANDLES_ROUTE intent, got %d", len(intents))
+	}
+	if got, want := payloadStr(intents[0].Payload, "function_entity_id"), "content-entity:user-index"; got != want {
+		t.Fatalf("function_entity_id = %q, want %q", got, want)
+	}
+}
+
 func TestBuildHandlesRouteIntentRowsDoesNotBareMatchWrongLaravelController(t *testing.T) {
 	t.Parallel()
 

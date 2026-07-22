@@ -171,10 +171,12 @@ func resolveHandlesRouteFunction(
 }
 
 // handlesRouteHandlerCandidateNames preserves the parser-emitted handler token
-// and, for Laravel only, adds the exact dotted form for its Class@method
-// string-callable convention. It never falls back to the bare method, so a
-// mismatched class cannot bind merely because that method name is unique in the
-// repository, and unrelated frameworks keep their existing token semantics.
+// and, for Laravel only, adds dotted forms for its Class@method string-callable
+// convention. A fully-qualified PHP controller is also reduced to the parser's
+// short class-context representation. It never falls back to the bare method,
+// so a mismatched class cannot bind merely because that method name is unique
+// in the repository, and unrelated frameworks keep their existing token
+// semantics.
 func handlesRouteHandlerCandidateNames(framework string, handler string) []string {
 	handler = strings.TrimSpace(handler)
 	if handler == "" {
@@ -185,12 +187,19 @@ func handlesRouteHandlerCandidateNames(framework string, handler string) []strin
 		return candidates
 	}
 	className, methodName, _ := strings.Cut(handler, "@")
-	className = strings.TrimSpace(className)
+	className = strings.Trim(strings.TrimSpace(className), `\`)
 	methodName = strings.TrimSpace(methodName)
 	if className == "" || methodName == "" {
 		return candidates
 	}
-	return append(candidates, className+"."+methodName)
+	candidates = append(candidates, className+"."+methodName)
+	if namespaceSeparator := strings.LastIndex(className, `\`); namespaceSeparator >= 0 {
+		shortClassName := className[namespaceSeparator+1:]
+		if shortClassName != "" {
+			candidates = append(candidates, shortClassName+"."+methodName)
+		}
+	}
+	return candidates
 }
 
 // handlesRouteEntries returns the framework route entries declared for a file,
