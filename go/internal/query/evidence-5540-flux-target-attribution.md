@@ -77,8 +77,11 @@ COMPOSE_PROJECT_NAME=eshu5540neo4j NEO4J_HTTP_PORT=28474 NEO4J_BOLT_PORT=28687 \
   ESHU_NEO4J_PASSWORD=change-me docker compose -f docker-compose.neo4j.yml down -v
 ```
 
-These live commands are intentionally pending; no backend was launched while
-the external preflight owned that shared resource.
+Both commands were executed on final implementation commit `54f952ee5` after
+the external preflight released the shared resource. NornicDB passed the live
+test in 0.09 seconds, and Neo4j passed it in 1.96 seconds. Each backend ran
+alone; its Compose project, container, network, and volume were removed before
+the next backend started.
 
 No-Regression Evidence: qualified namespace/name identity preserves distinct
 GitRepository resources in one file and target, exact matching rejects missing
