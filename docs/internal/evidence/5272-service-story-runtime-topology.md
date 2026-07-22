@@ -1,9 +1,9 @@
 # #5272 service-story runtime-topology anchoring
 
 Issue #5272 opened on the theory that request-time file and repository
-enrichment was the seconds-scale story/dossier bottleneck. Current retained
-data disproved that theory. The dominant cost is a connected runtime-topology
-query inside the existing `instance_lookup` stage.
+enrichment was the seconds-scale story/dossier bottleneck. Retained-data
+measurements disproved that theory. The dominant cost was a connected
+runtime-topology query inside the existing `instance_lookup` stage.
 
 This change reorders that one connected pattern so the textual traversal starts
 from the selective `WorkloadInstance.workload_id` predicate and its existing
@@ -13,32 +13,41 @@ field, or authorization rule.
 
 ## User-visible before and after
 
-The endpoint comparison used two current-main API binaries against the same
-retained Postgres and NornicDB data. The baseline binary was commit
-`b7c3502b71`; the candidate used the same commit plus the one traversal-order
-change in this pull request. Calls alternated which binary ran first for each of
-20 anonymous exact service IDs.
+The comparison used baseline and candidate API/MCP binaries against the same
+retained Postgres and NornicDB stores. The fixed corpus contained 896
+repositories, 70 workloads, 222 workload instances, 980,689 graph nodes,
+1,579,055 relationships, and 6,209,212 facts. The candidate schema bootstrap
+completed all 314 registered objects in 1,183 seconds (19 minutes 43 seconds),
+including the candidate marker and every required query-plan object.
 
-| User action | Before | After |
-| --- | ---: | ---: |
-| Open a service story, 20-service median | 2.950 s | 1.637 s |
-| Fastest service story | 0.819 s | 0.118 s |
-| Slowest service story | 4.573 s | 3.291 s |
-| Successful responses | 20 of 20 | 20 of 20 |
-| Payload range | 29,768-239,507 bytes | 29,768-239,507 bytes |
+Each row below compares the same statistic, sample surface, selectors, and
+storage state before and after the query reorder.
 
-The median fell by 1.313 seconds, or 44.5%. Payload size did not change.
+| User action and statistic | Samples | Before | After | Result |
+| --- | ---: | ---: | ---: | ---: |
+| First uncached runtime-topology read, median | 20 selectors | 1.580 s | 0.012 s | about 130x faster |
+| Open a service story through HTTP, mean | 20 selectors | 3.907 s | 2.404 s | 38.5% lower |
+| Open a service story through MCP, successful-call mean | 13 selectors | 4.388 s | 2.912 s | 33.6% lower |
+| Investigate a service through HTTP, mean | 20 selectors | 2.976 s | 0.905 s | 69.6% lower |
+| Investigate a service through MCP, median | 5 selectors | 3.605 s | 2.083 s | 42.2% lower |
+| Open a repository story through HTTP, mean | 20 selectors | 0.324 s | 0.276 s | no regression |
+| Open a repository story through MCP, median | 5 selectors | 0.174 s | 0.180 s | no material change |
 
-`get_repo_story` does not execute the changed runtime-topology query. Two
-first-use crossover samples stayed in the same small range: 0.075-0.104 seconds
-for the baseline and 0.069-0.099 seconds for the candidate, with identical
-51,694-byte and 105,000-byte payloads. This is an explicit no-regression result,
-not a claimed repository-story speedup.
+The API service-story comparison produced 20 valid paired envelopes. The
+structured response was equal in all 20 pairs: 17 pairs were byte-for-byte
+exact after canonicalization, while three differed only in derived prose
+affected by the pre-existing ordering defect tracked in #5644. Repository
+stories and service investigations were exact in all 20 API pairs.
 
-`investigate_service` does execute the changed workload-context path. Two
-first-use crossover samples were 1.237 and 1.665 seconds on the baseline and
-1.114 and 0.067 seconds on the candidate. Both pairs returned HTTP 200 with
-identical payload sizes and canonical payload hashes.
+The MCP service-story sweep had the same outcome for every selector: 13 paired
+successes and seven paired `mcp_response_over_budget` refusals, with no
+baseline/candidate asymmetry. Every paired response was exact. The repository
+and investigation supplements were exact in all five pairs. Their identical
+payload ranges were 39,399-114,220 bytes for repository stories and
+5,795-7,750 bytes for investigations.
+
+An authenticated candidate-console request through the `/eshu-api` proxy also
+returned a valid service-story truth envelope from the candidate API.
 
 ## Attribution and rejected materialization theory
 
@@ -83,18 +92,18 @@ MATCH (i:WorkloadInstance)-[instanceOf:INSTANCE_OF]->(w:Workload)<-[defines:DEFI
 WHERE i.workload_id = $workload_id
 ```
 
-The retained backend was `eshu-nornicdb-pr261:149245885258`. Across the same
-20 anonymous services, alternating which query ran first:
+The retained backend was `eshu-nornicdb-pr261:149245885258`. The representative
+raw-query gate ran 20 anonymous selectors three times each. All 60 populated
+baseline/candidate pairs returned equal canonical value sets. The first-use
+median fell from 1.579731 seconds to 0.012149 seconds, about 130 times faster.
+Trials two and three were sub-millisecond on both binaries after cache warmup,
+so the pooled timing is not used as the first-read performance claim.
 
-| Exact query shape | Range | Median | Canonical row sets |
-| --- | ---: | ---: | ---: |
-| Repository-first baseline | 604-1,060 ms | about 750 ms | 20 of 20 |
-| WorkloadInstance-first candidate | 4-13 ms | about 10 ms | 20 of 20 |
-
-The candidate was about 75 times faster at the median. The exact row sets
-matched for populated three-, five-, and six-row results and valid zero-row
-results. The output-preserving proof covers every returned scalar and
-relationship-property map, not only row counts.
+The earlier same-head theory proof also showed the expected shape before the
+full replay: a repository-first median of about 750 ms versus about 10 ms for
+the WorkloadInstance-first query across 20 services, with exact populated and
+zero-row value sets. The full-corpus replay supersedes that earlier timing
+claim while confirming the same attribution.
 
 ## Accuracy and ordering finding
 
@@ -107,22 +116,16 @@ The production result contract remains:
 - fail-closed behavior for scoped tokens because workload instances do not yet
   carry canonical repository ownership.
 
-A representative rich service had repository, deployment, four or more
-environments, API-surface, dependency, and populated runtime evidence. Three
-same-head baseline/candidate pairs returned the same 91,023-byte canonical
-payload.
-
-The wider 20-service audit also exposed an independent pre-existing ordering
-defect: repeated calls can permute runtime/platform and consumer-repository
-arrays, changing derived prose while preserving the same values. Sorting those
-collections by stable identity made the value sets identical. That defect is
-tracked separately as #5644, a direct child of epic #5267; it is not hidden in
-this performance change.
+The 60-pair raw gate found nine row-order permutations with equal value sets.
+The 20-pair API gate found three derived-prose differences with equal structured
+truth. Both are manifestations of the independent pre-existing ordering defect
+tracked as #5644, a direct child of epic #5267. This performance change neither
+hides nor expands that defect.
 
 ## Query-plan and observability evidence
 
-`QP-SVC-RUNTIME-TOPOLOGY` now binds the exact production query and source
-symbol. It requires:
+`QP-SVC-RUNTIME-TOPOLOGY` binds the exact production query and source symbol.
+It requires:
 
 - the `WorkloadInstance.workload_id` anchor;
 - the `workload_instance_workload_id`, `workload_id`, and `repository_id`
@@ -135,11 +138,20 @@ registered hot query. Any source or exact-query drift now fails the query-plan
 gate.
 
 Observability Evidence: no new telemetry is required. The existing
-`service_query.stage` record for `instance_lookup` exposed the bottleneck
-and measured the result. Existing `neo4j.query` spans retain statement timing,
-and the HTTP request metric retains endpoint latency and errors. The change adds
-no route, response field, metric series, label, log field, graph write, queue,
+`service_query.stage` record for `instance_lookup` exposed the bottleneck and
+measured the result. Existing `neo4j.query` spans retain statement timing, and
+the HTTP request metric retains endpoint latency and errors. The change adds no
+route, response field, metric series, label, log field, graph write, queue,
 worker, or runtime knob.
+
+## Rebase carry-forward
+
+The representative replay exercised reviewed candidate commit `419b610f22` on
+base `c25b80acae`. The branch was then rebased over #5669 and #5673. Those
+changes affect documentation/fixtures and Terraform-state projection; they do
+not touch the runtime-topology query, its query-plan binding, the service-story
+API/MCP readers, or the fixed retained corpus. The query patch remained
+identical, and focused verification was rerun after the rebase.
 
 ## Focused verification
 
