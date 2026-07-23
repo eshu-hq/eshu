@@ -36,6 +36,20 @@ const (
 	ContainerImageIdentityStaleTag ContainerImageIdentityOutcome = "stale_tag"
 )
 
+const (
+	// containerImageSourceRevisionOCIConfigLabel marks a SourceRevision drawn
+	// from an OCI config image.revision/vcs-ref label matched to an active
+	// repository remote — the strongest revision provenance because the label
+	// travels inside the image content itself.
+	containerImageSourceRevisionOCIConfigLabel = "oci_config_source_label"
+	// containerImageSourceRevisionCIRunCommit marks a SourceRevision drawn from
+	// the commit SHA of a ci.run whose artifact digest matched the image, used
+	// only as a fallback when no OCI config revision label is present (#5423).
+	// It is a weaker tier than an in-image label because the binding is the CI
+	// provider's run→artifact→digest join rather than the image's own metadata.
+	containerImageSourceRevisionCIRunCommit = "ci_run_commit"
+)
+
 // ContainerImageIdentityDecision records one bounded image identity decision.
 type ContainerImageIdentityDecision struct {
 	ImageRef            string
@@ -43,13 +57,19 @@ type ContainerImageIdentityDecision struct {
 	RepositoryID        string
 	SourceRepositoryIDs []string
 	SourceRevision      string
-	WorkloadIDs         []string
-	ServiceIDs          []string
-	Outcome             ContainerImageIdentityOutcome
-	Reason              string
-	CanonicalWrites     int
-	EvidenceFactIDs     []string
-	IdentityStrength    string
+	// SourceRevisionProvenance names where SourceRevision came from
+	// (containerImageSourceRevisionOCIConfigLabel or
+	// containerImageSourceRevisionCIRunCommit), empty when no revision was
+	// resolved. It keeps the in-image-label tier distinguishable from the
+	// weaker CI-run-commit fallback (#5423).
+	SourceRevisionProvenance string
+	WorkloadIDs              []string
+	ServiceIDs               []string
+	Outcome                  ContainerImageIdentityOutcome
+	Reason                   string
+	CanonicalWrites          int
+	EvidenceFactIDs          []string
+	IdentityStrength         string
 }
 
 // ContainerImageIdentityWrite carries decisions for durable publication.

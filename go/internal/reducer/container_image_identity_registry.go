@@ -88,15 +88,17 @@ func classifyContainerImageRef(
 	ref containerImageRefEvidence,
 	index containerImageRegistryIndex,
 ) ContainerImageIdentityDecision {
+	sourceRevision, sourceRevisionProvenance := resolveContainerImageSourceRevision(ref)
 	decision := ContainerImageIdentityDecision{
-		ImageRef:            ref.imageRef,
-		SourceRepositoryIDs: uniqueSortedStrings(ref.sourceRepositoryIDs),
-		SourceRevision:      ref.sourceRevision,
-		WorkloadIDs:         uniqueSortedStrings(ref.workloadIDs),
-		ServiceIDs:          uniqueSortedStrings(ref.serviceIDs),
-		Outcome:             ContainerImageIdentityUnresolved,
-		Reason:              "no registry digest observation matched the image reference",
-		EvidenceFactIDs:     uniqueSortedStrings(ref.factIDs),
+		ImageRef:                 ref.imageRef,
+		SourceRepositoryIDs:      uniqueSortedStrings(ref.sourceRepositoryIDs),
+		SourceRevision:           sourceRevision,
+		SourceRevisionProvenance: sourceRevisionProvenance,
+		WorkloadIDs:              uniqueSortedStrings(ref.workloadIDs),
+		ServiceIDs:               uniqueSortedStrings(ref.serviceIDs),
+		Outcome:                  ContainerImageIdentityUnresolved,
+		Reason:                   "no registry digest observation matched the image reference",
+		EvidenceFactIDs:          uniqueSortedStrings(ref.factIDs),
 	}
 	repositoryID := repositoryIDFromKey(ref.parsed.repositoryKey)
 	if ref.parsed.digest != "" {
@@ -287,6 +289,43 @@ func boolPayload(payload map[string]any, key string) bool {
 	}
 	typed, ok := value.(bool)
 	return ok && typed
+}
+
+// resolveContainerImageSourceRevision picks the image's source commit and its
+// provenance tier. An OCI config source-label revision always wins because it
+// travels inside the image content; only when that is absent does a
+// digest-matched ci.run's commit stand in, and only when exactly one distinct
+// commit is on offer — two runs claiming one digest with different commits (a
+// rebuild) yield no revision rather than an invented one (#5423).
+func resolveContainerImageSourceRevision(ref containerImageRefEvidence) (revision string, provenance string) {
+	if trimmed := strings.TrimSpace(ref.sourceRevision); trimmed != "" {
+		return trimmed, containerImageSourceRevisionOCIConfigLabel
+	}
+	if commit := singleContainerImageCIRunRevision(ref.ciRunRevisions); commit != "" {
+		return commit, containerImageSourceRevisionCIRunCommit
+	}
+	return "", ""
+}
+
+// singleContainerImageCIRunRevision returns the sole distinct non-blank commit
+// among a digest's matched ci.run revisions, or "" when none or more than one
+// distinct commit is present.
+func singleContainerImageCIRunRevision(revisions []string) string {
+	distinct := ""
+	for _, revision := range revisions {
+		trimmed := strings.TrimSpace(revision)
+		if trimmed == "" {
+			continue
+		}
+		if distinct == "" {
+			distinct = trimmed
+			continue
+		}
+		if trimmed != distinct {
+			return ""
+		}
+	}
+	return distinct
 }
 
 func firstNonBlank(values ...string) string {

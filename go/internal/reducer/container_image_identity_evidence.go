@@ -18,9 +18,16 @@ type containerImageRefEvidence struct {
 	sourceRepositoryIDs []string
 	sourceRevision      string
 	sourceLabelEvidence bool
-	workloadIDs         []string
-	serviceIDs          []string
-	factIDs             []string
+	// ciRunRevisions holds every distinct commit SHA carried by a ci.run whose
+	// artifact digest matched this image reference. It stays a separate axis
+	// from sourceRevision (the OCI-config-label revision) so the reducer can
+	// keep the in-image-label provenance tier strictly above the CI-run
+	// fallback, and can refuse to guess when two runs claim the same digest
+	// with different commits (#5423).
+	ciRunRevisions []string
+	workloadIDs    []string
+	serviceIDs     []string
+	factIDs        []string
 }
 
 type containerImageRefAnchors struct {
@@ -177,8 +184,10 @@ func mergeContainerImageRef(byRef map[string]containerImageRefEvidence, next con
 	ref.sourceLabelEvidence = ref.sourceLabelEvidence || next.sourceLabelEvidence
 	ref.factIDs = append(ref.factIDs, next.factIDs...)
 	ref.sourceRepositoryIDs = append(ref.sourceRepositoryIDs, next.sourceRepositoryIDs...)
+	ref.ciRunRevisions = append(ref.ciRunRevisions, next.ciRunRevisions...)
 	ref.workloadIDs = append(ref.workloadIDs, next.workloadIDs...)
 	ref.serviceIDs = append(ref.serviceIDs, next.serviceIDs...)
+	ref.ciRunRevisions = uniqueSortedStrings(ref.ciRunRevisions)
 	ref.factIDs = uniqueSortedStrings(ref.factIDs)
 	ref.sourceRepositoryIDs = uniqueSortedStrings(ref.sourceRepositoryIDs)
 	ref.workloadIDs = uniqueSortedStrings(ref.workloadIDs)
@@ -218,6 +227,32 @@ func addContainerImageDigestRef(
 	ref.sourceRepositoryIDs = uniqueSortedStrings(ref.sourceRepositoryIDs)
 	ref.workloadIDs = uniqueSortedStrings(ref.workloadIDs)
 	ref.serviceIDs = uniqueSortedStrings(ref.serviceIDs)
+	byRef[refKey] = ref
+}
+
+// recordContainerImageCIRunRevision attaches a digest-matched ci.run's commit
+// SHA to the bare-digest reference addContainerImageDigestRef records under the
+// same "digest:"+digest key. It is a no-op for a blank commit or a digest that
+// addContainerImageDigestRef itself rejected (non sha256:), so it never creates
+// a ref the digest path did not, and it accumulates candidates so
+// classifyContainerImageRef can refuse to guess when two commits collide on one
+// digest (#5423).
+func recordContainerImageCIRunRevision(
+	byRef map[string]containerImageRefEvidence,
+	digest string,
+	commitSHA string,
+) {
+	commitSHA = strings.TrimSpace(commitSHA)
+	digest = strings.TrimSpace(digest)
+	if commitSHA == "" || !strings.HasPrefix(digest, "sha256:") {
+		return
+	}
+	refKey := "digest:" + digest
+	ref, ok := byRef[refKey]
+	if !ok {
+		return
+	}
+	ref.ciRunRevisions = uniqueSortedStrings(append(ref.ciRunRevisions, commitSHA))
 	byRef[refKey] = ref
 }
 

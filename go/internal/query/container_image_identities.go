@@ -52,18 +52,23 @@ type ContainerImageIdentityRow struct {
 	RepositoryID        string
 	SourceRepositoryIDs []string
 	SourceRevision      string
-	WorkloadIDs         []string
-	ServiceIDs          []string
-	Outcome             string
-	Reason              string
-	IdentityStrength    string
-	CanonicalID         string
-	CanonicalWrites     int
-	SourceLayers        []string
-	EvidenceFactIDs     []string
-	MissingEvidence     []string
-	SourceFreshness     string
-	SourceConfidence    string
+	// SourceRevisionProvenance names where SourceRevision came from
+	// ("oci_config_source_label" or "ci_run_commit"), letting a consumer keep
+	// the in-image-label tier distinct from the weaker CI-run-commit fallback
+	// (#5423). Empty when no revision was resolved.
+	SourceRevisionProvenance string
+	WorkloadIDs              []string
+	ServiceIDs               []string
+	Outcome                  string
+	Reason                   string
+	IdentityStrength         string
+	CanonicalID              string
+	CanonicalWrites          int
+	SourceLayers             []string
+	EvidenceFactIDs          []string
+	MissingEvidence          []string
+	SourceFreshness          string
+	SourceConfidence         string
 }
 
 type containerImageIdentityQueryer interface {
@@ -177,23 +182,24 @@ func decodeContainerImageIdentityRow(
 		return ContainerImageIdentityRow{}, fmt.Errorf("decode container image identity: %w", err)
 	}
 	return ContainerImageIdentityRow{
-		IdentityID:          factID,
-		Digest:              StringVal(payload, "digest"),
-		ImageRef:            StringVal(payload, "image_ref"),
-		RepositoryID:        StringVal(payload, "repository_id"),
-		SourceRepositoryIDs: StringSliceVal(payload, "source_repository_ids"),
-		SourceRevision:      StringVal(payload, "source_revision"),
-		WorkloadIDs:         StringSliceVal(payload, "workload_ids"),
-		ServiceIDs:          StringSliceVal(payload, "service_ids"),
-		Outcome:             StringVal(payload, "outcome"),
-		Reason:              StringVal(payload, "reason"),
-		IdentityStrength:    StringVal(payload, "identity_strength"),
-		CanonicalID:         StringVal(payload, "canonical_id"),
-		CanonicalWrites:     IntVal(payload, "canonical_writes"),
-		SourceLayers:        StringSliceVal(payload, "source_layers"),
-		EvidenceFactIDs:     StringSliceVal(payload, "evidence_fact_ids"),
-		MissingEvidence:     StringSliceVal(payload, "missing_evidence"),
-		SourceFreshness:     "active",
-		SourceConfidence:    sourceConfidence,
+		IdentityID:               factID,
+		Digest:                   StringVal(payload, "digest"),
+		ImageRef:                 StringVal(payload, "image_ref"),
+		RepositoryID:             StringVal(payload, "repository_id"),
+		SourceRepositoryIDs:      StringSliceVal(payload, "source_repository_ids"),
+		SourceRevision:           StringVal(payload, "source_revision"),
+		SourceRevisionProvenance: StringVal(payload, "source_revision_provenance"),
+		WorkloadIDs:              StringSliceVal(payload, "workload_ids"),
+		ServiceIDs:               StringSliceVal(payload, "service_ids"),
+		Outcome:                  StringVal(payload, "outcome"),
+		Reason:                   StringVal(payload, "reason"),
+		IdentityStrength:         StringVal(payload, "identity_strength"),
+		CanonicalID:              StringVal(payload, "canonical_id"),
+		CanonicalWrites:          IntVal(payload, "canonical_writes"),
+		SourceLayers:             StringSliceVal(payload, "source_layers"),
+		EvidenceFactIDs:          StringSliceVal(payload, "evidence_fact_ids"),
+		MissingEvidence:          StringSliceVal(payload, "missing_evidence"),
+		SourceFreshness:          "active",
+		SourceConfidence:         sourceConfidence,
 	}, nil
 }

@@ -45,7 +45,12 @@ func addWorkflowImageEvidenceRef(byRef map[string]containerImageRefEvidence, env
 // run's artifacts.
 type containerImageCIRunAnchor struct {
 	repositoryID string
-	factID       string
+	// commitSHA is the run's head commit, carried so addCICDArtifactImageReference
+	// can thread it into a digest-matched image's SourceRevision when no OCI
+	// config revision label is present (#5423). Blank when the run fact omits
+	// commit_sha (a valid but revision-less observation).
+	commitSHA string
+	factID    string
 }
 
 // containerImageCIRuns decodes every ci.run envelope through the typed seam,
@@ -90,6 +95,7 @@ func containerImageCIRuns(envelopes []facts.Envelope) (map[string]containerImage
 		}
 		out[key] = containerImageCIRunAnchor{
 			repositoryID: repositoryID,
+			commitSHA:    trimmedCICDPtr(run.CommitSHA),
 			factID:       envelope.FactID,
 		}
 	}
@@ -198,7 +204,8 @@ func addCICDArtifactImageReference(
 	}
 	anchors := containerImageAnchorsFromEnvelope(envelope)
 	evidenceFactIDs := []string{envelope.FactID}
-	if run := runs[cicdRunKeyFromParts(artifact.Provider, artifact.RunID, artifact.RunAttempt)]; run.repositoryID != "" {
+	run := runs[cicdRunKeyFromParts(artifact.Provider, artifact.RunID, artifact.RunAttempt)]
+	if run.repositoryID != "" {
 		anchors.sourceRepositoryIDs = append(anchors.sourceRepositoryIDs, run.repositoryID)
 		evidenceFactIDs = append(evidenceFactIDs, run.factID)
 	}
@@ -207,5 +214,9 @@ func addCICDArtifactImageReference(
 	// recorded as a bare digest reference, matching the pre-typing behavior
 	// where imageRefWithDigest("", digest) always returned "" for real payloads.
 	addContainerImageDigestRef(byRef, digest, anchors, evidenceFactIDs...)
+	// Thread the matched run's commit onto the same digest ref as a fallback
+	// SourceRevision candidate (a no-op for a run with no commit) so the
+	// image→commit binding survives when OCI config labels are absent (#5423).
+	recordContainerImageCIRunRevision(byRef, digest, run.commitSHA)
 	return quarantinedFact{}, false, nil
 }
