@@ -309,5 +309,13 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			Content: contentReader,
 			Profile: queryProfile,
 		},
+		// TagHistory backs the list_container_image_tag_history MCP tool
+		// (#5459). It must be wired here (mirroring cmd/api/wiring_router.go)
+		// or the advertised tool re-dispatches into a nil handler on the
+		// standalone MCP server.
+		TagHistory: &query.TagHistoryHandler{
+			Neo4j:   neo4jReader,
+			Profile: queryProfile,
+		},
 	}
 }

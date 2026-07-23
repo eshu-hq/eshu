@@ -104,6 +104,7 @@ func OpenAPISpec() string {
 			openAPIPathsSecretsIAM+
 			openAPIPathsObservabilityCoverage+
 			openAPIPathsImages+
+			openAPIPathsTagHistory+
 			openAPIPathsVulnerabilityScannerContract+
 			openAPIPathsSupplyChainContainerImages+
 			openAPIPathsSupplyChain+

@@ -170,6 +170,7 @@ type APIRouter struct {
 	SecretsIAM                   *SecretsIAMHandler
 	ObservabilityCoverage        *ObservabilityCoverageHandler
 	Images                       *ImageHandler
+	TagHistory                   *TagHistoryHandler
 	SupplyChain                  *SupplyChainHandler
 	Incident                     *IncidentHandler
 	WorkItems                    *WorkItemHandler
@@ -385,6 +386,9 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Container images (OCI)
 	if a.Images != nil {
 		a.Images.Mount(mux)
+	}
+	if a.TagHistory != nil {
+		a.TagHistory.Mount(mux)
 	}
 
 	// Supply chain

@@ -6445,6 +6445,82 @@
       }
     },
     {
+      "capability": "platform_impact.container_image_tag_history",
+      "display_name": "Platform Impact Container Image Tag History",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
+      "surfaces": [
+        {
+          "tool": "list_container_image_tag_history",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "single_image_ref"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "single_image_ref"
+        },
+        "local_lightweight": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "local_host",
+          "max_scope_size": "active_monofolder"
+        },
+        "production": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1500,
+          "max_scope_size": "single_image_ref"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/mcp"
+        },
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        },
+        {
+          "kind": "go_test",
+          "ref": "./internal/query ./internal/mcp"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "service_runtime",
+        "action": "service.runtime.read",
+        "data_classes": [
+          "repository_metadata",
+          "service_runtime"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace",
+          "repository",
+          "source_scope"
+        ],
+        "default_roles": [
+          "developer",
+          "operator",
+          "owner"
+        ],
+        "sensitive_data": false
+      }
+    },
+    {
       "capability": "platform_impact.context_overview",
       "display_name": "Platform Impact Context Overview",
       "maturity": "general_availability",

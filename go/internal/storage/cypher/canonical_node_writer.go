@@ -321,17 +321,18 @@ func (w *CanonicalNodeWriter) buildPhases(mat projector.CanonicalMaterialization
 	}
 }
 
-// isDeferredPackageRegistryEdgePhase reports whether a phase name belongs to the
-// deferred package_registry edge phases that must execute in a second atomic
-// write group, after the node phases they MATCH have committed. Only the
-// package_registry edges need this: they MATCH MULTI-LABEL nodes
-// (Package/PackageVersion/PackageDependency) that NornicDB does not surface to a
-// same-transaction UNWIND-driven MATCH. Single-label edge phases (directory_edges,
-// the inline File edges) get cross-statement read-your-writes within one atomic
-// group and stay in the main group.
+// isDeferredPackageRegistryEdgePhase reports whether a phase name belongs to
+// the deferred package_registry edge phases that must execute in a second
+// atomic write group, after the node phases they MATCH have committed. They
+// MATCH MULTI-LABEL nodes (Package/PackageVersion/PackageDependency) that
+// NornicDB does not surface to a same-transaction UNWIND-driven MATCH.
+// Single-label edge phases (directory_edges, the inline File edges) get
+// cross-statement read-your-writes within one atomic group and stay in the
+// main group.
 func isDeferredPackageRegistryEdgePhase(name string) bool {
 	switch name {
-	case canonicalPhasePackageRegistryVersionEdges, canonicalPhasePackageRegistryDependencyEdges:
+	case canonicalPhasePackageRegistryVersionEdges,
+		canonicalPhasePackageRegistryDependencyEdges:
 		return true
 	default:
 		return false

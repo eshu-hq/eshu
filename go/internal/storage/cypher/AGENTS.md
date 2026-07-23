@@ -25,28 +25,35 @@
   package_registry_packages → package_registry_versions →
   package_registry_dependency_targets → package_registry_dependencies →
   modules → structural_edges → package_registry_version_edges →
-  package_registry_dependency_edges. Parent nodes must exist before child MATCH
-  statements run, repository cleanup must commit before the repository MERGE,
-  and stale entity cleanup must run after current entity upserts so it can avoid
-  giant `uid IN` exclusion filters. The two `package_registry_*_edges` phases run
-  LAST, after every package_registry node phase, because they MATCH the
-  multi-label `Package`/`PackageVersion`/`PackageDependency` nodes those node
-  phases create.
+  package_registry_dependency_edges. Parent nodes must
+  exist before child MATCH statements run, repository cleanup must commit
+  before the repository MERGE, and stale entity cleanup must run after current
+  entity upserts so it can avoid giant `uid IN` exclusion filters. The two
+  `package_registry_*_edges` phases run LAST,
+  after every node phase they MATCH, because they MATCH multi-label nodes
+  those node phases create (`Package`/`PackageVersion`/`PackageDependency`).
 - **package_registry edges dispatch in a SECOND ExecuteGroup** — on the atomic
   `GroupExecutor` projector path, `CanonicalNodeWriter.Write` partitions the
-  two deferred `package_registry_*_edges` phases out of the main group and
-  dispatches them as a separate, second `ExecuteGroup` that runs only after the
-  node group commits. This is required for NornicDB read-your-writes: a node
-  MERGE'd with multiple labels in one statement is invisible to a later
-  same-transaction `UNWIND $rows … MATCH` against one of those labels, so an
-  inline edge MATCH+MERGE in the same atomic transaction finds nothing and the
+  deferred `package_registry_*_edges` phases out
+  of the main group (`isDeferredPackageRegistryEdgePhase`,
+  `partitionDeferredPackageRegistryEdgePhases`) and dispatches them as a
+  separate, second `ExecuteGroup` that runs only after the node group commits.
+  This is required for NornicDB read-your-writes: a node MERGE'd with multiple
+  labels in one statement is invisible to a later same-transaction
+  `UNWIND $rows … MATCH` against one of those labels, so an inline edge
+  MATCH+MERGE in the same atomic transaction finds nothing —
   `HAS_VERSION`/`DECLARES_DEPENDENCY`/`DEPENDS_ON_PACKAGE` edges never
-  materialize. Deferring the edges to a second committed-node group fixes this.
-  The phase-group and sequential paths need no special handling because they
-  already commit per phase and the edge phases run last. This deferral is
-  MULTI-LABEL specific: single-label edges (the inline `File` edges and the
-  `directory_edges` phase, `Directory -> Directory CONTAINS`) get cross-statement
-  read-your-writes within one atomic group and stay inline in the main group.
+  materialize. Deferring to a second committed-node group fixes it. Note the
+  #5459 tag-observation `first_observed_at` deliberately does NOT use a deferred
+  MATCH: even across the group boundary a deferred multi-label MATCH proved
+  unreliable in the live golden pipeline, so it uses `ON CREATE SET` in the
+  identity MERGE instead (no cross-transaction dependency). The phase-group and
+  sequential paths need no special handling because they already commit per
+  phase and the deferred phases run last. This deferral is MULTI-LABEL specific:
+  single-label edges
+  (the inline `File` edges and the `directory_edges` phase,
+  `Directory -> Directory CONTAINS`) get cross-statement read-your-writes
+  within one atomic group and stay inline in the main group.
 - **directory writes are split into a node phase and an edge phase** — the
   `directories` phase MERGEs every `Directory` by path with NO parent MATCH;
   the `directory_edges` phase (which runs after it) wires each directory to its
@@ -99,6 +106,19 @@
   manifests and indexes on `ContainerImage` labels keyed by digest-backed uid.
   Tag observations are separate `ContainerImageTagObservation` nodes; do not
   MERGE image manifest or index identity from tag text.
+- **first_observed_at is set-once via ON CREATE SET** (#5459) —
+  `canonicalOCIImageTagObservationUpsertCypher` writes `first_observed_at` with
+  `ON CREATE SET`, so it is fixed once at node creation and never overwritten.
+  Do NOT move it into the unconditional `SET` clause (last-write-wins), do NOT
+  fuse a `CASE`/`coalesce` self-read (the MERGE binding shadows the persisted
+  property as null in the same statement), and do NOT split it into a deferred
+  `MATCH … WHERE … IS NULL SET` (a deferred multi-label MATCH proved unreliable
+  in the live golden pipeline). `ON CREATE` reads no persisted property, so it
+  is genuine set-once in one statement — proven live in
+  `oci_tag_first_observed_prove_theory_live_test.go`; do not change that test.
+  A zero-value `ObservedAt` serializes to `""` via `ociTagObservedAtValue`, so
+  `ON CREATE SET` stores an empty `first_observed_at` (which the reader omits)
+  rather than a zero RFC3339 timestamp.
 - **Package source hints are weak evidence** —
   `package_registry_canonical_writer.go` writes package identity, package
   version identity, and package-native dependency identity (the node-only
