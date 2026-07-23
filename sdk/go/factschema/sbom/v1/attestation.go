@@ -128,12 +128,16 @@ type SignatureVerification struct {
 // predicateType is in the closed set of known SLSA provenance URIs
 // (https://slsa.dev/provenance/{v1,v0.2,v0.1}); PredicateType and BuilderID
 // are decoded from the predicate at the field path each version defines (v1:
-// runDetails.builder.id; v0.2/v0.1: builder.id). The reducer's
+// runDetails.builder.id; v0.2/v0.1: builder.id). Materials and ConfigSource
+// (#5456) extend this same version-aware decode: v1 sources them from
+// buildDefinition.resolvedDependencies[]/externalParameters.configSource,
+// v0.2/v0.1 from predicate.materials[]/invocation.configSource. The reducer's
 // buildSBOMAttachmentIndex decodes and joins this kind onto its owning
 // statement's attachment decision by StatementID, surfacing
-// SLSAProvenancePredicateType/SLSAProvenanceBuilderID on the attachments read
-// surface. StatementID is required, matching the join-key discipline every
-// other kind in this family uses.
+// SLSAProvenancePredicateType/SLSAProvenanceBuilderID (and, since #5456, the
+// materials/config source evidence) on the attachments read surface.
+// StatementID is required, matching the join-key discipline every other kind
+// in this family uses.
 type SLSAProvenance struct {
 	// StatementID is the owning attestation statement's identifier.
 	// Required — matches the join-key convention Statement and
@@ -146,4 +150,46 @@ type SLSAProvenance struct {
 	// BuilderID is the SLSA provenance builder identity, when reported.
 	// Optional.
 	BuilderID *string `json:"builder_id,omitempty"`
+
+	// Materials lists the build's resolved input artifacts (v1:
+	// buildDefinition.resolvedDependencies[]; v0.2/v0.1: predicate.materials[]).
+	// Optional: empty when the predicate reports no materials.
+	Materials []SLSAMaterial `json:"materials,omitempty"`
+
+	// ConfigSource is the build definition's config/source-of-truth reference
+	// (v1: buildDefinition.externalParameters.configSource; v0.2/v0.1:
+	// predicate.invocation.configSource). Optional: nil when the predicate
+	// reports no config source.
+	ConfigSource *SLSAConfigSource `json:"config_source,omitempty"`
+}
+
+// SLSAMaterial is one build input artifact from a SLSA provenance predicate's
+// materials (v0.2/v0.1) or resolved dependencies (v1) list.
+type SLSAMaterial struct {
+	// URI identifies the material artifact (for example a git+https source
+	// URL). Optional.
+	URI *string `json:"uri,omitempty"`
+
+	// Digest maps each reported digest algorithm (e.g. "sha1", "gitCommit")
+	// to its hex value. Optional: empty when the predicate reports no digest
+	// for this material.
+	Digest map[string]string `json:"digest,omitempty"`
+}
+
+// SLSAConfigSource is a SLSA provenance predicate's build definition config
+// source (v1: buildDefinition.externalParameters.configSource; v0.2/v0.1:
+// predicate.invocation.configSource) — the source-of-truth repository, ref,
+// and entry point the build was invoked from.
+type SLSAConfigSource struct {
+	// URI identifies the config source repository (for example a
+	// git+https URL with a ref suffix). Optional.
+	URI *string `json:"uri,omitempty"`
+
+	// Digest maps each reported digest algorithm (e.g. "sha1", "gitCommit")
+	// to its hex value, typically the resolved commit. Optional.
+	Digest map[string]string `json:"digest,omitempty"`
+
+	// EntryPoint names the build definition entry point (for example a
+	// workflow file path) within the config source. Optional.
+	EntryPoint *string `json:"entry_point,omitempty"`
 }

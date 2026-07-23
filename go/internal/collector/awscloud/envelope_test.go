@@ -253,6 +253,50 @@ func TestNewImageReferenceEnvelopeCarriesDigestTagAndRepository(t *testing.T) {
 	assertPayloadString(t, envelope.Payload, "repository_arn", "arn:aws:ecr:us-east-1:123456789012:repository/team/api")
 }
 
+// TestNewImageReferenceEnvelopeDistinguishesCrossAccountRegistries is the
+// codex #5451 P2 regression: two image reference observations sharing the
+// SAME boundary account_id/region, repository_name, image_digest, and tag but
+// naming DIFFERENT registry accounts (a cross-account ECR pull — the case the
+// ECS scanner's parseECRImage specifically parses RegistryID from the image
+// host to support) must produce DISTINCT FactIDs and StableFactKeys, so
+// ingestion never collapses one of them onto the other and silently drops the
+// image reference for the account whose fact loses the collision.
+func TestNewImageReferenceEnvelopeDistinguishesCrossAccountRegistries(t *testing.T) {
+	boundary := testBoundary(time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC))
+	boundary.ServiceKind = ServiceECS
+
+	first, err := NewImageReferenceEnvelope(ImageReferenceObservation{
+		Boundary:       boundary,
+		RepositoryName: "supply-chain-demo",
+		RegistryID:     "111111111111",
+		ImageDigest:    "sha256:image",
+		Tag:            "latest",
+	})
+	if err != nil {
+		t.Fatalf("NewImageReferenceEnvelope() first error = %v, want nil", err)
+	}
+	second, err := NewImageReferenceEnvelope(ImageReferenceObservation{
+		Boundary:       boundary,
+		RepositoryName: "supply-chain-demo",
+		RegistryID:     "222222222222",
+		ImageDigest:    "sha256:image",
+		Tag:            "latest",
+	})
+	if err != nil {
+		t.Fatalf("NewImageReferenceEnvelope() second error = %v, want nil", err)
+	}
+
+	if first.FactID == second.FactID {
+		t.Fatalf("FactID collided across registry accounts: first = %q, second = %q, want distinct", first.FactID, second.FactID)
+	}
+	if first.StableFactKey == second.StableFactKey {
+		t.Fatalf("StableFactKey collided across registry accounts: first = %q, second = %q, want distinct",
+			first.StableFactKey, second.StableFactKey)
+	}
+	assertPayloadString(t, first.Payload, "registry_id", "111111111111")
+	assertPayloadString(t, second.Payload, "registry_id", "222222222222")
+}
+
 func TestNewImageReferenceEnvelopeRequiresDigest(t *testing.T) {
 	boundary := testBoundary(time.Now())
 	boundary.ServiceKind = ServiceECR

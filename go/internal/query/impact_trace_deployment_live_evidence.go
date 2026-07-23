@@ -69,13 +69,15 @@ func (h *ImpactHandler) fetchWorkloadLiveEvidence(
 	defer span.End()
 	span.SetAttributes(attribute.Int("eshu.image_ref_count", len(imageRefs)))
 
-	trackingIDs := expectedArgoCDTrackingIDs(controllers, k8sResources)
-	span.SetAttributes(attribute.Int("eshu.expected_tracking_id_count", len(trackingIDs)))
-	if len(trackingIDs) == 0 {
-		// Core fail-closed fix: no ArgoCD identity was resolvable for the
-		// traced workload, so the store is never queried -- the workload
-		// stays config_only for lack of a declared identity to bind, never
-		// promoted on a shared digest alone.
+	anchors := resolveLiveIdentityAnchors(controllers, k8sResources)
+	span.SetAttributes(attribute.Int("eshu.expected_tracking_id_count", len(anchors)))
+	if len(anchors) == 0 {
+		// Core fail-closed fix: no identity anchor was resolvable for the
+		// traced workload (neither an ArgoCD tracking-id nor a mappable
+		// declared kind+namespace+name object, #5639), so the store is
+		// never queried -- the workload stays config_only for lack of a
+		// declared identity to bind, never promoted on a shared digest
+		// alone.
 		span.SetAttributes(
 			attribute.String("eshu.live_evidence_skip_reason", "no_identity_binding"),
 			attribute.Bool("eshu.live_evidence_matched", false),
@@ -101,21 +103,14 @@ func (h *ImpactHandler) fetchWorkloadLiveEvidence(
 		return false, nil
 	}
 
-	for _, trackingID := range trackingIDs {
-		filter := KubernetesPodTemplateFilter{
-			TrackingID:           trackingID,
-			ImageRefs:            imageRefs,
-			AllScopes:            !access.scoped(),
-			AllowedRepositoryIDs: access.grantedRepositoryIDs(),
-			AllowedScopeIDs:      access.grantedScopeIDs(),
-		}
+	for _, anchor := range anchors {
+		filter := liveIdentityAnchorFilter(anchor, imageRefs, access)
 		matched, err := h.KubernetesPodTemplates.HasLiveIdentityMatch(ctx, filter)
 		if err != nil {
 			// Store errors fail closed to the config tier -- mirroring how
 			// the handler treats enrichment fetch errors: log the error and
-			// continue with the next tracking-id or return false. A
-			// transient Postgres failure must not 500 the whole deployment
-			// trace.
+			// continue with the next anchor or return false. A transient
+			// Postgres failure must not 500 the whole deployment trace.
 			span.RecordError(err)
 			span.SetAttributes(attribute.Bool("eshu.live_evidence_matched", false))
 			return false, err
@@ -124,6 +119,7 @@ func (h *ImpactHandler) fetchWorkloadLiveEvidence(
 			span.SetAttributes(
 				attribute.Bool("eshu.live_evidence_matched", true),
 				attribute.String("eshu.deployment_truth_tier", string(truth.TierRuntimeConfirmed)),
+				attribute.String("eshu.live_evidence_anchor_kind", string(anchor.Kind)),
 			)
 			return true, nil
 		}

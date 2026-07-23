@@ -76,23 +76,44 @@ type LiveIdentityMatch struct {
 	ReadyReplicas *int32
 }
 
-// KubernetesPodTemplateFilter bounds a live pod-template identity read to a
-// concrete ArgoCD tracking-id, optionally narrowed to a set of declared
-// image references. TrackingID is required so a read never scans the whole
-// fact store on an unanchored predicate.
+// KubernetesPodTemplateFilter bounds a live pod-template identity read to
+// one candidate identity anchor (#5639: either an ArgoCD tracking-id or a
+// declared kind+namespace+name object), optionally narrowed to a set of
+// declared image references. AnchorKind discriminates which anchor fields
+// are populated and which per-kind SQL predicate the store dispatches to
+// (impact_trace_deployment_live_evidence_store_declared.go); hasScope
+// requires the anchor's own fields to be non-empty so a read never scans the
+// whole fact store on an unanchored predicate.
 type KubernetesPodTemplateFilter struct {
+	// AnchorKind selects which identity predicate this filter carries. The
+	// zero value ("") is treated as liveIdentityAnchorArgoCDTrackingID for
+	// backward compatibility with callers that only ever set TrackingID.
+	AnchorKind liveIdentityAnchorKind
+
 	// TrackingID is the expected argocd.argoproj.io/tracking-id value
-	// (expectedArgoCDTrackingIDs) the caller is probing for. Required.
+	// (expectedArgoCDTrackingIDs) the caller is probing for. Required when
+	// AnchorKind is liveIdentityAnchorArgoCDTrackingID (or unset).
 	TrackingID string
+
+	// GroupVersionResource, Namespace, and Name are the declared object's
+	// own identity (declaredObjectAnchors). Required together when
+	// AnchorKind is liveIdentityAnchorDeclaredObject; #5639 fail-closed
+	// rule: a declared-object anchor with any of the three empty is
+	// rejected before a query is ever issued -- no cluster-scoped or
+	// wildcard match is ever allowed.
+	GroupVersionResource string
+	Namespace            string
+	Name                 string
+
 	// ImageRefs narrows the match to a live pod template whose
 	// payload.image_refs array contains at least one of these declared
 	// image references (digest confirmation on top of identity). The
-	// current caller, fetchWorkloadLiveEvidence
-	// (impact_trace_deployment_live_evidence.go), never queries the store
-	// with an empty ImageRefs -- it returns false before querying when
-	// imageRefs is empty -- so every live match today pairs the tracking-id
-	// identity with a non-empty digest confirmation; an identity-only match
-	// is not a supported mode of the current caller.
+	// current callers, fetchWorkloadLiveEvidence and
+	// fetchWorkloadLiveInstanceSummary, never query the store with an
+	// empty ImageRefs -- they return before querying when imageRefs is
+	// empty -- so every live match today pairs the anchor identity with a
+	// non-empty digest confirmation; an identity-only match is not a
+	// supported mode of the current callers.
 	ImageRefs []string
 	// AllScopes, AllowedRepositoryIDs, and AllowedScopeIDs carry the #5167
 	// access-scoping bound, identical in shape and intent to
@@ -105,7 +126,16 @@ type KubernetesPodTemplateFilter struct {
 	AllowedScopeIDs      []string
 }
 
+// hasScope reports whether filter carries a fully-bound anchor for its
+// AnchorKind -- the fail-closed gate every store method checks before
+// issuing a query. A declared-object anchor requires ALL THREE of
+// GroupVersionResource, Namespace, and Name (#5639: no cluster-scoped or
+// wildcard match); an ArgoCD tracking-id anchor (or the unset zero value,
+// preserved for backward compatibility) requires a non-empty TrackingID.
 func (f KubernetesPodTemplateFilter) hasScope() bool {
+	if f.AnchorKind == liveIdentityAnchorDeclaredObject {
+		return f.GroupVersionResource != "" && f.Namespace != "" && f.Name != ""
+	}
 	return f.TrackingID != ""
 }
 
@@ -127,12 +157,13 @@ func NewPostgresKubernetesPodTemplateStore(db kubernetesPodTemplateQueryer) Post
 }
 
 // HasLiveIdentityMatch reports whether an ACTIVE kubernetes_live.pod_template
-// fact exists whose argocd.argoproj.io/tracking-id annotation equals
-// filter.TrackingID (and, when filter.ImageRefs is non-empty, whose
-// payload.image_refs array intersects it). Bounded to LIMIT 1 (existence
-// check only); nil-safe (DB == nil returns an error --
-// fetchWorkloadLiveEvidence fails closed to false on any error, mirroring
-// PostgresKubernetesCorrelationStore's convention).
+// fact exists matching filter's identity anchor (#5639: either the
+// argocd.argoproj.io/tracking-id annotation or a declared
+// kind+namespace+name object, discriminated by filter.AnchorKind), and, when
+// filter.ImageRefs is non-empty, whose payload.image_refs array intersects
+// it. Bounded to LIMIT 1 (existence check only); nil-safe (DB == nil returns
+// an error -- fetchWorkloadLiveEvidence fails closed to false on any error,
+// mirroring PostgresKubernetesCorrelationStore's convention).
 func (s PostgresKubernetesPodTemplateStore) HasLiveIdentityMatch(
 	ctx context.Context,
 	filter KubernetesPodTemplateFilter,
@@ -141,6 +172,9 @@ func (s PostgresKubernetesPodTemplateStore) HasLiveIdentityMatch(
 		return false, fmt.Errorf("kubernetes pod template database is required")
 	}
 	if !filter.hasScope() {
+		if filter.AnchorKind == liveIdentityAnchorDeclaredObject {
+			return false, fmt.Errorf("group_version_resource, namespace, and name are required")
+		}
 		return false, fmt.Errorf("tracking_id is required")
 	}
 	// Defense in depth (#5167, mirrors PostgresKubernetesCorrelationStore):
@@ -149,7 +183,18 @@ func (s PostgresKubernetesPodTemplateStore) HasLiveIdentityMatch(
 	if !filter.AllScopes && len(filter.AllowedRepositoryIDs) == 0 && len(filter.AllowedScopeIDs) == 0 {
 		return false, nil
 	}
+	if filter.AnchorKind == liveIdentityAnchorDeclaredObject {
+		return s.hasLiveDeclaredObjectIdentityMatch(ctx, filter)
+	}
+	return s.hasLiveTrackingIDIdentityMatch(ctx, filter)
+}
 
+// hasLiveTrackingIDIdentityMatch is the ArgoCD tracking-id anchor half of
+// HasLiveIdentityMatch, unchanged from the pre-#5639 shape.
+func (s PostgresKubernetesPodTemplateStore) hasLiveTrackingIDIdentityMatch(
+	ctx context.Context,
+	filter KubernetesPodTemplateFilter,
+) (bool, error) {
 	query := hasLiveKubernetesPodTemplateIdentityQuery
 	args := []any{
 		kubernetesPodTemplateFactKind,
@@ -162,7 +207,20 @@ func (s PostgresKubernetesPodTemplateStore) HasLiveIdentityMatch(
 		query = hasLiveKubernetesPodTemplateIdentityScopedQuery
 		args = append(args, pq.Array(filter.AllowedRepositoryIDs), pq.Array(filter.AllowedScopeIDs))
 	}
-	rows, err := s.DB.QueryContext(ctx, query, args...)
+	return queryLiveIdentityMatchExists(ctx, s.DB, query, args)
+}
+
+// queryLiveIdentityMatchExists issues query with args and reports whether at
+// least one row came back, sharing the existence-check execution and error
+// wrapping between the ArgoCD tracking-id and declared-object anchor
+// variants of HasLiveIdentityMatch (#5639).
+func queryLiveIdentityMatchExists(
+	ctx context.Context,
+	db kubernetesPodTemplateQueryer,
+	query string,
+	args []any,
+) (bool, error) {
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return false, fmt.Errorf("has live kubernetes pod template identity match: %w", err)
 	}
@@ -285,11 +343,12 @@ LIMIT $8
 `
 
 // ListLiveIdentityMatches reads every ACTIVE kubernetes_live.pod_template fact
-// matching filter, bounded to serviceStoryItemLimit rows. It shares
-// HasLiveIdentityMatch's fail-closed preamble: a nil DB or an unanchored
-// (empty TrackingID) filter is rejected before any query, and a scoped caller
-// with no granted repository or ingestion scope gets an empty result without
-// a query (#5167 defense in depth).
+// matching filter's identity anchor (#5639: ArgoCD tracking-id or declared
+// kind+namespace+name object, discriminated by filter.AnchorKind), bounded
+// to serviceStoryItemLimit rows. It shares HasLiveIdentityMatch's fail-closed
+// preamble: a nil DB or an unanchored filter is rejected before any query,
+// and a scoped caller with no granted repository or ingestion scope gets an
+// empty result without a query (#5167 defense in depth).
 func (s PostgresKubernetesPodTemplateStore) ListLiveIdentityMatches(
 	ctx context.Context,
 	filter KubernetesPodTemplateFilter,
@@ -298,12 +357,26 @@ func (s PostgresKubernetesPodTemplateStore) ListLiveIdentityMatches(
 		return nil, fmt.Errorf("kubernetes pod template database is required")
 	}
 	if !filter.hasScope() {
+		if filter.AnchorKind == liveIdentityAnchorDeclaredObject {
+			return nil, fmt.Errorf("group_version_resource, namespace, and name are required")
+		}
 		return nil, fmt.Errorf("tracking_id is required")
 	}
 	if !filter.AllScopes && len(filter.AllowedRepositoryIDs) == 0 && len(filter.AllowedScopeIDs) == 0 {
 		return nil, nil
 	}
+	if filter.AnchorKind == liveIdentityAnchorDeclaredObject {
+		return s.listLiveDeclaredObjectIdentityMatches(ctx, filter)
+	}
+	return s.listLiveTrackingIDIdentityMatches(ctx, filter)
+}
 
+// listLiveTrackingIDIdentityMatches is the ArgoCD tracking-id anchor half of
+// ListLiveIdentityMatches, unchanged from the pre-#5639 shape.
+func (s PostgresKubernetesPodTemplateStore) listLiveTrackingIDIdentityMatches(
+	ctx context.Context,
+	filter KubernetesPodTemplateFilter,
+) ([]LiveIdentityMatch, error) {
 	query := listLiveKubernetesPodTemplateIdentityMatchesQuery
 	args := []any{
 		kubernetesPodTemplateFactKind,
@@ -323,7 +396,16 @@ func (s PostgresKubernetesPodTemplateStore) ListLiveIdentityMatches(
 		return nil, fmt.Errorf("list live kubernetes pod template identity matches: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
+	return scanLiveIdentityMatchRows(rows)
+}
 
+// scanLiveIdentityMatchRows decodes the shared four-column row shape
+// (cluster_id, object_id, group_version_resource, ready_replicas) both the
+// ArgoCD tracking-id and declared-object SELECT-columns query variants
+// project, so the two anchor kinds never fork their row-decoding logic
+// (#5639: a single shared seam, matching resolveLiveIdentityAnchors and
+// liveIdentityAnchorFilter on the caller side).
+func scanLiveIdentityMatchRows(rows *sql.Rows) ([]LiveIdentityMatch, error) {
 	var matches []LiveIdentityMatch
 	for rows.Next() {
 		var (

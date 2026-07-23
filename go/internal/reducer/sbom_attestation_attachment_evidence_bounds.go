@@ -3,7 +3,12 @@
 
 package reducer
 
-import "sort"
+import (
+	"fmt"
+	"sort"
+
+	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
+)
 
 const (
 	// maxSBOMAttachmentDependencyRelationshipRows bounds the number of
@@ -20,7 +25,54 @@ const (
 	// sbom.external_reference evidence rows persisted per document,
 	// mirroring maxSBOMAttachmentDependencyRelationshipRows.
 	maxSBOMAttachmentExternalReferenceRows = 50
+	// maxSBOMAttachmentSLSAMaterialRows bounds the number of SLSA provenance
+	// materials/resolved-dependencies persisted per statement (#5456),
+	// mirroring maxSBOMAttachmentDependencyRelationshipRows. A statement
+	// carries at most one attestation.slsa_provenance fact's materials
+	// (indexSLSAProvenanceEvidence keeps only the smallest-factID candidate
+	// on duplicate emission), so this bounds one predicate's own list rather
+	// than an aggregate across facts.
+	maxSBOMAttachmentSLSAMaterialRows = 20
 )
+
+// slsaMaterialEvidenceRows converts a decoded SLSA provenance predicate's
+// materials into the bounded, deterministically ordered row set the
+// attachment decision and its persisted payload carry, plus the full count
+// computed BEFORE the write-time cap. Ordering is by URI then digest map
+// (stringified) so the cap is stable regardless of the predicate's own
+// materials array order.
+func slsaMaterialEvidenceRows(materials []sbomv1.SLSAMaterial) ([]map[string]any, int) {
+	if len(materials) == 0 {
+		return nil, 0
+	}
+	sorted := append([]sbomv1.SLSAMaterial(nil), materials...)
+	sort.Slice(sorted, func(i, j int) bool {
+		return slsaMaterialLess(sorted[i], sorted[j])
+	})
+	count := len(sorted)
+	if count > maxSBOMAttachmentSLSAMaterialRows {
+		sorted = sorted[:maxSBOMAttachmentSLSAMaterialRows]
+	}
+	out := make([]map[string]any, 0, len(sorted))
+	for _, material := range sorted {
+		row := map[string]any{
+			"uri": derefString(material.URI),
+		}
+		if len(material.Digest) > 0 {
+			row["digest"] = material.Digest
+		}
+		out = append(out, row)
+	}
+	return out, count
+}
+
+func slsaMaterialLess(a, b sbomv1.SLSAMaterial) bool {
+	auri, buri := derefString(a.URI), derefString(b.URI)
+	if auri != buri {
+		return auri < buri
+	}
+	return fmt.Sprint(a.Digest) < fmt.Sprint(b.Digest)
+}
 
 // dependencyRelationshipEvidenceRows deduplicates the decoded
 // sbom.dependency_relationship evidence for one document on

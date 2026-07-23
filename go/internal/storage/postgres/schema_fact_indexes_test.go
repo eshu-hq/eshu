@@ -222,6 +222,33 @@ CREATE INDEX IF NOT EXISTS fact_records_active_container_image_refs_idx
 	}
 }
 
+func TestBootstrapDefinitionsIncludeKubernetesLivePodTemplateObjectFactIndex(t *testing.T) {
+	t.Parallel()
+
+	var found Definition
+	for _, def := range BootstrapDefinitions() {
+		if def.Name == "kubernetes_live_pod_template_object_index" {
+			found = def
+			break
+		}
+	}
+	if found.Name == "" {
+		t.Fatal("kubernetes_live_pod_template_object_index definition missing; " +
+			"create migration 075_kubernetes_live_pod_template_object_index.sql")
+	}
+	const want = `CREATE INDEX CONCURRENTLY IF NOT EXISTS fact_records_kubernetes_live_pod_template_object_idx
+    ON fact_records (
+        (payload->>'group_version_resource'),
+        (payload->>'namespace'),
+        (payload->>'name')
+    )
+    WHERE fact_kind = 'kubernetes_live.pod_template'
+      AND is_tombstone = FALSE;`
+	if !strings.Contains(found.SQL, want) {
+		t.Fatalf("kubernetes_live_pod_template_object_index SQL missing exact DDL:\n%s", found.SQL)
+	}
+}
+
 // TestFactRecordSchemaDroppedStableKeyIndex asserts that factRecordSchemaSQL
 // no longer creates fact_records_stable_key_idx but still creates the
 // neighboring collector_status_active_idx and active_repository_idx.

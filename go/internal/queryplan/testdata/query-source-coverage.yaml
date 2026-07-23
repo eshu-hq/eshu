@@ -167,6 +167,15 @@ source_coverage:
   - file: images.go
     calls:
       - {symbol: "(*ImageHandler).listImages", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+  - file: tag_history.go
+    calls:
+      - symbol: "(*TagHistoryHandler).listTagHistory"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: "cbfd27734d7f2560a4317ef6e3cfa3fd7d624202948a2237e12ef1cbdff71cac"
+          key_bound: single_key
+          max_results: 201
   - file: impact.go
     calls:
       - {symbol: "(*ImpactHandler).explainDependencyPath", count: 1, non_hot_reason: "dynamic typed-anchor dependency path remains inventory-only pending a standalone PROFILE registration"}

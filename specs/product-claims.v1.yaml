@@ -162,8 +162,8 @@ claims:
     source:
       path: README.md
       line: 62
-      quote: "| AI assistant context | Serve indexed truth through 161 read-only MCP tools so Codex, Claude, Cursor, VS Code, and other clients answer with evidence instead of guessing. <!-- capability-state: id=capability_catalog.list state=general_availability --> <!-- product-claim: id=readme.mcp-tool-count.indexed-truth --> |"
-    claim_text: "Eshu exposes indexed truth through 161 read-only MCP tools for assistant clients."
+      quote: "| AI assistant context | Serve indexed truth through 162 read-only MCP tools so Codex, Claude, Cursor, VS Code, and other clients answer with evidence instead of guessing. <!-- capability-state: id=capability_catalog.list state=general_availability --> <!-- product-claim: id=readme.mcp-tool-count.indexed-truth --> |"
+    claim_text: "Eshu exposes indexed truth through 162 read-only MCP tools for assistant clients."
     capabilities:
       - id: capability_catalog.list
         claimed_maturity: general_availability
@@ -177,7 +177,7 @@ claims:
       command: "cd go && go test ./internal/mcp -run '^TestReadOnlyTools$' -count=1"
       surface_counts:
         - category: mcp_tool
-          count: 161
+          count: 162
       signals:
         - capability: capability_catalog.list
           kind: go_test
@@ -258,7 +258,7 @@ claims:
   - id: docs.mcp-tool-contract.capability-catalog-read
     source:
       path: docs/public/reference/mcp-tool-contract-matrix.md
-      line: 187
+      line: 188
       quote: "| `get_capability_catalog` | whole reconciled capability catalog from the embedded artifact | optional `maturity` and `owner` filters, `limit`/`offset` paging | yes | prompt-ready deterministic read of capability maturity, public surfaces, proof signals, owner package, known gaps, and linked issues; static embedded artifact with fresh truth and no live backend read <!-- product-claim: id=docs.mcp-tool-contract.capability-catalog-read --> |"
     claim_text: "The get_capability_catalog MCP tool returns a deterministic embedded-artifact read with maturity, surfaces, proof, owner, gaps, and linked issues."
     capabilities:

@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/cicdrun/ghactionsruntime"
+	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -22,6 +23,34 @@ import (
 )
 
 var fallbackClaimSequence uint64
+
+// buildCassetteService wires a credential-free cassette source onto the shared
+// collector commit boundary so the golden-corpus gate can replay recorded
+// ci.run/ci.artifact facts without live GitHub Actions credentials, mirroring
+// collector-oci-registry's cassette mode.
+func buildCassetteService(
+	database postgres.ExecQueryer,
+	cassettePath string,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) (collector.Service, error) {
+	src, err := cassette.NewSource(cassettePath)
+	if err != nil {
+		return collector.Service{}, fmt.Errorf("load cassette: %w", err)
+	}
+	committer := postgres.NewIngestionStore(database)
+	committer.Logger = logger
+	committer.Instruments = instruments
+	return collector.Service{
+		Source:       src,
+		Committer:    committer,
+		PollInterval: 24 * time.Hour,
+		Tracer:       tracer,
+		Instruments:  instruments,
+		Logger:       logger,
+	}, nil
+}
 
 func buildClaimedService(
 	database postgres.ExecQueryer,

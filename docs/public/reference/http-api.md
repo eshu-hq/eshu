@@ -34,6 +34,7 @@ The mounted Go runtime admin OpenAPI contract lives in
 | Deployment evidence, admission decisions, citations, documentation findings, packages, CI/CD, SBOM, vulnerability impact, codeowners ownership | [Evidence and supply-chain routes](http-api/evidence-and-supply-chain.md) |
 | Investigation evidence packets for supply-chain impact, deployable-unit truth, and runtime drift | [Investigation Evidence Packet Contract](investigation-evidence-packet.md#http-and-mcp-surfaces) |
 | Source repository to container image identity bridge | [Container image source bridge](http-api/container-image-source-bridge.md) |
+| Container image (OCI) list, and bounded per-tag digest mutation history (`GET /api/v0/images`, `GET /api/v0/images/tag-history`) | OpenAPI spec (`operationId: listContainerImages`, `listContainerImageTagHistory`); no narrative sub-page yet |
 | Secrets/IAM trust chains, posture evidence, access paths, gaps, and posture summary | [Secrets/IAM routes](http-api/secrets-iam.md) |
 | Entity resolution, incident context, catalog, repository/service/workload stories, investigations | [Context and story routes](http-api/context-and-stories.md) |
 | Code search, symbols, relationships, call chains, dead-code, complexity, quality, language queries | [Code routes](http-api/code.md) |
@@ -457,12 +458,44 @@ Each resource item in the `resources` array carries:
 | `tag_value_fingerprints` | Optional keyed non-reversible tag value markers; raw tag values are never returned |
 | `identity_policy_evidence` | Optional bounded Azure identity-policy rows (keyed fingerprints only; no raw principal GUIDs or assignment scopes) |
 | `resource_change_freshness` | Optional sanitized Azure Resource Graph change rows (no raw provider targets or actor ids) |
-| `attributes` | Optional bounded provider-specific typed-depth attributes (e.g. `table_type`, `schema_field_count`, `kms_key_name`, `clustering_fields` for BigQuery tables; `routing_mode`, `auto_create_subnetworks`, `mtu`, `subnetwork_count` for VPC networks). Values are redaction-safe scalars and string-arrays; no raw locators or secrets are present. |
+| `attributes` | Optional bounded provider-specific attributes. See below for what each provider surfaces. |
 
 The `attributes` field is present only when the provider source fact carried
-bounded typed-depth metadata. It is currently populated for GCP resources
-(BigQuery tables and similar) and is omitted entirely for resources without
-provider-specific attribute evidence.
+attribute evidence the route is allowed to surface, and its contract differs
+by provider:
+
+- **GCP** surfaces its typed-depth payload as a bounded redaction-safe
+  passthrough (e.g. `table_type`, `schema_field_count`, `kms_key_name`,
+  `clustering_fields` for BigQuery tables; `routing_mode`,
+  `auto_create_subnetworks`, `mtu`, `subnetwork_count` for VPC networks).
+  Values are redaction-safe scalars and string-arrays.
+- **AWS** surfaces a CLOSED image/version allowlist only, scoped to the
+  strongest deployed-code signals the collector already observes:
+  `task_definition_arn`, `image_uri`, `resolved_image_uri`, `code_sha256`,
+  `version`, and a `containers` array (from ECS running tasks) reduced per
+  element to `{image, image_digest}`. Every other AWS attribute key (for
+  example `cluster_arn`, `role_arn`, `kms_key_arn`, `network_interfaces`,
+  `environment`, `vpc_config`, or a container's `name`/`runtime_id`) is
+  dropped before the route ever sees it.
+- **Azure** uses the same closed-allowlist mechanism as AWS, but the
+  allowlist is currently empty: the `azure_cloud_resource` fact this route
+  reads carries no image or version key today (Azure's runtime image
+  evidence is emitted as a separate `azure_image_reference` fact kind not
+  yet wired into this admission path), so no Azure resource surfaces an
+  `attributes` field yet. Every raw Azure attribute (`arm_resource_id`,
+  `subscription_id`, `resource_group`, `tenant_id`, `tags`, the redacted
+  `extension` object, ...) is dropped.
+
+`attributes` surfaces deployed-code identity evidence — image references
+(`image_uri`, `resolved_image_uri`, the ECS `containers[].image`) and the
+owning `task_definition_arn` — which necessarily name the image, registry, and
+repository for the caller's own resources. This route is account-scoped (it is
+filtered by `scope_id`/`account_id`), so those identifiers are the operator's
+own, not another tenant's. What is never present is any credential, secret, or
+non-image infrastructure locator: `cluster_arn`, `role_arn`, `kms_key_arn`,
+`network_interfaces`, `environment`, `vpc_config`, a container's
+`name`/`runtime_id`, or the Azure `arm_resource_id`/`subscription_id`/`tags`
+bag are all dropped before the route ever sees them.
 
 ## Cloud Resource Graph Paging
 

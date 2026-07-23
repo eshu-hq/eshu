@@ -56,9 +56,9 @@
         "note": "logical workload groups from code-to-workload binding (RUNS_IN target)"
       },
       "CloudResource": {
-        "min": 112,
+        "min": 114,
         "max": 123,
-        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 112: 2 AWS + 110 GCP -- BigQuery Dataset+Table+Routine, Network, Subnetwork, Image, Snapshot, CryptoKey, Disk, Instance, Firewall, VPC Access Connector, Secret Manager Secret+SecretVersion, Cloud Run Service+Revision, custom IAM Role, IAM ServiceAccount+ServiceAccountKey, Artifact Registry Repository+DockerImage+CMEK repo, Pub/Sub Topic (x2), Pub/Sub Schema, Pub/Sub Subscription (x4), Router, VpnGateway, VpnTunnel, HealthCheck, BackendService, UrlMap, GKE Cluster, Storage Bucket, Cloud SQL Instance, DNS Managed Zone, KMS KeyRing+CryptoKey+CryptoKeyVersion, Forwarding Rule, Memorystore Redis Instance, Firestore Database, Dataproc Cluster, compute Route (x3), Bigtable Table, compute Static Address, App Engine Application+Service+Version, Cloud Tasks Queue, Cloud Scheduler Job, Eventarc Trigger (x3)+Channel+Function+Workflow targets, Logging LogSink (x4)+LogBucket, Cloud Functions Function (gen2)+CloudFunction (gen1), BigQuery Connection, Dataform Repository, Firebase Project+Ruleset+AppInfo, CloudResourceManager Project, reCAPTCHA Enterprise Key, API Key, IAM Workload Identity Pool+Provider, BigQuery Data Transfer Config, Dataplex Entry Group, Identity Platform Config, Cloud Build Build (x2)+BuildTrigger, Cloud Source Repositories Repository, Interconnect Attachment, InstanceGroup, SecurityPolicy (x2), ExternalVpnGateway, TargetVpnGateway, BackendBucket, second usage-logging Bucket, Cloud SQL read-replica Instance, DNS peering ManagedZone, ForwardingRule (x4 additional target-kind fixtures)+TargetPool+TargetHttpProxy+TargetInstance+ServiceAttachment, Memorystore Memcached Instance); floor raised from 4 to catch GCP node projection regression across the #4377/#4378/#4381/#4383/#4385/#4388/#4401/#4404/#4406/#4409/#4552/#4553/#4554/#4556/#4557/#4539/#4537/#4540/#4538/#4541/#4542/#4555/#4411/#4418/#4426/#4437/#4420/#4412/#4500/#4498/#4489/#4493/#4486/#4484/#4480/#4490/#4431/#4452/#4416/#4441/#4462/#4438/#4414/#4504/#4501/#4495/#4482/#4463/#4453/#4434/#4468/#4478/#4475/#4470/#4618/#4655 golden-corpus follow-ups, ceiling wide for richer cloud cassettes"
+        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 114: 4 AWS [ecr.repository, ecs.service, ecs.task, lambda.function -- #5449 added the ecs.task and lambda.function fixtures] + 110 GCP -- BigQuery Dataset+Table+Routine, Network, Subnetwork, Image, Snapshot, CryptoKey, Disk, Instance, Firewall, VPC Access Connector, Secret Manager Secret+SecretVersion, Cloud Run Service+Revision, custom IAM Role, IAM ServiceAccount+ServiceAccountKey, Artifact Registry Repository+DockerImage+CMEK repo, Pub/Sub Topic (x2), Pub/Sub Schema, Pub/Sub Subscription (x4), Router, VpnGateway, VpnTunnel, HealthCheck, BackendService, UrlMap, GKE Cluster, Storage Bucket, Cloud SQL Instance, DNS Managed Zone, KMS KeyRing+CryptoKey+CryptoKeyVersion, Forwarding Rule, Memorystore Redis Instance, Firestore Database, Dataproc Cluster, compute Route (x3), Bigtable Table, compute Static Address, App Engine Application+Service+Version, Cloud Tasks Queue, Cloud Scheduler Job, Eventarc Trigger (x3)+Channel+Function+Workflow targets, Logging LogSink (x4)+LogBucket, Cloud Functions Function (gen2)+CloudFunction (gen1), BigQuery Connection, Dataform Repository, Firebase Project+Ruleset+AppInfo, CloudResourceManager Project, reCAPTCHA Enterprise Key, API Key, IAM Workload Identity Pool+Provider, BigQuery Data Transfer Config, Dataplex Entry Group, Identity Platform Config, Cloud Build Build (x2)+BuildTrigger, Cloud Source Repositories Repository, Interconnect Attachment, InstanceGroup, SecurityPolicy (x2), ExternalVpnGateway, TargetVpnGateway, BackendBucket, second usage-logging Bucket, Cloud SQL read-replica Instance, DNS peering ManagedZone, ForwardingRule (x4 additional target-kind fixtures)+TargetPool+TargetHttpProxy+TargetInstance+ServiceAttachment, Memorystore Memcached Instance); floor raised from 4 to catch GCP node projection regression across the #4377/#4378/#4381/#4383/#4385/#4388/#4401/#4404/#4406/#4409/#4552/#4553/#4554/#4556/#4557/#4539/#4537/#4540/#4538/#4541/#4542/#4555/#4411/#4418/#4426/#4437/#4420/#4412/#4500/#4498/#4489/#4493/#4486/#4484/#4480/#4490/#4431/#4452/#4416/#4441/#4462/#4438/#4414/#4504/#4501/#4495/#4482/#4463/#4453/#4434/#4468/#4478/#4475/#4470/#4618/#4655 golden-corpus follow-ups; floor raised again from 112 to 114 by #5449 for the ecs.task and lambda.function AWS resource fixtures added to the awscloud cassette, so a regression that silently drops either or both new AWS CloudResource nodes fails this range instead of passing at the old 112 floor; ceiling wide for richer cloud cassettes"
       },
       "TerraformStateResource": {
         "min": 1,
@@ -3444,7 +3444,7 @@
         "minimum_results": 0
       },
       "list_container_image_identities": {
-        "description": "MCP tool coverage shape for list_container_image_identities; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for list_container_image_identities; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5423 non-vacuous assertion: filtering on the ci.run's source git repository (repository:r_69256c06, github.com/eshu-hq/supply-chain-demo -- matched against the row's source_repository_ids) returns >=1 identity. That row exists only because the cicdrun cassette's container-image ci.artifact now triggers a CI-scope container_image_identity intent whose bare-digest ref (sha256:abcdef...ab) resolves against the unlabeled ociregistry manifest and carries the digest-matched run's source repository plus commit (source_revision_provenance=ci_run_commit). The count is provably zero on main: without the ci.artifact projector trigger no CI-scope decision exists, and OCI-only identity rows for this digest carry no git source repository.",
         "required_response_fields": [
           "collector_readiness",
           "count",
@@ -3452,10 +3452,33 @@
           "limit",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
         "arguments": {
-          "repository_id": "orders-api",
+          "source_repository_id": "repository:r_69256c06",
           "limit": 10
+        }
+      },
+      "list_container_image_tag_history": {
+        "description": "MCP tool coverage shape for list_container_image_tag_history; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "tag_history",
+          "count",
+          "limit",
+          "offset",
+          "truncated",
+          "image_ref",
+          "repository_id",
+          "tag"
+        ],
+        "result_item_required_fields": [
+          "tag",
+          "resolved_digest",
+          "first_observed_at"
+        ],
+        "minimum_results": 1,
+        "arguments": {
+          "repository_id": "oci-registry://ghcr.io/eshu-hq/supply-chain-demo",
+          "tag": "1.0.0"
         }
       },
       "list_supply_chain_impact_findings": {
@@ -3476,7 +3499,7 @@
         }
       },
       "list_advisory_evidence": {
-        "description": "MCP tool coverage shape for list_advisory_evidence; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for list_advisory_evidence; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Order-0 backfill (#5462) queries CVE-2026-00010 — the NEW Debian OS-package advisory chain this PR adds to the vulnerability_intelligence cassette's debian-image scope. The tool filters by the cve_id argument, so minimum_results:1 proves that specific advisory reached the query surface: if the debian-image scope is dropped, rejected, or becomes inert, the filtered result falls to 0 and this gate goes red (codex #5697 P1), tying the cassette fixture, reducer projection, and query surface together. The supply-chain impact-findings floors stay 0 because scan-tier findings are not yet repository-bound/queryable; #5463/#5464 flip those with expected-diff proof.",
         "required_response_fields": [
           "advisories",
           "count",
@@ -3484,9 +3507,9 @@
           "scope",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
         "arguments": {
-          "cve_id": "CVE-2026-00000",
+          "cve_id": "CVE-2026-00010",
           "limit": 10
         }
       },
@@ -3528,7 +3551,7 @@
         }
       },
       "list_sbom_attestation_attachments": {
-        "description": "MCP tool coverage shape for list_sbom_attestation_attachments; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Scoped by subject_digest rather than document_id so the response includes both the scd-sbom document attachment and the scd-attestation statement attachment sharing that image digest. minimum_results and the nested required_json_paths/values pin the scd-sbom cassette's one sbom.dependency_relationship fact, one sbom.external_reference fact (#5370 codex finding), and the scd-attestation statement's joined attestation.slsa_provenance fact (#5371): the top-level required_response_fields alone would stay green even if that nested evidence never reached this result, so this asserts the populated arrays plus their exact reducer-computed counts, flags, and SLSA fields. required_json_values matches when ANY attachment in the response carries the expected value, so the two rows' distinct evidence (dependency/external-reference on the document row, SLSA provenance on the statement row) are each pinned independently.",
+        "description": "MCP tool coverage shape for list_sbom_attestation_attachments; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Scoped by subject_digest rather than document_id so the response includes both the scd-sbom document attachment and the scd-attestation statement attachment sharing that image digest. minimum_results and the nested required_json_paths/values pin the scd-sbom cassette's one sbom.dependency_relationship fact, one sbom.external_reference fact (#5370 codex finding), and the scd-attestation statement's joined attestation.slsa_provenance fact (#5371), including its materials/config_source fields (#5456): the top-level required_response_fields alone would stay green even if that nested evidence never reached this result, so this asserts the populated arrays plus their exact reducer-computed counts, flags, and SLSA fields. required_json_values matches when ANY attachment in the response carries the expected value, so the two rows' distinct evidence (dependency/external-reference on the document row, SLSA provenance on the statement row) are each pinned independently. The scd-attestation subject_digest is synthetic and does not match any oci_registry.image_manifest digest in this corpus, so #5456's container_image_identity SLSA-provenance tier never activates for this demo fixture; that behavior is proven instead by the reducer's dedicated proof-matrix tests (go/internal/reducer/container_image_identity_slsa_test.go).",
         "required_response_fields": [
           "attachments",
           "collector_readiness",
@@ -3539,7 +3562,11 @@
         "minimum_results": 1,
         "required_json_paths": [
           "attachments[].dependency_relationships",
-          "attachments[].external_references"
+          "attachments[].external_references",
+          "attachments[].slsa_provenance_materials",
+          "attachments[].slsa_provenance_config_source_uri",
+          "attachments[].slsa_provenance_config_source_entry_point",
+          "attachments[].slsa_provenance_config_source_digest"
         ],
         "required_json_values": {
           "attachments[].dependency_relationship_count": 1,
@@ -3547,7 +3574,11 @@
           "attachments[].external_reference_count": 1,
           "attachments[].external_references_truncated": false,
           "attachments[].slsa_provenance_predicate_type": "https://slsa.dev/provenance/v1",
-          "attachments[].slsa_provenance_builder_id": "https://github.com/eshu-hq/supply-chain-demo/actions/runner@v1"
+          "attachments[].slsa_provenance_builder_id": "https://github.com/eshu-hq/supply-chain-demo/actions/runner@v1",
+          "attachments[].slsa_provenance_material_count": 1,
+          "attachments[].slsa_provenance_materials_truncated": false,
+          "attachments[].slsa_provenance_config_source_uri": "git+https://github.com/eshu-hq/supply-chain-demo@refs/heads/main",
+          "attachments[].slsa_provenance_config_source_entry_point": ".github/workflows/release.yml"
         },
         "arguments": {
           "subject_digest": "sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a",
@@ -3623,7 +3654,7 @@
         "minimum_results": 0
       },
       "get_container_image_identity_inventory": {
-        "description": "MCP tool coverage shape for get_container_image_identity_inventory; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for get_container_image_identity_inventory; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5451 non-vacuous assertion, scoped to the ECS running task's digest (sha256:...aa, previously buried in the ecs.task aws_resource containers[] attribute and invisible to the digest-keyed resolver, which reads only *_image_reference fact kinds): filtering by that digest and grouping by identity_strength returns >=1 identity_strength=explicit_digest bucket. explicit_digest is produced ONLY by the direct aws_image_reference/azure_image_reference/gcp_image_reference registry-digest-match path (classifyContainerImageRef's repositoryID!=\"\" branch); the ci.artifact bare-digest path produces artifact_digest_with_registry_observation instead, and no ci.artifact/ci.run fact exists for this digest in the corpus, so this assertion is load-bearing on the ECS scanner's new aws_image_reference emission specifically, not on the fixture set as a whole. It resolves against the ECR-hosted oci_registry.image_manifest fixture at the same digest (an OCI manifest alone creates no identity -- it only populates the registry index another evidence source matches against). The count is provably zero on main: neither the aws_image_reference fact nor the ECR oci_registry.image_manifest fixture exist there, so no decision carries this digest at all. The digest->repo/commit join for a resolved identity is proven separately, without this ci.artifact/aws_image_reference dedup collision, by the reducer-level TestBuildContainerImageIdentityDecisionsJoinsECSTaskImageReferenceToCICDRunCommit test and by #5423's own golden assertion above (which already proves the digest->repo/commit join mechanism for any resolved image_ref).",
         "required_response_fields": [
           "buckets",
           "count",
@@ -3634,7 +3665,15 @@
           "scope",
           "truncated"
         ],
-        "minimum_results": 0
+        "minimum_results": 1,
+        "required_json_values": {
+          "buckets[].value": "explicit_digest"
+        },
+        "arguments": {
+          "digest": "sha256:0000000000000000000000000000000000000000000000000000000000aa",
+          "group_by": "identity_strength",
+          "limit": 10
+        }
       },
       "count_sbom_attestation_attachments": {
         "description": "MCP tool coverage shape for count_sbom_attestation_attachments; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -5017,6 +5056,57 @@
           ]
         }
       },
+      "POST /api/v0/impact/trace-deployment-chain?anchor=declared-object": {
+        "description": "#5639 declared kind+namespace+name identity anchor proof, isolated from the ArgoCD-anchor case above via a distinct query-string-suffixed key (same POST route -- Go's ServeMux match ignores the query string, so this reaches the identical handler with a different request body). The supply-chain-demo-db fixture repo (tests/fixtures/ecosystems/supply-chain-demo-db/statefulset.yaml) declares ONLY a bare StatefulSet (kind=StatefulSet, namespace=default, name=supply-chain-demo-db, image ghcr.io/eshu-hq/internal-tools/db-migrator:1.0.0) with NO ArgoCD Application, Flux, or Crossplane controller anywhere in the repo -- controller_overview.controller_count is 0 in the live response. That declared object exactly matches the UNANCHORED (no argocd.argoproj.io/tracking-id) kuberneteslive cassette fact kubernetes_live:cluster:supply-chain-demo:statefulset:default:supply-chain-demo-db on group_version_resource+namespace+name plus the image_ref intersection, so deployment_truth_tier can only have been promoted through the declared-object anchor (resolveLiveIdentityAnchors's ArgoCD half reads only argocd_application/argocd_applicationset controllers, which this repo has none of) -- never the ArgoCD tracking-id anchor the sibling shape above proves. Non-vacuous: reverting the declared-object anchor list to ArgoCD-only (pre-#5639) drops this workload's only anchor, so fetchWorkloadLiveEvidence returns false before ever querying the store and deployment_truth_tier falls back to \"\" (ClassifyDeploymentTruthTier with hasInstances=false, hasDeploymentSources=false, hasConfigEnvironments=false) -- proven via TestFetchWorkloadLiveEvidenceNoAnchorOfAnyKindNeverQueriesStore and the ArgoCD-only-anchor-list unit shape (see go/internal/query/impact_trace_deployment_live_evidence_identity_declared_test.go), not a second live-gate run.",
+        "envelope": true,
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "minimum_results": 0,
+        "request_body": {
+          "service_name": "supply-chain-demo-db",
+          "max_depth": 4
+        },
+        "required_json_paths": [
+          "data.k8s_resource_limits.limit",
+          "data.k8s_resource_limits.returned_count",
+          "data.k8s_resource_limits.truncated",
+          "data.deployment_source_limits.limit",
+          "data.deployment_source_limits.returned_count",
+          "data.deployment_source_limits.truncated",
+          "data.cloud_resource_limits.limit",
+          "data.cloud_resource_limits.truncated"
+        ],
+        "required_json_values": {
+          "data.repo_id": "repository:r_b11b6e25",
+          "data.workload_id": "workload:supply-chain-demo-db",
+          "data.deployment_fact_summary.deployment_truth_tier": "runtime_confirmed",
+          "data.deployment_fact_summary.k8s_resource_count": 1,
+          "data.deployment_fact_summary.image_ref_count": 1,
+          "data.deployment_fact_summary.live_instance_count": 2,
+          "data.deployment_fact_summary.overall_confidence_reason": "live_runtime_observation",
+          "data.image_refs[]": "ghcr.io/eshu-hq/internal-tools/db-migrator:1.0.0",
+          "truth.level": "derived",
+          "truth.basis": "hybrid"
+        },
+        "required_json_object_matches": {
+          "data.k8s_resources[]": [
+            {
+              "entity_name": "supply-chain-demo-db",
+              "kind": "StatefulSet",
+              "namespace": "default",
+              "api_version": "apps/v1",
+              "repo_id": "repository:r_b11b6e25",
+              "relative_path": "statefulset.yaml",
+              "container_images": [
+                "ghcr.io/eshu-hq/internal-tools/db-migrator:1.0.0"
+              ]
+            }
+          ]
+        }
+      },
       "POST /api/v0/infra/relationships": {
         "description": "#5436: RUNS_IMAGE read-path proof. Anchored on the supply-chain-demo KubernetesWorkload (the digest-pinned Deployment from the kuberneteslive cassette), what_runs_image must resolve the RUNS_IMAGE edge to the OciImageManifest node the oci_registry cassette's image_manifest fact projects (digest sha256:abcdef...ab). Non-vacuous: the edge only exists because the kuberneteslive pod_template fact's image_refs digest matches the ociregistry image_manifest fact's digest via BuildSourceImageDigestJoinIndex (kubernetes_workload_source_image_join.go) -- neither cassette alone produces it, and before the #5436 Stage-1 allowlist entry this request was rejected 400 (unknown relationship_type).",
         "envelope": true,
@@ -5085,7 +5175,7 @@
         ]
       },
       "GET /api/v0/cloud/inventory": {
-        "description": "Cloud resource inventory readback (AWS/Azure/GCP cassettes); confirms cloud facts project to the inventory read surface. required_json_values pins the custom IAM Role's stage attribute (#4401): the gcpcloud cassette's demoCustomRole gcp_cloud_resource fact carries attributes.stage=GA, which is not a Cypher graph-node property (the GCP CloudResource writer's SET clause is a fixed identity/provenance allowlist and never promotes payload.attributes onto the node) but IS surfaced on this Postgres-backed admission readback: cloudInventorySourceFactMappings marks GCPCloudResourceFactKind surfacesAttributes=true, and cloudInventoryResourceView/cloudInventoryAttributes project payload.attributes onto each response resource's attributes map. The assertion is provably zero without the IAM Role cassette fact, so it locks in the Custom IAM Role golden-corpus follow-up on the read surface where its attributes actually project.",
+        "description": "Cloud resource inventory readback, unfiltered (GCP-dominated first page under the default limit). required_json_values pins the custom IAM Role's stage attribute (#4401): the gcpcloud cassette's demoCustomRole gcp_cloud_resource fact carries attributes.stage=GA, which is not a Cypher graph-node property (the GCP CloudResource writer's SET clause is a fixed identity/provenance allowlist and never promotes payload.attributes onto the node) but IS surfaced here because cloudInventorySourceFactMappings marks GCPCloudResourceFactKind surfacesAttributes=true, and cloudInventoryResourceView/cloudInventoryAttributes project payload.attributes onto each response resource's attributes map as a raw passthrough. The AWS image/version allowlist (#5449) is asserted separately on the provider=aws entry below, which scopes the readback so every AWS resource falls within the default page (the unfiltered page is GCP-dominated, so a Lambda-only scalar like image_uri can sort past the default limit and would be a flaky assertion here).",
         "required_response_fields": [
           "resources",
           "count"
@@ -5093,6 +5183,18 @@
         "minimum_results": 1,
         "required_json_values": {
           "resources[].attributes.stage": "GA"
+        }
+      },
+      "GET /api/v0/cloud/inventory?provider=aws": {
+        "description": "AWS-scoped cloud inventory readback (#5449). Scoping to provider=aws bounds the response to the awscloud supply-chain-demo resources (ecr.repository, ecs.service, ecs.task, lambda.function), so the ECS/Lambda image-attribute assertions are deterministic within the default page limit rather than depending on GCP-dominated uid ordering. required_json_values pins two independently-gated AWS allowlist paths, each provably zero without its fixture: (1) resources[].attributes.containers[].image -- the ecs.task aws_resource fact carries attributes.containers[].image (the nested-array allowlist path) alongside a raw cluster_arn/network_interfaces/container name/runtime_id the route drops; (2) resources[].attributes.image_uri -- the lambda.function aws_resource fact is the ONLY fixture carrying attributes.image_uri, locking the top-level scalar allowlist path (image_uri/resolved_image_uri/code_sha256/version) separately from the nested containers[] path. AWS attributes are NOT a raw passthrough like GCP: cloudInventoryRecordAttributes reduces them through awsCloudInventoryAttributeAllowlist (go/internal/storage/postgres/cloud_inventory_evidence.go), a bounded CLOSED allowlist scoped to task_definition_arn/image_uri/resolved_image_uri/code_sha256/version plus containers[] reduced to {image, image_digest}; cloudInventoryAttributes (go/internal/query/cloud_inventory_read_model.go) applies the same {image, image_digest} sub-key gate a second time on the read side.",
+        "required_response_fields": [
+          "resources",
+          "count"
+        ],
+        "minimum_results": 1,
+        "required_json_values": {
+          "resources[].attributes.containers[].image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
+          "resources[].attributes.image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest"
         }
       },
       "GET /api/v0/cloud/resources": {
@@ -5128,7 +5230,7 @@
         "minimum_results": 0
       },
       "GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&subject_digest=sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a": {
-        "description": "SBOM attestation attachments for the synthetic supply-chain-demo image digest. Scoped by subject_digest rather than document_id so the response includes both the scd-sbom document attachment and the scd-attestation statement attachment sharing that image digest. minimum_results and the nested required_json_paths/values pin the scd-sbom cassette's one sbom.dependency_relationship fact, one sbom.external_reference fact (#5370 codex finding), and the scd-attestation statement's joined attestation.slsa_provenance fact (#5371): the top-level required_response_fields alone would stay green even if that nested evidence never reached this HTTP result, so this asserts the populated arrays plus their exact reducer-computed counts, flags, and SLSA fields. required_json_values matches when ANY attachment in the response carries the expected value, so the two rows' distinct evidence (dependency/external-reference on the document row, SLSA provenance on the statement row) are each pinned independently.",
+        "description": "SBOM attestation attachments for the synthetic supply-chain-demo image digest. Scoped by subject_digest rather than document_id so the response includes both the scd-sbom document attachment and the scd-attestation statement attachment sharing that image digest. minimum_results and the nested required_json_paths/values pin the scd-sbom cassette's one sbom.dependency_relationship fact, one sbom.external_reference fact (#5370 codex finding), and the scd-attestation statement's joined attestation.slsa_provenance fact (#5371), including its materials/config_source fields (#5456): the top-level required_response_fields alone would stay green even if that nested evidence never reached this HTTP result, so this asserts the populated arrays plus their exact reducer-computed counts, flags, and SLSA fields. required_json_values matches when ANY attachment in the response carries the expected value, so the two rows' distinct evidence (dependency/external-reference on the document row, SLSA provenance on the statement row) are each pinned independently. The scd-attestation subject_digest is synthetic and does not match any oci_registry.image_manifest digest in this corpus, so #5456's container_image_identity SLSA-provenance tier never activates for this demo fixture; that behavior is proven instead by the reducer's dedicated proof-matrix tests (go/internal/reducer/container_image_identity_slsa_test.go).",
         "required_response_fields": [
           "attachments",
           "count"
@@ -5136,7 +5238,11 @@
         "minimum_results": 1,
         "required_json_paths": [
           "attachments[].dependency_relationships",
-          "attachments[].external_references"
+          "attachments[].external_references",
+          "attachments[].slsa_provenance_materials",
+          "attachments[].slsa_provenance_config_source_uri",
+          "attachments[].slsa_provenance_config_source_entry_point",
+          "attachments[].slsa_provenance_config_source_digest"
         ],
         "required_json_values": {
           "attachments[].dependency_relationship_count": 1,
@@ -5144,7 +5250,11 @@
           "attachments[].external_reference_count": 1,
           "attachments[].external_references_truncated": false,
           "attachments[].slsa_provenance_predicate_type": "https://slsa.dev/provenance/v1",
-          "attachments[].slsa_provenance_builder_id": "https://github.com/eshu-hq/supply-chain-demo/actions/runner@v1"
+          "attachments[].slsa_provenance_builder_id": "https://github.com/eshu-hq/supply-chain-demo/actions/runner@v1",
+          "attachments[].slsa_provenance_material_count": 1,
+          "attachments[].slsa_provenance_materials_truncated": false,
+          "attachments[].slsa_provenance_config_source_uri": "git+https://github.com/eshu-hq/supply-chain-demo@refs/heads/main",
+          "attachments[].slsa_provenance_config_source_entry_point": ".github/workflows/release.yml"
         }
       },
       "GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000": {

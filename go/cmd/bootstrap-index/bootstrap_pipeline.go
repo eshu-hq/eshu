@@ -249,10 +249,17 @@ func runPipelined(
 	// The kubernetes_workload_materialization node domain is intentionally NOT
 	// reopened here: it consumes only in-scope pod-template facts and commits on
 	// the normal drain, so it has no cross-scope readiness dependency to replay.
+	// container_image_identity has the same cross-scope readiness dependency as
+	// kubernetes_correlation_materialization: a ci.artifact's container-image
+	// digest resolves only against the cross-scope active OCI manifest facts,
+	// which may not be active when the CI scope's intent first drains, so a later
+	// maintenance pass replays it once the OCI generation is active (#5423). The
+	// decision upserts on a scope-keyed stable fact key, so replay is idempotent.
 	correlationReopenStart := time.Now()
 	if err := cd.committer.ReopenSucceededReducerWorkItems(ctx, tracer, instruments, []string{
 		"deployable_unit_correlation",            // reducer.DomainDeployableUnitCorrelation
 		"kubernetes_correlation_materialization", // reducer.DomainKubernetesCorrelationMaterialization
+		"container_image_identity",               // reducer.DomainContainerImageIdentity
 	}); err != nil {
 		recordPhase("correlation_reopen", correlationReopenStart)
 		if logger != nil {

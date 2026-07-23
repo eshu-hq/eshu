@@ -155,14 +155,26 @@ func TestBuildDeploymentFactSummaryTierEmptyWhenNoEvidence(t *testing.T) {
 
 // stubKubernetesPodTemplateStore is a test fake implementing
 // KubernetesPodTemplateStore: it records every filter it was called with and
-// reports a match only for filters whose TrackingID is in matchingTrackingIDs.
+// reports a match only for filters whose TrackingID is in
+// matchingTrackingIDs (ArgoCD anchor filters) or whose
+// group_version_resource|namespace|name key
+// (declaredObjectStubMatchKey) is in matchingDeclaredObjects (declared-object
+// anchor filters, #5639).
 type stubKubernetesPodTemplateStore struct {
-	matchingTrackingIDs map[string]struct{}
-	err                 error
+	matchingTrackingIDs     map[string]struct{}
+	matchingDeclaredObjects map[string]struct{}
+	err                     error
 	// calls records every filter passed to HasLiveIdentityMatch, so tests
 	// can assert the probe never queried the store (call-count = 0) and
 	// inspect access-scoping fields.
 	calls []KubernetesPodTemplateFilter
+}
+
+// declaredObjectStubMatchKey builds the stub's match key for a
+// declared-object anchor filter, mirroring the identity tuple
+// declaredObjectAnchors binds on (group_version_resource, namespace, name).
+func declaredObjectStubMatchKey(gvr, namespace, name string) string {
+	return gvr + "|" + namespace + "|" + name
 }
 
 func (s *stubKubernetesPodTemplateStore) HasLiveIdentityMatch(
@@ -172,6 +184,11 @@ func (s *stubKubernetesPodTemplateStore) HasLiveIdentityMatch(
 	s.calls = append(s.calls, filter)
 	if s.err != nil {
 		return false, s.err
+	}
+	if filter.AnchorKind == liveIdentityAnchorDeclaredObject {
+		key := declaredObjectStubMatchKey(filter.GroupVersionResource, filter.Namespace, filter.Name)
+		_, matched := s.matchingDeclaredObjects[key]
+		return matched, nil
 	}
 	_, matched := s.matchingTrackingIDs[filter.TrackingID]
 	return matched, nil
@@ -219,12 +236,18 @@ func TestFetchWorkloadLiveEvidenceNilHandler(t *testing.T) {
 	}
 }
 
-// TestFetchWorkloadLiveEvidenceNoArgoCDControllerNeverQueriesStore is the
-// #5471 codex P1 core fail-closed proof: a workload with no
-// argocd_application controller has no computable identity, so the probe
-// must return config_only WITHOUT ever calling the store, even when the
-// store is wired and would have returned a match for every tracking-id.
-func TestFetchWorkloadLiveEvidenceNoArgoCDControllerNeverQueriesStore(t *testing.T) {
+// TestFetchWorkloadLiveEvidenceNoAnchorOfAnyKindNeverQueriesStore is the
+// #5471 codex P1 core fail-closed proof, widened for #5639: a workload with
+// no argocd_application controller AND no mappable declared-object anchor
+// (an unmappable kind, here ConfigMap) has no computable identity ANCHOR OF
+// ANY KIND, so the probe must return config_only WITHOUT ever calling the
+// store, even when the store is wired and would have returned a match for
+// every anchor. Renamed from
+// TestFetchWorkloadLiveEvidenceNoArgoCDControllerNeverQueriesStore: its
+// meaning changed from "no ArgoCD controller" to "no anchor of ANY kind" --
+// a workload with only a declared-object anchor now legitimately queries
+// (see TestFetchWorkloadLiveEvidenceDeclaredObjectAnchorMatchPromotesToRuntimeConfirmed).
+func TestFetchWorkloadLiveEvidenceNoAnchorOfAnyKindNeverQueriesStore(t *testing.T) {
 	t.Parallel()
 
 	store := &stubKubernetesPodTemplateStore{matchingTrackingIDs: map[string]struct{}{}}
@@ -232,7 +255,11 @@ func TestFetchWorkloadLiveEvidenceNoArgoCDControllerNeverQueriesStore(t *testing
 	live, err := h.fetchWorkloadLiveEvidence(
 		t.Context(),
 		nil, // no controllers at all
-		[]map[string]any{k8sResourceFixture("Deployment", "workload-a", "shared-ns", "apps/v1")},
+		// ConfigMap is outside the closed declared-object-anchor kind map
+		// (declaredObjectAnchorResourceByKind), so this resource resolves
+		// NO declared-object anchor either -- proving the fail-closed
+		// absence, not merely the absence of an ArgoCD controller.
+		[]map[string]any{k8sResourceFixture("ConfigMap", "workload-a", "shared-ns", "v1")},
 		[]string{"ghcr.io/eshu-hq/supply-chain-demo@sha256:shared"},
 		repositoryAccessFilter{allScopes: true},
 	)
@@ -240,7 +267,7 @@ func TestFetchWorkloadLiveEvidenceNoArgoCDControllerNeverQueriesStore(t *testing
 		t.Fatalf("error = %v, want nil", err)
 	}
 	if live {
-		t.Fatal("no ArgoCD controller returned true, want false (config_only)")
+		t.Fatal("no anchor of any kind returned true, want false (config_only)")
 	}
 	if got := len(store.calls); got != 0 {
 		t.Fatalf("store was queried %d times, want 0 (fail-closed at the identity layer)", got)
@@ -290,11 +317,23 @@ func TestFetchWorkloadLiveEvidenceEmptyImageRefs(t *testing.T) {
 }
 
 // TestFetchWorkloadLiveEvidenceDistinctWorkloadsSharedDigest is the #5471
-// codex P1 end-to-end regression proof: workloads A and B declare DIFFERENT
-// ArgoCD Applications (and therefore different identities) but happen to
-// declare the SAME image digest. A fake store that only matches B's
-// tracking-id must promote trace(B) to runtime_confirmed and must NOT
-// promote trace(A), even though A's image_refs are identical to B's.
+// codex P1 end-to-end regression proof, THE NON-NEGOTIABLE hazard test that
+// MUST stay green across the #5639 anchor widening: workloads A and B
+// declare DIFFERENT ArgoCD Applications (and therefore different ArgoCD
+// identities) but happen to declare the SAME image digest. A fake store that
+// only matches B's ArgoCD tracking-id must promote trace(B) to
+// runtime_confirmed and must NOT promote trace(A), even though A's
+// image_refs are identical to B's.
+//
+// #5639 widened resolveLiveIdentityAnchors to also try a declared-object
+// anchor after the ArgoCD anchor, so each trace now issues UP TO 2 store
+// calls instead of exactly 1 -- trace(B) still short-circuits after its
+// FIRST (ArgoCD) anchor matches, but trace(A)'s ArgoCD anchor does not match,
+// so it falls through to try its (also non-matching, since A and B have
+// different declared names) declared-object anchor before giving up. The
+// widening does not weaken the hazard proof: workload A's declared-object
+// anchor (shared-ns/workload-a) is a GENUINE identity distinct from
+// workload B's (shared-ns/workload-b), so it is asserted here too.
 func TestFetchWorkloadLiveEvidenceDistinctWorkloadsSharedDigest(t *testing.T) {
 	t.Parallel()
 
@@ -331,16 +370,32 @@ func TestFetchWorkloadLiveEvidenceDistinctWorkloadsSharedDigest(t *testing.T) {
 		t.Fatal("trace(B) did not promote on its OWN identity-bound live row, want true")
 	}
 
-	if got := len(store.calls); got != 2 {
-		t.Fatalf("store was queried %d times, want exactly 2 (one per trace call)", got)
+	// Trace(A) tries both its ArgoCD anchor and its declared-object anchor
+	// (neither matches); trace(B) short-circuits on its first (ArgoCD)
+	// anchor. 2 (A) + 1 (B) = 3.
+	if got := len(store.calls); got != 3 {
+		t.Fatalf("store was queried %d times, want exactly 3 (2 for trace(A): ArgoCD + declared-object; 1 for trace(B): ArgoCD short-circuit)", got)
 	}
 	if got := store.calls[0].TrackingID; got != trackingIDA {
-		t.Fatalf("trace(A) queried tracking id %q, want %q", got, trackingIDA)
+		t.Fatalf("trace(A) first (ArgoCD) call queried tracking id %q, want %q", got, trackingIDA)
 	}
-	if got := store.calls[1].TrackingID; got != trackingIDB {
+	if got := store.calls[1].AnchorKind; got != liveIdentityAnchorDeclaredObject {
+		t.Fatalf("trace(A) second call AnchorKind = %q, want declared-object", got)
+	}
+	if got := store.calls[1].Namespace; got != "shared-ns" {
+		t.Fatalf("trace(A) declared-object call Namespace = %q, want shared-ns", got)
+	}
+	if got := store.calls[1].Name; got != "workload-a" {
+		t.Fatalf("trace(A) declared-object call Name = %q, want workload-a (A's OWN declared name, never B's)", got)
+	}
+	if got := store.calls[2].TrackingID; got != trackingIDB {
 		t.Fatalf("trace(B) queried tracking id %q, want %q", got, trackingIDB)
 	}
 }
+
+// The #5639 declared-object-anchor positive/hazard/namespace-guard tests
+// live in impact_trace_deployment_live_evidence_declared_test.go (kept
+// separate to hold this file under the repo's 500-line-per-file cap).
 
 func TestFetchWorkloadLiveEvidenceStoreError(t *testing.T) {
 	t.Parallel()

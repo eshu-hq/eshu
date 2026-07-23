@@ -114,6 +114,7 @@ type fakeCommitter struct {
 	backfillCalls     int
 	iacCalls          int
 	reopenCalls       int
+	reopenedDomains   []string
 	driftEnqueueCalls int
 	backfillErr       error
 	iacErr            error
@@ -207,11 +208,12 @@ func (f *fakeCommitter) ReopenSucceededReducerWorkItems(
 	_ context.Context,
 	_ trace.Tracer,
 	_ *telemetry.Instruments,
-	_ []string,
+	domains []string,
 ) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, "reopen_correlation")
+	f.reopenedDomains = append([]string(nil), domains...)
 	return nil
 }
 

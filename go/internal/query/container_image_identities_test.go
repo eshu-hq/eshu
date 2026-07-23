@@ -84,19 +84,21 @@ func TestSupplyChainListContainerImageIdentitiesUsesBoundedStore(t *testing.T) {
 	store := &recordingContainerImageIdentityStore{
 		rows: []ContainerImageIdentityRow{
 			{
-				IdentityID:       "identity-1",
-				Digest:           "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-				ImageRef:         "registry.example.com/team/api:prod",
-				RepositoryID:     "oci-registry://registry.example.com/team/api",
-				Outcome:          "tag_resolved",
-				Reason:           "single active tag observation resolved image reference",
-				IdentityStrength: "tag_observation_with_digest",
-				CanonicalWrites:  1,
-				CanonicalID:      "canonical:container_image_identity:scope:generation:image:tag_resolved",
-				SourceLayers:     []string{"source_declaration", "observed_resource"},
-				EvidenceFactIDs:  []string{"content-entity-1", "oci-tag-1"},
-				SourceFreshness:  "active",
-				SourceConfidence: "inferred",
+				IdentityID:               "identity-1",
+				Digest:                   "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				ImageRef:                 "registry.example.com/team/api:prod",
+				RepositoryID:             "oci-registry://registry.example.com/team/api",
+				Outcome:                  "tag_resolved",
+				Reason:                   "single active tag observation resolved image reference",
+				IdentityStrength:         "tag_observation_with_digest",
+				SourceRevision:           "abc123def456",
+				SourceRevisionProvenance: "ci_run_commit",
+				CanonicalWrites:          1,
+				CanonicalID:              "canonical:container_image_identity:scope:generation:image:tag_resolved",
+				SourceLayers:             []string{"source_declaration", "observed_resource"},
+				EvidenceFactIDs:          []string{"content-entity-1", "oci-tag-1"},
+				SourceFreshness:          "active",
+				SourceConfidence:         "inferred",
 			},
 			{IdentityID: "identity-2", Outcome: "tag_resolved"},
 		},
@@ -137,6 +139,12 @@ func TestSupplyChainListContainerImageIdentitiesUsesBoundedStore(t *testing.T) {
 	}
 	if got, want := resp.Identities[0].IdentityStrength, "tag_observation_with_digest"; got != want {
 		t.Fatalf("IdentityStrength = %q, want %q", got, want)
+	}
+	if got, want := resp.Identities[0].SourceRevision, "abc123def456"; got != want {
+		t.Fatalf("SourceRevision = %q, want %q", got, want)
+	}
+	if got, want := resp.Identities[0].SourceRevisionProvenance, "ci_run_commit"; got != want {
+		t.Fatalf("SourceRevisionProvenance = %q, want %q", got, want)
 	}
 	if !resp.Truncated {
 		t.Fatal("truncated = false, want true")
