@@ -30,6 +30,34 @@ type scanScopedSupplyChainImpactFactLoader struct {
 	activeFacts  []facts.Envelope
 	activeCalled bool
 	kindCalls    map[string][][]string
+
+	// osPackageAdvisoryFactEnvelopes, when non-nil, is what
+	// ListOSPackageAdvisoryFactEnvelopes returns, letting a test prove the
+	// cross-scope os_package advisory-reader load stage
+	// (supply_chain_impact_os_package_advisory_load.go, issue #5463/#5705)
+	// consumes reconstructed vulnerability.os_package envelopes from this
+	// reader instead of requiring them to arrive through
+	// ListActiveSupplyChainImpactFacts (the pre-#5705 path every other fixture
+	// in this package still uses). The production
+	// postgres.FactStore.ListOSPackageAdvisoryFactEnvelopes method does the
+	// target->envelope reconstruction itself (see that method's doc comment
+	// for why: internal/reducer cannot import internal/workflow), so this fake
+	// returns envelopes directly rather than raw target rows.
+	osPackageAdvisoryFactEnvelopes  []facts.Envelope
+	osPackageAdvisoryEcosystemCalls [][]string
+}
+
+// ListOSPackageAdvisoryFactEnvelopes records the ecosystems it was called
+// with and returns the fixture's osPackageAdvisoryFactEnvelopes, mirroring
+// the production postgres.FactStore.ListOSPackageAdvisoryFactEnvelopes
+// reader the handler's FactLoader is type-asserted against.
+func (l *scanScopedSupplyChainImpactFactLoader) ListOSPackageAdvisoryFactEnvelopes(
+	_ context.Context,
+	ecosystems []string,
+	_ int,
+) ([]facts.Envelope, error) {
+	l.osPackageAdvisoryEcosystemCalls = append(l.osPackageAdvisoryEcosystemCalls, append([]string(nil), ecosystems...))
+	return append([]facts.Envelope(nil), l.osPackageAdvisoryFactEnvelopes...), nil
 }
 
 func scanScopedFactLoaderKey(scopeID, generationID string) string {

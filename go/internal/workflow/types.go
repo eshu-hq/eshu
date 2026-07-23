@@ -219,6 +219,23 @@ type OSPackageAdvisoryTarget struct {
 	PURL                 string
 	FactID               string
 	ScopeID              string
+	// GenerationID is the source fact's generation, additive alongside ScopeID
+	// so a cross-scope consumer (the reducer's supply-chain-impact evidence
+	// pipeline, go/internal/reducer/supply_chain_impact_os_package_advisory_load.go)
+	// can reconstruct a vulnerability.os_package envelope that keys the
+	// scanner-analysis-scope join (ScopeID+GenerationID) exactly like a
+	// natively loaded fact. The coordinator's planning consumer ignores it.
+	GenerationID string
+	// Distro, DistroVersion, and Arch are additive alongside Ecosystem (which
+	// only carries the merged vendor_advisory_source-or-distro value) so a
+	// cross-scope consumer can reconstruct a vulnerability.os_package envelope
+	// satisfying that fact kind's required-field decode contract (distro,
+	// distro_version, package_manager, name, arch, installed_version_raw; see
+	// sdk/go/factschema/vulnerability/v1/os_package.go). The coordinator's
+	// planning consumer ignores them.
+	Distro        string
+	DistroVersion string
+	Arch          string
 }
 
 // OSPackageAdvisoryTargetFilter bounds active installed OS package target reads.

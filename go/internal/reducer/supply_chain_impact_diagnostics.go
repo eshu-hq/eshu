@@ -13,6 +13,7 @@ type supplyChainImpactTiming struct {
 	loadRepositoryFactsDuration      time.Duration
 	loadManifestDependenciesDuration time.Duration
 	loadActiveEvidenceDuration       time.Duration
+	loadOSPackageAdvisoryDuration    time.Duration
 	loadScannerAnalysisScopeDuration time.Duration
 	loadPythonReachabilityDuration   time.Duration
 	loadJVMReachabilityDuration      time.Duration
@@ -30,6 +31,7 @@ func supplyChainImpactSubDurations(t supplyChainImpactTiming) map[string]float64
 		"load_repository_facts":       t.loadRepositoryFactsDuration.Seconds(),
 		"load_manifest_dependencies":  t.loadManifestDependenciesDuration.Seconds(),
 		"load_active_evidence":        t.loadActiveEvidenceDuration.Seconds(),
+		"load_os_package_advisory":    t.loadOSPackageAdvisoryDuration.Seconds(),
 		"load_scanner_analysis_scope": t.loadScannerAnalysisScopeDuration.Seconds(),
 		"load_python_reachability":    t.loadPythonReachabilityDuration.Seconds(),
 		"load_jvm_reachability":       t.loadJVMReachabilityDuration.Seconds(),
@@ -47,6 +49,7 @@ func supplyChainImpactDiagnosticSignals(
 	repositoryFacts int,
 	manifestDependencyFacts int,
 	activeEvidenceFacts int,
+	osPackageAdvisoryFacts int,
 	scannerAnalysisScopeFacts int,
 	pythonReachabilityFacts int,
 	jvmReachabilityFacts int,
@@ -61,6 +64,7 @@ func supplyChainImpactDiagnosticSignals(
 		repositoryFacts+
 		manifestDependencyFacts+
 		activeEvidenceFacts+
+		osPackageAdvisoryFacts+
 		scannerAnalysisScopeFacts+
 		pythonReachabilityFacts+
 		jvmReachabilityFacts > 0
@@ -69,6 +73,7 @@ func supplyChainImpactDiagnosticSignals(
 	signals["repository_facts"] = float64(repositoryFacts)
 	signals["manifest_dependency_facts"] = float64(manifestDependencyFacts)
 	signals["active_evidence_facts"] = float64(activeEvidenceFacts)
+	signals["os_package_advisory_facts"] = float64(osPackageAdvisoryFacts)
 	signals["scanner_analysis_scope_facts"] = float64(scannerAnalysisScopeFacts)
 	signals["python_reachability_facts"] = float64(pythonReachabilityFacts)
 	signals["jvm_reachability_facts"] = float64(jvmReachabilityFacts)

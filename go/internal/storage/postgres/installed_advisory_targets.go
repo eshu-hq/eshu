@@ -17,14 +17,18 @@ func listOSPackageAdvisoryTargetsQuery() string {
 WITH active_os_packages AS (
   SELECT
     LOWER(COALESCE(NULLIF(fact.payload->>'vendor_advisory_source', ''), fact.payload->>'distro')) AS ecosystem,
+    COALESCE(fact.payload->>'distro', '') AS distro,
+    COALESCE(fact.payload->>'distro_version', '') AS distro_version,
     COALESCE(fact.payload->>'name', '') AS package_name,
     COALESCE(fact.payload->>'installed_version_raw', '') AS installed_version,
     COALESCE(fact.payload->>'package_manager', '') AS package_manager,
+    COALESCE(fact.payload->>'arch', '') AS arch,
     COALESCE(fact.payload->>'vendor_advisory_source', '') AS vendor_advisory_source,
     COALESCE(fact.payload->>'repository_class', '') AS repository_class,
     COALESCE(fact.payload->>'purl', '') AS purl,
     fact.fact_id,
     fact.scope_id,
+    fact.generation_id,
     ROW_NUMBER() OVER (ORDER BY fact.fact_id ASC) - 1 AS target_rank,
     COUNT(*) OVER () AS total_targets
   FROM fact_records AS fact
@@ -46,14 +50,18 @@ rotated_targets AS (
 )
 SELECT
   ecosystem,
+  distro,
+  distro_version,
   package_name,
   installed_version,
   package_manager,
+  arch,
   vendor_advisory_source,
   repository_class,
   purl,
   fact_id,
-  scope_id
+  scope_id,
+  generation_id
 FROM rotated_targets
 ORDER BY rotated_rank ASC, target_rank ASC
 LIMIT $2
@@ -150,23 +158,32 @@ func (s FactStore) ListOSPackageAdvisoryTargets(
 		var target workflow.OSPackageAdvisoryTarget
 		if err := rows.Scan(
 			&target.Ecosystem,
+			&target.Distro,
+			&target.DistroVersion,
 			&target.PackageName,
 			&target.InstalledVersion,
 			&target.PackageManager,
+			&target.Arch,
 			&target.VendorAdvisorySource,
 			&target.RepositoryClass,
 			&target.PURL,
 			&target.FactID,
 			&target.ScopeID,
+			&target.GenerationID,
 		); err != nil {
 			return nil, fmt.Errorf("list OS package advisory targets: %w", err)
 		}
 		target.Ecosystem = strings.ToLower(strings.TrimSpace(target.Ecosystem))
+		target.Distro = strings.ToLower(strings.TrimSpace(target.Distro))
+		target.DistroVersion = strings.TrimSpace(target.DistroVersion)
 		target.PackageName = strings.TrimSpace(target.PackageName)
 		target.InstalledVersion = strings.TrimSpace(target.InstalledVersion)
 		target.PackageManager = strings.ToLower(strings.TrimSpace(target.PackageManager))
+		target.Arch = strings.TrimSpace(target.Arch)
 		target.VendorAdvisorySource = strings.ToLower(strings.TrimSpace(target.VendorAdvisorySource))
 		target.RepositoryClass = strings.ToLower(strings.TrimSpace(target.RepositoryClass))
+		target.ScopeID = strings.TrimSpace(target.ScopeID)
+		target.GenerationID = strings.TrimSpace(target.GenerationID)
 		targets = append(targets, target)
 	}
 	if err := rows.Err(); err != nil {

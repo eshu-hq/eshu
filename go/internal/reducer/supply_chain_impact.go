@@ -251,6 +251,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 		loaded.repositoryFacts,
 		loaded.manifestDependencyFacts,
 		loaded.activeEvidenceFacts,
+		loaded.osPackageAdvisoryFacts,
 		loaded.scannerAnalysisScopeFacts,
 		loaded.pythonReachabilityFacts,
 		loaded.jvmReachabilityFactCount,

@@ -23,6 +23,7 @@ type supplyChainImpactLoadedEvidence struct {
 	manifestDependencyFacts     int
 	activeEvidenceFacts         int
 	activeEvidenceTruncated     bool
+	osPackageAdvisoryFacts      int
 	scannerAnalysisScopeFacts   int
 	pythonReachabilityFacts     int
 	jvmReachabilityFactCount    int
@@ -32,17 +33,23 @@ type supplyChainImpactLoadedEvidence struct {
 }
 
 // loadSupplyChainImpactEvidence runs the scope-fact, repository, manifest-
-// dependency, active-evidence, scanner-analysis-scope, Python/JVM
-// reachability, and security-alert scoping load stages for one
+// dependency, active-evidence, os-package-advisory, scanner-analysis-scope,
+// Python/JVM reachability, and security-alert scoping load stages for one
 // supply-chain-impact intent, in the same order and with the same per-stage
 // timing SupplyChainImpactHandler.Handle recorded before this extraction. The
-// scanner-analysis-scope stage runs right after active-evidence because it
-// depends on the os_package facts that stage loads: each os_package's own
-// ScopeID+GenerationID (not the intent's) is where its sibling
-// scanner_worker.analysis fact lives in production, so it is queried
-// directly rather than through the shared active-evidence filter. It returns
-// the accumulated evidence plus a timing value with every load-stage
-// duration filled in; Handle continues filling the remaining
+// os-package-advisory stage runs right after active-evidence, deriving
+// candidate vendor advisory sources from the affected_package facts already
+// loaded and fetching cross-scope vulnerability.os_package evidence through
+// the advisory-target reader (loadSupplyChainImpactOSPackageAdvisoryFacts) —
+// the only path that kind reaches this pipeline through, since
+// supplyChainImpactFactKinds intentionally omits it. The scanner-analysis-
+// scope stage runs right after that because it depends on the os_package
+// facts the new stage (and any active-evidence os_package already present)
+// loads: each os_package's own ScopeID+GenerationID (not the intent's) is
+// where its sibling scanner_worker.analysis fact lives in production, so it
+// is queried directly rather than through the shared active-evidence filter.
+// It returns the accumulated evidence plus a timing value with every
+// load-stage duration filled in; Handle continues filling the remaining
 // (classification/write/emit) stages on the same value.
 func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	ctx context.Context,
@@ -84,6 +91,16 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load active supply chain impact facts: %w", err)
 	}
 	activeEvidenceFacts := len(envelopes) - activeEvidenceStartCount
+
+	osPackageAdvisoryStartCount := len(envelopes)
+	phaseStarted = time.Now()
+	osPackageAdvisoryEnvelopes, err := h.loadSupplyChainImpactOSPackageAdvisoryFacts(ctx, envelopes)
+	timing.loadOSPackageAdvisoryDuration = time.Since(phaseStarted)
+	if err != nil {
+		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load supply chain impact os package advisory facts: %w", err)
+	}
+	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, osPackageAdvisoryEnvelopes...)
+	osPackageAdvisoryFacts := len(envelopes) - osPackageAdvisoryStartCount
 
 	scannerAnalysisScopeStartCount := len(envelopes)
 	phaseStarted = time.Now()
@@ -136,6 +153,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		manifestDependencyFacts:     manifestDependencyFacts,
 		activeEvidenceFacts:         activeEvidenceFacts,
 		activeEvidenceTruncated:     activeEvidenceTruncated,
+		osPackageAdvisoryFacts:      osPackageAdvisoryFacts,
 		scannerAnalysisScopeFacts:   scannerAnalysisScopeFacts,
 		pythonReachabilityFacts:     pythonReachabilityFacts,
 		jvmReachabilityFactCount:    jvmReachabilityFactCount,

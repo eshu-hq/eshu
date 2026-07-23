@@ -15,6 +15,16 @@ func TestListOSPackageAdvisoryTargetsQueryUsesActiveBoundedInstalledEvidence(t *
 		"scope.active_generation_id = fact.generation_id",
 		"generation.status = 'active'",
 		"LOWER(COALESCE(NULLIF(fact.payload->>'vendor_advisory_source', ''), fact.payload->>'distro')) = ANY($1::text[])",
+		// distro_version, arch, and generation_id are additive projections
+		// (issue #5463/#5705): the reducer's cross-scope supply-chain-impact
+		// evidence loader (supply_chain_impact_os_package_advisory_load.go)
+		// reconstructs a full vulnerability.os_package envelope from this
+		// target and needs all three to satisfy that fact kind's required-field
+		// decode contract and the scanner-analysis-scope ScopeID+GenerationID
+		// join.
+		"fact.payload->>'distro_version'",
+		"fact.payload->>'arch'",
+		"fact.generation_id",
 		"LIMIT $2",
 	} {
 		if !strings.Contains(query, want) {
