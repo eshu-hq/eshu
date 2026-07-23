@@ -10,7 +10,11 @@ package query
 // management_status, provider-neutral source_state, and refusal-safety posture.
 // The route is read-only, bounded, paginated, and truth-labeled; it never
 // returns raw provider locators or raw evidence atoms, and refuses unsafe
-// findings rather than omitting them.
+// findings rather than omitting them. The one narrow exception is
+// drifted_attributes (#5453): for an image_version_drift finding, it carries
+// the bounded declared/observed value pairs (e.g. ami, image_uri, version)
+// the finding is ABOUT -- a purpose-built projection of two evidence atoms
+// per attribute, never the full raw evidence-atom list.
 const openAPIPathsCloudRuntimeDrift = `
     "/api/v0/cloud/runtime-drift/findings": {
       "post": {
@@ -91,6 +95,18 @@ const openAPIPathsCloudRuntimeDrift = `
                           "matched_terraform_state_address": {"type": "string"},
                           "missing_evidence": {"type": "array", "items": {"type": "string"}},
                           "recommended_action": {"type": "string"},
+                          "drifted_attributes": {
+                            "type": "array",
+                            "description": "Bounded declared/observed value pairs for an image_version_drift finding (ami, image_uri, version, or the ECS container image comparison). Empty for orphaned/unmanaged/unknown/ambiguous findings.",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "attribute": {"type": "string"},
+                                "declared_value": {"type": "string"},
+                                "observed_value": {"type": "string"}
+                              }
+                            }
+                          },
                           "safety_gate": {"type": "object"}
                         }
                       }

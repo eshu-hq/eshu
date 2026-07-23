@@ -159,12 +159,13 @@ func multiCloudRuntimeDriftSummary(
 	canonicalWrites int,
 ) string {
 	return fmt.Sprintf(
-		"multi cloud runtime drift evaluated=%d orphaned=%d unmanaged=%d ambiguous=%d unknown=%d canonical_writes=%d",
+		"multi cloud runtime drift evaluated=%d orphaned=%d unmanaged=%d ambiguous=%d unknown=%d image_version_drift=%d canonical_writes=%d",
 		evaluated,
 		summary.OrphanedResources,
 		summary.UnmanagedResources,
 		summary.AmbiguousResources,
 		summary.UnknownResources,
+		summary.ImageVersionDriftResources,
 		canonicalWrites,
 	)
 }
@@ -181,6 +182,8 @@ func summarizeMultiCloudRuntimeDriftCandidates(candidates []model.Candidate) mul
 			summary.AmbiguousResources++
 		case cloudruntime.FindingKindUnknownCloudResource:
 			summary.UnknownResources++
+		case cloudruntime.FindingKindImageVersionDrift:
+			summary.ImageVersionDriftResources++
 		}
 	}
 	return summary
