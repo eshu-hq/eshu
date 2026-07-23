@@ -135,6 +135,7 @@ func TestGitHubActionsSourceRelationshipsRejectsInexactWorkflowPaths(t *testing.
 		"examples/.github/workflows/ci.yml",
 		".github/workflows/ci.json",
 		".github/workflows/.yml",
+		".github/workflows/.yaml",
 		".github/workflows.yml",
 	} {
 		relativePath := relativePath

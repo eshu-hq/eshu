@@ -276,3 +276,43 @@ func TestLocalReusableWorkflowPath(t *testing.T) {
 		})
 	}
 }
+
+// TestIsWorkflowPath is the both-packages-agree regression proof for issue
+// #5568's shared exact-path gate. The empty-basename cases
+// (".github/workflows/.yml" / ".github/workflows/.yaml") are the specific
+// defect this test guards: go/internal/content/shape's pre-shared-helper copy
+// of this gate checked only the file extension via path.Ext and returned true
+// for a bare extension with no basename, silently disagreeing with
+// go/internal/query's copy of the same gate, which already had the
+// non-empty-basename guard. Both packages now delegate to IsWorkflowPath, so
+// this single table is the only place either package's workflow-path
+// contract can be asserted or drift again.
+func TestIsWorkflowPath(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		value string
+		want  bool
+	}{
+		{name: "direct yml", value: ".github/workflows/ci.yml", want: true},
+		{name: "direct yaml", value: ".github/workflows/ci.yaml", want: true},
+		{name: "empty basename yml is rejected", value: ".github/workflows/.yml", want: false},
+		{name: "empty basename yaml is rejected", value: ".github/workflows/.yaml", want: false},
+		{name: "nested subdirectory is rejected", value: ".github/workflows/team/ci.yml", want: false},
+		{name: "directory substring is rejected", value: "examples/.github/workflows/ci.yml", want: false},
+		{name: "non-yaml suffix is rejected", value: ".github/workflows/ci.json", want: false},
+		{name: "workflows as filename, not directory, is rejected", value: ".github/workflows.yml", want: false},
+		{name: "blank", value: "", want: false},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := ghactionsref.IsWorkflowPath(tc.value); got != tc.want {
+				t.Errorf("IsWorkflowPath(%q) = %t, want %t", tc.value, got, tc.want)
+			}
+		})
+	}
+}

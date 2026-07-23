@@ -156,12 +156,17 @@ in `internal/content/dependency_identity.go` for the exact five conditions.
 
 `Materialize` creates one content-only `File` entity for a workflow only when
 the repository-relative path is exactly
-`.github/workflows/<name>.yml` or `.github/workflows/<name>.yaml`. The path gate
-rejects nested workflow subdirectories, paths that merely contain the directory
-substring, and non-YAML suffixes. It is deliberately independent of the
-parser's `artifact_type`: a valid workflow that a broad YAML parser labels as
-an Ansible playbook remains reachable. The query-side GitHub Actions classifier
-uses the same exact path contract.
+`.github/workflows/<name>.yml` or `.github/workflows/<name>.yaml` with a
+non-empty `<name>`. The path gate rejects nested workflow subdirectories,
+paths that merely contain the directory substring, non-YAML suffixes, and a
+bare extension with no basename (`.github/workflows/.yml`). It is
+deliberately independent of the parser's `artifact_type`: a valid workflow
+that a broad YAML parser labels as an Ansible playbook remains reachable. The
+gate is `ghactionsref.IsWorkflowPath`, one implementation shared with the
+query-side GitHub Actions classifier
+(`go/internal/query/content_relationships_github_actions.go`'s
+`isGitHubActionsArtifactPath`), so the two packages' path contracts are
+literally the same code and cannot silently drift apart.
 
 The entity identity is
 `CanonicalEntityID(repo_id, relative_path, "File", basename-without-extension, 1)`.

@@ -202,16 +202,16 @@ func githubActionsExpressionRef(value string) bool {
 // buildOutgoingContentRelationships short-circuits on the first classifier
 // that returns any edge, that false positive would also prevent later
 // classifiers from handling the entity (issue #5337, codex P1 on PR #5379).
+//
+// The workflow-path branch delegates to ghactionsref.IsWorkflowPath, the
+// single exact-path gate this package shares with
+// go/internal/content/shape's isDirectGitHubActionsWorkflowPath (issue
+// #5568's content-entity identity gate), so the two packages' workflow-path
+// contracts cannot silently drift apart.
 func isGitHubActionsArtifactPath(entity EntityContent) bool {
 	path := strings.TrimSpace(entity.RelativePath)
-	parts := strings.Split(path, "/")
-	if len(parts) == 3 && parts[0] == ".github" && parts[1] == "workflows" {
-		filename := parts[2]
-		for _, extension := range []string{".yml", ".yaml"} {
-			if strings.HasSuffix(filename, extension) && strings.TrimSuffix(filename, extension) != "" {
-				return true
-			}
-		}
+	if ghactionsref.IsWorkflowPath(path) {
+		return true
 	}
 	lowerPath := strings.ToLower(path)
 	switch lowerPath[strings.LastIndex(lowerPath, "/")+1:] {

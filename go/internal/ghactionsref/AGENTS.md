@@ -24,10 +24,11 @@
   (local `./` workflows, Docker actions) returns an empty `refValue`. Callers
   must treat that as "omit the field," never "default to a value."
 - **Zero internal imports** -- this package imports nothing under
-  `go/internal/*`. It exists specifically so the reducer/graph-projection path
-  and the query/read-model path (which do not otherwise depend on each other)
-  can both depend on it without an import cycle. Adding an internal import
-  here defeats that purpose; if a change seems to need one, stop and
+  `go/internal/*`. It exists specifically so the reducer/graph-projection path,
+  the query/read-model path, and the content-shaping path
+  (`go/internal/content/shape`) -- none of which otherwise depend on each
+  other -- can all depend on it without an import cycle. Adding an internal
+  import here defeats that purpose; if a change seems to need one, stop and
   reconsider which package should own the new logic instead.
 
 ## Common changes and how to scope them
@@ -51,6 +52,18 @@
   `go/internal/query/github_actions_slug_detectors_test.go` after any change
   -- they assert the exact pre-#5526 output for a representative input corpus
   and will fail on any silent shape change.
+- **Changing `IsWorkflowPath`** -- this backs the content-entity identity
+  gate in `go/internal/content/shape/materialize.go`
+  (`isDirectGitHubActionsWorkflowPath`) and the content-relationship
+  classifier's workflow-path branch in
+  `go/internal/query/content_relationships_github_actions.go`
+  (`isGitHubActionsArtifactPath`). Both packages have their own table-driven
+  path-gate tests (`TestMaterializeGitHubActionsWorkflowPathGate` in
+  `go/internal/content/shape/materialize_github_actions_workflow_test.go` and
+  `TestGitHubActionsSourceRelationshipsRejectsInexactWorkflowPaths` in
+  `go/internal/query/content_relationships_github_actions_path_gate_test.go`)
+  plus this package's own `TestIsWorkflowPath`; run all three after any
+  change so the two call sites cannot silently diverge again.
 - **Widening the pinned classification** (for example, accepting a shorter hex
   length) -- this is a security-relevant behavior change with a direct
   downstream effect on `ref_pinned` in graph nodes and HTTP/MCP responses that
@@ -72,6 +85,14 @@
   returns an empty `refValue` for that shape; the omission must happen at the
   call site (see the citation-field omission pattern in
   `go/internal/reducer/cross_repo_evidence_artifacts.go`).
+- Symptom: `go/internal/content/shape` materializes (or fails to purge) a
+  content entity for a path `go/internal/query` would reject as a GitHub
+  Actions artifact, or vice versa -- one of the two callers stopped routing
+  through `IsWorkflowPath` and reimplemented the path gate locally. Grep both
+  `go/internal/content/shape/materialize.go` and
+  `go/internal/query/content_relationships_github_actions.go` for any
+  `strings.Split(..., "/")` path-segment check that does not call into this
+  package.
 
 ## Anti-patterns specific to this package
 

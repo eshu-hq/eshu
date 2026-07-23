@@ -87,6 +87,13 @@ func TestMaterializeGitHubActionsWorkflowPathGate(t *testing.T) {
 		{name: "substring", path: "examples/.github/workflows/ci.yml", artifactType: githubActionsWorkflowArtifactType, wantPurge: true},
 		{name: "non yaml", path: ".github/workflows/ci.json", artifactType: githubActionsWorkflowArtifactType, wantPurge: true},
 		{name: "ordinary yaml", path: "deploy/config.yaml"},
+		// Regression for the isDirectGitHubActionsWorkflowPath /
+		// isGitHubActionsArtifactPath path-gate drift: a bare extension with
+		// no basename must be rejected here exactly as go/internal/query's
+		// copy of this gate already rejected it (both now delegate to
+		// ghactionsref.IsWorkflowPath).
+		{name: "empty basename yml is rejected", path: ".github/workflows/.yml", artifactType: githubActionsWorkflowArtifactType, wantPurge: true},
+		{name: "empty basename yaml is rejected", path: ".github/workflows/.yaml", artifactType: githubActionsWorkflowArtifactType, wantPurge: true},
 	}
 
 	for _, test := range tests {

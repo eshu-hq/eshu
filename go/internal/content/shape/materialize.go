@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/content"
+	"github.com/eshu-hq/eshu/go/internal/ghactionsref"
 )
 
 const (
@@ -264,12 +265,13 @@ func githubActionsWorkflowFileEntity(file File) (indexedEntity, bool) {
 
 // isDirectGitHubActionsWorkflowPath is the content-entity identity gate. GitHub
 // discovers workflow files only in the direct .github/workflows directory.
+// Delegates to ghactionsref.IsWorkflowPath, the single exact-path gate this
+// package shares with go/internal/query's isGitHubActionsArtifactPath so the
+// two packages' workflow-path contracts cannot silently drift -- see that
+// shared function's doc comment and this package's README "GitHub Actions
+// workflow content entity" section.
 func isDirectGitHubActionsWorkflowPath(value string) bool {
-	parts := strings.Split(strings.TrimSpace(value), "/")
-	if len(parts) != 3 || parts[0] != ".github" || parts[1] != "workflows" || parts[2] == "" {
-		return false
-	}
-	return pathpkg.Ext(parts[2]) == ".yml" || pathpkg.Ext(parts[2]) == ".yaml"
+	return ghactionsref.IsWorkflowPath(value)
 }
 
 func entityEndLine(items []indexedEntity, index int, body string, startLine int) int {
