@@ -100,10 +100,11 @@ func TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive(t *testing.T) {
 	// trigger it.
 	reducerQueue := NewReducerQueue(SQLDB{DB: db}, "test-owner", time.Minute)
 	sweeper := CrossplaneSatisfiedByRedriveSweeper{
-		DB:       SQLQueryer{DB: db},
-		State:    NewCrossplaneRedriveStateStore(SQLDB{DB: db}),
-		Replayer: reducerQueue,
-		Owner:    "test-owner",
+		DB:           SQLQueryer{DB: db},
+		State:        NewCrossplaneRedriveStateStore(SQLDB{DB: db}),
+		TargetLedger: NewCrossplaneRedriveTargetLedgerStore(SQLDB{DB: db}),
+		Replayer:     reducerQueue,
+		Owner:        "test-owner",
 	}
 	result, err := sweeper.Sweep(ctx, xrdScopeID, xrdGenerationID)
 	if err != nil {
@@ -138,8 +139,9 @@ func TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive(t *testing.T) {
 		t.Fatalf("expected exactly 1 SATISFIED_BY row after the redrive, got %d: %v", len(greenSpy.written), greenSpy.written)
 	}
 	row := greenSpy.written[0]
-	if row["xrd_uid"] != "xrd-uid-1" {
-		t.Fatalf("expected the resolved edge to target xrd-uid-1, got %v", row["xrd_uid"])
+	expectedXRDUID := "fact-xrd-" + xrdGenerationID + "-uid"
+	if row["xrd_uid"] != expectedXRDUID {
+		t.Fatalf("expected the resolved edge to target %q, got %v", expectedXRDUID, row["xrd_uid"])
 	}
 }
 

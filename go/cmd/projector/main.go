@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
@@ -137,6 +138,14 @@ func run(parent context.Context) error {
 
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// Crossplane cross-scope SATISFIED_BY redrive catch-up (issue #5476
+	// P1-a): recovers a sweep left mid-fan-out by a transient DB error or a
+	// crashed process. Runs alongside the main projector Service.Run loop,
+	// sharing its shutdown context, so it stops together with the service.
+	redriveReducerQueue := postgres.NewReducerQueue(postgres.SQLDB{DB: db}, "projector", time.Minute)
+	crossplaneRedriveSweeper := buildCrossplaneRedriveSweeper(postgres.SQLDB{DB: db}, redriveReducerQueue, instruments)
+	go runCrossplaneRedriveCatchUpLoop(ctx, crossplaneRedriveSweeper, logger)
 
 	return service.Run(ctx)
 }

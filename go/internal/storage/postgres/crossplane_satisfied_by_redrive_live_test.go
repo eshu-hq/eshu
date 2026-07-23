@@ -113,15 +113,16 @@ func TestCrossplaneRedriveStateConcurrentClaimConvergesLive(t *testing.T) {
 
 	var wg sync.WaitGroup
 	results := make([]bool, 2)
+	tokens := make([]int64, 2)
 	errs := make([]error, 2)
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		results[0], errs[0] = stateA.ClaimExact(ctx, xrdScopeID, xrdGenerationID, "owner-a", time.Minute)
+		results[0], tokens[0], errs[0] = stateA.ClaimExact(ctx, xrdScopeID, xrdGenerationID, "owner-a", time.Minute)
 	}()
 	go func() {
 		defer wg.Done()
-		results[1], errs[1] = stateB.ClaimExact(ctx, xrdScopeID, xrdGenerationID, "owner-b", time.Minute)
+		results[1], tokens[1], errs[1] = stateB.ClaimExact(ctx, xrdScopeID, xrdGenerationID, "owner-b", time.Minute)
 	}()
 	wg.Wait()
 
@@ -131,6 +132,15 @@ func TestCrossplaneRedriveStateConcurrentClaimConvergesLive(t *testing.T) {
 	if results[0] == results[1] {
 		t.Fatalf("expected exactly one claim winner, got a=%v b=%v", results[0], results[1])
 	}
+	var winnerToken int64
+	if results[0] {
+		winnerToken = tokens[0]
+	} else {
+		winnerToken = tokens[1]
+	}
+	if winnerToken <= 0 {
+		t.Fatalf("expected the winning claim to receive a positive fencing token, got %d", winnerToken)
+	}
 
 	// The non-winner must be able to claim a DIFFERENT generation without
 	// interference (SKIP LOCKED must not deadlock or wrongly block unrelated
@@ -139,7 +149,7 @@ func TestCrossplaneRedriveStateConcurrentClaimConvergesLive(t *testing.T) {
 	if err := stateA.EnsureQueued(ctx, xrdScopeID, otherGenerationID); err != nil {
 		t.Fatalf("EnsureQueued other generation: %v", err)
 	}
-	otherClaimed, err := stateB.ClaimExact(ctx, xrdScopeID, otherGenerationID, "owner-b", time.Minute)
+	otherClaimed, _, err := stateB.ClaimExact(ctx, xrdScopeID, otherGenerationID, "owner-b", time.Minute)
 	if err != nil {
 		t.Fatalf("claim other generation: %v", err)
 	}
@@ -154,6 +164,16 @@ func TestCrossplaneRedriveStateConcurrentClaimConvergesLive(t *testing.T) {
 // 'completed' means no-op (ClaimExact fails); and a claim whose owning
 // process crashed (never called MarkCompleted) is reclaimed once its lease
 // expires, but NOT before.
+//
+// This is also the P2-f split-brain regression: production wires ONE static
+// per-process-class Owner string ("projector") shared by every replica AND
+// the periodic catch-up scanner (mirroring ProjectorQueue/ReducerQueue's own
+// LeaseOwner convention) -- so every ClaimExact call below deliberately uses
+// the SAME owner string throughout, exactly like a crashed invocation and its
+// reclaiming invocation would in production. If MarkCompleted fenced on
+// claimed_by alone, the stale invocation's completion would incorrectly
+// succeed because claimed_by still reads "same-owner-throughout"; fencing on
+// the bumped claim_fencing_token instead closes that gap.
 func TestCrossplaneRedriveStateCrashRecoveryLive(t *testing.T) {
 	dsn, schema := crossplaneRedriveProofSchema(t)
 	db := crossplaneRedriveProofConn(t, dsn, schema)
@@ -164,13 +184,14 @@ func TestCrossplaneRedriveStateCrashRecoveryLive(t *testing.T) {
 
 	ctx := context.Background()
 	const xrdScopeID, xrdGenerationID = "scope-xrd-crash", "gen-xrd-crash-001"
+	const sameOwnerThroughout = "projector" // every claim below uses this SAME string
 
 	// Marker absent -> full sweep: EnsureQueued creates the row, ClaimExact
 	// succeeds immediately.
 	if err := state.EnsureQueued(ctx, xrdScopeID, xrdGenerationID); err != nil {
 		t.Fatalf("EnsureQueued: %v", err)
 	}
-	claimed, err := state.ClaimExact(ctx, xrdScopeID, xrdGenerationID, "owner-crashed", time.Minute)
+	claimed, firstToken, err := state.ClaimExact(ctx, xrdScopeID, xrdGenerationID, sameOwnerThroughout, time.Minute)
 	if err != nil {
 		t.Fatalf("ClaimExact: %v", err)
 	}
@@ -179,9 +200,10 @@ func TestCrossplaneRedriveStateCrashRecoveryLive(t *testing.T) {
 	}
 
 	// Simulate the owning process crashing mid-sweep: it never calls
-	// MarkCompleted. Before the lease expires, a second claimant must NOT be
-	// able to reclaim it (this would double-process the same sweep).
-	stillLeased, err := state.ClaimExact(ctx, xrdScopeID, xrdGenerationID, "owner-b", time.Minute)
+	// MarkCompleted. Before the lease expires, a second claimant (same owner
+	// string) must NOT be able to reclaim it (this would double-process the
+	// same sweep).
+	stillLeased, _, err := state.ClaimExact(ctx, xrdScopeID, xrdGenerationID, sameOwnerThroughout, time.Minute)
 	if err != nil {
 		t.Fatalf("ClaimExact before expiry: %v", err)
 	}
@@ -189,36 +211,43 @@ func TestCrossplaneRedriveStateCrashRecoveryLive(t *testing.T) {
 		t.Fatalf("expected claim to be rejected while the original lease is still live")
 	}
 
-	// Advance time past the original lease's expiry: a new claimant now
-	// reclaims the abandoned sweep.
+	// Advance time past the original lease's expiry: a new claimant (SAME
+	// owner string as the crashed one) now reclaims the abandoned sweep and
+	// receives a NEW, higher fencing token.
 	state.Now = func() time.Time { return fakeNow.Add(2 * time.Minute) }
-	reclaimed, err := state.ClaimExact(ctx, xrdScopeID, xrdGenerationID, "owner-b", time.Minute)
+	reclaimed, secondToken, err := state.ClaimExact(ctx, xrdScopeID, xrdGenerationID, sameOwnerThroughout, time.Minute)
 	if err != nil {
 		t.Fatalf("ClaimExact after expiry: %v", err)
 	}
 	if !reclaimed {
 		t.Fatalf("expected an expired lease to be reclaimable")
 	}
-
-	// owner-b completes it. The stale owner-crashed's own completion call
-	// must be a fenced no-op (it no longer holds the claim).
-	completedByStaleOwner, err := state.MarkCompleted(ctx, xrdScopeID, xrdGenerationID, "owner-crashed")
-	if err != nil {
-		t.Fatalf("MarkCompleted (stale owner): %v", err)
-	}
-	if completedByStaleOwner {
-		t.Fatalf("expected the reclaimed, now-stale owner's completion to be a fenced no-op")
-	}
-	completedByCurrentOwner, err := state.MarkCompleted(ctx, xrdScopeID, xrdGenerationID, "owner-b")
-	if err != nil {
-		t.Fatalf("MarkCompleted (current owner): %v", err)
-	}
-	if !completedByCurrentOwner {
-		t.Fatalf("expected the current claim-holder's completion to succeed")
+	if secondToken <= firstToken {
+		t.Fatalf("expected the reclaim's fencing token (%d) to exceed the original claim's (%d)", secondToken, firstToken)
 	}
 
-	// Marker present as 'completed' -> no-op: neither owner can claim again.
-	noopClaim, err := state.ClaimExact(ctx, xrdScopeID, xrdGenerationID, "owner-c", time.Minute)
+	// The stale (crashed) invocation "wakes up" and tries to complete using
+	// its ORIGINAL token, presenting the SAME owner string the reclaiming
+	// invocation also used. This must be a fenced no-op: claimed_by alone
+	// cannot distinguish these two invocations, only the token can.
+	completedByStaleInvocation, err := state.MarkCompleted(ctx, xrdScopeID, xrdGenerationID, firstToken)
+	if err != nil {
+		t.Fatalf("MarkCompleted (stale invocation, stale token): %v", err)
+	}
+	if completedByStaleInvocation {
+		t.Fatalf("expected the stale invocation's completion (superseded token %d) to be a fenced no-op", firstToken)
+	}
+	completedByCurrentInvocation, err := state.MarkCompleted(ctx, xrdScopeID, xrdGenerationID, secondToken)
+	if err != nil {
+		t.Fatalf("MarkCompleted (current invocation, current token): %v", err)
+	}
+	if !completedByCurrentInvocation {
+		t.Fatalf("expected the current claim-holder's completion (token %d) to succeed", secondToken)
+	}
+
+	// Marker present as 'completed' -> no-op: no further claim succeeds, even
+	// with the current (now-stale-again) token or the same owner string.
+	noopClaim, _, err := state.ClaimExact(ctx, xrdScopeID, xrdGenerationID, sameOwnerThroughout, time.Minute)
 	if err != nil {
 		t.Fatalf("ClaimExact after completion: %v", err)
 	}

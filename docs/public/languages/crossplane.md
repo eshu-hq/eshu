@@ -74,7 +74,10 @@ Not claimed today:
   index-backed — see `fact_records_active_k8s_claim_redrive_idx`) and durably
   resumable (`crossplane_satisfied_by_redrive_state` records completion per
   XRD source-generation, so a crash mid-sweep retries safely and a completed
-  generation is never re-swept). See
+  generation is never re-swept); `cmd/projector`'s
+  `runCrossplaneRedriveCatchUpLoop` periodically reclaims a sweep left
+  incomplete by a transient error or a crashed process, since the live
+  post-activation trigger alone cannot recover one. See
   `go/internal/storage/postgres/crossplane_satisfied_by_redrive_sweep.go` for
   the implementation and `go/internal/storage/postgres/README.md` for the
   fencing and trigger design. This does not contradict the blast-radius

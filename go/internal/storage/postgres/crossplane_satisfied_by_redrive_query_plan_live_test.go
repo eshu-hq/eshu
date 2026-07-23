@@ -81,7 +81,7 @@ func TestCrossplaneRedriveTargetDiscoveryQueryPlanLive(t *testing.T) {
 			}
 		}
 		rows, err := tx.QueryContext(ctx, "EXPLAIN (ANALYZE, BUFFERS) "+listCrossplaneRedriveTargetScopesQuery,
-			matchGroup, matchKind, xrdScopeID, "", now.Add(-time.Hour), 500)
+			matchGroup, matchKind, xrdScopeID, "", 500)
 		if err != nil {
 			t.Fatalf("%s: explain query: %v", label, err)
 		}
@@ -116,8 +116,8 @@ func TestCrossplaneRedriveTargetDiscoveryQueryPlanLive(t *testing.T) {
 	// Row-set equivalence: the indexed query must return EXACTLY the same
 	// target scopes as the naive (index-disabled) shape -- the index may only
 	// change the plan, never the answer.
-	naive := collectCrossplaneRedriveTargetScopes(ctx, t, conn, true, matchGroup, matchKind, xrdScopeID, now)
-	indexed := collectCrossplaneRedriveTargetScopes(ctx, t, conn, false, matchGroup, matchKind, xrdScopeID, now)
+	naive := collectCrossplaneRedriveTargetScopes(ctx, t, conn, true, matchGroup, matchKind, xrdScopeID)
+	indexed := collectCrossplaneRedriveTargetScopes(ctx, t, conn, false, matchGroup, matchKind, xrdScopeID)
 	onlyInNaive, onlyInIndexed := crossplaneRedriveSymmetricDiff(naive, indexed)
 	t.Logf("naive=%d indexed=%d symmetric_diff_naive_only=%d symmetric_diff_indexed_only=%d",
 		len(naive), len(indexed), len(onlyInNaive), len(onlyInIndexed))
@@ -146,16 +146,32 @@ func seedCrossplaneRedriveXRD(ctx context.Context, t *testing.T, conn crossplane
 		VALUES ($1,'repository','git',$1,'git','p1',$2,$2,'active',$3,'{}'::jsonb)
 		ON CONFLICT (scope_id) DO UPDATE SET active_generation_id = EXCLUDED.active_generation_id
 	`, scopeID, now, generationID)
+	// Supersede any PRIOR 'active' generation for this scope before
+	// activating a new one: scope_generations_active_scope_idx is a unique
+	// partial index on (scope_id) WHERE status = 'active', so a scope
+	// activating a SECOND generation (e.g. a repeat-sync test) without first
+	// retiring the old 'active' row would violate that constraint -- exactly
+	// what a real resync's Ack does via supersedeProjectorActiveGenerationQuery.
+	crossplaneRedriveMustExec(ctx, t, conn, `
+		UPDATE scope_generations
+		SET status = 'superseded'
+		WHERE scope_id = $1 AND generation_id <> $2 AND status = 'active'
+	`, scopeID, generationID)
 	crossplaneRedriveMustExec(ctx, t, conn, `
 		INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at, payload)
 		VALUES ($1,$2,'sync',$3,$3,'active',$3,'{}'::jsonb)
 		ON CONFLICT (generation_id) DO NOTHING
 	`, generationID, scopeID, now)
+	// fact_id is keyed by (scopeID, generationID), not a hardcoded literal:
+	// a hardcoded fact_id would silently no-op (ON CONFLICT DO NOTHING) when
+	// the SAME xrd scope activates a SECOND generation (e.g. a repeat sync
+	// test), since fact_records.fact_id is a global primary key.
+	factID := "fact-xrd-" + generationID
 	crossplaneRedriveMustExec(ctx, t, conn, `
 		INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
-		VALUES ($1,$2,$3,'content_entity',$1,'git',$1,$4,$4,FALSE,jsonb_build_object('entity_type','CrossplaneXRD','entity_id','xrd-uid-1','entity_metadata', jsonb_build_object('group', $5::text, 'claim_kind', $6::text)))
+		VALUES ($1,$2,$3,'content_entity',$1,'git',$1,$4,$4,FALSE,jsonb_build_object('entity_type','CrossplaneXRD','entity_id',$1 || '-uid','entity_metadata', jsonb_build_object('group', $5::text, 'claim_kind', $6::text)))
 		ON CONFLICT (fact_id) DO NOTHING
-	`, "fact-xrd-1", scopeID, generationID, now, group, claimKind)
+	`, factID, scopeID, generationID, now, group, claimKind)
 }
 
 func seedCrossplaneRedriveClaimScope(ctx context.Context, t *testing.T, conn crossplaneRedriveExecer, scopeID, generationID, group, kind string, claimsPerScope int, now time.Time) {
@@ -182,7 +198,7 @@ func seedCrossplaneRedriveClaimScope(ctx context.Context, t *testing.T, conn cro
 
 func collectCrossplaneRedriveTargetScopes(
 	ctx context.Context, t *testing.T, conn *sql.Conn, disableIndex bool,
-	group, kind, xrdScopeID string, now time.Time,
+	group, kind, xrdScopeID string,
 ) map[string]struct{} {
 	t.Helper()
 	tx, err := conn.BeginTx(ctx, nil)
@@ -202,7 +218,7 @@ func collectCrossplaneRedriveTargetScopes(
 	after := ""
 	const pageSize = 500
 	for {
-		rows, err := tx.QueryContext(ctx, listCrossplaneRedriveTargetScopesQuery, group, kind, xrdScopeID, after, now.Add(-time.Hour), pageSize)
+		rows, err := tx.QueryContext(ctx, listCrossplaneRedriveTargetScopesQuery, group, kind, xrdScopeID, after, pageSize)
 		if err != nil {
 			t.Fatalf("query target scopes: %v", err)
 		}

@@ -414,10 +414,10 @@ type Instruments struct {
 	// materialized zero edges, at 3 AM.
 	CrossplaneSatisfiedByEdges metric.Int64Counter
 	// CrossplaneRedriveSweeps counts cross-scope SATISFIED_BY re-drive sweeps
-	// attempted (issue #5476) by outcome (claimed / already_claimed /
-	// already_completed / no_active_xrd). Low cardinality: no scope or XRD
-	// identity label. Lets an operator see whether the sweep is running at
-	// all, and whether it is finding work, at 3 AM.
+	// attempted (issue #5476) by outcome (no_active_xrd / already_in_progress /
+	// completed / reclaimed_mid_sweep / sweep_error). Low cardinality: no
+	// scope or XRD identity label. Lets an operator see whether the sweep is
+	// running at all, and whether it is finding work, at 3 AM.
 	CrossplaneRedriveSweeps metric.Int64Counter
 	// CrossplaneRedriveTargetsEnqueued counts distinct target Claim scopes the
 	// cross-scope re-drive sweep enqueued or reopened a SATISFIED_BY

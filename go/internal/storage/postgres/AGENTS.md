@@ -988,17 +988,47 @@ fences, and evidence.
 When touching this surface:
 
 - The three fences (active-generation, active-claim, already-satisfied-for-
-  this-XRD) are load-bearing correctness, not defensive extras. Do not drop
-  the `NOT EXISTS fact_work_items` freshness fence to "simplify" the query —
-  it is what keeps a re-drive from redundantly re-enqueuing every matching
-  scope on every trivial XRD-repo edit forever.
+  this-identity) are load-bearing correctness, not defensive extras.
+- The already-satisfied fence is `crossplane_satisfied_by_redrive_target_ledger`,
+  keyed by (target scope, XRD group, XRD claim kind) — NOT by timestamp. A
+  first review round shipped a timestamp-anchored fence
+  (`fact_work_items.updated_at > xrd_fact.observed_at`) that looked correct but
+  was silently ineffective: the XRD fact's own `observed_at` strictly advances
+  on every resync of the platform repo even when its (group, claim_kind) is
+  unchanged, so the fence never actually skipped anything across repeated
+  syncs. Do not reintroduce a timestamp-based already-satisfied fence; keep it
+  keyed on the stable (target scope, group, claim_kind) identity.
+- `Sweep` is the live post-Ack trigger path; `SweepBatch` is the
+  startup/periodic catch-up path that reclaims stale/expired claims and
+  re-runs the fan-out. **Both must stay wired.** `Sweep` alone cannot recover
+  from a transient DB error or process crash mid-fan-out — nothing else
+  revisits a `'claimed'` row once its lease expires unless a caller invokes
+  `ClaimBatch`/`SweepBatch` periodically. `cmd/projector`'s
+  `runCrossplaneRedriveCatchUpLoop` is that caller; do not remove it or the
+  durable-resumability claim in this package's docs becomes false again.
 - `ReplayCrossplaneSatisfiedByMaterialization` MUST reuse the exact same
   per-scope `EntityKey` (`"crossplane_satisfied_by_materialization:" +
   scopeID`) the projector's own trigger uses. A divergent per-XRD-generation
   identity would break the queue's natural dedupe and could double-process a
   target scope.
-- `CrossplaneRedriveStateStore.MarkCompleted` is fenced by `claimed_by`, not a
-  bumped numeric fencing token (unlike `aws_freshness_triggers`). This is an
-  accepted simplification consistent with `ProjectorQueue`/`ReducerQueue`'s
-  own pre-existing static-`LeaseOwner`-per-replica-class convention elsewhere
-  in this package — not a new gap introduced by this feature.
+- `CrossplaneRedriveStateStore.MarkCompleted` is fenced by the bumped
+  `claim_fencing_token` (mirroring `aws_freshness_triggers`, #4576), NOT by
+  `claimed_by`. `Owner` is a static per-process-class string shared by every
+  replica and the catch-up scanner (mirroring `ProjectorQueue`/`ReducerQueue`'s
+  own `LeaseOwner` convention), so a `claimed_by`-only fence would let a stale
+  invocation whose lease was reclaimed by another invocation under the SAME
+  owner string silently complete a claim it no longer holds. Do not weaken
+  this back to an owner-string fence.
+- Operator dashboard decision: the three new counters
+  (`eshu_dp_crossplane_redrive_sweeps_total`,
+  `..._targets_enqueued_total`, `..._pages_processed_total`) are
+  intentionally NOT added to
+  `docs/public/observability/dashboards/eshu-operator-overview.json`.
+  They are diagnostic sweep-throughput signals, not headline-alarm-worthy,
+  consistent with the sibling `eshu_dp_crossplane_satisfied_by_edges_total`
+  (#5347) and the identity-cache counters elsewhere in this file, neither of
+  which is on the dashboard either. An operator diagnoses redrive health
+  through these counters directly (e.g. a Prometheus query or the structured
+  `crossplane redrive catch-up sweep failed`/`completed` logs), not a
+  dashboard panel. Revisit this decision if a production incident shows the
+  redrive path silently stalling without an operator noticing in time.

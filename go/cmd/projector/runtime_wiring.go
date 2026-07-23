@@ -33,6 +33,29 @@ const (
 	canonicalWriteTimeoutEnv             = "ESHU_CANONICAL_WRITE_TIMEOUT"
 )
 
+// buildCrossplaneRedriveSweeper constructs the Crossplane cross-scope
+// SATISFIED_BY re-drive sweeper (issue #5476) shared by two callers: the live
+// post-Ack hook wired into projectorQueue.CrossplaneRedrive in
+// buildProjectorService, and the periodic catch-up loop
+// (runCrossplaneRedriveCatchUpLoop) started from main.go. Both must be wired
+// -- the live hook alone cannot recover a sweep that failed partway through
+// its fan-out or whose process crashed mid-sweep (see
+// postgres.CrossplaneSatisfiedByRedriveSweeper's doc comment).
+func buildCrossplaneRedriveSweeper(
+	database postgres.SQLDB,
+	reducerQueue postgres.ReducerQueue,
+	instruments *telemetry.Instruments,
+) postgres.CrossplaneSatisfiedByRedriveSweeper {
+	return postgres.CrossplaneSatisfiedByRedriveSweeper{
+		DB:           postgres.SQLQueryer(database),
+		State:        postgres.NewCrossplaneRedriveStateStore(database),
+		TargetLedger: postgres.NewCrossplaneRedriveTargetLedgerStore(database),
+		Replayer:     reducerQueue,
+		Owner:        "projector",
+		Instruments:  instruments,
+	}
+}
+
 func buildProjectorService(
 	database postgres.SQLDB,
 	canonicalWriter projector.CanonicalWriter,
@@ -62,14 +85,12 @@ func buildProjectorService(
 	// Closes the Crossplane cross-scope SATISFIED_BY XRD-lag false-negative
 	// window (issue #5476): after Ack activates a generation, re-drive any
 	// OTHER scope's unresolved Claims matching a newly-active XRD. See
-	// postgres.CrossplaneSatisfiedByRedriveSweeper's doc comment.
-	projectorQueue.CrossplaneRedrive = postgres.CrossplaneSatisfiedByRedriveSweeper{
-		DB:          postgres.SQLQueryer(database),
-		State:       postgres.NewCrossplaneRedriveStateStore(database),
-		Replayer:    reducerQueue,
-		Owner:       "projector",
-		Instruments: instruments,
-	}
+	// postgres.CrossplaneSatisfiedByRedriveSweeper's doc comment. This live
+	// hook alone cannot recover from a transient error or crash mid-sweep;
+	// runCrossplaneRedriveCatchUpLoop (wired in main.go from the SAME
+	// buildCrossplaneRedriveSweeper helper) is the required recovery path --
+	// see that function's doc comment (issue #5476 P1-a).
+	projectorQueue.CrossplaneRedrive = buildCrossplaneRedriveSweeper(database, reducerQueue, instruments)
 
 	runner, err := buildProjectorRuntime(database, canonicalWriter, reducerQueue, retryInjector, getenv, tracer, instruments, logger)
 	if err != nil {

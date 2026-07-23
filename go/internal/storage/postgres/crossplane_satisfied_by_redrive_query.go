@@ -32,13 +32,21 @@ END)`
 //     generation (fact rows from a superseded generation are invisible).
 //  2. Active-claim fence: same join -- a claim from a non-active generation
 //     is never a re-drive target.
-//  3. Already-satisfied-for-this-XRD fence: the NOT EXISTS subquery skips a
-//     target scope whose SATISFIED_BY materialization intent already
-//     succeeded for its current active generation AFTER this XRD fact was
-//     observed -- i.e. it already ran with this exact XRD visible, so
-//     re-driving it again would be redundant work with no new edge outcome.
-//     A target whose last successful run predates the XRD (or that has
-//     never succeeded) is not fenced and is re-driven.
+//  3. Already-satisfied-for-this-identity fence: the NOT EXISTS subquery
+//     skips a target scope already recorded in
+//     crossplane_satisfied_by_redrive_target_ledger for this EXACT (group,
+//     claim_kind) identity -- i.e. it already had a re-drive chance against
+//     this identity while some XRD advertising it was active, so re-driving
+//     it again for the SAME identity is a deterministic no-op. This is keyed
+//     by identity, not by a timestamp: an XRD fact's own observed_at strictly
+//     advances on every resync of the platform repo even when the XRD's
+//     (group, claim_kind) is unchanged, so a timestamp-anchored fence would
+//     never actually skip anything across repeated platform-repo syncs (the
+//     bug the ledger replaces). See migration 076's doc comment on the ledger
+//     table for the full reasoning, including why a LATER, genuinely new
+//     Claim generation in the target scope needs no ledger check at all (its
+//     own projector-triggered intent already resolves against the
+//     already-active XRD).
 //
 // fact.scope_id <> $3 excludes the XRD's own scope: the same-scope case is
 // already ungated and resolved by the time this handler's own intent runs
@@ -68,14 +76,11 @@ WHERE fact.fact_kind = 'content_entity'
   AND fact.scope_id > $4
   AND NOT EXISTS (
       SELECT 1
-      FROM fact_work_items AS w
-      WHERE w.scope_id = fact.scope_id
-        AND w.generation_id = scope.active_generation_id
-        AND w.stage = 'reducer'
-        AND w.domain = 'crossplane_satisfied_by_materialization'
-        AND w.status = 'succeeded'
-        AND w.updated_at > $5
+      FROM crossplane_satisfied_by_redrive_target_ledger AS ledger
+      WHERE ledger.target_scope_id = fact.scope_id
+        AND ledger.xrd_group = $1
+        AND ledger.xrd_claim_kind = $2
   )
 ORDER BY fact.scope_id ASC
-LIMIT $6
+LIMIT $5
 `
