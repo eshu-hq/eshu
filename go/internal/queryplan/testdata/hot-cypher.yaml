@@ -228,6 +228,42 @@ entries:
         - AllNodesScan
         - CartesianProduct
     cypher_sha256: "c2a3b4be925adc50839cf4c380aac6eee092ae848caa6adb04bb9102765ce855"
+  - id: QP-SVC-RUNTIME-TOPOLOGY
+    domain: service
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/workload_runtime_topology.go
+      symbol: fetchWorkloadRuntimeTopology
+      source_sha256: bfd5ec6fae58474f42e8c642cf30d263b2f1044d5bd3151d38aa6e770fbc2a7e
+      line_hint: 66
+    required_anchors:
+      - label: WorkloadInstance
+        property: workload_id
+      - label: Workload
+        property: id
+      - label: Repository
+        property: id
+    required_schema:
+      - workload_instance_workload_id
+      - workload_id
+      - repository_id
+    required_limits:
+      - $instance_limit
+    requires_order: true
+    caveats:
+      - The WorkloadInstance workload_id predicate must remain the textual traversal anchor; retained NornicDB evidence showed repository-first traversal was about 75 times slower for the same rows (issue #5272).
+      - NodeIndexSeek is proved by the hermetic Neo4j PROFILE gate only; retained NornicDB timing proves the WorkloadInstance-first traversal win but does not expose or prove a property-index seek.
+    plan:
+      operators:
+        - NodeIndexSeek
+        - Expand
+        - Sort
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+        - UnboundedExpand
+    cypher_sha256: "139559a6f53158a507a54ee5bf4f610dc6fe40604ec0e30d744cce4cbd75ab9e"
   - id: QP-SVC-RUNS-ON
     domain: service
     backend: nornicdb

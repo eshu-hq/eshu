@@ -248,7 +248,7 @@ source_coverage:
       - {symbol: "(*EntityHandler).fetchProvisionedPlatformResult", count: 1, non_hot: {class: keyed_support, source_sha256: 19ef8d165029cad3fcc1b280fce4deefa131fd20f57d2bfb23559c063c67e981, key_bound: single_key, max_results: 51}}
   - file: workload_runtime_topology.go
     calls:
-      - {symbol: "fetchWorkloadRuntimeTopology", count: 1, non_hot: {class: keyed_support, source_sha256: 9e357f21d3ec616c27ee5e285d7d800595512908f4827e990949819806358044, key_bound: single_key, max_results: 51}}
+      - {symbol: "fetchWorkloadRuntimeTopology", count: 1, source_sha256: bfd5ec6fae58474f42e8c642cf30d263b2f1044d5bd3151d38aa6e770fbc2a7e, entry_ids: [QP-SVC-RUNTIME-TOPOLOGY]}
   - file: infra.go
     calls:
       - {symbol: "(*InfraHandler).searchResources", count: 1, source_sha256: 2f6c76e66dd4601d82ab8c71bee437ce39b3626776181515abf5f87a18430a17, entry_ids: [QP-INFRA-RESOURCE-SEARCH]}

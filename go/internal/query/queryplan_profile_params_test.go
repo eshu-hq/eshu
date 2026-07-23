@@ -66,6 +66,30 @@ func TestQueryplanProfileParamsCoverFluxDeploymentBindingQueries(t *testing.T) {
 	}
 }
 
+func TestQueryplanProfileParamsCoverServiceRuntimeTopology(t *testing.T) {
+	profileParams := queryplanProfileParams()
+	cypher := legacyQueryplanProductionCypher(t)["QP-SVC-RUNTIME-TOPOLOGY"]
+	wantParams := map[string]string{
+		"instance_limit": "int",
+		"repo_id":        "string",
+		"workload_id":    "string",
+	}
+	for _, match := range queryplanCypherParameterPattern.FindAllStringSubmatch(cypher, -1) {
+		if _, ok := wantParams[match[1]]; !ok {
+			t.Fatalf("service runtime topology Cypher binds $%s without a profile parameter expectation", match[1])
+		}
+	}
+	for name, wantType := range wantParams {
+		value, ok := profileParams[name]
+		if !ok {
+			t.Fatalf("profile params missing %s", name)
+		}
+		if !queryplanProfileParamMatchesType(value, wantType) {
+			t.Fatalf("profile %s = %#v, want %s", name, value, wantType)
+		}
+	}
+}
+
 func queryplanProfileParamMatchesType(value any, wantType string) bool {
 	switch wantType {
 	case "string":
@@ -104,6 +128,7 @@ func queryplanProfileParams() map[string]any {
 		"environment":            "",
 		"from":                   "proof-repository",
 		"from_id":                "proof-repository",
+		"instance_limit":         contextStoryItemLimit + 1,
 		"instance_ids":           []string{"proof-instance"},
 		"ids":                    []string{"proof-id"},
 		"language":               "go",

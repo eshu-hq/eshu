@@ -11,13 +11,41 @@ import (
 	"testing"
 )
 
+func TestFetchWorkloadRuntimeTopologyStartsFromWorkloadInstanceTraversal(t *testing.T) {
+	t.Parallel()
+
+	var capturedCypher string
+	reader := fakeGraphReader{run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		capturedCypher = cypher
+		return []map[string]any{}, nil
+	}}
+
+	_, err := fetchWorkloadRuntimeTopology(
+		t.Context(), reader, "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
+		"repository:orders",
+	)
+	if err != nil {
+		t.Fatalf("fetchWorkloadRuntimeTopology() error = %v", err)
+	}
+	const workloadFirstTraversal = "MATCH (i:WorkloadInstance)-[instanceOf:INSTANCE_OF]->(w:Workload)<-[defines:DEFINES]-(repo:Repository)"
+	if !strings.Contains(capturedCypher, workloadFirstTraversal) {
+		t.Fatalf("runtime topology cypher = %q, want WorkloadInstance-first traversal %q", capturedCypher, workloadFirstTraversal)
+	}
+	if strings.Contains(capturedCypher, "MATCH (repo:Repository)-[defines:DEFINES]->") {
+		t.Fatalf("runtime topology cypher = %q, must not start from Repository", capturedCypher)
+	}
+	if !strings.Contains(capturedCypher, "WHERE i.workload_id = $workload_id") {
+		t.Fatalf("runtime topology cypher = %q, want workload_id predicate", capturedCypher)
+	}
+}
+
 func TestFetchWorkloadDeploymentTopologyReturnsStructuredEmptyLimits(t *testing.T) {
 	t.Parallel()
 
 	runtimeQueryCalls := 0
 	reader := fakeGraphReader{run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		runtimeQueryCalls++
-		if !strings.Contains(cypher, "MATCH (repo:Repository)-[defines:DEFINES]->(w:Workload)<-[instanceOf:INSTANCE_OF]-(i:WorkloadInstance)") {
+		if !strings.Contains(cypher, "MATCH (i:WorkloadInstance)-[instanceOf:INSTANCE_OF]->(w:Workload)<-[defines:DEFINES]-(repo:Repository)") {
 			t.Fatalf("unexpected graph query for empty runtime topology: %s", cypher)
 		}
 		return []map[string]any{}, nil
@@ -134,7 +162,7 @@ func TestFetchWorkloadRuntimeTopologyReturnsObservedIdentityEdges(t *testing.T) 
 	t.Parallel()
 
 	reader := fakeGraphReader{run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-		if !strings.Contains(cypher, "MATCH (repo:Repository)-[defines:DEFINES]->(w:Workload)<-[instanceOf:INSTANCE_OF]-(i:WorkloadInstance)") {
+		if !strings.Contains(cypher, "MATCH (i:WorkloadInstance)-[instanceOf:INSTANCE_OF]->(w:Workload)<-[defines:DEFINES]-(repo:Repository)") {
 			t.Fatalf("runtime topology cypher = %q, want one exact DEFINES/INSTANCE_OF clause", cypher)
 		}
 		if got, want := IntVal(params, "instance_limit"), contextStoryItemLimit+1; got != want {

@@ -64,6 +64,16 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		)
 		return err
 	})
+	serviceRuntimeTopology := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
+		_, err := fetchWorkloadRuntimeTopology(
+			context.Background(),
+			graphQuery,
+			"w.id = $workload_id",
+			map[string]any{"workload_id": "workload:proof"},
+			"repository:proof",
+		)
+		return err
+	})
 	serviceRunsOn := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
 		handler := &EntityHandler{Neo4j: graphQuery}
 		_, err := handler.fetchWorkloadPlatformRows(
@@ -153,6 +163,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		"QP-DEPLOY-CATALOG-WORKLOAD-INSTANCE":             catalogWorkloadInstanceEnvironmentCypher,
 		"QP-SVC-RESOLVE":                                  serviceResolve,
 		"QP-SVC-CONTEXT":                                  serviceContext,
+		"QP-SVC-RUNTIME-TOPOLOGY":                         serviceRuntimeTopology,
 		"QP-SVC-RUNS-ON":                                  serviceRunsOn,
 		"QP-SVC-CLOUD-DEPS":                               serviceCloudDependencies,
 		"QP-CODE-REL-STORY":                               directRelationship,

@@ -89,13 +89,15 @@ unbounded variable-length traversals, unlabeled anchors, unordered pagination,
 missing schema evidence, and forbidden plan signatures fail the gate. The same
 script provisions a pinned, isolated Neo4j container and runs the build-tagged
 live proof in `go/internal/query/queryplan_profile_live_test.go`. That proof
-profiles 16 handler entries and 25 legacy entries through Neo4j `PROFILE` using
-production-owned bytes, plus 324 hash-frozen safe production variants: 365
-shapes in total. The safe family includes the 31 cloud-resource list shapes not
-already represented by its registered resource-type-only entry, covering every
-combination of optional provider, resource type, region, account, and keyset
-cursor predicates. A label or relationship-type scan is accepted only by the
-closed code-level operator policy; manifest data cannot add an exception.
+profiles 22 handler entries and 30 legacy entries through Neo4j `PROFILE` using
+production-owned bytes, plus 735 hash-frozen safe production variants: 787
+shapes in total. The production-variant family includes 140 distinct
+import-dependency queries mapped from all 244 valid API and MCP request shapes.
+Cloud-resource browsing is covered separately by one UID-bounded graph
+hydration plan and 64 hash-frozen Postgres page variants: 32 filter/cursor
+combinations each for all-scope and scoped access. A label or relationship-type
+scan is accepted only by the closed code-level operator policy; manifest data
+cannot add an exception.
 Static validation
 does not replace live backend `EXPLAIN`,
 `PROFILE`, or before/after runtime measurements for production Cypher changes.
