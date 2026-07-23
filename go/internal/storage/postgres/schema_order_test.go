@@ -96,6 +96,11 @@ var orderedBootstrapDefinitionNames = []string{
 	"cloud_resource_owner_region_page_index",
 	"cloud_resource_owner_account_page_index",
 	"graph_node_owner_backfill_state",
-	"kubernetes_live_pod_template_object_index",
+	// Both indexes ship under migration prefix 075 (a duplicate-number merge
+	// artifact from two independently-landed PRs). BootstrapDefinitions() sorts
+	// by migration filename, so "075_fact_records_active_container_image_slsa_idx"
+	// (f) deterministically precedes "075_kubernetes_live_pod_template_object_index"
+	// (k). This mirror list must follow that same filename order.
 	"fact_records_active_container_image_slsa_idx",
+	"kubernetes_live_pod_template_object_index",
 }
