@@ -61,44 +61,124 @@ referent resolve EXACTLY and become downgrade-eligible.
   false-positive theorem (A1-A4) needs no re-proof beyond rerunning its
   existing suite unchanged, which it does, green.
 
-## Performance measurement (representative corpus)
+## P0 fix (post separate-context review): union-accumulation, not first-hit
 
-Benchmark: `BenchmarkBuildCodeRootVerdictsNamespacedCorpus` (worst-case: 500
-controllers nested 2 module levels deep, 20% with a base unresolvable anywhere
-in the lexical chain — the shape the issue documents as inflating
+A separate-context review (`eshu-code-review`) found that the first shipped
+`lexicalExactMatch` returned on the FIRST non-empty `ExactMatches` hit
+(innermost scope first) and never tried the remaining outer scopes OR the bare
+`ref` once it had a hit. `classNamespaceOf` derives `namespace` purely from the
+walked classKey's own qualified name, which CANNOT distinguish Ruby's
+nested-module-block declaration form (`module Admin; class Foo < Bar; end;
+end`, where `Module.nesting` really does include `Admin`) from the COMPACT
+COLON form (`class Admin::Foo < Bar`, where `Module.nesting` does NOT include
+`Admin` unless the file also lexically wraps it) — `qualifiedClassName`
+(`go/internal/parser/ruby/nodes.go`) produces the IDENTICAL qualified name for
+both. Consequence: for a top-level compact-colon `class Admin::OrdersController
+< Base`, if an unrelated `Admin::Base` coincidentally exists anywhere in the
+corpus, the first-hit implementation returned `[Admin::Base]` and NEVER tried
+bare `Base`. `SuffixMatches` only returns STRICT offset>0 matches
+(`code_root_verdicts.go`'s `rubyQualifiedNameHasStrictSuffix`), so the true
+offset-0 top-level `Base` referent was excluded from the candidate set
+entirely — the walk proceeded against the WRONG identity, and a genuinely live
+controller extending the real top-level `Base < ApplicationController` could
+be wrongly `downgraded`. This is the exact false-positive class #5376/#5500
+promise never to reintroduce.
+
+**Fix**: `lexicalExactMatch` now accumulates the UNION of `ExactMatches` across
+EVERY tried scope level plus the bare `ref`, instead of returning on the first
+hit. This keeps the documented additive-only property (more candidates only
+strengthen `onwardHop`'s any-path-keeps aggregation, never weaken it — a
+downgrade still requires EVERY unioned candidate to vote downgrade) while
+eliminating the masking: the true bare referent for a compact-colon
+declaration always stays in the candidate set alongside any coincidentally
+same-named inner-scope class.
+
+**Regression tests (failing→green, verified live by reverting only
+`lexicalExactMatch` to the first-hit version and rerunning)**:
+
+- `go/internal/rubycontroller/controller_test.go` —
+  `TestDecide/compact-colon_form:_coincidental_inner-scope_match_does_not_mask_the_true_top-level_referent`:
+  `classes = {"Admin::OrdersController": ["Base"], "Admin::Base":
+  ["ActiveRecord::Base"], "Base": ["ApplicationController"]}`. Pre-fix: `Keep =
+  false, Terminal = "rejected_base:ActiveRecord::Base"` (the coincidental
+  `Admin::Base` masked the true `Base` referent). Post-fix: `Keep = true,
+  Reason = accepted` (both candidates stay in play; `Base` →
+  `ApplicationController` rescues via any-path-keeps).
+- `go/internal/reducer/code_root_verdicts_lexical_scope_test.go` —
+  `TestBuildCodeRootVerdictsLexicalScopeCoincidentalInnerMatchDoesNotMask`
+  reproduces the same shape through the REAL production registry
+  (`rubyRepoWideControllerRegistry`).
+- `go/internal/reducer/code_root_verdicts_integration_test.go` —
+  `TestBuildCodeRootVerdictsLexicalScopeCompactColonFormDoesNotMaskTrueReferentFromRealParserEmissions`
+  reproduces it end-to-end through the REAL Ruby parser with genuine compact
+  colon source (`class Admin::OrdersController < Base` with NO enclosing
+  `module Admin` block, plus a module-nested unrelated `Admin::Base <
+  ActiveRecord::Base` and a genuine top-level `Base < ApplicationController`)
+  — no hand-built qualified names.
+- All three PASS after the fix; all three FAIL (as the false downgrade) when
+  `lexicalExactMatch` is temporarily reverted to the first-hit version. Every
+  pre-existing test in this PR (the exact-downgrade case, the outer-scope
+  case, the no-op case, the Terminal-pinning case) stays green — the union
+  fix is a strict superset of the first-hit behavior for every case where no
+  coincidental masking exists.
+
+## Performance measurement (representative corpus, post P0-fix)
+
+Benchmarks (both in
+`go/internal/reducer/code_root_verdicts_lexical_scope_test.go`):
+`BenchmarkBuildCodeRootVerdictsNamespacedCorpus` (worst-case: 500 controllers
+nested 2 module levels deep, 20% with a base unresolvable anywhere in the
+lexical chain — the shape the issue documents as inflating
 `SuffixAmbiguousKept` on a heavily namespaced corpus) and
-`BenchmarkBuildCodeRootVerdictsNamespacedCorpusTypical` (the same shape at the
-evidence-5376-doc's own ~99%-correctly-based ratio), both in
-`go/internal/reducer/code_root_verdicts_lexical_scope_test.go`. Compared
-against the pre-#5500 commit on the identical corpus (`go test
-./internal/reducer -run='^$' -bench=BenchmarkBuildCodeRootVerdictsNamespacedCorpus -benchmem -benchtime=50x -count=8`, `benchstat` old vs new):
+`BenchmarkBuildCodeRootVerdictsNamespacedCorpusTypical` (same shape at the
+evidence-5376-doc's own ~99%-correctly-based ratio — "the throughput number
+that matters for a real Rails corpus"). Compared against the pre-#5500 commit
+on the identical corpus (`go test ./internal/reducer -run='^$'
+-bench='BenchmarkBuildCodeRootVerdictsNamespacedCorpus$|BenchmarkBuildCodeRootVerdictsNamespacedCorpusTypical$'
+-benchmem -benchtime=30x -count=8`, `benchstat` old vs new, both reported —
+neither hidden):
 
 ```
-BuildCodeRootVerdictsNamespacedCorpus-12   sec/op    16.92m ± 6%  ->  25.72m ± 15%   +51.99% (p=0.000 n=8)
-BuildCodeRootVerdictsNamespacedCorpus-12   B/op      12.48Mi ± 0% ->  20.35Mi ± 0%   +62.99% (p=0.000 n=8)
-BuildCodeRootVerdictsNamespacedCorpus-12   allocs/op 215.8k ± 0%  ->  220.1k ± 0%     +1.99% (p=0.000 n=8)
+BuildCodeRootVerdictsNamespacedCorpus-12         sec/op    17.24m ± 7%  -> 22.76m ± 38%  +31.99% (p=0.000 n=8)
+BuildCodeRootVerdictsNamespacedCorpusTypical-12  sec/op    16.26m ± 4%  -> 21.44m ±  5%  +31.83% (p=0.010 n=8)
+geomean                                                    16.75m      -> 22.09m        +31.91%
+
+BuildCodeRootVerdictsNamespacedCorpus-12         B/op      12.78Mi ± 0% -> 21.70Mi ± 0%  +69.87% (p=0.000 n=8)
+BuildCodeRootVerdictsNamespacedCorpusTypical-12  B/op      12.76Mi ± 0% -> 22.44Mi ± 0%  +75.81% (p=0.000 n=8)
+geomean                                                    12.77Mi     -> 22.07Mi        +72.82%
+
+BuildCodeRootVerdictsNamespacedCorpus-12         allocs/op 223.3k ± 0%  -> 229.7k ± 0%   +2.84% (p=0.000 n=8)
+BuildCodeRootVerdictsNamespacedCorpusTypical-12  allocs/op 211.2k ± 0%  -> 218.2k ± 0%   +3.30% (p=0.000 n=8)
+geomean                                                    217.2k      -> 223.9k         +3.07%
 ```
 
-A first implementation (`lexicalCandidates` pre-building a `[]string` of every
-candidate via `strings.Split`/`strings.Join`) measured a nearly-identical
-ns/op regression with a WORSE allocs/op (+2.83%, one extra slice allocation per
-onward hop). It was replaced with `lexicalExactMatch` walking the namespace
-directly via `strings.LastIndex` (no segment-slice, no candidates-slice, one
-string concat per level tried) — this is the version reflected above.
+The Typical (realistic ~99%-correctly-based) corpus is NOT cheaper than the
+worst-case corpus here — B/op is actually slightly WORSE for Typical
+(+75.81% vs +69.87%), because most of the added cost comes from correctly-based
+controllers now resolving via the deeper exact-resolution recursion path
+instead of the shallow accepted-literal short-circuit; both numbers are
+reported so neither is hidden as "the real-world case is cheap."
 
-Root cause (confirmed via `go tool pprof -alloc_objects`, 90% of allocation
-volume traced to `strings.genSplit` inside the PRE-EXISTING (#5376)
-`rubyRepoWideControllerRegistry.SuffixMatches`): allocation COUNT barely moved
-(+2%); the +63-76% B/op growth is each `walkClass`/`onwardHop` recursion level's
-existing `cloneChain`/`cloneVisited` copies getting BIGGER, because the fix
-makes the walk go one level DEEPER for every ref that now resolves exactly
-instead of stopping early at the keep-biased `suffix_only_ambiguous` branch.
-This is not implementation waste; it is the direct, expected cost of computing
-a materially more precise verdict instead of bailing out ambiguous. Wall-clock
-ns/op was noisy on this shared, concurrently-loaded machine (a same-corpus
-rerun later showed no significant ns/op difference at n=5); the B/op and
-allocs/op deltas were reproducible and directionally identical across every
-run and are the reported evidence.
+An earlier iteration (`lexicalCandidates` pre-building a `[]string` of every
+candidate via `strings.Split`/`strings.Join`, and a since-superseded
+first-hit `lexicalExactMatch`) measured similar or worse allocation profiles;
+each was replaced in place, and the numbers above are for the final,
+union-accumulating, `strings.LastIndex`-walking version.
+
+Root cause (confirmed via `go tool pprof -alloc_objects` on the first-hit
+version, and structurally unchanged by the union fix): allocation COUNT moves
+only ~3%; the +70-76% B/op growth is each `walkClass`/`onwardHop` recursion
+level's existing `cloneChain`/`cloneVisited` copies getting BIGGER, because the
+fix makes the walk go one level DEEPER — and, after the P0 fix, sometimes walk
+MULTIPLE additional candidates per hop — for every ref that now resolves
+exactly instead of stopping early at the keep-biased `suffix_only_ambiguous`
+branch. This is not implementation waste; it is the direct, expected cost of
+computing a materially more precise (and, after the P0 fix, more SAFELY
+inclusive) verdict instead of bailing out ambiguous or masking a candidate.
+Wall-clock ns/op was noisy on this shared, concurrently-loaded machine across
+every run in this investigation; the B/op and allocs/op deltas were
+reproducible and directionally identical across every run and are the primary
+reported evidence.
 
 No-Regression Evidence: the walk keeps the SAME asymptotic bound
 (O(#classes + #roots)), the SAME `MaxWalkDepth` = 10 cap, and the SAME
@@ -106,10 +186,13 @@ resolved-class-key cycle guard — no unbounded blowup risk is introduced.
 `BuildCodeRootVerdicts` runs once per reducer partition per generation cycle as
 part of the existing CodeReachability projection pass (in-memory only, no new
 I/O, no new lock/lease/queue path); it is not a per-request or Cypher hot path.
-An extra ~9 ms on a synthetic 500-controller worst-case corpus is immaterial
-next to the reducer cycle's existing multi-millisecond-to-multi-second SQL and
-graph-write stages (see evidence-5376-code-root-verdicts.md's own Q1-Q3
-`EXPLAIN ANALYZE` numbers).
+An extra ~5-6 ms on a synthetic 500-controller corpus (worst-case OR typical)
+is immaterial next to the reducer cycle's existing multi-millisecond-to-multi-
+second SQL and graph-write stages (see evidence-5376-code-root-verdicts.md's
+own Q1-Q3 `EXPLAIN ANALYZE` numbers). Per repo rules this in-memory,
+once-per-generation cost is not a blocker on its own — the requirement here is
+that the evidence be complete and honest about both the worst-case and the
+realistic-case numbers, which it now is.
 
 Observability Evidence / No-Observability-Change: `BuildCodeRootVerdicts`
 already reports `CodeRootVerdictStats.SuffixAmbiguousKept`, `Confirmed`, and
@@ -138,3 +221,14 @@ already-indexed repo automatically re-projects its controller verdicts under
 the new lexical-scope-aware logic with no separate backfill script, no
 watermark reset, and no graph migration. This is forward-only and safe to ship
 in the same PR as the epoch bump.
+
+**KNOWN EPOCH COLLISION — flagged, not silently resolved**: as of this
+worktree's last rebase onto `origin/main` (`8f2f959a9`), `origin/main` still
+has `CodeReachabilityVerdictSchemaEpoch = 1`, so this branch's `1 -> 2` bump is
+correct for now. However, issue #5494 independently bumps the SAME constant
+for a DIFFERENT verdict-semantics change. Whichever of #5500 / #5494 merges
+SECOND must rebase and bump to `3` (not re-use `2`), or the second-merged
+change's own re-projection trigger will be silently absorbed by the first
+merge's `1 -> 2` epoch stamp and never re-run. The orchestrator is sequencing
+this merge order; this constant must not be merge-resolved silently by either
+branch.

@@ -47,22 +47,36 @@ masquerade as a ref's.
 
 ## Lexical-scope-aware candidate restriction (#5500, optional precision upgrade)
 
-Before falling back to the broad, unscoped `ExactMatches(ref)` lookup,
-`onwardHop` first tries the lexical-prefix names real Ruby constant lookup
-would try for a base ref seen inside the walked class's own namespace `P`
-(`P`'s qualified name minus its own last segment): `P::ref`, then each
-enclosing prefix of `P` outward (mirroring `Module.nesting` search order), then
-top-level `::ref` (`lexicalExactMatch`). `P` is derived purely from the walked
-classKey's own qualified name (`classNamespaceOf`), so it is `""` — and the
-restriction a documented no-op — for a top-level class or the parser's
-same-file registry (whose class keys are always simple names).
+Alongside the broad, unscoped `ExactMatches(ref)` lookup, `onwardHop` also
+tries the lexical-prefix names real Ruby constant lookup would try for a base
+ref seen inside the walked class's own namespace `P` (`P`'s qualified name
+minus its own last segment): `P::ref`, then each enclosing prefix of `P`
+outward (mirroring `Module.nesting` search order), then top-level `::ref`
+(`lexicalExactMatch`). `P` is derived purely from the walked classKey's own
+qualified name (`classNamespaceOf`), so it is `""` — and the restriction a
+documented no-op — for a top-level class or the parser's same-file registry
+(whose class keys are always simple names).
+
+**`lexicalExactMatch` returns the UNION of every level's `ExactMatches` hit —
+it never stops at the first hit.** `classNamespaceOf` cannot distinguish a
+genuinely nested-module-block declaration (`module Admin; class Foo < Bar;
+end; end`, where Ruby's `Module.nesting` really does include `Admin`) from the
+compact colon form (`class Admin::Foo < Bar`, where `Module.nesting` does NOT
+include `Admin` unless the file also lexically wraps it) — `qualifiedClassName`
+produces the identical qualified name for both. Stopping at the first
+inner-scope hit would let a coincidentally same-named class at an inner
+candidate level SILENTLY MASK the true bare top-level referent for a
+compact-colon declaration (since `SuffixMatches` only returns STRICT offset>0
+matches, the true offset-0 top-level referent would be unreachable any other
+way once masked) — a real false-downgrade defect caught by review and fixed;
+see `evidence-5500-lexical-scope-restriction.md`'s P0 section.
 
 This changes NOTHING about the offset-0-vs-suffix downgrade rule above: it only
-changes how an EXACT match is found. A base that previously had only a broad,
+changes how EXACT matches are found. A base that previously had only a broad,
 unscoped `SuffixMatches` candidate can now resolve EXACTLY when its true,
 lexically-scoped referent is in-corpus, letting it confirm or downgrade instead
 of staying `suffix_only_ambiguous` forever. It can never drop a match the prior
-lookup found: the final candidate tried is always the bare `ref`, identical to
+lookup found: the bare `ref` is always one of the unioned candidates, identical to
 the pre-#5500 `ExactMatches(ref)` call. See
 `evidence-5500-lexical-scope-restriction.md` in `go/internal/reducer` for the
 correctness proof, the measured performance cost, and the schema-epoch
