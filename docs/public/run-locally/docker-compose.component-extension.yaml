@@ -49,6 +49,37 @@ services:
       db-migrate:
         condition: service_completed_successfully
 
+  # The public read surfaces (GET /api/v0/component-extensions and its
+  # diagnostics route) call the identical component.Registry.Readback used by
+  # the coordinator and CLI. Without ESHU_COMPONENT_HOME set, both handlers
+  # fail closed with 503 "component extension registry is unavailable" even
+  # though the shared eshu_data volume they already mount holds the populated
+  # registry (see docs/internal/remote-validation/prod-component-extension-
+  # inventory.md). The trust-policy vars are mirrored from
+  # workflow-coordinator so the live readback reports a real "allowed" trust
+  # decision instead of "not_evaluated" (a zero Policy skips verification).
+  eshu:
+    environment:
+      ESHU_COMPONENT_HOME: /data/.eshu/components
+      ESHU_COMPONENT_TRUST_MODE: allowlist
+      ESHU_COMPONENT_ALLOW_IDS: dev.eshu.examples.scorecard
+      ESHU_COMPONENT_ALLOW_PUBLISHERS: eshu-hq
+      ESHU_COMPONENT_CORE_VERSION: dev
+    depends_on:
+      component-extension-install:
+        condition: service_completed_successfully
+
+  mcp-server:
+    environment:
+      ESHU_COMPONENT_HOME: /data/.eshu/components
+      ESHU_COMPONENT_TRUST_MODE: allowlist
+      ESHU_COMPONENT_ALLOW_IDS: dev.eshu.examples.scorecard
+      ESHU_COMPONENT_ALLOW_PUBLISHERS: eshu-hq
+      ESHU_COMPONENT_CORE_VERSION: dev
+    depends_on:
+      component-extension-install:
+        condition: service_completed_successfully
+
   workflow-coordinator:
     environment:
       ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE: active
