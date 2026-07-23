@@ -147,6 +147,60 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactScannerAnalysisScopeFacts
 	return loaded, truncated, nil
 }
 
+// maxSupplyChainImpactResolvedDigestLoads bounds how many distinct image
+// digests loadSupplyChainImpactResolvedDigestEvidenceFacts seeds into its
+// single re-run of the active-evidence reader per intent. Mirrors
+// maxSupplyChainImpactScannerAnalysisScopeLoads: in production these digests
+// come one-per-distinct-scan-target from the scanner-analysis-scope stage
+// immediately above, so a pathological generation with an unbounded number of
+// distinct scan targets cannot also turn this digest-seeded re-run into an
+// unbounded active-evidence read.
+const maxSupplyChainImpactResolvedDigestLoads = 256
+
+// loadSupplyChainImpactResolvedDigestEvidenceFacts re-runs the active-evidence
+// reader (loadActiveSupplyChainImpactFacts) seeded with the image digests
+// scannerAnalysisEnvelopes just resolved, so reducer_container_image_identity
+// (and any other active-evidence kind the same digest branch of
+// listActiveSupplyChainImpactFactsQuery matches) gets loaded for an
+// os_package finding whose SubjectDigest only becomes known at the
+// scanner-analysis-scope stage immediately above.
+//
+// This closes a phase-ordering gap (issue #5464): the ORIGINAL active-evidence
+// stage (loadActiveSupplyChainImpactFactsUntilStable, called earlier in
+// loadSupplyChainImpactEvidence) runs BEFORE any os_package's scanned digest
+// exists, because that digest is only resolved by
+// loadSupplyChainImpactScannerAnalysisScopeFacts — which itself must run
+// AFTER loadSupplyChainImpactOSPackageAdvisoryFacts, since it keys its
+// scan-scope lookup off the os_package envelopes that stage adds. So the
+// digest could never reach the original active-evidence filter,
+// reducer_container_image_identity for a pure OS-package finding was never
+// loaded, finding.RepositoryID stayed empty, and every downstream
+// repository-keyed join (matchingSupplyChainWorkloads/DeploymentLanes/Services
+// in supply_chain_impact_runtime.go) early-returned nil for that finding. This
+// stage is purely ADDITIVE — it does not reorder or replace the earlier
+// stage, which still resolves whatever digests, package IDs, or CVE IDs were
+// already known at that point.
+//
+// This is a single, non-looping call: unlike
+// loadActiveSupplyChainImpactFactsUntilStable, a loaded
+// reducer_container_image_identity fact contributes no filter value
+// supplyChainImpactFilter derives back into SubjectDigests/PackageIDs/etc (its
+// own case only feeds RepositoryIDs/ImageRefs from fields already known), so a
+// second round would never discover anything new from it.
+func (h SupplyChainImpactHandler) loadSupplyChainImpactResolvedDigestEvidenceFacts(
+	ctx context.Context,
+	scannerAnalysisEnvelopes []facts.Envelope,
+) ([]facts.Envelope, error) {
+	filter := supplyChainImpactFilter(scannerAnalysisEnvelopes)
+	if len(filter.SubjectDigests) == 0 {
+		return nil, nil
+	}
+	if len(filter.SubjectDigests) > maxSupplyChainImpactResolvedDigestLoads {
+		filter.SubjectDigests = filter.SubjectDigests[:maxSupplyChainImpactResolvedDigestLoads]
+	}
+	return h.loadActiveSupplyChainImpactFacts(ctx, filter)
+}
+
 func (h SupplyChainImpactHandler) emitCounters(
 	ctx context.Context,
 	counts map[SupplyChainImpactStatus]int,

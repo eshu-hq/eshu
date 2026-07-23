@@ -267,6 +267,25 @@ func classifySupplyChainImpactPackage(
 			finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, analysis.factID)
 			finding.EvidencePath = append(finding.EvidencePath, facts.ScannerWorkerAnalysisFactKind)
 		}
+		// Anchor RepositoryID from the scanned image's own identity fact
+		// (issue #5464) — loaded cross-scope by
+		// loadSupplyChainImpactResolvedDigestEvidenceFacts, seeded with the
+		// digest just stamped above — when nothing has claimed RepositoryID
+		// yet. This mirrors the SBOM path's image.repositoryID assignment
+		// above, but it MUST NOT overwrite a RepositoryID the consumption
+		// path (package manifest evidence, higher up in this function) has
+		// already set: a per-package manifest anchor is more precise than an
+		// image-level identity, which only tells you which repository built
+		// the scanned image and can be shared across many unrelated
+		// packages. Never guessed: a digest with no matching identity fact
+		// (index.images has no entry) leaves RepositoryID exactly as it was.
+		if finding.RepositoryID == "" && finding.SubjectDigest != "" {
+			if image, ok := index.images[finding.SubjectDigest]; ok && image.repositoryID != "" {
+				finding.RepositoryID = image.repositoryID
+				finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, image.factID)
+				finding.EvidencePath = append(finding.EvidencePath, containerImageIdentityFactKind)
+			}
+		}
 	}
 	versionDecision := evaluateSupplyChainVersionMatch(
 		finding.Ecosystem,

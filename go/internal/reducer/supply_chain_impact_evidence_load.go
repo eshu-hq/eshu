@@ -25,6 +25,7 @@ type supplyChainImpactLoadedEvidence struct {
 	activeEvidenceTruncated     bool
 	osPackageAdvisoryFacts      int
 	scannerAnalysisScopeFacts   int
+	resolvedDigestEvidenceFacts int
 	pythonReachabilityFacts     int
 	jvmReachabilityFactCount    int
 	postSecurityAlertScopeFacts int
@@ -34,21 +35,27 @@ type supplyChainImpactLoadedEvidence struct {
 
 // loadSupplyChainImpactEvidence runs the scope-fact, repository, manifest-
 // dependency, active-evidence, os-package-advisory, scanner-analysis-scope,
-// Python/JVM reachability, and security-alert scoping load stages for one
-// supply-chain-impact intent, in the same order and with the same per-stage
-// timing SupplyChainImpactHandler.Handle recorded before this extraction. The
-// os-package-advisory stage runs right after active-evidence, deriving
-// candidate vendor advisory sources from the affected_package facts already
-// loaded and fetching cross-scope vulnerability.os_package evidence through
-// the advisory-target reader (loadSupplyChainImpactOSPackageAdvisoryFacts) —
-// the only path that kind reaches this pipeline through, since
-// supplyChainImpactFactKinds intentionally omits it. The scanner-analysis-
-// scope stage runs right after that because it depends on the os_package
-// facts the new stage (and any active-evidence os_package already present)
-// loads: each os_package's own ScopeID+GenerationID (not the intent's) is
-// where its sibling scanner_worker.analysis fact lives in production, so it
-// is queried directly rather than through the shared active-evidence filter.
-// It returns the accumulated evidence plus a timing value with every
+// resolved-digest-evidence, Python/JVM reachability, and security-alert
+// scoping load stages for one supply-chain-impact intent, in the same order
+// and with the same per-stage timing SupplyChainImpactHandler.Handle recorded
+// before this extraction. The os-package-advisory stage runs right after
+// active-evidence, deriving candidate vendor advisory sources from the
+// affected_package facts already loaded and fetching cross-scope
+// vulnerability.os_package evidence through the advisory-target reader
+// (loadSupplyChainImpactOSPackageAdvisoryFacts) — the only path that kind
+// reaches this pipeline through, since supplyChainImpactFactKinds
+// intentionally omits it. The scanner-analysis-scope stage runs right after
+// that because it depends on the os_package facts the new stage (and any
+// active-evidence os_package already present) loads: each os_package's own
+// ScopeID+GenerationID (not the intent's) is where its sibling
+// scanner_worker.analysis fact lives in production, so it is queried directly
+// rather than through the shared active-evidence filter. The
+// resolved-digest-evidence stage runs immediately after that: it re-runs the
+// active-evidence reader seeded with the digest(s) the scanner-analysis-scope
+// stage just resolved, so reducer_container_image_identity (unreachable at
+// the original active-evidence stage, which ran before that digest existed)
+// gets loaded and can anchor an os_package finding's RepositoryID (issue
+// #5464). It returns the accumulated evidence plus a timing value with every
 // load-stage duration filled in; Handle continues filling the remaining
 // (classification/write/emit) stages on the same value.
 func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
@@ -113,6 +120,16 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	scannerAnalysisScopeFacts := len(envelopes) - scannerAnalysisScopeStartCount
 	activeEvidenceTruncated = activeEvidenceTruncated || scannerAnalysisScopeTruncated
 
+	resolvedDigestEvidenceStartCount := len(envelopes)
+	phaseStarted = time.Now()
+	resolvedDigestEvidenceEnvelopes, err := h.loadSupplyChainImpactResolvedDigestEvidenceFacts(ctx, scannerAnalysisScopeEnvelopes)
+	timing.loadResolvedDigestEvidenceDuration = time.Since(phaseStarted)
+	if err != nil {
+		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load supply chain impact resolved digest evidence facts: %w", err)
+	}
+	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, resolvedDigestEvidenceEnvelopes...)
+	resolvedDigestEvidenceFacts := len(envelopes) - resolvedDigestEvidenceStartCount
+
 	pythonReachabilityStartCount := len(envelopes)
 	phaseStarted = time.Now()
 	pythonReachabilityEvidence, err := h.loadPythonReachabilityEvidenceFacts(ctx, envelopes)
@@ -155,6 +172,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		activeEvidenceTruncated:     activeEvidenceTruncated,
 		osPackageAdvisoryFacts:      osPackageAdvisoryFacts,
 		scannerAnalysisScopeFacts:   scannerAnalysisScopeFacts,
+		resolvedDigestEvidenceFacts: resolvedDigestEvidenceFacts,
 		pythonReachabilityFacts:     pythonReachabilityFacts,
 		jvmReachabilityFactCount:    jvmReachabilityFactCount,
 		postSecurityAlertScopeFacts: postSecurityAlertScopeFacts,
