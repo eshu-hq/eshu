@@ -521,6 +521,11 @@ const (
 	// read over the authoritative (:ContainerImage) graph that backs the
 	// console Images browse surface.
 	SpanQueryContainerImageList = "query.container_image_list"
+	// SpanQueryContainerImageTagHistory wraps the bounded, ordered read of one
+	// image_ref's captured ContainerImageTagObservation history (issue #5459):
+	// what digest a tag was first observed as, and the order its digests
+	// changed.
+	SpanQueryContainerImageTagHistory = "query.container_image_tag_history"
 	// SpanQueryCloudResourceList wraps the bounded keyset-paged list of cloud
 	// provider resources (CloudResource nodes) served by GET
 	// /api/v0/cloud/resources. Distinct from the aggregate span so operators can

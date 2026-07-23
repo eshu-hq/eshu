@@ -61,6 +61,36 @@ func supplyChainTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "list_container_image_tag_history",
+			Description: "List the bounded, ordered ContainerImageTagObservation history captured for one repository_id+tag (issue #5459): what digest the tag was first observed as, and the order its digests changed. repository_id and tag are both required; the server composes the image_ref anchor from them. A tag that flips back to a previously observed digest (A -> B -> A) collapses onto the same observation node rather than producing a new event, and first_observed_at is a set-once value that holds the FIRST projected observation rather than a full chronological event log -- see the route's doc comment for both limitations. Populated by the opt-in oci_registry collector (off in a default deploy; enable with ESHU_COLLECTOR_INSTANCES_JSON plus container-registry credentials), so a default git-only deploy returns an empty page.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"repository_id": map[string]any{
+						"type":        "string",
+						"description": "OCI repository identity such as oci-registry://registry.example/team/api. Required; must carry the oci-registry:// prefix.",
+					},
+					"tag": map[string]any{
+						"type":        "string",
+						"description": "Tag observed for the image, such as 1.0.0. Required.",
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum tag-observation rows to return.",
+						"default":     50,
+						"minimum":     1,
+						"maximum":     200,
+					},
+					"offset": map[string]any{
+						"type":        "integer",
+						"description": "Row offset for continuation; use next_cursor.offset from a truncated page.",
+						"default":     0,
+						"minimum":     0,
+					},
+				},
+			},
+		},
+		{
 			Name:        "list_supply_chain_impact_findings",
 			Description: "List reducer-owned vulnerability impact findings by CVE, package, repository, image digest, or impact status. The default precise profile requires supported exact-version evidence such as npm, Maven, Cargo, Pub pubspec.lock, NuGet, or Swift Package.resolved. Each row carries `vulnerable_range`, a reachability envelope with states such as reachable, not_called, unknown, unavailable, and missing_evidence, and an advisory-only remediation block (issue #595). Reachability does not change impact truth; JavaScript/TypeScript parser/SCIP package API evidence is partial prioritization evidence, and not_called is emitted only when an ecosystem-specific scanner proves stronger semantics. Suppression decisions (VEX, operator-policy, provider dismissal evidence) are attached to each row; set include_suppressed=true to surface findings hidden by operator suppression and use suppression_state to filter by a specific decision. Findings are seeded by the opt-in vulnerability_intelligence and security_alert collectors (off in a default deploy; enable with ESHU_COLLECTOR_INSTANCES_JSON plus advisory-feed or provider credentials), so a default git-only deploy returns an empty page whose readiness envelope reports not_configured rather than a false fresh-zero.",
 			InputSchema: map[string]any{

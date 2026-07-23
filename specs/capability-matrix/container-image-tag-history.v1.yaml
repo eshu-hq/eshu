@@ -1,0 +1,16 @@
+version: v1
+updated_at: 2026-07-22
+owners:
+  - platform-engineering
+# Bounded, ordered read of a single (repository_id, tag) image_ref's captured
+# ContainerImageTagObservation history (issue #5459): what digest a tag was
+# first observed as, and the order its digests changed, anchored on the
+# existing container_image_tag_observation_ref index over image_ref.
+capabilities:
+  - capability: platform_impact.container_image_tag_history
+    tools: [list_container_image_tag_history]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{go_test: ./internal/query}], notes: requires the authoritative container image graph}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: single_image_ref, verification: [{go_test: ./internal/query}], notes: bounded ordered read of one image_ref's ContainerImageTagObservation rows anchored on the container_image_tag_observation_ref index, ordered by first_observed_at then uid, limit+1 truncation, and offset continuation; requires repository_id and tag}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: single_image_ref, verification: [{go_test: ./internal/query ./internal/mcp}], notes: API and MCP parity over the same bounded ordered image_ref tag-observation history}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: single_image_ref, verification: [{remote_validation: prod-container-image-tag-history}], notes: bounded ordered read of one image_ref's ContainerImageTagObservation rows with deterministic ordering and offset continuation}

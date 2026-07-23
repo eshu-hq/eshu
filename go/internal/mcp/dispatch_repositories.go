@@ -99,6 +99,8 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool, error)
 		return observabilityCoverageCorrelationsRoute(args), true, nil
 	case "list_container_image_identities":
 		return containerImageIdentitiesRoute(args), true, nil
+	case "list_container_image_tag_history":
+		return containerImageTagHistoryRoute(args), true, nil
 	case "count_container_image_identities":
 		return containerImageIdentityAggregateCountRoute(args), true, nil
 	case "get_container_image_identity_inventory":

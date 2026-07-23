@@ -409,6 +409,20 @@
 // only this read (no admin mutations) for cmd/mcp-server, mirroring
 // AdminDeadLetterListHandler.
 //
+// TagHistoryHandler serves GET /api/v0/images/tag-history (issue #5459): a
+// bounded, ordered read of one repository_id+tag's captured
+// ContainerImageTagObservation history, anchored on the existing
+// container_image_tag_observation_ref index over the server-composed
+// image_ref. Both repository_id and tag are required; a malformed or missing
+// selector is rejected with 400 rather than returning an empty 200. Rows are
+// ordered by first_observed_at then uid, a property written by a separate,
+// deferred set-once statement (see go/internal/storage/cypher) that holds the
+// FIRST projected observation and never regresses under later or
+// out-of-order re-projection. A tag that flips back to a previously observed
+// digest collapses onto the same observation node, so the returned history is
+// bounded by the distinct-digest set observed for the tag, not a full
+// chronological event log of every transition.
+//
 // CodeownersOwnershipHandler serves GET /api/v0/codeowners/ownership (issue
 // #5419 Phase 4): a bounded, keyset-paginated read of one repository's Phase 3
 // DECLARES_CODEOWNER graph edges, plus an effective_owner field resolved by
