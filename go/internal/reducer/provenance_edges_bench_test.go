@@ -92,3 +92,43 @@ func BenchmarkContainerImageBuiltFromRows(b *testing.B) {
 		}
 	}
 }
+
+// benchContainerImageBaseLineageDecisions builds n repositories that each
+// resolve to one built image and one distinct declared base -- the attributable
+// shape -- for B-9 (#3802) micro-benchmarking of the DERIVED_FROM row-building
+// path (issue #5460). The base and the child of a repository are separate
+// decisions, so n repositories produce 2n decisions and n rows.
+func benchContainerImageBaseLineageDecisions(n int) []ContainerImageIdentityDecision {
+	decisions := make([]ContainerImageIdentityDecision, 0, 2*n)
+	for i := 0; i < n; i++ {
+		repo := fmt.Sprintf("repo-%d", i)
+		decisions = append(decisions, ContainerImageIdentityDecision{
+			Digest:              fmt.Sprintf("sha256:c%063d", i),
+			SourceRepositoryIDs: []string{repo},
+			Outcome:             ContainerImageIdentityExactDigest,
+		})
+		decisions = append(decisions, ContainerImageIdentityDecision{
+			Digest:                    fmt.Sprintf("sha256:b%063d", i),
+			BaseImageForRepositoryIDs: []string{repo},
+			Outcome:                   ContainerImageIdentityExactDigest,
+		})
+	}
+	return decisions
+}
+
+// BenchmarkContainerImageDerivedFromRows measures the DERIVED_FROM row-building
+// path over container-image-identity decisions (B-9 #3802 cost-budget evidence
+// for issue #5460). It is strictly more work than the BUILT_FROM builder: this
+// path makes a first pass to group declared bases per repository and reject
+// ambiguous repositories before emitting any row.
+func BenchmarkContainerImageDerivedFromRows(b *testing.B) {
+	decisions := benchContainerImageBaseLineageDecisions(2500)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		rows := containerImageDerivedFromRows(decisions)
+		if len(rows) != 2500 {
+			b.Fatalf("rows = %d, want 2500", len(rows))
+		}
+	}
+}
