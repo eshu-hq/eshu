@@ -32,6 +32,16 @@ type fanOutParityExpectation struct {
 // the same change, with the new expectation re-derived from the intended
 // behavior (never from "whatever the new code happens to output").
 var fanOutParityExpectations = map[reducer.Domain]fanOutParityExpectation{
+	reducer.DomainAWSCloudImageMaterialization: {
+		// Trigger is aws_resource fact presence (issue #5450 retraction-safety
+		// fix), the SAME persistent signal DomainAWSResourceMaterialization
+		// uses -- not lambda_function_uses_image relationship presence, so
+		// AWSCloudImageMaterializationHandler.Handle's retract-first logic
+		// still runs (and correctly retracts to zero) in a generation whose
+		// Lambda no longer carries an image relationship at all.
+		factID: "aws-resource-generic-1", entityKey: "aws_resource_materialization:mixed:fanout:demo",
+		reason: "aws runtime resource facts observed", sourceSystem: "aws",
+	},
 	reducer.DomainAWSCloudRuntimeDrift: {
 		factID: "aws-resource-generic-1", entityKey: "aws_cloud_runtime_drift:mixed:fanout:demo",
 		reason: "aws runtime resource facts observed", sourceSystem: "aws",

@@ -1,6 +1,6 @@
 {
   "schema_version": "replay-coverage-report.v4",
-  "blocking": false,
+  "blocking": true,
   "totals": {
     "total": 430,
     "covered": 416,

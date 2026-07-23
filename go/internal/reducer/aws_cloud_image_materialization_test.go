@@ -232,6 +232,58 @@ func TestAWSCloudImageMaterializationIdempotentOnReprojection(t *testing.T) {
 	}
 }
 
+// TestAWSCloudImageMaterializationRetractsPriorEdgeWhenRelationshipDisappears
+// is the handler-side half of the #5450 retraction-safety proof (the
+// enqueue-side half lives in
+// internal/projector/aws_cloud_image_materialization_intents_test.go's
+// TestBuildProjectionQueuesAWSCloudImageMaterializationWithoutLambdaRelationship).
+// It simulates the Zip-switch scenario directly against Handle: a later
+// generation for the SAME scope carries an aws_resource fact for the Lambda
+// function but NO lambda_function_uses_image relationship (the fact simply
+// stopped appearing, exactly like a package_type flip from Image to Zip).
+// PriorGenerationCheck reports hasPrior=true (this is NOT the scope's first
+// generation), so Handle must retract unconditionally BEFORE checking
+// whether there are any rows to write -- proving retract-first already holds
+// even when the current relationship set is empty, so pairing it with the
+// projector's now-persistent aws_resource trigger correctly converges the
+// edge set to zero instead of leaving a stale prior edge.
+func TestAWSCloudImageMaterializationRetractsPriorEdgeWhenRelationshipDisappears(t *testing.T) {
+	t.Parallel()
+
+	writer := &recordingCloudResourceContainerImageEdgeWriter{}
+	fnARN := "arn:aws:lambda:us-east-1:123456789012:function:demo"
+	handler := AWSCloudImageMaterializationHandler{
+		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
+			// Lambda function still exists (still scanned every generation)
+			// but its image relationship is gone -- e.g. switched to Zip.
+			awsResourceEnvelope(map[string]any{
+				"account_id": "123456789012", "region": "us-east-1",
+				"resource_type": "aws_lambda_function", "resource_id": fnARN, "arn": fnARN,
+			}),
+		}},
+		EdgeWriter:           writer,
+		ReadinessLookup:      readyLookup(true, true),
+		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
+	}
+
+	result, err := handler.Handle(context.Background(), awsCloudImageIntent())
+	if err != nil {
+		t.Fatalf("Handle returned error: %v", err)
+	}
+	if writer.retractCalls != 1 {
+		t.Fatalf("retractCalls = %d, want 1: retract-first must run even with zero current relationships, or a Zip-switched Lambda's prior edge stays stale forever", writer.retractCalls)
+	}
+	if writer.retractEvidence != awsCloudImageEvidenceSource {
+		t.Fatalf("retract evidence = %q, want %q", writer.retractEvidence, awsCloudImageEvidenceSource)
+	}
+	if writer.writeCalls != 0 {
+		t.Fatalf("writeCalls = %d, want 0 (no relationship to project this generation)", writer.writeCalls)
+	}
+	if result.CanonicalWrites != 0 {
+		t.Fatalf("CanonicalWrites = %d, want 0", result.CanonicalWrites)
+	}
+}
+
 func TestAWSCloudImageMaterializationEmptyGenerationNoWrite(t *testing.T) {
 	t.Parallel()
 

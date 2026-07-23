@@ -516,6 +516,26 @@ sibling ci_cd_run_correlation/container_image_identity/package domains:
   An unscanned image (the OCI registry has not observed that digest) is a
   `MATCH` miss, not a fabricated node — the identical graceful-degradation
   contract §5.3/§6 already establish.
+
+  **Retraction-safety fix (issue #5450 follow-up review).** The projector
+  intent builder (`buildAWSCloudImageMaterializationReducerIntent`,
+  `go/internal/projector/aws_cloud_image_materialization_intents.go`)
+  originally triggered ONLY when a `lambda_function_uses_image`
+  `aws_relationship` fact was present in the generation. That meant a
+  generation where a Lambda function switched from an Image package to Zip
+  (or its image relationship otherwise disappeared) enqueued NOTHING for this
+  domain, so `Handle`'s retract-first logic never ran and the PRIOR
+  `AWS_lambda_function_uses_image` edge stayed in the graph forever — a stale
+  deployed-image relationship, defeating the retract-first-per-generation
+  contract this section otherwise establishes. The trigger now fires on
+  `aws_resource` fact presence, the SAME persistent signal
+  `DomainAWSResourceMaterialization`'s own builder uses: AWS is scanned as a
+  whole every generation, so this signal is present whenever the scope is
+  observed at all, independent of what relationships that generation carries.
+  `Handle` already retracts unconditionally before checking whether there are
+  any rows to write, so pairing it with this persistent trigger is
+  sufficient — an empty current-relationship set now still runs `Handle`,
+  which retracts the prior edge and writes zero new ones.
 - **`ecs_task_definition_uses_image` → STAYS Postgres-only (tag-only).** A task
   DEFINITION's container image (`ecs/relationships.go`'s
   `taskDefinitionImageRelationships`) carries only a tag, never a digest — the

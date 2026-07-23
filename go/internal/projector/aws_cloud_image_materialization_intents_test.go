@@ -86,7 +86,11 @@ func TestBuildProjectionQueuesAWSCloudImageMaterialization(t *testing.T) {
 	if got, want := intent.EntityKey, "aws_resource_materialization:"+scopeValue.ScopeID; got != want {
 		t.Fatalf("EntityKey = %q, want %q", got, want)
 	}
-	if got, want := intent.FactID, "fact-lambda-relationship-1"; got != want {
+	// FactID anchors to the aws_resource fact, not the relationship fact: the
+	// trigger is aws_resource presence (see buildAWSCloudImageMaterializationReducerIntent's
+	// doc), so the intent claim is stable even in a generation with no
+	// lambda_function_uses_image relationship at all.
+	if got, want := intent.FactID, "fact-lambda-resource-1"; got != want {
 		t.Fatalf("FactID = %q, want %q", got, want)
 	}
 	if got, want := intent.SourceSystem, "aws"; got != want {
@@ -94,16 +98,24 @@ func TestBuildProjectionQueuesAWSCloudImageMaterialization(t *testing.T) {
 	}
 }
 
-// TestBuildProjectionSkipsAWSCloudImageMaterializationWithoutLambdaRelationship
-// is the negative case: a generation with aws_resource/aws_relationship
-// facts but no lambda_function_uses_image relationship must not enqueue
-// DomainAWSCloudImageMaterialization. Covers both an unrelated
-// relationship_type and the tag-only ecs_task_definition_uses_image
-// relationship, which AWSCloudImageMaterializationHandler recognizes but
-// always skips (stays Postgres-only per the #5472 EXACT-ONLY policy) — a
-// generation with only that relationship type has no cloud-image work to
-// enqueue, so it must not fire the trigger either.
-func TestBuildProjectionSkipsAWSCloudImageMaterializationWithoutLambdaRelationship(t *testing.T) {
+// TestBuildProjectionQueuesAWSCloudImageMaterializationWithoutLambdaRelationship
+// is the retraction-safety regression proof for a P1 a follow-up review
+// caught: the domain MUST still enqueue in a generation that carries
+// aws_resource facts but NO lambda_function_uses_image relationship — for
+// example a Lambda function that switched from an Image package to Zip, so
+// its prior generation's relationship fact simply stops appearing. Before
+// this fix, the trigger fired only on lambda_function_uses_image relationship
+// presence, so that generation enqueued NOTHING,
+// AWSCloudImageMaterializationHandler.Handle's retract-first logic never ran,
+// and the PRIOR AWS_lambda_function_uses_image edge stayed in the graph
+// forever (defeating the #5472 retract-first-per-generation contract). This
+// test's fixture also covers the tag-only ecs_task_definition_uses_image
+// relationship and an unrelated relationship_type, neither of which the
+// handler resolves to an edge -- but the aws_resource fact ALONE is now
+// enough to enqueue, exactly like DomainAWSResourceMaterialization's own
+// trigger, so Handle runs, retracts any prior edge, and correctly writes
+// zero new ones.
+func TestBuildProjectionQueuesAWSCloudImageMaterializationWithoutLambdaRelationship(t *testing.T) {
 	t.Parallel()
 
 	scopeValue := scope.IngestionScope{ScopeID: "aws:123456789012:us-east-1:ecs"}
@@ -155,9 +167,42 @@ func TestBuildProjectionSkipsAWSCloudImageMaterializationWithoutLambdaRelationsh
 		},
 	})
 
+	intent := intentForDomain(t, intents, reducer.DomainAWSCloudImageMaterialization)
+	if got, want := intent.FactID, "fact-ecs-resource-1"; got != want {
+		t.Fatalf("FactID = %q, want %q (anchored to the aws_resource fact, not a relationship fact)", got, want)
+	}
+	if got, want := intent.EntityKey, "aws_resource_materialization:"+scopeValue.ScopeID; got != want {
+		t.Fatalf("EntityKey = %q, want %q", got, want)
+	}
+}
+
+// TestBuildProjectionSkipsAWSCloudImageMaterializationWithoutAWSResourceFacts
+// is the true negative case now: a generation with NO aws_resource facts at
+// all (this scope was not observed by the AWS collector this generation) must
+// not enqueue DomainAWSCloudImageMaterialization -- there is nothing for
+// AWSCloudImageMaterializationHandler.sourceNodesReady to gate on, and no
+// aws_resource_materialization intent would exist either.
+func TestBuildProjectionSkipsAWSCloudImageMaterializationWithoutAWSResourceFacts(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{ScopeID: "gcp:demo-project"}
+	generation := scope.ScopeGeneration{GenerationID: "gen-gcp-1"}
+	intents := appendScopeGenerationReducerIntents(nil, scopeValue, generation, []facts.Envelope{
+		{
+			FactID:        "fact-gcp-resource-1",
+			FactKind:      facts.GCPCloudResourceFactKind,
+			SchemaVersion: facts.GCPCloudResourceSchemaVersion,
+			SourceRef:     facts.Ref{SourceSystem: "gcp"},
+			Payload: map[string]any{
+				"full_resource_name": "//compute.googleapis.com/projects/demo/zones/us-central1-a/instances/demo",
+				"asset_type":         "compute.googleapis.com/Instance",
+			},
+		},
+	})
+
 	for _, intent := range intents {
 		if intent.Domain == reducer.DomainAWSCloudImageMaterialization {
-			t.Fatalf("unexpected aws cloud image intent without a lambda_function_uses_image relationship: %#v", intent)
+			t.Fatalf("unexpected aws cloud image intent without any aws_resource facts: %#v", intent)
 		}
 	}
 }
