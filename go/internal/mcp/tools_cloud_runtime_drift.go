@@ -45,7 +45,7 @@ func cloudRuntimeDriftTools() []ToolDefinition {
 					},
 					"finding_kinds": map[string]any{
 						"type":        "array",
-						"description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, or ambiguous_cloud_resource",
+						"description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, ambiguous_cloud_resource, or image_version_drift",
 						"items":       map[string]any{"type": "string"},
 					},
 					"limit": map[string]any{

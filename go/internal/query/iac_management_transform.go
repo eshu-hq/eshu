@@ -75,6 +75,7 @@ func awsRuntimeDriftRowToIaCManagement(
 		WarningFlags:                 warningFlags,
 		SafetyGate:                   iacManagementSafetyGate(status, warningFlags, redactions),
 		Evidence:                     evidence,
+		DriftedAttributes:            driftedAttributesFromAWSEvidence(row.Evidence),
 	}
 	normalizeIaCManagementFindingSafety(&finding)
 	return finding
