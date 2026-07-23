@@ -102,25 +102,116 @@ added to `docs/public/observability/telemetry-coverage.md` for
 `package_provenance_edges.go` and `container_image_provenance_edges.go`;
 `scripts/verify-telemetry-coverage.sh` passes.
 
-## Known follow-up (not completed in this change)
+## B-12 golden-corpus snapshot (resolved)
 
-The B-12 golden-corpus snapshot (`testdata/golden/e2e-20repo-snapshot.json`)
-`edge_counts`/`required_correlations` entries for `PUBLISHES`/`BUILT_FROM`
-against the live `supply-chain-demo` 20-repo corpus are **not** added here.
-Confirming a non-vacuous (>=1) live edge count requires the orchestrator's
-Docker golden-corpus gate (explicitly out of scope for this focused-verify
-pass) plus resolving a data-shape question found while investigating:
-`testdata/cassettes/packageregistry/supply-chain-demo.json`'s
-`package_registry.source_hint` fact for `github.com/acme/lib-common` carries
-`version_id: "1.0.0"`, while the corresponding `package_registry.package_version`
-fact's canonical `PackageVersion` uid is the composite
-`github.com/acme/lib-common@1.0.0`. If that mismatch is real (not a
-fixture-authoring artifact), the ownership decision for that hint will target
-a non-existent `PackageVersion` uid and safely no-op (skipped, never a
-fabricated or wrong edge) rather than produce the expected PUBLISHES edge --
-worth resolving before adding a `minimum_count: 1` rc assertion so the gate
-doesn't lock in a vacuous or flaky edge count. The replay-depth-requirements
-delta_tombstone scenario for `BUILT_FROM`/`PUBLISHES` is also not yet backed
-by a dedicated scenario file (tracked as an advisory gap in the regenerated
-`docs/public/reference/replay-coverage.md`, does not fail the blocking breadth
-gate).
+The `version_id` mismatch flagged above was real and has been fixed
+(`testdata/cassettes/packageregistry/supply-chain-demo.json`, coordinator
+commit `fb5e2d73c5`): the `package_registry.source_hint` fact for
+`github.com/acme/lib-common` now carries the canonical composite
+`version_id` (`github.com/acme/lib-common@1.0.0`, matching the real
+`source_hint.go:44` collector's `package_id + "@" + version` shape and the
+`package_registry.package_version` fact's own `version_id`, the
+`PackageVersion` node's uid) instead of the raw `"1.0.0"`.
+
+`testdata/golden/e2e-20repo-snapshot.json` now carries:
+
+- `edge_counts.PUBLISHES`: `{min: 1, max: 20}`. `github.com/acme/lib-common`'s
+  single `source_hint` resolves (its `normalized_url`,
+  `https://github.com/acme/lib-common`, matches the in-corpus `lib-common`
+  fixture repo's `ESHU_GITHUB_ORG=acme`-synthesized remote) to one exact/derived
+  decision via BOTH the ownership path and the publication join-by-version
+  path, converging on **one** `Repository->PackageVersion` edge -- Cypher
+  `MERGE` identity is the pattern only, so both writes upsert the SAME edge;
+  properties come from whichever call ran last. `projectPackageProvenanceEdges`
+  always writes ownership rows before publication rows within one `Handle()`
+  call, so the edge's `evidence_kinds`/`evidence_source` deterministically end
+  up publication's. (This is the min/max only; the `PUBLISHES`
+  `Repository->Package` target is never hit by this cassette, since the one
+  hint always carries a version-scoped id, per `packageOwnershipPublishesRows`'
+  version-over-package precedence -- that target still no-ops safely, per the
+  proof matrix above, if a future package-level-only hint is added.)
+- `edge_counts.BUILT_FROM`: `{min: 1, max: 10}`. The `cicdrun` cassette's
+  `ci.run` `artifact_digest` exactly matches the `ociregistry` cassette's
+  `OciImageManifest` digest and carries `repository_id: repository:r_69256c06`,
+  so `container_image_identity` resolves one `exact_digest` decision with that
+  repository in `SourceRepositoryIDs`.
+- `required_correlations` rc-164 (`PUBLISHES`, `Repository`->`PackageVersion`,
+  `minimum_count: 1`, no `evidence_kinds`) and rc-165 (`BUILT_FROM`,
+  `ContainerImage`->`Repository`, `minimum_count: 1`,
+  `evidence_kinds: [CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST]`,
+  `required_edge_properties: [source_tool]`,
+  `allowed_edge_property_values.source_tool: [oci]`).
+
+**Why rc-164 has no `evidence_kinds` narrowing but rc-165 does.** The golden
+gate's shared-verb isolation (`RequiredCorrelation.EvidenceKinds`,
+`CountCorrelationWithEvidence` in `go/cmd/golden-corpus-gate/graph.go`) filters
+by the edge's `evidence_kinds` list property in application code, not Cypher --
+a NornicDB `WHERE` clause over an arbitrary relationship property does not
+filter (see that function's own comment). `PUBLISHES` is written by no other
+reducer domain, so it needs no narrowing (Tier-1 self-labeling by edge type,
+the same class as rc-24 `HAS_VERSION`/rc-9 `DEPENDS_ON_PACKAGE`, per
+`docs/public/reference/edge-source-tool-provenance.md`). `BUILT_FROM` IS shared
+with the #5428 `reducer/ci-cd-run-correlation` domain, so rc-165 must narrow --
+and `go/cmd/golden-corpus-gate/snapshot_test.go`'s
+`TestEvidenceNarrowedCorrelationsRequireSourceTool` additionally requires any
+`evidence_kinds`-narrowed rc to also pin `source_tool`. `provenance_edge_writer.go`
+now stamps `rel.evidence_kinds` on every edge (all three evidence sources) and
+`rel.source_tool = "oci"` specifically for `container-image-identity`
+(added to the canonical vocabulary,
+`docs/public/reference/edge-source-tool-provenance.md`); `PUBLISHES` rows are
+never given a `source_tool` (no ecosystem-detection wired to the decision, so
+an absent value beats a guessed one).
+
+Verification: `go test ./cmd/golden-corpus-gate ./internal/goldengate -count=1`
+passes (snapshot parses, `TestEvidenceNarrowedCorrelationsRequireSourceTool`
+and every other snapshot-shape test green). Live confirmation that these
+counts actually materialize against the Docker `supply-chain-demo` corpus is
+the orchestrator's Docker golden-corpus gate run, per the task boundary this
+executor was given.
+
+## Truth-contract decision (item 7): no separate materialization domain needed
+
+`PUBLISHES`/`BUILT_FROM` write inline from `PackageSourceCorrelationHandler.Handle`
+and `ContainerImageIdentityHandler.Handle` -- there is no separate queued
+reducer intent/domain for the graph projection (unlike, say,
+`kubernetes_correlation` vs `kubernetes_correlation_materialization`, which are
+two distinct `Domain`s with two distinct `Handle()` entry points). The existing
+`packageSourceCorrelationDomainDefinition()` (`CanonicalKind:
+"package_source_correlation"`) and `containerImageIdentityDomainDefinition()`
+(`CanonicalKind: "container_image_identity"`) already declare
+`OwnershipShape.CanonicalWrite: true`, and since the new edges are written
+inside those SAME domains' `Handle()` calls, they are correctly attributed to
+those existing truth contracts.
+
+Confirmed by running the full `internal/truth` suite and every reducer
+domain/contract/registry test with zero changes needed:
+
+```
+go test ./internal/truth/... -count=1
+ok  	github.com/eshu-hq/eshu/go/internal/truth	0.462s
+
+go test ./internal/reducer -run 'Contract|Domain|Default' -count=1
+ok  	github.com/eshu-hq/eshu/go/internal/reducer	0.953s
+```
+
+Neither run required or benefited from a new `Domain`/`DomainDefinition`. In
+particular, `TestMaterializedEdgeFamiliesLocksToAllProjectionDomains` (the one
+test that enumerates reducer-owned graph-projecting domains) passed unchanged:
+its `allProjectionDomains` list is scoped to the shared-projection-intent lane
+(`repo_dependency`, `code_calls`, etc. -- 12 domains, per
+`materialized_edge_families.go`'s own doc comment), which `package_source_correlation`
+and `container_image_identity` were never part of even before this change
+(they write edges directly, not through that shared lane). No gate anywhere
+checks for a per-projecting-domain sibling `truth.Contract`; the additive
+sibling pattern (`kubernetes_correlation_materialization` et al.) exists
+because those domains have a genuinely separate queued intent/readiness-gate
+lifecycle, which `PUBLISHES`/`BUILT_FROM` do not.
+
+## Remaining known gap (advisory only)
+
+The replay-depth-requirements delta_tombstone scenario for `BUILT_FROM`/`PUBLISHES`
+is not backed by a dedicated scenario file (tracked as an advisory gap in the
+regenerated `docs/public/reference/replay-coverage.md`; confirmed non-blocking
+by `bash scripts/verify-replay-coverage-gate.sh`'s "PASS ... (advisory)" exit,
+and by `specs/replay-depth-requirements.v1.yaml`'s own header comment that
+depth requirements "never fail the blocking breadth gate").

@@ -33,6 +33,7 @@ var Canonical = []string{
 	"aws",
 	"azure",
 	"kubernetes",
+	"oci",
 	"unknown",
 }
 

@@ -143,6 +143,7 @@ addition, never by free-form values.
 | `aws` | AWS cloud-resource writers / SDK-call analysis | Tier 1 |
 | `azure` | Azure cloud-resource writers | Tier 1 |
 | `kubernetes` | Kubernetes correlation / live workload writers | Tier 1 |
+| `oci` | `BUILT_FROM` edges from container-image-identity correlation (issue #5457); shared with the #5428 `reducer/ci-cd-run-correlation` domain, which stamps the same token for the same underlying OCI-registry-sourced identity -- `evidence_kinds` (`CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST` vs #5428's token), not `source_tool`, is the axis that isolates which domain wrote a given edge | Tier 1 |
 | `unknown` | explicit fallback when no tool is provable | — |
 
 **`unknown` rule.** An edge whose tool cannot be proven from its evidence gets
@@ -226,6 +227,8 @@ each by tier; only Tier-1/Tier-2 carry a tool.
 | `RUNS_IN` | runtime (reducer workload binding) | `canonical_runs_in_edges.go:27` |
 | `RUNS_IMAGE` | `kubernetes` | `kubernetes_correlation_edge_writer.go:54` |
 | `CORRELATES_DEPLOYABLE_UNIT` | hybrid ² | `canonical_deployable_unit_edges.go:9` |
+| `PUBLISHES` | not stamped (no ecosystem-detection wired yet; issue #5457) | `storage/cypher/provenance_edge_writer.go` |
+| `BUILT_FROM` | `oci` (shared with #5428 reducer/ci-cd-run-correlation; `evidence_kinds` isolates the writing domain, see `oci` vocabulary entry) | `storage/cypher/provenance_edge_writer.go` |
 
 The cloud/IAM/security-group/secrets reducer edges (`CAN_PERFORM`,
 `CAN_ASSUME`, `CAN_ESCALATE_TO`, `USES_PROFILE`, `HAS_ROLE`, `GRANTS_ACCESS_TO`,

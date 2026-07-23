@@ -140,6 +140,15 @@ var sourceToolPrefixFallback = []struct {
 	{"PUPPET_", "puppet"},
 	{"CHEF_", "chef"},
 	{"GCP_", "gcp"},
+	// CONTAINER_IMAGE_IDENTITY_ is not a relationships-package EvidenceKind
+	// family at all -- it is the golden-corpus-gate evidence_kinds token
+	// go/internal/storage/cypher/provenance_edge_writer.go stamps on BUILT_FROM
+	// edges (issue #5457). sourceToolForEvidenceKind is reused generically by
+	// the snapshot source_tool-consistency check
+	// (cross_repo_source_tool_snapshot_test.go) for ANY narrowed required
+	// correlation, not only cross-repo resolver edges, so registering the
+	// prefix here is what lets that check derive "oci" for rc-165 statically.
+	{"CONTAINER_IMAGE_IDENTITY_", "oci"},
 }
 
 // sourceToolForEvidenceKind returns the canonical source_tool token for a single

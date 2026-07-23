@@ -40,6 +40,53 @@ const (
 	provenanceBuiltFromEdgeLabel = "BUILT_FROM"
 )
 
+// provenanceEdgeKindForSource maps a writer evidence_source to the single
+// evidence_kinds token stamped on its edges. The golden-corpus gate's
+// shared-verb isolation (RequiredCorrelation.EvidenceKinds,
+// CountCorrelationWithEvidence in cmd/golden-corpus-gate/graph.go) narrows a
+// relationship count to edges whose evidence_kinds list contains a given
+// token -- evaluated in Go, not Cypher, because a NornicDB WHERE clause over
+// an arbitrary relationship property does not filter (see that function's
+// comment). BUILT_FROM is a shared edge type with the #5428
+// reducer/ci-cd-run-correlation domain, so its evidence_kinds token is what
+// lets a required-correlation assertion prove it is counting THIS domain's
+// edges and not that one's. PUBLISHES has no cross-domain sharing risk today,
+// but the token still distinguishes ownership-sourced from
+// publication-sourced edges for the same reason.
+var provenanceEdgeKindForSource = map[string]string{
+	"reducer/package-ownership":        "PACKAGE_OWNERSHIP_CORRELATION",
+	"reducer/package-publication":      "PACKAGE_PUBLICATION_CORRELATION",
+	"reducer/container-image-identity": "CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST",
+}
+
+// provenanceEdgeSourceToolForSource maps a writer evidence_source to the
+// canonical source_tool token (docs/public/reference/edge-source-tool-provenance.md,
+// #3997/#3999), stamped only where a real ecosystem/tool classification
+// exists. container-image-identity edges are OCI-registry-sourced regardless
+// of which reducer domain wrote them (this one, or the shared-edge-type
+// #5428 reducer/ci-cd-run-correlation), so both would carry "oci" -- the
+// evidence_kinds property, not source_tool, is what distinguishes the two
+// domains. PUBLISHES has no ecosystem-detection wired yet (the decision
+// carries no package ecosystem field), so it is intentionally absent from
+// this map and its rows never get a source_tool stamp -- an absent value,
+// never a guess.
+var provenanceEdgeSourceToolForSource = map[string]string{
+	"reducer/container-image-identity": "oci",
+}
+
+// provenanceEdgeKindsFor returns the single-element evidence_kinds list for
+// evidenceSource. An unmapped evidenceSource (a caller-supplied value outside
+// the three known writer domains) falls back to the raw evidenceSource string
+// itself, so evidence_kinds is never silently empty -- an empty list would
+// make a superset-containment isolation check vacuously fail closed rather
+// than isolate.
+func provenanceEdgeKindsFor(evidenceSource string) []string {
+	if kind, ok := provenanceEdgeKindForSource[evidenceSource]; ok {
+		return []string{kind}
+	}
+	return []string{evidenceSource}
+}
+
 // canonicalProvenancePublishesPackageCypher upserts a PUBLISHES edge from a
 // Repository to a Package. Two MATCHes precede the MERGE so a row whose
 // repository or package node is absent produces no edge and no fabricated
@@ -50,7 +97,8 @@ MATCH (target:Package {uid: row.package_id})
 MERGE (repo)-[rel:PUBLISHES]->(target)
 SET rel.scope_id = row.scope_id,
     rel.generation_id = row.generation_id,
-    rel.evidence_source = row.evidence_source`
+    rel.evidence_source = row.evidence_source,
+    rel.evidence_kinds = row.evidence_kinds`
 
 // canonicalProvenancePublishesPackageVersionCypher upserts a PUBLISHES edge
 // from a Repository to a PackageVersion, for correlation decisions bound to a
@@ -61,7 +109,8 @@ MATCH (target:PackageVersion {uid: row.version_id})
 MERGE (repo)-[rel:PUBLISHES]->(target)
 SET rel.scope_id = row.scope_id,
     rel.generation_id = row.generation_id,
-    rel.evidence_source = row.evidence_source`
+    rel.evidence_source = row.evidence_source,
+    rel.evidence_kinds = row.evidence_kinds`
 
 // canonicalProvenanceBuiltFromCypher upserts a BUILT_FROM edge from a
 // ContainerImage to the Repository its container_image_identity decision
@@ -76,7 +125,9 @@ MATCH (repo:Repository {id: row.repository_id})
 MERGE (img)-[rel:BUILT_FROM]->(repo)
 SET rel.scope_id = row.scope_id,
     rel.generation_id = row.generation_id,
-    rel.evidence_source = row.evidence_source`
+    rel.evidence_source = row.evidence_source,
+    rel.evidence_kinds = row.evidence_kinds,
+    rel.source_tool = row.source_tool`
 
 // retractProvenancePublishesEdgesCypher removes this writer's PUBLISHES edges
 // for one scope+evidence_source before a fresh generation reprojects them.
@@ -258,15 +309,22 @@ func (w *ProvenanceEdgeWriter) retract(
 
 // cloneProvenanceRow copies row and stamps the reducer-scoped provenance
 // fields the resolution layer does not carry: scope_id (what the
-// prior-generation retract filters on), generation_id, and evidence_source.
+// prior-generation retract filters on), generation_id, evidence_source,
+// evidence_kinds (the golden-corpus gate's shared-verb isolation token,
+// derived from evidenceSource), and source_tool when evidenceSource maps to
+// one (absent otherwise -- never a guess).
 func cloneProvenanceRow(row map[string]any, scopeID, generationID, evidenceSource string) map[string]any {
-	cloned := make(map[string]any, len(row)+3)
+	cloned := make(map[string]any, len(row)+5)
 	for k, v := range row {
 		cloned[k] = v
 	}
 	cloned["scope_id"] = scopeID
 	cloned["generation_id"] = generationID
 	cloned["evidence_source"] = evidenceSource
+	cloned["evidence_kinds"] = provenanceEdgeKindsFor(evidenceSource)
+	if tool, ok := provenanceEdgeSourceToolForSource[evidenceSource]; ok {
+		cloned["source_tool"] = tool
+	}
 	return cloned
 }
 
