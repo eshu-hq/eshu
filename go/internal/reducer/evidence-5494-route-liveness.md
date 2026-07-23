@@ -135,15 +135,15 @@ constructs feed it.
 
 ## Schema-epoch assessment
 
-**Backfill required, not forward-only.** A repo already stamped at
-`verdict_schema_epoch=1` (#5376) has its ancestry-confirmed verdicts computed
-WITHOUT ever consulting route facts -- ancestry-confirmed rows do not change
-shape, so nothing marks them stale. Without a bump, an already-indexed repo's
-unrouted controller actions would stay silently mis-confirmed forever (the
-loader's `reach_updated_at`/`completed_at` watermark check has no reason to
-re-fire once a repo is caught up). `CodeReachabilityVerdictSchemaEpoch` is
-bumped from 1 to 2 (`internal/storage/postgres/code_reachability.go`), reusing
-the identical #5376 P1 upgrade-backfill mechanism
+**Backfill required, not forward-only.** A repo already stamped at a
+pre-#5494 epoch has its ancestry-confirmed verdicts computed WITHOUT ever
+consulting route facts -- ancestry-confirmed rows do not change shape, so
+nothing marks them stale. Without a bump, an already-indexed repo's unrouted
+controller actions would stay silently mis-confirmed forever (the loader's
+`reach_updated_at`/`completed_at` watermark check has no reason to re-fire
+once a repo is caught up). `CodeReachabilityVerdictSchemaEpoch` is bumped to
+**3** (`internal/storage/postgres/code_reachability.go`), reusing the
+identical #5376 P1 upgrade-backfill mechanism
 (`evidence-5376-code-root-verdicts.md`, "P1 upgrade-backfill (Option C)"): the
 pending-inputs loader re-schedules any repo whose watermark predates the
 current epoch exactly once, then stamps the new epoch in the same transaction
@@ -151,6 +151,20 @@ as the verdict/reachability replacement (anti-loop, proven by the existing
 `TestCodeReachabilityUpgradeBackfillRoundTripAndAntiLoop` /
 `TestCodeReachabilityUpgradeBackfillZeroVerdictAntiLoop` live tests, unchanged
 by this PR since the mechanism is generic over the epoch constant).
+
+**Rebase note (origin/main advanced past #5500 before this PR's promotion):**
+this feature was originally developed bumping the epoch 1 -> 2. #5500
+(lexical-scope-aware Ruby controller ancestry candidate restriction, merged as
+b5f3cfdc4) landed on `main` independently in the meantime and ALSO bumped the
+epoch 1 -> 2, for its own unrelated verdict-semantics change (which base refs
+resolve exactly vs. stay `suffix_only_ambiguous`). Rebasing #5494 onto that
+`main` collided on the same constant; resolved by keeping #5500's epoch 2 and
+advancing #5494's bump to epoch **3**, layered on top -- an already-indexed
+repo stamped at epoch 2 (post-#5500, pre-#5494) still needs exactly one more
+re-projection to pick up route-liveness, which epoch 3 forces. Epoch 1 (#5376)
+and epoch 2 (#5500) are unaffected; the mechanism re-schedules a repo exactly
+once per epoch it is behind, so a repo jumping straight from epoch 0 or 1 to 3
+re-projects once, not three times.
 
 ## Theory under test
 

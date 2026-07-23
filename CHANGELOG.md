@@ -34,10 +34,11 @@ recent shipped work grouped by feature area.
   `to:` targets, `resources`/`resource` macros, and any other unmodeled
   construct) stamps `framework_semantics.rails.has_unmodeled_routes`, rather
   than enumerating a fixed list of known-ambiguous shapes.
-  `CodeReachabilityVerdictSchemaEpoch` is bumped 1 -> 2 to force a one-time
-  re-projection of already-indexed repos (same #5376 P1 upgrade-backfill
-  mechanism), since an ancestry-confirmed verdict does not otherwise change
-  shape and would stay silently stale without the bump.
+  `CodeReachabilityVerdictSchemaEpoch` is bumped to 3 (layered on #5500's
+  epoch 2) to force a one-time re-projection of already-indexed repos (same
+  #5376 P1 upgrade-backfill mechanism), since an ancestry-confirmed verdict
+  does not otherwise change shape and would stay silently stale without the
+  bump.
   - Performance Evidence / No-Regression Evidence / Observability Evidence:
     see `go/internal/reducer/evidence-5494-route-liveness.md` for the
     EXPLAIN (ANALYZE, BUFFERS) proof of the new route-fact load (index-backed

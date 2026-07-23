@@ -72,11 +72,12 @@ func TestCodeReachabilityRailsRouteFactsQueryReusesFrameworkRoutesIndex(t *testi
 }
 
 func TestCodeReachabilityVerdictSchemaEpochBumpedForRouteLiveness(t *testing.T) {
-	// #5494 changed verdict semantics (a new route-based downgrade path), so
-	// the epoch must be strictly greater than the #5376 epoch (1) to force a
-	// one-time re-projection of every already-indexed repo.
-	if CodeReachabilityVerdictSchemaEpoch < 2 {
-		t.Fatalf("CodeReachabilityVerdictSchemaEpoch = %d, want >= 2 (#5494 route-liveness bump)", CodeReachabilityVerdictSchemaEpoch)
+	// #5494 changed verdict semantics (a new route-based downgrade path) on
+	// top of #5500's epoch 2 (lexical-scope-aware candidate restriction), so
+	// the epoch must be strictly greater than 2 to force a one-time
+	// re-projection of every already-indexed repo under the #5494 logic too.
+	if CodeReachabilityVerdictSchemaEpoch < 3 {
+		t.Fatalf("CodeReachabilityVerdictSchemaEpoch = %d, want >= 3 (#5500 epoch 2 + #5494 route-liveness bump)", CodeReachabilityVerdictSchemaEpoch)
 	}
 }
 
