@@ -226,6 +226,25 @@ independently, live-confirmed root cause of #5680; the "never through
 application of this page's established rule, not because a second live
 failure mode was reproduced for this specific writer.
 
+No-Regression Evidence: order-preserving dispatch flushes the pending
+non-retract group at each `OperationCanonicalRetract` boundary instead of once
+per phase, so a mixed phase issues a bounded number of extra `ExecuteGroup` /
+autocommit segments — 2 per generation for `terraform_state`, at most one per
+IaC family (Atlantis/Flux/GitLab/Helm ≤ 4) for `structural_edges` — scaled by
+the count of retract statements in the phase, NOT by corpus size or entity
+count. `executeGroupedChunksWithDrain` never used the concurrent chunk path
+(that lives only in `executeEntityPhaseGroup`), the `PhaseGroupStatementLimit`
+chunk cap is unchanged, and the live `structural_edges` edge-retract graph-truth
+tests (`TestReducerCanonicalGovernanceEdgeRetractGraphTruth`,
+`TestReducerCanonicalFluxReconcilesFromEdgeRetractGraphTruth`,
+`TestReducerCanonicalFluxHelmReconcilesFromEdgeRetractGraphTruth`) pass
+unchanged against the pinned v1.1.11 backend.
+
+No-Observability-Change: the change is internal to
+`executeGroupedChunksWithDrain`; it adds no metric, span, log field, queue
+stage, or worker, and each dispatched segment rides the same existing statement
+dispatch path.
+
 ## Pitfall: A Bare Top-Level UNION Returns Nothing When Its First Branch Is Empty
 
 ### Observed shape
