@@ -74,6 +74,19 @@ type crossplaneXRDFactLoader interface {
 	ListActiveCrossplaneXRDFacts(ctx context.Context) ([]facts.Envelope, error)
 }
 
+// CrossplaneRedriveTargetLedgerWriter records a target Claim scope as
+// confirmed satisfied for one XRD (group, claim_kind) identity (issue
+// #5476). postgres.CrossplaneRedriveTargetLedgerStore.RecordRedriven
+// implements this with the identical signature. Implementations MUST be
+// idempotent (ON CONFLICT DO NOTHING or equivalent): the handler calls this
+// on every successful materialization that resolves at least one edge for
+// the identity, including re-runs after a retry or a re-projected
+// generation, and the cross-scope redrive sweep's target-discovery query
+// relies on a recorded pair staying recorded forever.
+type CrossplaneRedriveTargetLedgerWriter interface {
+	RecordRedriven(ctx context.Context, targetScopeID, group, claimKind string) error
+}
+
 // CrossplaneSatisfiedByMaterializationHandler reduces one Crossplane
 // classification materialization intent into canonical SATISFIED_BY edge
 // writes. It loads the intent's own scope generation's content_entity facts
@@ -134,6 +147,13 @@ type CrossplaneSatisfiedByMaterializationHandler struct {
 	// generation. Nil keeps retract behavior conservative (always retract
 	// before write).
 	PriorGenerationCheck PriorGenerationCheck
+	// RedriveTargetLedger records intent.ScopeID as confirmed satisfied for
+	// each (group, claim_kind) identity this run actually resolved an edge
+	// for (issue #5476). Nil is safe (no-op): the cross-scope redrive
+	// sweep's already-satisfied fence then never suppresses (every matching
+	// sweep re-enqueues), which is correct-but-wasteful, never
+	// incorrect-and-silent.
+	RedriveTargetLedger CrossplaneRedriveTargetLedgerWriter
 }
 
 // Handle executes one Crossplane SATISFIED_BY materialization intent.
@@ -212,6 +232,7 @@ func (h CrossplaneSatisfiedByMaterializationHandler) Handle(
 			return Result{}, fmt.Errorf("write canonical crossplane satisfied-by edges: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
+		h.recordRedriveLedger(ctx, intent.ScopeID, rows)
 	}
 
 	h.recordEdgeCounter(ctx, rows)
@@ -293,6 +314,54 @@ func (h CrossplaneSatisfiedByMaterializationHandler) shouldSkipRetract(ctx conte
 		return false, fmt.Errorf("check prior generation for crossplane satisfied-by retract: %w", err)
 	}
 	return !hasPrior, nil
+}
+
+// recordRedriveLedger records intent.ScopeID as confirmed satisfied for
+// every DISTINCT (claim_group, claim_kind) identity among the rows this run
+// actually wrote an edge for (issue #5476). Deliberately called AFTER
+// WriteCrossplaneSatisfiedByEdges succeeds, never before and never at
+// enqueue time: the ledger's meaning is "this target is satisfied for this
+// XRD identity," which is only true once the edge is committed.
+//
+// A ledger-write failure is logged, not returned as a Handle() error: the
+// edge write already committed (idempotent MERGE, safe to re-run), and
+// failing the whole intent over a ledger-write hiccup would cost a
+// materialization retry/dead-letter for no correctness gain. The safe
+// direction is over-inclusion -- a future redrive sweep may redundantly
+// re-enqueue this already-satisfied target once more -- never
+// under-inclusion (the enqueue-time bug this design replaces, where a
+// failure could permanently and silently suppress a real gap).
+func (h CrossplaneSatisfiedByMaterializationHandler) recordRedriveLedger(
+	ctx context.Context,
+	targetScopeID string,
+	rows []map[string]any,
+) {
+	if h.RedriveTargetLedger == nil {
+		return
+	}
+	type identity struct{ group, kind string }
+	seen := make(map[identity]struct{}, len(rows))
+	for _, row := range rows {
+		group := anyToString(row["claim_group"])
+		kind := anyToString(row["claim_kind"])
+		if group == "" || kind == "" {
+			continue
+		}
+		key := identity{group: group, kind: kind}
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		if err := h.RedriveTargetLedger.RecordRedriven(ctx, targetScopeID, group, kind); err != nil {
+			slog.ErrorContext(
+				ctx, "crossplane redrive target ledger record failed",
+				log.ScopeID(targetScopeID),
+				slog.String("xrd_group", group),
+				slog.String("xrd_claim_kind", kind),
+				slog.String("error", err.Error()),
+			)
+		}
+	}
 }
 
 // recordEdgeCounter emits the SATISFIED_BY edge-projection counter

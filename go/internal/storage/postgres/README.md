@@ -2551,7 +2551,10 @@ Files:
   token, not `claimed_by`).
 - `crossplane_satisfied_by_redrive_ledger.go` —
   `CrossplaneRedriveTargetLedgerStore.RecordRedriven`: durably marks a target
-  scope already re-driven against one (group, claim_kind) identity.
+  scope already re-driven against one (group, claim_kind) identity. Called
+  ONLY from `reducer.CrossplaneSatisfiedByMaterializationHandler`, strictly
+  after it commits a SATISFIED_BY edge — NEVER from the sweep. See the fence
+  (3) entry below for why.
 - `crossplane_satisfied_by_redrive_sweep.go` —
   `CrossplaneSatisfiedByRedriveSweeper.Sweep` (the live post-Ack trigger path)
   and `.SweepBatch` (the startup/periodic catch-up recovery path); both share
@@ -2589,15 +2592,40 @@ Fences (all three required by the design, all enforced in
    strictly advances on every resync of the platform repo even when the
    XRD's (group, claim_kind) is completely unchanged, so `updated_at > $5`
    was false for every previously-satisfied target on every subsequent sync —
-   the fence never actually skipped anything. The ledger table replaces it
-   with a stable identity key instead of a moving timestamp: once a target
-   scope has had a re-drive chance against a (group, claim_kind) identity,
-   re-running it again for the SAME identity is a deterministic no-op (a pure
-   function of that target's own unchanged facts plus the same active-XRD
-   set), so it is correct to skip forever — no timestamp needed. A LATER,
-   genuinely new Claim generation in the target scope needs no ledger check
-   at all: its own projector-triggered SATISFIED_BY intent resolves directly
-   against the already-active XRD.
+   the fence never actually skipped anything.
+
+   The ledger table that replaced it went through TWO iterations of its own.
+   **Iteration 1 (also rejected in review) had the SWEEP write the ledger
+   entry immediately after `ReplayCrossplaneSatisfiedByMaterialization`
+   returned.** That call is enqueue-only — it returns as soon as the work
+   item is durably queued, strictly BEFORE the reducer handler runs. Because
+   reducer auto-retry-on-dead-letter is disabled by default
+   (`cmd/reducer/poison_liveness_wiring.go`), an intent that enqueued
+   successfully but later dead-lettered (a handler bug, or an infra outage
+   exceeding the retry budget) would leave the ledger PERMANENTLY and
+   SILENTLY marking that (target scope, XRD identity) satisfied — the
+   ledger's primary key is not generation-scoped and never expires — reopening
+   the exact false-negative window #5476 exists to close, worse than the
+   original bug because it is silent and permanent.
+
+   **The shipped design instead has
+   `reducer.CrossplaneSatisfiedByMaterializationHandler` write the ledger
+   entry itself, strictly after `WriteCrossplaneSatisfiedByEdges` succeeds**
+   (`recordRedriveLedger`, one entry per distinct `(claim_group, claim_kind)`
+   among the rows it actually wrote an edge for). The sweep's `sweepJoinKey`
+   no longer touches the ledger at all — it only enqueues/reopens. The window
+   between enqueue and handler completion where a second sweep might
+   re-enqueue the same target is safe (not a regression): the reopen-or-enqueue
+   in `ReplayCrossplaneSatisfiedByMaterialization` is idempotent on the
+   target's own per-scope `EntityKey`, so redundant re-enqueuing costs a
+   no-op, never a duplicate materialization. Once a target scope has an
+   actual edge committed for a (group, claim_kind) identity, re-running its
+   materialization again for the SAME identity is a deterministic no-op (a
+   pure function of that target's own unchanged facts plus the same
+   active-XRD set), so skipping it forever is correct. A LATER, genuinely new
+   Claim generation in the target scope needs no ledger check at all: its own
+   projector-triggered SATISFIED_BY intent resolves directly against the
+   already-active XRD.
 
 Trigger: `ProjectorQueue.Ack` calls `runCrossplaneRedriveHook` AFTER its own
 transaction commits (never inside it), which calls `Sweep`. The hook is a
@@ -2618,7 +2646,15 @@ shutdown context): every `crossplaneRedriveCatchUpInterval` tick it calls
 `SweepBatch`, which reclaims up to `crossplaneRedriveDefaultCatchUpBatchSize`
 `'queued'` or lease-expired rows via `ClaimBatch` and re-runs the fan-out for
 each. A per-tick error is logged and the loop continues — an auxiliary
-recovery pass must never take down the primary projector service.
+recovery pass must never take down the primary projector service. `main.go`
+joins the catch-up goroutine via a `sync.WaitGroup` before it returns (and
+therefore before its deferred `db.Close()` fires): defers run LIFO, so the
+`wg.Wait()` defer, registered after `db.Close()`'s, runs first, ensuring a
+tick that is mid-`SweepBatch` at shutdown finishes against a still-open `db`
+instead of racing a closed one. `cmd/projector/crossplane_redrive_catchup_test.go`
+proves the tick calls `SweepBatch`, swallows its error, and that the loop
+returns promptly on context cancellation, all against a fake
+`crossplaneRedriveBatchSweeper` (no real Postgres needed).
 
 Prove-theory-first (issue #5476, `crossplane_satisfied_by_redrive_query_plan_live_test.go`):
 scratch Postgres 18 seeded with 4,000 target scopes x 50 `K8sResource`

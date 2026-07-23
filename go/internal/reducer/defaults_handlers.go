@@ -142,6 +142,16 @@ type CrossplaneHandlers struct {
 	// register DomainCrossplaneSatisfiedByMaterialization; missing either one
 	// would drop every classification intent before it reaches the graph.
 	CrossplaneSatisfiedByEdgeWriter CrossplaneSatisfiedByEdgeWriter
+	// CrossplaneRedriveTargetLedger records a target Claim scope as durably
+	// satisfied for one XRD (group, claim_kind) identity, once the handler
+	// has actually committed a SATISFIED_BY edge for a claim matching that
+	// identity -- never at enqueue time (issue #5476 P1 follow-up: writing
+	// it when the cross-scope redrive sweep merely ENQUEUES the intent let a
+	// later dead-lettered intent permanently and silently suppress every
+	// future redrive for that identity, since auto-retry-on-dead-letter is
+	// disabled by default). Optional: nil is safe (no-op), matching
+	// PriorGenerationCheck.
+	CrossplaneRedriveTargetLedger CrossplaneRedriveTargetLedgerWriter
 }
 
 // SupplyChainSecurityHandlers groups the supply-chain, secrets/IAM, and

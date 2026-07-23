@@ -108,9 +108,6 @@ type CrossplaneSatisfiedByRedriveSweeper struct {
 	DB Queryer
 	// State tracks durable claim/completion for the XRD generation being swept.
 	State CrossplaneRedriveStateStore
-	// TargetLedger records each target scope's already-redriven identity so
-	// a later sweep for the same (group, claim_kind) skips it.
-	TargetLedger CrossplaneRedriveTargetLedgerStore
 	// Replayer enqueues or reopens each target scope's SATISFIED_BY intent.
 	Replayer CrossplaneRedriveIntentReplayer
 	// Owner identifies this process class for the claim lease (mirrors
@@ -203,10 +200,28 @@ func (s CrossplaneSatisfiedByRedriveSweeper) Sweep(
 // claim_kind) join key, enqueuing/reopening each newly-seen target's
 // SATISFIED_BY intent exactly once (seenTargets dedupes across every join
 // key in the same generation, since one Claim scope can match the same or a
-// different XRD in the same generation only once per re-drive) and recording
-// it in the target ledger so a later sweep for the SAME identity skips it.
-// superseded reports the fence (a) check firing mid-sweep, so the caller
-// stops processing further join keys.
+// different XRD in the same generation only once per re-drive). superseded
+// reports the fence (a) check firing mid-sweep, so the caller stops
+// processing further join keys.
+//
+// This function does NOT write crossplane_satisfied_by_redrive_target_ledger
+// -- it only enqueues/reopens the target's materialization intent.
+// ReplayCrossplaneSatisfiedByMaterialization is enqueue-only: it returns as
+// soon as the work item is durably queued, strictly BEFORE the reducer
+// handler runs, so writing the ledger here would record "satisfied" the
+// instant the intent is enqueued, not when the SATISFIED_BY edge is actually
+// materialized. Because reducer auto-retry-on-dead-letter is disabled by
+// default (cmd/reducer/poison_liveness_wiring.go), an intent that enqueues
+// successfully but later dead-letters (handler bug, infra outage beyond
+// retry budget) would leave the ledger PERMANENTLY marking that (target
+// scope, XRD identity) satisfied -- reopening the exact false-negative
+// window #5476 exists to close, silently and irrecoverably. The ledger is
+// instead written by
+// reducer.CrossplaneSatisfiedByMaterializationHandler.recordRedriveLedger,
+// strictly after the handler commits an edge. The window between enqueue
+// and handler completion where a second sweep might re-enqueue the same
+// target is safe: ReplayCrossplaneSatisfiedByMaterialization's
+// reopen-or-enqueue is idempotent on the target's own per-scope EntityKey.
 func (s CrossplaneSatisfiedByRedriveSweeper) sweepJoinKey(
 	ctx context.Context,
 	xrdScopeID string,
@@ -230,14 +245,14 @@ func (s CrossplaneSatisfiedByRedriveSweeper) sweepJoinKey(
 		}
 
 		// Fully drain and close the page's rows BEFORE issuing any write
-		// (ReplayCrossplaneSatisfiedByMaterialization, RecordRedriven). s.DB
-		// and s.Replayer commonly share one underlying connection pool in
-		// production (cmd/projector wires both from the same *sql.DB);
-		// calling a write while this SELECT's rows are still open would hold
-		// this page's connection checked out and try to acquire a second one
-		// for the write from the same pool -- a self-inflicted
-		// pool-exhaustion deadlock under a small pool, and needless
-		// connection pressure even under a larger one.
+		// (ReplayCrossplaneSatisfiedByMaterialization). s.DB and s.Replayer
+		// commonly share one underlying connection pool in production
+		// (cmd/projector wires both from the same *sql.DB); calling a write
+		// while this SELECT's rows are still open would hold this page's
+		// connection checked out and try to acquire a second one for the
+		// write from the same pool -- a self-inflicted pool-exhaustion
+		// deadlock under a small pool, and needless connection pressure even
+		// under a larger one.
 		page, err := s.fetchTargetScopePage(ctx, key, xrdScopeID, after, pageSize)
 		if err != nil {
 			return false, err
@@ -251,9 +266,6 @@ func (s CrossplaneSatisfiedByRedriveSweeper) sweepJoinKey(
 			}
 			if _, err := s.Replayer.ReplayCrossplaneSatisfiedByMaterialization(ctx, target.scopeID, target.generationID); err != nil {
 				return false, fmt.Errorf("replay crossplane satisfied-by materialization for %q: %w", target.scopeID, err)
-			}
-			if err := s.TargetLedger.RecordRedriven(ctx, target.scopeID, key.group, key.claimKind); err != nil {
-				return false, fmt.Errorf("record crossplane redrive target for %q: %w", target.scopeID, err)
 			}
 			seenTargets[target.scopeID] = struct{}{}
 		}

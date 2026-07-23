@@ -23,6 +23,14 @@ const (
 	crossplaneRedriveCatchUpBatchSize = 50
 )
 
+// crossplaneRedriveBatchSweeper is the narrow surface the catch-up loop
+// needs. postgres.CrossplaneSatisfiedByRedriveSweeper implements it
+// structurally; tests substitute a fake to exercise the loop/tick's error
+// handling and ticker/cancellation behavior without a real Postgres.
+type crossplaneRedriveBatchSweeper interface {
+	SweepBatch(ctx context.Context, limit int) ([]postgres.CrossplaneRedriveSweepResult, error)
+}
+
 // runCrossplaneRedriveCatchUpLoop periodically reclaims and completes any
 // Crossplane cross-scope SATISFIED_BY redrive sweep left 'queued' or with an
 // expired claim lease (issue #5476 P1-a).
@@ -44,7 +52,7 @@ const (
 // running the main Service.Run loop, not this catch-up sweep.
 func runCrossplaneRedriveCatchUpLoop(
 	ctx context.Context,
-	sweeper postgres.CrossplaneSatisfiedByRedriveSweeper,
+	sweeper crossplaneRedriveBatchSweeper,
 	logger *slog.Logger,
 ) {
 	ticker := time.NewTicker(crossplaneRedriveCatchUpInterval)
@@ -61,7 +69,7 @@ func runCrossplaneRedriveCatchUpLoop(
 
 func runCrossplaneRedriveCatchUpTick(
 	ctx context.Context,
-	sweeper postgres.CrossplaneSatisfiedByRedriveSweeper,
+	sweeper crossplaneRedriveBatchSweeper,
 	logger *slog.Logger,
 ) {
 	results, err := sweeper.SweepBatch(ctx, crossplaneRedriveCatchUpBatchSize)

@@ -100,11 +100,10 @@ func TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive(t *testing.T) {
 	// trigger it.
 	reducerQueue := NewReducerQueue(SQLDB{DB: db}, "test-owner", time.Minute)
 	sweeper := CrossplaneSatisfiedByRedriveSweeper{
-		DB:           SQLQueryer{DB: db},
-		State:        NewCrossplaneRedriveStateStore(SQLDB{DB: db}),
-		TargetLedger: NewCrossplaneRedriveTargetLedgerStore(SQLDB{DB: db}),
-		Replayer:     reducerQueue,
-		Owner:        "test-owner",
+		DB:       SQLQueryer{DB: db},
+		State:    NewCrossplaneRedriveStateStore(SQLDB{DB: db}),
+		Replayer: reducerQueue,
+		Owner:    "test-owner",
 	}
 	result, err := sweeper.Sweep(ctx, xrdScopeID, xrdGenerationID)
 	if err != nil {

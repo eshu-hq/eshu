@@ -998,6 +998,19 @@ When touching this surface:
   unchanged, so the fence never actually skipped anything across repeated
   syncs. Do not reintroduce a timestamp-based already-satisfied fence; keep it
   keyed on the stable (target scope, group, claim_kind) identity.
+- **`RecordRedriven` MUST be called ONLY from
+  `reducer.CrossplaneSatisfiedByMaterializationHandler`, strictly after it
+  commits a SATISFIED_BY edge — NEVER from the sweep's enqueue path.** A
+  SECOND review round caught the sweep itself calling `RecordRedriven`
+  immediately after `ReplayCrossplaneSatisfiedByMaterialization` (which is
+  enqueue-only and returns before the reducer handler runs). Because
+  auto-retry-on-dead-letter is disabled by default
+  (`cmd/reducer/poison_liveness_wiring.go`), an intent that enqueues but later
+  dead-letters would leave that design's ledger entry PERMANENTLY and
+  SILENTLY marking the target satisfied — reopening the exact false-negative
+  window #5476 exists to close, worse than the original bug because it is
+  silent and permanent (the ledger PK never expires). Do not move
+  `RecordRedriven` back into the sweep.
 - `Sweep` is the live post-Ack trigger path; `SweepBatch` is the
   startup/periodic catch-up path that reclaims stale/expired claims and
   re-runs the fan-out. **Both must stay wired.** `Sweep` alone cannot recover

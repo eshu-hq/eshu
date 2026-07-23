@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -143,9 +144,22 @@ func run(parent context.Context) error {
 	// P1-a): recovers a sweep left mid-fan-out by a transient DB error or a
 	// crashed process. Runs alongside the main projector Service.Run loop,
 	// sharing its shutdown context, so it stops together with the service.
+	//
+	// Joined via redriveWG before returning: without this, a tick already
+	// mid-SweepBatch when ctx is canceled at shutdown keeps running against
+	// db after the deferred db.Close() above has already fired (defers run
+	// LIFO; this defer is registered AFTER db.Close()'s, so it runs FIRST),
+	// producing a harmless but confusing "database closed" error instead of
+	// a clean shutdown.
+	var redriveWG sync.WaitGroup
 	redriveReducerQueue := postgres.NewReducerQueue(postgres.SQLDB{DB: db}, "projector", time.Minute)
 	crossplaneRedriveSweeper := buildCrossplaneRedriveSweeper(postgres.SQLDB{DB: db}, redriveReducerQueue, instruments)
-	go runCrossplaneRedriveCatchUpLoop(ctx, crossplaneRedriveSweeper, logger)
+	redriveWG.Add(1)
+	go func() {
+		defer redriveWG.Done()
+		runCrossplaneRedriveCatchUpLoop(ctx, crossplaneRedriveSweeper, logger)
+	}()
+	defer redriveWG.Wait()
 
 	return service.Run(ctx)
 }

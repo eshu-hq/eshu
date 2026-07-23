@@ -72,7 +72,6 @@ func TestCrossplaneRedriveSweepMidFanOutFailureRecoveredByCatchUpLive(t *testing
 	failingSweeper := CrossplaneSatisfiedByRedriveSweeper{
 		DB:            SQLQueryer{DB: db},
 		State:         NewCrossplaneRedriveStateStore(SQLDB{DB: db}),
-		TargetLedger:  NewCrossplaneRedriveTargetLedgerStore(SQLDB{DB: db}),
 		Replayer:      failingReplayer,
 		Owner:         "projector",
 		LeaseDuration: shortLease,
@@ -90,9 +89,12 @@ func TestCrossplaneRedriveSweepMidFanOutFailureRecoveredByCatchUpLive(t *testing
 	assertCrossplaneRedriveStateStatus(ctx, t, db, xrdScopeID, xrdGenerationID, "claimed")
 
 	// Only target-a succeeded before the injected failure on call 2
-	// (target-b); target-c was never attempted.
+	// (target-b); target-c was never attempted. None of the three carry a
+	// ledger entry: enqueuing an intent (this test never runs the actual
+	// reducer handler) must never write the ledger -- only a handler that
+	// actually commits an edge does (see crossplane_satisfied_by_redrive_ledger_live_test.go).
 	assertCrossplaneRedriveTargetPending(ctx, t, db, targets[0], targets[0]+"-gen-001", true)
-	assertCrossplaneRedriveLedgerEntry(ctx, t, db, targets[0], group, claimKind, true)
+	assertCrossplaneRedriveLedgerEntry(ctx, t, db, targets[0], group, claimKind, false)
 	assertCrossplaneRedriveLedgerEntry(ctx, t, db, targets[1], group, claimKind, false)
 	assertCrossplaneRedriveLedgerEntry(ctx, t, db, targets[2], group, claimKind, false)
 
@@ -104,7 +106,6 @@ func TestCrossplaneRedriveSweepMidFanOutFailureRecoveredByCatchUpLive(t *testing
 	catchUpSweeper := CrossplaneSatisfiedByRedriveSweeper{
 		DB:            SQLQueryer{DB: db},
 		State:         NewCrossplaneRedriveStateStore(SQLDB{DB: db}),
-		TargetLedger:  NewCrossplaneRedriveTargetLedgerStore(SQLDB{DB: db}),
 		Replayer:      realReducerQueue,
 		Owner:         "projector",
 		LeaseDuration: time.Minute,
@@ -120,10 +121,14 @@ func TestCrossplaneRedriveSweepMidFanOutFailureRecoveredByCatchUpLive(t *testing
 		t.Fatalf("expected the reclaimed sweep to complete, got outcome %q", results[0].Outcome)
 	}
 
-	// All three targets are now recorded, and the state row is completed.
+	// All three targets are now enqueued/reopened and the state row is
+	// completed. None carry a ledger entry -- this test never runs the real
+	// reducer handler, so the ledger (correctly) stays empty throughout; see
+	// crossplane_satisfied_by_redrive_ledger_live_test.go for the ledger's
+	// own write-timing proof.
 	assertCrossplaneRedriveStateStatus(ctx, t, db, xrdScopeID, xrdGenerationID, "completed")
 	for _, targetScopeID := range targets {
-		assertCrossplaneRedriveLedgerEntry(ctx, t, db, targetScopeID, group, claimKind, true)
+		assertCrossplaneRedriveLedgerEntry(ctx, t, db, targetScopeID, group, claimKind, false)
 		assertCrossplaneRedriveTargetPending(ctx, t, db, targetScopeID, targetScopeID+"-gen-001", true)
 	}
 }

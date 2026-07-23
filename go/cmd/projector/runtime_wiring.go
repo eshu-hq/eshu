@@ -47,12 +47,11 @@ func buildCrossplaneRedriveSweeper(
 	instruments *telemetry.Instruments,
 ) postgres.CrossplaneSatisfiedByRedriveSweeper {
 	return postgres.CrossplaneSatisfiedByRedriveSweeper{
-		DB:           postgres.SQLQueryer(database),
-		State:        postgres.NewCrossplaneRedriveStateStore(database),
-		TargetLedger: postgres.NewCrossplaneRedriveTargetLedgerStore(database),
-		Replayer:     reducerQueue,
-		Owner:        "projector",
-		Instruments:  instruments,
+		DB:          postgres.SQLQueryer(database),
+		State:       postgres.NewCrossplaneRedriveStateStore(database),
+		Replayer:    reducerQueue,
+		Owner:       "projector",
+		Instruments: instruments,
 	}
 }
 
