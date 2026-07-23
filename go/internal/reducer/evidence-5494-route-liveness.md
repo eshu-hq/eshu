@@ -178,6 +178,42 @@ unconditionally"). All prior route-liveness tests (root-only, append-only,
 routed/unrouted/ambiguous/no-data, #5500 lexical-scope) and the live-Postgres
 suite were re-run unchanged and stay green.
 
+### P2 fix (PR #5742 human review, 2 threads on code_root_verdicts_routes.go:91): route-evidence granularity when the repo also has an unmodeled route
+
+`evaluateRouteLiveness` returned `RouteEvidenceAmbiguous` immediately when
+`HasUnmodeledRoutes` was true, BEFORE checking whether the action positively
+matched `RoutedHandlers` (own class or a routing descendant). The keep
+OUTCOME was already correct (both `RouteEvidenceRouted` and
+`RouteEvidenceAmbiguous` keep), but an action that IS actually routed, in a
+repo that ALSO has some unmodeled route construct elsewhere, was recorded as
+merely "kept because the repo is ambiguous" -- `stats.RouteConfirmed` stayed 0
+for it, hiding real positive route evidence from the per-cycle operator
+counters and from anyone reading one action's `Basis.RouteEvidence`.
+
+Fix: reordered `evaluateRouteLiveness` so the positive `RoutedHandlers` check
+(own class, then every routing descendant) runs BEFORE the
+`HasUnmodeledRoutes` branch -- a positively-routed action is routed, full
+stop, regardless of what else is unmodeled elsewhere in the same repo's
+routes.rb. Steps 2 (ambiguous) and 3 (exact-only downgrade) are otherwise
+unchanged, so the false-negative-safe bias and every keep/downgrade OUTCOME
+are identical to before; only the recorded evidence for a positively-routed
+action in an ambiguous repo changed from `unmodeled_routes_present` to
+`routed`.
+
+Regression coverage (RED against the pre-fix order, verified by temporarily
+moving the `HasUnmodeledRoutes` check back before the positive-match checks
+and re-running, GREEN after restoring):
+`TestBuildCodeRootVerdictsRouteLiveness`'s new "positively routed action
+reports routed even when repo also has unmodeled routes" subtest, and
+`TestBuildCodeRootVerdictsRoutedActionInAmbiguousRepoRecordsRouteConfirmed`
+(asserts `stats.RouteConfirmed == 1` and `stats.RouteAmbiguousKept == 0` for
+this case). The pre-existing "dynamic/unmodeled routes anywhere in repo keeps
+every action" subtest (a truly ambiguous, no-match action in the same
+ambiguous repo) and the exact-only-unrouted-downgrades case were re-run
+unchanged and still report `RouteEvidenceAmbiguous` / downgrade respectively
+-- only the positively-routed-in-an-ambiguous-repo case's recorded evidence
+changed.
+
 ## Schema-epoch assessment
 
 **Backfill required, not forward-only.** A repo already stamped at a

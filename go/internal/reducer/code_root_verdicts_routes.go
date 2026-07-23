@@ -118,12 +118,22 @@ type routeLivenessOutcome struct {
 // class sharing only the action's NAME never does (no candidate is added
 // unless the caller resolved it as a genuine subclass through the ancestry
 // registry, never a name guess).
+//
+// #5494 P2 fix (PR #5742 human review, 2 threads on code_root_verdicts_routes.go:91):
+// the positive RoutedHandlers match (own class or any routing descendant) is
+// checked BEFORE the HasUnmodeledRoutes branch, not after. A positively-routed
+// action is routed, full stop -- an unrelated unmodeled route construct
+// ELSEWHERE in the same repo must not downgrade this action's recorded
+// evidence to "ambiguous" when this specific action already has a genuine,
+// exact match. The keep OUTCOME was already correct either way (both
+// RouteEvidenceRouted and RouteEvidenceAmbiguous keep), so this reorder is a
+// telemetry/basis-accuracy fix, not a behavior change: an operator
+// investigating one action can now tell "positively routed" apart from "kept
+// only because the repo is ambiguous elsewhere," and RouteConfirmed counts
+// every action this precisely, not only in repos with zero unmodeled routes.
 func evaluateRouteLiveness(classContext, actionName string, routes RubyRailsRouteFacts, routingDescendantNames []string) routeLivenessOutcome {
 	if !routes.HasAnyRouteEvidence {
 		return routeLivenessOutcome{routeEvidence: RouteEvidenceNoData}
-	}
-	if routes.HasUnmodeledRoutes {
-		return routeLivenessOutcome{routeEvidence: RouteEvidenceAmbiguous}
 	}
 	handler := rubyRailsRouteHandlerKey(classContext, actionName)
 	if handler == "" {
@@ -142,6 +152,9 @@ func evaluateRouteLiveness(classContext, actionName string, routes RubyRailsRout
 		if _, routed := routes.RoutedHandlers[descendantHandler]; routed {
 			return routeLivenessOutcome{routeEvidence: RouteEvidenceRouted}
 		}
+	}
+	if routes.HasUnmodeledRoutes {
+		return routeLivenessOutcome{routeEvidence: RouteEvidenceAmbiguous}
 	}
 	return routeLivenessOutcome{
 		downgrade:     true,

@@ -90,6 +90,26 @@ func TestBuildCodeRootVerdictsRouteLiveness(t *testing.T) {
 			wantReason:        "accepted",
 			wantRouteEvidence: RouteEvidenceAmbiguous,
 		},
+		{
+			// #5494 P2 fix (PR #5742 human review, 2 threads on
+			// code_root_verdicts_routes.go:91): an action that IS positively
+			// routed must report route_evidence=routed even when the repo ALSO
+			// has an unmodeled route construct elsewhere -- the positive match
+			// is checked before the HasUnmodeledRoutes branch, not after. Before
+			// the fix this reported RouteEvidenceAmbiguous (the keep OUTCOME was
+			// already correct either way, but the recorded evidence hid that
+			// this specific action was genuinely, exactly routed).
+			name:       "positively routed action reports routed even when repo also has unmodeled routes",
+			actionName: "index",
+			routes: RubyRailsRouteFacts{
+				HasAnyRouteEvidence: true,
+				HasUnmodeledRoutes:  true,
+				RoutedHandlers:      map[string]struct{}{"OrdersController.index": {}},
+			},
+			wantVerdict:       CodeRootVerdictConfirmed,
+			wantReason:        "accepted",
+			wantRouteEvidence: RouteEvidenceRouted,
+		},
 	}
 
 	for _, tt := range tests {
@@ -114,6 +134,43 @@ func TestBuildCodeRootVerdictsRouteLiveness(t *testing.T) {
 				t.Fatalf("downgraded[%q] = %v, want %v", row.EntityID, isDown, tt.wantDowngraded)
 			}
 		})
+	}
+}
+
+// TestBuildCodeRootVerdictsRoutedActionInAmbiguousRepoRecordsRouteConfirmed is
+// the #5494 P2 fix (PR #5742 human review, 2 threads on
+// code_root_verdicts_routes.go:91): a positively-routed action, own class or
+// a routing descendant, must record stats.RouteConfirmed (not
+// RouteAmbiguousKept) even when the repo ALSO has an unmodeled route
+// construct elsewhere. The keep OUTCOME never changed (both routeEvidence
+// values keep), but before the fix RouteConfirmed silently stayed 0 for every
+// repo containing any unmodeled route, hiding real positive route evidence
+// from the per-cycle operator counters.
+func TestBuildCodeRootVerdictsRoutedActionInAmbiguousRepoRecordsRouteConfirmed(t *testing.T) {
+	input := verdictInputWithRoute("m:index", "OrdersController", "index", RubyRailsRouteFacts{
+		HasAnyRouteEvidence: true,
+		HasUnmodeledRoutes:  true,
+		RoutedHandlers:      map[string]struct{}{"OrdersController.index": {}},
+	})
+	rows, downgraded, stats := BuildCodeRootVerdicts(input)
+	row, ok := verdictByEntity(rows, "m:index")
+	if !ok {
+		t.Fatalf("expected a verdict row, got none (rows=%+v)", rows)
+	}
+	if row.Verdict != CodeRootVerdictConfirmed {
+		t.Fatalf("verdict = %q, want confirmed (basis=%+v)", row.Verdict, row.Basis)
+	}
+	if row.Basis.RouteEvidence != RouteEvidenceRouted {
+		t.Fatalf("route_evidence = %q, want %q (basis=%+v)", row.Basis.RouteEvidence, RouteEvidenceRouted, row.Basis)
+	}
+	if stats.RouteConfirmed != 1 {
+		t.Fatalf("stats.RouteConfirmed = %d, want 1", stats.RouteConfirmed)
+	}
+	if stats.RouteAmbiguousKept != 0 {
+		t.Fatalf("stats.RouteAmbiguousKept = %d, want 0 (this action is positively routed, not merely ambiguous-kept)", stats.RouteAmbiguousKept)
+	}
+	if _, isDown := downgraded[row.EntityID]; isDown {
+		t.Fatalf("routed action must not be downgraded, downgraded=%v", downgraded)
 	}
 }
 
