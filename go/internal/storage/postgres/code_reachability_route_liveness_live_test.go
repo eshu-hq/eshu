@@ -164,3 +164,85 @@ func TestCodeReachabilityRailsRouteFactsLoaderRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+// TestCodeReachabilityRailsRouteFactsLoaderKeepsRootOnlyRoutedController is the
+// P0 fix regression (coordinator review of #5494, head 26ba26d2d): a
+// controller routed ONLY via Rails' `root "welcome#index"` shorthand must stay
+// CONFIRMED through the full real production path -- the loader reading the
+// exact fact_records shape internal/parser/ruby/framework_routes.go now emits
+// for a `root` route (empty route_entries, has_unmodeled_routes=true) feeding
+// the real reducer.BuildCodeRootVerdicts. Before the parser fix, `root` set
+// neither an exact route_entries handler NOR has_unmodeled_routes, so this
+// exact scenario would have silently downgraded WelcomeController#index to
+// route_unreachable -- a live controller called dead.
+func TestCodeReachabilityRailsRouteFactsLoaderKeepsRootOnlyRoutedController(t *testing.T) {
+	ctx, db := openUpgradeBackfillLiveDB(t)
+	store := NewCodeReachabilityStore(SQLDB{DB: db})
+
+	suffix := testSuffix(t)
+	scopeID := "scope-" + suffix
+	generationID := "gen-" + suffix
+	repoID := "repo-root-routed-" + suffix
+
+	registerUpgradeBackfillCleanup(t, db, scopeID, repoID)
+
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := db.ExecContext(ctx, q, args...); err != nil {
+			t.Fatalf("seed exec %q: %v", q, err)
+		}
+	}
+
+	now := time.Now().UTC()
+	exec(`INSERT INTO ingestion_scopes
+	  (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key,
+	   observed_at, ingested_at, status, active_generation_id, payload)
+	  VALUES ($1,'repository','git',$1,'git',$1,$2,$2,'active',$3, '{}'::jsonb)`,
+		scopeID, now, generationID)
+	exec(`INSERT INTO scope_generations
+	  (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at)
+	  VALUES ($1,$2,'manual',$3,$3,'active',$3)`, generationID, scopeID, now)
+
+	seedRouteLivenessController(t, ctx, exec, repoID, "WelcomeController", "index")
+	// Empty route_entries (root produces no exact handler) + has_unmodeled_routes=true
+	// -- exactly what framework_routes.go emits for `root "welcome#index"`.
+	seedRouteLivenessRailsFile(t, ctx, exec, scopeID, generationID, repoID, nil, true)
+
+	classes, err := store.loadCodeReachabilityRubyClasses(ctx, repoID)
+	if err != nil {
+		t.Fatalf("loadCodeReachabilityRubyClasses: %v", err)
+	}
+	roots, err := store.loadCodeReachabilityRoots(ctx, repoID)
+	if err != nil {
+		t.Fatalf("loadCodeReachabilityRoots: %v", err)
+	}
+	routes, err := store.loadCodeReachabilityRailsRouteFacts(ctx, repoID)
+	if err != nil {
+		t.Fatalf("loadCodeReachabilityRailsRouteFacts: %v", err)
+	}
+	if !routes.HasUnmodeledRoutes {
+		t.Fatalf("expected HasUnmodeledRoutes=true for the root-only-routed repo, got %+v", routes)
+	}
+
+	rows, downgraded, _ := reducer.BuildCodeRootVerdicts(reducer.CodeReachabilityProjectionInput{
+		ScopeID:      scopeID,
+		GenerationID: generationID,
+		RepositoryID: repoID,
+		Roots:        roots,
+		RubyClasses:  classes,
+		RubyRoutes:   routes,
+	})
+	if len(rows) != 1 {
+		t.Fatalf("expected exactly one verdict row, got %+v", rows)
+	}
+	row := rows[0]
+	if row.Verdict != reducer.CodeRootVerdictConfirmed {
+		t.Fatalf("root-only-routed WelcomeController#index: verdict = %s, want confirmed (basis=%+v)", row.Verdict, row.Basis)
+	}
+	if row.Basis.RouteEvidence != reducer.RouteEvidenceAmbiguous {
+		t.Fatalf("root-only-routed WelcomeController#index: route_evidence = %s, want %s", row.Basis.RouteEvidence, reducer.RouteEvidenceAmbiguous)
+	}
+	if len(downgraded) != 0 {
+		t.Fatalf("root-only-routed WelcomeController#index must not be downgraded, got %v", downgraded)
+	}
+}

@@ -24,13 +24,14 @@ import (
 // descent, which is what let the route walk fold into this same flat pass
 // without reordering or altering any of the four original analyses.
 //
-// railsRouteAmbiguous is true when this file contains any Rails route
-// registration the parser cannot resolve into an exact "controller#action"
-// route_entries row: a resources/resource DSL macro (rubyIsDynamicRailsRouteCall)
-// or an explicit `to:` target that did not parse cleanly
-// (rubyCollectRouteCandidate's ambiguous return). It is a file-scoped OR: one
-// unresolved route call taints the whole file, matching the #5494 reducer
-// join's repo-wide keep-biased use of the signal.
+// railsRouteAmbiguous is true when this file contains a
+// Rails.application.routes.draw block with any call the parser cannot resolve
+// into an exact "controller#action" route_entries row -- a fail-safe,
+// default-to-ambiguous scan (rubyScanRailsDrawBlockForAmbiguity, see
+// framework_routes_ambiguity.go), not an allow-list of specific problem
+// shapes. It is a file-scoped OR: one unresolved route call taints the whole
+// file, matching the #5494 reducer join's repo-wide keep-biased use of the
+// signal.
 func rubyCollectSemantics(syntax *rubySyntax) (rubyDeadCodeNames, map[string][]rubyRoute, bool) {
 	names := rubyDeadCodeNames{
 		railsCallback:    make(map[string]struct{}),
@@ -46,12 +47,10 @@ func rubyCollectSemantics(syntax *rubySyntax) (rubyDeadCodeNames, map[string][]r
 		case "call":
 			rubyCollectRailsCallbackNames(syntax, node, names.railsCallback)
 			rubyCollectMethodReferenceNames(syntax, node, names.methodReference)
-			if framework, route, ok, ambiguous := syntax.rubyCollectRouteCandidate(node, topLevelSinatra); ok {
+			if framework, route, ok := syntax.rubyCollectRouteCandidate(node, topLevelSinatra); ok {
 				routesByFramework[framework] = append(routesByFramework[framework], route)
-			} else if ambiguous {
-				railsRouteAmbiguous = true
 			}
-			if syntax.rubyIsDynamicRailsRouteCall(node, topLevelSinatra) {
+			if syntax.isRailsRoutesDraw(node) && syntax.rubyScanRailsDrawBlockForAmbiguity(node) {
 				railsRouteAmbiguous = true
 			}
 		case "if", "unless":

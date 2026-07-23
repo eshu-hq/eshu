@@ -43,26 +43,23 @@ func buildRubyFrameworkSemantics(routesByFramework map[string][]rubyRoute, rails
 // The cheap, node-local route shape (no receiver, HTTP-verb method name,
 // literal exact path) is checked before resolving context, so the ancestor
 // climb in rubyResolveRouteContext only runs for call nodes that already look
-// like a route registration.
-//
-// ambiguous is true only for a Rails route call that carries an explicit
-// `to:` target the parser could not resolve into a clean, unqualified
-// "controller#action" (for example a namespaced "admin/posts#show" target).
-// That is genuine route-registration evidence the parser cannot model
-// exactly, not "no route" -- #5494's reducer join must see it as an
-// unmodeled-route signal rather than silently treating the action as unrouted.
-func (s *rubySyntax) rubyCollectRouteCandidate(node *tree_sitter.Node, topLevelSinatra bool) (framework string, route rubyRoute, ok bool, ambiguous bool) {
+// like a route registration. The #5494 has_unmodeled_routes ambiguity signal
+// is computed separately (framework_routes_ambiguity.go,
+// rubyScanRailsDrawBlockForAmbiguity): it does not depend on this function's
+// return shape, because a fail-safe design cannot afford to enumerate every
+// call shape that ISN'T an exact route -- see that file's doc comment.
+func (s *rubySyntax) rubyCollectRouteCandidate(node *tree_sitter.Node, topLevelSinatra bool) (framework string, route rubyRoute, ok bool) {
 	if node.ChildByFieldName("receiver") != nil {
-		return "", rubyRoute{}, false, false
+		return "", rubyRoute{}, false
 	}
 	methodNode := node.ChildByFieldName("method")
 	method, isHTTPMethod := rubyHTTPRouteMethod(s.text(methodNode))
 	if !isHTTPMethod {
-		return "", rubyRoute{}, false, false
+		return "", rubyRoute{}, false
 	}
 	path := s.firstLiteralStringArgument(node)
 	if !rubyExactRoutePath(path) {
-		return "", rubyRoute{}, false, false
+		return "", rubyRoute{}, false
 	}
 
 	context := s.rubyResolveRouteContext(node, topLevelSinatra)
@@ -70,18 +67,49 @@ func (s *rubySyntax) rubyCollectRouteCandidate(node *tree_sitter.Node, topLevelS
 	case "rails":
 		handler, resolved := s.railsRouteHandler(node)
 		if !resolved {
-			return "", rubyRoute{}, false, s.hasRoutePairTo(node)
+			return "", rubyRoute{}, false
 		}
-		return context.framework, rubyRoute{method: method, path: path, handler: handler}, true, false
+		return context.framework, rubyRoute{method: method, path: path, handler: handler}, true
 	case "sinatra":
 		handler, resolved := s.sinatraMethodHandler(node, context.className)
 		if !resolved {
-			return "", rubyRoute{}, false, false
+			return "", rubyRoute{}, false
 		}
-		return context.framework, rubyRoute{method: method, path: path, handler: handler}, true, false
+		return context.framework, rubyRoute{method: method, path: path, handler: handler}, true
 	default:
-		return "", rubyRoute{}, false, false
+		return "", rubyRoute{}, false
 	}
+}
+
+// railsExactRouteEntry attempts to parse node as a fully-modeled, exact Rails
+// route: a receiverless HTTP-verb call with a literal exact path and an
+// explicit `to:` target that resolves into a clean, unqualified
+// "controller#action" handler. It performs no context resolution -- callers
+// (rubyCollectRouteCandidate, which has already climbed to confirm rails
+// context, and rubyScanRailsDrawBlockForAmbiguity, which knows it by
+// construction) must establish rails context themselves. Any call shape this
+// function rejects is NOT necessarily routeless: it may be a route
+// registration the parser cannot model exactly (see
+// framework_routes_ambiguity.go), so callers must not treat ok=false as
+// proof of absence on its own.
+func (s *rubySyntax) railsExactRouteEntry(node *tree_sitter.Node) (rubyRoute, bool) {
+	if node.ChildByFieldName("receiver") != nil {
+		return rubyRoute{}, false
+	}
+	methodNode := node.ChildByFieldName("method")
+	method, isHTTPMethod := rubyHTTPRouteMethod(s.text(methodNode))
+	if !isHTTPMethod {
+		return rubyRoute{}, false
+	}
+	path := s.firstLiteralStringArgument(node)
+	if !rubyExactRoutePath(path) {
+		return rubyRoute{}, false
+	}
+	handler, resolved := s.railsRouteHandler(node)
+	if !resolved {
+		return rubyRoute{}, false
+	}
+	return rubyRoute{method: method, path: path, handler: handler}, true
 }
 
 // rubyResolveRouteContext resolves the framework/class context a route

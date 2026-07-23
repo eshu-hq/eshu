@@ -20,15 +20,20 @@ recent shipped work grouped by feature area.
   reached that specific action. The reducer's `BuildCodeRootVerdicts` now
   additionally joins an ancestry-confirmed action against a repo-wide Rails
   route-fact snapshot (`RubyRailsRouteFacts`) and downgrades it (reason
-  `route_unreachable`) only when the repo's route surface is exact-only
-  (no `resources`/`resource` DSL macro, and no unresolved namespaced `to:`
-  target, observed anywhere in the repo) and proven observed, and no
+  `route_unreachable`) only when the repo's route surface is exactly modeled
+  (every call the parser saw inside every `Rails.application.routes.draw`
+  block resolved into an exact route entry) and proven observed, and no
   `route_entries` handler matches. Any other outcome -- no route data
   observed, or an unmodeled/dynamic route present anywhere in the repo --
   keeps, preserving the #5376 false-negative-safer bias. The Ruby parser
-  (`internal/parser/ruby/framework_routes_ambiguity.go`) now detects (without
-  expanding) `resources`/`resource` macros and unresolved `to:` targets and
-  stamps `framework_semantics.rails.has_unmodeled_routes` for that signal.
+  (`internal/parser/ruby/framework_routes_ambiguity.go`) uses a fail-safe,
+  default-to-ambiguous scan (`rubyScanRailsDrawBlockForAmbiguity`): any call
+  inside a routes.draw block that does not resolve into an exact route
+  (`root`, `match`, gem route macros such as `devise_for`,
+  `controller:`/`action:` keyword pairs, bare or interpolated paths, non-string
+  `to:` targets, `resources`/`resource` macros, and any other unmodeled
+  construct) stamps `framework_semantics.rails.has_unmodeled_routes`, rather
+  than enumerating a fixed list of known-ambiguous shapes.
   `CodeReachabilityVerdictSchemaEpoch` is bumped 1 -> 2 to force a one-time
   re-projection of already-indexed repos (same #5376 P1 upgrade-backfill
   mechanism), since an ancestry-confirmed verdict does not otherwise change

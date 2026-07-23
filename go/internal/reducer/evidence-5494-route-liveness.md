@@ -13,7 +13,9 @@ controller base. A routable controller (extends `ApplicationController`) was
 always kept, even when NO route in `config/routes.rb` ever reaches that
 specific action -- "routable" is not "routed". #5494 joins the SAME verdict
 row against repo-wide Rails route facts and downgrades an action ONLY when the
-route surface is exact-only and proven complete.
+route surface inside every `Rails.application.routes.draw` block the parser
+observed is exactly modeled (see "P0 fix" below for what that precisely means
+and does not mean).
 
 ## False-positive risk assessed first (why this is not a naive "no route =
 dead" join)
@@ -28,17 +30,63 @@ routes, and it does not resolve a namespaced target such as
 `route_entries` alone, naively, would false-positive on the overwhelming
 majority of real Rails apps.
 
-Fix: `internal/parser/ruby/framework_routes.go` now also detects (without
-expanding) any `resources`/`resource` macro call and any unresolved `to:`
-target inside the Rails route-draw context, and stamps
-`framework_semantics.rails.has_unmodeled_routes = true` for that file.
-`RubyRailsRouteFacts.HasUnmodeledRoutes` (reducer) is a repo-wide OR of that
-signal: if true, EVERY controller action in the repo keeps regardless of
-`RoutedHandlers` -- the exact-route surface cannot be proven complete. A
-downgrade requires `HasAnyRouteEvidence=true` (routes.rb was actually observed)
-AND `HasUnmodeledRoutes=false` (the route surface is exact-only) AND no
-matching `RoutedHandlers` entry. This mirrors the #5376 keep-biased shape:
-downgrade only on positive, provably-complete evidence, never an absence.
+### P0 fix (coordinator review of head 26ba26d2d): the first ambiguity
+detector was itself an allow-list, and reopened the risk
+
+The original fix (committed at 26ba26d2d) special-cased exactly two shapes as
+"ambiguous": a `resources`/`resource` macro, and an explicit `to:` target that
+failed to parse. A separate-context review caught that this was still an
+allow-list layered on the pre-existing HTTP-verb allow-list
+(`get`/`post`/`put`/`patch`/`delete`/`head`/`options`), and that several
+extremely common Rails route constructs fell through BOTH allow-lists --
+neither captured as an exact route NOR flagged ambiguous -- so a controller
+routed ONLY through one of them would have been silently downgraded to
+`route_unreachable`: a live controller called dead, the exact false positive
+#5494 exists to prevent. The missed constructs: `root "welcome#index"` (the
+single most universal Rails route, since `root` is not an HTTP verb method);
+`match "/x", to:, via:` (`match` is not an HTTP verb method either); any
+gem-provided route macro (`devise_for`, or literally any other gem's routing
+DSL method -- unbounded, cannot be enumerated); `controller:`/`action:`
+keyword-pair routes (no `to:` pair, so the old detector's `to:`-presence check
+never fired); bare/relative paths (`get "about", to:`) and interpolated paths
+(`get "/api/#{version}/x", to:`) (both rejected by the exact-path check
+*before* the old ambiguity branch ran); and non-string `to:` targets (a
+constant or lambda).
+
+**Fix (fail-safe by default, not allow-list extension):**
+`internal/parser/ruby/framework_routes_ambiguity.go`'s
+`rubyScanRailsDrawBlockForAmbiguity` now walks the `do_block` of every
+`Rails.application.routes.draw` call the parser finds and flags
+`has_unmodeled_routes = true` for the file when the block contains ANY call
+that does not resolve into an exact route entry (`railsExactRouteEntry`) --
+the inverse of the old rule. Enumerating "known problem shapes" is unbounded
+(any Rails engine or gem can add its own routing DSL method); the only safe
+rule is "ambiguous unless proven exact". This is deliberately over-inclusive
+(a stray `Rails.env.production?` guard call inside the block also sets the
+flag), but over-inclusive ambiguity only ever biases the join toward KEEP,
+never toward a wrong downgrade. `RubyRailsRouteFacts.HasUnmodeledRoutes`
+(reducer) is a repo-wide OR of the per-file signal: if true, EVERY controller
+action in the repo keeps regardless of `RoutedHandlers`. A downgrade requires
+`HasAnyRouteEvidence=true` (routes.rb was actually observed) AND
+`HasUnmodeledRoutes=false` (every call the parser saw in every routes.draw
+block resolved into an exact route) AND no matching `RoutedHandlers` entry.
+This mirrors the #5376 keep-biased shape: downgrade only on positive evidence
+from an exactly-modeled surface, never an unexamined absence -- see
+`evaluateRouteLiveness`'s doc comment in `code_root_verdicts_routes.go` for
+the precise (and deliberately non-overclaiming) statement of what
+`HasUnmodeledRoutes=false` does and does not prove.
+
+P0 regression coverage (all RED against the pre-fix allow-list, GREEN after,
+verified by reverting the three parser files to the pre-fix commit and
+re-running): `TestParseFlagsUnmodeledRailsRouteConstructs`
+(`internal/parser/ruby/framework_routes_ambiguity_test.go`, 8 subtests: `root`
+shorthand, `root to:`, `match`+`via:`, `devise_for`, `controller:`/`action:`,
+bare path, interpolated path, non-string `to:`),
+`TestBuildCodeRootVerdictsRootOnlyRoutedControllerKept`
+(`internal/reducer/code_root_verdicts_routes_test.go`), and
+`TestCodeReachabilityRailsRouteFactsLoaderKeepsRootOnlyRoutedController`
+(`internal/storage/postgres/code_reachability_route_liveness_live_test.go`,
+real Postgres, real production loader path).
 
 ## Schema-epoch assessment
 
@@ -194,7 +242,16 @@ scope, `#5378 Detector 1`) has NO `routes.rb` file at all, so
 `RouteEvidenceNoData` for every controller action, leaving the existing
 `WidgetsController#index` (suppressed) / `LegacyReportsController#generate`
 (cleanup_ready) golden assertions byte-identical. No cassette or B-12 snapshot
-update is required for this change.
+update is required for the fixture as it exists today.
+
+This repo-wide `find tests/fixtures -iname routes.rb` returns nothing, so
+there is also **no golden-corpus regression coverage of route liveness
+end-to-end** through the real ingest -> reduce -> project -> query pipeline
+(flagged P2 in the coordinator review). Filed as a tracked follow-up rather
+than added in this change, since it requires a full Docker-orchestrated B-7
+gate run (bootstrap + replay + drain + diff) to regenerate the snapshot:
+[#5723](https://github.com/eshu-hq/eshu/issues/5723), linked under
+"Spun-off follow-ups" in epic #5588.
 
 ## Performance Evidence
 

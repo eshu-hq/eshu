@@ -117,6 +117,44 @@ func TestBuildCodeRootVerdictsRouteLiveness(t *testing.T) {
 	}
 }
 
+// TestBuildCodeRootVerdictsRootOnlyRoutedControllerKept is the P0 fix
+// regression (coordinator review of #5494, head 26ba26d2d): a controller
+// routed ONLY via Rails' `root "welcome#index"` shorthand -- which the parser
+// cannot resolve into an exact route_entries handler, so it stamps
+// has_unmodeled_routes=true instead of silently omitting it -- must stay
+// CONFIRMED, never route-downgraded. Before the parser fix this construct set
+// neither RoutedHandlers NOR HasUnmodeledRoutes, so WelcomeController#index
+// would have been indistinguishable from a genuinely dead action and
+// downgraded to route_unreachable -- a live controller called dead.
+func TestBuildCodeRootVerdictsRootOnlyRoutedControllerKept(t *testing.T) {
+	input := verdictInputWithRoute("m:index", "WelcomeController", "index", RubyRailsRouteFacts{
+		HasAnyRouteEvidence: true,
+		HasUnmodeledRoutes:  true,
+		RoutedHandlers:      map[string]struct{}{},
+	})
+	rows, downgraded, stats := BuildCodeRootVerdicts(input)
+	row, ok := verdictByEntity(rows, "m:index")
+	if !ok {
+		t.Fatalf("expected a verdict row, got none (rows=%+v)", rows)
+	}
+	if row.Verdict != CodeRootVerdictConfirmed {
+		t.Fatalf("root-only-routed WelcomeController#index verdict = %q, want confirmed (basis=%+v)", row.Verdict, row.Basis)
+	}
+	if row.Basis.RouteEvidence != RouteEvidenceAmbiguous {
+		t.Fatalf("root-only-routed WelcomeController#index route_evidence = %q, want %q", row.Basis.RouteEvidence, RouteEvidenceAmbiguous)
+	}
+	if _, isDown := downgraded[row.EntityID]; isDown {
+		t.Fatalf("root-only-routed WelcomeController#index must not be downgraded, downgraded=%v", downgraded)
+	}
+	if stats.RouteDowngraded != 0 {
+		t.Fatalf("stats.RouteDowngraded = %d, want 0", stats.RouteDowngraded)
+	}
+	kept := removeDowngradedRailsControllerRoots(input.Roots, downgraded)
+	if _, ok := findRoot(kept, "m:index"); !ok {
+		t.Fatalf("root-only-routed WelcomeController#index must remain a BFS root")
+	}
+}
+
 // TestRouteDowngradedRootRemovedFromBFSRootSet proves the #5494 downgrade
 // flows through the SAME removeDowngradedRailsControllerRoots path #5376
 // uses: a route-unreachable action loses its BFS root status exactly like an

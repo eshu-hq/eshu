@@ -7,12 +7,13 @@ import "strings"
 
 const (
 	// ReasonRouteUnreachable marks a #5494 downgrade: the root's ancestry is a
-	// genuine, confirmed Rails controller (rubycontroller.Decide kept it), but
-	// the repo's exact-only Rails route facts positively prove no route
-	// targets this action, and the repo has zero detected dynamic/unresolved
-	// route registrations anywhere (RubyRailsRouteFacts.HasUnmodeledRoutes is
-	// false), so the exact route surface is provably complete. This is the
-	// ONLY route-based downgrade reason; every other route outcome keeps.
+	// genuine, confirmed Rails controller (rubycontroller.Decide kept it), the
+	// repo's Rails route facts contain no matching handler for this action, and
+	// the repo has zero detected unmodeled/unresolved route registrations
+	// anywhere (RubyRailsRouteFacts.HasUnmodeledRoutes is false) -- every route
+	// registration the parser observed in every routes.draw block resolved
+	// into an exact entry. This is the ONLY route-based downgrade reason;
+	// every other route outcome keeps.
 	ReasonRouteUnreachable = "route_unreachable"
 
 	// RouteEvidenceNoData: the repo shows no observed Rails route evidence at
@@ -78,13 +79,20 @@ type routeLivenessOutcome struct {
 // evaluateRouteLiveness joins an ancestry-CONFIRMED Rails controller action
 // root (classContext#actionName) against the repo-wide Rails route facts
 // #5494 loads alongside RubyClasses. It downgrades ONLY when the route
-// surface is exact-only (HasUnmodeledRoutes is false) AND was actually
+// surface is exactly-modeled (HasUnmodeledRoutes is false -- every call the
+// parser observed inside every Rails.application.routes.draw block in the
+// repo resolved into an exact route entry, per the fail-safe scan in
+// internal/parser/ruby/framework_routes_ambiguity.go) AND was actually
 // observed (HasAnyRouteEvidence is true) AND no route_entries handler matches
-// this action -- the one case where the parser's exact route facts can be
-// trusted as a COMPLETE negative. Every other outcome keeps: no data observed,
-// an unmodeled/dynamic route present anywhere in the repo, or a positive
-// handler match. This mirrors the #5376 ancestry walk's keep-biased shape --
-// a downgrade requires positive, provably-complete evidence, never an absence.
+// this action. This is NOT a claim that the action is provably unreachable by
+// every possible means (a mounted Rails engine's own gem-internal routes, for
+// example, are invisible to any static analysis of this repo's source) -- it
+// is a claim that nothing THIS repo's own routes.rb source registers, that
+// the parser can see and could not resolve exactly, was left unaccounted for.
+// Every other outcome keeps: no data observed, an unmodeled/dynamic route
+// present anywhere in the repo, or a positive handler match. This mirrors the
+// #5376 ancestry walk's keep-biased shape -- a downgrade requires positive
+// evidence from an exactly-modeled surface, never an unexamined absence.
 func evaluateRouteLiveness(classContext, actionName string, routes RubyRailsRouteFacts) routeLivenessOutcome {
 	if !routes.HasAnyRouteEvidence {
 		return routeLivenessOutcome{routeEvidence: RouteEvidenceNoData}
