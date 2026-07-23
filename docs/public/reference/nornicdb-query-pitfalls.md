@@ -175,6 +175,57 @@ No-Observability-Change: no runtime metric, span, log field, queue stage, worker
 knob, or schema phase changes. The existing canonical retract spans and
 graph-write failure/retry telemetry continue to expose retract behavior.
 
+### Dispatch-Ordering Refinement: A Hoisted Retract Can Run Before Its Own Dependency (#5680)
+
+Probed while fixing #5680: `nornicdb.PhaseGroupExecutor`'s mixed-phase
+dispatcher (`executeGroupedChunksWithDrain`,
+`go/internal/storage/nornicdb/phase_group_executor_retract.go`) is a
+**Go-level dispatch-ordering bug**, distinct from the NornicDB query-shape
+pitfalls this page otherwise documents. Before the fix, every Drain-marked
+statement in a mixed phase (structural_edges, terraform_state) ran FIRST, as a
+standalone autocommit statement, regardless of its position in the emitted
+statement list; every remaining statement (Drain or not) then ran as one
+`ge.ExecuteGroup` call, in its original relative order.
+
+That hoisting silently broke the tfstate MATCHES_STATE edge retract
+(`canonicalTerraformStateMatchesConfigEdgeRetractCypher`,
+`tfstate_state_match_edge_retract.go`), which is Drain-marked and requires
+`s.generation_id = $generation_id` — a property only refreshed by the resource
+upsert statement `buildTerraformStateStatements` emits BEFORE it. Hoisted
+ahead of that upsert, the retract's predicate matched zero rows every cycle: a
+stale edge silently survived. Live-proven by
+`TestTfstateMatchesStateEdgeRetractDispatchLive`
+(`go/internal/replay/offlinetier/tfstate_dispatch_order_live_test.go`), which
+fails against the pre-#5680 dispatcher and passes after the fix.
+
+The fix makes `executeGroupedChunksWithDrain` order-preserving: it walks
+statements in emitted order, flushing the pending non-retract group through
+`ge.ExecuteGroup` immediately before every `OperationCanonicalRetract`
+statement (Drain or not) and running that retract autocommit in its exact
+position, mirroring `executeEntityPhaseGroup`'s own flush-then-autocommit
+structure. This also means a retract is now NEVER dispatched through
+`ge.ExecuteGroup` in this path (see `phase_group_executor_retract_dispatch_test.go`'s
+`TestExecuteGroupedChunksWithDrainNeverDispatchesRetractViaExecuteGroup`),
+matching this section's own "retract DELETEs run through `Execute`, never
+`ExecuteGroup`" rule defensively for mixed-phase retracts, not only for the
+dedicated per-writer `dispatchRetract` helpers this page otherwise describes.
+
+Honest scope note: a live reproduction of "a non-Drain
+`OperationCanonicalRetract` silently under-applies because it was bundled
+into `ge.ExecuteGroup`" for the terraform_state resource-sweep DETACH DELETE
+(`canonicalTerraformStateResourceRetractCurrentLabelCypher`) did NOT reproduce
+in isolation against the pinned `timothyswt/nornicdb-cpu-bge:v1.1.11` image —
+the old dispatcher already preserved relative order between non-Drain
+statements (they were all appended to one "remaining" slice in emitted
+order), so the resource-sweep retract still ran after its dependency upsert
+committed within the same `ExecuteGroup` transaction, and the DELETE applied
+correctly (`TestTfstateResourceRetractDispatchLive` passes on both the
+pre-fix and post-fix dispatcher). The Drain-hoisting reorder above is the only
+independently, live-confirmed root cause of #5680; the "never through
+`ExecuteGroup`" change for non-Drain retracts is retained as a defensive
+application of this page's established rule, not because a second live
+failure mode was reproduced for this specific writer.
+
 ## Pitfall: A Bare Top-Level UNION Returns Nothing When Its First Branch Is Empty
 
 ### Observed shape

@@ -16,6 +16,15 @@
 - Fail closed when the inner executor is absent.
 - Keep drivers, env parsing, timeouts, retries, and process gates in commands.
 - Preserve exact graph output and idempotent partial-phase replay.
+- Mixed-phase retract dispatch (`executeGroupedChunksWithDrain`,
+  `executeEntityPhaseGroup`) MUST be order-preserving: walk statements in
+  emitted order, flush the pending non-retract group before every
+  `OperationCanonicalRetract` statement, and run that retract autocommit in
+  its exact position (Drain-marked or not). Never hoist Drain statements ahead
+  of statements the phase emitted earlier — a retract's predicate can depend
+  on a property an earlier same-phase upsert refreshes (#5680). A retract MUST
+  NEVER be dispatched through `ge.ExecuteGroup`, independent of statement
+  count, matching this package's own retract-DELETE-ExecuteGroup-unsafe rule.
 
 ## Common changes
 
@@ -33,6 +42,11 @@
 - Later phases miss nodes: phase order or transaction boundary regressed.
 - Backend in-flight exceeds configured cap: gate wrapped the outer adapter.
 - Retract stalls or no-ops: wrong autocommit/drain route or unsanitized params.
+- A mixed-phase retract's predicate silently never matches: a Drain statement
+  got hoisted ahead of the same-phase upsert its predicate depends on instead
+  of running in its emitted position (#5680; see
+  docs/public/reference/nornicdb-query-pitfalls.md's "Dispatch-Ordering
+  Refinement" section).
 
 ## Anti-patterns
 
