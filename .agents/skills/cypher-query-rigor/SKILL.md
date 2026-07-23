@@ -241,6 +241,35 @@ MERGE (s)-[:RUNS_IN]->(e)
 - Multi-label and unlabelled node matches can be risky; prefer one clear label plus indexed property anchors.
 - Verify uncertain behavior against NornicDB docs or source before assuming Neo4j planner behavior applies.
 
+## Patching NornicDB: Support The Shape, Never Fail Loud
+
+NornicDB's goal is drop-in Neo4j compatibility, and the maintainer has rejected
+fail-loud patches twice for the same reason. When you fix a NornicDB Cypher
+executor bug, the contract is:
+
+- **Support every valid shape by mirroring Neo4j's actual semantics.** Do not
+  fail loud, reject, or error on a shape Neo4j executes. Rejecting a valid query
+  is not better than corrupting it — both break compatibility.
+- **Reference the Neo4j source.** The Cypher runtime lives in the Neo4j
+  monorepo under `community/cypher/`. Look for a checkout at `~/os-repos/neo4j`;
+  if it is absent, clone it (`git clone --filter=blob:none --sparse
+  https://github.com/neo4j/neo4j ~/os-repos/neo4j` then `git sparse-checkout set
+  community/cypher`). Map the
+  logical operator that governs the shape — for OPTIONAL MATCH that is
+  `OptionalPipe` / `ApplyPipe` / `OptionalExpandAllPipe` (per left row, run the
+  inner pattern; no match means keep the row and null the new variables); for
+  aggregation it is `EagerAggregationPipe` plus the front-end `isolateAggregation`
+  rewrite. Cite the Neo4j file you mirrored.
+- **Keep only genuine parse errors** — the ones Neo4j itself raises at parse
+  time (for example `count()` with no argument). If you are unsure whether Neo4j
+  accepts a shape, assume it does and support it.
+- **Route to the real evaluator, not a string-slicing fallback.** A guard that
+  fires before the pipeline handoff freezes valid queries out of the good
+  executor. Teach the executor the shape rather than gating it.
+
+See `docs/public/reference/nornicdb-pitfalls.md` ("When To Patch NornicDB") for
+the same rule and the patch-and-repin process.
+
 ## Response Discipline
 
 When proposing or implementing Cypher, include the intended anchor, expected cardinality, required index or constraint, backend-specific concern, and verification plan. If any of those are unknown and materially affect correctness or performance, stop and ask instead of guessing.

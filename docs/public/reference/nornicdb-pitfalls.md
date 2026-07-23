@@ -717,3 +717,28 @@ Before drafting a patch:
 3. Build the patched binary into a unique image tag and pin that image only in
    the relevant test or Compose overlay.
 4. Never overwrite a shared production image tag for a local experiment.
+
+### How to patch: support the shape, mirror Neo4j, never fail loud
+
+NornicDB's goal is drop-in Neo4j compatibility, and the maintainer has rejected
+fail-loud patches more than once. When the fix is a Cypher executor bug:
+
+- **Support every valid shape by mirroring Neo4j's semantics.** Do not fail
+  loud, reject, or error on a shape Neo4j executes. Rejecting a valid query is
+  not better than corrupting it. Teach the executor the shape; do not gate it
+  with a guard that fires before the pipeline handoff and freezes valid queries
+  out of the good executor.
+- **Reference the Neo4j source.** The Cypher runtime lives under
+  `community/cypher/` in the Neo4j monorepo. Use the checkout at
+  `~/os-repos/neo4j`; clone it if absent (`git clone --filter=blob:none --sparse
+  https://github.com/neo4j/neo4j ~/os-repos/neo4j`, then `git sparse-checkout set
+  community/cypher`). Map the operator that governs the shape and cite it: for
+  OPTIONAL MATCH that is `OptionalPipe` / `ApplyPipe` / `OptionalExpandAllPipe`
+  (per left row, run the inner pattern; no match keeps the row and nulls the new
+  variables); for aggregation it is `EagerAggregationPipe` and the front-end
+  `isolateAggregation` rewrite.
+- **Keep only the parse errors Neo4j itself raises** (for example `count()` with
+  no argument). If unsure whether Neo4j accepts a shape, assume it does.
+
+This is the standing contract; `.agents/skills/cypher-query-rigor` carries the
+same rule for query authoring.
