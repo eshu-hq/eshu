@@ -118,6 +118,19 @@ type ResourceIAMInstanceProfileAttributes struct {
 	RoleARNs []string
 }
 
+// ResourceEC2InstanceAttributes is the typed shape of the nested
+// Attributes["attributes"] field the EC2 instance identity node projection
+// (#5448) reads off an aws_ec2_instance aws_resource fact. It carries only the
+// AMI identity the running instance was launched from; every other EC2
+// instance property is intentionally scoped to the separate
+// ec2_instance_posture fact and its own CloudResource node materialization
+// (#1146 PR-A), which this identity fact never disturbs.
+type ResourceEC2InstanceAttributes struct {
+	// AMIID is the AMI (ImageId) the instance was launched from, when
+	// reported.
+	AMIID string
+}
+
 // RelationshipCloudWatchAlarmObservesMetricAttributes is the typed shape of
 // the nested Attributes["attributes"] field the observability coverage
 // correlation consumer reads off a cloudwatch_alarm_observes_metric
@@ -414,6 +427,18 @@ func DecodeResourceIAMInstanceProfileAttributes(resource Resource) (ResourceIAMI
 		return ResourceIAMInstanceProfileAttributes{}, err
 	}
 	return ResourceIAMInstanceProfileAttributes{RoleARNs: roleARNs}, nil
+}
+
+// DecodeResourceEC2InstanceAttributes decodes the nested
+// Attributes["attributes"] ami_id field off an already-decoded
+// aws_ec2_instance aws_resource Resource (see ResourceEC2InstanceAttributes).
+func DecodeResourceEC2InstanceAttributes(resource Resource) (ResourceEC2InstanceAttributes, error) {
+	nested := nestedAttributes(resource.Attributes)
+	amiID, err := attributeString(nested, "attributes.ami_id", "ami_id")
+	if err != nil {
+		return ResourceEC2InstanceAttributes{}, err
+	}
+	return ResourceEC2InstanceAttributes{AMIID: amiID}, nil
 }
 
 // DecodeRelationshipCloudWatchAlarmObservesMetricAttributes decodes the nested

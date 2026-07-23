@@ -95,6 +95,9 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildRDSPostureMaterializationReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
+	if intent, ok := buildEC2InstanceIdentityMaterializationReducerIntent(scopeValue, generation, index); ok {
+		intents = append(intents, intent)
+	}
 	if intent, ok := buildEC2UsesProfileMaterializationReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}

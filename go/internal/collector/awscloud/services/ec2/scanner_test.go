@@ -149,7 +149,7 @@ func TestScannerEmitsNetworkTopologyWithoutInstanceFacts(t *testing.T) {
 	}
 }
 
-func TestScannerEmitsInstancePostureFactsWithoutInventory(t *testing.T) {
+func TestScannerEmitsInstancePostureAndIdentityFacts(t *testing.T) {
 	imdsv2 := true
 	hopLimit := int32(1)
 	userData := true
@@ -158,6 +158,7 @@ func TestScannerEmitsInstancePostureFactsWithoutInventory(t *testing.T) {
 			ID:                      "i-1234567890abcdef0",
 			ARN:                     "arn:aws:ec2:us-east-1:123456789012:instance/i-1234567890abcdef0",
 			State:                   "running",
+			ImageID:                 "ami-0000000000000000a",
 			IMDSv2Required:          &imdsv2,
 			HTTPEndpoint:            "enabled",
 			HTTPPutResponseHopLimit: &hopLimit,
@@ -187,10 +188,29 @@ func TestScannerEmitsInstancePostureFactsWithoutInventory(t *testing.T) {
 	if counts[facts.EC2InstancePostureFactKind] != 1 {
 		t.Fatalf("ec2_instance_posture count = %d, want 1", counts[facts.EC2InstancePostureFactKind])
 	}
-	if counts[facts.AWSResourceFactKind] != 0 {
-		t.Fatalf("aws_resource count = %d, want 0 (instances emit no inventory fact)", counts[facts.AWSResourceFactKind])
+	if counts[facts.AWSResourceFactKind] != 1 {
+		t.Fatalf("aws_resource count = %d, want 1 (#5448 identity fact)", counts[facts.AWSResourceFactKind])
 	}
-	assertNoResourceType(t, envelopes, "aws_ec2_instance")
+	if counts[facts.AWSRelationshipFactKind] != 1 {
+		t.Fatalf("aws_relationship count = %d, want 1 (#5448 instance->AMI relationship)", counts[facts.AWSRelationshipFactKind])
+	}
+
+	identity := assertResourceType(t, envelopes, awscloud.ResourceTypeEC2Instance)
+	if got := identity.Payload["resource_id"]; got != "i-1234567890abcdef0" {
+		t.Fatalf("identity resource_id = %#v, want i-1234567890abcdef0", got)
+	}
+	assertAttribute(t, identity, "ami_id", "ami-0000000000000000a")
+
+	amiRelationship := assertRelationship(t, envelopes, awscloud.RelationshipEC2InstanceUsesAMI)
+	if got := amiRelationship.Payload["source_resource_id"]; got != "i-1234567890abcdef0" {
+		t.Fatalf("ami relationship source_resource_id = %#v", got)
+	}
+	if got := amiRelationship.Payload["target_resource_id"]; got != "ami-0000000000000000a" {
+		t.Fatalf("ami relationship target_resource_id = %#v", got)
+	}
+	if got := amiRelationship.Payload["target_type"]; got != awscloud.ResourceTypeEC2AMI {
+		t.Fatalf("ami relationship target_type = %#v, want %s", got, awscloud.ResourceTypeEC2AMI)
+	}
 
 	posture := assertInstancePostureFact(t, envelopes)
 	if got := posture.Payload["instance_id"]; got != "i-1234567890abcdef0" {
@@ -216,6 +236,34 @@ func TestScannerEmitsInstancePostureFactsWithoutInventory(t *testing.T) {
 			t.Fatalf("%s persisted on posture fact; EC2 posture must stay metadata-only", forbidden)
 		}
 	}
+}
+
+func TestScannerEmitsIdentityWithoutAMIRelationshipWhenImageIDBlank(t *testing.T) {
+	client := fakeClient{
+		instances: []Instance{{
+			ID:    "i-1234567890abcdef1",
+			ARN:   "arn:aws:ec2:us-east-1:123456789012:instance/i-1234567890abcdef1",
+			State: "running",
+			// ImageID intentionally blank: the identity fact still emits (an
+			// instance always has an identity), but no AMI relationship is
+			// possible without a target id.
+		}},
+	}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan returned error: %v", err)
+	}
+
+	counts := factKindCounts(envelopes)
+	if counts[facts.AWSResourceFactKind] != 1 {
+		t.Fatalf("aws_resource count = %d, want 1", counts[facts.AWSResourceFactKind])
+	}
+	if counts[facts.AWSRelationshipFactKind] != 0 {
+		t.Fatalf("aws_relationship count = %d, want 0 (no AMI id to relate)", counts[facts.AWSRelationshipFactKind])
+	}
+	identity := assertResourceType(t, envelopes, awscloud.ResourceTypeEC2Instance)
+	assertAttribute(t, identity, "ami_id", "")
 }
 
 func assertInstancePostureFact(t *testing.T, envelopes []facts.Envelope) facts.Envelope {

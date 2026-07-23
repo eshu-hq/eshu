@@ -268,10 +268,27 @@ func ExtractCloudResourceNodeRows(envelopes []facts.Envelope) ([]map[string]any,
 // from the decoded factschema struct; service-specific fields (the service-anchor
 // workload_id/service_name and any nested attributes) are read from the struct's
 // untyped Attributes pass-through, never from the raw envelope payload.
+//
+// #5448: an aws_ec2_instance resource is intentionally excluded here (ok=false,
+// same conservative "not a materializable node" return path as an incomplete
+// identity). DomainEC2InstanceNodeMaterialization already owns creation of the
+// EC2 instance CloudResource node's shared base properties from the
+// ec2_instance_posture fact (go/internal/reducer/ec2_instance_node_materialization.go)
+// — including "name" and "state" values this generic path would compute
+// differently (the posture path deliberately never reads a Name tag). Letting
+// this generic path ALSO write the same uid's base properties would race two
+// reducer domains over the identical property set with different values. The
+// #5448 identity aws_resource fact's ami_id is instead projected by the
+// dedicated, disjoint-property EC2InstanceIdentityMaterialization domain (see
+// ec2_instance_identity_rows.go), which only ever augments an
+// already-materialized node and never creates or overwrites a base field.
 func cloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool, error) {
 	resource, err := decodeAWSResource(env)
 	if err != nil {
 		return nil, "", false, err
+	}
+	if resource.ResourceType == awsv1.ResourceTypeEC2Instance {
+		return nil, "", false, nil
 	}
 
 	arn := derefString(resource.ARN)

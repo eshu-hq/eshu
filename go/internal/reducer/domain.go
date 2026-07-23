@@ -50,6 +50,7 @@ var knownDomains = map[Domain]struct{}{
 	DomainAzureRelationshipMaterialization:         {},
 	DomainWorkloadCloudRelationshipMaterialization: {},
 	DomainEC2InstanceNodeMaterialization:           {},
+	DomainEC2InstanceIdentityMaterialization:       {},
 	DomainAWSRelationshipMaterialization:           {},
 	DomainAWSCloudImageMaterialization:             {},
 	DomainObservabilityCoverageCorrelation:         {},

@@ -20,8 +20,19 @@
 // association, the attached instance-profile ARN, per-volume block-device
 // metadata, and tenancy / Nitro-enclave state. It reads no user-data content,
 // console output, or any other instance payload, adds no per-instance API
-// fan-out, emits no graph edges, and emits no aws_resource inventory fact for
-// the instance; reducers own the profile, KMS, and internet-exposure joins.
+// fan-out, and emits no graph edges; reducers own the profile, KMS, and
+// internet-exposure joins.
+//
+// The scanner also emits (#5448) one aws_resource identity fact per instance
+// (resource_type=aws_ec2_instance) carrying the launch AMI id, and, when an
+// AMI id is present, one aws_relationship fact recording the instance->AMI
+// usage. Both are built from the same DescribeInstances entry as the posture
+// fact, adding no AWS API call. The identity fact is deliberately scoped to
+// identity + ami_id only: it never carries any property the posture fact and
+// its CloudResource node materialization already own (see
+// go/internal/reducer/ec2_instance_identity_materialization.go for the
+// dual-writer safety argument). The instance->AMI relationship has no AMI
+// graph node to resolve against yet, so it stays Postgres-only.
 //
 // The scanner also emits metadata-only aws_ec2_volume resource facts and
 // reported volume-to-KMS relationship facts from one boundary-scoped

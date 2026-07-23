@@ -27,7 +27,7 @@ func TestExtractCloudResourceNodeRowsResolvesDuplicateUIDByMaxOrderKey(t *testin
 		ObservedAt: time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC),
 		Payload: map[string]any{
 			"account_id": "111122223333", "region": "us-east-1",
-			"resource_type": "aws_ec2_instance", "resource_id": "i-shared", "state": "stopped",
+			"resource_type": "aws_ec2_volume", "resource_id": "vol-shared", "state": "stopped",
 		},
 	}
 	newer := facts.Envelope{
@@ -36,7 +36,7 @@ func TestExtractCloudResourceNodeRowsResolvesDuplicateUIDByMaxOrderKey(t *testin
 		ObservedAt: time.Date(2026, time.January, 2, 0, 0, 0, 0, time.UTC),
 		Payload: map[string]any{
 			"account_id": "111122223333", "region": "us-east-1",
-			"resource_type": "aws_ec2_instance", "resource_id": "i-shared", "state": "running",
+			"resource_type": "aws_ec2_volume", "resource_id": "vol-shared", "state": "running",
 		},
 	}
 

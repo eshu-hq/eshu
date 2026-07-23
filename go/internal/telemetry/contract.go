@@ -364,6 +364,15 @@ const (
 	// source-unresolved posture facts from graph backend latency without adding
 	// high-cardinality metric labels.
 	SpanReducerRDSPostureMaterialization = "reducer.rds_posture_materialization"
+	// SpanReducerEC2InstanceIdentityMaterialization wraps the EC2 instance
+	// identity node-property projection (issue #5448): fact load, the
+	// cloud_resource_uid canonical-nodes readiness gate on the EC2 instance
+	// node phase (published by DomainEC2InstanceNodeMaterialization, a
+	// DISTINCT entity key from the generic aws_resource node phase RDS
+	// posture gates on), scoped property retract, and the batched MATCH+SET
+	// ami_id write. The span makes it visible in a trace that this domain only
+	// ever augments an already-materialized node and never creates one.
+	SpanReducerEC2InstanceIdentityMaterialization = "reducer.ec2_instance_identity_materialization"
 	// SpanReducerEC2UsesProfileMaterialization wraps the EC2 USES_PROFILE
 	// instance-profile edge projection (issue #1146 PR-B): fact load, the dual-key
 	// canonical-nodes readiness gate (the EC2 instance node phase plus the IAM

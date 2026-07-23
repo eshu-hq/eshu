@@ -1003,6 +1003,32 @@ backend-specific branch.
   for the existing InstrumentedExecutor `eshu_dp_neo4j_query_duration_seconds`
   and `eshu_dp_neo4j_batch_size` metrics; no new metric name or label was
   required.
+- `EC2InstanceIdentityNodeWriter` — stamps the #5448 `ami_id` property (plus
+  `ec2_identity_*` provenance) onto existing EC2 instance `CloudResource`
+  nodes for the EC2 instance identity materialization reducer domain;
+  constructed with `NewEC2InstanceIdentityNodeWriter(executor, reader,
+  batchSize)`. Same MERGE-anchored `UNWIND` + `SET` shape as
+  `RDSPostureNodeWriter` (issue #5652), with the identical never-create
+  contract via `PostureExistenceReader`: the EC2 instance CloudResource node
+  is owned by `EC2InstanceNodeWriter` (`ec2_instance_node_writer.go`), never
+  by this writer. Its SET clause is proven disjoint from
+  `EC2InstanceNodeWriter`'s SET clause
+  (`TestEC2InstanceIdentityWriterDisjointFromEC2InstancePostureWriter`), so
+  the two writers commute on the same uid regardless of dispatch order. The
+  scoped retract matches only nodes with `ec2_identity_scope_id` and
+  `ec2_identity_evidence_source`, then `REMOVE`s only `ami_id` and the
+  `ec2_identity_*` properties.
+
+  No-Regression Evidence: `go test ./internal/storage/cypher -run
+  EC2InstanceIdentity -count=1` proves empty-row no-op behavior,
+  MERGE-anchored SET on a confirmed-existing uid, never-create for an
+  unconfirmed uid, property-only retract, and the cross-writer property
+  disjointness.
+  Observability Evidence: statement summaries and operation metadata
+  (`phase=ec2_instance_identity`, `label=CloudResource:EC2InstanceIdentity`)
+  ride each statement for the existing InstrumentedExecutor
+  `eshu_dp_neo4j_query_duration_seconds` and `eshu_dp_neo4j_batch_size`
+  metrics; no new metric name or label was required.
 - `EC2BlockDeviceKMSPostureNodeWriter` — stamps bounded EC2 block-device KMS
   posture properties (`ec2_block_device_kms_state`, reason, volume counts,
   unresolved count, sorted volume ids, and sorted KMS key ids) onto existing EC2

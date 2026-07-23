@@ -110,10 +110,11 @@ func mapNetworkInterface(
 
 // mapInstance projects one DescribeInstances entry into the scanner-owned
 // posture model. It reads only metadata-only fields: IMDS settings, derived
-// booleans, the instance-profile ARN, tenancy, Nitro-enclave state, and
-// per-volume block-device metadata. It never reads user-data content, so
-// UserDataPresent stays nil (unknown) from this no-N+1 pass; a later bounded
-// enrichment may set it without a per-instance describe call here.
+// booleans, the instance-profile ARN, tenancy, Nitro-enclave state,
+// per-volume block-device metadata, and (#5448) the launch AMI id. It never
+// reads user-data content, so UserDataPresent stays nil (unknown) from this
+// no-N+1 pass; a later bounded enrichment may set it without a per-instance
+// describe call here.
 func mapInstance(region string, accountID string, instance awsec2types.Instance) ec2service.Instance {
 	instanceID := aws.ToString(instance.InstanceId)
 	state := ""
@@ -129,6 +130,7 @@ func mapInstance(region string, accountID string, instance awsec2types.Instance)
 		InstanceType:            string(instance.InstanceType),
 		SubnetID:                aws.ToString(instance.SubnetId),
 		VPCID:                   aws.ToString(instance.VpcId),
+		ImageID:                 aws.ToString(instance.ImageId),
 		IMDSv2Required:          mapIMDSv2Required(instance.MetadataOptions),
 		HTTPEndpoint:            mapIMDSHTTPEndpoint(instance.MetadataOptions),
 		HTTPPutResponseHopLimit: mapIMDSHopLimit(instance.MetadataOptions),

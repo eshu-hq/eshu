@@ -630,6 +630,7 @@ the right name when adding a new stage.
 | reducer.crossplane_satisfied_by_materialization | go/internal/telemetry/contract.go:343 | `eshu_dp_crossplane_satisfied_by_edges_total` | span reducer |
 | reducer.s3_logs_to_materialization | go/internal/telemetry/contract.go:294 | `eshu_dp_s3_logs_to_edges_total` | span reducer |
 | reducer.rds_posture_materialization | go/internal/telemetry/contract.go:301 | `eshu_dp_postgres_query_duration_seconds` | span reducer |
+| reducer.ec2_instance_identity_materialization | go/internal/telemetry/contract.go:358 | `eshu_dp_postgres_query_duration_seconds` | span reducer |
 | reducer.ec2_uses_profile_materialization | go/internal/telemetry/contract.go:310 | `eshu_dp_ec2_uses_profile_edges_total` | span reducer |
 | reducer.iam_instance_profile_role_materialization | go/internal/telemetry/contract.go:318 | `eshu_dp_iam_instance_profile_role_edges_total` | span reducer |
 | reducer.ec2_internet_exposure_materialization | go/internal/telemetry/contract.go:325 | `eshu_dp_ec2_internet_exposure_decisions_total` | span reducer |

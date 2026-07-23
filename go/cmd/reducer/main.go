@@ -298,6 +298,7 @@ func buildReducerService(
 		S3LogsToEdgeWriter:                 graphWriters.s3LogsToEdge,
 		S3ExternalPrincipalGrantWriter:     graphWriters.s3ExternalPrincipalGrant,
 		RDSPostureNodeWriter:               graphWriters.rdsPostureNode,
+		EC2InstanceIdentityNodeWriter:      graphWriters.ec2InstanceIdentityNode,
 		EC2UsesProfileEdgeWriter:           graphWriters.ec2UsesProfileEdge,
 		IAMInstanceProfileRoleEdgeWriter:   graphWriters.iamInstanceProfileRoleEdge,
 		EC2InternetExposureNodeWriter:      graphWriters.ec2InternetExposureNode,

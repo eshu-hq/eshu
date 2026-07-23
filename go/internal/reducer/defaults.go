@@ -276,6 +276,17 @@ type DefaultHandlers struct {
 	// handler also gates on ReadinessLookup so posture fields never write against
 	// uncommitted CloudResource nodes.
 	RDSPostureNodeWriter RDSPostureNodeWriter
+	// EC2InstanceIdentityNodeWriter projects the #5448 aws_ec2_instance
+	// aws_resource fact's ami_id onto the already-materialized EC2 instance
+	// CloudResource node (owned by DomainEC2InstanceNodeMaterialization). It
+	// must be non-nil alongside FactLoader for the registry to register
+	// DomainEC2InstanceIdentityMaterialization; missing either one would drop
+	// every EC2 instance identity intent before it reaches graph truth. The
+	// handler gates on ReadinessLookup against the EC2 instance node phase
+	// (not the generic aws_resource phase) so ami_id never writes against an
+	// uncommitted EC2 instance CloudResource node, and it never creates a
+	// node — a missing uid is always a no-op.
+	EC2InstanceIdentityNodeWriter EC2InstanceIdentityNodeWriter
 	// EC2UsesProfileEdgeWriter projects ec2_instance_posture instance_profile_arn
 	// into canonical USES_PROFILE edges between an EC2 instance CloudResource node
 	// and the IAM instance-profile CloudResource node it uses (issue #1146 PR-B). It
