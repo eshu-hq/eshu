@@ -101,9 +101,19 @@ type SBOMAttestationAttachmentRow struct {
 	Reason             string
 	AttachmentScope    string
 	CanonicalWrites    int
-	// ComponentCount reports the full distinct component tuple count computed
-	// before the reducer's write-time cap. ComponentEvidenceTruncated is true
-	// when the persisted evidence row count is lower than this total.
+	// ComponentCount, ComponentEvidence, and ComponentEvidenceTruncated are
+	// bounded defensively at READ time (boundedComponentEvidenceRows), not
+	// merely trusted from the persisted payload: a generation indexed before
+	// the reducer's write-time cap existed can carry an unbounded persisted
+	// array, so this decode re-applies the identical dedupe/sort/cap the
+	// reducer uses (shared via the reducer package's exported
+	// ComponentEvidenceLess/ComponentEvidenceTupleEqual and
+	// MaxSBOMAttachmentComponentEvidenceRows) to whatever was actually
+	// persisted. ComponentCount reports the true total (the larger of the
+	// persisted component_count field and the raw persisted array length);
+	// ComponentEvidenceTruncated is true whenever that total exceeds the
+	// returned row count. A fact written after the cap existed passes
+	// through unchanged.
 	ComponentCount             int
 	ComponentEvidence          []ComponentEvidenceRow
 	ComponentEvidenceTruncated bool
@@ -395,8 +405,10 @@ func decodeSBOMAttestationAttachmentRow(
 	externalReferenceCount := IntVal(payload, "external_reference_count")
 	slsaMaterials := slsaMaterialRowsFromPayload(payload["slsa_provenance_materials"])
 	slsaMaterialCount := IntVal(payload, "slsa_provenance_material_count")
-	componentEvidence := componentEvidenceRows(payload["component_evidence"])
-	componentCount := IntVal(payload, "component_count")
+	componentEvidence, componentCount, componentEvidenceTruncated := boundedComponentEvidenceRows(
+		payload["component_evidence"],
+		IntVal(payload, "component_count"),
+	)
 	return SBOMAttestationAttachmentRow{
 		AttachmentID:                         factID,
 		SubjectDigest:                        StringVal(payload, "subject_digest"),
@@ -414,7 +426,7 @@ func decodeSBOMAttestationAttachmentRow(
 		CanonicalWrites:                      IntVal(payload, "canonical_writes"),
 		ComponentCount:                       componentCount,
 		ComponentEvidence:                    componentEvidence,
-		ComponentEvidenceTruncated:           componentCount > len(componentEvidence),
+		ComponentEvidenceTruncated:           componentEvidenceTruncated,
 		DependencyRelationships:              dependencyRelationships,
 		DependencyRelationshipCount:          dependencyRelationshipCount,
 		DependencyRelationshipsTruncated:     dependencyRelationshipCount > len(dependencyRelationships),

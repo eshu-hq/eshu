@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/eshu-hq/eshu/go/internal/boundedset"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
 
@@ -15,6 +16,13 @@ const (
 	// evidence rows persisted per document. ComponentCount on the decision reports
 	// the full distinct-tuple count computed before this cap.
 	maxSBOMAttachmentComponentEvidenceRows = 100
+	// MaxSBOMAttachmentComponentEvidenceRows is the exported alias of
+	// maxSBOMAttachmentComponentEvidenceRows. go/internal/query's read-side
+	// defensive bound (decodeSBOMAttestationAttachmentRow) references this
+	// constant directly, rather than redeclaring its own copy of the number,
+	// so the write-time cap and the read-time defensive cap can never drift
+	// to different values.
+	MaxSBOMAttachmentComponentEvidenceRows = maxSBOMAttachmentComponentEvidenceRows
 	// maxSBOMAttachmentDependencyRelationshipRows bounds the number of
 	// sbom.dependency_relationship evidence rows persisted per document.
 	// Bounding happens at WRITE time (here) because the attachment fact's
@@ -119,22 +127,19 @@ func dependencyRelationshipEvidenceRows(deps []sbomAttachmentDependencyEvidence)
 // one document on its complete persisted tuple, sorts the distinct tuples
 // lexicographically with fact_id as the final tiebreaker, and returns the
 // capped row set plus the full distinct-tuple count computed before the cap.
+// The dedupe/sort/cap mechanics live in boundedset.DedupeSortCap, shared with
+// go/internal/query's read-side defensive bound (which applies the identical
+// algorithm, via ComponentEvidenceLess/ComponentEvidenceTupleEqual below, to
+// whatever was actually persisted — including a legacy fact written before
+// this cap existed) so the two paths cannot drift onto different ordering or
+// cap behavior.
 func componentEvidenceRows(components []sbomAttachmentComponentEvidence) ([]map[string]string, int) {
-	sorted := append([]sbomAttachmentComponentEvidence(nil), components...)
-	sort.Slice(sorted, func(i, j int) bool {
-		return componentEvidenceLess(sorted[i], sorted[j])
-	})
-	deduped := make([]sbomAttachmentComponentEvidence, 0, len(sorted))
-	for i, component := range sorted {
-		if i > 0 && componentEvidenceTupleEqual(sorted[i-1], component) {
-			continue
-		}
-		deduped = append(deduped, component)
-	}
-	count := len(deduped)
-	if count > maxSBOMAttachmentComponentEvidenceRows {
-		deduped = deduped[:maxSBOMAttachmentComponentEvidenceRows]
-	}
+	deduped, count := boundedset.DedupeSortCap(
+		components,
+		componentEvidenceLess,
+		componentEvidenceTupleEqual,
+		maxSBOMAttachmentComponentEvidenceRows,
+	)
 	out := make([]map[string]string, 0, len(deduped))
 	for _, component := range deduped {
 		out = append(out, map[string]string{
@@ -152,6 +157,57 @@ func componentEvidenceRows(components []sbomAttachmentComponentEvidence) ([]map[
 		})
 	}
 	return out, count
+}
+
+// ComponentEvidence is the exported field-for-field mirror of the internal
+// sbomAttachmentComponentEvidence tuple. go/internal/query's read-side
+// defensive bound decodes a persisted sbom.component evidence row (including
+// a legacy row written before this cap existed) into this shape so it can
+// reuse ComponentEvidenceLess and ComponentEvidenceTupleEqual below — the
+// EXACT ordering and identity logic componentEvidenceRows applies at write
+// time — instead of maintaining a second, independently-drifting copy.
+type ComponentEvidence struct {
+	ComponentID      string
+	Name             string
+	Version          string
+	PURL             string
+	CPE              string
+	Ecosystem        string
+	LockfilePath     string
+	DependencyScope  string
+	DependencyType   string
+	ExtractionReason string
+	FactID           string
+}
+
+func (c ComponentEvidence) toInternal() sbomAttachmentComponentEvidence {
+	return sbomAttachmentComponentEvidence{
+		factID:           c.FactID,
+		componentID:      c.ComponentID,
+		name:             c.Name,
+		version:          c.Version,
+		purl:             c.PURL,
+		cpe:              c.CPE,
+		ecosystem:        c.Ecosystem,
+		lockfilePath:     c.LockfilePath,
+		dependencyScope:  c.DependencyScope,
+		dependencyType:   c.DependencyType,
+		extractionReason: c.ExtractionReason,
+	}
+}
+
+// ComponentEvidenceLess exports componentEvidenceLess's ordering (component
+// tuple lexicographic, fact_id final tiebreak) for cross-package reuse — see
+// ComponentEvidence's doc comment.
+func ComponentEvidenceLess(a, b ComponentEvidence) bool {
+	return componentEvidenceLess(a.toInternal(), b.toInternal())
+}
+
+// ComponentEvidenceTupleEqual exports componentEvidenceTupleEqual's identity
+// check (every field except fact_id) for the same cross-package reuse
+// ComponentEvidenceLess documents.
+func ComponentEvidenceTupleEqual(a, b ComponentEvidence) bool {
+	return componentEvidenceTupleEqual(a.toInternal(), b.toInternal())
 }
 
 func componentEvidenceLess(a, b sbomAttachmentComponentEvidence) bool {

@@ -1244,7 +1244,17 @@ The reducer sorts the complete component tuple lexicographically with `fact_id`
 as the final tiebreaker before applying that write-time cap, so replay order
 cannot change the persisted preview. `component_count` remains the full distinct
 tuple count before the cap and `component_evidence_truncated` is `true` when the
-persisted row count is lower. Each row also carries `dependency_relationships` (declared `sbom.dependency_relationship`
+persisted row count is lower. This bound is also re-applied defensively at
+READ time: a generation indexed before the write-time cap existed can carry a
+persisted `component_evidence` array larger than the cap with a
+`component_count` field that (accurately, by the old unbounded write path)
+equals that oversized length, so the query decoder re-runs the identical
+dedupe/sort/cap algorithm (shared with the reducer's write path via
+`go/internal/boundedset`) against whatever was actually persisted, and reports
+the true total (the larger of the persisted count and the raw persisted array
+length) so `component_evidence_truncated` cannot go stale for an
+already-indexed repository — no migration or replay required. A fact written
+after the cap already existed passes through unchanged. Each row also carries `dependency_relationships` (declared `sbom.dependency_relationship`
 edges between components: `from_component_id`, `to_component_id`,
 `relationship_type`, `relationship_origin`, `fact_id`) and `external_references`
 (declared `sbom.external_reference` rows: `component_id`, `reference_type`,
@@ -1287,6 +1297,25 @@ flag) and pass against this change: the reducer test also proves the
 `fact_id` sort tiebreak is genuinely order-invariant (byte-identical output
 across 40 independently shuffled input orderings of a duplicate-carrying
 component set), not merely correct for one fixed input ordering.
+
+The write-time cap alone left a gap for a generation indexed BEFORE it
+existed: its persisted `component_evidence` array could still be unbounded,
+served verbatim by the query decoder with `component_evidence_truncated ==
+false` because the legacy `component_count` field happened to equal that same
+oversized length. `go test ./internal/query -run
+'TestDecodeSBOMAttestationAttachmentRowBoundsLegacyUnboundedComponentEvidence'
+-count=1` seeds exactly that legacy shape (150 raw persisted rows,
+`component_count: 150`) and fails without a read-side bound (asserts a 100-row
+cap, `component_count == 150`, `component_evidence_truncated == true`);
+`go test ./internal/query -run
+'TestDecodeSBOMAttestationAttachmentRowServesPostCapFactUnchanged'
+-count=1` proves a fact written after the cap already existed passes through
+unchanged (no double-truncation). `go/internal/boundedset` is the one
+dedupe/sort/cap implementation both the reducer's write path and the query
+decoder's read path call, so the two cannot silently diverge on cap size,
+dedupe identity, or tiebreak order; `go test ./internal/boundedset -count=1`
+covers that shared engine directly, including its own shuffle-order-invariance
+property test.
 
 No-Observability-Change: the bounded component preview and existing declared-evidence
 fields reuse the existing reducer execution spans and counters, Postgres query
