@@ -62,6 +62,7 @@ collector_specs=(
 	"collector-gcp-cloud:gcpcloud"
 	"collector-vault-live:vaultlive"
 	"collector-oci-registry:ociregistry"
+	"collector-cicd-run:cicdrun"
 	"collector-package-registry:packageregistry"
 	"collector-terraform-state:terraformstate"
 	"collector-prometheus-mimir:prometheusmimir"
