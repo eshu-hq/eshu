@@ -530,6 +530,24 @@ sibling ci_cd_run_correlation/container_image_identity/package domains:
   (`awsCloudImageSkipTagOnlyPostgresOnly`), counted and logged, never silently
   dropped.
 
+**Composes with #5457.** Issue #5457 landed
+`(:ContainerImage)-[:BUILT_FROM]->(:Repository)` (`reducer/container-image-identity`,
+`ContainerImageIdentityHandler`), independently of this domain. The two edges
+share the `:ContainerImage` node identity (both key off the same
+`oci-descriptor://<registry>/<repository>@<digest>` uid), so
+`(:CloudResource)-[:AWS_lambda_function_uses_image]->(:ContainerImage)-[:BUILT_FROM]->(:Repository)`
+is now a real, traversable two-hop path end to end: a Lambda function's
+running image resolves all the way to the Repository/commit that built it,
+whenever `container_image_identity` independently reaches an `exact_digest`
+BUILT_FROM decision for that same digest. `trace_resource_to_code`
+(`impactRepoPathCypher`) needed no code change to pick this up — its traversal
+is a generic `MATCH path = %s-[*1..%d]->(repo:Repository)` with no
+relationship-type filter, and `CloudResource` is already an
+`impactAnchorLabelDisjunction` anchor label, so both new edge types are
+automatically traversable hops. Before #5457 landed, the path stopped one hop
+short at `:ContainerImage` (no BUILT_FROM edge existed to continue from); that
+gap is now closed.
+
 ### 12a. `running_image_ref` / `running_image_digest` Node Props
 
 Deliverable (a) of issue #5450 is separate from the edge above: it surfaces
