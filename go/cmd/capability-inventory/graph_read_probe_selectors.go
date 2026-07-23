@@ -20,6 +20,14 @@ func discoverProbeSelectors(client *http.Client, apiBaseURL, userToken string) (
 	selectors := map[string]string{
 		"search_term": "main",
 		"language":    "go",
+		// tag has no bounded live-discovery source: ContainerImageTagObservation
+		// rows come only from the opt-in oci_registry collector (off in a
+		// default deploy), and the identity read model
+		// (ContainerImageIdentityRow) does not expose a tag field to discover
+		// one from. "latest" mirrors the generic, non-private defaults above
+		// (a common branch name, a common language) rather than inventing a
+		// discovery call for data that a default deployment does not have.
+		"tag": "latest",
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()

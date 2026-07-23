@@ -371,7 +371,7 @@ func selectorClass(name string) string {
 		"advisory_id": "finding_id", "since_generation_id": "generation_id", "name": "service_name",
 		"path": "relative_path", "source": "entity_id", "start": "entity_id", "symbol": "entity_id",
 		"changed_paths": "relative_path",
-		"ingester":      "collector_family",
+		"ingester":      "collector_family", "tag": "tag",
 	}
 	if class, ok := aliases[name]; ok {
 		return class
@@ -437,6 +437,12 @@ func applyMappedDeltaFixtures(registry []graphReadProbe) {
 			probe.arguments = map[string]any{"repository_id": selector("repository_id"), "limit": 1}
 		case "mcp:list_terraform_config_state_drift_findings":
 			probe.arguments = map[string]any{"scope_id": selector("scope_id"), "limit": 1, "offset": 0}
+		case "api:GET /api/v0/images/tag-history":
+			probe.query = map[string]any{"repository_id": selector("repository_id"), "tag": selector("tag"), "limit": 1}
+		case "mcp:list_container_image_tag_history":
+			probe.arguments = map[string]any{
+				"repository_id": selector("repository_id"), "tag": selector("tag"), "limit": 1, "offset": 0,
+			}
 		}
 	}
 }
