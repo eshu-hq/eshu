@@ -87,7 +87,12 @@ type CodeReachabilityProjectionResult struct {
 	// #5376 P0 rev-2 suffix-ambiguity floor (a base resolved only by a proper
 	// namespace suffix, or a conventional ambiguous simple name).
 	VerdictsSuffixAmbiguousKept int
-	DurationSeconds             float64
+	// VerdictsRouteDowngraded counts ancestry-confirmed controller-action
+	// roots the #5494 route-liveness check additionally downgraded because
+	// the repo's exact-only, observed route surface proved no route reaches
+	// them. Included in VerdictsDowngraded.
+	VerdictsRouteDowngraded int
+	DurationSeconds         float64
 }
 
 // CodeReachabilityProjectionRunner maintains code_reachability_rows from the
@@ -153,6 +158,7 @@ func (r *CodeReachabilityProjectionRunner) ProcessOnce(
 		VerdictsDowngraded:                 int(agg.verdictsDowngraded),
 		VerdictsInconclusiveMissingContext: int(agg.verdictsInconclusiveMissingContext),
 		VerdictsSuffixAmbiguousKept:        int(agg.verdictsSuffixAmbiguousKept),
+		VerdictsRouteDowngraded:            int(agg.verdictsRouteDowngraded),
 		DurationSeconds:                    time.Since(start).Seconds(),
 	}
 	if r.Logger != nil {
@@ -167,6 +173,7 @@ func (r *CodeReachabilityProjectionRunner) ProcessOnce(
 			slog.Int("verdicts_downgraded", result.VerdictsDowngraded),
 			slog.Int("verdicts_inconclusive_missing_context", result.VerdictsInconclusiveMissingContext),
 			slog.Int("verdicts_suffix_ambiguous_kept", result.VerdictsSuffixAmbiguousKept),
+			slog.Int("verdicts_route_downgraded", result.VerdictsRouteDowngraded),
 			slog.Float64("duration_seconds", result.DurationSeconds),
 		)
 	}
@@ -221,6 +228,7 @@ type codeReachabilityProjectionAggregate struct {
 	verdictsDowngraded                 int64
 	verdictsInconclusiveMissingContext int64
 	verdictsSuffixAmbiguousKept        int64
+	verdictsRouteDowngraded            int64
 }
 
 // projectPartitions projects each conflict partition, running up to
@@ -306,6 +314,7 @@ func (r *CodeReachabilityProjectionRunner) projectInput(
 	atomic.AddInt64(&agg.verdictsDowngraded, int64(verdictStats.Downgraded))
 	atomic.AddInt64(&agg.verdictsInconclusiveMissingContext, int64(verdictStats.InconclusiveMissingContext))
 	atomic.AddInt64(&agg.verdictsSuffixAmbiguousKept, int64(verdictStats.SuffixAmbiguousKept))
+	atomic.AddInt64(&agg.verdictsRouteDowngraded, int64(verdictStats.RouteDowngraded))
 	if stats.Truncated {
 		atomic.AddInt64(&agg.truncated, 1)
 		if r.Logger != nil {
@@ -327,6 +336,7 @@ func (r *CodeReachabilityProjectionRunner) projectInput(
 			slog.Int("downgraded", verdictStats.Downgraded),
 			slog.Int("confirmed", verdictStats.Confirmed),
 			slog.Int("inconclusive_missing_context", verdictStats.InconclusiveMissingContext),
+			slog.Int("route_downgraded", verdictStats.RouteDowngraded),
 		)
 	}
 	return nil

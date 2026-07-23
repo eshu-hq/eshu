@@ -28,5 +28,12 @@
 // parser helpers and the tree-sitter runtime. Route entries are exact-only:
 // Rails requires a literal `to: "controller#action"` route target inside
 // `Rails.application.routes.draw`, and Sinatra requires a named
-// `&method(:handler)` block on a literal route.
+// `&method(:handler)` block on a literal route. The package also detects
+// (without expanding) Rails routes it cannot resolve exactly -- a
+// `resources`/`resource` DSL macro, or an explicit `to:` target that does not
+// parse into a clean unqualified controller#action -- and stamps
+// framework_semantics.rails.has_unmodeled_routes so a downstream consumer
+// (the #5494 reducer route-liveness join) can treat the repo's route surface
+// as ambiguous rather than silently reading a macro-covered action as
+// unrouted.
 package ruby

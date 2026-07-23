@@ -46,7 +46,13 @@ type CodeReachabilityProjectionInput struct {
 	// consistent mid-re-parse. Empty for non-Ruby repositories or repositories
 	// with no controller roots.
 	RubyClasses []RubyClassEntity
-	MaxDepth    int
+	// RubyRoutes is the repo-wide Rails route-fact snapshot the #5494
+	// route-liveness verdict extension joins against. Zero-value (its default)
+	// carries HasAnyRouteEvidence=false, which keeps every ancestry-confirmed
+	// controller action exactly as #5376 left it -- #5494 can only ever
+	// additionally downgrade, never newly confirm.
+	RubyRoutes RubyRailsRouteFacts
+	MaxDepth   int
 	// MaxVisited bounds the distinct reachable entities materialized for this
 	// snapshot. Zero selects defaultCodeReachabilityMaxVisited.
 	MaxVisited int
@@ -73,6 +79,15 @@ type CodeReachabilityRoot struct {
 	// root METHOD entity to its class for the #5376 controller verdict; empty
 	// for roots without a class context (which are never downgraded).
 	ClassContext string
+	// ActionName is the root method's own simple (entity) name, e.g. "show".
+	// Combined with ClassContext ("PostsController.show") it forms the exact
+	// handler shape the Ruby parser's Rails route_entries emit
+	// (rubyControllerClassName + "." + action), letting the #5494 route
+	// liveness check join a root against RubyRailsRouteFacts.RoutedHandlers.
+	// Empty for roots loaded before #5494 (lag-safe: an empty ActionName never
+	// matches a routed handler, so evaluateRouteLiveness's join always misses
+	// and treats it like any other data gap -- see RouteEvidenceNoData).
+	ActionName string
 }
 
 // CodeReachabilityEdge is one modeled code relationship the reachable-set

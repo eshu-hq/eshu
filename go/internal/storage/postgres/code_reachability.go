@@ -27,19 +27,24 @@ const (
 	// without a watermark reset. BUMP this whenever verdict semantics change so
 	// every projected repo re-projects exactly once.
 	//
-	// #5500 bumped this from 1 to 2: the lexical-scope-aware candidate
+	// Epoch 1: #5376 repo-wide Ruby class-ancestry downgrade.
+	// Epoch 2: #5500 bumped this from 1 to 2: the lexical-scope-aware candidate
 	// restriction (go/internal/rubycontroller, onwardHop) changes which base refs
 	// resolve EXACTLY versus which stay suffix_only_ambiguous for an
 	// already-namespace-qualified corpus, so a previously-CONFIRMED
 	// suffix_only_ambiguous verdict can newly resolve to DOWNGRADED (or vice
 	// versa, to a positive accepted CONFIRM) for the identical, unchanged source
 	// once re-walked with the new logic — a genuine verdict-semantics change, not
-	// a node/edge identity change (no schema DDL, no key change). The bump is
-	// forward-only: it re-triggers exactly one re-projection per already-indexed
-	// repo (self-extinguishing, per the #5376 P1 upgrade-backfill precedent in
-	// evidence-5376-code-root-verdicts.md); no separate backfill script or graph
-	// migration is required.
-	CodeReachabilityVerdictSchemaEpoch = 2
+	// a node/edge identity change (no schema DDL, no key change).
+	// Epoch 3: #5494 route-liveness downgrade, layered on top of #5500's epoch 2.
+	// A repo already stamped at epoch 2 has ancestry-confirmed verdicts computed
+	// WITHOUT ever consulting route facts, so an unrouted controller action
+	// would stay silently mis-confirmed (never re-evaluated) without this bump.
+	// Each bump is forward-only: it re-triggers exactly one re-projection per
+	// already-indexed repo (self-extinguishing, per the #5376 P1
+	// upgrade-backfill precedent in evidence-5376-code-root-verdicts.md); no
+	// separate backfill script or graph migration is required.
+	CodeReachabilityVerdictSchemaEpoch = 3
 )
 
 const codeReachabilitySchemaSQL = `

@@ -89,6 +89,108 @@ end
 	}
 }
 
+func TestParseFlagsRailsResourcesMacroAsUnmodeledRoute(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "routes.rb", `class ApplicationController
+  def call(env)
+    Rails.application.routes.draw do
+      resources :posts
+    end
+  end
+end
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	semantics, ok := payload["framework_semantics"].(map[string]any)
+	if !ok {
+		t.Fatalf("payload[framework_semantics] = %T, want map[string]any", payload["framework_semantics"])
+	}
+	rails, ok := semantics["rails"].(map[string]any)
+	if !ok {
+		t.Fatalf("framework_semantics[rails] = %T, want map[string]any", semantics["rails"])
+	}
+	if hasUnmodeled, _ := rails["has_unmodeled_routes"].(bool); !hasUnmodeled {
+		t.Fatalf("rails[has_unmodeled_routes] = %#v, want true", rails["has_unmodeled_routes"])
+	}
+	frameworks, _ := semantics["frameworks"].([]string)
+	if !containsString(frameworks, "rails") {
+		t.Fatalf("frameworks = %#v, want to contain rails", frameworks)
+	}
+}
+
+func TestParseFlagsNamespacedRailsRouteTargetAsUnmodeled(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "routes.rb", `class ApplicationController
+  def call(env)
+    Rails.application.routes.draw do
+      get "/admin/posts", to: "admin/posts#show"
+      get "/orders", to: "orders#index"
+    end
+  end
+end
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	semantics, ok := payload["framework_semantics"].(map[string]any)
+	if !ok {
+		t.Fatalf("payload[framework_semantics] = %T, want map[string]any", payload["framework_semantics"])
+	}
+	rails, ok := semantics["rails"].(map[string]any)
+	if !ok {
+		t.Fatalf("framework_semantics[rails] = %T, want map[string]any", semantics["rails"])
+	}
+	if hasUnmodeled, _ := rails["has_unmodeled_routes"].(bool); !hasUnmodeled {
+		t.Fatalf("rails[has_unmodeled_routes] = %#v, want true", rails["has_unmodeled_routes"])
+	}
+	// The exact, resolvable "orders#index" route is still captured alongside
+	// the ambiguity flag -- the namespaced target does not suppress the exact
+	// route this same file also registers.
+	entries, ok := rails["route_entries"].([]map[string]string)
+	if !ok || len(entries) != 1 || entries[0]["handler"] != "OrdersController.index" {
+		t.Fatalf("rails[route_entries] = %#v, want one entry for OrdersController.index", rails["route_entries"])
+	}
+}
+
+func TestParseExactOnlyRailsRoutesLeaveHasUnmodeledRoutesUnset(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "routes.rb", `class ApplicationController
+  def call(env)
+    Rails.application.routes.draw do
+      get "/orders", to: "orders#index"
+    end
+  end
+end
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	semantics, ok := payload["framework_semantics"].(map[string]any)
+	if !ok {
+		t.Fatalf("payload[framework_semantics] = %T, want map[string]any", payload["framework_semantics"])
+	}
+	rails, ok := semantics["rails"].(map[string]any)
+	if !ok {
+		t.Fatalf("framework_semantics[rails] = %T, want map[string]any", semantics["rails"])
+	}
+	if hasUnmodeled, present := rails["has_unmodeled_routes"]; present && hasUnmodeled == true {
+		t.Fatalf("rails[has_unmodeled_routes] = %#v, want unset/false", hasUnmodeled)
+	}
+}
+
 func TestParseTagsRailsCallbackDeadCodeRoot(t *testing.T) {
 	t.Parallel()
 

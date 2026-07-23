@@ -24,11 +24,15 @@ type rubyRouteContext struct {
 // buildRubyFrameworkSemantics assembles the framework_semantics payload
 // section from routesByFramework, the routes rubyCollectSemantics gathered
 // during the single merged tree walk (see rubyCollectRouteCandidate and
-// rubyResolveRouteContext).
-func buildRubyFrameworkSemantics(routesByFramework map[string][]rubyRoute) map[string]any {
+// rubyResolveRouteContext), plus railsRouteAmbiguous, the #5494
+// has_unmodeled_routes signal for the same file (see framework_routes_ambiguity.go).
+func buildRubyFrameworkSemantics(routesByFramework map[string][]rubyRoute, railsRouteAmbiguous bool) map[string]any {
 	semantics := map[string]any{"frameworks": []string{}}
 	for _, framework := range []string{"rails", "sinatra"} {
 		appendRubyRouteFramework(semantics, framework, routesByFramework[framework])
+	}
+	if railsRouteAmbiguous {
+		appendRubyRailsRouteAmbiguity(semantics)
 	}
 	return semantics
 }
@@ -39,14 +43,18 @@ func buildRubyFrameworkSemantics(routesByFramework map[string][]rubyRoute) map[s
 // The cheap, node-local route shape (no receiver, HTTP-verb method name,
 // literal exact path) is checked before resolving context, so the ancestor
 // climb in rubyResolveRouteContext only runs for call nodes that already look
-// like a route registration.
-func (s *rubySyntax) rubyCollectRouteCandidate(node *tree_sitter.Node, topLevelSinatra bool) (string, rubyRoute, bool) {
+// like a route registration. The #5494 has_unmodeled_routes ambiguity signal
+// is computed separately (framework_routes_ambiguity.go,
+// rubyScanRailsDrawBlockForAmbiguity): it does not depend on this function's
+// return shape, because a fail-safe design cannot afford to enumerate every
+// call shape that ISN'T an exact route -- see that file's doc comment.
+func (s *rubySyntax) rubyCollectRouteCandidate(node *tree_sitter.Node, topLevelSinatra bool) (framework string, route rubyRoute, ok bool) {
 	if node.ChildByFieldName("receiver") != nil {
 		return "", rubyRoute{}, false
 	}
 	methodNode := node.ChildByFieldName("method")
-	method, ok := rubyHTTPRouteMethod(s.text(methodNode))
-	if !ok {
+	method, isHTTPMethod := rubyHTTPRouteMethod(s.text(methodNode))
+	if !isHTTPMethod {
 		return "", rubyRoute{}, false
 	}
 	path := s.firstLiteralStringArgument(node)
@@ -57,20 +65,51 @@ func (s *rubySyntax) rubyCollectRouteCandidate(node *tree_sitter.Node, topLevelS
 	context := s.rubyResolveRouteContext(node, topLevelSinatra)
 	switch context.framework {
 	case "rails":
-		handler, ok := s.railsRouteHandler(node)
-		if !ok {
+		handler, resolved := s.railsRouteHandler(node)
+		if !resolved {
 			return "", rubyRoute{}, false
 		}
 		return context.framework, rubyRoute{method: method, path: path, handler: handler}, true
 	case "sinatra":
-		handler, ok := s.sinatraMethodHandler(node, context.className)
-		if !ok {
+		handler, resolved := s.sinatraMethodHandler(node, context.className)
+		if !resolved {
 			return "", rubyRoute{}, false
 		}
 		return context.framework, rubyRoute{method: method, path: path, handler: handler}, true
 	default:
 		return "", rubyRoute{}, false
 	}
+}
+
+// railsExactRouteEntry attempts to parse node as a fully-modeled, exact Rails
+// route: a receiverless HTTP-verb call with a literal exact path and an
+// explicit `to:` target that resolves into a clean, unqualified
+// "controller#action" handler. It performs no context resolution -- callers
+// (rubyCollectRouteCandidate, which has already climbed to confirm rails
+// context, and rubyScanRailsDrawBlockForAmbiguity, which knows it by
+// construction) must establish rails context themselves. Any call shape this
+// function rejects is NOT necessarily routeless: it may be a route
+// registration the parser cannot model exactly (see
+// framework_routes_ambiguity.go), so callers must not treat ok=false as
+// proof of absence on its own.
+func (s *rubySyntax) railsExactRouteEntry(node *tree_sitter.Node) (rubyRoute, bool) {
+	if node.ChildByFieldName("receiver") != nil {
+		return rubyRoute{}, false
+	}
+	methodNode := node.ChildByFieldName("method")
+	method, isHTTPMethod := rubyHTTPRouteMethod(s.text(methodNode))
+	if !isHTTPMethod {
+		return rubyRoute{}, false
+	}
+	path := s.firstLiteralStringArgument(node)
+	if !rubyExactRoutePath(path) {
+		return rubyRoute{}, false
+	}
+	handler, resolved := s.railsRouteHandler(node)
+	if !resolved {
+		return rubyRoute{}, false
+	}
+	return rubyRoute{method: method, path: path, handler: handler}, true
 }
 
 // rubyResolveRouteContext resolves the framework/class context a route
@@ -108,14 +147,9 @@ func (s *rubySyntax) rubyResolveRouteContext(node *tree_sitter.Node, topLevelSin
 	return rubyRouteContext{}
 }
 
-func (s *rubySyntax) isRailsRoutesDraw(node *tree_sitter.Node) bool {
-	method := node.ChildByFieldName("method")
-	if s.text(method) != "draw" {
-		return false
-	}
-	receiver := node.ChildByFieldName("receiver")
-	return s.receiverName(receiver) == "Rails.application.routes"
-}
+// isRailsRoutesDraw and rubyRailsRouteSetMethods live in
+// framework_routes_ambiguity.go (shared by rubyResolveRouteContext here and
+// the #5494/#5494-P1 ambiguity scan there).
 
 func (s *rubySyntax) classExtendsSinatraBase(node *tree_sitter.Node) bool {
 	superclass := node.ChildByFieldName("superclass")

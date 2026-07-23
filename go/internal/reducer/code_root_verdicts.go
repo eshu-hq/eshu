@@ -59,8 +59,14 @@ type CodeRootVerdictBasis struct {
 	// Terminal names the event that ended the decisive path, e.g.
 	// "accepted:ActionController::Base" or "unresolved_base:ApplicationRecord".
 	Terminal string `json:"terminal"`
-	// Reason is one of the rubycontroller.Reason* classifications.
+	// Reason is one of the rubycontroller.Reason* classifications, or
+	// ReasonRouteUnreachable for a #5494 route-based downgrade.
 	Reason string `json:"reason"`
+	// RouteEvidence is the #5494 route-liveness outcome for an ancestry-CONFIRMED
+	// root (one of the RouteEvidence* constants), or empty when the root was
+	// downgraded by ancestry alone (route liveness is never evaluated for a
+	// root ancestry already downgraded -- it is already dead).
+	RouteEvidence string `json:"route_evidence,omitempty"`
 }
 
 // CodeRootVerdictRow is one reducer-materialized code_root_verdicts fact. It is
@@ -92,6 +98,24 @@ type CodeRootVerdictStats struct {
 	// operator watching this rise knows how many controllers are being held live
 	// by the suffix-ambiguity floor rather than a positive confirm.
 	SuffixAmbiguousKept int
+	// RouteDowngraded counts ancestry-confirmed roots the #5494 route-liveness
+	// check additionally downgraded (ReasonRouteUnreachable). Included in
+	// Downgraded.
+	RouteDowngraded int
+	// RouteConfirmed counts ancestry-confirmed roots #5494 positively matched
+	// to an exact route_entries handler.
+	RouteConfirmed int
+	// RouteAmbiguousKept counts ancestry-confirmed roots kept because the repo
+	// has at least one detected dynamic/unresolved Rails route registration
+	// (RubyRailsRouteFacts.HasUnmodeledRoutes) -- the exact route surface
+	// cannot be proven complete, so route liveness is not evaluated.
+	RouteAmbiguousKept int
+	// RouteNoData counts ancestry-confirmed roots for which no Rails route
+	// evidence was observed for the repo at all (routes.rb missing/unparsed,
+	// or a non-Rails repo). An operator watching this alongside RouteConfirmed
+	// and RouteDowngraded can see how much of the corpus the #5494 signal
+	// actually covers.
+	RouteNoData int
 }
 
 // BuildCodeRootVerdicts computes per-root-method Rails controller verdicts from
@@ -107,6 +131,10 @@ type CodeRootVerdictStats struct {
 // an active-generation downgraded row.
 func BuildCodeRootVerdicts(input CodeReachabilityProjectionInput) ([]CodeRootVerdictRow, map[string]struct{}, CodeRootVerdictStats) {
 	registry := newRubyRepoWideControllerRegistry(input.RubyClasses)
+	// #5494 P1 fix (PR #5742 codex review): built once per repo, not per root,
+	// so an action defined on a base controller can be checked against every
+	// genuine routing subclass that inherits it (see rubyRoutingDescendantNames).
+	subclassIndex := newRubySubclassIndex(input.RubyClasses, registry)
 	observedAt, updatedAt := codeRootVerdictTimestamps(input)
 
 	rows := make([]CodeRootVerdictRow, 0, len(input.Roots))
@@ -136,10 +164,46 @@ func BuildCodeRootVerdicts(input CodeReachabilityProjectionInput) ([]CodeRootVer
 
 		decision := rubycontroller.Decide(classContext, registry)
 		verdict := CodeRootVerdictConfirmed
+		reason := decision.Reason
+		terminal := decision.Terminal
+		routeEvidence := ""
 		if decision.Keep {
-			stats.Confirmed++
-			if decision.Reason == rubycontroller.ReasonSuffixOnlyAmbiguous {
-				stats.SuffixAmbiguousKept++
+			// #5494: ancestry alone confirms this is a genuine Rails controller
+			// action, but "routable" is not "routed" -- join against repo-wide
+			// route facts before granting the final Confirmed verdict.
+			//
+			// #5494 P1 fix (PR #5742 codex review): decision.Chain[0] is the
+			// qualified class identity the entry hop resolved classContext to
+			// (aggregateClassWalks appends the winning candidate's classKey as
+			// the first chain element before any onward hop), so it names the
+			// EXACT class the action is defined on -- the correct starting point
+			// for finding every genuine subclass that might route it instead.
+			var routingDescendants []string
+			if len(decision.Chain) > 0 {
+				routingDescendants = rubyRoutingDescendantNames(decision.Chain[0], subclassIndex)
+			}
+			routeOutcome := evaluateRouteLiveness(classContext, root.ActionName, input.RubyRoutes, routingDescendants)
+			routeEvidence = routeOutcome.routeEvidence
+			switch routeEvidence {
+			case RouteEvidenceNoData:
+				stats.RouteNoData++
+			case RouteEvidenceAmbiguous:
+				stats.RouteAmbiguousKept++
+			case RouteEvidenceRouted:
+				stats.RouteConfirmed++
+			}
+			if routeOutcome.downgrade {
+				verdict = CodeRootVerdictDowngraded
+				reason = routeOutcome.reason
+				terminal = routeOutcome.terminal
+				downgraded[entityID] = struct{}{}
+				stats.Downgraded++
+				stats.RouteDowngraded++
+			} else {
+				stats.Confirmed++
+				if decision.Reason == rubycontroller.ReasonSuffixOnlyAmbiguous {
+					stats.SuffixAmbiguousKept++
+				}
 			}
 		} else {
 			verdict = CodeRootVerdictDowngraded
@@ -155,9 +219,10 @@ func BuildCodeRootVerdicts(input CodeReachabilityProjectionInput) ([]CodeRootVer
 			RootKind:     CodeRootKindRubyRailsControllerAction,
 			Verdict:      verdict,
 			Basis: CodeRootVerdictBasis{
-				Chain:    append([]string(nil), decision.Chain...),
-				Terminal: decision.Terminal,
-				Reason:   decision.Reason,
+				Chain:         append([]string(nil), decision.Chain...),
+				Terminal:      terminal,
+				Reason:        reason,
+				RouteEvidence: routeEvidence,
 			},
 			ObservedAt: observedAt,
 			UpdatedAt:  updatedAt,
