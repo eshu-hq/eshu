@@ -96,6 +96,30 @@ throttles, and pagination spans.
 - The scanner stops on client errors. Runtime adapters decide whether an AWS
   service error is retryable, terminal, or a warning fact.
 
+## Performance and observability (#5451)
+
+- No-Regression Evidence: the running-container `aws_image_reference` emission is
+  linear in the already-enumerated task container count — one envelope per RUNNING
+  container with an ECR-hosted image and a resolved digest — the same order of magnitude
+  as the per-task ENI-relationship loop already in `taskEnvelopes`, and it adds no AWS API
+  call (it reuses the existing `DescribeTasks` container data). Digest-join cardinality on
+  the same corpus/input shape moved from 0 to 1: before (an ECR `oci_registry.image_manifest`
+  observation only, no image reference) the running-task digest yielded 0 ExactDigest
+  decisions / 0 CanonicalWrites; after (that manifest plus the new ECS `aws_image_reference`)
+  it yields exactly 1 ExactDigest / 1 CanonicalWrite. Measured by the reducer-level
+  `TestBuildContainerImageIdentityDecisionsMeasuresECSDigestJoinCardinalityBeforeAndAfterEmitter`
+  (pure in-memory reducer decision-building, no I/O). The added identity-load volume is served by the
+  existing #5438 pushdown (`go/internal/storage/postgres/facts_active_container_image_identity.go`
+  arm 2, `aws_image_reference` + `source_system='aws'`, backed by the partial index in
+  migration 069), so no new query surface or scan path is introduced. No hot Cypher /
+  graph-write / lease / claim path is touched.
+- No-Observability-Change: the emitter registers no metric of its own; emission volume and
+  duration stay covered by the shared claimed-service collector signals
+  (`eshu_dp_workflow_claim_facts_emitted_total`, `eshu_dp_collector_observe_duration_seconds`)
+  and the fact-commit signals (`eshu_dp_facts_emitted_total`, `eshu_dp_facts_committed_total`) —
+  the same signals every other ECS scanner envelope already flows through. See the
+  `image_reference.go` row in `docs/public/observability/telemetry-coverage.md`.
+
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`
