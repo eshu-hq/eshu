@@ -16,6 +16,16 @@ This is a **Mandatory Prove-The-Theory-First** proof: every candidate index
 below was measured with `EXPLAIN (ANALYZE, BUFFERS)` against a throwaway,
 representative worst-case partition **before** any production code changed.
 
+**Update (PR #5745 codex P1):** the index originally landed from this
+investigation (`INCLUDE (entity_name, metadata)`) was a real production
+robustness bug — `metadata` is unbounded and risks the btree ~2.7 KiB
+per-tuple limit, which can fail `CREATE INDEX CONCURRENTLY` and leave an
+INVALID index on a real K8s manifest. It was fixed (`INCLUDE (entity_name)`
+only) and re-measured; see `## PR #5745 codex P1` and `## Corrected Variant
+C` below for the bug, the fix, and the full honest re-measurement, which
+also corrects the earlier doc's overclaimed "unconditional ~6-10x win" to
+the actual, conditional result.
+
 ## Machine / backend profile (resource-qualified)
 
 - `machine_profile`: MacBook Pro, Apple M4 Pro (arm64), 12 logical CPU, 64 GiB,
@@ -150,7 +160,7 @@ Row-set equivalence: a full-column dump of the query's 5,001 rows with vs.
 without the index is byte-identical (`diff` reports 0 differences), proving
 this is output-preserving.
 
-## Variant C — partial covering index (`WHERE entity_type = 'K8sResource'`)
+## Variant C (original, SUPERSEDED — unsafe) — partial covering index `INCLUDE (entity_name, metadata)`
 
 ```sql
 CREATE INDEX content_entities_k8s_select_partial_idx
@@ -176,6 +186,134 @@ than the sum of all five pre-existing indexes combined (3,672 kB).
 
 Row-set equivalence: identical 5,001-row byte-for-byte dump with vs. without
 this index (0 diff).
+
+### PR #5745 codex P1 — this revision is UNSAFE and was not shipped
+
+A codex review on PR #5745 flagged a real production robustness bug in this
+revision (migration 077, `:33`): `metadata` is an **unbounded** JSONB payload
+for K8sResource rows — the Kubernetes YAML parser folds every label,
+container image, and backend reference into it with no size cap. A btree
+`INCLUDE` value is stored in the index leaf tuple and cannot exceed
+Postgres's ~2.7 KiB per-tuple limit. A valid K8s manifest with enough or
+large labels/references would make this index build fail with `index row
+size exceeds btree maximum`, leaving an **INVALID** index and **failing
+schema bootstrap** in production — a real risk regardless of this evidence
+doc's seeded row sizes, which simply were not large enough to trip it. See
+`## Corrected Variant C` below for the fix and full re-measurement; this
+section is retained only as the historical record of the rejected design.
+
+## Corrected Variant C — bounded partial index, `INCLUDE (entity_name)` only
+
+The fix: drop `metadata` from `INCLUDE` entirely. Keep the index key
+unchanged (that is what eliminates the `Sort` node). `entity_name` stays in
+`INCLUDE` — it is a bounded Kubernetes object name (Kubernetes enforces a
+253-character DNS-subdomain ceiling on names) and the SELECT list projects it
+directly, so it is both safe for the per-tuple limit and useful for the
+index-scan projection. The key columns (`repo_id`, `relative_path`,
+`start_line`, `entity_id`) are all bounded identifier/path/integer values.
+**No column in this index is an unbounded payload.**
+
+```sql
+CREATE INDEX content_entities_k8s_select_partial_idx
+  ON content_entities (repo_id, relative_path, start_line, entity_id)
+  INCLUDE (entity_name)
+  WHERE entity_type = 'K8sResource';
+```
+
+Steady-state index size (after `REINDEX`, same 6,000-row partition): **536
+kB** — 4.25x smaller than the unsafe metadata-covering revision's 2,280 kB.
+
+### Re-measurement — the query now heap-fetches `metadata` (expected and safe)
+
+Without `metadata` in the index, satisfying the SELECT list requires one
+heap fetch per matching row, so this is now a plain `Index Scan`, not an
+`Index Only Scan`. The re-measurement below is the **honest, complete**
+result across the conditions that determine whether Postgres's planner
+actually chooses the ordered-scan plan — the Sort-elimination mechanism
+is real, but whether it fires by default depends on planner cost settings
+and candidate-pool size, not solely on the index's existence.
+
+**On the canonical 6,000-K8sResource worst-case partition** (same shape as
+above, all five pre-existing indexes present, rebuilt fresh in this
+container):
+
+| Condition | Plan | Execution Time (ms) |
+| --- | --- | ---: |
+| Baseline, no new index | `Index Scan` on `content_entities_repo_idx` + `Sort` | 7.934, 8.040, 8.128, 8.256, 9.284 (mean 8.33) |
+| New bounded index present, **default** `random_page_cost=4.0` (realistic: index co-exists with all base indexes) | planner **keeps** `content_entities_repo_idx` + `Sort` — **new index is not chosen** | 8.082, 8.124, 8.202, 8.247, 8.340 (mean 8.20) — **unchanged from baseline** |
+| New index, isolated (competing `content_entities_repo_idx` dropped so only the new index can serve the equality predicates, `enable_bitmapscan/seqscan=off`) | `Index Scan` using the new index, no `Sort` | 1.761, 1.763, 1.848 (mean 1.79) |
+| New index, all base indexes present, `SET random_page_cost = 1.1` (Postgres's own documented recommendation for SSD-backed storage; **not currently set anywhere in Eshu**) | planner **naturally** picks `Index Scan` using the new index, no `Sort` | 1.808, 1.862, 1.892 (mean 1.85) |
+
+**Finding**: under Postgres's out-of-the-box default cost settings — what an
+unconfigured Eshu Postgres actually runs with today — the planner does
+**not** select the new index for this exact worst-case partition; it keeps
+the pre-existing plan, and total execution time is **unchanged from having
+no index at all** (~8.2 ms either way). The reason: satisfying the query now
+requires one random heap-page visit per matching row (for `metadata`), and
+at this row count (6,000 candidates, capped at 5,001) Postgres's default
+`random_page_cost=4.0` estimates that cost as higher than the existing
+bitmap/index-scan-plus-explicit-sort plan. The underlying mechanism (an
+ordered index scan skips the `Sort` node) is real and reproducible — proven
+both by isolating the new index from its competitor and by tuning
+`random_page_cost` to a value appropriate for SSD storage — but it is
+**conditional**, not automatic, at this specific candidate-pool size.
+
+**A larger, also-realistic worst case**: nothing bounds a repo to exactly
+6,000 K8sResource entities: a large K8s-heavy monorepo can plausibly have
+tens of thousands, still hitting the same `repositorySemanticEntityLimit`
+(5,001) cap. Reseeding `repo-1` with 30,000 K8sResource rows (24,000 more
+Service rows appended, same partition otherwise) and rerunning the identical
+query under **default, untuned** settings:
+
+| Condition | Plan | Execution Time (ms) |
+| --- | --- | ---: |
+| Baseline, no new index (30,000 K8sResource rows) | Postgres already finds a decent plan on its own: `Incremental Sort` (`Presorted Key: relative_path`) using the pre-existing `content_entities_path_idx` | 3.006, 3.042, 3.155, 3.382, 3.947 (mean 3.31) |
+| New bounded index present, **default** settings, no forcing | planner **naturally selects** `Index Scan` using the new index, no `Sort` | 1.839, 2.146, 3.066 (mean 2.35) |
+
+At this larger, plausible scale the new index **is** chosen automatically —
+a real, if more modest (~30% faster on average, not multiple-x), win over
+what is already a reasonably good baseline plan. The early-termination
+property of an ordered index scan (stop after the first 5,001 matching rows
+in key order) matters more as the total candidate pool grows well past the
+cap, while the competing plan's cost (`Incremental Sort`/full sort of the
+whole candidate pool before applying `LIMIT`) grows with total candidates.
+Table correlation was **not** the deciding factor here — `pg_stats`
+correlation for `relative_path` was 0.69 on the 6,000-row seed and −0.16 on
+the append-heavy 30,000-row seed (i.e., *worse*), yet the index was chosen
+at the larger scale regardless.
+
+### Row-set equivalence (corrected index)
+
+Re-verified on the 6,000-row partition after the fix: full 5,001-row,
+8-column dump of the production query with vs. without the corrected index
+is byte-identical (`diff` — 0 differences). The index only changes the plan
+Postgres may choose; it never changes the query's result set.
+
+### Write-amplification (corrected index)
+
+Re-measured the same way as before (6 repeated 5,000-row bulk-insert
+batches, `DELETE` + `VACUUM` between runs):
+
+| Batch (5,000 rows) | No K8s-related index | With corrected `content_entities_k8s_select_partial_idx` (`INCLUDE (entity_name)` only) | Delta |
+| --- | ---: | ---: | ---: |
+| K8sResource (Service) rows — indexed by the partial predicate | 59.28 ms mean / 55.52 ms median | 78.21 ms mean / 77.27 ms median | **+18.9 ms / +31.9%** (~3.8-4.4 µs/row) |
+| Function rows — excluded by the partial predicate | unaffected by the `INCLUDE` column choice (structural: a partial index never touches a row that fails its predicate, regardless of what it `INCLUDE`s) — the prior measurement of **~0 extra cost (+2.1 ms / +3.7%, within noise)** still applies unchanged | | |
+
+This is **lower** write cost than the original unsafe revision's +23.6 ms /
++31.7% (~4.7 µs/row) on the same batch, as expected: the corrected index
+is narrower (536 kB vs. 2,280 kB steady-state).
+
+### Tuple-size safety note
+
+Every column in the corrected index is bounded: `repo_id` (short internal
+identifier), `relative_path` (filesystem path, practically bounded by OS
+path-length limits), `start_line` (4-byte integer), `entity_id` (a generated
+bounded identifier string), and the `INCLUDE`d `entity_name` (Kubernetes
+caps object names at 253 characters). None is an unbounded JSONB or
+text-blob column, so this index cannot hit the btree ~2.7 KiB per-tuple
+limit regardless of manifest size. A regression test
+(`TestContentEntitiesK8sSelectPartialIndexExcludesUnboundedMetadata`) fails
+the build if `metadata` (or any column) is ever added back to `INCLUDE`.
 
 ### Rejected narrower alternative (expression-key index, no full-JSONB duplication)
 
@@ -232,83 +370,118 @@ predicate changed the planner's cost estimate enough to abandon the
 `repo_id` index entirely. That scan cost scales with the **whole platform's**
 `content_entities` row count (every repo), not the queried repo's rows.
 Production has vastly more than 18,000 rows across many repositories, so this
-"win" is a scalability trap, not a real improvement — and it is still ~4-5x
-slower than Variant C's 1.7–2.0 ms.
+"win" is a scalability trap, not a real improvement.
 
 **Verdict: DISPROVEN / rejected.** Unsafe without a supporting expression
 index (which would need its own write-amplification proof and is out of
-scope here), and unnecessary once Variant C is in place — Go already filters
-`Kind == "Service"` for free over an in-memory ≤5,001-row slice once the
-fetch itself is ~1.7–2.0 ms. This also matches the intentional design
-decision recorded in the `ListRepoK8sSelectCandidates` doc comment (no SQL
-kind filter, pending this measurement).
+scope here). Also unnecessary: Go already filters `Kind == "Service"` for
+free over an in-memory ≤5,001-row slice once the fetch itself completes
+(whether that's the corrected Variant C's ~1.7-1.9 ms when its plan is
+chosen, or the unchanged ~8.2 ms baseline when it is not — either way,
+filtering an already-fetched small in-memory slice by `Kind` costs nothing
+extra). This also matches the intentional design decision recorded in the
+`ListRepoK8sSelectCandidates` doc comment (no SQL kind filter).
 
-## Write-amplification analysis (Variant C, the landed index)
+## Write-amplification analysis (corrected Variant C, the landed index)
 
 `content_entities` is a hot, continuously-ingested table; every insert/update
 of a row matching the partial predicate maintains this index. Measured with
 6 repeated bulk-insert batches of 5,000 rows each, `DELETE` + `VACUUM`
-between runs, same throwaway container:
+between runs, same throwaway container, against the **corrected**
+`INCLUDE (entity_name)`-only index:
 
-| Batch (5,000 rows) | No K8s-related index | With `content_entities_k8s_select_partial_idx` | Delta |
+| Batch (5,000 rows) | No K8s-related index | With corrected `content_entities_k8s_select_partial_idx` | Delta |
 | --- | ---: | ---: | ---: |
-| K8sResource (Service) rows — **indexed** by the partial predicate | 74.33 ms mean / 70.15 ms median | 97.95 ms mean / 94.05 ms median (1 outlier of 290 ms excluded as a Docker-VM stall, not attributed to the index) | **+23.6 ms / +31.7%** (~4.7 µs/row) |
-| Function rows — **excluded** by the partial predicate | 56.48 ms mean / 57.6 ms median | 58.56 ms mean / 59.57 ms median | **+2.1 ms / +3.7%** (within run-to-run noise — effectively zero) |
+| K8sResource (Service) rows — **indexed** by the partial predicate | 59.28 ms mean / 55.52 ms median | 78.21 ms mean / 77.27 ms median | **+18.9 ms / +31.9%** (~3.8-4.4 µs/row) |
+| Function rows — **excluded** by the partial predicate | structurally unaffected by `INCLUDE` column choice; prior measurement stands | | **~0 (+2.1 ms / +3.7%, within noise)** |
 
-For comparison, the non-partial Variant B index (which indexes **every** row
-regardless of `entity_type`) cost +29.4 ms / +39.5% (~5.9 µs/row) on the same
-Service-row batch, and would pay a similar tax on every Function, Variable,
-Class, and every other entity type platform-wide — the vast majority of
-`content_entities` writes. Confining the index to `WHERE entity_type =
-'K8sResource'` (Variant C) keeps that cost off the table for every other
-entity type, which is why Variant C, not Variant B, is the landed choice.
-
-Index storage: 2,280 kB for the 6,000 K8sResource rows in this seed vs. 3,672
-kB total for the five pre-existing indexes on all 18,000 rows — proportionate
-to the fraction of the table it actually covers.
+For comparison: the original unsafe (superseded) `INCLUDE (entity_name,
+metadata)` revision cost +23.6 ms / +31.7% (~4.7 µs/row) on the same batch —
+the corrected, bounded index is both safer AND cheaper to write, because it
+is narrower (536 kB steady-state vs. 2,280 kB). The non-partial Variant B
+index (indexing every row regardless of `entity_type`) cost +29.4 ms /
++39.5% and would tax every entity type platform-wide; confining the index to
+`WHERE entity_type = 'K8sResource'` (Variant C) keeps that cost off the vast
+majority of `content_entities` writes, which is why a partial index — safe
+or not — is the right shape regardless of the `INCLUDE` question.
 
 ## Decision
 
-**Landed**: Variant C, the partial covering index
-`content_entities_k8s_select_partial_idx`, as migration
+**Landed**: the corrected Variant C, the bounded partial index
+`content_entities_k8s_select_partial_idx` — key
+`(repo_id, relative_path, start_line, entity_id)`,
+`INCLUDE (entity_name)` only, `WHERE entity_type = 'K8sResource'` — as
+migration
 `go/internal/storage/postgres/migrations/077_content_entities_k8s_select_partial_index.sql`.
 
-Rationale: it is the only candidate that produces a material, reproducible
-win (1.7–2.0 ms vs. 11–19 ms baseline, ~6–10x) by eliminating the `Sort` node
-— the actual dominant cost the #5363 shim identified — while its `WHERE
-entity_type = 'K8sResource'` clause measurably confines write-amplification
-to the narrow K8sResource row population instead of taxing the entire hot
-ingest table. The composite `(repo_id, entity_type)` index (Variant A) is
-**not** adopted: it only attacks the ~2.0 ms scan+filter component and
-measurably does not move total wall time. The narrower expression-key
-variant is **not** adopted: the planner will not use it under any tested
-configuration. The SQL `kind` pushdown (Variant D) is **not** adopted: it
-is unsafe (whole-table scan risk) without further work that is out of this
-issue's scope, and unnecessary given Variant C's result.
+Rationale:
+
+- **Safety is non-negotiable and now satisfied.** The original revision
+  risked "index row size exceeds btree maximum" on a real K8s manifest
+  (PR #5745 codex P1) because it `INCLUDE`d the unbounded `metadata` JSONB.
+  The corrected index contains only bounded columns and cannot hit that
+  limit regardless of manifest size.
+- **The win is real but conditional, not unconditional**, and this doc
+  reports that honestly rather than the originally-claimed unconditional
+  ~6-10x: on the canonical 6,000-row worst-case partition, under Postgres's
+  default cost settings, the planner does **not** select this index — total
+  execution time is unchanged from having no index at all (~8.2 ms either
+  way). The Sort-elimination mechanism is real (proven at ~1.6-1.9 ms when
+  isolated from its competing index, or under an SSD-appropriate
+  `random_page_cost=1.1` that Postgres itself recommends for SSD storage but
+  Eshu does not currently set), and it **is** selected automatically, under
+  default settings, once the K8sResource candidate pool grows well past the
+  cap (a plausible large-monorepo shape: ~30% faster on average at 30,000
+  rows).
+- **No downside if unused.** When the planner does not choose this index
+  (the common case on default settings at moderate candidate-pool sizes), it
+  costs nothing at read time — Postgres simply keeps using the existing
+  plan — and its write cost is confined to K8sResource rows only, now lower
+  than the original unsafe revision.
+- The composite `(repo_id, entity_type)` index (Variant A) is **not**
+  adopted: it only attacks the ~2.0 ms scan+filter component and measurably
+  does not move total wall time. The narrower expression-key variant is
+  **not** adopted: the planner will not use it under any tested
+  configuration. The SQL `kind` pushdown (Variant D) is **not** adopted: it
+  is unsafe (whole-table scan risk) without further work out of this issue's
+  scope, and unnecessary regardless of which plan the corrected index gets.
+- **Follow-up (not implemented here, out of this fix's scope):** documenting
+  and/or setting an SSD-appropriate `random_page_cost` for Eshu's Postgres
+  deployments would let this index (and plausibly others) pay off
+  automatically on the canonical worst-case partition size, not only on the
+  larger one. This is a database-wide tuning decision with its own
+  before/after proof obligation across every affected query, not a
+  single-migration change, and is intentionally not bundled into this fix.
 
 ## Hypothesis ledger
 
 | candidate | cheapest proof | old | new | write cost | disposition |
 | --- | --- | ---: | ---: | ---: | --- |
 | A: composite `(repo_id, entity_type)` btree | EXPLAIN ANALYZE, 6,000-K8s repo | 11.2-19.7 ms | 11.2-11.7 ms (unchanged; isolated scan+filter 0.08-0.2 ms) | not measured (rejected on read result) | **rejected** |
-| B: covering index, ORDER BY key + `INCLUDE(entity_name, metadata)`, non-partial | EXPLAIN ANALYZE | 11.2-19.7 ms | 1.68-2.32 ms | +29.4 ms/5000-row Service batch (~5.9 µs/row), taxes every entity_type | rejected in favor of C (same read win, less write cost) |
-| C: same covering index, **partial** `WHERE entity_type='K8sResource'` | EXPLAIN ANALYZE + bulk-insert timing | 11.2-19.7 ms | 1.71-2.04 ms | +23.6 ms/5000-row K8sResource batch (~4.7 µs/row); ~0 for non-K8s rows | **proven — landed** |
+| B: covering index, ORDER BY key + `INCLUDE(entity_name, metadata)`, non-partial | EXPLAIN ANALYZE | 11.2-19.7 ms | 1.68-2.32 ms | +29.4 ms/5000-row Service batch (~5.9 µs/row), taxes every entity_type | rejected in favor of C |
+| C (original, SUPERSEDED): partial, `INCLUDE(entity_name, metadata)` | EXPLAIN ANALYZE + bulk-insert timing | 11.2-19.7 ms | 1.71-2.04 ms (Index Only Scan) | +23.6 ms/5000-row K8sResource batch (~4.7 µs/row); ~0 for non-K8s rows | **rejected — PR #5745 codex P1: unbounded metadata risks btree tuple-size limit and bootstrap failure** |
 | C-alt: narrow expression-key variant (no metadata duplication) | EXPLAIN ANALYZE, forced scan disable | n/a | never chosen by planner | smaller (1,480 kB) but unusable | **rejected** (planner never selects it) |
 | D: SQL `lower(metadata->>'kind') = 'service'` pushdown | EXPLAIN ANALYZE | 11.2-19.7 ms | 8.1-10.7 ms, but full `Seq Scan` (whole-table, not repo-scoped) | not measured (rejected on scan-shape risk) | **rejected** |
+| C (corrected, LANDED): partial, `INCLUDE(entity_name)` only | EXPLAIN ANALYZE, 6,000-row and 30,000-row partitions, default and SSD-tuned cost settings | 6,000-row: 8.33 ms; 30,000-row: 3.31 ms | 6,000-row default: 8.20 ms (**unchanged — planner does not select it**); 6,000-row isolated/SSD-tuned: 1.79-1.85 ms; 30,000-row default: 2.35 ms (**planner selects it automatically**) | +18.9 ms/5000-row K8sResource batch (~3.8-4.4 µs/row, lower than original); ~0 for non-K8s rows | **proven, safe, conditional win — landed** |
 
 ## Correctness and concurrency proof
 
-- Row-set equivalence (Variant C landed index): full 5,001-row, 8-column dump
-  of the production query with vs. without the index is byte-identical
-  (`diff` — 0 differences), proving the index is output-preserving.
+- Row-set equivalence (corrected, landed index): full 5,001-row, 8-column
+  dump of the production query with vs. without the index is byte-identical
+  (`diff` — 0 differences), proving the index only affects the chosen plan,
+  never the query's result set. Re-verified after the P1 fix.
 - Focused Go tests:
   `go test ./internal/storage/postgres -count=1` (full package, includes the
-  new `TestContentEntitiesK8sSelectPartialIndexMigration` and
+  new `TestContentEntitiesK8sSelectPartialIndexMigration`,
+  `TestContentEntitiesK8sSelectPartialIndexExcludesUnboundedMetadata` (the
+  P1 regression guard), and
   `TestContentEntitiesK8sSelectPartialIndexIsSingleConcurrentStatement`) —
   pass.
   `go test ./internal/query -run 'K8s|Candidate|SelectCandidates' -count=1`
   — pass (all pre-existing #5363 K8s-select behavior unchanged; this is a
   read-only index, no production Go code changed).
+  `go test ./internal/storage/postgres -run
+  'TestBootstrapDefinitionsAreOrderedAndComplete' -count=1` — pass.
 - Concurrency/index-lifecycle proof (required for index candidates per
   eshu-performance-rigor): `TestContentEntitiesK8sSelectPartialIndexApplyReapplyAndRollbackLive`
   (build tag `integration`, gated on `ESHU_POSTGRES_TEST_DSN`) seeds an
@@ -316,8 +489,8 @@ issue's scope, and unnecessary given Variant C's result.
   application, (2) identical reapplication is a clean no-op
   (`CREATE INDEX CONCURRENTLY IF NOT EXISTS`), (3) `DROP INDEX CONCURRENTLY
   IF EXISTS` rollback on a populated, previously-indexed store, and (4)
-  reapplication after rollback. Run live against `postgres:16` in Docker:
-  `ESHU_POSTGRES_TEST_DSN=postgres://eshu:change-me@localhost:55490/eshu_5490_live_test?sslmode=disable
+  reapplication after rollback. Re-run live against the corrected DDL,
+  `postgres:16` in Docker: `ESHU_POSTGRES_TEST_DSN=postgres://eshu:change-me@localhost:55490/<db>?sslmode=disable
   go test -tags=integration ./internal/storage/postgres -run
   'TestContentEntitiesK8sSelectPartialIndexApplyReapplyAndRollbackLive' -count=1 -v`
   — **PASS**.

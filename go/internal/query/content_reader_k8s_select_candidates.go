@@ -99,20 +99,31 @@ func k8sSelectCandidateFromEntity(entity EntityContent) K8sSelectCandidate {
 // decided in Go by the caller. #5490 measured a SQL-level
 // lower(metadata->>'kind') = 'service' pushdown and rejected it: without a
 // supporting expression index it forces a whole-table Seq Scan (a
-// platform-wide, not per-repo, cost), and it is unnecessary once the
-// migration 077 partial index below makes the fetch itself ~1.7-2.0 ms, at
-// which point filtering Kind in Go over the resulting <=5001-row slice is
-// free. See docs/internal/evidence/5490-k8sresource-candidate-index.md.
+// platform-wide, not per-repo, cost). See
+// docs/internal/evidence/5490-k8sresource-candidate-index.md.
 //
-// This query is served by the partial covering index
+// This query is served by the partial index
 // content_entities_k8s_select_partial_idx (migration 077,
 // go/internal/storage/postgres/migrations/077_content_entities_k8s_select_partial_index.sql),
-// which matches the ORDER BY key and INCLUDEs entity_name/metadata so the
-// planner can satisfy this fetch with an Index Only Scan and no Sort node
-// (measured ~11-19 ms -> ~1.7-2.0 ms on the #5363/#5490 worst-case
-// partition). The index is partial (WHERE entity_type = 'K8sResource') so
-// its write-amplification is confined to K8sResource rows and does not tax
-// every other entity_type write on this hot ingest table.
+// which matches the ORDER BY key (repo_id, relative_path, start_line,
+// entity_id) so the planner CAN satisfy this fetch with an ordered Index
+// Scan and no Sort node, at the cost of one heap fetch per row for metadata
+// (metadata is deliberately NOT covered by this index -- it is an unbounded
+// JSONB payload that risks the btree per-tuple size limit; see the
+// migration's DDL comment and the evidence doc's P1 note). Whether Postgres
+// actually chooses that plan depends on planner cost settings and table
+// correlation, not solely on the index's existence: measured on the
+// #5363/#5490 6,000-K8sResource worst-case partition under Postgres's
+// default random_page_cost, the planner keeps the pre-existing
+// content_entities_repo_idx + Sort plan (~8-9 ms, unchanged from having no
+// index at all); the ordered-scan plan through this index (~1.6-1.9 ms) is
+// only chosen when random_page_cost is tuned for SSD storage (Postgres's own
+// documented recommendation, not currently set anywhere in Eshu) or when the
+// K8sResource candidate pool is large relative to the page cap (repos with
+// far more than repositorySemanticEntityLimit K8sResource rows saw the
+// planner select this index by default, ~1.7-3.1 ms vs a ~2.9-3.9 ms
+// baseline). The index is safe and low-write-cost either way (see the
+// evidence doc); it is not a guaranteed win on every repo shape.
 func (cr *ContentReader) ListRepoK8sSelectCandidates(ctx context.Context, repoID string, limit int) ([]K8sSelectCandidate, error) {
 	ctx, span := cr.tracer.Start(
 		ctx, "postgres.query",
