@@ -266,14 +266,16 @@ func BuildContainerImageIdentityDecisions(envelopes []facts.Envelope) []Containe
 func BuildContainerImageIdentityDecisionsWithQuarantine(
 	envelopes []facts.Envelope,
 ) ([]ContainerImageIdentityDecision, []quarantinedFact, error) {
-	refs, quarantined, err := extractContainerImageRefsWithQuarantine(envelopes)
+	refs, ciRunDigest, quarantined, err := extractContainerImageRefsWithQuarantine(envelopes)
 	if err != nil {
 		return nil, nil, err
 	}
 	index := buildContainerImageRegistryIndex(envelopes)
 	decisions := make([]ContainerImageIdentityDecision, 0, len(refs))
 	for _, ref := range refs {
-		decisions = append(decisions, classifyContainerImageRef(ref, index))
+		decision := classifyContainerImageRef(ref, index)
+		applyCIRunDigestRevision(&decision, ciRunDigest)
+		decisions = append(decisions, decision)
 	}
 	sort.SliceStable(decisions, func(i, j int) bool {
 		return decisions[i].ImageRef < decisions[j].ImageRef

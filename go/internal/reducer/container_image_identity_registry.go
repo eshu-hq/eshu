@@ -291,20 +291,55 @@ func boolPayload(payload map[string]any, key string) bool {
 	return ok && typed
 }
 
-// resolveContainerImageSourceRevision picks the image's source commit and its
-// provenance tier. An OCI config source-label revision always wins because it
-// travels inside the image content; only when that is absent does a
-// digest-matched ci.run's commit stand in, and only when exactly one distinct
-// commit is on offer — two runs claiming one digest with different commits (a
-// rebuild) yield no revision rather than an invented one (#5423).
+// resolveContainerImageSourceRevision picks the image's OCI-config-label source
+// revision and its provenance tier. A digest-matched ci.run's commit is applied
+// later by applyCIRunDigestRevision (keyed by resolved digest) so it survives a
+// competing content_entity decision for the same image; this function only
+// covers the strongest, in-image-label tier (#5423).
 func resolveContainerImageSourceRevision(ref containerImageRefEvidence) (revision string, provenance string) {
 	if trimmed := strings.TrimSpace(ref.sourceRevision); trimmed != "" {
 		return trimmed, containerImageSourceRevisionOCIConfigLabel
 	}
-	if commit := singleContainerImageCIRunRevision(ref.ciRunRevisions); commit != "" {
-		return commit, containerImageSourceRevisionCIRunCommit
-	}
 	return "", ""
+}
+
+// applyCIRunDigestRevision attaches a digest-matched ci.run's commit and source
+// repository to a resolved decision when no stronger OCI-config-label revision
+// is present. Because the ci.run evidence is keyed by the resolved digest rather
+// than the winning reference, the commit reaches whichever decision resolves the
+// digest — the ci.artifact's own bare-digest decision or a competing deploy
+// repo's content_entity decision that shares the same durable stable fact key.
+// Two runs claiming one digest with different commits (a rebuild) yield no
+// revision rather than an invented one (#5423).
+func applyCIRunDigestRevision(
+	decision *ContainerImageIdentityDecision,
+	byDigest map[string]ciRunDigestAnchor,
+) {
+	digest := strings.TrimSpace(decision.Digest)
+	if digest == "" {
+		return
+	}
+	anchor, ok := byDigest[digest]
+	if !ok {
+		return
+	}
+	if len(anchor.sourceRepositoryIDs) > 0 {
+		decision.SourceRepositoryIDs = uniqueSortedStrings(
+			append(decision.SourceRepositoryIDs, anchor.sourceRepositoryIDs...),
+		)
+	}
+	if len(anchor.factIDs) > 0 {
+		decision.EvidenceFactIDs = uniqueSortedStrings(
+			append(decision.EvidenceFactIDs, anchor.factIDs...),
+		)
+	}
+	if decision.SourceRevisionProvenance == containerImageSourceRevisionOCIConfigLabel {
+		return
+	}
+	if commit := singleContainerImageCIRunRevision(anchor.revisions); commit != "" {
+		decision.SourceRevision = commit
+		decision.SourceRevisionProvenance = containerImageSourceRevisionCIRunCommit
+	}
 }
 
 // singleContainerImageCIRunRevision returns the sole distinct non-blank commit

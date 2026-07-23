@@ -18,16 +18,22 @@ type containerImageRefEvidence struct {
 	sourceRepositoryIDs []string
 	sourceRevision      string
 	sourceLabelEvidence bool
-	// ciRunRevisions holds every distinct commit SHA carried by a ci.run whose
-	// artifact digest matched this image reference. It stays a separate axis
-	// from sourceRevision (the OCI-config-label revision) so the reducer can
-	// keep the in-image-label provenance tier strictly above the CI-run
-	// fallback, and can refuse to guess when two runs claim the same digest
-	// with different commits (#5423).
-	ciRunRevisions []string
-	workloadIDs    []string
-	serviceIDs     []string
-	factIDs        []string
+	workloadIDs         []string
+	serviceIDs          []string
+	factIDs             []string
+}
+
+// ciRunDigestAnchor is the ci.run-derived provenance for one artifact digest:
+// the head commit(s) and source repository(ies) of the run(s) whose
+// container-image artifact carried that digest. It is keyed by digest (not by
+// image reference) so the commit can be applied to whichever identity decision
+// resolves that digest — including one raised by a different evidence source
+// (a deploy repo's content_entity declaring the same image) that would
+// otherwise win the write-time upsert and drop the commit (#5423).
+type ciRunDigestAnchor struct {
+	revisions           []string
+	sourceRepositoryIDs []string
+	factIDs             []string
 }
 
 type containerImageRefAnchors struct {
@@ -59,15 +65,16 @@ type parsedContainerImageRef struct {
 // are read raw here on purpose: they are generic cross-kind envelope/scope
 // anchors and a differently-scoped AWS relationship kind, not part of the
 // image_reference family this migration covers (#4685 scope note).
-func extractContainerImageRefsWithQuarantine(envelopes []facts.Envelope) ([]containerImageRefEvidence, []quarantinedFact, error) {
+func extractContainerImageRefsWithQuarantine(envelopes []facts.Envelope) ([]containerImageRefEvidence, map[string]ciRunDigestAnchor, []quarantinedFact, error) {
 	byRef := make(map[string]containerImageRefEvidence)
+	ciRunDigest := make(map[string]ciRunDigestAnchor)
 	var quarantined []quarantinedFact
 	for _, ref := range extractOCIConfigProvenanceRefs(envelopes) {
 		mergeContainerImageRef(byRef, ref)
 	}
 	ciRuns, runQuarantine, err := containerImageCIRuns(envelopes)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	quarantined = append(quarantined, runQuarantine...)
 	for _, envelope := range envelopes {
@@ -79,7 +86,7 @@ func extractContainerImageRefsWithQuarantine(envelopes []facts.Envelope) ([]cont
 		case facts.CICDWorkflowImageEvidenceFactKind:
 			q, ok, fatal := addWorkflowImageEvidenceRef(byRef, envelope)
 			if fatal != nil {
-				return nil, nil, fatal
+				return nil, nil, nil, fatal
 			}
 			if ok {
 				quarantined = append(quarantined, q)
@@ -98,7 +105,7 @@ func extractContainerImageRefsWithQuarantine(envelopes []facts.Envelope) ([]cont
 		case facts.AWSImageReferenceFactKind:
 			q, ok, fatal := addAWSImageReference(byRef, envelope)
 			if fatal != nil {
-				return nil, nil, fatal
+				return nil, nil, nil, fatal
 			}
 			if ok {
 				quarantined = append(quarantined, q)
@@ -106,7 +113,7 @@ func extractContainerImageRefsWithQuarantine(envelopes []facts.Envelope) ([]cont
 		case facts.AzureImageReferenceFactKind:
 			q, ok, fatal := addAzureImageReference(byRef, envelope)
 			if fatal != nil {
-				return nil, nil, fatal
+				return nil, nil, nil, fatal
 			}
 			if ok {
 				quarantined = append(quarantined, q)
@@ -114,15 +121,15 @@ func extractContainerImageRefsWithQuarantine(envelopes []facts.Envelope) ([]cont
 		case facts.GCPImageReferenceFactKind:
 			q, ok, fatal := addGCPImageReference(byRef, envelope)
 			if fatal != nil {
-				return nil, nil, fatal
+				return nil, nil, nil, fatal
 			}
 			if ok {
 				quarantined = append(quarantined, q)
 			}
 		case facts.CICDArtifactFactKind:
-			q, ok, fatal := addCICDArtifactImageReference(byRef, envelope, ciRuns)
+			q, ok, fatal := addCICDArtifactImageReference(byRef, envelope, ciRuns, ciRunDigest)
 			if fatal != nil {
-				return nil, nil, fatal
+				return nil, nil, nil, fatal
 			}
 			if ok {
 				quarantined = append(quarantined, q)
@@ -136,7 +143,7 @@ func extractContainerImageRefsWithQuarantine(envelopes []facts.Envelope) ([]cont
 	sort.SliceStable(refs, func(i, j int) bool {
 		return refs[i].imageRef < refs[j].imageRef
 	})
-	return refs, quarantined, nil
+	return refs, ciRunDigest, quarantined, nil
 }
 
 func addContainerImageRef(
@@ -184,10 +191,8 @@ func mergeContainerImageRef(byRef map[string]containerImageRefEvidence, next con
 	ref.sourceLabelEvidence = ref.sourceLabelEvidence || next.sourceLabelEvidence
 	ref.factIDs = append(ref.factIDs, next.factIDs...)
 	ref.sourceRepositoryIDs = append(ref.sourceRepositoryIDs, next.sourceRepositoryIDs...)
-	ref.ciRunRevisions = append(ref.ciRunRevisions, next.ciRunRevisions...)
 	ref.workloadIDs = append(ref.workloadIDs, next.workloadIDs...)
 	ref.serviceIDs = append(ref.serviceIDs, next.serviceIDs...)
-	ref.ciRunRevisions = uniqueSortedStrings(ref.ciRunRevisions)
 	ref.factIDs = uniqueSortedStrings(ref.factIDs)
 	ref.sourceRepositoryIDs = uniqueSortedStrings(ref.sourceRepositoryIDs)
 	ref.workloadIDs = uniqueSortedStrings(ref.workloadIDs)
@@ -230,30 +235,36 @@ func addContainerImageDigestRef(
 	byRef[refKey] = ref
 }
 
-// recordContainerImageCIRunRevision attaches a digest-matched ci.run's commit
-// SHA to the bare-digest reference addContainerImageDigestRef records under the
-// same "digest:"+digest key. It is a no-op for a blank commit or a digest that
-// addContainerImageDigestRef itself rejected (non sha256:), so it never creates
-// a ref the digest path did not, and it accumulates candidates so
-// classifyContainerImageRef can refuse to guess when two commits collide on one
-// digest (#5423).
-func recordContainerImageCIRunRevision(
-	byRef map[string]containerImageRefEvidence,
+// recordCIRunDigestAnchor accumulates a digest-matched ci.run's commit and
+// source repository into the by-digest anchor map. Keying by digest (rather
+// than by the bare-digest ref) lets applyCIRunDigestRevision later attach the
+// commit to whichever identity decision resolves that digest — including a
+// competing decision raised by a deploy repo's content_entity for the same
+// image, which shares the durable stable fact key and would otherwise overwrite
+// the commit-bearing decision at write time (#5423). It is a no-op for a
+// non-sha256 digest or a run with neither a commit nor a repository anchor.
+func recordCIRunDigestAnchor(
+	byDigest map[string]ciRunDigestAnchor,
 	digest string,
-	commitSHA string,
+	run containerImageCIRunAnchor,
 ) {
-	commitSHA = strings.TrimSpace(commitSHA)
 	digest = strings.TrimSpace(digest)
-	if commitSHA == "" || !strings.HasPrefix(digest, "sha256:") {
+	commitSHA := strings.TrimSpace(run.commitSHA)
+	repositoryID := strings.TrimSpace(run.repositoryID)
+	if !strings.HasPrefix(digest, "sha256:") || (commitSHA == "" && repositoryID == "") {
 		return
 	}
-	refKey := "digest:" + digest
-	ref, ok := byRef[refKey]
-	if !ok {
-		return
+	anchor := byDigest[digest]
+	if commitSHA != "" {
+		anchor.revisions = uniqueSortedStrings(append(anchor.revisions, commitSHA))
 	}
-	ref.ciRunRevisions = uniqueSortedStrings(append(ref.ciRunRevisions, commitSHA))
-	byRef[refKey] = ref
+	if repositoryID != "" {
+		anchor.sourceRepositoryIDs = uniqueSortedStrings(append(anchor.sourceRepositoryIDs, repositoryID))
+	}
+	if run.factID != "" {
+		anchor.factIDs = uniqueSortedStrings(append(anchor.factIDs, run.factID))
+	}
+	byDigest[digest] = anchor
 }
 
 func containerImageAnchorsFromEnvelope(envelope facts.Envelope) containerImageRefAnchors {

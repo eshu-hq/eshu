@@ -36,6 +36,49 @@ func TestBuildContainerImageIdentityDecisionsThreadsCICDRunCommitAsSourceRevisio
 	}
 }
 
+// TestBuildContainerImageIdentityDecisionsThreadsCICDRunCommitWhenImageAlsoDeclaredByContentEntity
+// is the golden-corpus regression: a deploy repo's content_entity declares the
+// same image by digest, producing a competing identity decision that resolves to
+// the same image_ref and outcome (and therefore the same durable stable fact
+// key) as the ci.artifact's bare-digest decision. The ci.run commit must survive
+// on the resolved image regardless of which decision wins the write-time upsert.
+func TestBuildContainerImageIdentityDecisionsThreadsCICDRunCommitWhenImageAlsoDeclaredByContentEntity(t *testing.T) {
+	t.Parallel()
+
+	imageRef := "registry.example.com/team/api@" + testContainerDigest
+	decisions := BuildContainerImageIdentityDecisions([]facts.Envelope{
+		ciRunFact("run-image", "github_actions", "repository:r_build", "abc123def456"),
+		ciArtifactFact("artifact-image", "run-image", testContainerDigest),
+		// A deploy repo declares the same image by digest, competing for the
+		// resolved image_ref with no commit of its own.
+		gitImageRefFact("content-declares", imageRef),
+		ociManifestFact("oci-manifest", testContainerDigest),
+	})
+
+	var resolved int
+	for _, decision := range decisions {
+		if decision.Digest != testContainerDigest || decision.Outcome != ContainerImageIdentityExactDigest {
+			continue
+		}
+		resolved++
+		if decision.SourceRevision != "abc123def456" {
+			t.Fatalf("decision %q SourceRevision = %q, want the run commit to survive the competing content_entity decision",
+				decision.ImageRef, decision.SourceRevision)
+		}
+		if decision.SourceRevisionProvenance != containerImageSourceRevisionCIRunCommit {
+			t.Fatalf("decision %q SourceRevisionProvenance = %q, want %q",
+				decision.ImageRef, decision.SourceRevisionProvenance, containerImageSourceRevisionCIRunCommit)
+		}
+		if !stringSliceContains(decision.SourceRepositoryIDs, "repository:r_build") {
+			t.Fatalf("decision %q SourceRepositoryIDs = %#v, want the ci.run build repo",
+				decision.ImageRef, decision.SourceRepositoryIDs)
+		}
+	}
+	if resolved == 0 {
+		t.Fatal("no exact_digest decision resolved for the shared digest")
+	}
+}
+
 // TestBuildContainerImageIdentityDecisionsPrefersOCILabelRevisionOverCICDRunCommit
 // pins the tier ordering: when an OCI config source label already supplies the
 // revision, that higher-strength provenance wins and the CI-run commit does not

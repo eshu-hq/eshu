@@ -190,6 +190,7 @@ func addCICDArtifactImageReference(
 	byRef map[string]containerImageRefEvidence,
 	envelope facts.Envelope,
 	runs map[string]containerImageCIRunAnchor,
+	ciRunDigest map[string]ciRunDigestAnchor,
 ) (quarantinedFact, bool, error) {
 	artifact, err := decodeCICDArtifact(envelope)
 	if err != nil {
@@ -214,9 +215,10 @@ func addCICDArtifactImageReference(
 	// recorded as a bare digest reference, matching the pre-typing behavior
 	// where imageRefWithDigest("", digest) always returned "" for real payloads.
 	addContainerImageDigestRef(byRef, digest, anchors, evidenceFactIDs...)
-	// Thread the matched run's commit onto the same digest ref as a fallback
-	// SourceRevision candidate (a no-op for a run with no commit) so the
-	// image→commit binding survives when OCI config labels are absent (#5423).
-	recordContainerImageCIRunRevision(byRef, digest, run.commitSHA)
+	// Record the matched run's commit + source repository against the digest so
+	// applyCIRunDigestRevision can attach it to whichever decision resolves this
+	// digest, surviving a competing content_entity decision for the same image
+	// (#5423). A no-op for a run with no commit or repository anchor.
+	recordCIRunDigestAnchor(ciRunDigest, digest, run)
 	return quarantinedFact{}, false, nil
 }
