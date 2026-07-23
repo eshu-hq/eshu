@@ -6,6 +6,7 @@ package reducer
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -250,6 +251,8 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 		loaded.repositoryFacts,
 		loaded.manifestDependencyFacts,
 		loaded.activeEvidenceFacts,
+		loaded.osPackageAdvisoryFacts,
+		loaded.scannerAnalysisScopeFacts,
 		loaded.pythonReachabilityFacts,
 		loaded.jvmReachabilityFactCount,
 		loaded.postSecurityAlertScopeFacts,
@@ -368,8 +371,25 @@ func appendSupplyChainImpactFinding(
 	return append(findings, finding)
 }
 
+// supplyChainImpactFindingHasOwnedAnchor reports whether finding is backed by
+// evidence this reducer actually observed, so appendSupplyChainImpactFinding
+// keeps it rather than dropping an unanchored guess. RepositoryID and
+// SubjectDigest are the two general anchors every ecosystem can supply. An
+// os_package match is its own anchor even when neither of those is set: it
+// already required repositoryClass=="vendor" plus a matching
+// VendorAdvisorySource (osPackageMatchesAffectedPackage) before
+// classifySupplyChainImpactPackage ever reached this finding, so the finding
+// is anchored to a real scanned installation, not a guess — its accuracy does
+// not depend on whether a sibling scanner_worker.analysis fact happened to
+// resolve a real image digest for it (issue #5463 deleted the scope_id
+// fallback that used to make SubjectDigest non-blank here as a side effect;
+// this keeps the owned-anchor gate independently correct without resurrecting
+// scope_id as a fake digest).
 func supplyChainImpactFindingHasOwnedAnchor(finding SupplyChainImpactFinding) bool {
-	return strings.TrimSpace(finding.RepositoryID) != "" || strings.TrimSpace(finding.SubjectDigest) != ""
+	if strings.TrimSpace(finding.RepositoryID) != "" || strings.TrimSpace(finding.SubjectDigest) != "" {
+		return true
+	}
+	return slices.Contains(finding.EvidencePath, facts.VulnerabilityOSPackageFactKind)
 }
 
 func supplyChainImpactFindingHasUnsupportedMatcher(finding SupplyChainImpactFinding) bool {
@@ -379,6 +399,21 @@ func supplyChainImpactFindingHasUnsupportedMatcher(finding SupplyChainImpactFind
 	return normalizedSupplyChainVersionEcosystem(finding.Ecosystem) != "os"
 }
 
+// supplyChainImpactFactKinds is the set of fact kinds loaded from the intent's
+// OWN scope/generation via loadFactsForKinds. It intentionally OMITS
+// facts.VulnerabilityOSPackageFactKind and facts.ScannerWorkerAnalysisFactKind
+// even though both feed supply-chain-impact classification: neither lives in
+// the intent's vulnerability-intelligence scope, so listing them here would
+// query the wrong scope and return nothing. They are loaded cross-scope by two
+// dedicated stages in loadSupplyChainImpactEvidence instead —
+// loadSupplyChainImpactOSPackageAdvisoryFacts pulls vulnerability.os_package by
+// ecosystem through the advisory-target reader (#5705/#5463), and
+// loadSupplyChainImpactScannerAnalysisScopeFacts then loads each os_package's
+// sibling scanner_worker.analysis from that package's OWN scan scope to stamp
+// SubjectDigest (#5463). Adding either kind here is the tempting-but-wrong fix
+// flagged in review: it cannot reach a cross-scope fact. The end-to-end path is
+// proven by TestSupplyChainImpactHandlerLoadsScannerAnalysisFromOSPackageScanScope
+// and the golden-corpus list_supply_chain_impact_findings floor (CVE-2026-00010).
 func supplyChainImpactFactKinds() []string {
 	return []string{
 		facts.VulnerabilityCVEFactKind,

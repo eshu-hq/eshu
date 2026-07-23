@@ -19,17 +19,18 @@ import (
 // payloads below mirror the payloads committed in that cassette scope; the
 // committed JSON itself is validated by TestCommittedCassettesValid and the
 // live B-7 replay, so this file's unique value is the synthesis assertions
-// (the derived finding shape and enrichment) the schema gate cannot check. Every fact in that scope shares one cassette
-// scope_id (go/internal/replay/cassette/source.go's buildEnvelope stamps
-// every fact in a scope with the scope's scope_id — a cassette has no
-// per-fact ScopeID), which is why the os_package-backed finding below
-// asserts SubjectDigest equal to the scope_id rather than to any image
-// digest: classifySupplyChainImpactPackage substitutes
-// osPackage.scopeID directly into SubjectDigest
-// (supply_chain_impact_index.go), and a cassette's os_package envelope has
-// no independent per-fact scope, so SubjectDigest ends up carrying the
-// scope_id string verbatim. This is documented pre-existing reducer
-// behavior, not something this fixture changes.
+// (the derived finding shape and enrichment) the schema gate cannot check.
+// This cassette scope carries an os_package fact but NO sibling
+// scanner_worker.analysis fact, so after #5463 deleted the
+// scope_id-as-SubjectDigest fallback the os_package-backed finding below
+// asserts SubjectDigest is BLANK: classifySupplyChainImpactPackage anchors
+// SubjectDigest on the real image_digest of a sibling scanner_worker.analysis
+// fact joined by ScopeID+GenerationID, and with no such sibling here it must
+// leave SubjectDigest empty rather than substituting the opaque scope_id (a
+// scan-target locator, never a sha256). The finding itself is still retained
+// because a vendor-matched os_package is its own owned anchor
+// (supplyChainImpactFindingHasOwnedAnchor). #5464 adds the scanner_worker.
+// analysis cassette fact + the queryable real-digest assertion.
 const goldenCassetteDebianImageScopeID = "vulnerability_intelligence:supply-chain-demo:debian-image"
 
 // TestGoldenCassetteDebianOSPackageChainSynthesizesFinding proves the
@@ -84,10 +85,11 @@ func TestGoldenCassetteDebianOSPackageChainSynthesizesFinding(t *testing.T) {
 	if got.DetectionProfile != DetectionProfileComprehensive {
 		t.Fatalf("DetectionProfile = %q, want comprehensive (dpkg matches are not in the precise reason set)", got.DetectionProfile)
 	}
-	if got.SubjectDigest != goldenCassetteDebianImageScopeID {
-		t.Fatalf("SubjectDigest = %q, want the cassette scope_id %q (the documented scope_id "+
-			"substitution — a cassette has no per-fact ScopeID, so os_package's finding.SubjectDigest "+
-			"carries the whole scope's scope_id verbatim)", got.SubjectDigest, goldenCassetteDebianImageScopeID)
+	if got.SubjectDigest != "" {
+		t.Fatalf("SubjectDigest = %q, want empty: this cassette scope carries no "+
+			"scanner_worker.analysis sibling fact, and #5463 deleted the scope_id-as-SubjectDigest "+
+			"fallback, so an os_package finding with no real image digest leaves SubjectDigest blank "+
+			"rather than substituting the scope_id %q", got.SubjectDigest, goldenCassetteDebianImageScopeID)
 	}
 	if got.ObservedVersion != "3.0.11-1~deb12u2" {
 		t.Fatalf("ObservedVersion = %q, want the installed dpkg EVR", got.ObservedVersion)

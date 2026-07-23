@@ -3515,7 +3515,7 @@
         }
       },
       "list_supply_chain_impact_findings": {
-        "description": "MCP tool coverage shape for list_supply_chain_impact_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for list_supply_chain_impact_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5463 flips this floor from the prior vacuous CVE-2026-00000/minimum_results:0 to the NEW Debian OS-package scan-tier chain (CVE-2026-00010, minimum_results:1): the finding is only queryable once the reducer loads vulnerability.os_package cross-scope through the advisory-target reader (#5705) and joins the sibling scanner_worker.analysis from the os_package's own scan scope to stamp subject_digest. subject_digest is omitempty on the finding row, so requiring it under result_item_required_fields plus pinning its exact value under required_json_values proves the digest anchor fired end-to-end — if the os_package load, the scanner-scope join, or the digest stamp regresses, the field drops or the value mismatches and this gate goes red. Repository binding of the same finding is #5464.",
         "truth_class": "deterministic",
         "required_response_fields": [
           "count",
@@ -3525,14 +3525,22 @@
           "readiness",
           "truncated"
         ],
-        "minimum_results": 0,
+        "result_item_required_fields": [
+          "cve_id",
+          "impact_status",
+          "subject_digest"
+        ],
+        "required_json_values": {
+          "findings[].subject_digest": "sha256:5463546354635463546354635463546354635463546354635463546354635463"
+        },
+        "minimum_results": 1,
         "arguments": {
-          "cve_id": "CVE-2026-00000",
+          "cve_id": "CVE-2026-00010",
           "limit": 10
         }
       },
       "list_advisory_evidence": {
-        "description": "MCP tool coverage shape for list_advisory_evidence; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Order-0 backfill (#5462) queries CVE-2026-00010 — the NEW Debian OS-package advisory chain this PR adds to the vulnerability_intelligence cassette's debian-image scope. The tool filters by the cve_id argument, so minimum_results:1 proves that specific advisory reached the query surface: if the debian-image scope is dropped, rejected, or becomes inert, the filtered result falls to 0 and this gate goes red (codex #5697 P1), tying the cassette fixture, reducer projection, and query surface together. The supply-chain impact-findings floors stay 0 because scan-tier findings are not yet repository-bound/queryable; #5463/#5464 flip those with expected-diff proof.",
+        "description": "MCP tool coverage shape for list_advisory_evidence; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Order-0 backfill (#5462) queries CVE-2026-00010 — the NEW Debian OS-package advisory chain this PR adds to the vulnerability_intelligence cassette's debian-image scope. The tool filters by the cve_id argument, so minimum_results:1 proves that specific advisory reached the query surface: if the debian-image scope is dropped, rejected, or becomes inert, the filtered result falls to 0 and this gate goes red (codex #5697 P1), tying the cassette fixture, reducer projection, and query surface together. #5463 flips the list_supply_chain_impact_findings floor for this same CVE to minimum_results:1 with a pinned subject_digest, proving the scan-tier finding is now queryable via its digest anchor; repository binding of that finding is #5464.",
         "required_response_fields": [
           "advisories",
           "count",
