@@ -1260,18 +1260,33 @@ before that cap, and `dependency_relationships_truncated` /
 `external_references_truncated` are `true` when the count exceeds the number
 of rows returned.
 
-No-Regression Evidence: `go test ./internal/reducer -run
-'Test(BuildSBOMAttestationAttachmentDecisionsSurfacesDependencyAndExternalReferenceEvidence|BuildSBOMAttestationAttachmentDecisionsAllowsDanglingComponentIDs|ComponentEvidenceRowsDedupesCapsAndCountsBeforeCap|DependencyRelationshipEvidenceRowsDedupesCapsAndCountsBeforeCap|ExternalReferenceEvidenceRowsDedupesCapsAndCountsBeforeCap|BuildSBOMAttestationAttachmentDecisionsQuarantinesDependencyMissingDocumentID|SBOMAttestationAttachmentHandlerLoadsActiveDependencyAndExternalReferenceEvidence)'
+No-Regression Evidence: for the `sbom.dependency_relationship` /
+`sbom.external_reference` wiring (issue #5370), `go test ./internal/reducer -run
+'Test(BuildSBOMAttestationAttachmentDecisionsSurfacesDependencyAndExternalReferenceEvidence|BuildSBOMAttestationAttachmentDecisionsAllowsDanglingComponentIDs|DependencyRelationshipEvidenceRowsDedupesCapsAndCountsBeforeCap|ExternalReferenceEvidenceRowsDedupesCapsAndCountsBeforeCap|BuildSBOMAttestationAttachmentDecisionsQuarantinesDependencyMissingDocumentID|SBOMAttestationAttachmentHandlerLoadsActiveDependencyAndExternalReferenceEvidence)'
 -count=1` and `go test ./internal/query -run
-'Test(DecodeSBOMAttestationAttachmentRowSurfacesComponentEvidenceTruncation|DecodeSBOMAttestationAttachmentRowSurfacesDependencyAndExternalReferenceEvidence|SupplyChainListSBOMAttestationAttachmentsSurfacesDependencyAndExternalReferenceWire|SupplyChainListSBOMAttestationAttachmentsUsesBoundedStore)'
+'Test(DecodeSBOMAttestationAttachmentRowSurfacesDependencyAndExternalReferenceEvidence|SupplyChainListSBOMAttestationAttachmentsSurfacesDependencyAndExternalReferenceWire)'
 -count=1` and `go test ./internal/storage/postgres -run
 'TestListActiveSBOMAttestationAttachmentFactsQueryIsDigestBoundedAndPaged'
--count=1` failed before `sbom.dependency_relationship` and
-`sbom.external_reference` facts had a decode case in
-`buildSBOMAttachmentIndex` (issue #5370: the kinds were queue-routed but
-silently dropped), then passed after the reducer index, decision payload,
-Postgres active-evidence loader allowlist, and HTTP/MCP read model all carried
-the bounded evidence through.
+-count=1` failed before those two kinds had a decode case in
+`buildSBOMAttachmentIndex` (they were queue-routed but silently dropped), then
+passed after the reducer index, decision payload, Postgres active-evidence
+loader allowlist, and HTTP/MCP read model all carried the bounded evidence
+through.
+
+For the `sbom.component` write-time bounding this change (#5412) adds,
+`sbom.component` already had a decode case — the pre-#5412 defect was that
+`ComponentEvidence` was unbounded end to end (`ComponentCount ==
+len(components)`, no cap, no dedupe, no deterministic sort) and
+`ComponentEvidenceTruncated` did not exist on the Row/Result structs.
+`go test ./internal/reducer -run
+'Test(ComponentEvidenceRowsDedupesCapsAndCountsBeforeCap|ComponentEvidenceRowsIsOrderInvariantAcrossShuffledDuplicates)'
+-count=1` and `go test ./internal/query -run
+'Test(DecodeSBOMAttestationAttachmentRowSurfacesComponentEvidenceTruncation|SupplyChainListSBOMAttestationAttachmentsUsesBoundedStore)'
+-count=1` fail against the pre-#5412 shape (no cap/dedupe/sort, no truncation
+flag) and pass against this change: the reducer test also proves the
+`fact_id` sort tiebreak is genuinely order-invariant (byte-identical output
+across 40 independently shuffled input orderings of a duplicate-carrying
+component set), not merely correct for one fixed input ordering.
 
 No-Observability-Change: the bounded component preview and existing declared-evidence
 fields reuse the existing reducer execution spans and counters, Postgres query
