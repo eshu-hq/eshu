@@ -6,6 +6,8 @@ package query
 import (
 	"context"
 	"database/sql"
+	"sort"
+	"strings"
 
 	"go.opentelemetry.io/otel"
 
@@ -98,5 +100,49 @@ func multiCloudRuntimeDriftRowFromStore(
 		MissingEvidence:              row.MissingEvidence,
 		WarningFlags:                 row.WarningFlags,
 		RecommendedAction:            row.RecommendedAction,
+		DriftedAttributes:            driftedAttributesFromEvidence(row.Evidence),
 	}
+}
+
+// driftedAttributesFromEvidence pairs the reducer's declared_<attr>/
+// observed_<attr> evidence atoms (emitted by
+// cloudruntime.appendValueDriftEvidence /
+// multicloud.appendValueDriftEvidence for an image_version_drift finding)
+// into the bounded DriftedAttributeView projection. Every other evidence
+// atom (arn, resource_address, finding_kind, tags, ...) is intentionally
+// ignored here -- this function is the ONLY narrow exception to "the query
+// layer never surfaces raw evidence atoms" (see cloud_runtime_drift.go),
+// and it must never grow into a general evidence passthrough.
+func driftedAttributesFromEvidence(evidence []postgres.MultiCloudRuntimeDriftEvidenceRow) []DriftedAttributeView {
+	declared := map[string]string{}
+	observed := map[string]string{}
+	seen := map[string]struct{}{}
+	var attrs []string
+	for _, atom := range evidence {
+		switch {
+		case strings.HasPrefix(atom.Key, "declared_"):
+			attr := strings.TrimPrefix(atom.Key, "declared_")
+			declared[attr] = atom.Value
+			if _, ok := seen[attr]; !ok {
+				seen[attr] = struct{}{}
+				attrs = append(attrs, attr)
+			}
+		case strings.HasPrefix(atom.Key, "observed_"):
+			attr := strings.TrimPrefix(atom.Key, "observed_")
+			observed[attr] = atom.Value
+			if _, ok := seen[attr]; !ok {
+				seen[attr] = struct{}{}
+				attrs = append(attrs, attr)
+			}
+		}
+	}
+	if len(attrs) == 0 {
+		return nil
+	}
+	sort.Strings(attrs)
+	out := make([]DriftedAttributeView, 0, len(attrs))
+	for _, attr := range attrs {
+		out = append(out, DriftedAttributeView{Attribute: attr, Declared: declared[attr], Observed: observed[attr]})
+	}
+	return out
 }
