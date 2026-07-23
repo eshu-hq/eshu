@@ -217,21 +217,31 @@ func TestCanonicalEntityIDWithMetadataScopingGuards(t *testing.T) {
 			},
 		},
 		{
-			name:       "cargo manifest row, wrong package_manager",
-			entityType: "Variable",
-			metadata: map[string]any{
-				"config_kind":     "dependency",
-				"package_manager": "cargo",
-				"section":         "dependencies",
-			},
-		},
-		{
-			name:       "pubspec manifest row, wrong package_manager",
+			// "pubspec" (not "pub") is not, and never has been, an emitted
+			// package_manager value — it guards against a typo/renamed
+			// producer ever silently widening the gate.
+			name:       "unsupported package_manager string",
 			entityType: "Variable",
 			metadata: map[string]any{
 				"config_kind":     "dependency",
 				"package_manager": "pubspec",
 				"section":         "dependencies",
+			},
+		},
+		{
+			// #5507 deliberately did NOT add "swift" to
+			// dependencyIdentityPackageManagers: the only current
+			// package_manager=="swift" producer (Package.resolved) always
+			// sets lockfile:true and is excluded by condition 4 regardless.
+			// This case proves that even a hypothetical future swift row
+			// that forgot to set lockfile would still fall back safely,
+			// because "swift" is not (yet) in the allowlist at all.
+			name:       "hypothetical swift manifest row, not yet in scope",
+			entityType: "Variable",
+			metadata: map[string]any{
+				"config_kind":     "dependency",
+				"package_manager": "swift",
+				"section":         "Package.swift",
 			},
 		},
 		{
