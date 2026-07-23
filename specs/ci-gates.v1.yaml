@@ -1905,6 +1905,8 @@ hygiene_hooks:
     reason: "self-test of the docs-build verifier + hook wiring"
   - id: console-e2e-verifier-tests
     reason: "self-test of the console-e2e pre-push helper routing"
+  - id: prepr-stamp-verify
+    reason: "local-only pre-push guard: blocks pushing a commit make pre-pr did not stamp; no CI counterpart (CI re-runs the gates regardless)"
 
 # ─── NON-GATE WORKFLOWS ──────────────────────────────────────────────────────
 # .github/workflows/*.yml files that are deliberately NOT PR gates (deploy,

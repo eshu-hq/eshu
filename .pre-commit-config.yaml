@@ -136,6 +136,20 @@ repos:
         pass_filenames: false
         require_serial: true
 
+      # pre-pr stamp gate: refuse to push a commit that `make pre-pr` has not
+      # validated on this exact SHA. pre-pr.sh writes a per-SHA stamp on success;
+      # a rebase or amend afterward goes stale and blocks the push until pre-pr
+      # is re-run. This makes a green local gate a hard push-time requirement
+      # rather than relying on CI to first catch a failure. Bypass (accepting CI
+      # as the first gate) with ESHU_ALLOW_UNSTAMPED_PUSH=1.
+      - id: prepr-stamp-verify
+        name: pre-pr stamp (validate before push)
+        entry: scripts/dev/prepr-stamp-verify.sh
+        language: script
+        always_run: true
+        pass_filenames: false
+        stages: [pre-push]
+
       # gosec is slow on Go 1.26 (per-package SSA); run it at push time, not on
       # every commit.
       - id: go-gosec
