@@ -130,6 +130,11 @@ type ContainerImageIdentityHandler struct {
 	FactLoader  FactLoader
 	Writer      ContainerImageIdentityWriter
 	Instruments *telemetry.Instruments
+	// ProvenanceEdgeWriter projects exact_digest decisions with a resolved
+	// source repository into canonical ContainerImage-[:BUILT_FROM]->
+	// Repository graph edges (issue #5457). When nil the projection is
+	// skipped so the container-image-identity profile stays Postgres-only.
+	ProvenanceEdgeWriter ContainerImageProvenanceEdgeWriter
 }
 
 // Handle executes one container image identity reducer intent.
@@ -186,6 +191,9 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 	})
 	if err != nil {
 		return Result{}, fmt.Errorf("write container image identity decisions: %w", err)
+	}
+	if err := h.projectContainerImageBuiltFromEdges(ctx, intent, decisions); err != nil {
+		return Result{}, err
 	}
 
 	h.emitCounters(ctx, counts)

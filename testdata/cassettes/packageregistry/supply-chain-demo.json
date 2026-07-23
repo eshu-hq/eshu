@@ -144,7 +144,9 @@
           "payload": {
             "registry_kind": "go",
             "package_id": "github.com/acme/lib-common",
-            "version_id": "1.0.0",
+            "version_id": "github.com/acme/lib-common@1.0.0",
+            "version": "1.0.0",
+            "source_version": "1.0.0",
             "hint_kind": "repository",
             "normalized_url": "https://github.com/acme/lib-common",
             "raw_url": "https://github.com/acme/lib-common.git"

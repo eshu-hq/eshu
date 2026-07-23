@@ -349,6 +349,11 @@ func buildReducerService(
 		ContainerImageIdentityWriter: reducer.PostgresContainerImageIdentityWriter{
 			DB: database,
 		},
+		// PackageProvenanceEdgeWriter / ContainerImageProvenanceEdgeWriter
+		// (issue #5457) share one ProvenanceEdgeWriter instance -- it
+		// implements both narrower reducer interfaces.
+		PackageProvenanceEdgeWriter:        graphWriters.provenanceEdge,
+		ContainerImageProvenanceEdgeWriter: graphWriters.provenanceEdge,
 		CICDRunCorrelationWriter: reducer.PostgresCICDRunCorrelationWriter{
 			DB: database,
 		},

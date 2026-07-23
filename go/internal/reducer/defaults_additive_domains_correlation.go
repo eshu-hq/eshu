@@ -46,6 +46,7 @@ func appendCorrelationCoreAdditiveDomains(definitions []DomainDefinition, handle
 			AdmissionDecisionWriter:    handlers.AdmissionDecisionWriter,
 			AdmissionDecisionNow:       handlers.AdmissionDecisionNow,
 			RepoDependencyIntentWriter: handlers.RepoDependencyIntentWriter,
+			ProvenanceEdgeWriter:       handlers.PackageProvenanceEdgeWriter,
 		}
 		definitions = append(definitions, packageSource)
 	}
@@ -64,9 +65,10 @@ func appendCorrelationCoreAdditiveDomains(definitions []DomainDefinition, handle
 	if handlers.FactLoader != nil && handlers.ContainerImageIdentityWriter != nil {
 		imageIdentity := containerImageIdentityDomainDefinition()
 		imageIdentity.Handler = ContainerImageIdentityHandler{
-			FactLoader:  handlers.FactLoader,
-			Writer:      handlers.ContainerImageIdentityWriter,
-			Instruments: handlers.Instruments,
+			FactLoader:           handlers.FactLoader,
+			Writer:               handlers.ContainerImageIdentityWriter,
+			Instruments:          handlers.Instruments,
+			ProvenanceEdgeWriter: handlers.ContainerImageProvenanceEdgeWriter,
 		}
 		definitions = append(definitions, imageIdentity)
 	}

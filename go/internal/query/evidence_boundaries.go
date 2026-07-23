@@ -42,14 +42,25 @@ func evidenceBoundariesFor(readSurface string) []PostgresOnlyBoundary {
 	// served through a sibling top-level field, so there is no boundary left to
 	// disclose. See TestBuildServiceStoryResponseOmitsBoundaryForFieldAlreadyServed
 	// and TestBuildServiceStoryResponseOmitsContainerImageIdentityBoundaryForFieldAlreadyServed.
+	//
+	// get_repo_story has no entries here either (issue #5457): its three prior
+	// boundary domains -- container_image_identity, package_correlation_ownership,
+	// and package_correlation_publication -- all now project canonical graph
+	// edges (BUILT_FROM, PUBLISHES) per
+	// docs/internal/design/5472-graph-projection-policy.md, so there is no
+	// longer a Postgres-only gap to disclose for this surface.
+	//
+	// get_workload_story drops its container_image_identity entry for the same
+	// reason (#5457 BUILT_FROM projection), and narrows the former blanket
+	// "package_correlation" entry to package_correlation_consumption: ownership
+	// and publication now project PUBLISHES edges, but consumption correlation
+	// deliberately STAYS Postgres-only (it overlaps the existing
+	// DECLARES_DEPENDENCY/DEPENDS_ON graph lanes, #5472 policy), so that
+	// narrower gap is still genuinely undisclosed.
 	type pair struct{ domain, surface string }
 	pairs := []pair{
 		{domain: "ci_cd_run_correlation", surface: "get_workload_story"},
-		{domain: "container_image_identity", surface: "get_workload_story"},
-		{domain: "package_correlation", surface: "get_workload_story"},
-		{domain: "container_image_identity", surface: "get_repo_story"},
-		{domain: "package_correlation_ownership", surface: "get_repo_story"},
-		{domain: "package_correlation_publication", surface: "get_repo_story"},
+		{domain: "package_correlation_consumption", surface: "get_workload_story"},
 		{domain: "ci_cd_run_correlation", surface: "trace_deployment_chain"},
 		{domain: "container_image_identity", surface: "trace_deployment_chain"},
 	}

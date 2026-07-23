@@ -33,15 +33,21 @@ func TestEvidenceBoundariesForServiceStoryIsEmpty(t *testing.T) {
 	}
 }
 
+// TestEvidenceBoundariesForWorkloadStory asserts get_workload_story's
+// container_image_identity boundary is gone (#5457 projects BUILT_FROM), the
+// former blanket package_correlation entry has narrowed to
+// package_correlation_consumption (the only package sub-domain that still
+// stays Postgres-only), and ci_cd_run_correlation (unimplemented here, #5428)
+// remains disclosed.
 func TestEvidenceBoundariesForWorkloadStory(t *testing.T) {
 	t.Parallel()
 
 	got := evidenceBoundariesFor("get_workload_story")
-	if len(got) != 3 {
-		t.Fatalf("len(evidence_boundaries) = %d, want 3: %#v", len(got), got)
+	if len(got) != 2 {
+		t.Fatalf("len(evidence_boundaries) = %d, want 2: %#v", len(got), got)
 	}
 
-	wantDomains := []string{"ci_cd_run_correlation", "container_image_identity", "package_correlation"}
+	wantDomains := []string{"ci_cd_run_correlation", "package_correlation_consumption"}
 	for i, b := range got {
 		if b.Domain != wantDomains[i] {
 			t.Errorf("boundary[%d].domain = %q, want %q", i, b.Domain, wantDomains[i])
@@ -55,25 +61,18 @@ func TestEvidenceBoundariesForWorkloadStory(t *testing.T) {
 	}
 }
 
-func TestEvidenceBoundariesForRepoStory(t *testing.T) {
+// TestEvidenceBoundariesForRepoStoryIsEmpty asserts get_repo_story has no
+// declared Postgres-only boundaries: all three domains it once claimed
+// (container_image_identity, package_correlation_ownership,
+// package_correlation_publication) now project canonical graph edges
+// (BUILT_FROM, PUBLISHES) per issue #5457, so there is nothing left to
+// disclose for this surface.
+func TestEvidenceBoundariesForRepoStoryIsEmpty(t *testing.T) {
 	t.Parallel()
 
 	got := evidenceBoundariesFor("get_repo_story")
-	if len(got) != 3 {
-		t.Fatalf("len(evidence_boundaries) = %d, want 3: %#v", len(got), got)
-	}
-
-	wantDomains := []string{"container_image_identity", "package_correlation_ownership", "package_correlation_publication"}
-	for i, b := range got {
-		if b.Domain != wantDomains[i] {
-			t.Errorf("boundary[%d].domain = %q, want %q", i, b.Domain, wantDomains[i])
-		}
-		if b.ReadSurface != "get_repo_story" {
-			t.Errorf("boundary[%d].read_surface = %q, want get_repo_story", i, b.ReadSurface)
-		}
-		if b.Reason != boundaryReasonPostgresOnly {
-			t.Errorf("boundary[%d].reason = %q, want %q", i, b.Reason, boundaryReasonPostgresOnly)
-		}
+	if got != nil {
+		t.Fatalf("evidence_boundaries = %#v, want nil for get_repo_story", got)
 	}
 }
 
@@ -156,12 +155,12 @@ func TestBuildWorkloadStoryResponseIncludesEvidenceBoundaries(t *testing.T) {
 	attachEvidenceBoundaries(response, "get_workload_story")
 
 	boundaries := evidenceBoundariesFromMap(response)
-	if len(boundaries) != 3 {
-		t.Fatalf("len(evidence_boundaries) = %d, want 3: %#v", len(boundaries), response["evidence_boundaries"])
+	if len(boundaries) != 2 {
+		t.Fatalf("len(evidence_boundaries) = %d, want 2: %#v", len(boundaries), response["evidence_boundaries"])
 	}
 }
 
-func TestBuildRepositoryStoryResponseIncludesEvidenceBoundaries(t *testing.T) {
+func TestBuildRepositoryStoryResponseOmitsEvidenceBoundaries(t *testing.T) {
 	t.Parallel()
 
 	repo := RepoRef{ID: "repository:test-repo", Name: "test-repo"}
@@ -176,12 +175,13 @@ func TestBuildRepositoryStoryResponseIncludesEvidenceBoundaries(t *testing.T) {
 		nil,
 	)
 
-	// evidence_boundaries are attached by the handler, not the builder.
+	// evidence_boundaries are attached by the handler, not the builder. All
+	// three domains get_repo_story once claimed now project canonical graph
+	// edges (#5457), so the field is omitted entirely.
 	attachEvidenceBoundaries(got, "get_repo_story")
 
-	boundaries := evidenceBoundariesFromMap(got)
-	if len(boundaries) != 3 {
-		t.Fatalf("len(evidence_boundaries) = %d, want 3: %#v", len(boundaries), got["evidence_boundaries"])
+	if _, ok := got["evidence_boundaries"]; ok {
+		t.Fatalf("evidence_boundaries = %#v, want omitted for get_repo_story", got["evidence_boundaries"])
 	}
 }
 

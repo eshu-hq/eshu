@@ -157,6 +157,16 @@
         "max": 200,
         "note": "Package\u2192PackageVersion version edges from package_registry canonical writer"
       },
+      "PUBLISHES": {
+        "min": 1,
+        "max": 20,
+        "note": "Repository\u2192Package|PackageVersion package-ownership/publication provenance edge (issue #5457). The package_registry supply-chain-demo cassette's single source_hint for github.com/acme/lib-common carries a canonical version_id (github.com/acme/lib-common@1.0.0), so both PackageSourceCorrelationHandler's ownership path and the publication join-by-version path admit the same exact/derived decision and converge onto ONE Repository(lib-common fixture repo)\u2192PackageVersion edge (MERGE identity ignores evidence_source, so the SAME edge just gets its properties overwritten by whichever call runs last -- publication, since projectPackageProvenanceEdges writes ownership rows then publication rows). Ceiling wide for future fixture package-hint growth; floor 1 catches a projection drop."
+      },
+      "BUILT_FROM": {
+        "min": 1,
+        "max": 10,
+        "note": "ContainerImage\u2192Repository container-image-identity provenance edge (issue #5457). The cicdrun supply-chain-demo cassette's ci.run artifact_digest exactly matches the ociregistry cassette's OciImageManifest digest, and the run carries repository_id repository:r_69256c06, so container_image_identity resolves an exact_digest decision with that resolved SourceRepositoryIDs entry, materializing exactly one edge. BUILT_FROM is a shared edge type with the #5428 reducer/ci-cd-run-correlation domain -- this count only reflects reducer/container-image-identity-tagged edges (this corpus predates #5428 landing, so there is no live collision yet, but the evidence_kinds-isolated rc-165 proves the isolation regardless). Ceiling wide for future fixture growth; floor 1 catches a projection drop."
+      },
       "CORRELATES_DEPLOYABLE_UNIT": {
         "min": 1,
         "max": 20,
@@ -1697,6 +1707,33 @@
         "from_label": "KustomizeOverlay",
         "to_label": "KustomizeOverlay",
         "minimum_count": 1
+      },
+      {
+        "id": "rc-164",
+        "description": "At least one Repository PUBLISHES a PackageVersion (issue #5457, docs/internal/design/5472-graph-projection-policy.md). The package_registry supply-chain-demo cassette's source_hint for github.com/acme/lib-common (hint_kind=repository, normalized_url=https://github.com/acme/lib-common) carries the canonical version_id github.com/acme/lib-common@1.0.0, matching the package_registry.package_version fact's own version_id (the PackageVersion node's uid) exactly. The hint's URL resolves (exact or derived, ESHU_GITHUB_ORG=acme synthesizes the lib-common fixture repo's remote to match) to the in-corpus lib-common fixture Repository, so PackageSourceCorrelationHandler admits BOTH an ownership decision (reducer/package-ownership) and, independently, a publication decision via the same hint's version-keyed join (reducer/package-publication) for the SAME (repository, PackageVersion) pair. Both decisions MERGE onto ONE PUBLISHES edge (Cypher MERGE identity is the pattern only; evidence_source/evidence_kinds are SET, not MERGE keys), so the edge's surviving evidence_kinds is whichever call ran last -- projectPackageProvenanceEdges always writes ownership rows before publication rows within one Handle() invocation, so publication deterministically wins. No other reducer domain writes PUBLISHES (unlike BUILT_FROM, rc-165), so this assertion does not need evidence_kinds narrowing to prove isolation -- it is Tier-1 self-labeling by edge type, the same class as rc-24 HAS_VERSION and rc-9 DEPENDS_ON_PACKAGE (docs/public/reference/edge-source-tool-provenance.md).",
+        "relationship": "PUBLISHES",
+        "from_label": "Repository",
+        "to_label": "PackageVersion",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-165",
+        "description": "At least one ContainerImage BUILT_FROM a Repository (issue #5457, docs/internal/design/5472-graph-projection-policy.md). The cicdrun supply-chain-demo cassette's ci.run carries artifact_digest sha256:abcdef... (matching the ociregistry cassette's OciImageManifest digest exactly) and repository_id repository:r_69256c06; container_image_identity resolves this as an exact_digest decision with that repository in SourceRepositoryIDs, and ContainerImageIdentityHandler projects it as a BUILT_FROM edge (reducer/container-image-identity), stamping the canonical source_tool token `oci` (docs/public/reference/edge-source-tool-provenance.md -- both this domain and the shared-edge-type #5428 reducer/ci-cd-run-correlation domain are OCI-registry-sourced, so source_tool is the same for either; evidence_kinds is the axis that isolates the domain). BUILT_FROM is a SHARED edge type with #5428, so this rc isolates on evidence_kinds=[CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST] -- the token unique to this domain -- so the assertion can never be satisfied by #5428's edges alone, regardless of whether that domain has landed yet.",
+        "relationship": "BUILT_FROM",
+        "from_label": "ContainerImage",
+        "to_label": "Repository",
+        "minimum_count": 1,
+        "evidence_kinds": [
+          "CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST"
+        ],
+        "required_edge_properties": [
+          "source_tool"
+        ],
+        "allowed_edge_property_values": {
+          "source_tool": [
+            "oci"
+          ]
+        }
       }
     ],
     "required_nodes": [
@@ -2980,7 +3017,6 @@
           "deployment_overview",
           "documentation_overview",
           "drilldowns",
-          "evidence_boundaries",
           "gitops_overview",
           "infrastructure_overview",
           "limitations",
@@ -2992,9 +3028,6 @@
           "support_overview"
         ],
         "minimum_results": 0,
-        "required_json_values": {
-          "evidence_boundaries[].domain": "container_image_identity"
-        },
         "required_absent_when_present": [
           {
             "description": "ci_cd_run_correlation must not be disclosed absent while a sibling ci_cd_evidence field serves it (#5472, #5581)",

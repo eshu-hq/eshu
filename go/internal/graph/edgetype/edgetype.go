@@ -24,6 +24,14 @@ const (
 	// conflated with repository/package dependency edges by label-agnostic
 	// DEPENDS_ON traversals.
 	AtlantisDependsOn EdgeType = "ATLANTIS_DEPENDS_ON"
+	// BuiltFrom is the "BUILT_FROM" graph relationship type (a ContainerImage
+	// to the Repository its container_image_identity or ci_cd_run_correlation
+	// decision resolved as build source, issue #5457/#5428). It is a shared
+	// edge type across those two reducer domains; each MERGEs and retracts its
+	// own edges scoped by a distinct rel.evidence_source
+	// (reducer/container-image-identity vs reducer/ci-cd-run-correlation), per
+	// docs/internal/design/5472-graph-projection-policy.md.
+	BuiltFrom EdgeType = "BUILT_FROM"
 	// Calls is the "CALLS" graph relationship type.
 	Calls EdgeType = "CALLS"
 	// CanAssume is the "CAN_ASSUME" graph relationship type.
@@ -152,6 +160,11 @@ const (
 	ProvisionsDependencyFor EdgeType = "PROVISIONS_DEPENDENCY_FOR"
 	// ProvisionsPlatform is the "PROVISIONS_PLATFORM" graph relationship type.
 	ProvisionsPlatform EdgeType = "PROVISIONS_PLATFORM"
+	// Publishes is the "PUBLISHES" graph relationship type (a Repository to
+	// the Package or PackageVersion its package-ownership or
+	// package-publication correlation decision resolved as source, issue
+	// #5457). See docs/internal/design/5472-graph-projection-policy.md.
+	Publishes EdgeType = "PUBLISHES"
 	// QueriesTable is the "QUERIES_TABLE" graph relationship type.
 	QueriesTable EdgeType = "QUERIES_TABLE"
 	// ReadsConfigFrom is the "READS_CONFIG_FROM" graph relationship type.
@@ -214,7 +227,7 @@ const (
 // registered lists every edge type known to the registry. Order is not
 // significant; All returns a defensive copy.
 var registered = []EdgeType{
-	Aliases, AllowsEgress, AllowsIngress, AtlantisDependsOn, Calls,
+	Aliases, AllowsEgress, AllowsIngress, AtlantisDependsOn, BuiltFrom, Calls,
 	CanAssume, CanEscalateTo, CanPerform, Contains,
 	CorrelatesDeployableUnit, DeclaresCodeowner, DeclaresDependency, Defines, DefinesJob, DependsOn,
 	DependsOnPackage, DeploymentSource, DeploysFrom, DiscoversConfigIn,
@@ -226,7 +239,7 @@ var registered = []EdgeType{
 	Inherits, InstanceOf, Instantiates, InvokesCloudAction,
 	LogsTo, Manages, MapsToTable, MatchesState, Migrates, Needs, Overrides,
 	PinsSubmodule,
-	ProvisionsDependencyFor, ProvisionsPlatform, QueriesTable, ReadsConfigFrom,
+	ProvisionsDependencyFor, ProvisionsPlatform, Publishes, QueriesTable, ReadsConfigFrom,
 	ReadsFrom, ReconcilesFrom, References, ReferencesTable, RepoContains,
 	RunsImage, RunsIn, RunsOn, SatisfiedBy,
 	SecretsIamAssumesIamRole, SecretsIamAuthenticatesToVaultRole, SecretsIamGrantsSecretRead, SecretsIamUsesServiceAccount,

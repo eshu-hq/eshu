@@ -478,6 +478,15 @@ log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # Confirmed materializing via a graph sweep; promoted to lock them against
 # regression. (rc-9 DEPENDS_ON_PACKAGE / rc-10 INVOKES_CLOUD_ACTION reserved —
 # those need fixture/projection work before promotion.)
+# rc-164 (PUBLISHES) and rc-165 (BUILT_FROM) are now required too — issue
+# #5457's graph-provenance-edges projection. rc-164's Repository->PackageVersion
+# edge is driven by the package_registry supply-chain-demo cassette's
+# github.com/acme/lib-common source_hint (canonical version_id fix landed
+# alongside #5457); rc-165's ContainerImage->Repository edge is driven by the
+# cicdrun+ociregistry cassette pair's matching artifact_digest/repository_id.
+# rc-165 isolates on evidence_kinds=[CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST] plus
+# a pinned source_tool=oci because BUILT_FROM is a shared edge type with the
+# #5428 reducer/ci-cd-run-correlation domain.
 # -required-correlations="all" (below) single-sources the blocking set from
 # the snapshot's own required_correlations ids (#4596): promoting an rc-N to
 # blocking is now a one-file edit (add/confirm it in

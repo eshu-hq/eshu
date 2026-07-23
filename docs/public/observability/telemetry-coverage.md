@@ -122,6 +122,8 @@ or marker that already diagnoses it.
 | projection (correlated incidents) | go/internal/reducer/incident_repository_correlation.go:272 | `eshu_dp_incident_repository_correlations_total` | reducer incident |
 | projection (incident routing) | go/internal/reducer/incident_routing_materialization.go:194 | `eshu_dp_incident_routing_evidence_total` | reducer incident |
 | projection (package source correlation) | go/internal/reducer/package_source_correlation_handler.go:289 | `eshu_dp_package_source_correlations_total`, `eshu_dp_package_consumption_repo_edges_total` | reducer package |
+| projection (package ownership/publication PUBLISHES edges) | go/internal/reducer/package_provenance_edges.go:100 | `eshu_dp_provenance_edges_total` | reducer package |
+| projection (container image identity BUILT_FROM edges) | go/internal/reducer/container_image_provenance_edges.go:76 | `eshu_dp_provenance_edges_total` | reducer package |
 | projection (SBOM attestation) | go/internal/reducer/sbom_attestation_attachment.go:210 | `eshu_dp_sbom_attestation_attachments_total` | reducer SBOM |
 | projection (secrets/IAM graph) | go/internal/reducer/secrets_iam_graph_projection.go:232 | `eshu_dp_secrets_iam_graph_edges_written_total`, `eshu_dp_secrets_iam_graph_skipped_total` | reducer secrets/IAM |
 | projection (secrets/IAM posture) | go/internal/reducer/secrets_iam_trust_chain.go:223 | `eshu_dp_secrets_iam_reducer_trust_chains_total`, `eshu_dp_secrets_iam_posture_observations_total` | reducer secrets/IAM |
