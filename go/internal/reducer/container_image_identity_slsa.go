@@ -28,54 +28,85 @@ type slsaDigestAnchor struct {
 
 // extractSLSADigestAnchorsWithQuarantine builds the digest->commit anchor map
 // from attestation.slsa_provenance facts, joined to their owning
-// attestation.statement fact's subject digest. Two passes are required
-// because the join key (the container image digest) lives on the STATEMENT,
-// not the provenance predicate itself:
+// attestation.statement fact's subject digest AND gated on a PASSED
+// attestation.signature_verification result for that same statement (#5456
+// PR #5707 P1-a review). A first pass decodes every attestation.statement
+// fact into statementID -> subjectDigest, keeping only a statement with
+// exactly ONE resolved subject digest — a statement naming zero or multiple
+// subjects is already the sbom_attestation_attachment domain's
+// SBOMAttachmentAmbiguousSubject concern, so this domain simply contributes
+// no anchor for it rather than guessing — and every
+// attestation.signature_verification fact into statementID -> normalized
+// verification status (mirroring buildSBOMAttachmentIndex's join key and
+// last-write-wins semantics for that kind). A second pass decodes every
+// attestation.slsa_provenance fact, looks up its statement's subject digest
+// AND verification status, and only records an anchor when verification
+// normalized to "passed": the collector emits a slsa_provenance fact
+// regardless of whether the statement was ever verified, so treating
+// provenance alone as trustworthy would let an unsigned, parse-only, or
+// explicitly failed attestation outrank a weaker-but-authenticated tier
+// (an in-image OCI config label, or a ci.run join) — defeating the premise
+// that signed provenance beats unsigned evidence. An unverified or failed
+// statement simply contributes no anchor, falling through to whatever
+// weaker tier resolveContainerImageSourceRevision/applyCIRunDigestRevision
+// would otherwise set, exactly like the ambiguous-commits case.
 //
-//  1. Decode every attestation.statement fact into statementID -> subjectDigest,
-//     keeping only a statement with exactly ONE resolved subject digest — a
-//     statement naming zero or multiple subjects is already the
-//     sbom_attestation_attachment domain's SBOMAttachmentAmbiguousSubject
-//     concern, so this domain simply contributes no anchor for it rather than
-//     guessing.
-//  2. Decode every attestation.slsa_provenance fact, look up its statement's
-//     subject digest, extract a commit + source URL from the predicate's
-//     config source (falling back to a git material), and record it under
-//     that image digest.
-//
-// A required-field decode failure on either kind (a missing statement_id) is
-// routed through partitionDecodeFailures for quarantine, matching every
-// other extractor in this domain (container_image_identity_evidence.go,
-// container_image_identity_typed_evidence.go).
+// A required-field decode failure on any of the three kinds (a missing
+// statement_id) is routed through partitionDecodeFailures for quarantine,
+// matching every other extractor in this domain
+// (container_image_identity_evidence.go, container_image_identity_typed_evidence.go).
 func extractSLSADigestAnchorsWithQuarantine(
 	envelopes []facts.Envelope,
 ) (map[string]slsaDigestAnchor, []quarantinedFact, error) {
 	statementSubjects := map[string]string{}
+	verificationStatusByStatement := map[string]string{}
+	verificationFactIDByStatement := map[string]string{}
 	var quarantined []quarantinedFact
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AttestationStatementFactKind {
-			continue
-		}
-		statement, err := decodeAttestationStatement(envelope)
-		if err != nil {
-			q, ok, fatal := partitionDecodeFailures(envelope, err)
-			if fatal != nil {
-				return nil, nil, fatal
+		switch envelope.FactKind {
+		case facts.AttestationStatementFactKind:
+			statement, err := decodeAttestationStatement(envelope)
+			if err != nil {
+				q, ok, fatal := partitionDecodeFailures(envelope, err)
+				if fatal != nil {
+					return nil, nil, fatal
+				}
+				if ok {
+					quarantined = append(quarantined, q)
+				}
+				continue
 			}
-			if ok {
-				quarantined = append(quarantined, q)
+			if statement.StatementID == "" {
+				continue
 			}
-			continue
-		}
-		if statement.StatementID == "" {
-			continue
-		}
-		digests := uniqueSortedStrings(append(
-			[]string{derefString(statement.SubjectDigest)},
-			statement.SubjectDigests...,
-		))
-		if len(digests) == 1 {
-			statementSubjects[statement.StatementID] = digests[0]
+			digests := uniqueSortedStrings(append(
+				[]string{derefString(statement.SubjectDigest)},
+				statement.SubjectDigests...,
+			))
+			if len(digests) == 1 {
+				statementSubjects[statement.StatementID] = digests[0]
+			}
+		case facts.AttestationSignatureVerificationFactKind:
+			verification, err := decodeAttestationSignatureVerification(envelope)
+			if err != nil {
+				q, ok, fatal := partitionDecodeFailures(envelope, err)
+				if fatal != nil {
+					return nil, nil, fatal
+				}
+				if ok {
+					quarantined = append(quarantined, q)
+				}
+				continue
+			}
+			if verification.StatementID == "" {
+				continue
+			}
+			status := normalizedVerificationStatus(firstNonBlank(
+				derefString(verification.VerificationResult),
+				derefString(verification.VerificationStatus),
+			))
+			verificationStatusByStatement[verification.StatementID] = status
+			verificationFactIDByStatement[verification.StatementID] = envelope.FactID
 		}
 	}
 	if len(statementSubjects) == 0 {
@@ -103,13 +134,24 @@ func extractSLSADigestAnchorsWithQuarantine(
 		if imageDigest == "" {
 			continue
 		}
+		// #5456 PR #5707 P1-a: an absent or non-"passed" verification result
+		// for the owning statement means this provenance is NOT signed truth
+		// yet — refuse the anchor entirely rather than let it outrank a
+		// weaker, already-authenticated tier.
+		if verificationStatusByStatement[provenance.StatementID] != "passed" {
+			continue
+		}
 		commit, sourceURL := slsaProvenanceCommitAndSource(provenance)
 		if commit == "" {
 			continue
 		}
 		anchor := byDigest[imageDigest]
 		anchor.commits = uniqueSortedStrings(append(anchor.commits, commit))
-		anchor.factIDs = uniqueSortedStrings(append(anchor.factIDs, envelope.FactID))
+		anchor.factIDs = uniqueSortedStrings(append(
+			anchor.factIDs,
+			envelope.FactID,
+			verificationFactIDByStatement[provenance.StatementID],
+		))
 		if sourceURL != "" {
 			if match, ok := matchOCIConfigSourceRepository(sourceURL, repositories); ok {
 				anchor.sourceRepositoryIDs = uniqueSortedStrings(append(anchor.sourceRepositoryIDs, match.RepositoryID))
