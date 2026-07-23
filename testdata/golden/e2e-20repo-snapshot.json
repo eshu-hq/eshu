@@ -5056,6 +5056,57 @@
           ]
         }
       },
+      "POST /api/v0/impact/trace-deployment-chain?anchor=declared-object": {
+        "description": "#5639 declared kind+namespace+name identity anchor proof, isolated from the ArgoCD-anchor case above via a distinct query-string-suffixed key (same POST route -- Go's ServeMux match ignores the query string, so this reaches the identical handler with a different request body). The supply-chain-demo-db fixture repo (tests/fixtures/ecosystems/supply-chain-demo-db/statefulset.yaml) declares ONLY a bare StatefulSet (kind=StatefulSet, namespace=default, name=supply-chain-demo-db, image ghcr.io/eshu-hq/internal-tools/db-migrator:1.0.0) with NO ArgoCD Application, Flux, or Crossplane controller anywhere in the repo -- controller_overview.controller_count is 0 in the live response. That declared object exactly matches the UNANCHORED (no argocd.argoproj.io/tracking-id) kuberneteslive cassette fact kubernetes_live:cluster:supply-chain-demo:statefulset:default:supply-chain-demo-db on group_version_resource+namespace+name plus the image_ref intersection, so deployment_truth_tier can only have been promoted through the declared-object anchor (resolveLiveIdentityAnchors's ArgoCD half reads only argocd_application/argocd_applicationset controllers, which this repo has none of) -- never the ArgoCD tracking-id anchor the sibling shape above proves. Non-vacuous: reverting the declared-object anchor list to ArgoCD-only (pre-#5639) drops this workload's only anchor, so fetchWorkloadLiveEvidence returns false before ever querying the store and deployment_truth_tier falls back to \"\" (ClassifyDeploymentTruthTier with hasInstances=false, hasDeploymentSources=false, hasConfigEnvironments=false) -- proven via TestFetchWorkloadLiveEvidenceNoAnchorOfAnyKindNeverQueriesStore and the ArgoCD-only-anchor-list unit shape (see go/internal/query/impact_trace_deployment_live_evidence_identity_declared_test.go), not a second live-gate run.",
+        "envelope": true,
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "minimum_results": 0,
+        "request_body": {
+          "service_name": "supply-chain-demo-db",
+          "max_depth": 4
+        },
+        "required_json_paths": [
+          "data.k8s_resource_limits.limit",
+          "data.k8s_resource_limits.returned_count",
+          "data.k8s_resource_limits.truncated",
+          "data.deployment_source_limits.limit",
+          "data.deployment_source_limits.returned_count",
+          "data.deployment_source_limits.truncated",
+          "data.cloud_resource_limits.limit",
+          "data.cloud_resource_limits.truncated"
+        ],
+        "required_json_values": {
+          "data.repo_id": "repository:r_b11b6e25",
+          "data.workload_id": "workload:supply-chain-demo-db",
+          "data.deployment_fact_summary.deployment_truth_tier": "runtime_confirmed",
+          "data.deployment_fact_summary.k8s_resource_count": 1,
+          "data.deployment_fact_summary.image_ref_count": 1,
+          "data.deployment_fact_summary.live_instance_count": 2,
+          "data.deployment_fact_summary.overall_confidence_reason": "live_runtime_observation",
+          "data.image_refs[]": "ghcr.io/eshu-hq/internal-tools/db-migrator:1.0.0",
+          "truth.level": "derived",
+          "truth.basis": "hybrid"
+        },
+        "required_json_object_matches": {
+          "data.k8s_resources[]": [
+            {
+              "entity_name": "supply-chain-demo-db",
+              "kind": "StatefulSet",
+              "namespace": "default",
+              "api_version": "apps/v1",
+              "repo_id": "repository:r_b11b6e25",
+              "relative_path": "statefulset.yaml",
+              "container_images": [
+                "ghcr.io/eshu-hq/internal-tools/db-migrator:1.0.0"
+              ]
+            }
+          ]
+        }
+      },
       "POST /api/v0/infra/relationships": {
         "description": "#5436: RUNS_IMAGE read-path proof. Anchored on the supply-chain-demo KubernetesWorkload (the digest-pinned Deployment from the kuberneteslive cassette), what_runs_image must resolve the RUNS_IMAGE edge to the OciImageManifest node the oci_registry cassette's image_manifest fact projects (digest sha256:abcdef...ab). Non-vacuous: the edge only exists because the kuberneteslive pod_template fact's image_refs digest matches the ociregistry image_manifest fact's digest via BuildSourceImageDigestJoinIndex (kubernetes_workload_source_image_join.go) -- neither cassette alone produces it, and before the #5436 Stage-1 allowlist entry this request was rejected 400 (unknown relationship_type).",
         "envelope": true,
