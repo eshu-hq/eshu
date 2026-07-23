@@ -24,24 +24,56 @@ if [[ "${ESHU_ALLOW_UNSTAMPED_PUSH:-0}" == "1" ]]; then
 	exit 0
 fi
 
-# The commit being pushed: pre-commit sets PRE_COMMIT_TO_REF for the pre-push
-# stage; fall back to HEAD for a raw or non-pre-commit invocation.
-ref="${PRE_COMMIT_TO_REF:-HEAD}"
-sha="$(git -C "${repo_root}" rev-parse --verify "${ref}^{commit}" 2>/dev/null || true)"
-[[ -n "${sha}" ]] || sha="$(git -C "${repo_root}" rev-parse --verify HEAD 2>/dev/null || true)"
-# Nothing resolvable (e.g. a branch delete) — let git proceed.
-[[ -n "${sha}" ]] || exit 0
+# Which commits are being pushed? Git feeds a pre-push hook one update record per
+# ref on stdin: "<local_ref> <local_sha> <remote_ref> <remote_sha>". Validate the
+# tip of EVERY non-delete ref, so an explicit refspec (git push origin feat:rel)
+# or a multi-ref push (git push --all) can't slip an unstamped commit past an
+# already-stamped HEAD. When stdin carries no records — pre-commit consumes it and
+# exposes PRE_COMMIT_TO_REF instead, or the hook is invoked by hand — fall back to
+# that ref, then HEAD.
+zero='0000000000000000000000000000000000000000'
+shas=()
+if [[ ! -t 0 ]]; then
+	while read -r _local_ref local_sha _remote_ref _remote_sha; do
+		[[ -n "${local_sha:-}" ]] || continue
+		[[ "${local_sha}" == "${zero}" ]] && continue   # branch deletion — nothing to stamp
+		shas+=("${local_sha}")
+	done
+fi
+if [[ ${#shas[@]} -eq 0 ]]; then
+	ref="${PRE_COMMIT_TO_REF:-HEAD}"
+	sha="$(git -C "${repo_root}" rev-parse --verify "${ref}^{commit}" 2>/dev/null || true)"
+	[[ -n "${sha}" ]] || sha="$(git -C "${repo_root}" rev-parse --verify HEAD 2>/dev/null || true)"
+	[[ -n "${sha}" ]] && shas+=("${sha}")
+fi
+# Nothing resolvable (e.g. only a branch delete) — let git proceed.
+[[ ${#shas[@]} -gt 0 ]] || exit 0
 
-if [[ ! -f "${stamp_dir}/${sha}" ]]; then
-	printf 'prepr-stamp-verify: %s is not stamped by make pre-pr — push blocked.\n' "${sha:0:12}" >&2
+# De-duplicate: a multi-ref push can list the same tip twice. (macOS ships bash
+# 3.2, which has no `mapfile`, so read the sorted-unique list the portable way.)
+uniq_shas=()
+while IFS= read -r _s; do
+	[[ -n "${_s}" ]] && uniq_shas+=("${_s}")
+done < <(printf '%s\n' "${shas[@]}" | sort -u)
+shas=("${uniq_shas[@]}")
+
+blocked=0
+for sha in "${shas[@]}"; do
+	if [[ ! -f "${stamp_dir}/${sha}" ]]; then
+		printf 'prepr-stamp-verify: %s is not stamped by make pre-pr — push blocked.\n' "${sha:0:12}" >&2
+		blocked=1
+		continue
+	fi
+	deferred="$(sed -n 's/^deferred=//p' "${stamp_dir}/${sha}" 2>/dev/null)"
+	if [[ -n "${deferred}" ]]; then
+		printf 'prepr-stamp-verify: %s stamped; live gates deferred to CI: %s\n' "${sha:0:12}" "${deferred}" >&2
+	fi
+done
+
+if [[ "${blocked}" == "1" ]]; then
 	printf '  Run:  make pre-pr   then push.\n' >&2
 	printf '  A rebase or amend after pre-pr invalidates the stamp — re-run it.\n' >&2
 	printf '  Bypass (CI becomes the first gate):  ESHU_ALLOW_UNSTAMPED_PUSH=1 git push ...\n' >&2
 	exit 1
-fi
-
-deferred="$(sed -n 's/^deferred=//p' "${stamp_dir}/${sha}" 2>/dev/null)"
-if [[ -n "${deferred}" ]]; then
-	printf 'prepr-stamp-verify: %s stamped; live gates deferred to CI: %s\n' "${sha:0:12}" "${deferred}" >&2
 fi
 exit 0

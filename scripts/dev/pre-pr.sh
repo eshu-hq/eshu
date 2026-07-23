@@ -312,7 +312,14 @@ changed_paths() {
 # when a gate that actually RAN failed.
 run_or_defer() {
 	local name="$1" trigger="$2" prereq="$3"; shift 3
-	changed_paths | rg -q "${trigger}" || return 0
+	# Materialize the path list first, then feed it to rg via a here-string. A
+	# direct `changed_paths | rg -q` lets rg exit on its first match and SIGPIPE
+	# the upstream git/sort; under `pipefail` that nonzero would hit `|| return 0`
+	# and misclassify a genuinely-triggered gate as untriggered — skipping its
+	# live proof while still stamping the commit. The here-string has no upstream
+	# process to signal.
+	local _changed; _changed="$(changed_paths)"
+	rg -q "${trigger}" <<<"${_changed}" || return 0
 	if [[ "${ESHU_PREPR_SKIP_LIVE:-0}" == "1" ]]; then
 		printf '\033[33mlive lane: %s TRIGGERED but ESHU_PREPR_SKIP_LIVE=1 — DEFERRED to CI.\033[0m\n' "${name}"
 		live_deferred+=("${name}"); return 0
@@ -327,16 +334,24 @@ run_or_defer() {
 
 step_live() {
 	local rc=0
+	# Mirror .github/workflows/golden-corpus-gate.yml paths exactly, so any diff
+	# that trips the corpus gate in CI also runs (or is honestly deferred) here —
+	# not just the internal/ packages. Includes the go/cmd entrypoints, demospec,
+	# the demo-first-answers spec, and the gate's own scripts/workflow.
 	run_or_defer golden-corpus \
-		'^(go/internal/(collector|parser|projector|reducer|query|relationships|storage)/|sdk/go/factschema/|testdata/(golden|cassettes)/)' \
+		'^(go/internal/(collector|parser|projector|reducer|query|relationships|storage|demospec)/|go/cmd/(bootstrap-index|ingester|projector|reducer|api|golden-corpus-gate)/|go/cmd/collector-|sdk/go/factschema/|testdata/(golden|cassettes)/|specs/demo-first-answers\.v1\.yaml|scripts/(verify-golden-corpus-gate|test-verify-golden-corpus-gate)\.sh|\.github/workflows/golden-corpus-gate\.yml)' \
 		'docker info' \
 		bash "${repo_root}/scripts/verify-golden-corpus-gate.sh" || rc=1
 	run_or_defer replay-tier \
 		'^(go/cmd/(ingester|projector)/|go/internal/(replay|storage/cypher|storage/nornicdb|projector|graph|runtime)/)' \
 		'docker info' \
 		bash "${repo_root}/scripts/verify-replay-tier.sh" || rc=1
+	# Go source only: a doc-adjacent edit under go/ (README.md, AGENTS.md) can't
+	# carry a gosec/govulncheck finding, so it should not trigger the heavy local
+	# security-preflight. (CI's security-scan has no path filter and remains the
+	# backstop regardless.)
 	run_or_defer security \
-		'^(go/|go\.mod|go\.sum)' \
+		'^(go/.*\.go|go\.mod|go\.sum)' \
 		'true' \
 		make -C "${repo_root}" security-preflight || rc=1
 	run_or_defer frontend \
