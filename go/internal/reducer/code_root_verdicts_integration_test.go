@@ -151,6 +151,60 @@ end
 	}
 }
 
+// TestBuildCodeRootVerdictsLexicalScopeRestrictionFromRealParserEmissions is the
+// #5500 end-to-end proof: it parses a REAL, module-nested Ruby corpus (no
+// hand-built qualified names) where a bare, unqualified base ref "Base" is
+// declared inside module Admin, and a same-last-segment but unrelated
+// "Reporting::Base" class also exists elsewhere in the corpus. Pre-#5500 this
+// shape was suffix_only_ambiguous (broad, unscoped candidate search) and the
+// dead controller action stayed falsely kept; the lexical-scope restriction
+// resolves "Base" to the true, lexically-scoped referent "Admin::Base" and lets
+// the walk correctly downgrade it.
+func TestBuildCodeRootVerdictsLexicalScopeRestrictionFromRealParserEmissions(t *testing.T) {
+	t.Parallel()
+
+	classes, roots := parseRubyCorpus(t, map[string]string{
+		"app/controllers/admin/orders_controller.rb": `module Admin
+  class OrdersController < Base
+    def index
+      true
+    end
+  end
+end
+`,
+		"app/controllers/admin/base.rb": `module Admin
+  class Base < ActiveRecord::Base
+  end
+end
+`,
+		"app/models/reporting/base.rb": `module Reporting
+  class Base < ActiveRecord::Base
+  end
+end
+`,
+	})
+
+	if !hasRoot(roots, "index") {
+		t.Fatalf("parser did not root the controller action; roots=%+v", roots)
+	}
+
+	rows, downgraded, _ := reducer.BuildCodeRootVerdicts(reducer.CodeReachabilityProjectionInput{
+		ScopeID:      "scope-1",
+		GenerationID: "gen-1",
+		RepositoryID: "repo-1",
+		Roots:        roots,
+		RubyClasses:  classes,
+	})
+
+	row := verdictForAction(rows, "index")
+	if row == nil || row.Verdict != reducer.CodeRootVerdictDowngraded {
+		t.Fatalf("Admin::OrdersController#index must be DOWNGRADED (lexically resolves to Admin::Base < ActiveRecord::Base), got %+v", row)
+	}
+	if _, isDown := downgraded[row.EntityID]; !isDown {
+		t.Fatalf("downgraded controller action must be in the downgraded set")
+	}
+}
+
 func hasRoot(roots []reducer.CodeReachabilityRoot, action string) bool {
 	for _, r := range roots {
 		if endsWith(r.EntityID, ":"+action) {

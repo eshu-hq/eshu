@@ -252,13 +252,14 @@ func walkClass(
 		return Decision{Keep: legacyResidual, Chain: chain, Terminal: "fizzled:" + classKey, Reason: ReasonFizzled}
 	}
 
+	namespace := classNamespaceOf(classKey)
 	multi := len(bases) > 1
 	var (
 		downgrade     Decision
 		haveDowngrade bool
 	)
 	for _, base := range bases {
-		sub := onwardHop(base, reg, legacyResidual, append(cloneChain(chain), base), cloneVisited(visited), depth)
+		sub := onwardHop(base, namespace, reg, legacyResidual, append(cloneChain(chain), base), cloneVisited(visited), depth)
 		if sub.Keep {
 			return sub // any-path-keeps
 		}
@@ -277,9 +278,14 @@ func walkClass(
 
 // onwardHop applies the #5376 P0 rev-2 ordered rule to a single base ref R. The
 // returned Decision either keeps/confirms (Keep=true) or is a downgrade vote
-// (Keep=false). branchChain already ends with R.
+// (Keep=false). branchChain already ends with R. namespace is the lexical
+// namespace of the class that DECLARED ref (its own qualified name minus its
+// last segment), used by the #5500 lexical-scope-aware candidate restriction;
+// it is "" for a top-level (non-namespaced) walked class, which makes the
+// restriction a documented no-op (see lexicalExactMatch).
 func onwardHop(
 	ref string,
+	namespace string,
 	reg Registry,
 	legacyResidual bool,
 	branchChain []string,
@@ -291,7 +297,13 @@ func onwardHop(
 		return Decision{Keep: true, Chain: branchChain, Terminal: "accepted:" + ref, Reason: ReasonAccepted}
 	}
 
-	exact := reg.ExactMatches(ref)
+	// #5500: restrict candidate resolution to the lexical-prefix names Ruby
+	// constant lookup would actually try — P::ref, then each enclosing prefix
+	// of P, then top-level ref — before falling back to the broad, unscoped
+	// ExactMatches(ref). This can only ADD a more specific exact identity; it
+	// never removes the final top-level candidate, so it cannot drop a match
+	// the pre-#5500 lookup found (see lexicalExactMatch doc).
+	exact := lexicalExactMatch(reg, namespace, ref)
 	suffix := reg.SuffixMatches(ref)
 
 	// 2. EXACT resolution: R is downgrade-eligible. Recurse PER CANDIDATE class
@@ -374,6 +386,60 @@ func probeClassConfirm(classKey string, reg Registry, visited map[string]struct{
 // from a ref or class name.
 func normalizeRef(ref string) string {
 	return strings.TrimPrefix(strings.TrimSpace(ref), "::")
+}
+
+// classNamespaceOf returns classKey's own lexical namespace: every "::"-joined
+// segment except the last (classKey's own declared name). It is "" for a
+// top-level class or a same-file-registry class key (which is always simple,
+// per rubySameFileControllerRegistry), so the #5500 lexical restriction is a
+// provable no-op for both cases. This is a pure string derivation of the
+// #5376 F3 qualified_name — it does not distinguish Ruby's nested-module-block
+// form (`module A; class B; end; end`, which DOES add "A" to Module.nesting)
+// from the compact colon form (`class A::B`, which does NOT) because
+// qualifiedClassName already collapses both into one qualified string; see
+// go/internal/parser/ruby/nodes.go. This is a documented, accepted
+// approximation, not a regression: it can only make more candidates
+// EXACT-resolvable than before (never fewer), so it can only improve
+// precision, never drop a match the pre-#5500 walk found.
+func classNamespaceOf(classKey string) string {
+	idx := strings.LastIndex(classKey, "::")
+	if idx < 0 {
+		return ""
+	}
+	return classKey[:idx]
+}
+
+// lexicalExactMatch tries ref's real Ruby constant-lookup candidates —
+// scope::ref for namespace, then for each enclosing prefix of namespace found
+// by trimming one "::"-segment off the right at a time, and finally ref alone
+// (top-level) — innermost scope first, and returns the FIRST candidate's
+// ExactMatches hit: the identity ref resolves to under real Ruby constant
+// lookup (Module.nesting searched innermost-out, stopping at the first scope
+// that defines the constant, then falling to top-level). It walks namespace
+// directly with strings.LastIndex instead of pre-splitting into a segment
+// slice, so a namespaced walk costs one extra string concat and map lookup per
+// enclosing level tried — no extra slice allocation — and a top-level walked
+// class (namespace == "") costs exactly the pre-#5500 reg.ExactMatches(ref)
+// call. Returns nil only when every candidate misses, INCLUDING the final
+// top-level candidate, so a miss here is identical to the pre-#5500 miss and
+// the #5500 restriction can never produce fewer matches than the prior
+// lookup.
+func lexicalExactMatch(reg Registry, namespace, ref string) []string {
+	scope := namespace
+	for {
+		if scope == "" {
+			return reg.ExactMatches(ref)
+		}
+		if matches := reg.ExactMatches(scope + "::" + ref); len(matches) > 0 {
+			return matches
+		}
+		idx := strings.LastIndex(scope, "::")
+		if idx < 0 {
+			scope = ""
+			continue
+		}
+		scope = scope[:idx]
+	}
 }
 
 // unionKeys returns the deduplicated union of two class-key slices, preserving

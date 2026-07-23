@@ -185,6 +185,37 @@ func TestDecide(t *testing.T) {
 			wantKeep:   true,
 			wantReason: rubycontroller.ReasonCycle,
 		},
+		{
+			// #5500: lexical-scope-aware candidate restriction. "Base" is declared
+			// as OrdersController's superclass ref inside namespace "Admin"
+			// (OrdersController's own qualified name is "Admin::OrdersController").
+			// A same-lexical-scope corpus class "Admin::Base" resolves onward to
+			// the reject-set. Pre-#5500, "Base" had zero ExactMatches and one
+			// broad, unscoped SuffixMatches candidate ("Admin::Base"); since the
+			// probe-confirm on that candidate does not reach an accepted base, the
+			// old code kept it ambiguous forever (ReasonSuffixOnlyAmbiguous) even
+			// though the TRUE referent (known via lexical scope) definitively
+			// proves this is not a controller. The lexical restriction resolves
+			// "Base" to the exact identity "Admin::Base" and lets it downgrade.
+			name:       "lexical-scope match resolves exactly and downgrades",
+			class:      "Admin::OrdersController",
+			classes:    map[string][]string{"Admin::OrdersController": {"Base"}, "Admin::Base": {"ActiveRecord::Base"}},
+			wantKeep:   false,
+			wantReason: rubycontroller.ReasonRejectedFrameworkBase,
+		},
+		{
+			// #5500: outer-enclosing-scope preservation. "Base" is referenced
+			// inside Admin::V1::OrdersController; the true referent Admin::Base is
+			// declared ONE lexical level out (namespace "Admin", not "Admin::V1").
+			// Real Ruby constant lookup walks Module.nesting from innermost to
+			// outermost before falling to top-level, so this must still resolve
+			// through the outer scope, not just the immediate enclosing one.
+			name:       "lexical-scope match resolves through an outer enclosing scope",
+			class:      "Admin::V1::OrdersController",
+			classes:    map[string][]string{"Admin::V1::OrdersController": {"Base"}, "Admin::Base": {"ApplicationController"}},
+			wantKeep:   true,
+			wantReason: rubycontroller.ReasonAccepted,
+		},
 	}
 
 	for _, tt := range tests {
@@ -200,6 +231,45 @@ func TestDecide(t *testing.T) {
 				t.Fatalf("IsRailsController(%q) disagrees with Decide().Keep", tt.class)
 			}
 		})
+	}
+}
+
+// TestDecideLexicalScopeOuterMatchUsesExactPath proves the outer-enclosing-scope
+// match from TestDecide's "resolves through an outer enclosing scope" case is
+// reached via the NEW lexical-exact resolution path (Terminal
+// "accepted:ApplicationController"), not merely via the pre-#5500 broad
+// suffix-probe fallback (which would have produced the different terminal
+// "accepted_via_suffix:Base"). Both paths happen to agree on Keep/Reason here,
+// so this pins the actual mechanism engaged rather than an incidental match.
+func TestDecideLexicalScopeOuterMatchUsesExactPath(t *testing.T) {
+	classes := map[string][]string{
+		"Admin::V1::OrdersController": {"Base"},
+		"Admin::Base":                 {"ApplicationController"},
+	}
+	got := rubycontroller.Decide("Admin::V1::OrdersController", fakeRegistry{classes: classes})
+	if !got.Keep || got.Reason != rubycontroller.ReasonAccepted {
+		t.Fatalf("Decide = %+v, want Keep=true Reason=accepted", got)
+	}
+	wantTerminal := "accepted:ApplicationController"
+	if got.Terminal != wantTerminal {
+		t.Fatalf("Terminal = %q, want %q (lexical restriction must resolve to the exact Admin::Base identity, not the broad suffix-probe fallback)", got.Terminal, wantTerminal)
+	}
+}
+
+// TestDecideLexicalScopeIsNoOpForTopLevelClass proves the lexical restriction
+// never changes behavior for a top-level (non-namespaced) walked class: with no
+// namespace to derive, candidate resolution degrades to exactly the pre-#5500
+// ExactMatches(ref)/SuffixMatches(ref) lookup, keeping every existing top-level
+// test case in this file green.
+func TestDecideLexicalScopeIsNoOpForTopLevelClass(t *testing.T) {
+	classes := map[string][]string{
+		"OrdersController": {"Base"},
+		"Admin::Base":      {"ActiveRecord::Base"},
+		"Reporting::Base":  {"ActiveRecord::Base"},
+	}
+	got := rubycontroller.Decide("OrdersController", fakeRegistry{classes: classes})
+	if !got.Keep || got.Reason != rubycontroller.ReasonSuffixOnlyAmbiguous {
+		t.Fatalf("top-level walked class must keep the pre-#5500 broad-ambiguous outcome, got %+v", got)
 	}
 }
 
