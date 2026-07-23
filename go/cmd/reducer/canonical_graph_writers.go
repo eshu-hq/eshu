@@ -46,6 +46,12 @@ type canonicalGraphWriters struct {
 	ec2InternetExposureNode      *graphowner.EC2InternetExposureLockedWriter
 	ec2BlockDeviceKMSPostureNode *graphowner.EC2BlockDeviceKMSPostureLockedWriter
 	s3InternetExposureNode       *graphowner.S3InternetExposureLockedWriter
+	// provenanceEdge projects package-ownership/publication decisions to
+	// PUBLISHES edges and container-image-identity decisions to BUILT_FROM
+	// edges (issue #5457). One writer instance satisfies both the
+	// reducer.PackageProvenanceEdgeWriter and
+	// reducer.ContainerImageProvenanceEdgeWriter interfaces.
+	provenanceEdge *sourcecypher.ProvenanceEdgeWriter
 }
 
 // newCanonicalGraphWriters wires the canonical graph writers. reader backs
@@ -100,5 +106,6 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.Po
 		s3InternetExposureNode: graphowner.NewS3InternetExposureLockedWriter(
 			lockGate, rawS3InternetExposureNode.WriteS3InternetExposureNodes, rawS3InternetExposureNode.RetractS3InternetExposureNodes,
 		),
+		provenanceEdge: sourcecypher.NewProvenanceEdgeWriter(exec, batchSize),
 	}
 }

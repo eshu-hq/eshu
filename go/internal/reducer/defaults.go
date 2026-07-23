@@ -307,6 +307,18 @@ type DefaultHandlers struct {
 	// decisions for Git, OCI registry, and runtime image evidence.
 	ContainerImageIdentityWriter ContainerImageIdentityWriter
 
+	// PackageProvenanceEdgeWriter projects exact/derived package-ownership and
+	// package-publication decisions into canonical PUBLISHES graph edges
+	// (issue #5457). Nil skips the projection; the package-source-correlation
+	// domain still registers (Postgres decisions are unaffected).
+	PackageProvenanceEdgeWriter PackageProvenanceEdgeWriter
+
+	// ContainerImageProvenanceEdgeWriter projects exact_digest container image
+	// identity decisions into canonical BUILT_FROM graph edges (issue #5457).
+	// Nil skips the projection; the container_image_identity domain still
+	// registers (Postgres decisions are unaffected).
+	ContainerImageProvenanceEdgeWriter ContainerImageProvenanceEdgeWriter
+
 	// CICDRunCorrelationWriter persists provider run, artifact, and
 	// environment correlation decisions for CI/CD evidence.
 	CICDRunCorrelationWriter CICDRunCorrelationWriter
