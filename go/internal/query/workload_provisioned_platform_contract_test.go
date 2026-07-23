@@ -5,6 +5,9 @@ package query
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math"
 	"strings"
@@ -118,6 +121,90 @@ func TestFetchProvisionedPlatformsOrdersSamePlatformByRepositoryEndpoints(t *tes
 			t.Fatalf("rows[%d] source_id = %q, want %q", index, got, want)
 		}
 	}
+}
+
+// TestFetchProvisionedPlatformsTruncationSurvivorSetIsOrderIndependentAboveLimit
+// proves #5644's fix applies to provisioned platforms too: when raw rows
+// (bounded by LIMIT $provisioned_platform_limit = contextStoryItemLimit+1)
+// contain more distinct (platform_id, source_id, target_id) tuples than
+// contextStoryItemLimit, the retained survivor set must not depend on the
+// order the backend happens to return rows in. Before the fix,
+// fetchProvisionedPlatformResult capped `ordered` to the limit INSIDE the
+// row-walking loop and only sorted the already-truncated subset afterward,
+// so the 50 survivors were whichever 50 distinct tuples were encountered
+// first in backend row order -- not the lexicographically-first 50 by
+// provisionedPlatformOrderKey.
+func TestFetchProvisionedPlatformsTruncationSurvivorSetIsOrderIndependentAboveLimit(t *testing.T) {
+	t.Parallel()
+
+	const platformCount = contextStoryItemLimit + 1
+	ascending := make([]map[string]any, 0, platformCount)
+	for index := 1; index <= platformCount; index++ {
+		id := fmt.Sprintf("platform:%03d", index)
+		ascending = append(ascending, map[string]any{
+			"platform_source_id": "repository:infra", "platform_dependency_target_id": "repository:orders",
+			"platform_id": id, "platform_name": fmt.Sprintf("platform-%03d", index),
+		})
+	}
+	reversed := make([]map[string]any, len(ascending))
+	for i, row := range ascending {
+		reversed[len(ascending)-1-i] = row
+	}
+
+	ascendingResult := buildDeterminismProvisionedPlatforms(t, ascending)
+	reversedResult := buildDeterminismProvisionedPlatforms(t, reversed)
+
+	if len(ascendingResult.rows) != contextStoryItemLimit {
+		t.Fatalf("ascending survivor count = %d, want %d", len(ascendingResult.rows), contextStoryItemLimit)
+	}
+	if len(reversedResult.rows) != contextStoryItemLimit {
+		t.Fatalf("reversed survivor count = %d, want %d", len(reversedResult.rows), contextStoryItemLimit)
+	}
+
+	ascendingIDs := provisionedPlatformIDs(ascendingResult.rows)
+	reversedIDs := provisionedPlatformIDs(reversedResult.rows)
+	if strings.Join(ascendingIDs, ",") != strings.Join(reversedIDs, ",") {
+		t.Fatalf("survivor set depends on backend row order:\nascending = %v\nreversed  = %v", ascendingIDs, reversedIDs)
+	}
+
+	ascendingHash := hashProvisionedPlatformResult(t, ascendingResult)
+	reversedHash := hashProvisionedPlatformResult(t, reversedResult)
+	if ascendingHash != reversedHash {
+		t.Fatalf("payload hash for reversed backend row order = %s, want %s (same as ascending order)", reversedHash, ascendingHash)
+	}
+}
+
+func buildDeterminismProvisionedPlatforms(t *testing.T, rows []map[string]any) provisionedPlatformResult {
+	t.Helper()
+	reader := fakeGraphReader{run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+		return rows, nil
+	}}
+	result, err := (&EntityHandler{Neo4j: reader}).fetchProvisionedPlatformResult(t.Context(), "repository:orders")
+	if err != nil {
+		t.Fatalf("fetchProvisionedPlatformResult() error = %v", err)
+	}
+	return result
+}
+
+func hashProvisionedPlatformResult(t *testing.T, result provisionedPlatformResult) string {
+	t.Helper()
+	encoded, err := json.Marshal(map[string]any{
+		"rows":   result.rows,
+		"limits": result.limits,
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(provisioned platform result) error = %v", err)
+	}
+	sum := sha256.Sum256(encoded)
+	return hex.EncodeToString(sum[:])
+}
+
+func provisionedPlatformIDs(rows []map[string]any) []string {
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, StringVal(row, "platform_id"))
+	}
+	return ids
 }
 
 func TestBuildDeploymentTraceResponseDoesNotCopyProvisioningUnderInstances(t *testing.T) {

@@ -663,6 +663,45 @@ node. `go test ./internal/storage/cypher -run
 'TestNoUnwindBareMatchThenSetCyphersInPackage' -count=1` is the static
 class-gate.
 
+## Not A Pitfall: Bounded `ORDER BY ... LIMIT` Selects A Deterministic Top-N
+
+Eshu's bounded reads pair a total-order `ORDER BY` with a sentinel `LIMIT`
+(`ORDER BY <total-order-tuple> LIMIT $sentinel`) and then re-sort and truncate
+the returned rows in Go. That in-memory truncation is only sound if the backend
+`LIMIT` **selects** a deterministic candidate subset containing the true
+lexicographic top-N. An `ORDER BY` that merely ordered *delivery* of an
+arbitrary subset would let the survivor set vary between identical calls once
+the distinct candidate count exceeded the sentinel — a silent accuracy bug that
+in-memory tests cannot catch, because they shuffle a fixed, already-selected row
+set.
+
+### Validation
+
+Verified on NornicDB v1.1.11 for both plan shapes Eshu relies on, each driven
+through its real production function at its real sentinel:
+
+- Plain `MATCH ... ORDER BY ... LIMIT`: 120 distinct rows against a 51-row
+  sentinel, 25 repeated calls.
+- Aggregating `WITH ... collect() ... ORDER BY ... LIMIT`: 2,550 distinct rows
+  against a 2,501-row sentinel, 5 repeated calls.
+
+Rows are inserted in **reverse** lexicographic order, so a backend returning
+scan order would produce a demonstrably wrong survivor set rather than an
+accidentally-passing one. Each run asserts the survivors are both stable across
+calls and exactly equal to a lexicographic top-N computed independently from
+every seeded row — not from the subset the backend returned.
+
+```bash
+ESHU_SERVICE_STORY_DETERMINISM_NORNICDB_LIVE=1 \
+ESHU_NEO4J_URI=bolt://localhost:37687 \
+go test ./internal/query -run TestServiceStoryTruncationSelectionIsDeterministicLiveNornicDB -count=1 -v
+```
+
+Keep the Go-level sort regardless: it is defense in depth against delivery-order
+variance *within* the returned subset (the #5644 symptom), and it is what makes
+the truncation independent of any future backend planner change. Re-run the
+proof above when the pinned NornicDB version changes.
+
 ## When To Patch NornicDB
 
 Patch NornicDB only when evidence supports one of these:

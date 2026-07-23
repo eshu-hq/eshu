@@ -116,13 +116,24 @@ func loadConsumerRepositoryEnrichmentFromCandidates(
 		consumers = append(consumers, entry)
 	}
 
+	// consumersByRepo is a Go map, so the pre-sort order of consumers is
+	// randomized per process. sort.Slice is not stable, so a comparator that
+	// leaves ties unresolved (equal score and equal display name, e.g. two
+	// repositories sharing a display name) let repeated service-story calls
+	// over unchanged retained data return those tied entries in a different
+	// relative order, which also shifted which entries survived truncation
+	// (#5644). repo_id is unique per map key, so adding it as the final
+	// tiebreaker makes this a total order regardless of map iteration order.
 	sort.Slice(consumers, func(i, j int) bool {
 		leftScore := consumerRepositorySortScore(consumers[i])
 		rightScore := consumerRepositorySortScore(consumers[j])
 		if leftScore != rightScore {
 			return leftScore > rightScore
 		}
-		return StringVal(consumers[i], "repository") < StringVal(consumers[j], "repository")
+		if leftRepository, rightRepository := StringVal(consumers[i], "repository"), StringVal(consumers[j], "repository"); leftRepository != rightRepository {
+			return leftRepository < rightRepository
+		}
+		return StringVal(consumers[i], "repo_id") < StringVal(consumers[j], "repo_id")
 	})
 	if limit > 0 && len(consumers) > limit {
 		consumers = consumers[:limit]

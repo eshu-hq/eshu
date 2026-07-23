@@ -144,17 +144,21 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 	if got, want := instances[0]["environment"], "example-prod"; got != want {
 		t.Fatalf("instances[0].environment = %#v, want %#v", got, want)
 	}
-	if got, want := instances[0]["platform_name"], "example-prod"; got != want {
+	// Platforms attach in stable identity order (instance_id, platform_name,
+	// platform_id) regardless of backend row order (#5644), so the
+	// alphabetically-first platform name ("ecs-prod" < "example-prod") is
+	// both instances[0].platforms[0] and the top-level convenience field.
+	if got, want := instances[0]["platform_name"], "ecs-prod"; got != want {
 		t.Fatalf("instances[0].platform_name = %#v, want %#v", got, want)
 	}
 	bgProdPlatforms := mapSliceValue(instances[0], "platforms")
 	if got, want := len(bgProdPlatforms), 2; got != want {
 		t.Fatalf("len(instances[0].platforms) = %d, want %d", got, want)
 	}
-	if got, want := bgProdPlatforms[1]["platform_name"], "ecs-prod"; got != want {
+	if got, want := bgProdPlatforms[1]["platform_name"], "example-prod"; got != want {
 		t.Fatalf("instances[0].platforms[1].platform_name = %#v, want %#v", got, want)
 	}
-	if got, want := bgProdPlatforms[1]["platform_id"], "platform:ecs:ecs-prod"; got != want {
+	if got, want := bgProdPlatforms[1]["platform_id"], "platform:kubernetes:example-prod"; got != want {
 		t.Fatalf("instances[0].platforms[1].platform_id = %#v, want %#v", got, want)
 	}
 	if got, want := StringVal(bgProdPlatforms[1], "topology_basis"), "direct_runtime"; got != want {
@@ -170,7 +174,7 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 	if got, want := StringVal(directRelationships[0], "source_id"), "workload-instance:svc-orders:example-prod"; got != want {
 		t.Fatalf("direct source_id = %#v, want %#v", got, want)
 	}
-	if got, want := StringVal(directRelationships[0], "target_id"), "platform:ecs:ecs-prod"; got != want {
+	if got, want := StringVal(directRelationships[0], "target_id"), "platform:kubernetes:example-prod"; got != want {
 		t.Fatalf("direct target_id = %#v, want %#v", got, want)
 	}
 	overview := buildServiceDeploymentOverview(ctx)
@@ -178,8 +182,8 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 		t.Fatalf("deployment_overview.platform_count = %#v, want %#v", got, want)
 	}
 	story := buildWorkloadStory(ctx)
-	if !strings.Contains(story, "example-prod on example-prod (kubernetes), ecs-prod (ecs)") {
-		t.Fatalf("story = %q, want both platform targets for example-prod", story)
+	if !strings.Contains(story, "example-prod on ecs-prod (ecs), example-prod (kubernetes)") {
+		t.Fatalf("story = %q, want both platform targets for example-prod in stable identity order", story)
 	}
 }
 

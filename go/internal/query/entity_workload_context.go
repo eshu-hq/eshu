@@ -368,6 +368,7 @@ func (h *EntityHandler) fetchWorkloadPlatformResult(
 	if err != nil {
 		return workloadPlatformResult{}, err
 	}
+	sortWorkloadPlatformRows(rows)
 	returned, truncated := capMapRows(rows, workloadPlatformEdgeLimit)
 	for _, row := range returned {
 		if len(mapValue(row, "platform_edge")) == 0 {
@@ -385,6 +386,37 @@ func (h *EntityHandler) fetchWorkloadPlatformResult(
 			[]string{"instance_id", "platform_name", "platform_id"},
 		),
 	}, nil
+}
+
+// sortWorkloadPlatformRows orders direct-runtime platform rows by instance,
+// then by stable platform identity. The production query already declares
+// this order (ORDER BY instance_id, platform_name, platform_id), but that
+// ORDER BY is not guaranteed to replay identically across NornicDB
+// executions (see docs/internal/evidence/5272-service-story-runtime-topology.md
+// and issue #5644), so relying on the backend row order alone let repeated
+// service-story calls over unchanged retained data attach the same
+// instance's platforms in a different order. This Go-level sort makes
+// attachDirectPlatforms deterministic regardless of backend row order.
+//
+// The production Cypher aggregates by (instance_id, platform_id,
+// platform_name, platform_kind), so two rows can still tie on
+// (instance_id, platform_name, platform_id) when platform_id is empty but
+// platform_kind differs. platform_kind is the final tiebreaker so every
+// distinct aggregation key resolves to a unique, deterministic position.
+func sortWorkloadPlatformRows(rows []map[string]any) {
+	sort.Slice(rows, func(i, j int) bool {
+		left, right := rows[i], rows[j]
+		if leftInstance, rightInstance := StringVal(left, "instance_id"), StringVal(right, "instance_id"); leftInstance != rightInstance {
+			return leftInstance < rightInstance
+		}
+		if leftName, rightName := StringVal(left, "platform_name"), StringVal(right, "platform_name"); leftName != rightName {
+			return leftName < rightName
+		}
+		if leftID, rightID := StringVal(left, "platform_id"), StringVal(right, "platform_id"); leftID != rightID {
+			return leftID < rightID
+		}
+		return StringVal(left, "platform_kind") < StringVal(right, "platform_kind")
+	})
 }
 
 func attachDirectPlatforms(instances []map[string]any, platformRows []map[string]any) {
