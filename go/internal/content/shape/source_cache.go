@@ -55,6 +55,13 @@ func entitySourceCache(label string, item Entity, body string, startLine int, en
 
 // limitEntitySourceCache bounds oversized low-signal snippets while preserving
 // exact full-file search in content_files and recording metadata for clients.
+// label selects the byte limit from entitySourceCacheByteLimits; a label
+// absent from that map is uncapped. artifactType overrides that lookup for a
+// "File" entity whose artifactType is the canonical GitHub Actions workflow
+// type (githubActionsWorkflowArtifactType): that entity's source_cache is the
+// whole workflow file (see entitySourceCache), which would otherwise ship
+// uncapped, so it gets the 32 KiB githubActionsWorkflowSourceCacheByteLimit
+// cap instead.
 func limitEntitySourceCache(label string, artifactType string, sourceCache string, metadata map[string]any) (string, map[string]any) {
 	limit, ok := entitySourceCacheByteLimits[label]
 	if label == "File" && artifactType == githubActionsWorkflowArtifactType {
