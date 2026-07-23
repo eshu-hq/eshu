@@ -171,6 +171,7 @@ retractable_edge_types:
   - HELM_VALUE_REFERENCE
   - IMPORTS
   # repository, deployment, and runtime relationships
+  - BUILT_FROM
   - CORRELATES_DEPLOYABLE_UNIT
   - DEPENDS_ON
   - DEPLOYS_FROM
@@ -180,6 +181,7 @@ retractable_edge_types:
   - HAS_DEPLOYMENT_EVIDENCE
   - MATCHES_STATE
   - PROVISIONS_DEPENDENCY_FOR
+  - PUBLISHES
   - READS_CONFIG_FROM
   - RUNS_IMAGE
   - RUNS_IN
