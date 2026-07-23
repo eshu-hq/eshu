@@ -1239,7 +1239,22 @@ has no admissible image identity, callers see
 `service_to_image_evidence_missing`; when an image exists without an attachment,
 callers see `image_to_sbom_evidence_missing`.
 
-Each row also carries `dependency_relationships` (declared `sbom.dependency_relationship`
+Each row carries up to 100 deduplicated `component_evidence` rows per document.
+The reducer sorts the complete component tuple lexicographically with `fact_id`
+as the final tiebreaker before applying that write-time cap, so replay order
+cannot change the persisted preview. `component_count` remains the full distinct
+tuple count before the cap and `component_evidence_truncated` is `true` when the
+persisted row count is lower. This bound is also re-applied defensively at
+READ time: a generation indexed before the write-time cap existed can carry a
+persisted `component_evidence` array larger than the cap with a
+`component_count` field that (accurately, by the old unbounded write path)
+equals that oversized length, so the query decoder re-runs the identical
+dedupe/sort/cap algorithm (shared with the reducer's write path via
+`go/internal/boundedset`) against whatever was actually persisted, and reports
+the true total (the larger of the persisted count and the raw persisted array
+length) so `component_evidence_truncated` cannot go stale for an
+already-indexed repository — no migration or replay required. A fact written
+after the cap already existed passes through unchanged. Each row also carries `dependency_relationships` (declared `sbom.dependency_relationship`
 edges between components: `from_component_id`, `to_component_id`,
 `relationship_type`, `relationship_origin`, `fact_id`) and `external_references`
 (declared `sbom.external_reference` rows: `component_id`, `reference_type`,
@@ -1255,20 +1270,57 @@ before that cap, and `dependency_relationships_truncated` /
 `external_references_truncated` are `true` when the count exceeds the number
 of rows returned.
 
-No-Regression Evidence: `go test ./internal/reducer -run
+No-Regression Evidence: for the `sbom.dependency_relationship` /
+`sbom.external_reference` wiring (issue #5370), `go test ./internal/reducer -run
 'Test(BuildSBOMAttestationAttachmentDecisionsSurfacesDependencyAndExternalReferenceEvidence|BuildSBOMAttestationAttachmentDecisionsAllowsDanglingComponentIDs|DependencyRelationshipEvidenceRowsDedupesCapsAndCountsBeforeCap|ExternalReferenceEvidenceRowsDedupesCapsAndCountsBeforeCap|BuildSBOMAttestationAttachmentDecisionsQuarantinesDependencyMissingDocumentID|SBOMAttestationAttachmentHandlerLoadsActiveDependencyAndExternalReferenceEvidence)'
 -count=1` and `go test ./internal/query -run
 'Test(DecodeSBOMAttestationAttachmentRowSurfacesDependencyAndExternalReferenceEvidence|SupplyChainListSBOMAttestationAttachmentsSurfacesDependencyAndExternalReferenceWire)'
 -count=1` and `go test ./internal/storage/postgres -run
 'TestListActiveSBOMAttestationAttachmentFactsQueryIsDigestBoundedAndPaged'
--count=1` failed before `sbom.dependency_relationship` and
-`sbom.external_reference` facts had a decode case in
-`buildSBOMAttachmentIndex` (issue #5370: the kinds were queue-routed but
-silently dropped), then passed after the reducer index, decision payload,
-Postgres active-evidence loader allowlist, and HTTP/MCP read model all carried
-the bounded evidence through.
+-count=1` failed before those two kinds had a decode case in
+`buildSBOMAttachmentIndex` (they were queue-routed but silently dropped), then
+passed after the reducer index, decision payload, Postgres active-evidence
+loader allowlist, and HTTP/MCP read model all carried the bounded evidence
+through.
 
-No-Observability-Change: this wires two already-typed, already-queue-routed
+For the `sbom.component` write-time bounding this change (#5412) adds,
+`sbom.component` already had a decode case — the pre-#5412 defect was that
+`ComponentEvidence` was unbounded end to end (`ComponentCount ==
+len(components)`, no cap, no dedupe, no deterministic sort) and
+`ComponentEvidenceTruncated` did not exist on the Row/Result structs.
+`go test ./internal/reducer -run
+'Test(ComponentEvidenceRowsDedupesCapsAndCountsBeforeCap|ComponentEvidenceRowsIsOrderInvariantAcrossShuffledDuplicates)'
+-count=1` and `go test ./internal/query -run
+'Test(DecodeSBOMAttestationAttachmentRowSurfacesComponentEvidenceTruncation|SupplyChainListSBOMAttestationAttachmentsUsesBoundedStore)'
+-count=1` fail against the pre-#5412 shape (no cap/dedupe/sort, no truncation
+flag) and pass against this change: the reducer test also proves the
+`fact_id` sort tiebreak is genuinely order-invariant (byte-identical output
+across 40 independently shuffled input orderings of a duplicate-carrying
+component set), not merely correct for one fixed input ordering.
+
+The write-time cap alone left a gap for a generation indexed BEFORE it
+existed: its persisted `component_evidence` array could still be unbounded,
+served verbatim by the query decoder with `component_evidence_truncated ==
+false` because the legacy `component_count` field happened to equal that same
+oversized length. `go test ./internal/query -run
+'TestDecodeSBOMAttestationAttachmentRowBoundsLegacyUnboundedComponentEvidence'
+-count=1` seeds exactly that legacy shape (150 raw persisted rows,
+`component_count: 150`) and fails without a read-side bound (asserts a 100-row
+cap, `component_count == 150`, `component_evidence_truncated == true`);
+`go test ./internal/query -run
+'TestDecodeSBOMAttestationAttachmentRowServesPostCapFactUnchanged'
+-count=1` proves a fact written after the cap already existed passes through
+unchanged (no double-truncation). `go/internal/boundedset` is the one
+dedupe/sort/cap implementation both the reducer's write path and the query
+decoder's read path call, so the two cannot silently diverge on cap size,
+dedupe identity, or tiebreak order; `go test ./internal/boundedset -count=1`
+covers that shared engine directly, including its own shuffle-order-invariance
+property test.
+
+No-Observability-Change: the bounded component preview and existing declared-evidence
+fields reuse the existing reducer execution spans and counters, Postgres query
+timing, `query.sbom_attestation_attachments`, MCP dispatch logging, and durable
+`reducer_sbom_attestation_attachment` payloads. This wires already-typed, already-queue-routed
 fact kinds into the existing SBOM attachment decode/write/read path. It adds
 no new reducer domain, worker, queue, graph write, metric instrument, span, or
 runtime flag. Operators continue to diagnose the path through the existing

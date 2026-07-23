@@ -15,22 +15,23 @@ import (
 // SBOMAttestationAttachmentResult is one reducer-owned SBOM or attestation
 // attachment row returned by the public API.
 type SBOMAttestationAttachmentResult struct {
-	AttachmentID       string                 `json:"attachment_id"`
-	SubjectDigest      string                 `json:"subject_digest,omitempty"`
-	DocumentID         string                 `json:"document_id,omitempty"`
-	DocumentDigest     string                 `json:"document_digest,omitempty"`
-	AttachmentStatus   string                 `json:"attachment_status"`
-	ParseStatus        string                 `json:"parse_status,omitempty"`
-	VerificationStatus string                 `json:"verification_status,omitempty"`
-	VerificationPolicy string                 `json:"verification_policy,omitempty"`
-	ArtifactKind       string                 `json:"artifact_kind,omitempty"`
-	Format             string                 `json:"format,omitempty"`
-	SpecVersion        string                 `json:"spec_version,omitempty"`
-	Reason             string                 `json:"reason,omitempty"`
-	AttachmentScope    string                 `json:"attachment_scope,omitempty"`
-	CanonicalWrites    int                    `json:"canonical_writes"`
-	ComponentCount     int                    `json:"component_count"`
-	ComponentEvidence  []ComponentEvidenceRow `json:"component_evidence,omitempty"`
+	AttachmentID               string                 `json:"attachment_id"`
+	SubjectDigest              string                 `json:"subject_digest,omitempty"`
+	DocumentID                 string                 `json:"document_id,omitempty"`
+	DocumentDigest             string                 `json:"document_digest,omitempty"`
+	AttachmentStatus           string                 `json:"attachment_status"`
+	ParseStatus                string                 `json:"parse_status,omitempty"`
+	VerificationStatus         string                 `json:"verification_status,omitempty"`
+	VerificationPolicy         string                 `json:"verification_policy,omitempty"`
+	ArtifactKind               string                 `json:"artifact_kind,omitempty"`
+	Format                     string                 `json:"format,omitempty"`
+	SpecVersion                string                 `json:"spec_version,omitempty"`
+	Reason                     string                 `json:"reason,omitempty"`
+	AttachmentScope            string                 `json:"attachment_scope,omitempty"`
+	CanonicalWrites            int                    `json:"canonical_writes"`
+	ComponentCount             int                    `json:"component_count"`
+	ComponentEvidence          []ComponentEvidenceRow `json:"component_evidence,omitempty"`
+	ComponentEvidenceTruncated bool                   `json:"component_evidence_truncated"`
 	// DependencyRelationships, DependencyRelationshipCount, and
 	// DependencyRelationshipsTruncated mirror ComponentEvidence's evidence
 	// contract for sbom.dependency_relationship evidence: bounded rows plus
