@@ -16,6 +16,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+// maxCloudInventoryAttributeKeys caps how many top-level keys any cloud
+// inventory attributes map (raw-passthrough or allowlisted) may carry. It is
+// defense in depth against a malformed or unexpectedly large provider payload;
+// every allowlist defined in this file is already far smaller than the cap.
+const maxCloudInventoryAttributeKeys = 64
+
 // PostgresCloudInventoryEvidenceLoader reads the provider cloud-inventory source
 // facts for one scope generation and maps each provider payload into the shared
 // reducer.CloudInventoryRecord shape the admission path consumes. It is the
@@ -40,14 +46,65 @@ type PostgresCloudInventoryEvidenceLoader struct {
 type cloudInventorySourceFactMapping struct {
 	provider        string
 	resourceTypeKey string
-	// surfacesAttributes gates whether the loader carries the payload attributes
-	// map onto the admission record. Only GCP typed-depth facts produce a bounded,
-	// redaction-safe attributes map vetted for the cloud inventory readback. AWS
-	// and Azure resource facts already carry an attributes map of raw provider
-	// fields (e.g. uri, cluster_arn) that the route contract must not surface, so
-	// they stay false until a per-provider safe-key contract exists.
+	// surfacesAttributes gates whether the loader carries the RAW payload
+	// attributes map onto the admission record, unfiltered beyond
+	// boundedCloudInventoryAttributes' type/cap bounding. Only GCP typed-depth
+	// facts produce a bounded, redaction-safe attributes map vetted end to end
+	// for the cloud inventory readback, so this stays true for GCP only.
+	// surfacesAttributes and attributeAllowlist are mutually exclusive: a
+	// mapping uses the raw-passthrough path (GCP) or the closed-allowlist path
+	// (AWS, Azure), never both.
 	surfacesAttributes bool
+	// attributeAllowlist, when set, gates the loader to a bounded, CLOSED
+	// per-provider allowlist instead of the raw passthrough. AWS and Azure
+	// resource facts carry an attributes map of raw provider fields (e.g. uri,
+	// cluster_arn, arm_resource_id) that the route contract must never surface;
+	// the allowlist keeps only explicitly named image/version evidence (issue
+	// #5449) and drops everything else, including any future unreviewed key the
+	// provider payload starts emitting.
+	attributeAllowlist *cloudInventoryAttributeAllowlist
 }
+
+// awsCloudInventoryAttributeAllowlist is the closed image/version allowlist
+// for aws_resource attributes (issue #5449). It surfaces the strongest
+// deployed-code signals the AWS collector already observes -- an ECS task's
+// running container image and digest plus its owning task definition, and a
+// Lambda function's container image URI/digest and code version -- while
+// dropping every other AWS attribute key (cluster_arn, role_arn, kms_key_arn,
+// network_interfaces, environment, vpc_config, and any key not named here).
+var awsCloudInventoryAttributeAllowlist = cloudInventoryAttributeAllowlist{
+	scalarKeys: map[string]struct{}{
+		"task_definition_arn": {},
+		"image_uri":           {},
+		"resolved_image_uri":  {},
+		"code_sha256":         {},
+		"version":             {},
+	},
+	nestedArrayKeys: map[string]map[string]struct{}{
+		// containers must stay in lockstep with
+		// cloudInventoryContainerAttributeKeys in
+		// go/internal/query/cloud_inventory_read_model.go: that projector applies
+		// the same {image, image_digest} sub-key set as a second, independent
+		// gate on the already-filtered value.
+		"containers": {
+			"image":        {},
+			"image_digest": {},
+		},
+	},
+}
+
+// azureCloudInventoryAttributeAllowlist is the closed image/version allowlist
+// for azure_cloud_resource attributes (issue #5449). It is intentionally EMPTY
+// today: the azure_cloud_resource fact's attributes map carries only identity
+// and boundary fields (arm_resource_id, subscription_id, resource_group,
+// tenant_id, tags, the redacted "extension" object, ...), never an image or
+// version field -- Azure's runtime image evidence is emitted as a separate
+// azure_image_reference fact kind that this admission mapping does not
+// consume. The allowlist mechanism is wired now so Azure image/version keys
+// can be added the moment a source fact carries them, without touching the
+// filter path again; see TestCloudInventoryRecordFromRowAzureAttributesAlwaysDropped
+// for the regression guard that every current Azure key stays dropped.
+var azureCloudInventoryAttributeAllowlist = cloudInventoryAttributeAllowlist{}
 
 // cloudInventorySourceFactMappings is the closed set of provider inventory
 // source fact kinds the shared admission path consumes. Adding a provider means
@@ -55,8 +112,9 @@ type cloudInventorySourceFactMapping struct {
 // in lockstep.
 var cloudInventorySourceFactMappings = map[string]cloudInventorySourceFactMapping{
 	facts.AWSResourceFactKind: {
-		provider:        cloudinventory.ProviderAWS,
-		resourceTypeKey: "resource_type",
+		provider:           cloudinventory.ProviderAWS,
+		resourceTypeKey:    "resource_type",
+		attributeAllowlist: &awsCloudInventoryAttributeAllowlist,
 	},
 	facts.GCPCloudResourceFactKind: {
 		provider:           cloudinventory.ProviderGCP,
@@ -64,8 +122,9 @@ var cloudInventorySourceFactMappings = map[string]cloudInventorySourceFactMappin
 		surfacesAttributes: true,
 	},
 	facts.AzureCloudResourceFactKind: {
-		provider:        cloudinventory.ProviderAzure,
-		resourceTypeKey: "resource_type",
+		provider:           cloudinventory.ProviderAzure,
+		resourceTypeKey:    "resource_type",
+		attributeAllowlist: &azureCloudInventoryAttributeAllowlist,
 	},
 }
 
@@ -158,15 +217,116 @@ func cloudInventoryRecordFromRow(
 	}, true
 }
 
-// cloudInventoryRecordAttributes returns the bounded attributes map only for
-// provider fact kinds whose mapping opts in (currently GCP typed depth). AWS and
-// Azure resource facts carry a raw-locator attributes map that the cloud
-// inventory route must not surface, so they get nil here regardless of payload.
+// cloudInventoryRecordAttributes returns the bounded attributes map for one
+// provider mapping. GCP's typed-depth payload is already vetted safe end to
+// end, so it passes through boundedCloudInventoryAttributes unfiltered by key
+// name. AWS and Azure resource facts carry a raw-locator attributes map the
+// cloud inventory route must never surface, so they are reduced through the
+// mapping's closed attributeAllowlist instead; a mapping with neither
+// surfacesAttributes nor an allowlist yields nil regardless of payload.
 func cloudInventoryRecordAttributes(mapping cloudInventorySourceFactMapping, decoded map[string]any) map[string]any {
-	if !mapping.surfacesAttributes {
+	raw := decoded["attributes"]
+	if mapping.surfacesAttributes {
+		return boundedCloudInventoryAttributes(raw)
+	}
+	if mapping.attributeAllowlist != nil {
+		return mapping.attributeAllowlist.filter(raw)
+	}
+	return nil
+}
+
+// cloudInventoryAttributeAllowlist is a bounded, CLOSED per-provider allowlist
+// of attribute keys the cloud inventory readback may surface. It exists
+// because the AWS and Azure resource facts carry a raw provider-locator
+// attributes map (cluster_arn, role_arn, network_interfaces, arm_resource_id,
+// ...) that the route contract must never leak; only the keys explicitly
+// named here survive, scoped to image/version deployed-code evidence (issue
+// #5449). GCP does not use this type: its attributes map is already vetted
+// safe and goes through boundedCloudInventoryAttributes as a raw passthrough.
+type cloudInventoryAttributeAllowlist struct {
+	// scalarKeys is the closed set of top-level scalar attribute keys kept
+	// verbatim (via coerceJSONString) when the value is present and non-blank.
+	scalarKeys map[string]struct{}
+	// nestedArrayKeys maps a top-level array-of-object attribute key to the
+	// closed set of sub-keys kept from each element. An element that is not a
+	// JSON object, or whose every allowed sub-key is absent or blank, is
+	// dropped; every non-allowlisted sub-key and top-level key is dropped.
+	nestedArrayKeys map[string]map[string]struct{}
+}
+
+// filter reduces one provider's raw "attributes" payload value to this
+// allowlist's closed key set: allowed top-level scalar keys with a non-blank
+// value, plus allowed nested-array keys reduced element-by-element to their
+// allowed sub-keys. It caps the result at maxCloudInventoryAttributeKeys as
+// defense in depth (the allowlist itself is already far smaller than the cap).
+// A raw value that is not a JSON object, or a zero-value allowlist (no scalar
+// or nested-array keys configured, e.g. Azure today), yields nil.
+func (allow cloudInventoryAttributeAllowlist) filter(raw any) map[string]any {
+	object, ok := raw.(map[string]any)
+	if !ok || len(object) == 0 {
 		return nil
 	}
-	return boundedCloudInventoryAttributes(decoded["attributes"])
+	out := make(map[string]any, len(allow.scalarKeys)+len(allow.nestedArrayKeys))
+	for key := range allow.scalarKeys {
+		if len(out) >= maxCloudInventoryAttributeKeys {
+			break
+		}
+		value, present := object[key]
+		if !present {
+			continue
+		}
+		if s := strings.TrimSpace(coerceJSONString(value)); s != "" {
+			out[key] = s
+		}
+	}
+	for key, subKeys := range allow.nestedArrayKeys {
+		if len(out) >= maxCloudInventoryAttributeKeys {
+			break
+		}
+		if filtered := filterCloudInventoryNestedArray(object[key], subKeys); len(filtered) > 0 {
+			out[key] = filtered
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// filterCloudInventoryNestedArray reduces one nested array-of-object attribute
+// value to the given closed sub-key set, keeping only non-blank scalar
+// sub-values from elements that decode as a JSON object. A raw value that is
+// not a []any, or an element that decodes to a map with none of its
+// allowlisted sub-keys present and non-blank, is dropped.
+func filterCloudInventoryNestedArray(raw any, subKeys map[string]struct{}) []map[string]any {
+	elements, ok := raw.([]any)
+	if !ok || len(elements) == 0 {
+		return nil
+	}
+	out := make([]map[string]any, 0, len(elements))
+	for _, element := range elements {
+		item, ok := element.(map[string]any)
+		if !ok {
+			continue
+		}
+		kept := make(map[string]any, len(subKeys))
+		for subKey := range subKeys {
+			value, present := item[subKey]
+			if !present {
+				continue
+			}
+			if s := strings.TrimSpace(coerceJSONString(value)); s != "" {
+				kept[subKey] = s
+			}
+		}
+		if len(kept) > 0 {
+			out = append(out, kept)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // boundedCloudInventoryAttributes extracts the bounded attributes map from the
@@ -175,7 +335,6 @@ func cloudInventoryRecordAttributes(mapping cloudInventorySourceFactMapping, dec
 // Everything else is dropped. This is defense-in-depth; the collector already
 // bounds attributes before emission.
 func boundedCloudInventoryAttributes(raw any) map[string]any {
-	const maxKeys = 64
 	object, ok := raw.(map[string]any)
 	if !ok || len(object) == 0 {
 		return nil
@@ -185,7 +344,7 @@ func boundedCloudInventoryAttributes(raw any) map[string]any {
 		if strings.TrimSpace(key) == "" {
 			continue
 		}
-		if len(out) >= maxKeys {
+		if len(out) >= maxCloudInventoryAttributeKeys {
 			break
 		}
 		switch v := value.(type) {
