@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/ghactionsref"
 )
 
 func enrichWorkflowArtifactRow(row map[string]any, content string) {
@@ -328,20 +330,13 @@ func githubActionsPermissionScopes(rawPermissions any) []string {
 	return nil
 }
 
+// githubActionsLocalReusableWorkflowPath delegates to
+// ghactionsref.LocalReusableWorkflowPath -- the single local-reusable-workflow
+// path detector issue #5526 consolidates. Behavior-preserving: byte-identical
+// to the implementation this function used to contain, modulo the
+// trimGitHubActionsScalar quote-strip this package's callers need.
 func githubActionsLocalReusableWorkflowPath(value string) string {
-	trimmed := strings.TrimSpace(trimGitHubActionsScalar(value))
-	if trimmed == "" {
-		return ""
-	}
-	if at := strings.Index(trimmed, "@"); at >= 0 {
-		trimmed = trimmed[:at]
-	}
-	trimmed = strings.TrimPrefix(trimmed, "./")
-	trimmed = strings.TrimPrefix(trimmed, "/")
-	if !strings.HasPrefix(trimmed, ".github/workflows/") {
-		return ""
-	}
-	return trimmed
+	return ghactionsref.LocalReusableWorkflowPath(trimGitHubActionsScalar(value))
 }
 
 func githubActionsConcurrencyGroups(rawConcurrency any) []string {

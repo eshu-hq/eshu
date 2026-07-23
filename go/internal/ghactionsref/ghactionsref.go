@@ -88,3 +88,127 @@ func Pinned(refValue string) bool {
 func isHexDigit(r rune) bool {
 	return (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')
 }
+
+// ReusableWorkflowRepo returns the owner/repo slug for a GitHub Actions
+// job-level `uses:` value that names a REMOTE reusable workflow --
+// "owner/repo/.github/workflows/*.yml@ref". It returns "" for every other
+// shape: a local (`./`-prefixed) reusable workflow, a bare action reference
+// with no in-repo path segment at all, or a path whose third `/`-separated
+// segment is not literally `.github` (a reusable workflow must live under
+// `.github/workflows/`; GitHub does not allow any other location).
+//
+// This is issue #5526's consolidation of the two independently maintained
+// implementations of this exact check:
+// relationships.reusableWorkflowRepoRef (go/internal/relationships/github_actions_evidence.go)
+// and query.githubActionsReusableWorkflowRepoRef
+// (go/internal/query/content_relationships_github_actions.go). Both now
+// delegate here, byte-identical to the implementation each used to contain.
+//
+// Deliberately does NOT strip a trailing `@ref` before computing the
+// returned slug when the input has fewer than 3 `/`-separated segments
+// (there is nothing to strip in that case -- see the `len(parts) < 3` early
+// return). For a well-formed 3+-segment reusable-workflow reference the @ref
+// always lives in the LAST segment, never in the owner or repo segment, so
+// the returned slug is always ref-free; see ActionRepo's doc comment for the
+// one shape (`owner/repo@ref`, no path) where THAT sibling function's
+// ref-handling differs.
+func ReusableWorkflowRepo(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	if at := strings.Index(trimmed, "@"); at >= 0 {
+		trimmed = trimmed[:at]
+	}
+	parts := strings.Split(trimmed, "/")
+	if len(parts) < 3 {
+		return ""
+	}
+	if parts[0] == "." {
+		return ""
+	}
+	if parts[2] != ".github" {
+		return ""
+	}
+	return strings.Join(parts[:2], "/")
+}
+
+// ActionRepo returns the owner/repo slug embedded in a GitHub Actions
+// step-level `uses:` value that names a marketplace or third-party action --
+// excluding a Docker action (`docker://...`), the `actions/checkout` action
+// (its target repository comes from a `with: repository:` input, a separate
+// evidence path this package does not own), a local (`./`- or
+// `.github/`-prefixed) action, and any reusable-workflow-shaped value
+// (ReusableWorkflowRepo's shape, handled by that sibling function instead).
+//
+// ActionRepo intentionally performs NO ref-stripping of its own before
+// building the returned slug: for the common two-segment "owner/repo@ref"
+// shape, `strings.Split(trimmed, "/")` puts the entire "repo@ref" text in the
+// second segment, and this function joins the first two segments verbatim --
+// so the returned slug still carries the "@ref" suffix for that shape. This
+// is issue #5526's consolidation of
+// relationships.githubActionsActionRepoRef
+// (go/internal/relationships/github_actions_evidence.go), preserved exactly
+// as that function's pre-#5526 behavior, including this latent quirk: the
+// evidence Details field it feeds ("action_repository") has carried a
+// trailing "@ref" for a plain two-segment action reference since before this
+// refactor, and #5526 is a behavior-preserving change, so the quirk is kept
+// rather than silently fixed. The graph edge target itself is unaffected --
+// catalogMatcher.match tokenizes on non-slug characters including "@", so the
+// stray suffix does not change which repository the evidence resolves to.
+// go/internal/query's githubActionsActionRepositoryRef wants a clean,
+// ref-free slug instead; it gets one by re-splitting ActionRepo's result
+// through Parse (Parse is idempotent on an already ref-free value and strips
+// a still-attached "@ref" when one is present).
+func ActionRepo(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" || strings.HasPrefix(trimmed, "docker://") {
+		return ""
+	}
+	if strings.HasPrefix(trimmed, "actions/checkout@") {
+		return ""
+	}
+	if strings.HasPrefix(trimmed, "./") || strings.HasPrefix(trimmed, ".github/") {
+		return ""
+	}
+	if ReusableWorkflowRepo(trimmed) != "" {
+		return ""
+	}
+	parts := strings.Split(trimmed, "/")
+	if len(parts) < 2 || parts[0] == "." {
+		return ""
+	}
+	return strings.Join(parts[:2], "/")
+}
+
+// LocalReusableWorkflowPath returns the in-repo workflow path for a LOCAL
+// GitHub Actions reusable-workflow `uses:` value -- one that resolves inside
+// the same repository, whether written with the conventional `./` prefix
+// ("./.github/workflows/build.yml@ref") or without it
+// (".github/workflows/build.yml@ref", which GitHub also accepts). Returns ""
+// for any value whose (@ref-stripped, `./`-and-leading-`/`-stripped) form
+// does not start with the literal segment ".github/workflows/" -- including
+// a remote "owner/repo/.github/workflows/*.yml@ref" reusable-workflow
+// reference, which ReusableWorkflowRepo handles instead.
+//
+// This is issue #5526's consolidation of the two byte-identical
+// implementations of this check: relationships.githubActionsLocalReusableWorkflowPath
+// (go/internal/relationships/github_actions_evidence.go) and
+// query.githubActionsLocalReusableWorkflowPath
+// (go/internal/query/repository_workflow_artifacts.go). Both now delegate
+// here.
+func LocalReusableWorkflowPath(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	if at := strings.Index(trimmed, "@"); at >= 0 {
+		trimmed = trimmed[:at]
+	}
+	trimmed = strings.TrimPrefix(trimmed, "./")
+	trimmed = strings.TrimPrefix(trimmed, "/")
+	if !strings.HasPrefix(trimmed, ".github/workflows/") {
+		return ""
+	}
+	return trimmed
+}

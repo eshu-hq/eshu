@@ -39,6 +39,18 @@
   `go/internal/relationships/github_actions_ref_pin_parity_test.go` and
   `go/internal/query/github_actions_ref_pin_parity_test.go` after any change --
   both must still assert the same fixed `(slug, ref_value, pinned)` set.
+- **Changing `ReusableWorkflowRepo`, `ActionRepo`, or
+  `LocalReusableWorkflowPath`** -- these back the edge-target slug in
+  `go/internal/relationships/github_actions_evidence.go` (which reuses each
+  function's exact pre-#5526 behavior verbatim) and
+  `go/internal/query/content_relationships_github_actions.go` /
+  `go/internal/query/repository_workflow_artifacts.go` (which layer their own
+  quote-stripping and, for `ActionRepo`, ref-cleaning on top). Run the
+  differential tests in
+  `go/internal/relationships/github_actions_slug_detectors_test.go` and
+  `go/internal/query/github_actions_slug_detectors_test.go` after any change
+  -- they assert the exact pre-#5526 output for a representative input corpus
+  and will fail on any silent shape change.
 - **Widening the pinned classification** (for example, accepting a shorter hex
   length) -- this is a security-relevant behavior change with a direct
   downstream effect on `ref_pinned` in graph nodes and HTTP/MCP responses that
