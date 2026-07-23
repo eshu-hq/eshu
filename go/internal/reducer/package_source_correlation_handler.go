@@ -46,6 +46,12 @@ type PackageSourceCorrelationHandler struct {
 	// profile stays fact-only; the existing repo-dependency projection lane
 	// drains the intents into canonical DEPENDS_ON edges (issue #3579).
 	RepoDependencyIntentWriter RepoDependencyIntentWriter
+	// ProvenanceEdgeWriter projects exact/derived package-ownership and
+	// package-publication decisions into canonical Repository-[:PUBLISHES]->
+	// Package|PackageVersion graph edges (issue #5457). When nil the
+	// projection is skipped so the package-source-correlation profile stays
+	// Postgres-only.
+	ProvenanceEdgeWriter PackageProvenanceEdgeWriter
 	// Now overrides the wall clock for deterministic intent created_at in tests.
 	Now func() time.Time
 }
@@ -125,6 +131,9 @@ func (h PackageSourceCorrelationHandler) Handle(
 		publicationDecisions,
 	)
 	if err != nil {
+		return Result{}, err
+	}
+	if err := h.projectPackageProvenanceEdges(ctx, intent, decisions, publicationDecisions); err != nil {
 		return Result{}, err
 	}
 	h.emitCounters(ctx, counts)

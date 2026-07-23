@@ -310,8 +310,15 @@ type Instruments struct {
 	// see why candidate imports were dropped (issues #3642, #4749).
 	CodeImportRepoEdges             metric.Int64Counter
 	ContainerImageIdentityDecisions metric.Int64Counter
-	CICDRunCorrelations             metric.Int64Counter
-	ServiceCatalogCorrelations      metric.Int64Counter
+	// ProvenanceEdges counts canonical PUBLISHES and BUILT_FROM graph
+	// provenance edges materialized (or skipped) from package-ownership,
+	// package-publication, and container-image-identity correlation
+	// decisions, labeled by the producing evidence_source domain and outcome
+	// (materialized/skipped). See
+	// docs/internal/design/5472-graph-projection-policy.md and issue #5457.
+	ProvenanceEdges            metric.Int64Counter
+	CICDRunCorrelations        metric.Int64Counter
+	ServiceCatalogCorrelations metric.Int64Counter
 	// ServiceCatalogCorrelationGuardrails counts reducer service-catalog
 	// admission guardrail events by reducer domain and bounded guardrail name.
 	// It stays separate from ServiceCatalogCorrelations so decision outcomes
@@ -2411,6 +2418,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ContainerImageIdentityDecisions counter: %w", err)
+	}
+
+	inst.ProvenanceEdges, err = meter.Int64Counter(
+		"eshu_dp_provenance_edges_total",
+		metric.WithDescription("Total canonical PUBLISHES/BUILT_FROM graph provenance edges materialized or skipped by evidence_source domain and outcome"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ProvenanceEdges counter: %w", err)
 	}
 
 	inst.CICDRunCorrelations, err = meter.Int64Counter(
