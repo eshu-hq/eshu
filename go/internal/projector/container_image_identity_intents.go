@@ -28,6 +28,8 @@ var containerImageIdentityCandidateFactKinds = []string{
 	facts.AWSRelationshipFactKind,
 	facts.CICDArtifactFactKind,
 	"content_entity",
+	facts.AttestationSLSAProvenanceFactKind,
+	facts.AttestationSignatureVerificationFactKind,
 }
 
 func buildContainerImageIdentityReducerIntent(
@@ -81,6 +83,24 @@ func containerImageIdentityTriggerFact(envelope facts.Envelope) bool {
 		return strings.TrimSpace(artifactType) == "container_image"
 	case "content_entity":
 		return len(containerImageRefsFromEntityMetadata(envelope.Payload)) > 0
+	case facts.AttestationSLSAProvenanceFactKind:
+		// A signed SLSA provenance predicate carries the digest-to-commit
+		// anchor the reducer's container_image_identity domain joins by
+		// statement_id (#5456 PR #5707 P1-b). It lives in the SBOM-attestation
+		// collector's own scope, a different scope than the OCI manifest it
+		// must eventually override a weaker tier for, so this fact must
+		// trigger its OWN refresh — otherwise SLSA evidence landing with no
+		// other new identity evidence in the same generation would never
+		// cause the reducer to re-derive the affected image's decision.
+		return true
+	case facts.AttestationSignatureVerificationFactKind:
+		// The #5456 PR #5707 P1-a verification gate requires a PASSED
+		// signature_verification fact before the SLSA tier applies. A
+		// verification result can land in a later generation than its
+		// statement/provenance (an async re-verification pass), so it must
+		// independently trigger a refresh too, or a decision could never
+		// flip from unverified to verified after the fact.
+		return true
 	default:
 		return false
 	}
