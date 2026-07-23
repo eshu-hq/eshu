@@ -42,8 +42,12 @@ const identityFactFilterSQL = `(
       AND (
         fact.payload->'entity_metadata' ? 'container_images'
         OR fact.payload->'metadata' ? 'container_images'
-        OR fact.payload->'parsed_file_data' ? 'dockerfile_stages'
       )
+    )
+    OR (
+      fact.fact_kind = 'file'
+      AND fact.source_system = 'git'
+      AND fact.payload->'parsed_file_data' ? 'dockerfile_stages'
     )
   )`
 

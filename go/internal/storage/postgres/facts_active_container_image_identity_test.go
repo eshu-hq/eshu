@@ -162,10 +162,18 @@ func TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerat
 func TestIdentityFactFilterAdmitsDockerfileBaseImages(t *testing.T) {
 	t.Parallel()
 
-	if !strings.Contains(identityFactFilterSQL, "dockerfile_stages") {
-		t.Fatalf("identity fact filter must admit Dockerfile content_entity facts carrying parsed_file_data.dockerfile_stages (#5460):\n%s", identityFactFilterSQL)
+	// The Dockerfile base lives on a `file` fact, never a content_entity: the
+	// original #5460 bug admitted dockerfile_stages under the content_entity arm,
+	// where no fact ever carries it, so the feature was inert end to end. This
+	// asserts the `file` fact_kind is the one paired with dockerfile_stages so a
+	// future edit cannot silently reattach it to the wrong kind.
+	fileArm := "fact.fact_kind = 'file'"
+	armStart := strings.Index(identityFactFilterSQL, fileArm)
+	if armStart < 0 {
+		t.Fatalf("identity fact filter must admit `file` facts for Dockerfile base images (#5460):\n%s", identityFactFilterSQL)
 	}
-	if !strings.Contains(identityFactFilterSQL, "parsed_file_data") {
-		t.Fatalf("identity fact filter must reach into parsed_file_data for the Dockerfile arm (#5460):\n%s", identityFactFilterSQL)
+	fileArmClause := identityFactFilterSQL[armStart:]
+	if !strings.Contains(fileArmClause, "parsed_file_data") || !strings.Contains(fileArmClause, "dockerfile_stages") {
+		t.Fatalf("the `file` arm must key on parsed_file_data.dockerfile_stages (#5460):\n%s", identityFactFilterSQL)
 	}
 }

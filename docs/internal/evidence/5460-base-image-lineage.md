@@ -8,12 +8,22 @@ and the proof matrix behind it. The policy it extends is
 
 ## The anchoring trap this design had to avoid
 
-A base image reference is extracted from the `content_entity` envelope of the
-repository whose Dockerfile declares it. That envelope carries the same
-repository anchor the repository's own built images carry, so a base and a child
-arrive at the projection **indistinguishable by repository anchor alone**.
-Projecting on that anchor would emit self-loops (an image derived from itself)
-and child-to-child edges.
+A base image reference is extracted from the Dockerfile `file` fact of the
+repository whose Dockerfile declares it. That fact carries the same repository
+anchor the repository's own built images carry, so a base and a child arrive at
+the projection **indistinguishable by repository anchor alone**. Projecting on
+that anchor would emit self-loops (an image derived from itself) and
+child-to-child edges.
+
+The `file` fact kind is load-bearing and was the source of the one production
+bug the golden-corpus gate caught: a Dockerfile is never a `content_entity`
+fact (that kind carries per-entity data — functions, classes, k8s resources).
+Its parsed `dockerfile_stages` live on the `file` fact. The first cut wired the
+extraction and the identity fact filter to `content_entity`, where no fact ever
+carries `dockerfile_stages`, so every base was filtered out in SQL and the
+feature was inert end to end while every unit test — built on a hand-authored
+`content_entity` envelope that production never emits — stayed green. The gate's
+rc-166 `count=0` is what surfaced it.
 
 `ContainerImageIdentityDecision.BaseImageForRepositoryIDs` is the separation: a
 base is *declared by* a repository, never *built by* it, and the extraction path

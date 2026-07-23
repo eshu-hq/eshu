@@ -75,10 +75,10 @@ type ContainerImageIdentityDecision struct {
 	// BaseImageForRepositoryIDs names the repositories whose Dockerfile FROM
 	// declared this image as their runtime base (#5460). It is what separates a
 	// base image from a built image: a base reference is extracted from the
-	// declaring repository's own content_entity envelope, so it inherits the
-	// same SourceRepositoryIDs anchor its repository's built images carry, and
-	// the repository anchor alone cannot tell the two apart. Empty for every
-	// image that is not some repository's declared base.
+	// declaring repository's own Dockerfile `file` fact, so it inherits the
+	// same repository anchor its built images carry, and the repository anchor
+	// alone cannot tell the two apart. Empty for every image that is not some
+	// repository's declared base.
 	BaseImageForRepositoryIDs []string
 	WorkloadIDs               []string
 	ServiceIDs                []string

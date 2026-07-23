@@ -10,23 +10,25 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// dockerfileStagesFact builds the content_entity envelope shape the Dockerfile
-// parser emits: parsed_file_data carries the dockerfile_stages bucket, and
-// repo_id anchors the file to the repository that declared it.
+// dockerfileStagesFact builds the fact shape the Dockerfile parser actually
+// emits: a `file` fact (NOT content_entity), source_system git, language
+// dockerfile, whose parsed_file_data carries the dockerfile_stages bucket, with
+// repo_id anchoring it to the declaring repository. A Dockerfile never becomes a
+// content_entity fact -- content_entity carries per-entity data (functions,
+// classes, k8s resources), while file-level parse output like dockerfile_stages
+// lives on the `file` fact.
 func dockerfileStagesFact(factID, repoID, relativePath string, stages ...map[string]any) facts.Envelope {
 	return facts.Envelope{
 		FactID:           factID,
-		ScopeID:          "repository:team-api",
+		ScopeID:          "git-repository-scope:" + repoID,
 		GenerationID:     "generation-git",
-		FactKind:         factKindContentEntity,
+		FactKind:         factKindFile,
 		SchemaVersion:    "1.0.0",
 		CollectorKind:    "git",
 		SourceConfidence: facts.SourceConfidenceReported,
 		ObservedAt:       time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),
 		SourceRef:        facts.Ref{SourceSystem: "git"},
 		Payload: map[string]any{
-			"uid":           "entity:" + relativePath,
-			"entity_type":   "File",
 			"repo_id":       repoID,
 			"language":      "dockerfile",
 			"relative_path": relativePath,

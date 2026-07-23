@@ -90,7 +90,8 @@ func extractContainerImageRefsWithQuarantine(envelopes []facts.Envelope) ([]cont
 			for _, imageRef := range contentEntityContainerImages(envelope.Payload) {
 				addContainerImageRef(byRef, imageRef, "", containerImageAnchorsFromEnvelope(envelope), envelope.FactID)
 			}
-			if baseRef, ok := contentEntityDockerfileBaseImage(envelope.Payload); ok {
+		case factKindFile:
+			if baseRef, ok := dockerfileBaseImageFromFileFact(envelope.Payload); ok {
 				addContainerImageRef(byRef, baseRef, "", containerImageBaseAnchorsFromEnvelope(envelope), envelope.FactID)
 			}
 		case facts.CICDWorkflowImageEvidenceFactKind:
@@ -310,9 +311,9 @@ func containerImageSourceRepositoryIDs(envelope facts.Envelope) []string {
 // containerImageBaseAnchorsFromEnvelope anchors a Dockerfile FROM base to the
 // repositories that DECLARED it, never to sourceRepositoryIDs. A base image is
 // not built by the repository whose Dockerfile names it, and the base arrives
-// on that same repository's content_entity envelope -- so anchoring it the
-// usual way would make the repository's declared base indistinguishable from
-// its built images and let the DERIVED_FROM projection pair a base with itself
+// on that same repository's Dockerfile `file` fact -- so anchoring it the usual
+// way would make the repository's declared base indistinguishable from its
+// built images and let the DERIVED_FROM projection pair a base with itself
 // (#5460). Workload and service anchors are likewise omitted: a base image is
 // not the thing the repository deploys.
 func containerImageBaseAnchorsFromEnvelope(envelope facts.Envelope) containerImageRefAnchors {
@@ -321,13 +322,14 @@ func containerImageBaseAnchorsFromEnvelope(envelope facts.Envelope) containerIma
 	}
 }
 
-// contentEntityDockerfileBaseImage returns the runtime base image reference a
-// Dockerfile content_entity declares, resolved from the parsed dockerfile_stages
-// bucket. It reports false for any non-Dockerfile entity and for a Dockerfile
-// whose base could not be resolved to a literal reference -- an
+// dockerfileBaseImageFromFileFact returns the runtime base image reference a
+// Dockerfile declares, resolved from the parsed dockerfile_stages bucket of a
+// `file` fact (the fact kind the Dockerfile parser emits; a Dockerfile is never
+// a content_entity). It reports false for any non-Dockerfile file and for a
+// Dockerfile whose base could not be resolved to a literal reference -- an
 // ARG-parameterized FROM, a scratch base, or an unresolvable alias chain -- so
 // an unexpanded build argument never reaches classification as a literal image.
-func contentEntityDockerfileBaseImage(payload map[string]any) (string, bool) {
+func dockerfileBaseImageFromFileFact(payload map[string]any) (string, bool) {
 	if !strings.EqualFold(strings.TrimSpace(payloadStr(payload, "language")), "dockerfile") {
 		return "", false
 	}
