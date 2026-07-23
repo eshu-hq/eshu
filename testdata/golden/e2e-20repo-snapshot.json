@@ -3458,6 +3458,29 @@
           "limit": 10
         }
       },
+      "list_container_image_tag_history": {
+        "description": "MCP tool coverage shape for list_container_image_tag_history; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "required_response_fields": [
+          "tag_history",
+          "count",
+          "limit",
+          "offset",
+          "truncated",
+          "image_ref",
+          "repository_id",
+          "tag"
+        ],
+        "result_item_required_fields": [
+          "tag",
+          "resolved_digest",
+          "first_observed_at"
+        ],
+        "minimum_results": 1,
+        "arguments": {
+          "repository_id": "oci-registry://ghcr.io/eshu-hq/supply-chain-demo",
+          "tag": "1.0.0"
+        }
+      },
       "list_supply_chain_impact_findings": {
         "description": "MCP tool coverage shape for list_supply_chain_impact_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
         "truth_class": "deterministic",
