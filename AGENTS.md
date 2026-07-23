@@ -161,9 +161,16 @@ fixture corpora or offline tooling.
 - MUST NOT add AI attribution to commits, PRs, or docs.
 - MUST install the repo's pre-commit hooks once per clone
   (`scripts/dev/bootstrap-hooks.sh`; idempotent, shared across worktrees) and
-  MUST NOT `--no-verify` a commit. The commit-stage gates are fast; `--no-verify`
-  is for push only (the pre-push gosec/e2e gates are slow). CI re-checks every
-  gate regardless and is the non-bypassable source of truth.
+  MUST NOT `--no-verify` a commit or a push. The commit-stage gates are fast. The
+  pre-push gate is now fronted by a fast **pre-pr stamp check**: `make pre-pr`
+  writes a per-SHA stamp on success (`scripts/dev/prepr-stamp-verify.sh`), and the
+  push is blocked unless every commit being pushed carries that stamp — so a green
+  local gate is a hard push-time requirement, not something CI first catches. (The
+  existing slow pre-push hooks still run after the stamp check passes, until the
+  follow-up trimming the now-redundant ones lands.) A rebase or amend after
+  `make pre-pr` invalidates the stamp; re-run `make pre-pr` before pushing. The only sanctioned bypass is `ESHU_ALLOW_UNSTAMPED_PUSH=1`, used only
+  when you accept CI as the first gate for that push. CI re-checks every gate
+  regardless and stays the non-bypassable source of truth.
 - MUST NOT push to `main` or `master`.
 - MUST synchronize source to remote test machines through Git fetch and
   checkout/fast-forward of the reviewed branch. MUST NOT use `rsync` or copy an

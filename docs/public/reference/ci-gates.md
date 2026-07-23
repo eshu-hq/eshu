@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 87 gates. A row with no local command is
+The registry currently defines 88 gates. A row with no local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
 a laptop does not have); a row marked as an alias shares its check with the
 gate its reason names, under a different git hook stage.
@@ -101,4 +101,5 @@ gate its reason names, under a different git hook stage.
 | `frontend-format-verifier-tests` | *(alias — self-test of the frontend-format verifier + hook wiring)* | — | — | — | — | — | — |
 | `docs-build-staged` | *(alias — staged-file variant of docs-build-changed (same mkdocs check, pre-commit stage))* | — | — | — | — | — | — |
 | `docs-build-verifier-tests` | *(alias — self-test of the docs-build verifier + hook wiring)* | — | — | — | — | — | — |
-| `console-e2e-verifier-tests` | *(alias — scheduled/manual cassette refresh, not a PR gate)* | — | — | — | — | — | — |
+| `console-e2e-verifier-tests` | *(alias — self-test of the console-e2e pre-push helper routing)* | — | — | — | — | — | — |
+| `prepr-stamp-verify` | *(alias — local-only pre-push guard: blocks pushing a commit make pre-pr did not stamp; no CI counterpart (CI re-runs the gates regardless))* | — | — | — | — | — | — |

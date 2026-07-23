@@ -285,18 +285,114 @@ step_race() {
 	return ${rc}
 }
 
+# --- path-triggered live lane -------------------------------------------------
+# The gates above are static and credential-free. The gates below block a PR in
+# CI but need a live backend (Docker/NornicDB/Postgres) or a toolchain (Node,
+# network). Each runs ONLY when the diff touches its trigger paths, and only if
+# its prerequisite is present. A triggered gate whose prerequisite is missing is
+# DEFERRED to CI with a loud warning and recorded in the pre-pr stamp, so a
+# stamped push is honest about what it validated locally versus left to CI. This
+# lane is what lets a green `make pre-pr` guarantee a green CI for the surfaces
+# it can reach (golden-corpus is the common one). Force-defer everything with
+# ESHU_PREPR_SKIP_LIVE=1 (records the deferral; CI stays the backstop for the
+# deferred gates only).
+live_deferred=()
+
+changed_paths() {
+	{
+		git -C "${repo_root}" diff --name-only "${base}...HEAD"
+		git -C "${repo_root}" diff --name-only HEAD
+		git -C "${repo_root}" diff --name-only --cached
+	} 2>/dev/null | sort -u
+}
+
+# run_or_defer <gate-name> <trigger-ERE> <prereq-cmd> <run-cmd...>
+# Runs the gate when its paths changed and the prerequisite check passes; defers
+# (records + warns) when triggered but the prerequisite is absent. Returns 1 only
+# when a gate that actually RAN failed.
+run_or_defer() {
+	local name="$1" trigger="$2" prereq="$3"; shift 3
+	# Materialize the path list first, then feed it to rg via a here-string. A
+	# direct `changed_paths | rg -q` lets rg exit on its first match and SIGPIPE
+	# the upstream git/sort; under `pipefail` that nonzero would hit `|| return 0`
+	# and misclassify a genuinely-triggered gate as untriggered — skipping its
+	# live proof while still stamping the commit. The here-string has no upstream
+	# process to signal.
+	local _changed; _changed="$(changed_paths)"
+	rg -q "${trigger}" <<<"${_changed}" || return 0
+	if [[ "${ESHU_PREPR_SKIP_LIVE:-0}" == "1" ]]; then
+		printf '\033[33mlive lane: %s TRIGGERED but ESHU_PREPR_SKIP_LIVE=1 — DEFERRED to CI.\033[0m\n' "${name}"
+		live_deferred+=("${name}"); return 0
+	fi
+	if ! eval "${prereq}" >/dev/null 2>&1; then
+		printf '\033[33mlive lane: %s TRIGGERED but its prerequisite is unavailable — DEFERRED to CI. Provide it to validate locally.\033[0m\n' "${name}"
+		live_deferred+=("${name}"); return 0
+	fi
+	printf '== live: %s ==\n' "${name}"
+	"$@"
+}
+
+step_live() {
+	local rc=0
+	# Mirror .github/workflows/golden-corpus-gate.yml paths exactly, so any diff
+	# that trips the corpus gate in CI also runs (or is honestly deferred) here —
+	# not just the internal/ packages. Includes the go/cmd entrypoints, demospec,
+	# the demo-first-answers spec, and the gate's own scripts/workflow.
+	run_or_defer golden-corpus \
+		'^(go/internal/(collector|parser|projector|reducer|query|relationships|storage|demospec)/|go/cmd/(bootstrap-index|ingester|projector|reducer|api|golden-corpus-gate)/|go/cmd/collector-|sdk/go/factschema/|testdata/(golden|cassettes)/|specs/demo-first-answers\.v1\.yaml|scripts/(verify-golden-corpus-gate|test-verify-golden-corpus-gate)\.sh|\.github/workflows/golden-corpus-gate\.yml)' \
+		'docker info' \
+		bash "${repo_root}/scripts/verify-golden-corpus-gate.sh" || rc=1
+	run_or_defer replay-tier \
+		'^(go/cmd/(ingester|projector)/|go/internal/(replay|storage/cypher|storage/nornicdb|projector|graph|runtime)/)' \
+		'docker info' \
+		bash "${repo_root}/scripts/verify-replay-tier.sh" || rc=1
+	# Go source only: a doc-adjacent edit under go/ (README.md, AGENTS.md) can't
+	# carry a gosec/govulncheck finding, so it should not trigger the heavy local
+	# security-preflight. (CI's security-scan has no path filter and remains the
+	# backstop regardless.)
+	run_or_defer security \
+		'^(go/.*\.go|go\.mod|go\.sum)' \
+		'true' \
+		make -C "${repo_root}" security-preflight || rc=1
+	run_or_defer frontend \
+		'^(src/|apps/console/|package\.json|package-lock\.json)' \
+		'command -v npm' \
+		make -C "${repo_root}" frontend-preflight || rc=1
+	if [[ ${#live_deferred[@]} -eq 0 ]]; then
+		printf 'live lane: no path-triggered live gates were deferred.\n'
+	fi
+	return ${rc}
+}
+
 run_whole_module_gates_parallel
 run_step "go test (changed packages)" step_test
 run_step "500-line file cap" step_filecap
 run_step "package docs" step_docs
 run_step "selected exactness + telemetry gates" step_exactness
 run_step "race lane (Go changes)" step_race
+run_step "path-triggered live lane" step_live
 
 printf '\n\033[1m==== pre-pr summary ====\033[0m\n'
 for r in "${results[@]}"; do printf '%s\n' "${r}"; done
 if [[ ${overall} -ne 0 ]]; then
 	printf '\n\033[31mpre-pr: failures above — fix before pushing (CI runs the same gates).\033[0m\n'
 else
-	printf '\n\033[32mpre-pr: all local gates passed.\033[0m\n'
+	# Stamp this exact HEAD so the pre-push hook can prove `make pre-pr` passed
+	# on the commit being pushed (scripts/dev/prepr-stamp-verify.sh). The stamp
+	# lives under the shared git common dir, keyed per-SHA so concurrent
+	# worktrees never clobber each other, and records any live gates deferred to
+	# CI so the push is honest about what was validated locally.
+	head_sha="$(git -C "${repo_root}" rev-parse HEAD 2>/dev/null || true)"
+	common_dir="$(git -C "${repo_root}" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+	if [[ -n "${head_sha}" && -n "${common_dir}" ]]; then
+		stamp_dir="${common_dir}/eshu-prepr-stamp"
+		mkdir -p "${stamp_dir}"
+		printf 'sha=%s\ndeferred=%s\n' "${head_sha}" "${live_deferred[*]:-}" > "${stamp_dir}/${head_sha}"
+		printf '\n\033[32mpre-pr: all local gates passed — stamped %s' "${head_sha:0:12}"
+		[[ ${#live_deferred[@]} -gt 0 ]] && printf ' (deferred to CI: %s)' "${live_deferred[*]}"
+		printf '.\033[0m\n'
+	else
+		printf '\n\033[32mpre-pr: all local gates passed.\033[0m\n'
+	fi
 fi
 exit ${overall}
