@@ -147,14 +147,9 @@ func (s *rubySyntax) rubyResolveRouteContext(node *tree_sitter.Node, topLevelSin
 	return rubyRouteContext{}
 }
 
-func (s *rubySyntax) isRailsRoutesDraw(node *tree_sitter.Node) bool {
-	method := node.ChildByFieldName("method")
-	if s.text(method) != "draw" {
-		return false
-	}
-	receiver := node.ChildByFieldName("receiver")
-	return s.receiverName(receiver) == "Rails.application.routes"
-}
+// isRailsRoutesDraw and rubyRailsRouteSetMethods live in
+// framework_routes_ambiguity.go (shared by rubyResolveRouteContext here and
+// the #5494/#5494-P1 ambiguity scan there).
 
 func (s *rubySyntax) classExtendsSinatraBase(node *tree_sitter.Node) bool {
 	superclass := node.ChildByFieldName("superclass")

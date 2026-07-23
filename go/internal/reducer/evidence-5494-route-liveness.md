@@ -88,6 +88,51 @@ bare path, interpolated path, non-string `to:`),
 (`internal/storage/postgres/code_reachability_route_liveness_live_test.go`,
 real Postgres, real production loader path).
 
+### P1 fix (re-review of head 362556b02): same defect class, narrower trigger
+
+`isRailsRoutesDraw` matched ONLY `method=="draw"`, and gated BOTH the
+ambiguity scan (`rubyScanRailsDrawBlockForAmbiguity` is only invoked when this
+returns true) and exact-route context resolution
+(`rubyResolveRouteContext`'s `case "call"` branch). `Rails.application.routes.append`
+and `.prepend` are real, documented Rails APIs engines and gems use to insert
+routes after/before the main set, with the identical
+`Rails.application.routes` receiver shape but a different method name. A call
+inside an `.append`/`.prepend` block resolved into NEITHER an exact
+`route_entries` handler NOR `has_unmodeled_routes` -- invisible to both
+mechanisms -- so an action routed ONLY inside one of them, in a repo whose
+plain `.draw` block was otherwise fully exact, would have been silently
+downgraded to `route_unreachable`.
+
+Fix: widened `rubyRailsRouteSetMethods` (now shared by both consumers, moved
+to `framework_routes_ambiguity.go`) to `{"draw", "append", "prepend"}`; the
+receiver check is identical for all three, so nothing else changes. Also
+widened `rubyDoBlockChild` to match tree-sitter-ruby's one-line curly-brace
+`{ ... }` "block" node kind in addition to the multi-line `do...end`
+"do_block" kind (rare in practice -- RuboCop's default style enforces
+`do...end` for multi-line blocks -- but a fail-safe scan cannot assume a style
+guide is followed).
+
+P1 regression coverage (RED against the pre-P1-fix code, verified by
+reverting the two parser files to the pre-P1-fix commit and re-running, GREEN
+after restoring): `TestParseFlagsUnmodeledRoutesInsideAppendAndPrependBlocks`
+(append- and prepend-only blocks with an unmodeled `root` route),
+`TestParseCapturesExactRouteInsideAppendBlock` (an append-only block with a
+fully exact route is captured normally, not forced into ambiguity),
+`TestParseFlagsUnmodeledRouteInCurlyBraceDrawBlock` (all three in
+`internal/parser/ruby/framework_routes_ambiguity_test.go`), and
+`TestBuildCodeRootVerdictsAppendOnlyRoutedControllerKept`
+(`internal/reducer/code_root_verdicts_routes_test.go`) -- at the reducer's
+abstraction level an append-only-routed controller produces the identical
+input shape as the P0 root-only-routed case, so the new ground this last test
+actually pins is the reducer-contract half of the same regression; the
+parser-level tests are what prove the append/prepend/curly-brace block itself
+is now scanned at all. Live-Postgres coverage
+(`TestCodeReachabilityRailsRouteFactsLoaderRoundTrip`,
+`TestCodeReachabilityRailsRouteFactsLoaderKeepsRootOnlyRoutedController`) was
+re-run unchanged and still passes -- the loader and reducer contract for
+`RubyRailsRouteFacts` did not change in this fix, only which parser-observed
+constructs feed it.
+
 ## Schema-epoch assessment
 
 **Backfill required, not forward-only.** A repo already stamped at

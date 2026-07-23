@@ -155,6 +155,59 @@ func TestBuildCodeRootVerdictsRootOnlyRoutedControllerKept(t *testing.T) {
 	}
 }
 
+// TestBuildCodeRootVerdictsAppendOnlyRoutedControllerKept is the P1 fix
+// regression (same defect class as the P0 fix above, narrower trigger): a
+// controller routed ONLY inside a `Rails.application.routes.append do ... end`
+// block (a real, documented Rails API engines/gems use to insert routes after
+// the main set) must stay CONFIRMED, never route-downgraded. Before the P1
+// fix, isRailsRoutesDraw matched ONLY method=="draw", so a call inside an
+// .append/.prepend block resolved neither into an exact route_entries
+// handler (context never resolved to "rails") NOR into has_unmodeled_routes
+// (the ambiguity scan was never even triggered for it) -- an
+// append-only-routed action in an otherwise exact-only repo would have been
+// silently downgraded to route_unreachable.
+//
+// At the reducer's abstraction level (RubyRailsRouteFacts), an append-only
+// block that itself contains an unmodeled construct (e.g. `root`) produces
+// EXACTLY the same input shape as the P0 root-only-routed case above --
+// HasUnmodeledRoutes=true, no matching RoutedHandlers entry -- because the
+// reducer never sees which Rails::RouteSet method (draw/append/prepend)
+// produced the signal, only the aggregated repo-wide boolean. The NEW ground
+// this test exercises is that the PARSER now actually sets that signal for an
+// append-only block at all (proven directly in
+// internal/parser/ruby/framework_routes_ambiguity_test.go's
+// TestParseFlagsUnmodeledRoutesInsideAppendAndPrependBlocks); this test pins
+// the reducer contract end of that same regression under an
+// append-labeled name for traceability.
+func TestBuildCodeRootVerdictsAppendOnlyRoutedControllerKept(t *testing.T) {
+	input := verdictInputWithRoute("m:index", "EngineController", "index", RubyRailsRouteFacts{
+		HasAnyRouteEvidence: true,
+		HasUnmodeledRoutes:  true,
+		RoutedHandlers:      map[string]struct{}{},
+	})
+	rows, downgraded, stats := BuildCodeRootVerdicts(input)
+	row, ok := verdictByEntity(rows, "m:index")
+	if !ok {
+		t.Fatalf("expected a verdict row, got none (rows=%+v)", rows)
+	}
+	if row.Verdict != CodeRootVerdictConfirmed {
+		t.Fatalf("append-only-routed EngineController#index verdict = %q, want confirmed (basis=%+v)", row.Verdict, row.Basis)
+	}
+	if row.Basis.RouteEvidence != RouteEvidenceAmbiguous {
+		t.Fatalf("append-only-routed EngineController#index route_evidence = %q, want %q", row.Basis.RouteEvidence, RouteEvidenceAmbiguous)
+	}
+	if _, isDown := downgraded[row.EntityID]; isDown {
+		t.Fatalf("append-only-routed EngineController#index must not be downgraded, downgraded=%v", downgraded)
+	}
+	if stats.RouteDowngraded != 0 {
+		t.Fatalf("stats.RouteDowngraded = %d, want 0", stats.RouteDowngraded)
+	}
+	kept := removeDowngradedRailsControllerRoots(input.Roots, downgraded)
+	if _, ok := findRoot(kept, "m:index"); !ok {
+		t.Fatalf("append-only-routed EngineController#index must remain a BFS root")
+	}
+}
+
 // TestRouteDowngradedRootRemovedFromBFSRootSet proves the #5494 downgrade
 // flows through the SAME removeDowngradedRailsControllerRoots path #5376
 // uses: a route-unreachable action loses its BFS root status exactly like an
