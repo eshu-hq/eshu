@@ -4,14 +4,14 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 426/427 surfaces satisfied (99.77%)** — mode: blocking.
+**Overall: 427/427 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
 | Axis | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | authorization_catalog | 24 | 24 | 100.00% | 0 | 0 |
-| Capability claims | 136 | 137 | 99.27% | 1 | 0 |
+| Capability claims | 137 | 137 | 100.00% | 0 | 0 |
 | Read surfaces (CLI) | 7 | 7 | 100.00% | 0 | 0 |
 | Read surfaces (API/MCP) | 25 | 25 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
@@ -21,13 +21,13 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Retractable edge types (delta) | 60 | 60 | 100.00% | 0 | 1 |
 | Retractable node types (delta) | 95 | 95 | 100.00% | 0 | 1 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **426** | **427** | **99.77%** | **1** | **12** |
+| **Total** | **427** | **427** | **100.00%** | **0** | **12** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 220 | 221 | 99.55% | 1 | 5 |
+| baseline | 221 | 221 | 100.00% | 0 | 5 |
 | cost | 28 | 28 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 156 | 156 | 100.00% | 0 | 2 |
@@ -44,13 +44,9 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 ## Gaps — surfaces still needing a replay scenario
 
-1 surface(s) uncovered or unresolved:
+None. Every supported surface has a replay scenario.
 
-### Capability claims (1)
-
-- `capability:platform_impact.container_image_tag_history` (baseline)
-
-## Covered surfaces (426)
+## Covered surfaces (427)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -154,6 +150,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 | `capability:platform_impact.change_surface` | baseline | capability_claim | capability-inventory | `platform_impact.change_surface` |
 | `capability:platform_impact.cloud_resource_list` | baseline | capability_claim | capability-inventory | `platform_impact.cloud_resource_list` |
 | `capability:platform_impact.container_image_list` | baseline | capability_claim | capability-inventory | `platform_impact.container_image_list` |
+| `capability:platform_impact.container_image_tag_history` | baseline | capability_claim | capability-inventory | `platform_impact.container_image_tag_history` |
 | `capability:platform_impact.context_overview` | baseline | capability_claim | capability-inventory | `platform_impact.context_overview` |
 | `capability:platform_impact.contract_impact` | baseline | capability_claim | capability-inventory | `platform_impact.contract_impact` |
 | `capability:platform_impact.dependency_path` | baseline | correlation | golden-corpus-gate | `rc-3` |
