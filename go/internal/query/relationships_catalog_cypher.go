@@ -121,6 +121,13 @@ var relationshipVerbCatalog = []relationshipVerbEntry{
 	{verb: "USES_WORKFLOW", layer: "infra", sourceLabel: "AtlantisProject", sourceProperty: "uid", evidence: "Atlantis governance", detail: "Atlantis project uses a custom workflow"},
 	// runtime layer
 	{verb: "RUNS_ON", layer: "runtime", sourceLabel: "WorkloadInstance", sourceProperty: "id", evidence: "Runtime placement", detail: "Workload instance runs on a platform", carriesSourceTool: true, sourceToolSourceLabel: "WorkloadInstance"},
+	// AWS_lambda_function_uses_image (#5450) anchors on the source CloudResource
+	// (the Lambda function) by uid -- the same indexed anchor the edge writer's
+	// MATCH (source:CloudResource {uid}) uses. Its target ContainerImage is a
+	// cross-generation canonical node carrying no repo_id a #5167 grant could
+	// bind, so targetAttributable stays false (bind the source endpoint only),
+	// matching the Atlantis-governance precedent above.
+	{verb: "AWS_lambda_function_uses_image", layer: "runtime", sourceLabel: "CloudResource", sourceProperty: "uid", evidence: "Lambda container image", detail: "AWS Lambda function uses a container image"},
 	{verb: "DEPENDS_ON", layer: "runtime", sourceLabel: "Workload", sourceProperty: "id", evidence: "Runtime dependency", detail: "Workload depends on another workload", carriesSourceTool: true, sourceToolSourceLabel: "Repository", targetAttributable: true},
 	// security layer
 	{verb: "INVOKES_CLOUD_ACTION", layer: "security", sourceLabel: "Function", sourceProperty: "uid", evidence: "IAM call analysis", detail: "Function invokes a cloud action"},

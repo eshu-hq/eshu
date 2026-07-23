@@ -202,25 +202,32 @@ var infraRelationshipTypeAliases = map[string][]string{
 	"what_runs_image":  {"RUNS_IMAGE"},
 }
 
-// infraCanonicalEdgeTypes is the set of canonical edge types a caller may pass
-// directly as relationship_type (the HTTP route and dispatch both forward the
-// raw value). Accepting canonical names keeps the route usable from the HTTP API
+// infraCanonicalEdgeTypes maps the upper-cased form of each canonical edge type
+// a caller may pass directly as relationship_type to the exact-case edge type
+// the graph stores. The HTTP route and dispatch forward the raw value, and
+// resolveInfraRelationshipTypes upper-cases the input for a case-insensitive
+// match, so the map value -- not the upper-cased key -- is what the Cypher
+// filter uses. This matters for mixed-case edge types like
+// AWS_lambda_function_uses_image, whose stored form is not its upper-cased
+// spelling; returning the upper-cased key would filter on a type the graph does
+// not have. Accepting canonical names keeps the route usable from the HTTP API
 // and the relationships catalog without forcing every caller through the MCP
 // semantic aliases.
-var infraCanonicalEdgeTypes = map[string]struct{}{
-	"DEPLOYS_FROM":              {},
-	"DEPLOYMENT_SOURCE":         {},
-	"HAS_DEPLOYMENT_EVIDENCE":   {},
-	"PROVISIONS_DEPENDENCY_FOR": {},
-	"PROVISIONS_PLATFORM":       {},
-	"USES_MODULE":               {},
-	"DEPENDS_ON":                {},
-	"INSTANCE_OF":               {},
-	"RUNS_ON":                   {},
-	"RUNS_IMAGE":                {},
-	"DISCOVERS_CONFIG_IN":       {},
-	"READS_CONFIG_FROM":         {},
-	"DEFINES":                   {},
+var infraCanonicalEdgeTypes = map[string]string{
+	"DEPLOYS_FROM":                   "DEPLOYS_FROM",
+	"DEPLOYMENT_SOURCE":              "DEPLOYMENT_SOURCE",
+	"HAS_DEPLOYMENT_EVIDENCE":        "HAS_DEPLOYMENT_EVIDENCE",
+	"PROVISIONS_DEPENDENCY_FOR":      "PROVISIONS_DEPENDENCY_FOR",
+	"PROVISIONS_PLATFORM":            "PROVISIONS_PLATFORM",
+	"USES_MODULE":                    "USES_MODULE",
+	"DEPENDS_ON":                     "DEPENDS_ON",
+	"INSTANCE_OF":                    "INSTANCE_OF",
+	"RUNS_ON":                        "RUNS_ON",
+	"RUNS_IMAGE":                     "RUNS_IMAGE",
+	"DISCOVERS_CONFIG_IN":            "DISCOVERS_CONFIG_IN",
+	"READS_CONFIG_FROM":              "READS_CONFIG_FROM",
+	"DEFINES":                        "DEFINES",
+	"AWS_LAMBDA_FUNCTION_USES_IMAGE": "AWS_lambda_function_uses_image",
 }
 
 // resolveInfraRelationshipTypes maps a relationship_type argument to the
@@ -240,8 +247,7 @@ func resolveInfraRelationshipTypes(relationshipType string) ([]string, bool) {
 		copy(out, types)
 		return out, true
 	}
-	canonical := strings.ToUpper(trimmed)
-	if _, ok := infraCanonicalEdgeTypes[canonical]; ok {
+	if canonical, ok := infraCanonicalEdgeTypes[strings.ToUpper(trimmed)]; ok {
 		return []string{canonical}, true
 	}
 	return nil, false
