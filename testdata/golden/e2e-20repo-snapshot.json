@@ -3593,7 +3593,7 @@
         }
       },
       "list_sbom_attestation_attachments": {
-        "description": "MCP tool coverage shape for list_sbom_attestation_attachments; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Scoped by subject_digest rather than document_id so the response includes both the scd-sbom document attachment and the scd-attestation statement attachment sharing that image digest. minimum_results and the nested required_json_paths/values pin the scd-sbom cassette's one sbom.dependency_relationship fact, one sbom.external_reference fact (#5370 codex finding), and the scd-attestation statement's joined attestation.slsa_provenance fact (#5371), including its materials/config_source fields (#5456): the top-level required_response_fields alone would stay green even if that nested evidence never reached this result, so this asserts the populated arrays plus their exact reducer-computed counts, flags, and SLSA fields. required_json_values matches when ANY attachment in the response carries the expected value, so the two rows' distinct evidence (dependency/external-reference on the document row, SLSA provenance on the statement row) are each pinned independently. The scd-attestation subject_digest is synthetic and does not match any oci_registry.image_manifest digest in this corpus, so #5456's container_image_identity SLSA-provenance tier never activates for this demo fixture; that behavior is proven instead by the reducer's dedicated proof-matrix tests (go/internal/reducer/container_image_identity_slsa_test.go).",
+        "description": "MCP tool coverage shape for list_sbom_attestation_attachments; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Scoped by subject_digest rather than document_id so the response includes both the scd-sbom document attachment and the scd-attestation statement attachment sharing that image digest. minimum_results and the nested required_json_paths/values pin the scd-sbom cassette's component, dependency, and external-reference evidence (#5412/#5370 codex finding) and the scd-attestation statement's joined attestation.slsa_provenance fact (#5371), including its materials/config_source fields (#5456): the top-level required_response_fields alone would stay green even if that nested evidence never reached this result, so this asserts the populated arrays plus their exact reducer-computed counts, flags, and SLSA fields. The component count and false truncation flag ensure the bounded component preview remains honest. required_json_values matches when ANY attachment in the response carries the expected value, so the two rows' distinct evidence (component/dependency/external-reference on the document row, SLSA provenance on the statement row) are each pinned independently. The scd-attestation subject_digest is synthetic and does not match any oci_registry.image_manifest digest in this corpus, so #5456's container_image_identity SLSA-provenance tier never activates for this demo fixture; that behavior is proven instead by the reducer's dedicated proof-matrix tests (go/internal/reducer/container_image_identity_slsa_test.go).",
         "required_response_fields": [
           "attachments",
           "collector_readiness",
@@ -3603,6 +3603,7 @@
         ],
         "minimum_results": 1,
         "required_json_paths": [
+          "attachments[].component_evidence",
           "attachments[].dependency_relationships",
           "attachments[].external_references",
           "attachments[].slsa_provenance_materials",
@@ -3611,6 +3612,10 @@
           "attachments[].slsa_provenance_config_source_digest"
         ],
         "required_json_values": {
+          "attachments[].component_count": 1,
+          "attachments[].component_evidence_truncated": false,
+          "attachments[].component_evidence[].component_id": "component:scd-lib",
+          "attachments[].component_evidence[].purl": "pkg:npm/supply-chain-demo-lib@1.2.2",
           "attachments[].dependency_relationship_count": 1,
           "attachments[].dependency_relationships_truncated": false,
           "attachments[].external_reference_count": 1,
@@ -5274,13 +5279,14 @@
         "minimum_results": 0
       },
       "GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&subject_digest=sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a": {
-        "description": "SBOM attestation attachments for the synthetic supply-chain-demo image digest. Scoped by subject_digest rather than document_id so the response includes both the scd-sbom document attachment and the scd-attestation statement attachment sharing that image digest. minimum_results and the nested required_json_paths/values pin the scd-sbom cassette's one sbom.dependency_relationship fact, one sbom.external_reference fact (#5370 codex finding), and the scd-attestation statement's joined attestation.slsa_provenance fact (#5371), including its materials/config_source fields (#5456): the top-level required_response_fields alone would stay green even if that nested evidence never reached this HTTP result, so this asserts the populated arrays plus their exact reducer-computed counts, flags, and SLSA fields. required_json_values matches when ANY attachment in the response carries the expected value, so the two rows' distinct evidence (dependency/external-reference on the document row, SLSA provenance on the statement row) are each pinned independently. The scd-attestation subject_digest is synthetic and does not match any oci_registry.image_manifest digest in this corpus, so #5456's container_image_identity SLSA-provenance tier never activates for this demo fixture; that behavior is proven instead by the reducer's dedicated proof-matrix tests (go/internal/reducer/container_image_identity_slsa_test.go).",
+        "description": "SBOM attestation attachments for the synthetic supply-chain-demo image digest. Scoped by subject_digest rather than document_id so the response includes both the scd-sbom document attachment and the scd-attestation statement attachment sharing that image digest. minimum_results and the nested required_json_paths/values pin the scd-sbom cassette's component, dependency, and external-reference evidence (#5412/#5370 codex finding) and the scd-attestation statement's joined attestation.slsa_provenance fact (#5371), including its materials/config_source fields (#5456): the top-level required_response_fields alone would stay green even if that nested evidence never reached this HTTP result, so this asserts the populated arrays plus their exact reducer-computed counts, flags, and SLSA fields. The component count and false truncation flag ensure the bounded component preview remains honest. required_json_values matches when ANY attachment in the response carries the expected value, so the two rows' distinct evidence (component/dependency/external-reference on the document row, SLSA provenance on the statement row) are each pinned independently. The scd-attestation subject_digest is synthetic and does not match any oci_registry.image_manifest digest in this corpus, so #5456's container_image_identity SLSA-provenance tier never activates for this demo fixture; that behavior is proven instead by the reducer's dedicated proof-matrix tests (go/internal/reducer/container_image_identity_slsa_test.go).",
         "required_response_fields": [
           "attachments",
           "count"
         ],
         "minimum_results": 1,
         "required_json_paths": [
+          "attachments[].component_evidence",
           "attachments[].dependency_relationships",
           "attachments[].external_references",
           "attachments[].slsa_provenance_materials",
@@ -5289,6 +5295,10 @@
           "attachments[].slsa_provenance_config_source_digest"
         ],
         "required_json_values": {
+          "attachments[].component_count": 1,
+          "attachments[].component_evidence_truncated": false,
+          "attachments[].component_evidence[].component_id": "component:scd-lib",
+          "attachments[].component_evidence[].purl": "pkg:npm/supply-chain-demo-lib@1.2.2",
           "attachments[].dependency_relationship_count": 1,
           "attachments[].dependency_relationships_truncated": false,
           "attachments[].external_reference_count": 1,

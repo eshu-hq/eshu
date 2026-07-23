@@ -5,6 +5,7 @@ package mcp
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -147,20 +148,23 @@ func TestDispatchToolSBOMAttestationAttachmentsReturnsBoundedWarningPreview(t *t
 	store := &fakeSBOMAttestationAttachmentStore{
 		rows: []query.SBOMAttestationAttachmentRow{
 			{
-				AttachmentID:       "attachment-many-warnings",
-				DocumentID:         "doc-many-warnings",
-				AttachmentStatus:   "unparseable",
-				ParseStatus:        "parse_failed",
-				ArtifactKind:       "sbom",
-				WarningSummaries:   repeatedMCPWarningSummaries(256, "lockfile parse warning"),
-				SourceFreshness:    "active",
-				SourceConfidence:   "reported",
-				EvidenceFactIDs:    []string{"warning-fact"},
-				MissingEvidence:    []string{"parseable_document"},
-				AttachmentScope:    "parse_only_unanchored",
-				DocumentDigest:     "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-				SubjectDigest:      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-				VerificationPolicy: "not_configured",
+				AttachmentID:               "attachment-many-warnings",
+				DocumentID:                 "doc-many-warnings",
+				AttachmentStatus:           "unparseable",
+				ParseStatus:                "parse_failed",
+				ArtifactKind:               "sbom",
+				WarningSummaries:           repeatedMCPWarningSummaries(256, "lockfile parse warning"),
+				SourceFreshness:            "active",
+				SourceConfidence:           "reported",
+				EvidenceFactIDs:            []string{"warning-fact"},
+				MissingEvidence:            []string{"parseable_document"},
+				AttachmentScope:            "parse_only_unanchored",
+				ComponentCount:             1,
+				ComponentEvidence:          []query.ComponentEvidenceRow{{ComponentID: "component-warning", FactID: "component-fact"}},
+				ComponentEvidenceTruncated: false,
+				DocumentDigest:             "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+				SubjectDigest:              "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				VerificationPolicy:         "not_configured",
 			},
 		},
 	}
@@ -219,8 +223,84 @@ func TestDispatchToolSBOMAttestationAttachmentsReturnsBoundedWarningPreview(t *t
 	if got, want := row["warning_summaries_truncated"], true; got != want {
 		t.Fatalf("warning_summaries_truncated = %#v, want %#v", got, want)
 	}
+	if got, want := row["component_evidence_truncated"], false; got != want {
+		t.Fatalf("component_evidence_truncated = %#v, want %#v", got, want)
+	}
 	if got, want := store.lastFilter.Limit, 2; got != want {
 		t.Fatalf("store filter limit = %d, want %d", got, want)
+	}
+}
+
+// TestDispatchToolSBOMAttestationAttachmentsSurfacesComponentEvidenceTruncation
+// proves the MCP envelope retains the reducer/query component preview's full
+// count, bounded rows, and overflow signal without a separate MCP-only shape.
+func TestDispatchToolSBOMAttestationAttachmentsSurfacesComponentEvidenceTruncation(t *testing.T) {
+	t.Parallel()
+
+	components := make([]query.ComponentEvidenceRow, 100)
+	for i := range components {
+		components[i] = query.ComponentEvidenceRow{
+			ComponentID: fmt.Sprintf("component-%03d", i),
+			FactID:      fmt.Sprintf("component-fact-%03d", i),
+		}
+	}
+	store := &fakeSBOMAttestationAttachmentStore{
+		rows: []query.SBOMAttestationAttachmentRow{
+			{
+				AttachmentID:               "attachment-many-components",
+				DocumentID:                 "doc-many-components",
+				AttachmentStatus:           "attached_parse_only",
+				ArtifactKind:               "sbom",
+				ComponentCount:             101,
+				ComponentEvidence:          components,
+				ComponentEvidenceTruncated: true,
+			},
+		},
+	}
+	handler := &query.SupplyChainHandler{
+		SBOMAttachments: store,
+		Profile:         query.ProfileProduction,
+	}
+	mux := httpServeMux(handler)
+
+	result, err := dispatchTool(
+		context.Background(),
+		mux,
+		"list_sbom_attestation_attachments",
+		map[string]any{
+			"document_id": "doc-many-components",
+			"limit":       float64(1),
+		},
+		"",
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	if err != nil {
+		t.Fatalf("dispatchTool() error = %v, want nil", err)
+	}
+	if result.Envelope == nil {
+		t.Fatal("dispatchTool() envelope is nil, want SBOM attachment envelope")
+	}
+	data, ok := result.Envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope.Data = %T, want map[string]any", result.Envelope.Data)
+	}
+	attachments, ok := data["attachments"].([]any)
+	if !ok || len(attachments) != 1 {
+		t.Fatalf("attachments = %#v, want one row", data["attachments"])
+	}
+	row, ok := attachments[0].(map[string]any)
+	if !ok {
+		t.Fatalf("attachment = %T, want map[string]any", attachments[0])
+	}
+	componentEvidence, ok := row["component_evidence"].([]any)
+	if !ok || len(componentEvidence) != 100 {
+		t.Fatalf("component_evidence len = %d, want 100", len(componentEvidence))
+	}
+	if got, want := row["component_count"], float64(101); got != want {
+		t.Fatalf("component_count = %#v, want %#v", got, want)
+	}
+	if got, want := row["component_evidence_truncated"], true; got != want {
+		t.Fatalf("component_evidence_truncated = %#v, want %#v", got, want)
 	}
 }
 

@@ -1239,7 +1239,12 @@ has no admissible image identity, callers see
 `service_to_image_evidence_missing`; when an image exists without an attachment,
 callers see `image_to_sbom_evidence_missing`.
 
-Each row also carries `dependency_relationships` (declared `sbom.dependency_relationship`
+Each row carries up to 100 deduplicated `component_evidence` rows per document.
+The reducer sorts the complete component tuple lexicographically with `fact_id`
+as the final tiebreaker before applying that write-time cap, so replay order
+cannot change the persisted preview. `component_count` remains the full distinct
+tuple count before the cap and `component_evidence_truncated` is `true` when the
+persisted row count is lower. Each row also carries `dependency_relationships` (declared `sbom.dependency_relationship`
 edges between components: `from_component_id`, `to_component_id`,
 `relationship_type`, `relationship_origin`, `fact_id`) and `external_references`
 (declared `sbom.external_reference` rows: `component_id`, `reference_type`,
@@ -1256,9 +1261,9 @@ before that cap, and `dependency_relationships_truncated` /
 of rows returned.
 
 No-Regression Evidence: `go test ./internal/reducer -run
-'Test(BuildSBOMAttestationAttachmentDecisionsSurfacesDependencyAndExternalReferenceEvidence|BuildSBOMAttestationAttachmentDecisionsAllowsDanglingComponentIDs|DependencyRelationshipEvidenceRowsDedupesCapsAndCountsBeforeCap|ExternalReferenceEvidenceRowsDedupesCapsAndCountsBeforeCap|BuildSBOMAttestationAttachmentDecisionsQuarantinesDependencyMissingDocumentID|SBOMAttestationAttachmentHandlerLoadsActiveDependencyAndExternalReferenceEvidence)'
+'Test(BuildSBOMAttestationAttachmentDecisionsSurfacesDependencyAndExternalReferenceEvidence|BuildSBOMAttestationAttachmentDecisionsAllowsDanglingComponentIDs|ComponentEvidenceRowsDedupesCapsAndCountsBeforeCap|DependencyRelationshipEvidenceRowsDedupesCapsAndCountsBeforeCap|ExternalReferenceEvidenceRowsDedupesCapsAndCountsBeforeCap|BuildSBOMAttestationAttachmentDecisionsQuarantinesDependencyMissingDocumentID|SBOMAttestationAttachmentHandlerLoadsActiveDependencyAndExternalReferenceEvidence)'
 -count=1` and `go test ./internal/query -run
-'Test(DecodeSBOMAttestationAttachmentRowSurfacesDependencyAndExternalReferenceEvidence|SupplyChainListSBOMAttestationAttachmentsSurfacesDependencyAndExternalReferenceWire)'
+'Test(DecodeSBOMAttestationAttachmentRowSurfacesComponentEvidenceTruncation|DecodeSBOMAttestationAttachmentRowSurfacesDependencyAndExternalReferenceEvidence|SupplyChainListSBOMAttestationAttachmentsSurfacesDependencyAndExternalReferenceWire|SupplyChainListSBOMAttestationAttachmentsUsesBoundedStore)'
 -count=1` and `go test ./internal/storage/postgres -run
 'TestListActiveSBOMAttestationAttachmentFactsQueryIsDigestBoundedAndPaged'
 -count=1` failed before `sbom.dependency_relationship` and
@@ -1268,7 +1273,10 @@ silently dropped), then passed after the reducer index, decision payload,
 Postgres active-evidence loader allowlist, and HTTP/MCP read model all carried
 the bounded evidence through.
 
-No-Observability-Change: this wires two already-typed, already-queue-routed
+No-Observability-Change: the bounded component preview and existing declared-evidence
+fields reuse the existing reducer execution spans and counters, Postgres query
+timing, `query.sbom_attestation_attachments`, MCP dispatch logging, and durable
+`reducer_sbom_attestation_attachment` payloads. This wires already-typed, already-queue-routed
 fact kinds into the existing SBOM attachment decode/write/read path. It adds
 no new reducer domain, worker, queue, graph write, metric instrument, span, or
 runtime flag. Operators continue to diagnose the path through the existing
