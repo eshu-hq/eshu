@@ -290,7 +290,7 @@ func classifyCICDRunEvidence(ev *cicdRunEvidence, imageIndex map[string][]cicdIm
 		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, ev.shellOnly[0].FactID)
 		return decision
 	}
-	if workflowDecision, ok := classifyCICDWorkflowImageEvidence(decision, ev.workflowImages, imageIndex); ok {
+	if workflowDecision, ok := classifyCICDWorkflowImageEvidence(decision, ev.workflowImages, ev.workflowImagesCommitMatched, imageIndex); ok {
 		return workflowDecision
 	}
 	for i, artifact := range ev.artifactsDecoded {

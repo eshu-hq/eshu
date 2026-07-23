@@ -207,7 +207,11 @@ func TestBuildCICDRunCorrelationDecisionsTrimsArtifactAndWorkflowImageEvidence(t
 		})
 
 		got := cicdDecisionsByRun(decisions)["github_actions:run-workflow:1"]
-		assertCICDDecision(t, got, CICDRunCorrelationExact, 1)
+		// The workflow image carries no commit_sha, so it correlates through the
+		// repository-wide fallback and lands as derived, not exact (#5424); the
+		// padded evidence_class still trims and matches workflow_image_ref, which
+		// is what this case guards.
+		assertCICDDecision(t, got, CICDRunCorrelationDerived, 1)
 		if got.CorrelationKind != "workflow_image" {
 			t.Fatalf("CorrelationKind = %q, want workflow_image (a padded evidence_class must still match workflow_image_ref like the old trimmed compare)", got.CorrelationKind)
 		}

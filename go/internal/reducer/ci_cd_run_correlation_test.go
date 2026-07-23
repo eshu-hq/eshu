@@ -117,7 +117,10 @@ func TestBuildCICDRunCorrelationDecisionsUsesWorkflowImageEvidence(t *testing.T)
 
 	decisions := BuildCICDRunCorrelationDecisions([]facts.Envelope{
 		ciRunFact("run-workflow-image", "github_actions", "repo-api", "abc123"),
-		workflowImageEvidenceFact("workflow-image", "repo-api", "registry.example.com/team/api:prod"),
+		// The workflow file was extracted at the run's commit, so the
+		// correlation is commit-matched (exact) rather than the repository-wide
+		// fallback (#5424).
+		commitScopedWorkflowImageFact("workflow-image", "repo-api", "abc123", "registry.example.com/team/api:prod"),
 		containerImageIdentityFact("image-identity", "repo-api", "registry.example.com/team/api:prod", testCICDDigest),
 	})
 
