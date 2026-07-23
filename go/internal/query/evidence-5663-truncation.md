@@ -25,10 +25,16 @@ same reads at the same cost. The truncated flag rides only a non-nil summary
 (the existing observed/nil-summary/present-zero semantics are unchanged), so no
 workload that did not already run the count path pays anything new. Verified by
 `cd go && go test ./internal/query/... -count=1 -race` (green) and the
-golden-corpus gate (`go test ./cmd/golden-corpus-gate -count=1`, green -- the
-additive `live_instance_count_truncated` field is invisible to the B-12
-snapshot, whose `trace_deployment_chain` pins do not enumerate
-`deployment_fact_summary` as a closed field set).
+golden-corpus gate (`go test ./cmd/golden-corpus-gate -count=1`, green). The B-12
+snapshot's two `trace_deployment_chain` HTTP traces (the ArgoCD-anchor
+`deployable-config` case and the #5639 declared-object `supply-chain-demo-db`
+case) now pin `deployment_fact_summary.live_instance_count_truncated: false`
+alongside their existing `live_instance_count` values (3 and 2), both far under
+the `serviceStoryItemLimit` (50) cap, so a regression that drops or misserializes
+the new field -- leaving `live_instance_count` silently unqualified -- fails the
+gate at replay. The static snapshot pins are locked by
+`TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity` and
+`TestGoldenSnapshotTraceDeploymentChainDeclaredObjectPinsLiveInstanceCount`.
 
 Observability Evidence: the existing `impact.live_instance_count` span
 (`queryHandlerTracer`) gains one new boolean attribute,
