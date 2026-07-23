@@ -311,10 +311,11 @@ type Instruments struct {
 	CodeImportRepoEdges             metric.Int64Counter
 	ContainerImageIdentityDecisions metric.Int64Counter
 	// ProvenanceEdges counts canonical PUBLISHES and BUILT_FROM graph
-	// provenance edges materialized (or skipped) from package-ownership,
+	// provenance edges materialized from package-ownership,
 	// package-publication, and container-image-identity correlation
 	// decisions, labeled by the producing evidence_source domain and outcome
-	// (materialized/skipped). See
+	// (currently always "materialized"; the outcome label is retained for a
+	// future skipped series). See
 	// docs/internal/design/5472-graph-projection-policy.md and issue #5457.
 	ProvenanceEdges            metric.Int64Counter
 	CICDRunCorrelations        metric.Int64Counter
