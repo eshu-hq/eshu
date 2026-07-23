@@ -19,14 +19,27 @@ const (
 	codeReachabilityColumns   = 13
 	codeRootVerdictColumns    = 9
 
-	// CodeReachabilityVerdictSchemaEpoch is the current #5376 verdict schema
-	// epoch stamped onto every repository watermark the projection runner writes.
-	// The loader re-schedules any watermark stamped with a LOWER epoch exactly
-	// once, so an upgraded deployment re-projects verdicts for every
-	// already-indexed repo (whose watermark defaults to epoch 0) without a
-	// watermark reset. BUMP this whenever verdict semantics change so every
-	// projected repo re-projects exactly once.
-	CodeReachabilityVerdictSchemaEpoch = 1
+	// CodeReachabilityVerdictSchemaEpoch is the current verdict schema epoch
+	// stamped onto every repository watermark the projection runner writes. The
+	// loader re-schedules any watermark stamped with a LOWER epoch exactly once,
+	// so an upgraded deployment re-projects verdicts for every already-indexed
+	// repo (whose watermark defaults to epoch 0, or to the prior epoch value)
+	// without a watermark reset. BUMP this whenever verdict semantics change so
+	// every projected repo re-projects exactly once.
+	//
+	// #5500 bumped this from 1 to 2: the lexical-scope-aware candidate
+	// restriction (go/internal/rubycontroller, onwardHop) changes which base refs
+	// resolve EXACTLY versus which stay suffix_only_ambiguous for an
+	// already-namespace-qualified corpus, so a previously-CONFIRMED
+	// suffix_only_ambiguous verdict can newly resolve to DOWNGRADED (or vice
+	// versa, to a positive accepted CONFIRM) for the identical, unchanged source
+	// once re-walked with the new logic — a genuine verdict-semantics change, not
+	// a node/edge identity change (no schema DDL, no key change). The bump is
+	// forward-only: it re-triggers exactly one re-projection per already-indexed
+	// repo (self-extinguishing, per the #5376 P1 upgrade-backfill precedent in
+	// evidence-5376-code-root-verdicts.md); no separate backfill script or graph
+	// migration is required.
+	CodeReachabilityVerdictSchemaEpoch = 2
 )
 
 const codeReachabilitySchemaSQL = `
