@@ -287,8 +287,21 @@ source_coverage:
   - file: neo4j.go
     calls:
       - {symbol: "(*Neo4jReader).RelationshipTypes", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(*Neo4jReader).Run", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*Neo4jReader).RunSingle", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+  - file: neo4j_read_policy.go
+    calls:
+      - symbol: "(*Neo4jReader).runReadAttempt"
+        count: 1
+        non_hot:
+          class: delegated
+          source_sha256: d5def6b31764c5e8f4368bf4596a4cba2d3db9b46cab572c26c31cd9bd26273a
+          delegate: graph_session
+      - symbol: "(neo4jReadSessionAdapter).Run"
+        count: 1
+        non_hot:
+          class: delegated
+          source_sha256: 43c6de6323a6a6df8896a10980edf6615c67b98d0c6ffad2c41bfd2856437429
+          delegate: graph_session
   - file: package_registry.go
     calls:
       - symbol: "(*PackageRegistryHandler).attachPackageVersionCounts"
