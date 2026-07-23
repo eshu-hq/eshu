@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
@@ -94,12 +95,25 @@ func ec2InstanceIdentityNodeRow(env facts.Envelope) (map[string]any, string, boo
 	if err != nil {
 		return nil, "", false, attributeShapeAsFactDecodeError(env.FactKind, err)
 	}
+	// Skip an instance whose identity is incomplete: with no observed ami_id
+	// there is nothing to augment, and stamping ami_id="" onto the
+	// posture-owned CloudResource node would fabricate an empty-but-present
+	// property (a `WHERE r.ami_id IS NOT NULL` reader would falsely match it).
+	// A scope-wide retract-first still removes any stale ami_id, so skipping
+	// the write row is the correct absence, mirroring the uid-invalid skip.
+	amiID := strings.TrimSpace(attrs.AMIID)
+	if amiID == "" {
+		return nil, "", false, nil
+	}
 
+	// The row key is source_fact_id (the shared cross-domain provenance-key
+	// convention every sibling writer's Cypher reads as row.source_fact_id);
+	// the persisted graph property is the disjoint r.ec2_identity_source_fact_id.
 	row := map[string]any{
-		"uid":                         uid,
-		"ami_id":                      attrs.AMIID,
-		"ec2_identity_source_fact_id": env.FactID,
-		sourceOrderKeyField:           sourceOrderKey(env),
+		"uid":               uid,
+		"ami_id":            amiID,
+		"source_fact_id":    env.FactID,
+		sourceOrderKeyField: sourceOrderKey(env),
 	}
 	return row, uid, true, nil
 }
