@@ -695,7 +695,7 @@ entries:
     source:
       file: go/internal/query/infra.go
       symbol: (*InfraHandler).searchResources
-      source_sha256: 2f6c76e66dd4601d82ab8c71bee437ce39b3626776181515abf5f87a18430a17
+      source_sha256: 229b20532ea79b5170c2239a4ba67988f66f4eca254204a3b200d7b84c6e99f1
       line_hint: 195
     required_limits:
       - $limit
@@ -711,7 +711,7 @@ entries:
         - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
-    cypher_sha256: "dc61d96bcb6c31bca186f3b1701badb0591b926962814c92171ebd1b817bfac5"
+    cypher_sha256: "7047e6e0961883a760e32a9523cd0d5b6553d572611062e09e4caaafd92151c3"
   - id: QP-INFRA-RESOURCE-AGGREGATE
     domain: infra
     backend: nornicdb

@@ -189,6 +189,73 @@
               "sha256:0000000000000000000000000000000000000000000000000000000000aa"
             ]
           }
+        },
+        {
+          "fact_kind": "oci_registry.image_manifest",
+          "stable_fact_key": "oci_registry:123456789012.dkr.ecr.us-east-1.amazonaws.com:supply-chain-demo:sha256:0000000000000000000000000000000000000000000000000000000000cc",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "collector_instance_id": "oci-collector-scd",
+            "provider": "ecr",
+            "registry": "123456789012.dkr.ecr.us-east-1.amazonaws.com",
+            "repository": "supply-chain-demo",
+            "repository_id": "oci-registry://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo",
+            "descriptor_id": "oci-descriptor://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:0000000000000000000000000000000000000000000000000000000000cc",
+            "digest": "sha256:0000000000000000000000000000000000000000000000000000000000cc",
+            "media_type": "application/vnd.oci.image.manifest.v1+json",
+            "artifact_type": "",
+            "source_tag": "latest",
+            "config": {
+              "digest": "sha256:config0000000000000000000000000000000000000000000000000000dd",
+              "media_type": "application/vnd.oci.image.config.v1+json",
+              "size_bytes": 4096,
+              "artifact_type": "",
+              "annotations": null,
+              "platform": null
+            },
+            "layers": [
+              {
+                "digest": "sha256:layer000000000000000000000000000000000000000000000000000000ee",
+                "media_type": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "size_bytes": 52428800,
+                "artifact_type": "",
+                "annotations": null,
+                "platform": null
+              }
+            ],
+            "size_bytes": 52432896,
+            "correlation_anchors": [
+              "oci-registry://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo",
+              "sha256:0000000000000000000000000000000000000000000000000000000000cc"
+            ]
+          }
+        },
+        {
+          "fact_kind": "oci_registry.image_tag_observation",
+          "stable_fact_key": "oci_registry:123456789012.dkr.ecr.us-east-1.amazonaws.com:supply-chain-demo:tag:latest",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "collector_instance_id": "oci-collector-scd",
+            "provider": "ecr",
+            "registry": "123456789012.dkr.ecr.us-east-1.amazonaws.com",
+            "repository": "supply-chain-demo",
+            "repository_id": "oci-registry://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo",
+            "tag": "latest",
+            "resolved_digest": "sha256:0000000000000000000000000000000000000000000000000000000000cc",
+            "media_type": "application/vnd.oci.image.manifest.v1+json",
+            "mutated": false,
+            "identity_strength": "weak_tag",
+            "correlation_anchors": [
+              "oci-registry://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo",
+              "sha256:0000000000000000000000000000000000000000000000000000000000cc"
+            ]
+          }
         }
       ]
     }

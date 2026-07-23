@@ -133,6 +133,7 @@ var infraSearchReturnColumns = []string{
 	"id", "name", "labels", "kind", "provider", "source_system", "environment",
 	"source", "config_path", "resource_type", "resource_service",
 	"resource_category", "resource_id", "arn", "account_id", "region", "service_kind",
+	"running_image_ref", "running_image_digest",
 }
 
 var infraSearchReturnColumnExprs = map[string]string{
@@ -153,6 +154,12 @@ var infraSearchReturnColumnExprs = map[string]string{
 	"account_id":        "coalesce(n.account_id, '')",
 	"region":            "coalesce(n.region, '')",
 	"service_kind":      "coalesce(n.service_kind, '')",
+	// running_image_ref/running_image_digest (issue #5450) surface the ECS
+	// running-task / Lambda function CloudResource node's deployed image
+	// evidence inline. Every other resource_type leaves these props unset, so
+	// coalesce to '' matches the rest of this map's absent-value convention.
+	"running_image_ref":    "coalesce(n.running_image_ref, '')",
+	"running_image_digest": "coalesce(n.running_image_digest, '')",
 }
 
 // infraSearchReturnExprs renders infraSearchReturnColumns as "expr as alias"
@@ -420,6 +427,12 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 		}
 		if serviceKind := StringVal(row, "service_kind"); serviceKind != "" {
 			result["service_kind"] = serviceKind
+		}
+		if runningImageRef := StringVal(row, "running_image_ref"); runningImageRef != "" {
+			result["running_image_ref"] = runningImageRef
+		}
+		if runningImageDigest := StringVal(row, "running_image_digest"); runningImageDigest != "" {
+			result["running_image_digest"] = runningImageDigest
 		}
 		results = append(results, result)
 	}

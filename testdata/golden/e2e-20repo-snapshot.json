@@ -56,9 +56,9 @@
         "note": "logical workload groups from code-to-workload binding (RUNS_IN target)"
       },
       "CloudResource": {
-        "min": 114,
+        "min": 115,
         "max": 123,
-        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 114: 4 AWS [ecr.repository, ecs.service, ecs.task, lambda.function -- #5449 added the ecs.task and lambda.function fixtures] + 110 GCP -- BigQuery Dataset+Table+Routine, Network, Subnetwork, Image, Snapshot, CryptoKey, Disk, Instance, Firewall, VPC Access Connector, Secret Manager Secret+SecretVersion, Cloud Run Service+Revision, custom IAM Role, IAM ServiceAccount+ServiceAccountKey, Artifact Registry Repository+DockerImage+CMEK repo, Pub/Sub Topic (x2), Pub/Sub Schema, Pub/Sub Subscription (x4), Router, VpnGateway, VpnTunnel, HealthCheck, BackendService, UrlMap, GKE Cluster, Storage Bucket, Cloud SQL Instance, DNS Managed Zone, KMS KeyRing+CryptoKey+CryptoKeyVersion, Forwarding Rule, Memorystore Redis Instance, Firestore Database, Dataproc Cluster, compute Route (x3), Bigtable Table, compute Static Address, App Engine Application+Service+Version, Cloud Tasks Queue, Cloud Scheduler Job, Eventarc Trigger (x3)+Channel+Function+Workflow targets, Logging LogSink (x4)+LogBucket, Cloud Functions Function (gen2)+CloudFunction (gen1), BigQuery Connection, Dataform Repository, Firebase Project+Ruleset+AppInfo, CloudResourceManager Project, reCAPTCHA Enterprise Key, API Key, IAM Workload Identity Pool+Provider, BigQuery Data Transfer Config, Dataplex Entry Group, Identity Platform Config, Cloud Build Build (x2)+BuildTrigger, Cloud Source Repositories Repository, Interconnect Attachment, InstanceGroup, SecurityPolicy (x2), ExternalVpnGateway, TargetVpnGateway, BackendBucket, second usage-logging Bucket, Cloud SQL read-replica Instance, DNS peering ManagedZone, ForwardingRule (x4 additional target-kind fixtures)+TargetPool+TargetHttpProxy+TargetInstance+ServiceAttachment, Memorystore Memcached Instance); floor raised from 4 to catch GCP node projection regression across the #4377/#4378/#4381/#4383/#4385/#4388/#4401/#4404/#4406/#4409/#4552/#4553/#4554/#4556/#4557/#4539/#4537/#4540/#4538/#4541/#4542/#4555/#4411/#4418/#4426/#4437/#4420/#4412/#4500/#4498/#4489/#4493/#4486/#4484/#4480/#4490/#4431/#4452/#4416/#4441/#4462/#4438/#4414/#4504/#4501/#4495/#4482/#4463/#4453/#4434/#4468/#4478/#4475/#4470/#4618/#4655 golden-corpus follow-ups; floor raised again from 112 to 114 by #5449 for the ecs.task and lambda.function AWS resource fixtures added to the awscloud cassette, so a regression that silently drops either or both new AWS CloudResource nodes fails this range instead of passing at the old 112 floor; ceiling wide for richer cloud cassettes"
+        "note": "cloud-registry/compute nodes from the AWS/Azure/GCP cassettes (observed 115: 5 AWS [ecr.repository, ecs.service, ecs.task, ecs.task_definition, lambda.function -- #5449 added the ecs.task and lambda.function fixtures, #5450 added the ecs.task_definition fixture (the ECSTaskDefinitionUsesImage edge source)] + 110 GCP -- BigQuery Dataset+Table+Routine, Network, Subnetwork, Image, Snapshot, CryptoKey, Disk, Instance, Firewall, VPC Access Connector, Secret Manager Secret+SecretVersion, Cloud Run Service+Revision, custom IAM Role, IAM ServiceAccount+ServiceAccountKey, Artifact Registry Repository+DockerImage+CMEK repo, Pub/Sub Topic (x2), Pub/Sub Schema, Pub/Sub Subscription (x4), Router, VpnGateway, VpnTunnel, HealthCheck, BackendService, UrlMap, GKE Cluster, Storage Bucket, Cloud SQL Instance, DNS Managed Zone, KMS KeyRing+CryptoKey+CryptoKeyVersion, Forwarding Rule, Memorystore Redis Instance, Firestore Database, Dataproc Cluster, compute Route (x3), Bigtable Table, compute Static Address, App Engine Application+Service+Version, Cloud Tasks Queue, Cloud Scheduler Job, Eventarc Trigger (x3)+Channel+Function+Workflow targets, Logging LogSink (x4)+LogBucket, Cloud Functions Function (gen2)+CloudFunction (gen1), BigQuery Connection, Dataform Repository, Firebase Project+Ruleset+AppInfo, CloudResourceManager Project, reCAPTCHA Enterprise Key, API Key, IAM Workload Identity Pool+Provider, BigQuery Data Transfer Config, Dataplex Entry Group, Identity Platform Config, Cloud Build Build (x2)+BuildTrigger, Cloud Source Repositories Repository, Interconnect Attachment, InstanceGroup, SecurityPolicy (x2), ExternalVpnGateway, TargetVpnGateway, BackendBucket, second usage-logging Bucket, Cloud SQL read-replica Instance, DNS peering ManagedZone, ForwardingRule (x4 additional target-kind fixtures)+TargetPool+TargetHttpProxy+TargetInstance+ServiceAttachment, Memorystore Memcached Instance); floor raised from 4 to catch GCP node projection regression across the #4377/#4378/#4381/#4383/#4385/#4388/#4401/#4404/#4406/#4409/#4552/#4553/#4554/#4556/#4557/#4539/#4537/#4540/#4538/#4541/#4542/#4555/#4411/#4418/#4426/#4437/#4420/#4412/#4500/#4498/#4489/#4493/#4486/#4484/#4480/#4490/#4431/#4452/#4416/#4441/#4462/#4438/#4414/#4504/#4501/#4495/#4482/#4463/#4453/#4434/#4468/#4478/#4475/#4470/#4618/#4655 golden-corpus follow-ups; floor raised from 112 to 114 by #5449 for the ecs.task and lambda.function AWS resource fixtures added to the awscloud cassette; floor raised again from 114 to 115 by #5450 for the ecs.task_definition AWS resource fixture (the source of the ECSTaskDefinitionUsesImage aws_relationship, which resolves the source endpoint through this node even though the edge itself stays Postgres-only per the #5472 EXACT-ONLY policy), so a regression that silently drops any of the three new #5449/#5450 AWS CloudResource nodes fails this range instead of passing at the old floor; ceiling wide for richer cloud cassettes"
       },
       "TerraformStateResource": {
         "min": 1,
@@ -66,9 +66,9 @@
         "note": "Terraform state resources from terraform_state cassette; at least one ECS resource expected. Split off the shared TerraformResource label by #5443 -- state-observed resources MERGE under this label now, config-declared resources stay under TerraformResource."
       },
       "OciImageManifest": {
-        "min": 1,
+        "min": 3,
         "max": 20,
-        "note": "OCI image manifests from oci_registry cassette; target of RUNS_IMAGE edges"
+        "note": "OCI image manifests from oci_registry cassette; target of RUNS_IMAGE edges. Floor raised from 1 to 3 (observed 3: ghcr.io/eshu-hq/supply-chain-demo@sha256:...ab + the merged 123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo scope's two digests) by two independently-landed fixture additions to that ECR scope: #5451 added the sha256:...aa manifest matching the ECS running task's aws_image_reference digest (its own get_container_image_identity_inventory query-shape assertion depends on this manifest existing, not on a node-count floor), and #5450 added the sha256:...cc manifest -- the :ContainerImage node the new LambdaFunctionUsesImage two-MATCH-MERGE edge targets. Both manifests live under ONE oci_registry scope (scope_id/repository collision: #5451 and #5450 independently added a scope for the same ECR repository, since it is the one true repo both the ECS task and the Lambda function pull \"supply-chain-demo\" from -- see testdata/cassettes/ociregistry/supply-chain-demo.json's merged second scope). A regression that silently drops either manifest, or that re-collapses the two digests into one node, fails this range instead of passing at the old 1 or the #5450-only 2 floor."
       },
       "PackageVersion": {
         "min": 1,
@@ -181,6 +181,11 @@
         "min": 3,
         "max": 30,
         "note": "KubernetesWorkload\u2192OciImageManifest supply-chain image correlation; +1 from #5432 CRI-resolved-digest pod"
+      },
+      "AWS_lambda_function_uses_image": {
+        "min": 1,
+        "max": 5,
+        "note": "issue #5450: CloudResource(Lambda function)\u2192ContainerImage two-MATCH-MERGE edge from the lambda_function_uses_image aws_relationship's exact registry+repository@digest resolved_image_uri. 0 before the #5450 fix (the edge no-op'd because container_image is not an aws_resource, so the old CloudResource-only join index could never resolve the target); provably >=1 after, from the awscloud lambda scope's new relationship fact paired with the new oci_registry ECR scope's manifest"
       },
       "HANDLES_ROUTE": {
         "min": 1,
@@ -1734,6 +1739,14 @@
             "oci"
           ]
         }
+      },
+      {
+        "id": "rc-166",
+        "description": "issue #5450: at least one CloudResource(Lambda function)-[:AWS_lambda_function_uses_image]->ContainerImage edge. Before the fix, DomainAWSRelationshipMaterialization's CloudResource-only join index could never resolve a container_image target (a ContainerImage is not an aws_resource), so this relationship type silently no-op'd -- provably 0 without the new DomainAWSCloudImageMaterialization domain (aws_cloud_image_join.go's containerImageNodeUIDFromDigestRef) and the paired awscloud lambda scope aws_relationship fact + oci_registry ECR scope manifest fixture. AWS_ecs_task_definition_uses_image is deliberately NOT asserted here: the ECS task-definition's image reference is tag-only (no digest), so per the #5472 EXACT-ONLY graph-projection policy it stays Postgres-only and this domain always skips it (awsCloudImageSkipTagOnlyPostgresOnly). Numbered rc-166, not rc-164: #5457 landed first on origin/main and already claimed rc-164/rc-165 for its own PUBLISHES/BUILT_FROM assertions -- this id was renumbered during the #5450 rebase onto #5457 to avoid an id collision (both PRs independently picked the next-available id off their own pre-rebase base).",
+        "relationship": "AWS_lambda_function_uses_image",
+        "from_label": "CloudResource",
+        "to_label": "ContainerImage",
+        "minimum_count": 1
       }
     ],
     "required_nodes": [
@@ -1856,6 +1869,16 @@
         "minimum_count": 1,
         "required_node_properties": [
           "ref"
+        ]
+      },
+      {
+        "id": "rn-cloud-resource-running-image",
+        "description": "issue #5450: at least 2 CloudResource nodes carry non-empty running_image_ref AND running_image_digest -- the ECS running task (resource_type ecs.task, containers[0].image/image_digest) and the Lambda function (resource_type lambda.function, image_uri/resolved_image_uri) from the awscloud supply-chain-demo cassette. Provably 0 without cloudResourceRunningImageFields (go/internal/reducer/aws_resource_running_image.go) wired into cloudResourceNodeRow; a multi-container ECS task stays ambiguous and unpromoted by design (no essential-container flag exists to disambiguate by), so this floor is exactly the two single-image fixtures, not every CloudResource.",
+        "label": "CloudResource",
+        "minimum_count": 2,
+        "required_node_properties": [
+          "running_image_ref",
+          "running_image_digest"
         ]
       }
     ],
