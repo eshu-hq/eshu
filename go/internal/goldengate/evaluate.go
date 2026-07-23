@@ -159,6 +159,13 @@ func EvaluateEdgeProperty(rc RequiredCorrelation, prop string, values, allowed [
 // a non-empty value (in the allowed set when pinned). This catches a property
 // regressing to never-set without false-failing on legitimately property-less
 // nodes (see RequiredNode).
+//
+// When rn.MaximumNodePropertyCount names prop with a positive value, the check
+// is also CEILED: present must not exceed it. A floor-only check cannot tell
+// "correctly scoped to a handful of nodes" from "leaked onto every node of the
+// label" — both satisfy `present >= want`. Most RequiredNode entries set no
+// maximum (unbounded, the pre-existing behavior); callers that know the exact
+// expected breadth should set one.
 func EvaluateNodeProperty(rn RequiredNode, prop string, values, allowed []string) Finding {
 	present := 0
 	for _, v := range values {
@@ -170,6 +177,13 @@ func EvaluateNodeProperty(rn RequiredNode, prop string, values, allowed []string
 	if want < 1 {
 		want = 1
 	}
+	maxCount := rn.MaximumNodePropertyCount[prop]
+	ok := int64(present) >= want
+	boundDetail := fmt.Sprintf("want >= %d", want)
+	if maxCount > 0 {
+		ok = ok && int64(present) <= maxCount
+		boundDetail = fmt.Sprintf("want [%d,%d]", want, maxCount)
+	}
 	constraint := "non-empty"
 	if len(allowed) > 0 {
 		constraint = fmt.Sprintf("in %v", allowed)
@@ -177,10 +191,10 @@ func EvaluateNodeProperty(rn RequiredNode, prop string, values, allowed []string
 	return Finding{
 		Phase:    "graph",
 		Check:    rn.ID + "_node_prop_" + prop,
-		OK:       int64(present) >= want,
+		OK:       ok,
 		Required: true,
-		Detail: fmt.Sprintf("(%s) node property %q (%s) present on %d node(s), want >= %d",
-			rn.Label, prop, constraint, present, want),
+		Detail: fmt.Sprintf("(%s) node property %q (%s) present on %d node(s), %s",
+			rn.Label, prop, constraint, present, boundDetail),
 	}
 }
 

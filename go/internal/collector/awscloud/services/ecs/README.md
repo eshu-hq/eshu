@@ -108,6 +108,22 @@ throttles, and pagination spans.
   carry.
 - The scanner stops on client errors. Runtime adapters decide whether an AWS
   service error is retryable, terminal, or a warning fact.
+- Downstream (issue #5450): the running task's `containers[].image_digest`
+  (unlike the task DEFINITION's tag-only `Container.Image`) is the strongest
+  deployed-code signal this package emits — the reducer surfaces it AS-IS
+  (already the bare `sha256:<hex>` shape this API reports) as the
+  `CloudResource` node's `running_image_digest` property
+  (`go/internal/reducer/aws_resource_running_image.go`) when exactly one
+  container is reported (a multi-container task stays ambiguous and
+  unpromoted). This is the canonical `running_image_digest` shape: the Lambda
+  scanner's `resolved_image_uri` (a full `registry/repository@digest`
+  reference, not bare) is parsed down to the same bare-digest shape before
+  reaching this property, so a consumer never has to branch on resource_type.
+  The task-definition-to-image `ecs_task_definition_uses_image`
+  relationship this package emits stays Postgres-only in the graph: it is
+  tag-only (no digest), so per the #5472 EXACT-ONLY graph-projection policy it
+  cannot resolve to a `:ContainerImage` node the way the Lambda function's
+  digest-bearing `lambda_function_uses_image` relationship does.
 
 ## Performance and observability (#5451)
 

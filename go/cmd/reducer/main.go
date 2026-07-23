@@ -156,63 +156,18 @@ func buildReducerService(
 	if codeValueFlowStaleCleanupRunner != nil {
 		codeValueFlowStaleCleanupRunner.Logger = logger
 	}
-	// Seed the projected-edge ledger from existing graph TAINT_FLOWS_TO edges so
-	// the ledger is a superset of graph edges at deploy time (one-time,
-	// idempotent backfill). Must run before stale-cleanup or fixpoint projection
-	// start retracting. graphReader is the query.GraphQuery read port; the
-	// ledger uses the same postgres-backed store wired for the runtime.
-	backfillStateMarker := postgres.NewCodeValueFlowBackfillStateStore(database)
-	backfiller := reducer.CodeInterprocProjectedEdgeBackfiller{
-		Reader:      reducer.CodeInterprocProjectedEdgeBackfillReader{Graph: graphReader},
-		Ledger:      postgres.NewCodeInterprocProjectedEdgeStore(database),
-		StateMarker: backfillStateMarker,
-		EvidenceSources: []string{
-			reducer.CodeInterprocEvidenceSource(),
-			reducer.CodeInterprocFixpointEvidenceSource(),
-		},
-	}
-	if err := backfiller.Run(context.Background()); err != nil {
-		return reducer.Service{}, fmt.Errorf("code interproc projected edge backfill: %w", err)
-	}
-	// Seed the projected-node ledger from existing graph CodeTaintEvidence nodes
-	// so the ledger is a superset of graph nodes at deploy time (one-time,
-	// idempotent backfill). Mirrors the interproc edge backfill above.
-	taintNodeBackfiller := reducer.CodeTaintEvidenceProjectedNodeBackfiller{
-		Reader:      reducer.CodeTaintEvidenceProjectedNodeBackfillReader{Graph: graphReader},
-		Ledger:      postgres.NewCodeTaintEvidenceProjectedNodeStore(database),
-		StateMarker: backfillStateMarker,
-		EvidenceSources: []string{
-			reducer.CodeTaintEvidenceSource(),
-		},
-	}
-	if err := taintNodeBackfiller.Run(context.Background()); err != nil {
-		return reducer.Service{}, fmt.Errorf("code taint evidence projected node backfill: %w", err)
-	}
-	// Seed the projected-source-edge ledger from existing graph source edges
-	// (AWS/Azure/GCP relationship edges, observability coverage edges, and
-	// security-group reachability edges) so the ledger is a superset of graph
-	// edges at deploy time (one-time, idempotent backfill). Must run before any
-	// ledger-anchored RetractXxxByUIDs call in the AWS/Azure/GCP/observability/
-	// security-group-reachability materialization handlers wired below, so the
-	// first post-deploy retract is not a no-op that orphans pre-ledger edges.
-	// projectedSourceEdgeStore is constructed once here and reused as
-	// DefaultHandlers.ProjectedSourceLedger below so both the backfill and the
-	// runtime handlers share one store.
-	projectedSourceEdgeStore := postgres.NewProjectedSourceEdgeStore(database)
-	projectedSourceEdgeBackfiller := reducer.ProjectedSourceEdgeBackfiller{
-		Reader:      reducer.ProjectedSourceEdgeBackfillReader{Graph: graphReader},
-		Ledger:      projectedSourceEdgeStore,
-		StateMarker: backfillStateMarker,
-		EvidenceSources: []string{
-			reducer.AWSRelationshipEvidenceSource(),
-			reducer.AzureRelationshipEvidenceSource(),
-			reducer.GCPRelationshipEvidenceSource(),
-			reducer.ObservabilityCoverageEvidenceSource(),
-			reducer.SecurityGroupReachabilityEvidenceSource(),
-		},
-	}
-	if err := projectedSourceEdgeBackfiller.Run(context.Background()); err != nil {
-		return reducer.Service{}, fmt.Errorf("projected source edge backfill: %w", err)
+	// Seed the projected-edge/node/source-edge ledgers from existing graph state
+	// (one-time, idempotent backfills; see seedReducerProjectedSourceLedgers'
+	// doc in canonical_graph_writers.go). Must run before stale-cleanup, fixpoint
+	// projection, or any ledger-anchored RetractXxxByUIDs call in the
+	// AWS/Azure/GCP/observability/security-group-reachability materialization
+	// handlers wired below start retracting, so the first post-deploy retract is
+	// not a no-op that orphans pre-ledger edges. projectedSourceEdgeStore is
+	// reused as DefaultHandlers.ProjectedSourceLedger below so both the backfill
+	// and the runtime handlers share one store.
+	projectedSourceEdgeStore, err := seedReducerProjectedSourceLedgers(database, graphReader)
+	if err != nil {
+		return reducer.Service{}, err
 	}
 	// Semantic path: permit gate OUTSIDE the write timeout (#3652 P1); see
 	// boundSemanticEntityExecutor.
@@ -300,34 +255,36 @@ func buildReducerService(
 		// (#2869): the promoted handler emits file-scoped per-edge intents plus a
 		// per-repo refresh intent to the shared intent acceptance writer, and the
 		// partitioned runner + #2898 refresh fence project them.
-		RationaleEdgeIntentWriter:           repoDependencyIntentWriter,
-		DocumentationEdgeWriter:             edgeWriterForHandlers,
-		CodeownersOwnershipEdgeWriter:       edgeWriterForHandlers,
-		RationaleEdgeWriter:                 edgeWriterForHandlers,
-		EvidenceFactLoader:                  relationshipStore,
-		AssertionLoader:                     relationshipStore,
-		ResolutionPersister:                 relationshipStore,
-		ResolvedRelationshipLoader:          relationshipStore,
-		RepoDependencyIntentWriter:          repoDependencyIntentWriter,
-		RepoDependencyEdgeWriter:            edgeWriterForHandlers,
-		WorkloadDependencyEdgeWriter:        edgeWriterForHandlers,
-		SubmodulePinEdgeWriter:              edgeWriterForHandlers,
-		GenerationCheck:                     postgres.NewGenerationFreshnessCheck(database),
-		PriorGenerationCheck:                postgres.NewPriorGenerationCheck(database),
-		Tracer:                              tracer,
-		Instruments:                         instruments,
-		CloudResourceNodeWriter:             graphWriters.cloudResourceNode,
-		EC2InstanceNodeWriter:               graphWriters.ec2InstanceNode,
-		CloudResourceEdgeWriter:             graphWriters.cloudResourceEdge,
-		GCPCloudResourceEdgeWriter:          graphWriters.gcpCloudResourceEdge,
-		AzureCloudResourceEdgeWriter:        graphWriters.azureCloudResourceEdge,
-		WorkloadCloudRelationshipEdgeWriter: graphWriters.workloadCloudRelationshipEdge,
-		SecurityGroupEndpointNodeWriter:     graphWriters.securityGroupEndpointNode,
-		SecurityGroupRuleNodeWriter:         graphWriters.securityGroupReachability,
-		SecurityGroupReachabilityWriter:     graphWriters.securityGroupReachability,
-		IAMEscalationEdgeWriter:             graphWriters.iamEscalationEdge,
-		IAMCanPerformEdgeWriter:             graphWriters.iamCanPerformEdge,
-		ObservabilityCoverageEdgeWriter:     graphWriters.observabilityCoverageEdge,
+		RationaleEdgeIntentWriter:             repoDependencyIntentWriter,
+		DocumentationEdgeWriter:               edgeWriterForHandlers,
+		CodeownersOwnershipEdgeWriter:         edgeWriterForHandlers,
+		RationaleEdgeWriter:                   edgeWriterForHandlers,
+		EvidenceFactLoader:                    relationshipStore,
+		AssertionLoader:                       relationshipStore,
+		ResolutionPersister:                   relationshipStore,
+		ResolvedRelationshipLoader:            relationshipStore,
+		RepoDependencyIntentWriter:            repoDependencyIntentWriter,
+		RepoDependencyEdgeWriter:              edgeWriterForHandlers,
+		WorkloadDependencyEdgeWriter:          edgeWriterForHandlers,
+		SubmodulePinEdgeWriter:                edgeWriterForHandlers,
+		GenerationCheck:                       postgres.NewGenerationFreshnessCheck(database),
+		PriorGenerationCheck:                  postgres.NewPriorGenerationCheck(database),
+		Tracer:                                tracer,
+		Instruments:                           instruments,
+		CloudResourceNodeWriter:               graphWriters.cloudResourceNode,
+		EC2InstanceNodeWriter:                 graphWriters.ec2InstanceNode,
+		CloudResourceEdgeWriter:               graphWriters.cloudResourceEdge,
+		CloudResourceContainerImageEdgeWriter: graphWriters.cloudResourceContainerImageEdge,
+		ContainerImageExistence:               reducer.GraphContainerImageExistenceLookup{Graph: graphReader},
+		GCPCloudResourceEdgeWriter:            graphWriters.gcpCloudResourceEdge,
+		AzureCloudResourceEdgeWriter:          graphWriters.azureCloudResourceEdge,
+		WorkloadCloudRelationshipEdgeWriter:   graphWriters.workloadCloudRelationshipEdge,
+		SecurityGroupEndpointNodeWriter:       graphWriters.securityGroupEndpointNode,
+		SecurityGroupRuleNodeWriter:           graphWriters.securityGroupReachability,
+		SecurityGroupReachabilityWriter:       graphWriters.securityGroupReachability,
+		IAMEscalationEdgeWriter:               graphWriters.iamEscalationEdge,
+		IAMCanPerformEdgeWriter:               graphWriters.iamCanPerformEdge,
+		ObservabilityCoverageEdgeWriter:       graphWriters.observabilityCoverageEdge,
 		// ProjectedSourceLedger (issue #4858, #4881) is shared by the AWS,
 		// Azure, GCP relationship, observability-coverage, and
 		// security-group-reachability handlers above; each handler keys its

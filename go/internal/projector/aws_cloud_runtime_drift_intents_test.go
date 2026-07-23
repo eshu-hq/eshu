@@ -37,10 +37,20 @@ func TestBuildProjectionQueuesSingleAWSCloudRuntimeDriftIntent(t *testing.T) {
 		t.Fatalf("buildProjection() error = %v, want nil", err)
 	}
 	// AWS resource facts enqueue runtime-drift, CloudResource node
-	// materialization (issue #805), the workload-cloud relationship slice, and
-	// shared cloud-inventory admission (issue #2209).
-	if got, want := len(projection.reducerIntents), 4; got != want {
+	// materialization (issue #805), the workload-cloud relationship slice,
+	// shared cloud-inventory admission (issue #2209), and -- since the #5450
+	// retraction-safety fix -- cloud-image materialization too: it now
+	// triggers on the SAME aws_resource fact presence
+	// DomainAWSResourceMaterialization does (not on lambda_function_uses_image
+	// relationship presence), so AWSCloudImageMaterializationHandler.Handle's
+	// retract-first logic still runs and correctly retracts to zero in a
+	// generation with no image relationship at all, like this fixture's.
+	if got, want := len(projection.reducerIntents), 5; got != want {
 		t.Fatalf("len(reducerIntents) = %d, want %d", got, want)
+	}
+	cloudImage := intentForDomain(t, projection.reducerIntents, reducer.DomainAWSCloudImageMaterialization)
+	if got, want := cloudImage.EntityKey, "aws_resource_materialization:aws:123456789012:us-east-1:lambda"; got != want {
+		t.Fatalf("cloudImage.EntityKey = %q, want %q", got, want)
 	}
 	intent := intentForDomain(t, projection.reducerIntents, reducer.DomainAWSCloudRuntimeDrift)
 	if got, want := intent.EntityKey, "aws_cloud_runtime_drift:aws:123456789012:us-east-1:lambda"; got != want {

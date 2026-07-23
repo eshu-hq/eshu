@@ -185,6 +185,8 @@ func TestExtractGCPCloudResourceNodeRowsSetsExplicitServiceAnchorParityKeys(t *t
 		"service_anchor_status",
 		"service_anchor_source",
 		"service_anchor_reason",
+		"running_image_ref",
+		"running_image_digest",
 	} {
 		value, ok := row[key]
 		if !ok {

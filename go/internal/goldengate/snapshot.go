@@ -121,6 +121,19 @@ type RequiredNode struct {
 	MinimumCount              int64               `json:"minimum_count"`
 	RequiredNodeProperties    []string            `json:"required_node_properties,omitempty"`
 	AllowedNodePropertyValues map[string][]string `json:"allowed_node_property_values,omitempty"`
+	// MaximumNodePropertyCount optionally CEILS the property-presence check
+	// (issue #5450): keyed by the property name (as in
+	// AllowedNodePropertyValues), a positive value asserts AT MOST that many
+	// nodes carry a non-empty value for the property, in addition to the
+	// existing >= MinimumCount floor. Zero/absent for a property means
+	// unbounded (the pre-existing floor-only behavior every other RequiredNode
+	// entry keeps). This exists because a floor alone cannot distinguish "the
+	// property is correctly scoped to a handful of nodes" from "the property
+	// leaked onto every node of the label" — both pass a bare `>= N` floor. It
+	// caught a real regression: running_image_ref/running_image_digest written
+	// onto all 115 CloudResource nodes instead of the 2 expected (ECS running
+	// task + Lambda function) still satisfied `want >= 2` silently.
+	MaximumNodePropertyCount map[string]int64 `json:"maximum_node_property_count,omitempty"`
 }
 
 // RequiredSelfLoop is a bounded assertion on the count of (n:Label

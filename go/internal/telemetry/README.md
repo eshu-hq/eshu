@@ -224,6 +224,7 @@ when the reducer has a graph orphan observer.
 | `CorrelationOrphanDetected` | `eshu_dp_correlation_orphan_detected_total` |
 | `CorrelationUnmanagedDetected` | `eshu_dp_correlation_unmanaged_detected_total` |
 | `AWSRelationshipEdges` | `eshu_dp_aws_relationship_edges_total` |
+| `AWSCloudImageEdges` | `eshu_dp_aws_cloud_image_edges_total` (labels: `resolution_mode`; counts AWS `CloudResource`->`ContainerImage` edges materialized per generation, issue #5450) |
 | `CrossScopeOwnershipContendedRows` | `eshu_dp_cross_scope_ownership_contended_rows_total` |
 | `GCPRelationshipEdges` | `eshu_dp_gcp_relationship_edges_total` |
 | `GCPMaterializationFacts` | `eshu_dp_gcp_materialization_facts_total` |

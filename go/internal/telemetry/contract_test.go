@@ -122,6 +122,7 @@ func TestSpanNames(t *testing.T) {
 		"reducer.aws_runtime_drift_evidence_load",
 		"reducer.multi_cloud_runtime_drift_evidence_load",
 		"reducer.aws_relationship_materialization",
+		"reducer.aws_cloud_image_materialization",
 		"reducer.gcp_relationship_materialization",
 		"reducer.azure_relationship_materialization",
 		"reducer.observability_coverage_materialization",

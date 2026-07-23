@@ -176,6 +176,28 @@ type DefaultHandlers struct {
 	// on ReadinessLookup so edges never resolve against uncommitted nodes.
 	CloudResourceEdgeWriter CloudResourceEdgeWriter
 
+	// CloudResourceContainerImageEdgeWriter projects lambda_function_uses_image
+	// aws_relationship facts into canonical CloudResource -> ContainerImage
+	// edges (issue #5450), an additive sibling of CloudResourceEdgeWriter for
+	// the cross-label target CloudResourceEdgeWriter cannot resolve (a
+	// container image is not a CloudResource). It must be non-nil alongside
+	// FactLoader for the registry to register DomainAWSCloudImageMaterialization;
+	// missing either one would keep ecs_task_definition_uses_image /
+	// lambda_function_uses_image evidence stuck as a graph no-op rather than
+	// resolving to a real :ContainerImage node. The handler also gates on
+	// ReadinessLookup so edges never resolve against an uncommitted source.
+	CloudResourceContainerImageEdgeWriter CloudResourceContainerImageEdgeWriter
+
+	// ContainerImageExistence reports which candidate target ContainerImage
+	// uids already exist in the canonical graph, so
+	// AWSCloudImageMaterializationHandler.Handle can reclassify a
+	// resolved-but-unmaterialized row as a skip instead of over-reporting an
+	// edge the graph does not have (issue #5450 P1 follow-up). Optional: a nil
+	// value skips the filter, matching ReadinessLookup/PriorGenerationCheck's
+	// nil-safe test-wiring convention; production wires the durable graph-backed
+	// lookup.
+	ContainerImageExistence ContainerImageExistenceLookup
+
 	// GCPCloudResourceEdgeWriter projects gcp_cloud_relationship facts into
 	// canonical GCP relationship edges between CloudResource nodes (issue #2348).
 	// It must be non-nil alongside FactLoader for the registry to register

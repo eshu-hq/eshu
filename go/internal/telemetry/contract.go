@@ -303,6 +303,15 @@ const (
 	// edge write. The span carries materialized vs unresolved edge counts so a
 	// trace shows whether forward-looking targets degraded gracefully.
 	SpanReducerAWSRelationshipMaterialization = "reducer.aws_relationship_materialization"
+	// SpanReducerAWSCloudImageMaterialization wraps the AWS cloud-image edge
+	// projection (issue #5450): fact load, source CloudResource join-index
+	// build, resolved_image_uri digest-ref parsing, and the batched
+	// MATCH-MATCH-MERGE CloudResource -> ContainerImage edge write. The span
+	// carries materialized vs skipped edge counts (by policy/resolution
+	// disposition) so a trace shows whether the tag-only ECS policy skip, an
+	// unresolved digest, or an unscanned source degraded gracefully without
+	// fabricating an edge.
+	SpanReducerAWSCloudImageMaterialization = "reducer.aws_cloud_image_materialization"
 	// SpanReducerGCPRelationshipMaterialization wraps the GCP relationship edge
 	// projection (issue #2348): fact load, in-memory join-index build keyed by
 	// full resource name, support_state-aware target resolution, and the batched

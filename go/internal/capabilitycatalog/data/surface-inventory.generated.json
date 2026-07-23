@@ -3475,6 +3475,11 @@
     },
     {
       "category": "reducer_domain",
+      "name": "aws_cloud_image_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
       "name": "aws_cloud_runtime_drift",
       "readiness": "implemented"
     },

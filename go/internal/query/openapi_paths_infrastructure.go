@@ -61,7 +61,9 @@ const openAPIPathsInfrastructure = `
                       "arn": {"type": "string"},
                       "account_id": {"type": "string"},
                       "region": {"type": "string"},
-                      "service_kind": {"type": "string"}
+                      "service_kind": {"type": "string"},
+                      "running_image_ref": {"type": "string", "description": "The deployed container image reference (registry/repository, tag-qualified when reported) for an ECS running task or Lambda container-image function. Present only on those CloudResource types."},
+                      "running_image_digest": {"type": "string", "description": "The BARE digest (\"sha256:<hex>\", never the full registry/repository@digest reference) of the deployed image, when the source resolved one. Same shape for ECS and Lambda; see running_image_ref for the full reference."}
                     }}},
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},

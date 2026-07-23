@@ -62,6 +62,9 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildAWSRelationshipMaterializationReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
+	if intent, ok := buildAWSCloudImageMaterializationReducerIntent(scopeValue, generation, index); ok {
+		intents = append(intents, intent)
+	}
 	if intent, ok := buildObservabilityCoverageMaterializationReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}

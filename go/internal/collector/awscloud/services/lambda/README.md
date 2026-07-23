@@ -60,6 +60,33 @@ API call counters, throttle counters, and pagination spans.
   topology. The collector does not infer network exposure or environment.
 - Resource names, ARNs, tags, event-source ARNs, and environment variable names
   must not become metric labels.
+- Downstream (issue #5450): `resolved_image_uri` (an exact
+  `registry/repository@digest` reference, unlike `image_uri`'s tag-qualified
+  form) is the strongest deployed-code signal this package emits for a
+  container-image function. The reducer surfaces it two ways:
+  - As the `CloudResource` node's `running_image_ref` (the full `image_uri`,
+    tag-qualified) and `running_image_digest` (the BARE digest parsed out of
+    `resolved_image_uri`, normalized to the same "sha256:<hex>" shape ECS's
+    `TaskContainer.ImageDigest` already carries — not the full
+    `registry/repository@digest` reference) properties
+    (`go/internal/reducer/aws_resource_running_image.go`).
+  - As the real target of a two-MATCH-MERGE
+    `(:CloudResource)-[:AWS_lambda_function_uses_image]->(:ContainerImage)`
+    graph edge — since a Lambda function is single-image by AWS's own model,
+    there is no multi-container-style ambiguity to resolve
+    (`go/internal/reducer/aws_cloud_image_join.go`'s
+    `containerImageNodeUIDFromDigestRef`). That function lowercases the
+    registry, repository, and digest before computing the target uid, matching
+    the OCI registry collector's own normalization
+    (`internal/collector/ociregistry/identity.go` `NormalizeRepositoryIdentity`/
+    `normalizeDigest`) for the ECR-hosted references this domain actually
+    processes — Lambda container images are exclusively ECR-hosted, so the
+    registry value is always a bare hostname, the shape `normalizeRegistry`
+    fully lowercases (it preserves case only for an embedded path segment
+    within the registry value itself, a shape a bare ECR hostname never has).
+    `resolved_image_uri` itself is read straight from the Lambda `GetFunction`
+    API response and carries whatever case AWS reports, so it is not itself
+    byte-identical to the real node uid without that lowercasing step.
 
 ## Related docs
 

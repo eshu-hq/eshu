@@ -4,8 +4,14 @@
 package main
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/eshu-hq/eshu/go/internal/graphowner"
+	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 type canonicalGraphWriters struct {
@@ -13,27 +19,28 @@ type canonicalGraphWriters struct {
 	// in the #5007 owner-ledger gate (graphowner) so a shared cross-scope node's
 	// scope-derived properties resolve deterministically to the max-order-key
 	// contributor. A nil-ledger gate writes through unchanged.
-	cloudResourceNode             *graphowner.CloudResourceGatedWriter
-	ec2InstanceNode               *graphowner.EC2InstanceGatedWriter
-	cloudResourceEdge             *sourcecypher.CloudResourceEdgeWriter
-	gcpCloudResourceEdge          *sourcecypher.GCPCloudResourceEdgeWriter
-	azureCloudResourceEdge        *sourcecypher.AzureCloudResourceEdgeWriter
-	workloadCloudRelationshipEdge *sourcecypher.WorkloadCloudRelationshipWriter
-	kubernetesWorkloadNode        *graphowner.KubernetesWorkloadGatedWriter
-	kubernetesNamespaceNode       *sourcecypher.KubernetesNamespaceNodeWriter
-	securityGroupEndpointNode     *sourcecypher.SecurityGroupEndpointNodeWriter
-	securityGroupReachability     *sourcecypher.SecurityGroupReachabilityWriter
-	kubernetesCorrelationEdge     *sourcecypher.KubernetesCorrelationEdgeWriter
-	crossplaneSatisfiedByEdge     *sourcecypher.CrossplaneSatisfiedByEdgeWriter
-	iamEscalationEdge             *sourcecypher.IAMEscalationEdgeWriter
-	iamCanPerformEdge             *sourcecypher.IAMCanPerformEdgeWriter
-	observabilityCoverageEdge     *sourcecypher.ObservabilityCoverageEdgeWriter
-	incidentRoutingEvidence       *sourcecypher.IncidentRoutingEvidenceWriter
-	codeTaintEvidence             *sourcecypher.CodeTaintEvidenceWriter
-	codeInterprocEvidence         *sourcecypher.CodeInterprocEvidenceWriter
-	iamCanAssumeEdge              *sourcecypher.IAMCanAssumeEdgeWriter
-	s3LogsToEdge                  *sourcecypher.S3LogsToEdgeWriter
-	s3ExternalPrincipalGrant      *sourcecypher.S3ExternalPrincipalGrantWriter
+	cloudResourceNode               *graphowner.CloudResourceGatedWriter
+	ec2InstanceNode                 *graphowner.EC2InstanceGatedWriter
+	cloudResourceEdge               *sourcecypher.CloudResourceEdgeWriter
+	cloudResourceContainerImageEdge *sourcecypher.CloudResourceContainerImageEdgeWriter
+	gcpCloudResourceEdge            *sourcecypher.GCPCloudResourceEdgeWriter
+	azureCloudResourceEdge          *sourcecypher.AzureCloudResourceEdgeWriter
+	workloadCloudRelationshipEdge   *sourcecypher.WorkloadCloudRelationshipWriter
+	kubernetesWorkloadNode          *graphowner.KubernetesWorkloadGatedWriter
+	kubernetesNamespaceNode         *sourcecypher.KubernetesNamespaceNodeWriter
+	securityGroupEndpointNode       *sourcecypher.SecurityGroupEndpointNodeWriter
+	securityGroupReachability       *sourcecypher.SecurityGroupReachabilityWriter
+	kubernetesCorrelationEdge       *sourcecypher.KubernetesCorrelationEdgeWriter
+	crossplaneSatisfiedByEdge       *sourcecypher.CrossplaneSatisfiedByEdgeWriter
+	iamEscalationEdge               *sourcecypher.IAMEscalationEdgeWriter
+	iamCanPerformEdge               *sourcecypher.IAMCanPerformEdgeWriter
+	observabilityCoverageEdge       *sourcecypher.ObservabilityCoverageEdgeWriter
+	incidentRoutingEvidence         *sourcecypher.IncidentRoutingEvidenceWriter
+	codeTaintEvidence               *sourcecypher.CodeTaintEvidenceWriter
+	codeInterprocEvidence           *sourcecypher.CodeInterprocEvidenceWriter
+	iamCanAssumeEdge                *sourcecypher.IAMCanAssumeEdgeWriter
+	s3LogsToEdge                    *sourcecypher.S3LogsToEdgeWriter
+	s3ExternalPrincipalGrant        *sourcecypher.S3ExternalPrincipalGrantWriter
 	// rdsPostureNode / ec2InternetExposureNode / ec2BlockDeviceKMSPostureNode /
 	// s3InternetExposureNode are wrapped in the #5062 lock-only gate
 	// (graphowner.LockOnlyGate) so their SET/REMOVE writes to shared
@@ -71,27 +78,28 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.Po
 	rawEC2BlockDeviceKMSPostureNode := sourcecypher.NewEC2BlockDeviceKMSPostureNodeWriter(exec, reader, batchSize)
 	rawS3InternetExposureNode := sourcecypher.NewS3InternetExposureNodeWriter(exec, reader, batchSize)
 	return canonicalGraphWriters{
-		cloudResourceNode:             graphowner.NewCloudResourceGatedWriter(ownerGate, rawCloudResourceNode.WriteCloudResourceNodes),
-		ec2InstanceNode:               graphowner.NewEC2InstanceGatedWriter(ownerGate, rawEC2InstanceNode.WriteEC2InstanceNodes),
-		cloudResourceEdge:             sourcecypher.NewCloudResourceEdgeWriter(exec, batchSize),
-		gcpCloudResourceEdge:          sourcecypher.NewGCPCloudResourceEdgeWriter(exec, batchSize),
-		azureCloudResourceEdge:        sourcecypher.NewAzureCloudResourceEdgeWriter(exec, batchSize),
-		workloadCloudRelationshipEdge: sourcecypher.NewWorkloadCloudRelationshipWriter(exec, batchSize),
-		kubernetesWorkloadNode:        graphowner.NewKubernetesWorkloadGatedWriter(ownerGate, rawKubernetesWorkloadNode.WriteKubernetesWorkloadNodes),
-		kubernetesNamespaceNode:       kubernetesNamespaceNode,
-		securityGroupEndpointNode:     sourcecypher.NewSecurityGroupEndpointNodeWriter(exec, batchSize),
-		securityGroupReachability:     sourcecypher.NewSecurityGroupReachabilityWriter(exec, batchSize),
-		kubernetesCorrelationEdge:     sourcecypher.NewKubernetesCorrelationEdgeWriter(exec, batchSize),
-		crossplaneSatisfiedByEdge:     sourcecypher.NewCrossplaneSatisfiedByEdgeWriter(exec, batchSize),
-		iamEscalationEdge:             sourcecypher.NewIAMEscalationEdgeWriter(exec, batchSize),
-		iamCanPerformEdge:             sourcecypher.NewIAMCanPerformEdgeWriter(exec, batchSize),
-		observabilityCoverageEdge:     sourcecypher.NewObservabilityCoverageEdgeWriter(exec, batchSize),
-		incidentRoutingEvidence:       sourcecypher.NewIncidentRoutingEvidenceWriter(exec, batchSize),
-		codeTaintEvidence:             sourcecypher.NewCodeTaintEvidenceWriter(exec, batchSize),
-		codeInterprocEvidence:         sourcecypher.NewCodeInterprocEvidenceWriter(exec, batchSize),
-		iamCanAssumeEdge:              sourcecypher.NewIAMCanAssumeEdgeWriter(exec, batchSize),
-		s3LogsToEdge:                  sourcecypher.NewS3LogsToEdgeWriter(exec, batchSize),
-		s3ExternalPrincipalGrant:      sourcecypher.NewS3ExternalPrincipalGrantWriter(exec, batchSize),
+		cloudResourceNode:               graphowner.NewCloudResourceGatedWriter(ownerGate, rawCloudResourceNode.WriteCloudResourceNodes),
+		ec2InstanceNode:                 graphowner.NewEC2InstanceGatedWriter(ownerGate, rawEC2InstanceNode.WriteEC2InstanceNodes),
+		cloudResourceEdge:               sourcecypher.NewCloudResourceEdgeWriter(exec, batchSize),
+		cloudResourceContainerImageEdge: sourcecypher.NewCloudResourceContainerImageEdgeWriter(exec, batchSize),
+		gcpCloudResourceEdge:            sourcecypher.NewGCPCloudResourceEdgeWriter(exec, batchSize),
+		azureCloudResourceEdge:          sourcecypher.NewAzureCloudResourceEdgeWriter(exec, batchSize),
+		workloadCloudRelationshipEdge:   sourcecypher.NewWorkloadCloudRelationshipWriter(exec, batchSize),
+		kubernetesWorkloadNode:          graphowner.NewKubernetesWorkloadGatedWriter(ownerGate, rawKubernetesWorkloadNode.WriteKubernetesWorkloadNodes),
+		kubernetesNamespaceNode:         kubernetesNamespaceNode,
+		securityGroupEndpointNode:       sourcecypher.NewSecurityGroupEndpointNodeWriter(exec, batchSize),
+		securityGroupReachability:       sourcecypher.NewSecurityGroupReachabilityWriter(exec, batchSize),
+		kubernetesCorrelationEdge:       sourcecypher.NewKubernetesCorrelationEdgeWriter(exec, batchSize),
+		crossplaneSatisfiedByEdge:       sourcecypher.NewCrossplaneSatisfiedByEdgeWriter(exec, batchSize),
+		iamEscalationEdge:               sourcecypher.NewIAMEscalationEdgeWriter(exec, batchSize),
+		iamCanPerformEdge:               sourcecypher.NewIAMCanPerformEdgeWriter(exec, batchSize),
+		observabilityCoverageEdge:       sourcecypher.NewObservabilityCoverageEdgeWriter(exec, batchSize),
+		incidentRoutingEvidence:         sourcecypher.NewIncidentRoutingEvidenceWriter(exec, batchSize),
+		codeTaintEvidence:               sourcecypher.NewCodeTaintEvidenceWriter(exec, batchSize),
+		codeInterprocEvidence:           sourcecypher.NewCodeInterprocEvidenceWriter(exec, batchSize),
+		iamCanAssumeEdge:                sourcecypher.NewIAMCanAssumeEdgeWriter(exec, batchSize),
+		s3LogsToEdge:                    sourcecypher.NewS3LogsToEdgeWriter(exec, batchSize),
+		s3ExternalPrincipalGrant:        sourcecypher.NewS3ExternalPrincipalGrantWriter(exec, batchSize),
 		rdsPostureNode: graphowner.NewRDSPostureLockedWriter(
 			lockGate, rawRDSPostureNode.WriteRDSPostureNodes, rawRDSPostureNode.RetractRDSPostureNodes,
 		),
@@ -108,4 +116,71 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.Po
 		),
 		provenanceEdge: sourcecypher.NewProvenanceEdgeWriter(exec, batchSize),
 	}
+}
+
+// seedReducerProjectedSourceLedgers runs buildReducerService's three one-time,
+// idempotent startup backfills that seed the projected-edge/-node ledgers from
+// existing graph state, so each ledger is a superset of the graph at deploy
+// time. Extracted out of buildReducerService (go/cmd/reducer/main.go) to keep
+// that file under the repo's file-size budget; it is grouped here alongside
+// the canonical graph writer construction it feeds (the AWS/Azure/GCP
+// relationship, observability-coverage, and security-group-reachability
+// materialization handlers wired from canonicalGraphWriters all read this
+// backfill's ProjectedSourceLedger before their first post-deploy retract).
+//
+//   - The TAINT_FLOWS_TO interproc-edge ledger and the CodeTaintEvidence
+//     node ledger share one StateMarker and must run in that order (mirrors
+//     the interproc edge backfill).
+//   - The projected-source-edge ledger (AWS/Azure/GCP relationship,
+//     observability-coverage, and security-group-reachability evidence) is
+//     returned so the caller can reuse the SAME store instance as
+//     reducer.DefaultHandlers.ProjectedSourceLedger — one store serves both
+//     this backfill and the runtime handlers.
+//
+// Each backfiller runs against context.Background(), not a caller-supplied
+// context, matching this startup sequence's pre-existing behavior: it must
+// complete before the reducer service begins serving work, independent of any
+// request-scoped deadline the caller may be operating under.
+func seedReducerProjectedSourceLedgers(database postgres.ExecQueryer, graphReader query.GraphQuery) (postgres.ProjectedSourceEdgeStore, error) {
+	backfillStateMarker := postgres.NewCodeValueFlowBackfillStateStore(database)
+	backfiller := reducer.CodeInterprocProjectedEdgeBackfiller{
+		Reader:      reducer.CodeInterprocProjectedEdgeBackfillReader{Graph: graphReader},
+		Ledger:      postgres.NewCodeInterprocProjectedEdgeStore(database),
+		StateMarker: backfillStateMarker,
+		EvidenceSources: []string{
+			reducer.CodeInterprocEvidenceSource(),
+			reducer.CodeInterprocFixpointEvidenceSource(),
+		},
+	}
+	if err := backfiller.Run(context.Background()); err != nil {
+		return postgres.ProjectedSourceEdgeStore{}, fmt.Errorf("code interproc projected edge backfill: %w", err)
+	}
+	taintNodeBackfiller := reducer.CodeTaintEvidenceProjectedNodeBackfiller{
+		Reader:      reducer.CodeTaintEvidenceProjectedNodeBackfillReader{Graph: graphReader},
+		Ledger:      postgres.NewCodeTaintEvidenceProjectedNodeStore(database),
+		StateMarker: backfillStateMarker,
+		EvidenceSources: []string{
+			reducer.CodeTaintEvidenceSource(),
+		},
+	}
+	if err := taintNodeBackfiller.Run(context.Background()); err != nil {
+		return postgres.ProjectedSourceEdgeStore{}, fmt.Errorf("code taint evidence projected node backfill: %w", err)
+	}
+	projectedSourceEdgeStore := postgres.NewProjectedSourceEdgeStore(database)
+	projectedSourceEdgeBackfiller := reducer.ProjectedSourceEdgeBackfiller{
+		Reader:      reducer.ProjectedSourceEdgeBackfillReader{Graph: graphReader},
+		Ledger:      projectedSourceEdgeStore,
+		StateMarker: backfillStateMarker,
+		EvidenceSources: []string{
+			reducer.AWSRelationshipEvidenceSource(),
+			reducer.AzureRelationshipEvidenceSource(),
+			reducer.GCPRelationshipEvidenceSource(),
+			reducer.ObservabilityCoverageEvidenceSource(),
+			reducer.SecurityGroupReachabilityEvidenceSource(),
+		},
+	}
+	if err := projectedSourceEdgeBackfiller.Run(context.Background()); err != nil {
+		return postgres.ProjectedSourceEdgeStore{}, fmt.Errorf("projected source edge backfill: %w", err)
+	}
+	return projectedSourceEdgeStore, nil
 }

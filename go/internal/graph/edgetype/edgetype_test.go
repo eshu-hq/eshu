@@ -11,6 +11,7 @@ import "testing"
 // silently break stored edges and every reader that matches the old type.
 func TestEdgeTypeStringParity(t *testing.T) {
 	want := map[EdgeType]string{
+		AWSLambdaFunctionUsesImage:         "AWS_lambda_function_uses_image",
 		Aliases:                            "ALIASES",
 		AllowsEgress:                       "ALLOWS_EGRESS",
 		AllowsIngress:                      "ALLOWS_INGRESS",

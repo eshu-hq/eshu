@@ -225,7 +225,7 @@ full generation for its own trigger fact kind(s); the shared index groups fact
 positions by `FactKind` once, so a probe that only cares about one or a
 handful of kinds looks them up directly instead of walking every fact in the
 generation. `inputFacts` is immutable once a scope generation is claimed for
-projection, so sharing one read-only index across all 40 probes is
+projection, so sharing one read-only index across all 41 probes is
 concurrency-safe. Probes that pick their anchor fact from more than one
 candidate kind (e.g. `buildSupplyChainImpactReducerIntent`,
 `buildContainerImageIdentityReducerIntent`) use the index's

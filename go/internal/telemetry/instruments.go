@@ -686,6 +686,17 @@ type Instruments struct {
 	// materializing CAN_ASSUME edges, and did a generation produce zero?" at
 	// 3 AM.
 	IAMCanAssumeEdges metric.Int64Counter
+	// AWSCloudImageEdges counts AWS cloud-image edge projection outcomes (issue
+	// #5450). Label: resolution_mode (container_image_digest — the only
+	// resolution path, an exact registry+repository@digest reference). It
+	// counts only materialized CloudResource -> ContainerImage edges; the
+	// tag-only ECS policy skip, an unresolved digest, an unparseable digest
+	// ref, and an unscanned source endpoint never produce an edge and are
+	// surfaced by the "aws cloud image materialization completed" completion
+	// log's skip tally instead. Lets an operator answer "are
+	// LambdaFunctionUsesImage edges landing, and did a generation produce
+	// zero?" at 3 AM.
+	AWSCloudImageEdges metric.Int64Counter
 	// S3LogsToEdges counts S3 LOGS_TO server-access-log edge projection outcomes
 	// (issue #1144 PR2). Label: resolution_mode (name — the only resolution path,
 	// bucket-name equality against the in-memory join index). It counts only
@@ -2994,6 +3005,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register IAMCanAssumeEdges counter: %w", err)
+	}
+
+	inst.AWSCloudImageEdges, err = meter.Int64Counter(
+		"eshu_dp_aws_cloud_image_edges_total",
+		metric.WithDescription("Total AWS cloud-image (CloudResource -> ContainerImage) edge projection outcomes by resolution_mode (container_image_digest)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AWSCloudImageEdges counter: %w", err)
 	}
 
 	inst.S3LogsToEdges, err = meter.Int64Counter(

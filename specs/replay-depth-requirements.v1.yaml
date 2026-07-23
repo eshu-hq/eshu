@@ -193,6 +193,7 @@ retractable_edge_types:
   # cloud, security, and IAM relationships with finite static edge types
   - ALLOWS_EGRESS
   - ALLOWS_INGRESS
+  - AWS_lambda_function_uses_image
   - CAN_ASSUME
   - CAN_ESCALATE_TO
   - CAN_PERFORM

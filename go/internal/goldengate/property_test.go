@@ -86,3 +86,43 @@ func TestEvaluateNodeProperty(t *testing.T) {
 		}
 	}
 }
+
+// TestEvaluateNodePropertyMaximumCountCeiling proves MaximumNodePropertyCount
+// (issue #5450) catches an over-broad write a floor-only check cannot: a
+// property that leaked onto every node of the label still satisfies
+// `present >= MinimumCount`, so the ceiling is the only thing that fails it.
+// This is the exact regression shape that motivated the field: running_image_ref
+// written onto all 115 CloudResource nodes instead of the 2 expected still
+// passed a bare `want >= 2` floor.
+func TestEvaluateNodePropertyMaximumCountCeiling(t *testing.T) {
+	rn := RequiredNode{
+		ID:                       "rn-cloud-resource-running-image",
+		Label:                    "CloudResource",
+		MinimumCount:             2,
+		MaximumNodePropertyCount: map[string]int64{"running_image_ref": 2},
+	}
+
+	withinCeiling := []string{"img-a", "img-b", "", "", ""}
+	if f := EvaluateNodeProperty(rn, "running_image_ref", withinCeiling, nil); !f.OK {
+		t.Errorf("present=2 within [2,2] ceiling: OK=false, want true (detail %q)", f.Detail)
+	}
+
+	overCeiling := make([]string, 0, 115)
+	for i := 0; i < 115; i++ {
+		overCeiling = append(overCeiling, "img")
+	}
+	f := EvaluateNodeProperty(rn, "running_image_ref", overCeiling, nil)
+	if f.OK {
+		t.Errorf("present=115 exceeds ceiling 2: OK=true, want false (this is the over-broad-write regression the ceiling exists to catch)")
+	}
+	if !f.Required {
+		t.Error("ceiling-violating node-property finding must be required")
+	}
+
+	// A property with NO maximum configured stays floor-only (unbounded),
+	// preserving every other RequiredNode entry's existing behavior.
+	rnUnbounded := RequiredNode{ID: "rn-file", Label: "File", MinimumCount: 2}
+	if f := EvaluateNodeProperty(rnUnbounded, "language", overCeiling, nil); !f.OK {
+		t.Errorf("no MaximumNodePropertyCount configured: OK=false, want true (unbounded floor-only)")
+	}
+}

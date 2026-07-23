@@ -68,6 +68,53 @@ func TestExtractAzureCloudResourceNodeRowsBuildsStableUID(t *testing.T) {
 	}
 }
 
+// TestExtractAzureCloudResourceNodeRowsSetsExplicitEmptyRunningImageKeys
+// proves running_image_ref/running_image_digest are PRESENT keys with ""
+// (never omitted) on every Azure CloudResource row, mirroring
+// TestExtractGCPCloudResourceNodeRowsSetsExplicitServiceAnchorParityKeys
+// (issue #5450, following the #4995 precedent). Azure is never a
+// running-image source, but canonicalCloudResourceUpsertCypher's
+// unconditional SET clause reads row.running_image_ref/row.
+// running_image_digest for every row in the shared UNWIND $rows batch — an
+// omitted key on the pinned NornicDB backend persists the literal string
+// "row.running_image_ref" instead of null, live-proved against the pinned
+// image (see runningImageFieldsAbsent's doc in
+// aws_resource_running_image.go).
+func TestExtractAzureCloudResourceNodeRowsSetsExplicitEmptyRunningImageKeys(t *testing.T) {
+	t.Parallel()
+
+	rows, quarantined, err := ExtractAzureCloudResourceNodeRows([]facts.Envelope{
+		azureResourceEnvelope(map[string]any{
+			"arm_resource_id": "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm",
+			"subscription_id": "sub-1",
+			"resource_type":   "microsoft.compute/virtualmachines",
+			"resource_name":   "vm",
+			"location":        "eastus",
+		}),
+	})
+	if err != nil {
+		t.Fatalf("ExtractAzureCloudResourceNodeRows() error = %v, want nil", err)
+	}
+	if len(quarantined) != 0 {
+		t.Fatalf("quarantined = %v, want none", quarantined)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("len(rows) = %d, want 1", len(rows))
+	}
+	row := rows[0]
+	for _, key := range []string{"running_image_ref", "running_image_digest"} {
+		value, ok := row[key]
+		if !ok {
+			t.Fatalf("row[%q] is absent; the shared upsert Cypher's row.%s reference "+
+				"would resolve against a missing map key on the pinned NornicDB backend "+
+				"and persist a stringified-row literal instead of an empty value", key, key)
+		}
+		if value != "" {
+			t.Fatalf("row[%q] = %#v, want empty string (Azure is never a running-image source)", key, value)
+		}
+	}
+}
+
 func TestAzureResourceMaterializationPublishesReadinessPhase(t *testing.T) {
 	t.Parallel()
 

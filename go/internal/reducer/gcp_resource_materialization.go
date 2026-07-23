@@ -356,6 +356,15 @@ func gcpCloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool, 
 		"service_anchor_reason":      "",
 		"service_anchor_names":       []string{},
 		"service_anchor_name_tokens": "",
+		// running_image_ref/running_image_digest: same #4995-shaped parity
+		// requirement, added for issue #5450. GCP resources are never a
+		// running-image source; both keys must still be PRESENT (not omitted)
+		// so canonicalCloudResourceUpsertCypher's unconditional SET clause does
+		// not hit the pinned NornicDB missing-map-key-in-UNWIND bug (see
+		// go/internal/reducer/aws_resource_running_image.go's
+		// runningImageFieldsAbsent doc for the live-proved mechanism).
+		"running_image_ref":    "",
+		"running_image_digest": "",
 	}
 	// No-op in every normal build; under the ifadeterminismteeth build tag
 	// this stamps a process-order-dependent debug property the determinism

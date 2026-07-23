@@ -17,7 +17,14 @@ labels (those live in `internal/graph`), the relationship-resolution evidence
 model (`internal/relationships`), or the data-driven cloud relationship
 families `AWS_*` / `GCP_*` and the observability coverage family, which are
 synthesized from collector row data at runtime and cannot be enumerated as
-constants.
+constants. The one exception is `AWSLambdaFunctionUsesImage`
+(`AWS_lambda_function_uses_image`, issue #5450): unlike the open per-relationship-type
+`AWS_<raw relationship_type>` family `CloudResourceEdgeWriter` derives at
+runtime, `DomainAWSCloudImageMaterialization` resolves exactly one relationship
+type through a closed single-member vocabulary
+(`cloudResourceContainerImageRelationshipVocabulary`, mirroring `CAN_ASSUME`'s
+pattern), so it is genuinely a fixed, enumerable constant despite carrying the
+`AWS_` naming convention.
 
 ## Exported surface
 

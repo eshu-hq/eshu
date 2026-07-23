@@ -152,6 +152,65 @@
               "supply-chain-demo:latest"
             ]
           }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:ecs:task-definition:supply-chain-demo:1",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "arn": "arn:aws:ecs:us-east-1:123456789012:task-definition/supply-chain-demo:1",
+            "resource_id": "arn:aws:ecs:us-east-1:123456789012:task-definition/supply-chain-demo:1",
+            "resource_type": "ecs.task_definition",
+            "name": "supply-chain-demo",
+            "state": "ACTIVE",
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "service_kind": "ecs",
+            "correlation_anchors": [
+              "arn:aws:ecs:us-east-1:123456789012:task-definition/supply-chain-demo:1",
+              "supply-chain-demo",
+              "supply-chain-demo:1"
+            ],
+            "attributes": {
+              "containers": [
+                {
+                  "image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
+                  "name": "supply-chain-demo",
+                  "essential": true
+                }
+              ],
+              "cpu": "256",
+              "memory": "512",
+              "revision": 1,
+              "task_role_arn": "arn:aws:iam::123456789012:role/supply-chain-demo-task-role",
+              "execution_role_arn": "arn:aws:iam::123456789012:role/supply-chain-demo-execution-role"
+            }
+          }
+        },
+        {
+          "fact_kind": "aws_relationship",
+          "stable_fact_key": "aws:123456789012:us-east-1:ecs:task-definition:supply-chain-demo:1#container-image#supply-chain-demo:latest",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "relationship_type": "ecs_task_definition_uses_image",
+            "source_resource_id": "arn:aws:ecs:us-east-1:123456789012:task-definition/supply-chain-demo:1",
+            "source_arn": "arn:aws:ecs:us-east-1:123456789012:task-definition/supply-chain-demo:1",
+            "target_resource_id": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
+            "target_type": "container_image",
+            "attributes": {
+              "container_names": [
+                "supply-chain-demo"
+              ]
+            }
+          }
         }
       ]
     },
@@ -196,6 +255,27 @@
               "code_sha256": "0000000000000000000000000000000000000000000000000000000000cc",
               "version": "$LATEST",
               "role_arn": "arn:aws:iam::123456789012:role/supply-chain-demo-lambda-role"
+            }
+          }
+        },
+        {
+          "fact_kind": "aws_relationship",
+          "stable_fact_key": "aws:123456789012:us-east-1:lambda:function:supply-chain-demo#container-image#supply-chain-demo:latest",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "relationship_type": "lambda_function_uses_image",
+            "source_resource_id": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo",
+            "source_arn": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo",
+            "target_resource_id": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
+            "target_type": "container_image",
+            "attributes": {
+              "package_type": "Image",
+              "resolved_image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:0000000000000000000000000000000000000000000000000000000000cc"
             }
           }
         }

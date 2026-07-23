@@ -779,6 +779,30 @@ increment the counter. The exact source increments once per omitted role. The
 graph writer's worker, partition, lease, retry, ordering, and remaining
 transaction boundaries are unchanged.
 
+## AWS Cloud-Image Edge Counter (#5450)
+
+`eshu_dp_aws_cloud_image_edges_total` counts AWS `CloudResource` ->
+`ContainerImage` edges `DomainAWSCloudImageMaterialization` actually
+materializes per generation (a Lambda function's exact
+`lambda_function_uses_image` relationship, resolved to a digest-addressed
+`:ContainerImage` node). It carries one bounded label, `resolution_mode`
+(currently always `container_image_digest`, kept for forward compatibility
+with a future non-digest resolution mode).
+
+The counter only increments for a row whose target `:ContainerImage` node is
+CONFIRMED to exist in the canonical graph — a `lambda_function_uses_image`
+relationship whose referenced digest the OCI registry has never scanned is
+counted as a `target_not_materialized` skip instead, never as a materialized
+edge. This distinction matters operationally: `ExtractAWSCloudImageEdgeRows`
+alone cannot tell the two cases apart (it has no graph access), so the handler
+runs a bounded existence pre-filter over target uids before this counter (and
+`CanonicalWrites`/the completion log's `edge_count`) is computed, closing an
+over-reporting gap where the metric could claim more edges than the graph
+actually had. `ecs_task_definition_uses_image` relationships never reach this
+counter at all — they are tag-only and stay Postgres-only per the #5472
+EXACT-ONLY graph-projection policy, counted under the completion log's
+`skipped_by_reason=tag_only_postgres_only_policy` instead.
+
 ## Deferred backfill partition memo gate (#3624 Track 1)
 
 The corpus-wide deferred relationship pass now skips re-loading a partition whose

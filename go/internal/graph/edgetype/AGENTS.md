@@ -33,7 +33,13 @@
 
 - Do NOT register the data-driven `AWS_*` / `GCP_*` cloud families or
   observability coverage types. They are runtime-synthesized open sets; the
-  coverage test skips them on purpose via `skipDynamic`.
+  coverage test skips them on purpose via `skipDynamic`. `AWSLambdaFunctionUsesImage`
+  (`AWS_lambda_function_uses_image`, issue #5450) is the one deliberate
+  exception: `DomainAWSCloudImageMaterialization` resolves exactly one fixed
+  relationship type through a closed single-member vocabulary (mirroring
+  `CAN_ASSUME`, not the open `AWS_<raw relationship_type>` family), so it is
+  registered as a real constant even though its lowercase suffix makes
+  `skipDynamic` ignore it in the unregistered-literal scan.
 - Do NOT add node labels here. Labels are PascalCase and live in
   `internal/graph`.
 
