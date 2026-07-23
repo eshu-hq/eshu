@@ -200,13 +200,18 @@ func cloudInventoryResourceView(envelope map[string]any) map[string]any {
 const cloudInventoryContainersAttributeKey = "containers"
 
 // cloudInventoryContainerAttributeKeys is the closed set of container map
-// sub-keys this projector surfaces. It MUST stay in lockstep with the AWS
-// loader's containers sub-key allowlist
+// sub-keys this projector surfaces. It is intentionally maintained
+// independently of the AWS loader's containers sub-key allowlist
 // (go/internal/storage/postgres/cloud_inventory_evidence.go
-// awsCloudInventoryAttributeAllowlist.nestedArrayKeys["containers"]): the
-// loader already drops every other sub-key before the value reaches this
-// projector, but this set is a second, independent gate, so a change to one
-// without the other is caught by a test rather than becoming a leak.
+// awsCloudInventoryAttributeAllowlist.nestedArrayKeys["containers"]): there is
+// no shared constant and no test tying the two sets together across packages.
+// That loader is the sole upstream of this projector's input -- every
+// containers value this function ever sees already passed through that
+// filter -- so drift between the two sets can only ever make this projector
+// MORE restrictive than the loader (silently dropping container data the
+// loader already allowed through), never leak a raw sub-key the loader
+// dropped. TestCloudInventoryContainerAttributeKeysIsImageAndDigestOnly pins
+// this set on its own so an accidental change here is still caught by a test.
 var cloudInventoryContainerAttributeKeys = map[string]struct{}{
 	"image":        {},
 	"image_digest": {},

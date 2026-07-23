@@ -81,11 +81,19 @@ var awsCloudInventoryAttributeAllowlist = cloudInventoryAttributeAllowlist{
 		"version":             {},
 	},
 	nestedArrayKeys: map[string]map[string]struct{}{
-		// containers must stay in lockstep with
+		// containers' sub-key set is intentionally maintained independently of
 		// cloudInventoryContainerAttributeKeys in
-		// go/internal/query/cloud_inventory_read_model.go: that projector applies
-		// the same {image, image_digest} sub-key set as a second, independent
-		// gate on the already-filtered value.
+		// go/internal/query/cloud_inventory_read_model.go, which applies the same
+		// {image, image_digest} sub-key set as a second, independent gate on the
+		// already-filtered value. There is no shared constant and no test tying
+		// the two together across packages: this loader is the sole upstream of
+		// that projector's input (every containers value it ever sees already
+		// passed through this filter), so drift between the two sets can only
+		// ever make the read model MORE restrictive than this loader -- i.e.
+		// silently drop container data the loader already allowed -- never leak
+		// a raw sub-key this loader dropped. The query package pins its own set
+		// with TestCloudInventoryContainerAttributeKeysIsImageAndDigestOnly so a
+		// change there is caught by a test even without a cross-package tie.
 		"containers": {
 			"image":        {},
 			"image_digest": {},
@@ -275,7 +283,7 @@ func (allow cloudInventoryAttributeAllowlist) filter(raw any) map[string]any {
 		if !present {
 			continue
 		}
-		if s := strings.TrimSpace(coerceJSONString(value)); s != "" {
+		if s, ok := cloudInventoryAllowlistScalarString(value); ok {
 			out[key] = s
 		}
 	}
@@ -293,11 +301,36 @@ func (allow cloudInventoryAttributeAllowlist) filter(raw any) map[string]any {
 	return out
 }
 
+// cloudInventoryAllowlistScalarString coerces an allowlisted attribute value
+// to a non-blank string, but ONLY when the value is itself a JSON scalar
+// (string, bool, float64, or json.Number). A map[string]any or []any value is
+// explicitly rejected (ok=false) rather than stringified: a malformed provider
+// payload can put a nested object under an allowlisted key name (for example
+// task_definition_arn), and coerceJSONString's fmt.Sprint fallback would print
+// that object's Go-syntax representation -- including any raw provider key
+// inside it (cluster_arn, role_arn, ...) -- defeating the allowlist entirely.
+// This mirrors boundedCloudInventoryAttributes' strict type switch, which has
+// no default/stringify branch for exactly this reason.
+func cloudInventoryAllowlistScalarString(value any) (string, bool) {
+	switch v := value.(type) {
+	case string:
+		s := strings.TrimSpace(v)
+		return s, s != ""
+	case bool, float64, json.Number:
+		s := strings.TrimSpace(coerceJSONString(v))
+		return s, s != ""
+	default:
+		return "", false
+	}
+}
+
 // filterCloudInventoryNestedArray reduces one nested array-of-object attribute
-// value to the given closed sub-key set, keeping only non-blank scalar
-// sub-values from elements that decode as a JSON object. A raw value that is
-// not a []any, or an element that decodes to a map with none of its
-// allowlisted sub-keys present and non-blank, is dropped.
+// value to the given closed sub-key set, keeping only non-blank SCALAR
+// sub-values (via cloudInventoryAllowlistScalarString) from elements that
+// decode as a JSON object. A raw value that is not a []any, an element that is
+// not itself a JSON object, a sub-key whose value is a nested object/array, or
+// an element with none of its allowlisted sub-keys present and non-blank, is
+// dropped.
 func filterCloudInventoryNestedArray(raw any, subKeys map[string]struct{}) []map[string]any {
 	elements, ok := raw.([]any)
 	if !ok || len(elements) == 0 {
@@ -315,7 +348,7 @@ func filterCloudInventoryNestedArray(raw any, subKeys map[string]struct{}) []map
 			if !present {
 				continue
 			}
-			if s := strings.TrimSpace(coerceJSONString(value)); s != "" {
+			if s, ok := cloudInventoryAllowlistScalarString(value); ok {
 				kept[subKey] = s
 			}
 		}

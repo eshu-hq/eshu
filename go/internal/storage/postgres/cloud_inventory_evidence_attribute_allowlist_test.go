@@ -146,6 +146,92 @@ func TestCloudInventoryRecordFromRowAWSLambdaAllowlistFiltersRawKeys(t *testing.
 	}
 }
 
+// TestCloudInventoryRecordFromRowAWSAllowlistDropsNestedObjectUnderScalarKey is
+// a P1 regression guard (hostile review finding #1, issue #5449): a malformed
+// payload that puts a nested JSON object under an allowlisted SCALAR key
+// (task_definition_arn) must have that key dropped entirely, never stringified
+// via fmt.Sprint. Stringifying a map value would print its Go-syntax
+// representation (e.g. "map[cluster_arn:... role_arn:...]"), leaking the exact
+// raw provider keys the allowlist exists to hide, under an allowlisted key
+// name. This proves the allowlist scalar path is as strict as
+// boundedCloudInventoryAttributes' type switch (no default/stringify branch).
+func TestCloudInventoryRecordFromRowAWSAllowlistDropsNestedObjectUnderScalarKey(t *testing.T) {
+	t.Parallel()
+
+	arn := "arn:aws:ecs:us-east-1:000000000000:task/demo-cluster/0000000000000000000000000000000a"
+	payload := []byte(`{
+		"arn":"` + arn + `",
+		"resource_type":"aws_ecs_task",
+		"attributes":{
+			"task_definition_arn":{"cluster_arn":"arn:aws:ecs:us-east-1:000000000000:cluster/demo","role_arn":"arn:aws:iam::000000000000:role/leaked"}
+		}
+	}`)
+
+	record, ok := cloudInventoryRecordFromRow(facts.AWSResourceFactKind, arn, payload)
+	if !ok {
+		t.Fatal("cloudInventoryRecordFromRow() ok = false, want true")
+	}
+	if record.Attributes != nil {
+		if _, present := record.Attributes["task_definition_arn"]; present {
+			t.Fatalf("task_definition_arn must be dropped when its value is a nested object, got %#v", record.Attributes["task_definition_arn"])
+		}
+	}
+}
+
+// TestCloudInventoryRecordFromRowAWSAllowlistDropsNestedObjectContainerSubKey
+// is the P1 #1 regression guard for the nested-array path: a container
+// element whose "image" sub-key holds a nested JSON object (instead of a
+// string) must have that sub-key dropped, never stringified. Since the only
+// other sub-key (image_digest) is absent, the whole element carries no
+// allowlisted content and is dropped.
+func TestCloudInventoryRecordFromRowAWSAllowlistDropsNestedObjectContainerSubKey(t *testing.T) {
+	t.Parallel()
+
+	arn := "arn:aws:ecs:us-east-1:000000000000:task/demo-cluster/0000000000000000000000000000000b"
+	payload := []byte(`{
+		"arn":"` + arn + `",
+		"resource_type":"aws_ecs_task",
+		"attributes":{
+			"containers":[
+				{"image":{"cluster_arn":"arn:aws:ecs:us-east-1:000000000000:cluster/demo","role_arn":"arn:aws:iam::000000000000:role/leaked"}}
+			]
+		}
+	}`)
+
+	record, ok := cloudInventoryRecordFromRow(facts.AWSResourceFactKind, arn, payload)
+	if !ok {
+		t.Fatal("cloudInventoryRecordFromRow() ok = false, want true")
+	}
+	if record.Attributes != nil {
+		if containers, present := record.Attributes["containers"]; present {
+			t.Fatalf("containers must be absent (the only element's image sub-key was a nested object with no allowlisted content), got %#v", containers)
+		}
+	}
+}
+
+// TestCloudInventorySourceFactMappingsSurfacesAttributesAndAllowlistMutuallyExclusive
+// is a P2 regression guard (hostile review finding #3, issue #5449): iterates
+// every entry in cloudInventorySourceFactMappings and asserts no mapping sets
+// both surfacesAttributes=true and a non-nil attributeAllowlist. Those two
+// paths are meant to be mutually exclusive (raw passthrough vs. closed
+// allowlist); cloudInventoryRecordAttributes checks surfacesAttributes first,
+// so a mapping violating this invariant would silently ignore its allowlist
+// and fall through to unfiltered raw passthrough.
+func TestCloudInventorySourceFactMappingsSurfacesAttributesAndAllowlistMutuallyExclusive(t *testing.T) {
+	t.Parallel()
+
+	for factKind, mapping := range cloudInventorySourceFactMappings {
+		if mapping.surfacesAttributes && mapping.attributeAllowlist != nil {
+			t.Fatalf(
+				"fact kind %q sets both surfacesAttributes=true and a non-nil attributeAllowlist; "+
+					"cloudInventoryRecordAttributes checks surfacesAttributes first, so the allowlist "+
+					"would be silently ignored and the mapping would raw-passthrough instead of filtering",
+				factKind,
+			)
+		}
+	}
+}
+
 // TestCloudInventoryRecordFromRowAzureAttributesAlwaysDropped proves the
 // azure_cloud_resource allowlist mechanism is wired but currently closed: the
 // azure_cloud_resource fact carries no image/version keys today (image

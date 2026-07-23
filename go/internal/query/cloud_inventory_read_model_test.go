@@ -3,7 +3,10 @@
 
 package query
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 // TestCloudInventoryResourceViewSurfacesTagFingerprints proves the readback
 // projection surfaces keyed tag value fingerprints when the canonical payload
@@ -300,6 +303,26 @@ func TestCloudInventoryResourceViewDropsContainersElementsWithNoAllowedKeys(t *t
 	view := cloudInventoryResourceView(envelope)
 	if _, present := view["attributes"]; present {
 		t.Fatalf("attributes present with no allowlisted content: %#v", view["attributes"])
+	}
+}
+
+// TestCloudInventoryContainerAttributeKeysIsImageAndDigestOnly pins
+// cloudInventoryContainerAttributeKeys to exactly {image, image_digest} (P2
+// finding #5, issue #5449). The loader-side allowlist
+// (go/internal/storage/postgres/cloud_inventory_evidence.go
+// awsCloudInventoryAttributeAllowlist.nestedArrayKeys["containers"]) is
+// maintained independently -- there is no shared constant across packages --
+// so this test is what catches an accidental widening or narrowing of this
+// projector's own container sub-key set.
+func TestCloudInventoryContainerAttributeKeysIsImageAndDigestOnly(t *testing.T) {
+	t.Parallel()
+
+	want := map[string]struct{}{
+		"image":        {},
+		"image_digest": {},
+	}
+	if !reflect.DeepEqual(cloudInventoryContainerAttributeKeys, want) {
+		t.Fatalf("cloudInventoryContainerAttributeKeys = %#v, want %#v", cloudInventoryContainerAttributeKeys, want)
 	}
 }
 
