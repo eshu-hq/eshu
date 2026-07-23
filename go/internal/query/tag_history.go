@@ -24,14 +24,16 @@ const (
 //
 // Anchor: the existing container_image_tag_observation_ref index over
 // image_ref (see go/internal/storage/cypher), so this is an indexed
-// equality lookup, not a label scan. ORDER BY t.first_observed_at, t.uid is
-// deterministic because uid is unique per observation node.
+// equality lookup, not a label scan. The result is fully deterministic because
+// the trailing t.uid key is unique per observation node and breaks every tie,
+// independent of backend null-ordering.
 // first_observed_at may be null for an observation whose envelope carried a
 // zero ObservedAt (see ociImageTagFirstObservedRows in
 // go/internal/storage/cypher) or one materialized before the #5459 deferred
-// set-once phase shipped; null sorts consistently first under NornicDB and
-// Neo4j's default ORDER BY null-handling, so those rows surface at the head
-// of the page rather than being dropped.
+// set-once phase shipped. Such rows are retained (never dropped); their
+// position relative to timestamped rows follows the backend's native
+// null-ordering (NornicDB and Neo4j sort nulls last on ascending ORDER BY) and
+// is not relied upon for correctness — the uid tiebreak fixes the total order.
 const tagHistoryCypher = `
 	MATCH (t:ContainerImageTagObservation {image_ref: $image_ref})
 	RETURN t.tag AS tag,

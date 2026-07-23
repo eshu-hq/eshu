@@ -6487,15 +6487,15 @@
       "proof_signals": [
         {
           "kind": "go_test",
+          "ref": "./internal/mcp"
+        },
+        {
+          "kind": "go_test",
           "ref": "./internal/query"
         },
         {
           "kind": "go_test",
           "ref": "./internal/query ./internal/mcp"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-container-image-tag-history"
         }
       ],
       "console": false,
