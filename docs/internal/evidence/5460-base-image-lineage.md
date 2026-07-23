@@ -77,27 +77,30 @@ Mutation proof that both accuracy rules are load-bearing, not decorative:
 Benchmark Evidence: `go test ./internal/reducer -bench
 'BenchmarkContainerImage(BuiltFrom|DerivedFrom)Rows' -run '^$' -count=5`
 
-Medians over 5 samples on the development machine:
+Medians over 5 samples on the development machine, owner-scoped builder (one
+intent's worst case: owning repo with 2,500 children + 1 base, plus 5,000
+cross-scope noise decisions the builder skips):
 
 | Benchmark | Local median ns/op | B/op | allocs/op |
 | --- | --- | --- | --- |
-| `BenchmarkContainerImageBuiltFromRows` (5000 rows) | 696,658 | 1,960,962 | 25,001 |
-| `BenchmarkContainerImageDerivedFromRows` (2500 rows from 5000 decisions) | 1,285,812 | 2,641,374 | 22,556 |
+| `BenchmarkContainerImageBuiltFromRows` (5000 rows) | 557,348 | 1,960,962 | 25,001 |
+| `BenchmarkContainerImageDerivedFromRows` (2500 rows from 7501 decisions) | 497,007 | 1,782,402 | 12,534 |
 
-`DERIVED_FROM` is the more expensive builder by design: it makes a first pass to
-group declared bases per repository and reject ambiguous repositories before
-emitting any row, which `BUILT_FROM` does not need.
+Owner-scoping made `DERIVED_FROM` cheaper than the earlier unscoped builder and
+than `BUILT_FROM`: it finds the owning repository's single base in one pass and
+emits its children in a second, skipping all cross-scope noise, rather than
+grouping every repository's bases.
 
 The committed budget row is **derived, not captured on the enforcement runner**,
 and that is stated rather than implied. `BenchmarkContainerImageBuiltFromRows` is
 a co-located benchmark over the same decision type with a committed baseline of
-583,584 ns/op; this machine measures it at 696,658, a factor of 1.1938. Applying
-that factor to the local `DERIVED_FROM` median gives a normalized baseline of
-1,077,113 ns/op, and the file's standard 1.5× headroom gives a budget of
-1,615,670 ns/op:
+583,584 ns/op; this machine measures it at 557,348, a factor of 0.9550. Dividing
+the local `DERIVED_FROM` median by that factor gives a normalized baseline of
+520,403 ns/op, and the file's standard 1.5× headroom gives a budget of
+780,604 ns/op:
 
 ```
-BenchmarkContainerImageDerivedFromRows	1615670	1077113
+BenchmarkContainerImageDerivedFromRows	780604	520403
 ```
 
 This should be refreshed by `scripts/refresh-reducer-handler-budgets.sh` on the
@@ -127,12 +130,32 @@ added, making the repository ambiguous — still clears the prior edge.
 same handler writes, so neither domain's retract can touch the other's edges. A
 test asserts the two constants can never collapse to the same value.
 
-### Write dispatch: sequential, not grouped (NornicDB fast-path)
+### Owner-scoped projection (the root fix) + sequential dispatch (defense)
 
-The DERIVED_FROM **write** also dispatches through sequential auto-commit
-`Execute`, not `ExecuteGroup` — unlike `BUILT_FROM`/`PUBLISHES`, which group.
-The golden-corpus gate caught this against a live backend: the
-`container_image_identity` intent for an unrelated scope dead-lettered with
+The base reference reaches **every** identity intent through the active
+cross-scope fact load, so the first cut built and wrote the same DERIVED_FROM
+edge from every intent that could see both endpoints — including OCI-registry
+and ECS scopes that merely observe the images. That is a correctness defect, not
+just waste: each writing intent stamps its own `scope_id`, so the edge's
+retract-first-per-generation owner becomes whichever unrelated intent wrote
+last, and a later delete of the declaring repository can no longer retract it.
+
+The root fix scopes projection to the child's owning repository:
+`containerImageDerivedFromRows` takes the intent's repository
+(`repositoryIDFromReducerScope(intent.ScopeID)`) and builds rows only for that
+repository. A non-repository scope (OCI/CI/cloud) owns no Dockerfile and
+projects nothing. The edge now has exactly one deterministic owner — the
+repository whose Dockerfile declares the base — and the redundant cross-scope
+writes are gone. `TestProjectContainerImageDerivedFromEdgesNonRepoScopeWritesNothing`
+pins that an OCI-scope intent seeing both endpoints still writes nothing.
+
+The DERIVED_FROM **write** additionally dispatches through sequential auto-commit
+`Execute`, not `ExecuteGroup` — unlike `BUILT_FROM`/`PUBLISHES`, which group —
+as defense in depth for the owning intent itself: its base or child
+ContainerImage node (written by the OCI-registry projector in another scope) may
+not be committed when the identity intent runs. The golden-corpus gate first
+caught the unscoped write against a live backend: the
+`container_image_identity` intent for an unrelated ECS scope dead-lettered with
 
 ```
 projection_bug: write container image derived_from provenance edges:
@@ -172,6 +195,7 @@ exactly why a unit test could not have surfaced it and the live gate did.
 | Extraction anchoring | `TestExtractContainerImageRefsDockerfileBase` |
 | End-to-end classification | `TestBuildContainerImageIdentityDecisionsDockerfileBase` |
 | Retract-first / stale clear | `TestProjectContainerImageDerivedFromEdgesRetractsEvenWhenNoRowsToWrite` |
+| Owner-scoped projection (non-repo scope writes nothing) | `TestProjectContainerImageDerivedFromEdgesNonRepoScopeWritesNothing` |
 | Writer join shape | `TestProvenanceEdgeWriterWriteDerivedFromMatchesBothEndpointsByDigest` |
 | Retract dispatch | `TestProvenanceEdgeWriterRetractDerivedFromUsesSequentialExecuteNeverGroup` |
 | Blank-scope retract is a no-op | `TestProvenanceEdgeWriterDerivedFromEmptyInputsAreNoOps` |

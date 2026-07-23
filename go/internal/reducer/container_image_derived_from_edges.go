@@ -6,6 +6,7 @@ package reducer
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"go.opentelemetry.io/otel/metric"
@@ -46,8 +47,22 @@ type ContainerImageDerivedFromEdgeWriter interface {
 	RetractDerivedFromEdges(ctx context.Context, scopeID, generationID, evidenceSource string) error
 }
 
-// containerImageDerivedFromRows builds DERIVED_FROM edge rows from
-// container-image-identity decisions.
+// containerImageDerivedFromRows builds DERIVED_FROM edge rows for exactly one
+// repository -- owningRepositoryID, the repository whose scope owns the current
+// identity intent -- from that intent's container-image-identity decisions.
+//
+// Scoping to the owning repository is a correctness requirement, not an
+// optimization. A base reference reaches every identity intent through the
+// active cross-scope fact load, so an unscoped builder would emit the same
+// edge from every intent that happens to see both endpoints (an OCI or ECS
+// scope that merely observes the images). Each writing intent stamps its own
+// scope_id, which breaks the retract-first-per-generation contract: the edge's
+// owner becomes whichever unrelated intent wrote last, and a later delete of
+// the declaring repository can no longer retract it. Building the edge only in
+// the intent whose scope is the declaring repository gives it exactly one
+// deterministic owner. An empty owningRepositoryID (a non-repository scope
+// intent -- OCI registry, CI run, cloud) owns no Dockerfile and projects
+// nothing.
 //
 // Both endpoints must be exact_digest (#5472 decision 4). The canonical writer
 // matches a ContainerImage by digest, so a non-exact endpoint has no node to
@@ -64,37 +79,32 @@ type ContainerImageDerivedFromEdgeWriter interface {
 // CVE lineage that does not exist in a monorepo that builds several images from
 // several Dockerfiles, and a fabricated inheritance claim is a worse failure
 // than a missing one.
-func containerImageDerivedFromRows(decisions []ContainerImageIdentityDecision) []map[string]any {
-	basesByRepository := make(map[string]map[string]struct{})
+func containerImageDerivedFromRows(
+	decisions []ContainerImageIdentityDecision,
+	owningRepositoryID string,
+) []map[string]any {
+	if owningRepositoryID == "" {
+		return nil
+	}
+
+	// The owning repository is attributable only when its Dockerfiles agree on
+	// one runtime base. Anything else is the ambiguous case above.
+	baseDigests := make(map[string]struct{})
 	for _, decision := range decisions {
 		digest := exactContainerImageDigest(decision)
 		if digest == "" {
 			continue
 		}
-		for _, repositoryID := range uniqueSortedStrings(decision.BaseImageForRepositoryIDs) {
-			if repositoryID == "" {
-				continue
-			}
-			if basesByRepository[repositoryID] == nil {
-				basesByRepository[repositoryID] = make(map[string]struct{})
-			}
-			basesByRepository[repositoryID][digest] = struct{}{}
+		if slices.Contains(decision.BaseImageForRepositoryIDs, owningRepositoryID) {
+			baseDigests[digest] = struct{}{}
 		}
 	}
-
-	// A repository is attributable only when its Dockerfiles agree on one
-	// runtime base. Anything else is the ambiguous case above.
-	baseForRepository := make(map[string]string, len(basesByRepository))
-	for repositoryID, digests := range basesByRepository {
-		if len(digests) != 1 {
-			continue
-		}
-		for digest := range digests {
-			baseForRepository[repositoryID] = digest
-		}
-	}
-	if len(baseForRepository) == 0 {
+	if len(baseDigests) != 1 {
 		return nil
+	}
+	var baseDigest string
+	for digest := range baseDigests {
+		baseDigest = digest
 	}
 
 	rows := make([]map[string]any, 0, len(decisions))
@@ -104,29 +114,26 @@ func containerImageDerivedFromRows(decisions []ContainerImageIdentityDecision) [
 		if digest == "" {
 			continue
 		}
-		for _, repositoryID := range uniqueSortedStrings(decision.SourceRepositoryIDs) {
-			baseDigest, ok := baseForRepository[repositoryID]
-			if !ok {
-				continue
-			}
-			// An image is not its own ancestor. A repository that declares the
-			// same digest it builds (a base image repository rebuilding itself,
-			// or a digest reused across both roles) would otherwise emit a
-			// self-loop that makes CVE lineage traversal cyclic.
-			if baseDigest == digest {
-				continue
-			}
-			key := digest + "\x00" + baseDigest
-			if _, duplicate := seen[key]; duplicate {
-				continue
-			}
-			seen[key] = struct{}{}
-			rows = append(rows, map[string]any{
-				"digest":            digest,
-				"base_digest":       baseDigest,
-				"attribution_basis": containerImageDerivedFromBasisRepositorySingleBase,
-			})
+		if !slices.Contains(decision.SourceRepositoryIDs, owningRepositoryID) {
+			continue
 		}
+		// An image is not its own ancestor. A repository that declares the same
+		// digest it builds (a base image repository rebuilding itself, or a
+		// digest reused across both roles) would otherwise emit a self-loop that
+		// makes CVE lineage traversal cyclic.
+		if baseDigest == digest {
+			continue
+		}
+		key := digest + "\x00" + baseDigest
+		if _, duplicate := seen[key]; duplicate {
+			continue
+		}
+		seen[key] = struct{}{}
+		rows = append(rows, map[string]any{
+			"digest":            digest,
+			"base_digest":       baseDigest,
+			"attribution_basis": containerImageDerivedFromBasisRepositorySingleBase,
+		})
 	}
 	if len(rows) == 0 {
 		return nil
@@ -172,7 +179,7 @@ func (h ContainerImageIdentityHandler) projectContainerImageDerivedFromEdges(
 		return fmt.Errorf("retract container image derived_from provenance edges: %w", err)
 	}
 
-	rows := containerImageDerivedFromRows(decisions)
+	rows := containerImageDerivedFromRows(decisions, repositoryIDFromReducerScope(intent.ScopeID))
 	h.emitDerivedFromEdgeCounter(ctx, "materialized", len(rows))
 	if len(rows) == 0 {
 		return nil

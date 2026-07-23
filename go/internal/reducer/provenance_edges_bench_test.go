@@ -93,40 +93,56 @@ func BenchmarkContainerImageBuiltFromRows(b *testing.B) {
 	}
 }
 
-// benchContainerImageBaseLineageDecisions builds n repositories that each
-// resolve to one built image and one distinct declared base -- the attributable
-// shape -- for B-9 (#3802) micro-benchmarking of the DERIVED_FROM row-building
-// path (issue #5460). The base and the child of a repository are separate
-// decisions, so n repositories produce 2n decisions and n rows.
+// benchContainerImageBaseLineageDecisions builds the realistic worst case for
+// ONE identity intent (B-9 #3802 cost-budget evidence, issue #5460): the owning
+// repository "repo-own" declares one base and builds n children, and the intent
+// also sees 2n cross-scope noise decisions (other repositories' bases and
+// children reached through the active fact load) that the owner-scoped builder
+// must scan past without emitting. So the input is 2n+n+1 decisions and the
+// output is n rows, all for repo-own.
 func benchContainerImageBaseLineageDecisions(n int) []ContainerImageIdentityDecision {
-	decisions := make([]ContainerImageIdentityDecision, 0, 2*n)
+	decisions := make([]ContainerImageIdentityDecision, 0, 3*n+1)
+	decisions = append(decisions, ContainerImageIdentityDecision{
+		Digest:                    "sha256:b" + fmt.Sprintf("%063d", 0),
+		BaseImageForRepositoryIDs: []string{benchDerivedFromOwningRepo},
+		Outcome:                   ContainerImageIdentityExactDigest,
+	})
 	for i := 0; i < n; i++ {
-		repo := fmt.Sprintf("repo-%d", i)
 		decisions = append(decisions, ContainerImageIdentityDecision{
 			Digest:              fmt.Sprintf("sha256:c%063d", i),
-			SourceRepositoryIDs: []string{repo},
+			SourceRepositoryIDs: []string{benchDerivedFromOwningRepo},
 			Outcome:             ContainerImageIdentityExactDigest,
 		})
+		// Cross-scope noise: another repository's base and child, which the
+		// owner-scoped builder must skip.
+		noiseRepo := fmt.Sprintf("repository:noise-%d", i)
 		decisions = append(decisions, ContainerImageIdentityDecision{
-			Digest:                    fmt.Sprintf("sha256:b%063d", i),
-			BaseImageForRepositoryIDs: []string{repo},
+			Digest:                    fmt.Sprintf("sha256:n%063d", i),
+			BaseImageForRepositoryIDs: []string{noiseRepo},
 			Outcome:                   ContainerImageIdentityExactDigest,
+		})
+		decisions = append(decisions, ContainerImageIdentityDecision{
+			Digest:              fmt.Sprintf("sha256:m%063d", i),
+			SourceRepositoryIDs: []string{noiseRepo},
+			Outcome:             ContainerImageIdentityExactDigest,
 		})
 	}
 	return decisions
 }
 
-// BenchmarkContainerImageDerivedFromRows measures the DERIVED_FROM row-building
-// path over container-image-identity decisions (B-9 #3802 cost-budget evidence
-// for issue #5460). It is strictly more work than the BUILT_FROM builder: this
-// path makes a first pass to group declared bases per repository and reject
-// ambiguous repositories before emitting any row.
+const benchDerivedFromOwningRepo = "repository:repo-own"
+
+// BenchmarkContainerImageDerivedFromRows measures the owner-scoped DERIVED_FROM
+// row-building path over one intent's decision set (B-9 #3802 cost-budget
+// evidence for issue #5460). The builder makes one pass to find the owning
+// repository's single base and a second to emit its children, skipping all
+// cross-scope noise.
 func BenchmarkContainerImageDerivedFromRows(b *testing.B) {
 	decisions := benchContainerImageBaseLineageDecisions(2500)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		rows := containerImageDerivedFromRows(decisions)
+		rows := containerImageDerivedFromRows(decisions, benchDerivedFromOwningRepo)
 		if len(rows) != 2500 {
 			b.Fatalf("rows = %d, want 2500", len(rows))
 		}

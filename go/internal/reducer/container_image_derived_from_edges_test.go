@@ -43,11 +43,31 @@ func TestContainerImageDerivedFromRows(t *testing.T) {
 
 	tests := []struct {
 		name      string
+		owning    string
 		decisions []ContainerImageIdentityDecision
 		want      []map[string]any
 	}{
 		{
-			name: "single base and single child projects one edge",
+			name:   "a non-repository scope owns no Dockerfile and projects nothing",
+			owning: "",
+			decisions: []ContainerImageIdentityDecision{
+				child("sha256:child", "repo-a"),
+				base("sha256:base", "repo-a"),
+			},
+			want: nil,
+		},
+		{
+			name:   "an intent for a different repository projects nothing",
+			owning: "repo-other",
+			decisions: []ContainerImageIdentityDecision{
+				child("sha256:child", "repo-a"),
+				base("sha256:base", "repo-a"),
+			},
+			want: nil,
+		},
+		{
+			name:   "single base and single child projects one edge",
+			owning: "repo-a",
 			decisions: []ContainerImageIdentityDecision{
 				child("sha256:child", "repo-a"),
 				base("sha256:base", "repo-a"),
@@ -61,7 +81,8 @@ func TestContainerImageDerivedFromRows(t *testing.T) {
 			},
 		},
 		{
-			name: "two children of one base each get an edge",
+			name:   "two children of one base each get an edge",
+			owning: "repo-a",
 			decisions: []ContainerImageIdentityDecision{
 				child("sha256:child1", "repo-a"),
 				child("sha256:child2", "repo-a"),
@@ -81,7 +102,8 @@ func TestContainerImageDerivedFromRows(t *testing.T) {
 			},
 		},
 		{
-			name: "the same base digest declared by two Dockerfiles is still one base",
+			name:   "the same base digest declared by two Dockerfiles is still one base",
+			owning: "repo-a",
 			decisions: []ContainerImageIdentityDecision{
 				child("sha256:child", "repo-a"),
 				base("sha256:base", "repo-a"),
@@ -96,7 +118,8 @@ func TestContainerImageDerivedFromRows(t *testing.T) {
 			},
 		},
 		{
-			name: "two distinct bases in one repository project nothing",
+			name:   "two distinct bases in one repository project nothing",
+			owning: "repo-a",
 			decisions: []ContainerImageIdentityDecision{
 				child("sha256:child", "repo-a"),
 				base("sha256:base1", "repo-a"),
@@ -105,7 +128,8 @@ func TestContainerImageDerivedFromRows(t *testing.T) {
 			want: nil,
 		},
 		{
-			name: "a non-exact base projects nothing",
+			name:   "a non-exact base projects nothing",
+			owning: "repo-a",
 			decisions: []ContainerImageIdentityDecision{
 				child("sha256:child", "repo-a"),
 				func() ContainerImageIdentityDecision {
@@ -117,7 +141,8 @@ func TestContainerImageDerivedFromRows(t *testing.T) {
 			want: nil,
 		},
 		{
-			name: "a non-exact child projects nothing",
+			name:   "a non-exact child projects nothing",
+			owning: "repo-a",
 			decisions: []ContainerImageIdentityDecision{
 				func() ContainerImageIdentityDecision {
 					d := child("sha256:child", "repo-a")
@@ -129,7 +154,8 @@ func TestContainerImageDerivedFromRows(t *testing.T) {
 			want: nil,
 		},
 		{
-			name: "a base in one repository never attaches to another repository's child",
+			name:   "a base in one repository never attaches to another repository's child",
+			owning: "repo-a",
 			decisions: []ContainerImageIdentityDecision{
 				child("sha256:child", "repo-b"),
 				base("sha256:base", "repo-a"),
@@ -137,7 +163,8 @@ func TestContainerImageDerivedFromRows(t *testing.T) {
 			want: nil,
 		},
 		{
-			name: "an image that is its own base projects no self-loop",
+			name:   "an image that is its own base projects no self-loop",
+			owning: "repo-a",
 			decisions: []ContainerImageIdentityDecision{
 				child("sha256:same", "repo-a"),
 				base("sha256:same", "repo-a"),
@@ -145,14 +172,16 @@ func TestContainerImageDerivedFromRows(t *testing.T) {
 			want: nil,
 		},
 		{
-			name: "a base with no child in its repository projects nothing",
+			name:   "a base with no child in its repository projects nothing",
+			owning: "repo-a",
 			decisions: []ContainerImageIdentityDecision{
 				base("sha256:base", "repo-a"),
 			},
 			want: nil,
 		},
 		{
-			name: "an empty digest never projects",
+			name:   "an empty digest never projects",
+			owning: "repo-a",
 			decisions: []ContainerImageIdentityDecision{
 				child("", "repo-a"),
 				base("sha256:base", "repo-a"),
@@ -161,6 +190,7 @@ func TestContainerImageDerivedFromRows(t *testing.T) {
 		},
 		{
 			name:      "no decisions project nothing",
+			owning:    "repo-a",
 			decisions: nil,
 			want:      nil,
 		},
@@ -169,7 +199,7 @@ func TestContainerImageDerivedFromRows(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := containerImageDerivedFromRows(tc.decisions)
+			got := containerImageDerivedFromRows(tc.decisions, tc.owning)
 			if len(got) == 0 && len(tc.want) == 0 {
 				return
 			}
@@ -218,12 +248,12 @@ func TestProjectContainerImageDerivedFromEdgesRetractsFirstThenWrites(t *testing
 	writer := &recordingContainerImageDerivedFromEdgeWriter{}
 	h := ContainerImageIdentityHandler{DerivedFromEdgeWriter: writer}
 	decisions := []ContainerImageIdentityDecision{
-		{Digest: "sha256:child", SourceRepositoryIDs: []string{"repo-1"}, Outcome: ContainerImageIdentityExactDigest},
-		{Digest: "sha256:base", BaseImageForRepositoryIDs: []string{"repo-1"}, Outcome: ContainerImageIdentityExactDigest},
+		{Digest: "sha256:child", SourceRepositoryIDs: []string{"repository:repo-1"}, Outcome: ContainerImageIdentityExactDigest},
+		{Digest: "sha256:base", BaseImageForRepositoryIDs: []string{"repository:repo-1"}, Outcome: ContainerImageIdentityExactDigest},
 	}
 
 	if err := h.projectContainerImageDerivedFromEdges(
-		context.Background(), Intent{ScopeID: "scope-1", GenerationID: "gen-1"}, decisions,
+		context.Background(), Intent{ScopeID: "git-repository-scope:repository:repo-1", GenerationID: "gen-1"}, decisions,
 	); err != nil {
 		t.Fatalf("projectContainerImageDerivedFromEdges returned error: %v", err)
 	}
@@ -244,6 +274,41 @@ func TestProjectContainerImageDerivedFromEdgesRetractsFirstThenWrites(t *testing
 	}
 	if writer.writeRows[0][0]["base_digest"] != "sha256:base" {
 		t.Fatalf("row = %#v, want base_digest sha256:base", writer.writeRows[0][0])
+	}
+}
+
+// TestProjectContainerImageDerivedFromEdgesNonRepoScopeWritesNothing pins the
+// owner-restriction that fixes the multi-writer defect the golden gate caught:
+// a base reference reaches an OCI/CI/cloud-scope intent through the active
+// cross-scope fact load, but that intent's scope owns no Dockerfile, so it must
+// project NO edge even though it can see both endpoints. Before the fix the OCI
+// scope wrote the edge (dead-lettering on the NornicDB fast path) and stamped
+// its own scope_id, giving the edge a nondeterministic owner. The retract still
+// fires unconditionally, scoped to this intent's own evidence_source.
+func TestProjectContainerImageDerivedFromEdgesNonRepoScopeWritesNothing(t *testing.T) {
+	t.Parallel()
+
+	writer := &recordingContainerImageDerivedFromEdgeWriter{}
+	h := ContainerImageIdentityHandler{DerivedFromEdgeWriter: writer}
+	// Both endpoints are visible (anchored to a git repository) but the intent
+	// scope is an OCI registry, not that repository.
+	decisions := []ContainerImageIdentityDecision{
+		{Digest: "sha256:child", SourceRepositoryIDs: []string{"repository:repo-1"}, Outcome: ContainerImageIdentityExactDigest},
+		{Digest: "sha256:base", BaseImageForRepositoryIDs: []string{"repository:repo-1"}, Outcome: ContainerImageIdentityExactDigest},
+	}
+
+	if err := h.projectContainerImageDerivedFromEdges(
+		context.Background(),
+		Intent{ScopeID: "oci_registry:ghcr.io:team:api", GenerationID: "gen-1"},
+		decisions,
+	); err != nil {
+		t.Fatalf("projectContainerImageDerivedFromEdges returned error: %v", err)
+	}
+	if len(writer.retractCalls) != 1 {
+		t.Fatalf("retractCalls = %d, want 1 (retract still fires for a non-owning scope)", len(writer.retractCalls))
+	}
+	if len(writer.writeRows) != 0 {
+		t.Fatalf("writeRows = %#v, want none -- a non-repository scope owns no Dockerfile and must not write", writer.writeRows)
 	}
 }
 
@@ -274,10 +339,10 @@ func TestProjectContainerImageDerivedFromEdgesPropagatesWriterErrors(t *testing.
 	t.Parallel()
 
 	decisions := []ContainerImageIdentityDecision{
-		{Digest: "sha256:child", SourceRepositoryIDs: []string{"repo-1"}, Outcome: ContainerImageIdentityExactDigest},
-		{Digest: "sha256:base", BaseImageForRepositoryIDs: []string{"repo-1"}, Outcome: ContainerImageIdentityExactDigest},
+		{Digest: "sha256:child", SourceRepositoryIDs: []string{"repository:repo-1"}, Outcome: ContainerImageIdentityExactDigest},
+		{Digest: "sha256:base", BaseImageForRepositoryIDs: []string{"repository:repo-1"}, Outcome: ContainerImageIdentityExactDigest},
 	}
-	intent := Intent{ScopeID: "scope-1", GenerationID: "gen-1"}
+	intent := Intent{ScopeID: "git-repository-scope:repository:repo-1", GenerationID: "gen-1"}
 
 	writeFail := &recordingContainerImageDerivedFromEdgeWriter{writeErr: errors.New("boom")}
 	if err := (ContainerImageIdentityHandler{DerivedFromEdgeWriter: writeFail}).
