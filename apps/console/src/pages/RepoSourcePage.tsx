@@ -172,6 +172,14 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
   const indexedBranchName =
     selectedBranch?.name || branchOptions[0]?.name || branches?.defaultBranch || "";
   const lastIndexedAt = selectedBranch?.lastIndexedAt ?? branchOptions[0]?.lastIndexedAt ?? null;
+  // Display order only (locked UX decision): the server returns branches
+  // alphabetically (#5503), but the dropdown keeps the default branch pinned
+  // to the top the way it always has. Selection matching above stays on the
+  // unsorted branchOptions -- this sort is purely cosmetic.
+  const displayBranchOptions = sortBranchesDefaultFirst(
+    branchOptions,
+    branches?.defaultBranch ?? "",
+  );
 
   return (
     <div className="page repo-source-page" style={{ maxWidth: "none" }}>
@@ -206,7 +214,7 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
                 onChange={(event) => selectRef(event.target.value)}
                 style={{ marginLeft: 6 }}
               >
-                {branchOptions.map((branch) => (
+                {displayBranchOptions.map((branch) => (
                   <option
                     key={`${branch.name}:${branch.headSha}`}
                     value={branchSelectorValue(branch)}
@@ -222,6 +230,9 @@ export function RepoSourcePage({ client }: { readonly client?: EshuApiClient }):
             <span className="t-mut mono">{new Date(lastIndexedAt).toLocaleString()}</span>
           ) : null}
           {branchesErr ? <span className="t-mut">ref list unavailable: {branchesErr}</span> : null}
+          {branches?.complete === false ? (
+            <span className="t-mut">branch list truncated</span>
+          ) : null}
         </div>
       </div>
 
@@ -407,6 +418,25 @@ function branchValueForTree(
   );
   if (defaultBranchRow) return branchSelectorValue(defaultBranchRow);
   return branches[0] ? branchSelectorValue(branches[0]) : "";
+}
+
+// sortBranchesDefaultFirst orders branches for display only: the default
+// branch (matched by name) pinned to the top, then the rest alphabetically
+// by name. This is the locked UX decision preserving the pre-#5503
+// default-first dropdown ordering now that the server returns branches[]
+// alphabetically. Selection logic (branchByValue, branchValueForTree) is
+// unaffected -- it operates on the unsorted list and matches by name/SHA,
+// not position.
+function sortBranchesDefaultFirst(
+  branches: readonly RepoBranch[],
+  defaultBranch: string,
+): readonly RepoBranch[] {
+  return [...branches].sort((a, b) => {
+    const aIsDefault = defaultBranch !== "" && a.name === defaultBranch;
+    const bIsDefault = defaultBranch !== "" && b.name === defaultBranch;
+    if (aIsDefault !== bIsDefault) return aIsDefault ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
 }
 
 function branchOptionLabel(branch: RepoBranch): string {

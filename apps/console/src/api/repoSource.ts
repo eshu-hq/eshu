@@ -1,8 +1,8 @@
 // api/repoSource.ts
 // Repository source browsing loaders, wired to the merged content endpoints:
-//   GET /api/v0/repositories/{id}/tree?path=     (#1431)
-//   GET /api/v0/repositories/{id}/content?path=  (#1432)
-//   GET /api/v0/repositories/{id}/branches       (#1433)
+//   GET /api/v0/repositories/{id}/tree?path=              (#1431)
+//   GET /api/v0/repositories/{id}/content?path=            (#1432)
+//   GET /api/v0/repositories/{id}/branches?limit=&cursor=  (#1433, paged #5503)
 // Defensive over response shape; never fabricates files or branch names.
 
 import type { EshuApiClient } from "./client";
@@ -44,6 +44,11 @@ export interface RepoBranch {
 export interface RepoBranches {
   readonly defaultBranch: string;
   readonly branches: readonly RepoBranch[];
+  // complete is false ONLY when the MAX_REPO_BRANCH_PAGES sanity cap tripped
+  // before the server reported the stream as done -- a defense-in-depth
+  // backstop, not the normal completion signal. It is true for every
+  // ordinary single-page, multi-page, and legacy-fallback response.
+  readonly complete: boolean;
 }
 
 interface TreeResponse {
@@ -67,7 +72,25 @@ interface BranchesResponse {
     readonly head_sha?: string;
     readonly last_indexed_at?: string;
   }>;
+  // tags is never mapped into RepoBranches (the console does not surface
+  // tags today) -- it is read only to detect the branch/tag boundary below.
+  readonly tags?: ReadonlyArray<unknown>;
+  readonly truncated?: boolean;
+  readonly next_cursor?: string;
 }
+
+// REPO_BRANCH_PAGE_LIMIT requests the server's maximum page size (the
+// repositoryRefPageMaxLimit in go/internal/query/repository_refs_page.go) on
+// every page, minimizing the number of round trips needed to reach
+// completeness.
+const REPO_BRANCH_PAGE_LIMIT = 500;
+
+// MAX_REPO_BRANCH_PAGES is defense-in-depth only, NOT the functional
+// completeness bound -- see the stop conditions in loadRepoBranches below.
+// 40 pages * 500 refs/page = 20,000 refs, far beyond any real repository's
+// ref count; tripping it is a signal something is wrong with the server
+// (e.g. it never stops reporting truncated:true), not normal operation.
+const MAX_REPO_BRANCH_PAGES = 40;
 
 function num(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
@@ -76,22 +99,48 @@ function str(v: unknown): string {
   return typeof v === "string" ? v : "";
 }
 
+// loadRepoBranches follows the branches endpoint's next_cursor across pages
+// so the branch selector sees every branch even though the server bounds
+// each response to a page (#5503). It stops, in order: (a) the server says
+// truncated is not true (or omits next_cursor) -- the stream is genuinely
+// done; (b) the current page contains at least one tag -- the paged stream
+// orders all branches before all tags, so seeing a tag proves every branch
+// has already been returned, regardless of what truncated says; (c) the
+// MAX_REPO_BRANCH_PAGES sanity cap, purely as a backstop against a
+// misbehaving server. complete is false only for (c).
 export async function loadRepoBranches(client: EshuApiClient, id: string): Promise<RepoBranches> {
-  const env = await client.get<BranchesResponse>(
-    `/api/v0/repositories/${encodeURIComponent(id)}/branches`,
-  );
-  if (env.error) throw new EshuEnvelopeError(env.error);
-  const data = env.data ?? {};
-  const branches: RepoBranch[] = (data.branches ?? [])
-    .map(
-      (branch): RepoBranch => ({
+  let defaultBranch = "";
+  const branches: RepoBranch[] = [];
+  let cursor = "";
+  for (let page = 0; page < MAX_REPO_BRANCH_PAGES; page++) {
+    const params = new URLSearchParams({ limit: String(REPO_BRANCH_PAGE_LIMIT) });
+    if (cursor) params.set("cursor", cursor);
+    const env = await client.get<BranchesResponse>(
+      `/api/v0/repositories/${encodeURIComponent(id)}/branches?${params.toString()}`,
+    );
+    if (env.error) throw new EshuEnvelopeError(env.error);
+    const data = env.data ?? {};
+    if (page === 0) defaultBranch = str(data.default_branch);
+    for (const branch of data.branches ?? []) {
+      const mapped: RepoBranch = {
         name: str(branch.name),
         headSha: str(branch.head_sha),
         lastIndexedAt: branch.last_indexed_at ? str(branch.last_indexed_at) : null,
-      }),
-    )
-    .filter((branch) => branch.name !== "" || branch.headSha !== "");
-  return { defaultBranch: str(data.default_branch), branches };
+      };
+      if (mapped.name !== "" || mapped.headSha !== "") branches.push(mapped);
+    }
+    if (data.truncated !== true || !data.next_cursor) {
+      return { defaultBranch, branches, complete: true };
+    }
+    if ((data.tags?.length ?? 0) > 0) {
+      return { defaultBranch, branches, complete: true };
+    }
+    if (page === MAX_REPO_BRANCH_PAGES - 1) {
+      return { defaultBranch, branches, complete: false };
+    }
+    cursor = data.next_cursor;
+  }
+  return { defaultBranch, branches, complete: true };
 }
 
 export async function loadRepoTree(

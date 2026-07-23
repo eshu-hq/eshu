@@ -10,14 +10,30 @@ import (
 )
 
 // getRepositoryBranches returns the source-backed refs the console branch
-// selector needs. Older indexed repositories may only have the derived indexed
-// commit SHA; those continue to report a single truth-labeled fallback row.
+// selector needs, bounded by a single limit+cursor over the combined
+// branches+tags stream (#5503). Older indexed repositories may only have the
+// derived indexed commit SHA; those continue to report a single
+// truth-labeled fallback row and never paginate.
 //
-// GET /api/v0/repositories/{repo_id}/branches
+// GET /api/v0/repositories/{repo_id}/branches?limit=&cursor=
 func (h *RepositoryHandler) getRepositoryBranches(w http.ResponseWriter, r *http.Request) {
 	repoID, ok := h.resolveRepositoryPathSelector(w, r)
 	if !ok {
 		return
+	}
+
+	limit, ok := parseBoundedLimit(w, r, repositoryRefPageDefaultLimit, repositoryRefPageMaxLimit)
+	if !ok {
+		return
+	}
+	var cursor *repositoryRefPageCursor
+	if raw := QueryParam(r, "cursor"); raw != "" {
+		decoded, err := decodeRepositoryRefPageCursor(raw, repoID)
+		if err != nil {
+			WriteError(w, http.StatusBadRequest, fmt.Sprintf("invalid cursor: %v", err))
+			return
+		}
+		cursor = &decoded
 	}
 
 	ctx := r.Context()
@@ -31,19 +47,38 @@ func (h *RepositoryHandler) getRepositoryBranches(w http.ResponseWriter, r *http
 		return
 	}
 
+	// ListRepositoryRefs intentionally stays unpaged: git-scale ref counts are
+	// cheap in memory, validateSelectedRepositoryRef needs the full list, and
+	// default_branch must reflect the true default even on pages that no
+	// longer include it.
 	refs, err := repositoryRefs(ctx, h.Content, repoID)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query repository refs failed: %v", err))
 		return
 	}
 	if len(refs) > 0 {
-		tags, tagsTruncated := repositoryRefTagEntries(refs)
+		// Re-sort by (kind, name) before paging: this is the exact comparator
+		// the cursor's keyset math uses (repositoryRefKeyLess), independent of
+		// is_default and independent of the store's collation-dependent name
+		// order (T3). repositoryRefsDefaultBranch and
+		// validateSelectedRepositoryRef scan by flag/name, not position, so
+		// re-sorting refs here does not affect them.
+		sortRepositoryRefsForPaging(refs)
+		window, remainder, truncated, nextCursor := repositoryRefPageWindow(repoID, refs, cursor, limit)
+		branches, tags := repositoryRefWindowEntries(window)
 		response := map[string]any{
 			"default_branch": repositoryRefsDefaultBranch(refs),
-			"branches":       repositoryRefBranchEntries(refs),
+			"branches":       branches,
 			"tags":           tags,
+			"truncated":      truncated,
 		}
-		if tagsTruncated {
+		if truncated {
+			response["next_cursor"] = nextCursor
+		}
+		// tags_truncated is deprecated in favor of truncated/next_cursor but
+		// keeps its original meaning: more tags exist beyond what tags[]
+		// carries in this page, derived from the exact in-memory remainder.
+		if repositoryRefsContainTag(remainder) {
 			response["tags_truncated"] = true
 		}
 		WriteSuccess(
@@ -86,6 +121,7 @@ func (h *RepositoryHandler) getRepositoryBranches(w http.ResponseWriter, r *http
 			"default_branch": "", // not captured by ingestion yet (#1433)
 			"branches":       branches,
 			"tags":           make([]map[string]any, 0),
+			"truncated":      false, // the single-entry fallback never paginates
 		},
 		BuildTruthEnvelope(
 			h.profile(),

@@ -5513,7 +5513,7 @@
         }
       },
       "GET /api/v0/repositories/deployable-config/branches": {
-        "description": "Repository branches + tags endpoint; the deployable-config fixture is staged with annotated and lightweight git tags so the endpoint returns tags with minimum 2 results and required item fields present.",
+        "description": "Repository branches + tags endpoint; the deployable-config fixture is staged with annotated and lightweight git tags so the endpoint returns tags with minimum 2 results and required item fields present. #5503: the endpoint now bounds its response with a default limit=100 combined branches+tags cursor page (truncated/next_cursor), always well under the fixture's small ref count so this shape assertion stays green unchanged.",
         "truth_class": "content_index",
         "minimum_results": 2,
         "required_response_fields": [

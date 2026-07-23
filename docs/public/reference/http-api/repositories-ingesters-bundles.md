@@ -309,26 +309,58 @@ missing path, unknown source-backed ref, or unknown repository returns a `404`
 envelope. This endpoint returns the same redacted content the content store
 holds; it never reveals secrets the collectors strip during indexing.
 
-`GET /api/v0/repositories/{repo_id}/branches` returns the refs the console
-branch selector uses. For Git-backed repositories, ingestion captures branch
-names, tag names, ref kind, default-branch marker, head SHA, observed timestamp,
-and the content-store indexed timestamp. The response returns `default_branch`
-plus `branches[]` rows (kind `branch`) and `tags[]` rows (kind `tag`), one per
-source-backed ref. Tags carry the peeled commit SHA for annotated tags so a
-release reference resolves to its commit. The `head_sha` field carries the peeled
-(^{}) object SHA for annotated tags — a commit for normal release tags, the
-dereferenced blob or tree object for annotated tags of non-commit objects.
-Older repositories without captured
-ref metadata keep the legacy single indexed commit fallback: one `branches[]`
+`GET /api/v0/repositories/{repo_id}/branches?limit=&cursor=` returns the refs
+the console branch selector uses. For Git-backed repositories, ingestion
+captures branch names, tag names, ref kind, default-branch marker, head SHA,
+observed timestamp, and the content-store indexed timestamp. The response
+returns `default_branch` plus `branches[]` rows (kind `branch`) and `tags[]`
+rows (kind `tag`), one per source-backed ref. Tags carry the peeled commit SHA
+for annotated tags so a release reference resolves to its commit. The
+`head_sha` field carries the peeled (^{}) object SHA for annotated tags — a
+commit for normal release tags, the dereferenced blob or tree object for
+annotated tags of non-commit objects. Older repositories without captured ref
+metadata keep the legacy single indexed commit fallback: one `branches[]`
 entry carrying `head_sha` and `last_indexed_at`, with an empty `name` and
-`default_branch`, and an empty `tags[]` array, rather than fabricating branch
-or tag names. A repository with no indexed commit returns empty `branches` and
-`tags` arrays; an unknown repository returns a `404` envelope.
+`default_branch`, an empty `tags[]` array, and `truncated: false` (this path
+never paginates), rather than fabricating branch or tag names. A repository
+with no indexed commit returns empty `branches` and `tags` arrays; an unknown
+repository returns a `404` envelope.
 
-Tags are server-side capped at 500 entries (the first 500 by name, matching the
-deterministic `ref_kind, name` sort order). When more than 500 tags exist, the
-response includes `tags_truncated: true`. Full pagination (limit/cursor) for
-both `branches[]` and `tags[]` is deferred to #5503.
+The endpoint is bounded by one `limit` + `cursor` pair over the combined
+branches+tags stream, ordered by kind (all branches precede all tags), then by
+name — a page containing a tag implies no further branches remain. `default_branch`
+(and each branch entry's `is_default`) identify the default branch; the default
+branch is not necessarily first in `branches[]` and can appear anywhere
+depending on its name. With no `limit`/`cursor` supplied, the response still
+defaults to `limit=100` — the endpoint always bounds its response rather than
+returning the full unbounded ref list. `limit` accepts `[1, 500]`; an
+out-of-range or non-integer value returns `400`. The response always carries
+top-level `truncated: bool`; when `true`, `next_cursor` is also present and
+the caller pages forward by passing it back as `cursor` on the next request.
+Each page's window (the visible `limit` refs after the cursor) is split by
+kind into `branches[]` and `tags[]`, so a single page can contain both when
+the window crosses the branch/tag boundary. `cursor` is an opaque forward-only
+keyset token (version 2) encoding the last-emitted ref's `(kind, name)` sort
+key — not a row offset, and deliberately excluding `is_default` — so it
+tolerates concurrent ref churn (a ref added or removed, or the default branch
+itself changing, between pages) without skipping or duplicating entries. A v1
+cursor from before this change decodes as an unsupported-version error rather
+than being partially trusted; the caller simply restarts from page 1, which is
+safe because the endpoint has no side effects. A malformed, wrong-version,
+wrong-kind, or cross-repository cursor returns `400 invalid cursor` rather
+than a silently empty or reset page.
+
+The server re-sorts refs by `(kind, name)` using Go's byte-wise string
+comparison before paging, rather than relying on the store's `ORDER BY name`
+(which is collation/ICU-dependent and can order case-mixed or non-ASCII ref
+names differently than Go does) — this closes a latent duplicate/skip for such
+names and guarantees the cursor's key always matches the order actually paged.
+
+`tags_truncated` is deprecated in favor of `truncated`/`next_cursor` but keeps
+its original meaning: `true` when more tags exist beyond what `tags[]` carries
+in the current page, computed from the exact in-memory page remainder. The
+per-tag result cap this field used to signal (500 tags) is retired; the general
+`limit`/`cursor` pair now bounds both `branches[]` and `tags[]` together.
 
 In filesystem source mode (local repos without a git remote), the collector now
 discovers local git refs via `git for-each-ref` and emits them into the content
