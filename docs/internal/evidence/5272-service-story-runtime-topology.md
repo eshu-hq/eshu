@@ -19,35 +19,42 @@ The comparison used baseline and candidate API/MCP binaries against the same
 retained Postgres and NornicDB stores. The fixed corpus contained 896
 repositories, 70 workloads, 222 workload instances, 980,689 graph nodes,
 1,579,055 relationships, and 6,209,212 facts. The candidate schema bootstrap
-completed all 314 registered objects in 1,183 seconds (19 minutes 43 seconds),
-including the candidate marker and every required query-plan object.
+completed in 342 seconds (5 minutes 42 seconds). It adopted all 318 registered
+objects without replaying graph DDL, including the four Kubernetes namespace
+objects added on the current base and every required query-plan object. Corpus,
+graph, and queue counts were unchanged after adoption.
 
 Each row below compares the same statistic, sample surface, selectors, and
 storage state before and after the query reorder.
 
 | User action and statistic | Samples | Before | After | Result |
 | --- | ---: | ---: | ---: | ---: |
-| First-use runtime-topology read, median | 20 selectors | 1.580 s | 0.012 s | about 130x faster |
-| Open a service story through HTTP, mean | 20 selectors | 3.907 s | 2.404 s | 38.5% lower |
-| Open a service story through MCP, successful-call mean | 13 selectors | 4.388 s | 2.912 s | 33.6% lower |
-| Investigate a service through HTTP, mean | 20 selectors | 2.976 s | 0.905 s | 69.6% lower |
-| Investigate a service through MCP, median | 5 selectors | 3.605 s | 2.083 s | 42.2% lower |
-| Open a repository story through HTTP, mean | 20 selectors | 0.324 s | 0.276 s | no regression |
-| Open a repository story through MCP, median | 5 selectors | 0.174 s | 0.180 s | no material change |
+| Runtime-topology read, median | 20 selectors | 1.469 s | 0.012 s | about 119x faster |
+| Open a service story through HTTP, median | 20 selectors | 3.935 s | 2.477 s | 37.0% lower |
+| Open a service story through MCP, all-outcome median | 20 selectors | 4.087 s | 2.666 s | 34.8% lower |
+| Investigate a service through HTTP, median | 20 selectors | 2.986 s | 0.886 s | 70.3% lower |
+| Investigate a service through MCP, median | 20 selectors | 3.020 s | 0.906 s | 70.0% lower |
+| Open a repository story through HTTP, median | 20 selectors | 0.129 s | 0.125 s | no material change |
+| Open a repository story through MCP, all-outcome median | 20 selectors | 0.143 s | 0.140 s | no material change |
 
-The API service-story comparison produced 20 valid paired envelopes. Non-prose
-structured evidence was equal in all 20 pairs. Seventeen complete canonical
-envelopes were exact; three differed only at the derived-prose paths
-`data.story` and `data.answer_packet.summary`, affected by the pre-existing
-ordering defect tracked in #5644. Repository stories and service investigations
-were exact in all 20 API pairs.
+The API comparison used a fresh HTTP connection for each call against the same
+warm backend, with no application response cache. Service stories produced 20
+valid pairs. Seventeen complete bodies were exact; all 20 had equal non-prose
+evidence after normalizing only the derived `story` and
+`answer_packet.summary` fields plus array order, the pre-existing defect tracked
+in #5644. Repository stories and service investigations were exact in all 20
+pairs. Baseline and candidate payload ranges were identical: 58,288-236,480
+bytes for service stories, 39,140-162,459 bytes for repository stories, and
+5,549-15,182 bytes for investigations.
 
-The MCP service-story sweep had the same outcome for every selector: 13 paired
-successes and seven paired `mcp_response_over_budget` refusals, with no
-baseline/candidate asymmetry. Every paired response was exact. The repository
-and investigation supplements were exact in all five pairs. Their identical
-payload ranges were 39,399-114,220 bytes for repository stories and
-5,795-7,750 bytes for investigations.
+The MCP sweep also used fresh HTTP connections and exact advertised argument
+keys. Service stories had 13 paired successes and seven paired
+`mcp_response_over_budget` refusals. Repository stories had 17 paired successes
+and three paired refusals. Investigations succeeded in all 20 pairs. Every
+baseline/candidate JSON-RPC pair was exact, with no outcome asymmetry. Identical
+wire/extracted ranges were 1,576-260,338/589-123,759 bytes for service stories,
+1,561-260,107/583-125,155 bytes for repository stories, and
+12,479-32,728/5,795-15,428 bytes for investigations.
 
 An authenticated candidate-console request through the `/eshu-api` proxy also
 returned a valid service-story truth envelope from the candidate API.
@@ -95,12 +102,11 @@ MATCH (i:WorkloadInstance)-[instanceOf:INSTANCE_OF]->(w:Workload)<-[defines:DEFI
 WHERE i.workload_id = $workload_id
 ```
 
-The retained backend was `eshu-nornicdb-pr261:149245885258`. The representative
-raw-query gate ran 20 anonymous selectors three times each. All 60 populated
-baseline/candidate pairs returned equal canonical value sets. The first-use
-median fell from 1.579731 seconds to 0.012149 seconds, about 130 times faster.
-Trials two and three were sub-millisecond on both binaries after cache warmup,
-so the pooled timing is not used as the first-read performance claim.
+The retained backend was `eshu-nornicdb-pr261:149245885258`. The final
+exact-head raw-query gate ran 20 anonymous selectors with a balanced
+baseline-first/candidate-first crossover. All 20 pairs returned equal canonical
+row and value sets. Median query time fell from 1.469070 seconds to 0.012317
+seconds, about 119 times faster.
 
 The earlier same-head theory proof also showed the expected shape before the
 full replay: a repository-first median of about 750 ms versus about 10 ms for
@@ -119,11 +125,10 @@ The production result contract remains:
 - fail-closed behavior for scoped tokens because workload instances do not yet
   carry canonical repository ownership.
 
-The 60-pair raw gate found nine row-order permutations with equal value sets.
 The 20-pair API gate found three derived-prose differences with equal non-prose
-structured evidence. Both are manifestations of the independent pre-existing
-ordering defect tracked as #5644, a direct child of epic #5267. This performance
-change neither hides nor expands that defect.
+structured evidence after array-order normalization. This is the independent
+pre-existing ordering defect tracked as #5644, a direct child of epic #5267.
+This performance change neither hides nor expands that defect.
 
 ## Query-plan and observability evidence
 
@@ -147,14 +152,13 @@ the HTTP request metric retains endpoint latency and errors. The change adds no
 route, response field, metric series, label, log field, graph write, queue,
 worker, or runtime knob.
 
-## Rebase carry-forward
+## Exact source binding
 
-The representative replay exercised reviewed candidate commit `419b610f22` on
-base `c25b80acae`. The branch was then rebased over #5669 and #5673. Those
-changes affect documentation/fixtures and Terraform-state projection; they do
-not touch the runtime-topology query, its query-plan binding, the service-story
-API/MCP readers, or the fixed retained corpus. The query patch remained
-identical, and focused verification was rerun after the rebase.
+The final replay used clean Git-derived binaries from base `93bf4eaadb` and
+candidate `fee39ac937`. The implementation patch retained stable patch ID
+`c9f257c9ff5a841d0d4c012f438270de1db38013` across rebases. Exact candidate
+API, MCP, and console images were retained with the full-corpus Postgres and
+NornicDB stores as five healthy services after validation.
 
 ## Focused verification
 
