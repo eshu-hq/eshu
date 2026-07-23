@@ -16,11 +16,17 @@ type containerImageRefEvidence struct {
 	parsed              parsedContainerImageRef
 	resolvedDigest      string
 	sourceRepositoryIDs []string
-	sourceRevision      string
-	sourceLabelEvidence bool
-	workloadIDs         []string
-	serviceIDs          []string
-	factIDs             []string
+	// baseImageForRepositoryIDs names the repositories whose Dockerfile FROM
+	// declared this reference as their runtime base (#5460). It is deliberately
+	// separate from sourceRepositoryIDs: a base is declared by a repository, not
+	// built by it, and conflating the two would let the DERIVED_FROM projection
+	// treat a base as one of its own declaring repository's built images.
+	baseImageForRepositoryIDs []string
+	sourceRevision            string
+	sourceLabelEvidence       bool
+	workloadIDs               []string
+	serviceIDs                []string
+	factIDs                   []string
 }
 
 // ciRunDigestAnchor is the ci.run-derived provenance for one artifact digest:
@@ -37,9 +43,10 @@ type ciRunDigestAnchor struct {
 }
 
 type containerImageRefAnchors struct {
-	sourceRepositoryIDs []string
-	workloadIDs         []string
-	serviceIDs          []string
+	sourceRepositoryIDs       []string
+	baseImageForRepositoryIDs []string
+	workloadIDs               []string
+	serviceIDs                []string
 }
 
 type parsedContainerImageRef struct {
@@ -82,6 +89,9 @@ func extractContainerImageRefsWithQuarantine(envelopes []facts.Envelope) ([]cont
 		case factKindContentEntity:
 			for _, imageRef := range contentEntityContainerImages(envelope.Payload) {
 				addContainerImageRef(byRef, imageRef, "", containerImageAnchorsFromEnvelope(envelope), envelope.FactID)
+			}
+			if baseRef, ok := contentEntityDockerfileBaseImage(envelope.Payload); ok {
+				addContainerImageRef(byRef, baseRef, "", containerImageBaseAnchorsFromEnvelope(envelope), envelope.FactID)
 			}
 		case facts.CICDWorkflowImageEvidenceFactKind:
 			q, ok, fatal := addWorkflowImageEvidenceRef(byRef, envelope)
@@ -162,12 +172,14 @@ func addContainerImageRef(
 	ref.parsed = parsed
 	ref.factIDs = append(ref.factIDs, factIDs...)
 	ref.sourceRepositoryIDs = append(ref.sourceRepositoryIDs, anchors.sourceRepositoryIDs...)
+	ref.baseImageForRepositoryIDs = append(ref.baseImageForRepositoryIDs, anchors.baseImageForRepositoryIDs...)
 	ref.workloadIDs = append(ref.workloadIDs, anchors.workloadIDs...)
 	ref.serviceIDs = append(ref.serviceIDs, anchors.serviceIDs...)
 	if resolvedDigest := digestFromImageRef(resolvedImageRef); resolvedDigest != "" {
 		ref.resolvedDigest = resolvedDigest
 	}
 	ref.sourceRepositoryIDs = uniqueSortedStrings(ref.sourceRepositoryIDs)
+	ref.baseImageForRepositoryIDs = uniqueSortedStrings(ref.baseImageForRepositoryIDs)
 	ref.workloadIDs = uniqueSortedStrings(ref.workloadIDs)
 	ref.serviceIDs = uniqueSortedStrings(ref.serviceIDs)
 	byRef[parsed.raw] = ref
@@ -191,10 +203,12 @@ func mergeContainerImageRef(byRef map[string]containerImageRefEvidence, next con
 	ref.sourceLabelEvidence = ref.sourceLabelEvidence || next.sourceLabelEvidence
 	ref.factIDs = append(ref.factIDs, next.factIDs...)
 	ref.sourceRepositoryIDs = append(ref.sourceRepositoryIDs, next.sourceRepositoryIDs...)
+	ref.baseImageForRepositoryIDs = append(ref.baseImageForRepositoryIDs, next.baseImageForRepositoryIDs...)
 	ref.workloadIDs = append(ref.workloadIDs, next.workloadIDs...)
 	ref.serviceIDs = append(ref.serviceIDs, next.serviceIDs...)
 	ref.factIDs = uniqueSortedStrings(ref.factIDs)
 	ref.sourceRepositoryIDs = uniqueSortedStrings(ref.sourceRepositoryIDs)
+	ref.baseImageForRepositoryIDs = uniqueSortedStrings(ref.baseImageForRepositoryIDs)
 	ref.workloadIDs = uniqueSortedStrings(ref.workloadIDs)
 	ref.serviceIDs = uniqueSortedStrings(ref.serviceIDs)
 	byRef[next.imageRef] = ref
@@ -291,6 +305,61 @@ func containerImageSourceRepositoryIDs(envelope facts.Envelope) []string {
 		out = append(out, repositoryIDFromReducerScope(scopeID))
 	}
 	return uniqueSortedStrings(out)
+}
+
+// containerImageBaseAnchorsFromEnvelope anchors a Dockerfile FROM base to the
+// repositories that DECLARED it, never to sourceRepositoryIDs. A base image is
+// not built by the repository whose Dockerfile names it, and the base arrives
+// on that same repository's content_entity envelope -- so anchoring it the
+// usual way would make the repository's declared base indistinguishable from
+// its built images and let the DERIVED_FROM projection pair a base with itself
+// (#5460). Workload and service anchors are likewise omitted: a base image is
+// not the thing the repository deploys.
+func containerImageBaseAnchorsFromEnvelope(envelope facts.Envelope) containerImageRefAnchors {
+	return containerImageRefAnchors{
+		baseImageForRepositoryIDs: containerImageSourceRepositoryIDs(envelope),
+	}
+}
+
+// contentEntityDockerfileBaseImage returns the runtime base image reference a
+// Dockerfile content_entity declares, resolved from the parsed dockerfile_stages
+// bucket. It reports false for any non-Dockerfile entity and for a Dockerfile
+// whose base could not be resolved to a literal reference -- an
+// ARG-parameterized FROM, a scratch base, or an unresolvable alias chain -- so
+// an unexpanded build argument never reaches classification as a literal image.
+func contentEntityDockerfileBaseImage(payload map[string]any) (string, bool) {
+	if !strings.EqualFold(strings.TrimSpace(payloadStr(payload, "language")), "dockerfile") {
+		return "", false
+	}
+	fileData, ok := payload["parsed_file_data"].(map[string]any)
+	if !ok {
+		return "", false
+	}
+	stages := dockerfileStagesFromPayload(fileData["dockerfile_stages"])
+	if len(stages) == 0 {
+		return "", false
+	}
+	return dockerfileRuntimeBaseImageRef(stages)
+}
+
+// dockerfileStagesFromPayload normalizes the dockerfile_stages bucket to a
+// slice of stage maps. The parser produces []map[string]any in process, while a
+// payload that round-tripped through JSON storage arrives as []any of
+// map[string]any; both shapes reach this reducer, so both are accepted.
+func dockerfileStagesFromPayload(value any) []map[string]any {
+	switch typed := value.(type) {
+	case []map[string]any:
+		return typed
+	case []any:
+		stages := make([]map[string]any, 0, len(typed))
+		for _, item := range typed {
+			if stage, ok := item.(map[string]any); ok {
+				stages = append(stages, stage)
+			}
+		}
+		return stages
+	}
+	return nil
 }
 
 func containerImageServiceIDsFromPayload(payload map[string]any) []string {
