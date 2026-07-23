@@ -48,6 +48,15 @@ const (
 	// It is a weaker tier than an in-image label because the binding is the CI
 	// provider's run→artifact→digest join rather than the image's own metadata.
 	containerImageSourceRevisionCIRunCommit = "ci_run_commit"
+	// containerImageSourceRevisionSLSAProvenanceCommit marks a SourceRevision
+	// drawn from a signed SLSA provenance predicate's build definition config
+	// source commit, matched to the image by digest (#5456). It OUTRANKS both
+	// containerImageSourceRevisionOCIConfigLabel and
+	// containerImageSourceRevisionCIRunCommit: a signed, third-party-attested
+	// digest-to-commit binding is stronger evidence than an in-image label an
+	// attacker with build access could forge, and stronger than the CI
+	// provider's own run→artifact→digest join.
+	containerImageSourceRevisionSLSAProvenanceCommit = "slsa_provenance_commit"
 )
 
 // ContainerImageIdentityDecision records one bounded image identity decision.
@@ -270,10 +279,21 @@ func BuildContainerImageIdentityDecisionsWithQuarantine(
 	if err != nil {
 		return nil, nil, err
 	}
+	slsaDigest, slsaQuarantined, err := extractSLSADigestAnchorsWithQuarantine(envelopes)
+	if err != nil {
+		return nil, nil, err
+	}
+	quarantined = append(quarantined, slsaQuarantined...)
 	index := buildContainerImageRegistryIndex(envelopes)
 	decisions := make([]ContainerImageIdentityDecision, 0, len(refs))
 	for _, ref := range refs {
 		decision := classifyContainerImageRef(ref, index)
+		// SLSA provenance is applied FIRST: it OUTRANKS both the OCI
+		// config-label and ci.run tiers (#5456), so it must win any tier the
+		// weaker sources below would otherwise set. applyCIRunDigestRevision's
+		// own precedence check (container_image_identity_registry.go) skips
+		// when the decision already carries the SLSA tier.
+		applySLSADigestRevision(&decision, slsaDigest)
 		applyCIRunDigestRevision(&decision, ciRunDigest)
 		decisions = append(decisions, decision)
 	}
@@ -298,6 +318,8 @@ func containerImageIdentityFactKinds() []string {
 		facts.OCIImageManifestFactKind,
 		facts.OCIImageIndexFactKind,
 		facts.OCIImageReferrerFactKind,
+		facts.AttestationStatementFactKind,
+		facts.AttestationSLSAProvenanceFactKind,
 	}
 }
 

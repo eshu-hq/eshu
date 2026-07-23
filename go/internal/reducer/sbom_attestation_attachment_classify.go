@@ -5,6 +5,8 @@ package reducer
 
 import (
 	"strings"
+
+	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
 
 func classifySBOMAttachmentDocument(
@@ -72,37 +74,55 @@ func sbomAttachmentDecision(
 	if hasSLSAProvenance {
 		evidence = append(evidence, slsaProvenance.factID)
 	}
+	slsaMaterialRows, slsaMaterialCount := slsaMaterialEvidenceRows(slsaProvenance.materials)
+	slsaConfigSourceURI, slsaConfigSourceEntryPoint, slsaConfigSourceDigest := slsaConfigSourceFields(slsaProvenance.configSource)
 	return SBOMAttestationAttachmentDecision{
-		DocumentID:                     doc.documentID,
-		DocumentDigest:                 doc.documentDigest,
-		SubjectDigest:                  doc.subjectDigest,
-		AttachmentStatus:               status,
-		ParseStatus:                    doc.parseStatus,
-		VerificationStatus:             defaultStatus(verificationStatus, "not_configured"),
-		VerificationPolicy:             verificationPolicy,
-		ArtifactKind:                   doc.artifactKind,
-		Format:                         doc.format,
-		SpecVersion:                    doc.specVersion,
-		Reason:                         reason,
-		AttachmentScope:                scope,
-		CanonicalWrites:                sbomAttachmentCanonicalWriteCount(status, hasImageReferrer),
-		ComponentCount:                 len(components),
-		ComponentEvidence:              components,
-		DependencyRelationshipCount:    dependencyCount,
-		DependencyRelationshipEvidence: dependencyRows,
-		ExternalReferenceCount:         externalReferenceCount,
-		ExternalReferenceEvidence:      externalReferenceRows,
-		SLSAProvenancePredicateType:    slsaProvenance.predicateType,
-		SLSAProvenanceBuilderID:        slsaProvenance.builderID,
-		RepositoryIDs:                  anchors.repositories,
-		WorkloadIDs:                    anchors.workloads,
-		ServiceIDs:                     anchors.services,
-		WarningSummaries:               warnings.summaries,
-		WarningSummaryCount:            warnings.count,
-		EvidenceFactIDs:                uniqueSortedStrings(append(evidence, anchors.evidenceFactIDs...)),
-		MissingEvidence:                uniqueSortedStrings(append(missing, anchors.missingEvidence...)),
-		SourceLayerKinds:               sbomAttachmentSourceLayerKinds(hasImageReferrer, anchors.hasUsableAnchor()),
+		DocumentID:                           doc.documentID,
+		DocumentDigest:                       doc.documentDigest,
+		SubjectDigest:                        doc.subjectDigest,
+		AttachmentStatus:                     status,
+		ParseStatus:                          doc.parseStatus,
+		VerificationStatus:                   defaultStatus(verificationStatus, "not_configured"),
+		VerificationPolicy:                   verificationPolicy,
+		ArtifactKind:                         doc.artifactKind,
+		Format:                               doc.format,
+		SpecVersion:                          doc.specVersion,
+		Reason:                               reason,
+		AttachmentScope:                      scope,
+		CanonicalWrites:                      sbomAttachmentCanonicalWriteCount(status, hasImageReferrer),
+		ComponentCount:                       len(components),
+		ComponentEvidence:                    components,
+		DependencyRelationshipCount:          dependencyCount,
+		DependencyRelationshipEvidence:       dependencyRows,
+		ExternalReferenceCount:               externalReferenceCount,
+		ExternalReferenceEvidence:            externalReferenceRows,
+		SLSAProvenancePredicateType:          slsaProvenance.predicateType,
+		SLSAProvenanceBuilderID:              slsaProvenance.builderID,
+		SLSAProvenanceMaterials:              slsaMaterialRows,
+		SLSAProvenanceMaterialCount:          slsaMaterialCount,
+		SLSAProvenanceMaterialsTruncated:     slsaMaterialCount > len(slsaMaterialRows),
+		SLSAProvenanceConfigSourceURI:        slsaConfigSourceURI,
+		SLSAProvenanceConfigSourceEntryPoint: slsaConfigSourceEntryPoint,
+		SLSAProvenanceConfigSourceDigest:     slsaConfigSourceDigest,
+		RepositoryIDs:                        anchors.repositories,
+		WorkloadIDs:                          anchors.workloads,
+		ServiceIDs:                           anchors.services,
+		WarningSummaries:                     warnings.summaries,
+		WarningSummaryCount:                  warnings.count,
+		EvidenceFactIDs:                      uniqueSortedStrings(append(evidence, anchors.evidenceFactIDs...)),
+		MissingEvidence:                      uniqueSortedStrings(append(missing, anchors.missingEvidence...)),
+		SourceLayerKinds:                     sbomAttachmentSourceLayerKinds(hasImageReferrer, anchors.hasUsableAnchor()),
 	}
+}
+
+// slsaConfigSourceFields flattens a decoded SLSA provenance config source
+// (#5456) into the three scalar fields the decision struct carries, treating
+// a nil configSource identically to a well-formed-but-empty one.
+func slsaConfigSourceFields(configSource *sbomv1.SLSAConfigSource) (uri string, entryPoint string, digest map[string]string) {
+	if configSource == nil {
+		return "", "", nil
+	}
+	return derefString(configSource.URI), derefString(configSource.EntryPoint), configSource.Digest
 }
 
 func sbomAttachmentReason(base string, hasImageReferrer bool) string {
