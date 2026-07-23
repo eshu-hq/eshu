@@ -61,7 +61,9 @@ const openAPIPathsInfrastructure = `
                       "arn": {"type": "string"},
                       "account_id": {"type": "string"},
                       "region": {"type": "string"},
-                      "service_kind": {"type": "string"}
+                      "service_kind": {"type": "string"},
+                      "running_image_ref": {"type": "string"},
+                      "running_image_digest": {"type": "string"}
                     }}},
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
