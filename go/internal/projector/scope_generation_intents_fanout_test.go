@@ -26,7 +26,7 @@ func fanOutParityScopeAndGeneration() (scope.IngestionScope, scope.ScopeGenerati
 	return scopeValue, generation
 }
 
-// fanOutParityFixture builds one inputFacts slice spanning most of the 40
+// fanOutParityFixture builds one inputFacts slice spanning most of the 41
 // build*ReducerIntent probes appendScopeGenerationReducerIntents fans out to
 // (issue #4875). It exists to prove the shared reducerIntentFactIndex
 // refactor is behavior-preserving: TestAppendScopeGenerationReducerIntentsFanOutParity

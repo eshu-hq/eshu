@@ -91,7 +91,18 @@ func TestExtractCloudResourceNodeRowsSurfacesLambdaFunctionImage(t *testing.T) {
 	}
 }
 
-func TestExtractCloudResourceNodeRowsOmitsRunningImageForAmbiguousECSContainers(t *testing.T) {
+// TestExtractCloudResourceNodeRowsSetsExplicitEmptyRunningImageForAmbiguousECSContainers
+// proves a multi-container ("sidecar") ECS task — which has no single "the"
+// running image — gets running_image_ref/running_image_digest as PRESENT
+// keys with "" rather than omitted. Omitting the key was the pre-fix
+// behavior and collided with the pinned NornicDB backend's
+// missing-map-key-in-UNWIND bug (issue #5450, following the #4995
+// precedent — see runningImageFieldsAbsent's doc in
+// aws_resource_running_image.go): a heterogeneous row map in
+// canonicalCloudResourceUpsertCypher's UNWIND $rows batch persisted the
+// literal string "row.running_image_ref" instead of null for every row
+// missing the key, live-proved against the pinned NornicDB image.
+func TestExtractCloudResourceNodeRowsSetsExplicitEmptyRunningImageForAmbiguousECSContainers(t *testing.T) {
 	t.Parallel()
 
 	rows, _, err := ExtractCloudResourceNodeRows([]facts.Envelope{
@@ -115,15 +126,20 @@ func TestExtractCloudResourceNodeRowsOmitsRunningImageForAmbiguousECSContainers(
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
 	}
 	row := rows[0]
-	if _, ok := row["running_image_ref"]; ok {
-		t.Fatalf("running_image_ref = %v, want absent for a multi-container ambiguous task", row["running_image_ref"])
+	if got, ok := row["running_image_ref"]; !ok || got != "" {
+		t.Fatalf("running_image_ref = %v (present=%v), want present and \"\" for a multi-container ambiguous task", got, ok)
 	}
-	if _, ok := row["running_image_digest"]; ok {
-		t.Fatalf("running_image_digest = %v, want absent for a multi-container ambiguous task", row["running_image_digest"])
+	if got, ok := row["running_image_digest"]; !ok || got != "" {
+		t.Fatalf("running_image_digest = %v (present=%v), want present and \"\" for a multi-container ambiguous task", got, ok)
 	}
 }
 
-func TestExtractCloudResourceNodeRowsOmitsRunningImageForNonImageResourceTypes(t *testing.T) {
+// TestExtractCloudResourceNodeRowsSetsExplicitEmptyRunningImageForNonImageResourceTypes
+// proves a non-gated resource_type (not an ECS running task or Lambda
+// function) gets running_image_ref/running_image_digest as PRESENT keys with
+// "" rather than omitted, for the same UNWIND-batch reason documented on the
+// ambiguous-ECS-containers test above.
+func TestExtractCloudResourceNodeRowsSetsExplicitEmptyRunningImageForNonImageResourceTypes(t *testing.T) {
 	t.Parallel()
 
 	rows, _, err := ExtractCloudResourceNodeRows([]facts.Envelope{
@@ -144,8 +160,11 @@ func TestExtractCloudResourceNodeRowsOmitsRunningImageForNonImageResourceTypes(t
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
 	}
 	row := rows[0]
-	if _, ok := row["running_image_ref"]; ok {
-		t.Fatalf("running_image_ref = %v, want absent for a non-image resource_type", row["running_image_ref"])
+	if got, ok := row["running_image_ref"]; !ok || got != "" {
+		t.Fatalf("running_image_ref = %v (present=%v), want present and \"\" for a non-image resource_type", got, ok)
+	}
+	if got, ok := row["running_image_digest"]; !ok || got != "" {
+		t.Fatalf("running_image_digest = %v (present=%v), want present and \"\" for a non-image resource_type", got, ok)
 	}
 }
 
@@ -218,8 +237,8 @@ func TestLambdaFunctionImageFieldsDigestShapeMatchesECS(t *testing.T) {
 		if err != nil {
 			t.Fatalf("lambdaFunctionImageFields() error = %v", err)
 		}
-		if _, ok := fields["running_image_digest"]; ok {
-			t.Fatalf("running_image_digest = %v, want absent when resolved_image_uri is absent", fields["running_image_digest"])
+		if got, ok := fields["running_image_digest"]; !ok || got != "" {
+			t.Fatalf("running_image_digest = %v (present=%v), want present and \"\" when resolved_image_uri is absent", got, ok)
 		}
 	})
 
@@ -238,8 +257,8 @@ func TestLambdaFunctionImageFieldsDigestShapeMatchesECS(t *testing.T) {
 		if err != nil {
 			t.Fatalf("lambdaFunctionImageFields() error = %v", err)
 		}
-		if _, ok := fields["running_image_digest"]; ok {
-			t.Fatalf("running_image_digest = %v, want absent for a non-digest-qualified resolved_image_uri", fields["running_image_digest"])
+		if got, ok := fields["running_image_digest"]; !ok || got != "" {
+			t.Fatalf("running_image_digest = %v (present=%v), want present and \"\" for a non-digest-qualified resolved_image_uri", got, ok)
 		}
 	})
 }

@@ -548,12 +548,22 @@ row map key with no matching `SET` fragment is silently dropped by the
 backend, never an error. `baseCloudResourceUpsertCypher` unconditionally sets
 `r.running_image_ref = row.running_image_ref` and
 `r.running_image_digest = row.running_image_digest` alongside every other
-optional field (`workload_id`, `service_name`, ...) using the writer's
-existing convention: a row map with no such key resolves to Cypher `null` for
-that row, which `SET` interprets as "no value this generation" (matching
-every other optional `CloudResource` property's already-established
-semantics — this is a full re-projection each generation, so clearing a
-property genuinely absent this generation is correct, not a data-loss bug).
+optional field (`workload_id`, `service_name`, ...). Both keys are ALWAYS
+PRESENT in every row this writer receives (AWS, GCP, and Azure), defaulting
+to `""` rather than being omitted when there is no running-image truth to
+publish for a resource — omitting the key was the original design intent
+("absent row key -> Cypher `null` -> `SET` clears the property") but the
+pinned NornicDB backend does not evaluate a key MISSING from one row of a
+heterogeneous `UNWIND $rows` list as null: it persists a stringified
+representation of the row expression instead (a literal
+`"row.running_image_ref"` string), live-proved against the pinned image. This
+repeats the earlier #4995 finding for `workload_id`/`service_name`/
+`service_anchor_*` (see `gcpCloudResourceNodeRow`'s parity-key comment in
+`go/internal/reducer/gcp_resource_materialization.go`); `running_image_ref`/
+`running_image_digest` needed the same explicit-empty-value fix in all three
+row builders (`cloudResourceRunningImageFields` for AWS,
+`gcpCloudResourceNodeRow`, `azureCloudResourceNodeRow`) rather than relying on
+Cypher's normal null semantics for an absent map key.
 
 `running_image_digest` is normalized to the BARE digest
 (`"sha256:<hex>"`) for BOTH resource types: ECS's `containers[].image_digest`

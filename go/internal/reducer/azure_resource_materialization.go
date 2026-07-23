@@ -226,6 +226,18 @@ func azureCloudResourceNodeRow(env facts.Envelope) (row map[string]any, uid stri
 		"source_confidence":   string(env.SourceConfidence),
 		"collector_kind":      env.CollectorKind,
 		sourceOrderKeyField:   sourceOrderKey(env),
+		// running_image_ref/running_image_digest (issue #5450): Azure
+		// resources are never a running-image source, but both keys must still
+		// be PRESENT (not omitted) so canonicalCloudResourceUpsertCypher's
+		// unconditional SET clause does not hit the pinned NornicDB
+		// missing-map-key-in-UNWIND bug — see go/internal/reducer/
+		// aws_resource_running_image.go's runningImageFieldsAbsent doc for the
+		// live-proved mechanism, and gcpCloudResourceNodeRow's parity-key
+		// comment for the earlier #4995 precedent (workload_id/service_name/
+		// service_anchor_*, which Azure rows do NOT yet carry — a pre-existing
+		// gap tracked separately and out of scope here).
+		"running_image_ref":    "",
+		"running_image_digest": "",
 	}
 	return row, uid, resourceID, true, nil
 }

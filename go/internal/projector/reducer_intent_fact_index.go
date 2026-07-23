@@ -10,13 +10,13 @@ import "github.com/eshu-hq/eshu/go/internal/facts"
 // every build*ReducerIntent probe appendScopeGenerationReducerIntents calls
 // (issue #4875). Before the index, the then-38 probes independently re-scanned
 // the full inputFacts slice, so a generation with N facts paid O(38*N)
-// comparisons. The current 40 probes all use the index: it groups fact
+// comparisons. The current 41 probes all use the index: it groups fact
 // positions by FactKind in one O(N) pass, then each probe looks up only the
 // positions for the kind(s) it cares about.
 //
 // inputFacts is immutable once a scope generation is claimed for projection
 // (buildProjection never mutates it — see TestBuildProjectionDoesNotMutateInputFactPayloads),
-// so building this index once and sharing it read-only across all 40 probes
+// so building this index once and sharing it read-only across all 41 probes
 // is concurrency-safe: there is no writer to race against, and the index
 // itself is never mutated after newReducerIntentFactIndex returns.
 //

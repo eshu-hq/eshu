@@ -31,19 +31,39 @@ var (
 	}
 )
 
+// runningImageFieldsAbsent is the explicit-empty running_image_ref /
+// running_image_digest pair cloudResourceRunningImageFields returns whenever
+// there is no running-image truth to publish for a resource: not gated, no
+// image evidence, or ambiguous evidence (more than one ECS container). Both
+// keys are ALWAYS present with "" rather than omitted (issue #5450, following
+// the #4995 precedent — see gcpCloudResourceNodeRow's parity-key comment in
+// gcp_resource_materialization.go): the pinned NornicDB backend does not
+// evaluate a key MISSING from one row of a heterogeneous UNWIND $rows list as
+// null in canonicalCloudResourceUpsertCypher's SET clause, it persists a
+// stringified representation of the row expression instead ("row.
+// running_image_ref" as a literal, non-empty string), which would corrupt the
+// property for every CloudResource this map's key is missing from and
+// silently defeat the golden-corpus gate's non-empty presence check. Omitting
+// the key was correct Cypher-null intent but wrong for this backend's
+// UNWIND+SET map-shape handling.
+var runningImageFieldsAbsent = map[string]any{"running_image_ref": "", "running_image_digest": ""}
+
 // cloudResourceRunningImageFields returns the running_image_ref /
 // running_image_digest CloudResource node properties for an already-decoded
-// aws_resource struct, when the resource's resource_type is an ECS running
-// task or a Lambda function AND the running image resolves unambiguously.
-// Returns a nil map (not an error) when the resource_type is not gated, when
-// no image evidence is present, or when the evidence is ambiguous (more than
-// one ECS container) — an unresolvable running image is a legitimate "no
-// running-image truth to publish" outcome, not a fabricated one, mirroring
-// cloudResourceServiceAnchorFields' ambiguous-stays-unpromoted pattern. A
-// non-nil error means the payload carried a present-but-malformed image field
-// the caller MUST route to the same quarantine/dead-letter path an envelope
-// decode failure uses (reducer/AGENTS.md: never emit an empty-string
-// CloudResource uid or a silently-substituted value).
+// aws_resource struct. Both keys are always present in the returned map
+// (never omitted — see runningImageFieldsAbsent); they carry real values only
+// when the resource's resource_type is an ECS running task or a Lambda
+// function AND the running image resolves unambiguously, and "" otherwise —
+// an unresolvable running image is a legitimate "no running-image truth to
+// publish" outcome, not a fabricated one, mirroring
+// cloudResourceServiceAnchorFields' ambiguous-stays-unpromoted pattern (that
+// function's own nil-map omission carries the pre-existing #4995 gap for
+// AWS resources with no service-anchor decision; out of scope for #5450, not
+// duplicated here). A non-nil error means the payload carried a
+// present-but-malformed image field the caller MUST route to the same
+// quarantine/dead-letter path an envelope decode failure uses (reducer/
+// AGENTS.md: never emit an empty-string CloudResource uid or a
+// silently-substituted value).
 func cloudResourceRunningImageFields(resource awsv1.Resource) (map[string]any, error) {
 	switch {
 	case isGatedResourceType(resource.ResourceType, ecsRunningTaskResourceTypes):
@@ -51,7 +71,7 @@ func cloudResourceRunningImageFields(resource awsv1.Resource) (map[string]any, e
 	case isGatedResourceType(resource.ResourceType, lambdaFunctionResourceTypes):
 		return lambdaFunctionImageFields(resource)
 	default:
-		return nil, nil
+		return runningImageFieldsAbsent, nil
 	}
 }
 
@@ -75,13 +95,18 @@ func ecsRunningTaskImageFields(resource awsv1.Resource) (map[string]any, error) 
 		return nil, err
 	}
 	if len(attrs.Containers) != 1 {
-		return nil, nil
+		return runningImageFieldsAbsent, nil
 	}
 	container := attrs.Containers[0]
 	if container.Image == "" {
-		return nil, nil
+		return runningImageFieldsAbsent, nil
 	}
-	fields := map[string]any{"running_image_ref": container.Image}
+	// Both keys are always present (never omitted — see
+	// runningImageFieldsAbsent's doc): running_image_digest falls back to ""
+	// rather than being dropped when the container reports no digest, so a
+	// digest-less row never collides with the pinned NornicDB
+	// missing-map-key-in-UNWIND bug.
+	fields := map[string]any{"running_image_ref": container.Image, "running_image_digest": ""}
 	if container.ImageDigest != "" {
 		fields["running_image_digest"] = container.ImageDigest
 	}
@@ -114,9 +139,13 @@ func lambdaFunctionImageFields(resource awsv1.Resource) (map[string]any, error) 
 		return nil, err
 	}
 	if attrs.ImageURI == "" {
-		return nil, nil
+		return runningImageFieldsAbsent, nil
 	}
-	fields := map[string]any{"running_image_ref": attrs.ImageURI}
+	// Both keys are always present (never omitted — see
+	// runningImageFieldsAbsent's doc): running_image_digest falls back to ""
+	// rather than being dropped when it does not resolve, so a digest-less row
+	// never collides with the pinned NornicDB missing-map-key-in-UNWIND bug.
+	fields := map[string]any{"running_image_ref": attrs.ImageURI, "running_image_digest": ""}
 	if digest := digestFromImageRef(attrs.ResolvedImageURI); digest != "" {
 		fields["running_image_digest"] = digest
 	}

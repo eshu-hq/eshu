@@ -1873,13 +1873,17 @@
       },
       {
         "id": "rn-cloud-resource-running-image",
-        "description": "issue #5450: at least 2 CloudResource nodes carry non-empty running_image_ref AND running_image_digest -- the ECS running task (resource_type ecs.task, containers[0].image/image_digest) and the Lambda function (resource_type lambda.function, image_uri/resolved_image_uri) from the awscloud supply-chain-demo cassette. Provably 0 without cloudResourceRunningImageFields (go/internal/reducer/aws_resource_running_image.go) wired into cloudResourceNodeRow AND baseCloudResourceUpsertCypher's SET clause (go/internal/storage/cypher/cloud_resource_node_writer.go) actually persisting the two properties -- the in-memory row map alone is necessary but not sufficient, since Cypher silently drops any row key with no matching SET fragment. running_image_digest is normalized to the BARE digest for both resource types (P2 fix: Lambda's resolved_image_uri is registry/repository@digest, parsed down to sha256:<hex> so it matches ECS's already-bare shape; the full reference stays available via running_image_ref). A multi-container ECS task stays ambiguous and unpromoted by design (no essential-container flag exists to disambiguate by), so this floor is exactly the two single-image fixtures, not every CloudResource.",
+        "description": "issue #5450: EXACTLY 2 CloudResource nodes carry non-empty running_image_ref AND running_image_digest -- the ECS running task (resource_type ecs.task, containers[0].image/image_digest) and the Lambda function (resource_type lambda.function, image_uri/resolved_image_uri) from the awscloud supply-chain-demo cassette. Provably 0 without cloudResourceRunningImageFields (go/internal/reducer/aws_resource_running_image.go) wired into cloudResourceNodeRow AND baseCloudResourceUpsertCypher's SET clause (go/internal/storage/cypher/cloud_resource_node_writer.go) actually persisting the two properties -- the in-memory row map alone is necessary but not sufficient, since Cypher silently drops any row key with no matching SET fragment. running_image_digest is normalized to the BARE digest for both resource types (P2 fix: Lambda's resolved_image_uri is registry/repository@digest, parsed down to sha256:<hex> so it matches ECS's already-bare shape; the full reference stays available via running_image_ref). A multi-container ECS task stays ambiguous and unpromoted by design (no essential-container flag exists to disambiguate by), so this is exactly the two single-image fixtures, not every CloudResource. maximum_node_property_count pins the CEILING at 2, not just the floor (a live corpus-gate run caught a real regression here: the pinned NornicDB backend does not evaluate a key MISSING from one row of a heterogeneous UNWIND $rows list as null in a SET clause, it persists a stringified 'row.running_image_ref' literal instead -- which is non-empty and so silently satisfied a floor-only `want >= 2` on all 115 CloudResource nodes. Fixed by making every CloudResource row builder -- AWS (cloudResourceRunningImageFields), GCP (gcpCloudResourceNodeRow), and Azure (azureCloudResourceNodeRow) -- always carry both keys, defaulting to \"\" rather than omitting them, mirroring the pre-existing #4995 workload_id/service_name parity-key precedent. The ceiling is what makes a reintroduced omission fail loud instead of silently passing at the old floor).",
         "label": "CloudResource",
         "minimum_count": 2,
         "required_node_properties": [
           "running_image_ref",
           "running_image_digest"
-        ]
+        ],
+        "maximum_node_property_count": {
+          "running_image_ref": 2,
+          "running_image_digest": 2
+        }
       }
     ],
     "required_self_loops": [
