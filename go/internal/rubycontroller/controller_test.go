@@ -216,6 +216,31 @@ func TestDecide(t *testing.T) {
 			wantKeep:   true,
 			wantReason: rubycontroller.ReasonAccepted,
 		},
+		{
+			// #5500 P0 regression: classNamespaceOf cannot distinguish a genuinely
+			// nested-module-block declaration from Ruby's COMPACT COLON form
+			// (`class Admin::OrdersController < Base` with NO enclosing `module
+			// Admin` block) — qualifiedClassName produces the IDENTICAL qualified
+			// name for both (go/internal/parser/ruby/nodes.go). For the compact
+			// form, real Ruby Module.nesting for the bare "Base" reference does NOT
+			// include "Admin", so the true referent is the TOP-LEVEL "Base" class.
+			// A coincidentally-named, unrelated "Admin::Base" class must NEVER mask
+			// that true referent: it must stay in the candidate set alongside
+			// top-level "Base" so any-path-keeps can still rescue a genuinely live
+			// controller. SuffixMatches only returns STRICT offset>0 matches, so the
+			// offset-0 top-level "Base" is unreachable any other way once masked —
+			// this is the exact false-downgrade defect #5376/#5500 must never
+			// reintroduce.
+			name:  "compact-colon form: coincidental inner-scope match does not mask the true top-level referent",
+			class: "Admin::OrdersController",
+			classes: map[string][]string{
+				"Admin::OrdersController": {"Base"},
+				"Admin::Base":             {"ActiveRecord::Base"},    // coincidental, unrelated, non-controller
+				"Base":                    {"ApplicationController"}, // the TRUE top-level referent, a genuine controller
+			},
+			wantKeep:   true,
+			wantReason: rubycontroller.ReasonAccepted,
+		},
 	}
 
 	for _, tt := range tests {

@@ -78,6 +78,38 @@ func TestBuildCodeRootVerdictsLexicalScopeRestriction(t *testing.T) {
 	}
 }
 
+// TestBuildCodeRootVerdictsLexicalScopeCoincidentalInnerMatchDoesNotMask is the
+// #5500 P0 regression, run against the REAL production registry
+// (rubyRepoWideControllerRegistry). classNamespaceOf cannot distinguish a
+// genuinely nested-module-block declaration from Ruby's COMPACT COLON form
+// (`class Admin::OrdersController < Base` with NO enclosing `module Admin`
+// block) — qualifiedClassName produces the identical qualified name for both.
+// For the compact form, real Ruby Module.nesting for the bare "Base"
+// reference does NOT include "Admin", so the true referent is the TOP-LEVEL
+// "Base" class. A coincidentally-named, unrelated "Admin::Base" class must
+// NEVER mask that true referent from the candidate set: SuffixMatches only
+// returns STRICT offset>0 matches, so the offset-0 top-level "Base" is
+// unreachable any other way once masked, and a genuinely live controller
+// would be falsely downgraded.
+func TestBuildCodeRootVerdictsLexicalScopeCoincidentalInnerMatchDoesNotMask(t *testing.T) {
+	input := verdictInput("m:index", "OrdersController", []RubyClassEntity{
+		{Name: "OrdersController", QualifiedName: "Admin::OrdersController", QualifiedBases: []string{"Base"}},
+		{Name: "Base", QualifiedName: "Admin::Base", QualifiedBases: []string{"ActiveRecord::Base"}}, // coincidental, unrelated, non-controller
+		{Name: "Base", QualifiedName: "Base", QualifiedBases: []string{"ApplicationController"}},     // the TRUE top-level referent, a genuine controller
+	})
+	rows, downgraded, _ := BuildCodeRootVerdicts(input)
+	row, ok := verdictByEntity(rows, "m:index")
+	if !ok {
+		t.Fatalf("expected a verdict row, got none (rows=%+v)", rows)
+	}
+	if row.Verdict != CodeRootVerdictConfirmed {
+		t.Fatalf("genuine controller must be CONFIRMED (the true top-level Base referent must stay in the candidate set), got %+v", row)
+	}
+	if _, isDown := downgraded[row.EntityID]; isDown {
+		t.Fatalf("genuine controller must not be in the downgraded set")
+	}
+}
+
 // buildNamespacedVerdictBenchInput constructs a representative, heavily
 // namespaced Rails-shaped corpus mirroring the #5376 evidence note's
 // representative-volume scale (~500 classes): each controller is nested two

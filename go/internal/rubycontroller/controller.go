@@ -4,7 +4,6 @@
 package rubycontroller
 
 import (
-	"sort"
 	"strings"
 )
 
@@ -297,12 +296,13 @@ func onwardHop(
 		return Decision{Keep: true, Chain: branchChain, Terminal: "accepted:" + ref, Reason: ReasonAccepted}
 	}
 
-	// #5500: restrict candidate resolution to the lexical-prefix names Ruby
-	// constant lookup would actually try — P::ref, then each enclosing prefix
-	// of P, then top-level ref — before falling back to the broad, unscoped
-	// ExactMatches(ref). This can only ADD a more specific exact identity; it
-	// never removes the final top-level candidate, so it cannot drop a match
-	// the pre-#5500 lookup found (see lexicalExactMatch doc).
+	// #5500: also try the lexical-prefix names Ruby constant lookup would try —
+	// P::ref, then each enclosing prefix of P, then top-level ref — alongside
+	// the broad, unscoped ExactMatches(ref). This can only ADD more specific
+	// exact identities to the candidate set; it never removes the top-level
+	// candidate, so it cannot drop a match the pre-#5500 lookup found, and it
+	// never picks one inner-scope hit over another — every level's hit stays in
+	// play for the any-path-keeps aggregation below (see lexicalExactMatch doc).
 	exact := lexicalExactMatch(reg, namespace, ref)
 	suffix := reg.SuffixMatches(ref)
 
@@ -382,112 +382,6 @@ func probeClassConfirm(classKey string, reg Registry, visited map[string]struct{
 	return false
 }
 
-// normalizeRef trims whitespace and a leading "::" (absolute-constant marker)
-// from a ref or class name.
-func normalizeRef(ref string) string {
-	return strings.TrimPrefix(strings.TrimSpace(ref), "::")
-}
-
-// classNamespaceOf returns classKey's own lexical namespace: every "::"-joined
-// segment except the last (classKey's own declared name). It is "" for a
-// top-level class or a same-file-registry class key (which is always simple,
-// per rubySameFileControllerRegistry), so the #5500 lexical restriction is a
-// provable no-op for both cases. This is a pure string derivation of the
-// #5376 F3 qualified_name — it does not distinguish Ruby's nested-module-block
-// form (`module A; class B; end; end`, which DOES add "A" to Module.nesting)
-// from the compact colon form (`class A::B`, which does NOT) because
-// qualifiedClassName already collapses both into one qualified string; see
-// go/internal/parser/ruby/nodes.go. This is a documented, accepted
-// approximation, not a regression: it can only make more candidates
-// EXACT-resolvable than before (never fewer), so it can only improve
-// precision, never drop a match the pre-#5500 walk found.
-func classNamespaceOf(classKey string) string {
-	idx := strings.LastIndex(classKey, "::")
-	if idx < 0 {
-		return ""
-	}
-	return classKey[:idx]
-}
-
-// lexicalExactMatch tries ref's real Ruby constant-lookup candidates —
-// scope::ref for namespace, then for each enclosing prefix of namespace found
-// by trimming one "::"-segment off the right at a time, and finally ref alone
-// (top-level) — innermost scope first, and returns the FIRST candidate's
-// ExactMatches hit: the identity ref resolves to under real Ruby constant
-// lookup (Module.nesting searched innermost-out, stopping at the first scope
-// that defines the constant, then falling to top-level). It walks namespace
-// directly with strings.LastIndex instead of pre-splitting into a segment
-// slice, so a namespaced walk costs one extra string concat and map lookup per
-// enclosing level tried — no extra slice allocation — and a top-level walked
-// class (namespace == "") costs exactly the pre-#5500 reg.ExactMatches(ref)
-// call. Returns nil only when every candidate misses, INCLUDING the final
-// top-level candidate, so a miss here is identical to the pre-#5500 miss and
-// the #5500 restriction can never produce fewer matches than the prior
-// lookup.
-func lexicalExactMatch(reg Registry, namespace, ref string) []string {
-	scope := namespace
-	for {
-		if scope == "" {
-			return reg.ExactMatches(ref)
-		}
-		if matches := reg.ExactMatches(scope + "::" + ref); len(matches) > 0 {
-			return matches
-		}
-		idx := strings.LastIndex(scope, "::")
-		if idx < 0 {
-			scope = ""
-			continue
-		}
-		scope = scope[:idx]
-	}
-}
-
-// unionKeys returns the deduplicated union of two class-key slices, preserving
-// a deterministic sorted order.
-func unionKeys(a, b []string) []string {
-	seen := make(map[string]struct{}, len(a)+len(b))
-	out := make([]string, 0, len(a)+len(b))
-	for _, keys := range [][]string{a, b} {
-		for _, key := range keys {
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			out = append(out, key)
-		}
-	}
-	sort.Strings(out)
-	return out
-}
-
-// normalizeBases trims the "::" prefix and whitespace from each base, drops
-// empties, deduplicates, and sorts for deterministic path evaluation.
-func normalizeBases(bases []string) []string {
-	seen := make(map[string]struct{}, len(bases))
-	out := make([]string, 0, len(bases))
-	for _, base := range bases {
-		base = normalizeRef(base)
-		if base == "" {
-			continue
-		}
-		if _, ok := seen[base]; ok {
-			continue
-		}
-		seen[base] = struct{}{}
-		out = append(out, base)
-	}
-	sort.Strings(out)
-	return out
-}
-
-func cloneChain(chain []string) []string {
-	return append([]string(nil), chain...)
-}
-
-func cloneVisited(visited map[string]struct{}) map[string]struct{} {
-	out := make(map[string]struct{}, len(visited)+1)
-	for k := range visited {
-		out[k] = struct{}{}
-	}
-	return out
-}
+// normalizeRef, classNamespaceOf, lexicalExactMatch, unionKeys,
+// normalizeBases, cloneChain, and cloneVisited are pure string/set helpers for
+// the walk above; see helpers.go.
