@@ -198,6 +198,29 @@ const (
 	// resolve against nodes that have not committed (issue #805 PR 2); see
 	// docs/internal/aws-relationship-edge-materialization-design.md §5–§8.
 	DomainAWSRelationshipMaterialization Domain = "aws_relationship_materialization"
+	// DomainAWSCloudImageMaterialization projects the lambda_function_uses_image
+	// aws_relationship into a canonical CloudResource -> ContainerImage edge
+	// (issue #5450), an ADDITIVE SIBLING of DomainAWSRelationshipMaterialization
+	// rather than a change to it: DomainAWSRelationshipMaterialization only ever
+	// resolves CloudResource -> CloudResource, so a domain whose target label is
+	// :ContainerImage needs its own truth contract, mirroring the split between
+	// DomainKubernetesWorkloadMaterialization and
+	// DomainKubernetesCorrelationMaterialization (which projects the analogous
+	// KubernetesWorkload -[:RUNS_IMAGE]-> OCI-node cross-label edge). It gates on
+	// the SAME GraphProjectionPhaseCanonicalNodesCommitted readiness phase
+	// DomainAWSResourceMaterialization publishes on the CloudResource keyspace
+	// (the source endpoint), and resolves the target directly from the
+	// relationship's own resolved_image_uri attribute (an exact
+	// registry+repository@digest), never against the aws_resource join index — a
+	// container image is not an aws_resource. Two MATCHes precede the MERGE, so
+	// an unscanned image degrades gracefully (counted, not fabricated).
+	// ecs_task_definition_uses_image is a DIFFERENT relationship_type this
+	// domain recognizes and always skips: the task DEFINITION's image is
+	// tag-only (no digest), so the #5472 EXACT-ONLY graph-projection policy
+	// keeps it Postgres-only. See
+	// docs/internal/aws-relationship-edge-materialization-design.md and
+	// docs/internal/design/5472-graph-projection-policy.md.
+	DomainAWSCloudImageMaterialization Domain = "aws_cloud_image_materialization"
 	// DomainObservabilityCoverageCorrelation correlates which monitored
 	// CloudResource nodes have observability coverage (CloudWatch alarms,
 	// dashboards, log groups, X-Ray) versus which are uncovered, emitting durable

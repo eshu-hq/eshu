@@ -141,6 +141,7 @@ var idempotencyAdditiveExemptDomains = map[Domain]string{
 	// Cloud relationship/edge materializers: readiness-gated edge writes against
 	// committed nodes, proven by their own suites.
 	DomainAWSRelationshipMaterialization:           "additive, gated on FactLoader+CloudResourceEdgeWriter with readiness lookup; edges resolve against committed nodes, idempotency proven by aws_relationship_materialization_*_test.go",
+	DomainAWSCloudImageMaterialization:             "additive sibling of DomainAWSRelationshipMaterialization, gated on FactLoader+CloudResourceContainerImageEdgeWriter with readiness lookup; the CloudResource -> ContainerImage MATCH-MATCH-MERGE is idempotent by (source_uid, target_uid), idempotency proven by aws_cloud_image_materialization_test.go (TestAWSCloudImageMaterializationIdempotentOnReprojection)",
 	DomainGCPRelationshipMaterialization:           "additive, gated on FactLoader+GCPCloudResourceEdgeWriter with readiness lookup; idempotency proven by gcp_relationship_materialization_*_test.go",
 	DomainAzureRelationshipMaterialization:         "additive, gated on FactLoader+AzureCloudResourceEdgeWriter with readiness lookup; idempotency proven by azure_relationship_materialization_test.go",
 	DomainWorkloadCloudRelationshipMaterialization: "additive, gated on FactLoader+WorkloadCloudRelationshipEdgeWriter with readiness lookup; idempotency proven by workload_cloud_relationship_materialization_*_test.go",

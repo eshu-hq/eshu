@@ -13,27 +13,28 @@ type canonicalGraphWriters struct {
 	// in the #5007 owner-ledger gate (graphowner) so a shared cross-scope node's
 	// scope-derived properties resolve deterministically to the max-order-key
 	// contributor. A nil-ledger gate writes through unchanged.
-	cloudResourceNode             *graphowner.CloudResourceGatedWriter
-	ec2InstanceNode               *graphowner.EC2InstanceGatedWriter
-	cloudResourceEdge             *sourcecypher.CloudResourceEdgeWriter
-	gcpCloudResourceEdge          *sourcecypher.GCPCloudResourceEdgeWriter
-	azureCloudResourceEdge        *sourcecypher.AzureCloudResourceEdgeWriter
-	workloadCloudRelationshipEdge *sourcecypher.WorkloadCloudRelationshipWriter
-	kubernetesWorkloadNode        *graphowner.KubernetesWorkloadGatedWriter
-	kubernetesNamespaceNode       *sourcecypher.KubernetesNamespaceNodeWriter
-	securityGroupEndpointNode     *sourcecypher.SecurityGroupEndpointNodeWriter
-	securityGroupReachability     *sourcecypher.SecurityGroupReachabilityWriter
-	kubernetesCorrelationEdge     *sourcecypher.KubernetesCorrelationEdgeWriter
-	crossplaneSatisfiedByEdge     *sourcecypher.CrossplaneSatisfiedByEdgeWriter
-	iamEscalationEdge             *sourcecypher.IAMEscalationEdgeWriter
-	iamCanPerformEdge             *sourcecypher.IAMCanPerformEdgeWriter
-	observabilityCoverageEdge     *sourcecypher.ObservabilityCoverageEdgeWriter
-	incidentRoutingEvidence       *sourcecypher.IncidentRoutingEvidenceWriter
-	codeTaintEvidence             *sourcecypher.CodeTaintEvidenceWriter
-	codeInterprocEvidence         *sourcecypher.CodeInterprocEvidenceWriter
-	iamCanAssumeEdge              *sourcecypher.IAMCanAssumeEdgeWriter
-	s3LogsToEdge                  *sourcecypher.S3LogsToEdgeWriter
-	s3ExternalPrincipalGrant      *sourcecypher.S3ExternalPrincipalGrantWriter
+	cloudResourceNode               *graphowner.CloudResourceGatedWriter
+	ec2InstanceNode                 *graphowner.EC2InstanceGatedWriter
+	cloudResourceEdge               *sourcecypher.CloudResourceEdgeWriter
+	cloudResourceContainerImageEdge *sourcecypher.CloudResourceContainerImageEdgeWriter
+	gcpCloudResourceEdge            *sourcecypher.GCPCloudResourceEdgeWriter
+	azureCloudResourceEdge          *sourcecypher.AzureCloudResourceEdgeWriter
+	workloadCloudRelationshipEdge   *sourcecypher.WorkloadCloudRelationshipWriter
+	kubernetesWorkloadNode          *graphowner.KubernetesWorkloadGatedWriter
+	kubernetesNamespaceNode         *sourcecypher.KubernetesNamespaceNodeWriter
+	securityGroupEndpointNode       *sourcecypher.SecurityGroupEndpointNodeWriter
+	securityGroupReachability       *sourcecypher.SecurityGroupReachabilityWriter
+	kubernetesCorrelationEdge       *sourcecypher.KubernetesCorrelationEdgeWriter
+	crossplaneSatisfiedByEdge       *sourcecypher.CrossplaneSatisfiedByEdgeWriter
+	iamEscalationEdge               *sourcecypher.IAMEscalationEdgeWriter
+	iamCanPerformEdge               *sourcecypher.IAMCanPerformEdgeWriter
+	observabilityCoverageEdge       *sourcecypher.ObservabilityCoverageEdgeWriter
+	incidentRoutingEvidence         *sourcecypher.IncidentRoutingEvidenceWriter
+	codeTaintEvidence               *sourcecypher.CodeTaintEvidenceWriter
+	codeInterprocEvidence           *sourcecypher.CodeInterprocEvidenceWriter
+	iamCanAssumeEdge                *sourcecypher.IAMCanAssumeEdgeWriter
+	s3LogsToEdge                    *sourcecypher.S3LogsToEdgeWriter
+	s3ExternalPrincipalGrant        *sourcecypher.S3ExternalPrincipalGrantWriter
 	// rdsPostureNode / ec2InternetExposureNode / ec2BlockDeviceKMSPostureNode /
 	// s3InternetExposureNode are wrapped in the #5062 lock-only gate
 	// (graphowner.LockOnlyGate) so their SET/REMOVE writes to shared
@@ -71,27 +72,28 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.Po
 	rawEC2BlockDeviceKMSPostureNode := sourcecypher.NewEC2BlockDeviceKMSPostureNodeWriter(exec, reader, batchSize)
 	rawS3InternetExposureNode := sourcecypher.NewS3InternetExposureNodeWriter(exec, reader, batchSize)
 	return canonicalGraphWriters{
-		cloudResourceNode:             graphowner.NewCloudResourceGatedWriter(ownerGate, rawCloudResourceNode.WriteCloudResourceNodes),
-		ec2InstanceNode:               graphowner.NewEC2InstanceGatedWriter(ownerGate, rawEC2InstanceNode.WriteEC2InstanceNodes),
-		cloudResourceEdge:             sourcecypher.NewCloudResourceEdgeWriter(exec, batchSize),
-		gcpCloudResourceEdge:          sourcecypher.NewGCPCloudResourceEdgeWriter(exec, batchSize),
-		azureCloudResourceEdge:        sourcecypher.NewAzureCloudResourceEdgeWriter(exec, batchSize),
-		workloadCloudRelationshipEdge: sourcecypher.NewWorkloadCloudRelationshipWriter(exec, batchSize),
-		kubernetesWorkloadNode:        graphowner.NewKubernetesWorkloadGatedWriter(ownerGate, rawKubernetesWorkloadNode.WriteKubernetesWorkloadNodes),
-		kubernetesNamespaceNode:       kubernetesNamespaceNode,
-		securityGroupEndpointNode:     sourcecypher.NewSecurityGroupEndpointNodeWriter(exec, batchSize),
-		securityGroupReachability:     sourcecypher.NewSecurityGroupReachabilityWriter(exec, batchSize),
-		kubernetesCorrelationEdge:     sourcecypher.NewKubernetesCorrelationEdgeWriter(exec, batchSize),
-		crossplaneSatisfiedByEdge:     sourcecypher.NewCrossplaneSatisfiedByEdgeWriter(exec, batchSize),
-		iamEscalationEdge:             sourcecypher.NewIAMEscalationEdgeWriter(exec, batchSize),
-		iamCanPerformEdge:             sourcecypher.NewIAMCanPerformEdgeWriter(exec, batchSize),
-		observabilityCoverageEdge:     sourcecypher.NewObservabilityCoverageEdgeWriter(exec, batchSize),
-		incidentRoutingEvidence:       sourcecypher.NewIncidentRoutingEvidenceWriter(exec, batchSize),
-		codeTaintEvidence:             sourcecypher.NewCodeTaintEvidenceWriter(exec, batchSize),
-		codeInterprocEvidence:         sourcecypher.NewCodeInterprocEvidenceWriter(exec, batchSize),
-		iamCanAssumeEdge:              sourcecypher.NewIAMCanAssumeEdgeWriter(exec, batchSize),
-		s3LogsToEdge:                  sourcecypher.NewS3LogsToEdgeWriter(exec, batchSize),
-		s3ExternalPrincipalGrant:      sourcecypher.NewS3ExternalPrincipalGrantWriter(exec, batchSize),
+		cloudResourceNode:               graphowner.NewCloudResourceGatedWriter(ownerGate, rawCloudResourceNode.WriteCloudResourceNodes),
+		ec2InstanceNode:                 graphowner.NewEC2InstanceGatedWriter(ownerGate, rawEC2InstanceNode.WriteEC2InstanceNodes),
+		cloudResourceEdge:               sourcecypher.NewCloudResourceEdgeWriter(exec, batchSize),
+		cloudResourceContainerImageEdge: sourcecypher.NewCloudResourceContainerImageEdgeWriter(exec, batchSize),
+		gcpCloudResourceEdge:            sourcecypher.NewGCPCloudResourceEdgeWriter(exec, batchSize),
+		azureCloudResourceEdge:          sourcecypher.NewAzureCloudResourceEdgeWriter(exec, batchSize),
+		workloadCloudRelationshipEdge:   sourcecypher.NewWorkloadCloudRelationshipWriter(exec, batchSize),
+		kubernetesWorkloadNode:          graphowner.NewKubernetesWorkloadGatedWriter(ownerGate, rawKubernetesWorkloadNode.WriteKubernetesWorkloadNodes),
+		kubernetesNamespaceNode:         kubernetesNamespaceNode,
+		securityGroupEndpointNode:       sourcecypher.NewSecurityGroupEndpointNodeWriter(exec, batchSize),
+		securityGroupReachability:       sourcecypher.NewSecurityGroupReachabilityWriter(exec, batchSize),
+		kubernetesCorrelationEdge:       sourcecypher.NewKubernetesCorrelationEdgeWriter(exec, batchSize),
+		crossplaneSatisfiedByEdge:       sourcecypher.NewCrossplaneSatisfiedByEdgeWriter(exec, batchSize),
+		iamEscalationEdge:               sourcecypher.NewIAMEscalationEdgeWriter(exec, batchSize),
+		iamCanPerformEdge:               sourcecypher.NewIAMCanPerformEdgeWriter(exec, batchSize),
+		observabilityCoverageEdge:       sourcecypher.NewObservabilityCoverageEdgeWriter(exec, batchSize),
+		incidentRoutingEvidence:         sourcecypher.NewIncidentRoutingEvidenceWriter(exec, batchSize),
+		codeTaintEvidence:               sourcecypher.NewCodeTaintEvidenceWriter(exec, batchSize),
+		codeInterprocEvidence:           sourcecypher.NewCodeInterprocEvidenceWriter(exec, batchSize),
+		iamCanAssumeEdge:                sourcecypher.NewIAMCanAssumeEdgeWriter(exec, batchSize),
+		s3LogsToEdge:                    sourcecypher.NewS3LogsToEdgeWriter(exec, batchSize),
+		s3ExternalPrincipalGrant:        sourcecypher.NewS3ExternalPrincipalGrantWriter(exec, batchSize),
 		rdsPostureNode: graphowner.NewRDSPostureLockedWriter(
 			lockGate, rawRDSPostureNode.WriteRDSPostureNodes, rawRDSPostureNode.RetractRDSPostureNodes,
 		),
