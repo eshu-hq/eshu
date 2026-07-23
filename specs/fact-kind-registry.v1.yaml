@@ -317,7 +317,7 @@ families:
     kinds: [s3_external_principal_grant]
   sbom_attestation:
     lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
+    schema_version: "1.1.0"
     reducer_domain: sbom_attestation_attachment
     projection_hook: sbom_attestation_attachment
     admission_hook: facts.ValidateSchemaVersion
@@ -330,7 +330,14 @@ families:
     # (go/internal/collector/sbomruntime/attestation.go), decoded and joined
     # by statement_id in buildSBOMAttachmentIndex, and surfaced as the
     # attachments read surface's slsa_provenance_predicate_type and
-    # slsa_provenance_builder_id fields (#5371).
+    # slsa_provenance_builder_id fields (#5371). schema_version 1.1.0 (#5456)
+    # adds additive-optional materials[]/config_source fields to the retained
+    # predicate body, surfaced as slsa_provenance_materials/
+    # slsa_provenance_config_source on the same read surface; a SLSA-bound
+    # digest-to-commit anchor derived from config_source also feeds a new
+    # reducer_container_image_identity provenance tier
+    # (slsa_provenance_commit) that outranks oci_config_source_label and
+    # ci_run_commit (go/internal/reducer/container_image_identity.go).
     truth_profile: provider_gated
     provider_key_independent: false
     payload_schema_overrides:
