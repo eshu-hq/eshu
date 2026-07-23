@@ -15,4 +15,6 @@ UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, inco
 UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json, unsupported_targets_json FROM vulnerability_source_snapshot
 UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json, unsupported_targets_json FROM vulnerability_source_state
 UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json, unsupported_targets_json FROM unsupported_target
+UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json, unsupported_targets_json FROM scanner_worker_analysis
+UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json, unsupported_targets_json FROM vulnerability_os_package
 `

@@ -313,7 +313,12 @@ func classifyReadinessState(
 		evidenceFactCount(sources, EvidenceFamilyPackageConsumption) == 0 &&
 		evidenceFactCount(sources, EvidenceFamilyPackageRegistry) == 0 &&
 		evidenceFactCount(sources, EvidenceFamilySBOMComponent) == 0 &&
-		evidenceFactCount(sources, EvidenceFamilyContainerImageIdentity) == 0 {
+		evidenceFactCount(sources, EvidenceFamilyContainerImageIdentity) == 0 &&
+		evidenceFactCount(sources, EvidenceFamilyScannerWorkerAnalysis) == 0 {
+		// A scanner_worker.analysis fact is real observed coverage for the
+		// requested image even when every other family is empty (issue
+		// #5467): the OS-package scan tier can be the ONLY evidence Eshu has
+		// for a scanned image, and that must not read as "not configured".
 		return ReadinessStateNotConfigured
 	}
 	// Unsupported target evidence outranks both evidence_incomplete AND
@@ -378,7 +383,15 @@ func classifyMissingEvidence(
 	if scopeRequiresImageEvidence(scope) &&
 		evidenceFactCount(sources, EvidenceFamilyContainerImageIdentity) == 0 &&
 		evidenceFactCount(sources, EvidenceFamilySBOMComponent) == 0 &&
-		evidenceFactCount(sources, EvidenceFamilySBOMAttestation) == 0 {
+		evidenceFactCount(sources, EvidenceFamilySBOMAttestation) == 0 &&
+		evidenceFactCount(sources, EvidenceFamilyScannerWorkerAnalysis) == 0 {
+		// A scanner_worker.analysis fact for the requested image proves the
+		// OS-package scan tier ran, independent of SBOM/image-identity
+		// evidence (issue #5467). vulnerability.os_package is deliberately
+		// NOT checked here: a completed scan can legitimately find zero
+		// installed packages (a distroless image), so os_package==0 must not
+		// reopen this gate once scanner_worker.analysis already proves the
+		// scan happened.
 		missing = append(missing, MissingEvidenceSBOMOrImage)
 	}
 	if scopeRequiresServiceOrWorkloadEvidence(scope) {

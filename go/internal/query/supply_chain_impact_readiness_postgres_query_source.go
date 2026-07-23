@@ -264,5 +264,87 @@ vulnerability_source_state AS (
         )::text AS source_states_json,
         NULL::text AS unsupported_targets_json
     FROM vulnerability_source_state_candidates
+),
+os_package_active AS (
+    -- vulnerability.os_package facts carry no image identity of their own
+    -- (distro/package identity only); the scanned image is resolved through
+    -- the sibling scanner_worker.analysis fact in the SAME scan scope below,
+    -- the identical join the reducer uses to stamp SubjectDigest (issue
+    -- #5463, go/internal/reducer/supply_chain_impact.go).
+    SELECT fact.payload, fact.observed_at, fact.scope_id, fact.generation_id
+    FROM fact_records AS fact
+    JOIN ingestion_scopes AS scope
+      ON scope.scope_id = fact.scope_id
+     AND scope.active_generation_id = fact.generation_id
+    JOIN scope_generations AS generation
+      ON generation.scope_id = fact.scope_id
+     AND generation.generation_id = fact.generation_id
+    WHERE fact.fact_kind = ANY($15::text[])
+      AND fact.is_tombstone = FALSE
+      AND generation.status = 'active'
+),
+scanner_worker_analysis_active AS (
+    SELECT fact.payload, fact.observed_at, fact.scope_id, fact.generation_id
+    FROM fact_records AS fact
+    JOIN ingestion_scopes AS scope
+      ON scope.scope_id = fact.scope_id
+     AND scope.active_generation_id = fact.generation_id
+    JOIN scope_generations AS generation
+      ON generation.scope_id = fact.scope_id
+     AND generation.generation_id = fact.generation_id
+    WHERE fact.fact_kind = ANY($16::text[])
+      AND fact.is_tombstone = FALSE
+      AND generation.status = 'active'
+),
+scanner_worker_analysis AS (
+    -- Present whenever a scan completed for the requested image, whether or
+    -- not it found any installed OS packages. This is the "was this image
+    -- ever scanned" signal (issue #5467).
+    SELECT
+        'scanner_worker.analysis' AS family,
+        COUNT(*)::int AS fact_count,
+        MAX(observed_at) AS latest_observed_at,
+        NULL::boolean AS target_incomplete,
+        NULL::text[] AS incomplete_reasons,
+        NULL::text AS source_snapshots_json,
+        NULL::text AS source_states_json,
+        NULL::text AS unsupported_targets_json
+    FROM scanner_worker_analysis_active
+    WHERE payload->>'image_digest' IN (SELECT digest FROM target_image_digests)
+       OR ($14 <> '' AND payload->>'image_reference' = $14)
+),
+vulnerability_os_package AS (
+    -- Counted only for os_package facts whose sibling scanner_worker.analysis
+    -- (same scope_id + generation_id) resolves to the requested image, so an
+    -- unrelated scan scope's installed-package rows never count toward this
+    -- request's evidence. Deliberately a semi-join (EXISTS), not a JOIN: a
+    -- JOIN's COUNT(*) is COUNT(os_package rows) * COUNT(matching analysis
+    -- rows), which is only correct because exactly one active
+    -- scanner_worker.analysis fact exists per scope+generation today (one
+    -- analyzer, one active generation). A second analyzer emitting into the
+    -- same scope, or any other source of more than one matching analysis row,
+    -- would silently inflate fact_count under a JOIN. EXISTS counts each
+    -- os_package fact at most once regardless of how many analysis rows
+    -- match.
+    SELECT
+        'vulnerability.os_package' AS family,
+        COUNT(*)::int AS fact_count,
+        MAX(os_package.observed_at) AS latest_observed_at,
+        NULL::boolean AS target_incomplete,
+        NULL::text[] AS incomplete_reasons,
+        NULL::text AS source_snapshots_json,
+        NULL::text AS source_states_json,
+        NULL::text AS unsupported_targets_json
+    FROM os_package_active AS os_package
+    WHERE EXISTS (
+        SELECT 1
+        FROM scanner_worker_analysis_active AS analysis
+        WHERE analysis.scope_id = os_package.scope_id
+          AND analysis.generation_id = os_package.generation_id
+          AND (
+              analysis.payload->>'image_digest' IN (SELECT digest FROM target_image_digests)
+              OR ($14 <> '' AND analysis.payload->>'image_reference' = $14)
+          )
+      )
 )
 `
