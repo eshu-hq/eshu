@@ -247,7 +247,7 @@ const openAPIPathsImpact = `
                     "runtime_overview": {"type": "object"},
                     "deployment_fact_summary": {
                       "type": "object",
-                      "description": "Includes deployment_truth_tier and overall_confidence_reason (config_only vs runtime_confirmed, driven solely by live-evidence identity matching). live_instance_count (#5638) is a read-side sum of observed ready replicas across the workload's identity-bound live facts, emitted only when at least one matched fact carried a replica observation; it never influences deployment_truth_tier or overall_confidence_reason."
+                      "description": "Includes deployment_truth_tier and overall_confidence_reason (config_only vs runtime_confirmed, driven solely by live-evidence identity matching). live_instance_count (#5638) is a read-side sum of observed ready replicas across the workload's identity-bound live facts, emitted only when at least one matched fact carried a replica observation; it never influences deployment_truth_tier or overall_confidence_reason. live_instance_count_truncated (#5663) is a boolean sibling emitted alongside live_instance_count (present as false normally, true when at least one identity anchor's live-object read hit its row limit) -- when true, live_instance_count is a conservative lower bound, not an exact total."
                     },
                     "drilldowns": {"type": "object"},
                     "evidence_boundaries": ` + openAPIEvidenceBoundariesSchema + `
