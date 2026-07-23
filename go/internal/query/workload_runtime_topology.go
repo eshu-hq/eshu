@@ -116,16 +116,24 @@ func fetchWorkloadRuntimeTopology(
 		return workloadRuntimeTopologyResult{}, err
 	}
 
-	instances := make([]map[string]any, 0, min(len(rows), contextStoryItemLimit))
+	// Collect every distinct instance and every topology edge from the
+	// bounded row set FIRST, with no length cap on either. Only after the
+	// full distinct instance set is sorted into a deterministic order do we
+	// truncate to contextStoryItemLimit and drop the edges that no longer
+	// reference a retained instance. Capping instances mid-walk (the #5644
+	// bug) let the 50 survivors depend on backend row order instead of
+	// stable instance identity.
+	instances := make([]map[string]any, 0, len(rows))
 	topologyEdges := make([]map[string]any, 0, len(rows)*2)
 	seenInstances := make(map[string]struct{}, len(rows))
 	seenEdges := make(map[string]int, len(rows)*2)
+	edgeInstances := make(map[string]map[string]struct{}, len(rows)*2)
 	for _, row := range rows {
 		instanceID := StringVal(row, "instance_id")
 		if instanceID == "" {
 			continue
 		}
-		if _, seen := seenInstances[instanceID]; !seen && len(instances) < contextStoryItemLimit {
+		if _, seen := seenInstances[instanceID]; !seen {
 			seenInstances[instanceID] = struct{}{}
 			instance, err := newWorkloadInstance(row)
 			if err != nil {
@@ -133,24 +141,36 @@ func fetchWorkloadRuntimeTopology(
 			}
 			instances = append(instances, instance)
 		}
-		if _, visible := seenInstances[instanceID]; !visible {
-			continue
-		}
-		if err := appendUniqueTopologyEdge(&topologyEdges, seenEdges, observedTopologyEdge(
+		definesEdge := observedTopologyEdge(
 			"DEFINES", StringVal(row, "repo_id"), StringVal(row, "repo_name"),
 			StringVal(row, "workload_id"), StringVal(row, "workload_name"), mapValue(row, "defines_edge"),
-		)); err != nil {
+		)
+		if err := appendUniqueTopologyEdge(&topologyEdges, seenEdges, definesEdge); err != nil {
 			return workloadRuntimeTopologyResult{}, fmt.Errorf("select DEFINES edge evidence: %w", err)
 		}
-		if err := appendUniqueTopologyEdge(&topologyEdges, seenEdges, observedTopologyEdge(
+		recordTopologyEdgeInstance(edgeInstances, definesEdge, instanceID)
+		instanceOfEdge := observedTopologyEdge(
 			"INSTANCE_OF", instanceID, "", StringVal(row, "workload_id"),
 			StringVal(row, "workload_name"), mapValue(row, "instance_edge"),
-		)); err != nil {
+		)
+		if err := appendUniqueTopologyEdge(&topologyEdges, seenEdges, instanceOfEdge); err != nil {
 			return workloadRuntimeTopologyResult{}, fmt.Errorf("select INSTANCE_OF edge evidence: %w", err)
 		}
+		recordTopologyEdgeInstance(edgeInstances, instanceOfEdge, instanceID)
 	}
+	sortWorkloadInstances(instances)
+	distinctInstanceCount := len(instances)
+	truncatedByCap := distinctInstanceCount > contextStoryItemLimit
+	if truncatedByCap {
+		instances = instances[:contextStoryItemLimit]
+	}
+	retainedInstances := make(map[string]struct{}, len(instances))
+	for _, instance := range instances {
+		retainedInstances[StringVal(instance, "instance_id")] = struct{}{}
+	}
+	topologyEdges = retainTopologyEdgesForInstances(topologyEdges, edgeInstances, retainedInstances)
 	sortTopologyEdges(topologyEdges)
-	truncated := len(rows) >= queryLimit || len(seenInstances) > contextStoryItemLimit
+	truncated := len(rows) >= queryLimit || truncatedByCap
 	return workloadRuntimeTopologyResult{
 		instances:     instances,
 		topologyEdges: topologyEdges,
@@ -159,6 +179,45 @@ func fetchWorkloadRuntimeTopology(
 			[]string{"environment", "instance_id"},
 		),
 	}, nil
+}
+
+// recordTopologyEdgeInstance tracks which instance_ids an observed topology
+// edge is evidence for. An INSTANCE_OF edge is unique to one instance, but a
+// DEFINES edge (repo -> workload) is shared by every instance of that
+// workload from that repo, so it must survive truncation if ANY of those
+// instances is retained.
+func recordTopologyEdgeInstance(edgeInstances map[string]map[string]struct{}, edge map[string]any, instanceID string) {
+	key := topologyEdgeKey(edge)
+	if key == "" {
+		return
+	}
+	instances, ok := edgeInstances[key]
+	if !ok {
+		instances = make(map[string]struct{}, 1)
+		edgeInstances[key] = instances
+	}
+	instances[instanceID] = struct{}{}
+}
+
+// retainTopologyEdgesForInstances filters topology edges built from the full
+// distinct instance set down to only those still backed by a retained
+// (post-truncation) instance, so truncated instances do not leave dangling
+// edges in the response.
+func retainTopologyEdgesForInstances(
+	edges []map[string]any,
+	edgeInstances map[string]map[string]struct{},
+	retainedInstances map[string]struct{},
+) []map[string]any {
+	retained := make([]map[string]any, 0, len(edges))
+	for _, edge := range edges {
+		for instanceID := range edgeInstances[topologyEdgeKey(edge)] {
+			if _, ok := retainedInstances[instanceID]; ok {
+				retained = append(retained, edge)
+				break
+			}
+		}
+	}
+	return retained
 }
 
 func newWorkloadInstance(row map[string]any) (map[string]any, error) {
@@ -240,6 +299,24 @@ func topologyEdgeKey(edge map[string]any) string {
 
 func sortTopologyEdges(rows []map[string]any) {
 	sort.Slice(rows, func(i, j int) bool { return topologyEdgeKey(rows[i]) < topologyEdgeKey(rows[j]) })
+}
+
+// sortWorkloadInstances orders runtime instances by environment and then by
+// stable instance identity. NornicDB can replay an identical Cypher ORDER BY
+// as a different row set order across calls over unchanged retained data
+// (see docs/internal/evidence/5272-service-story-runtime-topology.md and
+// issue #5644), so relying on the backend's row order alone let repeated
+// calls return the same instances in different array positions.
+// instance_id is unique per WorkloadInstance, so this is a total order
+// regardless of backend row order.
+func sortWorkloadInstances(instances []map[string]any) {
+	sort.Slice(instances, func(i, j int) bool {
+		left, right := instances[i], instances[j]
+		if leftEnv, rightEnv := StringVal(left, "environment"), StringVal(right, "environment"); leftEnv != rightEnv {
+			return leftEnv < rightEnv
+		}
+		return StringVal(left, "instance_id") < StringVal(right, "instance_id")
+	})
 }
 
 func boundedCollectionMetadata(limit, queryLimit, returned, observed int, truncated bool, ordering []string) map[string]any {

@@ -235,7 +235,7 @@ entries:
     source:
       file: go/internal/query/workload_runtime_topology.go
       symbol: fetchWorkloadRuntimeTopology
-      source_sha256: bfd5ec6fae58474f42e8c642cf30d263b2f1044d5bd3151d38aa6e770fbc2a7e
+      source_sha256: 16a33c336deef34fac701a57c39faba590bb373f68e3cc0e04c990e2fa4f479c
       line_hint: 66
     required_anchors:
       - label: WorkloadInstance
@@ -271,7 +271,7 @@ entries:
     source:
       file: go/internal/query/entity_workload_context.go
       symbol: (*EntityHandler).fetchWorkloadPlatformResult
-      source_sha256: 04684c04bcaf3a51164e5edc297384666ca5d4b341df44fd2c43c7f2161b734d
+      source_sha256: 25b8c542d61b4a9eb5fe834d6e9aa409d5a81918bff392e25f675989205fba19
       line_hint: 292
     required_anchors:
       - label: Repository

@@ -146,7 +146,7 @@ source_coverage:
   - file: entity_workload_context.go
     calls:
       - {symbol: "(*EntityHandler).fetchWorkloadContextForOperation", count: 1, source_sha256: 153aaa6f5226ae4225d3124a7058b10f218ca501b9bc6756953b82309c0ab10c, entry_ids: [QP-SVC-CONTEXT]}
-      - {symbol: "(*EntityHandler).fetchWorkloadPlatformResult", count: 1, source_sha256: 04684c04bcaf3a51164e5edc297384666ca5d4b341df44fd2c43c7f2161b734d, entry_ids: [QP-SVC-RUNS-ON]}
+      - {symbol: "(*EntityHandler).fetchWorkloadPlatformResult", count: 1, source_sha256: 25b8c542d61b4a9eb5fe834d6e9aa409d5a81918bff392e25f675989205fba19, entry_ids: [QP-SVC-RUNS-ON]}
       - {symbol: "(*EntityHandler).fetchWorkloadRepositoryForAccess", count: 1, non_hot: {class: keyed_support, source_sha256: 3f873243c8d98081e3e9e02831f6518fede69f9616649735e045f4e21dc79016, key_bound: single_key, max_results: 51}}
   - file: exposure_path.go
     calls:
@@ -245,10 +245,10 @@ source_coverage:
       - {symbol: "resolveTraceWorkloadSelector", count: 1, non_hot: {class: keyed_support, source_sha256: 1ef726a82e1024e33d396eade2571b2a8215086146102bca94fb6de650e1b8ad, key_bound: single_key, max_results: 1}}
   - file: workload_provisioned_platforms.go
     calls:
-      - {symbol: "(*EntityHandler).fetchProvisionedPlatformResult", count: 1, non_hot: {class: keyed_support, source_sha256: 19ef8d165029cad3fcc1b280fce4deefa131fd20f57d2bfb23559c063c67e981, key_bound: single_key, max_results: 51}}
+      - {symbol: "(*EntityHandler).fetchProvisionedPlatformResult", count: 1, non_hot: {class: keyed_support, source_sha256: 0ea3ca369c3a704a5e7f0a1f3087f059cc2c598fb07af8f4b41d49d89b2db4a7, key_bound: single_key, max_results: 51}}
   - file: workload_runtime_topology.go
     calls:
-      - {symbol: "fetchWorkloadRuntimeTopology", count: 1, source_sha256: bfd5ec6fae58474f42e8c642cf30d263b2f1044d5bd3151d38aa6e770fbc2a7e, entry_ids: [QP-SVC-RUNTIME-TOPOLOGY]}
+      - {symbol: "fetchWorkloadRuntimeTopology", count: 1, source_sha256: 16a33c336deef34fac701a57c39faba590bb373f68e3cc0e04c990e2fa4f479c, entry_ids: [QP-SVC-RUNTIME-TOPOLOGY]}
   - file: infra.go
     calls:
       - {symbol: "(*InfraHandler).searchResources", count: 1, source_sha256: 2f6c76e66dd4601d82ab8c71bee437ce39b3626776181515abf5f87a18430a17, entry_ids: [QP-INFRA-RESOURCE-SEARCH]}

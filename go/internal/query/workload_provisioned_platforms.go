@@ -53,7 +53,13 @@ func (h *EntityHandler) fetchProvisionedPlatformResult(ctx context.Context, repo
 	if err != nil {
 		return provisionedPlatformResult{}, err
 	}
-	ordered := make([]orderedProvisionedPlatform, 0, min(len(rows), contextStoryItemLimit))
+	// Collect every distinct (platform_id, source_id, target_id) tuple from
+	// the bounded row set FIRST, with no length cap. Only after the full
+	// distinct set is sorted into a deterministic order do we truncate to
+	// contextStoryItemLimit. Capping `ordered` mid-walk (the #5644 bug) let
+	// the 50 survivors depend on backend row order instead of stable
+	// provisionedPlatformOrderKey identity.
+	ordered := make([]orderedProvisionedPlatform, 0, len(rows))
 	seen := make(map[string]struct{}, len(rows))
 	for _, row := range rows {
 		platform, err := normalizeProvisionedPlatform(row)
@@ -67,22 +73,25 @@ func (h *EntityHandler) fetchProvisionedPlatformResult(ctx context.Context, repo
 			continue
 		}
 		seen[key] = struct{}{}
-		if len(ordered) < contextStoryItemLimit {
-			ordered = append(ordered, orderedProvisionedPlatform{
-				platform: platform,
-				sourceID: sourceID,
-				targetID: targetID,
-			})
-		}
+		ordered = append(ordered, orderedProvisionedPlatform{
+			platform: platform,
+			sourceID: sourceID,
+			targetID: targetID,
+		})
 	}
 	sort.Slice(ordered, func(i, j int) bool {
 		return provisionedPlatformOrderKey(ordered[i]) < provisionedPlatformOrderKey(ordered[j])
 	})
+	distinctCount := len(ordered)
+	truncatedByCap := distinctCount > contextStoryItemLimit
+	if truncatedByCap {
+		ordered = ordered[:contextStoryItemLimit]
+	}
 	normalized := make([]map[string]any, 0, len(ordered))
 	for _, entry := range ordered {
 		normalized = append(normalized, entry.platform)
 	}
-	truncated := len(rows) >= queryLimit || len(seen) > contextStoryItemLimit
+	truncated := len(rows) >= queryLimit || truncatedByCap
 	return provisionedPlatformResult{
 		rows: normalized,
 		limits: boundedCollectionMetadata(
