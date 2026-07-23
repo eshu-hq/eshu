@@ -19,23 +19,23 @@ The comparison used baseline and candidate API/MCP binaries against the same
 retained Postgres and NornicDB stores. The fixed corpus contained 896
 repositories, 70 workloads, 222 workload instances, 980,689 graph nodes,
 1,579,055 relationships, and 6,209,212 facts. The candidate schema bootstrap
-completed in 342 seconds (5 minutes 42 seconds). It adopted all 318 registered
-objects without replaying graph DDL, including the four Kubernetes namespace
-objects added on the current base and every required query-plan object. Corpus,
-graph, and queue counts were unchanged after adoption.
+completed in 349 seconds (5 minutes 49 seconds). Postgres migrations applied;
+the graph fingerprint already matched, so all 318 graph statements were
+skipped with no adoption or DDL replay. Corpus, graph, and queue counts were
+unchanged.
 
 Each row below compares the same statistic, sample surface, selectors, and
 storage state before and after the query reorder.
 
 | User action and statistic | Samples | Before | After | Result |
 | --- | ---: | ---: | ---: | ---: |
-| Runtime-topology read, median | 20 selectors | 1.469 s | 0.012 s | about 119x faster |
-| Open a service story through HTTP, median | 20 selectors | 3.935 s | 2.477 s | 37.0% lower |
-| Open a service story through MCP, all-outcome median | 20 selectors | 4.087 s | 2.666 s | 34.8% lower |
-| Investigate a service through HTTP, median | 20 selectors | 2.986 s | 0.886 s | 70.3% lower |
-| Investigate a service through MCP, median | 20 selectors | 3.020 s | 0.906 s | 70.0% lower |
-| Open a repository story through HTTP, median | 20 selectors | 0.129 s | 0.125 s | no material change |
-| Open a repository story through MCP, all-outcome median | 20 selectors | 0.143 s | 0.140 s | no material change |
+| Runtime-topology read, median | 20 selectors | 1.533 s | 0.012 s | about 129x faster |
+| Open a service story through HTTP, median | 20 selectors | 3.961 s | 2.560 s | 35.4% lower |
+| Open a service story through MCP, successful-call median | 12 selectors | 3.929 s | 2.478 s | 36.9% lower |
+| Investigate a service through HTTP, median | 20 selectors | 2.995 s | 0.922 s | 69.2% lower |
+| Investigate a service through MCP, median | 20 selectors | 3.051 s | 0.943 s | 69.1% lower |
+| Open a repository story through HTTP, median | 20 selectors | 0.141 s | 0.134 s | no material change |
+| Open a repository story through MCP, successful-call median | 16 selectors | 0.139 s | 0.143 s | no material change |
 
 The API comparison used a fresh HTTP connection for each call against the same
 warm backend, with no application response cache. Service stories produced 20
@@ -43,18 +43,18 @@ valid pairs. Seventeen complete bodies were exact; all 20 had equal non-prose
 evidence after normalizing only the derived `story` and
 `answer_packet.summary` fields plus array order, the pre-existing defect tracked
 in #5644. Repository stories and service investigations were exact in all 20
-pairs. Baseline and candidate payload ranges were identical: 58,288-236,480
-bytes for service stories, 39,140-162,459 bytes for repository stories, and
-5,549-15,182 bytes for investigations.
+pairs. Baseline and candidate payload ranges were identical: 55,440-236,498
+bytes for service stories, 30,136-162,459 bytes for repository stories, and
+4,392-15,182 bytes for investigations.
 
 The MCP sweep also used fresh HTTP connections and exact advertised argument
-keys. Service stories had 13 paired successes and seven paired
-`mcp_response_over_budget` refusals. Repository stories had 17 paired successes
-and three paired refusals. Investigations succeeded in all 20 pairs. Every
+keys. Service stories had 12 paired successes and eight paired
+`mcp_response_over_budget` refusals. Repository stories had 16 paired successes
+and four paired refusals. Investigations succeeded in all 20 pairs. Every
 baseline/candidate JSON-RPC pair was exact, with no outcome asymmetry. Identical
-wire/extracted ranges were 1,576-260,338/589-123,759 bytes for service stories,
-1,561-260,107/583-125,155 bytes for repository stories, and
-12,479-32,728/5,795-15,428 bytes for investigations.
+wire/extracted ranges were 1,578-260,340/590-123,760 bytes for service stories,
+1,563-260,109/584-125,156 bytes for repository stories, and
+10,032-32,730/4,638-15,428 bytes for investigations.
 
 An authenticated candidate-console request through the `/eshu-api` proxy also
 returned a valid service-story truth envelope from the candidate API.
@@ -104,9 +104,10 @@ WHERE i.workload_id = $workload_id
 
 The retained backend was `eshu-nornicdb-pr261:149245885258`. The final
 exact-head raw-query gate ran 20 anonymous selectors with a balanced
-baseline-first/candidate-first crossover. All 20 pairs returned equal canonical
-row and value sets. Median query time fell from 1.469070 seconds to 0.012317
-seconds, about 119 times faster.
+baseline-first/candidate-first crossover. Seventeen pairs were byte-exact and
+all 20 returned equal populated row and value sets after deterministic ordering.
+Median query time fell from 1.532882 seconds to 0.011875 seconds, about 129
+times faster.
 
 The earlier same-head theory proof also showed the expected shape before the
 full replay: a repository-first median of about 750 ms versus about 10 ms for
@@ -154,11 +155,14 @@ worker, or runtime knob.
 
 ## Exact source binding
 
-The final replay used clean Git-derived binaries from base `93bf4eaadb` and
-candidate `fee39ac937`. The implementation patch retained stable patch ID
-`c9f257c9ff5a841d0d4c012f438270de1db38013` across rebases. Exact candidate
-API, MCP, and console images were retained with the full-corpus Postgres and
-NornicDB stores as five healthy services after validation.
+The final replay used clean Git-derived binaries from base `7d098fb972` and
+candidate `648f60cbb1`. The implementation and query-plan patch retained stable
+patch ID `ed3a3584991c24f3579f98685bfc308336e2fa79` after the branch was rebased
+over `bfa344d9e0`, whose SQL parser, fixture, and reducer changes do not touch
+the measured query, API/MCP readers, schema, or retained corpus. Exact candidate
+API and MCP images were retained with the full-corpus Postgres and NornicDB
+stores as five healthy services; the console remained on the previously
+validated image because this branch changes no console path.
 
 ## Focused verification
 
