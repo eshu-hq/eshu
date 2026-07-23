@@ -127,6 +127,47 @@ end
 	})
 }
 
+// TestParseEmitsQualifiedBasesPreservesAbsoluteMarker pins the #5733 P1 fix
+// (codex review of #5500): a superclass declared with an explicit absolute
+// constant path (`class Admin::OrdersController < ::Base`) is real Ruby's
+// signal to resolve the base starting at Object with NO enclosing-namespace
+// search — it is semantically different from the bare relative "Base", which
+// Ruby resolves via Module.nesting. Before this fix, superclassQualifiedName
+// stripped the leading "::" when building qualified_bases, so the absolute
+// reference was indistinguishable from a relative one once persisted. The
+// #5500 lexical-scope-aware candidate restriction (rubycontroller.onwardHop)
+// then wrongly searched the enclosing namespace for an absolute ref, letting
+// an unrelated in-corpus class sharing the same last segment and namespace
+// (e.g. "Admin::Base") masquerade as the true (possibly external/gem)
+// top-level "::Base" referent. qualified_bases must carry the leading "::" so
+// the reducer's repo-wide registry — and, through it, rubycontroller — can
+// keep it out of the enclosing-namespace search.
+func TestParseEmitsQualifiedBasesPreservesAbsoluteMarker(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "admin_orders_controller.rb", `module Admin
+  class OrdersController < ::Base
+    def index
+      true
+    end
+  end
+end
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	classItem := assertBucketName(t, payload, "classes", "OrdersController")
+	if got := classItem["bases"]; !reflect.DeepEqual(got, []string{"Base"}) {
+		t.Fatalf("classes[OrdersController][bases] = %#v, want [Base] (last-segment, unaffected)", got)
+	}
+	if got := classItem["qualified_bases"]; !reflect.DeepEqual(got, []string{"::Base"}) {
+		t.Fatalf("classes[OrdersController][qualified_bases] = %#v, want [::Base] (absolute marker preserved)", got)
+	}
+}
+
 // TestParseRootsControllerActionThroughNamespacedSameFileBase is the #5376 P1
 // parse-time regression: a genuine controller whose base is a namespaced class
 // defined in the SAME file (module Admin; class Base < ActionController::Base)

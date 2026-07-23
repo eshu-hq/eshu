@@ -4,7 +4,6 @@
 package rubycontroller
 
 import (
-	"sort"
 	"strings"
 )
 
@@ -243,22 +242,23 @@ func walkClass(
 	}
 	visited[classKey] = struct{}{}
 
-	bases, declared := reg.DeclaredBasesOf(classKey)
+	rawBases, declared := reg.DeclaredBasesOf(classKey)
 	if !declared {
 		return Decision{Keep: legacyResidual, Chain: chain, Terminal: "fizzled:" + classKey, Reason: ReasonFizzled}
 	}
-	bases = normalizeBases(bases)
+	bases := normalizeBases(rawBases)
 	if len(bases) == 0 {
 		return Decision{Keep: legacyResidual, Chain: chain, Terminal: "fizzled:" + classKey, Reason: ReasonFizzled}
 	}
 
+	namespace := classNamespaceOf(classKey)
 	multi := len(bases) > 1
 	var (
 		downgrade     Decision
 		haveDowngrade bool
 	)
 	for _, base := range bases {
-		sub := onwardHop(base, reg, legacyResidual, append(cloneChain(chain), base), cloneVisited(visited), depth)
+		sub := onwardHop(base.Name, base.Absolute, namespace, reg, legacyResidual, append(cloneChain(chain), base.Name), cloneVisited(visited), depth)
 		if sub.Keep {
 			return sub // any-path-keeps
 		}
@@ -277,9 +277,17 @@ func walkClass(
 
 // onwardHop applies the #5376 P0 rev-2 ordered rule to a single base ref R. The
 // returned Decision either keeps/confirms (Keep=true) or is a downgrade vote
-// (Keep=false). branchChain already ends with R.
+// (Keep=false). branchChain already ends with R. namespace is the lexical
+// namespace of the class that DECLARED ref (its own qualified name minus its
+// last segment), used by the #5500 lexical-scope-aware candidate restriction;
+// it is "" for a top-level (non-namespaced) walked class, which makes the
+// restriction a documented no-op (see lexicalExactMatch). absolute is true
+// when ref was declared with an explicit leading "::" ("class Foo < ::Base");
+// it disables the namespace search entirely (#5733 P1, see lexicalExactMatch).
 func onwardHop(
 	ref string,
+	absolute bool,
+	namespace string,
 	reg Registry,
 	legacyResidual bool,
 	branchChain []string,
@@ -291,7 +299,17 @@ func onwardHop(
 		return Decision{Keep: true, Chain: branchChain, Terminal: "accepted:" + ref, Reason: ReasonAccepted}
 	}
 
-	exact := reg.ExactMatches(ref)
+	// #5500: also try the lexical-prefix names Ruby constant lookup would try —
+	// P::ref, then each enclosing prefix of P, then top-level ref — alongside
+	// the broad, unscoped ExactMatches(ref). This can only ADD more specific
+	// exact identities to the candidate set; it never removes the top-level
+	// candidate, so it cannot drop a match the pre-#5500 lookup found, and it
+	// never picks one inner-scope hit over another — every level's hit stays in
+	// play for the any-path-keeps aggregation below (see lexicalExactMatch doc).
+	// #5733: for an ABSOLUTE ref this degrades to the bare top-level
+	// ExactMatches(ref) only — real Ruby never searches the enclosing namespace
+	// for "::Base".
+	exact := lexicalExactMatch(reg, namespace, ref, absolute)
 	suffix := reg.SuffixMatches(ref)
 
 	// 2. EXACT resolution: R is downgrade-eligible. Recurse PER CANDIDATE class
@@ -358,10 +376,10 @@ func probeClassConfirm(classKey string, reg Registry, visited map[string]struct{
 		return false
 	}
 	for _, base := range normalizeBases(bases) {
-		if _, accepted := acceptedControllerBases[base]; accepted {
+		if _, accepted := acceptedControllerBases[base.Name]; accepted {
 			return true
 		}
-		for _, candidate := range unionKeys(reg.ExactMatches(base), reg.SuffixMatches(base)) {
+		for _, candidate := range unionKeys(reg.ExactMatches(base.Name), reg.SuffixMatches(base.Name)) {
 			if probeClassConfirm(candidate, reg, cloneVisited(visited), depth+1) {
 				return true
 			}
@@ -370,58 +388,6 @@ func probeClassConfirm(classKey string, reg Registry, visited map[string]struct{
 	return false
 }
 
-// normalizeRef trims whitespace and a leading "::" (absolute-constant marker)
-// from a ref or class name.
-func normalizeRef(ref string) string {
-	return strings.TrimPrefix(strings.TrimSpace(ref), "::")
-}
-
-// unionKeys returns the deduplicated union of two class-key slices, preserving
-// a deterministic sorted order.
-func unionKeys(a, b []string) []string {
-	seen := make(map[string]struct{}, len(a)+len(b))
-	out := make([]string, 0, len(a)+len(b))
-	for _, keys := range [][]string{a, b} {
-		for _, key := range keys {
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			out = append(out, key)
-		}
-	}
-	sort.Strings(out)
-	return out
-}
-
-// normalizeBases trims the "::" prefix and whitespace from each base, drops
-// empties, deduplicates, and sorts for deterministic path evaluation.
-func normalizeBases(bases []string) []string {
-	seen := make(map[string]struct{}, len(bases))
-	out := make([]string, 0, len(bases))
-	for _, base := range bases {
-		base = normalizeRef(base)
-		if base == "" {
-			continue
-		}
-		if _, ok := seen[base]; ok {
-			continue
-		}
-		seen[base] = struct{}{}
-		out = append(out, base)
-	}
-	sort.Strings(out)
-	return out
-}
-
-func cloneChain(chain []string) []string {
-	return append([]string(nil), chain...)
-}
-
-func cloneVisited(visited map[string]struct{}) map[string]struct{} {
-	out := make(map[string]struct{}, len(visited)+1)
-	for k := range visited {
-		out[k] = struct{}{}
-	}
-	return out
-}
+// normalizeRef, classNamespaceOf, lexicalExactMatch, unionKeys,
+// normalizeBases, cloneChain, and cloneVisited are pure string/set helpers for
+// the walk above; see helpers.go.
