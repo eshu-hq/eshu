@@ -138,19 +138,21 @@ func run(parent context.Context) error {
 	}
 
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	// stop is called exactly once, inside runServiceAndJoinRedrive below --
+	// deliberately NOT also deferred here. No fallible step runs between this
+	// line and that call, so there is no early-return path that would leak
+	// the signal-relay goroutine signal.NotifyContext starts.
 
 	// Crossplane cross-scope SATISFIED_BY redrive catch-up (issue #5476
 	// P1-a): recovers a sweep left mid-fan-out by a transient DB error or a
 	// crashed process. Runs alongside the main projector Service.Run loop,
 	// sharing its shutdown context, so it stops together with the service.
 	//
-	// Joined via redriveWG before returning: without this, a tick already
-	// mid-SweepBatch when ctx is canceled at shutdown keeps running against
-	// db after the deferred db.Close() above has already fired (defers run
-	// LIFO; this defer is registered AFTER db.Close()'s, so it runs FIRST),
-	// producing a harmless but confusing "database closed" error instead of
-	// a clean shutdown.
+	// Joined via runServiceAndJoinRedrive, NOT via a deferred redriveWG.Wait()
+	// after service.Run: that ordering deadlocks the whole process on a
+	// fatal (non-signal) service error -- see runServiceAndJoinRedrive's doc
+	// comment (issue #5476 P0) for why stop() must be called unconditionally
+	// before the join rather than relied upon via deferred LIFO ordering.
 	var redriveWG sync.WaitGroup
 	redriveReducerQueue := postgres.NewReducerQueue(postgres.SQLDB{DB: db}, "projector", time.Minute)
 	crossplaneRedriveSweeper := buildCrossplaneRedriveSweeper(postgres.SQLDB{DB: db}, redriveReducerQueue, instruments)
@@ -159,7 +161,6 @@ func run(parent context.Context) error {
 		defer redriveWG.Done()
 		runCrossplaneRedriveCatchUpLoop(ctx, crossplaneRedriveSweeper, logger)
 	}()
-	defer redriveWG.Wait()
 
-	return service.Run(ctx)
+	return runServiceAndJoinRedrive(ctx, service, stop, &redriveWG)
 }

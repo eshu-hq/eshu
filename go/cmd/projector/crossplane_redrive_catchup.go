@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -89,4 +90,51 @@ func runCrossplaneRedriveCatchUpTick(
 			"claims_reclaimed", len(results),
 		)
 	}
+}
+
+// serviceRunner is the narrow surface runServiceAndJoinRedrive needs.
+// app.Application (the concrete type main.go's `service` holds) satisfies it
+// structurally; tests substitute a fake.
+type serviceRunner interface {
+	Run(context.Context) error
+}
+
+// runServiceAndJoinRedrive runs the primary projector service to completion,
+// then unconditionally cancels ctx via stop BEFORE joining the redrive
+// catch-up goroutine, and returns service's own error verbatim (issue #5476
+// P0).
+//
+// A prior fix relied on deferred LIFO ordering (`defer stop()` registered
+// before `defer redriveWG.Wait()`, so Wait() would run first, then stop())
+// to guarantee the catch-up goroutine could always exit before the join.
+// That reasoning holds ONLY on the signal-triggered shutdown path, where ctx
+// is already canceled by the time service.Run returns. It FAILS on the
+// other real return path: service.Run can return a non-nil error on a fatal
+// Ack/Claim failure WITHOUT itself canceling ctx (projector.Service's
+// internal runConcurrent cancels only its own locally-derived CHILD
+// context, never the caller's signal-derived ctx), and this function's
+// caller returns that error verbatim with no cancellation side effect. On
+// that path the deferred Wait() would run first (LIFO), block forever on
+// the goroutine's `case <-ctx.Done()` (which never fires, since nothing
+// cancels ctx), and the deferred stop() -- queued behind Wait() in the same
+// stack -- would never run either: a permanent hang, also skipping every
+// later deferred cleanup (db.Close, pprof, telemetry shutdown) until
+// SIGKILL.
+//
+// Calling stop() here, unconditionally, BEFORE Wait(), removes the
+// dependency on defer ordering entirely: stop() is idempotent (safe to call
+// even when ctx was already canceled by a signal), so both the
+// signal-shutdown path and the fatal-error path converge on the same
+// guaranteed-to-unblock sequence -- cancel, then join -- regardless of which
+// one triggered the return.
+func runServiceAndJoinRedrive(
+	ctx context.Context,
+	service serviceRunner,
+	stop context.CancelFunc,
+	redriveWG *sync.WaitGroup,
+) error {
+	err := service.Run(ctx)
+	stop()
+	redriveWG.Wait()
+	return err
 }
