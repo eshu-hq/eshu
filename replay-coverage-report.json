@@ -1,9 +1,9 @@
 {
   "schema_version": "replay-coverage-report.v4",
-  "blocking": true,
+  "blocking": false,
   "totals": {
-    "total": 429,
-    "covered": 415,
+    "total": 430,
+    "covered": 416,
     "uncovered": 2,
     "unresolved": 0,
     "exempt": 12,
@@ -84,12 +84,12 @@
     },
     {
       "registry": "retractable_edge_type",
-      "total": 62,
-      "covered": 59,
+      "total": 63,
+      "covered": 60,
       "uncovered": 2,
       "unresolved": 0,
       "exempt": 1,
-      "percent_satisfied": 96.77
+      "percent_satisfied": 96.83
     },
     {
       "registry": "retractable_type",
@@ -140,12 +140,12 @@
     },
     {
       "scenario_type": "delta_tombstone",
-      "total": 158,
-      "covered": 154,
+      "total": 159,
+      "covered": 155,
       "uncovered": 2,
       "unresolved": 0,
       "exempt": 2,
-      "percent_satisfied": 98.73
+      "percent_satisfied": 98.74
     },
     {
       "scenario_type": "fault",
@@ -2580,6 +2580,16 @@
       "ref": "go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go",
       "proof_gate": "replay-tier",
       "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:AWS_lambda_function_uses_image",
+      "scenario_type": "delta_tombstone",
+      "status": "covered",
+      "scenario": "go_test",
+      "ref": "go/internal/replay/offlinetier/delta_tier_reducer_cloud_image_edge_retract_live_test.go",
+      "proof_gate": "replay-tier",
+      "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_reducer_cloud_image_edge_retract_live_test.go"
     },
     {
       "registry": "retractable_edge_type",
