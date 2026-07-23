@@ -56,7 +56,7 @@ const openAPIPathsCloudInventory = `
                           },
                           "attributes": {
                             "type": "object",
-                            "description": "Optional bounded provider-specific typed-depth attributes (e.g. table_type, schema_field_count, kms_key_name, clustering_fields). Values are bounded redaction-safe scalars and string-arrays; no raw locators or secrets are present.",
+                            "description": "Optional bounded provider-specific attributes. GCP surfaces its typed-depth payload (e.g. table_type, schema_field_count, kms_key_name, clustering_fields) as a bounded redaction-safe passthrough. AWS surfaces a CLOSED image/version allowlist only: task_definition_arn, image_uri, resolved_image_uri, code_sha256, version, and a containers array reduced per element to {image, image_digest}. Azure's allowlist is wired but currently empty (its resource fact carries no image/version key yet). No raw provider locator (cluster_arn, role_arn, arm_resource_id, network_interfaces, container name/runtime_id, ...) or secret is ever present.",
                             "additionalProperties": true
                           },
                           "identity_policy_evidence": {

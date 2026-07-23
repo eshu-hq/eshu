@@ -192,11 +192,33 @@ func cloudInventoryResourceView(envelope map[string]any) map[string]any {
 	return view
 }
 
+// cloudInventoryContainersAttributeKey is the one nested attribute key this
+// projector treats as an array-of-objects instead of an array of strings: the
+// AWS ECS "containers" attribute the loader-side allowlist writes (issue
+// #5449, go/internal/storage/postgres/cloud_inventory_evidence.go
+// awsCloudInventoryAttributeAllowlist.nestedArrayKeys["containers"]).
+const cloudInventoryContainersAttributeKey = "containers"
+
+// cloudInventoryContainerAttributeKeys is the closed set of container map
+// sub-keys this projector surfaces. It MUST stay in lockstep with the AWS
+// loader's containers sub-key allowlist
+// (go/internal/storage/postgres/cloud_inventory_evidence.go
+// awsCloudInventoryAttributeAllowlist.nestedArrayKeys["containers"]): the
+// loader already drops every other sub-key before the value reaches this
+// projector, but this set is a second, independent gate, so a change to one
+// without the other is caught by a test rather than becoming a leak.
+var cloudInventoryContainerAttributeKeys = map[string]struct{}{
+	"image":        {},
+	"image_digest": {},
+}
+
 // cloudInventoryAttributes projects the bounded provider-specific attributes map
 // from the canonical identity payload. It keeps only non-blank string keys (cap
-// 64) whose values are string, bool, float64, or []string/[]any-of-strings.
-// Nested maps and any other value types are dropped so no malformed payload
-// content can leak unexpected structured data through the readback wire.
+// 64) whose values are string, bool, float64, or []string/[]any-of-strings, plus
+// the allowlisted "containers" nested array-of-objects reduced to {image,
+// image_digest} per element. Nested maps under any other key, and any other
+// value type, are dropped so no malformed payload content can leak unexpected
+// structured data through the readback wire.
 func cloudInventoryAttributes(payload map[string]any) map[string]any {
 	const maxKeys = 64
 	object, ok := payload["attributes"].(map[string]any)
@@ -210,6 +232,12 @@ func cloudInventoryAttributes(payload map[string]any) map[string]any {
 		}
 		if len(out) >= maxKeys {
 			break
+		}
+		if key == cloudInventoryContainersAttributeKey {
+			if containers := cloudInventoryContainerAttributes(value); len(containers) > 0 {
+				out[key] = containers
+			}
+			continue
 		}
 		switch v := value.(type) {
 		case string:
@@ -232,6 +260,40 @@ func cloudInventoryAttributes(payload map[string]any) map[string]any {
 			if len(strs) > 0 {
 				out[key] = strs
 			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// cloudInventoryContainerAttributes reduces the raw "containers" attribute
+// value to a slice of maps holding only cloudInventoryContainerAttributeKeys.
+// An element that is not a JSON object, or whose allowlisted sub-keys are all
+// absent or blank, is dropped rather than surfaced as an empty map.
+func cloudInventoryContainerAttributes(raw any) []map[string]string {
+	elements, ok := raw.([]any)
+	if !ok || len(elements) == 0 {
+		return nil
+	}
+	out := make([]map[string]string, 0, len(elements))
+	for _, element := range elements {
+		item, ok := element.(map[string]any)
+		if !ok {
+			continue
+		}
+		kept := map[string]string{}
+		for subKey := range cloudInventoryContainerAttributeKeys {
+			if s, ok := item[subKey].(string); ok {
+				trimmed := strings.TrimSpace(s)
+				if trimmed != "" {
+					kept[subKey] = trimmed
+				}
+			}
+		}
+		if len(kept) > 0 {
+			out = append(out, kept)
 		}
 	}
 	if len(out) == 0 {
