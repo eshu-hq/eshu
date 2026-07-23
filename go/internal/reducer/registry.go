@@ -67,6 +67,11 @@ type DomainDefinition struct {
 	Ownership     OwnershipShape
 	TruthContract truth.Contract
 	Handler       Handler
+	// CrossScopeDependencies declares the producer domains this domain reads
+	// across ingestion scopes (#5709). It is optional and declarative: the
+	// readiness-defer and activation re-enqueue that consume it land in
+	// follow-up slices, so a definition without it behaves exactly as before.
+	CrossScopeDependencies []CrossScopeDependency
 }
 
 // Validate checks the domain definition for registration.
@@ -82,6 +87,11 @@ func (d DomainDefinition) Validate() error {
 	}
 	if err := d.TruthContract.Validate(); err != nil {
 		return err
+	}
+	for _, dependency := range d.CrossScopeDependencies {
+		if err := dependency.Validate(); err != nil {
+			return fmt.Errorf("domain %q cross-scope dependency: %w", d.Domain, err)
+		}
 	}
 
 	return nil
