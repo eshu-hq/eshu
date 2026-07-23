@@ -1629,7 +1629,14 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   execution counters, evidence summaries, and durable
   `reducer_container_image_identity` payload fields expose source repository
   anchors, evidence fact IDs, outcomes, identity strength, and missing/ambiguous
-  evidence without adding high-cardinality metric labels.
+  evidence without adding high-cardinality metric labels. #5423 threads a
+  digest-matched ci.run's commit into the decision as the scalar
+  `source_revision_provenance` payload field (`oci_config_source_label` or
+  `ci_run_commit`), reachable via the ci.artifact container_image_identity
+  projector trigger and replayed by the bootstrap maintenance reopen; it reuses
+  the same decision counter, reducer run spans, and query/MCP handler
+  instrumentation, and adds no new metric, span, log key, queue domain, or
+  runtime knob.
 - **SBOM attachment keeps trust dimensions separate** —
   `SBOMAttestationAttachmentHandler` writes
   `reducer_sbom_attestation_attachment` facts for attached verified,
