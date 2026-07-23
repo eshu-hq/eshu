@@ -3476,7 +3476,7 @@
         }
       },
       "list_advisory_evidence": {
-        "description": "MCP tool coverage shape for list_advisory_evidence; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Order-0 backfill (#5462): the vulnerability_intelligence cassette's CVE/affected_package facts project a queryable advisory for CVE-2026-00000, so this asserts >=1 advisory rather than shape-only. The supply-chain impact-findings floors stay 0 here because scan-tier findings are not yet repository-bound/queryable; #5463/#5464 flip those with expected-diff proof.",
+        "description": "MCP tool coverage shape for list_advisory_evidence; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Order-0 backfill (#5462) queries CVE-2026-00010 — the NEW Debian OS-package advisory chain this PR adds to the vulnerability_intelligence cassette's debian-image scope. The tool filters by the cve_id argument, so minimum_results:1 proves that specific advisory reached the query surface: if the debian-image scope is dropped, rejected, or becomes inert, the filtered result falls to 0 and this gate goes red (codex #5697 P1), tying the cassette fixture, reducer projection, and query surface together. The supply-chain impact-findings floors stay 0 because scan-tier findings are not yet repository-bound/queryable; #5463/#5464 flip those with expected-diff proof.",
         "required_response_fields": [
           "advisories",
           "count",
@@ -3486,7 +3486,7 @@
         ],
         "minimum_results": 1,
         "arguments": {
-          "cve_id": "CVE-2026-00000",
+          "cve_id": "CVE-2026-00010",
           "limit": 10
         }
       },
