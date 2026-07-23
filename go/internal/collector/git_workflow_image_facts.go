@@ -20,13 +20,14 @@ func emitWorkflowImageEvidenceFactsForContentFile(
 	generationID string,
 	observedAt time.Time,
 	relativePath string,
+	commitSHA string,
 	body string,
 ) {
 	if !isGitHubActionsWorkflowPath(relativePath) {
 		return
 	}
 	for _, evidence := range workflowimage.ExtractGitHubActions(relativePath, body) {
-		w.send(workflowImageEvidenceFactEnvelope(repoID, scopeID, generationID, observedAt, evidence))
+		w.send(workflowImageEvidenceFactEnvelope(repoID, scopeID, generationID, observedAt, commitSHA, evidence))
 	}
 }
 
@@ -35,6 +36,7 @@ func workflowImageEvidenceFactEnvelope(
 	scopeID string,
 	generationID string,
 	observedAt time.Time,
+	commitSHA string,
 	evidence workflowimage.Evidence,
 ) facts.Envelope {
 	payload := map[string]any{
@@ -43,6 +45,9 @@ func workflowImageEvidenceFactEnvelope(
 		"command_kind":    evidence.CommandKind,
 		"evidence_class":  evidence.EvidenceClass,
 		"source_category": "static_workflow",
+	}
+	if commitSHA != "" {
+		payload["commit_sha"] = commitSHA
 	}
 	if evidence.JobName != "" {
 		payload["job_name"] = evidence.JobName
