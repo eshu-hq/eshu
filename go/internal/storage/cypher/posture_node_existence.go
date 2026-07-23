@@ -42,9 +42,19 @@ type PostureExistenceReader interface {
 // variable-shadowing pitfall (docs/public/reference/nornicdb-pitfalls.md).
 // Reads are not subject to the bare-MATCH SET no-op; this query is safe as
 // written and does not need a MERGE workaround.
+//
+// No RETURN DISTINCT: CloudResource.uid carries a uniqueness constraint plus
+// a lookup index (cloud_resource_uid_unique / nornicdb_cloud_resource_uid_lookup,
+// see internal/graph.SchemaStatementsForBackend), so a given candidate_uid
+// matches at most one CloudResource node — DISTINCT would only guard against a
+// duplicate value inside $candidate_uids, which is a hash-aggregation cost
+// with no correctness payoff: filterRowsToExistingCloudResourceUIDs below
+// folds every returned row into a Go set (existing map[string]struct{})
+// before checking membership, so a duplicate row from a duplicate candidate
+// uid is deduplicated in Go regardless of what the query returns.
 const postureCloudResourceExistingUIDsCypher = `UNWIND $candidate_uids AS candidate_uid
 MATCH (resource:CloudResource {uid: candidate_uid})
-RETURN DISTINCT resource.uid AS existing_uid`
+RETURN resource.uid AS existing_uid`
 
 // filterRowsToExistingCloudResourceUIDs partitions rows (each of which MUST
 // carry a non-empty string "uid" key) into the subset whose CloudResource
