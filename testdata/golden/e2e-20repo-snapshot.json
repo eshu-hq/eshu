@@ -3017,7 +3017,6 @@
           "deployment_overview",
           "documentation_overview",
           "drilldowns",
-          "evidence_boundaries",
           "gitops_overview",
           "infrastructure_overview",
           "limitations",
@@ -3029,9 +3028,6 @@
           "support_overview"
         ],
         "minimum_results": 0,
-        "required_json_values": {
-          "evidence_boundaries[].domain": "container_image_identity"
-        },
         "required_absent_when_present": [
           {
             "description": "ci_cd_run_correlation must not be disclosed absent while a sibling ci_cd_evidence field serves it (#5472, #5581)",
