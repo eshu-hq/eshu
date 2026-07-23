@@ -325,6 +325,16 @@ func TestNornicDBPhaseGroupExecutorExecutesRetractStatementsSequentially(t *test
 	}
 }
 
+// TestNornicDBPhaseGroupExecutorRequiresAllStatementsToBeRetracts proves a
+// mixed retract-plus-upsert statement list does NOT take
+// executeSequentialRetractPhase's all-retract fast path (that path requires
+// every statement to be OperationCanonicalRetract) and instead falls into the
+// mixed-phase dispatcher. Before #5680, that dispatcher bundled the non-Drain
+// retract into the SAME ge.ExecuteGroup call as the sibling non-retract
+// statement (group size 2) -- exactly the ExecuteGroup-unsafe-retract shape
+// #5680 fixes. Post-fix, the mixed-phase dispatcher is order-preserving: the
+// retract statement is never dispatched via ExecuteGroup at all, and the
+// non-retract statement is grouped on its own (group size 1).
 func TestNornicDBPhaseGroupExecutorRequiresAllStatementsToBeRetracts(t *testing.T) {
 	t.Parallel()
 
@@ -347,11 +357,17 @@ func TestNornicDBPhaseGroupExecutorRequiresAllStatementsToBeRetracts(t *testing.
 	if err := executor.ExecutePhaseGroup(context.Background(), stmts); err != nil {
 		t.Fatalf("ExecutePhaseGroup() error = %v, want nil", err)
 	}
-	if got, want := inner.groupSizes, []int{2}; !equalIntSlices(got, want) {
-		t.Fatalf("group sizes = %v, want %v", got, want)
+	if got, want := inner.groupSizes, []int{1}; !equalIntSlices(got, want) {
+		t.Fatalf("group sizes = %v, want %v (the retract statement must never be dispatched via ExecuteGroup, #5680)", got, want)
 	}
-	if got := len(inner.executeParams); got != 0 {
-		t.Fatalf("execute params count = %d, want 0", got)
+	if got, want := len(inner.executeParams), 1; got != want {
+		t.Fatalf("execute params count = %d, want %d (the retract statement must run through the plain Execute path)", got, want)
+	}
+	if got, want := len(inner.groupStatements), 1; got != want || inner.groupStatements[0].Cypher != "RETURN grouped" {
+		t.Fatalf("grouped statement = %#v, want the single non-retract statement", inner.groupStatements)
+	}
+	if len(inner.executeStatements) != 1 || inner.executeStatements[0].Cypher != "MATCH (n) DELETE n" {
+		t.Fatalf("executed statement = %#v, want the single retract statement", inner.executeStatements)
 	}
 }
 
