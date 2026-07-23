@@ -3476,7 +3476,7 @@
         }
       },
       "list_advisory_evidence": {
-        "description": "MCP tool coverage shape for list_advisory_evidence; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for list_advisory_evidence; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Order-0 backfill (#5462): the vulnerability_intelligence cassette's CVE/affected_package facts project a queryable advisory for CVE-2026-00000, so this asserts >=1 advisory rather than shape-only. The supply-chain impact-findings floors stay 0 here because scan-tier findings are not yet repository-bound/queryable; #5463/#5464 flip those with expected-diff proof.",
         "required_response_fields": [
           "advisories",
           "count",
@@ -3484,7 +3484,7 @@
           "scope",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
         "arguments": {
           "cve_id": "CVE-2026-00000",
           "limit": 10
