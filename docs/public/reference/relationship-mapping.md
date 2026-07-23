@@ -147,6 +147,29 @@ Write the edge in the direction of the behavior being explained:
 If the source is a control plane, keep the control-plane source on the left. If
 the source is the deployed workload or service, keep that workload on the left.
 
+## Flux Cross-Repository Deployment Binding
+
+Flux contributes a cross-repository `DEPLOYS_FROM` relationship only when a
+`FluxGitRepository.spec.url` is a supported remote URL whose
+`repositoryidentity.NormalizeRemoteURL` value equals the catalog `RemoteURL` of
+exactly one *other* indexed repository. This is strict remote-URL identity, not
+an alias or token match; self, missing, and ambiguous matches emit no
+cross-repository evidence.
+
+A deployment trace may attribute target-repository resources to a Flux
+Kustomization or HelmRelease only when its `sourceRef.kind` is `GitRepository`,
+its effective `(namespace, name)` exactly matches the evidence binding, and
+that binding identifies exactly one target repository. An explicit
+`sourceRef.namespace` wins; otherwise the controller namespace supplies the
+effective namespace. Missing identity, no target, multiple targets, or a
+saturated bounded binding read fail closed: the trace does not expand the
+controller into a target repository.
+
+Target-resource matching remains path-bounded. The normalized controller root
+must contain the resource's safe relative path; `.` and `./` mean the target
+repository root and match safe relative paths. Empty, unsafe, or otherwise
+unusable roots do not become repository-wide matches.
+
 ## Safe Extension Checklist
 
 Before adding a new mapping family or runtime interpretation:
