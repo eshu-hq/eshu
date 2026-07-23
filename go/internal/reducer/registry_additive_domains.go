@@ -178,6 +178,10 @@ func cicdRunCorrelationDomainDefinition() DomainDefinition {
 				truth.LayerObservedResource,
 			},
 		},
+		// #5709: the correlation reads container_image_identity output across
+		// scopes; carrying the declared dependency on the registered definition
+		// is what the readiness/re-enqueue slices consume.
+		CrossScopeDependencies: crossScopeDependenciesForRegistration(DomainCICDRunCorrelation),
 	}
 }
 

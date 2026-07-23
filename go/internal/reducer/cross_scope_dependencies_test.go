@@ -74,3 +74,25 @@ func TestDomainDefinitionValidatesCrossScopeDependencies(t *testing.T) {
 		t.Fatal("definition with an empty cross-scope dependency must be rejected")
 	}
 }
+
+// TestCICDRunCorrelationDefinitionCarriesCatalogDependency proves the catalog is
+// actually wired onto the registered ci_cd_run_correlation definition, not just
+// present in the standalone map. The readiness/re-enqueue slices read the
+// dependency off the registered DomainDefinition, so an unwired constructor
+// would discover no producer and permit the early empty-join execution this
+// contract prevents (#5709 review).
+func TestCICDRunCorrelationDefinitionCarriesCatalogDependency(t *testing.T) {
+	t.Parallel()
+
+	def := cicdRunCorrelationDomainDefinition()
+	if err := def.Validate(); err != nil {
+		t.Fatalf("ci_cd_run_correlation definition is invalid: %v", err)
+	}
+	if len(def.CrossScopeDependencies) != 1 {
+		t.Fatalf("ci_cd_run_correlation must declare exactly one cross-scope dependency, got %d", len(def.CrossScopeDependencies))
+	}
+	producers := def.CrossScopeDependencies[0].ProducerDomains
+	if len(producers) != 1 || producers[0] != DomainContainerImageIdentity {
+		t.Fatalf("ci_cd_run_correlation cross-scope producer = %v, want [%s]", producers, DomainContainerImageIdentity)
+	}
+}

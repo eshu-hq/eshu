@@ -63,3 +63,18 @@ func crossScopeDependencyCatalog() map[Domain]CrossScopeDependency {
 		},
 	}
 }
+
+// crossScopeDependenciesForRegistration returns the DomainDefinition
+// CrossScopeDependencies a consumer domain should register, populated from the
+// single-source catalog. A domain with no catalog entry registers nil. Domain
+// definition constructors call this so the registered DomainDefinition carries
+// its declared producers — the readiness/re-enqueue slices read the dependency
+// off the registry, not the standalone catalog, so an unwired constructor would
+// silently permit the early empty-join execution this contract prevents.
+func crossScopeDependenciesForRegistration(domain Domain) []CrossScopeDependency {
+	dependency, ok := crossScopeDependencyCatalog()[domain]
+	if !ok {
+		return nil
+	}
+	return []CrossScopeDependency{dependency}
+}

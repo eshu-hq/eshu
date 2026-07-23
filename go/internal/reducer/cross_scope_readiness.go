@@ -13,13 +13,16 @@ import (
 // CrossScopeDependency on has not yet activated its generation for the relevant
 // scope. Like the SecretsIAM and Kubernetes-correlation readiness classes, a
 // retrying row in this class is deferred until its upstream producer commits,
-// not failing on its own merits, so a follow-up slice enrolls it in
-// nonCountingReducerRetryFailureClasses to exempt it from the retry budget.
+// not failing on its own merits, so it is enrolled in
+// nonCountingReducerRetryFailureClasses
+// (go/internal/storage/postgres/reducer_queue_readiness_sql.go) to exempt
+// retrying rows from the retry budget; that enrollment lands in this PR with its
+// own attempt_count-freeze theory-proof
+// (docs/internal/evidence/5709-attempt-count-freeze.md).
 //
-// This constant and its error type are declared here without that enrollment:
-// the enrollment changes the claim-SQL attempt-count behavior and lands with its
-// own theory-proof in the readiness-defer slice. Until then nothing returns this
-// error, so no runtime behavior changes.
+// The class is inert until a handler returns crossScopeProducerNotReadyError:
+// the readiness-defer slice wires that. Until then nothing produces this class,
+// so the enrollment changes no runtime behavior.
 const CrossScopeProducerNotReadyFailureClass = "cross_scope_producer_not_ready"
 
 // crossScopeProducerNotReadyError marks a cross-scope producer-readiness miss as
