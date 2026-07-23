@@ -93,17 +93,16 @@
         },
         {
           "fact_kind": "terraform_state_resource",
-          "stable_fact_key": "terraform_state_resource:resource:module.ecs.aws_instance.supply-chain-demo",
+          "stable_fact_key": "terraform_state_resource:resource:aws_instance.supply-chain-demo",
           "schema_version": "1.0.0",
           "collector_kind": "terraform_state",
           "fencing_token": 1,
           "source_confidence": "observed",
           "payload": {
-            "address": "module.ecs.aws_instance.supply-chain-demo",
+            "address": "aws_instance.supply-chain-demo",
             "mode": "managed",
             "type": "aws_instance",
             "name": "supply-chain-demo",
-            "module": "module.ecs",
             "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
             "correlation_anchors": [
               {
@@ -112,7 +111,7 @@
               }
             ],
             "attributes": {
-              "arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-0123456789abcdef0",
+              "arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
               "instance_type": "t3.micro",
               "ami": "ami-0123456789abcdef0"
             }
@@ -121,18 +120,6 @@
         {
           "fact_kind": "terraform_state_module",
           "stable_fact_key": "terraform_state_module:module:module.ecs:resource:module.ecs.aws_ecs_cluster.supply-chain-demo",
-          "schema_version": "1.0.0",
-          "collector_kind": "terraform_state",
-          "fencing_token": 1,
-          "source_confidence": "observed",
-          "payload": {
-            "module_address": "module.ecs",
-            "resource_count": 1
-          }
-        },
-        {
-          "fact_kind": "terraform_state_module",
-          "stable_fact_key": "terraform_state_module:module:module.ecs:resource:module.ecs.aws_instance.supply-chain-demo",
           "schema_version": "1.0.0",
           "collector_kind": "terraform_state",
           "fencing_token": 1,
