@@ -492,13 +492,21 @@ sibling ci_cd_run_correlation/container_image_identity/package domains:
   writer's own formula (`oci-descriptor://<registry>/<repository>@<digest>`,
   see `internal/projector.ociDescriptorUID`) — including its normalization:
   the OCI registry collector (`internal/collector/ociregistry/identity.go`
-  `NormalizeRepositoryIdentity`/`normalizeDigest`) unconditionally lowercases
-  the scanned registry, repository, and digest before computing the node's
-  real `repository_id`/descriptor identity, so `containerImageNodeUIDFromDigestRef`
-  lowercases the same three components rather than preserving
-  `resolved_image_uri`'s reported case (the Lambda `GetFunction` API response
-  never passes through that collector normalization, so it can report any
-  case). Lowercasing here removes what would otherwise be a hidden
+  `NormalizeRepositoryIdentity`/`normalizeDigest`) always fully lowercases the
+  scanned repository and digest, and lowercases the registry's leading host
+  segment (`normalizeRegistry` preserves an embedded path segment's case for a
+  registry value that itself contains one, a shape a bare ECR hostname never
+  has), before computing the node's real `repository_id`/descriptor identity.
+  `containerImageNodeUIDFromDigestRef` lowercases the same three components
+  rather than preserving `resolved_image_uri`'s reported case (the Lambda
+  `GetFunction` API response never passes through that collector
+  normalization, so it can report any case) — proven equivalent to the
+  collector for the ECR-hosted references this domain actually processes
+  (Lambda container images are exclusively ECR-hosted, so the registry value
+  is always a bare hostname with no embedded path, the case where
+  `normalizeRegistry`'s partial-lowercase branch is unreachable), not claimed
+  as a general-purpose match for an arbitrary registry shape. Lowercasing here
+  removes what would otherwise be a hidden
   ECR-only-registries-happen-to-be-lowercase dependency, and a new
   additive domain, `DomainAWSCloudImageMaterialization`
   (`go/internal/reducer/aws_cloud_image_materialization.go`), two-MATCH-MERGEs

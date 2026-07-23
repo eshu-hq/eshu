@@ -228,11 +228,23 @@ func ExtractAWSCloudImageEdgeRows(
 // conventionally lowercase, but this is a documented AWS convention, not a
 // hard API guarantee this reducer should silently depend on) would compute a
 // uid that can never MATCH the real node the OCI registry collector creates —
-// exactly the silent no-op #5450 exists to close. This function intentionally
-// does NOT special-case ECR; lowercasing unconditionally removes the
-// otherwise-hidden "Lambda images are ECR-only and ECR happens to force
-// lowercase" dependency entirely, matching the collector's own behavior for
-// every registry.
+// exactly the silent no-op #5450 exists to close. Lowercasing unconditionally
+// (rather than trusting "ECR is conventionally lowercase") removes that
+// otherwise-hidden dependency for the ECR-hosted references this domain
+// actually processes; see the note below on why that is the reachable case,
+// not a claim that this matches the collector for an arbitrary registry
+// shape.
+//
+// This is proven equivalent for ECR-hosted references specifically — the only
+// shape this domain ever processes, since AWS Lambda container images are
+// exclusively ECR-hosted (a platform restriction, not a convention) — not for
+// an arbitrary registry value. normalizeRegistry lowercases only the leading
+// host segment when its input contains an embedded path (its url.Parse and
+// Cut branches both split host from path and lowercase only the host,
+// preserving the path's case); that branch is unreachable here because a bare
+// ECR hostname (e.g. "123456789012.dkr.ecr.us-east-1.amazonaws.com") never
+// contains a "/", so normalizeRegistry always takes its whole-string
+// lowercase path for every reference this function actually sees.
 //
 // Returns ok=false for anything that is not a digest-qualified reference
 // (no "@sha256:" suffix) or has an empty registry/repository portion — never

@@ -76,13 +76,17 @@ API call counters, throttle counters, and pagination spans.
     there is no multi-container-style ambiguity to resolve
     (`go/internal/reducer/aws_cloud_image_join.go`'s
     `containerImageNodeUIDFromDigestRef`). That function lowercases the
-    registry, repository, and digest before computing the target uid, to
-    match the OCI registry collector's own normalization
+    registry, repository, and digest before computing the target uid, matching
+    the OCI registry collector's own normalization
     (`internal/collector/ociregistry/identity.go` `NormalizeRepositoryIdentity`/
-    `normalizeDigest` unconditionally lowercase); `resolved_image_uri` itself
-    is read straight from the Lambda `GetFunction` API response and carries
-    whatever case AWS reports, so it is not itself byte-identical to the real
-    node uid without that lowercasing step.
+    `normalizeDigest`) for the ECR-hosted references this domain actually
+    processes — Lambda container images are exclusively ECR-hosted, so the
+    registry value is always a bare hostname, the shape `normalizeRegistry`
+    fully lowercases (it preserves case only for an embedded path segment
+    within the registry value itself, a shape a bare ECR hostname never has).
+    `resolved_image_uri` itself is read straight from the Lambda `GetFunction`
+    API response and carries whatever case AWS reports, so it is not itself
+    byte-identical to the real node uid without that lowercasing step.
 
 ## Related docs
 
