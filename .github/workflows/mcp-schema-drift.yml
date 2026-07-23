@@ -36,6 +36,15 @@ name: MCP Schema Drift
 
 on:
   pull_request:
+    # MCP schema drift is a function of Go source (ReadOnlyTools, capability
+    # matrix, generated catalog). A docs-only PR (docs tree, root markdown,
+    # mkdocs config) cannot drift it, so skip the heavy MCP suite for it.
+    # Push-to-main re-runs the full gate.
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'mkdocs.yml'
+      - '.github/**/*.md'
   push:
     branches:
       - main

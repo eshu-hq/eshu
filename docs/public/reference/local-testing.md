@@ -146,17 +146,26 @@ registry-driven via the gate selector instead of a hard-coded step list.)
 The CI side is consolidated and path-filtered (#4218) so a PR runs only the
 gates its changed paths select:
 
-- **Always-on:** whole-module Go build/lint/vet/test (`test.yml`), agent hygiene,
-  and the docs build — they run on every PR.
+- **Always-on (runs on every PR, including docs-only):** agent hygiene, the
+  ci-gate registry drift check, and the docs build + Helm lint + whitespace
+  (`docs-helm-hygiene` in `test.yml`). These are the cheap due-diligence gates a
+  documentation change still needs.
 - **Path-selected (blocking):** the static contract verifiers — OpenAPI, route
   coverage, edge source-tool coverage, evidence continuity, skillgen roundtrip,
   telemetry coverage, operator dashboard, and contract source-of-truth — are
   consolidated into one matrix workflow, `static-contract-gates.yml`, whose
   `changes` job runs each only when its registry paths change. The golden-corpus,
   replay, race, and reducer-contention gates remain path-filtered and blocking.
-- **Path-selected (heavy):** End-to-end tests, macOS CI, and the security scan
-  run only on Go/deploy changes; benchmarks run only on Go/benchmark changes.
-  `main` runs them unconditionally as the backstop.
+- **Path-selected (heavy):** the whole-module Go build/lint/vet/test and the
+  sharded `go-race` lanes (`test.yml`), the two-OS binary build (`build.yml`),
+  the security scan (`security-scan.yml`), the MCP schema-drift suite
+  (`mcp-schema-drift.yml`), end-to-end tests, and macOS CI all **skip a docs-only
+  PR** — one whose every changed file is under `docs/**`, a root-level `*.md`, or
+  `mkdocs.yml`. A package doc under `go/**/*.md` still counts as code, and any PR
+  that mixes docs with code runs the full set. `main`, the nightly schedule, and
+  tag pushes run them unconditionally as the backstop. The `go-race-complete`
+  umbrella reports green when the matrix is skipped, so it stays a stable check
+  name that is safe to mark required without stranding a docs-only PR.
 - **Advisory:** the benchmark regression check (`BENCH_REGRESSION_ENFORCE=false`)
   and the changed-file Prettier check do not block merge.
 - **CI-only / release-only:** Trivy image scan, GHCR/package publication, and

@@ -39,6 +39,16 @@ name: Security Scan
 
 on:
   pull_request:
+    # A docs-only PR (docs tree, root markdown, mkdocs config) cannot introduce
+    # a Go CVE, a leaked secret in source, or an IaC misconfiguration that these
+    # scanners catch, so skip the heavy security lane for it. Push-to-main, the
+    # weekly schedule, and the post-publish image scan remain the backstop, so a
+    # secret that somehow lands via a docs path is still caught on merge.
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'mkdocs.yml'
+      - '.github/**/*.md'
   push:
     branches:
       - main
