@@ -1342,7 +1342,9 @@ gates:
       - "go/internal/projector/**"
       - "go/internal/reducer/**"
       - "go/internal/query/**"
+      - "go/internal/relationships/**"
       - "go/internal/storage/**"
+      - "sdk/go/factschema/**"
       - "testdata/golden/**"
       - "testdata/cassettes/**"
     local:
