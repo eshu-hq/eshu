@@ -309,8 +309,14 @@ func (allow cloudInventoryAttributeAllowlist) filter(raw any) map[string]any {
 // task_definition_arn), and coerceJSONString's fmt.Sprint fallback would print
 // that object's Go-syntax representation -- including any raw provider key
 // inside it (cluster_arn, role_arn, ...) -- defeating the allowlist entirely.
-// This mirrors boundedCloudInventoryAttributes' strict type switch, which has
-// no default/stringify branch for exactly this reason.
+// It mirrors boundedCloudInventoryAttributes' drop-non-scalars discipline (no
+// default/stringify branch) for exactly this reason. It differs deliberately in
+// OUTPUT type: where the GCP raw passthrough returns a native bool/float64/
+// json.Number, this allowlist normalizes every scalar to its string form as an
+// added defense layer -- every current allowlisted key (task_definition_arn,
+// image_uri, resolved_image_uri, code_sha256, version, containers[].image,
+// containers[].image_digest) holds a string, so a future non-string scalar key
+// would surface as its string form rather than a native JSON number/bool.
 func cloudInventoryAllowlistScalarString(value any) (string, bool) {
 	switch v := value.(type) {
 	case string:

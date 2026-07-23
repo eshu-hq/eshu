@@ -485,8 +485,16 @@ by provider:
   `subscription_id`, `resource_group`, `tenant_id`, `tags`, the redacted
   `extension` object, ...) is dropped.
 
-No raw provider locator, credential, or secret is ever present in
-`attributes` for any provider.
+`attributes` surfaces deployed-code identity evidence — image references
+(`image_uri`, `resolved_image_uri`, the ECS `containers[].image`) and the
+owning `task_definition_arn` — which necessarily name the image, registry, and
+repository for the caller's own resources. This route is account-scoped (it is
+filtered by `scope_id`/`account_id`), so those identifiers are the operator's
+own, not another tenant's. What is never present is any credential, secret, or
+non-image infrastructure locator: `cluster_arn`, `role_arn`, `kms_key_arn`,
+`network_interfaces`, `environment`, `vpc_config`, a container's
+`name`/`runtime_id`, or the Azure `arm_resource_id`/`subscription_id`/`tags`
+bag are all dropped before the route ever sees them.
 
 ## Cloud Resource Graph Paging
 
