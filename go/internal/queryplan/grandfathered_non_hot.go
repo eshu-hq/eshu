@@ -31,7 +31,6 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"code_relationship_story_nornicdb.go:(*CodeHandler).nornicDBRelationshipStoryClassMethods":            "404e0b2712d0ca5180c04df5e53556e77efe90be7cc98007ccf7dd52c60bf214",
 	"code_relationships.go:(*CodeHandler).relationshipsGraphRow":                                          "5f06c0388917b255ecb9def87df274ec737d074f574a9c2d0a4e76981d3dee7d",
 	"code_relationships.go:(*CodeHandler).transitiveRelationshipsGraphRow":                                "3f078d6a49d10c2ca70b7e44d53f73b30465cd7a8e32d885ef48cccb3e99b909",
-	"code_relationships_nornicdb.go:(*CodeHandler).nornicDBOneHopRelationships":                           "edc631d8c0536e185827f68d600d53ef3ebcc5cfbaf0db95c3ba809e3958eb2b",
 	"code_relationships_nornicdb.go:(*CodeHandler).nornicDBRelationshipMetadataRow":                       "87dccd27db95e9f2ef4942e2113fc998ec50b2821cb45091850f7c188c176a26",
 	"code_relationships_nornicdb.go:(*CodeHandler).nornicDBTransitiveOneHopRows":                          "79be400046fa15ea5feb891b6bfa334e23f61b90e34d411a3e924d7f120c37c6",
 	"code_relationships_nornicdb_identity.go:(*CodeHandler).nornicDBRelationshipEntityLabel":              "4309eda090298bffc0b957cebf4116c9c23225f4aec7121bc1e1f4ab5363f63f",

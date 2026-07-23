@@ -140,30 +140,69 @@ func TestHandleRelationshipsSurfacesRelatedSymbolSourceMetadata(t *testing.T) {
 func TestNornicDBOneHopRelationshipsCypherProjectsRelatedSymbolSourceMetadata(t *testing.T) {
 	t.Parallel()
 
+	// The core read carries the related symbol's own identity and line span
+	// (function-safe without OPTIONAL MATCH); file path, repository, and file
+	// language are restored by the separate enrichment reads and merged in Go.
 	cypher, _ := nornicDBOneHopRelationshipsCypher("function-center", "outgoing", "CALLS", "Function", "uid")
 	for _, fragment := range []string{
-		"OPTIONAL MATCH (target)<-[:CONTAINS]-(targetFile:File)",
-		"OPTIONAL MATCH (targetRepo:Repository)-[:REPO_CONTAINS]->(targetFile)",
-		"targetRepo.id as target_repo_id",
-		"targetFile.relative_path as target_file_path",
+		"coalesce(target.id, target.uid) as target_entity_uid",
+		"coalesce(target.id, target.uid) as target_id",
 		"target.start_line as target_start_line",
+		"head(labels(target)) as target_type",
 	} {
 		if !strings.Contains(cypher, fragment) {
-			t.Fatalf("outgoing NornicDB cypher missing %q:\n%s", fragment, cypher)
+			t.Fatalf("outgoing NornicDB core cypher missing %q:\n%s", fragment, cypher)
+		}
+	}
+	if strings.Contains(cypher, "OPTIONAL MATCH") {
+		t.Fatalf("outgoing NornicDB core cypher must not contain OPTIONAL MATCH:\n%s", cypher)
+	}
+
+	// File and repository metadata are enriched by SEPARATE OPTIONAL-MATCH-free
+	// reads so a File without a REPO_CONTAINS edge still yields its path/language.
+	farFile := nornicDBRelationshipFarFileEnrichmentCypher("outgoing", "CALLS", "Function", "uid")
+	for _, fragment := range []string{
+		"-[:CALLS]->(enrichNode)<-[:CONTAINS]-(enrichFile:File)",
+		"coalesce(enrichNode.id, enrichNode.uid) as entity_uid",
+		"enrichFile.relative_path as file_path",
+	} {
+		if !strings.Contains(farFile, fragment) {
+			t.Fatalf("outgoing far File enrichment cypher missing %q:\n%s", fragment, farFile)
+		}
+	}
+	if strings.Contains(farFile, "REPO_CONTAINS") {
+		t.Fatalf("far File enrichment cypher must not require a Repository edge:\n%s", farFile)
+	}
+
+	farRepo := nornicDBRelationshipFarRepoEnrichmentCypher("outgoing", "CALLS", "Function", "uid")
+	if !strings.Contains(farRepo, "-[:CALLS]->(enrichNode)<-[:CONTAINS]-(enrichFile:File)<-[:REPO_CONTAINS]-(enrichRepo:Repository)") {
+		t.Fatalf("outgoing far Repository enrichment cypher missing full path:\n%s", farRepo)
+	}
+	if !strings.Contains(farRepo, "enrichRepo.id as repo_id") {
+		t.Fatalf("outgoing far Repository enrichment cypher missing repo_id:\n%s", farRepo)
+	}
+
+	for _, c := range []string{farFile, farRepo} {
+		if strings.Contains(c, "OPTIONAL MATCH") {
+			t.Fatalf("far enrichment cypher must not contain OPTIONAL MATCH:\n%s", c)
 		}
 	}
 
-	cypher, _ = nornicDBOneHopRelationshipsCypher("function-center", "incoming", "CALLS", "Function", "uid")
-	for _, fragment := range []string{
-		"OPTIONAL MATCH (source)<-[:CONTAINS]-(sourceFile:File)",
-		"OPTIONAL MATCH (sourceRepo:Repository)-[:REPO_CONTAINS]->(sourceFile)",
-		"sourceRepo.id as source_repo_id",
-		"sourceFile.relative_path as source_file_path",
-		"source.start_line as source_start_line",
-	} {
-		if !strings.Contains(cypher, fragment) {
-			t.Fatalf("incoming NornicDB cypher missing %q:\n%s", fragment, cypher)
-		}
+	farFileIncoming := nornicDBRelationshipFarFileEnrichmentCypher("incoming", "CALLS", "Function", "uid")
+	if !strings.Contains(farFileIncoming, "<-[:CALLS]-(enrichNode)<-[:CONTAINS]-(enrichFile:File)") {
+		t.Fatalf("incoming far File enrichment cypher missing reverse traversal:\n%s", farFileIncoming)
+	}
+
+	anchorFile := nornicDBRelationshipAnchorFileEnrichmentCypher("Function", "uid")
+	if !strings.Contains(anchorFile, "(e:Function {uid: $entity_id})<-[:CONTAINS]-(enrichFile:File)") {
+		t.Fatalf("anchor File enrichment cypher missing indexed anchor:\n%s", anchorFile)
+	}
+	if strings.Contains(anchorFile, "REPO_CONTAINS") {
+		t.Fatalf("anchor File enrichment cypher must not require a Repository edge:\n%s", anchorFile)
+	}
+	anchorRepo := nornicDBRelationshipAnchorRepoEnrichmentCypher("Function", "uid")
+	if !strings.Contains(anchorRepo, "(e:Function {uid: $entity_id})<-[:CONTAINS]-(enrichFile:File)<-[:REPO_CONTAINS]-(enrichRepo:Repository)") {
+		t.Fatalf("anchor Repository enrichment cypher missing full path:\n%s", anchorRepo)
 	}
 }
 

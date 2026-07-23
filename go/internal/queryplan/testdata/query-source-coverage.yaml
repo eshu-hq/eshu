@@ -87,9 +87,12 @@ source_coverage:
       - {symbol: "(*CodeHandler).transitiveRelationshipsGraphRow", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: code_relationships_nornicdb.go
     calls:
-      - {symbol: "(*CodeHandler).nornicDBOneHopRelationships", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - {symbol: "(*CodeHandler).nornicDBOneHopRelationships", count: 1, non_hot: {class: keyed_support, source_sha256: ff840fbe83209b98aa0a0546c1815e7d0fd78b156f3dbff0c118453ee81182d2, key_bound: single_key, max_results: 501}}
       - {symbol: "(*CodeHandler).nornicDBRelationshipMetadataRow", count: 2, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*CodeHandler).nornicDBTransitiveOneHopRows", count: 2, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+  - file: code_relationships_nornicdb_enrich.go
+    calls:
+      - {symbol: "(*CodeHandler).enrichNornicDBRelationshipRows", count: 1, non_hot: {class: keyed_support, source_sha256: 05bb4933b89444a5f1b5649c0417ecddea22c1301288673a995320baea2a7821, key_bound: single_key, max_results: 501}}
   - file: code_relationships_nornicdb_identity.go
     calls:
       - {symbol: "(*CodeHandler).nornicDBRelationshipEntityLabel", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
