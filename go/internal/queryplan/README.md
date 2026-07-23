@@ -54,9 +54,9 @@ Live graph calls remain outside this package. The build-tagged test
 `internal/query/queryplan_profile_live_test.go` applies only the schema names
 required by both manifests to an isolated Neo4j database, binds every Cypher
 entry to its exact production builder or execution-path output, and profiles 22
-handler entries, 28 legacy Cypher entries, and 735 hash-frozen safe production
+handler entries, 30 legacy Cypher entries, and 735 hash-frozen safe production
 variants. That production-variant family includes 140 distinct import-dependency
-queries mapped from all 244 valid API and MCP request shapes. All 785 profiled
+queries mapped from all 244 valid API and MCP request shapes. All 787 profiled
 shapes must avoid `AllNodesScan` and expose an admitted bounded anchor operator.
 The accepted label and relationship-type scan exceptions are a closed Go policy;
 manifest data cannot expand that allowlist. Cloud-resource browsing now has one

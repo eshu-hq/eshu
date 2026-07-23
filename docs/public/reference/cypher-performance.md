@@ -89,8 +89,8 @@ unbounded variable-length traversals, unlabeled anchors, unordered pagination,
 missing schema evidence, and forbidden plan signatures fail the gate. The same
 script provisions a pinned, isolated Neo4j container and runs the build-tagged
 live proof in `go/internal/query/queryplan_profile_live_test.go`. That proof
-profiles 22 handler entries and 28 legacy entries through Neo4j `PROFILE` using
-production-owned bytes, plus 735 hash-frozen safe production variants: 785
+profiles 22 handler entries and 30 legacy entries through Neo4j `PROFILE` using
+production-owned bytes, plus 735 hash-frozen safe production variants: 787
 shapes in total. The production-variant family includes 140 distinct
 import-dependency queries mapped from all 244 valid API and MCP request shapes.
 Cloud-resource browsing is covered separately by one UID-bounded graph
