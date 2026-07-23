@@ -41,15 +41,25 @@
   gradle (resolved version, defending against the same coordinate declared
   twice under one configuration), maven (classifier + type, defending against
   co-installed classifier variants like native-build artifacts), nuget
-  (merged MSBuild `Condition`, defending against `.csproj` multi-targeting
-  repeating a `PackageReference` name per target framework), and pypi (sorted
+  (item-level MSBuild `Condition`, falling back to group-level — an OVERRIDE,
+  not an AND; defends the common `.csproj` multi-targeting pattern where
+  `Condition` is set once per ItemGroup, with a narrow accepted residual gap
+  when an item-level `Condition` string happens to repeat across two
+  different-TFM ItemGroups — see that case's doc comment), pypi (sorted
   extras + marker, defending against `requests[socks]` vs `requests[toml]` or
-  platform-gated markers). Every other in-scope package manager (npm,
-  composer, go, rubygems, pub, hex) returns an empty discriminator because its
-  parser already guarantees per-section name uniqueness on its own (a JSON/
-  TOML/YAML map key, or the ecosystem's own tooling rejecting a duplicate
-  declaration). Do not add or change a case without documenting, in that
-  function's doc comment, the concrete manifest feature that requires it.
+  platform-gated markers), and go/gomod (the raw declared version, defending
+  against a hand-edited or merge-conflicted, not-yet-`go mod tidy`-run go.mod
+  whose non-deduplicating `modfile.Parse` admits the same module required
+  twice at different versions in one section). Only npm, composer, rubygems,
+  pub, and hex return an empty discriminator, because each one's parser
+  already guarantees per-section name uniqueness on its own (a JSON/YAML map
+  key, or the ecosystem's own tooling rejecting a duplicate declaration). Do
+  not add or change a case without documenting, in that function's doc
+  comment, the concrete manifest feature that requires it — and do not assume
+  a format is safe without a discriminator just because its happy-path parser
+  output looks unique; check what the underlying format/toolchain actually
+  permits (gomod's `go` case is the cautionary example: modfile.Parse does
+  NOT de-duplicate, unlike `go mod tidy`'s output).
 - **Two-site lockstep** — `internal/content/shape.Materialize` and
   `internal/projector`'s `buildContentEntityRecord` `entity_id` fallback both
   call `CanonicalEntityIDWithMetadata` with the same metadata view. The
@@ -136,12 +146,26 @@
   legacy line-keyed `CanonicalEntityID` instead of the section-keyed
   `CanonicalDependencyEntityID`. Check `entityMetadataFromPayload` (projector)
   or the cloned `indexed.item.Metadata` (shape) actually carries those keys.
-  For a discriminated format (cargo/gradle/maven/nuget/pypi), also check the
-  discriminator source field itself (`manifest_name`, `value`,
+  For a discriminated format (cargo/gradle/maven/nuget/pypi/go), also check
+  the discriminator source field itself (`manifest_name`, `value`,
   `dependency_classifier`/`dependency_type`, `condition`, `extras`/`marker`)
   is present and stable across the reorder — a discriminator field that is
   itself line-derived would silently reintroduce the churn this migration
   removes.
+
+- Symptom: a duplicate manifest declaration silently disappears (fewer
+  content_entities rows than source lines, no error/telemetry) → likely
+  cause: the format's own parser/toolchain does NOT reject or de-duplicate a
+  same-section, same-name redeclaration the way `dependencyIdentityPackageManagers`
+  assumed, so two genuinely different rows hash to the same
+  `CanonicalDependencyEntityID` and `content_writer.go`'s dedupe keeps only
+  one. This was a real regression caught in #5507 review for `go` (gomod):
+  `golang.org/x/mod`'s `modfile.Parse` does not de-duplicate `require`
+  directives, so an untidied go.mod can legitimately require the same module
+  twice at different versions. Before assuming a format needs no
+  discriminator, verify what the underlying file format/toolchain actually
+  permits, not just what a `go mod tidy`-clean or otherwise well-formed
+  example looks like.
 
 - Symptom: two distinct nested lockfile dependency versions (e.g. `react@17`
   and `react@18` in `package-lock.json`) collapse into one content-entity row

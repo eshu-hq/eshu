@@ -91,10 +91,12 @@ Identity:
   with an optional package-manager-specific discriminator (see
   `dependencyIdentityDiscriminator` in `dependency_identity.go`) for formats
   where `(section, name)` alone cannot guarantee uniqueness — cargo (manifest
-  alias), gradle (version), maven (classifier/type), nuget (MSBuild
-  condition), and pypi (extras/marker). `CanonicalDependencyEntityID` itself is
-  unaware of the discriminator concept; its hash shape never changes, so the
-  #5357 npm/composer ids already minted in production stay byte-identical.
+  alias), gradle (version), maven (classifier/type), nuget (item-level MSBuild
+  `Condition`, falling back to group-level), pypi (extras/marker), and go/gomod
+  (raw declared version, since `modfile.Parse` does not de-duplicate `require`
+  directives). `CanonicalDependencyEntityID` itself is unaware of the
+  discriminator concept; its hash shape never changes, so the #5357
+  npm/composer ids already minted in production stay byte-identical.
 
 Config:
 

@@ -122,13 +122,17 @@ shifted lines in the same section.
 `#5357` proved this for `package.json`/`composer.json`, where `(section,
 name)` alone is already unique (a JSON object key). `#5507` extended the
 scheme to cargo, gradle, maven, nuget, pypi, go (gomod), rubygems, pub, and
-hex — for cargo, gradle, maven, nuget, and pypi, `(section, name)` alone is
-NOT always unique (see `content.dependencyIdentityDiscriminator`'s doc
+hex — for cargo, gradle, maven, nuget, pypi, and go, `(section, name)` alone
+is NOT always unique (see `content.dependencyIdentityDiscriminator`'s doc
 comment for the concrete manifest feature each one's added discriminator
 defends: Cargo package aliasing, Gradle same-coordinate-different-version,
-Maven classifier/type, NuGet multi-targeting conditions, pypi extras/markers).
-`swift` was deliberately left out of scope — its only current producer
-(`Package.resolved`) is a lockfile, already excluded by the condition below.
+Maven classifier/type, NuGet multi-targeting conditions, pypi extras/markers,
+and go's non-deduplicating `modfile.Parse` admitting the same module required
+twice at different versions in an untidied go.mod). Only rubygems, pub, and
+hex need no discriminator: each one's own tooling or file format already
+guarantees per-section name uniqueness. `swift` was deliberately left out of
+scope — its only current producer (`Package.resolved`) is a lockfile, already
+excluded by the condition below.
 
 The gate is intentionally narrow: `metadata["config_kind"] ==
 "dependency"` alone is also set by lockfile parsers

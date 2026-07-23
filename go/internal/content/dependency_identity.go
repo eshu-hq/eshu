@@ -21,11 +21,17 @@ import (
 // key is unique within its enclosing section by construction. #5507 (this
 // file's remaining nine cases) extends the scheme to cargo, gradle, maven,
 // nuget, pypi, go (gomod), rubygems, pub, and hex — each proven either by the
-// same "the parser's own name field is a unique map/table key" argument
-// (rubygems, pub, hex, go) or by an added dependencyIdentityDiscriminator
-// component that keeps a same-named, same-section redeclaration distinct
-// (cargo, gradle, maven, nuget, pypi; see that function's doc comment for the
-// concrete manifest feature each discriminator defends).
+// same "the parser's own name field is a unique map/table key, or the
+// ecosystem's own tooling rejects a duplicate" argument (rubygems, pub, hex)
+// or by an added dependencyIdentityDiscriminator component that keeps a
+// same-named, same-section redeclaration distinct (cargo, gradle, maven,
+// nuget, pypi, go; see that function's doc comment for the concrete manifest
+// feature each discriminator defends). "go" (gomod) needs a discriminator
+// too, not just a unique-key argument: golang.org/x/mod's modfile.Parse does
+// NOT de-duplicate require directives (that is left to higher-level MVS
+// logic), so a hand-edited or merge-conflicted go.mod that has not been run
+// through `go mod tidy` can legitimately contain the same module path
+// required twice in one section at two different versions.
 //
 // "swift" is deliberately NOT in this set. The only dependency-row producer
 // for package_manager=="swift" is Package.resolved
@@ -159,9 +165,9 @@ func dependencyIdentitySection(entityType string, metadata map[string]any) (stri
 //
 // An empty return means "no additional discriminator: (section, name) is
 // already unique for this package_manager" — this is the path for every
-// producer not named below, including npm, composer, go (gomod requires),
-// rubygems (Gemfile), pub (pubspec.yaml), and hex (mix.exs); see
-// dependencyIdentityPackageManagers for why each of those is safe without one.
+// producer not named below, including npm, composer, rubygems (Gemfile), pub
+// (pubspec.yaml), and hex (mix.exs); see dependencyIdentityPackageManagers for
+// why each of those is safe without one.
 //
 // Do not add or change a case here without documenting, in this comment, the
 // concrete manifest feature that makes the discriminator necessary — the
@@ -180,6 +186,25 @@ func dependencyIdentityDiscriminator(packageManager string, metadata map[string]
 		// key, which Cargo/TOML guarantees is unique within one section, so it
 		// is the correct discriminator.
 		return metadataStringValue(metadata, "manifest_name")
+	case "go":
+		// golang.org/x/mod's modfile.Parse (called by
+		// gomod/parser.go's parseGoMod) does NOT de-duplicate require
+		// directives — its own docs say that is left to higher-level MVS
+		// logic. A hand-edited or merge-conflicted go.mod that has not been
+		// run through `go mod tidy` can therefore legitimately contain the
+		// same module path required twice in one require/require-indirect
+		// section at two different versions (e.g. both
+		// `github.com/pkg/errors v0.9.1` and `github.com/pkg/errors v0.8.0`
+		// inside one `require (...)` block). Both rows share (section, name);
+		// "value" (the row's raw declared version, BEFORE any `replace`
+		// substitution) keeps them distinct. The post-replace
+		// "resolved_version" would be unsafe here: a version-unconstrained
+		// `replace` directive (an empty Old.Version) matches every requested
+		// version of a module, so two duplicate requires at different
+		// declared versions could both resolve to the identical replacement
+		// target/version and collapse right back together — the raw
+		// declared version never has that problem.
+		return metadataStringValue(metadata, "value")
 	case "gradle":
 		// The same `group:artifact` coordinate can legitimately be declared
 		// twice under the identical configuration — for example a pinned
@@ -207,13 +232,32 @@ func dependencyIdentityDiscriminator(packageManager string, metadata map[string]
 		return classifier + "\x1e" + depType
 	case "nuget":
 		// A .csproj multi-targets by declaring the SAME PackageReference name
-		// more than once across different ItemGroups (or item-level Condition
-		// attributes) gated on `$(TargetFramework)`, each potentially at a
-		// different version (e.g. Newtonsoft.Json pinned to 9.0.1 for net472
-		// and 13.0.1 for net6.0). The row's "section" is always the fixed
-		// literal "PackageReference" regardless of which ItemGroup it came
-		// from, so section cannot disambiguate on its own; "condition"
-		// already carries the merged item/group MSBuild Condition string.
+		// more than once across different ItemGroups gated on
+		// `$(TargetFramework)`, each potentially at a different version (e.g.
+		// Newtonsoft.Json pinned to 9.0.1 for net472 and 13.0.1 for net6.0).
+		// The row's "section" is always the fixed literal "PackageReference"
+		// regardless of which ItemGroup it came from, so section cannot
+		// disambiguate on its own.
+		//
+		// "condition" is nugetProjectDependencyRow's
+		// firstNonEmpty(reference.Condition, groupCondition) — an OVERRIDE
+		// (item-level Condition wins when present; the group-level Condition
+		// is used only as a fallback when the item has none), NOT an
+		// AND-combination of both. This is exactly right for, and
+		// disambiguates, the common multi-targeting pattern: Condition set
+		// once per ItemGroup (per TFM) and never repeated per item. It has a
+		// narrow residual gap, accepted for now rather than fixed here: if an
+		// item-level Condition is present on two PackageReference rows of the
+		// same name AND that item-level string happens to be identical across
+		// two ItemGroups with DIFFERENT group-level Conditions, the differing
+		// group-level TFM distinction is masked by the override and the two
+		// rows would collide. Closing that gap would require the parser to
+		// expose the item- and group-level Condition components as separate
+		// metadata fields instead of pre-merging them (nugetProjectDependencyRow
+		// in internal/parser/nuget_project_language.go) — out of scope for
+		// this identity-layer discriminator, and a rare combination in
+		// practice since per-item Conditions on individual PackageReference
+		// elements are uncommon.
 		return metadataStringValue(metadata, "condition")
 	case "pypi":
 		// A pip/PEP 508 requirement (requirements.txt lines, and the
