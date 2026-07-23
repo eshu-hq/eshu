@@ -108,6 +108,28 @@ func repositoryAnchorDebianOSPackageFact(factID, scopeID, generationID string) f
 	}
 }
 
+// containerImageIdentityImpactFactWithSourceRepositoryIDs builds a
+// reducer_container_image_identity fact carrying BOTH the OCI-registry-path
+// repository_id (decoyRepositoryID — deliberately distinct from any repo id
+// these tests expect the join to produce) and the git source_repository_ids
+// the #5464 os_package join actually anchors on. #5464 STEP 1 found that
+// repository_id is the OCI/container registry's OWN repository identifier
+// (e.g. "oci-registry://ghcr.io/org/repo") and can never equal a
+// workload/service/deployment-lane repositoryID, which is always the git
+// "repository:..." entity id carried in source_repository_ids — so a decoy
+// repository_id here proves the join reads the right field rather than
+// merely tolerating an absent one.
+func containerImageIdentityImpactFactWithSourceRepositoryIDs(
+	factID string,
+	digest string,
+	decoyRepositoryID string,
+	sourceRepositoryIDs ...string,
+) facts.Envelope {
+	envelope := containerImageIdentityImpactFact(factID, digest, decoyRepositoryID)
+	envelope.Payload["source_repository_ids"] = append([]string(nil), sourceRepositoryIDs...)
+	return envelope
+}
+
 // TestSupplyChainImpactHandlerResolvesRepositoryFromContainerImageIdentityDigest
 // is the positive regression guard for issue #5464: it proves the additive
 // load stage (loadSupplyChainImpactResolvedDigestEvidenceFacts) re-runs the
@@ -139,7 +161,13 @@ func TestSupplyChainImpactHandlerResolvesRepositoryFromContainerImageIdentityDig
 
 	osPackage := repositoryAnchorDebianOSPackageFact("dpkg-os-openssl-repo-anchor", scanScopeID, scanGenerationID)
 	scannerAnalysis := scannerWorkerAnalysisFact(scanScopeID, scanGenerationID, testScannerAnalysisImageDigest, imageRef)
-	identity := containerImageIdentityImpactFact("identity-repo-anchor", testScannerAnalysisImageDigest, repositoryID)
+	// repository_id deliberately carries a decoy OCI-registry-path value
+	// (#5464 STEP 1): the join under test MUST read source_repository_ids,
+	// never repository_id, so a passing test here proves the right field won.
+	identity := containerImageIdentityImpactFactWithSourceRepositoryIDs(
+		"identity-repo-anchor", testScannerAnalysisImageDigest,
+		"oci-registry://registry.example/repo-anchor-app", repositoryID,
+	)
 
 	loader := &repositoryAnchorSupplyChainImpactFactLoader{
 		factsByScope: map[string][]facts.Envelope{
@@ -381,7 +409,10 @@ func TestSupplyChainImpactHandlerPreservesConsumptionRepositoryOverImageIdentity
 
 	osPackage := repositoryAnchorDebianOSPackageFact("dpkg-os-openssl-repo-anchor-precedence", scanScopeID, scanGenerationID)
 	scannerAnalysis := scannerWorkerAnalysisFact(scanScopeID, scanGenerationID, testScannerAnalysisImageDigest, imageRef)
-	identity := containerImageIdentityImpactFact("identity-precedence", testScannerAnalysisImageDigest, imageRepositoryID)
+	identity := containerImageIdentityImpactFactWithSourceRepositoryIDs(
+		"identity-precedence", testScannerAnalysisImageDigest,
+		"oci-registry://registry.example/precedence-app", imageRepositoryID,
+	)
 
 	loader := &repositoryAnchorSupplyChainImpactFactLoader{
 		factsByScope: map[string][]facts.Envelope{

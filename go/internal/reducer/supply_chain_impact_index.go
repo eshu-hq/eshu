@@ -130,12 +130,13 @@ type supplyChainAttachment struct {
 }
 
 type supplyChainImageIdentity struct {
-	factID          string
-	digest          string
-	imageRef        string
-	repositoryID    string
-	outcome         string
-	canonicalWrites int
+	factID              string
+	digest              string
+	imageRef            string
+	repositoryID        string
+	sourceRepositoryIDs []string
+	outcome             string
+	canonicalWrites     int
 }
 
 type supplyChainDeploymentContext struct {
@@ -271,19 +272,40 @@ func classifySupplyChainImpactPackage(
 		// (issue #5464) — loaded cross-scope by
 		// loadSupplyChainImpactResolvedDigestEvidenceFacts, seeded with the
 		// digest just stamped above — when nothing has claimed RepositoryID
-		// yet. This mirrors the SBOM path's image.repositoryID assignment
-		// above, but it MUST NOT overwrite a RepositoryID the consumption
-		// path (package manifest evidence, higher up in this function) has
-		// already set: a per-package manifest anchor is more precise than an
+		// yet. This MUST NOT overwrite a RepositoryID the consumption path
+		// (package manifest evidence, higher up in this function) has already
+		// set: a per-package manifest anchor is more precise than an
 		// image-level identity, which only tells you which repository built
-		// the scanned image and can be shared across many unrelated
-		// packages. Never guessed: a digest with no matching identity fact
-		// (index.images has no entry) leaves RepositoryID exactly as it was.
+		// the scanned image and can be shared across many unrelated packages.
+		//
+		// Deliberately reads image.sourceRepositoryIDs, NOT image.repositoryID
+		// (unlike the SBOM path above): repositoryID is the OCI/container
+		// registry's OWN repository identifier (e.g.
+		// "oci-registry://ghcr.io/org/repo", see ociRepositoryID in
+		// container_image_identity_registry.go) — a namespace disjoint from
+		// every git-source Repository entity id. matchingSupplyChainWorkloads/
+		// DeploymentLanes/Services (supply_chain_impact_runtime.go) compare
+		// finding.RepositoryID by exact equality against workload/service/
+		// deployment-lane records, which are always the git "repository:..." id
+		// (supplyChainWorkloadRepositoryID/repositoryIDFromReducerScope); an OCI
+		// registry path can never match one, so joining on repositoryID here
+		// would produce a non-blank RepositoryID that is permanently unable to
+		// reach workload/service/environment context — unit-green, dead in
+		// production, exactly what #5463 exists to prevent (#5464 STEP 1
+		// finding). sourceRepositoryIDs carries the git repository the identity
+		// decision attributed the image to (CI-run/SLSA/source-label evidence).
+		// Only used when unambiguous — singleSupplyChainImageSourceRepositoryID
+		// returns "" for zero or multiple distinct repositories, matching the
+		// #5463 "never invent an anchor" discipline: an image attributable to
+		// more than one repository is not attributed to any single one. Do not
+		// "simplify" this back to image.repositoryID.
 		if finding.RepositoryID == "" && finding.SubjectDigest != "" {
-			if image, ok := index.images[finding.SubjectDigest]; ok && image.repositoryID != "" {
-				finding.RepositoryID = image.repositoryID
-				finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, image.factID)
-				finding.EvidencePath = append(finding.EvidencePath, containerImageIdentityFactKind)
+			if image, ok := index.images[finding.SubjectDigest]; ok {
+				if repositoryID := singleSupplyChainImageSourceRepositoryID(image); repositoryID != "" {
+					finding.RepositoryID = repositoryID
+					finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, image.factID)
+					finding.EvidencePath = append(finding.EvidencePath, containerImageIdentityFactKind)
+				}
 			}
 		}
 	}
