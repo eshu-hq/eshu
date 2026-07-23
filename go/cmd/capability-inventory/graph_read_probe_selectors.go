@@ -40,7 +40,7 @@ func discoverProbeSelectors(client *http.Client, apiBaseURL, userToken string) (
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	request, err := http.NewRequestWithContext(
+	request, err := http.NewRequestWithContext( // #nosec G704 -- apiBaseURL is the operator-supplied Eshu API endpoint for this diagnostic probe CLI, not user- or network-taint input
 		ctx,
 		http.MethodGet,
 		strings.TrimRight(apiBaseURL, "/")+"/api/v0/repositories?limit=1",
@@ -51,7 +51,7 @@ func discoverProbeSelectors(client *http.Client, apiBaseURL, userToken string) (
 	}
 	request.Header.Set("Authorization", "Bearer "+userToken)
 	request.Header.Set("Accept", "application/json")
-	response, err := client.Do(request)
+	response, err := client.Do(request) // #nosec G704 -- request targets the operator-supplied Eshu API base URL for this diagnostic probe CLI, not user- or network-taint input
 	if err != nil {
 		return nil, errors.New("bounded selector discovery request failed")
 	}
@@ -223,7 +223,7 @@ func fetchOptionalSelectorRequest(
 ) (any, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	request, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(apiBaseURL, "/")+path, body)
+	request, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(apiBaseURL, "/")+path, body) // #nosec G704 -- apiBaseURL is the operator-supplied Eshu API endpoint for this diagnostic probe CLI, not user- or network-taint input
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +232,7 @@ func fetchOptionalSelectorRequest(
 	if body != nil {
 		request.Header.Set("Content-Type", "application/json")
 	}
-	response, err := client.Do(request)
+	response, err := client.Do(request) // #nosec G704 -- request targets the operator-supplied Eshu API base URL for this diagnostic probe CLI, not user- or network-taint input
 	if err != nil {
 		return nil, err
 	}

@@ -213,7 +213,7 @@ func executeGraphReadProbe(
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	request, err := http.NewRequestWithContext(ctx, method, requestURL, body)
+	request, err := http.NewRequestWithContext(ctx, method, requestURL, body) // #nosec G704 -- requestURL derives from the operator-supplied Eshu API endpoint for this diagnostic probe CLI, not user- or network-taint input
 	if err != nil {
 		return errors.New("build request failed")
 	}
@@ -224,7 +224,7 @@ func executeGraphReadProbe(
 	if payload != nil {
 		request.Header.Set("Content-Type", "application/json")
 	}
-	response, err := client.Do(request)
+	response, err := client.Do(request) // #nosec G704 -- request targets the operator-supplied Eshu API base URL for this diagnostic probe CLI, not user- or network-taint input
 	if err != nil {
 		return errors.New("request failed")
 	}
