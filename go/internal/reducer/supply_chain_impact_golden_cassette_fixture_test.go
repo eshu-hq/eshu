@@ -10,13 +10,16 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// This file proves, BEFORE the corresponding fixture lands in
-// testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json, that
-// the exact envelope shapes the B-7 golden-corpus cassette backfill (epic
-// #5462 order-0 part B) will carry are schema-consistent with the CURRENT
-// reducer and synthesize the intended supply-chain-impact truth. All fact
-// payloads below are the payloads transcribed verbatim into the cassette's
-// new "debian-image" scope. Every fact in that scope shares one cassette
+// This file is the fast, Docker-free framework proof for the B-7
+// golden-corpus cassette backfill (epic #5462 order-0 part B): it proves the
+// envelope shapes the cassette's "debian-image" scope carries in
+// testdata/cassettes/vulnerabilityintelligence/supply-chain-demo.json are
+// schema-consistent with the CURRENT reducer and synthesize the intended
+// supply-chain-impact truth, without needing the full live gate. The fact
+// payloads below mirror the payloads committed in that cassette scope; the
+// committed JSON itself is validated by TestCommittedCassettesValid and the
+// live B-7 replay, so this file's unique value is the synthesis assertions
+// (the derived finding shape and enrichment) the schema gate cannot check. Every fact in that scope shares one cassette
 // scope_id (go/internal/replay/cassette/source.go's buildEnvelope stamps
 // every fact in a scope with the scope's scope_id — a cassette has no
 // per-fact ScopeID), which is why the os_package-backed finding below
