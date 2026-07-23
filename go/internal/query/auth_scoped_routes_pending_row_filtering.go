@@ -67,6 +67,17 @@ var pendingRowFilteringRoutes = map[string]struct{}{
 	"POST /api/v0/impact/explain-dependency-path": {},
 	"POST /api/v0/impact/trace-exposure-path":     {},
 	"POST /api/v0/impact/trace-resource-to-code":  {},
+	// #5459 tag/digest mutation-history read. The ContainerImageTagObservation
+	// nodes it returns are keyed by the OCI registry repository_id
+	// (oci-registry://...), not a code repository_id, and carry no edge to the
+	// source code repo that the grant model (AllowedRepositoryIDs /
+	// repositoryAccessFilterFromContext) filters on. That OCI-to-source-repo
+	// linkage is exactly the PUBLISHES/BUILT_FROM provenance epic child #5457
+	// builds; until it lands there is no bindable grant selector, so this route
+	// fails closed (scoped/browser-session callers 403) and is tracked here
+	// rather than allowlisted. Move it to scopedTokenAdvertisedRoutes with a
+	// real filter once #5457 provides the source-repo edge.
+	"GET /api/v0/images/tag-history": {},
 }
 
 // IsPendingRowFilteringRoute reports whether r targets a #5167 Group B route:
