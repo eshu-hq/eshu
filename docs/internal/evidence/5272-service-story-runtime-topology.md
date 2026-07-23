@@ -40,12 +40,17 @@ storage state before and after the query reorder.
 The API comparison used a fresh HTTP connection for each call against the same
 warm backend, with no application response cache. Service stories produced 20
 valid pairs. Seventeen complete bodies were exact; all 20 had equal non-prose
-evidence after normalizing only the derived `story` and
-`answer_packet.summary` fields plus array order, the pre-existing defect tracked
-in #5644. Repository stories and service investigations were exact in all 20
-pairs. Baseline and candidate payload ranges were identical: 55,440-236,498
-bytes for service stories, 30,136-162,459 bytes for repository stories, and
-4,392-15,182 bytes for investigations.
+evidence under a comparator restricted to the ordering defect tracked in #5644.
+It removed only derived `story` and `answer_packet.summary` prose; sorted the
+`code_to_runtime_trace` segment named `runtime` by `environment` and
+`instance_id`; sorted nested platforms by `platform_id`, `platform_kind`,
+`platform_name`, and `topology_basis`; and sorted runtime and platform topology
+edges by relationship type, source, target, evidence source, reason, and
+confidence. No other array was normalized, and the three differing pairs had no
+consumer-repository difference. Repository stories and service investigations
+were exact in all 20 pairs. Baseline and candidate payload ranges were
+identical: 55,440-236,498 bytes for service stories, 30,136-162,459 bytes for
+repository stories, and 4,392-15,182 bytes for investigations.
 
 The MCP sweep also used fresh HTTP connections and exact advertised argument
 keys. Service stories had 12 paired successes and eight paired
@@ -105,9 +110,10 @@ WHERE i.workload_id = $workload_id
 The retained backend was `eshu-nornicdb-pr261:149245885258`. The final
 exact-head raw-query gate ran 20 anonymous selectors with a balanced
 baseline-first/candidate-first crossover. Seventeen pairs were byte-exact and
-all 20 returned equal populated row and value sets after deterministic ordering.
-Median query time fell from 1.532882 seconds to 0.011875 seconds, about 129
-times faster.
+all 20 returned equal populated row and value sets after sorting only the row
+sequence by repository ID, workload ID, environment, and instance ID. Median
+query time fell from 1.532882 seconds to 0.011875 seconds, about 129 times
+faster.
 
 The earlier same-head theory proof also showed the expected shape before the
 full replay: a repository-first median of about 750 ms versus about 10 ms for
