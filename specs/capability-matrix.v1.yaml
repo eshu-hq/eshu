@@ -46,7 +46,7 @@ capabilities:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: none, verification: [{go_test: ./internal/query}], notes: requires active-generation parser dataflow facts; lightweight profile returns unsupported_capability}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}], notes: bounded exact_parser_fact read over parser-emitted dataflow_functions def-use rows}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}], notes: repo-anchored bounded read with explicit unsupported language, ambiguity, freshness, and truncation coverage}
-      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-code-flow-reaching-def}], notes: bounded exact parser fact read; no semantic provider key required}
+      production: {status: experimental, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: multi_repo_platform, verification: [{go_test: ./internal/query}], notes: query handler proven by go_test but the deployed runtime yields no positive result -- ESHU_EMIT_DATAFLOW is wired only into collector-git, not bootstrap-index/ingester, so coverage stays partial (deployed proof issue 5681, defect issue 5692); downgraded to experimental until reaching-def facts are produced in the runtime}
   - capability: code_flow.cfg_summary
     tools: [dispatch_cfg_summary, POST /api/v0/code/flow/cfg-summary]
     profiles:
@@ -102,7 +102,7 @@ capabilities:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: semantic facts only}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-argument-names}], notes: graph sidecar serves durable semantic facts}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 800, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: durable semantic facts}
-      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-argument-names}], notes: durable semantic facts}
+      production: {status: experimental, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: multi_repo_platform, verification: [{go_test: ./internal/query}], notes: query handler proven by go_test but the deployed readback returns incomplete argument facts (declared parameters are not preserved through the runtime projection -- deployed proof issue 5681); downgraded to experimental until the deployed route returns complete argument names}
   - capability: symbol_graph.class_methods
     tools: [execute_language_query, analyze_code_relationships]
     profiles:
@@ -116,7 +116,7 @@ capabilities:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: parser-derived imports}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-imports}], notes: graph sidecar serves durable semantic facts}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 800, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: durable semantic facts}
-      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-imports}], notes: durable semantic facts}
+      production: {status: experimental, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: multi_repo_platform, verification: [{go_test: ./internal/query}], notes: query handler proven by go_test but no parser emits the IMPORTS fact the graph writer needs, so the deployed graph has zero IMPORTS edges for any language (deployed proof issue 5681, defect issue 5691); downgraded to experimental until an imports producer exists}
   - capability: symbol_graph.import_dependencies
     tools: [investigate_import_dependencies]
     profiles:
@@ -130,7 +130,7 @@ capabilities:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 1000, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: semantic facts only}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-inheritance}], notes: graph sidecar serves durable semantic facts}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: durable semantic facts}
-      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-inheritance}], notes: durable semantic facts}
+      production: {status: experimental, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: multi_repo_platform, verification: [{go_test: ./internal/query}], notes: query handler proven by go_test but the declared deployed /code/relationships inheritance route returns empty for every edge (NornicDB defect where type(rel)/coalesce after an OPTIONAL MATCH yield literal text -- deployed proof issue 5681, defect issue 5694); downgraded to experimental until the declared route returns real INHERITS/OVERRIDES edges}
   - capability: code_quality.complexity
     tools: [calculate_cyclomatic_complexity, find_most_complex_functions]
     profiles:
