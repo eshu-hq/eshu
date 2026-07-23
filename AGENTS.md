@@ -190,6 +190,17 @@ fixture corpora or offline tooling.
   run `git restore <file>` against the uncommitted change, fetch, and
   re-apply the equivalent regeneration inside a worktree if the result
   is still needed.
+- MUST verify HEAD is on a named branch before every commit: `git symbolic-ref
+  -q HEAD` must succeed. A detached HEAD means a rebase, `checkout <sha>`, or
+  interrupted operation left the branch ref behind; committing there advances
+  nothing, so a later push silently omits the commit. Reattach
+  (`git switch <branch>` / `git rebase --continue`) before committing. After any
+  push, confirm the branch ref advanced — the pushed SHA equals local HEAD —
+  before opening or updating a PR.
+- MUST NOT auto-close issues by accident: never put closing keywords (`Fixes`,
+  `Closes`, `Resolves`, `Partial-closes`, etc.) in a commit message or PR body
+  unless that exact issue is meant to close on merge. Reference issues as
+  `#NNNN` without a closing keyword otherwise.
 - MUST follow Effective Go for Go, Google Python style for Python fixtures or
   tools, strict typing for TypeScript, HashiCorp Terraform practices, and Helm
   chart best practices.
@@ -439,6 +450,32 @@ git diff --check
 
 Docs, root agent files, and README changes require the docs build plus
 `git diff --check`.
+
+## Orchestration, PR, And CI Discipline
+
+These make the marathon multi-PR workflow reliable without re-prompting:
+
+- Prefer dispatching subagents/teams for substantive implementation, review, and
+  research rather than doing everything in one context. Match model capability to
+  task difficulty using the default tier map in
+  [Agent Orchestration Model](docs/internal/agent-orchestration.md#roles-models-and-tools)
+  (Deep / Workhorse / Fast, per harness; Kimi K3 always high). A subagent never
+  downgrades its own model.
+- Only the **orchestrator** runs `make pre-pr`, exactly once, immediately before
+  the intended push. Subagents/teams MUST NOT each run `make pre-pr` — the full
+  gate is expensive, and running it per-agent is wasted CPU. Subagents run only
+  the focused verification for their surface and paste it in the handoff.
+- Before claiming a PR merge-ready: the PR **title AND description** must both be
+  current for the final diff (a reworked approach needs a reworked title, not
+  just a body), and the description MUST include the before/after evidence the
+  change is proven by. Update these as the last step before the readiness claim.
+- When waiting on CI, treat a `gh pr checks` result as complete ONLY after **two
+  consecutive stable reads of the full check set** (`pending == 0` and the total
+  check count unchanged). GitHub registers large check sets in waves, so a single
+  `0-pending` read is a false "done"; never claim CI status or merge on it. State
+  the exact query used when reporting CI status, and reconcile the review-thread
+  API against the PR's displayed unresolved comments before declaring threads
+  clear.
 
 ## Pre-Ready Checklist
 
