@@ -1747,6 +1747,29 @@
         "from_label": "CloudResource",
         "to_label": "ContainerImage",
         "minimum_count": 1
+      },
+      {
+        "id": "rc-167",
+        "description": "At least one ContainerImage DERIVED_FROM another ContainerImage (issue #5460, docs/internal/design/5472-graph-projection-policy.md). The container-base-lineage fixture repo's Dockerfile pins its FINAL stage to ghcr.io/eshu-hq/base-runtime@sha256:ba5e0000000000000000000000000000000000000000000000000000000000ba while its k8s Deployment runs ghcr.io/eshu-hq/lineage-app@sha256:c41d0000000000000000000000000000000000000000000000000000000000cd; the ociregistry cassette observes an OciImageManifest for BOTH digests, so container_image_identity resolves the base and the built image as two exact_digest decisions anchored to the same fixture repository -- the base through BaseImageForRepositoryIDs (it is DECLARED by the repo, not built by it) and the child through SourceRepositoryIDs. That repository resolves to exactly one distinct base, so the conservative attribution admits it and ContainerImageIdentityHandler projects one DERIVED_FROM edge. The Dockerfile's builder stage deliberately uses a TAG base (golang:1.24) that is never observed as a manifest: it must not appear as runtime lineage, because a builder stage's OS packages do not ship in the final image. DERIVED_FROM is not a shared edge type today, but the assertion still isolates on evidence_kinds=[CONTAINER_IMAGE_DERIVED_FROM] so it can never be satisfied by a future domain adopting the same verb. Zero without the #5460 extraction path, since the Dockerfile base lives on a `file` fact (dockerfile_stages), which the container_image_identity fact filter did not admit and identity classification never consumed until #5460 added the `file` arm and extraction.",
+        "relationship": "DERIVED_FROM",
+        "from_label": "ContainerImage",
+        "to_label": "ContainerImage",
+        "minimum_count": 1,
+        "evidence_kinds": [
+          "CONTAINER_IMAGE_DERIVED_FROM"
+        ],
+        "required_edge_properties": [
+          "source_tool",
+          "attribution_basis"
+        ],
+        "allowed_edge_property_values": {
+          "source_tool": [
+            "oci"
+          ],
+          "attribution_basis": [
+            "repository_single_base"
+          ]
+        }
       }
     ],
     "required_nodes": [

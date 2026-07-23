@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: container-base-lineage
+  namespace: default
+  labels:
+    app: container-base-lineage
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: container-base-lineage
+  template:
+    metadata:
+      labels:
+        app: container-base-lineage
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/eshu-hq/lineage-app@sha256:c41d0000000000000000000000000000000000000000000000000000000000cd
+          ports:
+            - containerPort: 8080
