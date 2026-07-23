@@ -9,6 +9,12 @@
         "null"
       ]
     },
+    "commit_sha": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "evidence_class": {
       "type": [
         "string",
