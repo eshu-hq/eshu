@@ -487,7 +487,7 @@ log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # rc-165 isolates on evidence_kinds=[CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST] plus
 # a pinned source_tool=oci because BUILT_FROM is a shared edge type with the
 # #5428 reducer/ci-cd-run-correlation domain.
-# rc-166 (DERIVED_FROM) is issue #5460's base-image lineage projection. Unlike
+# rc-167 (DERIVED_FROM) is issue #5460's base-image lineage projection. Unlike
 # rc-164/rc-165 it is driven by a STATIC-PARSE fixture rather than a cassette
 # join: the container-base-lineage fixture's Dockerfile pins its final stage to
 # a digest the ociregistry cassette also observes, and its k8s Deployment runs a

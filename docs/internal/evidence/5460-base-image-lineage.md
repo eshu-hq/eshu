@@ -23,7 +23,7 @@ extraction and the identity fact filter to `content_entity`, where no fact ever
 carries `dockerfile_stages`, so every base was filtered out in SQL and the
 feature was inert end to end while every unit test — built on a hand-authored
 `content_entity` envelope that production never emits — stayed green. The gate's
-rc-166 `count=0` is what surfaced it.
+rc-167 `count=0` is what surfaced it.
 
 `ContainerImageIdentityDecision.BaseImageForRepositoryIDs` is the separation: a
 base is *declared by* a repository, never *built by* it, and the extraction path
@@ -175,7 +175,7 @@ exactly why a unit test could not have surfaced it and the live gate did.
 | Writer join shape | `TestProvenanceEdgeWriterWriteDerivedFromMatchesBothEndpointsByDigest` |
 | Retract dispatch | `TestProvenanceEdgeWriterRetractDerivedFromUsesSequentialExecuteNeverGroup` |
 | Blank-scope retract is a no-op | `TestProvenanceEdgeWriterDerivedFromEmptyInputsAreNoOps` |
-| End-to-end graph truth | B-12 `rc-166` |
+| End-to-end graph truth | B-12 `rc-167` |
 
 ## Observability
 
@@ -186,14 +186,14 @@ registered, so the telemetry contract, coverage doc, and operator dashboard are
 unchanged; the projection is visible through the same counter an operator
 already uses for provenance-edge volume, split by domain.
 
-## B-12 golden-corpus proof (rc-166)
+## B-12 golden-corpus proof (rc-167)
 
 The existing `BUILT_FROM` proof (`rc-165`) could not be extended to cover this.
 Its child image is anchored to `repository:r_69256c06`, which the `cicdrun`
 cassette declares but which has no fixture on disk — so there is no Dockerfile to
 pair with it.
 
-`rc-166` is therefore driven by a purpose-built `container-base-lineage` fixture
+`rc-167` is therefore driven by a purpose-built `container-base-lineage` fixture
 rather than by perturbing an existing one. Its Dockerfile pins the final stage to
 an observed digest and its Deployment runs a second observed digest, so the base
 and the built image resolve as two `exact_digest` decisions anchored to the same
@@ -206,7 +206,7 @@ The assertion pins `attribution_basis=repository_single_base` as well as
 `source_tool=oci`, so a later, more precise CI/SLSA attribution cannot silently
 satisfy an assertion written for Dockerfile-only inference. Since #4596 the gate
 single-sources its blocking set from the snapshot's own `required_correlations`
-ids, so `rc-166` is blocking on add with no second list to edit.
+ids, so `rc-167` is blocking on add with no second list to edit.
 
 ## Known gap (tracked, not silently carried)
 
