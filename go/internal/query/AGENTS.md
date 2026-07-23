@@ -592,6 +592,9 @@
 - **Directly importing `neo4jdriver` in handler files** — handler structs hold
   `GraphQuery`, not `neo4jdriver.DriverWithContext`. Only `neo4j.go`,
   `neo4j_read_policy.go`, and `wiring.go` should import the Neo4j driver.
+  `neo4j_read_policy.go` (added #5273) is the universal bounded-read policy and
+  is the only driver-import-allowed file added for graph-read deadlines; new
+  handler or query-layer code must route reads through it, not the driver.
 
 - **Adding public routes to `publicHTTPPaths` without review** — the map in
   `auth.go:10` bypasses bearer-token auth. Adding a data route here exposes it
