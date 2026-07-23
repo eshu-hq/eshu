@@ -228,6 +228,7 @@ func streamFacts(
 				generationID,
 				observedAt,
 				meta.RelativePath,
+				meta.CommitSHA,
 				bodyStr,
 			)
 			if !documentationPaths[meta.RelativePath] && emitGitDocumentationFactsForContentFile(
@@ -269,6 +270,7 @@ func streamFacts(
 				generationID,
 				observedAt,
 				fileSnapshot.RelativePath,
+				fileSnapshot.CommitSHA,
 				fileSnapshot.Body,
 			)
 			if !documentationPaths[fileSnapshot.RelativePath] && emitGitDocumentationFactsForContentFile(

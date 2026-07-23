@@ -22,6 +22,7 @@ func TestBuildStreamingGenerationEmitsWorkflowImageEvidence(t *testing.T) {
 		RepositorySnapshot{
 			ContentFiles: []ContentFileSnapshot{{
 				RelativePath: ".github/workflows/deploy.yml",
+				CommitSHA:    "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c",
 				Body: `name: deploy
 jobs:
   build:
@@ -74,6 +75,9 @@ jobs:
 	}
 	if got.Payload["evidence_class"] != "workflow_image_ref" {
 		t.Fatalf("evidence_class = %#v, want workflow_image_ref", got.Payload["evidence_class"])
+	}
+	if got.Payload["commit_sha"] != "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c" {
+		t.Fatalf("commit_sha = %#v, want the snapshot commit stamped for commit-scoped correlation (#5424)", got.Payload["commit_sha"])
 	}
 	if _, ok := got.Payload["command"]; ok {
 		t.Fatalf("payload contains raw command: %#v", got.Payload)

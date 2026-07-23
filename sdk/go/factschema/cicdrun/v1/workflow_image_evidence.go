@@ -31,6 +31,16 @@ type WorkflowImageEvidence struct {
 	// key.
 	WorkflowPath *string `json:"workflow_path,omitempty"`
 
+	// CommitSHA is the git commit the workflow file was extracted at (the
+	// scanned repository snapshot's commit). Optional and additive (#5424):
+	// the reducer's attachWorkflowImagesToRuns prefers a run whose own
+	// CommitSHA matches this value over the commit-blind repository-wide
+	// fan-out, so a workflow file declared on one branch does not lend a
+	// false-confident image correlation to a run built from another branch.
+	// A workflow-image fact from a collector that does not stamp the commit
+	// keeps the prior repository-wide fallback behavior.
+	CommitSHA *string `json:"commit_sha,omitempty"`
+
 	// CommandKind classifies the workflow command the evidence was extracted
 	// from (for example a `uses:` reusable-workflow reference or a `run:`
 	// shell command). Optional.

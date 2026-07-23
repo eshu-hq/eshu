@@ -5,41 +5,61 @@ package reducer
 
 // attachWorkflowImagesToRuns joins each already-decoded
 // ci.workflow_image_evidence (decodedCICDWorkflowImage, decoded once during
-// the build phase and never re-decoded here) to every run sharing the same
-// repository_id. A malformed workflow-image fact was already quarantined (or
-// fatally failed the intent) during that build-phase decode, so only
-// valid evidence reaches this function. A run whose own decoded RepositoryID
-// is empty (RepositoryID is optional on cicdrunv1.Run) never matches any
-// workflow image, matching pre-typing behavior where an empty repository_id
-// segment could not equal another empty segment because the comparison
-// already required a non-empty workflow-image repositoryID.
+// the build phase and never re-decoded here) to the runs sharing its
+// repository_id, preferring per run the workflow files whose extraction commit
+// matches the run's commit over the commit-blind repository-wide fallback
+// (#5424): a run takes the fallback set only when no workflow file matched its
+// commit, and workflowImagesCommitMatched then downgrades that run's
+// workflow-image correlation from exact to derived. A malformed workflow-image
+// fact was already quarantined (or fatally failed the intent) during the
+// build-phase decode, so only valid evidence reaches this function. A run whose
+// own decoded RepositoryID is empty (RepositoryID is optional on cicdrunv1.Run)
+// never matches any workflow image, matching pre-typing behavior where an empty
+// repository_id segment could not equal another empty segment because the
+// comparison already required a non-empty workflow-image repositoryID.
 func attachWorkflowImagesToRuns(runs map[string]*cicdRunEvidence, workflowImages []*decodedCICDWorkflowImage) {
 	if len(workflowImages) == 0 {
 		return
 	}
-	for _, workflowImage := range workflowImages {
-		// The evidence was decoded once during the build phase; read the
-		// cached typed value rather than re-decoding the envelope here.
-		// Trim both the workflow-image repository_id and the run's own
-		// repository_id before comparing, so the join matches byte-for-byte
-		// with the pre-migration payloadString path (both sides were trimmed
-		// there). A padded repository_id on either side must not miss the join.
-		repositoryID := trimmedCICDField(workflowImage.evidence.RepositoryID)
-		if repositoryID == "" {
+	// Iterate runs on the outer loop so each run keeps only the workflow-image
+	// evidence with the strongest match: a workflow file whose extraction
+	// commit equals the run's commit (commit-matched) is preferred over the
+	// commit-blind repository-wide fan-out (fallback). A run only takes the
+	// fallback set when no workflow file was extracted at its commit, so a file
+	// declared on another branch cannot lend a false-confident correlation
+	// (#5424). Trimming both sides preserves the pre-migration payloadString
+	// byte-parity a padded repository_id relied on.
+	for _, ev := range runs {
+		runRepositoryID := trimmedCICDPtr(ev.runDecoded.RepositoryID)
+		if runRepositoryID == "" {
 			continue
 		}
-		for _, ev := range runs {
-			if trimmedCICDPtr(ev.runDecoded.RepositoryID) != repositoryID {
+		runCommit := trimmedCICDPtr(ev.runDecoded.CommitSHA)
+		var commitMatched, fallback []*decodedCICDWorkflowImage
+		for _, workflowImage := range workflowImages {
+			if trimmedCICDField(workflowImage.evidence.RepositoryID) != runRepositoryID {
 				continue
 			}
-			ev.workflowImages = append(ev.workflowImages, workflowImage)
+			workflowCommit := trimmedCICDPtr(workflowImage.evidence.CommitSHA)
+			if runCommit != "" && workflowCommit != "" && runCommit == workflowCommit {
+				commitMatched = append(commitMatched, workflowImage)
+				continue
+			}
+			fallback = append(fallback, workflowImage)
 		}
+		if len(commitMatched) > 0 {
+			ev.workflowImages = commitMatched
+			ev.workflowImagesCommitMatched = true
+			continue
+		}
+		ev.workflowImages = fallback
 	}
 }
 
 func classifyCICDWorkflowImageEvidence(
 	decision CICDRunCorrelationDecision,
 	workflowImages []*decodedCICDWorkflowImage,
+	commitMatched bool,
 	imageIndex map[string][]cicdImageIdentity,
 ) (CICDRunCorrelationDecision, bool) {
 	for _, workflowImage := range workflowImages {
@@ -65,8 +85,17 @@ func classifyCICDWorkflowImageEvidence(
 			decision.CorrelationKind = "workflow_image"
 			return decision, true
 		case 1:
+			// A commit-matched workflow file is an exact, commit-scoped
+			// correlation; a repository-wide fallback (no workflow file extracted
+			// at this run's commit) is a real but lower-confidence correlation, so
+			// it lands as derived rather than exact and says so in the reason
+			// (#5424). Both still write the canonical container-image target.
 			decision.Outcome = CICDRunCorrelationExact
-			decision.Reason = "workflow image ref matches one container image identity row"
+			decision.Reason = "commit-matched workflow image ref matches one container image identity row"
+			if !commitMatched {
+				decision.Outcome = CICDRunCorrelationDerived
+				decision.Reason = "workflow image ref matches one container image identity row via repository-wide fallback (no commit-matched workflow file)"
+			}
 			decision.ProvenanceOnly = false
 			decision.CanonicalWrites = 1
 			decision.CanonicalTarget = "container_image"

@@ -230,6 +230,11 @@ type cicdRunEvidence struct {
 	triggers            []facts.Envelope
 	shellOnly           []facts.Envelope
 	workflowImages      []*decodedCICDWorkflowImage
+	// workflowImagesCommitMatched is true when workflowImages were attached
+	// because their extraction commit matched this run's commit, and false
+	// when they are the commit-blind repository-wide fallback. It downgrades a
+	// fallback workflow-image correlation from exact to derived (#5424).
+	workflowImagesCommitMatched bool
 }
 
 func ensureCICDRunEvidence(runs map[string]*cicdRunEvidence, key string) *cicdRunEvidence {
