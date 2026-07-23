@@ -103,4 +103,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// (k). This mirror list must follow that same filename order.
 	"fact_records_active_container_image_slsa_idx",
 	"kubernetes_live_pod_template_object_index",
+	// migration 076 (#5476 crossplane SATISFIED_BY cross-scope redrive state);
+	// sorts after the 075_* pair by filename.
+	"crossplane_satisfied_by_redrive_state",
 }
