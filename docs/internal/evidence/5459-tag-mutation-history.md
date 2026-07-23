@@ -67,9 +67,30 @@ validation, truncation plus `next_cursor`, the required
 tests) proves the MCP tool is registered, its schema advertises the required
 selector, `resolveRoute` composes the bounded query, and an end-to-end
 `dispatchTool` call through a real `query.TagHistoryHandler` returns the
-ordered `tag_history` rows under the canonical truth envelope. `go test
-./cmd/golden-corpus-gate ./internal/goldengate -count=1` and `go test
-./internal/graph -count=1` are unaffected (pass unchanged).
+ordered `tag_history` rows under the canonical truth envelope.
+
+This change adds an `oci_registry.image_tag_observation` cassette fact
+(`testdata/cassettes/ociregistry/supply-chain-demo.json`) and a
+`query_shapes.mcp["list_container_image_tag_history"]` assertion
+(`minimum_results: 1`, `first_observed_at` required) to the B-12 snapshot, so
+the golden-corpus gate is affected. `go test ./cmd/golden-corpus-gate
+./internal/goldengate -count=1` (126 tests) and `go test ./internal/graph
+-count=1` (102 tests) pass and validate the snapshot+cassette contract
+structurally (schema, per-tool coverage, snapshot parse, tool-count lockstep).
+The live assertion that the cassette fact projects a
+`ContainerImageTagObservation` node carrying `first_observed_at` and that the
+MCP tool returns it end-to-end (`minimum_results >= 1`) is the full
+`scripts/verify-golden-corpus-gate.sh` run. Local execution of that full gate
+is blocked by concurrent-session Docker Compose port contention: the gate
+publishes fixed host ports (`15432`/`7687`) through an explicit
+`-f docker-compose.yaml` and another local stack currently holds those ports,
+so it cannot be port-remapped without editing tracked gate/compose files or
+disrupting the concurrent stack. The live gate is therefore routed to CI, where
+the golden-corpus job runs on this PR and must be green before merge. The
+load-bearing, NornicDB-specific behavior this cassette exercises — the deferred
+set-once `first_observed_at` under out-of-order replay and concurrent writers —
+is separately proven live locally by `TestLiveOCITagFirstObservedProveTheory`
+(PASS on real NornicDB, see above).
 
 ## Observability Evidence
 
