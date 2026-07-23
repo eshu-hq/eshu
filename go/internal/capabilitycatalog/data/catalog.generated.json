@@ -3514,8 +3514,8 @@
     {
       "capability": "component_extensions.diagnostics",
       "display_name": "Component Extensions Diagnostics",
-      "maturity": "experimental",
-      "derived_maturity": "experimental",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
       "surfaces": [
         {
           "tool": "get_component_extension_diagnostics",
@@ -3545,7 +3545,7 @@
           "max_scope_size": "one_component"
         },
         "production": {
-          "status": "experimental",
+          "status": "supported",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services_component_registry",
           "p95_latency_ms": 500,
@@ -3556,6 +3556,10 @@
         {
           "kind": "go_test",
           "ref": "./internal/query"
+        },
+        {
+          "kind": "remote_validation",
+          "ref": "prod-component-extension-diagnostics"
         }
       ],
       "console": false,
@@ -3580,8 +3584,8 @@
     {
       "capability": "component_extensions.inventory",
       "display_name": "Component Extensions Inventory",
-      "maturity": "experimental",
-      "derived_maturity": "experimental",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
       "surfaces": [
         {
           "tool": "list_component_extensions",
@@ -3611,7 +3615,7 @@
           "max_scope_size": "bounded_local_component_registry_page_1_500"
         },
         "production": {
-          "status": "experimental",
+          "status": "supported",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services_component_registry",
           "p95_latency_ms": 500,
@@ -3622,6 +3626,10 @@
         {
           "kind": "go_test",
           "ref": "./internal/query"
+        },
+        {
+          "kind": "remote_validation",
+          "ref": "prod-component-extension-inventory"
         }
       ],
       "console": false,
