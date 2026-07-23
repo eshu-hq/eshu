@@ -88,15 +88,17 @@ func classifyContainerImageRef(
 	ref containerImageRefEvidence,
 	index containerImageRegistryIndex,
 ) ContainerImageIdentityDecision {
+	sourceRevision, sourceRevisionProvenance := resolveContainerImageSourceRevision(ref)
 	decision := ContainerImageIdentityDecision{
-		ImageRef:            ref.imageRef,
-		SourceRepositoryIDs: uniqueSortedStrings(ref.sourceRepositoryIDs),
-		SourceRevision:      ref.sourceRevision,
-		WorkloadIDs:         uniqueSortedStrings(ref.workloadIDs),
-		ServiceIDs:          uniqueSortedStrings(ref.serviceIDs),
-		Outcome:             ContainerImageIdentityUnresolved,
-		Reason:              "no registry digest observation matched the image reference",
-		EvidenceFactIDs:     uniqueSortedStrings(ref.factIDs),
+		ImageRef:                 ref.imageRef,
+		SourceRepositoryIDs:      uniqueSortedStrings(ref.sourceRepositoryIDs),
+		SourceRevision:           sourceRevision,
+		SourceRevisionProvenance: sourceRevisionProvenance,
+		WorkloadIDs:              uniqueSortedStrings(ref.workloadIDs),
+		ServiceIDs:               uniqueSortedStrings(ref.serviceIDs),
+		Outcome:                  ContainerImageIdentityUnresolved,
+		Reason:                   "no registry digest observation matched the image reference",
+		EvidenceFactIDs:          uniqueSortedStrings(ref.factIDs),
 	}
 	repositoryID := repositoryIDFromKey(ref.parsed.repositoryKey)
 	if ref.parsed.digest != "" {
@@ -287,6 +289,78 @@ func boolPayload(payload map[string]any, key string) bool {
 	}
 	typed, ok := value.(bool)
 	return ok && typed
+}
+
+// resolveContainerImageSourceRevision picks the image's OCI-config-label source
+// revision and its provenance tier. A digest-matched ci.run's commit is applied
+// later by applyCIRunDigestRevision (keyed by resolved digest) so it survives a
+// competing content_entity decision for the same image; this function only
+// covers the strongest, in-image-label tier (#5423).
+func resolveContainerImageSourceRevision(ref containerImageRefEvidence) (revision string, provenance string) {
+	if trimmed := strings.TrimSpace(ref.sourceRevision); trimmed != "" {
+		return trimmed, containerImageSourceRevisionOCIConfigLabel
+	}
+	return "", ""
+}
+
+// applyCIRunDigestRevision attaches a digest-matched ci.run's commit and source
+// repository to a resolved decision when no stronger OCI-config-label revision
+// is present. Because the ci.run evidence is keyed by the resolved digest rather
+// than the winning reference, the commit reaches whichever decision resolves the
+// digest — the ci.artifact's own bare-digest decision or a competing deploy
+// repo's content_entity decision that shares the same durable stable fact key.
+// Two runs claiming one digest with different commits (a rebuild) yield no
+// revision rather than an invented one (#5423).
+func applyCIRunDigestRevision(
+	decision *ContainerImageIdentityDecision,
+	byDigest map[string]ciRunDigestAnchor,
+) {
+	digest := strings.TrimSpace(decision.Digest)
+	if digest == "" {
+		return
+	}
+	anchor, ok := byDigest[digest]
+	if !ok {
+		return
+	}
+	if len(anchor.sourceRepositoryIDs) > 0 {
+		decision.SourceRepositoryIDs = uniqueSortedStrings(
+			append(decision.SourceRepositoryIDs, anchor.sourceRepositoryIDs...),
+		)
+	}
+	if len(anchor.factIDs) > 0 {
+		decision.EvidenceFactIDs = uniqueSortedStrings(
+			append(decision.EvidenceFactIDs, anchor.factIDs...),
+		)
+	}
+	if decision.SourceRevisionProvenance == containerImageSourceRevisionOCIConfigLabel {
+		return
+	}
+	if commit := singleContainerImageCIRunRevision(anchor.revisions); commit != "" {
+		decision.SourceRevision = commit
+		decision.SourceRevisionProvenance = containerImageSourceRevisionCIRunCommit
+	}
+}
+
+// singleContainerImageCIRunRevision returns the sole distinct non-blank commit
+// among a digest's matched ci.run revisions, or "" when none or more than one
+// distinct commit is present.
+func singleContainerImageCIRunRevision(revisions []string) string {
+	distinct := ""
+	for _, revision := range revisions {
+		trimmed := strings.TrimSpace(revision)
+		if trimmed == "" {
+			continue
+		}
+		if distinct == "" {
+			distinct = trimmed
+			continue
+		}
+		if trimmed != distinct {
+			return ""
+		}
+	}
+	return distinct
 }
 
 func firstNonBlank(values ...string) string {

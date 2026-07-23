@@ -1,0 +1,71 @@
+{
+  "collector": "ci_cd_run",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "ci_cd_run:github_actions:eshu-hq:supply-chain-demo",
+      "source_system": "ci_cd_run",
+      "scope_kind": "ci_cd_run",
+      "collector_kind": "ci_cd_run",
+      "partition_key": "ci_cd_run:github_actions:eshu-hq:supply-chain-demo",
+      "metadata": {
+        "provider": "github_actions",
+        "repository": "eshu-hq/supply-chain-demo"
+      },
+      "generation_id": "cassette-cicd-scd-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "ci.run",
+          "stable_fact_key": "ci_cd_run:github_actions:supply-chain-demo:run:5150",
+          "schema_version": "1.0.0",
+          "collector_kind": "ci_cd_run",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "cicd-collector-scd",
+            "provider": "github_actions",
+            "run_id": "5150",
+            "run_attempt": "1",
+            "run_number": "128",
+            "workflow_name": "release",
+            "event": "push",
+            "status": "completed",
+            "result": "success",
+            "branch": "main",
+            "commit_sha": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c",
+            "repository_id": "repository:r_69256c06",
+            "provider_repository_id": "github.com/eshu-hq/supply-chain-demo",
+            "repository_url": "https://github.com/eshu-hq/supply-chain-demo",
+            "correlation_anchors": [
+              "github_actions::5150"
+            ]
+          }
+        },
+        {
+          "fact_kind": "ci.artifact",
+          "stable_fact_key": "ci_cd_run:github_actions:supply-chain-demo:run:5150:artifact:image",
+          "schema_version": "1.0.0",
+          "collector_kind": "ci_cd_run",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "cicd-collector-scd",
+            "provider": "github_actions",
+            "run_id": "5150",
+            "run_attempt": "1",
+            "artifact_id": "art-image-5150",
+            "artifact_name": "supply-chain-demo-image",
+            "artifact_type": "container_image",
+            "artifact_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
+            "correlation_anchors": [
+              "github_actions::5150",
+              "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

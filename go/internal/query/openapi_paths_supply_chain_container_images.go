@@ -37,6 +37,7 @@ const openAPIPathsSupplyChainContainerImages = `
                           "repository_id": {"type": "string"},
                           "source_repository_ids": {"type": "array", "items": {"type": "string"}},
                           "source_revision": {"type": "string"},
+                          "source_revision_provenance": {"type": "string"},
                           "workload_ids": {"type": "array", "items": {"type": "string"}},
                           "service_ids": {"type": "array", "items": {"type": "string"}},
                           "outcome": {"type": "string"},

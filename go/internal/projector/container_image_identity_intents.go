@@ -26,6 +26,7 @@ var containerImageIdentityCandidateFactKinds = []string{
 	facts.AzureImageReferenceFactKind,
 	facts.GCPImageReferenceFactKind,
 	facts.AWSRelationshipFactKind,
+	facts.CICDArtifactFactKind,
 	"content_entity",
 }
 
@@ -68,6 +69,16 @@ func containerImageIdentityTriggerFact(envelope facts.Envelope) bool {
 			return false
 		}
 		return codegraphDerefString(relationship.TargetType) == "container_image"
+	case facts.CICDArtifactFactKind:
+		// A container-image artifact carries the digest that joins its run's
+		// commit to an OCI manifest. Triggering the identity intent for the CI
+		// scope is what lets the reducer co-load the scope-local ci.run/ci.artifact
+		// with the cross-scope active OCI manifest, so the #5423 commit-revision
+		// threading is reachable in production (the OCI collector writes its
+		// manifest in a different scope). Non-image artifacts (coverage reports,
+		// SBOM bundles) carry no image reference, so they must not trigger.
+		artifactType, _ := payloadString(envelope.Payload, "artifact_type")
+		return strings.TrimSpace(artifactType) == "container_image"
 	case "content_entity":
 		return len(containerImageRefsFromEntityMetadata(envelope.Payload)) > 0
 	default:

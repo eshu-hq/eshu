@@ -3444,7 +3444,7 @@
         "minimum_results": 0
       },
       "list_container_image_identities": {
-        "description": "MCP tool coverage shape for list_container_image_identities; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for list_container_image_identities; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5423 non-vacuous assertion: filtering on the ci.run's source git repository (repository:r_69256c06, github.com/eshu-hq/supply-chain-demo -- matched against the row's source_repository_ids) returns >=1 identity. That row exists only because the cicdrun cassette's container-image ci.artifact now triggers a CI-scope container_image_identity intent whose bare-digest ref (sha256:abcdef...ab) resolves against the unlabeled ociregistry manifest and carries the digest-matched run's source repository plus commit (source_revision_provenance=ci_run_commit). The count is provably zero on main: without the ci.artifact projector trigger no CI-scope decision exists, and OCI-only identity rows for this digest carry no git source repository.",
         "required_response_fields": [
           "collector_readiness",
           "count",
@@ -3452,9 +3452,9 @@
           "limit",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
         "arguments": {
-          "repository_id": "orders-api",
+          "source_repository_id": "repository:r_69256c06",
           "limit": 10
         }
       },

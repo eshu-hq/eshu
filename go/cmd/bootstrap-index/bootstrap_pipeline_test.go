@@ -195,6 +195,16 @@ func TestPipelinedBootstrapRunsDeferredBackfillWorkflow(t *testing.T) {
 	if got, want := committer.snapshotCalls(), []string{"backfill", "iac_reachability", "reopen", "reopen_code_import", "reopen_correlation", "enqueue_drift"}; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("workflow calls = %v, want %v", got, want)
 	}
+	// container_image_identity is replayed so a cross-scope ci.artifact -> OCI
+	// manifest join (and the #5423 ci_run_commit provenance) resolves once the
+	// OCI generation is active on a later maintenance pass.
+	if got, want := committer.reopenedDomains, []string{
+		"deployable_unit_correlation",
+		"kubernetes_correlation_materialization",
+		"container_image_identity",
+	}; fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("reopened domains = %v, want %v", got, want)
+	}
 	if got := sink.acked.Load(); got != 0 {
 		t.Fatalf("runPipelined() acked = %d, want 0", got)
 	}
