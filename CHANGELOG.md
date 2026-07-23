@@ -9,6 +9,37 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Route-fact-based Rails controller liveness
+
+- **Join the Rails controller dead-code-root verdict against real route facts**
+  ([#5494](https://github.com/eshu-hq/eshu/issues/5494), follow-up to
+  [#5376](https://github.com/eshu-hq/eshu/issues/5376)). The #5376 repo-wide
+  ancestry walk can confirm/downgrade a `ruby.rails_controller_action` root
+  only on whether its class extends a Rails controller base -- a routable
+  controller was always kept, even when no route in `config/routes.rb` ever
+  reached that specific action. The reducer's `BuildCodeRootVerdicts` now
+  additionally joins an ancestry-confirmed action against a repo-wide Rails
+  route-fact snapshot (`RubyRailsRouteFacts`) and downgrades it (reason
+  `route_unreachable`) only when the repo's route surface is exact-only
+  (no `resources`/`resource` DSL macro, and no unresolved namespaced `to:`
+  target, observed anywhere in the repo) and proven observed, and no
+  `route_entries` handler matches. Any other outcome -- no route data
+  observed, or an unmodeled/dynamic route present anywhere in the repo --
+  keeps, preserving the #5376 false-negative-safer bias. The Ruby parser
+  (`internal/parser/ruby/framework_routes_ambiguity.go`) now detects (without
+  expanding) `resources`/`resource` macros and unresolved `to:` targets and
+  stamps `framework_semantics.rails.has_unmodeled_routes` for that signal.
+  `CodeReachabilityVerdictSchemaEpoch` is bumped 1 -> 2 to force a one-time
+  re-projection of already-indexed repos (same #5376 P1 upgrade-backfill
+  mechanism), since an ancestry-confirmed verdict does not otherwise change
+  shape and would stay silently stale without the bump.
+  - Performance Evidence / No-Regression Evidence / Observability Evidence:
+    see `go/internal/reducer/evidence-5494-route-liveness.md` for the
+    EXPLAIN (ANALYZE, BUFFERS) proof of the new route-fact load (index-backed
+    via the existing `fact_records_framework_routes_repo_path_idx`), the
+    schema-epoch assessment, and the real-Postgres correctness proof across
+    the routed/unrouted/ambiguous/no-data cases.
+
 ### Contract System v1 — reducer accuracy fixes
 
 - **Reject blank `ci.run` `run_id` before indexing an image anchor**
