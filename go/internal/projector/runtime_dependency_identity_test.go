@@ -136,3 +136,77 @@ func TestBuildContentEntityRecordUsesEntityIDVerbatimWhenPresent(t *testing.T) {
 		t.Fatalf("record.EntityID = %q, want collector-minted id %q used verbatim", record.EntityID, collectorMintedID)
 	}
 }
+
+// TestBuildContentEntityRecordDependencyFallbackMatchesShapeMintForDiscriminatedFormat
+// extends the #5357 two-site lockstep proof to a #5507 format that carries a
+// package-manager-specific identity discriminator (maven's classifier/type):
+// the projector's no-entity_id fallback and shape.Materialize's per-file mint
+// must still agree once the discriminator is folded in, not just for the
+// discriminator-less npm/composer case above.
+func TestBuildContentEntityRecordDependencyFallbackMatchesShapeMintForDiscriminatedFormat(t *testing.T) {
+	t.Parallel()
+
+	const (
+		repoID     = "repository:r_12345678"
+		path       = "pom.xml"
+		name       = "io.netty:netty-tcnative-boringssl-static"
+		section    = "dependencies"
+		classifier = "linux-x86_64"
+		line       = 10
+	)
+
+	dependencyMetadata := map[string]any{
+		"section":               section,
+		"config_kind":           "dependency",
+		"package_manager":       "maven",
+		"lang":                  "maven",
+		"dependency_classifier": classifier,
+	}
+
+	materialized, err := shape.Materialize(shape.Input{
+		RepoID: repoID,
+		Files: []shape.File{
+			{
+				Path: path,
+				Body: "<project></project>",
+				EntityBuckets: map[string][]shape.Entity{
+					"variables": {
+						{Name: name, LineNumber: line, Metadata: dependencyMetadata},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("shape.Materialize() error = %v, want nil", err)
+	}
+	if len(materialized.Entities) != 1 {
+		t.Fatalf("len(shape.Materialize().Entities) = %d, want 1", len(materialized.Entities))
+	}
+	mintedID := materialized.Entities[0].EntityID
+
+	fact := facts.Envelope{
+		FactID:   "fact-dep-maven-no-entity-id",
+		FactKind: "content_entity",
+		Payload: map[string]any{
+			"content_path":    path,
+			"entity_type":     "Variable",
+			"entity_name":     name,
+			"start_line":      float64(line),
+			"entity_metadata": dependencyMetadata,
+		},
+	}
+
+	record, ok := buildContentEntityRecord(repoID, fact)
+	if !ok {
+		t.Fatalf("buildContentEntityRecord() ok = false, want true")
+	}
+
+	if record.EntityID != mintedID {
+		t.Fatalf("buildContentEntityRecord() fallback entity_id = %q, want shape.Materialize's minted id %q (two-site divergence on a discriminated format)", record.EntityID, mintedID)
+	}
+
+	if legacy := content.CanonicalEntityID(repoID, path, "Variable", name, line); record.EntityID == legacy {
+		t.Fatalf("agreed entity_id = %q unexpectedly matched legacy CanonicalEntityID()", record.EntityID)
+	}
+}
