@@ -2384,7 +2384,7 @@
         }
       },
       "list_aws_runtime_drift_findings": {
-        "description": "MCP tool coverage shape for list_aws_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for list_aws_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5453 non-vacuous assertion: scope_id is aws:123456789012:us-east-1:ec2 -- the AWS EC2 collector scope reducer_aws_cloud_runtime_drift_finding rows for this instance actually write under (this route reads the SAME fact kind list_cloud_runtime_drift_findings's sibling assertion above documents; IaCManagementStore.ListUnmanagedCloudResources is a second read-projection over reducer_aws_cloud_runtime_drift_finding, not a separate reducer domain). See that sibling entry for the fixture-surgery detail (ARN re-key plus the terraform_comprehensive config-owner resolution) proving image_version_drift materializes for this ARN. minimum_results is 1 -- proven by a live golden-corpus-gate run, not shape-only.",
         "required_response_fields": [
           "account_id",
           "analysis_status",
@@ -2405,9 +2405,15 @@
           "truncated",
           "truth_basis"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "required_json_values": {
+          "drift_findings[].finding_kind": "image_version_drift",
+          "drift_findings[].drifted_attributes[].attribute": "ami",
+          "drift_findings[].drifted_attributes[].declared_value": "ami-0123456789abcdef0",
+          "drift_findings[].drifted_attributes[].observed_value": "ami-000000000000000a"
+        },
         "arguments": {
-          "scope_id": "supply-chain-demo",
+          "scope_id": "aws:123456789012:us-east-1:ec2",
           "limit": 10
         }
       },
@@ -3257,15 +3263,21 @@
         "minimum_results": 1
       },
       "list_cloud_runtime_drift_findings": {
-        "description": "MCP tool coverage shape for list_cloud_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for list_cloud_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5453 non-vacuous assertion: scope_id is aws:123456789012:us-east-1:ec2 -- the AWS EC2 collector scope reducer_multi_cloud_runtime_drift_finding rows for this instance actually write under, NOT the repo-name alias 'supply-chain-demo' the pre-#5453 shape-only version of this entry used (that scope_id never matches any fact.scope_id and always returned zero rows). The awscloud supply-chain-demo cassette's sole EC2 instance (i-000000000000000a, observed ami-000000000000000a) and the terraformstate cassette's aws_instance.supply-chain-demo state resource (issue #5453 fixture surgery: re-keyed onto the SAME arn as the observed instance, declared ami-0123456789abcdef0) now join by ARN, and the tests/fixtures/ecosystems/terraform_comprehensive/main.tf aws_instance.supply-chain-demo config resource (address- and ami/instance_type-matched to the state resource) resolves the Terraform CONFIG owner Classify requires before it will ever compare AMI values -- without a resolved config layer the row classifies unknown_cloud_resource, not image_version_drift. minimum_results is 1 -- proven by a live golden-corpus-gate run, not shape-only.",
         "required_response_fields": [
           "drift_findings",
           "findings_count",
           "total_findings_count"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "required_json_values": {
+          "drift_findings[].finding_kind": "image_version_drift",
+          "drift_findings[].drifted_attributes[].attribute": "ami",
+          "drift_findings[].drifted_attributes[].declared_value": "ami-0123456789abcdef0",
+          "drift_findings[].drifted_attributes[].observed_value": "ami-000000000000000a"
+        },
         "arguments": {
-          "scope_id": "supply-chain-demo",
+          "scope_id": "aws:123456789012:us-east-1:ec2",
           "limit": 10
         }
       },
