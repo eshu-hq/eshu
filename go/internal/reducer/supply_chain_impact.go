@@ -399,6 +399,21 @@ func supplyChainImpactFindingHasUnsupportedMatcher(finding SupplyChainImpactFind
 	return normalizedSupplyChainVersionEcosystem(finding.Ecosystem) != "os"
 }
 
+// supplyChainImpactFactKinds is the set of fact kinds loaded from the intent's
+// OWN scope/generation via loadFactsForKinds. It intentionally OMITS
+// facts.VulnerabilityOSPackageFactKind and facts.ScannerWorkerAnalysisFactKind
+// even though both feed supply-chain-impact classification: neither lives in
+// the intent's vulnerability-intelligence scope, so listing them here would
+// query the wrong scope and return nothing. They are loaded cross-scope by two
+// dedicated stages in loadSupplyChainImpactEvidence instead —
+// loadSupplyChainImpactOSPackageAdvisoryFacts pulls vulnerability.os_package by
+// ecosystem through the advisory-target reader (#5705/#5463), and
+// loadSupplyChainImpactScannerAnalysisScopeFacts then loads each os_package's
+// sibling scanner_worker.analysis from that package's OWN scan scope to stamp
+// SubjectDigest (#5463). Adding either kind here is the tempting-but-wrong fix
+// flagged in review: it cannot reach a cross-scope fact. The end-to-end path is
+// proven by TestSupplyChainImpactHandlerLoadsScannerAnalysisFromOSPackageScanScope
+// and the golden-corpus list_supply_chain_impact_findings floor (CVE-2026-00010).
 func supplyChainImpactFactKinds() []string {
 	return []string{
 		facts.VulnerabilityCVEFactKind,
