@@ -113,7 +113,7 @@ tool from silently bypassing the inventory.
 The generated inventory is exhaustive for current OpenAPI and MCP registry
 names; the probe manifest adds five directly registered HTTP surfaces that are
 not all represented in OpenAPI. The checked-in `graph-read-probe` registry
-classifies all 415 unique identities. Safe read/validation request shapes are
+classifies all 417 unique identities. Safe read/validation request shapes are
 derived from current OpenAPI parameters/bodies and MCP input schemas, with
 explicit overrides for the eight surfaces added since the recovered run.
 Mutation-only routes are `execute=false` with a route-specific safety reason;
@@ -147,7 +147,7 @@ current exact-head remote run has occurred.
 The recovered historical exhaustive harness enumerated 248 HTTP routes and
 159 MCP tools (407 targets) on an older commit. Its retained rows contain local
 identifiers and stack metadata and are not copied into this repository. The
-current code-derived manifest contains 415 unique targets (the current OpenAPI
+current code-derived manifest contains 417 unique targets (the current OpenAPI
 and MCP registries plus five directly registered HTTP surfaces). Registry tests
 prove identity deduplication, classification completeness, redaction, auth
 posture, and mutation safety. A current remote sweep has not been run, so this

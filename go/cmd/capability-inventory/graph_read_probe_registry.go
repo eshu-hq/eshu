@@ -371,7 +371,7 @@ func selectorClass(name string) string {
 		"advisory_id": "finding_id", "since_generation_id": "generation_id", "name": "service_name",
 		"path": "relative_path", "source": "entity_id", "start": "entity_id", "symbol": "entity_id",
 		"changed_paths": "relative_path",
-		"ingester":      "collector_family", "tag": "tag",
+		"ingester":      "collector_family", "tag": "tag", "oci_repository_id": "oci_repository_id",
 	}
 	if class, ok := aliases[name]; ok {
 		return class
@@ -438,10 +438,14 @@ func applyMappedDeltaFixtures(registry []graphReadProbe) {
 		case "mcp:list_terraform_config_state_drift_findings":
 			probe.arguments = map[string]any{"scope_id": selector("scope_id"), "limit": 1, "offset": 0}
 		case "api:GET /api/v0/images/tag-history":
-			probe.query = map[string]any{"repository_id": selector("repository_id"), "tag": selector("tag"), "limit": 1}
+			// repository_id here must be the oci-registry://-shaped class, not
+			// the discovered git-shaped "repository_id": TagHistoryHandler
+			// requires the oci-registry:// prefix and 400s otherwise (see
+			// go/internal/query/tag_history.go composeOCIImageRef).
+			probe.query = map[string]any{"repository_id": selector("oci_repository_id"), "tag": selector("tag"), "limit": 1}
 		case "mcp:list_container_image_tag_history":
 			probe.arguments = map[string]any{
-				"repository_id": selector("repository_id"), "tag": selector("tag"), "limit": 1, "offset": 0,
+				"repository_id": selector("oci_repository_id"), "tag": selector("tag"), "limit": 1, "offset": 0,
 			}
 		}
 	}

@@ -28,6 +28,15 @@ func discoverProbeSelectors(client *http.Client, apiBaseURL, userToken string) (
 		// (a common branch name, a common language) rather than inventing a
 		// discovery call for data that a default deployment does not have.
 		"tag": "latest",
+		// oci_repository_id has no bounded live-discovery source either, and it
+		// is NOT interchangeable with the discovered "repository_id" class: the
+		// repository-list endpoint discovers a git-shaped identity
+		// (repository:r_<hash>), but TagHistoryHandler.listTagHistory
+		// (go/internal/query/tag_history.go) requires an oci-registry://-shaped
+		// id via composeOCIImageRef and returns HTTP 400 otherwise. The static
+		// default below mirrors the same fixture value already used by
+		// go/internal/query/tag_history_test.go for a valid oci-registry:// id.
+		"oci_repository_id": "oci-registry://ghcr.io/eshu-hq/demo",
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()

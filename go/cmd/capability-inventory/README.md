@@ -122,7 +122,7 @@ go run ./cmd/capability-inventory -mode graph-read-probe
   ceiling and never requires a human to hand-edit the file.
 - `graph-read-probe` derives the complete current API/MCP name set from the
   served OpenAPI and MCP registries plus the five known directly registered
-  HTTP surfaces. Its checked-in registry classifies all 415 unique identities:
+  HTTP surfaces. Its checked-in registry classifies all 417 unique identities:
   safe read/validation fixtures are synthesized from current OpenAPI and MCP
   schemas, while mutation-only routes carry `execute=false` and a specific
   safety reason. Before execution it performs a bounded repository inventory

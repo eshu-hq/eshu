@@ -4,14 +4,18 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -184,7 +188,7 @@ func TestCurrentProbeRegistryIsRedactedAndClassifiesMappedDelta(t *testing.T) {
 		"entity_id": {}, "cloud_resource_id": {}, "arn": {}, "search_term": {}, "relative_path": {}, "scope_id": {},
 		"generation_id": {}, "terraform_state_scope": {}, "package_id": {}, "fact_kind": {}, "collector_family": {},
 		"component_id": {}, "finding_id": {}, "packet_id": {}, "incident_id": {}, "relationship_id": {},
-		"workflow_id": {}, "playbook_id": {}, "tag": {},
+		"workflow_id": {}, "playbook_id": {}, "tag": {}, "oci_repository_id": {},
 	}
 	unknownSelectors := map[string]struct{}{}
 	for _, match := range regexp.MustCompile(`\{\{selector:([^}]+)}}`).FindAllStringSubmatch(text, -1) {
@@ -332,6 +336,7 @@ func TestCurrentProbeRegistryResolvesEveryExecutableFixture(t *testing.T) {
 		"fact_kind": "repository", "collector_family": "repository", "component_id": "component-fixture",
 		"finding_id": "finding-fixture", "packet_id": "packet-fixture", "relationship_id": "relationship-fixture",
 		"workflow_id": "workflow-fixture", "playbook_id": "playbook-fixture", "tag": "tag-fixture",
+		"oci_repository_id": "oci-registry://ghcr.io/eshu-hq/demo",
 	}
 	classified := 0
 	for _, probe := range registry {
@@ -355,5 +360,71 @@ func TestRunGraphReadProbeFailsClosedOnUnsupportedSurface(t *testing.T) {
 	err := runGraphReadProbe(&strings.Builder{}, server.Client(), server.URL, server.URL, "user", "admin")
 	if err == nil || !strings.Contains(err.Error(), "bounded selector discovery HTTP status 404") {
 		t.Fatalf("runGraphReadProbe() error = %v, want explicit selector-discovery failure", err)
+	}
+}
+
+// probeFixtureGraphReader is a minimal query.GraphQuery fake used only to let
+// the real TagHistoryHandler reach its success path; it asserts nothing about
+// query.GraphQuery is required to correctly reject/accept repository_id
+// shape, which happens before Run is ever called.
+type probeFixtureGraphReader struct{}
+
+func (probeFixtureGraphReader) Run(context.Context, string, map[string]any) ([]map[string]any, error) {
+	return nil, nil
+}
+
+func (probeFixtureGraphReader) RunSingle(context.Context, string, map[string]any) (map[string]any, error) {
+	return nil, nil
+}
+
+// TestGraphReadProbeTagHistoryFixtureMatchesRealHandlerContract mounts the
+// actual query.TagHistoryHandler -- not a generic always-200 stub -- to prove
+// the tag-history probe fixture satisfies the real repository_id contract.
+//
+// go/internal/query/tag_history.go composeOCIImageRef requires repository_id
+// to carry the oci-registry:// prefix and 400s otherwise (proven here on a
+// git-shaped id, the same shape the "repository_id" selector class discovers
+// from GET /api/v0/repositories). The checked-in fixture must instead resolve
+// through the dedicated "oci_repository_id" selector class so it is accepted.
+func TestGraphReadProbeTagHistoryFixtureMatchesRealHandlerContract(t *testing.T) {
+	registry, err := buildCurrentProbeRegistry()
+	if err != nil {
+		t.Fatalf("buildCurrentProbeRegistry() error = %v", err)
+	}
+	probe := requireProbeIdentity(t, registry, "api:GET /api/v0/images/tag-history")
+
+	handler := &query.TagHistoryHandler{Neo4j: probeFixtureGraphReader{}, Profile: query.ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	// RED: the git-shaped repository_id the discovered "repository_id"
+	// selector class would have supplied (what the fixture sent before this
+	// fix) is rejected by the real handler.
+	gitShaped := httptest.NewRecorder()
+	mux.ServeHTTP(gitShaped, httptest.NewRequest(
+		http.MethodGet, "/api/v0/images/tag-history?repository_id=repository%3Ar_fixture&tag=latest&limit=1", nil,
+	))
+	if got, want := gitShaped.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("git-shaped repository_id status = %d, want %d (the old fixture shape must still 400); body = %s",
+			got, want, gitShaped.Body.String())
+	}
+
+	// GREEN: the checked-in fixture, resolved through the real
+	// oci_repository_id selector, is accepted by the real handler.
+	selectors := map[string]string{
+		"oci_repository_id": "oci-registry://ghcr.io/eshu-hq/demo", "tag": "latest",
+	}
+	resolved, err := resolveProbeSelectors(probe, selectors)
+	if err != nil {
+		t.Fatalf("resolveProbeSelectors() error = %v", err)
+	}
+	values := url.Values{}
+	for name, value := range resolved.query {
+		values.Set(name, fmt.Sprint(value))
+	}
+	fixture := httptest.NewRecorder()
+	mux.ServeHTTP(fixture, httptest.NewRequest(http.MethodGet, resolved.path+"?"+values.Encode(), nil))
+	if got, want := fixture.Code, http.StatusOK; got != want {
+		t.Fatalf("resolved tag-history fixture status = %d, want %d; body = %s", got, want, fixture.Body.String())
 	}
 }
