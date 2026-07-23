@@ -4,8 +4,14 @@
 package main
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/eshu-hq/eshu/go/internal/graphowner"
+	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 type canonicalGraphWriters struct {
@@ -110,4 +116,71 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.Po
 		),
 		provenanceEdge: sourcecypher.NewProvenanceEdgeWriter(exec, batchSize),
 	}
+}
+
+// seedReducerProjectedSourceLedgers runs buildReducerService's three one-time,
+// idempotent startup backfills that seed the projected-edge/-node ledgers from
+// existing graph state, so each ledger is a superset of the graph at deploy
+// time. Extracted out of buildReducerService (go/cmd/reducer/main.go) to keep
+// that file under the repo's file-size budget; it is grouped here alongside
+// the canonical graph writer construction it feeds (the AWS/Azure/GCP
+// relationship, observability-coverage, and security-group-reachability
+// materialization handlers wired from canonicalGraphWriters all read this
+// backfill's ProjectedSourceLedger before their first post-deploy retract).
+//
+//   - The TAINT_FLOWS_TO interproc-edge ledger and the CodeTaintEvidence
+//     node ledger share one StateMarker and must run in that order (mirrors
+//     the interproc edge backfill).
+//   - The projected-source-edge ledger (AWS/Azure/GCP relationship,
+//     observability-coverage, and security-group-reachability evidence) is
+//     returned so the caller can reuse the SAME store instance as
+//     reducer.DefaultHandlers.ProjectedSourceLedger — one store serves both
+//     this backfill and the runtime handlers.
+//
+// Each backfiller runs against context.Background(), not a caller-supplied
+// context, matching this startup sequence's pre-existing behavior: it must
+// complete before the reducer service begins serving work, independent of any
+// request-scoped deadline the caller may be operating under.
+func seedReducerProjectedSourceLedgers(database postgres.ExecQueryer, graphReader query.GraphQuery) (postgres.ProjectedSourceEdgeStore, error) {
+	backfillStateMarker := postgres.NewCodeValueFlowBackfillStateStore(database)
+	backfiller := reducer.CodeInterprocProjectedEdgeBackfiller{
+		Reader:      reducer.CodeInterprocProjectedEdgeBackfillReader{Graph: graphReader},
+		Ledger:      postgres.NewCodeInterprocProjectedEdgeStore(database),
+		StateMarker: backfillStateMarker,
+		EvidenceSources: []string{
+			reducer.CodeInterprocEvidenceSource(),
+			reducer.CodeInterprocFixpointEvidenceSource(),
+		},
+	}
+	if err := backfiller.Run(context.Background()); err != nil {
+		return postgres.ProjectedSourceEdgeStore{}, fmt.Errorf("code interproc projected edge backfill: %w", err)
+	}
+	taintNodeBackfiller := reducer.CodeTaintEvidenceProjectedNodeBackfiller{
+		Reader:      reducer.CodeTaintEvidenceProjectedNodeBackfillReader{Graph: graphReader},
+		Ledger:      postgres.NewCodeTaintEvidenceProjectedNodeStore(database),
+		StateMarker: backfillStateMarker,
+		EvidenceSources: []string{
+			reducer.CodeTaintEvidenceSource(),
+		},
+	}
+	if err := taintNodeBackfiller.Run(context.Background()); err != nil {
+		return postgres.ProjectedSourceEdgeStore{}, fmt.Errorf("code taint evidence projected node backfill: %w", err)
+	}
+	projectedSourceEdgeStore := postgres.NewProjectedSourceEdgeStore(database)
+	projectedSourceEdgeBackfiller := reducer.ProjectedSourceEdgeBackfiller{
+		Reader:      reducer.ProjectedSourceEdgeBackfillReader{Graph: graphReader},
+		Ledger:      projectedSourceEdgeStore,
+		StateMarker: backfillStateMarker,
+		EvidenceSources: []string{
+			reducer.AWSRelationshipEvidenceSource(),
+			reducer.AzureRelationshipEvidenceSource(),
+			reducer.GCPRelationshipEvidenceSource(),
+			reducer.ObservabilityCoverageEvidenceSource(),
+			reducer.SecurityGroupReachabilityEvidenceSource(),
+		},
+	}
+	if err := projectedSourceEdgeBackfiller.Run(context.Background()); err != nil {
+		return postgres.ProjectedSourceEdgeStore{}, fmt.Errorf("projected source edge backfill: %w", err)
+	}
+	return projectedSourceEdgeStore, nil
 }
