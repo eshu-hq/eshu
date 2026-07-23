@@ -38,6 +38,14 @@ type Instance struct {
 	SubnetID     string
 	VPCID        string
 
+	// ImageID is the AMI (ImageId) the instance was launched from, read from
+	// the same DescribeInstances entry as every other field on this struct (no
+	// additional AWS API call). It backs the #5448 EC2 instance identity
+	// aws_resource fact and the instance->AMI relationship; it is never read
+	// by the ec2_instance_posture fact or its CloudResource node
+	// materialization.
+	ImageID string
+
 	// IMDS settings.
 	IMDSv2Required          *bool
 	HTTPEndpoint            string

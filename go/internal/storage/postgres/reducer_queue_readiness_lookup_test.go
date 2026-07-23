@@ -100,6 +100,7 @@ func TestReducerClaimReadinessRequirementsCoverMultiPhaseDomains(t *testing.T) {
 		"security_group_endpoint_uid",
 		"ec2_instance_node_materialization:",
 		"aws_resource_materialization:",
+		"ec2_instance_identity_materialization",
 	} {
 		if !strings.Contains(requirements, want) {
 			t.Fatalf("readiness requirements missing %q:\n%s", want, requirements)

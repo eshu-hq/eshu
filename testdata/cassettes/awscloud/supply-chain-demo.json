@@ -3,6 +3,87 @@
   "schema_version": "1",
   "scopes": [
     {
+      "scope_id": "aws:123456789012:us-east-1:ec2",
+      "source_system": "aws",
+      "scope_kind": "region",
+      "collector_kind": "aws",
+      "partition_key": "aws:123456789012:us-east-1:ec2",
+      "metadata": {
+        "account_id": "123456789012",
+        "region": "us-east-1",
+        "service_kind": "ec2"
+      },
+      "generation_id": "cassette-aws-ec2-scd-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "ec2_instance_posture",
+          "stable_fact_key": "aws:123456789012:us-east-1:ec2:instance-posture:i-000000000000000a",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "instance_id": "i-000000000000000a",
+            "arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
+            "state": "running",
+            "service_kind": "ec2",
+            "imds_v2_required": true,
+            "detailed_monitoring_enabled": false,
+            "ebs_optimized": true,
+            "public_ip_associated": false,
+            "tenancy": "default",
+            "nitro_enclave_enabled": false
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:ec2:instance:i-000000000000000a",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
+            "resource_id": "i-000000000000000a",
+            "resource_type": "aws_ec2_instance",
+            "name": "i-000000000000000a",
+            "state": "running",
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "service_kind": "ec2",
+            "correlation_anchors": [
+              "i-000000000000000a",
+              "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a"
+            ],
+            "attributes": {
+              "ami_id": "ami-000000000000000a"
+            }
+          }
+        },
+        {
+          "fact_kind": "aws_relationship",
+          "stable_fact_key": "aws:123456789012:us-east-1:ec2:instance:i-000000000000000a#ami#ami-000000000000000a",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "relationship_type": "ec2_instance_uses_ami",
+            "source_resource_id": "i-000000000000000a",
+            "source_arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
+            "target_resource_id": "ami-000000000000000a",
+            "target_type": "aws_ec2_ami"
+          }
+        }
+      ]
+    },
+    {
       "scope_id": "aws:123456789012:us-east-1:ecr",
       "source_system": "aws",
       "scope_kind": "region",

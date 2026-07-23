@@ -3610,6 +3610,11 @@
     },
     {
       "category": "reducer_domain",
+      "name": "ec2_instance_identity_materialization",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
       "name": "ec2_instance_node_materialization",
       "readiness": "implemented"
     },

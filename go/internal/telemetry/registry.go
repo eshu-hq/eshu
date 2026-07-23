@@ -94,6 +94,7 @@ var spanNames = []string{
 	SpanReducerIAMCanAssumeMaterialization,
 	SpanReducerS3LogsToMaterialization,
 	SpanReducerRDSPostureMaterialization,
+	SpanReducerEC2InstanceIdentityMaterialization,
 	SpanReducerEC2UsesProfileMaterialization,
 	SpanReducerIAMInstanceProfileRoleMaterialization,
 	SpanReducerEC2InternetExposureMaterialization,

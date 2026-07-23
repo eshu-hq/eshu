@@ -322,6 +322,7 @@ locks the two together.
 | `DomainS3LogsToMaterialization` | Project `s3_bucket_posture` `logging_target_bucket` fields into canonical `(:CloudResource)-[:LOGS_TO]->(:CloudResource)` edges from a source S3 bucket to the target log bucket it delivers server-access logs to; resolves the target by bucket-name equality against an in-memory S3 join index; gates on the `cloud_resource_uid` canonical-nodes phase (the same gate `aws_relationship_materialization` uses); a blank target (logging disabled) is no edge and not a skip; a self-target (bucket logging to itself) is a legal config and DOES emit an edge; cross-account / out-of-scope / unscanned targets are counted, never fabricated or dangled (issue #1144 PR2); see `docs/internal/design/1144-s3-logs-to-edge.md` |
 | `DomainS3ExternalPrincipalGrantMaterialization` | Project metadata-only `s3_external_principal_grant` facts into canonical `(:CloudResource)-[:GRANTS_ACCESS_TO]->(:ExternalPrincipal)` graph truth; resolves the source bucket by bucket-name equality against the same S3 in-memory join index, gates on the `cloud_resource_uid` canonical-nodes phase, creates only bounded `ExternalPrincipal` identities keyed by principal kind/value, skips unsupported or unresolved grants with tallies, never creates S3 `CloudResource` nodes, and never propagates raw bucket policy, statement, ACL, condition, action, resource, or object data (issue #1231); see `docs/internal/design/1231-s3-external-principal-grant-projection.md` |
 | `DomainRDSPostureMaterialization` | Project `rds_instance_posture` security/operations posture onto existing RDS DB instance and Aurora cluster `CloudResource` nodes; gates on the `cloud_resource_uid` canonical-nodes phase, writes only reducer-owned posture properties, never creates RDS nodes, and leaves KMS/security-group/subnet-group/IAM/parameter/option dependency edges to generic `aws_relationship_materialization` (issue #1233) |
+| `DomainEC2InstanceIdentityMaterialization` | Project the `aws_ec2_instance` `aws_resource` identity fact's `ami_id` onto the EC2 instance `CloudResource` node `DomainEC2InstanceNodeMaterialization` already created; gates on the EC2 instance-node `cloud_resource_uid` canonical-nodes phase (`ec2_instance_node_materialization:<scope>`), NOT the generic `aws_resource_materialization:<scope>` phase RDS posture reuses; writes only the disjoint `ami_id`/`ec2_identity_*` properties (never the base identity/posture fields), never creates a node, and its `RetractEC2InstanceIdentityNodes` REMOVEs only its own namespaced properties; the generic `DomainAWSResourceMaterialization`'s `cloudResourceNodeRow` explicitly excludes `aws_ec2_instance` so the two domains never race over the same property (issue #5448) |
 | `DomainEC2UsesProfileMaterialization` | Project `ec2_instance_posture` `instance_profile_arn` into canonical `(:CloudResource)-[:USES_PROFILE]->(:CloudResource)` edges from an EC2 instance to the IAM instance profile it uses; derives the source EC2 instance uid the same way `DomainEC2InstanceNodeMaterialization` does (#1146 PR-A) and resolves the target profile by exact ARN equality against an in-memory `aws_iam_instance_profile` join index; gates on a DUAL `cloud_resource_uid` canonical-nodes readiness — the EC2 instance node phase (`ec2_instance_node_materialization:<scope>`) AND the IAM instance-profile node phase (`aws_resource_materialization:<scope>`), published under different entity keys, so the edge never resolves against a not-yet-materialized endpoint; a blank profile (no attached profile) is no edge and not a skip; cross-account / out-of-scope / unscanned profiles are counted, never fabricated or dangled (issue #1146 PR-B). The first edge in the EC2 → profile → role → `CAN_ESCALATE_TO` blast-radius chain; see `docs/internal/design/1146-ec2-uses-profile-edge.md` |
 | `DomainIAMInstanceProfileRoleMaterialization` | Project IAM instance-profile `aws_resource` `role_arns` into canonical `(:CloudResource)-[:HAS_ROLE]->(:CloudResource)` edges from an IAM instance profile to each attached IAM role; resolves role targets by exact ARN equality against an in-memory `aws_iam_role` join index; gates on the `cloud_resource_uid` canonical-nodes phase published by `aws_resource_materialization:<scope>` because both endpoint node families are `aws_resource` CloudResource nodes; profiles with no roles still run the reducer to retract stale HAS_ROLE edges but write zero new edges and are not a skip; cross-account / out-of-scope / unscanned roles are counted, never fabricated or dangled (issue #1299). The middle edge in the EC2 -> profile -> role -> `CAN_ESCALATE_TO` blast-radius chain; see `docs/internal/design/1299-iam-instance-profile-role-edge.md` |
 | `DomainEC2InternetExposureMaterialization` | Derive conservative `exposed` / `not_exposed` / `unknown` EC2 internet-exposure state from `ec2_instance_posture`, ENI relationship, and security-group rule facts, then write reducer-owned properties onto existing EC2 `CloudResource` nodes only; gates on the EC2 instance-node `cloud_resource_uid` canonical-nodes phase (`ec2_instance_node_materialization:<scope>`), never persists raw public IP addresses, never treats missing ENI/SG/rule evidence as safe false, and keeps unknown posture as `state=unknown` with no boolean exposure property (issue #1301); see `docs/internal/design/1301-ec2-internet-exposure.md` |
@@ -808,6 +809,50 @@ Observability Evidence: `reducer.rds_posture_materialization` wraps fact load,
 readiness, extraction, retract, and graph write. The completion log carries
 resource/posture counts, node-update count, skip tally, and stage durations; the
 Cypher writer adds `phase=rds_posture` and `label=CloudResource:RDSPosture`
+metadata for the existing graph query duration and batch-size metrics.
+
+## EC2 Instance Identity Projection (issue #5448)
+
+`DomainEC2InstanceIdentityMaterialization` is the EC2 instance identity
+augmentation slice. It gates on the EC2 instance-node phase
+(`ec2_instance_node_materialization:<scope>`, published by
+`DomainEC2InstanceNodeMaterialization` from `ec2_instance_posture` facts) —
+NOT the generic `aws_resource_materialization:<scope>` phase `DomainRDSPostureMaterialization`
+reuses, because the EC2 instance CloudResource node this domain augments is
+owned by the posture path, not the generic `aws_resource` node path (which
+excludes `aws_ec2_instance` explicitly). It loads the same scope generation's
+`aws_resource` facts, filters to `resource_type=aws_ec2_instance`, and stamps
+only `ami_id` plus the `ec2_identity_*` provenance properties onto the
+already-materialized node.
+
+Dual-writer safety: this domain and `DomainEC2InstanceNodeMaterialization`
+target the SAME `cloud_resource_uid` for a given instance from two SEPARATE
+scope-generation intents. Their Cypher writers' SET/REMOVE clauses are proven
+to share zero property names
+(`TestEC2InstanceIdentityWriterDisjointFromEC2InstancePostureWriter`,
+`go/internal/storage/cypher`), so the write order between the two domains is
+commutative and neither domain's retract can delete the other's contribution.
+The identity writer is also wrapped in the `graphowner.LockOnlyGate` (like
+the RDS/EC2/S3 posture and exposure writers) so its per-uid critical section
+serializes against the `#5007` owner-ledger gate's writes to the same uid,
+avoiding NornicDB OCC abort-retry churn on concurrent same-uid writes.
+
+The instance->AMI relationship stays Postgres-only in this increment: no
+AMI/MachineImage CloudResource node class exists, so the generic
+`aws_relationship_materialization` domain's target join never resolves an
+`aws_ec2_ami` target (counted as unresolved, never fabricated). Follow-up
+issue https://github.com/eshu-hq/eshu/issues/5717 tracks the AMI node class.
+
+No-Regression Evidence: `go test ./internal/reducer -run 'EC2InstanceIdentity' -count=1`
+proves the augment-only never-create contract, single-key readiness gate,
+first-generation retract skip, additive registry wiring, and the cross-domain
+disjoint-write proof against a shared instance uid.
+
+Observability Evidence: `reducer.ec2_instance_identity_materialization` wraps
+fact load, readiness, extraction, retract, and graph write. The completion
+log carries resource fact count, node-update count, first-generation retract
+decision, and stage durations; the Cypher writer adds
+`phase=ec2_instance_identity` and `label=CloudResource:EC2InstanceIdentity`
 metadata for the existing graph query duration and batch-size metrics.
 
 ## EC2 Internet Exposure Projection (issue #1301)

@@ -166,6 +166,42 @@ func TestDecodeResourceIAMInstanceProfileAttributes(t *testing.T) {
 	})
 }
 
+func TestDecodeResourceEC2InstanceAttributes(t *testing.T) {
+	t.Run("valid ami_id decodes", func(t *testing.T) {
+		resource := Resource{
+			Attributes: map[string]any{"attributes": map[string]any{"ami_id": "ami-0000000000000000a"}},
+		}
+		got, err := DecodeResourceEC2InstanceAttributes(resource)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.AMIID != "ami-0000000000000000a" {
+			t.Fatalf("AMIID = %q, want ami-0000000000000000a", got.AMIID)
+		}
+	})
+
+	t.Run("absent ami_id decodes as empty string, not an error", func(t *testing.T) {
+		resource := Resource{Attributes: map[string]any{"attributes": map[string]any{}}}
+		got, err := DecodeResourceEC2InstanceAttributes(resource)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.AMIID != "" {
+			t.Fatalf("AMIID = %q, want empty", got.AMIID)
+		}
+	})
+
+	t.Run("ami_id present as wrong type is a visible decode failure", func(t *testing.T) {
+		resource := Resource{
+			Attributes: map[string]any{"attributes": map[string]any{"ami_id": 7}},
+		}
+		_, err := DecodeResourceEC2InstanceAttributes(resource)
+		if err == nil {
+			t.Fatal("want error for ami_id present as a non-string, got nil")
+		}
+	})
+}
+
 func TestDecodeRelationshipCloudWatchAlarmObservesMetricAttributes(t *testing.T) {
 	t.Run("valid dimensions decode", func(t *testing.T) {
 		rel := Relationship{

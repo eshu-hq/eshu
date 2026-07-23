@@ -26,9 +26,22 @@ const (
 	// DescribeVolumes API.
 	ResourceTypeEC2Volume = awsv1.ResourceTypeEC2Volume
 	// ResourceTypeEC2Instance identifies an EC2 instance. It is the join anchor
-	// for the metadata-only ec2_instance_posture fact; the EC2 scanner does not
-	// emit an aws_resource inventory fact for instances.
+	// for the metadata-only ec2_instance_posture fact AND (#5448) the identity
+	// aws_resource fact the EC2 scanner emits per instance carrying the AMI
+	// (ImageId) the instance was launched from. Both facts resolve to the same
+	// canonical cloud_resource_uid; the posture fact remains the sole owner of
+	// the CloudResource node's base identity/posture properties, and the
+	// identity fact only ever augments the node with the disjoint ami_id
+	// property (go/internal/reducer/ec2_instance_identity_materialization.go).
 	ResourceTypeEC2Instance = awsv1.ResourceTypeEC2Instance
+	// ResourceTypeEC2AMI identifies an EC2 AMI (machine image) as a
+	// relationship target (#5448). No aws_resource inventory fact is emitted
+	// for AMIs and no AMI graph node class exists yet (tracked follow-up:
+	// https://github.com/eshu-hq/eshu/issues/5717), so a relationship naming
+	// this target type always resolves as unresolved/Postgres-only — the raw
+	// aws_relationship fact still lands durably, and the reducer's edge
+	// projection counts and logs the miss, it never fabricates a node.
+	ResourceTypeEC2AMI = "aws_ec2_ami"
 )
 
 const (
@@ -53,4 +66,9 @@ const (
 	// RelationshipEC2VolumeUsesKMSKey records the KMS key AWS reports for EBS
 	// volume encryption.
 	RelationshipEC2VolumeUsesKMSKey = "ec2_volume_uses_kms_key"
+	// RelationshipEC2InstanceUsesAMI records the AMI (ImageId) an EC2 instance
+	// was launched from (#5448). The target type is ResourceTypeEC2AMI; no AMI
+	// CloudResource node exists yet, so this relationship stays Postgres-only
+	// until the follow-up AMI node class lands (see ResourceTypeEC2AMI doc).
+	RelationshipEC2InstanceUsesAMI = "ec2_instance_uses_ami"
 )

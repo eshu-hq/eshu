@@ -176,22 +176,25 @@ func dartSelfLoopFloor() map[string]int64 {
 // source-ref, rn-flux-helm-repository-url,
 // rn-terraform-resource-attribute-promotion,
 // rn-terraform-state-provider-binding, rn-codeowner-team-ref,
-// rn-cloud-resource-running-image) so a minimal-gate test can satisfy the
-// snapshot's required nodes while focusing on its own assertion. The two GCP
-// posture-only entries pin identity via a single CloudResource node carrying
-// the matching resource_type value; the four Flux PR A entries (issue #5360
-// PR A) pin identity via a FluxKustomization node carrying source_ref_kind, a
-// FluxGitRepository node carrying url, a FluxOCIRepository node carrying url,
-// and a FluxBucket node carrying bucket_name; the two Flux Helm entries
-// (issue #5483 C1) pin identity via a FluxHelmRelease node carrying
-// source_ref_kind and a FluxHelmRepository node carrying url; the #5441 entry
-// pins identity via a TerraformStateResource node (renamed from
-// TerraformResource by #5443) carrying tf_attr_instance_type; the #5446 entry
-// pins identity via the SAME TerraformStateResource node additionally
-// carrying provider="aws"; CodeownerTeam/ref (#5419 Phase 5); and the #5450
-// entry pins identity via CloudResource nodes carrying running_image_ref and
-// running_image_digest (the ECS running task's and Lambda function's deployed
-// image evidence); see testdata/golden/e2e-20repo-snapshot.json.
+// rn-cloud-resource-running-image, rn-ec2-instance-identity-ami) so a
+// minimal-gate test can satisfy the snapshot's required nodes while focusing
+// on its own assertion. The two GCP posture-only entries pin identity via a
+// single CloudResource node carrying the matching resource_type value; the
+// four Flux PR A entries (issue #5360 PR A) pin identity via a
+// FluxKustomization node carrying source_ref_kind, a FluxGitRepository node
+// carrying url, a FluxOCIRepository node carrying url, and a FluxBucket node
+// carrying bucket_name; the two Flux Helm entries (issue #5483 C1) pin
+// identity via a FluxHelmRelease node carrying source_ref_kind and a
+// FluxHelmRepository node carrying url; the #5441 entry pins identity via a
+// TerraformStateResource node (renamed from TerraformResource by #5443)
+// carrying tf_attr_instance_type; the #5446 entry pins identity via the SAME
+// TerraformStateResource node additionally carrying provider="aws";
+// CodeownerTeam/ref (#5419 Phase 5); the #5450 entry pins identity via
+// CloudResource nodes carrying running_image_ref and running_image_digest (the
+// ECS running task's and Lambda function's deployed image evidence); and the
+// #5448 entry pins identity via a CloudResource node carrying ami_id (the EC2
+// instance identity materialization's disjoint augment property); see
+// testdata/golden/e2e-20repo-snapshot.json.
 func fileLanguageFloor() (map[string]int64, map[string][]string) {
 	langs := make([]string, 10)
 	for i := range langs {
@@ -215,6 +218,7 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 			"dataplex.googleapis.com/EntryGroup",
 			"identitytoolkit.googleapis.com/Config",
 		},
+		"CloudResource|ami_id":                         {"ami-000000000000000a"},
 		"FluxKustomization|source_ref_kind":            {"GitRepository"},
 		"FluxGitRepository|url":                        {"https://github.com/acme/flux-system"},
 		"FluxOCIRepository|url":                        {"oci://ghcr.io/acme/app-manifests"},

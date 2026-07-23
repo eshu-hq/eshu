@@ -12,6 +12,7 @@ const (
 	familyEC2InternetExposure = "ec2_internet_exposure"
 	familyEC2BlockDeviceKMS   = "ec2_block_device_kms_posture"
 	familyS3InternetExposure  = "s3_internet_exposure"
+	familyEC2InstanceIdentity = "ec2_instance_identity"
 )
 
 // RDSPostureLockedWriter wraps the RDS posture CloudResource property writer
@@ -124,5 +125,49 @@ func (w *S3InternetExposureLockedWriter) WriteS3InternetExposureNodes(ctx contex
 // RetractS3InternetExposureNodes forwards to the underlying writer's retract
 // unchanged; see the LockOnlyGate doc comment.
 func (w *S3InternetExposureLockedWriter) RetractS3InternetExposureNodes(ctx context.Context, scopeIDs []string, generationID string, evidenceSource string) error {
+	return w.retract(ctx, scopeIDs, generationID, evidenceSource)
+}
+
+// EC2InstanceIdentityLockedWriter wraps the #5448 EC2 instance identity
+// CloudResource property writer (ami_id) with the #5062 lock-only gate. It
+// satisfies the reducer's EC2InstanceIdentityNodeWriter consumer interface.
+//
+// Like the four sibling posture/exposure writers above, this writer SETs an
+// unconditional, disjoint property on a CloudResource node the #5007 owner
+// ledger's EC2InstanceGatedWriter (ec2_instance_node_writer.go, wrapped by
+// gated_writer.go's EC2InstanceGatedWriter) also writes to for the SAME EC2
+// instance uid. It is not itself a cross-scope contributor racing for
+// ownership of the node's identity — every scope observes the same launch AMI
+// for the same instance — so LockOnlyGate (not the full owner-ledger Gate) is
+// the correct primitive: it serializes this writer's per-uid critical section
+// against the owner-ledger gate's per-uid critical section on the identical
+// advisory-lock key, avoiding the NornicDB OCC abort-retry churn two
+// concurrent same-uid writers would otherwise hit (see the LockOnlyGate doc
+// comment for the measured churn and why this is a performance primitive, not
+// a data-loss fix — the two writers' SET clauses are already proven disjoint
+// by TestEC2InstanceIdentityWriterDisjointFromEC2InstancePostureWriter in
+// go/internal/storage/cypher, so there is no property to lose either way).
+type EC2InstanceIdentityLockedWriter struct {
+	gate    *LockOnlyGate
+	write   postureNodeWriteFunc
+	retract postureNodeRetractFunc
+}
+
+// NewEC2InstanceIdentityLockedWriter gates write (the raw cypher writer's
+// WriteEC2InstanceIdentityNodes method) on gate's per-uid advisory lock.
+// retract is forwarded unchanged; see the LockOnlyGate doc comment.
+func NewEC2InstanceIdentityLockedWriter(gate *LockOnlyGate, write postureNodeWriteFunc, retract postureNodeRetractFunc) *EC2InstanceIdentityLockedWriter {
+	return &EC2InstanceIdentityLockedWriter{gate: gate, write: write, retract: retract}
+}
+
+// WriteEC2InstanceIdentityNodes locks the batch's uids, then writes the EC2
+// instance identity rows to the graph while those locks are held.
+func (w *EC2InstanceIdentityLockedWriter) WriteEC2InstanceIdentityNodes(ctx context.Context, rows []map[string]any, scopeID, generationID, evidenceSource string) error {
+	return w.gate.write(ctx, familyEC2InstanceIdentity, rows, scopeID, generationID, evidenceSource, w.write)
+}
+
+// RetractEC2InstanceIdentityNodes forwards to the underlying writer's retract
+// unchanged; see the LockOnlyGate doc comment.
+func (w *EC2InstanceIdentityLockedWriter) RetractEC2InstanceIdentityNodes(ctx context.Context, scopeIDs []string, generationID string, evidenceSource string) error {
 	return w.retract(ctx, scopeIDs, generationID, evidenceSource)
 }

@@ -111,5 +111,17 @@ func appendCloudRelationshipAdditiveDomains(definitions []DomainDefinition, hand
 		}
 		definitions = append(definitions, rdsPosture)
 	}
+	if handlers.FactLoader != nil && handlers.EC2InstanceIdentityNodeWriter != nil {
+		ec2Identity := ec2InstanceIdentityMaterializationDomainDefinition()
+		ec2Identity.Handler = EC2InstanceIdentityMaterializationHandler{
+			FactLoader:           handlers.FactLoader,
+			NodeWriter:           handlers.EC2InstanceIdentityNodeWriter,
+			ReadinessLookup:      handlers.ReadinessLookup,
+			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			Tracer:               handlers.Tracer,
+			Instruments:          handlers.Instruments,
+		}
+		definitions = append(definitions, ec2Identity)
+	}
 	return definitions
 }

@@ -15,9 +15,11 @@ import (
 
 // Scanner emits EC2 VPC, subnet, security group, security group rule, ENI, EBS
 // volume, and topology relationship facts for one claimed account and region.
-// It also emits one metadata-only ec2_instance_posture fact per instance from
-// the existing DescribeInstances pass; it does not emit an aws_resource
-// inventory fact for instances and never reads user-data content.
+// It also emits, per instance, one metadata-only ec2_instance_posture fact and
+// (#5448) one aws_resource identity fact carrying the launch AMI id plus an
+// instance->AMI aws_relationship fact when an AMI id is present — all three
+// from the existing DescribeInstances pass, with no additional AWS API call
+// and no user-data content ever read.
 type Scanner struct {
 	Client Client
 }
@@ -108,6 +110,12 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			return nil, err
 		}
 		envelopes = append(envelopes, instanceEnvelopes...)
+
+		identityEnvelopes, err := instanceIdentityEnvelopes(boundary, instance)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, identityEnvelopes...)
 	}
 
 	volumes, err := s.Client.ListVolumes(ctx)

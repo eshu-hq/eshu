@@ -59,6 +59,12 @@ type canonicalGraphWriters struct {
 	// reducer.PackageProvenanceEdgeWriter and
 	// reducer.ContainerImageProvenanceEdgeWriter interfaces.
 	provenanceEdge *sourcecypher.ProvenanceEdgeWriter
+	// ec2InstanceIdentityNode is wrapped in the SAME #5062 lock-only gate as
+	// the four writers above (#5448): it SETs the disjoint ami_id property on
+	// the same CloudResource nodes ec2InstanceNode's owner-ledger gate writes
+	// to, so it must serialize against that gate on the identical
+	// advisory-lock key.
+	ec2InstanceIdentityNode *graphowner.EC2InstanceIdentityLockedWriter
 }
 
 // newCanonicalGraphWriters wires the canonical graph writers. reader backs
@@ -77,6 +83,7 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.Po
 	rawEC2InternetExposureNode := sourcecypher.NewEC2InternetExposureNodeWriter(exec, reader, batchSize)
 	rawEC2BlockDeviceKMSPostureNode := sourcecypher.NewEC2BlockDeviceKMSPostureNodeWriter(exec, reader, batchSize)
 	rawS3InternetExposureNode := sourcecypher.NewS3InternetExposureNodeWriter(exec, reader, batchSize)
+	rawEC2InstanceIdentityNode := sourcecypher.NewEC2InstanceIdentityNodeWriter(exec, reader, batchSize)
 	return canonicalGraphWriters{
 		cloudResourceNode:               graphowner.NewCloudResourceGatedWriter(ownerGate, rawCloudResourceNode.WriteCloudResourceNodes),
 		ec2InstanceNode:                 graphowner.NewEC2InstanceGatedWriter(ownerGate, rawEC2InstanceNode.WriteEC2InstanceNodes),
@@ -115,6 +122,9 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.Po
 			lockGate, rawS3InternetExposureNode.WriteS3InternetExposureNodes, rawS3InternetExposureNode.RetractS3InternetExposureNodes,
 		),
 		provenanceEdge: sourcecypher.NewProvenanceEdgeWriter(exec, batchSize),
+		ec2InstanceIdentityNode: graphowner.NewEC2InstanceIdentityLockedWriter(
+			lockGate, rawEC2InstanceIdentityNode.WriteEC2InstanceIdentityNodes, rawEC2InstanceIdentityNode.RetractEC2InstanceIdentityNodes,
+		),
 	}
 }
 
