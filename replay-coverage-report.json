@@ -2,8 +2,8 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 426,
-    "covered": 414,
+    "total": 427,
+    "covered": 415,
     "uncovered": 0,
     "unresolved": 0,
     "exempt": 12,
@@ -21,8 +21,8 @@
     },
     {
       "registry": "capability_matrix",
-      "total": 136,
-      "covered": 136,
+      "total": 137,
+      "covered": 137,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -113,8 +113,8 @@
   "scenario_type_summaries": [
     {
       "scenario_type": "baseline",
-      "total": 220,
-      "covered": 215,
+      "total": 221,
+      "covered": 216,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 5,
@@ -1166,6 +1166,16 @@
       "ref": "platform_impact.container_image_list",
       "proof_gate": "capability-inventory",
       "detail": "capability \"platform_impact.container_image_list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:platform_impact.container_image_tag_history",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "platform_impact.container_image_tag_history",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"platform_impact.container_image_tag_history\" matrix profile proofs present (supported=3 refusal=1)"
     },
     {
       "registry": "capability_matrix",
