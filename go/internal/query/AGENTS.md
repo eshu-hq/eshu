@@ -378,9 +378,11 @@
   too expensive, while removing the fallback can report trigger-bound SQL
   routines as cleanup candidates.
 
-- **`Neo4jReader` opens one session per query** — `Run` and `RunSingle` open and
-  close a session within the call. Do not hold or share sessions across handler
-  calls (`neo4j.go:50`).
+- **`neo4j_read_policy.go` owns the read session lifecycle** — `Run` and
+  `RunSingle` delegate to `runReadAttempts`, which opens and closes a session
+  per attempt inside `runReadAttempt`. A single logical read can open up to 2
+  sessions (one bounded retry via `maxGraphReadAttempts`). Do not hold or share
+  sessions across handler calls.
 
 - **`analyze_infra_relationships` honors `relationship_type` (#3492)** —
   `getRelationships` (`infra_relationship_filter.go`) decodes the optional
@@ -588,8 +590,8 @@
   that is the documented narrow seam.
 
 - **Directly importing `neo4jdriver` in handler files** — handler structs hold
-  `GraphQuery`, not `neo4jdriver.DriverWithContext`. Only `neo4j.go` and
-  `wiring.go` should import the Neo4j driver.
+  `GraphQuery`, not `neo4jdriver.DriverWithContext`. Only `neo4j.go`,
+  `neo4j_read_policy.go`, and `wiring.go` should import the Neo4j driver.
 
 - **Adding public routes to `publicHTTPPaths` without review** — the map in
   `auth.go:10` bypasses bearer-token auth. Adding a data route here exposes it
