@@ -82,6 +82,29 @@ OPENCODE_CONFIG_CONTENT='{"agent":{"perf-eshu":{"model":"deepseek/<deepseek-pro-
 The same override shape works for `develop-eshu`, `debug-eshu`, and
 `review-eshu`; change the agent key, not the tracked role file.
 
+### Default model bindings by tier
+
+Model choice stays a runtime override (above), but the orchestrator should not
+re-derive it every session. Match model capability to task difficulty using
+these defaults, at high reasoning effort, picking the column for the harness in
+play:
+
+| Tier | Reach for it when | Claude | Codex |
+| --- | --- | --- | --- |
+| **Deep** | root-cause, executor/runtime internals, architecture, hard debugging | Fable 5 / Opus 4.8 | Sol (high) |
+| **Workhorse** | default implementation, review, most subagent work | Sonnet 5 (high) | Terra (high) |
+| **Fast** | mechanical or parallel scans, cheap lookups | Haiku 4.5 | Luna (high) |
+
+**Kimi K3** sits outside the ladder — it has no cheaper variant to downshift to,
+so run it **always at high effort**, reached for deliberately as a strong
+cross-family workhorse or as an independent verifier in adversarial-verification
+passes (a different model lineage catches what a single family rationalizes
+away).
+
+These are defaults, not pins: the runtime overrides above still win per task or
+session. The orchestrator selects the tier when it dispatches; a subagent never
+downgrades its own model.
+
 ## The handoff contract
 
 This is where a multi-model pipeline lives or dies. The user, built-in planning

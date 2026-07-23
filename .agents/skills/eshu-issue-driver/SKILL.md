@@ -136,6 +136,13 @@ current turn, stop and ask — do not self-approve and proceed.
   with `--force-with-lease` and restarting the poll. A rebase never permits a
   direct push. Active agents merge constantly; a green check snapshot can
   become stale while the PR is waiting.
+- CI is done only after **two consecutive stable reads of the full check set**
+  (`gh pr checks <n> --json bucket` shows `pending == 0` AND the total count is
+  unchanged across two polls). GitHub registers large check sets in waves, so a
+  single `0-pending` read is a false "done" — never merge or claim green on it.
+  Report CI status with the exact query used. Only the orchestrator runs the late
+  `make pre-pr`; dispatched executors run focused proof only (see
+  [Orchestration, PR, And CI Discipline](../../../CLAUDE.md)).
 - Fetch ALL inline + bot review comments:
   `gh api repos/eshu-hq/eshu/pulls/<n>/comments`. Treat every reviewer
   uniformly — **codex (`chatgpt-codex-connector[bot]`), GitHub Copilot
