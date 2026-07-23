@@ -63,7 +63,7 @@ func sbomAttachmentDecision(
 	evidence []string,
 	index sbomAttachmentIndex,
 ) SBOMAttestationAttachmentDecision {
-	components := componentEvidenceRows(index.components[doc.documentID])
+	components, componentCount := componentEvidenceRows(index.components[doc.documentID])
 	dependencyRows, dependencyCount := dependencyRelationshipEvidenceRows(index.dependencies[doc.documentID])
 	externalReferenceRows, externalReferenceCount := externalReferenceEvidenceRows(index.externalReferences[doc.documentID])
 	warnings := warningSummaryRollup(index.warnings[doc.documentID])
@@ -90,7 +90,7 @@ func sbomAttachmentDecision(
 		Reason:                               reason,
 		AttachmentScope:                      scope,
 		CanonicalWrites:                      sbomAttachmentCanonicalWriteCount(status, hasImageReferrer),
-		ComponentCount:                       len(components),
+		ComponentCount:                       componentCount,
 		ComponentEvidence:                    components,
 		DependencyRelationshipCount:          dependencyCount,
 		DependencyRelationshipEvidence:       dependencyRows,
@@ -245,26 +245,6 @@ func sbomAttachmentImageAnchorUsable(image sbomAttachmentImageAnchor) bool {
 	default:
 		return false
 	}
-}
-
-func componentEvidenceRows(components []sbomAttachmentComponentEvidence) []map[string]string {
-	out := make([]map[string]string, 0, len(components))
-	for _, component := range components {
-		out = append(out, map[string]string{
-			"component_id":      component.componentID,
-			"name":              component.name,
-			"version":           component.version,
-			"purl":              component.purl,
-			"cpe":               component.cpe,
-			"ecosystem":         component.ecosystem,
-			"lockfile_path":     component.lockfilePath,
-			"dependency_scope":  component.dependencyScope,
-			"dependency_type":   component.dependencyType,
-			"extraction_reason": component.extractionReason,
-			"fact_id":           component.factID,
-		})
-	}
-	return out
 }
 
 type warningSummarySet struct {

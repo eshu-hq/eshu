@@ -58,8 +58,12 @@ type SBOMAttestationAttachmentDecision struct {
 	Reason             string
 	AttachmentScope    string
 	CanonicalWrites    int
-	ComponentCount     int
-	ComponentEvidence  []map[string]string
+	// ComponentCount is the full distinct component tuple count before the
+	// component evidence write-time cap, so callers can detect truncation.
+	ComponentCount int
+	// ComponentEvidence is the bounded, deduplicated, deterministically sorted
+	// component evidence persisted with this decision.
+	ComponentEvidence []map[string]string
 	// DependencyRelationshipCount is the full distinct-tuple count of
 	// sbom.dependency_relationship evidence for this document, computed
 	// BEFORE the write-time cap (maxSBOMAttachmentDependencyRelationshipRows)

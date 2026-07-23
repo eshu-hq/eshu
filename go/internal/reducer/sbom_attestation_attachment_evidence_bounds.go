@@ -11,6 +11,10 @@ import (
 )
 
 const (
+	// maxSBOMAttachmentComponentEvidenceRows bounds the number of sbom.component
+	// evidence rows persisted per document. ComponentCount on the decision reports
+	// the full distinct-tuple count computed before this cap.
+	maxSBOMAttachmentComponentEvidenceRows = 100
 	// maxSBOMAttachmentDependencyRelationshipRows bounds the number of
 	// sbom.dependency_relationship evidence rows persisted per document.
 	// Bounding happens at WRITE time (here) because the attachment fact's
@@ -109,6 +113,78 @@ func dependencyRelationshipEvidenceRows(deps []sbomAttachmentDependencyEvidence)
 		})
 	}
 	return out, count
+}
+
+// componentEvidenceRows deduplicates the decoded sbom.component evidence for
+// one document on its complete persisted tuple, sorts the distinct tuples
+// lexicographically with fact_id as the final tiebreaker, and returns the
+// capped row set plus the full distinct-tuple count computed before the cap.
+func componentEvidenceRows(components []sbomAttachmentComponentEvidence) ([]map[string]string, int) {
+	sorted := append([]sbomAttachmentComponentEvidence(nil), components...)
+	sort.Slice(sorted, func(i, j int) bool {
+		return componentEvidenceLess(sorted[i], sorted[j])
+	})
+	deduped := make([]sbomAttachmentComponentEvidence, 0, len(sorted))
+	for i, component := range sorted {
+		if i > 0 && componentEvidenceTupleEqual(sorted[i-1], component) {
+			continue
+		}
+		deduped = append(deduped, component)
+	}
+	count := len(deduped)
+	if count > maxSBOMAttachmentComponentEvidenceRows {
+		deduped = deduped[:maxSBOMAttachmentComponentEvidenceRows]
+	}
+	out := make([]map[string]string, 0, len(deduped))
+	for _, component := range deduped {
+		out = append(out, map[string]string{
+			"component_id":      component.componentID,
+			"name":              component.name,
+			"version":           component.version,
+			"purl":              component.purl,
+			"cpe":               component.cpe,
+			"ecosystem":         component.ecosystem,
+			"lockfile_path":     component.lockfilePath,
+			"dependency_scope":  component.dependencyScope,
+			"dependency_type":   component.dependencyType,
+			"extraction_reason": component.extractionReason,
+			"fact_id":           component.factID,
+		})
+	}
+	return out, count
+}
+
+func componentEvidenceLess(a, b sbomAttachmentComponentEvidence) bool {
+	for _, pair := range [][2]string{
+		{a.componentID, b.componentID},
+		{a.name, b.name},
+		{a.version, b.version},
+		{a.purl, b.purl},
+		{a.cpe, b.cpe},
+		{a.ecosystem, b.ecosystem},
+		{a.lockfilePath, b.lockfilePath},
+		{a.dependencyScope, b.dependencyScope},
+		{a.dependencyType, b.dependencyType},
+		{a.extractionReason, b.extractionReason},
+	} {
+		if pair[0] != pair[1] {
+			return pair[0] < pair[1]
+		}
+	}
+	return a.factID < b.factID
+}
+
+func componentEvidenceTupleEqual(a, b sbomAttachmentComponentEvidence) bool {
+	return a.componentID == b.componentID &&
+		a.name == b.name &&
+		a.version == b.version &&
+		a.purl == b.purl &&
+		a.cpe == b.cpe &&
+		a.ecosystem == b.ecosystem &&
+		a.lockfilePath == b.lockfilePath &&
+		a.dependencyScope == b.dependencyScope &&
+		a.dependencyType == b.dependencyType &&
+		a.extractionReason == b.extractionReason
 }
 
 func dependencyRelationshipLess(a, b sbomAttachmentDependencyEvidence) bool {
