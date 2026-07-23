@@ -46,11 +46,15 @@
   `Condition` is set once per ItemGroup, with a narrow accepted residual gap
   when an item-level `Condition` string happens to repeat across two
   different-TFM ItemGroups — see that case's doc comment), pypi (sorted
-  extras + marker, defending against `requests[socks]` vs `requests[toml]` or
-  platform-gated markers), and go/gomod (the raw declared version, defending
-  against a hand-edited or merge-conflicted, not-yet-`go mod tidy`-run go.mod
-  whose non-deduplicating `modfile.Parse` admits the same module required
-  twice at different versions in one section). Only npm, composer, rubygems,
+  extras + marker + value, defending against `requests[socks]` vs
+  `requests[toml]`, platform-gated markers, and — as of PR #5731 review —
+  `requests>=2` vs `requests<3` repeated-line version constraints; pip's own
+  parser does not reject or de-duplicate these at parse time, the same
+  toolchain-permits-duplicates shape as gomod below), and go/gomod (the raw
+  declared version, defending against a hand-edited or merge-conflicted,
+  not-yet-`go mod tidy`-run go.mod whose non-deduplicating `modfile.Parse`
+  admits the same module required twice at different versions in one
+  section). Only npm, composer, rubygems,
   pub, and hex return an empty discriminator, because each one's parser
   already guarantees per-section name uniqueness on its own (a JSON/YAML map
   key, or the ecosystem's own tooling rejecting a duplicate declaration). Do
@@ -165,7 +169,16 @@
   twice at different versions. Before assuming a format needs no
   discriminator, verify what the underlying file format/toolchain actually
   permits, not just what a `go mod tidy`-clean or otherwise well-formed
-  example looks like.
+  example looks like. A second instance of the same symptom was caught in
+  #5507 PR #5731 review for `pypi`: a first pass reasoned that pip's resolver
+  merges same-name constraint lines (`requests>=2` / `requests<3`) into one
+  intersected specifier, so omitting `value` from the discriminator was
+  "intentional." That conflated pip's install-time resolution behavior with
+  what pip's own requirements-file *parser* permits — empirically verified
+  (pip 26.1.2) to NOT reject or de-duplicate two same-name lines with
+  different constraints at parse time, the identical toolchain-permits-
+  duplicates shape as gomod above. `value` is now folded into the pypi
+  discriminator (`dependencyExtrasMarkerAndValue`) for the same reason.
 
 - Symptom: two distinct nested lockfile dependency versions (e.g. `react@17`
   and `react@18` in `package-lock.json`) collapse into one content-entity row

@@ -149,27 +149,32 @@ func TestCanonicalEntityIDWithMetadataPyPIMarkerDistinctness(t *testing.T) {
 
 // pypiRequirementMetadataWithValue is pypiRequirementMetadata plus a "value"
 // field (the row's version specifier/constraint), for the tests proving
-// "value" is intentionally excluded from the pypi discriminator.
+// "value" keeps repeated-entry pypi requirement rows distinct.
 func pypiRequirementMetadataWithValue(section string, extras []string, marker, value string) map[string]any {
 	metadata := pypiRequirementMetadata(section, extras, marker)
 	metadata["value"] = value
 	return metadata
 }
 
-// TestCanonicalEntityIDWithMetadataPyPIConstraintValueIntentionallyOmittedFromDiscriminator
-// proves the case codex review flagged for #5507 PR 5731: two requirement
-// lines for the same package in the same section with the same extras/marker
-// but different version constraints (`requests>=2` and `requests<3`) mint
-// the SAME id. This is intentional, not an oversight — see
-// dependencyIdentityDiscriminator's "pypi" case doc comment: pip's resolver
-// combines every constraint for one canonical package name into a single
-// intersected specifier set before resolving one install candidate, so these
-// two lines express ONE logical dependency (`requests>=2,<3`), not two. This
-// mirrors TestCanonicalEntityIDWithMetadataGomodSameVersionDuplicateCollapses'
-// "no distinguishing evidence to preserve" reasoning, except here it holds
-// even when the constraint text differs, because pip — unlike Go modules —
-// merges rather than picks one.
-func TestCanonicalEntityIDWithMetadataPyPIConstraintValueIntentionallyOmittedFromDiscriminator(t *testing.T) {
+// TestCanonicalEntityIDWithMetadataPyPIConstraintValueDistinctness proves the
+// case codex review flagged for #5507 PR 5731: two requirement lines for the
+// same package in the same section with the same extras/marker but different
+// version constraints (`requests>=2` and `requests<3`) must mint DISTINCT
+// ids. requirements.txt and the PEP 621/Hatch array form both emit one row
+// per source line via parseRequirementLine, and pip's own toolchain does NOT
+// reject or merge these two lines at parse time (verified empirically: `pip
+// install --dry-run` against a two-line requirements.txt with a genuinely
+// unsatisfiable pair reports "The user requested requests>=2" AND "The user
+// requested requests<2.0" as two separate user requests fed into resolution,
+// not a parse-time "duplicate requirement" error) — exactly the
+// toolchain-permits-duplicates shape go/internal/content/AGENTS.md's gomod
+// precedent already requires a discriminator for. Collapsing them would drop
+// the first declaration's row (content_writer.go dedupes by id and keeps only
+// the later occurrence), an accuracy violation independent of what pip's
+// resolver eventually does with the two constraints at install time: Eshu's
+// content-entity layer records declared source facts, not resolved install
+// candidates.
+func TestCanonicalEntityIDWithMetadataPyPIConstraintValueDistinctness(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -183,8 +188,96 @@ func TestCanonicalEntityIDWithMetadataPyPIConstraintValueIntentionallyOmittedFro
 	upperBound := CanonicalEntityIDWithMetadata(repoID, path, "Variable", name, 2,
 		pypiRequirementMetadataWithValue("requirements", nil, "", "<3"))
 
-	if lowerBound != upperBound {
-		t.Fatalf("requests>=2 and requests<3 unexpectedly minted different ids (%q vs %q); pip combines these into one constraint set and they must collapse to one dependency node", lowerBound, upperBound)
+	if lowerBound == upperBound {
+		t.Fatalf("requests>=2 and requests<3 unexpectedly minted the same id (%q); two distinct requirements.txt declarations must survive content_writer's id-keyed dedupe", lowerBound)
+	}
+}
+
+// TestCanonicalEntityIDWithMetadataPyPIConstraintValueDistinctnessPEP621Array
+// proves the same distinctness for the PEP 621/Hatch array-form shape
+// (`dependencies = ["requests>=2", "requests<3"]` in pyproject.toml), which
+// reaches the identical discriminator through parseProjectArrayTable /
+// parseHatchDependencyTable rather than the requirements.txt line scanner.
+// Both routes emit metadata through the same rowBuilder.finish() shape, so
+// this locks in that the fix is not requirements.txt-specific.
+func TestCanonicalEntityIDWithMetadataPyPIConstraintValueDistinctnessPEP621Array(t *testing.T) {
+	t.Parallel()
+
+	const (
+		repoID = "repository:r_12345678"
+		path   = "pyproject.toml"
+		name   = "requests"
+	)
+
+	lowerBound := CanonicalEntityIDWithMetadata(repoID, path, "Variable", name, 1,
+		pypiRequirementMetadataWithValue("project.dependencies", nil, "", ">=2"))
+	upperBound := CanonicalEntityIDWithMetadata(repoID, path, "Variable", name, 2,
+		pypiRequirementMetadataWithValue("project.dependencies", nil, "", "<3"))
+
+	if lowerBound == upperBound {
+		t.Fatalf("PEP 621 array requests>=2 and requests<3 unexpectedly minted the same id (%q)", lowerBound)
+	}
+}
+
+// TestCanonicalEntityIDWithMetadataPyPIConstraintValueOrderIndependent proves
+// the retained pair of ids (not just their equality) does not depend on which
+// line is minted first — swapping which constraint is seen at the lower line
+// number does not change either resulting id, so the two-row survival is
+// order-independent, not an artifact of always keeping "whichever came last".
+func TestCanonicalEntityIDWithMetadataPyPIConstraintValueOrderIndependent(t *testing.T) {
+	t.Parallel()
+
+	const (
+		repoID = "repository:r_12345678"
+		path   = "requirements.txt"
+		name   = "requests"
+	)
+
+	firstOrderLower := CanonicalEntityIDWithMetadata(repoID, path, "Variable", name, 1,
+		pypiRequirementMetadataWithValue("requirements", nil, "", ">=2"))
+	firstOrderUpper := CanonicalEntityIDWithMetadata(repoID, path, "Variable", name, 2,
+		pypiRequirementMetadataWithValue("requirements", nil, "", "<3"))
+
+	secondOrderUpper := CanonicalEntityIDWithMetadata(repoID, path, "Variable", name, 1,
+		pypiRequirementMetadataWithValue("requirements", nil, "", "<3"))
+	secondOrderLower := CanonicalEntityIDWithMetadata(repoID, path, "Variable", name, 2,
+		pypiRequirementMetadataWithValue("requirements", nil, "", ">=2"))
+
+	if firstOrderLower != secondOrderLower {
+		t.Fatalf(">=2's id changed depending on which line number it appeared at: %q vs %q", firstOrderLower, secondOrderLower)
+	}
+	if firstOrderUpper != secondOrderUpper {
+		t.Fatalf("<3's id changed depending on which line number it appeared at: %q vs %q", firstOrderUpper, secondOrderUpper)
+	}
+	if firstOrderLower == firstOrderUpper {
+		t.Fatalf("the two distinct constraints still collapsed to one id: %q", firstOrderLower)
+	}
+}
+
+// TestCanonicalEntityIDWithMetadataPyPISameValueDuplicateCollapses is the
+// positive counterpart, mirroring
+// TestCanonicalEntityIDWithMetadataGomodSameVersionDuplicateCollapses: two
+// requirement rows for the same package with the exact same value (a
+// redundant, content-identical duplicate line) still collapse to one id —
+// identical declarations carry no distinguishing evidence to preserve, so
+// this is not a regression introduced by folding "value" into the
+// discriminator.
+func TestCanonicalEntityIDWithMetadataPyPISameValueDuplicateCollapses(t *testing.T) {
+	t.Parallel()
+
+	const (
+		repoID = "repository:r_12345678"
+		path   = "requirements.txt"
+		name   = "requests"
+	)
+
+	first := CanonicalEntityIDWithMetadata(repoID, path, "Variable", name, 4,
+		pypiRequirementMetadataWithValue("requirements", nil, "", ">=2"))
+	second := CanonicalEntityIDWithMetadata(repoID, path, "Variable", name, 9,
+		pypiRequirementMetadataWithValue("requirements", nil, "", ">=2"))
+
+	if first != second {
+		t.Fatalf("two identical (name, value) requirement declarations unexpectedly diverged: %q vs %q", first, second)
 	}
 }
 
@@ -228,7 +321,7 @@ func TestCanonicalEntityIDWithMetadataPyPIExtrasAcceptsJSONDecodedAnySlice(t *te
 	// panic or silently reorder the valid entries incorrectly).
 	got := metadataStringSliceValue(map[string]any{"extras": []any{"toml", "socks"}}, "extras")
 	if len(got) != 2 || got[0] != "toml" || got[1] != "socks" {
-		t.Fatalf("metadataStringSliceValue([]any{\"toml\",\"socks\"}) = %v, want [\"toml\" \"socks\"] preserving input order (sorting is dependencyExtrasAndMarker's job, not this helper's)", got)
+		t.Fatalf("metadataStringSliceValue([]any{\"toml\",\"socks\"}) = %v, want [\"toml\" \"socks\"] preserving input order (sorting is dependencyExtrasMarkerAndValue's job, not this helper's)", got)
 	}
 
 	gotWithNonString := metadataStringSliceValue(map[string]any{"extras": []any{"socks", float64(1), "toml"}}, "extras")

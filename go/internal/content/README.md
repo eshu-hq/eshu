@@ -92,9 +92,9 @@ Identity:
   `dependencyIdentityDiscriminator` in `dependency_identity.go`) for formats
   where `(section, name)` alone cannot guarantee uniqueness — cargo (manifest
   alias), gradle (version), maven (classifier/type), nuget (item-level MSBuild
-  `Condition`, falling back to group-level), pypi (extras/marker), and go/gomod
-  (raw declared version, since `modfile.Parse` does not de-duplicate `require`
-  directives). `CanonicalDependencyEntityID` itself is unaware of the
+  `Condition`, falling back to group-level), pypi (extras/marker/value), and
+  go/gomod (raw declared version, since `modfile.Parse` does not de-duplicate
+  `require` directives). `CanonicalDependencyEntityID` itself is unaware of the
   discriminator concept; its hash shape never changes, so the #5357
   npm/composer ids already minted in production stay byte-identical.
 
@@ -137,7 +137,8 @@ contract.
   is not enough. Each case's doc comment names the concrete manifest feature
   that forces it (Cargo's `package = "..."` aliasing, Gradle's repeatable
   coordinate-at-a-different-version, Maven's classifier/type, NuGet's
-  MSBuild `Condition` multi-targeting, pypi's extras/markers). Do not add or
+  MSBuild `Condition` multi-targeting, pypi's extras/markers/version
+  constraints). Do not add or
   widen a case without the same kind of proof, and do not forget: an empty
   discriminator is the correct answer for every format whose parser already
   guarantees per-section uniqueness on its own.

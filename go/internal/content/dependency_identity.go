@@ -263,52 +263,62 @@ func dependencyIdentityDiscriminator(packageManager string, metadata map[string]
 		// A pip/PEP 508 requirement (requirements.txt lines, and the
 		// PEP 621/Hatch array-form pyproject.toml dependency lists) can
 		// legitimately repeat the same package name within one section with
-		// different extras (`requests[socks]` vs `requests[toml]`) or
+		// different extras (`requests[socks]` vs `requests[toml]`),
 		// environment markers (`foo; sys_platform=="win32"` vs
-		// `foo; sys_platform=="linux"`) declared side by side to cover
-		// different install contexts simultaneously. Poetry/Hatch
-		// TABLE-form dependencies key by TOML map key and are already unique
-		// without this; adding the same discriminator there is harmless
-		// (extras/marker are typically absent, so it is an empty suffix).
+		// `foo; sys_platform=="linux"`), or version constraints
+		// (`requests>=2` vs `requests<3`) declared side by side, one per
+		// source line. Poetry/Hatch TABLE-form dependencies key by TOML map
+		// key and are already unique without this; adding the same
+		// discriminator there is harmless — it can only keep an
+		// already-unique row unique, never merge two distinct table keys.
 		//
-		// This discriminator deliberately does NOT include "value" (the
-		// version specifier/constraint), unlike gradle's and go's version
-		// discriminators. Two requirement lines for the same package in the
-		// same section with the same extras/marker but different version
-		// constraints — e.g. `requests>=2` on one line and `requests<3` on
-		// another — are not two competing declarations the way two gomod
-		// `require` lines at different pinned versions are: pip's resolver
-		// (both the legacy and the default 2020 resolver) combines every
-		// constraint it finds for one canonical package name into a single
-		// intersected specifier set (`>=2,<3` here) before resolving one
-		// install candidate. They are ONE logical dependency split across
-		// two lines, not two. Collapsing them to one content-entity id is
-		// therefore the semantically correct outcome, not an oversight —
-		// see TestCanonicalEntityIDWithMetadataPyPIConstraintValueIntentionallyOmittedFromDiscriminator.
-		// The surviving row when two lines collapse is deterministic: shape.
-		// Materialize sorts entities by line number before minting ids, and
-		// internal/storage/postgres's deduplicateEntityRows keeps the LAST
-		// occurrence in input order, so the physically later requirement
-		// line in the file is always the one whose other fields (SourceCache,
-		// StartLine, ...) survive.
-		return dependencyExtrasAndMarker(metadata)
+		// "value" (the row's raw version specifier/constraint) IS included
+		// here, matching gradle's and go's version discriminators, for the
+		// same reason go/gomod's case needs one: verify what the underlying
+		// toolchain actually PERMITS, not just what a well-formed example
+		// looks like. Confirmed empirically (pip 26.1.2, `pip install
+		// --dry-run` against a two-line requirements.txt): pip's own parser
+		// does NOT reject or de-duplicate two lines naming the same package
+		// with different constraints at parse time — feeding it an
+		// unsatisfiable pair (`requests>=2` / `requests<2.0`) proceeds all
+		// the way to dependency resolution and fails there with "The user
+		// requested requests>=2" AND "The user requested requests<2.0" as
+		// two independently-tracked requests, not a "duplicate requirement"
+		// parse error. That pip's resolver subsequently intersects
+		// compatible constraints into one install candidate is an
+		// install-time concern; it does not make the two source
+		// declarations "one logical dependency" for Eshu's purposes. Eshu's
+		// content-entity layer records declared source facts (one row per
+		// manifest line), not resolved install candidates — the same
+		// principle that already applies to gomod's untidied duplicate
+		// `require` directives, which go's own MVS resolver also reduces to
+		// one effective version without that making the two require lines
+		// "one declaration" worth losing from the graph. Omitting "value"
+		// would silently drop the first declaration's row (content_writer.go
+		// dedupes by id and keeps only the later occurrence) — see
+		// TestCanonicalEntityIDWithMetadataPyPIConstraintValueDistinctness.
+		return dependencyExtrasMarkerAndValue(metadata)
 	default:
 		return ""
 	}
 }
 
-// dependencyExtrasAndMarker joins metadata["extras"] (sorted, so declaration
-// order never changes the discriminator) and metadata["marker"] into the
-// pypi identity discriminator. Both fields are stable across a manifest
-// reorder and absent from every other package_manager's rows.
-func dependencyExtrasAndMarker(metadata map[string]any) string {
+// dependencyExtrasMarkerAndValue joins metadata["extras"] (sorted, so
+// declaration order never changes the discriminator), metadata["marker"],
+// and metadata["value"] into the pypi identity discriminator. All three
+// fields are stable across a manifest reorder: extras/marker are absent from
+// every other package_manager's rows, and value is the row's own declared
+// version specifier/constraint text (not a line-derived value), so folding it
+// in does not reintroduce the line-position churn this migration removes.
+func dependencyExtrasMarkerAndValue(metadata map[string]any) string {
 	extras := metadataStringSliceValue(metadata, "extras")
 	sort.Strings(extras)
 	marker := metadataStringValue(metadata, "marker")
-	if len(extras) == 0 && marker == "" {
+	value := metadataStringValue(metadata, "value")
+	if len(extras) == 0 && marker == "" && value == "" {
 		return ""
 	}
-	return strings.Join(extras, ",") + "\x1e" + marker
+	return strings.Join(extras, ",") + "\x1e" + marker + "\x1e" + value
 }
 
 // metadataStringValue reads a string-typed metadata value, returning "" for a
