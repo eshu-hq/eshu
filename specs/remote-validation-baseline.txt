@@ -47,20 +47,13 @@
 # Regenerate with:
 #   cd go && go run ./cmd/capability-inventory -mode remote-validation -update
 #
-# FROZEN_MAX: 14
+# FROZEN_MAX: 7
 #
 # <remote-validation-ref-slug>
-prod-argument-names
-prod-code-flow-reaching-def
-prod-imports
-prod-inheritance
 prod-secrets-iam-identity-trust-chains
 prod-secrets-iam-posture-gaps
 prod-secrets-iam-posture-summary
 prod-secrets-iam-privilege-posture-observations
 prod-secrets-iam-secret-access-paths
-prod-semantic-code-hints
 prod-trace-exposure-path
-prod-transitive-callees
-prod-transitive-callers
 prod-variable-lookup

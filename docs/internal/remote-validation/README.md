@@ -101,14 +101,29 @@ Burn-down progress:
   not exercise `list_component_extensions` / `get_component_extension_diagnostics`
   through the API/MCP); wiring a deployed API/MCP run (then restoring
   `supported`) is tracked in #5681.
-- **This directory now holds 99 committed production-validation artifacts** —
+- **This directory now holds 101 committed production-validation artifacts** —
   each capability whose committed evidence (the `go_test` suites its local
   profiles cite, `docs/internal/evidence/*.md` live-backend validations, and
   `scripts/run-remote-e2e-*` deployed drivers) substantiates its `production`
   profile. Those rows keep `production: supported`; their refs now resolve, so
   `-update` removed them from the baseline.
-- **`FROZEN_MAX` is now 14.** The 14 remaining baseline slugs have thinner
-  evidence (generic-handler-served, or a matrix `compose_e2e`/`integration_test`
-  label with no committed script) and are getting capability-specific tests
-  before validation, tracked in #5681. The frozen set stays at 115 (immutable);
-  only the baseline shrinks.
+- **`FROZEN_MAX` is now 7.** The prior cluster of 7 code-intelligence slugs
+  (#5681) was resolved per-row against a real deployed-services stack: the two
+  transitive-caller-graph reads (`prod-transitive-callers` /
+  `prod-transitive-callees`) returned complete multi-hop
+  `authoritative_graph` results and keep `production: supported` with a
+  committed deployed-readback artifact here (their declared p95 is a separate
+  performance budget tracked by the perf gates, not a per-capability support
+  blocker). The other five — `symbol_graph.imports`, `code_flow.reaching_def`,
+  `semantic_evidence.code_hints.list`, `symbol_graph.inheritance`, and
+  `symbol_graph.argument_names` — were **downgraded to `experimental`** because
+  their declared deployed route returned empty or incomplete results, each
+  citing the product defect that must land before the claim is restored
+  (imports has no producer #5691; reaching_def is unwired #5692; code_hints has
+  no extraction pipeline #5693; inheritance hits the NornicDB
+  `type(rel)`/`coalesce`-after-`OPTIONAL MATCH` literal-text defect #5694; and
+  argument_names drops declared parameters through projection). No slug was
+  bulk-downgraded: every one carries a per-row deployed determination. The
+  remaining 7 baseline slugs (secrets/IAM exposure-path and variable/trace
+  reads) need seeded IAM + exposure fixtures on a deployed stack, tracked in
+  #5552. The frozen set stays at 115 (immutable); only the baseline shrinks.

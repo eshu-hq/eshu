@@ -2338,8 +2338,8 @@
     {
       "capability": "code_flow.reaching_def",
       "display_name": "Code Flow Reaching Def",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "POST /api/v0/code/flow/reaching-def",
@@ -2372,7 +2372,7 @@
           "max_scope_size": "none"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1500,
@@ -2387,10 +2387,6 @@
         {
           "kind": "go_test",
           "ref": "./internal/query"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-code-flow-reaching-def"
         }
       ],
       "console": false,
@@ -9346,8 +9342,8 @@
     {
       "capability": "semantic_evidence.code_hints.list",
       "display_name": "Semantic Evidence Code Hints List",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "list_semantic_code_hints",
@@ -9377,7 +9373,7 @@
           "max_scope_size": "bounded_semantic_scope"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "derived",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1500,
@@ -9388,10 +9384,6 @@
         {
           "kind": "go_test",
           "ref": "./internal/query"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-semantic-code-hints"
         }
       ],
       "console": false,
@@ -10696,8 +10688,8 @@
     {
       "capability": "symbol_graph.argument_names",
       "display_name": "Symbol Graph Argument Names",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "execute_language_query",
@@ -10727,7 +10719,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1200,
@@ -10742,10 +10734,6 @@
         {
           "kind": "integration_test",
           "ref": "local-authoritative-argument-names"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-argument-names"
         }
       ],
       "console": false,
@@ -10996,8 +10984,8 @@
     {
       "capability": "symbol_graph.imports",
       "display_name": "Symbol Graph Imports",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "execute_language_query",
@@ -11027,7 +11015,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1200,
@@ -11042,10 +11030,6 @@
         {
           "kind": "integration_test",
           "ref": "local-authoritative-imports"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-imports"
         }
       ],
       "console": false,
@@ -11071,8 +11055,8 @@
     {
       "capability": "symbol_graph.inheritance",
       "display_name": "Symbol Graph Inheritance",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "analyze_code_relationships",
@@ -11106,7 +11090,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1500,
@@ -11121,10 +11105,6 @@
         {
           "kind": "integration_test",
           "ref": "local-authoritative-inheritance"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-inheritance"
         }
       ],
       "console": false,
