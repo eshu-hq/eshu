@@ -2422,7 +2422,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.ProvenanceEdges, err = meter.Int64Counter(
 		"eshu_dp_provenance_edges_total",
-		metric.WithDescription("Total canonical PUBLISHES/BUILT_FROM graph provenance edges materialized or skipped by evidence_source domain and outcome"),
+		metric.WithDescription("Total canonical PUBLISHES/BUILT_FROM graph provenance edges materialized by evidence_source domain and outcome"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ProvenanceEdges counter: %w", err)

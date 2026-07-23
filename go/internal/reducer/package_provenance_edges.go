@@ -141,7 +141,8 @@ func (h PackageSourceCorrelationHandler) projectPackageProvenanceEdges(
 }
 
 // emitProvenanceEdgeCounter records a ProvenanceEdges counter sample labeled
-// by the producing evidence_source domain and outcome (materialized/skipped).
+// by the producing evidence_source domain and outcome (currently always
+// "materialized"; the outcome label is retained for a future skipped series).
 // It is a no-op when no Instruments are wired or the count is zero, matching
 // emitRepoEdgeCounter's shape.
 func (h PackageSourceCorrelationHandler) emitProvenanceEdgeCounter(ctx context.Context, evidenceSource, outcome string, count int) {

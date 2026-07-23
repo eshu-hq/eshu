@@ -211,7 +211,8 @@ lifecycle, which `PUBLISHES`/`BUILT_FROM` do not.
 
 The replay-depth-requirements delta_tombstone scenario for `BUILT_FROM`/`PUBLISHES`
 is not backed by a dedicated scenario file (tracked as an advisory gap in the
-regenerated `docs/public/reference/replay-coverage.md`; confirmed non-blocking
+regenerated `docs/public/reference/replay-coverage.md`, and as a follow-up in
+[#5712](https://github.com/eshu-hq/eshu/issues/5712); confirmed non-blocking
 by `bash scripts/verify-replay-coverage-gate.sh`'s "PASS ... (advisory)" exit,
 and by `specs/replay-depth-requirements.v1.yaml`'s own header comment that
 depth requirements "never fail the blocking breadth gate").

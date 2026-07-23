@@ -102,9 +102,9 @@ func (h ContainerImageIdentityHandler) projectContainerImageBuiltFromEdges(
 }
 
 // emitProvenanceEdgeCounter records a ProvenanceEdges counter sample for the
-// container-image-identity BUILT_FROM projection, labeled by outcome
-// (materialized/skipped). It is a no-op when no Instruments are wired or the
-// count is zero.
+// container-image-identity BUILT_FROM projection, labeled by outcome (currently
+// always "materialized"; the outcome label is retained for a future skipped
+// series). It is a no-op when no Instruments are wired or the count is zero.
 func (h ContainerImageIdentityHandler) emitProvenanceEdgeCounter(ctx context.Context, outcome string, count int) {
 	if h.Instruments == nil || h.Instruments.ProvenanceEdges == nil || count <= 0 {
 		return
