@@ -2519,3 +2519,182 @@ cross-contaminate each other's reap DELETE, and documents that same-repo
 concurrent writes (the only overlap that could make this reap unsafe) are
 already excluded upstream by `claimProjectorWorkQuery`'s scope_id-scoped
 `NOT EXISTS` claim guard in `projector_queue_claim_sql.go`.
+
+## Crossplane cross-scope SATISFIED_BY redrive sweep (#5476)
+
+#5347 shipped the Crossplane Claim -> XRD `SATISFIED_BY` correlation ungated
+within a repo, but left a cross-scope false-negative window open: if the XRD
+platform repo is ingested for the first time AFTER a Claim repo's latest
+generation, the Claim's own materialization pass runs with zero XRD facts
+visible and produces no edge — a false negative that, for a Claim repo that
+stops changing, never self-heals. This closes that window with a durable,
+bounded, paged sweep — deliberately NOT an inline fan-out inside
+`ProjectorQueue.Ack`'s transaction (a rejected earlier design: unbounded
+target discovery inside a fixed five-statement generation-activation
+transaction risks stale-lease commits and unbounded lock hold time).
+
+Files:
+
+- `migrations/076_crossplane_satisfied_by_redrive_state.sql` — the durable
+  `crossplane_satisfied_by_redrive_state` claim/completion table (mirrors
+  `graph_node_owner_backfill_state`'s completion-marker shape plus
+  `aws_freshness_triggers`' claim/lease and `claim_fencing_token` shape) and
+  the `crossplane_satisfied_by_redrive_target_ledger` already-satisfied
+  ledger, plus the `fact_records_active_k8s_claim_redrive_idx` partial index
+  backing target discovery.
+- `crossplane_satisfied_by_redrive_query.go` — the cross-scope target-scope
+  discovery query (`listCrossplaneRedriveTargetScopesQuery`), keyset-paginated
+  on `scope_id`, `LIMIT`-bounded.
+- `crossplane_satisfied_by_redrive_state.go` — `CrossplaneRedriveStateStore`:
+  `EnsureQueued`, `ClaimExact`/`ClaimBatch` (`FOR UPDATE SKIP LOCKED`,
+  returning a bumped `claim_fencing_token`), `MarkCompleted` (fenced by that
+  token, not `claimed_by`).
+- `crossplane_satisfied_by_redrive_ledger.go` —
+  `CrossplaneRedriveTargetLedgerStore.RecordRedriven`: durably marks a target
+  scope already re-driven against one (group, claim_kind) identity. Called
+  ONLY from `reducer.CrossplaneSatisfiedByMaterializationHandler`, strictly
+  after it commits a SATISFIED_BY edge — NEVER from the sweep. See the fence
+  (3) entry below for why.
+- `crossplane_satisfied_by_redrive_sweep.go` —
+  `CrossplaneSatisfiedByRedriveSweeper.Sweep` (the live post-Ack trigger path)
+  and `.SweepBatch` (the startup/periodic catch-up recovery path); both share
+  `runClaimedFanOut`.
+- `projector_queue_crossplane_redrive_hook.go` — `ProjectorQueue.Ack`'s
+  post-commit trigger (`runCrossplaneRedriveHook`), which calls `Sweep`.
+- `reducer_queue_replay.go` —
+  `ReducerQueue.ReplayCrossplaneSatisfiedByMaterialization`, mirroring
+  `ReplayWorkloadMaterialization`'s reopen-or-enqueue idempotency exactly,
+  reusing the SAME per-scope `EntityKey` the projector's own trigger uses so
+  the underlying `work_item_id` — and therefore queue dedupe — is identical.
+- `cmd/projector/crossplane_redrive_catchup.go` —
+  `runCrossplaneRedriveCatchUpLoop`, the periodic caller of `SweepBatch` that
+  recovers a sweep left `'claimed'` by a transient DB error or process crash.
+
+Fences (all three required by the design, all enforced in
+`listCrossplaneRedriveTargetScopesQuery` / `sweepJoinKey`):
+
+1. **Active-generation fence**: the target-discovery join requires
+   `scope.active_generation_id = fact.generation_id`, and `sweepJoinKey`
+   re-checks `isCrossplaneXRDGenerationStillActiveQuery` before every page —
+   if the XRD's OWN generation is superseded mid-sweep, the sweep stops
+   without resurrecting stale intents (the new generation's own activation
+   enqueues its own fresh sweep).
+2. **Active-claim fence**: the same join restricts every Claim candidate to
+   the TARGET scope's current active generation.
+3. **Already-satisfied-for-this-identity fence**: a `NOT EXISTS` subquery
+   against `crossplane_satisfied_by_redrive_target_ledger` skips a target
+   scope already recorded for this EXACT (group, claim_kind) identity.
+   **This fence was originally shipped keyed on a timestamp**
+   (`fact_work_items.updated_at > xrd_fact.observed_at`, "already ran with
+   this exact XRD visible") **and was found ineffective in review**: an XRD
+   fact's own `observed_at` is threaded per-generation at ingestion time
+   (`git_content_fact_envelopes.go`/`git_source_processing.go`) and therefore
+   strictly advances on every resync of the platform repo even when the
+   XRD's (group, claim_kind) is completely unchanged, so `updated_at > $5`
+   was false for every previously-satisfied target on every subsequent sync —
+   the fence never actually skipped anything.
+
+   The ledger table that replaced it went through TWO iterations of its own.
+   **Iteration 1 (also rejected in review) had the SWEEP write the ledger
+   entry immediately after `ReplayCrossplaneSatisfiedByMaterialization`
+   returned.** That call is enqueue-only — it returns as soon as the work
+   item is durably queued, strictly BEFORE the reducer handler runs. Because
+   reducer auto-retry-on-dead-letter is disabled by default
+   (`cmd/reducer/poison_liveness_wiring.go`), an intent that enqueued
+   successfully but later dead-lettered (a handler bug, or an infra outage
+   exceeding the retry budget) would leave the ledger PERMANENTLY and
+   SILENTLY marking that (target scope, XRD identity) satisfied — the
+   ledger's primary key is not generation-scoped and never expires — reopening
+   the exact false-negative window #5476 exists to close, worse than the
+   original bug because it is silent and permanent.
+
+   **The shipped design instead has
+   `reducer.CrossplaneSatisfiedByMaterializationHandler` write the ledger
+   entry itself, strictly after `WriteCrossplaneSatisfiedByEdges` succeeds**
+   (`recordRedriveLedger`, one entry per distinct `(claim_group, claim_kind)`
+   among the rows it actually wrote an edge for). The sweep's `sweepJoinKey`
+   no longer touches the ledger at all — it only enqueues/reopens. The window
+   between enqueue and handler completion where a second sweep might
+   re-enqueue the same target is safe (not a regression): the reopen-or-enqueue
+   in `ReplayCrossplaneSatisfiedByMaterialization` is idempotent on the
+   target's own per-scope `EntityKey`, so redundant re-enqueuing costs a
+   no-op, never a duplicate materialization. Once a target scope has an
+   actual edge committed for a (group, claim_kind) identity, re-running its
+   materialization again for the SAME identity is a deterministic no-op (a
+   pure function of that target's own unchanged facts plus the same
+   active-XRD set), so skipping it forever is correct. A LATER, genuinely new
+   Claim generation in the target scope needs no ledger check at all: its own
+   projector-triggered SATISFIED_BY intent resolves directly against the
+   already-active XRD.
+
+Trigger: `ProjectorQueue.Ack` calls `runCrossplaneRedriveHook` AFTER its own
+transaction commits (never inside it), which calls `Sweep`. The hook is a
+no-op unless `CrossplaneRedrive` is wired; a hook failure is logged and never
+fails Ack — the generation is already correctly activated by that point.
+
+**Crash/error recovery requires the catch-up loop, not just the live hook.**
+A `Sweep` call that errors partway through the paged fan-out (a transient DB
+blip) or whose process crashes mid-sweep leaves
+`crossplane_satisfied_by_redrive_state` `'claimed'` with an expiring lease
+that nothing else ever rechecks on its own — the remaining un-swept target
+scopes would otherwise be stuck forever, reproducing the exact unbounded
+false-negative window #5476 exists to close, now triggered by crash/error
+instead of ingestion order. `cmd/projector` runs
+`runCrossplaneRedriveCatchUpLoop` as a background goroutine alongside the
+main projector `Service.Run` loop (started in `main.go`, sharing its
+shutdown context): every `crossplaneRedriveCatchUpInterval` tick it calls
+`SweepBatch`, which reclaims up to `crossplaneRedriveDefaultCatchUpBatchSize`
+`'queued'` or lease-expired rows via `ClaimBatch` and re-runs the fan-out for
+each. A per-tick error is logged and the loop continues — an auxiliary
+recovery pass must never take down the primary projector service. `main.go`
+joins the catch-up goroutine via a `sync.WaitGroup` before it returns (and
+therefore before its deferred `db.Close()` fires): defers run LIFO, so the
+`wg.Wait()` defer, registered after `db.Close()`'s, runs first, ensuring a
+tick that is mid-`SweepBatch` at shutdown finishes against a still-open `db`
+instead of racing a closed one. `cmd/projector/crossplane_redrive_catchup_test.go`
+proves the tick calls `SweepBatch`, swallows its error, and that the loop
+returns promptly on context cancellation, all against a fake
+`crossplaneRedriveBatchSweeper` (no real Postgres needed).
+
+Prove-theory-first (issue #5476, `crossplane_satisfied_by_redrive_query_plan_live_test.go`):
+scratch Postgres 18 seeded with 4,000 target scopes x 50 `K8sResource`
+content_entity facts each (200,001 rows total), 60 scopes (~1.5%) matching
+the XRD's `(group, kind)`. OLD (indexscan/bitmapscan disabled, reproducing
+the pre-#5476 no-usable-index shape): `Parallel Seq Scan` over
+`fact_records`, 27,109 buffer hits, 104.482ms. NEW (partial index): `Index
+Scan using fact_records_active_k8s_claim_redrive_idx`, 9,653 buffer hits,
+6.932ms — no sequential scan, ~15x faster. Row-set equivalence: naive
+(index-disabled) and indexed result sets both return the same 60 target
+scopes, symmetric difference 0/0.
+
+Concurrency proof (`crossplane_satisfied_by_redrive_live_test.go`,
+`TestCrossplaneRedriveStateConcurrentClaimConvergesLive`): two genuinely
+independent Postgres connections racing `ClaimExact` on the SAME
+`(xrd_scope_id, xrd_generation_id)` row converge to exactly one winner via
+`FOR UPDATE SKIP LOCKED`; an unrelated row claims independently without
+interference.
+
+Crash-recovery proof (`TestCrossplaneRedriveStateCrashRecoveryLive`): marker
+absent -> `EnsureQueued`+`ClaimExact` succeeds (full sweep). A live
+(non-expired) claim rejects a second claimant. Once the lease expires, a new
+invocation reclaims it (bumping `claim_fencing_token`); the original
+(now-stale) invocation's `MarkCompleted` call, presenting its now-superseded
+token, is a fenced no-op, and the reclaiming invocation's completion (with
+the current token) succeeds. Marker present as `completed` -> every further
+`ClaimExact` is a no-op.
+
+Behavior proof (`crossplane_satisfied_by_redrive_behavior_live_test.go`,
+`TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive`, failing-then-green):
+a Claim scope is seeded and its own `CrossplaneSatisfiedByMaterializationHandler.Handle`
+pass runs FIRST, with no XRD anywhere — zero rows written (the false negative,
+red). The XRD scope is then seeded and activated; `Sweep` runs for it and
+re-enqueues the Claim scope's intent (`TargetsEnqueued == 1`,
+`Outcome == "completed"`), confirmed pending in `fact_work_items` with NO new
+generation or fact ever written for the Claim scope. Replaying the SAME
+Claim intent now resolves exactly one `SATISFIED_BY` row (green).
+
+Telemetry (low-cardinality only, no per-scope/per-XRD label):
+`eshu_dp_crossplane_redrive_sweeps_total` (by `outcome`:
+`no_active_xrd`/`already_in_progress`/`completed`/`reclaimed_mid_sweep`/
+`sweep_error`), `eshu_dp_crossplane_redrive_targets_enqueued_total`,
+`eshu_dp_crossplane_redrive_pages_processed_total`.

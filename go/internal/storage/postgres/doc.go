@@ -326,4 +326,18 @@
 // generation_id, fact_id, missing_field) DO NOTHING clause, so replaying the
 // same reduction (a retried intent or a re-projected generation) converges on
 // one row per fact/field rather than duplicating it or erroring.
+// CrossplaneSatisfiedByRedriveSweeper closes the Crossplane cross-scope
+// XRD-lag false-negative window (issue #5476): when a scope's generation
+// carrying an active CrossplaneXRD activates, it discovers OTHER scopes'
+// active, unresolved K8sResource Claims matching that XRD's (group,
+// claimNames.kind) and re-enqueues (or reopens, via
+// ReducerQueue.ReplayCrossplaneSatisfiedByMaterialization) each target
+// scope's SATISFIED_BY materialization intent, without re-ingesting the
+// Claim scope. CrossplaneRedriveStateStore durably tracks completion per
+// (xrd_scope_id, xrd_generation_id) so a crash mid-sweep retries safely
+// (FOR UPDATE SKIP LOCKED convergence on the claim/marker row) and a
+// completed generation is never re-swept. ProjectorQueue.Ack's
+// runCrossplaneRedriveHook triggers the sweep AFTER Ack's own transaction
+// commits — deliberately its own bounded, paged unit of work, never inline
+// inside Ack's fixed-size generation-activation transaction.
 package postgres

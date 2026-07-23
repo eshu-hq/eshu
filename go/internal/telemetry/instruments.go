@@ -413,6 +413,22 @@ type Instruments struct {
 	// an operator see Claim->XRD edge throughput, and a generation that
 	// materialized zero edges, at 3 AM.
 	CrossplaneSatisfiedByEdges metric.Int64Counter
+	// CrossplaneRedriveSweeps counts cross-scope SATISFIED_BY re-drive sweeps
+	// attempted (issue #5476) by outcome (no_active_xrd / already_in_progress /
+	// completed / reclaimed_mid_sweep / sweep_error). Low cardinality: no
+	// scope or XRD identity label. Lets an operator see whether the sweep is
+	// running at all, and whether it is finding work, at 3 AM.
+	CrossplaneRedriveSweeps metric.Int64Counter
+	// CrossplaneRedriveTargetsEnqueued counts distinct target Claim scopes the
+	// cross-scope re-drive sweep enqueued or reopened a SATISFIED_BY
+	// materialization intent for (issue #5476). No label: a single bounded
+	// throughput number per sweep.
+	CrossplaneRedriveTargetsEnqueued metric.Int64Counter
+	// CrossplaneRedrivePagesProcessed counts keyset-paginated pages the
+	// cross-scope re-drive sweep's target-discovery query processed (issue
+	// #5476). Bounds visibility into fan-out size without per-scope
+	// cardinality.
+	CrossplaneRedrivePagesProcessed metric.Int64Counter
 	// SecurityGroupEndpointNodes counts canonical CidrBlock and PrefixList graph
 	// nodes committed by the security-group endpoint materialization reducer
 	// (issue #1135 PR2a). Label: endpoint_kind (cidr_block / prefix_list). It lets
@@ -2558,6 +2574,30 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CrossplaneSatisfiedByEdges counter: %w", err)
+	}
+
+	inst.CrossplaneRedriveSweeps, err = meter.Int64Counter(
+		"eshu_dp_crossplane_redrive_sweeps_total",
+		metric.WithDescription("Total cross-scope Crossplane SATISFIED_BY re-drive sweeps attempted by outcome"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CrossplaneRedriveSweeps counter: %w", err)
+	}
+
+	inst.CrossplaneRedriveTargetsEnqueued, err = meter.Int64Counter(
+		"eshu_dp_crossplane_redrive_targets_enqueued_total",
+		metric.WithDescription("Total distinct target Claim scopes the cross-scope Crossplane re-drive sweep enqueued or reopened a SATISFIED_BY intent for"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CrossplaneRedriveTargetsEnqueued counter: %w", err)
+	}
+
+	inst.CrossplaneRedrivePagesProcessed, err = meter.Int64Counter(
+		"eshu_dp_crossplane_redrive_pages_processed_total",
+		metric.WithDescription("Total keyset-paginated pages the cross-scope Crossplane re-drive sweep's target-discovery query processed"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CrossplaneRedrivePagesProcessed counter: %w", err)
 	}
 
 	inst.SecurityGroupEndpointNodes, err = meter.Int64Counter(

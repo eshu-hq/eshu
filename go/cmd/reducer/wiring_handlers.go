@@ -127,12 +127,20 @@ func buildReducerKubernetesHandlers(
 }
 
 // buildReducerCrossplaneHandlers assembles the Crossplane Claim -> XRD
-// SATISFIED_BY edge writer (issue #5347).
+// SATISFIED_BY edge writer (issue #5347) and the cross-scope redrive target
+// ledger writer (issue #5476): the handler records a target scope as
+// confirmed satisfied for an XRD (group, claim_kind) identity only after it
+// actually commits an edge for that identity, never at cross-scope-sweep
+// enqueue time (see CrossplaneRedriveTargetLedgerWriter's doc comment).
 func buildReducerCrossplaneHandlers(
+	database postgres.ExecQueryer,
 	graphWriters canonicalGraphWriters,
+	graphReader reducer.GraphQueryRunner,
 ) reducer.CrossplaneHandlers {
 	return reducer.CrossplaneHandlers{
-		CrossplaneSatisfiedByEdgeWriter: graphWriters.crossplaneSatisfiedByEdge,
+		CrossplaneSatisfiedByEdgeWriter:          graphWriters.crossplaneSatisfiedByEdge,
+		CrossplaneRedriveTargetLedger:            postgres.NewCrossplaneRedriveTargetLedgerStore(database),
+		CrossplaneSatisfiedByEdgeExistenceReader: graphReader,
 	}
 }
 

@@ -405,6 +405,23 @@ func defaultRawPayloadExemptions() []RawPayloadExemption {
 		{Path: "go/internal/relationships/evidence_content_index.go", Accessor: rawPayloadIndexAccessor, Key: "relative_path"},
 		{Path: "go/internal/relationships/evidence_byte_citation.go", Accessor: rawPayloadIndexAccessor, Key: "commit_sha"},
 		{Path: "go/internal/storage/postgres/incident_routing_evidence_loader.go", Accessor: "incidentRoutingPayloadMap", Key: "service"},
+		// crossplaneRedriveXRDFields (issue #5476's cross-scope SATISFIED_BY
+		// redrive sweep) reads a CrossplaneXRD content_entity fact's
+		// entity_metadata to extract the XRD's (group, claim_kind) join key.
+		// content_entity is parser output: every entity_type's extra fields
+		// (Variable, Function, K8sResource, CrossplaneXRD, ...) live under
+		// entity_metadata as an untyped bag, and content_entity has no typed
+		// factschema struct -- sdk/go/factschema models only collector-emitted
+		// families (AWS, IAM, incident, ...), never parsed code/content
+		// entities, so there is no seam to migrate to. The reducer's own
+		// pre-existing SATISFIED_BY correlation
+		// (internal/reducer/crossplane_satisfied_by_edge_rows.go's
+		// crossplaneEntityMetadataString) reads this exact field the exact
+		// same raw way; this exemption keeps the sweep's read consistent with
+		// that already-established pattern rather than inventing a one-off
+		// typed struct ahead of a content_entity family migration this change
+		// does not own.
+		{Path: "go/internal/storage/postgres/crossplane_satisfied_by_redrive_sweep.go", Accessor: rawPayloadIndexAccessor, Key: "entity_metadata"},
 		// The repository-catalog payload parser moved from the Postgres ingestion
 		// path to relationships.RepositoryCatalogEntry so Ifá can derive the same
 		// catalog offline (#4394 T2). The reads are unchanged (still pre-typed

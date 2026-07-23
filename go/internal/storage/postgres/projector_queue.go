@@ -45,6 +45,13 @@ type ProjectorQueue struct {
 	// Instruments records operator-facing retry telemetry. Nil is safe
 	// (no-op) so existing callers that do not wire it keep working.
 	Instruments *telemetry.Instruments
+	// CrossplaneRedrive re-drives cross-scope Claim SATISFIED_BY correlations
+	// after Ack activates a generation carrying an active CrossplaneXRD
+	// (issue #5476). Nil is safe (no-op): existing callers that do not wire a
+	// sweeper keep today's behavior exactly. See runCrossplaneRedriveHook's
+	// doc comment for why this runs AFTER Ack's own transaction commits, not
+	// inside it.
+	CrossplaneRedrive CrossplaneRedriveSweeper
 }
 
 // ErrProjectorClaimRejected means the claimed projector work item no longer
@@ -209,6 +216,8 @@ func (q ProjectorQueue) Ack(
 		return fmt.Errorf("ack projector work: commit: %w", err)
 	}
 	committed = true
+
+	q.runCrossplaneRedriveHook(ctx, work)
 
 	return nil
 }

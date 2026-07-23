@@ -59,6 +59,11 @@ WHERE stage = 'reducer'
 
 const (
 	workloadMaterializationReplayReason = "deployment mapping resolved stronger evidence"
+	// crossplaneSatisfiedByRedriveReplayReason tags a re-drive-triggered
+	// SATISFIED_BY replay (issue #5476) distinctly from the original
+	// projector-triggered enqueue, so a completion log or dead-letter can
+	// tell the two apart.
+	crossplaneSatisfiedByRedriveReplayReason = "cross-scope crossplane xrd redrive"
 )
 
 // ReopenSucceeded moves one succeeded reducer work item back to pending so it
@@ -168,6 +173,58 @@ func (q ReducerQueue) ReplayWorkloadMaterialization(
 	}
 	if err := q.enqueueReducerBatch(ctx, []projector.ReducerIntent{intent}, q.now()); err != nil {
 		return false, fmt.Errorf("schedule workload materialization replay: %w", err)
+	}
+
+	return true, nil
+}
+
+// ReplayCrossplaneSatisfiedByMaterialization re-drives one target Claim
+// scope's SATISFIED_BY materialization intent after a cross-scope XRD
+// generation activates (issue #5476). Mirrors ReplayWorkloadMaterialization
+// exactly: enqueue-only, opportunistically reopening a succeeded row so a
+// previously-resolved-with-zero-XRD-visible generation gets a fresh pass, and
+// otherwise enqueueing a fresh intent through the normal claim path. Reusing
+// the SAME per-scope EntityKey the projector's own trigger uses
+// ("crossplane_satisfied_by_materialization:<scopeID>") means the underlying
+// work_item_id is identical to the one the projector would have enqueued for
+// this exact scope generation, so this call is naturally idempotent under
+// concurrent or repeated sweep invocations: ON CONFLICT DO NOTHING (fresh
+// enqueue) or a no-op ReopenSucceeded (already pending/claimed/running) never
+// duplicates work.
+func (q ReducerQueue) ReplayCrossplaneSatisfiedByMaterialization(
+	ctx context.Context,
+	targetScopeID string,
+	targetGenerationID string,
+) (bool, error) {
+	if err := q.validateEnqueue(); err != nil {
+		return false, err
+	}
+	if strings.TrimSpace(targetScopeID) == "" {
+		return false, errors.New("crossplane satisfied-by redrive target scope id is required")
+	}
+	if strings.TrimSpace(targetGenerationID) == "" {
+		return false, errors.New("crossplane satisfied-by redrive target generation id is required")
+	}
+
+	intent := projector.ReducerIntent{
+		ScopeID:      targetScopeID,
+		GenerationID: targetGenerationID,
+		Domain:       reducer.DomainCrossplaneSatisfiedByMaterialization,
+		EntityKey:    "crossplane_satisfied_by_materialization:" + targetScopeID,
+		Reason:       crossplaneSatisfiedByRedriveReplayReason,
+		SourceSystem: "reducer",
+	}
+	workItemID := reducerWorkItemID(intent)
+
+	reopened, err := q.ReopenSucceeded(ctx, workItemID)
+	if err != nil {
+		return false, fmt.Errorf("schedule crossplane satisfied-by redrive replay: %w", err)
+	}
+	if reopened {
+		return true, nil
+	}
+	if err := q.enqueueReducerBatch(ctx, []projector.ReducerIntent{intent}, q.now()); err != nil {
+		return false, fmt.Errorf("schedule crossplane satisfied-by redrive replay: %w", err)
 	}
 
 	return true, nil
