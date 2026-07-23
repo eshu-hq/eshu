@@ -25,6 +25,7 @@ var retractableGraphEdgeTypes = []edgetype.EdgeType{
 	edgetype.DefinesJob,
 	edgetype.DependsOn,
 	edgetype.DeploysFrom,
+	edgetype.DerivedFrom,
 	edgetype.DiscoversConfigIn,
 	edgetype.Documents,
 	edgetype.EvidencesRepositoryRelationship,

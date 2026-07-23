@@ -77,6 +77,12 @@ const (
 	DeploymentSource EdgeType = "DEPLOYMENT_SOURCE"
 	// DeploysFrom is the "DEPLOYS_FROM" graph relationship type.
 	DeploysFrom EdgeType = "DEPLOYS_FROM"
+	// DerivedFrom is the "DERIVED_FROM" graph relationship type (a built
+	// ContainerImage to the base ContainerImage its repository's Dockerfile
+	// declared, issue #5460). Both endpoints are matched by digest, so the edge
+	// is projected only when the child and the base each resolve to an exact
+	// digest, per docs/internal/design/5472-graph-projection-policy.md.
+	DerivedFrom EdgeType = "DERIVED_FROM"
 	// DiscoversConfigIn is the "DISCOVERS_CONFIG_IN" graph relationship type.
 	DiscoversConfigIn EdgeType = "DISCOVERS_CONFIG_IN"
 	// Documents is the "DOCUMENTS" graph relationship type.
@@ -243,7 +249,7 @@ var registered = []EdgeType{
 	Aliases, AllowsEgress, AllowsIngress, AtlantisDependsOn, BuiltFrom, Calls,
 	CanAssume, CanEscalateTo, CanPerform, Contains,
 	CorrelatesDeployableUnit, DeclaresCodeowner, DeclaresDependency, Defines, DefinesJob, DependsOn,
-	DependsOnPackage, DeploymentSource, DeploysFrom, DiscoversConfigIn,
+	DependsOnPackage, DeploymentSource, DeploysFrom, DerivedFrom, DiscoversConfigIn,
 	Documents, EvidencesRepositoryRelationship, Executes, ExecutesShell,
 	Explains, ExposesEndpoint, ExtendsBase, GrantsAccessTo, HandlesRoute,
 	HasAppliedRouting, HasColumn, HasDeploymentEvidence, HasIntendedRouting,
