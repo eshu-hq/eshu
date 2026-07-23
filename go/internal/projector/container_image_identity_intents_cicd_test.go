@@ -24,7 +24,7 @@ func TestBuildProjectionQueuesContainerImageIdentityForCICDContainerArtifact(t *
 
 	scopeValue := scope.IngestionScope{
 		ScopeID:      "ci_cd_run:github_actions:eshu-hq:supply-chain-demo",
-		ScopeKind:    "ci_cd_run_repository",
+		ScopeKind:    "ci_cd_run",
 		SourceSystem: "ci_cd_run",
 	}
 	generation := scope.ScopeGeneration{
@@ -59,7 +59,7 @@ func TestBuildProjectionDoesNotQueueContainerImageIdentityForNonContainerCICDArt
 
 	scopeValue := scope.IngestionScope{
 		ScopeID:      "ci_cd_run:github_actions:eshu-hq:supply-chain-demo",
-		ScopeKind:    "ci_cd_run_repository",
+		ScopeKind:    "ci_cd_run",
 		SourceSystem: "ci_cd_run",
 	}
 	generation := scope.ScopeGeneration{
