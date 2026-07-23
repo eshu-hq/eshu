@@ -74,8 +74,8 @@ throttles, and pagination spans.
   (`RelationshipECSTaskDefinitionUsesImage`), not `aws_resource` facts, in this
   package.
 - Every RUNNING task container with a non-blank `ImageDigest` and an
-  ECR-hosted `Image` (host matches `<registry-id>.dkr.ecr.<region>.amazonaws.com`,
-  including the `.amazonaws.com.cn` partition) emits a first-class
+  ECR-hosted `Image` in the STANDARD AWS partition (host matches
+  `<registry-id>.dkr.ecr.<region>.amazonaws.com`) emits a first-class
   `aws_image_reference` fact (#5451). This is the strongest available
   deployed-code signal ECS offers: the digest DescribeTasks reports for the
   container running right now, not a build-time or task-definition reference.
@@ -90,6 +90,19 @@ throttles, and pagination spans.
   still visible through the task's `aws_resource` `containers[]` attribute and
   the task-definition's `RelationshipECSTaskDefinitionUsesImage` relationship;
   only the digest-keyed identity join is unavailable for it.
+- A China-partition ECR-hosted image (host ends in `.amazonaws.com.cn`) is
+  ALSO a bounded gap, deliberately: `ecrImageHostPattern` does not match it,
+  so the scanner skips it exactly like a non-ECR image. This is not an
+  oversight — the reducer's `addAWSImageReference`
+  (`container_image_identity_typed_evidence.go`) unconditionally reconstructs
+  the registry hostname as `<registry_id>.dkr.ecr.<region>.amazonaws.com`
+  (no partition field), so a `.cn` `aws_image_reference` fact could never
+  match its `.cn` OCI registry observation and would resolve to nothing —
+  emitting it would silently promise a join that can never happen. Supporting
+  the China partition needs the registry hostname/partition threaded through
+  the `aws_image_reference` payload contract and the reducer's registry
+  reconstruction together, in the same change; that is tracked as a follow-up,
+  not done here.
 - A non-RUNNING task (STOPPED, PENDING, ...) never emits an image reference —
   only the RUNNING state is the deployed-code signal this fact exists to
   carry.

@@ -35,9 +35,17 @@
   and the field is safe for persistence.
 - Extend SDK pagination in the `awssdk` adapter, not here.
 - Extend `image_reference.go` only for another AWS-registry-shaped image host
-  pattern (for example a new ECR partition). Do not widen it to force a
-  non-AWS-registry image into the `aws_image_reference` shape; that is a
-  documented bounded gap (see README "Gotchas / invariants"), not a bug.
+  pattern. Do not widen it to force a non-AWS-registry image into the
+  `aws_image_reference` shape; that is a documented bounded gap (see README
+  "Gotchas / invariants"), not a bug.
+- Do NOT add the China partition (`.amazonaws.com.cn`) to
+  `ecrImageHostPattern` without first threading the registry hostname/
+  partition through the `aws_image_reference` payload contract AND the
+  reducer's `addAWSImageReference` registry reconstruction
+  (`container_image_identity_typed_evidence.go`, currently hardcodes
+  `.amazonaws.com`) in the SAME change. Matching the host here without that
+  reducer change makes the emitted fact silently unresolvable (codex #5451
+  P2 finding).
 
 ## What Not To Change Without An ADR
 

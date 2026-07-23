@@ -13,12 +13,16 @@ import (
 )
 
 // ecrImageHostPattern matches an ECR registry host of the shape
-// "<registry-id>.dkr.ecr.<region>.amazonaws.com", including the
-// ".amazonaws.com.cn" partition variant used by the China regions. The
-// registry id (a 12-digit AWS account id) is captured so the emitted
-// aws_image_reference can carry it even when it differs from the ECS task's
-// own account (a cross-account ECR pull).
-var ecrImageHostPattern = regexp.MustCompile(`^[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com(\.cn)?$`)
+// "<registry-id>.dkr.ecr.<region>.amazonaws.com" — the standard AWS
+// partition ONLY. The China partition host
+// "<registry-id>.dkr.ecr.<region>.amazonaws.com.cn" deliberately does NOT
+// match (see the doc comment on runningContainerImageReferences for why:
+// the reducer's registry reconstruction hardcodes ".amazonaws.com" and would
+// never resolve a China-partition reference). The registry id (a 12-digit
+// AWS account id) is captured so the emitted aws_image_reference can carry it
+// even when it differs from the ECS task's own account (a cross-account ECR
+// pull within the standard partition).
+var ecrImageHostPattern = regexp.MustCompile(`^[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com$`)
 
 // runningContainerImageReferences emits one aws_image_reference fact per
 // running task container whose image is hosted in an ECR registry and whose
@@ -33,14 +37,25 @@ var ecrImageHostPattern = regexp.MustCompile(`^[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.
 // aws_image_reference fact lets the existing resolver join a running task
 // straight to the repository and commit that built its image.
 //
-// Only ECR-hosted images are emitted: the image host must match
-// ecrImageHostPattern. aws_image_reference models an AWS-registry
-// account/region/repository shape, so a non-ECR running image (docker.io,
-// ghcr.io, a private registry, ...) does not fit it and is intentionally
-// skipped rather than forced into a shape that would misrepresent it. See the
-// ECS README "Gotchas / invariants" for this bounded gap. A task container
-// with a blank ImageDigest (the digest was not yet resolved when ECS reported
-// the task) is also skipped; there is no digest to key a reference on.
+// Only ECR-hosted images in the standard AWS partition are emitted: the image
+// host must match ecrImageHostPattern. aws_image_reference models an
+// AWS-registry account/region/repository shape, so a non-ECR running image
+// (docker.io, ghcr.io, a private registry, ...) does not fit it and is
+// intentionally skipped rather than forced into a shape that would
+// misrepresent it. See the ECS README "Gotchas / invariants" for this bounded
+// gap. A task container with a blank ImageDigest (the digest was not yet
+// resolved when ECS reported the task) is also skipped; there is no digest to
+// key a reference on.
+//
+// A China-partition ECR host (".amazonaws.com.cn") is ALSO skipped, even
+// though it is a real ECR registry: the reducer's addAWSImageReference
+// (container_image_identity_typed_evidence.go) reconstructs the registry
+// hostname as "<registry_id>.dkr.ecr.<region>.amazonaws.com" unconditionally
+// — it has no partition field, so it can never match a ".cn" OCI registry
+// observation. Emitting a China-partition aws_image_reference fact would
+// therefore silently never resolve. See the ECS README "Gotchas /
+// invariants" for the tracked follow-up (threading the registry partition
+// through the fact contract and the reducer).
 func runningContainerImageReferences(boundary awscloud.Boundary, task Task) ([]facts.Envelope, error) {
 	if strings.TrimSpace(task.LastStatus) != "RUNNING" {
 		return nil, nil

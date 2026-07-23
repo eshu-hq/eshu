@@ -216,10 +216,16 @@ func TestParseECRImage(t *testing.T) {
 			wantOK: false,
 		},
 		{
-			name:    "china partition host still matches",
-			image:   "123456789012.dkr.ecr.cn-north-1.amazonaws.com.cn/team/api:prod",
-			wantTag: "prod",
-			wantOK:  true,
+			// China-partition ECR hosts are intentionally skipped, not
+			// matched: addAWSImageReference (container_image_identity_typed_
+			// evidence.go) hardcodes ".amazonaws.com" when reconstructing the
+			// registry hostname, so a ".cn" aws_image_reference could never
+			// resolve against its OCI registry observation. See the
+			// ecrImageHostPattern doc comment and the ECS README "Gotchas /
+			// invariants" for the tracked follow-up.
+			name:   "china partition host is skipped, not matched",
+			image:  "123456789012.dkr.ecr.cn-north-1.amazonaws.com.cn/team/api:prod",
+			wantOK: false,
 		},
 		{
 			name:   "no repository path",
