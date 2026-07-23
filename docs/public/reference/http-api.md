@@ -457,12 +457,36 @@ Each resource item in the `resources` array carries:
 | `tag_value_fingerprints` | Optional keyed non-reversible tag value markers; raw tag values are never returned |
 | `identity_policy_evidence` | Optional bounded Azure identity-policy rows (keyed fingerprints only; no raw principal GUIDs or assignment scopes) |
 | `resource_change_freshness` | Optional sanitized Azure Resource Graph change rows (no raw provider targets or actor ids) |
-| `attributes` | Optional bounded provider-specific typed-depth attributes (e.g. `table_type`, `schema_field_count`, `kms_key_name`, `clustering_fields` for BigQuery tables; `routing_mode`, `auto_create_subnetworks`, `mtu`, `subnetwork_count` for VPC networks). Values are redaction-safe scalars and string-arrays; no raw locators or secrets are present. |
+| `attributes` | Optional bounded provider-specific attributes. See below for what each provider surfaces. |
 
 The `attributes` field is present only when the provider source fact carried
-bounded typed-depth metadata. It is currently populated for GCP resources
-(BigQuery tables and similar) and is omitted entirely for resources without
-provider-specific attribute evidence.
+attribute evidence the route is allowed to surface, and its contract differs
+by provider:
+
+- **GCP** surfaces its typed-depth payload as a bounded redaction-safe
+  passthrough (e.g. `table_type`, `schema_field_count`, `kms_key_name`,
+  `clustering_fields` for BigQuery tables; `routing_mode`,
+  `auto_create_subnetworks`, `mtu`, `subnetwork_count` for VPC networks).
+  Values are redaction-safe scalars and string-arrays.
+- **AWS** surfaces a CLOSED image/version allowlist only, scoped to the
+  strongest deployed-code signals the collector already observes:
+  `task_definition_arn`, `image_uri`, `resolved_image_uri`, `code_sha256`,
+  `version`, and a `containers` array (from ECS running tasks) reduced per
+  element to `{image, image_digest}`. Every other AWS attribute key (for
+  example `cluster_arn`, `role_arn`, `kms_key_arn`, `network_interfaces`,
+  `environment`, `vpc_config`, or a container's `name`/`runtime_id`) is
+  dropped before the route ever sees it.
+- **Azure** uses the same closed-allowlist mechanism as AWS, but the
+  allowlist is currently empty: the `azure_cloud_resource` fact this route
+  reads carries no image or version key today (Azure's runtime image
+  evidence is emitted as a separate `azure_image_reference` fact kind not
+  yet wired into this admission path), so no Azure resource surfaces an
+  `attributes` field yet. Every raw Azure attribute (`arm_resource_id`,
+  `subscription_id`, `resource_group`, `tenant_id`, `tags`, the redacted
+  `extension` object, ...) is dropped.
+
+No raw provider locator, credential, or secret is ever present in
+`attributes` for any provider.
 
 ## Cloud Resource Graph Paging
 
