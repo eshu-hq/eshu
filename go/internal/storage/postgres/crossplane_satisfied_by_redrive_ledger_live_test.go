@@ -126,6 +126,7 @@ func TestCrossplaneRedriveSuccessfulMaterializationWritesLedgerThenSkipsLive(t *
 		FactLoader:          factStore,
 		EdgeWriter:          &crossplaneRedriveSpyEdgeWriter{},
 		RedriveTargetLedger: ledger,
+		EdgeExistenceReader: &crossplaneRedriveFakeEdgeExistenceReader{confirmAll: true},
 	}
 	intent := reducer.Intent{
 		IntentID:     "intent-satisfy-skip-1",
@@ -160,6 +161,90 @@ func TestCrossplaneRedriveSuccessfulMaterializationWritesLedgerThenSkipsLive(t *
 	}
 	if result.TargetsEnqueued != 0 {
 		t.Fatalf("expected the already-satisfied target to be skipped, got TargetsEnqueued=%d", result.TargetsEnqueued)
+	}
+}
+
+// TestCrossplaneRedriveUnconfirmedEdgeNotLedgeredAndReenqueuedLive is the
+// issue #5476 P1-b regression: cypher.CrossplaneSatisfiedByEdgeWriter's
+// MATCH-MATCH-MERGE deliberately no-ops -- returning nil, not an error --
+// when a row's Claim or XRD endpoint node is absent from the graph. Before
+// this fix, WriteCrossplaneSatisfiedByEdges returning nil was treated as
+// proof every resolved row's edge committed, so recordRedriveLedger recorded
+// the target as PERMANENTLY satisfied even though no edge was ever created --
+// the exact silent false-negative the ledger exists to prevent, now
+// triggered by a missing endpoint instead of enqueue-time-vs-commit-time
+// ordering (the sibling regression above). This proves the fix: when the
+// post-write existence check confirms NOTHING (simulating every resolved
+// row's endpoint being absent from the graph), no ledger entry is recorded,
+// and a LATER sweep for the same (group, claim_kind) identity still
+// re-enqueues the target instead of wrongly skipping it as already-satisfied.
+func TestCrossplaneRedriveUnconfirmedEdgeNotLedgeredAndReenqueuedLive(t *testing.T) {
+	dsn, schema := crossplaneRedriveProofSchema(t)
+	db := crossplaneRedriveProofConn(t, dsn, schema)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	const (
+		xrdScopeID    = "scope-xrd-unconfirmed"
+		group         = "example.org"
+		claimKind     = "XExampleClaim"
+		targetScopeID = "scope-claim-unconfirmed"
+		targetGenID   = "gen-claim-unconfirmed-001"
+	)
+
+	seedCrossplaneRedriveClaimScope(ctx, t, db, targetScopeID, targetGenID, group, claimKind, 1, now)
+
+	const xrdGen1 = "gen-xrd-unconfirmed-001"
+	seedCrossplaneRedriveXRD(ctx, t, db, xrdScopeID, xrdGen1, group, claimKind, now)
+
+	// The write "succeeds" (the spy returns nil, mirroring the real writer's
+	// no-op-but-nil-error behavior when an endpoint is absent), but the
+	// existence check confirms NOTHING -- simulating the MERGE having
+	// silently no-oped because the XRD node was not actually present in the
+	// graph at write time.
+	factStore := NewFactStore(SQLDB{DB: db})
+	ledger := NewCrossplaneRedriveTargetLedgerStore(SQLDB{DB: db})
+	handler := reducer.CrossplaneSatisfiedByMaterializationHandler{
+		FactLoader:          factStore,
+		EdgeWriter:          &crossplaneRedriveSpyEdgeWriter{},
+		RedriveTargetLedger: ledger,
+		EdgeExistenceReader: &crossplaneRedriveFakeEdgeExistenceReader{confirmAll: false},
+	}
+	intent := reducer.Intent{
+		IntentID:     "intent-unconfirmed-1",
+		ScopeID:      targetScopeID,
+		GenerationID: targetGenID,
+		Domain:       reducer.DomainCrossplaneSatisfiedByMaterialization,
+		AttemptCount: 1,
+	}
+	if _, err := handler.Handle(ctx, intent); err != nil {
+		t.Fatalf("handle intent: %v", err)
+	}
+	spy := handler.EdgeWriter.(*crossplaneRedriveSpyEdgeWriter)
+	if len(spy.written) != 1 {
+		t.Fatalf("expected the handler to resolve exactly 1 edge row (write attempted), got %d: %v", len(spy.written), spy.written)
+	}
+	// No ledger entry: the write "succeeded" but the edge was never
+	// confirmed present.
+	assertCrossplaneRedriveLedgerEntry(ctx, t, db, targetScopeID, group, claimKind, false)
+
+	// A later XRD generation with the SAME identity must RE-enqueue the
+	// target, not skip it as already-satisfied.
+	reducerQueue := NewReducerQueue(SQLDB{DB: db}, "test-owner", time.Minute)
+	sweeper := CrossplaneSatisfiedByRedriveSweeper{
+		DB:       SQLQueryer{DB: db},
+		State:    NewCrossplaneRedriveStateStore(SQLDB{DB: db}),
+		Replayer: reducerQueue,
+		Owner:    "projector",
+	}
+	const xrdGen2 = "gen-xrd-unconfirmed-002"
+	seedCrossplaneRedriveXRD(ctx, t, db, xrdScopeID, xrdGen2, group, claimKind, now.Add(time.Hour))
+	result, err := sweeper.Sweep(ctx, xrdScopeID, xrdGen2)
+	if err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+	if result.TargetsEnqueued != 1 {
+		t.Fatalf("expected the unconfirmed target to be RE-enqueued (not permanently suppressed), got TargetsEnqueued=%d", result.TargetsEnqueued)
 	}
 }
 

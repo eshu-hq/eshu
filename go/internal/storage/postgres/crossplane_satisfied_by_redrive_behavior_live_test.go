@@ -34,6 +34,35 @@ func (s *crossplaneRedriveSpyEdgeWriter) RetractCrossplaneSatisfiedByEdges(
 	return nil
 }
 
+// crossplaneRedriveFakeEdgeExistenceReader simulates the post-write
+// existence-check read (issue #5476 P1-b) without a real graph backend,
+// mirroring how crossplaneRedriveSpyEdgeWriter simulates the write itself.
+// confirmAll true confirms every requested (claim_uid, xrd_uid) pair,
+// simulating a graph where every written edge actually committed; the zero
+// value confirms nothing, simulating cypher.CrossplaneSatisfiedByEdgeWriter's
+// MATCH-MATCH-MERGE having silently no-oped because an endpoint node was
+// absent -- the exact scenario the ledger must never fence on.
+type crossplaneRedriveFakeEdgeExistenceReader struct {
+	confirmAll bool
+}
+
+func (r *crossplaneRedriveFakeEdgeExistenceReader) Run(
+	_ context.Context, _ string, params map[string]any,
+) ([]map[string]any, error) {
+	if !r.confirmAll {
+		return nil, nil
+	}
+	rows, _ := params["rows"].([]map[string]any)
+	out := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, map[string]any{
+			"confirmed_claim_uid": row["claim_uid"],
+			"confirmed_xrd_uid":   row["xrd_uid"],
+		})
+	}
+	return out, nil
+}
+
 // TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive is the issue #5476
 // acceptance-criterion regression: a Claim scope is projected BEFORE its XRD
 // scope, so its own SATISFIED_BY materialization pass resolves zero edges

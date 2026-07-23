@@ -135,10 +135,12 @@ func buildReducerKubernetesHandlers(
 func buildReducerCrossplaneHandlers(
 	database postgres.ExecQueryer,
 	graphWriters canonicalGraphWriters,
+	graphReader reducer.GraphQueryRunner,
 ) reducer.CrossplaneHandlers {
 	return reducer.CrossplaneHandlers{
-		CrossplaneSatisfiedByEdgeWriter: graphWriters.crossplaneSatisfiedByEdge,
-		CrossplaneRedriveTargetLedger:   postgres.NewCrossplaneRedriveTargetLedgerStore(database),
+		CrossplaneSatisfiedByEdgeWriter:          graphWriters.crossplaneSatisfiedByEdge,
+		CrossplaneRedriveTargetLedger:            postgres.NewCrossplaneRedriveTargetLedgerStore(database),
+		CrossplaneSatisfiedByEdgeExistenceReader: graphReader,
 	}
 }
 

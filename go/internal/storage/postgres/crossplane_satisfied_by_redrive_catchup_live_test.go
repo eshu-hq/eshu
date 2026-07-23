@@ -133,6 +133,115 @@ func TestCrossplaneRedriveSweepMidFanOutFailureRecoveredByCatchUpLive(t *testing
 	}
 }
 
+// crossplaneRedriveFailingQueryer wraps a real Queryer and injects one
+// failure at call number failAfter (1-indexed), simulating a transient DB
+// blip in the XRD discovery lookup itself (issue #5476 P1-a) -- as opposed to
+// crossplaneRedriveFailingReplayer's mid-fan-out replay failure above. Every
+// other call passes through to the real queryer.
+type crossplaneRedriveFailingQueryer struct {
+	real      Queryer
+	failAfter int
+	calls     int
+}
+
+func (f *crossplaneRedriveFailingQueryer) QueryContext(
+	ctx context.Context, query string, args ...any,
+) (Rows, error) {
+	f.calls++
+	if f.calls == f.failAfter {
+		return nil, errors.New("injected transient xrd lookup failure")
+	}
+	return f.real.QueryContext(ctx, query, args...)
+}
+
+// TestCrossplaneRedriveSweepXRDLookupFailureRecoveredByCatchUpLive is the
+// issue #5476 P1-a regression for the failure point that TestCrossplaneRedriveSweepMidFanOutFailureRecoveredByCatchUpLive
+// above does NOT cover: a transient error in the XRD discovery lookup itself
+// (loadActiveXRDJoinKeys), which ran BEFORE any durable state row existed
+// prior to this fix. Before the fix, this exact failure left
+// crossplane_satisfied_by_redrive_state with NO row at all for the generation
+// Ack had just activated -- SweepBatch's catch-up loop only ever reclaims an
+// EXISTING row, so a rowless failure here was permanently unreachable by that
+// recovery path, reopening the unbounded false-negative window #5476 exists
+// to close. This proves the row is created and claimed BEFORE the lookup
+// runs, so the failure leaves it reclaimable, and the catch-up loop
+// eventually discovers and enqueues the target the failed attempt never
+// even looked for.
+func TestCrossplaneRedriveSweepXRDLookupFailureRecoveredByCatchUpLive(t *testing.T) {
+	dsn, schema := crossplaneRedriveProofSchema(t)
+	db := crossplaneRedriveProofConn(t, dsn, schema)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	const (
+		xrdScopeID      = "scope-xrd-lookup-fail"
+		xrdGenerationID = "gen-xrd-lookup-fail-001"
+		group           = "example.org"
+		claimKind       = "XExampleClaim"
+	)
+	targetScopeID := "scope-claim-lookup-fail-a"
+	targetGenerationID := targetScopeID + "-gen-001"
+
+	seedCrossplaneRedriveXRD(ctx, t, db, xrdScopeID, xrdGenerationID, group, claimKind, now)
+	seedCrossplaneRedriveClaimScope(ctx, t, db, targetScopeID, targetGenerationID, group, claimKind, 1, now)
+
+	realReducerQueue := NewReducerQueue(SQLDB{DB: db}, "test-owner", time.Minute)
+
+	shortLease := 300 * time.Millisecond
+	// failAfter=1: the FIRST QueryContext call issued against s.DB is
+	// loadActiveXRDJoinKeys. EnsureQueued/ClaimExact run against s.State's
+	// own db handle (a separate ExecQueryer object below), so they are
+	// unaffected by this wrapper.
+	failingQueryer := &crossplaneRedriveFailingQueryer{real: SQLQueryer{DB: db}, failAfter: 1}
+	failingSweeper := CrossplaneSatisfiedByRedriveSweeper{
+		DB:            failingQueryer,
+		State:         NewCrossplaneRedriveStateStore(SQLDB{DB: db}),
+		Replayer:      realReducerQueue,
+		Owner:         "projector",
+		LeaseDuration: shortLease,
+	}
+
+	// The live-trigger Sweep call fails on the XRD discovery lookup itself,
+	// before any join key is ever determined.
+	result, err := failingSweeper.Sweep(ctx, xrdScopeID, xrdGenerationID)
+	if err == nil {
+		t.Fatalf("expected the injected xrd lookup failure to surface as a Sweep error, got result %+v", result)
+	}
+
+	// The row must exist and be 'claimed' -- created and claimed BEFORE the
+	// failed lookup ran, not left absent as it was before this fix.
+	assertCrossplaneRedriveStateStatus(ctx, t, db, xrdScopeID, xrdGenerationID, "claimed")
+
+	// Nothing was enqueued: the lookup never even determined a join key.
+	assertCrossplaneRedriveTargetPending(ctx, t, db, targetScopeID, targetGenerationID, false)
+
+	// Wait past the short lease, then run the catch-up path with a sweeper
+	// wired to a REAL (non-failing) DB queryer -- exactly what
+	// runCrossplaneRedriveCatchUpLoop does periodically in production.
+	time.Sleep(shortLease + 200*time.Millisecond)
+
+	catchUpSweeper := CrossplaneSatisfiedByRedriveSweeper{
+		DB:            SQLQueryer{DB: db},
+		State:         NewCrossplaneRedriveStateStore(SQLDB{DB: db}),
+		Replayer:      realReducerQueue,
+		Owner:         "projector",
+		LeaseDuration: time.Minute,
+	}
+	results, err := catchUpSweeper.SweepBatch(ctx, 10)
+	if err != nil {
+		t.Fatalf("SweepBatch: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected SweepBatch to reclaim exactly 1 generation, got %d: %+v", len(results), results)
+	}
+	if results[0].Outcome != crossplaneRedriveOutcomeCompleted {
+		t.Fatalf("expected the reclaimed sweep to complete, got outcome %q", results[0].Outcome)
+	}
+
+	assertCrossplaneRedriveStateStatus(ctx, t, db, xrdScopeID, xrdGenerationID, "completed")
+	assertCrossplaneRedriveTargetPending(ctx, t, db, targetScopeID, targetGenerationID, true)
+}
+
 func assertCrossplaneRedriveStateStatus(ctx context.Context, t *testing.T, db *sql.DB, xrdScopeID, xrdGenerationID, expectedStatus string) {
 	t.Helper()
 	rows, err := db.QueryContext(ctx, `

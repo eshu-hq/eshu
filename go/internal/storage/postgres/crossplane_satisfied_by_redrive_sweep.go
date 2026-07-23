@@ -156,6 +156,17 @@ func (s CrossplaneSatisfiedByRedriveSweeper) validate() error {
 // generation): EnsureQueued/ClaimExact converge to exactly one active sweeper
 // at a time via FOR UPDATE SKIP LOCKED, and a generation already recorded
 // 'completed' returns a no-op on the very first claim attempt.
+//
+// EnsureQueued+ClaimExact run BEFORE loadActiveXRDJoinKeys, not after (issue
+// #5476 P1-a): the XRD lookup is a plain SELECT with no durable side effect,
+// so a transient error there -- after Ack has already activated this exact
+// generation -- used to leave NO crossplane_satisfied_by_redrive_state row at
+// all. Since ClaimBatch's catch-up path (SweepBatch) only ever reclaims an
+// EXISTING row, a rowless failure here was permanently unreachable by that
+// recovery path, reopening the unbounded false-negative window #5476 exists
+// to close, now via a lookup blip instead of ingestion order. Claiming first
+// means the row is durably 'claimed' with an expiring lease before the lookup
+// even runs, so a lookup failure always leaves a reclaimable marker.
 func (s CrossplaneSatisfiedByRedriveSweeper) Sweep(
 	ctx context.Context,
 	xrdScopeID string,
@@ -166,18 +177,6 @@ func (s CrossplaneSatisfiedByRedriveSweeper) Sweep(
 	}
 	if xrdScopeID == "" || xrdGenerationID == "" {
 		return CrossplaneRedriveSweepResult{}, errors.New("crossplane redrive sweep requires xrd scope id and generation id")
-	}
-
-	keys, err := s.loadActiveXRDJoinKeys(ctx, xrdScopeID, xrdGenerationID)
-	if err != nil {
-		return CrossplaneRedriveSweepResult{}, err
-	}
-	if len(keys) == 0 {
-		// No active XRD in this exact generation (never had one, or already
-		// superseded -- fence (a)). Never enqueue a marker row for a
-		// generation that needs no sweep.
-		s.recordSweep(ctx, crossplaneRedriveOutcomeNoActiveXRD)
-		return CrossplaneRedriveSweepResult{Outcome: crossplaneRedriveOutcomeNoActiveXRD}, nil
 	}
 
 	if err := s.State.EnsureQueued(ctx, xrdScopeID, xrdGenerationID); err != nil {
@@ -191,6 +190,36 @@ func (s CrossplaneSatisfiedByRedriveSweeper) Sweep(
 		// Already claimed by a live owner, or already completed.
 		s.recordSweep(ctx, crossplaneRedriveOutcomeAlreadyInProgress)
 		return CrossplaneRedriveSweepResult{Outcome: crossplaneRedriveOutcomeAlreadyInProgress}, nil
+	}
+
+	// Only now, with the row durably claimed under fencingToken, attempt the
+	// XRD lookup. A transient error here (e.g. a connection blip) leaves the
+	// row 'claimed' with an expiring lease -- SweepBatch reclaims and retries
+	// this exact generation once the lease lapses (see doc comment above).
+	keys, err := s.loadActiveXRDJoinKeys(ctx, xrdScopeID, xrdGenerationID)
+	if err != nil {
+		return CrossplaneRedriveSweepResult{}, err
+	}
+	if len(keys) == 0 {
+		// No active XRD in this exact generation (never had one, or already
+		// superseded -- fence (a)). Resolve the already-claimed row to
+		// completed immediately rather than leaving it claimed until the
+		// lease expires: there is no fan-out to run, so completing now is
+		// equivalent to, but faster than, letting a later reclaim discover
+		// the same empty result.
+		completed, completeErr := s.State.MarkCompleted(ctx, xrdScopeID, xrdGenerationID, fencingToken)
+		if completeErr != nil {
+			return CrossplaneRedriveSweepResult{}, completeErr
+		}
+		outcome := crossplaneRedriveOutcomeNoActiveXRD
+		if !completed {
+			// This invocation's lease expired mid-lookup and another
+			// invocation reclaimed the row (bumping the fencing token); no
+			// fan-out work was done here, so there is nothing to lose.
+			outcome = crossplaneRedriveOutcomeReclaimedMidSweep
+		}
+		s.recordSweep(ctx, outcome)
+		return CrossplaneRedriveSweepResult{Outcome: outcome}, nil
 	}
 
 	return s.runClaimedFanOut(ctx, xrdScopeID, xrdGenerationID, fencingToken, keys)

@@ -17,6 +17,7 @@ func appendCrossplaneAdditiveDomains(definitions []DomainDefinition, handlers De
 			Tracer:               handlers.Tracer,
 			Instruments:          handlers.Instruments,
 			RedriveTargetLedger:  handlers.CrossplaneRedriveTargetLedger,
+			EdgeExistenceReader:  handlers.CrossplaneSatisfiedByEdgeExistenceReader,
 		}
 		definitions = append(definitions, crossplaneSatisfiedBy)
 	}

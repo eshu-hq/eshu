@@ -154,6 +154,16 @@ type CrossplaneSatisfiedByMaterializationHandler struct {
 	// sweep re-enqueues), which is correct-but-wasteful, never
 	// incorrect-and-silent.
 	RedriveTargetLedger CrossplaneRedriveTargetLedgerWriter
+	// EdgeExistenceReader confirms which resolved rows actually have a
+	// committed SATISFIED_BY edge after WriteCrossplaneSatisfiedByEdges
+	// returns (issue #5476 P1-b): the writer's MATCH-MATCH-MERGE
+	// deliberately no-ops (nil error, no edge) when an endpoint node is
+	// absent, so a nil write error alone does not prove a row's edge
+	// committed. Nil is safe in the conservative direction: no row is ever
+	// confirmed, so RedriveTargetLedger is never written for an unconfirmed
+	// row (see confirmWrittenCrossplaneSatisfiedByEdges's doc comment) --
+	// correct-but-wasteful, never a false "satisfied" fence.
+	EdgeExistenceReader GraphQueryRunner
 }
 
 // Handle executes one Crossplane SATISFIED_BY materialization intent.
@@ -232,7 +242,7 @@ func (h CrossplaneSatisfiedByMaterializationHandler) Handle(
 			return Result{}, fmt.Errorf("write canonical crossplane satisfied-by edges: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
-		h.recordRedriveLedger(ctx, intent.ScopeID, rows)
+		h.recordRedriveLedgerForConfirmedEdges(ctx, intent.ScopeID, rows)
 	}
 
 	h.recordEdgeCounter(ctx, rows)
@@ -314,6 +324,36 @@ func (h CrossplaneSatisfiedByMaterializationHandler) shouldSkipRetract(ctx conte
 		return false, fmt.Errorf("check prior generation for crossplane satisfied-by retract: %w", err)
 	}
 	return !hasPrior, nil
+}
+
+// recordRedriveLedgerForConfirmedEdges confirms which of rows actually have a
+// committed SATISFIED_BY edge (issue #5476 P1-b) and records the ledger only
+// for that confirmed subset, never for a row whose write no-oped on an
+// absent endpoint. Skips the existence-check read entirely when
+// RedriveTargetLedger is nil (recordRedriveLedger would no-op anyway) and
+// when the confirmation read itself errors, logs and skips the ledger write
+// for every row -- the same "log, don't fail Handle" direction
+// recordRedriveLedger's own per-row write failure already takes, since the
+// edge write already committed and a confirmation-read hiccup must not cost
+// a materialization retry/dead-letter.
+func (h CrossplaneSatisfiedByMaterializationHandler) recordRedriveLedgerForConfirmedEdges(
+	ctx context.Context,
+	targetScopeID string,
+	rows []map[string]any,
+) {
+	if h.RedriveTargetLedger == nil {
+		return
+	}
+	confirmed, err := h.confirmWrittenCrossplaneSatisfiedByEdges(ctx, rows)
+	if err != nil {
+		slog.ErrorContext(
+			ctx, "crossplane satisfied-by edge existence confirmation failed",
+			log.ScopeID(targetScopeID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	h.recordRedriveLedger(ctx, targetScopeID, confirmed)
 }
 
 // recordRedriveLedger records intent.ScopeID as confirmed satisfied for

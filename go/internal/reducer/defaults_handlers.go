@@ -152,6 +152,14 @@ type CrossplaneHandlers struct {
 	// disabled by default). Optional: nil is safe (no-op), matching
 	// PriorGenerationCheck.
 	CrossplaneRedriveTargetLedger CrossplaneRedriveTargetLedgerWriter
+	// CrossplaneSatisfiedByEdgeExistenceReader confirms which resolved rows
+	// actually have a committed SATISFIED_BY edge after a write, gating
+	// CrossplaneRedriveTargetLedger to only the confirmed subset (issue
+	// #5476 P1-b). Optional: nil skips the ledger write entirely rather than
+	// risk fencing an unconfirmed target (see
+	// CrossplaneSatisfiedByMaterializationHandler.EdgeExistenceReader's doc
+	// comment).
+	CrossplaneSatisfiedByEdgeExistenceReader GraphQueryRunner
 }
 
 // SupplyChainSecurityHandlers groups the supply-chain, secrets/IAM, and

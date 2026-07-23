@@ -343,7 +343,7 @@ func buildReducerService(
 		SearchDocumentHandlers:      buildReducerSearchDocumentHandlers(database, instruments, tracer, logger),
 		CloudInventoryHandlers:      buildReducerCloudInventoryHandlers(database, logger),
 		KubernetesHandlers:          buildReducerKubernetesHandlers(database, graphWriters),
-		CrossplaneHandlers:          buildReducerCrossplaneHandlers(database, graphWriters),
+		CrossplaneHandlers:          buildReducerCrossplaneHandlers(database, graphWriters, graphReader),
 		SupplyChainSecurityHandlers: buildReducerSupplyChainSecurityHandlers(database, *factStore, secretsIAMGraphWriter, presence),
 		IncidentRoutingHandlers:     buildReducerIncidentRoutingHandlers(database, *factStore, graphWriters),
 		CodeEvidenceHandlers:        buildReducerCodeEvidenceHandlers(database, *factStore, graphWriters, graphReader, logger),
