@@ -189,19 +189,27 @@ func TestAttachDirectPlatformsOrdersPlatformsByStableIdentity(t *testing.T) {
 	instanceProdA := "workload-instance:orders:prod-a"
 	instanceProdB := "workload-instance:orders:prod-b"
 
-	rowEKS := map[string]any{"instance_id": instanceProdA, "platform_id": "platform:eks-prod", "platform_name": "eks-prod", "platform_kind": "argocd_applicationset"}
-	rowECS := map[string]any{"instance_id": instanceProdA, "platform_id": "platform:ecs-prod", "platform_name": "ecs-prod", "platform_kind": "ecs_service"}
-	rowOther := map[string]any{"instance_id": instanceProdB, "platform_id": "platform:eks-prod-2", "platform_name": "eks-prod-2", "platform_kind": "argocd_applicationset"}
-
-	ascending := []map[string]any{rowECS, rowEKS, rowOther}
-	shuffled := []map[string]any{rowOther, rowEKS, rowECS}
+	// newRows returns fresh row maps per subtest. fetchWorkloadPlatformResult
+	// mutates each row (it sets row["platform_edge"]), so sharing map objects
+	// across the two t.Parallel() subtests would be a concurrent map
+	// read/write. Each subtest must own its own maps.
+	newRows := func(order string) []map[string]any {
+		rowEKS := map[string]any{"instance_id": instanceProdA, "platform_id": "platform:eks-prod", "platform_name": "eks-prod", "platform_kind": "argocd_applicationset"}
+		rowECS := map[string]any{"instance_id": instanceProdA, "platform_id": "platform:ecs-prod", "platform_name": "ecs-prod", "platform_kind": "ecs_service"}
+		rowOther := map[string]any{"instance_id": instanceProdB, "platform_id": "platform:eks-prod-2", "platform_name": "eks-prod-2", "platform_kind": "argocd_applicationset"}
+		if order == "shuffled" {
+			return []map[string]any{rowOther, rowEKS, rowECS}
+		}
+		return []map[string]any{rowECS, rowEKS, rowOther}
+	}
 
 	wantProdAPlatforms := []string{"platform:ecs-prod", "platform:eks-prod"}
 
-	for name, rows := range map[string][]map[string]any{"ascending": ascending, "shuffled": shuffled} {
-		rows := rows
+	for _, name := range []string{"ascending", "shuffled"} {
+		name := name
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+			rows := newRows(name)
 			reader := fakeGraphReader{run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 				return rows, nil
 			}}
