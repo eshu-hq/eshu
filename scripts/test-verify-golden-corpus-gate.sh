@@ -36,6 +36,16 @@ require_workflow_path "query response shapes"          "go/internal/query/**"
 require_workflow_path "storage layer"                  "go/internal/storage/**"
 require_workflow_path "relationship resolution (#5596)" "go/internal/relationships/**"
 require_workflow_path "fact-kind schemas (#5596)"       "sdk/go/factschema/**"
+# The fact-emitting command packages (service wiring that assembles the
+# collectors/ingester/reducer/projector) must trigger the gate too — a change
+# under go/cmd/collector-aws-cloud/service.go can alter emitted facts as much
+# as go/internal/collector (#5686 review).
+require_workflow_path "collector command wiring"       "go/cmd/collector-**"
+require_workflow_path "bootstrap-index fact seeding"   "go/cmd/bootstrap-index/**"
+require_workflow_path "ingester fact emission"         "go/cmd/ingester/**"
+require_workflow_path "projector runtime"              "go/cmd/projector/**"
+require_workflow_path "reducer runtime"                "go/cmd/reducer/**"
+require_workflow_path "api query surface"              "go/cmd/api/**"
 
 # Parses under bash -n.
 bash -n "${script}" || fail "verify-golden-corpus-gate.sh has a syntax error"
