@@ -182,6 +182,128 @@ func TestDecodeSBOMAttestationAttachmentRowSurfacesSLSAProvenance(t *testing.T) 
 	}
 }
 
+// TestDecodeSBOMAttestationAttachmentRowSurfacesSLSAMaterialsAndConfigSource
+// is the query-side accuracy regression for #5456: the reducer-persisted
+// slsa_provenance_materials/slsa_provenance_material_count and
+// slsa_provenance_config_source_* payload keys must decode into the typed row
+// fields, with truncation computed from persistedCount > len(decoded rows)
+// (mirroring DependencyRelationshipsTruncated), not merely trusted from the
+// reducer's own persisted flag.
+func TestDecodeSBOMAttestationAttachmentRowSurfacesSLSAMaterialsAndConfigSource(t *testing.T) {
+	t.Parallel()
+
+	payload := map[string]any{
+		"document_id":                    "stmt-slsa-materials",
+		"attachment_status":              "attached_verified",
+		"slsa_provenance_predicate_type": "https://slsa.dev/provenance/v1",
+		"slsa_provenance_materials": []map[string]any{
+			{"uri": "git+https://github.com/acme/app@refs/heads/main", "digest": map[string]any{"sha1": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}},
+		},
+		"slsa_provenance_material_count":            3,
+		"slsa_provenance_config_source_uri":         "git+https://github.com/acme/app@refs/heads/main",
+		"slsa_provenance_config_source_entry_point": ".github/workflows/release.yml",
+		"slsa_provenance_config_source_digest":      map[string]any{"sha1": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+
+	row, err := decodeSBOMAttestationAttachmentRow("attachment-slsa-materials", "inferred", payloadBytes)
+	if err != nil {
+		t.Fatalf("decodeSBOMAttestationAttachmentRow() error = %v", err)
+	}
+	if got, want := len(row.SLSAProvenanceMaterials), 1; got != want {
+		t.Fatalf("len(SLSAProvenanceMaterials) = %d, want %d", got, want)
+	}
+	if got, want := row.SLSAProvenanceMaterials[0].URI, "git+https://github.com/acme/app@refs/heads/main"; got != want {
+		t.Fatalf("SLSAProvenanceMaterials[0].URI = %q, want %q", got, want)
+	}
+	if got, want := row.SLSAProvenanceMaterials[0].Digest["sha1"], "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; got != want {
+		t.Fatalf("SLSAProvenanceMaterials[0].Digest[sha1] = %q, want %q", got, want)
+	}
+	if got, want := row.SLSAProvenanceMaterialCount, 3; got != want {
+		t.Fatalf("SLSAProvenanceMaterialCount = %d, want %d", got, want)
+	}
+	if !row.SLSAProvenanceMaterialsTruncated {
+		t.Fatal("SLSAProvenanceMaterialsTruncated = false, want true (count 3 > 1 decoded row)")
+	}
+	if got, want := row.SLSAProvenanceConfigSourceURI, "git+https://github.com/acme/app@refs/heads/main"; got != want {
+		t.Fatalf("SLSAProvenanceConfigSourceURI = %q, want %q", got, want)
+	}
+	if got, want := row.SLSAProvenanceConfigSourceEntryPoint, ".github/workflows/release.yml"; got != want {
+		t.Fatalf("SLSAProvenanceConfigSourceEntryPoint = %q, want %q", got, want)
+	}
+	if got, want := row.SLSAProvenanceConfigSourceDigest["sha1"], "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; got != want {
+		t.Fatalf("SLSAProvenanceConfigSourceDigest[sha1] = %q, want %q", got, want)
+	}
+}
+
+// TestSupplyChainListSBOMAttestationAttachmentsSurfacesSLSAMaterialsWire
+// proves the #5456 materials/config source fields reach the HTTP response
+// body via the same raw struct conversion
+// (buildSBOMAttestationAttachmentResult) the existing SLSA wire test above
+// exercises for predicate_type/builder_id.
+func TestSupplyChainListSBOMAttestationAttachmentsSurfacesSLSAMaterialsWire(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingSBOMAttestationAttachmentStore{
+		page: SBOMAttestationAttachmentPage{
+			Attachments: []SBOMAttestationAttachmentRow{
+				{
+					AttachmentID:     "attachment-slsa-materials",
+					DocumentID:       "stmt-slsa-materials",
+					AttachmentStatus: "attached_verified",
+					SLSAProvenanceMaterials: []SLSAMaterialRow{
+						{URI: "git+https://github.com/acme/app@refs/heads/main", Digest: map[string]string{"sha1": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}},
+					},
+					SLSAProvenanceMaterialCount:          1,
+					SLSAProvenanceConfigSourceURI:        "git+https://github.com/acme/app@refs/heads/main",
+					SLSAProvenanceConfigSourceEntryPoint: ".github/workflows/release.yml",
+					SLSAProvenanceConfigSourceDigest:     map[string]string{"sha1": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+				},
+			},
+		},
+	}
+	handler := &SupplyChainHandler{SBOMAttachments: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/supply-chain/sbom-attestations/attachments?document_id=stmt-slsa-materials&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	var resp struct {
+		Attachments []SBOMAttestationAttachmentResult `json:"attachments"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got, want := len(resp.Attachments), 1; got != want {
+		t.Fatalf("len(attachments) = %d, want %d", got, want)
+	}
+	result := resp.Attachments[0]
+	if got, want := len(result.SLSAProvenanceMaterials), 1; got != want {
+		t.Fatalf("len(SLSAProvenanceMaterials) = %d, want %d", got, want)
+	}
+	if got, want := result.SLSAProvenanceConfigSourceURI, "git+https://github.com/acme/app@refs/heads/main"; got != want {
+		t.Fatalf("SLSAProvenanceConfigSourceURI = %q, want %q", got, want)
+	}
+	if !strings.Contains(w.Body.String(), `"slsa_provenance_materials"`) {
+		t.Fatalf("response missing slsa_provenance_materials key: %s", w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"slsa_provenance_config_source_uri"`) {
+		t.Fatalf("response missing slsa_provenance_config_source_uri key: %s", w.Body.String())
+	}
+}
+
 // TestSupplyChainListSBOMAttestationAttachmentsSurfacesSLSAProvenanceWire
 // proves the SLSA provenance fields reach the HTTP response body, not just
 // the internal Row struct: buildSBOMAttestationAttachmentResult does a raw
