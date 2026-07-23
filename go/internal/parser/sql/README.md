@@ -157,16 +157,19 @@ tracked before/after evidence here.
   growth across files. Reproduce with:
   `go test ./internal/parser/sql -run '^$' -bench BenchmarkParseComprehensive -benchmem -count=3`.
 - No-Regression Evidence (#5482): `DROP TABLE` records direct target references
-  from the `drop_table` AST node and its direct `ERROR` recovery child. When the
-  grammar leaves the remaining comma-separated targets after that node in a
-  sibling `ERROR`, a bounded source-tail recognizer recovers only a complete
-  comma-prefixed list of qualified identifiers, with an optional `CASCADE` or
-  `RESTRICT` clause and statement terminator. This augments the existing AST
-  mention walk without another tree-sitter parse pass, queue work, graph write,
-  or new entity. The existing 64-target `migration_targets` cap remains in
-  force. `go test ./internal/parser/sql -count=1` passes after the change; the
-  intentional output delta is bounded `operation: "drop"` target metadata for
-  recognized DROP migrations.
+  from the `drop_table` AST node. References inside a direct `ERROR` recovery
+  child are admitted only when the full remaining source is a complete
+  comma-separated identifier list with an optional `CASCADE` or `RESTRICT`
+  clause and statement terminator. When the grammar leaves the remaining
+  comma-separated targets after the node in a sibling `ERROR`, the same bounded
+  recognizer accepts only a complete comma-prefixed list. The production-path
+  `TestParseMigrationTargetsFromMalformedDropErrorRejectsRecoveredTarget`
+  regression proves a missing comma cannot mint false `MIGRATES` evidence. This
+  augments the existing AST mention walk without another tree-sitter parse
+  pass, queue work, graph write, or new entity. The existing 64-target
+  `migration_targets` cap remains in force. The focused package proof remains
+  `go test ./internal/parser/sql -count=1`; the intentional output delta is
+  bounded `operation: "drop"` target metadata for recognized DROP migrations.
 - Observability Evidence: No-Observability-Change. This package emits no new
   metric, span, log, status field, or runtime knob for #5482. Its existing
   oversized-segment path may still emit `slog.Warn("sql parse segment

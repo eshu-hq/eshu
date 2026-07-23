@@ -152,6 +152,13 @@ func collectDropTableTargets(
 		case "object_reference":
 			add(child, "drop")
 		case "ERROR":
+			// A direct ERROR child is also how the grammar represents some
+			// valid comma-separated lists. Trust its object_reference children
+			// only when the complete source remainder is a bounded target list;
+			// otherwise malformed recovery can mint false MIGRATES evidence.
+			if !isCompleteDropTargetListFrom(int(child.StartByte()), source) {
+				continue
+			}
 			for _, recovered := range namedChildren(child) {
 				if recovered.GrammarName() == "object_reference" {
 					add(recovered, "drop")

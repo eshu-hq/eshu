@@ -40,38 +40,55 @@ func parseDropTargetTail(tail string) ([]recoveredDropTarget, bool) {
 	if index >= len(tail) || tail[index] != ',' {
 		return nil, false
 	}
+	return parseDropTargetList(tail, skipDropTargetSpaceAndComments(tail, index+1))
+}
 
+// isCompleteDropTargetListFrom validates the full source remainder beginning
+// at a direct tree-sitter ERROR child. The grammar uses that shape for some
+// valid comma-separated DROP lists, but it also uses it for malformed input;
+// only a complete identifier list with an optional behavior clause and
+// terminator may contribute recovered migration targets.
+func isCompleteDropTargetListFrom(start int, source []byte) bool {
+	if start < 0 || start >= len(source) {
+		return false
+	}
+	_, ok := parseDropTargetList(string(source[start:]), 0)
+	return ok
+}
+
+// parseDropTargetList reads a complete comma-separated identifier list from
+// index. The caller decides whether the list begins at its first identifier or
+// immediately after a recovery-leading comma.
+func parseDropTargetList(source string, index int) ([]recoveredDropTarget, bool) {
 	targets := make([]recoveredDropTarget, 0, 1)
 	for {
-		if index >= len(tail) || tail[index] != ',' {
-			return nil, false
-		}
-		index = skipDropTargetSpaceAndComments(tail, index+1)
-		name, offset, next, ok := scanDropTargetName(tail, index)
+		index = skipDropTargetSpaceAndComments(source, index)
+		name, offset, next, ok := scanDropTargetName(source, index)
 		if !ok {
 			return nil, false
 		}
 		targets = append(targets, recoveredDropTarget{name: name, offset: offset})
-		index = skipDropTargetSpaceAndComments(tail, next)
+		index = skipDropTargetSpaceAndComments(source, next)
 
 		switch {
-		case index == len(tail):
+		case index == len(source):
 			return targets, true
-		case tail[index] == ',':
+		case source[index] == ',':
+			index++
 			continue
-		case tail[index] == ';':
-			return targets, skipDropTargetSpaceAndComments(tail, index+1) == len(tail)
-		case hasDropTargetKeyword(tail[index:], "cascade"), hasDropTargetKeyword(tail[index:], "restrict"):
-			if hasDropTargetKeyword(tail[index:], "cascade") {
+		case source[index] == ';':
+			return targets, skipDropTargetSpaceAndComments(source, index+1) == len(source)
+		case hasDropTargetKeyword(source[index:], "cascade"), hasDropTargetKeyword(source[index:], "restrict"):
+			if hasDropTargetKeyword(source[index:], "cascade") {
 				index += len("cascade")
 			} else {
 				index += len("restrict")
 			}
-			index = skipDropTargetSpaceAndComments(tail, index)
-			if index == len(tail) {
+			index = skipDropTargetSpaceAndComments(source, index)
+			if index == len(source) {
 				return targets, true
 			}
-			return targets, tail[index] == ';' && skipDropTargetSpaceAndComments(tail, index+1) == len(tail)
+			return targets, source[index] == ';' && skipDropTargetSpaceAndComments(source, index+1) == len(source)
 		default:
 			return nil, false
 		}

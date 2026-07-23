@@ -102,6 +102,26 @@ func TestParseMigrationTargetsFromDropTableDeduplicatesNames(t *testing.T) {
 	assertSQLMigrationTarget(t, got, "prisma", "SqlTable", "public.users", "drop", 2)
 }
 
+// TestParseMigrationTargetsFromMalformedDropErrorRejectsRecoveredTarget proves
+// that tree-sitter ERROR recovery cannot mint a migration target. The grammar
+// exposes public.users beneath a direct ERROR child whose source span also
+// contains public.orgs, but the missing comma means neither is part of a
+// bounded DROP target list.
+func TestParseMigrationTargetsFromMalformedDropErrorRejectsRecoveredTarget(t *testing.T) {
+	t.Parallel()
+
+	path := writeSQLTestFile(
+		t,
+		filepath.Join("prisma", "migrations", "20260722_drop_malformed", "migration.sql"),
+		"DROP TABLE public.users public.orgs, public.events;\n",
+	)
+
+	got := parseSQLTestFile(t, path)
+	assertSQLMigrationTarget(t, got, "prisma", "SqlTable", "public.events", "drop", 1)
+	assertSQLMigrationTargetMissing(t, got, "prisma", "SqlTable", "public.users")
+	assertSQLMigrationTargetMissing(t, got, "prisma", "SqlTable", "public.orgs")
+}
+
 func TestParseMigrationTargetsFromDropTableHonorsTargetCap(t *testing.T) {
 	t.Parallel()
 
