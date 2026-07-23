@@ -73,9 +73,9 @@ func ParseWithParser(path string, isDependency bool, options shared.Options, par
 	}
 
 	appendRubyCalls(payload, syntax)
-	deadCodeNames, routesByFramework := rubyCollectSemantics(syntax)
+	deadCodeNames, routesByFramework, railsRouteAmbiguous := rubyCollectSemantics(syntax)
 	annotateRubyDeadCodeRoots(payload, deadCodeNames)
-	payload["framework_semantics"] = buildRubyFrameworkSemantics(routesByFramework)
+	payload["framework_semantics"] = buildRubyFrameworkSemantics(routesByFramework, railsRouteAmbiguous)
 
 	shared.SortNamedBucket(payload, "functions")
 	shared.SortNamedBucket(payload, "classes")

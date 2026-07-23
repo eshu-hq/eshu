@@ -11,19 +11,27 @@ import (
 // rubyCollectSemantics walks syntax's AST exactly once, collecting the three
 // independent dead-code name sets annotateRubyDeadCodeRoots needs (Rails
 // callback registrations, literal method references, script-entrypoint call
-// names) plus every framework route buildRubyFrameworkSemantics needs. This
-// single shared.WalkNamed pass replaces what were four independent full-tree
-// walks per Ruby file: three dead-code shared.WalkNamed passes
-// (rubyRailsCallbackMethodNames, rubyLiteralMethodReferenceNames,
-// rubyScriptEntrypointCallNames) and a bespoke recursive route walk
-// (collectRubyRoutes). The three dead-code checks are pure node-local
-// predicates with no interaction, so they run unconditionally for every
-// "call" node. Route resolution instead climbs from a call node to its
-// nearest context-changing ancestor (rubyResolveRouteContext) rather than
-// having context threaded down during descent, which is what let the route
-// walk fold into this same flat pass without reordering or altering any of
-// the four original analyses.
-func rubyCollectSemantics(syntax *rubySyntax) (rubyDeadCodeNames, map[string][]rubyRoute) {
+// names), every framework route buildRubyFrameworkSemantics needs, and the
+// #5494 railsRouteAmbiguous signal. This single shared.WalkNamed pass replaces
+// what were four independent full-tree walks per Ruby file: three dead-code
+// shared.WalkNamed passes (rubyRailsCallbackMethodNames,
+// rubyLiteralMethodReferenceNames, rubyScriptEntrypointCallNames) and a
+// bespoke recursive route walk (collectRubyRoutes). The three dead-code checks
+// are pure node-local predicates with no interaction, so they run
+// unconditionally for every "call" node. Route resolution instead climbs from
+// a call node to its nearest context-changing ancestor
+// (rubyResolveRouteContext) rather than having context threaded down during
+// descent, which is what let the route walk fold into this same flat pass
+// without reordering or altering any of the four original analyses.
+//
+// railsRouteAmbiguous is true when this file contains any Rails route
+// registration the parser cannot resolve into an exact "controller#action"
+// route_entries row: a resources/resource DSL macro (rubyIsDynamicRailsRouteCall)
+// or an explicit `to:` target that did not parse cleanly
+// (rubyCollectRouteCandidate's ambiguous return). It is a file-scoped OR: one
+// unresolved route call taints the whole file, matching the #5494 reducer
+// join's repo-wide keep-biased use of the signal.
+func rubyCollectSemantics(syntax *rubySyntax) (rubyDeadCodeNames, map[string][]rubyRoute, bool) {
 	names := rubyDeadCodeNames{
 		railsCallback:    make(map[string]struct{}),
 		methodReference:  make(map[string]struct{}),
@@ -31,18 +39,24 @@ func rubyCollectSemantics(syntax *rubySyntax) (rubyDeadCodeNames, map[string][]r
 	}
 	routesByFramework := make(map[string][]rubyRoute)
 	topLevelSinatra := rubyImportsSinatra(syntax.imports)
+	railsRouteAmbiguous := false
 
 	shared.WalkNamed(syntax.root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "call":
 			rubyCollectRailsCallbackNames(syntax, node, names.railsCallback)
 			rubyCollectMethodReferenceNames(syntax, node, names.methodReference)
-			if framework, route, ok := syntax.rubyCollectRouteCandidate(node, topLevelSinatra); ok {
+			if framework, route, ok, ambiguous := syntax.rubyCollectRouteCandidate(node, topLevelSinatra); ok {
 				routesByFramework[framework] = append(routesByFramework[framework], route)
+			} else if ambiguous {
+				railsRouteAmbiguous = true
+			}
+			if syntax.rubyIsDynamicRailsRouteCall(node, topLevelSinatra) {
+				railsRouteAmbiguous = true
 			}
 		case "if", "unless":
 			rubyCollectScriptEntrypointNames(syntax, node, names.scriptEntrypoint)
 		}
 	})
-	return names, routesByFramework
+	return names, routesByFramework, railsRouteAmbiguous
 }

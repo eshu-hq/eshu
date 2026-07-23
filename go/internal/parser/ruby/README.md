@@ -82,6 +82,16 @@ autoload/eager-load behavior remain outside this parser's exactness boundary;
 the reducer may project `HANDLES_ROUTE` only after the emitted handler resolves
 to exactly one indexed function.
 
+A `resources`/`resource` Rails routing DSL macro, and an explicit Rails `to:`
+target that does not parse into a clean unqualified controller#action (for
+example a namespaced `"admin/posts#show"`), are each detected without being
+expanded: their presence anywhere inside `Rails.application.routes.draw`
+stamps `framework_semantics.rails.has_unmodeled_routes = true` for that file.
+This is the #5494 route-liveness ambiguity signal: the reducer's repo-wide
+verdict builder treats its presence as proof the repo's exact route surface
+cannot be trusted as complete, and keeps every controller action rather than
+downgrading one that a macro or a namespaced route actually covers.
+
 ## Performance and observability evidence
 
 Performance Evidence: This change moves Ruby method-call and script-guard

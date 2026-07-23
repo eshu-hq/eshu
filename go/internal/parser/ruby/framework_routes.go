@@ -24,11 +24,15 @@ type rubyRouteContext struct {
 // buildRubyFrameworkSemantics assembles the framework_semantics payload
 // section from routesByFramework, the routes rubyCollectSemantics gathered
 // during the single merged tree walk (see rubyCollectRouteCandidate and
-// rubyResolveRouteContext).
-func buildRubyFrameworkSemantics(routesByFramework map[string][]rubyRoute) map[string]any {
+// rubyResolveRouteContext), plus railsRouteAmbiguous, the #5494
+// has_unmodeled_routes signal for the same file (see framework_routes_ambiguity.go).
+func buildRubyFrameworkSemantics(routesByFramework map[string][]rubyRoute, railsRouteAmbiguous bool) map[string]any {
 	semantics := map[string]any{"frameworks": []string{}}
 	for _, framework := range []string{"rails", "sinatra"} {
 		appendRubyRouteFramework(semantics, framework, routesByFramework[framework])
+	}
+	if railsRouteAmbiguous {
+		appendRubyRailsRouteAmbiguity(semantics)
 	}
 	return semantics
 }
@@ -40,36 +44,43 @@ func buildRubyFrameworkSemantics(routesByFramework map[string][]rubyRoute) map[s
 // literal exact path) is checked before resolving context, so the ancestor
 // climb in rubyResolveRouteContext only runs for call nodes that already look
 // like a route registration.
-func (s *rubySyntax) rubyCollectRouteCandidate(node *tree_sitter.Node, topLevelSinatra bool) (string, rubyRoute, bool) {
+//
+// ambiguous is true only for a Rails route call that carries an explicit
+// `to:` target the parser could not resolve into a clean, unqualified
+// "controller#action" (for example a namespaced "admin/posts#show" target).
+// That is genuine route-registration evidence the parser cannot model
+// exactly, not "no route" -- #5494's reducer join must see it as an
+// unmodeled-route signal rather than silently treating the action as unrouted.
+func (s *rubySyntax) rubyCollectRouteCandidate(node *tree_sitter.Node, topLevelSinatra bool) (framework string, route rubyRoute, ok bool, ambiguous bool) {
 	if node.ChildByFieldName("receiver") != nil {
-		return "", rubyRoute{}, false
+		return "", rubyRoute{}, false, false
 	}
 	methodNode := node.ChildByFieldName("method")
-	method, ok := rubyHTTPRouteMethod(s.text(methodNode))
-	if !ok {
-		return "", rubyRoute{}, false
+	method, isHTTPMethod := rubyHTTPRouteMethod(s.text(methodNode))
+	if !isHTTPMethod {
+		return "", rubyRoute{}, false, false
 	}
 	path := s.firstLiteralStringArgument(node)
 	if !rubyExactRoutePath(path) {
-		return "", rubyRoute{}, false
+		return "", rubyRoute{}, false, false
 	}
 
 	context := s.rubyResolveRouteContext(node, topLevelSinatra)
 	switch context.framework {
 	case "rails":
-		handler, ok := s.railsRouteHandler(node)
-		if !ok {
-			return "", rubyRoute{}, false
+		handler, resolved := s.railsRouteHandler(node)
+		if !resolved {
+			return "", rubyRoute{}, false, s.hasRoutePairTo(node)
 		}
-		return context.framework, rubyRoute{method: method, path: path, handler: handler}, true
+		return context.framework, rubyRoute{method: method, path: path, handler: handler}, true, false
 	case "sinatra":
-		handler, ok := s.sinatraMethodHandler(node, context.className)
-		if !ok {
-			return "", rubyRoute{}, false
+		handler, resolved := s.sinatraMethodHandler(node, context.className)
+		if !resolved {
+			return "", rubyRoute{}, false, false
 		}
-		return context.framework, rubyRoute{method: method, path: path, handler: handler}, true
+		return context.framework, rubyRoute{method: method, path: path, handler: handler}, true, false
 	default:
-		return "", rubyRoute{}, false
+		return "", rubyRoute{}, false, false
 	}
 }
 
