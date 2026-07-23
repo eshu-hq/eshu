@@ -1153,22 +1153,45 @@ ScopeID+GenerationID for its sibling analysis (bounded by
 `maxSupplyChainImpactScannerAnalysisScopeLoads`, truncation folded into the
 existing active-evidence marker).
 
-IMPORTANT — end-to-end inertness today: `loadSupplyChainImpactEvidence` does NOT
-currently load `vulnerability.os_package` facts at all (no base-kind entry, and
-the active-evidence SQL allowlist omits it; the coordinator's
-`ListOSPackageAdvisoryTargets` reader is a separate path that does not produce
-findings). So no os_package envelopes reach this stage in the real Handle
-pipeline, the digest join below is INERT end-to-end today, and
-`list_supply_chain_impact_findings` returns 0 for the scanned CVE (confirmed by
-the B-7 golden gate). This PR (#5463) lands the digest-join LOGIC plus the
-correctly-placed sibling-load stage; making os_package findings live through the
-Handle pipeline (so this join and #5464's repository anchor visibly fire) is
-tracked in #5705 and is part of #5464's repository-anchor work. The
+No-regression (#5463): the sibling-load stage adds at most
+`maxSupplyChainImpactScannerAnalysisScopeLoads` sequential scoped
+`loadFactsForKinds` reads per intent — one per DISTINCT os_package scan scope
+already present in the envelope set, deduped by
+`supplyChainScopeGenerationKey`, and zero when no os_package fact was loaded
+(the common case for a non-vendor intent). It follows the same bounded,
+data-gated shape as the existing active-evidence / repository / manifest-
+dependency stages, and its per-intent cost is guarded by the CI reducer
+per-handler latency gate (`reducer per-handler latency gate`) and the reducer
+contention gate re-run against the now-live os_package path on push, not only
+the inert head. The stage is instrumented (`load_scanner_analysis_scope`
+sub-duration, `scanner_analysis_scope_facts` sub-signal) so a per-intent
+regression is observable at runtime; batching the sibling reads into one
+scoped multi-scope query is a tracked follow-up if a vendor-heavy scope ever
+approaches the load ceiling.
+
+End-to-end liveness (#5463/#5705): `supplyChainImpactFactKinds()` intentionally
+OMITS `vulnerability.os_package` and `scanner_worker.analysis` — both live
+cross-scope, not in the intent's vulnerability-intelligence scope, so a base-kind
+entry would query the wrong scope and return nothing. Instead
+`loadSupplyChainImpactEvidence` loads them through two dedicated stages:
+`loadSupplyChainImpactOSPackageAdvisoryFacts` pulls `vulnerability.os_package`
+cross-scope by vendor-advisory ecosystem through the same advisory-target reader
+(`ListOSPackageAdvisoryFactEnvelopes` → `ListOSPackageAdvisoryTargets`) the
+vulnerability-intelligence coordinator uses, and
+`loadSupplyChainImpactScannerAnalysisScopeFacts` then loads each LOADED
+os_package's sibling analysis from that package's own scan scope. So os_package
+envelopes DO reach this stage in the real Handle pipeline, the digest join below
+fires end-to-end, and `list_supply_chain_impact_findings` returns the scanned CVE
+with a real `subject_digest` — the B-7 golden floor asserts exactly that
+(`list_supply_chain_impact_findings` minimum_results:1 for CVE-2026-00010 with
+`subject_digest` required and its value pinned; it goes red if the os_package
+load, the scanner-scope join, or the digest stamp regresses). Repository binding
+of the same finding (RepositoryID anchor) is #5464's work, not this PR. The
 scope-aware `TestSupplyChainImpactHandlerLoadsScannerAnalysisFromOSPackageScanScope`
-proves the sibling-load STAGE fetches the analysis from an os_package's own scan
-scope GIVEN os_package facts in the envelope set (a regression guard for the
-stage) — it does not assert the production Handle path loads os_package today.
-The stage's timing/count surface through the existing
+guards the sibling-load STAGE (it fetches the analysis from an os_package's own
+scan scope given os_package facts in the envelope set); the golden floor guards
+the full production Handle path end-to-end. The stage's timing/count surface
+through the existing
 `sub_duration_*`/`sub_signal_*` structured-log fields
 (`load_scanner_analysis_scope`, `scanner_analysis_scope_facts`), adding no new
 metric instrument or label.
@@ -1205,11 +1228,12 @@ label. `scanner_worker.analysis` gains a decode seam under the EXISTING
 `supply_chain_impact` domain (its malformed-fact path is the same
 `partitionDecodeFailures` -> `eshu_dp_reducer_input_invalid_facts_total`
 dead-letter, `fact_kind` gains one value). The `SubjectDigest` value change is
-on the OS-package supply-chain-impact finding, which is not yet repository-bound
-and so is not returned by any query surface today (verified against the B-7
-golden gate: impact-findings queries stay 0); the queryable assertion of the
-real digest lands with the repository-anchor join (#5464). The new decode seam
-is registered with the payload-usage manifest (wired-kind count 120 -> 121).
+on the OS-package supply-chain-impact finding, which is now queryable through
+`list_supply_chain_impact_findings` via its digest anchor (the B-7 golden floor
+pins the real `subject_digest` for CVE-2026-00010, minimum_results:1); the
+RepositoryID (repository-bound) anchor for the same finding lands with #5464.
+The new decode seam is registered with the payload-usage manifest (wired-kind
+count 120 -> 121).
 
 No-Regression Evidence (Wave 4d, ci_cd_run family typed-payload decode,
 Contract System v1 #4566): the ci_cd_run reducer handler

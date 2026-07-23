@@ -127,6 +127,14 @@ func addSupplyChainImpactIndexEntry(index *supplyChainImpactIndex, envelope fact
 		// blank digest (a legitimate not_scanned/unsupported analysis outcome)
 		// must never anchor an os_package's SubjectDigest, so it is simply not
 		// indexed rather than indexed as an empty-digest row a lookup could match.
+		//
+		// Keyed by scope+generation only, so multiple scanner_worker.analysis
+		// facts for the same scan (different analyzers) resolve last-write-wins.
+		// That is safe for SubjectDigest: imageDigest is a content-addressed
+		// property of the scanned image, identical across analyzers of the same
+		// target, so any winner yields the same digest. EvidenceFactIDs may then
+		// cite an arbitrary analyzer of that scan, which is acceptable evidence
+		// provenance for a digest that all of them agree on.
 		if analysis.imageDigest != "" {
 			index.scannerAnalyses[supplyChainScopeGenerationKey(analysis.scopeID, analysis.generationID)] = analysis
 		}
