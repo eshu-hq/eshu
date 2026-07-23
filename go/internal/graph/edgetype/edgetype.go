@@ -18,6 +18,18 @@ const (
 	AllowsEgress EdgeType = "ALLOWS_EGRESS"
 	// AllowsIngress is the "ALLOWS_INGRESS" graph relationship type.
 	AllowsIngress EdgeType = "ALLOWS_INGRESS"
+	// AWSLambdaFunctionUsesImage is the "AWS_lambda_function_uses_image" graph
+	// relationship type (issue #5450): a Lambda function CloudResource node to
+	// the digest-addressed ContainerImage it runs, resolved from the
+	// lambda_function_uses_image aws_relationship fact's exact
+	// registry+repository@digest resolved_image_uri. Case-preserving (not
+	// upper-snake-case like most edge types) because it shares the
+	// AWS_<raw relationship_type> Cypher-token convention the sibling
+	// CloudResourceEdgeWriter's dynamic per-relationship-type edges already
+	// use (docs/internal/aws-relationship-edge-materialization-design.md §5.3),
+	// which this domain's closed single-member vocabulary fixes as a constant
+	// rather than deriving it per row.
+	AWSLambdaFunctionUsesImage EdgeType = "AWS_lambda_function_uses_image"
 	// AtlantisDependsOn is the "ATLANTIS_DEPENDS_ON" graph relationship type (an
 	// Atlantis project to a sibling project it declares in depends_on). It is
 	// deliberately distinct from DependsOn so Atlantis apply-ordering is not
@@ -227,6 +239,7 @@ const (
 // registered lists every edge type known to the registry. Order is not
 // significant; All returns a defensive copy.
 var registered = []EdgeType{
+	AWSLambdaFunctionUsesImage,
 	Aliases, AllowsEgress, AllowsIngress, AtlantisDependsOn, BuiltFrom, Calls,
 	CanAssume, CanEscalateTo, CanPerform, Contains,
 	CorrelatesDeployableUnit, DeclaresCodeowner, DeclaresDependency, Defines, DefinesJob, DependsOn,

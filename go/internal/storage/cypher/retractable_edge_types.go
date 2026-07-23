@@ -10,6 +10,7 @@ import (
 )
 
 var retractableGraphEdgeTypes = []edgetype.EdgeType{
+	edgetype.AWSLambdaFunctionUsesImage,
 	edgetype.Aliases,
 	edgetype.AllowsEgress,
 	edgetype.AllowsIngress,

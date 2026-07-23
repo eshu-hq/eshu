@@ -595,6 +595,13 @@ coverage:
   - {surface: retractable_edge:LOGS_TO, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:GRANTS_ACCESS_TO, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:HAS_ROLE, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go, proof_gate: replay-tier}
+  # AWS_lambda_function_uses_image (issue #5450): CloudResourceContainerImageEdgeWriter
+  # dispatches its retract through dispatchRetract (sequential Execute) from
+  # inception, following the same fix the five writers above needed. The first
+  # CloudResource -> ContainerImage (cross-label) two-MATCH-MERGE edge writer
+  # this offlinetier package proves; live-proven by a full write+retract
+  # against a real NornicDB, including both endpoint labels' node survival.
+  - {surface: retractable_edge:AWS_lambda_function_uses_image, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_cloud_image_edge_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:ALLOWS_INGRESS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:ALLOWS_EGRESS, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:TO, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go, proof_gate: replay-tier}
