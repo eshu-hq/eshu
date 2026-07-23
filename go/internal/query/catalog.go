@@ -102,11 +102,17 @@ func (h *RepositoryHandler) listCatalog(w http.ResponseWriter, r *http.Request) 
 
 	response.Repositories, response.Truncated, err = h.listCatalogRepositoriesFromGraph(r.Context(), limit)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, catalogCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query repositories: %v", err))
 		return
 	}
 	response.Workloads, response.WorkloadsTruncated, err = h.listCatalogWorkloads(r.Context(), limit)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, catalogCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query workloads: %v", err))
 		return
 	}

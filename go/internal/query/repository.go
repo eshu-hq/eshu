@@ -244,7 +244,7 @@ func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	repoID, ok := h.resolveRepositoryPathSelector(w, r)
+	repoID, ok := h.resolveRepositoryPathSelector(w, r, "platform_impact.context_overview")
 	if !ok {
 		return
 	}
@@ -253,6 +253,9 @@ func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Re
 	row, err := h.Neo4j.RunSingle(r.Context(), repositoryBaseCypher, map[string]any{"repo_id": repoID})
 	timer.Done(r.Context(), slog.Bool("found", row != nil), slog.Bool("error", err != nil))
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 		return
 	}

@@ -19,6 +19,8 @@ const openAPIPathsInfraResourceAggregate = `
           {"name": "resource_category", "in": "query", "schema": {"type": "string"}}
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Graph-backed infrastructure resource totals envelope",
             "content": {
@@ -57,6 +59,8 @@ const openAPIPathsInfraResourceAggregate = `
           {"name": "offset", "in": "query", "schema": {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0}}
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Grouped count buckets ordered by count desc",
             "content": {

@@ -46,7 +46,7 @@ func (h *SupplyChainHandler) listContainerImageIdentities(w http.ResponseWriter,
 		h.writeEmptyContainerImageIdentityPage(w, r, limit)
 		return
 	}
-	sourceRepositoryID, ok := h.resolveContainerImageSourceRepositorySelector(w, r, QueryParam(r, "source_repository_id"), access)
+	sourceRepositoryID, ok := h.resolveContainerImageSourceRepositorySelector(w, r, QueryParam(r, "source_repository_id"), access, containerImageIdentitiesCapability)
 	if !ok {
 		return
 	}

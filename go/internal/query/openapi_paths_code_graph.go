@@ -76,6 +76,8 @@ const openAPIPathsCodeGraph = `
           }
         },
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Bundle candidates",
             "content": {

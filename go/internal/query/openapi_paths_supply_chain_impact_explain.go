@@ -22,6 +22,8 @@ const openAPIPathsSupplyChainImpactExplain = `
           {"name": "service_id", "in": "query", "description": "Reducer-admitted service anchor derived from workload/service evidence.", "schema": {"type": "string"}}
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Bounded finding explanation, no-evidence response, or ambiguous-scope refusal envelope",
             "content": {

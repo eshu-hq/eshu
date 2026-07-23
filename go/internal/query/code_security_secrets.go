@@ -106,7 +106,7 @@ func (h *CodeHandler) handleHardcodedSecretInvestigation(w http.ResponseWriter, 
 		WriteError(w, http.StatusBadRequest, "offset must be <= 10000")
 		return
 	}
-	if !h.applyRepositorySelector(w, r, &req.RepoID) {
+	if !h.applyRepositorySelectorForCapability(w, r, &req.RepoID, hardcodedSecretCapability) {
 		return
 	}
 	var err error

@@ -11,13 +11,16 @@ import (
 
 // getRepositoryCoverage returns content store coverage for the repository.
 func (h *RepositoryHandler) getRepositoryCoverage(w http.ResponseWriter, r *http.Request) {
-	repoID, ok := h.resolveRepositoryPathSelector(w, r)
+	repoID, ok := h.resolveRepositoryPathSelector(w, r, "platform_impact.context_overview")
 	if !ok {
 		return
 	}
 
 	resolvedRepoID, err := h.resolveCoverageRepositoryID(r.Context(), repoID)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 		return
 	}
@@ -30,6 +33,9 @@ func (h *RepositoryHandler) getRepositoryCoverage(w http.ResponseWriter, r *http
 	// Get content store coverage
 	coverage, err := h.queryContentStoreCoverage(r.Context(), repoID)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("coverage query failed: %v", err))
 		return
 	}
@@ -47,7 +53,12 @@ func (h *RepositoryHandler) resolveRepositorySelector(ctx context.Context, selec
 // to a canonical repository id, and writes the appropriate HTTP error when the
 // selector is missing, ambiguous, or not found. It returns false when the caller
 // must stop after an error response has already been written.
-func (h *RepositoryHandler) resolveRepositoryPathSelector(w http.ResponseWriter, r *http.Request) (string, bool) {
+//
+// capability names the caller's capability for the bounded graph-read envelope
+// so a backend timeout or outage during selector resolution surfaces as the
+// same 503/504 contract every other graph-backed read uses, rather than
+// falling through to the generic 400/404 branch below.
+func (h *RepositoryHandler) resolveRepositoryPathSelector(w http.ResponseWriter, r *http.Request, capability string) (string, bool) {
 	repoSelector := PathParam(r, "repo_id")
 	if repoSelector == "" {
 		WriteError(w, http.StatusBadRequest, "repo_id is required")
@@ -55,6 +66,9 @@ func (h *RepositoryHandler) resolveRepositoryPathSelector(w http.ResponseWriter,
 	}
 	repoID, err := h.resolveRepositorySelector(r.Context(), repoSelector)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, capability) {
+			return "", false
+		}
 		status := http.StatusBadRequest
 		if isRepositorySelectorNotFound(err) {
 			status = http.StatusNotFound

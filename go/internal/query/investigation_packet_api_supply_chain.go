@@ -33,7 +33,7 @@ func (h *SupplyChainHandler) getImpactPacket(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	access := repositoryAccessFilterFromContext(r.Context())
-	repositoryID, ok := h.resolveSupplyChainImpactRepositorySelector(w, r, QueryParam(r, "repository_id"), access)
+	repositoryID, ok := h.resolveSupplyChainImpactRepositorySelector(w, r, QueryParam(r, "repository_id"), access, supplyChainImpactExplanationCapability)
 	if !ok {
 		return
 	}

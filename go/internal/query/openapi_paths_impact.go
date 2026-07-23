@@ -29,6 +29,8 @@ const openAPIPathsImpact = `
           }
         },
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Deployment trace",
             "content": {
@@ -293,6 +295,8 @@ const openAPIPathsImpact = `
           }
         },
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Blast radius analysis",
             "content": {
@@ -359,6 +363,8 @@ const openAPIPathsImpact = `
           }
         },
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Change surface analysis",
             "content": {
@@ -427,6 +433,7 @@ const openAPIPathsImpact = `
           }
         },
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Change-surface investigation",
             "content": {

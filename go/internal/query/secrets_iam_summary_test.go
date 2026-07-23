@@ -260,3 +260,33 @@ func TestSecretsIAMPostureSummaryQueryGroupsActiveFacts(t *testing.T) {
 		}
 	}
 }
+
+// TestSecretsIAMPostureSummaryGraphReadSweep proves the grant-section read maps
+// bounded graph-read sentinels onto the 503/504 contract. GrantPosture is wired
+// in production to a graph-backed store (NewGraphSecretsIAMGrantPostureStore),
+// so a backend timeout or outage during SummarizeS3ExternalPrincipalGrantPosture
+// must not collapse into a generic 500. The Postgres Summary read succeeds
+// first, so the sentinel can only originate from the graph grant read.
+func TestSecretsIAMPostureSummaryGraphReadSweep(t *testing.T) {
+	t.Parallel()
+	for _, test := range graphReadSweepCases() {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			handler := &SecretsIAMHandler{
+				Summary:      &recordingPostureSummaryStore{},
+				GrantPosture: &recordingGrantPostureStore{err: test.err},
+				Profile:      ProfileProduction,
+			}
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v0/secrets-iam/posture-summary?scope_id=scope-1", nil)
+			req.Header.Set("Accept", EnvelopeMIMEType)
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, req)
+
+			assertGraphReadSweepResponse(t, rec, test)
+		})
+	}
+}

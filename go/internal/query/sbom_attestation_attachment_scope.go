@@ -22,8 +22,9 @@ func (h *SupplyChainHandler) resolveSBOMAttachmentRepositorySelector(
 	r *http.Request,
 	selector string,
 	access repositoryAccessFilter,
+	capability string,
 ) (string, bool) {
-	return resolveRepositorySelectorForRequestWithAccess(w, r, h.Neo4j, h.Content, selector, access)
+	return resolveRepositorySelectorForRequestWithAccess(w, r, h.Neo4j, h.Content, selector, access, capability)
 }
 
 // writeEmptySBOMAttachmentPage returns the bounded zero-attachments page for an

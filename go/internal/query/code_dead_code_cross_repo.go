@@ -98,15 +98,18 @@ func (h *CodeHandler) handleCrossRepoDeadCode(w http.ResponseWriter, r *http.Req
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if !h.applyRepositorySelector(w, r, &req.RepoID) {
+	if !h.applyRepositorySelectorForCapability(w, r, &req.RepoID, crossRepoDeadCodeCapability) {
 		return
 	}
-	if !h.applyConsumerRepositorySelectors(w, r, req.ConsumerRepoIDs) {
+	if !h.applyConsumerRepositorySelectors(w, r, req.ConsumerRepoIDs, crossRepoDeadCodeCapability) {
 		return
 	}
 
 	scan, err := h.scanCrossRepoDeadCodeCandidates(r.Context(), req)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, crossRepoDeadCodeCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -165,9 +168,10 @@ func (h *CodeHandler) applyConsumerRepositorySelectors(
 	w http.ResponseWriter,
 	r *http.Request,
 	consumerRepoIDs []string,
+	capability string,
 ) bool {
 	for i := range consumerRepoIDs {
-		if !h.applyRepositorySelector(w, r, &consumerRepoIDs[i]) {
+		if !h.applyRepositorySelectorForCapability(w, r, &consumerRepoIDs[i], capability) {
 			return false
 		}
 	}

@@ -8,7 +8,7 @@ const (
 	// success, slow, recovered, deadline, caller_deadline, unavailable,
 	// canceled, or error.
 	SpanAttrGraphReadOutcome = "eshu.graph_read.outcome"
-	// SpanAttrGraphReadAttempts reports the bounded total attempt count (0-2).
+	// SpanAttrGraphReadAttempts reports the bounded total attempt count (1-2).
 	SpanAttrGraphReadAttempts = "eshu.graph_read.attempts"
 	// SpanAttrGraphReadConfiguredDeadlineMS reports the configured client safety
 	// deadline; an earlier parent deadline remains authoritative at execution.

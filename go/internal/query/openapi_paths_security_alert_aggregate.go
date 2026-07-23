@@ -19,6 +19,8 @@ const openAPIPathsSecurityAlertAggregate = `
           {"name": "reconciliation_status", "in": "query", "schema": {"type": "string"}}
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Reducer-owned provider alert reconciliation totals envelope",
             "content": {
@@ -67,6 +69,8 @@ const openAPIPathsSecurityAlertAggregate = `
           {"name": "offset", "in": "query", "schema": {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0}}
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Grouped count buckets ordered by count desc",
             "content": {

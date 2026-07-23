@@ -83,6 +83,9 @@ func (h *ImpactHandler) entityMap(w http.ResponseWriter, r *http.Request) {
 
 	selected, resolution, err := h.resolveEntityMapStart(r.Context(), req)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, entityMapCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -108,6 +111,9 @@ func (h *ImpactHandler) entityMap(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetAttributes(attribute.Bool("eshu.entity_map.traversal_error", true))
+		if WriteGraphReadError(w, r, err, entityMapCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

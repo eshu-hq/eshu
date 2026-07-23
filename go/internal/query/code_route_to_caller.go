@@ -79,6 +79,9 @@ func (h *CodeHandler) handleRouteToCaller(w http.ResponseWriter, r *http.Request
 
 	routeRows, err := h.routeToCallerRouteRows(r, req)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, routeToCallerCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -119,12 +122,18 @@ func (h *CodeHandler) handleRouteToCaller(w http.ResponseWriter, r *http.Request
 
 	relationshipRows, err := h.routeToCallerRelationshipRows(r, route.HandlerID, req)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, routeToCallerCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	callers, callees, truncated := splitRouteToCallerRelationships(relationshipRows, req.Limit)
 	impact, err := h.routeToCallerImpact(r, route, req.Limit)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, routeToCallerCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

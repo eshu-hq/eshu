@@ -65,12 +65,15 @@ func (h *CodeHandler) handleDeadCode(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusBadRequest, "unsupported candidate_kind")
 		return
 	}
-	if !h.applyRepositorySelector(w, r, &req.RepoID) {
+	if !h.applyRepositorySelectorForCapability(w, r, &req.RepoID, "code_quality.dead_code") {
 		return
 	}
 
 	scan, err := h.scanDeadCodeCandidates(r.Context(), req)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "code_quality.dead_code") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

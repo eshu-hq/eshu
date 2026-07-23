@@ -17,6 +17,7 @@ const openAPIPathsCodeFlow = `
           "400": {"$ref": "#/components/responses/BadRequest"},
           "501": {"description": "Unsupported capability for this profile"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }
@@ -34,6 +35,7 @@ const openAPIPathsCodeFlow = `
           "400": {"$ref": "#/components/responses/BadRequest"},
           "501": {"description": "Unsupported capability for this profile"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }
@@ -47,6 +49,7 @@ const openAPIPathsCodeFlow = `
         "x-scoped-token-support": true,
         "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CodeFlowRequest"}}}},
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {"description": "Bounded CFG summaries", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CodeFlowResponse"}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "501": {"description": "Unsupported capability for this profile"},
@@ -64,6 +67,7 @@ const openAPIPathsCodeFlow = `
         "x-scoped-token-support": true,
         "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CodeFlowRequest"}}}},
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {"description": "Bounded PDG summaries", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CodeFlowResponse"}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "501": {"description": "Unsupported capability for this profile"},

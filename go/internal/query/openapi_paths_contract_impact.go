@@ -41,6 +41,7 @@ const openAPIPathsContractImpact = `
           }
         },
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Contract-impact response with deterministic providers or explicit unsupported family states.",
             "content": {

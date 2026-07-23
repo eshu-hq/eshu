@@ -352,6 +352,9 @@ func (h *ImpactHandler) findBlastRadius(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "platform_impact.blast_radius") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

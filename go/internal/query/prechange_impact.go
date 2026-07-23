@@ -83,6 +83,9 @@ func (h *ImpactHandler) preChangeImpact(w http.ResponseWriter, r *http.Request) 
 	}
 	resp, err := h.preChangeImpactResponse(r, normalized)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, preChangeImpactCapability) {
+			return
+		}
 		WriteError(w, preChangeImpactErrorStatus(err), err.Error())
 		return
 	}

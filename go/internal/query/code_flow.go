@@ -145,7 +145,7 @@ func (h *CodeHandler) handleCodeFlow(
 		WriteError(w, http.StatusBadRequest, "repo_id is required")
 		return
 	}
-	if !h.applyRepositorySelector(w, r, &req.RepoID) {
+	if !h.applyRepositorySelectorForCapability(w, r, &req.RepoID, capability) {
 		return
 	}
 	if state, ok := unsupportedCodeFlowLanguage(req); ok {

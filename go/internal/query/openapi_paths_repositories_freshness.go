@@ -25,6 +25,8 @@ const openAPIPathsRepositoriesFreshness = `
           }
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Repository freshness verdict",
             "content": {

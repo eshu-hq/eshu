@@ -120,6 +120,7 @@ func (h *ServiceCatalogHandler) listCorrelations(w http.ResponseWriter, r *http.
 		h.Content,
 		filter.RepositoryID,
 		access,
+		serviceCatalogCorrelationsCapability,
 	)
 	if !ok {
 		return

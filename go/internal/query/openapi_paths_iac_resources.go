@@ -88,6 +88,7 @@ const openAPIPathsIaCResources = `
           }
         ],
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Bounded IaC resource list",
             "content": {

@@ -126,8 +126,7 @@ const openAPIPathsCICD = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "500": {"$ref": "#/components/responses/InternalError"},
-          "501": {"$ref": "#/components/responses/NotImplemented"},
-          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+          "501": {"$ref": "#/components/responses/NotImplemented"}
         }
       }
     },

@@ -100,7 +100,7 @@ func (h *CodeHandler) handleTopicInvestigation(w http.ResponseWriter, r *http.Re
 		WriteError(w, http.StatusBadRequest, "offset must be <= 10000")
 		return
 	}
-	if !h.applyRepositorySelector(w, r, &req.RepoID) {
+	if !h.applyRepositorySelectorForCapability(w, r, &req.RepoID, codeTopicCapability) {
 		return
 	}
 

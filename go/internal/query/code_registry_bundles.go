@@ -94,6 +94,9 @@ func (h *CodeHandler) handleSearchBundles(w http.ResponseWriter, r *http.Request
 
 	rows, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, searchBundlesCapability) {
+			return
+		}
 		writeSearchBundlesError(w, r, http.StatusInternalServerError, ErrorCodeInternalError, err.Error())
 		return
 	}

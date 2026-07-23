@@ -98,7 +98,7 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusBadRequest, "query is required")
 		return
 	}
-	if !h.applyRepositorySelector(w, r, &req.RepoID) {
+	if !h.applyRepositorySelectorForCapability(w, r, &req.RepoID, "code_search.fuzzy_symbol") {
 		return
 	}
 	if req.Limit <= 0 {
@@ -144,6 +144,9 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	graphResults, err := h.searchGraphEntitiesWithExact(ctx, req.RepoID, req.Query, req.Language, probeLimit, req.Exact)
 	if err != nil {
 		if writeContentSubstringIndexUnavailable(w, err) {
+			return
+		}
+		if WriteGraphReadError(w, r, err, capability) {
 			return
 		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
@@ -355,12 +358,15 @@ func (h *CodeHandler) handleComplexity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	if !h.applyRepositorySelector(w, r, &req.RepoID) {
+	if !h.applyRepositorySelectorForCapability(w, r, &req.RepoID, "code_quality.complexity") {
 		return
 	}
 	if req.EntityID == "" && req.FunctionName == "" {
 		results, limit, truncated, err := h.listMostComplexFunctions(ctx, req.RepoID, req.Limit)
 		if err != nil {
+			if WriteGraphReadError(w, r, err, "code_quality.complexity") {
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -379,6 +385,9 @@ func (h *CodeHandler) handleComplexity(w http.ResponseWriter, r *http.Request) {
 		var ambiguous complexityAmbiguousError
 		if errors.As(err, &ambiguous) {
 			writeComplexityAmbiguousError(w, r, ambiguous, h.profile())
+			return
+		}
+		if WriteGraphReadError(w, r, err, "code_quality.complexity") {
 			return
 		}
 		WriteError(w, http.StatusInternalServerError, err.Error())

@@ -23,10 +23,18 @@ not replace query-shape fixes.
 
 ## Caller responses
 
-The read-only Cypher API and its `execute_cypher_query` MCP tool receive the
-same stable error envelope. Repository inventory uses the same codes. Other
-existing reader consumers still receive the sanitized sentinel message even
-when their legacy route-specific HTTP status remains unchanged:
+Every graph-backed HTTP route maps these sentinels onto the same stable status
+and error envelope, so a bounded-availability failure is never reported as a
+generic HTTP 500 — or, for a route whose graph read happens during repository
+selector resolution, a misleading HTTP 400. This spans the read-only Cypher API
+and its `execute_cypher_query` MCP tool, repository inventory/context/story, the
+code search, relationships, call-graph, dead-code, flow, and quality routes,
+entity and service resolution, the impact and change-surface family,
+infrastructure and image reads, package-registry and service-catalog
+correlations, the supply-chain evidence and security-alert-reconciliation
+routes, the secrets-IAM grant-posture summary, and the service-story seam.
+Their MCP tools therefore surface `backend_timeout` / `backend_unavailable`
+rather than a generic transport failure:
 
 | Condition | HTTP status | Error code | Message |
 | --- | --- | --- | --- |
@@ -34,6 +42,36 @@ when their legacy route-specific HTTP status remains unchanged:
 | Graph unavailable | `503` | `backend_unavailable` | `graph temporarily unavailable; retry after graph health is restored` |
 
 Responses do not expose Bolt addresses, Cypher text, or raw driver errors.
+
+Two known gaps, both tracked separately:
+
+- `POST /api/v0/code/language-query` still returns HTTP 500 for a bounded
+  graph-read failure. The envelope carries a `capability`, and that route has
+  never been assigned one in the capability catalog. Nothing technically
+  prevents emitting the envelope — the field is free-form and unvalidated — but
+  putting an invented capability in front of operators is worse than the honest
+  gap, so the route waits on a real capability assignment.
+- `POST /api/v0/code/visualize` does follow the contract at runtime, but has no
+  OpenAPI path entry at all — a gap that predates this contract — so it cannot
+  advertise `503`/`504` until that entry exists.
+
+Every route in `boundedGraphReadRoutes` follows the table above and advertises
+both statuses in the OpenAPI spec. That list is the enforced set — read it as
+"these routes are proven to map", not as a proof that no other graph-backed
+route exists.
+
+`TestOpenAPIDocumentsBoundedGraphReadFailuresOnEveryGuardedRoute` keeps the spec
+from drifting away from that set, but note what it can and cannot do: it asserts
+that every route **on its list** documents `503` and `504`. It cannot detect a
+graph-backed route that was never added to the list, nor a handler whose
+guard covers only some of its branches. Adding a graph-backed route therefore
+means adding it to `boundedGraphReadRoutes` as well — derive that list from the
+call graph rather than by inspection, since a guard often sits in a helper
+several frames below the registered handler.
+
+Routes that reach Postgres or the content store rather than the graph are
+unaffected — their failures are not graph-read sentinels and keep their existing
+status.
 
 ## Operator signals
 

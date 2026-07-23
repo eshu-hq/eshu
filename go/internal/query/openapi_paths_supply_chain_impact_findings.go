@@ -34,6 +34,8 @@ const openAPIPathsSupplyChainImpactFindings = `
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Supply-chain impact finding page with readiness coverage",
             "content": {

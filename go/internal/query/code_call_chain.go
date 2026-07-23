@@ -74,14 +74,14 @@ func (h *CodeHandler) handleCallChain(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if !h.applyRepositorySelector(w, r, &req.RepoID) {
+	if !h.applyRepositorySelectorForCapability(w, r, &req.RepoID, "call_graph.call_chain_path") {
 		return
 	}
 	if req.CrossRepo {
-		if !h.applyRepositorySelector(w, r, &req.StartRepoID) {
+		if !h.applyRepositorySelectorForCapability(w, r, &req.StartRepoID, "call_graph.call_chain_path") {
 			return
 		}
-		if !h.applyRepositorySelector(w, r, &req.EndRepoID) {
+		if !h.applyRepositorySelectorForCapability(w, r, &req.EndRepoID, "call_graph.call_chain_path") {
 			return
 		}
 	}
@@ -94,6 +94,9 @@ func (h *CodeHandler) handleCallChain(w http.ResponseWriter, r *http.Request) {
 	if h.graphBackend() == GraphBackendNornicDB {
 		nornicRows, err := h.nornicDBCallChainRows(r.Context(), req)
 		if err != nil {
+			if WriteGraphReadError(w, r, err, "call_graph.call_chain_path") {
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -102,6 +105,9 @@ func (h *CodeHandler) handleCallChain(w http.ResponseWriter, r *http.Request) {
 		cypher, params := buildCallChainCypher(req, h.graphBackend())
 		neoRows, err := h.Neo4j.Run(r.Context(), cypher, params)
 		if err != nil {
+			if WriteGraphReadError(w, r, err, "call_graph.call_chain_path") {
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}

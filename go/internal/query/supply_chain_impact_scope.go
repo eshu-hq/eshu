@@ -19,8 +19,9 @@ func (h *SupplyChainHandler) resolveSupplyChainImpactRepositorySelector(
 	r *http.Request,
 	selector string,
 	access repositoryAccessFilter,
+	capability string,
 ) (string, bool) {
-	return resolveRepositorySelectorForRequestWithAccess(w, r, h.Neo4j, h.Content, selector, access)
+	return resolveRepositorySelectorForRequestWithAccess(w, r, h.Neo4j, h.Content, selector, access, capability)
 }
 
 // writeEmptyImpactFindingsPage returns the bounded zero-findings page used when

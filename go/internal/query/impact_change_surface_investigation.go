@@ -102,6 +102,9 @@ func (h *ImpactHandler) investigateChangeSurface(w http.ResponseWriter, r *http.
 	if req.graphTarget() != "" {
 		selected, resolution, err = h.resolveChangeSurfaceTarget(r.Context(), req)
 		if err != nil {
+			if WriteGraphReadError(w, r, err, changeSurfaceInvestigationCapability) {
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -122,6 +125,9 @@ func (h *ImpactHandler) investigateChangeSurface(w http.ResponseWriter, r *http.
 	if selected != nil {
 		impactRows, graphTruncated, err = h.changeSurfaceImpactRows(r.Context(), req, *selected)
 		if err != nil {
+			if WriteGraphReadError(w, r, err, changeSurfaceInvestigationCapability) {
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}

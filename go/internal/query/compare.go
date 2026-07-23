@@ -97,6 +97,9 @@ func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Requ
 	// Fetch workload
 	workload, err := h.fetchWorkload(ctx, req.WorkloadID)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "platform_impact.environment_compare") {
+			return
+		}
 		writeCompareError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -120,11 +123,17 @@ func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Requ
 
 	leftSnap, leftTruncated, err := h.environmentSnapshot(ctx, workload, req.Left, serviceEvidence, limit)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "platform_impact.environment_compare") {
+			return
+		}
 		writeCompareError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	rightSnap, rightTruncated, err := h.environmentSnapshot(ctx, workload, req.Right, serviceEvidence, limit)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "platform_impact.environment_compare") {
+			return
+		}
 		writeCompareError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

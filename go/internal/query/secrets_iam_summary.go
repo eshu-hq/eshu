@@ -198,6 +198,9 @@ func (h *SecretsIAMHandler) summary(w http.ResponseWriter, r *http.Request) {
 	if h.GrantPosture != nil {
 		grantPosture, err := h.GrantPosture.SummarizeS3ExternalPrincipalGrantPosture(r.Context(), scopeID)
 		if err != nil {
+			if WriteGraphReadError(w, r, err, secretsIAMPostureSummaryCapability) {
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}

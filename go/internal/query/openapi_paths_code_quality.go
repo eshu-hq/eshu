@@ -33,6 +33,8 @@ const openAPIPathsCodeQuality = `
           }
         },
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Code quality inspection results",
             "content": {

@@ -59,6 +59,9 @@ func (h *ImpactHandler) investigateDeploymentConfigInfluence(w http.ResponseWrit
 			WriteError(w, http.StatusConflict, err.Error())
 			return
 		}
+		if WriteGraphReadError(w, r, err, deploymentConfigInfluenceCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 		return
 	}
@@ -68,6 +71,9 @@ func (h *ImpactHandler) investigateDeploymentConfigInfluence(w http.ResponseWrit
 	}
 	if workloadID := safeStr(ctx, "id"); workloadID != "" {
 		if err := h.enrichDeploymentConfigInfluenceContext(r.Context(), ctx); err != nil {
+			if WriteGraphReadError(w, r, err, deploymentConfigInfluenceCapability) {
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}

@@ -190,6 +190,8 @@ const openAPIPathsRepositories = `
           }
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Catalog entity handles",
             "content": {
@@ -235,6 +237,8 @@ const openAPIPathsRepositories = `
           {"$ref": "#/components/parameters/RepoId"}
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Repository context",
             "content": {
@@ -301,6 +305,8 @@ const openAPIPathsRepositories = `
           {"$ref": "#/components/parameters/RepoId"}
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Repository narrative",
             "content": {
@@ -348,6 +354,8 @@ const openAPIPathsRepositories = `
           {"name": "language", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Filter the listing to files of this language/source-type (e.g. go, python, hcl, yaml). Aliases expand to a family: typescript also matches tsx; terraform also matches hcl/tfvars. A path with no matching files returns an empty listing, not 404."}
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Repository file tree",
             "content": {
@@ -396,6 +404,8 @@ const openAPIPathsRepositories = `
           {"name": "ref", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Branch name or commit SHA selector. The request succeeds only when the selector resolves to the indexed commit; unavailable or unindexed refs return an error."}
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Repository file content",
             "content": {
@@ -433,6 +443,8 @@ const openAPIPathsRepositories = `
           {"$ref": "#/components/parameters/RepoId"}
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Repository coverage",
             "content": {

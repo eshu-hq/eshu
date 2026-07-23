@@ -145,6 +145,12 @@ func (h *ImageHandler) listImages(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := h.Neo4j.Run(r.Context(), imageListCypher, params)
 	if err != nil {
+		// The graph-read-availability guard runs before the telemetry below:
+		// "query_error" would be the wrong outcome label for a bounded
+		// backend-unavailable/backend-timeout sentinel (see WriteGraphReadError).
+		if WriteGraphReadError(w, r, err, imageListCapability) {
+			return
+		}
 		recordImageListError(r.Context(), "query_error")
 		recordImageListDuration(r.Context(), start, "query_error")
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))

@@ -60,6 +60,8 @@ const openAPIPathsImpactRest = `
           }
         },
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Pre-change impact packet",
             "content": {
@@ -150,6 +152,8 @@ const openAPIPathsImpactRest = `
           }
         },
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Read-only developer change plan",
             "content": {
@@ -216,6 +220,8 @@ const openAPIPathsImpactRest = `
           }
         },
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Entity map, ambiguity packet, or no-match packet",
             "content": {
@@ -283,6 +289,8 @@ const openAPIPathsImpactRest = `
           }
         },
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Resource investigation packet",
             "content": {
@@ -342,6 +350,8 @@ const openAPIPathsImpactRest = `
           }
         },
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "200": {
             "description": "Trace paths",
             "content": {
@@ -388,6 +398,8 @@ const openAPIPathsImpactRest = `
           }
         },
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Dependency path",
             "content": {

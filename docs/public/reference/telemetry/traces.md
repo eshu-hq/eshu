@@ -82,7 +82,7 @@ Webhook traces also use bounded attributes such as `provider`, `event_kind`,
 
 Graph-read `neo4j.query` spans use `eshu.graph_read.outcome` (`success`, `slow`,
 `recovered`, `deadline`, `caller_deadline`, `unavailable`, `canceled`, or
-`error`), `eshu.graph_read.attempts` (0-2), and
+`error`), `eshu.graph_read.attempts` (1-2), and
 `eshu.graph_read.configured_deadline_ms`. `caller_deadline` preserves the
 enclosing request's attribution instead of counting it as a graph-policy
 deadline. These spans deliberately omit Cypher text and raw driver errors. See

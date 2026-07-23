@@ -136,6 +136,9 @@ func (h *CodeownersOwnershipHandler) listOwnership(w http.ResponseWriter, r *htt
 		limit+1,
 	)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, codeownersOwnershipCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -161,6 +164,9 @@ func (h *CodeownersOwnershipHandler) listOwnership(w http.ResponseWriter, r *htt
 
 	effectiveOwner, err := resolveEffectiveRepositoryOwner(queryCtx, h.Neo4j, h.Correlations, repoID)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, codeownersOwnershipCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

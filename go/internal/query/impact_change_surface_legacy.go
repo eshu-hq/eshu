@@ -83,6 +83,9 @@ func (h *ImpactHandler) findChangeSurface(w http.ResponseWriter, r *http.Request
 	// reach a repository the caller does not hold.
 	selected, _, err := h.resolveChangeSurfaceTarget(r.Context(), resolverReq)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "platform_impact.change_surface") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -94,6 +97,9 @@ func (h *ImpactHandler) findChangeSurface(w http.ResponseWriter, r *http.Request
 		target = map[string]any{"id": selected.ID, "name": selected.Name}
 		rows, rowsTruncated, traversalErr := h.findChangeSurfaceImpactRows(r.Context(), *selected, req.Environment, depth, limit, repositoryAccessFilterFromContext(r.Context()))
 		if traversalErr != nil {
+			if WriteGraphReadError(w, r, traversalErr, "platform_impact.change_surface") {
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, traversalErr.Error())
 			return
 		}

@@ -78,6 +78,9 @@ func (h *ImpactHandler) contractImpact(w http.ResponseWriter, r *http.Request) {
 			WriteError(w, http.StatusServiceUnavailable, err.Error())
 			return
 		}
+		if WriteGraphReadError(w, r, err, contractImpactCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

@@ -169,6 +169,9 @@ func (h *GraphEntityInventoryHandler) listEntities(w http.ResponseWriter, r *htt
 	roundTrips++
 	if err != nil {
 		span.RecordError(err)
+		if WriteGraphReadError(w, r, err, graphEntityInventoryCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -193,6 +196,9 @@ func (h *GraphEntityInventoryHandler) listEntities(w http.ResponseWriter, r *htt
 		roundTrips++
 		if err != nil {
 			span.RecordError(err)
+			if WriteGraphReadError(w, r, err, graphEntityInventoryCapability) {
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}

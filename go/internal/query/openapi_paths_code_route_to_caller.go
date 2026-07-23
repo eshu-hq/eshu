@@ -32,6 +32,7 @@ const openAPIPathsCodeRouteToCaller = `
           }
         },
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Exact route-to-caller trace, or unsupported when no HANDLES_ROUTE edge exists",
             "content": {

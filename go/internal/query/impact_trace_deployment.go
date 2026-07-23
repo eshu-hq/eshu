@@ -70,6 +70,9 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		if writeContentSubstringIndexUnavailable(w, err) {
 			return
 		}
+		if WriteGraphReadError(w, r, err, "platform_impact.deployment_chain") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 		return
 	}
@@ -80,6 +83,9 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 	if workloadID := safeStr(ctx, "id"); workloadID != "" {
 		deploymentSourceResult, err := h.fetchDeploymentSourceResult(r.Context(), workloadID, safeStr(ctx, "repo_id"))
 		if err != nil {
+			if WriteGraphReadError(w, r, err, "platform_impact.deployment_chain") {
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query deployment sources: %v", err))
 			return
 		}
@@ -90,6 +96,9 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 			workloadID,
 		)
 		if err != nil {
+			if WriteGraphReadError(w, r, err, "platform_impact.deployment_chain") {
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query cloud resources: %v", err))
 			return
 		}
@@ -111,6 +120,9 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 				serviceStoryItemLimit,
 			)
 			if configErr != nil {
+				if WriteGraphReadError(w, r, configErr, "platform_impact.deployment_chain") {
+					return
+				}
 				WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query config-derived cloud resources: %v", configErr))
 				return
 			}
@@ -129,6 +141,9 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 				r.Context(), h.Neo4j, safeStr(ctx, "name"), serviceStoryItemLimit,
 			)
 			if err != nil {
+				if WriteGraphReadError(w, r, err, "platform_impact.deployment_chain") {
+					return
+				}
 				WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query uncorrelated cloud resources: %v", err))
 				return
 			}
@@ -165,6 +180,9 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		imageRefs := k8sResourceResult.imageRefs
 		imageRegistryTruth, err := h.fetchOCIImageRegistryTruth(r.Context(), imageRefs)
 		if err != nil {
+			if WriteGraphReadError(w, r, err, "platform_impact.deployment_chain") {
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query OCI image registry truth: %v", err))
 			return
 		}

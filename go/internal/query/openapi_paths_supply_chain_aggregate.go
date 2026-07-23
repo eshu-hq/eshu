@@ -31,6 +31,8 @@ const openAPIPathsSupplyChainImpactAggregate = `
           {"name": "include_suppressed", "in": "query", "description": "Include findings hidden by operator-asserted suppression. Defaults to false, matching the list endpoint.", "schema": {"type": "boolean", "default": false}}
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Reducer-owned vulnerability impact totals envelope",
             "content": {
@@ -86,6 +88,8 @@ const openAPIPathsSupplyChainImpactAggregate = `
           {"name": "offset", "in": "query", "schema": {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0}}
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Grouped count buckets ordered by count desc",
             "content": {

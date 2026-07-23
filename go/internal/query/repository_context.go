@@ -15,7 +15,7 @@ func (h *RepositoryHandler) getRepositoryContext(w http.ResponseWriter, r *http.
 	}
 
 	ctx := r.Context()
-	repoID, ok := h.resolveRepositoryPathSelector(w, r)
+	repoID, ok := h.resolveRepositoryPathSelector(w, r, "platform_impact.context_overview")
 	if !ok {
 		return
 	}
@@ -25,6 +25,9 @@ func (h *RepositoryHandler) getRepositoryContext(w http.ResponseWriter, r *http.
 	baseRow, err := h.Neo4j.RunSingle(ctx, repositoryBaseCypher, params)
 	timer.Done(ctx, slog.Bool("found", baseRow != nil), slog.Bool("error", err != nil))
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 		return
 	}

@@ -84,7 +84,7 @@ func (h *CodeHandler) handleStructuralInventory(w http.ResponseWriter, r *http.R
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if !h.applyRepositorySelector(w, r, &req.RepoID) {
+	if !h.applyRepositorySelectorForCapability(w, r, &req.RepoID, structuralInventoryCapability) {
 		return
 	}
 

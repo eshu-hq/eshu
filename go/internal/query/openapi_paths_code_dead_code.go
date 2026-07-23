@@ -32,6 +32,8 @@ const openAPIPathsCodeDeadCodeInvestigation = `
           }
         },
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Dead-code investigation packet",
             "content": {
@@ -107,6 +109,8 @@ const openAPIPathsCodeCrossRepoDeadCode = `
           }
         },
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Cross-repo dead-code classification packet",
             "content": {

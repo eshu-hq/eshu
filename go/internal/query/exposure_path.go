@@ -100,6 +100,9 @@ func (h *ImpactHandler) traceExposurePath(w http.ResponseWriter, r *http.Request
 
 	candidates, truncated, err := h.exposurePathCandidates(r.Context(), source, req.MaxDepth)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, exposurePathCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

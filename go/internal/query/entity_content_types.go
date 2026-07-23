@@ -132,6 +132,9 @@ func (h *EntityHandler) writeCanonicalContentEntityResolution(
 	}
 	graphHydrated, err := hydrateResolvedEntityRepoIdentity(r.Context(), h.Neo4j, h.Content, entities)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "code_search.exact_symbol") {
+			return true
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("hydrate entity repo identity: %v", err))
 		return true
 	}

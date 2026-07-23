@@ -20,6 +20,8 @@ const openAPIPathsSBOMAttestationAttachmentAggregate = `
           {"name": "artifact_kind", "in": "query", "schema": {"type": "string", "enum": ["sbom", "attestation"]}}
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Reducer-owned SBOM and attestation attachment totals envelope",
             "content": {
@@ -59,6 +61,8 @@ const openAPIPathsSBOMAttestationAttachmentAggregate = `
           {"name": "offset", "in": "query", "schema": {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0}}
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Grouped count buckets ordered by count desc",
             "content": {

@@ -69,6 +69,7 @@ func (h *PackageRegistryHandler) listCorrelations(w http.ResponseWriter, r *http
 		h.Content,
 		repositorySelector,
 		access,
+		packageRegistryCorrelationsCapability,
 	)
 	if !ok {
 		return

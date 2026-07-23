@@ -26,7 +26,7 @@ source_coverage:
           max_results: 500
   - file: cloud_resources.go
     calls:
-      - {symbol: "(*InfraHandler).listCloudResources", count: 1, source_sha256: 7f24f18ef33bba3754dc457191218b63823c9c625c4521b4bb291b3be4ddba4c, entry_ids: [QP-CLOUD-RESOURCE-LIST-HYDRATION]}
+      - {symbol: "(*InfraHandler).listCloudResources", count: 1, source_sha256: 87a40dc1936c3e199533aa9b203609ccc03f1bdfc7d965e059f3387532e31776, entry_ids: [QP-CLOUD-RESOURCE-LIST-HYDRATION]}
   - file: code.go
     calls:
       - {symbol: "(*CodeHandler).runComplexityQuery", count: 1, non_hot_reason: "unlabeled complexity-by-id branch is inventoried but cannot be admitted until its production anchor is typed"}
@@ -118,14 +118,14 @@ source_coverage:
       - {symbol: "(*ImpactHandler).contractImpactResponse", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: dependencies.go
     calls:
-      - {symbol: "(*DependenciesHandler).listDependencies", count: 1, source_sha256: df94f2b95ebbc32e6b363870504a214d665c562bee61e19e54b21594d20dbd98, entry_ids: [QP-SC-DEPS]}
+      - {symbol: "(*DependenciesHandler).listDependencies", count: 1, source_sha256: 33e1e662b30f6fce9d4ed8f4bee0daa6ad24d7724fc7bb24f5fe8ef08be81df0, entry_ids: [QP-SC-DEPS]}
   - file: deployment_trace_support_helpers.go
     calls:
       - {symbol: "queryProvisioningRepositoryCandidates", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: entity.go
     calls:
       - {symbol: "(*EntityHandler).getEntityContext", count: 1, non_hot_reason: "unlabeled entity-context lookup is inventoried but cannot be admitted until its production anchor is typed"}
-      - {symbol: "(*EntityHandler).resolveEntity", count: 1, source_sha256: 33e7944b8fdddfdd07f19b324ce747f33aa1d000adf2dddedab16bb85d2f907c, entry_ids: [QP-ENTITY-RESOLVE-REPOSITORY]}
+      - {symbol: "(*EntityHandler).resolveEntity", count: 1, source_sha256: 7ab7114f45b06cf8ee5aa8ae6169836131240c4821144cb78f3218afb0b290ef, entry_ids: [QP-ENTITY-RESOLVE-REPOSITORY]}
   - file: entity_resolve_workload.go
     calls:
       - {symbol: "(*EntityHandler).resolveWorkloadEntities", count: 2, source_sha256: 83874ee2f3b3671a59477114863d85aeb37e477b8421a3d60c79c4336b179be1, entry_ids: [QP-WORKLOAD-RESOLVE-PROPERTY, QP-WORKLOAD-RESOLVE-RELATIONSHIP]}
@@ -156,14 +156,14 @@ source_coverage:
       - {symbol: "(*ImpactHandler).exposurePathCandidates", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: graph_entity_inventory.go
     calls:
-      - {symbol: "(*GraphEntityInventoryHandler).listEntities", count: 2, source_sha256: 8dd8b2b2786ba8a276e1edfbe979612f883ca3246bfd7348636b4675bf376e83, entry_ids: [QP-GRAPH-ENTITY-COUNT, QP-GRAPH-ENTITY-LIST]}
+      - {symbol: "(*GraphEntityInventoryHandler).listEntities", count: 2, source_sha256: 8e1da79218bea919422ff65730c13968e0621495e9c28d30464c9477d1a2b5a7, entry_ids: [QP-GRAPH-ENTITY-COUNT, QP-GRAPH-ENTITY-LIST]}
   - file: iac_resources.go
     calls:
       - symbol: "(*IaCHandler).listResources"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: b8e7faeebfaac56c8331e13f55a36337d7ed2f599dc30fbe92e97e611341c5dc
+          source_sha256: efe4d704929e00e2ebf376f34ec04aa2e9ab8c6c4c92042d6126d275aa246cbd
           key_bound: bounded_key_batch
           max_keys: 201
           max_results: 201
@@ -176,7 +176,7 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: "cbfd27734d7f2560a4317ef6e3cfa3fd7d624202948a2237e12ef1cbdff71cac"
+          source_sha256: "df54140253a6bb42f6e2607bf49e8b8c5a0563f5a097c03a91c8ef911621309c"
           key_bound: single_key
           max_results: 201
   - file: impact.go
@@ -254,7 +254,7 @@ source_coverage:
       - {symbol: "fetchWorkloadRuntimeTopology", count: 1, source_sha256: 16a33c336deef34fac701a57c39faba590bb373f68e3cc0e04c990e2fa4f479c, entry_ids: [QP-SVC-RUNTIME-TOPOLOGY]}
   - file: infra.go
     calls:
-      - {symbol: "(*InfraHandler).searchResources", count: 1, source_sha256: 229b20532ea79b5170c2239a4ba67988f66f4eca254204a3b200d7b84c6e99f1, entry_ids: [QP-INFRA-RESOURCE-SEARCH]}
+      - {symbol: "(*InfraHandler).searchResources", count: 1, source_sha256: 71c32b93677d91056bd2353736a7e61332ef5794386e70071c181846ba229f2a, entry_ids: [QP-INFRA-RESOURCE-SEARCH]}
   - file: infra_argocd_search.go
     calls:
       - {symbol: "(*InfraHandler).searchArgoCDCategoryRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -312,25 +312,27 @@ source_coverage:
           key_bound: bounded_key_batch
           max_keys: 200
           max_results: 200
-      - {symbol: "(*PackageRegistryHandler).listDependencies", count: 1, source_sha256: 395a805e56c42221f797df08b75705035805605c1affac9e783b3216a4c1b87f, entry_ids: [QP-SC-PKGREG-DEPS]}
       - symbol: "(*PackageRegistryHandler).listPackages"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: b6cc6cff14dba78264c8433a6f0deed1481a6844a8fc46d2285ae0b9efc7051b
+          source_sha256: 202a2b703326f5042e41a113d7133a6c4961319e91250cb00c4c5d9b0d0adc41
           key_bound: single_key
           max_results: 201
       - symbol: "(*PackageRegistryHandler).listVersions"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: f687a82428c6e120dce940aab0386d36b6c19df0d0cef6bd3027ff6f0cd45890
+          source_sha256: f542962a60707dbd7fc685e9f7fa913ce4ace112cf96f0098625f5167f9cc75c
           key_bound: single_key
           max_results: 201
   - file: package_registry_aggregates.go
     calls:
       - {symbol: "(GraphPackageRegistryAggregateStore).CountPackageRegistryPackages", count: 2, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(GraphPackageRegistryAggregateStore).PackageRegistryPackageInventory", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+  - file: package_registry_dependencies_handler.go
+    calls:
+      - {symbol: "(*PackageRegistryHandler).listDependencies", count: 1, source_sha256: 94ea4a8467978404337296b90ffa9aed55d08f2cd2a8591b0cdeb7ea045b7ff1, entry_ids: [QP-SC-PKGREG-DEPS]}
   - file: package_registry_scoped_access.go
     calls:
       - symbol: "packageRegistryAnchorVisibility"

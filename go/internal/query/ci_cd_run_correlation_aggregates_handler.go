@@ -193,6 +193,7 @@ func (h *CICDHandler) cicdRunCorrelationAggregateFilterFromRequest(
 			h.Content,
 			repositorySelector,
 			access,
+			cicdRunCorrelationAggregateCapability,
 		)
 		if !ok {
 			return CICDRunCorrelationAggregateFilter{}, false
