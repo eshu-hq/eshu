@@ -28,33 +28,80 @@ Same run as `prod-component-extension-inventory`: see that document's
 reproduction steps
 (`docker compose ... up`, `scripts/run-remote-e2e-component-extension.sh
 --artifacts <run-dir>`, `scripts/verify-remote-e2e-component-extension.sh
---artifacts <run-dir>`). No separate capture exists for the diagnostics route.
+--artifacts <run-dir>`), plus the same compose fix (`ESHU_COMPONENT_HOME` and
+matching trust-policy env now set on the `eshu` and `mcp-server` services in
+`docs/public/run-locally/docker-compose.component-extension.yaml`) and the
+live HTTP capture below, run against the same reconciled stack.
 
-## Coverage gap — diagnostics-specific fields are not independently captured
+## Live HTTP proof — GET /api/v0/component-extensions/{component_id}/diagnostics
 
-`inventory.json` records only the fields the shared verifier asserts:
-`installed`, `enabled`, `trusted`, `manifest_digest`. The diagnostics response
-additionally carries per-component fields that inventory's list rows also
-technically populate but that no proof artifact captures or asserts from a
-live run: `trust_decision` (decision/code/reason), `policy_gate`
-(state/mode/code), `scheduler_state`, `read_model_availability`, and
-`last_conformance_proof`. Those fields come from the same sanitized readback
-row, so they carry the same deployed-truth guarantee as `installed` /
-`enabled` / `trusted` do — but that is an inference from shared code, not a
-committed artifact that shows their live values.
+```bash
+token=$(docker exec ce2-eshu-1 sh -c \
+  'grep "^ESHU_API_KEY=" /data/.eshu/.env | cut -d= -f2-')
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -H "Authorization: Bearer ${token}" \
+  http://127.0.0.1:8080/api/v0/component-extensions/dev.eshu.examples.scorecard/diagnostics
+# 200
+```
 
-**This capability's production restore to `supported` rests on the shared
-data-path argument above, not on a distinct captured diagnostics readback.**
-A follow-up that extends `scripts/run-remote-e2e-component-extension.sh` to
-also invoke `docker exec <collector> eshu component list --json` filtered to
-the reference component (or curl the live `.../diagnostics` route) and assert
-`trust_decision.decision`, `policy_gate.state`, and
-`read_model_availability.state` in a `diagnostics.json` artifact would close
-this gap with the same rigor `inventory.json` has today. Recommended as a
-near-term hardening item rather than a blocker, since the shared-handler
-argument is sound (`readbackOrUnavailable` is one function, not two
-diverging code paths) and is already covered end-to-end by the Go handler
-tests below.
+Response (redacted — same sanitization as inventory; `config_handle` is an
+opaque sha256 handle, never a filesystem path):
+
+```json
+{
+  "schema_version": "eshu.component_extensions.v1",
+  "status": "available",
+  "component_home_configured": true,
+  "component": {
+    "id": "dev.eshu.examples.scorecard",
+    "name": "Reference Scorecard collector",
+    "publisher": "eshu-hq",
+    "version": "0.1.0",
+    "manifest_digest": "sha256:85aedc15bdf428a664a78dea55b9dae11ccf59bb92cca590ebacec5aab379698",
+    "verified": true,
+    "trust_mode": "allowlist",
+    "installed_at": "2026-07-23T02:51:56.655606775Z",
+    "states": ["installed", "enabled", "claim_capable"],
+    "activations": [
+      {
+        "instance_id": "scorecard-remote",
+        "mode": "scheduled",
+        "claims_enabled": true,
+        "config_handle": "component-config:5bc505367c526ee8d5ba4da5ff59c0f0910569a6a60102bbe04a446418a2ba12",
+        "enabled_at": "2026-07-23T02:51:56.661950722Z"
+      }
+    ],
+    "diagnostics": {"policy_configured": true, "policy_allowed": true, "policy_mode": "allowlist"},
+    "trust_decision": {"decision": "allowed"},
+    "policy_gate": {"state": "allowed", "mode": "allowlist"},
+    "last_conformance_proof": {"status": "missing", "reason": "missing_conformance_proof"},
+    "scheduler_state": {"state": "claim_capable", "reason": "activation_allows_claims"},
+    "read_model_availability": {"state": "unavailable", "unavailable_reason": "missing_conformance_proof"}
+  },
+  "policy": {
+    "mode": "allowlist",
+    "allow_ids_configured": true,
+    "allow_publishers_configured": true,
+    "revoke_ids_configured": false,
+    "revoke_publishers_configured": false,
+    "core_version_configured": true
+  }
+}
+```
+
+This closes the previous coverage gap: the diagnostics-specific fields
+(`trust_decision`, `policy_gate`, `scheduler_state`,
+`read_model_availability`, `last_conformance_proof`) are now captured live
+from a real `GET .../diagnostics` network request against the deployed,
+auth-gated query API service — `trust_decision.decision: "allowed"`,
+`policy_gate.state: "allowed"`, and
+`read_model_availability.state: "unavailable"` (reason
+`missing_conformance_proof`, expected since the Scorecard reference component
+does not publish a conformance proof) are all observed values, not an
+inference from the shared-handler argument alone. The shared-handler argument
+(`readbackOrUnavailable` is one function, not two diverging code paths) still
+holds and is corroborated by this being the same route family, same auth
+middleware, and same sanitization as inventory.
 
 ## Committed reproducible evidence
 
