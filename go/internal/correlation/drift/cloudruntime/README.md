@@ -75,6 +75,24 @@ signal", never a false-positive drift (mirrors
 precedence: value drift can only fire once cloud+state+config are already
 known to converge.
 
+### Lambda `version` accuracy note (gated on both sides present)
+
+`aws_lambda_function.version` is a Terraform-computed, not user-declared,
+attribute: it reflects whichever published version (or `$LATEST`) the state
+file captured at the most recent `terraform apply`/`refresh`. AWS's live
+observed `version` can legitimately move independently of Terraform -- for
+example an operator or a separate CI pipeline calling
+`lambda:PublishVersion` outside Terraform, or a `$LATEST` code update applied
+through the console -- without that being a Terraform-config regression the
+way a drifted `ami` or `image_uri` is. The comparison still only fires when
+BOTH sides carry a concrete value (the same "no signal on either side missing"
+rule as every other attribute above); this note is about interpreting a real
+`version` mismatch once it fires, not about suppressing it. A caller
+consuming `image_version_drift` findings should treat a `version`-only
+mismatch (declared and observed `image_uri`/`ami` agreeing) as lower-priority
+triage signal than an `image_uri`/`ami` mismatch, which always reflects an
+actual deployed-artifact difference.
+
 ### ECS container-image extraction is security-bounded (#5453)
 
 Terraform's `container_definitions` attribute is a JSON-encoded STRING that
