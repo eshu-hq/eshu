@@ -38,7 +38,7 @@ const openAPIPathsCloudRuntimeDrift = `
                   "cloud_resource_uid": {"type": "string", "description": "Optional exact canonical resource uid to inspect."},
                   "finding_kinds": {
                     "type": "array",
-                    "description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, or ambiguous_cloud_resource.",
+                    "description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, ambiguous_cloud_resource, or image_version_drift.",
                     "items": {"type": "string"}
                   },
                   "limit": {"type": "integer", "description": "Maximum findings to return (default 100, max 500).", "default": 100},
