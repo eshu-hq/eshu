@@ -48,11 +48,42 @@ permissions:
   contents: read
 
 jobs:
+  # Decide whether a PR changed any non-docs path. The Go-only drift jobs
+  # (mcp-tool-count, mcp-test-suite) skip a docs-only PR; capability-verify below
+  # stays always-on because its `-mode docs` step is the only CI validation of
+  # capability-state / collector-readiness / product-claim docs. Non-PR events
+  # run everything.
+  changes:
+    name: Detect code changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+
+      - name: Filter changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            code:
+              - '**'
+              - '!docs/**'
+              - '!*.md'
+              - '!mkdocs.yml'
+              - '!.github/**/*.md'
+
   # ── Gate 1: Tool count ──
   mcp-tool-count:
     name: Verify ReadOnlyTools count
     timeout-minutes: 5
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -113,6 +144,8 @@ jobs:
     name: Full MCP test suite
     timeout-minutes: 15
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5

@@ -6,6 +6,14 @@ on:
     tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
+    # A docs-only PR (docs tree, root markdown, mkdocs config) does not change
+    # any compiled binary, so skip the two-OS build for it. Push-to-main and
+    # tag pushes still build and release.
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'mkdocs.yml'
+      - '.github/**/*.md'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
