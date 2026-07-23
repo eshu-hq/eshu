@@ -22,14 +22,27 @@
 // supports -- a remote reusable workflow, a marketplace/third-party action,
 // and a local reusable workflow, respectively.
 //
+// IsWorkflowPath (issue #5568) is the single exact-path gate for a workflow
+// file's canonical repository-relative path --
+// ".github/workflows/<name>.yml" or ".github/workflows/<name>.yaml" with a
+// non-empty <name>. It replaces two independently maintained copies of this
+// check that had drifted: go/internal/content/shape's content-entity
+// identity gate accepted a bare extension with no basename
+// (".github/workflows/.yml") because it checked only the file extension,
+// while go/internal/query's content-relationship classifier correctly
+// rejected it. Both packages now delegate here.
+//
 // This package is intentionally a leaf: it imports nothing from
-// go/internal/*, so both the reducer/graph-projection path
+// go/internal/*, so the reducer/graph-projection path
 // (go/internal/relationships, go/internal/reducer,
-// go/internal/storage/cypher) and the query/read-model path
-// (go/internal/query) depend on it without any risk of an import cycle. It
-// replaces independently maintained copies of the same @-index and
-// edge-target slug-detection logic: relationships.parseGitHubRefParts, the
-// query package's local `uses:` split helpers (issue #5372), and each
-// package's own owner/repo@ref slug detectors for reusable workflows,
-// actions, and local reusable workflows (issue #5526).
+// go/internal/storage/cypher), the query/read-model path
+// (go/internal/query), and the content-shaping path
+// (go/internal/content/shape) depend on it without any risk of an import
+// cycle. It replaces independently maintained copies of the same @-index,
+// edge-target slug-detection, and workflow-path-gate logic:
+// relationships.parseGitHubRefParts, the query package's local `uses:` split
+// helpers (issue #5372), each package's own owner/repo@ref slug detectors for
+// reusable workflows, actions, and local reusable workflows (issue #5526),
+// and the content/shape and query packages' independent workflow-path gates
+// (issue #5568).
 package ghactionsref

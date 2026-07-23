@@ -11,6 +11,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+// githubActionsSourceCacheTruncationReason is the stable partial-truth reason
+// shared by HTTP and MCP entity-context responses when the workflow source
+// available to the relationship extractor hit the 32 KiB content-store cap.
+const githubActionsSourceCacheTruncationReason = "github_actions_source_cache_truncated"
+
 func (h *EntityHandler) getEntityContextFromContent(ctx context.Context, entityID string) (map[string]any, error) {
 	if h == nil || h.Content == nil || entityID == "" {
 		return nil, nil
@@ -46,6 +51,12 @@ func (h *EntityHandler) getEntityContextFromContent(ctx context.Context, entityI
 		response["relationships_complete"] = false
 		response["relationships_truncation_reason"] = k8sSelectCandidateScanTruncationReason
 		h.reportK8sSelectCandidateScanTruncated(ctx, entityID, entity)
+	}
+	if entity.Metadata["source_cache_truncated"] == true && isGitHubActionsArtifactPath(*entity) {
+		response["relationships_complete"] = false
+		response["relationships_truncation_reason"] = githubActionsSourceCacheTruncationReason
+		limitations := StringSliceVal(response, "limitations")
+		response["limitations"] = append(limitations, githubActionsSourceCacheTruncationReason)
 	}
 	attachSemanticSummary(response)
 	return response, nil

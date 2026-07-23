@@ -181,6 +181,40 @@ func ActionRepo(value string) string {
 	return strings.Join(parts[:2], "/")
 }
 
+// IsWorkflowPath reports whether value is a GitHub Actions workflow file's
+// canonical repository-relative path: exactly three `/`-separated segments
+// shaped ".github/workflows/<name>.yml" or ".github/workflows/<name>.yaml",
+// where <name> is non-empty. GitHub discovers workflow files only in the
+// direct .github/workflows directory, so this deliberately rejects a nested
+// workflow subdirectory (".github/workflows/team/ci.yml"), a path that merely
+// contains the "workflows" segment as a substring
+// ("examples/.github/workflows/ci.yml"), a non-YAML suffix, and a bare
+// extension with no basename (".github/workflows/.yml") -- that last shape
+// previously slipped through content/shape's local copy of this gate because
+// it checked only the file extension, not that a non-empty name preceded it.
+//
+// This is the single exact-path gate for issue #5568's live GitHub Actions
+// query surface: go/internal/content/shape (the content-entity identity
+// gate, materialize.go's isDirectGitHubActionsWorkflowPath) and
+// go/internal/query (the content-relationship classifier's workflow-path
+// branch, content_relationships_github_actions.go's
+// isGitHubActionsArtifactPath) both delegate here, so the "identical path
+// contract" the content/shape README documents is literally the same code
+// and cannot silently drift between the two packages again.
+func IsWorkflowPath(value string) bool {
+	parts := strings.Split(strings.TrimSpace(value), "/")
+	if len(parts) != 3 || parts[0] != ".github" || parts[1] != "workflows" {
+		return false
+	}
+	filename := parts[2]
+	for _, extension := range []string{".yml", ".yaml"} {
+		if strings.HasSuffix(filename, extension) && strings.TrimSuffix(filename, extension) != "" {
+			return true
+		}
+	}
+	return false
+}
+
 // LocalReusableWorkflowPath returns the in-repo workflow path for a LOCAL
 // GitHub Actions reusable-workflow `uses:` value -- one that resolves inside
 // the same repository, whether written with the conventional `./` prefix

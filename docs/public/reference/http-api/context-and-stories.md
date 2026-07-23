@@ -77,6 +77,21 @@ sees bounds and missing evidence without falling back to raw Cypher.
   payload's `limitations` into an explicit, sorted, de-duplicated array so the
   envelope shape is stable across complete and partial reads.
 
+Entity context additionally reports incomplete relationship truth with
+`relationships_complete=false` and a machine-readable
+`relationships_truncation_reason`:
+
+- `k8s_resource_candidate_scan_truncated_at_5000` means the bounded K8s
+  `SELECTS` candidate scan reached its repository ceiling.
+- `github_actions_source_cache_truncated` means a GitHub Actions workflow's
+  32 KiB `source_cache` cap prevented complete dependency extraction.
+
+The GitHub Actions source-cache condition also appears in `partial_reasons`.
+The K8s candidate-scan condition is instead disclosed through
+`relationships_complete=false` and `relationships_truncation_reason`; it is not
+added to `partial_reasons`. Both conditions set `result_limits.truncated=true`,
+so clients must not treat the returned relationship list as complete.
+
 ### Deployment Trace Relationship Endpoints
 
 `POST /api/v0/impact/trace-deployment-chain` keeps deployment-source

@@ -21,9 +21,10 @@ the two paths cannot re-diverge.
 
 Owns `Parse` (ref-string splitting), `ReusableWorkflowRepo`, `ActionRepo`,
 and `LocalReusableWorkflowPath` (edge-target slug detection per `uses:`
-shape), and `Pinned` (full-hex classification). Nothing else. It has no
-knowledge of evidence facts, graph nodes, Postgres rows, or HTTP/MCP response
-shapes -- those stay owned by the packages that call in.
+shape), `Pinned` (full-hex classification), and `IsWorkflowPath` (the
+canonical `.github/workflows/<name>.yml`/`.yaml` path gate). Nothing else. It
+has no knowledge of evidence facts, graph nodes, Postgres rows, or HTTP/MCP
+response shapes -- those stay owned by the packages that call in.
 
 ## Exported surface
 
@@ -50,6 +51,14 @@ shapes -- those stay owned by the packages that call in.
   full-length commit SHA: exactly 40 or exactly 64 hexadecimal characters
   (case-insensitive). Everything else -- branch, tag, abbreviated SHA, or an
   empty string -- is `false`.
+- `IsWorkflowPath(value string) bool` -- true if and only if `value` is
+  exactly `.github/workflows/<name>.yml` or `.github/workflows/<name>.yaml`
+  with a non-empty `<name>`. `false` for a nested subdirectory, a path that
+  merely contains the `workflows` segment as a substring, a non-YAML suffix,
+  or a bare extension with no basename (`.github/workflows/.yml`). Issue
+  #5568's single exact-path gate, shared by `go/internal/content/shape`'s
+  content-entity identity gate and `go/internal/query`'s content-relationship
+  classifier so the two packages' workflow-path contracts cannot drift.
 
 See `doc.go` for the full godoc contract.
 
@@ -57,8 +66,9 @@ See `doc.go` for the full godoc contract.
 
 Standard library only (`strings`). Zero imports from `go/internal/*` --
 confirmed by `go list -deps` showing no repository-internal package in this
-package's dependency graph. This is deliberate: it is what lets both the
-reducer/graph-projection path and the query/read-model path import it without
+package's dependency graph. This is deliberate: it is what lets the
+reducer/graph-projection path, the query/read-model path, and the
+content-shaping path (`go/internal/content/shape`) all import it without
 creating an import cycle between packages that do not otherwise depend on
 each other.
 

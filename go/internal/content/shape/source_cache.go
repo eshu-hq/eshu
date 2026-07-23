@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	sourceCacheTruncatedMetadataKey     = "source_cache_truncated"
-	sourceCacheOriginalBytesMetadataKey = "source_cache_original_bytes"
-	sourceCacheLimitBytesMetadataKey    = "source_cache_limit_bytes"
+	sourceCacheTruncatedMetadataKey           = "source_cache_truncated"
+	sourceCacheOriginalBytesMetadataKey       = "source_cache_original_bytes"
+	sourceCacheLimitBytesMetadataKey          = "source_cache_limit_bytes"
+	githubActionsWorkflowSourceCacheByteLimit = 32 * 1024
 )
 
 var entitySourceCacheByteLimits = map[string]int{
@@ -23,6 +24,10 @@ var entitySourceCacheByteLimits = map[string]int{
 // entitySourceCache returns the best source snippet for one entity using parser
 // source first, then falling back to the owning file line range.
 func entitySourceCache(label string, item Entity, body string, startLine int, endLine int) string {
+	if label == "File" && item.ArtifactType == githubActionsWorkflowArtifactType {
+		return item.Source
+	}
+
 	if isCodeSourceLabel(label) && strings.TrimSpace(item.Source) != "" {
 		return withTrailingNewline(item.Source, label)
 	}
@@ -50,8 +55,18 @@ func entitySourceCache(label string, item Entity, body string, startLine int, en
 
 // limitEntitySourceCache bounds oversized low-signal snippets while preserving
 // exact full-file search in content_files and recording metadata for clients.
-func limitEntitySourceCache(label string, sourceCache string, metadata map[string]any) (string, map[string]any) {
+// label selects the byte limit from entitySourceCacheByteLimits; a label
+// absent from that map is uncapped. artifactType overrides that lookup for a
+// "File" entity whose artifactType is the canonical GitHub Actions workflow
+// type (githubActionsWorkflowArtifactType): that entity's source_cache is the
+// whole workflow file (see entitySourceCache), which would otherwise ship
+// uncapped, so it gets the 32 KiB githubActionsWorkflowSourceCacheByteLimit
+// cap instead.
+func limitEntitySourceCache(label string, artifactType string, sourceCache string, metadata map[string]any) (string, map[string]any) {
 	limit, ok := entitySourceCacheByteLimits[label]
+	if label == "File" && artifactType == githubActionsWorkflowArtifactType {
+		limit, ok = githubActionsWorkflowSourceCacheByteLimit, true
+	}
 	if !ok || limit <= 0 || len(sourceCache) <= limit {
 		return sourceCache, metadata
 	}

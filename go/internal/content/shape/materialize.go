@@ -5,13 +5,17 @@ package shape
 
 import (
 	"fmt"
+	pathpkg "path"
 	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/content"
+	"github.com/eshu-hq/eshu/go/internal/ghactionsref"
 )
 
 const (
+	githubActionsWorkflowArtifactType = "github_actions_workflow"
+
 	// MaxFileEntityCount is the maximum number of content entities emitted for a
 	// single file. Files whose parser output would exceed this limit have entity
 	// materialization skipped entirely: the content record (body, digest) is still
@@ -131,7 +135,9 @@ func materializeFile(repoID string, file File) (content.Record, []content.Entity
 	if err != nil {
 		return content.Record{}, nil, false, err
 	}
-	if fileEntityCapHit || file.ParseBounded {
+	legacyWorkflowPathIneligible := strings.TrimSpace(file.ArtifactType) == githubActionsWorkflowArtifactType &&
+		!isDirectGitHubActionsWorkflowPath(path)
+	if fileEntityCapHit || file.ParseBounded || legacyWorkflowPathIneligible {
 		record.PurgeEntities = true
 	}
 
@@ -165,6 +171,9 @@ func normalizeFileMetadata(file File) map[string]string {
 // PackageConsumptionDecision for supply-chain impact and security alerts.
 func materializeEntities(repoID string, path string, file File) ([]content.EntityRecord, bool, error) {
 	indexedItems := make([]indexedEntity, 0)
+	if workflow, ok := githubActionsWorkflowFileEntity(file); ok {
+		indexedItems = append(indexedItems, workflow)
+	}
 	for _, bucket := range contentEntityBuckets {
 		items := file.EntityBuckets[bucket.bucket]
 		for _, item := range items {
@@ -202,7 +211,7 @@ func materializeEntities(repoID string, path string, file File) ([]content.Entit
 		endLine := entityEndLine(indexedItems, index, file.Body, startLine)
 		sourceCache := entitySourceCache(indexed.label, indexed.item, file.Body, startLine, endLine)
 		metadata := cloneAnyMap(indexed.item.Metadata)
-		sourceCache, metadata = limitEntitySourceCache(indexed.label, sourceCache, metadata)
+		sourceCache, metadata = limitEntitySourceCache(indexed.label, indexed.item.ArtifactType, sourceCache, metadata)
 		entities = append(entities, content.EntityRecord{
 			EntityID:        content.CanonicalEntityIDWithMetadata(repoID, path, indexed.label, indexed.item.Name, startLine, metadata),
 			Path:            path,
@@ -223,6 +232,46 @@ func materializeEntities(repoID string, path string, file File) ([]content.Entit
 	}
 
 	return entities, false, nil
+}
+
+// githubActionsWorkflowFileEntity creates the content-only File entity that
+// lets the entity-context fallback inspect GitHub Actions workflow source. It
+// deliberately has no parser or graph counterpart.
+func githubActionsWorkflowFileEntity(file File) (indexedEntity, bool) {
+	if file.Deleted || !isDirectGitHubActionsWorkflowPath(file.Path) {
+		return indexedEntity{}, false
+	}
+
+	filename := pathpkg.Base(strings.TrimSpace(file.Path))
+	name := strings.TrimSuffix(filename, pathpkg.Ext(filename))
+	if name == "" || name == "." {
+		return indexedEntity{}, false
+	}
+
+	return indexedEntity{
+		label: "File",
+		item: Entity{
+			Name:            name,
+			LineNumber:      1,
+			EndLine:         lineCount(file.Body),
+			Language:        file.Language,
+			ArtifactType:    githubActionsWorkflowArtifactType,
+			TemplateDialect: file.TemplateDialect,
+			IACRelevant:     cloneBoolPtr(file.IACRelevant),
+			Source:          file.Body,
+		},
+	}, true
+}
+
+// isDirectGitHubActionsWorkflowPath is the content-entity identity gate. GitHub
+// discovers workflow files only in the direct .github/workflows directory.
+// Delegates to ghactionsref.IsWorkflowPath, the single exact-path gate this
+// package shares with go/internal/query's isGitHubActionsArtifactPath so the
+// two packages' workflow-path contracts cannot silently drift -- see that
+// shared function's doc comment and this package's README "GitHub Actions
+// workflow content entity" section.
+func isDirectGitHubActionsWorkflowPath(value string) bool {
+	return ghactionsref.IsWorkflowPath(value)
 }
 
 func entityEndLine(items []indexedEntity, index int, body string, startLine int) int {
