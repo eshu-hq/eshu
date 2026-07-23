@@ -378,17 +378,27 @@ func ociImageTagObservationRows(mat projector.CanonicalMaterialization) []map[st
 	return rows
 }
 
+// ociTagFirstObservedLayout is the fixed-width UTC timestamp layout for
+// first_observed_at. It carries millisecond precision so two OCI collection
+// generations that occur within the same second still get distinct, correctly
+// ordered values (the reader's ORDER BY t.first_observed_at would otherwise
+// fall back to the unrelated uid tiebreak). The width is fixed (always three
+// fractional digits and a literal Z), so lexicographic order equals
+// chronological order on both NornicDB and Neo4j — unlike time.RFC3339Nano,
+// which trims trailing zeros and breaks that invariant.
+const ociTagFirstObservedLayout = "2006-01-02T15:04:05.000Z"
+
 // ociTagObservedAtValue serializes a tag observation's ObservedAt for the
-// ON CREATE SET first_observed_at write. A non-zero timestamp becomes an
-// RFC3339 UTC string, so the reader's ORDER BY t.first_observed_at sorts
-// lexicographically the same as chronologically. A zero-value ObservedAt
-// returns "" so the node is created without a meaningful first_observed_at
-// (the reader omits an empty value) rather than storing the Unix epoch.
+// ON CREATE SET first_observed_at write. A non-zero timestamp becomes a
+// fixed-width RFC3339 UTC millisecond string (see ociTagFirstObservedLayout). A
+// zero-value ObservedAt returns "" so the node is created without a meaningful
+// first_observed_at (the reader omits an empty value) rather than storing the
+// Unix epoch.
 func ociTagObservedAtValue(observedAt time.Time) string {
 	if observedAt.IsZero() {
 		return ""
 	}
-	return observedAt.UTC().Format(time.RFC3339)
+	return observedAt.UTC().Format(ociTagFirstObservedLayout)
 }
 
 func ociImageReferrerRows(mat projector.CanonicalMaterialization) []map[string]any {

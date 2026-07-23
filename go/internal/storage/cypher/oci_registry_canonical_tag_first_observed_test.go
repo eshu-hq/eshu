@@ -74,7 +74,8 @@ func TestOCITagFirstObservedIsWrittenOnCreateOnly(t *testing.T) {
 }
 
 // TestOCITagObservationRowCarriesObservedAt proves the identity row builder
-// carries the RFC3339-UTC observed_at value the ON CREATE SET consumes.
+// carries the fixed-width millisecond UTC observed_at value the ON CREATE SET
+// consumes.
 func TestOCITagObservationRowCarriesObservedAt(t *testing.T) {
 	t.Parallel()
 
@@ -83,8 +84,8 @@ func TestOCITagObservationRowCarriesObservedAt(t *testing.T) {
 	if len(rows) != 1 {
 		t.Fatalf("ociImageTagObservationRows() = %#v, want exactly one row", rows)
 	}
-	if got, want := rows[0]["observed_at"], observedAt.UTC().Format(time.RFC3339); got != want {
-		t.Fatalf("row observed_at = %#v, want RFC3339-UTC %#v", got, want)
+	if got, want := rows[0]["observed_at"], observedAt.UTC().Format(ociTagFirstObservedLayout); got != want {
+		t.Fatalf("row observed_at = %#v, want fixed-width millis %#v", got, want)
 	}
 	if got, want := rows[0]["uid"], "oci-tag-observation-uid-1"; got != want {
 		t.Fatalf("row uid = %#v, want %#v", got, want)
@@ -93,15 +94,39 @@ func TestOCITagObservationRowCarriesObservedAt(t *testing.T) {
 
 // TestOCITagObservedAtValueZeroIsEmpty proves a zero-value ObservedAt
 // serializes to "" (so ON CREATE SET stores no meaningful first_observed_at and
-// the reader omits it) rather than the Unix epoch RFC3339 string.
+// the reader omits it) rather than the Unix epoch string.
 func TestOCITagObservedAtValueZeroIsEmpty(t *testing.T) {
 	t.Parallel()
 
 	if got := ociTagObservedAtValue(time.Time{}); got != "" {
 		t.Fatalf("ociTagObservedAtValue(zero) = %q, want empty string", got)
 	}
-	observedAt := time.Date(2026, time.June, 25, 0, 0, 0, 0, time.UTC)
-	if got, want := ociTagObservedAtValue(observedAt), observedAt.UTC().Format(time.RFC3339); got != want {
+	observedAt := time.Date(2026, time.June, 25, 12, 30, 15, 0, time.UTC)
+	if got, want := ociTagObservedAtValue(observedAt), observedAt.UTC().Format(ociTagFirstObservedLayout); got != want {
 		t.Fatalf("ociTagObservedAtValue(%v) = %q, want %q", observedAt, got, want)
+	}
+}
+
+// TestOCITagObservedAtValuePreservesSubSecondOrder proves two observations in
+// the same wall-clock second but different milliseconds serialize to distinct,
+// lexicographically ordered values, so the reader's ORDER BY
+// t.first_observed_at reflects the true observation order instead of falling
+// back to the unrelated uid tiebreak. Fixed-width millisecond precision keeps
+// lexicographic order equal to chronological order.
+func TestOCITagObservedAtValuePreservesSubSecondOrder(t *testing.T) {
+	t.Parallel()
+
+	earlier := ociTagObservedAtValue(time.Date(2026, time.June, 25, 0, 0, 5, 100_000_000, time.UTC))
+	later := ociTagObservedAtValue(time.Date(2026, time.June, 25, 0, 0, 5, 900_000_000, time.UTC))
+	if earlier == later {
+		t.Fatalf("same-second observations collapsed to %q; sub-second precision lost", earlier)
+	}
+	if earlier >= later {
+		t.Fatalf("lexicographic order (%q < %q) does not match chronological order", earlier, later)
+	}
+	// Second-boundary: .900 of one second must sort before .000 of the next.
+	nextSecond := ociTagObservedAtValue(time.Date(2026, time.June, 25, 0, 0, 6, 0, time.UTC))
+	if later >= nextSecond {
+		t.Fatalf("cross-second order broken: %q must sort before %q", later, nextSecond)
 	}
 }

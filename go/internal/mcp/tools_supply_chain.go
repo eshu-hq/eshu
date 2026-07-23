@@ -88,6 +88,7 @@ func supplyChainTools() []ToolDefinition {
 						"minimum":     0,
 					},
 				},
+				"required": []string{"repository_id", "tag"},
 			},
 		},
 		{
