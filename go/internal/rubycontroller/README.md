@@ -45,6 +45,29 @@ masquerade as a ref's.
 - The conventional simple names `Base`/`API` with zero corpus candidates keep.
 - Cycle guard keys on resolved class keys; depth-capped at `MaxWalkDepth`.
 
+## Lexical-scope-aware candidate restriction (#5500, optional precision upgrade)
+
+Before falling back to the broad, unscoped `ExactMatches(ref)` lookup,
+`onwardHop` first tries the lexical-prefix names real Ruby constant lookup
+would try for a base ref seen inside the walked class's own namespace `P`
+(`P`'s qualified name minus its own last segment): `P::ref`, then each
+enclosing prefix of `P` outward (mirroring `Module.nesting` search order), then
+top-level `::ref` (`lexicalExactMatch`). `P` is derived purely from the walked
+classKey's own qualified name (`classNamespaceOf`), so it is `""` — and the
+restriction a documented no-op — for a top-level class or the parser's
+same-file registry (whose class keys are always simple names).
+
+This changes NOTHING about the offset-0-vs-suffix downgrade rule above: it only
+changes how an EXACT match is found. A base that previously had only a broad,
+unscoped `SuffixMatches` candidate can now resolve EXACTLY when its true,
+lexically-scoped referent is in-corpus, letting it confirm or downgrade instead
+of staying `suffix_only_ambiguous` forever. It can never drop a match the prior
+lookup found: the final candidate tried is always the bare `ref`, identical to
+the pre-#5500 `ExactMatches(ref)` call. See
+`evidence-5500-lexical-scope-restriction.md` in `go/internal/reducer` for the
+correctness proof, the measured performance cost, and the schema-epoch
+assessment.
+
 ## Invariant
 
 Under assumptions A1–A4 (the defining class is in-corpus; no gem constant under

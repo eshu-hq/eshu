@@ -18,6 +18,14 @@ builder (`go/internal/reducer`).
 - NEVER let a proper-suffix (offset>0) match feed a downgrade (#5376 P0 rev-2).
   Suffix candidates participate only via the confirm-only probe. The walk MUST
   operate on resolved class identities, never re-union by ref string per hop.
+- The #5500 lexical-scope-aware candidate restriction (`lexicalExactMatch`,
+  `classNamespaceOf`) MUST keep the bare `ref` as its final, top-level
+  candidate. That is what makes the restriction provably additive (it can only
+  find a MORE specific exact match than before, never fewer) — removing that
+  fallback would silently drop matches the pre-#5500 lookup found. It MUST stay
+  `ExactMatches`-only (never call `SuffixMatches` per lexical candidate): that
+  would reintroduce the broad, unscoped guessing this restriction exists to
+  replace.
 - Keep this package a leaf: `strings` and `sort` only. No parser, reducer,
   storage, or telemetry imports. Both callers import it; it imports neither.
 - Changing `acceptedControllerBases`, `MaxWalkDepth`, the suffix rule, or the
