@@ -35,6 +35,7 @@
 
 BEGIN {
 	have_record = 0
+	records_seen = 0
 	section = ""
 }
 
@@ -115,8 +116,24 @@ function render_row() {
 	}
 	reset_record()
 	have_record = 1
+	records_seen++
 	id = $0
 	sub(/^  - id: /, "", id)
+	next
+}
+
+# The non_gate_workflows section uses `  - file:` entries (not gate records) and
+# each carries its own `reason:`. Without this rule those reason lines keep
+# matching `/^    reason: / && have_record` and overwrite the reason of the LAST
+# gate/alias record — which is still open because no new `  - id:` follows it —
+# so that record renders with a non_gate_workflows reason (the prepr-stamp-verify
+# / refresh-cassettes leak). Flush the pending record and stop field capture at
+# the first `  - file:` so nothing past the gate/alias records bleeds in.
+/^  - file: / {
+	if (have_record) {
+		render_row()
+		have_record = 0
+	}
 	next
 }
 
@@ -174,9 +191,14 @@ section == "ci" && /^      job: / && have_record {
 }
 
 END {
+	# A record is still open only when no `  - file:` (non_gate_workflows) block
+	# followed the last gate/alias record; flush it. `records_seen` (never reset)
+	# is the real empty-registry signal — have_record can legitimately be 0 here
+	# because the `  - file:` rule flushes and closes the final record.
 	if (have_record) {
 		render_row()
-	} else {
+	}
+	if (records_seen == 0) {
 		print "ci-gates-doc-parse: FATAL: no gate records found (empty or malformed registry)" > "/dev/stderr"
 		exit 1
 	}

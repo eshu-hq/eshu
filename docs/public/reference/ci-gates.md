@@ -102,4 +102,4 @@ gate its reason names, under a different git hook stage.
 | `docs-build-staged` | *(alias — staged-file variant of docs-build-changed (same mkdocs check, pre-commit stage))* | — | — | — | — | — | — |
 | `docs-build-verifier-tests` | *(alias — self-test of the docs-build verifier + hook wiring)* | — | — | — | — | — | — |
 | `console-e2e-verifier-tests` | *(alias — self-test of the console-e2e pre-push helper routing)* | — | — | — | — | — | — |
-| `prepr-stamp-verify` | *(alias — scheduled/manual cassette refresh, not a PR gate)* | — | — | — | — | — | — |
+| `prepr-stamp-verify` | *(alias — local-only pre-push guard: blocks pushing a commit make pre-pr did not stamp; no CI counterpart (CI re-runs the gates regardless))* | — | — | — | — | — | — |

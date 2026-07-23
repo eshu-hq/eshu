@@ -129,6 +129,22 @@ else
 	fi
 fi
 
+# Case 10 (regression): a non_gate_workflows `  - file:` entry carries its own
+# `reason:`. It must NOT bleed into the last gate/alias record (which stays open
+# because no `  - id:` follows it). Regression for the prepr-stamp-verify row
+# rendering refresh-cassettes.yml's "scheduled/manual cassette refresh" reason.
+leak_registry="${tmp_root}/leak-registry.yaml"
+printf 'version: v1\ngates:\n  - id: g1\n    name: G1\n    category: hygiene\n    tier: pre-commit\n    blocking: true\n    local:\n      command: "echo hi"\nhygiene_hooks:\n  - id: alias-last\n    reason: "ALIAS_OWN_REASON"\nnon_gate_workflows:\n  - file: some.yml\n    reason: "FILE_LEAK_REASON"\n' >"${leak_registry}"
+leak_out="$(awk -f "${parser}" "${leak_registry}")"
+alias_row="$(printf '%s\n' "${leak_out}" | rg '^\| `alias-last` \|' || true)"
+if printf '%s' "${alias_row}" | rg -q 'ALIAS_OWN_REASON' \
+	&& ! printf '%s' "${alias_row}" | rg -q 'FILE_LEAK_REASON' \
+	&& ! printf '%s\n' "${leak_out}" | rg -q 'some.yml'; then
+	record_pass "a non_gate_workflows reason does not bleed into the last alias row"
+else
+	record_fail "non_gate_workflows reason leaked into the alias row (or a file entry was rendered): ${alias_row}"
+fi
+
 if [[ "${FAIL}" -ne 0 ]]; then
 	printf 'test-generate-ci-gates-doc FAILED: %d/%d\n' "${FAIL}" "$((PASS + FAIL))" >&2
 	exit 1
