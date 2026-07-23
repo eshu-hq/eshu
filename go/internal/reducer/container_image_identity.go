@@ -72,13 +72,21 @@ type ContainerImageIdentityDecision struct {
 	// resolved. It keeps the in-image-label tier distinguishable from the
 	// weaker CI-run-commit fallback (#5423).
 	SourceRevisionProvenance string
-	WorkloadIDs              []string
-	ServiceIDs               []string
-	Outcome                  ContainerImageIdentityOutcome
-	Reason                   string
-	CanonicalWrites          int
-	EvidenceFactIDs          []string
-	IdentityStrength         string
+	// BaseImageForRepositoryIDs names the repositories whose Dockerfile FROM
+	// declared this image as their runtime base (#5460). It is what separates a
+	// base image from a built image: a base reference is extracted from the
+	// declaring repository's own content_entity envelope, so it inherits the
+	// same SourceRepositoryIDs anchor its repository's built images carry, and
+	// the repository anchor alone cannot tell the two apart. Empty for every
+	// image that is not some repository's declared base.
+	BaseImageForRepositoryIDs []string
+	WorkloadIDs               []string
+	ServiceIDs                []string
+	Outcome                   ContainerImageIdentityOutcome
+	Reason                    string
+	CanonicalWrites           int
+	EvidenceFactIDs           []string
+	IdentityStrength          string
 }
 
 // ContainerImageIdentityWrite carries decisions for durable publication.
@@ -135,6 +143,11 @@ type ContainerImageIdentityHandler struct {
 	// Repository graph edges (issue #5457). When nil the projection is
 	// skipped so the container-image-identity profile stays Postgres-only.
 	ProvenanceEdgeWriter ContainerImageProvenanceEdgeWriter
+	// DerivedFromEdgeWriter projects base-image lineage into canonical
+	// ContainerImage-[:DERIVED_FROM]->ContainerImage graph edges (issue #5460).
+	// When nil the projection is skipped so the container-image-identity
+	// profile stays Postgres-only.
+	DerivedFromEdgeWriter ContainerImageDerivedFromEdgeWriter
 }
 
 // Handle executes one container image identity reducer intent.
@@ -193,6 +206,9 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 		return Result{}, fmt.Errorf("write container image identity decisions: %w", err)
 	}
 	if err := h.projectContainerImageBuiltFromEdges(ctx, intent, decisions); err != nil {
+		return Result{}, err
+	}
+	if err := h.projectContainerImageDerivedFromEdges(ctx, intent, decisions); err != nil {
 		return Result{}, err
 	}
 
