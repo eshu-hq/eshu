@@ -71,10 +71,14 @@ Identity:
   the `internal/projector` `entity_id`-fallback path) call. Routes to
   `CanonicalDependencyEntityID` when `entityType` is `"variable"` and
   `metadata` marks an in-scope manifest dependency row (`config_kind ==
-  "dependency"`, `package_manager` in `{"npm", "composer"}`, `lockfile` not
-  true, `section` a non-empty string); otherwise returns `CanonicalEntityID`
-  unchanged. The gate excludes lockfile-sourced rows on purpose — see
-  `CanonicalDependencyEntityID` below.
+  "dependency"`, `package_manager` in `dependencyIdentityPackageManagers`,
+  `lockfile` not true, `section` a non-empty string); otherwise returns
+  `CanonicalEntityID` unchanged. The gate excludes lockfile-sourced rows on
+  purpose — see `CanonicalDependencyEntityID` below. As of #5507 the in-scope
+  package managers are `npm`, `composer` (#5357), `cargo`, `gradle`, `maven`,
+  `nuget`, `pypi`, `go` (gomod), `rubygems`, `pub`, and `hex`; `swift` is
+  deliberately excluded (see `dependency_identity.go`'s doc comment — its only
+  producer is a lockfile).
 - `CanonicalDependencyEntityID(repoID, relativePath, section, name string) string`
   — hashes a six-component, `"eshu-dep-v1"`-tagged key
   (`repoID`, `relativePath`, the constant `"variable"`, `section`, `name`) with
@@ -83,7 +87,16 @@ Identity:
   dependencies within one manifest section (e.g. `package.json`'s
   `dependencies`) does not churn its content-entity id. The domain tag and
   six-component shape make collision with `CanonicalEntityID`'s five-component
-  untagged output structurally impossible.
+  untagged output structurally impossible. `name` here is `entityName` folded
+  with an optional package-manager-specific discriminator (see
+  `dependencyIdentityDiscriminator` in `dependency_identity.go`) for formats
+  where `(section, name)` alone cannot guarantee uniqueness — cargo (manifest
+  alias), gradle (version), maven (classifier/type), nuget (item-level MSBuild
+  `Condition`, falling back to group-level), pypi (extras/marker/value), and
+  go/gomod (raw declared version, since `modfile.Parse` does not de-duplicate
+  `require` directives). `CanonicalDependencyEntityID` itself is unaware of the
+  discriminator concept; its hash shape never changes, so the #5357
+  npm/composer ids already minted in production stay byte-identical.
 
 Config:
 
@@ -116,7 +129,19 @@ contract.
   versions into one identity — an accuracy violation, not a refactor. Do not
   extend the `package_manager` allow-list without proving the target format's
   parser guarantees per-section name uniqueness the way `package.json` and
-  `composer.json` manifests do.
+  `composer.json` manifests do — directly (map/table-key uniqueness, or the
+  target tooling itself rejecting a duplicate declaration) or through a proven
+  `dependencyIdentityDiscriminator` case.
+- `dependencyIdentityDiscriminator` (`dependency_identity.go`) is where a
+  package-manager-specific uniqueness proof lives when `(section, name)` alone
+  is not enough. Each case's doc comment names the concrete manifest feature
+  that forces it (Cargo's `package = "..."` aliasing, Gradle's repeatable
+  coordinate-at-a-different-version, Maven's classifier/type, NuGet's
+  MSBuild `Condition` multi-targeting, pypi's extras/markers/version
+  constraints). Do not add or
+  widen a case without the same kind of proof, and do not forget: an empty
+  discriminator is the correct answer for every format whose parser already
+  guarantees per-section uniqueness on its own.
 - Both mint sites — `internal/content/shape.Materialize` and
   `internal/projector`'s `buildContentEntityRecord` `entity_id` fallback —
   MUST call `CanonicalEntityIDWithMetadata` with the same metadata view. The

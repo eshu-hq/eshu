@@ -37,13 +37,14 @@
   `pgx`, or any `internal/storage` sub-package. It produces a
   `content.Materialization`; storage is the caller's concern.
 - **Dependency identity gate is narrow** — `Materialize` mints entity ids via
-  `content.CanonicalEntityIDWithMetadata`, which only routes an npm/composer
-  manifest dependency `Variable` (non-lockfile, non-empty `section`) to the
+  `content.CanonicalEntityIDWithMetadata`, which only routes an in-scope
+  manifest dependency `Variable` (npm, composer, cargo, gradle, maven, nuget,
+  pypi, go, rubygems, pub, hex; non-lockfile, non-empty `section`) to the
   section-keyed `content.CanonicalDependencyEntityID`. Everything else,
-  including lockfile-sourced `Variable` rows, keeps the legacy line-keyed
-  `content.CanonicalEntityID`. Do not widen the gate without proving the
-  target format's per-section name uniqueness — see
-  `internal/content/AGENTS.md`.
+  including lockfile-sourced `Variable` rows and `swift` (Package.resolved is
+  always a lockfile), keeps the legacy line-keyed `content.CanonicalEntityID`.
+  Do not widen the gate without proving the target format's per-section
+  uniqueness — see `internal/content/AGENTS.md`.
 
 ## Common changes and how to scope them
 
@@ -70,13 +71,17 @@
   the rewrite fires and that non-matching entities keep their original label.
 
 - **Widen the dependency identity gate** → do not add a `package_manager`
-  value, or relax the `lockfile`/`section` conditions, without proving the
-  target manifest format's parser guarantees per-section name uniqueness (see
-  `internal/content/AGENTS.md`). Update
-  `content.dependencyIdentityPackageManagers` in `internal/content/writer.go`
-  and add scoping-guard cases to `internal/content/writer_test.go`; this
-  package's call site (`materialize.go`) needs no change since it always
-  passes the full metadata map through to `CanonicalEntityIDWithMetadata`.
+  value, relax the `lockfile`/`section` conditions, or add/change a
+  `dependencyIdentityDiscriminator` case, without proving the target manifest
+  format's parser guarantees per-section uniqueness (directly, or through the
+  discriminator; see `internal/content/AGENTS.md`). Update
+  `content.dependencyIdentityPackageManagers` and, if `(section, name)` alone
+  is not unique for the new format, add a `dependencyIdentityDiscriminator`
+  case — both in `internal/content/dependency_identity.go` — and add
+  scoping-guard/distinctness cases to a `dependency_identity_*_test.go` file
+  in `internal/content`; this package's call site (`materialize.go`) needs no
+  change since it always passes the full metadata map through to
+  `CanonicalEntityIDWithMetadata`.
 
 ## Failure modes and how to debug
 
@@ -97,13 +102,17 @@
 - Symptom: `Materialize` returns error on empty `RepoID` → this is expected
   behavior. All callers must supply a non-empty `RepoID`.
 
-- Symptom: an npm/composer manifest dependency's entity id churns across
-  syncs even though the dependency did not move → likely cause: `Metadata` on
-  the `Entity` passed to `Materialize` is missing `section`, `config_kind`, or
+- Symptom: an in-scope manifest dependency's entity id churns across syncs
+  even though the dependency did not move → likely cause: `Metadata` on the
+  `Entity` passed to `Materialize` is missing `section`, `config_kind`, or
   `package_manager`, so `CanonicalEntityIDWithMetadata` falls through to the
   legacy line-keyed `CanonicalEntityID`. Confirm the parser row carries those
   three keys (see `dependencyVariablesWithScope` in
-  `internal/parser/json/language.go`).
+  `internal/parser/json/language.go` for the npm/composer precedent, or the
+  ecosystem-specific parser under `internal/parser/<ecosystem>/` for a #5507
+  format). For a discriminated format, also confirm the discriminator source
+  field (`manifest_name`, `value`, `dependency_classifier`/`dependency_type`,
+  `condition`, `extras`/`marker`) is present and itself line-independent.
 
 ## Testing
 
