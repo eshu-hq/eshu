@@ -208,6 +208,103 @@ func TestBuildCodeRootVerdictsAppendOnlyRoutedControllerKept(t *testing.T) {
 	}
 }
 
+// verdictInputWithBaseAndSubclass builds a projection input for the #5494 P1
+// fix (PR #5742 codex review): a rails_controller_action root defined on
+// baseClass, plus a SEPARATE subclass declaring `< baseClass` (both
+// ancestry-confirmed via ApplicationController), and the given route facts.
+func verdictInputWithBaseAndSubclass(rootEntityID, baseClass, subclass, actionName string, routes RubyRailsRouteFacts) CodeReachabilityProjectionInput {
+	return CodeReachabilityProjectionInput{
+		ScopeID:      "scope-1",
+		GenerationID: "gen-1",
+		RepositoryID: "repo-1",
+		Roots: []CodeReachabilityRoot{{
+			EntityID:     rootEntityID,
+			RootKinds:    []string{CodeRootKindRubyRailsControllerAction},
+			ClassContext: baseClass,
+			ActionName:   actionName,
+		}},
+		RubyClasses: []RubyClassEntity{
+			{Name: baseClass, QualifiedName: baseClass, QualifiedBases: []string{"ApplicationController"}},
+			{Name: subclass, QualifiedName: subclass, QualifiedBases: []string{baseClass}},
+		},
+		RubyRoutes: routes,
+		ObservedAt: time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC),
+		UpdatedAt:  time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC),
+	}
+}
+
+// TestBuildCodeRootVerdictsActionInheritedByRoutedSubclassKept is the #5494 P1
+// fail-safe regression (PR #5742 codex review, code_root_verdicts_routes.go
+// ~line 115): an action DEFINED on a base controller is routed only through a
+// SUBCLASS that inherits it without overriding it --
+// `class BaseController; def health; end; end`,
+// `class UsersController < BaseController; end`,
+// `get "/health", to: "users#health"`. The exact route surface contains
+// `UsersController.health`, never `BaseController.health` (the action is
+// never redeclared on the routed class), so a lookup keyed ONLY on the
+// defining class's own name falsely finds no match and downgrades a
+// genuinely-reachable base action to route_unreachable -- the exact
+// false-positive #5494 exists to prevent. BaseController#health must stay
+// CONFIRMED because its subclass UsersController (resolved through the SAME
+// #5376/#5500 ancestry registry, not a name guess) routes the inherited
+// action.
+func TestBuildCodeRootVerdictsActionInheritedByRoutedSubclassKept(t *testing.T) {
+	input := verdictInputWithBaseAndSubclass("m:health", "BaseController", "UsersController", "health", RubyRailsRouteFacts{
+		HasAnyRouteEvidence: true,
+		RoutedHandlers:      map[string]struct{}{"UsersController.health": {}},
+	})
+	rows, downgraded, stats := BuildCodeRootVerdicts(input)
+	row, ok := verdictByEntity(rows, "m:health")
+	if !ok {
+		t.Fatalf("expected a verdict row, got none (rows=%+v)", rows)
+	}
+	if row.Verdict != CodeRootVerdictConfirmed {
+		t.Fatalf("BaseController#health verdict = %q, want confirmed (basis=%+v)", row.Verdict, row.Basis)
+	}
+	if row.Basis.RouteEvidence != RouteEvidenceRouted {
+		t.Fatalf("BaseController#health route_evidence = %q, want %q (basis=%+v)", row.Basis.RouteEvidence, RouteEvidenceRouted, row.Basis)
+	}
+	if _, isDown := downgraded[row.EntityID]; isDown {
+		t.Fatalf("BaseController#health must not be downgraded, downgraded=%v", downgraded)
+	}
+	if stats.RouteDowngraded != 0 {
+		t.Fatalf("stats.RouteDowngraded = %d, want 0", stats.RouteDowngraded)
+	}
+	kept := removeDowngradedRailsControllerRoots(input.Roots, downgraded)
+	if _, ok := findRoot(kept, "m:health"); !ok {
+		t.Fatalf("BaseController#health must remain a BFS root")
+	}
+}
+
+// TestBuildCodeRootVerdictsBaseActionWithNoRoutingSubclassDowngrades proves the
+// #5494 P1 fix does not over-broaden: a base-controller action with a
+// subclass that exists but does NOT route it, in an otherwise exact-only
+// route repo, must still downgrade -- a genuinely dead base action is not
+// rescued merely because SOME subclass exists.
+func TestBuildCodeRootVerdictsBaseActionWithNoRoutingSubclassDowngrades(t *testing.T) {
+	input := verdictInputWithBaseAndSubclass("m:unused", "BaseController", "UsersController", "unused", RubyRailsRouteFacts{
+		HasAnyRouteEvidence: true,
+		RoutedHandlers:      map[string]struct{}{"UsersController.index": {}},
+	})
+	rows, downgraded, stats := BuildCodeRootVerdicts(input)
+	row, ok := verdictByEntity(rows, "m:unused")
+	if !ok {
+		t.Fatalf("expected a verdict row, got none (rows=%+v)", rows)
+	}
+	if row.Verdict != CodeRootVerdictDowngraded {
+		t.Fatalf("BaseController#unused verdict = %q, want downgraded (basis=%+v)", row.Verdict, row.Basis)
+	}
+	if row.Basis.Reason != ReasonRouteUnreachable {
+		t.Fatalf("BaseController#unused reason = %q, want %q", row.Basis.Reason, ReasonRouteUnreachable)
+	}
+	if _, isDown := downgraded[row.EntityID]; !isDown {
+		t.Fatalf("BaseController#unused must be downgraded, downgraded=%v", downgraded)
+	}
+	if stats.RouteDowngraded != 1 {
+		t.Fatalf("stats.RouteDowngraded = %d, want 1", stats.RouteDowngraded)
+	}
+}
+
 // TestRouteDowngradedRootRemovedFromBFSRootSet proves the #5494 downgrade
 // flows through the SAME removeDowngradedRailsControllerRoots path #5376
 // uses: a route-unreachable action loses its BFS root status exactly like an

@@ -133,6 +133,51 @@ re-run unchanged and still passes -- the loader and reducer contract for
 `RubyRailsRouteFacts` did not change in this fix, only which parser-observed
 constructs feed it.
 
+### P1 fix (PR #5742 codex review): actions inherited by a routed subclass
+
+A different trigger of the SAME false-positive-downgrade defect class: an
+action DEFINED on a base controller and routed only through a SUBCLASS that
+inherits it without overriding it --
+`class BaseController; def health; end; end`,
+`class UsersController < BaseController; end`,
+`get "/health", to: "users#health"`. The exact route set contains
+`UsersController.health`, never `BaseController.health` (the action is never
+redeclared on the routed class). `evaluateRouteLiveness`'s lookup checked ONLY
+`classContext.action` (the class the action is DEFINED on), so in an
+exact-only route file this found no `BaseController.health` in
+`RoutedHandlers` and downgraded a genuinely-reachable base action to
+`route_unreachable` -- a live controller called dead.
+
+Fix: `BuildCodeRootVerdicts` now builds a repo-wide subclass index once
+(`newRubySubclassIndex`) by resolving every declared base ref through the SAME
+`ExactMatches`/`SuffixMatches` candidate resolution `rubycontroller.Decide`
+already trusts for the superclass direction -- reusing that resolution keeps
+subclass discovery exactly as precise: an unrelated same-last-segment class
+never becomes a false subclass edge, because `SuffixMatches` requires a
+genuine segment-aligned suffix, never a name guess. For each
+ancestry-confirmed root, `decision.Chain[0]` (the qualified class identity the
+entry hop resolved `classContext` to) seeds a bounded, cycle-safe BFS
+(`rubyRoutingDescendantNames`, mirroring `rubycontroller.MaxWalkDepth`) over
+that index, and `evaluateRouteLiveness` now checks `RoutedHandlers` for the
+defining class's own handler OR any resolved descendant's handler for the
+same action -- any one routed subclass rescues the inherited base action. A
+base-ref that resolves ambiguously to more than one candidate (the same
+suffix-ambiguity the superclass walk already tolerates) can only ever ADD a
+potential match, biasing toward KEEP, never causing a wrong downgrade.
+
+Regression coverage (RED against the pre-fix code, verified by disabling the
+subclass expansion -- `rubyRoutingDescendantNames` forced to return `nil` --
+and re-running, GREEN after restoring):
+`TestBuildCodeRootVerdictsActionInheritedByRoutedSubclassKept`
+(`BaseController#health` / `UsersController < BaseController` /
+`to: "users#health"`, must stay confirmed) and
+`TestBuildCodeRootVerdictsBaseActionWithNoRoutingSubclassDowngrades` (a
+subclass exists but does NOT route the action -- must still downgrade, proving
+the fix does not over-broaden into "any subclass rescues its base
+unconditionally"). All prior route-liveness tests (root-only, append-only,
+routed/unrouted/ambiguous/no-data, #5500 lexical-scope) and the live-Postgres
+suite were re-run unchanged and stay green.
+
 ## Schema-epoch assessment
 
 **Backfill required, not forward-only.** A repo already stamped at a

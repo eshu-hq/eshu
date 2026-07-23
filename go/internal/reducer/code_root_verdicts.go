@@ -131,6 +131,10 @@ type CodeRootVerdictStats struct {
 // an active-generation downgraded row.
 func BuildCodeRootVerdicts(input CodeReachabilityProjectionInput) ([]CodeRootVerdictRow, map[string]struct{}, CodeRootVerdictStats) {
 	registry := newRubyRepoWideControllerRegistry(input.RubyClasses)
+	// #5494 P1 fix (PR #5742 codex review): built once per repo, not per root,
+	// so an action defined on a base controller can be checked against every
+	// genuine routing subclass that inherits it (see rubyRoutingDescendantNames).
+	subclassIndex := newRubySubclassIndex(input.RubyClasses, registry)
 	observedAt, updatedAt := codeRootVerdictTimestamps(input)
 
 	rows := make([]CodeRootVerdictRow, 0, len(input.Roots))
@@ -167,7 +171,18 @@ func BuildCodeRootVerdicts(input CodeReachabilityProjectionInput) ([]CodeRootVer
 			// #5494: ancestry alone confirms this is a genuine Rails controller
 			// action, but "routable" is not "routed" -- join against repo-wide
 			// route facts before granting the final Confirmed verdict.
-			routeOutcome := evaluateRouteLiveness(classContext, root.ActionName, input.RubyRoutes)
+			//
+			// #5494 P1 fix (PR #5742 codex review): decision.Chain[0] is the
+			// qualified class identity the entry hop resolved classContext to
+			// (aggregateClassWalks appends the winning candidate's classKey as
+			// the first chain element before any onward hop), so it names the
+			// EXACT class the action is defined on -- the correct starting point
+			// for finding every genuine subclass that might route it instead.
+			var routingDescendants []string
+			if len(decision.Chain) > 0 {
+				routingDescendants = rubyRoutingDescendantNames(decision.Chain[0], subclassIndex)
+			}
+			routeOutcome := evaluateRouteLiveness(classContext, root.ActionName, input.RubyRoutes, routingDescendants)
 			routeEvidence = routeOutcome.routeEvidence
 			switch routeEvidence {
 			case RouteEvidenceNoData:
