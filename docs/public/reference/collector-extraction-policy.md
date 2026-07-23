@@ -220,9 +220,12 @@ deployed component-extension stack (see the internal remote-validation
 artifacts `docs/internal/remote-validation/prod-component-extension-inventory.md`
 and `docs/internal/remote-validation/prod-component-extension-diagnostics.md`).
 The diagnostics route shares its registry-readback function with inventory,
-so the deployed proof covers that shared path rather than a distinct
-diagnostics-route capture; the linked artifact flags that as a follow-up
-hardening item. The following stages are done and are guarded by tracked
+and the deployed proof now captures that route directly rather than relying
+on the shared path alone: the linked artifact records a live
+`GET /api/v0/component-extensions/{id}/diagnostics` HTTP 200 against the
+deployed, auth-gated query API, with `trust_decision`, `policy_gate`,
+`scheduler_state`, `read_model_availability`, and `last_conformance_proof`
+all observed in the response, closing the previous coverage gap. The following stages are done and are guarded by tracked
 tests, scripts, and proof artifacts.
 
 | Stage | Required evidence | State | Proof |
