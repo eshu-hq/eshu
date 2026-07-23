@@ -24,20 +24,22 @@ func (h *CodeHandler) nornicDBRelationshipsGraphRow(
 	rowEntityID := StringVal(row, "id")
 	entityLabel := nornicDBPrimaryEntityLabel(row)
 	outgoing := []map[string]any{}
+	outgoingTruncated := false
 	if direction != "incoming" {
 		var err error
 		// NornicDB currently needs metadata and each requested direction as
 		// separate row queries; this avoids Neo4j-style map collection shapes
 		// that are not dialect-safe while preserving direct relationship truth.
-		outgoing, err = h.nornicDBOneHopRelationships(ctx, rowEntityID, "outgoing", relationshipType, entityLabel)
+		outgoing, outgoingTruncated, err = h.nornicDBOneHopRelationships(ctx, rowEntityID, "outgoing", relationshipType, entityLabel)
 		if err != nil {
 			return nil, err
 		}
 	}
 	incoming := []map[string]any{}
+	incomingTruncated := false
 	if direction != "outgoing" {
 		var err error
-		incoming, err = h.nornicDBOneHopRelationships(ctx, rowEntityID, "incoming", relationshipType, entityLabel)
+		incoming, incomingTruncated, err = h.nornicDBOneHopRelationships(ctx, rowEntityID, "incoming", relationshipType, entityLabel)
 		if err != nil {
 			return nil, err
 		}
@@ -45,6 +47,8 @@ func (h *CodeHandler) nornicDBRelationshipsGraphRow(
 	response := cloneQueryAnyMap(row)
 	response["outgoing"] = outgoing
 	response["incoming"] = incoming
+	response["outgoing_truncated"] = outgoingTruncated
+	response["incoming_truncated"] = incomingTruncated
 	return response, nil
 }
 
@@ -159,41 +163,75 @@ func nornicDBRelationshipMetadataCypher(predicate string, entityLabel string, en
 	`
 }
 
+// nornicDBOneHopRelationships returns a single symbol's direct relationships for
+// one direction. The bool reports whether the row ceiling clipped the result so
+// the caller can disclose truncation instead of presenting a clipped set as an
+// exact-truth response.
 func (h *CodeHandler) nornicDBOneHopRelationships(
 	ctx context.Context,
 	entityID string,
 	direction string,
 	relationshipType string,
 	entityLabel string,
-) ([]map[string]any, error) {
+) ([]map[string]any, bool, error) {
 	entityID = strings.TrimSpace(entityID)
 	if entityID == "" {
-		return []map[string]any{}, nil
+		return []map[string]any{}, false, nil
 	}
 	for _, property := range []string{"uid", "id"} {
 		cypher, params := nornicDBOneHopRelationshipsCypher(entityID, direction, relationshipType, entityLabel, property)
 		rows, err := h.Neo4j.Run(ctx, cypher, params)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		if len(rows) > 0 {
-			return normalizeNornicDBRelationshipRows(rows), nil
+			truncated := len(rows) > nornicDBRelationshipRowLimit
+			if truncated {
+				rows = rows[:nornicDBRelationshipRowLimit]
+			}
+			enriched, err := h.enrichNornicDBRelationshipRows(ctx, rows, entityID, direction, relationshipType, entityLabel, property)
+			if err != nil {
+				return nil, false, err
+			}
+			return normalizeNornicDBRelationshipRows(enriched), truncated, nil
 		}
 	}
-	return []map[string]any{}, nil
+	return []map[string]any{}, false, nil
 }
 
+// nornicDBOneHopRelationshipsCypher is the relationship core read. It carries no
+// trailing OPTIONAL MATCH: on the pinned NornicDB build, a relationship-bound
+// MATCH followed by any OPTIONAL MATCH routes to an executor branch that emits
+// every function-call projection (type(rel), coalesce(...), head(labels(...)))
+// as its literal source text instead of the evaluated value, silently
+// corrupting the relationship type and identity columns. See
+// docs/public/reference/nornicdb-pitfalls.md ("Trailing OPTIONAL MATCH Corrupts
+// Every Function-Call Projection"). File and repository metadata is fetched by the
+// separate, OPTIONAL-MATCH-free enrichment reads in
+// code_relationships_nornicdb_enrich.go and merged in Go. The extra
+// source_entity_uid/target_entity_uid columns key that merge and are stripped
+// before the response.
+// nornicDBRelationshipRowLimit bounds a single symbol's direct-relationship read
+// so the hot API path cannot issue an unbounded graph read for a pathological
+// high-degree node (for example an incoming-CALLS hub). Direct relationships of
+// one symbol and one type are far below this ceiling in practice; the
+// deterministic ORDER BY makes the bound stable rather than arbitrary. The reads
+// over-fetch by one row so a caller can be told, via the response's
+// outgoing_truncated/incoming_truncated flags, when the ceiling clipped the
+// result — the exact-truth envelope must never silently drop edges.
+const nornicDBRelationshipRowLimit = 500
+
+// nornicDBRelationshipFetchLimit over-fetches one row past the ceiling so
+// truncation is detectable without a second count query.
+const nornicDBRelationshipFetchLimit = nornicDBRelationshipRowLimit + 1
+
 func nornicDBOneHopRelationshipsCypher(entityID string, direction string, relationshipType string, entityLabel string, entityIDProperty string) (string, map[string]any) {
-	params := map[string]any{"entity_id": entityID}
+	params := map[string]any{"entity_id": entityID, "row_limit": nornicDBRelationshipFetchLimit}
 	relPattern := nornicDBRelationshipPattern(relationshipType)
 	entityPattern := nornicDBNodePatternWithProperty("e", entityLabel, entityIDProperty, "$entity_id")
 	if direction == "incoming" {
 		return `
 		MATCH ` + entityPattern + `<-[rel` + relPattern + `]-(source)
-		OPTIONAL MATCH (source)<-[:CONTAINS]-(sourceFile:File)
-		OPTIONAL MATCH (sourceRepo:Repository)-[:REPO_CONTAINS]->(sourceFile)
-		OPTIONAL MATCH (e)<-[:CONTAINS]-(targetFile:File)
-		OPTIONAL MATCH (targetRepo:Repository)-[:REPO_CONTAINS]->(targetFile)
 		RETURN 'incoming' as direction,
 		       type(rel) as type,
 		       rel.call_kind as call_kind,
@@ -202,30 +240,24 @@ func nornicDBOneHopRelationshipsCypher(entityID string, direction string, relati
 		       rel.resolution_method as resolution_method,
 		       source.name as source_name,
 		       coalesce(source.id, source.uid) as source_id,
-		       sourceRepo.id as source_repo_id,
-		       sourceRepo.name as source_repo_name,
-		       sourceFile.relative_path as source_file_path,
-		       coalesce(source.language, sourceFile.language) as source_language,
+		       coalesce(source.id, source.uid) as source_entity_uid,
+		       source.language as source_language,
 		       head(labels(source)) as source_type,
 		       source.start_line as source_start_line,
 		       source.end_line as source_end_line,
 		       e.name as target_name,
 		       coalesce(e.id, e.uid) as target_id,
-		       targetRepo.id as target_repo_id,
-		       targetRepo.name as target_repo_name,
-		       targetFile.relative_path as target_file_path,
-		       coalesce(e.language, targetFile.language) as target_language,
+		       coalesce(e.id, e.uid) as target_entity_uid,
+		       e.language as target_language,
 		       head(labels(e)) as target_type,
 		       e.start_line as target_start_line,
 		       e.end_line as target_end_line
+		ORDER BY source.uid
+		LIMIT $row_limit
 	`, params
 	}
 	return `
 		MATCH ` + entityPattern + `-[rel` + relPattern + `]->(target)
-		OPTIONAL MATCH (e)<-[:CONTAINS]-(sourceFile:File)
-		OPTIONAL MATCH (sourceRepo:Repository)-[:REPO_CONTAINS]->(sourceFile)
-		OPTIONAL MATCH (target)<-[:CONTAINS]-(targetFile:File)
-		OPTIONAL MATCH (targetRepo:Repository)-[:REPO_CONTAINS]->(targetFile)
 		RETURN 'outgoing' as direction,
 		       type(rel) as type,
 		       rel.call_kind as call_kind,
@@ -234,22 +266,20 @@ func nornicDBOneHopRelationshipsCypher(entityID string, direction string, relati
 		       rel.resolution_method as resolution_method,
 		       e.name as source_name,
 		       coalesce(e.id, e.uid) as source_id,
-		       sourceRepo.id as source_repo_id,
-		       sourceRepo.name as source_repo_name,
-		       sourceFile.relative_path as source_file_path,
-		       coalesce(e.language, sourceFile.language) as source_language,
+		       coalesce(e.id, e.uid) as source_entity_uid,
+		       e.language as source_language,
 		       head(labels(e)) as source_type,
 		       e.start_line as source_start_line,
 		       e.end_line as source_end_line,
 		       target.name as target_name,
 		       coalesce(target.id, target.uid) as target_id,
-		       targetRepo.id as target_repo_id,
-		       targetRepo.name as target_repo_name,
-		       targetFile.relative_path as target_file_path,
-		       coalesce(target.language, targetFile.language) as target_language,
+		       coalesce(target.id, target.uid) as target_entity_uid,
+		       target.language as target_language,
 		       head(labels(target)) as target_type,
 		       target.start_line as target_start_line,
 		       target.end_line as target_end_line
+		ORDER BY target.uid
+		LIMIT $row_limit
 	`, params
 }
 

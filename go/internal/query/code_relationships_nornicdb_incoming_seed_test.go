@@ -34,16 +34,23 @@ func TestNornicDBIncomingOneHopCypherSeedsExactTarget(t *testing.T) {
 			if strings.Contains(cypher, "MATCH (source)-[rel:CALLS]->") {
 				t.Fatalf("cypher retains source-first incoming traversal:\n%s", cypher)
 			}
+			// The relationship core read must carry NO OPTIONAL MATCH: on the
+			// pinned NornicDB build a trailing OPTIONAL MATCH corrupts every
+			// function-call projection (type(rel), coalesce, head(labels)) to
+			// literal text. File/repo metadata is enriched separately.
+			if strings.Contains(cypher, "OPTIONAL MATCH") {
+				t.Fatalf("relationship core cypher must not contain OPTIONAL MATCH:\n%s", cypher)
+			}
 			for _, fragment := range []string{
-				"OPTIONAL MATCH (source)<-[:CONTAINS]-(sourceFile:File)",
-				"OPTIONAL MATCH (sourceRepo:Repository)-[:REPO_CONTAINS]->(sourceFile)",
-				"OPTIONAL MATCH (e)<-[:CONTAINS]-(targetFile:File)",
-				"OPTIONAL MATCH (targetRepo:Repository)-[:REPO_CONTAINS]->(targetFile)",
-				"sourceRepo.id as source_repo_id",
-				"targetRepo.id as target_repo_id",
+				"type(rel) as type",
+				"coalesce(source.id, source.uid) as source_id",
+				"coalesce(source.id, source.uid) as source_entity_uid",
+				"coalesce(e.id, e.uid) as target_entity_uid",
+				"head(labels(source)) as source_type",
+				"LIMIT $row_limit",
 			} {
 				if !strings.Contains(cypher, fragment) {
-					t.Fatalf("cypher missing repository/source projection %q:\n%s", fragment, cypher)
+					t.Fatalf("cypher missing core projection %q:\n%s", fragment, cypher)
 				}
 			}
 			for _, forbidden := range []string{
@@ -51,12 +58,14 @@ func TestNornicDBIncomingOneHopCypherSeedsExactTarget(t *testing.T) {
 				property + " CONTAINS $entity_id",
 				"source <> e",
 				"source.uid <> e.uid",
+				"sourceRepo.id as source_repo_id",
+				"targetRepo.id as target_repo_id",
 			} {
 				if strings.Contains(cypher, forbidden) {
-					t.Fatalf("cypher contains behavior-changing predicate %q:\n%s", forbidden, cypher)
+					t.Fatalf("cypher contains forbidden fragment %q:\n%s", forbidden, cypher)
 				}
 			}
-			if got, want := params, map[string]any{"entity_id": entityID}; !reflect.DeepEqual(got, want) {
+			if got, want := params, map[string]any{"entity_id": entityID, "row_limit": nornicDBRelationshipFetchLimit}; !reflect.DeepEqual(got, want) {
 				t.Fatalf("params = %#v, want exact identity params %#v", got, want)
 			}
 		})
@@ -163,7 +172,7 @@ func TestNornicDBIncomingOneHopRelationshipsPreservesRowBehavior(t *testing.T) {
 				},
 			}}
 
-			got, err := handler.nornicDBOneHopRelationships(
+			got, _, err := handler.nornicDBOneHopRelationships(
 				context.Background(),
 				"content-entity:target",
 				"incoming",
@@ -298,7 +307,7 @@ func TestNornicDBOneHopRelationshipsCypherUsesIndexedEntityLookup(t *testing.T) 
 	if strings.Contains(cypher, graphEntityIDPredicate("e", "$entity_id")) {
 		t.Fatalf("cypher = %q, must not use broad entity-id OR predicate on NornicDB", cypher)
 	}
-	if got, want := params, map[string]any{"entity_id": "content-entity:handleRelationships"}; !reflect.DeepEqual(got, want) {
+	if got, want := params, map[string]any{"entity_id": "content-entity:handleRelationships", "row_limit": nornicDBRelationshipFetchLimit}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("params = %#v, want %#v", got, want)
 	}
 }
@@ -330,7 +339,7 @@ func TestNornicDBOneHopRelationshipsFallsBackFromUIDToID(t *testing.T) {
 		},
 	}
 
-	got, err := handler.nornicDBOneHopRelationships(
+	got, _, err := handler.nornicDBOneHopRelationships(
 		context.Background(),
 		"content-entity:handleRelationships",
 		"outgoing",

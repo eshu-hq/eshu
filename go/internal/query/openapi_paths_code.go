@@ -180,7 +180,9 @@ const openAPIPathsCode = `
                     "end_line": {"type": "integer"},
                     "metadata": {"type": "object", "additionalProperties": true},
                     "outgoing": {"type": "array", "items": {"$ref": "#/components/schemas/Relationship"}},
-                    "incoming": {"type": "array", "items": {"$ref": "#/components/schemas/Relationship"}}
+                    "incoming": {"type": "array", "items": {"$ref": "#/components/schemas/Relationship"}},
+                    "outgoing_truncated": {"type": "boolean", "description": "True when the outgoing direct relationships exceeded the per-direction row ceiling and the returned set was clipped."},
+                    "incoming_truncated": {"type": "boolean", "description": "True when the incoming direct relationships exceeded the per-direction row ceiling and the returned set was clipped."}
                   }
                 }
               }

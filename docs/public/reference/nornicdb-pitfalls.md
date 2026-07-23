@@ -702,6 +702,103 @@ variance *within* the returned subset (the #5644 symptom), and it is what makes
 the truncation independent of any future backend planner change. Re-run the
 proof above when the pinned NornicDB version changes.
 
+## Pitfall: Trailing `OPTIONAL MATCH` Corrupts Every Function-Call Projection
+
+### Observed shape
+
+On both pinned NornicDB backends (v1.1.11 and the PR261/compose-default image)
+a read query whose primary `MATCH` binds a relationship pattern, followed by one
+or more trailing `OPTIONAL MATCH` clauses with no `WITH` in between, returns
+every function-call expression in the `RETURN` as its **literal source text**
+instead of the evaluated value. Reproduced identically via the HTTP
+`/db/nornic/tx/commit` endpoint and the real Bolt driver
+(`github.com/neo4j/neo4j-go-driver/v5`, the production driver):
+
+```cypher
+-- CORRECT (no OPTIONAL MATCH): type="INHERITS", source_id="cls:ServiceDog"
+MATCH (e:Class {uid:$id})-[rel:INHERITS]->(target)
+RETURN type(rel) AS type, coalesce(e.id, e.uid) AS source_id, target.name AS target_name
+
+-- BROKEN (trailing OPTIONAL MATCH): type="type(rel)", source_id="coalesce(e.id, e.uid)"
+MATCH (e:Class {uid:$id})-[rel:INHERITS]->(target)
+OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)
+RETURN type(rel) AS type, coalesce(e.id, e.uid) AS source_id, target.name AS target_name
+```
+
+Precise corruption boundary, measured on the pinned image:
+
+- **Corrupt (returns the expression's literal text):** every function call —
+  `type(rel)`, `coalesce(...)`, `head(labels(...))`, `labels(...)`, and
+  aggregates like `count(...)`; the relationship variable itself (bare `rel`
+  and `rel.prop` both return `"rel"` / `"rel.prop"`); and any property on a
+  chained second-level `OPTIONAL MATCH` binding (`targetRepo.id` →
+  `"targetRepo.id"`).
+- **Survives (correct value):** plain properties on the primary `MATCH` node
+  (`target.name`) and on a first-level `OPTIONAL MATCH` binding
+  (`targetFile.relative_path`).
+
+Chaining is not required — a single trailing `OPTIONAL MATCH` triggers it.
+Putting a `WITH e, rel, target` between the `MATCH` and the `OPTIONAL MATCH`
+does not rescue it; it swaps in a different silent corruption (the function
+columns come back `nil` and rows duplicate). A node-only primary `MATCH` (no
+relationship pattern) + `OPTIONAL MATCH` evaluates functions correctly, because
+that shape routes to a different executor branch.
+
+### Root cause
+
+In the pinned NornicDB source, a `MATCH ... OPTIONAL MATCH` with no leading
+`WITH` routes to `executeCompoundMatchOptionalMatch`
+(`pkg/cypher/clauses.go`). When the primary `MATCH` contains a relationship
+pattern it takes the traversal branch, which resolves `RETURN` items with
+`resolveReturnExprFromVarMap` — a resolver that understands only `var.prop` and
+bare variables and falls back to returning the raw expression source text for
+everything else — instead of the real evaluator `evaluateExpressionWithContext`
+that the non-traversal branch (`buildJoinedResult`) uses. The same branch also
+never binds the relationship variable, never routes aggregates to aggregation,
+and only parses the first `OPTIONAL MATCH` clause. The `fail-loud` multi-clause
+guard does not fire for this shape, so it corrupts silently. Confirmed still
+present on NornicDB branch HEAD and `main`; tracked upstream via a failing
+`pkg/cypher/bug_optional_match_function_projection_test.go` regression.
+
+### Eshu implications
+
+Any handler that binds a relationship variable and then adds an `OPTIONAL MATCH`
+for enrichment silently loses `type(rel)` and every `coalesce()`/`head()`
+identity column. `nornicDBOneHopRelationshipsCypher`
+(`go/internal/query/code_relationships_nornicdb.go`, issue #5681) served exactly
+this shape for `POST /api/v0/code/relationships` name/entity lookups (IMPORTS,
+INHERITS, OVERRIDES, and CALLS direct callers/callees). The corrupt `type`
+column never equalled the requested relationship type, so `filterRelationships`
+dropped every edge and the route returned empty `outgoing`/`incoming` even when
+the graph held correct edges — a silent false negative, the worst failure class
+for this repo.
+
+The fix is the established split-and-merge pattern: the relationship core read
+carries **no** `OPTIONAL MATCH`, so `type(rel)`, `coalesce(...)`, and
+`head(labels(...))` all evaluate; file/repository/language enrichment is fetched
+by two separate, `OPTIONAL-MATCH`-free, index-anchored single-path reads
+(`code_relationships_nornicdb_enrich.go`) whose plain-property results are
+joined to the core rows by endpoint uid in Go. Endpoints with no `File` simply
+do not appear in the enrichment read (a left-join in Go), replacing the OPTIONAL
+semantics without the OPTIONAL clause. Do not "fix" this by moving the functions
+behind a `WITH` before the `OPTIONAL MATCH` — that is a separate documented
+broken shape.
+
+### Validation
+
+`go test ./internal/query -run
+'TestNornicDBIncomingOneHopCypherSeedsExactTarget|TestNornicDBOneHopRelationshipsCypherProjectsRelatedSymbolSourceMetadata'
+-count=1` asserts the shipped core read contains no `OPTIONAL MATCH` and that the
+enrichment reads carry the file/repo projection. `go test ./internal/query
+-tags live_nornicdb_relationships_proof -run
+'TestLiveNornicDBRelationshipsSurviveOptionalMatchProjection' -count=1` (against
+the pinned image) is the backend-required live proof: it seeds a Class
+inheritance graph and asserts the route returns three `INHERITS` edges with an
+evaluated `type` and enriched file/repo metadata, where the pre-split shape
+returned zero. See
+`docs/internal/evidence/5681-nornicdb-optional-match-relationship-projection.md`
+for the before/after and the isolated executor characterization.
+
 ## When To Patch NornicDB
 
 Patch NornicDB only when evidence supports one of these:
