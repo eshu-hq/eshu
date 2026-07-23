@@ -1,13 +1,13 @@
 {
   "schema_version": "replay-coverage-report.v4",
-  "blocking": true,
+  "blocking": false,
   "totals": {
-    "total": 427,
+    "total": 429,
     "covered": 415,
-    "uncovered": 0,
+    "uncovered": 2,
     "unresolved": 0,
     "exempt": 12,
-    "percent_satisfied": 100
+    "percent_satisfied": 99.53
   },
   "registry_summaries": [
     {
@@ -84,12 +84,12 @@
     },
     {
       "registry": "retractable_edge_type",
-      "total": 60,
+      "total": 62,
       "covered": 59,
-      "uncovered": 0,
+      "uncovered": 2,
       "unresolved": 0,
       "exempt": 1,
-      "percent_satisfied": 100
+      "percent_satisfied": 96.77
     },
     {
       "registry": "retractable_type",
@@ -140,12 +140,12 @@
     },
     {
       "scenario_type": "delta_tombstone",
-      "total": 156,
+      "total": 158,
       "covered": 154,
-      "uncovered": 0,
+      "uncovered": 2,
       "unresolved": 0,
       "exempt": 2,
-      "percent_satisfied": 100
+      "percent_satisfied": 98.73
     },
     {
       "scenario_type": "fault",
@@ -2583,6 +2583,13 @@
     },
     {
       "registry": "retractable_edge_type",
+      "key": "retractable_edge:BUILT_FROM",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
+    },
+    {
+      "registry": "retractable_edge_type",
       "key": "retractable_edge:CALLS",
       "scenario_type": "delta_tombstone",
       "status": "covered",
@@ -2927,6 +2934,13 @@
       "ref": "go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go",
       "proof_gate": "replay-tier",
       "detail": "artifact present: go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go"
+    },
+    {
+      "registry": "retractable_edge_type",
+      "key": "retractable_edge:PUBLISHES",
+      "scenario_type": "delta_tombstone",
+      "status": "uncovered",
+      "detail": "no replay scenario mapped for required scenario_type delta_tombstone"
     },
     {
       "registry": "retractable_edge_type",
@@ -4402,7 +4416,10 @@
       "detail": "Inbound webhook sink, not a pollable source. The webhook collector verifies and normalizes inbound deliveries into refresh triggers; it never polls an upstream, so there is no generation to record into a cassette."
     }
   ],
-  "gaps": null,
+  "gaps": [
+    "retractable_edge:BUILT_FROM|delta_tombstone",
+    "retractable_edge:PUBLISHES|delta_tombstone"
+  ],
   "stale_manifest_surfaces": null,
   "language_scoreboard": {
     "total": 33,
