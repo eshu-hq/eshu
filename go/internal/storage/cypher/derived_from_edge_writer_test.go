@@ -68,6 +68,43 @@ func TestProvenanceEdgeWriterWriteDerivedFromMatchesBothEndpointsByDigest(t *tes
 	}
 }
 
+// TestProvenanceEdgeWriterWriteDerivedFromUsesSequentialExecuteNeverGroup pins
+// the dispatch of the WRITE, not just the retract. DERIVED_FROM has
+// ContainerImage on both endpoints; that same-label two-MATCH-MERGE trips
+// NornicDB's UnwindMergeChain fast-path, which under a managed/grouped
+// transaction throws `UnwindMergeChain relationship update failed: not found`
+// instead of no-op'ing when one endpoint node is not yet committed -- so an
+// identity intent whose base or child ContainerImage node lags behind the
+// projection dead-letters the whole intent. The identical statement run as an
+// auto-commit Execute no-ops cleanly on a missing endpoint (proven on a live
+// NornicDB) and re-projects the edge on a later generation once both nodes
+// exist. BUILT_FROM/PUBLISHES writes may group because their two endpoints are
+// different labels and do not hit this fast path.
+func TestProvenanceEdgeWriterWriteDerivedFromUsesSequentialExecuteNeverGroup(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingGroupExecutor{}
+	writer := NewProvenanceEdgeWriter(executor, 0)
+	rows := []map[string]any{
+		{"digest": "sha256:child", "base_digest": "sha256:base", "attribution_basis": "repository_single_base"},
+	}
+
+	if err := writer.WriteDerivedFromEdges(
+		context.Background(), rows, "scope-1", "gen-1", "reducer/container-image-base-image",
+	); err != nil {
+		t.Fatalf("WriteDerivedFromEdges returned error: %v", err)
+	}
+	if len(executor.groupCalls) != 0 {
+		t.Fatalf("groupCalls = %d, want 0 -- the DERIVED_FROM write must never use ExecuteGroup (NornicDB UnwindMergeChain fast-path throws on a not-yet-committed endpoint under a managed txn)", len(executor.groupCalls))
+	}
+	if len(executor.executeCalls) != 1 {
+		t.Fatalf("executeCalls = %d, want 1 (one batch, sequential autocommit)", len(executor.executeCalls))
+	}
+	if !strings.Contains(executor.executeCalls[0].Cypher, "MERGE (img)-[rel:DERIVED_FROM]->(base)") {
+		t.Fatalf("write cypher must MERGE the DERIVED_FROM edge:\n%s", executor.executeCalls[0].Cypher)
+	}
+}
+
 // TestProvenanceEdgeWriterRetractDerivedFromUsesSequentialExecuteNeverGroup
 // pins the retract dispatch. On the pinned NornicDB a DELETE dispatched through
 // a managed transaction under-applies even for a single statement, so the

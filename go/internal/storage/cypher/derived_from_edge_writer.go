@@ -78,7 +78,11 @@ func (w *ProvenanceEdgeWriter) WriteDerivedFromEdges(
 		buildBatchedStatements(canonicalProvenanceDerivedFromCypher, cloned, w.batchSize),
 		canonicalPhaseProvenanceDerivedFromEdges, provenanceDerivedFromEdgeLabel, "target=ContainerImage",
 	)
-	return w.dispatch(ctx, stmts)
+	// Sequential auto-commit, never ExecuteGroup: this same-label two-MATCH-MERGE
+	// trips NornicDB's UnwindMergeChain fast-path, which throws instead of
+	// no-op'ing under a managed transaction when an endpoint node is not yet
+	// committed (dispatchSequential documents the full rationale, #5460).
+	return w.dispatchSequential(ctx, stmts)
 }
 
 // RetractDerivedFromEdges removes this writer's DERIVED_FROM edges for one

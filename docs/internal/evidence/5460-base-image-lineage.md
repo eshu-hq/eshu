@@ -127,6 +127,34 @@ added, making the repository ambiguous — still clears the prior edge.
 same handler writes, so neither domain's retract can touch the other's edges. A
 test asserts the two constants can never collapse to the same value.
 
+### Write dispatch: sequential, not grouped (NornicDB fast-path)
+
+The DERIVED_FROM **write** also dispatches through sequential auto-commit
+`Execute`, not `ExecuteGroup` — unlike `BUILT_FROM`/`PUBLISHES`, which group.
+The golden-corpus gate caught this against a live backend: the
+`container_image_identity` intent for an unrelated scope dead-lettered with
+
+```
+projection_bug: write container image derived_from provenance edges:
+Neo4jError: Neo.ClientError.Statement.SyntaxError
+(UNWIND MERGE chain relationship update failed: not found)
+```
+
+`DERIVED_FROM` is the only one of the three provenance edges with the same node
+label on both endpoints (`ContainerImage`→`ContainerImage`). That shape selects
+NornicDB's `UnwindMergeChain` fast-path, which under a managed transaction
+throws when one endpoint node is not yet committed, instead of the
+missing-endpoint no-op the #5472 contract requires — so an intent whose base or
+child `ContainerImage` node lags the projection dead-letters the whole intent.
+Reproduced on the live NornicDB: the identical MERGE run as an auto-commit
+`Execute` no-ops cleanly on a missing endpoint (`count=0`, no error), and the
+edge is re-projected on a later generation once both nodes exist. This is not
+serialization to hide a race — the write is an idempotent MERGE, and auto-commit
+is the dispatch mode that honors the no-op-on-missing contract on this backend,
+the same reason the retract path already uses it. The failure was
+intermittent (it depends on projection ordering across intents), which is
+exactly why a unit test could not have surfaced it and the live gate did.
+
 ## Proof matrix
 
 | Case | Proof |

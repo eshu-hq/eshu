@@ -371,6 +371,22 @@ func (w *ProvenanceEdgeWriter) dispatch(ctx context.Context, stmts []Statement) 
 // docs/public/reference/nornicdb-pitfalls.md and
 // KubernetesCorrelationEdgeWriter.dispatchRetract for the same rationale.
 func (w *ProvenanceEdgeWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
+	return w.dispatchSequential(ctx, stmts)
+}
+
+// dispatchSequential runs each statement as its own auto-commit Execute, never
+// ExecuteGroup. Two distinct NornicDB v1.1.11 managed-transaction defects share
+// this remedy: a DELETE under a managed transaction under-applies (the retract
+// path), and the UnwindMergeChain fast-path that a same-label two-MATCH-MERGE
+// selects (ContainerImage-[:DERIVED_FROM]->ContainerImage, #5460) throws
+// `UnwindMergeChain relationship update failed: not found` under a managed
+// transaction when one endpoint node is not yet committed, instead of the
+// missing-endpoint no-op the #5472 contract requires. The identical MERGE run
+// as an auto-commit Execute no-ops cleanly on a missing endpoint and
+// re-projects the edge on a later generation once both nodes exist. BUILT_FROM
+// and PUBLISHES writes may group: their two endpoints are different labels and
+// do not select that fast path.
+func (w *ProvenanceEdgeWriter) dispatchSequential(ctx context.Context, stmts []Statement) error {
 	for _, stmt := range stmts {
 		if err := w.executor.Execute(ctx, stmt); err != nil {
 			return WrapRetryableNeo4jError(err)
