@@ -5,14 +5,18 @@ package reducer
 
 // attachWorkflowImagesToRuns joins each already-decoded
 // ci.workflow_image_evidence (decodedCICDWorkflowImage, decoded once during
-// the build phase and never re-decoded here) to every run sharing the same
-// repository_id. A malformed workflow-image fact was already quarantined (or
-// fatally failed the intent) during that build-phase decode, so only
-// valid evidence reaches this function. A run whose own decoded RepositoryID
-// is empty (RepositoryID is optional on cicdrunv1.Run) never matches any
-// workflow image, matching pre-typing behavior where an empty repository_id
-// segment could not equal another empty segment because the comparison
-// already required a non-empty workflow-image repositoryID.
+// the build phase and never re-decoded here) to the runs sharing its
+// repository_id, preferring per run the workflow files whose extraction commit
+// matches the run's commit over the commit-blind repository-wide fallback
+// (#5424): a run takes the fallback set only when no workflow file matched its
+// commit, and workflowImagesCommitMatched then downgrades that run's
+// workflow-image correlation from exact to derived. A malformed workflow-image
+// fact was already quarantined (or fatally failed the intent) during the
+// build-phase decode, so only valid evidence reaches this function. A run whose
+// own decoded RepositoryID is empty (RepositoryID is optional on cicdrunv1.Run)
+// never matches any workflow image, matching pre-typing behavior where an empty
+// repository_id segment could not equal another empty segment because the
+// comparison already required a non-empty workflow-image repositoryID.
 func attachWorkflowImagesToRuns(runs map[string]*cicdRunEvidence, workflowImages []*decodedCICDWorkflowImage) {
 	if len(workflowImages) == 0 {
 		return
