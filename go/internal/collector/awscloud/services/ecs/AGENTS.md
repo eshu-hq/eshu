@@ -6,8 +6,10 @@
 2. `types.go` - scanner-owned ECS domain types.
 3. `scanner.go` - cluster, service, task-definition, task, and relationship
    emission.
-4. `../../README.md` - shared AWS cloud observation and envelope contract.
-5. `docs/public/services/collector-aws-cloud.md` - ECS slice
+4. `image_reference.go` - running-task container `aws_image_reference`
+   emission and the ECR image-host parser.
+5. `../../README.md` - shared AWS cloud observation and envelope contract.
+6. `docs/public/services/collector-aws-cloud.md` - ECS slice
    requirements.
 
 ## Invariants
@@ -32,6 +34,18 @@
 - Add new task-definition fields only when the ECS API reports them directly
   and the field is safe for persistence.
 - Extend SDK pagination in the `awssdk` adapter, not here.
+- Extend `image_reference.go` only for another AWS-registry-shaped image host
+  pattern. Do not widen it to force a non-AWS-registry image into the
+  `aws_image_reference` shape; that is a documented bounded gap (see README
+  "Gotchas / invariants"), not a bug.
+- Do NOT add the China partition (`.amazonaws.com.cn`) to
+  `ecrImageHostPattern` without first threading the registry hostname/
+  partition through the `aws_image_reference` payload contract AND the
+  reducer's `addAWSImageReference` registry reconstruction
+  (`container_image_identity_typed_evidence.go`, currently hardcodes
+  `.amazonaws.com`) in the SAME change. Matching the host here without that
+  reducer change makes the emitted fact silently unresolvable (codex #5451
+  P2 finding).
 
 ## What Not To Change Without An ADR
 
