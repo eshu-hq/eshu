@@ -39,16 +39,6 @@ name: Security Scan
 
 on:
   pull_request:
-    # A docs-only PR (docs tree, root markdown, mkdocs config) cannot introduce
-    # a Go CVE, a leaked secret in source, or an IaC misconfiguration that these
-    # scanners catch, so skip the heavy security lane for it. Push-to-main, the
-    # weekly schedule, and the post-publish image scan remain the backstop, so a
-    # secret that somehow lands via a docs path is still caught on merge.
-    paths-ignore:
-      - 'docs/**'
-      - '*.md'
-      - 'mkdocs.yml'
-      - '.github/**/*.md'
   push:
     branches:
       - main
@@ -85,10 +75,43 @@ permissions:
   contents: read
 
 jobs:
+  # Decide whether a PR changed any non-docs path, so the Go-specific scanners
+  # (govulncheck, gosec, nancy) can skip a docs-only PR. The filesystem scan
+  # (trivy-fs) below stays always-on regardless: it is the ONLY secret scanner
+  # over the whole checkout, and a secret can land in a docs path too. Non-PR
+  # events (push, schedule, dispatch) run the Go scanners unconditionally.
+  changes:
+    name: Detect code changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name != 'workflow_run'
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+
+      - name: Filter changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            code:
+              - '**'
+              - '!docs/**'
+              - '!*.md'
+              - '!mkdocs.yml'
+              - '!.github/**/*.md'
+
   trivy-fs:
     name: Trivy filesystem scan (vuln + secret + config)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Always-on (no code gate): this is the only secret + IaC-misconfig scan over
+    # the whole checkout, so a docs-only PR must still be scanned for an
+    # accidentally-committed token or key.
     if: github.event_name != 'workflow_run'
     permissions:
       contents: read
@@ -202,7 +225,9 @@ jobs:
     name: govulncheck (Go vulnerability database)
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    if: github.event_name != 'workflow_run'
+    # Go-source scanner: skip a docs-only PR, run on every other event.
+    needs: changes
+    if: ${{ github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true') }}
     permissions:
       contents: read
       security-events: write
@@ -252,7 +277,9 @@ jobs:
     name: gosec (Go static analysis)
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: github.event_name != 'workflow_run'
+    # Go-source scanner: skip a docs-only PR, run on every other event.
+    needs: changes
+    if: ${{ github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true') }}
     permissions:
       contents: read
       security-events: write
@@ -312,7 +339,9 @@ jobs:
     name: nancy (Sonatype dep CVE + license scan)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: github.event_name != 'workflow_run'
+    # Go-source scanner: skip a docs-only PR, run on every other event.
+    needs: changes
+    if: ${{ github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true') }}
     permissions:
       contents: read
       security-events: write
