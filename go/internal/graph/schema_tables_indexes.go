@@ -59,6 +59,22 @@ var schemaPerformanceIndexes = []string{
 	// per-namespace read falls back to a KubernetesWorkload label scan.
 	"CREATE INDEX kubernetes_workload_cluster_id IF NOT EXISTS FOR (w:KubernetesWorkload) ON (w.cluster_id)",
 	"CREATE INDEX kubernetes_workload_namespace IF NOT EXISTS FOR (w:KubernetesWorkload) ON (w.namespace)",
+	// KubernetesNamespace lookup indexes back the planned env-state read
+	// `MATCH (n:KubernetesNamespace {cluster_id, namespace}) RETURN
+	// n.environment_state` (issue #5651). uidConstraintLabels in
+	// schema_tables.go already backs the reducer's uid MERGE
+	// (kubernetes_namespace_node_writer.go) with a uid uniqueness constraint
+	// plus, on NornicDB, a matching uid lookup index; these two mirror the
+	// KubernetesWorkload cluster_id/namespace pair immediately above for the
+	// sibling node label. Without these, a cluster- or namespace-scoped read
+	// falls back to a KubernetesNamespace label scan. NornicDB rejects the
+	// composite `(cluster_id, namespace)` *constraint* syntax (see the
+	// nornicDBMergeLookupIndexes doc comment below); composite *index*
+	// support has not been separately verified, so this conservatively
+	// follows the established composite-constraint limitation and uses two
+	// single-property indexes rather than one composite index.
+	"CREATE INDEX kubernetes_namespace_cluster_id IF NOT EXISTS FOR (n:KubernetesNamespace) ON (n.cluster_id)",
+	"CREATE INDEX kubernetes_namespace_namespace IF NOT EXISTS FOR (n:KubernetesNamespace) ON (n.namespace)",
 	// CloudResource lookup indexes back the AWS relationship edge join
 	// (issue #805). The edge projection resolves both endpoints to a
 	// CloudResource.uid using an in-memory index built from aws_resource facts,

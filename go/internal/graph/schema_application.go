@@ -25,17 +25,31 @@ type SchemaApplication struct {
 
 const (
 	// graphSchemaNeo4jFingerprint and graphSchemaNornicDBFingerprint are the
-	// current schema digests, now including the #5445 EXTENDS_BASE resolver's
-	// kustomize_overlay_repo_id index (a repo-scoped KustomizeOverlay.repo_id
-	// index; see schema_tables.go). The bump is additive and index-only: a
-	// writer running the predecessor schema still writes and reads correctly,
-	// it only lacks the faster repo-scoped KustomizeOverlay lookup until its
-	// own schema catches up, so the predecessor
-	// (graphSchemaNeo4jPreKustomizeOverlayRepoIDIndexFingerprint /
-	// graphSchemaNornicDBPreKustomizeOverlayRepoIDIndexFingerprint) stays
+	// current schema digests, now including the #5651 KubernetesNamespace uid
+	// uniqueness constraint (uidConstraintLabels) plus the
+	// kubernetes_namespace_cluster_id / kubernetes_namespace_namespace read
+	// indexes (schema_tables_indexes.go). Before this bump,
+	// MERGE (n:KubernetesNamespace {uid: row.uid}) in
+	// kubernetes_namespace_node_writer.go fell back to an unindexed
+	// KubernetesNamespace label scan on every reducer write. The bump is
+	// additive: a writer running the predecessor schema still writes and reads
+	// its already-unique collector-derived uid values correctly, it only lacks
+	// the faster uid MERGE seek and the cluster/namespace-scoped read path
+	// until its own schema catches up, so the predecessor
+	// (graphSchemaNeo4jPreKubernetesNamespaceIndexesFingerprint /
+	// graphSchemaNornicDBPreKubernetesNamespaceIndexesFingerprint) stays
 	// compatible.
-	graphSchemaNeo4jFingerprint    = "2e67a8b4e803a76934025267f5b8ff750a021dbc737c250909fd50033fd8bfef"
-	graphSchemaNornicDBFingerprint = "24ca51d4d323ac10d426ee75defb32fa85c51c471f831c7058eaf909f40c2891"
+	graphSchemaNeo4jFingerprint    = "b54c586015a30b929b103723c5549e424d800d1159253e8f4745d90af24ba94b"
+	graphSchemaNornicDBFingerprint = "ddaa10e5b634a4c42796ba01d2f8dd88181f93a4c0a73655d4cae6233f4e0a2e"
+
+	// graphSchemaNeo4jPreKubernetesNamespaceIndexesFingerprint and its NornicDB
+	// peer are the schema fingerprints immediately before the #5651
+	// KubernetesNamespace uid constraint and cluster_id/namespace read indexes
+	// were added. These equal graphSchemaNeo4jFingerprint /
+	// graphSchemaNornicDBFingerprint's value before this addition (the merged
+	// #5445 kustomize_overlay_repo_id tip below).
+	graphSchemaNeo4jPreKubernetesNamespaceIndexesFingerprint    = "2e67a8b4e803a76934025267f5b8ff750a021dbc737c250909fd50033fd8bfef"
+	graphSchemaNornicDBPreKubernetesNamespaceIndexesFingerprint = "24ca51d4d323ac10d426ee75defb32fa85c51c471f831c7058eaf909f40c2891"
 
 	// graphSchemaNeo4jPreKustomizeOverlayRepoIDIndexFingerprint and its
 	// NornicDB peer are the schema fingerprints immediately before the #5445
@@ -210,6 +224,7 @@ const (
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
 		graphSchemaNeo4jFingerprint: {
+			graphSchemaNeo4jPreKubernetesNamespaceIndexesFingerprint,
 			graphSchemaNeo4jPreKustomizeOverlayRepoIDIndexFingerprint,
 			graphSchemaNeo4jPreTerraformStateResourceAddressIndexFingerprint,
 			graphSchemaNeo4jPreTerraformStateResourceIndexesFingerprint,
@@ -227,6 +242,7 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	},
 	SchemaBackendNornicDB: {
 		graphSchemaNornicDBFingerprint: {
+			graphSchemaNornicDBPreKubernetesNamespaceIndexesFingerprint,
 			graphSchemaNornicDBPreKustomizeOverlayRepoIDIndexFingerprint,
 			graphSchemaNornicDBPreTerraformStateResourceAddressIndexFingerprint,
 			graphSchemaNornicDBPreTerraformStateResourceIndexesFingerprint,

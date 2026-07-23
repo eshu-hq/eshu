@@ -157,6 +157,21 @@ helpers (`schemaDialectForBackend`, `nornicDBSchemaConstraint`).
   lookup index. Reducer-owned S3 external-principal grant writes key the node by
   bounded principal kind/value and connect existing S3 `CloudResource` nodes to
   those identities through `GRANTS_ACCESS_TO` edges.
+- `KubernetesNamespace` receives a `uid` constraint and the matching NornicDB
+  lookup index (issue #5651), plus `kubernetes_namespace_cluster_id` and
+  `kubernetes_namespace_namespace` secondary indexes in
+  `schema_tables_indexes.go`. The label already existed (the #5434 reducer
+  writes it via `kubernetes_namespace_node_writer.go`'s `MERGE (n:
+  KubernetesNamespace {uid: row.uid})`), but had no backing index of any
+  kind before this change — every write MERGE and every future
+  cluster/namespace-scoped read fell back to a `KubernetesNamespace` label
+  scan. NornicDB rejects the composite `(cluster_id, namespace)`
+  *constraint* syntax, and composite *index* support has not been
+  separately verified, so — conservatively following the established
+  composite-constraint limitation — the two properties get separate
+  single-property indexes, mirroring the `KubernetesWorkload.cluster_id` /
+  `KubernetesWorkload.namespace` pair immediately above them in
+  `schema_tables_indexes.go`.
 
 See `doc.go` for the godoc contract.
 
@@ -205,6 +220,79 @@ compiled compatibility list returned with the current schema application. Schema
 DDL execution still emits the existing structured statement logs, and runtime
 startup refusal/acceptance continues through the existing caller logs and
 Postgres query instrumentation.
+
+No-Regression Evidence: #5651 adds `KubernetesNamespace` to
+`uidConstraintLabels` plus the `kubernetes_namespace_cluster_id` /
+`kubernetes_namespace_namespace` performance indexes, bumping the current
+Neo4j fingerprint to `b54c586015a30b929b103723c5549e424d800d1159253e8f4745d90af24ba94b`
+(242 statements) and NornicDB fingerprint to
+`ddaa10e5b634a4c42796ba01d2f8dd88181f93a4c0a73655d4cae6233f4e0a2e`
+(318 statements). The bump is additive: `KubernetesNamespace` nodes already
+exist in production (written by the #5434 reducer with no backing index), and
+their reducer-derived `uid` values are already unique per
+`(cluster_id, namespace)`, so an older writer's rows never violate the new
+constraint and the immediately preceding fingerprint
+(`graphSchemaNeo4jPreKubernetesNamespaceIndexesFingerprint` /
+`graphSchemaNornicDBPreKubernetesNamespaceIndexesFingerprint`) stays
+writer-compatible.
+
+Performance Evidence (#5651): the pinned NornicDB build (`eshu-nornicdb-pr261:
+149245885258`, v1.1.11) returns no `PROFILE`/`EXPLAIN` plan metadata over its
+Bolt-HTTP `tx/commit` transport (reproduced directly: `PROFILE RETURN 1 AS x`
+returns the same body as a plain `RETURN 1 AS x`, no `stats`/`plan` field),
+matching the documented limitation this package's `kustomize_overlay_repo_id`
+index evidence above already cites, so warm wall-clock timing on a
+discriminating query shape is the available proof, not a plan-tree db-hit
+count. Proof ladder: an isolated, throwaway NornicDB container (same pinned
+image, ports 17474/17687, no shared state with any Compose stack) was seeded
+with 200,000 `KubernetesNamespace` nodes (8,000 synthetic clusters x 25
+namespaces each, unique `uid`/`cluster_id`/`namespace` triples) via batched
+`UNWIND ... CREATE` — representative of the reducer's own row shape
+(`kubernetes_namespace_node_writer.go`). Each shape below is `time.perf_counter`
+wall time over the Bolt-HTTP `tx/commit` endpoint, 2 warm-up + 7 measured
+requests, reporting the median:
+
+| Query shape | OLD (no index) | NEW (indexed) | Rows OLD vs NEW |
+| --- | ---: | ---: | --- |
+| `MATCH (n:KubernetesNamespace {uid: $uid}) RETURN ...` (found, last-inserted) | 1.827ms | 1.653ms | identical (1 row) |
+| `MATCH (n:KubernetesNamespace {uid: $uid}) RETURN ...` (not found, forces full scan) | 1.852ms | 1.828ms | identical (0 rows) |
+| `MATCH (n:KubernetesNamespace {cluster_id: $c, namespace: $n}) RETURN n.environment_state` (found, last-inserted) | 2.639ms | 1.657ms | identical (1 row) |
+| `MATCH (n:KubernetesNamespace {cluster_id: $c, namespace: $n}) RETURN n.environment_state` (not found) | 2.035ms | 2.172ms | identical (0 rows) |
+
+The `cluster_id`+`namespace` found-case shows the clearest win (~37% median
+wall-clock reduction) because the OLD shape scans the label and evaluates two
+unindexed property comparisons per candidate node, while NEW seeks the
+`kubernetes_namespace_cluster_id` index directly. The `uid` found-case shows a
+smaller (~10%) reduction at this node count; both are directionally consistent
+with, and the same order of magnitude as, this package's existing
+`kustomize_overlay_repo_id` evidence (280.7us -> 241.7us, ~14%, at 100,000
+nodes) — this pinned NornicDB build's in-memory label scan is already fast at
+sub-500K-node single-tenant scale, so the wall-clock win is real but modest;
+the constraint's primary value is upstream of query latency, matching the
+"Correctness win" classification: it turns
+`MERGE (n:KubernetesNamespace {uid: row.uid})` from an implicit,
+unenforced-uniqueness label scan into a uniqueness-constrained, index-seeking
+MERGE, and it caught a real synthetic duplicate-`uid` seeding bug during this
+same proof (a `CREATE CONSTRAINT ... IS UNIQUE` correctly rejected 50,000
+accidental duplicate rows introduced by an early, discarded seeding pass).
+Exactness: OLD and NEW returned byte-identical row sets for every shape above
+(same `uid`/`cluster_id`/`namespace`/`environment_state` values, same 0-row
+absence for the not-found shapes) — this is a pure index/constraint addition,
+output-preserving by construction. Idempotency/concurrency: the exact
+generated DDL strings (the `uid` constraint, the NornicDB `uid` lookup index,
+and both `cluster_id`/`namespace` indexes) were applied twice against the same
+live container; the second application returned zero errors, `SHOW INDEXES`
+stayed at `ONLINE`/100% with no duplicate entries, `SHOW CONSTRAINTS` stayed
+at one `UNIQUE` row, and the node count was unchanged — proving
+`CREATE ... IF NOT EXISTS` DDL re-application is a no-op on this backend, the
+same idempotency contract `EnsureSchema`'s non-strict statement loop already
+relies on for every other label in `uidConstraintLabels`.
+
+No-Observability-Change: the two new indexes and the new `uidConstraintLabels`
+entry ride the existing generic schema-statement logging (`graph_backend`,
+`schema_phase`, `statement_index`/`statement_total`, `schema_statement`,
+`duration_ms`) documented above; no new metric, span, log line, or runtime
+knob was added.
 
 ## Gotchas / invariants
 
