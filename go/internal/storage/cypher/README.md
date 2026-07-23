@@ -196,10 +196,10 @@ failure class for each cycle.
 `CanonicalNodeWriter.Write` executes all canonical writes in named phases:
 `retract`, `repository_cleanup`, `repository`, `directories`, `files`,
 `entities`, `entity_retract`, `entity_containment`, `terraform_state`,
-`oci_registry`, `package_registry_*`, `modules`, `structural_edges`,
-`package_registry_*_edges`, and `oci_tag_first_observed`. When the executor
+`oci_registry`, `package_registry_*`, `modules`, `structural_edges`, and
+`package_registry_*_edges`. When the executor
 implements `GroupExecutor`, all phases are sent in a single atomic transaction
-EXCEPT the deferred `package_registry_*_edges` and `oci_tag_first_observed`
+EXCEPT the deferred `package_registry_*_edges`
 phases, which are partitioned into a second `ExecuteGroup` dispatched only
 after the first commits (`partitionDeferredPackageRegistryEdgePhases`). When it
 implements
@@ -419,18 +419,21 @@ point at a resolved digest without making the tag the stable image key.
 
 A `ContainerImageTagObservation` node's `first_observed_at` property (issue
 #5459, the first queryable node-property timestamp in the canonical graph) is
-written by a SEPARATE, deferred set-once statement
-(`canonicalOCIImageTagFirstObservedSetOnceCypher`,
-`MATCH ... WHERE t.first_observed_at IS NULL SET ...`) in the
-`oci_tag_first_observed` phase, never fused into the identity upsert's `SET`
-clause. `oci_tag_first_observed_prove_theory_live_test.go` proves live on
-NornicDB that a self-referencing guard inside the same `UNWIND ... MERGE ...
-SET` statement (a `CASE` expression or `coalesce`) regresses to
-last-write-wins, because the MERGE binding shadows the persisted property as
-null for any same-statement self-read. The two-statement shape holds the
-FIRST projected observation and is idempotent and concurrency-safe by
-construction: the `WHERE ... IS NULL` guard makes every write after the first
-a no-op. `go/internal/query`'s `TagHistoryHandler` reads this property to
+written with `ON CREATE SET t.first_observed_at = row.observed_at` inside the
+identity MERGE (`canonicalOCIImageTagObservationUpsertCypher`), so it is fixed
+once at node creation and never overwritten by a later observation.
+`oci_tag_first_observed_prove_theory_live_test.go` records three shapes that
+were disproven live on NornicDB first: a self-referencing `CASE`/`coalesce`
+guard inside the same `UNWIND ... MERGE ... SET` regresses to last-write-wins
+(the MERGE binding shadows the persisted property as null for any
+same-statement self-read), and even a separate DEFERRED
+`MATCH ... WHERE t.first_observed_at IS NULL SET ...` failed the live
+golden-corpus pipeline because the deferred MATCH did not surface the
+multi-label node across the write group's transaction boundary. `ON CREATE`
+reads no persisted property, so it is genuine set-once in one statement with no
+self-reference and no cross-transaction dependency — idempotent under replay
+and concurrency-safe (a re-MERGE never re-fires `ON CREATE`).
+`go/internal/query`'s `TagHistoryHandler` reads this property to
 answer "what digest was `repo:tag` first observed as, and in what order did
 its digests change" over the existing `container_image_tag_observation_ref`
 index on `image_ref`.

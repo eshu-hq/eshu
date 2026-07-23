@@ -27,10 +27,10 @@ const (
 // equality lookup, not a label scan. The result is fully deterministic because
 // the trailing t.uid key is unique per observation node and breaks every tie,
 // independent of backend null-ordering.
-// first_observed_at may be null for an observation whose envelope carried a
-// zero ObservedAt (see ociImageTagFirstObservedRows in
-// go/internal/storage/cypher) or one materialized before the #5459 deferred
-// set-once phase shipped. Such rows are retained (never dropped); their
+// first_observed_at may be empty or null for an observation whose envelope
+// carried a zero ObservedAt (ON CREATE SET stores "" via ociTagObservedAtValue
+// in go/internal/storage/cypher) or one created before #5459 shipped
+// first_observed_at. Such rows are retained (never dropped); their
 // position relative to timestamped rows follows the backend's native
 // null-ordering (NornicDB and Neo4j sort nulls last on ascending ORDER BY) and
 // is not relied upon for correctness — the uid tiebreak fixes the total order.
@@ -64,8 +64,8 @@ const tagHistoryCypher = `
 //     answer this handler returns is therefore bounded by the distinct-digest
 //     set the collector has observed for the tag, not a full chronological
 //     event log of every transition.
-//  2. first_observed_at is written by a set-once statement (see
-//     canonicalOCIImageTagFirstObservedSetOnceCypher in
+//  2. first_observed_at is written with ON CREATE SET in the identity MERGE
+//     (see canonicalOCIImageTagObservationUpsertCypher in
 //     go/internal/storage/cypher) that holds the FIRST projected observation
 //     and never regresses under later or out-of-order re-projection. A
 //     back-dated observation arriving after a later one is not reflected.
