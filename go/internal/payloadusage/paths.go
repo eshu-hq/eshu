@@ -91,6 +91,11 @@ type Paths struct {
 	// SubmoduleStructDir is sdk/go/factschema/submodule/v1 (issue #5420 Phase
 	// 3: the submodule.pin fact the reducer decodes).
 	SubmoduleStructDir string
+	// ScannerWorkerStructDir is sdk/go/factschema/scannerworker/v1 (issue
+	// #5463: the scanner_worker.analysis fact the supply-chain-impact index
+	// builder decodes to anchor an os_package finding's SubjectDigest on a
+	// real image digest instead of the os_package's own opaque ScopeID).
+	ScannerWorkerStructDir string
 	// ProjectorDir is go/internal/projector — the source of the projector's
 	// decode-seam files (ProjectorDecodeFiles) and the canonical-extractor files
 	// ScanDecodeUsage walks for the projector-side decode sites. The projector is
@@ -198,6 +203,7 @@ func ResolvePaths(p Paths) Paths {
 		{&resolved.ReducerDerivedStructDir, "reducerderived"},
 		{&resolved.CodeownersStructDir, "codeowners"},
 		{&resolved.SubmoduleStructDir, "submodule"},
+		{&resolved.ScannerWorkerStructDir, "scannerworker"},
 	} {
 		if strings.TrimSpace(*family.dir) == "" {
 			*family.dir = filepath.Join(resolved.RepoRoot, "sdk", "go", "factschema", family.name, "v1")

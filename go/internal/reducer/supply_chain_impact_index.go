@@ -82,6 +82,7 @@ type supplyChainSBOMComponent struct {
 type supplyChainOSPackage struct {
 	factID               string
 	scopeID              string
+	generationID         string
 	packageID            string
 	purl                 string
 	distro               string
@@ -92,6 +93,33 @@ type supplyChainOSPackage struct {
 	installedVersion     string
 	repositoryClass      string
 	vendorAdvisorySource string
+}
+
+// supplyChainScannerAnalysis is the reducer's internal projection of one
+// scanner_worker.analysis envelope: the sibling fact that carries the real,
+// content-addressed image digest/reference for the image a scanner_worker
+// analyzer (including the OS-package analyzer) inspected. os_package facts
+// only carry an opaque ScopeID (a scan-target locator, never a sha256), so
+// classifySupplyChainImpactPackage joins an os_package to its sibling
+// analysis by ScopeID+GenerationID (supplyChainScopeGenerationKey) to anchor
+// SubjectDigest on a real image digest instead of the scope_id.
+type supplyChainScannerAnalysis struct {
+	factID         string
+	scopeID        string
+	generationID   string
+	imageDigest    string
+	imageReference string
+}
+
+// supplyChainScopeGenerationKey returns the composite key
+// (ScopeID+GenerationID) supplyChainImpactIndex.scannerAnalyses is keyed by,
+// and the same key classifySupplyChainImpactPackage looks an os_package's
+// sibling scanner_worker.analysis up by. It defers to facts.Envelope's own
+// ScopeGenerationKey formatting so the reducer's join key stays byte-identical
+// to the durable scope-generation boundary the rest of the platform uses,
+// rather than re-deriving an equivalent format locally.
+func supplyChainScopeGenerationKey(scopeID, generationID string) string {
+	return facts.Envelope{ScopeID: scopeID, GenerationID: generationID}.ScopeGenerationKey()
 }
 
 type supplyChainAttachment struct {
@@ -166,6 +194,7 @@ type supplyChainImpactIndex struct {
 	workloads               []supplyChainWorkloadContext
 	services                []supplyChainServiceContext
 	riskSignals             map[string]supplyChainRiskSignals
+	scannerAnalyses         map[string]supplyChainScannerAnalysis
 	goReachability          map[string]GoVulnerabilityFinding
 	jsTSPackageReachability jsTSPackageReachabilityIndex
 	pythonReachability      map[string]pythonReachabilityRepositoryEvidence
@@ -222,9 +251,22 @@ func classifySupplyChainImpactPackage(
 	if hasOSPackage {
 		finding.PURL = firstNonBlank(osPackage.purl, finding.PURL)
 		finding.ObservedVersion = firstNonBlank(osPackage.installedVersion, finding.ObservedVersion)
-		finding.SubjectDigest = firstNonBlank(osPackage.scopeID, finding.SubjectDigest)
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, osPackage.factID)
 		finding.EvidencePath = append(finding.EvidencePath, facts.VulnerabilityOSPackageFactKind)
+		// An os_package fact's ScopeID is an opaque scan-target locator, never a
+		// sha256 digest — it MUST NOT stand in for SubjectDigest. The real digest
+		// only exists on the sibling scanner_worker.analysis fact the same
+		// scanner_worker analyzer emitted for the same ScopeID+GenerationID. When
+		// no sibling analysis is indexed (or it decoded with a blank digest),
+		// SubjectDigest stays whatever it already was (empty, or an SBOM-derived
+		// digest set earlier) rather than falling back to the scope_id.
+		analysisKey := supplyChainScopeGenerationKey(osPackage.scopeID, osPackage.generationID)
+		if analysis, ok := index.scannerAnalyses[analysisKey]; ok && analysis.imageDigest != "" {
+			finding.SubjectDigest = analysis.imageDigest
+			finding.ImageRef = firstNonBlank(analysis.imageReference, finding.ImageRef)
+			finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, analysis.factID)
+			finding.EvidencePath = append(finding.EvidencePath, facts.ScannerWorkerAnalysisFactKind)
+		}
 	}
 	versionDecision := evaluateSupplyChainVersionMatch(
 		finding.Ecosystem,

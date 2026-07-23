@@ -23,6 +23,7 @@ type supplyChainImpactLoadedEvidence struct {
 	manifestDependencyFacts     int
 	activeEvidenceFacts         int
 	activeEvidenceTruncated     bool
+	scannerAnalysisScopeFacts   int
 	pythonReachabilityFacts     int
 	jvmReachabilityFactCount    int
 	postSecurityAlertScopeFacts int
@@ -31,12 +32,18 @@ type supplyChainImpactLoadedEvidence struct {
 }
 
 // loadSupplyChainImpactEvidence runs the scope-fact, repository, manifest-
-// dependency, active-evidence, Python/JVM reachability, and security-alert
-// scoping load stages for one supply-chain-impact intent, in the same order
-// and with the same per-stage timing SupplyChainImpactHandler.Handle recorded
-// before this extraction. It returns the accumulated evidence plus a timing
-// value with every load-stage duration filled in; Handle continues filling
-// the remaining (classification/write/emit) stages on the same value.
+// dependency, active-evidence, scanner-analysis-scope, Python/JVM
+// reachability, and security-alert scoping load stages for one
+// supply-chain-impact intent, in the same order and with the same per-stage
+// timing SupplyChainImpactHandler.Handle recorded before this extraction. The
+// scanner-analysis-scope stage runs right after active-evidence because it
+// depends on the os_package facts that stage loads: each os_package's own
+// ScopeID+GenerationID (not the intent's) is where its sibling
+// scanner_worker.analysis fact lives in production, so it is queried
+// directly rather than through the shared active-evidence filter. It returns
+// the accumulated evidence plus a timing value with every load-stage
+// duration filled in; Handle continues filling the remaining
+// (classification/write/emit) stages on the same value.
 func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	ctx context.Context,
 	intent Intent,
@@ -78,6 +85,17 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	}
 	activeEvidenceFacts := len(envelopes) - activeEvidenceStartCount
 
+	scannerAnalysisScopeStartCount := len(envelopes)
+	phaseStarted = time.Now()
+	scannerAnalysisScopeEnvelopes, scannerAnalysisScopeTruncated, err := h.loadSupplyChainImpactScannerAnalysisScopeFacts(ctx, envelopes)
+	timing.loadScannerAnalysisScopeDuration = time.Since(phaseStarted)
+	if err != nil {
+		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load supply chain impact scanner analysis scope facts: %w", err)
+	}
+	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, scannerAnalysisScopeEnvelopes...)
+	scannerAnalysisScopeFacts := len(envelopes) - scannerAnalysisScopeStartCount
+	activeEvidenceTruncated = activeEvidenceTruncated || scannerAnalysisScopeTruncated
+
 	pythonReachabilityStartCount := len(envelopes)
 	phaseStarted = time.Now()
 	pythonReachabilityEvidence, err := h.loadPythonReachabilityEvidenceFacts(ctx, envelopes)
@@ -118,6 +136,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		manifestDependencyFacts:     manifestDependencyFacts,
 		activeEvidenceFacts:         activeEvidenceFacts,
 		activeEvidenceTruncated:     activeEvidenceTruncated,
+		scannerAnalysisScopeFacts:   scannerAnalysisScopeFacts,
 		pythonReachabilityFacts:     pythonReachabilityFacts,
 		jvmReachabilityFactCount:    jvmReachabilityFactCount,
 		postSecurityAlertScopeFacts: postSecurityAlertScopeFacts,

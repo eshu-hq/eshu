@@ -1137,6 +1137,80 @@ unchanged; its `vendor_advisory_source`/`distro`/`name`/`installed_version_raw`/
 lockstep test, so a future contracts change that drops one of those fields
 fails this build instead of silently breaking the SQL read.
 
+Digest-anchor the OS-package scan tier (#5463): `addSupplyChainImpactIndexEntry`
+now decodes the sibling `scanner_worker.analysis` fact
+(`factschema_decode_scannerworker.go`) and indexes it on
+`supplyChainImpactIndex.scannerAnalyses`, keyed by ScopeID+GenerationID
+(`supplyChainScopeGenerationKey`, which defers to `facts.Envelope.
+ScopeGenerationKey()` so the join key matches the platform's durable
+scope-generation boundary). The sibling analysis must first be LOADED, and a
+scanner_worker.analysis fact lives in the os_package's own scan scope, not the
+intent's vulnerability-intelligence scope — so `supplyChainImpactFactKinds`
+(the intent-scope base load) cannot reach it. A new `loadSupplyChainImpactEvidence`
+stage (`loadSupplyChainImpactScannerAnalysisScopeFacts`) runs right after the
+active-evidence stage and queries each LOADED os_package envelope's own
+ScopeID+GenerationID for its sibling analysis (bounded by
+`maxSupplyChainImpactScannerAnalysisScopeLoads`, truncation folded into the
+existing active-evidence marker).
+
+IMPORTANT — end-to-end inertness today: `loadSupplyChainImpactEvidence` does NOT
+currently load `vulnerability.os_package` facts at all (no base-kind entry, and
+the active-evidence SQL allowlist omits it; the coordinator's
+`ListOSPackageAdvisoryTargets` reader is a separate path that does not produce
+findings). So no os_package envelopes reach this stage in the real Handle
+pipeline, the digest join below is INERT end-to-end today, and
+`list_supply_chain_impact_findings` returns 0 for the scanned CVE (confirmed by
+the B-7 golden gate). This PR (#5463) lands the digest-join LOGIC plus the
+correctly-placed sibling-load stage; making os_package findings live through the
+Handle pipeline (so this join and #5464's repository anchor visibly fire) is
+tracked in #5705 and is part of #5464's repository-anchor work. The
+scope-aware `TestSupplyChainImpactHandlerLoadsScannerAnalysisFromOSPackageScanScope`
+proves the sibling-load STAGE fetches the analysis from an os_package's own scan
+scope GIVEN os_package facts in the envelope set (a regression guard for the
+stage) — it does not assert the production Handle path loads os_package today.
+The stage's timing/count surface through the existing
+`sub_duration_*`/`sub_signal_*` structured-log fields
+(`load_scanner_analysis_scope`, `scanner_analysis_scope_facts`), adding no new
+metric instrument or label.
+`classifySupplyChainImpactPackage` joins an
+`os_package` finding to its sibling analysis by that key and sets
+`SubjectDigest` from the analysis's real content-addressed `image_digest`
+(and `ImageRef` from its `image_reference`) instead of the opaque scope_id.
+The former `finding.SubjectDigest = firstNonBlank(osPackage.scopeID, ...)`
+fallback is DELETED: a scope_id is a scan-target locator, never a sha256, so it
+could never match a deployment digest. When no sibling analysis resolves (or
+its digest is blank), `SubjectDigest` stays whatever it already was (empty, or
+an SBOM-derived digest) rather than a fake. Deleting the fallback surfaced a
+latent accuracy bug — `supplyChainImpactFindingHasOwnedAnchor` silently relied
+on the fake digest always being non-blank, so with it gone every vendor-matched
+OS-package finding would have been dropped; a matched `os_package`
+(repositoryClass=="vendor" + VendorAdvisorySource match, both required by
+`firstOSPackageImpactPath` before this point) is now its own owned anchor, so
+real findings are retained. Finding-count parity holds on the invariant that a
+scanner-emitted `os_package` fact always carries a non-blank envelope ScopeID
+(the field the deleted fallback keyed on): the old anchor was
+`SubjectDigest != "" (== scopeID) || RepositoryID != ""`, so the new
+EvidencePath-based anchor is equivalent for every fact with a non-blank ScopeID,
+and a ScopeID-less os_package fact — practically unreachable, since ScopeID is a
+mandatory platform envelope field — is the one case where the new anchor retains
+a vendor-matched finding the old one would have dropped (the more correct
+outcome, not a spurious finding). Proof is the reducer
+fixture `TestBuildSupplyChainImpactFindingsAnchorsOSPackageSubjectDigestOn
+ScannerAnalysis` (scanned digest matches a CI-declared deployment digest) plus
+the regression `...LeavesOSPackageSubjectDigestBlankWithoutScannerAnalysis`.
+
+No-Observability-Change (#5463): the digest join adds no route, graph query
+shape, queue table, worker, lease, runtime knob, metric instrument, or metric
+label. `scanner_worker.analysis` gains a decode seam under the EXISTING
+`supply_chain_impact` domain (its malformed-fact path is the same
+`partitionDecodeFailures` -> `eshu_dp_reducer_input_invalid_facts_total`
+dead-letter, `fact_kind` gains one value). The `SubjectDigest` value change is
+on the OS-package supply-chain-impact finding, which is not yet repository-bound
+and so is not returned by any query surface today (verified against the B-7
+golden gate: impact-findings queries stay 0); the queryable assertion of the
+real digest lands with the repository-anchor join (#5464). The new decode seam
+is registered with the payload-usage manifest (wired-kind count 120 -> 121).
+
 No-Regression Evidence (Wave 4d, ci_cd_run family typed-payload decode,
 Contract System v1 #4566): the ci_cd_run reducer handler
 (`ci_cd_run_correlation.go`, `ci_cd_run_correlation_decode.go`,

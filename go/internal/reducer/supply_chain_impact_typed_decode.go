@@ -169,6 +169,7 @@ func supplyChainOSPackageFromEnvelope(envelope facts.Envelope) (supplyChainOSPac
 	return supplyChainOSPackage{
 		factID:               envelope.FactID,
 		scopeID:              envelope.ScopeID,
+		generationID:         envelope.GenerationID,
 		packageID:            packageIDFromPURL(purl),
 		purl:                 purl,
 		distro:               strings.ToLower(pkg.Distro),
@@ -179,5 +180,29 @@ func supplyChainOSPackageFromEnvelope(envelope facts.Envelope) (supplyChainOSPac
 		installedVersion:     pkg.InstalledVersion,
 		repositoryClass:      strings.ToLower(derefString(pkg.RepositoryClass)),
 		vendorAdvisorySource: strings.ToLower(derefString(pkg.VendorAdvisorySource)),
+	}, nil
+}
+
+// supplyChainScannerAnalysisFromEnvelope decodes one scanner_worker.analysis
+// envelope through the contracts seam and projects it into the reducer's
+// internal supplyChainScannerAnalysis row: the sibling fact
+// classifySupplyChainImpactPackage joins an os_package to (by
+// ScopeID+GenerationID) so the finding's SubjectDigest anchors on the
+// analyzer-observed ImageDigest instead of the os_package's own opaque
+// ScopeID. A decode error (missing a required field such as analyzer,
+// target_kind, image_reference, or image_digest, or any other malformed/
+// unsupported-major payload) is returned so the caller routes it through
+// partitionDecodeFailures rather than silently producing a blank-identity row.
+func supplyChainScannerAnalysisFromEnvelope(envelope facts.Envelope) (supplyChainScannerAnalysis, error) {
+	analysis, err := decodeScannerWorkerAnalysis(envelope)
+	if err != nil {
+		return supplyChainScannerAnalysis{}, err
+	}
+	return supplyChainScannerAnalysis{
+		factID:         envelope.FactID,
+		scopeID:        envelope.ScopeID,
+		generationID:   envelope.GenerationID,
+		imageDigest:    strings.TrimSpace(analysis.ImageDigest),
+		imageReference: strings.TrimSpace(analysis.ImageReference),
 	}, nil
 }

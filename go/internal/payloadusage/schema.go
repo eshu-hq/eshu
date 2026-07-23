@@ -149,6 +149,12 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	"FactKindVulnerabilityKnownExploited":     "vulnerability.known_exploited.v1.schema.json",
 	"FactKindVulnerabilityGoModuleEvidence":   "vulnerability.go_module_evidence.v1.schema.json",
 	"FactKindVulnerabilityGoCallReachability": "vulnerability.go_call_reachability.v1.schema.json",
+	// scanner_worker.analysis (issue #5463): the supply-chain-impact index
+	// builder joins an os_package finding to its sibling scanner_worker.analysis
+	// fact by ScopeID+GenerationID to anchor SubjectDigest on the analyzer's
+	// real ImageDigest instead of the os_package's own opaque ScopeID
+	// (decodeScannerWorkerAnalysis, factschema_decode_scannerworker.go).
+	"FactKindScannerWorkerAnalysis": "scanner_worker.analysis.v1.schema.json",
 	// code family: the two git-collector kinds whose outer envelope the
 	// code-graph-core reducer decode seam decodes
 	// (factschema_decode_codegraph.go). Bare (non-namespaced) wire kinds.

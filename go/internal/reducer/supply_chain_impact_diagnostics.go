@@ -13,6 +13,7 @@ type supplyChainImpactTiming struct {
 	loadRepositoryFactsDuration      time.Duration
 	loadManifestDependenciesDuration time.Duration
 	loadActiveEvidenceDuration       time.Duration
+	loadScannerAnalysisScopeDuration time.Duration
 	loadPythonReachabilityDuration   time.Duration
 	loadJVMReachabilityDuration      time.Duration
 	securityAlertScopingDuration     time.Duration
@@ -25,18 +26,19 @@ type supplyChainImpactTiming struct {
 
 func supplyChainImpactSubDurations(t supplyChainImpactTiming) map[string]float64 {
 	return map[string]float64{
-		"load_scope_facts":           t.loadScopeFactsDuration.Seconds(),
-		"load_repository_facts":      t.loadRepositoryFactsDuration.Seconds(),
-		"load_manifest_dependencies": t.loadManifestDependenciesDuration.Seconds(),
-		"load_active_evidence":       t.loadActiveEvidenceDuration.Seconds(),
-		"load_python_reachability":   t.loadPythonReachabilityDuration.Seconds(),
-		"load_jvm_reachability":      t.loadJVMReachabilityDuration.Seconds(),
-		"security_alert_scoping":     t.securityAlertScopingDuration.Seconds(),
-		"build_findings":             t.buildFindingsDuration.Seconds(),
-		"evaluate_suppressions":      t.evaluateSuppressionsDuration.Seconds(),
-		"write_findings":             t.writeFindingsDuration.Seconds(),
-		"emit_counters":              t.emitCountersDuration.Seconds(),
-		"total":                      t.totalDuration.Seconds(),
+		"load_scope_facts":            t.loadScopeFactsDuration.Seconds(),
+		"load_repository_facts":       t.loadRepositoryFactsDuration.Seconds(),
+		"load_manifest_dependencies":  t.loadManifestDependenciesDuration.Seconds(),
+		"load_active_evidence":        t.loadActiveEvidenceDuration.Seconds(),
+		"load_scanner_analysis_scope": t.loadScannerAnalysisScopeDuration.Seconds(),
+		"load_python_reachability":    t.loadPythonReachabilityDuration.Seconds(),
+		"load_jvm_reachability":       t.loadJVMReachabilityDuration.Seconds(),
+		"security_alert_scoping":      t.securityAlertScopingDuration.Seconds(),
+		"build_findings":              t.buildFindingsDuration.Seconds(),
+		"evaluate_suppressions":       t.evaluateSuppressionsDuration.Seconds(),
+		"write_findings":              t.writeFindingsDuration.Seconds(),
+		"emit_counters":               t.emitCountersDuration.Seconds(),
+		"total":                       t.totalDuration.Seconds(),
 	}
 }
 
@@ -45,6 +47,7 @@ func supplyChainImpactDiagnosticSignals(
 	repositoryFacts int,
 	manifestDependencyFacts int,
 	activeEvidenceFacts int,
+	scannerAnalysisScopeFacts int,
 	pythonReachabilityFacts int,
 	jvmReachabilityFacts int,
 	postScopeFacts int,
@@ -58,6 +61,7 @@ func supplyChainImpactDiagnosticSignals(
 		repositoryFacts+
 		manifestDependencyFacts+
 		activeEvidenceFacts+
+		scannerAnalysisScopeFacts+
 		pythonReachabilityFacts+
 		jvmReachabilityFacts > 0
 	signals := materializationDiagnosticSignals(inputReady, writtenRows)
@@ -65,6 +69,7 @@ func supplyChainImpactDiagnosticSignals(
 	signals["repository_facts"] = float64(repositoryFacts)
 	signals["manifest_dependency_facts"] = float64(manifestDependencyFacts)
 	signals["active_evidence_facts"] = float64(activeEvidenceFacts)
+	signals["scanner_analysis_scope_facts"] = float64(scannerAnalysisScopeFacts)
 	signals["python_reachability_facts"] = float64(pythonReachabilityFacts)
 	signals["jvm_reachability_facts"] = float64(jvmReachabilityFacts)
 	signals["post_scope_facts"] = float64(postScopeFacts)

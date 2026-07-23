@@ -12,12 +12,13 @@ import (
 // buildSupplyChainImpactIndexWithQuarantine is the quarantine-aware index
 // builder buildSupplyChainImpactFindingsWithQuarantine calls directly so the
 // reducer intent path can report each malformed vulnerability.* fact as a
-// visible input_invalid dead-letter via recordQuarantinedFacts. Six kinds
+// visible input_invalid dead-letter via recordQuarantinedFacts. Seven kinds
 // decode through the typed contracts seam via addSupplyChainImpactIndexEntry:
 // vulnerability.cve, .affected_package, .affected_product, .os_package,
-// .epss_score, and .known_exploited (go_module_evidence/go_call_reachability
-// decode separately, through classifyGoVulnerabilityReachabilityWithQuarantine
-// below). A fact missing a required identity field is routed through
+// .epss_score, .known_exploited, and scanner_worker.analysis
+// (go_module_evidence/go_call_reachability decode separately, through
+// classifyGoVulnerabilityReachabilityWithQuarantine below). A fact missing a
+// required identity field is routed through
 // partitionDecodeFailures into the returned quarantine list rather than
 // silently excluded from the index with no operator signal; any OTHER decode
 // error (a transient condition partitionDecodeFailures does not quarantine)
@@ -32,6 +33,7 @@ func buildSupplyChainImpactIndexWithQuarantine(envelopes []facts.Envelope) (supp
 		attachments:             map[string]supplyChainAttachment{},
 		images:                  map[string]supplyChainImageIdentity{},
 		riskSignals:             map[string]supplyChainRiskSignals{},
+		scannerAnalyses:         map[string]supplyChainScannerAnalysis{},
 		goReachability:          map[string]GoVulnerabilityFinding{},
 		jsTSPackageReachability: buildJSTSPackageReachabilityIndex(envelopes),
 		pythonReachability:      map[string]pythonReachabilityRepositoryEvidence{},
@@ -115,6 +117,18 @@ func addSupplyChainImpactIndexEntry(index *supplyChainImpactIndex, envelope fact
 		}
 		if pkg.packageID != "" && pkg.vendorAdvisorySource != "" && pkg.repositoryClass == "vendor" {
 			index.osPackages[pkg.packageID] = append(index.osPackages[pkg.packageID], pkg)
+		}
+	case facts.ScannerWorkerAnalysisFactKind:
+		analysis, err := supplyChainScannerAnalysisFromEnvelope(envelope)
+		if err != nil {
+			return partitionDecodeFailures(envelope, err)
+		}
+		// Only index an analysis that actually carries a real image digest — a
+		// blank digest (a legitimate not_scanned/unsupported analysis outcome)
+		// must never anchor an os_package's SubjectDigest, so it is simply not
+		// indexed rather than indexed as an empty-digest row a lookup could match.
+		if analysis.imageDigest != "" {
+			index.scannerAnalyses[supplyChainScopeGenerationKey(analysis.scopeID, analysis.generationID)] = analysis
 		}
 	case facts.SBOMComponentFactKind:
 		component := supplyChainSBOMComponentFromEnvelope(envelope)

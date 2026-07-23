@@ -244,6 +244,7 @@ func parseAllStructShapes(resolved Paths) (map[string]StructShape, error) {
 		{resolved.ReducerDerivedStructDir, "reducerderivedv1"},
 		{resolved.CodeownersStructDir, "codeownersv1"},
 		{resolved.SubmoduleStructDir, "submodulev1"},
+		{resolved.ScannerWorkerStructDir, "scannerworkerv1"},
 	}
 	shapes := make(map[string]StructShape)
 	for _, family := range families {
