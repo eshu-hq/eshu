@@ -149,6 +149,16 @@ var sourceToolPrefixFallback = []struct {
 	// correlation, not only cross-repo resolver edges, so registering the
 	// prefix here is what lets that check derive "oci" for rc-165 statically.
 	{"CONTAINER_IMAGE_IDENTITY_", "oci"},
+	// CONTAINER_IMAGE_DERIVED_FROM is the sibling token stamped on
+	// DERIVED_FROM base-image lineage edges (issue #5460). It is registered
+	// as its own entry rather than folded under CONTAINER_IMAGE_IDENTITY_
+	// because it names a distinct evidence family -- Dockerfile-declared base
+	// lineage, not registry identity resolution -- even though the same
+	// handler writes both. Neither string is a prefix of the other, so the
+	// no-nesting invariant above still holds. Both resolve to "oci": the base
+	// and the child are OCI-registry-observed digests regardless of which
+	// evidence family established the edge.
+	{"CONTAINER_IMAGE_DERIVED_FROM", "oci"},
 }
 
 // sourceToolForEvidenceKind returns the canonical source_tool token for a single

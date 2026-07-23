@@ -106,6 +106,11 @@ var orderedBootstrapDefinitionNames = []string{
 	// migration 076 (#5476 crossplane SATISFIED_BY cross-scope redrive state);
 	// sorts after the 075_* pair by filename.
 	"crossplane_satisfied_by_redrive_state",
+	// migration 076 (#5460 base-image lineage) recreates the identity epoch
+	// partial index to also admit Dockerfile base-image evidence. Shares
+	// prefix 076 with crossplane and sorts after it by filename ("076_c" <
+	// "076_f"), a duplicate-number merge artifact like the 075_* pair above.
+	"fact_records_identity_epoch_idx_dockerfile",
 	// migration 077 (#5490 K8sResource impact-trace candidate scan partial
 	// covering index).
 	"content_entities_k8s_select_partial_index",

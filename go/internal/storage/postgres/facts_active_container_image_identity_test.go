@@ -149,3 +149,23 @@ func TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerat
 		}
 	}
 }
+
+// TestIdentityFactFilterAdmitsDockerfileBaseImages is the regression guard for
+// the #5460 gap the B-7 golden-corpus gate caught: the identity fact filter
+// admitted a content_entity ONLY when its payload carried
+// entity_metadata.container_images or metadata.container_images. A Dockerfile
+// content_entity carries neither -- its base image lives in
+// parsed_file_data.dockerfile_stages -- so every Dockerfile was filtered out in
+// SQL and the base-image extraction path downstream never saw one. Reducer-level
+// unit tests could not catch this: they hand a constructed envelope straight to
+// the extractor and never cross this loader.
+func TestIdentityFactFilterAdmitsDockerfileBaseImages(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(identityFactFilterSQL, "dockerfile_stages") {
+		t.Fatalf("identity fact filter must admit Dockerfile content_entity facts carrying parsed_file_data.dockerfile_stages (#5460):\n%s", identityFactFilterSQL)
+	}
+	if !strings.Contains(identityFactFilterSQL, "parsed_file_data") {
+		t.Fatalf("identity fact filter must reach into parsed_file_data for the Dockerfile arm (#5460):\n%s", identityFactFilterSQL)
+	}
+}

@@ -15,7 +15,7 @@ import (
 )
 
 // TestMigration069PredicateMatchesIdentityFactFilter locks the partial-index
-// WHERE predicate in migrations/069_fact_records_identity_epoch_idx.sql to the
+// WHERE predicate for fact_records_identity_epoch_idx to the
 // Go identityFactFilterSQL const (facts_active_container_image_identity.go).
 // These two filter predicates MUST stay identical: the index only covers the
 // probe/load query with an Index Only Scan when its predicate is a subset
@@ -31,9 +31,14 @@ import (
 func TestMigration069PredicateMatchesIdentityFactFilter(t *testing.T) {
 	t.Parallel()
 
-	migrationSQL, err := os.ReadFile("migrations/069_fact_records_identity_epoch_idx.sql")
+	// The index is defined by migration 069 and REDEFINED by migration 076,
+	// which recreates it with the Dockerfile base-image arm (#5460). The drift
+	// lock must read whichever migration currently owns the live definition --
+	// reading 069 after 076 supersedes it would lock the predicate to a
+	// definition no database actually has.
+	migrationSQL, err := os.ReadFile("migrations/076_fact_records_identity_epoch_idx_dockerfile.sql")
 	if err != nil {
-		t.Fatalf("read migration 069: %v", err)
+		t.Fatalf("read migration 076: %v", err)
 	}
 
 	migrationFilter := normalizeIdentityFilterPredicate(extractIdentityFilter(string(migrationSQL)))
