@@ -196,9 +196,13 @@ failure class for each cycle.
 `CanonicalNodeWriter.Write` executes all canonical writes in named phases:
 `retract`, `repository_cleanup`, `repository`, `directories`, `files`,
 `entities`, `entity_retract`, `entity_containment`, `terraform_state`,
-`oci_registry`, `modules`, and `structural_edges`. When the executor
-implements `GroupExecutor`, all phases are sent in a single atomic transaction.
-When it implements
+`oci_registry`, `package_registry_*`, `modules`, `structural_edges`,
+`package_registry_*_edges`, and `oci_tag_first_observed`. When the executor
+implements `GroupExecutor`, all phases are sent in a single atomic transaction
+EXCEPT the deferred `package_registry_*_edges` and `oci_tag_first_observed`
+phases, which are partitioned into a second `ExecuteGroup` dispatched only
+after the first commits (`partitionDeferredPackageRegistryEdgePhases`). When it
+implements
 `PhaseGroupExecutor`, each phase executes as a bounded group. Otherwise phases
 run sequentially.
 
@@ -412,6 +416,24 @@ hot path. Manifests, indexes, and descriptors keep their image-family labels
 because API queries anchor on those labels. Digest-backed descriptor identity is
 the stable image key; tag observations keep `identity_strength=weak_tag` and
 point at a resolved digest without making the tag the stable image key.
+
+A `ContainerImageTagObservation` node's `first_observed_at` property (issue
+#5459, the first queryable node-property timestamp in the canonical graph) is
+written by a SEPARATE, deferred set-once statement
+(`canonicalOCIImageTagFirstObservedSetOnceCypher`,
+`MATCH ... WHERE t.first_observed_at IS NULL SET ...`) in the
+`oci_tag_first_observed` phase, never fused into the identity upsert's `SET`
+clause. `oci_tag_first_observed_prove_theory_live_test.go` proves live on
+NornicDB that a self-referencing guard inside the same `UNWIND ... MERGE ...
+SET` statement (a `CASE` expression or `coalesce`) regresses to
+last-write-wins, because the MERGE binding shadows the persisted property as
+null for any same-statement self-read. The two-statement shape holds the
+FIRST projected observation and is idempotent and concurrency-safe by
+construction: the `WHERE ... IS NULL` guard makes every write after the first
+a no-op. `go/internal/query`'s `TagHistoryHandler` reads this property to
+answer "what digest was `repo:tag` first observed as, and in what order did
+its digests change" over the existing `container_image_tag_observation_ref`
+index on `image_ref`.
 
 Package-registry rows are written as `Package`/`PackageRegistryPackage`,
 `PackageVersion`/`PackageRegistryPackageVersion`, and

@@ -5,6 +5,7 @@ package cypher
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
 )
@@ -118,6 +119,25 @@ SET t.id = row.uid,
     t.generation_id = row.generation_id,
     t.evidence_source = 'projector/oci_registry'`
 
+// canonicalOCIImageTagFirstObservedSetOnceCypher is the #5459 DEFERRED,
+// SEPARATE second-transaction statement that sets first_observed_at exactly
+// once per ContainerImageTagObservation node. It MUST NOT be fused into
+// canonicalOCIImageTagObservationUpsertCypher's UNWIND...MERGE...SET: NornicDB
+// does not surface a node's already-persisted property to a same-statement
+// self-reference inside that MERGE (the MERGE binding shadows it as null),
+// which silently regresses to last-write-wins. Running this MATCH...WHERE
+// t.first_observed_at IS NULL...SET as its own statement, after the identity
+// MERGE has committed, reads the real persisted value and is therefore
+// idempotent and concurrency-safe (see canonicalPhaseOCITagFirstObserved and
+// isDeferredPackageRegistryEdgePhase for why it must also run in the deferred
+// second write group). Proven live in
+// oci_tag_first_observed_prove_theory_live_test.go
+// (TestLiveOCITagFirstObservedProveTheory).
+const canonicalOCIImageTagFirstObservedSetOnceCypher = `UNWIND $rows AS row
+MATCH (t:ContainerImageTagObservation {uid: row.uid})
+WHERE t.first_observed_at IS NULL
+SET t.first_observed_at = row.observed_at`
+
 const canonicalOCIImageReferrerUpsertCypher = `UNWIND $rows AS row
 MERGE (ref:OciImageReferrer {uid: row.uid})
 SET ref.id = row.uid,
@@ -150,6 +170,7 @@ func (w *CanonicalNodeWriter) buildOCIRegistryStatements(mat projector.Canonical
 				ociRegistryRepositoryRows(mat),
 				w.batchSize,
 				"OciRegistryRepository",
+				canonicalPhaseOCIRegistry,
 				mat,
 			)...,
 		)
@@ -161,6 +182,7 @@ func (w *CanonicalNodeWriter) buildOCIRegistryStatements(mat projector.Canonical
 			ociImageManifestRows(mat),
 			w.batchSize,
 			"OciImageManifest",
+			canonicalPhaseOCIRegistry,
 			mat,
 		)...,
 	)
@@ -171,6 +193,7 @@ func (w *CanonicalNodeWriter) buildOCIRegistryStatements(mat projector.Canonical
 			ociImageIndexRows(mat),
 			w.batchSize,
 			"OciImageIndex",
+			canonicalPhaseOCIRegistry,
 			mat,
 		)...,
 	)
@@ -181,6 +204,7 @@ func (w *CanonicalNodeWriter) buildOCIRegistryStatements(mat projector.Canonical
 			ociImageDescriptorRows(mat),
 			w.batchSize,
 			"OciImageDescriptor",
+			canonicalPhaseOCIRegistry,
 			mat,
 		)...,
 	)
@@ -191,6 +215,7 @@ func (w *CanonicalNodeWriter) buildOCIRegistryStatements(mat projector.Canonical
 			ociImageTagObservationRows(mat),
 			w.batchSize,
 			"OciImageTagObservation",
+			canonicalPhaseOCIRegistry,
 			mat,
 		)...,
 	)
@@ -201,10 +226,33 @@ func (w *CanonicalNodeWriter) buildOCIRegistryStatements(mat projector.Canonical
 			ociImageReferrerRows(mat),
 			w.batchSize,
 			"OciImageReferrer",
+			canonicalPhaseOCIRegistry,
 			mat,
 		)...,
 	)
 	return statements
+}
+
+// buildOCITagFirstObservedStatements builds the #5459 deferred set-once
+// statements that persist first_observed_at on already-MERGE'd
+// ContainerImageTagObservation nodes. It MUST run as its own phase after
+// buildOCIRegistryStatements' identity upsert has committed, and that phase
+// MUST stay in the deferred write group (see canonicalPhaseOCITagFirstObserved
+// and isDeferredPackageRegistryEdgePhase in canonical_node_writer.go). The
+// statements are tagged with canonicalPhaseOCITagFirstObserved (not
+// canonicalPhaseOCIRegistry) so operator diagnostics (logProfiledStatement's
+// write_phase attribute) and any per-statement phase check attribute the
+// correct, distinct phase rather than conflating it with the main OCI
+// registry identity upserts.
+func (w *CanonicalNodeWriter) buildOCITagFirstObservedStatements(mat projector.CanonicalMaterialization) []Statement {
+	return ociRegistryBatchedStatements(
+		canonicalOCIImageTagFirstObservedSetOnceCypher,
+		ociImageTagFirstObservedRows(mat),
+		w.batchSize,
+		"OciImageTagObservation",
+		canonicalPhaseOCITagFirstObserved,
+		mat,
+	)
 }
 
 func ociRegistryBatchedStatements(
@@ -212,12 +260,13 @@ func ociRegistryBatchedStatements(
 	rows []map[string]any,
 	batchSize int,
 	label string,
+	phase string,
 	mat projector.CanonicalMaterialization,
 ) []Statement {
 	statements := buildBatchedStatements(cypher, rows, batchSize)
 	for index := range statements {
 		batchRows := statements[index].Parameters["rows"].([]map[string]any)
-		statements[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseOCIRegistry
+		statements[index].Parameters[StatementMetadataPhaseKey] = phase
 		statements[index].Parameters[StatementMetadataEntityLabelKey] = label
 		statements[index].Parameters[StatementMetadataScopeIDKey] = mat.ScopeID
 		statements[index].Parameters[StatementMetadataGenerationIDKey] = mat.GenerationID
@@ -351,6 +400,28 @@ func ociImageTagObservationRows(mat projector.CanonicalMaterialization) []map[st
 			"collector_kind":          row.CollectorKind,
 			"scope_id":                mat.ScopeID,
 			"generation_id":           mat.GenerationID,
+		})
+	}
+	return rows
+}
+
+// ociImageTagFirstObservedRows returns one {uid, observed_at} row per
+// OCIImageTagObservation whose ObservedAt is non-zero, feeding the #5459
+// deferred set-once statement. A zero-value ObservedAt is OMITTED rather than
+// serialized, so a projection that never carried an observation timestamp
+// leaves first_observed_at null instead of writing the Unix epoch.
+// observed_at is serialized as row.ObservedAt.UTC().Format(time.RFC3339) so
+// the reader's ORDER BY t.first_observed_at sorts lexicographically the same
+// as chronologically.
+func ociImageTagFirstObservedRows(mat projector.CanonicalMaterialization) []map[string]any {
+	rows := make([]map[string]any, 0, len(mat.OCIImageTagObservations))
+	for _, row := range mat.OCIImageTagObservations {
+		if row.ObservedAt.IsZero() {
+			continue
+		}
+		rows = append(rows, map[string]any{
+			"uid":         row.UID,
+			"observed_at": row.ObservedAt.UTC().Format(time.RFC3339),
 		})
 	}
 	return rows

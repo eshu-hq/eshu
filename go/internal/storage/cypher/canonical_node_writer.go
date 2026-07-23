@@ -318,20 +318,41 @@ func (w *CanonicalNodeWriter) buildPhases(mat projector.CanonicalMaterialization
 		// run last, after every node phase has committed.
 		{name: canonicalPhasePackageRegistryVersionEdges, statements: w.buildPackageRegistryVersionEdgeStatements(mat)},
 		{name: canonicalPhasePackageRegistryDependencyEdges, statements: w.buildPackageRegistryDependencyEdgeStatements(mat)},
+		// Deferred OCI tag-observation first_observed_at set-once phase (#5459).
+		// It MUST run after the oci_registry identity MERGE (canonicalPhaseOCIRegistry)
+		// has committed, for the identical multi-label-visibility reason as the
+		// package_registry edges above: NornicDB does not surface a
+		// multi-label node (:ContainerImageTagObservation:OciImageTagObservation)
+		// MERGE'd earlier in the same transaction to a later same-transaction
+		// UNWIND-driven MATCH. See canonicalOCIImageTagFirstObservedSetOnceCypher
+		// and oci_tag_first_observed_prove_theory_live_test.go.
+		{name: canonicalPhaseOCITagFirstObserved, statements: w.buildOCITagFirstObservedStatements(mat)},
 	}
 }
 
-// isDeferredPackageRegistryEdgePhase reports whether a phase name belongs to the
-// deferred package_registry edge phases that must execute in a second atomic
-// write group, after the node phases they MATCH have committed. Only the
-// package_registry edges need this: they MATCH MULTI-LABEL nodes
-// (Package/PackageVersion/PackageDependency) that NornicDB does not surface to a
-// same-transaction UNWIND-driven MATCH. Single-label edge phases (directory_edges,
-// the inline File edges) get cross-statement read-your-writes within one atomic
-// group and stay in the main group.
+// canonicalPhaseOCITagFirstObserved is the #5459 deferred set-once phase that
+// persists first_observed_at on ContainerImageTagObservation nodes. See
+// buildOCITagFirstObservedStatements and
+// canonicalOCIImageTagFirstObservedSetOnceCypher in
+// oci_registry_canonical_writer.go.
+const canonicalPhaseOCITagFirstObserved = "oci_tag_first_observed"
+
+// isDeferredPackageRegistryEdgePhase reports whether a phase name belongs to
+// the deferred write phases that must execute in a second atomic write group,
+// after the node phases they MATCH have committed. This covers the
+// package_registry edge phases, which MATCH MULTI-LABEL nodes
+// (Package/PackageVersion/PackageDependency), and the #5459 OCI tag-observation
+// first_observed_at set-once phase, which MATCHes the multi-label
+// (:ContainerImageTagObservation:OciImageTagObservation) node the oci_registry
+// phase MERGE'd earlier in the same transaction. NornicDB does not surface
+// either shape to a same-transaction UNWIND-driven MATCH. Single-label edge
+// phases (directory_edges, the inline File edges) get cross-statement
+// read-your-writes within one atomic group and stay in the main group.
 func isDeferredPackageRegistryEdgePhase(name string) bool {
 	switch name {
-	case canonicalPhasePackageRegistryVersionEdges, canonicalPhasePackageRegistryDependencyEdges:
+	case canonicalPhasePackageRegistryVersionEdges,
+		canonicalPhasePackageRegistryDependencyEdges,
+		canonicalPhaseOCITagFirstObserved:
 		return true
 	default:
 		return false
