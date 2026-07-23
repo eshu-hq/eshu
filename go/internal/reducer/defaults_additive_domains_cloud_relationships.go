@@ -29,12 +29,13 @@ func appendCloudRelationshipAdditiveDomains(definitions []DomainDefinition, hand
 	if handlers.FactLoader != nil && handlers.CloudResourceContainerImageEdgeWriter != nil {
 		awsCloudImage := awsCloudImageMaterializationDomainDefinition()
 		awsCloudImage.Handler = AWSCloudImageMaterializationHandler{
-			FactLoader:           handlers.FactLoader,
-			EdgeWriter:           handlers.CloudResourceContainerImageEdgeWriter,
-			ReadinessLookup:      handlers.ReadinessLookup,
-			PriorGenerationCheck: handlers.PriorGenerationCheck,
-			Tracer:               handlers.Tracer,
-			Instruments:          handlers.Instruments,
+			FactLoader:              handlers.FactLoader,
+			EdgeWriter:              handlers.CloudResourceContainerImageEdgeWriter,
+			ReadinessLookup:         handlers.ReadinessLookup,
+			PriorGenerationCheck:    handlers.PriorGenerationCheck,
+			ContainerImageExistence: handlers.ContainerImageExistence,
+			Tracer:                  handlers.Tracer,
+			Instruments:             handlers.Instruments,
 		}
 		definitions = append(definitions, awsCloudImage)
 	}

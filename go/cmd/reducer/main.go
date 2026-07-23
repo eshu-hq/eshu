@@ -275,6 +275,7 @@ func buildReducerService(
 		EC2InstanceNodeWriter:                 graphWriters.ec2InstanceNode,
 		CloudResourceEdgeWriter:               graphWriters.cloudResourceEdge,
 		CloudResourceContainerImageEdgeWriter: graphWriters.cloudResourceContainerImageEdge,
+		ContainerImageExistence:               reducer.GraphContainerImageExistenceLookup{Graph: graphReader},
 		GCPCloudResourceEdgeWriter:            graphWriters.gcpCloudResourceEdge,
 		AzureCloudResourceEdgeWriter:          graphWriters.azureCloudResourceEdge,
 		WorkloadCloudRelationshipEdgeWriter:   graphWriters.workloadCloudRelationshipEdge,

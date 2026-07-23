@@ -54,6 +54,18 @@ const (
 	// CloudResource endpoint did not resolve in this scope generation's join
 	// index.
 	awsCloudImageSkipSourceUnresolved awsCloudImageEdgeSkipReason = "source_unresolved"
+	// awsCloudImageSkipTargetNotMaterialized marks a row whose ref parsed to a
+	// well-formed exact digest reference but whose target :ContainerImage node
+	// does not (yet) exist in the canonical graph — the OCI registry has not
+	// scanned/materialized that digest. ExtractAWSCloudImageEdgeRows itself has
+	// no graph access and cannot detect this; AWSCloudImageMaterializationHandler
+	// applies this reclassification AFTER extraction via ContainerImageExistence,
+	// moving the row out of tally.resolved before any metric or evidence reads
+	// it (issue #5450 P1 follow-up: extraction previously counted a row
+	// resolved purely from ref-parseability, over-reporting
+	// eshu_dp_aws_cloud_image_edges_total / CanonicalWrites / edge_count for a
+	// digest the two-MATCH-MERGE write would silently no-op on).
+	awsCloudImageSkipTargetNotMaterialized awsCloudImageEdgeSkipReason = "target_not_materialized"
 )
 
 // awsCloudImageResolutionMode is the single resolution mode this domain's
@@ -95,6 +107,17 @@ func (t *awsCloudImageEdgeTally) totalSkipped() int {
 // aws_resource. Both endpoints are still validated only through a two-MATCH
 // (see the writer): an unscanned ContainerImage produces a no-op, never a
 // fabricated node.
+//
+// tally.resolved here counts REF-PARSEABILITY only — this function has no
+// graph access, so it cannot know whether the target ContainerImage node
+// actually exists. A row this function marks resolved may still turn out to
+// be a graceful two-MATCH-MERGE no-op if the OCI registry never scanned that
+// digest. Callers (AWSCloudImageMaterializationHandler.Handle) MUST run the
+// returned rows through a target-existence check
+// (ContainerImageExistenceLookup) and reclassify a miss as
+// awsCloudImageSkipTargetNotMaterialized BEFORE treating tally.resolved /
+// len(rows) as the materialized edge count for any metric or evidence
+// surface (issue #5450 P1 follow-up).
 //
 // ecs_task_definition_uses_image relationship facts are recognized but always
 // skipped with awsCloudImageSkipTagOnlyPostgresOnly (the #5472 EXACT-ONLY

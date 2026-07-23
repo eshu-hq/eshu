@@ -8,8 +8,39 @@ import (
 	"testing"
 	"time"
 
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// fakeContainerImageExistenceLookup is a test double for
+// ContainerImageExistenceLookup: existing names the exact uids
+// ExistingContainerImageUIDs reports as present; every other uid is absent.
+type fakeContainerImageExistenceLookup struct {
+	existing map[string]struct{}
+	calls    int
+	lastUIDs []string
+	err      error
+}
+
+func (l *fakeContainerImageExistenceLookup) ExistingContainerImageUIDs(
+	_ context.Context, uids []string,
+) (map[string]struct{}, error) {
+	l.calls++
+	l.lastUIDs = append([]string(nil), uids...)
+	if l.err != nil {
+		return nil, l.err
+	}
+	found := make(map[string]struct{}, len(uids))
+	for _, uid := range uids {
+		if _, ok := l.existing[uid]; ok {
+			found[uid] = struct{}{}
+		}
+	}
+	return found, nil
+}
 
 // recordingCloudResourceContainerImageEdgeWriter captures AWS cloud-image
 // edge writes and retracts so tests can assert the exact materialization
@@ -69,6 +100,15 @@ func awsCloudImageIntent() Intent {
 // awsCloudImageFixture is one Lambda function whose relationship carries a
 // resolved digest, plus an ECS task definition whose relationship is tag-only
 // (must stay Postgres-only).
+//
+// awsCloudImageFixtureTargetUID is the exact :ContainerImage node uid the
+// Lambda relationship's resolved_image_uri
+// ("123456789012.dkr.ecr.us-east-1.amazonaws.com/demo@sha256:cc") computes
+// via containerImageNodeUIDFromDigestRef, so tests can wire
+// ContainerImageExistenceLookup against the same identity the extraction
+// path derives.
+const awsCloudImageFixtureTargetUID = "oci-descriptor://123456789012.dkr.ecr.us-east-1.amazonaws.com/demo@sha256:cc"
+
 func awsCloudImageFixture() []facts.Envelope {
 	const acct = "123456789012"
 	fnARN := "arn:aws:lambda:us-east-1:123456789012:function:demo"
@@ -167,12 +207,24 @@ func TestAWSCloudImageMaterializationGatesOnCanonicalNodesPhase(t *testing.T) {
 func TestAWSCloudImageMaterializationProjectsLambdaImageEdgeAndSkipsECSTagOnly(t *testing.T) {
 	t.Parallel()
 
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	inst, err := telemetry.NewInstruments(provider.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+
 	writer := &recordingCloudResourceContainerImageEdgeWriter{}
+	existence := &fakeContainerImageExistenceLookup{
+		existing: map[string]struct{}{awsCloudImageFixtureTargetUID: {}},
+	}
 	handler := AWSCloudImageMaterializationHandler{
-		FactLoader:           &stubFactLoader{envelopes: awsCloudImageFixture()},
-		EdgeWriter:           writer,
-		ReadinessLookup:      readyLookup(true, true),
-		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
+		FactLoader:              &stubFactLoader{envelopes: awsCloudImageFixture()},
+		EdgeWriter:              writer,
+		ReadinessLookup:         readyLookup(true, true),
+		PriorGenerationCheck:    func(context.Context, string, string) (bool, error) { return true, nil },
+		ContainerImageExistence: existence,
+		Instruments:             inst,
 	}
 
 	result, err := handler.Handle(context.Background(), awsCloudImageIntent())
@@ -202,6 +254,23 @@ func TestAWSCloudImageMaterializationProjectsLambdaImageEdgeAndSkipsECSTagOnly(t
 	}
 	if writer.retractEvidence != awsCloudImageEvidenceSource {
 		t.Fatalf("retract evidence = %q, want %q", writer.retractEvidence, awsCloudImageEvidenceSource)
+	}
+	if existence.calls != 1 {
+		t.Fatalf("ContainerImageExistence calls = %d, want 1", existence.calls)
+	}
+
+	// The golden case: target EXISTS, so the metric MUST still increment --
+	// this is the counterpart proof to the target-missing test below, showing
+	// the new existence filter does not regress the already-materializing
+	// case (issue #5450 P1 follow-up).
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if !metricHasAttrs(rm, "eshu_dp_aws_cloud_image_edges_total", map[string]string{
+		telemetry.MetricDimensionResolutionMode: awsCloudImageResolutionMode,
+	}) {
+		t.Fatal("eshu_dp_aws_cloud_image_edges_total must increment when the target ContainerImage exists")
 	}
 }
 

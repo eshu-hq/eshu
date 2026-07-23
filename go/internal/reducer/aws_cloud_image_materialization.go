@@ -94,8 +94,17 @@ type AWSCloudImageMaterializationHandler struct {
 	// PriorGenerationCheck reports whether the scope has any prior generation.
 	// Nil keeps retract behavior conservative (always retract before write).
 	PriorGenerationCheck PriorGenerationCheck
-	Tracer               trace.Tracer
-	Instruments          *telemetry.Instruments
+	// ContainerImageExistence reports which candidate target ContainerImage
+	// uids already exist in the canonical graph. Extraction alone cannot know
+	// this (it has no graph access), so Handle uses it to reclassify a
+	// resolved-but-unmaterialized row as a awsCloudImageSkipTargetNotMaterialized
+	// skip BEFORE any metric, CanonicalWrites, or evidence summary reads the
+	// row/tally — otherwise those would over-report an edge the graph does not
+	// actually have (issue #5450 P1 follow-up). A nil lookup skips the filter
+	// (test wiring); production wires the durable graph-backed lookup.
+	ContainerImageExistence ContainerImageExistenceLookup
+	Tracer                  trace.Tracer
+	Instruments             *telemetry.Instruments
 }
 
 // Handle executes one AWS cloud-image materialization intent.
@@ -162,6 +171,19 @@ func (h AWSCloudImageMaterializationHandler) Handle(
 		return Result{}, err
 	}
 	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainAWSCloudImageMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	// ExtractAWSCloudImageEdgeRows counts a row "resolved" purely from
+	// ref-parseability -- it has no graph access and cannot know whether the
+	// two-MATCH-MERGE write below will actually find the target ContainerImage
+	// node. Filter rows to confirmed-existing targets NOW, before anything
+	// downstream (metric, CanonicalWrites, edge_count, EvidenceSummary) reads
+	// rows/tally, so an unscanned image's row is reclassified as a
+	// awsCloudImageSkipTargetNotMaterialized skip rather than counted as a
+	// materialized edge that the graph does not actually have (issue #5450 P1
+	// follow-up).
+	rows, tally, err = h.filterRowsToExistingContainerImageTargets(ctx, rows, tally)
+	if err != nil {
+		return Result{}, err
+	}
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
@@ -222,6 +244,45 @@ func (h AWSCloudImageMaterializationHandler) Handle(
 		CanonicalWrites: len(rows),
 		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
 	}, nil
+}
+
+// filterRowsToExistingContainerImageTargets reclassifies a resolved row whose
+// target ContainerImage node does not (yet) exist in the canonical graph as a
+// awsCloudImageSkipTargetNotMaterialized skip, so tally.resolved and the
+// returned rows only ever reflect edges the two-MATCH-MERGE write will
+// actually materialize. A nil ContainerImageExistence (test wiring) or an
+// empty rows slice is a no-op passthrough.
+func (h AWSCloudImageMaterializationHandler) filterRowsToExistingContainerImageTargets(
+	ctx context.Context,
+	rows []map[string]any,
+	tally awsCloudImageEdgeTally,
+) ([]map[string]any, awsCloudImageEdgeTally, error) {
+	if len(rows) == 0 || h.ContainerImageExistence == nil {
+		return rows, tally, nil
+	}
+
+	targetUIDs := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if uid, ok := row["target_uid"].(string); ok && uid != "" {
+			targetUIDs = append(targetUIDs, uid)
+		}
+	}
+	existing, err := h.ContainerImageExistence.ExistingContainerImageUIDs(ctx, targetUIDs)
+	if err != nil {
+		return nil, tally, fmt.Errorf("check aws cloud image target existence: %w", err)
+	}
+
+	filtered := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		targetUID, _ := row["target_uid"].(string)
+		if _, ok := existing[targetUID]; ok {
+			filtered = append(filtered, row)
+			continue
+		}
+		tally.resolved--
+		tally.skipped[awsCloudImageSkipTargetNotMaterialized]++
+	}
+	return filtered, tally, nil
 }
 
 // sourceNodesReady reports whether the canonical-nodes-committed phase is

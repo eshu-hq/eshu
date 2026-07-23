@@ -536,6 +536,25 @@ sibling ci_cd_run_correlation/container_image_identity/package domains:
   any rows to write, so pairing it with this persistent trigger is
   sufficient — an empty current-relationship set now still runs `Handle`,
   which retracts the prior edge and writes zero new ones.
+
+  **Telemetry-truth fix (issue #5450 P1 follow-up).** `ExtractAWSCloudImageEdgeRows`
+  counts a row "resolved" purely from ref-parseability — it has no graph
+  access and cannot know whether the target `:ContainerImage` node actually
+  exists. Before this fix, a `lambda_function_uses_image` relationship whose
+  digest the OCI registry had never scanned still incremented
+  `eshu_dp_aws_cloud_image_edges_total` and reported a nonzero
+  `CanonicalWrites`/`edge_count`/evidence-summary count, even though the
+  writer's two-MATCH-MERGE silently no-op'd (the graph had NO edge). `Handle`
+  now runs the extracted rows through `ContainerImageExistenceLookup`
+  (`go/internal/reducer/container_image_existence_lookup.go`, a bounded
+  `UNWIND`-batched existence read mirroring `filterRowsToExistingCloudResourceUIDs`'s
+  pattern) immediately after extraction, BEFORE any metric, `CanonicalWrites`,
+  or evidence summary reads `rows`/`tally`: a target-miss row is reclassified
+  as a `target_not_materialized` skip (counted and logged, never dropped
+  silently) and dropped from the write batch. The golden fixture's ECR OCI
+  manifest genuinely exists, so this fix does not change the golden corpus's
+  materialized-edge count — only a target the graph does NOT have stops being
+  over-reported.
 - **`ecs_task_definition_uses_image` → STAYS Postgres-only (tag-only).** A task
   DEFINITION's container image (`ecs/relationships.go`'s
   `taskDefinitionImageRelationships`) carries only a tag, never a digest — the

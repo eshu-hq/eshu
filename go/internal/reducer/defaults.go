@@ -188,6 +188,16 @@ type DefaultHandlers struct {
 	// ReadinessLookup so edges never resolve against an uncommitted source.
 	CloudResourceContainerImageEdgeWriter CloudResourceContainerImageEdgeWriter
 
+	// ContainerImageExistence reports which candidate target ContainerImage
+	// uids already exist in the canonical graph, so
+	// AWSCloudImageMaterializationHandler.Handle can reclassify a
+	// resolved-but-unmaterialized row as a skip instead of over-reporting an
+	// edge the graph does not have (issue #5450 P1 follow-up). Optional: a nil
+	// value skips the filter, matching ReadinessLookup/PriorGenerationCheck's
+	// nil-safe test-wiring convention; production wires the durable graph-backed
+	// lookup.
+	ContainerImageExistence ContainerImageExistenceLookup
+
 	// GCPCloudResourceEdgeWriter projects gcp_cloud_relationship facts into
 	// canonical GCP relationship edges between CloudResource nodes (issue #2348).
 	// It must be non-nil alongside FactLoader for the registry to register
