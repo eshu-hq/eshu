@@ -89,7 +89,7 @@ func newInstrumentedRDSPostureNodeWriter(t *testing.T) (
 	inst, manualReader := newManualReaderInstruments(t)
 	exec = &groupCountingExecutor{}
 	instrumented := &cypher.InstrumentedExecutor{Inner: exec, Instruments: inst}
-	writer = cypher.NewRDSPostureNodeWriter(instrumented, 500)
+	writer = cypher.NewRDSPostureNodeWriter(instrumented, echoAllExistenceReader{}, 500)
 	return writer, exec, manualReader
 }
 

@@ -29,7 +29,7 @@ func TestEC2BlockDeviceKMSPostureNodeWriterEmptyRowsIsNoOp(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := NewEC2BlockDeviceKMSPostureNodeWriter(executor, 0)
+	writer := NewEC2BlockDeviceKMSPostureNodeWriter(executor, &echoingPostureExistenceReader{}, 0)
 
 	if err := writer.WriteEC2BlockDeviceKMSPostureNodes(context.Background(), nil, "scope-1", "gen-1", "reducer/ec2-block-device-kms-posture"); err != nil {
 		t.Fatalf("WriteEC2BlockDeviceKMSPostureNodes returned error: %v", err)
@@ -39,11 +39,11 @@ func TestEC2BlockDeviceKMSPostureNodeWriterEmptyRowsIsNoOp(t *testing.T) {
 	}
 }
 
-func TestEC2BlockDeviceKMSPostureNodeWriterMatchesExistingCloudResourceAndSetsProperties(t *testing.T) {
+func TestEC2BlockDeviceKMSPostureNodeWriterMergesConfirmedExistingCloudResourceAndSetsProperties(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := NewEC2BlockDeviceKMSPostureNodeWriter(executor, 0)
+	writer := NewEC2BlockDeviceKMSPostureNodeWriter(executor, &echoingPostureExistenceReader{}, 0)
 
 	if err := writer.WriteEC2BlockDeviceKMSPostureNodes(context.Background(), ec2BlockDeviceKMSPostureRows(), "scope-1", "gen-1", "reducer/ec2-block-device-kms-posture"); err != nil {
 		t.Fatalf("WriteEC2BlockDeviceKMSPostureNodes returned error: %v", err)
@@ -55,11 +55,15 @@ func TestEC2BlockDeviceKMSPostureNodeWriterMatchesExistingCloudResourceAndSetsPr
 	if !strings.Contains(cypher, "UNWIND $rows AS row") {
 		t.Fatalf("cypher missing UNWIND batch shape:\n%s", cypher)
 	}
-	if !strings.Contains(cypher, "MATCH (resource:CloudResource {uid: row.uid})") {
-		t.Fatalf("cypher must MATCH the existing EC2 CloudResource by uid:\n%s", cypher)
+	// Issue #5652: a bare-MATCH-anchored UNWIND SET silently drops its write
+	// on the pinned production NornicDB image, so the shipped statement
+	// anchors with MERGE. Never-create is enforced in Go instead: see
+	// TestEC2BlockDeviceKMSPostureNodeWriterNeverCreatesUnconfirmedCloudResource.
+	if !strings.Contains(cypher, "MERGE (resource:CloudResource {uid: row.uid})") {
+		t.Fatalf("cypher must MERGE-anchor on the CloudResource uid:\n%s", cypher)
 	}
-	if strings.Contains(cypher, "MERGE") || strings.Contains(cypher, "CREATE") {
-		t.Fatalf("ec2 block-device KMS posture must never fabricate nodes:\n%s", cypher)
+	if strings.Contains(cypher, "CREATE") {
+		t.Fatalf("ec2 block-device KMS posture must never use bare CREATE:\n%s", cypher)
 	}
 	for _, want := range []string{
 		"resource.ec2_block_device_kms_state = row.state",
@@ -83,11 +87,57 @@ func TestEC2BlockDeviceKMSPostureNodeWriterMatchesExistingCloudResourceAndSetsPr
 	}
 }
 
+// TestEC2BlockDeviceKMSPostureNodeWriterNeverCreatesUnconfirmedCloudResource
+// proves the never-create contract survives the MATCH->MERGE fix (#5652).
+func TestEC2BlockDeviceKMSPostureNodeWriterNeverCreatesUnconfirmedCloudResource(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	reader := &echoingPostureExistenceReader{ExistingUIDs: map[string]bool{"cloud-resource-ec2-1": true}}
+	writer := NewEC2BlockDeviceKMSPostureNodeWriter(executor, reader, 0)
+
+	rows := append(ec2BlockDeviceKMSPostureRows(), map[string]any{
+		"uid": "cloud-resource-ec2-missing", "state": "unknown", "reason": "unresolved",
+		"volume_count": int64(0), "encrypted_volume_count": int64(0), "unencrypted_volume_count": int64(0),
+		"unresolved_volume_count": int64(0), "kms_key_count": int64(0),
+		"volume_ids": []string{}, "kms_key_ids": []string{}, "source_fact_id": "fact-2",
+	})
+	if err := writer.WriteEC2BlockDeviceKMSPostureNodes(context.Background(), rows, "scope-1", "gen-1", "reducer/ec2-block-device-kms-posture"); err != nil {
+		t.Fatalf("WriteEC2BlockDeviceKMSPostureNodes returned error: %v", err)
+	}
+	if len(executor.calls) != 1 {
+		t.Fatalf("len(calls) = %d, want 1", len(executor.calls))
+	}
+	writtenRows := executor.calls[0].Parameters["rows"].([]map[string]any)
+	if len(writtenRows) != 1 {
+		t.Fatalf("len(writtenRows) = %d, want 1 (only the confirmed-existing uid)", len(writtenRows))
+	}
+	if got := writtenRows[0]["uid"]; got != "cloud-resource-ec2-1" {
+		t.Fatalf("writtenRows[0][uid] = %v, want cloud-resource-ec2-1", got)
+	}
+}
+
+// TestEC2BlockDeviceKMSPostureNodeWriterRequiresReader proves the writer
+// fails fast instead of silently defaulting to bare-MATCH semantics.
+func TestEC2BlockDeviceKMSPostureNodeWriterRequiresReader(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEC2BlockDeviceKMSPostureNodeWriter(executor, nil, 0)
+
+	if err := writer.WriteEC2BlockDeviceKMSPostureNodes(context.Background(), ec2BlockDeviceKMSPostureRows(), "scope-1", "gen-1", "reducer/ec2-block-device-kms-posture"); err == nil {
+		t.Fatal("WriteEC2BlockDeviceKMSPostureNodes() error = nil, want error for nil reader")
+	}
+	if len(executor.calls) != 0 {
+		t.Fatalf("len(calls) = %d, want 0 when reader is nil", len(executor.calls))
+	}
+}
+
 func TestEC2BlockDeviceKMSPostureNodeWriterRetractRemovesOnlyReducerOwnedProperties(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := NewEC2BlockDeviceKMSPostureNodeWriter(executor, 0)
+	writer := NewEC2BlockDeviceKMSPostureNodeWriter(executor, &echoingPostureExistenceReader{}, 0)
 
 	if err := writer.RetractEC2BlockDeviceKMSPostureNodes(context.Background(), []string{"scope-1"}, "gen-1", "reducer/ec2-block-device-kms-posture"); err != nil {
 		t.Fatalf("RetractEC2BlockDeviceKMSPostureNodes returned error: %v", err)

@@ -77,7 +77,7 @@ func TestNonUIDRetractsRouteThroughAutocommitExecute(t *testing.T) {
 	t.Run("ec2-block-device-kms-posture-nodes", func(t *testing.T) {
 		t.Parallel()
 		rec := &dispatchRouteRecorder{}
-		w := NewEC2BlockDeviceKMSPostureNodeWriter(rec, 0)
+		w := NewEC2BlockDeviceKMSPostureNodeWriter(rec, &echoingPostureExistenceReader{}, 0)
 		if err := w.RetractEC2BlockDeviceKMSPostureNodes(context.Background(), scopeIDs, gen, src); err != nil {
 			t.Fatalf("RetractEC2BlockDeviceKMSPostureNodes: %v", err)
 		}
@@ -87,7 +87,7 @@ func TestNonUIDRetractsRouteThroughAutocommitExecute(t *testing.T) {
 	t.Run("ec2-internet-exposure-nodes", func(t *testing.T) {
 		t.Parallel()
 		rec := &dispatchRouteRecorder{}
-		w := NewEC2InternetExposureNodeWriter(rec, 0)
+		w := NewEC2InternetExposureNodeWriter(rec, &echoingPostureExistenceReader{}, 0)
 		if err := w.RetractEC2InternetExposureNodes(context.Background(), scopeIDs, gen, src); err != nil {
 			t.Fatalf("RetractEC2InternetExposureNodes: %v", err)
 		}
@@ -119,7 +119,7 @@ func TestNonUIDRetractsRouteThroughAutocommitExecute(t *testing.T) {
 	t.Run("rds-posture-nodes", func(t *testing.T) {
 		t.Parallel()
 		rec := &dispatchRouteRecorder{}
-		w := NewRDSPostureNodeWriter(rec, 0)
+		w := NewRDSPostureNodeWriter(rec, &echoingPostureExistenceReader{}, 0)
 		if err := w.RetractRDSPostureNodes(context.Background(), scopeIDs, gen, src); err != nil {
 			t.Fatalf("RetractRDSPostureNodes: %v", err)
 		}
@@ -129,7 +129,7 @@ func TestNonUIDRetractsRouteThroughAutocommitExecute(t *testing.T) {
 	t.Run("s3-internet-exposure-nodes", func(t *testing.T) {
 		t.Parallel()
 		rec := &dispatchRouteRecorder{}
-		w := NewS3InternetExposureNodeWriter(rec, 0)
+		w := NewS3InternetExposureNodeWriter(rec, &echoingPostureExistenceReader{}, 0)
 		if err := w.RetractS3InternetExposureNodes(context.Background(), scopeIDs, gen, src); err != nil {
 			t.Fatalf("RetractS3InternetExposureNodes: %v", err)
 		}

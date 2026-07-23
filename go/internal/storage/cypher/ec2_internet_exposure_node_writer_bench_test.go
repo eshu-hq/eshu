@@ -29,7 +29,7 @@ func benchEC2InternetExposureRows(n int) []map[string]any {
 // and proves this projection has no per-row node fabrication path.
 func BenchmarkEC2InternetExposureNodeWriter(b *testing.B) {
 	rows := benchEC2InternetExposureRows(5000)
-	writer := NewEC2InternetExposureNodeWriter(noopGroupExecutor{}, 500)
+	writer := NewEC2InternetExposureNodeWriter(noopGroupExecutor{}, &echoingPostureExistenceReader{}, 500)
 	ctx := context.Background()
 	b.ReportAllocs()
 	b.ResetTimer()

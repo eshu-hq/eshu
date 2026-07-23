@@ -12,8 +12,18 @@ const canonicalPhaseS3InternetExposure = "s3_internet_exposure"
 
 const s3InternetExposureNodeLabel = "CloudResource:S3InternetExposure"
 
+// canonicalS3InternetExposureNodeUpsertCypher anchors with MERGE, not a bare
+// MATCH. Issue #5652: on the pinned production NornicDB image
+// (nornicdb-cpu-bge:v1.1.11) a bare-MATCH-anchored UNWIND SET silently drops
+// its write (statement reports success; the property is never persisted).
+// MERGE is not a blind substitute for this writer's never-create contract —
+// WriteS3InternetExposureNodes only ever MERGEs a uid that
+// filterRowsToExistingCloudResourceUIDs already confirmed exists via a
+// separate read, so MERGE always matches and never creates. See
+// posture_node_existence.go and
+// docs/internal/evidence/5652-nornic-bare-match-writeloss.md.
 const canonicalS3InternetExposureNodeUpsertCypher = `UNWIND $rows AS row
-MATCH (resource:CloudResource {uid: row.uid})
+MERGE (resource:CloudResource {uid: row.uid})
 SET resource.s3_internet_exposure_state = row.state,
     resource.s3_internet_exposed = row.internet_exposed,
     resource.s3_internet_exposure_reason = row.reason,
@@ -35,19 +45,23 @@ REMOVE resource.s3_internet_exposure_state,
 
 // S3InternetExposureNodeWriter writes reducer-owned S3 internet-exposure
 // properties onto already-materialized CloudResource nodes. It never creates
-// CloudResource nodes; a missing uid is a no-op at the MATCH.
+// CloudResource nodes: WriteS3InternetExposureNodes reads which candidate
+// uids already exist first and drops rows for uids that do not, so a missing
+// uid is a no-op before the write ever runs.
 type S3InternetExposureNodeWriter struct {
 	executor  Executor
+	reader    PostureExistenceReader
 	batchSize int
 }
 
-// NewS3InternetExposureNodeWriter returns an S3InternetExposureNodeWriter backed
-// by the given Executor. A batchSize of 0 or less uses DefaultBatchSize (500).
-func NewS3InternetExposureNodeWriter(executor Executor, batchSize int) *S3InternetExposureNodeWriter {
+// NewS3InternetExposureNodeWriter returns an S3InternetExposureNodeWriter
+// backed by the given Executor and PostureExistenceReader. A batchSize of 0 or
+// less uses DefaultBatchSize (500).
+func NewS3InternetExposureNodeWriter(executor Executor, reader PostureExistenceReader, batchSize int) *S3InternetExposureNodeWriter {
 	if batchSize <= 0 {
 		batchSize = DefaultBatchSize
 	}
-	return &S3InternetExposureNodeWriter{executor: executor, batchSize: batchSize}
+	return &S3InternetExposureNodeWriter{executor: executor, reader: reader, batchSize: batchSize}
 }
 
 // WriteS3InternetExposureNodes sets reducer-owned exposure properties on
@@ -78,7 +92,15 @@ func (w *S3InternetExposureNodeWriter) WriteS3InternetExposureNodes(
 		}))
 	}
 
-	stmts := buildBatchedStatements(canonicalS3InternetExposureNodeUpsertCypher, annotated, w.batchSize)
+	existing, err := filterRowsToExistingCloudResourceUIDs(ctx, w.reader, annotated)
+	if err != nil {
+		return fmt.Errorf("s3 internet exposure node writer: %w", err)
+	}
+	if len(existing) == 0 {
+		return nil
+	}
+
+	stmts := buildBatchedStatements(canonicalS3InternetExposureNodeUpsertCypher, existing, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseS3InternetExposure

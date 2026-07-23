@@ -12,8 +12,18 @@ const canonicalPhaseEC2InternetExposure = "ec2_internet_exposure"
 
 const ec2InternetExposureNodeLabel = "CloudResource:EC2InternetExposure"
 
+// canonicalEC2InternetExposureNodeUpsertCypher anchors with MERGE, not a bare
+// MATCH. Issue #5652: on the pinned production NornicDB image
+// (nornicdb-cpu-bge:v1.1.11) a bare-MATCH-anchored UNWIND SET silently drops
+// its write (statement reports success; the property is never persisted).
+// MERGE is not a blind substitute for this writer's never-create contract —
+// WriteEC2InternetExposureNodes only ever MERGEs a uid that
+// filterRowsToExistingCloudResourceUIDs already confirmed exists via a
+// separate read, so MERGE always matches and never creates. See
+// posture_node_existence.go and
+// docs/internal/evidence/5652-nornic-bare-match-writeloss.md.
 const canonicalEC2InternetExposureNodeUpsertCypher = `UNWIND $rows AS row
-MATCH (resource:CloudResource {uid: row.uid})
+MERGE (resource:CloudResource {uid: row.uid})
 SET resource.ec2_internet_exposure_state = row.state,
     resource.ec2_internet_exposed = row.internet_exposed,
     resource.ec2_internet_exposure_reason = row.reason,
@@ -35,19 +45,23 @@ REMOVE resource.ec2_internet_exposure_state,
 
 // EC2InternetExposureNodeWriter writes reducer-owned EC2 internet-exposure
 // properties onto already-materialized CloudResource nodes. It never creates
-// CloudResource nodes; a missing uid is a no-op at the MATCH.
+// CloudResource nodes: WriteEC2InternetExposureNodes reads which candidate
+// uids already exist first and drops rows for uids that do not, so a missing
+// uid is a no-op before the write ever runs.
 type EC2InternetExposureNodeWriter struct {
 	executor  Executor
+	reader    PostureExistenceReader
 	batchSize int
 }
 
 // NewEC2InternetExposureNodeWriter returns an EC2InternetExposureNodeWriter
-// backed by the given Executor. A batchSize of 0 or less uses DefaultBatchSize.
-func NewEC2InternetExposureNodeWriter(executor Executor, batchSize int) *EC2InternetExposureNodeWriter {
+// backed by the given Executor and PostureExistenceReader. A batchSize of 0 or
+// less uses DefaultBatchSize.
+func NewEC2InternetExposureNodeWriter(executor Executor, reader PostureExistenceReader, batchSize int) *EC2InternetExposureNodeWriter {
 	if batchSize <= 0 {
 		batchSize = DefaultBatchSize
 	}
-	return &EC2InternetExposureNodeWriter{executor: executor, batchSize: batchSize}
+	return &EC2InternetExposureNodeWriter{executor: executor, reader: reader, batchSize: batchSize}
 }
 
 // WriteEC2InternetExposureNodes sets reducer-owned exposure properties on
@@ -77,7 +91,15 @@ func (w *EC2InternetExposureNodeWriter) WriteEC2InternetExposureNodes(
 		}))
 	}
 
-	stmts := buildBatchedStatements(canonicalEC2InternetExposureNodeUpsertCypher, annotated, w.batchSize)
+	existing, err := filterRowsToExistingCloudResourceUIDs(ctx, w.reader, annotated)
+	if err != nil {
+		return fmt.Errorf("ec2 internet exposure node writer: %w", err)
+	}
+	if len(existing) == 0 {
+		return nil
+	}
+
+	stmts := buildBatchedStatements(canonicalEC2InternetExposureNodeUpsertCypher, existing, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseEC2InternetExposure

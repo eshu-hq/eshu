@@ -73,7 +73,7 @@ func newInstrumentedS3InternetExposureNodeWriter(t *testing.T) (
 	inst, manualReader := newManualReaderInstruments(t)
 	exec = &groupCountingExecutor{}
 	instrumented := &cypher.InstrumentedExecutor{Inner: exec, Instruments: inst}
-	writer = cypher.NewS3InternetExposureNodeWriter(instrumented, 500)
+	writer = cypher.NewS3InternetExposureNodeWriter(instrumented, echoAllExistenceReader{}, 500)
 	return writer, exec, manualReader
 }
 

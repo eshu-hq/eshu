@@ -35,7 +35,7 @@ func benchEC2BlockDeviceKMSPostureNodeRows(n int) []map[string]any {
 // isolates the batched uid-anchored MATCH+SET path from graph round trips.
 func BenchmarkEC2BlockDeviceKMSPostureNodeWriter(b *testing.B) {
 	rows := benchEC2BlockDeviceKMSPostureNodeRows(5000)
-	writer := NewEC2BlockDeviceKMSPostureNodeWriter(noopGroupExecutor{}, 500)
+	writer := NewEC2BlockDeviceKMSPostureNodeWriter(noopGroupExecutor{}, &echoingPostureExistenceReader{}, 500)
 	ctx := context.Background()
 	b.ReportAllocs()
 	b.ResetTimer()

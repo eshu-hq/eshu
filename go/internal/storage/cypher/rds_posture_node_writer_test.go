@@ -42,7 +42,7 @@ func TestRDSPostureNodeWriterEmptyRowsIsNoOp(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := NewRDSPostureNodeWriter(executor, 0)
+	writer := NewRDSPostureNodeWriter(executor, &echoingPostureExistenceReader{}, 0)
 
 	if err := writer.WriteRDSPostureNodes(context.Background(), nil, "scope-1", "gen-1", "reducer/rds-posture"); err != nil {
 		t.Fatalf("WriteRDSPostureNodes returned error: %v", err)
@@ -52,11 +52,11 @@ func TestRDSPostureNodeWriterEmptyRowsIsNoOp(t *testing.T) {
 	}
 }
 
-func TestRDSPostureNodeWriterMatchesExistingCloudResourceAndSetsPosture(t *testing.T) {
+func TestRDSPostureNodeWriterMergesConfirmedExistingCloudResourceAndSetsPosture(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := NewRDSPostureNodeWriter(executor, 0)
+	writer := NewRDSPostureNodeWriter(executor, &echoingPostureExistenceReader{}, 0)
 
 	if err := writer.WriteRDSPostureNodes(context.Background(), rdsPostureNodeRows(1), "scope-1", "gen-1", "reducer/rds-posture"); err != nil {
 		t.Fatalf("WriteRDSPostureNodes returned error: %v", err)
@@ -68,11 +68,15 @@ func TestRDSPostureNodeWriterMatchesExistingCloudResourceAndSetsPosture(t *testi
 	if !strings.Contains(cypher, "UNWIND $rows AS row") {
 		t.Fatalf("cypher missing UNWIND batch shape:\n%s", cypher)
 	}
-	if !strings.Contains(cypher, "MATCH (r:CloudResource {uid: row.uid})") {
-		t.Fatalf("cypher must anchor on existing CloudResource uid:\n%s", cypher)
+	// Issue #5652: a bare-MATCH-anchored UNWIND SET silently drops its write
+	// on the pinned production NornicDB image, so the shipped statement
+	// anchors with MERGE. Never-create is enforced in Go instead: see
+	// TestRDSPostureNodeWriterNeverCreatesUnconfirmedCloudResource.
+	if !strings.Contains(cypher, "MERGE (r:CloudResource {uid: row.uid})") {
+		t.Fatalf("cypher must MERGE-anchor on the existing CloudResource uid:\n%s", cypher)
 	}
-	if strings.Contains(cypher, "MERGE (r:CloudResource") || strings.Contains(cypher, "CREATE (r:CloudResource") {
-		t.Fatalf("RDS posture writer must not fabricate CloudResource nodes:\n%s", cypher)
+	if strings.Contains(cypher, "CREATE (r:CloudResource") {
+		t.Fatalf("RDS posture writer must not use bare CREATE:\n%s", cypher)
 	}
 	for _, want := range []string{
 		"r.rds_publicly_accessible = row.rds_publicly_accessible",
@@ -90,11 +94,53 @@ func TestRDSPostureNodeWriterMatchesExistingCloudResourceAndSetsPosture(t *testi
 	}
 }
 
+// TestRDSPostureNodeWriterNeverCreatesUnconfirmedCloudResource proves the
+// never-create contract survives the MATCH->MERGE fix (issue #5652).
+func TestRDSPostureNodeWriterNeverCreatesUnconfirmedCloudResource(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	reader := &echoingPostureExistenceReader{ExistingUIDs: map[string]bool{"rds-a": true}}
+	writer := NewRDSPostureNodeWriter(executor, reader, 0)
+
+	rows := rdsPostureNodeRows(1)
+	rows = append(rows, map[string]any{"uid": "rds-missing", "rds_identifier": "orders-missing", "source_fact_id": "fact-2"})
+	if err := writer.WriteRDSPostureNodes(context.Background(), rows, "scope-1", "gen-1", "reducer/rds-posture"); err != nil {
+		t.Fatalf("WriteRDSPostureNodes returned error: %v", err)
+	}
+	if len(executor.calls) != 1 {
+		t.Fatalf("len(calls) = %d, want 1", len(executor.calls))
+	}
+	writtenRows := executor.calls[0].Parameters["rows"].([]map[string]any)
+	if len(writtenRows) != 1 {
+		t.Fatalf("len(writtenRows) = %d, want 1 (only the confirmed-existing uid)", len(writtenRows))
+	}
+	if got := writtenRows[0]["uid"]; got != "rds-a" {
+		t.Fatalf("writtenRows[0][uid] = %v, want rds-a", got)
+	}
+}
+
+// TestRDSPostureNodeWriterRequiresReader proves the writer fails fast instead
+// of silently defaulting to bare-MATCH semantics without a reader.
+func TestRDSPostureNodeWriterRequiresReader(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewRDSPostureNodeWriter(executor, nil, 0)
+
+	if err := writer.WriteRDSPostureNodes(context.Background(), rdsPostureNodeRows(1), "scope-1", "gen-1", "reducer/rds-posture"); err == nil {
+		t.Fatal("WriteRDSPostureNodes() error = nil, want error for nil reader")
+	}
+	if len(executor.calls) != 0 {
+		t.Fatalf("len(calls) = %d, want 0 when reader is nil", len(executor.calls))
+	}
+}
+
 func TestRDSPostureNodeWriterRetractRemovesOnlyReducerOwnedProperties(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := NewRDSPostureNodeWriter(executor, 0)
+	writer := NewRDSPostureNodeWriter(executor, &echoingPostureExistenceReader{}, 0)
 
 	if err := writer.RetractRDSPostureNodes(context.Background(), []string{"scope-1"}, "gen-1", "reducer/rds-posture"); err != nil {
 		t.Fatalf("RetractRDSPostureNodes returned error: %v", err)
@@ -124,7 +170,7 @@ func TestRDSPostureNodeWriterRetractEmptyScopesIsNoOp(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := NewRDSPostureNodeWriter(executor, 0)
+	writer := NewRDSPostureNodeWriter(executor, &echoingPostureExistenceReader{}, 0)
 
 	if err := writer.RetractRDSPostureNodes(context.Background(), nil, "gen-1", "reducer/rds-posture"); err != nil {
 		t.Fatalf("RetractRDSPostureNodes returned error: %v", err)

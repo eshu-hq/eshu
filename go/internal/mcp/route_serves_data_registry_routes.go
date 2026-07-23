@@ -208,14 +208,14 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 				Domain: "rds_posture_materialization",
 				Evidence: []routeReadEvidence{
 					{File: "go/internal/query/cloud_resources.go", Marker: "MATCH (n:CloudResource)"},
-					{File: "go/internal/storage/cypher/rds_posture_node_writer.go", Marker: "MATCH (r:CloudResource {uid: row.uid})"},
+					{File: "go/internal/storage/cypher/rds_posture_node_writer.go", Marker: "MERGE (r:CloudResource {uid: row.uid})"},
 				},
 			},
 			{
 				Domain: "s3_internet_exposure_materialization",
 				Evidence: []routeReadEvidence{
 					{File: "go/internal/query/cloud_resources.go", Marker: "MATCH (n:CloudResource)"},
-					{File: "go/internal/storage/cypher/s3_internet_exposure_node_writer.go", Marker: "MATCH (resource:CloudResource {uid: row.uid})"},
+					{File: "go/internal/storage/cypher/s3_internet_exposure_node_writer.go", Marker: "MERGE (resource:CloudResource {uid: row.uid})"},
 				},
 			},
 		},

@@ -315,6 +315,15 @@ graph-write route surface.
 - **Do not add `GroupExecutor` to `ExecuteOnlyExecutor`**. It intentionally
   hides the group path so callers during concurrent ingestion do not hold large
   atomic transactions.
+- **Do not write an `UNWIND $rows AS row MATCH (n:Label {key: row.key}) SET
+  ...` statement with no `MERGE` anywhere in it.** Issue #5652: this shape
+  silently drops its `SET` on the pinned production NornicDB v1.1.11 image —
+  the statement reports success but the property is never persisted.
+  `unwind_bare_match_set_gate_test.go` fails the build if this shape
+  reappears. If the writer must never fabricate a node, do not blindly switch
+  to `MERGE` either — follow the `posture_node_existence.go` pattern: read
+  which candidate identities already exist via a separate query first, drop
+  unconfirmed rows in Go, then `MERGE` only the confirmed subset.
 
 ## What NOT to change without an ADR
 
@@ -338,6 +347,6 @@ read-first file under the repository's 500-line cap. It preserves every prior
 entry: canonical-writer retryable-error propagation (#3483), the uid-anchored
 `TAINT_FLOWS_TO` / `CodeTaintEvidence` retract and its NornicDB Bolt
 `ExecuteWrite` dispatch route (#4893), the count-gated orphan-sweep write skip
-(#4900), and later entries. Read it before touching retract dispatch, the
-orphan-sweep gate, or the NornicDB write path. Add new dated entries there, not
-here.
+(#4900), the UNWIND bare-MATCH SET silent write-loss fix (#5652), and later
+entries. Read it before touching retract dispatch, the orphan-sweep gate, or
+the NornicDB write path. Add new dated entries there, not here.

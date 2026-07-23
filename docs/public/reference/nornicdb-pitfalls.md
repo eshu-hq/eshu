@@ -571,6 +571,98 @@ forward `EXISTS` disjunct, and explicitly rejects both broken `EXISTS` shapes
 (the `n`-last `DEFINES`/`INSTANCE_OF` bridge and the `n`-first backward `USES`
 form) from ever reappearing in the rendered Cypher.
 
+## Pitfall: `UNWIND`-Batched Bare-`MATCH` `SET` Silently Drops Its Write
+
+### Observed shape
+
+On the pinned production image (`nornicdb-cpu-bge:v1.1.11`), an
+`UNWIND`-batched statement whose anchor clause is a bare, property-keyed
+`MATCH` — with no `MERGE` anywhere in the statement — silently drops its
+`SET`:
+
+```cypher
+-- BROKEN: reports success, the property is never persisted.
+UNWIND $rows AS row
+MATCH (resource:CloudResource {uid: row.uid})
+SET resource.some_property = row.value
+```
+
+The node matches (a separate read confirms it). The statement completes with
+no error. Batched-write counters are not a reliable signal either way:
+`PropertiesSet` and `ContainsUpdates` both report the "nothing happened"
+shape (`0`/`false`) on this no-op, but they are equally unreliable in
+general on this backend — do not trust them as proof of success OR failure.
+The only reliable proof is a read-back of the property in a separate
+transaction. The identical statement anchored with `MERGE` instead of `MATCH`
+persists correctly:
+
+```cypher
+-- CORRECT: persists.
+UNWIND $rows AS row
+MERGE (resource:CloudResource {uid: row.uid})
+SET resource.some_property = row.value
+```
+
+A single-property `UNIQUE` constraint on the anchored property does **not**
+fix the no-op — this was tried and measured broken before the `MERGE` fix
+was found.
+
+### Eshu implications
+
+`MATCH` is not a safe substitute for `MERGE` purely on correctness grounds
+here, but `MERGE` is also not a safe *blind* substitute for a writer with a
+never-create contract: `MERGE` unconditionally creates on a miss. Issue
+#5652 found this broke all four AWS posture node writers
+(`go/internal/storage/cypher/{ec2_internet_exposure,ec2_block_device_kms_posture,rds_posture,s3_internet_exposure}_node_writer.go`),
+each of which must only update an already-materialized `CloudResource` node
+and must never fabricate one for a uid that was never admitted.
+
+The fix is a two-phase write: read which candidate identities already exist
+via a separate query first (reads are not subject to this no-op), drop rows
+whose identity is not confirmed, and only then run the `MERGE`-anchored
+write against the confirmed subset — so `MERGE` always matches and never
+creates. See `go/internal/storage/cypher/posture_node_existence.go`
+(`PostureExistenceReader`, `filterRowsToExistingCloudResourceUIDs`) for the
+shared implementation and
+`go/internal/storage/cypher/unwind_bare_match_set_gate_test.go` for the
+static class-gate that fails any future `UNWIND`-batched bare-`MATCH`-then-
+`SET` statement with no `MERGE` safety net anywhere in it.
+
+Two other `UNWIND` shapes in the canonical File/Directory writer were flagged
+as suspect during the #5652 investigation but re-verified separately on a
+fresh, uncontaminated container and found NOT to be production bugs (details in
+`docs/internal/evidence/5652-followup-file-directory-edge-writeloss-investigation.md`):
+
+- A `WITH`-chained multi-clause File update (`UNWIND ... MATCH ... SET ... WITH
+  ... MATCH ... MERGE`) appeared to drop its post-`WITH` edge MERGEs, but this
+  did not reproduce in any production dispatch mode on a fresh container. The
+  discrepancy was not root-caused; the most likely mechanism is stack
+  contamination (the original probe ran on the same instance as an earlier
+  abandoned `UNIQUE` constraint; see the constraint drop/recreate pitfall), but
+  that is unconfirmed — tracked as #5671. No fix ships and no rewrite is needed.
+- `UNWIND`-batched `MATCH ... DELETE` (the retract/refresh edge-cleanup
+  statements) no-ops only under the atomic `ExecuteGroup` managed-transaction
+  path. Production routes these with `OperationCanonicalRetract` through
+  `PhaseGroupExecutor.executeSequentialRetractPhase`, which always uses
+  sequential auto-commit `Execute`, never `ExecuteGroup` — so the shape is
+  production-unreachable there. If you ever route a retract through
+  `ExecuteGroup`, rewrite the batch shape from `UNWIND` to `WHERE ... IN`
+  (`MATCH (f:File) WHERE f.path IN $file_paths MATCH (f)-[r:IMPORTS]->(:Module)
+  DELETE r`), which was proven to delete correctly. The underlying backend
+  shapes are tracked upstream as #4902 and #5323.
+
+### Validation
+
+`go test ./internal/storage/cypher -run
+'TestLivePostureNodeWritersPersistAndNeverCreate'
+-count=1` (env-gated on `ESHU_CYPHER_BOLT_DSN`) drives all four posture node
+writers' real production Cypher against a live NornicDB and proves, by
+read-back in a separate transaction, that the write persists for a
+confirmed-existing uid and that a never-confirmed uid creates no phantom
+node. `go test ./internal/storage/cypher -run
+'TestNoUnwindBareMatchThenSetCyphersInPackage' -count=1` is the static
+class-gate.
+
 ## When To Patch NornicDB
 
 Patch NornicDB only when evidence supports one of these:
