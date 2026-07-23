@@ -59,6 +59,17 @@ func buildProjectorService(
 	projectorQueue.MaxRetryDelay = retryPolicy.MaxRetryDelay
 	projectorQueue.JitterFraction = retryPolicy.JitterFraction
 	projectorQueue.Instruments = instruments
+	// Closes the Crossplane cross-scope SATISFIED_BY XRD-lag false-negative
+	// window (issue #5476): after Ack activates a generation, re-drive any
+	// OTHER scope's unresolved Claims matching a newly-active XRD. See
+	// postgres.CrossplaneSatisfiedByRedriveSweeper's doc comment.
+	projectorQueue.CrossplaneRedrive = postgres.CrossplaneSatisfiedByRedriveSweeper{
+		DB:          postgres.SQLQueryer(database),
+		State:       postgres.NewCrossplaneRedriveStateStore(database),
+		Replayer:    reducerQueue,
+		Owner:       "projector",
+		Instruments: instruments,
+	}
 
 	runner, err := buildProjectorRuntime(database, canonicalWriter, reducerQueue, retryInjector, getenv, tracer, instruments, logger)
 	if err != nil {

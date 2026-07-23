@@ -970,3 +970,35 @@ knob beyond `ESHU_IDENTITY_CACHE_MAX_BYTES`. Operators diagnose cache
 effectiveness through the hit/miss/reload/passthrough counters and
 probe/reload duration histograms, plus the existing
 `eshu_dp_postgres_query_duration_seconds` for the underlying DB queries.
+
+## #5476 — Crossplane cross-scope SATISFIED_BY redrive sweep
+
+Do NOT re-introduce an inline fan-out inside `ProjectorQueue.Ack`'s
+transaction for this feature — that design was proposed, reviewed, and
+rejected (stale-lease commit risk, unbounded transaction/lock hold time,
+missing telemetry). The durable shape is: a claim/completion marker table
+(`crossplane_satisfied_by_redrive_state`), a bounded keyset-paginated
+target-discovery query backed by a partial index
+(`fact_records_active_k8s_claim_redrive_idx`), and a sweep
+(`CrossplaneSatisfiedByRedriveSweeper.Sweep`) triggered AFTER Ack commits
+(`runCrossplaneRedriveHook`), never inside it. See `README.md`'s "Crossplane
+cross-scope SATISFIED_BY redrive sweep (#5476)" section for the full design,
+fences, and evidence.
+
+When touching this surface:
+
+- The three fences (active-generation, active-claim, already-satisfied-for-
+  this-XRD) are load-bearing correctness, not defensive extras. Do not drop
+  the `NOT EXISTS fact_work_items` freshness fence to "simplify" the query —
+  it is what keeps a re-drive from redundantly re-enqueuing every matching
+  scope on every trivial XRD-repo edit forever.
+- `ReplayCrossplaneSatisfiedByMaterialization` MUST reuse the exact same
+  per-scope `EntityKey` (`"crossplane_satisfied_by_materialization:" +
+  scopeID`) the projector's own trigger uses. A divergent per-XRD-generation
+  identity would break the queue's natural dedupe and could double-process a
+  target scope.
+- `CrossplaneRedriveStateStore.MarkCompleted` is fenced by `claimed_by`, not a
+  bumped numeric fencing token (unlike `aws_freshness_triggers`). This is an
+  accepted simplification consistent with `ProjectorQueue`/`ReducerQueue`'s
+  own pre-existing static-`LeaseOwner`-per-replica-class convention elsewhere
+  in this package — not a new gap introduced by this feature.

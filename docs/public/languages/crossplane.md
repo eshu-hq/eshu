@@ -54,23 +54,33 @@ Not claimed today:
   reports `complete: true` with `SATISFIED_BY` listed as `materialized: true`
   in `coverage` (see
   [HTTP API reference](../reference/http-api/iac-content-infra.md)).
-- Cross-scope XRD-lag false-negative window: the SATISFIED_BY correlation is
-  intentionally ungated within a repo (the Claim and any same-repo XRD are
-  projector-canonical nodes committed before the correlation intent is
-  enqueued, so no same-scope race exists), but a Claim resolving against an
-  XRD from a *different* repo depends on that platform repo's XRD already
-  being active by the time the Claim's own generation runs its correlation.
-  If the XRD's repo is ingested for the first time *after* the Claim repo's
-  latest generation, the edge does not materialize until the Claim repo's
-  next sync generation — an unbounded window for a Claim repo that stops
-  changing. This is a false negative (the edge is real but not yet
-  observable), not a wrong answer, and no reducer-side gate can close it
-  without reproducing full cross-repo readiness tracking; tracked in
-  [#5476](https://github.com/eshu-hq/eshu/issues/5476) for a periodic
-  re-drive of stale cross-scope Claims. This does not contradict the
-  blast-radius `coverage` fields: `materialized:true`/`complete` report that a
-  writer produces the SATISFIED_BY edge type (the writer-existence contract from
-  #5330), not that every possible edge instance is currently present — the same
-  eventual-consistency property every cross-repo correlation edge (e.g.
-  RUNS_IMAGE) has, since no correlation edge can form until both endpoints are
-  ingested.
+- Cross-scope XRD-lag false-negative window (closed, issue #5476): the
+  SATISFIED_BY correlation is intentionally ungated within a repo (the Claim
+  and any same-repo XRD are projector-canonical nodes committed before the
+  correlation intent is enqueued, so no same-scope race exists), but a Claim
+  resolving against an XRD from a *different* repo depends on that platform
+  repo's XRD already being active by the time the Claim's own generation runs
+  its correlation. If the XRD's repo is ingested for the first time *after*
+  the Claim repo's latest generation, the Claim's own materialization pass
+  finds zero XRD facts — a false negative (the edge is real but not yet
+  observable), not a wrong answer. This no longer requires the Claim repo to
+  produce a new generation to close: when a scope's generation carrying an
+  active `CrossplaneXRD` activates,
+  `postgres.CrossplaneSatisfiedByRedriveSweeper` durably discovers every OTHER
+  scope with an active, unresolved `K8sResource` Claim matching that XRD's
+  `(group, claimNames.kind)` and re-enqueues (or reopens) that scope's
+  SATISFIED_BY materialization intent — without re-ingesting the Claim repo.
+  The sweep is bounded (only scopes with a matching Claim, keyset-paginated,
+  index-backed — see `fact_records_active_k8s_claim_redrive_idx`) and durably
+  resumable (`crossplane_satisfied_by_redrive_state` records completion per
+  XRD source-generation, so a crash mid-sweep retries safely and a completed
+  generation is never re-swept). See
+  `go/internal/storage/postgres/crossplane_satisfied_by_redrive_sweep.go` for
+  the implementation and `go/internal/storage/postgres/README.md` for the
+  fencing and trigger design. This does not contradict the blast-radius
+  `coverage` fields: `materialized:true`/`complete` report that a writer
+  produces the SATISFIED_BY edge type (the writer-existence contract from
+  #5330), not that every possible edge instance is currently present — the
+  same eventual-consistency property every cross-repo correlation edge (e.g.
+  RUNS_IMAGE, which still carries this same unclosed gap) has, since no
+  correlation edge can form until both endpoints are ingested.
