@@ -212,6 +212,9 @@ source_coverage:
       - symbol: "countWorkloadsDefinedByRepo"
         count: 1
         non_hot: {class: keyed_support, source_sha256: 6b2603cd740a418737d8b0b2e386f16e668e121455fd07494ee1108fee7f366e, key_bound: single_key, max_results: 2}
+  - file: impact_trace_deployment_flux_bindings.go
+    calls:
+      - {symbol: "fetchFluxDeploymentSourceTargetBindings", count: 2, source_sha256: 4fb49a5ad5c2dc10f5ce4cfc058a0cfd1f54daa07f49d86882767d4b1c94810d, entry_ids: [QP-IMPACT-FLUX-BINDINGS-FIRST-HOP, QP-IMPACT-FLUX-BINDINGS-TARGET-EXPANSION]}
   - file: impact_trace_deployment_sources.go
     calls:
       - symbol: "fetchCanonicalDeploymentSourceRows"

@@ -57,6 +57,12 @@ func fetchDeploymentSourceResultFromGraph(
 	}
 	repositoryReachedSentinel := len(repositoryRows) >= queryLimit
 	repositoryRows = deploymentSourceRowsWithEndpoints(repositoryRows, "DEPLOYS_FROM", repoID)
+	fluxTargetBindings, err := fetchFluxDeploymentSourceTargetBindings(ctx, reader, repoID, deploymentSourceRepoIDs(repositoryRows), queryLimit, access)
+	if err != nil {
+		return deploymentSourceResult{}, err
+	}
+	fluxTargetBindingsReachedSentinel := fluxTargetBindings.firstHopSaturated
+	repositoryRows = attachFluxDeploymentSourceTargetBindings(repositoryRows, fluxTargetBindings.rows, fluxTargetBindingsReachedSentinel)
 	repositoryRows = deploymentSourceRowsWithCanonicalEndpoints(repositoryRows)
 	merged, err := normalizedDeploymentSources(mergeDeploymentSourceRows(canonicalRows, repositoryRows))
 	if err != nil {
@@ -65,18 +71,20 @@ func fetchDeploymentSourceResultFromGraph(
 	sortDeploymentSources(merged)
 	observedCount := len(merged)
 	rows, mergedTruncated := capMapRows(merged, contextStoryItemLimit)
-	lowerBound := canonicalReachedSentinel || repositoryReachedSentinel
+	lowerBound := canonicalReachedSentinel || repositoryReachedSentinel || fluxTargetBindingsReachedSentinel
 	return deploymentSourceResult{
 		rows: rows,
 		limits: map[string]any{
-			"limit":                         contextStoryItemLimit,
-			"query_sentinel_limit":          queryLimit,
-			"returned_count":                len(rows),
-			"observed_count":                observedCount,
-			"observed_count_is_lower_bound": lowerBound,
-			"canonical_observed_count":      len(canonicalRows),
-			"repository_observed_count":     len(repositoryRows),
-			"truncated":                     lowerBound || mergedTruncated,
+			"limit":                                             contextStoryItemLimit,
+			"query_sentinel_limit":                              queryLimit,
+			"returned_count":                                    len(rows),
+			"observed_count":                                    observedCount,
+			"observed_count_is_lower_bound":                     lowerBound,
+			"canonical_observed_count":                          len(canonicalRows),
+			"repository_observed_count":                         len(repositoryRows),
+			"flux_target_binding_observed_count":                fluxTargetBindings.firstHopCount,
+			"flux_target_binding_observed_count_is_lower_bound": fluxTargetBindingsReachedSentinel,
+			"truncated":                                         lowerBound || mergedTruncated,
 			"ordering": []string{
 				"relationship_type_priority",
 				"repo_name",
@@ -172,7 +180,7 @@ func normalizedDeploymentSources(rows []map[string]any) ([]map[string]any, error
 		if err != nil {
 			return nil, err
 		}
-		sources = append(sources, map[string]any{
+		source := map[string]any{
 			"repo_id":           StringVal(row, "repo_id"),
 			"repo_name":         StringVal(row, "repo_name"),
 			"relationship_type": StringVal(row, "relationship_type"),
@@ -180,9 +188,26 @@ func normalizedDeploymentSources(rows []map[string]any) ([]map[string]any, error
 			"target_id":         StringVal(row, "target_id"),
 			"confidence":        confidence,
 			"reason":            StringVal(row, "reason"),
-		})
+		}
+		if bindings, ok := row["flux_git_repository_bindings"].([]map[string]any); ok && len(bindings) > 0 {
+			source["flux_git_repository_bindings"] = bindings
+		}
+		if BoolVal(row, "flux_target_bindings_saturated") {
+			source["flux_target_bindings_saturated"] = true
+		}
+		sources = append(sources, source)
 	}
 	return sources, nil
+}
+
+func deploymentSourceRepoIDs(rows []map[string]any) []string {
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if id := StringVal(row, "source_id"); id != "" {
+			ids = append(ids, id)
+		}
+	}
+	return sortedUniqueStrings(ids)
 }
 
 func deploymentSourceRowsWithEndpoints(

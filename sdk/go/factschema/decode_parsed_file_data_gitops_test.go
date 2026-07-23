@@ -274,6 +274,7 @@ func TestDecodeParsedFileDataFluxGitRepositories_TypedRows(t *testing.T) {
 		"flux_git_repositories": []any{
 			map[string]any{
 				"name":        "checkout-config",
+				"namespace":   "flux-system",
 				"line_number": float64(1),
 				"path":        "gitrepository.yaml",
 				"lang":        "yaml",
@@ -291,8 +292,8 @@ func TestDecodeParsedFileDataFluxGitRepositories_TypedRows(t *testing.T) {
 		t.Fatalf("len(gitRepositories) = %d, want 1", len(gitRepositories))
 	}
 	gitRepository := gitRepositories[0]
-	if gitRepository.Name != "checkout-config" || gitRepository.URL != "https://github.com/example/checkout-config" {
-		t.Fatalf("Name/URL = %q/%q", gitRepository.Name, gitRepository.URL)
+	if gitRepository.Name != "checkout-config" || gitRepository.Namespace != "flux-system" || gitRepository.URL != "https://github.com/example/checkout-config" {
+		t.Fatalf("Name/Namespace/URL = %q/%q/%q", gitRepository.Name, gitRepository.Namespace, gitRepository.URL)
 	}
 }
 

@@ -131,7 +131,7 @@ func TestFetchDeploymentSourcesOrdersCanonicalEndpointTiesDeterministically(t *t
 			!strings.Contains(cypher, "ORDER BY repo_name, instance_id, repo_id") {
 			t.Fatalf("canonical deployment-source query lacks endpoint tie-breakers:\n%s", cypher)
 		}
-		if strings.Contains(cypher, "targetRepo:Repository") &&
+		if strings.Contains(cypher, "targetRepo:Repository") && !strings.Contains(cypher, "EvidenceArtifact") &&
 			!strings.Contains(cypher, "ORDER BY repo_name, repo_id") {
 			t.Fatalf("repository deployment-source query lacks identity tie-breakers:\n%s", cypher)
 		}
@@ -258,6 +258,9 @@ func TestFetchDeploymentSourcesDeduplicatesEndpointsBeforeSentinel(t *testing.T)
 				t.Fatalf("canonical query does not group unique endpoints before LIMIT: %s", cypher)
 			}
 			return []map[string]any{{"instance_id": "instance:prod", "repo_id": "repository:deploy", "repo_name": "deploy"}}, nil
+		}
+		if strings.Contains(cypher, "EvidenceArtifact") {
+			return nil, nil
 		}
 		if !strings.Contains(cypher, "WITH repo.id as repo_id") {
 			t.Fatalf("repository query does not group unique endpoints before LIMIT: %s", cypher)

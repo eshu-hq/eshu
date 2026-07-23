@@ -9,7 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-func fluxGitRepositoryEnvelope(sourceRepoID, filePath, name, url string) facts.Envelope {
+func fluxGitRepositoryEnvelope(sourceRepoID, filePath, namespace, name, url string) facts.Envelope {
 	return facts.Envelope{
 		ScopeID: sourceRepoID,
 		Payload: map[string]any{
@@ -18,8 +18,9 @@ func fluxGitRepositoryEnvelope(sourceRepoID, filePath, name, url string) facts.E
 			"parsed_file_data": map[string]any{
 				"flux_git_repositories": []any{
 					map[string]any{
-						"name": name,
-						"url":  url,
+						"name":      name,
+						"namespace": namespace,
+						"url":       url,
 					},
 				},
 			},
@@ -31,7 +32,7 @@ func TestDiscoverStructuredFluxEvidenceUniqueURLMatchLinksAcrossRepos(t *testing
 	t.Parallel()
 
 	envelopes := []facts.Envelope{
-		fluxGitRepositoryEnvelope("repo-config", "clusters/prod/git-repository.yaml", "app-source",
+		fluxGitRepositoryEnvelope("repo-config", "clusters/prod/git-repository.yaml", "flux-system", "app-source",
 			"https://github.com/myorg/payments-deploy.git"),
 	}
 	catalog := []CatalogEntry{
@@ -59,6 +60,12 @@ func TestDiscoverStructuredFluxEvidenceUniqueURLMatchLinksAcrossRepos(t *testing
 	if got := fact.Details["flux_git_repository_name"]; got != "app-source" {
 		t.Fatalf("details[flux_git_repository_name] = %#v, want app-source", got)
 	}
+	if got := fact.Details["flux_git_repository_namespace"]; got != "flux-system" {
+		t.Fatalf("details[flux_git_repository_namespace] = %#v, want flux-system", got)
+	}
+	if got := fact.SourceEntityID; got != "FluxGitRepository\x00flux-system\x00app-source" {
+		t.Fatalf("SourceEntityID = %q, want qualified identity", got)
+	}
 	if got := fact.Details["url"]; got != "https://github.com/myorg/payments-deploy.git" {
 		t.Fatalf("details[url] = %#v, want raw url preserved", got)
 	}
@@ -71,11 +78,31 @@ func TestDiscoverStructuredFluxEvidenceUniqueURLMatchLinksAcrossRepos(t *testing
 	}
 }
 
+func TestDiscoverStructuredFluxEvidenceDistinctNamespacesDoNotCollapse(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		fluxGitRepositoryEnvelope("repo-config", "sources.yaml", "team-a", "app-source", "https://github.com/myorg/payments-deploy.git"),
+		fluxGitRepositoryEnvelope("repo-config", "sources.yaml", "team-b", "app-source", "https://github.com/myorg/payments-deploy.git"),
+	}
+	catalog := []CatalogEntry{{RepoID: "repo-deploy", RemoteURL: "https://github.com/myorg/payments-deploy"}}
+	evidence, _ := DiscoverEvidenceWithStats(envelopes, catalog)
+	var got []EvidenceFact
+	for _, fact := range evidence {
+		if fact.EvidenceKind == EvidenceKindFluxGitRepositorySource {
+			got = append(got, fact)
+		}
+	}
+	if len(got) != 2 {
+		t.Fatalf("qualified evidence count = %d, want 2: %#v", len(got), got)
+	}
+}
+
 func TestDiscoverStructuredFluxEvidenceUnresolvedURLTalliesUnresolvedAndEmitsNoEdge(t *testing.T) {
 	t.Parallel()
 
 	envelopes := []facts.Envelope{
-		fluxGitRepositoryEnvelope("repo-config", "clusters/prod/git-repository.yaml", "app-source",
+		fluxGitRepositoryEnvelope("repo-config", "clusters/prod/git-repository.yaml", "", "app-source",
 			"https://github.com/myorg/never-indexed.git"),
 	}
 	catalog := []CatalogEntry{
@@ -99,7 +126,7 @@ func TestDiscoverStructuredFluxEvidenceSelfReferenceSkipsAndTalliesSelf(t *testi
 	t.Parallel()
 
 	envelopes := []facts.Envelope{
-		fluxGitRepositoryEnvelope("repo-config", "clusters/prod/git-repository.yaml", "app-source",
+		fluxGitRepositoryEnvelope("repo-config", "clusters/prod/git-repository.yaml", "", "app-source",
 			"https://github.com/myorg/gitops-config.git"),
 	}
 	catalog := []CatalogEntry{
@@ -123,7 +150,7 @@ func TestDiscoverStructuredFluxEvidenceAmbiguousMatchSkipsAndTalliesAmbiguous(t 
 	t.Parallel()
 
 	envelopes := []facts.Envelope{
-		fluxGitRepositoryEnvelope("repo-config", "clusters/prod/git-repository.yaml", "app-source",
+		fluxGitRepositoryEnvelope("repo-config", "clusters/prod/git-repository.yaml", "", "app-source",
 			"https://github.com/myorg/payments-deploy.git"),
 	}
 	// Two catalog entries sharing the same normalized RemoteURL is
@@ -197,7 +224,7 @@ func TestDiscoverStructuredFluxEvidenceNeverUsesFuzzyAliasMatch(t *testing.T) {
 	// unresolved, proving strict equality rather than matchCatalog's fuzzy
 	// token match.
 	envelopes := []facts.Envelope{
-		fluxGitRepositoryEnvelope("repo-config", "clusters/prod/git-repository.yaml", "app-source",
+		fluxGitRepositoryEnvelope("repo-config", "clusters/prod/git-repository.yaml", "", "app-source",
 			"https://gitlab.example.com/myorg/payments-deploy.git"),
 	}
 	catalog := []CatalogEntry{
@@ -225,7 +252,7 @@ func TestDiscoverEvidenceIgnoresStatsForExistingCallers(t *testing.T) {
 	// callers (issue #5483 C2 design note): it still returns evidence facts
 	// only, discarding DiscoveryStats.
 	envelopes := []facts.Envelope{
-		fluxGitRepositoryEnvelope("repo-config", "clusters/prod/git-repository.yaml", "app-source",
+		fluxGitRepositoryEnvelope("repo-config", "clusters/prod/git-repository.yaml", "", "app-source",
 			"https://github.com/myorg/payments-deploy.git"),
 	}
 	catalog := []CatalogEntry{

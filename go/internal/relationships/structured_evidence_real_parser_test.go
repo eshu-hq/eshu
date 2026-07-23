@@ -400,4 +400,7 @@ spec:
 	if evidence[0].Details["flux_git_repository_name"] != "checkout-config" {
 		t.Fatalf("Details[flux_git_repository_name] = %#v, want %q", evidence[0].Details["flux_git_repository_name"], "checkout-config")
 	}
+	if evidence[0].Details["flux_git_repository_namespace"] != "flux-system" {
+		t.Fatalf("Details[flux_git_repository_namespace] = %#v, want %q", evidence[0].Details["flux_git_repository_namespace"], "flux-system")
+	}
 }
