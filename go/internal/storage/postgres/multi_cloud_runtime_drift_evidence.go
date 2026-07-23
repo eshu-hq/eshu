@@ -126,6 +126,7 @@ func (l PostgresMultiCloudRuntimeDriftEvidenceLoader) LoadMultiCloudRuntimeDrift
 			Cloud:            observed.resource,
 		}
 		applyMultiCloudStateAndConfig(&row, stateByUID[uid], configByStateScope)
+		row.WarningFlags = append(row.WarningFlags, containerImagesTruncatedWarning(row.Cloud, row.State)...)
 		rows = append(rows, row)
 	}
 	return rows, nil
@@ -367,6 +368,8 @@ func multiCloudObservedRowFromRow(
 	}
 	resourceType := strings.TrimSpace(coerceJSONString(decoded[multiCloudResourceTypeKey(factKind)]))
 	tags := coerceStringTags(multiCloudTagsFromPayload(decoded))
+	attributesPayload, _ := decoded["attributes"].(map[string]any)
+	attributes, containerImages, truncated := cloudObservedValueAttributes(resourceType, attributesPayload)
 
 	return multiCloudObservedRow{
 		uid:          resolution.CloudResourceUID,
@@ -374,10 +377,13 @@ func multiCloudObservedRowFromRow(
 		rawIdentity:  rawIdentity,
 		resourceType: resourceType,
 		resource: &cloudruntime.ResourceRow{
-			ARN:          rawIdentity,
-			ResourceType: resourceType,
-			ScopeID:      strings.TrimSpace(scopeID),
-			Tags:         tags,
+			ARN:                      rawIdentity,
+			ResourceType:             resourceType,
+			ScopeID:                  strings.TrimSpace(scopeID),
+			Tags:                     tags,
+			Attributes:               attributes,
+			ContainerImages:          containerImages,
+			ContainerImagesTruncated: truncated,
 		},
 	}, true
 }
@@ -430,10 +436,15 @@ func multiCloudStateRowFromPayload(scopeID, address string, payload []byte) (*cl
 	if address == "" {
 		return nil, false
 	}
+	resourceType := strings.TrimSpace(decoded.Type)
+	attributes, containerImages, truncated := stateDeclaredValueAttributes(resourceType, decoded.Attributes)
 	return &cloudruntime.ResourceRow{
-		Address:      address,
-		ResourceType: strings.TrimSpace(decoded.Type),
-		ScopeID:      strings.TrimSpace(scopeID),
+		Address:                  address,
+		ResourceType:             resourceType,
+		ScopeID:                  strings.TrimSpace(scopeID),
+		Attributes:               attributes,
+		ContainerImages:          containerImages,
+		ContainerImagesTruncated: truncated,
 	}, true
 }
 
