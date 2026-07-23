@@ -270,6 +270,27 @@ func dependencyIdentityDiscriminator(packageManager string, metadata map[string]
 		// TABLE-form dependencies key by TOML map key and are already unique
 		// without this; adding the same discriminator there is harmless
 		// (extras/marker are typically absent, so it is an empty suffix).
+		//
+		// This discriminator deliberately does NOT include "value" (the
+		// version specifier/constraint), unlike gradle's and go's version
+		// discriminators. Two requirement lines for the same package in the
+		// same section with the same extras/marker but different version
+		// constraints — e.g. `requests>=2` on one line and `requests<3` on
+		// another — are not two competing declarations the way two gomod
+		// `require` lines at different pinned versions are: pip's resolver
+		// (both the legacy and the default 2020 resolver) combines every
+		// constraint it finds for one canonical package name into a single
+		// intersected specifier set (`>=2,<3` here) before resolving one
+		// install candidate. They are ONE logical dependency split across
+		// two lines, not two. Collapsing them to one content-entity id is
+		// therefore the semantically correct outcome, not an oversight —
+		// see TestCanonicalEntityIDWithMetadataPyPIConstraintValueIntentionallyOmittedFromDiscriminator.
+		// The surviving row when two lines collapse is deterministic: shape.
+		// Materialize sorts entities by line number before minting ids, and
+		// internal/storage/postgres's deduplicateEntityRows keeps the LAST
+		// occurrence in input order, so the physically later requirement
+		// line in the file is always the one whose other fields (SourceCache,
+		// StartLine, ...) survive.
 		return dependencyExtrasAndMarker(metadata)
 	default:
 		return ""
