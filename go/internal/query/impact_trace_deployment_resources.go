@@ -67,6 +67,15 @@ func buildDeploymentFactSummary(
 	// fabricated zero.
 	if count, ok := workloadContext["_live_instance_count"].(int); ok {
 		summary["live_instance_count"] = count
+		// #5663: truncated is a flat sibling field of live_instance_count,
+		// always present (as false or true) whenever live_instance_count
+		// itself is present, mirroring the always-present-within-its-parent
+		// convention the gitops *_limits "truncated" fields use -- read
+		// from workloadContext["_live_instance_count_truncated"] (set by the
+		// handler in lockstep with "_live_instance_count",
+		// impact_trace_deployment.go) rather than as a builder parameter, to
+		// match how live_instance_count itself already arrives here.
+		summary["live_instance_count_truncated"], _ = workloadContext["_live_instance_count_truncated"].(bool)
 	}
 	if len(uncorrelatedCloudResources) > 0 {
 		summary["uncorrelated_cloud_resource_count"] = len(uncorrelatedCloudResources)

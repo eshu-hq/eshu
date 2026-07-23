@@ -14,7 +14,11 @@
 // observation was found at all -- an operator can read that span at 3 AM to
 // see exactly why a workload's live_instance_count is present, absent, or a
 // particular value, mirroring the sibling live-evidence probe's telemetry
-// contract (#5638).
+// contract (#5638). The span also carries eshu.live_instance_count_truncated
+// (#5663): true when at least one identity anchor's read hit
+// serviceStoryItemLimit rows, disclosing that the count is a conservative
+// lower bound rather than an exact total -- no new eshu_dp_* metric is
+// introduced, this is a span-attribute-only addition on the existing span.
 
 package query
 
@@ -38,6 +42,18 @@ type liveInstanceSummary struct {
 	// here; fetchWorkloadLiveInstanceSummary returns a nil
 	// *liveInstanceSummary instead of a non-nil summary with a nil count.
 	count int
+
+	// truncated is true when at least one identity anchor's
+	// ListLiveIdentityMatches read returned exactly serviceStoryItemLimit
+	// rows (#5663). The store bounds every anchor's read at that ceiling
+	// (impact_trace_deployment_live_evidence_store.go), so a full page is
+	// indistinguishable from "exactly N matched objects" and "N or more
+	// exist, truncated at N" without fetching N+1 -- treating a full page as
+	// truncated is the conservative, accuracy-first choice: count then
+	// becomes a lower bound rather than a silently wrong exact total.
+	// Meaningful only when the summary itself is non-nil (count present); a
+	// nil summary never carries a leaked or stale truncated value.
+	truncated bool
 }
 
 // fetchWorkloadLiveInstanceSummary derives a read-side live_instance_count
@@ -118,12 +134,22 @@ func (h *ImpactHandler) fetchWorkloadLiveInstanceSummary(
 	// an already-counted object is the one skipped here, keeping the
 	// stronger anchor's count authoritative.
 	seen := map[string]struct{}{}
+	truncated := false
 	for _, anchor := range anchors {
 		filter := liveIdentityAnchorFilter(anchor, imageRefs, access)
 		matches, err := h.KubernetesPodTemplates.ListLiveIdentityMatches(ctx, filter)
 		if err != nil {
 			span.RecordError(err)
 			return nil, err
+		}
+		// #5663: a full page (exactly serviceStoryItemLimit rows) from this
+		// anchor's read is indistinguishable from "more rows exist beyond
+		// the cap" -- flag the whole summary as truncated so the count is
+		// disclosed as a conservative lower bound. ANY anchor hitting the
+		// limit truncates the summary; a per-anchor undercount undercounts
+		// the total regardless of how the other anchors read.
+		if len(matches) == serviceStoryItemLimit {
+			truncated = true
 		}
 
 		// The same tracking-id can span multiple clusters (one ArgoCD
@@ -158,10 +184,11 @@ func (h *ImpactHandler) fetchWorkloadLiveInstanceSummary(
 		return nil, nil
 	}
 
-	summary := &liveInstanceSummary{count: int(total)}
+	summary := &liveInstanceSummary{count: int(total), truncated: truncated}
 	span.SetAttributes(
 		attribute.Bool("eshu.live_instance_count_observed", true),
 		attribute.Int("eshu.live_instance_count", summary.count),
+		attribute.Bool("eshu.live_instance_count_truncated", summary.truncated),
 	)
 	return summary, nil
 }

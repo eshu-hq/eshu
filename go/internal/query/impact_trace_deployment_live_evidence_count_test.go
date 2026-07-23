@@ -339,6 +339,9 @@ func TestFetchWorkloadLiveInstanceSummaryReadyZeroIsPresent(t *testing.T) {
 	if summary.count != 0 {
 		t.Fatalf("count = %d, want 0", summary.count)
 	}
+	if summary.truncated {
+		t.Fatal("truncated = true, want false (single match, far under serviceStoryItemLimit)")
+	}
 }
 
 // TestFetchWorkloadLiveInstanceSummaryStoreError proves a store failure

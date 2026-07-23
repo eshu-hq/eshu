@@ -116,6 +116,17 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 			t.Fatalf("trace_deployment_chain required_json_values[%q] = %#v, want %v", path, got, want)
 		}
 	}
+	// #5663: live_instance_count is a bounded, per-anchor read capped at
+	// serviceStoryItemLimit, so the read-side summary now discloses whether the
+	// reported count is exact or a truncated lower bound via the mandatory
+	// sibling live_instance_count_truncated. This fixture's anchor matches far
+	// fewer than the cap, so the truthful pin is false -- pin it explicitly so a
+	// regression that drops or misserializes the field (leaving live_instance_count
+	// silently unqualified) fails the gate. JSON booleans decode to Go bool
+	// through LoadSnapshot's json.Unmarshal into `any`.
+	if got, ok := shape.RequiredJSONValues["data.deployment_fact_summary.live_instance_count_truncated"]; !ok || got != false {
+		t.Fatalf("trace_deployment_chain required_json_values[live_instance_count_truncated] = %#v (present=%v), want false", got, ok)
+	}
 	wantObjectMatches := map[string][]map[string]any{
 		"data.instances[].platforms[].topology_edges[]": {
 			{
@@ -190,5 +201,38 @@ func TestGoldenSnapshotTraceDeploymentChainRejectsReversedExactEndpoints(t *test
 	}
 	if finding := EvaluateQueryShape("trace-deployment-chain", shape, mutated); finding.OK {
 		t.Fatalf("reversed exact endpoint passed unexpectedly: %s", finding.Detail)
+	}
+}
+
+// TestGoldenSnapshotTraceDeploymentChainDeclaredObjectPinsLiveInstanceCount
+// locks the #5639 declared-object-anchor trace shape (keyed with the
+// ?anchor=declared-object query-string suffix so it reaches the same handler
+// with the supply-chain-demo-db body). It pins the read-side live_instance_count
+// derived through the declared kind+namespace+name anchor and its mandatory
+// #5663 truncation sibling, so a regression that drops either the value or the
+// truncation qualifier on the declared-object path fails the static gate rather
+// than depending only on the live replay comparison.
+func TestGoldenSnapshotTraceDeploymentChainDeclaredObjectPinsLiveInstanceCount(t *testing.T) {
+	snapshot, err := LoadSnapshot(goldenSnapshotPath())
+	if err != nil {
+		t.Fatalf("LoadSnapshot() error = %v", err)
+	}
+	shape, ok := snapshot.QueryShapes.HTTP["POST /api/v0/impact/trace-deployment-chain?anchor=declared-object"]
+	if !ok {
+		t.Fatal("query_shapes.http missing #5639 declared-object deployment trace")
+	}
+	if got, want := shape.RequestBody["service_name"], "supply-chain-demo-db"; got != want {
+		t.Fatalf("declared-object trace service_name = %#v, want %q", got, want)
+	}
+	// JSON numbers decode to float64 through LoadSnapshot's json.Unmarshal into `any`.
+	if got, want := shape.RequiredJSONValues["data.deployment_fact_summary.live_instance_count"], float64(2); got != want {
+		t.Fatalf("declared-object trace live_instance_count pin = %#v, want %v", got, want)
+	}
+	// #5663: the declared-object anchor's read is bounded by the same
+	// serviceStoryItemLimit cap; this fixture matches well under it, so the
+	// truthful truncation pin is false. Lock it so the field cannot silently
+	// disappear from the declared-object trace.
+	if got, ok := shape.RequiredJSONValues["data.deployment_fact_summary.live_instance_count_truncated"]; !ok || got != false {
+		t.Fatalf("declared-object trace required_json_values[live_instance_count_truncated] = %#v (present=%v), want false", got, ok)
 	}
 }

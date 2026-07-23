@@ -5008,6 +5008,7 @@
           "data.deployment_fact_summary.image_ref_count": 1,
           "data.deployment_fact_summary.k8s_resource_count": 1,
           "data.deployment_fact_summary.live_instance_count": 3,
+          "data.deployment_fact_summary.live_instance_count_truncated": false,
           "data.image_refs[]": "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
           "truth.level": "derived",
           "truth.basis": "hybrid"
@@ -5086,6 +5087,7 @@
           "data.deployment_fact_summary.k8s_resource_count": 1,
           "data.deployment_fact_summary.image_ref_count": 1,
           "data.deployment_fact_summary.live_instance_count": 2,
+          "data.deployment_fact_summary.live_instance_count_truncated": false,
           "data.deployment_fact_summary.overall_confidence_reason": "live_runtime_observation",
           "data.image_refs[]": "ghcr.io/eshu-hq/internal-tools/db-migrator:1.0.0",
           "truth.level": "derived",

@@ -117,6 +117,12 @@ func TestBuildDeploymentFactSummaryTierConfigOnly(t *testing.T) {
 	if count := summary["live_instance_count"]; count != 3 {
 		t.Fatalf("live_instance_count = %v, want 3 (the count itself still surfaces even though the tier stays config_only)", count)
 	}
+	// #5663: truncated defaults to false (present, not omitted) on a normal, complete observation.
+	if truncated, ok := summary["live_instance_count_truncated"]; !ok {
+		t.Fatal("live_instance_count_truncated missing, want present (false) alongside live_instance_count")
+	} else if truncated != false {
+		t.Fatalf("live_instance_count_truncated = %v, want false", truncated)
+	}
 }
 
 // TestBuildDeploymentFactSummaryLiveInstanceCountAbsentWhenNoObservation
@@ -135,6 +141,9 @@ func TestBuildDeploymentFactSummaryLiveInstanceCountAbsentWhenNoObservation(t *t
 	)
 	if _, ok := summary["live_instance_count"]; ok {
 		t.Fatalf("live_instance_count = %v, want absent when no observation was made", summary["live_instance_count"])
+	}
+	if _, ok := summary["live_instance_count_truncated"]; ok {
+		t.Fatalf("live_instance_count_truncated = %v, want absent when live_instance_count itself is absent", summary["live_instance_count_truncated"])
 	}
 }
 

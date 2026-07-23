@@ -244,6 +244,13 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 			}
 		} else if liveInstances != nil {
 			ctx["_live_instance_count"] = liveInstances.count
+			// #5663: attached alongside the count so the response can
+			// disclose whether an anchor's read hit serviceStoryItemLimit
+			// rows -- the count is then a conservative lower bound, not an
+			// exact total. Only set when liveInstances is non-nil,
+			// mirroring how _live_instance_count itself is only ever set on
+			// an actual observation.
+			ctx["_live_instance_count_truncated"] = liveInstances.truncated
 		}
 	}
 
