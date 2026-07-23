@@ -3646,7 +3646,7 @@
         "minimum_results": 0
       },
       "get_container_image_identity_inventory": {
-        "description": "MCP tool coverage shape for get_container_image_identity_inventory; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for get_container_image_identity_inventory; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5451 non-vacuous assertion: scoping the inventory to the synthetic CI build repo (repository:r_ecs_supply_chain_demo_task -- matched against the row's source_repository_ids, same bridge mechanism as the #5423 list_container_image_identities assertion above) returns >=1 outcome=exact_digest bucket. That bucket exists only because the ECS scanner now emits an aws_image_reference fact for the running task container's digest (sha256:...aa, previously buried in the ecs.task aws_resource containers[] attribute and invisible to the digest-keyed resolver): it resolves against the ECR-hosted oci_registry.image_manifest fixture and is joined to the digest-matched ci.run's build repository through the same ci.artifact bridge #5423 uses. The count is provably zero on main: none of the aws_image_reference fact, the ECR oci_registry.image_manifest fixture, or the supply-chain-demo-ecs-task ci.run/ci.artifact pair exist there, so no decision carries this digest or this source repository at all.",
         "required_response_fields": [
           "buckets",
           "count",
@@ -3657,7 +3657,15 @@
           "scope",
           "truncated"
         ],
-        "minimum_results": 0
+        "minimum_results": 1,
+        "required_json_values": {
+          "buckets[].value": "exact_digest"
+        },
+        "arguments": {
+          "source_repository_id": "repository:r_ecs_supply_chain_demo_task",
+          "group_by": "outcome",
+          "limit": 10
+        }
       },
       "count_sbom_attestation_attachments": {
         "description": "MCP tool coverage shape for count_sbom_attestation_attachments; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",

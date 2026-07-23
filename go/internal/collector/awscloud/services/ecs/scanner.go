@@ -280,6 +280,11 @@ func taskEnvelopes(boundary awscloud.Boundary, task Task) ([]facts.Envelope, err
 		}
 		envelopes = append(envelopes, relationship)
 	}
+	imageReferences, err := runningContainerImageReferences(boundary, task)
+	if err != nil {
+		return nil, err
+	}
+	envelopes = append(envelopes, imageReferences...)
 	return envelopes, nil
 }
 

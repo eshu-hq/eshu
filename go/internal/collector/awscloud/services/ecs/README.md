@@ -4,7 +4,8 @@
 
 `internal/collector/awscloud/services/ecs` owns the ECS scanner contract for
 the AWS cloud collector. It converts clusters, services, task definitions,
-tasks, service load-balancer bindings, and container image references into AWS
+tasks, service load-balancer bindings, task-definition container image
+relationships, and running-task container `aws_image_reference` facts into AWS
 cloud fact envelopes.
 
 ## Ownership boundary
@@ -20,8 +21,10 @@ flowchart LR
   B --> C["Scanner.Scan"]
   C --> D["aws_resource"]
   C --> E["aws_relationship"]
+  C --> G["aws_image_reference"]
   D --> F["facts.Envelope"]
   E --> F
+  G --> F
 ```
 
 ## Exported surface
@@ -35,6 +38,9 @@ See `doc.go` for the godoc contract.
 - `Container`, `EnvironmentVariable`, `SecretReference`, `LoadBalancer`,
   `TaskContainer`, and `TaskNetworkInterface` - scanner-owned nested ECS
   records.
+- `parseECRImage` - parses a running container's `image` string into an ECR
+  registry id, repository name, and tag when the host matches the ECR
+  registry shape.
 
 ## Dependencies
 
@@ -64,8 +70,29 @@ throttles, and pagination spans.
   `aws_relationship` facts.
 - ECS task ENI details are reported attachment evidence used by later reducers
   to join tasks to EC2 subnet and VPC topology.
-- Container images are relationship targets, not `aws_resource` facts in this
+- Task-definition container images are relationship targets
+  (`RelationshipECSTaskDefinitionUsesImage`), not `aws_resource` facts, in this
   package.
+- Every RUNNING task container with a non-blank `ImageDigest` and an
+  ECR-hosted `Image` (host matches `<registry-id>.dkr.ecr.<region>.amazonaws.com`,
+  including the `.amazonaws.com.cn` partition) emits a first-class
+  `aws_image_reference` fact (#5451). This is the strongest available
+  deployed-code signal ECS offers: the digest DescribeTasks reports for the
+  container running right now, not a build-time or task-definition reference.
+  It lets the digest-keyed `container_image_identity` reducer resolve a
+  running task straight to the repository and commit that built its image,
+  which reading only the task's `aws_resource` `containers[]` attribute never
+  did (that attribute is not read by the identity resolver at all).
+- A non-ECR running image (`docker.io`, `ghcr.io`, a private registry, ...) is
+  a bounded gap: `aws_image_reference` models an AWS account/region/repository
+  shape that a non-ECR image does not fit, so the scanner intentionally does
+  not force it and emits no image reference for that container. The image is
+  still visible through the task's `aws_resource` `containers[]` attribute and
+  the task-definition's `RelationshipECSTaskDefinitionUsesImage` relationship;
+  only the digest-keyed identity join is unavailable for it.
+- A non-RUNNING task (STOPPED, PENDING, ...) never emits an image reference —
+  only the RUNNING state is the deployed-code signal this fact exists to
+  carry.
 - The scanner stops on client errors. Runtime adapters decide whether an AWS
   service error is retryable, terminal, or a warning fact.
 

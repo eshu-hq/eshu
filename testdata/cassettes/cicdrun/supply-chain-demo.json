@@ -66,6 +66,71 @@
           }
         }
       ]
+    },
+    {
+      "scope_id": "ci_cd_run:github_actions:eshu-hq:supply-chain-demo-ecs-task",
+      "source_system": "ci_cd_run",
+      "scope_kind": "ci_cd_run",
+      "collector_kind": "ci_cd_run",
+      "partition_key": "ci_cd_run:github_actions:eshu-hq:supply-chain-demo-ecs-task",
+      "metadata": {
+        "provider": "github_actions",
+        "repository": "eshu-hq/supply-chain-demo-ecs-task"
+      },
+      "generation_id": "cassette-cicd-scd-ecs-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "ci.run",
+          "stable_fact_key": "ci_cd_run:github_actions:supply-chain-demo-ecs-task:run:5151",
+          "schema_version": "1.0.0",
+          "collector_kind": "ci_cd_run",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "cicd-collector-scd-ecs",
+            "provider": "github_actions",
+            "run_id": "5151",
+            "run_attempt": "1",
+            "run_number": "42",
+            "workflow_name": "deploy-ecs",
+            "event": "push",
+            "status": "completed",
+            "result": "success",
+            "branch": "main",
+            "commit_sha": "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b",
+            "repository_id": "repository:r_ecs_supply_chain_demo_task",
+            "provider_repository_id": "github.com/eshu-hq/supply-chain-demo-ecs-task",
+            "repository_url": "https://github.com/eshu-hq/supply-chain-demo-ecs-task",
+            "correlation_anchors": [
+              "github_actions::5151"
+            ]
+          }
+        },
+        {
+          "fact_kind": "ci.artifact",
+          "stable_fact_key": "ci_cd_run:github_actions:supply-chain-demo-ecs-task:run:5151:artifact:image",
+          "schema_version": "1.0.0",
+          "collector_kind": "ci_cd_run",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "cicd-collector-scd-ecs",
+            "provider": "github_actions",
+            "run_id": "5151",
+            "run_attempt": "1",
+            "artifact_id": "art-image-5151",
+            "artifact_name": "supply-chain-demo-ecs-task-image",
+            "artifact_type": "container_image",
+            "artifact_digest": "sha256:0000000000000000000000000000000000000000000000000000000000aa",
+            "correlation_anchors": [
+              "github_actions::5151",
+              "sha256:0000000000000000000000000000000000000000000000000000000000aa"
+            ]
+          }
+        }
+      ]
     }
   ]
 }
