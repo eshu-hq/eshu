@@ -93,6 +93,21 @@ func ecsRunningTaskImageFields(resource awsv1.Resource) (map[string]any, error) 
 // running_image_digest. A Lambda function is single-image by AWS's own model
 // (one function = one deployed package), so there is no multi-container
 // ambiguity to resolve.
+//
+// running_image_digest is normalized to the BARE digest ("sha256:<hex>",
+// parsed out of resolved_image_uri's "registry/repository@sha256:<hex>" shape
+// via the shared digestFromImageRef helper) so the property carries the
+// IDENTICAL shape the ECS running-task path already writes
+// (TaskContainer.ImageDigest is bare from the AWS API). Before this
+// normalization, running_image_digest carried the bare digest for ECS but the
+// full registry/repository@digest reference for Lambda — same property name,
+// two incompatible shapes, which would silently mis-handle any consumer that
+// joins or pattern-matches on this property expecting one shape. The full
+// digest-bearing reference is still available in full via running_image_ref.
+// A resolved_image_uri present but not digest-qualified (an unexpected shape)
+// decodes as no running_image_digest rather than a fabricated/truncated
+// value — the same "unresolvable stays absent" convention as every other
+// field in this file.
 func lambdaFunctionImageFields(resource awsv1.Resource) (map[string]any, error) {
 	attrs, err := awsv1.DecodeResourceLambdaFunctionImageAttributes(resource)
 	if err != nil {
@@ -102,8 +117,8 @@ func lambdaFunctionImageFields(resource awsv1.Resource) (map[string]any, error) 
 		return nil, nil
 	}
 	fields := map[string]any{"running_image_ref": attrs.ImageURI}
-	if attrs.ResolvedImageURI != "" {
-		fields["running_image_digest"] = attrs.ResolvedImageURI
+	if digest := digestFromImageRef(attrs.ResolvedImageURI); digest != "" {
+		fields["running_image_digest"] = digest
 	}
 	return fields, nil
 }

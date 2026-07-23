@@ -228,9 +228,15 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 			"123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
 			"123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
 		},
+		// running_image_digest carries the BARE digest for both ECS and Lambda
+		// (issue #5450 P2 fix): the full registry/repository@digest reference
+		// is available via running_image_ref, and running_image_digest is
+		// normalized to "sha256:<hex>" for both resource types so a consumer
+		// never has to branch on resource_type to know which shape it is
+		// getting.
 		"CloudResource|running_image_digest": {
 			"sha256:0000000000000000000000000000000000000000000000000000000000aa",
-			"123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:0000000000000000000000000000000000000000000000000000000000cc",
+			"sha256:0000000000000000000000000000000000000000000000000000000000cc",
 		},
 	}
 	return nodes, nodeProp

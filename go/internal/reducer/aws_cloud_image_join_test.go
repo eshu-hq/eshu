@@ -218,12 +218,20 @@ func TestContainerImageNodeUIDFromDigestRef(t *testing.T) {
 		}
 	})
 
-	t.Run("case is preserved, never lowercased", func(t *testing.T) {
-		got, ok := containerImageNodeUIDFromDigestRef("Registry.Example.Com/Demo@sha256:cc")
+	t.Run("registry, repository, and digest are lowercased to match the OCI registry collector's normalization", func(t *testing.T) {
+		// internal/collector/ociregistry/identity.go NormalizeRepositoryIdentity /
+		// normalizeDigest unconditionally lowercase the scanned registry,
+		// repository, and digest before computing the real :ContainerImage
+		// node's repository_id/descriptor identity. resolved_image_uri comes
+		// straight from the Lambda GetFunction API response and is never run
+		// through that collector normalization, so this function must
+		// lowercase independently or a mixed-case registry/repository/digest
+		// would compute a uid that can never MATCH the real node.
+		got, ok := containerImageNodeUIDFromDigestRef("Registry.Example.Com/Demo@SHA256:CC")
 		if !ok {
 			t.Fatal("ok = false, want true")
 		}
-		want := "oci-descriptor://Registry.Example.Com/Demo@sha256:cc"
+		want := "oci-descriptor://registry.example.com/demo@sha256:cc"
 		if got != want {
 			t.Fatalf("got %q, want %q", got, want)
 		}

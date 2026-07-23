@@ -204,7 +204,7 @@ func ExtractAWSCloudImageEdgeRows(
 
 // containerImageNodeUIDFromDigestRef computes the exact :ContainerImage node
 // uid a registry+repository@sha256:digest reference resolves to, matching the
-// OCI registry canonical writer's own uid formula byte-for-byte
+// OCI registry canonical writer's own uid formula
 // (internal/projector.ociDescriptorUID / ociResolvedDescriptorUID): given a
 // repository_id of the form "oci-registry://<registry>/<repository>", the
 // node uid is "oci-descriptor://<registry>/<repository>@<digest>". This
@@ -213,27 +213,46 @@ func ExtractAWSCloudImageEdgeRows(
 // identical literal string from the two inputs both formulas share: the
 // registry/repository portion before "@" and the digest after it.
 //
-// The registry/repository portion is used EXACTLY as reported — never
-// lowercased — because the OCI registry collector's own repository_id
-// (internal/collector/awscloud... has no OCI collector; see
-// internal/collector/ociregistry) is built from the scanned registry/repo
-// strings as-is (ociRepositoryID in
-// go/internal/reducer/container_image_identity_registry.go deliberately does
-// not lowercase either). Lowercasing here would silently produce a uid that
-// can never MATCH a real :ContainerImage node whenever a registry or
-// repository name contains an uppercase character.
+// The registry/repository portion AND the digest are lowercased to match the
+// OCI registry collector's own normalization
+// (internal/collector/ociregistry/identity.go NormalizeRepositoryIdentity /
+// normalizeDigest): the collector unconditionally lowercases the scanned
+// registry, repository, and digest before computing repository_id/descriptor
+// identity, so the REAL :ContainerImage node uid is always lowercase
+// regardless of the case the source (an ECR API response, a Docker Hub
+// manifest, etc.) reported. resolved_image_uri, by contrast, is read directly
+// from the Lambda GetFunction API response and never passes through that
+// collector normalization, so it can carry any case the registry/repository
+// name happens to have. Without lowercasing here, a registry or repository
+// name containing an uppercase character (ECR host/repo names are
+// conventionally lowercase, but this is a documented AWS convention, not a
+// hard API guarantee this reducer should silently depend on) would compute a
+// uid that can never MATCH the real node the OCI registry collector creates —
+// exactly the silent no-op #5450 exists to close. This function intentionally
+// does NOT special-case ECR; lowercasing unconditionally removes the
+// otherwise-hidden "Lambda images are ECR-only and ECR happens to force
+// lowercase" dependency entirely, matching the collector's own behavior for
+// every registry.
 //
 // Returns ok=false for anything that is not a digest-qualified reference
 // (no "@sha256:" suffix) or has an empty registry/repository portion — never
 // a fabricated or partial uid.
 func containerImageNodeUIDFromDigestRef(ref string) (string, bool) {
 	trimmed := strings.TrimSpace(ref)
-	before, digest, ok := strings.Cut(trimmed, "@")
-	if !ok || !strings.HasPrefix(digest, "sha256:") {
+	before, rawDigest, ok := strings.Cut(trimmed, "@")
+	if !ok {
 		return "", false
 	}
-	repositoryKey := strings.Trim(strings.TrimSpace(before), "/")
-	if repositoryKey == "" || len(digest) <= len("sha256:") {
+	// Lowercase first, matching the collector's own normalizeDigest order
+	// (lowercase, then validate/use), so a mixed-case "SHA256:" prefix or hex
+	// body normalizes identically to how the OCI registry collector would
+	// have recorded the same digest.
+	digest := strings.ToLower(strings.TrimSpace(rawDigest))
+	if !strings.HasPrefix(digest, "sha256:") || len(digest) <= len("sha256:") {
+		return "", false
+	}
+	repositoryKey := strings.ToLower(strings.Trim(strings.TrimSpace(before), "/"))
+	if repositoryKey == "" {
 		return "", false
 	}
 	return "oci-descriptor://" + repositoryKey + "@" + digest, true

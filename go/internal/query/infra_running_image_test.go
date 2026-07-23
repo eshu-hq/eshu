@@ -34,7 +34,7 @@ func TestSearchInfraResourcesSurfacesRunningImageOnCloudResources(t *testing.T) 
 				"service_kind":         "lambda",
 				"source":               "aws",
 				"running_image_ref":    "123456789012.dkr.ecr.us-east-1.amazonaws.com/demo:latest",
-				"running_image_digest": "123456789012.dkr.ecr.us-east-1.amazonaws.com/demo@sha256:cc",
+				"running_image_digest": "sha256:cc",
 			},
 		},
 	}
@@ -73,7 +73,7 @@ func TestSearchInfraResourcesSurfacesRunningImageOnCloudResources(t *testing.T) 
 	resource := results[0].(map[string]any)
 	for key, want := range map[string]any{
 		"running_image_ref":    "123456789012.dkr.ecr.us-east-1.amazonaws.com/demo:latest",
-		"running_image_digest": "123456789012.dkr.ecr.us-east-1.amazonaws.com/demo@sha256:cc",
+		"running_image_digest": "sha256:cc",
 	} {
 		if got := resource[key]; got != want {
 			t.Fatalf("%s = %#v, want %#v", key, got, want)

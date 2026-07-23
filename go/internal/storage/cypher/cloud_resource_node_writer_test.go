@@ -113,6 +113,56 @@ func TestCloudResourceNodeWriterPersistsServiceAnchorFields(t *testing.T) {
 	}
 }
 
+// TestCloudResourceNodeWriterPersistsRunningImageFields proves the
+// running_image_ref/running_image_digest CloudResource node props (issue
+// #5450) reach the actual SET clause the writer executes — a regression the
+// in-memory row-map extraction tests (aws_resource_running_image_test.go)
+// cannot catch, since ExtractCloudResourceNodeRows building the right map key
+// is necessary but not sufficient: Cypher only persists a property named in
+// the SET clause, so a row key with no matching `r.<key> = row.<key>` SET
+// fragment is silently dropped by the backend, never reaching the graph. This
+// mirrors TestCloudResourceNodeWriterPersistsServiceAnchorFields for the
+// service-anchor fields.
+func TestCloudResourceNodeWriterPersistsRunningImageFields(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewCloudResourceNodeWriter(executor, 0)
+	rows := cloudResourceRows(1)
+	rows[0]["running_image_ref"] = "123456789012.dkr.ecr.us-east-1.amazonaws.com/demo:latest"
+	rows[0]["running_image_digest"] = "sha256:cc"
+
+	if err := writer.WriteCloudResourceNodes(context.Background(), rows, "reducer/aws-resources"); err != nil {
+		t.Fatalf("WriteCloudResourceNodes returned error: %v", err)
+	}
+	if len(executor.calls) != 1 {
+		t.Fatalf("len(calls) = %d, want 1", len(executor.calls))
+	}
+	cypher := executor.calls[0].Cypher
+	for _, want := range []string{
+		"r.running_image_ref = row.running_image_ref",
+		"r.running_image_digest = row.running_image_digest",
+	} {
+		if !strings.Contains(cypher, want) {
+			t.Fatalf("cypher missing %q:\n%s", want, cypher)
+		}
+	}
+	// Assert the actual dispatched params carry the values (not just that the
+	// SET fragment exists in the template) — a fake executor stand-in for the
+	// real graph write, as far as this package can prove without a live
+	// backend (the golden-corpus live gate proves the rest).
+	dispatchedRows, ok := executor.calls[0].Parameters["rows"].([]map[string]any)
+	if !ok || len(dispatchedRows) != 1 {
+		t.Fatalf("dispatched rows = %#v, want 1 row", executor.calls[0].Parameters["rows"])
+	}
+	if got := dispatchedRows[0]["running_image_ref"]; got != "123456789012.dkr.ecr.us-east-1.amazonaws.com/demo:latest" {
+		t.Fatalf("dispatched running_image_ref = %#v", got)
+	}
+	if got := dispatchedRows[0]["running_image_digest"]; got != "sha256:cc" {
+		t.Fatalf("dispatched running_image_digest = %#v", got)
+	}
+}
+
 func TestCloudResourceNodeWriterBatchesRows(t *testing.T) {
 	t.Parallel()
 

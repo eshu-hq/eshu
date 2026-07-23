@@ -63,15 +63,26 @@ API call counters, throttle counters, and pagination spans.
 - Downstream (issue #5450): `resolved_image_uri` (an exact
   `registry/repository@digest` reference, unlike `image_uri`'s tag-qualified
   form) is the strongest deployed-code signal this package emits for a
-  container-image function. The reducer surfaces it two ways: as the
-  `CloudResource` node's `running_image_digest` property
-  (`go/internal/reducer/aws_resource_running_image.go`), and — since a Lambda
-  function is single-image by AWS's own model, so there is no
-  multi-container-style ambiguity — as the real target of a two-MATCH-MERGE
-  `(:CloudResource)-[:AWS_lambda_function_uses_image]->(:ContainerImage)` graph
-  edge (`go/internal/reducer/aws_cloud_image_join.go`'s
-  `containerImageNodeUIDFromDigestRef`, matched byte-for-byte against the OCI
-  registry collector's own node-uid formula for that same digest).
+  container-image function. The reducer surfaces it two ways:
+  - As the `CloudResource` node's `running_image_ref` (the full `image_uri`,
+    tag-qualified) and `running_image_digest` (the BARE digest parsed out of
+    `resolved_image_uri`, normalized to the same "sha256:<hex>" shape ECS's
+    `TaskContainer.ImageDigest` already carries — not the full
+    `registry/repository@digest` reference) properties
+    (`go/internal/reducer/aws_resource_running_image.go`).
+  - As the real target of a two-MATCH-MERGE
+    `(:CloudResource)-[:AWS_lambda_function_uses_image]->(:ContainerImage)`
+    graph edge — since a Lambda function is single-image by AWS's own model,
+    there is no multi-container-style ambiguity to resolve
+    (`go/internal/reducer/aws_cloud_image_join.go`'s
+    `containerImageNodeUIDFromDigestRef`). That function lowercases the
+    registry, repository, and digest before computing the target uid, to
+    match the OCI registry collector's own normalization
+    (`internal/collector/ociregistry/identity.go` `NormalizeRepositoryIdentity`/
+    `normalizeDigest` unconditionally lowercase); `resolved_image_uri` itself
+    is read straight from the Lambda `GetFunction` API response and carries
+    whatever case AWS reports, so it is not itself byte-identical to the real
+    node uid without that lowercasing step.
 
 ## Related docs
 

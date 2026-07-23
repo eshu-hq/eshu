@@ -488,9 +488,18 @@ sibling ci_cd_run_correlation/container_image_identity/package domains:
   the same identity strength `container_image_identity`'s `exact_digest`
   outcome requires. `containerImageNodeUIDFromDigestRef`
   (`go/internal/reducer/aws_cloud_image_join.go`) computes the `:ContainerImage`
-  node uid directly from that reference, byte-identical to the OCI registry
-  canonical writer's own formula (`oci-descriptor://<registry>/<repository>@<digest>`,
-  case-preserving — see `internal/projector.ociDescriptorUID`), and a new
+  node uid directly from that reference, matching the OCI registry canonical
+  writer's own formula (`oci-descriptor://<registry>/<repository>@<digest>`,
+  see `internal/projector.ociDescriptorUID`) — including its normalization:
+  the OCI registry collector (`internal/collector/ociregistry/identity.go`
+  `NormalizeRepositoryIdentity`/`normalizeDigest`) unconditionally lowercases
+  the scanned registry, repository, and digest before computing the node's
+  real `repository_id`/descriptor identity, so `containerImageNodeUIDFromDigestRef`
+  lowercases the same three components rather than preserving
+  `resolved_image_uri`'s reported case (the Lambda `GetFunction` API response
+  never passes through that collector normalization, so it can report any
+  case). Lowercasing here removes what would otherwise be a hidden
+  ECR-only-registries-happen-to-be-lowercase dependency, and a new
   additive domain, `DomainAWSCloudImageMaterialization`
   (`go/internal/reducer/aws_cloud_image_materialization.go`), two-MATCH-MERGEs
   `(:CloudResource)-[:AWS_lambda_function_uses_image]->(:ContainerImage)`
@@ -512,6 +521,44 @@ sibling ci_cd_run_correlation/container_image_identity/package domains:
   recognizes the relationship type and always skips it
   (`awsCloudImageSkipTagOnlyPostgresOnly`), counted and logged, never silently
   dropped.
+
+### 12a. `running_image_ref` / `running_image_digest` Node Props
+
+Deliverable (a) of issue #5450 is separate from the edge above: it surfaces
+the ECS running task's `containers[].image`/`containers[].image_digest` and
+the Lambda function's `image_uri`/`resolved_image_uri` as `running_image_ref`/
+`running_image_digest` properties directly on the `CloudResource` node,
+decoded through the typed `awsv1` attribute seam
+(`go/internal/reducer/aws_resource_running_image.go`,
+`cloudResourceRunningImageFields`) and merged into the row
+`cloudResourceNodeRow` builds. Making the property REACH the graph requires
+TWO steps, not one: the reducer-side row map must carry the key, AND
+`baseCloudResourceUpsertCypher`'s `SET` clause
+(`go/internal/storage/cypher/cloud_resource_node_writer.go`) must name it —
+Cypher only persists a property a `SET r.<key> = row.<key>` fragment names; a
+row map key with no matching `SET` fragment is silently dropped by the
+backend, never an error. `baseCloudResourceUpsertCypher` unconditionally sets
+`r.running_image_ref = row.running_image_ref` and
+`r.running_image_digest = row.running_image_digest` alongside every other
+optional field (`workload_id`, `service_name`, ...) using the writer's
+existing convention: a row map with no such key resolves to Cypher `null` for
+that row, which `SET` interprets as "no value this generation" (matching
+every other optional `CloudResource` property's already-established
+semantics — this is a full re-projection each generation, so clearing a
+property genuinely absent this generation is correct, not a data-loss bug).
+
+`running_image_digest` is normalized to the BARE digest
+(`"sha256:<hex>"`) for BOTH resource types: ECS's `containers[].image_digest`
+is already bare (the ECS `DescribeTasks` API's own shape), while Lambda's
+`resolved_image_uri` is a full `registry/repository@digest` reference —
+`lambdaFunctionImageFields` parses the digest suffix out via the shared
+`digestFromImageRef` helper before writing it, so a consumer never has to
+branch on `resource_type` to know which shape `running_image_digest` carries.
+`running_image_ref` stays the full reference (tag-qualified, as configured)
+for both resource types; the target-uid computation for the
+`AWS_lambda_function_uses_image` edge above independently parses the digest
+straight out of the relationship fact's own `resolved_image_uri` attribute
+(not this node property), so the two paths do not share state.
 
 This is modeled as an ADDITIVE SIBLING domain (its own `truth.Contract`,
 `evidence_source = reducer/aws-cloud-image`), not an extension of
