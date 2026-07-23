@@ -8,12 +8,13 @@ import (
 	"fmt"
 )
 
-// Graph provenance edges project two reducer correlation domains into the
+// Graph provenance edges project three reducer correlation domains into the
 // canonical graph (docs/internal/design/5472-graph-projection-policy.md):
 // Repository-[:PUBLISHES]->Package|PackageVersion from package
-// ownership/publication correlation, and
+// ownership/publication correlation,
 // ContainerImage-[:BUILT_FROM]->Repository from container image identity
-// correlation.
+// correlation, and ContainerImage-[:DERIVED_FROM]->ContainerImage from
+// Dockerfile base-image lineage (derived_from_edge_writer.go, #5460).
 //
 // Package, PackageVersion, and ContainerImage all carry a second label
 // (PackageRegistryPackage/PackageRegistryPackageVersion, OciImageManifest).
@@ -54,9 +55,10 @@ const (
 // but the token still distinguishes ownership-sourced from
 // publication-sourced edges for the same reason.
 var provenanceEdgeKindForSource = map[string]string{
-	"reducer/package-ownership":        "PACKAGE_OWNERSHIP_CORRELATION",
-	"reducer/package-publication":      "PACKAGE_PUBLICATION_CORRELATION",
-	"reducer/container-image-identity": "CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST",
+	"reducer/package-ownership":          "PACKAGE_OWNERSHIP_CORRELATION",
+	"reducer/package-publication":        "PACKAGE_PUBLICATION_CORRELATION",
+	"reducer/container-image-identity":   "CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST",
+	"reducer/container-image-base-image": "CONTAINER_IMAGE_DERIVED_FROM",
 }
 
 // provenanceEdgeSourceToolForSource maps a writer evidence_source to the
@@ -71,7 +73,8 @@ var provenanceEdgeKindForSource = map[string]string{
 // this map and its rows never get a source_tool stamp -- an absent value,
 // never a guess.
 var provenanceEdgeSourceToolForSource = map[string]string{
-	"reducer/container-image-identity": "oci",
+	"reducer/container-image-identity":   "oci",
+	"reducer/container-image-base-image": "oci",
 }
 
 // provenanceEdgeKindsFor returns the single-element evidence_kinds list for

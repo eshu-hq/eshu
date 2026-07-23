@@ -4,6 +4,8 @@
 package reducer
 
 import (
+	"context"
+	"errors"
 	"reflect"
 	"testing"
 )
@@ -175,5 +177,117 @@ func TestContainerImageDerivedFromRows(t *testing.T) {
 				t.Fatalf("containerImageDerivedFromRows =\n  %v\nwant\n  %v", got, tc.want)
 			}
 		})
+	}
+}
+
+type recordingContainerImageDerivedFromEdgeWriter struct {
+	retractCalls []string
+	writeRows    [][]map[string]any
+	writeErr     error
+	retractErr   error
+}
+
+func (w *recordingContainerImageDerivedFromEdgeWriter) WriteDerivedFromEdges(
+	_ context.Context, rows []map[string]any, _ string, _ string, _ string,
+) error {
+	w.writeRows = append(w.writeRows, rows)
+	return w.writeErr
+}
+
+func (w *recordingContainerImageDerivedFromEdgeWriter) RetractDerivedFromEdges(
+	_ context.Context, _ string, _ string, evidenceSource string,
+) error {
+	w.retractCalls = append(w.retractCalls, evidenceSource)
+	return w.retractErr
+}
+
+func TestProjectContainerImageDerivedFromEdgesNoOpWithoutWriter(t *testing.T) {
+	t.Parallel()
+
+	h := ContainerImageIdentityHandler{}
+	if err := h.projectContainerImageDerivedFromEdges(
+		context.Background(), Intent{ScopeID: "scope-1", GenerationID: "gen-1"}, nil,
+	); err != nil {
+		t.Fatalf("projectContainerImageDerivedFromEdges returned error with no writer: %v", err)
+	}
+}
+
+func TestProjectContainerImageDerivedFromEdgesRetractsFirstThenWrites(t *testing.T) {
+	t.Parallel()
+
+	writer := &recordingContainerImageDerivedFromEdgeWriter{}
+	h := ContainerImageIdentityHandler{DerivedFromEdgeWriter: writer}
+	decisions := []ContainerImageIdentityDecision{
+		{Digest: "sha256:child", SourceRepositoryIDs: []string{"repo-1"}, Outcome: ContainerImageIdentityExactDigest},
+		{Digest: "sha256:base", BaseImageForRepositoryIDs: []string{"repo-1"}, Outcome: ContainerImageIdentityExactDigest},
+	}
+
+	if err := h.projectContainerImageDerivedFromEdges(
+		context.Background(), Intent{ScopeID: "scope-1", GenerationID: "gen-1"}, decisions,
+	); err != nil {
+		t.Fatalf("projectContainerImageDerivedFromEdges returned error: %v", err)
+	}
+	if len(writer.retractCalls) != 1 {
+		t.Fatalf("retractCalls = %d, want 1", len(writer.retractCalls))
+	}
+	if writer.retractCalls[0] != containerImageDerivedFromProvenanceEvidenceSource {
+		t.Fatalf("retract evidence_source = %q, want %q", writer.retractCalls[0], containerImageDerivedFromProvenanceEvidenceSource)
+	}
+	// The DERIVED_FROM evidence_source must differ from the BUILT_FROM one the
+	// same handler writes, or one domain's retract would delete the other's
+	// edges.
+	if containerImageDerivedFromProvenanceEvidenceSource == containerImageBuiltFromProvenanceEvidenceSource {
+		t.Fatal("DERIVED_FROM and BUILT_FROM must not share an evidence_source")
+	}
+	if len(writer.writeRows) != 1 || len(writer.writeRows[0]) != 1 {
+		t.Fatalf("writeRows = %#v, want one write of one row", writer.writeRows)
+	}
+	if writer.writeRows[0][0]["base_digest"] != "sha256:base" {
+		t.Fatalf("row = %#v, want base_digest sha256:base", writer.writeRows[0][0])
+	}
+}
+
+// TestProjectContainerImageDerivedFromEdgesRetractsEvenWhenNoRowsToWrite is the
+// stale-edge guard: a generation that stops being attributable -- a second
+// Dockerfile added, making the repository ambiguous -- must still clear the
+// edge the previous generation wrote.
+func TestProjectContainerImageDerivedFromEdgesRetractsEvenWhenNoRowsToWrite(t *testing.T) {
+	t.Parallel()
+
+	writer := &recordingContainerImageDerivedFromEdgeWriter{}
+	h := ContainerImageIdentityHandler{DerivedFromEdgeWriter: writer}
+
+	if err := h.projectContainerImageDerivedFromEdges(
+		context.Background(), Intent{ScopeID: "scope-1", GenerationID: "gen-2"}, nil,
+	); err != nil {
+		t.Fatalf("projectContainerImageDerivedFromEdges returned error: %v", err)
+	}
+	if len(writer.retractCalls) != 1 {
+		t.Fatalf("retractCalls = %d, want 1 even with nothing to write", len(writer.retractCalls))
+	}
+	if len(writer.writeRows) != 0 {
+		t.Fatalf("writeRows = %#v, want none for an empty projection", writer.writeRows)
+	}
+}
+
+func TestProjectContainerImageDerivedFromEdgesPropagatesWriterErrors(t *testing.T) {
+	t.Parallel()
+
+	decisions := []ContainerImageIdentityDecision{
+		{Digest: "sha256:child", SourceRepositoryIDs: []string{"repo-1"}, Outcome: ContainerImageIdentityExactDigest},
+		{Digest: "sha256:base", BaseImageForRepositoryIDs: []string{"repo-1"}, Outcome: ContainerImageIdentityExactDigest},
+	}
+	intent := Intent{ScopeID: "scope-1", GenerationID: "gen-1"}
+
+	writeFail := &recordingContainerImageDerivedFromEdgeWriter{writeErr: errors.New("boom")}
+	if err := (ContainerImageIdentityHandler{DerivedFromEdgeWriter: writeFail}).
+		projectContainerImageDerivedFromEdges(context.Background(), intent, decisions); err == nil {
+		t.Fatal("expected an error when the write fails")
+	}
+
+	retractFail := &recordingContainerImageDerivedFromEdgeWriter{retractErr: errors.New("boom")}
+	if err := (ContainerImageIdentityHandler{DerivedFromEdgeWriter: retractFail}).
+		projectContainerImageDerivedFromEdges(context.Background(), intent, decisions); err == nil {
+		t.Fatal("expected an error when the retract fails")
 	}
 }
