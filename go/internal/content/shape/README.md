@@ -101,31 +101,45 @@ around the `Materialize` call.
 - `Materialize` mints each entity's id via
   `content.CanonicalEntityIDWithMetadata`, passing the cloned per-entity
   `Metadata` map used for the entity's other fields. For an in-scope manifest
-  dependency Variable (npm/composer, non-lockfile, non-empty `section` in
-  metadata) this mints a section-keyed, line-independent id via
+  dependency Variable (npm, composer, cargo, gradle, maven, nuget, pypi, go,
+  rubygems, pub, hex; non-lockfile, non-empty `section` in metadata) this
+  mints a section-keyed, line-independent id via
   `content.CanonicalDependencyEntityID` instead of the legacy line-keyed
   `content.CanonicalEntityID` — see `internal/content/README.md`'s Gotchas
   section for the full gate and why it must not be widened casually.
 
-## Dependency identity (#5357)
+## Dependency identity (#5357, extended by #5507)
 
 `Materialize` and `internal/projector`'s `buildContentEntityRecord`
 `entity_id` fallback share one identity rule via
 `content.CanonicalEntityIDWithMetadata` so a manifest dependency Variable's
-content-entity id is keyed by `(repoID, path, "variable", section, name)`
-instead of the source line. This makes reordering dependencies within a
-`package.json`/`composer.json` section a no-op for identity — the previous
+content-entity id is keyed by `(repoID, path, "variable", section, name[,
+discriminator])` instead of the source line. This makes reordering
+dependencies within a manifest section a no-op for identity — the previous
 line-keyed scheme churned every dependency's id whenever an unrelated edit
 shifted lines in the same section.
 
+`#5357` proved this for `package.json`/`composer.json`, where `(section,
+name)` alone is already unique (a JSON object key). `#5507` extended the
+scheme to cargo, gradle, maven, nuget, pypi, go (gomod), rubygems, pub, and
+hex — for cargo, gradle, maven, nuget, and pypi, `(section, name)` alone is
+NOT always unique (see `content.dependencyIdentityDiscriminator`'s doc
+comment for the concrete manifest feature each one's added discriminator
+defends: Cargo package aliasing, Gradle same-coordinate-different-version,
+Maven classifier/type, NuGet multi-targeting conditions, pypi extras/markers).
+`swift` was deliberately left out of scope — its only current producer
+(`Package.resolved`) is a lockfile, already excluded by the condition below.
+
 The gate is intentionally narrow: `metadata["config_kind"] ==
 "dependency"` alone is also set by lockfile parsers
-(`package-lock.json`, `composer.lock`, and other npm lockfile flavors),
-which legitimately repeat a package name multiple times per section — nested
-`node_modules` can carry the same name at different versions. Collapsing
-those under `(path, section, name)` would silently merge distinct dependency
-versions into one identity. See `content.CanonicalEntityIDWithMetadata`'s doc
-comment in `internal/content/writer.go` for the exact five conditions.
+(`package-lock.json`, `composer.lock`, `Gemfile.lock`, `pubspec.lock`,
+`mix.lock`, `packages.lock.json`, `Pipfile.lock`, `poetry.lock`,
+`Package.resolved`, and other lockfile flavors), which legitimately repeat a
+package name multiple times per section — nested transitive dependency trees
+can carry the same name at different versions. Collapsing those under
+`(path, section, name)` would silently merge distinct dependency versions
+into one identity. See `content.CanonicalEntityIDWithMetadata`'s doc comment
+in `internal/content/dependency_identity.go` for the exact five conditions.
 
 ## Related docs
 

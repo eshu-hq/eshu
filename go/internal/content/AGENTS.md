@@ -5,11 +5,13 @@
 1. `go/internal/content/README.md` — ownership boundary, exported surface, and
    invariants
 2. `go/internal/content/writer.go` — `Writer`, `Materialization`, `Record`,
-   `EntityRecord`, `Result`, `MemoryWriter`, `CanonicalEntityID`,
-   `CanonicalEntityIDWithMetadata`, `CanonicalDependencyEntityID`
-3. `go/internal/content/writer_config.go` — `WriterConfig`, `LoadWriterConfig`,
+   `EntityRecord`, `Result`, `MemoryWriter`, `CanonicalEntityID`
+3. `go/internal/content/dependency_identity.go` —
+   `CanonicalEntityIDWithMetadata`, `CanonicalDependencyEntityID`,
+   `dependencyIdentityPackageManagers`, `dependencyIdentityDiscriminator`
+4. `go/internal/content/writer_config.go` — `WriterConfig`, `LoadWriterConfig`,
    `ContentEntityBatchSizeEnv`, `MaxContentEntityBatchSize`
-4. `go/internal/content/doc.go` — package contract for godoc consumers
+5. `go/internal/content/doc.go` — package contract for godoc consumers
 
 ## Invariants this package enforces
 
@@ -21,13 +23,33 @@
   `CanonicalEntityIDWithMetadata` only routes to the section-keyed
   `CanonicalDependencyEntityID` when entityType is `"variable"` AND
   `metadata["config_kind"] == "dependency"` AND
-  `metadata["package_manager"] ∈ {"npm", "composer"}` AND
+  `metadata["package_manager"] ∈ dependencyIdentityPackageManagers` (`npm`,
+  `composer`, `cargo`, `gradle`, `maven`, `nuget`, `pypi`, `go`, `rubygems`,
+  `pub`, `hex` as of #5507; NOT `swift` — its only producer is a lockfile) AND
   `metadata["lockfile"]` is not true AND `metadata["section"]` is a non-empty
   string. `config_kind == "dependency"` alone is also set by lockfile parsers,
   which legitimately repeat a package name per section (nested transitive
   versions); widening this gate collapses those into one identity. Do not add
   a `package_manager` to the allow-list without proving that format's parser
-  guarantees per-section name uniqueness.
+  guarantees per-section name uniqueness — directly, or through a proven
+  `dependencyIdentityDiscriminator` case (see the next bullet).
+- **Per-manager discriminators for formats where `(section, name)` alone is
+  not enough** — `dependencyIdentityDiscriminator` in
+  `dependency_identity.go` folds a package-manager-specific extra component
+  into the hashed name for cargo (manifest TOML-key alias, defending against
+  `{ package = "..." }` re-aliasing the same crate twice in one section),
+  gradle (resolved version, defending against the same coordinate declared
+  twice under one configuration), maven (classifier + type, defending against
+  co-installed classifier variants like native-build artifacts), nuget
+  (merged MSBuild `Condition`, defending against `.csproj` multi-targeting
+  repeating a `PackageReference` name per target framework), and pypi (sorted
+  extras + marker, defending against `requests[socks]` vs `requests[toml]` or
+  platform-gated markers). Every other in-scope package manager (npm,
+  composer, go, rubygems, pub, hex) returns an empty discriminator because its
+  parser already guarantees per-section name uniqueness on its own (a JSON/
+  TOML/YAML map key, or the ecosystem's own tooling rejecting a duplicate
+  declaration). Do not add or change a case without documenting, in that
+  function's doc comment, the concrete manifest feature that requires it.
 - **Two-site lockstep** — `internal/content/shape.Materialize` and
   `internal/projector`'s `buildContentEntityRecord` `entity_id` fallback both
   call `CanonicalEntityIDWithMetadata` with the same metadata view. The
@@ -60,16 +82,34 @@
   schema migration before touching either function. A migration relies on the
   Postgres reap in `internal/storage/postgres/content_writer_reap.go` to evict
   stale ids on next re-ingest — see that file's doc comment for the
-  completeness invariant reaping depends on.
+  completeness invariant reaping depends on. This is a ONE-TIME identity
+  migration each time it happens (#5329's `line_number` fix, #5357's
+  npm/composer section-keying, #5507's remaining nine formats): no schema or
+  generation-epoch bump is required, because the reap's per-path anti-join
+  (`entity_id <> ALL(freshIDs)`) already evicts any id that is not part of the
+  current Write() call's fresh set, regardless of why the id changed. Do not
+  invent a parallel migration mechanism; add a regression test alongside the
+  existing ones in `content_writer_reap_test.go` (or a same-package sibling
+  file) proving the specific old-id/new-id pair for the format you touched.
 
-- **Widen the `CanonicalEntityIDWithMetadata` dependency gate** → do not add a
-  `package_manager` value or relax the `lockfile`/`section` conditions without
-  proving the target manifest format's parser guarantees per-section name
-  uniqueness (the same proof `package.json` and `composer.json` have). Update
-  both call sites (`internal/content/shape/materialize.go` and
-  `internal/projector/runtime.go`'s `buildContentEntityRecord`) together, add
-  scoping-guard test cases in `writer_test.go`, and regenerate the golden
-  corpus cassettes/snapshot since minted content-entity ids change.
+- **Widen the `CanonicalEntityIDWithMetadata` dependency gate or add a
+  `dependencyIdentityDiscriminator` case** → do not add a `package_manager`
+  value, relax the `lockfile`/`section` conditions, or add/change a
+  discriminator case without proving the target manifest format's parser
+  guarantees per-section uniqueness (directly, or through the new
+  discriminator). Update both call sites (`internal/content/shape/
+  materialize.go` and `internal/projector/runtime.go`'s
+  `buildContentEntityRecord`) together — in practice this requires no code
+  change in either, since both already call `CanonicalEntityIDWithMetadata`
+  generically, but add a lockstep test proving so (see
+  `runtime_dependency_identity_test.go`). Add scoping-guard and
+  distinctness/reorder-stability test cases (see `dependency_identity_*_test.go`
+  for the #5507 pattern). Regenerate the golden corpus cassettes/snapshot only
+  if a fixture's asserted content-entity id actually changes — check with
+  `rg 'content-entity:e_' testdata/golden/e2e-20repo-snapshot.json
+  testdata/cassettes/` first; #5507 touched none (the only hardcoded ids in
+  the snapshot are for an unrelated `find_code`/`resolve_entity` "main"
+  function lookup).
 
 - **Tune the batch size** → set `ESHU_CONTENT_ENTITY_BATCH_SIZE` at runtime.
   Raising `MaxContentEntityBatchSize` (4000) requires confirming the Postgres
@@ -89,13 +129,19 @@
   whitespace before `CanonicalEntityID`. Check normalizations in
   `internal/content/shape/materialize.go`.
 
-- Symptom: an npm/composer manifest dependency's entity ID changes on every
-  sync even though the dependency did not move → likely cause: the metadata
-  map reaching `CanonicalEntityIDWithMetadata` is missing `section`,
+- Symptom: an in-scope manifest dependency's entity ID changes on every sync
+  even though the dependency did not move → likely cause: the metadata map
+  reaching `CanonicalEntityIDWithMetadata` is missing `section`,
   `config_kind`, or `package_manager`, so the row falls through to the
   legacy line-keyed `CanonicalEntityID` instead of the section-keyed
   `CanonicalDependencyEntityID`. Check `entityMetadataFromPayload` (projector)
   or the cloned `indexed.item.Metadata` (shape) actually carries those keys.
+  For a discriminated format (cargo/gradle/maven/nuget/pypi), also check the
+  discriminator source field itself (`manifest_name`, `value`,
+  `dependency_classifier`/`dependency_type`, `condition`, `extras`/`marker`)
+  is present and stable across the reorder — a discriminator field that is
+  itself line-derived would silently reintroduce the churn this migration
+  removes.
 
 - Symptom: two distinct nested lockfile dependency versions (e.g. `react@17`
   and `react@18` in `package-lock.json`) collapse into one content-entity row
@@ -122,7 +168,19 @@ Key test files:
 
 - `writer_test.go` — `Materialization`, `Clone`, `MemoryWriter`, `CanonicalEntityID`
 - `writer_config_test.go` — `LoadWriterConfig` valid and invalid inputs
+- `writer_dependency_identity_test.go` — the #5357 scoping-guard table
+  (`CanonicalEntityIDWithMetadata`'s five-condition gate) and domain-separation
+  proof
+- `dependency_identity_cargo_test.go`, `dependency_identity_gradle_test.go`,
+  `dependency_identity_maven_test.go`, `dependency_identity_nuget_test.go`,
+  `dependency_identity_pypi_test.go`, `dependency_identity_no_discriminator_test.go`
+  — the #5507 per-format admits-in-scope, reorder-no-churn, and
+  distinctness/discriminator proofs
 - `postgres_writer_test.go` — Postgres adapter integration (requires Postgres)
 
-All test files are `package content_test` (external). Do not convert them to
-`package content` without re-checking export visibility.
+Most test files are `package content` (internal) so they can exercise
+unexported helpers (`dependencyIdentitySection`, `dependencyIdentityDiscriminator`,
+`metadataStringValue`, ...). Only `postgres_writer_test.go` is
+`package content_test` (external), for its Postgres adapter integration
+surface. Match whichever a new test file needs, and do not convert an existing
+file's package without re-checking what it currently exercises.
