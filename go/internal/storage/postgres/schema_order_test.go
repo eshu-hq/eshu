@@ -96,4 +96,5 @@ var orderedBootstrapDefinitionNames = []string{
 	"cloud_resource_owner_region_page_index",
 	"cloud_resource_owner_account_page_index",
 	"graph_node_owner_backfill_state",
+	"kubernetes_live_pod_template_object_index",
 }

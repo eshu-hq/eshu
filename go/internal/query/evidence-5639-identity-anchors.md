@@ -81,3 +81,42 @@ observe the same live fact through two independent identity paths (P1 fix,
 `TestFetchWorkloadLiveInstanceSummaryArgoCDAndDeclaredObjectAnchorsNoDoubleCount`).
 The span is recorded in the telemetry-coverage contract doc
 (`docs/public/observability/telemetry-coverage.md`).
+
+Performance Evidence: codex flagged a P1 on
+`impact_trace_deployment_live_evidence_store_declared.go:34` -- the
+declared-object anchor queries filter `fact_records` on
+`payload->>'group_version_resource'`, `payload->>'namespace'`, and
+`payload->>'name'` for `fact_kind = 'kubernetes_live.pod_template'` with no
+supporting index, so the planner falls back to
+`fact_records_scope_generation_idx` and filters every active pod-template
+fact per scope in memory. Proven on a throwaway Postgres 16 container
+(`eshu-idx5639-pg`, isolated port 35432, all migrations replayed through 074)
+seeded with 40 active scopes/generations and 100,003
+`kubernetes_live.pod_template` facts (100,000 bulk rows spread across the 40
+scopes plus 3 rows sharing one rare target
+`group_version_resource`+`namespace`+`name` tuple). `EXPLAIN (ANALYZE,
+BUFFERS)` on the `has*` query shape (warm, 2nd run):
+
+- Worst case, target tuple absent (LIMIT 1 cannot short-circuit, must
+  exhaust every active scope's pod-template partition): OLD --
+  `Bitmap Heap Scan` on `fact_records` via `fact_records_scope_generation_idx`
+  filtering 2,500 rows x 40 scopes, `Buffers: shared hit=100244`,
+  `Execution Time: 62.566 ms`. NEW -- `Index Scan` on
+  `fact_records_kubernetes_live_pod_template_object_idx`, the
+  `ingestion_scopes`/`scope_generations` joins never executed,
+  `Buffers: shared hit=3`, `Execution Time: 0.026 ms` (~2,400x faster,
+  ~33,000x fewer buffer hits).
+- Existing rare target: OLD -- `Index Scan` on
+  `fact_records_scope_generation_idx` with `Rows Removed by Filter: 2500`,
+  `Buffers: shared hit=2508`, `Execution Time: 3.024 ms`. NEW -- `Index Scan`
+  on the new index, `Buffers: shared hit=8`, `Execution Time: 0.042 ms`
+  (~72x faster).
+
+Row-equivalence: the `has*` shape returns the same existence result
+(`rows=1`/`rows=0`) before and after for both the existing-target and
+missing-target cases; the `list*` shape returns byte-identical rows in
+identical `object_id` order before and after
+(`cluster-1/obj-target-1`, `cluster-2/obj-target-2`, `cluster-3/obj-target-3`,
+all `ready_replicas=3`), proven by dropping and recreating the candidate
+index against the same seeded data. Migration:
+`go/internal/storage/postgres/migrations/075_kubernetes_live_pod_template_object_index.sql`.
