@@ -341,6 +341,23 @@ func anyMapSlice(raw any) ([]any, bool) {
 			out[i] = entry
 		}
 		return out, true
+	case []map[string]string:
+		// The ECS running-task collector builds its containers[] attribute as
+		// []map[string]string (awscloud/services/ecs.taskContainerMaps): a
+		// direct in-Go envelope (test fixtures, any synthetic fact built
+		// without a JSON round trip) preserves that concrete type, while a
+		// real collected fact always round-trips through JSON storage and
+		// arrives as []any of map[string]any instead. Both represent the
+		// identical valid shape.
+		out := make([]any, len(typed))
+		for i, entry := range typed {
+			converted := make(map[string]any, len(entry))
+			for key, value := range entry {
+				converted[key] = value
+			}
+			out[i] = converted
+		}
+		return out, true
 	default:
 		return nil, false
 	}
