@@ -64,7 +64,9 @@ before touching any file in this directory.
   across different files is **skipped and tallied** (`AmbiguousMigrationTargets`),
   never guessed — same never-fabricate discipline as READS_FROM. `select`-only
   mentions are excluded from migration targets (a backfill's read is not a
-  migrate). DROP is not parsed yet (deferred).
+  migrate). `DROP TABLE` targets are parsed as `operation: "drop"` metadata;
+  `MIGRATES` remains one adjacency/provenance edge per migration-target pair and
+  never implies the target is absent from head state.
 - **All canonical graph writes go through `internal/storage/cypher`** — no
   handler may call a Neo4j or NornicDB driver directly.
 - **`JavaScript` dynamic-call alias parsing is indexed once per function** —

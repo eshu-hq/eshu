@@ -266,6 +266,11 @@
         "min": 1,
         "max": 1000,
         "note": "SqlFunction->SqlTable routine mutation edges from write_tables metadata; sql_comprehensive touch_updated_at updates users (#5410)"
+      },
+      "MIGRATES": {
+        "min": 3,
+        "max": 3,
+        "note": "exactly three SqlMigration->SqlTable edges from sql_comprehensive's V1 ALTER migration plus V2's direct comma-separated DROP TABLE migration (#5346, #5482)"
       }
     },
     "required_correlations": [
@@ -1676,6 +1681,14 @@
         "from_label": "SqlFunction",
         "to_label": "SqlTable",
         "minimum_count": 1
+      },
+      {
+        "id": "rc-163",
+        "description": "SQL migration DROP truth: sql_comprehensive/migrations/V2__drop_legacy_tables.sql records direct comma-separated DROP TABLE targets public.users and public.orgs as operation metadata; together with V1's ALTER target, exactly three SqlMigration MIGRATES SqlTable edges prove parser extraction, reducer resolution, and metadata-only head-state semantics (#5346, #5482).",
+        "relationship": "MIGRATES",
+        "from_label": "SqlMigration",
+        "to_label": "SqlTable",
+        "minimum_count": 3
       },
       {
         "id": "rc-162",

@@ -18,6 +18,8 @@
 // Foreign-key targets and routine read/write targets are also stamped into
 // bounded entity metadata so downstream reducers can materialize the parser's
 // relationship truth without reparsing SQL.
+// Migration target metadata preserves distinct operations for the same target
+// while retaining only the first source occurrence of an identical operation.
 //
 // A statement segment larger than maxSQLSegmentBytes is bounded before it
 // reaches tree-sitter: an opaque dollar-quoted routine body of that size

@@ -11,6 +11,8 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/verify-golden-corpus-gate.sh"
 fixture_lib="${repo_root}/scripts/lib/golden-corpus-fixtures.sh"
 workflow="${repo_root}/.github/workflows/golden-corpus-gate.yml"
+snapshot="${repo_root}/testdata/golden/e2e-20repo-snapshot.json"
+sql_drop_fixture="${repo_root}/tests/fixtures/ecosystems/sql_comprehensive/migrations/V2__drop_legacy_tables.sql"
 
 fail() { printf 'test-verify-golden-corpus-gate: %s\n' "$*" >&2; exit 1; }
 
@@ -18,6 +20,8 @@ fail() { printf 'test-verify-golden-corpus-gate: %s\n' "$*" >&2; exit 1; }
 [[ -x "${script}" ]] || fail "verify-golden-corpus-gate.sh must be executable"
 [[ -f "${fixture_lib}" ]] || fail "missing ${fixture_lib}"
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
+[[ -f "${snapshot}" ]] || fail "missing ${snapshot}"
+[[ -f "${sql_drop_fixture}" ]] || fail "missing ${sql_drop_fixture}"
 
 # #5596: the workflow's on.pull_request.paths filter must trigger this gate on
 # every source dir whose changes can alter emitted facts or fact contracts the
@@ -78,6 +82,10 @@ require "gate binary" "eshu-golden-corpus-gate"
 require "corpus fixture inventory source" "golden-corpus-fixtures.sh"
 rg --fixed-strings --quiet -- $'\tsql_comprehensive' "${fixture_lib}" \
 	|| fail "missing SQL relationship corpus fixture in ${fixture_lib}"
+rg --fixed-strings --quiet -- 'DROP TABLE IF EXISTS public.users, public.orgs;' "${sql_drop_fixture}" \
+	|| fail "missing direct comma-separated SQL DROP migration fixture"
+rg --fixed-strings --quiet -- '"id": "rc-163"' "${snapshot}" \
+	|| fail "missing SQL DROP required correlation in B-12 snapshot"
 
 # Asserts all four B-7 buckets.
 require "drains phase" "-phase=drains"

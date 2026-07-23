@@ -71,28 +71,29 @@ func normalizeSQLName(raw string) string {
 
 // collectMentionsFromNode walks a query/body subtree and returns the bounded
 // table references it contains, tagged by operation. Relations inside FROM/JOIN
-// clauses yield "select" reads; INSERT/UPDATE/DELETE/REFERENCES/ALTER yield the
-// matching mutation operation. Offsets are absolute byte positions in the
-// original source so callers can map line numbers.
+// clauses yield "select" reads; INSERT/UPDATE/DELETE/REFERENCES/ALTER/DROP
+// yield the matching mutation operation. Offsets are absolute byte positions
+// in the original source so callers can map line numbers.
 func collectMentionsFromNode(node *tree_sitter.Node, source []byte, includeReads bool) []sqlMention {
 	mentions := make([]sqlMention, 0)
 	seen := make(map[string]struct{})
 	var visit func(n *tree_sitter.Node, operation string)
-	add := func(ref *tree_sitter.Node, operation string) {
-		if ref == nil {
-			return
-		}
-		name := objectReferenceName(ref, source)
+	addName := func(name, operation string, offset int) {
 		if name == "" {
 			return
 		}
-		offset := int(ref.StartByte())
 		key := operation + "|" + name + "|" + strconv.Itoa(offset)
 		if _, ok := seen[key]; ok {
 			return
 		}
 		seen[key] = struct{}{}
 		mentions = append(mentions, sqlMention{name: name, operation: operation, offset: offset})
+	}
+	add := func(ref *tree_sitter.Node, operation string) {
+		if ref == nil {
+			return
+		}
+		addName(objectReferenceName(ref, source), operation, int(ref.StartByte()))
 	}
 	visit = func(n *tree_sitter.Node, operation string) {
 		switch n.GrammarName() {
@@ -114,6 +115,13 @@ func collectMentionsFromNode(node *tree_sitter.Node, source []byte, includeReads
 			// The altered table is the first object_reference child. A migration
 			// that only does ALTER TABLE must still record the table it touches.
 			add(firstDirectChildByKind(n, "object_reference"), "alter")
+		case "drop_table":
+			// DROP TABLE is migration evidence for an existing table, not a new
+			// SqlTable entity. The grammar recovers valid comma-separated target
+			// lists in more than one shape; collectDropTableTargets keeps recovery
+			// structurally bounded so unrelated trailing SQL cannot become DROP
+			// evidence.
+			collectDropTableTargets(n, source, add, addName)
 		}
 		for _, child := range namedChildren(n) {
 			visit(child, operation)
@@ -123,6 +131,73 @@ func collectMentionsFromNode(node *tree_sitter.Node, source []byte, includeReads
 	collectReferencesTargets(node, add)
 	visit(node, "")
 	return dropShadowedReads(mentions)
+}
+
+// collectDropTableTargets records every target in a DROP TABLE statement.
+// DerekStride/tree-sitter-sql accepts one target in the grammar production;
+// valid comma-separated targets before the final target therefore usually
+// appear as direct object_reference children of a direct ERROR node. Some
+// otherwise-valid forms instead put the remaining comma list after the
+// drop_table node as a sibling ERROR. Before recording any target, the complete
+// source remainder from the first recovered reference must be a bounded
+// comma-separated identifier list. That statement-level guard prevents a valid
+// final object_reference or sibling tail from surviving malformed ERROR input.
+func collectDropTableTargets(
+	node *tree_sitter.Node,
+	source []byte,
+	add func(ref *tree_sitter.Node, operation string),
+	addName func(name, operation string, offset int),
+) {
+	start, ok := firstDropTableTargetOffset(node)
+	if !ok || !isCompleteDropTargetListFrom(start, source) {
+		return
+	}
+
+	for _, child := range namedChildren(node) {
+		switch child.GrammarName() {
+		case "object_reference":
+			add(child, "drop")
+		case "ERROR":
+			for _, recovered := range namedChildren(child) {
+				if recovered.GrammarName() == "object_reference" {
+					add(recovered, "drop")
+				}
+			}
+		}
+	}
+	recoverDropTableTargetsFromTail(int(node.EndByte()), source, addName)
+}
+
+// firstDropTableTargetOffset returns the earliest object_reference that the
+// grammar associated with one DROP TABLE node, including a direct ERROR child.
+// Starting validation at the reference instead of the ERROR byte span avoids
+// treating recovery punctuation or keywords as identifier text.
+func firstDropTableTargetOffset(node *tree_sitter.Node) (int, bool) {
+	start := 0
+	found := false
+	consider := func(ref *tree_sitter.Node) {
+		if ref == nil {
+			return
+		}
+		offset := int(ref.StartByte())
+		if !found || offset < start {
+			start = offset
+			found = true
+		}
+	}
+	for _, child := range namedChildren(node) {
+		switch child.GrammarName() {
+		case "object_reference":
+			consider(child)
+		case "ERROR":
+			for _, recovered := range namedChildren(child) {
+				if recovered.GrammarName() == "object_reference" {
+					consider(recovered)
+				}
+			}
+		}
+	}
+	return start, found
 }
 
 // dropShadowedReads removes "select" mentions that are actually mutation

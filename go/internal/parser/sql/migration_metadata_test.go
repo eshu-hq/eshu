@@ -57,6 +57,57 @@ func TestParseMigrationTargetsFromAlterAndReferences(t *testing.T) {
 	assertSQLMigrationExists(t, gotReferences, "prisma", "SqlTable", "public.orders")
 }
 
+// TestParseMigrationTargetsFromDropTable guards #5482: DROP TABLE is migration
+// evidence for an existing table, not a declaration of a new SqlTable entity.
+func TestParseMigrationTargetsFromDropTable(t *testing.T) {
+	t.Parallel()
+
+	path := writeSQLTestFile(
+		t,
+		filepath.Join("prisma", "migrations", "20260722_drop_users", "migration.sql"),
+		`DROP TABLE IF EXISTS public.users;
+`,
+	)
+
+	got := parseSQLTestFile(t, path)
+
+	assertSQLMigrationTarget(t, got, "prisma", "SqlTable", "public.users", "drop", 1)
+	assertSQLBucketMissingName(t, got, "sql_tables", "public.users")
+}
+
+// TestParseMigrationTargetsPreserveDistinctOperationsForSameTarget proves the
+// real SQL parser retains operation metadata when one migration both creates
+// and drops a table. A repeated DROP is one operation entry at its first line,
+// but it must not erase or be erased by the distinct CREATE operation.
+func TestParseMigrationTargetsPreserveDistinctOperationsForSameTarget(t *testing.T) {
+	t.Parallel()
+
+	path := writeSQLTestFile(
+		t,
+		filepath.Join("prisma", "migrations", "20260722_create_then_drop", "migration.sql"),
+		`CREATE TABLE public.t (id BIGINT PRIMARY KEY);
+DROP TABLE public.t;
+DROP TABLE public.t;
+`,
+	)
+
+	targets := sqlMigrationTargetsForTool(t, parseSQLTestFile(t, path), "prisma")
+	if got, want := len(targets), 2; got != want {
+		t.Fatalf("migration target count = %d, want %d: %#v", got, want, targets)
+	}
+	want := []map[string]any{
+		{"kind": "SqlTable", "name": "public.t", "operation": "create", "line_number": 1},
+		{"kind": "SqlTable", "name": "public.t", "operation": "drop", "line_number": 2},
+	}
+	for index, wantTarget := range want {
+		for key, wantValue := range wantTarget {
+			if got := targets[index][key]; got != wantValue {
+				t.Fatalf("targets[%d][%q] = %#v, want %#v; all targets = %#v", index, key, got, wantValue, targets)
+			}
+		}
+	}
+}
+
 func TestParseDMLDeleteMigrationTarget(t *testing.T) {
 	t.Parallel()
 
@@ -135,6 +186,45 @@ func assertSQLMigrationExists(
 		tool,
 		targetKind,
 		targetName,
+		items,
+	)
+}
+
+func assertSQLMigrationTarget(
+	t *testing.T,
+	payload map[string]any,
+	tool string,
+	targetKind string,
+	targetName string,
+	operation string,
+	lineNumber int,
+) {
+	t.Helper()
+
+	items, _ := payload["sql_migrations"].([]map[string]any)
+	for _, item := range items {
+		gotTool, _ := item["tool"].(string)
+		if gotTool != tool {
+			continue
+		}
+		targets, _ := item["migration_targets"].([]map[string]any)
+		for _, target := range targets {
+			gotKind, _ := target["kind"].(string)
+			gotName, _ := target["name"].(string)
+			gotOperation, _ := target["operation"].(string)
+			gotLineNumber, _ := target["line_number"].(int)
+			if gotKind == targetKind && gotName == targetName && gotOperation == operation && gotLineNumber == lineNumber {
+				return
+			}
+		}
+	}
+	t.Fatalf(
+		"sql_migrations missing tool=%q kind=%q name=%q operation=%q line_number=%d in %#v",
+		tool,
+		targetKind,
+		targetName,
+		operation,
+		lineNumber,
 		items,
 	)
 }

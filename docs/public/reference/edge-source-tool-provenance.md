@@ -282,8 +282,12 @@ reducer resolves table-to-table edges. The same change added routine
 `WRITES_TO` edges. `MIGRATES` left this list in #5346: the parser
 now emits one `SqlMigration` entity per recognized migration file with its
 resolved forward targets under `migration_targets` metadata, and the reducer
-derives `MIGRATES` edges directly (mirrors the `READS_FROM` bridge; DROP
-targets and migration-order reachability remain unresolved). `TRIGGERS_ON` is
+derives `MIGRATES` edges directly (mirrors the `READS_FROM` bridge).
+Comma-separated `DROP TABLE` targets are recorded as `operation: "drop"`
+metadata up to the deterministic 64-target cap, while the `MIGRATES` edge
+remains adjacency/provenance only: it does
+not carry the operation or infer migration-order reachability or head-state
+absence. `TRIGGERS_ON` is
 a distinct dead registry entry from the live `TRIGGERS` edge the SQL trigger
 writer actually emits — do not conflate the two names. `SATISFIED_BY`
 (Crossplane Claim -> XRD) was previously miscategorized above as a

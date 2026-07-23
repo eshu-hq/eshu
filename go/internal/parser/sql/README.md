@@ -93,8 +93,12 @@ prior regex behavior:
   mentions also live under the single `SqlMigration` entity's
   `migration_targets` metadata (#5346), which the reducer resolves into
   `MIGRATES`. A target reached only through `select` is excluded because a
-  read-only backfill does not migrate its source table. Migration DROP targets
-  and migration-order reachability are not parsed.
+  read-only backfill does not migrate its source table. Comma-separated
+  `DROP TABLE` targets are recorded with `operation: "drop"` up to the shared
+  64-target cap; truncation is deterministic and does not emit a new `SqlTable`
+  entity. The operation remains migration-target metadata:
+  `MIGRATES` continues to represent adjacency/provenance, and migration-order
+  reachability and head-state absence are not inferred.
 - Highly dialect-specific statements outside the extracted construct set
   (sequences, types, policies, grants, vendor pragmas) are not extracted, the
   same as before.
@@ -120,6 +124,11 @@ pipeline (#5346). Prisma names every migration file `migration.sql`, so its
 stamped identifier is the migration's parent directory name instead of the
 basename; every other supported tool's filename is already a meaningful
 identifier.
+
+`migration_targets` deduplicates only identical `(kind, name, operation)`
+entries, retaining the first source line. A migration that creates and later
+drops the same target therefore preserves both operation records, while the
+reducer still emits one `MIGRATES` edge for that migration-target pair.
 
 SQL relationship extraction is conservative. Table constraints such as
 `PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `CHECK`, and `EXCLUDE` are not SQL column
@@ -147,11 +156,25 @@ tracked before/after evidence here.
   segment (`defer tree.Close()` in `parseSegment`), so there is no retained
   growth across files. Reproduce with:
   `go test ./internal/parser/sql -run '^$' -bench BenchmarkParseComprehensive -benchmem -count=3`.
-- Observability Evidence: No-Observability-Change. This package emits no
-  metrics, spans, or logs by contract (see Telemetry above); parse timing
-  remains owned by the collector snapshot path and the parent parser engine,
-  which are unchanged. The migration alters extraction internals only, not any
-  operator-facing signal, status field, or wire contract.
+- No-Regression Evidence (#5482): `DROP TABLE` records direct target references
+  from the `drop_table` AST node. References inside a direct `ERROR` recovery
+  child are admitted only when the full remaining source is a complete
+  comma-separated identifier list with an optional `CASCADE` or `RESTRICT`
+  clause and statement terminator. When the grammar leaves the remaining
+  comma-separated targets after the node in a sibling `ERROR`, the same bounded
+  recognizer accepts only a complete comma-prefixed list. The production-path
+  `TestParseMigrationTargetsFromMalformedDropErrorRejectsRecoveredTarget`
+  regression proves a missing comma cannot mint false `MIGRATES` evidence. This
+  augments the existing AST mention walk without another tree-sitter parse
+  pass, queue work, graph write, or new entity. The existing 64-target
+  `migration_targets` cap remains in force. The focused package proof remains
+  `go test ./internal/parser/sql -count=1`; the intentional output delta is
+  bounded `operation: "drop"` target metadata for recognized DROP migrations.
+- Observability Evidence: No-Observability-Change. This package emits no new
+  metric, span, log, status field, or runtime knob for #5482. Its existing
+  oversized-segment path may still emit `slog.Warn("sql parse segment
+  bounded", ...)` as described under Telemetry; parse timing remains owned by
+  the collector snapshot path and the parent parser engine.
 
 ### Large-schema line-number lookup (#4422)
 
@@ -175,10 +198,11 @@ per-emitted-row source-prefix allocation, but it does not claim the full private
 corpus outlier is fully resolved until a fresh full-corpus run confirms no
 single SQL file dominates collection wall time.
 
-Observability Evidence: No-Observability-Change. This package still emits no
-metrics, spans, logs, status fields, or runtime knobs. Operators continue to use
-collector parse-stage timing and `eshu_dp_file_parse_duration_seconds`; the new
-benchmark is the focused local proof for the public-safe large-schema shape.
+Observability Evidence: No-Observability-Change. This change adds no metrics,
+spans, logs, status fields, or runtime knobs. The package's existing bounded-
+segment warning remains unchanged. Operators continue to use collector
+parse-stage timing and `eshu_dp_file_parse_duration_seconds`; the new benchmark
+is the focused local proof for the public-safe large-schema shape.
 
 ### Oversized dollar-quoted routine body (#4422)
 
