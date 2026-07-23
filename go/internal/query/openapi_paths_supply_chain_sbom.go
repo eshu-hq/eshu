@@ -51,6 +51,25 @@ const openAPIPathsSupplyChainSBOMAttestations = `
                           "missing_evidence": {"type": "array", "items": {"type": "string"}},
                           "canonical_writes": {"type": "integer"},
                           "component_count": {"type": "integer"},
+                          "component_evidence": {
+                            "type": "array",
+                            "description": "Bounded, deduplicated sbom.component evidence rows for this document (write-time capped at 100 per document).",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "component_id": {"type": "string"},
+                                "name": {"type": "string"},
+                                "version": {"type": "string"},
+                                "purl": {"type": "string"},
+                                "cpe": {"type": "string"},
+                                "fact_id": {"type": "string"}
+                              }
+                            }
+                          },
+                          "component_evidence_truncated": {
+                            "type": "boolean",
+                            "description": "True when component_count exceeds the number of rows in component_evidence."
+                          },
                           "dependency_relationships": {
                             "type": "array",
                             "description": "Bounded, deduplicated sbom.dependency_relationship evidence rows for this document (write-time capped at 100 per document).",

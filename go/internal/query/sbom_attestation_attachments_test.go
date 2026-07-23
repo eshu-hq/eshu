@@ -6,6 +6,7 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -63,28 +64,29 @@ func TestSupplyChainListSBOMAttestationAttachmentsUsesBoundedStore(t *testing.T)
 		page: SBOMAttestationAttachmentPage{
 			Attachments: []SBOMAttestationAttachmentRow{
 				{
-					AttachmentID:       "attachment-1",
-					SubjectDigest:      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-					DocumentID:         "doc-1",
-					DocumentDigest:     "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-					AttachmentStatus:   "attached_verified",
-					ParseStatus:        "parsed",
-					VerificationStatus: "passed",
-					VerificationPolicy: "policy://prod",
-					ArtifactKind:       "sbom",
-					Format:             "cyclonedx",
-					SpecVersion:        "1.6",
-					AttachmentScope:    "image_subject",
-					ComponentCount:     3,
-					ComponentEvidence:  []ComponentEvidenceRow{{ComponentID: "pkg:npm/example@1.0.0", PURL: "pkg:npm/example@1.0.0"}},
-					WarningSummaries:   []string{"none"},
-					CanonicalWrites:    1,
-					EvidenceFactIDs:    []string{"doc-fact", "referrer-fact"},
-					RepositoryIDs:      []string{"repo://example/api"},
-					WorkloadIDs:        []string{"workload:example-api"},
-					ServiceIDs:         []string{"service:example-api"},
-					SourceFreshness:    "active",
-					SourceConfidence:   "inferred",
+					AttachmentID:               "attachment-1",
+					SubjectDigest:              "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					DocumentID:                 "doc-1",
+					DocumentDigest:             "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+					AttachmentStatus:           "attached_verified",
+					ParseStatus:                "parsed",
+					VerificationStatus:         "passed",
+					VerificationPolicy:         "policy://prod",
+					ArtifactKind:               "sbom",
+					Format:                     "cyclonedx",
+					SpecVersion:                "1.6",
+					AttachmentScope:            "image_subject",
+					ComponentCount:             3,
+					ComponentEvidence:          []ComponentEvidenceRow{{ComponentID: "pkg:npm/example@1.0.0", PURL: "pkg:npm/example@1.0.0"}},
+					ComponentEvidenceTruncated: true,
+					WarningSummaries:           []string{"none"},
+					CanonicalWrites:            1,
+					EvidenceFactIDs:            []string{"doc-fact", "referrer-fact"},
+					RepositoryIDs:              []string{"repo://example/api"},
+					WorkloadIDs:                []string{"workload:example-api"},
+					ServiceIDs:                 []string{"service:example-api"},
+					SourceFreshness:            "active",
+					SourceConfidence:           "inferred",
 				},
 				{AttachmentID: "attachment-2", AttachmentStatus: "attached_parse_only"},
 			},
@@ -132,6 +134,9 @@ func TestSupplyChainListSBOMAttestationAttachmentsUsesBoundedStore(t *testing.T)
 	}
 	if got, want := resp.Attachments[0].CanonicalWrites, 1; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
+	}
+	if !resp.Attachments[0].ComponentEvidenceTruncated {
+		t.Fatal("component_evidence_truncated = false, want true")
 	}
 	if got, want := resp.Attachments[0].RepositoryIDs[0], "repo://example/api"; got != want {
 		t.Fatalf("RepositoryIDs[0] = %q, want %q", got, want)
@@ -381,6 +386,38 @@ func TestDecodeSBOMAttestationAttachmentRowUsesPersistedWarningSummaryCount(t *t
 	}
 	if got, want := strings.Join(row.WarningSummaries, ","), "25 components missing purl and name+version identity (samples: component[1], component[2])"; got != want {
 		t.Fatalf("WarningSummaries = %q, want %q", got, want)
+	}
+}
+
+func TestDecodeSBOMAttestationAttachmentRowSurfacesComponentEvidenceTruncation(t *testing.T) {
+	t.Parallel()
+
+	components := make([]any, 0, 100)
+	for i := 0; i < 100; i++ {
+		components = append(components, map[string]any{
+			"component_id": fmt.Sprintf("component-%03d", i),
+			"fact_id":      fmt.Sprintf("fact-%03d", i),
+		})
+	}
+	payloadBytes, err := json.Marshal(map[string]any{
+		"document_id":        "doc-bounded-components",
+		"attachment_status":  "attached_parse_only",
+		"component_count":    101,
+		"component_evidence": components,
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+
+	row, err := decodeSBOMAttestationAttachmentRow("attachment-bounded-components", "reported", payloadBytes)
+	if err != nil {
+		t.Fatalf("decodeSBOMAttestationAttachmentRow() error = %v", err)
+	}
+	if got, want := len(row.ComponentEvidence), 100; got != want {
+		t.Fatalf("ComponentEvidence len = %d, want %d", got, want)
+	}
+	if !row.ComponentEvidenceTruncated {
+		t.Fatal("ComponentEvidenceTruncated = false, want true when full count exceeds persisted rows")
 	}
 }
 

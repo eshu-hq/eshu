@@ -101,8 +101,12 @@ type SBOMAttestationAttachmentRow struct {
 	Reason             string
 	AttachmentScope    string
 	CanonicalWrites    int
-	ComponentCount     int
-	ComponentEvidence  []ComponentEvidenceRow
+	// ComponentCount reports the full distinct component tuple count computed
+	// before the reducer's write-time cap. ComponentEvidenceTruncated is true
+	// when the persisted evidence row count is lower than this total.
+	ComponentCount             int
+	ComponentEvidence          []ComponentEvidenceRow
+	ComponentEvidenceTruncated bool
 	// DependencyRelationships is the bounded, reducer-capped set of
 	// sbom.dependency_relationship evidence rows for this document.
 	// DependencyRelationshipCount reports the full distinct-tuple count
@@ -391,6 +395,8 @@ func decodeSBOMAttestationAttachmentRow(
 	externalReferenceCount := IntVal(payload, "external_reference_count")
 	slsaMaterials := slsaMaterialRowsFromPayload(payload["slsa_provenance_materials"])
 	slsaMaterialCount := IntVal(payload, "slsa_provenance_material_count")
+	componentEvidence := componentEvidenceRows(payload["component_evidence"])
+	componentCount := IntVal(payload, "component_count")
 	return SBOMAttestationAttachmentRow{
 		AttachmentID:                         factID,
 		SubjectDigest:                        StringVal(payload, "subject_digest"),
@@ -406,8 +412,9 @@ func decodeSBOMAttestationAttachmentRow(
 		Reason:                               StringVal(payload, "reason"),
 		AttachmentScope:                      StringVal(payload, "attachment_scope"),
 		CanonicalWrites:                      IntVal(payload, "canonical_writes"),
-		ComponentCount:                       IntVal(payload, "component_count"),
-		ComponentEvidence:                    componentEvidenceRows(payload["component_evidence"]),
+		ComponentCount:                       componentCount,
+		ComponentEvidence:                    componentEvidence,
+		ComponentEvidenceTruncated:           componentCount > len(componentEvidence),
 		DependencyRelationships:              dependencyRelationships,
 		DependencyRelationshipCount:          dependencyRelationshipCount,
 		DependencyRelationshipsTruncated:     dependencyRelationshipCount > len(dependencyRelationships),
