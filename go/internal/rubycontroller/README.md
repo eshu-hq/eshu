@@ -82,6 +82,34 @@ the pre-#5500 `ExactMatches(ref)` call. See
 correctness proof, the measured performance cost, and the schema-epoch
 assessment.
 
+### Absolute references are exempt from the namespace search (#5733)
+
+A base declared with an explicit leading `::` (`class Foo < ::Base`) is real
+Ruby's absolute-constant-path marker: it resolves starting at Object with NO
+`Module.nesting` search, unlike the bare, relative `Base`. The two spellings
+are different resolution rules that happen to share a trailing name, so
+collapsing them loses correctness-relevant information.
+
+`superclassQualifiedName` (`go/internal/parser/ruby/nodes.go`) preserves the
+leading `::` in the emitted `qualified_bases` fact instead of stripping it.
+`rubyRepoWideControllerRegistry.DeclaredBasesOf` (the reducer's repo-wide
+registry) returns it verbatim. `normalizeBases` (helpers.go) is where the
+marker is finally consumed: it splits each declared base into a `resolvedBase{
+Name, Absolute }` pair, stripping `::` from `Name` (so no `Registry` method
+ever sees a literal `::`) while carrying `Absolute` forward. `onwardHop` passes
+`Absolute` to `lexicalExactMatch`, which — when true — skips the
+enclosing-namespace search entirely and degrades to the bare top-level
+`reg.ExactMatches(ref)`, exactly like the no-op case for a top-level walked
+class.
+
+Before this existed, an absolute reference's `::` was stripped before it ever
+reached the lexical-scope search, making it indistinguishable from a relative
+reference. For a namespaced controller (`Admin::OrdersController < ::Base`)
+with an unrelated, coincidentally-named `Admin::Base` in the corpus, the
+namespace search would wrongly exact-match `Admin::Base` and could downgrade
+(recommend deleting) a genuinely live controller whose real `::Base` is
+external to the corpus (e.g. a gem) — a real false-downgrade caught by review.
+
 ## Invariant
 
 Under assumptions A1–A4 (the defining class is in-corpus; no gem constant under

@@ -110,6 +110,42 @@ func TestBuildCodeRootVerdictsLexicalScopeCoincidentalInnerMatchDoesNotMask(t *t
 	}
 }
 
+// TestBuildCodeRootVerdictsAbsoluteReferenceBypassesLexicalScope is the #5733
+// P1 regression (codex review of #5500), run against the REAL production
+// registry (rubyRepoWideControllerRegistry) and the REAL parser-shaped
+// QualifiedBases value. An ABSOLUTE reference ("::Base", Ruby's
+// `class Admin::OrdersController < ::Base`) resolves starting at Object with
+// NO enclosing-namespace search — a different rule than the bare, relative
+// "Base". The corpus has an unrelated, coincidentally-named "Admin::Base"
+// that shares OrdersController's own enclosing namespace and resolves onward
+// to the reject-set; the real "::Base" is external to the corpus (e.g. a
+// gem). Before the fix, rubyRepoWideControllerRegistry.DeclaredBasesOf
+// returned "::Base" verbatim, but rubycontroller's normalizeBases stripped
+// the leading "::" unconditionally before it ever reached the lexical-scope
+// search, making the absolute reference indistinguishable from a relative
+// one and wrongly resolving it onto "Admin::Base" — downgrading (and thus
+// recommending deletion of) a genuinely live controller action.
+func TestBuildCodeRootVerdictsAbsoluteReferenceBypassesLexicalScope(t *testing.T) {
+	input := verdictInput("m:index", "OrdersController", []RubyClassEntity{
+		{Name: "OrdersController", QualifiedName: "Admin::OrdersController", QualifiedBases: []string{"::Base"}},
+		{Name: "Base", QualifiedName: "Admin::Base", QualifiedBases: []string{"ActiveRecord::Base"}}, // coincidental, unrelated, non-controller
+	})
+	rows, downgraded, _ := BuildCodeRootVerdicts(input)
+	row, ok := verdictByEntity(rows, "m:index")
+	if !ok {
+		t.Fatalf("expected a verdict row, got none (rows=%+v)", rows)
+	}
+	if row.Verdict != CodeRootVerdictConfirmed {
+		t.Fatalf("an absolute reference whose true top-level referent is absent from the corpus must stay CONFIRMED (keep-biased ambiguous), not resolve onto an unrelated namespace-mate, got %+v", row)
+	}
+	if row.Basis.Reason != "suffix_only_ambiguous" {
+		t.Fatalf("basis.reason = %q, want %q (basis=%+v)", row.Basis.Reason, "suffix_only_ambiguous", row.Basis)
+	}
+	if _, isDown := downgraded[row.EntityID]; isDown {
+		t.Fatalf("genuine controller must not be in the downgraded set")
+	}
+}
+
 // buildNamespacedVerdictBenchInput constructs a representative, heavily
 // namespaced Rails-shaped corpus mirroring the #5376 evidence note's
 // representative-volume scale (~500 classes): each controller is nested two

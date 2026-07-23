@@ -241,6 +241,43 @@ func TestDecide(t *testing.T) {
 			wantKeep:   true,
 			wantReason: rubycontroller.ReasonAccepted,
 		},
+		{
+			// #5733 P1 (codex review of #5500): an ABSOLUTE reference "::Base"
+			// (Ruby: `class Admin::OrdersController < ::Base`) must resolve ONLY
+			// through the top-level bare name, never through the enclosing
+			// namespace search real Ruby applies to a RELATIVE reference. The
+			// real "::Base" is external to the corpus (e.g. a gem); the
+			// in-corpus "Admin::Base" is an unrelated, coincidentally-named
+			// class that merely shares OrdersController's own namespace. Before
+			// the fix, the leading "::" was stripped before reaching the
+			// lexical-scope search, so it wrongly exact-matched "Admin::Base"
+			// and downgraded a controller whose true base cannot be resolved
+			// in-corpus. With zero true top-level candidates, this must fall to
+			// the pre-#5500 suffix-only ambiguous keep, exactly as it did before
+			// #5500 ever ran.
+			name:  "absolute top-level reference bypasses lexical scope and stays ambiguous-keep",
+			class: "Admin::OrdersController",
+			classes: map[string][]string{
+				"Admin::OrdersController": {"::Base"},
+				"Admin::Base":             {"ActiveRecord::Base"}, // unrelated, coincidental namespace-mate
+			},
+			wantKeep:   true,
+			wantReason: rubycontroller.ReasonSuffixOnlyAmbiguous,
+		},
+		{
+			// #5733: an absolute reference DOES still resolve exactly when its
+			// true top-level referent is genuinely in-corpus — the fix scopes
+			// the lookup to top-level-only, it does not disable exact
+			// resolution altogether.
+			name:  "absolute top-level reference resolves exactly against the real top-level class",
+			class: "Admin::OrdersController",
+			classes: map[string][]string{
+				"Admin::OrdersController": {"::Base"},
+				"Base":                    {"ActiveRecord::Base"}, // the true top-level referent
+			},
+			wantKeep:   false,
+			wantReason: rubycontroller.ReasonRejectedFrameworkBase,
+		},
 	}
 
 	for _, tt := range tests {

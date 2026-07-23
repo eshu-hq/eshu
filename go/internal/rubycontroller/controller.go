@@ -242,11 +242,11 @@ func walkClass(
 	}
 	visited[classKey] = struct{}{}
 
-	bases, declared := reg.DeclaredBasesOf(classKey)
+	rawBases, declared := reg.DeclaredBasesOf(classKey)
 	if !declared {
 		return Decision{Keep: legacyResidual, Chain: chain, Terminal: "fizzled:" + classKey, Reason: ReasonFizzled}
 	}
-	bases = normalizeBases(bases)
+	bases := normalizeBases(rawBases)
 	if len(bases) == 0 {
 		return Decision{Keep: legacyResidual, Chain: chain, Terminal: "fizzled:" + classKey, Reason: ReasonFizzled}
 	}
@@ -258,7 +258,7 @@ func walkClass(
 		haveDowngrade bool
 	)
 	for _, base := range bases {
-		sub := onwardHop(base, namespace, reg, legacyResidual, append(cloneChain(chain), base), cloneVisited(visited), depth)
+		sub := onwardHop(base.Name, base.Absolute, namespace, reg, legacyResidual, append(cloneChain(chain), base.Name), cloneVisited(visited), depth)
 		if sub.Keep {
 			return sub // any-path-keeps
 		}
@@ -281,9 +281,12 @@ func walkClass(
 // namespace of the class that DECLARED ref (its own qualified name minus its
 // last segment), used by the #5500 lexical-scope-aware candidate restriction;
 // it is "" for a top-level (non-namespaced) walked class, which makes the
-// restriction a documented no-op (see lexicalExactMatch).
+// restriction a documented no-op (see lexicalExactMatch). absolute is true
+// when ref was declared with an explicit leading "::" ("class Foo < ::Base");
+// it disables the namespace search entirely (#5733 P1, see lexicalExactMatch).
 func onwardHop(
 	ref string,
+	absolute bool,
 	namespace string,
 	reg Registry,
 	legacyResidual bool,
@@ -303,7 +306,10 @@ func onwardHop(
 	// candidate, so it cannot drop a match the pre-#5500 lookup found, and it
 	// never picks one inner-scope hit over another — every level's hit stays in
 	// play for the any-path-keeps aggregation below (see lexicalExactMatch doc).
-	exact := lexicalExactMatch(reg, namespace, ref)
+	// #5733: for an ABSOLUTE ref this degrades to the bare top-level
+	// ExactMatches(ref) only — real Ruby never searches the enclosing namespace
+	// for "::Base".
+	exact := lexicalExactMatch(reg, namespace, ref, absolute)
 	suffix := reg.SuffixMatches(ref)
 
 	// 2. EXACT resolution: R is downgrade-eligible. Recurse PER CANDIDATE class
@@ -370,10 +376,10 @@ func probeClassConfirm(classKey string, reg Registry, visited map[string]struct{
 		return false
 	}
 	for _, base := range normalizeBases(bases) {
-		if _, accepted := acceptedControllerBases[base]; accepted {
+		if _, accepted := acceptedControllerBases[base.Name]; accepted {
 			return true
 		}
-		for _, candidate := range unionKeys(reg.ExactMatches(base), reg.SuffixMatches(base)) {
+		for _, candidate := range unionKeys(reg.ExactMatches(base.Name), reg.SuffixMatches(base.Name)) {
 			if probeClassConfirm(candidate, reg, cloneVisited(visited), depth+1) {
 				return true
 			}

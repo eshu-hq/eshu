@@ -125,6 +125,21 @@ func (s *rubySyntax) superclassName(node *tree_sitter.Node) string {
 // dead_code_roots.go, which must not conflate an accepted qualified base
 // (ActionController::Base) with an unrelated class that merely shares the
 // same last segment (e.g. Sinatra::Base).
+//
+// A leading "::" (e.g. "class OrdersController < ::Base") is PRESERVED, not
+// stripped: it is Ruby's absolute-constant-path marker, meaning the reference
+// resolves starting at Object with NO enclosing-namespace search — a
+// different resolution rule than the bare, relative "Base", which real Ruby
+// searches via Module.nesting outward. Collapsing both spellings to the
+// identical "Base" string would make them indistinguishable once persisted in
+// qualified_bases, which previously let the reducer's #5500
+// lexical-scope-aware candidate restriction (go/internal/rubycontroller)
+// wrongly apply namespace-prefixed lexical search to an absolute reference,
+// exact-matching an unrelated in-corpus class that merely shares the
+// referencing class's own enclosing namespace and last segment (#5733 P1).
+// rubycontroller.classNamespaceOf / normalizeBases detect and strip this
+// marker to decide whether the namespace search runs at all; they never see a
+// literal "::" survive into a Registry lookup.
 func (s *rubySyntax) superclassQualifiedName(node *tree_sitter.Node) string {
 	cursor := node.Walk()
 	defer cursor.Close()
@@ -136,7 +151,7 @@ func (s *rubySyntax) superclassQualifiedName(node *tree_sitter.Node) string {
 		if child.IsNamed() {
 			switch child.Kind() {
 			case "constant", "scope_resolution":
-				return strings.TrimPrefix(s.text(child), "::")
+				return s.text(child)
 			}
 		}
 		if !cursor.GotoNextSibling() {

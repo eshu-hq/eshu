@@ -232,3 +232,89 @@ change's own re-projection trigger will be silently absorbed by the first
 merge's `1 -> 2` epoch stamp and never re-run. The orchestrator is sequencing
 this merge order; this constant must not be merge-resolved silently by either
 branch.
+
+## P1 fix (post separate-context review, #5733): absolute-reference provenance
+
+A separate-context review (`eshu-code-review`, codex) of this PR found that a
+superclass declared with an explicit leading `::` (`class
+OrdersController < ::Base`, real Ruby's absolute-constant-path marker — it
+resolves starting at Object with NO `Module.nesting` search) was
+indistinguishable from a bare, relative `Base` by the time it reached
+`onwardHop`. Two independent strip points destroyed the marker before the
+lexical-scope restriction ever saw it: `superclassQualifiedName`
+(`go/internal/parser/ruby/nodes.go`) trimmed the leading `::` when building
+`qualified_bases`, and `normalizeBases` (`go/internal/rubycontroller/helpers.go`)
+trimmed it again unconditionally on every declared base. Consequence: for a
+namespaced controller (`Admin::OrdersController < ::Base`) with an unrelated,
+coincidentally-named `Admin::Base` in the corpus, `lexicalExactMatch` wrongly
+tried `Admin::Base` as a candidate — real Ruby would never search the
+enclosing namespace for an absolute reference — and could resolve it EXACTLY,
+letting the walk downgrade a genuinely live controller whose true `::Base` is
+external to the corpus (e.g. a gem). Before #5500, the same shape only ever
+produced a broad, unscoped `SuffixMatches` candidate and stayed
+`suffix_only_ambiguous` (kept); #5500's precision upgrade is what newly made
+this reachable as a false EXACT match.
+
+**Fix**: `superclassQualifiedName` now preserves the leading `::` in
+`qualified_bases` instead of stripping it (the reducer's
+`rubyRepoWideControllerRegistry.DeclaredBasesOf` already returned declared
+bases verbatim — only `strings.TrimSpace`, no `::` handling — so no reducer
+code change was needed there). `normalizeBases` now returns
+`[]resolvedBase{Name, Absolute}` instead of `[]string`: it splits the leading
+`::` into `Absolute` and strips it from `Name` before any `Registry` method
+ever sees the ref (so `ExactMatches`/`SuffixMatches` implementations are
+unaffected — they still only ever receive plain, unqualified-marker refs).
+`onwardHop` and `lexicalExactMatch` both take a new `absolute bool` parameter;
+when true, `lexicalExactMatch` skips the enclosing-namespace search entirely
+and returns only the bare top-level `reg.ExactMatches(ref)` — the SuffixMatches
+confirm-only path (step 3) is untouched, since a suffix candidate can never
+feed a downgrade regardless of absoluteness. `probeClassConfirm` needed no
+`absolute` handling: it never performs namespace-prefixed lexical search to
+begin with.
+
+This is a data-availability fix, not a decision-logic reinterpretation of
+existing facts: a repo already indexed under the OLD parser has no `::` marker
+in its stored `qualified_bases` (the parser never emitted one), so the fixed
+`normalizeBases` computes `Absolute=false` for that data exactly as before —
+behavior for every already-stored fact is byte-for-byte unchanged. The fix
+only takes effect once a repo is re-parsed under the corrected parser and
+re-emits `qualified_bases` with the marker preserved, which is the normal,
+expected lifecycle of any parser bug fix. Unlike the union-accumulation P0 fix
+above (which changes the DECISION for facts already sitting in Postgres, hence
+the `CodeReachabilityVerdictSchemaEpoch` bump), this fix requires no epoch
+bump: the "same stored facts, different logic" precondition the epoch
+mechanism exists for does not hold here.
+
+**Regression tests (failing→green)**:
+
+- `go/internal/parser/ruby/parser_test.go` —
+  `TestParseEmitsQualifiedBasesPreservesAbsoluteMarker`: `class
+  OrdersController < ::Base` inside `module Admin` now emits
+  `qualified_bases: ["::Base"]` (`bases`, the last-segment fact, is unaffected
+  at `["Base"]`). Pre-fix: `qualified_bases: ["Base"]` (marker stripped).
+- `go/internal/rubycontroller/controller_test.go` — `TestDecide/absolute_top-level_reference_bypasses_lexical_scope_and_stays_ambiguous-keep`:
+  `classes = {"Admin::OrdersController": ["::Base"], "Admin::Base":
+  ["ActiveRecord::Base"]}`. Pre-fix: `Keep = false, Reason =
+  rejected_framework_base` (wrongly resolved onto the coincidental
+  `Admin::Base`). Post-fix: `Keep = true, Reason = suffix_only_ambiguous`
+  (matches the pre-#5500 behavior for this shape — the real `::Base` is absent
+  from the corpus). A companion case,
+  `TestDecide/absolute_top-level_reference_resolves_exactly_against_the_real_top-level_class`,
+  proves the fix does not simply disable exact resolution for absolute refs:
+  with a genuine top-level `Base < ActiveRecord::Base` present (no coincidental
+  namespace-mate), the walk still downgrades via `rejected_framework_base`.
+- `go/internal/reducer/code_root_verdicts_lexical_scope_test.go` —
+  `TestBuildCodeRootVerdictsAbsoluteReferenceBypassesLexicalScope` reproduces
+  the same shape through the REAL production registry
+  (`rubyRepoWideControllerRegistry`) with a hand-built `QualifiedBases:
+  []string{"::Base"}`.
+- `go/internal/reducer/code_root_verdicts_integration_test.go` —
+  `TestBuildCodeRootVerdictsAbsoluteReferenceFromRealParserEmissions`
+  reproduces it end-to-end through the REAL Ruby parser with genuine source
+  (`class OrdersController < ::Base` inside `module Admin`, plus a
+  module-nested unrelated `Admin::Base < ActiveRecord::Base`) — no hand-built
+  qualified names or bases.
+- All four PASS after the fix. All four FAIL (as the false downgrade / missing
+  marker) against the pre-fix code. Every pre-existing test in this file and
+  package stays green — the fix only changes behavior for a base ref that
+  literally carries a leading `::`, which no prior test exercised.

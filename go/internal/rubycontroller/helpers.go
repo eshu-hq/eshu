@@ -61,7 +61,22 @@ func classNamespaceOf(classKey string) string {
 // the restriction provably additive (candidates only ever grow relative to
 // the pre-#5500 reg.ExactMatches(ref) lookup, so it can only rescue via
 // any-path-keeps, never mask a candidate the prior lookup would have found).
-func lexicalExactMatch(reg Registry, namespace, ref string) []string {
+//
+// When absolute is true — ref was declared with an explicit leading "::"
+// ("class Foo < ::Base") — the enclosing-namespace search is skipped
+// entirely: real Ruby resolves an absolute constant path starting at Object
+// with NO Module.nesting search, so scope-prefixed candidates like
+// "Admin::Base" are never even considered by the Ruby runtime for this ref.
+// Only the bare top-level reg.ExactMatches(ref) applies (#5733 P1, codex
+// review of #5500). Before this parameter existed, an absolute ref's leading
+// "::" was stripped before reaching this function, making it
+// indistinguishable from a relative "Base" and letting the namespace search
+// wrongly exact-match an unrelated in-corpus class sharing the referencing
+// class's own enclosing namespace and last segment.
+func lexicalExactMatch(reg Registry, namespace, ref string, absolute bool) []string {
+	if absolute {
+		return reg.ExactMatches(ref)
+	}
 	var matches []string
 	scope := namespace
 	for {
@@ -96,23 +111,50 @@ func unionKeys(a, b []string) []string {
 	return out
 }
 
-// normalizeBases trims the "::" prefix and whitespace from each base, drops
-// empties, deduplicates, and sorts for deterministic path evaluation.
-func normalizeBases(bases []string) []string {
-	seen := make(map[string]struct{}, len(bases))
-	out := make([]string, 0, len(bases))
-	for _, base := range bases {
-		base = normalizeRef(base)
-		if base == "" {
+// resolvedBase pairs a declared base's normalized (leading-"::"-stripped)
+// Name with whether it was declared as an ABSOLUTE top-level reference
+// ("::Name"). Real Ruby constant lookup treats an absolute reference and a
+// relative one with the identical trailing name as different resolution
+// rules: absolute resolves starting at Object with no enclosing-namespace
+// search, relative walks Module.nesting outward. #5500's lexical-scope-aware
+// candidate restriction (lexicalExactMatch) must apply the namespace search
+// only to a relative reference (#5733 P1); Absolute is the signal it uses to
+// skip that search.
+type resolvedBase struct {
+	Name     string
+	Absolute bool
+}
+
+// normalizeBases trims whitespace from each base, splits the leading "::"
+// absolute-reference marker into Absolute (see resolvedBase), drops empties,
+// deduplicates by Name, and sorts by Name for deterministic path evaluation.
+// A Name declared BOTH ways across reopened/duplicate declarations (rare —
+// typically from separate declaration sites of a reopened class) merges into
+// one Absolute=true entry: skipping the namespace search is the keep-biased
+// choice (it can only shrink the exact-candidate set, never grow it into a
+// downgrade the true relative declaration would not have reached), matching
+// this package's declared keep-bias when a signal is ambiguous.
+func normalizeBases(bases []string) []resolvedBase {
+	byName := make(map[string]bool, len(bases))
+	names := make([]string, 0, len(bases))
+	for _, raw := range bases {
+		trimmed := strings.TrimSpace(raw)
+		absolute := strings.HasPrefix(trimmed, "::")
+		name := strings.TrimPrefix(trimmed, "::")
+		if name == "" {
 			continue
 		}
-		if _, ok := seen[base]; ok {
-			continue
+		wasAbsolute, seen := byName[name]
+		if !seen {
+			names = append(names, name)
 		}
-		seen[base] = struct{}{}
-		out = append(out, base)
+		byName[name] = wasAbsolute || absolute
 	}
-	sort.Strings(out)
+	sort.Strings(names)
+	out := make([]resolvedBase, 0, len(names))
+	for _, name := range names {
+		out = append(out, resolvedBase{Name: name, Absolute: byName[name]})
+	}
 	return out
 }
 
