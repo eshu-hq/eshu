@@ -32,13 +32,14 @@ func TestMigration069PredicateMatchesIdentityFactFilter(t *testing.T) {
 	t.Parallel()
 
 	// The index is defined by migration 069 and REDEFINED by migration 076,
-	// which recreates it with the Dockerfile base-image arm (#5460). The drift
+	// which recreates it with the Dockerfile base-image arm (#5460), after 076
+	// drops the narrow one. The drift
 	// lock must read whichever migration currently owns the live definition --
 	// reading 069 after 076 supersedes it would lock the predicate to a
 	// definition no database actually has.
-	migrationSQL, err := os.ReadFile("migrations/076_fact_records_identity_epoch_idx_dockerfile.sql")
+	migrationSQL, err := os.ReadFile("migrations/077_fact_records_identity_epoch_idx_dockerfile.sql")
 	if err != nil {
-		t.Fatalf("read migration 076: %v", err)
+		t.Fatalf("read migration 077: %v", err)
 	}
 
 	migrationFilter := normalizeIdentityFilterPredicate(extractIdentityFilter(string(migrationSQL)))
