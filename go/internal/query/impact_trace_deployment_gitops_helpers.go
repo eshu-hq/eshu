@@ -268,22 +268,40 @@ func normalizeDeploymentTraceRoot(raw string) string {
 	if trimmed == "" {
 		return ""
 	}
-	trimmed = strings.TrimPrefix(trimmed, "./")
+	trimmed = strings.ReplaceAll(trimmed, "\\", "/")
+	if !deploymentTraceSafeRelativePath(trimmed) {
+		return ""
+	}
 	if wildcard := strings.Index(trimmed, "*"); wildcard >= 0 {
 		trimmed = strings.TrimSuffix(trimmed[:wildcard], "/")
 	}
 	cleaned := path.Clean(trimmed)
-	if cleaned == "." || cleaned == "/" {
-		return ""
+	if cleaned == "." {
+		return "."
 	}
 	if ext := path.Ext(cleaned); ext != "" {
 		cleaned = path.Dir(cleaned)
 	}
-	cleaned = strings.TrimPrefix(cleaned, "./")
-	if cleaned == "." || cleaned == "/" {
-		return ""
+	if cleaned == "." {
+		return "."
 	}
 	return strings.TrimSuffix(cleaned, "/")
+}
+
+// deploymentTraceSafeRelativePath rejects paths that can leave a repository
+// root before path.Clean collapses them. A Flux sourceRef path of "." is a
+// valid repository-root selector, but ".." is never a valid deployment-trace
+// root or resource path.
+func deploymentTraceSafeRelativePath(value string) bool {
+	if strings.HasPrefix(value, "/") {
+		return false
+	}
+	for _, segment := range strings.Split(value, "/") {
+		if segment == ".." {
+			return false
+		}
+	}
+	return true
 }
 
 func deploymentTraceControllerMatchesService(controller map[string]any, normalizedService string) bool {
@@ -358,11 +376,15 @@ func matchDeploymentTraceController(entity EntityContent, controllers []map[stri
 }
 
 func deploymentTracePathWithinRoot(relativePath string, root string) bool {
+	normalizedPath := normalizeDeploymentTraceRoot(relativePath)
 	normalizedRoot := normalizeDeploymentTraceRoot(root)
-	if relativePath == "" || normalizedRoot == "" {
+	if normalizedPath == "" || normalizedRoot == "" {
 		return false
 	}
-	return relativePath == normalizedRoot || strings.HasPrefix(relativePath, normalizedRoot+"/")
+	if normalizedRoot == "." {
+		return true
+	}
+	return normalizedPath == normalizedRoot || strings.HasPrefix(normalizedPath, normalizedRoot+"/")
 }
 
 func deploymentTraceEntityKind(entity EntityContent) (string, bool) {
