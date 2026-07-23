@@ -44,3 +44,10 @@ BenchmarkSecretsIAMGCPGrantObservations	8300000	5546848
 BenchmarkBuildServiceCatalogCorrelationDecisionsHighCardinalityFanout	9200000	6120469
 BenchmarkValueFlowFixpointFull	30600000	20427691
 BenchmarkValueFlowFixpointIncrementalCached	18000000	11982886
+# #5457 graph-provenance-edges row builders: baseline captured on darwin/arm64
+# (Apple M5 Max, a different CPU class than the file's original M4 Pro
+# baseline runs), go test ./internal/reducer -bench=... -benchtime=100ms
+# -count=6, 2026-07-23, median of 6 samples.
+BenchmarkPackageOwnershipPublishesRows	703526	469017
+BenchmarkPackagePublicationPublishesRows	693965	462643
+BenchmarkContainerImageBuiltFromRows	875376	583584
