@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
 
 // baseSLSATarget returns a TargetConfig for an in-toto attestation statement
@@ -172,6 +173,130 @@ func TestClaimedSourceEmitsWarningForUndecodableSLSAPredicateShape(t *testing.T)
 	if fact := optionalFactKind(collected, facts.AttestationSLSAProvenanceFactKind); fact.FactID != "" {
 		t.Fatalf("emitted attestation.slsa_provenance fact %q for an undecodable predicate shape", fact.FactID)
 	}
+}
+
+// TestClaimedSourceEmitsSLSAProvenanceV1WithMaterialsAndConfigSource is the
+// #5456 regression: a v1 predicate's buildDefinition.externalParameters.configSource
+// and buildDefinition.resolvedDependencies[] must be retained on the emitted
+// attestation.slsa_provenance fact as config_source/materials, not dropped
+// like decodeSLSAProvenanceBuilderID (pre-#5456) did.
+func TestClaimedSourceEmitsSLSAProvenanceV1WithMaterialsAndConfigSource(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"_type": "https://in-toto.io/Statement/v1",
+		"subject": [{
+			"name": "registry.example.com/library/example",
+			"digest": {"sha256": "1111111111111111111111111111111111111111111111111111111111111111"}
+		}],
+		"predicateType": "https://slsa.dev/provenance/v1",
+		"predicate": {
+			"buildDefinition": {
+				"externalParameters": {
+					"configSource": {
+						"uri": "git+https://github.com/example/example-app@refs/heads/main",
+						"digest": {"sha1": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+						"entryPoint": ".github/workflows/release.yml"
+					}
+				},
+				"resolvedDependencies": [
+					{
+						"uri": "git+https://github.com/example/example-app@refs/heads/main",
+						"digest": {"sha1": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+					}
+				]
+			},
+			"runDetails": {
+				"builder": {"id": "https://github.com/actions/runner/v1"}
+			}
+		}
+	}`)
+
+	collected := collectAttestation(t, baseSLSATarget(), raw)
+	provenance := requireFactKind(t, collected, facts.AttestationSLSAProvenanceFactKind)
+
+	configSource, ok := provenance.Payload["config_source"].(*sbomv1.SLSAConfigSource)
+	if !ok || configSource == nil {
+		t.Fatalf("config_source = %#v, want *sbomv1.SLSAConfigSource", provenance.Payload["config_source"])
+	}
+	if got, want := derefTestString(configSource.URI), "git+https://github.com/example/example-app@refs/heads/main"; got != want {
+		t.Fatalf("config_source.uri = %q, want %q", got, want)
+	}
+	if got, want := derefTestString(configSource.EntryPoint), ".github/workflows/release.yml"; got != want {
+		t.Fatalf("config_source.entry_point = %q, want %q", got, want)
+	}
+	if got, want := configSource.Digest["sha1"], "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; got != want {
+		t.Fatalf("config_source.digest[sha1] = %q, want %q", got, want)
+	}
+
+	materials, ok := provenance.Payload["materials"].([]sbomv1.SLSAMaterial)
+	if !ok || len(materials) != 1 {
+		t.Fatalf("materials = %#v, want one SLSAMaterial", provenance.Payload["materials"])
+	}
+	if got, want := derefTestString(materials[0].URI), "git+https://github.com/example/example-app@refs/heads/main"; got != want {
+		t.Fatalf("materials[0].URI = %q, want %q", got, want)
+	}
+	if got, want := materials[0].Digest["sha1"], "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; got != want {
+		t.Fatalf("materials[0].Digest[sha1] = %q, want %q", got, want)
+	}
+}
+
+// TestClaimedSourceEmitsSLSAProvenanceV02WithMaterialsAndConfigSource mirrors
+// the v1 regression above for the v0.2/v0.1 predicate shape: predicate.materials[]
+// and predicate.invocation.configSource must be retained.
+func TestClaimedSourceEmitsSLSAProvenanceV02WithMaterialsAndConfigSource(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"_type": "https://in-toto.io/Statement/v0.1",
+		"subject": [{
+			"name": "registry.example.com/library/example",
+			"digest": {"sha256": "1111111111111111111111111111111111111111111111111111111111111111"}
+		}],
+		"predicateType": "https://slsa.dev/provenance/v0.2",
+		"predicate": {
+			"builder": {"id": "https://github.com/actions/runner/v0.2"},
+			"invocation": {
+				"configSource": {
+					"uri": "git+https://github.com/example/example-app@refs/heads/main",
+					"digest": {"sha1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+					"entryPoint": ".github/workflows/release.yml"
+				}
+			},
+			"materials": [
+				{
+					"uri": "git+https://github.com/example/example-app@refs/heads/main",
+					"digest": {"sha1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
+				}
+			]
+		}
+	}`)
+
+	collected := collectAttestation(t, baseSLSATarget(), raw)
+	provenance := requireFactKind(t, collected, facts.AttestationSLSAProvenanceFactKind)
+
+	configSource, ok := provenance.Payload["config_source"].(*sbomv1.SLSAConfigSource)
+	if !ok || configSource == nil {
+		t.Fatalf("config_source = %#v, want *sbomv1.SLSAConfigSource", provenance.Payload["config_source"])
+	}
+	if got, want := derefTestString(configSource.URI), "git+https://github.com/example/example-app@refs/heads/main"; got != want {
+		t.Fatalf("config_source.uri = %q, want %q", got, want)
+	}
+
+	materials, ok := provenance.Payload["materials"].([]sbomv1.SLSAMaterial)
+	if !ok || len(materials) != 1 {
+		t.Fatalf("materials = %#v, want one SLSAMaterial", provenance.Payload["materials"])
+	}
+	if got, want := materials[0].Digest["sha1"], "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"; got != want {
+		t.Fatalf("materials[0].Digest[sha1] = %q, want %q", got, want)
+	}
+}
+
+func derefTestString(v *string) string {
+	if v == nil {
+		return ""
+	}
+	return *v
 }
 
 func TestClaimedSourceEmitsSLSAProvenanceWithNilBuilderIDWhenAbsent(t *testing.T) {

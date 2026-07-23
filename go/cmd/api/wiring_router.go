@@ -225,6 +225,10 @@ func newRouterWithSemanticEmbedding(
 			Neo4j:   neo4jReader,
 			Profile: queryProfile,
 		},
+		TagHistory: &query.TagHistoryHandler{
+			Neo4j:   neo4jReader,
+			Profile: queryProfile,
+		},
 		SupplyChain:   newSupplyChainHandler(db, neo4jReader, contentReader, queryProfile, readImpactFromWinners),
 		Incident:      newIncidentHandler(db, queryProfile),
 		WorkItems:     newWorkItemHandler(db, queryProfile),

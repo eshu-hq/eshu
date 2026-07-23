@@ -60,18 +60,22 @@ type ContainerImageIdentityResult struct {
 	RepositoryID        string   `json:"repository_id,omitempty"`
 	SourceRepositoryIDs []string `json:"source_repository_ids,omitempty"`
 	SourceRevision      string   `json:"source_revision,omitempty"`
-	WorkloadIDs         []string `json:"workload_ids,omitempty"`
-	ServiceIDs          []string `json:"service_ids,omitempty"`
-	Outcome             string   `json:"outcome"`
-	Reason              string   `json:"reason,omitempty"`
-	IdentityStrength    string   `json:"identity_strength,omitempty"`
-	CanonicalID         string   `json:"canonical_id,omitempty"`
-	CanonicalWrites     int      `json:"canonical_writes"`
-	SourceLayers        []string `json:"source_layers,omitempty"`
-	EvidenceFactIDs     []string `json:"evidence_fact_ids,omitempty"`
-	MissingEvidence     []string `json:"missing_evidence,omitempty"`
-	SourceFreshness     string   `json:"source_freshness,omitempty"`
-	SourceConfidence    string   `json:"source_confidence,omitempty"`
+	// SourceRevisionProvenance names where SourceRevision came from
+	// ("oci_config_source_label" or "ci_run_commit"), empty when no revision
+	// was resolved (#5423).
+	SourceRevisionProvenance string   `json:"source_revision_provenance,omitempty"`
+	WorkloadIDs              []string `json:"workload_ids,omitempty"`
+	ServiceIDs               []string `json:"service_ids,omitempty"`
+	Outcome                  string   `json:"outcome"`
+	Reason                   string   `json:"reason,omitempty"`
+	IdentityStrength         string   `json:"identity_strength,omitempty"`
+	CanonicalID              string   `json:"canonical_id,omitempty"`
+	CanonicalWrites          int      `json:"canonical_writes"`
+	SourceLayers             []string `json:"source_layers,omitempty"`
+	EvidenceFactIDs          []string `json:"evidence_fact_ids,omitempty"`
+	MissingEvidence          []string `json:"missing_evidence,omitempty"`
+	SourceFreshness          string   `json:"source_freshness,omitempty"`
+	SourceConfidence         string   `json:"source_confidence,omitempty"`
 }
 
 // ContainerImageIdentitySourceBridge summarizes source-repository-scoped image

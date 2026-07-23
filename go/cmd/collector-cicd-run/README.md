@@ -17,12 +17,15 @@ graph truth, or resolve source-to-image bridge correlations.
 
 See `doc.go` for the package contract. The command exposes only process
 behavior: `eshu-collector-cicd-run`, `/healthz`, `/readyz`, `/metrics`, and
-`/admin/status`.
+`/admin/status`. The default `-mode=live` runs the claim-driven provider
+collector; `-mode=cassette -cassette-file=<path>` replays recorded
+ci.run/ci.artifact facts credential-free for the golden-corpus gate.
 
 ## Dependencies
 
 The command imports `internal/collector` for claimed service execution,
 `internal/collector/cicdrun/ghactionsruntime` for provider reads,
+`internal/replay/cassette` for credential-free cassette replay,
 `internal/runtime` for pprof and Postgres bootstrap, `internal/storage/postgres`
 for workflow and fact stores, and `internal/telemetry` for spans and metrics.
 

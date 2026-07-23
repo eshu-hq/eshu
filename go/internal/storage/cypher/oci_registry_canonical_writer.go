@@ -5,6 +5,7 @@ package cypher
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
 )
@@ -94,8 +95,21 @@ SET d.id = row.uid,
     d.generation_id = row.generation_id,
     d.evidence_source = 'projector/oci_registry'`
 
+// canonicalOCIImageTagObservationUpsertCypher upserts one tag-observation node.
+// first_observed_at is written with ON CREATE SET so it is fixed once, at the
+// node's first projection, and never overwritten by a later observation of the
+// same (repository_id, tag, resolved_digest) uid. This is genuine set-once
+// semantics in a single statement: ON CREATE reads no persisted property (it
+// only fires on creation), so it sidesteps NornicDB's same-statement
+// self-reference shadow (a fused CASE/coalesce guard regressed to
+// last-write-wins) AND the cross-transaction multi-label visibility gap that
+// makes a deferred MATCH...SET unreliable in the real write pipeline. Under the
+// reducer's in-order generation processing the first projected observation is
+// the chronologically earliest, so first-created == first-observed. Proven live
+// in oci_tag_first_observed_prove_theory_live_test.go.
 const canonicalOCIImageTagObservationUpsertCypher = `UNWIND $rows AS row
 MERGE (t:ContainerImageTagObservation:OciImageTagObservation {uid: row.uid})
+ON CREATE SET t.first_observed_at = row.observed_at
 SET t.id = row.uid,
     t.name = row.tag,
     t.repository_id = row.repository_id,
@@ -150,6 +164,7 @@ func (w *CanonicalNodeWriter) buildOCIRegistryStatements(mat projector.Canonical
 				ociRegistryRepositoryRows(mat),
 				w.batchSize,
 				"OciRegistryRepository",
+				canonicalPhaseOCIRegistry,
 				mat,
 			)...,
 		)
@@ -161,6 +176,7 @@ func (w *CanonicalNodeWriter) buildOCIRegistryStatements(mat projector.Canonical
 			ociImageManifestRows(mat),
 			w.batchSize,
 			"OciImageManifest",
+			canonicalPhaseOCIRegistry,
 			mat,
 		)...,
 	)
@@ -171,6 +187,7 @@ func (w *CanonicalNodeWriter) buildOCIRegistryStatements(mat projector.Canonical
 			ociImageIndexRows(mat),
 			w.batchSize,
 			"OciImageIndex",
+			canonicalPhaseOCIRegistry,
 			mat,
 		)...,
 	)
@@ -181,6 +198,7 @@ func (w *CanonicalNodeWriter) buildOCIRegistryStatements(mat projector.Canonical
 			ociImageDescriptorRows(mat),
 			w.batchSize,
 			"OciImageDescriptor",
+			canonicalPhaseOCIRegistry,
 			mat,
 		)...,
 	)
@@ -191,6 +209,7 @@ func (w *CanonicalNodeWriter) buildOCIRegistryStatements(mat projector.Canonical
 			ociImageTagObservationRows(mat),
 			w.batchSize,
 			"OciImageTagObservation",
+			canonicalPhaseOCIRegistry,
 			mat,
 		)...,
 	)
@@ -201,6 +220,7 @@ func (w *CanonicalNodeWriter) buildOCIRegistryStatements(mat projector.Canonical
 			ociImageReferrerRows(mat),
 			w.batchSize,
 			"OciImageReferrer",
+			canonicalPhaseOCIRegistry,
 			mat,
 		)...,
 	)
@@ -212,12 +232,13 @@ func ociRegistryBatchedStatements(
 	rows []map[string]any,
 	batchSize int,
 	label string,
+	phase string,
 	mat projector.CanonicalMaterialization,
 ) []Statement {
 	statements := buildBatchedStatements(cypher, rows, batchSize)
 	for index := range statements {
 		batchRows := statements[index].Parameters["rows"].([]map[string]any)
-		statements[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseOCIRegistry
+		statements[index].Parameters[StatementMetadataPhaseKey] = phase
 		statements[index].Parameters[StatementMetadataEntityLabelKey] = label
 		statements[index].Parameters[StatementMetadataScopeIDKey] = mat.ScopeID
 		statements[index].Parameters[StatementMetadataGenerationIDKey] = mat.GenerationID
@@ -340,6 +361,7 @@ func ociImageTagObservationRows(mat projector.CanonicalMaterialization) []map[st
 			"resolved_digest":         row.ResolvedDigest,
 			"resolved_descriptor_uid": row.ResolvedDescriptorUID,
 			"media_type":              row.MediaType,
+			"observed_at":             ociTagObservedAtValue(row.ObservedAt),
 			"previous_digest":         row.PreviousDigest,
 			"mutated":                 row.Mutated,
 			"identity_strength":       row.IdentityStrength,
@@ -354,6 +376,29 @@ func ociImageTagObservationRows(mat projector.CanonicalMaterialization) []map[st
 		})
 	}
 	return rows
+}
+
+// ociTagFirstObservedLayout is the fixed-width UTC timestamp layout for
+// first_observed_at. It carries millisecond precision so two OCI collection
+// generations that occur within the same second still get distinct, correctly
+// ordered values (the reader's ORDER BY t.first_observed_at would otherwise
+// fall back to the unrelated uid tiebreak). The width is fixed (always three
+// fractional digits and a literal Z), so lexicographic order equals
+// chronological order on both NornicDB and Neo4j — unlike time.RFC3339Nano,
+// which trims trailing zeros and breaks that invariant.
+const ociTagFirstObservedLayout = "2006-01-02T15:04:05.000Z"
+
+// ociTagObservedAtValue serializes a tag observation's ObservedAt for the
+// ON CREATE SET first_observed_at write. A non-zero timestamp becomes a
+// fixed-width RFC3339 UTC millisecond string (see ociTagFirstObservedLayout). A
+// zero-value ObservedAt returns "" so the node is created without a meaningful
+// first_observed_at (the reader omits an empty value) rather than storing the
+// Unix epoch.
+func ociTagObservedAtValue(observedAt time.Time) string {
+	if observedAt.IsZero() {
+		return ""
+	}
+	return observedAt.UTC().Format(ociTagFirstObservedLayout)
 }
 
 func ociImageReferrerRows(mat projector.CanonicalMaterialization) []map[string]any {

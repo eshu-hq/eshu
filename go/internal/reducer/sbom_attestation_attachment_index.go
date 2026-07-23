@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 )
 
 type sbomAttachmentDocument struct {
@@ -116,11 +117,16 @@ type sbomAttachmentExternalReferenceEvidence struct {
 // emission), buildSBOMAttachmentIndex keeps the row whose factID sorts
 // lexicographically smallest and discards the other — the two candidate
 // rows are never merged field-by-field, since merging could silently splice
-// a predicate_type from one fact with a builder_id from another.
+// a predicate_type from one fact with a builder_id from another. materials
+// and configSource are the #5456 additions carrying the retained predicate
+// body (buildDefinition.resolvedDependencies[]/externalParameters.configSource
+// on v1, predicate.materials[]/invocation.configSource on v0.2/v0.1).
 type sbomAttachmentSLSAProvenanceEvidence struct {
 	factID        string
 	predicateType string
 	builderID     string
+	materials     []sbomv1.SLSAMaterial
+	configSource  *sbomv1.SLSAConfigSource
 }
 
 type sbomAttachmentIndex struct {

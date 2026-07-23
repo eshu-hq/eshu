@@ -47,6 +47,8 @@ func indexSLSAProvenanceEvidence(
 		factID:        factID,
 		predicateType: derefString(provenance.PredicateType),
 		builderID:     derefString(provenance.BuilderID),
+		materials:     provenance.Materials,
+		configSource:  provenance.ConfigSource,
 	}
 	existing, ok := index.slsaProvenance[provenance.StatementID]
 	if ok && existing.factID <= candidate.factID {

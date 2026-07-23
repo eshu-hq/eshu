@@ -48,18 +48,30 @@ type SBOMAttestationAttachmentResult struct {
 	// SBOMAttestationAttachmentRow's fields of the same name: the joined
 	// attestation.slsa_provenance evidence for this statement, empty when no
 	// such fact joined.
-	SLSAProvenancePredicateType string   `json:"slsa_provenance_predicate_type,omitempty"`
-	SLSAProvenanceBuilderID     string   `json:"slsa_provenance_builder_id,omitempty"`
-	RepositoryIDs               []string `json:"repository_ids,omitempty"`
-	WorkloadIDs                 []string `json:"workload_ids,omitempty"`
-	ServiceIDs                  []string `json:"service_ids,omitempty"`
-	WarningSummaries            []string `json:"warning_summaries,omitempty"`
-	WarningSummaryCount         int      `json:"warning_summary_count"`
-	WarningSummariesTruncated   bool     `json:"warning_summaries_truncated"`
-	EvidenceFactIDs             []string `json:"evidence_fact_ids,omitempty"`
-	MissingEvidence             []string `json:"missing_evidence,omitempty"`
-	SourceFreshness             string   `json:"source_freshness,omitempty"`
-	SourceConfidence            string   `json:"source_confidence,omitempty"`
+	SLSAProvenancePredicateType string `json:"slsa_provenance_predicate_type,omitempty"`
+	SLSAProvenanceBuilderID     string `json:"slsa_provenance_builder_id,omitempty"`
+	// SLSAProvenanceMaterials, SLSAProvenanceMaterialCount, and
+	// SLSAProvenanceMaterialsTruncated (#5456) mirror
+	// SBOMAttestationAttachmentRow's fields of the same name — see there for
+	// the shared field documentation. Field name, type, and ORDER must match
+	// SBOMAttestationAttachmentRow exactly: buildSBOMAttestationAttachmentResult
+	// does a raw struct conversion between the two.
+	SLSAProvenanceMaterials              []SLSAMaterialRow `json:"slsa_provenance_materials,omitempty"`
+	SLSAProvenanceMaterialCount          int               `json:"slsa_provenance_material_count"`
+	SLSAProvenanceMaterialsTruncated     bool              `json:"slsa_provenance_materials_truncated"`
+	SLSAProvenanceConfigSourceURI        string            `json:"slsa_provenance_config_source_uri,omitempty"`
+	SLSAProvenanceConfigSourceEntryPoint string            `json:"slsa_provenance_config_source_entry_point,omitempty"`
+	SLSAProvenanceConfigSourceDigest     map[string]string `json:"slsa_provenance_config_source_digest,omitempty"`
+	RepositoryIDs                        []string          `json:"repository_ids,omitempty"`
+	WorkloadIDs                          []string          `json:"workload_ids,omitempty"`
+	ServiceIDs                           []string          `json:"service_ids,omitempty"`
+	WarningSummaries                     []string          `json:"warning_summaries,omitempty"`
+	WarningSummaryCount                  int               `json:"warning_summary_count"`
+	WarningSummariesTruncated            bool              `json:"warning_summaries_truncated"`
+	EvidenceFactIDs                      []string          `json:"evidence_fact_ids,omitempty"`
+	MissingEvidence                      []string          `json:"missing_evidence,omitempty"`
+	SourceFreshness                      string            `json:"source_freshness,omitempty"`
+	SourceConfidence                     string            `json:"source_confidence,omitempty"`
 }
 
 func (h *SupplyChainHandler) listSBOMAttachments(w http.ResponseWriter, r *http.Request) {

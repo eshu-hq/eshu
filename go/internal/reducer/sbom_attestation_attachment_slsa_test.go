@@ -4,6 +4,7 @@
 package reducer
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -98,6 +99,127 @@ func TestBuildSBOMAttestationAttachmentDecisionsSLSAProvenanceDuplicateStatement
 	}
 	if decision.SLSAProvenancePredicateType != "https://slsa.dev/provenance/v0.2" {
 		t.Fatalf("SLSAProvenancePredicateType = %q, want the lexicographically smallest factID's predicate_type (provenance-aaa)", decision.SLSAProvenancePredicateType)
+	}
+}
+
+// attestationSLSAProvenanceFactWithMaterials extends attestationSLSAProvenanceFact
+// with the #5456 materials/config_source fields, using the same raw wire-shape
+// keys the SBOM runtime collector emits (go/internal/collector/sbomruntime/attestation.go).
+func attestationSLSAProvenanceFactWithMaterials(
+	factID string,
+	statementID string,
+	predicateType string,
+	builderID string,
+	materials []map[string]any,
+	configSource map[string]any,
+) facts.Envelope {
+	payload := map[string]any{
+		"statement_id":   statementID,
+		"predicate_type": predicateType,
+	}
+	if builderID != "" {
+		payload["builder_id"] = builderID
+	}
+	if len(materials) > 0 {
+		payload["materials"] = materials
+	}
+	if configSource != nil {
+		payload["config_source"] = configSource
+	}
+	return facts.Envelope{
+		FactID:   factID,
+		FactKind: facts.AttestationSLSAProvenanceFactKind,
+		Payload:  payload,
+	}
+}
+
+// TestBuildSBOMAttestationAttachmentDecisionsSurfacesSLSAMaterialsAndConfigSource
+// is the #5456 regression: the reducer must decode and surface the retained
+// materials[]/config_source predicate fields on the attachment decision, not
+// only predicate_type/builder_id.
+func TestBuildSBOMAttestationAttachmentDecisionsSurfacesSLSAMaterialsAndConfigSource(t *testing.T) {
+	t.Parallel()
+
+	decisions := BuildSBOMAttestationAttachmentDecisions([]facts.Envelope{
+		attestationStatementFact("statement-slsa-materials", "stmt-slsa-materials", testSBOMSubjectDigest, "sha256:7777777777777777777777777777777777777777777777777777777777777777", "parsed", "verified"),
+		attestationSLSAProvenanceFactWithMaterials(
+			"provenance-slsa-materials",
+			"stmt-slsa-materials",
+			"https://slsa.dev/provenance/v1",
+			"https://github.com/actions/runner/v1",
+			[]map[string]any{
+				{"uri": "git+https://github.com/acme/app@refs/heads/main", "digest": map[string]string{"sha1": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}},
+			},
+			map[string]any{
+				"uri":         "git+https://github.com/acme/app@refs/heads/main",
+				"digest":      map[string]string{"sha1": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+				"entry_point": ".github/workflows/release.yml",
+			},
+		),
+	})
+
+	got := sbomAttachmentDecisionsByDocument(decisions)
+	decision, ok := got["stmt-slsa-materials"]
+	if !ok {
+		t.Fatalf("no decision for stmt-slsa-materials: %#v", got)
+	}
+	if len(decision.SLSAProvenanceMaterials) != 1 {
+		t.Fatalf("SLSAProvenanceMaterials = %#v, want one row", decision.SLSAProvenanceMaterials)
+	}
+	if got := decision.SLSAProvenanceMaterials[0]["uri"]; got != "git+https://github.com/acme/app@refs/heads/main" {
+		t.Fatalf("materials[0].uri = %v, want git URI", got)
+	}
+	if decision.SLSAProvenanceMaterialCount != 1 {
+		t.Fatalf("SLSAProvenanceMaterialCount = %d, want 1", decision.SLSAProvenanceMaterialCount)
+	}
+	if decision.SLSAProvenanceMaterialsTruncated {
+		t.Fatal("SLSAProvenanceMaterialsTruncated = true, want false")
+	}
+	if decision.SLSAProvenanceConfigSourceURI != "git+https://github.com/acme/app@refs/heads/main" {
+		t.Fatalf("SLSAProvenanceConfigSourceURI = %q", decision.SLSAProvenanceConfigSourceURI)
+	}
+	if decision.SLSAProvenanceConfigSourceEntryPoint != ".github/workflows/release.yml" {
+		t.Fatalf("SLSAProvenanceConfigSourceEntryPoint = %q", decision.SLSAProvenanceConfigSourceEntryPoint)
+	}
+	if decision.SLSAProvenanceConfigSourceDigest["sha1"] != "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+		t.Fatalf("SLSAProvenanceConfigSourceDigest = %#v, want sha1 digest", decision.SLSAProvenanceConfigSourceDigest)
+	}
+}
+
+// TestBuildSBOMAttestationAttachmentDecisionsCapsSLSAMaterialRows proves the
+// write-time cap: more materials than maxSBOMAttachmentSLSAMaterialRows still
+// report the full count via SLSAProvenanceMaterialCount and set
+// SLSAProvenanceMaterialsTruncated, mirroring dependencyRelationshipEvidenceRows.
+func TestBuildSBOMAttestationAttachmentDecisionsCapsSLSAMaterialRows(t *testing.T) {
+	t.Parallel()
+
+	materials := make([]map[string]any, 0, maxSBOMAttachmentSLSAMaterialRows+1)
+	for i := 0; i < maxSBOMAttachmentSLSAMaterialRows+1; i++ {
+		materials = append(materials, map[string]any{
+			"uri": fmt.Sprintf("git+https://github.com/acme/dep-%02d@refs/heads/main", i),
+		})
+	}
+
+	decisions := BuildSBOMAttestationAttachmentDecisions([]facts.Envelope{
+		attestationStatementFact("statement-slsa-cap", "stmt-slsa-cap", testSBOMSubjectDigest, "sha256:6666666666666666666666666666666666666666666666666666666666666666", "parsed", "verified"),
+		attestationSLSAProvenanceFactWithMaterials(
+			"provenance-slsa-cap", "stmt-slsa-cap", "https://slsa.dev/provenance/v1", "", materials, nil,
+		),
+	})
+
+	got := sbomAttachmentDecisionsByDocument(decisions)
+	decision, ok := got["stmt-slsa-cap"]
+	if !ok {
+		t.Fatalf("no decision for stmt-slsa-cap: %#v", got)
+	}
+	if decision.SLSAProvenanceMaterialCount != maxSBOMAttachmentSLSAMaterialRows+1 {
+		t.Fatalf("SLSAProvenanceMaterialCount = %d, want %d", decision.SLSAProvenanceMaterialCount, maxSBOMAttachmentSLSAMaterialRows+1)
+	}
+	if len(decision.SLSAProvenanceMaterials) != maxSBOMAttachmentSLSAMaterialRows {
+		t.Fatalf("len(SLSAProvenanceMaterials) = %d, want capped %d", len(decision.SLSAProvenanceMaterials), maxSBOMAttachmentSLSAMaterialRows)
+	}
+	if !decision.SLSAProvenanceMaterialsTruncated {
+		t.Fatal("SLSAProvenanceMaterialsTruncated = false, want true")
 	}
 }
 

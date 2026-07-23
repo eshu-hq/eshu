@@ -138,10 +138,20 @@ func NewImageReferenceEnvelope(observation ImageReferenceObservation) (facts.Env
 	if manifestDigest == "" {
 		manifestDigest = imageDigest
 	}
+	// registry_id is part of the identity, not just a carried attribute: two
+	// observations can share account_id/region/repository_name/image_digest/tag
+	// while naming DIFFERENT registry accounts — a cross-account ECR pull,
+	// where the pulling boundary's account_id differs from the image's actual
+	// owning registry. Omitting registry_id from the key let two distinct
+	// cross-account images collide onto the same FactID, silently dropping
+	// one (codex #5451 P2 finding: the ECS scanner parses RegistryID from the
+	// image host specifically to support this case, so the key must key on it
+	// too or that parsing is pointless).
 	stableKey := facts.StableID(facts.AWSImageReferenceFactKind, map[string]any{
 		"account_id":      observation.Boundary.AccountID,
 		"image_digest":    imageDigest,
 		"region":          observation.Boundary.Region,
+		"registry_id":     strings.TrimSpace(observation.RegistryID),
 		"repository_name": repositoryName,
 		"tag":             tag,
 	})

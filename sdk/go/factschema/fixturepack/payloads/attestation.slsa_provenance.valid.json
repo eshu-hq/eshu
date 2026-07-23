@@ -1,5 +1,20 @@
 {
   "statement_id": "fp:attestation-stmt:example-app@1.0.0",
   "predicate_type": "https://slsa.dev/provenance/v1",
-  "builder_id": "https://example.com/builders/example-ci@v1"
+  "builder_id": "https://example.com/builders/example-ci@v1",
+  "materials": [
+    {
+      "uri": "git+https://github.com/example/example-app@refs/heads/main",
+      "digest": {
+        "sha1": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    }
+  ],
+  "config_source": {
+    "uri": "git+https://github.com/example/example-app@refs/heads/main",
+    "digest": {
+      "sha1": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "entry_point": ".github/workflows/release.yml"
+  }
 }

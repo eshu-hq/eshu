@@ -23,6 +23,15 @@ func containerImageIdentitiesRoute(args map[string]any) *route {
 	}}
 }
 
+func containerImageTagHistoryRoute(args map[string]any) *route {
+	return &route{method: "GET", path: "/api/v0/images/tag-history", query: map[string]string{
+		"repository_id": str(args, "repository_id"),
+		"tag":           str(args, "tag"),
+		"limit":         strconv.Itoa(intOr(args, "limit", 50)),
+		"offset":        strconv.Itoa(intOr(args, "offset", 0)),
+	}}
+}
+
 func supplyChainImpactFindingsRoute(args map[string]any) *route {
 	query := map[string]string{
 		"advisory_id":        str(args, "advisory_id"),

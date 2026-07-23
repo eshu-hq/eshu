@@ -87,14 +87,33 @@ type SBOMAttestationAttachmentDecision struct {
 	// predicate is ever expected per statement.
 	SLSAProvenancePredicateType string
 	SLSAProvenanceBuilderID     string
-	RepositoryIDs               []string
-	WorkloadIDs                 []string
-	ServiceIDs                  []string
-	WarningSummaries            []string
-	WarningSummaryCount         int
-	EvidenceFactIDs             []string
-	MissingEvidence             []string
-	SourceLayerKinds            []string
+	// SLSAProvenanceMaterials is the bounded, write-time capped set of the
+	// joined attestation.slsa_provenance fact's materials (#5456), each row
+	// carrying "uri" and, when reported, "digest" (map[string]string).
+	// SLSAProvenanceMaterialCount is the full count computed BEFORE the cap;
+	// SLSAProvenanceMaterialsTruncated is true when the count exceeds the
+	// number of persisted rows. All three are zero-value/empty when no SLSA
+	// provenance fact joined this statement_id or it reported no materials.
+	SLSAProvenanceMaterials          []map[string]any
+	SLSAProvenanceMaterialCount      int
+	SLSAProvenanceMaterialsTruncated bool
+	// SLSAProvenanceConfigSourceURI, SLSAProvenanceConfigSourceEntryPoint,
+	// and SLSAProvenanceConfigSourceDigest surface the joined
+	// attestation.slsa_provenance fact's config_source (#5456). There is no
+	// count/truncation pair here: at most one config source is ever expected
+	// per statement, matching the existing predicate-type/builder-id
+	// singleton fields above.
+	SLSAProvenanceConfigSourceURI        string
+	SLSAProvenanceConfigSourceEntryPoint string
+	SLSAProvenanceConfigSourceDigest     map[string]string
+	RepositoryIDs                        []string
+	WorkloadIDs                          []string
+	ServiceIDs                           []string
+	WarningSummaries                     []string
+	WarningSummaryCount                  int
+	EvidenceFactIDs                      []string
+	MissingEvidence                      []string
+	SourceLayerKinds                     []string
 }
 
 // SBOMAttestationAttachmentWrite carries decisions for durable publication.

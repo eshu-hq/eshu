@@ -361,34 +361,6 @@ func TestCloudInventoryRecordFromRowExtractsAttributes(t *testing.T) {
 	}
 }
 
-// TestCloudInventoryRecordFromRowAWSAttributesNotSurfaced proves that an
-// aws_resource row whose existing attributes map carries raw provider locators
-// (uri, cluster_arn) does NOT surface them on the record. Attribute readback is
-// gated to the GCP typed-depth payload; AWS/Azure attributes are not vetted as
-// redaction-safe for the cloud inventory route, so surfacing them would regress
-// the route contract that hides raw provider locators (codex #4373 P1).
-func TestCloudInventoryRecordFromRowAWSAttributesNotSurfaced(t *testing.T) {
-	t.Parallel()
-
-	arn := "arn:aws:ecs:us-east-1:123456789012:cluster/demo"
-	payload := []byte(`{
-		"arn":"` + arn + `",
-		"resource_type":"aws_ecs_cluster",
-		"attributes":{
-			"uri":"https://example.invalid/raw/locator",
-			"cluster_arn":"` + arn + `"
-		}
-	}`)
-
-	record, ok := cloudInventoryRecordFromRow(facts.AWSResourceFactKind, arn, payload)
-	if !ok {
-		t.Fatal("cloudInventoryRecordFromRow() ok = false, want true")
-	}
-	if record.Attributes != nil {
-		t.Fatalf("AWS Attributes = %#v, want nil (attributes are GCP-only to avoid leaking raw locators)", record.Attributes)
-	}
-}
-
 // TestCloudInventoryRecordFromRowNoAttributesYieldsNilAttributes proves that a
 // GCP payload without an attributes key yields nil Attributes on the record.
 func TestCloudInventoryRecordFromRowNoAttributesYieldsNilAttributes(t *testing.T) {

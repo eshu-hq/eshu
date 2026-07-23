@@ -57,7 +57,15 @@
 // proven need for that property. OCI registry writes keep manifests, indexes,
 // and descriptors on ContainerImage-family labels keyed by digest-backed uid
 // values; tag observations remain weak mutable evidence and participate in
-// cleanup without becoming canonical image identity. Package-registry writes
+// cleanup without becoming canonical image identity. The first_observed_at
+// property on a ContainerImageTagObservation node -- the first queryable
+// node-property timestamp in the canonical graph (issue #5459) -- is written
+// with ON CREATE SET inside the identity MERGE, so it is fixed once at node
+// creation and never overwritten by a later observation. ON CREATE reads no
+// persisted property, so it sidesteps both NornicDB's same-statement
+// self-reference shadow and the cross-transaction multi-label MATCH gap; see
+// oci_tag_first_observed_prove_theory_live_test.go for the live proof.
+// Package-registry writes
 // keep package, version, and package dependency identity keyed by uid; source
 // repository hints remain weak evidence until reducer correlation admits an
 // ownership or publication relationship, and duplicate package UIDs are

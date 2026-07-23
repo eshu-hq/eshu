@@ -103,6 +103,38 @@ const openAPIPathsSupplyChainSBOMAttestations = `
                             "type": "string",
                             "description": "SLSA provenance builder identity decoded from the joined attestation.slsa_provenance fact for this statement. Empty when absent from a well-formed predicate, or when no such fact joined this statement_id."
                           },
+                          "slsa_provenance_materials": {
+                            "type": "array",
+                            "description": "Bounded, write-time capped set of the joined attestation.slsa_provenance fact's materials/resolved dependencies (write-time capped at 20 per statement).",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "uri": {"type": "string"},
+                                "digest": {"type": "object", "additionalProperties": {"type": "string"}}
+                              }
+                            }
+                          },
+                          "slsa_provenance_material_count": {
+                            "type": "integer",
+                            "description": "Full materials count before the write-time cap."
+                          },
+                          "slsa_provenance_materials_truncated": {
+                            "type": "boolean",
+                            "description": "True when slsa_provenance_material_count exceeds the number of rows in slsa_provenance_materials."
+                          },
+                          "slsa_provenance_config_source_uri": {
+                            "type": "string",
+                            "description": "SLSA provenance build definition config source URI decoded from the joined attestation.slsa_provenance fact (for example a git+https source URL with a ref suffix). Empty when absent or when no such fact joined this statement_id."
+                          },
+                          "slsa_provenance_config_source_entry_point": {
+                            "type": "string",
+                            "description": "SLSA provenance build definition config source entry point (for example a workflow file path). Empty when absent."
+                          },
+                          "slsa_provenance_config_source_digest": {
+                            "type": "object",
+                            "description": "SLSA provenance build definition config source digest map, keyed by algorithm (for example sha1).",
+                            "additionalProperties": {"type": "string"}
+                          },
                           "warning_summaries": {
                             "type": "array",
                             "maxItems": 10,

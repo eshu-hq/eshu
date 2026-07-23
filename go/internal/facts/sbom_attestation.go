@@ -23,8 +23,13 @@ const (
 	// SBOMWarningFactKind identifies non-fatal SBOM or attestation warnings.
 	SBOMWarningFactKind = "sbom.warning"
 
-	// SBOMAttestationSchemaVersionV1 is the first SBOM/attestation fact schema.
-	SBOMAttestationSchemaVersionV1 = "1.0.0"
+	// SBOMAttestationSchemaVersionV1 is the SBOM/attestation fact schema
+	// version. Bumped 1.0.0 -> 1.1.0 (#5456) for the additive-optional
+	// materials/config_source fields added to attestation.slsa_provenance
+	// (sdk/go/factschema/sbom/v1.SLSAProvenance); no existing field, kind, or
+	// required set changed, so every other kind in this shared family stays
+	// backward compatible under the bump.
+	SBOMAttestationSchemaVersionV1 = "1.1.0"
 )
 
 var sbomAttestationFactKinds = []string{

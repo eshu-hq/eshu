@@ -127,7 +127,18 @@
           "payload": {
             "statement_id": "scd-attestation",
             "predicate_type": "https://slsa.dev/provenance/v1",
-            "builder_id": "https://github.com/eshu-hq/supply-chain-demo/actions/runner@v1"
+            "builder_id": "https://github.com/eshu-hq/supply-chain-demo/actions/runner@v1",
+            "materials": [
+              {
+                "uri": "git+https://github.com/eshu-hq/supply-chain-demo@refs/heads/main",
+                "digest": {"sha1": "5f6e7d8c9b0a1f2e3d4c5b6a7980f1e2d3c4b5a6"}
+              }
+            ],
+            "config_source": {
+              "uri": "git+https://github.com/eshu-hq/supply-chain-demo@refs/heads/main",
+              "digest": {"sha1": "5f6e7d8c9b0a1f2e3d4c5b6a7980f1e2d3c4b5a6"},
+              "entry_point": ".github/workflows/release.yml"
+            }
           }
         }
       ]

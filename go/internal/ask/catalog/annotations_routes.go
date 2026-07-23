@@ -42,6 +42,7 @@ func askRouteAnnotations() map[string]Annotation {
 		"GET /api/v0/graph/entities":                                         {Backend: BackendNornicDB, Cost: CostModerate},
 		"GET /api/v0/iac/resources":                                          {Backend: BackendNornicDB, Cost: CostModerate},
 		"GET /api/v0/images":                                                 {Backend: BackendNornicDB, Cost: CostModerate},
+		"GET /api/v0/images/tag-history":                                     {Backend: BackendNornicDB, Cost: CostModerate},
 		"GET /api/v0/incidents/{incident_id}/context":                        {Backend: BackendPostgres, Cost: CostModerate},
 		"GET /api/v0/index-status":                                           {Backend: BackendBoth, Cost: CostModerate},
 		"GET /api/v0/infra/resources/count":                                  {Backend: BackendNornicDB, Cost: CostModerate},

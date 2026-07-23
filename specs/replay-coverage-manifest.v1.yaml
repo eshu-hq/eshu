@@ -291,6 +291,7 @@ coverage:
   - {surface: capability:platform_impact.change_surface, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.change_surface, proof_gate: capability-inventory}
   - {surface: capability:platform_impact.cloud_resource_list, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.cloud_resource_list, proof_gate: capability-inventory}
   - {surface: capability:platform_impact.container_image_list, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.container_image_list, proof_gate: capability-inventory}
+  - {surface: capability:platform_impact.container_image_tag_history, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.container_image_tag_history, proof_gate: capability-inventory}
   - {surface: capability:platform_impact.context_overview, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.context_overview, proof_gate: capability-inventory}
   - {surface: capability:platform_impact.contract_impact, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.contract_impact, proof_gate: capability-inventory}
   - {surface: capability:platform_impact.deployment_config_influence, scenario: capability_claim, scenario_type: baseline, ref: platform_impact.deployment_config_influence, proof_gate: capability-inventory}
