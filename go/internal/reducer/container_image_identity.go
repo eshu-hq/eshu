@@ -48,6 +48,15 @@ const (
 	// It is a weaker tier than an in-image label because the binding is the CI
 	// provider's run→artifact→digest join rather than the image's own metadata.
 	containerImageSourceRevisionCIRunCommit = "ci_run_commit"
+	// containerImageSourceRevisionSLSAProvenanceCommit marks a SourceRevision
+	// drawn from a signed SLSA provenance predicate's build definition config
+	// source commit, matched to the image by digest (#5456). It OUTRANKS both
+	// containerImageSourceRevisionOCIConfigLabel and
+	// containerImageSourceRevisionCIRunCommit: a signed, third-party-attested
+	// digest-to-commit binding is stronger evidence than an in-image label an
+	// attacker with build access could forge, and stronger than the CI
+	// provider's own run→artifact→digest join.
+	containerImageSourceRevisionSLSAProvenanceCommit = "slsa_provenance_commit"
 )
 
 // ContainerImageIdentityDecision records one bounded image identity decision.
@@ -100,6 +109,21 @@ type activeContainerImageIdentityFactLoader interface {
 	ListActiveContainerImageIdentityFacts(ctx context.Context) ([]facts.Envelope, error)
 }
 
+// activeContainerImageSLSAFactLoader is the #5456 PR #5707 P1-b cross-scope
+// bridge for attestation.statement/slsa_provenance/signature_verification
+// facts, mirroring activeContainerImageIdentityFactLoader for the OCI/AWS/
+// Azure/GCP/content_entity family: the SBOM-attestation collector writes
+// these facts in its OWN scope, a different scope than the OCI registry
+// manifest or Git/CI evidence a container_image_identity refresh usually
+// runs against, so a refresh triggered by ANY of those other sources must
+// still be able to see currently-active SLSA evidence for the SAME digest —
+// otherwise the slsa_provenance_commit tier only ever applies within a
+// same-scope refresh and regresses back to a weaker tier on the next
+// independent OCI-only refresh.
+type activeContainerImageSLSAFactLoader interface {
+	ListActiveContainerImageSLSAFacts(ctx context.Context) ([]facts.Envelope, error)
+}
+
 // ContainerImageIdentityHandler joins Git/runtime image references with active
 // OCI registry facts and publishes digest-keyed identity decisions.
 type ContainerImageIdentityHandler struct {
@@ -135,6 +159,11 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 		return Result{}, fmt.Errorf("load active container image identity facts: %w", err)
 	}
 	envelopes = append(envelopes, active...)
+	slsaActive, err := h.loadActiveContainerImageSLSAFacts(ctx)
+	if err != nil {
+		return Result{}, fmt.Errorf("load active container image SLSA facts: %w", err)
+	}
+	envelopes = append(envelopes, slsaActive...)
 	repositories, err := h.loadActiveRepositoryFacts(ctx)
 	if err != nil {
 		return Result{}, fmt.Errorf("load active repository facts: %w", err)
@@ -186,6 +215,20 @@ func (h ContainerImageIdentityHandler) loadActiveContainerImageIdentityFacts(
 		return nil, nil
 	}
 	envelopes, err := loader.ListActiveContainerImageIdentityFacts(ctx)
+	if err != nil {
+		return nil, classifyFactLoadError(err)
+	}
+	return envelopes, nil
+}
+
+func (h ContainerImageIdentityHandler) loadActiveContainerImageSLSAFacts(
+	ctx context.Context,
+) ([]facts.Envelope, error) {
+	loader, ok := h.FactLoader.(activeContainerImageSLSAFactLoader)
+	if !ok {
+		return nil, nil
+	}
+	envelopes, err := loader.ListActiveContainerImageSLSAFacts(ctx)
 	if err != nil {
 		return nil, classifyFactLoadError(err)
 	}
@@ -270,10 +313,21 @@ func BuildContainerImageIdentityDecisionsWithQuarantine(
 	if err != nil {
 		return nil, nil, err
 	}
+	slsaDigest, slsaQuarantined, err := extractSLSADigestAnchorsWithQuarantine(envelopes)
+	if err != nil {
+		return nil, nil, err
+	}
+	quarantined = append(quarantined, slsaQuarantined...)
 	index := buildContainerImageRegistryIndex(envelopes)
 	decisions := make([]ContainerImageIdentityDecision, 0, len(refs))
 	for _, ref := range refs {
 		decision := classifyContainerImageRef(ref, index)
+		// SLSA provenance is applied FIRST: it OUTRANKS both the OCI
+		// config-label and ci.run tiers (#5456), so it must win any tier the
+		// weaker sources below would otherwise set. applyCIRunDigestRevision's
+		// own precedence check (container_image_identity_registry.go) skips
+		// when the decision already carries the SLSA tier.
+		applySLSADigestRevision(&decision, slsaDigest)
 		applyCIRunDigestRevision(&decision, ciRunDigest)
 		decisions = append(decisions, decision)
 	}
@@ -298,6 +352,9 @@ func containerImageIdentityFactKinds() []string {
 		facts.OCIImageManifestFactKind,
 		facts.OCIImageIndexFactKind,
 		facts.OCIImageReferrerFactKind,
+		facts.AttestationStatementFactKind,
+		facts.AttestationSLSAProvenanceFactKind,
+		facts.AttestationSignatureVerificationFactKind,
 	}
 }
 

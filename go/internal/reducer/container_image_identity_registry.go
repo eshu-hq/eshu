@@ -333,12 +333,58 @@ func applyCIRunDigestRevision(
 			append(decision.EvidenceFactIDs, anchor.factIDs...),
 		)
 	}
-	if decision.SourceRevisionProvenance == containerImageSourceRevisionOCIConfigLabel {
+	// A stronger tier already resolved (in-image OCI config label, or the
+	// #5456 SLSA-attested commit) must not be overwritten by the weaker
+	// ci.run join.
+	if decision.SourceRevisionProvenance == containerImageSourceRevisionOCIConfigLabel ||
+		decision.SourceRevisionProvenance == containerImageSourceRevisionSLSAProvenanceCommit {
 		return
 	}
 	if commit := singleContainerImageCIRunRevision(anchor.revisions); commit != "" {
 		decision.SourceRevision = commit
 		decision.SourceRevisionProvenance = containerImageSourceRevisionCIRunCommit
+	}
+}
+
+// applySLSADigestRevision attaches a digest-matched SLSA provenance commit to
+// a resolved decision, OVERRIDING whatever weaker tier
+// resolveContainerImageSourceRevision already set (the in-image OCI config
+// label): unlike applyCIRunDigestRevision, this tier is the STRONGEST
+// available (#5456 — a signed, third-party-attested digest-to-commit
+// binding), so it always wins when present. Because slsaDigestAnchor is keyed
+// by the resolved digest rather than the winning reference, the commit
+// reaches whichever decision resolves that digest, mirroring
+// applyCIRunDigestRevision's competing-decision behavior. Two SLSA-attested
+// runs naming distinct commits for one digest yield no revision rather than
+// an invented one (singleContainerImageCIRunRevision's ambiguity refusal,
+// reused here since the "single distinct value or none" rule is identical).
+func applySLSADigestRevision(
+	decision *ContainerImageIdentityDecision,
+	byDigest map[string]slsaDigestAnchor,
+) {
+	digest := strings.TrimSpace(decision.Digest)
+	if digest == "" {
+		return
+	}
+	anchor, ok := byDigest[digest]
+	if !ok {
+		return
+	}
+	commit := singleContainerImageCIRunRevision(anchor.commits)
+	if commit == "" {
+		return
+	}
+	decision.SourceRevision = commit
+	decision.SourceRevisionProvenance = containerImageSourceRevisionSLSAProvenanceCommit
+	if len(anchor.sourceRepositoryIDs) > 0 {
+		decision.SourceRepositoryIDs = uniqueSortedStrings(
+			append(decision.SourceRepositoryIDs, anchor.sourceRepositoryIDs...),
+		)
+	}
+	if len(anchor.factIDs) > 0 {
+		decision.EvidenceFactIDs = uniqueSortedStrings(
+			append(decision.EvidenceFactIDs, anchor.factIDs...),
+		)
 	}
 }
 

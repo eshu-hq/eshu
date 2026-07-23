@@ -66,6 +66,13 @@ type SBOMAttestationAttachmentPage struct {
 	MissingEvidence []string
 }
 
+// SLSAMaterialRow is one bounded SLSA provenance material/resolved-dependency
+// row (#5456): a build input artifact's URI plus its reported digests.
+type SLSAMaterialRow struct {
+	URI    string            `json:"uri,omitempty"`
+	Digest map[string]string `json:"digest,omitempty"`
+}
+
 // ComponentEvidenceRow exposes bounded SBOM component evidence attached to a
 // document without implying vulnerability impact.
 type ComponentEvidenceRow struct {
@@ -117,16 +124,32 @@ type SBOMAttestationAttachmentRow struct {
 	// one provenance predicate is expected per statement.
 	SLSAProvenancePredicateType string
 	SLSAProvenanceBuilderID     string
-	RepositoryIDs               []string
-	WorkloadIDs                 []string
-	ServiceIDs                  []string
-	WarningSummaries            []string
-	WarningSummaryCount         int
-	WarningSummariesTruncated   bool
-	EvidenceFactIDs             []string
-	MissingEvidence             []string
-	SourceFreshness             string
-	SourceConfidence            string
+	// SLSAProvenanceMaterials, SLSAProvenanceMaterialCount, and
+	// SLSAProvenanceMaterialsTruncated (#5456) mirror
+	// DependencyRelationships' bounded-evidence contract for the joined
+	// attestation.slsa_provenance fact's materials: bounded rows plus an
+	// honest full count and a truncation flag computed from
+	// count > len(rows), not trusted from the reducer's own persisted flag.
+	SLSAProvenanceMaterials          []SLSAMaterialRow
+	SLSAProvenanceMaterialCount      int
+	SLSAProvenanceMaterialsTruncated bool
+	// SLSAProvenanceConfigSourceURI, SLSAProvenanceConfigSourceEntryPoint,
+	// and SLSAProvenanceConfigSourceDigest (#5456) surface the joined
+	// attestation.slsa_provenance fact's config_source. No count/truncation
+	// pair: at most one config source is expected per statement.
+	SLSAProvenanceConfigSourceURI        string
+	SLSAProvenanceConfigSourceEntryPoint string
+	SLSAProvenanceConfigSourceDigest     map[string]string
+	RepositoryIDs                        []string
+	WorkloadIDs                          []string
+	ServiceIDs                           []string
+	WarningSummaries                     []string
+	WarningSummaryCount                  int
+	WarningSummariesTruncated            bool
+	EvidenceFactIDs                      []string
+	MissingEvidence                      []string
+	SourceFreshness                      string
+	SourceConfidence                     string
 }
 
 type sbomAttestationAttachmentQueryer interface {
@@ -366,114 +389,48 @@ func decodeSBOMAttestationAttachmentRow(
 	dependencyRelationshipCount := IntVal(payload, "dependency_relationship_count")
 	externalReferences := externalReferenceRowsFromPayload(payload["external_reference_evidence"])
 	externalReferenceCount := IntVal(payload, "external_reference_count")
+	slsaMaterials := slsaMaterialRowsFromPayload(payload["slsa_provenance_materials"])
+	slsaMaterialCount := IntVal(payload, "slsa_provenance_material_count")
 	return SBOMAttestationAttachmentRow{
-		AttachmentID:                     factID,
-		SubjectDigest:                    StringVal(payload, "subject_digest"),
-		DocumentID:                       StringVal(payload, "document_id"),
-		DocumentDigest:                   StringVal(payload, "document_digest"),
-		AttachmentStatus:                 StringVal(payload, "attachment_status"),
-		ParseStatus:                      StringVal(payload, "parse_status"),
-		VerificationStatus:               StringVal(payload, "verification_status"),
-		VerificationPolicy:               StringVal(payload, "verification_policy"),
-		ArtifactKind:                     StringVal(payload, "artifact_kind"),
-		Format:                           StringVal(payload, "format"),
-		SpecVersion:                      StringVal(payload, "spec_version"),
-		Reason:                           StringVal(payload, "reason"),
-		AttachmentScope:                  StringVal(payload, "attachment_scope"),
-		CanonicalWrites:                  IntVal(payload, "canonical_writes"),
-		ComponentCount:                   IntVal(payload, "component_count"),
-		ComponentEvidence:                componentEvidenceRows(payload["component_evidence"]),
-		DependencyRelationships:          dependencyRelationships,
-		DependencyRelationshipCount:      dependencyRelationshipCount,
-		DependencyRelationshipsTruncated: dependencyRelationshipCount > len(dependencyRelationships),
-		ExternalReferences:               externalReferences,
-		ExternalReferenceCount:           externalReferenceCount,
-		ExternalReferencesTruncated:      externalReferenceCount > len(externalReferences),
-		SLSAProvenancePredicateType:      StringVal(payload, "slsa_provenance_predicate_type"),
-		SLSAProvenanceBuilderID:          StringVal(payload, "slsa_provenance_builder_id"),
-		RepositoryIDs:                    StringSliceVal(payload, "repository_ids"),
-		WorkloadIDs:                      StringSliceVal(payload, "workload_ids"),
-		ServiceIDs:                       StringSliceVal(payload, "service_ids"),
-		WarningSummaries:                 warnings,
-		WarningSummaryCount:              warningCount,
-		WarningSummariesTruncated:        warningsTruncated,
-		EvidenceFactIDs:                  StringSliceVal(payload, "evidence_fact_ids"),
-		MissingEvidence:                  StringSliceVal(payload, "missing_evidence"),
-		SourceFreshness:                  "active",
-		SourceConfidence:                 sourceConfidence,
+		AttachmentID:                         factID,
+		SubjectDigest:                        StringVal(payload, "subject_digest"),
+		DocumentID:                           StringVal(payload, "document_id"),
+		DocumentDigest:                       StringVal(payload, "document_digest"),
+		AttachmentStatus:                     StringVal(payload, "attachment_status"),
+		ParseStatus:                          StringVal(payload, "parse_status"),
+		VerificationStatus:                   StringVal(payload, "verification_status"),
+		VerificationPolicy:                   StringVal(payload, "verification_policy"),
+		ArtifactKind:                         StringVal(payload, "artifact_kind"),
+		Format:                               StringVal(payload, "format"),
+		SpecVersion:                          StringVal(payload, "spec_version"),
+		Reason:                               StringVal(payload, "reason"),
+		AttachmentScope:                      StringVal(payload, "attachment_scope"),
+		CanonicalWrites:                      IntVal(payload, "canonical_writes"),
+		ComponentCount:                       IntVal(payload, "component_count"),
+		ComponentEvidence:                    componentEvidenceRows(payload["component_evidence"]),
+		DependencyRelationships:              dependencyRelationships,
+		DependencyRelationshipCount:          dependencyRelationshipCount,
+		DependencyRelationshipsTruncated:     dependencyRelationshipCount > len(dependencyRelationships),
+		ExternalReferences:                   externalReferences,
+		ExternalReferenceCount:               externalReferenceCount,
+		ExternalReferencesTruncated:          externalReferenceCount > len(externalReferences),
+		SLSAProvenancePredicateType:          StringVal(payload, "slsa_provenance_predicate_type"),
+		SLSAProvenanceBuilderID:              StringVal(payload, "slsa_provenance_builder_id"),
+		SLSAProvenanceMaterials:              slsaMaterials,
+		SLSAProvenanceMaterialCount:          slsaMaterialCount,
+		SLSAProvenanceMaterialsTruncated:     slsaMaterialCount > len(slsaMaterials),
+		SLSAProvenanceConfigSourceURI:        StringVal(payload, "slsa_provenance_config_source_uri"),
+		SLSAProvenanceConfigSourceEntryPoint: StringVal(payload, "slsa_provenance_config_source_entry_point"),
+		SLSAProvenanceConfigSourceDigest:     stringMapVal(payload, "slsa_provenance_config_source_digest"),
+		RepositoryIDs:                        StringSliceVal(payload, "repository_ids"),
+		WorkloadIDs:                          StringSliceVal(payload, "workload_ids"),
+		ServiceIDs:                           StringSliceVal(payload, "service_ids"),
+		WarningSummaries:                     warnings,
+		WarningSummaryCount:                  warningCount,
+		WarningSummariesTruncated:            warningsTruncated,
+		EvidenceFactIDs:                      StringSliceVal(payload, "evidence_fact_ids"),
+		MissingEvidence:                      StringSliceVal(payload, "missing_evidence"),
+		SourceFreshness:                      "active",
+		SourceConfidence:                     sourceConfidence,
 	}, nil
-}
-
-func boundedSBOMWarningSummariesFromValue(raw any) ([]string, int, bool) {
-	switch values := raw.(type) {
-	case []string:
-		return boundedSBOMWarningSummaries(values)
-	case []any:
-		return boundedSBOMWarningSummariesFromAny(values)
-	default:
-		return nil, 0, false
-	}
-}
-
-func boundedSBOMWarningSummariesFromAny(values []any) ([]string, int, bool) {
-	count := 0
-	seen := map[string]struct{}{}
-	preview := make([]string, 0, sbomAttestationWarningSummaryPreviewMaxCount)
-	for _, value := range values {
-		summary, ok := value.(string)
-		if !ok {
-			continue
-		}
-		count++
-		if _, exists := seen[summary]; exists {
-			continue
-		}
-		seen[summary] = struct{}{}
-		if len(preview) < sbomAttestationWarningSummaryPreviewMaxCount {
-			preview = append(preview, summary)
-		}
-	}
-	return preview, count, count > len(preview)
-}
-
-func boundedSBOMWarningSummaries(values []string) ([]string, int, bool) {
-	count := len(values)
-	if count == 0 {
-		return nil, 0, false
-	}
-	seen := map[string]struct{}{}
-	preview := make([]string, 0, sbomAttestationWarningSummaryPreviewMaxCount)
-	for _, summary := range values {
-		if _, exists := seen[summary]; exists {
-			continue
-		}
-		seen[summary] = struct{}{}
-		if len(preview) < sbomAttestationWarningSummaryPreviewMaxCount {
-			preview = append(preview, summary)
-		}
-	}
-	return preview, count, count > len(preview)
-}
-
-func componentEvidenceRows(raw any) []ComponentEvidenceRow {
-	values, ok := raw.([]any)
-	if !ok {
-		return nil
-	}
-	out := make([]ComponentEvidenceRow, 0, len(values))
-	for _, value := range values {
-		row, ok := value.(map[string]any)
-		if !ok {
-			continue
-		}
-		out = append(out, ComponentEvidenceRow{
-			ComponentID: StringVal(row, "component_id"),
-			Name:        StringVal(row, "name"),
-			Version:     StringVal(row, "version"),
-			PURL:        StringVal(row, "purl"),
-			CPE:         StringVal(row, "cpe"),
-			FactID:      StringVal(row, "fact_id"),
-		})
-	}
-	return out
 }
