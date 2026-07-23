@@ -71,6 +71,22 @@ func TestParseDropTargetTailAcceptsCompleteCommaList(t *testing.T) {
 	}
 }
 
+func TestParseDropTargetTailAcceptsCommentsAndRestrict(t *testing.T) {
+	t.Parallel()
+
+	tail := ", public.users /* retained */, -- between targets\n public.orgs RESTRICT;"
+	targets, ok := parseDropTargetTail(tail)
+	if !ok {
+		t.Fatal("parseDropTargetTail() rejected comments and RESTRICT")
+	}
+	if got, want := targets, []recoveredDropTarget{
+		{name: "public.users", offset: strings.Index(tail, "public.users")},
+		{name: "public.orgs", offset: strings.Index(tail, "public.orgs")},
+	}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("parseDropTargetTail() = %#v, want %#v", got, want)
+	}
+}
+
 func TestParseDropTargetTailRejectsMalformedTrailingSQL(t *testing.T) {
 	t.Parallel()
 
@@ -105,8 +121,9 @@ func TestParseMigrationTargetsFromDropTableDeduplicatesNames(t *testing.T) {
 // TestParseMigrationTargetsFromMalformedDropErrorRejectsRecoveredTarget proves
 // that tree-sitter ERROR recovery cannot mint a migration target. The grammar
 // exposes public.users beneath a direct ERROR child whose source span also
-// contains public.orgs, but the missing comma means neither is part of a
-// bounded DROP target list.
+// contains public.orgs, but the missing comma invalidates the complete DROP
+// target statement. No recovered reference or apparently valid final target
+// may survive that malformed input.
 func TestParseMigrationTargetsFromMalformedDropErrorRejectsRecoveredTarget(t *testing.T) {
 	t.Parallel()
 
@@ -117,9 +134,9 @@ func TestParseMigrationTargetsFromMalformedDropErrorRejectsRecoveredTarget(t *te
 	)
 
 	got := parseSQLTestFile(t, path)
-	assertSQLMigrationTarget(t, got, "prisma", "SqlTable", "public.events", "drop", 1)
 	assertSQLMigrationTargetMissing(t, got, "prisma", "SqlTable", "public.users")
 	assertSQLMigrationTargetMissing(t, got, "prisma", "SqlTable", "public.orgs")
+	assertSQLMigrationTargetMissing(t, got, "prisma", "SqlTable", "public.events")
 }
 
 func TestParseMigrationTargetsFromDropTableHonorsTargetCap(t *testing.T) {
