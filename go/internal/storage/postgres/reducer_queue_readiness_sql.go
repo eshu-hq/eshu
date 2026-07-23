@@ -28,6 +28,7 @@ var nonCountingReducerRetryFailureClasses = []string{
 	reducer.SecretsIAMEndpointNotReadyFailureClass,
 	reducer.KubernetesCorrelationNodesNotReadyFailureClass,
 	reducer.GCPRelationshipNodesNotReadyFailureClass,
+	reducer.EC2InstanceIdentityNodesNotReadyFailureClass,
 }
 
 // IsNonCountingReducerRetryFailureClass reports whether failureClass is exempt
@@ -91,6 +92,7 @@ func reducerClaimReadinessRequirementsSQL() string {
         ('rds_posture_materialization', 'cloud_resource_uid', 'canonical_nodes_committed', 'payload_entity_key', ''),
         ('iam_instance_profile_role_materialization', 'cloud_resource_uid', 'canonical_nodes_committed', 'payload_entity_key', ''),
         ('ec2_internet_exposure_materialization', 'cloud_resource_uid', 'canonical_nodes_committed', 'payload_entity_key', ''),
+        ('ec2_instance_identity_materialization', 'cloud_resource_uid', 'canonical_nodes_committed', 'payload_entity_key', ''),
         ('s3_internet_exposure_materialization', 'cloud_resource_uid', 'canonical_nodes_committed', 'payload_entity_key', ''),
         ('kubernetes_correlation_materialization', 'kubernetes_workload_uid', 'canonical_nodes_committed', 'payload_entity_key', ''),
         ('security_group_reachability_materialization', 'security_group_rule_uid', 'canonical_nodes_committed', 'payload_entity_key', ''),

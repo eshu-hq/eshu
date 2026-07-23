@@ -236,6 +236,25 @@ func (h EC2InstanceIdentityMaterializationHandler) shouldSkipRetract(ctx context
 	return !hasPrior, nil
 }
 
+// EC2InstanceIdentityNodesNotReadyFailureClass classifies a claim of this
+// domain's intent before the EC2 instance node phase has committed.
+//
+// The durable claim gate (reducerClaimReadinessRequirementsSQL in
+// go/internal/storage/postgres/reducer_queue_readiness_sql.go) enrolls this
+// domain against the SAME cloud_resource_uid/canonical_nodes_committed phase
+// this handler checks in Go, so the SQL claim gate normally withholds the
+// intent until the EC2 instance node phase commits — this Go-level class is
+// the defense-in-depth path for a claim-gate/handler-derivation disagreement
+// or a phase retracted between claim and handle, not the common case. The
+// reducer queue treats it as a non-counting retry class
+// (nonCountingReducerRetryFailureClasses in
+// go/internal/storage/postgres/reducer_queue_readiness_sql.go) so a readiness
+// miss never erodes the retry budget and dead-letters a still-pending ami_id
+// intent the succeeded-only reopen path would not reopen, mirroring
+// GCPRelationshipNodesNotReadyFailureClass and
+// KubernetesCorrelationNodesNotReadyFailureClass.
+const EC2InstanceIdentityNodesNotReadyFailureClass = "ec2_instance_identity_nodes_not_ready"
+
 // ec2InstanceIdentityNodesNotReadyError marks the readiness-gate miss as
 // retryable so the durable queue re-runs the intent once the EC2 instance node
 // phase commits, instead of writing a property onto a node set that may not
@@ -256,7 +275,7 @@ func (e ec2InstanceIdentityNodesNotReadyError) Error() string {
 func (ec2InstanceIdentityNodesNotReadyError) Retryable() bool { return true }
 
 func (ec2InstanceIdentityNodesNotReadyError) FailureClass() string {
-	return "ec2_instance_identity_nodes_not_ready"
+	return EC2InstanceIdentityNodesNotReadyFailureClass
 }
 
 type ec2InstanceIdentityMaterializationTiming struct {

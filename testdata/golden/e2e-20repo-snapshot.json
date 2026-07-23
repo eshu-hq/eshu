@@ -1759,9 +1759,7 @@
           "provider"
         ],
         "allowed_node_property_values": {
-          "provider": [
-            "aws"
-          ]
+          "provider": ["aws"]
         }
       },
       {
@@ -1889,23 +1887,22 @@
       },
       {
         "id": "rn-ec2-instance-identity-ami",
-        "description": "#5448 EC2 instance identity node-property projection non-vacuous regression guard: at least 1 CloudResource node (the ec2 supply-chain-demo cassette's aws_ec2_instance i-000000000000000a) carries a non-empty ami_id property. The instance's aws_resource identity fact (attributes.ami_id='ami-000000000000000a') is projected by DomainEC2InstanceIdentityMaterialization (go/internal/reducer/ec2_instance_identity_materialization.go) onto the CloudResource node DomainEC2InstanceNodeMaterialization already created (from the ec2_instance_posture fact) for the same cloud_resource_uid -- the two domains are proven to write disjoint property sets (TestEC2InstanceIdentityWriterDisjointFromEC2InstancePostureWriter, go/internal/storage/cypher). Zero without the #5448 fact-emission + reducer-domain change (the ami_id property did not exist before) and zero without the new ec2 cassette scope (no other resource in this cassette's fixtures carries an ami_id).",
+        "description": "#5448 EC2 instance identity node-property projection non-vacuous regression guard: exactly 1 CloudResource node (the ec2 supply-chain-demo cassette's aws_ec2_instance i-000000000000000a, the corpus's only EC2 instance) carries a non-empty ami_id property. The instance's aws_resource identity fact (attributes.ami_id='ami-000000000000000a') is projected by DomainEC2InstanceIdentityMaterialization (go/internal/reducer/ec2_instance_identity_materialization.go) onto the CloudResource node DomainEC2InstanceNodeMaterialization already created (from the ec2_instance_posture fact) for the same cloud_resource_uid -- the two domains are proven to write disjoint property sets (TestEC2InstanceIdentityWriterDisjointFromEC2InstancePostureWriter, go/internal/storage/cypher). Zero without the #5448 fact-emission + reducer-domain change (the ami_id property did not exist before) and zero without the new ec2 cassette scope (no other resource in this cassette's fixtures carries an ami_id). maximum_count pins the exact ceiling (deterministic single-instance corpus) so a broadened MATCH or duplicate-row regression is caught, not just a floor miss.",
         "label": "CloudResource",
         "minimum_count": 1,
+        "maximum_count": 1,
         "required_node_properties": [
           "ami_id"
         ],
         "allowed_node_property_values": {
-          "ami_id": [
-            "ami-000000000000000a"
-          ]
+          "ami_id": ["ami-000000000000000a"]
         }
       }
     ],
     "required_self_loops": [
       {
         "id": "sl-dart-calls-recursion",
-        "description": "Exactly 2 Function{language=dart} CALLS self-loop edges (caller==callee): recursionFib (arrow-form) and recursionFact (block-form) in tests/fixtures/ecosystems/dart_comprehensive/calls.dart. Dart's call extractor (go/internal/parser/dart/calls.go) was a raw byte-scanner that could not distinguish a declaration header from a call site, recording every function/method/constructor declaration in the corpus as a spurious self-loop CALLS edge (issue #5332). Dart was not staged in the golden corpus, so that corruption class shipped with no durable end-to-end gate (issue #5349). The bound is closed on BOTH sides, not a floor: below 2 means genuine recursion was dropped; above 2 means the #5332 declaration-vs-call-site bug regressed (every one of the fixture's other declarations \u2014 DeclarationOnlyWidget's 2 constructors + getter + setter + method, GeoPoint's named constructor, mutualPing/mutualPong, identityFn, LineBuffer.append \u2014 would each contribute a spurious self-loop). Mutual recursion (mutualPing<->mutualPong) and the named-constructor/generic-args/cascade call shapes in the same fixture are NOT self-loops (caller != callee) and so do not move this count; they instead flow through the existing generic rc-11 Function-CALLS-Function floor.",
+        "description": "Exactly 2 Function{language=dart} CALLS self-loop edges (caller==callee): recursionFib (arrow-form) and recursionFact (block-form) in tests/fixtures/ecosystems/dart_comprehensive/calls.dart. Dart's call extractor (go/internal/parser/dart/calls.go) was a raw byte-scanner that could not distinguish a declaration header from a call site, recording every function/method/constructor declaration in the corpus as a spurious self-loop CALLS edge (issue #5332). Dart was not staged in the golden corpus, so that corruption class shipped with no durable end-to-end gate (issue #5349). The bound is closed on BOTH sides, not a floor: below 2 means genuine recursion was dropped; above 2 means the #5332 declaration-vs-call-site bug regressed (every one of the fixture's other declarations — DeclarationOnlyWidget's 2 constructors + getter + setter + method, GeoPoint's named constructor, mutualPing/mutualPong, identityFn, LineBuffer.append — would each contribute a spurious self-loop). Mutual recursion (mutualPing<->mutualPong) and the named-constructor/generic-args/cascade call shapes in the same fixture are NOT self-loops (caller != callee) and so do not move this count; they instead flow through the existing generic rc-11 Function-CALLS-Function floor.",
         "label": "Function",
         "relationship": "CALLS",
         "node_property": "language",
@@ -2757,7 +2754,7 @@
         }
       },
       "trace_deployment_chain": {
-        "description": "MCP tool coverage shape for trace_deployment_chain; asserted live through the MCP tool layer. Stays on the rich api-svc fixture for field coverage and pins the negative tier path: api-svc has no deployment evidence, so no deployment_truth_tier is emitted and overall_confidence_reason is no_deployment_evidence \u2014 the tier can never be bluffed absent evidence. The HTTP deployable-config shape is the non-vacuous runtime_confirmed proof (#5471).",
+        "description": "MCP tool coverage shape for trace_deployment_chain; asserted live through the MCP tool layer. Stays on the rich api-svc fixture for field coverage and pins the negative tier path: api-svc has no deployment evidence, so no deployment_truth_tier is emitted and overall_confidence_reason is no_deployment_evidence — the tier can never be bluffed absent evidence. The HTTP deployable-config shape is the non-vacuous runtime_confirmed proof (#5471).",
         "required_response_fields": [
           "api_surface",
           "cloud_resources",

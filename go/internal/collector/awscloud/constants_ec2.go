@@ -37,8 +37,8 @@ const (
 	// ResourceTypeEC2AMI identifies an EC2 AMI (machine image) as a
 	// relationship target (#5448). No aws_resource inventory fact is emitted
 	// for AMIs and no AMI graph node class exists yet (tracked follow-up:
-	// docs/internal/design/5448-ec2-ami.md), so a relationship naming this
-	// target type always resolves as unresolved/Postgres-only — the raw
+	// https://github.com/eshu-hq/eshu/issues/5717), so a relationship naming
+	// this target type always resolves as unresolved/Postgres-only — the raw
 	// aws_relationship fact still lands durably, and the reducer's edge
 	// projection counts and logs the miss, it never fabricates a node.
 	ResourceTypeEC2AMI = "aws_ec2_ami"

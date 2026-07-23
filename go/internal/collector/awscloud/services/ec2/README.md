@@ -32,8 +32,8 @@ posture domain's base identity/posture properties. See
 `go/internal/reducer/ec2_instance_identity_materialization.go` for the
 dual-writer safety argument. The instance->AMI relationship stays
 Postgres-only: no AMI/MachineImage graph node class exists yet (tracked
-follow-up), so the generic AWS relationship edge projection's target join
-never resolves it.
+follow-up: https://github.com/eshu-hq/eshu/issues/5717), so the generic AWS
+relationship edge projection's target join never resolves it.
 
 For every EBS volume the scanner emits one metadata-only `aws_ec2_volume`
 resource fact from a single boundary-scoped `DescribeVolumes` pass. It records

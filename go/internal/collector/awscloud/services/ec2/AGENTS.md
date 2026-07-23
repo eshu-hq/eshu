@@ -30,7 +30,8 @@
   AMI/MachineImage `aws_resource` fact or a graph node/edge writer for it in
   this package without also registering the new node label under #5472
   (retractable_edge_types, replay-depth spec, relguard, graph schema uid
-  constraint) — see the tracked follow-up issue for the AMI node class.
+  constraint) — see the tracked follow-up
+  (https://github.com/eshu-hq/eshu/issues/5717) for the AMI node class.
 - EBS volume facts come only from a boundary-scoped `DescribeVolumes` pass. Do
   not use per-instance `DescribeVolumes` calls to fill block-device posture
   inline, and do not let volume facts become reducer posture decisions.

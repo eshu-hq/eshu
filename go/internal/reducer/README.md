@@ -840,8 +840,8 @@ avoiding NornicDB OCC abort-retry churn on concurrent same-uid writes.
 The instance->AMI relationship stays Postgres-only in this increment: no
 AMI/MachineImage CloudResource node class exists, so the generic
 `aws_relationship_materialization` domain's target join never resolves an
-`aws_ec2_ami` target (counted as unresolved, never fabricated). A follow-up
-issue tracks the AMI node class.
+`aws_ec2_ami` target (counted as unresolved, never fabricated). Follow-up
+issue https://github.com/eshu-hq/eshu/issues/5717 tracks the AMI node class.
 
 No-Regression Evidence: `go test ./internal/reducer -run 'EC2InstanceIdentity' -count=1`
 proves the augment-only never-create contract, single-key readiness gate,
