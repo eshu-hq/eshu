@@ -136,6 +136,90 @@ func TestCodeReachabilityProjectionRunnerExcludesDowngradedControllerFromBFS(t *
 	}
 }
 
+// TestCodeReachabilityProjectionRunnerExcludesRouteUnreachableControllerFromBFS
+// is the #5494 runner harness proof: an ancestry-confirmed controller action
+// with NO backing route, in a repo whose route surface is exact-only and
+// proven observed, is (a) recorded as a route-downgraded verdict via the
+// SAME BuildCodeRootVerdicts + ReplaceRepositoryRows path #5376 uses, and (b)
+// removed from the BFS root set before reachability is materialized, so a
+// helper reachable ONLY from it gets no reachability row. A routed sibling
+// action stays a root and its uniquely-reached helper is still materialized.
+func TestCodeReachabilityProjectionRunnerExcludesRouteUnreachableControllerFromBFS(t *testing.T) {
+	t.Parallel()
+
+	loader := &fakeCodeReachabilityInputLoader{
+		inputs: []CodeReachabilityProjectionInput{{
+			ScopeID:      "scope-1",
+			GenerationID: "generation-1",
+			RepositoryID: "repo-1",
+			Roots: []CodeReachabilityRoot{
+				{EntityID: "fn:OrdersController:index", RootKinds: []string{CodeRootKindRubyRailsControllerAction}, ClassContext: "OrdersController", ActionName: "index"},
+				{EntityID: "fn:OrdersController:orphan", RootKinds: []string{CodeRootKindRubyRailsControllerAction}, ClassContext: "OrdersController", ActionName: "orphan"},
+			},
+			RubyClasses: []RubyClassEntity{
+				{Name: "OrdersController", QualifiedBases: []string{"ApplicationController"}},
+			},
+			RubyRoutes: RubyRailsRouteFacts{
+				HasAnyRouteEvidence: true,
+				RoutedHandlers:      map[string]struct{}{"OrdersController.index": {}},
+			},
+			Edges: []CodeReachabilityEdge{
+				{SourceEntityID: "fn:OrdersController:index", TargetEntityID: "fn:routed_helper", RelationshipType: "CALLS", ResolutionMethod: "scip"},
+				{SourceEntityID: "fn:OrdersController:orphan", TargetEntityID: "fn:orphan_helper", RelationshipType: "CALLS", ResolutionMethod: "scip"},
+			},
+			MaxDepth:  5,
+			UpdatedAt: time.Date(2026, 7, 22, 3, 59, 0, 0, time.UTC),
+		}},
+	}
+	writer := &fakeCodeReachabilityRowWriter{}
+	runner := CodeReachabilityProjectionRunner{InputLoader: loader, RowWriter: writer, Config: CodeReachabilityProjectionRunnerConfig{BatchLimit: 10}}
+
+	result, err := runner.ProcessOnce(context.Background(), time.Date(2026, 7, 22, 4, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("ProcessOnce() error = %v", err)
+	}
+
+	if got, want := result.VerdictsWritten, 2; got != want {
+		t.Fatalf("VerdictsWritten = %d, want %d (%#v)", got, want, writer.verdicts)
+	}
+	if got, want := result.VerdictsDowngraded, 1; got != want {
+		t.Fatalf("VerdictsDowngraded = %d, want %d", got, want)
+	}
+	if got, want := result.VerdictsRouteDowngraded, 1; got != want {
+		t.Fatalf("VerdictsRouteDowngraded = %d, want %d", got, want)
+	}
+
+	downgradedOrphan := false
+	for _, v := range writer.verdicts {
+		if v.EntityID == "fn:OrdersController:orphan" {
+			if v.Verdict != CodeRootVerdictDowngraded || v.Basis.Reason != ReasonRouteUnreachable {
+				t.Fatalf("orphan action must be route-downgraded, got %+v", v)
+			}
+			downgradedOrphan = true
+		}
+		if v.EntityID == "fn:OrdersController:index" && v.Verdict != CodeRootVerdictConfirmed {
+			t.Fatalf("routed index action must be confirmed, got %q", v.Verdict)
+		}
+	}
+	if !downgradedOrphan {
+		t.Fatalf("orphan action must appear as a downgraded verdict, verdicts=%#v", writer.verdicts)
+	}
+
+	reachable := map[string]bool{}
+	for _, r := range writer.rows {
+		reachable[r.EntityID] = true
+	}
+	if !reachable["fn:routed_helper"] {
+		t.Fatalf("routed_helper reachable from the confirmed routed action must be materialized, rows=%#v", writer.rows)
+	}
+	if reachable["fn:orphan_helper"] {
+		t.Fatalf("orphan_helper is only reachable from a route-downgraded root and must NOT be materialized")
+	}
+	if reachable["fn:OrdersController:orphan"] {
+		t.Fatalf("route-downgraded controller action must not appear as its own reachability root")
+	}
+}
+
 func TestCodeReachabilityProjectionRunnerRecordsEmptyInputWatermark(t *testing.T) {
 	t.Parallel()
 
