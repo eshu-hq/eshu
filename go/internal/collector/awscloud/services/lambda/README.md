@@ -60,6 +60,18 @@ API call counters, throttle counters, and pagination spans.
   topology. The collector does not infer network exposure or environment.
 - Resource names, ARNs, tags, event-source ARNs, and environment variable names
   must not become metric labels.
+- Downstream (issue #5450): `resolved_image_uri` (an exact
+  `registry/repository@digest` reference, unlike `image_uri`'s tag-qualified
+  form) is the strongest deployed-code signal this package emits for a
+  container-image function. The reducer surfaces it two ways: as the
+  `CloudResource` node's `running_image_digest` property
+  (`go/internal/reducer/aws_resource_running_image.go`), and — since a Lambda
+  function is single-image by AWS's own model, so there is no
+  multi-container-style ambiguity — as the real target of a two-MATCH-MERGE
+  `(:CloudResource)-[:AWS_lambda_function_uses_image]->(:ContainerImage)` graph
+  edge (`go/internal/reducer/aws_cloud_image_join.go`'s
+  `containerImageNodeUIDFromDigestRef`, matched byte-for-byte against the OCI
+  registry collector's own node-uid formula for that same digest).
 
 ## Related docs
 

@@ -468,3 +468,101 @@ resolved/unresolved-by-mode and -by-type tallies, and per-stage durations
 (load / extract / retract / graph-write / total). An operator can answer "which
 AWS relationship target types are losing edges, and is it because the target
 service was not scanned yet?" at 3 AM without a per-edge log line.
+
+## 12. The `container_image` Target Type Resolves (Issue #5450)
+
+`ecs_task_definition_uses_image` and `lambda_function_uses_image` are the two
+"uses image" relationships whose `target_type` is `container_image`. Section 5
+above documents why: `container_image` is not an `aws_resource` fact, so
+`DomainAWSRelationshipMaterialization`'s `cloudResourceJoinIndex` (built solely
+from `aws_resource` facts) can never resolve it — both relationships
+permanently landed in the `unresolved` tally with zero edges. Issue #5450
+resolves this per relationship, under the EXACT-ONLY rule
+`docs/internal/design/5472-graph-projection-policy.md` establishes for the
+sibling ci_cd_run_correlation/container_image_identity/package domains:
+
+- **`lambda_function_uses_image` → PROJECT (exact digest).** The relationship's
+  `resolved_image_uri` attribute (`awsv1.RelationshipLambdaFunctionUsesImageAttributes`,
+  decoded from `Attributes["attributes"].resolved_image_uri`, never the raw
+  envelope payload) is an exact `registry/repository@sha256:digest` reference —
+  the same identity strength `container_image_identity`'s `exact_digest`
+  outcome requires. `containerImageNodeUIDFromDigestRef`
+  (`go/internal/reducer/aws_cloud_image_join.go`) computes the `:ContainerImage`
+  node uid directly from that reference, byte-identical to the OCI registry
+  canonical writer's own formula (`oci-descriptor://<registry>/<repository>@<digest>`,
+  case-preserving — see `internal/projector.ociDescriptorUID`), and a new
+  additive domain, `DomainAWSCloudImageMaterialization`
+  (`go/internal/reducer/aws_cloud_image_materialization.go`), two-MATCH-MERGEs
+  `(:CloudResource)-[:AWS_lambda_function_uses_image]->(:ContainerImage)`
+  through `CloudResourceContainerImageEdgeWriter`
+  (`go/internal/storage/cypher/cloud_resource_container_image_edge_writer.go`).
+  An unscanned image (the OCI registry has not observed that digest) is a
+  `MATCH` miss, not a fabricated node — the identical graceful-degradation
+  contract §5.3/§6 already establish.
+- **`ecs_task_definition_uses_image` → STAYS Postgres-only (tag-only).** A task
+  DEFINITION's container image (`ecs/relationships.go`'s
+  `taskDefinitionImageRelationships`) carries only a tag, never a digest — the
+  scanner's `DescribeTaskDefinition` response has no running-digest field to
+  read. Promoting a tag-only reference would require resolving it through
+  `container_image_identity`'s derived `tag_resolved` outcome, which is
+  explicitly NOT exact (the #5472 policy's decision table lists only
+  `exact_digest` as promotable) and is mutable (a tag can point to a different
+  digest at different times) — projecting it as if it were exact would
+  fabricate a stale-tag-shaped false edge. `DomainAWSCloudImageMaterialization`
+  recognizes the relationship type and always skips it
+  (`awsCloudImageSkipTagOnlyPostgresOnly`), counted and logged, never silently
+  dropped.
+
+This is modeled as an ADDITIVE SIBLING domain (its own `truth.Contract`,
+`evidence_source = reducer/aws-cloud-image`), not an extension of
+`DomainAWSRelationshipMaterialization`, because its target label
+(`:ContainerImage`) and resolution strategy (a value on the relationship fact
+itself, not the `aws_resource` join index) are categorically different from
+every other AWS relationship type this domain resolves — mirroring the split
+between `DomainKubernetesWorkloadMaterialization` and
+`DomainKubernetesCorrelationMaterialization`, the closest existing precedent
+for a cross-label workload/resource → image edge.
+
+Prove-Theory-First Evidence: the two-MATCH-MERGE shape is architecturally
+identical to the one §11 already measured (both `CloudResource` and
+`ContainerImage` carry a uid uniqueness constraint / NornicDB uid lookup index,
+`internal/graph/schema_tables.go` `uidConstraintLabels`), so the theory —
+"a two-MATCH-MERGE with a static single-member relationship-type token against
+two uid-constrained labels performs the same as the already-measured
+`0-1ms`/batch CAN_ASSUME/AWS_&lt;type&gt; shape" — needed no fresh live probe.
+The NEW-path cost is the Eshu-owned extraction and batching work, measured at
+the same 5,000-row corpus scale as the sibling benchmarks (Apple M4 Pro, Go
+test bench, no backend round trip):
+
+- `BenchmarkExtractAWSCloudImageEdgeRows` — 5,000 `lambda_function_uses_image`
+  relationships resolved against a 5,000-resource join index: `~16.8 ms/op`,
+  `43.4 MB/op`, `346,599 allocs/op` — cheaper than the sibling
+  `ExtractAWSRelationshipEdgeRows` (`~24.5 ms/op` at the same corpus scale,
+  §11) because this domain builds no target-side lookup map; the target uid is
+  computed, not joined.
+- `BenchmarkCloudResourceContainerImageEdgeWriter`
+  (`go/internal/storage/cypher`) — 5,000 resolved edge rows batched at the
+  default 500/`UNWIND`: `~1.72 ms/op`, `3.61 MB/op`, `35,071 allocs/op` — in the
+  same order of magnitude as the sibling `BenchmarkCloudResourceEdgeWriter`
+  (`~1.6 ms/op`, `40,099 allocs/op`), and fewer allocations (a single fixed
+  relationship-type token needs no per-type grouping).
+
+No-Regression Evidence: `DomainAWSRelationshipMaterialization` itself is
+UNCHANGED by this work — it still resolves only `CloudResource -> CloudResource`
+and still counts `container_image`-targeted relationships as `unresolved` in
+its own tally (the new domain is additive, reading the same fact kinds through
+a second, independent handler). Verified with a live single-container NornicDB
+retract proof (`go/internal/replay/offlinetier/delta_tier_reducer_cloud_image_edge_retract_live_test.go`,
+`scripts/verify-replay-tier.sh`).
+
+Observability Evidence: the handler records `eshu_dp_aws_cloud_image_edges_total`
+dimensioned by `resolution_mode` (`container_image_digest`, the only mode this
+domain resolves), wraps work in the `reducer.aws_cloud_image_materialization`
+span, and emits an `aws cloud image materialization completed` structured log
+carrying `scope_id`, `generation_id`, `resource_fact_count`,
+`relationship_fact_count`, `edge_count`, the skip-reason tally
+(`tag_only_postgres_only_policy` / `no_resolved_digest` / `unparseable_digest_ref`
+/ `source_unresolved`), and per-stage durations. An operator can answer "is the
+Lambda running-image edge landing, and did a generation skip every relationship
+for the tag-only ECS policy reason (expected) versus an unresolved digest
+(investigate)?" at 3 AM.

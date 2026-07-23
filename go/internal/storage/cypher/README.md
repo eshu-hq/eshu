@@ -725,6 +725,29 @@ repository ids, node ids, and statements stay out of metric labels.
   missing endpoint is a no-op, idempotent on
   `(source_uid, relationship_type, target_uid)`, with an evidence-source-scoped
   retract
+- `CloudResourceContainerImageEdgeWriter` — writes canonical
+  `(:CloudResource)-[:AWS_lambda_function_uses_image]->(:ContainerImage)` edges
+  for the additive `DomainAWSCloudImageMaterialization` reducer domain (issue
+  #5450); constructed with `NewCloudResourceContainerImageEdgeWriter`. Same
+  batched `UNWIND` + `MATCH` source `CloudResource` / `MATCH` target
+  `ContainerImage` / static-token `MERGE` shape as `CloudResourceEdgeWriter`,
+  but the Cypher relationship-type token is a fixed constant validated against
+  a closed single-member vocabulary (mirroring `IAMCanAssumeEdgeWriter`'s
+  `CAN_ASSUME`) rather than `CloudResourceEdgeWriter`'s open per-relationship-type
+  `AWS_<raw type>` derivation, because this domain only ever resolves one raw
+  AWS relationship type (`lambda_function_uses_image`); idempotent on
+  `(source_uid, target_uid)`, with an evidence-source-scoped
+  (`reducer/aws-cloud-image`) retract that never touches either endpoint's node
+
+  Performance Evidence: `go test ./internal/storage/cypher -run '^$' -bench
+  BenchmarkCloudResourceContainerImageEdgeWriter -benchmem -benchtime=100ms
+  -count=6` shaped 5,000 edges at batch 500 in `~1.72 ms/op` (`3.61 MB/op`,
+  `35,071 allocs/op`) on darwin/arm64 (Apple M4 Pro), no-op group executor.
+  No-Regression Evidence: same order of magnitude as, and fewer allocations
+  than, the sibling `BenchmarkCloudResourceEdgeWriter` baseline
+  (`~1.6 ms/op`, `3.89 MB/op`, `40,099 allocs/op`) on the same corpus and batch
+  size — see `docs/internal/aws-relationship-edge-materialization-design.md`
+  §12.
 - `S3InternetExposureNodeWriter` — writes reducer-owned S3 internet-exposure
   properties onto existing S3 `CloudResource` nodes (issue #1232); constructed
   with `NewS3InternetExposureNodeWriter(executor, reader, batchSize)`. Uses
