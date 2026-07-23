@@ -57,6 +57,13 @@ func (h *RepositoryHandler) getRepositoryBranches(w http.ResponseWriter, r *http
 		return
 	}
 	if len(refs) > 0 {
+		// Re-sort by (kind, name) before paging: this is the exact comparator
+		// the cursor's keyset math uses (repositoryRefKeyLess), independent of
+		// is_default and independent of the store's collation-dependent name
+		// order (T3). repositoryRefsDefaultBranch and
+		// validateSelectedRepositoryRef scan by flag/name, not position, so
+		// re-sorting refs here does not affect them.
+		sortRepositoryRefsForPaging(refs)
 		window, remainder, truncated, nextCursor := repositoryRefPageWindow(repoID, refs, cursor, limit)
 		branches, tags := repositoryRefWindowEntries(window)
 		response := map[string]any{

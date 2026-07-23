@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"sort"
 )
 
 // repositoryRefPageDefaultLimit is the page size applied when the caller
@@ -21,31 +22,42 @@ const repositoryRefPageMaxLimit = 500
 // repositoryRefPageCursorVersion is the only cursor payload version this
 // build understands. A cursor from an unknown version is rejected as
 // invalid rather than partially trusted.
-const repositoryRefPageCursorVersion = 1
+//
+// Bumped to 2 (#5503 T3): v1 encoded the mutable is_default flag as part of
+// the sort key, which corrupts windowing when the default branch changes
+// between two page fetches (a ref can be duplicated or skipped even though
+// nothing was added or removed -- see
+// TestGetRepositoryBranchesPagingDefaultChurnNoDupSkip). A v1 cursor now
+// fails the version check below and decodes to an error; the client simply
+// restarts from page 1. This is a deploy-boundary-only event (a cursor
+// in flight across the exact moment of deploy) and safe because the
+// endpoint has no side effects.
+const repositoryRefPageCursorVersion = 2
 
 // repositoryRefPageCursor is the forward-only keyset cursor for the combined
-// branches+tags ref stream exposed by GET .../branches. It encodes the full
-// sort key -- default-rank, kind, name -- of the last-emitted ref, mirroring
-// the store's `ORDER BY is_default DESC, ref_kind, name` order
-// (content_reader_repository_refs.go). Encoding the full key (not just the
-// name) matters: the first component is the default-rank, not alphabetical
-// order, so a cursor placed right after the default ref must not skip an
-// alphabetically-earlier branch (see repositoryRefKeyLess).
+// branches+tags ref stream exposed by GET .../branches. It encodes the
+// (kind, name) sort key of the last-emitted ref. The store persists rows
+// ordered `is_default DESC, ref_kind, name`
+// (content_reader_repository_refs.go), but the cursor deliberately does NOT
+// include is_default: that flag is mutable (a repository's default branch
+// can change), and encoding it into the key corrupts windowing across a
+// default-branch change between page fetches (T3; see
+// repositoryRefKeyLess). The handler re-sorts refs by (kind, name) before
+// paging (sortRepositoryRefsForPaging) so the cursor's key always matches
+// the order actually paged.
 type repositoryRefPageCursor struct {
 	Version int    `json:"v"`
 	RepoID  string `json:"repo"`
-	Default int    `json:"d"` // 1 for the default ref, 0 otherwise; mirrors is_default DESC
 	Kind    string `json:"k"` // "branch" or "tag"
 	Name    string `json:"n"`
 }
 
-// encodeRepositoryRefPageCursor renders ref's full sort key as an opaque
-// forward-only page token scoped to repoID.
+// encodeRepositoryRefPageCursor renders ref's (kind, name) sort key as an
+// opaque forward-only page token scoped to repoID.
 func encodeRepositoryRefPageCursor(repoID string, ref RepositoryRef) string {
 	cursor := repositoryRefPageCursor{
 		Version: repositoryRefPageCursorVersion,
 		RepoID:  repoID,
-		Default: repositoryRefDefaultRank(ref),
 		Kind:    ref.Kind,
 		Name:    ref.Name,
 	}
@@ -80,49 +92,47 @@ func decodeRepositoryRefPageCursor(raw, repoID string) (repositoryRefPageCursor,
 	return cursor, nil
 }
 
-// repositoryRefDefaultRank returns the cursor default-rank component: 1 for
-// the default ref, 0 otherwise. It mirrors the store's `is_default DESC`
-// clause so windowing never falls back to comparing the default ref's name
-// alphabetically against the rest of the stream.
-func repositoryRefDefaultRank(ref RepositoryRef) int {
-	if ref.Default {
-		return 1
-	}
-	return 0
-}
-
-// repositoryRefSortKey projects ref onto the same (default-rank, kind, name)
-// key shape as a decoded cursor, so a ref and a cursor can be compared with
+// repositoryRefSortKey projects ref onto the same (kind, name) key shape as a
+// decoded cursor, so a ref and a cursor can be compared with
 // repositoryRefKeyLess.
 func repositoryRefSortKey(ref RepositoryRef) repositoryRefPageCursor {
 	return repositoryRefPageCursor{
-		Default: repositoryRefDefaultRank(ref),
-		Kind:    ref.Kind,
-		Name:    ref.Name,
+		Kind: ref.Kind,
+		Name: ref.Name,
 	}
 }
 
 // repositoryRefKeyLess reports whether key a sorts strictly before key b
-// under the store's (is_default DESC, ref_kind ASC, name ASC) order. Default
-// rank compares DESCENDING (rank 1 first); kind and name compare ASCENDING.
-// This asymmetry is the ordering trap the design guards against: comparing
-// only ref names would let a cursor placed after the default ref "main" skip
-// an alphabetically-earlier branch "alpha", because "alpha" < "main" by name
-// alone but sorts AFTER the default ref in the store's real order.
+// under the paging order: kind ASCENDING (all branches precede all tags),
+// then name ASCENDING. This is deliberately immutable per ref -- unlike
+// is_default, a ref's kind and name do not change while it exists, so a
+// cursor built from this key stays valid across concurrent ref churn
+// (additions, deletions, or a default-branch change) between page fetches.
 func repositoryRefKeyLess(a, b repositoryRefPageCursor) bool {
-	if a.Default != b.Default {
-		return a.Default > b.Default
-	}
 	if a.Kind != b.Kind {
 		return a.Kind < b.Kind
 	}
 	return a.Name < b.Name
 }
 
+// sortRepositoryRefsForPaging re-sorts refs in place by the exact (kind,
+// name) Go byte-wise comparator the cursor's keyset math uses. This is
+// LOAD-BEARING, not cosmetic: it replaces reliance on the store's `ORDER BY
+// name` (Postgres collation/ICU-dependent, which can order case-mixed or
+// non-ASCII ref names differently than Go's byte-wise string comparison)
+// with the comparator windowing actually applies, closing a latent
+// collation-vs-Go-order dup/skip for such names.
+func sortRepositoryRefsForPaging(refs []RepositoryRef) {
+	sort.Slice(refs, func(i, j int) bool {
+		return repositoryRefKeyLess(repositoryRefSortKey(refs[i]), repositoryRefSortKey(refs[j]))
+	})
+}
+
 // repositoryRefPageWindow returns the bounded page of refs strictly after
-// cursor (or from the start when cursor is nil), assuming refs is already in
-// the store's (is_default DESC, ref_kind, name) order. window is at most
-// limit entries; remainder is whatever in refs follows window, used by
+// cursor (or from the start when cursor is nil), assuming refs is already
+// sorted by (kind, name) -- callers MUST call sortRepositoryRefsForPaging
+// first. window is at most limit entries; remainder is whatever in refs
+// follows window, used by
 // callers to derive the deprecated tags_truncated field without a second
 // pass over the full list. truncated and nextCursor follow the
 // WorkItemEvidencePage convention (work_item_evidence_page.go): truncated is
@@ -149,8 +159,8 @@ func repositoryRefPageWindow(repoID string, refs []RepositoryRef, cursor *reposi
 
 // repositoryRefWindowEntries splits one paged window of refs into branch and
 // tag wire entries, preserving the window's relative order. A window may
-// span the branch/tag boundary (branches sort before tags within each
-// default-rank group), so both slices are populated from a single pass.
+// span the branch/tag boundary (all branches sort before all tags -- kind
+// ASCENDING), so both slices are populated from a single pass.
 func repositoryRefWindowEntries(window []RepositoryRef) (branches, tags []map[string]any) {
 	branches = make([]map[string]any, 0)
 	tags = make([]map[string]any, 0)
