@@ -96,8 +96,23 @@ func k8sSelectCandidateFromEntity(entity EntityContent) K8sSelectCandidate {
 // mirror k8sNamespace exactly (namespace equality is a correctness gate).
 //
 // There is intentionally no SQL kind filter: candidacy (kind == "Service") is
-// decided in Go by the caller, because a pushed-down kind predicate is an
-// unmeasured index theory tracked separately in #5490.
+// decided in Go by the caller. #5490 measured a SQL-level
+// lower(metadata->>'kind') = 'service' pushdown and rejected it: without a
+// supporting expression index it forces a whole-table Seq Scan (a
+// platform-wide, not per-repo, cost), and it is unnecessary once the
+// migration 077 partial index below makes the fetch itself ~1.7-2.0 ms, at
+// which point filtering Kind in Go over the resulting <=5001-row slice is
+// free. See docs/internal/evidence/5490-k8sresource-candidate-index.md.
+//
+// This query is served by the partial covering index
+// content_entities_k8s_select_partial_idx (migration 077,
+// go/internal/storage/postgres/migrations/077_content_entities_k8s_select_partial_index.sql),
+// which matches the ORDER BY key and INCLUDEs entity_name/metadata so the
+// planner can satisfy this fetch with an Index Only Scan and no Sort node
+// (measured ~11-19 ms -> ~1.7-2.0 ms on the #5363/#5490 worst-case
+// partition). The index is partial (WHERE entity_type = 'K8sResource') so
+// its write-amplification is confined to K8sResource rows and does not tax
+// every other entity_type write on this hot ingest table.
 func (cr *ContentReader) ListRepoK8sSelectCandidates(ctx context.Context, repoID string, limit int) ([]K8sSelectCandidate, error) {
 	ctx, span := cr.tracer.Start(
 		ctx, "postgres.query",
