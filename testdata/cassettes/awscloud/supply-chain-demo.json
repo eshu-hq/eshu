@@ -359,6 +359,33 @@
               "resolved_image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:0000000000000000000000000000000000000000000000000000000000cc"
             }
           }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:lambda:function:supply-chain-demo-zip",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "arn": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo-zip",
+            "resource_id": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo-zip",
+            "resource_type": "lambda.function",
+            "name": "supply-chain-demo-zip",
+            "state": "Active",
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "service_kind": "lambda",
+            "correlation_anchors": [
+              "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo-zip"
+            ],
+            "attributes": {
+              "package_type": "Zip",
+              "code_sha256": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+              "version": "$LATEST",
+              "role_arn": "arn:aws:iam::123456789012:role/supply-chain-demo-lambda-role"
+            }
+          }
         }
       ]
     }

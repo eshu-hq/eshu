@@ -146,6 +146,41 @@ func TestCloudInventoryRecordFromRowAWSLambdaAllowlistFiltersRawKeys(t *testing.
 	}
 }
 
+// TestCloudInventoryRecordFromRowAWSLambdaAllowlistSurfacesPackageType proves
+// the AWS allowlist surfaces the bounded Lambda package_type discriminator
+// ("Zip") alongside code_sha256 (issue #5454), so the cloud-inventory readback
+// can attach the zip-Lambda deployment-code correlation limitation. It still
+// drops raw locator keys on the same payload.
+func TestCloudInventoryRecordFromRowAWSLambdaAllowlistSurfacesPackageType(t *testing.T) {
+	t.Parallel()
+
+	arn := "arn:aws:lambda:us-east-1:000000000000:function:demo-zip"
+	payload := []byte(`{
+		"arn":"` + arn + `",
+		"resource_type":"aws_lambda_function",
+		"attributes":{
+			"package_type":"Zip",
+			"code_sha256":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+			"version":"$LATEST",
+			"role_arn":"arn:aws:iam::000000000000:role/demo-lambda-role"
+		}
+	}`)
+
+	record, ok := cloudInventoryRecordFromRow(facts.AWSResourceFactKind, arn, payload)
+	if !ok {
+		t.Fatal("cloudInventoryRecordFromRow() ok = false, want true")
+	}
+	if got := record.Attributes["package_type"]; got != "Zip" {
+		t.Fatalf("Attributes[\"package_type\"] = %#v, want \"Zip\"", got)
+	}
+	if got := record.Attributes["code_sha256"]; got != "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" {
+		t.Fatalf("Attributes[\"code_sha256\"] = %#v, want the synthetic base64 value", got)
+	}
+	if _, present := record.Attributes["role_arn"]; present {
+		t.Fatalf("raw key role_arn must be dropped, got %#v", record.Attributes["role_arn"])
+	}
+}
+
 // TestCloudInventoryRecordFromRowAWSAllowlistDropsNestedObjectUnderScalarKey is
 // a P1 regression guard (hostile review finding #1, issue #5449): a malformed
 // payload that puts a nested JSON object under an allowlisted SCALAR key
