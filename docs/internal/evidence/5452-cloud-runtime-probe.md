@@ -30,9 +30,14 @@ tier.
   scoped-token (see Scope authorization below).
 - **Query shape / bound:** `MATCH (n:CloudResource) WHERE n.running_image_digest
   IN $digests AND coalesce(n.arn,'') <> '' RETURN n.running_image_digest,
-  n.arn`. The `$digests` list is deduplicated and hard-capped at
-  `supplyChainCloudRuntimeProbeMaxDigests = 200`, so a large page can never
-  issue an unbounded IN-list.
+  n.arn LIMIT $limit`. The `$digests` list is deduplicated and hard-capped at
+  `supplyChainCloudRuntimeProbeMaxDigests = 200`, and the result set is bounded
+  by `LIMIT supplyChainCloudRuntimeProbeMaxResults = 200`, so neither the
+  IN-list nor the returned rows can grow unbounded. Registered as a bounded
+  `label_inventory` read (label CloudResource, max_results 200) in
+  `go/internal/queryplan/testdata/query-source-coverage.yaml` — the same typed
+  non-hot classification the sibling `cloud_resource_owner_backfill.go`
+  CloudResource label read uses — so the query-plan-regression gate covers it.
 - **Backend/version:** NornicDB (default graph backend), pinned image per
   `docs/public/run-locally/docker-compose.yaml`.
 - **Why safe (scan class):** the query is **label-anchored** on `CloudResource`,

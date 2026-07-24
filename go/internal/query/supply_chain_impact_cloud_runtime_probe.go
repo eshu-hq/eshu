@@ -29,6 +29,16 @@ import (
 // silent wrong answer).
 const supplyChainCloudRuntimeProbeMaxDigests = 200
 
+// supplyChainCloudRuntimeProbeMaxResults bounds the total rows the probe's
+// CloudResource label read returns, so a single vulnerable image running on an
+// unusually large fleet can never return an unbounded ARN set. The probe is a
+// bounded label-inventory read (registered as such in
+// go/internal/queryplan/testdata/query-source-coverage.yaml), and this LIMIT is
+// the max_results bound that classification declares. It is generous relative
+// to how many distinct cloud resources realistically run one page's affected
+// digests; refs beyond it are truncated (a bounded, documented limit).
+const supplyChainCloudRuntimeProbeMaxResults = 200
+
 // probeSupplyChainCloudRuntimeResources maps each given finding subject digest
 // to the observed cloud resources (CloudResource graph nodes) whose
 // running_image_digest equals that digest — the runtime-observed deployment
@@ -67,8 +77,12 @@ func (h *SupplyChainHandler) probeSupplyChainCloudRuntimeResources(
 		  AND coalesce(n.arn, '') <> ''
 		RETURN n.running_image_digest AS digest,
 		       n.arn AS arn
+		LIMIT $limit
 	`
-	rows, err := h.Neo4j.Run(ctx, cypher, map[string]any{"digests": deduped})
+	rows, err := h.Neo4j.Run(ctx, cypher, map[string]any{
+		"digests": deduped,
+		"limit":   supplyChainCloudRuntimeProbeMaxResults,
+	})
 	if err != nil {
 		span.RecordError(err)
 		return nil, err
