@@ -21,7 +21,17 @@ import (
 // multi-cycle claims against an in-memory runwatermark.Store, proving the
 // cross-cycle gap is detected (not silently lost), the watermark advances
 // and is fenced, and a stale/duplicate claim cannot regress it. See
-// run_watermark_test.go for the pure detectRunBackfillGap unit tests.
+// run_watermark_test.go for the pure detectRunBackfillGap unit tests and
+// source_watermark_commit_ordering_test.go for the #5429 commit-ordering
+// regression proof (a claim cycle whose commit fails must not advance the
+// watermark).
+//
+// The watermark only advances from ObserveClaimedGenerationCommitted, not
+// from NextClaimed itself (see run_watermark.go's saveWatermark doc
+// comment), so every multi-cycle test below calls
+// source.ObserveClaimedGenerationCommitted after a cycle that is meant to
+// model a successfully committed generation, mirroring exactly what
+// collector.ClaimedService does after a real commit succeeds.
 
 func watermarkTestClaim(generationID string, fencingToken int64) workflow.WorkItem {
 	return workflow.WorkItem{
@@ -98,13 +108,19 @@ func TestClaimedSourceDetectsCrossCycleBackfillGap(t *testing.T) {
 		t.Fatalf("NewClaimedSource() error = %v, want nil", err)
 	}
 
-	firstCollected, ok, err := source.NextClaimed(context.Background(), watermarkTestClaim("generation-1", 1))
+	cycle1Claim := watermarkTestClaim("generation-1", 1)
+	firstCollected, ok, err := source.NextClaimed(context.Background(), cycle1Claim)
 	if err != nil || !ok {
 		t.Fatalf("NextClaimed() [cycle 1] = %v, %v, %v, want nil error and ok=true", firstCollected, ok, err)
 	}
 	firstEnvelopes := drainFacts(t, firstCollected.Facts)
 	if hasFactKind(firstEnvelopes, facts.CICDWarningFactKind) {
 		t.Fatal("cycle 1 must not emit a ci.warning fact: it is the first-ever claim with no watermark to compare against")
+	}
+	// Model cycle 1's commit succeeding: only this call durably advances the
+	// watermark (#5429), so cycle 2 below compares against a real baseline.
+	if err := source.ObserveClaimedGenerationCommitted(context.Background(), cycle1Claim); err != nil {
+		t.Fatalf("ObserveClaimedGenerationCommitted() [cycle 1] error = %v, want nil", err)
 	}
 
 	secondCollected, ok, err := source.NextClaimed(context.Background(), watermarkTestClaim("generation-2", 2))
@@ -150,8 +166,15 @@ func TestClaimedSourceSteadyStateDoesNotFalselyReportGap(t *testing.T) {
 		t.Fatalf("NewClaimedSource() error = %v, want nil", err)
 	}
 
-	if _, _, err := source.NextClaimed(context.Background(), watermarkTestClaim("generation-1", 1)); err != nil {
+	cycle1Claim := watermarkTestClaim("generation-1", 1)
+	if _, _, err := source.NextClaimed(context.Background(), cycle1Claim); err != nil {
 		t.Fatalf("NextClaimed() [cycle 1] error = %v, want nil", err)
+	}
+	// Model cycle 1's commit succeeding so a real watermark baseline exists
+	// before cycle 2 -- otherwise this test would trivially pass with
+	// hasWatermark=false regardless of the fix under test.
+	if err := source.ObserveClaimedGenerationCommitted(context.Background(), cycle1Claim); err != nil {
+		t.Fatalf("ObserveClaimedGenerationCommitted() [cycle 1] error = %v, want nil", err)
 	}
 	second, ok, err := source.NextClaimed(context.Background(), watermarkTestClaim("generation-2", 2))
 	if err != nil || !ok {
@@ -163,11 +186,14 @@ func TestClaimedSourceSteadyStateDoesNotFalselyReportGap(t *testing.T) {
 }
 
 // TestClaimedSourcePropagatesStaleWatermarkFence proves the fencing half of
-// the concurrency matrix: a claim retried with an OLDER fencing token than
-// one the store already recorded (e.g. a superseded worker retrying after a
-// newer claim already advanced the watermark) must fail the claim rather
-// than silently regress the watermark. NextClaimed must surface the store's
-// ErrStaleFence, and the stored watermark must remain unchanged.
+// the concurrency matrix: a claim whose commit is observed with an OLDER
+// fencing token than one the store already recorded (e.g. a superseded
+// worker's commit landing after a newer claim's commit already advanced the
+// watermark) must fail rather than silently regress the watermark. Since
+// #5429 moved the durable write from NextClaimed to
+// ObserveClaimedGenerationCommitted, NextClaimed itself never touches the
+// store and always succeeds; ErrStaleFence now surfaces from the observer
+// call instead, and the stored watermark must remain unchanged.
 func TestClaimedSourcePropagatesStaleWatermarkFence(t *testing.T) {
 	t.Parallel()
 
@@ -186,13 +212,21 @@ func TestClaimedSourcePropagatesStaleWatermarkFence(t *testing.T) {
 		t.Fatalf("NewClaimedSource() error = %v, want nil", err)
 	}
 
-	if _, _, err := source.NextClaimed(context.Background(), watermarkTestClaim("generation-2", 5)); err != nil {
+	higherFenceClaim := watermarkTestClaim("generation-2", 5)
+	if _, _, err := source.NextClaimed(context.Background(), higherFenceClaim); err != nil {
 		t.Fatalf("NextClaimed() [higher fence first] error = %v, want nil", err)
 	}
+	if err := source.ObserveClaimedGenerationCommitted(context.Background(), higherFenceClaim); err != nil {
+		t.Fatalf("ObserveClaimedGenerationCommitted() [higher fence first] error = %v, want nil", err)
+	}
 
-	_, _, err = source.NextClaimed(context.Background(), watermarkTestClaim("generation-1", 3))
+	lowerFenceClaim := watermarkTestClaim("generation-1", 3)
+	if _, _, err := source.NextClaimed(context.Background(), lowerFenceClaim); err != nil {
+		t.Fatalf("NextClaimed() [stale fence retry] error = %v, want nil (NextClaimed no longer touches the store)", err)
+	}
+	err = source.ObserveClaimedGenerationCommitted(context.Background(), lowerFenceClaim)
 	if !errors.Is(err, runwatermark.ErrStaleFence) {
-		t.Fatalf("NextClaimed() [stale fence retry] error = %v, want ErrStaleFence", err)
+		t.Fatalf("ObserveClaimedGenerationCommitted() [stale fence retry] error = %v, want ErrStaleFence", err)
 	}
 
 	got, ok, loadErr := store.Load(context.Background(), runwatermark.Key{
@@ -207,8 +241,8 @@ func TestClaimedSourcePropagatesStaleWatermarkFence(t *testing.T) {
 }
 
 // TestClaimedSourceIdempotentRetryReusesSameFenceWithoutError proves the
-// duplicate-delivery case: a retried claim carrying the SAME generation and
-// fencing token as the one that already wrote the watermark (e.g. the
+// duplicate-delivery case: an observed commit carrying the SAME generation
+// and fencing token as the one that already wrote the watermark (e.g. the
 // commit succeeded but the claim runner redelivered before acking) must
 // succeed, not be treated as a stale fence.
 func TestClaimedSourceIdempotentRetryReusesSameFenceWithoutError(t *testing.T) {
@@ -232,8 +266,14 @@ func TestClaimedSourceIdempotentRetryReusesSameFenceWithoutError(t *testing.T) {
 	if _, _, err := source.NextClaimed(context.Background(), claim); err != nil {
 		t.Fatalf("NextClaimed() [first delivery] error = %v, want nil", err)
 	}
+	if err := source.ObserveClaimedGenerationCommitted(context.Background(), claim); err != nil {
+		t.Fatalf("ObserveClaimedGenerationCommitted() [first delivery] error = %v, want nil", err)
+	}
 	if _, _, err := source.NextClaimed(context.Background(), claim); err != nil {
 		t.Fatalf("NextClaimed() [redelivery, same fence] error = %v, want nil", err)
+	}
+	if err := source.ObserveClaimedGenerationCommitted(context.Background(), claim); err != nil {
+		t.Fatalf("ObserveClaimedGenerationCommitted() [redelivery, same fence] error = %v, want nil", err)
 	}
 }
 

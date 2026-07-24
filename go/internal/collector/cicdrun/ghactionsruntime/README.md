@@ -20,6 +20,20 @@ window's floor are never fetched by either cycle. Before #5429 that loss was
 completely silent. Watermarks is optional and nil-safe -- a nil `Store` skips
 gap detection entirely, matching `awsruntime.ClaimedSource.Checkpoints`.
 
+The watermark itself only advances AFTER a claim cycle's facts have durably
+committed, never inside `NextClaimed`. `NextClaimed` stashes the newest
+observed run ID in an in-memory staging map (`pending_watermark.go`);
+`ClaimedSource.ObserveClaimedGenerationCommitted`
+(`source_commit_observer.go`) is what persists it, and
+`collector.ClaimedService` calls that method exactly once, right after the
+commit it describes has succeeded. An earlier version of this package saved
+the watermark directly on `NextClaimed`'s own success path, independent of
+whether the commit later failed -- so a retryable commit failure followed by
+a retry of the same work item compared its re-fetched window against an
+already-advanced watermark and silently stopped re-detecting the very gap
+the watermark exists to catch. That commit-ordering bug is what this
+watermark-staging split fixes.
+
 The package does not read artifact ZIP contents, workflow logs, secrets, graph
 state, or query state. Reducers decide whether emitted run and artifact evidence
 proves a source-to-image bridge.
@@ -40,6 +54,12 @@ See `doc.go` for the godoc contract. Callers use:
 - `SourceConfig`, `TargetConfig`, and `NewClaimedSource` to construct a
   claim-aware source.
 - `ClaimedSource.NextClaimed` to resolve one `workflow.WorkItem`.
+- `ClaimedSource.ObserveClaimedGenerationCommitted` implements
+  `collector.ClaimedGenerationCommitObserver` (#5429): `collector.ClaimedService`
+  calls it once, after a claim cycle's facts commit durably, to persist the
+  watermark that cycle's `NextClaimed` staged. Callers should not invoke it
+  directly outside tests -- it exists for `collector.ClaimedService`'s
+  post-commit hook, not as a general-purpose API.
 - `Client`, `GitHubClient`, `RunSnapshot`, and `RunPage` to fetch or provide a
   bounded window of GitHub Actions runtime data (`Client.FetchRuns` returns one
   `RunPage`, which carries one `RunSnapshot` per fetched run plus a `Truncated`

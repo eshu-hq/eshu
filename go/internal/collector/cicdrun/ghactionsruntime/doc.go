@@ -18,4 +18,13 @@
 // gap: when more than max_runs runs land between two cycles, runs between
 // the previous watermark and the new window's floor were never fetched by
 // either cycle. See run_watermark.go.
+//
+// The watermark only advances after a claim cycle's facts have durably
+// committed: NextClaimed stashes the observed newest run ID
+// (pending_watermark.go), and ClaimedSource.ObserveClaimedGenerationCommitted
+// (source_commit_observer.go) persists it once collector.ClaimedService
+// confirms the commit succeeded. This ordering fixes #5429: saving the
+// watermark on NextClaimed's own success path, independent of whether the
+// commit later succeeded, let a retried claim silently stop re-detecting a
+// gap it had already correctly detected once.
 package ghactionsruntime

@@ -115,6 +115,10 @@ type ClaimedSource struct {
 	tracer              trace.Tracer
 	instruments         *telemetry.Instruments
 	watermarks          runwatermark.Store
+	// pending stages each claim cycle's not-yet-durable watermark between
+	// NextClaimed and ObserveClaimedGenerationCommitted (#5429). See
+	// pending_watermark.go and source_commit_observer.go.
+	pending *pendingWatermarks
 }
 
 // NewClaimedSource validates source configuration and returns a claim-aware
@@ -152,6 +156,7 @@ func NewClaimedSource(config SourceConfig) (ClaimedSource, error) {
 		tracer:              config.Tracer,
 		instruments:         config.Instruments,
 		watermarks:          config.Watermarks,
+		pending:             newPendingWatermarks(),
 	}, nil
 }
 
@@ -232,10 +237,12 @@ func (s ClaimedSource) NextClaimed(
 		recordSpanError(observeSpan, err)
 		return collector.CollectedGeneration{}, false, err
 	}
-	if err := s.saveWatermark(observeCtx, item, target, newestRunID); err != nil {
-		recordSpanError(observeSpan, err)
-		return collector.CollectedGeneration{}, false, err
-	}
+	// #5429: stash, do not save. The durable watermark write happens in
+	// ObserveClaimedGenerationCommitted, once collector.ClaimedService
+	// confirms this generation's facts committed -- never here, where the
+	// eventual commit outcome is not yet known. See
+	// source_commit_observer.go and pending_watermark.go.
+	s.pending.stash(item, target, newestRunID)
 	return collector.FactsFromSlice(scopeValue, generationValue, envelopes), true, nil
 }
 

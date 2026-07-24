@@ -43,18 +43,28 @@ func (s ClaimedSource) loadWatermark(ctx context.Context, target TargetConfig) (
 	return value, ok, nil
 }
 
-// saveWatermark records the newest run ID this claim cycle observed at the
-// source, fenced by the claim's generation and fencing token so a
+// saveWatermark durably persists the newest run ID one claim cycle observed
+// at the source, fenced by the claim's generation and fencing token so a
 // superseded claim retry cannot regress the watermark past a newer claim's
 // progress. It is nil-safe (see loadWatermark) and a no-op when the fetched
 // window was empty.
 //
-// Saving here does not depend on whether the returned generation later
-// commits successfully: the watermark tracks what THIS SOURCE fetched, and a
-// failed commit is handled by the existing idempotent-refetch design (a
-// retried claim re-fetches the same window and re-saves the same or a newer
-// watermark; StableFactKey per run makes that upsert-safe regardless of
-// watermark state).
+// saveWatermark itself does not know or care whether the commit describing
+// that window has happened -- its ONLY caller,
+// ClaimedSource.ObserveClaimedGenerationCommitted
+// (source_commit_observer.go), is what guarantees this only runs once that
+// commit is durable. collector.ClaimedService invokes that observer exactly
+// once per claim cycle, immediately after the commit succeeds (#5429).
+//
+// NextClaimed must NEVER call saveWatermark directly. Before #5429 it did:
+// saving here on NextClaimed's own success path advanced the watermark
+// before the commit it was meant to describe was known to have landed, so a
+// retryable commit failure followed by a retry of the SAME work item
+// compared the retry's re-fetched window against an ALREADY-ADVANCED
+// watermark and silently stopped re-detecting the very gap the watermark
+// exists to catch. NextClaimed now only stashes the observed newest run ID
+// (pending_watermark.go's pendingWatermarks) for this method to pick up
+// later.
 func (s ClaimedSource) saveWatermark(
 	ctx context.Context,
 	item workflow.WorkItem,
