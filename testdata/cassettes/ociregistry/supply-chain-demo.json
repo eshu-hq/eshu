@@ -110,49 +110,6 @@
               "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
             ]
           }
-        },
-        {
-          "fact_kind": "oci_registry.image_manifest",
-          "stable_fact_key": "oci_registry:ghcr.io:eshu-hq:supply-chain-demo:sha256:cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc1",
-          "schema_version": "1.0.0",
-          "collector_kind": "oci_registry",
-          "fencing_token": 1,
-          "source_confidence": "observed",
-          "payload": {
-            "collector_instance_id": "oci-collector-scd",
-            "provider": "ghcr",
-            "registry": "ghcr.io",
-            "repository": "eshu-hq/supply-chain-demo",
-            "repository_id": "oci-registry://ghcr.io/eshu-hq/supply-chain-demo",
-            "descriptor_id": "oci-descriptor://ghcr.io/eshu-hq/supply-chain-demo@sha256:cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc1",
-            "digest": "sha256:cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc1",
-            "media_type": "application/vnd.oci.image.manifest.v1+json",
-            "artifact_type": "",
-            "source_tag": "5150-ci",
-            "config": {
-              "digest": "sha256:cc11config234567890abcdef1234567890abcdef1234567890abcdef123456",
-              "media_type": "application/vnd.oci.image.config.v1+json",
-              "size_bytes": 4096,
-              "artifact_type": "",
-              "annotations": null,
-              "platform": null
-            },
-            "layers": [
-              {
-                "digest": "sha256:cc11layer0234567890abcdef1234567890abcdef1234567890abcdef123456",
-                "media_type": "application/vnd.oci.image.layer.v1.tar+gzip",
-                "size_bytes": 78170112,
-                "artifact_type": "",
-                "annotations": null,
-                "platform": null
-              }
-            ],
-            "size_bytes": 78174208,
-            "correlation_anchors": [
-              "oci-registry://ghcr.io/eshu-hq/supply-chain-demo",
-              "sha256:cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc1"
-            ]
-          }
         }
       ]
     },

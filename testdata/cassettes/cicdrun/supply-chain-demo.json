@@ -58,10 +58,10 @@
             "artifact_id": "art-image-5150",
             "artifact_name": "supply-chain-demo-image",
             "artifact_type": "container_image",
-            "artifact_digest": "sha256:cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc1",
+            "artifact_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
             "correlation_anchors": [
               "github_actions::5150",
-              "sha256:cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc11cc1"
+              "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
             ]
           }
         }
