@@ -26,7 +26,8 @@ tier.
   graph reads (Postgres reducer read model only).
 - **After:** the list gains exactly **one** graph round-trip per page — a single
   batched query, never per-finding (no N+1). It is skipped entirely when the
-  page has no subject digest or no graph port is wired.
+  page has no subject digest, no graph port is wired, or the caller is
+  scoped-token (see Scope authorization below).
 - **Query shape / bound:** `MATCH (n:CloudResource) WHERE n.running_image_digest
   IN $digests AND coalesce(n.arn,'') <> '' RETURN n.running_image_digest,
   n.arn`. The `$digests` list is deduplicated and hard-capped at
@@ -43,16 +44,43 @@ tier.
   hanging full scan. Cost is bounded by the cloud-inventory `CloudResource`
   node count (the label subset), not the whole graph, and is paid once per
   page.
-- **Failure mode:** a probe error is propagated (HTTP 500), never swallowed, so
-  the surface never serves a false `config_only` for a vulnerability that is
-  actually running. A nil graph port degrades cleanly to CI/config tiers.
-- **Terminal counts (B-7 live golden gate, 20-repo demo corpus):** the
-  supply-chain-demo scope has 118 `CloudResource` nodes, 3 of which carry a
-  `running_image_digest`; the probe resolves the scanned vulnerable digest
-  `sha256:...901a` to the one ECS task running it, and the finding classifies
+- **Failure mode:** a probe error is propagated, never swallowed, and mapped by
+  the findings handler through `WriteGraphReadError` to a bounded, retryable
+  graph-availability envelope (503 unavailable / 504 timeout, sanitized — the
+  raw graph error is never echoed to the client), falling back to a sanitized
+  500 for other errors. Accuracy-first rationale: the `deployment_truth_tier` is
+  a security signal, so serving a wrong `config_only` for a vulnerability that
+  is actually running is worse than a retryable error. This is a deliberate
+  accuracy-over-availability judgment for this tier; a nil graph port (unwired
+  profile) still degrades cleanly to CI/config tiers.
+- **Terminal counts (B-7 live golden gate run6, 20-repo demo corpus):** the
+  supply-chain-demo scope has 118 `CloudResource` nodes, 2 of which carry a
+  non-empty `running_image_digest` (the ECS task and the image-package Lambda; the synthetic 66-hex demo digest is a pre-existing corpus issue tracked in #5788);
+  the probe resolves the finding's subject digest
+  `sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab`
+  (CVE-2026-00010) to the one ECS task running it, and the finding classifies
   `runtime_confirmed`. Asserted non-vacuously (minimum_results>=1) by the
-  `GET /api/v0/supply-chain/impact/findings?subject_digest=sha256:...901a`
-  query shape in `testdata/golden/e2e-20repo-snapshot.json`.
+  `GET /api/v0/supply-chain/impact/findings?subject_digest=sha256:abcdef...ab&profile=comprehensive`
+  query shape in `testdata/golden/e2e-20repo-snapshot.json` — the comprehensive
+  profile is required because the finding is comprehensive-tier and the findings
+  list defaults to precise. Result: `PASS: B-7 golden corpus gate green`,
+  493 pass / 0 required-fail.
+
+## Scope authorization:
+
+`CloudResource` graph nodes carry no `scope_id`
+(`go/internal/storage/cypher/cloud_resource_node_writer.go`), so authorization
+for them runs through the Postgres owner ledger — the sibling
+`listCloudResources` restricts to `ListCloudResourceIdentities` before hydrating
+the graph. This probe reads the graph directly by digest and cannot apply that
+per-resource authorization, so it is **skipped for scoped-token callers**
+(`access.scoped()`): a scoped caller keeps its finding's CI-declared/config tier
+rather than being shown ARNs of cloud resources in scopes it is not granted.
+Unrestricted (all-scope/admin) callers, whose grants already span every scope,
+get the full runtime enrichment. Proven by
+`TestApplySupplyChainCloudRuntimeEvidenceSkipsScopedCaller`. Follow-up:
+owner-ledger authorization so authorized scoped callers also receive the runtime
+tier (#5787).
 
 ## Observability Evidence:
 

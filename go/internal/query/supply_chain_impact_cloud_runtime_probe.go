@@ -102,13 +102,33 @@ func (h *SupplyChainHandler) probeSupplyChainCloudRuntimeResources(
 // findings as runtime_confirmed. Rows with no subject digest, or whose digest is
 // not observed running on any cloud resource, are left untouched (their tier
 // stays CI-declared or config-only). The probe error is propagated so the read
-// fails loudly rather than serving a false config_only tier for a vulnerability
-// that is actually running.
+// fails loudly (mapped to a bounded, retryable graph-availability error by the
+// caller) rather than serving a false config_only tier for a vulnerability that
+// is actually running.
+//
+// Scope authorization: CloudResource graph nodes carry no scope_id (see
+// go/internal/storage/cypher/cloud_resource_node_writer.go), so authorization
+// for them runs through the Postgres owner ledger — the sibling
+// listCloudResources restricts to ListCloudResourceIdentities before hydrating
+// the graph. This probe reads the graph directly by digest and cannot apply
+// that per-resource authorization, so for a scoped-token caller it would
+// otherwise surface ARNs (account_id + region + resource name) of cloud
+// resources in scopes the caller is not granted. Until the probe authorizes
+// matched resources through the owner ledger, a SCOPED caller gets no
+// runtime-observed cloud evidence — the finding keeps its CI-declared/config
+// tier rather than leaking cross-scope infrastructure. Unrestricted (all-scope
+// / admin) callers, whose grants already span every scope, get the full runtime
+// enrichment. Follow-up: owner-ledger authorization so authorized scoped
+// callers also receive the runtime tier (#5787).
 func (h *SupplyChainHandler) applySupplyChainCloudRuntimeEvidence(
 	ctx context.Context,
+	access repositoryAccessFilter,
 	rows []SupplyChainImpactFindingRow,
 ) error {
 	if h == nil || h.Neo4j == nil || len(rows) == 0 {
+		return nil
+	}
+	if access.scoped() {
 		return nil
 	}
 	digests := make([]string, 0, len(rows))

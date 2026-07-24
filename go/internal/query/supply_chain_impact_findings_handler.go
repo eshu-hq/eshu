@@ -136,10 +136,17 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 	// #5452: promote findings whose subject digest is observed running on a
 	// live cloud resource (ECS task / image-package Lambda) to the
 	// runtime_confirmed deployment_truth_tier, naming the running resource. The
-	// probe is bounded to the page's digests and fails the read loudly rather
-	// than serving a false config_only tier for a vulnerability that is running.
-	if err := h.applySupplyChainCloudRuntimeEvidence(r.Context(), rows); err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+	// probe is scope-authorized (skipped for scoped-token callers) and bounded
+	// to the page's digests. A probe error is mapped to a bounded, retryable
+	// graph-availability envelope (503/504) rather than serving a false
+	// config_only tier for a vulnerability that is actually running — the
+	// findings tier is a security signal, so a wrong tier is worse than a
+	// retryable error. The raw graph error is never echoed to the client.
+	if err := h.applySupplyChainCloudRuntimeEvidence(r.Context(), access, rows); err != nil {
+		if WriteGraphReadError(w, r, err, supplyChainImpactFindingsCapability) {
+			return
+		}
+		WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime evidence probe failed")
 		return
 	}
 	results := make([]SupplyChainImpactFindingResult, 0, len(rows))

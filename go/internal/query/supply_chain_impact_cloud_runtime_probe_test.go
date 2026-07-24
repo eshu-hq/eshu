@@ -56,7 +56,7 @@ func TestApplySupplyChainCloudRuntimeEvidencePromotesRunningDigest(t *testing.T)
 		{FindingID: "f-running", SubjectDigest: runningDigest, EvidencePath: []string{cicdRunCorrelationFactKind}},
 		{FindingID: "f-notrunning", SubjectDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", EvidencePath: []string{cicdRunCorrelationFactKind}},
 	}
-	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), rows); err != nil {
+	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err != nil {
 		t.Fatalf("applySupplyChainCloudRuntimeEvidence() error = %v, want nil", err)
 	}
 
@@ -87,8 +87,42 @@ func TestApplySupplyChainCloudRuntimeEvidencePropagatesProbeError(t *testing.T) 
 	handler := &SupplyChainHandler{Neo4j: graph}
 	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: "sha256:cc"}}
 
-	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), rows); err == nil {
+	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err == nil {
 		t.Fatal("applySupplyChainCloudRuntimeEvidence() error = nil, want the probe error propagated (never a silent false config_only)")
+	}
+}
+
+// TestApplySupplyChainCloudRuntimeEvidenceSkipsScopedCaller is the #5452 F1
+// scope-authorization proof: a scoped-token caller must NOT receive
+// runtime-observed cloud evidence, because CloudResource graph nodes carry no
+// scope_id and the probe cannot authorize matched resources through the owner
+// ledger — surfacing them would leak ARNs of cloud resources in scopes the
+// caller is not granted. The probe is skipped entirely (no graph query issued)
+// and the finding keeps its non-runtime tier.
+func TestApplySupplyChainCloudRuntimeEvidenceSkipsScopedCaller(t *testing.T) {
+	t.Parallel()
+
+	runningDigest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	graph := &stubCloudRuntimeGraph{
+		rowsByDigest: map[string][]map[string]any{
+			runningDigest: {cloudResourceGraphRow(runningDigest, "arn:aws:ecs:us-east-1:123456789012:task/demo/aaaaaaaa")},
+		},
+	}
+	handler := &SupplyChainHandler{Neo4j: graph}
+	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: runningDigest, EvidencePath: []string{cicdRunCorrelationFactKind}}}
+
+	scoped := repositoryAccessFilter{allowedRepositoryIDs: []string{"repository:r_only"}}
+	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), scoped, rows); err != nil {
+		t.Fatalf("applySupplyChainCloudRuntimeEvidence(scoped) error = %v, want nil", err)
+	}
+	if len(rows[0].CloudRuntimeResourceRefs) != 0 {
+		t.Fatalf("scoped caller CloudRuntimeResourceRefs = %#v, want none (no cross-scope ARN leak)", rows[0].CloudRuntimeResourceRefs)
+	}
+	if len(graph.gotDigests) != 0 {
+		t.Fatalf("scoped caller issued a graph probe (digests %#v); it must be skipped entirely", graph.gotDigests)
+	}
+	if tier := buildSupplyChainImpactFindingResult(rows[0]).DeploymentTruthTier; tier != "provenance_ci_declared" {
+		t.Fatalf("scoped caller tier = %q, want provenance_ci_declared (CI-declared, not runtime)", tier)
 	}
 }
 
@@ -97,7 +131,7 @@ func TestApplySupplyChainCloudRuntimeEvidenceNilGraphIsNoOp(t *testing.T) {
 
 	handler := &SupplyChainHandler{}
 	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: "sha256:cc"}}
-	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), rows); err != nil {
+	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err != nil {
 		t.Fatalf("applySupplyChainCloudRuntimeEvidence() with nil graph error = %v, want nil", err)
 	}
 	if len(rows[0].CloudRuntimeResourceRefs) != 0 {
