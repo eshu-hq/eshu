@@ -97,7 +97,7 @@ const openAPIPathsInfrastructure = `
                   "relationship_type": {
                     "type": "string",
                     "description": "Optional relationship filter. Semantic alias or canonical edge type; omit for all relationships.",
-                    "enum": ["what_deploys", "what_provisions", "who_consumes_xrd", "module_consumers", "what_runs_image", "DEPLOYS_FROM", "DEPLOYMENT_SOURCE", "HAS_DEPLOYMENT_EVIDENCE", "PROVISIONS_DEPENDENCY_FOR", "PROVISIONS_PLATFORM", "USES_MODULE", "DEPENDS_ON", "INSTANCE_OF", "RUNS_ON", "RUNS_IMAGE", "DISCOVERS_CONFIG_IN", "READS_CONFIG_FROM", "DEFINES"]
+                    "enum": ["what_deploys", "what_provisions", "who_consumes_xrd", "module_consumers", "what_runs_image", "DEPLOYS_FROM", "DEPLOYMENT_SOURCE", "HAS_DEPLOYMENT_EVIDENCE", "PROVISIONS_DEPENDENCY_FOR", "PROVISIONS_PLATFORM", "USES_MODULE", "DEPENDS_ON", "INSTANCE_OF", "RUNS_ON", "RUNS_IMAGE", "AWS_lambda_function_uses_image", "DISCOVERS_CONFIG_IN", "READS_CONFIG_FROM", "DEFINES"]
                   }
                 }
               }

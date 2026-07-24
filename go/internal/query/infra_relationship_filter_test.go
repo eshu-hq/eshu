@@ -109,6 +109,31 @@ func TestInfraRelationshipsAcceptsCanonicalEdgeType(t *testing.T) {
 	}
 }
 
+// TestInfraRelationshipsAcceptsMixedCaseCanonicalEdgeType proves the new
+// AWS_lambda_function_uses_image edge (#5450) is queryable by its own
+// relationship type. Its stored spelling is mixed-case, unlike every other
+// canonical edge; resolveInfraRelationshipTypes upper-cases the input for a
+// case-insensitive match but must render the exact stored case into the Cypher
+// filter, or the read would bound to a type the graph does not have and return
+// nothing. Both the exact spelling and an upper-cased request must resolve to
+// the same stored-case filter (#5450 P2 review).
+func TestInfraRelationshipsAcceptsMixedCaseCanonicalEdgeType(t *testing.T) {
+	t.Parallel()
+
+	for _, requested := range []string{
+		"AWS_lambda_function_uses_image",
+		"AWS_LAMBDA_FUNCTION_USES_IMAGE",
+	} {
+		rec, cypher := runFilterCase(t, `{"entity_id":"cloudresource:lambda","relationship_type":"`+requested+`"}`)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s status = %d, want %d; body=%s", requested, rec.Code, http.StatusOK, rec.Body.String())
+		}
+		if !strings.Contains(cypher, ":AWS_lambda_function_uses_image") {
+			t.Fatalf("%s cypher = %q, want a stored-case :AWS_lambda_function_uses_image filter", requested, cypher)
+		}
+	}
+}
+
 // TestInfraRelationshipsScopedFilterCoexistsWithGrantPredicate proves the
 // inline relationship-type filter and the scoped-token grant WHERE both render
 // into one valid query: the typed pattern carries the edge filter and the
