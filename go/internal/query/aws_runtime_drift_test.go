@@ -284,3 +284,46 @@ func TestHandleAWSRuntimeDriftFindingsRequiresBoundedScope(t *testing.T) {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
 }
+
+func TestHandleAWSRuntimeDriftFindingsAcceptsEachOpenAPIAnyOfScope(t *testing.T) {
+	tests := []struct {
+		name        string
+		body        string
+		wantAccount string
+		wantScope   string
+	}{
+		{
+			name:        "account_id",
+			body:        `{"account_id":"123456789012"}`,
+			wantAccount: "123456789012",
+		},
+		{
+			name:      "scope_id",
+			body:      `{"scope_id":"aws:123456789012:us-east-1:lambda"}`,
+			wantScope: "aws:123456789012:us-east-1:lambda",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var observed IaCManagementFilter
+			handler := &IaCHandler{
+				Profile:    ProfileLocalAuthoritative,
+				Management: fakeIaCManagementStore{observedFilter: &observed},
+			}
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+
+			request := httptest.NewRequest(http.MethodPost, "/api/v0/aws/runtime-drift/findings", bytes.NewBufferString(test.body))
+			request.Header.Set("Accept", EnvelopeMIMEType)
+			response := httptest.NewRecorder()
+			mux.ServeHTTP(response, request)
+
+			if got, want := response.Code, http.StatusOK; got != want {
+				t.Fatalf("status = %d, want %d body=%s", got, want, response.Body.String())
+			}
+			if observed.AccountID != test.wantAccount || observed.ScopeID != test.wantScope {
+				t.Fatalf("observed scope = account_id %q scope_id %q, want %q/%q", observed.AccountID, observed.ScopeID, test.wantAccount, test.wantScope)
+			}
+		})
+	}
+}

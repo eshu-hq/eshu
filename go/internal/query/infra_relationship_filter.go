@@ -111,6 +111,9 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 
 	row, err := h.Neo4j.RunSingle(r.Context(), cypher, params)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "platform_impact.deployment_chain") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

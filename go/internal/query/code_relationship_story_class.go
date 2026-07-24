@@ -26,6 +26,9 @@ func (h *CodeHandler) handleRepoScopedOverrideStory(
 			WriteError(w, http.StatusServiceUnavailable, err.Error())
 			return
 		}
+		if WriteGraphReadError(w, r, err, relationshipStoryCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

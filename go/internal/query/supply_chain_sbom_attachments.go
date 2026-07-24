@@ -108,7 +108,7 @@ func (h *SupplyChainHandler) listSBOMAttachments(w http.ResponseWriter, r *http.
 		h.writeEmptySBOMAttachmentPage(w, r, limit)
 		return
 	}
-	repositoryID, ok := h.resolveSBOMAttachmentRepositorySelector(w, r, QueryParam(r, "repository_id"), access)
+	repositoryID, ok := h.resolveSBOMAttachmentRepositorySelector(w, r, QueryParam(r, "repository_id"), access, sbomAttestationAttachmentsCapability)
 	if !ok {
 		return
 	}

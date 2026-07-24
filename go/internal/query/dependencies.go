@@ -136,6 +136,9 @@ func (h *DependenciesHandler) listDependencies(w http.ResponseWriter, r *http.Re
 	h.recordDuration(queryCtx, direction, startedAt)
 	if err != nil {
 		h.recordError(queryCtx, direction)
+		if WriteGraphReadError(w, r, err, dependenciesCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

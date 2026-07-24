@@ -22,6 +22,8 @@ const openAPIPathsSecurityAlerts = `
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Provider security alert reconciliation page. Provider alert state and Eshu impact state are separate fields.",
             "content": {

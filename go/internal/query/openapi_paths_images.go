@@ -18,6 +18,7 @@ const openAPIPathsImages = `
           {"name": "offset", "in": "query", "schema": {"type": "integer", "minimum": 0, "default": 0}, "description": "Row offset for continuation; use next_cursor.offset from a truncated page."}
         ],
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Container image rows",
             "content": {

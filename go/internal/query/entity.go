@@ -154,6 +154,9 @@ func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
 	if req.RepoID != "" {
 		resolvedRepoID, err := resolveRepositorySelectorExactForAccess(r.Context(), h.Neo4j, h.Content, req.RepoID, access)
 		if err != nil {
+			if WriteGraphReadError(w, r, err, "code_search.fuzzy_symbol") {
+				return
+			}
 			status := http.StatusBadRequest
 			if isRepositorySelectorNotFound(err) {
 				status = http.StatusNotFound
@@ -207,6 +210,9 @@ func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
 	if h.Neo4j != nil {
 		rows, err = h.Neo4j.Run(r.Context(), cypher, params)
 		if err != nil {
+			if WriteGraphReadError(w, r, err, "code_search.fuzzy_symbol") {
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 			return
 		}
@@ -239,6 +245,9 @@ func (h *EntityHandler) resolveEntity(w http.ResponseWriter, r *http.Request) {
 		attachSemanticSummary(entities[i])
 	}
 	if _, err := hydrateResolvedEntityRepoIdentity(r.Context(), h.Neo4j, h.Content, entities); err != nil {
+		if WriteGraphReadError(w, r, err, "code_search.fuzzy_symbol") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("hydrate entity repo identity: %v", err))
 		return
 	}
@@ -307,6 +316,9 @@ func (h *EntityHandler) getEntityContext(w http.ResponseWriter, r *http.Request)
 	if h.Neo4j != nil {
 		row, err = h.Neo4j.RunSingle(r.Context(), cypher, params)
 		if err != nil {
+			if WriteGraphReadError(w, r, err, "code_search.fuzzy_symbol") {
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 			return
 		}
@@ -344,6 +356,9 @@ func (h *EntityHandler) getEntityContext(w http.ResponseWriter, r *http.Request)
 		response["metadata"] = metadata
 	}
 	if _, err := hydrateResolvedEntityRepoIdentity(r.Context(), h.Neo4j, h.Content, []map[string]any{response}); err != nil {
+		if WriteGraphReadError(w, r, err, "code_search.fuzzy_symbol") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("hydrate entity repo identity: %v", err))
 		return
 	}
@@ -392,6 +407,9 @@ func (h *EntityHandler) getServiceContext(w http.ResponseWriter, r *http.Request
 
 	ctx, err := h.fetchServiceWorkloadContext(r.Context(), serviceName, "service_context")
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 		return
 	}
@@ -406,6 +424,9 @@ func (h *EntityHandler) getServiceContext(w http.ResponseWriter, r *http.Request
 		Operation:                 "service_context",
 	}); err != nil {
 		if writeContentSubstringIndexUnavailable(w, err) {
+			return
+		}
+		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
 			return
 		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich service context: %v", err))

@@ -131,6 +131,11 @@
 // query span counts for query volume, returned rows, evidence states, and
 // truncation without adding tenant, user, issue, URL, or summary values to
 // metric labels.
+// SpanAttrGraphReadOutcome, SpanAttrGraphReadAttempts, and
+// SpanAttrGraphReadConfiguredDeadlineMS describe the bounded Neo4jReader
+// policy. The shared outcome vocabulary distinguishes a graph-policy deadline
+// from an earlier caller deadline without recording query text, graph
+// addresses, or raw driver errors.
 // Callers must reuse existing log keys and Attr* helpers before adding new
 // names. High-cardinality values such as file paths, fact identifiers,
 // repository names, delivery IDs, source paths, and attribute keys belong in

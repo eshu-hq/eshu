@@ -32,6 +32,8 @@ const openAPIPathsCodeSecurity = `
           }
         },
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Redacted hardcoded secret investigation packet",
             "content": {

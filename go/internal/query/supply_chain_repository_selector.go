@@ -19,6 +19,7 @@ func (h *SupplyChainHandler) resolveSupplyChainRepositorySelector(
 	w http.ResponseWriter,
 	r *http.Request,
 	selector string,
+	capability string,
 ) (string, bool) {
 	selector = strings.TrimSpace(selector)
 	if selector == "" {
@@ -26,6 +27,9 @@ func (h *SupplyChainHandler) resolveSupplyChainRepositorySelector(
 	}
 	repoID, err := resolveRepositorySelectorExact(r.Context(), h.Neo4j, h.Content, selector)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, capability) {
+			return "", false
+		}
 		status := http.StatusBadRequest
 		if isRepositorySelectorNotFound(err) {
 			status = http.StatusNotFound
@@ -40,6 +44,7 @@ func (h *SupplyChainHandler) resolveSupplyChainSecurityAlertRepositorySelector(
 	w http.ResponseWriter,
 	r *http.Request,
 	selector string,
+	capability string,
 ) (string, []string, bool) {
 	selector = strings.TrimSpace(selector)
 	if selector == "" {
@@ -56,7 +61,7 @@ func (h *SupplyChainHandler) resolveSupplyChainSecurityAlertRepositorySelector(
 		switch len(matches) {
 		case 0:
 		case 1:
-			scopes, ok := h.securityAlertRepositoryScopeIDsForCatalog(w, r, selector, matches[0], entries)
+			scopes, ok := h.securityAlertRepositoryScopeIDsForCatalog(w, r, selector, matches[0], entries, capability)
 			if !ok {
 				return "", nil, false
 			}
@@ -70,7 +75,7 @@ func (h *SupplyChainHandler) resolveSupplyChainSecurityAlertRepositorySelector(
 	if looksCanonicalRepositoryID(selector) {
 		return selector, securityAlertRepositoryScopeIDs(selector, nil), true
 	}
-	repoID, ok := h.resolveSupplyChainRepositorySelector(w, r, selector)
+	repoID, ok := h.resolveSupplyChainRepositorySelector(w, r, selector, capability)
 	if !ok {
 		return "", nil, false
 	}
@@ -83,6 +88,7 @@ func (h *SupplyChainHandler) securityAlertRepositoryScopeIDsForCatalog(
 	selector string,
 	repositoryID string,
 	entries []RepositoryCatalogEntry,
+	capability string,
 ) ([]string, bool) {
 	scopes := securityAlertRepositoryScopesForCatalog(repositoryID, entries)
 	if len(scopes) == 0 {

@@ -123,6 +123,7 @@ func (h *CICDHandler) listRunCorrelations(w http.ResponseWriter, r *http.Request
 		h.Content,
 		repositorySelector,
 		access,
+		cicdRunCorrelationsCapability,
 	)
 	if !ok {
 		return

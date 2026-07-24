@@ -76,7 +76,7 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 		h.writeEmptyImpactFindingsPage(w, r, limit, profile)
 		return
 	}
-	repositoryID, ok := h.resolveSupplyChainImpactRepositorySelector(w, r, QueryParam(r, "repository_id"), access)
+	repositoryID, ok := h.resolveSupplyChainImpactRepositorySelector(w, r, QueryParam(r, "repository_id"), access, supplyChainImpactFindingsCapability)
 	if !ok {
 		return
 	}

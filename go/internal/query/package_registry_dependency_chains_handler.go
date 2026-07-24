@@ -76,6 +76,7 @@ func (h *PackageRegistryHandler) listDependencyChains(w http.ResponseWriter, r *
 		h.Content,
 		repositorySelector,
 		access,
+		packageRegistryDependencyChainsCapability,
 	)
 	if !ok {
 		return

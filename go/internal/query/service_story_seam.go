@@ -77,6 +77,9 @@ func (h *EntityHandler) BuildServiceStoryEnvelope(
 		if errors.Is(err, ErrContentSubstringIndexesNotReady) {
 			return nil, nil, http.StatusServiceUnavailable, serviceStoryBackendUnavailableError(err)
 		}
+		if status, errEnv, ok := graphReadErrorEnvelope(err, "platform_impact.context_overview"); ok {
+			return nil, nil, status, errEnv
+		}
 		return nil, nil, http.StatusInternalServerError, serviceStoryInternalError("enrich service story", err)
 	}
 
@@ -153,6 +156,9 @@ func serviceStoryResolutionError(err error) (int, *ErrorEnvelope) {
 			Message:    err.Error(),
 			Capability: "platform_impact.context_overview",
 		}
+	}
+	if status, errEnv, ok := graphReadErrorEnvelope(err, "platform_impact.context_overview"); ok {
+		return status, errEnv
 	}
 	return http.StatusInternalServerError, serviceStoryInternalError("query failed", err)
 }

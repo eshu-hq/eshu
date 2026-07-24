@@ -18,6 +18,7 @@ const openAPIPathsPackageRegistry = `
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
         ],
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Package registry package identities",
             "content": {
@@ -100,6 +101,7 @@ const openAPIPathsPackageRegistry = `
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
         ],
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Package registry package-version identities",
             "content": {
@@ -159,6 +161,7 @@ const openAPIPathsPackageRegistry = `
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
         ],
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Package registry dependency edges",
             "content": {
@@ -237,6 +240,7 @@ const openAPIPathsPackageRegistry = `
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
         ],
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Package registry ownership, publication, and consumption correlations",
             "content": {
@@ -309,6 +313,7 @@ const openAPIPathsPackageRegistry = `
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
         ],
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Package-evidenced repo-to-repo dependency chains for the repository",
             "content": {

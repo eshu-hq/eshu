@@ -42,6 +42,9 @@ func (h *RepositoryHandler) getRepositoryStats(w http.ResponseWriter, r *http.Re
 		slog.String("query_shape", "repository_id_lookup"),
 	)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
+			return
+		}
 		WriteError(w, repositoryStatsErrorStatus(err), fmt.Sprintf("query repository failed: %v", err))
 		return
 	}
@@ -85,6 +88,14 @@ func (h *RepositoryHandler) resolveRepositoryStatsPathSelector(
 	}
 	repoID, err := h.resolveRepositorySelector(ctx, repoSelector)
 	if err != nil {
+		// Selector resolution issues its own graph read, so a bounded backend
+		// timeout/outage must map to 503/504 rather than being downgraded to
+		// 400 by the generic branch below. repositoryStatsErrorStatus only
+		// recognizes context.DeadlineExceeded, not the ErrGraphReadDeadline/
+		// ErrGraphUnavailable sentinels, which never wrap it.
+		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
+			return "", false
+		}
 		status := repositoryStatsErrorStatus(err)
 		if status == http.StatusInternalServerError {
 			status = http.StatusBadRequest

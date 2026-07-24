@@ -75,7 +75,7 @@ func (h *CodeHandler) handleSymbolSearch(w http.ResponseWriter, r *http.Request)
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if !h.applyRepositorySelector(w, r, &req.RepoID) {
+	if !h.applyRepositorySelectorForCapability(w, r, &req.RepoID, capability) {
 		return
 	}
 
@@ -87,6 +87,9 @@ func (h *CodeHandler) handleSymbolSearch(w http.ResponseWriter, r *http.Request)
 		}
 		if errors.Is(err, errSymbolBackendUnavailable) {
 			WriteError(w, http.StatusServiceUnavailable, err.Error())
+			return
+		}
+		if WriteGraphReadError(w, r, err, capability) {
 			return
 		}
 		WriteError(w, http.StatusInternalServerError, err.Error())

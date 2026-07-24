@@ -24,6 +24,7 @@ const openAPIPathsInvestigations = `
           {"name": "max_source_facts", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 1}, "description": "Optional lower cap for the packet source_facts layer."}
         ],
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {"description": "Investigation evidence packet", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/InvestigationEvidencePacket"}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "501": {"$ref": "#/components/responses/NotImplemented"},
@@ -139,6 +140,7 @@ const openAPIPathsInvestigations = `
           }
         ],
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Service investigation packet",
             "content": {

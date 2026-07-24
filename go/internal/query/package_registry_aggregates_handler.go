@@ -76,6 +76,9 @@ func (h *PackageRegistryHandler) countPackageRegistryPackages(w http.ResponseWri
 	}
 	count, err := h.Aggregates.CountPackageRegistryPackages(r.Context(), filter)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, packageRegistryAggregateCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -169,6 +172,9 @@ func (h *PackageRegistryHandler) packageRegistryPackageInventory(w http.Response
 
 	rows, err := h.Aggregates.PackageRegistryPackageInventory(r.Context(), filter, dimension, limit+1, offset)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, packageRegistryAggregateCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

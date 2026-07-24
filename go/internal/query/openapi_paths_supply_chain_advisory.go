@@ -22,6 +22,7 @@ const openAPIPathsSupplyChainAdvisoryEvidence = `
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
         ],
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Canonical source-only advisory evidence page",
             "content": {

@@ -343,6 +343,12 @@ module prefixes across generations.
 | `PipelineOverlapDuration` | `eshu_dp_pipeline_overlap_seconds` | 1–1800 s |
 | `WorkflowClaimRunDuration` | `eshu_dp_workflow_claim_run_duration_seconds` (labels: `collector_kind`, `source_system`, `outcome`) | 0.1–1800 s |
 
+`Neo4jQueryDuration` records each logical graph read with `operation="read"`
+and one bounded outcome: `success`, `slow`, `recovered`, `deadline`,
+`caller_deadline`, `unavailable`, `canceled`, or `error`. The matching
+`neo4j.query` span uses the same outcome and adds only the bounded attempt count
+and configured deadline; query text and raw driver errors are excluded.
+
 `WorkflowClaimRunDuration` records the wall time of one claimed-service
 processing cycle (`ClaimedService.processClaimed`) for every collector family,
 recorded via `defer` on every return path. `outcome` is a bounded enum

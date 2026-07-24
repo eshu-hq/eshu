@@ -185,7 +185,11 @@ func wireAPI(
 	)
 
 	// Build query layer
-	neo4jReader := query.NewNeo4jReader(driver, neo4jDB)
+	neo4jReader := query.NewNeo4jReader(
+		driver,
+		neo4jDB,
+		query.WithNeo4jReaderObservability(logger, instruments),
+	)
 	contentReader := query.NewContentReader(db)
 	// #5563 upgrade gate: seed pre-ledger CloudResource graph rows before the
 	// indexed owner-ledger list path is mounted. Graph-disabled profiles skip

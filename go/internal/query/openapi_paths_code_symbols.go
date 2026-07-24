@@ -36,6 +36,7 @@ const openAPIPathsCodeSymbols = `
           }
         },
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Symbol definition results",
             "content": {
@@ -110,6 +111,7 @@ const openAPIPathsCodeSymbols = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }
@@ -146,6 +148,7 @@ const openAPIPathsCodeSymbols = `
           }
         },
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Import dependency investigation results",
             "content": {
@@ -248,6 +251,7 @@ const openAPIPathsCodeSymbols = `
           }
         },
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Call graph metric rows",
             "content": {
@@ -314,6 +318,7 @@ const openAPIPathsCodeSymbols = `
           }
         },
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Ranked topic evidence and follow-up handles",
             "content": {

@@ -337,3 +337,21 @@ func TestOpenAPICypherRouteDocumentsUnsupportedProfile(t *testing.T) {
 		t.Fatalf("Cypher OpenAPI responses missing 501 unsupported profile response")
 	}
 }
+
+func TestOpenAPICypherRouteDocumentsBoundedGraphReadFailures(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
+	}
+	paths := mustMapField(t, spec, "paths")
+	path := mustMapField(t, paths, "/api/v0/code/cypher")
+	post := mustMapField(t, path, "post")
+	responses := mustMapField(t, post, "responses")
+	for _, status := range []string{"503", "504"} {
+		if _, ok := responses[status]; !ok {
+			t.Errorf("Cypher OpenAPI responses missing %s bounded graph-read response", status)
+		}
+	}
+}

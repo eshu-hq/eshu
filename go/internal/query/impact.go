@@ -119,6 +119,9 @@ func (h *ImpactHandler) traceResourceToCode(w http.ResponseWriter, r *http.Reque
 	// disjunction cannot seed the traversal directly.
 	start, err := resolveImpactAnchorNode(r.Context(), h.Neo4j, "start_id", req.Start)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "platform_impact.resource_to_code") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -134,6 +137,9 @@ func (h *ImpactHandler) traceResourceToCode(w http.ResponseWriter, r *http.Reque
 		cypher := fmt.Sprintf(impactRepoPathCypher, start.pattern("start", "start_id"), req.MaxDepth)
 		rows, rerr := h.Neo4j.Run(r.Context(), cypher, map[string]any{"start_id": start.id, "limit": limit + 1})
 		if rerr != nil {
+			if WriteGraphReadError(w, r, rerr, "platform_impact.resource_to_code") {
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, rerr.Error())
 			return
 		}
@@ -201,11 +207,17 @@ func (h *ImpactHandler) explainDependencyPath(w http.ResponseWriter, r *http.Req
 	// disjunction anchor matches zero rows on the pinned NornicDB build (#5286).
 	sourceNode, err := resolveImpactAnchorNode(r.Context(), h.Neo4j, "source_id", req.Source)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "platform_impact.dependency_path") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	targetNode, err := resolveImpactAnchorNode(r.Context(), h.Neo4j, "target_id", req.Target)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "platform_impact.dependency_path") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -227,6 +239,9 @@ RETURN length(path) AS depth, nodes(path) AS ns, relationships(path) AS rels`,
 	// Anchor on the resolved canonical ids (the caller may have passed a name).
 	row, err := h.Neo4j.RunSingle(r.Context(), cypher, map[string]any{"source_id": sourceNode.id, "target_id": targetNode.id})
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "platform_impact.dependency_path") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

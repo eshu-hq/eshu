@@ -31,6 +31,8 @@ const openAPIPathsRepositoriesBranches = `
           }
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Repository refs",
             "content": {

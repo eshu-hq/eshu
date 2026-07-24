@@ -68,6 +68,9 @@ func (h *InfraHandler) countInfraResources(w http.ResponseWriter, r *http.Reques
 	filter = applyInfraResourceAggregateAccess(filter, access)
 	count, err := h.Aggregates.CountInfraResources(r.Context(), filter)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, infraResourceAggregateCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -150,6 +153,9 @@ func (h *InfraHandler) infraResourceInventory(w http.ResponseWriter, r *http.Req
 
 	rows, err := h.Aggregates.InfraResourceInventory(r.Context(), filter, dimension, limit+1, offset)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, infraResourceAggregateCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

@@ -44,7 +44,7 @@ func (h *SupplyChainHandler) listAdvisoryEvidence(w http.ResponseWriter, r *http
 	// with the impact findings that derive advisory anchors so a scoped caller
 	// only learns advisories affecting its own repositories.
 	access := repositoryAccessFilterFromContext(r.Context())
-	repositoryID, ok := resolveRepositorySelectorForRequestWithAccess(w, r, h.Neo4j, h.Content, QueryParam(r, "repository_id"), access)
+	repositoryID, ok := resolveRepositorySelectorForRequestWithAccess(w, r, h.Neo4j, h.Content, QueryParam(r, "repository_id"), access, advisoryEvidenceCapability)
 	if !ok {
 		return
 	}

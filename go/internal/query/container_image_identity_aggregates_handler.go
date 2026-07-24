@@ -61,7 +61,7 @@ func (h *SupplyChainHandler) countContainerImageIdentities(w http.ResponseWriter
 		h.writeEmptyContainerImageIdentityCount(w, r)
 		return
 	}
-	sourceRepositoryID, ok := h.resolveContainerImageSourceRepositorySelector(w, r, QueryParam(r, "source_repository_id"), access)
+	sourceRepositoryID, ok := h.resolveContainerImageSourceRepositorySelector(w, r, QueryParam(r, "source_repository_id"), access, containerImageIdentityAggregateCapability)
 	if !ok {
 		return
 	}
@@ -149,7 +149,7 @@ func (h *SupplyChainHandler) containerImageIdentityInventory(w http.ResponseWrit
 		h.writeEmptyContainerImageIdentityInventory(w, r, dimension, limit, offset)
 		return
 	}
-	sourceRepositoryID, ok := h.resolveContainerImageSourceRepositorySelector(w, r, QueryParam(r, "source_repository_id"), access)
+	sourceRepositoryID, ok := h.resolveContainerImageSourceRepositorySelector(w, r, QueryParam(r, "source_repository_id"), access, containerImageIdentityAggregateCapability)
 	if !ok {
 		return
 	}

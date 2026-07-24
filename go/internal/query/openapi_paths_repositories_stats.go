@@ -17,6 +17,7 @@ const openAPIPathsRepositoriesStats = `
           {"$ref": "#/components/parameters/RepoId"}
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "200": {
             "description": "Repository statistics",
             "content": {

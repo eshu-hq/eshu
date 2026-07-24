@@ -24,7 +24,7 @@ const repositoryContentMaxBytes = 1 << 20 // 1 MiB
 //
 // GET /api/v0/repositories/{repo_id}/content?path={filepath}&ref={ref}
 func (h *RepositoryHandler) getRepositoryContent(w http.ResponseWriter, r *http.Request) {
-	repoID, ok := h.resolveRepositoryPathSelector(w, r)
+	repoID, ok := h.resolveRepositoryPathSelector(w, r, "code_search.content_search")
 	if !ok {
 		return
 	}
@@ -39,6 +39,9 @@ func (h *RepositoryHandler) getRepositoryContent(w http.ResponseWriter, r *http.
 	ctx := r.Context()
 	repoRef, _, err := h.repositoryStatsRepositoryRef(ctx, repoID)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "code_search.content_search") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query repository failed: %v", err))
 		return
 	}

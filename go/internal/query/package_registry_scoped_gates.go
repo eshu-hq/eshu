@@ -90,6 +90,9 @@ func packageRegistryPackagesGate(
 	case packageID != "":
 		gate, err := resolvePackageRegistryAnchorGate(r.Context(), span, h.Neo4j, h.Correlations, packageID, access)
 		if err != nil {
+			if WriteGraphReadError(w, r, err, packageRegistryPackagesCapability) {
+				return result, true
+			}
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return result, true
 		}
@@ -107,6 +110,9 @@ func packageRegistryPackagesGate(
 		// name (see packageRegistryNameAnchorCandidates's doc comment).
 		candidates, candidatesTruncated, err := packageRegistryNameAnchorCandidates(r.Context(), h.Neo4j, ecosystem, name)
 		if err != nil {
+			if WriteGraphReadError(w, r, err, packageRegistryPackagesCapability) {
+				return result, true
+			}
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return result, true
 		}
@@ -208,6 +214,9 @@ func packageRegistryVersionsGate(
 	}
 	gate, err := resolvePackageRegistryAnchorGate(r.Context(), span, h.Neo4j, h.Correlations, packageID, access)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, packageRegistryVersionsCapability) {
+			return true
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return true
 	}
@@ -257,6 +266,9 @@ func packageRegistryDependenciesGate(
 	if anchorPackageID == "" {
 		resolvedID, err := packageRegistryVersionAnchorPackageID(r.Context(), h.Neo4j, versionID)
 		if err != nil {
+			if WriteGraphReadError(w, r, err, packageRegistryDependenciesCapability) {
+				return true
+			}
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return true
 		}
@@ -270,6 +282,9 @@ func packageRegistryDependenciesGate(
 			// (version anchor + visibility + probe) equal to the resolving
 			// path.
 			if _, probeErr := resolvePackageRegistryAnchorGate(r.Context(), span, h.Neo4j, h.Correlations, packageRegistryNonexistentAnchorSentinel, access); probeErr != nil {
+				if WriteGraphReadError(w, r, probeErr, packageRegistryDependenciesCapability) {
+					return true
+				}
 				WriteError(w, http.StatusInternalServerError, probeErr.Error())
 				return true
 			}
@@ -280,6 +295,9 @@ func packageRegistryDependenciesGate(
 	}
 	gate, err := resolvePackageRegistryAnchorGate(r.Context(), span, h.Neo4j, h.Correlations, anchorPackageID, access)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, packageRegistryDependenciesCapability) {
+			return true
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return true
 	}

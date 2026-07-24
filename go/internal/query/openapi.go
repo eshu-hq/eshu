@@ -64,6 +64,7 @@ func OpenAPISpec() string {
 			openAPIPathsCodeGraph+
 			openAPIPathsCodeQuality+
 			openAPIPathsCodeSecurity+
+			openAPIPathsCodeDeadCodeScan+
 			openAPIPathsCodeDeadCodeInvestigation+
 			openAPIPathsCodeCrossRepoDeadCode+
 			openAPIPathsCodeSymbols+

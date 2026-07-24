@@ -197,7 +197,7 @@ func (h *SupplyChainHandler) supplyChainImpactAggregateFilterFromRequest(
 	r *http.Request,
 	access repositoryAccessFilter,
 ) (SupplyChainImpactAggregateFilter, bool) {
-	repositoryID, ok := h.resolveSupplyChainImpactRepositorySelector(w, r, QueryParam(r, "repository_id"), access)
+	repositoryID, ok := h.resolveSupplyChainImpactRepositorySelector(w, r, QueryParam(r, "repository_id"), access, supplyChainImpactAggregateCapability)
 	if !ok {
 		return SupplyChainImpactAggregateFilter{}, false
 	}

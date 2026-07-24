@@ -40,7 +40,10 @@ Use `resolved_id` with `GET /api/v0/evidence/relationships/{resolved_id}` when
 a client needs the full evidence preview.
 
 `GET /api/v0/repositories` accepts `limit` and `offset` and returns
-`truncated=true` when more indexed repositories are available.
+`truncated=true` when more indexed repositories are available. If the graph
+cannot serve the count read, the route returns `backend_unavailable` with HTTP
+503; if the shared graph-read deadline expires, it returns `backend_timeout`
+with HTTP 504. Both responses use the canonical error envelope.
 
 Each repository row also carries additive grouping evidence so the Console can
 render repository groups without repository-name rules:

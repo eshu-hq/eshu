@@ -96,6 +96,9 @@ func (h *EntityHandler) investigateService(w http.ResponseWriter, r *http.Reques
 			)
 			return
 		}
+		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 		return
 	}
@@ -109,6 +112,9 @@ func (h *EntityHandler) investigateService(w http.ResponseWriter, r *http.Reques
 		Operation:                 "service_investigation",
 	}); err != nil {
 		if writeContentSubstringIndexUnavailable(w, err) {
+			return
+		}
+		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
 			return
 		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich service investigation: %v", err))

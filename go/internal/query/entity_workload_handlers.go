@@ -28,6 +28,9 @@ func (h *EntityHandler) getWorkloadContext(w http.ResponseWriter, r *http.Reques
 
 	ctx, err := h.fetchWorkloadContext(r.Context(), "w.id = $workload_id", map[string]any{"workload_id": workloadID})
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 		return
 	}
@@ -42,6 +45,9 @@ func (h *EntityHandler) getWorkloadContext(w http.ResponseWriter, r *http.Reques
 		Operation:                 "workload_context",
 	}); err != nil {
 		if writeContentSubstringIndexUnavailable(w, err) {
+			return
+		}
+		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
 			return
 		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich workload context: %v", err))
@@ -73,6 +79,9 @@ func (h *EntityHandler) getWorkloadStory(w http.ResponseWriter, r *http.Request)
 
 	ctx, err := h.fetchWorkloadContext(r.Context(), "w.id = $workload_id", map[string]any{"workload_id": workloadID})
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 		return
 	}
@@ -87,6 +96,9 @@ func (h *EntityHandler) getWorkloadStory(w http.ResponseWriter, r *http.Request)
 		Operation:                 "workload_story",
 	}); err != nil {
 		if writeContentSubstringIndexUnavailable(w, err) {
+			return
+		}
+		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
 			return
 		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich workload story: %v", err))

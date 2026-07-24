@@ -66,7 +66,7 @@ func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter,
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if !h.applyRepositorySelector(w, r, &req.RepoID) {
+	if !h.applyRepositorySelectorForCapability(w, r, &req.RepoID, importDependencyCapability) {
 		return
 	}
 	span.SetAttributes(attribute.String("eshu.import_dependencies.query_type", req.queryType()))
@@ -85,6 +85,9 @@ func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter,
 				http.StatusUnprocessableEntity,
 				fmt.Sprintf("%v; narrow the repository, file, or module scope", err),
 			)
+			return
+		}
+		if WriteGraphReadError(w, r, err, importDependencyCapability) {
 			return
 		}
 		WriteError(w, http.StatusInternalServerError, err.Error())

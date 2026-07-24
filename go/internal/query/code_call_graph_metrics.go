@@ -67,7 +67,7 @@ func (h *CodeHandler) handleCallGraphMetrics(w http.ResponseWriter, r *http.Requ
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if !h.applyRepositorySelector(w, r, &req.RepoID) {
+	if !h.applyRepositorySelectorForCapability(w, r, &req.RepoID, callGraphMetricsCapability) {
 		return
 	}
 
@@ -80,6 +80,9 @@ func (h *CodeHandler) handleCallGraphMetrics(w http.ResponseWriter, r *http.Requ
 		}
 		if errors.Is(err, errCallGraphMetricsScopeTooBroad) {
 			WriteError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		if WriteGraphReadError(w, r, err, callGraphMetricsCapability) {
 			return
 		}
 		WriteError(w, http.StatusInternalServerError, err.Error())

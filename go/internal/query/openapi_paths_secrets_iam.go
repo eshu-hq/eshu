@@ -16,6 +16,7 @@ const openAPIPathsSecretsIAM = `
           {"name": "scope_id", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Reducer scope ID to summarize."}
         ],
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Posture summary counts",
             "content": {"application/json": {"schema": {"type": "object", "properties": {

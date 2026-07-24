@@ -18,6 +18,8 @@ const openAPIPathsPackageRegistryAggregate = `
           {"name": "visibility", "in": "query", "schema": {"type": "string", "enum": ["public", "private", "unknown"]}}
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Graph-backed (:Package) totals envelope with per-ecosystem rollup",
             "content": {
@@ -53,6 +55,8 @@ const openAPIPathsPackageRegistryAggregate = `
           {"name": "offset", "in": "query", "schema": {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0}}
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Grouped count buckets ordered by count desc",
             "content": {

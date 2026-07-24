@@ -32,7 +32,7 @@ func (h *CodeHandler) handleRelationships(w http.ResponseWriter, r *http.Request
 		WriteError(w, http.StatusBadRequest, "entity_id or name is required")
 		return
 	}
-	if !h.applyRepositorySelector(w, r, &req.RepoID) {
+	if !h.applyRepositorySelectorForCapability(w, r, &req.RepoID, relationshipCapability(req.Direction, req.RelationshipType)) {
 		return
 	}
 	ctx := r.Context()
@@ -95,6 +95,9 @@ func (h *CodeHandler) handleRelationships(w http.ResponseWriter, r *http.Request
 
 		row, err := h.transitiveRelationshipsGraphRow(ctx, req)
 		if err != nil {
+			if WriteGraphReadError(w, r, err, capability) {
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -120,6 +123,9 @@ func (h *CodeHandler) handleRelationships(w http.ResponseWriter, r *http.Request
 			response["metadata"] = metadata
 		}
 		if err := h.hydrateRelationshipResponseRepoIdentity(ctx, response); err != nil {
+			if WriteGraphReadError(w, r, err, capability) {
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -144,6 +150,9 @@ func (h *CodeHandler) handleRelationships(w http.ResponseWriter, r *http.Request
 
 	row, err := h.relationshipsGraphRow(ctx, req.EntityID, req.Name, req.RepoID, direction, relationshipType)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, capability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -178,6 +187,9 @@ func (h *CodeHandler) handleRelationships(w http.ResponseWriter, r *http.Request
 		response["metadata"] = metadata
 	}
 	if err := h.hydrateRelationshipResponseRepoIdentity(ctx, response); err != nil {
+		if WriteGraphReadError(w, r, err, capability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

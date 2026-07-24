@@ -35,7 +35,7 @@ type repoFileLanguageLister interface {
 //
 // GET /api/v0/repositories/{repo_id}/tree?ref={ref}&path={subpath}&recursive=true
 func (h *RepositoryHandler) getRepositoryTree(w http.ResponseWriter, r *http.Request) {
-	repoID, ok := h.resolveRepositoryPathSelector(w, r)
+	repoID, ok := h.resolveRepositoryPathSelector(w, r, "platform_impact.context_overview")
 	if !ok {
 		return
 	}
@@ -43,6 +43,9 @@ func (h *RepositoryHandler) getRepositoryTree(w http.ResponseWriter, r *http.Req
 	ctx := r.Context()
 	repoRef, _, err := h.repositoryStatsRepositoryRef(ctx, repoID)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query repository failed: %v", err))
 		return
 	}

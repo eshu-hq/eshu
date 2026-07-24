@@ -89,7 +89,7 @@ func (h *CodeHandler) handleRelationshipStory(w http.ResponseWriter, r *http.Req
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if !h.applyRepositorySelector(w, r, &req.RepoID) {
+	if !h.applyRepositorySelectorForCapability(w, r, &req.RepoID, relationshipStoryCapability) {
 		return
 	}
 
@@ -120,6 +120,9 @@ func (h *CodeHandler) handleRelationshipStory(w http.ResponseWriter, r *http.Req
 			WriteError(w, http.StatusServiceUnavailable, err.Error())
 			return
 		}
+		if WriteGraphReadError(w, r, err, relationshipStoryCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -128,6 +131,9 @@ func (h *CodeHandler) handleRelationshipStory(w http.ResponseWriter, r *http.Req
 	if req.normalizedQueryType() == "class_hierarchy" {
 		hierarchy, err := h.relationshipStoryClassHierarchy(r.Context(), req, entity, relationships)
 		if err != nil {
+			if WriteGraphReadError(w, r, err, relationshipStoryCapability) {
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}

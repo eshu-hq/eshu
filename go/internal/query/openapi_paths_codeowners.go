@@ -19,6 +19,7 @@ const openAPIPathsCodeowners = `
           {"name": "after_ref", "in": "query", "schema": {"type": "string"}, "description": "Keyset cursor owner_ref component from a prior next_cursor. Must be sent with after_order_index and after_pattern."}
         ],
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Bounded codeowners ownership page",
             "content": {

@@ -53,13 +53,21 @@ go run ./cmd/capability-inventory -mode remote-validation
 
 # Regenerate the burn-down baseline from the current tree.
 go run ./cmd/capability-inventory -mode remote-validation -update
+
+# Authenticated exact-head #5273 graph-read sweep. ESHU_MCP_TOKEN is the user
+# bearer token; ESHU_API_KEY is the separately labeled admin/all-scope
+# credential required by direct Cypher and visualization.
+ESHU_API_BASE_URL=https://api.example.invalid \
+ESHU_MCP_URL=https://mcp.example.invalid/mcp \
+ESHU_MCP_TOKEN=... ESHU_API_KEY=... \
+go run ./cmd/capability-inventory -mode graph-read-probe
 ```
 
 ## Flags
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
-| `-mode` | `report` | `report`, `generate`, `verify`, `docs`, `product-claims`, `budget-proof`, or `remote-validation` |
+| `-mode` | `report` | `report`, `generate`, `verify`, `docs`, `product-claims`, `budget-proof`, `remote-validation`, or `graph-read-probe` |
 | `-specs` | `../specs` | path to the specs directory (matrix, overlay, surface overlay) |
 | `-out` | `internal/capabilitycatalog/data/catalog.generated.json` | catalog artifact output path (generate mode) |
 | `-surface-out` | `internal/capabilitycatalog/data/surface-inventory.generated.json` | surface artifact output path (generate mode) |
@@ -68,6 +76,10 @@ go run ./cmd/capability-inventory -mode remote-validation -update
 | `-root` | `..` | path to the repository root (surface enumeration, remote-validation mode) |
 | `-remote-validation-baseline` | `../specs/remote-validation-baseline.txt` | path to the remote_validation burn-down baseline (remote-validation mode) |
 | `-update` | `false` | regenerate the remote-validation baseline instead of checking it (remote-validation mode) |
+| `-api-base-url` | `ESHU_API_BASE_URL` | branch-built API base URL (graph-read-probe mode) |
+| `-mcp-url` | `ESHU_MCP_URL` | exact branch-built MCP HTTP endpoint URL (graph-read-probe mode) |
+| `-user-token-env` | `ESHU_MCP_TOKEN` | env-var name holding the user bearer token (graph-read-probe mode) |
+| `-admin-token-env` | `ESHU_API_KEY` | env-var name holding the admin/all-scope credential required by direct Cypher surfaces (graph-read-probe mode) |
 
 ## Invariants
 
@@ -108,6 +120,16 @@ go run ./cmd/capability-inventory -mode remote-validation -update
   `-update` regenerates `specs/remote-validation-baseline.txt` from the current
   tree and ratchets FROZEN_MAX down to the new count; it never raises the
   ceiling and never requires a human to hand-edit the file.
+- `graph-read-probe` derives the complete current API/MCP name set from the
+  served OpenAPI and MCP registries plus the five known directly registered
+  HTTP surfaces. Its checked-in registry classifies all 417 unique identities:
+  safe read/validation fixtures are synthesized from current OpenAPI and MCP
+  schemas, while mutation-only routes carry `execute=false` and a specific
+  safety reason. Before execution it performs a bounded repository inventory
+  read to discover selector values, resolves only declared selector classes,
+  and fails rather than inventing a missing identifier. Public validation,
+  user-token reads, and admin-only Cypher surfaces keep separate auth postures.
+  It never prints token values.
 
 ## Related
 

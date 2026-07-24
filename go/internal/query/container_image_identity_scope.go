@@ -23,8 +23,9 @@ func (h *SupplyChainHandler) resolveContainerImageSourceRepositorySelector(
 	r *http.Request,
 	selector string,
 	access repositoryAccessFilter,
+	capability string,
 ) (string, bool) {
-	return resolveRepositorySelectorForRequestWithAccess(w, r, h.Neo4j, h.Content, selector, access)
+	return resolveRepositorySelectorForRequestWithAccess(w, r, h.Neo4j, h.Content, selector, access, capability)
 }
 
 // writeEmptyContainerImageIdentityPage returns the bounded zero-identities page

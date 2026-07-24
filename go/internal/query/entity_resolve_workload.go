@@ -29,6 +29,9 @@ func (h *EntityHandler) writeWorkloadEntityResolution(
 			WriteError(w, http.StatusServiceUnavailable, err.Error())
 			return true
 		}
+		if WriteGraphReadError(w, r, err, "code_search.exact_symbol") {
+			return true
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("resolve workload: %v", err))
 		return true
 	}

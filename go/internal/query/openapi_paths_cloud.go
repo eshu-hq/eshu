@@ -20,6 +20,7 @@ const openAPIPathsCloud = `
           {"name": "after_id", "in": "query", "description": "Keyset cursor: id of the last row from the previous page. Use the values returned in next_cursor.", "schema": {"type": "string"}}
         ],
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Bounded cloud resource list envelope ordered by resource_type then id",
             "content": {

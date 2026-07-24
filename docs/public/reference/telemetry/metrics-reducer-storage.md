@@ -107,7 +107,7 @@ or generation context.
 | Metric | Type | Use |
 | --- | --- | --- |
 | `eshu_dp_postgres_query_duration_seconds` | histogram | Postgres query and exec latency from the instrumented wrapper. |
-| `eshu_dp_neo4j_query_duration_seconds` | histogram | Neo4j/NornicDB Bolt query latency from the graph wrapper. |
+| `eshu_dp_neo4j_query_duration_seconds` | histogram | Neo4j/NornicDB Bolt query latency. Logical reads use `operation="read"` and bounded `outcome` values: `success`, `slow`, `recovered`, `deadline`, `caller_deadline`, `unavailable`, `canceled`, or `error`. |
 | `eshu_dp_iac_resource_list_duration_seconds` | histogram | Bounded IaC resource list (`GET /api/v0/iac/resources`) handler latency, labeled by `iac.kind`. |
 | `eshu_dp_iac_resource_list_errors_total` | counter | Bounded IaC resource list handler errors, labeled by `iac.kind` and `reason`. |
 | `eshu_dp_neo4j_deadlock_retries_total` | counter | Legacy graph-write retry counter labeled by bounded `write_phase` and `reason` (`connectivity_error`, `transient_error`, `write_conflict`, or `commit_unique_conflict`) for deadlocks, lock timeouts, driver connectivity failures, and retryable NornicDB commit conflicts. Repository, node, statement, and raw error values stay out of labels. |

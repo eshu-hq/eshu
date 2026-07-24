@@ -128,6 +128,15 @@ func resolveRepositorySelectorExactForAccess(
 	return "", repositorySelectorNotFoundError{Selector: selector}
 }
 
+// resolveRepositorySelectorForRequestWithAccess resolves a repository selector
+// and writes the failure response itself, reporting false when it did.
+//
+// capability names the caller's capability for the bounded graph-read envelope.
+// Selector resolution issues its own graph reads, so a backend timeout or
+// outage here must surface as the same 503/504 contract every other
+// graph-backed read uses. Without that mapping it fell through to the generic
+// branch below and reported HTTP 400, telling the client its request was
+// malformed when nothing was wrong with the request at all.
 func resolveRepositorySelectorForRequestWithAccess(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -135,9 +144,13 @@ func resolveRepositorySelectorForRequestWithAccess(
 	content ContentStore,
 	selector string,
 	access repositoryAccessFilter,
+	capability string,
 ) (string, bool) {
 	repoID, err := resolveRepositorySelectorExactForAccess(r.Context(), graph, content, selector, access)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, capability) {
+			return "", false
+		}
 		status := http.StatusBadRequest
 		if isRepositorySelectorNotFound(err) {
 			status = http.StatusNotFound

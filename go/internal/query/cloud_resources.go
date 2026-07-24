@@ -149,7 +149,13 @@ func (h *InfraHandler) listCloudResources(w http.ResponseWriter, r *http.Request
 	cypher, params := buildCloudResourceHydrationQuery(identities)
 	rows, err := h.Neo4j.Run(r.Context(), cypher, params)
 	if err != nil {
+		// The "graph_error" outcome label is accurate regardless of the eventual
+		// HTTP status (500 vs. the bounded-availability 503/504 below), so it
+		// keeps recording before the guard runs.
 		recordCloudResourceList(r.Context(), start, selectedRows, 0, truncated, "graph_error")
+		if WriteGraphReadError(w, r, err, cloudResourceListCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, "cloud resource graph hydration failed")
 		return
 	}

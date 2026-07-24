@@ -96,6 +96,9 @@ func (h *InfraHandler) getGraphSummaryPacket(w http.ResponseWriter, r *http.Requ
 	if req.repoID() == "" {
 		data, err := h.graphSummaryEcosystemPacket(r.Context(), access)
 		if err != nil {
+			if WriteGraphReadError(w, r, err, graphSummaryPacketCapability) {
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -117,6 +120,9 @@ func (h *InfraHandler) getGraphSummaryPacket(w http.ResponseWriter, r *http.Requ
 
 	data, err := h.graphSummaryRepoPacket(r.Context(), req)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, graphSummaryPacketCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

@@ -38,6 +38,8 @@ const openAPIPathsInfrastructure = `
           }
         },
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Infrastructure resources",
             "content": {
@@ -105,6 +107,8 @@ const openAPIPathsInfrastructure = `
           }
         },
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "200": {
             "description": "Entity relationships",
             "content": {
@@ -136,6 +140,8 @@ const openAPIPathsInfrastructure = `
         "operationId": "getEcosystemOverview",
         "x-scoped-token-support": true,
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Ecosystem overview",
             "content": {
@@ -179,6 +185,7 @@ const openAPIPathsInfrastructure = `
           }
         },
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Graph summary packet",
             "content": {
@@ -220,6 +227,7 @@ const openAPIPathsInfrastructure = `
           }
         },
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Relationship verb catalog",
             "content": {
@@ -279,6 +287,7 @@ const openAPIPathsInfrastructure = `
           }
         },
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Bounded typed-edge slice for the verb",
             "content": {

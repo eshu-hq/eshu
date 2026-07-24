@@ -29,6 +29,7 @@ const openAPIPathsEntities = `
           }
         },
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Resolved entities",
             "content": {
@@ -65,6 +66,8 @@ const openAPIPathsEntities = `
           {"$ref": "#/components/parameters/EntityId"}
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Entity context",
             "content": {
@@ -112,6 +115,7 @@ const openAPIPathsEntities = `
           {"$ref": "#/components/parameters/WorkloadId"}
         ],
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Workload context",
             "content": {
@@ -138,6 +142,7 @@ const openAPIPathsEntities = `
           {"$ref": "#/components/parameters/WorkloadId"}
         ],
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Workload narrative",
             "content": {
@@ -174,6 +179,7 @@ const openAPIPathsEntities = `
           {"$ref": "#/components/parameters/ServiceName"}
         ],
         "responses": {
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Service context",
             "content": {
@@ -203,6 +209,8 @@ const openAPIPathsEntities = `
           {"name": "environment", "in": "query", "description": "Runtime environment selector used to disambiguate duplicate service names by workload instance environment.", "schema": {"type": "string"}}
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Service narrative",
             "content": {

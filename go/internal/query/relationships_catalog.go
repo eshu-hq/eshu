@@ -100,6 +100,9 @@ func (h *InfraHandler) getRelationshipsCatalog(w http.ResponseWriter, r *http.Re
 
 	tiles, err := h.relationshipVerbTiles(r.Context())
 	if err != nil {
+		if WriteGraphReadError(w, r, err, relationshipsCatalogCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -346,6 +349,9 @@ func (h *InfraHandler) getRelationshipEdges(w http.ResponseWriter, r *http.Reque
 		var err error
 		edges, truncated, err = h.relationshipEdges(r.Context(), entry, tool, limit, access)
 		if err != nil {
+			if WriteGraphReadError(w, r, err, relationshipsCatalogCapability) {
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}

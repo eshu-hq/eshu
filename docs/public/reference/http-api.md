@@ -61,6 +61,25 @@ capabilities such as transitive call graphs, call-chain paths, dead-code
 cleanup, and cross-repo impact must return `unsupported_capability` when the
 active profile cannot answer correctly.
 
+### Bounded graph-read failures
+
+Every graph-backed route shares one bounded-availability contract rather than
+collapsing a transient backend problem into HTTP 500:
+
+| Condition | HTTP status | Error code |
+| --- | --- | --- |
+| Graph unavailable | `503` | `backend_unavailable` |
+| Graph-read deadline expired | `504` | `backend_timeout` |
+
+Both responses use the canonical error envelope and never expose Bolt
+addresses, Cypher text, or raw driver errors. Clients should treat them as
+retryable, unlike a `500`. The routes carrying this contract advertise `503`
+and `504` in the OpenAPI spec; the deadline, retry, and telemetry semantics
+behind it are owned by
+[Graph-read safety](telemetry/graph-read-safety.md), which also records the two
+routes still exempt. Routes backed by Postgres or the content store rather than
+the graph are unaffected.
+
 ## Shared Model Rules
 
 - `workload` is the canonical deployable compute model.

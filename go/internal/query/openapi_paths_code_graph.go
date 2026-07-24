@@ -43,6 +43,8 @@ const openAPIPathsCodeGraph = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "501": {"$ref": "#/components/responses/NotImplemented"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }
@@ -74,6 +76,8 @@ const openAPIPathsCodeGraph = `
           }
         },
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Bundle candidates",
             "content": {

@@ -34,7 +34,7 @@ func (h *RepositoryHandler) getRepositoryFreshness(w http.ResponseWriter, r *htt
 		return
 	}
 
-	repoID, ok := h.resolveRepositoryPathSelector(w, r)
+	repoID, ok := h.resolveRepositoryPathSelector(w, r, "repository_freshness.status")
 	if !ok {
 		return
 	}
@@ -52,6 +52,9 @@ func (h *RepositoryHandler) getRepositoryFreshness(w http.ResponseWriter, r *htt
 
 	repoRef, _, err := h.repositoryStatsRepositoryRef(r.Context(), repoID)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "repository_freshness.status") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, "query repository failed: "+err.Error())
 		return
 	}

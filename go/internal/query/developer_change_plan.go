@@ -46,6 +46,9 @@ func (h *ImpactHandler) developerChangePlan(w http.ResponseWriter, r *http.Reque
 	}
 	impactData, err := h.preChangeImpactResponse(r, normalized)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, developerChangePlanCapability) {
+			return
+		}
 		WriteError(w, preChangeImpactErrorStatus(err), err.Error())
 		return
 	}

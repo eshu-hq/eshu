@@ -79,12 +79,15 @@ func (h *CodeHandler) handleDeadCodeInvestigation(w http.ResponseWriter, r *http
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if !h.applyRepositorySelector(w, r, &req.RepoID) {
+	if !h.applyRepositorySelectorForCapability(w, r, &req.RepoID, deadCodeInvestigationCapability) {
 		return
 	}
 
 	scan, err := h.scanDeadCodeInvestigation(r.Context(), req)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, deadCodeInvestigationCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

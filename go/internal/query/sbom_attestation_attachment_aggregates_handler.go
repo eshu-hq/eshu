@@ -186,7 +186,7 @@ func (h *SupplyChainHandler) sbomAttestationAttachmentAggregateFilterFromRequest
 	r *http.Request,
 	access repositoryAccessFilter,
 ) (SBOMAttestationAttachmentAggregateFilter, bool) {
-	repositoryID, ok := h.resolveSBOMAttachmentRepositorySelector(w, r, QueryParam(r, "repository_id"), access)
+	repositoryID, ok := h.resolveSBOMAttachmentRepositorySelector(w, r, QueryParam(r, "repository_id"), access, sbomAttestationAttachmentAggregateCapability)
 	if !ok {
 		return SBOMAttestationAttachmentAggregateFilter{}, false
 	}

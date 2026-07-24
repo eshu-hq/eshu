@@ -166,6 +166,17 @@ func (h *TagHistoryHandler) listTagHistory(w http.ResponseWriter, r *http.Reques
 
 	rows, err := h.Neo4j.Run(r.Context(), tagHistoryCypher, params)
 	if err != nil {
+		// "query_error" would be the wrong outcome label for a bounded
+		// backend-unavailable/backend-timeout sentinel, so the guard runs
+		// before that telemetry. It still records under the existing
+		// "backend_unavailable" outcome the h.Neo4j == nil branch above uses,
+		// so a live graph outage or timeout keeps producing a handler-level
+		// datapoint instead of silently emitting none.
+		if WriteGraphReadError(w, r, err, tagHistoryCapability) {
+			recordTagHistoryError(r.Context(), "backend_unavailable")
+			recordTagHistoryDuration(r.Context(), start, "backend_unavailable")
+			return
+		}
 		recordTagHistoryError(r.Context(), "query_error")
 		recordTagHistoryDuration(r.Context(), start, "query_error")
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))

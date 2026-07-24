@@ -175,6 +175,9 @@ func (h *IaCHandler) listResources(w http.ResponseWriter, r *http.Request) {
 		rows, err = h.Graph.Run(r.Context(), cypher, params)
 		if err != nil {
 			metrics.recordError(r.Context(), string(kind), "graph_error")
+			if WriteGraphReadError(w, r, err, iacResourcesCapability) {
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}

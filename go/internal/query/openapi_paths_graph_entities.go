@@ -17,6 +17,8 @@ const openAPIPathsGraphEntities = `
           {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 0, "default": 0}}
         ],
         "responses": {
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
             "description": "Graph entity inventory",
             "content": {

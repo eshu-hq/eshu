@@ -98,6 +98,9 @@ func (h *ImpactHandler) investigateResource(w http.ResponseWriter, r *http.Reque
 
 	selected, resolution, err := h.resolveResourceInvestigationTarget(r.Context(), req)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, resourceInvestigationCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -116,6 +119,9 @@ func (h *ImpactHandler) investigateResource(w http.ResponseWriter, r *http.Reque
 		r.Context(), req, selected, repositoryAccessFilterFromContext(r.Context()),
 	)
 	if err != nil {
+		if WriteGraphReadError(w, r, err, resourceInvestigationCapability) {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
