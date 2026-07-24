@@ -310,6 +310,8 @@ evidence (No-Regression and No-Observability-Change) for this section lives in
   A configured `ClaimDispatcher` can choose the next claim target across
   collector families before the service enters the same heartbeat, commit,
   retry, terminal-failure, release, and completion path.
+- `ClaimedGenerationCommitObserver` — optional post-commit hook (#5429): fires
+  once a claim's commit succeeds, so a source's own progress marker advances only once landed.
 - `FairClaimDispatcher` — applies `workflow.FamilyFairnessScheduler` to a
   bounded candidate set and delegates each selected target to
   `ClaimControlStore.ClaimNextEligible`; empty target lanes are skipped during

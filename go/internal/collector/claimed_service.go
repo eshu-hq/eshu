@@ -308,6 +308,11 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 		runOutcome = telemetry.CollectorRunOutcomeFailRetryable
 		return s.failRetryable(ctx, mutation, item, "commit_failure", err)
 	}
+	// #5429: give any source-owned post-commit progress marker (for example
+	// ghactionsruntime's cross-cycle run watermark) a chance to advance now
+	// that the commit is durable -- never before, and never on a failed
+	// commit above. See ClaimedGenerationCommitObserver's doc comment.
+	s.observeClaimedGenerationCommitted(ctx, item)
 	// Successful commit: record per-collector fact volume before completing.
 	s.recordClaimFactsEmitted(ctx, item, collected)
 	completeMutation, err := s.resolvedCompletionMutation(mutation, collected)
