@@ -26,19 +26,18 @@ import (
 // triage.
 func buildSupplyChainImpactIndexWithQuarantine(envelopes []facts.Envelope) (supplyChainImpactIndex, []quarantinedFact, error) {
 	index := supplyChainImpactIndex{
-		affectedPackages:         map[string][]supplyChainAffectedPackage{},
-		affectedProducts:         map[string][]supplyChainAffectedProduct{},
-		consumption:              map[string][]supplyChainPackageConsumption{},
-		osPackages:               map[string][]supplyChainOSPackage{},
-		attachments:              map[string]supplyChainAttachment{},
-		images:                   map[string]supplyChainImageIdentity{},
-		riskSignals:              map[string]supplyChainRiskSignals{},
-		scannerAnalyses:          map[string]supplyChainScannerAnalysis{},
-		cloudRuntimeObservations: map[string][]supplyChainCloudRuntimeObservation{},
-		goReachability:           map[string]GoVulnerabilityFinding{},
-		jsTSPackageReachability:  buildJSTSPackageReachabilityIndex(envelopes),
-		pythonReachability:       map[string]pythonReachabilityRepositoryEvidence{},
-		jvmReachability:          buildJVMReachabilityIndex(envelopes),
+		affectedPackages:        map[string][]supplyChainAffectedPackage{},
+		affectedProducts:        map[string][]supplyChainAffectedProduct{},
+		consumption:             map[string][]supplyChainPackageConsumption{},
+		osPackages:              map[string][]supplyChainOSPackage{},
+		attachments:             map[string]supplyChainAttachment{},
+		images:                  map[string]supplyChainImageIdentity{},
+		riskSignals:             map[string]supplyChainRiskSignals{},
+		scannerAnalyses:         map[string]supplyChainScannerAnalysis{},
+		goReachability:          map[string]GoVulnerabilityFinding{},
+		jsTSPackageReachability: buildJSTSPackageReachabilityIndex(envelopes),
+		pythonReachability:      map[string]pythonReachabilityRepositoryEvidence{},
+		jvmReachability:         buildJVMReachabilityIndex(envelopes),
 	}
 	var quarantined []quarantinedFact
 	for _, envelope := range envelopes {
@@ -173,16 +172,6 @@ func addSupplyChainImpactIndexEntry(index *supplyChainImpactIndex, envelope fact
 		service := supplyChainServiceContextFromEnvelope(envelope)
 		if service.repositoryID != "" {
 			index.services = append(index.services, service)
-		}
-	case facts.AWSResourceFactKind:
-		observation, ok, err := supplyChainCloudRuntimeObservationFromEnvelope(envelope)
-		if err != nil {
-			return partitionDecodeFailures(envelope, err)
-		}
-		if ok {
-			index.cloudRuntimeObservations[observation.digest] = append(
-				index.cloudRuntimeObservations[observation.digest], observation,
-			)
 		}
 	case facts.VulnerabilityEPSSScoreFactKind:
 		score, err := decodeVulnerabilityEPSSScore(envelope)

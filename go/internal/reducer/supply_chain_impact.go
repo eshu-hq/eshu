@@ -108,23 +108,15 @@ type SupplyChainImpactFinding struct {
 	DeploymentIDs         []string
 	ServiceIDs            []string
 	Environments          []string
-	// CloudRuntimeResourceRefs names the observed cloud compute resources
-	// (running ECS task ARN, image-package Lambda function ARN) whose running
-	// image digest matches this finding's SubjectDigest — direct
-	// runtime-observed deployment evidence that a live workload carries the
-	// affected digest, distinct from the CI-declared cicd_run_correlation
-	// evidence in DeploymentIDs/Environments (issue #5452). Sorted and
-	// deduplicated. Empty when no observed cloud resource runs the digest.
-	CloudRuntimeResourceRefs []string
-	CatalogEntityRefs        []string
-	CatalogOwnerRefs         []string
-	DependencyPath           []string
-	DependencyDepth          int
-	DirectDependency         *bool
-	MissingEvidence          []string
-	EvidencePath             []string
-	EvidenceFactIDs          []string
-	CanonicalWrites          int
+	CatalogEntityRefs     []string
+	CatalogOwnerRefs      []string
+	DependencyPath        []string
+	DependencyDepth       int
+	DirectDependency      *bool
+	MissingEvidence       []string
+	EvidencePath          []string
+	EvidenceFactIDs       []string
+	CanonicalWrites       int
 	// DetectionProfile records which tier this finding meets: precise for
 	// exact installed-version anchors, comprehensive for range-only,
 	// SBOM-derived, product-derived, malformed, or missing-version evidence.
@@ -447,11 +439,6 @@ func supplyChainImpactFactKinds() []string {
 		platformMaterializationFactKind,
 		workloadIdentityFactKind,
 		serviceCatalogCorrelationFactKind,
-		// #5452: aws_resource facts carry the observed running image digest of
-		// ECS tasks / image-package Lambda functions (the #5450 running-image
-		// node-prop source). Loaded here so a finding can be joined to the live
-		// cloud resource that actually runs its subject digest.
-		facts.AWSResourceFactKind,
 		factKindFile,
 	}
 }

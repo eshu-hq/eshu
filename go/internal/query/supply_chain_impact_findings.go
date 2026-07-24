@@ -116,8 +116,12 @@ type SupplyChainImpactFindingRow struct {
 	// CloudRuntimeResourceRefs names the observed cloud compute resources
 	// (running ECS task / image-package Lambda ARNs) whose running image digest
 	// matches this finding's subject digest — runtime-observed deployment
-	// evidence distinct from the CI-declared deployment anchors (#5452). Kept in
-	// the same field position as SupplyChainImpactFindingResult so the
+	// evidence distinct from the CI-declared deployment anchors (#5452). It is
+	// NOT decoded from the persisted finding payload: the findings handler
+	// populates it at read time via applySupplyChainCloudRuntimeEvidence (a
+	// bounded CloudResource graph probe), mirroring how trace_deployment_chain
+	// derives its runtime_confirmed tier from live graph evidence. Kept in the
+	// same field position as SupplyChainImpactFindingResult so the
 	// SupplyChainImpactFindingResult(row) conversion stays valid.
 	CloudRuntimeResourceRefs []string
 	CatalogEntityRefs        []string

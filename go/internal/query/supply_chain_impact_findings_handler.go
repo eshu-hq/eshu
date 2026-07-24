@@ -133,6 +133,15 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 	if truncated {
 		rows = rows[:limit]
 	}
+	// #5452: promote findings whose subject digest is observed running on a
+	// live cloud resource (ECS task / image-package Lambda) to the
+	// runtime_confirmed deployment_truth_tier, naming the running resource. The
+	// probe is bounded to the page's digests and fails the read loudly rather
+	// than serving a false config_only tier for a vulnerability that is running.
+	if err := h.applySupplyChainCloudRuntimeEvidence(r.Context(), rows); err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	results := make([]SupplyChainImpactFindingResult, 0, len(rows))
 	for _, row := range rows {
 		results = append(results, buildSupplyChainImpactFindingResult(row))
