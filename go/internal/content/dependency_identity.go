@@ -239,26 +239,43 @@ func dependencyIdentityDiscriminator(packageManager string, metadata map[string]
 		// regardless of which ItemGroup it came from, so section cannot
 		// disambiguate on its own.
 		//
-		// "condition" is nugetProjectDependencyRow's
-		// firstNonEmpty(reference.Condition, groupCondition) — an OVERRIDE
-		// (item-level Condition wins when present; the group-level Condition
-		// is used only as a fallback when the item has none), NOT an
-		// AND-combination of both. This is exactly right for, and
-		// disambiguates, the common multi-targeting pattern: Condition set
-		// once per ItemGroup (per TFM) and never repeated per item. It has a
-		// narrow residual gap, accepted for now rather than fixed here: if an
-		// item-level Condition is present on two PackageReference rows of the
-		// same name AND that item-level string happens to be identical across
-		// two ItemGroups with DIFFERENT group-level Conditions, the differing
-		// group-level TFM distinction is masked by the override and the two
-		// rows would collide. Closing that gap would require the parser to
-		// expose the item- and group-level Condition components as separate
-		// metadata fields instead of pre-merging them (nugetProjectDependencyRow
-		// in internal/parser/nuget_project_language.go) — out of scope for
-		// this identity-layer discriminator, and a rare combination in
-		// practice since per-item Conditions on individual PackageReference
-		// elements are uncommon.
-		return metadataStringValue(metadata, "condition")
+		// The identity is keyed off the two Condition components the parser
+		// (nugetProjectDependencyRow) now exposes SEPARATELY: "condition_item"
+		// is the item-level Condition on the <PackageReference> element and
+		// "condition_group" is the group-level Condition on its <ItemGroup>.
+		// (The pre-merged "condition" field — an item-over-group override —
+		// still exists for other consumers but is deliberately NOT used here.)
+		//
+		// The empty-guard is what preserves existing identities: when at most
+		// one component is present the discriminator is firstNonEmpty(item,
+		// group), byte-identical to the old override
+		// firstNonEmpty(reference.Condition, groupCondition). That covers the
+		// two common cases unchanged — the standard multi-targeting pattern
+		// (Condition set once per ItemGroup, item empty → discriminator is the
+		// group condition) and an item-only row (group empty → discriminator
+		// is the item condition) — so those nuget nodes' entity_ids do not
+		// churn.
+		//
+		// Only when BOTH components are present do they combine
+		// (item + \x1f + group). That is exactly the #5725 collision the old
+		// override masked: two same-name rows sharing an identical item-level
+		// Condition but sitting under ItemGroups with DIFFERENT group-level
+		// (TFM) Conditions used to collapse to the one item Condition and merge
+		// into a single entity_id (a silent identity merge; the losing row was
+		// dropped by content_writer's deduplicateEntityRows last-wins). Folding
+		// the group component back in keeps those genuinely different-target
+		// rows distinct. \x1f (ASCII Unit Separator) cannot appear in an
+		// MSBuild Condition, so the two components can never be smuggled into
+		// one another to forge a collision.
+		item := metadataStringValue(metadata, "condition_item")
+		group := metadataStringValue(metadata, "condition_group")
+		if item == "" || group == "" {
+			if item != "" {
+				return item
+			}
+			return group
+		}
+		return item + "\x1f" + group
 	case "pypi":
 		// A pip/PEP 508 requirement (requirements.txt lines, and the
 		// PEP 621/Hatch array-form pyproject.toml dependency lists) can

@@ -78,6 +78,98 @@ func TestParseNuGetProjectPackageReferencesEmitsDependencyRows(t *testing.T) {
 	assertBoolFieldValue(t, unresolvedCompound, "partial_evidence", true)
 }
 
+// TestParseNuGetProjectExposesItemAndGroupConditionSeparately proves the
+// #5725 fix: when the SAME item-level Condition is repeated on the same
+// PackageReference name across two ItemGroups whose group-level Conditions
+// differ (a multi-targeted .csproj), the parser must expose the item-level
+// and group-level Condition as SEPARATE metadata fields ("condition_item",
+// "condition_group") so the identity layer can keep the two genuinely
+// different-target rows distinct. The pre-merged "condition" (item-override,
+// group-fallback) is kept UNCHANGED for existing display/identity consumers.
+func TestParseNuGetProjectExposesItemAndGroupConditionSeparately(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	path := filepath.Join(repoRoot, "MultiTarget.csproj")
+	writeTestFile(t, path, `<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+    <PackageReference Include="Newtonsoft.Json" Version="9.0.1" Condition="'$(Configuration)' == 'Release'" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" Condition="'$(Configuration)' == 'Release'" />
+  </ItemGroup>
+</Project>`)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v", err)
+	}
+	payload, err := engine.ParsePath(repoRoot, path, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	rows := nugetRowsByName(t, payload, "Newtonsoft.Json")
+	if len(rows) != 2 {
+		t.Fatalf("Newtonsoft.Json rows = %d, want 2 (one per ItemGroup)", len(rows))
+	}
+
+	const itemCondition = "'$(Configuration)' == 'Release'"
+	for _, tc := range []struct {
+		version   string
+		groupCond string
+	}{
+		{version: "9.0.1", groupCond: "'$(TargetFramework)' == 'net472'"},
+		{version: "13.0.1", groupCond: "'$(TargetFramework)' == 'net6.0'"},
+	} {
+		row := nugetRowByVersion(t, rows, tc.version)
+		// The item- and group-level Conditions are now exposed separately.
+		assertStringFieldValue(t, row, "condition_item", itemCondition)
+		assertStringFieldValue(t, row, "condition_group", tc.groupCond)
+		// The pre-merged override field is preserved byte-for-byte: item wins.
+		assertStringFieldValue(t, row, "condition", itemCondition)
+	}
+}
+
+// nugetRowsByName collects every "variables" row whose name matches, unlike
+// assertBucketItemByName which returns only the first. A multi-targeted
+// .csproj legitimately emits the same PackageReference name more than once.
+func nugetRowsByName(t *testing.T, payload map[string]any, name string) []map[string]any {
+	t.Helper()
+
+	items, ok := payload["variables"].([]map[string]any)
+	if !ok {
+		t.Fatalf("variables = %T, want []map[string]any", payload["variables"])
+	}
+	matches := make([]map[string]any, 0, 2)
+	for _, item := range items {
+		if itemName, _ := item["name"].(string); itemName == name {
+			matches = append(matches, item)
+		}
+	}
+	return matches
+}
+
+// nugetRowByVersion returns the single row whose "value" (resolved version)
+// matches, failing if zero or more than one match.
+func nugetRowByVersion(t *testing.T, rows []map[string]any, version string) map[string]any {
+	t.Helper()
+
+	var found map[string]any
+	for _, row := range rows {
+		if value, _ := row["value"].(string); value == version {
+			if found != nil {
+				t.Fatalf("more than one row with value %q", version)
+			}
+			found = row
+		}
+	}
+	if found == nil {
+		t.Fatalf("no row with value %q in %#v", version, rows)
+	}
+	return found
+}
+
 func TestParseNuGetProjectRejectsMalformedXML(t *testing.T) {
 	t.Parallel()
 
