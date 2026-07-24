@@ -71,3 +71,27 @@ worst-case partition with no large-table scan, sub-millisecond, and reuses the
 production claim query's proven `fact_work_items` access shape. Safe to implement
 as `scope_quiescence.go`. Re-run this shim if `fact_work_items_scope_generation_idx`
 or the probe's predicate columns change.
+
+## Evidence markers (#5709 substrate)
+
+No-Regression Evidence: this PR is declarative cross-scope substrate — the
+dependency contract, the readiness error type + failure class, the quiescence
+probe, and the failure-class enrollment. Nothing consumes any of it at runtime
+yet (no handler returns `crossScopeProducerNotReadyError`, no claim path calls
+`ProducerScopeQuiescence`), so it adds no runtime path and cannot regress one.
+The two primitives that will run once wired are proven against Postgres 16 for
+when they are: the quiescence probe rides `fact_work_items_scope_generation_idx`
+with an Index Scan (no seq scan) at 0.554 ms on the worst-case 500-scope × 20-gen
+× 50k-`fact_work_items` seed (the `EXPLAIN (ANALYZE, BUFFERS)` above), and the
+`attempt_count`-freeze CASE holds for the enrolled class
+(`docs/internal/evidence/5709-attempt-count-freeze.md`). Baseline vs after: the
+whole `internal/reducer` + `internal/storage/postgres` test suites are green
+before and after; input shape is the worst-case seed above; terminal queue state
+is unchanged (no new work items enqueued). Why safe: zero-behavior-change — the
+declarations have no consumer in this PR.
+
+No-Observability-Change: no metric, span, or log is added or removed. The two new
+reducer files are declared in `docs/public/observability/telemetry-coverage.md`
+with No-Observability-Change markers; `scope_quiescence.go` and the enrollment
+emit nothing of their own and stay inert until a later slice wires them, at which
+point the existing reducer queue retry/attempt telemetry covers the deferral.
