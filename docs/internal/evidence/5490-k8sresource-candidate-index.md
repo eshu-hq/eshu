@@ -242,7 +242,7 @@ container):
 | Baseline, no new index | `Index Scan` on `content_entities_repo_idx` + `Sort` | 7.934, 8.040, 8.128, 8.256, 9.284 (mean 8.33) |
 | New bounded index present, **default** `random_page_cost=4.0` (realistic: index co-exists with all base indexes) | planner **keeps** `content_entities_repo_idx` + `Sort` — **new index is not chosen** | 8.082, 8.124, 8.202, 8.247, 8.340 (mean 8.20) — **unchanged from baseline** |
 | New index, isolated (competing `content_entities_repo_idx` dropped so only the new index can serve the equality predicates, `enable_bitmapscan/seqscan=off`) | `Index Scan` using the new index, no `Sort` | 1.761, 1.763, 1.848 (mean 1.79) |
-| New index, all base indexes present, `SET random_page_cost = 1.1` (Postgres's own documented recommendation for SSD-backed storage; **not currently set anywhere in Eshu**) | planner **naturally** picks `Index Scan` using the new index, no `Sort` | 1.808, 1.862, 1.892 (mean 1.85) |
+| New index, all base indexes present, `SET random_page_cost = 1.1` (Postgres's own documented recommendation for SSD-backed storage; set in Eshu's local Compose Postgres via `docker-compose.yaml`, but **not** forced onto operator-run Helm/production Postgres — see `docs/public/reference/postgres-tuning.md`) | planner **naturally** picks `Index Scan` using the new index, no `Sort` | 1.808, 1.862, 1.892 (mean 1.85) |
 
 **Finding**: under Postgres's out-of-the-box default cost settings — what an
 unconfigured Eshu Postgres actually runs with today — the planner does
@@ -428,8 +428,10 @@ Rationale:
   execution time is unchanged from having no index at all (~8.2 ms either
   way). The Sort-elimination mechanism is real (proven at ~1.6-1.9 ms when
   isolated from its competing index, or under an SSD-appropriate
-  `random_page_cost=1.1` that Postgres itself recommends for SSD storage but
-  Eshu does not currently set), and it **is** selected automatically, under
+  `random_page_cost=1.1` that Postgres itself recommends for SSD storage and
+  that Eshu's local Compose Postgres sets, though it is not forced onto
+  operator-run Helm/production Postgres — see
+  `docs/public/reference/postgres-tuning.md`), and it **is** selected automatically, under
   default settings, once the K8sResource candidate pool grows well past the
   cap (a plausible large-monorepo shape: ~30% faster on average at 30,000
   rows).
