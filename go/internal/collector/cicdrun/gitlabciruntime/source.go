@@ -203,12 +203,11 @@ func (s ClaimedSource) NextClaimed(
 
 // buildPipelineEnvelopes normalizes one fetched pipeline window into facts,
 // emitting one independently keyed fact-set per pipeline (via the shared
-// cicdrun normalizer's pipeline-ID-scoped StableFactKey). A truncated page
-// attaches a pipelines_truncated warning to the newest (first) pipeline's job
-// list is unaffected -- the fixture normalizer itself has no top-level
-// "warnings" input for GitLab (unlike GitHub Actions' RunSnapshot.Warnings),
-// so a truncated-window signal here is recorded only via telemetry
-// (recordPartialGeneration), not as a synthesized ci.warning fact.
+// cicdrun normalizer's pipeline-ID-scoped StableFactKey). Unlike GitHub
+// Actions' RunSnapshot.Warnings, the fixture normalizer has no top-level
+// "warnings" input for GitLab, so a truncated-window signal is recorded only
+// via telemetry (recordPartialGeneration), not as a synthesized ci.warning
+// fact; per-pipeline job lists are unaffected.
 func (s ClaimedSource) buildPipelineEnvelopes(
 	observeSpan trace.Span,
 	item workflow.WorkItem,
