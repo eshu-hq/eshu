@@ -14,6 +14,11 @@ type Provider string
 const (
 	// ProviderGitHubActions identifies GitHub Actions workflow-run evidence.
 	ProviderGitHubActions Provider = "github_actions"
+	// ProviderGitLabCI identifies GitLab CI/CD pipeline-run evidence. GitLab
+	// facts share the same ci.* fact kinds and reducer join key shape
+	// (provider, run_id, run_attempt) as GitHub Actions -- see
+	// gitlab_ci_fixture.go.
+	ProviderGitLabCI Provider = "gitlab_ci"
 )
 
 // FixtureContext carries the collector boundary fields copied into fixture
@@ -121,4 +126,61 @@ type githubTrigger struct {
 type githubWarning struct {
 	Reason  string `json:"reason"`
 	Message string `json:"message"`
+}
+
+// gitlabCIFixture is the fixture-shaped decode target for one GitLab CI/CD
+// pipeline: the GitLab Pipelines API
+// (https://docs.gitlab.com/ee/api/pipelines.html) plus the Jobs API
+// (https://docs.gitlab.com/ee/api/jobs.html#list-pipeline-jobs), joined by
+// the collector the same way ghactionsruntime joins a run to its jobs.
+type gitlabCIFixture struct {
+	Pipeline    gitlabPipeline `json:"pipeline"`
+	Jobs        []gitlabJob    `json:"jobs"`
+	JobsPartial bool           `json:"jobs_partial"`
+}
+
+type gitlabPipeline struct {
+	ID         any        `json:"id"`
+	IID        any        `json:"iid"`
+	ProjectID  any        `json:"project_id"`
+	Ref        string     `json:"ref"`
+	SHA        string     `json:"sha"`
+	Status     string     `json:"status"`
+	Source     string     `json:"source"`
+	CreatedAt  string     `json:"created_at"`
+	UpdatedAt  string     `json:"updated_at"`
+	StartedAt  string     `json:"started_at"`
+	FinishedAt string     `json:"finished_at"`
+	WebURL     string     `json:"web_url"`
+	User       gitlabUser `json:"user"`
+}
+
+type gitlabUser struct {
+	Username string `json:"username"`
+}
+
+type gitlabJob struct {
+	ID         any              `json:"id"`
+	Name       string           `json:"name"`
+	Stage      string           `json:"stage"`
+	Status     string           `json:"status"`
+	CreatedAt  string           `json:"created_at"`
+	StartedAt  string           `json:"started_at"`
+	FinishedAt string           `json:"finished_at"`
+	WebURL     string           `json:"web_url"`
+	Artifacts  []gitlabArtifact `json:"artifacts"`
+}
+
+// gitlabArtifact is one entry of a GitLab job's "artifacts" array. GitLab's
+// Jobs API reports artifact metadata inline with each job and never includes
+// a content digest at this level (unlike GitHub Actions' separate Artifacts
+// API, which does) -- gitlabArtifactEnvelope always emits a blank
+// artifact_digest and the caller always follows with an
+// "artifact_missing_digest" warning, matching real GitLab API shape rather
+// than a fixture gap.
+type gitlabArtifact struct {
+	FileType   string `json:"file_type"`
+	Size       int64  `json:"size"`
+	Filename   string `json:"filename"`
+	FileFormat string `json:"file_format"`
 }

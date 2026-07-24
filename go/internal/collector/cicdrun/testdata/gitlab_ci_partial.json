@@ -1,0 +1,25 @@
+{
+  "pipeline": {
+    "id": 4300,
+    "iid": 15,
+    "project_id": 501,
+    "ref": "main",
+    "sha": "1a2b3c4d5e6f70819283746556473829a1b2c3d",
+    "status": "failed",
+    "source": "push",
+    "created_at": "2026-06-02T10:00:00Z",
+    "updated_at": "2026-06-02T10:05:00Z",
+    "web_url": "https://gitlab.com/eshu-hq/gitlab-demo-service/-/pipelines/4300"
+  },
+  "jobs": [
+    {
+      "id": 55101,
+      "name": "build",
+      "stage": "build",
+      "status": "failed",
+      "created_at": "2026-06-02T10:00:05Z",
+      "artifacts": []
+    }
+  ],
+  "jobs_partial": true
+}
