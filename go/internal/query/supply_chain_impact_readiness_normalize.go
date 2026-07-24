@@ -20,6 +20,8 @@ var allowedEvidenceFamilies = map[string]struct{}{
 	EvidenceFamilySBOMComponent:               {},
 	EvidenceFamilySBOMAttestation:             {},
 	EvidenceFamilyContainerImageIdentity:      {},
+	EvidenceFamilyVulnerabilityOSPackage:      {},
+	EvidenceFamilyScannerWorkerAnalysis:       {},
 }
 
 func normalizeEvidenceSources(sources []SupplyChainImpactEvidenceFamily) []SupplyChainImpactEvidenceFamily {

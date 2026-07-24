@@ -80,6 +80,8 @@ func (s PostgresSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
 		query.SubjectDigest,
 		query.AdvisoryID,
 		query.ImageRef,
+		pq.Array(vulnerabilityOSPackageFactKinds),
+		pq.Array(scannerWorkerAnalysisFactKinds),
 	)
 	if err != nil {
 		return SupplyChainImpactReadinessSnapshot{}, fmt.Errorf("read supply chain impact readiness: %w", err)

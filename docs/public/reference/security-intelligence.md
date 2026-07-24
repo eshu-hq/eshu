@@ -419,10 +419,16 @@ reducer-fact counts so the answer never invents findings:
 - `evidence_sources[]` reports scoped counts, `latest_observed_at`, and
   freshness for `vulnerability.advisory`, `vulnerability.exploitability`,
   `package.consumption`, `package.registry`, `sbom.component`,
-  `sbom.attestation`, and `container_image.identity`. Zero-count families are
-  omitted. Package registry evidence counts only for an explicit `package_id`
-  or for package metadata joined to the requested repository through
-  package-consumption evidence.
+  `sbom.attestation`, `container_image.identity`, `vulnerability.os_package`,
+  and `scanner_worker.analysis`. Zero-count families are omitted. Package
+  registry evidence counts only for an explicit `package_id` or for package
+  metadata joined to the requested repository through package-consumption
+  evidence. `vulnerability.os_package` and `scanner_worker.analysis` are the
+  OS-package scan tier, counted only for the scanned image a `subject_digest`
+  or `image_ref` anchor resolves to; `scanner_worker.analysis` is present
+  whenever a scan completed for that image regardless of whether it found
+  installed packages, so its presence distinguishes "never scanned" from
+  "scanned and clean".
 - `source_snapshots[]` reports bounded vulnerability source cache metadata:
   source, ecosystem, cache artifact version, snapshot digest, cache update time,
   freshness, completion state, and bounded warning fields. Snapshot and durable

@@ -222,7 +222,7 @@ const openAPIPathsSupplyChainImpactFindings = `
                           "items": {
                             "type": "object",
                             "properties": {
-                              "family": {"type": "string", "enum": ["vulnerability.advisory", "vulnerability.exploitability", "package.consumption", "package.registry", "sbom.component", "sbom.attestation", "container_image.identity"]},
+                              "family": {"type": "string", "enum": ["vulnerability.advisory", "vulnerability.exploitability", "package.consumption", "package.registry", "sbom.component", "sbom.attestation", "container_image.identity", "vulnerability.os_package", "scanner_worker.analysis"]},
                               "fact_count": {"type": "integer", "minimum": 0},
                               "latest_observed_at": {"type": "string"},
                               "freshness": {"type": "string", "enum": ["fresh", "stale", "unknown"]}

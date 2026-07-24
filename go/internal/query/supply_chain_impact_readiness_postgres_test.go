@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/lib/pq"
 )
 
 func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
@@ -133,10 +135,70 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		// warnings from unrelated images.
 		"WHERE $11 <> ''\n      AND payload->>'repo_id' = $11",
 		"WHERE doc.payload->>'subject_digest' IN (SELECT digest FROM target_image_digests)",
+		// The OS-package scan tier (#5467): two more fact-kind allowlist
+		// bindings for vulnerability.os_package and scanner_worker.analysis,
+		// both gated the same way every other family is (active generation,
+		// not tombstoned).
+		"fact.fact_kind = ANY($15::text[])",
+		"fact.fact_kind = ANY($16::text[])",
+		"'vulnerability.os_package' AS family",
+		"'scanner_worker.analysis' AS family",
+		// os_package facts carry no image identity of their own; the
+		// reducer resolves it by joining the sibling scanner_worker.analysis
+		// fact in the SAME scan scope (ScopeID+GenerationID). The readiness
+		// count must use the identical join key, or it would either
+		// undercount (no join) or scope-leak (a looser join).
+		"os_package_active AS (",
+		"scanner_worker_analysis_active AS (",
+		// A semi-join (EXISTS), never a JOIN: a JOIN's COUNT(*) fans out to
+		// COUNT(os_package rows) * COUNT(matching analysis rows), correct
+		// only because exactly one active scanner_worker.analysis fact
+		// exists per scope+generation today. EXISTS counts each os_package
+		// fact at most once no matter how many analysis rows match. Assert
+		// the exact multi-line EXISTS shape (not just substrings that could
+		// also match elsewhere) so a regression back to a plain JOIN fails
+		// this test.
+		"    FROM os_package_active AS os_package\n" +
+			"    WHERE EXISTS (\n" +
+			"        SELECT 1\n" +
+			"        FROM scanner_worker_analysis_active AS analysis\n" +
+			"        WHERE analysis.scope_id = os_package.scope_id\n" +
+			"          AND analysis.generation_id = os_package.generation_id\n" +
+			"          AND (\n" +
+			"              analysis.payload->>'image_digest' IN (SELECT digest FROM target_image_digests)\n" +
+			"              OR ($14 <> '' AND analysis.payload->>'image_reference' = $14)\n" +
+			"          )\n" +
+			"      )",
+		// Both scan-tier families are anchored to the requested image the
+		// same way container_image.identity is: the resolved digest set or
+		// an explicit image_ref, never an unbounded scan.
+		"analysis.payload->>'image_digest' IN (SELECT digest FROM target_image_digests)",
+		"analysis.payload->>'image_reference' = $14",
+		"payload->>'image_digest' IN (SELECT digest FROM target_image_digests)",
 	} {
 		if !strings.Contains(listSupplyChainImpactReadinessQuery, want) {
 			t.Fatalf("listSupplyChainImpactReadinessQuery missing %q:\n%s", want, listSupplyChainImpactReadinessQuery)
 		}
+	}
+}
+
+// TestPostgresSupplyChainImpactReadinessOSPackageCountUsesSemiJoinNotFanOut
+// is a regression for a JOIN-vs-EXISTS review finding: an inner JOIN between
+// os_package_active and scanner_worker_analysis_active would make
+// vulnerability_os_package's COUNT(*) fan out to
+// COUNT(os_package rows) * COUNT(matching analysis rows) whenever more than
+// one scanner_worker.analysis fact matches a scope+generation (a second
+// analyzer, for example). The shipped query must use EXISTS so each
+// os_package fact is counted at most once regardless of how many analysis
+// rows match.
+func TestPostgresSupplyChainImpactReadinessOSPackageCountUsesSemiJoinNotFanOut(t *testing.T) {
+	t.Parallel()
+
+	if strings.Contains(listSupplyChainImpactReadinessQuery, "JOIN scanner_worker_analysis_active AS analysis") {
+		t.Fatalf("listSupplyChainImpactReadinessQuery joins scanner_worker_analysis_active directly into vulnerability_os_package's FROM clause, which fans out COUNT(*) whenever more than one analysis fact matches a scope+generation; use EXISTS instead:\n%s", listSupplyChainImpactReadinessQuery)
+	}
+	if !strings.Contains(listSupplyChainImpactReadinessQuery, "FROM os_package_active AS os_package\n    WHERE EXISTS (") {
+		t.Fatalf("listSupplyChainImpactReadinessQuery does not count vulnerability.os_package via an EXISTS semi-join on scanner_worker_analysis_active:\n%s", listSupplyChainImpactReadinessQuery)
 	}
 }
 
@@ -284,4 +346,48 @@ func (c *countingSupplyChainImpactReadinessQueryer) QueryContext(
 	// Returning a nil rows + error short-circuits the store call but proves
 	// the SQL was issued for the anchored scope.
 	return nil, fmt.Errorf("counting only")
+}
+
+type argCapturingSupplyChainImpactReadinessQueryer struct{ args []any }
+
+func (a *argCapturingSupplyChainImpactReadinessQueryer) QueryContext(
+	_ context.Context,
+	_ string,
+	args ...any,
+) (*sql.Rows, error) {
+	a.args = args
+	return nil, fmt.Errorf("arg capture only")
+}
+
+func TestPostgresSupplyChainImpactReadinessBindsScanTierFactKindArrays(t *testing.T) {
+	t.Parallel()
+
+	// Regression for #5467: the store must bind the OS-package and
+	// scanner-worker-analysis fact-kind allowlists as two more positional
+	// array parameters ($15, $16), following the same pq.Array pattern as
+	// every other family, or the new CTEs' fact_kind = ANY(...) predicates
+	// would bind against the wrong (or a missing) parameter.
+	db := &argCapturingSupplyChainImpactReadinessQueryer{}
+	store := NewPostgresSupplyChainImpactReadinessStore(db)
+	_, _ = store.ReadSupplyChainImpactReadiness(
+		context.Background(),
+		SupplyChainImpactReadinessQuery{SubjectDigest: "sha256:scan-tier-args"},
+	)
+	if len(db.args) != 16 {
+		t.Fatalf("QueryContext args = %d, want 16 (8 fact-kind arrays + 6 scalars + 2 new scan-tier arrays)", len(db.args))
+	}
+	osPackageKinds, ok := db.args[14].(*pq.StringArray)
+	if !ok {
+		t.Fatalf("args[14] = %#v (%T), want *pq.StringArray for vulnerability.os_package fact kinds", db.args[14], db.args[14])
+	}
+	if got := []string(*osPackageKinds); fmt.Sprint(got) != fmt.Sprint([]string{"vulnerability.os_package"}) {
+		t.Fatalf("args[14] kinds = %v, want [vulnerability.os_package]", got)
+	}
+	scannerKinds, ok := db.args[15].(*pq.StringArray)
+	if !ok {
+		t.Fatalf("args[15] = %#v (%T), want *pq.StringArray for scanner_worker.analysis fact kinds", db.args[15], db.args[15])
+	}
+	if got := []string(*scannerKinds); fmt.Sprint(got) != fmt.Sprint([]string{"scanner_worker.analysis"}) {
+		t.Fatalf("args[15] kinds = %v, want [scanner_worker.analysis]", got)
+	}
 }
