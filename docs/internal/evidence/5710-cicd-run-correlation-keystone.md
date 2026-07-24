@@ -119,3 +119,34 @@ theory-proof:
   not depend on reopen ordering at all (a decision fact is written on the very
   first execution, regardless of outcome), so that additional complexity was
   out of scope for making this assertion deterministic.
+
+## Evidence markers
+
+No-Regression Evidence: this is a behavior fix (the `ci_cd_run_correlation`
+reducer domain was never enqueued in production and now is), not a rewrite of a
+proven-correct hot path. The intent builder adds one bounded intent per scope
+generation that already carries CI/CD facts, mirroring the sibling
+`scope_generation_intents.go` builders; it enqueues no work for scopes without
+`ci.*` facts. The bootstrap maintenance-pass reopen gains exactly one more
+domain (`ci_cd_run_correlation`) in the same `ReopenSucceededReducerWorkItems`
+call that already replays `container_image_identity` and
+`kubernetes_correlation_materialization`, and the replay is idempotent
+(scope-keyed stable fact key). Backend: the golden-corpus gate on NornicDB
+`nornicdb-cpu-bge:v1.1.11` + Postgres 16 over the fixed 20-repo corpus. Before:
+`list_ci_cd_run_correlations` returned 0 (the domain never ran) — the vacuous
+`minimum_results:0` placeholder. After: it returns 1 deterministically
+(`[PASS] mcp:list_ci_cd_run_correlations: "correlations" has 1 results`,
+`492 pass, 0 required-fail`, `PASS: B-7 golden corpus gate green` in 99s), with
+per-phase timings unchanged from the pre-#5710 baseline (first_drain and
+maintenance_drains within noise; the one extra reopened domain adds a single
+idempotent replay item). No hot-path Cypher was rewritten; the correlation
+handler itself is unchanged.
+
+No-Observability-Change: no metric, span, or log is added or removed. The new
+intent builder's enqueue is covered by the existing
+`eshu_dp_reducer_intents_enqueued_total` / `eshu_dp_projector_run_duration_seconds`,
+and the reducer execution that consumes the intent by
+`eshu_dp_reducer_executions_total` / `eshu_dp_reducer_run_duration_seconds`; the
+maintenance reopen is covered by the existing bootstrap correlation-reopen phase
+timing. The telemetry-coverage doc row for the new stage file is added in the
+same change with a No-Observability-Change marker.
