@@ -17,20 +17,21 @@ import (
 // (loadSupplyChainImpactEvidence) while Handle stays focused on
 // classification, suppression, and the write/emit tail.
 type supplyChainImpactLoadedEvidence struct {
-	envelopes                   []facts.Envelope
-	scopeFacts                  int
-	repositoryFacts             int
-	manifestDependencyFacts     int
-	activeEvidenceFacts         int
-	activeEvidenceTruncated     bool
-	osPackageAdvisoryFacts      int
-	scannerAnalysisScopeFacts   int
-	resolvedDigestEvidenceFacts int
-	pythonReachabilityFacts     int
-	jvmReachabilityFactCount    int
-	postSecurityAlertScopeFacts int
-	securityAlertScopingApplied bool
-	securityAlertScopedOutFacts int
+	envelopes                       []facts.Envelope
+	scopeFacts                      int
+	repositoryFacts                 int
+	manifestDependencyFacts         int
+	activeEvidenceFacts             int
+	activeEvidenceTruncated         bool
+	osPackageAdvisoryFacts          int
+	osPackageAdvisoryTargetsSkipped int
+	scannerAnalysisScopeFacts       int
+	resolvedDigestEvidenceFacts     int
+	pythonReachabilityFacts         int
+	jvmReachabilityFactCount        int
+	postSecurityAlertScopeFacts     int
+	securityAlertScopingApplied     bool
+	securityAlertScopedOutFacts     int
 }
 
 // loadSupplyChainImpactEvidence runs the scope-fact, repository, manifest-
@@ -101,7 +102,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 
 	osPackageAdvisoryStartCount := len(envelopes)
 	phaseStarted = time.Now()
-	osPackageAdvisoryEnvelopes, err := h.loadSupplyChainImpactOSPackageAdvisoryFacts(ctx, envelopes)
+	osPackageAdvisoryEnvelopes, osPackageAdvisorySkipped, err := h.loadSupplyChainImpactOSPackageAdvisoryFacts(ctx, envelopes)
 	timing.loadOSPackageAdvisoryDuration = time.Since(phaseStarted)
 	if err != nil {
 		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load supply chain impact os package advisory facts: %w", err)
@@ -170,19 +171,20 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	}
 
 	return supplyChainImpactLoadedEvidence{
-		envelopes:                   envelopes,
-		scopeFacts:                  scopeFacts,
-		repositoryFacts:             repositoryFacts,
-		manifestDependencyFacts:     manifestDependencyFacts,
-		activeEvidenceFacts:         activeEvidenceFacts,
-		activeEvidenceTruncated:     activeEvidenceTruncated,
-		osPackageAdvisoryFacts:      osPackageAdvisoryFacts,
-		scannerAnalysisScopeFacts:   scannerAnalysisScopeFacts,
-		resolvedDigestEvidenceFacts: resolvedDigestEvidenceFacts,
-		pythonReachabilityFacts:     pythonReachabilityFacts,
-		jvmReachabilityFactCount:    jvmReachabilityFactCount,
-		postSecurityAlertScopeFacts: postSecurityAlertScopeFacts,
-		securityAlertScopingApplied: securityAlertScopingApplied,
-		securityAlertScopedOutFacts: securityAlertScopedOutFacts,
+		envelopes:                       envelopes,
+		scopeFacts:                      scopeFacts,
+		repositoryFacts:                 repositoryFacts,
+		manifestDependencyFacts:         manifestDependencyFacts,
+		activeEvidenceFacts:             activeEvidenceFacts,
+		activeEvidenceTruncated:         activeEvidenceTruncated,
+		osPackageAdvisoryFacts:          osPackageAdvisoryFacts,
+		osPackageAdvisoryTargetsSkipped: osPackageAdvisorySkipped,
+		scannerAnalysisScopeFacts:       scannerAnalysisScopeFacts,
+		resolvedDigestEvidenceFacts:     resolvedDigestEvidenceFacts,
+		pythonReachabilityFacts:         pythonReachabilityFacts,
+		jvmReachabilityFactCount:        jvmReachabilityFactCount,
+		postSecurityAlertScopeFacts:     postSecurityAlertScopeFacts,
+		securityAlertScopingApplied:     securityAlertScopingApplied,
+		securityAlertScopedOutFacts:     securityAlertScopedOutFacts,
 	}, timing, nil
 }

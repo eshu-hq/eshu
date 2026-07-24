@@ -37,23 +37,25 @@ func (s FactStore) ListOSPackageAdvisoryFactEnvelopes(
 	ctx context.Context,
 	ecosystems []string,
 	limit int,
-) ([]facts.Envelope, error) {
+) ([]facts.Envelope, int, error) {
 	targets, err := s.ListOSPackageAdvisoryTargets(ctx, workflow.OSPackageAdvisoryTargetFilter{
 		Ecosystems: ecosystems,
 		Limit:      limit,
 	})
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	envelopes := make([]facts.Envelope, 0, len(targets))
+	skipped := 0
 	for _, target := range targets {
 		envelope, ok := osPackageAdvisoryFactEnvelopeFromTarget(target)
 		if !ok {
+			skipped++
 			continue
 		}
 		envelopes = append(envelopes, envelope)
 	}
-	return envelopes, nil
+	return envelopes, skipped, nil
 }
 
 // osPackageAdvisoryFactEnvelopeFromTarget reconstructs a vulnerability.os_package

@@ -45,8 +45,8 @@ func (l *repositoryAnchorSupplyChainImpactFactLoader) ListOSPackageAdvisoryFactE
 	_ context.Context,
 	_ []string,
 	_ int,
-) ([]facts.Envelope, error) {
-	return nil, nil
+) ([]facts.Envelope, int, error) {
+	return nil, 0, nil
 }
 
 func (l *repositoryAnchorSupplyChainImpactFactLoader) ListFacts(
