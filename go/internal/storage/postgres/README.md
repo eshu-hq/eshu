@@ -528,6 +528,19 @@ Primary groups:
   counter mirroring `eshu_dp_aws_pagination_checkpoint_events_total` was
   scoped out of #5429; wire one if per-store-operation telemetry becomes
   necessary.
+- `cloudObservedValueAttributes`/`stateDeclaredValueAttributes`
+  (`aws_cloud_runtime_drift_evidence.go`, reused by
+  `multi_cloud_runtime_drift_evidence.go`) normalize the bounded,
+  allowlisted `cloudruntime.ResourceRow.Attributes`/`ContainerImages` value-
+  drift comparison fields (#5453) off the AWS-observed and Terraform-declared
+  payloads. ECS container images route through
+  `cloudruntime.ExtractObservedContainerImages`/`ExtractDeclaredContainerImages`,
+  which read ONLY the `image` field of each container -- never
+  `environment`/`secrets`, which both the AWS collector's `ecs.task_definition`
+  shape and Terraform's `container_definitions` JSON string carry alongside
+  it. A container list beyond `cloudruntime.MaxContainerImagesPerResource`
+  (8) is capped, not silently truncated: `containerImagesTruncatedWarning`
+  appends `container_images_truncated` to the finding's `WarningFlags`.
 
 To add instrumentation to a store, wrap the `ExecQueryer` passed to its
 constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.

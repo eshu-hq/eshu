@@ -116,6 +116,9 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildContainerImageIdentityReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
+	if intent, ok := buildCICDRunCorrelationReducerIntent(scopeValue, generation, index); ok {
+		intents = append(intents, intent)
+	}
 	if intent, ok := buildSBOMAttestationAttachmentReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}

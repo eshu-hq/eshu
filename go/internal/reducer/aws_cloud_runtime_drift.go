@@ -154,12 +154,13 @@ func awsCloudRuntimeDriftSummary(
 	canonicalWrites int,
 ) string {
 	return fmt.Sprintf(
-		"aws cloud runtime drift evaluated=%d orphaned=%d unmanaged=%d ambiguous=%d unknown=%d canonical_writes=%d",
+		"aws cloud runtime drift evaluated=%d orphaned=%d unmanaged=%d ambiguous=%d unknown=%d image_version_drift=%d canonical_writes=%d",
 		evaluated,
 		summary.OrphanedResources,
 		summary.UnmanagedResources,
 		summary.AmbiguousResources,
 		summary.UnknownResources,
+		summary.ImageVersionDriftResources,
 		canonicalWrites,
 	)
 }
@@ -176,6 +177,8 @@ func summarizeAWSCloudRuntimeDriftCandidates(candidates []model.Candidate) cloud
 			summary.AmbiguousResources++
 		case cloudruntime.FindingKindUnknownCloudResource:
 			summary.UnknownResources++
+		case cloudruntime.FindingKindImageVersionDrift:
+			summary.ImageVersionDriftResources++
 		}
 	}
 	return summary
