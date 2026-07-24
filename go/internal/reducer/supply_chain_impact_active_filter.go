@@ -153,6 +153,16 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			digests = append(digests, payloadStr(envelope.Payload, "digest"))
 			repositoryIDs = append(repositoryIDs, payloadStr(envelope.Payload, "repository_id"))
 			imageRefs = append(imageRefs, payloadStr(envelope.Payload, "image_ref"))
+		case facts.ScannerWorkerAnalysisFactKind:
+			// Feeds loadSupplyChainImpactResolvedDigestEvidenceFacts (issue
+			// #5464): the scanner-analysis-scope stage only learns an
+			// os_package's real scanned digest after the original
+			// active-evidence stage already ran, so that digest/image_ref
+			// must be re-derived from the analysis envelope itself here,
+			// rather than from a case this switch already has for some
+			// other fact kind.
+			digests = append(digests, payloadStr(envelope.Payload, "image_digest"))
+			imageRefs = append(imageRefs, payloadStr(envelope.Payload, "image_reference"))
 		case facts.OCIImageManifestFactKind, facts.OCIImageIndexFactKind:
 			digests = append(digests, payloadStr(envelope.Payload, "digest"))
 			repositoryIDs = append(repositoryIDs, ociRepositoryID(envelope.Payload))
