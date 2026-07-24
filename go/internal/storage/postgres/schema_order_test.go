@@ -109,4 +109,6 @@ var orderedBootstrapDefinitionNames = []string{
 	// migration 077 (#5490 K8sResource impact-trace candidate scan partial
 	// covering index).
 	"content_entities_k8s_select_partial_index",
+	// migration 078 (#5429 CI/CD run cross-cycle watermark gap detection).
+	"cicd_run_watermarks",
 }
