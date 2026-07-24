@@ -428,8 +428,10 @@ Rationale:
   execution time is unchanged from having no index at all (~8.2 ms either
   way). The Sort-elimination mechanism is real (proven at ~1.6-1.9 ms when
   isolated from its competing index, or under an SSD-appropriate
-  `random_page_cost=1.1` that Postgres itself recommends for SSD storage but
-  Eshu does not currently set), and it **is** selected automatically, under
+  `random_page_cost=1.1` that Postgres itself recommends for SSD storage and
+  that Eshu's local Compose Postgres sets, though it is not forced onto
+  operator-run Helm/production Postgres — see
+  `docs/public/reference/postgres-tuning.md`), and it **is** selected automatically, under
   default settings, once the K8sResource candidate pool grows well past the
   cap (a plausible large-monorepo shape: ~30% faster on average at 30,000
   rows).

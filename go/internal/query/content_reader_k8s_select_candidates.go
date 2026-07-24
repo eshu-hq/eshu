@@ -118,7 +118,9 @@ func k8sSelectCandidateFromEntity(entity EntityContent) K8sSelectCandidate {
 // content_entities_repo_idx + Sort plan (~8-9 ms, unchanged from having no
 // index at all); the ordered-scan plan through this index (~1.6-1.9 ms) is
 // only chosen when random_page_cost is tuned for SSD storage (Postgres's own
-// documented recommendation, not currently set anywhere in Eshu) or when the
+// documented recommendation; set in Eshu's local Compose Postgres, but not
+// forced onto operator-run Helm/production Postgres -- see
+// docs/public/reference/postgres-tuning.md) or when the
 // K8sResource candidate pool is large relative to the page cap (repos with
 // far more than repositorySemanticEntityLimit K8sResource rows saw the
 // planner select this index by default, ~1.7-3.1 ms vs a ~2.9-3.9 ms
