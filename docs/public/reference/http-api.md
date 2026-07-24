@@ -550,6 +550,18 @@ field is **not** present for an **image-packaged** Lambda
 *is* correlated to the OCI `ContainerImage` through `image_uri` /
 `resolved_image_uri`.
 
+No-Regression Evidence: issue #5454 adds one bounded scalar (`package_type`) to
+the closed `awsCloudInventoryAttributeAllowlist` and one O(1) provider +
+resource_type gated map-key check per already-fetched readback row
+(`cloudInventoryCodeCorrelationLabel`); it introduces no new query, SQL, Cypher,
+transaction, or per-row I/O, so the cloud-inventory readback wall-time and
+handler duration are unchanged (verified by the `go test ./internal/query`
+readback suite on the same corpus/fixtures).
+
+No-Observability-Change: #5454 adds no new metric, span, log line, audit table,
+or schema; the `code_sha256_correlation` limitation is a content-free label on
+an existing read surface, covered by the existing cloud-inventory query span.
+
 ## Cloud Resource Graph Paging
 
 `GET /api/v0/cloud/resources` returns a bounded browse page from the authoritative CloudResource graph. Optional `provider`, `resource_type`, `region`, and

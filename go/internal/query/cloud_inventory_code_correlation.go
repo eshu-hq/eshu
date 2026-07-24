@@ -55,19 +55,33 @@ const cloudInventoryLambdaPackageTypeZip = "Zip"
 // the exact case where a caller would otherwise expect the code hash to be
 // correlated but no collected hash covers the Lambda deployment zip's bytes.
 //
-// It keys on package_type rather than resource_type because package_type is a
-// Lambda-only attribute (no other AWS resource emits it) and its value cleanly
-// separates the uncorrelatable zip case from the image case, independent of
-// whether the resource_type is the cassette short form ("lambda.function") or
-// the live collector's canonical string ("aws_lambda_function"). The returned
-// map is content-free: it carries only bounded enum/label tokens, never the
-// code_sha256 value or any locator.
-func cloudInventoryCodeCorrelationLabel(attrs map[string]any) map[string]any {
+// It gates on provider=="aws" AND a closed Lambda resource_type set before
+// looking at package_type. package_type is NOT Lambda-exclusive -- the
+// OpenSearch collector also emits a package_type attribute
+// (go/internal/collector/awscloud/services/opensearch/scanner.go), and GCP/Azure
+// resources reach this read model through the same provider-agnostic view -- so
+// keying on the attribute alone would mislabel a non-Lambda (or non-AWS)
+// resource that coincidentally carried package_type/code_sha256-named keys. The
+// resource_type set mirrors reducer.lambdaFunctionResourceTypes: the cassette
+// short-name ("lambda.function") and the live collector's canonical string
+// ("aws_lambda_function"). The returned map is content-free: it carries only
+// bounded enum/label tokens, never the code_sha256 value or any locator.
+func cloudInventoryCodeCorrelationLabel(provider, resourceType string, attrs map[string]any) map[string]any {
+	if provider != "aws" {
+		return nil
+	}
+	if _, ok := cloudInventoryLambdaResourceTypes[strings.TrimSpace(resourceType)]; !ok {
+		return nil
+	}
 	if len(attrs) == 0 {
 		return nil
 	}
+	// AWS's Lambda PackageType enum is exact-case "Zip"/"Image"; compare
+	// exactly (not case-folded) so only a genuine zip Lambda -- never an image
+	// Lambda whose deployment code is the container image #5450 correlates --
+	// receives the gap label.
 	packageType, _ := attrs["package_type"].(string)
-	if !strings.EqualFold(strings.TrimSpace(packageType), cloudInventoryLambdaPackageTypeZip) {
+	if strings.TrimSpace(packageType) != cloudInventoryLambdaPackageTypeZip {
 		return nil
 	}
 	codeSHA256, _ := attrs["code_sha256"].(string)
@@ -79,4 +93,14 @@ func cloudInventoryCodeCorrelationLabel(attrs map[string]any) map[string]any {
 		"truth_basis":        cloudInventoryCodeCorrelationTruthBasisDisplayOnly,
 		"unsupported_reason": cloudInventoryZipCodeSHA256UnsupportedReason,
 	}
+}
+
+// cloudInventoryLambdaResourceTypes is the closed set of resource_type strings a
+// Lambda function carries on the cloud-inventory readback: the cassette
+// short-name and the live collector's canonical string. It mirrors
+// reducer.lambdaFunctionResourceTypes so the code-correlation gap label fires
+// for exactly the same resources the running-image correlation reasons about.
+var cloudInventoryLambdaResourceTypes = map[string]struct{}{
+	"lambda.function":     {},
+	"aws_lambda_function": {},
 }

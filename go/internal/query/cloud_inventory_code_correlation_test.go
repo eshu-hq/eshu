@@ -114,3 +114,65 @@ func TestCloudInventoryResourceViewOmitsCodeCorrelationGapForNonLambda(t *testin
 			cloudInventoryCodeCorrelationKey, view[cloudInventoryCodeCorrelationKey])
 	}
 }
+
+// TestCloudInventoryResourceViewOmitsCodeCorrelationGapForNonLambdaWithCollidingAttrs
+// is the #5454 F1 regression: a NON-Lambda AWS resource (e.g. an OpenSearch
+// package, which also emits a package_type attribute) that coincidentally
+// carries package_type=Zip + a code_sha256-named key must NOT receive the
+// zip-Lambda code-correlation gap label. The label gates on a closed Lambda
+// resource_type set, not on the attribute names alone.
+func TestCloudInventoryResourceViewOmitsCodeCorrelationGapForNonLambdaWithCollidingAttrs(t *testing.T) {
+	t.Parallel()
+
+	envelope := map[string]any{
+		"generation_id": "gen-1",
+		"scope_id":      "aws:123456789012:us-east-1:opensearch",
+		"payload": map[string]any{
+			"cloud_resource_uid":    "cloud_resource:aws-opensearch-package",
+			"provider":              "aws",
+			"resource_type":         "aws_opensearch_package",
+			"management_origin":     "observed",
+			"has_observed_evidence": true,
+			"attributes": map[string]any{
+				"package_type": "Zip",
+				"code_sha256":  "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+			},
+		},
+	}
+
+	view := cloudInventoryResourceView(envelope)
+	if _, present := view[cloudInventoryCodeCorrelationKey]; present {
+		t.Fatalf("%s present for a non-Lambda AWS resource with colliding attrs: %#v",
+			cloudInventoryCodeCorrelationKey, view[cloudInventoryCodeCorrelationKey])
+	}
+}
+
+// TestCloudInventoryResourceViewOmitsCodeCorrelationGapForNonAWSProvider is the
+// #5454 F1 regression for the provider gate: a NON-AWS resource (GCP) reaching
+// this provider-agnostic read model with package_type=Zip + code_sha256-named
+// keys must NOT receive the AWS-Lambda-specific gap label.
+func TestCloudInventoryResourceViewOmitsCodeCorrelationGapForNonAWSProvider(t *testing.T) {
+	t.Parallel()
+
+	envelope := map[string]any{
+		"generation_id": "gen-1",
+		"scope_id":      "gcp:demo-project",
+		"payload": map[string]any{
+			"cloud_resource_uid":    "cloud_resource:gcp-artifact",
+			"provider":              "gcp",
+			"resource_type":         "lambda.function", // even a colliding resource_type must not fire for gcp
+			"management_origin":     "observed",
+			"has_observed_evidence": true,
+			"attributes": map[string]any{
+				"package_type": "Zip",
+				"code_sha256":  "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+			},
+		},
+	}
+
+	view := cloudInventoryResourceView(envelope)
+	if _, present := view[cloudInventoryCodeCorrelationKey]; present {
+		t.Fatalf("%s present for a non-AWS provider: %#v",
+			cloudInventoryCodeCorrelationKey, view[cloudInventoryCodeCorrelationKey])
+	}
+}

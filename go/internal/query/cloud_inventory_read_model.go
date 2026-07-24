@@ -180,7 +180,11 @@ func cloudInventoryResourceView(envelope map[string]any) map[string]any {
 		// zip-packaged Lambda whose code_sha256 has no collected CI/package/OCI
 		// counterpart (issue #5454). Never silent: an image Lambda is excluded
 		// because its image_uri correlates via #5450.
-		if label := cloudInventoryCodeCorrelationLabel(attrs); label != nil {
+		if label := cloudInventoryCodeCorrelationLabel(
+			stringFromMap(payload, "provider"),
+			stringFromMap(payload, "resource_type"),
+			attrs,
+		); label != nil {
 			view[cloudInventoryCodeCorrelationKey] = label
 		}
 	}
