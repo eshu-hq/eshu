@@ -56,8 +56,17 @@ const openAPIPathsCloudInventory = `
                           },
                           "attributes": {
                             "type": "object",
-                            "description": "Optional bounded provider-specific attributes. GCP surfaces its typed-depth payload (e.g. table_type, schema_field_count, kms_key_name, clustering_fields) as a bounded redaction-safe passthrough. AWS surfaces a CLOSED image/version allowlist only: task_definition_arn, image_uri, resolved_image_uri, code_sha256, version, and a containers array reduced per element to {image, image_digest}. Azure's allowlist is wired but currently empty (its resource fact carries no image/version key yet). The surfaced image/version references (image_uri, resolved_image_uri, containers[].image, task_definition_arn) are intentional deployed-code evidence and name the image/registry/repository for the account-scoped caller's own resources; no credential, secret, or non-image infrastructure locator (cluster_arn, role_arn, kms_key_arn, arm_resource_id, network_interfaces, container name/runtime_id, ...) is ever present.",
+                            "description": "Optional bounded provider-specific attributes. GCP surfaces its typed-depth payload (e.g. table_type, schema_field_count, kms_key_name, clustering_fields) as a bounded redaction-safe passthrough. AWS surfaces a CLOSED image/version allowlist only: task_definition_arn, image_uri, resolved_image_uri, code_sha256, package_type (the bounded Lambda packaging discriminator Zip/Image), version, and a containers array reduced per element to {image, image_digest}. Azure's allowlist is wired but currently empty (its resource fact carries no image/version key yet). The surfaced image/version references (image_uri, resolved_image_uri, containers[].image, task_definition_arn) are intentional deployed-code evidence and name the image/registry/repository for the account-scoped caller's own resources; no credential, secret, or non-image infrastructure locator (cluster_arn, role_arn, kms_key_arn, arm_resource_id, network_interfaces, container name/runtime_id, ...) is ever present.",
                             "additionalProperties": true
+                          },
+                          "code_sha256_correlation": {
+                            "type": "object",
+                            "description": "Present only for a zip-packaged Lambda function (attributes.package_type=Zip) that carries a code_sha256. It states, programmatically, that the code hash is NOT correlated to any CI/package hash: a Lambda code_sha256 is base64(SHA256(the deployment .zip)) and no collected hash covers those bytes (the GitHub Actions artifact_digest hashes GitHub's own re-zip, package-registry hashes are of tarballs/wheels, OCI digests are image manifests), so the code_sha256 is display-only evidence and the limitation is surfaced rather than left silent (issue #5454). Absent for an image-packaged Lambda, whose deployment code is the container image correlated via image_uri/resolved_image_uri.",
+                            "properties": {
+                              "status": {"type": "string", "enum": ["uncorrelated"]},
+                              "truth_basis": {"type": "string", "enum": ["display_only_evidence"]},
+                              "unsupported_reason": {"type": "string", "enum": ["zip_code_sha256_no_ci_counterpart"]}
+                            }
                           },
                           "identity_policy_evidence": {
                             "type": "array",
