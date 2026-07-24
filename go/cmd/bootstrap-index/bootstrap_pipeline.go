@@ -255,11 +255,35 @@ func runPipelined(
 	// which may not be active when the CI scope's intent first drains, so a later
 	// maintenance pass replays it once the OCI generation is active (#5423). The
 	// decision upserts on a scope-keyed stable fact key, so replay is idempotent.
+	// ci_cd_run_correlation (#5710) has the same cross-scope dependency one hop
+	// further along the same chain: it joins a CI scope's ci.run/ci.artifact
+	// evidence against the cross-scope active reducer_container_image_identity
+	// rows container_image_identity materializes. Listing it after
+	// container_image_identity in THIS slice is documentation ordering only —
+	// ReopenSucceededReducerWorkItems just marks each domain's succeeded rows
+	// pending in list order and returns; nothing here drains the reducer queue
+	// between domains, so the two domains' reopened work items are claimed by
+	// concurrent workers with no guaranteed ordering. This reopen is a
+	// best-effort, idempotent re-attempt, not a readiness gate: on a given
+	// maintenance pass ci_cd_run_correlation's reopened intent may run before
+	// or after container_image_identity's, and its outcome (derived vs.
+	// ambiguous — see docs/internal/evidence/5710-cicd-run-correlation-keystone.md
+	// for why "exact" is not reachable for this digest) is not deterministic.
+	// list_ci_cd_run_correlations' minimum_results:1 does not depend on this
+	// ordering: the domain writes a durable decision fact for every outcome
+	// (exact/derived/ambiguous/unresolved/rejected), so a row exists from the
+	// correlation's very first, non-reopened execution regardless. Reopening it
+	// here still has value beyond that floor — a later pass can upgrade a
+	// "derived" decision (no identity evidence considered yet) to a more
+	// evidence-complete "ambiguous" one once more container_image_identity rows
+	// have committed — and it upserts on a scope-keyed stable fact key, so
+	// replay is idempotent.
 	correlationReopenStart := time.Now()
 	if err := cd.committer.ReopenSucceededReducerWorkItems(ctx, tracer, instruments, []string{
 		"deployable_unit_correlation",            // reducer.DomainDeployableUnitCorrelation
 		"kubernetes_correlation_materialization", // reducer.DomainKubernetesCorrelationMaterialization
 		"container_image_identity",               // reducer.DomainContainerImageIdentity
+		"ci_cd_run_correlation",                  // reducer.DomainCICDRunCorrelation
 	}); err != nil {
 		recordPhase("correlation_reopen", correlationReopenStart)
 		if logger != nil {
