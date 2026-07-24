@@ -332,6 +332,15 @@ func classifySupplyChainImpactPackage(
 					finding.RepositoryID = repositoryID
 					finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, image.factID)
 					finding.EvidencePath = append(finding.EvidencePath, containerImageIdentityFactKind)
+					// #5468: cross-check scanner digest against every other
+					// identity for the same repository — if CI declared a
+					// different digest for this repo, surface the disagreement
+					// as explicit missing_evidence.
+					if mismatch := reconcileSupplyChainScannerIdentityDigest(
+						finding.SubjectDigest, repositoryID, index.images,
+					); len(mismatch) > 0 {
+						finding.MissingEvidence = append(finding.MissingEvidence, mismatch...)
+					}
 				}
 			}
 		}
