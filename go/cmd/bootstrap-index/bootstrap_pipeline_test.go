@@ -197,11 +197,15 @@ func TestPipelinedBootstrapRunsDeferredBackfillWorkflow(t *testing.T) {
 	}
 	// container_image_identity is replayed so a cross-scope ci.artifact -> OCI
 	// manifest join (and the #5423 ci_run_commit provenance) resolves once the
-	// OCI generation is active on a later maintenance pass.
+	// OCI generation is active on a later maintenance pass. ci_cd_run_correlation
+	// (#5710) is replayed after it, on the same later pass, so its own
+	// cross-scope read of the now-materialized container_image_identity rows
+	// resolves deterministically instead of racing the identity generation.
 	if got, want := committer.reopenedDomains, []string{
 		"deployable_unit_correlation",
 		"kubernetes_correlation_materialization",
 		"container_image_identity",
+		"ci_cd_run_correlation",
 	}; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("reopened domains = %v, want %v", got, want)
 	}

@@ -255,11 +255,19 @@ func runPipelined(
 	// which may not be active when the CI scope's intent first drains, so a later
 	// maintenance pass replays it once the OCI generation is active (#5423). The
 	// decision upserts on a scope-keyed stable fact key, so replay is idempotent.
+	// ci_cd_run_correlation (#5710) has the same cross-scope dependency one hop
+	// further along the same chain: it joins a CI scope's ci.run/ci.artifact
+	// evidence against the cross-scope active reducer_container_image_identity
+	// rows container_image_identity just materialized above, so it is listed
+	// after container_image_identity to replay once that generation is active
+	// too. The decision likewise upserts on a scope-keyed stable fact key, so
+	// replay is idempotent.
 	correlationReopenStart := time.Now()
 	if err := cd.committer.ReopenSucceededReducerWorkItems(ctx, tracer, instruments, []string{
 		"deployable_unit_correlation",            // reducer.DomainDeployableUnitCorrelation
 		"kubernetes_correlation_materialization", // reducer.DomainKubernetesCorrelationMaterialization
 		"container_image_identity",               // reducer.DomainContainerImageIdentity
+		"ci_cd_run_correlation",                  // reducer.DomainCICDRunCorrelation
 	}); err != nil {
 		recordPhase("correlation_reopen", correlationReopenStart)
 		if logger != nil {
