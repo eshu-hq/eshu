@@ -77,6 +77,94 @@ If that inequality fails, reduce per-runtime pools or add a measured pooling
 layer outside Eshu. Do not raise every runtime to the same number just because
 one phase is slow.
 
+## Planner Cost Knobs (`random_page_cost`)
+
+`random_page_cost` tells the planner how expensive a random (non-sequential)
+page fetch is relative to a sequential one. Postgres ships `4.0`, a
+**spinning-disk** ratio: it prices a random heap visit ~4x a sequential read.
+On SSD/NVMe the real ratio is close to 1, so `4.0` over-prices random access and
+suppresses index plans that would win on flash storage.
+
+### What Eshu already sets
+
+Eshu's local Compose Postgres runs SSD-tuned (see `docker-compose.yaml` and
+`docker-compose.neo4j.yml`):
+
+| Setting | Compose value | Postgres default |
+| --- | --- | --- |
+| `random_page_cost` | `1.1` | `4.0` |
+| `effective_io_concurrency` | `200` | `1` |
+
+These are **not** rendered into the Helm/production values: a self-hosted
+deployment points Eshu at the operator's own Postgres, and Eshu does not force
+planner cost settings on storage it does not control. The B-7 golden-corpus gate
+runs the whole pipeline against the Compose Postgres at `random_page_cost=1.1`
+and passes, so `1.1` is correctness-safe across the corpus; the question this
+section answers is only *when it is performance-safe* on your storage.
+
+### Why it matters for Eshu's read path
+
+Several bounded read queries fetch a capped, ordered candidate set whose ordering
+matches a covering/partial index, so an ordered index scan can skip an explicit
+`Sort` and terminate after the `LIMIT` -- but only if the planner *chooses* that
+plan, which is cost-sensitive. The clearest measured case is the #5490
+K8sResource candidate fetch
+(`go/internal/query/content_reader_k8s_select_candidates.go`, migration
+`077_content_entities_k8s_select_partial_index.sql`); full ladder in
+`docs/internal/evidence/5490-k8sresource-candidate-index.md`:
+
+| `random_page_cost` | Plan | Mean exec (ms) |
+| --- | --- | ---: |
+| `4.0` (Postgres default) | keeps `content_entities_repo_idx` + explicit `Sort` -- new index **not** chosen | 8.20 |
+| `1.1` (SSD recommendation) | **naturally** picks the ordered `Index Scan`, no `Sort` | 1.85 |
+
+Same query, same data, byte-identical result set -- only the plan changes.
+
+### No-regression spot-check (representative shapes, SSD)
+
+To confirm the knob does not regress other query shapes, three representative
+shapes were measured on a throwaway `postgres:16` seeded with the #5490
+worst-case partition (18,000 `content_entities` rows, 6,000 K8sResource in one
+repo), Apple M4 Pro / SSD, 5 warm `EXPLAIN ANALYZE` runs each:
+
+| Query shape | `4.0` plan / mean | `1.1` plan / mean | Effect |
+| --- | --- | --- | --- |
+| K8sResource ordered candidate fetch (`LIMIT 5001`) | `Sort` / ~9.8 ms | partial-index `Index Scan`, no `Sort` / ~0.8 ms | ~12x faster (index adopted) |
+| Function ordered paginated scan (`LIMIT 200`, no partial index) | `Incremental Sort` / ~0.84 ms | `Incremental Sort` (same) / ~0.80 ms | unchanged -- no regression |
+| Primary-key point lookup (control) | `pkey Index Scan` / ~0.030 ms | `pkey Index Scan` / ~0.033 ms | unchanged -- `rpc`-insensitive |
+
+On SSD, `1.1` unlocked the index-adoption win on the one shape that could use it
+and left the others' plans and timings unchanged -- no regression across the
+three shapes. This is a same-machine *relative* SSD result, not a portable
+wall-clock target: `random_page_cost` re-plans **every** query, and its effect is
+fundamentally storage-dependent, so it must be validated on the operator's own
+hardware before being applied as a server setting.
+
+### Operator guidance
+
+- **SSD / NVMe local storage, warm cache** (the common modern deployment):
+  lowering `random_page_cost` toward `1.1` matches what Eshu's own Compose
+  already runs and unlocks ordered-index plans like the K8sResource fetch above.
+  This is the Postgres project's own documented SSD recommendation
+  (<https://www.postgresql.org/docs/current/runtime-config-query.html#GUC-RANDOM-PAGE-COST>).
+- **Spinning disk, cold cache, or high-latency network/EBS-style storage**: do
+  **not** lower it blindly. `1.1` tells the planner random and sequential reads
+  cost nearly the same; if they do not, an ordered scan performing thousands of
+  random single-row heap fetches (for example the <=5,001-row K8sResource cap)
+  can be strictly worse -- seconds of I/O -- than the sort-once plan. Leave the
+  default, or measure on the real hardware first.
+- **Prove it on your storage before committing.** Validate with a bounded
+  before/after on a representative statement (see [Run Evidence](#run-evidence)
+  and [Hot-Path Checks](#hot-path-checks)):
+
+  ```sql
+  SET random_page_cost = 1.1;   -- session-local; compare EXPLAIN ANALYZE
+  RESET random_page_cost;       -- back to the server default
+  ```
+
+  Apply it as a server setting (or per-role) only after the before/after shows a
+  win with no regression on your own storage and cache state.
+
 ## Run Evidence
 
 Capture these facts for every tuning run so before/after comparisons survive:
