@@ -5484,9 +5484,9 @@
           "summary.by_kind.resource"
         ],
         "required_json_values": {
-          "count": 10,
-          "summary.total": 18,
-          "summary.by_kind.resource": 10
+          "count": 11,
+          "summary.total": 19,
+          "summary.by_kind.resource": 11
         }
       },
       "GET /api/v0/documentation/facts?fact_kind=source": {
