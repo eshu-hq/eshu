@@ -65,6 +65,13 @@ func buildClaimedService(
 	}
 	config.Source.Tracer = tracer
 	config.Source.Instruments = instruments
+	// Watermarks closes the #5429 cross-cycle run-collection gap: without a
+	// durable store, gap detection would reset on every process restart and
+	// be invisible across collector replicas (an in-memory store only
+	// narrows the window within one process's lifetime). See
+	// go/internal/storage/postgres/cicd_run_watermark.go and
+	// go/internal/collector/cicdrun/runwatermark.
+	config.Source.Watermarks = postgres.NewCICDRunWatermarkStore(database)
 	source, err := ghactionsruntime.NewClaimedSource(config.Source)
 	if err != nil {
 		return collector.ClaimedService{}, err

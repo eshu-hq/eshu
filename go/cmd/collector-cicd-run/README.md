@@ -27,7 +27,8 @@ The command imports `internal/collector` for claimed service execution,
 `internal/collector/cicdrun/ghactionsruntime` for provider reads,
 `internal/replay/cassette` for credential-free cassette replay,
 `internal/runtime` for pprof and Postgres bootstrap, `internal/storage/postgres`
-for workflow and fact stores, and `internal/telemetry` for spans and metrics.
+for workflow, fact, and (#5429) `CICDRunWatermarkStore` stores, and
+`internal/telemetry` for spans and metrics.
 
 ## Telemetry
 
@@ -50,6 +51,13 @@ status class, fact kind, and partial reason.
 - `allowed_repositories`, `max_runs`, `max_jobs`, and `max_artifacts` bound the
   provider read shape.
 - Heartbeat interval must be shorter than the claim lease TTL.
+- `-mode=live` (`buildClaimedService`) wires `SourceConfig.Watermarks` to a
+  `postgres.CICDRunWatermarkStore` over the same database as the workflow
+  and fact stores, so cross-cycle run-collection gap detection (#5429)
+  survives process restarts and is visible across collector replicas. The
+  `-mode=cassette` credential-free replay path does not use
+  `ghactionsruntime.ClaimedSource` at all (see `internal/replay/cassette`),
+  so it carries no watermark and needs none.
 
 ## Related docs
 
