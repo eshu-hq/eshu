@@ -106,6 +106,65 @@ func TestAWSRuntimeResourceRowFromPayloadPopulatesECSContainerImages(t *testing.
 	}
 }
 
+// TestAWSRuntimeResourceRowFromPayloadPopulatesLambdaFromProductionResourceType
+// is the #5453 codex/owner P0 regression: the live AWS collector emits
+// resource_type "aws_lambda_function" (constants_lambda.go), not the cassette's
+// short-name "lambda.function". The observed decoder must accept the production
+// string too, or Lambda image/version drift never fires outside the fixtures.
+func TestAWSRuntimeResourceRowFromPayloadPopulatesLambdaFromProductionResourceType(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"arn": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo",
+		"resource_id": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo",
+		"resource_type": "aws_lambda_function",
+		"attributes": {
+			"package_type": "Image",
+			"image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
+			"version": "$LATEST"
+		}
+	}`)
+
+	row, ok := awsRuntimeResourceRowFromPayload("aws:123456789012:us-east-1:lambda", payload)
+	if !ok {
+		t.Fatalf("awsRuntimeResourceRowFromPayload() ok = false, want true")
+	}
+	want := map[string]string{
+		"image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
+		"version":   "$LATEST",
+	}
+	if !reflect.DeepEqual(row.Attributes, want) {
+		t.Fatalf("row.Attributes = %#v, want %#v (production aws_lambda_function must decode)", row.Attributes, want)
+	}
+}
+
+// TestAWSRuntimeResourceRowFromPayloadPopulatesECSFromProductionResourceType is
+// the ECS half of the same #5453 P0: the live collector emits
+// "aws_ecs_task_definition" (constants_ecs.go), not "ecs.task_definition".
+func TestAWSRuntimeResourceRowFromPayloadPopulatesECSFromProductionResourceType(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"arn": "arn:aws:ecs:us-east-1:123456789012:task-definition/supply-chain-demo:1",
+		"resource_id": "arn:aws:ecs:us-east-1:123456789012:task-definition/supply-chain-demo:1",
+		"resource_type": "aws_ecs_task_definition",
+		"attributes": {
+			"containers": [
+				{"image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest", "name": "app"}
+			]
+		}
+	}`)
+
+	row, ok := awsRuntimeResourceRowFromPayload("aws:123456789012:us-east-1:ecs", payload)
+	if !ok {
+		t.Fatalf("awsRuntimeResourceRowFromPayload() ok = false, want true")
+	}
+	want := []string{"123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest"}
+	if !reflect.DeepEqual(row.ContainerImages, want) {
+		t.Fatalf("row.ContainerImages = %#v, want %#v (production aws_ecs_task_definition must decode)", row.ContainerImages, want)
+	}
+}
+
 // TestAWSRuntimeStateRowFromPayloadPopulatesDeclaredAMI proves the
 // state-side decoder captures the Terraform-declared "ami" attribute.
 func TestAWSRuntimeStateRowFromPayloadPopulatesDeclaredAMI(t *testing.T) {
