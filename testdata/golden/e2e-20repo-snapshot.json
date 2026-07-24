@@ -1782,7 +1782,9 @@
           "provider"
         ],
         "allowed_node_property_values": {
-          "provider": ["aws"]
+          "provider": [
+            "aws"
+          ]
         }
       },
       {
@@ -1918,14 +1920,16 @@
           "ami_id"
         ],
         "allowed_node_property_values": {
-          "ami_id": ["ami-000000000000000a"]
+          "ami_id": [
+            "ami-000000000000000a"
+          ]
         }
       }
     ],
     "required_self_loops": [
       {
         "id": "sl-dart-calls-recursion",
-        "description": "Exactly 2 Function{language=dart} CALLS self-loop edges (caller==callee): recursionFib (arrow-form) and recursionFact (block-form) in tests/fixtures/ecosystems/dart_comprehensive/calls.dart. Dart's call extractor (go/internal/parser/dart/calls.go) was a raw byte-scanner that could not distinguish a declaration header from a call site, recording every function/method/constructor declaration in the corpus as a spurious self-loop CALLS edge (issue #5332). Dart was not staged in the golden corpus, so that corruption class shipped with no durable end-to-end gate (issue #5349). The bound is closed on BOTH sides, not a floor: below 2 means genuine recursion was dropped; above 2 means the #5332 declaration-vs-call-site bug regressed (every one of the fixture's other declarations — DeclarationOnlyWidget's 2 constructors + getter + setter + method, GeoPoint's named constructor, mutualPing/mutualPong, identityFn, LineBuffer.append — would each contribute a spurious self-loop). Mutual recursion (mutualPing<->mutualPong) and the named-constructor/generic-args/cascade call shapes in the same fixture are NOT self-loops (caller != callee) and so do not move this count; they instead flow through the existing generic rc-11 Function-CALLS-Function floor.",
+        "description": "Exactly 2 Function{language=dart} CALLS self-loop edges (caller==callee): recursionFib (arrow-form) and recursionFact (block-form) in tests/fixtures/ecosystems/dart_comprehensive/calls.dart. Dart's call extractor (go/internal/parser/dart/calls.go) was a raw byte-scanner that could not distinguish a declaration header from a call site, recording every function/method/constructor declaration in the corpus as a spurious self-loop CALLS edge (issue #5332). Dart was not staged in the golden corpus, so that corruption class shipped with no durable end-to-end gate (issue #5349). The bound is closed on BOTH sides, not a floor: below 2 means genuine recursion was dropped; above 2 means the #5332 declaration-vs-call-site bug regressed (every one of the fixture's other declarations \u2014 DeclarationOnlyWidget's 2 constructors + getter + setter + method, GeoPoint's named constructor, mutualPing/mutualPong, identityFn, LineBuffer.append \u2014 would each contribute a spurious self-loop). Mutual recursion (mutualPing<->mutualPong) and the named-constructor/generic-args/cascade call shapes in the same fixture are NOT self-loops (caller != callee) and so do not move this count; they instead flow through the existing generic rc-11 Function-CALLS-Function floor.",
         "label": "Function",
         "relationship": "CALLS",
         "node_property": "language",
@@ -2783,7 +2787,7 @@
         }
       },
       "trace_deployment_chain": {
-        "description": "MCP tool coverage shape for trace_deployment_chain; asserted live through the MCP tool layer. Stays on the rich api-svc fixture for field coverage and pins the negative tier path: api-svc has no deployment evidence, so no deployment_truth_tier is emitted and overall_confidence_reason is no_deployment_evidence — the tier can never be bluffed absent evidence. The HTTP deployable-config shape is the non-vacuous runtime_confirmed proof (#5471).",
+        "description": "MCP tool coverage shape for trace_deployment_chain; asserted live through the MCP tool layer. Stays on the rich api-svc fixture for field coverage and pins the negative tier path: api-svc has no deployment evidence, so no deployment_truth_tier is emitted and overall_confidence_reason is no_deployment_evidence \u2014 the tier can never be bluffed absent evidence. The HTTP deployable-config shape is the non-vacuous runtime_confirmed proof (#5471).",
         "required_response_fields": [
           "api_surface",
           "cloud_resources",
@@ -3613,7 +3617,7 @@
         }
       },
       "list_advisory_evidence": {
-        "description": "MCP tool coverage shape for list_advisory_evidence; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Order-0 backfill (#5462) queries CVE-2026-00010 — the NEW Debian OS-package advisory chain this PR adds to the vulnerability_intelligence cassette's debian-image scope. The tool filters by the cve_id argument, so minimum_results:1 proves that specific advisory reached the query surface: if the debian-image scope is dropped, rejected, or becomes inert, the filtered result falls to 0 and this gate goes red (codex #5697 P1), tying the cassette fixture, reducer projection, and query surface together. #5463 flips the list_supply_chain_impact_findings floor for this same CVE to minimum_results:1 with a pinned subject_digest, proving the scan-tier finding is now queryable via its digest anchor; repository binding of that finding is #5464.",
+        "description": "MCP tool coverage shape for list_advisory_evidence; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Order-0 backfill (#5462) queries CVE-2026-00010 \u2014 the NEW Debian OS-package advisory chain this PR adds to the vulnerability_intelligence cassette's debian-image scope. The tool filters by the cve_id argument, so minimum_results:1 proves that specific advisory reached the query surface: if the debian-image scope is dropped, rejected, or becomes inert, the filtered result falls to 0 and this gate goes red (codex #5697 P1), tying the cassette fixture, reducer projection, and query surface together. #5463 flips the list_supply_chain_impact_findings floor for this same CVE to minimum_results:1 with a pinned subject_digest, proving the scan-tier finding is now queryable via its digest anchor; repository binding of that finding is #5464.",
         "required_response_fields": [
           "advisories",
           "count",
@@ -3789,7 +3793,7 @@
           "buckets[].value": "explicit_digest"
         },
         "arguments": {
-          "digest": "sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a",
+          "digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
           "group_by": "identity_strength",
           "limit": 10
         }
@@ -5449,19 +5453,6 @@
         ],
         "minimum_results": 0
       },
-      "GET /api/v0/supply-chain/impact/findings?limit=50&subject_digest=sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a": {
-        "description": "#5452 non-vacuous runtime-observed cloud evidence proof: the scanned vulnerable supply-chain-demo image (subject digest ...901a) is observed running on the live ECS task (its aws_resource running_image_digest equals the scanned digest), so the query-time CloudResource graph probe promotes its impact finding to deployment_truth_tier=runtime_confirmed and names the running task ARN in cloud_runtime_resource_refs -- runtime-observed cloud deployment evidence distinct from CI-declared correlation. Reverting the probe (supply_chain_impact_cloud_runtime_probe.go) drops the finding back to provenance_ci_declared/config_only, failing this assertion.",
-        "truth_class": "deterministic",
-        "required_response_fields": [
-          "findings",
-          "count"
-        ],
-        "minimum_results": 1,
-        "required_json_values": {
-          "findings[].deployment_truth_tier": "runtime_confirmed",
-          "findings[].cloud_runtime_resource_refs[]": "arn:aws:ecs:us-east-1:123456789012:task/supply-chain-demo/0000000000000000000000000000000a"
-        }
-      },
       "POST /api/v0/aws/runtime-drift/findings": {
         "description": "AWS runtime drift findings for the synthetic AWS account scope; proves the reducer-derived drift read surface is mounted and bounded without requiring positive drift rows.",
         "truth_class": "derived",
@@ -5887,6 +5878,19 @@
         "request_body": {
           "scope_id": "state_snapshot:s3:299b28d40110e54bf81beb51e9459bdef688dbc58419782b29aa83a5930b48a7",
           "limit": 25
+        }
+      },
+      "GET /api/v0/supply-chain/impact/findings?limit=50&subject_digest=sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890": {
+        "description": "#5452 non-vacuous runtime-observed cloud evidence proof: the scanned vulnerable supply-chain-demo image (subject digest ...abcdef) is observed running on the live ECS task (its aws_resource running_image_digest equals the scanned digest), so the query-time CloudResource graph probe promotes its impact finding to deployment_truth_tier=runtime_confirmed and names the running task ARN in cloud_runtime_resource_refs -- runtime-observed cloud deployment evidence distinct from CI-declared correlation. Reverting the probe (supply_chain_impact_cloud_runtime_probe.go) drops the finding back to provenance_ci_declared/config_only, failing this assertion.",
+        "truth_class": "deterministic",
+        "required_response_fields": [
+          "findings",
+          "count"
+        ],
+        "minimum_results": 1,
+        "required_json_values": {
+          "findings[].deployment_truth_tier": "runtime_confirmed",
+          "findings[].cloud_runtime_resource_refs[]": "arn:aws:ecs:us-east-1:123456789012:task/supply-chain-demo/0000000000000000000000000000000a"
         }
       }
     }

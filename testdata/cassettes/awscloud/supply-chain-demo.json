@@ -203,7 +203,7 @@
               "containers": [
                 {
                   "image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
-                  "image_digest": "sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a",
+                  "image_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
                   "name": "supply-chain-demo",
                   "runtime_id": "0000000000000000000000000000000000000000000000000000000000bb"
                 }

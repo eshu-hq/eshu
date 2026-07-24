@@ -242,7 +242,7 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 			// #5452: the ECS running task now runs the SCANNED vulnerable digest
 			// (...901a), so its supply_chain_impact finding classifies
 			// runtime_confirmed via the query-time CloudResource probe.
-			"sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a",
+			"sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
 			"sha256:0000000000000000000000000000000000000000000000000000000000cc",
 		},
 	}
