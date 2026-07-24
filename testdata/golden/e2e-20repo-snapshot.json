@@ -5645,7 +5645,7 @@
         }
       },
       "POST /api/v0/code/dead-code/investigate?golden_scope=ruby_rails_app": {
-        "description": "#5378 Detector 1 (Ruby Rails route-handler) golden discrimination. WidgetsController#index is rooted, so it is suppressed as a modeled root; the LegacyReportsController#generate foil is downgraded (not a route), so it must surface as a cleanup_ready dead-code candidate. The two object-matches are closed on (name, classification): over-rooting the foil moves generate out of cleanup_ready and fails the gate (false-positive guard); under-rooting the real handler moves index out of suppressed and fails the gate (false-negative guard). The golden_scope query arg only disambiguates this snapshot key; the handler reads repo_id from the body and ignores the query string. Content-store-only detector: no reducer/graph edge, so no Ifa materialized-edge row applies.",
+        "description": "#5378 Detector 1 (Ruby Rails route-handler) golden discrimination. WidgetsController#index is rooted, so it is suppressed as a modeled root; the LegacyReportsController#generate foil is downgraded (not a route), so it must surface as a cleanup_ready dead-code candidate. The two object-matches are closed on (name, classification): over-rooting the foil moves generate out of cleanup_ready and fails the gate (false-positive guard); under-rooting the real handler moves index out of suppressed and fails the gate (false-negative guard). #5726 extends this to two namespaced-ancestry CONFIRM guards for the #5500 P0 lexical-scope fix (evidence-5500-lexical-scope-restriction.md): Admin::ReportsController#summary uses Ruby's COMPACT COLON form (`class Admin::ReportsController < Base`, no enclosing `module Admin`) whose true base is a top-level `Base < ApplicationController`, alongside a coincidentally-named, unrelated, genuinely module-nested `Admin::Base < ActiveRecord::Base` -- the exact #5500 P0 masking shape (a first-hit lexicalExactMatch would resolve only the coincidental Admin::Base and never try bare Base, wrongly downgrading summary). Api::V1::UsersController#profile uses genuine nested module blocks whose `Base` resolves through the OUTER enclosing `Api` scope, not the immediate `Api::V1` scope, proving the walk mirrors Ruby's Module.nesting innermost-to-outermost order. Both must stay suppressed/excluded, never cleanup_ready/unused: a regression in either P0 union-accumulation or outer-scope traversal moves them into cleanup_ready and fails this gate. The golden_scope query arg only disambiguates this snapshot key; the handler reads repo_id from the body and ignores the query string. Content-store-only detector: no reducer/graph edge, so no Ifa materialized-edge row applies.",
         "envelope": true,
         "request_body": {
           "repo_id": "ruby_rails_app",
@@ -5673,6 +5673,14 @@
           "data.candidate_buckets.suppressed[]": [
             {
               "name": "index",
+              "classification": "excluded"
+            },
+            {
+              "name": "summary",
+              "classification": "excluded"
+            },
+            {
+              "name": "profile",
               "classification": "excluded"
             }
           ]
