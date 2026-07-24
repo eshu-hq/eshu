@@ -29,6 +29,12 @@ var nonCountingReducerRetryFailureClasses = []string{
 	reducer.KubernetesCorrelationNodesNotReadyFailureClass,
 	reducer.GCPRelationshipNodesNotReadyFailureClass,
 	reducer.EC2InstanceIdentityNodesNotReadyFailureClass,
+	// #5709: a cross-scope consumer deferred until its declared producer scope
+	// activates. Enrolled here so a retrying row in this class keeps its
+	// attempt_count and is not dead-lettered while it waits. Inert until the
+	// readiness-defer slice wires a handler to return
+	// crossScopeProducerNotReadyError; nothing produces this class yet.
+	reducer.CrossScopeProducerNotReadyFailureClass,
 }
 
 // IsNonCountingReducerRetryFailureClass reports whether failureClass is exempt
