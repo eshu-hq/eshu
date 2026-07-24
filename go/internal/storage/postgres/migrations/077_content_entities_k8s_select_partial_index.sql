@@ -1,0 +1,69 @@
+-- #5490: prove-theory-first index for the impact-trace K8sResource SELECTS
+-- candidate scan (ListRepoK8sSelectCandidates,
+-- go/internal/query/content_reader_k8s_select_candidates.go).
+--
+-- #5363 measured the worst-case candidate fetch (6,000-K8sResource repo,
+-- LIMIT 5001) at ~25 ms wide / ~12.5 ms narrow-projection, and decomposed the
+-- cost: the content_entities_type_idx scan + entity_type filter is only
+-- ~2.0 ms; a top-N sort on (relative_path, start_line, entity_id) over the
+-- matching rows dominates the rest. #5490 measured a composite
+-- (repo_id, entity_type) index -- attacking only the scan+filter -- and
+-- proved it does NOT move total wall time: even a perfect index-only bitmap
+-- scan on that shape left execution time unchanged because the Sort node
+-- still dominates. See docs/internal/evidence/5490-k8sresource-candidate-index.md
+-- for the full before/after EXPLAIN ANALYZE ladder.
+--
+-- This index matches the query's ORDER BY key
+-- (repo_id, relative_path, start_line, entity_id), so an ordered Index Scan
+-- through it returns rows pre-sorted and skips the Sort node entirely (at
+-- the cost of one heap fetch per row for metadata, since metadata is not
+-- covered -- see below). Whether Postgres's planner actually CHOOSES that
+-- plan is conditional, not automatic: on the #5363/#5490 6,000-K8sResource
+-- worst-case partition, under Postgres's default random_page_cost the
+-- planner keeps the pre-existing content_entities_repo_idx + Sort plan
+-- (~8-9 ms, unchanged from having no index at all) because the estimated
+-- cost of one random heap fetch per matching row outweighs the estimated
+-- sort-avoidance saving at that row count. The ordered-scan plan through
+-- this index (~1.6-1.9 ms, confirmed by isolating it from the competing
+-- index and separately under an SSD-tuned random_page_cost=1.1, which is
+-- Postgres's own documented recommendation for SSD storage but is not
+-- currently set anywhere in Eshu) IS chosen automatically once the
+-- K8sResource candidate pool is large relative to the
+-- repositorySemanticEntityLimit page cap: a repo with tens of thousands of
+-- K8sResource rows (a plausible large-monorepo shape, still capped at the
+-- same LIMIT) saw the planner select this index under default settings,
+-- ~1.7-3.1 ms versus a ~2.9-3.9 ms baseline. See
+-- docs/internal/evidence/5490-k8sresource-candidate-index.md for the full
+-- re-measurement across both partition sizes and cost settings.
+--
+-- metadata is deliberately NOT in the INCLUDE list: it is an unbounded JSONB
+-- payload for K8sResource rows (the Kubernetes YAML parser folds every
+-- label, container image, and backend reference into it with no size cap).
+-- A btree INCLUDE value is stored in the index leaf tuple and cannot exceed
+-- Postgres's ~2.7 KiB per-tuple limit; a K8sResource manifest with enough or
+-- large labels/references would make the index build (concurrently, per the
+-- DDL below) fail with "index row size exceeds btree maximum" if it
+-- INCLUDEd metadata, leaving an INVALID index and failing schema bootstrap
+-- in production (codex review on PR #5745, migration 077 initial revision).
+-- entity_name IS kept in INCLUDE
+-- because it is a bounded Kubernetes object name (Kubernetes enforces a
+-- 253-character DNS-subdomain ceiling) and the SELECT list projects it
+-- directly, so it is both safe for the per-tuple limit and useful for the
+-- index-scan projection. The key columns (repo_id, relative_path,
+-- start_line, entity_id) are all bounded identifier/path/integer values and
+-- carry no unbounded-payload risk.
+--
+-- It is a PARTIAL index (WHERE entity_type = 'K8sResource') specifically so
+-- write-amplification is confined to K8sResource content entities -- the
+-- small minority of rows in this hot, continuously-ingested table. Measured
+-- write cost: ~0 extra ms per 5,000-row batch insert for non-K8sResource
+-- rows (Function/Variable/etc, the vast majority of the table); ~+19 ms per
+-- 5,000-row batch insert (~3.8-4.4 microseconds/row) for K8sResource rows,
+-- which do maintain this index -- lower than the earlier metadata-INCLUDE
+-- revision's ~+24 ms because this index is narrower (536 KB steady-state
+-- vs. 2,280 KB for the metadata-INCLUDE revision on the same 6,000-row
+-- partition).
+CREATE INDEX CONCURRENTLY IF NOT EXISTS content_entities_k8s_select_partial_idx
+    ON content_entities (repo_id, relative_path, start_line, entity_id)
+    INCLUDE (entity_name)
+    WHERE entity_type = 'K8sResource';

@@ -106,4 +106,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// migration 076 (#5476 crossplane SATISFIED_BY cross-scope redrive state);
 	// sorts after the 075_* pair by filename.
 	"crossplane_satisfied_by_redrive_state",
+	// migration 077 (#5490 K8sResource impact-trace candidate scan partial
+	// covering index).
+	"content_entities_k8s_select_partial_index",
 }
