@@ -219,3 +219,35 @@ func TestCanonicalEntityIDWithMetadataNuGetUnconditionalDuplicateCollapses(t *te
 		t.Fatalf("two unconditioned PackageReference rows for the same name unexpectedly diverged: %q vs %q", first, second)
 	}
 }
+
+// TestDependencyIdentityDiscriminatorNuGetLegacyFactFallsBackToCondition is the
+// #5725 backward-compatibility guard (codex PR #5771 P1): a version-skew or
+// replayed content_entity fact produced by the pre-#5725 parser carries ONLY
+// the pre-merged "condition" field, with no condition_item/condition_group. The
+// discriminator must fall back to "condition" rather than collapse to an empty
+// string. An empty discriminator would merge ordinary same-name conditional
+// PackageReferences from different ItemGroups and churn the id of even a single
+// conditional dependency during a rolling deploy or cassette replay.
+func TestDependencyIdentityDiscriminatorNuGetLegacyFactFallsBackToCondition(t *testing.T) {
+	t.Parallel()
+
+	const (
+		legacyA = "'$(TargetFramework)' == 'net472'"
+		legacyB = "'$(TargetFramework)' == 'net6.0'"
+	)
+
+	// Legacy fact: only "condition" present. Must return it, not "".
+	if got := dependencyIdentityDiscriminator("nuget", map[string]any{"condition": legacyA}); got != legacyA {
+		t.Fatalf("legacy-fact discriminator = %q, want %q", got, legacyA)
+	}
+	// Two legacy conditional facts of the same name under different conditions
+	// must stay distinct (the exact silent-merge this fix prevents on replay).
+	if a, b := dependencyIdentityDiscriminator("nuget", map[string]any{"condition": legacyA}),
+		dependencyIdentityDiscriminator("nuget", map[string]any{"condition": legacyB}); a == b {
+		t.Fatalf("two differently-conditioned legacy facts collapsed to one discriminator: %q", a)
+	}
+	// A legacy fact with no condition at all still discriminates on "".
+	if got := dependencyIdentityDiscriminator("nuget", map[string]any{}); got != "" {
+		t.Fatalf("no-condition legacy fact discriminator = %q, want empty", got)
+	}
+}

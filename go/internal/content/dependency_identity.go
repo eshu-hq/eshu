@@ -269,6 +269,19 @@ func dependencyIdentityDiscriminator(packageManager string, metadata map[string]
 		// one another to forge a collision.
 		item := metadataStringValue(metadata, "condition_item")
 		group := metadataStringValue(metadata, "condition_group")
+		if item == "" && group == "" {
+			// Legacy / version-skew / replayed content_entity facts produced by
+			// the pre-#5725 parser carry only the pre-merged "condition" field
+			// (the item-over-group override), not the split
+			// condition_item/condition_group. Fall back to it so a conditional
+			// dependency from such a fact keeps its original discriminator
+			// instead of collapsing to an empty one — an empty discriminator
+			// would merge ordinary same-name conditional PackageReferences from
+			// different ItemGroups and churn the id of even a single conditional
+			// dependency. A new fact with no condition at all also carries an
+			// empty "condition", so this returns "" for it exactly as before.
+			return metadataStringValue(metadata, "condition")
+		}
 		if item == "" || group == "" {
 			if item != "" {
 				return item
