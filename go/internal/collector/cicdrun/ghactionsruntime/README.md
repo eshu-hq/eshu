@@ -8,7 +8,17 @@ target's most recent runs (`max_runs`, default 10, hard cap 100) plus bounded
 job and artifact metadata for each run in the window, and delegates fact
 construction to `internal/collector/cicdrun` once per run. Re-fetching the same
 window on a later cycle is an idempotent upsert at projection (each run's facts
-are keyed by provider run ID), not a persistent watermark or cursor.
+are keyed by provider run ID); a persistent watermark/cursor is not needed to
+RESUME collection.
+
+A persistent watermark (`runwatermark.Store`, wired through
+`SourceConfig.Watermarks`) does exist, but it exists to DETECT a cross-cycle
+collection gap, not to resume one (#5429): when more than `max_runs` runs land
+between two claim cycles, only the newest `max_runs` are fetched, and the
+older new-runs between the previous cycle's newest observed run and this
+window's floor are never fetched by either cycle. Before #5429 that loss was
+completely silent. Watermarks is optional and nil-safe -- a nil `Store` skips
+gap detection entirely, matching `awsruntime.ClaimedSource.Checkpoints`.
 
 The package does not read artifact ZIP contents, workflow logs, secrets, graph
 state, or query state. Reducers decide whether emitted run and artifact evidence
@@ -37,21 +47,27 @@ See `doc.go` for the godoc contract. Callers use:
 - `ErrRateLimited` to preserve provider throttling classification.
 - `RateLimitError` to carry bounded GitHub retry guidance from `Retry-After` or
   `X-RateLimit-Reset` into shared claim retry pacing.
+- `SourceConfig.Watermarks` (a `runwatermark.Store`) to opt into cross-cycle
+  gap detection (#5429). See `run_watermark.go`.
 
 ## Dependencies
 
 The package imports `internal/collector` for `CollectedGeneration`,
-`internal/collector/cicdrun` for fact normalization, `internal/collector/sdk`
-for shared bounded HTTP primitives, `internal/scope` for scope identity, and
-`internal/workflow` for claim rows. The only external boundary is Go's
-`net/http` client.
+`internal/collector/cicdrun` for fact normalization,
+`internal/collector/cicdrun/runwatermark` for the cross-cycle gap-detection
+watermark contract, `internal/collector/sdk` for shared bounded HTTP
+primitives, `internal/scope` for scope identity, and `internal/workflow` for
+claim rows. The only external boundary is Go's `net/http` client.
 
 ## Telemetry
 
 This package emits `ci_cd_run.observe` and `ci_cd_run.fetch` spans when callers
 provide a tracer. It records provider request, fetch-duration, rate-limit,
 fact-emission, and partial-generation metrics when callers provide
-`telemetry.Instruments`.
+`telemetry.Instruments`. Cross-cycle gap detection (#5429) records the same
+`eshu_dp_ci_cd_run_partial_generations_total` counter with
+`reason="runs_backfill_gap"` -- no new metric name, just a new reason value on
+the existing partial-generation counter.
 
 Metric labels stay bounded to provider, status class, fact kind, and partial
 reason. Repository names, workflow run IDs, artifact names, URLs, token
@@ -100,6 +116,22 @@ labels.
 - CI success, job names, artifact names, and environment names remain provider
   evidence only. Reducers decide whether stronger artifact or deployment
   anchors exist.
+- When more than `max_runs` runs land between two claim cycles, the fetched
+  window's oldest run can be newer than the previous cycle's newest observed
+  run (tracked via `runwatermark.Store`). `detectRunBackfillGap`
+  (`run_watermark.go`) detects this and, when `SourceConfig.Watermarks` is
+  wired, emits a `ci.warning` fact with `reason: "runs_backfill_gap"` and
+  records `eshu_dp_ci_cd_run_partial_generations_total{reason="runs_backfill_gap"}`
+  (#5429). This PR does not implement backfill (fetching additional pages
+  back toward the watermark); it makes the loss visible instead of silent. A
+  target's first-ever claim never reports a gap (no prior watermark to
+  compare against), and an untruncated page never reports a gap (every run
+  that currently exists was fetched).
+- `SourceConfig.Watermarks` left unset (nil) skips gap detection entirely; no
+  error, no warning fact, no metric point. Production wiring uses a durable
+  `Store` (`postgres.CICDRunWatermarkStore`) so gap detection survives
+  process restarts and works across collector replicas; see
+  `go/internal/storage/postgres/cicd_run_watermark.go`.
 
 ## Related docs
 

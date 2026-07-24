@@ -6,11 +6,15 @@
 2. `source.go` — claim-to-fact flow (`buildRunEnvelopes`, one fixture
    normalization per fetched run) and runtime target validation
    (`validateTarget`, including the `defaultMaxRuns` fill).
-3. `source_telemetry.go` — tracing/metrics recording split out of `source.go`
+3. `run_watermark.go` — #5429 cross-cycle gap detection
+   (`detectRunBackfillGap`) and the `runwatermark.Store` load/save wiring.
+4. `source_telemetry.go` — tracing/metrics recording split out of `source.go`
    for the 500-line cap.
-4. `client.go` — GitHub REST pagination, request bounding, and the
+5. `client.go` — GitHub REST pagination, request bounding, and the
    `runsPageTruncated` truncation signal.
-5. `../AGENTS.md` — fixture normalizer boundary. Do not move live HTTP code
+6. `../runwatermark/types.go` — the watermark data contract this package
+   reads and writes.
+7. `../AGENTS.md` — fixture normalizer boundary. Do not move live HTTP code
    into the parent package.
 
 ## Invariants
@@ -28,9 +32,25 @@
 - Every run's normalized facts are keyed by provider run ID
   (`stable_fact_key`), independent of fetch/emission order and independent of
   `generation_id`, so re-fetching the same window on a later claim cycle is
-  an idempotent upsert at projection. Do not add a persistent
-  watermark/cursor here; the run-ID keying is the intended
-  stateless-idempotent substitute.
+  an idempotent upsert at projection. The run-ID keying is what makes
+  re-fetching a window safe WITHOUT a resume cursor -- do not conflate this
+  with the separate `runwatermark.Store` (#5429), which exists to DETECT a
+  cross-cycle gap, not to resume collection.
+- `SourceConfig.Watermarks` is optional; a nil `Store` disables gap
+  detection with no error and no behavior change (see
+  `TestClaimedSourceSkipsGapDetectionWithoutWatermarkStore`). When wired,
+  `detectRunBackfillGap` only fires when a prior watermark exists, the
+  fetched page is truncated, and the window's oldest run is strictly newer
+  than the watermark. Do not weaken any of those three conditions without
+  re-deriving the false-positive/false-negative tradeoff in
+  `run_watermark_test.go`.
+- `saveWatermark` is called on the SUCCESS path of `NextClaimed`, after
+  facts are built but independent of whether the returned generation later
+  commits. This is intentional: the watermark tracks what the SOURCE
+  fetched, and the existing idempotent-refetch design already covers a
+  failed downstream commit (a retry re-fetches the same window and
+  re-saves the same-or-newer watermark). Do not gate the save on commit
+  confirmation without re-deriving why that is unnecessary.
 - When the fetched runs page is full (more runs may exist beyond the
   window), attach a `runs_truncated` warning to the newest run's Warnings
   (`attachRunsTruncatedWarning`) and record the matching partial-generation

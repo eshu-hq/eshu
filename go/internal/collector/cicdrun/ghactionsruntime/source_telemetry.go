@@ -77,19 +77,22 @@ func (s ClaimedSource) recordFacts(ctx context.Context, envelopes []facts.Envelo
 	}
 }
 
-// recordPartialGeneration reports four independent partial-generation
+// recordPartialGeneration reports five independent partial-generation
 // reasons across the whole fetched page: jobs_truncated (summed across every
 // run in the window whose jobs page was itself truncated), artifacts_truncated
 // (summed across every run in the window whose artifact page was itself
 // truncated, mirroring jobs_truncated), provider_warning (summed across every
-// run's own Warnings), and runs_truncated (one signal per generation when the
+// run's own Warnings), runs_truncated (one signal per generation when the
 // runs page itself was full, mirroring the jobs_partial/jobs_truncated
-// pattern at the run-window level). It reads the original, unmutated page
-// rather than the runs_truncated-warning-attached copy buildRunEnvelopes
-// emits, so the runs_truncated fact (counted here under provider_warning once
-// it lands in a snapshot's Warnings) is not double-counted against the
-// dedicated runs_truncated reason below.
-func (s ClaimedSource) recordPartialGeneration(ctx context.Context, page RunPage) {
+// pattern at the run-window level), and runs_backfill_gap (one signal per
+// generation when detectRunBackfillGap found that runs between a prior
+// cycle's watermark and this cycle's window floor were never fetched by
+// either cycle, #5429). It reads the original, unmutated page rather than
+// the warning-attached copy buildRunEnvelopes emits, so the runs_truncated
+// and runs_backfill_gap facts (counted here under provider_warning once they
+// land in a snapshot's Warnings) are not double-counted against their own
+// dedicated reasons below.
+func (s ClaimedSource) recordPartialGeneration(ctx context.Context, page RunPage, gapDetected bool) {
 	if s.instruments == nil {
 		return
 	}
@@ -127,6 +130,12 @@ func (s ClaimedSource) recordPartialGeneration(ctx context.Context, page RunPage
 		s.instruments.CICDRunPartialGenerations.Add(ctx, 1, metric.WithAttributes(
 			telemetry.AttrProvider(string(cicdrun.ProviderGitHubActions)),
 			telemetry.AttrReason("runs_truncated"),
+		))
+	}
+	if gapDetected {
+		s.instruments.CICDRunPartialGenerations.Add(ctx, 1, metric.WithAttributes(
+			telemetry.AttrProvider(string(cicdrun.ProviderGitHubActions)),
+			telemetry.AttrReason("runs_backfill_gap"),
 		))
 	}
 }
