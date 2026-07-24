@@ -97,11 +97,12 @@ var fanOutParityExpectations = map[reducer.Domain]fanOutParityExpectation{
 	},
 	reducer.DomainEC2InstanceIdentityMaterialization: {
 		// Same trigger fact and reason-shape as DomainAWSResourceMaterialization
-		// (firstOfKind(AWSResourceFactKind)), but a DIFFERENT entity key: it must
-		// resolve against the EC2 instance node phase, not the generic
+		// (firstOfKind(EC2InstancePostureFactKind), the SAME fact the node it
+		// augments triggers on, #5743 residual fix), with the EC2 instance node
+		// phase entity key: it must resolve against that node, not the generic
 		// aws_resource_materialization phase (see the builder's doc comment).
-		factID: "aws-resource-generic-1", entityKey: "ec2_instance_node_materialization:mixed:fanout:demo",
-		reason: "aws resource facts observed for ec2 instance identity projection", sourceSystem: "aws",
+		factID: "ec2-posture-no-profile-1", entityKey: "ec2_instance_node_materialization:mixed:fanout:demo",
+		reason: "ec2 instance posture observed for ec2 instance identity projection", sourceSystem: "aws",
 	},
 	reducer.DomainEC2InstanceNodeMaterialization: {
 		factID: "ec2-posture-no-profile-1", entityKey: "ec2_instance_node_materialization:mixed:fanout:demo",
