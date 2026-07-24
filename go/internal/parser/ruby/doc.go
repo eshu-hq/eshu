@@ -26,8 +26,12 @@
 // bucket and treats unmodeled framework DSL chains as bounded call evidence, not
 // framework-root truth. The package is deterministic and depends only on shared
 // parser helpers and the tree-sitter runtime. Route entries are exact-only:
-// Rails requires a literal `to: "controller#action"` route target inside
-// `Rails.application.routes.draw`, and Sinatra requires a named
+// Rails requires a literal `to: "controller#action"` route target inside a
+// source-proven Rails route-set block -- the application
+// (`Rails.application.routes.draw`, `.append`, `.prepend`) or a mountable
+// engine's own `<ConstantPath>.routes.draw` (any `Rails::Engine` subclass
+// constant, conventionally `MyEngine::Engine` or custom-named) -- and Sinatra
+// requires a named
 // `&method(:handler)` block on a literal route. The package also detects
 // (without expanding) Rails routes it cannot resolve exactly -- a
 // `resources`/`resource` DSL macro, or an explicit `to:` target that does not

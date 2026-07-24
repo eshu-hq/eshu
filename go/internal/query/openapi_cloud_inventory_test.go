@@ -74,6 +74,35 @@ func TestOpenAPICloudInventoryDocumentsResourceChangeFreshness(t *testing.T) {
 	}
 }
 
+// TestOpenAPICloudInventoryDocumentsCodeSHA256Correlation keeps the OpenAPI
+// schema in lockstep with the readback's #5454 code_sha256_correlation label:
+// the zip-Lambda deployment-code correlation limitation must be documented on
+// the resource schema with its bounded status/truth_basis/unsupported_reason
+// enum values so the wire contract advertises the gap, never leaving it silent.
+func TestOpenAPICloudInventoryDocumentsCodeSHA256Correlation(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
+	}
+	resourceProps := cloudInventoryOpenAPIResourceProperties(t, spec)
+	correlation := mustMapField(t, resourceProps, cloudInventoryCodeCorrelationKey)
+	props := mustMapField(t, correlation, "properties")
+	wantEnums := map[string]string{
+		"status":             cloudInventoryCodeCorrelationStatusUncorrelated,
+		"truth_basis":        cloudInventoryCodeCorrelationTruthBasisDisplayOnly,
+		"unsupported_reason": cloudInventoryZipCodeSHA256UnsupportedReason,
+	}
+	for field, wantValue := range wantEnums {
+		fieldSchema := mustMapField(t, props, field)
+		enum, ok := fieldSchema["enum"].([]any)
+		if !ok || len(enum) != 1 || enum[0] != wantValue {
+			t.Fatalf("%s.%s enum = %#v, want [%q]", cloudInventoryCodeCorrelationKey, field, fieldSchema["enum"], wantValue)
+		}
+	}
+}
+
 func cloudInventoryOpenAPIResourceProperties(t *testing.T, spec map[string]any) map[string]any {
 	t.Helper()
 

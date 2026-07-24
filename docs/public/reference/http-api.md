@@ -491,9 +491,10 @@ by provider:
 - **AWS** surfaces a CLOSED image/version allowlist only, scoped to the
   strongest deployed-code signals the collector already observes:
   `task_definition_arn`, `image_uri`, `resolved_image_uri`, `code_sha256`,
-  `version`, and a `containers` array (from ECS running tasks) reduced per
-  element to `{image, image_digest}`. Every other AWS attribute key (for
-  example `cluster_arn`, `role_arn`, `kms_key_arn`, `network_interfaces`,
+  `package_type`, `version`, and a `containers` array (from ECS running tasks)
+  reduced per element to `{image, image_digest}`. `package_type` is the bounded
+  Lambda packaging discriminator (`Zip`/`Image`). Every other AWS attribute key
+  (for example `cluster_arn`, `role_arn`, `kms_key_arn`, `network_interfaces`,
   `environment`, `vpc_config`, or a container's `name`/`runtime_id`) is
   dropped before the route ever sees it.
 - **Azure** uses the same closed-allowlist mechanism as AWS, but the
@@ -515,6 +516,51 @@ non-image infrastructure locator: `cluster_arn`, `role_arn`, `kms_key_arn`,
 `network_interfaces`, `environment`, `vpc_config`, a container's
 `name`/`runtime_id`, or the Azure `arm_resource_id`/`subscription_id`/`tags`
 bag are all dropped before the route ever sees them.
+
+### Lambda `code_sha256` is display-only, not correlated (bounded gap)
+
+For a **zip-packaged** Lambda function (`attributes.package_type` == `Zip`)
+that carries a `code_sha256`, the resource row additionally carries a bounded
+`code_sha256_correlation` object that states, explicitly, that the code hash is
+**not** correlated to any CI or package hash:
+
+```json
+"code_sha256_correlation": {
+  "status": "uncorrelated",
+  "truth_basis": "display_only_evidence",
+  "unsupported_reason": "zip_code_sha256_no_ci_counterpart"
+}
+```
+
+A Lambda `code_sha256` is `base64(SHA256(the exact deployment .zip))` computed
+by AWS over the uploaded package bytes. Eshu collects **no** hash that covers
+those bytes, so a byte-equal join cannot exist and no join is attempted:
+
+- The GitHub Actions `artifact_digest` hashes GitHub's **own re-zipped**
+  archive (and Eshu consumes it as a container-image digest), not the Lambda
+  package.
+- Package-registry hashes are of published tarballs/wheels/module zips, not the
+  Lambda deployment zip.
+- OCI image digests are of container image manifests.
+
+The `code_sha256` is therefore surfaced only as **display-only evidence**; the
+limitation is stated programmatically on the row rather than left silent. This
+field is **not** present for an **image-packaged** Lambda
+(`package_type` == `Image`): its deployment code is the container image, which
+*is* correlated to the OCI `ContainerImage` through `image_uri` /
+`resolved_image_uri`.
+
+No-Regression Evidence: issue #5454 adds one bounded scalar (`package_type`) to
+the closed `awsCloudInventoryAttributeAllowlist` and one O(1) provider +
+resource_type gated map-key check per already-fetched readback row
+(`cloudInventoryCodeCorrelationLabel`); it introduces no new query, SQL, Cypher,
+transaction, or per-row I/O, so the cloud-inventory readback wall-time and
+handler duration are unchanged (verified by the `go test ./internal/query`
+readback suite on the same corpus/fixtures).
+
+No-Observability-Change: #5454 adds no new metric, span, log line, audit table,
+or schema; the `code_sha256_correlation` limitation is a content-free label on
+an existing read surface, covered by the existing cloud-inventory query span.
 
 ## Cloud Resource Graph Paging
 

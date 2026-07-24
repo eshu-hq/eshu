@@ -13,6 +13,16 @@ owners:
 # See docs/public/reference/multi-cloud-collector-contract.md (Query Truth) and
 # docs/public/reference/replatforming-source-state-taxonomy.md for the
 # per-item source-state vocabulary surfaced alongside management_origin.
+# Bounded gap (issue #5454): a zip-packaged AWS Lambda's code_sha256 attribute
+# is base64(SHA256(the deployment .zip)) and is surfaced as display-only
+# evidence, NOT correlated to any CI/package/OCI hash -- no collected hash
+# covers the Lambda deployment zip's bytes (the GitHub Actions artifact_digest
+# hashes GitHub's own re-zip, package-registry hashes are of tarballs/wheels,
+# OCI digests are image manifests). The readback states this limitation
+# programmatically via the per-resource code_sha256_correlation label
+# (unsupported_reason=zip_code_sha256_no_ci_counterpart), so it is never silent.
+# An image-packaged Lambda is unaffected: its deployment code is the container
+# image correlated via image_uri/resolved_image_uri (issue #5450).
 capabilities:
   - capability: cloud_inventory.readback.list
     tools: [list_cloud_resource_inventory]

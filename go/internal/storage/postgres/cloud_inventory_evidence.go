@@ -69,15 +69,21 @@ type cloudInventorySourceFactMapping struct {
 // for aws_resource attributes (issue #5449). It surfaces the strongest
 // deployed-code signals the AWS collector already observes -- an ECS task's
 // running container image and digest plus its owning task definition, and a
-// Lambda function's container image URI/digest and code version -- while
-// dropping every other AWS attribute key (cluster_arn, role_arn, kms_key_arn,
-// network_interfaces, environment, vpc_config, and any key not named here).
+// Lambda function's container image URI/digest, code version, code_sha256, and
+// package_type -- while dropping every other AWS attribute key (cluster_arn,
+// role_arn, kms_key_arn, network_interfaces, environment, vpc_config, and any
+// key not named here). package_type is the bounded Lambda packaging
+// discriminator ("Zip"/"Image") the readback uses to attach the #5454
+// deployment-code correlation limitation to a zip-packaged Lambda whose
+// code_sha256 has no collected CI/package/OCI counterpart; it is a
+// low-cardinality enum, never a locator or secret.
 var awsCloudInventoryAttributeAllowlist = cloudInventoryAttributeAllowlist{
 	scalarKeys: map[string]struct{}{
 		"task_definition_arn": {},
 		"image_uri":           {},
 		"resolved_image_uri":  {},
 		"code_sha256":         {},
+		"package_type":        {},
 		"version":             {},
 	},
 	nestedArrayKeys: map[string]map[string]struct{}{
