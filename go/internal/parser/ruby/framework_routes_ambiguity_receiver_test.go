@@ -57,6 +57,14 @@ func TestParseRecognizesCustomNamedEngineRouteSet(t *testing.T) {
 		source string
 	}{
 		{
+			name: "canonical namespaced engine (MyEngine::Engine.routes.draw)",
+			source: `class WidgetsController; def show; end; end
+MyEngine::Engine.routes.draw do
+  get "/x", to: "widgets#show"
+end
+`,
+		},
+		{
 			name: "custom top-level engine class (PaymentsEngine.routes.draw)",
 			source: `class WidgetsController; def show; end; end
 PaymentsEngine.routes.draw do
