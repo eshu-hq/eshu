@@ -86,6 +86,51 @@ func TestValidateCICDRunCollectorConfigurationRejectsNegativeMaxRuns(t *testing.
 	}
 }
 
+// TestValidateCICDRunCollectorConfigurationAcceptsBoundedGitLabCITargets
+// proves a gitlab_ci target — including one nested under a subgroup, which
+// GitHub Actions' owner/repo shape has no equivalent for — passes this
+// shared validation layer. Before this test (#5427, codex P1 on PR #5778),
+// validateCICDRunTargetConfiguration hard-rejected any provider other than
+// "github_actions" and required repository to be EXACTLY two "/"-segments,
+// so a gitlab_ci target's collector instance configuration would fail
+// CollectorInstance.Validate() before parseCICDRunRuntimeConfiguration
+// (cmd/collector-cicd-run/config.go) ever got a chance to route it.
+func TestValidateCICDRunCollectorConfigurationAcceptsBoundedGitLabCITargets(t *testing.T) {
+	t.Parallel()
+
+	raw := `{"targets":[{"provider":"gitlab_ci","scope_id":"gitlab-ci://gitlab.com/eshu-hq/demo","repository":"eshu-hq/demo","token_env":"GITLAB_TOKEN","allowed_repositories":["eshu-hq/demo"],"max_runs":1,"max_jobs":10}]}`
+	if err := ValidateCICDRunCollectorConfiguration(raw); err != nil {
+		t.Fatalf("ValidateCICDRunCollectorConfiguration() error = %v, want nil", err)
+	}
+}
+
+// TestValidateCICDRunCollectorConfigurationAcceptsGitLabSubgroupProjectPath
+// proves a GitLab project nested under a subgroup ("group/subgroup/project",
+// three "/"-segments) is accepted — GitHub Actions' owner/repo shape is
+// always exactly two segments, but GitLab projects may nest under any
+// number of subgroups.
+func TestValidateCICDRunCollectorConfigurationAcceptsGitLabSubgroupProjectPath(t *testing.T) {
+	t.Parallel()
+
+	raw := `{"targets":[{"provider":"gitlab_ci","scope_id":"gitlab-ci://gitlab.com/eshu-hq/platform/demo","repository":"eshu-hq/platform/demo","token_env":"GITLAB_TOKEN","allowed_repositories":["eshu-hq/platform/demo"],"max_runs":1,"max_jobs":10}]}`
+	if err := ValidateCICDRunCollectorConfiguration(raw); err != nil {
+		t.Fatalf("ValidateCICDRunCollectorConfiguration() error = %v, want nil", err)
+	}
+}
+
+// TestValidateCICDRunCollectorConfigurationDoesNotRequireMaxArtifactsForGitLab
+// proves max_artifacts — a GitHub-Actions-only bound; GitLab reports job
+// artifacts inline with no separate paginated endpoint to bound — is not
+// required for a gitlab_ci target.
+func TestValidateCICDRunCollectorConfigurationDoesNotRequireMaxArtifactsForGitLab(t *testing.T) {
+	t.Parallel()
+
+	raw := `{"targets":[{"provider":"gitlab_ci","scope_id":"gitlab-ci://gitlab.com/eshu-hq/demo","repository":"eshu-hq/demo","token_env":"GITLAB_TOKEN","allowed_repositories":["eshu-hq/demo"],"max_runs":1,"max_jobs":10,"max_artifacts":0}]}`
+	if err := ValidateCICDRunCollectorConfiguration(raw); err != nil {
+		t.Fatalf("ValidateCICDRunCollectorConfiguration() error = %v, want nil (max_artifacts is not a GitLab concept)", err)
+	}
+}
+
 func testCICDRunConfig() string {
 	return `{
 		"targets": [{
