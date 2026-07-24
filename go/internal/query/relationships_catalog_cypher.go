@@ -62,6 +62,19 @@ type relationshipVerbEntry struct {
 	// prevents a scoped caller from ever seeing an edge whose source belongs to
 	// another tenant.
 	targetAttributable bool
+	// edgeScopeAttributable is true when the verb's authoritative reducer scope
+	// is stamped on the relationship (rel.scope_id) rather than on either
+	// endpoint node. AWS_lambda_function_uses_image (#5450) is the only such
+	// verb today: its CloudResource source and ContainerImage target are
+	// cross-generation canonical nodes that carry no repo_id/scope_id (the
+	// CloudResourceContainerImageEdgeWriter stamps scope_id on the edge, not the
+	// nodes), so an endpoint-only scope predicate would exclude every edge for a
+	// legitimately scoped caller. For such a verb relationshipEdgesScopeExpr
+	// folds an `r.scope_id IN $allowed_scope_ids` disjunct into the endpoint
+	// OR-group. It is an invariant that edgeScopeAttributable implies
+	// !targetAttributable (the fold assumes a single source-alias endpoint
+	// group); TestRelationshipVerbCatalogEdgeScopeInvariant enforces it.
+	edgeScopeAttributable bool
 }
 
 // relationshipVerbCatalog is the fixed set of typed-edge verbs the relationships
@@ -126,8 +139,12 @@ var relationshipVerbCatalog = []relationshipVerbEntry{
 	// MATCH (source:CloudResource {uid}) uses. Its target ContainerImage is a
 	// cross-generation canonical node carrying no repo_id a #5167 grant could
 	// bind, so targetAttributable stays false (bind the source endpoint only),
-	// matching the Atlantis-governance precedent above.
-	{verb: "AWS_lambda_function_uses_image", layer: "runtime", sourceLabel: "CloudResource", sourceProperty: "uid", evidence: "Lambda container image", detail: "AWS Lambda function uses a container image"},
+	// matching the Atlantis-governance precedent above. Its CloudResource source
+	// carries no repo_id/scope_id either -- the reducer scope is stamped on the
+	// edge (rel.scope_id) -- so edgeScopeAttributable is set (#5450 P1-C) to
+	// admit a scoped caller by the edge's own granted scope; see
+	// edgeScopeAttributable's doc comment.
+	{verb: "AWS_lambda_function_uses_image", layer: "runtime", sourceLabel: "CloudResource", sourceProperty: "uid", evidence: "Lambda container image", detail: "AWS Lambda function uses a container image", edgeScopeAttributable: true},
 	{verb: "DEPENDS_ON", layer: "runtime", sourceLabel: "Workload", sourceProperty: "id", evidence: "Runtime dependency", detail: "Workload depends on another workload", carriesSourceTool: true, sourceToolSourceLabel: "Repository", targetAttributable: true},
 	// security layer
 	{verb: "INVOKES_CLOUD_ACTION", layer: "security", sourceLabel: "Function", sourceProperty: "uid", evidence: "IAM call analysis", detail: "Function invokes a cloud action"},
@@ -136,12 +153,19 @@ var relationshipVerbCatalog = []relationshipVerbEntry{
 	{verb: "TAINT_FLOWS_TO", layer: "ops", sourceLabel: "Function", sourceProperty: "uid", evidence: "Taint analysis", detail: "Tainted data flows to a sink", targetAttributable: true},
 }
 
-// relationshipVerbByName indexes the catalog by verb for O(1) lookup when
-// serving the per-verb edge endpoint.
+// relationshipVerbByName indexes the catalog by the upper-cased verb for O(1)
+// lookup when serving the per-verb edge endpoint. Every lookup site
+// (getRelationshipEdges, relationshipEvidenceTargetAttributable in evidence.go)
+// upper-cases the requested verb before probing this map, so the map MUST be
+// keyed by the upper-cased verb too. Keying by the raw entry.verb (#5450 P1-B)
+// silently 400s AWS_lambda_function_uses_image -- the only catalog verb whose
+// canonical form is not already all-uppercase -- for every casing. entry.verb
+// itself stays mixed-case: it is the literal graph relationship-type token and
+// the API's echoed "verb" field.
 var relationshipVerbByName = func() map[string]relationshipVerbEntry {
 	index := make(map[string]relationshipVerbEntry, len(relationshipVerbCatalog))
 	for _, entry := range relationshipVerbCatalog {
-		index[entry.verb] = entry
+		index[strings.ToUpper(entry.verb)] = entry
 	}
 	return index
 }()
@@ -299,11 +323,37 @@ func relationshipEdgesScopeWhereClause(entry relationshipVerbEntry, access repos
 		return ""
 	}
 	scalars, _ := access.scopeGrantInlineScalars()
+	return "WHERE " + relationshipEdgesScopeExpr(entry, scalars) + "\n"
+}
+
+// relationshipEdgesScopeExpr builds the #5167 access-scope WHERE-body for a
+// verb (no leading "WHERE"). For an ordinary verb it is the AND-combined
+// endpoint-scope predicates -- source s always, plus target t when
+// entry.targetAttributable -- byte-identical to the pre-#5450 shape. For an
+// entry.edgeScopeAttributable verb (AWS_lambda_function_uses_image, #5450 P1-C)
+// the authoritative reducer scope lives on the relationship, not on either
+// endpoint node, so the caller must also be admitted when the edge's own scope
+// is granted. Such a verb is endpoint-source-only (edgeScopeAttributable
+// implies !targetAttributable, enforced by
+// TestRelationshipVerbCatalogEdgeScopeInvariant), so its endpoint group is the
+// single source-alias disjunct list; the `r.scope_id IN $allowed_scope_ids`
+// term is folded into that SAME flat OR-group, yielding one atomically
+// parenthesized OR-chain "(d1 OR ... OR r.scope_id IN $allowed_scope_ids)" --
+// identical in shape to the endpoint predicate every other scoped verb already
+// uses, one property disjunct wider, and safe to AND-combine with
+// r.source_tool in the filtered variant. $allowed_scope_ids is already bound
+// for every scoped call via repositoryAccessFilter.graphParams.
+func relationshipEdgesScopeExpr(entry relationshipVerbEntry, scalars []string) string {
+	if entry.edgeScopeAttributable {
+		disjuncts := append(infraResourceScopeCoreDisjuncts("s", scalars),
+			"r.scope_id IN $allowed_scope_ids")
+		return "(" + strings.Join(disjuncts, " OR ") + ")"
+	}
 	clauses := []string{relationshipEndpointScopePredicate("s", scalars)}
 	if entry.targetAttributable {
 		clauses = append(clauses, relationshipEndpointScopePredicate("t", scalars))
 	}
-	return "WHERE " + strings.Join(clauses, " AND ") + "\n"
+	return strings.Join(clauses, " AND ")
 }
 
 // relationshipEdgesCypherFiltered is the source_tool-filtered variant of
@@ -318,10 +368,11 @@ func relationshipEdgesCypherFiltered(entry relationshipVerbEntry, access reposit
 	where := "WHERE r.source_tool = $source_tool"
 	if access.scoped() {
 		scalars, _ := access.scopeGrantInlineScalars()
-		where += " AND " + relationshipEndpointScopePredicate("s", scalars)
-		if entry.targetAttributable {
-			where += " AND " + relationshipEndpointScopePredicate("t", scalars)
-		}
+		// relationshipEdgesScopeExpr returns an atomically parenthesized group
+		// for the edgeScopeAttributable verb and an AND-chain of parenthesized
+		// endpoint predicates otherwise; both AND-combine safely after the
+		// source_tool filter (Cypher AND binds tighter than the inner ORs).
+		where += " AND " + relationshipEdgesScopeExpr(entry, scalars)
 	}
 	return "MATCH (s:" + entry.sourceLabel + ")-[r:" + entry.verb + "]->(t)\n" +
 		where + "\n" +
