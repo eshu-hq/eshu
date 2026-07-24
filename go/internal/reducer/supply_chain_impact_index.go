@@ -231,6 +231,7 @@ func classifySupplyChainImpactPackage(
 	component, attachment, image, hasComponentPath, imagePathMissing := firstSBOMImpactPath(pkg, index)
 	consumption := firstConsumption(pkg.packageID, index.consumption)
 	osPackage, hasOSPackage := firstOSPackageImpactPath(pkg, index)
+	var reconciliationMissing []string
 	if consumption.factID != "" {
 		finding.RepositoryID = consumption.repositoryID
 		finding.RequestedRange = firstNonBlank(
@@ -335,12 +336,14 @@ func classifySupplyChainImpactPackage(
 					// #5468: cross-check scanner digest against every other
 					// identity for the same repository — if CI declared a
 					// different digest for this repo, surface the disagreement
-					// as explicit missing_evidence.
-					if mismatch := reconcileSupplyChainScannerIdentityDigest(
+					// as explicit missing_evidence. Collected into a local so
+					// the value survives finalizeSupplyChainImpactFinding's
+					// recomputation of MissingEvidence (which overwrites
+					// whatever was set here — finalize passes its variadic
+					// arguments through to combinedMissingImpactEvidence).
+					reconciliationMissing = reconcileSupplyChainScannerIdentityDigest(
 						finding.SubjectDigest, repositoryID, index.images,
-					); len(mismatch) > 0 {
-						finding.MissingEvidence = append(finding.MissingEvidence, mismatch...)
-					}
+					)
 				}
 			}
 		}
@@ -356,25 +359,25 @@ func classifySupplyChainImpactPackage(
 	if consumption.factID != "" && versionDecision.Status == SupplyChainImpactAffectedExact {
 		applySupplyChainVersionDecision(&finding, versionDecision)
 		reachabilityMissing := applyPackageSupplyChainReachability(&finding, consumption, pkgs, index)
-		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing, reconciliationMissing)
 		return finding
 	}
 	if versionDecision.Status == SupplyChainImpactNotAffectedKnownFixed {
 		applySupplyChainVersionDecision(&finding, versionDecision)
 		reachabilityMissing := applyPackageSupplyChainReachability(&finding, consumption, pkgs, index)
-		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing, reconciliationMissing)
 		return finding
 	}
 	if versionDecision.FailClosed {
 		applySupplyChainVersionDecision(&finding, versionDecision)
 		reachabilityMissing := applyPackageSupplyChainReachability(&finding, consumption, pkgs, index)
-		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing, reconciliationMissing)
 		return finding
 	}
 	if hasOSPackage && versionDecision.Status == SupplyChainImpactAffectedExact {
 		applySupplyChainVersionDecision(&finding, versionDecision)
 		finding.RuntimeReachability = "image_os_package"
-		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, reconciliationMissing)
 		return finding
 	}
 	if hasComponentPath {
@@ -383,7 +386,7 @@ func classifySupplyChainImpactPackage(
 		finding.MatchReason = "sbom_component_path"
 		finding.RuntimeReachability = "image_sbom"
 		finding.CanonicalWrites = 1
-		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, consumptionMissing)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, consumptionMissing, reconciliationMissing)
 		return finding
 	}
 	finding.Status = SupplyChainImpactPossiblyAffected
@@ -392,7 +395,7 @@ func classifySupplyChainImpactPackage(
 	finding.RuntimeReachability = "unknown"
 	finding.CanonicalWrites = 1
 	reachabilityMissing := applyPackageSupplyChainReachability(&finding, consumption, pkgs, index)
-	finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing)
+	finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing, reconciliationMissing)
 	return finding
 }
 

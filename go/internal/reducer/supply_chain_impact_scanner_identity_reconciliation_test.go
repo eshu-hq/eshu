@@ -68,24 +68,39 @@ func TestReconcileSupplyChainScannerIdentityDigestOneSideMissing(t *testing.T) {
 			canonicalWrites:     1,
 		},
 	}
-	missing := reconcileSupplyChainScannerIdentityDigest(scannerDigest, "", identities)
+	// repoID set but no identity carries it — the loop iterates
+	// and finds nothing.
+	missing := reconcileSupplyChainScannerIdentityDigest(scannerDigest, "repository:r_missing", identities)
 	if len(missing) != 0 {
-		t.Errorf("no-repo (identity missing) should produce no additional missing evidence, got %v", missing)
+		t.Errorf("repo with no matching identity should produce no missing evidence, got %v", missing)
 	}
 }
 
 func TestReconcileSupplyChainScannerIdentityDigestAmbiguousRepo(t *testing.T) {
-	digest := "sha256:aaaabbbbccccddddeeeeffff000011112222333344445555666677778888"
+	// Two identities for the same repo — neither ambiguous (each has exactly
+	// one sourceRepositoryIDs), but the scanner's digest matches a third
+	// identity whose sourceRepositoryIDs has TWO entries (ambiguous). The
+	// loop skips the ambiguous identity via len(identity.sourceRepositoryIDs)
+	// != 1, so no mismatch is reported.
+	scannerDigest := "sha256:aaaabbbbccccddddeeeeffff000011112222333344445555666677778888"
+	ciDigest := "sha256:other"
+	repoID := "repository:r_a"
 	identities := map[string]supplyChainImageIdentity{
-		digest: {
-			factID:              "identity-1",
-			digest:              digest,
+		scannerDigest: {
+			factID:              "identity-scanner",
+			digest:              scannerDigest,
+			sourceRepositoryIDs: []string{repoID},
+			canonicalWrites:     1,
+		},
+		ciDigest: {
+			factID:              "identity-ambiguous",
+			digest:              ciDigest,
 			sourceRepositoryIDs: []string{"repository:r_a", "repository:r_b"},
 			canonicalWrites:     1,
 		},
 	}
-	missing := reconcileSupplyChainScannerIdentityDigest(digest, "", identities)
+	missing := reconcileSupplyChainScannerIdentityDigest(scannerDigest, repoID, identities)
 	if len(missing) != 0 {
-		t.Errorf("ambiguous repo should produce no additional missing evidence, got %v", missing)
+		t.Errorf("ambiguous other identity should produce no missing evidence (len != 1 guard), got %v", missing)
 	}
 }

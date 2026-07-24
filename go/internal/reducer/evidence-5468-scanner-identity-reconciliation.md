@@ -36,5 +36,8 @@ No-Regression Evidence: B-7 golden gate `verify-golden-corpus-gate`
 0 required-fail). Per-phase timings unchanged.
 
 No-Observability-Change: no new metrics, spans, or log formats. Disagreement
-surfaces through the existing `finding.MissingEvidence` field, already visible
-in findings responses.
+surfaces through `finding.MissingEvidence` — collected into the local
+`reconciliationMissing` variable and passed to every
+`finalizeSupplyChainImpactFinding` call as a variadic argument, where
+`combinedMissingImpactEvidence` threads it into the final missing-evidence set
+alongside match-stage, image-path, consumption, and reachability evidence.
