@@ -256,6 +256,209 @@ end
 	}
 }
 
+// TestParseRecognizesMountableEngineRoutesReceiver is the #5729 regression:
+// isRailsRoutesDraw originally gated BOTH exact-route capture and the
+// ambiguity scan on an EXACT-STRING receiver match
+// (receiverName(receiver) == "Rails.application.routes"). A mountable Rails
+// engine's own config/routes.rb is written by convention as
+// `MyEngine::Engine.routes.draw do ... end` (and the .append/.prepend
+// variants), whose receiver text is "MyEngine::Engine.routes" -- never equal
+// to the literal "Rails.application.routes". So a controller routed ONLY
+// through an internal engine's own routes file, in a repo whose main
+// Rails.application.routes.draw block is otherwise exact-only, was invisible
+// to BOTH exact capture AND the ambiguity scan and got silently downgraded to
+// route_unreachable. The generalized structural suffix check (receiver text
+// ends in ".routes") recognizes any engine route-set the same way it
+// recognizes Rails.application.routes.
+//
+// Positive-path (exact capture): a fully-resolvable route inside an
+// engine-routes block is captured into route_entries exactly like one inside
+// Rails.application.routes.draw, and has_unmodeled_routes is NOT set.
+func TestParseRecognizesMountableEngineRoutesReceiver(t *testing.T) {
+	t.Parallel()
+
+	t.Run("exact route captured inside engine routes draw block", func(t *testing.T) {
+		t.Parallel()
+
+		path := writeSource(t, "routes.rb", `class ApplicationController
+  def call(env)
+    MyEngine::Engine.routes.draw do
+      get "/widgets", to: "widgets#index"
+    end
+  end
+end
+`)
+
+		payload, err := Parse(path, false, shared.Options{})
+		if err != nil {
+			t.Fatalf("Parse() error = %v, want nil", err)
+		}
+
+		semantics, ok := payload["framework_semantics"].(map[string]any)
+		if !ok {
+			t.Fatalf("payload[framework_semantics] = %T, want map[string]any", payload["framework_semantics"])
+		}
+		rails, ok := semantics["rails"].(map[string]any)
+		if !ok {
+			t.Fatalf("framework_semantics[rails] = %T, want map[string]any", semantics["rails"])
+		}
+		entries, ok := rails["route_entries"].([]map[string]string)
+		if !ok || len(entries) != 1 || entries[0]["handler"] != "WidgetsController.index" {
+			t.Fatalf("rails[route_entries] = %#v, want one entry for WidgetsController.index", rails["route_entries"])
+		}
+		if hasUnmodeled, present := rails["has_unmodeled_routes"]; present && hasUnmodeled == true {
+			t.Fatalf("rails[has_unmodeled_routes] = %#v, want unset/false for a fully-exact engine draw block", hasUnmodeled)
+		}
+	})
+
+	// Ambiguity path: an unmodeled construct inside each engine receiver
+	// variant (.draw/.append/.prepend, plus a deeper namespace) is now
+	// scanned and flags has_unmodeled_routes, where before the block was
+	// never recognized as route-registration context at all.
+	ambiguousTests := []struct {
+		name   string
+		source string
+	}{
+		{
+			name: "engine draw block with an unmodeled root route",
+			source: `class ApplicationController
+  def call(env)
+    MyEngine::Engine.routes.draw do
+      root "welcome#index"
+    end
+  end
+end
+`,
+		},
+		{
+			name: "engine append block with an unmodeled root route",
+			source: `class ApplicationController
+  def call(env)
+    MyEngine::Engine.routes.append do
+      root "welcome#index"
+    end
+  end
+end
+`,
+		},
+		{
+			name: "engine prepend block with an unmodeled root route",
+			source: `class ApplicationController
+  def call(env)
+    MyEngine::Engine.routes.prepend do
+      root "welcome#index"
+    end
+  end
+end
+`,
+		},
+		{
+			name: "deeply-namespaced engine draw block",
+			source: `class ApplicationController
+  def call(env)
+    Foo::Bar::Engine.routes.draw do
+      root "welcome#index"
+    end
+  end
+end
+`,
+		},
+	}
+
+	for _, tt := range ambiguousTests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := writeSource(t, "routes.rb", tt.source)
+			payload, err := Parse(path, false, shared.Options{})
+			if err != nil {
+				t.Fatalf("Parse() error = %v, want nil", err)
+			}
+
+			semantics, ok := payload["framework_semantics"].(map[string]any)
+			if !ok {
+				t.Fatalf("payload[framework_semantics] = %T, want map[string]any", payload["framework_semantics"])
+			}
+			rails, ok := semantics["rails"].(map[string]any)
+			if !ok {
+				t.Fatalf("framework_semantics[rails] = %T, want map[string]any", semantics["rails"])
+			}
+			if hasUnmodeled, _ := rails["has_unmodeled_routes"].(bool); !hasUnmodeled {
+				t.Fatalf("rails[has_unmodeled_routes] = %#v, want true", rails["has_unmodeled_routes"])
+			}
+		})
+	}
+}
+
+// TestParseDoesNotTreatNonRoutesReceiverAsRouteSet is the #5729 negative
+// control: the generalized receiver check must key on the structural
+// ".routes" suffix, NOT loosen to "any .draw/.append/.prepend call". A block
+// whose receiver does not end in ".routes" (an unrelated builder DSL, or a
+// bare receiverless `routes.draw`) is NOT a Rails route-set: its route-shaped
+// calls must neither be captured as exact routes nor flag
+// has_unmodeled_routes. If this test flags rails semantics, the suffix guard
+// has regressed into matching a plain `.draw`.
+func TestParseDoesNotTreatNonRoutesReceiverAsRouteSet(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		source string
+	}{
+		{
+			name: "unrelated builder .draw receiver (foo.bar.draw)",
+			source: `class ApplicationController
+  def call(env)
+    foo.bar.draw do
+      get "/x", to: "widgets#show"
+    end
+  end
+end
+`,
+		},
+		{
+			name: "bare receiverless routes.draw (no dotted receiver)",
+			source: `class ApplicationController
+  def call(env)
+    routes.draw do
+      get "/x", to: "widgets#show"
+    end
+  end
+end
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := writeSource(t, "routes.rb", tt.source)
+			payload, err := Parse(path, false, shared.Options{})
+			if err != nil {
+				t.Fatalf("Parse() error = %v, want nil", err)
+			}
+
+			semantics, ok := payload["framework_semantics"].(map[string]any)
+			if !ok {
+				// No framework semantics at all is a valid "not a route-set"
+				// outcome for this negative control.
+				return
+			}
+			rails, ok := semantics["rails"].(map[string]any)
+			if !ok {
+				return
+			}
+			if entries, present := rails["route_entries"]; present {
+				t.Fatalf("rails[route_entries] = %#v, want none for a non-.routes receiver", entries)
+			}
+			if hasUnmodeled, _ := rails["has_unmodeled_routes"].(bool); hasUnmodeled {
+				t.Fatalf("rails[has_unmodeled_routes] = true, want unset for a non-.routes receiver")
+			}
+		})
+	}
+}
+
 // TestParseFlagsUnmodeledRouteInCurlyBraceDrawBlock proves the fail-safe scan
 // also covers the one-line curly-brace block form
 // (`Rails.application.routes.draw { ... }`), which tree-sitter-ruby parses as

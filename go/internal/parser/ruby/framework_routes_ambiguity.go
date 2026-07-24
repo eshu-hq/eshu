@@ -4,6 +4,8 @@
 package ruby
 
 import (
+	"strings"
+
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -12,12 +14,16 @@ import (
 // open a full route-registration block: `draw` (the normal application
 // routes.rb entrypoint) plus `append` and `prepend` (real, documented Rails
 // APIs engines and gems use to insert routes after/before the main set). All
-// three share the identical `Rails.application.routes` receiver shape, so a
-// controller action routed ONLY inside an `.append`/`.prepend` block is just
-// as real as one routed inside `.draw` -- treating only `.draw` as
-// route-registration context (the pre-P1-fix behavior) let such an action
-// bypass BOTH exact-route capture (rubyResolveRouteContext in
-// framework_routes.go would never resolve "rails" for it) AND the ambiguity
+// three are called on a route-set receiver whose text ends in `.routes`
+// (`Rails.application.routes` for the main app, `<Namespace>::Engine.routes`
+// for a mountable engine's own config/routes.rb) -- see the suffix contract in
+// isRailsRoutesDraw. A controller action routed ONLY inside an
+// `.append`/`.prepend` block, or ONLY inside an engine's own routes file, is
+// just as real as one routed inside the main `.draw` -- treating only `.draw`
+// as route-registration context (the pre-P1-fix behavior), or gating on the
+// exact literal `Rails.application.routes` receiver (the pre-#5729 behavior),
+// let such an action bypass BOTH exact-route capture (rubyResolveRouteContext
+// in framework_routes.go would never resolve "rails" for it) AND the ambiguity
 // scan below (only triggered for a call this set matches), silently
 // downgrading a live controller to route_unreachable in an otherwise
 // exact-only repo.
@@ -27,8 +33,29 @@ var rubyRailsRouteSetMethods = map[string]struct{}{
 	"prepend": {},
 }
 
+// rubyRailsRouteSetReceiverSuffix is the structural marker of a Rails route-set
+// receiver. Every Rails route-set is reached through a `.routes` accessor:
+// `Rails.application.routes` for the main application and
+// `<Namespace>::Engine.routes` (e.g. `MyEngine::Engine.routes`,
+// `Foo::Bar::Engine.routes`) for a mountable engine's own config/routes.rb.
+// receiverName (calls.go) composes the full dotted receiver text, so the
+// common structural invariant across all of them is a `.routes` suffix on a
+// non-empty dotted receiver.
+const rubyRailsRouteSetReceiverSuffix = ".routes"
+
 // isRailsRoutesDraw reports whether node is a Rails route-set registration
-// call (Rails.application.routes.draw/append/prepend). Shared by
+// call: one of rubyRailsRouteSetMethods (draw/append/prepend) invoked on a
+// route-set receiver whose dotted text ends in `.routes`. This covers the main
+// application (`Rails.application.routes.draw`) and any mountable engine's own
+// routes file (`MyEngine::Engine.routes.draw`, `.append`, `.prepend`), which is
+// written by convention against the engine's own RouteSet and never against the
+// literal `Rails.application.routes`. The check is a structural suffix rather
+// than exact-string equality, consistent with the fail-safe philosophy already
+// applied to the method axis: a `.routes.draw`/`.routes.append`/`.routes.prepend`
+// chain is a reliable Rails route-set marker, while requiring the `.routes`
+// suffix on a NON-empty dotted receiver rejects a bare receiverless
+// `routes.draw` (receiverName returns "routes", no dot) and an unrelated
+// builder `foo.bar.draw` (no `.routes` suffix). Shared by
 // rubyResolveRouteContext (framework_routes.go, exact-route capture) and
 // rubyScanRailsDrawBlockForAmbiguity below (ambiguity detection) -- both
 // consumers must agree on what counts as route-registration context, or one
@@ -39,7 +66,7 @@ func (s *rubySyntax) isRailsRoutesDraw(node *tree_sitter.Node) bool {
 		return false
 	}
 	receiver := node.ChildByFieldName("receiver")
-	return s.receiverName(receiver) == "Rails.application.routes"
+	return strings.HasSuffix(s.receiverName(receiver), rubyRailsRouteSetReceiverSuffix)
 }
 
 // appendRubyRailsRouteAmbiguity stamps has_unmodeled_routes=true onto the
