@@ -196,11 +196,16 @@ func TestPipelinedBootstrapRunsDeferredBackfillWorkflow(t *testing.T) {
 		t.Fatalf("workflow calls = %v, want %v", got, want)
 	}
 	// container_image_identity is replayed so a cross-scope ci.artifact -> OCI
-	// manifest join (and the #5423 ci_run_commit provenance) resolves once the
+	// manifest join (and the #5423 ci_run_commit provenance) can resolve once the
 	// OCI generation is active on a later maintenance pass. ci_cd_run_correlation
-	// (#5710) is replayed after it, on the same later pass, so its own
-	// cross-scope read of the now-materialized container_image_identity rows
-	// resolves deterministically instead of racing the identity generation.
+	// (#5710) is also in this reopen list, but listing it after
+	// container_image_identity does NOT sequence execution: this single
+	// ReopenSucceededReducerWorkItems call marks all domains pending together and
+	// concurrent reducer workers may claim either first (no drain between them),
+	// so the correlation's cross-scope read is a best-effort re-attempt, not a
+	// deterministic ordering. list_ci_cd_run_correlations' minimum_results:1 does
+	// not depend on the ordering because the domain writes a decision fact for
+	// every outcome; the outcome itself is intentionally unpinned (#5766).
 	if got, want := committer.reopenedDomains, []string{
 		"deployable_unit_correlation",
 		"kubernetes_correlation_materialization",
