@@ -219,3 +219,27 @@ Observability Evidence: the hosted command wires the source with
 `telemetry.NewInstruments` and the shared status server. Central collector
 status evidence also admits active `ci_cd_run` facts through the bounded
 Postgres status query.
+
+Performance Evidence (#5429 cross-cycle watermark gap detection):
+`go test ./internal/collector/cicdrun/ghactionsruntime -bench
+BenchmarkNextClaimed -benchtime=20000x -run '^$' -count=3` compares the
+touched `NextClaimed` path with `SourceConfig.Watermarks` unset (the
+pre-#5429 shape, where `loadWatermark`/`detectRunBackfillGap`/`saveWatermark`
+all short-circuit on a nil check) against the same path with an in-memory
+`runwatermark.Store` wired (a real Load + gap-detect + Save every call, the
+same store work a Postgres-backed store performs minus network/disk
+latency), on the same 10-run fetched page:
+
+| Shape | ns/op (3 runs) |
+| --- | --- |
+| `Watermarks` unset (nil-safe, pre-#5429 behavior) | 160342, 161230, 160756 |
+| `Watermarks` = `runwatermark.InMemoryStore` (#5429) | 162088, 161914, 162523 |
+
+~1.4µs added per claim (~0.9%), within run-to-run noise. For the
+Postgres-backed production store
+(`go/internal/storage/postgres/cicd_run_watermark.go`), the theory-proof in
+`docs/internal/evidence/5429-cicd-run-watermark.md` measured each point
+query (Load, Save) at ~0.02-0.03ms against 50,000 representative rows; two
+such queries per claim are negligible next to this package's own documented
+worst case of up to 200 additional bounded GitHub HTTP requests per claim
+cycle (`max_runs`=100).
