@@ -363,3 +363,48 @@ func TestHandleAWSRuntimeDriftFindingsDefaultKindsIncludeImageVersionDrift(t *te
 		t.Fatalf("first finding_kind = %q, want %q", got, want)
 	}
 }
+
+// TestHandleAWSRuntimeDriftFindingsBlankKindsStillWidenDefault guards the #5453
+// widening against a whitespace-only finding_kinds argument.
+// normalizeIaCManagementFindingKinds strips blank entries before applying the
+// existence-only default, so a raw-slice-length guard would treat ["  "] as
+// caller-supplied kinds and skip the widening, silently excluding
+// image_version_drift. The widening must key on whether any NON-BLANK kind was
+// named.
+func TestHandleAWSRuntimeDriftFindingsBlankKindsStillWidenDefault(t *testing.T) {
+	t.Parallel()
+
+	var observed IaCManagementFilter
+	handler := &IaCHandler{
+		Profile: ProfileLocalAuthoritative,
+		Management: fakeIaCManagementStore{
+			observedFilter: &observed,
+			rows:           []IaCManagementFindingRow{},
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/aws/runtime-drift/findings", bytes.NewBufferString(`{
+		"scope_id": "aws:123456789012:us-east-1:ec2",
+		"finding_kinds": ["  ", ""],
+		"limit": 10
+	}`))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	wantKinds := []string{
+		"ambiguous_cloud_resource",
+		"image_version_drift",
+		"orphaned_cloud_resource",
+		"unknown_cloud_resource",
+		"unmanaged_cloud_resource",
+	}
+	if got := observed.FindingKinds; !reflect.DeepEqual(got, wantKinds) {
+		t.Fatalf("observed.FindingKinds = %#v, want %#v (blank kinds must not skip the image_version_drift widening)", got, wantKinds)
+	}
+}
