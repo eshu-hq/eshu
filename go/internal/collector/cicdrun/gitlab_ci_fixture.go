@@ -167,11 +167,15 @@ func gitlabRunEnvelope(ctx FixtureContext, pipeline gitlabPipeline) (facts.Envel
 	payload["updated_at"] = trim(pipeline.UpdatedAt)
 	payload["url"] = stripSensitiveURL(pipeline.WebURL)
 	payload["correlation_anchors"] = nonEmptyStrings(canonicalRepoID, trim(pipeline.SHA), pipelineID)
+	runAttempt, err := payloadStringField(payload, "run_attempt")
+	if err != nil {
+		return facts.Envelope{}, err
+	}
 	if err := mergeContractPayload(payload, func() (map[string]any, error) {
 		return factschema.EncodeCICDRun(cicdrunv1.Run{
 			Provider:             string(ProviderGitLabCI),
 			RunID:                pipelineID,
-			RunAttempt:           stringPtr(payload["run_attempt"].(string)),
+			RunAttempt:           stringPtr(runAttempt),
 			RunNumber:            stringPtr(runNumber),
 			Event:                stringPtr(trim(pipeline.Source)),
 			Status:               stringPtr(status),
@@ -235,18 +239,26 @@ func gitlabArtifactEnvelope(ctx FixtureContext, pipeline gitlabPipeline, jobID, 
 	payload["artifact_type"] = gitlabArtifactType(artifact)
 	payload["artifact_digest"] = ""
 	payload["size_bytes"] = artifact.Size
-	payload["correlation_anchors"] = nonEmptyStrings(payload["run_id"].(string), jobID)
+	runID, err := payloadStringField(payload, "run_id")
+	if err != nil {
+		return facts.Envelope{}, err
+	}
+	runAttempt, err := payloadStringField(payload, "run_attempt")
+	if err != nil {
+		return facts.Envelope{}, err
+	}
+	payload["correlation_anchors"] = nonEmptyStrings(runID, jobID)
 	if err := mergeContractPayload(payload, func() (map[string]any, error) {
 		return factschema.EncodeCICDArtifact(cicdrunv1.Artifact{
 			Provider:            string(ProviderGitLabCI),
-			RunID:               payload["run_id"].(string),
-			RunAttempt:          stringPtr(payload["run_attempt"].(string)),
+			RunID:               runID,
+			RunAttempt:          stringPtr(runAttempt),
 			ArtifactID:          stringPtr(artifactID),
 			ArtifactName:        stringPtr(filename),
 			ArtifactType:        stringPtr(gitlabArtifactType(artifact)),
 			ArtifactDigest:      stringPtr(""),
 			SizeBytes:           int64Ptr(artifact.Size),
-			CorrelationAnchors:  nonEmptyStrings(payload["run_id"].(string), jobID),
+			CorrelationAnchors:  nonEmptyStrings(runID, jobID),
 			CollectorInstanceID: stringPtr(ctx.CollectorInstanceID),
 		})
 	}); err != nil {

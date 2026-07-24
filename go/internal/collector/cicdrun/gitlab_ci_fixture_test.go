@@ -166,14 +166,64 @@ func TestGitLabCIFixtureWarnsAndSkipsJobsMissingID(t *testing.T) {
 	assertPayload(t, byKind[facts.CICDWarningFactKind][0].Payload, "reason", "job_missing_id")
 }
 
+// gitLabOnlyFactKinds are fact kinds GitLabCIFixtureEnvelopes emits for
+// testdata/gitlab_ci_success.json that GitHubActionsFixtureEnvelopes does NOT
+// emit for testdata/github_actions_success.json. ci.warning is provider-
+// agnostic infrastructure (github_actions_fixture.go emits it too, on its
+// OWN partial/malformed-input paths — see TestGitHubActionsFixtureRecordsJobsPartialWarning
+// and similar), but it is not present in the GitHub success fixture's output
+// because that fixture's artifact carries a real digest; GitLab's Jobs API
+// reports NO artifact digest at this level ever (see gitlabArtifact's doc
+// comment in types.go), so gitlabArtifactEnvelope always follows an artifact
+// with an "artifact_missing_digest" ci.warning — a difference in fixture
+// SHAPE, not in the shared kind contract.
+var gitLabOnlyFactKinds = []string{facts.CICDWarningFactKind}
+
+// gitHubOnlyFactKinds are fact kinds GitHubActionsFixtureEnvelopes emits for
+// testdata/github_actions_success.json that GitLabCIFixtureEnvelopes does NOT
+// emit for testdata/gitlab_ci_success.json, because GitLab's Pipelines/Jobs
+// APIs expose no matching resource at this level — see gitlab_ci_fixture.go's
+// package-level doc comment for the full v1-scope rationale:
+//   - ci.pipeline_definition: no workflow resource distinct from the pipeline
+//     itself (pipeline.id IS the run).
+//   - ci.step: no step-level breakdown in the Jobs API.
+//   - ci.trigger_edge, ci.environment_observation: out of v1 scope, matching
+//     ghactionsruntime's own live client, which also does not populate these
+//     for GitHub.
+var gitHubOnlyFactKinds = []string{
+	facts.CICDPipelineDefinitionFactKind,
+	facts.CICDStepFactKind,
+	facts.CICDTriggerEdgeFactKind,
+	facts.CICDEnvironmentObservationFactKind,
+}
+
+// sharedCICDFactKinds are the fact kinds BOTH providers emit for their
+// respective success fixtures — the actual shared contract issue #5427
+// exists to prove, and the set list_ci_cd_run_correlations/
+// ci_cd_run_correlation.go's join logic must treat identically regardless of
+// provider.
+var sharedCICDFactKinds = []string{
+	facts.CICDRunFactKind,
+	facts.CICDJobFactKind,
+	facts.CICDArtifactFactKind,
+}
+
 // TestGitLabCIFixtureSharesFactKindsAndJoinKeyShapeWithGitHubActions is the
 // central architecture proof for issue #5427: GitLab CI is a second provider
-// on the EXISTING ci.* fact contract, not a parallel fact-kind family. Both
-// providers emit identical FactKind constants, and the reducer's join key
-// (provider, run_id, run_attempt -- see
-// go/internal/reducer/ci_cd_run_correlation.go's cicdRunKey) stays disjoint
-// per-provider even when the raw provider-native run/pipeline IDs collide
-// numerically, because Provider participates in every StableFactKey.
+// on the EXISTING ci.* fact contract, not a parallel fact-kind family. It
+// compares the FULL set of fact kinds each provider's normalizer emits for
+// its own success fixture (codex review on PR #5778: the prior version only
+// compared the single ci.run kind despite the test name and doc comment
+// claiming "identical FactKind constants" for the whole contract) — the two
+// kind sets must differ by EXACTLY the documented, scope-justified kinds in
+// gitHubOnlyFactKinds/gitLabOnlyFactKinds, not silently omit any kind from
+// comparison. For every kind both providers emit (sharedCICDFactKinds), it
+// also proves FactKind/SchemaVersion equality and join-key shape parity
+// (provider, run_id, run_attempt, plus the reducer's join key -- see
+// go/internal/reducer/ci_cd_run_correlation.go's cicdRunKey), and that the
+// join key stays disjoint per-provider even when the raw provider-native
+// run/pipeline IDs collide numerically, because Provider participates in
+// every StableFactKey.
 func TestGitLabCIFixtureSharesFactKindsAndJoinKeyShapeWithGitHubActions(t *testing.T) {
 	t.Parallel()
 
@@ -196,15 +246,55 @@ func TestGitLabCIFixtureSharesFactKindsAndJoinKeyShapeWithGitHubActions(t *testi
 		t.Fatalf("GitLabCIFixtureEnvelopes() error = %v", err)
 	}
 
-	ghRun := envelopesByKind(ghEnvelopes)[facts.CICDRunFactKind][0]
-	glRun := envelopesByKind(glEnvelopes)[facts.CICDRunFactKind][0]
-	if ghRun.FactKind != glRun.FactKind {
-		t.Fatalf("FactKind mismatch: github=%q gitlab=%q, want same shared kind", ghRun.FactKind, glRun.FactKind)
+	ghByKind := envelopesByKind(ghEnvelopes)
+	glByKind := envelopesByKind(glEnvelopes)
+	ghKinds := factKindSet(ghByKind)
+	glKinds := factKindSet(glByKind)
+	t.Logf("github fact kinds: %v", ghKinds)
+	t.Logf("gitlab fact kinds: %v", glKinds)
+
+	assertFactKindSetDiff(t, "github-only", ghKinds, glKinds, gitHubOnlyFactKinds)
+	assertFactKindSetDiff(t, "gitlab-only", glKinds, ghKinds, gitLabOnlyFactKinds)
+	for _, kind := range sharedCICDFactKinds {
+		if _, ok := ghKinds[kind]; !ok {
+			t.Fatalf("github fixture emitted no %q fact; sharedCICDFactKinds is stale", kind)
+		}
+		if _, ok := glKinds[kind]; !ok {
+			t.Fatalf("gitlab fixture emitted no %q fact; sharedCICDFactKinds is stale", kind)
+		}
 	}
-	if ghRun.SchemaVersion != glRun.SchemaVersion {
-		t.Fatalf("SchemaVersion mismatch: github=%q gitlab=%q, want same shared schema", ghRun.SchemaVersion, glRun.SchemaVersion)
+
+	for _, kind := range sharedCICDFactKinds {
+		ghEnvelope := ghByKind[kind][0]
+		glEnvelope := glByKind[kind][0]
+		if ghEnvelope.FactKind != glEnvelope.FactKind {
+			t.Fatalf("%s: FactKind mismatch: github=%q gitlab=%q, want same shared kind", kind, ghEnvelope.FactKind, glEnvelope.FactKind)
+		}
+		if ghEnvelope.SchemaVersion != glEnvelope.SchemaVersion {
+			t.Fatalf("%s: SchemaVersion mismatch: github=%q gitlab=%q, want same shared schema", kind, ghEnvelope.SchemaVersion, glEnvelope.SchemaVersion)
+		}
+		for _, key := range []string{"provider", "run_id", "run_attempt"} {
+			if _, ok := ghEnvelope.Payload[key]; !ok {
+				t.Fatalf("%s: github payload missing join-key field %q: %#v", kind, key, ghEnvelope.Payload)
+			}
+			if _, ok := glEnvelope.Payload[key]; !ok {
+				t.Fatalf("%s: gitlab payload missing join-key field %q: %#v", kind, key, glEnvelope.Payload)
+			}
+		}
+		if ghEnvelope.Payload["provider"] == glEnvelope.Payload["provider"] {
+			t.Fatalf("%s: provider must differ between providers, both were %#v", kind, ghEnvelope.Payload["provider"])
+		}
+		if ghEnvelope.StableFactKey == glEnvelope.StableFactKey {
+			t.Fatalf("%s: StableFactKey collided across providers: %q", kind, ghEnvelope.StableFactKey)
+		}
+		if ghEnvelope.FactID == glEnvelope.FactID {
+			t.Fatalf("%s: FactID collided across providers: %q", kind, ghEnvelope.FactID)
+		}
 	}
-	for _, key := range []string{"run_id", "run_attempt", "repository_id", "commit_sha", "status", "result", "branch"} {
+
+	ghRun := ghByKind[facts.CICDRunFactKind][0]
+	glRun := glByKind[facts.CICDRunFactKind][0]
+	for _, key := range []string{"repository_id", "commit_sha", "status", "result", "branch"} {
 		if _, ok := ghRun.Payload[key]; !ok {
 			t.Fatalf("github run payload missing shared key %q: %#v", key, ghRun.Payload)
 		}
@@ -212,14 +302,47 @@ func TestGitLabCIFixtureSharesFactKindsAndJoinKeyShapeWithGitHubActions(t *testi
 			t.Fatalf("gitlab run payload missing shared key %q: %#v", key, glRun.Payload)
 		}
 	}
-	if ghRun.Payload["provider"] == glRun.Payload["provider"] {
-		t.Fatalf("provider must differ between providers, both were %#v", ghRun.Payload["provider"])
+}
+
+// factKindSet returns the set of fact kinds present in byKind.
+func factKindSet(byKind map[string][]facts.Envelope) map[string]struct{} {
+	out := make(map[string]struct{}, len(byKind))
+	for kind, envelopes := range byKind {
+		if len(envelopes) > 0 {
+			out[kind] = struct{}{}
+		}
 	}
-	if ghRun.StableFactKey == glRun.StableFactKey {
-		t.Fatalf("StableFactKey collided across providers: %q", ghRun.StableFactKey)
+	return out
+}
+
+// assertFactKindSetDiff asserts that (from - other) equals EXACTLY
+// wantExtraKinds — every kind `from` emits that `other` does not must be
+// documented in wantExtraKinds, and every documented kind must actually be
+// present, so a future normalizer change that adds or removes a shared kind
+// without updating this test's documentation fails loudly here instead of
+// silently narrowing what gets compared.
+func assertFactKindSetDiff(t *testing.T, label string, from, other map[string]struct{}, wantExtraKinds []string) {
+	t.Helper()
+
+	want := make(map[string]struct{}, len(wantExtraKinds))
+	for _, kind := range wantExtraKinds {
+		want[kind] = struct{}{}
 	}
-	if ghRun.FactID == glRun.FactID {
-		t.Fatalf("FactID collided across providers: %q", ghRun.FactID)
+	for kind := range from {
+		if _, sharedWithOther := other[kind]; sharedWithOther {
+			continue
+		}
+		if _, documented := want[kind]; !documented {
+			t.Fatalf("%s: fact kind %q is emitted but not present in the other provider's fixture output and is not documented as %s; add it to the appropriate gitHubOnlyFactKinds/gitLabOnlyFactKinds list with a reason, or extend sharedCICDFactKinds if it should now be compared", label, kind, label)
+		}
+	}
+	for kind := range want {
+		if _, present := from[kind]; !present {
+			t.Fatalf("%s: fact kind %q is documented as %s-only but the fixture no longer emits it; update the list", label, kind, label)
+		}
+		if _, sharedWithOther := other[kind]; sharedWithOther {
+			t.Fatalf("%s: fact kind %q is documented as %s-only but the OTHER provider's fixture now emits it too; move it into sharedCICDFactKinds", label, kind, label)
+		}
 	}
 }
 

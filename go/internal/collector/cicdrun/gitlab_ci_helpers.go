@@ -4,11 +4,27 @@
 package cicdrun
 
 import (
+	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
+
+// payloadStringField reads a string-valued field a prior gitlabSharedPayload
+// call placed on the fixture payload map (currently always "run_id" or
+// "run_attempt", both set as plain strings — see gitlabSharedPayload in
+// gitlab_ci_fixture.go). It returns a clear typed error instead of letting an
+// unchecked type assertion panic, so a future refactor that changes
+// gitlabSharedPayload's value types (e.g. to a typed wrapper) fails loudly at
+// the call site instead of crashing the reducer/collector process.
+func payloadStringField(payload map[string]any, key string) (string, error) {
+	value, ok := payload[key].(string)
+	if !ok {
+		return "", fmt.Errorf("gitlab ci payload %s: expected string, got %T", key, payload[key])
+	}
+	return value, nil
+}
 
 // gitlabRepositoryID returns the canonical repository identifier
 // (repository:r_<hex>) derived from the pipeline's web_url or the fixture's
