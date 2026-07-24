@@ -231,10 +231,6 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 		"CloudResource|running_image_ref": {
 			"123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
 			"123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
-			// #5452 third running-image node: the ECS task running the scanned
-			// vulnerable digest ...901a, whose supply_chain_impact finding the
-			// query-time CloudResource probe classifies runtime_confirmed.
-			"123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a",
 		},
 		// running_image_digest carries the BARE digest for both ECS and Lambda
 		// (issue #5450 P2 fix): the full registry/repository@digest reference
@@ -243,11 +239,11 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 		// never has to branch on resource_type to know which shape it is
 		// getting.
 		"CloudResource|running_image_digest": {
-			"sha256:0000000000000000000000000000000000000000000000000000000000aa",
-			"sha256:0000000000000000000000000000000000000000000000000000000000cc",
-			// #5452 third running-image node's bare digest (the scanned
-			// vulnerable supply-chain-demo image observed running on an ECS task).
+			// #5452: the ECS running task now runs the SCANNED vulnerable digest
+			// (...901a), so its supply_chain_impact finding classifies
+			// runtime_confirmed via the query-time CloudResource probe.
 			"sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a",
+			"sha256:0000000000000000000000000000000000000000000000000000000000cc",
 		},
 	}
 	return nodes, nodeProp
