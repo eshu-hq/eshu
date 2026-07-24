@@ -284,3 +284,82 @@ func TestHandleAWSRuntimeDriftFindingsRequiresBoundedScope(t *testing.T) {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
 }
+
+// TestHandleAWSRuntimeDriftFindingsDefaultKindsIncludeImageVersionDrift
+// proves the #5453 fix: unlike handleUnmanagedCloudResources (which
+// intentionally keeps its narrower existence-only default, see
+// TestHandleUnmanagedCloudResourcesDefaultsToActionableAWSFindingKinds), this
+// route is the "runtime drift findings" surface. A caller who names no
+// explicit finding_kinds must still see a managed-but-value-drifted resource
+// (image_version_drift) on the default page, not just the four
+// existence/ambiguity kinds -- a managed resource is not "unmanaged" and must
+// not be structurally excluded from its own drift-findings default.
+func TestHandleAWSRuntimeDriftFindingsDefaultKindsIncludeImageVersionDrift(t *testing.T) {
+	t.Parallel()
+
+	var observed IaCManagementFilter
+	handler := &IaCHandler{
+		Profile: ProfileLocalAuthoritative,
+		Management: fakeIaCManagementStore{
+			observedFilter: &observed,
+			rows: []IaCManagementFindingRow{
+				{
+					ID:               "fact:aws-ami-drift",
+					Provider:         "aws",
+					AccountID:        "123456789012",
+					Region:           "us-east-1",
+					ResourceType:     "ec2_instance",
+					ResourceID:       "i-0123456789abcdef0",
+					ARN:              "arn:aws:ec2:us-east-1:123456789012:instance/i-0123456789abcdef0",
+					FindingKind:      "image_version_drift",
+					ManagementStatus: "managed_by_terraform",
+					Confidence:       0.95,
+					ScopeID:          "aws:123456789012:us-east-1:ec2",
+					GenerationID:     "generation:aws-1",
+					SourceSystem:     "aws",
+					DriftedAttributes: []DriftedAttributeView{
+						{Attribute: "ami", Declared: "ami-0123456789abcdef0", Observed: "ami-000000000000000a"},
+					},
+				},
+			},
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/aws/runtime-drift/findings", bytes.NewBufferString(`{
+		"scope_id": "aws:123456789012:us-east-1:ec2",
+		"limit": 10
+	}`))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	wantKinds := []string{
+		"ambiguous_cloud_resource",
+		"image_version_drift",
+		"orphaned_cloud_resource",
+		"unknown_cloud_resource",
+		"unmanaged_cloud_resource",
+	}
+	if got := observed.FindingKinds; !reflect.DeepEqual(got, wantKinds) {
+		t.Fatalf("observed.FindingKinds = %#v, want %#v", got, wantKinds)
+	}
+
+	var resp ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	data := resp.Data.(map[string]any)
+	findings := data["drift_findings"].([]any)
+	if len(findings) != 1 {
+		t.Fatalf("drift_findings len = %d, want 1 (image_version_drift row); body = %s", len(findings), w.Body.String())
+	}
+	first := findings[0].(map[string]any)
+	if got, want := first["finding_kind"], "image_version_drift"; got != want {
+		t.Fatalf("first finding_kind = %q, want %q", got, want)
+	}
+}
