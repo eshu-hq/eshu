@@ -195,7 +195,7 @@ and `source_freshness=partial`; this is response metadata, not a metric label.
 | `eshu_dp_ci_cd_run_provider_requests_total` | `provider`, `status_class` | Hosted CI/CD run provider request attempts, including success, rate-limited, and error outcomes. |
 | `eshu_dp_ci_cd_run_facts_emitted_total` | `provider`, `fact_kind` | `ci.*` source facts emitted per claimed target. |
 | `eshu_dp_ci_cd_run_rate_limited_total` | `provider` | GitHub Actions rate-limit pressure surfaced to workflow retry handling. |
-| `eshu_dp_ci_cd_run_partial_generations_total` | `provider`, `reason` | Bounded partial evidence such as truncated job pages or provider warnings. |
+| `eshu_dp_ci_cd_run_partial_generations_total` | `provider`, `reason` | Bounded partial evidence such as truncated job pages or provider warnings, including `reason="runs_backfill_gap"`: a claim cycle detected that runs between a prior cycle's watermark and this cycle's fetched window were never fetched by either cycle (#5429). |
 | `eshu_dp_ci_cd_run_fetch_duration_seconds` | `provider`, `status_class` | Bounded provider fetch duration for one claimed target. |
 
 Repository names, workflow run IDs, artifact names, URLs, token environment
