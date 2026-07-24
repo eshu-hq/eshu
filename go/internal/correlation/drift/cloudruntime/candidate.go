@@ -39,6 +39,14 @@ const (
 	EvidenceTypeAmbiguousManagement = "ambiguous_management_conflict"
 	// EvidenceTypeWarningFlag carries reducer warning flags for the read model.
 	EvidenceTypeWarningFlag = "iac_management_warning"
+	// EvidenceTypeDeclaredValue marks one Terraform-declared comparable value
+	// atom emitted for an image_version_drift finding (#5453). The atom Key
+	// is "declared_<attribute>" (e.g. "declared_ami").
+	EvidenceTypeDeclaredValue = "declared_attribute_value"
+	// EvidenceTypeObservedValue marks one AWS-observed comparable value atom
+	// emitted for an image_version_drift finding (#5453). The atom Key is
+	// "observed_<attribute>" (e.g. "observed_ami").
+	EvidenceTypeObservedValue = "observed_attribute_value"
 )
 
 const (
@@ -123,6 +131,7 @@ func buildOneCandidate(row AddressedRow, arn string, kind FindingKind, scopeID s
 	evidence = appendResourceEvidence(evidence, candidateID, "/config", row.Config, EvidenceTypeConfigResource, scopeID)
 	evidence = appendRawTagEvidence(evidence, candidateID, row.Cloud, scopeID)
 	evidence = appendManagementEvidence(evidence, candidateID, row, kind, scopeID)
+	evidence = appendValueDriftEvidence(evidence, candidateID, row.Cloud, row.State, scopeID)
 
 	return model.Candidate{
 		ID:             candidateID,
@@ -218,6 +227,46 @@ func appendResourceEvidence(
 		Value:        value,
 		Confidence:   driftConfidence,
 	})
+}
+
+// appendValueDriftEvidence emits one declared_<attr>/observed_<attr>
+// evidence-atom pair per attribute ClassifyValueDrift found to differ
+// between cloud and state. It is the sole producer of value-drift evidence
+// atoms and calls the same ClassifyValueDrift Classify used to pick the
+// finding kind, so the emitted evidence can never disagree with the
+// candidate's own finding_kind atom. Safe to call for every finding kind:
+// ClassifyValueDrift returns nil whenever cloud or state is nil (orphaned
+// and unmanaged findings), so it never emits an atom for those cases.
+func appendValueDriftEvidence(
+	evidence []model.EvidenceAtom,
+	candidateID string,
+	cloud, state *ResourceRow,
+	fallbackScopeID string,
+) []model.EvidenceAtom {
+	for _, attr := range ClassifyValueDrift(cloud, state) {
+		evidence = append(
+			evidence,
+			model.EvidenceAtom{
+				ID:           candidateID + "/declared/" + attr.Key,
+				SourceSystem: driftSourceSystem,
+				EvidenceType: EvidenceTypeDeclaredValue,
+				ScopeID:      scopeFor(state, fallbackScopeID),
+				Key:          "declared_" + attr.Key,
+				Value:        attr.Declared,
+				Confidence:   driftConfidence,
+			},
+			model.EvidenceAtom{
+				ID:           candidateID + "/observed/" + attr.Key,
+				SourceSystem: driftSourceSystem,
+				EvidenceType: EvidenceTypeObservedValue,
+				ScopeID:      scopeFor(cloud, fallbackScopeID),
+				Key:          "observed_" + attr.Key,
+				Value:        attr.Observed,
+				Confidence:   driftConfidence,
+			},
+		)
+	}
+	return evidence
 }
 
 func appendRawTagEvidence(

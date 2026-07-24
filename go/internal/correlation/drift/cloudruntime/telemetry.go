@@ -22,6 +22,12 @@ type Summary struct {
 	UnmanagedResources int
 	AmbiguousResources int
 	UnknownResources   int
+	// ImageVersionDriftResources counts admitted image_version_drift findings
+	// (#5453). No dedicated counter is recorded for this kind: every admitted
+	// result already increments eshu_dp_correlation_rule_matches_total via
+	// recordRuleMatches below, so this field exists for the reducer's own
+	// operator-facing summary log line, not a new metric.
+	ImageVersionDriftResources int
 }
 
 // RecordEvaluation emits bounded metrics for one AWS cloud-runtime drift
@@ -44,6 +50,8 @@ func RecordEvaluation(ctx context.Context, instruments *telemetry.Instruments, e
 			summary.AmbiguousResources++
 		case FindingKindUnknownCloudResource:
 			summary.UnknownResources++
+		case FindingKindImageVersionDrift:
+			summary.ImageVersionDriftResources++
 		}
 	}
 	return summary

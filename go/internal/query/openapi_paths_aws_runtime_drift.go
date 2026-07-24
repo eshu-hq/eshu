@@ -24,7 +24,7 @@ const openAPIPathsAWSRuntimeDrift = `
                   "arn": {"type": "string", "description": "Optional exact AWS ARN to inspect."},
                   "finding_kinds": {
                     "type": "array",
-                    "description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, or ambiguous_cloud_resource.",
+                    "description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, ambiguous_cloud_resource, or image_version_drift.",
                     "items": {"type": "string"}
                   },
                   "limit": {"type": "integer", "description": "Maximum findings to return (default 100, max 500).", "default": 100},
@@ -89,7 +89,19 @@ const openAPIPathsAWSRuntimeDrift = `
                           "warning_flags": {"type": "array", "items": {"type": "string"}},
                           "recommended_action": {"type": "string"},
                           "safety_gate": {"type": "object"},
-                          "evidence": {"type": "array", "items": {"type": "object"}}
+                          "evidence": {"type": "array", "items": {"type": "object"}},
+                          "drifted_attributes": {
+                            "type": "array",
+                            "description": "Bounded declared/observed value pairs for an image_version_drift finding (ami, image_uri, version, or the ECS container image comparison). Empty for every other finding kind.",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "attribute": {"type": "string"},
+                                "declared_value": {"type": "string"},
+                                "observed_value": {"type": "string"}
+                              }
+                            }
+                          }
                         }
                       }
                     }

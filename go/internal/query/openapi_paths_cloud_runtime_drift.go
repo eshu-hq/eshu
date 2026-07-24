@@ -10,7 +10,11 @@ package query
 // management_status, provider-neutral source_state, and refusal-safety posture.
 // The route is read-only, bounded, paginated, and truth-labeled; it never
 // returns raw provider locators or raw evidence atoms, and refuses unsafe
-// findings rather than omitting them.
+// findings rather than omitting them. The one narrow exception is
+// drifted_attributes (#5453): for an image_version_drift finding, it carries
+// the bounded declared/observed value pairs (e.g. ami, image_uri, version)
+// the finding is ABOUT -- a purpose-built projection of two evidence atoms
+// per attribute, never the full raw evidence-atom list.
 const openAPIPathsCloudRuntimeDrift = `
     "/api/v0/cloud/runtime-drift/findings": {
       "post": {
@@ -34,7 +38,7 @@ const openAPIPathsCloudRuntimeDrift = `
                   "cloud_resource_uid": {"type": "string", "description": "Optional exact canonical resource uid to inspect."},
                   "finding_kinds": {
                     "type": "array",
-                    "description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, or ambiguous_cloud_resource.",
+                    "description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, ambiguous_cloud_resource, or image_version_drift.",
                     "items": {"type": "string"}
                   },
                   "limit": {"type": "integer", "description": "Maximum findings to return (default 100, max 500).", "default": 100},
@@ -91,6 +95,18 @@ const openAPIPathsCloudRuntimeDrift = `
                           "matched_terraform_state_address": {"type": "string"},
                           "missing_evidence": {"type": "array", "items": {"type": "string"}},
                           "recommended_action": {"type": "string"},
+                          "drifted_attributes": {
+                            "type": "array",
+                            "description": "Bounded declared/observed value pairs for an image_version_drift finding (ami, image_uri, version, or the ECS container image comparison). Empty for orphaned/unmanaged/unknown/ambiguous findings.",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "attribute": {"type": "string"},
+                                "declared_value": {"type": "string"},
+                                "observed_value": {"type": "string"}
+                              }
+                            }
+                          },
                           "safety_gate": {"type": "object"}
                         }
                       }

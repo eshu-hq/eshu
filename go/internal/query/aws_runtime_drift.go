@@ -66,7 +66,7 @@ func (h *IaCHandler) handleAWSRuntimeDriftFindings(w http.ResponseWriter, r *htt
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	filter, err := normalizeIaCManagementRequest(req)
+	filter, err := normalizeAWSRuntimeDriftFindingsRequest(req)
 	if err != nil {
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
@@ -152,6 +152,43 @@ func writeAWSRuntimeDriftFindings(
 		TruthBasisSemanticFacts,
 		"resolved from active reducer-materialized AWS runtime drift findings",
 	))
+}
+
+// normalizeAWSRuntimeDriftFindingsRequest normalizes the shared IaC
+// management request for the AWS runtime drift findings route (#5453).
+// handleUnmanagedCloudResources also calls normalizeIaCManagementRequest
+// directly and intentionally keeps its narrower existence-only default (see
+// TestHandleUnmanagedCloudResourcesDefaultsToActionableAWSFindingKinds): that
+// route is scoped to unmanaged-resource triage. This route is the "runtime
+// drift findings" surface, so when the caller names no explicit
+// finding_kinds this widens the shared existence-kind default to also
+// include image_version_drift -- a managed-but-value-drifted resource is not
+// "unmanaged" and must not be structurally excluded from its own default
+// drift-findings page.
+func normalizeAWSRuntimeDriftFindingsRequest(req iacManagementRequest) (IaCManagementFilter, error) {
+	filter, err := normalizeIaCManagementRequest(req)
+	if err != nil {
+		return IaCManagementFilter{}, err
+	}
+	// Widen the default finding-kind set to include image_version_drift only when
+	// the caller named no explicit kind. normalizeIaCManagementFindingKinds
+	// strips blank/whitespace-only entries before applying the existence-only
+	// default, so guard on whether any NON-BLANK kind was supplied rather than on
+	// the raw slice length -- otherwise a request like finding_kinds=["  "] would
+	// fall through to the narrow default and silently exclude image_version_drift
+	// from its own drift-findings page.
+	callerNamedKind := false
+	for _, kind := range req.FindingKinds {
+		if strings.TrimSpace(kind) != "" {
+			callerNamedKind = true
+			break
+		}
+	}
+	if !callerNamedKind {
+		filter.FindingKinds = append(filter.FindingKinds, findingKindImageVersionDrift)
+		sort.Strings(filter.FindingKinds)
+	}
+	return filter, nil
 }
 
 func awsRuntimeDriftFindingRows(findings []IaCManagementFindingRow) []AWSRuntimeDriftFindingRow {
