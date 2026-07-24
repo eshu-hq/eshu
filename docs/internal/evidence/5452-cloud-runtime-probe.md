@@ -30,10 +30,16 @@ tier.
   scoped-token (see Scope authorization below).
 - **Query shape / bound:** `MATCH (n:CloudResource) WHERE n.running_image_digest
   IN $digests AND coalesce(n.arn,'') <> '' RETURN n.running_image_digest,
-  n.arn LIMIT $limit`. The `$digests` list is deduplicated and hard-capped at
+  n.arn ORDER BY n.running_image_digest, n.arn LIMIT $limit`. The `$digests`
+  list is deduplicated and hard-capped at
   `supplyChainCloudRuntimeProbeMaxDigests = 200`, and the result set is bounded
   by `LIMIT supplyChainCloudRuntimeProbeMaxResults = 200`, so neither the
-  IN-list nor the returned rows can grow unbounded. Registered as a bounded
+  IN-list nor the returned rows can grow unbounded. The `ORDER BY` makes the
+  returned ARN set deterministic run-to-run (a security evidence field must be
+  reproducible). The total-row cap can, under a page whose findings collectively
+  match more than the cap, truncate the highest-sorted digests' runtime
+  evidence (deterministically) — a bounded, scale-gated limitation; a per-digest
+  bound is tracked in #5789. Registered as a bounded
   `label_inventory` read (label CloudResource, max_results 200) in
   `go/internal/queryplan/testdata/query-source-coverage.yaml` — the same typed
   non-hot classification the sibling `cloud_resource_owner_backfill.go`

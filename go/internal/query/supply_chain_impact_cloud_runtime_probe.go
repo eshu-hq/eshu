@@ -34,9 +34,18 @@ const supplyChainCloudRuntimeProbeMaxDigests = 200
 // unusually large fleet can never return an unbounded ARN set. The probe is a
 // bounded label-inventory read (registered as such in
 // go/internal/queryplan/testdata/query-source-coverage.yaml), and this LIMIT is
-// the max_results bound that classification declares. It is generous relative
-// to how many distinct cloud resources realistically run one page's affected
-// digests; refs beyond it are truncated (a bounded, documented limit).
+// the max_results bound that classification declares.
+//
+// The query orders by (running_image_digest, arn) before the LIMIT, so the
+// returned ARN set is DETERMINISTIC and reproducible run-to-run — a security
+// evidence field must not vary. The remaining bound is honest: when one findings
+// page collectively matches more than this many (digest, resource) rows, the
+// rows for the highest-sorted digests are truncated, so those findings keep
+// their CI-declared/config tier instead of runtime_confirmed. That is a
+// deterministic, bounded, scale-gated limitation (a page of many findings each
+// running on a large fleet); a per-digest bound that prevents one hot digest
+// from starving other findings' runtime evidence is tracked as a follow-up
+// (#5789).
 const supplyChainCloudRuntimeProbeMaxResults = 200
 
 // probeSupplyChainCloudRuntimeResources maps each given finding subject digest
@@ -77,6 +86,7 @@ func (h *SupplyChainHandler) probeSupplyChainCloudRuntimeResources(
 		  AND coalesce(n.arn, '') <> ''
 		RETURN n.running_image_digest AS digest,
 		       n.arn AS arn
+		ORDER BY n.running_image_digest, n.arn
 		LIMIT $limit
 	`
 	rows, err := h.Neo4j.Run(ctx, cypher, map[string]any{
