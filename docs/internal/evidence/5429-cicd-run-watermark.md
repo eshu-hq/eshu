@@ -131,3 +131,104 @@ SQL, and to catch a missing/wrong index before it ships.
 
 Container was a throwaway `docker run --rm ... postgres:16-alpine`, stopped
 and removed after the run; no state persists.
+
+## Follow-up: commit-ordering fix (P1, codex review on PR #5765)
+
+### The bug
+
+`ghactionsruntime.ClaimedSource.NextClaimed` (`source.go`) called
+`saveWatermark` directly on its own success path, BEFORE
+`collector.ClaimedService.commitCollected` (`claimed_service.go`) had
+committed that cycle's facts. If the commit failed (a retryable Postgres
+error, for example) and the SAME work item was retried, the retry's
+`NextClaimed` re-fetched the identical window but now compared it against
+the ALREADY-ADVANCED watermark from the failed attempt -- so
+`detectRunBackfillGap` no longer saw a gap, and the `runs_backfill_gap`
+warning silently vanished on retry even though the runs between the true
+prior watermark and the window floor were never fetched by any
+successfully-committed cycle. The watermark is durable state; a failed
+commit is not idempotent-safe to precede.
+
+### The fix
+
+The durable `saveWatermark` write moved out of `NextClaimed` entirely. A new
+optional interface, `collector.ClaimedGenerationCommitObserver`
+(`go/internal/collector/claimed_service_commit_observer.go`), gives a
+claim-aware source a post-commit hook: `collector.ClaimedService` invokes it
+from `processClaimed`, immediately after `commitCollected` succeeds and
+before the claim is completed -- mirroring the existing optional
+`GenerationDeadLetterReplayCompleter` pattern
+(`claimed_service_dead_letter.go`).
+
+`ghactionsruntime.ClaimedSource` implements the new hook
+(`source_commit_observer.go`). `NextClaimed` now only STASHES the observed
+newest run ID in a mutex-guarded, process-local map keyed by
+`(ScopeID, GenerationID)` (`pending_watermark.go`'s `pendingWatermarks`,
+shared via a pointer field across every value copy of `ClaimedSource`
+because `collector.MultiSourceCollectorHost` can run several
+`ClaimedService` workers against one registered source concurrently).
+`ObserveClaimedGenerationCommitted` takes the stashed entry and calls the
+existing (unchanged) `saveWatermark`. An observer error is treated as
+non-fatal by `collector.ClaimedService` (recorded as a span event, claim
+still completes) because the facts already committed durably -- there is
+nothing to roll back, and the watermark simply stays where it was until the
+next successful commit.
+
+### Local proof: failing-then-green regression test
+
+`TestClaimedSourceRetryAfterCommitFailureStillDetectsBackfillGap`
+(`go/internal/collector/cicdrun/ghactionsruntime/source_watermark_commit_ordering_test.go`)
+seeds a watermark simulating an earlier successfully-committed cycle, then
+calls `NextClaimed` twice for the SAME work item with no
+`ObserveClaimedGenerationCommitted` call between them (modeling a failed
+commit followed by a retry). Both calls must independently emit the
+`runs_backfill_gap` warning; only a subsequent explicit
+`ObserveClaimedGenerationCommitted` call may advance the stored watermark.
+
+Fail-before (against `NextClaimed` still calling `saveWatermark` directly):
+
+```
+=== RUN   TestClaimedSourceRetryAfterCommitFailureStillDetectsBackfillGap
+    source_watermark_commit_ordering_test.go:112: no ci.warning fact with reason "runs_backfill_gap" found; observed reasons = [runs_truncated]
+--- FAIL: TestClaimedSourceRetryAfterCommitFailureStillDetectsBackfillGap (0.00s)
+FAIL
+```
+
+Pass-after (fix applied):
+
+```
+=== RUN   TestClaimedSourceRetryAfterCommitFailureStillDetectsBackfillGap
+--- PASS: TestClaimedSourceRetryAfterCommitFailureStillDetectsBackfillGap (0.00s)
+PASS
+ok  	github.com/eshu-hq/eshu/go/internal/collector/cicdrun/ghactionsruntime	0.706s
+```
+
+### Regression and concurrency verification
+
+```
+cd go && go test ./internal/collector/cicdrun/... ./internal/collector/ ./cmd/collector-cicd-run/ -count=1
+cd go && go test -race ./internal/collector/cicdrun/... -count=1
+cd go && go test -race ./internal/collector/ -count=1
+cd go && go build ./...
+cd go && go vet ./internal/collector/...
+```
+
+All green, including the pre-existing `source_watermark_test.go` suite (four
+of its tests were updated to call `ObserveClaimedGenerationCommitted`
+explicitly between cycles, since they previously relied on `NextClaimed`
+itself durably advancing the watermark) and two new concurrency tests
+(`TestPendingWatermarksConcurrentStashAndTakeIsRaceFree`,
+`TestClaimedSourceConcurrentNextClaimedAndObserveIsRaceFree`,
+`go/internal/collector/cicdrun/ghactionsruntime/pending_watermark_test.go`)
+proving the shared staging map is race-free under concurrent claims for
+different work items.
+
+No-Regression Evidence: the fix only moves WHEN `saveWatermark` runs; its
+own fencing/nil-safety/no-op-on-empty-window semantics are unchanged and
+covered by the existing `run_watermark_test.go` unit tests plus the updated
+`source_watermark_test.go` end-to-end tests.
+
+No-Observability-Change: no new metric was added. A commit-observer failure
+is recorded as a span event (`claimed_generation_commit_observer_failed`) on
+the existing `collector.claimed_run` span rather than a new instrument,
+since it is a secondary, self-healing signal, not a claim-outcome change.
