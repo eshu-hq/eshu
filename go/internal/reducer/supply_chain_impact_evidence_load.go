@@ -118,17 +118,17 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	}
 	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, scannerAnalysisScopeEnvelopes...)
 	scannerAnalysisScopeFacts := len(envelopes) - scannerAnalysisScopeStartCount
-	activeEvidenceTruncated = activeEvidenceTruncated || scannerAnalysisScopeTruncated
 
 	resolvedDigestEvidenceStartCount := len(envelopes)
 	phaseStarted = time.Now()
-	resolvedDigestEvidenceEnvelopes, err := h.loadSupplyChainImpactResolvedDigestEvidenceFacts(ctx, scannerAnalysisScopeEnvelopes)
+	resolvedDigestEvidenceEnvelopes, resolvedDigestTruncated, err := h.loadSupplyChainImpactResolvedDigestEvidenceFacts(ctx, scannerAnalysisScopeEnvelopes)
 	timing.loadResolvedDigestEvidenceDuration = time.Since(phaseStarted)
 	if err != nil {
 		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load supply chain impact resolved digest evidence facts: %w", err)
 	}
 	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, resolvedDigestEvidenceEnvelopes...)
 	resolvedDigestEvidenceFacts := len(envelopes) - resolvedDigestEvidenceStartCount
+	activeEvidenceTruncated = activeEvidenceTruncated || scannerAnalysisScopeTruncated || resolvedDigestTruncated
 
 	pythonReachabilityStartCount := len(envelopes)
 	phaseStarted = time.Now()

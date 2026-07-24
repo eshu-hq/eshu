@@ -149,13 +149,16 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactScannerAnalysisScopeFacts
 
 // maxSupplyChainImpactResolvedDigestLoads bounds how many distinct image
 // digests loadSupplyChainImpactResolvedDigestEvidenceFacts seeds into its
-// single re-run of the active-evidence reader per intent. Mirrors
-// maxSupplyChainImpactScannerAnalysisScopeLoads: in production these digests
-// come one-per-distinct-scan-target from the scanner-analysis-scope stage
-// immediately above, so a pathological generation with an unbounded number of
-// distinct scan targets cannot also turn this digest-seeded re-run into an
-// unbounded active-evidence read.
-const maxSupplyChainImpactResolvedDigestLoads = 256
+// single re-run of the active-evidence reader per intent. It mirrors the
+// scanner-analysis-scope cap byte-identically, not with a separate literal:
+// the resolved digest load runs on digests harvested from the scanner-analysis
+// stage immediately above (one per distinct scan target), so the two caps must
+// move together to keep the invariant "resolved-digest cap >= scanner-analysis
+// scope cap" (otherwise a bump to the scanner-analysis cap would silently
+// truncate valid digests at the next stage). A downstream test or init() check
+// can assert the invariant compiles; the simplest guard is to derive from the
+// same literal.
+const maxSupplyChainImpactResolvedDigestLoads = maxSupplyChainImpactScannerAnalysisScopeLoads
 
 // loadSupplyChainImpactResolvedDigestEvidenceFacts re-runs the active-evidence
 // reader (loadActiveSupplyChainImpactFacts) seeded with the image digests
@@ -190,15 +193,18 @@ const maxSupplyChainImpactResolvedDigestLoads = 256
 func (h SupplyChainImpactHandler) loadSupplyChainImpactResolvedDigestEvidenceFacts(
 	ctx context.Context,
 	scannerAnalysisEnvelopes []facts.Envelope,
-) ([]facts.Envelope, error) {
+) ([]facts.Envelope, bool, error) {
 	filter := supplyChainImpactFilter(scannerAnalysisEnvelopes)
 	if len(filter.SubjectDigests) == 0 {
-		return nil, nil
+		return nil, false, nil
 	}
+	truncated := false
 	if len(filter.SubjectDigests) > maxSupplyChainImpactResolvedDigestLoads {
 		filter.SubjectDigests = filter.SubjectDigests[:maxSupplyChainImpactResolvedDigestLoads]
+		truncated = true
 	}
-	return h.loadActiveSupplyChainImpactFacts(ctx, filter)
+	loaded, err := h.loadActiveSupplyChainImpactFacts(ctx, filter)
+	return loaded, truncated, err
 }
 
 func (h SupplyChainImpactHandler) emitCounters(
