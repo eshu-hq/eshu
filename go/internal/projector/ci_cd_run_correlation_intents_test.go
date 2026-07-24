@@ -63,12 +63,20 @@ func TestBuildProjectionQueuesSingleCICDRunCorrelationIntentForRunFact(t *testin
 	}
 }
 
-// TestBuildProjectionQueuesCICDRunCorrelationIntentForArtifactOnlyGeneration
-// proves the same intent is triggered by a ci.artifact fact alone (the run
-// may have landed in an earlier generation), mirroring how
-// container_image_identity triggers on any evidence-carrying fact kind, not
-// only the anchor kind.
-func TestBuildProjectionQueuesCICDRunCorrelationIntentForArtifactOnlyGeneration(t *testing.T) {
+// TestBuildProjectionQueuesNoCICDRunCorrelationIntentForArtifactOnlyGeneration
+// proves an artifact-only generation (no ci.run) does NOT enqueue an intent.
+// CICDRunCorrelationHandler.Handle loads facts strictly scoped to the
+// triggering intent's own (scope, generation) and
+// buildCICDRunCorrelationDecisionsWithQuarantine only emits a decision for
+// evidence anchored by a ci.run (ev.run.FactID == "" is skipped) — so an
+// artifact-only generation's intent would load only the artifact, produce
+// ZERO decisions, and succeed as a silent no-op: the artifact's evidence is
+// simply discarded, not deferred, because nothing ever re-visits this
+// generation once the intent succeeds. Triggering on the anchor (ci.run)
+// only avoids enqueuing that wasted intent. Correlating a later-generation
+// artifact against an earlier-generation run is a real gap the
+// single-generation handler cannot close; tracked as a follow-up (#5710).
+func TestBuildProjectionQueuesNoCICDRunCorrelationIntentForArtifactOnlyGeneration(t *testing.T) {
 	t.Parallel()
 
 	scopeValue := scope.IngestionScope{
@@ -91,9 +99,46 @@ func TestBuildProjectionQueuesCICDRunCorrelationIntentForArtifactOnlyGeneration(
 	if err != nil {
 		t.Fatalf("buildProjection() error = %v, want nil", err)
 	}
+	for _, intent := range projection.reducerIntents {
+		if intent.Domain == reducer.DomainCICDRunCorrelation {
+			t.Fatalf("unexpected ci_cd_run_correlation intent for an artifact-only generation (no ci.run anchor): %+v", intent)
+		}
+	}
+}
+
+// TestBuildProjectionQueuesCICDRunCorrelationIntentForRunAndArtifactGeneration
+// proves the trigger still fires when ci.run and ci.artifact land in the SAME
+// generation: the anchor (ci.run) trigger enqueues one intent, and
+// CICDRunCorrelationHandler's own bulk load of that (scope, generation) picks
+// up the co-located artifact — no per-artifact trigger is needed for the
+// common same-generation case.
+func TestBuildProjectionQueuesCICDRunCorrelationIntentForRunAndArtifactGeneration(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:      "ci_cd_run://github/team/checkout",
+		ScopeKind:    "ci_cd_run",
+		SourceSystem: "github_actions",
+	}
+	generation := scope.ScopeGeneration{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: "ci-generation-3",
+		ObservedAt:   time.Date(2026, time.July, 24, 13, 0, 0, 0, time.UTC),
+		IngestedAt:   time.Date(2026, time.July, 24, 13, 0, 1, 0, time.UTC),
+		Status:       scope.GenerationStatusPending,
+	}
+	envelopes := []facts.Envelope{
+		cicdArtifactEnvelope("fact-ci-artifact-2", scopeValue.ScopeID, generation.GenerationID),
+		cicdRunEnvelope("fact-ci-run-2", scopeValue.ScopeID, generation.GenerationID),
+	}
+
+	projection, err := buildProjection(scopeValue, generation, envelopes)
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
 	intent := requireCICDRunCorrelationIntent(t, projection.reducerIntents)
-	if got, want := intent.FactID, "fact-ci-artifact-1"; got != want {
-		t.Fatalf("intent.FactID = %q, want the ci.artifact fact", got)
+	if got, want := intent.FactID, "fact-ci-run-2"; got != want {
+		t.Fatalf("intent.FactID = %q, want the ci.run fact (the anchor), even though the artifact fact appears first in inputFacts", got)
 	}
 }
 
