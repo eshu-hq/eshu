@@ -32,6 +32,21 @@
 Rails.application.routes.draw do
   get "/widgets", to: "widgets#index"
   get "/widgets/:id", to: "widgets#show"
+  # NOTE (simple-name join, intentional): the `to:` handler is deliberately the
+  # SIMPLE controller name Eshu keys on, not the real Rails namespaced path. The
+  # #5494 route-liveness join matches an ancestry-confirmed action against
+  # RoutedHandlers by the parser-stamped SIMPLE class_context ("ReportsController"
+  # for the compact-colon `Admin::ReportsController`, "UsersController" for
+  # `Api::V1::UsersController` -- see internal/reducer/code_root_verdicts_routes.go
+  # and the class_context doc in internal/reducer/code_reachability_projection.go).
+  # Real Rails would dispatch these as `admin/reports#summary` / `api/v1/users#profile`,
+  # but a namespaced (slash-bearing) `to:` string is deliberately treated as
+  # UNMODELED by the fail-safe scan (framework_routes.go rejects "/"), which would
+  # flip has_unmodeled_routes and disable the downgrade repo-wide. So an exact-only
+  # surface MUST route these namespaced controllers by their simple class_context
+  # name -- which is exactly the simple-name join this fixture exercises. This
+  # does NOT weaken the OrphanedController#dangling downgrade guard: `dangling`'s
+  # simple class_context ("OrphanedController") is unrouted here regardless.
   get "/reports/summary", to: "reports#summary"
   get "/users/profile", to: "users#profile"
   # OrphanedController#dangling is intentionally NOT routed -> route_unreachable.

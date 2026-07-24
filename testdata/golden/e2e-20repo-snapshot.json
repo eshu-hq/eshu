@@ -5686,6 +5686,10 @@
               "classification": "excluded"
             },
             {
+              "name": "show",
+              "classification": "excluded"
+            },
+            {
               "name": "summary",
               "classification": "excluded"
             },
