@@ -182,24 +182,29 @@ type supplyChainRiskSignals struct {
 }
 
 type supplyChainImpactIndex struct {
-	cves                    []supplyChainImpactCVE
-	affectedPackages        map[string][]supplyChainAffectedPackage
-	affectedProducts        map[string][]supplyChainAffectedProduct
-	consumption             map[string][]supplyChainPackageConsumption
-	osPackages              map[string][]supplyChainOSPackage
-	components              []supplyChainSBOMComponent
-	attachments             map[string]supplyChainAttachment
-	images                  map[string]supplyChainImageIdentity
-	deployments             []supplyChainDeploymentContext
-	deploymentLanes         []supplyChainDeploymentLaneContext
-	workloads               []supplyChainWorkloadContext
-	services                []supplyChainServiceContext
-	riskSignals             map[string]supplyChainRiskSignals
-	scannerAnalyses         map[string]supplyChainScannerAnalysis
-	goReachability          map[string]GoVulnerabilityFinding
-	jsTSPackageReachability jsTSPackageReachabilityIndex
-	pythonReachability      map[string]pythonReachabilityRepositoryEvidence
-	jvmReachability         jvmReachabilityIndex
+	cves             []supplyChainImpactCVE
+	affectedPackages map[string][]supplyChainAffectedPackage
+	affectedProducts map[string][]supplyChainAffectedProduct
+	consumption      map[string][]supplyChainPackageConsumption
+	osPackages       map[string][]supplyChainOSPackage
+	components       []supplyChainSBOMComponent
+	attachments      map[string]supplyChainAttachment
+	images           map[string]supplyChainImageIdentity
+	deployments      []supplyChainDeploymentContext
+	deploymentLanes  []supplyChainDeploymentLaneContext
+	workloads        []supplyChainWorkloadContext
+	services         []supplyChainServiceContext
+	riskSignals      map[string]supplyChainRiskSignals
+	scannerAnalyses  map[string]supplyChainScannerAnalysis
+	// cloudRuntimeObservations indexes observed cloud running-image evidence
+	// (ECS task / image-package Lambda aws_resource facts) by the bare running
+	// image digest, so a finding's SubjectDigest can be joined to the live
+	// cloud resource that runs it (issue #5452).
+	cloudRuntimeObservations map[string][]supplyChainCloudRuntimeObservation
+	goReachability           map[string]GoVulnerabilityFinding
+	jsTSPackageReachability  jsTSPackageReachabilityIndex
+	pythonReachability       map[string]pythonReachabilityRepositoryEvidence
+	jvmReachability          jvmReachabilityIndex
 }
 
 // buildSupplyChainImpactIndex and buildSupplyChainImpactIndexWithQuarantine

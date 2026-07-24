@@ -57,6 +57,7 @@ func applySupplyChainRuntimeContext(
 			finding.RepositoryID = deployment.repositoryID
 		}
 	}
+	applySupplyChainCloudRuntimeObservations(finding, index)
 	finding.EvidenceFactIDs = uniqueSortedStrings(finding.EvidenceFactIDs)
 	finding.EvidencePath = orderedUniqueStrings(finding.EvidencePath)
 	finding.DeploymentIDs = uniqueSortedStrings(finding.DeploymentIDs)
