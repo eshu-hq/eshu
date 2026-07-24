@@ -38,16 +38,21 @@ func TestBuildProjectionQueuesSingleAWSCloudRuntimeDriftIntent(t *testing.T) {
 	}
 	// AWS resource facts enqueue runtime-drift, CloudResource node
 	// materialization (issue #805), the workload-cloud relationship slice,
-	// shared cloud-inventory admission (issue #2209), cloud-image
+	// shared cloud-inventory admission (issue #2209), and cloud-image
 	// materialization -- which since the #5450 retraction-safety fix triggers
 	// on the SAME aws_resource fact presence DomainAWSResourceMaterialization
 	// does (not on lambda_function_uses_image relationship presence), so
 	// AWSCloudImageMaterializationHandler.Handle's retract-first logic still
 	// runs and correctly retracts to zero in a generation with no image
-	// relationship at all, like this fixture's -- and (#5448) EC2 instance
-	// identity materialization (the trigger is any aws_resource fact; the
-	// handler's own extraction filters to resource_type=aws_ec2_instance).
-	if got, want := len(projection.reducerIntents), 6; got != want {
+	// relationship at all, like this fixture's.
+	//
+	// EC2 instance identity materialization (#5448) is NOT enqueued here: this is
+	// a lambda scope with no ec2_instance_posture fact, and since the #5743
+	// residual fix that domain triggers on the posture fact (the node it
+	// augments), not on any aws_resource fact. Enqueuing it here previously left
+	// its work item stuck 'pending' because its readiness gate — which waits on
+	// an EC2 instance node this scope never materializes — could never open.
+	if got, want := len(projection.reducerIntents), 5; got != want {
 		t.Fatalf("len(reducerIntents) = %d, want %d", got, want)
 	}
 	cloudImage := intentForDomain(t, projection.reducerIntents, reducer.DomainAWSCloudImageMaterialization)
