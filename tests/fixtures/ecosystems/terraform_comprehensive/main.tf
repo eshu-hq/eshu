@@ -13,9 +13,10 @@ terraform {
   # tfstatebackend.ResolveConfigCommitForBackend resolves this repo as the
   # sole owner of that state snapshot in the golden corpus, letting the
   # terraform_config_state_drift domain materialize real drift findings
-  # (this fixture's ~12 declared resources vs. the cassette's 2 ECS state
-  # resources; none of the addresses overlap, so both added_in_config and
-  # added_in_state fire).
+  # (this fixture's declared resources vs. the cassette's ECS/EC2 state
+  # resources; all but one address pair are deliberately non-overlapping, so
+  # both added_in_config and added_in_state still fire -- see aws_instance
+  # "supply-chain-demo" below for the ONE deliberate overlap).
   backend "s3" {
     bucket = "supply-chain-demo-tfstate"
     key    = "supply-chain-demo/terraform.tfstate"
@@ -35,6 +36,23 @@ resource "aws_instance" "web" {
     Name        = "web-server"
     Environment = var.environment
   }
+}
+
+# aws_instance.supply-chain-demo is the ONE deliberate address overlap with
+# testdata/cassettes/terraformstate/supply-chain-demo.json's
+# aws_instance.supply-chain-demo state resource (issue #5453): both declare
+# ami-0123456789abcdef0 so this pair converges cleanly in the
+# terraform_config_state_drift (config-vs-state) domain -- it exists to give
+# cloudruntime's AWS/multi-cloud runtime-drift domain (cloud-vs-state) a
+# resolvable Terraform CONFIG owner for that state resource's address, which
+# Classify requires before it will ever compare AMI values. Do not let this
+# ami literal drift from the state cassette's declared ami without also
+# checking testdata/golden/e2e-20repo-snapshot.json's
+# list_terraform_config_state_drift_findings assertions for a new,
+# unaccounted-for attribute_drift finding.
+resource "aws_instance" "supply-chain-demo" {
+  ami           = "ami-0123456789abcdef0"
+  instance_type = "t3.micro"
 }
 
 resource "aws_s3_bucket" "data" {

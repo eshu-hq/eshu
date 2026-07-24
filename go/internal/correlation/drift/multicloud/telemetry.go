@@ -17,13 +17,18 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// Summary captures admitted multi-cloud runtime drift finding counts. The four
+// Summary captures admitted multi-cloud runtime drift finding counts. The
 // counters mirror the AWS summary so one operator vocabulary spans providers.
 type Summary struct {
 	OrphanedResources  int
 	UnmanagedResources int
 	AmbiguousResources int
 	UnknownResources   int
+	// ImageVersionDriftResources counts admitted image_version_drift findings
+	// (#5453), mirroring cloudruntime.Summary. No dedicated counter: every
+	// admitted result already increments eshu_dp_correlation_rule_matches_total
+	// via recordRuleMatches below.
+	ImageVersionDriftResources int
 }
 
 // RecordEvaluation emits bounded metrics for one multi-cloud runtime drift
@@ -48,6 +53,8 @@ func RecordEvaluation(ctx context.Context, instruments *telemetry.Instruments, e
 			summary.AmbiguousResources++
 		case cloudruntime.FindingKindUnknownCloudResource:
 			summary.UnknownResources++
+		case cloudruntime.FindingKindImageVersionDrift:
+			summary.ImageVersionDriftResources++
 		}
 	}
 	return summary

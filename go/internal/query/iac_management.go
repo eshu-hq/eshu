@@ -22,6 +22,12 @@ const (
 	findingKindOrphanedCloudResource  = "orphaned_cloud_resource"
 	findingKindUnknownCloudResource   = "unknown_cloud_resource"
 	findingKindAmbiguousCloudResource = "ambiguous_cloud_resource"
+	// findingKindImageVersionDrift is cloudruntime.FindingKindImageVersionDrift
+	// (#5453) restated as a query-package string constant: this package must
+	// not import the correlation/drift/cloudruntime package (it is a lower
+	// layer's classifier, not a query-facing type), so the literal is kept in
+	// lockstep by hand and by TestNormalizeIaCManagementFindingKindsAcceptsImageVersionDrift.
+	findingKindImageVersionDrift = "image_version_drift"
 )
 
 // IaCManagementStore reads reducer-materialized cloud management findings.
@@ -106,6 +112,11 @@ type IaCManagementFindingRow struct {
 	WarningFlags                 []string                   `json:"warning_flags,omitempty"`
 	SafetyGate                   IaCManagementSafetyGate    `json:"safety_gate"`
 	Evidence                     []IaCManagementEvidenceRow `json:"evidence"`
+	// DriftedAttributes carries the bounded declared/observed value pairs for
+	// an image_version_drift finding (#5453), the same narrow projection
+	// MultiCloudRuntimeDriftFindingRow.DriftedAttributes carries. Empty for
+	// every other finding kind.
+	DriftedAttributes []DriftedAttributeView `json:"drifted_attributes,omitempty"`
 }
 
 // IaCManagementEvidenceRow is one evidence atom explaining a cloud management
@@ -383,6 +394,7 @@ func normalizeIaCManagementFindingKinds(raw []string) ([]string, error) {
 		findingKindOrphanedCloudResource:  true,
 		findingKindUnmanagedCloudResource: true,
 		findingKindUnknownCloudResource:   true,
+		findingKindImageVersionDrift:      true,
 	}
 	seen := map[string]struct{}{}
 	var kinds []string

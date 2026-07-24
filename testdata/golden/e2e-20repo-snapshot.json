@@ -2384,7 +2384,7 @@
         }
       },
       "list_aws_runtime_drift_findings": {
-        "description": "MCP tool coverage shape for list_aws_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for list_aws_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5453 non-vacuous assertion: scope_id is aws:123456789012:us-east-1:ec2 -- the AWS EC2 collector scope reducer_aws_cloud_runtime_drift_finding rows for this instance actually write under (this route reads the SAME fact kind list_cloud_runtime_drift_findings's sibling assertion above documents; IaCManagementStore.ListUnmanagedCloudResources is a second read-projection over reducer_aws_cloud_runtime_drift_finding, not a separate reducer domain). See that sibling entry for the fixture-surgery detail (ARN re-key plus the terraform_comprehensive config-owner resolution) proving image_version_drift materializes for this ARN. minimum_results is 1 -- proven by a live golden-corpus-gate run, not shape-only.",
         "required_response_fields": [
           "account_id",
           "analysis_status",
@@ -2405,9 +2405,15 @@
           "truncated",
           "truth_basis"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "required_json_values": {
+          "drift_findings[].finding_kind": "image_version_drift",
+          "drift_findings[].drifted_attributes[].attribute": "ami",
+          "drift_findings[].drifted_attributes[].declared_value": "ami-0123456789abcdef0",
+          "drift_findings[].drifted_attributes[].observed_value": "ami-000000000000000a"
+        },
         "arguments": {
-          "scope_id": "supply-chain-demo",
+          "scope_id": "aws:123456789012:us-east-1:ec2",
           "limit": 10
         }
       },
@@ -3257,7 +3263,7 @@
         "minimum_results": 1
       },
       "list_cloud_runtime_drift_findings": {
-        "description": "MCP tool coverage shape for list_cloud_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for list_cloud_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). SHAPE-ONLY (minimum_results:0) by necessity: this tool reads reducer_multi_cloud_runtime_drift_finding facts, but the provider-neutral DomainMultiCloudRuntimeDrift domain is registered WITHOUT a projector intent builder (no buildMultiCloudRuntimeDriftReducerIntent in appendScopeGenerationReducerIntents), so it fires for NO scope or provider and writes zero findings -- a pre-existing registered-not-enqueued gap (domain built for #1997/#1998, predates #5453), confirmed empirically by a live corpus-gate DB query returning 0 reducer_multi_cloud_runtime_drift_finding rows. #5453's image_version_drift value drift IS proven non-vacuously through the sibling list_aws_runtime_drift_findings entry (reducer_aws_cloud_runtime_drift_finding, which IS enqueued). Wiring the multi-cloud domain (with duplicate-finding avoidance vs the AWS domain) is tracked as follow-up #5759.",
         "required_response_fields": [
           "drift_findings",
           "findings_count",
@@ -3265,7 +3271,7 @@
         ],
         "minimum_results": 0,
         "arguments": {
-          "scope_id": "supply-chain-demo",
+          "scope_id": "aws:123456789012:us-east-1:ec2",
           "limit": 10
         }
       },
@@ -5478,9 +5484,9 @@
           "summary.by_kind.resource"
         ],
         "required_json_values": {
-          "count": 10,
-          "summary.total": 18,
-          "summary.by_kind.resource": 10
+          "count": 11,
+          "summary.total": 19,
+          "summary.by_kind.resource": 11
         }
       },
       "GET /api/v0/documentation/facts?fact_kind=source": {

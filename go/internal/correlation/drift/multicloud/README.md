@@ -18,7 +18,15 @@ package unchanged; this package adds the provider-neutral path beside it.
 
 ## What it does
 
-- `Classify(cloud, state, config)` delegates to the shared structural join.
+- `Classify(cloud, state, config)` delegates to the shared structural join,
+  which also carries the shared value-drift comparison (#5453): once cloud,
+  state, and config converge, `cloudruntime.Classify` compares the same
+  allowlisted attributes (`cloudruntime.ValueAttributeAllowlistFor`) this
+  package's `Row.Cloud`/`Row.State` carry, so an AWS resource routed through
+  the provider-neutral path gets `image_version_drift` findings identical to
+  the AWS-specific path. GCP/Azure resources carry no allowlist entries
+  today (their resource type strings never match the AWS-only allowlist
+  keys), so this is currently AWS-only in practice, not by a provider check.
 - `Row.EffectiveFindingKind()` lets the reducer override the structural join
   with a stronger deterministic signal: `ambiguous` (conflicting ownership) or
   `unknown` (coverage gap). An override of ambiguous or unknown wins even when
@@ -29,7 +37,11 @@ package unchanged; this package adds the provider-neutral path beside it.
   never fabricates a finding.
 - `BuildCandidates(rows, scopeID)` emits one uid-keyed `model.Candidate` per
   finding, carrying provider, raw identity, observed/state/config evidence, raw
-  tags, and management-status atoms for `rules.MultiCloudRuntimeDriftRulePack()`.
+  tags, management-status atoms, and -- for an `image_version_drift` finding --
+  the same bounded `declared_<attr>`/`observed_<attr>` value-pair evidence
+  `cloudruntime.appendValueDriftEvidence` emits, via this package's own
+  `appendValueDriftEvidence` (candidate.go), for
+  `rules.MultiCloudRuntimeDriftRulePack()`.
 
 ## Boundaries
 

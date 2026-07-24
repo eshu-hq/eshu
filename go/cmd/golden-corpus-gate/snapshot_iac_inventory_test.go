@@ -30,9 +30,9 @@ func TestGoldenSnapshotIaCInventoryRequiresCurrentSummary(t *testing.T) {
 		}
 	}
 	for path, want := range map[string]any{
-		"count":                    float64(10),
-		"summary.total":            float64(18),
-		"summary.by_kind.resource": float64(10),
+		"count":                    float64(11),
+		"summary.total":            float64(19),
+		"summary.by_kind.resource": float64(11),
 	} {
 		if got := shape.RequiredJSONValues[path]; got != want {
 			t.Fatalf("%s required JSON value %q = %#v, want %#v", key, path, got, want)

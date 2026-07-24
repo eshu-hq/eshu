@@ -126,6 +126,7 @@ func (l PostgresAWSCloudRuntimeDriftEvidenceLoader) LoadAWSCloudRuntimeDriftEvid
 				row.Config = configRow
 			}
 		}
+		row.WarningFlags = append(row.WarningFlags, containerImagesTruncatedWarning(row.Cloud, row.State)...)
 		rows = append(rows, row)
 	}
 	return rows, nil
@@ -351,6 +352,7 @@ func awsRuntimeResourceRowFromPayload(scopeID string, payload []byte) (*cloudrun
 		ResourceID   string         `json:"resource_id"`
 		ResourceType string         `json:"resource_type"`
 		Tags         map[string]any `json:"tags"`
+		Attributes   map[string]any `json:"attributes"`
 	}
 	if len(payload) > 0 {
 		if err := json.Unmarshal(payload, &decoded); err != nil {
@@ -361,12 +363,17 @@ func awsRuntimeResourceRowFromPayload(scopeID string, payload []byte) (*cloudrun
 	if arn == "" {
 		return nil, false
 	}
+	resourceType := strings.TrimSpace(decoded.ResourceType)
+	attributes, containerImages, truncated := cloudObservedValueAttributes(resourceType, decoded.Attributes)
 	return &cloudruntime.ResourceRow{
-		ARN:          arn,
-		ResourceID:   strings.TrimSpace(decoded.ResourceID),
-		ResourceType: strings.TrimSpace(decoded.ResourceType),
-		ScopeID:      strings.TrimSpace(scopeID),
-		Tags:         coerceStringTags(decoded.Tags),
+		ARN:                      arn,
+		ResourceID:               strings.TrimSpace(decoded.ResourceID),
+		ResourceType:             resourceType,
+		ScopeID:                  strings.TrimSpace(scopeID),
+		Tags:                     coerceStringTags(decoded.Tags),
+		Attributes:               attributes,
+		ContainerImages:          containerImages,
+		ContainerImagesTruncated: truncated,
 	}, true
 }
 
@@ -389,11 +396,16 @@ func awsRuntimeStateRowFromPayload(scopeID, address string, payload []byte) (*cl
 	if address == "" || arn == "" {
 		return nil, false
 	}
+	resourceType := strings.TrimSpace(decoded.Type)
+	attributes, containerImages, truncated := stateDeclaredValueAttributes(resourceType, decoded.Attributes)
 	return &cloudruntime.ResourceRow{
-		ARN:          arn,
-		Address:      address,
-		ResourceType: strings.TrimSpace(decoded.Type),
-		ScopeID:      strings.TrimSpace(scopeID),
+		ARN:                      arn,
+		Address:                  address,
+		ResourceType:             resourceType,
+		ScopeID:                  strings.TrimSpace(scopeID),
+		Attributes:               attributes,
+		ContainerImages:          containerImages,
+		ContainerImagesTruncated: truncated,
 	}, true
 }
 

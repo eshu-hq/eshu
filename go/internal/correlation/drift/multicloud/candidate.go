@@ -110,6 +110,7 @@ func buildOneCandidate(row Row, uid string, kind cloudruntime.FindingKind, scope
 	evidence = appendResourceEvidence(evidence, candidateID, "/config", row.Config, EvidenceTypeConfigResource, scope, preferAddress)
 	evidence = appendRawTagEvidence(evidence, candidateID, row.Cloud, scope)
 	evidence = appendManagementEvidence(evidence, candidateID, row, kind, scope)
+	evidence = appendValueDriftEvidence(evidence, candidateID, row.Cloud, row.State, scope)
 
 	return model.Candidate{
 		ID:             candidateID,
@@ -198,6 +199,28 @@ func appendResourceEvidence(
 		resourceScope = rowScopeOverride
 	}
 	return append(evidence, atom(candidateID+suffix, evidenceType, resourceScope, key, value))
+}
+
+// appendValueDriftEvidence mirrors cloudruntime's own appendValueDriftEvidence
+// (go/internal/correlation/drift/cloudruntime/candidate.go), reusing the SAME
+// cloudruntime.ClassifyValueDrift authority so the provider-neutral path can
+// never disagree with the AWS-specific path about which attributes drifted.
+// Safe to call for every finding kind: ClassifyValueDrift returns nil
+// whenever cloud or state is nil.
+func appendValueDriftEvidence(
+	evidence []model.EvidenceAtom,
+	candidateID string,
+	cloud, state *cloudruntime.ResourceRow,
+	scope string,
+) []model.EvidenceAtom {
+	for _, attr := range cloudruntime.ClassifyValueDrift(cloud, state) {
+		evidence = append(
+			evidence,
+			atom(candidateID+"/declared/"+attr.Key, cloudruntime.EvidenceTypeDeclaredValue, scope, "declared_"+attr.Key, attr.Declared),
+			atom(candidateID+"/observed/"+attr.Key, cloudruntime.EvidenceTypeObservedValue, scope, "observed_"+attr.Key, attr.Observed),
+		)
+	}
+	return evidence
 }
 
 func appendRawTagEvidence(

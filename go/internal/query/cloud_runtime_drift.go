@@ -91,6 +91,27 @@ type MultiCloudRuntimeDriftFindingRow struct {
 	WarningFlags []string
 	// RecommendedAction is the read-only triage hint the reducer attached.
 	RecommendedAction string
+	// DriftedAttributes carries the bounded declared/observed value pairs for
+	// an image_version_drift finding (for example ami, image_uri, version,
+	// or the ECS container image comparison). Empty for every other finding
+	// kind. This is a narrow, purpose-built projection of the reducer's
+	// declared_/observed_ evidence atoms -- NOT a general evidence-atom
+	// readback (#5453); see CloudRuntimeDriftFindingView for the wire
+	// contract this feeds.
+	DriftedAttributes []DriftedAttributeView
+}
+
+// DriftedAttributeView is one declared/observed value pair for an
+// image_version_drift finding's comparable attribute (ami, image_uri,
+// version, or the synthetic "image" key for the ECS container-image
+// comparison).
+type DriftedAttributeView struct {
+	// Attribute is the allowlisted comparable attribute name.
+	Attribute string `json:"attribute"`
+	// Declared is the Terraform-state value.
+	Declared string `json:"declared_value"`
+	// Observed is the AWS-observed cloud value.
+	Observed string `json:"observed_value"`
 }
 
 // MultiCloudRuntimeDriftStore reads active reducer-materialized provider-neutral
@@ -145,20 +166,24 @@ type cloudRuntimeDriftRequest struct {
 // safety/refusal posture, but never the raw provider locator or raw evidence
 // atoms.
 type CloudRuntimeDriftFindingView struct {
-	FactID                       string                  `json:"fact_id"`
-	Provider                     string                  `json:"provider"`
-	ScopeID                      string                  `json:"scope_id"`
-	GenerationID                 string                  `json:"generation_id"`
-	SourceSystem                 string                  `json:"source_system,omitempty"`
-	CloudResourceUID             string                  `json:"cloud_resource_uid"`
-	FindingKind                  string                  `json:"finding_kind"`
-	ManagementStatus             string                  `json:"management_status"`
-	Confidence                   float64                 `json:"confidence"`
-	SourceState                  string                  `json:"source_state"`
-	MatchedTerraformStateAddress string                  `json:"matched_terraform_state_address,omitempty"`
-	MissingEvidence              []string                `json:"missing_evidence,omitempty"`
-	RecommendedAction            string                  `json:"recommended_action,omitempty"`
-	SafetyGate                   IaCManagementSafetyGate `json:"safety_gate"`
+	FactID                       string   `json:"fact_id"`
+	Provider                     string   `json:"provider"`
+	ScopeID                      string   `json:"scope_id"`
+	GenerationID                 string   `json:"generation_id"`
+	SourceSystem                 string   `json:"source_system,omitempty"`
+	CloudResourceUID             string   `json:"cloud_resource_uid"`
+	FindingKind                  string   `json:"finding_kind"`
+	ManagementStatus             string   `json:"management_status"`
+	Confidence                   float64  `json:"confidence"`
+	SourceState                  string   `json:"source_state"`
+	MatchedTerraformStateAddress string   `json:"matched_terraform_state_address,omitempty"`
+	MissingEvidence              []string `json:"missing_evidence,omitempty"`
+	RecommendedAction            string   `json:"recommended_action,omitempty"`
+	// DriftedAttributes carries the bounded declared/observed value pairs for
+	// an image_version_drift finding (#5453). Empty for orphaned/unmanaged/
+	// unknown/ambiguous findings, which carry no comparable value evidence.
+	DriftedAttributes []DriftedAttributeView  `json:"drifted_attributes,omitempty"`
+	SafetyGate        IaCManagementSafetyGate `json:"safety_gate"`
 }
 
 // Mount registers the provider-neutral runtime drift readback route.
@@ -326,6 +351,7 @@ func cloudRuntimeDriftFindingViews(rows []MultiCloudRuntimeDriftFindingRow) []Cl
 			MatchedTerraformStateAddress: row.MatchedTerraformStateAddress,
 			MissingEvidence:              row.MissingEvidence,
 			RecommendedAction:            row.RecommendedAction,
+			DriftedAttributes:            row.DriftedAttributes,
 			SafetyGate:                   gate,
 		})
 	}

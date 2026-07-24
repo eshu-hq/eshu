@@ -98,5 +98,6 @@ func multiCloudRuntimeDriftRowFromStore(
 		MissingEvidence:              row.MissingEvidence,
 		WarningFlags:                 row.WarningFlags,
 		RecommendedAction:            row.RecommendedAction,
+		DriftedAttributes:            driftedAttributesFromEvidence(row.Evidence),
 	}
 }
