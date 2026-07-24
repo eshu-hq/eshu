@@ -5,6 +5,7 @@ package ruby
 
 import (
 	"strings"
+	"unicode"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
@@ -35,36 +36,69 @@ var rubyRailsRouteSetMethods = map[string]struct{}{
 
 const (
 	// rubyRailsApplicationRouteSet is the main application's route-set receiver:
-	// `Rails.application.routes.draw` (and `.append`/`.prepend`).
+	// `Rails.application.routes.draw` (and `.append`/`.prepend`). Its `.routes`
+	// accessor hangs off the `Rails.application` method chain, not a bare
+	// constant, so it is matched explicitly rather than by the constant-path
+	// rule below.
 	rubyRailsApplicationRouteSet = "Rails.application.routes"
-	// rubyRailsEngineRouteSetSuffix is the mountable-engine route-set receiver
-	// tail. A Rails engine's own config/routes.rb registers against the engine
-	// class's route-set, and by Rails convention the engine class is ALWAYS
-	// named `Engine` (a `Rails::Engine` subclass) inside the engine's module,
-	// so the receiver is `<Namespace>::Engine.routes` (e.g. `MyEngine::Engine`,
-	// `Foo::Bar::Engine`). Matching the `::Engine.routes` tail admits those
-	// namespaced engine route-sets without promoting an arbitrary `Foo.routes`
-	// DSL to Rails truth.
-	rubyRailsEngineRouteSetSuffix = "::Engine.routes"
-	// rubyRailsTopLevelEngineRouteSet is the (rare) top-level engine route-set
-	// receiver `Engine.routes`, for a `class Engine < Rails::Engine` declared at
-	// the top level with no enclosing module.
-	rubyRailsTopLevelEngineRouteSet = "Engine.routes"
+	// rubyRailsRouteSetAccessorSuffix is the `.routes` accessor every Rails
+	// route-set is reached through.
+	rubyRailsRouteSetAccessorSuffix = ".routes"
 )
 
 // isRailsRouteSetReceiver reports whether receiver names a source-proven Rails
 // route-set: the main application (`Rails.application.routes`) or a mountable
-// engine's own route-set (`<Namespace>::Engine.routes`, or a top-level
-// `Engine.routes`). It deliberately does NOT accept an arbitrary `.routes`
-// accessor: a bare `Foo.routes.draw { ... }` on some non-Rails builder must not
-// be promoted to Rails semantics (that would emit false
-// `framework_semantics.rails.route_entries` / a false `HANDLES_ROUTE` edge, or
-// a spurious repo-wide `has_unmodeled_routes` keep floor). Rails truth is
-// claimed only for the two shapes Rails itself uses.
+// engine's own route-set, `<ConstantPath>.routes`. A Rails engine is ANY class
+// that subclasses `Rails::Engine`; Rails does not require the class to be named
+// `Engine`, so an engine route-set can be `MyEngine::Engine.routes`,
+// `PaymentsEngine.routes`, or a custom `Api.routes`. The common invariant is
+// that the receiver of the `.routes` accessor is a constant (class) reference,
+// not a lowercase local/method receiver. So the rule is: the text before
+// `.routes` is a Ruby constant path (each `::`-separated segment is a constant,
+// starting with an uppercase letter). That admits every engine naming while
+// deliberately rejecting an arbitrary `foo.routes.draw { ... }` on a lowercase
+// builder -- promoting that to Rails would emit a false
+// `framework_semantics.rails.route_entries` / `HANDLES_ROUTE` edge, or a
+// spurious repo-wide `has_unmodeled_routes` keep floor. A receiver whose
+// pre-`.routes` text mixes in a method call (e.g. `Foo.bar.routes`, or the
+// application's own `Rails.application.routes`) is not a bare constant path, so
+// the application form is matched explicitly above.
 func isRailsRouteSetReceiver(receiver string) bool {
-	return receiver == rubyRailsApplicationRouteSet ||
-		receiver == rubyRailsTopLevelEngineRouteSet ||
-		strings.HasSuffix(receiver, rubyRailsEngineRouteSetSuffix)
+	if receiver == rubyRailsApplicationRouteSet {
+		return true
+	}
+	base, ok := strings.CutSuffix(receiver, rubyRailsRouteSetAccessorSuffix)
+	if !ok || base == "" {
+		return false
+	}
+	return isRubyConstantPath(base)
+}
+
+// isRubyConstantPath reports whether s is a Ruby constant path: one or more
+// `::`-separated segments, each a constant name (an uppercase-initial Ruby
+// identifier). It returns false for an empty string, a leading/trailing/doubled
+// `::`, a lowercase-initial segment (a local variable or method, not a
+// constant), or any segment containing a `.` (a method-call chain rather than a
+// pure constant reference).
+func isRubyConstantPath(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, segment := range strings.Split(s, "::") {
+		if segment == "" {
+			return false
+		}
+		runes := []rune(segment)
+		if !unicode.IsUpper(runes[0]) {
+			return false
+		}
+		for _, r := range runes[1:] {
+			if r != '_' && !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // isRailsRoutesDraw reports whether node is a Rails route-set registration

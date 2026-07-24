@@ -75,10 +75,13 @@ Literal Rails routes emit `framework_semantics.rails.route_entries` only when
 the HTTP method, path, and `to: "controller#action"` target are source
 literals. Route-set registration is recognized on the source-proven Rails
 shapes — the main application (`Rails.application.routes.draw`, and the
-`.append`/`.prepend` variants) and a mountable engine's own route-set
-(`<Namespace>::Engine.routes.draw`/`.append`/`.prepend`) — so a controller
-routed only inside an engine's own `config/routes.rb` is captured; an arbitrary
-`foo.routes.draw` on a non-Rails receiver is not promoted to Rails truth.
+`.append`/`.prepend` variants) and a mountable engine's own route-set on the
+engine class constant (`<ConstantPath>.routes.draw`/`.append`/`.prepend`; a Rails
+engine is any `Rails::Engine` subclass, conventionally named `MyEngine::Engine`
+or custom-named like `PaymentsEngine`/`Api`) — so a controller routed only
+inside an engine's own `config/routes.rb` is captured; an arbitrary lowercase
+`foo.routes.draw` (a local/method receiver, not a class constant) is not
+promoted to Rails truth.
 Literal Sinatra routes
 emit `framework_semantics.sinatra.route_entries` only when a Sinatra import or
 `Sinatra::Base` subclass is present and the route block is a named
