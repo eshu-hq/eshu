@@ -5,6 +5,7 @@ package ruby
 
 import (
 	"strings"
+	"unicode"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
@@ -14,10 +15,10 @@ import (
 // open a full route-registration block: `draw` (the normal application
 // routes.rb entrypoint) plus `append` and `prepend` (real, documented Rails
 // APIs engines and gems use to insert routes after/before the main set). All
-// three are called on a route-set receiver whose text ends in `.routes`
+// three are called on a source-proven Rails route-set receiver
 // (`Rails.application.routes` for the main app, `<Namespace>::Engine.routes`
-// for a mountable engine's own config/routes.rb) -- see the suffix contract in
-// isRailsRoutesDraw. A controller action routed ONLY inside an
+// for a mountable engine's own config/routes.rb) -- see isRailsRouteSetReceiver
+// in isRailsRoutesDraw. A controller action routed ONLY inside an
 // `.append`/`.prepend` block, or ONLY inside an engine's own routes file, is
 // just as real as one routed inside the main `.draw` -- treating only `.draw`
 // as route-registration context (the pre-P1-fix behavior), or gating on the
@@ -33,29 +34,83 @@ var rubyRailsRouteSetMethods = map[string]struct{}{
 	"prepend": {},
 }
 
-// rubyRailsRouteSetReceiverSuffix is the structural marker of a Rails route-set
-// receiver. Every Rails route-set is reached through a `.routes` accessor:
-// `Rails.application.routes` for the main application and
-// `<Namespace>::Engine.routes` (e.g. `MyEngine::Engine.routes`,
-// `Foo::Bar::Engine.routes`) for a mountable engine's own config/routes.rb.
-// receiverName (calls.go) composes the full dotted receiver text, so the
-// common structural invariant across all of them is a `.routes` suffix on a
-// non-empty dotted receiver.
-const rubyRailsRouteSetReceiverSuffix = ".routes"
+const (
+	// rubyRailsApplicationRouteSet is the main application's route-set receiver:
+	// `Rails.application.routes.draw` (and `.append`/`.prepend`). Its `.routes`
+	// accessor hangs off the `Rails.application` method chain, not a bare
+	// constant, so it is matched explicitly rather than by the constant-path
+	// rule below.
+	rubyRailsApplicationRouteSet = "Rails.application.routes"
+	// rubyRailsRouteSetAccessorSuffix is the `.routes` accessor every Rails
+	// route-set is reached through.
+	rubyRailsRouteSetAccessorSuffix = ".routes"
+)
+
+// isRailsRouteSetReceiver reports whether receiver names a source-proven Rails
+// route-set: the main application (`Rails.application.routes`) or a mountable
+// engine's own route-set, `<ConstantPath>.routes`. A Rails engine is ANY class
+// that subclasses `Rails::Engine`; Rails does not require the class to be named
+// `Engine`, so an engine route-set can be `MyEngine::Engine.routes`,
+// `PaymentsEngine.routes`, or a custom `Api.routes`. The common invariant is
+// that the receiver of the `.routes` accessor is a constant (class) reference,
+// not a lowercase local/method receiver. So the rule is: the text before
+// `.routes` is a Ruby constant path (each `::`-separated segment is a constant,
+// starting with an uppercase letter). That admits every engine naming while
+// deliberately rejecting an arbitrary `foo.routes.draw { ... }` on a lowercase
+// builder -- promoting that to Rails would emit a false
+// `framework_semantics.rails.route_entries` / `HANDLES_ROUTE` edge, or a
+// spurious repo-wide `has_unmodeled_routes` keep floor. A receiver whose
+// pre-`.routes` text mixes in a method call (e.g. `Foo.bar.routes`, or the
+// application's own `Rails.application.routes`) is not a bare constant path, so
+// the application form is matched explicitly above.
+func isRailsRouteSetReceiver(receiver string) bool {
+	if receiver == rubyRailsApplicationRouteSet {
+		return true
+	}
+	base, ok := strings.CutSuffix(receiver, rubyRailsRouteSetAccessorSuffix)
+	if !ok || base == "" {
+		return false
+	}
+	return isRubyConstantPath(base)
+}
+
+// isRubyConstantPath reports whether s is a Ruby constant path: one or more
+// `::`-separated segments, each a constant name (an uppercase-initial Ruby
+// identifier). It returns false for an empty string, a leading/trailing/doubled
+// `::`, a lowercase-initial segment (a local variable or method, not a
+// constant), or any segment containing a `.` (a method-call chain rather than a
+// pure constant reference).
+func isRubyConstantPath(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, segment := range strings.Split(s, "::") {
+		if segment == "" {
+			return false
+		}
+		runes := []rune(segment)
+		if !unicode.IsUpper(runes[0]) {
+			return false
+		}
+		for _, r := range runes[1:] {
+			if r != '_' && !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+				return false
+			}
+		}
+	}
+	return true
+}
 
 // isRailsRoutesDraw reports whether node is a Rails route-set registration
 // call: one of rubyRailsRouteSetMethods (draw/append/prepend) invoked on a
-// route-set receiver whose dotted text ends in `.routes`. This covers the main
-// application (`Rails.application.routes.draw`) and any mountable engine's own
-// routes file (`MyEngine::Engine.routes.draw`, `.append`, `.prepend`), which is
-// written by convention against the engine's own RouteSet and never against the
-// literal `Rails.application.routes`. The check is a structural suffix rather
-// than exact-string equality, consistent with the fail-safe philosophy already
-// applied to the method axis: a `.routes.draw`/`.routes.append`/`.routes.prepend`
-// chain is a reliable Rails route-set marker, while requiring the `.routes`
-// suffix on a NON-empty dotted receiver rejects a bare receiverless
-// `routes.draw` (receiverName returns "routes", no dot) and an unrelated
-// builder `foo.bar.draw` (no `.routes` suffix). Shared by
+// source-proven Rails route-set receiver (see isRailsRouteSetReceiver). This
+// covers the main application (`Rails.application.routes.draw`) and any
+// mountable engine's own routes file (`MyEngine::Engine.routes.draw`,
+// `.append`, `.prepend`), written by convention against the engine's own
+// RouteSet, while rejecting a bare receiverless `routes.draw` (receiverName
+// returns "routes"), an unrelated builder `foo.bar.draw` (not a route-set), and
+// an arbitrary `foo.routes.draw` (a `.routes` accessor on a non-Rails receiver
+// that is not the application or a `::Engine` route-set). Shared by
 // rubyResolveRouteContext (framework_routes.go, exact-route capture) and
 // rubyScanRailsDrawBlockForAmbiguity below (ambiguity detection) -- both
 // consumers must agree on what counts as route-registration context, or one
@@ -66,7 +121,7 @@ func (s *rubySyntax) isRailsRoutesDraw(node *tree_sitter.Node) bool {
 		return false
 	}
 	receiver := node.ChildByFieldName("receiver")
-	return strings.HasSuffix(s.receiverName(receiver), rubyRailsRouteSetReceiverSuffix)
+	return isRailsRouteSetReceiver(s.receiverName(receiver))
 }
 
 // appendRubyRailsRouteAmbiguity stamps has_unmodeled_routes=true onto the

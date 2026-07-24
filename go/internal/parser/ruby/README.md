@@ -71,9 +71,18 @@ chains are captured as bounded call evidence only. `def self.name` and
 `class << self` are covered, while `def ClassName.name` is not part of the
 current contract.
 
-Literal Rails routes inside `Rails.application.routes.draw` emit
-`framework_semantics.rails.route_entries` only when the HTTP method, path, and
-`to: "controller#action"` target are source literals. Literal Sinatra routes
+Literal Rails routes emit `framework_semantics.rails.route_entries` only when
+the HTTP method, path, and `to: "controller#action"` target are source
+literals. Route-set registration is recognized on the source-proven Rails
+shapes — the main application (`Rails.application.routes.draw`, and the
+`.append`/`.prepend` variants) and a mountable engine's own route-set on the
+engine class constant (`<ConstantPath>.routes.draw`/`.append`/`.prepend`; a Rails
+engine is any `Rails::Engine` subclass, conventionally named `MyEngine::Engine`
+or custom-named like `PaymentsEngine`/`Api`) — so a controller routed only
+inside an engine's own `config/routes.rb` is captured; an arbitrary lowercase
+`foo.routes.draw` (a local/method receiver, not a class constant) is not
+promoted to Rails truth.
+Literal Sinatra routes
 emit `framework_semantics.sinatra.route_entries` only when a Sinatra import or
 `Sinatra::Base` subclass is present and the route block is a named
 `&method(:handler)` reference. Dynamic paths, dynamic targets, namespaced Rails
@@ -85,8 +94,9 @@ to exactly one indexed function.
 A `resources`/`resource` Rails routing DSL macro, and an explicit Rails `to:`
 target that does not parse into a clean unqualified controller#action (for
 example a namespaced `"admin/posts#show"`), are each detected without being
-expanded: their presence anywhere inside `Rails.application.routes.draw`
-stamps `framework_semantics.rails.has_unmodeled_routes = true` for that file.
+expanded: their presence anywhere inside a recognized Rails route-set block
+(the application or a mountable engine, as above) stamps
+`framework_semantics.rails.has_unmodeled_routes = true` for that file.
 This is the #5494 route-liveness ambiguity signal: the reducer's repo-wide
 verdict builder treats its presence as proof the repo's exact route surface
 cannot be trusted as complete, and keeps every controller action rather than
