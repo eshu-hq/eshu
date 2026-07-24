@@ -299,12 +299,16 @@ func classifySupplyChainImpactPackage(
 		// #5463 "never invent an anchor" discipline: an image attributable to
 		// more than one repository is not attributed to any single one. Do not
 		// "simplify" this back to image.repositoryID.
-		// #5464: prefer the git source anchor. Skip only when the
-		// consumption path already set a manifest-derived RepositoryID
-		// (always a git "repository:..." id). Replace an SBOM-derived
-		// OCI registry path (cannot join to workload/service records).
-		repoFromConsumption := consumption.factID != "" && strings.TrimSpace(consumption.repositoryID) != ""
-		if finding.SubjectDigest != "" && !repoFromConsumption {
+		// #5464: prefer the git source anchor. The guard inspects the
+		// current RepositoryID value rather than tracking which path
+		// wrote it: the SBOM path above unconditionally overwrites
+		// RepositoryID with the OCI registry path, so a consumption-
+		// derived git "repository:..." ID may have been replaced by the
+		// time we reach this block. Check whether the current value
+		// already IS a git repo ID (prefix "repository:"); if not —
+		// blank (no anchor) or OCI registry path (from SBOM) — apply
+		// the git source anchor when unambiguous.
+		if finding.SubjectDigest != "" && !strings.HasPrefix(finding.RepositoryID, "repository:") {
 			if image, ok := index.images[finding.SubjectDigest]; ok {
 				if repositoryID := singleSupplyChainImageSourceRepositoryID(image); repositoryID != "" {
 					finding.RepositoryID = repositoryID
