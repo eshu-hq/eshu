@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/cicdrun"
+	"github.com/eshu-hq/eshu/go/internal/collector/cicdrun/runwatermark"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -54,6 +55,10 @@ type SourceConfig struct {
 	Now                 func() time.Time
 	Tracer              trace.Tracer
 	Instruments         *telemetry.Instruments
+	// Watermarks detects a cross-cycle run-collection gap (#5429). It is
+	// optional: a nil Store (the zero value) skips gap detection entirely,
+	// matching awsruntime.ClaimedSource.Checkpoints' nil-safety.
+	Watermarks runwatermark.Store
 }
 
 // TargetConfig bounds one GitHub Actions repository target.
@@ -87,7 +92,15 @@ type RunSnapshot struct {
 // are keyed by run ID at the cicdrun envelope layer, so re-fetching the same
 // window on a later claim cycle re-emits the same StableFactKey set per run
 // (an idempotent upsert at projection) rather than requiring a persistent
-// watermark/cursor here.
+// watermark/cursor to RESUME collection.
+//
+// A persistent watermark (runwatermark.Store, wired through
+// SourceConfig.Watermarks) still exists, but it exists to DETECT a
+// cross-cycle gap, not to resume one: when more than MaxRuns runs land
+// between two claim cycles, only the newest MaxRuns are fetched, and the
+// older new-runs between the previous cycle's newest observed run and this
+// window's floor would otherwise be silently lost (#5429). See
+// run_watermark.go's detectRunBackfillGap.
 type RunPage struct {
 	Snapshots []RunSnapshot
 	Truncated bool
@@ -101,6 +114,11 @@ type ClaimedSource struct {
 	now                 func() time.Time
 	tracer              trace.Tracer
 	instruments         *telemetry.Instruments
+	watermarks          runwatermark.Store
+	// pending stages each claim cycle's not-yet-durable watermark between
+	// NextClaimed and ObserveClaimedGenerationCommitted (#5429). See
+	// pending_watermark.go and source_commit_observer.go.
+	pending *pendingWatermarks
 }
 
 // NewClaimedSource validates source configuration and returns a claim-aware
@@ -137,6 +155,8 @@ func NewClaimedSource(config SourceConfig) (ClaimedSource, error) {
 		now:                 now,
 		tracer:              config.Tracer,
 		instruments:         config.Instruments,
+		watermarks:          config.Watermarks,
+		pending:             newPendingWatermarks(),
 	}, nil
 }
 
@@ -168,7 +188,17 @@ func (s ClaimedSource) NextClaimed(
 	}
 	fetchSpan.End()
 	observedAt := s.now().UTC()
-	envelopes, err := s.buildRunEnvelopes(observeSpan, item, target, page, observedAt)
+	watermark, hasWatermark, err := s.loadWatermark(observeCtx, target)
+	if err != nil {
+		recordSpanError(observeSpan, err)
+		return collector.CollectedGeneration{}, false, err
+	}
+	gapDetected, err := detectRunBackfillGap(page, watermark, hasWatermark)
+	if err != nil {
+		recordSpanError(observeSpan, err)
+		return collector.CollectedGeneration{}, false, err
+	}
+	envelopes, err := s.buildRunEnvelopes(observeSpan, item, target, page, observedAt, gapDetected)
 	if err != nil {
 		return collector.CollectedGeneration{}, false, err
 	}
@@ -200,8 +230,19 @@ func (s ClaimedSource) NextClaimed(
 		return collector.CollectedGeneration{}, false, err
 	}
 	s.recordFacts(observeCtx, envelopes)
-	s.recordPartialGeneration(observeCtx, page)
+	s.recordPartialGeneration(observeCtx, page, gapDetected)
 	s.recordFetch(observeCtx, "success", startedAt)
+	newestRunID, err := windowNewestRunID(page)
+	if err != nil {
+		recordSpanError(observeSpan, err)
+		return collector.CollectedGeneration{}, false, err
+	}
+	// #5429: stash, do not save. The durable watermark write happens in
+	// ObserveClaimedGenerationCommitted, once collector.ClaimedService
+	// confirms this generation's facts committed -- never here, where the
+	// eventual commit outcome is not yet known. See
+	// source_commit_observer.go and pending_watermark.go.
+	s.pending.stash(item, target, newestRunID)
 	return collector.FactsFromSlice(scopeValue, generationValue, envelopes), true, nil
 }
 
@@ -211,15 +252,19 @@ func (s ClaimedSource) NextClaimed(
 // the prior FetchLatestRun path produced. A truncated page attaches a
 // runs_truncated warning to the newest (first) run in the window so it
 // reaches the graph as a ci.warning fact through the existing
-// fixture.Warnings pipeline, mirroring the jobs_partial pattern.
+// fixture.Warnings pipeline, mirroring the jobs_partial pattern. When
+// gapDetected is true (see detectRunBackfillGap), a runs_backfill_gap
+// warning is attached the same way (#5429).
 func (s ClaimedSource) buildRunEnvelopes(
 	observeSpan trace.Span,
 	item workflow.WorkItem,
 	target TargetConfig,
 	page RunPage,
 	observedAt time.Time,
+	gapDetected bool,
 ) ([]facts.Envelope, error) {
 	snapshots := attachRunsTruncatedWarning(page)
+	snapshots = attachBackfillGapWarning(snapshots, gapDetected)
 	envelopes := make([]facts.Envelope, 0, len(snapshots))
 	for _, snapshot := range snapshots {
 		raw, err := json.Marshal(map[string]any{

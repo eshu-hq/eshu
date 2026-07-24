@@ -100,6 +100,15 @@
 - **AWS checkpoint fencing** — `AWSPaginationCheckpointStore.Save` must keep the
   `fencing_token <= EXCLUDED.fencing_token` conflict guard. A stale AWS worker
   must not overwrite page state from a newer claim.
+- **CI/CD run watermark fencing (#5429)** — `CICDRunWatermarkStore.Save` must
+  keep the same `fencing_token <= EXCLUDED.fencing_token` conflict guard as
+  the AWS checkpoint pattern. Unlike that pattern, `Load` must NEVER gain a
+  `generation_id`/`fencing_token` predicate: `ghactionsruntime` reads a PRIOR
+  generation's watermark from a LATER generation's claim to detect a
+  cross-cycle gap, so scoping `Load` to one generation would make gap
+  detection permanently blind. Keep `migrations/078_cicd_run_watermarks.sql`
+  and `CICDRunWatermarkSchemaSQL()` in lockstep
+  (`TestCICDRunWatermarkSchemaMatchesBootstrapMigration`).
 - **AWS scan-status fencing** — `AWSScanStatusStore` mutations must keep their
   fencing guards. A stale AWS worker must not overwrite per-tuple status from a
   newer claim.

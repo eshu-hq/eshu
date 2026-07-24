@@ -198,6 +198,17 @@ reducer/query adapter.
   rows for one AWS claim boundary, and `Complete` deletes operation state after
   a terminal page.
 
+**CI/CD run watermark (#5429)**
+
+- `CICDRunWatermarkStore` / `NewCICDRunWatermarkStore` — persists
+  claim-fenced newest-observed-run markers in `cicd_run_watermarks`
+  (`internal/collector/cicdrun/runwatermark.Store`). `Save` rejects a
+  fencing token older than the stored row (`runwatermark.ErrStaleFence`);
+  `Load` has no generation/fencing predicate, unlike
+  `AWSPaginationCheckpointStore.Load`, because a watermark must be readable
+  across generations for `ghactionsruntime` to detect a cross-cycle
+  collection gap.
+
 **Decision store**
 
 - `DecisionStore` / `NewDecisionStore` — upserts `projection_decisions` and
