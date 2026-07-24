@@ -36,6 +36,15 @@ QUALIFIES:
   same Postgres read model.
 - A cloud-observed instance that confirms the workload runs in a measurable
   environment.
+- For `supply_chain_impact` findings: an observed cloud compute resource (a
+  running ECS task or an image-package Lambda function, captured as an
+  `aws_resource` fact) whose `running_image_digest` equals the finding's
+  subject digest. The exact scanned vulnerable image is running on that
+  resource, so the finding is `runtime_confirmed` and names the resource ARN
+  in `cloud_runtime_resource_refs`. This is a query-time `CloudResource` graph
+  probe (`go/internal/query/supply_chain_impact_cloud_runtime_probe.go`), not a
+  reducer-materialized field — the digest is the artifact's content-addressed
+  identity, so the match is exact, not a shared-base-image coincidence (#5452).
 
 DOES NOT QUALIFY:
 - Config-materialized `WorkloadInstance` rows. Despite the legacy confidence
@@ -81,7 +90,7 @@ DOES NOT QUALIFY:
 | Surface | Field | Route/Tool |
 |---------|-------|-----------|
 | `trace_deployment_chain` | `deployment_fact_summary.deployment_truth_tier` | `POST /api/v0/impact/trace-deployment-chain` |
-| `supply_chain_impact` | `deployment_context.deployment_truth_tier` | `POST /api/v0/supply-chain/impact/findings` (deployment-context payload) |
+| `supply_chain_impact` | `findings[].deployment_truth_tier` (plus `findings[].cloud_runtime_resource_refs` naming the observed running resource when `runtime_confirmed`) | `GET /api/v0/supply-chain/impact/findings` |
 | Service story | `deployment_overview.deployment_truth_tier` | `GET /api/v0/services/{name}/story` |
 
 All surfaces use the same `ClassifyDeploymentTruthTier` helper from
@@ -105,14 +114,20 @@ the tier semantics above.
   `trace_deployment_chain` reports as `runtime_confirmed` can report only
   `config_only` or no tier at all from the service story surface for the
   same workload. Tracked in [#5582](https://github.com/eshu-hq/eshu/issues/5582).
-- **Supply-chain impact** (`deployment_context.deployment_truth_tier`,
-  `go/internal/query/supply_chain_impact_result.go`): live runtime evidence
-  (`runtime_confirmed`) and CI provenance (`provenance_ci_declared`) are not
-  yet differentiated in the reducer's finding payload, so every
-  deployment-anchored finding classifies as `config_only` today. Tracked in
-  [#5472](https://github.com/eshu-hq/eshu/issues/5472) (CI/CD correlation
-  graph projection) and [#5474](https://github.com/eshu-hq/eshu/issues/5474)
-  (gate extensions).
+- **Supply-chain impact** (`findings[].deployment_truth_tier`,
+  `go/internal/query/supply_chain_impact_result.go`): now differentiates all
+  three evidence classes (#5452, closing the earlier gap tracked in #5472/#5474,
+  both merged). A finding whose subject digest is observed running on a cloud
+  resource classifies as `runtime_confirmed` (see the runtime_confirmed
+  qualifier above); a finding with a matched `reducer_ci_cd_run_correlation`
+  deployment hop classifies as `provenance_ci_declared`; a finding with only
+  config-materialized deployment anchors or environments classifies as
+  `config_only`. The runtime tier is sourced from a query-time `CloudResource`
+  graph probe, so it degrades to the CI/config tiers (never a fabricated
+  runtime tier) when no cloud evidence is wired. Remaining nuance: the probe
+  runs on the findings-list read; other supply-chain read surfaces that do not
+  build results through `buildSupplyChainImpactFindingResult` do not yet carry
+  the runtime tier.
 
 ## Legacy reason → tier mapping
 
