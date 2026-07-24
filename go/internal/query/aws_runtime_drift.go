@@ -170,7 +170,21 @@ func normalizeAWSRuntimeDriftFindingsRequest(req iacManagementRequest) (IaCManag
 	if err != nil {
 		return IaCManagementFilter{}, err
 	}
-	if len(req.FindingKinds) == 0 {
+	// Widen the default finding-kind set to include image_version_drift only when
+	// the caller named no explicit kind. normalizeIaCManagementFindingKinds
+	// strips blank/whitespace-only entries before applying the existence-only
+	// default, so guard on whether any NON-BLANK kind was supplied rather than on
+	// the raw slice length -- otherwise a request like finding_kinds=["  "] would
+	// fall through to the narrow default and silently exclude image_version_drift
+	// from its own drift-findings page.
+	callerNamedKind := false
+	for _, kind := range req.FindingKinds {
+		if strings.TrimSpace(kind) != "" {
+			callerNamedKind = true
+			break
+		}
+	}
+	if !callerNamedKind {
 		filter.FindingKinds = append(filter.FindingKinds, findingKindImageVersionDrift)
 		sort.Strings(filter.FindingKinds)
 	}
