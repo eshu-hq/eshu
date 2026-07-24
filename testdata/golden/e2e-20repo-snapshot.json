@@ -3793,7 +3793,7 @@
           "buckets[].value": "explicit_digest"
         },
         "arguments": {
-          "digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+          "digest": "sha256:0000000000000000000000000000000000000000000000000000000000aa",
           "group_by": "identity_strength",
           "limit": 10
         }
@@ -5880,7 +5880,7 @@
           "limit": 25
         }
       },
-      "GET /api/v0/supply-chain/impact/findings?limit=50&subject_digest=sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890": {
+      "GET /api/v0/supply-chain/impact/findings?limit=50&subject_digest=sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab&profile=comprehensive": {
         "description": "#5452 non-vacuous runtime-observed cloud evidence proof: the scanned vulnerable supply-chain-demo image (subject digest ...abcdef) is observed running on the live ECS task (its aws_resource running_image_digest equals the scanned digest), so the query-time CloudResource graph probe promotes its impact finding to deployment_truth_tier=runtime_confirmed and names the running task ARN in cloud_runtime_resource_refs -- runtime-observed cloud deployment evidence distinct from CI-declared correlation. Reverting the probe (supply_chain_impact_cloud_runtime_probe.go) drops the finding back to provenance_ci_declared/config_only, failing this assertion.",
         "truth_class": "deterministic",
         "required_response_fields": [
