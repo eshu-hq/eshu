@@ -61,7 +61,15 @@ Supported today:
   `nuget_project` parser path into repository dependency evidence. Requested
   versions, resolved MSBuild property versions, unresolved-property partial
   evidence, and PrivateAssets dev/test signals are preserved for the
-  supply-chain impact reducer.
+  supply-chain impact reducer. Multi-targeting identity keys the same package
+  name across `<ItemGroup>`s by BOTH the item-level and group-level `Condition`
+  (the parser exposes them as separate `condition_item` and `condition_group`
+  metadata rather than an item-over-group override), so two genuinely
+  different-target declarations that share an identical item-level `Condition`
+  under groups with different group-level (`$(TargetFramework)`) conditions mint
+  distinct entity ids instead of silently collapsing to one (#5725). Standard
+  per-`ItemGroup` conditioning (item empty) is unaffected — its identity is
+  byte-identical to before.
 
 Not claimed today:
 

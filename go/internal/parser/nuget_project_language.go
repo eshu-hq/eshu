@@ -127,7 +127,17 @@ func nugetProjectDependencyRow(
 		reference.ExcludeAssets,
 		nugetChildValue(reference.Children, "ExcludeAssets"),
 	))
+	// "condition" is the pre-merged item-override (item-level Condition wins,
+	// group-level is the fallback) kept UNCHANGED for existing display/identity
+	// consumers. "condition_item" and "condition_group" additionally expose the
+	// two components separately (#5725) so the identity discriminator can keep
+	// two same-name PackageReference rows distinct when they share an identical
+	// item-level Condition but sit under ItemGroups with different group-level
+	// (e.g. $(TargetFramework)) Conditions. setNuGetProjectString trims and
+	// omits empty values, so a row with only one component carries only that key.
 	setNuGetProjectString(row, "condition", firstNonEmpty(reference.Condition, groupCondition))
+	setNuGetProjectString(row, "condition_item", reference.Condition)
+	setNuGetProjectString(row, "condition_group", groupCondition)
 	if scope == "development" || scope == "test" {
 		row["development_dependency"] = true
 	}
