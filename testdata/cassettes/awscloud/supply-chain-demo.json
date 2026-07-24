@@ -212,6 +212,40 @@
           }
         },
         {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:ecs:task:supply-chain-demo-running-vuln",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "arn": "arn:aws:ecs:us-east-1:123456789012:task/supply-chain-demo/0000000000000000000000000000000b",
+            "resource_id": "arn:aws:ecs:us-east-1:123456789012:task/supply-chain-demo/0000000000000000000000000000000b",
+            "resource_type": "ecs.task",
+            "name": "arn:aws:ecs:us-east-1:123456789012:task/supply-chain-demo/0000000000000000000000000000000b",
+            "state": "RUNNING",
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "service_kind": "ecs",
+            "correlation_anchors": [
+              "arn:aws:ecs:us-east-1:123456789012:task/supply-chain-demo/0000000000000000000000000000000b"
+            ],
+            "attributes": {
+              "cluster_arn": "arn:aws:ecs:us-east-1:123456789012:cluster/supply-chain-demo",
+              "desired_status": "RUNNING",
+              "launch_type": "FARGATE",
+              "started_at": "2026-06-25T00:06:00Z",
+              "containers": [
+                {
+                  "image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a",
+                  "image_digest": "sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a",
+                  "name": "supply-chain-demo"
+                }
+              ]
+            }
+          }
+        },
+        {
           "fact_kind": "aws_image_reference",
           "stable_fact_key": "aws:123456789012:us-east-1:ecs:image-reference:supply-chain-demo@sha256:0000000000000000000000000000000000000000000000000000000000aa#latest",
           "schema_version": "1.0.0",
