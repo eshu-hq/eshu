@@ -7,6 +7,10 @@ import (
 	"context"
 	"sort"
 	"strings"
+
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // cicdRunBuiltFromProvenanceEvidenceSource tags BUILT_FROM edges projected from
@@ -103,7 +107,31 @@ func (h CICDRunCorrelationHandler) projectCICDRunBuiltFromEdges(
 	if len(rows) == 0 {
 		return nil
 	}
-	return h.ProvenanceEdgeWriter.WriteBuiltFromEdges(
+	if err := h.ProvenanceEdgeWriter.WriteBuiltFromEdges(
 		ctx, rows, intent.ScopeID, intent.GenerationID, cicdRunBuiltFromProvenanceEvidenceSource,
+	); err != nil {
+		return err
+	}
+	h.emitProvenanceEdgeCounter(ctx, "materialized", len(rows))
+	return nil
+}
+
+// emitProvenanceEdgeCounter records a ProvenanceEdges counter sample for the
+// edges this domain materialized, labeled with this domain's evidence_source so
+// an operator can tell #5428's BUILT_FROM writes apart from #5457's on the
+// shared edge type -- the same axis evidence_kinds provides in the graph. A nil
+// Instruments or a zero count records nothing rather than a misleading zero
+// sample, matching the sibling projections.
+func (h CICDRunCorrelationHandler) emitProvenanceEdgeCounter(ctx context.Context, outcome string, count int) {
+	if h.Instruments == nil || h.Instruments.ProvenanceEdges == nil || count <= 0 {
+		return
+	}
+	h.Instruments.ProvenanceEdges.Add(
+		ctx,
+		int64(count),
+		metric.WithAttributes(
+			telemetry.AttrDomain(cicdRunBuiltFromProvenanceEvidenceSource),
+			telemetry.AttrOutcome(outcome),
+		),
 	)
 }
