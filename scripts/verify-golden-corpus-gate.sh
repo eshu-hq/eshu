@@ -108,17 +108,23 @@ for arg in "$@"; do
 	esac
 done
 
+bg_pids=()
+
+log() { printf '\n=== %s ===\n' "$*"; }
+die() { printf 'verify-golden-corpus-gate: %s\n' "$*" >&2; exit 1; }
+
+. "${repo_root}/scripts/lib/live-gate-lock.sh"
+acquire_live_gate_lock
+
+# After the mutex, so a refused run leaves no temp dir. The EXIT trap stays
+# further down on purpose: cleanup runs `docker compose down -v`, and arming it
+# before the lock is held would let a blocked run kill the live holder's stack.
 work_dir="$(mktemp -d -t golden-corpus-gate.XXXXXX)"
 bin_dir="${work_dir}/bin"
 corpus_dir="${work_dir}/corpus"
 home_dir="${work_dir}/home"
 log_dir="${work_dir}/logs"
 mkdir -p "${bin_dir}" "${corpus_dir}" "${home_dir}" "${log_dir}"
-
-bg_pids=()
-
-log() { printf '\n=== %s ===\n' "$*"; }
-die() { printf 'verify-golden-corpus-gate: %s\n' "$*" >&2; exit 1; }
 
 cleanup() {
 	local status=$?
@@ -144,6 +150,13 @@ cleanup() {
 			docker compose -f "${compose_file}" down -v >/dev/null 2>&1 || true
 		fi
 		rm -rf "${work_dir}"
+	fi
+	# Last, and only while still the recorded holder (see the lib). A --keep run
+	# retains the stack on the fixed ports, so it retains the mutex with it.
+	if [[ "${keep}" -eq 1 ]]; then
+		retain_live_gate_lock
+	else
+		release_live_gate_lock
 	fi
 	exit "${status}"
 }

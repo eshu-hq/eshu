@@ -109,7 +109,51 @@ Full live run (needs Docker):
 bash scripts/verify-golden-corpus-gate.sh
 # --no-compose  assume Postgres + graph are already up
 # --keep        retain services + work dir for debugging a failure
+#               (also retains the cross-run lock - see below)
 ```
+
+### The cross-run lock
+
+The gate binds **fixed host ports** (Postgres, api, mcp) and a compose project
+derived from the worktree name, so two runs cannot safely overlap. They do not
+fail cleanly on a port bind — they starve each other, and the loser reports
+`fact_work_items_residual: residual=1 (dead_letter=1)` after the drain timeout,
+which reads exactly like a reducer or queue defect and costs a long
+investigation in the wrong place.
+
+The gate therefore takes a lock under the shared git common dir before it does
+any work, and a second run refuses immediately, naming the holder's pid and
+worktree. The lock covers **this script, within one clone**: port disjointness
+is not safety, because the contention is CPU and Docker I/O, and a separate
+clone has its own lock.
+
+| Variable | Effect |
+| --- | --- |
+| `ESHU_SKIP_LIVE_GATE_LOCK=1` | Bypass the lock. For CI, where each job already has an isolated runner and there is no sibling worktree to collide with. |
+| `ESHU_LIVE_GATE_LOCK_DIR=<dir>` | Relocate the lock, so tests can exercise it without touching the real one under `.git`. |
+
+**`--keep` retains the lock as well as the stack.** That is deliberate: the
+retained containers still hold the fixed ports, so releasing the lock would hand
+those ports to the next run, which would then tear the retained stack down with
+`docker compose down -v` on its own exit — destroying the thing `--keep` was
+for. The marker outlives the holder process, so it is cleared only explicitly.
+Until you clear it, every later gate run — and `make pre-pr` on any branch that
+touches a golden-corpus trigger path — refuses. To release it:
+
+Run the teardown **from the worktree that took `--keep`** — the compose project
+name is derived from that directory, so tearing down from anywhere else leaves
+the retained containers holding the ports:
+
+```bash
+docker compose -f docker-compose.yaml down -v          # ESHU_GRAPH_BACKEND=neo4j: docker-compose.neo4j.yml
+rm -f "$(git rev-parse --path-format=absolute --git-common-dir)/eshu-live-gate.lock" \
+      "$(git rev-parse --path-format=absolute --git-common-dir)/eshu-live-gate.lock.keep"
+```
+
+Tear the stack down **before** removing the marker. Removing the marker first
+frees the lock while the containers still hold the fixed ports, which is exactly
+the collision the retention exists to prevent. The refusal message names both
+paths, so you do not have to remember them.
 
 In CI the gate runs as the **Golden Corpus Gate** workflow, required on any PR
 that touches a pipeline phase (collector, parser, projector, reducer, query,

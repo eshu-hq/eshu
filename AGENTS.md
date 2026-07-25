@@ -345,6 +345,20 @@ skills are active.
 Agents MUST NOT say work is ready without listing the commands or runtime proof
 actually run.
 
+Two rules about how that proof is captured, both learned from real false greens:
+
+- **Capture exit codes directly.** `cmd; echo $?` — NEVER `$?` after a pipe.
+  `cmd | tail; echo $?` reports **tail's** status, not `cmd`'s, so a failing gate
+  reads as exit 0. This shipped a security-gate "exit 0" claim into a commit
+  message when `npm audit` had actually exited 1. When output must be trimmed,
+  redirect first (`cmd >out.txt 2>&1; echo $?`) and read the file afterward.
+- **Cited verification MUST postdate the final edit.** Re-run the full selected
+  set after the LAST change, not the subset judged relevant to it. A config value
+  changed late in a review cycle broke the test asserting that value; only the
+  package touched most recently was re-run, and the commit message reported the
+  untouched suite green. If a claim was measured before the last edit, it is not
+  evidence — it is a memory.
+
 PRs MUST NOT be accepted on explanation alone. Code changes MUST prove the code
 works with focused tests or an integration gate, and runtime-affecting changes
 MUST include performance proof or a no-regression measurement for the touched
@@ -474,6 +488,36 @@ These make the marathon multi-PR workflow reliable without re-prompting:
   the intended push. Subagents/teams MUST NOT each run `make pre-pr` — the full
   gate is expensive, and running it per-agent is wasted CPU. Subagents run only
   the focused verification for their surface and paste it in the handoff.
+  This is not only about cost. The golden-corpus gate binds FIXED host ports, so
+  two runs do not fail cleanly — they starve each other, and the loser surfaces as
+  a drain that never reaches terminal (`fact_work_items_residual: residual=1
+  (dead_letter=1)`), which reads exactly like a real reducer defect and costs a
+  long investigation in the wrong place. `verify-golden-corpus-gate.sh` now holds
+  a cross-worktree mutex and refuses to start alongside a live run. That mutex
+  covers THAT script, within one clone. Port disjointness is NOT safety — the
+  contention is CPU and Docker I/O, so another Docker-heavy gate starves it even
+  on different ports — and a second clone of the repo has its own lock. So when
+  dispatching a fleet, serialize the live gates and hand the machine over
+  explicitly rather than letting agents self-schedule.
+- Before declaring an intermittent gate failure a flake, MUST rule out resource
+  contention first: check the load average and what else is running
+  (`pgrep -f 'make pre-pr|verify-golden'`). Contention shows up as false
+  FAILURES, not as false passes — so a gate that failed under load has proven
+  nothing, while one that passed under load is usually trustworthy (the exception
+  being an assertion whose own timing budget the load inflated). Re-running
+  without changing the conditions is not evidence.
+- Before starting work on a newly filed issue, MUST check whether it is already
+  being fixed: search open PRs and recently merged commits for the same root
+  cause. An entire dependency migration was rebuilt in this repo while an
+  equivalent fix was already in flight.
+- When a change touches files carrying **pre-existing formatter drift**, isolate
+  the reformat in its own commit. The staged-file format hooks only inspect what
+  is staged, so old drift stays invisible until an unrelated change touches those
+  files — and then a one-line-per-file edit arrives as thousands of reformatted
+  lines. Do NOT run the formatter across the whole changed set and commit it as
+  one blob; commit the pure reformat first (stating that it is formatting-only
+  and verifiable with `--list-different`), then the real change on top. That keeps
+  the reviewable diff reviewable. Never `--no-verify` past a format hook.
 - Before claiming a PR merge-ready: the PR **title AND description** must both be
   current for the final diff (a reworked approach needs a reworked title, not
   just a body), and the description MUST include the before/after evidence the

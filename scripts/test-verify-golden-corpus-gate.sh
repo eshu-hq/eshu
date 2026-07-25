@@ -50,6 +50,31 @@ require_workflow_path "ingester fact emission"         "go/cmd/ingester/**"
 require_workflow_path "projector runtime"              "go/cmd/projector/**"
 require_workflow_path "reducer runtime"                "go/cmd/reducer/**"
 require_workflow_path "api query surface"              "go/cmd/api/**"
+# The orchestrator sources these; an edit to the mutex or a fixture/timing lib
+# changes what the gate does, so each must trigger it. Without this the lock
+# itself was in no trigger list at all - its only test would never have run.
+require_workflow_path "golden-corpus libs"             "scripts/lib/golden-corpus-*.sh"
+require_workflow_path "live gate mutex"                "scripts/lib/live-gate-lock.sh"
+# The workflow is only one of THREE lists that must carry these paths. Assert the
+# other two as well, or "the gap cannot reopen" is true for a third of the gap.
+# Scoped to each gate's OWN trigger block: a file-wide grep passes while the path
+# is present in either gate, so deleting it from one silently un-selects that
+# gate and the local half of the gap reopens.
+for gate_id in golden-corpus-mirror golden-corpus-gate; do
+	gate_block="$(sed -n "/^  - id: ${gate_id}\$/,/^    local:/p" "${repo_root}/specs/ci-gates.v1.yaml")"
+	[[ -n "${gate_block}" ]] || fail "ci-gates registry has no gate ${gate_id}"
+	for lib_path in 'scripts/lib/golden-corpus-*.sh' 'scripts/lib/live-gate-lock.sh'; do
+		printf '%s\n' "${gate_block}" |
+			rg --fixed-strings --quiet -- "- \"${lib_path}\"" ||
+			fail "ci-gates gate ${gate_id} triggers omit ${lib_path}"
+	done
+done
+# Anchored to the golden-corpus selector line, not the whole file: the fragment
+# could otherwise be moved onto an unrelated selector and still pass.
+rg --pcre2 --quiet --multiline \
+	"run_or_defer golden-corpus \\\\\n[^\n]*scripts/lib/\(golden-corpus-\.\+\|live-gate-lock\)" \
+	"${repo_root}/scripts/dev/pre-pr.sh" ||
+	fail "the pre-pr golden-corpus selector no longer matches the golden-corpus libs or the mutex"
 
 # #5817 P2 review: verify-golden-corpus-gate.sh sources FOUR
 # scripts/lib/golden-corpus-*.sh helper libs (fixtures, phase-timings,
@@ -69,6 +94,15 @@ shopt -u nullglob
 
 # Parses under bash -n.
 bash -n "${script}" || fail "verify-golden-corpus-gate.sh has a syntax error"
+# The lock cases live in sourced chunks. A syntax error in a sourced file does
+# NOT reliably abort the caller, so without this the whole mutex suite can be
+# silently skipped and the run still reports pass.
+for sourced_case_lib in \
+	"${repo_root}/scripts/lib/golden-corpus-lock-cases.sh" \
+	"${repo_root}/scripts/lib/golden-corpus-lock-race-cases.sh"; do
+	[[ -f "${sourced_case_lib}" ]] || fail "missing lock case lib: ${sourced_case_lib}"
+	bash -n "${sourced_case_lib}" || fail "$(basename "${sourced_case_lib}") has a syntax error"
+done
 bash -n "${fixture_lib}" || fail "golden-corpus-fixtures.sh has a syntax error"
 
 require() {
@@ -215,6 +249,18 @@ require_lib "per-phase advisory default" "-phase-regression-advisory"
 # shared_projection_intents domain (incl. code_calls, #3865) must drain — no
 # domain is quarantined as advisory.
 require "graph-populated smoke" "-required-node-labels"
+# The backend wait must be a real query. pg_isready answers ~30s before the
+# server will serve under load, and the gate then dies with
+# `ping postgres: tls error: EOF` - which reads as a broken backend, not as a
+# gate that asked too early. Reverting this is a plausible "simplification".
+# Comment-aware, like the bans below: `require` would otherwise be satisfied by
+# the literal sitting in a comment while the predicate itself was neutered.
+rg -v '^[[:space:]]*#' "${script}" |
+	rg --fixed-strings --quiet -- "psql -U eshu -d eshu -c 'select 1'" ||
+	fail "backend wait is not a real query (psql -c 'select 1')"
+if rg -v '^[[:space:]]*#' "${script}" | rg --fixed-strings --quiet -- 'pg_isready'; then
+	fail "backend wait reverted to pg_isready: it reports ready ~30s before the server serves"
+fi
 if rg --quiet --fixed-strings -- 'drain-advisory-domains="code_calls"' "${script}"; then
 	fail "code_calls must no longer be quarantined as an advisory drain domain (#3865 fixed)"
 fi
@@ -240,9 +286,22 @@ fi
 require "populated-then-drained guard" 'require-populated-domains="repo_dependency"'
 
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
-private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/Users/|/home/[a-z]'
-if rg --pcre2 --quiet -- "${private_pattern}" "${script}"; then
-	fail "verify-golden-corpus-gate.sh looks like it contains private data"
-fi
+# The 12-digit arm excludes `touch -t <stamp>`, which the lock cases use to age
+# a guard past its budget; it still catches a bare cloud account id.
+private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(?<!touch -h -t )(?<![0-9])[0-9]{12}(?![0-9])|/Users/|/home/[a-z]'
+for scanned in "${script}" \
+	"${repo_root}/scripts/lib/live-gate-lock.sh" \
+	"${repo_root}/scripts/lib/golden-corpus-lock-cases.sh" \
+	"${repo_root}/scripts/lib/golden-corpus-lock-race-cases.sh"; do
+	if rg --pcre2 --quiet -- "${private_pattern}" "${scanned}"; then
+		fail "$(basename "${scanned}") looks like it contains private data"
+	fi
+done
+
+. "${repo_root}/scripts/lib/golden-corpus-lock-cases.sh"
+[[ "${lock_cases_completed:-0}" -eq 1 ]] ||
+	fail "golden-corpus-lock-cases.sh did not run to completion (gutted, or returned early)"
+[[ "${lock_race_cases_completed:-0}" -eq 1 ]] ||
+	fail "golden-corpus-lock-race-cases.sh did not run to completion (gutted, or returned early)"
 
 printf 'test-verify-golden-corpus-gate: pass\n'
