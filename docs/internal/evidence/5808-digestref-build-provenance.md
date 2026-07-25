@@ -27,6 +27,28 @@ The test mirrors rc-165's corpus shape: a `ci.run` carrying `repository_id`, a
 `ci.artifact` carrying only the digest, and the OCI manifest observation that
 resolves the digest to an `exact_digest` decision.
 
+## Scope of what this actually enables (codex review P1 on PR #5809)
+
+This fix stops the drop; it does NOT by itself make CI-backed lineage work end to
+end, and the distinction matters:
+
+- **BUILT_FROM: reachable.** `containerImageBuiltFromRows` is not owner-scoped and
+  fans out per decision in whichever intent sees the evidence, so CI provenance
+  computed in the CI-scoped intent is usable. This is why rc-165 works and why
+  #5796 / PR #5807 depends on this fix.
+- **DERIVED_FROM: still NOT reachable from CI evidence.**
+  `projectContainerImageDerivedFromEdges` is owner-scoped
+  (`repositoryIDFromReducerScope(intent.ScopeID)`), so a CI scope projects
+  nothing; and the repository-scoped intent cannot recover the provenance because
+  `identityFactFilterSQL` admits no `ci.*` kinds, so `ci.run`/`ci.artifact` are
+  never loaded cross-scope.
+
+So #5460's evidence doc and the `BuildProvenanceRepositoryIDs` comment over-claim
+when they list a CI run as a DERIVED_FROM child qualifier: today that is true only
+for BUILT_FROM. Tracked in **#5810** rather than silently carried. A unit test
+cannot see this, because it builds decisions from all facts in one call with no
+scope separation — the same false-green shape this fix itself exposed.
+
 ## No-Regression Evidence
 
 No-Regression Evidence: two appends plus one `uniqueSortedStrings` on a slice that
