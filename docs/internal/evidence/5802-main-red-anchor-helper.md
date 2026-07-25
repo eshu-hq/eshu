@@ -42,9 +42,27 @@ inside the existing `classifySupplyChainImpactPackage` loop.
   facts; it issues no Cypher and no Postgres query.
 - Input shape / corpus: supply-chain-impact findings, B-7 golden corpus
   (`supply-chain-demo-db` fixture).
-- Terminal row counts: unchanged. The restored function is invoked by #5780's
-  guard exactly as that PR intended; no finding's RepositoryID differs from what
-  #5780's own test asserts.
+- Terminal row counts: proven by the live B-7 golden-corpus gate, not inferred
+  from unit tests. This helper controls `findings[].repository_id`, which the
+  B-12 snapshot pins exactly for `list_supply_chain_impact_findings`, so unit
+  tests alone could not establish end-to-end terminal truth (codex review P1 on
+  PR #5803 — a fair catch against the first draft of this note).
+
+  `bash scripts/verify-golden-corpus-gate.sh` on this branch:
+
+  ```
+  [PASS] mcp:list_supply_chain_impact_findings: "findings" has 1 results;
+         item fields [cve_id impact_status repository_id subject_digest] present;
+         values [findings[].repository_id findings[].subject_digest]
+  [PASS] fact_work_items_residual: residual=0 (dead_letter=0)   (x3 drains)
+  summary: 492 pass, 0 required-fail, 1 advisory-warn
+  === PASS: B-7 golden corpus gate green (elapsed 100s, budget ceiling 1800s) ===
+  ```
+
+  The reducer-to-MCP readback carries `repository_id`, so the snapshot needs no
+  update: restoring the definition returns the projection to the truth the
+  snapshot already pins. The single advisory-warn is `phase_maintenance_drains`
+  timing variance on a shared development host, unrelated to this change.
 - Why safe: the identical function body was on `main` at `0fad58eed`, and the
   reducer package — including
   `TestSupplyChainImpactHandlerPreservesConsumptionRepositoryOverImageIdentity`
