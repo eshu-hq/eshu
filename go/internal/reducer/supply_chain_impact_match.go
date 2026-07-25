@@ -101,9 +101,10 @@ func supplyChainImageIdentityFromEnvelope(envelope facts.Envelope) supplyChainIm
 		// identity decision attributed the image to — CI-run/SLSA/source-label
 		// evidence, not the registry. This is the only field in this struct
 		// that can ever equal a workload/service/deployment-lane repositoryID.
-		sourceRepositoryIDs: payloadOrderedStrings(envelope.Payload, "source_repository_ids"),
-		outcome:             payloadStr(envelope.Payload, "outcome"),
-		canonicalWrites:     supplyChainInt(envelope.Payload, "canonical_writes"),
+		sourceRepositoryIDs:          payloadOrderedStrings(envelope.Payload, "source_repository_ids"),
+		buildProvenanceRepositoryIDs: payloadOrderedStrings(envelope.Payload, "build_provenance_repository_ids"),
+		outcome:                      payloadStr(envelope.Payload, "outcome"),
+		canonicalWrites:              supplyChainInt(envelope.Payload, "canonical_writes"),
 	}
 }
 
@@ -112,15 +113,41 @@ func supplyChainImageIdentityFromEnvelope(envelope facts.Envelope) supplyChainIm
 // os_package join treats an image identity as an anchor only when it names
 // exactly one repository: an image built from (or attributed to) more than
 // one source repository cannot be attributed to a single one without
-// guessing, matching the #5463 "never invent an anchor" discipline. The
-// writer already de-duplicates SourceRepositoryIDs
-// (containerImageIdentityPayload, container_image_identity_writer.go), so a
-// length check alone is sufficient here.
+// guessing, matching the #5463 "never invent an anchor" discipline.
+//
+// buildProvenanceRepositoryIDs (strong evidence only: an OCI config source
+// label, a CI run, or verified SLSA provenance) is checked FIRST and wins
+// whenever it names exactly one repository -- even when the broader
+// sourceRepositoryIDs also carries a different, weaker scope/deploy
+// reference. Deduping matchOCIConfigSourceRepository (#5801) made the label
+// tier reachable repo-wide, which routinely adds a label-derived repository
+// to sourceRepositoryIDs alongside an unrelated repository that merely
+// deploys or references the same image; treating that disagreement as
+// ambiguity would blank out RepositoryID (and all downstream
+// workload/service/environment context) even though the label unambiguously
+// named the image's build repository. A label is stronger evidence than a
+// scope anchor, so it ranks first. Only when buildProvenanceRepositoryIDs is
+// empty or itself ambiguous does the broader sourceRepositoryIDs check apply,
+// preserving the original behavior for images with no build evidence. Two
+// DISTINCT repositories that are both genuine build evidence (or both
+// distinct scope anchors) still resolve to neither: the writer already
+// de-duplicates both fields (containerImageIdentityPayload,
+// container_image_identity_writer.go), so a length check alone is sufficient
+// at each tier.
 func singleSupplyChainImageSourceRepositoryID(image supplyChainImageIdentity) string {
-	if len(image.sourceRepositoryIDs) != 1 {
+	if repositoryID := singleSupplyChainRepositoryID(image.buildProvenanceRepositoryIDs); repositoryID != "" {
+		return repositoryID
+	}
+	return singleSupplyChainRepositoryID(image.sourceRepositoryIDs)
+}
+
+// singleSupplyChainRepositoryID returns the sole entry of repositoryIDs, or ""
+// when it is empty or carries more than one entry.
+func singleSupplyChainRepositoryID(repositoryIDs []string) string {
+	if len(repositoryIDs) != 1 {
 		return ""
 	}
-	return image.sourceRepositoryIDs[0]
+	return repositoryIDs[0]
 }
 
 func supplyChainWorkloadContextsFromEnvelope(envelope facts.Envelope) []supplyChainWorkloadContext {

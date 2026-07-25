@@ -100,40 +100,22 @@ func singleOCIConfigSourceLabel(labels map[string]string) (string, bool) {
 	return "", false
 }
 
+// matchOCIConfigSourceRepository resolves an OCI config source label to the
+// one REPOSITORY it names, deduping multiple facts for the same repository
+// before applying the exactly-one rule.
+//
+// A repository legitimately carries several active `repository` facts (more
+// than one scope or collector observing it), so counting raw fact matches
+// instead of distinct repositories made a second fact for the SAME repository
+// look like ambiguity and reject an otherwise-unambiguous label. That kept the
+// identity tier this feeds (oci_config_source_label_with_digest) effectively
+// dead in any real corpus with duplicate repository facts (#5801) — the tier
+// was covered by tests that construct only one repository fact, but unreachable
+// in production. Deduping first fixes that: two facts naming the SAME
+// repository are one answer twice, not ambiguity. Genuine ambiguity — two
+// DISTINCT repository ids claiming the same remote — still resolves to
+// neither.
 func matchOCIConfigSourceRepository(
-	sourceURL string,
-	repositories []packageSourceRepository,
-) (packageSourceRepository, bool) {
-	hint := packageSourceHint{
-		PackageID: "container-image",
-		HintKind:  "repository",
-		SourceURL: sourceURL,
-	}
-	active, _ := matchPackageSourceRepositories(hint, repositories)
-	if len(active) != 1 {
-		return packageSourceRepository{}, false
-	}
-	return active[0], true
-}
-
-// matchOCIConfigSourceRepositoryByDistinctRepository resolves an OCI config
-// source label to the one REPOSITORY it names, deduping multiple facts for the
-// same repository first.
-//
-// matchOCIConfigSourceRepository above counts raw repository FACT matches, and a
-// repository legitimately carries several active `repository` facts (more than
-// one scope or collector observing it), so a second fact makes an unambiguous
-// label look ambiguous. That keeps the identity tier this feeds
-// (oci_config_source_label_with_digest) effectively dead in a real corpus -- a
-// pre-existing defect tracked in #5801, deliberately NOT repaired here: widening
-// it changes SourceRepositoryIDs for every image with a label, which perturbs
-// downstream consumers such as supply-chain-impact repository anchoring.
-//
-// Base-image lineage needs only the build-provenance answer, so it resolves the
-// label through this deduping variant and contributes nothing to
-// SourceRepositoryIDs. Genuine ambiguity -- two DISTINCT repository ids claiming
-// the same remote -- still resolves to neither.
-func matchOCIConfigSourceRepositoryByDistinctRepository(
 	sourceURL string,
 	repositories []packageSourceRepository,
 ) (packageSourceRepository, bool) {
@@ -158,10 +140,13 @@ func matchOCIConfigSourceRepositoryByDistinctRepository(
 
 // extractOCIConfigBuildProvenanceRefs yields build-provenance-only evidence: for
 // each OCI manifest whose config source label resolves to exactly one
-// repository, the fact that repository BUILT this digest. It deliberately sets
-// no sourceRepositoryIDs, sourceRevision, or sourceLabelEvidence, so activating
-// this read cannot shift any existing identity tier or downstream repository
-// anchor -- it only feeds the DERIVED_FROM child gate (#5460).
+// repository (via matchOCIConfigSourceRepository), the fact that repository
+// BUILT this digest. It deliberately sets no sourceRepositoryIDs,
+// sourceRevision, or sourceLabelEvidence of its own -- extractOCIConfigProvenanceRefs
+// above sets those identity-tier fields from the SAME matcher, and merging the
+// two refs for the same image reference (mergeContainerImageRef) is what lets a
+// label resolve both the identity tier and BuildProvenanceRepositoryIDs
+// together (#5460, #5801) -- it only feeds the DERIVED_FROM child gate.
 func extractOCIConfigBuildProvenanceRefs(envelopes []facts.Envelope) []containerImageRefEvidence {
 	repositories := extractPackageSourceRepositories(envelopes)
 	if len(repositories) == 0 {
@@ -177,7 +162,7 @@ func extractOCIConfigBuildProvenanceRefs(envelopes []facts.Envelope) []container
 		if !ok {
 			continue
 		}
-		match, ok := matchOCIConfigSourceRepositoryByDistinctRepository(sourceURL, repositories)
+		match, ok := matchOCIConfigSourceRepository(sourceURL, repositories)
 		if !ok {
 			continue
 		}

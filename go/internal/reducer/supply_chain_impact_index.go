@@ -130,13 +130,24 @@ type supplyChainAttachment struct {
 }
 
 type supplyChainImageIdentity struct {
-	factID              string
-	digest              string
-	imageRef            string
-	repositoryID        string
+	factID       string
+	digest       string
+	imageRef     string
+	repositoryID string
+	// sourceRepositoryIDs is the full, deliberately broader set of git source
+	// repository ids the reducer_container_image_identity decision attributed
+	// this image to -- build evidence AND weaker scope/deploy references alike
+	// (container_image_identity.go ContainerImageIdentityDecision.SourceRepositoryIDs).
 	sourceRepositoryIDs []string
-	outcome             string
-	canonicalWrites     int
+	// buildProvenanceRepositoryIDs is the strong-evidence-only subset: an OCI
+	// config source label, a CI run, or verified SLSA provenance (never a mere
+	// deploy/scope reference). singleSupplyChainImageSourceRepositoryID ranks
+	// this ahead of sourceRepositoryIDs (#5801) so a label-derived repository is
+	// not blanked out as ambiguous merely because a weaker scope anchor also
+	// names a different repository for the same image.
+	buildProvenanceRepositoryIDs []string
+	outcome                      string
+	canonicalWrites              int
 }
 
 type supplyChainDeploymentContext struct {

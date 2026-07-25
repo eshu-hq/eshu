@@ -266,9 +266,8 @@ jobs:
         # never hides a vulnerability the default mode would have caught.
         run: |
           set -euo pipefail
-          govulncheck -scan package ./... 2>&1 | tee govulncheck.out
-          status=${PIPESTATUS[0]}
-          if [ "${status}" -ne 0 ]; then
+          if ! govulncheck -scan package ./... 2>&1 | tee govulncheck.out; then
+            status=${PIPESTATUS[0]}
             printf 'govulncheck: vulnerabilities found, see govulncheck.out above\n' >&2
             exit "${status}"
           fi
@@ -393,9 +392,8 @@ jobs:
             printf 'nancy: go list -json -deps ./... failed, see deps.err above\n' >&2
             exit 1
           fi
-          nancy sleuth --no-color <deps.json 2>&1 | tee nancy.out
-          status=${PIPESTATUS[0]}
-          if [ "${status}" -ne 0 ]; then
+          if ! nancy sleuth --no-color <deps.json 2>&1 | tee nancy.out; then
+            status=${PIPESTATUS[0]}
             printf 'nancy: sleuth exited %s, see nancy.out above (a real finding, or an OSS Index transport/auth failure — see #5804)\n' "${status}" >&2
             exit "${status}"
           fi
