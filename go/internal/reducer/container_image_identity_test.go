@@ -37,6 +37,12 @@ type stubContainerImageIdentityFactLoader struct {
 	// simulate the cross-scope OCI/content_entity loader.
 	slsaActive     []facts.Envelope
 	slsaActiveCall int
+	// ciActive and ciActiveCall back the #5810 cross-scope CI loader
+	// (activeContainerImageCIFactLoader): they simulate ci.run/ci.artifact
+	// facts living in the CI run's OWN scope, reachable only through this
+	// loader — mirroring slsaActive/slsaActiveCall above.
+	ciActive     []facts.Envelope
+	ciActiveCall int
 }
 
 func (s *stubContainerImageIdentityFactLoader) ListFacts(
@@ -69,6 +75,13 @@ func (s *stubContainerImageIdentityFactLoader) ListActiveContainerImageSLSAFacts
 ) ([]facts.Envelope, error) {
 	s.slsaActiveCall++
 	return append([]facts.Envelope(nil), s.slsaActive...), nil
+}
+
+func (s *stubContainerImageIdentityFactLoader) ListActiveContainerImageCIFacts(
+	context.Context,
+) ([]facts.Envelope, error) {
+	s.ciActiveCall++
+	return append([]facts.Envelope(nil), s.ciActive...), nil
 }
 
 type recordingContainerImageIdentityWriter struct {

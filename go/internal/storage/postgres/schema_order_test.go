@@ -124,4 +124,8 @@ var orderedBootstrapDefinitionNames = []string{
 	// migrations 079/080 (#5747 current-runtime workload filtering).
 	"supply_chain_runtime_filter_workload_index",
 	"supply_chain_runtime_filter_entity_keys_index",
+	// migration 081 (#5810 cross-scope CI bridge for DERIVED_FROM base-image
+	// lineage): a dedicated partial index mirroring 075's SLSA precedent
+	// rather than widening the drift-locked identity-epoch index.
+	"fact_records_active_container_image_ci_idx",
 }
