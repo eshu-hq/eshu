@@ -39,7 +39,9 @@ diff. This applies to separate-context review and self-review. The verdict MUST
 include the selected proof tier, all required passes including hostile read,
 cross-pass contradiction check, severity/confidence/disposition for every
 finding, generated-artifact and private-data scans, verification evidence, and
-follow-on issue routing.
+the disposition of every out-of-scope defect -- fixed inline by default, routed
+to a tracked follow-up only when the fix genuinely cannot ride along and the
+owner agreed.
 
 PRs MUST NOT be created, updated, pushed, or merged from unreviewed diffs.
 Before the expensive `make pre-pr` promotion gate, agents MUST run a preliminary

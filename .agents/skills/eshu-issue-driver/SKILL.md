@@ -120,7 +120,9 @@ current turn, stop and ask — do not self-approve and proceed.
   current agent to review, perform the `eshu-code-review` pass directly.
   Self-review must cover the complete diff, touched contracts, tests, generated
   artifacts, docs, private-data leakage, verification evidence, proof tier, and
-  follow-on routing.
+  the disposition of every out-of-scope defect — fixed inline by default, routed
+  to a tracked follow-up only when the fix cannot ride along and the owner
+  agreed.
 - **Commit early and often** per worktree. Agent deaths are usage-limit
   boundaries, not load — committed work survives them. Watch agent liveness;
   revive stalled agents, have them commit in-progress work, resume from last
@@ -282,9 +284,10 @@ it to the epic's follow-ups list at creation time.
   re-review proof,
   the selected proof tier, all required passes including hostile read,
   cross-pass contradiction check, generated-artifact/doc/private-data scan,
-  verification evidence, and follow-on routing for any out-of-scope defect. If
-  this was self-review mode, the verdict explicitly says so and lists the
-  inspected evidence.
+  verification evidence, and the disposition of every out-of-scope defect —
+  fixed inline by default, routed to a tracked follow-up only when the fix
+  cannot ride along and the owner agreed. If this was self-review mode, the
+  verdict explicitly says so and lists the inspected evidence.
 - The promotion record names the preliminary review phase, reviewed head, and
   P0/P1/P2 counts; the exact `make pre-pr` command and result; the
   post-preflight head and clean-status result; and the final review phase and
