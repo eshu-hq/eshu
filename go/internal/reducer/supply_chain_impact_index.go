@@ -206,21 +206,6 @@ type supplyChainImpactIndex struct {
 // live in supply_chain_impact_index_build.go (split out to keep this file
 // under the repo's 500-line cap).
 
-// supplyChainRepositoryAnchorIsReplaceable reports whether finding.RepositoryID
-// holds no usable git anchor and may be replaced by the scanned image
-// identity's git source repository (#5464). A blank anchor or an OCI-registry
-// path ("oci-registry://...", set by the SBOM path from image.repositoryID) is
-// replaceable; any other non-blank value is a git repository id — either the
-// "repository:..." form workloads/services use or the "github.com/..." form a
-// package-consumption correlation sets — and MUST be preserved. A guard that
-// recognizes only the "repository:" form wrongly overwrites a
-// consumption-derived "github.com/..." anchor with the image-identity source
-// anchor (#5779).
-func supplyChainRepositoryAnchorIsReplaceable(repositoryID string) bool {
-	trimmed := strings.TrimSpace(repositoryID)
-	return trimmed == "" || strings.HasPrefix(trimmed, "oci-registry://")
-}
-
 func classifySupplyChainImpactPackage(
 	cves supplyChainCVEGroup,
 	pkgs []supplyChainAffectedPackage,
@@ -231,6 +216,13 @@ func classifySupplyChainImpactPackage(
 	component, attachment, image, hasComponentPath, imagePathMissing := firstSBOMImpactPath(pkg, index)
 	consumption := firstConsumption(pkg.packageID, index.consumption)
 	osPackage, hasOSPackage := firstOSPackageImpactPath(pkg, index)
+	// repoFromConsumption is the single provenance signal both image-evidence
+	// branches below gate on: the SBOM branch must not overwrite a
+	// consumption-derived anchor with the image's OCI registry path (#5780),
+	// and the os_package branch must not overwrite it with the image-identity
+	// source anchor (#5779). It is hoisted here (rather than computed inside
+	// the os_package branch) so the SBOM branch, which runs first, can see it.
+	repoFromConsumption := consumption.factID != "" && strings.TrimSpace(consumption.repositoryID) != ""
 	var reconciliationMissing []string
 	if consumption.factID != "" {
 		finding.RepositoryID = consumption.repositoryID
@@ -273,7 +265,7 @@ func classifySupplyChainImpactPackage(
 		// consumption anchor and SBOM evidence, but no os_package evidence to
 		// reach the repair below, shipped the dead OCI path (#5780) — the same
 		// precedence the os_package branch enforces via #5779.
-		if image.repositoryID != "" && supplyChainRepositoryAnchorIsReplaceable(finding.RepositoryID) {
+		if image.repositoryID != "" && !repoFromConsumption {
 			finding.RepositoryID = image.repositoryID
 		}
 	}
@@ -335,7 +327,6 @@ func classifySupplyChainImpactPackage(
 		// derived IDs regardless of their format (consumption IDs come
 		// from manifest evidence and use un-prefixed formats like
 		// "github.com/org/repo").
-		repoFromConsumption := consumption.factID != "" && strings.TrimSpace(consumption.repositoryID) != ""
 		if finding.SubjectDigest != "" && !repoFromConsumption &&
 			!strings.HasPrefix(finding.RepositoryID, "repository:") {
 			if image, ok := index.images[finding.SubjectDigest]; ok {
