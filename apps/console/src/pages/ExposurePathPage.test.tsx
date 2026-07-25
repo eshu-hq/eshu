@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { act, StrictMode } from "react";
-import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
+import { MemoryRouter, useLocation, useNavigate } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import { ExposurePathPage } from "./ExposurePathPage";

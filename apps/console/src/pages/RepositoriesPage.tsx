@@ -3,7 +3,7 @@
 // filter, and per-repo detail (stats + story highlights). No fabricated file
 // tree or contents here — source browsing is the separate code-viewer page.
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 import type { EshuApiClient } from "../api/client";
 import { loadRepositories, loadRepositoryDetail } from "../api/repoCatalog";

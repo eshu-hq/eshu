@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import type { RenderResult } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router";
 import { vi } from "vitest";
 
 import { ServiceEvidenceGraphPage } from "./ServiceEvidenceGraphPage";

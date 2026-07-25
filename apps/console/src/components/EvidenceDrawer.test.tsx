@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import { vi } from "vitest";
 
 import { EvidenceDrawer } from "./EvidenceDrawer";
@@ -19,7 +19,13 @@ function packetFrom(overrides: Record<string, unknown> = {}): VisualizationPacke
             label: "payments",
             category: "service",
             truth_label: "exact",
-            evidence_handle: { kind: "entity", repo_id: "svc-repo", entity_id: "svc-1", evidence_family: "repository", reason: "service identity" }
+            evidence_handle: {
+              kind: "entity",
+              repo_id: "svc-repo",
+              entity_id: "svc-1",
+              evidence_family: "repository",
+              reason: "service identity",
+            },
           },
           {
             id: "viznode:up-1",
@@ -27,27 +33,53 @@ function packetFrom(overrides: Record<string, unknown> = {}): VisualizationPacke
             label: "billing",
             category: "upstream",
             truth_label: "fallback",
-            evidence_handle: { kind: "file", repo_id: "up-1", relative_path: "go.mod", start_line: 12, evidence_family: "repository", reason: "import edge" }
+            evidence_handle: {
+              kind: "file",
+              repo_id: "up-1",
+              relative_path: "go.mod",
+              start_line: 12,
+              evidence_family: "repository",
+              reason: "import edge",
+            },
           },
           {
             id: "viznode:bare",
             type: "repository",
             label: "ghost",
-            category: "downstream"
-          }
+            category: "downstream",
+          },
         ],
         edges: [
-          { id: "vizedge:1", source: "viznode:up-1", target: "viznode:service", relationship: "DEPENDS_ON", truth_label: "exact" }
+          {
+            id: "vizedge:1",
+            source: "viznode:up-1",
+            target: "viznode:service",
+            relationship: "DEPENDS_ON",
+            truth_label: "exact",
+          },
         ],
-        truth: { capability: "visualization.derive", profile: "local_authoritative", level: "derived", basis: "authoritative_graph", freshness: { state: "fresh" }, reason: "graph projection" },
-        limits: { max_nodes: 60, max_edges: 120, ordering: "stable_id", node_count: 3, edge_count: 1 },
+        truth: {
+          capability: "visualization.derive",
+          profile: "local_authoritative",
+          level: "derived",
+          basis: "authoritative_graph",
+          freshness: { state: "fresh" },
+          reason: "graph projection",
+        },
+        limits: {
+          max_nodes: 60,
+          max_edges: 120,
+          ordering: "stable_id",
+          node_count: 3,
+          edge_count: 1,
+        },
         truncation: { truncated: false },
         limitations: ["bounded subset"],
         recommended_next_calls: [{ tool: "get_service_story", reason: "fetch the full dossier" }],
-        ...overrides
-      }
+        ...overrides,
+      },
     },
-    null
+    null,
   );
   if (packet === null) {
     throw new Error("packet should normalize");
@@ -55,11 +87,15 @@ function packetFrom(overrides: Record<string, unknown> = {}): VisualizationPacke
   return packet;
 }
 
-function renderDrawer(packet: VisualizationPacket, selection: Parameters<typeof EvidenceDrawer>[0]["selection"], onClose = vi.fn()) {
+function renderDrawer(
+  packet: VisualizationPacket,
+  selection: Parameters<typeof EvidenceDrawer>[0]["selection"],
+  onClose = vi.fn(),
+) {
   render(
     <MemoryRouter>
       <EvidenceDrawer packet={packet} selection={selection} onClose={onClose} />
-    </MemoryRouter>
+    </MemoryRouter>,
   );
   return onClose;
 }
@@ -75,7 +111,7 @@ describe("EvidenceDrawer", () => {
     expect(within(dialog).getByText(/go\.mod/)).toBeInTheDocument();
     expect(within(dialog).getByRole("link", { name: /Open source/i })).toHaveAttribute(
       "href",
-      "/repositories/up-1/source?path=go.mod&lineStart=12"
+      "/repositories/up-1/source?path=go.mod&lineStart=12",
     );
   });
 
@@ -88,14 +124,30 @@ describe("EvidenceDrawer", () => {
   });
 
   it("shows a stale freshness state without hiding it", () => {
-    const packet = packetFrom({ truth: { capability: "visualization.derive", profile: "local_authoritative", level: "derived", basis: "content_index", freshness: { state: "stale" } } });
+    const packet = packetFrom({
+      truth: {
+        capability: "visualization.derive",
+        profile: "local_authoritative",
+        level: "derived",
+        basis: "content_index",
+        freshness: { state: "stale" },
+      },
+    });
     renderDrawer(packet, { kind: "node", id: "viznode:service" });
     expect(within(screen.getByRole("dialog")).getByText("stale")).toBeInTheDocument();
   });
 
   it("renders an unknown/ambiguous truth label literally, preserving uncertainty", () => {
     const packet = packetFrom({
-      nodes: [{ id: "viznode:amb", type: "service", label: "payments", category: "service", truth_label: "ambiguous" }]
+      nodes: [
+        {
+          id: "viznode:amb",
+          type: "service",
+          label: "payments",
+          category: "service",
+          truth_label: "ambiguous",
+        },
+      ],
     });
     renderDrawer(packet, { kind: "node", id: "viznode:amb" });
     expect(within(screen.getByRole("dialog")).getByText("ambiguous")).toBeInTheDocument();
@@ -152,8 +204,12 @@ describe("EvidenceDrawer", () => {
   it("renders nothing when the selected id is absent from the packet", () => {
     const { container } = render(
       <MemoryRouter>
-        <EvidenceDrawer packet={packetFrom()} selection={{ kind: "node", id: "viznode:missing" }} onClose={vi.fn()} />
-      </MemoryRouter>
+        <EvidenceDrawer
+          packet={packetFrom()}
+          selection={{ kind: "node", id: "viznode:missing" }}
+          onClose={vi.fn()}
+        />
+      </MemoryRouter>,
     );
     expect(container.querySelector("[role=dialog]")).toBeNull();
   });

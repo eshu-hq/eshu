@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 
 import { NodesPage } from "./NodesPage";
 import type { EshuApiClient } from "../api/client";
@@ -14,14 +14,19 @@ import type { EshuApiClient } from "../api/client";
 const KIND_COUNTS = [
   { kind: "services", label: "Workload", count: 15 },
   { kind: "repositories", label: "Repository", count: 21 },
-  { kind: "libraries", label: "Module", count: 6 }
+  { kind: "libraries", label: "Module", count: 6 },
 ];
 
 function envelope(data: unknown): unknown {
   return {
     data,
     error: null,
-    truth: { level: "exact", capability: "platform_impact.context_overview", freshness: { state: "fresh" }, profile: "production" }
+    truth: {
+      level: "exact",
+      capability: "platform_impact.context_overview",
+      freshness: { state: "fresh" },
+      profile: "production",
+    },
   };
 }
 
@@ -32,14 +37,30 @@ function mockClient(byKind: Record<string, unknown[]>): EshuApiClient {
       const kind = url.searchParams.get("kind");
       const q = (url.searchParams.get("q") ?? "").toLowerCase();
       if (!kind) {
-        return envelope({ kinds: KIND_COUNTS, total: 42, entities: [], count: 0, limit: 50, offset: 0, truncated: false });
+        return envelope({
+          kinds: KIND_COUNTS,
+          total: 42,
+          entities: [],
+          count: 0,
+          limit: 50,
+          offset: 0,
+          truncated: false,
+        });
       }
       const rows = (byKind[kind] ?? []).filter((row) => {
         const name = (row as { name?: string }).name ?? "";
         return q === "" || name.toLowerCase().includes(q);
       });
-      return envelope({ kinds: KIND_COUNTS, total: 42, entities: rows, count: rows.length, limit: 50, offset: 0, truncated: false });
-    }
+      return envelope({
+        kinds: KIND_COUNTS,
+        total: 42,
+        entities: rows,
+        count: rows.length,
+        limit: 50,
+        offset: 0,
+        truncated: false,
+      });
+    },
   } as unknown as EshuApiClient;
 }
 
@@ -60,8 +81,8 @@ describe("NodesPage", () => {
   it("lists a kind's entities only after the chip is selected", async () => {
     const client = mockClient({
       services: [
-        { id: "workload:eshu-api", name: "eshu-api", kind: "services", account: "repo://eshu" }
-      ]
+        { id: "workload:eshu-api", name: "eshu-api", kind: "services", account: "repo://eshu" },
+      ],
     });
     render(<NodesPage client={client} sourceLabel="live" />, { wrapper: MemoryRouter });
 
@@ -83,8 +104,8 @@ describe("NodesPage", () => {
     const client = mockClient({
       services: [
         { id: "workload:eshu-api", name: "eshu-api", kind: "services", account: "repo://eshu" },
-        { id: "workload:eshu-mcp", name: "eshu-mcp", kind: "services", account: "repo://eshu" }
-      ]
+        { id: "workload:eshu-mcp", name: "eshu-mcp", kind: "services", account: "repo://eshu" },
+      ],
     });
     render(<NodesPage client={client} sourceLabel="live" />, { wrapper: MemoryRouter });
 
@@ -101,7 +122,11 @@ describe("NodesPage", () => {
 
   it("renders an unavailable state when the endpoint errors", async () => {
     const client = {
-      get: async () => ({ data: null, error: { code: "unsupported_capability", message: "no graph" }, truth: null })
+      get: async () => ({
+        data: null,
+        error: { code: "unsupported_capability", message: "no graph" },
+        truth: null,
+      }),
     } as unknown as EshuApiClient;
     render(<NodesPage client={client} sourceLabel="live" />, { wrapper: MemoryRouter });
 

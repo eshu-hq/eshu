@@ -3,7 +3,7 @@
 // content (#1432) endpoints plus source-backed branch refs (#1433). No
 // fabricated tree, refs, or contents.
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
 import type { EshuApiClient } from "../api/client";
 import { loadRepoLanguages, loadRepositoryNameMap } from "../api/repoCatalog";

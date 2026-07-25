@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, useNavigate } from "react-router-dom";
+import { MemoryRouter, useNavigate } from "react-router";
 
 import { CodeGraphPage } from "./CodeGraphPage";
 import { codeGraphSelectionKey } from "./CodeGraphPageSupport";

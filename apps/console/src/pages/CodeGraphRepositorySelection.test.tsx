@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, useLocation } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router";
 
 import { CodeGraphPage } from "./CodeGraphPage";
 import type { EshuApiClient } from "../api/client";

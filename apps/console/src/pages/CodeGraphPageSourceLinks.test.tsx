@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 
 import { CodeGraphPage } from "./CodeGraphPage";
 import type { EshuApiClient } from "../api/client";

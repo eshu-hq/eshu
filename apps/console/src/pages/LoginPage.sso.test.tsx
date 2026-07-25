@@ -5,7 +5,7 @@
 //
 // Provider API shape: GET /api/v0/auth/providers → { providers: Array<{ provider_config_id, display_label, provider_kind }> }
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import { LoginPage } from "./LoginPage";

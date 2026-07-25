@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 
 import { candidateIdFromParam } from "./CodeGraphPageSupport";
 import type { EshuApiClient } from "../api/client";

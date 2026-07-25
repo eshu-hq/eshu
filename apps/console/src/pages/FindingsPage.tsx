@@ -1,5 +1,5 @@
 // pages/FindingsPage.tsx
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 import { codeGraphHref } from "./deadCodePresentation";
 import type { SectionProvenance } from "../api/eshuConsoleLive";

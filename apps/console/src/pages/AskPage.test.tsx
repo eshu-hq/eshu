@@ -1,21 +1,32 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AskPage } from "./AskPage";
 import type { SourceState } from "../components/SourceControls";
 
 function connectedSource(overrides: Partial<SourceState> = {}): SourceState {
-  return { base: "https://eshu.example/api/", key: "shared", mode: "private", status: "connected", msg: "", ...overrides };
+  return {
+    base: "https://eshu.example/api/",
+    key: "shared",
+    mode: "private",
+    status: "connected",
+    msg: "",
+    ...overrides,
+  };
 }
 
 function probeResponse(state: string, reason = "", providerConfigured = true): Response {
   return new Response(
-    JSON.stringify({ data: { state, reason, provider_configured: providerConfigured }, error: null, truth: null }),
+    JSON.stringify({
+      data: { state, reason, provider_configured: providerConfigured },
+      error: null,
+      truth: null,
+    }),
     {
       status: 200,
-      headers: { "Content-Type": "application/json" }
-    }
+      headers: { "Content-Type": "application/json" },
+    },
   );
 }
 
@@ -27,7 +38,7 @@ function sseResponse(chunks: readonly string[]): Response {
         controller.enqueue(encoder.encode(chunk));
       }
       controller.close();
-    }
+    },
   });
   return new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
 }
@@ -35,7 +46,9 @@ function sseResponse(chunks: readonly string[]): Response {
 function stubFetch(handler: (url: string, init?: RequestInit) => Response): void {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => handler(urlFromRequestInfo(input), init))
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) =>
+      handler(urlFromRequestInfo(input), init),
+    ),
   );
 }
 
@@ -62,18 +75,18 @@ describe("AskPage", () => {
       return sseResponse([
         'event: trace\ndata: {"tool":"resolve_entity","supported":true,"truth_class":"deterministic"}\n\n',
         'event: answer\ndata: {"answer_prose":"Checkout auth validates the session.","truth_class":"derived","limitations":["telemetry is 5h stale"],"partial":true}\n\n',
-        "event: done\ndata: {}\n\n"
+        "event: done\ndata: {}\n\n",
       ]);
     });
 
     render(
       <MemoryRouter>
         <AskPage source={connectedSource()} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     fireEvent.change(screen.getByLabelText("Ask Eshu a question"), {
-      target: { value: "How does checkout auth work?" }
+      target: { value: "How does checkout auth work?" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Ask Eshu" }));
 
@@ -96,7 +109,7 @@ describe("AskPage", () => {
     render(
       <MemoryRouter>
         <AskPage source={connectedSource()} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(await screen.findByText("Ask Eshu is turned off")).toBeInTheDocument();
@@ -115,7 +128,7 @@ describe("AskPage", () => {
     render(
       <MemoryRouter>
         <AskPage source={connectedSource()} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(await screen.findByText("Ask Eshu is turned off")).toBeInTheDocument();
@@ -133,7 +146,7 @@ describe("AskPage", () => {
     render(
       <MemoryRouter>
         <AskPage source={connectedSource()} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(await screen.findByText(/evidence-only/i)).toBeInTheDocument();
@@ -152,10 +165,12 @@ describe("AskPage", () => {
     render(
       <MemoryRouter>
         <AskPage source={connectedSource()} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
-    fireEvent.change(screen.getByLabelText("Ask Eshu a question"), { target: { value: "anything" } });
+    fireEvent.change(screen.getByLabelText("Ask Eshu a question"), {
+      target: { value: "anything" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Ask Eshu" }));
 
     expect(await screen.findByText("This token can't ask")).toBeInTheDocument();
@@ -165,7 +180,7 @@ describe("AskPage", () => {
     render(
       <MemoryRouter>
         <AskPage source={connectedSource({ mode: "demo", key: "" })} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(screen.getByText("Ask Eshu needs a live connection")).toBeInTheDocument();
@@ -183,7 +198,7 @@ describe("AskPage", () => {
     render(
       <MemoryRouter>
         <AskPage source={connectedSource()} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     await screen.findByLabelText("Ask Eshu a question");

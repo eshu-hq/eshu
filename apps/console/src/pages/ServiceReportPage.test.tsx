@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router";
 import { vi } from "vitest";
 
 import { ServiceReportPage } from "./ServiceReportPage";
@@ -15,43 +15,82 @@ function liveModel() {
 function modelWithService(name: string) {
   return modelFromSnapshot({
     ...emptySnapshot("live"),
-    services: [{ id: `svc:${name}`, name, kind: "service", repo: `${name}-repo`, environments: [], truth: "exact", freshness: "fresh" }]
+    services: [
+      {
+        id: `svc:${name}`,
+        name,
+        kind: "service",
+        repo: `${name}-repo`,
+        environments: [],
+        truth: "exact",
+        freshness: "fresh",
+      },
+    ],
   });
 }
 
 function reportEnvelope(
   data: ServiceInvestigationResponse | null,
-  truthState: "fresh" | "stale" = "fresh"
+  truthState: "fresh" | "stale" = "fresh",
 ): EshuEnvelope<ServiceInvestigationResponse> {
   return {
     data,
     error: null,
-    truth: data === null ? null : { capability: "service.investigation.read", freshness: { state: truthState }, level: "derived", profile: "local_authoritative" }
+    truth:
+      data === null
+        ? null
+        : {
+            capability: "service.investigation.read",
+            freshness: { state: truthState },
+            level: "derived",
+            profile: "local_authoritative",
+          },
   };
 }
 
 function fullReport(): ServiceInvestigationResponse {
   return {
-    coverage_summary: { state: "partial", reason: "only deploy evidence indexed", repository_count: 3, repositories_with_evidence_count: 1, truncated: true },
+    coverage_summary: {
+      state: "partial",
+      reason: "only deploy evidence indexed",
+      repository_count: 3,
+      repositories_with_evidence_count: 1,
+      truncated: true,
+    },
     evidence_families_found: ["deployment", "source"],
-    investigation_findings: [{ family: "deployment", evidence_path: "deploy/ecs.tf", summary: "ECS service declared" }],
-    recommended_next_calls: [
-      { tool: "get_service_story", arguments: { workload_id: "payments" }, reason: "open the dependency graph" },
-      { tool: "trace_deployment_chain", arguments: { service_id: "svc-1" }, reason: "trace the deploy chain" }
+    investigation_findings: [
+      { family: "deployment", evidence_path: "deploy/ecs.tf", summary: "ECS service declared" },
     ],
-    repositories_with_evidence: [{ repo_name: "payments-repo", roles: ["service"], evidence_families: ["deployment"] }],
+    recommended_next_calls: [
+      {
+        tool: "get_service_story",
+        arguments: { workload_id: "payments" },
+        reason: "open the dependency graph",
+      },
+      {
+        tool: "trace_deployment_chain",
+        arguments: { service_id: "svc-1" },
+        reason: "trace the deploy chain",
+      },
+    ],
+    repositories_with_evidence: [
+      { repo_name: "payments-repo", roles: ["service"], evidence_families: ["deployment"] },
+    ],
     service_story_path: "/api/v0/services/payments/story",
-    service_context_path: "/api/v0/services/payments/context"
+    service_context_path: "/api/v0/services/payments/context",
   };
 }
 
-function clientReturning(env: EshuEnvelope<ServiceInvestigationResponse>): { client: EshuApiClient; paths: string[] } {
+function clientReturning(env: EshuEnvelope<ServiceInvestigationResponse>): {
+  client: EshuApiClient;
+  paths: string[];
+} {
   const paths: string[] = [];
   const client = {
     get: vi.fn(async (path: string) => {
       paths.push(path);
       return env;
-    })
+    }),
   } as unknown as EshuApiClient;
   return { client, paths };
 }
@@ -60,10 +99,20 @@ function renderAt(path: string, client: EshuApiClient) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route path="/service-report" element={<ServiceReportPage client={client} model={liveModel()} onOpenService={vi.fn()} />} />
-        <Route path="/service-report/:serviceName" element={<ServiceReportPage client={client} model={liveModel()} onOpenService={vi.fn()} />} />
+        <Route
+          path="/service-report"
+          element={
+            <ServiceReportPage client={client} model={liveModel()} onOpenService={vi.fn()} />
+          }
+        />
+        <Route
+          path="/service-report/:serviceName"
+          element={
+            <ServiceReportPage client={client} model={liveModel()} onOpenService={vi.fn()} />
+          }
+        />
       </Routes>
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 }
 
@@ -71,7 +120,9 @@ describe("ServiceReportPage", () => {
   it("renders the heading and a service input", () => {
     const { client } = clientReturning(reportEnvelope(fullReport()));
     renderAt("/service-report", client);
-    expect(screen.getByRole("heading", { name: "Service intelligence report" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Service intelligence report" }),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("Service name")).toBeInTheDocument();
   });
 
@@ -80,10 +131,28 @@ describe("ServiceReportPage", () => {
     render(
       <MemoryRouter initialEntries={["/service-report"]}>
         <Routes>
-          <Route path="/service-report" element={<ServiceReportPage client={client} model={modelWithService("acme-app")} onOpenService={vi.fn()} />} />
-          <Route path="/service-report/:serviceName" element={<ServiceReportPage client={client} model={modelWithService("acme-app")} onOpenService={vi.fn()} />} />
+          <Route
+            path="/service-report"
+            element={
+              <ServiceReportPage
+                client={client}
+                model={modelWithService("acme-app")}
+                onOpenService={vi.fn()}
+              />
+            }
+          />
+          <Route
+            path="/service-report/:serviceName"
+            element={
+              <ServiceReportPage
+                client={client}
+                model={modelWithService("acme-app")}
+                onOpenService={vi.fn()}
+              />
+            }
+          />
         </Routes>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     await waitFor(() => expect(paths).toEqual(["/api/v0/investigations/services/acme-app"]));
     expect(await screen.findByText("payments-repo")).toBeInTheDocument();
@@ -100,7 +169,10 @@ describe("ServiceReportPage", () => {
     expect(screen.getByText("payments-repo")).toBeInTheDocument();
     expect(screen.getByText(/truncated/i)).toBeInTheDocument();
     // Link into the graph view for the same service.
-    expect(screen.getByRole("link", { name: /evidence graph/i })).toHaveAttribute("href", "/service-story/payments");
+    expect(screen.getByRole("link", { name: /evidence graph/i })).toHaveAttribute(
+      "href",
+      "/service-story/payments",
+    );
   });
 
   it("makes a routable suggested investigation clickable and leaves an unroutable one inert", async () => {
@@ -109,28 +181,49 @@ describe("ServiceReportPage", () => {
 
     const investigations = await screen.findByTestId("suggested-investigations");
     // get_service_story routes to the graph view.
-    expect(within(investigations).getByRole("link", { name: /open the dependency graph/i })).toHaveAttribute(
-      "href",
-      "/service-story/payments"
-    );
+    expect(
+      within(investigations).getByRole("link", { name: /open the dependency graph/i }),
+    ).toHaveAttribute("href", "/service-story/payments");
     // trace_deployment_chain has no console destination — shown but not a link.
     expect(within(investigations).getByText("trace the deploy chain")).toBeInTheDocument();
-    expect(within(investigations).queryByRole("link", { name: /trace the deploy chain/i })).toBeNull();
+    expect(
+      within(investigations).queryByRole("link", { name: /trace the deploy chain/i }),
+    ).toBeNull();
   });
 
   it("clears a stale report when navigating back to the bare route", async () => {
     const { client } = clientReturning(reportEnvelope(fullReport()));
     function Nav(): React.JSX.Element {
       const navigate = useNavigate();
-      return <button onClick={() => navigate("/service-report")} type="button">to bare</button>;
+      return (
+        <button onClick={() => navigate("/service-report")} type="button">
+          to bare
+        </button>
+      );
     }
     render(
       <MemoryRouter initialEntries={["/service-report/payments"]}>
         <Routes>
-          <Route path="/service-report" element={<><Nav /><ServiceReportPage client={client} model={liveModel()} onOpenService={vi.fn()} /></>} />
-          <Route path="/service-report/:serviceName" element={<><Nav /><ServiceReportPage client={client} model={liveModel()} onOpenService={vi.fn()} /></>} />
+          <Route
+            path="/service-report"
+            element={
+              <>
+                <Nav />
+                <ServiceReportPage client={client} model={liveModel()} onOpenService={vi.fn()} />
+              </>
+            }
+          />
+          <Route
+            path="/service-report/:serviceName"
+            element={
+              <>
+                <Nav />
+                <ServiceReportPage client={client} model={liveModel()} onOpenService={vi.fn()} />
+              </>
+            }
+          />
         </Routes>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     expect(await screen.findByText("ECS service declared")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "to bare" }));
@@ -155,12 +248,14 @@ describe("ServiceReportPage", () => {
       get: vi.fn(async () => ({
         data: null,
         error: { code: "unavailable", message: "investigation capability disabled" },
-        truth: null
-      }))
+        truth: null,
+      })),
     } as unknown as EshuApiClient;
 
     renderAt("/service-report/payments", client);
-    expect(await screen.findByText("unavailable: investigation capability disabled")).toBeInTheDocument();
+    expect(
+      await screen.findByText("unavailable: investigation capability disabled"),
+    ).toBeInTheDocument();
     expect(screen.queryByText("ECS service declared")).not.toBeInTheDocument();
   });
 
@@ -168,7 +263,7 @@ describe("ServiceReportPage", () => {
     const client = {
       get: vi.fn(async () => {
         throw new EshuApiHttpError(404, { code: "not_found", message: "service not found" });
-      })
+      }),
     } as unknown as EshuApiClient;
 
     renderAt("/service-report/ghost", client);

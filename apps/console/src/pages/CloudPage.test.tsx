@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import { CloudPage } from "./CloudPage";
@@ -17,15 +17,15 @@ function envelope(resources: unknown[], opts: { truncated: boolean; after?: stri
       truncated: opts.truncated,
       next_cursor: opts.truncated
         ? { after_resource_type: "aws_iam_role", after_id: opts.after ?? "last" }
-        : undefined
+        : undefined,
     },
     error: null,
     truth: {
       profile: "production",
       level: "exact",
       capability: "platform_impact.cloud_resource_list",
-      freshness: { state: "fresh" }
-    }
+      freshness: { state: "fresh" },
+    },
   };
 }
 
@@ -35,15 +35,15 @@ function inventoryEnvelope(resources: unknown[] = []) {
       resources,
       count: resources.length,
       limit: 50,
-      truncated: false
+      truncated: false,
     },
     error: null,
     truth: {
       profile: "production",
       level: "exact",
       capability: "cloud_inventory.readback.list",
-      freshness: { state: "fresh" }
-    }
+      freshness: { state: "fresh" },
+    },
   };
 }
 
@@ -57,20 +57,22 @@ function row(id: string, name: string) {
     account_id: "123456789012",
     arn: `arn:aws:iam::123456789012:role/${name}`,
     service_name: "iam",
-    state: "active"
+    state: "active",
   };
 }
 
 describe("CloudPage", () => {
   it("renders live rows and the truth chip from the envelope", async () => {
     const client = {
-      get: vi.fn(async () => envelope([row("r1", "role-a"), row("r2", "role-b")], { truncated: false }))
+      get: vi.fn(async () =>
+        envelope([row("r1", "role-a"), row("r2", "role-b")], { truncated: false }),
+      ),
     } as unknown as EshuApiClient;
 
     render(
       <MemoryRouter initialEntries={["/cloud"]}>
         <CloudPage client={client} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(screen.getByRole("heading", { name: "Cloud" })).toBeInTheDocument();
@@ -88,7 +90,8 @@ describe("CloudPage", () => {
   it("forwards the keyset cursor (not an offset) when paging next", async () => {
     const get = vi.fn(async (path: string) => {
       if (path.includes("/api/v0/cloud/inventory")) return inventoryEnvelope();
-      if (path.includes("after_id=r1")) return envelope([row("r2", "role-b")], { truncated: false });
+      if (path.includes("after_id=r1"))
+        return envelope([row("r2", "role-b")], { truncated: false });
       return envelope([row("r1", "role-a")], { truncated: true, after: "r1" });
     });
     const client = { get } as unknown as EshuApiClient;
@@ -96,7 +99,7 @@ describe("CloudPage", () => {
     render(
       <MemoryRouter initialEntries={["/cloud"]}>
         <CloudPage client={client} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     await waitFor(() => expect(screen.getByText("role-a")).toBeInTheDocument());
@@ -119,32 +122,43 @@ describe("CloudPage", () => {
     render(
       <MemoryRouter initialEntries={["/cloud"]}>
         <CloudPage client={client} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     await waitFor(() => expect(screen.getByText("role-a")).toBeInTheDocument());
     fireEvent.change(screen.getByLabelText("resource type filter"), {
-      target: { value: "aws_s3_bucket" }
+      target: { value: "aws_s3_bucket" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
 
-    await waitFor(() => expect(paths.some((path) =>
-      path.includes("/api/v0/cloud/resources") && path.includes("resource_type=aws_s3_bucket")
-    )).toBe(true));
+    await waitFor(() =>
+      expect(
+        paths.some(
+          (path) =>
+            path.includes("/api/v0/cloud/resources") &&
+            path.includes("resource_type=aws_s3_bucket"),
+        ),
+      ).toBe(true),
+    );
   });
 
   it("switches to the demo-style table grouped by resource family", async () => {
     const client = {
-      get: vi.fn(async () => envelope([
-        { ...row("r1", "role-a"), resource_type: "aws_iam_role" },
-        { ...row("r2", "bucket-a"), resource_type: "aws_s3_bucket" }
-      ], { truncated: false }))
+      get: vi.fn(async () =>
+        envelope(
+          [
+            { ...row("r1", "role-a"), resource_type: "aws_iam_role" },
+            { ...row("r2", "bucket-a"), resource_type: "aws_s3_bucket" },
+          ],
+          { truncated: false },
+        ),
+      ),
     } as unknown as EshuApiClient;
 
     render(
       <MemoryRouter initialEntries={["/cloud"]}>
         <CloudPage client={client} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     await waitFor(() => expect(screen.getByText("role-a")).toBeInTheDocument());
@@ -159,13 +173,13 @@ describe("CloudPage", () => {
     const client = {
       get: vi.fn(async () => {
         throw new Error("HTTP 503");
-      })
+      }),
     } as unknown as EshuApiClient;
 
     render(
       <MemoryRouter initialEntries={["/cloud"]}>
         <CloudPage client={client} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     await waitFor(() => expect(screen.getByText(/Failed to load: HTTP 503/)).toBeInTheDocument());

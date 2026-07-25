@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 import type { EshuTruth } from "../api/envelope";
 import {
@@ -8,7 +8,7 @@ import {
   type IncidentRecord,
   type IncidentRelatedChange,
   type IncidentTimelineEvent,
-  type IncidentTruthLabel
+  type IncidentTruthLabel,
 } from "../api/incidentContext";
 import { FreshDot, TruthChip } from "../components/atoms";
 import { fmt, uiFresh, uiTruth } from "../console/types";
@@ -16,7 +16,7 @@ import { fmt, uiFresh, uiTruth } from "../console/types";
 export function IncidentSummary({
   incident,
   onOpenService,
-  truth
+  truth,
 }: {
   readonly incident: IncidentRecord;
   readonly onOpenService?: (name: string) => void;
@@ -28,7 +28,9 @@ export function IncidentSummary({
       <div>
         <div className="incident-title-row">
           <h3>{incident.title}</h3>
-          <span className={`incident-truth-label incident-truth-${incident.status}`}>{incident.status}</span>
+          <span className={`incident-truth-label incident-truth-${incident.status}`}>
+            {incident.status}
+          </span>
         </div>
         <div className="incident-meta">
           <span className="mono">{incident.providerIncidentId}</span>
@@ -41,16 +43,26 @@ export function IncidentSummary({
       {serviceName ? (
         <div className="incident-actions">
           {onOpenService ? (
-            <button className="btn-ghost active" type="button" onClick={() => onOpenService(serviceName)}>
+            <button
+              className="btn-ghost active"
+              type="button"
+              onClick={() => onOpenService(serviceName)}
+            >
               Open service
             </button>
           ) : null}
           {incident.service.id ? (
-            <Link className="btn-ghost" to={`/workspace/services/${encodeURIComponent(incident.service.id)}`}>
+            <Link
+              className="btn-ghost"
+              to={`/workspace/services/${encodeURIComponent(incident.service.id)}`}
+            >
               Workspace
             </Link>
           ) : null}
-          <Link className="btn-ghost" to={`/impact?kind=service&target=${encodeURIComponent(serviceName)}`}>
+          <Link
+            className="btn-ghost"
+            to={`/impact?kind=service&target=${encodeURIComponent(serviceName)}`}
+          >
             Impact
           </Link>
         </div>
@@ -59,7 +71,11 @@ export function IncidentSummary({
   );
 }
 
-export function EvidencePath({ rows }: { readonly rows: readonly IncidentEvidenceEdge[] }): React.JSX.Element {
+export function EvidencePath({
+  rows,
+}: {
+  readonly rows: readonly IncidentEvidenceEdge[];
+}): React.JSX.Element {
   if (rows.length === 0) {
     return <p className="empty">No evidence path returned.</p>;
   }
@@ -88,7 +104,11 @@ export function EvidencePath({ rows }: { readonly rows: readonly IncidentEvidenc
   );
 }
 
-export function MissingEvidence({ rows }: { readonly rows: readonly IncidentMissingEvidence[] }): React.JSX.Element {
+export function MissingEvidence({
+  rows,
+}: {
+  readonly rows: readonly IncidentMissingEvidence[];
+}): React.JSX.Element {
   if (rows.length === 0) {
     return <p className="empty">No missing evidence reported.</p>;
   }
@@ -104,7 +124,11 @@ export function MissingEvidence({ rows }: { readonly rows: readonly IncidentMiss
   );
 }
 
-export function AmbiguousEvidence({ rows }: { readonly rows: readonly IncidentEvidenceEdge[] }): React.JSX.Element {
+export function AmbiguousEvidence({
+  rows,
+}: {
+  readonly rows: readonly IncidentEvidenceEdge[];
+}): React.JSX.Element {
   if (rows.length === 0) {
     return <p className="empty">No ambiguity reported.</p>;
   }
@@ -128,7 +152,11 @@ export function AmbiguousEvidence({ rows }: { readonly rows: readonly IncidentEv
   );
 }
 
-export function RelatedChanges({ rows }: { readonly rows: readonly IncidentRelatedChange[] }): React.JSX.Element {
+export function RelatedChanges({
+  rows,
+}: {
+  readonly rows: readonly IncidentRelatedChange[];
+}): React.JSX.Element {
   if (rows.length === 0) {
     return <p className="empty">No related changes returned.</p>;
   }
@@ -144,7 +172,11 @@ export function RelatedChanges({ rows }: { readonly rows: readonly IncidentRelat
   );
 }
 
-export function Timeline({ rows }: { readonly rows: readonly IncidentTimelineEvent[] }): React.JSX.Element {
+export function Timeline({
+  rows,
+}: {
+  readonly rows: readonly IncidentTimelineEvent[];
+}): React.JSX.Element {
   if (rows.length === 0) {
     return <p className="empty">No timeline returned.</p>;
   }
@@ -171,14 +203,34 @@ export function statRows(context: IncidentContext | null): readonly {
       { color: "var(--teal)", label: "Evidence slots", sub: "not loaded", value: "-" },
       { color: "var(--ember)", label: "Missing", sub: "not loaded", value: "-" },
       { color: "var(--violet)", label: "Ambiguous", sub: "not loaded", value: "-" },
-      { color: "var(--blue)", label: "Changes", sub: "not loaded", value: "-" }
+      { color: "var(--blue)", label: "Changes", sub: "not loaded", value: "-" },
     ];
   }
   return [
-    { color: "var(--teal)", label: "Evidence slots", sub: context.truncated ? "truncated" : "bounded", value: fmt(context.evidencePath.length) },
-    { color: "var(--ember)", label: "Missing", sub: "explicit gaps", value: fmt(context.missingEvidence.length) },
-    { color: "var(--violet)", label: "Ambiguous", sub: "candidate slots", value: fmt(context.ambiguousEvidence.length) },
-    { color: "var(--blue)", label: "Changes", sub: "fallback candidates", value: fmt(context.relatedChanges.length) }
+    {
+      color: "var(--teal)",
+      label: "Evidence slots",
+      sub: context.truncated ? "truncated" : "bounded",
+      value: fmt(context.evidencePath.length),
+    },
+    {
+      color: "var(--ember)",
+      label: "Missing",
+      sub: "explicit gaps",
+      value: fmt(context.missingEvidence.length),
+    },
+    {
+      color: "var(--violet)",
+      label: "Ambiguous",
+      sub: "candidate slots",
+      value: fmt(context.ambiguousEvidence.length),
+    },
+    {
+      color: "var(--blue)",
+      label: "Changes",
+      sub: "fallback candidates",
+      value: fmt(context.relatedChanges.length),
+    },
   ];
 }
 
@@ -195,7 +247,11 @@ function TruthSummary({ truth }: { readonly truth: EshuTruth | null }): React.JS
   );
 }
 
-function KeyValueList({ values }: { readonly values: Record<string, string> }): React.JSX.Element | null {
+function KeyValueList({
+  values,
+}: {
+  readonly values: Record<string, string>;
+}): React.JSX.Element | null {
   const entries = Object.entries(values).filter(([, value]) => value.length > 0);
   if (entries.length === 0) {
     return null;

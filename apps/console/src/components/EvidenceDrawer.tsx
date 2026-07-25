@@ -1,10 +1,14 @@
 import { useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 import { Badge, FreshDot, TruthChip } from "./atoms";
 import type { AnswerEvidenceHandle, AnswerNextCall } from "../api/answerPacket";
 import { buildSourceCitationHref } from "../api/answerPacket";
-import type { VisualizationEdge, VisualizationNode, VisualizationPacket } from "../api/answerVisualization";
+import type {
+  VisualizationEdge,
+  VisualizationNode,
+  VisualizationPacket,
+} from "../api/answerVisualization";
 import type { EshuTruth } from "../api/envelope";
 import { uiFresh, uiTruth } from "../console/types";
 import "./evidenceDrawer.css";
@@ -29,7 +33,7 @@ const KNOWN_TRUTH_LABELS = new Set(["exact", "derived", "fallback"]);
 export function EvidenceDrawer({
   onClose,
   packet,
-  selection
+  selection,
 }: {
   readonly onClose: () => void;
   readonly packet: VisualizationPacket;
@@ -55,12 +59,10 @@ export function EvidenceDrawer({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const node = selection.kind === "node"
-    ? packet.nodes.find((row) => row.id === selection.id)
-    : undefined;
-  const edge = selection.kind === "edge"
-    ? packet.edges.find((row) => row.id === selection.id)
-    : undefined;
+  const node =
+    selection.kind === "node" ? packet.nodes.find((row) => row.id === selection.id) : undefined;
+  const edge =
+    selection.kind === "edge" ? packet.edges.find((row) => row.id === selection.id) : undefined;
   if (node === undefined && edge === undefined) {
     return null;
   }
@@ -78,7 +80,7 @@ export function EvidenceDrawer({
       return;
     }
     const focusables = root.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
     );
     if (focusables.length === 0) {
       return;
@@ -95,11 +97,9 @@ export function EvidenceDrawer({
     }
   }
 
-  const title = node !== undefined
-    ? node.label || node.id
-    : edge?.relationship || "relationship";
-  const truthLabel = node !== undefined ? node.truthLabel : edge?.truthLabel ?? "";
-  const handle = node !== undefined ? node.evidenceHandle : edge?.evidenceHandle ?? null;
+  const title = node !== undefined ? node.label || node.id : edge?.relationship || "relationship";
+  const truthLabel = node !== undefined ? node.truthLabel : (edge?.truthLabel ?? "");
+  const handle = node !== undefined ? node.evidenceHandle : (edge?.evidenceHandle ?? null);
 
   return (
     <>
@@ -114,10 +114,20 @@ export function EvidenceDrawer({
       >
         <div className="drawer-head">
           <div>
-            <span className="entity-kind">{node !== undefined ? "Node evidence" : "Edge evidence"}</span>
+            <span className="entity-kind">
+              {node !== undefined ? "Node evidence" : "Edge evidence"}
+            </span>
             <h3>{title}</h3>
           </div>
-          <button ref={closeRef} className="drawer-close" onClick={onClose} aria-label="Close" type="button">✕</button>
+          <button
+            ref={closeRef}
+            className="drawer-close"
+            onClick={onClose}
+            aria-label="Close"
+            type="button"
+          >
+            ✕
+          </button>
         </div>
         <div className="drawer-body">
           <TruthSection label={truthLabel} truth={packet.truth} />
@@ -132,7 +142,13 @@ export function EvidenceDrawer({
   );
 }
 
-function TruthSection({ label, truth }: { readonly label: string; readonly truth: EshuTruth | null }): React.JSX.Element {
+function TruthSection({
+  label,
+  truth,
+}: {
+  readonly label: string;
+  readonly truth: EshuTruth | null;
+}): React.JSX.Element {
   return (
     <section className="evd-section">
       <h4>Truth</h4>
@@ -149,10 +165,24 @@ function TruthSection({ label, truth }: { readonly label: string; readonly truth
         <p className="evd-muted">packet truth unavailable</p>
       ) : (
         <dl className="evd-meta">
-          {truth.basis !== undefined && truth.basis.length > 0 ? <Row label="Basis" value={truth.basis} /> : null}
-          <div className="evd-row"><dt>Level</dt><dd><TruthChip level={uiTruth(truth.level)} /></dd></div>
-          <div className="evd-row"><dt>Freshness</dt><dd><FreshDot state={uiFresh(truth.freshness.state)} /></dd></div>
-          {truth.reason !== undefined && truth.reason.length > 0 ? <Row label="Reason" value={truth.reason} /> : null}
+          {truth.basis !== undefined && truth.basis.length > 0 ? (
+            <Row label="Basis" value={truth.basis} />
+          ) : null}
+          <div className="evd-row">
+            <dt>Level</dt>
+            <dd>
+              <TruthChip level={uiTruth(truth.level)} />
+            </dd>
+          </div>
+          <div className="evd-row">
+            <dt>Freshness</dt>
+            <dd>
+              <FreshDot state={uiFresh(truth.freshness.state)} />
+            </dd>
+          </div>
+          {truth.reason !== undefined && truth.reason.length > 0 ? (
+            <Row label="Reason" value={truth.reason} />
+          ) : null}
         </dl>
       )}
     </section>
@@ -171,7 +201,13 @@ function NodeFacts({ node }: { readonly node: VisualizationNode }): React.JSX.El
   );
 }
 
-function EdgeFacts({ edge, packet }: { readonly edge: VisualizationEdge; readonly packet: VisualizationPacket }): React.JSX.Element {
+function EdgeFacts({
+  edge,
+  packet,
+}: {
+  readonly edge: VisualizationEdge;
+  readonly packet: VisualizationPacket;
+}): React.JSX.Element {
   return (
     <section className="evd-section">
       <h4>Endpoints</h4>
@@ -183,7 +219,11 @@ function EdgeFacts({ edge, packet }: { readonly edge: VisualizationEdge; readonl
   );
 }
 
-function EvidenceHandleSection({ handle }: { readonly handle: AnswerEvidenceHandle | null }): React.JSX.Element {
+function EvidenceHandleSection({
+  handle,
+}: {
+  readonly handle: AnswerEvidenceHandle | null;
+}): React.JSX.Element {
   if (handle === null) {
     return (
       <section className="evd-section">
@@ -192,14 +232,16 @@ function EvidenceHandleSection({ handle }: { readonly handle: AnswerEvidenceHand
       </section>
     );
   }
-  const href = handle.repoId !== undefined && handle.relativePath !== undefined
-    ? buildSourceCitationHref(handle)
-    : undefined;
+  const href =
+    handle.repoId !== undefined && handle.relativePath !== undefined
+      ? buildSourceCitationHref(handle)
+      : undefined;
   const notProvided: string[] = [];
   if (handle.relativePath === undefined) notProvided.push("source path");
   if (handle.startLine === undefined) notProvided.push("line range");
   if (handle.evidenceFamily.length === 0) notProvided.push("evidence family");
-  if (handle.entityId === undefined && handle.relativePath === undefined) notProvided.push("entity id");
+  if (handle.entityId === undefined && handle.relativePath === undefined)
+    notProvided.push("entity id");
   return (
     <section className="evd-section">
       <h4>Evidence handle</h4>
@@ -212,26 +254,48 @@ function EvidenceHandleSection({ handle }: { readonly handle: AnswerEvidenceHand
         <Row label="Reason" value={handle.reason} />
         <Row label="Lines" value={lineRange(handle)} />
       </dl>
-      {href !== undefined ? <Link className="link-btn mono" to={href}>Open source</Link> : null}
-      {notProvided.length > 0 ? <p className="evd-muted">Not provided: {notProvided.join(", ")}</p> : null}
+      {href !== undefined ? (
+        <Link className="link-btn mono" to={href}>
+          Open source
+        </Link>
+      ) : null}
+      {notProvided.length > 0 ? (
+        <p className="evd-muted">Not provided: {notProvided.join(", ")}</p>
+      ) : null}
     </section>
   );
 }
 
-function StringList({ title, values }: { readonly title: string; readonly values: readonly string[] }): React.JSX.Element | null {
-  const unique = [...new Set(values.map((value) => value.trim()).filter((value) => value.length > 0))];
+function StringList({
+  title,
+  values,
+}: {
+  readonly title: string;
+  readonly values: readonly string[];
+}): React.JSX.Element | null {
+  const unique = [
+    ...new Set(values.map((value) => value.trim()).filter((value) => value.length > 0)),
+  ];
   if (unique.length === 0) {
     return null;
   }
   return (
     <section className="evd-section">
       <h4>{title}</h4>
-      <ul className="evd-list">{unique.map((value) => <li key={value}>{value}</li>)}</ul>
+      <ul className="evd-list">
+        {unique.map((value) => (
+          <li key={value}>{value}</li>
+        ))}
+      </ul>
     </section>
   );
 }
 
-function NextCallList({ calls }: { readonly calls: readonly AnswerNextCall[] }): React.JSX.Element | null {
+function NextCallList({
+  calls,
+}: {
+  readonly calls: readonly AnswerNextCall[];
+}): React.JSX.Element | null {
   if (calls.length === 0) {
     return null;
   }
@@ -250,7 +314,13 @@ function NextCallList({ calls }: { readonly calls: readonly AnswerNextCall[] }):
   );
 }
 
-function Row({ label, value }: { readonly label: string; readonly value: string }): React.JSX.Element | null {
+function Row({
+  label,
+  value,
+}: {
+  readonly label: string;
+  readonly value: string;
+}): React.JSX.Element | null {
   if (value.trim().length === 0) {
     return null;
   }

@@ -4,7 +4,7 @@
 // existing CVE detail page. Seeds from the snapshot's first page, then paginates,
 // filters, and refreshes live through the catalog client.
 import { useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 import type { EshuApiClient } from "../api/client";
 import { fetchAdvisoryCatalogPage } from "../api/eshuConsoleAdvisories";

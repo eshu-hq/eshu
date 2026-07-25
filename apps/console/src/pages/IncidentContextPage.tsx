@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import {
   AmbiguousEvidence,
@@ -8,13 +8,10 @@ import {
   MissingEvidence,
   RelatedChanges,
   Timeline,
-  statRows
+  statRows,
 } from "./IncidentContextSections";
 import type { EshuApiClient } from "../api/client";
-import {
-  loadIncidentContext,
-  type IncidentContextLoadResult
-} from "../api/incidentContext";
+import { loadIncidentContext, type IncidentContextLoadResult } from "../api/incidentContext";
 import { Badge, Panel, StatTile } from "../components/atoms";
 import type { ConsoleModel } from "../console/types";
 import "./incidentContextPage.css";
@@ -32,7 +29,7 @@ interface IncidentFormState {
 export function IncidentContextPage({
   client,
   model,
-  onOpenService
+  onOpenService,
 }: {
   readonly client?: EshuApiClient;
   readonly model: ConsoleModel;
@@ -42,7 +39,7 @@ export function IncidentContextPage({
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [form, setForm] = useState<IncidentFormState>(() =>
-    formFromSearch(searchParams, routeParams.incidentId)
+    formFromSearch(searchParams, routeParams.incidentId),
   );
   const [result, setResult] = useState<IncidentContextLoadResult | null>(null);
   const [busy, setBusy] = useState(false);
@@ -65,14 +62,14 @@ export function IncidentContextPage({
           scopeId: next.scopeId,
           serviceId: next.serviceId,
           since: next.since,
-          until: next.until
+          until: next.until,
         });
         setResult(loaded);
       } finally {
         setBusy(false);
       }
     },
-    [client]
+    [client],
   );
 
   useEffect(() => {
@@ -91,7 +88,7 @@ export function IncidentContextPage({
       return;
     }
     const params = new URLSearchParams({
-      provider: form.provider.trim() || "pagerduty"
+      provider: form.provider.trim() || "pagerduty",
     });
     addParam(params, "scope_id", form.scopeId);
     addParam(params, "service_id", form.serviceId);
@@ -102,7 +99,7 @@ export function IncidentContextPage({
     }
     navigate({
       pathname: `/incidents/${encodeURIComponent(incidentId)}/context`,
-      search: params.toString()
+      search: params.toString(),
     });
   }
 
@@ -122,7 +119,9 @@ export function IncidentContextPage({
           <input
             aria-label="Incident id"
             className="popover-input mono"
-            onChange={(event) => setForm((current) => ({ ...current, incidentId: event.target.value }))}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, incidentId: event.target.value }))
+            }
             placeholder="PABC123"
             value={form.incidentId}
           />
@@ -132,7 +131,9 @@ export function IncidentContextPage({
           <input
             aria-label="Provider"
             className="popover-input mono"
-            onChange={(event) => setForm((current) => ({ ...current, provider: event.target.value }))}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, provider: event.target.value }))
+            }
             value={form.provider}
           />
         </label>
@@ -141,7 +142,9 @@ export function IncidentContextPage({
           <input
             aria-label="Scope id"
             className="popover-input mono"
-            onChange={(event) => setForm((current) => ({ ...current, scopeId: event.target.value }))}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, scopeId: event.target.value }))
+            }
             placeholder="optional"
             value={form.scopeId}
           />
@@ -151,7 +154,9 @@ export function IncidentContextPage({
           <input
             aria-label="Service id"
             className="popover-input mono"
-            onChange={(event) => setForm((current) => ({ ...current, serviceId: event.target.value }))}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, serviceId: event.target.value }))
+            }
             placeholder="optional"
             value={form.serviceId}
           />
@@ -197,7 +202,13 @@ export function IncidentContextPage({
 
       <div className="grid g-4 mt">
         {stats.map((stat) => (
-          <StatTile color={stat.color} key={stat.label} label={stat.label} sub={stat.sub} value={stat.value} />
+          <StatTile
+            color={stat.color}
+            key={stat.label}
+            label={stat.label}
+            sub={stat.sub}
+            value={stat.value}
+          />
         ))}
       </div>
 
@@ -227,28 +238,50 @@ export function IncidentContextPage({
                 <span key={reason}>{reason.replace(/_/g, " ")}</span>
               ))}
             </div>
-          ) : <p className="empty">No coverage metadata loaded.</p>}
+          ) : (
+            <p className="empty">No coverage metadata loaded.</p>
+          )}
         </Panel>
       </div>
 
       <div className="incident-evidence-grid mt">
         <Panel title="Evidence path">
-          {context !== null ? <EvidencePath rows={context.evidencePath} /> : <p className="empty">No evidence path loaded.</p>}
+          {context !== null ? (
+            <EvidencePath rows={context.evidencePath} />
+          ) : (
+            <p className="empty">No evidence path loaded.</p>
+          )}
         </Panel>
         <Panel title="Missing evidence">
-          {context !== null ? <MissingEvidence rows={context.missingEvidence} /> : <p className="empty">No missing evidence loaded.</p>}
+          {context !== null ? (
+            <MissingEvidence rows={context.missingEvidence} />
+          ) : (
+            <p className="empty">No missing evidence loaded.</p>
+          )}
         </Panel>
         <Panel title="Ambiguity">
-          {context !== null ? <AmbiguousEvidence rows={context.ambiguousEvidence} /> : <p className="empty">No ambiguous evidence loaded.</p>}
+          {context !== null ? (
+            <AmbiguousEvidence rows={context.ambiguousEvidence} />
+          ) : (
+            <p className="empty">No ambiguous evidence loaded.</p>
+          )}
         </Panel>
       </div>
 
       <div className="incident-lower-grid mt">
         <Panel title="Related changes">
-          {context !== null ? <RelatedChanges rows={context.relatedChanges} /> : <p className="empty">No related changes loaded.</p>}
+          {context !== null ? (
+            <RelatedChanges rows={context.relatedChanges} />
+          ) : (
+            <p className="empty">No related changes loaded.</p>
+          )}
         </Panel>
         <Panel title="Timeline">
-          {context !== null ? <Timeline rows={context.timeline} /> : <p className="empty">No timeline loaded.</p>}
+          {context !== null ? (
+            <Timeline rows={context.timeline} />
+          ) : (
+            <p className="empty">No timeline loaded.</p>
+          )}
         </Panel>
       </div>
     </div>
@@ -257,20 +290,17 @@ export function IncidentContextPage({
 
 function formFromSearch(
   searchParams: URLSearchParams,
-  routeIncidentId: string | undefined
+  routeIncidentId: string | undefined,
 ): IncidentFormState {
   return {
     incidentId:
-      routeIncidentId ??
-      searchParams.get("incidentId") ??
-      searchParams.get("incident_id") ??
-      "",
+      routeIncidentId ?? searchParams.get("incidentId") ?? searchParams.get("incident_id") ?? "",
     limit: searchParams.get("limit") ?? "25",
     provider: searchParams.get("provider") ?? "pagerduty",
     scopeId: searchParams.get("scopeId") ?? searchParams.get("scope_id") ?? "",
     serviceId: searchParams.get("serviceId") ?? searchParams.get("service_id") ?? "",
     since: searchParams.get("since") ?? "",
-    until: searchParams.get("until") ?? ""
+    until: searchParams.get("until") ?? "",
   };
 }
 

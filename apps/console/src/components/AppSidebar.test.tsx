@@ -5,7 +5,7 @@
 // ../auth/capabilityAccess.test.ts; this closes the component-level gap by
 // proving AppSidebar actually honors the allowedNav set it is given.
 import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 
 import { AppSidebar } from "./AppSidebar";

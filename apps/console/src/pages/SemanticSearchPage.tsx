@@ -14,7 +14,7 @@
 // `sourceTools`) — the correct home for edge-provenance faceting, not this
 // document-search page.
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 
 import { SemanticRepositorySelector } from "./SemanticRepositorySelector";
 import type { EshuApiClient } from "../api/client";

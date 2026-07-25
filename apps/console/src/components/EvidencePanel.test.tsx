@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import { vi } from "vitest";
 
 import { EvidencePanel, type EvidencePanelData } from "./EvidencePanel";
@@ -15,16 +15,16 @@ function dataFrom(overrides: Partial<EvidencePanelData> = {}): EvidencePanelData
       freshness: { state: "fresh" },
       level: "derived",
       profile: "local_authoritative",
-      reason: "graph projection"
+      reason: "graph projection",
     },
     facts: [
       { label: "From", value: "billing" },
-      { label: "To", value: "payments" }
+      { label: "To", value: "payments" },
     ],
     sourceHref: "/repositories/up-1/source?path=go.mod&lineStart=12",
     sourceLabel: "go.mod:12",
     limitations: ["bounded subset"],
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -32,7 +32,7 @@ function renderPanel(data: EvidencePanelData, onClose = vi.fn()) {
   render(
     <MemoryRouter>
       <EvidencePanel data={data} onClose={onClose} />
-    </MemoryRouter>
+    </MemoryRouter>,
   );
   return onClose;
 }
@@ -74,7 +74,12 @@ describe("EvidencePanel", () => {
 
   it("surfaces a stale freshness state without hiding it", () => {
     const data = dataFrom({
-      truth: { capability: "c", freshness: { state: "stale" }, level: "derived", profile: "production" }
+      truth: {
+        capability: "c",
+        freshness: { state: "stale" },
+        level: "derived",
+        profile: "production",
+      },
     });
     renderPanel(data);
     expect(within(screen.getByRole("region")).getByText("stale")).toBeInTheDocument();
@@ -84,12 +89,18 @@ describe("EvidencePanel", () => {
     renderPanel(dataFrom());
     expect(screen.getByRole("link", { name: /Open source/i })).toHaveAttribute(
       "href",
-      "/repositories/up-1/source?path=go.mod&lineStart=12"
+      "/repositories/up-1/source?path=go.mod&lineStart=12",
     );
   });
 
   it("stays explicit when truth, facts, and source are all absent", () => {
-    renderPanel({ kindLabel: "Node evidence", title: "ghost", truthLabel: "", truth: null, facts: [] });
+    renderPanel({
+      kindLabel: "Node evidence",
+      title: "ghost",
+      truthLabel: "",
+      truth: null,
+      facts: [],
+    });
     const panel = screen.getByRole("region");
     expect(within(panel).getByText(/truth label not provided/i)).toBeInTheDocument();
     expect(within(panel).getByText(/packet truth unavailable/i)).toBeInTheDocument();
@@ -97,16 +108,25 @@ describe("EvidencePanel", () => {
   });
 
   it("omits empty fact rows rather than rendering blank label/value pairs", () => {
-    renderPanel(dataFrom({ facts: [{ label: "From", value: "billing" }, { label: "To", value: "" }] }));
+    renderPanel(
+      dataFrom({
+        facts: [
+          { label: "From", value: "billing" },
+          { label: "To", value: "" },
+        ],
+      }),
+    );
     const panel = screen.getByRole("region");
     expect(within(panel).getByText("billing")).toBeInTheDocument();
     expect(within(panel).queryByText("To")).toBeNull();
   });
 
   it("renders a custom section with its rows", () => {
-    renderPanel(dataFrom({
-      sections: [{ title: "Provenance", rows: [{ label: "Method", value: "import_scan" }] }]
-    }));
+    renderPanel(
+      dataFrom({
+        sections: [{ title: "Provenance", rows: [{ label: "Method", value: "import_scan" }] }],
+      }),
+    );
     const panel = screen.getByRole("region");
     expect(within(panel).getByText("Provenance")).toBeInTheDocument();
     expect(within(panel).getByText("import_scan")).toBeInTheDocument();

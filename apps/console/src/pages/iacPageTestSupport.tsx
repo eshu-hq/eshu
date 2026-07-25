@@ -1,5 +1,5 @@
 import { render } from "@testing-library/react";
-import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
+import { MemoryRouter, useLocation, useNavigate } from "react-router";
 
 export function iacEnvelope(
   resources: readonly Record<string, unknown>[],

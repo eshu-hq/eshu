@@ -18,7 +18,7 @@ const KIB = 1024;
 const CHUNK_SEMANTICS = {
   main: { dependency: "app/main", firstLoad: true },
   "react-vendor": {
-    dependency: "react/react-dom/react-router-dom",
+    dependency: "react/react-dom/react-router",
     firstLoad: true,
   },
   icons: { dependency: "lucide-react", firstLoad: true },

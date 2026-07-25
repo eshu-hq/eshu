@@ -1,7 +1,7 @@
 // AuthGate.test.tsx — TDD tests for the login-vs-setup-wizard routing gate
 // (#4965).
 import { render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import { AuthGate } from "./AuthGate";

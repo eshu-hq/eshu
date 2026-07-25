@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 import { currentCenterId, sourceHref, sourceLabel } from "./ExplorerGraphHelpers";
 import { Panel, TruthChip } from "../components/atoms";

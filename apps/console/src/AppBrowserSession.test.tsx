@@ -2,7 +2,7 @@
 // flow. The primary login path is now LoginPage (local credentials) rather than
 // pasting an API credential into the SourcePopover.
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import { vi } from "vitest";
 
 import { App } from "./App";

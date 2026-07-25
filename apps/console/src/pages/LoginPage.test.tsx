@@ -8,7 +8,7 @@
 //
 // OIDC/SAML buttons are hidden in Slice A pending provider discovery (#3682).
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LoginPage } from "./LoginPage";
