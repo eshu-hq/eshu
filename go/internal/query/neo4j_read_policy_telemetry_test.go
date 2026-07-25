@@ -71,7 +71,7 @@ func TestNeo4jReaderSpansDoNotExposeQueryText(t *testing.T) {
 
 	for _, span := range recorder.Ended() {
 		for _, field := range span.Attributes() {
-			if strings.Contains(field.Value.Emit(), "private-query-marker") {
+			if strings.Contains(field.Value.String(), "private-query-marker") {
 				t.Fatalf("span %q attribute %q exposed query text", span.Name(), field.Key)
 			}
 		}
