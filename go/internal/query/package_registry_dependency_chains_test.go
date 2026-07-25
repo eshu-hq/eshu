@@ -43,7 +43,11 @@ func (s *fakeChainCorrelationStore) ListPackageRegistryCorrelations(
 		if truncated {
 			out = out[:filter.Limit]
 		}
-		page := PackageRegistryCorrelationPage{Rows: out, Truncated: truncated}
+		// WindowFactCount = len(out): this fake holds already-decoded rows
+		// with no undecodable facts, so the raw fetched count and the
+		// decoded row count are truthfully identical (#5461/#5816
+		// WindowFactCount finding).
+		page := PackageRegistryCorrelationPage{Rows: out, Truncated: truncated, WindowFactCount: len(out)}
 		if truncated && len(out) > 0 {
 			page.NextCursorCorrelationID = out[len(out)-1].CorrelationID
 		}
@@ -60,7 +64,7 @@ func (s *fakeChainCorrelationStore) ListPackageRegistryCorrelations(
 		}
 		out = append(out, row)
 	}
-	return PackageRegistryCorrelationPage{Rows: out}, nil
+	return PackageRegistryCorrelationPage{Rows: out, WindowFactCount: len(out)}, nil
 }
 
 func TestResolvePackageDependencyChainsJoinsConsumerToPublisher(t *testing.T) {

@@ -131,7 +131,12 @@ func packageRegistryGateForVisibility(
 	if err != nil {
 		return packageRegistryAnchorGate{}, err
 	}
-	granted := len(page.Rows) > 0
+	// granted reads page.WindowFactCount (the RAW pre-decode fact count),
+	// never len(page.Rows): a matching correlation fact that exists but fails
+	// typed decode must still grant, exactly as main's pre-#5461
+	// hard-error-on-any-decode-failure behavior would have surfaced the
+	// problem instead of silently denying (#5461/#5816 finding).
+	granted := page.WindowFactCount > 0
 	if granted {
 		span.SetAttributes(attribute.String("pkgreg.correlation_grant", "hit"))
 	} else {
@@ -209,8 +214,22 @@ func packageRegistryGateForVisibilityBatch(
 	// The batch page filled: some candidate's rows may have crowded a
 	// co-candidate's only row off the LIMIT window, so an absence in
 	// grantedSeen is not proof of zero correlations. Below the cap, absence
-	// IS proof (the query would have returned every matching row).
-	ambiguous := len(page.Rows) >= packageRegistryMaxLimit
+	// IS proof (the query would have returned every matching row) -- UNLESS a
+	// fact inside the window failed typed decode. Both disjuncts read
+	// page.WindowFactCount (the RAW pre-decode fact count), never
+	// len(page.Rows) (#5461/#5816 finding):
+	//   - page.WindowFactCount >= packageRegistryMaxLimit: the raw fetch hit
+	//     the cap, so crowding could have happened, regardless of how many of
+	//     those facts happened to decode.
+	//   - page.WindowFactCount > len(page.Rows): at least one fact in the
+	//     window dropped decode. A dropped fact carries no PackageID, so it
+	//     can never land in grantedSeen -- its absence there is not proof the
+	//     candidate it belonged to lacks a grant, only that decoding it
+	//     failed. Below the cap this matters just as much as at the cap: a
+	//     single decode-dropped fact for an otherwise-ungenerous batch would
+	//     otherwise silently deny the one candidate whose only evidence was
+	//     that dropped fact.
+	ambiguous := page.WindowFactCount >= packageRegistryMaxLimit || page.WindowFactCount > len(page.Rows)
 	verified := 0
 	for _, candidate := range needsProbe {
 		if grantedSeen[candidate.PackageID] {

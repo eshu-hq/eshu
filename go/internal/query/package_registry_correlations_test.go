@@ -22,7 +22,10 @@ type recordingPackageRegistryCorrelationStore struct {
 // "+1 lookahead" contract: filter.Limit is the caller's requested VISIBLE row
 // count, so Truncated/NextCursorCorrelationID are derived from comparing the
 // full row set against filter.Limit, never from a pre-decremented count
-// (#5816 finding on #5461).
+// (#5816 finding on #5461). WindowFactCount is set to len(rows) (the
+// post-truncation row count): this fake holds already-decoded rows with no
+// undecodable facts, so the raw fetched count and the decoded row count are
+// truthfully identical here (#5461/#5816 WindowFactCount finding).
 func (s *recordingPackageRegistryCorrelationStore) ListPackageRegistryCorrelations(
 	_ context.Context,
 	filter PackageRegistryCorrelationFilter,
@@ -33,7 +36,7 @@ func (s *recordingPackageRegistryCorrelationStore) ListPackageRegistryCorrelatio
 	if truncated {
 		rows = rows[:filter.Limit]
 	}
-	page := PackageRegistryCorrelationPage{Rows: rows, Truncated: truncated}
+	page := PackageRegistryCorrelationPage{Rows: rows, Truncated: truncated, WindowFactCount: len(rows)}
 	if truncated && len(rows) > 0 {
 		page.NextCursorCorrelationID = rows[len(rows)-1].CorrelationID
 	}

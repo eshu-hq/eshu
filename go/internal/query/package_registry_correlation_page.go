@@ -41,6 +41,23 @@ type PackageRegistryCorrelationPage struct {
 	// decoded, so no evidence is ever skipped or re-fetched because it
 	// happened to be malformed.
 	NextCursorCorrelationID string
+	// WindowFactCount is the RAW, pre-decode count of facts in the visible
+	// window (len(window) inside buildPackageRegistryCorrelationPage) --
+	// never the decoded row count, and never affected by a fact dropped by a
+	// failed typed decode. It exists so an "does evidence exist" or "did the
+	// window fill" predicate -- most notably the two authorization gates in
+	// package_registry_scoped_access.go (packageRegistryGateForVisibility and
+	// packageRegistryGateForVisibilityBatch) -- reads raw fact PRESENCE
+	// rather than decode SUCCESS. Before this field existed those gates read
+	// len(Rows), so a single matching correlation fact that merely failed
+	// typed decode (an unsupported schema major, or any other classified
+	// decode error) silently DENIED a caller who main's pre-#5461
+	// hard-error-on-any-decode-failure behavior would instead have surfaced
+	// loudly -- and, for the batched gate, could also shrink the observed
+	// count below packageRegistryMaxLimit and skip the individual re-verify
+	// that same function's crowd-out safeguard depends on (#5461/#5816
+	// finding).
+	WindowFactCount int
 }
 
 // buildPackageRegistryCorrelationPage decodes the visible window of a store
@@ -81,7 +98,7 @@ func buildPackageRegistryCorrelationPage(
 		}
 		rows = append(rows, row)
 	}
-	page := PackageRegistryCorrelationPage{Rows: rows, Truncated: truncated}
+	page := PackageRegistryCorrelationPage{Rows: rows, Truncated: truncated, WindowFactCount: len(window)}
 	if truncated && len(window) > 0 {
 		page.NextCursorCorrelationID = window[len(window)-1].FactID
 	}

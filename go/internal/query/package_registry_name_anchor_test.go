@@ -39,7 +39,10 @@ func (s *keyedPackageRegistryCorrelationStore) ListPackageRegistryCorrelations(
 			rows = append(rows, PackageRegistryCorrelationRow{PackageID: id})
 		}
 	}
-	return PackageRegistryCorrelationPage{Rows: rows}, nil
+	// WindowFactCount = len(rows): this fake holds already-decoded rows with
+	// no undecodable facts, so the raw fetched count and the decoded row
+	// count are truthfully identical (#5461/#5816 WindowFactCount finding).
+	return PackageRegistryCorrelationPage{Rows: rows, WindowFactCount: len(rows)}, nil
 }
 
 // TestPackageRegistryPackagesByNamePreservesEveryGrantedCandidate is the
@@ -284,11 +287,18 @@ func (s *crowdingPackageRegistryCorrelationStore) ListPackageRegistryCorrelation
 		for i := range rows {
 			rows[i] = PackageRegistryCorrelationRow{PackageID: s.crowderPackageID}
 		}
-		return PackageRegistryCorrelationPage{Rows: rows}, nil
+		// WindowFactCount = len(rows): this fake holds already-decoded rows
+		// with no undecodable facts, so the raw fetched count and the
+		// decoded row count are truthfully identical (#5461/#5816
+		// WindowFactCount finding).
+		return PackageRegistryCorrelationPage{Rows: rows, WindowFactCount: len(rows)}, nil
 	}
 	s.scalarCalls++
 	if s.grantedPackageIDs[filter.PackageID] {
-		return PackageRegistryCorrelationPage{Rows: []PackageRegistryCorrelationRow{{PackageID: filter.PackageID}}}, nil
+		return PackageRegistryCorrelationPage{
+			Rows:            []PackageRegistryCorrelationRow{{PackageID: filter.PackageID}},
+			WindowFactCount: 1,
+		}, nil
 	}
 	return PackageRegistryCorrelationPage{}, nil
 }
