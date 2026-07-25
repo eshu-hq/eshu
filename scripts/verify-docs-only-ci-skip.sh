@@ -99,6 +99,25 @@ else
 	bad "go-race-complete treats result==skipped as pass"
 fi
 
+# --- test.yml: go-core-complete umbrella (#5814) must mirror go-race-complete's
+# skipped-is-pass contract, or a required-status-check config built on it would
+# strand every docs-only PR (the exact failure mode #5757 fixed for go-race). ---
+if job_block "${t}" go-core-complete | rg -qF 'needs: go-core'; then
+	ok "go-core-complete depends on go-core (needs: go-core)"
+else
+	bad "go-core-complete must declare needs: go-core"
+fi
+if job_block "${t}" go-core-complete | rg -qF 'if: ${{ always() }}'; then
+	ok "go-core-complete always reports (if: \${{ always() }})"
+else
+	bad "go-core-complete must carry if: \${{ always() }} so it always reports"
+fi
+if job_block "${t}" go-core-complete | rg -qF '!= "skipped"'; then
+	ok "go-core-complete accepts a skipped go-core result as pass (required-check-safe)"
+else
+	bad "go-core-complete treats result==skipped as pass"
+fi
+
 if [[ "${fail}" -ne 0 ]]; then
 	printf '\nverify-docs-only-ci-skip: docs-only CI carve-out wiring drifted — see failures above.\n' >&2
 	exit 1

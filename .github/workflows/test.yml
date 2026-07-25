@@ -182,6 +182,41 @@ jobs:
         working-directory: go
         run: go build ./...
 
+  go-core-complete:
+    # Umbrella gate (#5814): a single stable status name that is green only
+    # when `go-core` passed. Point any future required-status-check config at
+    # THIS job, never at `go-core` directly — `go-core` depends on the `changes`
+    # job plus the `if` guard above, so it is SKIPPED on a docs-only PR and
+    # never reports; requiring it directly would strand every docs-only PR
+    # forever.
+    # This is the same forward-safe aggregator shape #5757 established for
+    # `go-race-complete` below — see that job's comment for the full rationale.
+    #
+    # `skipped` is also a pass: on a docs-only PR the `changes` gate skips
+    # `go-core`, so `needs.go-core.result` is `skipped`. Treating that as green
+    # keeps this a single always-reported check whose name is safe to mark
+    # required later — it never strands a docs-only PR. Only `failure`/
+    # `cancelled` (go-core actually ran and did not succeed) fails the gate.
+    #
+    # `go-core` runs a whole-module `go build ./...` (plus lint/fmt), so this is
+    # the authoritative "does the merge result still compile" required check —
+    # the cheapest possible gate against the #5802/#5814 failure class, where
+    # two individually-green PRs merged into a `main` that did not build because
+    # each side only compiled against its own base.
+    needs: go-core
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Assert go-core passed
+        run: |
+          result="${{ needs.go-core.result }}"
+          echo "aggregated go-core result: ${result}"
+          if [ "${result}" != "success" ] && [ "${result}" != "skipped" ]; then
+            echo "::error::go-core did not succeed (result=${result})"
+            exit 1
+          fi
+
   go-race:
     # Sharded authoritative race gate. Each shard runs `go test -race` on a
     # disjoint slice of `go list ./...`; the union across shards is every
