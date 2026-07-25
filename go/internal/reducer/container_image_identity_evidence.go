@@ -92,6 +92,12 @@ func extractContainerImageRefsWithQuarantine(envelopes []facts.Envelope) ([]cont
 	for _, ref := range extractOCIConfigProvenanceRefs(envelopes) {
 		mergeContainerImageRef(byRef, ref)
 	}
+	// Build-provenance-only reads, kept separate from the identity tier above so
+	// base-image lineage's child gate (#5460) can rely on an OCI source label
+	// without shifting SourceRepositoryIDs or any existing identity strength.
+	for _, ref := range extractOCIConfigBuildProvenanceRefs(envelopes) {
+		mergeContainerImageRef(byRef, ref)
+	}
 	ciRuns, runQuarantine, err := containerImageCIRuns(envelopes)
 	if err != nil {
 		return nil, nil, nil, err

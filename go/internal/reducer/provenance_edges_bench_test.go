@@ -109,9 +109,12 @@ func benchContainerImageBaseLineageDecisions(n int) []ContainerImageIdentityDeci
 	})
 	for i := 0; i < n; i++ {
 		decisions = append(decisions, ContainerImageIdentityDecision{
-			Digest:              fmt.Sprintf("sha256:c%063d", i),
-			SourceRepositoryIDs: []string{benchDerivedFromOwningRepo},
-			Outcome:             ContainerImageIdentityExactDigest,
+			Digest: fmt.Sprintf("sha256:c%063d", i),
+			// Children of the owning repository carry build provenance, which is
+			// what the DERIVED_FROM child gate keys on (#5460).
+			SourceRepositoryIDs:          []string{benchDerivedFromOwningRepo},
+			BuildProvenanceRepositoryIDs: []string{benchDerivedFromOwningRepo},
+			Outcome:                      ContainerImageIdentityExactDigest,
 		})
 		// Cross-scope noise: another repository's base and child, which the
 		// owner-scoped builder must skip.
@@ -122,9 +125,10 @@ func benchContainerImageBaseLineageDecisions(n int) []ContainerImageIdentityDeci
 			Outcome:                   ContainerImageIdentityExactDigest,
 		})
 		decisions = append(decisions, ContainerImageIdentityDecision{
-			Digest:              fmt.Sprintf("sha256:m%063d", i),
-			SourceRepositoryIDs: []string{noiseRepo},
-			Outcome:             ContainerImageIdentityExactDigest,
+			Digest:                       fmt.Sprintf("sha256:m%063d", i),
+			SourceRepositoryIDs:          []string{noiseRepo},
+			BuildProvenanceRepositoryIDs: []string{noiseRepo},
+			Outcome:                      ContainerImageIdentityExactDigest,
 		})
 	}
 	return decisions
