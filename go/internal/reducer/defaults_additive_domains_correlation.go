@@ -76,9 +76,10 @@ func appendCorrelationCoreAdditiveDomains(definitions []DomainDefinition, handle
 	if handlers.FactLoader != nil && handlers.CICDRunCorrelationWriter != nil {
 		cicdRun := cicdRunCorrelationDomainDefinition()
 		cicdRun.Handler = CICDRunCorrelationHandler{
-			FactLoader:  handlers.FactLoader,
-			Writer:      handlers.CICDRunCorrelationWriter,
-			Instruments: handlers.Instruments,
+			FactLoader:           handlers.FactLoader,
+			Writer:               handlers.CICDRunCorrelationWriter,
+			ProvenanceEdgeWriter: handlers.CICDRunProvenanceEdgeWriter,
+			Instruments:          handlers.Instruments,
 		}
 		definitions = append(definitions, cicdRun)
 	}

@@ -308,12 +308,15 @@ func buildReducerService(
 			DB: database,
 		},
 		// PackageProvenanceEdgeWriter / ContainerImageProvenanceEdgeWriter
-		// (issue #5457) and ContainerImageDerivedFromEdgeWriter (issue #5460)
-		// share one ProvenanceEdgeWriter instance -- it implements all three
-		// narrower reducer interfaces.
+		// (issue #5457), ContainerImageDerivedFromEdgeWriter (issue #5460), and
+		// CICDRunProvenanceEdgeWriter (issue #5428) share one
+		// ProvenanceEdgeWriter instance -- it implements all four narrower
+		// reducer interfaces. #5428 and #5457 both write BUILT_FROM; they stay
+		// isolated by evidence_source, which each domain's retract pass keys on.
 		PackageProvenanceEdgeWriter:         graphWriters.provenanceEdge,
 		ContainerImageProvenanceEdgeWriter:  graphWriters.provenanceEdge,
 		ContainerImageDerivedFromEdgeWriter: graphWriters.provenanceEdge,
+		CICDRunProvenanceEdgeWriter:         graphWriters.provenanceEdge,
 		CICDRunCorrelationWriter: reducer.PostgresCICDRunCorrelationWriter{
 			DB: database,
 		},
