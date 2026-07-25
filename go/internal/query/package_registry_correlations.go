@@ -31,11 +31,17 @@ const (
 )
 
 // PackageRegistryCorrelationStore reads reducer-owned package correlations.
+//
+// filter.Limit is the caller's requested VISIBLE row count (never pre-add a
+// "+1" lookahead the way earlier callers used to): the store fetches one
+// extra fact beyond Limit internally so PackageRegistryCorrelationPage's
+// Truncated and NextCursorCorrelationID are derived from the raw fetched fact
+// count/fact_id sequence, never from len(Rows) (#5816 finding on #5461).
 type PackageRegistryCorrelationStore interface {
 	ListPackageRegistryCorrelations(
 		context.Context,
 		PackageRegistryCorrelationFilter,
-	) ([]PackageRegistryCorrelationRow, error)
+	) (PackageRegistryCorrelationPage, error)
 }
 
 // PackageRegistryCorrelationFilter bounds package correlation reads to one
@@ -61,7 +67,12 @@ type PackageRegistryCorrelationFilter struct {
 	AfterCorrelationID   string
 	AllowedRepositoryIDs []string
 	AllowedScopeIDs      []string
-	Limit                int
+	// Limit is the caller's requested VISIBLE row count. Do not pre-add a "+1"
+	// lookahead here: PostgresPackageRegistryCorrelationStore fetches one
+	// extra fact internally and derives PackageRegistryCorrelationPage's
+	// Truncated/NextCursorCorrelationID from that raw fetch, never from
+	// len(Rows) (#5816 finding on #5461).
+	Limit int
 }
 
 // PackageRegistryCorrelationRow is one durable package ownership, publication,
@@ -107,19 +118,27 @@ func NewPostgresPackageRegistryCorrelationStore(db packageRegistryCorrelationQue
 
 // ListPackageRegistryCorrelations returns a bounded page of active reducer
 // package ownership, publication, or consumption correlation facts.
+// filter.Limit is the caller's requested VISIBLE row count; this fetches one
+// extra fact beyond it (the "+1" lookahead) so the returned
+// PackageRegistryCorrelationPage's Truncated and NextCursorCorrelationID
+// reflect the RAW fetched fact count/fact_id sequence rather than how many
+// facts in the window survived typed decode (#5816 finding on #5461: a
+// malformed or unsupported-version fact inside the window must not make a
+// truncated page report itself complete).
 func (s PostgresPackageRegistryCorrelationStore) ListPackageRegistryCorrelations(
 	ctx context.Context,
 	filter PackageRegistryCorrelationFilter,
-) ([]PackageRegistryCorrelationRow, error) {
+) (PackageRegistryCorrelationPage, error) {
 	if s.DB == nil {
-		return nil, fmt.Errorf("package registry correlation database is required")
+		return PackageRegistryCorrelationPage{}, fmt.Errorf("package registry correlation database is required")
 	}
 	if filter.PackageID == "" && filter.RepositoryID == "" && len(filter.PackageIDs) == 0 {
-		return nil, fmt.Errorf("package_id, package_ids, or repository_id is required")
+		return PackageRegistryCorrelationPage{}, fmt.Errorf("package_id, package_ids, or repository_id is required")
 	}
-	if filter.Limit <= 0 || filter.Limit > packageRegistryMaxLimit+1 {
-		return nil, fmt.Errorf("limit must be between 1 and %d", packageRegistryMaxLimit)
+	if filter.Limit <= 0 || filter.Limit > packageRegistryMaxLimit {
+		return PackageRegistryCorrelationPage{}, fmt.Errorf("limit must be between 1 and %d", packageRegistryMaxLimit)
 	}
+	fetchLimit := filter.Limit + 1
 
 	rows, err := s.DB.QueryContext(
 		ctx,
@@ -129,39 +148,41 @@ func (s PostgresPackageRegistryCorrelationStore) ListPackageRegistryCorrelations
 		filter.RepositoryID,
 		filter.RelationshipKind,
 		filter.AfterCorrelationID,
-		filter.Limit,
+		fetchLimit,
 		pq.Array(filter.AllowedRepositoryIDs),
 		pq.Array(filter.AllowedScopeIDs),
 		pq.Array(filter.PackageIDs),
 		pq.Array(filter.RelationshipKinds),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("list package registry correlations: %w", err)
+		return PackageRegistryCorrelationPage{}, fmt.Errorf("list package registry correlations: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	out := make([]PackageRegistryCorrelationRow, 0, filter.Limit)
+	facts := make([]packageRegistryCorrelationFactRow, 0, fetchLimit)
 	for rows.Next() {
 		var factID string
 		var factKind string
 		var schemaVersion string
 		var payloadBytes []byte
 		if err := rows.Scan(&factID, &factKind, &schemaVersion, &payloadBytes); err != nil {
-			return nil, fmt.Errorf("list package registry correlations: %w", err)
+			return PackageRegistryCorrelationPage{}, fmt.Errorf("list package registry correlations: %w", err)
 		}
-		row, ok, err := decodePackageRegistryCorrelationRow(factID, factKind, schemaVersion, payloadBytes)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			continue
-		}
-		out = append(out, row)
+		facts = append(facts, packageRegistryCorrelationFactRow{
+			FactID:        factID,
+			FactKind:      factKind,
+			SchemaVersion: schemaVersion,
+			Payload:       payloadBytes,
+		})
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list package registry correlations: %w", err)
+		return PackageRegistryCorrelationPage{}, fmt.Errorf("list package registry correlations: %w", err)
 	}
-	return out, nil
+	page, err := buildPackageRegistryCorrelationPage(facts, fetchLimit)
+	if err != nil {
+		return PackageRegistryCorrelationPage{}, err
+	}
+	return page, nil
 }
 
 const listPackageRegistryCorrelationsQuery = `

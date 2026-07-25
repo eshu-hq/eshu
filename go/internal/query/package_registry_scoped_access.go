@@ -122,7 +122,7 @@ func packageRegistryGateForVisibility(
 		span.SetAttributes(attribute.String("pkgreg.correlation_grant", "unavailable"))
 		return packageRegistryAnchorGate{}, nil
 	}
-	rows, err := correlations.ListPackageRegistryCorrelations(ctx, PackageRegistryCorrelationFilter{
+	page, err := correlations.ListPackageRegistryCorrelations(ctx, PackageRegistryCorrelationFilter{
 		PackageID:            packageID,
 		Limit:                1,
 		AllowedRepositoryIDs: access.grantedRepositoryIDs(),
@@ -131,7 +131,7 @@ func packageRegistryGateForVisibility(
 	if err != nil {
 		return packageRegistryAnchorGate{}, err
 	}
-	granted := len(rows) > 0
+	granted := len(page.Rows) > 0
 	if granted {
 		span.SetAttributes(attribute.String("pkgreg.correlation_grant", "hit"))
 	} else {
@@ -193,7 +193,7 @@ func packageRegistryGateForVisibilityBatch(
 	for i, candidate := range needsProbe {
 		packageIDs[i] = candidate.PackageID
 	}
-	rows, err := correlations.ListPackageRegistryCorrelations(ctx, PackageRegistryCorrelationFilter{
+	page, err := correlations.ListPackageRegistryCorrelations(ctx, PackageRegistryCorrelationFilter{
 		PackageIDs:           packageIDs,
 		Limit:                packageRegistryMaxLimit,
 		AllowedRepositoryIDs: access.grantedRepositoryIDs(),
@@ -202,15 +202,15 @@ func packageRegistryGateForVisibilityBatch(
 	if err != nil {
 		return nil, err
 	}
-	grantedSeen := make(map[string]bool, len(rows))
-	for _, row := range rows {
+	grantedSeen := make(map[string]bool, len(page.Rows))
+	for _, row := range page.Rows {
 		grantedSeen[row.PackageID] = true
 	}
 	// The batch page filled: some candidate's rows may have crowded a
 	// co-candidate's only row off the LIMIT window, so an absence in
 	// grantedSeen is not proof of zero correlations. Below the cap, absence
 	// IS proof (the query would have returned every matching row).
-	ambiguous := len(rows) >= packageRegistryMaxLimit
+	ambiguous := len(page.Rows) >= packageRegistryMaxLimit
 	verified := 0
 	for _, candidate := range needsProbe {
 		if grantedSeen[candidate.PackageID] {

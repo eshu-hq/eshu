@@ -17,10 +17,15 @@ type fakeChainCorrelationStore struct {
 	calls       []PackageRegistryCorrelationFilter
 }
 
+// ListPackageRegistryCorrelations mirrors PostgresPackageRegistryCorrelationStore's
+// "+1 lookahead" contract: filter.Limit is the caller's requested VISIBLE row
+// count, so the phase-1 consumption branch fetches one extra row beyond it
+// and derives Truncated/NextCursorCorrelationID from that raw fetch, never
+// from the visible row count (#5816 finding on #5461).
 func (s *fakeChainCorrelationStore) ListPackageRegistryCorrelations(
 	_ context.Context,
 	filter PackageRegistryCorrelationFilter,
-) ([]PackageRegistryCorrelationRow, error) {
+) (PackageRegistryCorrelationPage, error) {
 	s.calls = append(s.calls, filter)
 	if filter.RepositoryID != "" {
 		// Phase-1: consumption read anchored on consumer repo.
@@ -30,11 +35,19 @@ func (s *fakeChainCorrelationStore) ListPackageRegistryCorrelations(
 				continue
 			}
 			out = append(out, row)
-			if filter.Limit > 0 && len(out) >= filter.Limit {
+			if filter.Limit > 0 && len(out) >= filter.Limit+1 {
 				break
 			}
 		}
-		return out, nil
+		truncated := filter.Limit > 0 && len(out) > filter.Limit
+		if truncated {
+			out = out[:filter.Limit]
+		}
+		page := PackageRegistryCorrelationPage{Rows: out, Truncated: truncated}
+		if truncated && len(out) > 0 {
+			page.NextCursorCorrelationID = out[len(out)-1].CorrelationID
+		}
+		return page, nil
 	}
 	// Phase-2: batched publisher read keyed by PackageIDs + RelationshipKinds.
 	out := make([]PackageRegistryCorrelationRow, 0, len(s.publication))
@@ -47,7 +60,7 @@ func (s *fakeChainCorrelationStore) ListPackageRegistryCorrelations(
 		}
 		out = append(out, row)
 	}
-	return out, nil
+	return PackageRegistryCorrelationPage{Rows: out}, nil
 }
 
 func TestResolvePackageDependencyChainsJoinsConsumerToPublisher(t *testing.T) {
@@ -85,7 +98,7 @@ func TestResolvePackageDependencyChainsJoinsConsumerToPublisher(t *testing.T) {
 		},
 	}
 
-	chains, err := ResolvePackageDependencyChains(
+	page, err := ResolvePackageDependencyChains(
 		context.Background(),
 		store,
 		PackageDependencyChainRequest{RepositoryID: "repo-consumer", Limit: 50},
@@ -93,6 +106,7 @@ func TestResolvePackageDependencyChainsJoinsConsumerToPublisher(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolvePackageDependencyChains: %v", err)
 	}
+	chains := page.Chains
 
 	// Two-phase read: one repo-anchored consumption read, one batched
 	// publication/ownership read keyed by the distinct package set.
@@ -158,7 +172,7 @@ func TestResolvePackageDependencyChainsKeepsNoPublisherTerminal(t *testing.T) {
 		publication: nil, // no publisher correlation exists for the package
 	}
 
-	chains, err := ResolvePackageDependencyChains(
+	page, err := ResolvePackageDependencyChains(
 		context.Background(),
 		store,
 		PackageDependencyChainRequest{RepositoryID: "repo-consumer", Limit: 50},
@@ -166,6 +180,7 @@ func TestResolvePackageDependencyChainsKeepsNoPublisherTerminal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolvePackageDependencyChains: %v", err)
 	}
+	chains := page.Chains
 	if got, want := len(chains), 1; got != want {
 		t.Fatalf("len(chains) = %d, want %d (consumption row must not be dropped)", got, want)
 	}
@@ -196,7 +211,7 @@ func TestResolvePackageDependencyChainsMarksMultiplePublishersAmbiguous(t *testi
 		},
 	}
 
-	chains, err := ResolvePackageDependencyChains(
+	page, err := ResolvePackageDependencyChains(
 		context.Background(),
 		store,
 		PackageDependencyChainRequest{RepositoryID: "repo-consumer", Limit: 50},
@@ -204,6 +219,7 @@ func TestResolvePackageDependencyChainsMarksMultiplePublishersAmbiguous(t *testi
 	if err != nil {
 		t.Fatalf("ResolvePackageDependencyChains: %v", err)
 	}
+	chains := page.Chains
 	if got, want := len(chains), 1; got != want {
 		t.Fatalf("len(chains) = %d, want %d", got, want)
 	}
@@ -247,7 +263,7 @@ func TestResolvePackageDependencyChainsPhase2FiltersPublisherKinds(t *testing.T)
 		},
 	}
 
-	chains, err := ResolvePackageDependencyChains(
+	page, err := ResolvePackageDependencyChains(
 		context.Background(),
 		store,
 		PackageDependencyChainRequest{RepositoryID: "repo-consumer", Limit: 50},
@@ -255,6 +271,7 @@ func TestResolvePackageDependencyChainsPhase2FiltersPublisherKinds(t *testing.T)
 	if err != nil {
 		t.Fatalf("ResolvePackageDependencyChains: %v", err)
 	}
+	chains := page.Chains
 
 	// Phase-2 filter must use RelationshipKinds so the SQL WHERE restricts rows
 	// to publisher kinds before LIMIT — consumption rows must never appear in the
@@ -298,7 +315,7 @@ func TestResolvePackageDependencyChainsDropsSelfPublisher(t *testing.T) {
 		},
 	}
 
-	chains, err := ResolvePackageDependencyChains(
+	page, err := ResolvePackageDependencyChains(
 		context.Background(),
 		store,
 		PackageDependencyChainRequest{RepositoryID: "repo-consumer", Limit: 50},
@@ -306,6 +323,7 @@ func TestResolvePackageDependencyChainsDropsSelfPublisher(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolvePackageDependencyChains: %v", err)
 	}
+	chains := page.Chains
 	if got, want := len(chains), 1; got != want {
 		t.Fatalf("len(chains) = %d, want %d", got, want)
 	}

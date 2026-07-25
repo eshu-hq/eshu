@@ -18,12 +18,26 @@ type recordingPackageRegistryCorrelationStore struct {
 	lastFilter PackageRegistryCorrelationFilter
 }
 
+// ListPackageRegistryCorrelations mirrors PostgresPackageRegistryCorrelationStore's
+// "+1 lookahead" contract: filter.Limit is the caller's requested VISIBLE row
+// count, so Truncated/NextCursorCorrelationID are derived from comparing the
+// full row set against filter.Limit, never from a pre-decremented count
+// (#5816 finding on #5461).
 func (s *recordingPackageRegistryCorrelationStore) ListPackageRegistryCorrelations(
 	_ context.Context,
 	filter PackageRegistryCorrelationFilter,
-) ([]PackageRegistryCorrelationRow, error) {
+) (PackageRegistryCorrelationPage, error) {
 	s.lastFilter = filter
-	return append([]PackageRegistryCorrelationRow(nil), s.rows...), nil
+	rows := append([]PackageRegistryCorrelationRow(nil), s.rows...)
+	truncated := filter.Limit > 0 && len(rows) > filter.Limit
+	if truncated {
+		rows = rows[:filter.Limit]
+	}
+	page := PackageRegistryCorrelationPage{Rows: rows, Truncated: truncated}
+	if truncated && len(rows) > 0 {
+		page.NextCursorCorrelationID = rows[len(rows)-1].CorrelationID
+	}
+	return page, nil
 }
 
 func TestPackageRegistryListCorrelationsRequiresScopeAndLimit(t *testing.T) {
@@ -92,8 +106,8 @@ func TestPackageRegistryListCorrelationsUsesBoundedPostgresStore(t *testing.T) {
 	if got, want := store.lastFilter.RelationshipKind, "publication"; got != want {
 		t.Fatalf("RelationshipKind = %q, want %q", got, want)
 	}
-	if got, want := store.lastFilter.Limit, 2; got != want {
-		t.Fatalf("Limit = %d, want %d", got, want)
+	if got, want := store.lastFilter.Limit, 1; got != want {
+		t.Fatalf("Limit = %d, want %d (the handler no longer pre-adds a +1 lookahead; the store computes it internally)", got, want)
 	}
 
 	var resp struct {

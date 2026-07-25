@@ -257,7 +257,7 @@ type failingPackageRegistryCorrelationStore struct {
 func (s *failingPackageRegistryCorrelationStore) ListPackageRegistryCorrelations(
 	context.Context,
 	PackageRegistryCorrelationFilter,
-) ([]PackageRegistryCorrelationRow, error) {
+) (PackageRegistryCorrelationPage, error) {
 	s.called = true
-	return nil, errors.New("broad package registry correlation read")
+	return PackageRegistryCorrelationPage{}, errors.New("broad package registry correlation read")
 }

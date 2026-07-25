@@ -27,7 +27,7 @@ type keyedPackageRegistryCorrelationStore struct {
 func (s *keyedPackageRegistryCorrelationStore) ListPackageRegistryCorrelations(
 	_ context.Context,
 	filter PackageRegistryCorrelationFilter,
-) ([]PackageRegistryCorrelationRow, error) {
+) (PackageRegistryCorrelationPage, error) {
 	s.calls++
 	requested := filter.PackageIDs
 	if filter.PackageID != "" {
@@ -39,7 +39,7 @@ func (s *keyedPackageRegistryCorrelationStore) ListPackageRegistryCorrelations(
 			rows = append(rows, PackageRegistryCorrelationRow{PackageID: id})
 		}
 	}
-	return rows, nil
+	return PackageRegistryCorrelationPage{Rows: rows}, nil
 }
 
 // TestPackageRegistryPackagesByNamePreservesEveryGrantedCandidate is the
@@ -277,20 +277,20 @@ type crowdingPackageRegistryCorrelationStore struct {
 func (s *crowdingPackageRegistryCorrelationStore) ListPackageRegistryCorrelations(
 	_ context.Context,
 	filter PackageRegistryCorrelationFilter,
-) ([]PackageRegistryCorrelationRow, error) {
+) (PackageRegistryCorrelationPage, error) {
 	if len(filter.PackageIDs) > 0 {
 		s.batchCalls++
 		rows := make([]PackageRegistryCorrelationRow, packageRegistryMaxLimit)
 		for i := range rows {
 			rows[i] = PackageRegistryCorrelationRow{PackageID: s.crowderPackageID}
 		}
-		return rows, nil
+		return PackageRegistryCorrelationPage{Rows: rows}, nil
 	}
 	s.scalarCalls++
 	if s.grantedPackageIDs[filter.PackageID] {
-		return []PackageRegistryCorrelationRow{{PackageID: filter.PackageID}}, nil
+		return PackageRegistryCorrelationPage{Rows: []PackageRegistryCorrelationRow{{PackageID: filter.PackageID}}}, nil
 	}
-	return nil, nil
+	return PackageRegistryCorrelationPage{}, nil
 }
 
 // TestPackageRegistryPackagesByNameBatchAmbiguityFallsBackToIndividualVerification

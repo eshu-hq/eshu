@@ -23,10 +23,10 @@ type countingPackageRegistryCorrelationStore struct {
 func (s *countingPackageRegistryCorrelationStore) ListPackageRegistryCorrelations(
 	_ context.Context,
 	filter PackageRegistryCorrelationFilter,
-) ([]PackageRegistryCorrelationRow, error) {
+) (PackageRegistryCorrelationPage, error) {
 	s.calls++
 	s.lastFilter = filter
-	return append([]PackageRegistryCorrelationRow(nil), s.rows...), nil
+	return PackageRegistryCorrelationPage{Rows: append([]PackageRegistryCorrelationRow(nil), s.rows...)}, nil
 }
 
 // TestPackageRegistryNameBranchNoTimingOracle proves the packages-by-name

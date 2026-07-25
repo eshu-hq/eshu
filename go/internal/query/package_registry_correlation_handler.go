@@ -93,34 +93,34 @@ func (h *PackageRegistryHandler) listCorrelations(w http.ResponseWriter, r *http
 		RepositoryID:       repositoryID,
 		RelationshipKind:   QueryParam(r, "relationship_kind"),
 		AfterCorrelationID: QueryParam(r, "after_correlation_id"),
-		Limit:              limit + 1,
+		Limit:              limit,
 	}
 	filter = packageRegistryCorrelationFilterWithRepositoryAccess(filter, access)
-	rows, err := h.Correlations.ListPackageRegistryCorrelations(r.Context(), filter)
+	page, err := h.Correlations.ListPackageRegistryCorrelations(r.Context(), filter)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	truncated := len(rows) > limit
-	if truncated {
-		rows = rows[:limit]
-	}
-	results := make([]PackageRegistryCorrelationResult, 0, len(rows))
-	for _, row := range rows {
+	// Truncated and the next cursor come from page (derived from the raw
+	// fetched fact count), never from len(page.Rows): a fact dropped mid-page
+	// by a failed typed decode must not make a truncated page look complete or
+	// hide the correlations beyond it (#5816 finding on #5461).
+	results := make([]PackageRegistryCorrelationResult, 0, len(page.Rows))
+	for _, row := range page.Rows {
 		results = append(results, PackageRegistryCorrelationResult(row))
 	}
 	body := map[string]any{
 		"correlations": results,
 		"count":        len(results),
 		"limit":        limit,
-		"truncated":    truncated,
+		"truncated":    page.Truncated,
 	}
-	if truncated && len(results) > 0 {
+	if page.Truncated && page.NextCursorCorrelationID != "" {
 		body["next_cursor"] = map[string]string{
-			"after_correlation_id": results[len(results)-1].CorrelationID,
+			"after_correlation_id": page.NextCursorCorrelationID,
 		}
 	}
-	attachCollectorListReadiness(r.Context(), body, h.CollectorReadiness, scope.CollectorPackageRegistry, len(results), truncated)
+	attachCollectorListReadiness(r.Context(), body, h.CollectorReadiness, scope.CollectorPackageRegistry, len(results), page.Truncated)
 	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
 		packageRegistryCorrelationsCapability,
