@@ -28,6 +28,12 @@ export default tseslint.config(
       "**/node_modules/**",
       "**/dist/**",
       "site-dist/**",
+      // docs/site/** is `mkdocs build`'s generated output: vendored,
+      // minified mkdocs-material and lunr bundles that trip a great many
+      // rules. It is gitignored (.gitignore:60) and absent from a fresh
+      // checkout, so CI never sees it — this only matters for a local
+      // `npm run lint` run after building the docs (#5800).
+      "docs/site/**",
       "**/coverage/**",
       "**/*.d.ts",
       "**/*.d.mts",
