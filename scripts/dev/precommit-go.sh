@@ -298,12 +298,15 @@ case "${cmd}" in
 			|| die "govulncheck: vulnerabilities found (see output above)"
 		;;
 	nancy)
-		# nancy sleuth against the dependency graph (Sonatype OSS Index),
-		# mirroring security-scan.yml. Catches CVE/license drift govulncheck
-		# misses (indirect deps, older advisories). Needs network.
+		# nancy is declared ADVISORY (specs/ci-gates.v1.yaml, #5791/#5804): OSS
+		# Index currently 401s every anonymous request and no OSS Index
+		# credentials exist anywhere in this repo, so it cannot reliably
+		# perform a real scan today. The actual sleuth/classification logic
+		# lives in scripts/dev/nancy-local.sh (unit-tested directly with fake
+		# `go`/`nancy` binaries in scripts/test-nancy-local.sh); this case only
+		# installs the real nancy binary and delegates.
 		bin="$(ensure_nancy)"
-		( cd "${go_dir}" && "${bin}" sleuth --no-color ) \
-			|| die "nancy: vulnerable dependencies found (see output above)"
+		bash "${repo_root}/scripts/dev/nancy-local.sh" "${go_dir}" "${worktree_cache_dir}" "${bin}"
 		;;
 	*)
 		die "unknown subcommand '${cmd}' (want fmt|lint|lint-all|fmt-all|filecap|filecap-all|gosec|gosec-all|govulncheck|nancy|surface|perf-evidence|telemetry|cache-paths)"

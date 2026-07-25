@@ -22,11 +22,19 @@ name: Security Scan
 #                     integer overflow, command-injection sinks, and the
 #                     rest of the OWASP-GoSec catalog. SARIF uploaded to
 #                     the Security tab. Triggered from O5.
-#   nancy           — `nancy sleuth` against go.sum for CVE + license
-#                     drift; Sonatype's curated OSS Index. Triggered from
-#                     O5.
+#   nancy           — `nancy sleuth` against the real dependency graph for
+#                     CVE + license drift; Sonatype's curated OSS Index.
+#                     Triggered from O5. ADVISORY, not blocking (#5791,
+#                     #5804): Sonatype's OSS Index currently 401s every
+#                     anonymous request and this repo has no
+#                     OSS_INDEX_USERNAME/OSS_INDEX_TOKEN secret configured,
+#                     so a real scan cannot succeed here today —
+#                     `continue-on-error` keeps the finding visible without
+#                     blocking the PR on a condition no contributor can
+#                     locally fix. Reclassify back to blocking once #5804
+#                     wires real credentials.
 #
-# All scanners:
+# All scanners except nancy (see above):
 #   * Use --exit-code 1 (or equivalent) so any reported finding fails the
 #     gate (the O4 + O5 acceptance contract).
 #   * Upload SARIF to the GitHub Security tab where the action supports it
@@ -364,12 +372,31 @@ jobs:
         # the dependency graph; the CVE list is Sonatype's curated OSS
         # Index, so this catches drift that govulncheck misses (e.g.
         # indirect deps, older advisories).
+        #
+        # `nancy sleuth` reads the dependency graph from stdin — its
+        # documented usage is `go list -json -deps ./... | nancy sleuth`.
+        # This used to run a bare, unpiped `nancy sleuth`, which GitHub
+        # Actions' `run:` step feeds an empty-but-valid stdin pipe (not a
+        # TTY, not /dev/null); nancy silently reports that as "0
+        # dependencies audited" rather than erroring, so this job has never
+        # actually scanned anything despite reporting success (#5804).
+        # Piping the real graph in fixes that, but surfaces OSS Index's
+        # current 401-for-anonymous-requests state (see the job-level
+        # `continue-on-error` and #5804) — a `go list` failure is reported
+        # distinctly from a nancy failure so a build problem is never
+        # mislabeled as a dependency-CVE finding.
+        continue-on-error: true
         run: |
           set -euo pipefail
-          nancy sleuth --no-color 2>&1 | tee nancy.out
+          if ! go list -json -deps ./... >deps.json 2>deps.err; then
+            cat deps.err >&2
+            printf 'nancy: go list -json -deps ./... failed, see deps.err above\n' >&2
+            exit 1
+          fi
+          nancy sleuth --no-color <deps.json 2>&1 | tee nancy.out
           status=${PIPESTATUS[0]}
           if [ "${status}" -ne 0 ]; then
-            printf 'nancy: vulnerable dependencies found, see nancy.out above\n' >&2
+            printf 'nancy: sleuth exited %s, see nancy.out above (a real finding, or an OSS Index transport/auth failure — see #5804)\n' "${status}" >&2
             exit "${status}"
           fi
 

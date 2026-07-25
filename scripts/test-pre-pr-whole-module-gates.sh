@@ -121,6 +121,19 @@ require_precommit "worktree-local whole-module SARIF" 'out="${worktree_cache_dir
 # shellcheck disable=SC2016
 reject_precommit "mutable SARIF in shared tool cache" 'out="${tool_cache_dir}/gosec'
 
+# #5791/#5804: the nancy case must delegate its sleuth/classification logic
+# to scripts/dev/nancy-local.sh, which has its own executable regression
+# suite (scripts/test-nancy-local.sh) exercising real exit codes for the
+# empty-stdin, transport/auth-failure, clean-scan, genuine-finding, and
+# go-list-failure cases with fake `go`/`nancy` binaries — a source-text-only
+# assertion here previously let a broken pipeline (missing stdin redirect)
+# pass silently (PR #5806 review), so this file only checks the delegation
+# shape, not the classification logic itself.
+# shellcheck disable=SC2016
+require_precommit "nancy delegates to nancy-local.sh" 'bash "${repo_root}/scripts/dev/nancy-local.sh"'
+# shellcheck disable=SC2016
+reject_precommit "nancy no longer runs unpiped inline" '&& "${bin}" sleuth --no-color ) \'
+
 require "serial precommit lane" "run_precommit_gates_serial()"
 require "captured gate helper" "capture_whole_module_gate()"
 # shellcheck disable=SC2016 # The needles must stay literal shell source.
