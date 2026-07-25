@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/cicdrun/ghactionsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/cicdrun/gitlabciruntime"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -63,19 +64,48 @@ func buildClaimedService(
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}
-	config.Source.Tracer = tracer
-	config.Source.Instruments = instruments
-	// Watermarks closes the #5429 cross-cycle run-collection gap: without a
-	// durable store, gap detection would reset on every process restart and
-	// be invisible across collector replicas (an in-memory store only
-	// narrows the window within one process's lifetime). See
-	// go/internal/storage/postgres/cicd_run_watermark.go and
-	// go/internal/collector/cicdrun/runwatermark.
-	config.Source.Watermarks = postgres.NewCICDRunWatermarkStore(database)
-	source, err := ghactionsruntime.NewClaimedSource(config.Source)
+	config.GitHubSource.Tracer = tracer
+	config.GitHubSource.Instruments = instruments
+	config.GitLabSource.Tracer = tracer
+	config.GitLabSource.Instruments = instruments
+
+	// byScopeID collects every configured target's claim-aware source,
+	// across BOTH providers, keyed by scope_id -- providerRoutedSource
+	// (provider_source.go) dispatches each claim to the right one. A ci_cd_run
+	// instance may configure github_actions targets, gitlab_ci targets, or
+	// both at once.
+	byScopeID := make(map[string]collector.ClaimedSource, len(config.GitHubSource.Targets)+len(config.GitLabSource.Targets))
+	if len(config.GitHubSource.Targets) > 0 {
+		// Watermarks closes the #5429 cross-cycle run-collection gap: without a
+		// durable store, gap detection would reset on every process restart and
+		// be invisible across collector replicas (an in-memory store only
+		// narrows the window within one process's lifetime). See
+		// go/internal/storage/postgres/cicd_run_watermark.go and
+		// go/internal/collector/cicdrun/runwatermark. GitLab has no watermark
+		// counterpart in v1 -- see gitlabciruntime's doc.go.
+		config.GitHubSource.Watermarks = postgres.NewCICDRunWatermarkStore(database)
+		githubSource, err := ghactionsruntime.NewClaimedSource(config.GitHubSource)
+		if err != nil {
+			return collector.ClaimedService{}, err
+		}
+		for _, target := range config.GitHubSource.Targets {
+			byScopeID[target.ScopeID] = githubSource
+		}
+	}
+	if len(config.GitLabSource.Targets) > 0 {
+		gitlabSource, err := gitlabciruntime.NewClaimedSource(config.GitLabSource)
+		if err != nil {
+			return collector.ClaimedService{}, err
+		}
+		for _, target := range config.GitLabSource.Targets {
+			byScopeID[target.ScopeID] = gitlabSource
+		}
+	}
+	source, err := newProviderRoutedSource(byScopeID)
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}
+
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
 	committer.Instruments = instruments

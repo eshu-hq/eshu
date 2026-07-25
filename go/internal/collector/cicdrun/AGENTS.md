@@ -5,8 +5,11 @@
 1. `README.md` — package purpose, exported surface, runtime boundary, and
    invariants.
 2. `github_actions_fixture.go` — GitHub Actions fixture normalization.
-3. `envelope.go` — fact identity and envelope construction.
-4. `docs/public/reference/collector-reducer-readiness.md` — source-truth boundary
+3. `gitlab_ci_fixture.go` — GitLab CI/CD fixture normalization (issue #5427);
+   reuses the SAME `ci.*` fact kinds and reducer join-key shape as
+   `github_actions_fixture.go` — read both together when touching either.
+4. `envelope.go` — fact identity and envelope construction.
+5. `docs/public/reference/collector-reducer-readiness.md` — source-truth boundary
    and implementation gates.
 
 ## Invariants

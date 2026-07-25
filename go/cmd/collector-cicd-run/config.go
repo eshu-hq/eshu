@@ -9,7 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/collector/cicdrun/ghactionsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/cicdrun/gitlabciruntime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -29,13 +31,31 @@ type claimedRuntimeConfig struct {
 	PollInterval      time.Duration
 	ClaimLeaseTTL     time.Duration
 	HeartbeatInterval time.Duration
-	Source            ghactionsruntime.SourceConfig
+	// GitHubSource and GitLabSource are built from the SAME instance
+	// configuration's targets, split by each target's declared provider
+	// (targetJSON.Provider). One or the other may have zero Targets when the
+	// instance configures only a single provider; buildClaimedService (service.go)
+	// constructs a claim-aware source for a provider only when its Targets
+	// slice is non-empty, then routes claims to the right one by scope_id
+	// through providerRoutedSource (provider_source.go).
+	GitHubSource ghactionsruntime.SourceConfig
+	GitLabSource gitlabciruntime.SourceConfig
 }
 
 type cicdRunRuntimeConfiguration struct {
 	Targets []targetJSON `json:"targets"`
 }
 
+// targetJSON is one configured CI/CD target. Provider selects which runtime
+// (ghactionsruntime or gitlabciruntime) parseCICDRunRuntimeConfiguration
+// builds this target under: "github_actions" (the default when omitted, for
+// backward compatibility with configuration that predates provider dispatch)
+// or "gitlab_ci". Repository/AllowedRepositories carry the provider's own
+// locator shape either way -- "owner/repo" for GitHub Actions,
+// "namespace/project" (or "group/subgroup/project") for GitLab CI -- and
+// MaxArtifacts is GitHub-Actions-only (GitLab reports job artifacts inline
+// with no separate paginated endpoint; see gitlabciruntime's README.md), so
+// it is silently ignored for a gitlab_ci target rather than rejected.
 type targetJSON struct {
 	Provider            string   `json:"provider"`
 	ScopeID             string   `json:"scope_id"`
@@ -61,7 +81,7 @@ func loadClaimedRuntimeConfig(getenv func(string) string) (claimedRuntimeConfig,
 	if err := validateCICDRunInstance(instance); err != nil {
 		return claimedRuntimeConfig{}, err
 	}
-	sourceConfig, err := parseCICDRunRuntimeConfiguration(instance, getenv)
+	githubSource, gitlabSource, err := parseCICDRunRuntimeConfiguration(instance, getenv)
 	if err != nil {
 		return claimedRuntimeConfig{}, err
 	}
@@ -86,7 +106,8 @@ func loadClaimedRuntimeConfig(getenv func(string) string) (claimedRuntimeConfig,
 		PollInterval:      pollInterval,
 		ClaimLeaseTTL:     claimLeaseTTL,
 		HeartbeatInterval: heartbeatInterval,
-		Source:            sourceConfig,
+		GitHubSource:      githubSource,
+		GitLabSource:      gitlabSource,
 	}, nil
 }
 
@@ -137,27 +158,55 @@ func validateCICDRunInstance(instance workflow.DesiredCollectorInstance) error {
 	return nil
 }
 
+// parseCICDRunRuntimeConfiguration decodes the instance's target list and
+// splits it into a ghactionsruntime.SourceConfig and a
+// gitlabciruntime.SourceConfig by each target's declared provider. An
+// omitted or blank provider defaults to github_actions (backward
+// compatible with configuration that predates provider dispatch, issue
+// #5427 -- every existing deployed target predates the provider field ever
+// being read). Either returned SourceConfig may have zero Targets when the
+// instance configures only one provider; buildClaimedService (service.go)
+// only constructs a claim-aware source for a provider whose Targets slice
+// is non-empty.
 func parseCICDRunRuntimeConfiguration(
 	instance workflow.DesiredCollectorInstance,
 	getenv func(string) string,
-) (ghactionsruntime.SourceConfig, error) {
+) (ghactionsruntime.SourceConfig, gitlabciruntime.SourceConfig, error) {
 	var decoded cicdRunRuntimeConfiguration
 	if err := json.Unmarshal([]byte(instance.Configuration), &decoded); err != nil {
-		return ghactionsruntime.SourceConfig{}, fmt.Errorf("decode ci/cd run collector configuration: %w", err)
+		return ghactionsruntime.SourceConfig{}, gitlabciruntime.SourceConfig{}, fmt.Errorf("decode ci/cd run collector configuration: %w", err)
 	}
-	targets := make([]ghactionsruntime.TargetConfig, 0, len(decoded.Targets))
+	githubTargets := make([]ghactionsruntime.TargetConfig, 0, len(decoded.Targets))
+	gitlabTargets := make([]gitlabciruntime.TargetConfig, 0, len(decoded.Targets))
 	for i, target := range decoded.Targets {
-		mapped, err := mapTarget(target, getenv)
-		if err != nil {
-			return ghactionsruntime.SourceConfig{}, fmt.Errorf("targets[%d]: %w", i, err)
+		switch provider := strings.TrimSpace(target.Provider); provider {
+		case "", string(cicdrun.ProviderGitHubActions):
+			mapped, err := mapTarget(target, getenv)
+			if err != nil {
+				return ghactionsruntime.SourceConfig{}, gitlabciruntime.SourceConfig{}, fmt.Errorf("targets[%d]: %w", i, err)
+			}
+			githubTargets = append(githubTargets, mapped)
+		case string(cicdrun.ProviderGitLabCI):
+			mapped, err := mapGitLabTarget(target, getenv)
+			if err != nil {
+				return ghactionsruntime.SourceConfig{}, gitlabciruntime.SourceConfig{}, fmt.Errorf("targets[%d]: %w", i, err)
+			}
+			gitlabTargets = append(gitlabTargets, mapped)
+		default:
+			return ghactionsruntime.SourceConfig{}, gitlabciruntime.SourceConfig{}, fmt.Errorf("targets[%d]: unsupported provider %q", i, provider)
 		}
-		targets = append(targets, mapped)
 	}
-	return ghactionsruntime.SourceConfig{
+	githubSource := ghactionsruntime.SourceConfig{
 		CollectorInstanceID: instance.InstanceID,
 		Client:              ghactionsruntime.GitHubClient{},
-		Targets:             targets,
-	}, nil
+		Targets:             githubTargets,
+	}
+	gitlabSource := gitlabciruntime.SourceConfig{
+		CollectorInstanceID: instance.InstanceID,
+		Client:              gitlabciruntime.GitLabClient{},
+		Targets:             gitlabTargets,
+	}
+	return githubSource, gitlabSource, nil
 }
 
 func mapTarget(target targetJSON, getenv func(string) string) (ghactionsruntime.TargetConfig, error) {
@@ -179,6 +228,34 @@ func mapTarget(target targetJSON, getenv func(string) string) (ghactionsruntime.
 		MaxRuns:             target.MaxRuns,
 		MaxJobs:             target.MaxJobs,
 		MaxArtifacts:        target.MaxArtifacts,
+	}, nil
+}
+
+// mapGitLabTarget is mapTarget's gitlab_ci counterpart: target.Repository
+// carries the GitLab project path ("namespace/project", or
+// "group/subgroup/project" for a nested subgroup) in the same JSON field
+// GitHub Actions targets use for "owner/repo", and target.AllowedRepositories
+// carries the matching allow-list. There is no GitLab counterpart to
+// MaxArtifacts (GitLab reports job artifacts inline; see
+// gitlabciruntime's README.md), so it is not read here.
+func mapGitLabTarget(target targetJSON, getenv func(string) string) (gitlabciruntime.TargetConfig, error) {
+	tokenEnv := strings.TrimSpace(target.TokenEnv)
+	token := ""
+	if tokenEnv != "" {
+		token = strings.TrimSpace(getenv(tokenEnv))
+	}
+	if token == "" {
+		return gitlabciruntime.TargetConfig{}, fmt.Errorf("token_env %s did not resolve a credential", tokenEnv)
+	}
+	return gitlabciruntime.TargetConfig{
+		ScopeID:             strings.TrimSpace(target.ScopeID),
+		ProjectPath:         strings.Trim(target.Repository, "/"),
+		Token:               token,
+		AllowedProjectPaths: cleanConfigStrings(target.AllowedRepositories),
+		APIBaseURL:          strings.TrimRight(strings.TrimSpace(target.APIBaseURL), "/"),
+		SourceURI:           strings.TrimSpace(firstNonBlank(target.SourceURI, "https://gitlab.com/"+strings.Trim(target.Repository, "/"))),
+		MaxRuns:             target.MaxRuns,
+		MaxJobs:             target.MaxJobs,
 	}, nil
 }
 

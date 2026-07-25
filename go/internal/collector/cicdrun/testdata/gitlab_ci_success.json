@@ -1,0 +1,50 @@
+{
+  "pipeline": {
+    "id": 4200,
+    "iid": 12,
+    "project_id": 501,
+    "ref": "main",
+    "sha": "9f8e7d6c5b4a39281706f5e4d3c2b1a0f9e8d7c6",
+    "status": "success",
+    "source": "push",
+    "created_at": "2026-06-01T10:00:00Z",
+    "updated_at": "2026-06-01T10:20:00Z",
+    "started_at": "2026-06-01T10:01:00Z",
+    "finished_at": "2026-06-01T10:19:00Z",
+    "web_url": "https://gitlab.com/eshu-hq/gitlab-demo-service/-/pipelines/4200",
+    "user": {
+      "username": "linuxdynasty"
+    }
+  },
+  "jobs": [
+    {
+      "id": 55001,
+      "name": "build",
+      "stage": "build",
+      "status": "success",
+      "created_at": "2026-06-01T10:01:00Z",
+      "started_at": "2026-06-01T10:01:05Z",
+      "finished_at": "2026-06-01T10:08:00Z",
+      "web_url": "https://gitlab.com/eshu-hq/gitlab-demo-service/-/jobs/55001",
+      "artifacts": [
+        {
+          "file_type": "archive",
+          "size": 2048,
+          "filename": "build-artifacts.zip",
+          "file_format": "zip"
+        }
+      ]
+    },
+    {
+      "id": 55002,
+      "name": "deploy",
+      "stage": "deploy",
+      "status": "success",
+      "created_at": "2026-06-01T10:09:00Z",
+      "started_at": "2026-06-01T10:09:05Z",
+      "finished_at": "2026-06-01T10:18:00Z",
+      "web_url": "https://gitlab.com/eshu-hq/gitlab-demo-service/-/jobs/55002",
+      "artifacts": []
+    }
+  ]
+}

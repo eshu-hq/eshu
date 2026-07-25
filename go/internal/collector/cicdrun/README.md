@@ -5,7 +5,13 @@
 `internal/collector/cicdrun` owns CI/CD provider normalization for the
 `ci_cd_run` collector family. It turns offline fixtures and bounded hosted
 GitHub Actions snapshots from `ghactionsruntime` into reported-confidence fact
-envelopes that reducers can consume.
+envelopes that reducers can consume, and does the same for GitLab CI/CD
+pipeline fixtures (issue #5427) — a second provider on the same `ci.*` fact
+contract and reducer join-key shape (provider, run_id, run_attempt), not a
+parallel fact-kind family. GitLab CI/CD support today is fixture/cassette
+only: there is no hosted GitLab client yet (no `gitlabciruntime` counterpart
+to `ghactionsruntime`), so live GitLab polling is out of scope until a
+follow-up wires one the same way `ghactionsruntime` wires GitHub Actions.
 
 The parent package does not call hosted APIs or manage credentials. The
 claim-driven GitHub Actions runtime lives in `ghactionsruntime`, which owns
@@ -46,6 +52,16 @@ deployment truth.
   payload and returns CI/CD fact envelopes. Offline fixtures pass that payload
   directly; `ghactionsruntime` marshals its bounded `RunSnapshot` into the same
   shape before calling this normalizer.
+- `ProviderGitLabCI` — provider value used for GitLab CI/CD facts.
+- `GitLabCIFixtureEnvelopes` — parses one fixture-shaped GitLab pipeline+jobs
+  payload (GitLab Pipelines API + Jobs API shape) and returns the SAME
+  `ci.run`/`ci.job`/`ci.artifact`/`ci.warning` fact kinds
+  `GitHubActionsFixtureEnvelopes` emits, joined by the same
+  (provider, run_id, run_attempt) key. Repository identity derives from the
+  pipeline's `web_url` (GitLab always renders pipeline pages under the
+  project root at `/-/pipelines/<id>`) or the fixture's `gitlab-ci://` scope
+  ID as a fallback, through the same `repositoryidentity.CanonicalRepositoryID`
+  join contract GitHub Actions and the git collector use.
 
 ## Invariants
 
@@ -130,3 +146,34 @@ existing `eshu_dp_reducer_executions_total` and
 `eshu_dp_reducer_run_duration_seconds` counters, plus the CI/CD run
 correlation query handler spans (`query.ci_cd_run_correlations`), diagnose
 the end-to-end path unchanged.
+
+### GitLab CI provider (#5427)
+
+Benchmark Evidence: `GitLabCIFixtureEnvelopes` end-to-end on a realistic
+success fixture (1 run + 2 jobs + 1 artifact), measured on Apple M1 Max
+(darwin/arm64, `-count=5 -benchmem`), against
+`BenchmarkGitHubActionsEnvelopesEndToEnd` (1 run + 1 job + 1 step + 1
+artifact + 1 trigger) on the same machine and run:
+
+| Benchmark | ns/op | B/op | allocs/op |
+|-----------|-------|------|-----------|
+| `BenchmarkGitHubActionsEnvelopesEndToEnd` | ~57,500–60,700 | ~52,590 | 645 |
+| `BenchmarkGitLabCIEnvelopesEndToEnd` | ~43,600–43,900 | ~39,118 | 486 |
+
+The two benchmarks exercise different-sized fixtures (GitLab's has no step,
+trigger, or pipeline-definition envelope, matching the scope narrowed above),
+so the lower absolute numbers reflect fewer envelopes built per call, not a
+per-envelope speedup; both normalizers share the same envelope-construction
+helpers (`newEnvelope`, `mergeContractPayload`, `facts.StableID`) so per-fact
+cost is the same code path on both providers.
+
+No-Regression Evidence: `go test ./internal/collector/cicdrun/ -run GitLab
+-count=1 -race` covers one successful run+2 jobs+1 artifact fixture, partial
+job-metadata warnings, missing run anchors, a blank pipeline ID rejection, a
+job missing its provider ID, and the cross-provider fact-kind/join-key parity
+check against GitHub Actions, with zero graph writes or queue work.
+
+No-Observability-Change: same as the GitHub Actions path above — GitLab CI
+adds no route, graph query shape, queue table, worker, lease, runtime knob,
+metric instrument, or metric label; there is no hosted GitLab client yet, so
+there is no new runtime request/rate-limit/status signal surface to add.

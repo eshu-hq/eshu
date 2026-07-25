@@ -66,6 +66,66 @@
           }
         }
       ]
+    },
+    {
+      "scope_id": "ci_cd_run:gitlab_ci:eshu-hq:supply-chain-demo",
+      "source_system": "ci_cd_run",
+      "scope_kind": "ci_cd_run",
+      "collector_kind": "ci_cd_run",
+      "partition_key": "ci_cd_run:gitlab_ci:eshu-hq:supply-chain-demo",
+      "metadata": {
+        "provider": "gitlab_ci",
+        "repository": "eshu-hq/supply-chain-demo"
+      },
+      "generation_id": "cassette-cicd-gitlab-scd-gen1",
+      "observed_at": "2026-06-25T00:05:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "ci.run",
+          "stable_fact_key": "ci_cd_run:gitlab_ci:supply-chain-demo:run:7700",
+          "schema_version": "1.0.0",
+          "collector_kind": "ci_cd_run",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "cicd-collector-gitlab-scd",
+            "provider": "gitlab_ci",
+            "run_id": "7700",
+            "run_attempt": "1",
+            "run_number": "42",
+            "event": "push",
+            "status": "success",
+            "result": "success",
+            "branch": "main",
+            "commit_sha": "1f2e3d4c5b6a79889706a5b4c3d2e1f00f1e2d3c",
+            "repository_id": "repository:r_69256c06",
+            "provider_repository_id": "gitlab.com/eshu-hq/supply-chain-demo",
+            "correlation_anchors": [
+              "gitlab_ci::7700"
+            ]
+          }
+        },
+        {
+          "fact_kind": "ci.job",
+          "stable_fact_key": "ci_cd_run:gitlab_ci:supply-chain-demo:run:7700:job:9001",
+          "schema_version": "1.0.0",
+          "collector_kind": "ci_cd_run",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "cicd-collector-gitlab-scd",
+            "provider": "gitlab_ci",
+            "run_id": "7700",
+            "run_attempt": "1",
+            "job_id": "9001",
+            "job_name": "build",
+            "stage": "build",
+            "status": "success",
+            "result": "success"
+          }
+        }
+      ]
     }
   ]
 }
