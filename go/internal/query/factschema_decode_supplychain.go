@@ -23,14 +23,19 @@ import (
 // Governance note (#4784 ADR, docs/internal/design/4784-reducer-derived-fact-governance.md):
 // these wrappers cover SOURCE-FACT kinds only. The supply-chain read models
 // also read several reducer-derived kinds (reducer_supply_chain_impact_finding,
+// reducer_sbom_attestation_attachment, reducer_workload_identity,
+// reducer_service_catalog_correlation, reducer_container_image_identity, ...).
+// None of those have a landed sdk/go/factschema struct yet — the ADR requires
+// W1 struct authorship before any W2 read site can typed-decode them — so
+// every read of those kinds stays on the pre-existing raw payload path,
+// marked inline with the fact kind that blocks it.
+//
 // reducer_package_ownership_correlation, reducer_package_consumption_correlation,
-// reducer_package_publication_correlation, reducer_sbom_attestation_attachment,
-// reducer_workload_identity, reducer_service_catalog_correlation,
-// reducer_container_image_identity, ...). None of those have a landed
-// sdk/go/factschema struct yet — the ADR requires W1 struct authorship before
-// any W2 read site can typed-decode them — so every read of those kinds stays
-// on the pre-existing raw payload path, marked inline with the fact kind that
-// blocks it.
+// and reducer_package_publication_correlation are NO LONGER in that ungoverned
+// set (#5461): their sdk/go/factschema/reducerderived/v1 structs, generated
+// JSON Schemas, and typed reducer writer landed, and the query-side read site
+// (package_registry_correlations.go) now decodes them through the typed seam
+// in factschema_decode_package_correlations.go.
 //
 // Struct-completeness note: two of the wrappers below (CVE, AffectedPackage)
 // are deliberately partial. vulnerability/v1.CVE and

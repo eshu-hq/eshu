@@ -7,20 +7,23 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/lib/pq"
 )
 
-// TODO(#4795 W2b / #4784 ADR): these three kinds are GOVERNED reducer-derived
-// facts per the #4784 ADR
+// These three kinds are GOVERNED reducer-derived facts per the #4784 ADR
 // (docs/internal/design/4784-reducer-derived-fact-governance.md — "W1 governs
-// all three package correlation kinds together") — full governance requires a
-// landed sdk/go/factschema struct, generated JSON Schema, and a typed reducer
-// writer (producer: go/internal/reducer/package_correlation_writer.go) before
-// decodePackageRegistryCorrelationRow below can move off raw payload decode
-// onto a typed factschema seam. No W1 issue is assigned for this family yet;
-// this file stays on the pre-existing raw path until that struct work lands.
+// all three package correlation kinds together"). Governance landed in full
+// (#5461): sdk/go/factschema/reducerderived/v1/package_correlations.go holds
+// the typed structs, the generated JSON Schemas exist under
+// sdk/go/factschema/schema/, and go/internal/reducer/package_correlation_writer.go
+// is the typed writer. decodePackageRegistryCorrelationRow below decodes each
+// kind through the typed factschema seam
+// (factschema_decode_package_correlations.go) rather than a raw payload map
+// read.
 const (
 	packageOwnershipCorrelationFactKind   = "reducer_package_ownership_correlation"
 	packageConsumptionCorrelationFactKind = "reducer_package_consumption_correlation"
@@ -140,13 +143,18 @@ func (s PostgresPackageRegistryCorrelationStore) ListPackageRegistryCorrelations
 	out := make([]PackageRegistryCorrelationRow, 0, filter.Limit)
 	for rows.Next() {
 		var factID string
+		var factKind string
+		var schemaVersion string
 		var payloadBytes []byte
-		if err := rows.Scan(&factID, &payloadBytes); err != nil {
+		if err := rows.Scan(&factID, &factKind, &schemaVersion, &payloadBytes); err != nil {
 			return nil, fmt.Errorf("list package registry correlations: %w", err)
 		}
-		row, err := decodePackageRegistryCorrelationRow(factID, payloadBytes)
+		row, ok, err := decodePackageRegistryCorrelationRow(factID, factKind, schemaVersion, payloadBytes)
 		if err != nil {
 			return nil, err
+		}
+		if !ok {
+			continue
 		}
 		out = append(out, row)
 	}
@@ -157,7 +165,7 @@ func (s PostgresPackageRegistryCorrelationStore) ListPackageRegistryCorrelations
 }
 
 const listPackageRegistryCorrelationsQuery = `
-SELECT fact.fact_id, fact.payload
+SELECT fact.fact_id, fact.fact_kind, fact.schema_version, fact.payload
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = fact.scope_id
@@ -198,34 +206,122 @@ func packageRegistryCorrelationFactKinds() []string {
 	}
 }
 
+// decodePackageRegistryCorrelationRow decodes one scanned fact row into a
+// PackageRegistryCorrelationRow through the typed factschema seam matching
+// its fact kind (factschema_decode_package_correlations.go). ok is false and
+// err is nil when the fact's required identity field (package_id) failed
+// decode — a classified *queryDecodeError, logged at debug level — so the
+// caller drops the row rather than emitting an empty-identity row that looks
+// like a real correlation. err is non-nil only for a structurally malformed
+// payload (invalid JSON) or an unrecognized fact kind, both of which abort
+// the whole list call: packageRegistryCorrelationFactKinds bounds the SQL
+// read to exactly these three kinds, so an unrecognized kind here signals a
+// query/decode drift bug, not a per-fact data-quality issue.
 func decodePackageRegistryCorrelationRow(
 	factID string,
+	factKind string,
+	schemaVersion string,
 	payloadBytes []byte,
-) (PackageRegistryCorrelationRow, error) {
+) (PackageRegistryCorrelationRow, bool, error) {
 	var payload map[string]any
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		return PackageRegistryCorrelationRow{}, fmt.Errorf("decode package registry correlation: %w", err)
+		return PackageRegistryCorrelationRow{}, false, fmt.Errorf("decode package registry correlation: %w", err)
 	}
-	return PackageRegistryCorrelationRow{
-		CorrelationID:          factID,
-		RelationshipKind:       StringVal(payload, "relationship_kind"),
-		PackageID:              StringVal(payload, "package_id"),
-		VersionID:              StringVal(payload, "version_id"),
-		Version:                StringVal(payload, "version"),
-		PublishedAt:            StringVal(payload, "published_at"),
-		Ecosystem:              StringVal(payload, "ecosystem"),
-		PackageName:            StringVal(payload, "package_name"),
-		RepositoryID:           StringVal(payload, "repository_id"),
-		RepositoryName:         StringVal(payload, "repository_name"),
-		SourceURL:              StringVal(payload, "source_url"),
-		CandidateRepositoryIDs: StringSliceVal(payload, "candidate_repository_ids"),
-		RelativePath:           StringVal(payload, "relative_path"),
-		ManifestSection:        StringVal(payload, "manifest_section"),
-		DependencyRange:        StringVal(payload, "dependency_range"),
-		Outcome:                StringVal(payload, "outcome"),
-		Reason:                 StringVal(payload, "reason"),
-		ProvenanceOnly:         BoolVal(payload, "provenance_only"),
-		CanonicalWrites:        IntVal(payload, "canonical_writes"),
-		EvidenceFactIDs:        StringSliceVal(payload, "evidence_fact_ids"),
-	}, nil
+	in := packageCorrelationDecodeInput{FactID: factID, SchemaVersion: schemaVersion, Payload: payload}
+
+	switch factKind {
+	case packageOwnershipCorrelationFactKind:
+		correlation, err := decodeReducerPackageOwnershipCorrelation(in)
+		if err != nil {
+			logPackageRegistryCorrelationDecodeDrop(err)
+			return PackageRegistryCorrelationRow{}, false, nil
+		}
+		return PackageRegistryCorrelationRow{
+			CorrelationID:          factID,
+			RelationshipKind:       workItemDerefString(correlation.RelationshipKind),
+			PackageID:              correlation.PackageID,
+			VersionID:              workItemDerefString(correlation.VersionID),
+			RepositoryID:           workItemDerefString(correlation.RepositoryID),
+			RepositoryName:         workItemDerefString(correlation.RepositoryName),
+			SourceURL:              workItemDerefString(correlation.SourceURL),
+			CandidateRepositoryIDs: correlation.CandidateRepositoryIDs,
+			Outcome:                workItemDerefString(correlation.Outcome),
+			Reason:                 workItemDerefString(correlation.Reason),
+			ProvenanceOnly:         workItemDerefBool(correlation.ProvenanceOnly),
+			CanonicalWrites:        packageCorrelationDerefInt(correlation.CanonicalWrites),
+			EvidenceFactIDs:        correlation.EvidenceFactIDs,
+		}, true, nil
+
+	case packageConsumptionCorrelationFactKind:
+		correlation, err := decodeReducerPackageConsumptionCorrelation(in)
+		if err != nil {
+			logPackageRegistryCorrelationDecodeDrop(err)
+			return PackageRegistryCorrelationRow{}, false, nil
+		}
+		return PackageRegistryCorrelationRow{
+			CorrelationID:    factID,
+			RelationshipKind: workItemDerefString(correlation.RelationshipKind),
+			PackageID:        correlation.PackageID,
+			Ecosystem:        workItemDerefString(correlation.Ecosystem),
+			PackageName:      workItemDerefString(correlation.PackageName),
+			RepositoryID:     workItemDerefString(correlation.RepositoryID),
+			RepositoryName:   workItemDerefString(correlation.RepositoryName),
+			RelativePath:     workItemDerefString(correlation.RelativePath),
+			ManifestSection:  workItemDerefString(correlation.ManifestSection),
+			DependencyRange:  workItemDerefString(correlation.DependencyRange),
+			Outcome:          workItemDerefString(correlation.Outcome),
+			Reason:           workItemDerefString(correlation.Reason),
+			ProvenanceOnly:   workItemDerefBool(correlation.ProvenanceOnly),
+			CanonicalWrites:  packageCorrelationDerefInt(correlation.CanonicalWrites),
+			EvidenceFactIDs:  correlation.EvidenceFactIDs,
+		}, true, nil
+
+	case packagePublicationCorrelationFactKind:
+		correlation, err := decodeReducerPackagePublicationCorrelation(in)
+		if err != nil {
+			logPackageRegistryCorrelationDecodeDrop(err)
+			return PackageRegistryCorrelationRow{}, false, nil
+		}
+		return PackageRegistryCorrelationRow{
+			CorrelationID:          factID,
+			RelationshipKind:       workItemDerefString(correlation.RelationshipKind),
+			PackageID:              correlation.PackageID,
+			VersionID:              workItemDerefString(correlation.VersionID),
+			Version:                workItemDerefString(correlation.Version),
+			PublishedAt:            workItemDerefString(correlation.PublishedAt),
+			RepositoryID:           workItemDerefString(correlation.RepositoryID),
+			RepositoryName:         workItemDerefString(correlation.RepositoryName),
+			SourceURL:              workItemDerefString(correlation.SourceURL),
+			CandidateRepositoryIDs: correlation.CandidateRepositoryIDs,
+			Outcome:                workItemDerefString(correlation.Outcome),
+			Reason:                 workItemDerefString(correlation.Reason),
+			ProvenanceOnly:         workItemDerefBool(correlation.ProvenanceOnly),
+			CanonicalWrites:        packageCorrelationDerefInt(correlation.CanonicalWrites),
+			EvidenceFactIDs:        correlation.EvidenceFactIDs,
+		}, true, nil
+
+	default:
+		return PackageRegistryCorrelationRow{}, false, fmt.Errorf("decode package registry correlation: unrecognized fact kind %q", factKind)
+	}
+}
+
+// logPackageRegistryCorrelationDecodeDrop logs one dropped package
+// correlation fact at debug level, naming the fact id, fact kind, and missing
+// field so an operator can locate the malformed row in fact_records. Mirrors
+// work_item_evidence.go's logWorkItemEvidenceDecodeDrop.
+func logPackageRegistryCorrelationDecodeDrop(err error) {
+	var decodeErr *queryDecodeError
+	if !errors.As(err, &decodeErr) {
+		slog.Debug("package registry correlation fact dropped from list: decode error", slog.String("error", err.Error()))
+		return
+	}
+	attrs := []any{
+		slog.String("fact_id", decodeErr.FactID),
+		slog.String("fact_kind", decodeErr.FactKind),
+		slog.String("classification", decodeErr.Classification),
+	}
+	if decodeErr.Field != "" {
+		attrs = append(attrs, slog.String("missing_field", decodeErr.Field))
+	}
+	slog.Debug("package registry correlation fact dropped from list", attrs...)
 }

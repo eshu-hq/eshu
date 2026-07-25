@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -156,5 +157,235 @@ func TestPackageRegistryCorrelationQueryIncludesPublicationFacts(t *testing.T) {
 
 	if !stringSliceContains(packageRegistryCorrelationFactKinds(), packagePublicationCorrelationFactKind) {
 		t.Fatalf("packageRegistryCorrelationFactKinds() = %#v, want publication facts", packageRegistryCorrelationFactKinds())
+	}
+}
+
+// TestPackageRegistryCorrelationQuerySelectsFactKindAndSchemaVersion proves
+// the SELECT list carries fact.fact_kind and fact.schema_version alongside
+// fact.payload — the typed decode path (#5461) needs the kind to dispatch to
+// the matching factschema Decode* seam and the schema_version to thread
+// through packageCorrelationSchemaEnvelope so a future-major fact
+// dead-letters instead of silently decoding as v1.
+func TestPackageRegistryCorrelationQuerySelectsFactKindAndSchemaVersion(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(listPackageRegistryCorrelationsQuery, "fact.fact_kind") {
+		t.Fatalf("listPackageRegistryCorrelationsQuery must select fact.fact_kind for the typed decode dispatch:\n%s", listPackageRegistryCorrelationsQuery)
+	}
+	if !strings.Contains(listPackageRegistryCorrelationsQuery, "fact.schema_version") {
+		t.Fatalf("listPackageRegistryCorrelationsQuery must select fact.schema_version for the typed decode seam:\n%s", listPackageRegistryCorrelationsQuery)
+	}
+}
+
+// TestDecodePackageRegistryCorrelationRowTypedSeam proves
+// decodePackageRegistryCorrelationRow decodes each of the three governed
+// package correlation kinds through the typed factschema seam
+// (factschema_decode_package_correlations.go) into exactly the fields the
+// pre-existing raw StringVal/BoolVal/IntVal/StringSliceVal path used to
+// produce (#5461, output-preserving refactor). Each want value below is the
+// same field set decodePackageRegistryCorrelationRow read from the raw
+// payload map before this change; a field the raw path never read for a
+// given kind (for example Ecosystem on an ownership row) stays at its zero
+// value here too, matching the raw path's StringVal("")/nil-slice fallback
+// for an absent key.
+func TestDecodePackageRegistryCorrelationRowTypedSeam(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		factID   string
+		factKind string
+		payload  map[string]any
+		want     PackageRegistryCorrelationRow
+	}{
+		{
+			name:     "ownership",
+			factID:   "fact-ownership-1",
+			factKind: packageOwnershipCorrelationFactKind,
+			payload: map[string]any{
+				"package_id":               "pkg:npm://registry.example/team-api",
+				"relationship_kind":        "ownership",
+				"version_id":               "pkg:npm://registry.example/team-api@1.2.0",
+				"hint_kind":                "repository_field",
+				"source_url":               "https://github.com/example/team-api",
+				"repository_id":            "repo-team-api",
+				"repository_name":          "team-api",
+				"candidate_repository_ids": []string{"repo-team-api", "repo-team-api-mirror"},
+				"outcome":                  "exact",
+				"reason":                   "source hint matches repository remote exactly",
+				"provenance_only":          true,
+				"canonical_writes":         2,
+				"evidence_fact_ids":        []string{"fact-1", "fact-2"},
+			},
+			want: PackageRegistryCorrelationRow{
+				CorrelationID:          "fact-ownership-1",
+				RelationshipKind:       "ownership",
+				PackageID:              "pkg:npm://registry.example/team-api",
+				VersionID:              "pkg:npm://registry.example/team-api@1.2.0",
+				RepositoryID:           "repo-team-api",
+				RepositoryName:         "team-api",
+				SourceURL:              "https://github.com/example/team-api",
+				CandidateRepositoryIDs: []string{"repo-team-api", "repo-team-api-mirror"},
+				Outcome:                "exact",
+				Reason:                 "source hint matches repository remote exactly",
+				ProvenanceOnly:         true,
+				CanonicalWrites:        2,
+				EvidenceFactIDs:        []string{"fact-1", "fact-2"},
+			},
+		},
+		{
+			name:     "consumption",
+			factID:   "fact-consumption-1",
+			factKind: packageConsumptionCorrelationFactKind,
+			payload: map[string]any{
+				"package_id":        "pkg:npm://registry.example/team-api",
+				"relationship_kind": "consumption",
+				"ecosystem":         "npm",
+				"package_name":      "team-api",
+				"repository_id":     "repo-consumer",
+				"repository_name":   "consumer-service",
+				"relative_path":     "package.json",
+				"manifest_section":  "dependencies",
+				"dependency_range":  "^1.2.0",
+				"outcome":           "exact",
+				"reason":            "manifest range admits published version",
+				"provenance_only":   false,
+				"canonical_writes":  1,
+				"evidence_fact_ids": []string{"fact-3"},
+			},
+			want: PackageRegistryCorrelationRow{
+				CorrelationID:    "fact-consumption-1",
+				RelationshipKind: "consumption",
+				PackageID:        "pkg:npm://registry.example/team-api",
+				Ecosystem:        "npm",
+				PackageName:      "team-api",
+				RepositoryID:     "repo-consumer",
+				RepositoryName:   "consumer-service",
+				RelativePath:     "package.json",
+				ManifestSection:  "dependencies",
+				DependencyRange:  "^1.2.0",
+				Outcome:          "exact",
+				Reason:           "manifest range admits published version",
+				ProvenanceOnly:   false,
+				CanonicalWrites:  1,
+				EvidenceFactIDs:  []string{"fact-3"},
+			},
+		},
+		{
+			name:     "publication",
+			factID:   "fact-publication-1",
+			factKind: packagePublicationCorrelationFactKind,
+			payload: map[string]any{
+				"package_id":               "pkg:npm://registry.example/team-api",
+				"relationship_kind":        "publication",
+				"version_id":               "pkg:npm://registry.example/team-api@1.2.0",
+				"version":                  "1.2.0",
+				"published_at":             "2026-01-02T03:04:05Z",
+				"source_url":               "https://github.com/example/team-api",
+				"repository_id":            "repo-team-api",
+				"repository_name":          "team-api",
+				"candidate_repository_ids": []string{"repo-team-api"},
+				"outcome":                  "exact",
+				"reason":                   "publish metadata source URL matches repository remote",
+				"provenance_only":          true,
+				"canonical_writes":         0,
+				"evidence_fact_ids":        []string{"fact-4"},
+			},
+			want: PackageRegistryCorrelationRow{
+				CorrelationID:          "fact-publication-1",
+				RelationshipKind:       "publication",
+				PackageID:              "pkg:npm://registry.example/team-api",
+				VersionID:              "pkg:npm://registry.example/team-api@1.2.0",
+				Version:                "1.2.0",
+				PublishedAt:            "2026-01-02T03:04:05Z",
+				RepositoryID:           "repo-team-api",
+				RepositoryName:         "team-api",
+				SourceURL:              "https://github.com/example/team-api",
+				CandidateRepositoryIDs: []string{"repo-team-api"},
+				Outcome:                "exact",
+				Reason:                 "publish metadata source URL matches repository remote",
+				ProvenanceOnly:         true,
+				CanonicalWrites:        0,
+				EvidenceFactIDs:        []string{"fact-4"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			payloadBytes, err := json.Marshal(tc.payload)
+			if err != nil {
+				t.Fatalf("json.Marshal: %v", err)
+			}
+
+			got, ok, err := decodePackageRegistryCorrelationRow(tc.factID, tc.factKind, "1.0.0", payloadBytes)
+			if err != nil {
+				t.Fatalf("decodePackageRegistryCorrelationRow: unexpected error = %v", err)
+			}
+			if !ok {
+				t.Fatalf("decodePackageRegistryCorrelationRow: ok = false, want true")
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("decodePackageRegistryCorrelationRow() = %#v, want %#v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestDecodePackageRegistryCorrelationRowDefaultsEmptySchemaVersion proves an
+// empty schema_version (a version-less legacy row) still decodes through the
+// typed seam by normalizing to queryDefaultSchemaMajorVersion, matching every
+// other package_registry_correlations query decode wrapper's documented
+// default.
+func TestDecodePackageRegistryCorrelationRowDefaultsEmptySchemaVersion(t *testing.T) {
+	t.Parallel()
+
+	payloadBytes, err := json.Marshal(map[string]any{
+		"package_id":        "pkg:npm://registry.example/team-api",
+		"relationship_kind": "ownership",
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+
+	got, ok, err := decodePackageRegistryCorrelationRow("fact-ownership-2", packageOwnershipCorrelationFactKind, "", payloadBytes)
+	if err != nil {
+		t.Fatalf("decodePackageRegistryCorrelationRow: unexpected error = %v", err)
+	}
+	if !ok {
+		t.Fatalf("decodePackageRegistryCorrelationRow: ok = false, want true")
+	}
+	if got.PackageID != "pkg:npm://registry.example/team-api" {
+		t.Fatalf("PackageID = %q, want %q", got.PackageID, "pkg:npm://registry.example/team-api")
+	}
+}
+
+// TestDecodePackageRegistryCorrelationRowDropsMissingPackageID proves a fact
+// missing its required package_id identity field is dropped (ok=false,
+// err=nil) rather than decoded into an empty-identity row. This is new
+// behavior versus the pre-#5461 raw StringVal path, which had no concept of a
+// "required" field and would have silently returned PackageID="" — the
+// #4784 ADR's "missing required fields dead-letter, they never silently zero
+// out" rule applied to this read path for the first time.
+func TestDecodePackageRegistryCorrelationRowDropsMissingPackageID(t *testing.T) {
+	t.Parallel()
+
+	payloadBytes, err := json.Marshal(map[string]any{
+		"relationship_kind": "ownership",
+		"repository_id":     "repo-team-api",
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+
+	got, ok, err := decodePackageRegistryCorrelationRow("fact-missing-package-id", packageOwnershipCorrelationFactKind, "1.0.0", payloadBytes)
+	if err != nil {
+		t.Fatalf("decodePackageRegistryCorrelationRow: unexpected error = %v", err)
+	}
+	if ok {
+		t.Fatalf("decodePackageRegistryCorrelationRow: ok = true, want false for a fact missing package_id; got = %#v", got)
 	}
 }
