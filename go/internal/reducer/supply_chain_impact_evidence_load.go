@@ -130,6 +130,12 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	resolvedDigestEvidenceFacts := len(envelopes) - resolvedDigestEvidenceStartCount
 	activeEvidenceTruncated = activeEvidenceTruncated || scannerAnalysisScopeTruncated || resolvedDigestTruncated
 
+	peerIdentityEnvelopes, err := h.loadSupplyChainImpactPeerIdentityFacts(ctx, resolvedDigestEvidenceEnvelopes)
+	if err != nil {
+		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load supply chain impact peer identity facts: %w", err)
+	}
+	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, peerIdentityEnvelopes...)
+
 	pythonReachabilityStartCount := len(envelopes)
 	phaseStarted = time.Now()
 	pythonReachabilityEvidence, err := h.loadPythonReachabilityEvidenceFacts(ctx, envelopes)

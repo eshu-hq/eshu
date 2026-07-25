@@ -207,6 +207,36 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactResolvedDigestEvidenceFac
 	return loaded, truncated, err
 }
 
+// loadSupplyChainImpactPeerIdentityFacts performs ONE additional bounded
+// active-evidence load by RepositoryIDs extracted from
+// resolvedDigestEnvelopes, so the reconciliation loop in
+// classifySupplyChainImpactPackage has peer identities (same source
+// repository, different digest) to compare against. Without this stage,
+// index.images contains only identities whose digest matches the scanner's
+// digest — the reconciliation always finds no peer and is a silent no-op
+// (issue #5468). A container_image_identity fact's filter contribution
+// (supplyChainImpactFilter) feeds RepositoryIDs and ImageRefs — NOT
+// SubjectDigests — so this single pass cannot recurse, and the
+// maxSupplyChainImpactResolvedDigestLoads cap bounds the RepositoryID count
+// seeded into the filter.
+func (h SupplyChainImpactHandler) loadSupplyChainImpactPeerIdentityFacts(
+	ctx context.Context,
+	resolvedDigestEnvelopes []facts.Envelope,
+) ([]facts.Envelope, error) {
+	filter := supplyChainImpactFilter(resolvedDigestEnvelopes)
+	if len(filter.RepositoryIDs) == 0 {
+		return nil, nil
+	}
+	if len(filter.RepositoryIDs) > maxSupplyChainImpactResolvedDigestLoads {
+		filter.RepositoryIDs = filter.RepositoryIDs[:maxSupplyChainImpactResolvedDigestLoads]
+	}
+	// Clear SubjectDigests from the filter — they only name the scanner's
+	// digest, and the whole point of this stage is to load identities for
+	// the SAME repository with DIFFERENT digests.
+	filter.SubjectDigests = nil
+	return h.loadActiveSupplyChainImpactFacts(ctx, filter)
+}
+
 func (h SupplyChainImpactHandler) emitCounters(
 	ctx context.Context,
 	counts map[SupplyChainImpactStatus]int,
