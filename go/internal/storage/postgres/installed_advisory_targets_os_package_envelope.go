@@ -20,6 +20,11 @@ import (
 // normal fact-decode seam exactly as if the fact had been loaded natively for
 // its own scope.
 //
+// The returned int is the count of targets skipped because they are missing
+// one or more required fields (distro, distro_version, package_manager,
+// name, arch, installed_version, fact_id, scope_id, or generation_id).
+// A persistently non-zero skip count signals a systematic backfill gap.
+//
 // This bridging method exists (rather than exposing the workflow-typed
 // ListOSPackageAdvisoryTargets result straight to the reducer) because
 // go/internal/reducer cannot import go/internal/workflow: internal/workflow
