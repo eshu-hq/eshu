@@ -246,7 +246,19 @@ func classifySupplyChainImpactPackage(
 		finding.ImageRef = image.imageRef
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, component.factID, attachment.factID, image.factID)
 		finding.EvidencePath = append(finding.EvidencePath, facts.SBOMComponentFactKind, sbomAttestationAttachmentFactKind, containerImageIdentityFactKind)
-		if image.repositoryID != "" {
+		// image.repositoryID is the OCI/container registry's OWN repository
+		// identifier ("oci-registry://..."), a namespace disjoint from every git
+		// "repository:..." entity id that matchingSupplyChainWorkloads/Services/
+		// DeploymentLanes join on by exact equality — so it is a dead anchor,
+		// unreachable from runtime context (#5463). Overwrite only a replaceable
+		// anchor (blank, or an OCI path this branch itself set on an earlier
+		// package): a consumption-derived git repository ("github.com/...", set
+		// by the manifest-dependency path above) is the more precise per-package
+		// anchor and MUST survive. Without this guard a finding carrying both a
+		// consumption anchor and SBOM evidence, but no os_package evidence to
+		// reach the repair below, shipped the dead OCI path (#5780) — the same
+		// precedence the os_package branch enforces via #5779.
+		if image.repositoryID != "" && supplyChainRepositoryAnchorIsReplaceable(finding.RepositoryID) {
 			finding.RepositoryID = image.repositoryID
 		}
 	}
