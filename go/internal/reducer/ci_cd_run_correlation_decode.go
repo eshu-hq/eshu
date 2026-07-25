@@ -250,8 +250,16 @@ func ensureCICDRunEvidence(runs map[string]*cicdRunEvidence, key string) *cicdRu
 type cicdImageIdentity struct {
 	factID       string
 	repositoryID string
-	imageRef     string
-	digest       string
+	// sourceRepositoryIDs carries the git repositories the identity decision
+	// attributed the image to (CI-run/SLSA/source-label evidence). It is the
+	// only joinable anchor for repository narrowing: repositoryID above is the
+	// OCI registry's own identifier ("oci-registry://ghcr.io/org/repo"), a
+	// namespace disjoint from the canonical "repository:r_..." ids a ci.run
+	// carries, so comparing against it never matches (#5766, same trap #5464
+	// found on the supply-chain side).
+	sourceRepositoryIDs []string
+	imageRef            string
+	digest              string
 }
 
 func buildCICDImageIdentityIndex(envelopes []facts.Envelope) map[string][]cicdImageIdentity {
@@ -265,10 +273,11 @@ func buildCICDImageIdentityIndex(envelopes []facts.Envelope) map[string][]cicdIm
 			continue
 		}
 		index[digest] = append(index[digest], cicdImageIdentity{
-			factID:       envelope.FactID,
-			repositoryID: payloadString(envelope.Payload, "repository_id"),
-			imageRef:     payloadString(envelope.Payload, "image_ref"),
-			digest:       digest,
+			factID:              envelope.FactID,
+			repositoryID:        payloadString(envelope.Payload, "repository_id"),
+			sourceRepositoryIDs: payloadOrderedStrings(envelope.Payload, "source_repository_ids"),
+			imageRef:            payloadString(envelope.Payload, "image_ref"),
+			digest:              digest,
 		})
 	}
 	return index

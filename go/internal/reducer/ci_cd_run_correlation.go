@@ -343,14 +343,28 @@ func classifyCICDRunEvidence(ev *cicdRunEvidence, imageIndex map[string][]cicdIm
 	return decision
 }
 
+// cicdImageMatchesForRepository narrows a digest's container_image_identity
+// matches to those the run's own repository built. It joins on the identity's
+// git source repositories, NOT on its repositoryID: repositoryID is the OCI
+// registry's own identifier ("oci-registry://ghcr.io/org/repo"), a namespace
+// disjoint from the canonical "repository:r_..." id a ci.run carries, so
+// comparing the two never matched and narrowing silently returned nothing --
+// leaving the unfiltered multi-row set to degrade an otherwise-exact
+// correlation into ambiguous (#5766). source_repository_ids is the field the
+// identity decision records the attributed git repository in, and is the same
+// anchor #5464 established as joinable on the supply-chain side.
 func cicdImageMatchesForRepository(matches []cicdImageIdentity, repositoryID string) []cicdImageIdentity {
+	repositoryID = strings.TrimSpace(repositoryID)
 	if repositoryID == "" {
 		return nil
 	}
 	out := make([]cicdImageIdentity, 0, len(matches))
 	for _, match := range matches {
-		if match.repositoryID == repositoryID {
-			out = append(out, match)
+		for _, sourceRepositoryID := range match.sourceRepositoryIDs {
+			if strings.TrimSpace(sourceRepositoryID) == repositoryID {
+				out = append(out, match)
+				break
+			}
 		}
 	}
 	return out
