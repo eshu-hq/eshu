@@ -208,6 +208,10 @@ func addCICDArtifactImageReference(
 	run := runs[cicdRunKeyFromParts(artifact.Provider, artifact.RunID, artifact.RunAttempt)]
 	if run.repositoryID != "" {
 		anchors.sourceRepositoryIDs = append(anchors.sourceRepositoryIDs, run.repositoryID)
+		// A CI run that reported producing this artifact digest is build
+		// evidence, not a mere reference, so it qualifies the image as that
+		// repository's built child for DERIVED_FROM lineage (#5460).
+		anchors.buildProvenanceRepositoryIDs = append(anchors.buildProvenanceRepositoryIDs, run.repositoryID)
 		evidenceFactIDs = append(evidenceFactIDs, run.factID)
 	}
 	// No image_ref key exists in the typed Artifact struct (the real collector

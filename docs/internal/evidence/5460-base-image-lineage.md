@@ -178,6 +178,79 @@ the same reason the retract path already uses it. The failure was
 intermittent (it depends on projection ordering across intents), which is
 exactly why a unit test could not have surfaced it and the live gate did.
 
+## Build provenance is required on the child side (codex review P1-a)
+
+`SourceRepositoryIDs` cannot decide which images a repository BUILT. A
+digest-pinned third-party image referenced by the repository's own Kubernetes
+manifest arrives on that repository's `content_entity` fact and inherits its
+scope anchor (`containerImageSourceRepositoryIDs` reads
+`repositoryIDFromReducerScope(envelope.ScopeID)`), so it lands in
+`SourceRepositoryIDs` exactly like a built image. The first cut gated the child
+side on that field, which made a co-deployed `postgres` inherit the repository's
+Dockerfile base — a fabricated CVE-inheritance claim about an unrelated image.
+
+`ContainerImageIdentityDecision.BuildProvenanceRepositoryIDs` is the fix. It is
+populated only by evidence that the repository actually produced the digest:
+
+- an OCI config source label the image itself carries
+  (`org.opencontainers.image.source`, `container_image_identity_provenance.go`), or
+- a CI run that reported producing this artifact digest
+  (`ci.run.repository_id`, `container_image_identity_typed_evidence.go`).
+
+The generic scope/workload anchoring that fills `SourceRepositoryIDs` never
+contributes. `BUILT_FROM` still uses the looser field and carries the same
+false-positive class; that is tracked in **#5796** rather than silently widened
+here.
+
+### The latent matcher defect this uncovered
+
+Gating on build provenance turned rc-167 red (`count=0`), and the cause was not
+the gate: `matchOCIConfigSourceRepository` counted raw repository-fact matches
+and required exactly one. A repository legitimately carries several active
+`repository` facts (more than one scope or collector observing it), so a second
+fact made an unambiguous source label look ambiguous and the whole
+OCI-source-label build-evidence tier silently disabled itself in any real
+corpus — which is why a single-repo unit test passed while the live corpus
+projected nothing. The guard now dedupes by repository identity before applying
+the exactly-one rule; two DISTINCT repositories claiming one remote still
+resolve to neither. This also repairs the pre-existing
+`oci_config_source_label_with_digest` identity tier.
+
+Proof: `TestBuildProvenanceSurvivesDuplicateRepositoryFacts` (fails before),
+`TestTwoDifferentRepositoriesClaimingOneRemoteStayAmbiguous` (the ambiguity
+guard), and `TestContainerImageDerivedFromRowsCorpusShape` — a unit-level twin of
+rc-167 proving provenance survives the merge of an OCI source label with a
+Kubernetes reference for the same digest, so this regression is catchable without
+a Docker stack.
+
+The golden fixture's child image therefore carries a real
+`org.opencontainers.image.source` label naming the corpus-synthesized remote
+(`https://github.com/acme/container-base-lineage`, repo id
+`repository:r_86b8b612`). rc-167 now passes on genuine build evidence rather than
+on the deploy-reference inference it started with.
+
+## The enqueue half: Dockerfile facts must trigger the domain (codex review P1-b)
+
+The reducer extracts a Dockerfile base only inside a `container_image_identity`
+intent, and the intent builder's candidate kinds and trigger switch omitted
+`file`. A repository that added or edited its Dockerfile with no new image
+evidence therefore enqueued nothing: the lineage never projected, and a changed
+or deleted base left the prior `DERIVED_FROM` edge stale indefinitely. Loading
+active `file` facts cross-scope does not itself enqueue a repository-scoped
+intent.
+
+`dockerfileIdentityTriggerFile` adds a narrow `file` trigger. Two recognizers:
+parsed `dockerfile_stages` is the precise signal for an added or edited
+Dockerfile, while a REMOVED Dockerfile arrives as a tombstone that can carry no
+`parsed_file_data`, so the declared language and file name keep the removal path
+triggering and let the retract-first pass clear the stale edge. Every generation
+carries `file` facts, so an arbitrary source file must never enqueue — pinned by
+`TestBuildProjectionDoesNotQueueContainerImageIdentityForNonDockerfileFile`
+alongside the failing-then-green
+`TestBuildProjectionQueuesContainerImageIdentityForDockerfileBaseImage` (0
+intents before, 1 after) and
+`TestContainerImageIdentityTriggerFactDockerfileRemoval`.
+
 ## Proof matrix
 
 | Case | Proof |
@@ -196,6 +269,16 @@ exactly why a unit test could not have surfaced it and the live gate did.
 | End-to-end classification | `TestBuildContainerImageIdentityDecisionsDockerfileBase` |
 | Retract-first / stale clear | `TestProjectContainerImageDerivedFromEdgesRetractsEvenWhenNoRowsToWrite` |
 | Owner-scoped projection (non-repo scope writes nothing) | `TestProjectContainerImageDerivedFromEdgesNonRepoScopeWritesNothing` |
+| Referenced-not-built child (no fabricated edge) | `TestContainerImageDerivedFromRows/an_image_the_repository_only_references_projects_nothing` |
+| Built child beside a referenced one | `.../only_the_built_image_is_a_child_when_a_referenced_image_sits_beside_it` |
+| Build provenance from an OCI source label | `TestBuildContainerImageIdentityDecisionsBuildProvenanceFromOCISourceLabel` |
+| k8s reference is not build provenance | `TestBuildContainerImageIdentityDecisionsKubernetesReferenceIsNotBuildProvenance` |
+| Duplicate repository facts still match | `TestBuildProvenanceSurvivesDuplicateRepositoryFacts` |
+| Two repositories claiming one remote stay ambiguous | `TestTwoDifferentRepositoriesClaimingOneRemoteStayAmbiguous` |
+| rc-167 unit twin (label + k8s merge) | `TestContainerImageDerivedFromRowsCorpusShape` |
+| Dockerfile-only generation enqueues the intent | `TestBuildProjectionQueuesContainerImageIdentityForDockerfileBaseImage` |
+| Dockerfile removal triggers the retract | `TestContainerImageIdentityTriggerFactDockerfileRemoval` |
+| Non-Dockerfile file never enqueues | `TestBuildProjectionDoesNotQueueContainerImageIdentityForNonDockerfileFile` |
 | Writer join shape | `TestProvenanceEdgeWriterWriteDerivedFromMatchesBothEndpointsByDigest` |
 | Retract dispatch | `TestProvenanceEdgeWriterRetractDerivedFromUsesSequentialExecuteNeverGroup` |
 | Blank-scope retract is a no-op | `TestProvenanceEdgeWriterDerivedFromEmptyInputsAreNoOps` |

@@ -24,9 +24,26 @@ import (
 func TestContainerImageDerivedFromRows(t *testing.T) {
 	t.Parallel()
 
+	// child is an image the repository BUILT: build evidence (an OCI config
+	// source label, or a CI run reporting this digest) attributes it, which is
+	// what qualifies it as a lineage child.
 	child := func(digest string, repos ...string) ContainerImageIdentityDecision {
 		return ContainerImageIdentityDecision{
-			ImageRef:            "child" + digest,
+			ImageRef:                     "child" + digest,
+			Digest:                       digest,
+			SourceRepositoryIDs:          repos,
+			BuildProvenanceRepositoryIDs: repos,
+			Outcome:                      ContainerImageIdentityExactDigest,
+		}
+	}
+	// referencedImage is an image the repository merely DEPLOYS -- a
+	// digest-pinned third-party image named in its Kubernetes manifest. That
+	// reference arrives on the repository's own content_entity fact, so it lands
+	// in SourceRepositoryIDs exactly like a built image, but carries no build
+	// provenance.
+	referencedImage := func(digest string, repos ...string) ContainerImageIdentityDecision {
+		return ContainerImageIdentityDecision{
+			ImageRef:            "referenced" + digest,
 			Digest:              digest,
 			SourceRepositoryIDs: repos,
 			Outcome:             ContainerImageIdentityExactDigest,
@@ -75,6 +92,38 @@ func TestContainerImageDerivedFromRows(t *testing.T) {
 			want: []map[string]any{
 				{
 					"digest":            "sha256:child",
+					"base_digest":       "sha256:base",
+					"attribution_basis": containerImageDerivedFromBasisRepositorySingleBase,
+				},
+			},
+		},
+		{
+			// A repository that merely deploys a digest-pinned third-party image
+			// did not build it, so it cannot inherit that repository's Dockerfile
+			// base. The reference lands in SourceRepositoryIDs like a built image
+			// would, which is exactly why the child side gates on build
+			// provenance instead.
+			name:   "an image the repository only references projects nothing",
+			owning: "repo-a",
+			decisions: []ContainerImageIdentityDecision{
+				referencedImage("sha256:thirdparty", "repo-a"),
+				base("sha256:base", "repo-a"),
+			},
+			want: nil,
+		},
+		{
+			// The mixed case: only the built image becomes a child; the
+			// co-deployed third-party image beside it must not.
+			name:   "only the built image is a child when a referenced image sits beside it",
+			owning: "repo-a",
+			decisions: []ContainerImageIdentityDecision{
+				child("sha256:built", "repo-a"),
+				referencedImage("sha256:thirdparty", "repo-a"),
+				base("sha256:base", "repo-a"),
+			},
+			want: []map[string]any{
+				{
+					"digest":            "sha256:built",
 					"base_digest":       "sha256:base",
 					"attribution_basis": containerImageDerivedFromBasisRepositorySingleBase,
 				},
@@ -248,7 +297,7 @@ func TestProjectContainerImageDerivedFromEdgesRetractsFirstThenWrites(t *testing
 	writer := &recordingContainerImageDerivedFromEdgeWriter{}
 	h := ContainerImageIdentityHandler{DerivedFromEdgeWriter: writer}
 	decisions := []ContainerImageIdentityDecision{
-		{Digest: "sha256:child", SourceRepositoryIDs: []string{"repository:repo-1"}, Outcome: ContainerImageIdentityExactDigest},
+		{Digest: "sha256:child", SourceRepositoryIDs: []string{"repository:repo-1"}, BuildProvenanceRepositoryIDs: []string{"repository:repo-1"}, Outcome: ContainerImageIdentityExactDigest},
 		{Digest: "sha256:base", BaseImageForRepositoryIDs: []string{"repository:repo-1"}, Outcome: ContainerImageIdentityExactDigest},
 	}
 
@@ -293,7 +342,7 @@ func TestProjectContainerImageDerivedFromEdgesNonRepoScopeWritesNothing(t *testi
 	// Both endpoints are visible (anchored to a git repository) but the intent
 	// scope is an OCI registry, not that repository.
 	decisions := []ContainerImageIdentityDecision{
-		{Digest: "sha256:child", SourceRepositoryIDs: []string{"repository:repo-1"}, Outcome: ContainerImageIdentityExactDigest},
+		{Digest: "sha256:child", SourceRepositoryIDs: []string{"repository:repo-1"}, BuildProvenanceRepositoryIDs: []string{"repository:repo-1"}, Outcome: ContainerImageIdentityExactDigest},
 		{Digest: "sha256:base", BaseImageForRepositoryIDs: []string{"repository:repo-1"}, Outcome: ContainerImageIdentityExactDigest},
 	}
 
@@ -339,7 +388,7 @@ func TestProjectContainerImageDerivedFromEdgesPropagatesWriterErrors(t *testing.
 	t.Parallel()
 
 	decisions := []ContainerImageIdentityDecision{
-		{Digest: "sha256:child", SourceRepositoryIDs: []string{"repository:repo-1"}, Outcome: ContainerImageIdentityExactDigest},
+		{Digest: "sha256:child", SourceRepositoryIDs: []string{"repository:repo-1"}, BuildProvenanceRepositoryIDs: []string{"repository:repo-1"}, Outcome: ContainerImageIdentityExactDigest},
 		{Digest: "sha256:base", BaseImageForRepositoryIDs: []string{"repository:repo-1"}, Outcome: ContainerImageIdentityExactDigest},
 	}
 	intent := Intent{ScopeID: "git-repository-scope:repository:repo-1", GenerationID: "gen-1"}

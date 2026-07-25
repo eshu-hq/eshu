@@ -390,6 +390,9 @@
             "media_type": "application/vnd.oci.image.manifest.v1+json",
             "artifact_type": "",
             "source_tag": "1.0.0",
+            "config_labels": {
+              "org.opencontainers.image.source": "https://github.com/acme/container-base-lineage"
+            },
             "config": {
               "digest": "sha256:c0f60000000000000000000000000000000000000000000000000000000000c0",
               "media_type": "application/vnd.oci.image.config.v1+json",

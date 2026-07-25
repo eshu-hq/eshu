@@ -114,7 +114,16 @@ func containerImageDerivedFromRows(
 		if digest == "" {
 			continue
 		}
-		if !slices.Contains(decision.SourceRepositoryIDs, owningRepositoryID) {
+		// The child must have been BUILT by the owning repository, proven by
+		// build evidence (an OCI config source label, or a CI run that reported
+		// producing this digest). SourceRepositoryIDs is not sufficient: it also
+		// collects the repository whose Kubernetes manifest merely REFERENCES a
+		// digest-pinned third-party image, because that reference arrives on the
+		// repository's own content_entity fact and inherits its scope anchor. An
+		// image a repository only deploys is not derived from that repository's
+		// Dockerfile base, and claiming otherwise fabricates CVE-inheritance
+		// truth for an unrelated third-party image (#5460 codex review P1).
+		if !slices.Contains(decision.BuildProvenanceRepositoryIDs, owningRepositoryID) {
 			continue
 		}
 		// An image is not its own ancestor. A repository that declares the same

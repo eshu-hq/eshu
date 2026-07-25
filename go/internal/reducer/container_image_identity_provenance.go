@@ -42,9 +42,13 @@ func extractOCIConfigProvenanceRefs(envelopes []facts.Envelope) []containerImage
 			parsed:              parsed,
 			resolvedDigest:      digest,
 			sourceRepositoryIDs: []string{match.RepositoryID},
-			sourceRevision:      normalizeOCIConfigRevision(labels),
-			sourceLabelEvidence: true,
-			factIDs:             []string{envelope.FactID},
+			// An OCI config source label is build evidence: the image itself
+			// declares the repository it was built from, which is what lets
+			// DERIVED_FROM treat it as that repository's child (#5460).
+			buildProvenanceRepositoryIDs: []string{match.RepositoryID},
+			sourceRevision:               normalizeOCIConfigRevision(labels),
+			sourceLabelEvidence:          true,
+			factIDs:                      []string{envelope.FactID},
 		})
 	}
 	sort.SliceStable(refs, func(i, j int) bool {
@@ -100,6 +104,19 @@ func singleOCIConfigSourceLabel(labels map[string]string) (string, bool) {
 	return "", false
 }
 
+// matchOCIConfigSourceRepository resolves an OCI config source label to the one
+// repository it names, or reports false when the label is ambiguous.
+//
+// Ambiguity means two DIFFERENT repositories claim the same remote URL, not the
+// same repository observed more than once. matchPackageSourceRepositories returns
+// one entry per matching repository FACT, and a repository legitimately carries
+// several active facts (more than one scope or collector observing the same
+// repo), so counting raw matches rejected a perfectly unambiguous label as soon
+// as a second fact for that repository existed. That silently disabled this
+// build-evidence tier -- and with it base-image lineage's child attribution
+// (#5460) -- in any environment with duplicate repository facts, which is every
+// real corpus. Dedupe by repository identity before applying the exactly-one
+// rule.
 func matchOCIConfigSourceRepository(
 	sourceURL string,
 	repositories []packageSourceRepository,
@@ -110,10 +127,17 @@ func matchOCIConfigSourceRepository(
 		SourceURL: sourceURL,
 	}
 	active, _ := matchPackageSourceRepositories(hint, repositories)
-	if len(active) != 1 {
+	distinct := make(map[string]packageSourceRepository, len(active))
+	for _, repository := range active {
+		distinct[repository.RepositoryID] = repository
+	}
+	if len(distinct) != 1 {
 		return packageSourceRepository{}, false
 	}
-	return active[0], true
+	for _, repository := range distinct {
+		return repository, true
+	}
+	return packageSourceRepository{}, false
 }
 
 func normalizeOCIConfigRevision(labels map[string]string) string {

@@ -22,11 +22,21 @@ type containerImageRefEvidence struct {
 	// built by it, and conflating the two would let the DERIVED_FROM projection
 	// treat a base as one of its own declaring repository's built images.
 	baseImageForRepositoryIDs []string
-	sourceRevision            string
-	sourceLabelEvidence       bool
-	workloadIDs               []string
-	serviceIDs                []string
-	factIDs                   []string
+	// buildProvenanceRepositoryIDs names the repositories that genuinely BUILT
+	// this image, and only ever comes from build evidence: an OCI config source
+	// label the image itself carries, or a CI run that reported producing this
+	// digest. It is deliberately NOT populated by the generic scope/workload
+	// anchoring that fills sourceRepositoryIDs, because a repository that merely
+	// deploys or references a third-party digest (a Kubernetes manifest naming
+	// postgres, say) lands in sourceRepositoryIDs too. DERIVED_FROM must not
+	// treat such an image as a child of that repository's Dockerfile base --
+	// that would fabricate CVE-inheritance truth (#5460).
+	buildProvenanceRepositoryIDs []string
+	sourceRevision               string
+	sourceLabelEvidence          bool
+	workloadIDs                  []string
+	serviceIDs                   []string
+	factIDs                      []string
 }
 
 // ciRunDigestAnchor is the ci.run-derived provenance for one artifact digest:
@@ -43,10 +53,13 @@ type ciRunDigestAnchor struct {
 }
 
 type containerImageRefAnchors struct {
-	sourceRepositoryIDs       []string
-	baseImageForRepositoryIDs []string
-	workloadIDs               []string
-	serviceIDs                []string
+	sourceRepositoryIDs []string
+	// buildProvenanceRepositoryIDs carries build-evidence-only repository
+	// attribution; see containerImageRefEvidence.buildProvenanceRepositoryIDs.
+	buildProvenanceRepositoryIDs []string
+	baseImageForRepositoryIDs    []string
+	workloadIDs                  []string
+	serviceIDs                   []string
 }
 
 type parsedContainerImageRef struct {
@@ -173,6 +186,7 @@ func addContainerImageRef(
 	ref.parsed = parsed
 	ref.factIDs = append(ref.factIDs, factIDs...)
 	ref.sourceRepositoryIDs = append(ref.sourceRepositoryIDs, anchors.sourceRepositoryIDs...)
+	ref.buildProvenanceRepositoryIDs = append(ref.buildProvenanceRepositoryIDs, anchors.buildProvenanceRepositoryIDs...)
 	ref.baseImageForRepositoryIDs = append(ref.baseImageForRepositoryIDs, anchors.baseImageForRepositoryIDs...)
 	ref.workloadIDs = append(ref.workloadIDs, anchors.workloadIDs...)
 	ref.serviceIDs = append(ref.serviceIDs, anchors.serviceIDs...)
@@ -180,6 +194,7 @@ func addContainerImageRef(
 		ref.resolvedDigest = resolvedDigest
 	}
 	ref.sourceRepositoryIDs = uniqueSortedStrings(ref.sourceRepositoryIDs)
+	ref.buildProvenanceRepositoryIDs = uniqueSortedStrings(ref.buildProvenanceRepositoryIDs)
 	ref.baseImageForRepositoryIDs = uniqueSortedStrings(ref.baseImageForRepositoryIDs)
 	ref.workloadIDs = uniqueSortedStrings(ref.workloadIDs)
 	ref.serviceIDs = uniqueSortedStrings(ref.serviceIDs)
@@ -204,11 +219,13 @@ func mergeContainerImageRef(byRef map[string]containerImageRefEvidence, next con
 	ref.sourceLabelEvidence = ref.sourceLabelEvidence || next.sourceLabelEvidence
 	ref.factIDs = append(ref.factIDs, next.factIDs...)
 	ref.sourceRepositoryIDs = append(ref.sourceRepositoryIDs, next.sourceRepositoryIDs...)
+	ref.buildProvenanceRepositoryIDs = append(ref.buildProvenanceRepositoryIDs, next.buildProvenanceRepositoryIDs...)
 	ref.baseImageForRepositoryIDs = append(ref.baseImageForRepositoryIDs, next.baseImageForRepositoryIDs...)
 	ref.workloadIDs = append(ref.workloadIDs, next.workloadIDs...)
 	ref.serviceIDs = append(ref.serviceIDs, next.serviceIDs...)
 	ref.factIDs = uniqueSortedStrings(ref.factIDs)
 	ref.sourceRepositoryIDs = uniqueSortedStrings(ref.sourceRepositoryIDs)
+	ref.buildProvenanceRepositoryIDs = uniqueSortedStrings(ref.buildProvenanceRepositoryIDs)
 	ref.baseImageForRepositoryIDs = uniqueSortedStrings(ref.baseImageForRepositoryIDs)
 	ref.workloadIDs = uniqueSortedStrings(ref.workloadIDs)
 	ref.serviceIDs = uniqueSortedStrings(ref.serviceIDs)

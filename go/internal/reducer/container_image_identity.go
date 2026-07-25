@@ -80,13 +80,22 @@ type ContainerImageIdentityDecision struct {
 	// alone cannot tell the two apart. Empty for every image that is not some
 	// repository's declared base.
 	BaseImageForRepositoryIDs []string
-	WorkloadIDs               []string
-	ServiceIDs                []string
-	Outcome                   ContainerImageIdentityOutcome
-	Reason                    string
-	CanonicalWrites           int
-	EvidenceFactIDs           []string
-	IdentityStrength          string
+	// BuildProvenanceRepositoryIDs names the repositories that genuinely BUILT
+	// this image, established only by build evidence: an OCI config source label
+	// the image itself carries, or a CI run that reported producing this digest.
+	// SourceRepositoryIDs is deliberately broader -- it also collects the
+	// repository whose Kubernetes manifest merely REFERENCES a third-party
+	// digest -- so base-image lineage (#5460) gates its child side on this field
+	// instead. Attributing a referenced image to the referencing repository's
+	// Dockerfile base would fabricate CVE-inheritance truth.
+	BuildProvenanceRepositoryIDs []string
+	WorkloadIDs                  []string
+	ServiceIDs                   []string
+	Outcome                      ContainerImageIdentityOutcome
+	Reason                       string
+	CanonicalWrites              int
+	EvidenceFactIDs              []string
+	IdentityStrength             string
 }
 
 // ContainerImageIdentityWrite carries decisions for durable publication.
