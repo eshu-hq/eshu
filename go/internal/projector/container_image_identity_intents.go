@@ -28,6 +28,7 @@ var containerImageIdentityCandidateFactKinds = []string{
 	facts.AWSRelationshipFactKind,
 	facts.CICDArtifactFactKind,
 	"content_entity",
+	FactKindFileObserved,
 	facts.AttestationSLSAProvenanceFactKind,
 	facts.AttestationSignatureVerificationFactKind,
 }
@@ -83,6 +84,19 @@ func containerImageIdentityTriggerFact(envelope facts.Envelope) bool {
 		return strings.TrimSpace(artifactType) == "container_image"
 	case "content_entity":
 		return len(containerImageRefsFromEntityMetadata(envelope.Payload)) > 0
+	case FactKindFileObserved:
+		// A Dockerfile's FROM base images live on the repository's `file` fact
+		// (parsed_file_data.dockerfile_stages), never on a content_entity, and
+		// the reducer only extracts them inside a container_image_identity
+		// intent. When a Dockerfile is the only identity-relevant fact in a
+		// generation -- a repository that adds or edits its Dockerfile with no
+		// new image evidence -- nothing else here triggers the domain, so the
+		// base-image lineage (#5460) would never project and a changed or
+		// deleted base would leave the prior DERIVED_FROM edge stale.
+		//
+		// Narrow by design: every repository generation carries `file` facts, so
+		// only a Dockerfile may trigger, never an arbitrary source file.
+		return dockerfileIdentityTriggerFile(envelope)
 	case facts.AttestationSLSAProvenanceFactKind:
 		// A signed SLSA provenance predicate carries the digest-to-commit
 		// anchor the reducer's container_image_identity domain joins by
@@ -104,6 +118,59 @@ func containerImageIdentityTriggerFact(envelope facts.Envelope) bool {
 	default:
 		return false
 	}
+}
+
+// dockerfileIdentityTriggerFile reports whether a `file` fact is a Dockerfile
+// whose base-image evidence the container_image_identity domain must re-derive.
+//
+// Two recognizers, deliberately: parsed base-image stages are the precise signal
+// for an added or edited Dockerfile, but a REMOVED Dockerfile arrives as a
+// tombstone that can carry no parsed_file_data at all. Falling back to the
+// declared language and file name keeps the removal path triggering, which is
+// what lets the reducer's retract-first pass clear a DERIVED_FROM edge whose
+// Dockerfile is gone (#5460) instead of leaving it stale forever.
+func dockerfileIdentityTriggerFile(envelope facts.Envelope) bool {
+	if dockerfileStagesPresent(envelope.Payload) {
+		return true
+	}
+	language, _ := payloadString(envelope.Payload, "language")
+	if strings.EqualFold(strings.TrimSpace(language), "dockerfile") {
+		return true
+	}
+	rawName, _ := payloadString(envelope.Payload, "name")
+	name := strings.TrimSpace(rawName)
+	if name == "" {
+		relativePath, _ := payloadString(envelope.Payload, "relative_path")
+		name = pathBaseName(strings.TrimSpace(relativePath))
+	}
+	return strings.EqualFold(name, "Dockerfile") || strings.HasPrefix(strings.ToLower(name), "dockerfile.")
+}
+
+// dockerfileStagesPresent reports whether a file fact's parsed_file_data carries
+// a non-empty dockerfile_stages bucket. Both the in-process []map[string]any and
+// the JSON-round-tripped []any shape reach this projector.
+func dockerfileStagesPresent(payload map[string]any) bool {
+	fileData, ok := payload["parsed_file_data"].(map[string]any)
+	if !ok {
+		return false
+	}
+	switch stages := fileData["dockerfile_stages"].(type) {
+	case []map[string]any:
+		return len(stages) > 0
+	case []any:
+		return len(stages) > 0
+	default:
+		return false
+	}
+}
+
+// pathBaseName returns the final path segment, without importing path/filepath
+// for a single separator split on an always-slash-delimited repository path.
+func pathBaseName(value string) string {
+	if idx := strings.LastIndex(value, "/"); idx >= 0 {
+		return value[idx+1:]
+	}
+	return value
 }
 
 func containerImageIdentitySourceSystem(envelope facts.Envelope) string {
