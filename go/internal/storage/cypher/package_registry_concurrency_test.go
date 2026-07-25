@@ -185,6 +185,9 @@ func TestPackageRegistryIdentityLockKeysCoverPackageSources(t *testing.T) {
 			PackageID:           "npm://registry.npmjs.org/@aws-sdk/util-utf8-browser",
 			DependencyPackageID: "npm://registry.npmjs.org/@aws-sdk/property-provider",
 		}},
+		PackageRegistryArtifacts: []projector.PackageRegistryArtifactRow{{
+			PackageID: "npm://registry.npmjs.org/lodash",
+		}},
 	}
 
 	got := uniqueSortedPackageRegistryIdentityKeys(packageRegistryIdentityLockKeys(mat))
@@ -192,6 +195,7 @@ func TestPackageRegistryIdentityLockKeysCoverPackageSources(t *testing.T) {
 		"npm://registry.npmjs.org/@aws-sdk/property-provider",
 		"npm://registry.npmjs.org/@aws-sdk/util-utf8-browser",
 		"npm://registry.npmjs.org/eslint",
+		"npm://registry.npmjs.org/lodash",
 		"npm://registry.npmjs.org/mocha",
 	}
 	if !reflect.DeepEqual(got, want) {

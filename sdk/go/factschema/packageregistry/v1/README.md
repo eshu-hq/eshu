@@ -11,9 +11,9 @@ typed, schema-generated, decode-validated contracts.
 
 The package-registry collector emits nine fact kinds; the projector's
 source-local canonical extractor
-(`go/internal/projector/package_registry_canonical.go`) reads three of them to
-materialize canonical `PackageRegistryPackage`, `PackageRegistryVersion`, and
-`PackageRegistryDependency` graph rows. Before typing, it read each payload key
+(`go/internal/projector/package_registry_canonical.go`) reads four of them to
+materialize canonical `PackageRegistryPackage`, `PackageRegistryVersion`,
+`PackageRegistryDependency`, and `PackageRegistryArtifact` graph rows. Before typing, it read each payload key
 with a raw lookup that returned `""` for an absent key, so a collector that
 dropped or renamed an identity key produced an empty-identity row — or
 silently dropped the fact — with no operator signal. Typing the payload makes
@@ -27,8 +27,8 @@ silent wrong graph truth (Contract System v1 §3.2).
 | `Package` | `package_registry.package` | consumed | `package_id` |
 | `PackageVersion` | `package_registry.package_version` | consumed | `package_id`, `version_id`, `version` |
 | `PackageDependency` | `package_registry.package_dependency` | consumed | `package_id`, `version_id`, `dependency_package_id` |
+| `PackageArtifact` | `package_registry.package_artifact` | consumed (#5458) | `package_id`, `version_id`, `artifact_key` |
 | `SourceHint` | `package_registry.source_hint` | typed, not yet consumed here | `package_id`, `hint_kind` |
-| `PackageArtifact` | `package_registry.package_artifact` | typed, not yet consumed | `package_id`, `version_id`, `artifact_key` |
 | `VulnerabilityHint` | `package_registry.vulnerability_hint` | typed, not yet consumed | `package_id`, `advisory_id`, `advisory_source` |
 | `RegistryEvent` | `package_registry.registry_event` | typed, not yet consumed | `event_key`, `event_type` |
 | `RepositoryHosting` | `package_registry.repository_hosting` | typed, not yet consumed | `provider`, `registry`, `repository` |
@@ -45,6 +45,17 @@ ABSENCE breaks the graph identity in the projector today:
 - `PackageDependency.PackageID`/`.VersionID`/`.DependencyPackageID` are the
   dependency edge's three join keys (the edge's own uid additionally requires
   a non-blank `StableFactKey`, enforced on the envelope, not the payload).
+- `PackageArtifact.PackageID`/`.VersionID`/`.ArtifactKey` are the artifact
+  node's owning package/version join keys and its own identity within that
+  version (the node's own uid additionally requires a non-blank
+  `StableFactKey`, enforced on the envelope, not the payload). Its `Hashes`
+  map carries the per-artifact algorithm-to-digest binding that
+  `PackageVersion.Checksums`/`checksum_algorithms` drops (algorithm names
+  only). `DecodePackageRegistryPackageArtifact` additionally rejects a
+  `Hashes` entry whose algorithm name contains `:` as `input_invalid`: the
+  canonical graph writer flattens `Hashes` into a sorted `"algorithm:digest"`
+  string list (Cypher node properties cannot hold a nested map), and a colon
+  inside the algorithm name would make that split ambiguous.
 
 A present-but-empty required value is a VALID decode (an empty observed value
 the projector already treats as non-materializable), not a dead-letter. Only an
@@ -61,9 +72,8 @@ follow.
 
 ### Typed but not yet consumed
 
-`SourceHint`, `PackageArtifact`, `VulnerabilityHint`, `RegistryEvent`,
-`RepositoryHosting`, and `Warning` have no decode-seam read consumer in the
-current codebase:
+`SourceHint`, `VulnerabilityHint`, `RegistryEvent`, `RepositoryHosting`, and
+`Warning` have no decode-seam read consumer in the current codebase:
 
 - `SourceHint`'s payload IS read today, but only by the reducer's
   `package_source_correlation` domain
@@ -77,8 +87,8 @@ current codebase:
   stay declared here and are locked by
   `go/internal/storage/postgres/package_registry_sql_schema_lockstep_test.go`
   so a dropped field fails the build instead of silently breaking the SQL read.
-- `PackageArtifact` and `RegistryEvent` and `RepositoryHosting` are referenced
-  only on the collector emit side today (no reducer, projector, or SQL reader).
+- `RegistryEvent` and `RepositoryHosting` are referenced only on the collector
+  emit side today (no reducer, projector, or SQL reader).
 
 They are typed here so the contract, schema, and fixture pack are ready the
 moment a consumer is added, matching how the terraform_state family typed

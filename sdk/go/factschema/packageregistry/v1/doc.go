@@ -6,7 +6,7 @@
 // docs/internal/design/contract-system-v1.md), decoded through the parent
 // factschema package's kind-keyed seam (decode.go, decode_packageregistry.go).
 //
-// Nine fact kinds live here. Three are CONSUMED today by the projector's
+// Nine fact kinds live here. Four are CONSUMED today by the projector's
 // source-local canonical extractor
 // (go/internal/projector/package_registry_canonical.go) and decode through the
 // seam on the read path:
@@ -14,8 +14,12 @@
 //   - Package             (package_registry.package)
 //   - PackageVersion       (package_registry.package_version)
 //   - PackageDependency    (package_registry.package_dependency)
+//   - PackageArtifact      (package_registry.package_artifact) — gained a real
+//     consumer in #5458: it carries the per-artifact hash digests
+//     (Hashes map[string]string) the PackageVersion node's
+//     checksum_algorithms property drops (algorithm names only, no digest).
 //
-// Six are TYPED-BUT-NOT-YET-CONSUMED by any decode-seam read path today, so
+// Five are TYPED-BUT-NOT-YET-CONSUMED by any decode-seam read path today, so
 // this wave ships their struct, schema, and fixture pack without converting a
 // decode site, adding an input_invalid regression test, or benchmarking a read
 // path (there is none to benchmark), matching how the terraform_state family
@@ -23,7 +27,6 @@
 // (terraformstate/v1/doc.go):
 //
 //   - SourceHint           (package_registry.source_hint)
-//   - PackageArtifact      (package_registry.package_artifact)
 //   - VulnerabilityHint    (package_registry.vulnerability_hint)
 //   - RegistryEvent        (package_registry.registry_event)
 //   - RepositoryHosting    (package_registry.repository_hosting)
@@ -75,6 +78,16 @@
 //     dependency edge's three join keys; any one absent drops the row today
 //     (packageRegistryDependencyRow). The edge's own uid additionally requires
 //     a non-blank StableFactKey, enforced on the envelope, not the payload.
+//   - PackageArtifact.PackageID, .VersionID, and .ArtifactKey — the artifact
+//     node's owning package/version join keys and its own identity within
+//     that version; any one absent drops the row (packageRegistryArtifactRow).
+//     The node's own uid additionally requires a non-blank StableFactKey,
+//     enforced on the envelope, not the payload. DecodePackageRegistryPackageArtifact
+//     also rejects a Hashes entry whose algorithm name contains ':' as
+//     input_invalid: the canonical graph writer flattens Hashes into a sorted
+//     "algorithm:digest" string list (Cypher node properties cannot hold a
+//     nested map), and a colon inside the algorithm name would make that
+//     split ambiguous.
 //
 // A present-but-empty required value (an empty string) is a VALID decode, not a
 // dead-letter, matching the pre-typing projector behavior where an empty

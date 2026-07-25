@@ -40,9 +40,12 @@
   indexes. `ContainerImageTagObservation` keeps a separate `image_ref` index for
   mutable tag evidence; do not use tag text as image identity.
 - **Package truth is identity-first** — `Package`, `PackageVersion`,
-  `PackageDependency`, `PackageRegistryPackage`,
-  `PackageRegistryPackageVersion`, and `PackageRegistryPackageDependency`
-  labels get `uid` constraints. Keep package ownership and repository
+  `PackageDependency`, `PackageArtifact`, `PackageRegistryPackage`,
+  `PackageRegistryPackageVersion`, `PackageRegistryPackageDependency`, and
+  `PackageRegistryPackageArtifact` labels get `uid` constraints;
+  `PackageArtifact` additionally gets `package_artifact_version_id` and
+  `package_artifact_package_id` lookup indexes backing the deferred
+  `HAS_ARTIFACT` edge MATCH (#5458). Keep package ownership and repository
   publication out of schema assumptions unless reducer admission owns that
   truth.
 - **NornicDB composite constraint parity** — `nornicDBSchemaConstraint` drops

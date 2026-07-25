@@ -63,12 +63,15 @@ and `Warning`. It must remain independent from Eshu internals.
 ## Consumed vs deferred
 
 - **Consumed today** (decode through the seam on the projector read path):
-  `Package`, `PackageVersion`, `PackageDependency`
-  (`go/internal/projector/package_registry_canonical.go`).
-- **Typed-but-not-yet-consumed**: `SourceHint`, `PackageArtifact`,
-  `VulnerabilityHint`, `RegistryEvent`, `RepositoryHosting`, and `Warning` have
-  no decode-seam read consumer in the current codebase. `SourceHint` IS read
-  by the reducer's `package_source_correlation` domain
+  `Package`, `PackageVersion`, `PackageDependency`, and (since #5458)
+  `PackageArtifact` (`go/internal/projector/package_registry_canonical.go`).
+  `PackageArtifact` projects onto a `PackageArtifact`/`PackageRegistryPackageArtifact`
+  graph node carrying the `Hashes` per-artifact algorithm-to-digest binding
+  the `PackageVersion` node's `checksum_algorithms` property drops.
+- **Typed-but-not-yet-consumed**: `SourceHint`, `VulnerabilityHint`,
+  `RegistryEvent`, `RepositoryHosting`, and `Warning` have no decode-seam read
+  consumer in the current codebase. `SourceHint` IS read by the reducer's
+  `package_source_correlation` domain
   (`go/internal/reducer/package_source_correlation.go`), a separate reducer
   family this wave does not convert — do not add a projector decode site for
   it here; that conversion belongs to the reducer family's own migration.
@@ -77,7 +80,7 @@ and `Warning`. It must remain independent from Eshu internals.
   (`facts_active_supply_chain_impact.go`, `status_registry.go`); those fields
   MUST stay declared here even though no decode site exists —
   `go/internal/storage/postgres/package_registry_sql_schema_lockstep_test.go`
-  locks that coverage. The six kinds ship a struct, schema, and fixture pack so
+  locks that coverage. The five kinds ship a struct, schema, and fixture pack so
   the contract is ready, but their decode-site conversion, regression test, and
   benchmark land in the change that first reads each kind through the typed
   seam — matching how the terraform_state family typed

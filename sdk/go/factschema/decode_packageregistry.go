@@ -4,6 +4,9 @@
 package factschema
 
 import (
+	"fmt"
+	"strings"
+
 	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 )
 
@@ -80,11 +83,35 @@ func EncodePackageRegistrySourceHint(hint packageregistryv1.SourceHint) (map[str
 
 // DecodePackageRegistryPackageArtifact decodes env.Payload into the latest
 // packageregistryv1.PackageArtifact struct for the
-// "package_registry.package_artifact" fact kind. Typed-but-not-yet-consumed.
-// A payload missing a required identity field (package_id, version_id,
-// artifact_key) dead-letters as input_invalid.
+// "package_registry.package_artifact" fact kind. Consumed by the projector's
+// #5458 canonical extractor (packageRegistryArtifactRow in
+// go/internal/projector/package_registry_canonical_artifact.go). A payload
+// missing a required identity field (package_id, version_id, artifact_key)
+// dead-letters as input_invalid.
+//
+// So does a hashes entry whose algorithm name contains ':'. The canonical
+// graph writer (packageRegistryHashPairs in
+// go/internal/storage/cypher/package_registry_artifact_writer.go) flattens
+// Hashes into a sorted "algorithm:digest" string list because Cypher node
+// properties cannot hold a nested map; that split is unambiguous only when
+// the algorithm name itself never contains ':'. Rejecting it here, at decode,
+// is the only place in the pipeline positioned to catch it before an
+// ambiguous encoding reaches the graph.
 func DecodePackageRegistryPackageArtifact(env Envelope) (packageregistryv1.PackageArtifact, error) {
-	return decodeLatestMajor[packageregistryv1.PackageArtifact](FactKindPackageRegistryPackageArtifact, env)
+	artifact, err := decodeLatestMajor[packageregistryv1.PackageArtifact](FactKindPackageRegistryPackageArtifact, env)
+	if err != nil {
+		return artifact, err
+	}
+	for algorithm := range artifact.Hashes {
+		if strings.Contains(algorithm, ":") {
+			return packageregistryv1.PackageArtifact{}, decodePayloadFieldError(
+				FactKindPackageRegistryPackageArtifact,
+				"hashes",
+				fmt.Errorf("algorithm name %q contains ':', which would make the algorithm:digest graph encoding ambiguous", algorithm),
+			)
+		}
+	}
+	return artifact, nil
 }
 
 // EncodePackageRegistryPackageArtifact marshals a

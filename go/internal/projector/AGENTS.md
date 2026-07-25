@@ -63,21 +63,31 @@
   consumption truth in the projector.
   `package_source_correlation_intents.go` may enqueue the reducer classifier,
   but that intent is counter-only until reducer admission grows stronger
-  provenance. The three consumed kinds (`package`, `.package_version`,
-  `.package_dependency`) decode through the `sdk/go/factschema` seam
-  (`factschema_decode_packageregistry.go`), NOT raw `payloadString`/
-  `payloadBoolPtr`/`payloadStringSlice`, reusing the family-neutral quarantine
-  apparatus `oci_registry`/`terraform_state` introduced: a fact missing a
-  required identity field (`package_id`, `version_id`, `version`,
-  `dependency_package_id`) is quarantined per-fact via
-  `partitionProjectorDecodeFailures` and recorded as a visible `input_invalid`
-  dead-letter (`eshu_dp_projector_input_invalid_facts_total` under the
-  `package_registry_canonical` stage). The six typed-but-not-yet-consumed kinds
-  (`.source_hint`, `.package_artifact`, `.vulnerability_hint`,
-  `.registry_event`, `.repository_hosting`, `.warning`) have no projector
-  decode site; `.source_hint`'s payload is read only by the reducer's
-  `package_source_correlation` domain via raw map access, a separate reducer
-  family this projector wave did not convert.
+  provenance. The four consumed kinds (`package`, `.package_version`,
+  `.package_dependency`, and — since #5458 — `.package_artifact`) decode
+  through the `sdk/go/factschema` seam (`factschema_decode_packageregistry.go`),
+  NOT raw `payloadString`/`payloadBoolPtr`/`payloadStringSlice`, reusing the
+  family-neutral quarantine apparatus `oci_registry`/`terraform_state`
+  introduced: a fact missing a required identity field (`package_id`,
+  `version_id`, `version`, `dependency_package_id`, `artifact_key`) is
+  quarantined per-fact via `partitionProjectorDecodeFailures` and recorded as a
+  visible `input_invalid` dead-letter
+  (`eshu_dp_projector_input_invalid_facts_total` under the
+  `package_registry_canonical` stage). `.package_artifact` projects onto a
+  `PackageArtifact` node carrying the per-artifact `hashes` (algorithm:digest
+  pairs) the `PackageVersion` node's `checksum_algorithms` property drops. A
+  `hashes` entry whose algorithm name contains `:` is rejected at decode
+  (`DecodePackageRegistryPackageArtifact`, `sdk/go/factschema/decode_packageregistry.go`)
+  since that would make the graph writer's `algorithm:digest` flattening
+  ambiguous. `PackageRegistryArtifactRow` and its decode/row-building helper
+  live in `package_registry_canonical_artifact.go`, split out of
+  `package_registry_canonical.go` to stay under the 500-line file cap (mirrors
+  `tfstate_canonical_types.go`'s split from `tfstate_canonical.go`). The five
+  remaining typed-but-not-yet-consumed kinds (`.source_hint`,
+  `.vulnerability_hint`, `.registry_event`, `.repository_hosting`, `.warning`)
+  have no projector decode site; `.source_hint`'s payload is read only by the
+  reducer's `package_source_correlation` domain via raw map access, a separate
+  reducer family this projector wave did not convert.
 - **AWS runtime drift stays reducer-owned** —
   `aws_cloud_runtime_drift_intents.go` may enqueue one reducer intent when an
   AWS generation contains `aws_resource` facts, but the projector must not join

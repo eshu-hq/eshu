@@ -191,6 +191,12 @@ var schemaPerformanceIndexes = []string{
 	"CREATE INDEX package_version_package_id IF NOT EXISTS FOR (v:PackageVersion) ON (v.package_id)",
 	"CREATE INDEX package_dependency_package_id IF NOT EXISTS FOR (d:PackageDependency) ON (d.package_id)",
 	"CREATE INDEX package_dependency_version_id IF NOT EXISTS FOR (d:PackageDependency) ON (d.version_id)",
+	// package_artifact_version_id backs the deferred HAS_ARTIFACT edge MATCH
+	// (package_registry_artifact_writer.go) and version->artifact traversal
+	// queries; without it, `MATCH (a:PackageArtifact {version_id: $v})` falls
+	// back to a PackageArtifact label scan.
+	"CREATE INDEX package_artifact_version_id IF NOT EXISTS FOR (a:PackageArtifact) ON (a.version_id)",
+	"CREATE INDEX package_artifact_package_id IF NOT EXISTS FOR (a:PackageArtifact) ON (a.package_id)",
 	"CREATE INDEX function_name IF NOT EXISTS FOR (f:Function) ON (f.name)",
 	"CREATE INDEX class_name IF NOT EXISTS FOR (c:Class) ON (c.name)",
 }

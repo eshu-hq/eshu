@@ -24,14 +24,16 @@
   entity_retract → entity_containment → terraform_state → oci_registry →
   package_registry_packages → package_registry_versions →
   package_registry_dependency_targets → package_registry_dependencies →
+  package_registry_artifacts →
   modules → structural_edges → package_registry_version_edges →
-  package_registry_dependency_edges. Parent nodes must
+  package_registry_dependency_edges → package_registry_artifact_edges. Parent nodes must
   exist before child MATCH statements run, repository cleanup must commit
   before the repository MERGE, and stale entity cleanup must run after current
-  entity upserts so it can avoid giant `uid IN` exclusion filters. The two
+  entity upserts so it can avoid giant `uid IN` exclusion filters. The three
   `package_registry_*_edges` phases run LAST,
   after every node phase they MATCH, because they MATCH multi-label nodes
-  those node phases create (`Package`/`PackageVersion`/`PackageDependency`).
+  those node phases create
+  (`Package`/`PackageVersion`/`PackageDependency`/`PackageArtifact`).
 - **package_registry edges dispatch in a SECOND ExecuteGroup** — on the atomic
   `GroupExecutor` projector path, `CanonicalNodeWriter.Write` partitions the
   deferred `package_registry_*_edges` phases out
@@ -42,8 +44,8 @@
   labels in one statement is invisible to a later same-transaction
   `UNWIND $rows … MATCH` against one of those labels, so an inline edge
   MATCH+MERGE in the same atomic transaction finds nothing —
-  `HAS_VERSION`/`DECLARES_DEPENDENCY`/`DEPENDS_ON_PACKAGE` edges never
-  materialize. Deferring to a second committed-node group fixes it. Note the
+  `HAS_VERSION`/`DECLARES_DEPENDENCY`/`DEPENDS_ON_PACKAGE`/`HAS_ARTIFACT` edges
+  never materialize. Deferring to a second committed-node group fixes it. Note the
   #5459 tag-observation `first_observed_at` deliberately does NOT use a deferred
   MATCH: even across the group boundary a deferred multi-label MATCH proved
   unreliable in the live golden pipeline, so it uses `ON CREATE SET` in the
@@ -122,10 +124,23 @@
 - **Package source hints are weak evidence** —
   `package_registry_canonical_writer.go` writes package identity, package
   version identity, and package-native dependency identity (the node-only
-  upserts). The `HAS_VERSION`, `DECLARES_DEPENDENCY`, and `DEPENDS_ON_PACKAGE`
-  edge writers live in `package_registry_edge_writer.go` and run as the deferred
-  second ExecuteGroup (see the phase-order invariant above). Do not join to
-  `Repository` or create ownership/publication edges from registry source URLs.
+  upserts); `package_registry_artifact_writer.go` writes package-artifact
+  identity (also node-only). The `HAS_VERSION`, `DECLARES_DEPENDENCY`, and
+  `DEPENDS_ON_PACKAGE` edge writers live in `package_registry_edge_writer.go`;
+  `HAS_ARTIFACT` lives in `package_registry_artifact_writer.go`. All four run
+  as the deferred second ExecuteGroup (see the phase-order invariant above). Do
+  not join to `Repository` or create ownership/publication edges from registry
+  source URLs.
+- **Artifact hashes cannot be a Cypher map property** — `hashes` on
+  `PackageArtifact` is a sorted `algorithm:digest` string list
+  (`packageRegistryHashPairs`), not a `map[string]string`. Neo4j/NornicDB node
+  properties only hold primitives or homogeneous arrays of primitives; do not
+  attempt to store the `Hashes` map directly. The split is unambiguous only
+  because a colon-bearing algorithm name is rejected upstream at decode
+  (`DecodePackageRegistryPackageArtifact`,
+  `sdk/go/factschema/decode_packageregistry.go`) — do not remove that
+  validation without also proving this writer (or a consumer) can safely
+  re-split an `algorithm:digest` string with an ambiguous algorithm segment.
 - **Identity cleanup** — repository upserts must keep cleanup before MERGE and
   in a separate phase group for non-first-generation scopes. First-generation
   scopes skip repository cleanup because there is no prior repository identity

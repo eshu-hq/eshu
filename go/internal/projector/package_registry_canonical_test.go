@@ -119,6 +119,10 @@ func TestBuildCanonicalMaterializationExtractsPackageRegistryDependencies(t *tes
 	}
 }
 
+// Package_registry.package_artifact-specific tests and fixture
+// (packageRegistryArtifactFact) live in
+// package_registry_canonical_artifact_test.go.
+
 func TestBuildCanonicalMaterializationSkipsUnstablePackageRegistryDependency(t *testing.T) {
 	t.Parallel()
 

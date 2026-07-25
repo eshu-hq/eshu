@@ -75,6 +75,11 @@
         "max": 200,
         "note": "package versions from package_registry cassette; target of HAS_VERSION and DEPENDS_ON_PACKAGE"
       },
+      "PackageArtifact": {
+        "min": 1,
+        "max": 200,
+        "note": "package artifacts from package_registry cassette; target of HAS_ARTIFACT (#5458). The github.com/acme/lib-common@1.0.0 version fact is paired with one package_registry.package_artifact fact (artifact_key lib-common-1.0.0.tar.gz) carrying sha256/sha512 hashes -- the per-artifact digest binding the PackageVersion node's checksum_algorithms property alone cannot provide."
+      },
       "ExternalPrincipal": {
         "min": 0,
         "max": 50,
@@ -156,6 +161,11 @@
         "min": 1,
         "max": 200,
         "note": "Package\u2192PackageVersion version edges from package_registry canonical writer"
+      },
+      "HAS_ARTIFACT": {
+        "min": 1,
+        "max": 200,
+        "note": "PackageVersion\u2192PackageArtifact artifact edges from the package_registry canonical writer's deferred artifact edge phase (#5458); the github.com/acme/lib-common@1.0.0 package_artifact fact projects this edge to its PackageArtifact node"
       },
       "PUBLISHES": {
         "min": 1,
@@ -1770,6 +1780,14 @@
             "repository_single_base"
           ]
         }
+      },
+      {
+        "id": "rc-168",
+        "description": "A PackageVersion HAS_ARTIFACT a PackageArtifact; issue #5458 promotes package_registry.package_artifact from a disclosed-unconsumed kind to a real consumer, closing the gap where the PackageVersion node's checksum_algorithms property kept only algorithm names and dropped the actual per-artifact digest. The package_registry supply-chain-demo cassette's github.com/acme/lib-common@1.0.0 version fact is paired with one package_artifact fact (artifact_key lib-common-1.0.0.tar.gz, hashes sha256/sha512), and the package_registry canonical writer materializes the PackageArtifact node and the deferred HAS_ARTIFACT edge via the same NornicDB deferred-edge-group fix rc-24/rc-25 rely on.",
+        "relationship": "HAS_ARTIFACT",
+        "from_label": "PackageVersion",
+        "to_label": "PackageArtifact",
+        "minimum_count": 1
       }
     ],
     "required_nodes": [
