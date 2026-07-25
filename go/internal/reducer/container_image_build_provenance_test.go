@@ -201,3 +201,41 @@ func TestTwoDifferentRepositoriesClaimingOneRemoteStayAmbiguous(t *testing.T) {
 		}
 	}
 }
+
+// TestBuildProvenanceFromCICDRunDigestOnlyArtifact pins the CI-run half of the
+// build-provenance tier (#5808). A ci.artifact fact carries a digest but no image
+// reference, so it reaches identity through addContainerImageDigestRef -- which
+// propagated sourceRepositoryIDs but silently dropped
+// buildProvenanceRepositoryIDs. Because both the DERIVED_FROM child gate (#5460)
+// and BUILT_FROM key on that field, an image whose only build evidence is a
+// ci.run/ci.artifact join was treated as if nobody built it, even though
+// addCICDArtifactImageReference deliberately set the anchor. This is the golden
+// corpus's ONLY evidence path for rc-165, so the gap was invisible there while
+// still making the documented CI-run source untrue.
+func TestBuildProvenanceFromCICDRunDigestOnlyArtifact(t *testing.T) {
+	t.Parallel()
+
+	const repoID = "repository:r_69256c06"
+
+	decisions := BuildContainerImageIdentityDecisions([]facts.Envelope{
+		ciRunFact("run-1", "github_actions", repoID, "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c"),
+		ciArtifactFact("ci-artifact-1", "run-1", testContainerDigest),
+		// The registry observation is what resolves the bare digest to an
+		// exact_digest decision, exactly as rc-165's corpus does.
+		ociManifestFact("oci-manifest-ci", testContainerDigest),
+	})
+	digest := testContainerDigest
+
+	var provenance []string
+	for _, decision := range decisions {
+		if decision.Digest == digest {
+			provenance = append(provenance, decision.BuildProvenanceRepositoryIDs...)
+		}
+	}
+	if !slices.Contains(provenance, repoID) {
+		t.Fatalf(
+			"a ci.run/ci.artifact join (digest, no image ref) must confer build provenance on its repository: got %#v, want %q",
+			provenance, repoID,
+		)
+	}
+}

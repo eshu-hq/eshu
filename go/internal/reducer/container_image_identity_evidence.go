@@ -265,9 +265,17 @@ func addContainerImageDigestRef(
 	}
 	ref.factIDs = append(ref.factIDs, factIDs...)
 	ref.sourceRepositoryIDs = append(ref.sourceRepositoryIDs, anchors.sourceRepositoryIDs...)
+	// A ci.artifact fact carries a digest but no image reference, so CI-run build
+	// evidence reaches identity through THIS path. Dropping it here silently
+	// disabled the CI-run half of the build-provenance tier (#5808): the
+	// DERIVED_FROM child gate and BUILT_FROM both key on
+	// BuildProvenanceRepositoryIDs, so an image whose only build evidence is a
+	// ci.run/ci.artifact join was treated as if nobody built it.
+	ref.buildProvenanceRepositoryIDs = append(ref.buildProvenanceRepositoryIDs, anchors.buildProvenanceRepositoryIDs...)
 	ref.workloadIDs = append(ref.workloadIDs, anchors.workloadIDs...)
 	ref.serviceIDs = append(ref.serviceIDs, anchors.serviceIDs...)
 	ref.sourceRepositoryIDs = uniqueSortedStrings(ref.sourceRepositoryIDs)
+	ref.buildProvenanceRepositoryIDs = uniqueSortedStrings(ref.buildProvenanceRepositoryIDs)
 	ref.workloadIDs = uniqueSortedStrings(ref.workloadIDs)
 	ref.serviceIDs = uniqueSortedStrings(ref.serviceIDs)
 	byRef[refKey] = ref
