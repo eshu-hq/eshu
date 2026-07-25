@@ -3,7 +3,7 @@
 // exercises the real setupSession.ts helpers end to end, mirroring
 // LoginPage.test.tsx's approach.
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import { SetupPage } from "./SetupPage";

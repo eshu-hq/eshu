@@ -31,7 +31,7 @@ export default defineConfig({
         // bundle budget gate (scripts/console-bundle-budget.mjs) enforces the
         // documented size ceilings for these chunks.
         manualChunks: {
-          "react-vendor": ["react", "react-dom", "react-router-dom"],
+          "react-vendor": ["react", "react-dom", "react-router"],
           d3: ["d3"],
           icons: ["lucide-react"]
         }

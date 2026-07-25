@@ -11,7 +11,7 @@
 // for an observed-public entrypoint, and WAF/TLS tiles render the honest
 // three-valued posture (protected/unprotected/unproven) returned by the backend.
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 
 import { ExposureIngressView, NoExposureChainNotice } from "./ExposureIngressView";
 import { ExposurePathAdvanced } from "./ExposurePathAdvanced";

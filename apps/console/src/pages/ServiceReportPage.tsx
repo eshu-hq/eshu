@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
 import type { EshuApiClient } from "../api/client";
 import {
   loadServiceInvestigation,
   type ServiceInvestigation,
-  type ServiceReportResult
+  type ServiceReportResult,
 } from "../api/serviceInvestigation";
 import { Badge, FreshDot, Panel, TruthChip } from "../components/atoms";
 import { defaultServiceName } from "../console/defaultEntity";
@@ -23,7 +23,7 @@ type NextCall = ServiceInvestigation["nextCalls"][number];
 export function ServiceReportPage({
   client,
   model,
-  onOpenService
+  onOpenService,
 }: {
   readonly client?: EshuApiClient;
   readonly model: ConsoleModel;
@@ -58,7 +58,7 @@ export function ServiceReportPage({
         }
       }
     },
-    [client]
+    [client],
   );
 
   useEffect(() => {
@@ -123,7 +123,9 @@ export function ServiceReportPage({
             />
           </label>
           <datalist id="srp-service-options">
-            {model.services.map((service) => <option key={service.id} value={service.name} />)}
+            {model.services.map((service) => (
+              <option key={service.id} value={service.name} />
+            ))}
           </datalist>
           <button className="btn" disabled={busy || !client} type="submit">
             {busy ? "Loading…" : "Open report"}
@@ -143,17 +145,21 @@ export function ServiceReportPage({
             ))}
           </div>
         ) : null}
-        {!client ? <p className="srp-muted">Connect to an Eshu API to open service reports.</p> : null}
+        {!client ? (
+          <p className="srp-muted">Connect to an Eshu API to open service reports.</p>
+        ) : null}
       </Panel>
 
-      {result !== null ? <ServiceReportResultView onOpenService={onOpenService} result={result} /> : null}
+      {result !== null ? (
+        <ServiceReportResultView onOpenService={onOpenService} result={result} />
+      ) : null}
     </div>
   );
 }
 
 function ServiceReportResultView({
   onOpenService,
-  result
+  result,
 }: {
   readonly onOpenService?: (name: string) => void;
   readonly result: ServiceReportResult;
@@ -164,27 +170,36 @@ function ServiceReportResultView({
     return (
       <Panel title={serviceName || "Service"} className="srp-result">
         <div className="srp-state srp-error" role="alert">
-          <strong>{error.code}: {error.message}</strong>
+          <strong>
+            {error.code}: {error.message}
+          </strong>
           <p>No report content is shown because the investigation route did not return a packet.</p>
         </div>
       </Panel>
     );
   }
 
-  const graphHref = serviceName.length > 0 ? `/service-story/${encodeURIComponent(serviceName)}` : undefined;
+  const graphHref =
+    serviceName.length > 0 ? `/service-story/${encodeURIComponent(serviceName)}` : undefined;
 
   return (
     <Panel
       className="srp-result"
       title={serviceName || "Service story"}
-      action={(
+      action={
         <div className="srp-actions">
-          {graphHref !== undefined ? <Link className="btn ghost" to={graphHref}>Open evidence graph</Link> : null}
+          {graphHref !== undefined ? (
+            <Link className="btn ghost" to={graphHref}>
+              Open evidence graph
+            </Link>
+          ) : null}
           {onOpenService !== undefined && serviceName.length > 0 ? (
-            <button className="btn ghost" onClick={() => onOpenService(serviceName)} type="button">Open service</button>
+            <button className="btn ghost" onClick={() => onOpenService(serviceName)} type="button">
+              Open service
+            </button>
           ) : null}
         </div>
-      )}
+      }
     >
       <div className="srp-truth">
         {truth === null ? (
@@ -215,13 +230,19 @@ function ServiceReportResultView({
       )}
 
       {storyPath.length > 0 ? (
-        <p className="srp-muted srp-paths">Source: <span className="mono">{storyPath}</span></p>
+        <p className="srp-muted srp-paths">
+          Source: <span className="mono">{storyPath}</span>
+        </p>
       ) : null}
     </Panel>
   );
 }
 
-function Coverage({ investigation }: { readonly investigation: ServiceInvestigation }): React.JSX.Element {
+function Coverage({
+  investigation,
+}: {
+  readonly investigation: ServiceInvestigation;
+}): React.JSX.Element {
   const { coverage } = investigation;
   return (
     <section className="srp-coverage" aria-label="Coverage">
@@ -231,26 +252,39 @@ function Coverage({ investigation }: { readonly investigation: ServiceInvestigat
       </div>
       <p>{coverage.reason}</p>
       <p className="srp-muted">
-        {coverage.repositoriesWithEvidence} of {coverage.repositoryCount} repositories carried evidence.
+        {coverage.repositoriesWithEvidence} of {coverage.repositoryCount} repositories carried
+        evidence.
       </p>
     </section>
   );
 }
 
-function EvidenceFamilies({ families }: { readonly families: readonly string[] }): React.JSX.Element {
+function EvidenceFamilies({
+  families,
+}: {
+  readonly families: readonly string[];
+}): React.JSX.Element {
   return (
     <section className="srp-section" aria-label="Evidence families">
       <h3>What Eshu checked</h3>
       {families.length === 0 ? (
         <p className="srp-muted">No evidence families reported.</p>
       ) : (
-        <div className="srp-chip-row">{families.map((family) => <span key={family}>{humanLabel(family)}</span>)}</div>
+        <div className="srp-chip-row">
+          {families.map((family) => (
+            <span key={family}>{humanLabel(family)}</span>
+          ))}
+        </div>
       )}
     </section>
   );
 }
 
-function Findings({ findings }: { readonly findings: ServiceInvestigation["findings"] }): React.JSX.Element {
+function Findings({
+  findings,
+}: {
+  readonly findings: ServiceInvestigation["findings"];
+}): React.JSX.Element {
   return (
     <section className="srp-section" aria-label="Findings">
       <h3>What it found</h3>
@@ -271,7 +305,11 @@ function Findings({ findings }: { readonly findings: ServiceInvestigation["findi
   );
 }
 
-function Repositories({ repositories }: { readonly repositories: ServiceInvestigation["repositories"] }): React.JSX.Element {
+function Repositories({
+  repositories,
+}: {
+  readonly repositories: ServiceInvestigation["repositories"];
+}): React.JSX.Element {
   return (
     <section className="srp-section" aria-label="Repositories in scope">
       <h3>Repos in scope</h3>
@@ -283,7 +321,9 @@ function Repositories({ repositories }: { readonly repositories: ServiceInvestig
             <article key={repository.name}>
               <strong>{repository.name}</strong>
               <p>{humanList(repository.roles) || "Evidence repository"}</p>
-              {repository.evidenceFamilies.length > 0 ? <small>{humanList(repository.evidenceFamilies)}</small> : null}
+              {repository.evidenceFamilies.length > 0 ? (
+                <small>{humanList(repository.evidenceFamilies)}</small>
+              ) : null}
             </article>
           ))}
         </div>
@@ -294,14 +334,18 @@ function Repositories({ repositories }: { readonly repositories: ServiceInvestig
 
 function SuggestedInvestigations({
   calls,
-  serviceName
+  serviceName,
 }: {
   readonly calls: ServiceInvestigation["nextCalls"];
   readonly serviceName: string;
 }): React.JSX.Element {
   const deduped = dedupeCalls(calls);
   return (
-    <section className="srp-section" data-testid="suggested-investigations" aria-label="Suggested investigations">
+    <section
+      className="srp-section"
+      data-testid="suggested-investigations"
+      aria-label="Suggested investigations"
+    >
       <h3>Suggested investigations</h3>
       {deduped.length === 0 ? (
         <p className="srp-muted">No suggested investigations returned.</p>
@@ -312,13 +356,17 @@ function SuggestedInvestigations({
             return (
               <article key={`${call.tool}:${JSON.stringify(call.arguments)}`}>
                 {href !== null ? (
-                  <Link className="link-btn" to={href}>{call.reason}</Link>
+                  <Link className="link-btn" to={href}>
+                    {call.reason}
+                  </Link>
                 ) : (
                   <strong>{call.reason}</strong>
                 )}
                 <p>{humanToolLabel(call.tool)}</p>
                 <small className="mono">{argumentSummary(call.arguments)}</small>
-                {href === null ? <small className="srp-muted">No console destination for this tool yet.</small> : null}
+                {href === null ? (
+                  <small className="srp-muted">No console destination for this tool yet.</small>
+                ) : null}
               </article>
             );
           })}
@@ -354,11 +402,13 @@ function firstString(...values: readonly unknown[]): string {
 }
 
 function hasReportEvidence(investigation: ServiceInvestigation): boolean {
-  return investigation.coverage.repositoryCount > 0 ||
+  return (
+    investigation.coverage.repositoryCount > 0 ||
     investigation.evidenceFamilies.length > 0 ||
     investigation.findings.length > 0 ||
     investigation.nextCalls.length > 0 ||
-    investigation.repositories.length > 0;
+    investigation.repositories.length > 0
+  );
 }
 
 function dedupeCalls(calls: ServiceInvestigation["nextCalls"]): ServiceInvestigation["nextCalls"] {
@@ -374,7 +424,9 @@ function dedupeCalls(calls: ServiceInvestigation["nextCalls"]): ServiceInvestiga
 }
 
 function argumentSummary(argumentsValue: Record<string, unknown>): string {
-  const summary = Object.entries(argumentsValue).map(([key, value]) => `${key}: ${String(value)}`).join(", ");
+  const summary = Object.entries(argumentsValue)
+    .map(([key, value]) => `${key}: ${String(value)}`)
+    .join(", ");
   return summary.length > 0 ? summary : "No extra arguments";
 }
 
@@ -407,13 +459,16 @@ function humanToolLabel(tool: string): string {
     get_service_context: "Service context",
     get_service_story: "Service story",
     investigate_service: "Service investigation",
-    trace_deployment_chain: "Deployment chain"
+    trace_deployment_chain: "Deployment chain",
   };
   return labels[tool] ?? humanLabel(tool);
 }
 
 function humanList(values: readonly string[]): string {
-  return values.map(humanLabel).filter((value) => value.length > 0).join(", ");
+  return values
+    .map(humanLabel)
+    .filter((value) => value.length > 0)
+    .join(", ");
 }
 
 function humanLabel(value: string): string {

@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 
 import { VulnerabilitiesPage } from "./VulnerabilitiesPage";
 import type { EshuApiClient } from "../api/client";

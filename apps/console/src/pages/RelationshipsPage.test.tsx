@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 
 import { RelationshipsPage } from "./RelationshipsPage";
 import type { EshuApiClient } from "../api/client";

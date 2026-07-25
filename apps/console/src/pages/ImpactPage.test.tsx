@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 
 import { ImpactPage } from "./ImpactPage";
 import type { EshuApiClient } from "../api/client";
@@ -13,24 +13,26 @@ describe("ImpactPage", () => {
           return {
             data: changeSurfacePayload(),
             error: null,
-            truth: truthEnvelope("platform_impact.change_surface")
+            truth: truthEnvelope("platform_impact.change_surface"),
           };
         }
         if (path === "/api/v0/impact/trace-deployment-chain") {
           return {
             data: deploymentTracePayload(),
             error: null,
-            truth: truthEnvelope("platform_impact.deployment_chain")
+            truth: truthEnvelope("platform_impact.deployment_chain"),
           };
         }
         throw new Error(`unexpected path ${path}`);
-      }
+      },
     } as unknown as EshuApiClient;
 
     render(
-      <MemoryRouter initialEntries={["/impact?kind=service&target=catalog-api&repoId=repository%3Ar_catalog"]}>
+      <MemoryRouter
+        initialEntries={["/impact?kind=service&target=catalog-api&repoId=repository%3Ar_catalog"]}
+      >
         <ImpactPage client={client} model={modelFromSnapshot(emptySnapshot("live"))} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(await screen.findByRole("heading", { name: "Impact" })).toBeInTheDocument();
@@ -42,8 +44,14 @@ describe("ImpactPage", () => {
     expect(screen.getByText("platform_impact.change_surface")).toBeInTheDocument();
     expect(screen.getAllByText("derived").length).toBeGreaterThan(0);
     expect(screen.getAllByText("fresh").length).toBeGreaterThan(0);
-    expect(screen.getByText("catalog-api reaches runtime through a deployment-config repository.")).toBeInTheDocument();
-    expect(screen.getByText("Blast radius requires a repository, Terraform module, Crossplane XRD, or SQL table anchor.")).toBeInTheDocument();
+    expect(
+      screen.getByText("catalog-api reaches runtime through a deployment-config repository."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Blast radius requires a repository, Terraform module, Crossplane XRD, or SQL table anchor.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("submits the form into a deep-linkable review URL", async () => {
@@ -59,27 +67,27 @@ describe("ImpactPage", () => {
               limit: 25,
               target: "catalog-api",
               target_type: "repository",
-              truncated: false
+              truncated: false,
             },
             error: null,
-            truth: truthEnvelope("platform_impact.blast_radius")
+            truth: truthEnvelope("platform_impact.blast_radius"),
           };
         }
         if (path === "/api/v0/impact/change-surface/investigate") {
           return {
             data: changeSurfacePayload(),
             error: null,
-            truth: truthEnvelope("platform_impact.change_surface")
+            truth: truthEnvelope("platform_impact.change_surface"),
           };
         }
         throw new Error(`unexpected path ${path}`);
-      }
+      },
     } as unknown as EshuApiClient;
 
     render(
       <MemoryRouter initialEntries={["/impact"]}>
         <ImpactPage client={client} model={modelFromSnapshot(emptySnapshot("live"))} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     fireEvent.change(screen.getByLabelText("Entity type"), { target: { value: "repository" } });
@@ -89,7 +97,7 @@ describe("ImpactPage", () => {
     await waitFor(() => {
       expect(calls).toEqual([
         "/api/v0/impact/blast-radius",
-        "/api/v0/impact/change-surface/investigate"
+        "/api/v0/impact/change-surface/investigate",
       ]);
     });
     expect(screen.getAllByText("consumer-api").length).toBeGreaterThan(0);
@@ -101,24 +109,42 @@ describe("ImpactPage", () => {
       post: async (path: string) => {
         calls.push(path);
         if (path === "/api/v0/impact/change-surface/investigate") {
-          return { data: changeSurfacePayload(), error: null, truth: truthEnvelope("platform_impact.change_surface") };
+          return {
+            data: changeSurfacePayload(),
+            error: null,
+            truth: truthEnvelope("platform_impact.change_surface"),
+          };
         }
         if (path === "/api/v0/impact/trace-deployment-chain") {
-          return { data: deploymentTracePayload(), error: null, truth: truthEnvelope("platform_impact.deployment_chain") };
+          return {
+            data: deploymentTracePayload(),
+            error: null,
+            truth: truthEnvelope("platform_impact.deployment_chain"),
+          };
         }
         throw new Error(`unexpected path ${path}`);
-      }
+      },
     } as unknown as EshuApiClient;
 
     const model = modelFromSnapshot({
       ...emptySnapshot("live"),
-      services: [{ id: "svc:acme-app", name: "acme-app", kind: "service", repo: "acme-app", environments: [], truth: "exact", freshness: "fresh" }]
+      services: [
+        {
+          id: "svc:acme-app",
+          name: "acme-app",
+          kind: "service",
+          repo: "acme-app",
+          environments: [],
+          truth: "exact",
+          freshness: "fresh",
+        },
+      ],
     });
 
     render(
       <MemoryRouter initialEntries={["/impact"]}>
         <ImpactPage client={client} model={model} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     await waitFor(() => expect(calls).toContain("/api/v0/impact/change-surface/investigate"));
@@ -133,10 +159,17 @@ describe("ImpactPage", () => {
         if (path.startsWith("/api/v0/investigations/deployable-unit/packet")) {
           return {
             data: {
-              answer: { summary: "Deployable-unit packet is supported.", supported: true, truth_class: "exact" },
+              answer: {
+                summary: "Deployable-unit packet is supported.",
+                supported: true,
+                truth_class: "exact",
+              },
               bounds: { max_source_facts: 200, truncated: false },
               graph_answers: [{ id: "graph:deploy:1", present: true, relation: "DEPLOYS" }],
-              identity: { family: "deployable_unit", scope: { scope_id: "scope-1", generation_id: "generation-1" } },
+              identity: {
+                family: "deployable_unit",
+                scope: { scope_id: "scope-1", generation_id: "generation-1" },
+              },
               missing_evidence: [{ hop: "runtime_workload", reason: "workload edge missing" }],
               packet_id: "investigation-evidence-packet:deploy-demo",
               reducer_decisions: [{ id: "decision:deploy:1", state: "admitted" }],
@@ -144,23 +177,29 @@ describe("ImpactPage", () => {
               reproduce: [{ kind: "http", route: "/api/v0/investigations/deployable-unit/packet" }],
               schema: "investigation_evidence_packet.v2",
               source_facts: [{ evidence_family: "admission_decision", fact_id: "fact:deploy:1" }],
-              validation: { valid: true }
+              validation: { valid: true },
             },
             error: null,
-            truth: truthEnvelope("deployable_unit.packet")
+            truth: truthEnvelope("deployable_unit.packet"),
           };
         }
         throw new Error(`unexpected path ${path}`);
-      }
+      },
     } as unknown as EshuApiClient;
 
     render(
-      <MemoryRouter initialEntries={["/impact?scope_id=scope-1&generation_id=generation-1&repo_id=repo%3A%2F%2Fteam%2Fapi"]}>
+      <MemoryRouter
+        initialEntries={[
+          "/impact?scope_id=scope-1&generation_id=generation-1&repo_id=repo%3A%2F%2Fteam%2Fapi",
+        ]}
+      >
         <ImpactPage client={client} model={modelFromSnapshot(emptySnapshot("live"))} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
-    expect(screen.getByLabelText<HTMLInputElement>("Packet repository ID").value).toBe("repo://team/api");
+    expect(screen.getByLabelText<HTMLInputElement>("Packet repository ID").value).toBe(
+      "repo://team/api",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Load deployable-unit packet" }));
 
     await waitFor(() => {
@@ -168,7 +207,7 @@ describe("ImpactPage", () => {
     });
     expect(screen.getByText("runtime_workload")).toBeInTheDocument();
     expect(calls).toContain(
-      "/api/v0/investigations/deployable-unit/packet?scope_id=scope-1&generation_id=generation-1&repository_id=repo%3A%2F%2Fteam%2Fapi&max_source_facts=50"
+      "/api/v0/investigations/deployable-unit/packet?scope_id=scope-1&generation_id=generation-1&repository_id=repo%3A%2F%2Fteam%2Fapi&max_source_facts=50",
     );
   });
 });
@@ -179,7 +218,7 @@ function truthEnvelope(capability: string) {
     capability,
     freshness: { state: "fresh" },
     level: "derived",
-    profile: "local_authoritative"
+    profile: "local_authoritative",
   };
 }
 
@@ -190,13 +229,15 @@ function changeSurfacePayload(): Record<string, unknown> {
       matched_file_count: 1,
       source_backends: ["postgres_content_store"],
       symbol_count: 1,
-      touched_symbols: [{
-        entity_id: "entity:post-lead",
-        entity_name: "postLead",
-        entity_type: "Function",
-        language: "typescript",
-        relative_path: "server/routes/leads.ts"
-      }]
+      touched_symbols: [
+        {
+          entity_id: "entity:post-lead",
+          entity_name: "postLead",
+          entity_type: "Function",
+          language: "typescript",
+          relative_path: "server/routes/leads.ts",
+        },
+      ],
     },
     coverage: {
       direct_count: 1,
@@ -204,19 +245,21 @@ function changeSurfacePayload(): Record<string, unknown> {
       max_depth: 4,
       query_shape: "resolved_change_surface_traversal",
       transitive_count: 1,
-      truncated: false
+      truncated: false,
     },
-    direct_impact: [{
-      depth: 1,
-      id: "workload:sample-communicator",
-      labels: ["Workload"],
-      name: "sample-communicator",
-      repo_id: "repository:r_sample"
-    }],
+    direct_impact: [
+      {
+        depth: 1,
+        id: "workload:sample-communicator",
+        labels: ["Workload"],
+        name: "sample-communicator",
+        repo_id: "repository:r_sample",
+      },
+    ],
     impact_summary: {
       direct_count: 1,
       total_count: 2,
-      transitive_count: 1
+      transitive_count: 1,
     },
     source_backend: "hybrid_graph_and_content",
     target_resolution: {
@@ -224,20 +267,22 @@ function changeSurfacePayload(): Record<string, unknown> {
       selected: {
         id: "workload:catalog-api",
         labels: ["Workload"],
-        name: "catalog-api"
+        name: "catalog-api",
       },
       status: "resolved",
       target_type: "service",
-      truncated: false
+      truncated: false,
     },
-    transitive_impact: [{
-      depth: 2,
-      id: "repo:terraform-stack-node10",
-      labels: ["Repository"],
-      name: "terraform-stack-node10",
-      repo_id: "repository:r_stack"
-    }],
-    truncated: false
+    transitive_impact: [
+      {
+        depth: 2,
+        id: "repo:terraform-stack-node10",
+        labels: ["Repository"],
+        name: "terraform-stack-node10",
+        repo_id: "repository:r_stack",
+      },
+    ],
+    truncated: false,
   };
 }
 
@@ -248,16 +293,18 @@ function deploymentTracePayload(): Record<string, unknown> {
       cloud_resource_count: 1,
       deployment_source_count: 1,
       environments: ["prod"],
-      k8s_resource_count: 1
+      k8s_resource_count: 1,
     },
-    deployment_sources: [{
-      path: "applications/catalog-api.yaml",
-      repo_name: "deployment-config",
-      relationship_type: "DEPLOYS_FROM"
-    }],
+    deployment_sources: [
+      {
+        path: "applications/catalog-api.yaml",
+        repo_name: "deployment-config",
+        relationship_type: "DEPLOYS_FROM",
+      },
+    ],
     k8s_resources: [{ entity_name: "catalog-api", kind: "Deployment" }],
     service_name: "catalog-api",
     story: "catalog-api reaches runtime through a deployment-config repository.",
-    workload_id: "workload:catalog-api"
+    workload_id: "workload:catalog-api",
   };
 }

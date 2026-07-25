@@ -5,7 +5,7 @@
 // evidence. A source_tool filter narrows the edge slice to edges stamped by a
 // specific ingestion tool. Complements the entity-first Graph Explorer.
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router";
 
 import type { EshuApiClient } from "../api/client";
 import {

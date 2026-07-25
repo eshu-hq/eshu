@@ -3,7 +3,7 @@
 // Live filters are URL-owned and sent to bounded server reads. Demo fixtures
 // stay local, while truth and freshness come from the section envelope.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 
 import {
   distinctIacValues,

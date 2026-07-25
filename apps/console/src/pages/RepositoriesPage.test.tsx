@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 
 import { RepositoriesPage } from "./RepositoriesPage";
 import type { EshuApiClient } from "../api/client";
@@ -22,7 +22,7 @@ describe("RepositoriesPage", () => {
                   group_source: "repo_slug_namespace",
                   group_truth: "derived",
                   group_kind: "source",
-                  group_reason: "derived from repository slug namespace"
+                  group_reason: "derived from repository slug namespace",
                 },
                 {
                   id: "repository:billing-api",
@@ -33,7 +33,7 @@ describe("RepositoriesPage", () => {
                   group_source: "repo_slug_namespace",
                   group_truth: "derived",
                   group_kind: "source",
-                  group_reason: "derived from repository slug namespace"
+                  group_reason: "derived from repository slug namespace",
                 },
                 {
                   id: "repository:shared-lib",
@@ -44,7 +44,7 @@ describe("RepositoriesPage", () => {
                   group_source: "repository_dependency_flag",
                   group_truth: "derived",
                   group_kind: "dependency",
-                  group_reason: "repository is marked as a dependency"
+                  group_reason: "repository is marked as a dependency",
                 },
                 {
                   id: "repository:unattributed",
@@ -55,22 +55,24 @@ describe("RepositoriesPage", () => {
                   group_source: "missing_evidence",
                   group_truth: "missing_evidence",
                   group_kind: "unknown",
-                  group_reason: "no source-backed repository group evidence"
-                }
-              ]
+                  group_reason: "no source-backed repository group evidence",
+                },
+              ],
             },
             error: null,
-            truth: null
+            truth: null,
           };
         }
         return { data: {}, error: null, truth: null };
-      }
+      },
     } as unknown as EshuApiClient;
 
     render(<RepositoriesPage client={client} model={demoModel} />, { wrapper: MemoryRouter });
 
     expect(await screen.findByText("Repository groups")).toBeInTheDocument();
-    expect(screen.getByText(/Groups use source-backed repository grouping evidence/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Groups use source-backed repository grouping evidence/),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/repository names and slug metadata/)).not.toBeInTheDocument();
     expect(screen.getByText("source-backed grouping")).toBeInTheDocument();
     const groupWorkbench = screen.getByLabelText("Repository group workbench");
@@ -79,17 +81,25 @@ describe("RepositoriesPage", () => {
     expect(within(groupWorkbench).getByText("Dependencies")).toBeInTheDocument();
     expect(within(groupWorkbench).getByText("Grouping evidence missing")).toBeInTheDocument();
     expect(within(groupWorkbench).getByText("derived · repo_slug_namespace")).toBeInTheDocument();
-    expect(within(groupWorkbench).getByText("missing_evidence · missing_evidence")).toBeInTheDocument();
+    expect(
+      within(groupWorkbench).getByText("missing_evidence · missing_evidence"),
+    ).toBeInTheDocument();
     expect(screen.getByText("payments-api")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Find a group or repository"), { target: { value: "shared-lib" } });
+    fireEvent.change(screen.getByLabelText("Find a group or repository"), {
+      target: { value: "shared-lib" },
+    });
     expect(within(groupWorkbench).getByText("shared-lib")).toBeInTheDocument();
     expect(within(groupWorkbench).queryByText("Platform")).not.toBeInTheDocument();
     // A repository-name match filters the group's repositories; the surviving group
     // must keep its source-backed evidence metadata (truth · source), not drop it.
-    expect(within(groupWorkbench).getByText("derived · repository_dependency_flag")).toBeInTheDocument();
+    expect(
+      within(groupWorkbench).getByText("derived · repository_dependency_flag"),
+    ).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Find a group or repository"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("Find a group or repository"), {
+      target: { value: "" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Grid" }));
     await waitFor(() => expect(screen.getByText("payments-api")).toBeInTheDocument());
     expect(screen.getAllByText("Platform").length).toBeGreaterThan(0);
@@ -109,7 +119,7 @@ describe("RepositoriesPage", () => {
       group_source: "repo_slug_namespace",
       group_truth: "derived",
       group_kind: "source",
-      group_reason: "derived from repository slug namespace"
+      group_reason: "derived from repository slug namespace",
     }));
     const client = {
       get: async (path: string) => {
@@ -119,24 +129,34 @@ describe("RepositoriesPage", () => {
           const offset = Number(url.searchParams.get("offset") ?? "0");
           const page = wireRepos.slice(offset, offset + limit);
           return {
-            data: { repositories: page, count: page.length, limit, offset, truncated: offset + limit < total },
+            data: {
+              repositories: page,
+              count: page.length,
+              limit,
+              offset,
+              truncated: offset + limit < total,
+            },
             error: null,
-            truth: null
+            truth: null,
           };
         }
         return { data: {}, error: null, truth: null };
-      }
+      },
     } as unknown as EshuApiClient;
 
     render(<RepositoriesPage client={client} model={demoModel} />, { wrapper: MemoryRouter });
 
     const repositoriesTile = await waitFor(() => {
       const labels = screen.getAllByText("Repositories");
-      const tile = labels.map((label) => label.closest(".stat-tile")).find((node): node is HTMLElement => node !== null);
+      const tile = labels
+        .map((label) => label.closest(".stat-tile"))
+        .find((node): node is HTMLElement => node !== null);
       if (!tile) throw new Error("Repositories stat tile not rendered yet");
       return tile;
     });
-    await waitFor(() => expect(within(repositoriesTile).getByText(String(total))).toBeInTheDocument());
+    await waitFor(() =>
+      expect(within(repositoriesTile).getByText(String(total))).toBeInTheDocument(),
+    );
   });
 
   it("links the Dependency repos tile to the Dependencies view and counts depended-on repos", async () => {
@@ -155,7 +175,7 @@ describe("RepositoriesPage", () => {
                   group_source: "repo_slug_namespace",
                   group_truth: "derived",
                   group_kind: "source",
-                  group_reason: "derived from repository slug namespace"
+                  group_reason: "derived from repository slug namespace",
                 },
                 {
                   id: "repository:lib",
@@ -166,22 +186,22 @@ describe("RepositoriesPage", () => {
                   group_source: "repository_dependency_flag",
                   group_truth: "derived",
                   group_kind: "dependency",
-                  group_reason: "another repository depends on this one"
-                }
-              ]
+                  group_reason: "another repository depends on this one",
+                },
+              ],
             },
             error: null,
-            truth: null
+            truth: null,
           };
         }
         return { data: {}, error: null, truth: null };
-      }
+      },
     } as unknown as EshuApiClient;
 
     render(<RepositoriesPage client={client} model={demoModel} />, { wrapper: MemoryRouter });
 
     const dependencyLink = await screen.findByRole("link", {
-      name: /View dependency chains in the Dependencies view/
+      name: /View dependency chains in the Dependencies view/,
     });
     expect(dependencyLink).toHaveAttribute("href", "/dependencies");
     const dependencyTile = dependencyLink.querySelector(".stat-tile");
@@ -205,23 +225,24 @@ describe("RepositoriesPage", () => {
                   group_source: "repo_slug_namespace",
                   group_truth: "derived",
                   group_kind: "source",
-                  group_reason: "derived from repository slug namespace"
-                }
-              ]
+                  group_reason: "derived from repository slug namespace",
+                },
+              ],
             },
             error: null,
-            truth: null
+            truth: null,
           };
         }
         return { data: {}, error: null, truth: null };
-      }
+      },
     } as unknown as EshuApiClient;
 
     render(<RepositoriesPage client={client} model={demoModel} />, { wrapper: MemoryRouter });
 
     const groupWorkbench = await screen.findByLabelText("Repository group workbench");
-    expect(
-      within(groupWorkbench).getByRole("link", { name: /payments-api/ })
-    ).toHaveAttribute("href", "/repositories/repository%3Apayments-api/source");
+    expect(within(groupWorkbench).getByRole("link", { name: /payments-api/ })).toHaveAttribute(
+      "href",
+      "/repositories/repository%3Apayments-api/source",
+    );
   });
 });

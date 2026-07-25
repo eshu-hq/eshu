@@ -7,7 +7,7 @@
 //   - empty query / zero results / API error states render honestly
 //   - language chips are real buttons with aria-pressed (a11y)
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
-import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
+import { MemoryRouter, useLocation, useNavigate } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import { SemanticSearchPage } from "./SemanticSearchPage";

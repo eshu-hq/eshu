@@ -4,7 +4,7 @@
 // on this package" (requires a package anchor). Bounded, keyset-paged, with
 // honest empty/error states and truth/freshness chips.
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 
 import type { EshuApiClient } from "../api/client";
 import type { EshuTruth, TruthLevel } from "../api/envelope";

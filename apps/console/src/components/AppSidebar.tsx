@@ -5,7 +5,7 @@
 // single-purpose module, mirroring the appRoutes.tsx extraction that keeps
 // the route table out of App.tsx for the same reason. Pure relocation: no
 // rendered-output change from the inline block it replaces.
-import { NavLink } from "react-router-dom";
+import { NavLink } from "react-router";
 
 import type { SourceState } from "./SourceControls";
 import type { ConsoleModel } from "../console/types";

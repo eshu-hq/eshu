@@ -45,7 +45,7 @@ The report prints a stable markdown table with these columns:
 | Column | Meaning |
 | ------ | ------- |
 | `chunk` | Emitted Vite asset filename, including the content hash. |
-| `dependency` | Stable owner label for the chunk, such as `app/main`, `react/react-dom/react-router-dom`, `d3`, `lucide-react`, or `app/async` when no package owner is known. |
+| `dependency` | Stable owner label for the chunk, such as `app/main`, `react/react-dom/react-router`, `d3`, `lucide-react`, or `app/async` when no package owner is known. |
 | `KB` | Raw minified size in kibibytes, matching the budget gate's size basis. |
 | `first-load?` | `yes` for the main entry and eager vendor chunks; `no` for route, diagram, and other async chunks. |
 
@@ -68,7 +68,7 @@ Heavy code is kept off the critical first-load path:
   d3 is given its own `manualChunk`, so d3 downloads with that route instead of
   in the main entry chunk. The Suspense fallback preserves the existing
   "Loading workspace" state.
-- **Vendor code** (`react`, `react-dom`, `react-router-dom`) is split into a
+- **Vendor code** (`react`, `react-dom`, `react-router`) is split into a
   `react-vendor` chunk and `lucide-react` into an `icons` chunk via
   `manualChunks` for stable, cache-friendly downloads.
 
@@ -88,7 +88,7 @@ regression does.
 | Budget key     | Threshold | What it covers                                              |
 | -------------- | --------- | ----------------------------------------------------------- |
 | `main`         | 726 KiB   | Main entry chunk: app shell, router, eagerly loaded pages   |
-| `react-vendor` | 120 KiB   | `react`, `react-dom`, `react-router-dom`                    |
+| `react-vendor` | 120 KiB   | `react`, `react-dom`, `react-router`                    |
 | `d3`           | 200 KiB   | d3 (lazy, loaded with the workspace route)                  |
 | `icons`        | 80 KiB    | `lucide-react` icon set                                     |
 | `mermaid`      | 900 KiB   | Mermaid core (lazy diagram chunk)                           |

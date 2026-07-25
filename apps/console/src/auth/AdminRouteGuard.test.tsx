@@ -3,7 +3,7 @@
 // enforced catalog, full access, partial-family access, and fail-open when
 // the server does not report catalog enforcement.
 import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import { AdminRouteGuard } from "./AdminRouteGuard";

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import type { AnswerNextCall } from "../api/answerPacket";
 import type { VisualizationNode } from "../api/answerVisualization";

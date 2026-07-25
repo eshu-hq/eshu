@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 import type { CodeImportCycleRow } from "../api/codeImports";
 import type { FindingRow, GraphModel, GraphNode } from "../console/types";

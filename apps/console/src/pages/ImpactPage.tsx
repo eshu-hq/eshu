@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 
 import { DeployableUnitPacketPanel, packetFormFromSearch } from "./DeployableUnitPacketPanel";
 import { DeploymentTraceSummary, ImpactGraphProvenance } from "./ImpactDeploymentSummary";

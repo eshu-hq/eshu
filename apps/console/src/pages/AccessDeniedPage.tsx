@@ -5,7 +5,7 @@
 // route regardless of what this screen shows or hides.
 import { ShieldAlert } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 import { ADMIN_ROUTE_FAMILIES } from "../auth/capabilityAccess";
 import { Badge, Panel } from "../components/atoms";

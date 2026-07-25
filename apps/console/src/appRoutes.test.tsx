@@ -6,7 +6,7 @@
 // AdminIdentityAccessPanel -> AdminProvidersPanel, not just that the prop
 // exists on AdminPage's signature.
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import { describe, it, expect, vi } from "vitest";
 
 import type { BrowserSessionAuth, EshuApiClient } from "./api/client";

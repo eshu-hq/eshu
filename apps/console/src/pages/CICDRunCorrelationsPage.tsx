@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router";
 
 import {
   loadCICDRunCorrelationReview,
@@ -8,7 +8,7 @@ import {
   type CICDRunCorrelationInventory,
   type CICDRunCorrelationPage,
   type CICDRunCorrelationReview,
-  type CICDRunCorrelationRow
+  type CICDRunCorrelationRow,
 } from "../api/cicdRunCorrelations";
 import type { EshuApiClient } from "../api/client";
 import { demoDefaults } from "../api/demoClient";
@@ -33,7 +33,7 @@ interface FormState {
 
 export function CICDRunCorrelationsPage({
   client,
-  model
+  model,
 }: {
   readonly client?: EshuApiClient;
   readonly model: ConsoleModel;
@@ -62,17 +62,19 @@ export function CICDRunCorrelationsPage({
           provider: next.provider,
           providerRunId: next.providerRunId,
           repositoryId: next.repositoryId,
-          scopeId: next.scopeId
+          scopeId: next.scopeId,
         });
         setReview(loaded);
       } catch (runError) {
         setReview(null);
-        setError(runError instanceof Error ? runError.message : "failed to load CI/CD run correlations");
+        setError(
+          runError instanceof Error ? runError.message : "failed to load CI/CD run correlations",
+        );
       } finally {
         setBusy(false);
       }
     },
-    [client]
+    [client],
   );
 
   useEffect(() => {
@@ -110,52 +112,125 @@ export function CICDRunCorrelationsPage({
     <div className="page cicd-page" style={{ maxWidth: "none" }}>
       <div className="page-intro cicd-intro">
         <h2>CI/CD run correlations</h2>
-        <Badge tone={canLoad ? "teal" : "warn"}>{canLoad ? demoMode ? "demo fixtures" : "live API" : "connect live API"}</Badge>
+        <Badge tone={canLoad ? "teal" : "warn"}>
+          {canLoad ? (demoMode ? "demo fixtures" : "live API") : "connect live API"}
+        </Badge>
       </div>
 
       <form className="cicd-query" onSubmit={submit}>
-        <FilterInput label="Scope id" value={form.scopeId} onChange={(value) => setForm((current) => ({ ...current, scopeId: value }))} />
-        <FilterInput className="cicd-query-wide" label="Repository id" value={form.repositoryId} onChange={(value) => setForm((current) => ({ ...current, repositoryId: value }))} />
-        <FilterInput label="Commit sha" value={form.commitSha} onChange={(value) => setForm((current) => ({ ...current, commitSha: value }))} />
-        <FilterInput label="Provider" value={form.provider} onChange={(value) => setForm((current) => ({ ...current, provider: value }))} />
-        <FilterInput label="Provider run id" value={form.providerRunId} onChange={(value) => setForm((current) => ({ ...current, providerRunId: value }))} />
-        <FilterInput className="cicd-query-wide" label="Artifact digest" value={form.artifactDigest} onChange={(value) => setForm((current) => ({ ...current, artifactDigest: value }))} />
-        <FilterInput className="cicd-query-wide" label="Image ref" value={form.imageRef} onChange={(value) => setForm((current) => ({ ...current, imageRef: value }))} />
-        <FilterInput label="Environment" value={form.environment} onChange={(value) => setForm((current) => ({ ...current, environment: value }))} />
-        <FilterInput label="Outcome" value={form.outcome} onChange={(value) => setForm((current) => ({ ...current, outcome: value }))} />
-        <FilterInput label="Limit" value={form.limit} onChange={(value) => setForm((current) => ({ ...current, limit: value }))} />
+        <FilterInput
+          label="Scope id"
+          value={form.scopeId}
+          onChange={(value) => setForm((current) => ({ ...current, scopeId: value }))}
+        />
+        <FilterInput
+          className="cicd-query-wide"
+          label="Repository id"
+          value={form.repositoryId}
+          onChange={(value) => setForm((current) => ({ ...current, repositoryId: value }))}
+        />
+        <FilterInput
+          label="Commit sha"
+          value={form.commitSha}
+          onChange={(value) => setForm((current) => ({ ...current, commitSha: value }))}
+        />
+        <FilterInput
+          label="Provider"
+          value={form.provider}
+          onChange={(value) => setForm((current) => ({ ...current, provider: value }))}
+        />
+        <FilterInput
+          label="Provider run id"
+          value={form.providerRunId}
+          onChange={(value) => setForm((current) => ({ ...current, providerRunId: value }))}
+        />
+        <FilterInput
+          className="cicd-query-wide"
+          label="Artifact digest"
+          value={form.artifactDigest}
+          onChange={(value) => setForm((current) => ({ ...current, artifactDigest: value }))}
+        />
+        <FilterInput
+          className="cicd-query-wide"
+          label="Image ref"
+          value={form.imageRef}
+          onChange={(value) => setForm((current) => ({ ...current, imageRef: value }))}
+        />
+        <FilterInput
+          label="Environment"
+          value={form.environment}
+          onChange={(value) => setForm((current) => ({ ...current, environment: value }))}
+        />
+        <FilterInput
+          label="Outcome"
+          value={form.outcome}
+          onChange={(value) => setForm((current) => ({ ...current, outcome: value }))}
+        />
+        <FilterInput
+          label="Limit"
+          value={form.limit}
+          onChange={(value) => setForm((current) => ({ ...current, limit: value }))}
+        />
         <button className="btn-ghost active" disabled={!canLoad || busy} type="submit">
           {busy ? "Loading..." : "Review runs"}
         </button>
       </form>
 
-      {!canLoad ? <p className="inline-state">{demoMode ? "Demo fixture client unavailable." : "Live Eshu API connection unavailable."}</p> : null}
+      {!canLoad ? (
+        <p className="inline-state">
+          {demoMode ? "Demo fixture client unavailable." : "Live Eshu API connection unavailable."}
+        </p>
+      ) : null}
       {error ? <p className="src-err">{error}</p> : null}
 
       <div className="grid g-4 mt">
         {stats.map((stat) => (
-          <StatTile color={stat.color} key={stat.label} label={stat.label} sub={stat.sub} value={stat.value} />
+          <StatTile
+            color={stat.color}
+            key={stat.label}
+            label={stat.label}
+            sub={stat.sub}
+            value={stat.value}
+          />
         ))}
       </div>
 
       <div className="cicd-summary-grid mt">
         <Panel title="Aggregate truth" sub="Cheap count and inventory endpoints">
           <SectionStatus section={review?.count ?? null} />
-          {count ? <RollupGrid count={count} /> : <p className="empty">No aggregate count loaded.</p>}
+          {count ? (
+            <RollupGrid count={count} />
+          ) : (
+            <p className="empty">No aggregate count loaded.</p>
+          )}
         </Panel>
-        <Panel title="Inventory buckets" sub={inventory ? `grouped by ${inventory.groupBy}` : "grouped by outcome"}>
+        <Panel
+          title="Inventory buckets"
+          sub={inventory ? `grouped by ${inventory.groupBy}` : "grouped by outcome"}
+        >
           <SectionStatus section={review?.inventory ?? null} />
-          {inventory ? <BucketList inventory={inventory} /> : <p className="empty">No inventory loaded.</p>}
+          {inventory ? (
+            <BucketList inventory={inventory} />
+          ) : (
+            <p className="empty">No inventory loaded.</p>
+          )}
         </Panel>
       </div>
 
       <div className="cicd-detail-grid mt">
-        <Panel title="Run correlations" sub={list ? `${list.count} rows | limit ${list.limit}` : "bounded list"}>
+        <Panel
+          title="Run correlations"
+          sub={list ? `${list.count} rows | limit ${list.limit}` : "bounded list"}
+        >
           <ListStatus review={review} />
           {list ? <CorrelationTable rows={list.correlations} /> : null}
         </Panel>
         <Panel title="Evidence summary" sub="Workflow, live run, and artifact bridge evidence">
-          {list ? <EvidenceSummary page={list} /> : <p className="empty">Add an anchor to load row evidence.</p>}
+          {list ? (
+            <EvidenceSummary page={list} />
+          ) : (
+            <p className="empty">Add an anchor to load row evidence.</p>
+          )}
         </Panel>
       </div>
     </div>
@@ -166,7 +241,7 @@ function FilterInput({
   className,
   label,
   onChange,
-  value
+  value,
 }: {
   readonly className?: string;
   readonly label: string;
@@ -187,7 +262,11 @@ function FilterInput({
   );
 }
 
-function SectionStatus<TData>({ section }: { readonly section: CICDReviewSection<TData> | null }): React.JSX.Element | null {
+function SectionStatus<TData>({
+  section,
+}: {
+  readonly section: CICDReviewSection<TData> | null;
+}): React.JSX.Element | null {
   if (section === null) return null;
   if (section.status === "unavailable") {
     return <p className="src-err">{section.error}</p>;
@@ -195,7 +274,11 @@ function SectionStatus<TData>({ section }: { readonly section: CICDReviewSection
   return <TruthSummary truth={section.truth} />;
 }
 
-function ListStatus({ review }: { readonly review: CICDRunCorrelationReview | null }): React.JSX.Element | null {
+function ListStatus({
+  review,
+}: {
+  readonly review: CICDRunCorrelationReview | null;
+}): React.JSX.Element | null {
   if (review === null) return <p className="empty">No CI/CD run correlation review loaded.</p>;
   if (review.list.status === "skipped") return <p className="inline-state">{review.list.reason}</p>;
   if (review.list.status === "unavailable") return <p className="src-err">{review.list.error}</p>;
@@ -225,20 +308,32 @@ function RollupGrid({ count }: { readonly count: CICDRunCorrelationCount }): Rea
   );
 }
 
-function Rollup({ title, values }: { readonly title: string; readonly values: Record<string, number> }): React.JSX.Element {
+function Rollup({
+  title,
+  values,
+}: {
+  readonly title: string;
+  readonly values: Record<string, number>;
+}): React.JSX.Element {
   const rows = Object.entries(values).sort((a, b) => b[1] - a[1]);
   return (
     <div className="cicd-rollup">
       <strong>{title}</strong>
       {rows.map(([key, value]) => (
-        <span key={key}>{formatLabel(key)} <b>{fmt(value)}</b></span>
+        <span key={key}>
+          {formatLabel(key)} <b>{fmt(value)}</b>
+        </span>
       ))}
       {rows.length === 0 ? <span>no buckets</span> : null}
     </div>
   );
 }
 
-function BucketList({ inventory }: { readonly inventory: CICDRunCorrelationInventory }): React.JSX.Element {
+function BucketList({
+  inventory,
+}: {
+  readonly inventory: CICDRunCorrelationInventory;
+}): React.JSX.Element {
   if (inventory.buckets.length === 0) {
     return <p className="empty">No inventory buckets returned.</p>;
   }
@@ -254,7 +349,11 @@ function BucketList({ inventory }: { readonly inventory: CICDRunCorrelationInven
   );
 }
 
-function CorrelationTable({ rows }: { readonly rows: readonly CICDRunCorrelationRow[] }): React.JSX.Element {
+function CorrelationTable({
+  rows,
+}: {
+  readonly rows: readonly CICDRunCorrelationRow[];
+}): React.JSX.Element {
   if (rows.length === 0) {
     return <p className="empty">No run correlations match this bounded scope.</p>;
   }
@@ -273,11 +372,32 @@ function CorrelationTable({ rows }: { readonly rows: readonly CICDRunCorrelation
         <tbody>
           {rows.map((row) => (
             <tr key={row.correlationId}>
-              <td><CellStack title={row.runId || row.correlationId} sub={[row.provider, row.correlationKind].filter(Boolean).join(" | ")} /></td>
-              <td><CellStack title={row.repositoryId || "repository unknown"} sub={[row.environment, shortSha(row.commitSha)].filter(Boolean).join(" | ")} /></td>
-              <td><CellStack title={shortDigest(row.artifactDigest) || row.imageRef || "no artifact"} sub={row.reason} /></td>
-              <td><span className={`cicd-outcome cicd-outcome-${classToken(row.outcome)}`}>{formatLabel(row.outcome)}</span></td>
-              <td><RowLinks row={row} /></td>
+              <td>
+                <CellStack
+                  title={row.runId || row.correlationId}
+                  sub={[row.provider, row.correlationKind].filter(Boolean).join(" | ")}
+                />
+              </td>
+              <td>
+                <CellStack
+                  title={row.repositoryId || "repository unknown"}
+                  sub={[row.environment, shortSha(row.commitSha)].filter(Boolean).join(" | ")}
+                />
+              </td>
+              <td>
+                <CellStack
+                  title={shortDigest(row.artifactDigest) || row.imageRef || "no artifact"}
+                  sub={row.reason}
+                />
+              </td>
+              <td>
+                <span className={`cicd-outcome cicd-outcome-${classToken(row.outcome)}`}>
+                  {formatLabel(row.outcome)}
+                </span>
+              </td>
+              <td>
+                <RowLinks row={row} />
+              </td>
             </tr>
           ))}
         </tbody>
@@ -286,7 +406,13 @@ function CorrelationTable({ rows }: { readonly rows: readonly CICDRunCorrelation
   );
 }
 
-function CellStack({ sub, title }: { readonly sub: string; readonly title: string }): React.JSX.Element {
+function CellStack({
+  sub,
+  title,
+}: {
+  readonly sub: string;
+  readonly title: string;
+}): React.JSX.Element {
   return (
     <span className="cell-stack">
       <span className="t-name">{title}</span>
@@ -299,10 +425,20 @@ function RowLinks({ row }: { readonly row: CICDRunCorrelationRow }): React.JSX.E
   return (
     <span className="cicd-links">
       {row.repositoryId ? (
-        <Link className="btn-ghost" to={`/repositories/${encodeURIComponent(row.repositoryId)}/source`}>Repository</Link>
+        <Link
+          className="btn-ghost"
+          to={`/repositories/${encodeURIComponent(row.repositoryId)}/source`}
+        >
+          Repository
+        </Link>
       ) : null}
       {row.canonicalTarget ? (
-        <Link className="btn-ghost" to={`/impact?kind=service&target=${encodeURIComponent(row.canonicalTarget)}`}>Impact</Link>
+        <Link
+          className="btn-ghost"
+          to={`/impact?kind=service&target=${encodeURIComponent(row.canonicalTarget)}`}
+        >
+          Impact
+        </Link>
       ) : null}
     </span>
   );
@@ -316,10 +452,22 @@ function EvidenceSummary({ page }: { readonly page: CICDRunCorrelationPage }): R
         count={summary.staticWorkflowArtifacts.count}
         label="Static workflow artifacts"
         state={summary.staticWorkflowArtifacts.state}
-        sub={formatLabel(summary.staticWorkflowArtifacts.evidenceClass || summary.staticWorkflowArtifacts.reason)}
+        sub={formatLabel(
+          summary.staticWorkflowArtifacts.evidenceClass || summary.staticWorkflowArtifacts.reason,
+        )}
       />
-      <EvidenceBlock count={summary.liveRunCorrelations.count} label="Live run correlations" state={summary.liveRunCorrelations.state} sub={summary.liveRunCorrelations.reason} />
-      <EvidenceBlock count={summary.runArtifactEvidence.count} label="Run artifact evidence" state={summary.runArtifactEvidence.state} sub={`${summary.runArtifactEvidence.artifactDigestCount} digests | ${summary.runArtifactEvidence.imageRefCount} image refs`} />
+      <EvidenceBlock
+        count={summary.liveRunCorrelations.count}
+        label="Live run correlations"
+        state={summary.liveRunCorrelations.state}
+        sub={summary.liveRunCorrelations.reason}
+      />
+      <EvidenceBlock
+        count={summary.runArtifactEvidence.count}
+        label="Run artifact evidence"
+        state={summary.runArtifactEvidence.state}
+        sub={`${summary.runArtifactEvidence.artifactDigestCount} digests | ${summary.runArtifactEvidence.imageRefCount} image refs`}
+      />
       <div className="cicd-missing">
         <strong>Missing evidence</strong>
         {summary.missingEvidence.map((gap) => (
@@ -335,7 +483,7 @@ function EvidenceBlock({
   count,
   label,
   state,
-  sub
+  sub,
 }: {
   readonly count: number;
   readonly label: string;
@@ -345,7 +493,9 @@ function EvidenceBlock({
   return (
     <div className="cicd-evidence-block">
       <span>{label}</span>
-      <strong>{formatLabel(state)} | {fmt(count)}</strong>
+      <strong>
+        {formatLabel(state)} | {fmt(count)}
+      </strong>
       {sub ? <small>{sub}</small> : null}
     </div>
   );
@@ -360,10 +510,30 @@ function statRows(review: CICDRunCorrelationReview | null): readonly {
   const count = review?.count.status === "ready" ? review.count.data : null;
   const list = review?.list.status === "ready" ? review.list.data : null;
   return [
-    { color: "var(--teal)", label: "Correlations", sub: "cheap aggregate", value: count?.totalCorrelations ?? "-" },
-    { color: "var(--blue)", label: "Rows", sub: list?.truncated ? "truncated" : "bounded list", value: list?.count ?? "-" },
-    { color: "var(--ember)", label: "Exact", sub: "outcome rollup", value: count?.byOutcome.exact ?? "-" },
-    { color: "var(--violet)", label: "Providers", sub: "reporting buckets", value: count ? Object.keys(count.byProvider).length : "-" }
+    {
+      color: "var(--teal)",
+      label: "Correlations",
+      sub: "cheap aggregate",
+      value: count?.totalCorrelations ?? "-",
+    },
+    {
+      color: "var(--blue)",
+      label: "Rows",
+      sub: list?.truncated ? "truncated" : "bounded list",
+      value: list?.count ?? "-",
+    },
+    {
+      color: "var(--ember)",
+      label: "Exact",
+      sub: "outcome rollup",
+      value: count?.byOutcome.exact ?? "-",
+    },
+    {
+      color: "var(--violet)",
+      label: "Providers",
+      sub: "reporting buckets",
+      value: count ? Object.keys(count.byProvider).length : "-",
+    },
   ];
 }
 
@@ -377,8 +547,9 @@ function formFromSearch(searchParams: URLSearchParams, demoMode = false): FormSt
     outcome: searchParams.get("outcome") ?? "",
     provider: searchParams.get("provider") ?? "",
     providerRunId: searchParams.get("provider_run_id") ?? searchParams.get("run_id") ?? "",
-    repositoryId: searchParams.get("repository_id") ?? (demoMode ? demoDefaults.cicd.repositoryId : ""),
-    scopeId: searchParams.get("scope_id") ?? ""
+    repositoryId:
+      searchParams.get("repository_id") ?? (demoMode ? demoDefaults.cicd.repositoryId : ""),
+    scopeId: searchParams.get("scope_id") ?? "",
   };
 }
 

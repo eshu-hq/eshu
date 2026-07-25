@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { StrictMode } from "react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 
 import { DashboardPage } from "./DashboardPage";
 import type { EshuApiClient } from "../api/client";

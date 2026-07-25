@@ -4,7 +4,7 @@
 // filter chips with live counts, a name/account search, and a clickable table
 // of first-class entities. Clicking a node opens it in the Graph Explorer.
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 
 import type { EshuApiClient } from "../api/client";
 import type { SectionProvenance } from "../api/eshuConsoleLive";
@@ -27,7 +27,7 @@ const KIND_LABELS: Readonly<Record<string, string>> = {
   environments: "Environments",
   cloud_resources: "Cloud resources",
   identity_iam: "Identity & IAM",
-  networking: "Networking"
+  networking: "Networking",
 };
 
 function chipLabel(kind: string): string {
@@ -36,7 +36,7 @@ function chipLabel(kind: string): string {
 
 export function NodesPage({
   client,
-  sourceLabel = "live"
+  sourceLabel = "live",
 }: {
   readonly client?: EshuApiClient;
   readonly sourceLabel?: string;
@@ -66,7 +66,7 @@ export function NodesPage({
       kind: selectedKind ?? undefined,
       q,
       limit: PAGE_SIZE,
-      offset
+      offset,
     }).then((page) => {
       if (cancelled) return;
       setKinds(page.kinds);
@@ -94,32 +94,29 @@ export function NodesPage({
     navigate(`/explorer?q=${encodeURIComponent(target)}`);
   }
 
-  const kindCount = useMemo(
-    () => kinds.reduce((sum, kind) => sum + kind.count, 0),
-    [kinds]
-  );
+  const kindCount = useMemo(() => kinds.reduce((sum, kind) => sum + kind.count, 0), [kinds]);
   const cloudResourceCount = kinds.find((kind) => kind.kind === "cloud_resources")?.count ?? null;
   const browsableCount = kindCount;
 
   const rows = entities ?? [];
-  const sub = entities === null
-    ? "loading…"
-    : provenance === "unavailable"
-      ? "unavailable"
-      : selectedKind === null
-        ? `${sourceLabel} · pick a kind to browse`
-        : `${sourceLabel} · ${rows.length} shown`;
+  const sub =
+    entities === null
+      ? "loading…"
+      : provenance === "unavailable"
+        ? "unavailable"
+        : selectedKind === null
+          ? `${sourceLabel} · pick a kind to browse`
+          : `${sourceLabel} · ${rows.length} shown`;
 
   return (
     <div className="page">
       <div className="page-intro">
         <h2>Nodes</h2>
         <p>
-          Every first-class entity Eshu has materialised in the graph — services,
-          repositories, libraries, container images, environments, cloud
-          resources, identity, and networking — from{" "}
-          <span className="mono">GET /api/v0/graph/entities</span>. Pick a kind and
-          click a node to open it.
+          Every first-class entity Eshu has materialised in the graph — services, repositories,
+          libraries, container images, environments, cloud resources, identity, and networking —
+          from <span className="mono">GET /api/v0/graph/entities</span>. Pick a kind and click a
+          node to open it.
         </p>
       </div>
 
@@ -138,7 +135,11 @@ export function NodesPage({
         />
         <StatTile
           label="Cloud resources"
-          value={provenance === "unavailable" || cloudResourceCount === null ? "—" : fmt(cloudResourceCount)}
+          value={
+            provenance === "unavailable" || cloudResourceCount === null
+              ? "—"
+              : fmt(cloudResourceCount)
+          }
           color="var(--violet)"
           sub="VPC · LB · SG · IAM · data"
         />
@@ -178,7 +179,10 @@ export function NodesPage({
             className={`chip${selectedKind === null ? " active" : ""}`}
             onClick={() => selectKind(null)}
           >
-            All <span className="chip-count">{provenance === "unavailable" ? "—" : fmt(kindCount)}</span>
+            All{" "}
+            <span className="chip-count">
+              {provenance === "unavailable" ? "—" : fmt(kindCount)}
+            </span>
           </button>
           {kinds.map((kind) => (
             <button
@@ -199,8 +203,8 @@ export function NodesPage({
           </div>
         ) : provenance === "unavailable" ? (
           <p className="empty">
-            Graph entity inventory unavailable from this source. An authoritative
-            platform profile with a materialised graph is required.
+            Graph entity inventory unavailable from this source. An authoritative platform profile
+            with a materialised graph is required.
           </p>
         ) : selectedKind === null ? (
           <p className="empty">Select a kind above to browse its entities.</p>
@@ -217,16 +221,26 @@ export function NodesPage({
                 </thead>
                 <tbody>
                   {rows.map((row) => (
-                    <tr key={row.id || row.name} onClick={() => openNode(row)} style={{ cursor: "pointer" }}>
+                    <tr
+                      key={row.id || row.name}
+                      onClick={() => openNode(row)}
+                      style={{ cursor: "pointer" }}
+                    >
                       <td className="t-name">{row.name || "—"}</td>
-                      <td><Badge tone="teal">{chipLabel(row.kind)}</Badge></td>
-                      <td className="t-mut mono" style={{ fontSize: ".74rem" }}>{row.account || "—"}</td>
+                      <td>
+                        <Badge tone="teal">{chipLabel(row.kind)}</Badge>
+                      </td>
+                      <td className="t-mut mono" style={{ fontSize: ".74rem" }}>
+                        {row.account || "—"}
+                      </td>
                     </tr>
                   ))}
                   {rows.length === 0 ? (
                     <tr>
                       <td colSpan={3} className="empty">
-                        {q !== "" ? "No nodes match this search." : "No nodes of this kind from this source."}
+                        {q !== ""
+                          ? "No nodes match this search."
+                          : "No nodes of this kind from this source."}
                       </td>
                     </tr>
                   ) : null}
@@ -248,7 +262,9 @@ export function NodesPage({
               <button
                 className="btn-ghost"
                 disabled={busy || nextOffset === null}
-                onClick={() => { if (nextOffset !== null) setOffset(nextOffset); }}
+                onClick={() => {
+                  if (nextOffset !== null) setOffset(nextOffset);
+                }}
               >
                 Next →
               </button>

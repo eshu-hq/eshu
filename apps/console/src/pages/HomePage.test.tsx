@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router";
 import { vi } from "vitest";
 
 import { HomePage } from "./HomePage";
@@ -15,11 +15,11 @@ describe("HomePage", () => {
             {
               id: "repository:r_1",
               local_path: "/workspace/sample/platform-tools",
-              name: "platform-tools"
-            }
-          ]
-        })
-      )
+              name: "platform-tools",
+            },
+          ],
+        }),
+      ),
     );
 
     render(
@@ -28,11 +28,11 @@ describe("HomePage", () => {
           <Route element={<HomePage />} path="/" />
           <Route element={<h1>Workspace opened</h1>} path="/workspace/:entityKind/:entityId" />
         </Routes>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     fireEvent.change(screen.getByLabelText("Search Eshu"), {
-      target: { value: "platform" }
+      target: { value: "platform" },
     });
     fireEvent.click(await screen.findByRole("button", { name: /platform-tools/i }));
 

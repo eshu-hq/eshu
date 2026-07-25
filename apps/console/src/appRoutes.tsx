@@ -1,7 +1,7 @@
 // appRoutes.tsx — extracted route table for App.tsx.
 // Keeps App.tsx under 500 lines by housing the full <Routes> declaration here.
 import { lazy, Suspense } from "react";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes } from "react-router";
 
 import type { BrowserSessionAuth, EshuApiClient } from "./api/client";
 import { demoDefaults } from "./api/demoClient";

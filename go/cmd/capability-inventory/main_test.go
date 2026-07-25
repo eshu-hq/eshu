@@ -234,7 +234,7 @@ func TestEnumerateConsolePagesIncludesOnlyRoutedPages(t *testing.T) {
 	}
 	writeTestFile(t, filepath.Join(root, "apps", "console", "src", "App.tsx"), `
 		import { lazy, Suspense } from "react";
-		import { Route, Routes } from "react-router-dom";
+		import { Route, Routes } from "react-router";
 		import { DashboardPage } from "./pages/DashboardPage";
 		import { SurfaceInventoryPage } from "./pages/SurfaceInventoryPage";
 

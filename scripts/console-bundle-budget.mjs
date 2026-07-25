@@ -55,7 +55,7 @@ export const BUDGETS = {
   // (~17.8 KiB) after #5140/#5150 pushed the prior measurement to within 51
   // bytes of budget. Budget keeps a deliberate margin over that.
   main: 726 * KIB,
-  // React/runtime vendor (react, react-dom, react-router-dom). Stable, cached
+  // React/runtime vendor (react, react-dom, react-router). Stable, cached
   // across deploys via its own manualChunk. Measured ~49 KiB.
   "react-vendor": 120 * KIB,
   // d3 (force simulation + scales/shapes) used only by the lazy workspace and
@@ -69,7 +69,7 @@ export const BUDGETS = {
   mermaid: 900 * KIB,
   cytoscape: 700 * KIB,
   wardley: 900 * KIB,
-  katex: 400 * KIB
+  katex: 400 * KIB,
 };
 
 // DEFAULT_ASYNC_BUDGET_BYTES bounds any other lazily-loaded chunk (e.g. a route
@@ -104,12 +104,7 @@ export function classifyAsset(name) {
 // chunks and report "0 chunks within budget" — silently green-lighting a build
 // that shipped nothing. Per Eshu's no-silent-fallback rule, a missing anchor is
 // a hard failure (reported via missingAnchor), not a pass.
-export function evaluateBundleBudget({
-  files,
-  budgets,
-  defaultBudgetBytes,
-  requireAnchor = null
-}) {
+export function evaluateBundleBudget({ files, budgets, defaultBudgetBytes, requireAnchor = null }) {
   const checked = [];
   const violations = [];
   for (const file of files) {
@@ -128,7 +123,7 @@ export function evaluateBundleBudget({
     ok: violations.length === 0 && missingAnchor === null,
     checked,
     violations,
-    missingAnchor
+    missingAnchor,
   };
 }
 
@@ -157,7 +152,7 @@ function main(argv) {
     files = readAssetFiles(assetsDir);
   } catch (error) {
     console.error(
-      `console-bundle-budget: cannot read ${assetsDir}. Run \`npm run console:build\` first.`
+      `console-bundle-budget: cannot read ${assetsDir}. Run \`npm run console:build\` first.`,
     );
     console.error(String(error?.message ?? error));
     process.exit(2);
@@ -168,7 +163,7 @@ function main(argv) {
     files,
     budgets: BUDGETS,
     defaultBudgetBytes: DEFAULT_ASYNC_BUDGET_BYTES,
-    requireAnchor: "main"
+    requireAnchor: "main",
   });
 
   const sorted = [...checked].sort((a, b) => b.bytes - a.bytes);
@@ -176,7 +171,7 @@ function main(argv) {
   for (const chunk of sorted) {
     const status = chunk.bytes > chunk.budgetBytes ? "FAIL" : "ok";
     console.log(
-      `  [${status}] ${chunk.name} — ${formatKib(chunk.bytes)} / ${formatKib(chunk.budgetBytes)} (${chunk.key})`
+      `  [${status}] ${chunk.name} — ${formatKib(chunk.bytes)} / ${formatKib(chunk.budgetBytes)} (${chunk.key})`,
     );
   }
 
@@ -184,17 +179,13 @@ function main(argv) {
   // (exit 2, "broken build") instead of reporting "0 chunks within budget".
   if (missingAnchor !== null) {
     console.error(
-      `\nconsole-bundle-budget: no '${missingAnchor}' entry chunk found in ${assetsDir}.`
+      `\nconsole-bundle-budget: no '${missingAnchor}' entry chunk found in ${assetsDir}.`,
     );
     console.error(
-      `Found ${checked.length} JavaScript chunk(s) but none classified as '${missingAnchor}'.`
+      `Found ${checked.length} JavaScript chunk(s) but none classified as '${missingAnchor}'.`,
     );
-    console.error(
-      "The console build is broken or the Rollup output layout changed. Re-run"
-    );
-    console.error(
-      "`npm run console:build`; if chunk naming changed, update classifyAsset() in"
-    );
+    console.error("The console build is broken or the Rollup output layout changed. Re-run");
+    console.error("`npm run console:build`; if chunk naming changed, update classifyAsset() in");
     console.error("scripts/console-bundle-budget.mjs.");
     process.exit(2);
     return;
@@ -204,15 +195,11 @@ function main(argv) {
     console.error("\nconsole-bundle-budget: budget exceeded:");
     for (const v of violations) {
       console.error(
-        `  ${v.name} (${v.key}) is ${formatKib(v.bytes)}, budget ${formatKib(v.budgetBytes)}`
+        `  ${v.name} (${v.key}) is ${formatKib(v.bytes)}, budget ${formatKib(v.budgetBytes)}`,
       );
     }
-    console.error(
-      "\nReduce the chunk (lazy-load/split) or, if the growth is justified, raise the"
-    );
-    console.error(
-      "threshold in scripts/console-bundle-budget.mjs and document why in"
-    );
+    console.error("\nReduce the chunk (lazy-load/split) or, if the growth is justified, raise the");
+    console.error("threshold in scripts/console-bundle-budget.mjs and document why in");
     console.error("docs/public/reference/console-bundle-budget.md.");
     process.exit(1);
     return;

@@ -2,7 +2,7 @@
 // Findings correlated to reachable services via the impact findings surface
 // (GET /api/v0/supply-chain/impact/findings). This is admitted impact truth, as
 // opposed to the broader known-intelligence catalog.
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 import { vulnerabilityRowKey } from "../api/eshuConsoleVulnerabilities";
 import { AsyncStateGuard } from "../components/AsyncStateGuard";

@@ -1,20 +1,24 @@
-import { Link, useInRouterContext } from "react-router-dom";
+import { Link, useInRouterContext } from "react-router";
 
 import type { SuggestedQuestion } from "../api/suggestedQuestions";
 import "./SuggestedQuestions.css";
 
 export function SuggestedQuestions({
-  questions
+  questions,
 }: {
   readonly questions: readonly SuggestedQuestion[];
 }): React.JSX.Element {
   const inRouter = useInRouterContext();
   if (questions.length === 0) {
-    return <p className="empty suggested-questions-empty">No source-backed suggestions from this snapshot.</p>;
+    return (
+      <p className="empty suggested-questions-empty">
+        No source-backed suggestions from this snapshot.
+      </p>
+    );
   }
   return (
     <div className="suggested-question-list">
-      {questions.map((question) => (
+      {questions.map((question) =>
         inRouter ? (
           <Link
             aria-label={question.question}
@@ -33,14 +37,14 @@ export function SuggestedQuestions({
           >
             <QuestionContent question={question} />
           </a>
-        )
-      ))}
+        ),
+      )}
     </div>
   );
 }
 
 function QuestionContent({
-  question
+  question,
 }: {
   readonly question: SuggestedQuestion;
 }): React.JSX.Element {

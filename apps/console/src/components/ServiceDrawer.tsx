@@ -1,6 +1,6 @@
 // components/ServiceDrawer.tsx
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 import { TruthChip, FreshDot, Badge } from "./atoms";
 import { GraphCanvas } from "./GraphCanvas";

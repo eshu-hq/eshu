@@ -11,7 +11,7 @@
 // honest coverage reason and explicitly states no path is proven. It never
 // renders an empty success state that implies a path exists.
 import { useCallback, useState, type FormEvent } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 
 import type { EshuApiClient } from "../api/client";
 import {
@@ -20,7 +20,7 @@ import {
   type ExposurePath,
   type ExposureRank,
   type Severity,
-  type TraversalState
+  type TraversalState,
 } from "../api/exposurePath";
 import { Badge, FreshDot, Panel, TruthChip } from "../components/atoms";
 import { uiFresh, uiTruth } from "../console/types";
@@ -31,26 +31,26 @@ const SEVERITY_TONE: Record<Severity, BadgeTone> = {
   critical: "crit",
   high: "ember",
   medium: "warn",
-  low: "neutral"
+  low: "neutral",
 };
 
 const STATE_TONE: Record<TraversalState, BadgeTone> = {
   exact: "teal",
   partial: "warn",
   ambiguous: "violet",
-  unresolved: "neutral"
+  unresolved: "neutral",
 };
 
 const RANK_TONE: Record<ExposureRank, BadgeTone> = {
   internet_exposed: "crit",
   network_reachable: "ember",
-  internal: "neutral"
+  internal: "neutral",
 };
 
 const RANK_LABEL: Record<ExposureRank, string> = {
   internet_exposed: "internet exposed",
   network_reachable: "network reachable",
-  internal: "internal"
+  internal: "internal",
 };
 
 interface ExposureFormState {
@@ -61,7 +61,7 @@ interface ExposureFormState {
 }
 
 export function ExposurePathAdvanced({
-  client
+  client,
 }: {
   readonly client?: EshuApiClient;
 }): React.JSX.Element {
@@ -86,7 +86,7 @@ export function ExposurePathAdvanced({
           source,
           sourceEntityId,
           repoId: next.repoId.trim(),
-          maxDepth: parseDepth(next.maxDepth)
+          maxDepth: parseDepth(next.maxDepth),
         });
         setFinding(loaded);
         if (loaded.provenance === "unavailable") {
@@ -94,12 +94,14 @@ export function ExposurePathAdvanced({
         }
       } catch (traceError) {
         setFinding(null);
-        setError(traceError instanceof Error ? traceError.message : "failed to trace exposure path");
+        setError(
+          traceError instanceof Error ? traceError.message : "failed to trace exposure path",
+        );
       } finally {
         setBusy(false);
       }
     },
-    [client]
+    [client],
   );
 
   function submit(event: FormEvent<HTMLFormElement>): void {
@@ -128,7 +130,8 @@ export function ExposurePathAdvanced({
       <p className="exposure-advanced-lead">
         Trace bounded code-to-cloud reachability from a source handler to a recognized cloud sink,
         via <span className="mono">POST /api/v0/impact/trace-exposure-path</span>. Findings are
-        derived (symbol-level reachability, not value-flow) and never claim a path that is not proven.
+        derived (symbol-level reachability, not value-flow) and never claim a path that is not
+        proven.
       </p>
 
       <form className="impact-query exposure-query" onSubmit={submit}>
@@ -157,7 +160,9 @@ export function ExposurePathAdvanced({
           <input
             aria-label="Source entity id"
             className="popover-input mono"
-            onChange={(event) => setForm((current) => ({ ...current, sourceEntityId: event.target.value }))}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, sourceEntityId: event.target.value }))
+            }
             placeholder="optional entity id"
             value={form.sourceEntityId}
           />
@@ -168,7 +173,9 @@ export function ExposurePathAdvanced({
             aria-label="Max depth"
             className="popover-input mono"
             inputMode="numeric"
-            onChange={(event) => setForm((current) => ({ ...current, maxDepth: event.target.value }))}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, maxDepth: event.target.value }))
+            }
             placeholder="5"
             value={form.maxDepth}
           />
@@ -195,7 +202,11 @@ export function ExposurePathAdvanced({
   );
 }
 
-function ExposureFindingView({ finding }: { readonly finding: ExposureFinding }): React.JSX.Element {
+function ExposureFindingView({
+  finding,
+}: {
+  readonly finding: ExposureFinding;
+}): React.JSX.Element {
   const resolved = finding.state !== "unresolved" && finding.paths.length > 0;
   return (
     <div className="exposure-result mt">
@@ -254,7 +265,7 @@ function ExposureFindingView({ finding }: { readonly finding: ExposureFinding })
 
 function ExposurePathCard({
   exposureRank,
-  path
+  path,
 }: {
   readonly exposureRank: ExposureRank;
   readonly path: ExposurePath;
@@ -330,7 +341,7 @@ function UnresolvedNotice({ finding }: { readonly finding: ExposureFinding }): R
 // truthful "network boundary" entry; an internal source gets no synthetic
 // origin at all (the path starts at the in-process handler).
 function chainOrigin(
-  rank: ExposureRank
+  rank: ExposureRank,
 ): { readonly className: string; readonly label: string } | null {
   switch (rank) {
     case "internet_exposed":
@@ -347,7 +358,7 @@ function formFromSearch(searchParams: URLSearchParams): ExposureFormState {
     source: searchParams.get("source") ?? "",
     sourceEntityId: searchParams.get("sourceEntityId") ?? "",
     repoId: searchParams.get("repoId") ?? "",
-    maxDepth: searchParams.get("maxDepth") ?? ""
+    maxDepth: searchParams.get("maxDepth") ?? "",
   };
 }
 

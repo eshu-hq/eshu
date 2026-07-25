@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 
 import { CodeGraphPage } from "./CodeGraphPage";
 import { demoModel } from "../console/demoModel";
@@ -19,7 +19,7 @@ describe("CodeGraphPage repository scoping", () => {
           truth: "derived",
           entityId: "content-entity:first",
           filePath: "server/first.ts",
-          repoId: "repository:r_11111111"
+          repoId: "repository:r_11111111",
         },
         {
           id: "dead-2",
@@ -30,15 +30,15 @@ describe("CodeGraphPage repository scoping", () => {
           truth: "derived",
           entityId: "content-entity:second",
           filePath: "server/second.ts",
-          repoId: "repository:r_22222222"
-        }
-      ]
+          repoId: "repository:r_22222222",
+        },
+      ],
     };
 
     render(
       <MemoryRouter initialEntries={["/code-graph?candidate=dead-1"]}>
         <CodeGraphPage model={model} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(screen.getByText("Dead in this repo · 1")).toBeInTheDocument();

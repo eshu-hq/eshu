@@ -27,7 +27,7 @@ describe("evaluateBundleReport", () => {
         "| chunk | dependency | KB | first-load? |",
         "| --- | --- | ---: | :---: |",
         "| index-Cc33.js | app/main | 640.0 | yes |",
-        "| react-vendor-Aa11.js | react/react-dom/react-router-dom | 52.0 | yes |",
+        "| react-vendor-Aa11.js | react/react-dom/react-router | 52.0 | yes |",
         "| icons-Ee55.js | lucide-react | 20.0 | yes |",
         "| mermaid.core-Ff66.js | mermaid | 300.0 | no |",
         "| d3-Dd44.js | d3 | 111.0 | no |",

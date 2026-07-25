@@ -10,7 +10,7 @@
 // budget (scripts/console-bundle-budget.mjs).
 
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 import type { EshuApiClient } from "../../api/client";
 import {
