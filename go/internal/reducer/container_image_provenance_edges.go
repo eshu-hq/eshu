@@ -33,13 +33,28 @@ type ContainerImageProvenanceEdgeWriter interface {
 }
 
 // containerImageBuiltFromRows builds BUILT_FROM edge rows from exact_digest
-// container-image-identity decisions with at least one resolved source
+// container-image-identity decisions with at least one build-provenance
 // repository (#5472 exact-only tiering for this edge -- stricter than
 // PUBLISHES, which also admits derived). A decision naming more than one
-// source repository fans out to one row per distinct repository id, since
-// BUILT_FROM has no cardinality limit on the Repository side. Non-exact
-// outcomes and decisions with no resolved source repository never produce a
+// build-provenance repository fans out to one row per distinct repository id,
+// since BUILT_FROM has no cardinality limit on the Repository side. Non-exact
+// outcomes and decisions with no build-provenance repository never produce a
 // row.
+//
+// This gates on BuildProvenanceRepositoryIDs, not the broader
+// SourceRepositoryIDs (#5796). SourceRepositoryIDs also collects the
+// repository whose Kubernetes manifest merely REFERENCES a digest-pinned
+// third-party image (containerImageSourceRepositoryIDs anchors on the
+// deploying repository's own envelope scope), so gating on it let BUILT_FROM
+// claim a repository built an image it only deploys. BuildProvenanceRepositoryIDs
+// is populated only from genuine build evidence -- an OCI config source label
+// the image itself carries, or a CI run that reported producing this digest
+// (extractOCIConfigBuildProvenanceRefs, addCICDArtifactImageReference) -- the
+// same field and semantics #5460/PR #5793 (merged) uses to gate the
+// DERIVED_FROM child side, so both provenance edges share one signal. The
+// broader SourceRepositoryIDs has no other legitimate BUILT_FROM consumer:
+// nothing else reads it off this decision type for this edge, so narrowing
+// loses no intended coverage.
 func containerImageBuiltFromRows(decisions []ContainerImageIdentityDecision) []map[string]any {
 	rows := make([]map[string]any, 0, len(decisions))
 	for _, decision := range decisions {
@@ -50,7 +65,7 @@ func containerImageBuiltFromRows(decisions []ContainerImageIdentityDecision) []m
 		if digest == "" {
 			continue
 		}
-		for _, repositoryID := range uniqueSortedStrings(decision.SourceRepositoryIDs) {
+		for _, repositoryID := range uniqueSortedStrings(decision.BuildProvenanceRepositoryIDs) {
 			if repositoryID == "" {
 				continue
 			}

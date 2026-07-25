@@ -303,3 +303,79 @@ func TestApplySLSADigestRevisionOutranksOCIConfigSourceLabelWhenUnverifiedNoOver
 		t.Fatalf("SourceRevision = %q, want the label revision, not the unverified SLSA commit", decision.SourceRevision)
 	}
 }
+
+// TestApplySLSADigestRevisionPopulatesBuildProvenanceRepositoryIDs is the
+// #5796 review follow-up (P1, codex + human reviewer): a passed-signature
+// SLSA attestation naming a config source repository is the STRONGEST build
+// evidence in this domain -- stronger than an OCI config source label or a
+// ci.run join, both of which already reach BuildProvenanceRepositoryIDs (see
+// #5460, #5808). Before this fix, applySLSADigestRevision appended the SLSA
+// anchor's repository only to the broader SourceRepositoryIDs, so an
+// exact-digest image whose ONLY attribution was verified SLSA never gained
+// BuildProvenanceRepositoryIDs and lost its BUILT_FROM edge outright under
+// the #5796 gate -- a real accuracy regression for the strongest evidence
+// tier. gitImageRefFact anchors this decision to exact_digest without itself
+// contributing any repository (its "repo:" scope prefix does not match
+// repositoryIDFromReducerScope), so the SLSA anchor is the only repository
+// attribution present.
+func TestApplySLSADigestRevisionPopulatesBuildProvenanceRepositoryIDs(t *testing.T) {
+	t.Parallel()
+
+	imageRef := "registry.example.com/team/api@" + testContainerDigest
+	decisions := BuildContainerImageIdentityDecisions([]facts.Envelope{
+		gitImageRefFact("content-declares", imageRef),
+		ociManifestFact("oci-manifest", testContainerDigest),
+		repositoryRemoteFact("repo://acme/payments-api", slsaProofRepoURL+".git"),
+		slsaImageStatementFact("statement-slsa-buildprov", "stmt-slsa-buildprov", testContainerDigest),
+		slsaConfigSourceProvenanceFact("provenance-slsa-buildprov", "stmt-slsa-buildprov", slsaProofRepoURL, slsaProofCommit),
+		slsaPassedVerificationFact("verification-slsa-buildprov", "stmt-slsa-buildprov"),
+	})
+
+	got := decisionsByRef(decisions)
+	decision, ok := got[imageRef]
+	if !ok {
+		t.Fatalf("no decision for %q: %#v", imageRef, got)
+	}
+	if !stringSliceContains(decision.BuildProvenanceRepositoryIDs, "repo://acme/payments-api") {
+		t.Fatalf("BuildProvenanceRepositoryIDs = %#v, want repo://acme/payments-api: a passed-signature SLSA attestation is build evidence", decision.BuildProvenanceRepositoryIDs)
+	}
+
+	rows := containerImageBuiltFromRows(decisions)
+	if len(rows) != 1 || rows[0]["repository_id"] != "repo://acme/payments-api" {
+		t.Fatalf("containerImageBuiltFromRows = %#v, want one BUILT_FROM row for repo://acme/payments-api", rows)
+	}
+}
+
+// TestApplySLSADigestRevisionUnverifiedDoesNotConferBuildProvenance is the
+// negative half: SLSA evidence whose signature verification did NOT pass
+// must not confer build provenance, mirroring exactly the gate
+// extractSLSADigestAnchorsWithQuarantine already applies before an anchor is
+// ever recorded (verificationStatusByStatement[...] != "passed" => no
+// anchor, so applySLSADigestRevision never even sees this repository).
+func TestApplySLSADigestRevisionUnverifiedDoesNotConferBuildProvenance(t *testing.T) {
+	t.Parallel()
+
+	imageRef := "registry.example.com/team/api@" + testContainerDigest
+	decisions := BuildContainerImageIdentityDecisions([]facts.Envelope{
+		gitImageRefFact("content-declares", imageRef),
+		ociManifestFact("oci-manifest", testContainerDigest),
+		repositoryRemoteFact("repo://acme/payments-api", slsaProofRepoURL+".git"),
+		slsaImageStatementFact("statement-slsa-failed-buildprov", "stmt-slsa-failed-buildprov", testContainerDigest),
+		slsaConfigSourceProvenanceFact("provenance-slsa-failed-buildprov", "stmt-slsa-failed-buildprov", slsaProofRepoURL, slsaProofCommit),
+		slsaFailedVerificationFact("verification-slsa-failed-buildprov", "stmt-slsa-failed-buildprov"),
+	})
+
+	got := decisionsByRef(decisions)
+	decision, ok := got[imageRef]
+	if !ok {
+		t.Fatalf("no decision for %q: %#v", imageRef, got)
+	}
+	if len(decision.BuildProvenanceRepositoryIDs) != 0 {
+		t.Fatalf("BuildProvenanceRepositoryIDs = %#v, want empty: a failed signature verification must not confer build provenance", decision.BuildProvenanceRepositoryIDs)
+	}
+
+	rows := containerImageBuiltFromRows(decisions)
+	if len(rows) != 0 {
+		t.Fatalf("containerImageBuiltFromRows = %#v, want no BUILT_FROM row for unverified SLSA-only attribution", rows)
+	}
+}
