@@ -422,21 +422,8 @@ Classify every hostile-read finding with one class:
 
 ## Eshu Failure Classes To Name Explicitly
 
-Every review must state whether the diff could trigger any of these classes and
-where the proof lives:
-
-- false-green tests;
-- unexercised production subjects hidden behind helper tests;
-- golden-corpus or B-12 snapshot drift;
-- stale generated artifacts or stale discovery registries;
-- workflow or local-gate parity gaps;
-- NornicDB planner fallback or version-skewed optimizer assumptions;
-- route, API, MCP, CLI, or OpenAPI mismatch;
-- public report redaction or classifier overreach;
-- materialization, graph projection, or query-surface disagreement;
-- concurrency, lease, retry, idempotency, or ordering bugs;
-- telemetry coverage gaps or missing operator-facing evidence;
-- private-data, secret, or AI-attribution leakage.
+Work the checklist in `references/failure-classes.md`. Every review must state
+whether the diff could trigger each class and cite where the proof lives.
 
 ## Finding Schema, Severity, And Disposition
 
