@@ -9,8 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -237,6 +240,75 @@ func TestClaimedSourceRecordsProviderTelemetry(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("NextClaimed() = (_, %v, %v), want (_, true, nil)", ok, err)
 	}
+
+	// Collect and assert the recorded points: without this the test only proves
+	// the instrumented path does not panic, not that any metric was incremented
+	// (a metric dropped from recordFetch/recordFacts would still pass).
+	rm := collectGitLabCICDRunMetrics(t, reader)
+	assertGitLabCICDRunCounterPoint(t, rm, "eshu_dp_ci_cd_run_provider_requests_total", map[string]string{
+		telemetry.MetricDimensionProvider:    string(cicdrun.ProviderGitLabCI),
+		telemetry.MetricDimensionStatusClass: "success",
+	})
+	assertGitLabCICDRunCounterPoint(t, rm, "eshu_dp_ci_cd_run_facts_emitted_total", map[string]string{
+		telemetry.MetricDimensionProvider: string(cicdrun.ProviderGitLabCI),
+		telemetry.MetricDimensionFactKind: facts.CICDRunFactKind,
+	})
+}
+
+// collectGitLabCICDRunMetrics drains the manual reader so the assertions below
+// run against the points the source actually recorded.
+func collectGitLabCICDRunMetrics(t *testing.T, reader *sdkmetric.ManualReader) metricdata.ResourceMetrics {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v, want nil", err)
+	}
+	return rm
+}
+
+// assertGitLabCICDRunCounterPoint fails unless the named counter carries a
+// positive data point matching every attribute in attrs, so a dropped metric or
+// a wrong provider/status dimension is a test failure rather than a silent pass.
+func assertGitLabCICDRunCounterPoint(
+	t *testing.T,
+	rm metricdata.ResourceMetrics,
+	name string,
+	attrs map[string]string,
+) {
+	t.Helper()
+	for _, sm := range rm.ScopeMetrics {
+		for _, metricRecord := range sm.Metrics {
+			if metricRecord.Name != name {
+				continue
+			}
+			sum, ok := metricRecord.Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf("metric %s has type %T, want Sum[int64]", name, metricRecord.Data)
+			}
+			for _, point := range sum.DataPoints {
+				if gitLabCICDRunAttributesContain(point.Attributes, attrs) && point.Value > 0 {
+					return
+				}
+			}
+		}
+	}
+	t.Fatalf("metric %s with attrs %v was not recorded", name, attrs)
+}
+
+func gitLabCICDRunAttributesContain(attrs attribute.Set, want map[string]string) bool {
+	for key, wantValue := range want {
+		var matched bool
+		for _, kv := range attrs.ToSlice() {
+			if string(kv.Key) == key && kv.Value.AsString() == wantValue {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+	return true
 }
 
 type fakeClient struct {
