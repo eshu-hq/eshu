@@ -268,6 +268,9 @@ it to the epic's follow-ups list at creation time.
 - For every leaf issue AND every epic:
   `gh issue view <n> --repo eshu-hq/eshu --json state` shows `CLOSED`.
 - For every follow-up issue filed: closed, or deferred with a written reason.
+  Filing one at all requires the owner's agreement — quote the message granting
+  it. Every other clause here demands a command and its output; an exception
+  that the agent invoking it can self-certify is not a gate.
 - `gh pr list --repo eshu-hq/eshu --state merged --search "<n>"` shows the PRs
   MERGED (`gh pr list` defaults to `--state open`, so omitting the state would
   return nothing once the work has merged).
