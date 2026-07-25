@@ -136,8 +136,9 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 	// #5452: promote findings whose subject digest is observed running on a
 	// live cloud resource (ECS task / image-package Lambda) to the
 	// runtime_confirmed deployment_truth_tier, naming the running resource. The
-	// probe is scope-authorized (skipped for scoped-token callers) and bounded
-	// to the page's digests. A probe error is mapped to a bounded, retryable
+	// probe is current-inventory + scope authorized through the owner ledger
+	// (stale or cross-scope resources never promote a finding) and bounded to
+	// the page's digests. A probe error is mapped to a bounded, retryable
 	// graph-availability envelope (503/504) rather than serving a false
 	// config_only tier for a vulnerability that is actually running — the
 	// findings tier is a security signal, so a wrong tier is worse than a

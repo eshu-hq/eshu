@@ -63,6 +63,7 @@ func newSupplyChainHandler(
 		SecurityAlerts:           query.NewPostgresSecurityAlertReconciliationStore(db),
 		SecurityAlertAggregates:  query.NewPostgresSecurityAlertReconciliationAggregateStore(db),
 		Readiness:                query.NewPostgresSupplyChainImpactReadinessStore(db),
+		CloudResourceInventory:   query.NewPostgresCloudResourceListStore(db),
 		CollectorReadiness:       query.NewPostgresCollectorListReadinessStore(db),
 		Profile:                  profile,
 	}

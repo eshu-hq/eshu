@@ -127,10 +127,12 @@ the tier semantics above.
   runtime tier) when no cloud evidence is wired. Remaining nuance: the probe
   runs on the findings-list read; other supply-chain read surfaces that do not
   build results through `buildSupplyChainImpactFindingResult` do not yet carry
-  the runtime tier. The runtime probe is also skipped for scoped-token callers
-  (whose runtime findings keep the CI-declared/config tier) because
-  `CloudResource` nodes are authorized through the Postgres owner ledger, not
-  the graph — tracked in #5787.
+  the runtime tier. Because `CloudResource` nodes carry no `scope_id` or
+  freshness marker, the probe gates its digest matches through the Postgres
+  owner ledger (active-generation + scope grants): an authorized scoped-token
+  caller receives the runtime tier for cloud resources it is granted, while a
+  stale (retracted-in-a-later-scan) node or a cross-scope resource never
+  promotes a finding.
 
 ## Legacy reason → tier mapping
 

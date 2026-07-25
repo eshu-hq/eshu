@@ -25,9 +25,10 @@ tier.
 - **Baseline:** the `GET /api/v0/supply-chain/impact/findings` list did zero
   graph reads (Postgres reducer read model only).
 - **After:** the list gains exactly **one** graph round-trip per page — a single
-  batched query, never per-finding (no N+1). It is skipped entirely when the
-  page has no subject digest, no graph port is wired, or the caller is
-  scoped-token (see Scope authorization below).
+  batched query, never per-finding (no N+1), plus one bounded Postgres
+  owner-ledger read to gate the matches (see Current-inventory + scope
+  authorization below). It is skipped entirely when the page has no subject
+  digest, or no graph port / owner-ledger inventory filter is wired.
 - **Query shape / bound:** `MATCH (n:CloudResource) WHERE n.running_image_digest
   IN $digests AND coalesce(n.arn,'') <> '' RETURN n.running_image_digest,
   n.arn ORDER BY n.running_image_digest, n.arn LIMIT $limit`. The `$digests`
@@ -77,21 +78,73 @@ tier.
   list defaults to precise. Result: `PASS: B-7 golden corpus gate green`,
   493 pass / 0 required-fail.
 
-## Scope authorization:
+## Prove-The-Theory-First: `running_image_digest` index (measured, DISPROVEN, not shipped)
 
-`CloudResource` graph nodes carry no `scope_id`
-(`go/internal/storage/cypher/cloud_resource_node_writer.go`), so authorization
-for them runs through the Postgres owner ledger — the sibling
-`listCloudResources` restricts to `ListCloudResourceIdentities` before hydrating
-the graph. This probe reads the graph directly by digest and cannot apply that
-per-resource authorization, so it is **skipped for scoped-token callers**
-(`access.scoped()`): a scoped caller keeps its finding's CI-declared/config tier
-rather than being shown ARNs of cloud resources in scopes it is not granted.
-Unrestricted (all-scope/admin) callers, whose grants already span every scope,
-get the full runtime enrichment. Proven by
-`TestApplySupplyChainCloudRuntimeEvidenceSkipsScopedCaller`. Follow-up:
-owner-ledger authorization so authorized scoped callers also receive the runtime
-tier (#5787).
+A candidate `CREATE INDEX cloud_resource_running_image_digest FOR
+(r:CloudResource) ON (r.running_image_digest)` was proposed (codex P1b) to
+convert the probe's `WHERE n.running_image_digest IN $digests` predicate from a
+`CloudResource` label scan to a property seek. Per the mandatory
+Prove-The-Theory-First gate, the theory was measured against representative-scale
+data on the canonical backend **before** landing it. It did not hold.
+
+- **Harness:** throwaway Bolt-driver program (`neo4j-go-driver/v5`) against a
+  fresh NornicDB (pinned PR261 build, `NORNICDB_AUTH_DISABLED`, Bolt on
+  `localhost:7688`), worst-case single-digest match: N non-matching
+  `CloudResource` nodes + 12 carrying the target digest, 300 timed iterations
+  after a 30-iteration warm, running the exact production probe query shape
+  (`... IN $digests AND coalesce(n.arn,'')<>'' ... ORDER BY ... LIMIT 200`).
+  `PROFILE` is unusable — NornicDB `StorageExecutor.executeProfile`
+  stack-overflows (infinite recursion) on this build — and `EXPLAIN` returns no
+  plan tree over Bolt, so the win had to be wall-clock on the real query.
+- **Result — no win, then a regression:**
+  - 50k nodes: **0.1547 ms/query** (no index) vs **0.1391 ms/query** (index) =
+    **1.11x** (noise).
+  - 200k nodes: **0.5063 ms/query** (no index) vs **0.6236 ms/query** (index) =
+    **0.81x** — *slower with the index.* `SHOW INDEXES` confirmed the index was
+    `ONLINE` (`cloud_resource_running_image_digest ... PROPERTY NODE
+    [CloudResource] [running_image_digest]`), so it was built and available and
+    still not selected.
+  - Latency scales **linearly** with the `CloudResource` label subset
+    (0.15 ms@50k → 0.51 ms@200k), the signature of a `NodeByLabelScan` that the
+    index does not displace: NornicDB's planner does not use a property index for
+    an `IN`-list membership predicate on this build.
+- **Equivalence (apples-to-apples):** the result set is **identical** before and
+  after the index (12 rows, byte-identical sorted `uid|arn` keys), so the
+  comparison is on the same answer and the speedup number is real, not an
+  artifact of a changed result. (An early 24→48 count was reproduced to be
+  cross-run data accumulation on a reused container, not a duplicate-row bug — it
+  vanished on a fresh tree with a `count(n)=0` pre-seed assertion.)
+- **Decision — not shipped.** The index is `ONLINE` but unused, so it would add
+  per-write index maintenance on the `CloudResource` projection path **and** a
+  graph-schema fingerprint migration for **zero** measured read benefit (a net
+  write-path regression). The probe's read cost is already bounded and cheap by
+  the label anchor + the 200-digest dedup cap + `LIMIT 200`: ~0.5 ms per page at
+  a 200k-node worst case that far exceeds realistic cloud-inventory cardinality.
+  A disproven index is a saved implementation, not a landed one.
+
+## Current-inventory + scope authorization:
+
+`CloudResource` graph nodes carry neither a `scope_id` nor a freshness marker
+(`go/internal/storage/cypher/cloud_resource_node_writer.go` MERGE-writes them and
+never node-retracts), so two gates run in Postgres after the bounded graph read,
+over the probe's already-bounded digest matches (keyed by uid):
+
+- **Current-inventory (staleness):** the matched uids are filtered through the
+  owner ledger (`CloudResourceCurrentInventoryFilter.CurrentAuthorizedCloudResourceUIDs`,
+  the same `graph_node_owner` + active-generation + non-tombstone predicate
+  `ListCloudResourceIdentities` applies), so a node left stale by a resource that
+  vanished from a later scan never becomes runtime evidence. Proven by
+  `TestApplySupplyChainCloudRuntimeEvidenceExcludesStaleOrUnauthorized`.
+- **Authorization:** the same filter applies the caller's scope grants, so a
+  scoped-token caller receives runtime evidence for cloud resources it is
+  granted and never ARNs from scopes it is not — while authorized scoped callers
+  DO receive the runtime tier. Proven by
+  `TestApplySupplyChainCloudRuntimeEvidenceScopedCallerGetsAuthorized` (asks the
+  ledger with `allScopes=false`).
+
+A nil inventory filter disables the runtime tier entirely (the probe is skipped)
+rather than surfacing unauthorized or stale evidence. This closes the earlier
+skip-for-scoped limitation and the follow-up that was #5787.
 
 ## Observability Evidence:
 

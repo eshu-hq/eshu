@@ -36,21 +36,51 @@ func (s *stubCloudRuntimeGraph) RunSingle(_ context.Context, _ string, _ map[str
 	return nil, nil
 }
 
-func cloudResourceGraphRow(digest, arn string) map[string]any {
-	return map[string]any{"digest": digest, "arn": arn}
+// stubCloudInventory is a CloudResourceCurrentInventoryFilter stub: it returns
+// only the candidate uids present in `currentAuthorized`, modelling the
+// owner-ledger current-inventory + authorization gate. It records the candidate
+// uids and whether the caller was unscoped.
+type stubCloudInventory struct {
+	currentAuthorized map[string]struct{}
+	err               error
+	gotCandidates     []string
+	gotAllScopes      bool
+}
+
+func (s *stubCloudInventory) CurrentAuthorizedCloudResourceUIDs(
+	_ context.Context, candidateUIDs []string, allScopes bool, _ []string, _ []string,
+) ([]string, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	s.gotCandidates = append([]string(nil), candidateUIDs...)
+	s.gotAllScopes = allScopes
+	var out []string
+	for _, uid := range candidateUIDs {
+		if _, ok := s.currentAuthorized[uid]; ok {
+			out = append(out, uid)
+		}
+	}
+	return out, nil
+}
+
+func cloudResourceGraphRow(uid, digest, arn string) map[string]any {
+	return map[string]any{"uid": uid, "digest": digest, "arn": arn}
 }
 
 func TestApplySupplyChainCloudRuntimeEvidencePromotesRunningDigest(t *testing.T) {
 	t.Parallel()
 
 	runningDigest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	uid := "CloudResource:aws:ecs:task-a"
 	ecsARN := "arn:aws:ecs:us-east-1:123456789012:task/demo/aaaaaaaa"
 	graph := &stubCloudRuntimeGraph{
 		rowsByDigest: map[string][]map[string]any{
-			runningDigest: {cloudResourceGraphRow(runningDigest, ecsARN)},
+			runningDigest: {cloudResourceGraphRow(uid, runningDigest, ecsARN)},
 		},
 	}
-	handler := &SupplyChainHandler{Neo4j: graph}
+	inventory := &stubCloudInventory{currentAuthorized: map[string]struct{}{uid: {}}}
+	handler := &SupplyChainHandler{Neo4j: graph, CloudResourceInventory: inventory}
 
 	rows := []SupplyChainImpactFindingRow{
 		{FindingID: "f-running", SubjectDigest: runningDigest, EvidencePath: []string{cicdRunCorrelationFactKind}},
@@ -60,23 +90,80 @@ func TestApplySupplyChainCloudRuntimeEvidencePromotesRunningDigest(t *testing.T)
 		t.Fatalf("applySupplyChainCloudRuntimeEvidence() error = %v, want nil", err)
 	}
 
-	// The running finding gains the resource ref and classifies runtime_confirmed.
 	if got := rows[0].CloudRuntimeResourceRefs; len(got) != 1 || got[0] != ecsARN {
 		t.Fatalf("running finding CloudRuntimeResourceRefs = %#v, want [%q]", got, ecsARN)
 	}
 	if tier := buildSupplyChainImpactFindingResult(rows[0]).DeploymentTruthTier; tier != "runtime_confirmed" {
 		t.Fatalf("running finding tier = %q, want runtime_confirmed", tier)
 	}
-	// The non-running finding keeps its CI-declared tier, no fabricated refs.
 	if got := rows[1].CloudRuntimeResourceRefs; len(got) != 0 {
 		t.Fatalf("non-running finding CloudRuntimeResourceRefs = %#v, want none", got)
 	}
 	if tier := buildSupplyChainImpactFindingResult(rows[1]).DeploymentTruthTier; tier != "provenance_ci_declared" {
 		t.Fatalf("non-running finding tier = %q, want provenance_ci_declared", tier)
 	}
-	// Both distinct digests were probed (deduped, non-blank).
-	if len(graph.gotDigests) != 2 {
-		t.Fatalf("probed digests = %#v, want the 2 distinct finding digests", graph.gotDigests)
+}
+
+// TestApplySupplyChainCloudRuntimeEvidenceExcludesStaleOrUnauthorized is the
+// #5452 P1a (staleness) + #5787 (authorization) proof: a CloudResource node that
+// matches the digest in the graph but is NOT returned as current+authorized by
+// the owner-ledger filter (a stale node, or one in a scope the caller is not
+// granted) must NOT promote the finding — its ARN is never surfaced.
+func TestApplySupplyChainCloudRuntimeEvidenceExcludesStaleOrUnauthorized(t *testing.T) {
+	t.Parallel()
+
+	runningDigest := "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+	staleUID := "CloudResource:aws:ecs:task-gone"
+	graph := &stubCloudRuntimeGraph{
+		rowsByDigest: map[string][]map[string]any{
+			runningDigest: {cloudResourceGraphRow(staleUID, runningDigest, "arn:aws:ecs:us-east-1:123456789012:task/demo/gone")},
+		},
+	}
+	// The owner ledger admits nothing — the matched node is stale/unauthorized.
+	inventory := &stubCloudInventory{currentAuthorized: map[string]struct{}{}}
+	handler := &SupplyChainHandler{Neo4j: graph, CloudResourceInventory: inventory}
+
+	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: runningDigest, EvidencePath: []string{cicdRunCorrelationFactKind}}}
+	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err != nil {
+		t.Fatalf("applySupplyChainCloudRuntimeEvidence() error = %v, want nil", err)
+	}
+	if len(rows[0].CloudRuntimeResourceRefs) != 0 {
+		t.Fatalf("CloudRuntimeResourceRefs = %#v, want none for a stale/unauthorized node", rows[0].CloudRuntimeResourceRefs)
+	}
+	if tier := buildSupplyChainImpactFindingResult(rows[0]).DeploymentTruthTier; tier != "provenance_ci_declared" {
+		t.Fatalf("tier = %q, want provenance_ci_declared (no runtime evidence from a stale node)", tier)
+	}
+	if len(inventory.gotCandidates) != 1 || inventory.gotCandidates[0] != staleUID {
+		t.Fatalf("owner-ledger filter candidates = %#v, want [%q]", inventory.gotCandidates, staleUID)
+	}
+}
+
+// TestApplySupplyChainCloudRuntimeEvidenceScopedCallerGetsAuthorized proves a
+// scoped-token caller now DOES receive runtime evidence for a cloud resource the
+// owner ledger authorizes (the probe no longer blanket-skips scoped callers;
+// #5787 resolved), and the ledger is asked with allScopes=false.
+func TestApplySupplyChainCloudRuntimeEvidenceScopedCallerGetsAuthorized(t *testing.T) {
+	t.Parallel()
+
+	runningDigest := "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+	uid := "CloudResource:aws:ecs:task-scoped"
+	arn := "arn:aws:ecs:us-east-1:123456789012:task/demo/scoped"
+	graph := &stubCloudRuntimeGraph{
+		rowsByDigest: map[string][]map[string]any{runningDigest: {cloudResourceGraphRow(uid, runningDigest, arn)}},
+	}
+	inventory := &stubCloudInventory{currentAuthorized: map[string]struct{}{uid: {}}}
+	handler := &SupplyChainHandler{Neo4j: graph, CloudResourceInventory: inventory}
+
+	scoped := repositoryAccessFilter{allowedRepositoryIDs: []string{"repository:r_granted"}}
+	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: runningDigest}}
+	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), scoped, rows); err != nil {
+		t.Fatalf("applySupplyChainCloudRuntimeEvidence(scoped) error = %v, want nil", err)
+	}
+	if got := rows[0].CloudRuntimeResourceRefs; len(got) != 1 || got[0] != arn {
+		t.Fatalf("scoped caller CloudRuntimeResourceRefs = %#v, want [%q] (authorized resource)", got, arn)
+	}
+	if inventory.gotAllScopes {
+		t.Fatalf("owner-ledger filter called with allScopes=true for a scoped caller; want false")
 	}
 }
 
@@ -84,7 +171,8 @@ func TestApplySupplyChainCloudRuntimeEvidencePropagatesProbeError(t *testing.T) 
 	t.Parallel()
 
 	graph := &stubCloudRuntimeGraph{err: errors.New("graph unavailable")}
-	handler := &SupplyChainHandler{Neo4j: graph}
+	inventory := &stubCloudInventory{}
+	handler := &SupplyChainHandler{Neo4j: graph, CloudResourceInventory: inventory}
 	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: "sha256:cc"}}
 
 	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err == nil {
@@ -92,49 +180,35 @@ func TestApplySupplyChainCloudRuntimeEvidencePropagatesProbeError(t *testing.T) 
 	}
 }
 
-// TestApplySupplyChainCloudRuntimeEvidenceSkipsScopedCaller is the #5452 F1
-// scope-authorization proof: a scoped-token caller must NOT receive
-// runtime-observed cloud evidence, because CloudResource graph nodes carry no
-// scope_id and the probe cannot authorize matched resources through the owner
-// ledger — surfacing them would leak ARNs of cloud resources in scopes the
-// caller is not granted. The probe is skipped entirely (no graph query issued)
-// and the finding keeps its non-runtime tier.
-func TestApplySupplyChainCloudRuntimeEvidenceSkipsScopedCaller(t *testing.T) {
+func TestApplySupplyChainCloudRuntimeEvidencePropagatesLedgerError(t *testing.T) {
 	t.Parallel()
 
-	runningDigest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	graph := &stubCloudRuntimeGraph{
-		rowsByDigest: map[string][]map[string]any{
-			runningDigest: {cloudResourceGraphRow(runningDigest, "arn:aws:ecs:us-east-1:123456789012:task/demo/aaaaaaaa")},
-		},
-	}
-	handler := &SupplyChainHandler{Neo4j: graph}
-	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: runningDigest, EvidencePath: []string{cicdRunCorrelationFactKind}}}
+	digest := "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+	graph := &stubCloudRuntimeGraph{rowsByDigest: map[string][]map[string]any{digest: {cloudResourceGraphRow("uid-x", digest, "arn-x")}}}
+	inventory := &stubCloudInventory{err: errors.New("ledger unavailable")}
+	handler := &SupplyChainHandler{Neo4j: graph, CloudResourceInventory: inventory}
+	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: digest}}
 
-	scoped := repositoryAccessFilter{allowedRepositoryIDs: []string{"repository:r_only"}}
-	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), scoped, rows); err != nil {
-		t.Fatalf("applySupplyChainCloudRuntimeEvidence(scoped) error = %v, want nil", err)
-	}
-	if len(rows[0].CloudRuntimeResourceRefs) != 0 {
-		t.Fatalf("scoped caller CloudRuntimeResourceRefs = %#v, want none (no cross-scope ARN leak)", rows[0].CloudRuntimeResourceRefs)
-	}
-	if len(graph.gotDigests) != 0 {
-		t.Fatalf("scoped caller issued a graph probe (digests %#v); it must be skipped entirely", graph.gotDigests)
-	}
-	if tier := buildSupplyChainImpactFindingResult(rows[0]).DeploymentTruthTier; tier != "provenance_ci_declared" {
-		t.Fatalf("scoped caller tier = %q, want provenance_ci_declared (CI-declared, not runtime)", tier)
+	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err == nil {
+		t.Fatal("applySupplyChainCloudRuntimeEvidence() error = nil, want the owner-ledger error propagated")
 	}
 }
 
-func TestApplySupplyChainCloudRuntimeEvidenceNilGraphIsNoOp(t *testing.T) {
+func TestApplySupplyChainCloudRuntimeEvidenceNilStoresAreNoOp(t *testing.T) {
 	t.Parallel()
 
-	handler := &SupplyChainHandler{}
 	rows := []SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: "sha256:cc"}}
-	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err != nil {
-		t.Fatalf("applySupplyChainCloudRuntimeEvidence() with nil graph error = %v, want nil", err)
+	// Nil graph.
+	if err := (&SupplyChainHandler{CloudResourceInventory: &stubCloudInventory{}}).
+		applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err != nil {
+		t.Fatalf("nil graph error = %v, want nil", err)
+	}
+	// Nil inventory filter (disables the runtime tier rather than surfacing unauthorized evidence).
+	if err := (&SupplyChainHandler{Neo4j: &stubCloudRuntimeGraph{}}).
+		applySupplyChainCloudRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err != nil {
+		t.Fatalf("nil inventory error = %v, want nil", err)
 	}
 	if len(rows[0].CloudRuntimeResourceRefs) != 0 {
-		t.Fatalf("CloudRuntimeResourceRefs = %#v, want none when no graph is wired", rows[0].CloudRuntimeResourceRefs)
+		t.Fatalf("CloudRuntimeResourceRefs = %#v, want none when a store is unwired", rows[0].CloudRuntimeResourceRefs)
 	}
 }

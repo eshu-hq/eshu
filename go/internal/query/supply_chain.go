@@ -43,6 +43,14 @@ type SupplyChainHandler struct {
 	SecurityAlerts           SecurityAlertReconciliationStore
 	SecurityAlertAggregates  SecurityAlertReconciliationAggregateStore
 	Readiness                SupplyChainImpactReadinessStore
+	// CloudResourceInventory gates the #5452 runtime-observed cloud evidence
+	// probe: it filters the probe's digest-matched CloudResource graph nodes to
+	// those that are BOTH current (active-generation, non-tombstoned) and
+	// authorized for the caller's scope grants, so a stale node or a cross-scope
+	// resource never becomes runtime_confirmed evidence. Nil disables the runtime
+	// tier entirely (the probe is skipped) rather than surfacing unauthorized or
+	// stale evidence.
+	CloudResourceInventory CloudResourceCurrentInventoryFilter
 	// CollectorReadiness answers the configured-collector probe for the gated
 	// SBOM/attestation and container-image list tools so an empty page reports
 	// not_configured when the feeding collector is disabled. It is optional: a
