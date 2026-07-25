@@ -80,10 +80,41 @@ The spine domains get a graph-projection policy in this order:
 | ci_cd_run_correlation | PROJECT (exact only) | `reducer/ci-cd-run-correlation` | `BUILT_FROM` (ContainerImage/OciImageManifest → Repository) | #5428 |
 | ci.job / ci.pipeline_definition / ci.warning | DISCLOSURE (registry comments) | N/A | N/A | #5428 |
 | container_image_identity | PROJECT (exact_digest, source_repository_ids non-empty) | `reducer/container-image-identity` | `BUILT_FROM` (same edge, distinct source) | #5457 |
+| container_image_identity base images | PROJECT (exact_digest on BOTH endpoints, single distinct base per repository) | `reducer/container-image-base-image` | `DERIVED_FROM` (ContainerImage → ContainerImage) | #5460 |
 | container_image_identity workload/service ids | POSTGRES-ONLY (policy v1) | N/A | N/A | — |
 | package ownership correlation | PROJECT (exact/derived, non-empty source ids) | `reducer/package-ownership` | `PUBLISHES` (Repository → Package/PackageVersion) | #5457 |
 | package publication correlation | PROJECT (exact/derived, non-empty source ids) | `reducer/package-publication` | `PUBLISHES` (Repository → Package/PackageVersion) | #5457 |
 | package consumption correlation | POSTGRES-ONLY (disclosed) | N/A | N/A | — |
+
+### Base-image lineage tiering (#5460)
+
+`DERIVED_FROM` carries `ContainerImage` on BOTH endpoints, and the canonical
+writer matches a `ContainerImage` by digest. Decision #4's exact-only rule
+therefore binds twice: an edge is projected only when the child AND the base
+each resolve to `exact_digest`. This is not merely policy conformance — a
+tag-only base has no `ContainerImage {digest}` node to point at, and the
+question the edge exists to answer ("does my image inherit CVE-X from its
+base?") is unanswerable unless the base resolves to the specific digest whose
+vulnerabilities are known.
+
+Two further rules are specific to this domain:
+
+- **Runtime lineage is the FINAL Dockerfile stage only.** An intermediate
+  builder stage does not ship its base OS into the runtime image; only the
+  artifacts an explicit `COPY --from` names cross the stage boundary.
+  Projecting a builder stage's base would assert CVE inheritance the image does
+  not carry.
+- **Attribution is conservative.** Dockerfile evidence names a repository's
+  base but never says which of that repository's built images came from which
+  Dockerfile. A repository resolving to more than one distinct base is
+  ambiguous and projects NO edge, rather than an all-pairs fan-out that would
+  fabricate lineage in a monorepo building several images from several
+  Dockerfiles. A fabricated inheritance claim is a worse failure than a missing
+  one.
+
+Edges carry `attribution_basis` (today always `repository_single_base`) so a
+later CI/SLSA per-image link can be admitted on the same edge type as a
+strictly more precise basis, with no edge-type, schema, or query change.
 
 ### Retraction path
 

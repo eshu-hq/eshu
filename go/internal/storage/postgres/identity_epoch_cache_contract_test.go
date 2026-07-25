@@ -14,8 +14,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// TestMigration069PredicateMatchesIdentityFactFilter locks the partial-index
-// WHERE predicate in migrations/069_fact_records_identity_epoch_idx.sql to the
+// TestIdentityEpochIndexPredicateMatchesIdentityFactFilter locks the partial-index
+// WHERE predicate for fact_records_identity_epoch_idx to the
 // Go identityFactFilterSQL const (facts_active_container_image_identity.go).
 // These two filter predicates MUST stay identical: the index only covers the
 // probe/load query with an Index Only Scan when its predicate is a subset
@@ -28,12 +28,18 @@ import (
 // payload); the Go const uses a `fact.`-prefixed alias because it is embedded
 // in a query that joins fact_records AS fact. normalizeIdentityFilterPredicate
 // accounts for that known, intentional difference before comparing.
-func TestMigration069PredicateMatchesIdentityFactFilter(t *testing.T) {
+func TestIdentityEpochIndexPredicateMatchesIdentityFactFilter(t *testing.T) {
 	t.Parallel()
 
-	migrationSQL, err := os.ReadFile("migrations/069_fact_records_identity_epoch_idx.sql")
+	// The index is first defined by migration 069, then REDEFINED by migration 077,
+	// which recreates it with the Dockerfile base-image arm (#5460) after migration
+	// 076 drops the narrow one. The drift
+	// lock must read whichever migration currently owns the live definition --
+	// reading 069 after 077 supersedes it would lock the predicate to a
+	// definition no database actually has.
+	migrationSQL, err := os.ReadFile("migrations/077_fact_records_identity_epoch_idx_dockerfile.sql")
 	if err != nil {
-		t.Fatalf("read migration 069: %v", err)
+		t.Fatalf("read migration 077: %v", err)
 	}
 
 	migrationFilter := normalizeIdentityFilterPredicate(extractIdentityFilter(string(migrationSQL)))
@@ -41,7 +47,7 @@ func TestMigration069PredicateMatchesIdentityFactFilter(t *testing.T) {
 
 	if migrationFilter != goFilter {
 		t.Fatalf(
-			"migration 069 predicate drifted from identityFactFilterSQL:\nmigration: %s\ngo:        %s",
+			"live identity-epoch index predicate drifted from identityFactFilterSQL:\nmigration: %s\ngo:        %s",
 			migrationFilter, goFilter,
 		)
 	}
@@ -60,7 +66,7 @@ func TestMigration069PredicateMatchesIdentityFactFilter(t *testing.T) {
 		"metadata' ? 'container_images'",
 	} {
 		if !strings.Contains(migrationFilter, want) {
-			t.Fatalf("migration 069 predicate missing %q", want)
+			t.Fatalf("live identity-epoch index predicate missing %q", want)
 		}
 		if !strings.Contains(goFilter, want) {
 			t.Fatalf("identityFactFilterSQL missing %q", want)
@@ -105,7 +111,7 @@ var identityFilterWhitespaceRE = regexp.MustCompile(`\s+`)
 // AS fact; absent from the migration's bare-column partial-index predicate)
 // and collapses whitespace runs, so alias or formatting differences don't
 // cause a false drift failure — only an actual predicate mismatch should fail
-// TestMigration069PredicateMatchesIdentityFactFilter.
+// TestIdentityEpochIndexPredicateMatchesIdentityFactFilter.
 func normalizeIdentityFilterPredicate(filter string) string {
 	stripped := strings.ReplaceAll(filter, "fact.", "")
 	collapsed := identityFilterWhitespaceRE.ReplaceAllString(stripped, " ")

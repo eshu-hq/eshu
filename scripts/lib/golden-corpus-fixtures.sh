@@ -32,6 +32,7 @@ corpus_fixtures=(
 	helm-umbrella-chart
 	helm-template-chart
 	api-svc
+	container-base-lineage
 	ruby_rails_app
 	dart_comprehensive
 	swift_vapor_app

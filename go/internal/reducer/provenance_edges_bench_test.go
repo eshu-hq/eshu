@@ -92,3 +92,63 @@ func BenchmarkContainerImageBuiltFromRows(b *testing.B) {
 		}
 	}
 }
+
+// benchContainerImageBaseLineageDecisions builds the realistic worst case for
+// ONE identity intent (B-9 #3802 cost-budget evidence, issue #5460): the owning
+// repository "repo-own" declares one base and builds n children, and the intent
+// also sees 2n cross-scope noise decisions (other repositories' bases and
+// children reached through the active fact load) that the owner-scoped builder
+// must scan past without emitting. So the input is 2n+n+1 decisions and the
+// output is n rows, all for repo-own.
+func benchContainerImageBaseLineageDecisions(n int) []ContainerImageIdentityDecision {
+	decisions := make([]ContainerImageIdentityDecision, 0, 3*n+1)
+	decisions = append(decisions, ContainerImageIdentityDecision{
+		Digest:                    "sha256:b" + fmt.Sprintf("%063d", 0),
+		BaseImageForRepositoryIDs: []string{benchDerivedFromOwningRepo},
+		Outcome:                   ContainerImageIdentityExactDigest,
+	})
+	for i := 0; i < n; i++ {
+		decisions = append(decisions, ContainerImageIdentityDecision{
+			Digest: fmt.Sprintf("sha256:c%063d", i),
+			// Children of the owning repository carry build provenance, which is
+			// what the DERIVED_FROM child gate keys on (#5460).
+			SourceRepositoryIDs:          []string{benchDerivedFromOwningRepo},
+			BuildProvenanceRepositoryIDs: []string{benchDerivedFromOwningRepo},
+			Outcome:                      ContainerImageIdentityExactDigest,
+		})
+		// Cross-scope noise: another repository's base and child, which the
+		// owner-scoped builder must skip.
+		noiseRepo := fmt.Sprintf("repository:noise-%d", i)
+		decisions = append(decisions, ContainerImageIdentityDecision{
+			Digest:                    fmt.Sprintf("sha256:n%063d", i),
+			BaseImageForRepositoryIDs: []string{noiseRepo},
+			Outcome:                   ContainerImageIdentityExactDigest,
+		})
+		decisions = append(decisions, ContainerImageIdentityDecision{
+			Digest:                       fmt.Sprintf("sha256:m%063d", i),
+			SourceRepositoryIDs:          []string{noiseRepo},
+			BuildProvenanceRepositoryIDs: []string{noiseRepo},
+			Outcome:                      ContainerImageIdentityExactDigest,
+		})
+	}
+	return decisions
+}
+
+const benchDerivedFromOwningRepo = "repository:repo-own"
+
+// BenchmarkContainerImageDerivedFromRows measures the owner-scoped DERIVED_FROM
+// row-building path over one intent's decision set (B-9 #3802 cost-budget
+// evidence for issue #5460). The builder makes one pass to find the owning
+// repository's single base and a second to emit its children, skipping all
+// cross-scope noise.
+func BenchmarkContainerImageDerivedFromRows(b *testing.B) {
+	decisions := benchContainerImageBaseLineageDecisions(2500)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		rows := containerImageDerivedFromRows(decisions, benchDerivedFromOwningRepo)
+		if len(rows) != 2500 {
+			b.Fatalf("rows = %d, want 2500", len(rows))
+		}
+	}
+}

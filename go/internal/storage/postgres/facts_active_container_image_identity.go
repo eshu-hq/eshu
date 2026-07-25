@@ -44,6 +44,11 @@ const identityFactFilterSQL = `(
         OR fact.payload->'metadata' ? 'container_images'
       )
     )
+    OR (
+      fact.fact_kind = 'file'
+      AND fact.source_system = 'git'
+      AND fact.payload->'parsed_file_data' ? 'dockerfile_stages'
+    )
   )`
 
 const listActiveContainerImageIdentityFactsQuery = `

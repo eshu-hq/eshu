@@ -258,6 +258,167 @@
           }
         }
       ]
+    },
+    {
+      "scope_id": "oci_registry:ghcr.io:eshu-hq:base-runtime",
+      "source_system": "oci_registry",
+      "scope_kind": "container_registry_repository",
+      "collector_kind": "oci_registry",
+      "partition_key": "oci_registry:ghcr.io:eshu-hq:base-runtime",
+      "metadata": {
+        "registry": "ghcr.io",
+        "repository": "eshu-hq/base-runtime"
+      },
+      "generation_id": "cassette-oci-base-runtime-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "oci_registry.repository",
+          "stable_fact_key": "oci_registry:ghcr.io:eshu-hq:base-runtime",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "collector_instance_id": "oci-collector-base-lineage",
+            "provider": "ghcr",
+            "registry": "ghcr.io",
+            "repository": "eshu-hq/base-runtime",
+            "repository_id": "oci-registry://ghcr.io/eshu-hq/base-runtime",
+            "visibility": "public",
+            "auth_mode": "anonymous",
+            "correlation_anchors": [
+              "oci-registry://ghcr.io/eshu-hq/base-runtime"
+            ]
+          }
+        },
+        {
+          "fact_kind": "oci_registry.image_manifest",
+          "stable_fact_key": "oci_registry:ghcr.io:eshu-hq:base-runtime:sha256:ba5e0000000000000000000000000000000000000000000000000000000000ba",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "collector_instance_id": "oci-collector-base-lineage",
+            "provider": "ghcr",
+            "registry": "ghcr.io",
+            "repository": "eshu-hq/base-runtime",
+            "repository_id": "oci-registry://ghcr.io/eshu-hq/base-runtime",
+            "descriptor_id": "oci-descriptor://ghcr.io/eshu-hq/base-runtime@sha256:ba5e0000000000000000000000000000000000000000000000000000000000ba",
+            "digest": "sha256:ba5e0000000000000000000000000000000000000000000000000000000000ba",
+            "media_type": "application/vnd.oci.image.manifest.v1+json",
+            "artifact_type": "",
+            "source_tag": "1.0.0",
+            "config": {
+              "digest": "sha256:c0f60000000000000000000000000000000000000000000000000000000000c0",
+              "media_type": "application/vnd.oci.image.config.v1+json",
+              "size_bytes": 4096,
+              "artifact_type": "",
+              "annotations": null,
+              "platform": null
+            },
+            "layers": [
+              {
+                "digest": "sha256:1a1e00000000000000000000000000000000000000000000000000000000001a",
+                "media_type": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "size_bytes": 20971520,
+                "artifact_type": "",
+                "annotations": null,
+                "platform": null
+              }
+            ],
+            "size_bytes": 20975616,
+            "correlation_anchors": [
+              "oci-registry://ghcr.io/eshu-hq/base-runtime",
+              "sha256:ba5e0000000000000000000000000000000000000000000000000000000000ba"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "oci_registry:ghcr.io:eshu-hq:lineage-app",
+      "source_system": "oci_registry",
+      "scope_kind": "container_registry_repository",
+      "collector_kind": "oci_registry",
+      "partition_key": "oci_registry:ghcr.io:eshu-hq:lineage-app",
+      "metadata": {
+        "registry": "ghcr.io",
+        "repository": "eshu-hq/lineage-app"
+      },
+      "generation_id": "cassette-oci-lineage-app-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "oci_registry.repository",
+          "stable_fact_key": "oci_registry:ghcr.io:eshu-hq:lineage-app",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "collector_instance_id": "oci-collector-base-lineage",
+            "provider": "ghcr",
+            "registry": "ghcr.io",
+            "repository": "eshu-hq/lineage-app",
+            "repository_id": "oci-registry://ghcr.io/eshu-hq/lineage-app",
+            "visibility": "public",
+            "auth_mode": "anonymous",
+            "correlation_anchors": [
+              "oci-registry://ghcr.io/eshu-hq/lineage-app"
+            ]
+          }
+        },
+        {
+          "fact_kind": "oci_registry.image_manifest",
+          "stable_fact_key": "oci_registry:ghcr.io:eshu-hq:lineage-app:sha256:c41d0000000000000000000000000000000000000000000000000000000000cd",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "collector_instance_id": "oci-collector-base-lineage",
+            "provider": "ghcr",
+            "registry": "ghcr.io",
+            "repository": "eshu-hq/lineage-app",
+            "repository_id": "oci-registry://ghcr.io/eshu-hq/lineage-app",
+            "descriptor_id": "oci-descriptor://ghcr.io/eshu-hq/lineage-app@sha256:c41d0000000000000000000000000000000000000000000000000000000000cd",
+            "digest": "sha256:c41d0000000000000000000000000000000000000000000000000000000000cd",
+            "media_type": "application/vnd.oci.image.manifest.v1+json",
+            "artifact_type": "",
+            "source_tag": "1.0.0",
+            "config_labels": {
+              "org.opencontainers.image.source": "https://github.com/acme/container-base-lineage"
+            },
+            "config": {
+              "digest": "sha256:c0f60000000000000000000000000000000000000000000000000000000000c0",
+              "media_type": "application/vnd.oci.image.config.v1+json",
+              "size_bytes": 4096,
+              "artifact_type": "",
+              "annotations": null,
+              "platform": null
+            },
+            "layers": [
+              {
+                "digest": "sha256:1a1e00000000000000000000000000000000000000000000000000000000001a",
+                "media_type": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "size_bytes": 20971520,
+                "artifact_type": "",
+                "annotations": null,
+                "platform": null
+              }
+            ],
+            "size_bytes": 20975616,
+            "correlation_anchors": [
+              "oci-registry://ghcr.io/eshu-hq/lineage-app",
+              "sha256:c41d0000000000000000000000000000000000000000000000000000000000cd"
+            ]
+          }
+        }
+      ]
     }
   ]
 }

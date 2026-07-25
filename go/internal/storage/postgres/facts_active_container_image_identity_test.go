@@ -149,3 +149,31 @@ func TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerat
 		}
 	}
 }
+
+// TestIdentityFactFilterAdmitsDockerfileBaseImages is the regression guard for
+// the #5460 gap the B-7 golden-corpus gate caught: the identity fact filter
+// admitted a content_entity ONLY when its payload carried
+// entity_metadata.container_images or metadata.container_images. A Dockerfile
+// content_entity carries neither -- its base image lives in
+// parsed_file_data.dockerfile_stages -- so every Dockerfile was filtered out in
+// SQL and the base-image extraction path downstream never saw one. Reducer-level
+// unit tests could not catch this: they hand a constructed envelope straight to
+// the extractor and never cross this loader.
+func TestIdentityFactFilterAdmitsDockerfileBaseImages(t *testing.T) {
+	t.Parallel()
+
+	// The Dockerfile base lives on a `file` fact, never a content_entity: the
+	// original #5460 bug admitted dockerfile_stages under the content_entity arm,
+	// where no fact ever carries it, so the feature was inert end to end. This
+	// asserts the `file` fact_kind is the one paired with dockerfile_stages so a
+	// future edit cannot silently reattach it to the wrong kind.
+	fileArm := "fact.fact_kind = 'file'"
+	armStart := strings.Index(identityFactFilterSQL, fileArm)
+	if armStart < 0 {
+		t.Fatalf("identity fact filter must admit `file` facts for Dockerfile base images (#5460):\n%s", identityFactFilterSQL)
+	}
+	fileArmClause := identityFactFilterSQL[armStart:]
+	if !strings.Contains(fileArmClause, "parsed_file_data") || !strings.Contains(fileArmClause, "dockerfile_stages") {
+		t.Fatalf("the `file` arm must key on parsed_file_data.dockerfile_stages (#5460):\n%s", identityFactFilterSQL)
+	}
+}

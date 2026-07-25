@@ -106,9 +106,19 @@ var orderedBootstrapDefinitionNames = []string{
 	// migration 076 (#5476 crossplane SATISFIED_BY cross-scope redrive state);
 	// sorts after the 075_* pair by filename.
 	"crossplane_satisfied_by_redrive_state",
+	// migration 076 (#5460 base-image lineage) DROPs the identity epoch partial
+	// index so 077 can recreate it wider (admitting Dockerfile base-image
+	// evidence). The DROP ships under 076 and the CREATE under 077 so the DROP
+	// deterministically precedes the CREATE by filename; "076_fact_records...drop"
+	// is a duplicate-number merge artifact like the 075_* pair above, sorting
+	// after "076_crossplane" ("c" < "f").
+	"fact_records_identity_epoch_idx_drop",
 	// migration 077 (#5490 K8sResource impact-trace candidate scan partial
-	// covering index).
+	// covering index); "077_content..." precedes "077_fact_records..." ("c" < "f").
 	"content_entities_k8s_select_partial_index",
+	// migration 077 (#5460 base-image lineage) recreates the identity epoch
+	// partial index with the wider Dockerfile predicate, after the 076 DROP.
+	"fact_records_identity_epoch_idx_dockerfile",
 	// migration 078 (#5429 CI/CD run cross-cycle watermark gap detection).
 	"cicd_run_watermarks",
 }

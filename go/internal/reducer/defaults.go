@@ -352,6 +352,12 @@ type DefaultHandlers struct {
 	// registers (Postgres decisions are unaffected).
 	ContainerImageProvenanceEdgeWriter ContainerImageProvenanceEdgeWriter
 
+	// ContainerImageDerivedFromEdgeWriter projects Dockerfile base-image
+	// lineage into canonical DERIVED_FROM graph edges (issue #5460). Nil skips
+	// the projection; the container_image_identity domain still registers
+	// (Postgres decisions are unaffected).
+	ContainerImageDerivedFromEdgeWriter ContainerImageDerivedFromEdgeWriter
+
 	// CICDRunCorrelationWriter persists provider run, artifact, and
 	// environment correlation decisions for CI/CD evidence.
 	CICDRunCorrelationWriter CICDRunCorrelationWriter

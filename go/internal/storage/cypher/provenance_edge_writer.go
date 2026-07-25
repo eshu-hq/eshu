@@ -8,12 +8,13 @@ import (
 	"fmt"
 )
 
-// Graph provenance edges project two reducer correlation domains into the
+// Graph provenance edges project three reducer correlation domains into the
 // canonical graph (docs/internal/design/5472-graph-projection-policy.md):
 // Repository-[:PUBLISHES]->Package|PackageVersion from package
-// ownership/publication correlation, and
+// ownership/publication correlation,
 // ContainerImage-[:BUILT_FROM]->Repository from container image identity
-// correlation.
+// correlation, and ContainerImage-[:DERIVED_FROM]->ContainerImage from
+// Dockerfile base-image lineage (derived_from_edge_writer.go, #5460).
 //
 // Package, PackageVersion, and ContainerImage all carry a second label
 // (PackageRegistryPackage/PackageRegistryPackageVersion, OciImageManifest).
@@ -54,9 +55,10 @@ const (
 // but the token still distinguishes ownership-sourced from
 // publication-sourced edges for the same reason.
 var provenanceEdgeKindForSource = map[string]string{
-	"reducer/package-ownership":        "PACKAGE_OWNERSHIP_CORRELATION",
-	"reducer/package-publication":      "PACKAGE_PUBLICATION_CORRELATION",
-	"reducer/container-image-identity": "CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST",
+	"reducer/package-ownership":          "PACKAGE_OWNERSHIP_CORRELATION",
+	"reducer/package-publication":        "PACKAGE_PUBLICATION_CORRELATION",
+	"reducer/container-image-identity":   "CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST",
+	"reducer/container-image-base-image": "CONTAINER_IMAGE_DERIVED_FROM",
 }
 
 // provenanceEdgeSourceToolForSource maps a writer evidence_source to the
@@ -71,7 +73,8 @@ var provenanceEdgeKindForSource = map[string]string{
 // this map and its rows never get a source_tool stamp -- an absent value,
 // never a guess.
 var provenanceEdgeSourceToolForSource = map[string]string{
-	"reducer/container-image-identity": "oci",
+	"reducer/container-image-identity":   "oci",
+	"reducer/container-image-base-image": "oci",
 }
 
 // provenanceEdgeKindsFor returns the single-element evidence_kinds list for
@@ -368,6 +371,22 @@ func (w *ProvenanceEdgeWriter) dispatch(ctx context.Context, stmts []Statement) 
 // docs/public/reference/nornicdb-pitfalls.md and
 // KubernetesCorrelationEdgeWriter.dispatchRetract for the same rationale.
 func (w *ProvenanceEdgeWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
+	return w.dispatchSequential(ctx, stmts)
+}
+
+// dispatchSequential runs each statement as its own auto-commit Execute, never
+// ExecuteGroup. Two distinct NornicDB v1.1.11 managed-transaction defects share
+// this remedy: a DELETE under a managed transaction under-applies (the retract
+// path), and the UnwindMergeChain fast-path that a same-label two-MATCH-MERGE
+// selects (ContainerImage-[:DERIVED_FROM]->ContainerImage, #5460) throws
+// `UnwindMergeChain relationship update failed: not found` under a managed
+// transaction when one endpoint node is not yet committed, instead of the
+// missing-endpoint no-op the #5472 contract requires. The identical MERGE run
+// as an auto-commit Execute no-ops cleanly on a missing endpoint and
+// re-projects the edge on a later generation once both nodes exist. BUILT_FROM
+// and PUBLISHES writes may group: their two endpoints are different labels and
+// do not select that fast path.
+func (w *ProvenanceEdgeWriter) dispatchSequential(ctx context.Context, stmts []Statement) error {
 	for _, stmt := range stmts {
 		if err := w.executor.Execute(ctx, stmt); err != nil {
 			return WrapRetryableNeo4jError(err)

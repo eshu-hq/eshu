@@ -487,6 +487,14 @@ log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # rc-165 isolates on evidence_kinds=[CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST] plus
 # a pinned source_tool=oci because BUILT_FROM is a shared edge type with the
 # #5428 reducer/ci-cd-run-correlation domain.
+# rc-167 (DERIVED_FROM) is issue #5460's base-image lineage projection. Unlike
+# rc-164/rc-165 it is driven by a STATIC-PARSE fixture rather than a cassette
+# join: the container-base-lineage fixture's Dockerfile pins its final stage to
+# a digest the ociregistry cassette also observes, and its k8s Deployment runs a
+# second observed digest, so the base and the built image resolve as two
+# exact_digest decisions anchored to the same repository. It pins
+# attribution_basis=repository_single_base so a future, more precise CI/SLSA
+# attribution cannot silently satisfy the Dockerfile-only assertion.
 # -required-correlations="all" (below) single-sources the blocking set from
 # the snapshot's own required_correlations ids (#4596): promoting an rc-N to
 # blocking is now a one-file edit (add/confirm it in

@@ -31,6 +31,7 @@ func TestEdgeTypeStringParity(t *testing.T) {
 		DependsOnPackage:                   "DEPENDS_ON_PACKAGE",
 		DeploymentSource:                   "DEPLOYMENT_SOURCE",
 		DeploysFrom:                        "DEPLOYS_FROM",
+		DerivedFrom:                        "DERIVED_FROM",
 		DiscoversConfigIn:                  "DISCOVERS_CONFIG_IN",
 		Documents:                          "DOCUMENTS",
 		EvidencesRepositoryRelationship:    "EVIDENCES_REPOSITORY_RELATIONSHIP",

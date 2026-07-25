@@ -65,10 +65,11 @@ func appendCorrelationCoreAdditiveDomains(definitions []DomainDefinition, handle
 	if handlers.FactLoader != nil && handlers.ContainerImageIdentityWriter != nil {
 		imageIdentity := containerImageIdentityDomainDefinition()
 		imageIdentity.Handler = ContainerImageIdentityHandler{
-			FactLoader:           handlers.FactLoader,
-			Writer:               handlers.ContainerImageIdentityWriter,
-			Instruments:          handlers.Instruments,
-			ProvenanceEdgeWriter: handlers.ContainerImageProvenanceEdgeWriter,
+			FactLoader:            handlers.FactLoader,
+			Writer:                handlers.ContainerImageIdentityWriter,
+			Instruments:           handlers.Instruments,
+			ProvenanceEdgeWriter:  handlers.ContainerImageProvenanceEdgeWriter,
+			DerivedFromEdgeWriter: handlers.ContainerImageDerivedFromEdgeWriter,
 		}
 		definitions = append(definitions, imageIdentity)
 	}
