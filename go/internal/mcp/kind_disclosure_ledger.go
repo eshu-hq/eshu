@@ -134,15 +134,11 @@ var grandfatheredUnconsumedKinds = map[string]string{
 	"k8s_rbac_role":                                   "2573747ed14d6c4278c5f93b07a3e82ec8f73dc74784da47d012586073e29ad0",
 	"package_registry.package_artifact":               "a69cf5b389a97ccba6011af05a69b15b068e61e77ee95eda599cb398d6ba44b5",
 	"package_registry.registry_event":                 "dc46aefb230f539feec68c4fd3531a50d5e331523baccfca33858ceda6ddfd73",
-
-	// package_registry.repository_hosting — #5458 formalized KEEP DISCLOSURE
-	// decision (Artifactory/registry feed topology, not a package-to-source
-	// binding; not part of the provenance backbone)
-	"package_registry.repository_hosting": "5d1136694b788dbcda34dd37db525cb2db1823c0f73a870ac39781b18f348bc7",
-	"vault_auth_mount":                    "fc8cb7c193a71b33969618eac04aeb256ed2ecc84514067159d9dcc6f7368e78",
-	"vault_identity_alias":                "d4764e55b34e45dee4023385fc8609119d44e55a3bfabcab6a48ef2fe8021767",
-	"vault_identity_entity":               "738d59bc2a82269eeba3b28ed698fcd3315addd99d72855a10c1ce3ab497a02c",
-	"vault_secret_engine_mount":           "8f7ca30ced8d2e2d219bc06ddd46d382ee19b58212c2354861f183df2e717ce5",
+	"package_registry.repository_hosting":             "5d1136694b788dbcda34dd37db525cb2db1823c0f73a870ac39781b18f348bc7",
+	"vault_auth_mount":                                "fc8cb7c193a71b33969618eac04aeb256ed2ecc84514067159d9dcc6f7368e78",
+	"vault_identity_alias":                            "d4764e55b34e45dee4023385fc8609119d44e55a3bfabcab6a48ef2fe8021767",
+	"vault_identity_entity":                           "738d59bc2a82269eeba3b28ed698fcd3315addd99d72855a10c1ce3ab497a02c",
+	"vault_secret_engine_mount":                       "8f7ca30ced8d2e2d219bc06ddd46d382ee19b58212c2354861f183df2e717ce5",
 }
 
 // kindDisclosureDigest computes the SHA-256 digest of the disclosure entry
