@@ -266,25 +266,16 @@ jobs:
         # never hides a vulnerability the default mode would have caught.
         run: |
           set -euo pipefail
-          # Capture BOTH pipeline statuses in the statement immediately after
-          # the pipeline runs — PIPESTATUS is clobbered by the very next
-          # command, even a plain assignment, so it cannot be read piecemeal.
-          # A scanner success (0) with a tee failure (e.g. disk full or an
-          # unwritable working directory) must not report success: pipefail
-          # makes the pipeline's overall status the rightmost non-zero code
-          # (tee's), but only PIPESTATUS[0] was previously checked, so that
-          # failure mode silently exited 0.
-          if ! govulncheck -scan package ./... 2>&1 | tee govulncheck.out; then
-            statuses=("${PIPESTATUS[@]}")
-            scanner_status=${statuses[0]}
-            tee_status=${statuses[1]}
-            if [ "${scanner_status}" -ne 0 ]; then
-              printf 'govulncheck: vulnerabilities found, see govulncheck.out above\n' >&2
-              exit "${scanner_status}"
-            fi
-            printf 'govulncheck: failed to write govulncheck.out (tee exited %s)\n' "${tee_status}" >&2
-            exit "${tee_status}"
-          fi
+          # Delegated to scripts/ci/run-scan-with-tee.sh (#5813): a scanner
+          # success (0) with a tee failure (e.g. disk full or an unwritable
+          # working directory) must not report success. Capturing the full
+          # PIPESTATUS array (not just PIPESTATUS[0]) is what tells the two
+          # apart; see the helper's own header comment and its executable
+          # regression suite, scripts/test-security-scan-tee-status.sh, which
+          # pins this exact case.
+          ../scripts/ci/run-scan-with-tee.sh govulncheck govulncheck.out \
+            'govulncheck: vulnerabilities found, see govulncheck.out above\n' \
+            -- govulncheck -scan package ./...
 
       - name: Upload govulncheck output as workflow artifact
         if: always()
@@ -406,25 +397,16 @@ jobs:
             printf 'nancy: go list -json -deps ./... failed, see deps.err above\n' >&2
             exit 1
           fi
-          # Capture BOTH pipeline statuses in the statement immediately after
-          # the pipeline runs — PIPESTATUS is clobbered by the very next
-          # command, even a plain assignment, so it cannot be read piecemeal.
-          # A sleuth success (0) with a tee failure (e.g. disk full or an
-          # unwritable working directory) must not report success: pipefail
-          # makes the pipeline's overall status the rightmost non-zero code
-          # (tee's), but only PIPESTATUS[0] was previously checked, so that
-          # failure mode silently exited 0.
-          if ! nancy sleuth --no-color <deps.json 2>&1 | tee nancy.out; then
-            statuses=("${PIPESTATUS[@]}")
-            scanner_status=${statuses[0]}
-            tee_status=${statuses[1]}
-            if [ "${scanner_status}" -ne 0 ]; then
-              printf 'nancy: sleuth exited %s, see nancy.out above (a real finding, or an OSS Index transport/auth failure — see #5804)\n' "${scanner_status}" >&2
-              exit "${scanner_status}"
-            fi
-            printf 'nancy: failed to write nancy.out (tee exited %s)\n' "${tee_status}" >&2
-            exit "${tee_status}"
-          fi
+          # Delegated to scripts/ci/run-scan-with-tee.sh (#5813): a sleuth
+          # success (0) with a tee failure (e.g. disk full or an unwritable
+          # working directory) must not report success. Capturing the full
+          # PIPESTATUS array (not just PIPESTATUS[0]) is what tells the two
+          # apart; see the helper's own header comment and its executable
+          # regression suite, scripts/test-security-scan-tee-status.sh, which
+          # pins this exact case.
+          ../scripts/ci/run-scan-with-tee.sh nancy nancy.out \
+            'nancy: sleuth exited %s, see nancy.out above (a real finding, or an OSS Index transport/auth failure — see #5804)\n' \
+            -- nancy sleuth --no-color <deps.json
 
       - name: Upload nancy output as workflow artifact
         if: always()

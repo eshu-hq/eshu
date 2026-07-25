@@ -4,10 +4,25 @@ Two independent fixes landed together: a CI diagnostic bug (#5813) and an
 accuracy bug in the container-image identity reducer (#5801). Neither depends
 on the other; documented together per the PR that closes both.
 
-## #5813 — `set -euo pipefail` suppressed the PIPESTATUS diagnostic
+## #5813 — a diagnostic-only bug, then a real false-green introduced and fixed
 
-`.github/workflows/security-scan.yml`'s nancy step (~line 389) and govulncheck
-step (~line 267) ran:
+This landed as three distinct shapes of the same handful of lines, in
+sequence. Conflating any two of them is the exact mistake this section exists
+to prevent from being repeated (see "Refuted-then-refined" below) — each row
+was independently reproduced with the same throwaway harness (bash 3.2.57,
+which is also the default `/bin/bash` on the `ubuntu-latest` GitHub Actions
+runner image):
+
+| Shape | Where | scanner 0 + tee fails | scanner N + tee ok |
+| --- | --- | --- | --- |
+| A — pre-PR `main` (bare pipeline, no `if !`) | `main` before this PR | exit 1, diagnostic **not** printed (`errexit` aborts AT the pipeline) | exit N, diagnostic not printed |
+| B — PR commit `b93e2a078` (`if !` wrapper, reads only `PIPESTATUS[0]`) | mid-PR | exit **0** — **FALSE GREEN**, prints the misleading "vulnerabilities found" line while the scanner actually succeeded | exit N, diagnostic printed |
+| C — commit `41e77ee33` (captures the full `PIPESTATUS` array) | this PR, final | non-zero, correct tee-failure diagnostic | exit N, diagnostic printed |
+
+### Shape A (pre-PR `main`): diagnostic-only — the original #5813 framing was right, for this shape
+
+`.github/workflows/security-scan.yml`'s nancy and govulncheck steps ran a
+**bare** pipeline directly under `set -euo pipefail`:
 
 ```bash
 set -euo pipefail
@@ -16,38 +31,151 @@ status=${PIPESTATUS[0]}
 if [ "${status}" -ne 0 ]; then printf '...' >&2; exit "${status}"; fi
 ```
 
-With `pipefail`, a non-zero exit from `<scanner>` terminates the script AT the
-pipeline — bash's `errexit` fires before the `${PIPESTATUS[0]}` check ever
-runs, so the framing `printf` diagnostic is unreachable. The raw scanner output
-still reaches the CI log via `tee`'s stdout and the uploaded artifact, and both
-steps are `continue-on-error: true`/non-blocking on this branch, so nothing
-was hidden or unblocked by the bug — only the human-readable framing line was
-lost, cosmetic until #5806 made nancy receive real dependency input (before
-that, nancy always exited 0 on an empty stdin scan, so the non-zero branch was
-unreachable in practice; see #5804).
-
-Fix: guard the whole pipeline with `if ! ... | tee ...; then`, so `errexit`
-never fires mid-pipeline and the `${PIPESTATUS[0]}` framing block always runs
-on a non-zero scanner exit. Applied identically to both steps.
-
-### Proof: diagnostic reachability
-
-Reproduced the exact bug and fix shape in isolation (a throwaway script using
-a `return 3` stand-in scanner and `tee`, mirroring both workflow steps
-byte-for-byte apart from the scanner invocation):
+A bare pipeline (not the condition of `if`/`while`/`until`, not negated with
+`!`) IS subject to `errexit`: a non-zero pipeline result terminates the script
+right there, before `${PIPESTATUS[0]}` is ever read. So whether the scanner
+failed or only `tee` failed, the script aborted with the pipeline's own exit
+status and the framing `printf` never ran — a lost diagnostic, not a false
+green. Reproduced directly:
 
 ```
---- OLD (broken) shape ---
-exit code: 3
---- NEW (fixed) shape ---
-DIAGNOSTIC PRINTED: status=3
-exit code: 3
+$ bash --version | head -1
+GNU bash, version 3.2.57(1)-release (arm64-apple-darwin25)
+$ bash shape-a.sh   # scanner exits 0, tee target directory does not exist
+tee: /nonexistent-dir-xyz/govulncheck.out: No such file or directory
+no vulns
+shape A exit code: 1
 ```
 
-The OLD shape exits 3 with NO diagnostic printed (the bug); the NEW shape
-prints `DIAGNOSTIC PRINTED: status=3` before exiting 3 (same exit code,
-diagnostic now reachable). `bash -n` on both extracted snippets from the
-actual workflow file confirms no syntax regression.
+No "REACHED-END-OF-SCRIPT" and no framing diagnostic printed; exit 1 (tee's
+own status via `pipefail`), not 0. This is genuinely cosmetic: nothing was
+hidden or unblocked, only the human-readable framing line was lost — and (for
+nancy specifically) unreachable in practice anyway until #5806 made nancy
+receive real dependency input; before that, nancy always exited 0 on an empty
+stdin scan (#5804).
+
+### Shape B (PR commit `b93e2a078`): the `if !` rewrite introduced a genuine false green
+
+To make the framing diagnostic reachable, the mid-PR fix wrapped the pipeline
+in a negated `if !`, which exempts it from `errexit`:
+
+```bash
+set -euo pipefail
+if ! <scanner> 2>&1 | tee out.txt; then
+  status=${PIPESTATUS[0]}
+  printf '...' >&2
+  exit "${status}"
+fi
+```
+
+This does make `${PIPESTATUS[0]}` reachable — but it also means the script no
+longer aborts at the pipeline on ANY pipeline failure, including one where the
+scanner itself succeeded and only `tee` failed. Since only `PIPESTATUS[0]`
+(the scanner's own status, `0`) was read, that case now falls all the way
+through the `if` body and exits **0** — a true false green, and worse than
+silent: it prints the misleading "vulnerabilities found" framing line while
+reporting success. Reproduced directly, exact shape:
+
+```
+$ bash shape-b.sh   # scanner exits 0, tee target directory does not exist
+tee: /nonexistent-dir-xyz/govulncheck.out: No such file or directory
+no vulns
+govulncheck: vulnerabilities found, see govulncheck.out above
+shape B exit code: 0
+```
+
+A codex review on PR #5817 flagged exactly this at the `if !` line as a P1
+false-green finding. That review was correct against the code as the PR stood
+at `b93e2a078` — the `if !` rewrite, made to fix shape A's cosmetic diagnostic
+loss, is what actually introduced the false green.
+
+### Shape C (commit `41e77ee33`): fixed by capturing the full `PIPESTATUS` array
+
+```bash
+if ! <scanner> 2>&1 | tee out.txt; then
+  statuses=("${PIPESTATUS[@]}")
+  scanner_status=${statuses[0]}
+  tee_status=${statuses[1]}
+  if [ "${scanner_status}" -ne 0 ]; then
+    printf '<scanner-specific finding message>\n' >&2
+    exit "${scanner_status}"
+  fi
+  printf '<scanner>: failed to write out.txt (tee exited %s)\n' "${tee_status}" >&2
+  exit "${tee_status}"
+fi
+```
+
+`PIPESTATUS` is clobbered by the very next command, even a bare assignment, so
+both statuses must be captured together in the statement immediately after the
+pipeline. Reading `tee_status` and exiting with it when the scanner itself
+succeeded closes the false green: a scanner success with an unwritten artifact
+now reports failure, distinctly diagnosed from a real finding.
+
+### The fix is now delegated to a shared, independently tested helper
+
+Both `run:` blocks now call `scripts/ci/run-scan-with-tee.sh` (#5813) instead
+of inlining this logic in the workflow YAML, and
+`scripts/test-security-scan-tee-status.sh` is its executable regression suite
+— following the same shape as `scripts/dev/nancy-local.sh` /
+`scripts/test-nancy-local.sh`: a source-text-only assertion over the YAML
+"could not tell a working pipeline from a broken one" (rejected in review on
+PR #5806), so the logic lives in a script with its own tests instead. The
+suite runs the REAL helper with stub scanners on PATH and asserts exit codes
+and artifact contents for all three cases; the tee failure is induced via
+ENOTDIR (a regular file used as a directory component in the artifact path),
+not `chmod 000`, because a chmod-based failure is ignored when CI runs as
+root, while ENOTDIR fails under any uid:
+
+```
+$ bash scripts/test-security-scan-tee-status.sh
+PASS: scanner-fails
+PASS: tee-fails-enotdir
+PASS: clean-scan
+PASS: run-scan-with-tee.sh distinguishes scanner failure, tee failure (ENOTDIR), and a clean scan
+```
+
+Failing-then-green proof that the suite actually pins the shape-B regression
+(the helper's status logic was temporarily reverted to the old
+`status=${PIPESTATUS[0]}; exit "${status}"` shape, the suite was rerun, then
+the fix was restored):
+
+```
+$ bash scripts/test-security-scan-tee-status.sh   # helper reverted to shape B's logic
+PASS: scanner-fails
+test-security-scan-tee-status: tee-fails-enotdir: exit=0, want non-zero (this is the #5813 false-green regression). output:
+tee: .../tee-fails-enotdir/not-a-directory/scan.out: Not a directory
+clean scan, nothing found
+fakescan: scanner failed with status 0, see scan.out above
+exit code: 1   # (the TEST's own exit code — it correctly FAILED against the reverted helper)
+
+$ bash scripts/test-security-scan-tee-status.sh   # fix restored
+PASS: scanner-fails
+PASS: tee-fails-enotdir
+PASS: clean-scan
+PASS: run-scan-with-tee.sh distinguishes scanner failure, tee failure (ENOTDIR), and a clean scan
+```
+
+This is the regression class that had no verifier before this change: neither
+`scripts/dev/precommit-go.sh`'s govulncheck case nor `scripts/dev/nancy-local.sh`
+uses `tee` (both use direct redirection), so neither could have caught a
+shape-B-style false green. `scripts/test-security-scan-tee-status.sh` now
+covers all three cases directly against the real helper both jobs call.
+
+### Refuted-then-refined: the mistake to not repeat
+
+A separate Claude session investigating this PR reproduced shape A (the bare
+pipeline) and, from that, concluded the false-green claim was categorically
+wrong — staging edits to this file and to the workflow comments asserting
+"that claim is wrong" and that the fix was "diagnostic-only." The shape-A
+reproduction itself was accurate; the error was applying its conclusion to
+shape B, which is not the same code. `b93e2a078`'s `if !` wrapper genuinely
+changes `errexit` behavior for that pipeline, and that is precisely what
+converts a diagnostic-only bug into a false green. The session's staged
+changes were discarded (never committed) once this was caught. The lesson:
+when adjudicating a review comment against a specific commit, reproduce the
+EXACT shape at that commit — a bare pipeline and an `if !`-wrapped pipeline
+are not interchangeable for `errexit` purposes, and testing the wrong one
+proves nothing about the other.
 
 This is a CI workflow YAML change, not a Go file — it does not touch the
 hot-path evidence gate's tracked surfaces.
