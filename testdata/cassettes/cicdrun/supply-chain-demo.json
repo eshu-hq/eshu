@@ -180,6 +180,71 @@
           }
         }
       ]
+    },
+    {
+      "scope_id": "ci_cd_run:github_actions:acme:container-ci-lineage",
+      "source_system": "ci_cd_run",
+      "scope_kind": "ci_cd_run",
+      "collector_kind": "ci_cd_run",
+      "partition_key": "ci_cd_run:github_actions:acme:container-ci-lineage",
+      "metadata": {
+        "provider": "github_actions",
+        "repository": "acme/container-ci-lineage"
+      },
+      "generation_id": "cassette-cicd-cilineage-gen1",
+      "observed_at": "2026-06-25T00:10:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "ci.run",
+          "stable_fact_key": "ci_cd_run:github_actions:container-ci-lineage:run:9100",
+          "schema_version": "1.0.0",
+          "collector_kind": "ci_cd_run",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "cicd-collector-cilineage",
+            "provider": "github_actions",
+            "run_id": "9100",
+            "run_attempt": "1",
+            "run_number": "1",
+            "workflow_name": "release",
+            "event": "push",
+            "status": "completed",
+            "result": "success",
+            "branch": "main",
+            "commit_sha": "2a3b4c5d6e7f80912a3b4c5d6e7f80912a3b4c5d",
+            "repository_id": "repository:r_19519f37",
+            "provider_repository_id": "github.com/acme/container-ci-lineage",
+            "repository_url": "https://github.com/acme/container-ci-lineage",
+            "correlation_anchors": [
+              "github_actions::9100"
+            ]
+          }
+        },
+        {
+          "fact_kind": "ci.artifact",
+          "stable_fact_key": "ci_cd_run:github_actions:container-ci-lineage:run:9100:artifact:image",
+          "schema_version": "1.0.0",
+          "collector_kind": "ci_cd_run",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "cicd-collector-cilineage",
+            "provider": "github_actions",
+            "run_id": "9100",
+            "run_attempt": "1",
+            "artifact_id": "art-image-9100",
+            "artifact_name": "container-ci-lineage-image",
+            "artifact_type": "container_image",
+            "artifact_digest": "sha256:c10000000000000000000000000000000000000000000000000000000010c1c1",
+            "correlation_anchors": [
+              "github_actions::9100",
+              "sha256:c10000000000000000000000000000000000000000000000000000000010c1c1"
+            ]
+          }
+        }
+      ]
     }
   ]
 }

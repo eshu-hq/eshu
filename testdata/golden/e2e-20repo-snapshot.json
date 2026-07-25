@@ -1805,7 +1805,24 @@
         "relationship": "HAS_REGISTRY_EVENT",
         "from_label": "PackageVersion",
         "to_label": "RegistryEvent",
-        "minimum_count": 1
+        "minimum_count": 1,
+        "id": "rc-170",
+        "description": "Cross-scope CI bridge for DERIVED_FROM base-image lineage (issue #5810). Unlike rc-167's container-base-lineage fixture (whose child gets build provenance from an in-image OCI config source label), the container-ci-lineage fixture's Dockerfile pins its FINAL stage to ghcr.io/acme/ci-lineage-base@sha256:c10...0ba5e while its ONLY build evidence for the child digest sha256:c10...0c1c1 is a ci.run/ci.artifact pair recorded by the ci_cd_run collector in its OWN, separate CI-run scope (ci_cd_run:github_actions:acme:container-ci-lineage) naming this repository's canonical id repository:r_19519f37 as builder -- no Kubernetes manifest, no content_entity, and no OCI config source label anywhere in this repository references that digest. Before #5810, ContainerImageIdentityHandler.Handle's repository-scoped intent (enqueued by the Dockerfile's `file` fact) never loaded ci.run/ci.artifact facts cross-scope, so BuildProvenanceRepositoryIDs never resolved for this child and no second DERIVED_FROM edge existed alongside rc-167's -- the corpus DERIVED_FROM count stayed 1. #5810's ListActiveContainerImageCIFacts cross-scope loader (facts_active_container_image_ci.go) lets that repository-scoped intent see the CI evidence, so this pair now also resolves and materializes its own DERIVED_FROM edge, raising the total DERIVED_FROM count to 2. minimum_count is deliberately 2 (not 1): rc-167 alone already satisfies count>=1, so pinning this assertion at 1 would stay silently green even if #5810's specific cross-scope contribution regressed to zero -- requiring 2 forces BOTH the #5460 Dockerfile+OCI-label pair and the #5810 Dockerfile+cross-scope-CI pair to be present. Purely additive: a new fixture repo and two new cassette scopes, no existing fixture or cassette scope perturbed. Renumbered from rc-168 to rc-170 during the #5810 rebase onto origin/main to avoid an id collision: #5820 landed first and claimed rc-168 for its own HAS_ARTIFACT assertion, and #5821 (open) already claims rc-169 for its HAS_REGISTRY_EVENT assertion.",
+        "relationship": "DERIVED_FROM",
+        "from_label": "ContainerImage",
+        "to_label": "ContainerImage",
+        "minimum_count": 2,
+        "evidence_kinds": [
+          "CONTAINER_IMAGE_DERIVED_FROM"
+        ],
+        "required_edge_properties": [
+          "source_tool"
+        ],
+        "allowed_edge_property_values": {
+          "source_tool": [
+            "oci"
+          ]
+        }
       }
     ],
     "required_nodes": [
