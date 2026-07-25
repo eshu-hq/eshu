@@ -172,13 +172,19 @@ gates its changed paths select:
   the backstop. The `go-core-complete` and `go-race-complete` umbrellas both
   report green when their underlying job is skipped, so they stay stable check
   names that are safe to mark required without stranding a docs-only PR.
-  `go-core-complete` (`needs: go-core`) is the **authoritative compilation
-  gate**: it is green only when the whole-module `cd go && go build ./...`
-  (plus lint/fmt) succeeded or was legitimately skipped, and is what catches a
-  merge result that does not compile even though every individual PR was green
-  (#5814). `go-race-complete` (`needs: go-race`) is the authoritative **race**
-  gate over the sharded `go test -race` matrix. Both `go-core-complete` and
-  `go-race-complete` are the required status checks on `main`.
+  `go-core-complete` is the **authoritative compilation gate**: it is green only
+  when the whole-module `cd go && go build ./...` (plus lint/fmt) succeeded or
+  was legitimately skipped, and is what catches a merge result that does not
+  compile even though every individual PR was green (#5814).
+  `go-race-complete` is the authoritative **race** gate over the sharded
+  `go test -race` matrix. These two umbrellas are the names branch protection
+  points at on `main`: `go-race-complete` is required today, and
+  `go-core-complete` joins it once the job exists on `main`.
+  Neither accepts a skip it cannot account for. Both depend on `changes` as well
+  as their own lane and fail outright if `changes` did not succeed — GitHub marks
+  a job `skipped` (not `failed`) when its dependency fails, so an umbrella that
+  only read its own lane's result would report green after a broken filter job
+  had prevented anything from building or testing.
 - **Advisory:** the benchmark regression check (`BENCH_REGRESSION_ENFORCE=false`)
   and the changed-file Prettier check do not block merge.
 - **CI-only / release-only:** Trivy image scan, GHCR/package publication, and

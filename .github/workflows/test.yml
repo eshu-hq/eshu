@@ -192,26 +192,42 @@ jobs:
     # This is the same forward-safe aggregator shape #5757 established for
     # `go-race-complete` below — see that job's comment for the full rationale.
     #
-    # `skipped` is also a pass: on a docs-only PR the `changes` gate skips
-    # `go-core`, so `needs.go-core.result` is `skipped`. Treating that as green
-    # keeps this a single always-reported check whose name is safe to mark
-    # required later — it never strands a docs-only PR. Only `failure`/
-    # `cancelled` (go-core actually ran and did not succeed) fails the gate.
+    # `skipped` is a pass ONLY when the `changes` gate deliberately skipped
+    # `go-core` on a docs-only PR. Treating that as green keeps this a single
+    # always-reported check whose name is safe to mark required — it never
+    # strands a docs-only PR.
+    #
+    # But `skipped` alone is not enough to conclude that. GitHub implicitly
+    # prepends `success()` to any job `if:` that does not itself name a status
+    # function, so `go-core`'s guard is really
+    # `success() && (event_name != 'pull_request' || changes.outputs.code == 'true')`.
+    # If `changes` itself FAILS or is CANCELLED (checkout hiccup, paths-filter
+    # action error, runner flake), `go-core` is marked `skipped` too — not
+    # `failure`. Keying only on `needs.go-core.result` would then report GREEN
+    # having compiled nothing, which is the exact false-green class this gate
+    # exists to close, just moved one hop upstream. So `changes` is an explicit
+    # dependency and its own failure fails this gate.
     #
     # `go-core` runs a whole-module `go build ./...` (plus lint/fmt), so this is
     # the authoritative "does the merge result still compile" required check —
     # the cheapest possible gate against the #5802/#5814 failure class, where
     # two individually-green PRs merged into a `main` that did not build because
     # each side only compiled against its own base.
-    needs: go-core
+    needs: [changes, go-core]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Assert go-core passed
         run: |
+          changes_result="${{ needs.changes.result }}"
           result="${{ needs.go-core.result }}"
+          echo "changes result: ${changes_result}"
           echo "aggregated go-core result: ${result}"
+          if [ "${changes_result}" != "success" ]; then
+            echo "::error::changes gate did not succeed (result=${changes_result}) - a skipped go-core cannot be trusted as a docs-only skip"
+            exit 1
+          fi
           if [ "${result}" != "success" ] && [ "${result}" != "skipped" ]; then
             echo "::error::go-core did not succeed (result=${result})"
             exit 1
@@ -284,15 +300,29 @@ jobs:
     # green keeps this a single always-reported check whose name is safe to mark
     # required later — it never strands a docs-only PR. Only `failure`/`cancelled`
     # (a shard that actually ran and did not pass) fails the gate.
-    needs: go-race
+    #
+    # `changes` is an explicit dependency for the same reason `go-core-complete`
+    # carries it (#5814): GitHub implicitly prepends `success()` to a job `if:`
+    # that does not name a status function, so a `changes` job that FAILS or is
+    # CANCELLED marks every downstream shard `skipped` rather than `failure`.
+    # Keying only on `needs.go-race.result` would then report GREEN having run
+    # no race tests at all. A skipped matrix is only trustworthy as a docs-only
+    # skip when `changes` itself succeeded.
+    needs: [changes, go-race]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Assert all race shards passed
         run: |
+          changes_result="${{ needs.changes.result }}"
           result="${{ needs.go-race.result }}"
+          echo "changes result: ${changes_result}"
           echo "aggregated go-race result: ${result}"
+          if [ "${changes_result}" != "success" ]; then
+            echo "::error::changes gate did not succeed (result=${changes_result}) - a skipped go-race matrix cannot be trusted as a docs-only skip"
+            exit 1
+          fi
           if [ "${result}" != "success" ] && [ "${result}" != "skipped" ]; then
             echo "::error::one or more go-race shards did not succeed (result=${result})"
             exit 1

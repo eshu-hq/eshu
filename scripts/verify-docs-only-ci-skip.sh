@@ -93,30 +93,48 @@ if job_alwayson "${t}" docs-helm-hygiene; then
 else
 	bad "test.yml docs-helm-hygiene must NOT be code-gated (it is the docs build)"
 fi
-if rg -qF '!= "skipped"' "${t}"; then
-	ok "go-race-complete accepts a skipped matrix as pass (required-check-safe)"
-else
-	bad "go-race-complete treats result==skipped as pass"
-fi
-
-# --- test.yml: go-core-complete umbrella (#5814) must mirror go-race-complete's
-# skipped-is-pass contract, or a required-status-check config built on it would
-# strand every docs-only PR (the exact failure mode #5757 fixed for go-race). ---
-if job_block "${t}" go-core-complete | rg -qF 'needs: go-core'; then
-	ok "go-core-complete depends on go-core (needs: go-core)"
-else
-	bad "go-core-complete must declare needs: go-core"
-fi
-if job_block "${t}" go-core-complete | rg -qF 'if: ${{ always() }}'; then
-	ok "go-core-complete always reports (if: \${{ always() }})"
-else
-	bad "go-core-complete must carry if: \${{ always() }} so it always reports"
-fi
-if job_block "${t}" go-core-complete | rg -qF '!= "skipped"'; then
-	ok "go-core-complete accepts a skipped go-core result as pass (required-check-safe)"
-else
-	bad "go-core-complete treats result==skipped as pass"
-fi
+# --- test.yml: both umbrella gates (go-race-complete #5757, go-core-complete
+# #5814) are the names branch protection points at, so each must hold the same
+# three-part contract: always reports, accepts a genuine docs-only skip as pass,
+# and REFUSES to accept that skip when the `changes` gate itself failed.
+#
+# That last part is the subtle one. GitHub implicitly prepends `success()` to a
+# job `if:` that does not name a status function, so a `changes` job that fails
+# or is cancelled marks its dependants `skipped` — not `failure`. An umbrella
+# keying only on its own dependency's result would report GREEN having built and
+# tested nothing. Each umbrella therefore needs `changes` as an explicit
+# dependency plus a check on its result.
+#
+# Every assertion below is scoped with `job_block` to the specific job. A
+# file-wide `rg` would be satisfied by the OTHER umbrella's copy of the same
+# string and silently stop testing the job it names.
+for umbrella in go-race-complete go-core-complete; do
+	case "${umbrella}" in
+	go-race-complete) dep="go-race" ;;
+	go-core-complete) dep="go-core" ;;
+	esac
+	block="$(job_block "${t}" "${umbrella}")"
+	if rg -qF "needs: [changes, ${dep}]" <<<"${block}"; then
+		ok "${umbrella} depends on both changes and ${dep}"
+	else
+		bad "${umbrella} must declare needs: [changes, ${dep}]"
+	fi
+	if rg -qF 'if: ${{ always() }}' <<<"${block}"; then
+		ok "${umbrella} always reports (if: \${{ always() }})"
+	else
+		bad "${umbrella} must carry if: \${{ always() }} so it always reports"
+	fi
+	if rg -qF '!= "skipped"' <<<"${block}"; then
+		ok "${umbrella} accepts a skipped ${dep} as pass (required-check-safe)"
+	else
+		bad "${umbrella} treats result==skipped as pass"
+	fi
+	if rg -qF 'needs.changes.result' <<<"${block}"; then
+		ok "${umbrella} fails when the changes gate itself failed (no false green)"
+	else
+		bad "${umbrella} must fail when needs.changes.result is not success"
+	fi
+done
 
 if [[ "${fail}" -ne 0 ]]; then
 	printf '\nverify-docs-only-ci-skip: docs-only CI carve-out wiring drifted — see failures above.\n' >&2
