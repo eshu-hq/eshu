@@ -10,8 +10,8 @@ import (
 )
 
 func TestOSPackageAdvisoryFactEnvelopeFromTargetSkipsMalformedTarget(t *testing.T) {
-	// Missing required fields (distro, arch, installed_version_raw) should
-	// return ok=false so the caller increments the skip counter.
+	// Missing required field distro should return ok=false so the
+	// caller increments the skip counter.
 	target := workflow.OSPackageAdvisoryTarget{
 		Distro:           "",
 		DistroVersion:    "12",
