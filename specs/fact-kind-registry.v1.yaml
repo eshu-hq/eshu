@@ -278,8 +278,20 @@ families:
       # (go/internal/projector/package_registry_canonical.go:120-123) intentionally
       # does not consume it, and no reducer decode seam exists for it. It has no
       # direct read surface of its own.
+      # #5458 formalized this as a deliberate KEEP DISCLOSURE decision, not a
+      # silently dead kind: registry-native advisory corroboration overlaps the
+      # dedicated vulnerability_intelligence family and epic #5462's
+      # supply-chain-impact reconciliation. Any future decode-side consumer for
+      # this kind is explicitly deferred to and owned by #5462, not built here.
       package_registry.registry_event: "sdk/go/factschema/schema/package_registry.registry_event.v1.schema.json"
       package_registry.repository_hosting: "sdk/go/factschema/schema/package_registry.repository_hosting.v1.schema.json"
+      # repository_hosting is Artifactory/registry feed topology
+      # (provider/registry/repository/upstream_url describing WHERE a package is
+      # hosted), not a package-to-source-commit binding. #5458 formalized this as
+      # a deliberate KEEP DISCLOSURE decision: no graph consumer advances the
+      # provenance backbone epic #5455 is building from this kind, and none is
+      # planned. Revisit only if a future read surface needs registry-hosting
+      # feed topology rather than package-to-source binding.
       package_registry.warning: "sdk/go/factschema/schema/package_registry.warning.v1.schema.json"
     kinds: [package_registry.package, package_registry.package_artifact, package_registry.package_dependency, package_registry.package_version, package_registry.registry_event, package_registry.repository_hosting, package_registry.source_hint, package_registry.vulnerability_hint, package_registry.warning]
   rds_posture:

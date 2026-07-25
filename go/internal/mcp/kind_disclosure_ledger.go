@@ -94,8 +94,10 @@ var grandfatheredUnconsumedKinds = map[string]string{
 	"terraform_state_candidate": "5563c81346264cd987969e68c93f4e22eb7862ba80eadea9904cdedcb6afc7e7",
 	"terraform_state_warning":   "0ce119d0c368e25ebd19958bedcb460e494c609a01fdaf95be8b5bff8143fed6",
 
-	// package_registry.vulnerability_hint — join-key-only
-	"package_registry.vulnerability_hint": "7b8323b2e7fee6e4111dd8358eccf0e563c922ad3bc97741304eeb5360e705a7",
+	// package_registry.vulnerability_hint — #5458 formalized KEEP DISCLOSURE
+	// decision (join-key-only today, explicit #5462 routing for any future
+	// registry-native advisory corroboration)
+	"package_registry.vulnerability_hint": "80c30fea81bc974f26fcc5fa145bcc4827f92b056757937cecfe8d029a4b18d1",
 
 	// service_catalog — five unconsumed kinds
 	"service_catalog.api_link":             "5ecf78012c63927e9aa5cc801dcb7df8d379813780437634a71a5fa4ea213ab6",
@@ -132,11 +134,15 @@ var grandfatheredUnconsumedKinds = map[string]string{
 	"k8s_rbac_role":                                   "2573747ed14d6c4278c5f93b07a3e82ec8f73dc74784da47d012586073e29ad0",
 	"package_registry.package_artifact":               "a69cf5b389a97ccba6011af05a69b15b068e61e77ee95eda599cb398d6ba44b5",
 	"package_registry.registry_event":                 "dc46aefb230f539feec68c4fd3531a50d5e331523baccfca33858ceda6ddfd73",
-	"package_registry.repository_hosting":             "e42b971c90d524571b3b3605a89ba5b3d955f957a6b392df157fa103eef24689",
-	"vault_auth_mount":                                "fc8cb7c193a71b33969618eac04aeb256ed2ecc84514067159d9dcc6f7368e78",
-	"vault_identity_alias":                            "d4764e55b34e45dee4023385fc8609119d44e55a3bfabcab6a48ef2fe8021767",
-	"vault_identity_entity":                           "738d59bc2a82269eeba3b28ed698fcd3315addd99d72855a10c1ce3ab497a02c",
-	"vault_secret_engine_mount":                       "8f7ca30ced8d2e2d219bc06ddd46d382ee19b58212c2354861f183df2e717ce5",
+
+	// package_registry.repository_hosting — #5458 formalized KEEP DISCLOSURE
+	// decision (Artifactory/registry feed topology, not a package-to-source
+	// binding; not part of the provenance backbone)
+	"package_registry.repository_hosting": "5d1136694b788dbcda34dd37db525cb2db1823c0f73a870ac39781b18f348bc7",
+	"vault_auth_mount":                    "fc8cb7c193a71b33969618eac04aeb256ed2ecc84514067159d9dcc6f7368e78",
+	"vault_identity_alias":                "d4764e55b34e45dee4023385fc8609119d44e55a3bfabcab6a48ef2fe8021767",
+	"vault_identity_entity":               "738d59bc2a82269eeba3b28ed698fcd3315addd99d72855a10c1ce3ab497a02c",
+	"vault_secret_engine_mount":           "8f7ca30ced8d2e2d219bc06ddd46d382ee19b58212c2354861f183df2e717ce5",
 }
 
 // kindDisclosureDigest computes the SHA-256 digest of the disclosure entry
@@ -223,7 +229,7 @@ func disclosedKindsUnchanged(expected []kindDisclosureEntry) error {
 var kindDisclosureEntries = []kindDisclosureEntry{
 	{Family: "terraform_state", Kind: "terraform_state_candidate", Reason: "projector/tfstate_canonical.go's extractTerraformStateRows doc comment"},
 	{Family: "terraform_state", Kind: "terraform_state_warning", Reason: "projector/tfstate_canonical.go's extractTerraformStateRows doc comment"},
-	{Family: "package_registry", Kind: "package_registry.vulnerability_hint", Reason: "join-key-only: facts_active_supply_chain_impact.go:46 filter only, no decode"},
+	{Family: "package_registry", Kind: "package_registry.vulnerability_hint", Reason: "#5458 KEEP DISCLOSURE (deliberate): join-key-only -- facts_active_supply_chain_impact.go:46 filters fact_kind but never decodes the payload; projector (package_registry_canonical.go:120-123) intentionally does not consume it. Corroboration belongs to the dedicated vulnerability_intelligence family and epic #5462's supply-chain-impact reconciliation, not here -- building it in this reducer would duplicate that pipeline. Revisit only if #5462 explicitly delegates registry-native advisory corroboration back to package_registry."},
 	{Family: "service_catalog", Kind: "service_catalog.api_link", Reason: "no decode-side consumer (registry YAML ~428-435)"},
 	{Family: "service_catalog", Kind: "service_catalog.dependency", Reason: "no decode-side consumer (registry YAML ~428-435)"},
 	{Family: "service_catalog", Kind: "service_catalog.scorecard_definition", Reason: "no decode-side consumer (registry YAML ~428-435)"},
@@ -257,7 +263,7 @@ var kindDisclosureEntries = []kindDisclosureEntry{
 	{Family: "secrets_iam_trust_chain", Kind: "k8s_rbac_role", Reason: "round-2 re-verify (2026-07-21): `rg -n \"KubernetesRBACRoleFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"k8s_rbac_role\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
 	{Family: "package_source_correlation", Kind: "package_registry.package_artifact", Reason: "round-2 re-verify (2026-07-21): `rg -n \"PackageRegistryPackageArtifactFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"package_registry.package_artifact\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
 	{Family: "package_source_correlation", Kind: "package_registry.registry_event", Reason: "round-2 re-verify (2026-07-21): `rg -n \"PackageRegistryRegistryEventFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"package_registry.registry_event\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
-	{Family: "package_source_correlation", Kind: "package_registry.repository_hosting", Reason: "round-2 re-verify (2026-07-21): `rg -n \"PackageRegistryRepositoryHostingFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"package_registry.repository_hosting\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
+	{Family: "package_source_correlation", Kind: "package_registry.repository_hosting", Reason: "#5458 KEEP DISCLOSURE (deliberate): payload is Artifactory/registry feed topology (provider/registry/repository/upstream_url) describing WHERE a package is hosted, not a package-to-source-commit binding -- it does not advance the provenance backbone epic #5455 is building, and no graph consumer exists or is planned. Revisit only if a future read surface needs registry-hosting feed topology rather than package-to-source binding. (round-2 re-verify 2026-07-21 confirmed zero real-consumer signal: `rg -n \"PackageRegistryRepositoryHostingFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` excluding _test.go -> 0 matches; `rg -n \"\\\"package_registry.repository_hosting\\\"\"` same dirs -> 0 matches outside registry/collector/this ledger)"},
 	{Family: "secrets_iam_trust_chain", Kind: "vault_auth_mount", Reason: "round-2 re-verify (2026-07-21): `rg -n \"VaultAuthMountFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"vault_auth_mount\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
 	{Family: "secrets_iam_trust_chain", Kind: "vault_identity_alias", Reason: "round-2 re-verify (2026-07-21): `rg -n \"VaultIdentityAliasFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"vault_identity_alias\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
 	{Family: "secrets_iam_trust_chain", Kind: "vault_identity_entity", Reason: "round-2 re-verify (2026-07-21): `rg -n \"VaultIdentityEntityFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"vault_identity_entity\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
