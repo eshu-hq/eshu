@@ -179,3 +179,80 @@ func TestContainerImageIdentityHandlerCIScopeIntentWithCrossScopeCIEvidenceWrite
 		t.Fatalf("writeRows = %#v, want none -- a CI-run scope owns no Dockerfile and must not write", derivedFromWriter.writeRows)
 	}
 }
+
+// TestDedupeEnvelopesByFactIDCollapsesRepeatedFactID proves the standalone
+// helper's contract in isolation: envelopes sharing a FactID collapse to the
+// FIRST occurrence, and relative order is preserved for the survivors.
+func TestDedupeEnvelopesByFactIDCollapsesRepeatedFactID(t *testing.T) {
+	t.Parallel()
+
+	first := facts.Envelope{FactID: "fact-1", FactKind: "ci.run"}
+	duplicate := facts.Envelope{FactID: "fact-1", FactKind: "ci.run-cross-scope-copy"}
+	other := facts.Envelope{FactID: "fact-2", FactKind: "ci.artifact"}
+
+	deduped := dedupeEnvelopesByFactID([]facts.Envelope{first, duplicate, other})
+
+	if got, want := len(deduped), 2; got != want {
+		t.Fatalf("len(deduped) = %d, want %d: %#v", got, want, deduped)
+	}
+	if got, want := deduped[0].FactID, "fact-1"; got != want {
+		t.Fatalf("deduped[0].FactID = %q, want %q", got, want)
+	}
+	if got, want := deduped[0].FactKind, "ci.run"; got != want {
+		t.Fatalf("deduped[0].FactKind = %q, want %q (must keep the FIRST occurrence, not the duplicate)", got, want)
+	}
+	if got, want := deduped[1].FactID, "fact-2"; got != want {
+		t.Fatalf("deduped[1].FactID = %q, want %q", got, want)
+	}
+}
+
+// TestContainerImageIdentityHandlerDedupesCICDArtifactSeenThroughBothLoaders is
+// the #5810 double-quarantine regression: a CI-scope intent's own scope-local
+// load (loadFactsForKinds) and the new cross-scope
+// activeContainerImageCIFactLoader can both return the SAME ci.artifact
+// envelope once that CI scope's own generation is active. Before the
+// FactID-keyed dedupe in Handle(), a MALFORMED fact seen through both paths
+// would be independently decoded (and independently quarantined) twice for
+// one intent, double-counting a single bad fact's input_invalid signal. This
+// proves it is counted exactly once.
+func TestContainerImageIdentityHandlerDedupesCICDArtifactSeenThroughBothLoaders(t *testing.T) {
+	t.Parallel()
+
+	malformed := facts.Envelope{
+		FactID:   "malformed-artifact-cross-scope",
+		FactKind: facts.CICDArtifactFactKind,
+		Payload: map[string]any{
+			// "run_id" intentionally absent -- see
+			// TestContainerImageIdentityHandlerQuarantinesCICDArtifactMissingRunID.
+			"provider":        "github_actions",
+			"run_attempt":     "1",
+			"artifact_type":   "container_image",
+			"artifact_digest": testContainerDigest,
+		},
+	}
+	loader := &stubContainerImageIdentityFactLoader{
+		// The SAME envelope (same FactID) reachable through the intent's own
+		// scope-local load AND the cross-scope CI loader -- exactly what
+		// happens for a CI-scope-triggered intent once its generation is
+		// active.
+		scopeFacts: []facts.Envelope{malformed},
+		ciActive:   []facts.Envelope{malformed},
+	}
+	writer := &recordingContainerImageIdentityWriter{}
+	handler := ContainerImageIdentityHandler{FactLoader: loader, Writer: writer}
+
+	result, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-dedupe-quarantine",
+		ScopeID:      "ci_cd_run:github_actions:team-api",
+		GenerationID: "generation-ci",
+		SourceSystem: "ci_cd_run",
+		Domain:       DomainContainerImageIdentity,
+		Cause:        "ci artifact observed",
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if got := result.SubSignals["input_invalid_facts"]; got != 1 {
+		t.Fatalf("SubSignals[input_invalid_facts] = %v, want 1 (the SAME malformed fact seen through two loaders must count once)", got)
+	}
+}
