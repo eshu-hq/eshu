@@ -382,6 +382,21 @@ func applySLSADigestRevision(
 		decision.SourceRepositoryIDs = uniqueSortedStrings(
 			append(decision.SourceRepositoryIDs, anchor.sourceRepositoryIDs...),
 		)
+		// A passed-signature SLSA attestation naming this repository as the
+		// build's config source is build evidence -- the strongest tier in
+		// this domain, stronger than an OCI config source label or a ci.run
+		// join (both of which already reach BuildProvenanceRepositoryIDs; see
+		// #5460, #5808). extractSLSADigestAnchorsWithQuarantine only ever
+		// records anchor.sourceRepositoryIDs after confirming a "passed"
+		// verification for the owning statement, so no separate verification
+		// check is needed here. Before this fix, an exact-digest image whose
+		// ONLY attribution was verified SLSA never gained
+		// BuildProvenanceRepositoryIDs and lost its BUILT_FROM edge outright
+		// under the #5796 gate -- the same class of gap #5808 fixed for the
+		// CI-run tier.
+		decision.BuildProvenanceRepositoryIDs = uniqueSortedStrings(
+			append(decision.BuildProvenanceRepositoryIDs, anchor.sourceRepositoryIDs...),
+		)
 	}
 	if len(anchor.factIDs) > 0 {
 		decision.EvidenceFactIDs = uniqueSortedStrings(

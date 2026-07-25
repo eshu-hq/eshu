@@ -39,10 +39,17 @@ func benchPackagePublicationDecisions(n int) []PackagePublicationDecision {
 func benchContainerImageIdentityDecisions(n int) []ContainerImageIdentityDecision {
 	decisions := make([]ContainerImageIdentityDecision, 0, n)
 	for i := 0; i < n; i++ {
+		repoID := fmt.Sprintf("repo-%d", i)
 		decisions = append(decisions, ContainerImageIdentityDecision{
 			Digest:              fmt.Sprintf("sha256:%064d", i),
-			SourceRepositoryIDs: []string{fmt.Sprintf("repo-%d", i)},
-			Outcome:             ContainerImageIdentityExactDigest,
+			SourceRepositoryIDs: []string{repoID},
+			// BUILT_FROM (#5796) gates on BuildProvenanceRepositoryIDs, not the
+			// broader SourceRepositoryIDs; this benchmark's decisions must carry
+			// build evidence too, or containerImageBuiltFromRows emits zero rows
+			// and the below != 5000 check fails every call (the exact class of
+			// gap #5808 already fixed for the real evidence-extraction path).
+			BuildProvenanceRepositoryIDs: []string{repoID},
+			Outcome:                      ContainerImageIdentityExactDigest,
 		})
 	}
 	return decisions
