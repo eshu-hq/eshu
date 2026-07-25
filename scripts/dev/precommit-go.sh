@@ -298,56 +298,15 @@ case "${cmd}" in
 			|| die "govulncheck: vulnerabilities found (see output above)"
 		;;
 	nancy)
-		# nancy sleuth against the dependency graph (Sonatype OSS Index).
-		# `nancy sleuth` reads the dependency graph from stdin -- its
-		# documented usage is `go list -json -deps ./... | nancy sleuth`.
-		# This case used to run a bare `nancy sleuth --no-color` with nothing
-		# piped in, which fails "StdIn is invalid or empty" on a TTY or the
-		# empty-but-valid pipe bash gives a non-interactive script's stdin on
-		# macOS -- a transport failure, not a vulnerability finding, but the
-		# old code reported it as "vulnerable dependencies found" (#5791).
-		# Piping the real dependency graph below matches nancy's documented
-		# usage.
-		#
-		# That real pipe surfaces a second, independent problem: as of
-		# 2026-07 Sonatype's OSS Index API rejects ALL anonymous requests
-		# with 401 Unauthorized (verified directly against the API, no nancy
-		# involved). Neither this repo's CI nor local dev has
-		# OSS_INDEX_USERNAME/OSS_INDEX_TOKEN configured, so a real scan
-		# cannot succeed anywhere today -- CI's identical
-		# `nancy sleuth --no-color` (also unpiped) has never actually scanned
-		# anything either; it silently audits 0 dependencies and reports
-		# success (see #5804). Until credentials are wired up (tracked in
-		# #5804), a hard nancy error (its output's first line starts with
-		# "Error:" -- auth, network, or bad input) is deferred non-fatally
-		# here rather than blocking every contributor on a gate that cannot
-		# currently do its job -- mirroring the loud-defer pattern in
-		# scripts/dev/trivy-fs-local.sh: print the real diagnostic, say
-		# plainly that no scan ran, never pass silently. A genuine
-		# vulnerability finding (nancy exits non-zero WITHOUT an "Error:"
-		# first line) still fails the gate.
+		# nancy is declared ADVISORY (specs/ci-gates.v1.yaml, #5791/#5804): OSS
+		# Index currently 401s every anonymous request and no OSS Index
+		# credentials exist anywhere in this repo, so it cannot reliably
+		# perform a real scan today. The actual sleuth/classification logic
+		# lives in scripts/dev/nancy-local.sh (unit-tested directly with fake
+		# `go`/`nancy` binaries in scripts/test-nancy-local.sh); this case only
+		# installs the real nancy binary and delegates.
 		bin="$(ensure_nancy)"
-		deps_json="${worktree_cache_dir}/nancy-deps.json"
-		deps_err="${worktree_cache_dir}/nancy-deps.err"
-		# Enumerate the dependency graph first, as its own step: a `go list`
-		# failure (broken module, unresolved import, bad go.sum) is a build
-		# problem, not a vulnerability finding, and must not be folded into
-		# nancy's own success/failure signal below.
-		if ! ( cd "${go_dir}" && go list -json -deps ./... ) >"${deps_json}" 2>"${deps_err}"; then
-			cat "${deps_err}" >&2
-			die "nancy: 'go list -json -deps ./...' failed — fix the module/build error above before nancy can scan (see ${deps_err})"
-		fi
-		out="${worktree_cache_dir}/nancy.out"
-		if "${bin}" sleuth --no-color <"${deps_json}" >"${out}" 2>&1; then
-			note "nancy: no vulnerable dependencies found"
-		elif head -n1 "${out}" | rg -q '^Error:'; then
-			note "nancy: could not complete a real OSS Index scan (transport/auth failure, not a vulnerability finding) -- deferring non-fatally:"
-			head -n2 "${out}" >&2
-			note "nancy: full diagnostic in ${out}; CI's nancy job has the same limitation today (#5804)."
-		else
-			cat "${out}" >&2
-			die "nancy: vulnerable dependencies found (see output above)"
-		fi
+		bash "${repo_root}/scripts/dev/nancy-local.sh" "${go_dir}" "${worktree_cache_dir}" "${bin}"
 		;;
 	*)
 		die "unknown subcommand '${cmd}' (want fmt|lint|lint-all|fmt-all|filecap|filecap-all|gosec|gosec-all|govulncheck|nancy|surface|perf-evidence|telemetry|cache-paths)"

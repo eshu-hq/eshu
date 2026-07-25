@@ -1289,13 +1289,22 @@ gates:
     name: nancy (Sonatype dep CVE + license scan)
     category: security
     tier: pre-push
-    blocking: true
+    # Advisory, not blocking (#5791, #5804): Sonatype's OSS Index rejects ALL
+    # anonymous requests with 401 Unauthorized, and neither this repo's CI nor
+    # local dev has OSS_INDEX_USERNAME/OSS_INDEX_TOKEN configured, so nancy
+    # cannot perform a real scan anywhere today — CI's identical unpiped
+    # invocation has never scanned anything either (it silently audits 0
+    # dependencies and reports success). Mirrors the trivy-fs entry below:
+    # a security scanner that cannot always run must be informational, not a
+    # gate that blocks every contributor on a condition outside their
+    # control. Reclassify back to blocking once #5804 wires real credentials.
+    blocking: false
     triggers:
       - "go/go.mod"
       - "go/go.sum"
     local:
       command: "bash scripts/dev/precommit-go.sh nancy"
-      test_command: ""
+      test_command: "bash scripts/test-nancy-local.sh"
     ci:
       workflow: security-scan.yml
       job: "nancy (Sonatype dep CVE + license scan)"
