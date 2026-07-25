@@ -121,6 +121,29 @@ require_precommit "worktree-local whole-module SARIF" 'out="${worktree_cache_dir
 # shellcheck disable=SC2016
 reject_precommit "mutable SARIF in shared tool cache" 'out="${tool_cache_dir}/gosec'
 
+# #5791: nancy must pipe the real dependency graph (nancy's documented usage),
+# never fall back to a bare `nancy sleuth` with no stdin — that shape is what
+# produced the "StdIn is invalid or empty" / "vulnerable dependencies found"
+# false failure this regression guards against.
+# shellcheck disable=SC2016
+require_precommit "nancy pipes go list into sleuth" 'go list -json -deps ./... ) >"${deps_json}"'
+# shellcheck disable=SC2016
+reject_precommit "nancy no longer runs unpiped" '&& "${bin}" sleuth --no-color ) \'
+# A `go list` failure (broken module/build) must be reported as a build
+# failure, distinct from nancy's own exit code, never folded into "vulnerable
+# dependencies found".
+# shellcheck disable=SC2016
+require_precommit "go-list failure is not reported as a vulnerability finding" "'go list -json -deps ./...' failed"
+# A hard nancy error (transport/auth, no "Error:" would mean input piped) must
+# defer non-fatally instead of blocking every contributor, since OSS Index
+# currently 401s all anonymous requests (#5804) and cannot be authenticated
+# from precommit-go.sh yet.
+# shellcheck disable=SC2016
+require_precommit "nancy transport/auth failure defers non-fatally" 'head -n1 "${out}" | rg -q'
+# A genuine vulnerability finding (no leading "Error:") must still fail the
+# gate.
+require_precommit "nancy still blocks on a real finding" 'die "nancy: vulnerable dependencies found (see output above)"'
+
 require "serial precommit lane" "run_precommit_gates_serial()"
 require "captured gate helper" "capture_whole_module_gate()"
 # shellcheck disable=SC2016 # The needles must stay literal shell source.
