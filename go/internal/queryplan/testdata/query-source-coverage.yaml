@@ -430,3 +430,6 @@ source_coverage:
   - file: status_hosted_readiness.go
     calls:
       - {symbol: "(*StatusHandler).readHostedRepositoryCount", count: 1, source_sha256: add2e56e1ca154fc60b94390bf6e55b5d9768ea3c895a9502c710be90ad2371e, entry_ids: [QP-READINESS-HOSTED]}
+  - file: supply_chain_impact_cloud_runtime_probe.go
+    calls:
+      - {symbol: "(*SupplyChainHandler).probeSupplyChainCloudRuntimeResources", count: 1, non_hot: {class: label_inventory, source_sha256: 8f4ea3efede0cb1784750d9c242a9b0578183ca055b2ea822de8e58bf0a53696, label: CloudResource, max_results: 200}}

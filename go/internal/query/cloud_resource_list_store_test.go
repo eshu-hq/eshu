@@ -55,6 +55,58 @@ func TestBuildCloudResourceIdentityListQueryAppliesAuthorizationBeforeLimit(t *t
 	}
 }
 
+func TestBuildCloudResourceCurrentInventoryQueryScopedAppliesActiveGenAndAuth(t *testing.T) {
+	t.Parallel()
+
+	query, args := buildCloudResourceCurrentInventoryQuery(
+		[]string{"uid-a", "uid-b"},
+		false,
+		[]string{"repository:allowed"},
+		[]string{"scope:allowed"},
+	)
+
+	for _, want := range []string{
+		"FROM graph_node_owner AS owner",
+		"owner.uid = ANY($1::text[])",
+		"fact.fact_id = owner.winning_row->>'source_fact_id'",
+		"scope.active_generation_id = fact.generation_id",
+		"generation.status = 'active'",
+		"fact.is_tombstone = FALSE",
+		"scope.scope_kind = 'repository'",
+		"scope.source_key = ANY(",
+		"fact.scope_id = ANY(",
+		"LIMIT 1",
+	} {
+		if !strings.Contains(query, want) {
+			t.Errorf("scoped query missing %q:\n%s", want, query)
+		}
+	}
+	if strings.Contains(query, "ORDER BY") || strings.Contains(query, "\nLIMIT ") {
+		t.Fatalf("candidate-keyed query must not paginate:\n%s", query)
+	}
+	if got, want := len(args), 3; got != want {
+		t.Fatalf("scoped args len = %d, want %d (candidates + repos + scopes): %#v", got, want, args)
+	}
+}
+
+func TestBuildCloudResourceCurrentInventoryQueryAllScopesOmitsAuth(t *testing.T) {
+	t.Parallel()
+
+	query, args := buildCloudResourceCurrentInventoryQuery([]string{"uid-a"}, true, nil, nil)
+	if strings.Contains(query, "scope.scope_kind = 'repository'") {
+		t.Fatalf("all-scopes query must not add a scope authorization predicate:\n%s", query)
+	}
+	// Active-generation + tombstone freshness still applies for unscoped callers.
+	for _, want := range []string{"scope.active_generation_id = fact.generation_id", "fact.is_tombstone = FALSE", "owner.uid = ANY($1::text[])"} {
+		if !strings.Contains(query, want) {
+			t.Errorf("all-scopes query missing %q:\n%s", want, query)
+		}
+	}
+	if got, want := len(args), 1; got != want {
+		t.Fatalf("all-scopes args len = %d, want 1 (candidates only): %#v", got, want)
+	}
+}
+
 func TestBuildCloudResourceIdentityListQueryCoversEveryProductionVariant(t *testing.T) {
 	t.Parallel()
 

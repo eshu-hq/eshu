@@ -57,17 +57,23 @@ type SupplyChainImpactFindingResult struct {
 	DeploymentIDs         []string                                `json:"deployment_ids,omitempty"`
 	ServiceIDs            []string                                `json:"service_ids,omitempty"`
 	Environments          []string                                `json:"environments,omitempty"`
-	CatalogEntityRefs     []string                                `json:"catalog_entity_refs,omitempty"`
-	CatalogOwnerRefs      []string                                `json:"catalog_owner_refs,omitempty"`
-	DependencyPath        []string                                `json:"dependency_path,omitempty"`
-	DependencyDepth       int                                     `json:"dependency_depth,omitempty"`
-	DirectDependency      *bool                                   `json:"direct_dependency,omitempty"`
-	MissingEvidence       []string                                `json:"missing_evidence,omitempty"`
-	EvidencePath          []string                                `json:"evidence_path,omitempty"`
-	EvidenceFactIDs       []string                                `json:"evidence_fact_ids,omitempty"`
-	SourceFreshness       string                                  `json:"source_freshness,omitempty"`
-	SourceConfidence      string                                  `json:"source_confidence,omitempty"`
-	Provenance            *SupplyChainImpactProvenance            `json:"provenance,omitempty"`
+	// CloudRuntimeResourceRefs names the observed cloud compute resources
+	// (running ECS task / image-package Lambda ARNs) whose running image digest
+	// matches this finding's subject digest — runtime-observed deployment
+	// evidence that drives the runtime_confirmed deployment_truth_tier, distinct
+	// from the CI-declared deployment anchors (#5452).
+	CloudRuntimeResourceRefs []string                     `json:"cloud_runtime_resource_refs,omitempty"`
+	CatalogEntityRefs        []string                     `json:"catalog_entity_refs,omitempty"`
+	CatalogOwnerRefs         []string                     `json:"catalog_owner_refs,omitempty"`
+	DependencyPath           []string                     `json:"dependency_path,omitempty"`
+	DependencyDepth          int                          `json:"dependency_depth,omitempty"`
+	DirectDependency         *bool                        `json:"direct_dependency,omitempty"`
+	MissingEvidence          []string                     `json:"missing_evidence,omitempty"`
+	EvidencePath             []string                     `json:"evidence_path,omitempty"`
+	EvidenceFactIDs          []string                     `json:"evidence_fact_ids,omitempty"`
+	SourceFreshness          string                       `json:"source_freshness,omitempty"`
+	SourceConfidence         string                       `json:"source_confidence,omitempty"`
+	Provenance               *SupplyChainImpactProvenance `json:"provenance,omitempty"`
 	// Suppression carries the reducer VEX/operator-policy decision attached
 	// to this finding. The reducer always populates a decision (state=active
 	// when nothing matched) so callers can audit suppression provenance even
@@ -116,27 +122,51 @@ func buildSupplyChainImpactFindingResult(row SupplyChainImpactFindingRow) Supply
 }
 
 // supplyChainDeploymentTruthTier classifies the strongest deployment
-// evidence tier available from the finding row's existing fields. It uses
-// the shared truth.ClassifyDeploymentTruthTier with signals derived from
-// what the reducer already writes in the finding payload.
+// evidence tier available from the finding row's existing fields, using the
+// shared truth.DeploymentTruthTier vocabulary so this surface applies the
+// same tiers as trace_deployment_chain and service story.
 //
-// Live runtime evidence (runtime_confirmed) and CI provenance
-// (provenance_ci_declared) are not currently differentiated in the
-// reducer's finding payload — that enrichment is gated on #5472 (ci_cd
-// correlation graph projection) and #5474 (gate extensions). Today all
-// deployment-anchored findings classify as config_only.
+// The three deployment-evidence classes are now distinct (#5452):
+//
+//   - runtime_confirmed: a live cloud resource (running ECS task /
+//     image-package Lambda) actually runs the finding's subject digest —
+//     surfaced by the reducer as CloudRuntimeResourceRefs.
+//   - provenance_ci_declared: a cicd_run_correlation matched the finding's
+//     digest/image (CI declared the deployment). Before #5452 this collapsed
+//     into config_only because no runtime tier existed on this surface.
+//   - config_only: only config-materialized deployment anchors or config
+//     environments exist, with no runtime or CI-declared evidence.
 func supplyChainDeploymentTruthTier(row SupplyChainImpactFindingRow) truth.DeploymentTruthTier {
+	if len(row.CloudRuntimeResourceRefs) > 0 {
+		return truth.ClassifyDeploymentTruthTier(true, false, false, false)
+	}
+	if rowHasCIDeclaredDeploymentEvidence(row) {
+		return truth.TierProvenanceCIDeclared
+	}
 	hasDeploymentAnchor := len(row.WorkloadIDs) > 0 ||
 		len(row.DeploymentIDs) > 0 ||
 		row.ImageRef != "" ||
 		row.SubjectDigest != ""
 	hasConfigEnvs := len(row.Environments) > 0
 	return truth.ClassifyDeploymentTruthTier(
-		false, // hasLiveEvidence: gated on #5472
+		false, // hasLiveEvidence: no runtime-observed cloud resource
 		false, // instances not surfaced in finding row
 		hasDeploymentAnchor,
 		hasConfigEnvs,
 	)
+}
+
+// rowHasCIDeclaredDeploymentEvidence reports whether the finding row carries a
+// cicd_run_correlation deployment hop — the reducer appends this evidence-path
+// entry only when a CI/CD run correlation matched the finding's digest or image
+// reference, so it is the row-level signal that a deployment was CI-declared.
+func rowHasCIDeclaredDeploymentEvidence(row SupplyChainImpactFindingRow) bool {
+	for _, hop := range row.EvidencePath {
+		if hop == cicdRunCorrelationFactKind {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizedSupplyChainImpactMissingEvidence(row SupplyChainImpactFindingRow) []string {

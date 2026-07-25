@@ -239,7 +239,10 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 		// never has to branch on resource_type to know which shape it is
 		// getting.
 		"CloudResource|running_image_digest": {
-			"sha256:0000000000000000000000000000000000000000000000000000000000aa",
+			// #5452: the ECS running task now runs the SCANNED vulnerable digest
+			// (...901a), so its supply_chain_impact finding classifies
+			// runtime_confirmed via the query-time CloudResource probe.
+			"sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
 			"sha256:0000000000000000000000000000000000000000000000000000000000cc",
 		},
 	}

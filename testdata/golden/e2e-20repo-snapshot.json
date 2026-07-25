@@ -5449,6 +5449,19 @@
         ],
         "minimum_results": 0
       },
+      "GET /api/v0/supply-chain/impact/findings?limit=50&subject_digest=sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab&profile=comprehensive": {
+        "description": "#5452 non-vacuous runtime-observed cloud evidence proof: the scanned vulnerable supply-chain-demo image (subject digest abcdef...ab, CVE-2026-00010) is observed running on the live ECS task (its aws_resource running_image_digest equals the finding's subject digest), so the query-time CloudResource graph probe promotes its impact finding to deployment_truth_tier=runtime_confirmed and names the running task ARN in cloud_runtime_resource_refs -- runtime-observed cloud deployment evidence distinct from CI-declared correlation. The comprehensive profile is required because the finding is comprehensive-tier (the findings list defaults to precise). Reverting the probe (supply_chain_impact_cloud_runtime_probe.go) drops the finding back to provenance_ci_declared/config_only, failing this assertion.",
+        "truth_class": "deterministic",
+        "required_response_fields": [
+          "findings",
+          "count"
+        ],
+        "minimum_results": 1,
+        "required_json_values": {
+          "findings[].deployment_truth_tier": "runtime_confirmed",
+          "findings[].cloud_runtime_resource_refs[]": "arn:aws:ecs:us-east-1:123456789012:task/supply-chain-demo/0000000000000000000000000000000a"
+        }
+      },
       "POST /api/v0/aws/runtime-drift/findings": {
         "description": "AWS runtime drift findings for the synthetic AWS account scope; proves the reducer-derived drift read surface is mounted and bounded without requiring positive drift rows.",
         "truth_class": "derived",

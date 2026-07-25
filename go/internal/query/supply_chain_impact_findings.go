@@ -113,17 +113,28 @@ type SupplyChainImpactFindingRow struct {
 	DeploymentIDs         []string
 	ServiceIDs            []string
 	Environments          []string
-	CatalogEntityRefs     []string
-	CatalogOwnerRefs      []string
-	DependencyPath        []string
-	DependencyDepth       int
-	DirectDependency      *bool
-	MissingEvidence       []string
-	EvidencePath          []string
-	EvidenceFactIDs       []string
-	SourceFreshness       string
-	SourceConfidence      string
-	Provenance            *SupplyChainImpactProvenance
+	// CloudRuntimeResourceRefs names the observed cloud compute resources
+	// (running ECS task / image-package Lambda ARNs) whose running image digest
+	// matches this finding's subject digest — runtime-observed deployment
+	// evidence distinct from the CI-declared deployment anchors (#5452). It is
+	// NOT decoded from the persisted finding payload: the findings handler
+	// populates it at read time via applySupplyChainCloudRuntimeEvidence (a
+	// bounded CloudResource graph probe), mirroring how trace_deployment_chain
+	// derives its runtime_confirmed tier from live graph evidence. Kept in the
+	// same field position as SupplyChainImpactFindingResult so the
+	// SupplyChainImpactFindingResult(row) conversion stays valid.
+	CloudRuntimeResourceRefs []string
+	CatalogEntityRefs        []string
+	CatalogOwnerRefs         []string
+	DependencyPath           []string
+	DependencyDepth          int
+	DirectDependency         *bool
+	MissingEvidence          []string
+	EvidencePath             []string
+	EvidenceFactIDs          []string
+	SourceFreshness          string
+	SourceConfidence         string
+	Provenance               *SupplyChainImpactProvenance
 	// Suppression carries the reducer VEX/operator-policy decision; it is
 	// always populated (state=active when no suppression matched) so callers
 	// can audit suppression provenance even when the finding is hidden from
