@@ -206,6 +206,21 @@ type supplyChainImpactIndex struct {
 // live in supply_chain_impact_index_build.go (split out to keep this file
 // under the repo's 500-line cap).
 
+// supplyChainRepositoryAnchorIsReplaceable reports whether finding.RepositoryID
+// holds no usable git anchor and may be replaced by the scanned image
+// identity's git source repository (#5464). A blank anchor or an OCI-registry
+// path ("oci-registry://...", set by the SBOM path from image.repositoryID) is
+// replaceable; any other non-blank value is a git repository id — either the
+// "repository:..." form workloads/services use or the "github.com/..." form a
+// package-consumption correlation sets — and MUST be preserved. The prior guard
+// recognized only the "repository:" form, so a consumption-derived
+// "github.com/..." anchor was wrongly overwritten by the image-identity source
+// anchor (#5779).
+func supplyChainRepositoryAnchorIsReplaceable(repositoryID string) bool {
+	trimmed := strings.TrimSpace(repositoryID)
+	return trimmed == "" || strings.HasPrefix(trimmed, "oci-registry://")
+}
+
 func classifySupplyChainImpactPackage(
 	cves supplyChainCVEGroup,
 	pkgs []supplyChainAffectedPackage,
@@ -302,13 +317,16 @@ func classifySupplyChainImpactPackage(
 		// #5464: prefer the git source anchor. The guard inspects the
 		// current RepositoryID value rather than tracking which path
 		// wrote it: the SBOM path above unconditionally overwrites
-		// RepositoryID with the OCI registry path, so a consumption-
-		// derived git "repository:..." ID may have been replaced by the
-		// time we reach this block. Check whether the current value
-		// already IS a git repo ID (prefix "repository:"); if not —
-		// blank (no anchor) or OCI registry path (from SBOM) — apply
-		// the git source anchor when unambiguous.
-		if finding.SubjectDigest != "" && !strings.HasPrefix(finding.RepositoryID, "repository:") {
+		// RepositoryID with the OCI registry path, so a git anchor set
+		// higher up may have been replaced by the time we reach this
+		// block. Replace the anchor only when it is blank or a dead OCI
+		// registry path (supplyChainRepositoryAnchorIsReplaceable); any
+		// other non-blank value is a real git repository id and MUST be
+		// preserved. The prior guard only recognized the "repository:..."
+		// git form, so a consumption-derived "github.com/..." git anchor
+		// was wrongly overwritten by the image-identity source anchor
+		// (#5779).
+		if finding.SubjectDigest != "" && supplyChainRepositoryAnchorIsReplaceable(finding.RepositoryID) {
 			if image, ok := index.images[finding.SubjectDigest]; ok {
 				if repositoryID := singleSupplyChainImageSourceRepositoryID(image); repositoryID != "" {
 					finding.RepositoryID = repositoryID
