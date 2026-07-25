@@ -129,10 +129,14 @@ for umbrella in go-race-complete go-core-complete; do
 	else
 		bad "${umbrella} treats result==skipped as pass"
 	fi
-	if rg -qF 'needs.changes.result' <<<"${block}"; then
+	# Match the ENFORCING COMPARISON, not the `changes_result=...` assignment.
+	# Asserting on `needs.changes.result` alone is vacuous: the assignment line
+	# satisfies it even after the whole guard conditional is deleted, so the one
+	# check standing between us and a false green would silently stop testing.
+	if rg -qF '"${changes_result}" != "success"' <<<"${block}"; then
 		ok "${umbrella} fails when the changes gate itself failed (no false green)"
 	else
-		bad "${umbrella} must fail when needs.changes.result is not success"
+		bad "${umbrella} must compare \"\${changes_result}\" != \"success\" and exit non-zero"
 	fi
 done
 

@@ -169,22 +169,16 @@ gates its changed paths select:
   so their always-on jobs above keep running. A package doc under `go/**/*.md`
   still counts as code, and any PR that mixes docs with code runs the full set.
   `main`, the nightly schedule, and tag pushes run everything unconditionally as
-  the backstop. The `go-core-complete` and `go-race-complete` umbrellas both
-  report green when their underlying job is skipped, so they stay stable check
-  names that are safe to mark required without stranding a docs-only PR.
-  `go-core-complete` is the **authoritative compilation gate**: it is green only
-  when the whole-module `cd go && go build ./...` (plus lint/fmt) succeeded or
-  was legitimately skipped, and is what catches a merge result that does not
-  compile even though every individual PR was green (#5814).
-  `go-race-complete` is the authoritative **race** gate over the sharded
-  `go test -race` matrix. These two umbrellas are the names branch protection
-  points at on `main`: `go-race-complete` is required today, and
-  `go-core-complete` joins it once the job exists on `main`.
-  Neither accepts a skip it cannot account for. Both depend on `changes` as well
-  as their own lane and fail outright if `changes` did not succeed — GitHub marks
-  a job `skipped` (not `failed`) when its dependency fails, so an umbrella that
-  only read its own lane's result would report green after a broken filter job
-  had prevented anything from building or testing.
+  the backstop. Branch protection points at two umbrellas: `go-core-complete`
+  (**compilation gate** — whole-module `cd go && go build ./...` plus lint/fmt,
+  catching a merge result that does not compile though every PR was green,
+  #5814) and `go-race-complete` (**race gate** over the sharded `go test -race`
+  matrix). `go-race-complete` is required today; `go-core-complete` joins it
+  once that job is on `main`. Each stays green when its own lane is legitimately
+  skipped, so neither strands a docs-only PR — but each also depends on
+  `changes` and fails if `changes` did not, since GitHub marks a job `skipped`
+  (not `failed`) when a dependency fails, and an umbrella reading only its own
+  lane would report green after a broken filter stopped anything building.
 - **Advisory:** the benchmark regression check (`BENCH_REGRESSION_ENFORCE=false`)
   and the changed-file Prettier check do not block merge.
 - **CI-only / release-only:** Trivy image scan, GHCR/package publication, and
