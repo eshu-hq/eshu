@@ -446,7 +446,7 @@ func TestWorkItemEvidenceSpanAttributesSummarizeBoundedCounts(t *testing.T) {
 	}, true)
 	got := map[string]string{}
 	for _, attr := range attrs {
-		got[string(attr.Key)] = attr.Value.Emit()
+		got[string(attr.Key)] = attr.Value.String()
 	}
 
 	for key, want := range map[string]string{
