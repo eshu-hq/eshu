@@ -90,15 +90,24 @@ done < <(
 # Retained-console SQL fixtures are executable proof inputs. A fixture-only
 # change must select the same frontend gate in both GitHub and local parity.
 [[ -f "${frontend_workflow}" ]] || fail "missing ${frontend_workflow}"
+# Anchored to the whole line: an unanchored substring match also accepts
+# `# - "path"`, so commenting a filter line out - the most common way one gets
+# "temporarily" disabled - would keep this guard green.
+require_path_line() {
+	local haystack="$1" needle="$2" message="$3"
+	printf '%s\n' "${haystack}" |
+		rg --fixed-strings --line-regexp --quiet -- "      - \"${needle}\"" ||
+		fail "${message}: expected the exact line \`      - \"${needle}\"\` (six spaces, double-quoted)"
+}
+
 frontend_pull_request_paths="$(
 	sed -n '/^  pull_request:/,/^  workflow_dispatch:/p' "${frontend_workflow}"
 )"
 for sql_fixture in \
 	'scripts/lib/console-retained-create-proof-schema.sql' \
 	'scripts/lib/console-retained-verify-public-identity.sql'; do
-	printf '%s\n' "${frontend_pull_request_paths}" |
-		rg --fixed-strings --quiet -- "- \"${sql_fixture}\"" ||
-		fail "frontend pull_request paths omit retained SQL fixture (${sql_fixture})"
+	require_path_line "${frontend_pull_request_paths}" "${sql_fixture}" \
+		"frontend pull_request paths omit retained SQL fixture"
 
 	selection="$(
 		printf '%s\n' "${sql_fixture}" |
@@ -115,6 +124,152 @@ for sql_fixture in \
 		fail "frontend-console-checks selected for the wrong reason (${sql_fixture})"
 done
 
+# #5798: a PR touching only the Cloudflare Pages build-Node pin, its runbook,
+# or the console bundle-budget scripts/types previously ran no CI at all and
+# selected no local gate either. Assert each of the six inputs is present in
+# BOTH the workflow filter and every gate whose blast radius it falls in, AND
+# that it genuinely selects those gates (not string presence alone) - so
+# deleting or commenting out any one of the six from either source of truth
+# fails this test.
+frontend_site_gate="$(
+	sed -n '/^  - id: frontend-site$/,/^  - id:/p' "${registry}"
+)"
+frontend_console_checks_gate="$(
+	sed -n '/^  - id: frontend-console-checks$/,/^  - id:/p' "${registry}"
+)"
+frontend_eslint_gate="$(
+	sed -n '/^  - id: frontend-eslint$/,/^  - id:/p' "${registry}"
+)"
+
+select_explain() {
+	printf '%s\n' "$1" |
+		(cd "${repo_root}/go" && go run ./cmd/ci-gates select \
+			--registry "${registry}" --tier pre-push --paths-from - --explain)
+}
+
+for cloudflare_input in '.nvmrc' 'CLOUDFLARE_PAGES.md'; do
+	require_path_line "${frontend_pull_request_paths}" "${cloudflare_input}" \
+		"frontend pull_request paths omit Cloudflare Pages input"
+	require_path_line "${frontend_site_gate}" "${cloudflare_input}" \
+		"frontend-site registry triggers omit Cloudflare Pages input"
+
+	selection="$(select_explain "${cloudflare_input}")"
+	[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "1" ]] ||
+		fail "Cloudflare Pages input must select exactly one gate (${cloudflare_input})"
+	printf '%s\n' "${selection}" |
+		rg --quiet '^SELECTED[[:space:]]+frontend-site[[:space:]]' ||
+		fail "Cloudflare Pages input did not select frontend-site (${cloudflare_input})"
+	printf '%s\n' "${selection}" |
+		rg --fixed-strings --quiet -- "matched trigger \"${cloudflare_input}\" on path \"${cloudflare_input}\"" ||
+		fail "frontend-site selected for the wrong reason (${cloudflare_input})"
+done
+
+for bundle_input in \
+	'scripts/console-bundle-budget.mjs' \
+	'scripts/console-bundle-budget.d.mts' \
+	'scripts/console-bundle-report.mjs' \
+	'scripts/console-bundle-report.d.mts'; do
+	require_path_line "${frontend_pull_request_paths}" "${bundle_input}" \
+		"frontend pull_request paths omit console bundle-budget input"
+	require_path_line "${frontend_console_checks_gate}" "${bundle_input}" \
+		"frontend-console-checks registry triggers omit console bundle-budget input"
+
+	# The .mjs pair is ALSO linted: verify-eslint-config.sh runs `eslint .`
+	# repo-wide and eslint.config.js carries an explicit
+	# files: ["scripts/**/*.{js,mjs,cjs,ts,mts,cts}"] block. The .d.mts pair is
+	# not - eslint.config.js ignores "**/*.d.mts". Asserting a flat "exactly one
+	# gate" here would have cemented that missing eslint trigger as correct.
+	expected_gates=1
+	if [[ "${bundle_input}" == *.mjs ]]; then
+		expected_gates=2
+		require_path_line "${frontend_eslint_gate}" 'scripts/**/*.mjs' \
+			"frontend-eslint registry triggers omit the linted-scripts glob"
+	fi
+
+	selection="$(select_explain "${bundle_input}")"
+	[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "${expected_gates}" ]] ||
+		fail "console bundle-budget input must select exactly ${expected_gates} gate(s) (${bundle_input})"
+	printf '%s\n' "${selection}" |
+		rg --quiet '^SELECTED[[:space:]]+frontend-console-checks[[:space:]]' ||
+		fail "console bundle-budget input did not select frontend-console-checks (${bundle_input})"
+	printf '%s\n' "${selection}" |
+		rg --fixed-strings --quiet -- "matched trigger \"${bundle_input}\" on path \"${bundle_input}\"" ||
+		fail "frontend-console-checks selected for the wrong reason (${bundle_input})"
+	if [[ "${expected_gates}" -eq 2 ]]; then
+		printf '%s\n' "${selection}" |
+			rg --quiet '^SELECTED[[:space:]]+frontend-eslint[[:space:]]' ||
+			fail "linted bundle script did not select frontend-eslint (${bundle_input})"
+	fi
+done
+
+# Same #5798 class, found by sweeping the sibling scripts: root vite.config.ts
+# sets test.exclude with NO include override, so vitest's default pattern
+# collects scripts/marketing-review-runtime.test.mjs from the repo root - and
+# `npm test` is frontend-site's own command. All three files ran no CI and
+# selected no gate at all, four lines away from the pins this issue is about.
+for marketing_input in \
+	'scripts/marketing-review.mjs' \
+	'scripts/marketing-review-runtime.mjs' \
+	'scripts/marketing-review-runtime.test.mjs'; do
+	require_path_line "${frontend_pull_request_paths}" "${marketing_input}" \
+		"frontend pull_request paths omit marketing-review input"
+	require_path_line "${frontend_site_gate}" "${marketing_input}" \
+		"frontend-site registry triggers omit marketing-review input"
+
+	selection="$(select_explain "${marketing_input}")"
+	[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "2" ]] ||
+		fail "marketing-review input must select exactly two gates (${marketing_input})"
+	printf '%s\n' "${selection}" |
+		rg --quiet '^SELECTED[[:space:]]+frontend-site[[:space:]]' ||
+		fail "marketing-review input did not select frontend-site (${marketing_input})"
+	printf '%s\n' "${selection}" |
+		rg --fixed-strings --quiet -- "matched trigger \"${marketing_input}\" on path \"${marketing_input}\"" ||
+		fail "frontend-site selected for the wrong reason (${marketing_input})"
+	printf '%s\n' "${selection}" |
+		rg --quiet '^SELECTED[[:space:]]+frontend-eslint[[:space:]]' ||
+		fail "marketing-review input did not select frontend-eslint (${marketing_input})"
+done
+
+# The registry matches linted scripts as a CLASS ("scripts/**/*.mjs") while the
+# workflow has to enumerate them, because GitHub's ** semantics are not the Go
+# matcher's. Nothing else reconciles the two lists, so a new scripts/foo.mjs
+# would get the local gate and ZERO CI - #5798 again, on the CI side. Drive the
+# check off the tracked files so it also covers scripts that do not exist yet.
+# Materialize the list first: `set -e` does NOT propagate a failure out of a
+# process substitution, so `done < <(git ls-files ...)` would iterate zero times
+# and report PASS if git or rg failed - a silent false green in the one check
+# that reconciles the class glob against the enumerated workflow.
+linted_scripts="$(
+	cd "${repo_root}" && git ls-files scripts | rg '\.(mjs|cjs|js|ts|mts|cts)$' | sort -u
+)" || fail "could not enumerate tracked linted scripts (git/rg failed)"
+[[ -n "${linted_scripts}" ]] ||
+	fail "no tracked linted scripts enumerated - the parity check would be vacuous"
+while IFS= read -r linted_script; do
+	[[ -n "${linted_script}" ]] || continue
+	require_path_line "${frontend_pull_request_paths}" "${linted_script}" \
+		"frontend pull_request paths omit linted script"
+done <<<"${linted_scripts}"
+
+# The published Cloudflare Pages assets. Vite has no publicDir/root override, so
+# public/ is copied verbatim into build.outDir and shipped - a direct input to
+# frontend-site's own `npm run build`, yet it selected no gate at all. Asserted
+# as a class glob, and proven through a real asset so the glob cannot be vacuous.
+require_path_line "${frontend_pull_request_paths}" 'public/**' \
+	"frontend pull_request paths omit the published public assets"
+require_path_line "${frontend_site_gate}" 'public/**' \
+	"frontend-site registry triggers omit the published public assets"
+public_assets="$(cd "${repo_root}" && git ls-files public)" ||
+	fail "could not enumerate tracked public/ assets (git failed)"
+public_asset="${public_assets%%$'\n'*}"
+[[ -n "${public_asset}" ]] ||
+	fail "no tracked public/ asset found - the public/** assertion would be vacuous"
+selection="$(select_explain "${public_asset}")"
+[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "1" ]] ||
+	fail "a published public asset must select exactly one gate (${public_asset})"
+printf '%s\n' "${selection}" |
+	rg --quiet '^SELECTED[[:space:]]+frontend-site[[:space:]]' ||
+	fail "public asset did not select frontend-site (${public_asset})"
+
 # The exact-source auth CLI helper is shared by both fresh-stack auth gates.
 # CI-heavy gates are never selected in the local lane (select.go enforces that
 # before trigger matching), so prove parity directly in both sources of truth;
@@ -125,12 +280,10 @@ auth_mcp_gate="$(
 for auth_cli_path in \
 	'scripts/lib/auth_e2e_cli.sh' \
 	'scripts/test-auth-e2e-cli.sh'; do
-	printf '%s\n' "${auth_mcp_gate}" |
-		rg --fixed-strings --quiet -- "- \"${auth_cli_path}\"" ||
-		fail "auth-mcp-e2e registry triggers omit ${auth_cli_path}"
-	printf '%s\n' "${frontend_pull_request_paths}" |
-		rg --fixed-strings --quiet -- "- \"${auth_cli_path}\"" ||
-		fail "frontend pull_request paths omit ${auth_cli_path}"
+	require_path_line "${auth_mcp_gate}" "${auth_cli_path}" \
+		"auth-mcp-e2e registry triggers omit the auth CLI helper"
+	require_path_line "${frontend_pull_request_paths}" "${auth_cli_path}" \
+		"frontend pull_request paths omit the auth CLI helper"
 done
 
 # Every gate must declare a tier. Spot-check the enumerated tiers.

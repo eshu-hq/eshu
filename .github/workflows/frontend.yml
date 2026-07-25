@@ -36,6 +36,22 @@ on:
       - "vite.config.ts"
       - "tsconfig*.json"
       - "wrangler.jsonc"
+      # Cloudflare Pages build-Node pin and runbook (#5798). src/cloudflareConfig.test.ts
+      # asserts the two in lockstep (npm test, "Marketing site" job); a PR that
+      # touches only one of them must still run that assertion.
+      - ".nvmrc"
+      - "CLOUDFLARE_PAGES.md"
+      # Root vite.config.ts has no test `include` override, so vitest collects
+      # scripts/marketing-review-runtime.test.mjs from the repo root under
+      # `npm test` (the "Marketing site" job). It exercises the two sibling
+      # modules, so a change to any of the three must run this workflow (#5798).
+      - "scripts/marketing-review.mjs"
+      - "scripts/marketing-review-runtime.mjs"
+      - "scripts/marketing-review-runtime.test.mjs"
+      # Vite sets no publicDir/root, so public/ is copied verbatim into
+      # build.outDir ("site-dist") and wrangler.jsonc publishes that as the
+      # Cloudflare Pages artifact. It feeds `npm run build` directly (#5798).
+      - "public/**"
       - "eslint.config.js"
       - ".prettierrc.json"
       - ".prettierignore"
@@ -52,6 +68,15 @@ on:
       - "scripts/console-live-e2e-runtime.mjs"
       - "scripts/lib/console-retained-create-proof-schema.sql"
       - "scripts/lib/console-retained-verify-public-identity.sql"
+      # Console bundle-budget gate (#5798): `npm run console:build` (the
+      # "Console" job) runs both scripts, and apps/console/src/consoleBundleBudget.test.ts
+      # + consoleBundleReport.test.ts (the same job's `console:test`) import them
+      # directly, so a change to either — or to the adjacent hand-maintained type
+      # declarations the tests typecheck against — must re-run this gate.
+      - "scripts/console-bundle-budget.mjs"
+      - "scripts/console-bundle-budget.d.mts"
+      - "scripts/console-bundle-report.mjs"
+      - "scripts/console-bundle-report.d.mts"
       - ".pre-commit-config.yaml"
       - ".github/workflows/frontend.yml"
       # SSO auth E2E (#4971) surfaces — the browser gate, its runtime, the
