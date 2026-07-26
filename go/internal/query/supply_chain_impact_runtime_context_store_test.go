@@ -139,10 +139,14 @@ func TestAddSupplyChainRuntimeContextFactCICDEnvironment(t *testing.T) {
 func TestSupplyChainRuntimeContextRepositoryIDRejectsOCIPath(t *testing.T) {
 	t.Parallel()
 
+	// The reducer accepts a direct payload repository_id verbatim — including
+	// an OCI registry path — but an OCI path can never match a finding's git
+	// repository candidate, so the SQL never selects such a fact for a git
+	// candidate set. This test pins the mirror, not a rejection gate.
 	if got := supplyChainRuntimeContextRepositoryID(map[string]any{
 		"repository_id": "oci-registry://registry.example.com/demo",
-	}, ""); got != "" {
-		t.Errorf("repositoryID = %q, want \"\" for OCI path", got)
+	}, ""); got != "oci-registry://registry.example.com/demo" {
+		t.Errorf("repositoryID = %q, want verbatim direct payload id (mirror of reducer firstNonBlank direct)", got)
 	}
 }
 
@@ -151,6 +155,38 @@ func TestSupplyChainRuntimeContextRepositoryIDFromGitScope(t *testing.T) {
 
 	if got := supplyChainRuntimeContextRepositoryID(map[string]any{}, "git-repository-scope:repository:r_217415d9"); got != "repository:r_217415d9" {
 		t.Errorf("repositoryID = %q, want repository:r_217415d9", got)
+	}
+}
+
+func TestSupplyChainRuntimeContextRepositoryIDAcceptsNonPrefixedDirectID(t *testing.T) {
+	t.Parallel()
+
+	// Mirror the reducer (supplyChainWorkloadRepositoryID): a direct payload
+	// repository_id/repo_id is accepted verbatim — consumption-derived anchors
+	// use non-prefixed forms like github.com/org/repo or repo://acme/api, and
+	// rejecting them leaves an honest-empty runtime_context for facts the SQL
+	// already matched.
+	for _, id := range []string{"github.com/org/repo", "repo://acme/api", "repository:r_217415d9"} {
+		id := id
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+			if got := supplyChainRuntimeContextRepositoryID(map[string]any{"repository_id": id}, ""); got != id {
+				t.Errorf("repositoryID = %q, want %q", got, id)
+			}
+		})
+	}
+}
+
+func TestSupplyChainRuntimeContextRepositoryIDFromRelatedScopeIDs(t *testing.T) {
+	t.Parallel()
+
+	// Mirror the reducer: a fact scoped to a non-repository scope can carry
+	// its repository anchor only in related_scope_ids — scan it for both
+	// repository: and git-repository-scope:-prefixed entries.
+	if got := supplyChainRuntimeContextRepositoryID(map[string]any{
+		"related_scope_ids": []any{"scan-target-xyz", "git-repository-scope:repository:r_217415d9"},
+	}, "scan-target-xyz"); got != "repository:r_217415d9" {
+		t.Errorf("repositoryID = %q, want repository:r_217415d9 from related_scope_ids", got)
 	}
 }
 

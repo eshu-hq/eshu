@@ -38,13 +38,18 @@ var supplyChainImpactRuntimeContextFactKinds = []string{
 // selectSupplyChainImpactRuntimeContextQuery loads active runtime-context
 // facts whose repository anchor matches any candidate repository id. A fact
 // anchors a repository when ANY of these holds: its payload repository_id or
-// repo_id equals a candidate (service/platform/cicd facts), its scope_id
-// equals a candidate directly (git-source scopes), its scope_id equals a
+// repo_id equals a candidate (accepted verbatim — consumption-derived anchors
+// use non-prefixed forms like github.com/org/repo), its scope_id equals a
+// candidate directly (git-source scopes), its scope_id equals a
 // git-repository-scope:-prefixed candidate (workload_identity and
 // platform_materialization facts, whose scopes carry that prefix — verified
-// against the live corpus), or its payload scope_id equals either form. The
-// active-generation joins mirror the findings list query so a retracted or
-// stale-generation fact never resolves current context.
+// against the live corpus), its payload scope_id equals either form, or any
+// entry of its payload related_scope_ids equals either form (the reducer's
+// supplyChainWorkloadRepositoryID scans that array for exactly this anchor —
+// workload/deployment intents scoped to a non-repository scope carry the
+// repository only there). The active-generation joins mirror the findings
+// list query so a retracted or stale-generation fact never resolves current
+// context.
 //
 // Bounded by len(candidates) (page-sized, at most the enforced findings page
 // limit of supplyChainImpactFindingMaxLimit = 200) and 4 kinds — this is the
@@ -71,6 +76,8 @@ WHERE fact.fact_kind = ANY($1::text[])
         OR fact.scope_id IN (SELECT 'git-repository-scope:' || candidate FROM unnest($2::text[]) AS candidate)
         OR COALESCE(fact.payload->>'scope_id', '') = ANY($2::text[])
         OR COALESCE(fact.payload->>'scope_id', '') IN (SELECT 'git-repository-scope:' || candidate FROM unnest($2::text[]) AS candidate)
+        OR fact.payload->'related_scope_ids' ?| $2::text[]
+        OR fact.payload->'related_scope_ids' ?| (SELECT array_agg('git-repository-scope:' || candidate) FROM unnest($2::text[]) AS candidate)
       )`
 
 // ListSupplyChainImpactRuntimeContext resolves the CURRENT runtime context
@@ -235,24 +242,40 @@ func supplyChainRuntimeContextOutcomeAccepted(payload map[string]any) bool {
 }
 
 // supplyChainRuntimeContextRepositoryID resolves a fact's repository anchor
-// with the reducer's precedence: payload repository_id, then repo_id, then a
-// repository:-prefixed scope_id (payload or envelope). OCI-registry paths and
-// opaque scan scopes decode to "" — they can never join a finding's git
-// repository id, matching the #5464 anchor discipline.
+// mirroring the reducer's supplyChainWorkloadRepositoryID exactly: a direct
+// payload repository_id or repo_id is accepted verbatim (consumption-derived
+// anchors use non-prefixed forms like github.com/org/repo or repo://acme/api);
+// then a repository:- or git-repository-scope:-prefixed payload scope_id or
+// envelope scope; then related_scope_ids scanned for either prefixed form.
 func supplyChainRuntimeContextRepositoryID(payload map[string]any, scopeID string) string {
 	for _, key := range []string{"repository_id", "repo_id"} {
-		if value := strings.TrimSpace(StringVal(payload, key)); value != "" && strings.HasPrefix(value, "repository:") {
+		if value := strings.TrimSpace(StringVal(payload, key)); value != "" {
 			return value
 		}
 	}
 	for _, candidate := range []string{strings.TrimSpace(StringVal(payload, "scope_id")), strings.TrimSpace(scopeID)} {
-		if strings.HasPrefix(candidate, "repository:") {
-			return candidate
+		if repositoryID := repositoryIDFromRuntimeContextScope(candidate); repositoryID != "" {
+			return repositoryID
 		}
-		if rest, ok := strings.CutPrefix(candidate, "git-repository-scope:"); ok {
-			if trimmed := strings.TrimSpace(rest); trimmed != "" {
-				return trimmed
-			}
+	}
+	for _, relatedScopeID := range StringSliceVal(payload, "related_scope_ids") {
+		if repositoryID := repositoryIDFromRuntimeContextScope(relatedScopeID); repositoryID != "" {
+			return repositoryID
+		}
+	}
+	return ""
+}
+
+// repositoryIDFromRuntimeContextScope decodes one scope into a repository id,
+// mirroring the reducer's repositoryIDFromReducerScope: repository:-prefixed
+// scopes pass through, git-repository-scope:-prefixed scopes are stripped.
+func repositoryIDFromRuntimeContextScope(scopeID string) string {
+	if strings.HasPrefix(scopeID, "repository:") {
+		return scopeID
+	}
+	if rest, ok := strings.CutPrefix(scopeID, "git-repository-scope:"); ok {
+		if trimmed := strings.TrimSpace(rest); trimmed != "" {
+			return trimmed
 		}
 	}
 	return ""
