@@ -82,12 +82,28 @@ consumer was structurally forced onto the conflating join. This branch persists
 `build_provenance_repository_ids` and narrows on it.
 
 Persisting it is an additive reducer-publication field, not a governed contract
-change: `specs/fact-kind-registry.v1.yaml` governs collector kinds
-(`oci_registry.*`), and no `reducer_*` publication kind has a registry entry or
-`payload_schema_overrides` schema. The #4573 payload-usage manifest is derived
-from typed `factschema.Decode*` seams; this consumer's read is explicitly
-raw-payload and out of that scope. No query or OpenAPI response surfaces the new
-key.
+change. Some `reducer_*` kinds ARE governed — the `reducer_derived` family
+(`specs/fact-kind-registry.v1.yaml:137-148`) registers seven of them with
+`payload_schema_overrides` schemas — so the general rule "reducer kinds are
+ungoverned" is false and is not the argument here. The specific kind is:
+`containerImageIdentityFactKind` is `reducer_container_image_identity`
+(`container_image_identity_writer.go:17`), which appears in the registry only
+inside a prose comment and in no family's `kinds:` list, so it has no schema to
+diff against. The #4573 payload-usage manifest is derived from typed
+`factschema.Decode*` seams; this consumer's read is explicitly raw-payload and
+out of that scope. No query or OpenAPI response surfaces the new key —
+`decodeContainerImageIdentityRow` reads an explicit field list.
+
+**What this does and does not guard.** Narrowing only ever *reduces* a match
+set, and both callers apply it as `if len(repoMatches) > 0 { matches =
+repoMatches }`. A digest with exactly one identity row therefore still reaches
+`case 1` and promotes to `exact` whether or not that row's build provenance
+names the run's repository: narrowing returns zero, the caller keeps the
+unfiltered single row, and the promotion happens anyway. That is pre-existing
+behaviour which this change neither introduces nor worsens, but it bounds the
+fix — #5823's protection binds only on digests with two or more candidate rows.
+`TestCICDImageMatchesForRepositoryDoesNotGuardSingleRowDigests` pins it so the
+limitation cannot be quietly forgotten.
 
 **Mixed-generation safety.** Identity facts published before this change carry
 no build-provenance key at all. Reading an absent key as "built nothing" would
@@ -99,42 +115,99 @@ directions fail conservatively toward `ambiguous`, never toward a false `exact`.
 The key is therefore always written, even when empty — an omitted key on an
 empty set would be indistinguishable from a legacy fact.
 
-**Producer asymmetry closed.** `applySLSADigestRevision` appended its anchor's
-repositories to `BuildProvenanceRepositoryIDs`; `applyCIRunDigestRevision`
-appended them only to `SourceRepositoryIDs`. A competing decision that won the
-upsert therefore carried its genuine builder in the broad field alone and had no
-build provenance at all — the same gap class #5808 fixed one path over. The
-append now sits before the source-revision tier guard, because build provenance
-is a set, not a winner-take-all tier: a CI run that reported producing a digest
-is build evidence for its repository regardless of which tier won the revision
-race or whether a commit resolved.
+**Producer asymmetry deliberately NOT closed here.** `applySLSADigestRevision`
+appends its digest anchor's repositories to `BuildProvenanceRepositoryIDs`;
+`applyCIRunDigestRevision` appends them only to `SourceRepositoryIDs`. A
+competing decision that wins the upsert therefore carries its genuine builder in
+the broad field alone — the same gap class #5808 fixed one path over, and a real
+defect.
+
+It was implemented on this branch and then reverted, because closing it here
+contradicts the reason the projection above was withdrawn.
+`BuildProvenanceRepositoryIDs` is the sole gate for two live graph writers:
+`containerImageBuiltFromRows` and `containerImageDerivedFromRows`. Widening it
+makes more scopes emit the same `(digest, repository)` pair — and
+`recordCIRunDigestAnchor` exists precisely to handle "a competing decision raised
+by a deploy repo's content_entity for the same image". Since
+`projectContainerImageBuiltFromEdges` retracts per
+`(scope_id, generation_id, evidence_source)` while the writer's `MERGE` matches
+on `(start, end, type)` alone, two scopes emitting the same pair means one
+scope's retract deletes an edge the other still supports. That is #5827,
+amplified inside the one domain that survived this branch — the B-12 snapshot's
+rc-164 already records this digest carrying 11 rows across scopes.
+
+Landing it would make the graph worse today to make a correlation sharper. It is
+tracked as **#5829**, blocked on #5827.
+
+The consequence of leaving it open is bounded and conservative: a
+competing-decision row whose builder reaches only `source_repository_ids`
+narrows to nothing, so the caller keeps the unfiltered set and the correlation
+lands `ambiguous`. It never lands a false `exact`.
 
 ## Verification
 
 Behavior change, so the proof is the intended delta, not identity with the old
-output. Each test below fails on the parent commit and passes here.
+output.
+
+The red-then-green proof is
+`TestCICDNarrowingSelectsTheBuilderFromPublishedFacts`. It is written to be
+base-portable — it drives real published payloads through
+`buildCICDImageIdentityIndex` rather than constructing the internal struct — so
+it compiles and runs unchanged against `origin/main`. That matters: the
+struct-literal tests below cannot run against `origin/main` at all, because the
+fields they set do not exist there, and a compile failure is not a regression
+proof.
 
 ```
-$ cd go && go test ./internal/reducer \
-    -run 'CICDImageMatches|BuildCICDImageIdentityIndex|ContainerImageIdentityPayload|ApplyCIRunDigestRevision' \
-    -count=1 -v
+$ git worktree add --detach <tmp> origin/main
+$ cp go/internal/reducer/ci_cd_run_correlation_narrowing_regression_test.go <tmp>/go/internal/reducer/
+$ cd <tmp>/go && go test ./internal/reducer -run TestCICDNarrowingSelectsTheBuilderFromPublishedFacts -count=1
+--- FAIL: TestCICDNarrowingSelectsTheBuilderFromPublishedFacts (0.00s)
+    narrowing for the builder = 0 rows ([]reducer.cicdImageIdentity{}), want exactly the
+    identity-builder row; comparing the identity's OCI repository_id against a canonical
+    repository:r_... id never matches (#5766)
+FAIL	github.com/eshu-hq/eshu/go/internal/reducer	1.368s
+
+$ cd go && go test ./internal/reducer -run TestCICDNarrowingSelectsTheBuilderFromPublishedFacts -count=1
+ok  	github.com/eshu-hq/eshu/go/internal/reducer	1.123s
+```
+
+The remaining tests are unit coverage for the new predicate, the decode seam,
+the payload emission, and the previously-untested second caller. They are new
+code paths rather than red-then-green regressions, and are listed as such.
+
+```
+$ cd go && go test ./internal/reducer -count=1 -v \
+    -run 'CICDImageMatches|CICDNarrowingSelects|BuildCICDImageIdentityIndex|ContainerImageIdentityPayload|ClassifyCICDWorkflowImage'
+--- PASS: TestCICDNarrowingSelectsTheBuilderFromPublishedFacts                 (red on origin/main, above)
 --- PASS: TestCICDImageMatchesForRepositoryNarrowsOnGitSourceRepositories      (#5766)
---- PASS: TestCICDImageMatchesForRepositoryIgnoresOCIRegistryRepositoryID      (#5766)
+--- PASS: TestCICDImageMatchesForRepositoryIgnoresOCIRegistryPaths            (#5766)
 --- PASS: TestCICDImageMatchesForRepositoryRejectsReferenceOnlyRepository      (#5823)
 --- PASS: TestCICDImageMatchesForRepositorySelectsBuildProvenanceRow           (#5823)
+--- PASS: TestCICDImageMatchesForRepositoryDoesNotGuardSingleRowDigests        (#5823 bound)
 --- PASS: TestCICDImageMatchesForRepositoryFallsBackForLegacyPayloads          (mixed generation)
 --- PASS: TestCICDImageMatchesForRepositoryDoesNotFallBackWhenKeyPresent       (mixed generation)
 --- PASS: TestContainerImageIdentityPayloadPersistsBuildProvenanceRepositoryIDs
 --- PASS: TestContainerImageIdentityPayloadEmitsEmptyBuildProvenanceKey
 --- PASS: TestBuildCICDImageIdentityIndexReadsBuildProvenance
---- PASS: TestApplyCIRunDigestRevisionConfersBuildProvenance
-ok  	github.com/eshu-hq/eshu/go/internal/reducer	1.131s
+--- PASS: TestClassifyCICDWorkflowImageEvidenceNarrowsMultipleRowsToExact      (second caller)
+--- PASS: TestClassifyCICDWorkflowImageEvidenceStaysAmbiguousForReferenceOnly  (second caller)
+--- PASS: TestClassifyCICDWorkflowImageEvidenceFallbackStaysDerived            (second caller)
+--- PASS: TestClassifyCICDWorkflowImageEvidenceFallsBackForLegacyPayloads      (second caller)
+--- PASS: TestClassifyCICDWorkflowImageEvidenceHandlesNoMatch                  (second caller)
+ok  	github.com/eshu-hq/eshu/go/internal/reducer	1.136s
 ```
 
 `TestCICDImageMatchesForRepositoryRejectsReferenceOnlyRepository` is the
 inversion of a test this branch previously added to pin the false positive as
 unavoidable. Its failure message named the condition under which it should be
 inverted; that condition is now met.
+
+The five `ClassifyCICDWorkflowImageEvidence` tests cover a call site that had no
+test file at all. Narrowing was a dead no-op there on `origin/main` for the same
+namespace reason, so it always saw the unfiltered match set; it is live now and
+can move a decision between `ambiguous`, `derived`, and `exact`, which also
+moves `CanonicalWrites`. That transition was previously unasserted.
 
 Cross-package consumers and the full owning packages:
 

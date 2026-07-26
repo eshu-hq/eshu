@@ -87,7 +87,7 @@ The spine domains get a graph-projection policy in this order:
 | --- | --- | --- | --- | --- |
 | ci_cd_run_correlation | FEEDS via container_image_identity (single-owner BUILT_FROM); Postgres-only read-model (disclosed) | N/A (rescinded, PR #5824) | N/A | #5428 (rescinded), #5827 |
 | ci.job / ci.pipeline_definition / ci.warning | DISCLOSURE (registry comments) | N/A | N/A | #5428 |
-| container_image_identity | PROJECT (exact_digest, source_repository_ids non-empty) | `reducer/container-image-identity` | `BUILT_FROM` (same edge, distinct source) | #5457 |
+| container_image_identity | PROJECT (exact_digest, BuildProvenanceRepositoryIDs non-empty) | `reducer/container-image-identity` | `BUILT_FROM` (single owner) | #5457, gate narrowed by #5796 |
 | container_image_identity base images | PROJECT (exact_digest on BOTH endpoints, single distinct base per repository) | `reducer/container-image-base-image` | `DERIVED_FROM` (ContainerImage → ContainerImage) | #5460 |
 | container_image_identity workload/service ids | POSTGRES-ONLY (policy v1) | N/A | N/A | — |
 | package ownership correlation | PROJECT (exact/derived, non-empty source ids) | `reducer/package-ownership` | `PUBLISHES` (Repository → Package/PackageVersion) | #5457 |

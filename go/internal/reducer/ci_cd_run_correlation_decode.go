@@ -248,15 +248,16 @@ func ensureCICDRunEvidence(runs map[string]*cicdRunEvidence, key string) *cicdRu
 // from the (out-of-scope, raw-payload) containerImageIdentityFactKind facts
 // buildCICDImageIdentityIndex indexes by digest.
 type cicdImageIdentity struct {
-	factID       string
-	repositoryID string
+	factID string
 	// sourceRepositoryIDs carries the git repositories the identity decision
-	// attributed the image to (CI-run/SLSA/source-label evidence). It is the
-	// only joinable anchor for repository narrowing: repositoryID above is the
-	// OCI registry's own identifier ("oci-registry://ghcr.io/org/repo"), a
-	// namespace disjoint from the canonical "repository:r_..." ids a ci.run
-	// carries, so comparing against it never matches (#5766, same trap #5464
-	// found on the supply-chain side).
+	// attributed the image to (CI-run/SLSA/source-label evidence), whether as
+	// build evidence or as a mere reference. The identity payload's own
+	// repository_id is deliberately NOT decoded here: it is the OCI registry's
+	// identifier ("oci-registry://ghcr.io/org/repo"), a namespace disjoint from
+	// the canonical "repository:r_..." ids a ci.run carries, so narrowing
+	// against it silently matched nothing (#5766, the same trap #5464 found on
+	// the supply-chain side). Not decoding it makes that regression
+	// structurally unreachable rather than merely tested against.
 	sourceRepositoryIDs []string
 	// buildProvenanceRepositoryIDs carries only the repositories the identity
 	// decision attributed BUILD evidence to, the narrow set #5796 established
@@ -283,7 +284,6 @@ func buildCICDImageIdentityIndex(envelopes []facts.Envelope) map[string][]cicdIm
 		_, buildProvenanceKeyPresent := envelope.Payload["build_provenance_repository_ids"]
 		index[digest] = append(index[digest], cicdImageIdentity{
 			factID:              envelope.FactID,
-			repositoryID:        payloadString(envelope.Payload, "repository_id"),
 			sourceRepositoryIDs: payloadOrderedStrings(envelope.Payload, "source_repository_ids"),
 			buildProvenanceRepositoryIDs: payloadOrderedStrings(
 				envelope.Payload, "build_provenance_repository_ids",

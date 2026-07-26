@@ -22,13 +22,11 @@ func TestCICDImageMatchesForRepositoryNarrowsOnGitSourceRepositories(t *testing.
 	matches := []cicdImageIdentity{
 		{
 			factID:              "identity-built-by-this-repo",
-			repositoryID:        "oci-registry://ghcr.io/eshu-hq/demo",
 			sourceRepositoryIDs: []string{runRepositoryID},
 			digest:              "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
 		},
 		{
 			factID:              "identity-from-another-repo",
-			repositoryID:        "oci-registry://ghcr.io/eshu-hq/demo",
 			sourceRepositoryIDs: []string{"repository:r_someone_else"},
 			digest:              "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
 		},
@@ -43,24 +41,45 @@ func TestCICDImageMatchesForRepositoryNarrowsOnGitSourceRepositories(t *testing.
 	}
 }
 
-// TestCICDImageMatchesForRepositoryIgnoresOCIRegistryRepositoryID pins the
-// other half of #5766: an OCI registry path must never satisfy narrowing, even
-// when it is byte-equal to the value passed in. Matching on it produced a
-// non-blank anchor that no workload/service/deployment record can ever join
-// (the #5463 dead-anchor failure mode).
-func TestCICDImageMatchesForRepositoryIgnoresOCIRegistryRepositoryID(t *testing.T) {
+// TestCICDImageMatchesForRepositoryIgnoresOCIRegistryPaths pins the other half
+// of #5766: an OCI registry path must never satisfy narrowing. Matching on one
+// produces a non-blank anchor that no workload/service/deployment record can
+// ever join (the #5463 dead-anchor failure mode).
+//
+// The identity payload's own repository_id is no longer decoded at all, so the
+// original regression is now structurally unreachable. This asserts the
+// remaining reachable shape: an OCI path that leaks into an identity's
+// attributed-repository list still never narrows a canonical run repository,
+// and passing an OCI path as the run's own repository narrows nothing either.
+func TestCICDImageMatchesForRepositoryIgnoresOCIRegistryPaths(t *testing.T) {
 	t.Parallel()
 
-	const ociPath = "oci-registry://ghcr.io/eshu-hq/demo"
+	const (
+		ociPath         = "oci-registry://ghcr.io/eshu-hq/demo"
+		runRepositoryID = "repository:r_69256c06"
+		digest          = "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+	)
 
 	matches := []cicdImageIdentity{{
-		factID:       "identity-oci-only",
-		repositoryID: ociPath,
-		digest:       "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+		factID:                       "identity-oci-only",
+		sourceRepositoryIDs:          []string{ociPath},
+		buildProvenanceRepositoryIDs: []string{ociPath},
+		buildProvenanceKeyPresent:    true,
+		digest:                       digest,
 	}}
 
-	if got := cicdImageMatchesForRepository(matches, ociPath); len(got) != 0 {
-		t.Fatalf("cicdImageMatchesForRepository() = %d matches, want 0 — an OCI registry path is not a joinable git anchor: %#v", len(got), got)
+	if got := cicdImageMatchesForRepository(matches, runRepositoryID); len(got) != 0 {
+		t.Fatalf("cicdImageMatchesForRepository() = %#v, want 0 — an OCI registry path never joins a canonical run repository", got)
+	}
+
+	legacy := []cicdImageIdentity{{
+		factID:              "identity-legacy-oci-only",
+		sourceRepositoryIDs: []string{ociPath},
+		digest:              digest,
+	}}
+
+	if got := cicdImageMatchesForRepository(legacy, runRepositoryID); len(got) != 0 {
+		t.Fatalf("cicdImageMatchesForRepository() = %#v, want 0 on the legacy fallback path too", got)
 	}
 }
 
@@ -209,5 +228,45 @@ func TestCICDImageMatchesForRepositoryDoesNotFallBackWhenKeyPresent(t *testing.T
 	if got := cicdImageMatchesForRepository(matches, deployingRepo); len(got) != 0 {
 		t.Fatalf("cicdImageMatchesForRepository() = %#v, want 0: one row carrying the "+
 			"build-provenance key proves the generation publishes it, so no fallback", got)
+	}
+}
+
+// TestCICDImageMatchesForRepositoryDoesNotGuardSingleRowDigests bounds what
+// #5823 actually protects, so the disclosure does not oversell it.
+//
+// Narrowing only ever REDUCES a match set; both callers apply it as
+// "if len(repoMatches) > 0 { matches = repoMatches }". A digest with exactly
+// one identity row therefore reaches `case 1` and promotes to exact whether or
+// not that row's build provenance names the run's repository — narrowing
+// returns zero, the caller keeps the unfiltered single row, and the promotion
+// happens anyway. That is pre-existing behavior this change neither introduces
+// nor worsens, but it means #5823's protection binds only on digests with two
+// or more candidate rows.
+func TestCICDImageMatchesForRepositoryDoesNotGuardSingleRowDigests(t *testing.T) {
+	t.Parallel()
+
+	const (
+		digest        = "sha256:1010101010101010101010101010101010101010101010101010101010101010"
+		deployingRepo = "repository:r_deploys_only"
+	)
+
+	matches := []cicdImageIdentity{{
+		factID:                       "sole-identity-built-elsewhere",
+		sourceRepositoryIDs:          []string{deployingRepo},
+		buildProvenanceRepositoryIDs: []string{"repository:r_actually_built"},
+		buildProvenanceKeyPresent:    true,
+		digest:                       digest,
+	}}
+
+	got := cicdImageMatchesForRepository(matches, deployingRepo)
+	if len(got) != 0 {
+		t.Fatalf("cicdImageMatchesForRepository() = %#v, want 0", got)
+	}
+	// The caller keeps the unfiltered set when narrowing yields nothing, so the
+	// sole row still reaches `case 1`. Assert that shape explicitly: a future
+	// change that makes narrowing authoritative must update this test and the
+	// disclosure together.
+	if len(matches) != 1 {
+		t.Fatalf("unfiltered match set = %d rows, want the single row the caller falls back to", len(matches))
 	}
 }
