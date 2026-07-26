@@ -121,6 +121,31 @@ func (s ClaimedSource) appendDeploymentEnvelopes(
 		recordSpanError(observeSpan, err)
 		return nil, false, fmt.Errorf("normalize github deployments snapshot: %w", err)
 	}
+	// A deployment whose own status list was truncated is a distinct gap from a
+	// truncated deployments list: the deployment IS present, but the transition
+	// that would have carried its final state may be missing, so the correlation
+	// can resolve to a stale environment state. Surface it rather than leaving
+	// the signal computed and unread.
+	for _, snapshot := range page.Snapshots {
+		if !snapshot.StatusesPartial {
+			continue
+		}
+		deploymentID, idErr := numericProviderID(snapshot.Deployment["id"])
+		if idErr != nil {
+			return envelopes, false, idErr
+		}
+		warning, warningErr := cicdrun.GitHubActionsDeploymentWarningEnvelope(
+			deploymentCtx,
+			"deployment:"+deploymentID+":statuses:partial",
+			"deployment_statuses_truncated",
+			"deployment "+deploymentID+" status window was truncated; a later transition may be missing",
+		)
+		if warningErr != nil {
+			return envelopes, false, warningErr
+		}
+		envelopes = append(envelopes, warning)
+	}
+
 	if page.Truncated {
 		warning, warningErr := cicdrun.GitHubActionsDeploymentWarningEnvelope(deploymentCtx, "deployments:partial", "deployments_truncated",
 			"additional deployments exist beyond the collected window; increase max_deployments or rely on idempotent re-collection to catch up")

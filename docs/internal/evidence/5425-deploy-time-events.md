@@ -116,7 +116,10 @@ the cost of the new code merely being present):
 | allocs/op | 9,821 | 9,821 | same |
 
 Time deltas are +0.14% and +0.50%, inside run-to-run spread on both sides
-(before 165.76–168.58 ms, after 164.99–170.02 ms). **allocs/op is identical on
+(before 165.76–168.58 ms, after 164.99–170.02 ms). An independent re-run of both
+benchmarks resolved the same two deltas NEGATIVE (-0.72% and -0.20%, branch
+faster), which is the clearest statement that these are noise and not a
+regression: the sign is not stable between samples. **allocs/op is identical on
 both benchmarks**, which is the load-bearing number: the extra bytes come from
 the wider evidence struct, not from new allocations per fact.
 
@@ -130,9 +133,11 @@ where every run shares one sha is quadratic:
 | B/op | 10,963,045 | same |
 | allocs/op | 21,529 | same |
 
-300,000 sha comparisons in 14.05 ms, stable across five runs
-(14.034–14.063 ms). A corpus where runs carry distinct shas is linear; this is
-the number worth knowing because it is the ceiling.
+300,000 sha comparisons in 14.05 ms. An independent re-run on the same machine
+reproduced the median within 0.05% (14,055,864 ns) with a wider spread,
+13.965–14.114 ms, so treat roughly 1% as the honest run-to-run band rather than
+the 0.2% a single sample suggests. A corpus where runs carry distinct shas is
+linear; this is the number worth knowing because it is the ceiling.
 
 No-Observability-Change: no new metric names. The truncation path reuses the
 existing partial-generation counter with a new reason label, and the unanchored

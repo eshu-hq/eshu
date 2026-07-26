@@ -178,3 +178,53 @@ func TestClaimedSourceEmitsUnanchoredDeploymentWarning(t *testing.T) {
 		t.Fatalf("no ci.warning with reason=deployment_unanchored among %d warnings: %#v", len(warnings), warnings)
 	}
 }
+
+// A deployment whose own status window was truncated is a different gap from a
+// truncated deployments list: the deployment is present, but the transition
+// carrying its final state may be missing, so the correlation can settle on a
+// stale environment state. The signal was computed and never read until review
+// caught it; this pins that it now reaches a durable warning.
+func TestClaimedSourceWarnsOnTruncatedDeploymentStatusWindow(t *testing.T) {
+	t.Parallel()
+
+	const sharedSHA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+	client := fakeDeploymentClient{
+		fakeClient: fakeClient{page: RunPage{Snapshots: []RunSnapshot{{
+			Run: map[string]any{
+				"id":       1001,
+				"head_sha": sharedSHA,
+				"repository": map[string]any{
+					"full_name": "example/repo",
+					"html_url":  "https://github.com/example/repo",
+				},
+			},
+		}}}},
+		deploymentPage: DeploymentPage{Snapshots: []DeploymentSnapshot{{
+			Deployment: map[string]any{
+				"id":          9001,
+				"sha":         sharedSHA,
+				"environment": "production",
+			},
+			Statuses:        []map[string]any{{"id": 77001, "state": "pending"}},
+			StatusesPartial: true,
+		}}},
+	}
+	source := newDeploymentClaimedSource(t, client)
+
+	collected, ok, err := source.NextClaimed(context.Background(), claimDeploymentWorkItem())
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+
+	warnings := filterFactKind(drainFacts(t, collected.Facts), facts.CICDWarningFactKind)
+	for _, warning := range warnings {
+		if warning.Payload["reason"] == "deployment_statuses_truncated" {
+			return
+		}
+	}
+	t.Fatalf("no ci.warning with reason=deployment_statuses_truncated among %d warnings: %#v", len(warnings), warnings)
+}
