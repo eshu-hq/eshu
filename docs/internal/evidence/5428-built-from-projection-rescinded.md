@@ -245,7 +245,37 @@ Neither pinned floor asserts the identity payload's key set: the
 declining to pin an outcome value. The corpus's builder row gains
 `build_provenance_repository_ids` through the same `ci.artifact` join that
 already gave it `source_repository_ids`, so narrowing selects the same single
-row and both floors hold. The gate run recording that result is cited in the PR.
+row and both floors hold.
+
+Run against this branch at `06f6c2b54` (the commit immediately preceding this
+evidence text; that commit adds documentation only and changes no runtime path):
+
+```
+$ COMPOSE_PROJECT_NAME=bpj5823gate3 GATE_COLLECTOR_SETTLE_SECONDS=75 \
+  ESHU_POSTGRES_PORT=15497 NEO4J_BOLT_PORT=17697 NEO4J_HTTP_PORT=17497 \
+  GATE_API_PORT=18897 GATE_MCP_PORT=18997 \
+  bash scripts/verify-golden-corpus-gate.sh
+
+cassette facts landed: 18 credentialed collector sources
+summary: 500 pass, 0 required-fail, 2 advisory-warn
+=== PASS: B-7 golden corpus gate green (elapsed 160s, budget ceiling 1800s) ===
+```
+
+Both advisory warnings are phase-timing only, and neither is a truth assertion:
+
+```
+[WARN] phase_collect: observed=75.0s, baseline=20.0s, ceiling=25.0s
+[WARN] phase_maintenance_drains: observed=11.0s, baseline=5.0s, ceiling=10.0s
+```
+
+`phase_collect` is the collector settle sleep, so its 75s is exactly the
+`GATE_COLLECTOR_SETTLE_SECONDS=75` override above, not a pipeline slowdown. The
+override was needed because at the default 20s one collector
+(`vulnerability-intelligence`) had not written its first commit on this machine;
+the gate's own liveness check confirmed the process was still alive rather than
+crashed, so this is host contention, not a pipeline defect.
+`phase_maintenance_drains` is 1s over its ceiling on a host also running the
+review workload.
 
 ## Open issues this work produced
 
