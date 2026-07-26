@@ -298,6 +298,58 @@ Full command: `cd go && go test ./internal/reducer/ ./internal/mcp/
 ./internal/storage/cypher/ -count=1` — all green
 (`reducer 3.5s`, `mcp 1.9s`, `storage/cypher 1.8s`).
 
+### Undeclared side effect: the SLSA config-source path's semantics also changed
+
+Collapsing `matchOCIConfigSourceRepositoryByDistinctRepository` into
+`matchOCIConfigSourceRepository` (the "Fix" section above) did not only widen
+the OCI config source **label** path. `matchOCIConfigSourceRepository` is also
+the matcher `extractSLSADigestAnchorsWithQuarantine`
+(`container_image_identity_slsa.go:156`) calls to resolve a verified SLSA
+provenance predicate's config-source URL to a repository. Before this PR, that
+call went through the raw-fact-count form (`len(active) != 1`); after the
+collapse it goes through the dedupe-by-`RepositoryID` form. So the SLSA path
+silently gained the identical fix the label path got: a repository carrying
+two active `repository` facts for the same remote no longer makes an
+otherwise-unambiguous, passed-signature SLSA config source look ambiguous.
+
+This is the correct behavior — it repairs the exact same #5801 defect class
+(raw fact count standing in for repository identity) for the domain's
+**strongest** evidence tier, verified SLSA provenance, which per the #5808
+evidence note above already outranks the label and the CI-run join and
+already contributes to both `SourceRepositoryIDs` and
+`BuildProvenanceRepositoryIDs`. Leaving the SLSA path on the old raw-fact-count
+form while fixing the label path would have been the inconsistent outcome:
+the weaker label tier would tolerate duplicate repository facts but the
+stronger, signature-verified tier would not.
+
+It was, however, an undeclared side effect of the function collapse rather
+than a deliberately scoped change, and every pre-existing SLSA test
+(`container_image_identity_slsa_test.go`) constructs only one `repository`
+fact per case, so the raw-count-vs-dedupe distinction was unreachable in any
+existing test. Two new tests close that gap:
+
+- `TestApplySLSADigestRevisionSourceRepositorySurvivesDuplicateRepositoryFacts`
+  — a verified SLSA provenance whose config source names a repository backed
+  by TWO active `repository` facts for the same `RepositoryID`. Confirmed by
+  reverting `matchOCIConfigSourceRepository` to `origin/main`'s raw-fact-count
+  body and re-running: the test fails with `SourceRepositoryIDs =
+  []string(nil), want repo://acme/payments-api` — proving the test is
+  reachable specifically through the merged matcher and would have caught this
+  as a regression had the collapse gone the other way. The production file was
+  restored immediately after and verified byte-identical via `git diff`
+  (empty diff).
+- `TestApplySLSADigestRevisionSourceRepositoryStaysAmbiguousForTwoDistinctRepositories`
+  — the negative half: two DISTINCT repositories claiming the same remote must
+  still resolve to neither, on the SLSA path exactly as on the label path.
+  This one already passed against the reverted matcher too (both the old and
+  new forms reject two distinct repositories), so it is a forward-looking
+  regression guard rather than a behavior-change pin.
+
+Both tests live in `container_image_identity_slsa_test.go`, mirroring
+`container_image_identity_provenance_test.go`'s existing
+`TestBuildContainerImageIdentityDecisionsSourceLabelSurvivesDuplicateRepositoryFacts`
+/ `...StaysAmbiguousForTwoDistinctRepositories` pair for the label path.
+
 ## No-Regression Evidence
 
 No-Regression Evidence: the #5801 change is in-process reducer classification

@@ -51,6 +51,22 @@ require_workflow_path "projector runtime"              "go/cmd/projector/**"
 require_workflow_path "reducer runtime"                "go/cmd/reducer/**"
 require_workflow_path "api query surface"              "go/cmd/api/**"
 
+# #5817 P2 review: verify-golden-corpus-gate.sh sources FOUR
+# scripts/lib/golden-corpus-*.sh helper libs (fixtures, phase-timings,
+# dead-code-fixtures, readiness). Before this, the paths filter had no
+# scripts/lib/** entry at all, so a PR editing only one of those libs (e.g. a
+# bash cleanup that inverts host_tcp_port_open's return value) would never
+# trigger this gate -- a false green. Assert the glob entry is present, and
+# that every golden-corpus lib file actually on disk still matches its naming
+# convention, so a future rename or an added lib outside that convention
+# reopens the gap loudly here instead of silently in CI.
+require_workflow_path "golden-corpus lib helpers (#5817)" "scripts/lib/golden-corpus-*.sh"
+shopt -s nullglob
+golden_corpus_libs=("${repo_root}"/scripts/lib/golden-corpus-*.sh)
+shopt -u nullglob
+[[ "${#golden_corpus_libs[@]}" -ge 4 ]] \
+	|| fail "expected at least 4 scripts/lib/golden-corpus-*.sh files (fixtures, phase-timings, dead-code-fixtures, readiness), found ${#golden_corpus_libs[@]}: ${golden_corpus_libs[*]-none}"
+
 # Parses under bash -n.
 bash -n "${script}" || fail "verify-golden-corpus-gate.sh has a syntax error"
 bash -n "${fixture_lib}" || fail "golden-corpus-fixtures.sh has a syntax error"
