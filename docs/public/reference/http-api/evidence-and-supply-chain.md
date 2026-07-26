@@ -937,8 +937,9 @@ deployment or service-catalog facts. The findings list also returns a labeled
 `runtime_context` block resolved from the repository's current active workload,
 service-catalog, platform, and CI/CD facts at read time. The `workload_id`,
 `service_id`, and `environment` filters use those same current repository
-mappings, while retaining baked reducer values for compatibility across rolling
-upgrades. For a scoped caller, runtime mappings must also fall inside the
+mappings exclusively; reducer-baked arrays remain historical evidence but
+cannot satisfy a current-runtime filter after a redeploy, retraction, or
+promotion. For a scoped caller, runtime mappings must also fall inside the
 caller's repository or ingestion-scope grant before they can affect filter
 membership or appear in `runtime_context`. The filters do not infer aliases
 from repository, tag, workload, service, or environment names.

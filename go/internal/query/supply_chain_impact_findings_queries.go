@@ -66,9 +66,6 @@ WHERE fact.fact_kind = $1
   AND ($8 = '' OR LOWER(fact.payload->>'ecosystem') = LOWER($8))
 ` + supplyChainImpactRuntimeFilterPredicate(
 	"fact.payload->>'repository_id'",
-	"fact.payload->'service_ids'",
-	"fact.payload->'workload_ids'",
-	"fact.payload->'environments'",
 	"$9",
 	"$10",
 	"$11",
@@ -194,9 +191,6 @@ filtered AS NOT MATERIALIZED (
       AND ($8 = '' OR LOWER(w.ecosystem) = LOWER($8))
 ` + supplyChainImpactRuntimeFilterPredicate(
 	"w.repository_id",
-	"w.service_ids",
-	"w.workload_ids",
-	"w.environments",
 	"$9",
 	"$10",
 	"$11",

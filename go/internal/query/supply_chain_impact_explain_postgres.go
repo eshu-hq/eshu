@@ -208,9 +208,6 @@ WHERE fact.fact_kind = $1
   AND ($7 = '' OR fact.payload->>'subject_digest' = $7)
 ` + supplyChainImpactRuntimeFilterPredicate(
 	"fact.payload->>'repository_id'",
-	"fact.payload->'service_ids'",
-	"fact.payload->'workload_ids'",
-	"fact.payload->'environments'",
 	"$9",
 	"$8",
 	"''",

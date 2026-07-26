@@ -29,6 +29,10 @@ const (
 	runtimeFilterLiveGenDecoy   = "generation:5747:decoy:active"
 	runtimeFilterLiveFindingID  = "finding:5747:runtime-filter"
 	runtimeFilterLiveFactID     = "fact:5747:impact"
+	runtimeFilterLiveBakedID    = "finding:5747:stale-baked"
+	runtimeFilterLiveBakedFact  = "fact:5747:stale-baked"
+	runtimeFilterLiveBakedPkg   = "pkg:deb/example/stale-baked"
+	runtimeFilterLiveBakedRepo  = "repository:r_5747_stale_baked"
 )
 
 func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
@@ -175,6 +179,7 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 
 	assertSupplyChainRuntimeContextScopesLive(t, ctx, findingStore)
 	assertSupplyChainConflictingAnchorFiltersLive(t, ctx, findingStore, aggregateStore)
+	assertSupplyChainStaleBakedFiltersLive(t, ctx, findingStore, aggregateStore)
 }
 
 func assertSupplyChainRuntimeFilterListCount(
@@ -264,6 +269,22 @@ INSERT INTO scope_generations (
 			"service_ids":       []string{},
 			"workload_ids":      []string{},
 			"environments":      []string{},
+			"evidence_fact_ids": []string{},
+		})
+	insertSupplyChainRuntimeFilterFact(t, ctx, tx, runtimeFilterLiveBakedFact, runtimeFilterLiveScopeA, runtimeFilterLiveGenA,
+		supplyChainImpactFindingFactKind, false, map[string]any{
+			"finding_id":        runtimeFilterLiveBakedID,
+			"cve_id":            runtimeFilterLiveCVE,
+			"package_id":        runtimeFilterLiveBakedPkg,
+			"repository_id":     runtimeFilterLiveBakedRepo,
+			"impact_status":     "affected_exact",
+			"detection_profile": "comprehensive",
+			"priority_score":    "40",
+			"priority_bucket":   "medium",
+			"suppression_state": "active",
+			"service_ids":       []string{"service:5747:stale-baked"},
+			"workload_ids":      []string{"workload:5747:stale-baked"},
+			"environments":      []string{"stale-baked-5747"},
 			"evidence_fact_ids": []string{},
 		})
 	insertSupplyChainRuntimeFilterFact(t, ctx, tx, "fact:5747:workload:scalar", runtimeFilterLiveScopeA, runtimeFilterLiveGenA,
@@ -370,6 +391,27 @@ INSERT INTO supply_chain_impact_canonical_winners (
 		runtimeFilterLivePackage,
 	); err != nil {
 		t.Fatalf("insert canonical winner: %v", err)
+	}
+	if _, err := tx.ExecContext(ctx, `
+INSERT INTO supply_chain_impact_canonical_winners (
+  canonical_key, winner_fact_id, winner_scope_id, finding_id,
+  priority_score, source_count, impact_status, ecosystem, severity_bucket,
+  repository_id, cve_id, package_id, priority_bucket, detection_profile,
+  suppression_state, materialized_at
+) VALUES (
+  'canonical:5747:stale-baked', $1, $2, $3,
+  40, 1, 'affected_exact', 'deb', 'medium',
+  $4, $5, $6, 'medium', 'comprehensive',
+  'active', NOW()
+)`,
+		runtimeFilterLiveBakedFact,
+		runtimeFilterLiveScopeA,
+		runtimeFilterLiveBakedID,
+		runtimeFilterLiveBakedRepo,
+		runtimeFilterLiveCVE,
+		runtimeFilterLiveBakedPkg,
+	); err != nil {
+		t.Fatalf("insert stale-baked canonical winner: %v", err)
 	}
 }
 

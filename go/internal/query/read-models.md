@@ -283,9 +283,11 @@ existing partial indexes on `fact_records` for
 `reducer_supply_chain_impact_finding` (status, priority bucket, CVE,
 package + repository + subject digest).
 
-Workload, service, and environment filters accept either the finding's baked
-reducer arrays or a current active repository mapping resolved at read time.
-The shared SQL CTE narrows runtime facts by the requested dimension before it
+Workload, service, and environment filters accept only a current active
+repository mapping resolved at read time. Reducer-baked arrays remain evidence
+on the finding payload but never satisfy these selectors because they become
+stale after a redeploy, retraction, or promotion. The shared SQL CTE narrows
+runtime facts by the requested dimension before it
 decodes repository anchors: `reducer_workload_identity` and accepted
 `reducer_service_catalog_correlation` facts supply workload/service mappings,
 and accepted `reducer_ci_cd_run_correlation` facts supply environments.
@@ -322,20 +324,21 @@ discarded 99,999 rows to a 0.023 ms bitmap lookup. The exact live
 golden-corpus 200-candidate repository join, including related-scope decoding,
 executed in 0.237 ms. On the 300,000-fact partition, the same 200-candidate
 hydration query executed in 72.347 ms before canonical authorization and
-64.593 ms after filter and hydration began sharing one precedence-preserving
+61.137 ms after filter and hydration began sharing one precedence-preserving
 decoder; conflicting anchors changed only the intended authorization result,
 while 100,000 non-conflicting mixed anchors had an exact `0/0` set difference.
 A full-query proof loaded 100,000 facts for each runtime dimension (300,000
 total) and exposed a planner reorder: the first workload query entered through
 the scope/generation index and took 13.947 ms.
 Materializing each dimension-selected match set before the active-generation
-join made every production query enter through its dimension index. Execution
-times were 0.800 ms for scalar workload, 0.639 ms for workload `entity_keys`,
-0.147 ms for service, 0.150 ms for environment, 0.771 ms for the combined
-legacy list, 0.603 ms for the combined winners list, 0.628 ms for the combined
-aggregate, 0.231 ms for the no-runtime-filter aggregate, and 0.621 ms for
-explain. Inserting all 300,000 rows while maintaining the runtime indexes took
-6.66 seconds. `TestSupplyChainImpactRuntimeFilterPlansLive` runs these exact
+join made every production query enter through its dimension index. On the
+final current-only filter shape, execution times were 0.733 ms for scalar
+workload, 0.619 ms for workload `entity_keys`, 0.163 ms for service, 0.152 ms
+for environment, 0.653 ms for the combined legacy list, 0.656 ms for the
+combined winners list, 0.641 ms for the combined aggregate, 0.254 ms for the
+no-runtime-filter aggregate, and 0.611 ms for explain. Inserting all 300,000
+rows while maintaining the runtime indexes took 6.496 seconds.
+`TestSupplyChainImpactRuntimeFilterPlansLive` runs these exact
 `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` shapes and asserts the selected index
 names as well as a bounded execution ceiling. Each concurrent migration also
 completed from an absent index in 0.22 seconds on the retained golden database,

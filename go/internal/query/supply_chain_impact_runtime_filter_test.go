@@ -55,6 +55,63 @@ func TestSupplyChainImpactRuntimeFiltersResolveCurrentRepositoryContext(t *testi
 	}
 }
 
+func TestSupplyChainImpactRuntimeFiltersNeverUseStaleBakedMembership(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		query     string
+		forbidden []string
+	}{
+		{
+			name:  "legacy_list",
+			query: listSupplyChainImpactFindingsQuery,
+			forbidden: []string{
+				"OR fact.payload->'service_ids' ?",
+				"OR fact.payload->'workload_ids' ?",
+				"OR fact.payload->'environments' ?",
+			},
+		},
+		{
+			name:  "winners_list",
+			query: listSupplyChainImpactFindingsFromWinnersQuery,
+			forbidden: []string{
+				"OR w.service_ids ?",
+				"OR w.workload_ids ?",
+				"OR w.environments ?",
+			},
+		},
+		{
+			name:  "aggregate",
+			query: supplyChainImpactAggregateCanonicalFactsCTE,
+			forbidden: []string{
+				"OR fact.payload->'service_ids' ?",
+				"OR fact.payload->'workload_ids' ?",
+				"OR fact.payload->'environments' ?",
+			},
+		},
+		{
+			name:  "explain",
+			query: explainSupplyChainImpactFindingQuery,
+			forbidden: []string{
+				"OR fact.payload->'service_ids' ?",
+				"OR fact.payload->'workload_ids' ?",
+				"OR fact.payload->'environments' ?",
+			},
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, forbidden := range tc.forbidden {
+				if strings.Contains(tc.query, forbidden) {
+					t.Fatalf("query retains stale baked runtime membership %q:\n%s", forbidden, tc.query)
+				}
+			}
+		})
+	}
+}
+
 func TestSupplyChainImpactRuntimeFilterMirrorsRuntimeContextTruthRules(t *testing.T) {
 	t.Parallel()
 

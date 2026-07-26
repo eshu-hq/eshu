@@ -36,9 +36,6 @@ scoped_facts AS (
 	  AND ($7 = '' OR LOWER(fact.payload->>'ecosystem') = LOWER($7))
 ` + supplyChainImpactRuntimeFilterPredicate(
 	"fact.payload->>'repository_id'",
-	"fact.payload->'service_ids'",
-	"fact.payload->'workload_ids'",
-	"fact.payload->'environments'",
 	"$8",
 	"$9",
 	"$10",

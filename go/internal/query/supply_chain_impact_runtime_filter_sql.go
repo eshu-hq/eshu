@@ -149,23 +149,21 @@ func supplyChainImpactRuntimeFilterCTE(
 	)
 }
 
-// supplyChainImpactRuntimeFilterPredicate keeps the legacy baked values valid
-// while also accepting a repository whose current runtime facts match. Each
-// dimension checks its own candidate set so combined filters retain AND
+// supplyChainImpactRuntimeFilterPredicate accepts only repositories whose
+// current active runtime facts match. Reducer-baked arrays are deliberately
+// excluded: they become stale after redeploy, retraction, or promotion and
+// would let filter truth disagree with the read-time runtime_context response.
+// Each dimension checks its own candidate set so combined filters retain AND
 // semantics.
 func supplyChainImpactRuntimeFilterPredicate(
 	repositoryExpr string,
-	bakedServiceExpr string,
-	bakedWorkloadExpr string,
-	bakedEnvironmentExpr string,
 	serviceParam string,
 	workloadParam string,
 	environmentParam string,
 ) string {
 	return fmt.Sprintf(`
   AND (
-        %[5]s = ''
-        OR %[2]s ? %[5]s
+        %[2]s = ''
         OR EXISTS (
              SELECT 1
              FROM runtime_filter_repositories AS runtime_filter
@@ -174,8 +172,7 @@ func supplyChainImpactRuntimeFilterPredicate(
            )
       )
   AND (
-        %[6]s = ''
-        OR %[3]s ? %[6]s
+        %[3]s = ''
         OR EXISTS (
              SELECT 1
              FROM runtime_filter_repositories AS runtime_filter
@@ -184,19 +181,15 @@ func supplyChainImpactRuntimeFilterPredicate(
            )
       )
   AND (
-        %[7]s = ''
-        OR %[4]s ? %[7]s
+        %[4]s = ''
         OR EXISTS (
              SELECT 1
              FROM runtime_filter_repositories AS runtime_filter
              WHERE runtime_filter.filter_kind = 'environment'
                AND runtime_filter.repository_id = %[1]s
            )
-      )`,
+	)`,
 		repositoryExpr,
-		bakedServiceExpr,
-		bakedWorkloadExpr,
-		bakedEnvironmentExpr,
 		serviceParam,
 		workloadParam,
 		environmentParam,

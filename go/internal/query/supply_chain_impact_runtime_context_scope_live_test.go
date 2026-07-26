@@ -158,3 +158,81 @@ func assertSupplyChainConflictingAnchorFiltersLive(
 		})
 	}
 }
+
+func assertSupplyChainStaleBakedFiltersLive(
+	t *testing.T,
+	ctx context.Context,
+	findingStore PostgresSupplyChainImpactFindingStore,
+	aggregateStore PostgresSupplyChainImpactAggregateStore,
+) {
+	t.Helper()
+	for _, tc := range []struct {
+		name        string
+		workloadID  string
+		serviceID   string
+		environment string
+	}{
+		{name: "workload", workloadID: "workload:5747:stale-baked"},
+		{name: "service", serviceID: "service:5747:stale-baked"},
+		{name: "environment", environment: "stale-baked-5747"},
+	} {
+		tc := tc
+		t.Run("stale_baked_filter_"+tc.name, func(t *testing.T) {
+			listFilter := SupplyChainImpactFindingFilter{
+				CVEID:            runtimeFilterLiveCVE,
+				PackageID:        runtimeFilterLiveBakedPkg,
+				WorkloadID:       tc.workloadID,
+				ServiceID:        tc.serviceID,
+				Environment:      tc.environment,
+				DetectionProfile: "comprehensive",
+				Limit:            10,
+				AllowedScopeIDs:  []string{runtimeFilterLiveScopeA},
+			}
+			assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, listFilter, false, 0)
+			assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, listFilter, true, 0)
+
+			aggregateFilter := SupplyChainImpactAggregateFilter{
+				CVEID:            runtimeFilterLiveCVE,
+				PackageID:        runtimeFilterLiveBakedPkg,
+				WorkloadID:       tc.workloadID,
+				ServiceID:        tc.serviceID,
+				Environment:      tc.environment,
+				DetectionProfile: "comprehensive",
+				AllowedScopeIDs:  []string{runtimeFilterLiveScopeA},
+			}
+			count, err := aggregateStore.CountSupplyChainImpactFindings(ctx, aggregateFilter)
+			if err != nil {
+				t.Fatalf("count stale baked selector: %v", err)
+			}
+			if count.TotalFindings != 0 {
+				t.Fatalf("count stale baked selector = %d, want 0", count.TotalFindings)
+			}
+			inventory, err := aggregateStore.SupplyChainImpactInventory(
+				ctx,
+				aggregateFilter,
+				SupplyChainImpactInventoryByImpactStatus,
+				10,
+				0,
+			)
+			if err != nil {
+				t.Fatalf("inventory stale baked selector: %v", err)
+			}
+			if len(inventory) != 0 {
+				t.Fatalf("inventory stale baked selector = %#v, want empty", inventory)
+			}
+			if tc.environment != "" {
+				return
+			}
+			_, err = findingStore.ExplainSupplyChainImpact(ctx, SupplyChainImpactExplanationFilter{
+				CVEID:           runtimeFilterLiveCVE,
+				PackageID:       runtimeFilterLiveBakedPkg,
+				WorkloadID:      tc.workloadID,
+				ServiceID:       tc.serviceID,
+				AllowedScopeIDs: []string{runtimeFilterLiveScopeA},
+			})
+			if !errors.Is(err, ErrSupplyChainImpactExplanationNotFound) {
+				t.Fatalf("explain stale baked selector error = %v, want not found", err)
+			}
+		})
+	}
+}
