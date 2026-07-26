@@ -15,10 +15,24 @@
 # It does not re-implement dorny/paths-filter's matcher (CI owns the actual path
 # evaluation); it asserts the structure that makes the skip correct, complete,
 # and required-check-safe. Runs in the always-on docs-helm-hygiene job.
+#
+# It also guards the #5818 regression class directly: test.yml, security-scan.yml,
+# and mcp-schema-drift.yml each carry their own copy of the same dorny/paths-filter
+# `code` block, and #5818 burned ~118 runner-minutes on a five-markdown-file PR
+# because `!*.md` is ROOT-ANCHORED (it never matched the nested
+# `.agents/skills/**/*.md` files that PR touched), so `code` evaluated true and
+# every heavy Go lane ran. Two checks below catch that class going forward:
+#   1. the three copies of the `code` filter must stay byte-identical (a fix
+#      applied to only one copy is exactly how #5818-shaped drift starts);
+#   2. no registry gate whose CI job is one of these workflows' code-gated jobs
+#      may declare a trigger path that the filter's negations would swallow
+#      (the filter's negation style over-covers safely in the other direction,
+#      so this is a one-way superset check).
 set -uo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 wf="${repo_root}/.github/workflows"
+registry="${repo_root}/specs/ci-gates.v1.yaml"
 fail=0
 
 ok()  { printf 'ok - %s\n' "$1"; }
@@ -31,6 +45,87 @@ job_block() { awk -v j="  $2:" '$0==j{f=1;print;next} f&&/^  [A-Za-z]/{exit} f{p
 # job_gated <file> <job> — true if the job carries a `needs: changes` code gate.
 job_gated()    { job_block "$1" "$2" | rg -qF 'needs: changes'; }
 job_alwayson() { ! job_gated "$1" "$2"; }
+
+# code_filter_block <file> — the dorny/paths-filter `code:` key and its `- '...'`
+# negation list, verbatim (comments excluded), for byte-identity comparison
+# across the three workflows that duplicate this filter.
+code_filter_block() {
+	awk '
+		/^[[:space:]]*code:[[:space:]]*$/ { grab = 1; print; next }
+		grab {
+			if ($0 !~ /^[[:space:]]*- /) { exit }
+			print
+			next
+		}
+	' "$1"
+}
+
+# registry_gated_triggers <workflow> <job...> — every `triggers:` path entry in
+# specs/ci-gates.v1.yaml for a gate whose `ci.workflow` is <workflow> and whose
+# `ci.job` is one of the given (exact, unquoted) job names. Job filtering matters:
+# a registry gate can name test.yml/security-scan.yml/mcp-schema-drift.yml as its
+# `ci.workflow` while actually running in an ALWAYS-ON job of that workflow
+# (docs-helm-hygiene, Trivy filesystem scan, Verify capability inventory) — those
+# gates are correctly unaffected by the `code` filter and must not be checked
+# against it.
+registry_gated_triggers() {
+	local target_wf="$1"
+	shift
+	local jobs_csv="" j
+	for j in "$@"; do jobs_csv="${jobs_csv}|${j}"; done
+	jobs_csv="${jobs_csv#|}"
+	awk -v wf="${target_wf}" -v jobs="${jobs_csv}" '
+		function job_matches(j,    n, arr, i) {
+			n = split(jobs, arr, "|")
+			for (i = 1; i <= n; i++) if (arr[i] == j) return 1
+			return 0
+		}
+		function flush() {
+			if (cur_wf == wf && job_matches(cur_job)) {
+				n = split(cur_triggers, arr, "\n")
+				for (i = 1; i <= n; i++) if (arr[i] != "") print arr[i]
+			}
+		}
+		/^  - id: / {
+			flush()
+			cur_wf = ""; cur_job = ""; cur_triggers = ""; in_ci = 0; in_trig = 0
+			next
+		}
+		/^    ci:$/ { in_ci = 1; in_trig = 0; next }
+		in_ci && /^      workflow: / { cur_wf = $0; sub(/^      workflow: */, "", cur_wf); next }
+		in_ci && /^      job: / {
+			cur_job = $0; sub(/^      job: */, "", cur_job); gsub(/"/, "", cur_job); in_ci = 0; next
+		}
+		/^    triggers:$/ { in_trig = 1; next }
+		in_trig && /^      - / {
+			t = $0; sub(/^      - */, "", t); gsub(/"/, "", t)
+			cur_triggers = cur_triggers t "\n"
+			next
+		}
+		in_trig && !/^      - / { in_trig = 0 }
+		END { flush() }
+	' "${registry}"
+}
+
+# trigger_is_swallowed_by_negations <trigger> — true if EVERY path matching
+# <trigger> would be excluded by the code filter's current negations (docs/**,
+# a root-only *.md, mkdocs.yml, .github/**/*.md, .agents/**), meaning a gate
+# relying on that trigger would never see `code == 'true'`. This mirrors the
+# filter's own negation list, not a general glob-intersection solver — it is
+# exactly precise enough to catch the filter drifting out of sync with what the
+# registry's gated triggers assume.
+trigger_is_swallowed_by_negations() {
+	local t="$1"
+	case "${t}" in
+	docs/*) return 0 ;;
+	mkdocs.yml) return 0 ;;
+	.agents/*) return 0 ;;
+	.github/*.md) return 0 ;;
+	*/*) return 1 ;;
+	*.md) return 0 ;;
+	esac
+	return 1
+}
 
 # --- build.yml: pure binary build, no docs-relevant job — skip the whole run. ---
 b="${wf}/build.yml"
@@ -146,6 +241,57 @@ for umbrella in go-race-complete go-core-complete; do
 		bad "${umbrella} changes_result guard must compare != \"success\" AND exit non-zero inside that same if-block"
 	fi
 done
+
+# --- #5818 regression guard 1: the three `code` filter copies must stay
+# byte-identical. #5818 happened because the fix (excluding a nested markdown
+# tree) only needed to land once conceptually, but the filter is duplicated
+# byte-for-byte three times; a future edit to only one copy is exactly this
+# drift. ---
+block_test="$(code_filter_block "${t}")"
+block_sec="$(code_filter_block "${s}")"
+block_mcp="$(code_filter_block "${m}")"
+if [[ -z "${block_test}" || -z "${block_sec}" || -z "${block_mcp}" ]]; then
+	bad "could not extract a code: filter block from test.yml, security-scan.yml, and mcp-schema-drift.yml"
+elif [[ "${block_test}" == "${block_sec}" && "${block_sec}" == "${block_mcp}" ]]; then
+	ok "test.yml, security-scan.yml, and mcp-schema-drift.yml carry byte-identical code: filters"
+else
+	bad "the code: filter has drifted between test.yml, security-scan.yml, and mcp-schema-drift.yml (#5818 regression class) — diff:"
+	diff <(printf '%s\n' "${block_test}") <(printf '%s\n' "${block_sec}") >&2 || true
+	diff <(printf '%s\n' "${block_test}") <(printf '%s\n' "${block_mcp}") >&2 || true
+fi
+
+# --- #5818 regression guard 2: no gate whose CI job is actually code-gated may
+# rely on a trigger path the filter's negations would swallow. The filter
+# over-covers safely in the other direction (unfiltered code paths tripping a
+# gate that does not need them just runs an extra gate), so this is a one-way
+# superset check, not full glob equivalence.
+#
+# gated_jobs_for <workflow> — the exact `ci.job` names in <workflow> that carry
+# the `needs: changes` + event-guarded `if` (as opposed to an always-on job like
+# docs-helm-hygiene, Trivy filesystem scan, or Verify capability inventory).
+# A plain case statement (not an associative array) so this stays bash-3.2-safe
+# like the rest of this script — no `declare -A` version floor to police. ---
+gated_jobs_for() {
+	case "$1" in
+	test.yml) printf '%s\n' "go-core|verify-contracts|go-race-complete" ;;
+	security-scan.yml) printf '%s\n' "gosec (Go static analysis)|govulncheck (Go vulnerability database)|nancy (Sonatype dep CVE + license scan)" ;;
+	mcp-schema-drift.yml) printf '%s\n' "Verify ReadOnlyTools count|Full MCP test suite" ;;
+	esac
+}
+trigger_fail=0
+for workflow_name in test.yml security-scan.yml mcp-schema-drift.yml; do
+	IFS='|' read -r -a job_names <<<"$(gated_jobs_for "${workflow_name}")"
+	while IFS= read -r trig; do
+		[[ -z "${trig}" ]] && continue
+		if trigger_is_swallowed_by_negations "${trig}"; then
+			bad "${workflow_name}: a code-gated job's registry trigger '${trig}' is swallowed by the code filter's own negations — that gate can never fire from a PR touching only that path"
+			trigger_fail=1
+		fi
+	done < <(registry_gated_triggers "${workflow_name}" "${job_names[@]}")
+done
+if [[ "${trigger_fail}" -eq 0 ]]; then
+	ok "no code-gated registry trigger (test.yml/security-scan.yml/mcp-schema-drift.yml) is swallowed by the code filter's negations"
+fi
 
 if [[ "${fail}" -ne 0 ]]; then
 	printf '\nverify-docs-only-ci-skip: docs-only CI carve-out wiring drifted — see failures above.\n' >&2

@@ -163,17 +163,18 @@ gates its changed paths select:
   the Go-source security scanners (`govulncheck`/`gosec`/`nancy` in
   `security-scan.yml`), the Go MCP drift jobs (`mcp-tool-count`/`mcp-test-suite`),
   end-to-end tests, and macOS CI all **skip a docs-only PR** — one whose every
-  changed file is under `docs/**`, a root-level `*.md`, or `mkdocs.yml`. `build.yml`
-  skips via a `pull_request` `paths-ignore`; the mixed workflows (`test.yml`,
-  `security-scan.yml`, `mcp-schema-drift.yml`) skip per-job via a `changes` gate,
-  so their always-on jobs above keep running. A package doc under `go/**/*.md`
-  still counts as code, and any PR that mixes docs with code runs the full set.
-  `main`, the nightly schedule, and tag pushes run everything unconditionally as
-  the backstop. Branch protection points at two umbrellas: `go-core-complete`
-  (**compilation gate** — whole-module `cd go && go build ./...` plus lint/fmt,
-  catching a merge result that does not compile though every PR was green,
-  #5814) and `go-race-complete` (**race gate** over the sharded `go test -race`
-  matrix). `go-race-complete` is required today; `go-core-complete` joins it
+  changed file is under `docs/**`, a root-level `*.md`, `mkdocs.yml`, or
+  `.agents/**`. `build.yml` skips via a `pull_request` `paths-ignore`; the mixed
+  workflows (`test.yml`, `security-scan.yml`, `mcp-schema-drift.yml`) skip
+  per-job via a `changes` gate, so their always-on jobs above keep running. The
+  bare `*.md` negation is **root-anchored** (`README.md`, not nested markdown),
+  so `go/**/*.md` still counts as code; `.agents/**` is negated explicitly
+  (#5818). Any PR mixing docs with code runs the full set. `main`, the nightly
+  schedule, and tag pushes run everything unconditionally. Branch protection
+  points at two umbrellas: `go-core-complete` (**compilation gate** — whole-module
+  `cd go && go build ./...` plus lint/fmt, catching a merge result that does not
+  compile though every PR was green, #5814) and `go-race-complete` (**race gate**
+  over the sharded `go test -race` matrix). `go-race-complete` is required today; `go-core-complete` joins it
   once that job is on `main`. Each stays green when its own lane is legitimately
   skipped, so neither strands a docs-only PR — but each also depends on
   `changes` and fails if `changes` did not, since GitHub marks a job `skipped`
