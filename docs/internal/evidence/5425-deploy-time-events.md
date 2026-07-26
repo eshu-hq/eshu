@@ -160,7 +160,12 @@ repository's deployment to another repository's run. It is recorded here rather
 than smoothed over, so a future reader deciding whether to keep the guard has
 the number.
 
-No-Observability-Change: no new metric names. The truncation path reuses the
+Observability Evidence: one new counter,
+`eshu_dp_cicd_deployment_events_skipped_total`, labelled by domain and
+`skip_reason=repository_mismatch`, reporting deployment events dropped by the
+repository guard — the only available signal for a failure that is total,
+silent, and unreachable by both the collector's sha-keyed warning and by startup
+validation. Otherwise no new metric names: The truncation path reuses the
 existing partial-generation counter with a new reason label, and the unanchored
 path emits a `ci.warning` fact rather than a metric. Every new non-test file
 under `go/internal/**` has a `telemetry-coverage.md` row naming the existing
@@ -239,9 +244,20 @@ naming both values instead of as missing data at reduce time. The spellings
 `NormalizeRemoteURL` absorbs are still accepted, so the check tightens a real
 ambiguity without rejecting working configs.
 
-The remaining divergence paths are environmental rather than config typos: a
-repository renamed after `source_uri` was set, or a GHE host mismatch where the
-API's `html_url` names a different host than the configured URI.
+What remains is a **host** mismatch, and it is not purely environmental — an
+enterprise host reaches it, but so does a plain typo, and
+`https://api.github.com/acme/api` is accepted by the path check while diverging
+from `html_url`'s `github.com`. It cannot be closed at config time the way the
+path class was, because `html_url` is not known until collection, so startup
+validation is structurally incapable of covering it.
+
+That is why this one gets a runtime signal rather than a validator:
+`eshu_dp_cicd_deployment_events_skipped_total`
+(`skip_reason=repository_mismatch`) reports the drop from the reducer, where
+both ids are finally known. Without it the failure is total, silent, and
+per-run — every deployment event for the run simply does not exist, and the
+collector's `deployment_unanchored` warning cannot report it because that
+warning keys on sha rather than repository.
 
 Before the guard that mismatch was inert, because nothing read the event's
 repository id. The guard makes it consequential: on divergence every deployment

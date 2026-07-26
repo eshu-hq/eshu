@@ -66,7 +66,7 @@ func TestCassetteShapedDeploymentEventsResolveCanonicalEnvironment(t *testing.T)
 		},
 	}
 
-	decisions, quarantined, _ := buildCICDRunCorrelationDecisionsWithQuarantine(envelopes)
+	decisions, quarantined, _, _ := buildCICDRunCorrelationDecisionsWithQuarantine(envelopes)
 	if len(quarantined) != 0 {
 		t.Fatalf("quarantined = %d, want 0: %#v", len(quarantined), quarantined)
 	}

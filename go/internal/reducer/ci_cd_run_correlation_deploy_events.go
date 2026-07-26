@@ -39,10 +39,11 @@ type decodedCICDDeploymentEvent struct {
 // whose own decoded CommitSHA is empty (CommitSHA is optional on
 // cicdrunv1.Run) matches nothing, so an event that also carries an empty sha
 // can never join under a shared empty-string key.
-func attachDeploymentEventsToRuns(runs map[string]*cicdRunEvidence, events []*decodedCICDDeploymentEvent) {
+func attachDeploymentEventsToRuns(runs map[string]*cicdRunEvidence, events []*decodedCICDDeploymentEvent) int {
 	if len(events) == 0 {
-		return
+		return 0
 	}
+	skipped := 0
 	for _, ev := range runs {
 		runCommit := trimmedCICDPtr(ev.runDecoded.CommitSHA)
 		if runCommit == "" {
@@ -66,12 +67,14 @@ func attachDeploymentEventsToRuns(runs map[string]*cicdRunEvidence, events []*de
 			// keeps the sha-only behaviour rather than losing its events.
 			eventRepository := trimmedCICDPtr(event.evidence.RepositoryID)
 			if runRepository != "" && eventRepository != "" && runRepository != eventRepository {
+				skipped++
 				continue
 			}
 			matched = append(matched, event)
 		}
 		ev.deploymentEvents = matched
 	}
+	return skipped
 }
 
 // cicdDeploymentEventStateRank orders a deployment event's provider-reported
