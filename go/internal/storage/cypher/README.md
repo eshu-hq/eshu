@@ -470,16 +470,21 @@ sorted `algorithm:digest` string list (`package_registry_artifact_writer.go`'s
 `packageRegistryHashPairs`), since Cypher node properties cannot hold a nested
 map. This closes the gap the owning `PackageVersion` node's
 `checksum_algorithms` property left: that property keeps only algorithm
-NAMES, dropping the actual digest. A colon-bearing algorithm name would make
-that split ambiguous, so `DecodePackageRegistryPackageArtifact`
-(`sdk/go/factschema/decode_packageregistry.go`) rejects one as an
-`input_invalid` dead-letter before the row ever reaches this writer. The
-deferred `HAS_ARTIFACT` edge (same
+NAMES, dropping the actual digest. `packageRegistryHashPairs`
+backslash-escapes every literal `\`/`:` in the algorithm and digest before
+joining them, so the split stays unambiguous even for a colon-bearing
+algorithm name (`packageRegistrySplitHashPair` is the proven decode-side
+counterpart) — an earlier version instead rejected such a name at decode
+(`DecodePackageRegistryPackageArtifact`), which silently narrowed the public
+v1 contract (#5820 P2 review finding). The deferred `HAS_ARTIFACT` edge (same
 NornicDB read-your-writes deferral as `HAS_VERSION`/`DECLARES_DEPENDENCY`)
-attaches each artifact to its owning `PackageVersion`. Artifact rows join the
-same package-identity lock gate as version and dependency rows (locked by
-`PackageID`), so same-package artifact observations serialize with other
-package-registry writes for that package.
+attaches each artifact to its owning `PackageVersion`, MATCHing the version on
+BOTH `uid` and `package_id` (not `uid` alone) so a malformed-but-schema-valid
+artifact fact whose `package_id` disagrees with its `version_id`'s actual
+owning package cannot attach to the wrong package's version (#5820 P2 review
+finding). Artifact rows join the same package-identity lock gate as version
+and dependency rows (locked by `PackageID`), so same-package artifact
+observations serialize with other package-registry writes for that package.
 
 No-Regression Evidence: `go test ./internal/storage/cypher -run
 'TestCanonicalNodeWriter(SerializesConcurrentDuplicatePackageUIDs|SerializesDependencyTargetPackageUIDs|AllowsConcurrentDistinctPackageUIDs|BuildsPackageRegistryStatements|SeparatesPackageRegistryPhaseGroups|DeduplicatesPackageRegistryDependencyTargets|DeduplicatesPackageRegistryPackages)|TestPackageRegistryIdentityLockKeysCoverPackageSources'

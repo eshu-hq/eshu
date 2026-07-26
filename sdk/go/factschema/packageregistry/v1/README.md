@@ -51,11 +51,15 @@ ABSENCE breaks the graph identity in the projector today:
   `StableFactKey`, enforced on the envelope, not the payload). Its `Hashes`
   map carries the per-artifact algorithm-to-digest binding that
   `PackageVersion.Checksums`/`checksum_algorithms` drops (algorithm names
-  only). `DecodePackageRegistryPackageArtifact` additionally rejects a
-  `Hashes` entry whose algorithm name contains `:` as `input_invalid`: the
-  canonical graph writer flattens `Hashes` into a sorted `"algorithm:digest"`
-  string list (Cypher node properties cannot hold a nested map), and a colon
-  inside the algorithm name would make that split ambiguous.
+  only). `Hashes` accepts any string key, including one containing `:`,
+  matching the v1 JSON Schema's unconstrained `hashes.additionalProperties`
+  exactly — `DecodePackageRegistryPackageArtifact` does not reject any
+  `Hashes` key (an earlier version rejected a colon-bearing algorithm name,
+  which silently narrowed the public v1 contract; #5820 P2 review finding).
+  The canonical graph writer flattens `Hashes` into a sorted
+  `"algorithm:digest"` string list (Cypher node properties cannot hold a
+  nested map) and escapes both the algorithm and digest so the split stays
+  unambiguous for any input, instead of narrowing what decode accepts.
 
 A present-but-empty required value is a VALID decode (an empty observed value
 the projector already treats as non-materializable), not a dead-letter. Only an

@@ -254,13 +254,19 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 	}
 
 	// Edge cypher: the deferred artifact edge statement MUST anchor on both
-	// PackageVersion and PackageArtifact and MERGE HAS_ARTIFACT.
+	// PackageVersion and PackageArtifact and MERGE HAS_ARTIFACT. The
+	// PackageVersion MATCH additionally pins package_id: row.package_id (the
+	// #5820 P2 fix) so a malformed-but-schema-valid artifact fact whose
+	// package_id names package A while version_id resolves to a version
+	// genuinely owned by package B cannot attach that artifact to B's version
+	// -- the version match fails (no row) instead of silently binding the
+	// artifact to the wrong package's version.
 	artifactEdges := writer.buildPackageRegistryArtifactEdgeStatements(mat)
 	if got, want := len(artifactEdges), 1; got != want {
 		t.Fatalf("buildPackageRegistryArtifactEdgeStatements() count = %d, want %d", got, want)
 	}
 	for _, fragment := range []string{
-		"MATCH (v:PackageVersion {uid: row.version_id})",
+		"MATCH (v:PackageVersion {uid: row.version_id, package_id: row.package_id})",
 		"MATCH (a:PackageArtifact {uid: row.uid})",
 		"MERGE (v)-[rel:HAS_ARTIFACT]->(a)",
 	} {

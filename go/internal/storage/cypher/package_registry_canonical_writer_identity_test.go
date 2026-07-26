@@ -4,6 +4,7 @@
 package cypher
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -162,6 +163,55 @@ func TestCanonicalNodeWriterDeduplicatesPackageRegistryPackages(t *testing.T) {
 	}
 	if got, want := rows[0]["raw_name"], "graphql-new"; got != want {
 		t.Fatalf("package raw_name = %#v, want newest duplicate row %#v", got, want)
+	}
+}
+
+// TestCanonicalNodeWriterArtifactEdgeCypherPinsPackageIDOnVersionMatch is the
+// shaped regression for the #5820 P2 review finding: a malformed-but-schema-
+// valid artifact fact whose package_id names package A while its version_id
+// resolves to a PackageVersion node genuinely owned by package B must not
+// attach that artifact to B's version. Anchoring the deferred HAS_ARTIFACT
+// edge's PackageVersion MATCH on uid alone would still find B's version and
+// MERGE an edge to an artifact node that itself claims package_id A --
+// internally contradictory package graph truth. Pinning package_id:
+// row.package_id alongside uid: row.version_id on the same MATCH means a
+// mismatched pair finds no PackageVersion row, so no edge is written. This
+// also proves the edge row's package_id parameter is the artifact's OWN
+// claimed package_id (packageRegistryArtifactRows), not derived from
+// version_id, which is what makes the predicate meaningful rather than
+// tautological.
+func TestCanonicalNodeWriterArtifactEdgeCypherPinsPackageIDOnVersionMatch(t *testing.T) {
+	t.Parallel()
+
+	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
+	mat := projector.CanonicalMaterialization{
+		ScopeID:      "package-registry-scope-1",
+		GenerationID: "package-registry-generation-1",
+		PackageRegistryArtifacts: []projector.PackageRegistryArtifactRow{{
+			UID:           "artifact-1",
+			PackageID:     "package-a",
+			VersionID:     "version-owned-by-b",
+			ArtifactKey:   "pkg-1.0.0.tgz",
+			StableFactKey: "artifact-1",
+		}},
+	}
+
+	edges := writer.buildPackageRegistryArtifactEdgeStatements(mat)
+	if got, want := len(edges), 1; got != want {
+		t.Fatalf("buildPackageRegistryArtifactEdgeStatements() count = %d, want %d", got, want)
+	}
+	if !strings.Contains(edges[0].Cypher, "MATCH (v:PackageVersion {uid: row.version_id, package_id: row.package_id})") {
+		t.Fatalf("artifact edge Cypher = %q, want the PackageVersion MATCH to pin package_id alongside uid so a cross-package artifact/version pair cannot bind", edges[0].Cypher)
+	}
+	rows, ok := edges[0].Parameters["rows"].([]map[string]any)
+	if !ok || len(rows) != 1 {
+		t.Fatalf("rows parameter = %#v, want one row", edges[0].Parameters["rows"])
+	}
+	if got, want := rows[0]["package_id"], "package-a"; got != want {
+		t.Fatalf("edge row package_id = %#v, want %#v (the artifact's OWN claimed package_id, not derived from version_id)", got, want)
+	}
+	if got, want := rows[0]["version_id"], "version-owned-by-b"; got != want {
+		t.Fatalf("edge row version_id = %#v, want %#v", got, want)
 	}
 }
 

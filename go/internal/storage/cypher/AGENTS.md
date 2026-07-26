@@ -135,12 +135,17 @@
   `PackageArtifact` is a sorted `algorithm:digest` string list
   (`packageRegistryHashPairs`), not a `map[string]string`. Neo4j/NornicDB node
   properties only hold primitives or homogeneous arrays of primitives; do not
-  attempt to store the `Hashes` map directly. The split is unambiguous only
-  because a colon-bearing algorithm name is rejected upstream at decode
-  (`DecodePackageRegistryPackageArtifact`,
-  `sdk/go/factschema/decode_packageregistry.go`) — do not remove that
-  validation without also proving this writer (or a consumer) can safely
-  re-split an `algorithm:digest` string with an ambiguous algorithm segment.
+  attempt to store the `Hashes` map directly. `packageRegistryHashPairs`
+  backslash-escapes every literal `\`/`:` in both the algorithm and digest
+  (`packageRegistryEscapeHashSegment`) before joining them with an unescaped
+  `:`, so the split stays unambiguous for ANY input — an earlier version
+  instead rejected a colon-bearing algorithm name at decode
+  (`DecodePackageRegistryPackageArtifact`), which silently narrowed the
+  public v1 contract (#5820 P2 review finding). `packageRegistrySplitHashPair`
+  is the proven decode-side counterpart
+  (`TestPackageRegistryHashPairsRoundTripsColonBearingAlgorithm`); if you
+  change this encoding, update the escape AND split functions together and
+  keep the round-trip test green.
 - **Identity cleanup** — repository upserts must keep cleanup before MERGE and
   in a separate phase group for non-first-generation scopes. First-generation
   scopes skip repository cleanup because there is no prior repository identity

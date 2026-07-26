@@ -82,12 +82,20 @@
 //     node's owning package/version join keys and its own identity within
 //     that version; any one absent drops the row (packageRegistryArtifactRow).
 //     The node's own uid additionally requires a non-blank StableFactKey,
-//     enforced on the envelope, not the payload. DecodePackageRegistryPackageArtifact
-//     also rejects a Hashes entry whose algorithm name contains ':' as
-//     input_invalid: the canonical graph writer flattens Hashes into a sorted
+//     enforced on the envelope, not the payload. Hashes accepts any string
+//     key, including one containing ':', matching the v1 JSON Schema's
+//     unconstrained hashes.additionalProperties exactly:
+//     DecodePackageRegistryPackageArtifact does not reject any Hashes key. An
+//     earlier version rejected a colon-bearing algorithm name here, reasoning
+//     that the canonical graph writer flattens Hashes into a sorted
 //     "algorithm:digest" string list (Cypher node properties cannot hold a
-//     nested map), and a colon inside the algorithm name would make that
-//     split ambiguous.
+//     nested map) and a colon would make that split ambiguous; that silently
+//     narrowed the public v1 contract without a major bump (#5820 P2 review
+//     finding). The writer now escapes both the algorithm and digest instead
+//     (packageRegistryEscapeHashSegment/packageRegistrySplitHashPair in
+//     go/internal/storage/cypher/package_registry_artifact_writer.go), so
+//     unambiguity is enforced where the encoding actually happens, not by
+//     narrowing what decode accepts.
 //
 // A present-but-empty required value (an empty string) is a VALID decode, not a
 // dead-letter, matching the pre-typing projector behavior where an empty

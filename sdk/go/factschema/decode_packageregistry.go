@@ -4,9 +4,6 @@
 package factschema
 
 import (
-	"fmt"
-	"strings"
-
 	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 )
 
@@ -89,29 +86,22 @@ func EncodePackageRegistrySourceHint(hint packageregistryv1.SourceHint) (map[str
 // missing a required identity field (package_id, version_id, artifact_key)
 // dead-letters as input_invalid.
 //
-// So does a hashes entry whose algorithm name contains ':'. The canonical
-// graph writer (packageRegistryHashPairs in
-// go/internal/storage/cypher/package_registry_artifact_writer.go) flattens
-// Hashes into a sorted "algorithm:digest" string list because Cypher node
-// properties cannot hold a nested map; that split is unambiguous only when
-// the algorithm name itself never contains ':'. Rejecting it here, at decode,
-// is the only place in the pipeline positioned to catch it before an
-// ambiguous encoding reaches the graph.
+// Hashes accepts any string key, including one containing ':', matching
+// package_registry.package_artifact.v1.schema.json's unconstrained
+// hashes.additionalProperties exactly. An earlier version of this function
+// rejected a colon-bearing algorithm name here, reasoning that the graph
+// writer flattens Hashes into a sorted "algorithm:digest" string list
+// (packageRegistryHashPairs in
+// go/internal/storage/cypher/package_registry_artifact_writer.go) and a colon
+// would make that split ambiguous. That silently narrowed the public v1
+// contract without a major version bump or compatibility shim (#5820 P2
+// review finding): the same schema version had always decoded these
+// payloads. The writer now escapes both the algorithm and digest instead
+// (packageRegistryEscapeHashSegment/packageRegistrySplitHashPair), so every
+// payload valid under v1 decodes here, and unambiguity is enforced at the one
+// place the encoding actually happens.
 func DecodePackageRegistryPackageArtifact(env Envelope) (packageregistryv1.PackageArtifact, error) {
-	artifact, err := decodeLatestMajor[packageregistryv1.PackageArtifact](FactKindPackageRegistryPackageArtifact, env)
-	if err != nil {
-		return artifact, err
-	}
-	for algorithm := range artifact.Hashes {
-		if strings.Contains(algorithm, ":") {
-			return packageregistryv1.PackageArtifact{}, decodePayloadFieldError(
-				FactKindPackageRegistryPackageArtifact,
-				"hashes",
-				fmt.Errorf("algorithm name %q contains ':', which would make the algorithm:digest graph encoding ambiguous", algorithm),
-			)
-		}
-	}
-	return artifact, nil
+	return decodeLatestMajor[packageregistryv1.PackageArtifact](FactKindPackageRegistryPackageArtifact, env)
 }
 
 // EncodePackageRegistryPackageArtifact marshals a

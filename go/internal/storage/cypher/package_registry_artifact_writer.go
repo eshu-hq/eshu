@@ -60,9 +60,23 @@ SET a.id = row.uid,
 
 // canonicalPackageRegistryArtifactEdgeCypher is the deferred HAS_ARTIFACT edge
 // MERGE, run in the second write group after the PackageVersion and
-// PackageArtifact node phases commit.
+// PackageArtifact node phases commit. The PackageVersion MATCH pins
+// package_id: row.package_id in addition to uid: row.version_id (#5820 P2
+// review finding): a malformed-but-schema-valid artifact fact can carry a
+// package_id that names package A while its version_id resolves to a version
+// node genuinely owned by package B. Anchoring on uid alone would still MATCH
+// that version and MERGE an edge from B's version to an artifact node that
+// itself claims package_id A -- internally contradictory package graph truth.
+// Requiring both properties on the same node means a mismatched pair finds no
+// row (MATCH drops that UNWIND row, no edge written) instead of silently
+// cross-attaching the artifact to the wrong package's version. row.package_id
+// is the artifact's own claimed package_id (packageRegistryArtifactRows), and
+// v.package_id is the value the PackageVersion node itself was written with
+// (canonicalPackageRegistryVersionUpsertCypher's v.package_id = row.package_id
+// in package_registry_canonical_writer.go), so the predicate only passes when
+// the two facts agree on which package the version belongs to.
 const canonicalPackageRegistryArtifactEdgeCypher = `UNWIND $rows AS row
-MATCH (v:PackageVersion {uid: row.version_id})
+MATCH (v:PackageVersion {uid: row.version_id, package_id: row.package_id})
 MATCH (a:PackageArtifact {uid: row.uid})
 MERGE (v)-[rel:HAS_ARTIFACT]->(a)
 SET rel.generation_id = row.generation_id,
@@ -145,21 +159,110 @@ func packageRegistryArtifactRows(mat projector.CanonicalMaterialization) []map[s
 // properties cannot hold a nested map, so this is the property-safe encoding
 // that keeps each digest bound to its algorithm (unlike
 // PackageRegistryVersionRow.Checksums, which the pre-existing
-// checksumAlgorithms helper reduces to algorithm names only). A colon-bearing
-// algorithm name is rejected before a row ever reaches this writer:
-// DecodePackageRegistryPackageArtifact (sdk/go/factschema/decode_packageregistry.go,
-// #5458) dead-letters it as input_invalid at decode time, so every row here
-// is guaranteed to carry a colon-free algorithm name and the split stays
-// unambiguous. The digest half is not separately validated (it is expected to
-// be hex, which cannot contain ':', but that shape is not enforced today).
+// checksumAlgorithms helper reduces to algorithm names only).
+//
+// #5820 P2 review finding: an earlier version of this fix rejected a
+// colon-bearing algorithm name at decode time
+// (DecodePackageRegistryPackageArtifact,
+// sdk/go/factschema/decode_packageregistry.go) to keep this split
+// unambiguous. That silently narrowed the public
+// package_registry.package_artifact.v1 contract -- the JSON Schema's
+// hashes.additionalProperties accepts any string key, and the same schema
+// version previously decoded these payloads without complaint -- without a
+// major version bump or compatibility shim. This function now escapes both
+// the algorithm and digest instead of rejecting either: packageRegistryEscapeHashSegment
+// backslash-escapes every literal '\' and ':' in each segment before joining
+// them with an unescaped ':' separator, so that separator is always the
+// FIRST unescaped ':' in the encoded string, regardless of what either
+// segment contains. packageRegistrySplitHashPair is the decode-side
+// counterpart proving the round trip (see
+// TestPackageRegistryHashPairsRoundTripsColonBearingAlgorithm); no production
+// caller re-splits an encoded pair today (no consumer reads PackageArtifact.
+// hashes back off the graph), but the pair exists so the encoding's
+// reversibility is proven rather than assumed, and so a future reader has a
+// correct counterpart ready to use.
 func packageRegistryHashPairs(hashes map[string]string) []string {
 	if len(hashes) == 0 {
 		return nil
 	}
 	pairs := make([]string, 0, len(hashes))
 	for algorithm, digest := range hashes {
-		pairs = append(pairs, algorithm+":"+strings.TrimSpace(digest))
+		pairs = append(pairs, packageRegistryEscapeHashSegment(algorithm)+":"+
+			packageRegistryEscapeHashSegment(strings.TrimSpace(digest)))
 	}
 	sort.Strings(pairs)
 	return pairs
+}
+
+// packageRegistryEscapeHashSegment backslash-escapes every literal '\' and
+// ':' in raw so the segment can sit on either side of packageRegistryHashPairs'
+// ':' separator without being mistaken for it. A segment containing neither
+// character is returned unchanged (the common case: hex digests and
+// conventional algorithm names like "sha256" never allocate).
+func packageRegistryEscapeHashSegment(raw string) string {
+	if !strings.ContainsAny(raw, `\:`) {
+		return raw
+	}
+	var b strings.Builder
+	b.Grow(len(raw) + 4)
+	for i := 0; i < len(raw); i++ {
+		if raw[i] == '\\' || raw[i] == ':' {
+			b.WriteByte('\\')
+		}
+		b.WriteByte(raw[i])
+	}
+	return b.String()
+}
+
+// packageRegistrySplitHashPair is the decode-side counterpart to
+// packageRegistryHashPairs: it splits one encoded "algorithm:digest" string
+// back into its original, unescaped algorithm and digest. Because
+// packageRegistryEscapeHashSegment backslash-escapes every literal ':' in
+// both segments, the separator is always the first ':' NOT preceded by an
+// (unescaped) backslash, so this walks the string tracking escape state
+// rather than using strings.SplitN. ok is false only for a pair with no
+// unescaped ':' at all, which packageRegistryHashPairs never produces.
+func packageRegistrySplitHashPair(pair string) (algorithm, digest string, ok bool) {
+	var algorithmBuilder strings.Builder
+	escaped := false
+	for i := 0; i < len(pair); i++ {
+		c := pair[i]
+		switch {
+		case escaped:
+			algorithmBuilder.WriteByte(c)
+			escaped = false
+		case c == '\\':
+			escaped = true
+		case c == ':':
+			return algorithmBuilder.String(), packageRegistryUnescapeHashSegment(pair[i+1:]), true
+		default:
+			algorithmBuilder.WriteByte(c)
+		}
+	}
+	return "", "", false
+}
+
+// packageRegistryUnescapeHashSegment reverses packageRegistryEscapeHashSegment:
+// a backslash always introduces the next byte literally, and every other byte
+// passes through unchanged.
+func packageRegistryUnescapeHashSegment(escaped string) string {
+	if !strings.ContainsRune(escaped, '\\') {
+		return escaped
+	}
+	var b strings.Builder
+	b.Grow(len(escaped))
+	skipNext := false
+	for i := 0; i < len(escaped); i++ {
+		if skipNext {
+			b.WriteByte(escaped[i])
+			skipNext = false
+			continue
+		}
+		if escaped[i] == '\\' {
+			skipNext = true
+			continue
+		}
+		b.WriteByte(escaped[i])
+	}
+	return b.String()
 }

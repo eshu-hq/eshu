@@ -4,12 +4,7 @@
 package factschema
 
 import (
-	"errors"
-	"reflect"
-	"strings"
 	"testing"
-
-	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 )
 
 // fullPackageArtifactPayload returns a valid package_registry.package_artifact
@@ -26,17 +21,23 @@ func fullPackageArtifactPayload() map[string]any {
 	}
 }
 
-// TestDecodePackageRegistryPackageArtifact_ColonBearingHashAlgorithmDeadLetters
-// is the shaped regression for the #5458 P2 review finding: hashes is stored
-// on the graph as a sorted "algorithm:digest" string list because Cypher node
-// properties cannot hold a nested map (packageRegistryHashPairs in
-// go/internal/storage/cypher/package_registry_artifact_writer.go), and that
-// split is only unambiguous when the algorithm name itself never contains
-// ':'. Before this validation, a collector-supplied algorithm name containing
-// ':' would silently produce an ambiguous "algorithm:digest" encoding on the
-// graph node with no error anywhere in the pipeline. This proves the payload
-// dead-letters as a classified input_invalid naming "hashes" instead.
-func TestDecodePackageRegistryPackageArtifact_ColonBearingHashAlgorithmDeadLetters(t *testing.T) {
+// TestDecodePackageRegistryPackageArtifact_ColonBearingHashAlgorithmDecodesCleanly
+// is the shaped regression for the #5820 P2 review finding: an earlier version
+// of this decode rejected a colon-bearing hashes algorithm name as
+// input_invalid, reasoning that the graph writer flattens Hashes into a sorted
+// "algorithm:digest" string list (packageRegistryHashPairs in
+// go/internal/storage/cypher/package_registry_artifact_writer.go) and a colon
+// inside the algorithm name would make that split ambiguous. But
+// package_registry.package_artifact.v1.schema.json's hashes.additionalProperties
+// accepts ANY string key, and this same schema version previously decoded
+// these payloads — so the rejection silently narrowed the public v1 contract
+// without a major bump or compatibility shim. The fix moves unambiguity from
+// rejection to a lossless escaping scheme in packageRegistryHashPairs itself
+// (see TestPackageRegistryHashPairsRoundTripsColonBearingAlgorithm in
+// go/internal/storage/cypher), so decode no longer needs to reject anything: a
+// colon-bearing algorithm name is exactly as valid as any other string key and
+// must decode cleanly, keeping every value the v1 schema allows decodable.
+func TestDecodePackageRegistryPackageArtifact_ColonBearingHashAlgorithmDecodesCleanly(t *testing.T) {
 	t.Parallel()
 
 	payload := fullPackageArtifactPayload()
@@ -46,36 +47,17 @@ func TestDecodePackageRegistryPackageArtifact_ColonBearingHashAlgorithmDeadLette
 
 	env := Envelope{FactKind: FactKindPackageRegistryPackageArtifact, SchemaVersion: "1.0.0", Payload: payload}
 	got, err := DecodePackageRegistryPackageArtifact(env)
-	if err == nil {
-		t.Fatalf("DecodePackageRegistryPackageArtifact() error = nil, want non-nil for colon-bearing hash algorithm")
+	if err != nil {
+		t.Fatalf("DecodePackageRegistryPackageArtifact() error = %v, want nil for a colon-bearing hash algorithm (v1 schema allows any string key)", err)
 	}
-
-	var classified *DecodeError
-	if !errors.As(err, &classified) {
-		t.Fatalf("DecodePackageRegistryPackageArtifact() error = %T, want *DecodeError", err)
-	}
-	if classified.Classification != ClassificationInputInvalid {
-		t.Fatalf("Classification = %q, want %q", classified.Classification, ClassificationInputInvalid)
-	}
-	// This is an invalid VALUE on a present field, not a missing required
-	// key, so Field stays unset and the offending field name is embedded in
-	// the error message instead — the same shape decodePayloadFieldError
-	// uses for the malformed-from_port case in decode_aws.go. Assert on the
-	// message rather than DecodeError.Field.
-	if !strings.Contains(classified.Error(), "hashes") {
-		t.Fatalf("error message = %q, want it to name the %q field", classified.Error(), "hashes")
-	}
-
-	var zero packageregistryv1.PackageArtifact
-	if !reflect.DeepEqual(got, zero) {
-		t.Fatalf("DecodePackageRegistryPackageArtifact() returned non-zero struct %+v on error, want zero value", got)
+	if got, want := got.Hashes["sha256:extra"], "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"; got != want {
+		t.Fatalf("Hashes[%q] = %q, want %q", "sha256:extra", got, want)
 	}
 }
 
-// TestDecodePackageRegistryPackageArtifact_FullPayloadDecodes is the positive
-// counterpart: a payload carrying every required key and colon-free hash
-// algorithm names decodes cleanly, so the rejection above cannot pass merely
-// because every payload fails.
+// TestDecodePackageRegistryPackageArtifact_FullPayloadDecodes is the baseline
+// positive case: a payload carrying every required key and a plain hash
+// algorithm name decodes cleanly.
 func TestDecodePackageRegistryPackageArtifact_FullPayloadDecodes(t *testing.T) {
 	t.Parallel()
 
