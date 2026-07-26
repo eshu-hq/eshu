@@ -85,14 +85,9 @@ type activeCICDRunCorrelationFactLoader interface {
 // CICDRunCorrelationHandler joins CI/CD run facts with reducer-owned artifact
 // identity evidence and publishes one durable decision per provider run.
 type CICDRunCorrelationHandler struct {
-	FactLoader FactLoader
-	Writer     CICDRunCorrelationWriter
-	// ProvenanceEdgeWriter projects exact decisions as canonical BUILT_FROM
-	// edges (#5428, docs/internal/design/5472-graph-projection-policy.md).
-	// It is optional: when nil the domain stays Postgres-only, which is the
-	// behavior every profile had before the projection was wired.
-	ProvenanceEdgeWriter CICDRunProvenanceEdgeWriter
-	Instruments          *telemetry.Instruments
+	FactLoader  FactLoader
+	Writer      CICDRunCorrelationWriter
+	Instruments *telemetry.Instruments
 }
 
 // Handle executes one CI/CD run correlation reducer intent.
@@ -132,13 +127,6 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 	})
 	if err != nil {
 		return Result{}, fmt.Errorf("write ci/cd run correlations: %w", err)
-	}
-	// Project canonical BUILT_FROM edges after the durable Postgres write, so
-	// the graph never advertises a correlation the read-model has not recorded
-	// (#5428, #5472 policy). A nil ProvenanceEdgeWriter keeps the domain
-	// Postgres-only.
-	if err := h.projectCICDRunBuiltFromEdges(ctx, intent, decisions); err != nil {
-		return Result{}, fmt.Errorf("project ci/cd run correlation built_from edges: %w", err)
 	}
 	h.emitCounters(ctx, counts)
 	quarantinedCount := recordQuarantinedFacts(ctx, h.Instruments, DomainCICDRunCorrelation, intent.ScopeID, intent.GenerationID, quarantined)

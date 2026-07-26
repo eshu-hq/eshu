@@ -48,10 +48,18 @@ The silent-omit surfaces identified in the terrain:
 
 The spine domains get a graph-projection policy in this order:
 
-1. **ci_cd_run_correlation → PROJECT**: exact outcomes with non-empty
-   `ImageRef` and a matching `container_image_identity` row get a bounded
-   graph write as `(ContainerImage|OciImageManifest)-[:BUILT_FROM]->(Repository)`
-   with `evidence_source=reducer/ci-cd-run-correlation`. Implementer #5428.
+1. **ci_cd_run_correlation → FEEDS (rescinded from PROJECT, PR #5824)**: this
+   domain does not write graph edges directly. Its build-provenance signal
+   reaches the graph through the container_image_identity lane:
+   `addCICDArtifactImageReference` folds CI-run digest evidence into
+   `BuildProvenanceRepositoryIDs`, and #5457's writer projects the resulting
+   `BUILT_FROM` edge under `evidence_source=reducer/container-image-identity`.
+   A second writer on the same (image, repository) pair is unsound today: the
+   canonical writer's `MERGE` identity is (start, end, type) only, so same-pair
+   edges from two evidence sources collapse and one domain's retract deletes
+   the other's assertion (#5827). BUILT_FROM is therefore a single-owner edge
+   type until #5827 lands. Correlation truth (run identity, outcome tier,
+   environment) stays Postgres-only and disclosed.
 
    `ci.job`, `ci.pipeline_definition`, and `ci.warning` kinds: registry
    disclosure comments only (no silent dead weight) — these have no reducer
@@ -77,7 +85,7 @@ The spine domains get a graph-projection policy in this order:
 
 | Domain | Decision | Evidence source | Edge type | Implementer |
 | --- | --- | --- | --- | --- |
-| ci_cd_run_correlation | PROJECT (exact only) | `reducer/ci-cd-run-correlation` | `BUILT_FROM` (ContainerImage/OciImageManifest → Repository) | #5428 |
+| ci_cd_run_correlation | FEEDS via container_image_identity (single-owner BUILT_FROM); Postgres-only read-model (disclosed) | N/A (rescinded, PR #5824) | N/A | #5428 (rescinded), #5827 |
 | ci.job / ci.pipeline_definition / ci.warning | DISCLOSURE (registry comments) | N/A | N/A | #5428 |
 | container_image_identity | PROJECT (exact_digest, source_repository_ids non-empty) | `reducer/container-image-identity` | `BUILT_FROM` (same edge, distinct source) | #5457 |
 | container_image_identity base images | PROJECT (exact_digest on BOTH endpoints, single distinct base per repository) | `reducer/container-image-base-image` | `DERIVED_FROM` (ContainerImage → ContainerImage) | #5460 |

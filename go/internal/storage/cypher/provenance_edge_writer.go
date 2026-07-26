@@ -59,7 +59,6 @@ var provenanceEdgeKindForSource = map[string]string{
 	"reducer/package-publication":        "PACKAGE_PUBLICATION_CORRELATION",
 	"reducer/container-image-identity":   "CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST",
 	"reducer/container-image-base-image": "CONTAINER_IMAGE_DERIVED_FROM",
-	"reducer/ci-cd-run-correlation":      "CI_CD_RUN_CORRELATION_EXACT_ARTIFACT",
 }
 
 // provenanceEdgeSourceToolForSource maps a writer evidence_source to the
@@ -76,7 +75,6 @@ var provenanceEdgeKindForSource = map[string]string{
 var provenanceEdgeSourceToolForSource = map[string]string{
 	"reducer/container-image-identity":   "oci",
 	"reducer/container-image-base-image": "oci",
-	"reducer/ci-cd-run-correlation":      "oci",
 }
 
 // provenanceEdgeKindsFor returns the single-element evidence_kinds list for
