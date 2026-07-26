@@ -331,14 +331,46 @@ func classifyCICDRunEvidence(ev *cicdRunEvidence, imageIndex map[string][]cicdIm
 	return decision
 }
 
+// cicdImageMatchesForRepository narrows a digest's container_image_identity
+// matches to those the run's own repository built, so a single surviving row
+// can promote the correlation to exact.
+//
+// It joins on build_provenance_repository_ids, and on nothing else:
+//
+//   - The identity's own repository_id is the OCI registry's identifier
+//     ("oci-registry://ghcr.io/org/repo"), a namespace disjoint from the
+//     canonical "repository:r_..." ids a ci.run carries. Narrowing compared
+//     those directly, so it never matched and left the unfiltered multi-row set
+//     to degrade an otherwise-exact correlation into ambiguous (#5766, the same
+//     trap #5464 found on the supply-chain side). That field is no longer
+//     decoded at all.
+//   - source_repository_ids conflates "this repository built the image" with
+//     "this repository's manifest merely references the digest". Narrowing on it
+//     can select a reference-only row and promote a repository that only deploys
+//     the image to exact -- the conflation #5796 fixed inside the identity
+//     domain by gating its own BUILT_FROM projection on the narrower set
+//     (#5823).
+//
+// A row published before #5823 carries no build-provenance key, so it can never
+// be selected here. That is deliberate, and it is NOT a degradation: because the
+// pre-#5766 predicate compared the OCI repository_id, narrowing was already a
+// dead no-op for every such row, and a legacy multi-row digest already resolved
+// ambiguous. Falling back to source_repository_ids for those rows would not
+// recover a lost correlation -- there is none to recover -- it would only
+// manufacture a false exact that the previous behavior never produced. The
+// sharper join engages for a scope as soon as its identity intent republishes.
 func cicdImageMatchesForRepository(matches []cicdImageIdentity, repositoryID string) []cicdImageIdentity {
+	repositoryID = strings.TrimSpace(repositoryID)
 	if repositoryID == "" {
 		return nil
 	}
 	out := make([]cicdImageIdentity, 0, len(matches))
 	for _, match := range matches {
-		if match.repositoryID == repositoryID {
-			out = append(out, match)
+		for _, candidate := range match.buildProvenanceRepositoryIDs {
+			if candidate == repositoryID {
+				out = append(out, match)
+				break
+			}
 		}
 	}
 	return out

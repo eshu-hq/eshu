@@ -248,10 +248,17 @@ func ensureCICDRunEvidence(runs map[string]*cicdRunEvidence, key string) *cicdRu
 // from the (out-of-scope, raw-payload) containerImageIdentityFactKind facts
 // buildCICDImageIdentityIndex indexes by digest.
 type cicdImageIdentity struct {
-	factID       string
-	repositoryID string
-	imageRef     string
-	digest       string
+	factID string
+	// buildProvenanceRepositoryIDs carries only the repositories the identity
+	// decision attributed BUILD evidence to, the narrow set #5796 established
+	// for this exact distinction. It is the sole join key for repository
+	// narrowing (#5823). A row published before that key existed carries an
+	// empty set and is simply never selected, which reproduces the pre-#5766
+	// behavior for those rows rather than degrading it -- see
+	// cicdImageMatchesForRepository.
+	buildProvenanceRepositoryIDs []string
+	imageRef                     string
+	digest                       string
 }
 
 func buildCICDImageIdentityIndex(envelopes []facts.Envelope) map[string][]cicdImageIdentity {
@@ -265,10 +272,12 @@ func buildCICDImageIdentityIndex(envelopes []facts.Envelope) map[string][]cicdIm
 			continue
 		}
 		index[digest] = append(index[digest], cicdImageIdentity{
-			factID:       envelope.FactID,
-			repositoryID: payloadString(envelope.Payload, "repository_id"),
-			imageRef:     payloadString(envelope.Payload, "image_ref"),
-			digest:       digest,
+			factID: envelope.FactID,
+			buildProvenanceRepositoryIDs: payloadOrderedStrings(
+				envelope.Payload, "build_provenance_repository_ids",
+			),
+			imageRef: payloadString(envelope.Payload, "image_ref"),
+			digest:   digest,
 		})
 	}
 	return index
