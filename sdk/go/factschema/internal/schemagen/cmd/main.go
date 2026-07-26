@@ -188,6 +188,11 @@ func run() error {
 		{name: "ci.run.v1.schema.json", generate: schemagen.CICDRunSchema},
 		{name: "ci.artifact.v1.schema.json", generate: schemagen.CICDArtifactSchema},
 		{name: "ci.environment_observation.v1.schema.json", generate: schemagen.CICDEnvironmentObservationSchema},
+		// ci.deployment_event has a reducer decode seam wrapper
+		// (go/internal/reducer/factschema_decode_cicdrun.go) even though no
+		// correlation domain reads it yet; typing it now is the contract
+		// layer's first step (see cicdrun/v1/doc.go).
+		{name: "ci.deployment_event.v1.schema.json", generate: schemagen.CICDDeploymentEventSchema},
 		{name: "ci.trigger_edge.v1.schema.json", generate: schemagen.CICDTriggerEdgeSchema},
 		{name: "ci.step.v1.schema.json", generate: schemagen.CICDStepSchema},
 		{name: "ci.workflow_image_evidence.v1.schema.json", generate: schemagen.CICDWorkflowImageEvidenceSchema},

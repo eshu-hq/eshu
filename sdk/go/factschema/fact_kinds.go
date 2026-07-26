@@ -275,6 +275,8 @@ const (
 	// FactKindCICDEnvironmentObservation is the "ci.environment_observation"
 	// fact kind.
 	FactKindCICDEnvironmentObservation = "ci.environment_observation"
+	// FactKindCICDDeploymentEvent is the "ci.deployment_event" fact kind.
+	FactKindCICDDeploymentEvent = "ci.deployment_event"
 	// FactKindCICDTriggerEdge is the "ci.trigger_edge" fact kind.
 	FactKindCICDTriggerEdge = "ci.trigger_edge"
 	// FactKindCICDStep is the "ci.step" fact kind.

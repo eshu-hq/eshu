@@ -54,6 +54,20 @@ func EncodeCICDEnvironmentObservation(observation cicdrunv1.EnvironmentObservati
 	return encodeDirectPayload(observation)
 }
 
+// DecodeCICDDeploymentEvent decodes env.Payload into the latest
+// cicdrunv1.DeploymentEvent struct for the "ci.deployment_event" fact kind.
+// See DecodeCICDRun for the dispatch and error contract.
+func DecodeCICDDeploymentEvent(env Envelope) (cicdrunv1.DeploymentEvent, error) {
+	return decodeLatestMajor[cicdrunv1.DeploymentEvent](FactKindCICDDeploymentEvent, env)
+}
+
+// EncodeCICDDeploymentEvent marshals a cicdrunv1.DeploymentEvent into the
+// map[string]any payload shape an Envelope carries. It is the inverse of
+// DecodeCICDDeploymentEvent for schema-version-1 payloads.
+func EncodeCICDDeploymentEvent(event cicdrunv1.DeploymentEvent) (map[string]any, error) {
+	return encodeDirectPayload(event)
+}
+
 // DecodeCICDTriggerEdge decodes env.Payload into the latest
 // cicdrunv1.TriggerEdge struct for the "ci.trigger_edge" fact kind. See
 // DecodeCICDRun for the dispatch and error contract.

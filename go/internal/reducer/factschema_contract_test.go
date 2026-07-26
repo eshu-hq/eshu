@@ -64,6 +64,7 @@ var factSchemaWireKindCases = []struct {
 	{"ci.run", factschema.FactKindCICDRun, facts.CICDRunFactKind},
 	{"ci.artifact", factschema.FactKindCICDArtifact, facts.CICDArtifactFactKind},
 	{"ci.environment_observation", factschema.FactKindCICDEnvironmentObservation, facts.CICDEnvironmentObservationFactKind},
+	{"ci.deployment_event", factschema.FactKindCICDDeploymentEvent, facts.CICDDeploymentEventFactKind},
 	{"ci.trigger_edge", factschema.FactKindCICDTriggerEdge, facts.CICDTriggerEdgeFactKind},
 	{"ci.step", factschema.FactKindCICDStep, facts.CICDStepFactKind},
 	{"ci.workflow_image_evidence", factschema.FactKindCICDWorkflowImageEvidence, facts.CICDWorkflowImageEvidenceFactKind},

@@ -92,10 +92,11 @@ families:
       ci.run: "sdk/go/factschema/schema/ci.run.v1.schema.json"
       ci.artifact: "sdk/go/factschema/schema/ci.artifact.v1.schema.json"
       ci.environment_observation: "sdk/go/factschema/schema/ci.environment_observation.v1.schema.json"
+      ci.deployment_event: "sdk/go/factschema/schema/ci.deployment_event.v1.schema.json"
       ci.trigger_edge: "sdk/go/factschema/schema/ci.trigger_edge.v1.schema.json"
       ci.step: "sdk/go/factschema/schema/ci.step.v1.schema.json"
       ci.workflow_image_evidence: "sdk/go/factschema/schema/ci.workflow_image_evidence.v1.schema.json"
-    kinds: [ci.artifact, ci.environment_observation, ci.job, ci.pipeline_definition, ci.run, ci.step, ci.trigger_edge, ci.warning, ci.workflow_image_evidence]
+    kinds: [ci.artifact, ci.deployment_event, ci.environment_observation, ci.job, ci.pipeline_definition, ci.run, ci.step, ci.trigger_edge, ci.warning, ci.workflow_image_evidence]
     # ci.job, ci.pipeline_definition, and ci.warning are registry-disclosed:
     # they have no reducer decode call today and no graph-projection path in
     # policy v1 (#5472), so they produce no graph or Postgres read-model

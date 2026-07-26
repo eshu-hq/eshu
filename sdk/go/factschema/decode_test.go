@@ -395,6 +395,7 @@ var payloadContracts = []struct {
 	{FactKindCICDRun, "ci.run.v1.schema.json", reflect.TypeOf(cicdrunv1.Run{})},
 	{FactKindCICDArtifact, "ci.artifact.v1.schema.json", reflect.TypeOf(cicdrunv1.Artifact{})},
 	{FactKindCICDEnvironmentObservation, "ci.environment_observation.v1.schema.json", reflect.TypeOf(cicdrunv1.EnvironmentObservation{})},
+	{FactKindCICDDeploymentEvent, "ci.deployment_event.v1.schema.json", reflect.TypeOf(cicdrunv1.DeploymentEvent{})},
 	{FactKindCICDTriggerEdge, "ci.trigger_edge.v1.schema.json", reflect.TypeOf(cicdrunv1.TriggerEdge{})},
 	{FactKindCICDStep, "ci.step.v1.schema.json", reflect.TypeOf(cicdrunv1.Step{})},
 	{FactKindCICDWorkflowImageEvidence, "ci.workflow_image_evidence.v1.schema.json", reflect.TypeOf(cicdrunv1.WorkflowImageEvidence{})},

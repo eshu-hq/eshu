@@ -6,7 +6,7 @@
 // docs/internal/design/contract-system-v1.md), decoded through the parent
 // factschema package's kind-keyed seam (decode.go, decode_cicdrun.go).
 //
-// Six fact kinds live here, all consumed by the reducer's
+// Seven fact kinds live here. Six are consumed by the reducer's
 // ci_cd_run_correlation domain (go/internal/reducer/ci_cd_run_correlation.go,
 // ci_cd_run_correlation_workflow_image.go):
 //
@@ -22,6 +22,14 @@
 //     command evidence row the git collector extracts from a checked-in
 //     GitHub Actions workflow file (go/internal/collector/git_workflow_image_facts.go),
 //     distinct from the ci_cd_run collector's provider-run facts above.
+//
+// The seventh, DeploymentEvent (ci.deployment_event), models a provider
+// deployment or deployment-status event (GitHub's Deployments API shape). It
+// has a reducer decode seam (decodeCICDDeploymentEvent in
+// factschema_decode_cicdrun.go) but no ci_cd_run_correlation caller yet —
+// this struct, its schema, and the decode seam are the contract-layer-only
+// first step of its rollout; wiring a correlation consumer is later
+// follow-on work.
 //
 // Two emitted-but-unread-by-the-reducer kinds (ci.job, ci.pipeline_definition)
 // and one warning kind (ci.warning) are intentionally NOT modeled here: no

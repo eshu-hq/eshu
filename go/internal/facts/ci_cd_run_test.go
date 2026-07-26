@@ -18,6 +18,7 @@ func TestCICDRunFactKindsAndSchemaVersions(t *testing.T) {
 		CICDArtifactFactKind,
 		CICDTriggerEdgeFactKind,
 		CICDEnvironmentObservationFactKind,
+		CICDDeploymentEventFactKind,
 		CICDWarningFactKind,
 	}
 	if len(kinds) != len(want) {

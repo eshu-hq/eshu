@@ -35,6 +35,16 @@ func CICDEnvironmentObservationSchema() ([]byte, error) {
 	return reflectSchema(CICDEnvironmentObservationSchemaID, "Eshu ci.environment_observation Payload (schema version 1)", &cicdrunv1.EnvironmentObservation{})
 }
 
+// CICDDeploymentEventSchemaID is the checked-in JSON Schema $id for the
+// schema-version-1 "ci.deployment_event" payload.
+const CICDDeploymentEventSchemaID = schemaBaseID + "cicdrun/v1/deployment_event.schema.json"
+
+// CICDDeploymentEventSchema returns the JSON Schema bytes for
+// cicdrunv1.DeploymentEvent.
+func CICDDeploymentEventSchema() ([]byte, error) {
+	return reflectSchema(CICDDeploymentEventSchemaID, "Eshu ci.deployment_event Payload (schema version 1)", &cicdrunv1.DeploymentEvent{})
+}
+
 // CICDTriggerEdgeSchemaID is the checked-in JSON Schema $id for the
 // schema-version-1 "ci.trigger_edge" payload.
 const CICDTriggerEdgeSchemaID = schemaBaseID + "cicdrun/v1/trigger_edge.schema.json"

@@ -38,22 +38,30 @@ const (
 
 // CICDRunCorrelationDecision records the bounded reducer decision for one run.
 type CICDRunCorrelationDecision struct {
-	Provider         string
-	RunID            string
-	RunAttempt       string
-	RepositoryID     string
-	CommitSHA        string
-	Environment      string
-	ArtifactDigest   string
-	ImageRef         string
-	Outcome          CICDRunCorrelationOutcome
-	Reason           string
-	ProvenanceOnly   bool
-	CanonicalWrites  int
-	EvidenceFactIDs  []string
-	CanonicalTarget  string
-	CorrelationKind  string
-	SourceLayerKinds []string
+	Provider     string
+	RunID        string
+	RunAttempt   string
+	RepositoryID string
+	CommitSHA    string
+	Environment  string
+	// EnvironmentEvidence names which evidence Environment came from:
+	// "deploy_event" when an attached ci.deployment_event won selection
+	// (classifyCICDDeploymentEventEnvironment), "declared" when the existing
+	// ci.environment_observation path supplied it, and "" when the run has no
+	// environment evidence at all. Issue #5426 branches on this value, so it
+	// is published on the durable payload (cicdRunCorrelationPayload), not
+	// kept in-memory only.
+	EnvironmentEvidence string
+	ArtifactDigest      string
+	ImageRef            string
+	Outcome             CICDRunCorrelationOutcome
+	Reason              string
+	ProvenanceOnly      bool
+	CanonicalWrites     int
+	EvidenceFactIDs     []string
+	CanonicalTarget     string
+	CorrelationKind     string
+	SourceLayerKinds    []string
 }
 
 // CICDRunCorrelationWrite carries decisions for durable publication.
@@ -206,6 +214,7 @@ func cicdRunCorrelationFactKinds() []string {
 		facts.CICDArtifactFactKind,
 		facts.CICDWorkflowImageEvidenceFactKind,
 		facts.CICDEnvironmentObservationFactKind,
+		facts.CICDDeploymentEventFactKind,
 		facts.CICDTriggerEdgeFactKind,
 		facts.CICDStepFactKind,
 	}
@@ -272,9 +281,20 @@ func classifyCICDRunEvidence(ev *cicdRunEvidence, imageIndex map[string][]cicdIm
 		SourceLayerKinds: []string{"reported"},
 		EvidenceFactIDs:  []string{ev.run.FactID},
 	}
-	if len(ev.environmentsDecoded) > 0 {
+	// An attached deployment event (repo/commit-scoped evidence, see
+	// attachDeploymentEventsToRuns) beats the declared job/step-level
+	// environment observation: the GitHub Deployments API is the platform's
+	// own record of what environment a commit was actually deployed to,
+	// where an environment_observation is inferred from the run's own
+	// job/step configuration and can drift from what really happened.
+	if env, factID, ok := classifyCICDDeploymentEventEnvironment(ev.deploymentEvents); ok {
+		decision.Environment = env
+		decision.EnvironmentEvidence = "deploy_event"
+		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, factID)
+	} else if len(ev.environmentsDecoded) > 0 {
 		decision.Environment = environment.Canonical(trimmedCICDPtr(ev.environmentsDecoded[0].Environment))
 		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, ev.environments[0].FactID)
+		decision.EnvironmentEvidence = "declared"
 	}
 	for _, trigger := range ev.triggers {
 		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, trigger.FactID)

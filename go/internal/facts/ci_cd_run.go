@@ -26,6 +26,11 @@ const (
 	// CICDEnvironmentObservationFactKind identifies an environment observation
 	// reported by a provider run, job, or deployment gate.
 	CICDEnvironmentObservationFactKind = "ci.environment_observation"
+	// CICDDeploymentEventFactKind identifies one provider deployment or
+	// deployment-status event (for example a GitHub Deployments API
+	// deployment/deployment_status pair) reported against a run's target
+	// environment and commit.
+	CICDDeploymentEventFactKind = "ci.deployment_event"
 	// CICDWarningFactKind identifies non-fatal CI/CD collection warnings.
 	CICDWarningFactKind = "ci.warning"
 
@@ -42,6 +47,7 @@ var cicdRunFactKinds = []string{
 	CICDArtifactFactKind,
 	CICDTriggerEdgeFactKind,
 	CICDEnvironmentObservationFactKind,
+	CICDDeploymentEventFactKind,
 	CICDWarningFactKind,
 }
 
@@ -54,6 +60,7 @@ var cicdRunSchemaVersions = map[string]string{
 	CICDArtifactFactKind:               CICDSchemaVersion,
 	CICDTriggerEdgeFactKind:            CICDSchemaVersion,
 	CICDEnvironmentObservationFactKind: CICDSchemaVersion,
+	CICDDeploymentEventFactKind:        CICDSchemaVersion,
 	CICDWarningFactKind:                CICDSchemaVersion,
 }
 

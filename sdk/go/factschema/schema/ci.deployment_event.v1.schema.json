@@ -1,0 +1,105 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/cicdrun/v1/deployment_event.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "created_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "deployment_id": {
+      "type": "string"
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "environment": {
+      "type": "string"
+    },
+    "environment_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "log_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "original_environment": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "production_environment": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "provider": {
+      "type": "string"
+    },
+    "ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repository_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sha": {
+      "type": "string"
+    },
+    "state": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "task": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "transient_environment": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "updated_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "provider",
+    "deployment_id",
+    "environment",
+    "sha"
+  ],
+  "title": "Eshu ci.deployment_event Payload (schema version 1)",
+  "type": "object"
+}
