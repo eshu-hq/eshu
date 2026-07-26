@@ -230,6 +230,36 @@ func TestSupplyChainRuntimeContextRepositoryIDMatchesReducerScopePrecedence(t *t
 			scopeID:  "github.com/example/repo-envelope",
 			expected: "github.com/example/repo-envelope",
 		},
+		{
+			name: "related array entries are trimmed",
+			payload: map[string]any{
+				"scope_id":          "github.com/example/repo-a",
+				"related_scope_ids": []any{"  repository:r_whitespace  "},
+			},
+			scopeID:  "repository:r_decoy",
+			expected: "repository:r_whitespace",
+		},
+		{
+			name: "scalar related scope is accepted",
+			payload: map[string]any{
+				"scope_id":          "github.com/example/repo-a",
+				"related_scope_ids": "  repository:r_scalar  ",
+			},
+			scopeID:  "repository:r_decoy",
+			expected: "repository:r_scalar",
+		},
+		{
+			name: "malformed related scope does not mask later valid scope",
+			payload: map[string]any{
+				"scope_id": "github.com/example/repo-a",
+				"related_scope_ids": []any{
+					"git-repository-scope:   ",
+					"  repository:r_later  ",
+				},
+			},
+			scopeID:  "repository:r_decoy",
+			expected: "repository:r_later",
+		},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {

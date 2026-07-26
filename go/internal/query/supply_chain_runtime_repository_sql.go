@@ -31,22 +31,27 @@ LEFT JOIN LATERAL (
                THEN NULLIF(BTRIM(SUBSTRING(selected_scope.value FROM 22)), '')
            END,
            (
-             SELECT CASE
-                      WHEN BTRIM(related.value) LIKE 'repository:%%'
-                        THEN BTRIM(related.value)
-                      WHEN BTRIM(related.value) LIKE 'git-repository-scope:%%'
-                        THEN NULLIF(BTRIM(SUBSTRING(related.value FROM 22)), '')
-                    END
-             FROM jsonb_array_elements_text(
-               CASE
-                 WHEN jsonb_typeof(%[1]s->'related_scope_ids') = 'array'
-                   THEN %[1]s->'related_scope_ids'
-                 ELSE '[]'::jsonb
-               END
-             ) WITH ORDINALITY AS related(value, ordinal)
-             WHERE BTRIM(related.value) LIKE 'repository:%%'
-                OR BTRIM(related.value) LIKE 'git-repository-scope:%%'
-             ORDER BY related.ordinal
+             SELECT decoded_related.repository_id
+             FROM (
+               SELECT related.ordinal,
+                      CASE
+                        WHEN BTRIM(related.value) LIKE 'repository:%%'
+                          THEN BTRIM(related.value)
+                        WHEN BTRIM(related.value) LIKE 'git-repository-scope:%%'
+                          THEN NULLIF(BTRIM(SUBSTRING(related.value FROM 22)), '')
+                      END AS repository_id
+               FROM jsonb_array_elements_text(
+                 CASE
+                   WHEN jsonb_typeof(%[1]s->'related_scope_ids') = 'array'
+                     THEN %[1]s->'related_scope_ids'
+                   WHEN jsonb_typeof(%[1]s->'related_scope_ids') = 'string'
+                     THEN jsonb_build_array(%[1]s->'related_scope_ids')
+                   ELSE '[]'::jsonb
+                 END
+               ) WITH ORDINALITY AS related(value, ordinal)
+             ) AS decoded_related
+             WHERE COALESCE(decoded_related.repository_id, '') <> ''
+             ORDER BY decoded_related.ordinal
              LIMIT 1
            ),
            selected_scope.value

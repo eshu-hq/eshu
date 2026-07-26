@@ -277,12 +277,50 @@ func supplyChainRuntimeContextRepositoryID(payload map[string]any, scopeID strin
 	if repositoryID := repositoryIDFromRuntimeContextScope(scoped); repositoryID != "" {
 		return repositoryID
 	}
-	for _, relatedScopeID := range StringSliceVal(payload, "related_scope_ids") {
+	for _, relatedScopeID := range supplyChainRuntimeContextOrderedStrings(
+		payload,
+		"related_scope_ids",
+	) {
 		if repositoryID := repositoryIDFromRuntimeContextScope(relatedScopeID); repositoryID != "" {
 			return repositoryID
 		}
 	}
 	return scoped
+}
+
+// supplyChainRuntimeContextOrderedStrings mirrors the reducer's
+// payloadOrderedStrings normalization for repository precedence. In
+// particular, it preserves order while trimming arrays, accepts the scalar
+// string shape, and skips blank values.
+func supplyChainRuntimeContextOrderedStrings(payload map[string]any, key string) []string {
+	raw, ok := payload[key]
+	if !ok {
+		return nil
+	}
+	switch typed := raw.(type) {
+	case []string:
+		out := make([]string, 0, len(typed))
+		for _, value := range typed {
+			if value = strings.TrimSpace(value); value != "" {
+				out = append(out, value)
+			}
+		}
+		return out
+	case []any:
+		out := make([]string, 0, len(typed))
+		for _, value := range typed {
+			text := strings.TrimSpace(StringVal(map[string]any{"value": value}, "value"))
+			if text != "" {
+				out = append(out, text)
+			}
+		}
+		return out
+	case string:
+		if trimmed := strings.TrimSpace(typed); trimmed != "" {
+			return []string{trimmed}
+		}
+	}
+	return nil
 }
 
 // repositoryIDFromRuntimeContextScope decodes one scope into a repository id,

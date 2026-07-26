@@ -16,6 +16,9 @@ const (
 	runtimePrecedenceEnvelopeRepository = "github.com/example/repo-envelope"
 	runtimePrecedenceEnvelopeGeneration = "generation:5747:raw-envelope"
 	runtimePrecedenceDecoyPackage       = "pkg:deb/example/decoder-decoy"
+	runtimePrecedenceWhitespaceRepo     = "repository:r_5747_whitespace"
+	runtimePrecedenceScalarRepo         = "repository:r_5747_scalar"
+	runtimePrecedenceLaterRepo          = "repository:r_5747_later"
 )
 
 type runtimeRepositoryPrecedenceCase struct {
@@ -52,6 +55,24 @@ func assertSupplyChainRuntimeRepositoryPrecedenceLive(
 			repositoryID: runtimePrecedenceEnvelopeRepository,
 			packageID:    "pkg:deb/example/raw-envelope",
 			environment:  "raw-envelope-5747",
+		},
+		{
+			name:         "whitespace_related_scope",
+			repositoryID: runtimePrecedenceWhitespaceRepo,
+			packageID:    "pkg:deb/example/whitespace-related",
+			workloadID:   "workload:5747:whitespace-related",
+		},
+		{
+			name:         "scalar_related_scope",
+			repositoryID: runtimePrecedenceScalarRepo,
+			packageID:    "pkg:deb/example/scalar-related",
+			serviceID:    "service:5747:scalar-related",
+		},
+		{
+			name:         "malformed_then_valid_related_scope",
+			repositoryID: runtimePrecedenceLaterRepo,
+			packageID:    "pkg:deb/example/later-related",
+			workloadID:   "workload:5747:later-related",
 		},
 	} {
 		tc := tc
@@ -247,6 +268,30 @@ func seedSupplyChainRuntimeRepositoryPrecedenceLiveFacts(
 		runtimeFilterLiveDecoyRepo,
 		runtimePrecedenceDecoyPackage,
 	)
+	insertRuntimePrecedenceFinding(
+		t,
+		ctx,
+		tx,
+		"whitespace-related",
+		runtimePrecedenceWhitespaceRepo,
+		"pkg:deb/example/whitespace-related",
+	)
+	insertRuntimePrecedenceFinding(
+		t,
+		ctx,
+		tx,
+		"scalar-related",
+		runtimePrecedenceScalarRepo,
+		"pkg:deb/example/scalar-related",
+	)
+	insertRuntimePrecedenceFinding(
+		t,
+		ctx,
+		tx,
+		"later-related",
+		runtimePrecedenceLaterRepo,
+		"pkg:deb/example/later-related",
+	)
 
 	insertSupplyChainRuntimeFilterFact(
 		t,
@@ -290,6 +335,55 @@ func seedSupplyChainRuntimeRepositoryPrecedenceLiveFacts(
 		map[string]any{
 			"environment": "raw-envelope-5747",
 			"outcome":     "exact",
+		},
+	)
+	insertSupplyChainRuntimeFilterFact(
+		t,
+		ctx,
+		tx,
+		"fact:5747:workload:whitespace-related",
+		runtimeFilterLiveDecoyRepo,
+		runtimeFilterLiveGenDecoy,
+		workloadIdentityFactKindQuery,
+		false,
+		map[string]any{
+			"scope_id":          runtimePrecedenceRawRepository,
+			"related_scope_ids": []string{"  " + runtimePrecedenceWhitespaceRepo + "  "},
+			"workload_id":       "workload:5747:whitespace-related",
+		},
+	)
+	insertSupplyChainRuntimeFilterFact(
+		t,
+		ctx,
+		tx,
+		"fact:5747:service:scalar-related",
+		runtimeFilterLiveDecoyRepo,
+		runtimeFilterLiveGenDecoy,
+		serviceCatalogCorrelationFactKind,
+		false,
+		map[string]any{
+			"scope_id":          runtimePrecedenceRawRepository,
+			"related_scope_ids": "  " + runtimePrecedenceScalarRepo + "  ",
+			"service_id":        "service:5747:scalar-related",
+			"outcome":           "exact",
+		},
+	)
+	insertSupplyChainRuntimeFilterFact(
+		t,
+		ctx,
+		tx,
+		"fact:5747:workload:later-related",
+		runtimeFilterLiveDecoyRepo,
+		runtimeFilterLiveGenDecoy,
+		workloadIdentityFactKindQuery,
+		false,
+		map[string]any{
+			"scope_id": runtimePrecedenceRawRepository,
+			"related_scope_ids": []string{
+				"git-repository-scope:   ",
+				"  " + runtimePrecedenceLaterRepo + "  ",
+			},
+			"workload_id": "workload:5747:later-related",
 		},
 	)
 }

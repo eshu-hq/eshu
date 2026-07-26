@@ -330,19 +330,23 @@ fallback shape at 109.091 ms versus 132.598 ms for the incorrect independent
 payload/envelope-scope shape; the corrected decoder returned all three intended
 precedence deltas. Conflicting anchors changed only the intended authorization
 result, while 100,000 non-conflicting mixed anchors had an exact `0/0` set
-difference.
+difference. A second 100,000-row shim isolated related-scope normalization:
+accepting a scalar string, trimming array entries, and skipping a malformed
+git-repository scope before a later valid repository returned all three
+expected deltas and improved execution from 111.529 ms to 87.185 ms on the
+same mixed input.
 A full-query proof loaded 100,000 facts for each runtime dimension (300,000
 total) and exposed a planner reorder: the first workload query entered through
 the scope/generation index and took 13.947 ms.
 Materializing each dimension-selected match set before the active-generation
 join made every production query enter through its dimension index. On the
 final reducer-equivalent current-only filter shape, execution times were
-0.813 ms for scalar workload, 0.639 ms for workload `entity_keys`, 0.202 ms
-for service, 0.197 ms for environment, 0.863 ms for the combined legacy list,
-0.800 ms for the combined winners list, 0.791 ms for the combined aggregate,
-0.292 ms for the no-runtime-filter aggregate, and 0.735 ms for explain.
+0.818 ms for scalar workload, 0.645 ms for workload `entity_keys`, 0.180 ms
+for service, 0.182 ms for environment, 0.713 ms for the combined legacy list,
+0.654 ms for the combined winners list, 0.641 ms for the combined aggregate,
+0.283 ms for the no-runtime-filter aggregate, and 0.647 ms for explain.
 Inserting all 300,000 rows while maintaining the runtime indexes took
-6.810 seconds.
+6.739 seconds; hydrating 200 candidate repositories took 59.565 ms.
 `TestSupplyChainImpactRuntimeFilterPlansLive` runs these exact
 `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` shapes and asserts the selected index
 names as well as a bounded execution ceiling. Each concurrent migration also
