@@ -195,12 +195,13 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	"FactKindServiceCatalogOperationalLink": "service_catalog.operational_link.v1.schema.json",
 	// ci_cd_run family: all seven kinds a reducer decode seam wrapper
 	// actually decodes (factschema_decode_cicdrun.go). ci.deployment_event's
-	// wrapper (decodeCICDDeploymentEvent) has no correlation-domain caller
-	// yet — it exists only as this contract-layer-only kind's consumer
-	// signal (cicdrun/v1/doc.go) — but it is still a real decode seam, so it
-	// is mapped here like the other six. ci.job, ci.pipeline_definition, and
-	// ci.warning carry no typed struct at all (cicdrun/v1 AGENTS.md), so
-	// they have no row here either.
+	// wrapper (decodeCICDDeploymentEvent) is consumed by the
+	// ci_cd_run_correlation domain's attachDeploymentEventsToRuns
+	// (ci_cd_run_correlation_deploy_events.go), joined by sha rather than the
+	// provider/run_id key the other six kinds use, so it is mapped here like
+	// the other six. ci.job, ci.pipeline_definition, and ci.warning carry no
+	// typed struct at all (cicdrun/v1 AGENTS.md), so they have no row here
+	// either.
 	"FactKindCICDRun":                    "ci.run.v1.schema.json",
 	"FactKindCICDArtifact":               "ci.artifact.v1.schema.json",
 	"FactKindCICDEnvironmentObservation": "ci.environment_observation.v1.schema.json",

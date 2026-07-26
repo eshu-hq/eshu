@@ -132,7 +132,7 @@ func (s ClaimedSource) appendDeploymentEnvelopes(
 		}
 		deploymentID, idErr := numericProviderID(snapshot.Deployment["id"])
 		if idErr != nil {
-			return envelopes, false, idErr
+			return nil, false, idErr
 		}
 		warning, warningErr := cicdrun.GitHubActionsDeploymentWarningEnvelope(
 			deploymentCtx,
@@ -141,7 +141,7 @@ func (s ClaimedSource) appendDeploymentEnvelopes(
 			"deployment "+deploymentID+" status window was truncated; a later transition may be missing",
 		)
 		if warningErr != nil {
-			return envelopes, false, warningErr
+			return nil, false, warningErr
 		}
 		envelopes = append(envelopes, warning)
 	}

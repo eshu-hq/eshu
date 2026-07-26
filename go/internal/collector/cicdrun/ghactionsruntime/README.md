@@ -175,6 +175,15 @@ labels.
   `deployment_unanchored` `ci.warning` (`unanchoredDeploymentWarnings`) so
   the gap stays visible instead of the fact quietly going nowhere once the
   reducer's sha-based attach finds no match.
+- `unanchoredDeploymentWarnings` compares a claim's deployment events only
+  against `runHeadSHAs` -- the runs fetched in THIS SAME claim window -- not
+  against every run fact the reducer has active in scope. The reducer's
+  `attachDeploymentEventsToRuns` attaches across all active scope facts, so a
+  deployment whose sha belongs to a run outside the current `max_runs`
+  window (an older run) is flagged `deployment_unanchored` at collection time
+  even though the reducer will correctly attach it once that run's facts are
+  in scope. Treat `deployment_unanchored` as a false-positive-prone operator
+  signal in steady state, not proof the reducer will never join the event.
 - `DeploymentFetcher` is optional: a `Client` that does not implement it
   (most of this package's run-collection test doubles) simply skips
   deployment collection with no error.

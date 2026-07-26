@@ -52,10 +52,13 @@ and `updated_at`, so re-polling upserts and `pending → in_progress → success
 three durable facts rather than one row overwritten. `scope_id` and `repository`
 are in the key because GitLab deployment `iid`s are per-project.
 
-Two failure modes are surfaced rather than swallowed: a truncated deployments
-list reuses the partial-generation counter with a `deployments_truncated`
-reason, and an event whose sha matches no fetched run emits a
-`deployment_unanchored` `ci.warning`.
+Three failure modes are surfaced rather than swallowed: a truncated
+deployments list reuses the partial-generation counter with a
+`deployments_truncated` reason, an event whose sha matches no fetched run
+emits a `deployment_unanchored` `ci.warning`, and a deployment whose own
+status window was truncated emits a `deployment_statuses_truncated`
+`ci.warning` (the deployment is present, but the transition carrying its
+final state may be missing).
 
 ## The canonical-environment trap, found by the corpus
 
@@ -141,9 +144,10 @@ linear; this is the number worth knowing because it is the ceiling.
 
 No-Observability-Change: no new metric names. The truncation path reuses the
 existing partial-generation counter with a new reason label, and the unanchored
-path emits a `ci.warning` fact rather than a metric. Every new non-test file has
-a `telemetry-coverage.md` row naming the existing `eshu_dp_ci_cd_run_*`
-instrument that covers it.
+path emits a `ci.warning` fact rather than a metric. Every new non-test file
+under `go/internal/**` has a `telemetry-coverage.md` row naming the existing
+`eshu_dp_ci_cd_run_*` instrument that covers it — the gate the row commitment
+is for only covers `go/internal/**`, not the new file under `sdk/go/factschema`.
 
 ## Verification
 
@@ -196,3 +200,26 @@ appended to an older deployment outside the fetched window, because statuses
 append to parents that may have scrolled out. This is a bounded correlation gap
 of the same class as the Lambda `code_sha256` gap in #5454, stated here and in
 the package README rather than hidden behind a heavier cursor.
+
+`deploymentEventEnvelope` (`go/internal/collector/cicdrun/github_actions_deployments.go`)
+deliberately denormalizes the parent deployment's `environment` onto every
+status row and does not decode a `deployment_status` event's own
+`environment` field (`githubDeploymentStatus` in `types_deployments.go`
+intentionally omits it). GitHub allows a status event to report a different
+environment than its parent deployment. Since the winning event's
+`Environment` becomes deployment truth
+(`classifyCICDDeploymentEventEnvironment`), a status-level environment
+override is invisible to the correlation today: the run resolves to the
+parent deployment's environment even when a later status reported a
+different one.
+
+`unanchoredDeploymentWarnings` (`go/internal/collector/cicdrun/ghactionsruntime/source_deployments.go`)
+compares each fetched deployment event's sha only against `runHeadSHAs`, the
+runs fetched in the SAME claim window. The reducer's
+`attachDeploymentEventsToRuns` attaches across every active run fact in
+scope, not only the current claim's window. In steady state, a deployment
+whose sha belongs to an older run outside this claim's `max_runs` window is
+flagged `deployment_unanchored` even though the reducer will still attach it
+correctly once that older run's facts are in scope. This is a false-positive
+operator signal, not a correlation gap — the same limitation is called out in
+`go/internal/collector/cicdrun/ghactionsruntime/README.md`.

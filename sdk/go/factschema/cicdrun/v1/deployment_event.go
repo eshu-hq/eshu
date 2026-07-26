@@ -14,11 +14,19 @@ package v1
 // derives from a run/job's environment, not from the Deployments API
 // directly).
 //
-// No reducer or storage decode path reads this kind yet — this struct, its
-// generated schema, and the decode/encode seam are the contract-layer-only
-// first step of this fact kind's rollout; wiring a real consumer is later
-// follow-on work, matching how this package typed WorkflowImageEvidence
-// ahead of its own consumer landing.
+// The reducer's ci_cd_run_correlation domain decodes and consumes this kind:
+// decodeCICDDeploymentEvent (go/internal/reducer/factschema_decode_cicdrun.go)
+// decodes the envelope, attachDeploymentEventsToRuns
+// (go/internal/reducer/ci_cd_run_correlation_deploy_events.go) joins it onto
+// every run whose CommitSHA equals this struct's SHA — the deployment carries
+// no run_id, which is exactly why the join is by sha — and
+// classifyCICDDeploymentEventEnvironment
+// (go/internal/reducer/ci_cd_run_correlation.go) selects the winning event
+// per run and canonicalizes its Environment through environment.Canonical
+// (for example "production" -> "prod") to produce the correlation's
+// environment, stamped environment_evidence="deploy_event" on the
+// run-correlation read model. The collector emitter is
+// go/internal/collector/cicdrun/github_actions_deployments.go.
 //
 // Provider, DeploymentID, Environment, and SHA are required because GitHub's
 // Deployments API always returns all four on every deployment object: the

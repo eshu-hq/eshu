@@ -228,3 +228,108 @@ func TestClaimedSourceWarnsOnTruncatedDeploymentStatusWindow(t *testing.T) {
 	}
 	t.Fatalf("no ci.warning with reason=deployment_statuses_truncated among %d warnings: %#v", len(warnings), warnings)
 }
+
+// A deployments-list page at the fetched bound is a truncation signal, not
+// proof no more deployments exist: GitHub's deployments-list endpoint returns
+// a bare array with no total_count, so truncation is always the full-page
+// heuristic (appendDeploymentEnvelopes, source_deployments.go). This pins
+// that DeploymentPage.Truncated actually reaches a durable
+// deployments_truncated warning rather than being computed and never read.
+func TestClaimedSourceWarnsOnTruncatedDeploymentsList(t *testing.T) {
+	t.Parallel()
+
+	const sharedSHA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+	client := fakeDeploymentClient{
+		fakeClient: fakeClient{page: RunPage{Snapshots: []RunSnapshot{{
+			Run: map[string]any{
+				"id":       1001,
+				"head_sha": sharedSHA,
+				"repository": map[string]any{
+					"full_name": "example/repo",
+					"html_url":  "https://github.com/example/repo",
+				},
+			},
+		}}}},
+		deploymentPage: DeploymentPage{
+			Snapshots: []DeploymentSnapshot{{
+				Deployment: map[string]any{
+					"id":          9001,
+					"sha":         sharedSHA,
+					"environment": "production",
+				},
+				Statuses: []map[string]any{{"id": 8001, "state": "success"}},
+			}},
+			Truncated: true,
+		},
+	}
+	source := newDeploymentClaimedSource(t, client)
+
+	collected, ok, err := source.NextClaimed(context.Background(), claimDeploymentWorkItem())
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+
+	warnings := filterFactKind(drainFacts(t, collected.Facts), facts.CICDWarningFactKind)
+	for _, warning := range warnings {
+		if warning.Payload["reason"] == "deployments_truncated" {
+			return
+		}
+	}
+	t.Fatalf("no ci.warning with reason=deployments_truncated among %d warnings: %#v", len(warnings), warnings)
+}
+
+// A deployment missing its provider id, sha, or environment is not a valid
+// observation of GitHub's Deployment object shape (the required-field
+// rationale in sdk/go/factschema/cicdrun/v1/deployment_event.go's godoc):
+// GitHubActionsDeploymentEnvelopes (github_actions_deployments.go) must
+// reject that row as a deployment_missing_required_field ci.warning instead
+// of building a ci.deployment_event fact with an empty deployment_id. This
+// pins that the collector's runtime path (appendDeploymentEnvelopes calling
+// through to GitHubActionsDeploymentEnvelopes) actually reaches that
+// warning for a deployment whose "id" field GitHub omitted.
+func TestClaimedSourceWarnsOnDeploymentMissingRequiredField(t *testing.T) {
+	t.Parallel()
+
+	client := fakeDeploymentClient{
+		fakeClient: fakeClient{page: RunPage{Snapshots: []RunSnapshot{{
+			Run: map[string]any{
+				"id":       1001,
+				"head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"repository": map[string]any{
+					"full_name": "example/repo",
+					"html_url":  "https://github.com/example/repo",
+				},
+			},
+		}}}},
+		deploymentPage: DeploymentPage{Snapshots: []DeploymentSnapshot{{
+			// No "id" key at all: providerID resolves the absent field to
+			// "", which must trip the required-field check even though sha
+			// and environment are both present.
+			Deployment: map[string]any{
+				"sha":         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"environment": "production",
+			},
+		}}},
+	}
+	source := newDeploymentClaimedSource(t, client)
+
+	collected, ok, err := source.NextClaimed(context.Background(), claimDeploymentWorkItem())
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+
+	warnings := filterFactKind(drainFacts(t, collected.Facts), facts.CICDWarningFactKind)
+	for _, warning := range warnings {
+		if warning.Payload["reason"] == "deployment_missing_required_field" {
+			return
+		}
+	}
+	t.Fatalf("no ci.warning with reason=deployment_missing_required_field among %d warnings: %#v", len(warnings), warnings)
+}

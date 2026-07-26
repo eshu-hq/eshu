@@ -17,14 +17,20 @@ of the public `github.com/eshu-hq/eshu/sdk/go/factschema` Go module
 | `ci.step` | `Step` | `provider`, `run_id` |
 | `ci.workflow_image_evidence` | `WorkflowImageEvidence` | `repository_id` |
 
-`ci.deployment_event` is contract-layer-only today: it has a reducer decode
-seam (`decodeCICDDeploymentEvent`,
-`go/internal/reducer/factschema_decode_cicdrun.go`) so this gate-facing
-package types it, but no `ci_cd_run_correlation` domain reads the decoded
-struct yet — unlike the other six kinds below, its required fields are not
-(yet) a reducer join key.
+`ci.deployment_event` is consumed by the reducer through a decode seam
+(`decodeCICDDeploymentEvent`,
+`go/internal/reducer/factschema_decode_cicdrun.go`) and a `ci_cd_run_correlation`
+attach step (`attachDeploymentEventsToRuns`,
+`go/internal/reducer/ci_cd_run_correlation_deploy_events.go`), but on a
+different join key than the other six kinds: a deployment carries no
+`run_id`, so it joins by `sha` against each run's `CommitSHA` instead of the
+`provider`+`run_id` key below. The winning event per run
+(`classifyCICDDeploymentEventEnvironment`,
+`go/internal/reducer/ci_cd_run_correlation.go`) supplies the run
+correlation's `environment` (canonicalized via `environment.Canonical`) and
+stamps `environment_evidence=deploy_event`.
 
-Every required field on the six correlation-consumed kinds above is a
+Every required field on the six `provider`+`run_id`-keyed kinds above is a
 reducer join-key segment: `provider` + `run_id` (+ `run_attempt`, which
 defaults to `"1"` and stays optional) key the reducer's `cicdRunEvidence` map
 (`go/internal/reducer/ci_cd_run_correlation.go:cicdRunKey`), and
@@ -35,8 +41,8 @@ never join correctly under the pre-typing raw-map read, so the typed decode
 seam now dead-letters it as a per-fact `input_invalid` quarantine instead of
 silently producing an empty-string join key. `ci.deployment_event`'s required
 fields (`provider`, `deployment_id`, `environment`, `sha`) are required
-because GitHub's Deployments API always returns all four, not because a
-reducer join key reads them yet — see `DeploymentEvent`'s own godoc.
+because GitHub's Deployments API always returns all four AND because `sha`
+is this kind's own reducer join key — see `DeploymentEvent`'s own godoc.
 
 ## Deferred kinds
 
@@ -58,11 +64,6 @@ DIFFERENT collector — the git collector's static workflow-file scanner
 (`facts.CICDSchemaVersion`), and the reducer's `ci_cd_run_correlation` domain
 reads both origins together. It lives in this package because it is part of
 the same reducer-consumed family, not because it shares a collector.
-
-`DeploymentEvent` has no collector emitter yet — only the contract layer
-(struct, schema, decode seam) exists today. Wiring a collector to emit
-`ci.deployment_event` facts is later follow-on work, out of scope for this
-change.
 
 ## Contract Rules
 
