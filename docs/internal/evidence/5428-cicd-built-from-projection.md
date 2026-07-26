@@ -83,16 +83,53 @@ No-Observability-Change: no metrics, spans, structured logs, or status fields ar
 added or altered. The projection runs inside the existing
 `ci_cd_run_correlation` handler span and its outcome counters are unchanged.
 
-## Open: golden-corpus assertion depends on an exact outcome existing
+## Measured: the corpus reaches `derived`, so no golden floor is possible
 
-A non-vacuous golden assertion (`minimum_count >= 1`) for this edge requires the
-20-repo corpus to produce at least one **exact** ci_cd_run correlation. That is
-not yet established: #5766 (open) records that `cicdImageMatchesForRepository`
-narrows by the OCI `repository_id` namespace, which never matches `ci.run`'s
-canonical `repository:r_...`, so the digest match set is not narrowed to one row
-and the corpus outcome lands on derived/ambiguous. If that holds, this
-projection writes zero edges in the corpus and a `minimum_count >= 1` assertion
-would be unsatisfiable — the honest options are a `max: 0` floor documenting the
-gap, or landing #5766 first so an exact outcome becomes reachable. This must be
-settled by running `scripts/verify-golden-corpus-gate.sh` and reading the actual
-outcome, not by assumption, before this change claims corpus coverage.
+The open question -- whether a `minimum_count >= 1` floor is justified -- is now
+answered by measurement, not assumption. Golden-corpus gate run on this branch
+(remote, isolated ports, clean volumes), gate PASSES 495/0/1 in 96s:
+
+```
+$ MATCH ()-[r:BUILT_FROM]->() RETURN r.evidence_source AS src, count(*) AS n
+["reducer/container-image-identity", 2]
+(no reducer/ci-cd-run-correlation rows)
+
+$ SELECT payload->>'outcome', count(*) FROM fact_records
+    WHERE fact_kind='reducer_ci_cd_run_correlation' GROUP BY 1;
+derived|2
+
+$ SELECT status, count(*) FROM fact_work_items
+    WHERE domain='ci_cd_run_correlation' GROUP BY 1;
+succeeded|2
+```
+
+The projection wrote zero edges and that is **correct behavior**: the corpus
+correlation lands on `derived`, and this projection is exact-only by policy.
+
+Why `derived` and not `exact`: the artifact loop takes `case 0` (empty
+`matches`), meaning no `container_image_identity` rows were available in the
+digest index at correlation time -- not that narrowing rejected them. #5766's
+narrowing fix on this branch is therefore correct but never exercised in this
+corpus: there is nothing to narrow. The work items are `succeeded`, so the
+maintenance reopen did run and still produced `derived`.
+
+Two hypotheses were tested and disproven rather than assumed:
+
+- **Dead-letter race.** Predicted the intent dead-letters when the edge write
+  races an unprojected endpoint node. Measured `succeeded|2`, zero dead letters.
+  A `WITH`-barrier change to the shared BUILT_FROM statement was written to fix
+  that and then **reverted**: with no observed dead letter it fixed nothing
+  measurable, and landing a shared-writer Cypher change on an unproven theory is
+  exactly what prove-the-theory-first forbids. If that barrier is the right fix
+  for #5767, it belongs there with its own reproduction.
+- **My change caused a drain regression.** An earlier run showed
+  `residual=1, dead_letter=1`; a clean-volume re-run of the same commit passed
+  with `residual=0`. The failure was contaminated Docker state from an
+  aborted port-collision run, not this branch.
+
+Consequence for this change: it ships with **no golden floor**. Asserting
+`minimum_count >= 1` would be unsatisfiable on this corpus, and asserting a
+`max: 0` floor would freeze a gap rather than describe one. The projection is
+proven by unit tests; corpus-level proof waits on a corpus that can reach an
+exact outcome. Making `exact` reachable is upstream work (the identity rows are
+not in the digest index when the correlation runs), tracked separately.
