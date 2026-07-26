@@ -42,12 +42,16 @@
 - **Package truth is identity-first** — `Package`, `PackageVersion`,
   `PackageDependency`, `PackageArtifact`, `PackageRegistryPackage`,
   `PackageRegistryPackageVersion`, `PackageRegistryPackageDependency`, and
-  `PackageRegistryPackageArtifact` labels get `uid` constraints;
-  `PackageArtifact` additionally gets `package_artifact_version_id` and
-  `package_artifact_package_id` lookup indexes backing the deferred
-  `HAS_ARTIFACT` edge MATCH (#5458). Keep package ownership and repository
-  publication out of schema assumptions unless reducer admission owns that
-  truth.
+  `PackageRegistryPackageArtifact` labels get `uid` constraints (#5458). The
+  deferred `HAS_ARTIFACT` edge MATCH anchors on `uid` alone (and, on the
+  `PackageVersion` side, also `package_id` — see
+  `package_registry_artifact_writer.go`), which the `uid` constraint already
+  backs; do not add a `package_artifact_version_id`/`package_artifact_package_id`
+  index pair speculatively — a #5820 P2 review found no query anywhere in the
+  repo filtering `PackageArtifact` by `version_id` or `package_id`, so that
+  pair was removed as unused DDL weight. Add an index in the same change as
+  the query that needs it. Keep package ownership and repository publication
+  out of schema assumptions unless reducer admission owns that truth.
 - **NornicDB composite constraint parity** — `nornicDBSchemaConstraint` drops
   composite `IS UNIQUE` constraints because NornicDB rejects that syntax. The
   NornicDB dialect uses `uid` uniqueness constraints and lookup indexes for the

@@ -27,16 +27,19 @@ const (
 	// graphSchemaNeo4jFingerprint and graphSchemaNornicDBFingerprint are the
 	// current schema digests, now including the #5458 PackageArtifact /
 	// PackageRegistryPackageArtifact uid uniqueness constraints
-	// (uidConstraintLabels) plus the package_artifact_version_id /
-	// package_artifact_package_id read indexes (schema_tables_indexes.go) that
-	// back the deferred HAS_ARTIFACT edge MATCH
-	// (package_registry_artifact_writer.go). The bump is additive: a writer
-	// running the predecessor schema creates no PackageArtifact nodes, so the
-	// new constraints and indexes never apply to it, and the predecessor
-	// (graphSchemaNeo4jPreArtifactFingerprint /
+	// (uidConstraintLabels). A #5820 P2 review found no query anywhere in the
+	// repo filtering PackageArtifact by version_id or package_id -- the
+	// deferred HAS_ARTIFACT edge MATCH anchors on uid only
+	// (package_registry_artifact_writer.go) -- so the package_artifact_
+	// version_id/package_artifact_package_id lookup indexes this schema
+	// originally added alongside the uid constraints were removed as unused
+	// DDL weight (schema_tables_indexes.go); only the uid constraints remain.
+	// The bump is additive: a writer running the predecessor schema creates no
+	// PackageArtifact nodes, so the new constraint never applies to it, and the
+	// predecessor (graphSchemaNeo4jPreArtifactFingerprint /
 	// graphSchemaNornicDBPreArtifactFingerprint) stays compatible.
-	graphSchemaNeo4jFingerprint    = "a47c6cef473f9cbb971c55f7a22a9400e3d8354aee8cee0359a8624aa54c299a"
-	graphSchemaNornicDBFingerprint = "cce6543e9580be57845cc98a756bdd8720adb9faeeec8f72474b74cac5ed1e1e"
+	graphSchemaNeo4jFingerprint    = "d7985da368fd30df0e0bfcf86a2f14cc588b7ba649f555d36927984ed749a9f9"
+	graphSchemaNornicDBFingerprint = "89a8a9239e99b3e7c808148d120986f09bc9e242333718b07bd5efe18e192f70"
 
 	// graphSchemaNeo4jPreArtifactFingerprint and its NornicDB peer are the
 	// schema fingerprints immediately before the #5458 PackageArtifact /

@@ -22,11 +22,14 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			backend:     SchemaBackendNeo4j,
 			fingerprint: graphSchemaNeo4jFingerprint,
 			// The #5458 PackageArtifact/PackageRegistryPackageArtifact uid
-			// constraints and package_artifact_version_id/package_artifact_package_id
-			// lookup indexes are additive: an older writer creates no
-			// PackageArtifact nodes, so the new constraints and indexes never
-			// apply to it, and its predecessor (the merged #5651
-			// KubernetesNamespace tip below) stays compatible.
+			// constraints are additive: an older writer creates no
+			// PackageArtifact nodes, so the new constraints never apply to it,
+			// and its predecessor (the merged #5651 KubernetesNamespace tip
+			// below) stays compatible. (A #5820 P2 review found the
+			// package_artifact_version_id/package_artifact_package_id lookup
+			// indexes this schema originally also added were unused DDL --
+			// see schema_application.go's graphSchemaNeo4jFingerprint doc --
+			// so they were removed and are not part of this fingerprint.)
 			// The #5445 kustomize_overlay_repo_id index only adds a
 			// repo-scoped index on an existing label; an older writer creates
 			// no fewer KustomizeOverlay nodes and needs no schema change to
