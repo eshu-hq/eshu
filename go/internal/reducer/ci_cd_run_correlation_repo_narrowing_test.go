@@ -64,26 +64,18 @@ func TestCICDImageMatchesForRepositoryIgnoresOCIRegistryRepositoryID(t *testing.
 	}
 }
 
-// TestCICDImageMatchesForRepositoryCannotDistinguishBuiltFromReferenced pins the
-// residual accuracy risk #5796 closed for the sibling container_image_identity
-// domain but which this consumer structurally cannot close today.
+// TestCICDImageMatchesForRepositoryRejectsReferenceOnlyRepository is the #5823
+// regression, and the inversion of the test that previously pinned this false
+// positive as unavoidable.
 //
-// #5796 stopped that domain projecting BUILT_FROM from SourceRepositoryIDs,
-// because that field conflates "this repository genuinely built the image" with
-// "this repository's Kubernetes manifest merely references the digest". It
-// gated the projection on the narrower BuildProvenanceRepositoryIDs instead.
-// That field is NOT persisted: containerImageIdentityPayload writes only
-// source_repository_ids, so a cross-scope consumer like this one can only join
-// on the broad field.
-//
-// The consequence is real and is asserted here rather than left implicit: when a
-// digest has two candidate identities and the run's repository appears ONLY as a
-// reference on the second, narrowing selects that second row, the correlation
-// promotes to exact, and the projection emits BUILT_FROM for a repository that
-// merely deploys the image. This test documents the current behavior so the fix
-// (persisting build_provenance_repository_ids and narrowing on it, #5823) has a
-// failing-then-green target and cannot land silently.
-func TestCICDImageMatchesForRepositoryCannotDistinguishBuiltFromReferenced(t *testing.T) {
+// source_repository_ids conflates "this repository genuinely built the image"
+// with "this repository's Kubernetes manifest merely references the digest" --
+// the same conflation #5796 fixed inside container_image_identity by gating its
+// BUILT_FROM projection on the narrower BuildProvenanceRepositoryIDs. That
+// narrower set is now persisted as build_provenance_repository_ids, so this
+// consumer joins on it too: a digest whose run repository appears only as a
+// reference no longer narrows to one row and no longer promotes to exact.
+func TestCICDImageMatchesForRepositoryRejectsReferenceOnlyRepository(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -94,24 +86,128 @@ func TestCICDImageMatchesForRepositoryCannotDistinguishBuiltFromReferenced(t *te
 
 	matches := []cicdImageIdentity{
 		{
-			factID:              "identity-built-by-other-repo",
+			factID:                       "identity-built-by-other-repo",
+			sourceRepositoryIDs:          []string{buildingRepo},
+			buildProvenanceRepositoryIDs: []string{buildingRepo},
+			buildProvenanceKeyPresent:    true,
+			digest:                       digest,
+		},
+		{
+			// This row lists the deploying repository only because its manifest
+			// references the digest. It carries the build-provenance key, and
+			// that key does NOT name the deploying repository.
+			factID:                    "identity-merely-referenced",
+			sourceRepositoryIDs:       []string{deployingRepo},
+			buildProvenanceKeyPresent: true,
+			digest:                    digest,
+		},
+	}
+
+	if got := cicdImageMatchesForRepository(matches, deployingRepo); len(got) != 0 {
+		t.Fatalf("cicdImageMatchesForRepository() = %#v, want 0: a repository that only "+
+			"references the digest must not narrow to one row and promote to exact (#5823)", got)
+	}
+}
+
+// TestCICDImageMatchesForRepositorySelectsBuildProvenanceRow is the positive
+// half of #5823: the repository the identity domain attributed BUILD evidence
+// to still narrows to exactly its own row.
+func TestCICDImageMatchesForRepositorySelectsBuildProvenanceRow(t *testing.T) {
+	t.Parallel()
+
+	const (
+		digest       = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		buildingRepo = "repository:r_actually_built"
+	)
+
+	matches := []cicdImageIdentity{
+		{
+			factID:                       "identity-built-by-this-repo",
+			sourceRepositoryIDs:          []string{buildingRepo, "repository:r_deploys_only"},
+			buildProvenanceRepositoryIDs: []string{buildingRepo},
+			buildProvenanceKeyPresent:    true,
+			digest:                       digest,
+		},
+		{
+			factID:                       "identity-from-another-repo",
+			sourceRepositoryIDs:          []string{"repository:r_someone_else"},
+			buildProvenanceRepositoryIDs: []string{"repository:r_someone_else"},
+			buildProvenanceKeyPresent:    true,
+			digest:                       digest,
+		},
+	}
+
+	got := cicdImageMatchesForRepository(matches, buildingRepo)
+	if len(got) != 1 || got[0].factID != "identity-built-by-this-repo" {
+		t.Fatalf("cicdImageMatchesForRepository() = %#v, want exactly the build-provenance row", got)
+	}
+}
+
+// TestCICDImageMatchesForRepositoryFallsBackForLegacyPayloads closes the
+// mixed-generation window. Identity facts published before
+// build_provenance_repository_ids existed carry no such key at all. Treating
+// their absent key as "built nothing" would silently degrade every correlation
+// against a dormant scope from exact to ambiguous, so an absent key -- and only
+// an absent key -- falls back to the broader source_repository_ids join.
+func TestCICDImageMatchesForRepositoryFallsBackForLegacyPayloads(t *testing.T) {
+	t.Parallel()
+
+	const (
+		digest       = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+		buildingRepo = "repository:r_actually_built"
+	)
+
+	matches := []cicdImageIdentity{
+		{
+			factID:              "legacy-identity-built-by-this-repo",
 			sourceRepositoryIDs: []string{buildingRepo},
 			digest:              digest,
 		},
 		{
-			// This row lists the deploying repository only because its manifest
-			// references the digest -- it did not build the image. Nothing in the
-			// persisted payload distinguishes that from a real build.
-			factID:              "identity-merely-referenced",
+			factID:              "legacy-identity-from-another-repo",
+			sourceRepositoryIDs: []string{"repository:r_someone_else"},
+			digest:              digest,
+		},
+	}
+
+	got := cicdImageMatchesForRepository(matches, buildingRepo)
+	if len(got) != 1 || got[0].factID != "legacy-identity-built-by-this-repo" {
+		t.Fatalf("cicdImageMatchesForRepository() = %#v, want the legacy source_repository_ids "+
+			"join to still narrow when no row carries the build-provenance key", got)
+	}
+}
+
+// TestCICDImageMatchesForRepositoryDoesNotFallBackWhenKeyPresent proves the
+// fallback is scoped to the legacy shape only. Once any row carries the
+// build-provenance key the payload generation is known to publish it, so a
+// repository the key does not name must stay unnarrowed (conservatively
+// ambiguous) rather than silently falling back to the reference-conflating
+// join the fallback exists for.
+func TestCICDImageMatchesForRepositoryDoesNotFallBackWhenKeyPresent(t *testing.T) {
+	t.Parallel()
+
+	const (
+		digest        = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+		deployingRepo = "repository:r_deploys_only"
+	)
+
+	matches := []cicdImageIdentity{
+		{
+			factID:                       "identity-built-by-other-repo",
+			sourceRepositoryIDs:          []string{deployingRepo},
+			buildProvenanceRepositoryIDs: []string{"repository:r_actually_built"},
+			buildProvenanceKeyPresent:    true,
+			digest:                       digest,
+		},
+		{
+			factID:              "legacy-row-alongside",
 			sourceRepositoryIDs: []string{deployingRepo},
 			digest:              digest,
 		},
 	}
 
-	got := cicdImageMatchesForRepository(matches, deployingRepo)
-	if len(got) != 1 || got[0].factID != "identity-merely-referenced" {
-		t.Fatalf("cicdImageMatchesForRepository() = %#v, want the reference-only row selected; "+
-			"if this now returns 0 matches, build-provenance narrowing has landed and this "+
-			"test should be inverted to assert the false positive is gone (#5823)", got)
+	if got := cicdImageMatchesForRepository(matches, deployingRepo); len(got) != 0 {
+		t.Fatalf("cicdImageMatchesForRepository() = %#v, want 0: one row carrying the "+
+			"build-provenance key proves the generation publishes it, so no fallback", got)
 	}
 }

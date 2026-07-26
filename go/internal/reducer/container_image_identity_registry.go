@@ -329,6 +329,15 @@ func applyCIRunDigestRevision(
 		decision.SourceRepositoryIDs = uniqueSortedStrings(
 			append(decision.SourceRepositoryIDs, anchor.sourceRepositoryIDs...),
 		)
+		// A CI run that reported producing this digest is build evidence for
+		// its repository, matching applySLSADigestRevision below and the #5808
+		// doctrine. This append sits BEFORE the source-revision tier guard on
+		// purpose: build provenance is a set, not a winner-take-all tier, so a
+		// competing decision that wins the upsert must not carry its genuine
+		// builder in the broad field alone (#5823).
+		decision.BuildProvenanceRepositoryIDs = uniqueSortedStrings(
+			append(decision.BuildProvenanceRepositoryIDs, anchor.sourceRepositoryIDs...),
+		)
 	}
 	if len(anchor.factIDs) > 0 {
 		decision.EvidenceFactIDs = uniqueSortedStrings(

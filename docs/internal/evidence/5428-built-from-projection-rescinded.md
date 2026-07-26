@@ -59,54 +59,128 @@ this projection should follow the policy, not the issue text.
 
 ## What this branch still ships
 
-Only #5766: `cicdImageMatchesForRepository` now narrows on the identity's
-`source_repository_ids` instead of comparing `container_image_identity`'s
-`repository_id` — an OCI registry path — against `ci.run`'s canonical
+**#5766 — narrow on a joinable anchor.** The narrowing predicate compared
+`container_image_identity`'s `repository_id` — an OCI registry path
+(`oci-registry://ghcr.io/org/repo`) — against `ci.run`'s canonical
 `repository:r_...` id. Those namespaces never compare equal, so narrowing
-silently matched nothing and the caller fell back to the unfiltered digest-match
-set, degrading correlations that should have been exact into ambiguous.
+silently matched nothing, the caller kept the unfiltered digest-match set, and
+correlations that should have been exact degraded to ambiguous. Same trap #5464
+found on the supply-chain side.
 
-That fix is correct but imprecise, and the imprecision is disclosed rather than
-hidden: `source_repository_ids` conflates "built this image" with "references
-this digest", so a repository that only deploys an image can still be selected.
-`TestCICDImageMatchesForRepositoryCannotDistinguishBuiltFromReferenced` asserts
-that reachable behaviour. The precise join key is
-`build_provenance_repository_ids`, which is not persisted on the identity payload
-today; persisting it is a contract change (registry, cassettes, B-12) filed as
-**#5823**.
+**#5823 — narrow on build evidence, not on references.** Fixing the namespace
+alone would have shipped a worse bug than it cured. `source_repository_ids`
+conflates "this repository built the image" with "this repository's manifest
+merely references the digest", so a working narrowing predicate could select a
+deploy-only row, reduce the match set to one, and promote a repository that
+never built the image to `exact`. That is the same conflation #5796 fixed
+*inside* the identity domain by gating its own `BUILT_FROM` projection on the
+narrower `BuildProvenanceRepositoryIDs`.
+
+That narrow set existed only in memory. `containerImageIdentityPayload` published
+`source_repository_ids` and not the build-provenance set, so every cross-domain
+consumer was structurally forced onto the conflating join. This branch persists
+`build_provenance_repository_ids` and narrows on it.
+
+Persisting it is an additive reducer-publication field, not a governed contract
+change: `specs/fact-kind-registry.v1.yaml` governs collector kinds
+(`oci_registry.*`), and no `reducer_*` publication kind has a registry entry or
+`payload_schema_overrides` schema. The #4573 payload-usage manifest is derived
+from typed `factschema.Decode*` seams; this consumer's read is explicitly
+raw-payload and out of that scope. No query or OpenAPI response surfaces the new
+key.
+
+**Mixed-generation safety.** Identity facts published before this change carry
+no build-provenance key at all. Reading an absent key as "built nothing" would
+silently degrade every correlation against a dormant scope, so the consumer
+records key *presence* separately from key *contents*: when no candidate row
+declares the key, the legacy `source_repository_ids` join is used; once any row
+declares it, a repository the key does not name stays unnarrowed. Both
+directions fail conservatively toward `ambiguous`, never toward a false `exact`.
+The key is therefore always written, even when empty — an omitted key on an
+empty set would be indistinguishable from a legacy fact.
+
+**Producer asymmetry closed.** `applySLSADigestRevision` appended its anchor's
+repositories to `BuildProvenanceRepositoryIDs`; `applyCIRunDigestRevision`
+appended them only to `SourceRepositoryIDs`. A competing decision that won the
+upsert therefore carried its genuine builder in the broad field alone and had no
+build provenance at all — the same gap class #5808 fixed one path over. The
+append now sits before the source-revision tier guard, because build provenance
+is a set, not a winner-take-all tier: a CI run that reported producing a digest
+is build evidence for its repository regardless of which tier won the revision
+race or whether a commit resolved.
 
 ## Verification
 
-No-Regression Evidence: after the withdrawal this branch changes no graph write,
-no Cypher statement, no writer wiring, and no telemetry — `provenance_edge_writer.go`,
-`defaults.go`, `defaults_additive_domains_correlation.go`, `cmd/reducer/main.go`,
-and `telemetry-coverage.md` are byte-identical to `origin/main`. The only runtime
-change is the narrowing predicate, which can only ever select a subset of the
-matches the caller already had.
+Behavior change, so the proof is the intended delta, not identity with the old
+output. Each test below fails on the parent commit and passes here.
 
 ```
-$ rg -n 'CICDRunProvenanceEdgeWriter|projectCICDRunBuiltFromEdges|cicdRunBuiltFromRows' go/
-(no matches — projection fully removed)
-
-$ cd go && go build ./...
-(no output)
-
-$ go test ./internal/reducer ./internal/storage/cypher ./cmd/reducer -count=1
-ok  	github.com/eshu-hq/eshu/go/internal/reducer
-ok  	github.com/eshu-hq/eshu/go/internal/storage/cypher
-ok  	github.com/eshu-hq/eshu/go/cmd/reducer
+$ cd go && go test ./internal/reducer \
+    -run 'CICDImageMatches|BuildCICDImageIdentityIndex|ContainerImageIdentityPayload|ApplyCIRunDigestRevision' \
+    -count=1 -v
+--- PASS: TestCICDImageMatchesForRepositoryNarrowsOnGitSourceRepositories      (#5766)
+--- PASS: TestCICDImageMatchesForRepositoryIgnoresOCIRegistryRepositoryID      (#5766)
+--- PASS: TestCICDImageMatchesForRepositoryRejectsReferenceOnlyRepository      (#5823)
+--- PASS: TestCICDImageMatchesForRepositorySelectsBuildProvenanceRow           (#5823)
+--- PASS: TestCICDImageMatchesForRepositoryFallsBackForLegacyPayloads          (mixed generation)
+--- PASS: TestCICDImageMatchesForRepositoryDoesNotFallBackWhenKeyPresent       (mixed generation)
+--- PASS: TestContainerImageIdentityPayloadPersistsBuildProvenanceRepositoryIDs
+--- PASS: TestContainerImageIdentityPayloadEmitsEmptyBuildProvenanceKey
+--- PASS: TestBuildCICDImageIdentityIndexReadsBuildProvenance
+--- PASS: TestApplyCIRunDigestRevisionConfersBuildProvenance
+ok  	github.com/eshu-hq/eshu/go/internal/reducer	1.131s
 ```
 
-No-Observability-Change: no metrics, spans, structured logs, or status fields are
-added or altered; the telemetry-coverage doc is restored to main's content.
+`TestCICDImageMatchesForRepositoryRejectsReferenceOnlyRepository` is the
+inversion of a test this branch previously added to pin the false positive as
+unavoidable. Its failure message named the condition under which it should be
+inverted; that condition is now met.
+
+Cross-package consumers and the full owning packages:
+
+```
+$ cd go && go test ./internal/reducer ./internal/storage/cypher ./cmd/reducer \
+    ./internal/query ./internal/mcp ./internal/projector -count=1
+ok  	github.com/eshu-hq/eshu/go/internal/reducer	3.411s
+ok  	github.com/eshu-hq/eshu/go/internal/storage/cypher	0.851s
+ok  	github.com/eshu-hq/eshu/go/cmd/reducer	1.057s
+ok  	github.com/eshu-hq/eshu/go/internal/query	3.372s
+ok  	github.com/eshu-hq/eshu/go/internal/mcp	2.750s
+ok  	github.com/eshu-hq/eshu/go/internal/projector	0.536s
+```
+
+No-Regression Evidence: the withdrawn projection leaves no trace — the
+provenance edge writer, its wiring, the reducer entrypoint, and the telemetry
+coverage doc are byte-identical to `origin/main`, and `rg` finds no reference to
+`CICDRunProvenanceEdgeWriter`, `projectCICDRunBuiltFromEdges`, or
+`cicdRunBuiltFromRows`. No Cypher statement, graph write, or index changes. The
+remaining runtime deltas are one additional map key on a payload the reducer
+already writes, and a narrowing predicate that can only ever select a subset of
+the matches the caller already had.
+
+No-Observability-Change: no metrics, spans, structured logs, or status fields
+are added or altered; `docs/public/observability/telemetry-coverage.md` is
+restored to main's content.
+
+## Golden corpus
+
+The B-7 gate covers this surface because reducer publication output changed.
+Neither pinned floor asserts the identity payload's key set: the
+`list_container_image_identities` floor asserts filtering on
+`source_repository_ids` returns at least one row, and the
+`list_ci_cd_run_correlations` floor pins `minimum_results: 1` while explicitly
+declining to pin an outcome value. The corpus's builder row gains
+`build_provenance_repository_ids` through the same `ci.artifact` join that
+already gave it `source_repository_ids`, so narrowing selects the same single
+row and both floors hold. The gate run recording that result is cited in the PR.
 
 ## Open issues this work produced
 
-- **#5827** — provenance writer MERGE identity omits `evidence_source`/`scope_id`
-  (the class defect; live for PUBLISHES today). BUILT_FROM stays single-owner
-  until it lands.
+- **#5827** — the provenance writer's `MERGE` identity omits `evidence_source`
+  and `scope_id`, collapsing same-pair edges across domains and scopes. Live for
+  `PUBLISHES` on `main` today and recorded in the B-12 snapshot's rc-164.
+  `BUILT_FROM` stays single-owner until it lands.
 - **#5828** — `eshu_dp_provenance_edges_total` counts submitted rows as
-  `materialized`, including rows whose endpoint was absent.
-- **#5823** — persist `build_provenance_repository_ids` so narrowing can
-  distinguish built-from from referenced-by.
-- **#5822** — the golden corpus never reaches an `exact` ci_cd_run correlation.
+  `materialized`, including rows whose endpoint node was absent.
+- **#5822** — the golden corpus never reaches an `exact` ci_cd_run correlation,
+  so the exact path has no deterministic fixture.
