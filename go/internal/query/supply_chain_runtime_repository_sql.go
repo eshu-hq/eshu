@@ -8,7 +8,8 @@ import "fmt"
 // supplyChainRuntimeRepositoryDecoderJoin renders the canonical SQL decoder
 // for a runtime fact's repository anchor. Its precedence must match
 // supplyChainRuntimeContextRepositoryID: direct payload repository, payload
-// scope, envelope scope, then the first repository-like related scope.
+// scope or (only when payload scope is blank) envelope scope, then the first
+// repository-like related scope, then the raw selected scope.
 //
 // Expressions and aliases are internal SQL identifiers selected by callers,
 // never request values. Keeping this decoder shared makes filter membership
@@ -24,16 +25,10 @@ LEFT JOIN LATERAL (
            NULLIF(BTRIM(%[1]s->>'repository_id'), ''),
            NULLIF(BTRIM(%[1]s->>'repo_id'), ''),
            CASE
-             WHEN BTRIM(%[1]s->>'scope_id') LIKE 'repository:%%'
-               THEN BTRIM(%[1]s->>'scope_id')
-             WHEN BTRIM(%[1]s->>'scope_id') LIKE 'git-repository-scope:%%'
-               THEN NULLIF(BTRIM(SUBSTRING(%[1]s->>'scope_id' FROM 22)), '')
-           END,
-           CASE
-             WHEN BTRIM(%[2]s) LIKE 'repository:%%'
-               THEN BTRIM(%[2]s)
-             WHEN BTRIM(%[2]s) LIKE 'git-repository-scope:%%'
-               THEN NULLIF(BTRIM(SUBSTRING(%[2]s FROM 22)), '')
+             WHEN selected_scope.value LIKE 'repository:%%'
+               THEN selected_scope.value
+             WHEN selected_scope.value LIKE 'git-repository-scope:%%'
+               THEN NULLIF(BTRIM(SUBSTRING(selected_scope.value FROM 22)), '')
            END,
            (
              SELECT CASE
@@ -53,8 +48,15 @@ LEFT JOIN LATERAL (
                 OR BTRIM(related.value) LIKE 'git-repository-scope:%%'
              ORDER BY related.ordinal
              LIMIT 1
-           )
+           ),
+           selected_scope.value
          ) AS repository_id
+  FROM (
+    SELECT COALESCE(
+             NULLIF(BTRIM(%[1]s->>'scope_id'), ''),
+             NULLIF(BTRIM(%[2]s), '')
+           ) AS value
+  ) AS selected_scope
 ) AS %[3]s ON TRUE`,
 		payloadExpr,
 		scopeExpr,

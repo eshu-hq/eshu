@@ -324,20 +324,25 @@ discarded 99,999 rows to a 0.023 ms bitmap lookup. The exact live
 golden-corpus 200-candidate repository join, including related-scope decoding,
 executed in 0.237 ms. On the 300,000-fact partition, the same 200-candidate
 hydration query executed in 72.347 ms before canonical authorization and
-61.137 ms after filter and hydration began sharing one precedence-preserving
-decoder; conflicting anchors changed only the intended authorization result,
-while 100,000 non-conflicting mixed anchors had an exact `0/0` set difference.
+57.991 ms after filter and hydration began sharing one reducer-equivalent
+decoder. A 100,000-row decoder shim showed the selected-scope/related-scope/raw
+fallback shape at 109.091 ms versus 132.598 ms for the incorrect independent
+payload/envelope-scope shape; the corrected decoder returned all three intended
+precedence deltas. Conflicting anchors changed only the intended authorization
+result, while 100,000 non-conflicting mixed anchors had an exact `0/0` set
+difference.
 A full-query proof loaded 100,000 facts for each runtime dimension (300,000
 total) and exposed a planner reorder: the first workload query entered through
 the scope/generation index and took 13.947 ms.
 Materializing each dimension-selected match set before the active-generation
 join made every production query enter through its dimension index. On the
-final current-only filter shape, execution times were 0.733 ms for scalar
-workload, 0.619 ms for workload `entity_keys`, 0.163 ms for service, 0.152 ms
-for environment, 0.653 ms for the combined legacy list, 0.656 ms for the
-combined winners list, 0.641 ms for the combined aggregate, 0.254 ms for the
-no-runtime-filter aggregate, and 0.611 ms for explain. Inserting all 300,000
-rows while maintaining the runtime indexes took 6.496 seconds.
+final reducer-equivalent current-only filter shape, execution times were
+0.813 ms for scalar workload, 0.639 ms for workload `entity_keys`, 0.202 ms
+for service, 0.197 ms for environment, 0.863 ms for the combined legacy list,
+0.800 ms for the combined winners list, 0.791 ms for the combined aggregate,
+0.292 ms for the no-runtime-filter aggregate, and 0.735 ms for explain.
+Inserting all 300,000 rows while maintaining the runtime indexes took
+6.810 seconds.
 `TestSupplyChainImpactRuntimeFilterPlansLive` runs these exact
 `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` shapes and asserts the selected index
 names as well as a bounded execution ceiling. Each concurrent migration also

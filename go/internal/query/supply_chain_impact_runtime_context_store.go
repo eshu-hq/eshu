@@ -38,14 +38,15 @@ var supplyChainImpactRuntimeContextFactKinds = []string{
 // selectSupplyChainImpactRuntimeContextQuery loads active runtime-context
 // facts whose canonical repository anchor matches a candidate repository id.
 // The shared decoder applies the reducer's precedence: payload repository_id
-// or repo_id, payload scope_id, envelope scope_id, then the first
-// repository-like related_scope_ids entry. Authorizing only that decoded
-// value prevents a lower-precedence granted anchor from admitting a fact that
-// folds under an unauthorized repository. The active-generation joins mirror
-// the findings list query so retracted or stale-generation facts never resolve
-// current context. Scoped callers additionally require either the decoded
-// repository or the fact's direct ingestion scope to be granted, matching
-// #5747's filter-membership authorization boundary.
+// or repo_id; one selected scope (payload scope_id, falling back to envelope
+// scope); the first repository-like related_scope_ids entry; then the raw
+// selected scope. Authorizing only that decoded value prevents a
+// lower-precedence granted anchor from admitting a fact that folds under an
+// unauthorized repository. The active-generation joins mirror the findings
+// list query so retracted or stale-generation facts never resolve current
+// context. Scoped callers additionally require either the decoded repository
+// or the fact's direct ingestion scope to be granted, matching #5747's
+// filter-membership authorization boundary.
 //
 // Bounded by len(candidates) (page-sized, at most the enforced findings page
 // limit of supplyChainImpactFindingMaxLimit = 200) and 4 kinds — this is the
@@ -258,26 +259,30 @@ func supplyChainRuntimeContextOutcomeAccepted(payload map[string]any) bool {
 // supplyChainRuntimeContextRepositoryID resolves a fact's repository anchor
 // mirroring the reducer's supplyChainWorkloadRepositoryID exactly: a direct
 // payload repository_id or repo_id is accepted verbatim (consumption-derived
-// anchors use non-prefixed forms like github.com/org/repo or repo://acme/api);
-// then a repository:- or git-repository-scope:-prefixed payload scope_id or
-// envelope scope; then related_scope_ids scanned for either prefixed form.
+// anchors use non-prefixed forms like github.com/org/repo or repo://acme/api).
+// Otherwise it selects exactly one scope with payload scope_id taking
+// precedence over the envelope scope, decodes that scope when prefixed, scans
+// related_scope_ids for a prefixed repository, then returns the raw selected
+// scope. This first-nonblank and raw-fallback behavior is part of reducer truth.
 func supplyChainRuntimeContextRepositoryID(payload map[string]any, scopeID string) string {
 	for _, key := range []string{"repository_id", "repo_id"} {
 		if value := strings.TrimSpace(StringVal(payload, key)); value != "" {
 			return value
 		}
 	}
-	for _, candidate := range []string{strings.TrimSpace(StringVal(payload, "scope_id")), strings.TrimSpace(scopeID)} {
-		if repositoryID := repositoryIDFromRuntimeContextScope(candidate); repositoryID != "" {
-			return repositoryID
-		}
+	scoped := strings.TrimSpace(StringVal(payload, "scope_id"))
+	if scoped == "" {
+		scoped = strings.TrimSpace(scopeID)
+	}
+	if repositoryID := repositoryIDFromRuntimeContextScope(scoped); repositoryID != "" {
+		return repositoryID
 	}
 	for _, relatedScopeID := range StringSliceVal(payload, "related_scope_ids") {
 		if repositoryID := repositoryIDFromRuntimeContextScope(relatedScopeID); repositoryID != "" {
 			return repositoryID
 		}
 	}
-	return ""
+	return scoped
 }
 
 // repositoryIDFromRuntimeContextScope decodes one scope into a repository id,

@@ -166,14 +166,22 @@ func TestSupplyChainRuntimeContextRepositoryIDAcceptsNonPrefixedDirectID(t *test
 	// use non-prefixed forms like github.com/org/repo or repo://acme/api, and
 	// rejecting them leaves an honest-empty runtime_context for facts the SQL
 	// already matched.
-	for _, id := range []string{"github.com/org/repo", "repo://acme/api", "repository:r_217415d9"} {
-		id := id
-		t.Run(id, func(t *testing.T) {
-			t.Parallel()
-			if got := supplyChainRuntimeContextRepositoryID(map[string]any{"repository_id": id}, ""); got != id {
-				t.Errorf("repositoryID = %q, want %q", got, id)
-			}
-		})
+	for _, key := range []string{"repository_id", "repo_id"} {
+		key := key
+		for _, id := range []string{"github.com/org/repo", "repo://acme/api", "repository:r_217415d9"} {
+			id := id
+			t.Run(key+"/"+id, func(t *testing.T) {
+				t.Parallel()
+				payload := map[string]any{
+					key:                 id,
+					"scope_id":          "repository:r_decoy",
+					"related_scope_ids": []any{"repository:r_related"},
+				}
+				if got := supplyChainRuntimeContextRepositoryID(payload, "repository:r_envelope"); got != id {
+					t.Errorf("repositoryID = %q, want direct %s %q", got, key, id)
+				}
+			})
+		}
 	}
 }
 
@@ -190,15 +198,71 @@ func TestSupplyChainRuntimeContextRepositoryIDFromRelatedScopeIDs(t *testing.T) 
 	}
 }
 
-func TestAddSupplyChainRuntimeContextFactIgnoresUnanchoredFact(t *testing.T) {
+func TestSupplyChainRuntimeContextRepositoryIDMatchesReducerScopePrecedence(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		payload  map[string]any
+		scopeID  string
+		expected string
+	}{
+		{
+			name: "raw payload scope shadows prefixed envelope scope",
+			payload: map[string]any{
+				"scope_id": "github.com/example/repo-a",
+			},
+			scopeID:  "repository:r_decoy",
+			expected: "github.com/example/repo-a",
+		},
+		{
+			name: "related repository beats raw selected scope fallback",
+			payload: map[string]any{
+				"scope_id":          "github.com/example/repo-a",
+				"related_scope_ids": []any{"repository:r_related"},
+			},
+			scopeID:  "repository:r_decoy",
+			expected: "repository:r_related",
+		},
+		{
+			name:     "raw envelope scope is the final fallback",
+			payload:  map[string]any{"scope_id": "  "},
+			scopeID:  "github.com/example/repo-envelope",
+			expected: "github.com/example/repo-envelope",
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := supplyChainRuntimeContextRepositoryID(tc.payload, tc.scopeID); got != tc.expected {
+				t.Fatalf("repositoryID = %q, want reducer-equivalent %q", got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestAddSupplyChainRuntimeContextFactFallsBackToRawScope(t *testing.T) {
 	t.Parallel()
 
 	out := map[string]SupplyChainRuntimeContext{}
 	addSupplyChainRuntimeContextFact(out, workloadIdentityFactKindQuery, "scan-target-xyz", map[string]any{
 		"entity_keys": []any{"workload:x"},
 	})
+	ctx, ok := out["scan-target-xyz"]
+	if !ok || len(ctx.WorkloadIDs) != 1 || ctx.WorkloadIDs[0] != "workload:x" {
+		t.Errorf("out = %v, want workload context under reducer raw-scope fallback", out)
+	}
+}
+
+func TestAddSupplyChainRuntimeContextFactIgnoresBlankScope(t *testing.T) {
+	t.Parallel()
+
+	out := map[string]SupplyChainRuntimeContext{}
+	addSupplyChainRuntimeContextFact(out, workloadIdentityFactKindQuery, "", map[string]any{
+		"entity_keys": []any{"workload:x"},
+	})
 	if len(out) != 0 {
-		t.Errorf("out = %v, want no context for fact with no repository anchor", out)
+		t.Errorf("out = %v, want no context without any repository or scope anchor", out)
 	}
 }
 

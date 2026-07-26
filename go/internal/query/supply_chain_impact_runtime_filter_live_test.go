@@ -180,6 +180,7 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 	assertSupplyChainRuntimeContextScopesLive(t, ctx, findingStore)
 	assertSupplyChainConflictingAnchorFiltersLive(t, ctx, findingStore, aggregateStore)
 	assertSupplyChainStaleBakedFiltersLive(t, ctx, findingStore, aggregateStore)
+	assertSupplyChainRuntimeRepositoryPrecedenceLive(t, ctx, findingStore, aggregateStore)
 }
 
 func assertSupplyChainRuntimeFilterListCount(
@@ -215,6 +216,7 @@ func seedSupplyChainRuntimeFilterLiveFacts(
 		{scopeID: runtimeFilterLiveScopeB, generationID: runtimeFilterLiveGenB},
 		{scopeID: runtimeFilterLiveScopeC, generationID: runtimeFilterLiveGenC},
 		{scopeID: runtimeFilterLiveDecoyRepo, generationID: runtimeFilterLiveGenDecoy},
+		{scopeID: runtimePrecedenceEnvelopeRepository, generationID: runtimePrecedenceEnvelopeGeneration},
 	} {
 		if _, err := tx.ExecContext(ctx, `
 INSERT INTO ingestion_scopes (
@@ -413,6 +415,7 @@ INSERT INTO supply_chain_impact_canonical_winners (
 	); err != nil {
 		t.Fatalf("insert stale-baked canonical winner: %v", err)
 	}
+	seedSupplyChainRuntimeRepositoryPrecedenceLiveFacts(t, ctx, tx)
 }
 
 func insertSupplyChainRuntimeFilterFact(
