@@ -129,14 +129,21 @@ for umbrella in go-race-complete go-core-complete; do
 	else
 		bad "${umbrella} treats result==skipped as pass"
 	fi
-	# Match the ENFORCING COMPARISON, not the `changes_result=...` assignment.
-	# Asserting on `needs.changes.result` alone is vacuous: the assignment line
-	# satisfies it even after the whole guard conditional is deleted, so the one
-	# check standing between us and a false green would silently stop testing.
-	if rg -qF '"${changes_result}" != "success"' <<<"${block}"; then
-		ok "${umbrella} fails when the changes gate itself failed (no false green)"
+	# Assert the guard STRUCTURALLY: the comparison AND a non-zero exit inside
+	# the same `if ... fi`. Two weaker forms were tried and both were vacuous:
+	#   - matching `needs.changes.result` matched the `changes_result=...`
+	#     ASSIGNMENT, so deleting the whole conditional stayed green;
+	#   - matching the comparison alone left "keep the comparison and the
+	#     ::error:: echo, drop the `exit 1`" green — and that mutation still
+	#     exits 0, so the umbrella reports success after a failed `changes`.
+	# A bare `exit 1` search over the whole job block is no good either: the
+	# SECOND guard (the lane-result check) carries its own `exit 1` and would
+	# satisfy it. So slice out just this guard's body and look inside it.
+	guard_body="$(awk '/"\$\{changes_result\}" != "success"/{f=1} f{print} f&&/^[[:space:]]*fi[[:space:]]*$/{exit}' <<<"${block}")"
+	if [[ -n "${guard_body}" ]] && rg -q '^\s*exit [1-9]' <<<"${guard_body}"; then
+		ok "${umbrella} fails when the changes gate itself failed (guard exits non-zero)"
 	else
-		bad "${umbrella} must compare \"\${changes_result}\" != \"success\" and exit non-zero"
+		bad "${umbrella} changes_result guard must compare != \"success\" AND exit non-zero inside that same if-block"
 	fi
 done
 
