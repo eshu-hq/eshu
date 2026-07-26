@@ -3,16 +3,19 @@
 
 package v1
 
-// The six types across this file and deferred_events.go — SourceHint,
-// PackageArtifact, VulnerabilityHint, RegistryEvent, RepositoryHosting, and
-// Warning — are TYPED-BUT-NOT-YET-CONSUMED (see doc.go). No decode-seam read
-// consumer exists for their fact kinds today, so this wave ships their
-// struct, schema, and fixture pack without converting a decode site, adding a
-// regression test, or benchmarking a read path (there is none to benchmark).
-// The decode-site conversion, the input_invalid regression test, and the
-// No-Regression benchmark land in the change that first decodes each kind,
-// matching how the terraform_state family typed
-// Candidate/ProviderBinding/Warning ahead of their consumer.
+// PackageArtifact (this file) and RegistryEvent (deferred_events.go) gained
+// real projector consumers in #5458 (both slices of the same epic); they are
+// no longer typed-but-not-yet-consumed and this comment block, and the
+// "deferred" file name, now describe only the four REMAINING types across
+// this file and deferred_events.go — SourceHint, VulnerabilityHint,
+// RepositoryHosting, and Warning — which are still TYPED-BUT-NOT-YET-CONSUMED
+// (see doc.go). No decode-seam read consumer exists for their fact kinds
+// today, so this wave ships their struct, schema, and fixture pack without
+// converting a decode site, adding a regression test, or benchmarking a read
+// path (there is none to benchmark). The decode-site conversion, the
+// input_invalid regression test, and the No-Regression benchmark land in the
+// change that first decodes each kind, matching how the terraform_state
+// family typed Candidate/ProviderBinding/Warning ahead of their consumer.
 //
 // SourceHint, VulnerabilityHint, and Warning ARE read today, but only through
 // raw payload map access outside this wave's scope: SourceHint by the

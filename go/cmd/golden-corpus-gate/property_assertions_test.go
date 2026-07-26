@@ -341,6 +341,122 @@ func TestLoadSnapshotPackageArtifactHashesEntryMatchesCassette(t *testing.T) {
 	}
 }
 
+// registryEventFieldsSnapshot mirrors the rn-registry-event-fields entry
+// committed in testdata/golden/e2e-20repo-snapshot.json: the exact event_type
+// value pinned for the package_registry supply-chain-demo cassette's
+// github.com/acme/lib-common@1.0.0 registry_event fact. rc-169
+// (required_correlations) already asserts the
+// PackageVersion-[:HAS_REGISTRY_EVENT]->RegistryEvent edge exists, but a live
+// projection that creates the node and edge while omitting or corrupting
+// event_type would still satisfy rc-169 -- this is the value-level
+// counterpart, mirroring packageArtifactHashesSnapshot's rationale above.
+func registryEventFieldsSnapshot() Snapshot {
+	return Snapshot{
+		SchemaVersion: "1",
+		Graph: GraphSnapshot{
+			RequiredNodes: []RequiredNode{{
+				ID:                     "rn-registry-event-fields",
+				Label:                  "RegistryEvent",
+				MinimumCount:           1,
+				RequiredNodeProperties: []string{"event_type"},
+				AllowedNodePropertyValues: map[string][]string{
+					"event_type": {"yank"},
+				},
+			}},
+		},
+	}
+}
+
+// TestCheckGraphRegistryEventFieldsCorrectValuePasses is the non-vacuity
+// positive proof for rn-registry-event-fields: the RegistryEvent node exists
+// and its event_type property matches the pinned exact value.
+func TestCheckGraphRegistryEventFieldsCorrectValuePasses(t *testing.T) {
+	c := fakeCounter{
+		nodes: map[string]int64{"RegistryEvent": 1},
+		nodeProp: map[string][]string{
+			"RegistryEvent|event_type": {"yank"},
+		},
+	}
+	var r Report
+	if err := checkGraph(context.Background(), c, registryEventFieldsSnapshot(), true, nil, &r); err != nil {
+		t.Fatalf("checkGraph err = %v", err)
+	}
+	if r.Failed() {
+		t.Fatalf("expected pass when event_type carries the exact pinned value; findings: %+v", r.Findings)
+	}
+}
+
+// TestCheckGraphRegistryEventFieldsMissingFails proves the assertion is
+// non-vacuous: a live projection that creates the RegistryEvent node (and,
+// via rc-169, the HAS_REGISTRY_EVENT edge) but OMITS event_type -- the exact
+// defect class rc-169 alone could not catch -- must fail the gate.
+func TestCheckGraphRegistryEventFieldsMissingFails(t *testing.T) {
+	c := fakeCounter{
+		nodes:    map[string]int64{"RegistryEvent": 1},
+		nodeProp: map[string][]string{"RegistryEvent|event_type": {""}},
+	}
+	var r Report
+	if err := checkGraph(context.Background(), c, registryEventFieldsSnapshot(), true, nil, &r); err != nil {
+		t.Fatalf("checkGraph err = %v", err)
+	}
+	if !r.Failed() {
+		t.Fatal("a RegistryEvent node missing event_type must fail the gate")
+	}
+}
+
+// TestCheckGraphRegistryEventFieldsWrongValueFails proves the assertion
+// checks the VALUE, not just presence: a writer that writes event_type but
+// with the wrong lifecycle token must fail even though the property is
+// non-empty.
+func TestCheckGraphRegistryEventFieldsWrongValueFails(t *testing.T) {
+	c := fakeCounter{
+		nodes: map[string]int64{"RegistryEvent": 1},
+		nodeProp: map[string][]string{
+			"RegistryEvent|event_type": {"publish"},
+		},
+	}
+	var r Report
+	if err := checkGraph(context.Background(), c, registryEventFieldsSnapshot(), true, nil, &r); err != nil {
+		t.Fatalf("checkGraph err = %v", err)
+	}
+	if !r.Failed() {
+		t.Fatal("a RegistryEvent node carrying the wrong event_type value must fail the gate")
+	}
+}
+
+// TestLoadSnapshotRegistryEventFieldsEntryMatchesCassette proves the
+// COMMITTED rn-registry-event-fields entry in
+// testdata/golden/e2e-20repo-snapshot.json parses with the expected
+// label/property/pinned-value shape, catching a typo in the committed JSON
+// that the hermetic registryEventFieldsSnapshot()-based tests above cannot
+// catch (they hardcode their own copy of the expected shape).
+func TestLoadSnapshotRegistryEventFieldsEntryMatchesCassette(t *testing.T) {
+	snap, err := LoadSnapshot(goldenSnapshotPath())
+	if err != nil {
+		t.Fatalf("LoadSnapshot: %v", err)
+	}
+	var found *RequiredNode
+	for i := range snap.Graph.RequiredNodes {
+		if snap.Graph.RequiredNodes[i].ID == "rn-registry-event-fields" {
+			found = &snap.Graph.RequiredNodes[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("testdata/golden/e2e-20repo-snapshot.json required_nodes is missing rn-registry-event-fields")
+	}
+	if found.Label != "RegistryEvent" {
+		t.Fatalf("Label = %q, want %q", found.Label, "RegistryEvent")
+	}
+	if len(found.RequiredNodeProperties) != 1 || found.RequiredNodeProperties[0] != "event_type" {
+		t.Fatalf("RequiredNodeProperties = %v, want [event_type]", found.RequiredNodeProperties)
+	}
+	allowed := found.AllowedNodePropertyValues["event_type"]
+	if len(allowed) != 1 || allowed[0] != "yank" {
+		t.Fatalf("AllowedNodePropertyValues[event_type] = %v, want [yank]", allowed)
+	}
+}
+
 // TestLoadSnapshotParsesPropertyAssertions proves the schema additions are
 // additive and round-trip: the committed golden snapshot still loads, and the new
 // optional fields default to empty (no property check) for existing entries.

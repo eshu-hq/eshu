@@ -49,6 +49,7 @@ func TestEdgeTypeStringParity(t *testing.T) {
 		HasIntendedRouting:                 "HAS_INTENDED_ROUTING",
 		HasLiveRouting:                     "HAS_LIVE_ROUTING",
 		HasParameter:                       "HAS_PARAMETER",
+		HasRegistryEvent:                   "HAS_REGISTRY_EVENT",
 		HasRole:                            "HAS_ROLE",
 		HasTaintEvidence:                   "HAS_TAINT_EVIDENCE",
 		HasVersion:                         "HAS_VERSION",

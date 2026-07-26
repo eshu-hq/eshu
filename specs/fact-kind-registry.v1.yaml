@@ -288,6 +288,13 @@ families:
       # dedicated vulnerability_intelligence family and epic #5462's
       # supply-chain-impact reconciliation. Any future decode-side consumer for
       # this kind is explicitly deferred to and owned by #5462, not built here.
+      # registry_event gained a real consumer in #5458's registry_event slice:
+      # the projector decode wrapper (go/internal/projector/factschema_decode_packageregistry.go)
+      # and canonical extractor (go/internal/projector/package_registry_canonical.go)
+      # project it onto a RegistryEvent node -- the per-version
+      # publish/yank/unyank/deprecate/delete/unlist lifecycle timeline the
+      # epic names -- linked to its owning PackageVersion by a
+      # HAS_REGISTRY_EVENT edge.
       package_registry.registry_event: "sdk/go/factschema/schema/package_registry.registry_event.v1.schema.json"
       package_registry.repository_hosting: "sdk/go/factschema/schema/package_registry.repository_hosting.v1.schema.json"
       # repository_hosting is Artifactory/registry feed topology

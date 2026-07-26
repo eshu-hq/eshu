@@ -3,11 +3,13 @@
 
 package v1
 
-// RegistryEvent, RepositoryHosting, and Warning are TYPED-BUT-NOT-YET-CONSUMED
-// (see doc.go and deferred.go's package-level doc comment for the shared
-// rationale). This file continues deferred.go's SourceHint/PackageArtifact/
-// VulnerabilityHint split purely to keep each file well under the 500-line
-// cap; there is no semantic grouping distinction between the two files.
+// RepositoryHosting and Warning are TYPED-BUT-NOT-YET-CONSUMED (see doc.go
+// and deferred.go's package-level doc comment for the shared rationale).
+// RegistryEvent (below) gained a real projector consumer in #5458 and is no
+// longer in that set, but its type stays defined in this file, which
+// continues deferred.go's SourceHint/PackageArtifact/VulnerabilityHint split
+// purely to keep each file well under the 500-line cap; there is no semantic
+// grouping distinction between the two files.
 
 // RegistryEvent is the schema-version-1 typed payload for the
 // "package_registry.registry_event" fact kind (Contract System v1 §3.1).
@@ -16,7 +18,11 @@ package v1
 // registry-reported lifecycle event
 // (go/internal/collector/packageregistry/registry_event.go
 // NewRegistryEventEnvelope). The emitter fails closed on a blank event_key and
-// event_type, so EventKey and EventType are REQUIRED.
+// event_type, so EventKey and EventType are REQUIRED. Consumed by the
+// projector's #5458 canonical extractor (packageRegistryEventRow in
+// go/internal/projector/package_registry_canonical_event.go), which projects
+// it onto a RegistryEvent node -- the per-version publish/yank/unyank/
+// deprecate/delete/unlist lifecycle timeline the epic names.
 type RegistryEvent struct {
 	// EventKey is this event's own stable identity. Required: the emitter
 	// rejects a blank event_key before building the envelope.

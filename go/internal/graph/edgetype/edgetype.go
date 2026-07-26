@@ -128,6 +128,11 @@ const (
 	HasLiveRouting EdgeType = "HAS_LIVE_ROUTING"
 	// HasParameter is the "HAS_PARAMETER" graph relationship type.
 	HasParameter EdgeType = "HAS_PARAMETER"
+	// HasRegistryEvent is the "HAS_REGISTRY_EVENT" graph relationship type: a
+	// PackageVersion to one source-reported registry lifecycle event
+	// (publish/yank/unyank/deprecate/delete/unlist) scoped to that version
+	// (#5458).
+	HasRegistryEvent EdgeType = "HAS_REGISTRY_EVENT"
 	// HasRole is the "HAS_ROLE" graph relationship type.
 	HasRole EdgeType = "HAS_ROLE"
 	// HasTaintEvidence is the "HAS_TAINT_EVIDENCE" graph relationship type.
@@ -256,7 +261,7 @@ var registered = []EdgeType{
 	Documents, EvidencesRepositoryRelationship, Executes, ExecutesShell,
 	Explains, ExposesEndpoint, ExtendsBase, GrantsAccessTo, HandlesRoute,
 	HasAppliedRouting, HasArtifact, HasColumn, HasDeploymentEvidence, HasIntendedRouting,
-	HasLiveRouting, HasParameter, HasRole, HasTaintEvidence,
+	HasLiveRouting, HasParameter, HasRegistryEvent, HasRole, HasTaintEvidence,
 	HasVersion, HelmValueReference, Implements, Imports, Indexes,
 	Inherits, InstanceOf, Instantiates, InvokesCloudAction,
 	LogsTo, Manages, MapsToTable, MatchesState, Migrates, Needs, Overrides,

@@ -180,6 +180,33 @@
               "lib-common-1.0.0.tar.gz"
             ]
           }
+        },
+        {
+          "fact_kind": "package_registry.registry_event",
+          "stable_fact_key": "package_registry:go:github.com/acme/lib-common:event:serial:9988",
+          "schema_version": "1.0.0",
+          "collector_kind": "package_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "collector_instance_id": "cassette-pkgreg-go-acme-inst1",
+            "ecosystem": "gomod",
+            "registry": "https://proxy.golang.org",
+            "package_id": "github.com/acme/lib-common",
+            "version_id": "github.com/acme/lib-common@1.0.0",
+            "version": "1.0.0",
+            "event_key": "serial:9988",
+            "event_type": "yank",
+            "artifact_key": "lib-common-1.0.0.tar.gz",
+            "actor": "registry-admin",
+            "message": "yanked for CVE-2026-1234",
+            "occurred_at": "2026-06-01T09:30:00Z",
+            "correlation_anchors": [
+              "github.com/acme/lib-common",
+              "github.com/acme/lib-common@1.0.0",
+              "serial:9988"
+            ]
+          }
         }
       ]
     }

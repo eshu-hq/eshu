@@ -6,7 +6,7 @@
 // docs/internal/design/contract-system-v1.md), decoded through the parent
 // factschema package's kind-keyed seam (decode.go, decode_packageregistry.go).
 //
-// Nine fact kinds live here. Four are CONSUMED today by the projector's
+// Nine fact kinds live here. Five are CONSUMED today by the projector's
 // source-local canonical extractor
 // (go/internal/projector/package_registry_canonical.go) and decode through the
 // seam on the read path:
@@ -18,8 +18,12 @@
 //     consumer in #5458: it carries the per-artifact hash digests
 //     (Hashes map[string]string) the PackageVersion node's
 //     checksum_algorithms property drops (algorithm names only, no digest).
+//   - RegistryEvent        (package_registry.registry_event) — gained a real
+//     consumer in the same #5458 epic's registry_event slice: it carries the
+//     per-version publish/yank/unyank/deprecate/delete/unlist lifecycle
+//     timeline, the last of the epic's four orphan package_registry kinds.
 //
-// Five are TYPED-BUT-NOT-YET-CONSUMED by any decode-seam read path today, so
+// Four are TYPED-BUT-NOT-YET-CONSUMED by any decode-seam read path today, so
 // this wave ships their struct, schema, and fixture pack without converting a
 // decode site, adding an input_invalid regression test, or benchmarking a read
 // path (there is none to benchmark), matching how the terraform_state family
@@ -28,7 +32,6 @@
 //
 //   - SourceHint           (package_registry.source_hint)
 //   - VulnerabilityHint    (package_registry.vulnerability_hint)
-//   - RegistryEvent        (package_registry.registry_event)
 //   - RepositoryHosting    (package_registry.repository_hosting)
 //   - Warning              (package_registry.warning)
 //
@@ -96,6 +99,17 @@
 //     go/internal/storage/cypher/package_registry_artifact_writer.go), so
 //     unambiguity is enforced where the encoding actually happens, not by
 //     narrowing what decode accepts.
+//
+// RegistryEvent's required set is narrower than its ROW's materialization
+// gate: EventKey and EventType are the only schema-required fields (an absent
+// one dead-letters); PackageID and VersionID are schema-OPTIONAL (a registry
+// can report an event scoped to no single version), so an absent value there
+// is a VALID decode. packageRegistryEventRow (the projector's row builder,
+// not this decode seam) additionally requires BOTH PackageID and VersionID
+// present before a row materializes, because this row's whole purpose is a
+// per-VERSION timeline and a registry-wide event has nothing to attach a
+// graph edge to — that gate lives in the row builder, not here, since it is a
+// materialization decision, not a payload-validity decision.
 //
 // A present-but-empty required value (an empty string) is a VALID decode, not a
 // dead-letter, matching the pre-typing projector behavior where an empty

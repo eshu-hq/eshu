@@ -24,16 +24,17 @@
   entity_retract → entity_containment → terraform_state → oci_registry →
   package_registry_packages → package_registry_versions →
   package_registry_dependency_targets → package_registry_dependencies →
-  package_registry_artifacts →
+  package_registry_artifacts → package_registry_events →
   modules → structural_edges → package_registry_version_edges →
-  package_registry_dependency_edges → package_registry_artifact_edges. Parent nodes must
+  package_registry_dependency_edges → package_registry_artifact_edges →
+  package_registry_event_edges. Parent nodes must
   exist before child MATCH statements run, repository cleanup must commit
   before the repository MERGE, and stale entity cleanup must run after current
-  entity upserts so it can avoid giant `uid IN` exclusion filters. The three
+  entity upserts so it can avoid giant `uid IN` exclusion filters. The four
   `package_registry_*_edges` phases run LAST,
   after every node phase they MATCH, because they MATCH multi-label nodes
   those node phases create
-  (`Package`/`PackageVersion`/`PackageDependency`/`PackageArtifact`).
+  (`Package`/`PackageVersion`/`PackageDependency`/`PackageArtifact`/`RegistryEvent`).
 - **package_registry edges dispatch in a SECOND ExecuteGroup** — on the atomic
   `GroupExecutor` projector path, `CanonicalNodeWriter.Write` partitions the
   deferred `package_registry_*_edges` phases out
@@ -44,7 +45,8 @@
   labels in one statement is invisible to a later same-transaction
   `UNWIND $rows … MATCH` against one of those labels, so an inline edge
   MATCH+MERGE in the same atomic transaction finds nothing —
-  `HAS_VERSION`/`DECLARES_DEPENDENCY`/`DEPENDS_ON_PACKAGE`/`HAS_ARTIFACT` edges
+  `HAS_VERSION`/`DECLARES_DEPENDENCY`/`DEPENDS_ON_PACKAGE`/`HAS_ARTIFACT`/
+  `HAS_REGISTRY_EVENT` edges
   never materialize. Deferring to a second committed-node group fixes it. Note the
   #5459 tag-observation `first_observed_at` deliberately does NOT use a deferred
   MATCH: even across the group boundary a deferred multi-label MATCH proved
@@ -125,12 +127,24 @@
   `package_registry_canonical_writer.go` writes package identity, package
   version identity, and package-native dependency identity (the node-only
   upserts); `package_registry_artifact_writer.go` writes package-artifact
+  identity and `package_registry_event_writer.go` writes registry-event
   identity (also node-only). The `HAS_VERSION`, `DECLARES_DEPENDENCY`, and
   `DEPENDS_ON_PACKAGE` edge writers live in `package_registry_edge_writer.go`;
-  `HAS_ARTIFACT` lives in `package_registry_artifact_writer.go`. All four run
-  as the deferred second ExecuteGroup (see the phase-order invariant above). Do
-  not join to `Repository` or create ownership/publication edges from registry
-  source URLs.
+  `HAS_ARTIFACT` lives in `package_registry_artifact_writer.go`;
+  `HAS_REGISTRY_EVENT` lives in `package_registry_event_writer.go`. All five
+  run as the deferred second ExecuteGroup (see the phase-order invariant
+  above). Do not join to `Repository` or create ownership/publication edges
+  from registry source URLs.
+- **Registry events gate on version_id, not just event identity** —
+  `packageRegistryEventRow` (projector) requires `package_id` AND
+  `version_id` before a `PackageRegistryEventRow` materializes, even though
+  both are schema-OPTIONAL on `package_registry.registry_event` (a
+  registry-wide event can report neither). This row exists to project a
+  per-VERSION yank/deprecate/publish timeline; an event with no version to
+  anchor on has nothing for the deferred `HAS_REGISTRY_EVENT` edge to MATCH
+  against, so it is a valid decode the row builder drops, not a dead-letter.
+  Do not "fix" this by writing an unattached `RegistryEvent` node — that would
+  create a graph orphan with no edge writer to ever attach it.
 - **Artifact hashes cannot be a Cypher map property** — `hashes` on
   `PackageArtifact` is a sorted `algorithm:digest` string list
   (`packageRegistryHashPairs`), not a `map[string]string`. Neo4j/NornicDB node

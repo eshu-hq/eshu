@@ -202,6 +202,17 @@ var schemaPerformanceIndexes = []string{
 	// weight on every artifact write. Add the index in the same change as the
 	// query that needs it (a version->artifact or package->artifact traversal
 	// read), not speculatively ahead of one.
+	//
+	// NOTE: RegistryEvent.version_id and .package_id are the same shape of
+	// read-model property, with no backing index, for the same reason: the
+	// #5458 registry_event slice's deferred HAS_REGISTRY_EVENT edge MATCH
+	// anchors on RegistryEvent{uid: ...} (package_registry_event_writer.go),
+	// which the uidConstraintLabels uid uniqueness constraint already backs.
+	// Mirroring the PackageArtifact review above, a repo-wide search found no
+	// query anywhere filtering RegistryEvent by version_id or package_id, so a
+	// registry_event_version_id/registry_event_package_id index pair would be
+	// unused DDL weight on every event write. Add the index in the same change
+	// as the query that needs it, not speculatively ahead of one.
 	"CREATE INDEX function_name IF NOT EXISTS FOR (f:Function) ON (f.name)",
 	"CREATE INDEX class_name IF NOT EXISTS FOR (c:Class) ON (c.name)",
 }
