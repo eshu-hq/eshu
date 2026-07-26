@@ -270,19 +270,19 @@ declining to pin an outcome value. The corpus's builder row gains
 already gave it `source_repository_ids`, so narrowing selects the same single
 row and both floors hold.
 
-Run against this branch at `06f6c2b54`. Every commit between that gate run and
+Run against this branch at `ba809d158`. Every commit between that gate run and
 the reviewed head changes documentation only and touches no runtime path, so the
 result applies to the head as pushed:
 
 ```
-$ COMPOSE_PROJECT_NAME=bpj5823gate3 GATE_COLLECTOR_SETTLE_SECONDS=75 \
-  ESHU_POSTGRES_PORT=15497 NEO4J_BOLT_PORT=17697 NEO4J_HTTP_PORT=17497 \
-  GATE_API_PORT=18897 GATE_MCP_PORT=18997 \
+$ COMPOSE_PROJECT_NAME=bpj5823gate4 GATE_COLLECTOR_SETTLE_SECONDS=75 \
+  ESHU_POSTGRES_PORT=15496 NEO4J_BOLT_PORT=17696 NEO4J_HTTP_PORT=17496 \
+  GATE_API_PORT=18896 GATE_MCP_PORT=18996 \
   bash scripts/verify-golden-corpus-gate.sh
 
 cassette facts landed: 18 credentialed collector sources
-summary: 500 pass, 0 required-fail, 2 advisory-warn
-=== PASS: B-7 golden corpus gate green (elapsed 160s, budget ceiling 1800s) ===
+summary: 505 pass, 0 required-fail, 2 advisory-warn
+=== PASS: B-7 golden corpus gate green (elapsed 155s, budget ceiling 1800s) ===
 ```
 
 Both advisory warnings are phase-timing only, and neither is a truth assertion:
