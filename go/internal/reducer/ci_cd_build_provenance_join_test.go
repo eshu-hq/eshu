@@ -49,10 +49,11 @@ func TestContainerImageIdentityPayloadPersistsBuildProvenanceRepositoryIDs(t *te
 }
 
 // TestContainerImageIdentityPayloadEmitsEmptyBuildProvenanceKey pins that the
-// key is always written, even when no repository has build evidence. A consumer
-// distinguishes "this generation publishes build provenance and it names nobody"
-// from "this fact predates the field" by key presence alone, so an omitted key
-// on an empty set would be read as legacy and silently re-enable the broad join.
+// key is always written, even when no repository has build evidence, so a fact
+// inspected directly is self-describing rather than ambiguous about whether the
+// producer computed build provenance at all. No consumer branches on key
+// presence: this join treats an absent key and an empty one the same way, and
+// neither is ever selected.
 func TestContainerImageIdentityPayloadEmitsEmptyBuildProvenanceKey(t *testing.T) {
 	t.Parallel()
 
@@ -70,8 +71,10 @@ func TestContainerImageIdentityPayloadEmitsEmptyBuildProvenanceKey(t *testing.T)
 	}
 }
 
-// TestBuildCICDImageIdentityIndexReadsBuildProvenance is the consumer half:
-// the index must carry both the narrow set and whether the payload declared it.
+// TestBuildCICDImageIdentityIndexReadsBuildProvenance is the consumer half: the
+// index must decode the narrow set, and a payload that omits the key entirely
+// must decode to the same empty set as one that declares it empty. Narrowing
+// treats both identically, so neither can be selected.
 func TestBuildCICDImageIdentityIndexReadsBuildProvenance(t *testing.T) {
 	t.Parallel()
 

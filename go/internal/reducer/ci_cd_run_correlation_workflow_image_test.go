@@ -114,7 +114,8 @@ func TestClassifyCICDWorkflowImageEvidenceStaysAmbiguousForReferenceOnly(t *test
 		"sha256:bbbb": {{
 			factID: "identity-referenced-by-deployer",
 			// The deploying repository appears as a source reference only; its
-			// manifest names the digest, it did not build it.
+			// manifest names the digest, it did not build it, so it earns no
+			// build provenance and can never be narrowed to.
 			imageRef: imageRef,
 			digest:   "sha256:bbbb",
 		}},

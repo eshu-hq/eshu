@@ -27,11 +27,23 @@ backend: the property map is ignored by the match, so the collapse continues
 while an emitted-Cypher test goes green. A test asserting that statement shape
 was written during this work and deleted for exactly that reason.
 
-The defect is not introduced here. It is live on `main` for PUBLISHES today, and
-the B-12 snapshot's rc-164 already records it as current behaviour: *"Both
-decisions MERGE onto ONE PUBLISHES edge ... evidence_source/evidence_kinds are
-SET, not MERGE keys, so the edge's surviving evidence_kinds is whichever call
-ran last."* It is filed as **#5827**.
+The defect is not introduced here; the B-12 snapshot already documents the
+mechanic. rc-164 states it plainly for `PUBLISHES` — *"Cypher MERGE identity is
+the pattern only; evidence_source/evidence_kinds are SET, not MERGE keys"* — and
+then explains why it is harmless there: *"projectPackageProvenanceEdges always
+writes ownership rows before publication rows within one Handle() invocation, so
+publication deterministically wins"*, and *"No other reducer domain writes
+PUBLISHES (unlike BUILT_FROM, rc-165)"*. One writer, deterministic ordering, no
+cross-domain retract.
+
+`BUILT_FROM` is the case that does not hold. rc-165 records it as *"a SHARED edge
+type with #5428"* and isolates its own assertion on
+`evidence_kinds=[CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST]` so that it *"can never be
+satisfied by #5428's edges alone"*. That isolation is exactly what the MERGE
+identity cannot deliver: with two domains writing the same (image, repository)
+pair there is one edge, and `evidence_kinds` is whichever write landed last. The
+snapshot's own note therefore describes an isolation that would not survive this
+projection landing. Filed as **#5827**.
 
 ## No coverage is lost
 
@@ -136,9 +148,11 @@ join engages for a scope as soon as its identity intent republishes.
 `TestClassifyCICDWorkflowImageEvidenceStaysAmbiguousForLegacyPayloads` pin both
 callers against a regression.
 
-The key is still always written, even when empty, so a reader can distinguish
-"this generation publishes build provenance and it names nobody" from "this fact
-predates the field" without inferring it from an absence.
+The producer still always writes the key, even when empty. That no longer drives
+any consumer decision here — with the fallback gone, an absent key and an
+explicitly empty one decode identically to an empty set and are treated the same
+— but it keeps the published payload self-describing for a reader inspecting a
+fact directly.
 
 **Producer asymmetry deliberately NOT closed here.** `applySLSADigestRevision`
 appends its digest anchor's repositories to `BuildProvenanceRepositoryIDs`;
@@ -208,23 +222,27 @@ code paths rather than red-then-green regressions, and are listed as such.
 ```
 $ cd go && go test ./internal/reducer -count=1 -v \
     -run 'CICDImageMatches|CICDNarrowingSelects|BuildCICDImageIdentityIndex|ContainerImageIdentityPayload|ClassifyCICDWorkflowImage'
---- PASS: TestCICDNarrowingSelectsTheBuilderFromPublishedFacts                 (red on origin/main, above)
---- PASS: TestCICDImageMatchesForRepositoryNarrowsOnGitSourceRepositories      (#5766)
---- PASS: TestCICDImageMatchesForRepositoryIgnoresOCIRegistryPaths             (#5766)
---- PASS: TestCICDImageMatchesForRepositoryRejectsReferenceOnlyRepository      (#5823)
---- PASS: TestCICDImageMatchesForRepositorySelectsBuildProvenanceRow           (#5823)
---- PASS: TestCICDImageMatchesForRepositoryDoesNotGuardSingleRowDigests        (#5823 bound)
---- PASS: TestCICDImageMatchesForRepositoryNeverSelectsLegacyRows              (no false exact on legacy rows)
---- PASS: TestCICDImageMatchesForRepositoryIgnoresLegacyRowsBesideCurrentOnes  (generations do not contaminate)
---- PASS: TestContainerImageIdentityPayloadPersistsBuildProvenanceRepositoryIDs
---- PASS: TestContainerImageIdentityPayloadEmitsEmptyBuildProvenanceKey
---- PASS: TestBuildCICDImageIdentityIndexReadsBuildProvenance
---- PASS: TestClassifyCICDWorkflowImageEvidenceNarrowsMultipleRowsToExact      (second caller)
---- PASS: TestClassifyCICDWorkflowImageEvidenceStaysAmbiguousForReferenceOnly  (second caller)
---- PASS: TestClassifyCICDWorkflowImageEvidenceStaysAmbiguousForLegacyPayloads (second caller)
---- PASS: TestClassifyCICDWorkflowImageEvidenceFallbackStaysDerived            (second caller)
---- PASS: TestClassifyCICDWorkflowImageEvidenceHandlesNoMatch                  (second caller)
-ok  	github.com/eshu-hq/eshu/go/internal/reducer	1.118s
+--- PASS: TestBuildCICDImageIdentityIndexReadsBuildProvenance           (decode seam)
+--- PASS: TestCICDImageMatchesForRepositoryDoesNotGuardSingleRowDigests (#5823 bound)
+--- PASS: TestCICDImageMatchesForRepositoryIgnoresLegacyRowsBesideCurrentOnes(generations do not contaminate)
+--- PASS: TestCICDImageMatchesForRepositoryIgnoresOCIRegistryPaths      (#5766)
+--- PASS: TestCICDImageMatchesForRepositoryNarrowsOnGitSourceRepositories(#5766)
+--- PASS: TestCICDImageMatchesForRepositoryNeverSelectsLegacyRows       (no false exact on legacy rows)
+--- PASS: TestCICDImageMatchesForRepositoryRejectsReferenceOnlyRepository(#5823)
+--- PASS: TestCICDImageMatchesForRepositorySelectsBuildProvenanceRow    (#5823)
+--- PASS: TestCICDNarrowingSelectsTheBuilderFromPublishedFacts          (red on origin/main, above)
+--- PASS: TestClassifyCICDWorkflowImageEvidenceDemotesReusableWorkflowInput(produced-image gate, RED without the change)
+--- PASS: TestClassifyCICDWorkflowImageEvidenceFailsOpenForUnknownCommandKind(produced-image guard, green either way by design)
+--- PASS: TestClassifyCICDWorkflowImageEvidenceFallbackStaysDerived     (second caller)
+--- PASS: TestClassifyCICDWorkflowImageEvidenceHandlesNoMatch           (second caller)
+--- PASS: TestClassifyCICDWorkflowImageEvidenceKeepsExactForProducedImages(produced-image guard, green either way by design)
+--- PASS: TestClassifyCICDWorkflowImageEvidenceNarrowsMultipleRowsToExact(second caller)
+--- PASS: TestClassifyCICDWorkflowImageEvidencePrefersProducedOverInput (produced-image gate, RED without the change)
+--- PASS: TestClassifyCICDWorkflowImageEvidenceStaysAmbiguousForLegacyPayloads(second caller)
+--- PASS: TestClassifyCICDWorkflowImageEvidenceStaysAmbiguousForReferenceOnly(second caller)
+--- PASS: TestContainerImageIdentityPayloadEmitsEmptyBuildProvenanceKey (payload contract this join reads)
+--- PASS: TestContainerImageIdentityPayloadPersistsBuildProvenanceRepositoryIDs(payload contract this join reads)
+ok  	github.com/eshu-hq/eshu/go/internal/reducer	1.088s
 ```
 
 `TestCICDImageMatchesForRepositoryRejectsReferenceOnlyRepository` is the
@@ -232,7 +250,7 @@ inversion of a test this branch previously added to pin the false positive as
 unavoidable. Its failure message named the condition under which it should be
 inverted; that condition is now met.
 
-The five `ClassifyCICDWorkflowImageEvidence` tests cover a call site that had no
+The nine `ClassifyCICDWorkflowImageEvidence` tests cover a call site that had no
 test file at all. Narrowing was a dead no-op there on `origin/main` for the same
 namespace reason, so it always saw the unfiltered match set; it is live now and
 can move a decision between `ambiguous`, `derived`, and `exact`, which also
@@ -291,6 +309,17 @@ free-string field, so an absent kind, an unknown kind, or one a future collector
 adds all keep the pre-existing behaviour; only the kind proven to be input-only
 is denied. A reducer that predates a new produced-image kind therefore degrades
 nothing.
+
+Two of the four produced-image tests are genuine red-then-green regressions:
+reverting the classifier change leaves
+`TestClassifyCICDWorkflowImageEvidenceDemotesReusableWorkflowInput` failing with
+`Outcome = "exact", want derived` and
+`TestClassifyCICDWorkflowImageEvidencePrefersProducedOverInput` failing with
+`ImageRef = "ghcr.io/eshu-hq/scanner:v1", want the built image`. The other two —
+`KeepsExactForProducedImages` and `FailsOpenForUnknownCommandKind` — pass before
+and after by design; they are behaviour-preservation guards against an
+over-broad deny-list, not regressions, and are listed as such rather than
+counted as proof of the fix.
 
 The golden gate cannot verify any of this: the corpus contains zero
 `ci.workflow_image_evidence` facts, so the entire workflow-image classifier path

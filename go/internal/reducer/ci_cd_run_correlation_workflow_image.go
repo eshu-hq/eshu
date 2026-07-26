@@ -56,11 +56,19 @@ func attachWorkflowImagesToRuns(runs map[string]*cicdRunEvidence, workflowImages
 	}
 }
 
-// cicdWorkflowImageInputOnlyCommandKind is the one extracted command kind that
-// names an image the workflow CONSUMES rather than produces:
+// cicdWorkflowImageInputOnlyCommandKind is the one extracted command kind whose
+// image the calling workflow does not itself build:
 // workflowimage.evidenceFromReusableWorkflow stamps it on a
 // `jobs.<job>.with.{image,image_ref,container_image}` value, which is typically
 // a scanner, base, or tooling image passed into a reusable workflow.
+//
+// "Typically" is doing real work in that sentence. A shared build-and-push
+// reusable workflow can take its TARGET image name as the same input, in which
+// case the run does produce the image and capping it at derived is a
+// false negative. That trade is deliberate: this evidence records what the
+// calling workflow passed in, never what the callee did with it, so production
+// cannot be established from it. Under-claiming a real build is recoverable;
+// asserting a build that never happened is the failure this guards.
 //
 // This is a deny-list, not an allow-list, on purpose. command_kind is an
 // optional free-string field, so an absent kind, a kind this reducer has not

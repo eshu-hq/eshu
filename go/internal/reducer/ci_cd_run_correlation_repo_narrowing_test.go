@@ -109,8 +109,10 @@ func TestCICDImageMatchesForRepositoryRejectsReferenceOnlyRepository(t *testing.
 		},
 		{
 			// This row lists the deploying repository only because its manifest
-			// references the digest. It carries the build-provenance key, and
-			// that key does NOT name the deploying repository.
+			// references the digest, so its build provenance does not name that
+			// repository. A nil slice here is the same input a row published
+			// before the key existed produces; narrowing treats the two
+			// identically, which is why neither is ever selected.
 			factID: "identity-merely-referenced",
 			digest: digest,
 		},
