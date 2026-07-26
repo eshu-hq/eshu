@@ -103,7 +103,7 @@ func vulnerabilityScannerReadContract() map[string]any {
 		"response_fields": []map[string]string{
 			{
 				"name":  "runtime_context",
-				"notes": "read-time-resolved workloads, services, deployments, environments, and catalog refs joined from the finding's repository_id at query time (truth_basis: read_time_resolved). These fields are response enrichment ONLY: the workload_id, service_id, and environment FILTERS above still read the baked payload arrays, so a workload shown under runtime_context may not yet match those filters (tracked as a filter rework follow-up). An empty runtime_context is an honest 'no runtime facts landed yet' that self-heals on the next read.",
+				"notes": "read-time-resolved workloads, services, deployments, environments, and catalog refs joined from the finding's repository_id at query time (truth_basis: read_time_resolved), populated on the impact-findings list route only (the explain route embeds the same finding shape but does not resolve runtime context). These fields are response enrichment ONLY: the workload_id, service_id, and environment FILTERS above still read the baked payload arrays, so a workload shown under runtime_context may not yet match those filters (tracked as a filter rework follow-up). An empty runtime_context is an honest 'no runtime facts landed yet' that self-heals on the next read.",
 			},
 		},
 		"routes":             vulnerabilityScannerRouteContracts(),

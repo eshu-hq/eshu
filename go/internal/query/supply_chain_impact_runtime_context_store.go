@@ -46,10 +46,11 @@ var supplyChainImpactRuntimeContextFactKinds = []string{
 // active-generation joins mirror the findings list query so a retracted or
 // stale-generation fact never resolves current context.
 //
-// Bounded by len(candidates) (page-sized, <= ~50) and 4 kinds — this is the
+// Bounded by len(candidates) (page-sized, at most the enforced findings page
+// limit of supplyChainImpactFindingMaxLimit = 200) and 4 kinds — this is the
 // exact join shape #5747's filter rework reuses, so it MUST hold the
 // performance contract at corpus scale (proven with EXPLAIN ANALYZE on the
-// worst-case partition).
+// worst-case 200-candidate partition).
 const selectSupplyChainImpactRuntimeContextQuery = `
 SELECT fact.fact_kind,
        fact.scope_id,
@@ -186,15 +187,17 @@ func addSupplyChainRuntimeContextFact(
 			return
 		}
 		ctx := out[repositoryID]
-		// The platform-materialization writer records deployment ids under
-		// entity_keys (verified against the live corpus payload); deployment_ids
-		// is the older key retained as a fallback for other writers.
-		deploymentIDs := StringSliceVal(payload, "entity_keys")
-		if len(deploymentIDs) == 0 {
-			deploymentIDs = StringSliceVal(payload, "deployment_ids")
+		// Mirror the reducer's deployment-id extraction exactly
+		// (supplyChainDeploymentIDsFromPayload): singular deployment_id first,
+		// then entity_keys filtered to deployment:-prefixed keys. Unfiltered
+		// entity_keys can carry repo:, platform:, aws:, tfstate:, cloud:, or
+		// raw canonical fact-id strings from replay/fallback intent paths —
+		// those must never surface as deployment anchors.
+		if deploymentID := strings.TrimSpace(StringVal(payload, "deployment_id")); deploymentID != "" {
+			ctx.DeploymentIDs = append(ctx.DeploymentIDs, deploymentID)
 		}
-		for _, id := range deploymentIDs {
-			if deploymentID := strings.TrimSpace(id); deploymentID != "" {
+		for _, key := range StringSliceVal(payload, "entity_keys") {
+			if deploymentID := strings.TrimSpace(key); deploymentID != "" && strings.HasPrefix(deploymentID, "deployment:") {
 				ctx.DeploymentIDs = append(ctx.DeploymentIDs, deploymentID)
 			}
 		}

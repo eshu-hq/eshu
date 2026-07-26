@@ -89,25 +89,35 @@ func TestAddSupplyChainRuntimeContextFactPlatformDeployments(t *testing.T) {
 	t.Parallel()
 
 	// Live corpus shape: platform_materialization carries deployments under
-	// entity_keys (verified against the gate Postgres), deployment_ids is the
-	// fallback key.
+	// entity_keys. Mirror the reducer exactly (supplyChainDeploymentIDsFromPayload):
+	// singular deployment_id first, then entity_keys filtered to
+	// deployment:-prefixed keys — replay/fallback intent paths can persist
+	// repo:, platform:, aws:, tfstate:, cloud:, or canonical fact-id strings
+	// into entity_keys, and those must never surface as deployment anchors.
 	out := map[string]SupplyChainRuntimeContext{}
 	addSupplyChainRuntimeContextFact(out, platformMaterializationFactKindQuery, "git-repository-scope:repository:r_217415d9", map[string]any{
-		"entity_keys": []any{"deployment:deployable-config"},
+		"entity_keys": []any{"deployment:deployable-config", "repo:some-repo", "platform:some-platform", "canonical:platform_materialization:abc"},
 	})
 	ctx := out["repository:r_217415d9"]
 	if len(ctx.DeploymentIDs) != 1 || ctx.DeploymentIDs[0] != "deployment:deployable-config" {
-		t.Errorf("DeploymentIDs = %v, want [deployment:deployable-config] from entity_keys", ctx.DeploymentIDs)
+		t.Errorf("DeploymentIDs = %v, want only [deployment:deployable-config] (non-deployment entity_keys filtered)", ctx.DeploymentIDs)
 	}
 
 	out = map[string]SupplyChainRuntimeContext{}
 	addSupplyChainRuntimeContextFact(out, platformMaterializationFactKindQuery, "scope", map[string]any{
 		"repository_id":  "repository:r_217415d9",
-		"deployment_ids": []any{"deployment:demo-db-prod", "deployment:demo-db-staging"},
+		"deployment_id":  "deployment:demo-db-prod",
+		"deployment_ids": []any{"deployment:wrong-key-shape"},
+		"entity_keys":    []any{"deployment:demo-db-staging"},
 	})
 	ctx = out["repository:r_217415d9"]
 	if len(ctx.DeploymentIDs) != 2 {
-		t.Errorf("DeploymentIDs = %v, want 2 deployments from deployment_ids fallback", ctx.DeploymentIDs)
+		t.Fatalf("DeploymentIDs = %v, want 2 (singular deployment_id + deployment:-prefixed entity key)", ctx.DeploymentIDs)
+	}
+	for _, id := range ctx.DeploymentIDs {
+		if id == "deployment:wrong-key-shape" {
+			t.Error("deployment_ids plural key must not be read (no writer emits it)")
+		}
 	}
 }
 

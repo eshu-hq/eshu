@@ -13,8 +13,8 @@ fields are NOT backfilled (that filter rework is #5747).
 ## Why no regression
 
 The probe is one extra query per findings page, bounded by the page's
-distinct repository ids (<= ~50, the findings page limit) and a closed
-4-kind fact set. The query mirrors the findings list query's
+distinct repository ids (at most the enforced findings page limit of 200)
+and a closed 4-kind fact set. The query mirrors the findings list query's
 active-generation join shape and is index-served.
 
 ## Measured before/after
