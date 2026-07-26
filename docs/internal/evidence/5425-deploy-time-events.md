@@ -222,10 +222,26 @@ Deployments API response carries no repository object to prefer instead.
 
 `NormalizeRemoteURL` absorbs the ordinary differences — case, trailing slash,
 `.git` suffix, scheme — and `validateTarget` defaults `SourceURI` to
-`https://github.com/<Repository>`, so the two agree on any correctly-configured
-target. They can still diverge for a renamed repository whose configured URI
-still names the old path, a GHE host mismatch, or an operator pointing
-`SourceURI` at an `api.` host.
+`https://github.com/<Repository>` when it is unset.
+
+Review found a fourth divergence path, and it was the likeliest of them: an
+operator who sets BOTH fields. `validateTargetURL` constrains scheme, host and
+credentials but never the path, and the default only applies to an empty
+`SourceURI`, so a different owner, a different repository name, or extra path
+segments such as `/tree/main` were all accepted — each an ordinary typo or a
+stale value on plain github.com, needing no rename and no enterprise host, and
+each silently dropping every deployment event for the run.
+
+That path is now closed at config time rather than documented:
+`validateSourceURIMatchesRepository` rejects a `source_uri` whose path does not
+name the configured repository, so the failure surfaces as a startup error
+naming both values instead of as missing data at reduce time. The spellings
+`NormalizeRemoteURL` absorbs are still accepted, so the check tightens a real
+ambiguity without rejecting working configs.
+
+The remaining divergence paths are environmental rather than config typos: a
+repository renamed after `source_uri` was set, or a GHE host mismatch where the
+API's `html_url` names a different host than the configured URI.
 
 Before the guard that mismatch was inert, because nothing read the event's
 repository id. The guard makes it consequential: on divergence every deployment

@@ -35,6 +35,9 @@ func validateTarget(target TargetConfig) (TargetConfig, error) {
 	if !repositoryAllowed(target.Repository, target.AllowedRepositories) {
 		return TargetConfig{}, fmt.Errorf("repository must be listed in allowed_repositories")
 	}
+	if err := validateSourceURIMatchesRepository(target.SourceURI, target.Repository); err != nil {
+		return TargetConfig{}, err
+	}
 	if target.MaxRuns == 0 {
 		target.MaxRuns = defaultMaxRuns
 	}
@@ -126,6 +129,52 @@ func validateTargetURL(field, raw string, requireHTTPS bool) error {
 	}
 	if parsed.User != nil {
 		return fmt.Errorf("%s must not include credentials", field)
+	}
+	return nil
+}
+
+// validateSourceURIMatchesRepository rejects a source_uri whose path does not
+// name the configured repository.
+//
+// The two fields feed DIFFERENT canonical-repository-id derivations that the
+// reducer then compares. A run's id comes from the API's repository.html_url
+// (repositoryCanonicalURL, which deliberately refuses to hash a per-run
+// source_uri verbatim); a ci.deployment_event's comes from source_uri, because
+// the Deployments API response carries no repository object to prefer instead.
+// attachDeploymentEventsToRuns skips an event whose repository id differs from
+// its run's, so a source_uri naming a different path silently drops EVERY
+// deployment event for that run -- and the collector's deployment_unanchored
+// warning cannot report it, because that warning keys on sha rather than
+// repository.
+//
+// validateTargetURL constrains scheme, host, and credentials but never the
+// path, and the default is only applied when source_uri is empty, so a config
+// setting both fields could previously disagree in a way nothing rejected: a
+// different owner, a different repository name, or extra path segments such as
+// /tree/main. Each is an ordinary typo or a stale value on plain github.com,
+// needing no rename and no enterprise host.
+//
+// Failing at config time turns that silent, total, per-run data loss into a
+// startup error naming both values.
+func validateSourceURIMatchesRepository(sourceURI, repository string) error {
+	sourceURI = strings.TrimSpace(sourceURI)
+	repository = strings.TrimSpace(repository)
+	if sourceURI == "" || repository == "" {
+		return nil
+	}
+	parsed, err := url.Parse(sourceURI)
+	if err != nil {
+		return fmt.Errorf("parse source_uri: %w", err)
+	}
+	path := strings.Trim(parsed.Path, "/")
+	path = strings.TrimSuffix(path, ".git")
+	if !strings.EqualFold(path, repository) {
+		return fmt.Errorf(
+			"source_uri path %q must name repository %q: they feed separate canonical "+
+				"repository ids that the reducer compares, so a mismatch silently drops "+
+				"every deployment event for the run",
+			path, repository,
+		)
 	}
 	return nil
 }
