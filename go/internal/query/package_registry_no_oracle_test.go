@@ -23,10 +23,14 @@ type countingPackageRegistryCorrelationStore struct {
 func (s *countingPackageRegistryCorrelationStore) ListPackageRegistryCorrelations(
 	_ context.Context,
 	filter PackageRegistryCorrelationFilter,
-) ([]PackageRegistryCorrelationRow, error) {
+) (PackageRegistryCorrelationPage, error) {
 	s.calls++
 	s.lastFilter = filter
-	return append([]PackageRegistryCorrelationRow(nil), s.rows...), nil
+	rows := append([]PackageRegistryCorrelationRow(nil), s.rows...)
+	// WindowFactCount = len(rows): this fake holds already-decoded rows with
+	// no undecodable facts, so the raw fetched count and the decoded row
+	// count are truthfully identical (#5461/#5816 WindowFactCount finding).
+	return PackageRegistryCorrelationPage{Rows: rows, WindowFactCount: len(rows)}, nil
 }
 
 // TestPackageRegistryNameBranchNoTimingOracle proves the packages-by-name

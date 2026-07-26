@@ -230,6 +230,16 @@ one candidate publisher is marked `ambiguous=true` and never collapsed to a
 single asserted publisher; a publisher repository that equals the consumer
 repository is dropped as a self-reference.
 
+The response carries `truncated` (phase-1 consumption paging: more chains
+exist beyond this page for the requested repository) and a separate,
+additive `publishers_truncated` (phase-2 batched publisher read: the
+distinct package set this page consumes has more publication/ownership
+correlations than that read's own bounded limit, so one or more chains are
+missing publisher legs that exist in reducer facts). The two flags are
+independent — a page can be `truncated=false` while `publishers_truncated=true`
+because the two reads are bounded separately; do not infer one from the
+other.
+
 ### Scoped-token access (#5167 W5b)
 
 `/packages`, `/versions`, `/dependencies`, `/packages/count`, and

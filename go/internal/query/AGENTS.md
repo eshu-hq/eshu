@@ -811,3 +811,122 @@ keep their existing `query.incident_context` / `work_item_evidence.list` truth
 envelopes and HTTP route attribution; a dropped fact is visible via the
 existing `slog.Debug` decode-drop log (fact_id, fact_kind, classification,
 missing_field), matching the work_item family's established pattern.
+
+## Package-registry correlation pagination and authz-gate invariant (#5461/#5816)
+
+Same failure class as #4733 above, now on the package-registry correlation
+read and authorization path. `package_registry_correlations.go` decodes
+`reducer_package_ownership/consumption/publication_correlation` facts through
+the typed `factschema.Decode*` seam
+(`factschema_decode_package_correlations.go`); a row whose payload is missing
+its required `package_id` drops with a classified decode error instead of
+surfacing an empty-identity row.
+
+`PackageRegistryCorrelationPage` (`package_registry_correlation_page.go`)
+derives `Truncated`/`NextCursorCorrelationID` from the RAW fetched fact
+count/fact_id sequence -- never from `len(Rows)` -- mirroring
+`buildWorkItemEvidencePage`. It also carries `WindowFactCount`, the raw
+pre-decode count of facts in the visible window, distinct from `Truncated`:
+`Truncated` only answers "does more exist past the window," while
+`WindowFactCount` answers "how many facts are actually in the window
+regardless of decode outcome" -- the predicate the authz gates below need.
+
+Two callers in `package_registry_scoped_access.go` read
+`PackageRegistryCorrelationPage` to decide whether a scoped caller may see an
+anchored package, and BOTH must read `page.WindowFactCount`, never
+`len(page.Rows)`:
+
+- `packageRegistryGateForVisibility` grants on `page.WindowFactCount > 0`. A
+  correlation fact that exists but fails typed decode must still grant --
+  main's pre-#5461 hard-error-on-any-decode-failure behavior would have
+  surfaced the problem loudly instead of silently denying a genuinely granted
+  caller.
+- `packageRegistryGateForVisibilityBatch` treats the batch as `ambiguous`
+  (triggering an individual per-candidate re-verify) when
+  `page.WindowFactCount >= packageRegistryMaxLimit || page.WindowFactCount >
+  len(page.Rows)`. The first disjunct is the pre-existing at-cap crowd-out
+  check (kept, but reading the raw count so it still fires even when a
+  crowding candidate's facts partially fail decode). The second disjunct is
+  new: a fact inside the window that fails decode carries no `PackageID`, so
+  it can never land in `grantedSeen`; below the cap this would otherwise
+  silently deny the one candidate whose only evidence was that dropped fact,
+  exactly the same failure shape as an unambiguous `len(Rows) < cap` read
+  before this fix.
+
+A caller-side fake for `PackageRegistryCorrelationStore` that hand-builds an
+already-decoded `Rows` slice (matching `WindowFactCount` to `len(Rows)`)
+cannot exercise either regression: it structurally cannot model "the raw
+window contains a fact that fails decode." Regression coverage for this class
+routes fact bytes through the real `buildPackageRegistryCorrelationPage`
+decode path instead
+(`candidateFactPackageRegistryCorrelationStore` in
+`package_registry_scoped_access_windowfactcount_test.go`), the same pattern
+the existing `rawFactPackageRegistryCorrelationStore` in
+`package_registry_correlations_pagination_test.go` uses for the pagination
+fix. A store double that only ever hands back pre-decoded rows is blind to
+this whole failure class -- prefer a raw-fact-based double over a
+Rows-only one whenever a test needs to prove decode-drop behavior on this
+package's correlation read path.
+
+No-Regression Evidence: `go test ./internal/query ./internal/mcp -count=1`
+pass. `TestPackageRegistryGateForVisibilityGrantsWhenOnlyCorrelationFactFailsDecode`,
+`TestPackageRegistryGateForVisibilityBatchReverifiesCandidateWhoseOnlyFactFailsDecode`,
+and `TestPackageRegistryGateForVisibilityBatchAtCapWithDecodeDropStillReverifies`
+fail against the pre-fix `len(page.Rows)`-based `granted`/`ambiguous` reads
+(proven by temporarily reverting `packageRegistryGateForVisibility` and
+`packageRegistryGateForVisibilityBatch` to that shape) and pass after reading
+`page.WindowFactCount`.
+
+No-Observability-Change: no route, graph write, queue, worker, runtime knob,
+or metric instrument/label is added. The existing `pkgreg.correlation_grant`
+and `pkgreg.name_anchor_batch_ambiguous` span attributes are unchanged in
+shape; only the value they are computed from changed from a decode-affected
+count to the raw fetched fact count.
+
+## Dependency-chains publisher-truncation signal (#5816 finding on #5461)
+
+`ResolvePackageDependencyChains` (`package_registry_dependency_chains.go`)
+resolves two independently-bounded reads: a phase-1 consumption page anchored
+on the consumer repository, and a phase-2 batched publication/ownership read
+(`loadPackagePublishers`) keyed by every distinct package the phase-1 page
+consumed, capped at `packageRegistryMaxLimit`. Before this fix,
+`loadPackagePublishers` issued that batched read and only ever consumed its
+`Rows`, discarding the returned `Truncated` flag: a package with more
+publisher/ownership facts than the cap silently lost publishers beyond it from
+every chain, with no signal anywhere in the response.
+
+`loadPackagePublishers` now returns `(map[string][]PackageDependencyChainPublisher,
+bool, error)` -- the bool is `publisherPage.Truncated` from the batched read.
+`ResolvePackageDependencyChains` threads it into
+`PackageDependencyChainPage.PublishersTruncated`, and
+`package_registry_dependency_chains_handler.go`'s `listDependencyChains` puts
+it on the wire as `publishers_truncated`, following this package's established
+per-leg `<leg>_truncated` naming convention (for example
+`code_relationships_nornicdb.go`'s `outgoing_truncated`/`incoming_truncated`
+and `supply_chain_sbom_attachments.go`'s `component_evidence_truncated`)
+rather than overloading the existing top-level `truncated`, which callers
+already read as "phase-1 consumption paging only." The two flags are
+independent by construction: a page can be `Truncated=false` (every
+consumption correlation for the request fit) while `PublishersTruncated=true`
+(one of those packages individually has more publisher facts than the batched
+read's cap), because the two reads are bounded separately. Do not fold them
+into one flag or infer one from the other.
+
+Like the correlation-pagination fix above, a hand-built fake that returns
+already-decoded `PackageRegistryCorrelationPage{Rows: ...}` with a
+manually-set `Truncated` field can prove the propagation wiring but not the
+underlying pagination contract; regression coverage instead uses
+`rawFactPackageRegistryCorrelationStore`
+(`package_registry_correlations_pagination_test.go`) so the publisher page is
+built by the real `buildPackageRegistryCorrelationPage` from raw fact bytes
+(`package_registry_dependency_chains_publishers_truncated_test.go`).
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestPackageRegistryDependencyChainsHandlerReportsPublishers' -v -count=1`
+covers both the over-cap (`publishers_truncated=true`, chain still returns the
+capped publisher set) and under-cap (`publishers_truncated=false`, every
+publisher present) cases.
+
+No-Observability-Change: no route, graph write, queue, worker, runtime knob,
+or metric instrument/label is added; the change is a new additive response
+field derived from an existing bounded Postgres read.

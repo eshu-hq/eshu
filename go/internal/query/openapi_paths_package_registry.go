@@ -361,7 +361,8 @@ const openAPIPathsPackageRegistry = `
                     "repository_id": {"type": "string"},
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
+                    "truncated": {"type": "boolean", "description": "True when more consumption correlations exist beyond this page for the requested repository."},
+                    "publishers_truncated": {"type": "boolean", "description": "True when the batched phase-2 publication/ownership read hit its own bounded limit for the distinct package set this page consumes, so some publisher legs are missing from one or more chains. Independent of truncated, which describes only the phase-1 consumption page."},
                     "next_cursor": {
                       "type": "object",
                       "properties": {
@@ -370,7 +371,7 @@ const openAPIPathsPackageRegistry = `
                       "required": ["after_correlation_id"]
                     }
                   },
-                  "required": ["chains", "count", "limit", "truncated"]
+                  "required": ["chains", "count", "limit", "truncated", "publishers_truncated"]
                 }
               }
             }

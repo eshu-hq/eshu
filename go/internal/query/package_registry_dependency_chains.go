@@ -78,6 +78,33 @@ type PackageDependencyChain struct {
 	Ambiguous bool
 }
 
+// PackageDependencyChainPage is one bounded page of consumer -> package ->
+// publisher dependency chains. Truncated and NextCursorCorrelationID are
+// forwarded from the underlying phase-1 consumption read's
+// PackageRegistryCorrelationPage -- derived from the RAW fetched consumption
+// fact count/fact_id sequence, never from len(Chains) -- so a malformed or
+// unsupported-version consumption fact inside the visible window cannot make
+// a truncated page report itself complete or corrupt the forward cursor
+// (#5816 finding on #5461).
+type PackageDependencyChainPage struct {
+	Chains                  []PackageDependencyChain
+	Truncated               bool
+	NextCursorCorrelationID string
+	// PublishersTruncated reports whether the phase-2 batched
+	// publication/ownership read (loadPackagePublishers) hit its own
+	// packageRegistryMaxLimit cap for the distinct package set this page
+	// consumes. It is a separate signal from Truncated, which describes only
+	// the phase-1 consumption page: a page can be Truncated=false (every
+	// consumption correlation for this request fit) while still carrying
+	// PublishersTruncated=true (one of those packages has more
+	// publisher/ownership facts than the batched read's LIMIT), because the
+	// two reads are bounded independently. Before this field existed,
+	// publisher facts beyond the cap were silently dropped from every
+	// dependency chain with no signal to the caller (#5816 finding on
+	// #5461).
+	PublishersTruncated bool
+}
+
 // ResolvePackageDependencyChains joins admitted consumption correlations
 // (consumer repo -> package) with provenance-only publication/ownership
 // correlations (package -> publisher repo) for a single repository, in two
@@ -95,18 +122,18 @@ func ResolvePackageDependencyChains(
 	ctx context.Context,
 	store PackageRegistryCorrelationStore,
 	req PackageDependencyChainRequest,
-) ([]PackageDependencyChain, error) {
+) (PackageDependencyChainPage, error) {
 	if store == nil {
-		return nil, fmt.Errorf("package registry correlation store is required")
+		return PackageDependencyChainPage{}, fmt.Errorf("package registry correlation store is required")
 	}
 	if req.RepositoryID == "" {
-		return nil, fmt.Errorf("repository_id is required")
+		return PackageDependencyChainPage{}, fmt.Errorf("repository_id is required")
 	}
 	if req.Limit <= 0 || req.Limit > packageRegistryMaxLimit {
-		return nil, fmt.Errorf("limit must be between 1 and %d", packageRegistryMaxLimit)
+		return PackageDependencyChainPage{}, fmt.Errorf("limit must be between 1 and %d", packageRegistryMaxLimit)
 	}
 
-	consumption, err := store.ListPackageRegistryCorrelations(ctx, PackageRegistryCorrelationFilter{
+	consumptionPage, err := store.ListPackageRegistryCorrelations(ctx, PackageRegistryCorrelationFilter{
 		RepositoryID:         req.RepositoryID,
 		RelationshipKind:     packageConsumptionRelationshipKind,
 		AfterCorrelationID:   req.AfterCorrelationID,
@@ -115,20 +142,24 @@ func ResolvePackageDependencyChains(
 		Limit:                req.Limit,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("resolve package dependency chains (consumption): %w", err)
+		return PackageDependencyChainPage{}, fmt.Errorf("resolve package dependency chains (consumption): %w", err)
 	}
-	if len(consumption) == 0 {
-		return []PackageDependencyChain{}, nil
+	if len(consumptionPage.Rows) == 0 {
+		return PackageDependencyChainPage{
+			Chains:                  []PackageDependencyChain{},
+			Truncated:               consumptionPage.Truncated,
+			NextCursorCorrelationID: consumptionPage.NextCursorCorrelationID,
+		}, nil
 	}
 
-	packageIDs := distinctConsumedPackageIDs(consumption)
-	publishersByPackage, err := loadPackagePublishers(ctx, store, req, packageIDs)
+	packageIDs := distinctConsumedPackageIDs(consumptionPage.Rows)
+	publishersByPackage, publishersTruncated, err := loadPackagePublishers(ctx, store, req, packageIDs)
 	if err != nil {
-		return nil, err
+		return PackageDependencyChainPage{}, err
 	}
 
-	chains := make([]PackageDependencyChain, 0, len(consumption))
-	for _, row := range consumption {
+	chains := make([]PackageDependencyChain, 0, len(consumptionPage.Rows))
+	for _, row := range consumptionPage.Rows {
 		if row.PackageID == "" {
 			continue
 		}
@@ -147,24 +178,35 @@ func ResolvePackageDependencyChains(
 			Ambiguous:                 len(publishers) > 1,
 		})
 	}
-	return chains, nil
+	return PackageDependencyChainPage{
+		Chains:                  chains,
+		Truncated:               consumptionPage.Truncated,
+		NextCursorCorrelationID: consumptionPage.NextCursorCorrelationID,
+		PublishersTruncated:     publishersTruncated,
+	}, nil
 }
 
 // loadPackagePublishers performs the single batched publication/ownership read
 // and groups the provenance-only publisher legs by package id, excluding
 // self-references (publisher repo == consumer repo) so a repo never appears to
-// depend on itself through its own published package.
+// depend on itself through its own published package. The second return value
+// is publisherPage.Truncated: true when the distinct package set this request
+// consumes carries more publisher/ownership facts than the batched read's
+// packageRegistryMaxLimit cap, so facts beyond it were dropped from
+// publishersByPackage. Callers MUST propagate it rather than discarding it --
+// silently dropping publishers beyond the cap with no signal was the #5816
+// finding on #5461.
 func loadPackagePublishers(
 	ctx context.Context,
 	store PackageRegistryCorrelationStore,
 	req PackageDependencyChainRequest,
 	packageIDs []string,
-) (map[string][]PackageDependencyChainPublisher, error) {
+) (map[string][]PackageDependencyChainPublisher, bool, error) {
 	publishersByPackage := make(map[string][]PackageDependencyChainPublisher, len(packageIDs))
 	if len(packageIDs) == 0 {
-		return publishersByPackage, nil
+		return publishersByPackage, false, nil
 	}
-	publishers, err := store.ListPackageRegistryCorrelations(ctx, PackageRegistryCorrelationFilter{
+	publisherPage, err := store.ListPackageRegistryCorrelations(ctx, PackageRegistryCorrelationFilter{
 		PackageIDs:           packageIDs,
 		RelationshipKinds:    packagePublisherRelationshipKinds,
 		AllowedRepositoryIDs: req.AllowedRepositoryIDs,
@@ -172,9 +214,9 @@ func loadPackagePublishers(
 		Limit:                packageRegistryMaxLimit,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("resolve package dependency chains (publishers): %w", err)
+		return nil, false, fmt.Errorf("resolve package dependency chains (publishers): %w", err)
 	}
-	for _, row := range publishers {
+	for _, row := range publisherPage.Rows {
 		if row.RepositoryID == "" {
 			continue
 		}
@@ -195,7 +237,7 @@ func loadPackagePublishers(
 			CanonicalWrites:  row.CanonicalWrites,
 		})
 	}
-	return publishersByPackage, nil
+	return publishersByPackage, publisherPage.Truncated, nil
 }
 
 // distinctConsumedPackageIDs returns the sorted, de-duplicated set of non-empty

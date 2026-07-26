@@ -90,6 +90,13 @@ func TestOpenAPISpecIncludesPackageRegistryDependencyChains(t *testing.T) {
 	if got, want := mustMapField(t, publisherProperties, "provenance_only")["type"], "boolean"; got != want {
 		t.Fatalf("publisher provenance_only type = %#v, want %#v", got, want)
 	}
+	if got, want := mustMapField(t, properties, "publishers_truncated")["type"], "boolean"; got != want {
+		t.Fatalf("publishers_truncated type = %#v, want %#v", got, want)
+	}
+	required := schema["required"].([]any)
+	if !openAPISliceContains(required, "publishers_truncated") {
+		t.Fatalf("response required = %#v, want publishers_truncated", required)
+	}
 }
 
 func TestOpenAPISpecIncludesPackageRegistryIdentityIssues(t *testing.T) {

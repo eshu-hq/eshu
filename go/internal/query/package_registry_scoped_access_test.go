@@ -91,9 +91,9 @@ type fatalOnCallPackageRegistryCorrelationStore struct {
 func (s *fatalOnCallPackageRegistryCorrelationStore) ListPackageRegistryCorrelations(
 	context.Context,
 	PackageRegistryCorrelationFilter,
-) ([]PackageRegistryCorrelationRow, error) {
+) (PackageRegistryCorrelationPage, error) {
 	s.t.Fatal("correlation store was called despite an empty scoped grant")
-	return nil, nil
+	return PackageRegistryCorrelationPage{}, nil
 }
 
 func tenantAScopedAuthContext() AuthContext {
