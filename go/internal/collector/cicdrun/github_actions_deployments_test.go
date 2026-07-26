@@ -159,3 +159,87 @@ func TestGitHubActionsDeploymentEnvelopesDenormalizesParentFieldsOntoEveryStatus
 		assertPayload(t, event.Payload, "transient_environment", false)
 	}
 }
+
+// TestDeploymentAndRunRepositoryIDsAgreeForAStandardTarget pins the invariant
+// the reducer's cross-repository guard newly depends on.
+//
+// The two sides derive the canonical repository id independently: a run's comes
+// from repositoryID -> repositoryCanonicalURL, which prefers the API's
+// repository.html_url and explicitly refuses to hash a per-run SourceURI
+// verbatim; a deployment event's comes from deploymentRepositoryID, which
+// hashes ctx.SourceURI. The Deployments API response carries no repository
+// object, which is why the event side has nothing else to use.
+//
+// Before the guard, a disagreement between them was inert -- nothing read the
+// event's RepositoryID. The guard made it load-bearing: when the two disagree,
+// every deployment event for that run is skipped, with no warning and no
+// metric, because the collector's deployment_unanchored warning keys on sha
+// rather than repository. So the agreement is now a data-retention invariant
+// and it needs a test that fails if either derivation drifts.
+func TestDeploymentAndRunRepositoryIDsAgreeForAStandardTarget(t *testing.T) {
+	t.Parallel()
+
+	const (
+		fullName = "acme/api"
+		htmlURL  = "https://github.com/acme/api"
+	)
+
+	ctx := FixtureContext{
+		CollectorInstanceID: "cicd-collector-test",
+		ScopeID:             "ci_cd_run:github_actions:acme:api",
+		Repository:          fullName,
+		SourceURI:           htmlURL,
+	}
+
+	runSide := repositoryID(githubRepository{FullName: fullName, HTMLURL: htmlURL}, ctx)
+	eventSide := deploymentRepositoryID(ctx)
+
+	if runSide == "" {
+		t.Fatal("run-side repositoryID is empty; the fixture no longer exercises the derivation")
+	}
+	if eventSide == "" {
+		t.Fatal("event-side deploymentRepositoryID is empty; the fixture no longer exercises the derivation")
+	}
+	if runSide != eventSide {
+		t.Fatalf("repository ids disagree: run=%q event=%q.\n"+
+			"The reducer's cross-repository guard skips a deployment event whose RepositoryID "+
+			"differs from its run's, so a drift here silently drops EVERY deployment event for "+
+			"the run. If a derivation legitimately changed, update both sides together.", runSide, eventSide)
+	}
+}
+
+// The same invariant must survive the spellings NormalizeRemoteURL is expected
+// to absorb, since an operator configures SourceURI by hand while html_url
+// comes from the API verbatim.
+func TestDeploymentAndRunRepositoryIDsAgreeAcrossURLSpellings(t *testing.T) {
+	t.Parallel()
+
+	const fullName = "acme/api"
+
+	canonical := repositoryID(
+		githubRepository{FullName: fullName, HTMLURL: "https://github.com/acme/api"},
+		FixtureContext{
+			CollectorInstanceID: "c", ScopeID: "s", Repository: fullName,
+			SourceURI: "https://github.com/acme/api",
+		},
+	)
+
+	for name, sourceURI := range map[string]string{
+		"trailing slash":  "https://github.com/acme/api/",
+		"dot git suffix":  "https://github.com/acme/api.git",
+		"upper case host": "https://GitHub.com/acme/api",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			got := deploymentRepositoryID(FixtureContext{
+				CollectorInstanceID: "c", ScopeID: "s", Repository: fullName,
+				SourceURI: sourceURI,
+			})
+			if got != canonical {
+				t.Fatalf("deploymentRepositoryID(%q) = %q, want %q: a spelling "+
+					"NormalizeRemoteURL absorbs must not split the join", sourceURI, got, canonical)
+			}
+		})
+	}
+}

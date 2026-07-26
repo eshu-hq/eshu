@@ -112,11 +112,16 @@ the cost of the new code merely being present):
 | B/op | 19,355,638 | 19,757,606 | same |
 | allocs/op | 260,064 | 260,064 | same |
 
-| Metric | Before | After | Input shape |
+| Metric | Before (`2e1560ff8`) | After (`0d42bacc1`) | Input shape |
 | --- | --- | --- | --- |
 | ns/op (median) | 1,259,760 | 1,266,078 | shared-repo workflow images |
 | B/op | 1,222,262 | 1,262,485 | same |
 | allocs/op | 9,821 | 9,821 | same |
+
+The second table's numbers predate the cross-repository guard and are unaffected
+by it: that corpus carries no deployment events, so
+`attachDeploymentEventsToRuns` returns at its `len(events) == 0` guard before
+reaching the repository comparison.
 
 The no-deployment-event benchmark measured -1.7% at the final head (164.07 ms
 against 166.86 ms), inside run-to-run spread on both sides. An independent re-run of both
@@ -205,6 +210,31 @@ Both advisory warnings are phase timing only; `phase_collect` reflects the
 The floor is non-vacuous by construction: before this change no cassette in the
 repo carried an environment at all, so an environment-filtered read returned
 zero for every argument. Its first run proved that — it went red.
+
+## A divergence the guard made load-bearing
+
+The cross-repository guard compares two canonical repository ids that are
+derived independently. A run's comes from `repositoryID` via
+`repositoryCanonicalURL`, which prefers the API's `repository.html_url` and
+explicitly refuses to hash a per-run `SourceURI` verbatim. A deployment event's
+comes from `deploymentRepositoryID`, which hashes `ctx.SourceURI`, because the
+Deployments API response carries no repository object to prefer instead.
+
+`NormalizeRemoteURL` absorbs the ordinary differences — case, trailing slash,
+`.git` suffix, scheme — and `validateTarget` defaults `SourceURI` to
+`https://github.com/<Repository>`, so the two agree on any correctly-configured
+target. They can still diverge for a renamed repository whose configured URI
+still names the old path, a GHE host mismatch, or an operator pointing
+`SourceURI` at an `api.` host.
+
+Before the guard that mismatch was inert, because nothing read the event's
+repository id. The guard makes it consequential: on divergence every deployment
+event for the run is skipped, and the collector's `deployment_unanchored`
+warning cannot report it because that warning keys on sha rather than
+repository. `TestDeploymentAndRunRepositoryIDsAgreeForAStandardTarget` and
+`TestDeploymentAndRunRepositoryIDsAgreeAcrossURLSpellings` pin the invariant so
+a drift in either derivation fails at the unit tier; the cassette cannot catch
+it, because it hand-sets both sides to the same id.
 
 ## Known limitation
 
