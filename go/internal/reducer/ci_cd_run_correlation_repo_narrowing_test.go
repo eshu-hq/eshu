@@ -63,3 +63,55 @@ func TestCICDImageMatchesForRepositoryIgnoresOCIRegistryRepositoryID(t *testing.
 		t.Fatalf("cicdImageMatchesForRepository() = %d matches, want 0 — an OCI registry path is not a joinable git anchor: %#v", len(got), got)
 	}
 }
+
+// TestCICDImageMatchesForRepositoryCannotDistinguishBuiltFromReferenced pins the
+// residual accuracy risk #5796 closed for the sibling container_image_identity
+// domain but which this consumer structurally cannot close today.
+//
+// #5796 stopped that domain projecting BUILT_FROM from SourceRepositoryIDs,
+// because that field conflates "this repository genuinely built the image" with
+// "this repository's Kubernetes manifest merely references the digest". It
+// gated the projection on the narrower BuildProvenanceRepositoryIDs instead.
+// That field is NOT persisted: containerImageIdentityPayload writes only
+// source_repository_ids, so a cross-scope consumer like this one can only join
+// on the broad field.
+//
+// The consequence is real and is asserted here rather than left implicit: when a
+// digest has two candidate identities and the run's repository appears ONLY as a
+// reference on the second, narrowing selects that second row, the correlation
+// promotes to exact, and the projection emits BUILT_FROM for a repository that
+// merely deploys the image. This test documents the current behavior so the fix
+// (persisting build_provenance_repository_ids and narrowing on it, #5823) has a
+// failing-then-green target and cannot land silently.
+func TestCICDImageMatchesForRepositoryCannotDistinguishBuiltFromReferenced(t *testing.T) {
+	t.Parallel()
+
+	const (
+		digest        = "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+		deployingRepo = "repository:r_deploys_only"
+		buildingRepo  = "repository:r_actually_built"
+	)
+
+	matches := []cicdImageIdentity{
+		{
+			factID:              "identity-built-by-other-repo",
+			sourceRepositoryIDs: []string{buildingRepo},
+			digest:              digest,
+		},
+		{
+			// This row lists the deploying repository only because its manifest
+			// references the digest -- it did not build the image. Nothing in the
+			// persisted payload distinguishes that from a real build.
+			factID:              "identity-merely-referenced",
+			sourceRepositoryIDs: []string{deployingRepo},
+			digest:              digest,
+		},
+	}
+
+	got := cicdImageMatchesForRepository(matches, deployingRepo)
+	if len(got) != 1 || got[0].factID != "identity-merely-referenced" {
+		t.Fatalf("cicdImageMatchesForRepository() = %#v, want the reference-only row selected; "+
+			"if this now returns 0 matches, build-provenance narrowing has landed and this "+
+			"test should be inverted to assert the false positive is gone (#5823)", got)
+	}
+}

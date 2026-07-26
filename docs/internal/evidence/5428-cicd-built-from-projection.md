@@ -154,3 +154,33 @@ already covers, not a new truth surface, and `go test ./internal/truth/...` plus
 the reducer contract/domain tests pass unchanged. If the epic later decides these
 projections need their own contract, it applies to both domains together rather
 than to this one alone.
+
+## Residual accuracy risk: built-vs-referenced (#5823)
+
+#5796 landed hours before this branch rebased, closing a false-positive class for
+the sibling `container_image_identity` domain: it stopped projecting `BUILT_FROM`
+from `SourceRepositoryIDs`, because that field conflates "genuinely built this
+image" with "this repository's Kubernetes manifest references a digest-pinned
+image", and gated the projection on the narrower `BuildProvenanceRepositoryIDs`.
+
+That narrower field is **not persisted** -- `containerImageIdentityPayload`
+(`container_image_identity_writer.go`) writes only `source_repository_ids` -- so
+a cross-scope consumer cannot join on it. `cicdImageMatchesForRepository` is such
+a consumer and must therefore narrow on the broad field, which means this domain
+can still reach the outcome #5796 closed for its sibling.
+
+This is not left implicit. `TestCICDImageMatchesForRepositoryCannotDistinguishBuiltFromReferenced`
+asserts the reachable behavior: with two candidate identities for one digest and
+the run's repository present only as a reference on the second, narrowing selects
+that second row, the correlation classifies `exact`, and this projection emits a
+`BUILT_FROM` edge naming a repository that only deploys the image. The run's own
+corroborating `ci.artifact` digest claim mitigates but does not eliminate it
+(shared base images, re-tags, monorepo CI).
+
+The fix -- persist `build_provenance_repository_ids` and narrow on it -- is filed
+as **#5823**. It is deliberately not folded in here: it changes the
+`reducer_container_image_identity` payload contract, which pulls in the payload
+schema, the payload-usage manifest, and the sibling domain's writer, and that is
+a different blast radius than this projection. The test above gives #5823 a
+failing-then-green target and makes the current behavior impossible to ship
+silently.
