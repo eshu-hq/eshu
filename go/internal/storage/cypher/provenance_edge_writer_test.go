@@ -82,6 +82,12 @@ func TestProvenanceEdgeWriterStampsEvidenceKindsPerEvidenceSource(t *testing.T) 
 		{"reducer/package-ownership", "PACKAGE_OWNERSHIP_CORRELATION"},
 		{"reducer/package-publication", "PACKAGE_PUBLICATION_CORRELATION"},
 		{"reducer/container-image-identity", "CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST"},
+		// #5428 shares BUILT_FROM with container-image-identity and carries the
+		// same source_tool ("oci"), so this token is the ONLY axis a golden-gate
+		// assertion can use to prove it counted one domain's edges and not the
+		// other's. An unmapped source would silently fall back to the raw
+		// evidence_source string and break that isolation.
+		{"reducer/ci-cd-run-correlation", "CI_CD_RUN_CORRELATION_EXACT_ARTIFACT"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.evidenceSource, func(t *testing.T) {
@@ -90,7 +96,8 @@ func TestProvenanceEdgeWriterStampsEvidenceKindsPerEvidenceSource(t *testing.T) 
 			executor := &recordingExecutor{}
 			writer := NewProvenanceEdgeWriter(executor, 0)
 			var err error
-			if tc.evidenceSource == "reducer/container-image-identity" {
+			if tc.evidenceSource == "reducer/container-image-identity" ||
+				tc.evidenceSource == "reducer/ci-cd-run-correlation" {
 				err = writer.WriteBuiltFromEdges(context.Background(), []map[string]any{
 					{"digest": "sha256:deadbeef", "repository_id": "repo-1"},
 				}, "scope-1", "gen-1", tc.evidenceSource)

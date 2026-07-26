@@ -140,5 +140,17 @@ Consequence for this change: it ships with **no golden floor**. Asserting
 `minimum_count >= 1` would be unsatisfiable on this corpus, and asserting a
 `max: 0` floor would freeze a gap rather than describe one. The projection is
 proven by unit tests; corpus-level proof waits on a corpus that can reach an
-exact outcome. Making `exact` reachable is upstream work (the identity rows are
-not in the digest index when the correlation runs), tracked separately.
+exact outcome. Making `exact` reachable is upstream work -- the identity rows are
+not in the digest index when the correlation runs -- filed as **#5822** with the
+measured queries above.
+
+## No sibling truth.Contract (following the #5457 precedent)
+
+Policy section 107-113 says each PROJECT domain gets an additive sibling
+`truth.Contract`. This change adds none, matching #5457: `container_image_identity`
+projects `BUILT_FROM` through this same writer and did not add one either. The
+projection is a graph representation of a decision the domain's existing contract
+already covers, not a new truth surface, and `go test ./internal/truth/...` plus
+the reducer contract/domain tests pass unchanged. If the epic later decides these
+projections need their own contract, it applies to both domains together rather
+than to this one alone.
