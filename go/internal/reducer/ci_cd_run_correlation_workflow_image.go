@@ -56,13 +56,65 @@ func attachWorkflowImagesToRuns(runs map[string]*cicdRunEvidence, workflowImages
 	}
 }
 
+// cicdWorkflowImageInputOnlyCommandKind is the one extracted command kind that
+// names an image the workflow CONSUMES rather than produces:
+// workflowimage.evidenceFromReusableWorkflow stamps it on a
+// `jobs.<job>.with.{image,image_ref,container_image}` value, which is typically
+// a scanner, base, or tooling image passed into a reusable workflow.
+//
+// This is a deny-list, not an allow-list, on purpose. command_kind is an
+// optional free-string field, so an absent kind, a kind this reducer has not
+// learned yet, or one a future collector adds all keep the pre-existing
+// behavior. Only the kind proven to be input-only is denied, so a new
+// produced-image kind is never silently degraded by a reducer that predates it.
+const cicdWorkflowImageInputOnlyCommandKind = "reusable_workflow_input"
+
+func cicdWorkflowImageIsInputOnly(workflowImage *decodedCICDWorkflowImage) bool {
+	return trimmedCICDPtr(workflowImage.evidence.CommandKind) == cicdWorkflowImageInputOnlyCommandKind
+}
+
+// classifyCICDWorkflowImageEvidence resolves a run's workflow-image evidence to
+// a container image identity.
+//
+// Produced-image evidence is considered first and input-only evidence second,
+// so a run that both consumes a scanner image and builds its own image is
+// decided by the image it built rather than by whichever fact was indexed
+// first. An input-only image that resolves to exactly one identity row is
+// capped at derived: calling it exact asserts the run produced the image, and
+// that assertion is not free. incidentCICDPromotionCandidates prefers a digest
+// exact match over every other candidate, and incidentCICDTruthLabel then
+// stamps the incident's build/deploy and commit slots as exact truth, so a
+// false exact on a scanner image can take build attribution away from a genuine
+// derived candidate.
 func classifyCICDWorkflowImageEvidence(
 	decision CICDRunCorrelationDecision,
 	workflowImages []*decodedCICDWorkflowImage,
 	commitMatched bool,
 	imageIndex map[string][]cicdImageIdentity,
 ) (CICDRunCorrelationDecision, bool) {
+	if produced, handled := classifyCICDWorkflowImagePass(
+		decision, workflowImages, commitMatched, imageIndex, false,
+	); handled {
+		return produced, true
+	}
+	return classifyCICDWorkflowImagePass(
+		decision, workflowImages, commitMatched, imageIndex, true,
+	)
+}
+
+// classifyCICDWorkflowImagePass runs one classification pass over the evidence
+// whose input-only status matches inputOnly.
+func classifyCICDWorkflowImagePass(
+	decision CICDRunCorrelationDecision,
+	workflowImages []*decodedCICDWorkflowImage,
+	commitMatched bool,
+	imageIndex map[string][]cicdImageIdentity,
+	inputOnly bool,
+) (CICDRunCorrelationDecision, bool) {
 	for _, workflowImage := range workflowImages {
+		if cicdWorkflowImageIsInputOnly(workflowImage) != inputOnly {
+			continue
+		}
 		// Read the once-decoded typed value cached on decodedCICDWorkflowImage
 		// rather than re-decoding the envelope for every run in the repo.
 		evidence := workflowImage.evidence
@@ -95,6 +147,12 @@ func classifyCICDWorkflowImageEvidence(
 			if !commitMatched {
 				decision.Outcome = CICDRunCorrelationDerived
 				decision.Reason = "workflow image ref matches one container image identity row via repository-wide fallback (no commit-matched workflow file)"
+			}
+			if inputOnly {
+				// Consumed by this workflow, not produced by it, so it never
+				// reaches exact regardless of commit matching.
+				decision.Outcome = CICDRunCorrelationDerived
+				decision.Reason = "workflow image ref is a reusable-workflow input (consumed by, not produced by, this workflow); one container image identity row matched"
 			}
 			decision.ProvenanceOnly = false
 			decision.CanonicalWrites = 1

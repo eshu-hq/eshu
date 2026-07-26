@@ -4,6 +4,7 @@
 package reducer
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -27,6 +28,23 @@ func workflowImageEvidence(factID, repositoryID, imageRef string) *decodedCICDWo
 			EvidenceClass: &evidenceClass,
 			ImageRef:      &imageRef,
 		},
+	}
+}
+
+func workflowImageEvidenceOfKind(factID, repositoryID, imageRef, commandKind string) *decodedCICDWorkflowImage {
+	evidence := workflowImageEvidence(factID, repositoryID, imageRef)
+	evidence.evidence.CommandKind = &commandKind
+	return evidence
+}
+
+func singleIdentityIndex(imageRef, digest, buildRepo string) map[string][]cicdImageIdentity {
+	return map[string][]cicdImageIdentity{
+		digest: {{
+			factID:                       "identity-" + digest,
+			imageRef:                     imageRef,
+			digest:                       digest,
+			buildProvenanceRepositoryIDs: []string{buildRepo},
+		}},
 	}
 }
 
@@ -225,5 +243,138 @@ func TestClassifyCICDWorkflowImageEvidenceHandlesNoMatch(t *testing.T) {
 	}
 	if decision.Reason != "workflow image ref has no matching container image identity row" {
 		t.Fatalf("Reason = %q, want the no-match reason", decision.Reason)
+	}
+}
+
+// An image named by `jobs.<job>.with.image` is CONSUMED by the workflow, not
+// produced by it: workflowimage.evidenceFromReusableWorkflow stamps those
+// "reusable_workflow_input", and the value is typically a scanner, base, or
+// tooling image. Calling that correlation exact asserts the run produced the
+// image. That is not free: incidentCICDPromotionCandidates prefers a digest
+// exact match over every other candidate and incidentCICDTruthLabel then stamps
+// the incident's build/deploy and commit slots as exact truth, so an input-only
+// image can win build attribution away from a genuine derived candidate.
+func TestClassifyCICDWorkflowImageEvidenceDemotesReusableWorkflowInput(t *testing.T) {
+	t.Parallel()
+
+	const (
+		repositoryID = "repository:r_builder"
+		imageRef     = "ghcr.io/eshu-hq/scanner:v1"
+	)
+
+	decision, handled := classifyCICDWorkflowImageEvidence(
+		CICDRunCorrelationDecision{RepositoryID: repositoryID},
+		[]*decodedCICDWorkflowImage{
+			workflowImageEvidenceOfKind("wf-1", repositoryID, imageRef, "reusable_workflow_input"),
+		},
+		true,
+		singleIdentityIndex(imageRef, "sha256:aaaa", repositoryID),
+	)
+
+	if !handled {
+		t.Fatalf("classifyCICDWorkflowImageEvidence() did not handle a valid workflow_image_ref")
+	}
+	if decision.Outcome != CICDRunCorrelationDerived {
+		t.Fatalf("Outcome = %q, want derived: a reusable-workflow input image is consumed by "+
+			"this workflow, not produced by it", decision.Outcome)
+	}
+	if !strings.Contains(decision.Reason, "reusable-workflow input") {
+		t.Fatalf("Reason = %q, want it to name the input-only evidence", decision.Reason)
+	}
+}
+
+// A docker build/push command genuinely denotes the run producing the image, so
+// it keeps the exact promotion.
+func TestClassifyCICDWorkflowImageEvidenceKeepsExactForProducedImages(t *testing.T) {
+	t.Parallel()
+
+	const (
+		repositoryID = "repository:r_builder"
+		imageRef     = "ghcr.io/eshu-hq/demo:v1"
+	)
+
+	for _, commandKind := range []string{"docker_build", "docker_buildx", "docker_push", "docker_tag"} {
+		decision, _ := classifyCICDWorkflowImageEvidence(
+			CICDRunCorrelationDecision{RepositoryID: repositoryID},
+			[]*decodedCICDWorkflowImage{
+				workflowImageEvidenceOfKind("wf-1", repositoryID, imageRef, commandKind),
+			},
+			true,
+			singleIdentityIndex(imageRef, "sha256:aaaa", repositoryID),
+		)
+		if decision.Outcome != CICDRunCorrelationExact {
+			t.Fatalf("command_kind %q: Outcome = %q, want exact", commandKind, decision.Outcome)
+		}
+	}
+}
+
+// command_kind is an optional free-string field. A fact that omits it, or
+// carries a kind this reducer does not know, keeps the pre-existing behavior
+// rather than being silently demoted: only the one kind proven to be input-only
+// is denied, so a collector emitting a new produced-image kind is not degraded
+// by a reducer that has not learned about it yet.
+func TestClassifyCICDWorkflowImageEvidenceFailsOpenForUnknownCommandKind(t *testing.T) {
+	t.Parallel()
+
+	const (
+		repositoryID = "repository:r_builder"
+		imageRef     = "ghcr.io/eshu-hq/demo:v1"
+	)
+
+	absent, _ := classifyCICDWorkflowImageEvidence(
+		CICDRunCorrelationDecision{RepositoryID: repositoryID},
+		[]*decodedCICDWorkflowImage{workflowImageEvidence("wf-1", repositoryID, imageRef)},
+		true,
+		singleIdentityIndex(imageRef, "sha256:aaaa", repositoryID),
+	)
+	if absent.Outcome != CICDRunCorrelationExact {
+		t.Fatalf("absent command_kind: Outcome = %q, want exact (fail open)", absent.Outcome)
+	}
+
+	unknown, _ := classifyCICDWorkflowImageEvidence(
+		CICDRunCorrelationDecision{RepositoryID: repositoryID},
+		[]*decodedCICDWorkflowImage{
+			workflowImageEvidenceOfKind("wf-1", repositoryID, imageRef, "run"),
+		},
+		true,
+		singleIdentityIndex(imageRef, "sha256:aaaa", repositoryID),
+	)
+	if unknown.Outcome != CICDRunCorrelationExact {
+		t.Fatalf("unknown command_kind: Outcome = %q, want exact (fail open)", unknown.Outcome)
+	}
+}
+
+// Produced-image evidence must win regardless of slice order, so a run that
+// both consumes a scanner image and builds its own image is not decided by
+// whichever fact happened to be indexed first.
+func TestClassifyCICDWorkflowImageEvidencePrefersProducedOverInput(t *testing.T) {
+	t.Parallel()
+
+	const (
+		repositoryID = "repository:r_builder"
+		inputRef     = "ghcr.io/eshu-hq/scanner:v1"
+		builtRef     = "ghcr.io/eshu-hq/demo:v1"
+	)
+
+	imageIndex := singleIdentityIndex(inputRef, "sha256:aaaa", repositoryID)
+	for digest, rows := range singleIdentityIndex(builtRef, "sha256:bbbb", repositoryID) {
+		imageIndex[digest] = rows
+	}
+
+	decision, _ := classifyCICDWorkflowImageEvidence(
+		CICDRunCorrelationDecision{RepositoryID: repositoryID},
+		[]*decodedCICDWorkflowImage{
+			workflowImageEvidenceOfKind("wf-input", repositoryID, inputRef, "reusable_workflow_input"),
+			workflowImageEvidenceOfKind("wf-built", repositoryID, builtRef, "docker_build"),
+		},
+		true,
+		imageIndex,
+	)
+
+	if decision.Outcome != CICDRunCorrelationExact {
+		t.Fatalf("Outcome = %q, want exact from the docker_build evidence", decision.Outcome)
+	}
+	if decision.ImageRef != builtRef {
+		t.Fatalf("ImageRef = %q, want the built image %q, not the consumed one", decision.ImageRef, builtRef)
 	}
 }

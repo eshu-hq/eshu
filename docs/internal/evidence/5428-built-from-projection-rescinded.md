@@ -263,6 +263,40 @@ the matches the caller already had.
 No-Observability-Change: no metrics, spans, structured logs, or status fields
 are added or altered; `docs/public/observability/telemetry-coverage.md` is untouched by this branch.
 
+## Produced-image evidence, not merely referenced
+
+`classifyCICDWorkflowImageEvidence` promoted a commit-matched single-identity
+resolution to `exact` without consulting `command_kind`. That is wrong for one
+extracted kind: `workflowimage.evidenceFromReusableWorkflow` stamps
+`reusable_workflow_input` on a `jobs.<job>.with.{image,image_ref,container_image}`
+value, which names an image the workflow CONSUMES — typically a scanner, base, or
+tooling image — not one it produced. Calling that correlation `exact` asserts
+production that never happened.
+
+With the projection withdrawn no `BUILT_FROM` edge is asserted, but the mislabel
+still costs something concrete. `incidentCICDPromotionCandidates`
+(`go/internal/query/incident_context_build_commit.go`) prefers a digest `exact`
+match over every other candidate, and `incidentCICDTruthLabel` then stamps the
+incident's build/deploy and commit slots as exact truth. A false `exact` on a
+scanner image can take build attribution away from a genuine derived candidate.
+
+Input-only evidence is now capped at `derived` with a reason that says why.
+Produced kinds (`docker_build`, `docker_buildx`, `docker_push`, `docker_tag`)
+keep the exact promotion. The classifier considers produced-image evidence
+before input-only evidence, so a run that both consumes a scanner image and
+builds its own is decided by the image it built rather than by slice order.
+
+This is a deny-list rather than an allow-list. `command_kind` is an optional
+free-string field, so an absent kind, an unknown kind, or one a future collector
+adds all keep the pre-existing behaviour; only the kind proven to be input-only
+is denied. A reducer that predates a new produced-image kind therefore degrades
+nothing.
+
+The golden gate cannot verify any of this: the corpus contains zero
+`ci.workflow_image_evidence` facts, so the entire workflow-image classifier path
+is gate-invisible. Unit-tier proof is the honest proof here, and the coverage
+gap is filed as **#5830**.
+
 ## Golden corpus
 
 The B-7 gate covers this surface because reducer publication output changed.
@@ -316,3 +350,5 @@ review workload.
   `materialized`, including rows whose endpoint node was absent.
 - **#5822** — the golden corpus never reaches an `exact` ci_cd_run correlation,
   so the exact path has no deterministic fixture.
+- **#5830** — the corpus contains no `ci.workflow_image_evidence` at all, so the
+  whole workflow-image classifier is invisible to the B-7 gate.
