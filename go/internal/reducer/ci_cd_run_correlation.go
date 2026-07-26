@@ -335,47 +335,38 @@ func classifyCICDRunEvidence(ev *cicdRunEvidence, imageIndex map[string][]cicdIm
 // matches to those the run's own repository built, so a single surviving row
 // can promote the correlation to exact.
 //
-// It joins on build_provenance_repository_ids, NOT on repositoryID and not on
-// source_repository_ids:
+// It joins on build_provenance_repository_ids, and on nothing else:
 //
-//   - repositoryID is the OCI registry's own identifier
+//   - The identity's own repository_id is the OCI registry's identifier
 //     ("oci-registry://ghcr.io/org/repo"), a namespace disjoint from the
-//     canonical "repository:r_..." ids a ci.run carries, so comparing against
-//     it never matched and left the unfiltered multi-row set to degrade an
-//     otherwise-exact correlation into ambiguous (#5766, the same trap #5464
-//     found on the supply-chain side).
+//     canonical "repository:r_..." ids a ci.run carries. Narrowing compared
+//     those directly, so it never matched and left the unfiltered multi-row set
+//     to degrade an otherwise-exact correlation into ambiguous (#5766, the same
+//     trap #5464 found on the supply-chain side). That field is no longer
+//     decoded at all.
 //   - source_repository_ids conflates "this repository built the image" with
-//     "this repository's manifest merely references the digest". Narrowing on
-//     it can select a reference-only row and promote a deploy-only repository
-//     to exact -- the conflation #5796 fixed inside the identity domain by
-//     gating its own BUILT_FROM projection on the narrower set (#5823).
+//     "this repository's manifest merely references the digest". Narrowing on it
+//     can select a reference-only row and promote a repository that only deploys
+//     the image to exact -- the conflation #5796 fixed inside the identity
+//     domain by gating its own BUILT_FROM projection on the narrower set
+//     (#5823).
 //
-// Identity facts published before #5823 carry no build-provenance key at all.
-// Reading their absent key as "built nothing" would silently degrade every
-// correlation against a dormant scope, so when NO candidate row declares the
-// key the broader source_repository_ids join is used instead. Once any row
-// declares it, the publishing generation is known to emit it and a repository
-// the key does not name stays unnarrowed -- conservatively ambiguous rather
-// than falsely exact.
+// A row published before #5823 carries no build-provenance key, so it can never
+// be selected here. That is deliberate, and it is NOT a degradation: because the
+// pre-#5766 predicate compared the OCI repository_id, narrowing was already a
+// dead no-op for every such row, and a legacy multi-row digest already resolved
+// ambiguous. Falling back to source_repository_ids for those rows would not
+// recover a lost correlation -- there is none to recover -- it would only
+// manufacture a false exact that the previous behavior never produced. The
+// sharper join engages for a scope as soon as its identity intent republishes.
 func cicdImageMatchesForRepository(matches []cicdImageIdentity, repositoryID string) []cicdImageIdentity {
 	repositoryID = strings.TrimSpace(repositoryID)
 	if repositoryID == "" {
 		return nil
 	}
-	buildProvenancePublished := false
-	for _, match := range matches {
-		if match.buildProvenanceKeyPresent {
-			buildProvenancePublished = true
-			break
-		}
-	}
 	out := make([]cicdImageIdentity, 0, len(matches))
 	for _, match := range matches {
-		candidates := match.buildProvenanceRepositoryIDs
-		if !buildProvenancePublished {
-			candidates = match.sourceRepositoryIDs
-		}
-		for _, candidate := range candidates {
+		for _, candidate := range match.buildProvenanceRepositoryIDs {
 			if strings.TrimSpace(candidate) == repositoryID {
 				out = append(out, match)
 				break

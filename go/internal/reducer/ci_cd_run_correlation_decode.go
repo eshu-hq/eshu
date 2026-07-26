@@ -261,12 +261,12 @@ type cicdImageIdentity struct {
 	sourceRepositoryIDs []string
 	// buildProvenanceRepositoryIDs carries only the repositories the identity
 	// decision attributed BUILD evidence to, the narrow set #5796 established
-	// for this exact distinction. buildProvenanceKeyPresent records whether the
-	// payload declared the key at all: an absent key means the fact predates
-	// #5823 and must fall back to the broader join, whereas a present-but-empty
-	// key is a positive statement that no repository has build evidence.
+	// for this exact distinction. It is the sole join key for repository
+	// narrowing (#5823). A row published before that key existed carries an
+	// empty set and is simply never selected, which reproduces the pre-#5766
+	// behavior for those rows rather than degrading it -- see
+	// cicdImageMatchesForRepository.
 	buildProvenanceRepositoryIDs []string
-	buildProvenanceKeyPresent    bool
 	imageRef                     string
 	digest                       string
 }
@@ -281,16 +281,14 @@ func buildCICDImageIdentityIndex(envelopes []facts.Envelope) map[string][]cicdIm
 		if digest == "" {
 			continue
 		}
-		_, buildProvenanceKeyPresent := envelope.Payload["build_provenance_repository_ids"]
 		index[digest] = append(index[digest], cicdImageIdentity{
 			factID:              envelope.FactID,
 			sourceRepositoryIDs: payloadOrderedStrings(envelope.Payload, "source_repository_ids"),
 			buildProvenanceRepositoryIDs: payloadOrderedStrings(
 				envelope.Payload, "build_provenance_repository_ids",
 			),
-			buildProvenanceKeyPresent: buildProvenanceKeyPresent,
-			imageRef:                  payloadString(envelope.Payload, "image_ref"),
-			digest:                    digest,
+			imageRef: payloadString(envelope.Payload, "image_ref"),
+			digest:   digest,
 		})
 	}
 	return index

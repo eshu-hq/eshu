@@ -105,15 +105,35 @@ fix — #5823's protection binds only on digests with two or more candidate rows
 `TestCICDImageMatchesForRepositoryDoesNotGuardSingleRowDigests` pins it so the
 limitation cannot be quietly forgotten.
 
-**Mixed-generation safety.** Identity facts published before this change carry
-no build-provenance key at all. Reading an absent key as "built nothing" would
-silently degrade every correlation against a dormant scope, so the consumer
-records key *presence* separately from key *contents*: when no candidate row
-declares the key, the legacy `source_repository_ids` join is used; once any row
-declares it, a repository the key does not name stays unnarrowed. Both
-directions fail conservatively toward `ambiguous`, never toward a false `exact`.
-The key is therefore always written, even when empty — an omitted key on an
-empty set would be indistinguishable from a legacy fact.
+**Mixed-generation behaviour, and a correction.** Identity facts published
+before this change carry no build-provenance key, so they decode to an empty set
+and narrowing can never select them.
+
+An earlier revision of this branch instead fell back to the broad
+`source_repository_ids` join whenever no candidate row declared the key,
+reasoning that treating an absent key as "built nothing" would silently degrade
+every correlation against a scope that had not republished. **That reasoning was
+wrong, and the fallback was an accuracy regression.** Because the pre-#5766
+predicate compared the identity's OCI `repository_id` against a canonical
+`repository:r_...` id, narrowing was already a dead no-op for every legacy row,
+so a legacy multi-row digest already resolved `ambiguous`. There was no lost
+correlation for a fallback to recover. All it could do was select a
+reference-only legacy row and manufacture an `exact` the previous behaviour
+never produced — the very failure #5823 exists to prevent, reintroduced through
+the compatibility path.
+
+Measured on the two-legacy-row, reference-only shape: `origin/main` yields
+`ambiguous` with `CanonicalWrites=0`; the revision carrying the fallback yielded
+`exact` with `CanonicalWrites=1`. The fallback is deleted. Legacy rows are never
+selected, which reproduces `origin/main` exactly for those rows, and the sharper
+join engages for a scope as soon as its identity intent republishes.
+`TestCICDImageMatchesForRepositoryNeverSelectsLegacyRows` and
+`TestClassifyCICDWorkflowImageEvidenceStaysAmbiguousForLegacyPayloads` pin both
+callers against a regression.
+
+The key is still always written, even when empty, so a reader can distinguish
+"this generation publishes build provenance and it names nobody" from "this fact
+predates the field" without inferring it from an absence.
 
 **Producer asymmetry deliberately NOT closed here.** `applySLSADigestRevision`
 appends its digest anchor's repositories to `BuildProvenanceRepositoryIDs`;
@@ -133,8 +153,12 @@ by a deploy repo's content_entity for the same image". Since
 `(scope_id, generation_id, evidence_source)` while the writer's `MERGE` matches
 on `(start, end, type)` alone, two scopes emitting the same pair means one
 scope's retract deletes an edge the other still supports. That is #5827,
-amplified inside the one domain that survived this branch — the B-12 snapshot's
-rc-164 already records this digest carrying 11 rows across scopes.
+amplified inside the one domain that survived this branch — the B-12 snapshot already records
+this digest carrying 11 rows across scopes — in the `list_supply_chain_impact_findings`
+MCP query-shape description, which notes that
+`reducer_container_image_identity` "has no per-digest canonicalization -- the
+producer writes one row per triggering scope/ref, and this digest carries 11 rows
+in the live corpus that disagree on `source_repository_ids`".
 
 Landing it would make the graph worse today to make a correlation sharper. It is
 tracked as **#5829**, blocked on #5827.
@@ -181,21 +205,21 @@ $ cd go && go test ./internal/reducer -count=1 -v \
     -run 'CICDImageMatches|CICDNarrowingSelects|BuildCICDImageIdentityIndex|ContainerImageIdentityPayload|ClassifyCICDWorkflowImage'
 --- PASS: TestCICDNarrowingSelectsTheBuilderFromPublishedFacts                 (red on origin/main, above)
 --- PASS: TestCICDImageMatchesForRepositoryNarrowsOnGitSourceRepositories      (#5766)
---- PASS: TestCICDImageMatchesForRepositoryIgnoresOCIRegistryPaths            (#5766)
+--- PASS: TestCICDImageMatchesForRepositoryIgnoresOCIRegistryPaths             (#5766)
 --- PASS: TestCICDImageMatchesForRepositoryRejectsReferenceOnlyRepository      (#5823)
 --- PASS: TestCICDImageMatchesForRepositorySelectsBuildProvenanceRow           (#5823)
 --- PASS: TestCICDImageMatchesForRepositoryDoesNotGuardSingleRowDigests        (#5823 bound)
---- PASS: TestCICDImageMatchesForRepositoryFallsBackForLegacyPayloads          (mixed generation)
---- PASS: TestCICDImageMatchesForRepositoryDoesNotFallBackWhenKeyPresent       (mixed generation)
+--- PASS: TestCICDImageMatchesForRepositoryNeverSelectsLegacyRows              (no false exact on legacy rows)
+--- PASS: TestCICDImageMatchesForRepositoryIgnoresLegacyRowsBesideCurrentOnes  (generations do not contaminate)
 --- PASS: TestContainerImageIdentityPayloadPersistsBuildProvenanceRepositoryIDs
 --- PASS: TestContainerImageIdentityPayloadEmitsEmptyBuildProvenanceKey
 --- PASS: TestBuildCICDImageIdentityIndexReadsBuildProvenance
 --- PASS: TestClassifyCICDWorkflowImageEvidenceNarrowsMultipleRowsToExact      (second caller)
 --- PASS: TestClassifyCICDWorkflowImageEvidenceStaysAmbiguousForReferenceOnly  (second caller)
+--- PASS: TestClassifyCICDWorkflowImageEvidenceStaysAmbiguousForLegacyPayloads (second caller)
 --- PASS: TestClassifyCICDWorkflowImageEvidenceFallbackStaysDerived            (second caller)
---- PASS: TestClassifyCICDWorkflowImageEvidenceFallsBackForLegacyPayloads      (second caller)
 --- PASS: TestClassifyCICDWorkflowImageEvidenceHandlesNoMatch                  (second caller)
-ok  	github.com/eshu-hq/eshu/go/internal/reducer	1.136s
+ok  	github.com/eshu-hq/eshu/go/internal/reducer	1.118s
 ```
 
 `TestCICDImageMatchesForRepositoryRejectsReferenceOnlyRepository` is the
@@ -224,7 +248,7 @@ ok  	github.com/eshu-hq/eshu/go/internal/projector	0.536s
 
 No-Regression Evidence: the withdrawn projection leaves no trace — the
 provenance edge writer, its wiring, the reducer entrypoint, and the telemetry
-coverage doc are byte-identical to `origin/main`, and `rg` finds no reference to
+coverage doc are unchanged by this branch, and `rg` finds no reference to
 `CICDRunProvenanceEdgeWriter`, `projectCICDRunBuiltFromEdges`, or
 `cicdRunBuiltFromRows`. No Cypher statement, graph write, or index changes. The
 remaining runtime deltas are one additional map key on a payload the reducer
@@ -232,8 +256,7 @@ already writes, and a narrowing predicate that can only ever select a subset of
 the matches the caller already had.
 
 No-Observability-Change: no metrics, spans, structured logs, or status fields
-are added or altered; `docs/public/observability/telemetry-coverage.md` is
-restored to main's content.
+are added or altered; `docs/public/observability/telemetry-coverage.md` is untouched by this branch.
 
 ## Golden corpus
 
@@ -247,8 +270,9 @@ declining to pin an outcome value. The corpus's builder row gains
 already gave it `source_repository_ids`, so narrowing selects the same single
 row and both floors hold.
 
-Run against this branch at `06f6c2b54` (the commit immediately preceding this
-evidence text; that commit adds documentation only and changes no runtime path):
+Run against this branch at `06f6c2b54`. Every commit between that gate run and
+the reviewed head changes documentation only and touches no runtime path, so the
+result applies to the head as pushed:
 
 ```
 $ COMPOSE_PROJECT_NAME=bpj5823gate3 GATE_COLLECTOR_SETTLE_SECONDS=75 \

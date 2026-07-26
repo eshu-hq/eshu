@@ -21,14 +21,16 @@ func TestCICDImageMatchesForRepositoryNarrowsOnGitSourceRepositories(t *testing.
 
 	matches := []cicdImageIdentity{
 		{
-			factID:              "identity-built-by-this-repo",
-			sourceRepositoryIDs: []string{runRepositoryID},
-			digest:              "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+			factID:                       "identity-built-by-this-repo",
+			sourceRepositoryIDs:          []string{runRepositoryID},
+			buildProvenanceRepositoryIDs: []string{runRepositoryID},
+			digest:                       "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
 		},
 		{
-			factID:              "identity-from-another-repo",
-			sourceRepositoryIDs: []string{"repository:r_someone_else"},
-			digest:              "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+			factID:                       "identity-from-another-repo",
+			sourceRepositoryIDs:          []string{"repository:r_someone_else"},
+			buildProvenanceRepositoryIDs: []string{"repository:r_someone_else"},
+			digest:                       "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
 		},
 	}
 
@@ -64,7 +66,6 @@ func TestCICDImageMatchesForRepositoryIgnoresOCIRegistryPaths(t *testing.T) {
 		factID:                       "identity-oci-only",
 		sourceRepositoryIDs:          []string{ociPath},
 		buildProvenanceRepositoryIDs: []string{ociPath},
-		buildProvenanceKeyPresent:    true,
 		digest:                       digest,
 	}}
 
@@ -108,17 +109,15 @@ func TestCICDImageMatchesForRepositoryRejectsReferenceOnlyRepository(t *testing.
 			factID:                       "identity-built-by-other-repo",
 			sourceRepositoryIDs:          []string{buildingRepo},
 			buildProvenanceRepositoryIDs: []string{buildingRepo},
-			buildProvenanceKeyPresent:    true,
 			digest:                       digest,
 		},
 		{
 			// This row lists the deploying repository only because its manifest
 			// references the digest. It carries the build-provenance key, and
 			// that key does NOT name the deploying repository.
-			factID:                    "identity-merely-referenced",
-			sourceRepositoryIDs:       []string{deployingRepo},
-			buildProvenanceKeyPresent: true,
-			digest:                    digest,
+			factID:              "identity-merely-referenced",
+			sourceRepositoryIDs: []string{deployingRepo},
+			digest:              digest,
 		},
 	}
 
@@ -144,14 +143,12 @@ func TestCICDImageMatchesForRepositorySelectsBuildProvenanceRow(t *testing.T) {
 			factID:                       "identity-built-by-this-repo",
 			sourceRepositoryIDs:          []string{buildingRepo, "repository:r_deploys_only"},
 			buildProvenanceRepositoryIDs: []string{buildingRepo},
-			buildProvenanceKeyPresent:    true,
 			digest:                       digest,
 		},
 		{
 			factID:                       "identity-from-another-repo",
 			sourceRepositoryIDs:          []string{"repository:r_someone_else"},
 			buildProvenanceRepositoryIDs: []string{"repository:r_someone_else"},
-			buildProvenanceKeyPresent:    true,
 			digest:                       digest,
 		},
 	}
@@ -162,21 +159,34 @@ func TestCICDImageMatchesForRepositorySelectsBuildProvenanceRow(t *testing.T) {
 	}
 }
 
-// TestCICDImageMatchesForRepositoryFallsBackForLegacyPayloads closes the
-// mixed-generation window. Identity facts published before
-// build_provenance_repository_ids existed carry no such key at all. Treating
-// their absent key as "built nothing" would silently degrade every correlation
-// against a dormant scope from exact to ambiguous, so an absent key -- and only
-// an absent key -- falls back to the broader source_repository_ids join.
-func TestCICDImageMatchesForRepositoryFallsBackForLegacyPayloads(t *testing.T) {
+// TestCICDImageMatchesForRepositoryNeverSelectsLegacyRows is the #5823
+// correction that the final review forced.
+//
+// An earlier revision of this change fell back to the broad
+// source_repository_ids join whenever no candidate row declared the
+// build-provenance key, on the theory that treating an absent key as "built
+// nothing" would degrade correlations against scopes that had not republished.
+// That theory was wrong, and the fallback was an accuracy regression.
+//
+// Before #5766 the predicate compared the identity's OCI repository_id against
+// a canonical repository:r_... id, so narrowing was a dead no-op and every
+// legacy multi-row digest ALREADY resolved ambiguous. There is no lost
+// correlation for a fallback to recover. All the fallback could do is select a
+// reference-only legacy row and manufacture an exact that the previous behavior
+// never produced.
+//
+// So legacy rows are simply never selected. The sharper join engages for a
+// scope as soon as its identity intent republishes with the key.
+func TestCICDImageMatchesForRepositoryNeverSelectsLegacyRows(t *testing.T) {
 	t.Parallel()
 
 	const (
-		digest       = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-		buildingRepo = "repository:r_actually_built"
+		digest        = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+		buildingRepo  = "repository:r_actually_built"
+		deployingRepo = "repository:r_deploys_only"
 	)
 
-	matches := []cicdImageIdentity{
+	legacy := []cicdImageIdentity{
 		{
 			factID:              "legacy-identity-built-by-this-repo",
 			sourceRepositoryIDs: []string{buildingRepo},
@@ -189,45 +199,71 @@ func TestCICDImageMatchesForRepositoryFallsBackForLegacyPayloads(t *testing.T) {
 		},
 	}
 
-	got := cicdImageMatchesForRepository(matches, buildingRepo)
-	if len(got) != 1 || got[0].factID != "legacy-identity-built-by-this-repo" {
-		t.Fatalf("cicdImageMatchesForRepository() = %#v, want the legacy source_repository_ids "+
-			"join to still narrow when no row carries the build-provenance key", got)
+	// The builder itself is not selected either. The caller keeps the
+	// unfiltered set and resolves ambiguous, which is exactly what origin/main
+	// does for this input.
+	if got := cicdImageMatchesForRepository(legacy, buildingRepo); len(got) != 0 {
+		t.Fatalf("cicdImageMatchesForRepository() = %#v, want 0: a row published without "+
+			"build_provenance_repository_ids carries no build evidence to join on", got)
 	}
-}
 
-// TestCICDImageMatchesForRepositoryDoesNotFallBackWhenKeyPresent proves the
-// fallback is scoped to the legacy shape only. Once any row carries the
-// build-provenance key the payload generation is known to publish it, so a
-// repository the key does not name must stay unnarrowed (conservatively
-// ambiguous) rather than silently falling back to the reference-conflating
-// join the fallback exists for.
-func TestCICDImageMatchesForRepositoryDoesNotFallBackWhenKeyPresent(t *testing.T) {
-	t.Parallel()
-
-	const (
-		digest        = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-		deployingRepo = "repository:r_deploys_only"
-	)
-
-	matches := []cicdImageIdentity{
+	// The failure this protects against: a legacy row naming a repository that
+	// only DEPLOYS the image must never narrow the set to one and promote that
+	// repository to exact.
+	referenceOnly := []cicdImageIdentity{
 		{
-			factID:                       "identity-built-by-other-repo",
-			sourceRepositoryIDs:          []string{deployingRepo},
-			buildProvenanceRepositoryIDs: []string{"repository:r_actually_built"},
-			buildProvenanceKeyPresent:    true,
-			digest:                       digest,
+			factID:              "legacy-identity-built-elsewhere",
+			sourceRepositoryIDs: []string{buildingRepo},
+			digest:              digest,
 		},
 		{
-			factID:              "legacy-row-alongside",
+			factID:              "legacy-identity-merely-referenced",
 			sourceRepositoryIDs: []string{deployingRepo},
 			digest:              digest,
 		},
 	}
 
+	if got := cicdImageMatchesForRepository(referenceOnly, deployingRepo); len(got) != 0 {
+		t.Fatalf("cicdImageMatchesForRepository() = %#v, want 0: narrowing a legacy "+
+			"reference-only row to a single match would promote a deploy-only repository "+
+			"to exact, an outcome the pre-#5766 behavior never produced (#5823)", got)
+	}
+}
+
+// TestCICDImageMatchesForRepositoryIgnoresLegacyRowsBesideCurrentOnes pins that
+// the two generations do not contaminate each other: a current row's published
+// build provenance decides selection, and a legacy sibling for the same digest
+// neither adds nor blocks a match.
+func TestCICDImageMatchesForRepositoryIgnoresLegacyRowsBesideCurrentOnes(t *testing.T) {
+	t.Parallel()
+
+	const (
+		digest        = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+		buildingRepo  = "repository:r_actually_built"
+		deployingRepo = "repository:r_deploys_only"
+	)
+
+	matches := []cicdImageIdentity{
+		{
+			factID:                       "current-identity-built-here",
+			sourceRepositoryIDs:          []string{buildingRepo},
+			buildProvenanceRepositoryIDs: []string{buildingRepo},
+			digest:                       digest,
+		},
+		{
+			factID:              "legacy-identity-referenced-by-deployer",
+			sourceRepositoryIDs: []string{deployingRepo},
+			digest:              digest,
+		},
+	}
+
+	got := cicdImageMatchesForRepository(matches, buildingRepo)
+	if len(got) != 1 || got[0].factID != "current-identity-built-here" {
+		t.Fatalf("cicdImageMatchesForRepository() = %#v, want only the current build-provenance row", got)
+	}
+
 	if got := cicdImageMatchesForRepository(matches, deployingRepo); len(got) != 0 {
-		t.Fatalf("cicdImageMatchesForRepository() = %#v, want 0: one row carrying the "+
-			"build-provenance key proves the generation publishes it, so no fallback", got)
+		t.Fatalf("cicdImageMatchesForRepository() = %#v, want 0 for the deploy-only repository", got)
 	}
 }
 
@@ -254,7 +290,6 @@ func TestCICDImageMatchesForRepositoryDoesNotGuardSingleRowDigests(t *testing.T)
 		factID:                       "sole-identity-built-elsewhere",
 		sourceRepositoryIDs:          []string{deployingRepo},
 		buildProvenanceRepositoryIDs: []string{"repository:r_actually_built"},
-		buildProvenanceKeyPresent:    true,
 		digest:                       digest,
 	}}
 

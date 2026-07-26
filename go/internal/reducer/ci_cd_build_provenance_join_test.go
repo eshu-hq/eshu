@@ -110,22 +110,18 @@ func TestBuildCICDImageIdentityIndexReadsBuildProvenance(t *testing.T) {
 	})
 
 	current := index[digest][0]
-	if !current.buildProvenanceKeyPresent {
-		t.Fatalf("identity-current: buildProvenanceKeyPresent = false, want true")
-	}
 	if !slices.Equal(current.buildProvenanceRepositoryIDs, []string{buildingRepo}) {
 		t.Fatalf("identity-current: buildProvenanceRepositoryIDs = %#v, want %q", current.buildProvenanceRepositoryIDs, buildingRepo)
 	}
 
-	if legacy := index[digest][1]; legacy.buildProvenanceKeyPresent {
-		t.Fatalf("identity-legacy: buildProvenanceKeyPresent = true, want false for a payload without the key")
+	// A row published before the key existed decodes to an empty set, so it can
+	// never be selected by narrowing. That reproduces the pre-#5766 behavior for
+	// legacy rows instead of degrading it -- see cicdImageMatchesForRepository.
+	if legacy := index[digest][1]; len(legacy.buildProvenanceRepositoryIDs) != 0 {
+		t.Fatalf("identity-legacy: buildProvenanceRepositoryIDs = %#v, want empty", legacy.buildProvenanceRepositoryIDs)
 	}
 
-	empty := index[legacyDigest][0]
-	if !empty.buildProvenanceKeyPresent {
-		t.Fatalf("identity-current-empty-provenance: an explicitly empty list must still count as present")
-	}
-	if len(empty.buildProvenanceRepositoryIDs) != 0 {
+	if empty := index[legacyDigest][0]; len(empty.buildProvenanceRepositoryIDs) != 0 {
 		t.Fatalf("identity-current-empty-provenance: buildProvenanceRepositoryIDs = %#v, want empty", empty.buildProvenanceRepositoryIDs)
 	}
 }

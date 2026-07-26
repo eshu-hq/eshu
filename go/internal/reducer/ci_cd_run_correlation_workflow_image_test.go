@@ -45,7 +45,6 @@ func TestClassifyCICDWorkflowImageEvidenceNarrowsMultipleRowsToExact(t *testing.
 			digest:                       "sha256:aaaa",
 			sourceRepositoryIDs:          []string{repositoryID},
 			buildProvenanceRepositoryIDs: []string{repositoryID},
-			buildProvenanceKeyPresent:    true,
 		}},
 		"sha256:bbbb": {{
 			factID:                       "identity-built-elsewhere",
@@ -53,7 +52,6 @@ func TestClassifyCICDWorkflowImageEvidenceNarrowsMultipleRowsToExact(t *testing.
 			digest:                       "sha256:bbbb",
 			sourceRepositoryIDs:          []string{"repository:r_other"},
 			buildProvenanceRepositoryIDs: []string{"repository:r_other"},
-			buildProvenanceKeyPresent:    true,
 		}},
 	}
 
@@ -97,16 +95,14 @@ func TestClassifyCICDWorkflowImageEvidenceStaysAmbiguousForReferenceOnly(t *test
 			digest:                       "sha256:aaaa",
 			sourceRepositoryIDs:          []string{"repository:r_builder"},
 			buildProvenanceRepositoryIDs: []string{"repository:r_builder"},
-			buildProvenanceKeyPresent:    true,
 		}},
 		"sha256:bbbb": {{
 			factID: "identity-referenced-by-deployer",
 			// The deploying repository appears as a source reference only; its
 			// manifest names the digest, it did not build it.
-			imageRef:                  imageRef,
-			digest:                    "sha256:bbbb",
-			sourceRepositoryIDs:       []string{deployingRepo},
-			buildProvenanceKeyPresent: true,
+			imageRef:            imageRef,
+			digest:              "sha256:bbbb",
+			sourceRepositoryIDs: []string{deployingRepo},
 		}},
 	}
 
@@ -145,14 +141,12 @@ func TestClassifyCICDWorkflowImageEvidenceFallbackStaysDerived(t *testing.T) {
 			imageRef:                     imageRef,
 			digest:                       "sha256:aaaa",
 			buildProvenanceRepositoryIDs: []string{repositoryID},
-			buildProvenanceKeyPresent:    true,
 		}},
 		"sha256:bbbb": {{
 			factID:                       "identity-built-elsewhere",
 			imageRef:                     imageRef,
 			digest:                       "sha256:bbbb",
 			buildProvenanceRepositoryIDs: []string{"repository:r_other"},
-			buildProvenanceKeyPresent:    true,
 		}},
 	}
 
@@ -171,11 +165,13 @@ func TestClassifyCICDWorkflowImageEvidenceFallbackStaysDerived(t *testing.T) {
 	}
 }
 
-// Legacy identity payloads carry no build-provenance key. This call site must
-// take the same source_repository_ids fallback the artifact-digest caller does,
-// or every workflow-image correlation against a dormant scope silently
-// degrades.
-func TestClassifyCICDWorkflowImageEvidenceFallsBackForLegacyPayloads(t *testing.T) {
+// Legacy identity payloads carry no build-provenance key, so they are never
+// selected here either. This is the second caller's half of the correction: an
+// earlier revision fell back to source_repository_ids for legacy rows, which
+// would have let a repository that merely references the digest narrow the set
+// to one and take a canonical write. Legacy multi-row digests resolve ambiguous,
+// which is exactly what origin/main does for this input.
+func TestClassifyCICDWorkflowImageEvidenceStaysAmbiguousForLegacyPayloads(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -205,11 +201,11 @@ func TestClassifyCICDWorkflowImageEvidenceFallsBackForLegacyPayloads(t *testing.
 		imageIndex,
 	)
 
-	if decision.Outcome != CICDRunCorrelationExact {
-		t.Fatalf("Outcome = %q, want exact via the legacy source_repository_ids fallback", decision.Outcome)
+	if decision.Outcome != CICDRunCorrelationAmbiguous {
+		t.Fatalf("Outcome = %q, want ambiguous: legacy rows carry no build evidence to narrow on", decision.Outcome)
 	}
-	if decision.ArtifactDigest != "sha256:aaaa" {
-		t.Fatalf("ArtifactDigest = %q, want the legacy-narrowed row", decision.ArtifactDigest)
+	if decision.CanonicalWrites != 0 {
+		t.Fatalf("CanonicalWrites = %d, want 0", decision.CanonicalWrites)
 	}
 }
 
