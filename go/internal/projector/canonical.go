@@ -42,6 +42,7 @@ type CanonicalMaterialization struct {
 	PackageRegistryVersions     []PackageRegistryVersionRow
 	PackageRegistryDependencies []PackageRegistryDependencyRow
 	PackageRegistryArtifacts    []PackageRegistryArtifactRow
+	PackageRegistryEvents       []PackageRegistryEventRow
 }
 
 // IsEmpty reports whether the materialization carries no projectable data.
@@ -62,7 +63,8 @@ func (m CanonicalMaterialization) IsEmpty() bool {
 		len(m.PackageRegistryPackages) == 0 &&
 		len(m.PackageRegistryVersions) == 0 &&
 		len(m.PackageRegistryDependencies) == 0 &&
-		len(m.PackageRegistryArtifacts) == 0
+		len(m.PackageRegistryArtifacts) == 0 &&
+		len(m.PackageRegistryEvents) == 0
 }
 
 // RepositoryRow carries the canonical properties for a Repository node.

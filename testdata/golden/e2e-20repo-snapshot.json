@@ -80,6 +80,11 @@
         "max": 200,
         "note": "package artifacts from package_registry cassette; target of HAS_ARTIFACT (#5458). The github.com/acme/lib-common@1.0.0 version fact is paired with one package_registry.package_artifact fact (artifact_key lib-common-1.0.0.tar.gz) carrying sha256/sha512 hashes -- the per-artifact digest binding the PackageVersion node's checksum_algorithms property alone cannot provide."
       },
+      "RegistryEvent": {
+        "min": 1,
+        "max": 200,
+        "note": "registry lifecycle events from package_registry cassette; target of HAS_REGISTRY_EVENT (#5458 registry_event slice). The github.com/acme/lib-common@1.0.0 version fact is paired with one package_registry.registry_event fact (event_key serial:9988, event_type yank) -- the per-version yank/deprecate/publish timeline the epic names."
+      },
       "ExternalPrincipal": {
         "min": 0,
         "max": 50,
@@ -166,6 +171,11 @@
         "min": 1,
         "max": 200,
         "note": "PackageVersion\u2192PackageArtifact artifact edges from the package_registry canonical writer's deferred artifact edge phase (#5458); the github.com/acme/lib-common@1.0.0 package_artifact fact projects this edge to its PackageArtifact node"
+      },
+      "HAS_REGISTRY_EVENT": {
+        "min": 1,
+        "max": 200,
+        "note": "PackageVersion\u2192RegistryEvent lifecycle-timeline edges from the package_registry canonical writer's deferred event edge phase (#5458 registry_event slice); the github.com/acme/lib-common@1.0.0 registry_event fact projects this edge to its RegistryEvent node"
       },
       "PUBLISHES": {
         "min": 1,
@@ -1787,6 +1797,14 @@
         "relationship": "HAS_ARTIFACT",
         "from_label": "PackageVersion",
         "to_label": "PackageArtifact",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-169",
+        "description": "A PackageVersion HAS_REGISTRY_EVENT a RegistryEvent; issue #5458's registry_event slice promotes package_registry.registry_event from a disclosed-unconsumed kind to a real consumer, closing the gap where publish/yank/unyank/deprecate lifecycle events were collected and read by nothing -- the last of the epic's four orphan package_registry kinds. The package_registry supply-chain-demo cassette's github.com/acme/lib-common@1.0.0 version fact is paired with one registry_event fact (event_key serial:9988, event_type yank, artifact_key lib-common-1.0.0.tar.gz), and the package_registry canonical writer materializes the RegistryEvent node and the deferred HAS_REGISTRY_EVENT edge via the same NornicDB deferred-edge-group fix rc-24/rc-25/rc-168 rely on.",
+        "relationship": "HAS_REGISTRY_EVENT",
+        "from_label": "PackageVersion",
+        "to_label": "RegistryEvent",
         "minimum_count": 1
       }
     ],

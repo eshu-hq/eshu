@@ -308,18 +308,21 @@ func (w *CanonicalNodeWriter) buildPhases(mat projector.CanonicalMaterialization
 		{name: canonicalPhasePackageRegistryDependencyTargets, statements: w.buildPackageRegistryDependencyPackageStatements(mat)},
 		{name: canonicalPhasePackageRegistryDependencies, statements: w.buildPackageRegistryDependencyStatements(mat)},
 		{name: canonicalPhasePackageRegistryArtifacts, statements: w.buildPackageRegistryArtifactStatements(mat)},
+		{name: canonicalPhasePackageRegistryEvents, statements: w.buildPackageRegistryEventStatements(mat)},
 		{name: "modules", statements: w.buildModuleStatements(mat)},
 		{name: "structural_edges", statements: w.buildStructuralEdgeStatements(mat)},
 		// Deferred package_registry edge phases. These MUST run after the
 		// package_registry node phases (packages, versions, dependency targets,
-		// dependencies, artifacts) commit, because NornicDB does not make a
-		// multi-label node visible to a later same-transaction UNWIND-driven
-		// MATCH. In the atomic GroupExecutor path, Write dispatches these as a
-		// second ExecuteGroup after the node group commits; in the per-phase
-		// paths they run last, after every node phase has committed.
+		// dependencies, artifacts, events) commit, because NornicDB does not
+		// make a multi-label node visible to a later same-transaction
+		// UNWIND-driven MATCH. In the atomic GroupExecutor path, Write
+		// dispatches these as a second ExecuteGroup after the node group
+		// commits; in the per-phase paths they run last, after every node phase
+		// has committed.
 		{name: canonicalPhasePackageRegistryVersionEdges, statements: w.buildPackageRegistryVersionEdgeStatements(mat)},
 		{name: canonicalPhasePackageRegistryDependencyEdges, statements: w.buildPackageRegistryDependencyEdgeStatements(mat)},
 		{name: canonicalPhasePackageRegistryArtifactEdges, statements: w.buildPackageRegistryArtifactEdgeStatements(mat)},
+		{name: canonicalPhasePackageRegistryEventEdges, statements: w.buildPackageRegistryEventEdgeStatements(mat)},
 	}
 }
 
@@ -327,15 +330,16 @@ func (w *CanonicalNodeWriter) buildPhases(mat projector.CanonicalMaterialization
 // the deferred package_registry edge phases that must execute in a second
 // atomic write group, after the node phases they MATCH have committed. They
 // MATCH MULTI-LABEL nodes (Package/PackageVersion/PackageDependency/
-// PackageArtifact) that NornicDB does not surface to a same-transaction
-// UNWIND-driven MATCH. Single-label edge phases (directory_edges, the inline
-// File edges) get cross-statement read-your-writes within one atomic group
-// and stay in the main group.
+// PackageArtifact/RegistryEvent) that NornicDB does not surface to a
+// same-transaction UNWIND-driven MATCH. Single-label edge phases
+// (directory_edges, the inline File edges) get cross-statement
+// read-your-writes within one atomic group and stay in the main group.
 func isDeferredPackageRegistryEdgePhase(name string) bool {
 	switch name {
 	case canonicalPhasePackageRegistryVersionEdges,
 		canonicalPhasePackageRegistryDependencyEdges,
-		canonicalPhasePackageRegistryArtifactEdges:
+		canonicalPhasePackageRegistryArtifactEdges,
+		canonicalPhasePackageRegistryEventEdges:
 		return true
 	default:
 		return false

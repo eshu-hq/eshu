@@ -130,9 +130,15 @@ func EncodePackageRegistryVulnerabilityHint(hint packageregistryv1.Vulnerability
 
 // DecodePackageRegistryRegistryEvent decodes env.Payload into the latest
 // packageregistryv1.RegistryEvent struct for the
-// "package_registry.registry_event" fact kind. Typed-but-not-yet-consumed. A
-// payload missing a required field (event_key, event_type) dead-letters as
-// input_invalid.
+// "package_registry.registry_event" fact kind. Consumed by the projector's
+// #5458 canonical extractor (packageRegistryEventRow in
+// go/internal/projector/package_registry_canonical_event.go), which projects
+// it onto a RegistryEvent node -- the per-version publish/yank/unyank/
+// deprecate/delete/unlist lifecycle timeline the epic names. A payload
+// missing a required field (event_key, event_type) dead-letters as
+// input_invalid; package_id/version_id are schema-optional (a registry-wide
+// event may report neither), so an absent value there is a valid decode the
+// row builder's own identity gate drops rather than a dead-letter.
 func DecodePackageRegistryRegistryEvent(env Envelope) (packageregistryv1.RegistryEvent, error) {
 	return decodeLatestMajor[packageregistryv1.RegistryEvent](FactKindPackageRegistryRegistryEvent, env)
 }

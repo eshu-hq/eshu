@@ -15,7 +15,8 @@ import (
 // packageRegistryCassetteArtifactScopeID is the cassette scope this test locks:
 // the "go:github.com/acme/lib-common" scope, which carries the package,
 // package_version, package_dependency, source_hint, and (#5458)
-// package_artifact facts this projector wave/consumer promotion covers. The
+// package_artifact and registry_event facts this projector wave/consumer
+// promotion covers. The
 // sibling "npm:synthetic-vulnerable-npm" scope carries a
 // package_registry.package_version-kind fact shaped for a different, older
 // consumer (name/version/dist_integrity fields, no package_id/version_id) that
@@ -29,9 +30,10 @@ const packageRegistryCassetteArtifactScopeID = "package_registry:go:github.com/a
 // no-Docker guard for the B-7 golden-corpus cassette's acme scope
 // (testdata/cassettes/packageregistry/supply-chain-demo.json): every fact it
 // carries must decode through extractPackageRegistryRows without quarantine,
-// and the #5458 package_artifact fact this test's fixture adds must
-// materialize its PackageRegistryArtifact row with the per-artifact hash
-// digests intact. A cassette payload that drifts from the collector emitter's
+// and the #5458 package_artifact and registry_event facts this test's
+// fixture adds must materialize their PackageRegistryArtifact/
+// PackageRegistryEvent rows with the per-artifact hash digests and event
+// identity intact. A cassette payload that drifts from the collector emitter's
 // shape (go/internal/collector/packageregistry/*.NewXEnvelope) would otherwise
 // only surface as a red golden-corpus gate, which runs Docker and requires a
 // live run to diagnose. This test closes that gap at `go test
@@ -73,6 +75,20 @@ func TestPackageRegistryCassetteDecodesCleanlyThroughSeam(t *testing.T) {
 	}
 	if _, ok := artifact.Hashes["sha256"]; !ok {
 		t.Errorf("cassette package_artifact row Hashes = %#v, want a sha256 entry", artifact.Hashes)
+	}
+
+	if len(mat.PackageRegistryEvents) == 0 {
+		t.Fatal("cassette registry_event fact did not materialize a PackageRegistryEvent row; the golden-corpus gate's RegistryEvent node_count and rc-169 HAS_REGISTRY_EVENT checks would fail")
+	}
+	event := mat.PackageRegistryEvents[0]
+	if event.EventKey == "" {
+		t.Error("cassette registry_event row carries an empty EventKey")
+	}
+	if event.EventType != "yank" {
+		t.Errorf("cassette registry_event row EventType = %q, want %q", event.EventType, "yank")
+	}
+	if event.VersionID == "" {
+		t.Error("cassette registry_event row carries an empty VersionID; the deferred HAS_REGISTRY_EVENT edge MATCH would find no PackageVersion to attach to")
 	}
 }
 

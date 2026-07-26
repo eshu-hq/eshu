@@ -486,12 +486,32 @@ finding). Artifact rows join the same package-identity lock gate as version
 and dependency rows (locked by `PackageID`), so same-package artifact
 observations serialize with other package-registry writes for that package.
 
+Package-version registry-event rows (#5458 registry_event slice) are written
+as `RegistryEvent`/`PackageRegistryRegistryEvent` nodes keyed by `uid` (the
+event fact's `stable_fact_key`), carrying `event_key`, `event_type`,
+`artifact_key`, `actor`, `message`, and `occurred_at` — the per-version
+publish/yank/unyank/deprecate/delete/unlist lifecycle timeline the epic
+names. Unlike the artifact row, this row's identity gate requires BOTH
+`package_id` AND `version_id` even though the schema declares both optional:
+a registry-wide event with no version to anchor on is a valid decode the row
+builder drops rather than materializing an edge-less orphan node (see
+`packageRegistryEventRow`'s doc comment in
+`go/internal/projector/package_registry_canonical_event.go`). The deferred
+`HAS_REGISTRY_EVENT` edge (same NornicDB read-your-writes deferral as
+`HAS_VERSION`/`HAS_ARTIFACT`) attaches each event to its owning
+`PackageVersion`. Event rows join the same package-identity lock gate as
+version, dependency, and artifact rows (locked by `PackageID`), so
+same-package event observations serialize with other package-registry writes
+for that package.
+
 No-Regression Evidence: `go test ./internal/storage/cypher -run
-'TestCanonicalNodeWriter(SerializesConcurrentDuplicatePackageUIDs|SerializesDependencyTargetPackageUIDs|AllowsConcurrentDistinctPackageUIDs|BuildsPackageRegistryStatements|SeparatesPackageRegistryPhaseGroups|DeduplicatesPackageRegistryDependencyTargets|DeduplicatesPackageRegistryPackages)|TestPackageRegistryIdentityLockKeysCoverPackageSources'
+'TestCanonicalNodeWriter(SerializesConcurrentDuplicatePackageUIDs|SerializesDependencyTargetPackageUIDs|AllowsConcurrentDistinctPackageUIDs|BuildsPackageRegistryStatements|SeparatesPackageRegistryPhaseGroups|DeduplicatesPackageRegistryDependencyTargets|DeduplicatesPackageRegistryPackages|BuildsPackageRegistryEventStatements|PackageRegistryEventEdgeRunsAfterNodePhases)|TestPackageRegistryIdentityLockKeysCoverPackageSources'
 -count=1` proves duplicate primary and dependency-target package UID writes
 serialize before backend execution, distinct package UIDs still execute
-concurrently, package/version/dependency phases stay ordered, and duplicate
-package rows are deduplicated before graph-write batches.
+concurrently, package/version/dependency/artifact/event phases stay ordered,
+duplicate package rows are deduplicated before graph-write batches, and the
+registry-event node and deferred edge statements carry the expected Cypher
+shape and phase ordering.
 
 Observability Evidence: `canonical.write` spans now include
 `package_registry_identity_lock_key_count` and

@@ -25,21 +25,39 @@ type SchemaApplication struct {
 
 const (
 	// graphSchemaNeo4jFingerprint and graphSchemaNornicDBFingerprint are the
-	// current schema digests, now including the #5458 PackageArtifact /
-	// PackageRegistryPackageArtifact uid uniqueness constraints
+	// current schema digests, now including the #5458 RegistryEvent /
+	// PackageRegistryRegistryEvent uid uniqueness constraints
 	// (uidConstraintLabels). A #5820 P2 review found no query anywhere in the
-	// repo filtering PackageArtifact by version_id or package_id -- the
-	// deferred HAS_ARTIFACT edge MATCH anchors on uid only
-	// (package_registry_artifact_writer.go) -- so the package_artifact_
-	// version_id/package_artifact_package_id lookup indexes this schema
-	// originally added alongside the uid constraints were removed as unused
-	// DDL weight (schema_tables_indexes.go); only the uid constraints remain.
-	// The bump is additive: a writer running the predecessor schema creates no
-	// PackageArtifact nodes, so the new constraint never applies to it, and the
+	// repo filtering PackageArtifact by version_id or package_id, and the same
+	// repo-wide search found none filtering RegistryEvent by those properties
+	// either -- both deferred edge MATCHes (HAS_ARTIFACT in
+	// package_registry_artifact_writer.go, HAS_REGISTRY_EVENT in
+	// package_registry_event_writer.go) anchor on uid only -- so this schema
+	// never carried a registry_event_version_id/registry_event_package_id
+	// lookup index pair; only the uid constraint was added
+	// (schema_tables_indexes.go's NOTE documents the same decision for
+	// PackageArtifact). The bump is additive: a writer running the predecessor
+	// schema creates no RegistryEvent nodes, so the new constraint never
+	// applies to it, and the predecessor
+	// (graphSchemaNeo4jPreRegistryEventFingerprint /
+	// graphSchemaNornicDBPreRegistryEventFingerprint, the #5458 PackageArtifact
+	// tip below) stays compatible.
+	graphSchemaNeo4jFingerprint    = "PLACEHOLDER_NEO4J"
+	graphSchemaNornicDBFingerprint = "PLACEHOLDER_NORNICDB"
+
+	// graphSchemaNeo4jPreRegistryEventFingerprint and its NornicDB peer are the
+	// schema fingerprints immediately before the #5458 RegistryEvent /
+	// PackageRegistryRegistryEvent uid constraint was added (the registry_event
+	// slice of the #5458 orphan-kind epic, landing after the package_artifact
+	// slice below). These equal graphSchemaNeo4jFingerprint /
+	// graphSchemaNornicDBFingerprint's value before this addition -- the #5820
+	// P2-fixed PackageArtifact tip (dead lookup indexes already removed). The
+	// bump is additive: a writer running the predecessor schema creates no
+	// RegistryEvent nodes, so the new constraint never applies to it, and the
 	// predecessor (graphSchemaNeo4jPreArtifactFingerprint /
 	// graphSchemaNornicDBPreArtifactFingerprint) stays compatible.
-	graphSchemaNeo4jFingerprint    = "d7985da368fd30df0e0bfcf86a2f14cc588b7ba649f555d36927984ed749a9f9"
-	graphSchemaNornicDBFingerprint = "89a8a9239e99b3e7c808148d120986f09bc9e242333718b07bd5efe18e192f70"
+	graphSchemaNeo4jPreRegistryEventFingerprint    = "d7985da368fd30df0e0bfcf86a2f14cc588b7ba649f555d36927984ed749a9f9"
+	graphSchemaNornicDBPreRegistryEventFingerprint = "89a8a9239e99b3e7c808148d120986f09bc9e242333718b07bd5efe18e192f70"
 
 	// graphSchemaNeo4jPreArtifactFingerprint and its NornicDB peer are the
 	// schema fingerprints immediately before the #5458 PackageArtifact /
@@ -232,6 +250,7 @@ const (
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
 		graphSchemaNeo4jFingerprint: {
+			graphSchemaNeo4jPreRegistryEventFingerprint,
 			graphSchemaNeo4jPreArtifactFingerprint,
 			graphSchemaNeo4jPreKubernetesNamespaceIndexesFingerprint,
 			graphSchemaNeo4jPreKustomizeOverlayRepoIDIndexFingerprint,
@@ -251,6 +270,7 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	},
 	SchemaBackendNornicDB: {
 		graphSchemaNornicDBFingerprint: {
+			graphSchemaNornicDBPreRegistryEventFingerprint,
 			graphSchemaNornicDBPreArtifactFingerprint,
 			graphSchemaNornicDBPreKubernetesNamespaceIndexesFingerprint,
 			graphSchemaNornicDBPreKustomizeOverlayRepoIDIndexFingerprint,

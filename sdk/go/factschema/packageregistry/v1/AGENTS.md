@@ -63,14 +63,21 @@ and `Warning`. It must remain independent from Eshu internals.
 ## Consumed vs deferred
 
 - **Consumed today** (decode through the seam on the projector read path):
-  `Package`, `PackageVersion`, `PackageDependency`, and (since #5458)
-  `PackageArtifact` (`go/internal/projector/package_registry_canonical.go`).
+  `Package`, `PackageVersion`, `PackageDependency`, (since #5458)
+  `PackageArtifact`, and (also since #5458) `RegistryEvent`
+  (`go/internal/projector/package_registry_canonical.go`).
   `PackageArtifact` projects onto a `PackageArtifact`/`PackageRegistryPackageArtifact`
   graph node carrying the `Hashes` per-artifact algorithm-to-digest binding
   the `PackageVersion` node's `checksum_algorithms` property drops.
+  `RegistryEvent` projects onto a `RegistryEvent`/`PackageRegistryRegistryEvent`
+  graph node carrying the per-version publish/yank/unyank/deprecate/delete/
+  unlist lifecycle timeline the epic names; its row builder additionally
+  requires `PackageID` AND `VersionID` present (both schema-optional) before a
+  row materializes, since the row's whole purpose is a per-version timeline —
+  see `doc.go`.
 - **Typed-but-not-yet-consumed**: `SourceHint`, `VulnerabilityHint`,
-  `RegistryEvent`, `RepositoryHosting`, and `Warning` have no decode-seam read
-  consumer in the current codebase. `SourceHint` IS read by the reducer's
+  `RepositoryHosting`, and `Warning` have no decode-seam read consumer in the
+  current codebase. `SourceHint` IS read by the reducer's
   `package_source_correlation` domain
   (`go/internal/reducer/package_source_correlation.go`), a separate reducer
   family this wave does not convert — do not add a projector decode site for
@@ -80,7 +87,7 @@ and `Warning`. It must remain independent from Eshu internals.
   (`facts_active_supply_chain_impact.go`, `status_registry.go`); those fields
   MUST stay declared here even though no decode site exists —
   `go/internal/storage/postgres/package_registry_sql_schema_lockstep_test.go`
-  locks that coverage. The five kinds ship a struct, schema, and fixture pack so
+  locks that coverage. The four kinds ship a struct, schema, and fixture pack so
   the contract is ready, but their decode-site conversion, regression test, and
   benchmark land in the change that first reads each kind through the typed
   seam — matching how the terraform_state family typed

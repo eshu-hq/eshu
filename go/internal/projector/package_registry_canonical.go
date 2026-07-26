@@ -119,14 +119,17 @@ const packageRegistryCanonicalStage = "package_registry_canonical"
 // present-but-empty identity field is a valid decode that the row builders'
 // own identity gate still drops, byte-identical to the pre-typing behavior.
 //
-// package_registry.source_hint, .vulnerability_hint, .registry_event,
-// .repository_hosting, and .warning are intentionally not consumed here
-// (typed-but-deferred, no projector read site today), so no case handles
-// them. .package_artifact gained a real consumer in #5458: it carries the
-// per-artifact hash digests the version row's checksum_algorithms property
-// drops. Its row type and decode/row-building helper live in
-// package_registry_canonical_artifact.go, split out from this file to stay
-// under the package's 500-line-per-file convention (mirrors
+// package_registry.source_hint, .vulnerability_hint, .repository_hosting, and
+// .warning are intentionally not consumed here (typed-but-deferred, no
+// projector read site today), so no case handles them. .package_artifact and
+// .registry_event both gained a real consumer in #5458: .package_artifact
+// carries the per-artifact hash digests the version row's
+// checksum_algorithms property drops; .registry_event carries the
+// per-version yank/deprecate/publish lifecycle timeline the epic names.
+// Their row types and decode/row-building helpers live in
+// package_registry_canonical_artifact.go and
+// package_registry_canonical_event.go respectively, split out from this file
+// to stay under the package's 500-line-per-file convention (mirrors
 // tfstate_canonical_types.go's split from tfstate_canonical.go).
 func extractPackageRegistryRows(mat *CanonicalMaterialization, envelopes []facts.Envelope) []quarantinedFact {
 	if mat == nil || len(envelopes) == 0 {
@@ -163,6 +166,13 @@ func extractPackageRegistryRows(mat *CanonicalMaterialization, envelopes []facts
 			row, ok, err = packageRegistryArtifactRow(envelope)
 			if ok {
 				mat.PackageRegistryArtifacts = append(mat.PackageRegistryArtifacts, row)
+			}
+		case facts.PackageRegistryRegistryEventFactKind:
+			var row PackageRegistryEventRow
+			var ok bool
+			row, ok, err = packageRegistryEventRow(envelope)
+			if ok {
+				mat.PackageRegistryEvents = append(mat.PackageRegistryEvents, row)
 			}
 		default:
 			continue

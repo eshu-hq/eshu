@@ -11,9 +11,10 @@ typed, schema-generated, decode-validated contracts.
 
 The package-registry collector emits nine fact kinds; the projector's
 source-local canonical extractor
-(`go/internal/projector/package_registry_canonical.go`) reads four of them to
+(`go/internal/projector/package_registry_canonical.go`) reads five of them to
 materialize canonical `PackageRegistryPackage`, `PackageRegistryVersion`,
-`PackageRegistryDependency`, and `PackageRegistryArtifact` graph rows. Before typing, it read each payload key
+`PackageRegistryDependency`, `PackageRegistryArtifact`, and
+`PackageRegistryEvent` graph rows. Before typing, it read each payload key
 with a raw lookup that returned `""` for an absent key, so a collector that
 dropped or renamed an identity key produced an empty-identity row — or
 silently dropped the fact — with no operator signal. Typing the payload makes
@@ -28,9 +29,9 @@ silent wrong graph truth (Contract System v1 §3.2).
 | `PackageVersion` | `package_registry.package_version` | consumed | `package_id`, `version_id`, `version` |
 | `PackageDependency` | `package_registry.package_dependency` | consumed | `package_id`, `version_id`, `dependency_package_id` |
 | `PackageArtifact` | `package_registry.package_artifact` | consumed (#5458) | `package_id`, `version_id`, `artifact_key` |
+| `RegistryEvent` | `package_registry.registry_event` | consumed (#5458) | `event_key`, `event_type` |
 | `SourceHint` | `package_registry.source_hint` | typed, not yet consumed here | `package_id`, `hint_kind` |
 | `VulnerabilityHint` | `package_registry.vulnerability_hint` | typed, not yet consumed | `package_id`, `advisory_id`, `advisory_source` |
-| `RegistryEvent` | `package_registry.registry_event` | typed, not yet consumed | `event_key`, `event_type` |
 | `RepositoryHosting` | `package_registry.repository_hosting` | typed, not yet consumed | `provider`, `registry`, `repository` |
 | `Warning` | `package_registry.warning` | typed, not yet consumed | `warning_key`, `warning_code` |
 
@@ -60,6 +61,17 @@ ABSENCE breaks the graph identity in the projector today:
   `"algorithm:digest"` string list (Cypher node properties cannot hold a
   nested map) and escapes both the algorithm and digest so the split stays
   unambiguous for any input, instead of narrowing what decode accepts.
+- `RegistryEvent.EventKey`/`.EventType` are the event's own required identity
+  (the emitter fails closed on either being blank). `.PackageID`/`.VersionID`
+  are schema-OPTIONAL (a registry-wide event may report neither), so an
+  absent value there is a VALID decode — but the projector's row builder
+  (`packageRegistryEventRow`, NOT this decode seam) additionally requires
+  BOTH present before a `PackageRegistryEventRow` materializes: this row
+  exists to project a per-VERSION yank/deprecate/publish timeline, and an
+  event with no version has nothing for the deferred `HAS_REGISTRY_EVENT`
+  edge to attach to. That materialization gate is a projector decision, not a
+  payload-validity decision, so it stays out of this decode seam's required
+  set.
 
 A present-but-empty required value is a VALID decode (an empty observed value
 the projector already treats as non-materializable), not a dead-letter. Only an
@@ -76,8 +88,8 @@ follow.
 
 ### Typed but not yet consumed
 
-`SourceHint`, `VulnerabilityHint`, `RegistryEvent`, `RepositoryHosting`, and
-`Warning` have no decode-seam read consumer in the current codebase:
+`SourceHint`, `VulnerabilityHint`, `RepositoryHosting`, and `Warning` have no
+decode-seam read consumer in the current codebase:
 
 - `SourceHint`'s payload IS read today, but only by the reducer's
   `package_source_correlation` domain
@@ -91,8 +103,8 @@ follow.
   stay declared here and are locked by
   `go/internal/storage/postgres/package_registry_sql_schema_lockstep_test.go`
   so a dropped field fails the build instead of silently breaking the SQL read.
-- `RegistryEvent` and `RepositoryHosting` are referenced only on the collector
-  emit side today (no reducer, projector, or SQL reader).
+- `RepositoryHosting` is referenced only on the collector emit side today (no
+  reducer, projector, or SQL reader).
 
 They are typed here so the contract, schema, and fixture pack are ready the
 moment a consumer is added, matching how the terraform_state family typed

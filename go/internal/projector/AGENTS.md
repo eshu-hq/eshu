@@ -63,13 +63,14 @@
   consumption truth in the projector.
   `package_source_correlation_intents.go` may enqueue the reducer classifier,
   but that intent is counter-only until reducer admission grows stronger
-  provenance. The four consumed kinds (`package`, `.package_version`,
-  `.package_dependency`, and — since #5458 — `.package_artifact`) decode
-  through the `sdk/go/factschema` seam (`factschema_decode_packageregistry.go`),
-  NOT raw `payloadString`/`payloadBoolPtr`/`payloadStringSlice`, reusing the
-  family-neutral quarantine apparatus `oci_registry`/`terraform_state`
-  introduced: a fact missing a required identity field (`package_id`,
-  `version_id`, `version`, `dependency_package_id`, `artifact_key`) is
+  provenance. The five consumed kinds (`package`, `.package_version`,
+  `.package_dependency`, — since #5458 — `.package_artifact`, and — also
+  since #5458 — `.registry_event`) decode through the `sdk/go/factschema`
+  seam (`factschema_decode_packageregistry.go`), NOT raw `payloadString`/
+  `payloadBoolPtr`/`payloadStringSlice`, reusing the family-neutral
+  quarantine apparatus `oci_registry`/`terraform_state` introduced: a fact
+  missing a required identity field (`package_id`, `version_id`, `version`,
+  `dependency_package_id`, `artifact_key`, `event_key`, `event_type`) is
   quarantined per-fact via `partitionProjectorDecodeFailures` and recorded as a
   visible `input_invalid` dead-letter
   (`eshu_dp_projector_input_invalid_facts_total` under the
@@ -93,12 +94,22 @@
   decode/row-building helper live in `package_registry_canonical_artifact.go`,
   split out of
   `package_registry_canonical.go` to stay under the 500-line file cap (mirrors
-  `tfstate_canonical_types.go`'s split from `tfstate_canonical.go`). The five
+  `tfstate_canonical_types.go`'s split from `tfstate_canonical.go`).
+  `.registry_event` projects onto a `RegistryEvent` node carrying the
+  per-version publish/yank/unyank/deprecate/delete/unlist lifecycle timeline
+  the epic names. `package_id` and `version_id` are schema-OPTIONAL on this
+  kind (a registry can report an event scoped to no single version), so an
+  absent value there is a VALID decode the row builder's own identity gate
+  drops (this row exists to project a per-VERSION timeline, and a
+  registry-wide event has nothing to attach a graph edge to), NOT a
+  dead-letter — do not add `version_id` to the required-field list above.
+  `PackageRegistryEventRow` and its decode/row-building helper live in
+  `package_registry_canonical_event.go`, split out the same way. The four
   remaining typed-but-not-yet-consumed kinds (`.source_hint`,
-  `.vulnerability_hint`, `.registry_event`, `.repository_hosting`, `.warning`)
-  have no projector decode site; `.source_hint`'s payload is read only by the
-  reducer's `package_source_correlation` domain via raw map access, a separate
-  reducer family this projector wave did not convert.
+  `.vulnerability_hint`, `.repository_hosting`, `.warning`) have no projector
+  decode site; `.source_hint`'s payload is read only by the reducer's
+  `package_source_correlation` domain via raw map access, a separate reducer
+  family this projector wave did not convert.
 - **AWS runtime drift stays reducer-owned** —
   `aws_cloud_runtime_drift_intents.go` may enqueue one reducer intent when an
   AWS generation contains `aws_resource` facts, but the projector must not join

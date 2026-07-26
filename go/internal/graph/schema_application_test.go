@@ -21,6 +21,17 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			name:        "neo4j",
 			backend:     SchemaBackendNeo4j,
 			fingerprint: graphSchemaNeo4jFingerprint,
+			// The #5458 registry_event slice's RegistryEvent/
+			// PackageRegistryRegistryEvent uid constraint is additive: an older
+			// writer creates no RegistryEvent nodes, so the new constraint
+			// never applies to it, and its predecessor (the #5458
+			// package_artifact tip below) stays compatible. (A #5820 P2 review
+			// found no query anywhere filtering RegistryEvent by version_id or
+			// package_id -- the same finding that removed PackageArtifact's
+			// equivalent pair below -- so this schema never carried a
+			// registry_event_version_id/registry_event_package_id lookup index
+			// pair; see schema_application.go's graphSchemaNeo4jFingerprint
+			// doc.)
 			// The #5458 PackageArtifact/PackageRegistryPackageArtifact uid
 			// constraints are additive: an older writer creates no
 			// PackageArtifact nodes, so the new constraints never apply to it,
@@ -67,6 +78,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			// TerraformStateResource address property index) are index-only
 			// and additive too.
 			compatible: []string{
+				graphSchemaNeo4jPreRegistryEventFingerprint,
 				graphSchemaNeo4jPreArtifactFingerprint,
 				graphSchemaNeo4jPreKubernetesNamespaceIndexesFingerprint,
 				graphSchemaNeo4jPreKustomizeOverlayRepoIDIndexFingerprint,
@@ -89,6 +101,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			backend:     SchemaBackendNornicDB,
 			fingerprint: graphSchemaNornicDBFingerprint,
 			compatible: []string{
+				graphSchemaNornicDBPreRegistryEventFingerprint,
 				graphSchemaNornicDBPreArtifactFingerprint,
 				graphSchemaNornicDBPreKubernetesNamespaceIndexesFingerprint,
 				graphSchemaNornicDBPreKustomizeOverlayRepoIDIndexFingerprint,

@@ -191,6 +191,7 @@ var uidConstraintLabels = []string{
 	"PackageRegistryPackageDependency",
 	"PackageRegistryPackage",
 	"PackageRegistryPackageVersion",
+	"PackageRegistryRegistryEvent",
 	"PackageVersion",
 	"PrefixList",
 	"Property",
@@ -198,6 +199,11 @@ var uidConstraintLabels = []string{
 	"ProtocolImplementation",
 	"QueryExecution",
 	"Record",
+	// RegistryEvent/PackageRegistryRegistryEvent back one source-reported
+	// package_registry.registry_event fact (#5458): a publish/yank/unyank/
+	// deprecate/delete/unlist lifecycle record scoped to a PackageVersion, the
+	// per-version timeline the epic names.
+	"RegistryEvent",
 	"SecretsIAMSecretMetadataPath",
 	"SecretsIAMServiceAccount",
 	"SecretsIAMVaultAuthRole",

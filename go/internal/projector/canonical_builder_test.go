@@ -1216,13 +1216,16 @@ func TestEntityTypeLabelMapCoversAllSchemaLabels(t *testing.T) {
 	// content-entity facts, so — exactly like its sibling KubernetesWorkload above —
 	// it has no entity_type mapping in this source-local map. Its uid uniqueness
 	// constraint was added in #5651.
-	// PackageArtifact and PackageRegistryPackageArtifact are materialized directly
-	// by the dedicated package_registry canonical writer
-	// (storage/cypher/package_registry_artifact_writer.go) from typed
-	// package_registry.package_artifact facts (#5458), the same pattern
-	// TerraformStateResource above uses for its own dedicated writer — NOT
-	// through the generic entityTypeLabelMap/content-entity path, so they have
-	// no entity_type mapping in this source-local map either.
+	// PackageArtifact, PackageRegistryPackageArtifact, RegistryEvent, and
+	// PackageRegistryRegistryEvent are materialized directly by the dedicated
+	// package_registry canonical writer
+	// (storage/cypher/package_registry_artifact_writer.go and
+	// storage/cypher/package_registry_event_writer.go) from typed
+	// package_registry.package_artifact and package_registry.registry_event
+	// facts respectively (#5458), the same pattern TerraformStateResource above
+	// uses for its own dedicated writer — NOT through the generic
+	// entityTypeLabelMap/content-entity path, so they have no entity_type
+	// mapping in this source-local map either.
 	sourceLocalNonEntityLabels := map[string]struct{}{
 		"File":                           {},
 		"CloudResource":                  {},
@@ -1242,6 +1245,8 @@ func TestEntityTypeLabelMapCoversAllSchemaLabels(t *testing.T) {
 		"TerraformStateResource":         {},
 		"PackageArtifact":                {},
 		"PackageRegistryPackageArtifact": {},
+		"RegistryEvent":                  {},
+		"PackageRegistryRegistryEvent":   {},
 	}
 	var missing []string
 	for _, label := range schemaLabels {
