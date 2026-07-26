@@ -198,7 +198,7 @@ $ bash scripts/verify-openapi.sh
 OpenAPI surface clean: 252 HandleFunc routes, 252 OpenAPI path entries
 ```
 
-B-7 golden corpus gate against `0d42bacc1`:
+B-7 golden corpus gate against `47d561c60`:
 
 ```
 summary: 506 pass, 0 required-fail, 2 advisory-warn
