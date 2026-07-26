@@ -100,43 +100,9 @@ runtime_filter_candidates AS NOT MATERIALIZED (
 runtime_filter_repository_candidates AS (
   SELECT runtime_fact.filter_kind,
          runtime_fact.scope_id,
-         COALESCE(
-           NULLIF(BTRIM(runtime_fact.payload->>'repository_id'), ''),
-           NULLIF(BTRIM(runtime_fact.payload->>'repo_id'), ''),
-           CASE
-             WHEN BTRIM(runtime_fact.payload->>'scope_id') LIKE 'repository:%%'
-               THEN BTRIM(runtime_fact.payload->>'scope_id')
-             WHEN BTRIM(runtime_fact.payload->>'scope_id') LIKE 'git-repository-scope:%%'
-               THEN NULLIF(BTRIM(SUBSTRING(runtime_fact.payload->>'scope_id' FROM 22)), '')
-           END,
-           CASE
-             WHEN BTRIM(runtime_fact.scope_id) LIKE 'repository:%%'
-               THEN BTRIM(runtime_fact.scope_id)
-             WHEN BTRIM(runtime_fact.scope_id) LIKE 'git-repository-scope:%%'
-               THEN NULLIF(BTRIM(SUBSTRING(runtime_fact.scope_id FROM 22)), '')
-           END,
-           related_scope.repository_id
-         ) AS repository_id
+         runtime_repository.repository_id
   FROM runtime_filter_candidates AS runtime_fact
-  LEFT JOIN LATERAL (
-    SELECT CASE
-             WHEN BTRIM(related.value) LIKE 'repository:%%'
-               THEN BTRIM(related.value)
-             WHEN BTRIM(related.value) LIKE 'git-repository-scope:%%'
-               THEN NULLIF(BTRIM(SUBSTRING(related.value FROM 22)), '')
-           END AS repository_id
-    FROM jsonb_array_elements_text(
-      CASE
-        WHEN jsonb_typeof(runtime_fact.payload->'related_scope_ids') = 'array'
-          THEN runtime_fact.payload->'related_scope_ids'
-        ELSE '[]'::jsonb
-      END
-    ) WITH ORDINALITY AS related(value, ordinal)
-    WHERE BTRIM(related.value) LIKE 'repository:%%'
-       OR BTRIM(related.value) LIKE 'git-repository-scope:%%'
-    ORDER BY related.ordinal
-    LIMIT 1
-  ) AS related_scope ON TRUE
+%[6]s
 ),
 runtime_filter_repositories AS MATERIALIZED (
   SELECT DISTINCT filter_kind, repository_id
@@ -175,6 +141,11 @@ func supplyChainImpactRuntimeFilterCTE(
 		environmentParam,
 		allowedRepositoriesParam,
 		allowedScopesParam,
+		supplyChainRuntimeRepositoryDecoderJoin(
+			"runtime_fact.payload",
+			"runtime_fact.scope_id",
+			"runtime_repository",
+		),
 	)
 }
 

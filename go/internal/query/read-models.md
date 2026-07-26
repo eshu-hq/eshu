@@ -320,9 +320,14 @@ dimension lookup returned the same single repository before and after indexing;
 `EXPLAIN (ANALYZE, BUFFERS)` improved from a 9.293 ms sequential scan that
 discarded 99,999 rows to a 0.023 ms bitmap lookup. The exact live
 golden-corpus 200-candidate repository join, including related-scope decoding,
-executed in 0.237 ms. A full-query proof then loaded 100,000 facts for each
-runtime dimension (300,000 total) and exposed a planner reorder: the first
-workload query entered through the scope/generation index and took 13.947 ms.
+executed in 0.237 ms. On the 300,000-fact partition, the same 200-candidate
+hydration query executed in 72.347 ms before canonical authorization and
+64.593 ms after filter and hydration began sharing one precedence-preserving
+decoder; conflicting anchors changed only the intended authorization result,
+while 100,000 non-conflicting mixed anchors had an exact `0/0` set difference.
+A full-query proof loaded 100,000 facts for each runtime dimension (300,000
+total) and exposed a planner reorder: the first workload query entered through
+the scope/generation index and took 13.947 ms.
 Materializing each dimension-selected match set before the active-generation
 join made every production query enter through its dimension index. Execution
 times were 0.800 ms for scalar workload, 0.639 ms for workload `entity_keys`,

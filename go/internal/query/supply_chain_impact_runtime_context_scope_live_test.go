@@ -1,0 +1,160 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package query
+
+import (
+	"context"
+	"errors"
+	"testing"
+)
+
+func assertSupplyChainRuntimeContextScopesLive(
+	t *testing.T,
+	ctx context.Context,
+	store PostgresSupplyChainImpactFindingStore,
+) {
+	t.Helper()
+	for _, tc := range []struct {
+		name                 string
+		access               repositoryAccessFilter
+		wantCrossScope       bool
+		wantConflictingFacts bool
+		wantWorkloadCount    int
+	}{
+		{
+			name:              "scope_a_only",
+			access:            repositoryAccessFilter{allowedScopeIDs: []string{runtimeFilterLiveScopeA}},
+			wantWorkloadCount: 2,
+		},
+		{
+			name: "lower_precedence_decoy_repository_grant",
+			access: repositoryAccessFilter{
+				allowedRepositoryIDs: []string{runtimeFilterLiveDecoyRepo},
+				allowedScopeIDs:      []string{runtimeFilterLiveScopeA},
+			},
+			wantWorkloadCount: 2,
+		},
+		{
+			name:                 "canonical_repository_grant",
+			access:               repositoryAccessFilter{allowedRepositoryIDs: []string{runtimeFilterLiveRepository}},
+			wantCrossScope:       true,
+			wantConflictingFacts: true,
+			wantWorkloadCount:    4,
+		},
+		{
+			name:                 "unrestricted",
+			access:               repositoryAccessFilter{allScopes: true},
+			wantCrossScope:       true,
+			wantConflictingFacts: true,
+			wantWorkloadCount:    4,
+		},
+	} {
+		tc := tc
+		t.Run("runtime_context_"+tc.name, func(t *testing.T) {
+			handler := &SupplyChainHandler{ImpactFindings: store}
+			rows := []SupplyChainImpactFindingRow{{RepositoryID: runtimeFilterLiveRepository}}
+			if err := handler.applySupplyChainRuntimeContext(ctx, rows, tc.access); err != nil {
+				t.Fatalf("apply runtime context: %v", err)
+			}
+			resolved := rows[0].RuntimeContext
+			if resolved == nil {
+				t.Fatal("runtime context = nil, want labeled context")
+			}
+			if got := len(resolved.WorkloadIDs); got != tc.wantWorkloadCount {
+				t.Fatalf("workload count = %d, want %d: %v", got, tc.wantWorkloadCount, resolved.WorkloadIDs)
+			}
+			hasCrossScope := containsAuthString(resolved.ServiceIDs, "service:5747:tenant-b") &&
+				containsAuthString(resolved.WorkloadIDs, "workload:5747:tenant-b") &&
+				containsAuthString(resolved.Environments, "staging-5747")
+			if hasCrossScope != tc.wantCrossScope {
+				t.Fatalf("cross-scope context present = %v, want %v: %+v", hasCrossScope, tc.wantCrossScope, resolved)
+			}
+			hasConflictingFacts := containsAuthString(resolved.WorkloadIDs, "workload:5747:conflicting-payload-scope") &&
+				containsAuthString(resolved.ServiceIDs, "service:5747:conflicting-related-scope") &&
+				containsAuthString(resolved.Environments, "conflicting-envelope-5747")
+			if hasConflictingFacts != tc.wantConflictingFacts {
+				t.Fatalf("conflicting-anchor context present = %v, want %v: %+v", hasConflictingFacts, tc.wantConflictingFacts, resolved)
+			}
+		})
+	}
+}
+
+func assertSupplyChainConflictingAnchorFiltersLive(
+	t *testing.T,
+	ctx context.Context,
+	findingStore PostgresSupplyChainImpactFindingStore,
+	aggregateStore PostgresSupplyChainImpactAggregateStore,
+) {
+	t.Helper()
+	for _, tc := range []struct {
+		name        string
+		workloadID  string
+		serviceID   string
+		environment string
+	}{
+		{name: "payload_scope", workloadID: "workload:5747:conflicting-payload-scope"},
+		{name: "related_scope", serviceID: "service:5747:conflicting-related-scope"},
+		{name: "envelope_scope", environment: "conflicting-envelope-5747"},
+	} {
+		tc := tc
+		t.Run("conflicting_anchor_filter_"+tc.name, func(t *testing.T) {
+			listFilter := SupplyChainImpactFindingFilter{
+				CVEID:                runtimeFilterLiveCVE,
+				WorkloadID:           tc.workloadID,
+				ServiceID:            tc.serviceID,
+				Environment:          tc.environment,
+				DetectionProfile:     "comprehensive",
+				Limit:                10,
+				AllowedRepositoryIDs: []string{runtimeFilterLiveDecoyRepo},
+				AllowedScopeIDs:      []string{runtimeFilterLiveScopeA},
+			}
+			assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, listFilter, false, 0)
+			assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, listFilter, true, 0)
+
+			aggregateFilter := SupplyChainImpactAggregateFilter{
+				CVEID:                runtimeFilterLiveCVE,
+				WorkloadID:           tc.workloadID,
+				ServiceID:            tc.serviceID,
+				Environment:          tc.environment,
+				DetectionProfile:     "comprehensive",
+				AllowedRepositoryIDs: []string{runtimeFilterLiveDecoyRepo},
+				AllowedScopeIDs:      []string{runtimeFilterLiveScopeA},
+			}
+			count, err := aggregateStore.CountSupplyChainImpactFindings(ctx, aggregateFilter)
+			if err != nil {
+				t.Fatalf("count conflicting anchor: %v", err)
+			}
+			if count.TotalFindings != 0 {
+				t.Fatalf("count conflicting anchor = %d, want 0", count.TotalFindings)
+			}
+			inventory, err := aggregateStore.SupplyChainImpactInventory(
+				ctx,
+				aggregateFilter,
+				SupplyChainImpactInventoryByImpactStatus,
+				10,
+				0,
+			)
+			if err != nil {
+				t.Fatalf("inventory conflicting anchor: %v", err)
+			}
+			if len(inventory) != 0 {
+				t.Fatalf("inventory conflicting anchor = %#v, want empty", inventory)
+			}
+			if tc.environment != "" {
+				return
+			}
+			_, err = findingStore.ExplainSupplyChainImpact(ctx, SupplyChainImpactExplanationFilter{
+				CVEID:                runtimeFilterLiveCVE,
+				PackageID:            runtimeFilterLivePackage,
+				WorkloadID:           tc.workloadID,
+				ServiceID:            tc.serviceID,
+				AllowedRepositoryIDs: []string{runtimeFilterLiveDecoyRepo},
+				AllowedScopeIDs:      []string{runtimeFilterLiveScopeA},
+			})
+			if !errors.Is(err, ErrSupplyChainImpactExplanationNotFound) {
+				t.Fatalf("explain conflicting anchor error = %v, want not found", err)
+			}
+		})
+	}
+}

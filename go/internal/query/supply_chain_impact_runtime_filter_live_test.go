@@ -20,9 +20,13 @@ const (
 	runtimeFilterLivePackage    = "pkg:deb/example/runtime-filter"
 	runtimeFilterLiveScopeA     = "scope:5747:tenant-a"
 	runtimeFilterLiveScopeB     = "scope:5747:tenant-b"
+	runtimeFilterLiveScopeC     = "scope:5747:tenant-c"
+	runtimeFilterLiveDecoyRepo  = "repository:r_5747_decoy"
 	runtimeFilterLiveGenA       = "generation:5747:tenant-a:active"
 	runtimeFilterLiveGenAStale  = "generation:5747:tenant-a:stale"
 	runtimeFilterLiveGenB       = "generation:5747:tenant-b:active"
+	runtimeFilterLiveGenC       = "generation:5747:tenant-c:active"
+	runtimeFilterLiveGenDecoy   = "generation:5747:decoy:active"
 	runtimeFilterLiveFindingID  = "finding:5747:runtime-filter"
 	runtimeFilterLiveFactID     = "fact:5747:impact"
 )
@@ -170,62 +174,7 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 	}
 
 	assertSupplyChainRuntimeContextScopesLive(t, ctx, findingStore)
-}
-
-func assertSupplyChainRuntimeContextScopesLive(
-	t *testing.T,
-	ctx context.Context,
-	store PostgresSupplyChainImpactFindingStore,
-) {
-	t.Helper()
-	for _, tc := range []struct {
-		name              string
-		access            repositoryAccessFilter
-		wantCrossScope    bool
-		wantWorkloadCount int
-	}{
-		{
-			name:              "scope_a_only",
-			access:            repositoryAccessFilter{allowedScopeIDs: []string{runtimeFilterLiveScopeA}},
-			wantWorkloadCount: 2,
-		},
-		{
-			name:              "canonical_repository_grant",
-			access:            repositoryAccessFilter{allowedRepositoryIDs: []string{runtimeFilterLiveRepository}},
-			wantCrossScope:    true,
-			wantWorkloadCount: 3,
-		},
-		{
-			name:              "unrestricted",
-			access:            repositoryAccessFilter{allScopes: true},
-			wantCrossScope:    true,
-			wantWorkloadCount: 3,
-		},
-	} {
-		tc := tc
-		t.Run("runtime_context_"+tc.name, func(t *testing.T) {
-			handler := &SupplyChainHandler{ImpactFindings: store}
-			rows := []SupplyChainImpactFindingRow{{
-				RepositoryID: runtimeFilterLiveRepository,
-			}}
-			if err := handler.applySupplyChainRuntimeContext(ctx, rows, tc.access); err != nil {
-				t.Fatalf("apply runtime context: %v", err)
-			}
-			resolved := rows[0].RuntimeContext
-			if resolved == nil {
-				t.Fatal("runtime context = nil, want labeled context")
-			}
-			if got := len(resolved.WorkloadIDs); got != tc.wantWorkloadCount {
-				t.Fatalf("workload count = %d, want %d: %v", got, tc.wantWorkloadCount, resolved.WorkloadIDs)
-			}
-			hasServiceB := containsAuthString(resolved.ServiceIDs, "service:5747:tenant-b")
-			hasWorkloadB := containsAuthString(resolved.WorkloadIDs, "workload:5747:tenant-b")
-			hasEnvironmentB := containsAuthString(resolved.Environments, "staging-5747")
-			if got := hasServiceB && hasWorkloadB && hasEnvironmentB; got != tc.wantCrossScope {
-				t.Fatalf("cross-scope context present = %v, want %v: %+v", got, tc.wantCrossScope, resolved)
-			}
-		})
-	}
+	assertSupplyChainConflictingAnchorFiltersLive(t, ctx, findingStore, aggregateStore)
 }
 
 func assertSupplyChainRuntimeFilterListCount(
@@ -259,6 +208,8 @@ func seedSupplyChainRuntimeFilterLiveFacts(
 	}{
 		{scopeID: runtimeFilterLiveScopeA, generationID: runtimeFilterLiveGenA},
 		{scopeID: runtimeFilterLiveScopeB, generationID: runtimeFilterLiveGenB},
+		{scopeID: runtimeFilterLiveScopeC, generationID: runtimeFilterLiveGenC},
+		{scopeID: runtimeFilterLiveDecoyRepo, generationID: runtimeFilterLiveGenDecoy},
 	} {
 		if _, err := tx.ExecContext(ctx, `
 INSERT INTO ingestion_scopes (
@@ -352,6 +303,25 @@ INSERT INTO scope_generations (
 		cicdRunCorrelationFactKind, false, map[string]any{
 			"repository_id": runtimeFilterLiveRepository,
 			"environment":   "staging-5747",
+			"outcome":       "exact",
+		})
+	insertSupplyChainRuntimeFilterFact(t, ctx, tx, "fact:5747:workload:conflicting-payload-scope", runtimeFilterLiveScopeC, runtimeFilterLiveGenC,
+		workloadIdentityFactKindQuery, false, map[string]any{
+			"repository_id": runtimeFilterLiveRepository,
+			"scope_id":      runtimeFilterLiveDecoyRepo,
+			"workload_id":   "workload:5747:conflicting-payload-scope",
+		})
+	insertSupplyChainRuntimeFilterFact(t, ctx, tx, "fact:5747:service:conflicting-related-scope", runtimeFilterLiveScopeC, runtimeFilterLiveGenC,
+		serviceCatalogCorrelationFactKind, false, map[string]any{
+			"repository_id":     runtimeFilterLiveRepository,
+			"related_scope_ids": []string{runtimeFilterLiveDecoyRepo},
+			"service_id":        "service:5747:conflicting-related-scope",
+			"outcome":           "exact",
+		})
+	insertSupplyChainRuntimeFilterFact(t, ctx, tx, "fact:5747:environment:conflicting-envelope-scope", runtimeFilterLiveDecoyRepo, runtimeFilterLiveGenDecoy,
+		cicdRunCorrelationFactKind, false, map[string]any{
+			"repository_id": runtimeFilterLiveRepository,
+			"environment":   "conflicting-envelope-5747",
 			"outcome":       "exact",
 		})
 	insertSupplyChainRuntimeFilterFact(t, ctx, tx, "fact:5747:service:stale", runtimeFilterLiveScopeA, runtimeFilterLiveGenAStale,

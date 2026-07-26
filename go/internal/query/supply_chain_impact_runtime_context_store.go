@@ -36,32 +36,27 @@ var supplyChainImpactRuntimeContextFactKinds = []string{
 }
 
 // selectSupplyChainImpactRuntimeContextQuery loads active runtime-context
-// facts whose repository anchor matches any candidate repository id. A fact
-// anchors a repository when ANY of these holds: its payload repository_id or
-// repo_id equals a candidate (accepted verbatim — consumption-derived anchors
-// use non-prefixed forms like github.com/org/repo), its scope_id equals a
-// candidate directly (git-source scopes), its scope_id equals a
-// git-repository-scope:-prefixed candidate (workload_identity and
-// platform_materialization facts, whose scopes carry that prefix — verified
-// against the live corpus), its payload scope_id equals either form, or any
-// entry of its payload related_scope_ids equals either form (the reducer's
-// supplyChainWorkloadRepositoryID scans that array for exactly this anchor —
-// workload/deployment intents scoped to a non-repository scope carry the
-// repository only there). The active-generation joins mirror the findings
-// list query so a retracted or stale-generation fact never resolves current
-// context. Scoped callers additionally require either the decoded repository
-// anchor or the fact's direct ingestion scope to be granted, matching #5747's
-// filter-membership authorization boundary.
+// facts whose canonical repository anchor matches a candidate repository id.
+// The shared decoder applies the reducer's precedence: payload repository_id
+// or repo_id, payload scope_id, envelope scope_id, then the first
+// repository-like related_scope_ids entry. Authorizing only that decoded
+// value prevents a lower-precedence granted anchor from admitting a fact that
+// folds under an unauthorized repository. The active-generation joins mirror
+// the findings list query so retracted or stale-generation facts never resolve
+// current context. Scoped callers additionally require either the decoded
+// repository or the fact's direct ingestion scope to be granted, matching
+// #5747's filter-membership authorization boundary.
 //
 // Bounded by len(candidates) (page-sized, at most the enforced findings page
 // limit of supplyChainImpactFindingMaxLimit = 200) and 4 kinds — this is the
 // exact join shape #5747's filter rework reuses, so it MUST hold the
 // performance contract at corpus scale (proven with EXPLAIN ANALYZE on the
 // worst-case 200-candidate partition).
-const selectSupplyChainImpactRuntimeContextQuery = `
+const selectSupplyChainImpactRuntimeContextQueryTemplate = `
 SELECT fact.fact_kind,
        fact.scope_id,
-       fact.payload
+       fact.payload,
+       runtime_repository.repository_id
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = fact.scope_id
@@ -69,6 +64,7 @@ JOIN ingestion_scopes AS scope
 JOIN scope_generations AS generation
   ON generation.scope_id = fact.scope_id
  AND generation.generation_id = fact.generation_id
+%s
 WHERE fact.fact_kind = ANY($1::text[])
   AND fact.is_tombstone = FALSE
   AND generation.status = 'active'
@@ -77,24 +73,19 @@ WHERE fact.fact_kind = ANY($1::text[])
           COALESCE(cardinality($3::text[]), 0) = 0
           AND COALESCE(cardinality($4::text[]), 0) = 0
         )
-        OR COALESCE(fact.payload->>'repository_id', fact.payload->>'repo_id', '') = ANY($3::text[])
-        OR fact.scope_id = ANY($3::text[])
-        OR fact.scope_id IN (SELECT 'git-repository-scope:' || candidate FROM unnest($3::text[]) AS candidate)
-        OR COALESCE(fact.payload->>'scope_id', '') = ANY($3::text[])
-        OR COALESCE(fact.payload->>'scope_id', '') IN (SELECT 'git-repository-scope:' || candidate FROM unnest($3::text[]) AS candidate)
-        OR fact.payload->'related_scope_ids' ?| $3::text[]
-        OR fact.payload->'related_scope_ids' ?| (SELECT array_agg('git-repository-scope:' || candidate) FROM unnest($3::text[]) AS candidate)
+        OR runtime_repository.repository_id = ANY($3::text[])
         OR fact.scope_id = ANY($4::text[])
       )
-  AND (
-        COALESCE(fact.payload->>'repository_id', fact.payload->>'repo_id', '') = ANY($2::text[])
-        OR fact.scope_id = ANY($2::text[])
-        OR fact.scope_id IN (SELECT 'git-repository-scope:' || candidate FROM unnest($2::text[]) AS candidate)
-        OR COALESCE(fact.payload->>'scope_id', '') = ANY($2::text[])
-        OR COALESCE(fact.payload->>'scope_id', '') IN (SELECT 'git-repository-scope:' || candidate FROM unnest($2::text[]) AS candidate)
-        OR fact.payload->'related_scope_ids' ?| $2::text[]
-        OR fact.payload->'related_scope_ids' ?| (SELECT array_agg('git-repository-scope:' || candidate) FROM unnest($2::text[]) AS candidate)
-      )`
+  AND runtime_repository.repository_id = ANY($2::text[])`
+
+var selectSupplyChainImpactRuntimeContextQuery = fmt.Sprintf(
+	selectSupplyChainImpactRuntimeContextQueryTemplate,
+	supplyChainRuntimeRepositoryDecoderJoin(
+		"fact.payload",
+		"fact.scope_id",
+		"runtime_repository",
+	),
+)
 
 // ListSupplyChainImpactRuntimeContext resolves the CURRENT runtime context
 // (workloads, services, deployments, environments, catalog refs) for each
@@ -139,16 +130,16 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactRuntimeConte
 	}
 	defer func() { _ = rows.Close() }()
 	for rows.Next() {
-		var kind, scopeID string
+		var kind, scopeID, repositoryID string
 		var payloadBytes []byte
-		if err := rows.Scan(&kind, &scopeID, &payloadBytes); err != nil {
+		if err := rows.Scan(&kind, &scopeID, &payloadBytes, &repositoryID); err != nil {
 			return nil, fmt.Errorf("scan supply chain impact runtime context: %w", err)
 		}
 		var payload map[string]any
 		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 			return nil, fmt.Errorf("decode supply chain impact runtime context payload: %w", err)
 		}
-		addSupplyChainRuntimeContextFact(out, kind, scopeID, payload)
+		addSupplyChainRuntimeContextFactForRepository(out, kind, repositoryID, payload)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("read supply chain impact runtime context: %w", err)
@@ -167,12 +158,25 @@ func addSupplyChainRuntimeContextFact(
 	scopeID string,
 	payload map[string]any,
 ) {
+	addSupplyChainRuntimeContextFactForRepository(
+		out,
+		kind,
+		supplyChainRuntimeContextRepositoryID(payload, scopeID),
+		payload,
+	)
+}
+
+func addSupplyChainRuntimeContextFactForRepository(
+	out map[string]SupplyChainRuntimeContext,
+	kind string,
+	repositoryID string,
+	payload map[string]any,
+) {
+	if repositoryID == "" {
+		return
+	}
 	switch kind {
 	case workloadIdentityFactKindQuery:
-		repositoryID := supplyChainRuntimeContextRepositoryID(payload, scopeID)
-		if repositoryID == "" {
-			return
-		}
 		ctx := out[repositoryID]
 		// Mirror the reducer's workload-id extraction exactly
 		// (supplyChainWorkloadIDsFromPayload): payload workload_id first, then
@@ -192,10 +196,6 @@ func addSupplyChainRuntimeContextFact(
 		if !supplyChainRuntimeContextOutcomeAccepted(payload) {
 			return
 		}
-		repositoryID := supplyChainRuntimeContextRepositoryID(payload, scopeID)
-		if repositoryID == "" {
-			return
-		}
 		ctx := out[repositoryID]
 		if serviceID := strings.TrimSpace(StringVal(payload, "service_id")); serviceID != "" {
 			ctx.ServiceIDs = append(ctx.ServiceIDs, serviceID)
@@ -211,10 +211,6 @@ func addSupplyChainRuntimeContextFact(
 		}
 		out[repositoryID] = ctx
 	case platformMaterializationFactKindQuery:
-		repositoryID := supplyChainRuntimeContextRepositoryID(payload, scopeID)
-		if repositoryID == "" {
-			return
-		}
 		ctx := out[repositoryID]
 		// Mirror the reducer's deployment-id extraction exactly
 		// (supplyChainDeploymentIDsFromPayload): singular deployment_id first,
@@ -233,10 +229,6 @@ func addSupplyChainRuntimeContextFact(
 		out[repositoryID] = ctx
 	case cicdRunCorrelationFactKind:
 		if !supplyChainRuntimeContextOutcomeAccepted(payload) {
-			return
-		}
-		repositoryID := supplyChainRuntimeContextRepositoryID(payload, scopeID)
-		if repositoryID == "" {
 			return
 		}
 		if environment := strings.TrimSpace(StringVal(payload, "environment")); environment != "" {
