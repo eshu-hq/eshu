@@ -80,9 +80,26 @@ func EncodePackageRegistrySourceHint(hint packageregistryv1.SourceHint) (map[str
 
 // DecodePackageRegistryPackageArtifact decodes env.Payload into the latest
 // packageregistryv1.PackageArtifact struct for the
-// "package_registry.package_artifact" fact kind. Typed-but-not-yet-consumed.
-// A payload missing a required identity field (package_id, version_id,
-// artifact_key) dead-letters as input_invalid.
+// "package_registry.package_artifact" fact kind. Consumed by the projector's
+// #5458 canonical extractor (packageRegistryArtifactRow in
+// go/internal/projector/package_registry_canonical_artifact.go). A payload
+// missing a required identity field (package_id, version_id, artifact_key)
+// dead-letters as input_invalid.
+//
+// Hashes accepts any string key, including one containing ':', matching
+// package_registry.package_artifact.v1.schema.json's unconstrained
+// hashes.additionalProperties exactly. An earlier version of this function
+// rejected a colon-bearing algorithm name here, reasoning that the graph
+// writer flattens Hashes into a sorted "algorithm:digest" string list
+// (packageRegistryHashPairs in
+// go/internal/storage/cypher/package_registry_artifact_writer.go) and a colon
+// would make that split ambiguous. That silently narrowed the public v1
+// contract without a major version bump or compatibility shim (#5820 P2
+// review finding): the same schema version had always decoded these
+// payloads. The writer now escapes both the algorithm and digest instead
+// (packageRegistryEscapeHashSegment/packageRegistrySplitHashPair), so every
+// payload valid under v1 decodes here, and unambiguity is enforced at the one
+// place the encoding actually happens.
 func DecodePackageRegistryPackageArtifact(env Envelope) (packageregistryv1.PackageArtifact, error) {
 	return decodeLatestMajor[packageregistryv1.PackageArtifact](FactKindPackageRegistryPackageArtifact, env)
 }

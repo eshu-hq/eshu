@@ -106,16 +106,19 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	"FactKindTerraformStateOutput":          "terraform_state_output.v1.schema.json",
 	"FactKindTerraformStateTagObservation":  "terraform_state_tag_observation.v1.schema.json",
 	"FactKindTerraformStateProviderBinding": "terraform_state_provider_binding.v1.schema.json",
-	// package_registry family: only the three kinds the projector's canonical
-	// extractor decodes (factschema_decode_packageregistry.go). The six
-	// typed-but-not-yet-consumed kinds (source_hint, package_artifact,
-	// vulnerability_hint, registry_event, repository_hosting, warning) carry a
-	// schema but no decode-seam call from the reducer or projector, so they are
-	// intentionally absent here — mapping them would assert a gate contract for
-	// a kind no decode site reads.
+	// package_registry family: the four kinds the projector's canonical
+	// extractor decodes (factschema_decode_packageregistry.go), including
+	// package_artifact (#5458, decodePackageRegistryPackageArtifact wired into
+	// package_registry_canonical_artifact.go). The five remaining
+	// typed-but-not-yet-consumed kinds (source_hint, vulnerability_hint,
+	// registry_event, repository_hosting, warning) carry a schema but no
+	// decode-seam call from the reducer or projector, so they are intentionally
+	// absent here — mapping them would assert a gate contract for a kind no
+	// decode site reads.
 	"FactKindPackageRegistryPackage":           "package_registry.package.v1.schema.json",
 	"FactKindPackageRegistryPackageVersion":    "package_registry.package_version.v1.schema.json",
 	"FactKindPackageRegistryPackageDependency": "package_registry.package_dependency.v1.schema.json",
+	"FactKindPackageRegistryPackageArtifact":   "package_registry.package_artifact.v1.schema.json",
 	// sbom_attestation family: only the kinds a reducer decode seam wrapper
 	// actually decodes (factschema_decode_sbom.go) are mapped, so the gate
 	// covers exactly what the reducer reads through the typed seam. Every

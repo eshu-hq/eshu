@@ -142,12 +142,13 @@ helpers (`schemaDialectForBackend`, `nornicDBSchemaConstraint`).
   indexes keep deployment trace enrichment anchored on immutable image identity
   or explicit mutable tag observations.
 - Package-registry projection labels (`Package`, `PackageVersion`,
-  `PackageDependency`, `PackageRegistryPackage`,
-  `PackageRegistryPackageVersion`, and `PackageRegistryPackageDependency`)
-  receive `uid` constraints. Secondary indexes on package ecosystem, package
-  normalized name, package-version parent ID, dependency package ID, and
-  dependency version ID keep bounded package query surfaces from falling back to
-  label scans.
+  `PackageDependency`, `PackageArtifact`, `PackageRegistryPackage`,
+  `PackageRegistryPackageVersion`, `PackageRegistryPackageDependency`, and
+  `PackageRegistryPackageArtifact`) receive `uid` constraints. Secondary
+  indexes on package ecosystem, package normalized name, package-version
+  parent ID, dependency package ID, dependency version ID, artifact version
+  ID, and artifact package ID keep bounded package query surfaces from falling
+  back to label scans.
 - `IncidentRoutingEvidence` receives a `uid` constraint and the matching
   NornicDB lookup index. Reducer-owned PagerDuty routing graph writes match
   incident and routing evidence nodes by deterministic UID and never use this

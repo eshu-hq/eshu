@@ -75,15 +75,16 @@ import (
 //   - ci.job, ci.pipeline_definition, ci.warning: emitted by collector but
 //     no reducer decode call today (Wave 4d intentionally deferred)
 //
-// Backfill entries (from #5474's real-consumption signal rebuild): 21
-// additional kinds the pre-fix D2 gate passed only via the toothless
+// Backfill entries (from #5474's real-consumption signal rebuild): originally
+// 21 additional kinds the pre-fix D2 gate passed only via the toothless
 // PayloadSchema/pipeline-consumer signals, round-2-verified with per-kind
 // falsifiable evidence (see noRealConsumerFound2026Q3). Four kinds round 1
 // wrongly put here (package_registry.source_hint, azure_identity_observation,
 // azure_resource_change, vulnerability.source_snapshot) were removed once
-// round 2 found their real consumers. See
+// round 2 found their real consumers; package_registry.package_artifact was
+// removed in #5458 once it gained a real consumer (32 remain). See
 // docs/internal/design/5474-ifa-coverage-backfill-plan.md for the tracked
-// backfill plan the remaining 21 still need.
+// backfill plan the remaining kinds still need.
 // #nosec G101 -- map values are sha256 source-content digests for the
 // consumer-disclosure ledger, not credentials.
 var grandfatheredUnconsumedKinds = map[string]string{
@@ -132,7 +133,6 @@ var grandfatheredUnconsumedKinds = map[string]string{
 	"incident_routing.observed_pagerduty_integration": "af8343c4bae224b45d7e72fa66d00ca5c61e9272315e84c2d33f2e166fd8dfea",
 	"k8s_rbac_binding":                                "3c21a5404a9f56d283de9c756fa29d6e956e8e56f708dfde4cc44e619c90206d",
 	"k8s_rbac_role":                                   "2573747ed14d6c4278c5f93b07a3e82ec8f73dc74784da47d012586073e29ad0",
-	"package_registry.package_artifact":               "a69cf5b389a97ccba6011af05a69b15b068e61e77ee95eda599cb398d6ba44b5",
 	"package_registry.registry_event":                 "dc46aefb230f539feec68c4fd3531a50d5e331523baccfca33858ceda6ddfd73",
 	"package_registry.repository_hosting":             "5d1136694b788dbcda34dd37db525cb2db1823c0f73a870ac39781b18f348bc7",
 	"vault_auth_mount":                                "fc8cb7c193a71b33969618eac04aeb256ed2ecc84514067159d9dcc6f7368e78",
@@ -257,7 +257,6 @@ var kindDisclosureEntries = []kindDisclosureEntry{
 	{Family: "incident_routing_materialization", Kind: "incident_routing.observed_pagerduty_integration", Reason: "round-2 re-verify (2026-07-21): `rg -n \"IncidentRoutingObservedPagerDutyIntegrationFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"incident_routing.observed_pagerduty_integration\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
 	{Family: "secrets_iam_trust_chain", Kind: "k8s_rbac_binding", Reason: "round-2 re-verify (2026-07-21): `rg -n \"KubernetesRBACBindingFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"k8s_rbac_binding\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
 	{Family: "secrets_iam_trust_chain", Kind: "k8s_rbac_role", Reason: "round-2 re-verify (2026-07-21): `rg -n \"KubernetesRBACRoleFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"k8s_rbac_role\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
-	{Family: "package_source_correlation", Kind: "package_registry.package_artifact", Reason: "round-2 re-verify (2026-07-21): `rg -n \"PackageRegistryPackageArtifactFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"package_registry.package_artifact\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
 	{Family: "package_source_correlation", Kind: "package_registry.registry_event", Reason: "round-2 re-verify (2026-07-21): `rg -n \"PackageRegistryRegistryEventFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"package_registry.registry_event\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},
 	{Family: "package_source_correlation", Kind: "package_registry.repository_hosting", Reason: "#5458 KEEP DISCLOSURE (deliberate): payload is Artifactory/registry feed topology (provider/registry/repository/upstream_url) describing WHERE a package is hosted, not a package-to-source-commit binding -- it does not advance the provenance backbone epic #5455 is building, and no graph consumer exists or is planned. Revisit only if a future read surface needs registry-hosting feed topology rather than package-to-source binding. (round-2 re-verify 2026-07-21 confirmed zero real-consumer signal: `rg -n \"PackageRegistryRepositoryHostingFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` excluding _test.go -> 0 matches; `rg -n \"\\\"package_registry.repository_hosting\\\"\"` same dirs -> 0 matches outside registry/collector/this ledger)"},
 	{Family: "secrets_iam_trust_chain", Kind: "vault_auth_mount", Reason: "round-2 re-verify (2026-07-21): `rg -n \"VaultAuthMountFactKind\" go/internal/reducer go/internal/projector go/internal/query go/internal/storage/postgres go/internal/relationships -g '*.go'` (excluding _test.go) -> 0 matches; `rg -n \"\\\"vault_auth_mount\\\"\"` same dirs -> 0 matches (outside registry/collector/this ledger)"},

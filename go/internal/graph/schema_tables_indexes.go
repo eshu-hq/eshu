@@ -191,6 +191,17 @@ var schemaPerformanceIndexes = []string{
 	"CREATE INDEX package_version_package_id IF NOT EXISTS FOR (v:PackageVersion) ON (v.package_id)",
 	"CREATE INDEX package_dependency_package_id IF NOT EXISTS FOR (d:PackageDependency) ON (d.package_id)",
 	"CREATE INDEX package_dependency_version_id IF NOT EXISTS FOR (d:PackageDependency) ON (d.version_id)",
+	// NOTE: PackageArtifact.version_id and .package_id are read-model
+	// properties (set on every node write) but have no backing index today.
+	// The #5458 deferred HAS_ARTIFACT edge MATCH anchors on
+	// PackageArtifact{uid: ...} (package_registry_artifact_writer.go), which
+	// the uidConstraintLabels uid uniqueness constraint already backs; a P2
+	// review (#5820) found no query anywhere in the repo filtering
+	// PackageArtifact by version_id or package_id, so a package_artifact_
+	// version_id/package_artifact_package_id index pair would be unused DDL
+	// weight on every artifact write. Add the index in the same change as the
+	// query that needs it (a version->artifact or package->artifact traversal
+	// read), not speculatively ahead of one.
 	"CREATE INDEX function_name IF NOT EXISTS FOR (f:Function) ON (f.name)",
 	"CREATE INDEX class_name IF NOT EXISTS FOR (c:Class) ON (c.name)",
 }

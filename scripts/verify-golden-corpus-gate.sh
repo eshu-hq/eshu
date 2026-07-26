@@ -495,6 +495,11 @@ log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # exact_digest decisions anchored to the same repository. It pins
 # attribution_basis=repository_single_base so a future, more precise CI/SLSA
 # attribution cannot silently satisfy the Dockerfile-only assertion.
+# rc-168 (HAS_ARTIFACT) is issue #5458's package_registry.package_artifact
+# consumer promotion: the package_registry supply-chain-demo cassette's
+# github.com/acme/lib-common@1.0.0 package_artifact fact (hashes sha256/sha512)
+# projects a PackageArtifact node and the deferred PackageVersion->PackageArtifact
+# edge, the same NornicDB deferred-edge-group fix rc-24/rc-25 rely on.
 # -required-correlations="all" (below) single-sources the blocking set from
 # the snapshot's own required_correlations ids (#4596): promoting an rc-N to
 # blocking is now a one-file edit (add/confirm it in

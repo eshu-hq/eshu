@@ -115,6 +115,9 @@ const (
 	HandlesRoute EdgeType = "HANDLES_ROUTE"
 	// HasAppliedRouting is the "HAS_APPLIED_ROUTING" graph relationship type.
 	HasAppliedRouting EdgeType = "HAS_APPLIED_ROUTING"
+	// HasArtifact is the "HAS_ARTIFACT" graph relationship type: a
+	// PackageVersion to its published PackageArtifact (#5458).
+	HasArtifact EdgeType = "HAS_ARTIFACT"
 	// HasColumn is the "HAS_COLUMN" graph relationship type.
 	HasColumn EdgeType = "HAS_COLUMN"
 	// HasDeploymentEvidence is the "HAS_DEPLOYMENT_EVIDENCE" graph relationship type.
@@ -252,7 +255,7 @@ var registered = []EdgeType{
 	DependsOnPackage, DeploymentSource, DeploysFrom, DerivedFrom, DiscoversConfigIn,
 	Documents, EvidencesRepositoryRelationship, Executes, ExecutesShell,
 	Explains, ExposesEndpoint, ExtendsBase, GrantsAccessTo, HandlesRoute,
-	HasAppliedRouting, HasColumn, HasDeploymentEvidence, HasIntendedRouting,
+	HasAppliedRouting, HasArtifact, HasColumn, HasDeploymentEvidence, HasIntendedRouting,
 	HasLiveRouting, HasParameter, HasRole, HasTaintEvidence,
 	HasVersion, HelmValueReference, Implements, Imports, Indexes,
 	Inherits, InstanceOf, Instantiates, InvokesCloudAction,

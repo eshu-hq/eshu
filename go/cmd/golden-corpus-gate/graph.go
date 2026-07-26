@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
@@ -272,15 +273,50 @@ func (b *boltGraphCounter) CountSelfLoopEdges(ctx context.Context, label, relati
 }
 
 // boltPropertyString coerces a Bolt-decoded property value to a string for the
-// gate's presence/value checks. A null, absent, or non-string value yields ""
-// (treated as absent), which is conservative: a property the gate expects to be a
-// canonical string token but finds stored as another type counts as a violation
-// rather than silently passing.
+// gate's presence/value checks. A null, absent, or non-string-and-non-list
+// value yields "" (treated as absent), which is conservative: a property the
+// gate expects to be a canonical string token but finds stored as another
+// type counts as a violation rather than silently passing.
+//
+// A Bolt LIST property (for example PackageArtifact.hashes, a sorted
+// "algorithm:digest" string list -- Cypher node properties cannot hold a
+// nested map, see packageRegistryHashPairs in
+// go/internal/storage/cypher/package_registry_artifact_writer.go) decodes off
+// the wire as []any of strings, mirroring edgeEvidenceContainsAll's handling
+// of the evidence_kinds property below. Joining its elements with "|" lets
+// ListNodeProperty/ListCorrelationEdgeProperty apply the same
+// non-empty/allowed-value check a scalar property gets (#5820 P2 review
+// finding: without this, a RequiredNode assertion naming a list property was
+// unconditionally red on a live run regardless of writer correctness, because
+// every element decoded to ""). A list containing a non-string element (or
+// any other unrecognized Bolt shape) still yields "", the same conservative
+// "treat as absent" behavior as a bare non-string scalar.
 func boltPropertyString(raw any) string {
-	if s, ok := raw.(string); ok {
-		return s
+	switch value := raw.(type) {
+	case string:
+		return value
+	case []any:
+		return boltStringListJoined(value)
+	case []string:
+		return strings.Join(value, "|")
+	default:
+		return ""
 	}
-	return ""
+}
+
+// boltStringListJoined joins a Bolt list property's decoded []any elements
+// with "|" once every element is confirmed to be a string, or "" if any
+// element is not (or the list is empty) -- see boltPropertyString.
+func boltStringListJoined(values []any) string {
+	parts := make([]string, 0, len(values))
+	for _, v := range values {
+		s, ok := v.(string)
+		if !ok {
+			return ""
+		}
+		parts = append(parts, s)
+	}
+	return strings.Join(parts, "|")
 }
 
 // edgeEvidenceContainsAll reports whether the edge's evidence_kinds property

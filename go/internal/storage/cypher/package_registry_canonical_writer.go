@@ -130,6 +130,7 @@ func (w *CanonicalNodeWriter) buildPackageRegistryStatements(mat projector.Canon
 	statements = append(statements, w.buildPackageRegistryVersionStatements(mat)...)
 	statements = append(statements, w.buildPackageRegistryDependencyPackageStatements(mat)...)
 	statements = append(statements, w.buildPackageRegistryDependencyStatements(mat)...)
+	statements = append(statements, w.buildPackageRegistryArtifactStatements(mat)...)
 	return statements
 }
 

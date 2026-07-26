@@ -15,14 +15,15 @@ import (
 // field), returns a *projectorDecodeError so partitionProjectorDecodeFailures
 // can quarantine the fact per-fact rather than the extractor computing a
 // graph identity from an empty-string segment. Only the CONSUMED
-// package_registry kinds get a wrapper here: package, package_version, and
-// package_dependency. The six typed-but-not-yet-consumed kinds (source_hint,
-// package_artifact, vulnerability_hint, registry_event, repository_hosting,
-// warning) have no projector read site and therefore no wrapper here —
-// decode_packageregistry.go's Decode* seam exists for them already (and, for
-// source_hint, a separate reducer domain reads its payload through raw map
-// access, not through this seam), but wiring a projector wrapper with no
-// caller would be dead code.
+// package_registry kinds get a wrapper here: package, package_version,
+// package_dependency, and (per #5458) package_artifact — the per-artifact
+// hash-binding node the epic's provenance backbone needs. The five remaining
+// typed-but-not-yet-consumed kinds (source_hint, vulnerability_hint,
+// registry_event, repository_hosting, warning) have no projector read site and
+// therefore no wrapper here — decode_packageregistry.go's Decode* seam exists
+// for them already (and, for source_hint, a separate reducer domain reads its
+// payload through raw map access, not through this seam), but wiring a
+// projector wrapper with no caller would be dead code.
 
 // decodePackageRegistryPackage decodes one package_registry.package envelope
 // into the typed struct through the contracts seam. A missing required field
@@ -57,6 +58,31 @@ func decodePackageRegistryPackageDependency(env facts.Envelope) (packageregistry
 		return packageregistryv1.PackageDependency{}, newProjectorDecodeError(factschema.FactKindPackageRegistryPackageDependency, err)
 	}
 	return dependency, nil
+}
+
+// decodePackageRegistryPackageArtifact decodes one
+// package_registry.package_artifact envelope into the typed struct through the
+// contracts seam. A missing required field (package_id, version_id,
+// artifact_key) yields a self-classifying *projectorDecodeError.
+func decodePackageRegistryPackageArtifact(env facts.Envelope) (packageregistryv1.PackageArtifact, error) {
+	artifact, err := factschema.DecodePackageRegistryPackageArtifact(factschemaEnvelope(env))
+	if err != nil {
+		return packageregistryv1.PackageArtifact{}, newProjectorDecodeError(factschema.FactKindPackageRegistryPackageArtifact, err)
+	}
+	return artifact, nil
+}
+
+// packageRegistryDerefInt64 returns the value an *int64 points at, or 0 when
+// it is nil. PackageArtifact.SizeBytes is carried as *int64 so an unreported
+// size stays distinct from an observed 0 through decode; the row builder
+// substitutes 0 for an unobserved size, matching every other package_registry
+// row's plain-scalar-with-default convention (packageRegistryDerefString,
+// packageRegistryDerefBool).
+func packageRegistryDerefInt64(value *int64) int64 {
+	if value == nil {
+		return 0
+	}
+	return *value
 }
 
 // packageRegistryDerefString returns the value a *string points at, or "" when

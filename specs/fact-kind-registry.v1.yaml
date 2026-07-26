@@ -270,6 +270,11 @@ families:
       package_registry.package_version: "sdk/go/factschema/schema/package_registry.package_version.v1.schema.json"
       package_registry.package_dependency: "sdk/go/factschema/schema/package_registry.package_dependency.v1.schema.json"
       package_registry.source_hint: "sdk/go/factschema/schema/package_registry.source_hint.v1.schema.json"
+      # package_artifact gained a real consumer in #5458: the projector decode
+      # wrapper (go/internal/projector/factschema_decode_packageregistry.go)
+      # and canonical extractor (go/internal/projector/package_registry_canonical.go)
+      # project it onto a PackageArtifact node carrying the per-artifact hash
+      # digests the PackageVersion node's checksum_algorithms property drops.
       package_registry.package_artifact: "sdk/go/factschema/schema/package_registry.package_artifact.v1.schema.json"
       package_registry.vulnerability_hint: "sdk/go/factschema/schema/package_registry.vulnerability_hint.v1.schema.json"
       # vulnerability_hint is join-key-only evidence: the Postgres active-evidence

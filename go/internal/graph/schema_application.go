@@ -25,22 +25,30 @@ type SchemaApplication struct {
 
 const (
 	// graphSchemaNeo4jFingerprint and graphSchemaNornicDBFingerprint are the
-	// current schema digests, now including the #5651 KubernetesNamespace uid
-	// uniqueness constraint (uidConstraintLabels) plus the
-	// kubernetes_namespace_cluster_id / kubernetes_namespace_namespace read
-	// indexes (schema_tables_indexes.go). Before this bump,
-	// MERGE (n:KubernetesNamespace {uid: row.uid}) in
-	// kubernetes_namespace_node_writer.go fell back to an unindexed
-	// KubernetesNamespace label scan on every reducer write. The bump is
-	// additive: a writer running the predecessor schema still writes and reads
-	// its already-unique collector-derived uid values correctly, it only lacks
-	// the faster uid MERGE seek and the cluster/namespace-scoped read path
-	// until its own schema catches up, so the predecessor
-	// (graphSchemaNeo4jPreKubernetesNamespaceIndexesFingerprint /
-	// graphSchemaNornicDBPreKubernetesNamespaceIndexesFingerprint) stays
-	// compatible.
-	graphSchemaNeo4jFingerprint    = "b54c586015a30b929b103723c5549e424d800d1159253e8f4745d90af24ba94b"
-	graphSchemaNornicDBFingerprint = "ddaa10e5b634a4c42796ba01d2f8dd88181f93a4c0a73655d4cae6233f4e0a2e"
+	// current schema digests, now including the #5458 PackageArtifact /
+	// PackageRegistryPackageArtifact uid uniqueness constraints
+	// (uidConstraintLabels). A #5820 P2 review found no query anywhere in the
+	// repo filtering PackageArtifact by version_id or package_id -- the
+	// deferred HAS_ARTIFACT edge MATCH anchors on uid only
+	// (package_registry_artifact_writer.go) -- so the package_artifact_
+	// version_id/package_artifact_package_id lookup indexes this schema
+	// originally added alongside the uid constraints were removed as unused
+	// DDL weight (schema_tables_indexes.go); only the uid constraints remain.
+	// The bump is additive: a writer running the predecessor schema creates no
+	// PackageArtifact nodes, so the new constraint never applies to it, and the
+	// predecessor (graphSchemaNeo4jPreArtifactFingerprint /
+	// graphSchemaNornicDBPreArtifactFingerprint) stays compatible.
+	graphSchemaNeo4jFingerprint    = "d7985da368fd30df0e0bfcf86a2f14cc588b7ba649f555d36927984ed749a9f9"
+	graphSchemaNornicDBFingerprint = "89a8a9239e99b3e7c808148d120986f09bc9e242333718b07bd5efe18e192f70"
+
+	// graphSchemaNeo4jPreArtifactFingerprint and its NornicDB peer are the
+	// schema fingerprints immediately before the #5458 PackageArtifact /
+	// PackageRegistryPackageArtifact uid constraints and lookup indexes were
+	// added. These equal graphSchemaNeo4jFingerprint /
+	// graphSchemaNornicDBFingerprint's value before this addition (the merged
+	// #5651 KubernetesNamespace tip below).
+	graphSchemaNeo4jPreArtifactFingerprint    = "b54c586015a30b929b103723c5549e424d800d1159253e8f4745d90af24ba94b"
+	graphSchemaNornicDBPreArtifactFingerprint = "ddaa10e5b634a4c42796ba01d2f8dd88181f93a4c0a73655d4cae6233f4e0a2e"
 
 	// graphSchemaNeo4jPreKubernetesNamespaceIndexesFingerprint and its NornicDB
 	// peer are the schema fingerprints immediately before the #5651
@@ -224,6 +232,7 @@ const (
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
 		graphSchemaNeo4jFingerprint: {
+			graphSchemaNeo4jPreArtifactFingerprint,
 			graphSchemaNeo4jPreKubernetesNamespaceIndexesFingerprint,
 			graphSchemaNeo4jPreKustomizeOverlayRepoIDIndexFingerprint,
 			graphSchemaNeo4jPreTerraformStateResourceAddressIndexFingerprint,
@@ -242,6 +251,7 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	},
 	SchemaBackendNornicDB: {
 		graphSchemaNornicDBFingerprint: {
+			graphSchemaNornicDBPreArtifactFingerprint,
 			graphSchemaNornicDBPreKubernetesNamespaceIndexesFingerprint,
 			graphSchemaNornicDBPreKustomizeOverlayRepoIDIndexFingerprint,
 			graphSchemaNornicDBPreTerraformStateResourceAddressIndexFingerprint,

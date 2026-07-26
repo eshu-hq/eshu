@@ -122,7 +122,8 @@ func packageRegistryIdentityLockKeys(mat projector.CanonicalMaterialization) []s
 	keys := make(
 		[]string,
 		0,
-		len(mat.PackageRegistryPackages)+len(mat.PackageRegistryVersions)+2*len(mat.PackageRegistryDependencies),
+		len(mat.PackageRegistryPackages)+len(mat.PackageRegistryVersions)+
+			2*len(mat.PackageRegistryDependencies)+len(mat.PackageRegistryArtifacts),
 	)
 	for _, row := range mat.PackageRegistryPackages {
 		keys = append(keys, row.UID)
@@ -132,6 +133,9 @@ func packageRegistryIdentityLockKeys(mat projector.CanonicalMaterialization) []s
 	}
 	for _, row := range mat.PackageRegistryDependencies {
 		keys = append(keys, row.PackageID, row.DependencyPackageID)
+	}
+	for _, row := range mat.PackageRegistryArtifacts {
+		keys = append(keys, row.PackageID)
 	}
 	return keys
 }
