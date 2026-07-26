@@ -20,6 +20,7 @@ const (
 	runtimeNormalizedFalseService   = "service:5747:provenance-false"
 	runtimeNormalizedBlankService   = "service:5747:provenance-blank"
 	runtimeNormalizedTrueService    = "service:5747:provenance-string-true"
+	runtimeNormalizedObjectWorkload = "workload:5747:object-key"
 )
 
 func assertSupplyChainRuntimeNormalizationLive(
@@ -71,6 +72,18 @@ func assertSupplyChainRuntimeNormalizationLive(
 			0,
 		)
 	})
+	t.Run("runtime_normalization_object_entity_keys", func(t *testing.T) {
+		assertSupplyChainRuntimeNormalizationFilterLive(
+			t,
+			ctx,
+			findingStore,
+			aggregateStore,
+			runtimeNormalizedObjectWorkload,
+			"",
+			"",
+			0,
+		)
+	})
 
 	contextStore := NewPostgresSupplyChainImpactFindingStore(findingStore.DB)
 	contexts, err := contextStore.ListSupplyChainImpactRuntimeContext(
@@ -91,6 +104,9 @@ func assertSupplyChainRuntimeNormalizationLive(
 		if !slices.Contains(runtimeContext.WorkloadIDs, workloadID) {
 			t.Errorf("runtime context workloads = %v, missing %q", runtimeContext.WorkloadIDs, workloadID)
 		}
+	}
+	if slices.Contains(runtimeContext.WorkloadIDs, runtimeNormalizedObjectWorkload) {
+		t.Errorf("runtime context workloads = %v, contains object entity key", runtimeContext.WorkloadIDs)
 	}
 	for _, serviceID := range []string{
 		runtimeNormalizedService,
@@ -218,6 +234,16 @@ func seedSupplyChainRuntimeNormalizationLiveFacts(
 			payload: map[string]any{
 				"repository_id": runtimeFilterLiveRepository,
 				"entity_keys":   "  " + runtimeNormalizedScalarWorkload + "  ",
+			},
+		},
+		{
+			factID: "fact:5747:normalized:object-entity",
+			kind:   workloadIdentityFactKindQuery,
+			payload: map[string]any{
+				"repository_id": runtimeFilterLiveRepository,
+				"entity_keys": map[string]any{
+					runtimeNormalizedObjectWorkload: true,
+				},
 			},
 		},
 		{

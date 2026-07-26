@@ -348,15 +348,21 @@ total) and exposed a planner reorder: the first workload query entered through
 the scope/generation index and took 13.947 ms.
 Materializing each dimension-selected match set before the active-generation
 join made every production query enter through its dimension index. On the
-final reducer-equivalent current-only filter shape, execution times were
-193.073 ms for scalar workload, 158.542 ms for workload `entity_keys`,
-16.122 ms for service, 16.115 ms for environment, 211.495 ms for the combined
-legacy list, 207.801 ms for the combined winners list, 217.642 ms for the
-combined aggregate, 0.392 ms for the no-runtime-filter aggregate, and
-194.552 ms for explain. Every normalized shape remains below the enforced
-500 ms execution ceiling while the exact arms retain their dimension indexes.
+final reducer-equivalent current-only filter shape, the selective proof
+executed in 209.469 ms for scalar workload, 172.556 ms for workload
+`entity_keys`, 17.085 ms for service, 15.764 ms for environment, 234.796 ms
+for the combined legacy list, 231.556 ms for the combined winners list,
+290.768 ms for the combined aggregate, 0.340 ms for the no-runtime-filter
+aggregate, and 209.326 ms for explain. Workload and service identifiers are
+identity-like selectors, so the shared-dimension worst case uses 100,000 facts
+with the same environment. That exact production shape executed in 132.912 ms
+for the legacy list, 132.257 ms for the winners list, 131.478 ms for aggregate
+count, and 131.447 ms for inventory. Explain does not accept an environment
+selector; its selective workload/service proof remains the representative
+supported shape. Every measured query remains below the enforced 500 ms
+execution ceiling while the exact arms retain their dimension indexes.
 Inserting all 300,000 rows while maintaining the runtime indexes took
-6.265 seconds; hydrating 200 candidate repositories took 62.508 ms.
+6.660 seconds; hydrating 200 candidate repositories took 67.679 ms.
 `TestSupplyChainImpactRuntimeFilterPlansLive` runs these exact
 `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` shapes and asserts the selected index
 names as well as a bounded execution ceiling. Each concurrent migration also

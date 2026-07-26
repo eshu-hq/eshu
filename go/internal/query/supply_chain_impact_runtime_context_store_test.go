@@ -73,6 +73,26 @@ func TestAddSupplyChainRuntimeContextFactWorkloadIdentityNormalizesReducerShapes
 	}
 }
 
+func TestAddSupplyChainRuntimeContextFactWorkloadIdentityRejectsObjectEntityKeys(t *testing.T) {
+	t.Parallel()
+
+	out := map[string]SupplyChainRuntimeContext{}
+	addSupplyChainRuntimeContextFact(
+		out,
+		workloadIdentityFactKindQuery,
+		"scope",
+		map[string]any{
+			"repository_id": "repository:r_object",
+			"entity_keys": map[string]any{
+				"workload:object-key": true,
+			},
+		},
+	)
+	if workloads := out["repository:r_object"].WorkloadIDs; len(workloads) != 0 {
+		t.Fatalf("WorkloadIDs = %v, want object-shaped entity_keys ignored", workloads)
+	}
+}
+
 func TestAddSupplyChainRuntimeContextFactServiceSkipsRejectedOutcome(t *testing.T) {
 	t.Parallel()
 

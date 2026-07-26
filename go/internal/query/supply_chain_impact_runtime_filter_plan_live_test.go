@@ -6,7 +6,6 @@ package query
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -15,6 +14,8 @@ import (
 
 	"github.com/lib/pq"
 )
+
+const runtimeFilterHighCardinalityEnvironment = "shared-production-5747"
 
 func TestSupplyChainImpactRuntimeFilterPlansLive(t *testing.T) {
 	dsn := os.Getenv("ESHU_POSTGRES_TEST_DSN")
@@ -65,8 +66,11 @@ func TestSupplyChainImpactRuntimeFilterPlansLive(t *testing.T) {
 			kind:       cicdRunCorrelationFactKind,
 			factPrefix: "environment",
 			payloadSQL: `jsonb_build_object(
-			  'repository_id', 'repository:5747:perf:' || sample,
-			  'environment', 'environment-5747-' || sample,
+			  'repository_id', CASE
+			    WHEN sample = 1 THEN '` + runtimeFilterLiveRepository + `'
+			    ELSE 'repository:5747:perf:' || sample
+			  END,
+			  'environment', '` + runtimeFilterHighCardinalityEnvironment + `',
 			  'outcome', 'exact'
 			)`,
 		},
@@ -193,6 +197,17 @@ FROM generate_series(1, 100000) AS sample`,
 			wantIndexes: []string{"fact_records_ci_cd_run_correlations_environment_lookup_idx"},
 		},
 		{
+			name:  "legacy_environment_high_cardinality",
+			query: listSupplyChainImpactFindingsQuery,
+			filter: withSupplyChainRuntimeFilterDimensions(
+				baseFilter,
+				"",
+				"",
+				runtimeFilterHighCardinalityEnvironment,
+			),
+			wantIndexes: []string{"fact_records_ci_cd_run_correlations_environment_lookup_idx"},
+		},
+		{
 			name:   "legacy_combined",
 			query:  listSupplyChainImpactFindingsQuery,
 			filter: baseFilter,
@@ -212,6 +227,17 @@ FROM generate_series(1, 100000) AS sample`,
 				"fact_records_ci_cd_run_correlations_environment_lookup_idx",
 			},
 		},
+		{
+			name:  "winners_environment_high_cardinality",
+			query: listSupplyChainImpactFindingsFromWinnersQuery,
+			filter: withSupplyChainRuntimeFilterDimensions(
+				baseFilter,
+				"",
+				"",
+				runtimeFilterHighCardinalityEnvironment,
+			),
+			wantIndexes: []string{"fact_records_ci_cd_run_correlations_environment_lookup_idx"},
+		},
 	} {
 		plan := explainSupplyChainRuntimeFilterPlan(
 			t,
@@ -225,6 +251,15 @@ FROM generate_series(1, 100000) AS sample`,
 			if !strings.Contains(plan, wantIndex) {
 				t.Fatalf("%s plan missing index %q:\n%s", tc.name, wantIndex, plan)
 			}
+		}
+		if strings.Contains(tc.name, "environment_high_cardinality") {
+			assertSupplyChainRuntimePlanIndexRows(
+				t,
+				plan,
+				"fact_records_ci_cd_run_correlations_environment_lookup_idx",
+				100000,
+			)
+			assertSupplyChainRuntimePlanOutputRows(t, plan, 1)
 		}
 	}
 
@@ -253,6 +288,68 @@ FROM generate_series(1, 100000) AS sample`,
 			t.Fatalf("aggregate plan missing index %q:\n%s", wantIndex, aggregatePlan)
 		}
 	}
+
+	highCardinalityAggregate := SupplyChainImpactAggregateFilter{
+		CVEID:                runtimeFilterLiveCVE,
+		Environment:          runtimeFilterHighCardinalityEnvironment,
+		DetectionProfile:     "comprehensive",
+		AllowedRepositoryIDs: []string{runtimeFilterLiveRepository},
+	}
+	highCardinalityCount, err := NewPostgresSupplyChainImpactAggregateStore(tx).
+		CountSupplyChainImpactFindings(ctx, highCardinalityAggregate)
+	if err != nil {
+		t.Fatalf("count high-cardinality environment findings: %v", err)
+	}
+	if highCardinalityCount.TotalFindings != 1 {
+		t.Fatalf("high-cardinality environment findings = %d, want 1", highCardinalityCount.TotalFindings)
+	}
+	highCardinalityAggregatePlan := explainSupplyChainRuntimeFilterPlan(
+		t,
+		ctx,
+		tx,
+		"aggregate_environment_high_cardinality",
+		supplyChainImpactAggregateCountQuery,
+		supplyChainRuntimeFilterAggregateArgs(highCardinalityAggregate)...,
+	)
+	if !strings.Contains(
+		highCardinalityAggregatePlan,
+		"fact_records_ci_cd_run_correlations_environment_lookup_idx",
+	) {
+		t.Fatalf("high-cardinality aggregate plan missing environment index:\n%s", highCardinalityAggregatePlan)
+	}
+	assertSupplyChainRuntimePlanIndexRows(
+		t,
+		highCardinalityAggregatePlan,
+		"fact_records_ci_cd_run_correlations_environment_lookup_idx",
+		100000,
+	)
+
+	highCardinalityInventoryArgs := append(
+		supplyChainRuntimeFilterAggregateArgs(highCardinalityAggregate),
+		10,
+		0,
+	)
+	highCardinalityInventoryPlan := explainSupplyChainRuntimeFilterPlan(
+		t,
+		ctx,
+		tx,
+		"inventory_environment_high_cardinality",
+		supplyChainImpactInventoryQuery("COALESCE(fact.payload->>'impact_status', 'unknown')"),
+		highCardinalityInventoryArgs...,
+	)
+	if !strings.Contains(
+		highCardinalityInventoryPlan,
+		"fact_records_ci_cd_run_correlations_environment_lookup_idx",
+	) {
+		t.Fatalf("high-cardinality inventory plan missing environment index:\n%s", highCardinalityInventoryPlan)
+	}
+	assertSupplyChainRuntimePlanIndexRows(
+		t,
+		highCardinalityInventoryPlan,
+		"fact_records_ci_cd_run_correlations_environment_lookup_idx",
+		100000,
+	)
+	assertSupplyChainRuntimePlanOutputRows(t, highCardinalityInventoryPlan, 1)
 
 	noFilterPlan := explainSupplyChainRuntimeFilterPlan(
 		t,
@@ -376,43 +473,4 @@ func supplyChainRuntimeFilterExplainArgs(filter SupplyChainImpactExplanationFilt
 		pq.Array(filter.AllowedRepositoryIDs),
 		pq.Array(filter.AllowedScopeIDs),
 	}
-}
-
-func explainSupplyChainRuntimeFilterPlan(
-	t *testing.T,
-	ctx context.Context,
-	tx *sql.Tx,
-	name string,
-	query string,
-	args ...any,
-) string {
-	t.Helper()
-	var rawJSON []byte
-	if err := tx.QueryRowContext(
-		ctx,
-		"EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "+query,
-		args...,
-	).Scan(&rawJSON); err != nil {
-		t.Fatalf("explain %s: %v", name, err)
-	}
-	var plan []struct {
-		PlanningTime  float64 `json:"Planning Time"`
-		ExecutionTime float64 `json:"Execution Time"`
-	}
-	if err := json.Unmarshal(rawJSON, &plan); err != nil {
-		t.Fatalf("decode %s plan: %v", name, err)
-	}
-	if len(plan) != 1 {
-		t.Fatalf("%s plan count = %d, want 1", name, len(plan))
-	}
-	t.Logf(
-		"%s: planning=%.3fms execution=%.3fms",
-		name,
-		plan[0].PlanningTime,
-		plan[0].ExecutionTime,
-	)
-	if plan[0].ExecutionTime > 500 {
-		t.Fatalf("%s execution = %.3fms, want <= 500ms", name, plan[0].ExecutionTime)
-	}
-	return string(rawJSON)
 }

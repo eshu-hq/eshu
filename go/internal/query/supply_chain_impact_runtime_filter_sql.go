@@ -16,6 +16,7 @@ runtime_workload_identity_matches AS MATERIALIZED (
           payload->>'workload_id' = %[2]s
           OR (
                %[2]s LIKE 'workload:%%'
+               AND jsonb_typeof(payload->'entity_keys') IN ('array', 'string')
                AND payload->'entity_keys' ? %[2]s
              )
         )
@@ -31,6 +32,7 @@ runtime_workload_identity_matches AS MATERIALIZED (
           payload->>'workload_id' = %[2]s
           OR (
                %[2]s LIKE 'workload:%%'
+               AND jsonb_typeof(payload->'entity_keys') IN ('array', 'string')
                AND payload->'entity_keys' ? %[2]s
              ),
           FALSE

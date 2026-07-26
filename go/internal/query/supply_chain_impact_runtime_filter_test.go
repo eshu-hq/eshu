@@ -120,6 +120,7 @@ func TestSupplyChainImpactRuntimeFilterMirrorsRuntimeContextTruthRules(t *testin
 		"runtime_service_matches AS MATERIALIZED",
 		"runtime_environment_matches AS MATERIALIZED",
 		"payload->'entity_keys'",
+		"jsonb_typeof(payload->'entity_keys') IN ('array', 'string')",
 		"jsonb_typeof(payload->'entity_keys') = 'string'",
 		"LIKE 'workload:%'",
 		"BTRIM(payload->>'workload_id')",
