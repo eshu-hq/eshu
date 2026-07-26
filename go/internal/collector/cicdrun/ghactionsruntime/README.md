@@ -64,6 +64,12 @@ See `doc.go` for the godoc contract. Callers use:
   bounded window of GitHub Actions runtime data (`Client.FetchRuns` returns one
   `RunPage`, which carries one `RunSnapshot` per fetched run plus a `Truncated`
   signal for whether more runs exist beyond the window).
+- `DeploymentFetcher`, `GitHubClient.FetchDeployments`, `DeploymentSnapshot`,
+  and `DeploymentPage` (#5425 STEP 3) to fetch or provide a bounded window of
+  GitHub Deployments API state, mirroring `Client`/`RunPage` above.
+  `DeploymentFetcher` is an OPTIONAL capability a `Client` implementation may
+  satisfy (type-asserted in `appendDeploymentEnvelopes`), not a required
+  method on `Client` itself.
 - `ErrRateLimited` to preserve provider throttling classification.
 - `RateLimitError` to carry bounded GitHub retry guidance from `Retry-After` or
   `X-RateLimit-Reset` into shared claim retry pacing.
@@ -152,6 +158,26 @@ labels.
   `Store` (`postgres.CICDRunWatermarkStore`) so gap detection survives
   process restarts and works across collector replicas; see
   `go/internal/storage/postgres/cicd_run_watermark.go`.
+- `max_deployments` bounds the GitHub Deployments API window (#5425 STEP 3),
+  mirroring `max_runs`: an omitted or zero value resolves to
+  `defaultMaxDeployments` (10); the hard cap stays 100
+  (`maxDeploymentPages`). GitHub's deployments-list and deployment-statuses
+  endpoints return a bare JSON array with no `total_count`, so truncation is
+  always the full-page heuristic (fetched length == the bound) rather than
+  an exact provider-reported total; a full page emits a `ci.warning` fact
+  with `reason: "deployments_truncated"` and records
+  `eshu_dp_ci_cd_run_partial_generations_total{reason="deployments_truncated"}`.
+- `ci.deployment_event` facts are appended into the SAME claim cycle's
+  `CollectedGeneration` as its `ci.run` facts, never a separate one --
+  `appendDeploymentEnvelopes` runs before `NextClaimed` builds
+  `collector.FactsFromSlice`. A deployment whose `sha` matches none of the
+  claim's fetched run head shas still emits its fact, plus a
+  `deployment_unanchored` `ci.warning` (`unanchoredDeploymentWarnings`) so
+  the gap stays visible instead of the fact quietly going nowhere once the
+  reducer's sha-based attach finds no match.
+- `DeploymentFetcher` is optional: a `Client` that does not implement it
+  (most of this package's run-collection test doubles) simply skips
+  deployment collection with no error.
 
 ## Related docs
 
@@ -239,6 +265,56 @@ Observability Evidence: the hosted command wires the source with
 `telemetry.NewInstruments` and the shared status server. Central collector
 status evidence also admits active `ci_cd_run` facts through the bounded
 Postgres status query.
+
+### GitHub Deployments API polling (#5425 STEP 3)
+
+Collector Performance Evidence: each claim adds at most `1 + max_deployments`
+bounded GitHub API requests (one deployments-list request, plus up to
+`max_deployments` deployment-statuses requests, one per fetched deployment)
+-- the same bounded per-target request-budget contract `max_jobs`/
+`max_artifacts` already establish for the run window. `max_deployments`
+defaults to 10, so the default worst case is 11 additional bounded requests
+per repo per claim cycle; the hard cap of 100 bounds the worst case an
+explicitly widened target can reach to 101. `go test
+./internal/collector/cicdrun/ghactionsruntime -run
+TestGitHubClientFetchDeployments -count=1 -v` proves the exact bounded
+`per_page` query sent and the exact per-deployment statuses path issued
+(`TestGitHubClientFetchDeploymentsSendsPerPageBoundAndParsesArray`,
+`TestGitHubClientFetchDeploymentsFetchesStatusesPerDeploymentAndParsesState`).
+
+Collector Observability Evidence: the deployment fetch inside
+`appendDeploymentEnvelopes` records through the SAME shared instruments the
+run fetch in `NextClaimed` already uses --
+`eshu_dp_ci_cd_run_provider_requests_total`,
+`eshu_dp_ci_cd_run_fetch_duration_seconds`, and
+`eshu_dp_ci_cd_run_rate_limited_total` via `recordFetch`/`recordRateLimit`,
+labeled under the same `provider=github_actions` dimension (more requests
+against the same provider account, not a new signal surface). Every emitted
+`ci.deployment_event` and deployment-scoped `ci.warning` fact is counted by
+the existing generic `eshu_dp_ci_cd_run_facts_emitted_total{fact_kind=...}`
+counter via `recordFacts`. `recordPartialGeneration` gained one new
+`deployments_truncated` reason value on the existing
+`eshu_dp_ci_cd_run_partial_generations_total` counter -- no new metric
+instrument name. `go test ./internal/collector/cicdrun/ghactionsruntime -run
+'TestClaimedSourceEmitsDeploymentEventsInSameGenerationAsRunFacts|TestClaimedSourceEmitsUnanchoredDeploymentWarning'
+-count=1 -v` proves same-generation emission and the unanchored-deployment
+warning path end to end.
+
+Collector Deployment Evidence: no new Deployment, ServiceMonitor, port, or
+container image. `ci.deployment_event` collection runs inside the SAME
+`eshu-collector-cicd-run` Deployment and `ClaimedSource` that already polls
+`ci.run` (see `TestHelmCICDRunCollectorDeployment` above); there is no
+separate deployment-polling workload to render or deploy.
+
+No-Regression Evidence: `go test
+./internal/collector/cicdrun/ghactionsruntime -run
+'TestGitHubClientFetchDeployments|TestClaimedSourceEmitsDeploymentEvents|TestClaimedSourceEmitsUnanchoredDeploymentWarning|TestNewClaimedSourceRejectsUnboundedTargets'
+-count=1 -v` proves the bounded deployments-list and per-deployment-statuses
+fetch shape, the full-page truncation heuristic, rate-limit classification
+reuse, non-200 handling without token leakage, `max_deployments` bounds
+validation, same-generation emission alongside `ci.run` facts, and the
+`deployment_unanchored` warning path -- with zero graph writes or queue
+work.
 
 Performance Evidence (#5429 cross-cycle watermark gap detection):
 `go test ./internal/collector/cicdrun/ghactionsruntime -bench

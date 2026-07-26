@@ -62,6 +62,17 @@ deployment truth.
   project root at `/-/pipelines/<id>`) or the fixture's `gitlab-ci://` scope
   ID as a fallback, through the same `repositoryidentity.CanonicalRepositoryID`
   join contract GitHub Actions and the git collector use.
+- `GitHubActionsDeploymentEnvelopes` — parses one fixture-shaped batch of
+  GitHub deployments (each with its bounded window of `deployment_status`
+  events) and returns `ci.deployment_event` facts, one per status row (or
+  one with an empty `status_id` for a deployment with zero fetched
+  statuses). `ghactionsruntime` marshals its bounded `DeploymentPage` into
+  the same shape before calling this normalizer (#5425 STEP 3).
+- `GitHubActionsDeploymentWarningEnvelope` — builds one `ci.warning` fact for
+  a deployment-collection-scoped issue that is not about a specific
+  `ci.run` (the whole deployments list truncated, a deployment missing a
+  required field, or a deployment event whose `sha` matches no fetched
+  run).
 
 ## Invariants
 
@@ -177,3 +188,58 @@ No-Observability-Change: same as the GitHub Actions path above — GitLab CI
 adds no route, graph query shape, queue table, worker, lease, runtime knob,
 metric instrument, or metric label; there is no hosted GitLab client yet, so
 there is no new runtime request/rate-limit/status signal surface to add.
+
+### GitHub Deployments API events (#5425 STEP 3)
+
+`GitHubActionsDeploymentEnvelopes` (`github_actions_deployments.go`) and its
+decode types (`types_deployments.go`) are a normalizer, not a runtime: they
+have no I/O of their own. Hosted deployment polling, the
+`eshu_dp_ci_cd_run_provider_requests_total`/`eshu_dp_ci_cd_run_fetch_duration_seconds`/
+`eshu_dp_ci_cd_run_rate_limited_total` recording for that polling, and the
+new `eshu_dp_ci_cd_run_partial_generations_total{reason="deployments_truncated"}`
+value all live in `ghactionsruntime` (see that package's README for the
+Collector Performance/Observability/Deployment evidence for the live fetch
+path). This package's own contribution is bounded by the number of
+deployments and statuses in one fixture-shaped payload, same as every other
+normalizer here.
+
+Collector Performance Evidence: `deploymentEventEnvelope` does the same
+bounded per-fact work `runEnvelope` already does (one `mergeContractPayload`
++ `factschema.EncodeCICDDeploymentEvent` call, one `facts.StableID` call, no
+loops over unbounded provider data) — no separate benchmark is needed beyond
+`BenchmarkGitHubActionsEnvelopesEndToEnd`'s existing per-fact cost profile,
+since the construction path (`newEnvelope`, `mergeContractPayload`,
+`facts.StableID`) is identical code shared with every other kind in this
+package.
+
+Collector Observability Evidence: every `ci.deployment_event` and
+`ci.warning` fact this normalizer builds is counted by the SAME generic
+`eshu_dp_ci_cd_run_facts_emitted_total{fact_kind=...}` counter (keyed by
+`FactKind`, already generic across every kind this package or
+`gitlab_ci_fixture.go` emits) `ghactionsruntime`'s `recordFacts` records —
+adding a new fact kind to an existing generic-by-kind counter is not a new
+signal surface, matching the `gitlab_ci_fixture.go`/`gitlab_ci_helpers.go`
+rows in `docs/public/observability/telemetry-coverage.md`.
+
+Collector Deployment Evidence: no new Deployment, ServiceMonitor, port, or
+container image surface. `ci.deployment_event` collection reuses the
+existing `ghactionsruntime` GitHub Actions claim-source `Deployment`/
+`ServiceMonitor` already wired for `ci.run` collection (see that package's
+own Collector Deployment Evidence entry); there is no separate deployment
+polling workload to deploy.
+
+No-Regression Evidence: `go test ./internal/collector/cicdrun/ -run
+TestGitHubActionsDeploymentEnvelopes -count=1` covers stable-key identity
+across repeated polls of the same deployment+status, distinct keys per
+status transition on the same deployment, a zero-status deployment emitting
+exactly one envelope with an empty `status_id`, provider-neutral key
+uniqueness across two scopes sharing a numeric deployment id, and parent
+field (`sha`/`ref`/`task`/`environment`/`original_environment`/the two
+boolean flags) denormalization onto every status row, with zero graph writes
+or queue work.
+
+No-Observability-Change: `types_deployments.go` is a pure decode-struct file
+with no I/O of its own, and `github_actions_deployments.go` is a pure
+in-process normalizer -- every fact it builds is counted through the
+existing `eshu_dp_ci_cd_run_facts_emitted_total` counter described above.
+Neither file emits a metric, span, or log of its own.

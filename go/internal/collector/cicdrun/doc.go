@@ -18,4 +18,11 @@
 // API polling, credentials, request budgets, claim resolution, runtime
 // telemetry, and status belong in ghactionsruntime; graph writes and
 // deployment truth stay reducer-owned.
+//
+// GitHubActionsDeploymentEnvelopes (github_actions_deployments.go) is a
+// second, run-independent normalizer in this same package: it turns GitHub
+// Deployments API observations into ci.deployment_event facts (#5425 STEP
+// 3), one per deployment_status event. A deployment carries no run_id, so
+// the reducer attaches it to a run by matching commit sha instead of a join
+// key this package can build at emission time.
 package cicdrun

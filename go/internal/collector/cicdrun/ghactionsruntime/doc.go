@@ -27,4 +27,14 @@
 // watermark on NextClaimed's own success path, independent of whether the
 // commit later succeeded, let a retried claim silently stop re-detecting a
 // gap it had already correctly detected once.
+//
+// Each claim also fetches a bounded window of the target's GitHub
+// Deployments API state (max_deployments, default 10, hard cap 100) when the
+// configured Client implements DeploymentFetcher (#5425 STEP 3;
+// client_deployments.go, source_deployments.go). The resulting
+// ci.deployment_event facts are appended into the SAME CollectedGeneration
+// as the ci.run facts above, not a later cycle: the reducer's correlation
+// intent only forms for a generation containing a ci.run. DeploymentFetcher
+// is optional so the package's many run-collection test doubles do not all
+// need a FetchDeployments method.
 package ghactionsruntime
