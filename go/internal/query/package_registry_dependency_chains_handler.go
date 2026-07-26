@@ -114,17 +114,21 @@ func (h *PackageRegistryHandler) listDependencyChains(w http.ResponseWriter, r *
 	// fetched consumption fact count), never from len(page.Chains): a
 	// malformed or unsupported-version consumption fact dropped mid-page must
 	// not make a truncated page look complete or hide the chains beyond it
-	// (#5816 finding on #5461).
+	// (#5816 finding on #5461). publishers_truncated is a separate,
+	// additional signal about the phase-2 batched publisher leg -- it must
+	// never be folded into truncated, which describes only the phase-1
+	// consumption page.
 	results := make([]PackageDependencyChainResult, 0, len(page.Chains))
 	for _, chain := range page.Chains {
 		results = append(results, packageDependencyChainResult(chain))
 	}
 	body := map[string]any{
-		"chains":        results,
-		"repository_id": repositoryID,
-		"count":         len(results),
-		"limit":         limit,
-		"truncated":     page.Truncated,
+		"chains":               results,
+		"repository_id":        repositoryID,
+		"count":                len(results),
+		"limit":                limit,
+		"truncated":            page.Truncated,
+		"publishers_truncated": page.PublishersTruncated,
 	}
 	if page.Truncated && page.NextCursorCorrelationID != "" {
 		body["next_cursor"] = map[string]string{
@@ -145,10 +149,11 @@ func (h *PackageRegistryHandler) writeEmptyPackageDependencyChainPage(
 	limit int,
 ) {
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"chains":    []PackageDependencyChainResult{},
-		"count":     0,
-		"limit":     limit,
-		"truncated": false,
+		"chains":               []PackageDependencyChainResult{},
+		"count":                0,
+		"limit":                limit,
+		"truncated":            false,
+		"publishers_truncated": false,
 	}, BuildTruthEnvelope(
 		h.profile(),
 		packageRegistryDependencyChainsCapability,

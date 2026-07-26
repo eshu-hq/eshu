@@ -13,12 +13,16 @@ import (
 // reducer_package_consumption_correlation, and reducer_package_publication_correlation.
 // package_registry_correlations.go is the only read site for these three
 // kinds. Each wrapper wraps the matching sdk/go/factschema Decode* seam and,
-// on a classified *factschema.DecodeError (a missing/null required identity
-// field, i.e. package_id), returns a *queryDecodeError (defined in
-// factschema_decode_workitem.go, reused here rather than forked) so the
-// caller drops that fact's contribution instead of fabricating a
+// on ANY classified *factschema.DecodeError, returns a *queryDecodeError
+// (defined in factschema_decode_workitem.go, reused here rather than forked)
+// so the caller drops that fact's contribution instead of fabricating a
 // zero-valued row — matching the #4784 ADR's "missing required fields
-// dead-letter, they never silently zero out" rule.
+// dead-letter, they never silently zero out" rule. The motivating case is a
+// missing/null required identity field (i.e. package_id), but the same
+// *DecodeError classification also covers a plain field-type mismatch on any
+// other named field (sdk/go/factschema/decode_map.go's assignField does a
+// strict per-kind type assertion with no coercion), so this wrapper drops
+// those facts too rather than only identity-field failures.
 //
 // Before this change decodePackageRegistryCorrelationRow read the raw
 // payload map with StringVal/BoolVal/IntVal/StringSliceVal and never

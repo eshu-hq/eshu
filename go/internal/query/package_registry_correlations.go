@@ -230,10 +230,16 @@ func packageRegistryCorrelationFactKinds() []string {
 // decodePackageRegistryCorrelationRow decodes one scanned fact row into a
 // PackageRegistryCorrelationRow through the typed factschema seam matching
 // its fact kind (factschema_decode_package_correlations.go). ok is false and
-// err is nil when the fact's required identity field (package_id) failed
-// decode — a classified *queryDecodeError, logged at debug level — so the
-// caller drops the row rather than emitting an empty-identity row that looks
-// like a real correlation. err is non-nil only for a structurally malformed
+// err is nil when the fact fails ANY classified decode — a *queryDecodeError,
+// logged at debug level — so the caller drops the row rather than emitting a
+// wrong-looking row. The motivating case is the fact's required identity
+// field (package_id) missing or null, but the same drop path also covers any
+// other classified decode failure: sdk/go/factschema/decode_map.go's
+// assignField does a strict type assertion per field kind with no coercion
+// (for example the reflect.String case rejects any non-string raw value with
+// "want string, got %T"), so a plain field-type mismatch on any named field —
+// not only package_id — also yields a classified *factschema.DecodeError and
+// is dropped the same way. err is non-nil only for a structurally malformed
 // payload (invalid JSON) or an unrecognized fact kind, both of which abort
 // the whole list call: packageRegistryCorrelationFactKinds bounds the SQL
 // read to exactly these three kinds, so an unrecognized kind here signals a

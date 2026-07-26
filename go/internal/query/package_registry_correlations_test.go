@@ -18,14 +18,29 @@ type recordingPackageRegistryCorrelationStore struct {
 	lastFilter PackageRegistryCorrelationFilter
 }
 
-// ListPackageRegistryCorrelations mirrors PostgresPackageRegistryCorrelationStore's
-// "+1 lookahead" contract: filter.Limit is the caller's requested VISIBLE row
-// count, so Truncated/NextCursorCorrelationID are derived from comparing the
-// full row set against filter.Limit, never from a pre-decremented count
-// (#5816 finding on #5461). WindowFactCount is set to len(rows) (the
-// post-truncation row count): this fake holds already-decoded rows with no
-// undecodable facts, so the raw fetched count and the decoded row count are
-// truthfully identical here (#5461/#5816 WindowFactCount finding).
+// ListPackageRegistryCorrelations is deliberately a thin handler-plumbing
+// fake: it computes truncated := len(rows) > filter.Limit directly against
+// its pre-decoded rows slice rather than modeling
+// PostgresPackageRegistryCorrelationStore's real "+1 lookahead fetch, then
+// decode only the visible window" contract (buildPackageRegistryCorrelationPage
+// takes a raw fetchLimit and derives Truncated from the RAW fetched fact
+// count, not from a comparison against the already-decoded row slice). That
+// is fine for the handler-wiring tests this fake serves -- request
+// parsing, filter threading, cursor round-tripping, response shape -- but it
+// cannot exercise the decode-drop-inside-the-window failure class (a fact
+// present in the raw fetch that fails typed decode) because it has no raw,
+// undecoded facts to drop. rawFactPackageRegistryCorrelationStore
+// (package_registry_correlations_pagination_test.go) and
+// candidateFactPackageRegistryCorrelationStore
+// (package_registry_scoped_access_windowfactcount_test.go) are the faithful
+// fakes for pagination and authz-gate semantics: both hold raw fact bytes and
+// route them through the real buildPackageRegistryCorrelationPage. Prefer
+// those whenever a test needs to prove Truncated/NextCursorCorrelationID/
+// WindowFactCount behavior rather than just handler plumbing. WindowFactCount
+// is set to len(rows) (the post-truncation row count): this fake holds
+// already-decoded rows with no undecodable facts, so the raw fetched count
+// and the decoded row count are truthfully identical here (#5461/#5816
+// WindowFactCount finding).
 func (s *recordingPackageRegistryCorrelationStore) ListPackageRegistryCorrelations(
 	_ context.Context,
 	filter PackageRegistryCorrelationFilter,

@@ -90,6 +90,19 @@ type PackageDependencyChainPage struct {
 	Chains                  []PackageDependencyChain
 	Truncated               bool
 	NextCursorCorrelationID string
+	// PublishersTruncated reports whether the phase-2 batched
+	// publication/ownership read (loadPackagePublishers) hit its own
+	// packageRegistryMaxLimit cap for the distinct package set this page
+	// consumes. It is a separate signal from Truncated, which describes only
+	// the phase-1 consumption page: a page can be Truncated=false (every
+	// consumption correlation for this request fit) while still carrying
+	// PublishersTruncated=true (one of those packages has more
+	// publisher/ownership facts than the batched read's LIMIT), because the
+	// two reads are bounded independently. Before this field existed,
+	// publisher facts beyond the cap were silently dropped from every
+	// dependency chain with no signal to the caller (#5816 finding on
+	// #5461).
+	PublishersTruncated bool
 }
 
 // ResolvePackageDependencyChains joins admitted consumption correlations
@@ -140,7 +153,7 @@ func ResolvePackageDependencyChains(
 	}
 
 	packageIDs := distinctConsumedPackageIDs(consumptionPage.Rows)
-	publishersByPackage, err := loadPackagePublishers(ctx, store, req, packageIDs)
+	publishersByPackage, publishersTruncated, err := loadPackagePublishers(ctx, store, req, packageIDs)
 	if err != nil {
 		return PackageDependencyChainPage{}, err
 	}
@@ -169,22 +182,29 @@ func ResolvePackageDependencyChains(
 		Chains:                  chains,
 		Truncated:               consumptionPage.Truncated,
 		NextCursorCorrelationID: consumptionPage.NextCursorCorrelationID,
+		PublishersTruncated:     publishersTruncated,
 	}, nil
 }
 
 // loadPackagePublishers performs the single batched publication/ownership read
 // and groups the provenance-only publisher legs by package id, excluding
 // self-references (publisher repo == consumer repo) so a repo never appears to
-// depend on itself through its own published package.
+// depend on itself through its own published package. The second return value
+// is publisherPage.Truncated: true when the distinct package set this request
+// consumes carries more publisher/ownership facts than the batched read's
+// packageRegistryMaxLimit cap, so facts beyond it were dropped from
+// publishersByPackage. Callers MUST propagate it rather than discarding it --
+// silently dropping publishers beyond the cap with no signal was the #5816
+// finding on #5461.
 func loadPackagePublishers(
 	ctx context.Context,
 	store PackageRegistryCorrelationStore,
 	req PackageDependencyChainRequest,
 	packageIDs []string,
-) (map[string][]PackageDependencyChainPublisher, error) {
+) (map[string][]PackageDependencyChainPublisher, bool, error) {
 	publishersByPackage := make(map[string][]PackageDependencyChainPublisher, len(packageIDs))
 	if len(packageIDs) == 0 {
-		return publishersByPackage, nil
+		return publishersByPackage, false, nil
 	}
 	publisherPage, err := store.ListPackageRegistryCorrelations(ctx, PackageRegistryCorrelationFilter{
 		PackageIDs:           packageIDs,
@@ -194,7 +214,7 @@ func loadPackagePublishers(
 		Limit:                packageRegistryMaxLimit,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("resolve package dependency chains (publishers): %w", err)
+		return nil, false, fmt.Errorf("resolve package dependency chains (publishers): %w", err)
 	}
 	for _, row := range publisherPage.Rows {
 		if row.RepositoryID == "" {
@@ -217,7 +237,7 @@ func loadPackagePublishers(
 			CanonicalWrites:  row.CanonicalWrites,
 		})
 	}
-	return publishersByPackage, nil
+	return publishersByPackage, publisherPage.Truncated, nil
 }
 
 // distinctConsumedPackageIDs returns the sorted, de-duplicated set of non-empty

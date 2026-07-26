@@ -882,3 +882,51 @@ or metric instrument/label is added. The existing `pkgreg.correlation_grant`
 and `pkgreg.name_anchor_batch_ambiguous` span attributes are unchanged in
 shape; only the value they are computed from changed from a decode-affected
 count to the raw fetched fact count.
+
+## Dependency-chains publisher-truncation signal (#5816 finding on #5461)
+
+`ResolvePackageDependencyChains` (`package_registry_dependency_chains.go`)
+resolves two independently-bounded reads: a phase-1 consumption page anchored
+on the consumer repository, and a phase-2 batched publication/ownership read
+(`loadPackagePublishers`) keyed by every distinct package the phase-1 page
+consumed, capped at `packageRegistryMaxLimit`. Before this fix,
+`loadPackagePublishers` issued that batched read and only ever consumed its
+`Rows`, discarding the returned `Truncated` flag: a package with more
+publisher/ownership facts than the cap silently lost publishers beyond it from
+every chain, with no signal anywhere in the response.
+
+`loadPackagePublishers` now returns `(map[string][]PackageDependencyChainPublisher,
+bool, error)` -- the bool is `publisherPage.Truncated` from the batched read.
+`ResolvePackageDependencyChains` threads it into
+`PackageDependencyChainPage.PublishersTruncated`, and
+`package_registry_dependency_chains_handler.go`'s `listDependencyChains` puts
+it on the wire as `publishers_truncated`, following this package's established
+per-leg `<leg>_truncated` naming convention (for example
+`code_relationships_nornicdb.go`'s `outgoing_truncated`/`incoming_truncated`
+and `supply_chain_sbom_attachments.go`'s `component_evidence_truncated`)
+rather than overloading the existing top-level `truncated`, which callers
+already read as "phase-1 consumption paging only." The two flags are
+independent by construction: a page can be `Truncated=false` (every
+consumption correlation for the request fit) while `PublishersTruncated=true`
+(one of those packages individually has more publisher facts than the batched
+read's cap), because the two reads are bounded separately. Do not fold them
+into one flag or infer one from the other.
+
+Like the correlation-pagination fix above, a hand-built fake that returns
+already-decoded `PackageRegistryCorrelationPage{Rows: ...}` with a
+manually-set `Truncated` field can prove the propagation wiring but not the
+underlying pagination contract; regression coverage instead uses
+`rawFactPackageRegistryCorrelationStore`
+(`package_registry_correlations_pagination_test.go`) so the publisher page is
+built by the real `buildPackageRegistryCorrelationPage` from raw fact bytes
+(`package_registry_dependency_chains_publishers_truncated_test.go`).
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestPackageRegistryDependencyChainsHandlerReportsPublishers' -v -count=1`
+covers both the over-cap (`publishers_truncated=true`, chain still returns the
+capped publisher set) and under-cap (`publishers_truncated=false`, every
+publisher present) cases.
+
+No-Observability-Change: no route, graph write, queue, worker, runtime knob,
+or metric instrument/label is added; the change is a new additive response
+field derived from an existing bounded Postgres read.
