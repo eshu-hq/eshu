@@ -120,7 +120,9 @@ current turn, stop and ask — do not self-approve and proceed.
   current agent to review, perform the `eshu-code-review` pass directly.
   Self-review must cover the complete diff, touched contracts, tests, generated
   artifacts, docs, private-data leakage, verification evidence, proof tier, and
-  follow-on routing.
+  the disposition of every out-of-scope defect — fixed inline by default, routed
+  to a tracked follow-up only when the fix cannot ride along and the owner
+  agreed.
 - **Commit early and often** per worktree. Agent deaths are usage-limit
   boundaries, not load — committed work survives them. Watch agent liveness;
   revive stalled agents, have them commit in-progress work, resume from last
@@ -196,7 +198,9 @@ current turn, stop and ask — do not self-approve and proceed.
    - severity, confidence, disposition, file:line, violated rule/skill, and fix
      for every finding,
    - generated-artifact, docs, private-data, and verification-evidence scan,
-   - follow-on issue routing for defects outside the PR scope.
+   - disposition for defects outside the PR scope: fixed inline by default (see
+     Step 6), and only routed to a separate issue when the fix cannot ride along
+     AND the owner agreed.
 
    Do not run `make pre-pr` if the verdict contains any finding. Fix every P0,
    P1, and P2, rerun affected focused proof, and repeat the full review until
@@ -235,17 +239,38 @@ current turn, stop and ask — do not self-approve and proceed.
    only appropriate when an explicit blocker exists (operator-only gate,
    outstanding P0/P1 finding, unresolved thread).
 
-## Step 6 — New issues
+## Step 6 — Defects surfaced mid-drive: FIX INLINE, do not file
 
-When work surfaces a separate defect or follow-up, file a GH issue (clear repro,
-acceptance criteria, no private data), work it as part of this goal, and link it
-to the originating issue.
+When work surfaces a separate defect, **fix it in the change at hand**, with its
+own failing-then-green test. Filing a GH issue is the exception, not the default.
+
+This is a deliberate correction. Filing an issue per finding reads as diligence
+but produces backlog sprawl: it converts work that could have been finished into
+tickets nobody picks up, and it fragments one coherent problem across many
+trackers. One drive of epic #5455 filed ten issues that way.
+
+A defect found while fixing something adjacent is usually still in scope —
+especially in the same function, file, or evidence path. Bias hard toward fixing
+it.
+
+File a separate issue ONLY when the fix genuinely cannot ride along:
+
+- it needs a design decision the repo owner must make;
+- it would change unrelated projected truth and needs its own proof; or
+- it blocks on credentials, infrastructure, or repo-admin access.
+
+Even then, **ask the owner first** rather than filing unilaterally. When you do
+file, work it as part of this goal and link it to the originating issue, and add
+it to the epic's follow-ups list at creation time.
 
 ## DONE (proof — paste each turn before claiming done)
 
 - For every leaf issue AND every epic:
   `gh issue view <n> --repo eshu-hq/eshu --json state` shows `CLOSED`.
 - For every follow-up issue filed: closed, or deferred with a written reason.
+  Filing one at all requires the owner's agreement — quote the message granting
+  it. Every other clause here demands a command and its output; an exception
+  that the agent invoking it can self-certify is not a gate.
 - `gh pr list --repo eshu-hq/eshu --state merged --search "<n>"` shows the PRs
   MERGED (`gh pr list` defaults to `--state open`, so omitting the state would
   return nothing once the work has merged).
@@ -262,9 +287,10 @@ to the originating issue.
   re-review proof,
   the selected proof tier, all required passes including hostile read,
   cross-pass contradiction check, generated-artifact/doc/private-data scan,
-  verification evidence, and follow-on routing for any out-of-scope defect. If
-  this was self-review mode, the verdict explicitly says so and lists the
-  inspected evidence.
+  verification evidence, and the disposition of every out-of-scope defect —
+  fixed inline by default, routed to a tracked follow-up only when the fix
+  cannot ride along and the owner agreed. If this was self-review mode, the
+  verdict explicitly says so and lists the inspected evidence.
 - The promotion record names the preliminary review phase, reviewed head, and
   P0/P1/P2 counts; the exact `make pre-pr` command and result; the
   post-preflight head and clean-status result; and the final review phase and

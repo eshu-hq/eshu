@@ -422,21 +422,8 @@ Classify every hostile-read finding with one class:
 
 ## Eshu Failure Classes To Name Explicitly
 
-Every review must state whether the diff could trigger any of these classes and
-where the proof lives:
-
-- false-green tests;
-- unexercised production subjects hidden behind helper tests;
-- golden-corpus or B-12 snapshot drift;
-- stale generated artifacts or stale discovery registries;
-- workflow or local-gate parity gaps;
-- NornicDB planner fallback or version-skewed optimizer assumptions;
-- route, API, MCP, CLI, or OpenAPI mismatch;
-- public report redaction or classifier overreach;
-- materialization, graph projection, or query-surface disagreement;
-- concurrency, lease, retry, idempotency, or ordering bugs;
-- telemetry coverage gaps or missing operator-facing evidence;
-- private-data, secret, or AI-attribution leakage.
+Work the checklist in `references/failure-classes.md`. Every review must state
+whether the diff could trigger each class and cite where the proof lives.
 
 ## Finding Schema, Severity, And Disposition
 
@@ -468,6 +455,14 @@ Disposition must be one of: `fixed`, `not-a-bug-with-evidence`,
 `deferred-to-linked-follow-up`, or `blocked`. No finding may disappear between
 review passes.
 
+`fixed` is the default disposition. `deferred-to-linked-follow-up` is the
+exception and must be justified: a defect found during review is usually still in
+scope, especially in the same function, file, or evidence path. Defer only when
+the fix needs a design decision the owner must make, would change unrelated
+projected truth and needs its own proof, or blocks on credentials/infrastructure —
+and confirm with the owner before opening a new issue. Filing an issue per finding
+produces backlog sprawl rather than progress (see `eshu-issue-driver` Step 6).
+
 ## Hard Blocks
 
 The verdict is `blocked` when any of these are true:
@@ -489,4 +484,4 @@ The verdict is `blocked` when any of these are true:
 Use the template in `references/cold-review-probes.md`. Do not replace it with a short paragraph or a PR-body summary. A review that lacks the full-picture gate, all five passes, cross-pass comparison, probe results, GitHub truth, disposition, verification evidence, and stale-verdict conditions is incomplete.
 
 Ready means `P0=0`, `P1=0`, and `P2=0`, the full-picture gate is complete,
-every applicable adversarial probe has evidence, the selected proof tier is actually run for all in-scope behavior, out-of-scope proof gaps are routed to tracked follow-ups without overstating readiness, and the review was repeated after fixes.
+every applicable adversarial probe has evidence, the selected proof tier is actually run for all in-scope behavior, out-of-scope proof gaps are dispositioned honestly — fixed inline by default, and routed to a tracked follow-up only when the fix cannot ride along and the owner agreed — without overstating readiness, and the review was repeated after fixes.
