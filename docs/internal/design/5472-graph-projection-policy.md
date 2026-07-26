@@ -19,7 +19,7 @@ Domain-by-domain file:line evidence:
   edge. The `ContainerImage`/`OciImageManifest` node exists in the graph; the
   CI-run-produced-an-image relationship does not.
 
-- **container_image_identity** (`go/internal/reducer/container_image_identity_writer.go:117-150`):
+- **container_image_identity** (`go/internal/reducer/container_image_identity_writer.go:117-162`):
   canonical-only writer of image identity facts. `source_repository_ids`,
   `workload_ids`, and `service_ids` are stored but never projected as graph
   edges. The image node stands alone with no link to the repository that built

@@ -43,14 +43,12 @@ func TestClassifyCICDWorkflowImageEvidenceNarrowsMultipleRowsToExact(t *testing.
 			factID:                       "identity-built-here",
 			imageRef:                     imageRef,
 			digest:                       "sha256:aaaa",
-			sourceRepositoryIDs:          []string{repositoryID},
 			buildProvenanceRepositoryIDs: []string{repositoryID},
 		}},
 		"sha256:bbbb": {{
 			factID:                       "identity-built-elsewhere",
 			imageRef:                     imageRef,
 			digest:                       "sha256:bbbb",
-			sourceRepositoryIDs:          []string{"repository:r_other"},
 			buildProvenanceRepositoryIDs: []string{"repository:r_other"},
 		}},
 	}
@@ -93,16 +91,14 @@ func TestClassifyCICDWorkflowImageEvidenceStaysAmbiguousForReferenceOnly(t *test
 			factID:                       "identity-built-elsewhere",
 			imageRef:                     imageRef,
 			digest:                       "sha256:aaaa",
-			sourceRepositoryIDs:          []string{"repository:r_builder"},
 			buildProvenanceRepositoryIDs: []string{"repository:r_builder"},
 		}},
 		"sha256:bbbb": {{
 			factID: "identity-referenced-by-deployer",
 			// The deploying repository appears as a source reference only; its
 			// manifest names the digest, it did not build it.
-			imageRef:            imageRef,
-			digest:              "sha256:bbbb",
-			sourceRepositoryIDs: []string{deployingRepo},
+			imageRef: imageRef,
+			digest:   "sha256:bbbb",
 		}},
 	}
 
@@ -181,16 +177,14 @@ func TestClassifyCICDWorkflowImageEvidenceStaysAmbiguousForLegacyPayloads(t *tes
 
 	imageIndex := map[string][]cicdImageIdentity{
 		"sha256:aaaa": {{
-			factID:              "legacy-identity-built-here",
-			imageRef:            imageRef,
-			digest:              "sha256:aaaa",
-			sourceRepositoryIDs: []string{repositoryID},
+			factID:   "legacy-identity-built-here",
+			imageRef: imageRef,
+			digest:   "sha256:aaaa",
 		}},
 		"sha256:bbbb": {{
-			factID:              "legacy-identity-built-elsewhere",
-			imageRef:            imageRef,
-			digest:              "sha256:bbbb",
-			sourceRepositoryIDs: []string{"repository:r_other"},
+			factID:   "legacy-identity-built-elsewhere",
+			imageRef: imageRef,
+			digest:   "sha256:bbbb",
 		}},
 	}
 

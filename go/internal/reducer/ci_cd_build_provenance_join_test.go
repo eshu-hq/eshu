@@ -11,10 +11,11 @@ import (
 )
 
 // TestContainerImageIdentityPayloadPersistsBuildProvenanceRepositoryIDs is the
-// producer half of #5823. The identity domain already computes the narrow
+// the contract this consumer depends on. The identity domain computes the narrow
 // "genuinely built this image" set -- #5796 gates its own BUILT_FROM projection
-// on it -- but published only the broad source_repository_ids, so every
-// cross-domain consumer was forced onto the reference-conflating join.
+// on it -- and publishes it as build_provenance_repository_ids. The emission
+// itself is main's since #5817; this asserts the shape the CI/CD join reads, so
+// a producer-side change that dropped or renamed the key fails here too.
 func TestContainerImageIdentityPayloadPersistsBuildProvenanceRepositoryIDs(t *testing.T) {
 	t.Parallel()
 

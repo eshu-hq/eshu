@@ -11,9 +11,9 @@ import "testing"
 // canonical git repository id ("repository:r_..."). Narrowing compared those
 // two namespaces directly, so it never matched: the digest match set was never
 // reduced to one row and an otherwise-exact correlation degraded to ambiguous.
-// The git repositories the identity decision attributed the image to live in
-// source_repository_ids, which is the field #5464 established as the joinable
-// one for exactly this reason.
+// The joinable anchor is the identity's own attributed git repositories, which
+// this consumer now reads from build_provenance_repository_ids (#5823); the
+// broad source_repository_ids field is not decoded here at all.
 func TestCICDImageMatchesForRepositoryNarrowsOnGitSourceRepositories(t *testing.T) {
 	t.Parallel()
 
@@ -22,13 +22,11 @@ func TestCICDImageMatchesForRepositoryNarrowsOnGitSourceRepositories(t *testing.
 	matches := []cicdImageIdentity{
 		{
 			factID:                       "identity-built-by-this-repo",
-			sourceRepositoryIDs:          []string{runRepositoryID},
 			buildProvenanceRepositoryIDs: []string{runRepositoryID},
 			digest:                       "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
 		},
 		{
 			factID:                       "identity-from-another-repo",
-			sourceRepositoryIDs:          []string{"repository:r_someone_else"},
 			buildProvenanceRepositoryIDs: []string{"repository:r_someone_else"},
 			digest:                       "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
 		},
@@ -39,7 +37,7 @@ func TestCICDImageMatchesForRepositoryNarrowsOnGitSourceRepositories(t *testing.
 		t.Fatalf("cicdImageMatchesForRepository() = %d matches, want exactly 1 narrowed by git source repository: %#v", len(got), got)
 	}
 	if got[0].factID != "identity-built-by-this-repo" {
-		t.Fatalf("narrowed to %q, want the identity whose source_repository_ids names the run's repository", got[0].factID)
+		t.Fatalf("narrowed to %q, want the identity whose build provenance names the run's repository", got[0].factID)
 	}
 }
 
@@ -64,7 +62,6 @@ func TestCICDImageMatchesForRepositoryIgnoresOCIRegistryPaths(t *testing.T) {
 
 	matches := []cicdImageIdentity{{
 		factID:                       "identity-oci-only",
-		sourceRepositoryIDs:          []string{ociPath},
 		buildProvenanceRepositoryIDs: []string{ociPath},
 		digest:                       digest,
 	}}
@@ -74,9 +71,8 @@ func TestCICDImageMatchesForRepositoryIgnoresOCIRegistryPaths(t *testing.T) {
 	}
 
 	legacy := []cicdImageIdentity{{
-		factID:              "identity-legacy-oci-only",
-		sourceRepositoryIDs: []string{ociPath},
-		digest:              digest,
+		factID: "identity-legacy-oci-only",
+		digest: digest,
 	}}
 
 	if got := cicdImageMatchesForRepository(legacy, runRepositoryID); len(got) != 0 {
@@ -88,8 +84,9 @@ func TestCICDImageMatchesForRepositoryIgnoresOCIRegistryPaths(t *testing.T) {
 // regression, and the inversion of the test that previously pinned this false
 // positive as unavoidable.
 //
-// source_repository_ids conflates "this repository genuinely built the image"
-// with "this repository's Kubernetes manifest merely references the digest" --
+// The published source_repository_ids field conflates "this repository
+// genuinely built the image" with "this repository's Kubernetes manifest merely
+// references the digest" --
 // the same conflation #5796 fixed inside container_image_identity by gating its
 // BUILT_FROM projection on the narrower BuildProvenanceRepositoryIDs. That
 // narrower set is now persisted as build_provenance_repository_ids, so this
@@ -107,7 +104,6 @@ func TestCICDImageMatchesForRepositoryRejectsReferenceOnlyRepository(t *testing.
 	matches := []cicdImageIdentity{
 		{
 			factID:                       "identity-built-by-other-repo",
-			sourceRepositoryIDs:          []string{buildingRepo},
 			buildProvenanceRepositoryIDs: []string{buildingRepo},
 			digest:                       digest,
 		},
@@ -115,9 +111,8 @@ func TestCICDImageMatchesForRepositoryRejectsReferenceOnlyRepository(t *testing.
 			// This row lists the deploying repository only because its manifest
 			// references the digest. It carries the build-provenance key, and
 			// that key does NOT name the deploying repository.
-			factID:              "identity-merely-referenced",
-			sourceRepositoryIDs: []string{deployingRepo},
-			digest:              digest,
+			factID: "identity-merely-referenced",
+			digest: digest,
 		},
 	}
 
@@ -141,13 +136,11 @@ func TestCICDImageMatchesForRepositorySelectsBuildProvenanceRow(t *testing.T) {
 	matches := []cicdImageIdentity{
 		{
 			factID:                       "identity-built-by-this-repo",
-			sourceRepositoryIDs:          []string{buildingRepo, "repository:r_deploys_only"},
 			buildProvenanceRepositoryIDs: []string{buildingRepo},
 			digest:                       digest,
 		},
 		{
 			factID:                       "identity-from-another-repo",
-			sourceRepositoryIDs:          []string{"repository:r_someone_else"},
 			buildProvenanceRepositoryIDs: []string{"repository:r_someone_else"},
 			digest:                       digest,
 		},
@@ -166,6 +159,10 @@ func TestCICDImageMatchesForRepositorySelectsBuildProvenanceRow(t *testing.T) {
 // source_repository_ids join whenever no candidate row declared the
 // build-provenance key, on the theory that treating an absent key as "built
 // nothing" would degrade correlations against scopes that had not republished.
+// A legacy row is expressed here as one carrying no build provenance; the
+// payload-level shape, including the reference-only source_repository_ids it
+// still publishes, is covered by
+// TestCICDNarrowingSelectsTheBuilderFromPublishedFacts.
 // That theory was wrong, and the fallback was an accuracy regression.
 //
 // Before #5766 the predicate compared the identity's OCI repository_id against
@@ -188,14 +185,12 @@ func TestCICDImageMatchesForRepositoryNeverSelectsLegacyRows(t *testing.T) {
 
 	legacy := []cicdImageIdentity{
 		{
-			factID:              "legacy-identity-built-by-this-repo",
-			sourceRepositoryIDs: []string{buildingRepo},
-			digest:              digest,
+			factID: "legacy-identity-built-by-this-repo",
+			digest: digest,
 		},
 		{
-			factID:              "legacy-identity-from-another-repo",
-			sourceRepositoryIDs: []string{"repository:r_someone_else"},
-			digest:              digest,
+			factID: "legacy-identity-from-another-repo",
+			digest: digest,
 		},
 	}
 
@@ -212,14 +207,12 @@ func TestCICDImageMatchesForRepositoryNeverSelectsLegacyRows(t *testing.T) {
 	// repository to exact.
 	referenceOnly := []cicdImageIdentity{
 		{
-			factID:              "legacy-identity-built-elsewhere",
-			sourceRepositoryIDs: []string{buildingRepo},
-			digest:              digest,
+			factID: "legacy-identity-built-elsewhere",
+			digest: digest,
 		},
 		{
-			factID:              "legacy-identity-merely-referenced",
-			sourceRepositoryIDs: []string{deployingRepo},
-			digest:              digest,
+			factID: "legacy-identity-merely-referenced",
+			digest: digest,
 		},
 	}
 
@@ -246,14 +239,12 @@ func TestCICDImageMatchesForRepositoryIgnoresLegacyRowsBesideCurrentOnes(t *test
 	matches := []cicdImageIdentity{
 		{
 			factID:                       "current-identity-built-here",
-			sourceRepositoryIDs:          []string{buildingRepo},
 			buildProvenanceRepositoryIDs: []string{buildingRepo},
 			digest:                       digest,
 		},
 		{
-			factID:              "legacy-identity-referenced-by-deployer",
-			sourceRepositoryIDs: []string{deployingRepo},
-			digest:              digest,
+			factID: "legacy-identity-referenced-by-deployer",
+			digest: digest,
 		},
 	}
 
@@ -288,7 +279,6 @@ func TestCICDImageMatchesForRepositoryDoesNotGuardSingleRowDigests(t *testing.T)
 
 	matches := []cicdImageIdentity{{
 		factID:                       "sole-identity-built-elsewhere",
-		sourceRepositoryIDs:          []string{deployingRepo},
 		buildProvenanceRepositoryIDs: []string{"repository:r_actually_built"},
 		digest:                       digest,
 	}}

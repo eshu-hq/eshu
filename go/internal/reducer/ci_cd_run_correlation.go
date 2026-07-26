@@ -367,7 +367,7 @@ func cicdImageMatchesForRepository(matches []cicdImageIdentity, repositoryID str
 	out := make([]cicdImageIdentity, 0, len(matches))
 	for _, match := range matches {
 		for _, candidate := range match.buildProvenanceRepositoryIDs {
-			if strings.TrimSpace(candidate) == repositoryID {
+			if candidate == repositoryID {
 				out = append(out, match)
 				break
 			}

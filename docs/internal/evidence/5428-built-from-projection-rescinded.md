@@ -76,13 +76,18 @@ never built the image to `exact`. That is the same conflation #5796 fixed
 *inside* the identity domain by gating its own `BUILT_FROM` projection on the
 narrower `BuildProvenanceRepositoryIDs`.
 
-That narrow set existed only in memory. `containerImageIdentityPayload` published
-`source_repository_ids` and not the build-provenance set, so every cross-domain
-consumer was structurally forced onto the conflating join. This branch persists
-`build_provenance_repository_ids` and narrows on it.
+That narrow set was, when this work started, in-memory only:
+`containerImageIdentityPayload` published `source_repository_ids` and not the
+build-provenance set, so every cross-domain consumer was forced onto the
+conflating join. This branch originally persisted the key itself. While it was in
+review, #5817 landed the identical field on `main` for the supply-chain-impact
+anchor (#5801), so the producer half is now main's and this branch carries only
+the consumer half: decode `build_provenance_repository_ids` on the identity fact
+and narrow on it.
 
-Persisting it is an additive reducer-publication field, not a governed contract
-change. Some `reducer_*` kinds ARE governed — the `reducer_derived` family
+The key itself is an additive reducer-publication field, not a governed contract
+change (this mattered when the branch still carried the producer hunk, and it is
+why #5817 could land the same field independently). Some `reducer_*` kinds ARE governed — the `reducer_derived` family
 (`specs/fact-kind-registry.v1.yaml:137-148`) registers seven of them with
 `payload_schema_overrides` schemas — so the general rule "reducer kinds are
 ungoverned" is false and is not the argument here. The specific kind is:
@@ -150,7 +155,7 @@ makes more scopes emit the same `(digest, repository)` pair — and
 `recordCIRunDigestAnchor` exists precisely to handle "a competing decision raised
 by a deploy repo's content_entity for the same image". Since
 `projectContainerImageBuiltFromEdges` retracts per
-`(scope_id, generation_id, evidence_source)` while the writer's `MERGE` matches
+`(scope_id, evidence_source)` while the writer's `MERGE` matches
 on `(start, end, type)` alone, two scopes emitting the same pair means one
 scope's retract deletes an edge the other still supports. That is #5827,
 amplified inside the one domain that survived this branch — the B-12 snapshot already records
