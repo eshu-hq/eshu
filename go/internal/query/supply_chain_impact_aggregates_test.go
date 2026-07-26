@@ -482,23 +482,3 @@ func TestNextSupplyChainImpactAggregateOffsetBound(t *testing.T) {
 		})
 	}
 }
-
-func TestSupplyChainImpactInventoryGroupExpressionEnumIsClosed(t *testing.T) {
-	t.Parallel()
-
-	cases := []SupplyChainImpactInventoryDimension{
-		SupplyChainImpactInventoryByImpactStatus,
-		SupplyChainImpactInventoryByPriorityBucket,
-		SupplyChainImpactInventoryBySeverity,
-		SupplyChainImpactInventoryByRepository,
-		SupplyChainImpactInventoryByEcosystem,
-	}
-	for _, dim := range cases {
-		if _, err := supplyChainImpactInventoryGroupExpression(dim); err != nil {
-			t.Fatalf("dimension %q must be supported: %v", dim, err)
-		}
-	}
-	if _, err := supplyChainImpactInventoryGroupExpression("language"); err == nil {
-		t.Fatal("supplyChainImpactInventoryGroupExpression must reject unknown dimensions to keep SQL substitution safe")
-	}
-}

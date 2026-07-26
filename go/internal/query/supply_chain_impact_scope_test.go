@@ -392,7 +392,7 @@ func TestSupplyChainImpactSQLAppliesScopedAuthorizationBeforeOrderingAndGrouping
 		{
 			name:       "list",
 			query:      listSupplyChainImpactFindingsQuery,
-			beforeText: "ORDER BY",
+			beforeText: "ranked_facts AS",
 			repoParam:  "fact.payload->>'repository_id' = ANY($22::text[])",
 			scopeParam: "fact.scope_id = ANY($23::text[])",
 		},

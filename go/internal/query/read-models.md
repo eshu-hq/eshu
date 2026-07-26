@@ -281,8 +281,18 @@ that replaces the page-and-iterate caller workflow for ecosystem-level totals
 questions exposed by `list_supply_chain_impact_findings`. It re-uses the
 existing partial indexes on `fact_records` for
 `reducer_supply_chain_impact_finding` (status, priority bucket, CVE,
-package + repository + subject digest); no new schema or graph migration is
-needed.
+package + repository + subject digest).
+
+Workload, service, and environment filters accept either the finding's baked
+reducer arrays or a current active repository mapping resolved at read time.
+The shared SQL CTE narrows runtime facts by the requested dimension before it
+decodes repository anchors: `reducer_workload_identity` and accepted
+`reducer_service_catalog_correlation` facts supply workload/service mappings,
+and accepted `reducer_ci_cd_run_correlation` facts supply environments.
+Tombstoned, stale-generation, ambiguous, rejected, unresolved, and
+provenance-only correlations do not match. Two partial workload-identity
+indexes cover scalar `workload_id` and `entity_keys` membership so the read
+does not probe every active ingestion scope.
 
 No-Regression Evidence: `go test ./internal/query -run
 'TestSupplyChainImpactAggregate|TestSupplyChainImpactInventoryGroupExpression|TestSupplyChainImpactAggregateRoutesResolveRepositorySelectors'
@@ -298,6 +308,13 @@ Observability Evidence: the aggregate routes add the
 attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
 histogram and add no new graph query, queue, reducer lane, worker, or metric
 instrument.
+
+Performance Evidence: on 100,000 synthetic workload-identity rows, the
+dimension lookup returned the same single repository before and after indexing;
+`EXPLAIN (ANALYZE, BUFFERS)` improved from a 9.293 ms sequential scan that
+discarded 99,999 rows to a 0.023 ms bitmap lookup. The exact live
+golden-corpus 200-candidate repository join, including related-scope decoding,
+executed in 0.237 ms.
 
 No-Regression Evidence: `go test ./internal/query -run 'TestSupplyChainImpactCanonicalFindingKeySupportsRollingUpgrades|TestSupplyChainImpactFindingQueryUsesCanonicalFindingRows|TestSupplyChainImpactAggregateQueriesCountCanonicalFindings|TestSupplyChainExplainImpactQueryKeepsRollingUpgradeFindingIDStable|TestSupplyChainExplainImpactQueryUsesCanonicalFindingRows|TestSupplyChainImpactAggregatePriorityQueryQualifiesPayload' -count=1` proves list, count, inventory, and explain reads collapse active reducer rows to canonical logical findings before paging, grouping, or ambiguity checks. The canonical partition key is always derived from stable payload identity fields so legacy rows without reducer `finding_id` and newer rows with reducer `finding_id` collapse together during rolling upgrades. Public read IDs prefer reducer `finding_id` when present and fall back to the same stable payload key for older rows, so source-scope and generation-specific fact IDs do not inflate user-facing vulnerability counts or cursors.
 

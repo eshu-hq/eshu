@@ -929,18 +929,25 @@ facts and package-registry facts without owned repository, image,
 package-manifest, lockfile, or SBOM evidence remain source intelligence and do
 not appear as impact findings.
 
-Runtime context is evidence-only. Findings may include `repository_id`,
-`subject_digest`, `image_ref`, `workload_ids[]`, `service_ids[]`,
-`environments[]`, `catalog_entity_refs[]`, and `catalog_owner_refs[]` only when
-reducer-owned package/SBOM/image evidence joins to explicit deployment or
-service-catalog facts. Ambiguous images, stale deployment evidence, missing
-workload links, or missing service/environment links stay in
-`missing_evidence[]` instead of being inferred from repository, tag, workload,
-or service names. Exact repository-scoped service-catalog correlation evidence
-is still attached to the finding path and can preserve catalog entity and owner
-anchors. When that correlation lacks explicit `service_id` or `workload_id`
-anchors, the row reports `service/workload catalog anchor missing` instead of
-saying service-catalog correlation evidence is absent.
+Runtime context is evidence-only. Findings preserve reducer-owned
+`repository_id`, `subject_digest`, `image_ref`, `workload_ids[]`,
+`service_ids[]`, `environments[]`, `catalog_entity_refs[]`, and
+`catalog_owner_refs[]` when package/SBOM/image evidence joins to explicit
+deployment or service-catalog facts. The findings list also returns a labeled
+`runtime_context` block resolved from the repository's current active workload,
+service-catalog, platform, and CI/CD facts at read time. The `workload_id`,
+`service_id`, and `environment` filters use those same current repository
+mappings, while retaining baked reducer values for compatibility across rolling
+upgrades. They do not infer aliases from repository, tag, workload, service, or
+environment names.
+
+Ambiguous images, stale deployment evidence, missing workload links, or missing
+service/environment links stay in `missing_evidence[]`. Exact
+repository-scoped service-catalog correlation evidence remains attached to the
+finding path and can preserve catalog entity and owner anchors. When that
+correlation lacks explicit `service_id` or `workload_id` anchors, the row
+reports `service/workload catalog anchor missing` instead of saying
+service-catalog correlation evidence is absent.
 
 ### Remediation (Safe Upgrade)
 

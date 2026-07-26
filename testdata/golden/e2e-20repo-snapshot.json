@@ -3694,7 +3694,7 @@
         }
       },
       "explain_supply_chain_impact": {
-        "description": "MCP tool coverage shape for explain_supply_chain_impact; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for explain_supply_chain_impact; #5747 scopes the OS-package finding by its current workload mapping rather than an empty baked workload_ids array.",
         "required_response_fields": [
           "advisory",
           "anchors",
@@ -3709,10 +3709,14 @@
           "version"
         ],
         "minimum_results": 0,
+        "required_json_values": {
+          "input.workload_id": "workload:deployable-config",
+          "finding.repository_id": "repository:r_217415d9"
+        },
         "arguments": {
-          "cve_id": "CVE-2026-00000",
-          "package_id": "npm://registry.npmjs.org/supply-chain-demo-lib",
-          "limit": 10
+          "cve_id": "CVE-2026-00010",
+          "package_id": "pkg:deb/debian/openssl",
+          "workload_id": "workload:deployable-config"
         }
       },
       "list_security_alert_reconciliations": {
@@ -3771,7 +3775,7 @@
         }
       },
       "count_supply_chain_impact_findings": {
-        "description": "MCP tool coverage shape for count_supply_chain_impact_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for count_supply_chain_impact_findings; #5747 proves aggregate totals use the same current workload mapping as the findings list. The comprehensive profile is mandatory for this Debian OS-package finding.",
         "required_response_fields": [
           "affected_derived",
           "affected_exact",
@@ -3784,10 +3788,19 @@
           "scope",
           "total_findings"
         ],
-        "minimum_results": 0
+        "required_json_values": {
+          "total_findings": 1,
+          "affected_exact": 1
+        },
+        "minimum_results": 0,
+        "arguments": {
+          "cve_id": "CVE-2026-00010",
+          "workload_id": "workload:deployable-config",
+          "profile": "comprehensive"
+        }
       },
       "get_supply_chain_impact_inventory": {
-        "description": "MCP tool coverage shape for get_supply_chain_impact_inventory; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for get_supply_chain_impact_inventory; #5747 proves inventory grouping applies the current workload mapping before aggregation. The comprehensive profile is mandatory for this Debian OS-package finding.",
         "required_response_fields": [
           "buckets",
           "count",
@@ -3799,7 +3812,23 @@
           "scope",
           "truncated"
         ],
-        "minimum_results": 0
+        "result_item_required_fields": [
+          "dimension",
+          "value",
+          "count"
+        ],
+        "required_json_values": {
+          "buckets[].value": "affected_exact",
+          "buckets[].count": 1
+        },
+        "minimum_results": 1,
+        "arguments": {
+          "group_by": "impact_status",
+          "cve_id": "CVE-2026-00010",
+          "workload_id": "workload:deployable-config",
+          "profile": "comprehensive",
+          "limit": 10
+        }
       },
       "count_security_alert_reconciliations": {
         "description": "MCP tool coverage shape for count_security_alert_reconciliations; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -5514,6 +5543,25 @@
           "count"
         ],
         "minimum_results": 0
+      },
+      "GET /api/v0/supply-chain/impact/findings?limit=10&cve_id=CVE-2026-00010&workload_id=workload%3Adeployable-config&profile=comprehensive": {
+        "description": "#5747 non-vacuous current-runtime filter proof: the Debian OS-package finding has an empty baked workload_ids array, but its repository currently maps to workload:deployable-config through active reducer_workload_identity evidence. The comprehensive profile is mandatory because precise excludes dpkg findings.",
+        "truth_class": "deterministic",
+        "required_response_fields": [
+          "findings",
+          "count"
+        ],
+        "result_item_required_fields": [
+          "cve_id",
+          "repository_id",
+          "runtime_context"
+        ],
+        "required_json_values": {
+          "findings[].cve_id": "CVE-2026-00010",
+          "findings[].repository_id": "repository:r_217415d9",
+          "findings[].runtime_context.workload_ids[]": "workload:deployable-config"
+        },
+        "minimum_results": 1
       },
       "GET /api/v0/supply-chain/impact/findings?limit=50&subject_digest=sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab&profile=comprehensive": {
         "description": "#5452 non-vacuous runtime-observed cloud evidence proof: the scanned vulnerable supply-chain-demo image (subject digest abcdef...ab, CVE-2026-00010) is observed running on the live ECS task (its aws_resource running_image_digest equals the finding's subject digest), so the query-time CloudResource graph probe promotes its impact finding to deployment_truth_tier=runtime_confirmed and names the running task ARN in cloud_runtime_resource_refs -- runtime-observed cloud deployment evidence distinct from CI-declared correlation. The comprehensive profile is required because the finding is comprehensive-tier (the findings list defaults to precise). Reverting the probe (supply_chain_impact_cloud_runtime_probe.go) drops the finding back to provenance_ci_declared/config_only, failing this assertion.",

@@ -31,9 +31,9 @@ type SupplyChainRuntimeContext struct {
 
 // SupplyChainRuntimeContextResult is the response-side envelope attached to
 // one impact finding as `runtime_context` (#5746). TruthBasis labels the
-// resolution path so a caller cannot mistake these IDs for the baked payload
-// fields the workload_id/service_id/environment FILTERS read (issue #5747
-// covers making the filters agree).
+// resolution path so a caller cannot mistake these IDs for baked payload
+// fields. The workload_id/service_id/environment filters resolve the same
+// current repository mappings independently (#5747).
 type SupplyChainRuntimeContextResult struct {
 	// TruthBasis is always "read_time_resolved": the context was resolved
 	// from the repository's active runtime facts at query time, not baked
@@ -73,9 +73,8 @@ type supplyChainImpactRuntimeContextReader interface {
 // has no runtime facts yet (fresh ingest) get an honest empty, labeled
 // context — absence is "current state of knowledge", not an error, and it
 // self-heals on the next read. The probe NEVER writes the resolved IDs into
-// the baked WorkloadIDs/ServiceIDs/Environments fields the filters read:
-// backfilling those would make the response show a workload the
-// ?workload_id= filter still cannot see (that gap is #5747's, explicitly).
+// the baked WorkloadIDs/ServiceIDs/Environments fields; #5747 makes filters
+// consult current active runtime facts directly instead.
 //
 // A reader error is propagated (the caller maps graph sentinels to the
 // bounded retryable envelope and everything else to a plain 500) rather than

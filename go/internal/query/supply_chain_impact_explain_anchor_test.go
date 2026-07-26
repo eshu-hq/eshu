@@ -208,8 +208,10 @@ func TestSupplyChainExplainImpactQueryFiltersWorkloadAndServiceAnchors(t *testin
 	t.Parallel()
 
 	for _, want := range []string{
-		"$8 = '' OR fact.payload->'workload_ids' ? $8",
-		"$9 = '' OR fact.payload->'service_ids' ? $9",
+		"OR fact.payload->'workload_ids' ? $8",
+		"runtime_filter.filter_kind = 'workload'",
+		"OR fact.payload->'service_ids' ? $9",
+		"runtime_filter.filter_kind = 'service'",
 		"$10 = '' OR fact.payload->>'image_ref' = $10",
 	} {
 		if !strings.Contains(explainSupplyChainImpactFindingQuery, want) {

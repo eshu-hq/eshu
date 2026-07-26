@@ -86,7 +86,7 @@ func TestSupplyChainImpactWinnersReadQueryShape(t *testing.T) {
 		// set as the page (not the whole winners table), so an out-of-grant
 		// after_finding_id cannot influence pagination. Pinned to match legacy
 		// canonical_facts cursor semantics.
-		"WITH filtered AS NOT MATERIALIZED (",
+		"filtered AS NOT MATERIALIZED (",
 		"SELECT c.priority_score FROM filtered c WHERE c.finding_id = $17",
 		"ORDER BY",
 		"LIMIT $19",
@@ -95,13 +95,18 @@ func TestSupplyChainImpactWinnersReadQueryShape(t *testing.T) {
 			t.Fatalf("winners read query missing %q", want)
 		}
 	}
+	filteredStart := strings.Index(q, "filtered AS NOT MATERIALIZED (")
+	if filteredStart < 0 {
+		t.Fatal("winners read query missing filtered CTE")
+	}
+	winnersRead := q[filteredStart:]
 	for _, banned := range []string{
 		"ROW_NUMBER()",
 		"PARTITION BY canonical_key",
 		"JOIN ingestion_scopes",
 		"JOIN scope_generations",
 	} {
-		if strings.Contains(q, banned) {
+		if strings.Contains(winnersRead, banned) {
 			t.Fatalf("winners read query must not contain %q (defeats O(page) / re-dedups)", banned)
 		}
 	}

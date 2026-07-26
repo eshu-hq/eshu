@@ -153,8 +153,9 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 	// #5746: resolve each finding's runtime context (workloads, services,
 	// deployments, environments, catalog refs) from its repository_id at READ
 	// time and attach it as a labeled `runtime_context` block — never by
-	// backfilling the baked workload_ids/service_ids/environments fields the
-	// filters read. The probe fails loud on error: graph sentinels map to the
+	// backfilling the baked workload_ids/service_ids/environments fields.
+	// Filters resolve the same current mappings independently in SQL (#5747).
+	// The probe fails loud on error: graph sentinels map to the
 	// bounded retryable envelope (503/504) via WriteGraphReadError, while
 	// Postgres store errors fall to a plain 500 — serving an empty context
 	// after a failed read would be indistinguishable from "nothing runs this"

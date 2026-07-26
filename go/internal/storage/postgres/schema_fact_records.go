@@ -307,6 +307,19 @@ CREATE INDEX IF NOT EXISTS fact_records_supply_chain_impact_active_scan_idx
     WHERE fact_kind = 'reducer_supply_chain_impact_finding'
       AND is_tombstone = FALSE;
 
+-- #5747: workload filters resolve current repository context from active
+-- workload-identity facts. These dimension-first indexes prevent a filter from
+-- probing every active scope before it can identify the matching repository.
+CREATE INDEX IF NOT EXISTS fact_records_workload_identity_workload_idx
+    ON fact_records ((payload->>'workload_id'), fact_id ASC, generation_id)
+    WHERE fact_kind = 'reducer_workload_identity'
+      AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_workload_identity_entity_keys_idx
+    ON fact_records USING GIN ((payload->'entity_keys'))
+    WHERE fact_kind = 'reducer_workload_identity'
+      AND is_tombstone = FALSE;
+
 CREATE INDEX IF NOT EXISTS fact_records_security_alert_repository_lookup_idx
     ON fact_records (
         (payload->>'repository_id'),

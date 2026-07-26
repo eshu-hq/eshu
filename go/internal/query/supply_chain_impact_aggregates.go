@@ -290,7 +290,7 @@ func (s PostgresSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 	if offset < 0 {
 		offset = 0
 	}
-	q := fmt.Sprintf(supplyChainImpactInventoryQueryTemplate, groupExpr)
+	q := supplyChainImpactInventoryQuery(groupExpr)
 	rows, err := s.DB.QueryContext(
 		ctx,
 		q,
@@ -337,6 +337,19 @@ func (s PostgresSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 		return nil, fmt.Errorf("iterate supply chain impact inventory rows: %w", err)
 	}
 	return out, nil
+}
+
+// supplyChainImpactInventoryQuery inserts one expression selected by the
+// closed SupplyChainImpactInventoryDimension enum. A sentinel replacement is
+// deliberate: fmt.Sprintf over the complete SQL would reinterpret percent
+// literals in runtime repository-scope LIKE patterns.
+func supplyChainImpactInventoryQuery(groupExpr string) string {
+	return strings.Replace(
+		supplyChainImpactInventoryQueryTemplate,
+		supplyChainImpactInventoryGroupExpressionPlaceholder,
+		groupExpr,
+		1,
+	)
 }
 
 // supplyChainImpactInventoryGroupExpression maps the dimension enum to the

@@ -94,8 +94,8 @@ func TestApplySupplyChainRuntimeContextResolvesWorkloadsServicesEnvironments(t *
 		t.Errorf("reader repositories = %v, want [repository:r_217415d9]", store.called)
 	}
 	// The baked filter fields MUST NOT be backfilled from read-time context —
-	// the filters read baked payload fields, and filling them here would make
-	// the response disagree with what ?workload_id= returns (#5747).
+	// #5747 filters current runtime facts independently, so response enrichment
+	// must leave the reducer-owned payload untouched.
 	if len(rows[0].WorkloadIDs) != 0 {
 		t.Errorf("baked WorkloadIDs = %v, want untouched empty (no backfill)", rows[0].WorkloadIDs)
 	}
