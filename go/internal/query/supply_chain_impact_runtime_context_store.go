@@ -179,12 +179,12 @@ func addSupplyChainRuntimeContextFactForRepository(
 	switch kind {
 	case workloadIdentityFactKindQuery:
 		ctx := out[repositoryID]
-		// Mirror the reducer's workload-id extraction exactly
+		// Mirror the reducer's valid workload-id extraction
 		// (supplyChainWorkloadIDsFromPayload): payload workload_id first, then
 		// entity_keys filtered to workload:-prefixed keys — a non-workload
 		// entity key must never become runtime context (or #5747 filter
-		// membership).
-		if workloadID := strings.TrimSpace(StringVal(payload, "workload_id")); workloadID != "" {
+		// membership). Malformed non-string direct IDs fail closed.
+		if workloadID := supplyChainRuntimeContextString(payload, "workload_id"); workloadID != "" {
 			ctx.WorkloadIDs = append(ctx.WorkloadIDs, workloadID)
 		}
 		for _, key := range supplyChainRuntimeContextOrderedStrings(payload, "entity_keys") {
@@ -198,16 +198,16 @@ func addSupplyChainRuntimeContextFactForRepository(
 			return
 		}
 		ctx := out[repositoryID]
-		if serviceID := strings.TrimSpace(StringVal(payload, "service_id")); serviceID != "" {
+		if serviceID := supplyChainRuntimeContextString(payload, "service_id"); serviceID != "" {
 			ctx.ServiceIDs = append(ctx.ServiceIDs, serviceID)
 		}
-		if workloadID := strings.TrimSpace(StringVal(payload, "workload_id")); workloadID != "" {
+		if workloadID := supplyChainRuntimeContextString(payload, "workload_id"); workloadID != "" {
 			ctx.WorkloadIDs = append(ctx.WorkloadIDs, workloadID)
 		}
-		if entityRef := strings.TrimSpace(StringVal(payload, "entity_ref")); entityRef != "" {
+		if entityRef := supplyChainRuntimeContextString(payload, "entity_ref"); entityRef != "" {
 			ctx.CatalogEntityRefs = append(ctx.CatalogEntityRefs, entityRef)
 		}
-		if ownerRef := strings.TrimSpace(StringVal(payload, "owner_ref")); ownerRef != "" {
+		if ownerRef := supplyChainRuntimeContextString(payload, "owner_ref"); ownerRef != "" {
 			ctx.CatalogOwnerRefs = append(ctx.CatalogOwnerRefs, ownerRef)
 		}
 		out[repositoryID] = ctx
@@ -219,7 +219,7 @@ func addSupplyChainRuntimeContextFactForRepository(
 		// entity_keys can carry repo:, platform:, aws:, tfstate:, cloud:, or
 		// raw canonical fact-id strings from replay/fallback intent paths —
 		// those must never surface as deployment anchors.
-		if deploymentID := strings.TrimSpace(StringVal(payload, "deployment_id")); deploymentID != "" {
+		if deploymentID := supplyChainRuntimeContextString(payload, "deployment_id"); deploymentID != "" {
 			ctx.DeploymentIDs = append(ctx.DeploymentIDs, deploymentID)
 		}
 		for _, key := range supplyChainRuntimeContextOrderedStrings(payload, "entity_keys") {
@@ -232,7 +232,7 @@ func addSupplyChainRuntimeContextFactForRepository(
 		if !supplyChainRuntimeContextOutcomeAccepted(payload) {
 			return
 		}
-		if environment := strings.TrimSpace(StringVal(payload, "environment")); environment != "" {
+		if environment := supplyChainRuntimeContextString(payload, "environment"); environment != "" {
 			ctx := out[repositoryID]
 			ctx.Environments = append(ctx.Environments, environment)
 			out[repositoryID] = ctx
@@ -247,6 +247,12 @@ func addSupplyChainRuntimeContextFactForRepository(
 func supplyChainRuntimeContextOutcomeAccepted(payload map[string]any) bool {
 	if supplyChainRuntimeContextBool(payload, "provenance_only") {
 		return false
+	}
+	rawOutcome, exists := payload["outcome"]
+	if exists && rawOutcome != nil {
+		if _, ok := rawOutcome.(string); !ok {
+			return false
+		}
 	}
 	switch strings.TrimSpace(StringVal(payload, "outcome")) {
 	case "", "exact", "derived":
@@ -271,20 +277,21 @@ func supplyChainRuntimeContextBool(payload map[string]any, key string) bool {
 }
 
 // supplyChainRuntimeContextRepositoryID resolves a fact's repository anchor
-// mirroring the reducer's supplyChainWorkloadRepositoryID exactly: a direct
-// payload repository_id or repo_id is accepted verbatim (consumption-derived
-// anchors use non-prefixed forms like github.com/org/repo or repo://acme/api).
-// Otherwise it selects exactly one scope with payload scope_id taking
-// precedence over the envelope scope, decodes that scope when prefixed, scans
-// related_scope_ids for a prefixed repository, then returns the raw selected
-// scope. This first-nonblank and raw-fallback behavior is part of reducer truth.
+// mirroring the reducer's supplyChainWorkloadRepositoryID precedence for valid
+// string anchors. Malformed non-string direct anchors fail closed instead of
+// becoming Go-formatted identities. A direct payload repository_id or repo_id
+// is accepted verbatim (consumption-derived anchors use non-prefixed forms like
+// github.com/org/repo or repo://acme/api). Otherwise it selects exactly one
+// scope with payload scope_id taking precedence over the envelope scope,
+// decodes that scope when prefixed, scans related_scope_ids for a prefixed
+// repository, then returns the raw selected scope.
 func supplyChainRuntimeContextRepositoryID(payload map[string]any, scopeID string) string {
 	for _, key := range []string{"repository_id", "repo_id"} {
-		if value := strings.TrimSpace(StringVal(payload, key)); value != "" {
+		if value := supplyChainRuntimeContextString(payload, key); value != "" {
 			return value
 		}
 	}
-	scoped := strings.TrimSpace(StringVal(payload, "scope_id"))
+	scoped := supplyChainRuntimeContextString(payload, "scope_id")
 	if scoped == "" {
 		scoped = strings.TrimSpace(scopeID)
 	}
@@ -300,6 +307,17 @@ func supplyChainRuntimeContextRepositoryID(payload map[string]any, scopeID strin
 		}
 	}
 	return scoped
+}
+
+// supplyChainRuntimeContextString returns a trimmed JSON string value.
+// Identity-like direct fields reject arrays, objects, numbers, and booleans so
+// Go hydration and Postgres filter membership cannot stringify them differently.
+func supplyChainRuntimeContextString(payload map[string]any, key string) string {
+	value, ok := payload[key].(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(value)
 }
 
 // supplyChainRuntimeContextOrderedStrings mirrors the reducer's

@@ -22,8 +22,18 @@ func supplyChainRuntimeRepositoryDecoderJoin(
 	return fmt.Sprintf(`
 LEFT JOIN LATERAL (
   SELECT COALESCE(
-           NULLIF(BTRIM(%[1]s->>'repository_id'), ''),
-           NULLIF(BTRIM(%[1]s->>'repo_id'), ''),
+           NULLIF(BTRIM(
+             CASE
+               WHEN jsonb_typeof(%[1]s->'repository_id') = 'string'
+                 THEN %[1]s->>'repository_id'
+             END
+           ), ''),
+           NULLIF(BTRIM(
+             CASE
+               WHEN jsonb_typeof(%[1]s->'repo_id') = 'string'
+                 THEN %[1]s->>'repo_id'
+             END
+           ), ''),
            CASE
              WHEN selected_scope.value LIKE 'repository:%%'
                THEN selected_scope.value
@@ -58,7 +68,12 @@ LEFT JOIN LATERAL (
          ) AS repository_id
   FROM (
     SELECT COALESCE(
-             NULLIF(BTRIM(%[1]s->>'scope_id'), ''),
+             NULLIF(BTRIM(
+               CASE
+                 WHEN jsonb_typeof(%[1]s->'scope_id') = 'string'
+                   THEN %[1]s->>'scope_id'
+               END
+             ), ''),
              NULLIF(BTRIM(%[2]s), '')
            ) AS value
   ) AS selected_scope

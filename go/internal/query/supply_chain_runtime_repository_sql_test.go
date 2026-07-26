@@ -33,4 +33,13 @@ func TestSupplyChainRuntimeRepositoryDecoderIsSharedByFilterAndHydration(t *test
 		"runtime_repository.repository_id = ANY($3::text[])") {
 		t.Fatal("runtime-context hydration does not authorize the canonical decoded repository")
 	}
+	for _, want := range []string{
+		"jsonb_typeof(runtime_fact.payload->'repository_id') = 'string'",
+		"jsonb_typeof(runtime_fact.payload->'repo_id') = 'string'",
+		"jsonb_typeof(runtime_fact.payload->'scope_id') = 'string'",
+	} {
+		if !strings.Contains(filterJoin, want) {
+			t.Fatalf("runtime repository decoder missing string-only marker %q:\n%s", want, filterJoin)
+		}
+	}
 }

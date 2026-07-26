@@ -301,6 +301,10 @@ cross-scope correlation oracle. Response-side `runtime_context` hydration
 applies that identical per-fact grant before folding workloads, services,
 deployments, environments, or catalog refs, so a scoped response never
 advertises context that its corresponding filter must reject.
+Direct identity fields are accepted only when their JSON value is a string.
+Objects, arrays, numbers, and booleans fail closed in both SQL membership and
+Go hydration; malformed direct repository and scope anchors fall through to
+the next valid canonical anchor instead of becoming formatted identities.
 
 No-Regression Evidence: `go test ./internal/query -run
 'TestSupplyChainImpactAggregate|TestSupplyChainImpactInventoryGroupExpression|TestSupplyChainImpactAggregateRoutesResolveRepositorySelectors'
@@ -349,20 +353,22 @@ the scope/generation index and took 13.947 ms.
 Materializing each dimension-selected match set before the active-generation
 join made every production query enter through its dimension index. On the
 final reducer-equivalent current-only filter shape, the selective proof
-executed in 209.469 ms for scalar workload, 172.556 ms for workload
-`entity_keys`, 17.085 ms for service, 15.764 ms for environment, 234.796 ms
-for the combined legacy list, 231.556 ms for the combined winners list,
-290.768 ms for the combined aggregate, 0.340 ms for the no-runtime-filter
-aggregate, and 209.326 ms for explain. Workload and service identifiers are
+executed in 237.776 ms for scalar workload, 195.322 ms for workload
+`entity_keys`, 17.982 ms for service, 18.545 ms for environment, 248.811 ms
+for the combined legacy list, 256.124 ms for the combined winners list,
+256.528 ms for the combined aggregate, 0.334 ms for the no-runtime-filter
+aggregate, and 234.246 ms for explain. Workload and service identifiers are
 identity-like selectors, so the shared-dimension worst case uses 100,000 facts
-with the same environment. That exact production shape executed in 132.912 ms
-for the legacy list, 132.257 ms for the winners list, 131.478 ms for aggregate
-count, and 131.447 ms for inventory. Explain does not accept an environment
+with the same environment. That exact production shape executed in 179.915 ms
+for the legacy list, 179.200 ms for the winners list, 180.834 ms for aggregate
+count, and 182.271 ms for inventory. Each environment plan read 100,000 index
+matches and returned or counted one finding, with 426,569–426,582 shared-buffer
+hits and zero shared reads. Explain does not accept an environment
 selector; its selective workload/service proof remains the representative
 supported shape. Every measured query remains below the enforced 500 ms
 execution ceiling while the exact arms retain their dimension indexes.
 Inserting all 300,000 rows while maintaining the runtime indexes took
-6.660 seconds; hydrating 200 candidate repositories took 67.679 ms.
+7.038 seconds; hydrating 200 candidate repositories took 87.039 ms.
 `TestSupplyChainImpactRuntimeFilterPlansLive` runs these exact
 `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` shapes and asserts the selected index
 names as well as a bounded execution ceiling. Each concurrent migration also

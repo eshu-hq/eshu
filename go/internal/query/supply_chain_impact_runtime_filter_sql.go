@@ -13,7 +13,10 @@ runtime_workload_identity_matches AS MATERIALIZED (
     AND fact_kind = 'reducer_workload_identity'
     AND is_tombstone = FALSE
     AND (
-          payload->>'workload_id' = %[2]s
+          (
+            jsonb_typeof(payload->'workload_id') = 'string'
+            AND payload->>'workload_id' = %[2]s
+          )
           OR (
                %[2]s LIKE 'workload:%%'
                AND jsonb_typeof(payload->'entity_keys') IN ('array', 'string')
@@ -29,7 +32,10 @@ runtime_workload_identity_matches AS MATERIALIZED (
     AND fact_kind = 'reducer_workload_identity'
     AND is_tombstone = FALSE
     AND NOT COALESCE(
-          payload->>'workload_id' = %[2]s
+          (
+            jsonb_typeof(payload->'workload_id') = 'string'
+            AND payload->>'workload_id' = %[2]s
+          )
           OR (
                %[2]s LIKE 'workload:%%'
                AND jsonb_typeof(payload->'entity_keys') IN ('array', 'string')
@@ -38,7 +44,10 @@ runtime_workload_identity_matches AS MATERIALIZED (
           FALSE
         )
     AND (
-          BTRIM(payload->>'workload_id') = %[2]s
+          (
+            jsonb_typeof(payload->'workload_id') = 'string'
+            AND BTRIM(payload->>'workload_id') = %[2]s
+          )
           OR (
                %[2]s LIKE 'workload:%%'
                AND EXISTS (
@@ -66,6 +75,7 @@ runtime_workload_catalog_matches AS MATERIALIZED (
     AND is_tombstone = FALSE
     AND BTRIM(COALESCE(payload->>'outcome', '')) IN ('', 'exact', 'derived')
     AND LOWER(BTRIM(COALESCE(payload->>'provenance_only', ''))) <> 'true'
+    AND jsonb_typeof(payload->'workload_id') = 'string'
     AND payload->>'workload_id' = %[2]s
 
   UNION ALL
@@ -77,6 +87,7 @@ runtime_workload_catalog_matches AS MATERIALIZED (
     AND is_tombstone = FALSE
     AND BTRIM(COALESCE(payload->>'outcome', '')) IN ('', 'exact', 'derived')
     AND LOWER(BTRIM(COALESCE(payload->>'provenance_only', ''))) <> 'true'
+    AND jsonb_typeof(payload->'workload_id') = 'string'
     AND payload->>'workload_id' IS DISTINCT FROM %[2]s
     AND BTRIM(payload->>'workload_id') = %[2]s
 ),
@@ -88,6 +99,7 @@ runtime_service_matches AS MATERIALIZED (
     AND is_tombstone = FALSE
     AND BTRIM(COALESCE(payload->>'outcome', '')) IN ('', 'exact', 'derived')
     AND LOWER(BTRIM(COALESCE(payload->>'provenance_only', ''))) <> 'true'
+    AND jsonb_typeof(payload->'service_id') = 'string'
     AND payload->>'service_id' = %[1]s
 
   UNION ALL
@@ -99,6 +111,7 @@ runtime_service_matches AS MATERIALIZED (
     AND is_tombstone = FALSE
     AND BTRIM(COALESCE(payload->>'outcome', '')) IN ('', 'exact', 'derived')
     AND LOWER(BTRIM(COALESCE(payload->>'provenance_only', ''))) <> 'true'
+    AND jsonb_typeof(payload->'service_id') = 'string'
     AND payload->>'service_id' IS DISTINCT FROM %[1]s
     AND BTRIM(payload->>'service_id') = %[1]s
 ),
@@ -110,6 +123,7 @@ runtime_environment_matches AS MATERIALIZED (
     AND is_tombstone = FALSE
     AND BTRIM(COALESCE(payload->>'outcome', '')) IN ('', 'exact', 'derived')
     AND LOWER(BTRIM(COALESCE(payload->>'provenance_only', ''))) <> 'true'
+    AND jsonb_typeof(payload->'environment') = 'string'
     AND payload->>'environment' = %[3]s
 
   UNION ALL
@@ -121,6 +135,7 @@ runtime_environment_matches AS MATERIALIZED (
     AND is_tombstone = FALSE
     AND BTRIM(COALESCE(payload->>'outcome', '')) IN ('', 'exact', 'derived')
     AND LOWER(BTRIM(COALESCE(payload->>'provenance_only', ''))) <> 'true'
+    AND jsonb_typeof(payload->'environment') = 'string'
     AND payload->>'environment' IS DISTINCT FROM %[3]s
     AND BTRIM(payload->>'environment') = %[3]s
 ),
