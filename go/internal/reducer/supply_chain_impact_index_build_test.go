@@ -110,3 +110,126 @@ func TestPreferSupplyChainImageIdentityUnambiguousBeatsAmbiguous(t *testing.T) {
 		t.Fatalf("preferSupplyChainImageIdentity(unambiguous, ambiguous) = %q, want the unambiguous row %q", got.factID, unambiguous.factID)
 	}
 }
+
+// TestPreferSupplyChainImageIdentitySourceConsensusBeatsBuildProvenanceRow is
+// the #5813 golden-corpus regression guard: it reproduces the exact 20-repo
+// corpus shape for digest sha256:abcdef...ab -- ten rows agreeing on the
+// DEPLOYING repository via sourceRepositoryIDs alone, and one row that names
+// BOTH the deploying repository and its own building repository in
+// sourceRepositoryIDs (making sourceRepositoryIDs ambiguous for that row) but
+// resolves unambiguously via buildProvenanceRepositoryIDs.
+//
+// Before #5813's fix, preferSupplyChainImageIdentity's single "unambiguous"
+// boolean treated singleSupplyChainImageSourceRepositoryID's row-level
+// provenance-first result as the ENTIRE preference signal, so the
+// two-repository row (rendered "unambiguous" only via its own build
+// evidence) competed on equal footing with -- and won over -- the ten
+// genuinely-agreeing rows whenever its factID happened to sort smaller. That
+// is wrong: a row resolvable only via its own build provenance must never
+// outrank rows where the broader source-repository set itself already
+// agrees. This test pins the fixed three-tier rule (tier A: source
+// consensus > tier B: build-provenance-only > tier C: unresolved) using the
+// SMALLEST factID on the two-repository row, so a regression back to the old
+// single-boolean preference would make this test fail exactly as the golden
+// corpus did (winner resolves the builder, not the deployer).
+func TestPreferSupplyChainImageIdentitySourceConsensusBeatsBuildProvenanceRow(t *testing.T) {
+	t.Parallel()
+
+	const (
+		digest       = "sha256:abcdef00000000000000000000000000000000000000000000000000000ab"
+		deployRepoID = "repository:r_217415d9"
+		buildRepoID  = "repository:r_69256c06"
+	)
+
+	agreeingRowOne := containerImageIdentityImpactFactWithSourceRepositoryIDs(
+		"identity-5813-agree-1", digest, "oci-registry://registry.example/consensus-app", deployRepoID,
+	)
+	agreeingRowTwo := containerImageIdentityImpactFactWithSourceRepositoryIDs(
+		"identity-5813-agree-2", digest, "oci-registry://registry.example/consensus-app", deployRepoID,
+	)
+	// The one ambiguous-by-source row: names BOTH the builder and the
+	// deployer in sourceRepositoryIDs (so singleSupplyChainRepositoryID
+	// alone returns "" for it), but buildProvenanceRepositoryIDs carries
+	// only the builder, unambiguously. Its factID ("identity-5813-0-build")
+	// is DELIBERATELY the lexicographically smallest of all three rows, so
+	// a passing test proves the tier rule -- not the tie-break -- decided
+	// the winner.
+	ambiguousSourceButBuildResolvable := containerImageIdentityImpactFactWithBuildProvenance(
+		"identity-5813-0-build", digest, "oci-registry://registry.example/consensus-app",
+		buildRepoID, buildRepoID, deployRepoID,
+	)
+
+	envelopes := []facts.Envelope{agreeingRowOne, ambiguousSourceButBuildResolvable, agreeingRowTwo}
+
+	index, quarantined, err := buildSupplyChainImpactIndexWithQuarantine(envelopes)
+	if err != nil {
+		t.Fatalf("buildSupplyChainImpactIndexWithQuarantine() error = %v", err)
+	}
+	if len(quarantined) != 0 {
+		t.Fatalf("quarantined = %#v, want none", quarantined)
+	}
+
+	winner := index.images[digest]
+	if got := singleSupplyChainImageSourceRepositoryID(winner); got != deployRepoID {
+		t.Fatalf(
+			"winner repository = %q, want the deploying repository %q: the row resolvable only via its own build provenance (factID %q, the smallest) must not outrank rows that already agree by source_repository_ids",
+			got, deployRepoID, ambiguousSourceButBuildResolvable.FactID,
+		)
+	}
+}
+
+// TestPreferSupplyChainImageIdentityBuildProvenanceBeatsFullyUnresolved is the
+// #5813 tier-B-over-tier-C guard: when every row for a digest is ambiguous or
+// empty by sourceRepositoryIDs alone, a row that still resolves via its own
+// buildProvenanceRepositoryIDs must win over a row that resolves via
+// neither, EVEN when that build-provenance row has a LARGER factID (so the
+// plain lexicographic tie-break, applied without the tier check, would have
+// picked the wholly-unresolvable row instead and blanked the anchor).
+func TestPreferSupplyChainImageIdentityBuildProvenanceBeatsFullyUnresolved(t *testing.T) {
+	t.Parallel()
+
+	const (
+		digest      = "sha256:5813tierbc0000000000000000000000000000000000000000000000000000"
+		buildRepoID = "repository:r_tier_b_builder"
+		otherRepoID = "repository:r_tier_c_other"
+	)
+
+	// Tier B: ambiguous by sourceRepositoryIDs (names two repositories), but
+	// buildProvenanceRepositoryIDs resolves to exactly one. Larger factID
+	// than the tier C row below.
+	tierBRow := containerImageIdentityImpactFactWithBuildProvenance(
+		"identity-5813-z-tier-b", digest, "oci-registry://registry.example/tier-bc-app",
+		buildRepoID, buildRepoID, otherRepoID,
+	)
+	// Tier C: ambiguous by sourceRepositoryIDs and carries no build
+	// provenance at all -- wholly unresolvable. Smaller factID than tierBRow,
+	// so an unqualified lexicographic tie-break would wrongly pick this row.
+	tierCRow := containerImageIdentityImpactFactWithSourceRepositoryIDs(
+		"identity-5813-a-tier-c", digest, "oci-registry://registry.example/tier-bc-app",
+		buildRepoID, otherRepoID,
+	)
+
+	winner := preferSupplyChainImageIdentity(
+		supplyChainImageIdentityFromEnvelope(tierCRow), supplyChainImageIdentityFromEnvelope(tierBRow),
+	)
+	if got := singleSupplyChainImageSourceRepositoryID(winner); got != buildRepoID {
+		t.Fatalf(
+			"preferSupplyChainImageIdentity winner repository = %q, want the build-provenance-resolvable repository %q: tier B must beat tier C even when tier C's factID sorts smaller",
+			got, buildRepoID,
+		)
+	}
+
+	index, quarantined, err := buildSupplyChainImpactIndexWithQuarantine([]facts.Envelope{tierCRow, tierBRow})
+	if err != nil {
+		t.Fatalf("buildSupplyChainImpactIndexWithQuarantine() error = %v", err)
+	}
+	if len(quarantined) != 0 {
+		t.Fatalf("quarantined = %#v, want none", quarantined)
+	}
+	if got := singleSupplyChainImageSourceRepositoryID(index.images[digest]); got != buildRepoID {
+		t.Fatalf(
+			"index.images[digest] repository = %q, want the build-provenance-resolvable repository %q: an all-ambiguous digest must not blank the anchor when one row's own build provenance can resolve it",
+			got, buildRepoID,
+		)
+	}
+}

@@ -210,17 +210,22 @@ func addSupplyChainImpactIndexEntry(index *supplyChainImpactIndex, envelope fact
 // iteration order -- an accident, not a proof -- so a defined tie-break is
 // REQUIRED here, unlike the scannerAnalyses case.
 //
-// Preference: a row whose singleSupplyChainImageSourceRepositoryID is
-// non-empty (an unambiguous git source repository) always beats a row that is
-// ambiguous or names none. Between two equally-(un)ambiguous rows, the
+// Preference: supplyChainImageIdentityAnchorTier ranks each row into tier A
+// (source-repository consensus), tier B (resolvable only via this row's own
+// build provenance), or tier C (unresolvable), and a lower tier always beats
+// a higher one -- see that function's doc for why tier A must never lose to
+// tier B (#5813: the row-level provenance-first ranking
+// singleSupplyChainImageSourceRepositoryID applies to ONE row must not also
+// let that row win the CROSS-ROW vote merely for having build evidence, when
+// other rows agree by source alone). Between two rows in the SAME tier, the
 // lexicographically smaller factID wins -- an arbitrary but STABLE choice, so
 // the same winner is reached regardless of which order the envelopes arrive
 // in, including across repeated runs and reprocessing.
 func preferSupplyChainImageIdentity(existing, candidate supplyChainImageIdentity) supplyChainImageIdentity {
-	existingUnambiguous := singleSupplyChainImageSourceRepositoryID(existing) != ""
-	candidateUnambiguous := singleSupplyChainImageSourceRepositoryID(candidate) != ""
-	if existingUnambiguous != candidateUnambiguous {
-		if candidateUnambiguous {
+	existingTier := supplyChainImageIdentityAnchorTier(existing)
+	candidateTier := supplyChainImageIdentityAnchorTier(candidate)
+	if existingTier != candidateTier {
+		if candidateTier < existingTier {
 			return candidate
 		}
 		return existing
@@ -229,6 +234,54 @@ func preferSupplyChainImageIdentity(existing, candidate supplyChainImageIdentity
 		return candidate
 	}
 	return existing
+}
+
+// supplyChainImageIdentityAnchorTier ranks how confidently a single
+// reducer_container_image_identity row anchors a repository, for
+// preferSupplyChainImageIdentity's cross-row winner selection (#5813, a
+// follow-up to #5801's row-level provenance-first ranking in
+// singleSupplyChainImageSourceRepositoryID). Three tiers, checked in this
+// strict order:
+//
+//   - Tier A (0): singleSupplyChainRepositoryID(row.sourceRepositoryIDs)
+//     alone is non-empty -- the row's full, broader source-repository set
+//     already names exactly one repository. This is cross-evidence
+//     consensus: every writer that contributed to sourceRepositoryIDs for
+//     this row (scope/deploy reference, CI run, source label, ...) agrees on
+//     the same repository.
+//   - Tier B (1): sourceRepositoryIDs alone is ambiguous or empty, but
+//     singleSupplyChainImageSourceRepositoryID(row) still resolves because
+//     buildProvenanceRepositoryIDs names exactly one repository. This
+//     recovers a row whose broader sourceRepositoryIDs disagrees (its own
+//     build repository plus an unrelated deploy/scope reference) via that
+//     row's stronger internal evidence, but it is NOT the same strength as
+//     tier A: tier A is multiple pieces of evidence already agreeing, tier B
+//     is one row breaking its own internal tie.
+//   - Tier C (2): neither resolves -- this row cannot anchor anything.
+//
+// Tier A must never be displaced by tier B. #5813's golden-corpus regression
+// was exactly that failure mode: persisting buildProvenanceRepositoryIDs and
+// preferring it row-locally promoted a row that is ambiguous by
+// sourceRepositoryIDs (naming both the true deploying repository and its own
+// building repository) into the same "unambiguous" class as rows that
+// genuinely agree, where it could then beat ten agreeing rows purely because
+// its factID happened to sort smaller. Tier B must still beat tier C,
+// though, so an all-ambiguous digest whose one build-provenance-bearing row
+// has a larger factID than an otherwise-unresolvable row does not blank the
+// anchor entirely.
+func supplyChainImageIdentityAnchorTier(row supplyChainImageIdentity) int {
+	const (
+		supplyChainImageIdentityAnchorTierSourceConsensus = 0
+		supplyChainImageIdentityAnchorTierBuildProvenance = 1
+		supplyChainImageIdentityAnchorTierUnresolved      = 2
+	)
+	if singleSupplyChainRepositoryID(row.sourceRepositoryIDs) != "" {
+		return supplyChainImageIdentityAnchorTierSourceConsensus
+	}
+	if singleSupplyChainImageSourceRepositoryID(row) != "" {
+		return supplyChainImageIdentityAnchorTierBuildProvenance
+	}
+	return supplyChainImageIdentityAnchorTierUnresolved
 }
 
 // bestSupplyChainImageIdentitiesByDigest folds every

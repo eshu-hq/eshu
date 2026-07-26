@@ -98,9 +98,20 @@ func supplyChainImageIdentityFromEnvelope(envelope facts.Envelope) supplyChainIm
 		repositoryID: payloadStr(envelope.Payload, "repository_id"),
 		// sourceRepositoryIDs are the git Repository entity ids
 		// (decision.SourceRepositoryIDs, container_image_identity.go) the
-		// identity decision attributed the image to — CI-run/SLSA/source-label
-		// evidence, not the registry. This is the only field in this struct
-		// that can ever equal a workload/service/deployment-lane repositoryID.
+		// identity decision attributed the image to. This set is deliberately
+		// BROADER than genuine build evidence: it collects both an
+		// OCI-config-label/CI-run/SLSA-provenance build attribution AND a
+		// repository whose Kubernetes/deploy manifest merely REFERENCES the
+		// same digest (container_image_identity.go
+		// ContainerImageIdentityDecision.SourceRepositoryIDs). This is the
+		// only field in this struct that can ever equal a
+		// workload/service/deployment-lane repositoryID; the anchor rule
+		// (singleSupplyChainImageSourceRepositoryID, #5801/#5813) resolves a
+		// single row by preferring its narrower buildProvenanceRepositoryIDs
+		// over this broader (possibly two-repository) set when the two
+		// disagree, and preferSupplyChainImageIdentity's cross-row tier A >
+		// tier B > tier C (#5813) never lets one row's build provenance alone
+		// outrank multiple rows that already agree by sourceRepositoryIDs.
 		sourceRepositoryIDs:          payloadOrderedStrings(envelope.Payload, "source_repository_ids"),
 		buildProvenanceRepositoryIDs: payloadOrderedStrings(envelope.Payload, "build_provenance_repository_ids"),
 		outcome:                      payloadStr(envelope.Payload, "outcome"),

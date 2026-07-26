@@ -328,3 +328,141 @@ This fix only widens which of two already-computed, already-persisted fields
 prefers, and persists one additional field
 (`build_provenance_repository_ids`) that was already computed in-memory but
 previously discarded before durable write.
+
+## #5801 follow-up (#5813 golden-corpus catch): row-level provenance ranking broke the cross-row winner
+
+### What the live gate caught
+
+The live B-7 golden-corpus gate (orchestrator-owned, not run from this
+worktree) failed against the PR HEAD described above with:
+
+```
+[FAIL] mcp:list_supply_chain_impact_findings: result item missing required field "repository_id"
+```
+
+### Mechanism: two correct row-level and cross-row rules combined into a wrong outcome
+
+The `#5801` fix above is correct at the **row level**:
+`singleSupplyChainImageSourceRepositoryID` (`supply_chain_impact_match.go`)
+prefers a single row's `buildProvenanceRepositoryIDs` over that same row's
+broader (and possibly ambiguous) `sourceRepositoryIDs`. That is exactly right
+for one row in isolation.
+
+But `preferSupplyChainImageIdentity`
+(`supply_chain_impact_index_build.go`, unchanged by the PR that introduced
+this regression) uses that same row-level function's boolean result — "is
+this row unambiguous?" — as the **entire** criterion for the CROSS-ROW winner
+vote between multiple `reducer_container_image_identity` rows observed for
+the same digest. Persisting `build_provenance_repository_ids` onto the fact
+(the #5801 fix) made a row that is genuinely ambiguous by
+`sourceRepositoryIDs` (it names BOTH the digest's true deploying repository
+and its own building repository) newly qualify as "unambiguous" purely
+because its own build evidence resolves it. That row then competed on equal
+footing with — and could beat — rows where MULTIPLE independent writers
+already agreed on the deploying repository via `sourceRepositoryIDs` alone,
+with the tie-break (lexicographically smallest `fact_id`) deciding the
+outcome instead of evidence strength.
+
+In the 20-repo golden corpus, digest `sha256:abcdef...ab` has 11
+`reducer_container_image_identity` rows for one digest: ten agree on the
+deploying repository `repository:r_217415d9` via `sourceRepositoryIDs` alone,
+and one names both `repository:r_69256c06` (the builder) and
+`repository:r_217415d9` (the deployer) in `sourceRepositoryIDs`, resolvable
+only via its own `buildProvenanceRepositoryIDs = [repository:r_69256c06]`.
+The B-12 golden snapshot pins `repository:r_217415d9` as the winner and
+explicitly documents the two-repository row as "the ambiguous row this
+tie-break must reject." At PR HEAD, that row's `fact_id` sorted smaller than
+all ten agreeing rows, so the builder won -- blanking `repository_id`'s
+correct value and, per the failing MCP assertion, producing a result item
+with no `repository_id` at all downstream.
+
+### Fix: a three-tier preference in `preferSupplyChainImageIdentity`
+
+`preferSupplyChainImageIdentity` now ranks each candidate row via a new
+`supplyChainImageIdentityAnchorTier` helper (both in
+`go/internal/reducer/supply_chain_impact_index_build.go`):
+
+- **Tier A** — `singleSupplyChainRepositoryID(row.sourceRepositoryIDs)` alone
+  is non-empty: the row's own, broader source-repository set already agrees
+  on one repository (cross-evidence consensus).
+- **Tier B** — `sourceRepositoryIDs` alone is ambiguous or empty, but
+  `singleSupplyChainImageSourceRepositoryID(row)` still resolves because
+  `buildProvenanceRepositoryIDs` names exactly one repository (resolvable
+  only via this row's own build provenance).
+- **Tier C** — neither resolves.
+
+Tier A always beats tier B (multi-row source consensus outranks one row's own
+build provenance), and tier B always beats tier C (an all-ambiguous digest
+whose one provenance-bearing row has a larger `fact_id` must not lose the
+anchor entirely). Within the same tier, the existing lexicographically-smallest
+`fact_id` tie-break is unchanged.
+
+Two comments that described `sourceRepositoryIDs` / the image-level anchor
+inaccurately (predating this fix, and contradicted by
+`container_image_identity.go`'s own doc comment for
+`SourceRepositoryIDs`/`BuildProvenanceRepositoryIDs`) were also corrected in
+the same commit: `supply_chain_impact_index.go`'s "only tells you which
+repository built the scanned image" claim, and
+`supply_chain_impact_match.go`'s "CI-run/SLSA/source-label evidence, not the
+registry" claim — both now describe `sourceRepositoryIDs` as the deliberately
+broader field it is (build evidence AND mere deploy/scope references alike)
+and name the A > B > C anchor rule.
+
+### The golden pin was deliberately NOT moved
+
+`testdata/golden/e2e-20repo-snapshot.json` and the cassettes under
+`testdata/cassettes/` are unchanged by this follow-up. The corpus's correct
+answer was always `repository:r_217415d9` (the deploying repository, agreed
+by ten independent rows); the regression was in the reducer's cross-row
+selection producing the wrong winner, not in the pinned expectation. Moving
+the pin to match the regression's (wrong) output was explicitly rejected —
+the fix corrects the code to reach the already-correct pinned answer instead.
+
+### Behavior-change proof (failing-then-green)
+
+- `TestPreferSupplyChainImageIdentitySourceConsensusBeatsBuildProvenanceRow`
+  (`supply_chain_impact_index_build_test.go`) — reproduces the exact corpus
+  shape (two rows agreeing via `sourceRepositoryIDs`, one row ambiguous by
+  `sourceRepositoryIDs` but resolvable via `buildProvenanceRepositoryIDs`,
+  with the smallest `fact_id` on the ambiguous row). BEFORE: winner resolves
+  `repository:r_69256c06` (the builder) —
+  `winner repository = "repository:r_69256c06", want the deploying repository
+  "repository:r_217415d9"`. AFTER: passes, winner resolves
+  `repository:r_217415d9`.
+- `TestSupplyChainImpactHandlerSourceConsensusBeatsSingleBuildProvenanceRow`
+  (`supply_chain_impact_repository_anchor_label_test.go`) — the same shape
+  driven through the full `SupplyChainImpactHandler.Handle` path (three
+  `reducer_container_image_identity` rows returned for one digest by the
+  fact-loader fake). BEFORE: `RepositoryID = "repository:r_69256c06"`, want
+  `"repository:r_217415d9"` — the exact class of failure the live gate's
+  `mcp:list_supply_chain_impact_findings: result item missing required field
+  "repository_id"` assertion caught downstream. AFTER: passes.
+- `TestPreferSupplyChainImageIdentityBuildProvenanceBeatsFullyUnresolved` (new,
+  tier B > tier C guard) — passed both before and after: the pre-fix single
+  "unambiguous" boolean already handled this shape correctly, so this test
+  guards against a future regression rather than pinning a behavior change.
+- `TestSupplyChainImpactHandlerPrefersLabelDerivedRepositoryOverConflictingScopeAnchor`
+  (the PR's existing #5801 test, single-row so
+  `preferSupplyChainImageIdentity`'s cross-row selection never runs) — passed
+  both before and after this follow-up, confirming the fix is additive to the
+  cross-row path only.
+
+Full command: `cd go && go test ./internal/reducer/ -run 'SupplyChain|ContainerImage' -count=1 -v`
+and `cd go && go test ./internal/reducer/ -count=1` — both green.
+
+## No-Regression Evidence (follow-up)
+
+The follow-up fix changes one comparison function
+(`preferSupplyChainImageIdentity`) and adds one pure helper
+(`supplyChainImageIdentityAnchorTier`), both operating on already-loaded,
+already-decoded in-memory rows during index construction — no new query,
+graph read, batch, lease, or worker path; issues no Cypher and no Postgres
+query. `go test ./internal/reducer/ -count=1` stayed in the same sub-3s band
+as the #5801 baseline above.
+
+## No-Observability-Change (follow-up)
+
+No-Observability-Change: no metric, span, log, or status field is added or
+changed. This follow-up only changes which of several already-loaded
+`reducer_container_image_identity` rows for the same digest wins the
+existing in-memory dedupe; it introduces no new field, query, or write.

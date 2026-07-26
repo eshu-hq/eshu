@@ -306,8 +306,13 @@ func classifySupplyChainImpactPackage(
 		// yet. This MUST NOT overwrite a RepositoryID the consumption path
 		// (package manifest evidence, higher up in this function) has already
 		// set: a per-package manifest anchor is more precise than an
-		// image-level identity, which only tells you which repository built
-		// the scanned image and can be shared across many unrelated packages.
+		// image-level identity, which resolves to whichever repository the
+		// image's identity evidence agrees on -- a source-repository
+		// consensus first, falling back to the image's own build provenance
+		// only when that broader consensus is ambiguous (the tier A > tier B
+		// rule singleSupplyChainImageSourceRepositoryID and
+		// preferSupplyChainImageIdentity implement, #5813) -- and can be
+		// shared across many unrelated packages.
 		//
 		// Deliberately reads image.sourceRepositoryIDs, NOT image.repositoryID
 		// (unlike the SBOM path above): repositoryID is the OCI/container
