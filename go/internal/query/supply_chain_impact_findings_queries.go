@@ -38,7 +38,7 @@ const supplyChainImpactSeverityBucketFactSQL = `CASE
   END`
 
 var listSupplyChainImpactFindingsQuery = `
-WITH ` + supplyChainImpactRuntimeFilterCTE("$9", "$10", "$11") + `,
+WITH ` + supplyChainImpactRuntimeFilterCTE("$9", "$10", "$11", "$22", "$23") + `,
 scoped_facts AS (
 SELECT fact.fact_id,
        ` + supplyChainImpactPublicFindingIDSQL + ` AS finding_id,
@@ -180,7 +180,7 @@ LIMIT $19
 // and the maintainer already excludes inactive winners. Output is byte-identical
 // to the read-time-dedup query (verified across the filter/sort/cursor matrix).
 var listSupplyChainImpactFindingsFromWinnersQuery = `
-WITH ` + supplyChainImpactRuntimeFilterCTE("$9", "$10", "$11") + `,
+WITH ` + supplyChainImpactRuntimeFilterCTE("$9", "$10", "$11", "$22", "$23") + `,
 filtered AS NOT MATERIALIZED (
     SELECT w.finding_id, w.winner_fact_id, w.priority_score
     FROM supply_chain_impact_canonical_winners AS w

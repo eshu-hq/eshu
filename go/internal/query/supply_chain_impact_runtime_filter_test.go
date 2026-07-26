@@ -59,20 +59,73 @@ func TestSupplyChainImpactRuntimeFilterMirrorsRuntimeContextTruthRules(t *testin
 	t.Parallel()
 
 	for _, want := range []string{
-		"runtime_fact.payload->'entity_keys'",
+		"runtime_workload_identity_matches AS MATERIALIZED",
+		"runtime_service_matches AS MATERIALIZED",
+		"runtime_environment_matches AS MATERIALIZED",
+		"payload->'entity_keys'",
 		"LIKE 'workload:%'",
-		"runtime_fact.payload->>'workload_id'",
-		"runtime_fact.payload->>'service_id'",
-		"runtime_fact.payload->>'environment'",
-		"BTRIM(COALESCE(runtime_fact.payload->>'outcome', '')) IN ('', 'exact', 'derived')",
-		"COALESCE(runtime_fact.payload->'provenance_only', 'false'::jsonb) <> 'true'::jsonb",
+		"payload->>'workload_id'",
+		"payload->>'service_id'",
+		"payload->>'environment'",
+		"BTRIM(COALESCE(payload->>'outcome', '')) IN ('', 'exact', 'derived')",
+		"COALESCE(payload->'provenance_only', 'false'::jsonb) <> 'true'::jsonb",
 		"runtime_scope.active_generation_id = runtime_fact.generation_id",
 		"runtime_generation.status = 'active'",
-		"runtime_fact.is_tombstone = FALSE",
+		"is_tombstone = FALSE",
 	} {
-		if !strings.Contains(supplyChainImpactRuntimeFilterCTE("$8", "$9", "$10"), want) {
-			t.Fatalf("runtime filter CTE missing truth-rule marker %q:\n%s", want, supplyChainImpactRuntimeFilterCTE("$8", "$9", "$10"))
+		query := supplyChainImpactRuntimeFilterCTE("$8", "$9", "$10", "$18", "$19")
+		if !strings.Contains(query, want) {
+			t.Fatalf("runtime filter CTE missing truth-rule marker %q:\n%s", want, query)
 		}
+	}
+}
+
+func TestSupplyChainImpactRuntimeFiltersApplyCallerGrantBeforeMembership(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name              string
+		query             string
+		repositoriesParam string
+		scopesParam       string
+	}{
+		{
+			name:              "legacy_list",
+			query:             listSupplyChainImpactFindingsQuery,
+			repositoriesParam: "$22",
+			scopesParam:       "$23",
+		},
+		{
+			name:              "winners_list",
+			query:             listSupplyChainImpactFindingsFromWinnersQuery,
+			repositoriesParam: "$22",
+			scopesParam:       "$23",
+		},
+		{
+			name:              "aggregate",
+			query:             supplyChainImpactAggregateCanonicalFactsCTE,
+			repositoriesParam: "$18",
+			scopesParam:       "$19",
+		},
+		{
+			name:              "explain",
+			query:             explainSupplyChainImpactFindingQuery,
+			repositoriesParam: "$11",
+			scopesParam:       "$12",
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, want := range []string{
+				"runtime_filter_repository_candidates.scope_id = ANY(" + tc.scopesParam + "::text[])",
+				"runtime_filter_repository_candidates.repository_id = ANY(" + tc.repositoriesParam + "::text[])",
+			} {
+				if !strings.Contains(tc.query, want) {
+					t.Fatalf("query missing runtime-filter authorization marker %q:\n%s", want, tc.query)
+				}
+			}
+		})
 	}
 }
 

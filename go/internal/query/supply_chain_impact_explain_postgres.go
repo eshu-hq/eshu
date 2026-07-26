@@ -182,7 +182,7 @@ func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactEvidenceFact
 }
 
 var explainSupplyChainImpactFindingQuery = `
-WITH ` + supplyChainImpactRuntimeFilterCTE("$9", "$8", "''") + `,
+WITH ` + supplyChainImpactRuntimeFilterCTE("$9", "$8", "''", "$11", "$12") + `,
 raw_facts AS (
 SELECT fact.fact_id,
        ` + supplyChainImpactPublicFindingIDSQL + ` AS finding_id,

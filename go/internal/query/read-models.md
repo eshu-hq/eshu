@@ -292,7 +292,10 @@ and accepted `reducer_ci_cd_run_correlation` facts supply environments.
 Tombstoned, stale-generation, ambiguous, rejected, unresolved, and
 provenance-only correlations do not match. Two partial workload-identity
 indexes cover scalar `workload_id` and `entity_keys` membership so the read
-does not probe every active ingestion scope.
+does not probe every active ingestion scope. Before a decoded runtime mapping
+can affect membership, it is intersected with the same allowed-repository or
+allowed-scope grant used by the finding query; selectors cannot act as a
+cross-scope correlation oracle.
 
 No-Regression Evidence: `go test ./internal/query -run
 'TestSupplyChainImpactAggregate|TestSupplyChainImpactInventoryGroupExpression|TestSupplyChainImpactAggregateRoutesResolveRepositorySelectors'
@@ -314,7 +317,23 @@ dimension lookup returned the same single repository before and after indexing;
 `EXPLAIN (ANALYZE, BUFFERS)` improved from a 9.293 ms sequential scan that
 discarded 99,999 rows to a 0.023 ms bitmap lookup. The exact live
 golden-corpus 200-candidate repository join, including related-scope decoding,
-executed in 0.237 ms.
+executed in 0.237 ms. A full-query proof then loaded 100,000 facts for each
+runtime dimension (300,000 total) and exposed a planner reorder: the first
+workload query entered through the scope/generation index and took 13.947 ms.
+Materializing each dimension-selected match set before the active-generation
+join made every production query enter through its dimension index. Execution
+times were 0.800 ms for scalar workload, 0.639 ms for workload `entity_keys`,
+0.147 ms for service, 0.150 ms for environment, 0.771 ms for the combined
+legacy list, 0.603 ms for the combined winners list, 0.628 ms for the combined
+aggregate, 0.231 ms for the no-runtime-filter aggregate, and 0.621 ms for
+explain. Inserting all 300,000 rows while maintaining the runtime indexes took
+6.66 seconds. `TestSupplyChainImpactRuntimeFilterPlansLive` runs these exact
+`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` shapes and asserts the selected index
+names as well as a bounded execution ceiling. Each concurrent migration also
+completed from an absent index in 0.22 seconds on the retained golden database,
+repeated idempotently in 0.21 seconds, and left `indisvalid=true` and
+`indisready=true`; the shared live migration proof separately exercised lock
+timeout/reset and cleanup/rebuild of an invalid concurrent index.
 
 No-Regression Evidence: `go test ./internal/query -run 'TestSupplyChainImpactCanonicalFindingKeySupportsRollingUpgrades|TestSupplyChainImpactFindingQueryUsesCanonicalFindingRows|TestSupplyChainImpactAggregateQueriesCountCanonicalFindings|TestSupplyChainExplainImpactQueryKeepsRollingUpgradeFindingIDStable|TestSupplyChainExplainImpactQueryUsesCanonicalFindingRows|TestSupplyChainImpactAggregatePriorityQueryQualifiesPayload' -count=1` proves list, count, inventory, and explain reads collapse active reducer rows to canonical logical findings before paging, grouping, or ambiguity checks. The canonical partition key is always derived from stable payload identity fields so legacy rows without reducer `finding_id` and newer rows with reducer `finding_id` collapse together during rolling upgrades. Public read IDs prefer reducer `finding_id` when present and fall back to the same stable payload key for older rows, so source-scope and generation-specific fact IDs do not inflate user-facing vulnerability counts or cursors.
 

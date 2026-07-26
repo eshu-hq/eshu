@@ -10,7 +10,7 @@ package query
 // aggregate totals and inventory buckets never include unauthorized rows.
 
 var supplyChainImpactAggregateCanonicalFactsCTE = `
-WITH ` + supplyChainImpactRuntimeFilterCTE("$8", "$9", "$10") + `,
+WITH ` + supplyChainImpactRuntimeFilterCTE("$8", "$9", "$10", "$18", "$19") + `,
 scoped_facts AS (
 	SELECT fact.fact_id,
 	       fact.payload,
