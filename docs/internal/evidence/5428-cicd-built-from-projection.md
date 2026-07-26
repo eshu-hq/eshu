@@ -146,8 +146,8 @@ measured queries above.
 
 ## No sibling truth.Contract (following the #5457 precedent)
 
-Policy section 107-113 says each PROJECT domain gets an additive sibling
-`truth.Contract`. This change adds none, matching #5457: `container_image_identity`
+Policy `:140` ("Each PROJECT domain gets its own additive `truth.Contract` as a
+sibling ...") says each PROJECT domain gets an additive sibling contract. This change adds none, matching #5457: `container_image_identity`
 projects `BUILT_FROM` through this same writer and did not add one either. The
 projection is a graph representation of a decision the domain's existing contract
 already covers, not a new truth surface, and `go test ./internal/truth/...` plus
