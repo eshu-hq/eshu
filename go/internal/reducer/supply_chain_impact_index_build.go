@@ -196,62 +196,7 @@ func addSupplyChainImpactIndexEntry(index *supplyChainImpactIndex, envelope fact
 	return quarantinedFact{}, false, nil
 }
 
-// preferSupplyChainImageIdentity picks a deterministic winner between two
-// reducer_container_image_identity rows observed for the SAME digest (issue
-// #5464 layer 2). The producer writes one canonical decision fact per
-// triggering scope/ref with no per-digest canonicalization, so one digest can
-// carry many rows -- this corpus alone has 11 for one digest -- and unlike
-// the scannerAnalyses last-write-wins case above (safe because a
-// content-addressed digest is identical across every writer, so any winner is
-// equally correct), these rows can DISAGREE on source_repository_ids: ten
-// rows here carry exactly one repository, one carries two (ambiguous). An
-// unconditional last-write-wins assignment would make the winning
-// RepositoryID/workload/service/environment join outcome depend on envelope
-// iteration order -- an accident, not a proof -- so a defined tie-break is
-// REQUIRED here, unlike the scannerAnalyses case.
-//
-// Preference: a row whose singleSupplyChainImageSourceRepositoryID is
-// non-empty (an unambiguous git source repository) always beats a row that is
-// ambiguous or names none. Between two equally-(un)ambiguous rows, the
-// lexicographically smaller factID wins -- an arbitrary but STABLE choice, so
-// the same winner is reached regardless of which order the envelopes arrive
-// in, including across repeated runs and reprocessing.
-func preferSupplyChainImageIdentity(existing, candidate supplyChainImageIdentity) supplyChainImageIdentity {
-	existingUnambiguous := singleSupplyChainImageSourceRepositoryID(existing) != ""
-	candidateUnambiguous := singleSupplyChainImageSourceRepositoryID(candidate) != ""
-	if existingUnambiguous != candidateUnambiguous {
-		if candidateUnambiguous {
-			return candidate
-		}
-		return existing
-	}
-	if candidate.factID < existing.factID {
-		return candidate
-	}
-	return existing
-}
-
-// bestSupplyChainImageIdentitiesByDigest folds every
-// reducer_container_image_identity envelope in envelopes into one
-// deterministic winner per digest via preferSupplyChainImageIdentity. Exposed
-// as its own batch helper (rather than inlined into
-// addSupplyChainImpactIndexEntry's per-envelope case above) so any future
-// consumer that needs the same digest-to-repository resolution over a whole
-// envelope batch can reuse this exact tie-break instead of re-deriving it.
-func bestSupplyChainImageIdentitiesByDigest(envelopes []facts.Envelope) map[string]supplyChainImageIdentity {
-	winners := make(map[string]supplyChainImageIdentity)
-	for _, envelope := range envelopes {
-		if envelope.FactKind != containerImageIdentityFactKind {
-			continue
-		}
-		image := supplyChainImageIdentityFromEnvelope(envelope)
-		if image.digest == "" {
-			continue
-		}
-		if existing, ok := winners[image.digest]; ok {
-			image = preferSupplyChainImageIdentity(existing, image)
-		}
-		winners[image.digest] = image
-	}
-	return winners
-}
+// preferSupplyChainImageIdentity, supplyChainImageIdentityAnchorTier, and
+// bestSupplyChainImageIdentitiesByDigest live in
+// supply_chain_impact_anchor_tier.go (split out to keep this file under the
+// repo's 500-line cap).

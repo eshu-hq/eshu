@@ -134,6 +134,17 @@ func containerImageIdentityPayload(
 		"source_repository_ids": uniqueSortedStrings(
 			decision.SourceRepositoryIDs,
 		),
+		// build_provenance_repository_ids persists the strong-evidence-only
+		// subset of SourceRepositoryIDs (an OCI config source label, a CI run,
+		// or verified SLSA provenance -- never a mere deploy/scope reference).
+		// The supply-chain-impact consumer (singleSupplyChainImageSourceRepositoryID,
+		// #5801) ranks this field ahead of the broader source_repository_ids so a
+		// label-derived repository is not treated as ambiguous merely because a
+		// weaker scope anchor also names a different repository for the same
+		// image.
+		"build_provenance_repository_ids": uniqueSortedStrings(
+			decision.BuildProvenanceRepositoryIDs,
+		),
 		"workload_ids":      uniqueSortedStrings(decision.WorkloadIDs),
 		"service_ids":       uniqueSortedStrings(decision.ServiceIDs),
 		"outcome":           string(decision.Outcome),

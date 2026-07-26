@@ -266,12 +266,16 @@ jobs:
         # never hides a vulnerability the default mode would have caught.
         run: |
           set -euo pipefail
-          govulncheck -scan package ./... 2>&1 | tee govulncheck.out
-          status=${PIPESTATUS[0]}
-          if [ "${status}" -ne 0 ]; then
-            printf 'govulncheck: vulnerabilities found, see govulncheck.out above\n' >&2
-            exit "${status}"
-          fi
+          # Delegated to scripts/ci/run-scan-with-tee.sh (#5813): a scanner
+          # success (0) with a tee failure (e.g. disk full or an unwritable
+          # working directory) must not report success. Capturing the full
+          # PIPESTATUS array (not just PIPESTATUS[0]) is what tells the two
+          # apart; see the helper's own header comment and its executable
+          # regression suite, scripts/test-security-scan-tee-status.sh, which
+          # pins this exact case.
+          ../scripts/ci/run-scan-with-tee.sh govulncheck govulncheck.out \
+            'govulncheck: vulnerabilities found, see govulncheck.out above\n' \
+            -- govulncheck -scan package ./...
 
       - name: Upload govulncheck output as workflow artifact
         if: always()
@@ -393,12 +397,16 @@ jobs:
             printf 'nancy: go list -json -deps ./... failed, see deps.err above\n' >&2
             exit 1
           fi
-          nancy sleuth --no-color <deps.json 2>&1 | tee nancy.out
-          status=${PIPESTATUS[0]}
-          if [ "${status}" -ne 0 ]; then
-            printf 'nancy: sleuth exited %s, see nancy.out above (a real finding, or an OSS Index transport/auth failure — see #5804)\n' "${status}" >&2
-            exit "${status}"
-          fi
+          # Delegated to scripts/ci/run-scan-with-tee.sh (#5813): a sleuth
+          # success (0) with a tee failure (e.g. disk full or an unwritable
+          # working directory) must not report success. Capturing the full
+          # PIPESTATUS array (not just PIPESTATUS[0]) is what tells the two
+          # apart; see the helper's own header comment and its executable
+          # regression suite, scripts/test-security-scan-tee-status.sh, which
+          # pins this exact case.
+          ../scripts/ci/run-scan-with-tee.sh nancy nancy.out \
+            'nancy: sleuth exited %s, see nancy.out above (a real finding, or an OSS Index transport/auth failure — see #5804)\n' \
+            -- nancy sleuth --no-color <deps.json
 
       - name: Upload nancy output as workflow artifact
         if: always()

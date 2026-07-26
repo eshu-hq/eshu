@@ -33,6 +33,7 @@ on:
       - 'specs/demo-first-answers.v1.yaml'
       - 'scripts/verify-golden-corpus-gate.sh'
       - 'scripts/test-verify-golden-corpus-gate.sh'
+      - 'scripts/lib/golden-corpus-*.sh'
       - 'scripts/ci/install-apt-packages.sh'
       - '.github/workflows/golden-corpus-gate.yml'
 

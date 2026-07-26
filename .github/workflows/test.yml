@@ -77,6 +77,9 @@ jobs:
           scripts/test-verify-codeql-setup.sh
           scripts/verify-codeql-setup.sh
 
+      - name: Verify security-scan tee-status helper
+        run: scripts/test-security-scan-tee-status.sh
+
       - name: Verify hot-path evidence
         run: |
           scripts/test-verify-performance-evidence.sh

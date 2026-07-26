@@ -34,6 +34,63 @@ func TestBuildContainerImageIdentityDecisionsUsesOCIConfigSourceLabel(t *testing
 	}
 }
 
+// TestBuildContainerImageIdentityDecisionsSourceLabelSurvivesDuplicateRepositoryFacts
+// pins the #5801 fix: matchOCIConfigSourceRepository must dedupe by repository
+// identity before applying its exactly-one rule, so a repository legitimately
+// carrying two active `repository` facts (more than one scope or collector
+// observing it) does not make an otherwise-unambiguous OCI config source label
+// look ambiguous. Before the fix, the second fact alone made
+// matchOCIConfigSourceRepository count two raw fact matches and reject the
+// label, keeping the oci_config_source_label_with_digest identity tier
+// unreachable in any corpus with duplicate repository facts.
+func TestBuildContainerImageIdentityDecisionsSourceLabelSurvivesDuplicateRepositoryFacts(t *testing.T) {
+	t.Parallel()
+
+	decisions := BuildContainerImageIdentityDecisions([]facts.Envelope{
+		repositoryRemoteFact("repo://acme/payments-api", "https://github.com/acme/payments-api.git"),
+		repositoryRemoteFact("repo://acme/payments-api", "https://github.com/acme/payments-api.git"),
+		ociManifestWithConfigLabels("oci-manifest-dup-label", testContainerDigest, map[string]string{
+			"org.opencontainers.image.source": "https://github.com/acme/payments-api",
+		}),
+	})
+
+	got := decisionsByRef(decisions)["registry.example.com/team/api@"+testContainerDigest]
+	if !slices.Contains(got.SourceRepositoryIDs, "repo://acme/payments-api") {
+		t.Fatalf("SourceRepositoryIDs = %#v, want repo://acme/payments-api: duplicate active repository facts must not break the source-label match", got.SourceRepositoryIDs)
+	}
+	if got.IdentityStrength != "oci_config_source_label_with_digest" {
+		t.Fatalf("IdentityStrength = %q, want oci_config_source_label_with_digest", got.IdentityStrength)
+	}
+}
+
+// TestBuildContainerImageIdentityDecisionsSourceLabelStaysAmbiguousForTwoDistinctRepositories
+// is the negative half of the #5801 fix: when two DISTINCT repositories
+// genuinely claim the same remote URL, the label must still resolve to
+// neither — deduping by repository identity must never loosen real ambiguity
+// into a guess.
+func TestBuildContainerImageIdentityDecisionsSourceLabelStaysAmbiguousForTwoDistinctRepositories(t *testing.T) {
+	t.Parallel()
+
+	const remoteURL = "https://github.com/acme/payments-api"
+
+	decisions := BuildContainerImageIdentityDecisions([]facts.Envelope{
+		repositoryRemoteFact("repo://acme/payments-api-fork-one", remoteURL+".git"),
+		repositoryRemoteFact("repo://acme/payments-api-fork-two", remoteURL+".git"),
+		ociManifestWithConfigLabels("oci-manifest-ambiguous-label", testContainerDigest, map[string]string{
+			"org.opencontainers.image.source": remoteURL,
+		}),
+	})
+
+	got := decisionsByRef(decisions)["registry.example.com/team/api@"+testContainerDigest]
+	if slices.Contains(got.SourceRepositoryIDs, "repo://acme/payments-api-fork-one") ||
+		slices.Contains(got.SourceRepositoryIDs, "repo://acme/payments-api-fork-two") {
+		t.Fatalf("SourceRepositoryIDs = %#v, want neither distinct repository from an ambiguous label match", got.SourceRepositoryIDs)
+	}
+	if got.IdentityStrength == "oci_config_source_label_with_digest" {
+		t.Fatalf("IdentityStrength = %q, want anything but the label tier: two distinct repositories claiming one remote must stay ambiguous", got.IdentityStrength)
+	}
+}
+
 func TestBuildContainerImageIdentityDecisionsRejectsMissingConflictingAndMalformedOCIConfigSourceLabels(t *testing.T) {
 	t.Parallel()
 

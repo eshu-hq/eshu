@@ -51,6 +51,22 @@ require_workflow_path "projector runtime"              "go/cmd/projector/**"
 require_workflow_path "reducer runtime"                "go/cmd/reducer/**"
 require_workflow_path "api query surface"              "go/cmd/api/**"
 
+# #5817 P2 review: verify-golden-corpus-gate.sh sources FOUR
+# scripts/lib/golden-corpus-*.sh helper libs (fixtures, phase-timings,
+# dead-code-fixtures, readiness). Before this, the paths filter had no
+# scripts/lib/** entry at all, so a PR editing only one of those libs (e.g. a
+# bash cleanup that inverts host_tcp_port_open's return value) would never
+# trigger this gate -- a false green. Assert the glob entry is present, and
+# that every golden-corpus lib file actually on disk still matches its naming
+# convention, so a future rename or an added lib outside that convention
+# reopens the gap loudly here instead of silently in CI.
+require_workflow_path "golden-corpus lib helpers (#5817)" "scripts/lib/golden-corpus-*.sh"
+shopt -s nullglob
+golden_corpus_libs=("${repo_root}"/scripts/lib/golden-corpus-*.sh)
+shopt -u nullglob
+[[ "${#golden_corpus_libs[@]}" -ge 4 ]] \
+	|| fail "expected at least 4 scripts/lib/golden-corpus-*.sh files (fixtures, phase-timings, dead-code-fixtures, readiness), found ${#golden_corpus_libs[@]}: ${golden_corpus_libs[*]-none}"
+
 # Parses under bash -n.
 bash -n "${script}" || fail "verify-golden-corpus-gate.sh has a syntax error"
 bash -n "${fixture_lib}" || fail "golden-corpus-fixtures.sh has a syntax error"
@@ -120,6 +136,78 @@ require_lib() {
 require_lib "phase-timings emission" "phase-timings.json"
 require_lib "phase baseline default" "e2e-baseline.json"
 require_lib "per-phase gate flag" "-phase-timings-file="
+
+# #5813: the "wait for backends" loop must gate Postgres readiness on a
+# HOST-side TCP connect, not only the in-container pg_isready socket probe —
+# see scripts/lib/golden-corpus-readiness.sh for why (initdb's temporary,
+# socket-only server races a host TCP connect).
+readiness_lib="${repo_root}/scripts/lib/golden-corpus-readiness.sh"
+[[ -f "${readiness_lib}" ]] || fail "missing host-TCP readiness lib: ${readiness_lib}"
+bash -n "${readiness_lib}" || fail "golden-corpus-readiness.sh has a syntax error"
+require "readiness lib sourced" "golden-corpus-readiness.sh"
+rg --fixed-strings --quiet -- "host_tcp_port_open()" "${readiness_lib}" \
+	|| fail "missing host TCP probe function definition in ${readiness_lib}"
+require "wait loop calls host TCP probe" "host_tcp_port_open 127.0.0.1"
+require "wait loop keeps in-container pg_isready" "pg_isready -U eshu -d eshu"
+# The two checks must be ANDed in the SAME condition (belt and braces), not one
+# replacing the other — a loosened wait loop that keeps only one of them
+# reopens exactly the race this fix closes.
+if ! rg --pcre2 --multiline --quiet -- 'pg_isready -U eshu -d eshu >/dev/null 2>&1 && \\\s*\n\s*host_tcp_port_open 127\.0\.0\.1' "${script}"; then
+	fail "Postgres readiness must require BOTH pg_isready AND host_tcp_port_open in one condition"
+fi
+
+# Genuinely exercise the probe logic (not just its source text) against a real
+# closed port and a real open port, mirroring the executable-test bar
+# scripts/test-nancy-local.sh's header sets (PR #5806 review rejected a
+# text-only assertion for exactly this reason: it cannot tell a working probe
+# from a broken one, e.g. an inverted condition or a dropped `exec 3<&-`).
+# shellcheck source=scripts/lib/golden-corpus-readiness.sh
+. "${readiness_lib}"
+
+if host_tcp_port_open 127.0.0.1 1; then
+	fail "host_tcp_port_open must fail against a closed TCP port (127.0.0.1:1)"
+fi
+
+# python3 is already an established scripts/ dependency (verify-telemetry-
+# coverage.sh, verify-demo-compose-answers.sh); use it to bind an ephemeral
+# loopback listener so the "open port" case is a real, currently-listening
+# socket rather than a guessed port number.
+listener_port_file="$(mktemp -t golden-corpus-readiness-port.XXXXXX)"
+listener_pid=""
+trap 'kill "${listener_pid}" >/dev/null 2>&1 || true; rm -f "${listener_port_file}"' EXIT
+python3 - "${listener_port_file}" <<'PY' &
+import socket
+import sys
+import time
+
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(("127.0.0.1", 0))
+s.listen(1)
+with open(sys.argv[1], "w") as f:
+	f.write(str(s.getsockname()[1]))
+time.sleep(10)
+PY
+listener_pid=$!
+
+listener_port=""
+for _ in $(seq 1 50); do
+	if [[ -s "${listener_port_file}" ]]; then
+		listener_port="$(cat "${listener_port_file}")"
+		break
+	fi
+	sleep 0.1
+done
+[[ -n "${listener_port}" ]] || fail "test harness: python3 loopback listener never reported a port"
+
+if ! host_tcp_port_open 127.0.0.1 "${listener_port}"; then
+	fail "host_tcp_port_open must succeed against a real open TCP port (127.0.0.1:${listener_port})"
+fi
+
+kill "${listener_pid}" >/dev/null 2>&1 || true
+wait "${listener_pid}" 2>/dev/null || true
+rm -f "${listener_port_file}"
+trap - EXIT
 # The per-phase check must default to advisory on shared CI runners (hardware
 # variance exceeds the band); a controlled host flips it blocking.
 require_lib "per-phase advisory default" "-phase-regression-advisory"

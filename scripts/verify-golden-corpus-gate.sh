@@ -25,9 +25,29 @@ cd "${repo_root}"
 . "${repo_root}/scripts/lib/golden-corpus-phase-timings.sh"
 # shellcheck source=scripts/lib/golden-corpus-dead-code-fixtures.sh
 . "${repo_root}/scripts/lib/golden-corpus-dead-code-fixtures.sh"
+# host_tcp_port_open: HOST-side TCP readiness probe (#5813) — see the lib's
+# header for why the "wait for backends" loop below needs this in addition
+# to the in-container pg_isready check.
+# shellcheck source=scripts/lib/golden-corpus-readiness.sh
+. "${repo_root}/scripts/lib/golden-corpus-readiness.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration (override via environment).
+#
+# #5813: NEO4J_HTTP_PORT/NEO4J_BOLT_PORT/ESHU_POSTGRES_PORT/GATE_API_PORT/
+# GATE_MCP_PORT below isolate this run from the DEFAULT ports, but they are a
+# SHARED CONVENTION, not per-run isolation — the compose PROJECT name (derived
+# from this directory) isolates containers and volumes, but Docker still binds
+# these to fixed HOST ports. Two concurrent runs on one machine that both set
+# the same override values collide. The benign failure is
+# `Bind for 0.0.0.0:<port> failed: port is already allocated` at `docker
+# compose up`. The DANGEROUS failure is silent: if a foreign, unrelated
+# stack already owns ESHU_POSTGRES_PORT, this run's HOST binaries
+# (bootstrap-index, collectors, reducer/projector) happily connect over TCP
+# to THAT stack's Postgres and read/write its data — producing dead-lettered
+# work items and query-phase assertion failures that look exactly like a
+# flake. Concurrent runs MUST pick a genuinely private port set and verify
+# each port is free before starting.
 # ----------------------------------------------------------------------------
 : "${ESHU_GRAPH_BACKEND:=nornicdb}"
 : "${ESHU_POSTGRES_PORT:=15432}"
@@ -268,13 +288,29 @@ if [[ "${use_compose}" -eq 1 ]]; then
 	backends_ready=false
 	for _ in $(seq 1 60); do
 		graph_ready=false
+		# NornicDB has no analogue to Postgres's initdb temp-server dance below:
+		# it is a single Go binary whose HTTP and Bolt listeners both come up in
+		# one startup sequence (docker logs show the HTTP "ready" banner and the
+		# "bolt server listening" line land within the same startup burst, not
+		# across a shutdown/restart), and this check performs a real TCP+HTTP
+		# round trip rather than a socket-only probe like pg_isready's default.
+		# So an in-container success here is not a false positive relative to
+		# the host mapping — verified live: a host `curl` against the mapped
+		# port succeeds the moment this in-container check does. No
+		# host-vs-container fix needed for this branch.
 		if [[ "${graph_service}" == "nornicdb" ]]; then
 			docker compose -f "${compose_file}" exec -T nornicdb wget --spider -q http://localhost:7474/health >/dev/null 2>&1 && graph_ready=true
 		else
 			docker compose -f "${compose_file}" exec -T neo4j cypher-shell -u neo4j -p "${ESHU_NEO4J_PASSWORD}" "RETURN 1" >/dev/null 2>&1 && graph_ready=true
 		fi
+		# Postgres readiness requires BOTH the in-container socket probe AND a
+		# HOST-side TCP connect (host_tcp_port_open, golden-corpus-readiness.sh)
+		# — belt and braces. Do NOT drop either: pg_isready alone races the
+		# initdb temp-server window (see the lib's header); the TCP probe alone
+		# would drop the existing container-side signal for no reason.
 		if [[ "${graph_ready}" == "true" ]] && \
-			docker compose -f "${compose_file}" exec -T postgres pg_isready -U eshu -d eshu >/dev/null 2>&1; then
+			docker compose -f "${compose_file}" exec -T postgres pg_isready -U eshu -d eshu >/dev/null 2>&1 && \
+			host_tcp_port_open 127.0.0.1 "${ESHU_POSTGRES_PORT}"; then
 			backends_ready=true
 			break
 		fi

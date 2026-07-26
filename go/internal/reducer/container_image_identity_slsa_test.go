@@ -346,6 +346,85 @@ func TestApplySLSADigestRevisionPopulatesBuildProvenanceRepositoryIDs(t *testing
 	}
 }
 
+// TestApplySLSADigestRevisionSourceRepositorySurvivesDuplicateRepositoryFacts
+// is the SLSA-path counterpart to
+// TestBuildContainerImageIdentityDecisionsSourceLabelSurvivesDuplicateRepositoryFacts
+// (container_image_identity_provenance_test.go): matchOCIConfigSourceRepository
+// is shared by both the OCI config source label path and the SLSA config
+// source path (container_image_identity_slsa.go:156), so the #5801 dedupe fix
+// changed the SLSA path's semantics too -- a repository legitimately carrying
+// two active `repository` facts (more than one scope or collector observing
+// it) must not make an otherwise-unambiguous, passed-signature SLSA config
+// source look ambiguous. Before the #5801 fix, a second fact for the SAME
+// repository alone made the raw-fact-count matcher reject the match,
+// resolving neither SourceRepositoryIDs nor BuildProvenanceRepositoryIDs.
+func TestApplySLSADigestRevisionSourceRepositorySurvivesDuplicateRepositoryFacts(t *testing.T) {
+	t.Parallel()
+
+	imageRef := "registry.example.com/team/api@" + testContainerDigest
+	decisions := BuildContainerImageIdentityDecisions([]facts.Envelope{
+		gitImageRefFact("content-declares", imageRef),
+		ociManifestFact("oci-manifest", testContainerDigest),
+		repositoryRemoteFact("repo://acme/payments-api", slsaProofRepoURL+".git"),
+		repositoryRemoteFact("repo://acme/payments-api", slsaProofRepoURL+".git"),
+		slsaImageStatementFact("statement-slsa-dup-repo", "stmt-slsa-dup-repo", testContainerDigest),
+		slsaConfigSourceProvenanceFact("provenance-slsa-dup-repo", "stmt-slsa-dup-repo", slsaProofRepoURL, slsaProofCommit),
+		slsaPassedVerificationFact("verification-slsa-dup-repo", "stmt-slsa-dup-repo"),
+	})
+
+	got := decisionsByRef(decisions)
+	decision, ok := got[imageRef]
+	if !ok {
+		t.Fatalf("no decision for %q: %#v", imageRef, got)
+	}
+	if !stringSliceContains(decision.SourceRepositoryIDs, "repo://acme/payments-api") {
+		t.Fatalf("SourceRepositoryIDs = %#v, want repo://acme/payments-api: duplicate active repository facts must not break the SLSA config source match", decision.SourceRepositoryIDs)
+	}
+	if !stringSliceContains(decision.BuildProvenanceRepositoryIDs, "repo://acme/payments-api") {
+		t.Fatalf("BuildProvenanceRepositoryIDs = %#v, want repo://acme/payments-api: duplicate active repository facts must not break the SLSA config source match", decision.BuildProvenanceRepositoryIDs)
+	}
+	if len(decision.SourceRepositoryIDs) != 1 {
+		t.Fatalf("SourceRepositoryIDs = %#v, want exactly one repository", decision.SourceRepositoryIDs)
+	}
+	if len(decision.BuildProvenanceRepositoryIDs) != 1 {
+		t.Fatalf("BuildProvenanceRepositoryIDs = %#v, want exactly one repository", decision.BuildProvenanceRepositoryIDs)
+	}
+}
+
+// TestApplySLSADigestRevisionSourceRepositoryStaysAmbiguousForTwoDistinctRepositories
+// is the negative half: two DISTINCT repositories genuinely claiming the same
+// remote URL must still resolve to neither, on the SLSA config source path
+// exactly as on the OCI config source label path -- deduping by repository
+// identity must never loosen real ambiguity into a guess.
+func TestApplySLSADigestRevisionSourceRepositoryStaysAmbiguousForTwoDistinctRepositories(t *testing.T) {
+	t.Parallel()
+
+	imageRef := "registry.example.com/team/api@" + testContainerDigest
+	decisions := BuildContainerImageIdentityDecisions([]facts.Envelope{
+		gitImageRefFact("content-declares", imageRef),
+		ociManifestFact("oci-manifest", testContainerDigest),
+		repositoryRemoteFact("repo://acme/payments-api-fork-one", slsaProofRepoURL+".git"),
+		repositoryRemoteFact("repo://acme/payments-api-fork-two", slsaProofRepoURL+".git"),
+		slsaImageStatementFact("statement-slsa-ambiguous-repo", "stmt-slsa-ambiguous-repo", testContainerDigest),
+		slsaConfigSourceProvenanceFact("provenance-slsa-ambiguous-repo", "stmt-slsa-ambiguous-repo", slsaProofRepoURL, slsaProofCommit),
+		slsaPassedVerificationFact("verification-slsa-ambiguous-repo", "stmt-slsa-ambiguous-repo"),
+	})
+
+	got := decisionsByRef(decisions)
+	decision, ok := got[imageRef]
+	if !ok {
+		t.Fatalf("no decision for %q: %#v", imageRef, got)
+	}
+	if stringSliceContains(decision.SourceRepositoryIDs, "repo://acme/payments-api-fork-one") ||
+		stringSliceContains(decision.SourceRepositoryIDs, "repo://acme/payments-api-fork-two") {
+		t.Fatalf("SourceRepositoryIDs = %#v, want neither distinct repository from an ambiguous SLSA config source match", decision.SourceRepositoryIDs)
+	}
+	if stringSliceContains(decision.BuildProvenanceRepositoryIDs, "repo://acme/payments-api-fork-one") ||
+		stringSliceContains(decision.BuildProvenanceRepositoryIDs, "repo://acme/payments-api-fork-two") {
+		t.Fatalf("BuildProvenanceRepositoryIDs = %#v, want neither distinct repository from an ambiguous SLSA config source match", decision.BuildProvenanceRepositoryIDs)
+	}
+}
+
 // TestApplySLSADigestRevisionUnverifiedDoesNotConferBuildProvenance is the
 // negative half: SLSA evidence whose signature verification did NOT pass
 // must not confer build provenance, mirroring exactly the gate
