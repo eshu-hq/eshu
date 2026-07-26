@@ -6,7 +6,7 @@
 // docs/internal/design/contract-system-v1.md), decoded through the parent
 // factschema package's kind-keyed seam (decode.go, decode_cicdrun.go).
 //
-// Seven fact kinds live here. Six are consumed by the reducer's
+// Seven fact kinds live here. All seven are consumed by the reducer's
 // ci_cd_run_correlation domain (go/internal/reducer/ci_cd_run_correlation.go,
 // ci_cd_run_correlation_workflow_image.go):
 //

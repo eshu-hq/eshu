@@ -198,8 +198,9 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	// wrapper (decodeCICDDeploymentEvent) is consumed by the
 	// ci_cd_run_correlation domain's attachDeploymentEventsToRuns
 	// (ci_cd_run_correlation_deploy_events.go), joined by sha rather than the
-	// provider/run_id key the other six kinds use, so it is mapped here like
-	// the other six. ci.job, ci.pipeline_definition, and ci.warning carry no
+	// provider/run_id key the other kinds use (five join on provider/run_id;
+	// ci.workflow_image_evidence joins on repository_id), so it is mapped here
+	// alongside them. ci.job, ci.pipeline_definition, and ci.warning carry no
 	// typed struct at all (cicdrun/v1 AGENTS.md), so they have no row here
 	// either.
 	"FactKindCICDRun":                    "ci.run.v1.schema.json",

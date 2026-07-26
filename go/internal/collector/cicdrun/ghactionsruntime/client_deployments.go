@@ -10,10 +10,6 @@ import (
 	"strconv"
 )
 
-// DeploymentSnapshot carries one raw provider deployment plus its bounded
-// window of deployment_status events, mirroring RunSnapshot's raw-map shape
-// so the cicdrun normalizer decodes both through the same JSON-marshal seam
-// (see source_deployments.go's deploymentFixtureRows).
 // maxDeploymentStatusesPerDeployment bounds the status window fetched per
 // deployment. GitHub deployment statuses are append-only and a deployment
 // typically carries pending, in_progress, then success, so a small bound covers
@@ -21,6 +17,10 @@ import (
 // ci.warning rather than being silently short.
 const maxDeploymentStatusesPerDeployment = 20
 
+// DeploymentSnapshot carries one raw provider deployment plus its bounded
+// window of deployment_status events, mirroring RunSnapshot's raw-map shape
+// so the cicdrun normalizer decodes both through the same JSON-marshal seam
+// (see source_deployments.go's deploymentFixtureRows).
 type DeploymentSnapshot struct {
 	Deployment      map[string]any
 	Statuses        []map[string]any

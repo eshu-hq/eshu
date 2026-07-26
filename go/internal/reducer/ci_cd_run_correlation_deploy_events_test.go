@@ -24,7 +24,7 @@ func deploymentEventEvidence(factID, sha, environment string) *decodedCICDDeploy
 // status transition yet.
 func deploymentEventEvidenceWithState(factID, sha, environment, state, deploymentID, statusID string) *decodedCICDDeploymentEvent {
 	evidence := cicdrunv1.DeploymentEvent{
-		Provider:     "github",
+		Provider:     "github_actions",
 		DeploymentID: deploymentID,
 		Environment:  environment,
 		SHA:          sha,
@@ -229,7 +229,7 @@ func TestCICDRunCorrelationHandlerQuarantinesDeploymentEventMissingSHA(t *testin
 		FactID:   "malformed-deploy-event",
 		FactKind: facts.CICDDeploymentEventFactKind,
 		Payload: map[string]any{
-			"provider":      "github",
+			"provider":      "github_actions",
 			"deployment_id": "1",
 			"environment":   "production",
 			// "sha" intentionally absent.

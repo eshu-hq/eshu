@@ -40,7 +40,7 @@ package v1
 // silently collapsing an absent field to an empty string.
 type DeploymentEvent struct {
 	// Provider identifies the CI/CD or deployment platform that reported
-	// this event (for example "github"). Required — GitHub's Deployments
+	// this event (for example "github_actions"). Required — GitHub's Deployments
 	// API response is always scoped to the platform that served it, and
 	// this is the fact kind's own platform-identity segment, matching the
 	// Provider convention every other kind in this package uses.

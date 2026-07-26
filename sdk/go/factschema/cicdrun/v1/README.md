@@ -22,7 +22,8 @@ of the public `github.com/eshu-hq/eshu/sdk/go/factschema` Go module
 `go/internal/reducer/factschema_decode_cicdrun.go`) and a `ci_cd_run_correlation`
 attach step (`attachDeploymentEventsToRuns`,
 `go/internal/reducer/ci_cd_run_correlation_deploy_events.go`), but on a
-different join key than the other six kinds: a deployment carries no
+different join key than the five `provider`+`run_id` kinds
+(`WorkflowImageEvidence` joins on `repository_id`): a deployment carries no
 `run_id`, so it joins by `sha` against each run's `CommitSHA` instead of the
 `provider`+`run_id` key below. The winning event per run
 (`classifyCICDDeploymentEventEnvironment`,
@@ -30,7 +31,7 @@ different join key than the other six kinds: a deployment carries no
 correlation's `environment` (canonicalized via `environment.Canonical`) and
 stamps `environment_evidence=deploy_event`.
 
-Every required field on the six `provider`+`run_id`-keyed kinds above is a
+Every required field on the five `provider`+`run_id`-keyed kinds above (`WorkflowImageEvidence` joins on `repository_id`) is a
 reducer join-key segment: `provider` + `run_id` (+ `run_attempt`, which
 defaults to `"1"` and stays optional) key the reducer's `cicdRunEvidence` map
 (`go/internal/reducer/ci_cd_run_correlation.go:cicdRunKey`), and

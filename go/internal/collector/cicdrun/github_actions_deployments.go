@@ -20,12 +20,6 @@ import (
 // evidence by provider, cassettes are compared against real collector output,
 // and a consumer filtering ci.deployment_event by provider must not need to
 // know that this one kind spelled it differently.
-// It is deliberately "github", not ProviderGitHubActions ("github_actions"):
-// the DeploymentEvent contract (sdk/go/factschema/cicdrun/v1/deployment_event.go)
-// models a raw GitHub Deployments API observation, a platform-level surface
-// any integration can create a deployment through, not an Actions-run-scoped
-// one -- see that file's doc comment distinguishing it from
-// EnvironmentObservation.
 const deploymentProvider = string(ProviderGitHubActions)
 
 // GitHubActionsDeploymentEnvelopes normalizes one fixture-shaped batch of
@@ -223,9 +217,9 @@ func optionalString(value string) *string {
 // (warningEnvelope in envelope.go, gitlabWarningEnvelope in
 // gitlab_ci_fixture.go) keys off a run/pipeline and hardcodes that
 // provider's name via sharedPayload; a deployment-scoped warning has no run
-// to key off and belongs to the Deployments API surface (provider "github",
-// not "github_actions"), so it gets its own minimal payload shape here
-// instead of reusing sharedPayload.
+// to key off, so it gets its own minimal payload shape here instead of
+// reusing sharedPayload. It still carries deploymentProvider, the same
+// github_actions token every other fact in this family emits.
 func GitHubActionsDeploymentWarningEnvelope(ctx FixtureContext, warningKey, reason, message string) (facts.Envelope, error) {
 	if err := validateContext(ctx); err != nil {
 		return facts.Envelope{}, err
