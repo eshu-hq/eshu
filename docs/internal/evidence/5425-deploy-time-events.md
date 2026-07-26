@@ -106,9 +106,9 @@ Reducer cost, `BenchmarkBuildCICDRunCorrelationDecisions`, 5,000 runs × 6 facts
 `-count=5`, same machine, same corpus, no deployment events (so this isolates
 the cost of the new code merely being present):
 
-| Metric | Before (`2e1560ff8`) | After (`196fa1f47`) | Input shape |
+| Metric | Before (`2e1560ff8`) | After (`0d42bacc1`) | Input shape |
 | --- | --- | --- | --- |
-| ns/op (median) | 166,864,631 | 167,094,375 | 5,000 runs, 30,000 facts |
+| ns/op (median) | 166,864,631 | 164,070,089 | 5,000 runs, 30,000 facts |
 | B/op | 19,355,638 | 19,757,606 | same |
 | allocs/op | 260,064 | 260,064 | same |
 
@@ -118,8 +118,8 @@ the cost of the new code merely being present):
 | B/op | 1,222,262 | 1,262,485 | same |
 | allocs/op | 9,821 | 9,821 | same |
 
-Time deltas are +0.14% and +0.50%, inside run-to-run spread on both sides
-(before 165.76–168.58 ms, after 164.99–170.02 ms). An independent re-run of both
+The no-deployment-event benchmark measured -1.7% at the final head (164.07 ms
+against 166.86 ms), inside run-to-run spread on both sides. An independent re-run of both
 benchmarks resolved the same two deltas NEGATIVE (-0.72% and -0.20%, branch
 faster), which is the clearest statement that these are noise and not a
 regression: the sign is not stable between samples. **allocs/op is identical on
@@ -130,17 +130,30 @@ The attach path doing actual work is measured separately, on its worst case —
 `attachDeploymentEventsToRuns` joins on sha equality with no index, so a corpus
 where every run shares one sha is quadratic:
 
-| Metric | Value | Input shape |
-| --- | --- | --- |
-| ns/op (median) | 14,048,640 | 1,000 runs + 300 events, one repository, one sha |
-| B/op | 10,963,045 | same |
-| allocs/op | 21,529 | same |
+| Metric | Before repo guard | After repo guard (`0d42bacc1`) | Input shape |
+| --- | --- | --- | --- |
+| ns/op (median) | 14,048,640 | 14,943,837 | 1,000 runs + 300 events, one repository, one sha |
+| B/op | 10,963,045 | 10,963,048 | same |
+| allocs/op | 21,529 | 21,529 | same |
 
-300,000 sha comparisons in 14.05 ms. An independent re-run on the same machine
-reproduced the median within 0.05% (14,055,864 ns) with a wider spread,
-13.965–14.114 ms, so treat roughly 1% as the honest run-to-run band rather than
-the 0.2% a single sample suggests. A corpus where runs carry distinct shas is
-linear; this is the number worth knowing because it is the ceiling.
+300,000 sha comparisons in about 15 ms. A corpus where runs carry distinct shas
+is linear; this is the number worth knowing because it is the ceiling.
+
+The cross-repository guard costs **+6.4% on this path** (14.05 ms to 14.94 ms
+median), and that is a real measured delta rather than noise: the two sample
+sets do not overlap (13.965-14.114 ms before, 14.888-15.065 ms after). It is a
+second field comparison per candidate event, so on the worst-case shape — every
+event a sha match, 300,000 candidate pairs — it lands where you would expect.
+allocs/op is unchanged at 21,529, so the cost is comparison work, not
+allocation.
+
+That is accepted deliberately. The guard closes a latent cross-repository
+join: a commit sha is only unique within a repository, and the fact already
+carried `RepositoryID`. 0.9 ms on the quadratic worst case, on a path that runs
+once per reducer intent, is a fair price for not silently attaching one
+repository's deployment to another repository's run. It is recorded here rather
+than smoothed over, so a future reader deciding whether to keep the guard has
+the number.
 
 No-Observability-Change: no new metric names. The truncation path reuses the
 existing partial-generation counter with a new reason label, and the unanchored
