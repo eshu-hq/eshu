@@ -169,9 +169,16 @@ gates its changed paths select:
   so their always-on jobs above keep running. A package doc under `go/**/*.md`
   still counts as code, and any PR that mixes docs with code runs the full set.
   `main`, the nightly schedule, and tag pushes run everything unconditionally as
-  the backstop. The `go-race-complete` umbrella reports green when the matrix is
-  skipped, so it stays a stable check name that is safe to mark required without
-  stranding a docs-only PR.
+  the backstop. Branch protection points at two umbrellas: `go-core-complete`
+  (**compilation gate** — whole-module `cd go && go build ./...` plus lint/fmt,
+  catching a merge result that does not compile though every PR was green,
+  #5814) and `go-race-complete` (**race gate** over the sharded `go test -race`
+  matrix). `go-race-complete` is required today; `go-core-complete` joins it
+  once that job is on `main`. Each stays green when its own lane is legitimately
+  skipped, so neither strands a docs-only PR — but each also depends on
+  `changes` and fails if `changes` did not, since GitHub marks a job `skipped`
+  (not `failed`) when a dependency fails, and an umbrella reading only its own
+  lane would report green after a broken filter stopped anything building.
 - **Advisory:** the benchmark regression check (`BENCH_REGRESSION_ENFORCE=false`)
   and the changed-file Prettier check do not block merge.
 - **CI-only / release-only:** Trivy image scan, GHCR/package publication, and

@@ -93,11 +93,59 @@ if job_alwayson "${t}" docs-helm-hygiene; then
 else
 	bad "test.yml docs-helm-hygiene must NOT be code-gated (it is the docs build)"
 fi
-if rg -qF '!= "skipped"' "${t}"; then
-	ok "go-race-complete accepts a skipped matrix as pass (required-check-safe)"
-else
-	bad "go-race-complete treats result==skipped as pass"
-fi
+# --- test.yml: both umbrella gates (go-race-complete #5757, go-core-complete
+# #5814) are the names branch protection points at, so each must hold the same
+# three-part contract: always reports, accepts a genuine docs-only skip as pass,
+# and REFUSES to accept that skip when the `changes` gate itself failed.
+#
+# That last part is the subtle one. GitHub implicitly prepends `success()` to a
+# job `if:` that does not name a status function, so a `changes` job that fails
+# or is cancelled marks its dependants `skipped` — not `failure`. An umbrella
+# keying only on its own dependency's result would report GREEN having built and
+# tested nothing. Each umbrella therefore needs `changes` as an explicit
+# dependency plus a check on its result.
+#
+# Every assertion below is scoped with `job_block` to the specific job. A
+# file-wide `rg` would be satisfied by the OTHER umbrella's copy of the same
+# string and silently stop testing the job it names.
+for umbrella in go-race-complete go-core-complete; do
+	case "${umbrella}" in
+	go-race-complete) dep="go-race" ;;
+	go-core-complete) dep="go-core" ;;
+	esac
+	block="$(job_block "${t}" "${umbrella}")"
+	if rg -qF "needs: [changes, ${dep}]" <<<"${block}"; then
+		ok "${umbrella} depends on both changes and ${dep}"
+	else
+		bad "${umbrella} must declare needs: [changes, ${dep}]"
+	fi
+	if rg -qF 'if: ${{ always() }}' <<<"${block}"; then
+		ok "${umbrella} always reports (if: \${{ always() }})"
+	else
+		bad "${umbrella} must carry if: \${{ always() }} so it always reports"
+	fi
+	if rg -qF '!= "skipped"' <<<"${block}"; then
+		ok "${umbrella} accepts a skipped ${dep} as pass (required-check-safe)"
+	else
+		bad "${umbrella} treats result==skipped as pass"
+	fi
+	# Assert the guard STRUCTURALLY: the comparison AND a non-zero exit inside
+	# the same `if ... fi`. Two weaker forms were tried and both were vacuous:
+	#   - matching `needs.changes.result` matched the `changes_result=...`
+	#     ASSIGNMENT, so deleting the whole conditional stayed green;
+	#   - matching the comparison alone left "keep the comparison and the
+	#     ::error:: echo, drop the `exit 1`" green — and that mutation still
+	#     exits 0, so the umbrella reports success after a failed `changes`.
+	# A bare `exit 1` search over the whole job block is no good either: the
+	# SECOND guard (the lane-result check) carries its own `exit 1` and would
+	# satisfy it. So slice out just this guard's body and look inside it.
+	guard_body="$(awk '/"\$\{changes_result\}" != "success"/{f=1} f{print} f&&/^[[:space:]]*fi[[:space:]]*$/{exit}' <<<"${block}")"
+	if [[ -n "${guard_body}" ]] && rg -q '^\s*exit [1-9]' <<<"${guard_body}"; then
+		ok "${umbrella} fails when the changes gate itself failed (guard exits non-zero)"
+	else
+		bad "${umbrella} changes_result guard must compare != \"success\" AND exit non-zero inside that same if-block"
+	fi
+done
 
 if [[ "${fail}" -ne 0 ]]; then
 	printf '\nverify-docs-only-ci-skip: docs-only CI carve-out wiring drifted — see failures above.\n' >&2
