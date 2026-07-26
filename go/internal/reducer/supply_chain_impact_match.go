@@ -83,83 +83,9 @@ func supplyChainAttachmentFromEnvelope(envelope facts.Envelope) supplyChainAttac
 	}
 }
 
-func supplyChainImageIdentityFromEnvelope(envelope facts.Envelope) supplyChainImageIdentity {
-	return supplyChainImageIdentity{
-		factID:   envelope.FactID,
-		digest:   payloadStr(envelope.Payload, "digest"),
-		imageRef: payloadStr(envelope.Payload, "image_ref"),
-		// repositoryID is the OCI/container-registry's OWN repository
-		// identifier (e.g. "oci-registry://ghcr.io/org/repo") — see
-		// ociRepositoryID in container_image_identity_registry.go. It lives in
-		// a disjoint namespace from every git-source Repository entity id
-		// (always "repository:..."), so callers that need a repository a
-		// workload/service/deployment-lane record can join against MUST use
-		// sourceRepositoryIDs below, never this field (issue #5464 STEP 1).
-		repositoryID: payloadStr(envelope.Payload, "repository_id"),
-		// sourceRepositoryIDs are the git Repository entity ids
-		// (decision.SourceRepositoryIDs, container_image_identity.go) the
-		// identity decision attributed the image to. This set is deliberately
-		// BROADER than genuine build evidence: it collects both an
-		// OCI-config-label/CI-run/SLSA-provenance build attribution AND a
-		// repository whose Kubernetes/deploy manifest merely REFERENCES the
-		// same digest (container_image_identity.go
-		// ContainerImageIdentityDecision.SourceRepositoryIDs). This is the
-		// only field in this struct that can ever equal a
-		// workload/service/deployment-lane repositoryID; the anchor rule
-		// (singleSupplyChainImageSourceRepositoryID, #5801/#5813) resolves a
-		// single row by preferring its narrower buildProvenanceRepositoryIDs
-		// over this broader (possibly two-repository) set when the two
-		// disagree, and preferSupplyChainImageIdentity's cross-row tier A >
-		// tier B > tier C (#5813) never lets one row's build provenance alone
-		// outrank multiple rows that already agree by sourceRepositoryIDs.
-		sourceRepositoryIDs:          payloadOrderedStrings(envelope.Payload, "source_repository_ids"),
-		buildProvenanceRepositoryIDs: payloadOrderedStrings(envelope.Payload, "build_provenance_repository_ids"),
-		outcome:                      payloadStr(envelope.Payload, "outcome"),
-		canonicalWrites:              supplyChainInt(envelope.Payload, "canonical_writes"),
-	}
-}
-
-// singleSupplyChainImageSourceRepositoryID returns image's sole git source
-// repository id, or "" when zero or more than one is present. #5464's
-// os_package join treats an image identity as an anchor only when it names
-// exactly one repository: an image built from (or attributed to) more than
-// one source repository cannot be attributed to a single one without
-// guessing, matching the #5463 "never invent an anchor" discipline.
-//
-// buildProvenanceRepositoryIDs (strong evidence only: an OCI config source
-// label, a CI run, or verified SLSA provenance) is checked FIRST and wins
-// whenever it names exactly one repository -- even when the broader
-// sourceRepositoryIDs also carries a different, weaker scope/deploy
-// reference. Deduping matchOCIConfigSourceRepository (#5801) made the label
-// tier reachable repo-wide, which routinely adds a label-derived repository
-// to sourceRepositoryIDs alongside an unrelated repository that merely
-// deploys or references the same image; treating that disagreement as
-// ambiguity would blank out RepositoryID (and all downstream
-// workload/service/environment context) even though the label unambiguously
-// named the image's build repository. A label is stronger evidence than a
-// scope anchor, so it ranks first. Only when buildProvenanceRepositoryIDs is
-// empty or itself ambiguous does the broader sourceRepositoryIDs check apply,
-// preserving the original behavior for images with no build evidence. Two
-// DISTINCT repositories that are both genuine build evidence (or both
-// distinct scope anchors) still resolve to neither: the writer already
-// de-duplicates both fields (containerImageIdentityPayload,
-// container_image_identity_writer.go), so a length check alone is sufficient
-// at each tier.
-func singleSupplyChainImageSourceRepositoryID(image supplyChainImageIdentity) string {
-	if repositoryID := singleSupplyChainRepositoryID(image.buildProvenanceRepositoryIDs); repositoryID != "" {
-		return repositoryID
-	}
-	return singleSupplyChainRepositoryID(image.sourceRepositoryIDs)
-}
-
-// singleSupplyChainRepositoryID returns the sole entry of repositoryIDs, or ""
-// when it is empty or carries more than one entry.
-func singleSupplyChainRepositoryID(repositoryIDs []string) string {
-	if len(repositoryIDs) != 1 {
-		return ""
-	}
-	return repositoryIDs[0]
-}
+// supplyChainImageIdentityFromEnvelope, singleSupplyChainImageSourceRepositoryID,
+// and singleSupplyChainRepositoryID live in supply_chain_impact_anchor_tier.go
+// (split out to keep this file under the repo's 500-line cap).
 
 func supplyChainWorkloadContextsFromEnvelope(envelope facts.Envelope) []supplyChainWorkloadContext {
 	repositoryID := supplyChainWorkloadRepositoryID(envelope)

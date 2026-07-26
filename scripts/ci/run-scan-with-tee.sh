@@ -31,6 +31,16 @@
 #                       format has no conversions, so one calling convention
 #                       covers both). Callers pass their EXACT current
 #                       wording here so both retain it unchanged.
+#                       CONTRACT: this value is passed straight to `printf` as
+#                       its format string (see the `printf -- "${scanner_fail_fmt}"`
+#                       call below, shellcheck SC2059 intentionally
+#                       suppressed there). Callers MUST pass a static string
+#                       literal and MUST NOT interpolate scanner output or any
+#                       other dynamic/untrusted text into this argument -- a
+#                       literal `%` in dynamic text would be interpreted as a
+#                       printf conversion and corrupt or crash the diagnostic
+#                       output. Both current call sites (govulncheck, nancy)
+#                       pass static literals; keep it that way.
 #   --                - literal separator before the scanner command.
 #   scanner-cmd [...] - the scanner invocation to run; its combined
 #                       stdout+stderr is piped through `tee artifact-path`.

@@ -92,6 +92,93 @@ func TestSupplyChainImpactIndexContainerImageIdentityDeterministicAcrossEnvelope
 	}
 }
 
+// TestSupplyChainImpactIndexContainerImageIdentityDeterministicAcrossEnvelopeOrderWithBuildProvenanceRow
+// extends the determinism guard above to a tier B row (resolvable only via
+// buildProvenanceRepositoryIDs, the tier this PR introduces): the prior
+// determinism test above only mixes tier A (unambiguous by
+// sourceRepositoryIDs) and tier C (fully ambiguous) rows, never a tier B row,
+// so it could not catch an order-dependence bug specific to tier B's
+// placement in supplyChainImageIdentityAnchorTier/preferSupplyChainImageIdentity.
+//
+// Order-independence must hold across ALL three tiers, not just tier A vs
+// tier C: preferSupplyChainImageIdentity folds envelopes one pair at a time
+// via bestSupplyChainImageIdentitiesByDigest/addSupplyChainImpactIndexEntry,
+// so the winner after N folds must be identical regardless of which two rows
+// happen to be compared first. If tier B's comparison were accidentally
+// order-sensitive (e.g. by comparing against a stale "existing" value instead
+// of re-deriving the tier for both candidates every time), the winner could
+// flip between forward and reverse envelope order exactly like the pre-#5813
+// regression did for tier A vs tier C -- this test would only catch that class
+// of bug for tier B if a tier B row actually participates.
+func TestSupplyChainImpactIndexContainerImageIdentityDeterministicAcrossEnvelopeOrderWithBuildProvenanceRow(t *testing.T) {
+	t.Parallel()
+
+	const (
+		digest            = "sha256:deterministicb0000000000000000000000000000000000000000000000"
+		decoyRepositoryID = "oci-registry://registry.example/deterministic-tierb-app"
+		buildRepoID       = "repository:r_deterministic_tierb_builder"
+		otherRepoID       = "repository:r_deterministic_tierb_other"
+		wantWinningFactID = "identity-deterministic-tierb-a"
+		losingTierBFactID = "identity-deterministic-tierb-b"
+		tierCLosingFactID = "identity-deterministic-tierb-c"
+	)
+
+	// Two tier B rows: each is ambiguous by sourceRepositoryIDs alone (names
+	// both the builder and an unrelated repository) but resolves unambiguously
+	// via buildProvenanceRepositoryIDs to the SAME builder -- mirroring how the
+	// corpus's tier A rows agree, but at tier B. wantWinningFactID is the
+	// lexicographically smaller of the two, so the same-tier tie-break is
+	// exercised alongside the tier check itself.
+	tierBRowA := containerImageIdentityImpactFactWithBuildProvenance(
+		wantWinningFactID, digest, decoyRepositoryID, buildRepoID, buildRepoID, otherRepoID,
+	)
+	tierBRowB := containerImageIdentityImpactFactWithBuildProvenance(
+		losingTierBFactID, digest, decoyRepositoryID, buildRepoID, buildRepoID, otherRepoID,
+	)
+	// A tier C row (ambiguous by sourceRepositoryIDs, no build provenance at
+	// all) that must never win over either tier B row, in either order.
+	tierCRow := containerImageIdentityImpactFactWithSourceRepositoryIDs(
+		tierCLosingFactID, digest, decoyRepositoryID, buildRepoID, otherRepoID,
+	)
+
+	forward := []facts.Envelope{tierCRow, tierBRowB, tierBRowA}
+	reverse := []facts.Envelope{tierBRowA, tierBRowB, tierCRow}
+
+	forwardWinners := bestSupplyChainImageIdentitiesByDigest(forward)
+	reverseWinners := bestSupplyChainImageIdentitiesByDigest(reverse)
+
+	forwardWinner := forwardWinners[digest]
+	reverseWinner := reverseWinners[digest]
+
+	if got := singleSupplyChainImageSourceRepositoryID(forwardWinner); got != buildRepoID {
+		t.Fatalf("forward-order winner repository = %q, want %q", got, buildRepoID)
+	}
+	if got := singleSupplyChainImageSourceRepositoryID(reverseWinner); got != buildRepoID {
+		t.Fatalf("reverse-order winner repository = %q, want %q: winner depends on envelope order", got, buildRepoID)
+	}
+	if forwardWinner.factID != wantWinningFactID {
+		t.Fatalf("forward-order winner factID = %q, want the lexicographically smaller tier B row %q", forwardWinner.factID, wantWinningFactID)
+	}
+	if reverseWinner.factID != wantWinningFactID {
+		t.Fatalf("reverse-order winner factID = %q, want %q: tie-break must not depend on envelope order", reverseWinner.factID, wantWinningFactID)
+	}
+
+	forwardIndex, _, err := buildSupplyChainImpactIndexWithQuarantine(forward)
+	if err != nil {
+		t.Fatalf("buildSupplyChainImpactIndexWithQuarantine(forward) error = %v", err)
+	}
+	reverseIndex, _, err := buildSupplyChainImpactIndexWithQuarantine(reverse)
+	if err != nil {
+		t.Fatalf("buildSupplyChainImpactIndexWithQuarantine(reverse) error = %v", err)
+	}
+	if got := singleSupplyChainImageSourceRepositoryID(forwardIndex.images[digest]); got != buildRepoID {
+		t.Fatalf("forward index.images[digest] repository = %q, want %q", got, buildRepoID)
+	}
+	if got := singleSupplyChainImageSourceRepositoryID(reverseIndex.images[digest]); got != buildRepoID {
+		t.Fatalf("reverse index.images[digest] repository = %q, want %q: index build depends on envelope order", got, buildRepoID)
+	}
+}
+
 // TestPreferSupplyChainImageIdentityUnambiguousBeatsAmbiguous is the direct
 // unit guard on preferSupplyChainImageIdentity's preference rule, independent
 // of the batch/index-build callers above.
@@ -230,6 +317,99 @@ func TestPreferSupplyChainImageIdentityBuildProvenanceBeatsFullyUnresolved(t *te
 		t.Fatalf(
 			"index.images[digest] repository = %q, want the build-provenance-resolvable repository %q: an all-ambiguous digest must not blank the anchor when one row's own build provenance can resolve it",
 			got, buildRepoID,
+		)
+	}
+}
+
+// TestPreferSupplyChainImageIdentityAcceptedLimitationLoneDeployRowBeatsBuildProvenanceRow
+// pins an ACCEPTED LIMITATION, not desired-in-principle behavior: see
+// supplyChainImageIdentityAnchorTier's doc comment in
+// supply_chain_impact_anchor_tier.go for the full explanation.
+//
+// Tier A (supplyChainImageIdentityAnchorTier) only requires that a row's OWN
+// sourceRepositoryIDs is a singleton -- it does not require corroboration
+// from any other row. So a single row carrying nothing but one weak,
+// uncorroborated deploy/scope reference (tier A, because sourceRepositoryIDs
+// is a singleton) outranks a row with genuine build provenance whose own
+// sourceRepositoryIDs is ambiguous (tier B, resolvable only via
+// buildProvenanceRepositoryIDs) -- even though the tier B row's evidence is
+// individually stronger than the tier A row's.
+//
+// This is NOT a regression introduced by #5813's tier fix: pre-#5813 (and
+// pre-#5801), preferSupplyChainImageIdentity's single "unambiguous" boolean
+// was backed by singleSupplyChainImageSourceRepositoryID, which at that time
+// reduced to the equivalent of len(sourceRepositoryIDs) == 1 (see
+// git history for supply_chain_impact_index_build.go / supply_chain_impact_match.go
+// pre-#5801) -- so the lone deploy-only row was ALREADY treated as
+// unambiguous and ALREADY won over the build-provenance row in this exact
+// shape, before either #5801 or #5813 touched this code. The tier fix
+// deliberately preserves that outcome: tier B must never displace tier A,
+// because the B-12 golden pin depends on tier A's priority holding even
+// when tier A's own evidence is thin (ten independently agreeing deploy
+// rows must keep beating one row that is ambiguous by sourceRepositoryIDs
+// but resolvable via its own build provenance).
+//
+// Changing tier A to require multi-writer corroboration instead of mere
+// singleton-ness of sourceRepositoryIDs is a deliberate semantic decision
+// that needs owner sign-off -- it is not an incidental refactor. This test
+// exists so such a change cannot silently flip this outcome unreviewed: a
+// change that intentionally alters this behavior MUST update or replace this
+// test as part of that sign-off, not accidentally break it.
+func TestPreferSupplyChainImageIdentityAcceptedLimitationLoneDeployRowBeatsBuildProvenanceRow(t *testing.T) {
+	t.Parallel()
+
+	const (
+		digest        = "sha256:5813accepted00000000000000000000000000000000000000000000000000"
+		deployRepoID  = "repository:r_accepted_lone_deploy"
+		buildRepoID   = "repository:r_accepted_build_evidence"
+		staleRepoID   = "repository:r_accepted_stale_reference"
+		loneDeployRow = "identity-5813-accepted-lone-deploy"
+		buildRow      = "identity-5813-accepted-build-provenance"
+	)
+
+	// Tier A: a single row whose sourceRepositoryIDs carries exactly one
+	// entry -- a weak deploy/scope reference with no corroboration from any
+	// other row at all.
+	loneDeployOnlyRow := containerImageIdentityImpactFactWithSourceRepositoryIDs(
+		loneDeployRow, digest, "oci-registry://registry.example/accepted-limitation-app", deployRepoID,
+	)
+	// Tier B: sourceRepositoryIDs is ambiguous (names the builder plus a
+	// second, stale reference), but buildProvenanceRepositoryIDs resolves
+	// unambiguously to the builder -- genuine, individually-strong evidence.
+	buildProvenanceRow := containerImageIdentityImpactFactWithBuildProvenance(
+		buildRow, digest, "oci-registry://registry.example/accepted-limitation-app",
+		buildRepoID, buildRepoID, staleRepoID,
+	)
+
+	winner := preferSupplyChainImageIdentity(
+		supplyChainImageIdentityFromEnvelope(loneDeployOnlyRow),
+		supplyChainImageIdentityFromEnvelope(buildProvenanceRow),
+	)
+	if got := singleSupplyChainImageSourceRepositoryID(winner); got != deployRepoID {
+		t.Fatalf(
+			"preferSupplyChainImageIdentity winner repository = %q, want the lone deploy-only row's repository %q: "+
+				"this pins the accepted pre-existing limitation where tier A's lack of multi-writer corroboration "+
+				"lets a lone weak reference outrank genuine build provenance -- see supplyChainImageIdentityAnchorTier's doc comment",
+			got, deployRepoID,
+		)
+	}
+	if winner.factID != loneDeployRow {
+		t.Fatalf("preferSupplyChainImageIdentity winner factID = %q, want the tier A row %q", winner.factID, loneDeployRow)
+	}
+
+	index, quarantined, err := buildSupplyChainImpactIndexWithQuarantine(
+		[]facts.Envelope{buildProvenanceRow, loneDeployOnlyRow},
+	)
+	if err != nil {
+		t.Fatalf("buildSupplyChainImpactIndexWithQuarantine() error = %v", err)
+	}
+	if len(quarantined) != 0 {
+		t.Fatalf("quarantined = %#v, want none", quarantined)
+	}
+	if got := singleSupplyChainImageSourceRepositoryID(index.images[digest]); got != deployRepoID {
+		t.Fatalf(
+			"index.images[digest] repository = %q, want the lone deploy-only row's repository %q (accepted limitation, see supplyChainImageIdentityAnchorTier)",
+			got, deployRepoID,
 		)
 	}
 }

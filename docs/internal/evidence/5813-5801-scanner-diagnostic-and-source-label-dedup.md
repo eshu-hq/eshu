@@ -163,19 +163,19 @@ covers all three cases directly against the real helper both jobs call.
 
 ### Refuted-then-refined: the mistake to not repeat
 
-A separate Claude session investigating this PR reproduced shape A (the bare
-pipeline) and, from that, concluded the false-green claim was categorically
-wrong — staging edits to this file and to the workflow comments asserting
-"that claim is wrong" and that the fix was "diagnostic-only." The shape-A
-reproduction itself was accurate; the error was applying its conclusion to
-shape B, which is not the same code. `b93e2a078`'s `if !` wrapper genuinely
-changes `errexit` behavior for that pipeline, and that is precisely what
-converts a diagnostic-only bug into a false green. The session's staged
-changes were discarded (never committed) once this was caught. The lesson:
-when adjudicating a review comment against a specific commit, reproduce the
-EXACT shape at that commit — a bare pipeline and an `if !`-wrapped pipeline
-are not interchangeable for `errexit` purposes, and testing the wrong one
-proves nothing about the other.
+An earlier analysis of this PR reproduced shape A (the bare pipeline) and,
+from that, concluded the false-green claim was categorically wrong — drafting
+edits to this file and to the workflow comments asserting "that claim is
+wrong" and that the fix was "diagnostic-only." The shape-A reproduction itself
+was accurate; the error was applying its conclusion to shape B, which is not
+the same code. `b93e2a078`'s `if !` wrapper genuinely changes `errexit`
+behavior for that pipeline, and that is precisely what converts a
+diagnostic-only bug into a false green. Those draft edits were discarded
+(never committed) once this was caught. The lesson: when adjudicating a
+review comment against a specific commit, reproduce the EXACT shape at that
+commit — a bare pipeline and an `if !`-wrapped pipeline are not
+interchangeable for `errexit` purposes, and testing the wrong one proves
+nothing about the other.
 
 This is a CI workflow YAML change, not a Go file — it does not touch the
 hot-path evidence gate's tracked surfaces.
@@ -449,6 +449,42 @@ the fix corrects the code to reach the already-correct pinned answer instead.
 
 Full command: `cd go && go test ./internal/reducer/ -run 'SupplyChain|ContainerImage' -count=1 -v`
 and `cd go && go test ./internal/reducer/ -count=1` — both green.
+
+### Accepted limitation: tier A does not require multi-writer corroboration
+
+`supplyChainImageIdentityAnchorTier`'s tier A check is "this row's OWN
+`sourceRepositoryIDs` names exactly one repository" — it does NOT require that
+more than one writer contributed to that agreement. So a single row carrying
+nothing but one weak, uncorroborated deploy/scope reference (tier A, because
+its own `sourceRepositoryIDs` is a singleton) outranks a row with genuine
+build provenance whose own `sourceRepositoryIDs` is ambiguous (tier B,
+resolvable only via `buildProvenanceRepositoryIDs`) — even though the tier B
+row's evidence is individually stronger.
+
+This is a PRE-EXISTING limitation, not one this follow-up introduces. Before
+either #5801 or #5813 touched this code, `origin/main`'s
+`preferSupplyChainImageIdentity` picked its winner via
+`singleSupplyChainImageSourceRepositoryID`, which at that point reduced to
+`len(sourceRepositoryIDs) == 1` (`buildProvenanceRepositoryIDs` did not exist
+yet). For the shape above, that pre-PR check already found the lone
+deploy-only row "unambiguous" (singleton `sourceRepositoryIDs`) and the
+build-provenance row "ambiguous" (its `sourceRepositoryIDs` names two
+repositories, and there was no separate field to recover it from) — so the
+lone deploy-only row already won, identically to the current behavior.
+
+The tier fix deliberately preserves this outcome rather than changing it:
+tier B must never displace tier A, because the B-12 golden pin (ten
+independently agreeing deploy rows beating one row that is ambiguous by
+`sourceRepositoryIDs` but resolvable via its own build provenance) depends on
+tier A's priority holding even when tier A's own evidence is thin. Changing
+tier A to require multi-writer corroboration instead of mere singleton-ness
+of `sourceRepositoryIDs` is a deliberate semantic decision that needs owner
+sign-off, not an incidental refactor.
+
+`TestPreferSupplyChainImageIdentityAcceptedLimitationLoneDeployRowBeatsBuildProvenanceRow`
+(`supply_chain_impact_index_build_test.go`) pins this behavior so a future
+change cannot silently flip it unreviewed; its own doc comment states plainly
+that it pins an accepted limitation, not desired-in-principle behavior.
 
 ## No-Regression Evidence (follow-up)
 

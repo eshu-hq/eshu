@@ -129,26 +129,10 @@ type supplyChainAttachment struct {
 	status        string
 }
 
-type supplyChainImageIdentity struct {
-	factID       string
-	digest       string
-	imageRef     string
-	repositoryID string
-	// sourceRepositoryIDs is the full, deliberately broader set of git source
-	// repository ids the reducer_container_image_identity decision attributed
-	// this image to -- build evidence AND weaker scope/deploy references alike
-	// (container_image_identity.go ContainerImageIdentityDecision.SourceRepositoryIDs).
-	sourceRepositoryIDs []string
-	// buildProvenanceRepositoryIDs is the strong-evidence-only subset: an OCI
-	// config source label, a CI run, or verified SLSA provenance (never a mere
-	// deploy/scope reference). singleSupplyChainImageSourceRepositoryID ranks
-	// this ahead of sourceRepositoryIDs (#5801) so a label-derived repository is
-	// not blanked out as ambiguous merely because a weaker scope anchor also
-	// names a different repository for the same image.
-	buildProvenanceRepositoryIDs []string
-	outcome                      string
-	canonicalWrites              int
-}
+// supplyChainImageIdentity, its envelope decode, and the anchor-tier ranking
+// logic that resolves it to a single repository (both row-level and
+// cross-row) live in supply_chain_impact_anchor_tier.go (split out to keep
+// this file under the repo's 500-line cap).
 
 type supplyChainDeploymentContext struct {
 	factID         string
@@ -328,9 +312,14 @@ func classifySupplyChainImpactPackage(
 		// would produce a non-blank RepositoryID that is permanently unable to
 		// reach workload/service/environment context — unit-green, dead in
 		// production, exactly what #5463 exists to prevent (#5464 STEP 1
-		// finding). sourceRepositoryIDs carries the git repository the identity
-		// decision attributed the image to (CI-run/SLSA/source-label evidence).
-		// Only used when unambiguous — singleSupplyChainImageSourceRepositoryID
+		// finding). sourceRepositoryIDs is deliberately broader than build
+		// evidence alone: it carries every git repository the identity decision
+		// attributed the image to, including a mere deploy/scope reference
+		// (e.g. a Kubernetes manifest referencing a third-party digest), not
+		// only CI-run/SLSA/source-label build provenance — see
+		// singleSupplyChainImageSourceRepositoryID and the buildProvenanceRepositoryIDs
+		// field comment above for the strong-evidence-only subset ranked ahead
+		// of it. Only used when unambiguous — singleSupplyChainImageSourceRepositoryID
 		// returns "" for zero or multiple distinct repositories, matching the
 		// #5463 "never invent an anchor" discipline: an image attributable to
 		// more than one repository is not attributed to any single one. Do not
