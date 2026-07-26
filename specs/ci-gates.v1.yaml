@@ -1141,6 +1141,23 @@ gates:
       - "vite.config.ts"
       - "tsconfig*.json"
       - "wrangler.jsonc"
+      # src/cloudflareConfig.test.ts (part of `npm test`) asserts the .nvmrc pin
+      # and the CLOUDFLARE_PAGES.md Node-version row in lockstep (#5798).
+      - ".nvmrc"
+      - "CLOUDFLARE_PAGES.md"
+      # Root vite.config.ts sets `exclude` with no `include`, so vitest's default
+      # pattern collects scripts/marketing-review-runtime.test.mjs from the repo
+      # root - and `npm test` is this gate's own command. That test imports
+      # marketing-review-runtime.mjs and reads marketing-review.mjs, so all three
+      # are in this gate's blast radius (#5798, same class as the pins above).
+      - "scripts/marketing-review.mjs"
+      - "scripts/marketing-review-runtime.mjs"
+      - "scripts/marketing-review-runtime.test.mjs"
+      # public/ is Vite's default publicDir (no root/publicDir override), copied
+      # verbatim into build.outDir and published by wrangler as the Pages
+      # artifact - a direct input to this gate's own `npm run build` (#5798).
+      # Matched as a class: enumerating the assets is the mistake above.
+      - "public/**"
     local:
       command: "npm run typecheck && npm test && npm run build"
       test_command: ""
@@ -1172,6 +1189,14 @@ gates:
       # has no per-job path filter and runs on these too).
       - "package.json"
       - "package-lock.json"
+      # `npm run console:build` runs both bundle-budget scripts directly, and
+      # consoleBundleBudget.test.ts / consoleBundleReport.test.ts (`console:test`)
+      # import them; the adjacent hand-maintained .d.mts types are resolved by
+      # `console:typecheck` (tsc), not by `console:test` (vitest) (#5798).
+      - "scripts/console-bundle-budget.mjs"
+      - "scripts/console-bundle-budget.d.mts"
+      - "scripts/console-bundle-report.mjs"
+      - "scripts/console-bundle-report.d.mts"
     local:
       command: "bash scripts/test-run-console-live-e2e.sh && bash scripts/test-run-console-retained-e2e.sh && npm run console:typecheck && npm run console:test && npm run console:build"
       test_command: ""
@@ -1213,6 +1238,14 @@ gates:
       # The eslint self-test (test-eslint-config.sh) reads the lint fixtures, so
       # a fixture change must re-run this gate (it is in frontend.yml's filter).
       - "tests/lint-fixture/**"
+      # verify-eslint-config.sh runs `eslint .` repo-wide, and eslint.config.js
+      # carries an explicit files: ["scripts/**/*.{js,mjs,cjs,ts,mts,cts}"] block,
+      # so every .mjs under scripts/ is linted by this gate (#5798). Matched as a
+      # class rather than enumerated: naming them one at a time is what let the
+      # console-bundle and marketing-review scripts go ungated in the first place.
+      # The .d.mts siblings are deliberately NOT covered - eslint.config.js
+      # ignores "**/*.d.mts", so this glob must not match them (it does not).
+      - "scripts/**/*.mjs"
     local:
       command: "bash scripts/verify-eslint-config.sh"
       test_command: "bash scripts/test-eslint-config.sh"
