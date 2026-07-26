@@ -55,9 +55,9 @@ func (l *scanScopedSupplyChainImpactFactLoader) ListOSPackageAdvisoryFactEnvelop
 	_ context.Context,
 	ecosystems []string,
 	_ int,
-) ([]facts.Envelope, error) {
+) ([]facts.Envelope, int, error) {
 	l.osPackageAdvisoryEcosystemCalls = append(l.osPackageAdvisoryEcosystemCalls, append([]string(nil), ecosystems...))
-	return append([]facts.Envelope(nil), l.osPackageAdvisoryFactEnvelopes...), nil
+	return append([]facts.Envelope(nil), l.osPackageAdvisoryFactEnvelopes...), 0, nil
 }
 
 func scanScopedFactLoaderKey(scopeID, generationID string) string {

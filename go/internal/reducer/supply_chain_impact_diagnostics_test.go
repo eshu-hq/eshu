@@ -152,3 +152,16 @@ func TestSupplyChainImpactHandlerTimesSecurityAlertScoping(t *testing.T) {
 		}
 	}
 }
+
+func TestSupplyChainImpactDiagnosticSignalsSkippedKey(t *testing.T) {
+	signals := supplyChainImpactDiagnosticSignals(
+		1, 1, 0, 0, 1, 3, 1, 1, 0, 0, 1, false, 0, 1, false, 1,
+	)
+	value, ok := signals["os_package_advisory_targets_skipped"]
+	if !ok {
+		t.Fatal("os_package_advisory_targets_skipped key missing from diagnostic signals")
+	}
+	if value != 3 {
+		t.Errorf("os_package_advisory_targets_skipped = %v, want 3", value)
+	}
+}

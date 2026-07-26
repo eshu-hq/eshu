@@ -52,6 +52,7 @@ func supplyChainImpactDiagnosticSignals(
 	manifestDependencyFacts int,
 	activeEvidenceFacts int,
 	osPackageAdvisoryFacts int,
+	osPackageAdvisoryTargetsSkipped int,
 	scannerAnalysisScopeFacts int,
 	resolvedDigestEvidenceFacts int,
 	pythonReachabilityFacts int,
@@ -78,6 +79,7 @@ func supplyChainImpactDiagnosticSignals(
 	signals["manifest_dependency_facts"] = float64(manifestDependencyFacts)
 	signals["active_evidence_facts"] = float64(activeEvidenceFacts)
 	signals["os_package_advisory_facts"] = float64(osPackageAdvisoryFacts)
+	signals["os_package_advisory_targets_skipped"] = float64(osPackageAdvisoryTargetsSkipped)
 	signals["scanner_analysis_scope_facts"] = float64(scannerAnalysisScopeFacts)
 	signals["resolved_digest_evidence_facts"] = float64(resolvedDigestEvidenceFacts)
 	signals["python_reachability_facts"] = float64(pythonReachabilityFacts)

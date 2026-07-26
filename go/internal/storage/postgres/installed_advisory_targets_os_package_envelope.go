@@ -20,6 +20,11 @@ import (
 // normal fact-decode seam exactly as if the fact had been loaded natively for
 // its own scope.
 //
+// The returned int is the count of targets skipped because they are missing
+// one or more required fields (distro, distro_version, package_manager,
+// name, arch, installed_version, fact_id, scope_id, or generation_id).
+// A persistently non-zero skip count signals a systematic backfill gap.
+//
 // This bridging method exists (rather than exposing the workflow-typed
 // ListOSPackageAdvisoryTargets result straight to the reducer) because
 // go/internal/reducer cannot import go/internal/workflow: internal/workflow
@@ -37,23 +42,25 @@ func (s FactStore) ListOSPackageAdvisoryFactEnvelopes(
 	ctx context.Context,
 	ecosystems []string,
 	limit int,
-) ([]facts.Envelope, error) {
+) ([]facts.Envelope, int, error) {
 	targets, err := s.ListOSPackageAdvisoryTargets(ctx, workflow.OSPackageAdvisoryTargetFilter{
 		Ecosystems: ecosystems,
 		Limit:      limit,
 	})
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	envelopes := make([]facts.Envelope, 0, len(targets))
+	skipped := 0
 	for _, target := range targets {
 		envelope, ok := osPackageAdvisoryFactEnvelopeFromTarget(target)
 		if !ok {
+			skipped++
 			continue
 		}
 		envelopes = append(envelopes, envelope)
 	}
-	return envelopes, nil
+	return envelopes, skipped, nil
 }
 
 // osPackageAdvisoryFactEnvelopeFromTarget reconstructs a vulnerability.os_package

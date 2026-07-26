@@ -32,7 +32,7 @@ import (
 // reconstructs the envelope there, where both internal/workflow and
 // internal/facts are importable.
 type osPackageAdvisoryFactLoader interface {
-	ListOSPackageAdvisoryFactEnvelopes(ctx context.Context, ecosystems []string, limit int) ([]facts.Envelope, error)
+	ListOSPackageAdvisoryFactEnvelopes(ctx context.Context, ecosystems []string, limit int) ([]facts.Envelope, int, error)
 }
 
 // maxSupplyChainImpactOSPackageAdvisoryTargets bounds how many active
@@ -60,20 +60,20 @@ const maxSupplyChainImpactOSPackageAdvisoryTargets = 500
 func (h SupplyChainImpactHandler) loadSupplyChainImpactOSPackageAdvisoryFacts(
 	ctx context.Context,
 	envelopes []facts.Envelope,
-) ([]facts.Envelope, error) {
+) ([]facts.Envelope, int, error) {
 	loader, ok := h.FactLoader.(osPackageAdvisoryFactLoader)
 	if !ok {
-		return nil, nil
+		return nil, 0, nil
 	}
 	ecosystems := supplyChainImpactOSPackageAdvisoryEcosystems(envelopes)
 	if len(ecosystems) == 0 {
-		return nil, nil
+		return nil, 0, nil
 	}
-	loaded, err := loader.ListOSPackageAdvisoryFactEnvelopes(ctx, ecosystems, maxSupplyChainImpactOSPackageAdvisoryTargets)
+	loaded, skipped, err := loader.ListOSPackageAdvisoryFactEnvelopes(ctx, ecosystems, maxSupplyChainImpactOSPackageAdvisoryTargets)
 	if err != nil {
-		return nil, classifyFactLoadError(err)
+		return nil, 0, classifyFactLoadError(err)
 	}
-	return loaded, nil
+	return loaded, skipped, nil
 }
 
 // supplyChainImpactOSPackageAdvisoryEcosystems returns the distinct,
