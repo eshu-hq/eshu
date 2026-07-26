@@ -3631,10 +3631,14 @@
           "cve_id",
           "impact_status",
           "repository_id",
+          "runtime_context",
           "subject_digest"
         ],
         "required_json_values": {
           "findings[].repository_id": "repository:r_217415d9",
+          "findings[].runtime_context.truth_basis": "read_time_resolved",
+          "findings[].runtime_context.workload_ids[]": "workload:deployable-config",
+          "findings[].runtime_context.deployment_ids[]": "deployment:deployable-config",
           "findings[].subject_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
         },
         "minimum_results": 1,

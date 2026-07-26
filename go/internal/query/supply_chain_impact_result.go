@@ -62,18 +62,26 @@ type SupplyChainImpactFindingResult struct {
 	// matches this finding's subject digest — runtime-observed deployment
 	// evidence that drives the runtime_confirmed deployment_truth_tier, distinct
 	// from the CI-declared deployment anchors (#5452).
-	CloudRuntimeResourceRefs []string                     `json:"cloud_runtime_resource_refs,omitempty"`
-	CatalogEntityRefs        []string                     `json:"catalog_entity_refs,omitempty"`
-	CatalogOwnerRefs         []string                     `json:"catalog_owner_refs,omitempty"`
-	DependencyPath           []string                     `json:"dependency_path,omitempty"`
-	DependencyDepth          int                          `json:"dependency_depth,omitempty"`
-	DirectDependency         *bool                        `json:"direct_dependency,omitempty"`
-	MissingEvidence          []string                     `json:"missing_evidence,omitempty"`
-	EvidencePath             []string                     `json:"evidence_path,omitempty"`
-	EvidenceFactIDs          []string                     `json:"evidence_fact_ids,omitempty"`
-	SourceFreshness          string                       `json:"source_freshness,omitempty"`
-	SourceConfidence         string                       `json:"source_confidence,omitempty"`
-	Provenance               *SupplyChainImpactProvenance `json:"provenance,omitempty"`
+	CloudRuntimeResourceRefs []string `json:"cloud_runtime_resource_refs,omitempty"`
+	// RuntimeContext carries the read-time-resolved runtime context
+	// (workloads, services, deployments, environments, catalog refs) resolved
+	// from this finding's repository_id at query time (issue #5746). It is
+	// labeled with truth_basis "read_time_resolved" so callers cannot mistake
+	// it for the baked workload_ids/service_ids/environments fields the
+	// filters read — those stay empty for OS-package findings until #5747
+	// makes the filters agree.
+	RuntimeContext    *SupplyChainRuntimeContextResult `json:"runtime_context,omitempty"`
+	CatalogEntityRefs []string                         `json:"catalog_entity_refs,omitempty"`
+	CatalogOwnerRefs  []string                         `json:"catalog_owner_refs,omitempty"`
+	DependencyPath    []string                         `json:"dependency_path,omitempty"`
+	DependencyDepth   int                              `json:"dependency_depth,omitempty"`
+	DirectDependency  *bool                            `json:"direct_dependency,omitempty"`
+	MissingEvidence   []string                         `json:"missing_evidence,omitempty"`
+	EvidencePath      []string                         `json:"evidence_path,omitempty"`
+	EvidenceFactIDs   []string                         `json:"evidence_fact_ids,omitempty"`
+	SourceFreshness   string                           `json:"source_freshness,omitempty"`
+	SourceConfidence  string                           `json:"source_confidence,omitempty"`
+	Provenance        *SupplyChainImpactProvenance     `json:"provenance,omitempty"`
 	// Suppression carries the reducer VEX/operator-policy decision attached
 	// to this finding. The reducer always populates a decision (state=active
 	// when nothing matched) so callers can audit suppression provenance even

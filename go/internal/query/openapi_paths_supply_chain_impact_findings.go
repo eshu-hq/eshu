@@ -82,6 +82,20 @@ const openAPIPathsSupplyChainImpactFindings = `
                           "service_ids": {"type": "array", "items": {"type": "string"}},
                           "environments": {"type": "array", "items": {"type": "string"}},
                           "cloud_runtime_resource_refs": {"type": "array", "items": {"type": "string"}, "description": "ARNs of observed cloud compute resources (running ECS task / image-package Lambda) whose running image digest equals this finding's subject_digest — runtime-observed deployment evidence that drives deployment_truth_tier=runtime_confirmed, distinct from CI-declared correlation. Query-time enrichment (#5452); present only when a live cloud resource runs the affected image."},
+                          "runtime_context": {
+                            "type": "object",
+                            "description": "Read-time-resolved runtime context joined from the finding's repository_id at query time (#5746): the workloads, services, deployments, environments, and catalog refs that repository currently maps to. Populated on this findings list route only; the explain route embeds the same finding shape but does not resolve runtime context. truth_basis is always read_time_resolved so callers cannot mistake these IDs for the baked workload_ids/service_ids/environments fields the workload_id/service_id/environment FILTERS read — a workload shown here may not yet match those filters. An empty runtime_context is an honest 'no runtime facts landed yet' (fresh ingest) that self-heals on the next read; it is not an error and not 'never scanned'.",
+                            "properties": {
+                              "truth_basis": {"type": "string", "enum": ["read_time_resolved"]},
+                              "workload_ids": {"type": "array", "items": {"type": "string"}},
+                              "service_ids": {"type": "array", "items": {"type": "string"}},
+                              "deployment_ids": {"type": "array", "items": {"type": "string"}},
+                              "environments": {"type": "array", "items": {"type": "string"}},
+                              "catalog_entity_refs": {"type": "array", "items": {"type": "string"}},
+                              "catalog_owner_refs": {"type": "array", "items": {"type": "string"}}
+                            },
+                            "required": ["truth_basis"]
+                          },
                           "catalog_entity_refs": {"type": "array", "items": {"type": "string"}, "description": "Reducer-admitted service-catalog entity references attached to the finding evidence path. These are catalog anchors and do not become service_ids unless the reducer fact carries an explicit service_id."},
                           "catalog_owner_refs": {"type": "array", "items": {"type": "string"}, "description": "Reducer-admitted service-catalog owners attached to the finding evidence path. These preserve ownership context without inventing service or workload identity."},
                           "dependency_path": {"type": "array", "items": {"type": "string"}},

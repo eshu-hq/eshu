@@ -100,6 +100,12 @@ func vulnerabilityScannerReadContract() map[string]any {
 			{Name: "readiness", Support: "missing-evidence driven", Semantics: []string{"missing-evidence driven"}, Parameters: []string{"readiness"}, Routes: []string{"impact_findings", "impact_explain", "scanner_report"}, Backing: "readiness envelope built from source/read-model counts; it is not a row filter"},
 			{Name: "provider_state", Support: "provider-only", Semantics: []string{"provider-only"}, Parameters: []string{"provider_state", "provider"}, Routes: []string{"security_alert_reconciliations", "security_alert_count", "security_alert_inventory"}, Backing: "provider alert reconciliation read model; never changes Eshu impact_status"},
 		},
+		"response_fields": []map[string]string{
+			{
+				"name":  "runtime_context",
+				"notes": "read-time-resolved workloads, services, deployments, environments, and catalog refs joined from the finding's repository_id at query time (truth_basis: read_time_resolved), populated on the impact-findings list route only (the explain route embeds the same finding shape but does not resolve runtime context). These fields are response enrichment ONLY: the workload_id, service_id, and environment FILTERS above still read the baked payload arrays, so a workload shown under runtime_context may not yet match those filters (tracked as a filter rework follow-up). An empty runtime_context is an honest 'no runtime facts landed yet' that self-heals on the next read.",
+			},
+		},
 		"routes":             vulnerabilityScannerRouteContracts(),
 		"remediation_packet": remediationPacketReadContract(),
 	}

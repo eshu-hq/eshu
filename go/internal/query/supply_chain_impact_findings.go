@@ -124,17 +124,26 @@ type SupplyChainImpactFindingRow struct {
 	// same field position as SupplyChainImpactFindingResult so the
 	// SupplyChainImpactFindingResult(row) conversion stays valid.
 	CloudRuntimeResourceRefs []string
-	CatalogEntityRefs        []string
-	CatalogOwnerRefs         []string
-	DependencyPath           []string
-	DependencyDepth          int
-	DirectDependency         *bool
-	MissingEvidence          []string
-	EvidencePath             []string
-	EvidenceFactIDs          []string
-	SourceFreshness          string
-	SourceConfidence         string
-	Provenance               *SupplyChainImpactProvenance
+	// RuntimeContext carries the read-time-resolved runtime context
+	// (workloads, services, deployments, environments, catalog refs) resolved
+	// from this finding's repository_id at query time (issue #5746). Like
+	// CloudRuntimeResourceRefs it is NOT decoded from the persisted payload:
+	// the findings handler populates it at read time via
+	// applySupplyChainRuntimeContext. Kept in the same field position as
+	// SupplyChainImpactFindingResult so the
+	// SupplyChainImpactFindingResult(row) conversion stays valid.
+	RuntimeContext    *SupplyChainRuntimeContextResult
+	CatalogEntityRefs []string
+	CatalogOwnerRefs  []string
+	DependencyPath    []string
+	DependencyDepth   int
+	DirectDependency  *bool
+	MissingEvidence   []string
+	EvidencePath      []string
+	EvidenceFactIDs   []string
+	SourceFreshness   string
+	SourceConfidence  string
+	Provenance        *SupplyChainImpactProvenance
 	// Suppression carries the reducer VEX/operator-policy decision; it is
 	// always populated (state=active when no suppression matched) so callers
 	// can audit suppression provenance even when the finding is hidden from
