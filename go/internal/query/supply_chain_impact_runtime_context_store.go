@@ -187,7 +187,7 @@ func addSupplyChainRuntimeContextFactForRepository(
 		if workloadID := strings.TrimSpace(StringVal(payload, "workload_id")); workloadID != "" {
 			ctx.WorkloadIDs = append(ctx.WorkloadIDs, workloadID)
 		}
-		for _, key := range StringSliceVal(payload, "entity_keys") {
+		for _, key := range supplyChainRuntimeContextOrderedStrings(payload, "entity_keys") {
 			if workloadID := strings.TrimSpace(key); workloadID != "" && strings.HasPrefix(workloadID, "workload:") {
 				ctx.WorkloadIDs = append(ctx.WorkloadIDs, workloadID)
 			}
@@ -222,7 +222,7 @@ func addSupplyChainRuntimeContextFactForRepository(
 		if deploymentID := strings.TrimSpace(StringVal(payload, "deployment_id")); deploymentID != "" {
 			ctx.DeploymentIDs = append(ctx.DeploymentIDs, deploymentID)
 		}
-		for _, key := range StringSliceVal(payload, "entity_keys") {
+		for _, key := range supplyChainRuntimeContextOrderedStrings(payload, "entity_keys") {
 			if deploymentID := strings.TrimSpace(key); deploymentID != "" && strings.HasPrefix(deploymentID, "deployment:") {
 				ctx.DeploymentIDs = append(ctx.DeploymentIDs, deploymentID)
 			}
@@ -245,12 +245,26 @@ func addSupplyChainRuntimeContextFactForRepository(
 // exact/derived/empty outcome resolves context; ambiguous, rejected,
 // unresolved, stale, or provenance-only evidence is skipped.
 func supplyChainRuntimeContextOutcomeAccepted(payload map[string]any) bool {
-	if BoolVal(payload, "provenance_only") {
+	if supplyChainRuntimeContextBool(payload, "provenance_only") {
 		return false
 	}
 	switch strings.TrimSpace(StringVal(payload, "outcome")) {
 	case "", "exact", "derived":
 		return true
+	default:
+		return false
+	}
+}
+
+// supplyChainRuntimeContextBool mirrors the reducer's
+// payloadBoolPointerValue truth semantics: booleans and trimmed,
+// case-insensitive string "true" are true; every other shape is false.
+func supplyChainRuntimeContextBool(payload map[string]any, key string) bool {
+	switch value := payload[key].(type) {
+	case bool:
+		return value
+	case string:
+		return strings.EqualFold(strings.TrimSpace(value), "true")
 	default:
 		return false
 	}

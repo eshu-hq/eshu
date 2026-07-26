@@ -697,7 +697,7 @@ model query runs.
 | `package_id` | exact | Active reducer impact facts and provider reconciliation facts. |
 | `cve_id`, `advisory_id`, `ghsa_id`, `osv_id` | exact, provider-only | Payload advisory identifiers on reducer and provider reconciliation facts. |
 | `subject_digest`, `digest`, `image_ref` | exact, missing-evidence driven | Impact, SBOM, and container-image read models. |
-| `workload_id`, `service_id`, `environment` | derived, missing-evidence driven | Reducer impact arrays populated only from admitted runtime/service evidence. |
+| `workload_id`, `service_id`, `environment` | derived, missing-evidence driven | Current active workload-identity, service-catalog, and CI/CD repository mappings resolved at read time; stale reducer impact arrays do not satisfy these filters. |
 | `ecosystem` | exact, unsupported | Impact payload ecosystem predicate; unsupported ecosystems stay in readiness gaps. |
 | `language` | unsupported | No scanner read model maps source language to vulnerability impact truth. |
 | `severity` | derived | CVSS-derived impact severity buckets: `critical`, `high`, `medium`, `low`, `none`. |

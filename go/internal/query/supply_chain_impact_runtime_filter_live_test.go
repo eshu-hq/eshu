@@ -181,6 +181,7 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 	assertSupplyChainConflictingAnchorFiltersLive(t, ctx, findingStore, aggregateStore)
 	assertSupplyChainStaleBakedFiltersLive(t, ctx, findingStore, aggregateStore)
 	assertSupplyChainRuntimeRepositoryPrecedenceLive(t, ctx, findingStore, aggregateStore)
+	assertSupplyChainRuntimeNormalizationLive(t, ctx, findingStore, aggregateStore)
 }
 
 func assertSupplyChainRuntimeFilterListCount(
@@ -416,6 +417,7 @@ INSERT INTO supply_chain_impact_canonical_winners (
 		t.Fatalf("insert stale-baked canonical winner: %v", err)
 	}
 	seedSupplyChainRuntimeRepositoryPrecedenceLiveFacts(t, ctx, tx)
+	seedSupplyChainRuntimeNormalizationLiveFacts(t, ctx, tx)
 }
 
 func insertSupplyChainRuntimeFilterFact(

@@ -24,6 +24,55 @@ func TestAddSupplyChainRuntimeContextFactWorkloadIdentity(t *testing.T) {
 	}
 }
 
+func TestAddSupplyChainRuntimeContextFactWorkloadIdentityNormalizesReducerShapes(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		payload    map[string]any
+		workloadID string
+	}{
+		{
+			name: "padded scalar workload",
+			payload: map[string]any{
+				"workload_id": "  workload:padded-scalar  ",
+			},
+			workloadID: "workload:padded-scalar",
+		},
+		{
+			name: "padded entity-key array",
+			payload: map[string]any{
+				"entity_keys": []any{"  workload:padded-array  "},
+			},
+			workloadID: "workload:padded-array",
+		},
+		{
+			name: "scalar entity key",
+			payload: map[string]any{
+				"entity_keys": "  workload:scalar-entity-key  ",
+			},
+			workloadID: "workload:scalar-entity-key",
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.payload["repository_id"] = "repository:r_normalized"
+			out := map[string]SupplyChainRuntimeContext{}
+			addSupplyChainRuntimeContextFact(
+				out,
+				workloadIdentityFactKindQuery,
+				"scope",
+				tc.payload,
+			)
+			got := out["repository:r_normalized"].WorkloadIDs
+			if len(got) != 1 || got[0] != tc.workloadID {
+				t.Fatalf("WorkloadIDs = %v, want [%s]", got, tc.workloadID)
+			}
+		})
+	}
+}
+
 func TestAddSupplyChainRuntimeContextFactServiceSkipsRejectedOutcome(t *testing.T) {
 	t.Parallel()
 
@@ -47,14 +96,41 @@ func TestAddSupplyChainRuntimeContextFactServiceSkipsRejectedOutcome(t *testing.
 func TestAddSupplyChainRuntimeContextFactServiceSkipsProvenanceOnly(t *testing.T) {
 	t.Parallel()
 
-	out := map[string]SupplyChainRuntimeContext{}
-	addSupplyChainRuntimeContextFact(out, serviceCatalogCorrelationFactKind, "scope", map[string]any{
-		"repository_id":   "repository:r_217415d9",
-		"service_id":      "service:demo-db",
-		"provenance_only": true,
-	})
-	if _, ok := out["repository:r_217415d9"]; ok {
-		t.Error("provenance-only service evidence should not resolve context")
+	for _, provenanceOnly := range []any{true, " TRUE "} {
+		out := map[string]SupplyChainRuntimeContext{}
+		addSupplyChainRuntimeContextFact(out, serviceCatalogCorrelationFactKind, "scope", map[string]any{
+			"repository_id":   "repository:r_217415d9",
+			"service_id":      "service:demo-db",
+			"provenance_only": provenanceOnly,
+		})
+		if _, ok := out["repository:r_217415d9"]; ok {
+			t.Errorf("provenance_only=%#v should not resolve context", provenanceOnly)
+		}
+	}
+}
+
+func TestAddSupplyChainRuntimeContextFactServiceAcceptsFalseOrBlankProvenance(t *testing.T) {
+	t.Parallel()
+
+	for _, provenanceOnly := range []any{false, " false ", " ", nil} {
+		out := map[string]SupplyChainRuntimeContext{}
+		payload := map[string]any{
+			"repository_id": "repository:r_217415d9",
+			"service_id":    "service:demo-db",
+			"outcome":       "exact",
+		}
+		if provenanceOnly != nil {
+			payload["provenance_only"] = provenanceOnly
+		}
+		addSupplyChainRuntimeContextFact(
+			out,
+			serviceCatalogCorrelationFactKind,
+			"scope",
+			payload,
+		)
+		if _, ok := out["repository:r_217415d9"]; !ok {
+			t.Errorf("provenance_only=%#v should resolve context", provenanceOnly)
+		}
 	}
 }
 

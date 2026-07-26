@@ -334,19 +334,29 @@ difference. A second 100,000-row shim isolated related-scope normalization:
 accepting a scalar string, trimming array entries, and skipping a malformed
 git-repository scope before a later valid repository returned all three
 expected deltas and improved execution from 111.529 ms to 87.185 ms on the
-same mixed input.
+same mixed input. A third shim isolated reducer-tolerated runtime dimensions:
+padded workload, service, and environment scalars, padded/scalar workload
+`entity_keys`, and boolean/string `provenance_only`. The normalized predicates
+returned every intended delta and rejected both boolean and string true
+provenance. A normalization-only workload predicate scanned 100,000 rows in
+91.456 ms; the selected two-arm shape retained the exact scalar/GIN index arm
+and added a duplicate-safe normalization fallback, completing in 88.448 ms.
+The equivalent service and environment shapes retained their exact indexes and
+completed in 17.385 ms and 17.536 ms, respectively.
 A full-query proof loaded 100,000 facts for each runtime dimension (300,000
 total) and exposed a planner reorder: the first workload query entered through
 the scope/generation index and took 13.947 ms.
 Materializing each dimension-selected match set before the active-generation
 join made every production query enter through its dimension index. On the
 final reducer-equivalent current-only filter shape, execution times were
-0.818 ms for scalar workload, 0.645 ms for workload `entity_keys`, 0.180 ms
-for service, 0.182 ms for environment, 0.713 ms for the combined legacy list,
-0.654 ms for the combined winners list, 0.641 ms for the combined aggregate,
-0.283 ms for the no-runtime-filter aggregate, and 0.647 ms for explain.
+193.073 ms for scalar workload, 158.542 ms for workload `entity_keys`,
+16.122 ms for service, 16.115 ms for environment, 211.495 ms for the combined
+legacy list, 207.801 ms for the combined winners list, 217.642 ms for the
+combined aggregate, 0.392 ms for the no-runtime-filter aggregate, and
+194.552 ms for explain. Every normalized shape remains below the enforced
+500 ms execution ceiling while the exact arms retain their dimension indexes.
 Inserting all 300,000 rows while maintaining the runtime indexes took
-6.739 seconds; hydrating 200 candidate repositories took 59.565 ms.
+6.265 seconds; hydrating 200 candidate repositories took 62.508 ms.
 `TestSupplyChainImpactRuntimeFilterPlansLive` runs these exact
 `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` shapes and asserts the selected index
 names as well as a bounded execution ceiling. Each concurrent migration also
