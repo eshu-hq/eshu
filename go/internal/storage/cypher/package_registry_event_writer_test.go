@@ -90,13 +90,20 @@ func TestCanonicalNodeWriterBuildsPackageRegistryEventStatements(t *testing.T) {
 	}
 
 	// Edge cypher: the deferred event edge statement MUST anchor on both
-	// PackageVersion and RegistryEvent and MERGE HAS_REGISTRY_EVENT.
+	// PackageVersion and RegistryEvent and MERGE HAS_REGISTRY_EVENT. The
+	// PackageVersion MATCH additionally pins package_id: row.package_id
+	// (mirroring the #5820 P2 fix on the artifact writer) so a
+	// malformed-but-schema-valid registry_event fact whose package_id names
+	// package A while version_id resolves to a version genuinely owned by
+	// package B cannot attach that event to B's version -- the version match
+	// fails (no row) instead of silently binding the event to the wrong
+	// package's version.
 	eventEdges := writer.buildPackageRegistryEventEdgeStatements(mat)
 	if got, want := len(eventEdges), 1; got != want {
 		t.Fatalf("buildPackageRegistryEventEdgeStatements() count = %d, want %d", got, want)
 	}
 	for _, fragment := range []string{
-		"MATCH (v:PackageVersion {uid: row.version_id})",
+		"MATCH (v:PackageVersion {uid: row.version_id, package_id: row.package_id})",
 		"MATCH (e:RegistryEvent {uid: row.uid})",
 		"MERGE (v)-[rel:HAS_REGISTRY_EVENT]->(e)",
 	} {

@@ -52,9 +52,26 @@ SET e.id = row.uid,
 
 // canonicalPackageRegistryEventEdgeCypher is the deferred HAS_REGISTRY_EVENT
 // edge MERGE, run in the second write group after the PackageVersion and
-// RegistryEvent node phases commit.
+// RegistryEvent node phases commit. The PackageVersion MATCH pins package_id:
+// row.package_id in addition to uid: row.version_id (mirroring the #5820 P2
+// review finding fixed on the HAS_ARTIFACT edge in
+// package_registry_artifact_writer.go): a malformed-but-schema-valid
+// registry_event fact can carry a package_id that names package A while its
+// version_id resolves to a version node genuinely owned by package B.
+// Anchoring on uid alone would still MATCH that version and MERGE an edge
+// from B's version to an event node that itself claims package_id A --
+// internally contradictory package graph truth. Requiring both properties on
+// the same node means a mismatched pair finds no row (MATCH drops that
+// UNWIND row, no edge written) instead of silently cross-attaching the event
+// to the wrong package's version. row.package_id is the event's own claimed
+// package_id (packageRegistryEventRows), and v.package_id is the value the
+// PackageVersion node itself was written with
+// (canonicalPackageRegistryVersionUpsertCypher's v.package_id =
+// row.package_id in package_registry_canonical_writer.go), so the predicate
+// only passes when the two facts agree on which package the version belongs
+// to.
 const canonicalPackageRegistryEventEdgeCypher = `UNWIND $rows AS row
-MATCH (v:PackageVersion {uid: row.version_id})
+MATCH (v:PackageVersion {uid: row.version_id, package_id: row.package_id})
 MATCH (e:RegistryEvent {uid: row.uid})
 MERGE (v)-[rel:HAS_REGISTRY_EVENT]->(e)
 SET rel.generation_id = row.generation_id,

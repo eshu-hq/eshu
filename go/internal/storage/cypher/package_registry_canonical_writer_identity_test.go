@@ -215,6 +215,57 @@ func TestCanonicalNodeWriterArtifactEdgeCypherPinsPackageIDOnVersionMatch(t *tes
 	}
 }
 
+// TestCanonicalNodeWriterEventEdgeCypherPinsPackageIDOnVersionMatch is the
+// registry_event-slice mirror of
+// TestCanonicalNodeWriterArtifactEdgeCypherPinsPackageIDOnVersionMatch: a
+// malformed-but-schema-valid registry_event fact whose package_id names
+// package A while its version_id resolves to a PackageVersion node genuinely
+// owned by package B must not attach that event to B's version. Anchoring the
+// deferred HAS_REGISTRY_EVENT edge's PackageVersion MATCH on uid alone would
+// still find B's version and MERGE an edge to an event node that itself
+// claims package_id A -- internally contradictory package graph truth.
+// Pinning package_id: row.package_id alongside uid: row.version_id on the
+// same MATCH means a mismatched pair finds no PackageVersion row, so no edge
+// is written. This also proves the edge row's package_id parameter is the
+// event's OWN claimed package_id (packageRegistryEventRows), not derived from
+// version_id, which is what makes the predicate meaningful rather than
+// tautological.
+func TestCanonicalNodeWriterEventEdgeCypherPinsPackageIDOnVersionMatch(t *testing.T) {
+	t.Parallel()
+
+	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
+	mat := projector.CanonicalMaterialization{
+		ScopeID:      "package-registry-scope-1",
+		GenerationID: "package-registry-generation-1",
+		PackageRegistryEvents: []projector.PackageRegistryEventRow{{
+			UID:           "event-1",
+			PackageID:     "package-a",
+			VersionID:     "version-owned-by-b",
+			EventKey:      "serial:1",
+			EventType:     "yank",
+			StableFactKey: "event-1",
+		}},
+	}
+
+	edges := writer.buildPackageRegistryEventEdgeStatements(mat)
+	if got, want := len(edges), 1; got != want {
+		t.Fatalf("buildPackageRegistryEventEdgeStatements() count = %d, want %d", got, want)
+	}
+	if !strings.Contains(edges[0].Cypher, "MATCH (v:PackageVersion {uid: row.version_id, package_id: row.package_id})") {
+		t.Fatalf("event edge Cypher = %q, want the PackageVersion MATCH to pin package_id alongside uid so a cross-package event/version pair cannot bind", edges[0].Cypher)
+	}
+	rows, ok := edges[0].Parameters["rows"].([]map[string]any)
+	if !ok || len(rows) != 1 {
+		t.Fatalf("rows parameter = %#v, want one row", edges[0].Parameters["rows"])
+	}
+	if got, want := rows[0]["package_id"], "package-a"; got != want {
+		t.Fatalf("edge row package_id = %#v, want %#v (the event's OWN claimed package_id, not derived from version_id)", got, want)
+	}
+	if got, want := rows[0]["version_id"], "version-owned-by-b"; got != want {
+		t.Fatalf("edge row version_id = %#v, want %#v", got, want)
+	}
+}
+
 func packageRegistryPhaseGroupIndex(t *testing.T, groups [][]Statement, label string) int {
 	t.Helper()
 

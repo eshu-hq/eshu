@@ -42,8 +42,8 @@ const (
 	// (graphSchemaNeo4jPreRegistryEventFingerprint /
 	// graphSchemaNornicDBPreRegistryEventFingerprint, the #5458 PackageArtifact
 	// tip below) stays compatible.
-	graphSchemaNeo4jFingerprint    = "PLACEHOLDER_NEO4J"
-	graphSchemaNornicDBFingerprint = "PLACEHOLDER_NORNICDB"
+	graphSchemaNeo4jFingerprint    = "2deeea50c722b1ac6be0d86421a450102ff2b8f057142b37277620dd43642f40"
+	graphSchemaNornicDBFingerprint = "f22de603056a95f35a93db7ba8498949ad37670c44d2c3623daf3527b1ac27ae"
 
 	// graphSchemaNeo4jPreRegistryEventFingerprint and its NornicDB peer are the
 	// schema fingerprints immediately before the #5458 RegistryEvent /
