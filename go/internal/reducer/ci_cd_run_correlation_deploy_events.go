@@ -48,11 +48,27 @@ func attachDeploymentEventsToRuns(runs map[string]*cicdRunEvidence, events []*de
 		if runCommit == "" {
 			continue
 		}
+		runRepository := trimmedCICDPtr(ev.runDecoded.RepositoryID)
 		var matched []*decodedCICDDeploymentEvent
 		for _, event := range events {
-			if trimmedCICDField(event.evidence.SHA) == runCommit {
-				matched = append(matched, event)
+			if trimmedCICDField(event.evidence.SHA) != runCommit {
+				continue
 			}
+			// A commit sha is only unique within a repository. One ci_cd_run
+			// scope is one repository today (source.go partitions by
+			// target.Repository), so sha alone cannot currently cross-join --
+			// but the fact already carries RepositoryID, and leaving it unread
+			// means a scope that ever spans repositories would silently attach
+			// one repository's deployment to another's run on a shared commit.
+			// The sibling attachWorkflowImagesToRuns gates on repository first
+			// for the same reason. Only skip when BOTH sides name a repository
+			// and they disagree, so a producer that omits the optional field
+			// keeps the sha-only behaviour rather than losing its events.
+			eventRepository := trimmedCICDPtr(event.evidence.RepositoryID)
+			if runRepository != "" && eventRepository != "" && runRepository != eventRepository {
+				continue
+			}
+			matched = append(matched, event)
 		}
 		ev.deploymentEvents = matched
 	}

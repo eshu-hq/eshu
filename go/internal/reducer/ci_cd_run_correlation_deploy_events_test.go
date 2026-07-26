@@ -348,3 +348,54 @@ func TestClassifyRunEvidenceFallsBackWhenDeploymentEnvironmentBlank(t *testing.T
 		t.Fatalf("EnvironmentEvidence = %q, want declared: a blank deploy event must not claim deployment truth", got)
 	}
 }
+
+// A commit sha is only unique within a repository. One ci_cd_run scope is one
+// repository today, so sha alone cannot currently cross-join -- but the fact
+// already carries RepositoryID, and leaving it unread would mean a scope that
+// ever spans repositories silently attaches one repository's deployment to
+// another's run on a shared commit. The sibling attachWorkflowImagesToRuns
+// gates on repository first for the same reason.
+func TestAttachDeploymentEventsToRunsRejectsCrossRepositorySHACollision(t *testing.T) {
+	t.Parallel()
+
+	const sharedSHA = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c"
+
+	run := cicdRunEvidenceWithCommit(sharedSHA)
+	run.runDecoded.RepositoryID = strPtr("repository:r_ours")
+
+	ours := deploymentEventEvidence("ours", sharedSHA, "production")
+	ours.evidence.RepositoryID = strPtr("repository:r_ours")
+	theirs := deploymentEventEvidence("theirs", sharedSHA, "staging")
+	theirs.evidence.RepositoryID = strPtr("repository:r_theirs")
+
+	runs := map[string]*cicdRunEvidence{"run": run}
+	attachDeploymentEventsToRuns(runs, []*decodedCICDDeploymentEvent{ours, theirs})
+
+	if got := len(run.deploymentEvents); got != 1 {
+		t.Fatalf("attached %d events, want 1: a deployment from another repository must not join on a shared sha", got)
+	}
+	if got := run.deploymentEvents[0].envelope.FactID; got != "ours" {
+		t.Fatalf("attached %q, want the same-repository event", got)
+	}
+}
+
+// A producer that omits the optional RepositoryID keeps the sha-only join
+// rather than losing its events, so the guard tightens a real ambiguity without
+// dropping evidence from a collector that does not populate the field.
+func TestAttachDeploymentEventsToRunsKeepsEventsWithoutRepositoryID(t *testing.T) {
+	t.Parallel()
+
+	const sharedSHA = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c"
+
+	run := cicdRunEvidenceWithCommit(sharedSHA)
+	run.runDecoded.RepositoryID = strPtr("repository:r_ours")
+
+	anonymous := deploymentEventEvidence("anonymous", sharedSHA, "production")
+
+	runs := map[string]*cicdRunEvidence{"run": run}
+	attachDeploymentEventsToRuns(runs, []*decodedCICDDeploymentEvent{anonymous})
+
+	if got := len(run.deploymentEvents); got != 1 {
+		t.Fatalf("attached %d events, want 1: an event with no repository id must still join by sha", got)
+	}
+}

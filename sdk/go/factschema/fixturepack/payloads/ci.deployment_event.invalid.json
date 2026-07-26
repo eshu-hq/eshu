@@ -1,5 +1,5 @@
 {
-  "provider": "github",
+  "provider": "github_actions",
   "deployment_id": "fp-deployment-7001",
   "environment": "production",
   "state": "success"
