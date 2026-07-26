@@ -79,9 +79,18 @@ ambiguous produce no row), no-fabrication guards (blank digest or blank
 repository produce no row, #5463), row dedupe, retract-runs-even-with-zero-rows,
 and retract-before-write ordering carrying this domain's evidence source.
 
-No-Observability-Change: no metrics, spans, structured logs, or status fields are
-added or altered. The projection runs inside the existing
-`ci_cd_run_correlation` handler span and its outcome counters are unchanged.
+Observability Evidence: the projection emits the existing
+`eshu_dp_provenance_edges_total` counter labeled
+`domain=reducer/ci-cd-run-correlation`, `outcome=materialized`, matching what the
+package-ownership, package-publication, and container-image-identity projections
+already do. That label is how an operator distinguishes this domain's BUILT_FROM
+writes from #5457's on the shared edge type without reading the graph -- the same
+axis `evidence_kinds` provides in-graph. A nil `Instruments` or a zero row count
+records nothing rather than a misleading zero sample. No spans, structured logs,
+or status fields change; the projection runs inside the existing
+`ci_cd_run_correlation` handler span. The matching row is in
+`docs/public/observability/telemetry-coverage.md` and
+`scripts/verify-telemetry-coverage.sh` exits 0.
 
 ## Measured: the corpus reaches `derived`, so no golden floor is possible
 
