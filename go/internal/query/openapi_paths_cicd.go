@@ -45,6 +45,7 @@ const openAPIPathsCICD = `
                           "repository_id": {"type": "string"},
                           "commit_sha": {"type": "string"},
                           "environment": {"type": "string"},
+                          "environment_evidence": {"type": "string", "enum": ["deploy_event", "declared"], "description": "How the environment was established. deploy_event means a ci.deployment_event observed at this run's commit supplied it; declared means it came from the CI-declared workflow job gate alone. Absent when the correlation has no environment."},
                           "artifact_digest": {"type": "string"},
                           "image_ref": {"type": "string"},
                           "outcome": {"type": "string"},
