@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // PackageRegistryArtifactRow carries one published package-version artifact
@@ -51,9 +52,11 @@ type PackageRegistryArtifactRow struct {
 // independent of the payload decode.
 //
 // Hashes is a sorted "algorithm:digest" string list on the graph node (Cypher
-// properties cannot hold a nested map); see decodePackageRegistryPackageArtifact
-// in factschema_decode_packageregistry.go for the colon-rejection validation
-// that keeps that encoding unambiguous.
+// properties cannot hold a nested map); packageRegistryHashPairs in
+// go/internal/storage/cypher/package_registry_artifact_writer.go escapes each
+// algorithm/digest so that encoding stays unambiguous even for a colon- or
+// backslash-bearing algorithm name, rather than this seam rejecting one (#5820
+// P2 review finding: rejection had silently narrowed the public v1 contract).
 func packageRegistryArtifactRow(envelope facts.Envelope) (PackageRegistryArtifactRow, bool, error) {
 	if envelope.IsTombstone {
 		return PackageRegistryArtifactRow{}, false, nil
@@ -74,6 +77,12 @@ func packageRegistryArtifactRow(envelope facts.Envelope) (PackageRegistryArtifac
 	if stableFactKey == "" {
 		return PackageRegistryArtifactRow{}, false, nil
 	}
+	hashes, err := packageRegistryTrimmedStringMap(
+		factschema.FactKindPackageRegistryPackageArtifact, "hashes", artifact.Hashes,
+	)
+	if err != nil {
+		return PackageRegistryArtifactRow{}, false, err
+	}
 	return PackageRegistryArtifactRow{
 		UID:                 stableFactKey,
 		PackageID:           packageID,
@@ -86,7 +95,7 @@ func packageRegistryArtifactRow(envelope facts.Envelope) (PackageRegistryArtifac
 		ArtifactURL:         packageRegistryDerefString(artifact.ArtifactURL),
 		ArtifactPath:        packageRegistryDerefString(artifact.ArtifactPath),
 		SizeBytes:           packageRegistryDerefInt64(artifact.SizeBytes),
-		Hashes:              packageRegistryTrimmedStringMap(artifact.Hashes),
+		Hashes:              hashes,
 		Classifier:          packageRegistryDerefString(artifact.Classifier),
 		PlatformTags:        packageRegistrySortedStrings(artifact.PlatformTags),
 		SourceFactID:        envelope.FactID,

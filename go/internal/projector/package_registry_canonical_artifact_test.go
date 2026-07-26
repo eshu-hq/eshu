@@ -4,6 +4,7 @@
 package projector
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -88,19 +89,18 @@ func TestBuildCanonicalMaterializationQuarantinesPackageRegistryArtifactMissingI
 	}
 }
 
-// TestBuildCanonicalMaterializationQuarantinesPackageRegistryArtifactColonBearingHashAlgorithm
-// is the end-to-end regression for the #5458 P2 review finding: the canonical
+// TestBuildCanonicalMaterializationExtractsPackageRegistryArtifactColonBearingHashAlgorithm
+// is the end-to-end regression for the #5820 P2 review finding: an earlier
+// version of DecodePackageRegistryPackageArtifact rejected a colon-bearing
+// hashes algorithm name as input_invalid, silently narrowing the public v1
+// contract (package_registry.package_artifact.v1.schema.json's
+// hashes.additionalProperties accepts any string key). The fix moves
+// unambiguity from rejection to a lossless escaping scheme in the canonical
 // graph writer (packageRegistryHashPairs in
-// go/internal/storage/cypher/package_registry_artifact_writer.go) flattens
-// Hashes into a sorted "algorithm:digest" string list because Cypher node
-// properties cannot hold a nested map, and that split is unambiguous only
-// when the algorithm name itself never contains ':'. Before
-// DecodePackageRegistryPackageArtifact validated this, a colon-bearing
-// algorithm name from an untrusted collector would decode cleanly and
-// silently produce an ambiguous graph encoding. This proves the fact
-// quarantines through the same input_invalid dead-letter path as a missing
-// identity field, rather than reaching the graph.
-func TestBuildCanonicalMaterializationQuarantinesPackageRegistryArtifactColonBearingHashAlgorithm(t *testing.T) {
+// go/internal/storage/cypher/package_registry_artifact_writer.go), so a
+// colon-bearing algorithm name now projects cleanly all the way through the
+// row builder instead of quarantining.
+func TestBuildCanonicalMaterializationExtractsPackageRegistryArtifactColonBearingHashAlgorithm(t *testing.T) {
 	t.Parallel()
 
 	artifactFact := packageRegistryArtifactFact()
@@ -113,8 +113,41 @@ func TestBuildCanonicalMaterializationQuarantinesPackageRegistryArtifactColonBea
 		append(packageRegistryFacts(), artifactFact),
 	)
 
+	if got, want := len(quarantined), 0; got != want {
+		t.Fatalf("quarantined = %+v, want none for a colon-bearing hash algorithm (v1 schema allows any string key)", quarantined)
+	}
+	if got, want := len(result.PackageRegistryArtifacts), 1; got != want {
+		t.Fatalf("len(PackageRegistryArtifacts) = %d, want %d", got, want)
+	}
+	if got, want := result.PackageRegistryArtifacts[0].Hashes["sha256:extra"], "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"; got != want {
+		t.Fatalf("Hashes[%q] = %q, want %q", "sha256:extra", got, want)
+	}
+}
+
+// TestBuildCanonicalMaterializationQuarantinesPackageRegistryArtifactConflictingWhitespaceHashKeys
+// is the end-to-end regression for the #5820 P2 review finding: two hashes
+// keys that normalize to the same trimmed algorithm name via whitespace (here
+// "sha256" and " sha256 ") but carry DIFFERENT digests must dead-letter
+// deterministically rather than silently keeping whichever value Go's
+// randomized map iteration order visited last -- the worst class of defect in
+// this repo, a projected graph value that can differ between otherwise
+// identical runs of the same fact.
+func TestBuildCanonicalMaterializationQuarantinesPackageRegistryArtifactConflictingWhitespaceHashKeys(t *testing.T) {
+	t.Parallel()
+
+	artifactFact := packageRegistryArtifactFact()
+	artifactFact.Payload["hashes"] = map[string]any{
+		"sha256":   "aaa",
+		" sha256 ": "bbb",
+	}
+	result, quarantined := buildCanonicalMaterialization(
+		packageRegistryScope(),
+		packageRegistryGeneration(),
+		append(packageRegistryFacts(), artifactFact),
+	)
+
 	if got := len(result.PackageRegistryArtifacts); got != 0 {
-		t.Fatalf("len(PackageRegistryArtifacts) = %d, want 0 for colon-bearing hash algorithm", got)
+		t.Fatalf("len(PackageRegistryArtifacts) = %d, want 0 for a whitespace-collision hash-key conflict", got)
 	}
 	if got, want := len(quarantined), 1; got != want {
 		t.Fatalf("len(quarantined) = %d, want %d", got, want)
@@ -124,6 +157,37 @@ func TestBuildCanonicalMaterializationQuarantinesPackageRegistryArtifactColonBea
 	}
 	if got, want := quarantined[0].classification, "input_invalid"; got != want {
 		t.Fatalf("quarantined[0].classification = %q, want %q", got, want)
+	}
+}
+
+// TestBuildCanonicalMaterializationMergesPackageRegistryArtifactIdenticalWhitespaceHashKeys
+// is the positive counterpart: two hashes keys that normalize to the same
+// trimmed algorithm name AND agree on the value are not a conflict, so they
+// collapse to one hashes entry instead of dead-lettering.
+func TestBuildCanonicalMaterializationMergesPackageRegistryArtifactIdenticalWhitespaceHashKeys(t *testing.T) {
+	t.Parallel()
+
+	artifactFact := packageRegistryArtifactFact()
+	artifactFact.Payload["hashes"] = map[string]any{
+		"sha256":   "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+		" sha256 ": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+	}
+	result, quarantined := buildCanonicalMaterialization(
+		packageRegistryScope(),
+		packageRegistryGeneration(),
+		append(packageRegistryFacts(), artifactFact),
+	)
+
+	if got, want := len(quarantined), 0; got != want {
+		t.Fatalf("quarantined = %+v, want none for an identical-value whitespace collision", quarantined)
+	}
+	if got, want := len(result.PackageRegistryArtifacts), 1; got != want {
+		t.Fatalf("len(PackageRegistryArtifacts) = %d, want %d", got, want)
+	}
+	if got, want := result.PackageRegistryArtifacts[0].Hashes, (map[string]string{
+		"sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+	}); !reflect.DeepEqual(got, want) {
+		t.Fatalf("Hashes = %#v, want %#v", got, want)
 	}
 }
 

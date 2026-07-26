@@ -4,11 +4,13 @@
 package projector
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // PackageRegistryPackageRow carries one stable package identity for canonical
@@ -256,6 +258,12 @@ func packageRegistryVersionRow(envelope facts.Envelope) (PackageRegistryVersionR
 		// distinct from an absent required key. See packageRegistryPackageRow.
 		return PackageRegistryVersionRow{}, false, nil
 	}
+	checksums, err := packageRegistryTrimmedStringMap(
+		factschema.FactKindPackageRegistryPackageVersion, "checksums", version.Checksums,
+	)
+	if err != nil {
+		return PackageRegistryVersionRow{}, false, err
+	}
 	return PackageRegistryVersionRow{
 		UID:                 versionID,
 		PackageID:           packageID,
@@ -271,7 +279,7 @@ func packageRegistryVersionRow(envelope facts.Envelope) (PackageRegistryVersionR
 		IsDeprecated:        packageRegistryDerefBool(version.IsDeprecated),
 		IsRetracted:         packageRegistryDerefBool(version.IsRetracted),
 		ArtifactURLs:        packageRegistrySortedStrings(version.ArtifactURLs),
-		Checksums:           packageRegistryTrimmedStringMap(version.Checksums),
+		Checksums:           checksums,
 		SourceFactID:        envelope.FactID,
 		StableFactKey:       envelope.StableFactKey,
 		SourceSystem:        packageRegistrySourceSystem(envelope),
@@ -371,24 +379,64 @@ func packageRegistrySortedStrings(values []string) []string {
 	return sorted
 }
 
-// packageRegistryTrimmedStringMap returns a copy of checksums with each key and
+// packageRegistryTrimmedStringMap returns a copy of values with each key and
 // value trimmed, dropping any entry whose key is blank after trimming, or nil
 // when the result is empty. This matches the pre-typing
-// packageRegistryStringMap behavior for the checksums payload field.
-func packageRegistryTrimmedStringMap(checksums map[string]string) map[string]string {
-	if len(checksums) == 0 {
-		return nil
+// packageRegistryStringMap behavior for a map[string]string payload field
+// (package_version's checksums, package_artifact's hashes) for the common
+// case.
+//
+// #5820 P2 review finding: two distinct original keys can normalize to the
+// same trimmed key (for example "sha256" and " sha256 "). The original
+// implementation iterated the input map directly, so which value survived a
+// genuine collision (different values under the same normalized key) depended
+// on Go's randomized map iteration order -- a different projected graph value
+// on repeated runs of the identical fact, the worst class of defect this repo
+// guards against. This implementation sorts the original keys before
+// iterating, so which entry is visited first is always the same regardless of
+// map iteration order: a collision where every colliding key agrees on the
+// (trimmed) value merges deterministically with no error (not a real
+// conflict, matches the pre-fix behavior for that case), and a collision
+// where they disagree is a genuine data-integrity conflict that returns a
+// deterministic error instead of silently picking a value. factKind and field
+// name the caller's fact kind and payload field so the returned error carries
+// a classified, dead-letterable *factschema.DecodeError, matching the shape
+// decodePayloadFieldError produces for other malformed-but-present-field
+// cases (see decode_aws.go's from_port validation).
+func packageRegistryTrimmedStringMap(factKind, field string, values map[string]string) (map[string]string, error) {
+	if len(values) == 0 {
+		return nil, nil
 	}
-	out := make(map[string]string, len(checksums))
-	for key, value := range checksums {
-		if trimmedKey := strings.TrimSpace(key); trimmedKey != "" {
-			out[trimmedKey] = strings.TrimSpace(value)
+	originalKeys := make([]string, 0, len(values))
+	for key := range values {
+		originalKeys = append(originalKeys, key)
+	}
+	sort.Strings(originalKeys)
+
+	out := make(map[string]string, len(values))
+	for _, key := range originalKeys {
+		trimmedKey := strings.TrimSpace(key)
+		if trimmedKey == "" {
+			continue
 		}
+		trimmedValue := strings.TrimSpace(values[key])
+		if existing, collided := out[trimmedKey]; collided && existing != trimmedValue {
+			return nil, newProjectorDecodeError(factKind, &factschema.DecodeError{
+				FactKind:       factKind,
+				Classification: factschema.ClassificationInputInvalid,
+				Field:          field,
+				Err: fmt.Errorf(
+					"keys %q and a preceding entry both normalize to %q but carry different values (%q vs %q)",
+					key, trimmedKey, trimmedValue, existing,
+				),
+			})
+		}
+		out[trimmedKey] = trimmedValue
 	}
 	if len(out) == 0 {
-		return nil
+		return nil, nil
 	}
-	return out
+	return out, nil
 }
 
 // packageRegistrySourceSystem returns the envelope's source system, falling

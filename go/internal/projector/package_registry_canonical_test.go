@@ -5,11 +5,13 @@ package projector
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 func TestBuildCanonicalMaterializationExtractsPackageRegistryRows(t *testing.T) {
@@ -185,6 +187,55 @@ func TestRuntimeProjectRejectsUnknownPackageRegistrySchemaVersion(t *testing.T) 
 	)
 	if err == nil {
 		t.Fatal("Project() error = nil, want non-nil")
+	}
+}
+
+// TestPackageRegistryTrimmedStringMapDeterministicOnConflict is the shaped
+// regression for the #5820 P2 review finding: packageRegistryTrimmedStringMap
+// used to iterate the input map directly, so two keys that normalize to the
+// same trimmed key via surrounding whitespace (e.g. "sha256" and " sha256 ")
+// but carry DIFFERENT values collapsed onto whichever value Go's randomized
+// map iteration order happened to visit last -- a different projected digest
+// on repeated runs of the identical fact. Iterating many times proves the
+// collision is now caught deterministically as an error regardless of
+// iteration order, not silently resolved by iteration luck (a pre-fix run of
+// this loop would pass on roughly half the iterations and is not a reliable
+// regression signal by itself).
+func TestPackageRegistryTrimmedStringMapDeterministicOnConflict(t *testing.T) {
+	t.Parallel()
+
+	for i := 0; i < 50; i++ {
+		values := map[string]string{
+			"sha256":   "aaa",
+			" sha256 ": "bbb",
+		}
+		_, err := packageRegistryTrimmedStringMap(factschema.FactKindPackageRegistryPackageVersion, "checksums", values)
+		if err == nil {
+			t.Fatalf("iteration %d: packageRegistryTrimmedStringMap() error = nil, want non-nil for a whitespace-collision carrying different values", i)
+		}
+	}
+}
+
+// TestPackageRegistryTrimmedStringMapMergesIdenticalWhitespaceCollision proves
+// the companion positive case: two keys that normalize to the same trimmed key
+// but agree on the value are NOT a conflict (they collapse cleanly, matching
+// the pre-fix behavior for that case), so the fix above does not turn a benign
+// whitespace variant into a spurious dead-letter.
+func TestPackageRegistryTrimmedStringMapMergesIdenticalWhitespaceCollision(t *testing.T) {
+	t.Parallel()
+
+	for i := 0; i < 50; i++ {
+		values := map[string]string{
+			"sha256":   "abc",
+			" sha256 ": "abc",
+		}
+		got, err := packageRegistryTrimmedStringMap(factschema.FactKindPackageRegistryPackageVersion, "checksums", values)
+		if err != nil {
+			t.Fatalf("iteration %d: packageRegistryTrimmedStringMap() error = %v, want nil for an identical-value collision", i, err)
+		}
+		if want := (map[string]string{"sha256": "abc"}); !reflect.DeepEqual(got, want) {
+			t.Fatalf("iteration %d: packageRegistryTrimmedStringMap() = %#v, want %#v", i, got, want)
+		}
 	}
 }
 
