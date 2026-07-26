@@ -283,7 +283,7 @@ func packageRegistryVersionRow(envelope facts.Envelope) (PackageRegistryVersionR
 		PURL:                packageRegistryDerefString(version.PURL),
 		BOMRef:              packageRegistryDerefString(version.BOMRef),
 		PackageManager:      packageRegistryDerefString(version.PackageManager),
-		PublishedAt:         packageRegistryParsedPublishedAt(version.PublishedAt),
+		PublishedAt:         packageRegistryParsedTimestamp(version.PublishedAt),
 		IsYanked:            packageRegistryDerefBool(version.IsYanked),
 		IsUnlisted:          packageRegistryDerefBool(version.IsUnlisted),
 		IsDeprecated:        packageRegistryDerefBool(version.IsDeprecated),
@@ -360,12 +360,13 @@ func packageRegistryDependencyRow(envelope facts.Envelope) (PackageRegistryDepen
 	}, true, nil
 }
 
-// packageRegistryParsedPublishedAt parses an RFC 3339 published_at string into
-// a UTC time.Time, matching the pre-typing
-// packageRegistryPublishedAtFromPayload behavior byte-for-byte: an absent or
-// unparseable value yields the zero time.Time rather than an error, because
-// PublishedAt is descriptive metadata, not an identity field.
-func packageRegistryParsedPublishedAt(raw *string) time.Time {
+// packageRegistryParsedTimestamp parses an RFC 3339 timestamp string into a UTC
+// time.Time, matching the pre-typing packageRegistryPublishedAtFromPayload
+// behavior byte-for-byte: an absent or unparseable value yields the zero
+// time.Time rather than an error, because the timestamps it parses
+// (PublishedAt on a version row, OccurredAt on a registry-event row) are
+// descriptive metadata, not identity fields.
+func packageRegistryParsedTimestamp(raw *string) time.Time {
 	if raw == nil {
 		return time.Time{}
 	}

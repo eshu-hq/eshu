@@ -75,6 +75,18 @@ func packageRegistryEventRow(envelope facts.Envelope) (PackageRegistryEventRow, 
 		// function's doc comment for why version_id gates materialization here.
 		return PackageRegistryEventRow{}, false, nil
 	}
+	// event_key and event_type are the event's identity and its classification:
+	// the uid is built from event_key, and event_type is the whole point of a
+	// lifecycle timeline. factschema decoding accepts a present-but-blank value
+	// (it rejects only an ABSENT required key), and the sibling row builders all
+	// trim their identity fields, so trim and gate these the same way rather
+	// than materializing a RegistryEvent with a blank identity or an
+	// unclassifiable event.
+	eventKey := strings.TrimSpace(event.EventKey)
+	eventType := strings.TrimSpace(event.EventType)
+	if eventKey == "" || eventType == "" {
+		return PackageRegistryEventRow{}, false, nil
+	}
 	stableFactKey := strings.TrimSpace(envelope.StableFactKey)
 	if stableFactKey == "" {
 		return PackageRegistryEventRow{}, false, nil
@@ -86,12 +98,12 @@ func packageRegistryEventRow(envelope facts.Envelope) (PackageRegistryEventRow, 
 		Version:             packageRegistryDerefString(event.Version),
 		Ecosystem:           packageRegistryDerefString(event.Ecosystem),
 		Registry:            packageRegistryDerefString(event.Registry),
-		EventKey:            event.EventKey,
-		EventType:           event.EventType,
+		EventKey:            eventKey,
+		EventType:           eventType,
 		ArtifactKey:         packageRegistryDerefString(event.ArtifactKey),
 		Actor:               packageRegistryDerefString(event.Actor),
 		Message:             packageRegistryDerefString(event.Message),
-		OccurredAt:          packageRegistryParsedPublishedAt(event.OccurredAt),
+		OccurredAt:          packageRegistryParsedTimestamp(event.OccurredAt),
 		SourceFactID:        envelope.FactID,
 		StableFactKey:       stableFactKey,
 		SourceSystem:        packageRegistrySourceSystem(envelope),

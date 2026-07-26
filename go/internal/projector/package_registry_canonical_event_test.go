@@ -170,3 +170,54 @@ func packageRegistryEventFact() facts.Envelope {
 		},
 	}
 }
+
+// TestBuildCanonicalMaterializationDropsBlankRegistryEventIdentity pins the
+// event_key/event_type identity gate. factschema rejects an ABSENT required
+// key but accepts a present-but-blank one, so a whitespace-only event_key
+// would otherwise build a RegistryEvent whose uid carries a blank identity,
+// and a whitespace-only event_type would materialize an unclassifiable node on
+// a timeline whose entire purpose is the classification. Neither is a decode
+// failure, so neither dead-letters — the row builder drops them, exactly as it
+// drops a blank package_id/version_id.
+//
+// This fails if the trim-and-gate is removed: the row materializes with the
+// untrimmed blank value instead of being dropped.
+func TestBuildCanonicalMaterializationDropsBlankRegistryEventIdentity(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		field string
+		value string
+	}{
+		{name: "blank event_key", field: "event_key", value: "   "},
+		{name: "blank event_type", field: "event_type", value: "\t"},
+		{name: "empty event_key", field: "event_key", value: ""},
+		{name: "empty event_type", field: "event_type", value: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fact := packageRegistryEventFact()
+			payload := make(map[string]any, len(fact.Payload))
+			for k, v := range fact.Payload {
+				payload[k] = v
+			}
+			payload[tc.field] = tc.value
+			fact.Payload = payload
+
+			result, quarantined := buildCanonicalMaterialization(
+				packageRegistryScope(),
+				packageRegistryGeneration(),
+				append(packageRegistryFacts(), fact),
+			)
+
+			if len(result.PackageRegistryEvents) != 0 {
+				t.Fatalf("len(PackageRegistryEvents) = %d, want 0: a blank %s must not materialize a RegistryEvent", len(result.PackageRegistryEvents), tc.field)
+			}
+			if len(quarantined) != 0 {
+				t.Fatalf("len(quarantined) = %d, want 0: a present-but-blank %s is a valid decode, not a dead-letter", len(quarantined), tc.field)
+			}
+		})
+	}
+}
