@@ -124,23 +124,9 @@ SET rel.scope_id = row.scope_id,
 // carries only ImageRef/Digest, never the OciImageManifest node uid, and
 // oci_registry_canonical_writer.go SETs digest on every ContainerImage node it
 // writes, so digest is the correct and only available join key.
-//
-// The WITH barrier after the two MATCH clauses is load-bearing on NornicDB, not
-// cosmetic. Without it the statement takes the UNWIND-MERGE-chain fast path,
-// which raises `UNWIND MERGE chain relationship update failed: not found` when a
-// row's endpoint node is absent instead of dropping that row -- violating the
-// missing-endpoint no-op contract both provenance edge writers document. That
-// error dead-letters the owning reducer intent on its first attempt (a raw
-// backend error carries no Retryable()), and ReopenSucceededReducerWorkItems
-// only reopens `succeeded` rows, so the item never converges even once the
-// endpoint node lands. Endpoint nodes are projected asynchronously after
-// generation activation, so this race is normal, not exceptional (#5767, #5428).
-// The barrier materializes the matched pairs first, so unmatched rows are
-// dropped before MERGE and the write is a genuine no-op.
 const canonicalProvenanceBuiltFromCypher = `UNWIND $rows AS row
 MATCH (img:ContainerImage {digest: row.digest})
 MATCH (repo:Repository {id: row.repository_id})
-WITH img, repo, row
 MERGE (img)-[rel:BUILT_FROM]->(repo)
 SET rel.scope_id = row.scope_id,
     rel.generation_id = row.generation_id,
