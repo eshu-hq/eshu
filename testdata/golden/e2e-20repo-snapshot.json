@@ -1824,6 +1824,18 @@
         }
       },
       {
+        "id": "rn-registry-event-fields",
+        "description": "rn-package-artifact-hashes's critique applies equally to rc-169: a node+edge count assertion is satisfied by a live projection that creates the RegistryEvent node and HAS_REGISTRY_EVENT edge but drops or corrupts the event's own payload fields, and this feature exists specifically to project a publish/yank/unyank/deprecate TIMELINE, not a bare marker node. This asserts the EXACT `event_type` VALUE, not just presence. The package_registry supply-chain-demo cassette's github.com/acme/lib-common@1.0.0 registry_event fact carries event_type=yank (event_key serial:9988), which canonicalPackageRegistryEventUpsertCypher (go/internal/storage/cypher/package_registry_event_writer.go) writes as an unconditional e.event_type SET. `occurred_at` is deliberately NOT asserted here: packageRegistryTimeValue (go/internal/storage/cypher/package_registry_canonical_writer.go) stores it as a native Bolt DateTime, not a string or list, and boltPropertyString (go/cmd/golden-corpus-gate/graph.go) has no DateTime case -- it would decode to \"\" on every live run regardless of writer correctness, making a pinned assertion on it unconditionally red, the same landmine the #5820 P2 fix closed for LIST-typed properties. A writer that omits event_type or corrupts it fails this assertion even though rc-169's node/edge existence check would still pass.",
+        "label": "RegistryEvent",
+        "minimum_count": 1,
+        "required_node_properties": [
+          "event_type"
+        ],
+        "allowed_node_property_values": {
+          "event_type": ["yank"]
+        }
+      },
+      {
         "id": "rn-terraform-state-provider-binding",
         "description": "#5446 provider-binding pre-pass non-vacuous regression guard: at least 1 TerraformStateResource node carries provider='aws'. The terraformstate supply-chain-demo cassette's module.ecs.aws_ecs_cluster.supply-chain-demo resource now carries a terraform_state_provider_binding fact (provider_type='aws', provider_source_address='registry.terraform.io/hashicorp/aws'), which terraformStateProviderBindingsByResource (go/internal/projector/tfstate_canonical.go) joins by resource_address onto that row's Provider field, and canonicalTerraformStateResourceUpsertCypher (go/internal/storage/cypher/tfstate_canonical_writer.go) writes as an unconditional r.provider SET. Zero without the fix (the property did not exist before #5446) and zero without the new cassette fact (no other resource in this cassette carries a provider binding). See TestTerraformStateCassetteResourceCarriesProviderBinding (go/internal/projector/tfstate_cassette_test.go) for the hermetic, no-Docker counterpart to this assertion.",
         "label": "TerraformStateResource",

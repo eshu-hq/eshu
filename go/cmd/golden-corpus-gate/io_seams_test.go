@@ -212,6 +212,7 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 		"TerraformStateResource": 1,
 		"CodeownerTeam":          1,
 		"PackageArtifact":        1,
+		"RegistryEvent":          1,
 	}
 	nodeProp := map[string][]string{
 		"File|language": langs,
@@ -223,6 +224,11 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 			"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85|" +
 				"sha512:cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3",
 		},
+		// rn-registry-event-fields: mirrors the package_registry
+		// supply-chain-demo cassette's github.com/acme/lib-common@1.0.0
+		// registry_event fact's event_type (event_key serial:9988), the same
+		// non-vacuity precedent as PackageArtifact|hashes above.
+		"RegistryEvent|event_type": {"yank"},
 		"CloudResource|resource_type": {
 			"dataplex.googleapis.com/EntryGroup",
 			"identitytoolkit.googleapis.com/Config",
