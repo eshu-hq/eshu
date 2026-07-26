@@ -271,3 +271,80 @@ func TestCICDRunCorrelationHandlerQuarantinesDeploymentEventMissingSHA(t *testin
 		t.Fatalf("no decision produced for the valid sibling run run-deploy-valid; got %+v", writer.write.Decisions)
 	}
 }
+
+// An event whose environment canonicalizes to nothing carries no deployment
+// truth, so it must not win the environment and must not stamp
+// environment_evidence=deploy_event.
+//
+// Reporting it would suppress the declared fallback and publish an empty
+// environment labelled as deployment evidence, which #5426 reads as truth. The
+// typed decode enforces presence and non-null but not non-empty, and the
+// contract module serves external collectors and cassettes as well as this
+// repo's collector, so the guard cannot live only at the emitter.
+func TestClassifyDeploymentEventEnvironmentRejectsBlankEnvironment(t *testing.T) {
+	t.Parallel()
+
+	for name, raw := range map[string]string{
+		"empty":      "",
+		"whitespace": "   ",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			env, factID, ok := classifyCICDDeploymentEventEnvironment(
+				[]*decodedCICDDeploymentEvent{deploymentEventEvidenceWithState("f-1", "sha-1", raw, "success", "9001", "77001")},
+			)
+			if ok {
+				t.Fatalf("ok = true (env=%q factID=%q), want false: a blank environment is not deployment truth", env, factID)
+			}
+			if env != "" {
+				t.Fatalf("env = %q, want empty", env)
+			}
+		})
+	}
+}
+
+// The declared fallback must still apply when the only deployment event has a
+// blank environment, rather than the run losing its environment entirely.
+func TestClassifyRunEvidenceFallsBackWhenDeploymentEnvironmentBlank(t *testing.T) {
+	t.Parallel()
+
+	const sha = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c"
+
+	decisions, _, _ := buildCICDRunCorrelationDecisionsWithQuarantine([]facts.Envelope{
+		{
+			FactID:   "run",
+			FactKind: facts.CICDRunFactKind,
+			Payload: map[string]any{
+				"provider": "github_actions", "run_id": "5150", "run_attempt": "1",
+				"commit_sha": sha, "repository_id": "repository:r_x",
+			},
+		},
+		{
+			FactID:   "declared-env",
+			FactKind: facts.CICDEnvironmentObservationFactKind,
+			Payload: map[string]any{
+				"provider": "github_actions", "run_id": "5150", "run_attempt": "1",
+				"environment": "staging",
+			},
+		},
+		{
+			FactID:   "blank-deployment",
+			FactKind: facts.CICDDeploymentEventFactKind,
+			Payload: map[string]any{
+				"provider": "github_actions", "deployment_id": "9001",
+				"environment": "", "sha": sha,
+			},
+		},
+	})
+
+	if len(decisions) != 1 {
+		t.Fatalf("decisions = %d, want 1", len(decisions))
+	}
+	if got := decisions[0].Environment; got != "stage" {
+		t.Fatalf("Environment = %q, want the declared staging canonicalized to stage", got)
+	}
+	if got := decisions[0].EnvironmentEvidence; got != "declared" {
+		t.Fatalf("EnvironmentEvidence = %q, want declared: a blank deploy event must not claim deployment truth", got)
+	}
+}

@@ -124,5 +124,17 @@ func classifyCICDDeploymentEventEnvironment(events []*decodedCICDDeploymentEvent
 	if winner == nil {
 		return "", "", false
 	}
-	return environment.Canonical(trimmedCICDField(winner.evidence.Environment)), winner.envelope.FactID, true
+	canonical := environment.Canonical(trimmedCICDField(winner.evidence.Environment))
+	if canonical == "" {
+		// An event whose environment canonicalizes to nothing carries no
+		// deployment truth. Reporting ok here would suppress the declared
+		// fallback and publish an empty environment stamped
+		// environment_evidence=deploy_event, which #5426 reads as deployment
+		// truth. The typed decode only enforces presence and non-null, not
+		// non-empty, and the contract module serves external collectors and
+		// cassettes as well as this repo's collector, so the guard belongs
+		// here rather than only at the emitter.
+		return "", "", false
+	}
+	return canonical, winner.envelope.FactID, true
 }

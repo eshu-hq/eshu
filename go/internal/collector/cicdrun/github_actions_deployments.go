@@ -15,13 +15,18 @@ import (
 )
 
 // deploymentProvider is the Provider segment ci.deployment_event facts carry.
+// It is the SAME token every other fact in this family emits
+// (ProviderGitHubActions), not a second vocabulary: the reducer buckets a run's
+// evidence by provider, cassettes are compared against real collector output,
+// and a consumer filtering ci.deployment_event by provider must not need to
+// know that this one kind spelled it differently.
 // It is deliberately "github", not ProviderGitHubActions ("github_actions"):
 // the DeploymentEvent contract (sdk/go/factschema/cicdrun/v1/deployment_event.go)
 // models a raw GitHub Deployments API observation, a platform-level surface
 // any integration can create a deployment through, not an Actions-run-scoped
 // one -- see that file's doc comment distinguishing it from
 // EnvironmentObservation.
-const deploymentProvider = "github"
+const deploymentProvider = string(ProviderGitHubActions)
 
 // GitHubActionsDeploymentEnvelopes normalizes one fixture-shaped batch of
 // GitHub deployments (each with its bounded window of deployment_status

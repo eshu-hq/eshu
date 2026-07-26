@@ -14,6 +14,13 @@ import (
 // window of deployment_status events, mirroring RunSnapshot's raw-map shape
 // so the cicdrun normalizer decodes both through the same JSON-marshal seam
 // (see source_deployments.go's deploymentFixtureRows).
+// maxDeploymentStatusesPerDeployment bounds the status window fetched per
+// deployment. GitHub deployment statuses are append-only and a deployment
+// typically carries pending, in_progress, then success, so a small bound covers
+// the real shape; a truncated window emits a deployment_statuses_truncated
+// ci.warning rather than being silently short.
+const maxDeploymentStatusesPerDeployment = 20
+
 type DeploymentSnapshot struct {
 	Deployment      map[string]any
 	Statuses        []map[string]any
@@ -97,8 +104,13 @@ func (c GitHubClient) fetchDeployments(ctx context.Context, target TargetConfig)
 // bare JSON array with no total_count wrapper.
 func (c GitHubClient) fetchDeploymentStatuses(ctx context.Context, target TargetConfig, deploymentID string) ([]map[string]any, bool, error) {
 	path := fmt.Sprintf("/repos/%s/deployments/%s/statuses", target.Repository, url.PathEscape(deploymentID))
+	// Statuses are bounded independently of the deployments window. Reusing
+	// MaxDeployments would mean a caller wanting a deeper status history has to
+	// widen the number of DEPLOYMENTS fetched to get it, which is a different
+	// and much more expensive knob. GitHub appends statuses to a deployment and
+	// two to four per deployment is typical, so this bound is small.
 	endpoint, err := targetURL(target, path, map[string]string{
-		"per_page": strconv.Itoa(target.MaxDeployments),
+		"per_page": strconv.Itoa(maxDeploymentStatusesPerDeployment),
 	})
 	if err != nil {
 		return nil, false, err
@@ -107,5 +119,5 @@ func (c GitHubClient) fetchDeploymentStatuses(ctx context.Context, target Target
 	if err := c.getJSON(ctx, target, endpoint, &statuses); err != nil {
 		return nil, false, fmt.Errorf("fetch github deployment statuses: %w", err)
 	}
-	return statuses, len(statuses) == target.MaxDeployments, nil
+	return statuses, len(statuses) == maxDeploymentStatusesPerDeployment, nil
 }
