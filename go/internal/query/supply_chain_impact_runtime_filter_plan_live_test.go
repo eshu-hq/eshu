@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -102,6 +103,35 @@ FROM generate_series(1, 100000) AS sample`,
 	if _, err := tx.ExecContext(ctx, "ANALYZE fact_records"); err != nil {
 		t.Fatalf("analyze fact_records: %v", err)
 	}
+
+	contextCandidates := make([]string, 0, 200)
+	for sample := 1; sample <= 200; sample++ {
+		contextCandidates = append(contextCandidates, fmt.Sprintf("repository:5747:perf:%d", sample))
+	}
+	contextStore := NewPostgresSupplyChainImpactFindingStore(tx)
+	contexts, err := contextStore.ListSupplyChainImpactRuntimeContext(
+		ctx,
+		contextCandidates,
+		contextCandidates,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("list 200-candidate runtime context: %v", err)
+	}
+	if len(contexts) != len(contextCandidates) {
+		t.Fatalf("runtime context repository count = %d, want %d", len(contexts), len(contextCandidates))
+	}
+	explainSupplyChainRuntimeFilterPlan(
+		t,
+		ctx,
+		tx,
+		"runtime_context_200_candidates",
+		selectSupplyChainImpactRuntimeContextQuery,
+		pq.Array(supplyChainImpactRuntimeContextFactKinds),
+		pq.Array(contextCandidates),
+		pq.Array(contextCandidates),
+		pq.Array([]string{}),
+	)
 
 	baseFilter := SupplyChainImpactFindingFilter{
 		CVEID:                runtimeFilterLiveCVE,

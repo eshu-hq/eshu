@@ -6,6 +6,8 @@ package query
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -15,23 +17,30 @@ import (
 // the optional supplyChainImpactRuntimeContextReader capability, so probe
 // tests exercise the handler's type-asserted read path without Postgres.
 type runtimeContextFindingStore struct {
-	byRepo map[string]SupplyChainRuntimeContext
-	called []string
-	err    error
+	rows            []SupplyChainImpactFindingRow
+	byRepo          map[string]SupplyChainRuntimeContext
+	called          []string
+	allowedRepoIDs  []string
+	allowedScopeIDs []string
+	err             error
 }
 
 func (f *runtimeContextFindingStore) ListSupplyChainImpactFindings(
 	context.Context,
 	SupplyChainImpactFindingFilter,
 ) ([]SupplyChainImpactFindingRow, error) {
-	return nil, nil
+	return append([]SupplyChainImpactFindingRow(nil), f.rows...), nil
 }
 
 func (f *runtimeContextFindingStore) ListSupplyChainImpactRuntimeContext(
 	_ context.Context,
 	repositoryIDs []string,
+	allowedRepositoryIDs []string,
+	allowedScopeIDs []string,
 ) (map[string]SupplyChainRuntimeContext, error) {
 	f.called = append([]string(nil), repositoryIDs...)
+	f.allowedRepoIDs = append([]string(nil), allowedRepositoryIDs...)
+	f.allowedScopeIDs = append([]string(nil), allowedScopeIDs...)
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -52,6 +61,64 @@ func osPackageFindingRowForRuntimeContext() SupplyChainImpactFindingRow {
 	}
 }
 
+func TestApplySupplyChainRuntimeContextThreadsScopedGrants(t *testing.T) {
+	t.Parallel()
+
+	store := &runtimeContextFindingStore{byRepo: map[string]SupplyChainRuntimeContext{}}
+	handler := &SupplyChainHandler{ImpactFindings: store}
+	access := repositoryAccessFilter{
+		allowedRepositoryIDs: []string{"repository:r_217415d9"},
+		allowedScopeIDs:      []string{"scope:5747:tenant-a"},
+	}
+
+	rows := []SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
+	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows, access); err != nil {
+		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
+	}
+	if got, want := store.allowedRepoIDs, access.allowedRepositoryIDs; !equalPacketStringSlices(got, want) {
+		t.Fatalf("allowed repository ids = %#v, want %#v", got, want)
+	}
+	if got, want := store.allowedScopeIDs, access.allowedScopeIDs; !equalPacketStringSlices(got, want) {
+		t.Fatalf("allowed scope ids = %#v, want %#v", got, want)
+	}
+}
+
+func TestSupplyChainImpactRuntimeContextHandlerThreadsScopeOnlyGrant(t *testing.T) {
+	t.Parallel()
+
+	store := &runtimeContextFindingStore{
+		rows: []SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()},
+		byRepo: map[string]SupplyChainRuntimeContext{
+			"repository:r_217415d9": {ServiceIDs: []string{"service:5747:allowed"}},
+		},
+	}
+	handler := &SupplyChainHandler{ImpactFindings: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/supply-chain/impact/findings?cve_id=CVE-2026-0001&limit=10&profile=comprehensive",
+		nil,
+	)
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:            AuthModeScoped,
+		TenantID:        "tenant-5747-a",
+		WorkspaceID:     "workspace-5747-a",
+		AllowedScopeIDs: []string{"scope:5747:tenant-a"},
+	}))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if got, want := store.allowedScopeIDs, []string{"scope:5747:tenant-a"}; !equalPacketStringSlices(got, want) {
+		t.Fatalf("runtime-context allowed scope ids = %#v, want %#v", got, want)
+	}
+	if len(store.allowedRepoIDs) != 0 {
+		t.Fatalf("runtime-context allowed repository ids = %#v, want empty", store.allowedRepoIDs)
+	}
+}
+
 func TestApplySupplyChainRuntimeContextResolvesWorkloadsServicesEnvironments(t *testing.T) {
 	t.Parallel()
 
@@ -68,7 +135,7 @@ func TestApplySupplyChainRuntimeContextResolvesWorkloadsServicesEnvironments(t *
 	handler := &SupplyChainHandler{ImpactFindings: store}
 
 	rows := []SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
-	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows); err != nil {
+	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows, repositoryAccessFilter{allScopes: true}); err != nil {
 		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
 	}
 	ctx := rows[0].RuntimeContext
@@ -111,7 +178,7 @@ func TestApplySupplyChainRuntimeContextHonestEmptyForRepoWithNoWorkloads(t *test
 	handler := &SupplyChainHandler{ImpactFindings: store}
 
 	rows := []SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
-	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows); err != nil {
+	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows, repositoryAccessFilter{allScopes: true}); err != nil {
 		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
 	}
 	ctx := rows[0].RuntimeContext
@@ -137,7 +204,7 @@ func TestApplySupplyChainRuntimeContextSkipsFindingWithNoRepositoryAnchor(t *tes
 	row := osPackageFindingRowForRuntimeContext()
 	row.RepositoryID = ""
 	rows := []SupplyChainImpactFindingRow{row}
-	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows); err != nil {
+	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows, repositoryAccessFilter{allScopes: true}); err != nil {
 		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
 	}
 	if rows[0].RuntimeContext != nil {
@@ -156,7 +223,7 @@ func TestApplySupplyChainRuntimeContextPropagatesReaderError(t *testing.T) {
 	handler := &SupplyChainHandler{ImpactFindings: store}
 
 	rows := []SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
-	err := handler.applySupplyChainRuntimeContext(context.Background(), rows)
+	err := handler.applySupplyChainRuntimeContext(context.Background(), rows, repositoryAccessFilter{allScopes: true})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want %v", err, wantErr)
 	}
@@ -176,7 +243,7 @@ func TestApplySupplyChainRuntimeContextDeterministicOrdering(t *testing.T) {
 	handler := &SupplyChainHandler{ImpactFindings: store}
 
 	rows := []SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
-	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows); err != nil {
+	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows, repositoryAccessFilter{allScopes: true}); err != nil {
 		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
 	}
 	ctx := rows[0].RuntimeContext
@@ -196,7 +263,7 @@ func TestApplySupplyChainRuntimeContextStoreWithoutReaderIsNoOp(t *testing.T) {
 	// erroring — the feature degrades to the pre-#5746 response shape.
 	handler := &SupplyChainHandler{ImpactFindings: &recordingSupplyChainImpactFindingStore{}}
 	rows := []SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
-	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows); err != nil {
+	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows, repositoryAccessFilter{allScopes: true}); err != nil {
 		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
 	}
 	if rows[0].RuntimeContext != nil {

@@ -233,6 +233,8 @@ func TestListSupplyChainImpactRuntimeContextNilDBFailsLoud(t *testing.T) {
 	_, err := store.ListSupplyChainImpactRuntimeContext(
 		context.Background(),
 		[]string{"repository:r_217415d9"},
+		nil,
+		nil,
 	)
 	if err == nil {
 		t.Fatal("ListSupplyChainImpactRuntimeContext() error = nil, want nil-DB error")

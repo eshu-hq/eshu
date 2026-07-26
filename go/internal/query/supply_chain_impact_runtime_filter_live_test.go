@@ -112,10 +112,14 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		name      string
-		serviceID string
+		name        string
+		workloadID  string
+		serviceID   string
+		environment string
 	}{
 		{name: "other_scope", serviceID: "service:5747:tenant-b"},
+		{name: "other_scope_workload", workloadID: "workload:5747:tenant-b"},
+		{name: "other_scope_environment", environment: "staging-5747"},
 		{name: "stale_generation", serviceID: "service:5747:stale"},
 		{name: "tombstone", serviceID: "service:5747:tombstone"},
 		{name: "ambiguous", serviceID: "service:5747:ambiguous"},
@@ -125,7 +129,9 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			filter := SupplyChainImpactFindingFilter{
 				CVEID:            runtimeFilterLiveCVE,
+				WorkloadID:       tc.workloadID,
 				ServiceID:        tc.serviceID,
+				Environment:      tc.environment,
 				DetectionProfile: "comprehensive",
 				Limit:            10,
 				AllowedScopeIDs:  allowedScopes,
@@ -135,7 +141,9 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 
 			count, err := aggregateStore.CountSupplyChainImpactFindings(ctx, SupplyChainImpactAggregateFilter{
 				CVEID:            runtimeFilterLiveCVE,
+				WorkloadID:       tc.workloadID,
 				ServiceID:        tc.serviceID,
+				Environment:      tc.environment,
 				DetectionProfile: "comprehensive",
 				AllowedScopeIDs:  allowedScopes,
 			})
@@ -159,6 +167,64 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 	}
 	if explanation.Finding.FindingID != runtimeFilterLiveFindingID {
 		t.Fatalf("explain finding = %q, want %q", explanation.Finding.FindingID, runtimeFilterLiveFindingID)
+	}
+
+	assertSupplyChainRuntimeContextScopesLive(t, ctx, findingStore)
+}
+
+func assertSupplyChainRuntimeContextScopesLive(
+	t *testing.T,
+	ctx context.Context,
+	store PostgresSupplyChainImpactFindingStore,
+) {
+	t.Helper()
+	for _, tc := range []struct {
+		name              string
+		access            repositoryAccessFilter
+		wantCrossScope    bool
+		wantWorkloadCount int
+	}{
+		{
+			name:              "scope_a_only",
+			access:            repositoryAccessFilter{allowedScopeIDs: []string{runtimeFilterLiveScopeA}},
+			wantWorkloadCount: 2,
+		},
+		{
+			name:              "canonical_repository_grant",
+			access:            repositoryAccessFilter{allowedRepositoryIDs: []string{runtimeFilterLiveRepository}},
+			wantCrossScope:    true,
+			wantWorkloadCount: 3,
+		},
+		{
+			name:              "unrestricted",
+			access:            repositoryAccessFilter{allScopes: true},
+			wantCrossScope:    true,
+			wantWorkloadCount: 3,
+		},
+	} {
+		tc := tc
+		t.Run("runtime_context_"+tc.name, func(t *testing.T) {
+			handler := &SupplyChainHandler{ImpactFindings: store}
+			rows := []SupplyChainImpactFindingRow{{
+				RepositoryID: runtimeFilterLiveRepository,
+			}}
+			if err := handler.applySupplyChainRuntimeContext(ctx, rows, tc.access); err != nil {
+				t.Fatalf("apply runtime context: %v", err)
+			}
+			resolved := rows[0].RuntimeContext
+			if resolved == nil {
+				t.Fatal("runtime context = nil, want labeled context")
+			}
+			if got := len(resolved.WorkloadIDs); got != tc.wantWorkloadCount {
+				t.Fatalf("workload count = %d, want %d: %v", got, tc.wantWorkloadCount, resolved.WorkloadIDs)
+			}
+			hasServiceB := containsAuthString(resolved.ServiceIDs, "service:5747:tenant-b")
+			hasWorkloadB := containsAuthString(resolved.WorkloadIDs, "workload:5747:tenant-b")
+			hasEnvironmentB := containsAuthString(resolved.Environments, "staging-5747")
+			if got := hasServiceB && hasWorkloadB && hasEnvironmentB; got != tc.wantCrossScope {
+				t.Fatalf("cross-scope context present = %v, want %v: %+v", got, tc.wantCrossScope, resolved)
+			}
+		})
 	}
 }
 
@@ -275,6 +341,17 @@ INSERT INTO scope_generations (
 		serviceCatalogCorrelationFactKind, false, map[string]any{
 			"repository_id": runtimeFilterLiveRepository,
 			"service_id":    "service:5747:tenant-b",
+			"outcome":       "exact",
+		})
+	insertSupplyChainRuntimeFilterFact(t, ctx, tx, "fact:5747:workload:tenant-b", runtimeFilterLiveScopeB, runtimeFilterLiveGenB,
+		workloadIdentityFactKindQuery, false, map[string]any{
+			"repository_id": runtimeFilterLiveRepository,
+			"workload_id":   "workload:5747:tenant-b",
+		})
+	insertSupplyChainRuntimeFilterFact(t, ctx, tx, "fact:5747:environment:tenant-b", runtimeFilterLiveScopeB, runtimeFilterLiveGenB,
+		cicdRunCorrelationFactKind, false, map[string]any{
+			"repository_id": runtimeFilterLiveRepository,
+			"environment":   "staging-5747",
 			"outcome":       "exact",
 		})
 	insertSupplyChainRuntimeFilterFact(t, ctx, tx, "fact:5747:service:stale", runtimeFilterLiveScopeA, runtimeFilterLiveGenAStale,

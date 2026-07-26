@@ -940,8 +940,8 @@ service-catalog, platform, and CI/CD facts at read time. The `workload_id`,
 mappings, while retaining baked reducer values for compatibility across rolling
 upgrades. For a scoped caller, runtime mappings must also fall inside the
 caller's repository or ingestion-scope grant before they can affect filter
-membership. The filters do not infer aliases from repository, tag, workload,
-service, or environment names.
+membership or appear in `runtime_context`. The filters do not infer aliases
+from repository, tag, workload, service, or environment names.
 
 Ambiguous images, stale deployment evidence, missing workload links, or missing
 service/environment links stay in `missing_evidence[]`. Exact

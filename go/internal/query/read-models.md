@@ -295,7 +295,10 @@ indexes cover scalar `workload_id` and `entity_keys` membership so the read
 does not probe every active ingestion scope. Before a decoded runtime mapping
 can affect membership, it is intersected with the same allowed-repository or
 allowed-scope grant used by the finding query; selectors cannot act as a
-cross-scope correlation oracle.
+cross-scope correlation oracle. Response-side `runtime_context` hydration
+applies that identical per-fact grant before folding workloads, services,
+deployments, environments, or catalog refs, so a scoped response never
+advertises context that its corresponding filter must reject.
 
 No-Regression Evidence: `go test ./internal/query -run
 'TestSupplyChainImpactAggregate|TestSupplyChainImpactInventoryGroupExpression|TestSupplyChainImpactAggregateRoutesResolveRepositorySelectors'

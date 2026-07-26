@@ -54,10 +54,14 @@ const supplyChainRuntimeContextTruthBasis = "read_time_resolved"
 // findings handler type-asserts on its ImpactFindings store to resolve
 // per-repository runtime context at read time. A store that does not
 // implement it (legacy, test double) leaves rows untouched — the response
-// degrades to the pre-#5746 shape rather than erroring.
+// degrades to the pre-#5746 shape rather than erroring. The final two slices
+// carry scoped-token repository and ingestion-scope grants; both empty means
+// unrestricted, matching the runtime-filter SQL contract.
 type supplyChainImpactRuntimeContextReader interface {
 	ListSupplyChainImpactRuntimeContext(
 		context.Context,
+		[]string,
+		[]string,
 		[]string,
 	) (map[string]SupplyChainRuntimeContext, error)
 }
@@ -79,10 +83,13 @@ type supplyChainImpactRuntimeContextReader interface {
 // A reader error is propagated (the caller maps graph sentinels to the
 // bounded retryable envelope and everything else to a plain 500) rather than
 // serving an empty context that could be misread as "nothing runs this",
-// matching the cloud-runtime probe's fail-loud contract.
+// matching the cloud-runtime probe's fail-loud contract. Scoped access is
+// forwarded to the reader so response hydration and runtime filters cannot
+// disagree about which current facts the caller may observe.
 func (h *SupplyChainHandler) applySupplyChainRuntimeContext(
 	ctx context.Context,
 	rows []SupplyChainImpactFindingRow,
+	access repositoryAccessFilter,
 ) error {
 	if h == nil || len(rows) == 0 {
 		return nil
@@ -107,7 +114,17 @@ func (h *SupplyChainHandler) applySupplyChainRuntimeContext(
 	if len(repositoryIDs) == 0 {
 		return nil
 	}
-	byRepo, err := reader.ListSupplyChainImpactRuntimeContext(ctx, repositoryIDs)
+	var allowedRepositoryIDs, allowedScopeIDs []string
+	if access.scoped() {
+		allowedRepositoryIDs = access.allowedRepositoryIDs
+		allowedScopeIDs = access.allowedScopeIDs
+	}
+	byRepo, err := reader.ListSupplyChainImpactRuntimeContext(
+		ctx,
+		repositoryIDs,
+		allowedRepositoryIDs,
+		allowedScopeIDs,
+	)
 	if err != nil {
 		return err
 	}

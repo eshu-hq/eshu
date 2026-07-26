@@ -160,7 +160,7 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 	// Postgres store errors fall to a plain 500 — serving an empty context
 	// after a failed read would be indistinguishable from "nothing runs this"
 	// on a security surface, so no failure path returns a false empty.
-	if err := h.applySupplyChainRuntimeContext(r.Context(), rows); err != nil {
+	if err := h.applySupplyChainRuntimeContext(r.Context(), rows, access); err != nil {
 		if WriteGraphReadError(w, r, err, supplyChainImpactFindingsCapability) {
 			return
 		}

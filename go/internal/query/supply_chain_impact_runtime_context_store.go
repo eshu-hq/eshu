@@ -49,7 +49,9 @@ var supplyChainImpactRuntimeContextFactKinds = []string{
 // workload/deployment intents scoped to a non-repository scope carry the
 // repository only there). The active-generation joins mirror the findings
 // list query so a retracted or stale-generation fact never resolves current
-// context.
+// context. Scoped callers additionally require either the decoded repository
+// anchor or the fact's direct ingestion scope to be granted, matching #5747's
+// filter-membership authorization boundary.
 //
 // Bounded by len(candidates) (page-sized, at most the enforced findings page
 // limit of supplyChainImpactFindingMaxLimit = 200) and 4 kinds — this is the
@@ -71,6 +73,20 @@ WHERE fact.fact_kind = ANY($1::text[])
   AND fact.is_tombstone = FALSE
   AND generation.status = 'active'
   AND (
+        (
+          COALESCE(cardinality($3::text[]), 0) = 0
+          AND COALESCE(cardinality($4::text[]), 0) = 0
+        )
+        OR COALESCE(fact.payload->>'repository_id', fact.payload->>'repo_id', '') = ANY($3::text[])
+        OR fact.scope_id = ANY($3::text[])
+        OR fact.scope_id IN (SELECT 'git-repository-scope:' || candidate FROM unnest($3::text[]) AS candidate)
+        OR COALESCE(fact.payload->>'scope_id', '') = ANY($3::text[])
+        OR COALESCE(fact.payload->>'scope_id', '') IN (SELECT 'git-repository-scope:' || candidate FROM unnest($3::text[]) AS candidate)
+        OR fact.payload->'related_scope_ids' ?| $3::text[]
+        OR fact.payload->'related_scope_ids' ?| (SELECT array_agg('git-repository-scope:' || candidate) FROM unnest($3::text[]) AS candidate)
+        OR fact.scope_id = ANY($4::text[])
+      )
+  AND (
         COALESCE(fact.payload->>'repository_id', fact.payload->>'repo_id', '') = ANY($2::text[])
         OR fact.scope_id = ANY($2::text[])
         OR fact.scope_id IN (SELECT 'git-repository-scope:' || candidate FROM unnest($2::text[]) AS candidate)
@@ -91,10 +107,14 @@ WHERE fact.fact_kind = ANY($1::text[])
 // Outcome gates mirror the reducer's reduce-time rules: exact/derived
 // correlations (or an empty outcome) resolve context; ambiguous, rejected,
 // unresolved, stale, or provenance-only evidence is skipped so a contested
-// or superseded fact never surfaces as current truth.
+// or superseded fact never surfaces as current truth. When either grant slice
+// is non-empty, only facts authorized by that repository-or-scope union are
+// folded into the response; both empty retains unrestricted behavior.
 func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactRuntimeContext(
 	ctx context.Context,
 	repositoryIDs []string,
+	allowedRepositoryIDs []string,
+	allowedScopeIDs []string,
 ) (map[string]SupplyChainRuntimeContext, error) {
 	out := make(map[string]SupplyChainRuntimeContext)
 	if len(repositoryIDs) == 0 {
@@ -111,6 +131,8 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactRuntimeConte
 		selectSupplyChainImpactRuntimeContextQuery,
 		pq.Array(supplyChainImpactRuntimeContextFactKinds),
 		pq.Array(repositoryIDs),
+		pq.Array(allowedRepositoryIDs),
+		pq.Array(allowedScopeIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list supply chain impact runtime context: %w", err)
