@@ -175,11 +175,11 @@ $ bash scripts/verify-openapi.sh
 OpenAPI surface clean: 252 HandleFunc routes, 252 OpenAPI path entries
 ```
 
-B-7 golden corpus gate against `196fa1f47`:
+B-7 golden corpus gate against `0d42bacc1`:
 
 ```
 summary: 506 pass, 0 required-fail, 2 advisory-warn
-=== PASS: B-7 golden corpus gate green (elapsed 154s, budget ceiling 1800s) ===
+=== PASS: B-7 golden corpus gate green (elapsed 158s, budget ceiling 1800s) ===
 
 [PASS] GET /api/v0/ci-cd/run-correlations?environment=prod&limit=10&repository_id=repository:r_69256c06:
        "correlations" has 1 results; item fields [environment environment_evidence] present;
