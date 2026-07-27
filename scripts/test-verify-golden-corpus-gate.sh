@@ -99,6 +99,7 @@ bash -n "${script}" || fail "verify-golden-corpus-gate.sh has a syntax error"
 # silently skipped and the run still reports pass.
 for sourced_case_lib in \
 	"${repo_root}/scripts/lib/golden-corpus-lock-cases.sh" \
+	"${repo_root}/scripts/lib/golden-corpus-lock-parse-cases.sh" \
 	"${repo_root}/scripts/lib/golden-corpus-lock-race-cases.sh"; do
 	[[ -f "${sourced_case_lib}" ]] || fail "missing lock case lib: ${sourced_case_lib}"
 	bash -n "${sourced_case_lib}" || fail "$(basename "${sourced_case_lib}") has a syntax error"
@@ -313,6 +314,7 @@ private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(?<![0-9
 for scanned in "${script}" \
 	"${repo_root}/scripts/lib/live-gate-lock.sh" \
 	"${repo_root}/scripts/lib/golden-corpus-lock-cases.sh" \
+	"${repo_root}/scripts/lib/golden-corpus-lock-parse-cases.sh" \
 	"${repo_root}/scripts/lib/golden-corpus-lock-race-cases.sh" \
 	"${cleanup_lib}" "${host_helpers_lib}" "${stage_lib}"; do
 	if rg --pcre2 --quiet -- "${private_pattern}" "${scanned}"; then
@@ -323,6 +325,8 @@ done
 . "${repo_root}/scripts/lib/golden-corpus-lock-cases.sh"
 [[ "${lock_cases_completed:-0}" -eq 1 ]] ||
 	fail "golden-corpus-lock-cases.sh did not run to completion (gutted, or returned early)"
+[[ "${lock_parse_cases_completed:-0}" -eq 1 ]] ||
+	fail "golden-corpus-lock-parse-cases.sh did not run to completion (gutted, or returned early)"
 [[ "${lock_race_cases_completed:-0}" -eq 1 ]] ||
 	fail "golden-corpus-lock-race-cases.sh did not run to completion (gutted, or returned early)"
 

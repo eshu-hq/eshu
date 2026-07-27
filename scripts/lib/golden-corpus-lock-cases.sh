@@ -60,6 +60,15 @@ require_lock "reclaim re-validates the holder" \
 require_lock "start-id fingerprint helper" 'start_id_for_pid() {'
 require_lock "payload carries a start-id fingerprint" \
 	'local payload="$$:$(start_id_for_pid "$$"):$(pwd -P)"'
+# #5826 review, P1: `lstart` renders in the CALLER's ambient locale/TZ, so an
+# unnormalized fingerprint mismatches for the SAME live pid across TZs, and a
+# mismatch reads as "stale" - reclaiming a LIVE lock. Pin the exact
+# normalization prefix, not just that `ps -o lstart=` appears, so a silent
+# drop of `LC_ALL=C TZ=UTC ` (e.g. "simplifying" the helper back to a bare
+# `ps` call) fails this mirror instead of only failing under a TZ the CI
+# runner does not happen to use.
+require_lock "start-id fingerprint is locale/TZ-normalized" \
+	'LC_ALL=C TZ=UTC ps -o lstart= -p "$1" 2>/dev/null | tr -cd '\''0-9'\'''
 require_lock "holder liveness re-validates the start-id" \
 	'{ [[ -z "${holder_startid}" ]] || [[ "$(start_id_for_pid "${holder_pid}")" == "${holder_startid}" ]]; }; then'
 require_lock "reclaim re-validates the start-id" \
@@ -192,8 +201,9 @@ rg --quiet 'reclaimed stale lock' <<<"${reuse_out}" \
 
 # ...and the inverse: a live pid whose start-id genuinely MATCHES must still
 # block. Otherwise the fingerprint would defeat live exclusion entirely rather
-# than narrow it.
-this_startid="$(ps -o lstart= -p "$$" | tr -cd '0-9')"
+# than narrow it. Computed the same way production does (LC_ALL=C TZ=UTC), so
+# this case does not itself depend on the runner's ambient locale/TZ.
+this_startid="$(LC_ALL=C TZ=UTC ps -o lstart= -p "$$" | tr -cd '0-9')"
 rm -f "${lock_file}"
 ln -s "$$:${this_startid}:/nonexistent/same-worktree" "${lock_file}"
 set +e
@@ -204,6 +214,13 @@ set -e
 	|| fail "a live pid with a MATCHING start-id must still block, got exit 0: ${samestart_out}"
 rg --quiet 'another live gate is already running' <<<"${samestart_out}" \
 	|| fail "matching start-id holder must be reported as running; got: ${samestart_out}"
+
+# Payload-parsing edge cases (TZ/locale-dependent fingerprints, malformed
+# colon-less payloads) are extracted to golden-corpus-lock-parse-cases.sh to
+# keep this chunk under the 500-line cap.
+. "${repo_root}/scripts/lib/golden-corpus-lock-parse-cases.sh"
+[[ "${lock_parse_cases_completed:-0}" -eq 1 ]] ||
+	fail "golden-corpus-lock-parse-cases.sh did not run to completion (gutted, or returned early)"
 
 # A STALE holder (dead pid) must be reclaimed, or one crashed run wedges the
 # gate for every later run.

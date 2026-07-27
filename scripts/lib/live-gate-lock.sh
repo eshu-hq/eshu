@@ -70,8 +70,20 @@ process_is_alive() {
 # start time; reduced to digits (tr -cd) it is a colon-free fingerprint safe to
 # embed in the payload. Returns empty when the pid is not currently running,
 # which callers treat as "cannot confirm" rather than "stale."
+#
+# LC_ALL=C TZ=UTC is mandatory here, not cosmetic (#5826 review, P1): `lstart`
+# renders in the CALLER's locale/TZ, not a fixed one, so the SAME live pid
+# produces a DIFFERENT fingerprint depending on what TZ/LC_ALL happened to be
+# ambient when each side ran `ps`. A holder recorded under TZ=UTC and read
+# back under TZ=Asia/Tokyo then mismatches even though the process never
+# changed, which reads as "stale" and gets reclaimed - destroying a LIVE
+# holder's lock. That fails the mutex OPEN, which is worse than the pid-reuse
+# bug this fingerprint exists to close: two runs proceed at once instead of
+# one being wrongly refused. Pinning both LC_ALL and TZ inside the helper
+# makes the fingerprint a function of the pid alone, never of the caller's
+# environment.
 start_id_for_pid() {
-	ps -o lstart= -p "$1" 2>/dev/null | tr -cd '0-9'
+	LC_ALL=C TZ=UTC ps -o lstart= -p "$1" 2>/dev/null | tr -cd '0-9'
 }
 
 # `ln -s` is create-or-fail only when the name does not exist. If a DIRECTORY
@@ -155,14 +167,34 @@ acquire_live_gate_lock() {
 		else
 			holder="$(readlink "${candidate}" 2>/dev/null || true)"
 			if [[ -n "${holder}" ]]; then
-				holder_pid="${holder%%:*}"
-				holder_rest="${holder#*:}"
-				holder_startid="${holder_rest%%:*}"
-				# Not a digit string: either an old-format two-field payload (the whole
-				# worktree path landed here) or corruption. Degrade to pid-only rather
-				# than trust a non-numeric value as a start-id fingerprint.
-				[[ "${holder_startid}" =~ ^[0-9]+$ ]] || holder_startid=""
-				holder_where="${holder_rest#*:}"
+				# Arity check (#5826 review, P3): a payload with NO colon at all (a
+				# bare pid, no start-id, no worktree) is malformed, not merely a
+				# shorter valid format. Without this case split, `${holder#*:}` and
+				# `${holder%%:*}` both fall through UNCHANGED when there is no colon
+				# to match on - so holder_rest, then holder_startid, silently become
+				# the pid string itself. That is numeric, so it passes the
+				# digit-only check below as if it were a genuine start-id, and gets
+				# compared against the pid's ACTUAL start-id fingerprint - which it
+				# will essentially never equal. A genuinely live pid then reads as
+				# an unconfirmed mismatch and its lock gets reclaimed.
+				case "${holder}" in
+					*:*)
+						holder_pid="${holder%%:*}"
+						holder_rest="${holder#*:}"
+						holder_startid="${holder_rest%%:*}"
+						# Not a digit string: either an old-format two-field payload
+						# (the whole worktree path landed here) or corruption. Degrade
+						# to pid-only rather than trust a non-numeric value as a
+						# start-id fingerprint.
+						[[ "${holder_startid}" =~ ^[0-9]+$ ]] || holder_startid=""
+						holder_where="${holder_rest#*:}"
+						;;
+					*)
+						holder_pid="${holder}"
+						holder_startid=""
+						holder_where="malformed payload (missing ':' field separator) at ${candidate}"
+						;;
+				esac
 			elif [[ -e "${candidate}" ]]; then
 				holder_pid=""
 				holder_startid=""
@@ -206,10 +238,20 @@ acquire_live_gate_lock() {
 		claim_lock_link "$$:$(date +%s)" "${guard}" || guard_status=$?
 		if [[ "${guard_status}" -eq 0 ]]; then
 			current="$(readlink "${candidate}" 2>/dev/null || true)"
-			current_pid="${current%%:*}"
-			current_rest="${current#*:}"
-			current_startid="${current_rest%%:*}"
-			[[ "${current_startid}" =~ ^[0-9]+$ ]] || current_startid=""
+			# Same arity check as the holder parse above (#5826 review, P3): a bare
+			# pid with no colon must not fall through and become its own start-id.
+			case "${current}" in
+				*:*)
+					current_pid="${current%%:*}"
+					current_rest="${current#*:}"
+					current_startid="${current_rest%%:*}"
+					[[ "${current_startid}" =~ ^[0-9]+$ ]] || current_startid=""
+					;;
+				*)
+					current_pid="${current}"
+					current_startid=""
+					;;
+			esac
 			# Distinguish "a dead holder's link" from "nothing is here": they are
 			# both reclaimable, but only one of them is safe to remove. These are
 			# two separate stats, and that is race-free ONLY because a live lock is

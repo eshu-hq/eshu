@@ -14,10 +14,20 @@
 # and can hit the free-name window; occupancy is asserted with `set -o
 # noclobber` create-or-fail. The no-lock control proves the harness has power,
 # so a clean run means "excluded", not "stopped looking".
+# #5826 review, F-3: each racer retries at most 6 times and, if every attempt
+# is refused, exits the subshell silently - no ACQUIRED, no VIOLATION, nothing
+# in the log. Under heavy exclusion (the mutex working AS INTENDED) that can
+# legitimately happen for every racer in every round, and the old return value
+# was violations alone: `real_violations -eq 0` then passes having sampled
+# NOTHING, which is indistinguishable from a clean 180-acquisition run. Emit
+# an ACQUIRED marker for every successful `acquire_live_gate_lock` (independent
+# of whether that attempt also won or lost the noclobber occupancy race) and
+# return the acquired count alongside violations, so the caller can assert a
+# floor and fail loudly on "never sampled" instead of reading it as "excluded".
 occupancy_probe() {
 	local probe_lib="$1" racers="$2" rounds="$3" home token start round i
 	home="$(mktemp -d)"
-	local violations=0
+	local violations=0 acquired=0
 	for round in $(seq 1 "${rounds}"); do
 		rm -rf "${home}"; mkdir -p "${home}"
 		token="${home}/OCCUPIED"; start="${home}/START"
@@ -29,6 +39,7 @@ occupancy_probe() {
 						set -uo pipefail
 						. "$1"
 						acquire_live_gate_lock 2>/dev/null || exit 7
+						printf "ACQUIRED\n"
 						( set -o noclobber; : > "$2" ) 2>/dev/null || printf "VIOLATION\n"
 						sleep 0.02
 						rm -f "$2"
@@ -41,10 +52,11 @@ occupancy_probe() {
 		: >"${start}"
 		wait
 		violations=$(( violations + $(rg --count 'VIOLATION' "${home}/log" 2>/dev/null || echo 0) ))
+		acquired=$(( acquired + $(rg --count 'ACQUIRED' "${home}/log" 2>/dev/null || echo 0) ))
 		rm -f "${home}/log"
 	done
 	rm -rf "${home}"
-	printf '%s\n' "${violations}"
+	printf '%s %s\n' "${violations}" "${acquired}"
 }
 
 no_lock_stub="$(mktemp)"
@@ -53,12 +65,19 @@ lock_path=""; lock_payload=""
 acquire_live_gate_lock() { lock_path="${ESHU_LIVE_GATE_LOCK_DIR}/eshu-live-gate.lock"; lock_payload="$$"; return 0; }
 release_live_gate_lock() { return 0; }
 STUB
-control_violations="$(occupancy_probe "${no_lock_stub}" 8 4)"
+read -r control_violations control_acquired <<<"$(occupancy_probe "${no_lock_stub}" 8 4)"
 rm -f "${no_lock_stub}"
 [[ "${control_violations}" -gt 0 ]] \
 	|| fail "occupancy harness has no power: the no-lock control reported 0 violations"
+# Mirrors the two sibling races' `-ge 1` winner floor, scaled to this probe's
+# racer count: at least one acquisition per racer across the whole run, or the
+# harness sampled too little to say anything about exclusion.
+[[ "${control_acquired}" -ge 8 ]] \
+	|| fail "occupancy control harness never sampled: only ${control_acquired} acquisition(s) across 8 racers - its 0-violation floor above would be meaningless"
 
-real_violations="$(occupancy_probe "${lock_lib}" 12 15)"
+read -r real_violations real_acquired <<<"$(occupancy_probe "${lock_lib}" 12 15)"
+[[ "${real_acquired}" -ge 12 ]] \
+	|| fail "occupancy probe never sampled the real mutex: only ${real_acquired} acquisition(s) across 12 racers over 15 rounds - 'excluded' is indistinguishable from 'never sampled' below this floor"
 [[ "${real_violations}" -eq 0 ]] \
 	|| fail "the mutex admitted ${real_violations} overlapping occupancies (control detected ${control_violations})"
 
