@@ -1253,6 +1253,11 @@
     },
     {
       "category": "api_route",
+      "name": "POST /api/v0/supply-chain/impact/suppressions",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "POST /api/v0/terraform/config-state-drift/findings",
       "readiness": "implemented"
     },

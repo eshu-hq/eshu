@@ -27,6 +27,13 @@ func TestSupplyChainImpactWinnerSelectMirrorsReadDedup(t *testing.T) {
 		"COALESCE(NULLIF(fact.payload->>'cve_id', ''), NULLIF(fact.payload->>'advisory_id', ''), '')",
 		// public finding_id fallback to canonical_key.
 		"COALESCE(\n            NULLIF(fact.payload->>'finding_id', ''),",
+		// Operator decisions supersede source fallbacks before canonical rank.
+		"operator_suppression_keys AS MATERIALIZED",
+		"fact.scope_id <> 'operator:vulnerability_suppressions'",
+		"fact.scope_id = 'operator:vulnerability_suppressions'",
+		"COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') <> 'active'",
+		"NOT EXISTS",
+		"UNION ALL",
 		// exact dedup tiebreak.
 		"ORDER BY\n                COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) DESC,",
 		"CASE WHEN NULLIF(fact.payload->>'finding_id', '') IS NULL THEN 0 ELSE 1 END DESC,",

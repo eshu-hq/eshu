@@ -23,9 +23,68 @@ import (
 
 // supplyChainImpactWinnerSelectSQL projects exactly one winner row per
 // canonical_key from the currently-active reducer_supply_chain_impact_finding
-// facts, using the same ORDER BY (priority_score DESC, has_payload_finding_id
-// DESC, fact_id ASC) the read-time dedup uses to pick canonical_rank = 1.
+// facts. An operator-owned non-active row supersedes source-scope fallbacks
+// before the unchanged canonical ORDER BY is applied; operator-owned active
+// recomputations are not authoritative and are excluded.
 const supplyChainImpactWinnerSelectSQL = `
+WITH active_facts AS NOT MATERIALIZED (
+    SELECT fact.*
+    FROM fact_records AS fact
+    JOIN ingestion_scopes AS scope
+      ON scope.scope_id = fact.scope_id
+     AND scope.active_generation_id = fact.generation_id
+    JOIN scope_generations AS generation
+      ON generation.scope_id = fact.scope_id
+     AND generation.generation_id = fact.generation_id
+    WHERE fact.fact_kind = 'reducer_supply_chain_impact_finding'
+      AND fact.is_tombstone = FALSE
+      AND generation.status = 'active'
+),
+operator_suppression_keys AS MATERIALIZED (
+    SELECT CONCAT_WS('|',
+        COALESCE(NULLIF(fact.payload->>'cve_id', ''), NULLIF(fact.payload->>'advisory_id', ''), ''),
+        COALESCE(fact.payload->>'advisory_id', ''),
+        COALESCE(fact.payload->>'package_id', ''),
+        COALESCE(fact.payload->>'purl', ''),
+        COALESCE(fact.payload->>'product_criteria', ''),
+        COALESCE(fact.payload->>'match_criteria_id', ''),
+        COALESCE(fact.payload->>'observed_version', ''),
+        COALESCE(fact.payload->>'requested_range', ''),
+        COALESCE(fact.payload->>'impact_status', ''),
+        COALESCE(fact.payload->>'repository_id', ''),
+        COALESCE(fact.payload->>'subject_digest', '')
+    ) AS canonical_key
+    FROM active_facts AS fact
+    WHERE fact.scope_id = 'operator:vulnerability_suppressions'
+      AND COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') <> 'active'
+),
+eligible_facts AS (
+    SELECT fact.*
+    FROM active_facts AS fact
+    WHERE fact.scope_id <> 'operator:vulnerability_suppressions'
+      AND NOT EXISTS (
+          SELECT 1
+          FROM operator_suppression_keys AS authority
+          WHERE authority.canonical_key = CONCAT_WS('|',
+              COALESCE(NULLIF(fact.payload->>'cve_id', ''), NULLIF(fact.payload->>'advisory_id', ''), ''),
+              COALESCE(fact.payload->>'advisory_id', ''),
+              COALESCE(fact.payload->>'package_id', ''),
+              COALESCE(fact.payload->>'purl', ''),
+              COALESCE(fact.payload->>'product_criteria', ''),
+              COALESCE(fact.payload->>'match_criteria_id', ''),
+              COALESCE(fact.payload->>'observed_version', ''),
+              COALESCE(fact.payload->>'requested_range', ''),
+              COALESCE(fact.payload->>'impact_status', ''),
+              COALESCE(fact.payload->>'repository_id', ''),
+              COALESCE(fact.payload->>'subject_digest', '')
+          )
+      )
+    UNION ALL
+    SELECT fact.*
+    FROM active_facts AS fact
+    WHERE fact.scope_id = 'operator:vulnerability_suppressions'
+      AND COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') <> 'active'
+)
 SELECT
     canonical_key,
     fact_id          AS winner_fact_id,
@@ -142,16 +201,7 @@ FROM (
                 CASE WHEN NULLIF(fact.payload->>'finding_id', '') IS NULL THEN 0 ELSE 1 END DESC,
                 fact.fact_id ASC
         ) AS canonical_rank
-    FROM fact_records AS fact
-    JOIN ingestion_scopes AS scope
-      ON scope.scope_id = fact.scope_id
-     AND scope.active_generation_id = fact.generation_id
-    JOIN scope_generations AS generation
-      ON generation.scope_id = fact.scope_id
-     AND generation.generation_id = fact.generation_id
-    WHERE fact.fact_kind = 'reducer_supply_chain_impact_finding'
-      AND fact.is_tombstone = FALSE
-      AND generation.status = 'active'
+    FROM eligible_facts AS fact
 ) ranked
 WHERE ranked.canonical_rank = 1
 `

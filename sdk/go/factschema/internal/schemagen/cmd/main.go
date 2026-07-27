@@ -160,6 +160,7 @@ func run() error {
 		// decode call nor a raw-SQL read-model consumer.
 		{name: "vulnerability.reference.v1.schema.json", generate: schemagen.VulnerabilityReferenceSchema},
 		{name: "vulnerability.source_snapshot.v1.schema.json", generate: schemagen.VulnerabilitySourceSnapshotSchema},
+		{name: "vulnerability.suppression.v1.schema.json", generate: schemagen.VulnerabilitySuppressionSchema},
 		// The code family fact kinds are BARE (no family prefix), unlike every
 		// other family here: they are the git collector's original,
 		// pre-Contract-System literal kinds ("file", "repository"). Only the

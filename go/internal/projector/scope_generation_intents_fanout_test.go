@@ -88,7 +88,7 @@ func fanOutParityFixture(scopeValue scope.IngestionScope, generation scope.Scope
 		//   - security_alert_reconciliation (candidate kinds {security_alert.
 		//     repository_alert, package_registry.package}; this precedes the
 		//     security_alert.repository_alert fact placed later)
-		//   - supply_chain_impact (11-kind candidate set; this precedes every
+		//   - supply_chain_impact (12-kind candidate set; this precedes every
 		//     other candidate-kind fact placed later)
 		packageIdentityEnvelope("package-identity-1", scopeID, generationID),
 

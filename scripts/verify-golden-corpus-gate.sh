@@ -30,6 +30,8 @@ cd "${repo_root}"
 # to the in-container pg_isready check.
 # shellcheck source=scripts/lib/golden-corpus-readiness.sh
 . "${repo_root}/scripts/lib/golden-corpus-readiness.sh"
+# shellcheck source=scripts/lib/golden-corpus-vulnerability-suppression.sh
+. "${repo_root}/scripts/lib/golden-corpus-vulnerability-suppression.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration (override via environment).
@@ -341,6 +343,27 @@ for _ in $(seq 1 30); do
 	sleep 1
 done
 [[ "${api_ready}" == "true" ]] || { tail -30 "${log_dir}/api.log" >&2 || true; die "eshu-api /readyz never returned on port ${GATE_API_PORT}"; }
+
+log "B-7 suppression producer truth: active -> hidden -> expired"
+golden_suppression_prepare_payloads
+golden_suppression_assert_active_baseline
+read -r suppression_generations_before suppression_work_before < <(golden_suppression_counts)
+golden_suppression_create "accepted_risk" "${golden_suppression_active_body}"
+read -r suppression_generations_active suppression_work_active < <(golden_suppression_counts)
+[[ "${suppression_generations_active}" -eq $((suppression_generations_before + 1)) &&
+	"${suppression_work_active}" -eq $((suppression_work_before + 1)) ]] ||
+	die "accepted-risk mutation did not add exactly one generation/work item"
+golden_suppression_drain "accepted-risk"
+golden_suppression_assert_hidden
+
+golden_suppression_create "expired" "${golden_suppression_expired_body}"
+read -r suppression_generations_expired suppression_work_expired < <(golden_suppression_counts)
+[[ "${suppression_generations_expired}" -eq $((suppression_generations_active + 1)) &&
+	"${suppression_work_expired}" -eq $((suppression_work_active + 1)) ]] ||
+	die "expired mutation did not add exactly one generation/work item"
+golden_suppression_drain "expired"
+golden_suppression_assert_expired
+golden_suppression_assert_retry_noop
 
 log "start eshu-mcp-server (http) for MCP query truth"
 ESHU_MCP_TRANSPORT=http ESHU_MCP_ADDR=":${GATE_MCP_PORT}" \

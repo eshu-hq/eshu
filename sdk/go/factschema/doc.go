@@ -5,7 +5,8 @@
 // contracts described in Contract System v1
 // (docs/internal/design/contract-system-v1.md, §3.1-3.2): the canonical
 // Envelope, one typed payload struct per fact kind under
-// "<family>/v<major>" (aws/v1, iam/v1, and incident/v1 today), the generated
+// "<family>/v<major>" (including aws/v1, iam/v1, incident/v1, and
+// vulnerabilitysuppression/v1), the generated
 // JSON Schemas checked in under schema/, and a kind-keyed decode seam so a
 // reducer handler always codes against a validated, latest-version struct
 // instead of reading map[string]any payload keys by hand.

@@ -19,6 +19,9 @@ const (
 	// SpanQuerySupplyChainImpactFindings wraps reducer-owned vulnerability
 	// impact finding reads from durable facts.
 	SpanQuerySupplyChainImpactFindings = "query.supply_chain_impact_findings"
+	// SpanQueryVulnerabilitySuppressionMutation wraps authenticated operator
+	// writes that create immutable suppression fact generations.
+	SpanQueryVulnerabilitySuppressionMutation = "query.vulnerability_suppression_mutation"
 	// SpanQuerySupplyChainImpactExplanation wraps one bounded vulnerability
 	// impact explanation over reducer-owned facts and referenced evidence ids.
 	SpanQuerySupplyChainImpactExplanation = "query.supply_chain_impact_explanation"
@@ -62,6 +65,7 @@ func init() {
 				SpanQueryAdvisoryEvidence,
 				SpanQueryAdvisoryCatalog,
 				SpanQuerySupplyChainImpactFindings,
+				SpanQueryVulnerabilitySuppressionMutation,
 				SpanQuerySupplyChainImpactExplanation,
 				SpanQuerySupplyChainImpactAggregate,
 				SpanQuerySecurityAlertReconciliationAggregate,
@@ -82,6 +86,7 @@ func init() {
 				SpanQueryAdvisoryEvidence,
 				SpanQueryAdvisoryCatalog,
 				SpanQuerySupplyChainImpactFindings,
+				SpanQueryVulnerabilitySuppressionMutation,
 				SpanQuerySupplyChainImpactExplanation,
 				SpanQuerySupplyChainImpactAggregate,
 				SpanQuerySecurityAlertReconciliationAggregate,
@@ -102,6 +107,7 @@ func init() {
 				SpanQueryAdvisoryEvidence,
 				SpanQueryAdvisoryCatalog,
 				SpanQuerySupplyChainImpactFindings,
+				SpanQueryVulnerabilitySuppressionMutation,
 				SpanQuerySupplyChainImpactExplanation,
 				SpanQuerySupplyChainImpactAggregate,
 				SpanQuerySecurityAlertReconciliationAggregate,
@@ -119,6 +125,7 @@ func init() {
 		SpanQueryAdvisoryEvidence,
 		SpanQueryAdvisoryCatalog,
 		SpanQuerySupplyChainImpactFindings,
+		SpanQueryVulnerabilitySuppressionMutation,
 		SpanQuerySupplyChainImpactExplanation,
 		SpanQuerySupplyChainImpactAggregate,
 		SpanQuerySecurityAlertReconciliationAggregate,

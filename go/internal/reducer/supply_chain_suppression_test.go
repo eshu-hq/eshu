@@ -417,7 +417,13 @@ func TestBuildVulnerabilitySuppressionsFromEnvelopesNormalizesPayload(t *testing
 		),
 	}
 
-	suppressions := BuildVulnerabilitySuppressions(envelopes)
+	suppressions, quarantined, err := BuildVulnerabilitySuppressions(envelopes)
+	if err != nil {
+		t.Fatalf("BuildVulnerabilitySuppressions() error = %v, want nil", err)
+	}
+	if len(quarantined) != 0 {
+		t.Fatalf("BuildVulnerabilitySuppressions() quarantined = %#v, want none", quarantined)
+	}
 	if got, want := len(suppressions), 1; got != want {
 		t.Fatalf("BuildVulnerabilitySuppressions() len = %d, want %d", got, want)
 	}
@@ -463,8 +469,9 @@ func vulnerabilitySuppressionFactEnvelope(
 		payload["expires_at"] = expiresAt
 	}
 	return facts.Envelope{
-		FactID:   id,
-		FactKind: facts.VulnerabilitySuppressionFactKind,
-		Payload:  payload,
+		FactID:        id,
+		FactKind:      facts.VulnerabilitySuppressionFactKind,
+		SchemaVersion: facts.VulnerabilitySuppressionSchemaVersionV1,
+		Payload:       payload,
 	}
 }

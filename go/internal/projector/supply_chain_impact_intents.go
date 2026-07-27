@@ -18,6 +18,7 @@ var supplyChainImpactCandidateFactKinds = []string{
 	facts.VulnerabilityAffectedPackageFactKind,
 	facts.VulnerabilityEPSSScoreFactKind,
 	facts.VulnerabilityKnownExploitedFactKind,
+	facts.VulnerabilitySuppressionFactKind,
 	facts.SecurityAlertRepositoryAlertFactKind,
 	facts.PackageRegistryPackageFactKind,
 	facts.SBOMComponentFactKind,
@@ -53,6 +54,7 @@ func supplyChainImpactTriggerFact(envelope facts.Envelope) bool {
 		facts.VulnerabilityAffectedPackageFactKind,
 		facts.VulnerabilityEPSSScoreFactKind,
 		facts.VulnerabilityKnownExploitedFactKind,
+		facts.VulnerabilitySuppressionFactKind,
 		facts.SecurityAlertRepositoryAlertFactKind,
 		facts.PackageRegistryPackageFactKind,
 		facts.SBOMComponentFactKind,
@@ -75,6 +77,9 @@ func supplyChainImpactReason(envelope facts.Envelope) string {
 	}
 	if envelope.FactKind == facts.SBOMComponentFactKind {
 		return "SBOM package evidence observed"
+	}
+	if envelope.FactKind == facts.VulnerabilitySuppressionFactKind {
+		return "vulnerability suppression evidence observed"
 	}
 	switch envelope.FactKind {
 	case facts.OCIImageManifestFactKind,

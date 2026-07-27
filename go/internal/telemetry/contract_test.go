@@ -227,6 +227,7 @@ func TestSpanNames(t *testing.T) {
 		"tempo.observe",
 		"tempo.fetch",
 		"query.supply_chain_impact_findings",
+		"query.vulnerability_suppression_mutation",
 		"query.supply_chain_impact_explanation",
 		"query.supply_chain_impact_aggregate",
 		"query.security_alert_reconciliation_aggregate",

@@ -37,8 +37,9 @@ import "net/http"
 // TestEveryMCPReachableRouteIsScopedOrAnnotated (go/internal/mcp) checks
 // directly, since raw dispatched requests never carry OpenAPI path templates.
 var sharedKeyOnlyRoutes = map[string]struct{}{
-	"POST /api/v0/code/cypher":    {},
-	"POST /api/v0/code/visualize": {},
+	"POST /api/v0/code/cypher":                      {},
+	"POST /api/v0/code/visualize":                   {},
+	"POST /api/v0/supply-chain/impact/suppressions": {},
 }
 
 // IsSharedKeyOnlyRoute reports whether r targets a route explicitly annotated

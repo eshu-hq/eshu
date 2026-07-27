@@ -3684,6 +3684,7 @@
           "impact_status",
           "repository_id",
           "runtime_context",
+          "suppression",
           "subject_digest"
         ],
         "required_json_values": {
@@ -3693,7 +3694,9 @@
           "findings[].runtime_context.deployment_ids[]": "deployment:deployable-config",
           "findings[].subject_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
           "findings[].environments[]": "prod",
-          "findings[].environment_evidence.prod": "deploy_event"
+          "findings[].environment_evidence.prod": "deploy_event",
+          "findings[].suppression.suppression_id": "golden-CVE-2026-00010",
+          "findings[].suppression.state": "expired"
         },
         "minimum_results": 1,
         "arguments": {
@@ -5578,12 +5581,15 @@
         "result_item_required_fields": [
           "cve_id",
           "repository_id",
-          "runtime_context"
+          "runtime_context",
+          "suppression"
         ],
         "required_json_values": {
           "findings[].cve_id": "CVE-2026-00010",
           "findings[].repository_id": "repository:r_217415d9",
-          "findings[].runtime_context.workload_ids[]": "workload:deployable-config"
+          "findings[].runtime_context.workload_ids[]": "workload:deployable-config",
+          "findings[].suppression.suppression_id": "golden-CVE-2026-00010",
+          "findings[].suppression.state": "expired"
         },
         "minimum_results": 1
       },
@@ -5990,6 +5996,31 @@
           "data.candidate_buckets.live_by_consumer[].classification": "live_by_consumer",
           "data.candidate_buckets.unknown[].classification": "unknown_needs_evidence",
           "data.analysis.dead_code_language_maturity.go": "derived"
+        }
+      },
+      "POST /api/v0/supply-chain/impact/suppressions": {
+        "description": "#5465 authenticated suppression-producer coverage. The gate has already created this exact expired assertion through the route, drained projector/reducer, and proven both the active hidden state and expired fail-closed visibility. This snapshot request is therefore an idempotent retry: it must return the durable generation without creating another generation or queue item.",
+        "request_body": {
+          "suppression_id": "golden-CVE-2026-00010",
+          "justification": "ignored",
+          "authored_at": "2026-07-27T12:01:00Z",
+          "expires_at": "2026-07-27T12:00:30Z",
+          "reason": "Synthetic golden-corpus expiry proof.",
+          "evidence_ref": "https://registry.example.com/evidence/CVE-2026-00010",
+          "scope": {
+            "cve_id": "CVE-2026-00010",
+            "repository_id": "repository:r_217415d9",
+            "subject_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
+          }
+        },
+        "required_response_fields": [
+          "suppression_id",
+          "generation_id",
+          "status"
+        ],
+        "required_json_values": {
+          "suppression_id": "golden-CVE-2026-00010",
+          "status": "unchanged"
         }
       },
       "GET /api/v0/repositories/deployable-config/branches": {

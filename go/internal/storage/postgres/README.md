@@ -84,6 +84,13 @@ High-signal invariants for this package:
   JSONB-incompatible U+0000 characters and control bytes without changing
   literal source text such as `\u0000`, and skip unchanged pending-or-active
   generations by `FreshnessHint`.
+- `VulnerabilitySuppressionStore` owns one operator scope and serializes
+  concurrent mutations with a row lock. Each changed request clones the latest
+  pending-or-active full set into a new immutable generation, writes its facts,
+  and enqueues projector work in the same transaction; an identical canonical
+  payload commits as a no-op. Generation ordering uses lock-acquisition-time
+  ingestion timestamps rather than operator-authored evidence time, so an
+  older authored assertion submitted later cannot hide a newer committed set.
 - Projector claims preserve one active source-local generation per `scope_id`,
   reclaim expired leases before fresh work, coalesce stale same-scope work, and
   atomically ack by superseding stale active generation, superseding older

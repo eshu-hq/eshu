@@ -125,6 +125,20 @@ for sourced_case_lib in \
 done
 bash -n "${fixture_lib}" || fail "golden-corpus-fixtures.sh has a syntax error"
 
+suppression_lib="${repo_root}/scripts/lib/golden-corpus-vulnerability-suppression.sh"
+[[ -f "${suppression_lib}" ]] || fail "missing suppression proof lib: ${suppression_lib}"
+bash -n "${suppression_lib}" || fail "golden-corpus-vulnerability-suppression.sh has a syntax error"
+captured_suppression_count_query=""
+pg() {
+	captured_suppression_count_query="$1"
+	printf '0 0\n'
+}
+# shellcheck source=scripts/lib/golden-corpus-vulnerability-suppression.sh
+. "${suppression_lib}"
+golden_suppression_counts >/dev/null
+rg --fixed-strings --quiet -- "stage='projector'" <<<"${captured_suppression_count_query}" \
+	|| fail "suppression mutation count must isolate projector work from reducer fanout"
+
 # Skipping comment lines is load-bearing, not cosmetic: the orchestrator and its
 # lib chunks name their own helpers, sourced libs and gate flags in the prose
 # above each call site, so a whole-file fixed-string match is satisfied by that

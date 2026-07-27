@@ -305,6 +305,13 @@ dispatch tests.
 No-Observability-Change: existing supply-chain impact query spans, truth
 envelopes, readiness envelopes, limits, cursors, truncation, count, and
 inventory metadata diagnose the bounded reads.
+The administrative `POST /api/v0/supply-chain/impact/suppressions` route is
+deliberately outside the scoped-token allowlist. It requires an all-scopes
+authenticated subject, derives source and author server-side, validates a
+non-empty bounded suppression scope, and delegates to the Postgres immutable
+generation store. Its `query.vulnerability_suppression_mutation` span records
+only the closed `created`, `unchanged`, `rejected`, or `store_error` outcome;
+operator reason text and suppression anchors never become telemetry labels.
 Container image identity list, count, and inventory reads
 (`GET /api/v0/supply-chain/container-images/identities`, `/identities/count`,
 and `/identities/inventory`, plus the matching `list_container_image_identities`,

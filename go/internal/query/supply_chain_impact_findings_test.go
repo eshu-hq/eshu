@@ -305,6 +305,12 @@ func TestSupplyChainImpactFindingQueryUsesCanonicalFindingRows(t *testing.T) {
 		"canonical_facts AS",
 		"PARTITION BY canonical_key",
 		"payload->>'finding_id'",
+		"operator_suppression_keys AS MATERIALIZED",
+		"fact.scope_id <> 'operator:vulnerability_suppressions'",
+		"fact.scope_id = 'operator:vulnerability_suppressions'",
+		"fact.suppression_state <> 'active'",
+		"NOT EXISTS",
+		"UNION ALL",
 		"has_payload_finding_id",
 	} {
 		if !strings.Contains(listSupplyChainImpactFindingsQuery, want) {

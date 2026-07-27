@@ -5,6 +5,8 @@ package query
 
 const supplyChainImpactFindingFactKind = "reducer_supply_chain_impact_finding"
 
+const supplyChainImpactOperatorSuppressionScopeID = "operator:vulnerability_suppressions"
+
 const supplyChainImpactCanonicalFindingKeySQL = `CONCAT_WS('|',
          COALESCE(NULLIF(fact.payload->>'cve_id', ''), NULLIF(fact.payload->>'advisory_id', ''), ''),
          COALESCE(fact.payload->>'advisory_id', ''),
@@ -37,13 +39,38 @@ const supplyChainImpactSeverityBucketFactSQL = `CASE
     ELSE 'none'
   END`
 
+// supplyChainImpactOperatorSuppressionKeysCTE selects the canonical keys whose
+// current operator-owned projection carries a non-active suppression decision.
+// Reads use this small authoritative set to remove stale source-scope fallbacks
+// before canonical ranking. Operator-scope active recomputations are not
+// authoritative and are excluded separately by each query.
+const supplyChainImpactOperatorSuppressionKeysCTE = `
+operator_suppression_keys AS MATERIALIZED (
+  SELECT ` + supplyChainImpactCanonicalFindingKeySQL + ` AS canonical_key
+  FROM fact_records AS fact
+  JOIN ingestion_scopes AS scope
+    ON scope.scope_id = fact.scope_id
+   AND scope.active_generation_id = fact.generation_id
+  JOIN scope_generations AS generation
+    ON generation.scope_id = fact.scope_id
+   AND generation.generation_id = fact.generation_id
+  WHERE fact.fact_kind = 'reducer_supply_chain_impact_finding'
+    AND fact.is_tombstone = FALSE
+    AND fact.scope_id = '` + supplyChainImpactOperatorSuppressionScopeID + `'
+    AND generation.status = 'active'
+    AND COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') <> 'active'
+)`
+
 var listSupplyChainImpactFindingsQuery = `
 WITH ` + supplyChainImpactRuntimeFilterCTE("$9", "$10", "$11", "$22", "$23") + `,
-scoped_facts AS (
+` + supplyChainImpactOperatorSuppressionKeysCTE + `,
+raw_facts AS (
 SELECT fact.fact_id,
+       fact.scope_id,
        ` + supplyChainImpactPublicFindingIDSQL + ` AS finding_id,
        fact.source_confidence,
        fact.payload,
+       COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') AS suppression_state,
        COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) AS priority_score,
        ` + supplyChainImpactPayloadFindingIDPresentSQL + ` AS has_payload_finding_id,
        ` + supplyChainImpactCanonicalFindingKeySQL + ` AS canonical_key
@@ -101,17 +128,36 @@ WHERE fact.fact_kind = $1
                       'swift_semver_known_fixed'
                     )
              )
-        )
+    )
     AND ($14 = '' OR fact.payload->>'priority_bucket' = $14)
     AND ($15 = 0 OR COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) >= $15)
     AND ($16 = '' OR fact.payload->>'image_ref' = $16)
-    AND ($20 = '' OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') = $20)
-    AND ($21::boolean OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') NOT IN ('not_affected','accepted_risk','false_positive','ignored'))
     AND (
           (COALESCE(cardinality($22::text[]), 0) = 0 AND COALESCE(cardinality($23::text[]), 0) = 0)
           OR fact.payload->>'repository_id' = ANY($22::text[])
           OR fact.scope_id = ANY($23::text[])
         )
+),
+eligible_facts AS (
+SELECT *
+FROM raw_facts AS fact
+WHERE fact.scope_id <> '` + supplyChainImpactOperatorSuppressionScopeID + `'
+  AND NOT EXISTS (
+        SELECT 1
+        FROM operator_suppression_keys AS authority
+        WHERE authority.canonical_key = fact.canonical_key
+      )
+UNION ALL
+SELECT *
+FROM raw_facts AS fact
+WHERE fact.scope_id = '` + supplyChainImpactOperatorSuppressionScopeID + `'
+  AND fact.suppression_state <> 'active'
+),
+scoped_facts AS (
+SELECT *
+FROM eligible_facts AS fact
+WHERE ($20 = '' OR fact.suppression_state = $20)
+  AND ($21::boolean OR fact.suppression_state NOT IN ('not_affected','accepted_risk','false_positive','ignored'))
 ),
 ranked_facts AS (
 SELECT *,

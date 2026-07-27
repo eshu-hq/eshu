@@ -265,6 +265,9 @@ func classifyAPIExecution(method, path string) (bool, string) {
 	if method == http.MethodPost && strings.HasPrefix(path, "/api/v0/admin/") && !strings.HasSuffix(path, "/query") {
 		return false, "admin route may mutate queue, generation, replay, backfill, or reindex state"
 	}
+	if method == http.MethodPost && path == "/api/v0/supply-chain/impact/suppressions" {
+		return false, "operator suppression mutation changes durable vulnerability policy"
+	}
 	return true, ""
 }
 

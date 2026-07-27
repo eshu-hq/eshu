@@ -199,6 +199,7 @@ func TestSchemasHaveNoDrift(t *testing.T) {
 		{file: "observability.observed_trace_signal.v1.schema.json", generate: schemagen.ObservabilityObservedTraceSignalSchema},
 		{file: "observability.source_instance.v1.schema.json", generate: schemagen.ObservabilitySourceInstanceSchema},
 		{file: "security_alert.repository_alert.v1.schema.json", generate: schemagen.SecurityAlertRepositoryAlertSchema},
+		{file: "vulnerability.suppression.v1.schema.json", generate: schemagen.VulnerabilitySuppressionSchema},
 		{file: "semantic.code_hint.v1.schema.json", generate: schemagen.SemanticCodeHintSchema},
 		{file: "semantic.documentation_observation.v1.schema.json", generate: schemagen.SemanticDocumentationObservationSchema},
 	}
