@@ -45,8 +45,20 @@ SET rel.scope_id = row.scope_id,
 
 // retractProvenanceDerivedFromEdgesCypher removes this writer's DERIVED_FROM
 // edges for one scope+evidence_source before a fresh generation reprojects
-// them. The evidence_source predicate keeps the retract from touching any
-// future domain that shares the DERIVED_FROM verb.
+// them. Only container_image_identity writes DERIVED_FROM today, so this
+// retract has no other domain's edges to avoid. It still filters on
+// evidence_source rather than matching every DERIVED_FROM edge, but that
+// filter is not a proven cross-domain isolation guarantee: the canonical MERGE
+// above matches on (start, end, type) alone and ignores evidence_source, so a
+// second writer sharing this edge type would collapse onto the same edge and
+// this retract could delete an assertion the other writer still supports
+// (#5827, which names DERIVED_FROM explicitly). A second DERIVED_FROM writer
+// MUST NOT land until #5827 is fixed.
+//
+// The same MERGE identity also drops scope_id, so the collapse is not purely a
+// future-second-writer hazard: container_image_identity itself runs in more
+// than one scope, and two scopes asserting the same (image, base image) pair
+// share one edge today.
 const retractProvenanceDerivedFromEdgesCypher = `MATCH (:ContainerImage)-[rel:DERIVED_FROM]->(:ContainerImage)
 WHERE rel.scope_id = $scope_id
   AND rel.evidence_source = $evidence_source

@@ -156,6 +156,11 @@ DELETE rel`
 // second writer sharing this edge type would collapse onto the same edge and
 // this retract could delete an assertion the other writer still supports
 // (#5827). A second BUILT_FROM writer MUST NOT land until #5827 is fixed.
+//
+// #5827 also drops scope_id from that MERGE identity, so this is not only a
+// future-second-writer hazard: container_image_identity runs in both CI and
+// OCI scopes, and two scopes asserting the same (image, repository) pair share
+// one edge today.
 const retractProvenanceBuiltFromEdgesCypher = `MATCH (:ContainerImage)-[rel:BUILT_FROM]->(:Repository)
 WHERE rel.scope_id = $scope_id
   AND rel.evidence_source = $evidence_source
