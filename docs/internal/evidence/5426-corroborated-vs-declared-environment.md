@@ -144,21 +144,23 @@ Behavior change, so the proof is the intended delta.
 
 ```
 $ cd go && go test ./internal/reducer -count=1 -v \
-    -run 'EnvironmentEvidence|Branch3|ContradictingDigest|RegardlessOf|DeployEventWins'
---- PASS: TestCICDRunCorrelationPayloadIncludesEnvironmentEvidence
+    -run 'EnvironmentEvidence|Branch3|ContradictingDigest|RegardlessOf|DeployEventWins|WithoutSubjectDigest'
 --- PASS: TestRecordSupplyChainEnvironmentEvidenceSkipsBlankEnvironment
---- PASS: TestRecordSupplyChainEnvironmentEvidenceDeployEventWinsOverDeclared
---- PASS: TestBuildSupplyChainImpactFindingsImageRefMatchWithContradictingDigestDoesNotPromote
---- PASS: TestBuildSupplyChainImpactFindingsBranch3DeployEventPromotesRuntimeReachability
---- PASS: TestBuildSupplyChainImpactFindingsBranch3DeclaredOnlyDoesNotPromoteRuntimeReachability
---- PASS: TestBuildSupplyChainImpactFindingsBranch3DeployEventWithContradictingDigestDoesNotPromote
---- PASS: TestBuildSupplyChainImpactFindingsDigestBranchPromotesRegardlessOfEnvironmentEvidence
---- PASS: TestSupplyChainDeploymentContextFromEnvelopeDecodesEnvironmentEvidence
+--- PASS: TestNormalizeSupplyChainEnvironmentEvidenceTrimsPadding
+--- PASS: TestCICDRunCorrelationPayloadIncludesEnvironmentEvidence
+--- PASS: TestExtractEC2InstanceNodeRowsDeterministicOrderRegardlessOfInput
+--- PASS: TestBuildSupplyChainImpactFindingsWithoutSubjectDigestDoesNotPromote
 --- PASS: TestBuildSupplyChainImpactFindingsImageRefBranchPromotesRegardlessOfEnvironmentEvidence
+--- PASS: TestRecordSupplyChainEnvironmentEvidenceDeployEventWinsOverDeclared
+--- PASS: TestBuildSupplyChainImpactFindingsBranch3DeployEventPromotesRuntimeReachability
+--- PASS: TestBuildSupplyChainImpactFindingsDigestBranchPromotesRegardlessOfEnvironmentEvidence
+--- PASS: TestBuildSupplyChainImpactFindingsBranch3DeployEventWithContradictingDigestDoesNotPromote
+--- PASS: TestBuildSupplyChainImpactFindingsImageRefMatchWithContradictingDigestDoesNotPromote
+--- PASS: TestBuildSupplyChainImpactFindingsBranch3DeclaredOnlyDoesNotPromoteRuntimeReachability
 --- PASS: TestBuildSupplyChainImpactFindingsDeployEventWinsAcrossDeploymentsInEitherOrder
 --- PASS: TestSupplyChainImpactTypedPayloadPersistsEnvironmentEvidence
---- PASS: TestExtractEC2InstanceNodeRowsDeterministicOrderRegardlessOfInput
-ok  	github.com/eshu-hq/eshu/go/internal/reducer	0.894s
+--- PASS: TestSupplyChainDeploymentContextFromEnvelopeDecodesEnvironmentEvidence
+ok  	github.com/eshu-hq/eshu/go/internal/reducer	0.910s
 
 $ cd go && go test ./internal/query -count=1 -v -run 'EnvironmentEvidence'
 --- PASS: TestDecodeSupplyChainImpactFindingRowDecodesEnvironmentEvidence
@@ -210,9 +212,10 @@ claim that the technique is exhaustive.
 | payload decode of `environment_evidence` | key typo | `TestDecodeSupplyChainImpactFindingRowDecodesEnvironmentEvidence` |
 | promotion is ANY-of, not ALL-of | `ANY` inverted to `ALL` | `...DeployEventWinsAcrossDeploymentsInEitherOrder` |
 | blank-environment skip in the recorder | guard deleted | `TestRecordSupplyChainEnvironmentEvidenceSkipsBlankEnvironment` |
-| `normalize` trims before comparing | `TrimSpace` removed | `...DecodesEnvironmentEvidence/padded_deploy_event` |
+| `normalize` trims before comparing | `TrimSpace` removed | `TestNormalizeSupplyChainEnvironmentEvidenceTrimsPadding` |
+| caller requires a non-empty `SubjectDigest` | guard deleted | `...WithoutSubjectDigestDoesNotPromote` |
 
-The last four rows exist because the audit found them uncovered.
+The last six rows exist because the audit found them uncovered.
 
 The collision rule had only a direct helper test, which does not prove the
 production path calls the helper — swapping the call in
@@ -227,6 +230,21 @@ already models. And deleting the blank-environment skip passed too, which would
 put a `""` key in `environment_evidence` while `uniqueSortedStrings` drops it
 from `environments[]`, leaving the two collections disagreeing about their own
 keys — contradicting the API reference this same change adds.
+
+The last two rows came from the eighth review round, and one of them is a
+cautionary case. A padded-value subtest had been added to pin `normalize`'s
+`TrimSpace`, and the audit table credited it — but that subtest enters through
+`supplyChainDeploymentContextFromEnvelope`, and `payloadStr` already trims
+before `normalize` ever sees the value. The subtest therefore could not
+distinguish a trimming `normalize` from a non-trimming one, and the mutant
+survived while the table claimed it died. The rule is now pinned by a direct
+call that bypasses `payloadStr`. Adding a test is not the same as covering a
+rule; only the mutant settles it.
+
+The `SubjectDigest` precondition is a pre-existing rule rather than a new one —
+`main`'s `len(deployments) > 0` gate leaned on the same caller guard — but this
+change is what writes the precondition down, so it pins it too. Without the
+guard a finding with no artifact identity at all reaches `deployed_image`.
 
 ### The declared-only guard was silently defanged once
 
