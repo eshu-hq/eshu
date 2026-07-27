@@ -157,10 +157,13 @@ DELETE rel`
 // this retract could delete an assertion the other writer still supports
 // (#5827). A second BUILT_FROM writer MUST NOT land until #5827 is fixed.
 //
-// #5827 also drops scope_id from that MERGE identity, so this is not only a
-// future-second-writer hazard: container_image_identity runs in both CI and
-// OCI scopes, and two scopes asserting the same (image, repository) pair share
-// one edge today.
+// The same MERGE identity also drops scope_id, so this is not only a
+// future-second-writer hazard. containerImageBuiltFromRows takes no owning
+// scope -- unlike its DERIVED_FROM sibling, which returns nil outside the
+// declaring repository -- so it emits a row for every decision's every
+// BuildProvenanceRepositoryID regardless of the projecting intent's scope.
+// container_image_identity runs in more than one scope, so two scopes
+// asserting the same (image, repository) pair share one edge today.
 const retractProvenanceBuiltFromEdgesCypher = `MATCH (:ContainerImage)-[rel:BUILT_FROM]->(:Repository)
 WHERE rel.scope_id = $scope_id
   AND rel.evidence_source = $evidence_source

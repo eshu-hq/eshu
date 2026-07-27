@@ -55,10 +55,14 @@ SET rel.scope_id = row.scope_id,
 // (#5827, which names DERIVED_FROM explicitly). A second DERIVED_FROM writer
 // MUST NOT land until #5827 is fixed.
 //
-// The same MERGE identity also drops scope_id, so the collapse is not purely a
-// future-second-writer hazard: container_image_identity itself runs in more
-// than one scope, and two scopes asserting the same (image, base image) pair
-// share one edge today.
+// The MERGE identity also drops scope_id, but unlike BUILT_FROM that does not
+// bite here today: containerImageDerivedFromRows takes an owning repository and
+// returns nil when it is empty, so a scope that merely observes both endpoints
+// (an OCI or cloud scope) projects nothing, and each edge has one deterministic
+// owning scope. That restriction is the fix for exactly this failure mode and
+// is pinned by TestProjectContainerImageDerivedFromEdgesNonRepoScopeWritesNothing
+// -- do not loosen it. The residual case is narrower: two repository scopes both
+// credited with building the same digest, both resolving to the same base.
 const retractProvenanceDerivedFromEdgesCypher = `MATCH (:ContainerImage)-[rel:DERIVED_FROM]->(:ContainerImage)
 WHERE rel.scope_id = $scope_id
   AND rel.evidence_source = $evidence_source
