@@ -319,6 +319,44 @@ Both conclusions were reached by reasoning about the corpus rather than querying
 it. The measurement that settled it took one `--keep` run and three SQL
 statements.
 
+
+## The gate needed a third maintenance pass, and that was measured
+
+Adding the `environment_evidence` assertion to the corpus made a *required* B-7
+assertion depend on how many maintenance cycles the gate runs. The chain is three
+links — `container_image_identity` → `ci_cd_run_correlation` → `supply_chain_impact`
+— and all three are reopened concurrently in one slice, so the reopen order
+sequences nothing.
+
+Two cycles happened to suffice. They suffice with **zero margin**, which is not
+the same thing, so I measured the boundary rather than assuming it:
+
+| maintenance passes | `mcp:list_supply_chain_impact_findings` |
+| --- | --- |
+| 1 | `[FAIL] result item missing required field "environment_evidence"` |
+| 2 | `[PASS]` |
+| 3 | `[PASS]` |
+
+A required assertion sitting exactly on the convergence boundary reds `main` the
+first time drain ordering shifts, and the failure would read as a projection bug
+rather than as a gate that was always one scheduling accident away from failing.
+The loop now runs three cycles.
+
+The cost is small and measured: the `maintenance_drains` phase was 4s at one
+pass, 11s at two, and 14s at three, against a ~158s gate.
+
+```
+$ COMPOSE_PROJECT_NAME=fu5426three bash scripts/verify-golden-corpus-gate.sh
+[PASS] mcp:list_supply_chain_impact_findings: "findings" has 1 results;
+  item fields [cve_id environment_evidence environments impact_status
+  repository_id runtime_context subject_digest] present
+summary: 506 pass, 1 required-fail, 2 advisory-warn
+```
+
+The one required-fail is `mcp:list_aws_runtime_drift_findings` losing its
+`drifted_attributes`, which is #5837 — a known flake on a surface this change
+does not touch, seen three times now across unrelated runs.
+
 ## What is still not asserted
 
 The pin is one-sided by measurement, not by choice. `prod` is the only
