@@ -21,11 +21,14 @@ import (
 const (
 	nornicDBTransactionCommitFailedCode = "Neo.ClientError.Transaction.TransactionCommitFailed"
 	nornicDBTransactionOutdatedCode     = "Neo.TransientError.Transaction.Outdated"
+	nornicDBStatementSyntaxErrorCode    = "Neo.ClientError.Statement.SyntaxError"
 
 	graphWriteRetryReasonConnectivity   = "connectivity_error"
 	graphWriteRetryReasonTransient      = "transient_error"
 	graphWriteRetryReasonWriteConflict  = "write_conflict"
 	graphWriteRetryReasonUniqueConflict = "commit_unique_conflict"
+
+	nornicDBRelationshipSnapshotConflictMessage = "UNWIND MERGE chain relationship update failed: not found"
 )
 
 // RetryingExecutor wraps an Executor with retry logic for transient Neo4j
@@ -51,14 +54,14 @@ func (r *RetryingExecutor) Execute(ctx context.Context, stmt Statement) error {
 }
 
 // ExecuteGroup delegates to Inner.ExecuteGroup, retrying on transient Neo4j
-// errors and on commit-time UNIQUE conflicts when every statement in the
-// group is MERGE-shaped (and therefore idempotent on re-execution). Without
-// this retry, concurrent canonical writers on the same uid surface a
-// MERGE-vs-MERGE race as a non-retryable projection_failure even though
-// re-executing the group is safe by construction. Worker-knob serialization
-// (e.g. ESHU_PROJECTION_WORKERS=1) is not an acceptable mitigation per the
-// project rule "Serialization Is Not A Fix" — the design must absorb the
-// race here.
+// errors, relationship snapshot conflicts, and commit-time UNIQUE conflicts
+// when every statement in the group is MERGE-shaped (and therefore idempotent
+// on re-execution). Without this retry, concurrent canonical writers on the
+// same identity surface backend races as non-retryable projection failures
+// even though re-executing the group is safe by construction. Worker-knob
+// serialization (e.g. ESHU_PROJECTION_WORKERS=1) is not an acceptable
+// mitigation per the project rule "Serialization Is Not A Fix" — the design
+// must absorb the race here.
 //
 // Driver-level session.ExecuteWrite retries handle Neo.TransientError.*
 // codes. If the driver returns TransactionExecutionLimit after exhausting its
@@ -226,6 +229,9 @@ func classifyRetryableGraphWriteError(err error, stmt Statement) string {
 	if isNeo4jConnectivityError(err) {
 		return ""
 	}
+	if isNornicDBMergeRelationshipSnapshotConflict(err, stmt.Cypher) {
+		return graphWriteRetryReasonWriteConflict
+	}
 	if err != nil && isNornicDBMergeUniqueConflict(err, stmt.Cypher) {
 		return graphWriteRetryReasonUniqueConflict
 	}
@@ -235,9 +241,10 @@ func classifyRetryableGraphWriteError(err error, stmt Statement) string {
 // classifyRetryableGraphWriteGroupError classifies a phase-group write failure
 // as retryable when EVERY statement in the group is MERGE-shaped (and
 // therefore idempotent on re-execution) AND the underlying error matches a
-// NornicDB commit-time UNIQUE conflict pattern. Mixed groups containing
-// non-MERGE statements are NOT retried — re-executing a CREATE/DELETE/SET-only
-// statement under partial-success conditions can double-apply effects.
+// NornicDB relationship snapshot or commit-time UNIQUE conflict pattern. Mixed
+// groups containing non-MERGE statements are NOT retried — re-executing a
+// CREATE/DELETE/SET-only statement under partial-success conditions can
+// double-apply effects.
 //
 // Immediate driver-level transient errors (deadlocks, lock timeouts) remain
 // retryable regardless of statement shape because session.ExecuteWrite re-runs
@@ -260,6 +267,9 @@ func classifyRetryableGraphWriteGroupError(err error, stmts []Statement) string 
 	}
 	if !allStatementsAreMerge(stmts) {
 		return ""
+	}
+	if isNornicDBRelationshipSnapshotConflict(err) {
+		return graphWriteRetryReasonWriteConflict
 	}
 	if isNornicDBCommitTimeUniqueConflictError(err) {
 		return graphWriteRetryReasonUniqueConflict
@@ -285,6 +295,34 @@ func allStatementsAreMerge(stmts []Statement) bool {
 func isNornicDBWriteConflict(msg string) bool {
 	return strings.Contains(msg, "conflict:") &&
 		strings.Contains(msg, "changed after transaction start")
+}
+
+// isNornicDBMergeRelationshipSnapshotConflict recognizes the pinned
+// NornicDB relationship-update snapshot race only for an idempotent MERGE
+// statement. The backend reports the race as a Statement.SyntaxError even
+// though a fresh transaction can safely match and update the winning edge.
+func isNornicDBMergeRelationshipSnapshotConflict(err error, cypher string) bool {
+	if !strings.Contains(strings.ToUpper(cypher), "MERGE") {
+		return false
+	}
+	return isNornicDBRelationshipSnapshotConflict(err)
+}
+
+// isNornicDBRelationshipSnapshotConflict matches the exact typed wire error
+// emitted when NornicDB's relationship lookup observes a concurrently
+// committed edge that the current transaction snapshot cannot update. Keep
+// the code and message checks narrow so unrelated syntax and missing-entity
+// errors remain terminal.
+func isNornicDBRelationshipSnapshotConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+	var neo4jErr *neo4jdriver.Neo4jError
+	if !errors.As(err, &neo4jErr) {
+		return false
+	}
+	return neo4jErr.Code == nornicDBStatementSyntaxErrorCode &&
+		strings.Contains(neo4jErr.Msg, nornicDBRelationshipSnapshotConflictMessage)
 }
 
 // isNornicDBMergeUniqueConflict treats commit-time unique conflicts from

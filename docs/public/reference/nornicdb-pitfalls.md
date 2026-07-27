@@ -85,8 +85,11 @@ the winning commit should match the existing node.
 
 Eshu handles this in `go/internal/storage/cypher/retrying_executor.go`.
 `RetryingExecutor.ExecuteGroup` retries commit-time unique conflicts when every
-statement in the group is MERGE-shaped. Mixed groups are not retried because
-re-executing non-MERGE statements after partial success can be unsafe.
+statement in the group is MERGE-shaped. It also retries NornicDB's
+`UNWIND MERGE chain relationship update failed: not found` snapshot conflict
+when the typed error code is `Neo.ClientError.Statement.SyntaxError`. Mixed
+groups are not retried because re-executing non-MERGE statements after partial
+success can be unsafe.
 
 The retry classifier uses the typed Neo4j error code
 `Neo.ClientError.Transaction.TransactionCommitFailed` or
@@ -96,13 +99,15 @@ historical fallback for `failed to commit implicit transaction` and
 `commit failed: constraint violation` shapes.
 
 No-Regression Evidence: `go test ./internal/storage/cypher -run
-'TestRetryingExecutor(ClassifiesTypedNornicDBTransactionCommitFailedByCode|RetriesNornicDBMergeUniqueConflict|RetriesNornicDBMergeUniqueConflictV1045Format|ExecuteGroupRetriesOnCommitTimeUniqueConflict|ExecuteGroupDoesNotRetryNonMergeStatements)'
+'RelationshipSnapshot|TestRetryingExecutor(ClassifiesTypedNornicDBTransactionCommitFailedByCode|RetriesNornicDBMergeUniqueConflict|RetriesNornicDBMergeUniqueConflictV1045Format|ExecuteGroupRetriesOnCommitTimeUniqueConflict|ExecuteGroupDoesNotRetryNonMergeStatements)'
 -count=1` proves typed error-code classification, historical substring
 fallbacks, MERGE-only group retry, and mixed-group non-retry behavior.
 `scripts/verify_backend_conformance_live.sh` now runs
-`TestLiveNornicDBRetryConflictClassificationContract` only in the NornicDB live
-backend lane, where the pinned service must still surface a retry-classifiable
-commit-time UNIQUE conflict.
+`TestLiveNornicDBRetryConflictClassificationContract` and
+`TestLiveNornicDBRelationshipSnapshotConflictRetryContract` only in the
+NornicDB live backend lane, where the pinned service must still surface each
+retry-classifiable conflict and the relationship replay must converge to one
+edge.
 
 Observability Evidence: the retry loop keeps the existing
 `eshu_dp_neo4j_deadlock_retries_total` counter and adds its bounded `reason`
