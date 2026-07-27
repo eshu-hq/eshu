@@ -9,10 +9,11 @@ package reducer
 // that rule is applied; keep new collection-shaped payload fields going
 // through one of them rather than open-coding the nil check at the call site.
 //
-// The exception is an OPTIONAL (omitempty) payload field, which must stay nil
-// when empty so the encoder can drop the key entirely. environment_evidence
-// (#5426) is one: wrapping it here would emit an empty object and break the
-// "omitted when absent" contract the HTTP API reference states.
+// They apply to REQUIRED collection fields, which are always present on the
+// wire and so must never be null. An optional (omitempty) field needs no
+// wrapper: omitempty drops a zero-length map or slice whether it is nil or
+// empty, so environment_evidence (#5426) is assigned directly and the helpers
+// would be a no-op on it.
 
 func nonNilStrings(values []string) []string {
 	if values == nil {

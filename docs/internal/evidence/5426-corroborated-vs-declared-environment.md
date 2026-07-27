@@ -144,26 +144,34 @@ Behavior change, so the proof is the intended delta.
 
 ```
 $ cd go && go test ./internal/reducer -count=1 -v \
-    -run 'EnvironmentEvidence|Branch3|ContradictingDigest|RegardlessOf'
+    -run 'EnvironmentEvidence|Branch3|ContradictingDigest|RegardlessOf|DeployEventWins'
 --- PASS: TestCICDRunCorrelationPayloadIncludesEnvironmentEvidence
+--- PASS: TestRecordSupplyChainEnvironmentEvidenceSkipsBlankEnvironment
 --- PASS: TestRecordSupplyChainEnvironmentEvidenceDeployEventWinsOverDeclared
---- PASS: TestSupplyChainDeploymentContextFromEnvelopeDecodesEnvironmentEvidence
---- PASS: TestExtractEC2InstanceNodeRowsDeterministicOrderRegardlessOfInput
---- PASS: TestBuildSupplyChainImpactFindingsImageRefBranchPromotesRegardlessOfEnvironmentEvidence
---- PASS: TestBuildSupplyChainImpactFindingsDigestBranchPromotesRegardlessOfEnvironmentEvidence
 --- PASS: TestBuildSupplyChainImpactFindingsImageRefMatchWithContradictingDigestDoesNotPromote
---- PASS: TestBuildSupplyChainImpactFindingsBranch3DeclaredOnlyDoesNotPromoteRuntimeReachability
 --- PASS: TestBuildSupplyChainImpactFindingsBranch3DeployEventPromotesRuntimeReachability
---- PASS: TestSupplyChainImpactTypedPayloadPersistsEnvironmentEvidence
+--- PASS: TestBuildSupplyChainImpactFindingsBranch3DeclaredOnlyDoesNotPromoteRuntimeReachability
 --- PASS: TestBuildSupplyChainImpactFindingsBranch3DeployEventWithContradictingDigestDoesNotPromote
-ok  	github.com/eshu-hq/eshu/go/internal/reducer	0.920s
+--- PASS: TestBuildSupplyChainImpactFindingsDigestBranchPromotesRegardlessOfEnvironmentEvidence
+--- PASS: TestSupplyChainDeploymentContextFromEnvelopeDecodesEnvironmentEvidence
+--- PASS: TestBuildSupplyChainImpactFindingsImageRefBranchPromotesRegardlessOfEnvironmentEvidence
+--- PASS: TestBuildSupplyChainImpactFindingsDeployEventWinsAcrossDeploymentsInEitherOrder
+--- PASS: TestSupplyChainImpactTypedPayloadPersistsEnvironmentEvidence
+--- PASS: TestExtractEC2InstanceNodeRowsDeterministicOrderRegardlessOfInput
+ok  	github.com/eshu-hq/eshu/go/internal/reducer	0.894s
 
 $ cd go && go test ./internal/query -count=1 -v -run 'EnvironmentEvidence'
+--- PASS: TestDecodeSupplyChainImpactFindingRowDecodesEnvironmentEvidence
+--- PASS: TestDecodeSupplyChainImpactFindingRowToleratesAbsentEnvironmentEvidence
 --- PASS: TestCICDListRunCorrelationsExposesEnvironmentEvidence
 --- PASS: TestSupplyChainImpactFindingsOmitEnvironmentEvidenceWhenAbsent
 --- PASS: TestSupplyChainImpactFindingsExposeEnvironmentEvidenceInResponseBody
-ok  	github.com/eshu-hq/eshu/go/internal/query	0.958s
+ok  	github.com/eshu-hq/eshu/go/internal/query	0.949s
 ```
+
+(`RegardlessOf` also matches an unrelated EC2-ordering test, and the reducer
+filter deliberately keeps it rather than narrowing the regex to flatter the
+output.)
 
 The two `...PromotesRegardlessOfEnvironmentEvidence` tests are the load-bearing
 ones. They assert the digest and image-ref branches still promote under
@@ -202,6 +210,7 @@ claim that the technique is exhaustive.
 | payload decode of `environment_evidence` | key typo | `TestDecodeSupplyChainImpactFindingRowDecodesEnvironmentEvidence` |
 | promotion is ANY-of, not ALL-of | `ANY` inverted to `ALL` | `...DeployEventWinsAcrossDeploymentsInEitherOrder` |
 | blank-environment skip in the recorder | guard deleted | `TestRecordSupplyChainEnvironmentEvidenceSkipsBlankEnvironment` |
+| `normalize` trims before comparing | `TrimSpace` removed | `...DecodesEnvironmentEvidence/padded_deploy_event` |
 
 The last four rows exist because the audit found them uncovered.
 

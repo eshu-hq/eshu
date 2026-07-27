@@ -90,6 +90,10 @@ func TestSupplyChainDeploymentContextFromEnvelopeDecodesEnvironmentEvidence(t *t
 		{name: "deploy_event", raw: "deploy_event", want: supplyChainEnvironmentEvidenceDeployEvent},
 		{name: "declared", raw: "declared", want: supplyChainEnvironmentEvidenceDeclared},
 		{name: "unrecognized", raw: "something_else", want: supplyChainEnvironmentEvidenceDeclared},
+		// The producer writes unpadded literals, but normalize trims anyway.
+		// Without this case the trim is unguarded, and a padded value would
+		// silently fall through to declared.
+		{name: "padded deploy_event", raw: "  deploy_event  ", want: supplyChainEnvironmentEvidenceDeployEvent},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
