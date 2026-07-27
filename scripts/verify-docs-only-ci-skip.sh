@@ -425,7 +425,16 @@ for workflow_name in test.yml security-scan.yml mcp-schema-drift.yml; do
 	# for mcp-schema-drift.yml today, see #5841 P2 — checks zero triggers and
 	# would otherwise read as uniform coverage across all three workflows.
 	if [[ "${wf_trigger_count}" -eq 0 ]]; then
-		ok "${workflow_name}: 0 triggers checked — no registry gate names one of its code-gated jobs (${job_names[*]}) as ci.job"
+		# Join with an explicit delimiter set AT USE TIME. The `IFS='|'` on the
+		# `read` above is scoped to that one command, so by here IFS is back to
+		# its default space -- and these job names CONTAIN spaces, so "${a[*]}"
+		# would render them as one unreadable run-on string.
+		joined_jobs="$(
+			IFS=','
+			printf '%s' "${job_names[*]}"
+		)"
+		joined_jobs="${joined_jobs//,/, }"
+		ok "${workflow_name}: 0 triggers checked — no registry gate names one of its code-gated jobs (${joined_jobs}) as ci.job"
 	else
 		ok "${workflow_name}: checked ${wf_trigger_count} code-gated registry trigger(s) against the code filter's negations"
 	fi
