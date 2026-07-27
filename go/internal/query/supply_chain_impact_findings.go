@@ -117,8 +117,9 @@ type SupplyChainImpactFindingRow struct {
 	// whether the strongest deployment evidence for that environment was
 	// "deploy_event" (a ci.deployment_event observed at the deploying run's
 	// commit, #5425) or "declared" (the CI-declared workflow job gate
-	// alone). Older rows written before #5426 landed decode this as an
-	// empty map, never as a fabricated value. Kept in the same field
+	// alone). Older rows written before #5426 landed decode this as a nil
+	// map, never as a fabricated value, and the response omits the field
+	// entirely for them. Kept in the same field
 	// position as SupplyChainImpactFindingResult so the
 	// SupplyChainImpactFindingResult(row) conversion stays valid.
 	EnvironmentEvidence map[string]string

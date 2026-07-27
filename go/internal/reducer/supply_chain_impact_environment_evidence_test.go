@@ -66,6 +66,14 @@ func branch3TestFindingFacts(cveID string, deployment facts.Envelope) []facts.En
 	}
 }
 
+// branch3TestFindingFactsWithDeployments is branch3TestFindingFacts for the
+// multi-deployment case, where several correlations report the SAME environment
+// with different evidence states.
+func branch3TestFindingFactsWithDeployments(cveID string, deployments ...facts.Envelope) []facts.Envelope {
+	base := branch3TestFindingFacts(cveID, deployments[0])
+	return append(base, deployments[1:]...)
+}
+
 // Test 1: supplyChainDeploymentContextFromEnvelope decodes environment_evidence,
 // mapping an absent key to "declared" and preserving the "deploy_event" value
 // #5425 publishes. An unrecognized value also maps to "declared": a producer
@@ -373,4 +381,66 @@ func TestRecordSupplyChainEnvironmentEvidenceDeployEventWinsOverDeclared(t *test
 			t.Fatalf("state[%q] = %q, want %q (deploy_event must win on arrival)", testImpactEnv, got, want)
 		}
 	})
+}
+
+// Test 12: when two matched deployments report the SAME environment with
+// different evidence, deploy_event wins regardless of fact arrival order.
+//
+// This is ordinary production data -- one repository, several prod CI runs,
+// only some with an observed deployment event -- and both rows match branch 3.
+// Test 7 covers recordSupplyChainEnvironmentEvidence directly, but a helper
+// test does not prove the production path calls it: replacing the call in
+// applySupplyChainRuntimeContext with naive last-write-wins passes every
+// package. Without the rule, the persisted environment_evidence[prod] would
+// flap with fact load order across re-projections.
+func TestBuildSupplyChainImpactFindingsDeployEventWinsAcrossDeploymentsInEitherOrder(t *testing.T) {
+	t.Parallel()
+
+	declared := func(id string) facts.Envelope {
+		return cicdRunCorrelationImpactFactWithEvidence(
+			id, "", "", testImpactRepositoryID, testImpactEnv,
+			string(CICDRunCorrelationExact), supplyChainEnvironmentEvidenceDeclared,
+		)
+	}
+	deployEvent := func(id string) facts.Envelope {
+		return cicdRunCorrelationImpactFactWithEvidence(
+			id, "", "", testImpactRepositoryID, testImpactEnv,
+			string(CICDRunCorrelationExact), supplyChainEnvironmentEvidenceDeployEvent,
+		)
+	}
+
+	for _, tc := range []struct {
+		name  string
+		cveID string
+		facts []facts.Envelope
+	}{
+		{
+			name:  "declared first",
+			cveID: "CVE-2026-5434",
+			facts: []facts.Envelope{declared("deploy-1"), deployEvent("deploy-2")},
+		},
+		{
+			name:  "deploy_event first",
+			cveID: "CVE-2026-5435",
+			facts: []facts.Envelope{deployEvent("deploy-1"), declared("deploy-2")},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			findings := BuildSupplyChainImpactFindings(
+				branch3TestFindingFactsWithDeployments(tc.cveID, tc.facts...),
+			)
+			got := supplyChainImpactFindingsByCVE(findings)[tc.cveID]
+			assertContainsString(t, got.Environments, testImpactEnv)
+			if got.EnvironmentEvidence[testImpactEnv] != supplyChainEnvironmentEvidenceDeployEvent {
+				t.Fatalf(
+					"EnvironmentEvidence[%q] = %q, want %q -- deploy_event must not be downgraded by a sibling declared-only deployment",
+					testImpactEnv,
+					got.EnvironmentEvidence[testImpactEnv],
+					supplyChainEnvironmentEvidenceDeployEvent,
+				)
+			}
+		})
+	}
 }

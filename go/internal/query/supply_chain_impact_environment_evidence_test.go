@@ -116,3 +116,53 @@ func TestSupplyChainImpactFindingsOmitEnvironmentEvidenceWhenAbsent(t *testing.T
 		t.Fatalf("body contains environment_evidence for a finding with none; body = %s", w.Body.String())
 	}
 }
+
+// Test 10: environment_evidence survives the PERSISTED-PAYLOAD decode.
+//
+// Tests 8 and 9 seed SupplyChainImpactFindingRow directly, so they only cover
+// the response half. Without this, a typo in the payload key that silently
+// decodes to nil would leave every package green while the reducer's evidence
+// never reached a caller -- the reducer-writes/API-never-reads shape, which the
+// golden corpus cannot catch here either (#5836).
+func TestDecodeSupplyChainImpactFindingRowDecodesEnvironmentEvidence(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"cve_id": "CVE-2026-5426",
+		"impact_status": "affected_exact",
+		"environments": ["prod", "staging"],
+		"environment_evidence": {"prod": "deploy_event", "staging": "declared"}
+	}`)
+
+	row, err := decodeSupplyChainImpactFindingRow("finding-1", "exact", payload)
+	if err != nil {
+		t.Fatalf("decodeSupplyChainImpactFindingRow() error = %v", err)
+	}
+	if got, want := row.EnvironmentEvidence["prod"], "deploy_event"; got != want {
+		t.Fatalf("EnvironmentEvidence[prod] = %q, want %q", got, want)
+	}
+	if got, want := row.EnvironmentEvidence["staging"], "declared"; got != want {
+		t.Fatalf("EnvironmentEvidence[staging] = %q, want %q", got, want)
+	}
+}
+
+// Test 11: a payload with no environment_evidence decodes to a nil map rather
+// than failing or fabricating entries. This is every row written before #5426,
+// and it is what lets the response omit the field.
+func TestDecodeSupplyChainImpactFindingRowToleratesAbsentEnvironmentEvidence(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"cve_id": "CVE-2026-5426",
+		"impact_status": "affected_exact",
+		"environments": ["prod"]
+	}`)
+
+	row, err := decodeSupplyChainImpactFindingRow("finding-1", "exact", payload)
+	if err != nil {
+		t.Fatalf("decodeSupplyChainImpactFindingRow() error = %v", err)
+	}
+	if row.EnvironmentEvidence != nil {
+		t.Fatalf("EnvironmentEvidence = %#v, want nil for a row predating #5426", row.EnvironmentEvidence)
+	}
+}

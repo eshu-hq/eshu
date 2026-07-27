@@ -177,6 +177,32 @@ environment. Its sibling `...Branch3DeployEventPromotesRuntimeReachability` uses
 a deployment with no digest at all, which is the case corroboration is actually
 meant to rescue — the two together pin both sides of that boundary.
 
+### Every rule is mutation-audited
+
+After the defanging below, each rule this change introduces was audited by
+deleting or weakening exactly that rule via `go test -overlay` and confirming a
+test goes red. A rule no mutant can kill is not guarded, however many tests
+mention it.
+
+| Rule | Mutant | Caught by |
+|---|---|---|
+| `environmentEvidence == deploy_event` return | `return false` | `...Branch3DeployEventPromotesRuntimeReachability` |
+| contradicting-digest early return | block deleted | `...Branch3DeployEventWithContradictingDigest...`, `...ImageRefMatchWithContradictingDigest...` |
+| digest-equality check | block deleted | `...DigestBranchPromotesRegardlessOfEnvironmentEvidence` |
+| image-ref check | block deleted | `...ImageRefBranchPromotesRegardlessOfEnvironmentEvidence` |
+| branch 3 of `supplyChainDeploymentMatchesFinding` | round-1 condition restored | `...Branch3DeclaredOnlyDoesNotPromote...` + the two pre-existing operational-anchor tests |
+| `recordSupplyChainEnvironmentEvidence` collision rule | call replaced with last-write-wins | `...DeployEventWinsAcrossDeploymentsInEitherOrder` |
+| `normalizeSupplyChainEnvironmentEvidence` exact match | any non-empty maps to `deploy_event` | `...DecodesEnvironmentEvidence` + 3 promotion tests |
+| payload decode of `environment_evidence` | key typo | `TestDecodeSupplyChainImpactFindingRowDecodesEnvironmentEvidence` |
+
+The last two rows exist because the audit found them uncovered. The collision
+rule had only a direct helper test, which does not prove the production path
+calls the helper — swapping the call in `applySupplyChainRuntimeContext` for
+naive last-write-wins passed every package. And nothing exercised the persisted-
+payload decode at all, so a typo in the payload key would have left the reducer
+writing evidence that no caller could ever read: the silent-inertness shape,
+which the corpus cannot catch here either (#5836).
+
 ### The declared-only guard was silently defanged once
 
 Worth recording, because the failure mode is invisible in a green test run.
