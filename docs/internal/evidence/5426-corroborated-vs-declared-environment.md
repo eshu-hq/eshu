@@ -215,7 +215,8 @@ claim that the technique is exhaustive.
 | `normalize` trims before comparing | `TrimSpace` removed | `TestNormalizeSupplyChainEnvironmentEvidenceTrimsPadding` |
 | caller requires a non-empty `SubjectDigest` | guard deleted | `...WithoutSubjectDigestDoesNotPromote` |
 
-The last six rows exist because the audit found them uncovered.
+Six of these rows exist only because the audit found them uncovered; the rest
+confirmed guards that were already in place.
 
 The collision rule had only a direct helper test, which does not prove the
 production path calls the helper — swapping the call in
