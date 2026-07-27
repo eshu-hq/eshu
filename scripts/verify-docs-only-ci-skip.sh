@@ -144,13 +144,27 @@ trigger_root() {
 
 # negation_swallows_trigger <negation> <trigger> — true if EVERY path matching
 # <trigger> is excluded by the single <negation> glob (leading '!' already
-# stripped). Handles the three negation shapes the code: filter actually uses
-# (see the in-file filter comment): a directory-recursive "<dir>/**", a bare
-# root-anchored extension pattern like "*.md" (dorny/paths-filter treats a
-# slash-free pattern as top-level-only — the #5818 root cause), and an exact
-# literal path. This is not a general glob-intersection solver — it is exactly
-# precise enough to catch a registry trigger the filter's real negations would
+# stripped). Handles the four negation shapes the code: filter actually uses
+# (see the in-file filter comment): a directory-recursive "<dir>/**", a
+# directory-recursive + extension-anchored hybrid "<dir>/**/*.<ext>" (e.g.
+# ".github/**/*.md" — dorny/paths-filter matches paths with picomatch, whose
+# "**" matches zero or more path segments including none, so this shape
+# matches "<dir>/file.<ext>" through "<dir>/a/b/c/file.<ext>"; verified against
+# picomatch's globbing-features docs, not assumed), a bare root-anchored
+# extension pattern like "*.md" (dorny/paths-filter treats a slash-free
+# pattern as top-level-only — the #5818 root cause), and an exact literal
+# path. This is not a general glob-intersection solver — it is exactly precise
+# enough to catch a registry trigger the filter's real negations would
 # swallow, including a negation the filter does not carry today.
+#
+# Two further shapes are deliberately NOT handled: a "**" in the middle of a
+# pattern with no extension anchor (e.g. "<dir>/**/sub/**") and a character
+# class trigger or negation (e.g. "<dir>/[a-z]*"). Both need a real glob
+# intersection to decide "every matching path" safely, and a wrong "swallowed"
+# verdict here would silently stop flagging a real #5818-class drift — worse
+# than the current false "not swallowed", which only means this checker missed
+# a shape (loud in review) rather than approving a bad one. Neither shape
+# appears in the live filter today.
 negation_swallows_trigger() {
 	local n="$1" t="$2"
 
@@ -168,6 +182,32 @@ negation_swallows_trigger() {
 		troot="$(trigger_root "${t}")"
 		if [[ -n "${troot}" ]] && { [[ "${troot}" == "${ndir}" ]] || [[ "${troot}" == "${ndir}/"* ]]; }; then
 			return 0
+		fi
+		;;
+	esac
+
+	# Directory-recursive + extension-anchored hybrid negation
+	# "<dir>/**/*.<ext>" swallows a trigger rooted at or under <dir> only when
+	# EVERY path that trigger can match also carries the same extension: a
+	# literal (glob-free) trigger ending in "<ext>", or a trigger that is
+	# itself this same hybrid shape (same tail "**/*.<ext>") rooted at or
+	# under <dir>. A trigger like "<dir>/**" is NOT swallowed here — it can
+	# match files of any extension, so only some of its paths are excluded.
+	case "${n}" in
+	*/\*\*/\**)
+		local ndir nsuffix troot
+		ndir="${n%%/\*\*/*}"
+		nsuffix="${n#*/\*\*/}"
+		troot="$(trigger_root "${t}")"
+		if [[ -n "${troot}" ]] && { [[ "${troot}" == "${ndir}" ]] || [[ "${troot}" == "${ndir}/"* ]]; }; then
+			if [[ "${t}" != *[*?]* && "${t}" == *"${nsuffix#\*}" ]]; then
+				return 0
+			fi
+			case "${t}" in
+			*/\*\*/"${nsuffix}")
+				return 0
+				;;
+			esac
 		fi
 		;;
 	esac
@@ -370,13 +410,25 @@ done < <(code_filter_negations "${t}")
 trigger_fail=0
 for workflow_name in test.yml security-scan.yml mcp-schema-drift.yml; do
 	IFS='|' read -r -a job_names <<<"$(gated_jobs_for "${workflow_name}")"
+	wf_trigger_count=0
 	while IFS= read -r trig; do
 		[[ -z "${trig}" ]] && continue
+		wf_trigger_count=$((wf_trigger_count + 1))
 		if trigger_is_swallowed_by_negations "${trig}" "${code_negations[@]}"; then
 			bad "${workflow_name}: a code-gated job's registry trigger '${trig}' is swallowed by the code filter's own negations — that gate can never fire from a PR touching only that path"
 			trigger_fail=1
 		fi
 	done < <(registry_gated_triggers "${workflow_name}" "${job_names[@]}")
+	# Report the per-workflow trigger count explicitly rather than folding it
+	# into the single pass/fail line below. A workflow whose code-gated jobs
+	# (per gated_jobs_for) never appear as a registry gate's `ci.job` — true
+	# for mcp-schema-drift.yml today, see #5841 P2 — checks zero triggers and
+	# would otherwise read as uniform coverage across all three workflows.
+	if [[ "${wf_trigger_count}" -eq 0 ]]; then
+		ok "${workflow_name}: 0 triggers checked — no registry gate names one of its code-gated jobs (${job_names[*]}) as ci.job"
+	else
+		ok "${workflow_name}: checked ${wf_trigger_count} code-gated registry trigger(s) against the code filter's negations"
+	fi
 done
 if [[ "${trigger_fail}" -eq 0 ]]; then
 	ok "no code-gated registry trigger (test.yml/security-scan.yml/mcp-schema-drift.yml) is swallowed by the code filter's negations"

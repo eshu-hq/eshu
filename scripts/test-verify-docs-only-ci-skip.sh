@@ -162,5 +162,54 @@ else
 	no "guard 2 should pass again once all three filters are restored"
 fi
 
+# --- negation_swallows_trigger LIVE shape proof (#5841 P1): the code: filter
+# ALREADY carries a fourth negation shape today — the directory-recursive +
+# extension-anchored hybrid '!.github/**/*.md' — that the prior
+# negation_swallows_trigger only handled for two shapes ("<dir>/**" and a bare
+# "*.md"), neither of which matches "<dir>/**/*.<ext>". Unlike the guard above
+# (which injects a brand-new negation to prove the parser is generic), this
+# case needs NO filter mutation: it gives an existing code-gated gate
+# (go-fmt, ci.job "go-core" in test.yml) a trigger that the LIVE,
+# already-committed '!.github/**/*.md' negation swallows whole, so this proves
+# today's filter — not a hypothetical one — was silently unchecked. ---
+python3 - "${tmp}/specs/ci-gates.v1.yaml" <<'PY'
+import sys
+path = sys.argv[1]
+with open(path) as f:
+	content = f.read()
+needle = (
+	"  - id: go-fmt\n"
+	"    name: Go gofumpt formatting\n"
+	"    category: hygiene\n"
+	"    tier: pre-commit\n"
+	"    blocking: true\n"
+	"    triggers:\n"
+	'      - "go/**"\n'
+)
+assert needle in content, "go-fmt gate anchor not found — registry shape changed?"
+mutated = needle.replace(
+	'      - "go/**"\n',
+	'      - "go/**"\n      - ".github/workflows/generated-notes.md"\n',
+)
+with open(path, "w") as f:
+	f.write(content.replace(needle, mutated, 1))
+PY
+if out="$(run_scratch 2>&1)"; then
+	no "guard 2 should fail when a code-gated gate's trigger is swallowed by the LIVE '!.github/**/*.md' negation"
+else
+	if rg -qF "trigger '.github/workflows/generated-notes.md' is swallowed by the code filter's own negations" <<<"${out}"; then
+		ok "guard 2 fails and names the swallowed trigger for the live '<dir>/**/*.<ext>' hybrid negation shape"
+	else
+		no "guard 2 failed for the wrong reason; got:"
+		printf '%s\n' "${out}" >&2
+	fi
+fi
+cp "${repo_root}/specs/ci-gates.v1.yaml" "${tmp}/specs/ci-gates.v1.yaml"
+if run_scratch >/dev/null 2>&1; then
+	ok "guard 2 passes again after restoring the mutated registry"
+else
+	no "guard 2 should pass again once the mutated registry is restored"
+fi
+
 printf '\n%d passed, %d failed\n' "${pass}" "${fail}"
 [[ "${fail}" -eq 0 ]]
