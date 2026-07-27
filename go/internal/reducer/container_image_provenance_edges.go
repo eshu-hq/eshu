@@ -68,7 +68,7 @@ type ContainerImageProvenanceEdgeWriter interface {
 // pair once per decision. The graph outcome is unchanged either way because the
 // canonical writer MERGEs on (start, end, type), so this is a payload and
 // counter fix, not a correctness one: it keeps the write batch proportional to
-// distinct submitted rows and keeps the "materialized" ProvenanceEdges sample
+// distinct (digest, repository) pairs and keeps the "materialized" ProvenanceEdges sample
 // counting those rather than one per (decision x build-provenance repository)
 // pair. Not "edges" -- the sample is len(rows) before the write, and a row whose
 // endpoint node is absent still counts (#5828).
