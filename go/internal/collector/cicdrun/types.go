@@ -30,6 +30,15 @@ type FixtureContext struct {
 	FencingToken        int64
 	ObservedAt          time.Time
 	SourceURI           string
+	// Repository is the provider-scoped repository locator (for example
+	// "owner/repo") used as a stable-key segment where the payload itself
+	// carries no repository locator to derive one from. GitHub's Deployments
+	// API response has no repository object (unlike a workflow run, which
+	// carries repository.full_name/html_url) -- see
+	// deploymentEventEnvelope's stable key in github_actions_deployments.go.
+	// Optional: every other envelope builder in this package derives its own
+	// repository identity from the payload and leaves this blank.
+	Repository string
 }
 
 type githubActionsFixture struct {

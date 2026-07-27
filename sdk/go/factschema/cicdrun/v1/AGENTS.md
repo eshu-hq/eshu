@@ -2,10 +2,13 @@
 
 This directory is part of the public
 `github.com/eshu-hq/eshu/sdk/go/factschema` Go module. It holds the
-schema-version-1 typed payload structs for the six reducer-consumed
-`ci_cd_run` fact kinds: `Run`, `Artifact`, `EnvironmentObservation`,
-`TriggerEdge`, `Step`, and `WorkflowImageEvidence`. It must remain independent
-from Eshu internals.
+schema-version-1 typed payload structs for seven `ci_cd_run` fact kinds:
+`Run`, `Artifact`, `EnvironmentObservation`, `DeploymentEvent`,
+`TriggerEdge`, `Step`, and `WorkflowImageEvidence`. All seven are consumed by
+the reducer's `ci_cd_run_correlation` domain; `DeploymentEvent` joins by `sha`
+rather than the run key the other kinds use (five join on `Provider`+`RunID`; `WorkflowImageEvidence` joins on `RepositoryID`), since a deployment carries no
+`run_id` (see this directory's `doc.go`). It must remain independent from
+Eshu internals.
 
 Three emitted fact kinds (`ci.job`, `ci.pipeline_definition`, `ci.warning`) are
 intentionally NOT typed here — no reducer or storage decode call reads them
@@ -83,6 +86,24 @@ migrate WITH that surface (Contract System v1 §7).
   (`go/internal/collector/git_workflow_image_facts.go` and
   `go/internal/workflowimage/extract.go`'s `Evidence` struct) before changing
   its required/optional field set.
-- This package defines six fact kinds. Typing one of the three deferred kinds
-  (see the top of this file) or a `v2` major is follow-on work gated on
+- This package defines seven fact kinds. Typing one of the three deferred
+  kinds (see the top of this file) or a `v2` major is follow-on work gated on
   converting the read path, not a casual edit.
+- `DeploymentEvent` (`ci.deployment_event`) IS consumed by
+  `ci_cd_run_correlation`, but on a DIFFERENT join key than the five
+  `Provider`+`RunID` kinds in this file: `SHA` is the join key.
+  (`WorkflowImageEvidence` is itself repository-keyed, so it is not one of the
+  five either.) A
+  deployment carries no `run_id` at all — GitHub's Deployments API has no run
+  identity — so `attachDeploymentEventsToRuns`
+  (`go/internal/reducer/ci_cd_run_correlation_deploy_events.go`) fans each
+  decoded event (`decodeCICDDeploymentEvent`,
+  `go/internal/reducer/factschema_decode_cicdrun.go`) out to every run whose
+  `CommitSHA` equals the event's `SHA`, rather than bucketing it under a run
+  key during decode the way the run-scoped kinds above are. The winning event
+  per run (`classifyCICDDeploymentEventEnvironment`,
+  `go/internal/reducer/ci_cd_run_correlation.go`) supplies the run
+  correlation's environment. Its required fields (`provider`, `deployment_id`,
+  `environment`, `sha`) are required because GitHub's Deployments API always
+  returns all four AND because `sha` is this kind's own join key — both
+  reasons hold at once.

@@ -38,22 +38,30 @@ const (
 
 // CICDRunCorrelationDecision records the bounded reducer decision for one run.
 type CICDRunCorrelationDecision struct {
-	Provider         string
-	RunID            string
-	RunAttempt       string
-	RepositoryID     string
-	CommitSHA        string
-	Environment      string
-	ArtifactDigest   string
-	ImageRef         string
-	Outcome          CICDRunCorrelationOutcome
-	Reason           string
-	ProvenanceOnly   bool
-	CanonicalWrites  int
-	EvidenceFactIDs  []string
-	CanonicalTarget  string
-	CorrelationKind  string
-	SourceLayerKinds []string
+	Provider     string
+	RunID        string
+	RunAttempt   string
+	RepositoryID string
+	CommitSHA    string
+	Environment  string
+	// EnvironmentEvidence names which evidence Environment came from:
+	// "deploy_event" when an attached ci.deployment_event won selection
+	// (classifyCICDDeploymentEventEnvironment), "declared" when the existing
+	// ci.environment_observation path supplied it, and "" when the run has no
+	// environment evidence at all. Issue #5426 branches on this value, so it
+	// is published on the durable payload (cicdRunCorrelationPayload), not
+	// kept in-memory only.
+	EnvironmentEvidence string
+	ArtifactDigest      string
+	ImageRef            string
+	Outcome             CICDRunCorrelationOutcome
+	Reason              string
+	ProvenanceOnly      bool
+	CanonicalWrites     int
+	EvidenceFactIDs     []string
+	CanonicalTarget     string
+	CorrelationKind     string
+	SourceLayerKinds    []string
 }
 
 // CICDRunCorrelationWrite carries decisions for durable publication.
@@ -112,7 +120,7 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 	}
 	envelopes = append(envelopes, active...)
 
-	decisions, quarantined, err := buildCICDRunCorrelationDecisionsWithQuarantine(envelopes)
+	decisions, quarantined, deploymentEventsSkipped, err := buildCICDRunCorrelationDecisionsWithQuarantine(envelopes)
 	if err != nil {
 		return Result{}, fmt.Errorf("build ci/cd run correlation decisions: %w", err)
 	}
@@ -129,6 +137,7 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 		return Result{}, fmt.Errorf("write ci/cd run correlations: %w", err)
 	}
 	h.emitCounters(ctx, counts)
+	h.emitDeploymentEventSkips(ctx, deploymentEventsSkipped)
 	quarantinedCount := recordQuarantinedFacts(ctx, h.Instruments, DomainCICDRunCorrelation, intent.ScopeID, intent.GenerationID, quarantined)
 
 	return Result{
@@ -185,7 +194,7 @@ func (h CICDRunCorrelationHandler) emitCounters(ctx context.Context, counts map[
 // calls the quarantine-aware variant directly so the reducer intent path
 // reports quarantines.
 func BuildCICDRunCorrelationDecisions(envelopes []facts.Envelope) []CICDRunCorrelationDecision {
-	decisions, _, err := buildCICDRunCorrelationDecisionsWithQuarantine(envelopes)
+	decisions, _, _, err := buildCICDRunCorrelationDecisionsWithQuarantine(envelopes)
 	if err != nil {
 		// A fatal (non-input_invalid) decode error can only occur for an
 		// unsupported schema-version major on the real reducer path, which
@@ -206,6 +215,7 @@ func cicdRunCorrelationFactKinds() []string {
 		facts.CICDArtifactFactKind,
 		facts.CICDWorkflowImageEvidenceFactKind,
 		facts.CICDEnvironmentObservationFactKind,
+		facts.CICDDeploymentEventFactKind,
 		facts.CICDTriggerEdgeFactKind,
 		facts.CICDStepFactKind,
 	}
@@ -272,9 +282,20 @@ func classifyCICDRunEvidence(ev *cicdRunEvidence, imageIndex map[string][]cicdIm
 		SourceLayerKinds: []string{"reported"},
 		EvidenceFactIDs:  []string{ev.run.FactID},
 	}
-	if len(ev.environmentsDecoded) > 0 {
+	// An attached deployment event (repo/commit-scoped evidence, see
+	// attachDeploymentEventsToRuns) beats the declared job/step-level
+	// environment observation: the GitHub Deployments API is the platform's
+	// own record of what environment a commit was actually deployed to,
+	// where an environment_observation is inferred from the run's own
+	// job/step configuration and can drift from what really happened.
+	if env, factID, ok := classifyCICDDeploymentEventEnvironment(ev.deploymentEvents); ok {
+		decision.Environment = env
+		decision.EnvironmentEvidence = "deploy_event"
+		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, factID)
+	} else if len(ev.environmentsDecoded) > 0 {
 		decision.Environment = environment.Canonical(trimmedCICDPtr(ev.environmentsDecoded[0].Environment))
 		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, ev.environments[0].FactID)
+		decision.EnvironmentEvidence = "declared"
 	}
 	for _, trigger := range ev.triggers {
 		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, trigger.FactID)
@@ -381,4 +402,24 @@ func defaultCICDRunAttempt(attempt string) string {
 		return "1"
 	}
 	return strings.TrimSpace(attempt)
+}
+
+// emitDeploymentEventSkips reports ci.deployment_event facts the attach dropped
+// because the event and its sha-matching run named different repositories.
+//
+// The drop is total for the affected run and otherwise invisible: the
+// collector's deployment_unanchored warning keys on sha rather than repository,
+// so it cannot fire for this condition, and validateTarget can only reject a
+// PATH disagreement at startup because the run's repository html_url is not
+// known until collection. A host disagreement -- an enterprise host, or a typo
+// -- therefore reaches here, and without this counter an operator sees every
+// deployment event for that run simply not exist.
+func (h CICDRunCorrelationHandler) emitDeploymentEventSkips(ctx context.Context, skipped int) {
+	if h.Instruments == nil || skipped <= 0 {
+		return
+	}
+	h.Instruments.CICDDeploymentEventsSkipped.Add(ctx, int64(skipped), metric.WithAttributes(
+		telemetry.AttrDomain(string(DomainCICDRunCorrelation)),
+		telemetry.AttrSkipReason("repository_mismatch"),
+	))
 }

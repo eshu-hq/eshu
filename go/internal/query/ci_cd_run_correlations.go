@@ -40,22 +40,23 @@ type CICDRunCorrelationFilter struct {
 // CICDRunCorrelationRow is one durable CI/CD correlation fact decoded from
 // the reducer-owned read model.
 type CICDRunCorrelationRow struct {
-	CorrelationID   string
-	Provider        string
-	RunID           string
-	RunAttempt      string
-	RepositoryID    string
-	CommitSHA       string
-	Environment     string
-	ArtifactDigest  string
-	ImageRef        string
-	Outcome         string
-	Reason          string
-	ProvenanceOnly  bool
-	CanonicalWrites int
-	CanonicalTarget string
-	CorrelationKind string
-	EvidenceFactIDs []string
+	CorrelationID       string
+	Provider            string
+	RunID               string
+	RunAttempt          string
+	RepositoryID        string
+	CommitSHA           string
+	Environment         string
+	EnvironmentEvidence string
+	ArtifactDigest      string
+	ImageRef            string
+	Outcome             string
+	Reason              string
+	ProvenanceOnly      bool
+	CanonicalWrites     int
+	CanonicalTarget     string
+	CorrelationKind     string
+	EvidenceFactIDs     []string
 }
 
 type cicdRunCorrelationQueryer interface {
@@ -188,21 +189,22 @@ func decodeCICDRunCorrelationRow(factID string, payloadBytes []byte) (CICDRunCor
 		return CICDRunCorrelationRow{}, fmt.Errorf("decode ci/cd run correlation: %w", err)
 	}
 	return CICDRunCorrelationRow{
-		CorrelationID:   factID,
-		Provider:        StringVal(payload, "provider"),
-		RunID:           StringVal(payload, "run_id"),
-		RunAttempt:      StringVal(payload, "run_attempt"),
-		RepositoryID:    StringVal(payload, "repository_id"),
-		CommitSHA:       StringVal(payload, "commit_sha"),
-		Environment:     StringVal(payload, "environment"),
-		ArtifactDigest:  StringVal(payload, "artifact_digest"),
-		ImageRef:        StringVal(payload, "image_ref"),
-		Outcome:         StringVal(payload, "outcome"),
-		Reason:          StringVal(payload, "reason"),
-		ProvenanceOnly:  BoolVal(payload, "provenance_only"),
-		CanonicalWrites: IntVal(payload, "canonical_writes"),
-		CanonicalTarget: StringVal(payload, "canonical_target"),
-		CorrelationKind: StringVal(payload, "correlation_kind"),
-		EvidenceFactIDs: StringSliceVal(payload, "evidence_fact_ids"),
+		CorrelationID:       factID,
+		Provider:            StringVal(payload, "provider"),
+		RunID:               StringVal(payload, "run_id"),
+		RunAttempt:          StringVal(payload, "run_attempt"),
+		RepositoryID:        StringVal(payload, "repository_id"),
+		CommitSHA:           StringVal(payload, "commit_sha"),
+		Environment:         StringVal(payload, "environment"),
+		EnvironmentEvidence: StringVal(payload, "environment_evidence"),
+		ArtifactDigest:      StringVal(payload, "artifact_digest"),
+		ImageRef:            StringVal(payload, "image_ref"),
+		Outcome:             StringVal(payload, "outcome"),
+		Reason:              StringVal(payload, "reason"),
+		ProvenanceOnly:      BoolVal(payload, "provenance_only"),
+		CanonicalWrites:     IntVal(payload, "canonical_writes"),
+		CanonicalTarget:     StringVal(payload, "canonical_target"),
+		CorrelationKind:     StringVal(payload, "correlation_kind"),
+		EvidenceFactIDs:     StringSliceVal(payload, "evidence_fact_ids"),
 	}, nil
 }

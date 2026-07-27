@@ -1,9 +1,9 @@
 # CI/CD Run Fact Payloads (schema version 1)
 
 This package holds the schema-version-1 typed payload structs for the
-`ci_cd_run` fact family's six reducer-consumed fact kinds, part of the public
-`github.com/eshu-hq/eshu/sdk/go/factschema` Go module (Contract System v1
-§3.1).
+`ci_cd_run` fact family's seven fact kinds with a reducer decode seam, part
+of the public `github.com/eshu-hq/eshu/sdk/go/factschema` Go module
+(Contract System v1 §3.1).
 
 ## Kinds
 
@@ -12,20 +12,38 @@ This package holds the schema-version-1 typed payload structs for the
 | `ci.run` | `Run` | `provider`, `run_id` |
 | `ci.artifact` | `Artifact` | `provider`, `run_id` |
 | `ci.environment_observation` | `EnvironmentObservation` | `provider`, `run_id` |
+| `ci.deployment_event` | `DeploymentEvent` | `provider`, `deployment_id`, `environment`, `sha` |
 | `ci.trigger_edge` | `TriggerEdge` | `provider`, `run_id` |
 | `ci.step` | `Step` | `provider`, `run_id` |
 | `ci.workflow_image_evidence` | `WorkflowImageEvidence` | `repository_id` |
 
-Every required field above is a reducer join-key segment: `provider` +
-`run_id` (+ `run_attempt`, which defaults to `"1"` and stays optional) key the
-reducer's `cicdRunEvidence` map
+`ci.deployment_event` is consumed by the reducer through a decode seam
+(`decodeCICDDeploymentEvent`,
+`go/internal/reducer/factschema_decode_cicdrun.go`) and a `ci_cd_run_correlation`
+attach step (`attachDeploymentEventsToRuns`,
+`go/internal/reducer/ci_cd_run_correlation_deploy_events.go`), but on a
+different join key than the five `provider`+`run_id` kinds
+(`WorkflowImageEvidence` joins on `repository_id`): a deployment carries no
+`run_id`, so it joins by `sha` against each run's `CommitSHA` instead of the
+`provider`+`run_id` key below. The winning event per run
+(`classifyCICDDeploymentEventEnvironment`,
+`go/internal/reducer/ci_cd_run_correlation.go`) supplies the run
+correlation's `environment` (canonicalized via `environment.Canonical`) and
+stamps `environment_evidence=deploy_event`.
+
+Every required field on the five `provider`+`run_id`-keyed kinds above (`WorkflowImageEvidence` joins on `repository_id`) is a
+reducer join-key segment: `provider` + `run_id` (+ `run_attempt`, which
+defaults to `"1"` and stays optional) key the reducer's `cicdRunEvidence` map
 (`go/internal/reducer/ci_cd_run_correlation.go:cicdRunKey`), and
 `repository_id` is the sole key `attachWorkflowImagesToRuns`
 (`go/internal/reducer/ci_cd_run_correlation_workflow_image.go`) uses to attach
 workflow image evidence to a run. A fact missing its required field could
 never join correctly under the pre-typing raw-map read, so the typed decode
 seam now dead-letters it as a per-fact `input_invalid` quarantine instead of
-silently producing an empty-string join key.
+silently producing an empty-string join key. `ci.deployment_event`'s required
+fields (`provider`, `deployment_id`, `environment`, `sha`) are required
+because GitHub's Deployments API always returns all four AND because `sha`
+is this kind's own reducer join key — see `DeploymentEvent`'s own godoc.
 
 ## Deferred kinds
 

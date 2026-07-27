@@ -64,6 +64,60 @@
               "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
             ]
           }
+        },
+        {
+          "fact_kind": "ci.deployment_event",
+          "stable_fact_key": "ci_cd_run:github_actions:supply-chain-demo:deployment:9001:status:77001",
+          "schema_version": "1.0.0",
+          "collector_kind": "ci_cd_run",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "cicd-collector-scd",
+            "provider": "github_actions",
+            "deployment_id": "9001",
+            "status_id": "77001",
+            "environment": "production",
+            "original_environment": "production",
+            "sha": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c",
+            "ref": "main",
+            "task": "deploy",
+            "state": "in_progress",
+            "production_environment": true,
+            "transient_environment": false,
+            "repository_id": "repository:r_69256c06",
+            "created_at": "2026-06-25T00:05:00Z",
+            "updated_at": "2026-06-25T00:05:00Z",
+            "environment_url": "https://demo.example.invalid",
+            "log_url": "https://github.com/eshu-hq/supply-chain-demo/deployments/9001"
+          }
+        },
+        {
+          "fact_kind": "ci.deployment_event",
+          "stable_fact_key": "ci_cd_run:github_actions:supply-chain-demo:deployment:9001:status:77002",
+          "schema_version": "1.0.0",
+          "collector_kind": "ci_cd_run",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "cicd-collector-scd",
+            "provider": "github_actions",
+            "deployment_id": "9001",
+            "status_id": "77002",
+            "environment": "production",
+            "original_environment": "production",
+            "sha": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c",
+            "ref": "main",
+            "task": "deploy",
+            "state": "success",
+            "production_environment": true,
+            "transient_environment": false,
+            "repository_id": "repository:r_69256c06",
+            "created_at": "2026-06-25T00:07:00Z",
+            "updated_at": "2026-06-25T00:07:00Z",
+            "environment_url": "https://demo.example.invalid",
+            "log_url": "https://github.com/eshu-hq/supply-chain-demo/deployments/9001"
+          }
         }
       ]
     },

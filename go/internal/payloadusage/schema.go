@@ -193,13 +193,20 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	"FactKindServiceCatalogOwnership":       "service_catalog.ownership.v1.schema.json",
 	"FactKindServiceCatalogRepositoryLink":  "service_catalog.repository_link.v1.schema.json",
 	"FactKindServiceCatalogOperationalLink": "service_catalog.operational_link.v1.schema.json",
-	// ci_cd_run family: all six kinds a reducer decode seam wrapper actually
-	// decodes (factschema_decode_cicdrun.go). ci.job, ci.pipeline_definition,
-	// and ci.warning carry no typed struct at all (cicdrun/v1 AGENTS.md), so
-	// they have no row here either.
+	// ci_cd_run family: all seven kinds a reducer decode seam wrapper
+	// actually decodes (factschema_decode_cicdrun.go). ci.deployment_event's
+	// wrapper (decodeCICDDeploymentEvent) is consumed by the
+	// ci_cd_run_correlation domain's attachDeploymentEventsToRuns
+	// (ci_cd_run_correlation_deploy_events.go), joined by sha rather than the
+	// provider/run_id key the other kinds use (five join on provider/run_id;
+	// ci.workflow_image_evidence joins on repository_id), so it is mapped here
+	// alongside them. ci.job, ci.pipeline_definition, and ci.warning carry no
+	// typed struct at all (cicdrun/v1 AGENTS.md), so they have no row here
+	// either.
 	"FactKindCICDRun":                    "ci.run.v1.schema.json",
 	"FactKindCICDArtifact":               "ci.artifact.v1.schema.json",
 	"FactKindCICDEnvironmentObservation": "ci.environment_observation.v1.schema.json",
+	"FactKindCICDDeploymentEvent":        "ci.deployment_event.v1.schema.json",
 	"FactKindCICDTriggerEdge":            "ci.trigger_edge.v1.schema.json",
 	"FactKindCICDStep":                   "ci.step.v1.schema.json",
 	"FactKindCICDWorkflowImageEvidence":  "ci.workflow_image_evidence.v1.schema.json",

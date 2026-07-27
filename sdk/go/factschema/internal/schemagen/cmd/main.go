@@ -188,6 +188,13 @@ func run() error {
 		{name: "ci.run.v1.schema.json", generate: schemagen.CICDRunSchema},
 		{name: "ci.artifact.v1.schema.json", generate: schemagen.CICDArtifactSchema},
 		{name: "ci.environment_observation.v1.schema.json", generate: schemagen.CICDEnvironmentObservationSchema},
+		// ci.deployment_event is consumed by the ci_cd_run_correlation reducer
+		// domain: decodeCICDDeploymentEvent (factschema_decode_cicdrun.go)
+		// decodes it, attachDeploymentEventsToRuns
+		// (ci_cd_run_correlation_deploy_events.go) joins it onto runs by sha,
+		// and classifyCICDDeploymentEventEnvironment selects a winner and
+		// canonicalizes its environment onto the correlation.
+		{name: "ci.deployment_event.v1.schema.json", generate: schemagen.CICDDeploymentEventSchema},
 		{name: "ci.trigger_edge.v1.schema.json", generate: schemagen.CICDTriggerEdgeSchema},
 		{name: "ci.step.v1.schema.json", generate: schemagen.CICDStepSchema},
 		{name: "ci.workflow_image_evidence.v1.schema.json", generate: schemagen.CICDWorkflowImageEvidenceSchema},

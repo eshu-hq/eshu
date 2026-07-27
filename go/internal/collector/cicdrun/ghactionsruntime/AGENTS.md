@@ -24,6 +24,15 @@
    `collector.ClaimedGenerationCommitObserver` optional hook this package
    implements, and the exact point in `collector.ClaimedService.processClaimed`
    where it fires.
+10. `client_deployments.go` — GitHub Deployments API request bounding
+    (`fetchDeployments`, `fetchDeploymentStatuses`, both reusing `getJSON`
+    and the existing rate-limit classification from `client.go`/`rate_limit.go`
+    rather than a second error path).
+11. `source_deployments.go` (#5425 STEP 3) — `appendDeploymentEnvelopes`,
+    the `DeploymentFetcher` optional-capability seam, and the
+    `deployment_unanchored` warning. Read this before changing WHERE
+    deployment facts get appended in `NextClaimed` (source.go) -- appending
+    before `FactsFromSlice` is load-bearing, not incidental ordering.
 
 ## Invariants
 
@@ -88,3 +97,20 @@
   GitHub returns runs newest-first, but nothing downstream preserves
   emission order as recency. Any future "latest run" consumer must select
   explicitly by `created_at`/run ID.
+- `ci.deployment_event` facts MUST be appended into the SAME
+  `CollectedGeneration` `NextClaimed` is already building for the ci.run
+  facts (`appendDeploymentEnvelopes` is called before `FactsFromSlice`,
+  never in a separate claim cycle). The reducer's correlation intent
+  (`ci_cd_run_correlation_deploy_events.go`) only forms for a generation
+  containing a `ci.run`; a deployment fact landing in a different
+  generation is silently inert forever, not merely delayed.
+- `DeploymentFetcher` is an OPTIONAL Client capability (type-asserted in
+  `appendDeploymentEnvelopes`), not a required method on the `Client`
+  interface in `source.go`. Do not fold it into `Client` -- that would force
+  every existing run-collection test double (`fakeClient` and its variants)
+  to grow an unrelated `FetchDeployments` method.
+- A deployment event whose `sha` matches no fetched run's head sha in the
+  same claim window MUST still emit its `ci.deployment_event` fact AND a
+  `deployment_unanchored` `ci.warning` (`unanchoredDeploymentWarnings`). This
+  is expected, not exceptional, but must stay visible: the reducer only
+  attaches deployment evidence to a run sharing that sha.

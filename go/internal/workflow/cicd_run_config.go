@@ -14,6 +14,9 @@ const (
 	maxCICDRunLimit      = 100
 	maxCICDJobLimit      = 500
 	maxCICDArtifactLimit = 500
+	// maxCICDDeploymentLimit bounds max_deployments; GitHub's deployments list
+	// pages at 100, matching the other per-page bounds in this family.
+	maxCICDDeploymentLimit = 100
 )
 
 type cicdRunCollectorConfiguration struct {
@@ -30,6 +33,7 @@ type cicdRunTargetConfiguration struct {
 	MaxRuns             int      `json:"max_runs"`
 	MaxJobs             int      `json:"max_jobs"`
 	MaxArtifacts        int      `json:"max_artifacts"`
+	MaxDeployments      int      `json:"max_deployments"`
 	SourceURI           string   `json:"source_uri"`
 }
 
@@ -130,6 +134,13 @@ func validateCICDRunTargetConfiguration(target cicdRunTargetConfiguration) error
 	if provider == cicdRunProviderGitHubActions {
 		if target.MaxArtifacts <= 0 || target.MaxArtifacts > maxCICDArtifactLimit {
 			return fmt.Errorf("max_artifacts must be between 1 and %d", maxCICDArtifactLimit)
+		}
+		// max_deployments bounds the GitHub Deployments window (#5425). Unlike
+		// max_artifacts it is optional: 0 takes the collector default, so an
+		// existing configuration that predates deploy-time events keeps
+		// working unchanged.
+		if target.MaxDeployments < 0 || target.MaxDeployments > maxCICDDeploymentLimit {
+			return fmt.Errorf("max_deployments must be between 0 and %d (0 uses the default)", maxCICDDeploymentLimit)
 		}
 	}
 	if err := validateCICDURL("api_base_url", target.APIBaseURL, true); err != nil {

@@ -451,6 +451,27 @@ type Instruments struct {
 	// operator see reachability edge throughput per family and spot a generation
 	// that committed rule nodes but zero TO edges (every endpoint unscanned).
 	SecurityGroupReachabilityEdges metric.Int64Counter
+	// CICDDeploymentEventsSkipped counts ci.deployment_event facts LOST by the
+	// ci_cd_run_correlation attach: rejected because the event and a
+	// sha-matching run named DIFFERENT repositories, and attached to no other
+	// run either. Label: skip_reason (repository_mismatch).
+	//
+	// It counts lost facts rather than rejected (run, event) pairs on purpose.
+	// An event fans out to every run sharing its sha by design -- a re-run, or
+	// two providers observing one push -- so a pair count multiplies by that
+	// fan-out and overstates the loss, and an event rejected by one run but
+	// attached to another was never lost at all.
+	//
+	// This is the only signal for that condition. The two repository ids are
+	// derived independently -- a run's from the provider's repository html_url,
+	// an event's from the configured source_uri -- and validateTarget can only
+	// reject a PATH disagreement at startup, because html_url is unknown until
+	// collection. A host disagreement (a typo'd or enterprise host) therefore
+	// reaches the reducer, where every deployment event for that run is
+	// dropped. Without this counter that loss is total and silent: the
+	// collector's deployment_unanchored warning keys on sha, not repository, so
+	// it cannot fire.
+	CICDDeploymentEventsSkipped metric.Int64Counter
 	// SecurityGroupReachabilitySkipped counts security_group_rule facts that
 	// produced no graph truth. Label: skip_reason (unresolved_anchor — the SG was
 	// not scanned; unresolved_endpoint — a referenced group / parseable CIDR /
@@ -2630,6 +2651,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SecurityGroupReachabilitySkipped counter: %w", err)
+	}
+
+	inst.CICDDeploymentEventsSkipped, err = meter.Int64Counter(
+		"eshu_dp_cicd_deployment_events_skipped_total",
+		metric.WithDescription("Total ci.deployment_event facts lost by the ci_cd_run_correlation attach -- rejected by every candidate run and attached to none -- by skip_reason (repository_mismatch)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CICDDeploymentEventsSkipped counter: %w", err)
 	}
 
 	inst.IAMEscalationEdges, err = meter.Int64Counter(

@@ -1371,6 +1371,7 @@
       "collector_contract": {
         "fact_kinds": [
           "ci.artifact",
+          "ci.deployment_event",
           "ci.environment_observation",
           "ci.job",
           "ci.pipeline_definition",

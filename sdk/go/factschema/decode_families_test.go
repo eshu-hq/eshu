@@ -447,6 +447,9 @@ func decodeByKind(t *testing.T, factKind string, payload map[string]any) error {
 	case FactKindCICDEnvironmentObservation:
 		_, err := DecodeCICDEnvironmentObservation(env)
 		return err
+	case FactKindCICDDeploymentEvent:
+		_, err := DecodeCICDDeploymentEvent(env)
+		return err
 	case FactKindCICDTriggerEdge:
 		_, err := DecodeCICDTriggerEdge(env)
 		return err
@@ -771,6 +774,7 @@ var allDecodedKinds = []string{
 	FactKindCICDRun,
 	FactKindCICDArtifact,
 	FactKindCICDEnvironmentObservation,
+	FactKindCICDDeploymentEvent,
 	FactKindCICDTriggerEdge,
 	FactKindCICDStep,
 	FactKindCICDWorkflowImageEvidence,
@@ -1146,6 +1150,8 @@ func TestDecodeEachKind_UnsupportedMajorDeadLetters(t *testing.T) {
 				_, err = DecodeCICDArtifact(env)
 			case FactKindCICDEnvironmentObservation:
 				_, err = DecodeCICDEnvironmentObservation(env)
+			case FactKindCICDDeploymentEvent:
+				_, err = DecodeCICDDeploymentEvent(env)
 			case FactKindCICDTriggerEdge:
 				_, err = DecodeCICDTriggerEdge(env)
 			case FactKindCICDStep:

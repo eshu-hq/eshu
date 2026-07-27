@@ -8,8 +8,15 @@
 3. `gitlab_ci_fixture.go` — GitLab CI/CD fixture normalization (issue #5427);
    reuses the SAME `ci.*` fact kinds and reducer join-key shape as
    `github_actions_fixture.go` — read both together when touching either.
-4. `envelope.go` — fact identity and envelope construction.
-5. `docs/public/reference/collector-reducer-readiness.md` — source-truth boundary
+4. `github_actions_deployments.go` — GitHub Deployments API event
+   normalization (#5425 STEP 3; `ci.deployment_event`). A separate
+   fact-kind family from `github_actions_fixture.go`'s run-scoped kinds: a
+   deployment carries no `run_id`, so it does not go through the shared
+   `sharedPayload`/`warningEnvelope` run-keyed helpers — read
+   `deploymentEventEnvelope` and `GitHubActionsDeploymentWarningEnvelope`
+   before touching either.
+5. `envelope.go` — fact identity and envelope construction.
+6. `docs/public/reference/collector-reducer-readiness.md` — source-truth boundary
    and implementation gates.
 
 ## Invariants
@@ -24,6 +31,12 @@
 - Strip token-bearing URLs before payload or source-reference emission.
 - Do not infer deployment truth from CI success, job names, shell text, or
   environment names.
+- `ci.deployment_event`'s stable key is `{provider, scope_id, repository,
+  deployment_id, status_id}` -- NEVER `state` or `updated_at`. Adding either
+  to the key would make a re-poll of the same status mint a NEW fact instead
+  of upserting, defeating the "pending -> in_progress -> success are three
+  durable facts" contract the reducer's `selectDeploymentEvent` deterministic
+  ranking depends on.
 
 ## Common Changes
 

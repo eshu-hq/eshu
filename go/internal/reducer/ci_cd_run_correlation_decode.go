@@ -46,9 +46,17 @@ func trimmedCICDPtr(value *string) string {
 // empty-string key, while every valid fact in the same batch still projects.
 // A non-quarantinable decode error (an unsupported schema major) is returned
 // fatally so the whole intent fails for durable triage.
-func buildCICDRunCorrelationDecisionsWithQuarantine(envelopes []facts.Envelope) ([]CICDRunCorrelationDecision, []quarantinedFact, error) {
+// The fourth return is the number of ci.deployment_event facts the attach
+// dropped because the event and its sha-matching run named different
+// repositories. It is surfaced rather than swallowed because that drop is
+// total for the affected run and otherwise invisible: the collector's
+// deployment_unanchored warning keys on sha, not repository, so it cannot fire
+// for this condition, and validateTarget can only reject a PATH disagreement at
+// startup because the run's repository html_url is unknown until collection.
+func buildCICDRunCorrelationDecisionsWithQuarantine(envelopes []facts.Envelope) ([]CICDRunCorrelationDecision, []quarantinedFact, int, error) {
 	runs := map[string]*cicdRunEvidence{}
 	var workflowImages []*decodedCICDWorkflowImage
+	var deploymentEvents []*decodedCICDDeploymentEvent
 	var quarantined []quarantinedFact
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
@@ -57,7 +65,7 @@ func buildCICDRunCorrelationDecisionsWithQuarantine(envelopes []facts.Envelope) 
 			if err != nil {
 				q, ok, fatal := partitionDecodeFailures(envelope, err)
 				if !ok {
-					return nil, nil, fatal
+					return nil, nil, 0, fatal
 				}
 				quarantined = append(quarantined, q)
 				continue
@@ -70,7 +78,7 @@ func buildCICDRunCorrelationDecisionsWithQuarantine(envelopes []facts.Envelope) 
 			if err != nil {
 				q, ok, fatal := partitionDecodeFailures(envelope, err)
 				if !ok {
-					return nil, nil, fatal
+					return nil, nil, 0, fatal
 				}
 				quarantined = append(quarantined, q)
 				continue
@@ -83,7 +91,7 @@ func buildCICDRunCorrelationDecisionsWithQuarantine(envelopes []facts.Envelope) 
 			if err != nil {
 				q, ok, fatal := partitionDecodeFailures(envelope, err)
 				if !ok {
-					return nil, nil, fatal
+					return nil, nil, 0, fatal
 				}
 				quarantined = append(quarantined, q)
 				continue
@@ -91,12 +99,34 @@ func buildCICDRunCorrelationDecisionsWithQuarantine(envelopes []facts.Envelope) 
 			ev := ensureCICDRunEvidence(runs, cicdRunKeyFromParts(observation.Provider, observation.RunID, observation.RunAttempt))
 			ev.environments = append(ev.environments, envelope)
 			ev.environmentsDecoded = append(ev.environmentsDecoded, observation)
+		case facts.CICDDeploymentEventFactKind:
+			// A deployment event carries no run_id at all -- GitHub's
+			// Deployments API has no run identity -- so it cannot be bucketed
+			// under a run here the way the run-scoped kinds above are.
+			// Decode it once and collect it into the flat deploymentEvents
+			// slice; attachDeploymentEventsToRuns fans it out to every run
+			// whose commit sha matches after this loop, matching the
+			// ci.workflow_image_evidence pattern (repo-scoped evidence
+			// attached run-side, not decode-side).
+			event, err := decodeCICDDeploymentEvent(envelope)
+			if err != nil {
+				q, ok, fatal := partitionDecodeFailures(envelope, err)
+				if !ok {
+					return nil, nil, 0, fatal
+				}
+				quarantined = append(quarantined, q)
+				continue
+			}
+			deploymentEvents = append(deploymentEvents, &decodedCICDDeploymentEvent{
+				envelope: envelope,
+				evidence: event,
+			})
 		case facts.CICDTriggerEdgeFactKind:
 			edge, err := decodeCICDTriggerEdge(envelope)
 			if err != nil {
 				q, ok, fatal := partitionDecodeFailures(envelope, err)
 				if !ok {
-					return nil, nil, fatal
+					return nil, nil, 0, fatal
 				}
 				quarantined = append(quarantined, q)
 				continue
@@ -108,7 +138,7 @@ func buildCICDRunCorrelationDecisionsWithQuarantine(envelopes []facts.Envelope) 
 			if err != nil {
 				q, ok, fatal := partitionDecodeFailures(envelope, err)
 				if !ok {
-					return nil, nil, fatal
+					return nil, nil, 0, fatal
 				}
 				quarantined = append(quarantined, q)
 				continue
@@ -129,7 +159,7 @@ func buildCICDRunCorrelationDecisionsWithQuarantine(envelopes []facts.Envelope) 
 			if err != nil {
 				q, ok, fatal := partitionDecodeFailures(envelope, err)
 				if !ok {
-					return nil, nil, fatal
+					return nil, nil, 0, fatal
 				}
 				quarantined = append(quarantined, q)
 				continue
@@ -141,6 +171,7 @@ func buildCICDRunCorrelationDecisionsWithQuarantine(envelopes []facts.Envelope) 
 		}
 	}
 	attachWorkflowImagesToRuns(runs, workflowImages)
+	deploymentEventsSkipped := attachDeploymentEventsToRuns(runs, deploymentEvents)
 	imageIndex := buildCICDImageIdentityIndex(envelopes)
 	decisions := make([]CICDRunCorrelationDecision, 0, len(runs))
 	for _, ev := range runs {
@@ -152,7 +183,7 @@ func buildCICDRunCorrelationDecisionsWithQuarantine(envelopes []facts.Envelope) 
 	sort.SliceStable(decisions, func(i, j int) bool {
 		return decisions[i].Provider+decisions[i].RunID < decisions[j].Provider+decisions[j].RunID
 	})
-	return decisions, quarantined, nil
+	return decisions, quarantined, deploymentEventsSkipped, nil
 }
 
 // ciArtifactDigests collects the distinct artifact_digest values across every
@@ -230,6 +261,11 @@ type cicdRunEvidence struct {
 	triggers            []facts.Envelope
 	shellOnly           []facts.Envelope
 	workflowImages      []*decodedCICDWorkflowImage
+	// deploymentEvents holds every ci.deployment_event whose sha matched this
+	// run's CommitSHA (attachDeploymentEventsToRuns), repo-scoped evidence
+	// attached run-side because the fact carries no run_id to bucket it under
+	// during decode, matching how workflowImages is accumulated.
+	deploymentEvents []*decodedCICDDeploymentEvent
 	// workflowImagesCommitMatched is true when workflowImages were attached
 	// because their extraction commit matched this run's commit, and false
 	// when they are the commit-blind repository-wide fallback. It downgrades a

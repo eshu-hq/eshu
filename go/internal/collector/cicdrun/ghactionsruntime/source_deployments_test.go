@@ -1,0 +1,398 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package ghactionsruntime
+
+import (
+	"context"
+	"net/http"
+	"testing"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
+)
+
+// fakeDeploymentClient embeds fakeClient (FetchRuns) and adds FetchDeployments,
+// so it satisfies both Client and DeploymentFetcher without touching every
+// other run-collection test double in this package -- see DeploymentFetcher's
+// doc comment in source_deployments.go for why that split exists.
+type fakeDeploymentClient struct {
+	fakeClient
+	deploymentPage DeploymentPage
+	deploymentErr  error
+}
+
+func (f fakeDeploymentClient) FetchDeployments(context.Context, TargetConfig) (DeploymentPage, error) {
+	return f.deploymentPage, f.deploymentErr
+}
+
+func newDeploymentClaimedSource(t *testing.T, client fakeDeploymentClient) ClaimedSource {
+	t.Helper()
+	source, err := NewClaimedSource(SourceConfig{
+		CollectorInstanceID: "ci-cd-primary",
+		Client:              client,
+		Now:                 func() time.Time { return time.Date(2026, time.July, 20, 12, 0, 0, 0, time.UTC) },
+		Targets: []TargetConfig{{
+			ScopeID:             "ci-cd:github-actions:example/repo",
+			Repository:          "example/repo",
+			Token:               "token",
+			AllowedRepositories: []string{"example/repo"},
+			SourceURI:           "https://github.com/example/repo",
+			MaxRuns:             1,
+			MaxJobs:             10,
+			MaxArtifacts:        10,
+			MaxDeployments:      10,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("NewClaimedSource() error = %v, want nil", err)
+	}
+	return source
+}
+
+func claimDeploymentWorkItem() workflow.WorkItem {
+	return workflow.WorkItem{
+		CollectorKind:       scope.CollectorCICDRun,
+		CollectorInstanceID: "ci-cd-primary",
+		ScopeID:             "ci-cd:github-actions:example/repo",
+		GenerationID:        "generation-1",
+		CurrentFencingToken: 7,
+	}
+}
+
+func filterFactKind(envelopes []facts.Envelope, factKind string) []facts.Envelope {
+	var out []facts.Envelope
+	for _, envelope := range envelopes {
+		if envelope.FactKind == factKind {
+			out = append(out, envelope)
+		}
+	}
+	return out
+}
+
+// TestClaimedSourceEmitsDeploymentEventsInSameGenerationAsRunFacts covers
+// test 11: ci.deployment_event facts MUST land in the SAME
+// CollectedGeneration (same ScopeID+GenerationID) as the ci.run facts from
+// the same claim, because the reducer's correlation intent
+// (ci_cd_run_correlation_deploy_events.go) only forms for a generation
+// containing a ci.run -- a deployment fact emitted into a different
+// generation would never be attached.
+func TestClaimedSourceEmitsDeploymentEventsInSameGenerationAsRunFacts(t *testing.T) {
+	t.Parallel()
+
+	client := fakeDeploymentClient{
+		fakeClient: fakeClient{page: RunPage{Snapshots: []RunSnapshot{{
+			Run: map[string]any{
+				"id":       1001,
+				"head_sha": "0123456789abcdef0123456789abcdef01234567",
+				"repository": map[string]any{
+					"full_name": "example/repo",
+					"html_url":  "https://github.com/example/repo",
+				},
+			},
+		}}}},
+		deploymentPage: DeploymentPage{Snapshots: []DeploymentSnapshot{{
+			Deployment: map[string]any{
+				"id":          9001,
+				"sha":         "0123456789abcdef0123456789abcdef01234567",
+				"environment": "production",
+			},
+			Statuses: []map[string]any{{"id": 8001, "state": "success"}},
+		}}},
+	}
+	source := newDeploymentClaimedSource(t, client)
+
+	collected, ok, err := source.NextClaimed(context.Background(), claimDeploymentWorkItem())
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+	envelopes := drainFacts(t, collected.Facts)
+	runFact := requireFactKind(t, envelopes, facts.CICDRunFactKind)
+	deploymentFact := requireFactKind(t, envelopes, facts.CICDDeploymentEventFactKind)
+	if deploymentFact.ScopeID != runFact.ScopeID {
+		t.Fatalf("deployment ScopeID = %q, run ScopeID = %q, want identical (same CollectedGeneration)", deploymentFact.ScopeID, runFact.ScopeID)
+	}
+	if deploymentFact.GenerationID != runFact.GenerationID {
+		t.Fatalf("deployment GenerationID = %q, run GenerationID = %q, want identical (same CollectedGeneration)", deploymentFact.GenerationID, runFact.GenerationID)
+	}
+	if collected.Generation.ScopeID != deploymentFact.ScopeID || collected.Generation.GenerationID != deploymentFact.GenerationID {
+		t.Fatalf("deployment fact scope/generation = %q/%q, want it to match the CollectedGeneration %q/%q",
+			deploymentFact.ScopeID, deploymentFact.GenerationID, collected.Generation.ScopeID, collected.Generation.GenerationID)
+	}
+}
+
+// TestClaimedSourceEmitsUnanchoredDeploymentWarning covers test 12: a
+// deployment event whose sha matches none of the claim's fetched run head
+// shas still emits its ci.deployment_event fact (evidence is never
+// dropped at collection time) AND a deployment_unanchored ci.warning, so the
+// gap is visible to an operator instead of the fact silently going nowhere
+// once the reducer's sha-based attach (attachDeploymentEventsToRuns) finds
+// no match.
+func TestClaimedSourceEmitsUnanchoredDeploymentWarning(t *testing.T) {
+	t.Parallel()
+
+	client := fakeDeploymentClient{
+		fakeClient: fakeClient{page: RunPage{Snapshots: []RunSnapshot{{
+			Run: map[string]any{
+				"id":       1001,
+				"head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"repository": map[string]any{
+					"full_name": "example/repo",
+					"html_url":  "https://github.com/example/repo",
+				},
+			},
+		}}}},
+		deploymentPage: DeploymentPage{Snapshots: []DeploymentSnapshot{{
+			Deployment: map[string]any{
+				"id":          9001,
+				"sha":         "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+				"environment": "production",
+			},
+		}}},
+	}
+	source := newDeploymentClaimedSource(t, client)
+
+	collected, ok, err := source.NextClaimed(context.Background(), claimDeploymentWorkItem())
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+	envelopes := drainFacts(t, collected.Facts)
+	requireFactKind(t, envelopes, facts.CICDDeploymentEventFactKind)
+
+	warnings := filterFactKind(envelopes, facts.CICDWarningFactKind)
+	found := false
+	for _, warning := range warnings {
+		if warning.Payload["reason"] == "deployment_unanchored" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("no ci.warning with reason=deployment_unanchored among %d warnings: %#v", len(warnings), warnings)
+	}
+}
+
+// A deployment whose own status window was truncated is a different gap from a
+// truncated deployments list: the deployment is present, but the transition
+// carrying its final state may be missing, so the correlation can settle on a
+// stale environment state. The signal was computed and never read until review
+// caught it; this pins that it now reaches a durable warning.
+func TestClaimedSourceWarnsOnTruncatedDeploymentStatusWindow(t *testing.T) {
+	t.Parallel()
+
+	const sharedSHA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+	client := fakeDeploymentClient{
+		fakeClient: fakeClient{page: RunPage{Snapshots: []RunSnapshot{{
+			Run: map[string]any{
+				"id":       1001,
+				"head_sha": sharedSHA,
+				"repository": map[string]any{
+					"full_name": "example/repo",
+					"html_url":  "https://github.com/example/repo",
+				},
+			},
+		}}}},
+		deploymentPage: DeploymentPage{Snapshots: []DeploymentSnapshot{{
+			Deployment: map[string]any{
+				"id":          9001,
+				"sha":         sharedSHA,
+				"environment": "production",
+			},
+			Statuses:        []map[string]any{{"id": 77001, "state": "pending"}},
+			StatusesPartial: true,
+		}}},
+	}
+	source := newDeploymentClaimedSource(t, client)
+
+	collected, ok, err := source.NextClaimed(context.Background(), claimDeploymentWorkItem())
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+
+	warnings := filterFactKind(drainFacts(t, collected.Facts), facts.CICDWarningFactKind)
+	for _, warning := range warnings {
+		if warning.Payload["reason"] == "deployment_statuses_truncated" {
+			return
+		}
+	}
+	t.Fatalf("no ci.warning with reason=deployment_statuses_truncated among %d warnings: %#v", len(warnings), warnings)
+}
+
+// A deployments-list page at the fetched bound is a truncation signal, not
+// proof no more deployments exist: GitHub's deployments-list endpoint returns
+// a bare array with no total_count, so truncation is always the full-page
+// heuristic (appendDeploymentEnvelopes, source_deployments.go). This pins
+// that DeploymentPage.Truncated actually reaches a durable
+// deployments_truncated warning rather than being computed and never read.
+func TestClaimedSourceWarnsOnTruncatedDeploymentsList(t *testing.T) {
+	t.Parallel()
+
+	const sharedSHA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+	client := fakeDeploymentClient{
+		fakeClient: fakeClient{page: RunPage{Snapshots: []RunSnapshot{{
+			Run: map[string]any{
+				"id":       1001,
+				"head_sha": sharedSHA,
+				"repository": map[string]any{
+					"full_name": "example/repo",
+					"html_url":  "https://github.com/example/repo",
+				},
+			},
+		}}}},
+		deploymentPage: DeploymentPage{
+			Snapshots: []DeploymentSnapshot{{
+				Deployment: map[string]any{
+					"id":          9001,
+					"sha":         sharedSHA,
+					"environment": "production",
+				},
+				Statuses: []map[string]any{{"id": 8001, "state": "success"}},
+			}},
+			Truncated: true,
+		},
+	}
+	source := newDeploymentClaimedSource(t, client)
+
+	collected, ok, err := source.NextClaimed(context.Background(), claimDeploymentWorkItem())
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+
+	warnings := filterFactKind(drainFacts(t, collected.Facts), facts.CICDWarningFactKind)
+	for _, warning := range warnings {
+		if warning.Payload["reason"] == "deployments_truncated" {
+			return
+		}
+	}
+	t.Fatalf("no ci.warning with reason=deployments_truncated among %d warnings: %#v", len(warnings), warnings)
+}
+
+// A deployment missing its provider id, sha, or environment is not a valid
+// observation of GitHub's Deployment object shape (the required-field
+// rationale in sdk/go/factschema/cicdrun/v1/deployment_event.go's godoc):
+// GitHubActionsDeploymentEnvelopes (github_actions_deployments.go) must
+// reject that row as a deployment_missing_required_field ci.warning instead
+// of building a ci.deployment_event fact with an empty deployment_id. This
+// pins that the collector's runtime path (appendDeploymentEnvelopes calling
+// through to GitHubActionsDeploymentEnvelopes) actually reaches that
+// warning for a deployment whose "id" field GitHub omitted.
+func TestClaimedSourceWarnsOnDeploymentMissingRequiredField(t *testing.T) {
+	t.Parallel()
+
+	client := fakeDeploymentClient{
+		fakeClient: fakeClient{page: RunPage{Snapshots: []RunSnapshot{{
+			Run: map[string]any{
+				"id":       1001,
+				"head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"repository": map[string]any{
+					"full_name": "example/repo",
+					"html_url":  "https://github.com/example/repo",
+				},
+			},
+		}}}},
+		deploymentPage: DeploymentPage{Snapshots: []DeploymentSnapshot{{
+			// No "id" key at all: providerID resolves the absent field to
+			// "", which must trip the required-field check even though sha
+			// and environment are both present.
+			Deployment: map[string]any{
+				"sha":         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"environment": "production",
+			},
+		}}},
+	}
+	source := newDeploymentClaimedSource(t, client)
+
+	collected, ok, err := source.NextClaimed(context.Background(), claimDeploymentWorkItem())
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+
+	warnings := filterFactKind(drainFacts(t, collected.Facts), facts.CICDWarningFactKind)
+	for _, warning := range warnings {
+		if warning.Payload["reason"] == "deployment_missing_required_field" {
+			return
+		}
+	}
+	t.Fatalf("no ci.warning with reason=deployment_missing_required_field among %d warnings: %#v", len(warnings), warnings)
+}
+
+// Deployments read is a SEPARATE GitHub permission from Actions read. An
+// existing App or fine-grained token scoped to Actions only gets 403 or 404 on
+// the deployments call, and aborting the claim there would drop every ci.run,
+// ci.job and ci.artifact fact already gathered -- this feature would silently
+// disable collection for every such installation.
+func TestClaimedSourceKeepsRunFactsWhenDeploymentsPermissionDenied(t *testing.T) {
+	t.Parallel()
+
+	for name, status := range map[string]int{
+		"forbidden": http.StatusForbidden,
+		"not found": http.StatusNotFound,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			client := fakeDeploymentClient{
+				fakeClient: fakeClient{page: RunPage{Snapshots: []RunSnapshot{{
+					Run: map[string]any{
+						"id":       1001,
+						"head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+						"repository": map[string]any{
+							"full_name": "example/repo",
+							"html_url":  "https://github.com/example/repo",
+						},
+					},
+				}}}},
+				deploymentErr: sdk.HTTPError{
+					Provider:   "github_actions",
+					StatusCode: status,
+					Message:    http.StatusText(status),
+				},
+			}
+			source := newDeploymentClaimedSource(t, client)
+
+			collected, ok, err := source.NextClaimed(context.Background(), claimDeploymentWorkItem())
+			if err != nil {
+				t.Fatalf("NextClaimed() error = %v, want nil: a missing deployments permission "+
+					"must not abort the whole claim", err)
+			}
+			if !ok {
+				t.Fatal("NextClaimed() ok = false, want true")
+			}
+
+			envelopes := drainFacts(t, collected.Facts)
+			requireFactKind(t, envelopes, facts.CICDRunFactKind)
+
+			warnings := filterFactKind(envelopes, facts.CICDWarningFactKind)
+			found := false
+			for _, warning := range warnings {
+				if warning.Payload["reason"] == "deployment_permission_denied" {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Fatalf("no ci.warning with reason=deployment_permission_denied among %d warnings", len(warnings))
+			}
+		})
+	}
+}

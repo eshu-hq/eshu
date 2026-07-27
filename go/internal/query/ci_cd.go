@@ -32,22 +32,29 @@ type CICDHandler struct {
 
 // CICDRunCorrelationResult is one reducer-owned CI/CD run correlation row.
 type CICDRunCorrelationResult struct {
-	CorrelationID   string   `json:"correlation_id"`
-	Provider        string   `json:"provider,omitempty"`
-	RunID           string   `json:"run_id,omitempty"`
-	RunAttempt      string   `json:"run_attempt,omitempty"`
-	RepositoryID    string   `json:"repository_id,omitempty"`
-	CommitSHA       string   `json:"commit_sha,omitempty"`
-	Environment     string   `json:"environment,omitempty"`
-	ArtifactDigest  string   `json:"artifact_digest,omitempty"`
-	ImageRef        string   `json:"image_ref,omitempty"`
-	Outcome         string   `json:"outcome"`
-	Reason          string   `json:"reason,omitempty"`
-	ProvenanceOnly  bool     `json:"provenance_only"`
-	CanonicalWrites int      `json:"canonical_writes"`
-	CanonicalTarget string   `json:"canonical_target,omitempty"`
-	CorrelationKind string   `json:"correlation_kind,omitempty"`
-	EvidenceFactIDs []string `json:"evidence_fact_ids,omitempty"`
+	CorrelationID string `json:"correlation_id"`
+	Provider      string `json:"provider,omitempty"`
+	RunID         string `json:"run_id,omitempty"`
+	RunAttempt    string `json:"run_attempt,omitempty"`
+	RepositoryID  string `json:"repository_id,omitempty"`
+	CommitSHA     string `json:"commit_sha,omitempty"`
+	Environment   string `json:"environment,omitempty"`
+	// EnvironmentEvidence records how the environment was established:
+	// "deploy_event" when a ci.deployment_event observed at the run's commit
+	// supplied it, "declared" when it came from the CI-declared workflow job
+	// gate alone. Empty when the correlation has no environment. Consumers
+	// that treat an environment as deployment truth should require
+	// "deploy_event" rather than accepting a declared value (#5426).
+	EnvironmentEvidence string   `json:"environment_evidence,omitempty"`
+	ArtifactDigest      string   `json:"artifact_digest,omitempty"`
+	ImageRef            string   `json:"image_ref,omitempty"`
+	Outcome             string   `json:"outcome"`
+	Reason              string   `json:"reason,omitempty"`
+	ProvenanceOnly      bool     `json:"provenance_only"`
+	CanonicalWrites     int      `json:"canonical_writes"`
+	CanonicalTarget     string   `json:"canonical_target,omitempty"`
+	CorrelationKind     string   `json:"correlation_kind,omitempty"`
+	EvidenceFactIDs     []string `json:"evidence_fact_ids,omitempty"`
 }
 
 // Mount registers CI/CD query routes.

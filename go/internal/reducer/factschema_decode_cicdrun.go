@@ -52,6 +52,24 @@ func decodeCICDEnvironmentObservation(env facts.Envelope) (cicdrunv1.Environment
 	return observation, nil
 }
 
+// decodeCICDDeploymentEvent decodes one ci.deployment_event envelope into
+// the typed cicdrunv1.DeploymentEvent struct through the contracts seam,
+// returning a self-classifying *factDecodeError when the payload is missing
+// a required field (provider, deployment_id, environment, sha) or is
+// otherwise malformed. This is the kind's only decode site: it is called
+// from buildCICDRunCorrelationDecisionsWithQuarantine
+// (ci_cd_run_correlation_decode.go), and its decoded value is joined onto a
+// run by attachDeploymentEventsToRuns (ci_cd_run_correlation_deploy_events.go)
+// via sha rather than the provider/run_id key the other ci_cd_run wrappers in
+// this file use, since a deployment carries no run_id.
+func decodeCICDDeploymentEvent(env facts.Envelope) (cicdrunv1.DeploymentEvent, error) {
+	event, err := factschema.DecodeCICDDeploymentEvent(factschemaEnvelope(env))
+	if err != nil {
+		return cicdrunv1.DeploymentEvent{}, newFactDecodeError(factschema.FactKindCICDDeploymentEvent, err)
+	}
+	return event, nil
+}
+
 // decodeCICDTriggerEdge decodes one ci.trigger_edge envelope into the typed
 // cicdrunv1.TriggerEdge struct through the contracts seam, returning a
 // self-classifying *factDecodeError when the payload is missing a required
