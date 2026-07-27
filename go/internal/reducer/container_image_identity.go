@@ -191,7 +191,7 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 		return Result{}, fmt.Errorf("load active container image SLSA facts: %w", err)
 	}
 	envelopes = append(envelopes, slsaActive...)
-	ciActive, err := h.loadActiveContainerImageCIFacts(ctx)
+	ciActive, err := h.loadActiveContainerImageCIFacts(ctx, intent.ScopeID)
 	if err != nil {
 		return Result{}, fmt.Errorf("load active container image CI facts: %w", err)
 	}
@@ -202,11 +202,13 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 	}
 	envelopes = append(envelopes, repositories...)
 
-	// Dedupe by FactID (#5810): a CI-scope intent's OWN scope-local ci.run/
-	// ci.artifact facts (loaded above via loadFactsForKinds) overlap
-	// ciActive's cross-scope load for the SAME envelopes once that CI scope's
-	// generation is active -- loadActiveContainerImageCIFacts has no way to
-	// exclude the triggering intent's own scope. Ref merging
+	// Dedupe by FactID (#5810): the cross-scope loads above (identity, SLSA,
+	// CI) have no way to exclude the triggering intent's own scope, so an
+	// intent whose own scope-local facts are also served by one of those
+	// loaders sees the SAME envelope twice (the CI overlap specifically is
+	// closed today by loadActiveContainerImageCIFacts' owner gate, which
+	// admits nothing into a non-repository scope -- this dedupe stays as the
+	// guard for the remaining loaders and any future one). Ref merging
 	// (extractContainerImageRefsWithQuarantine) is idempotent for a
 	// well-formed duplicate, but a MALFORMED fact decodes to a quarantine
 	// entry on every occurrence, so an undeduplicated list would quarantine

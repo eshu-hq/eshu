@@ -36,19 +36,20 @@ import (
 // all (issue #5810's own problem statement), so applyCIRunDigestRevision's
 // digest-keyed anchor map was populated only within a ci.artifact's OWN
 // CI-scoped intent, where the artifact's own ref already got both fields set
-// directly by addCICDArtifactImageReference. #5810's cross-scope CI loader
-// (container_image_identity_ci_loader.go) now routinely puts a repository's
-// OWN content_entity/deploy reference and a cross-scope ci.artifact for the
-// SAME digest in the SAME intent's envelope batch together, so
-// applyCIRunDigestRevision's asymmetric branch now fires routinely for a real
-// deploying repository's decision: it turns a clean, single-entry
-// SourceRepositoryIDs (the deploy reference alone) into an ambiguous
-// two-entry field (deploy repo + CI-build repo) while leaving
-// BuildProvenanceRepositoryIDs empty. singleSupplyChainImageSourceRepositoryID
-// (supply_chain_impact_anchor_tier.go) then finds neither field resolvable and
-// blanks the supply-chain finding's RepositoryID -- exactly the live B-7
-// golden-corpus gate failure ("mcp:list_supply_chain_impact_findings: result
-// item missing required field \"repository_id\"").
+// directly by addCICDArtifactImageReference. An asymmetric append there left
+// a competing decision ambiguous by SourceRepositoryIDs with empty
+// BuildProvenanceRepositoryIDs -- a shape
+// singleSupplyChainImageSourceRepositoryID (supply_chain_impact_anchor_tier.go)
+// resolves to nothing, blanking the supply-chain finding's RepositoryID.
+//
+// This is a pure decision-level test, deliberately scope-free: with the #5810
+// Handle()-level owner filter (loadActiveContainerImageCIFacts,
+// container_image_identity_ci_loader.go), a repository-scoped intent only
+// ever sees cross-scope CI facts whose run names its OWN repository, so in
+// production this anchor map carries either a CI scope's own runs (a
+// CI-scoped intent) or the owning repository's runs (an owner-matched
+// repository intent) -- both shapes still require the symmetric append this
+// test pins.
 func TestApplyCIRunDigestRevisionPopulatesBuildProvenanceRepositoryIDs(t *testing.T) {
 	t.Parallel()
 
@@ -82,16 +83,34 @@ func TestApplyCIRunDigestRevisionPopulatesBuildProvenanceRepositoryIDs(t *testin
 	}
 }
 
-// TestContainerImageIdentityHandlerCrossScopeCIRunDoesNotBlankBuildProvenance is
-// the Handle()-level counterpart, exercising the real #5810 cross-scope shape
-// end to end rather than a single BuildContainerImageIdentityDecisions call: a
-// repository-scoped intent whose OWN scope-local evidence is a content_entity
-// reference to a third-party digest, combined with a CI run/artifact pair
-// (for a DIFFERENT repository) reachable ONLY through the new
-// activeContainerImageCIFactLoader cross-scope bridge -- exactly the shape a
-// single-call decision test cannot exercise, since it collapses scope
-// separation.
-func TestContainerImageIdentityHandlerCrossScopeCIRunDoesNotBlankBuildProvenance(t *testing.T) {
+// TestContainerImageIdentityHandlerForeignCIRunStaysOutOfRepositoryScope is
+// the Handle()-level #5810 owner-filter regression: a repository-scoped intent
+// whose OWN scope-local evidence is a content_entity reference to a
+// third-party digest, combined with a cross-scope ci.run/ci.artifact pair
+// naming a DIFFERENT repository as builder. The cross-scope CI bridge exists
+// for exactly one consumer — the owner-scoped DERIVED_FROM projection, whose
+// child gate (containerImageDerivedFromRows) only ever reads build provenance
+// EQUAL to the owning repository — so a foreign builder's CI facts have no
+// consumer in this scope and MUST NOT be folded into its durable identity
+// rows. Unfiltered, they did two things the B-7 corpus caught live:
+//
+//  1. applyCIRunDigestRevision turned the deploying repository's clean,
+//     single-entry SourceRepositoryIDs into an ambiguous two-entry set (and,
+//     after the symmetrize fix, stamped the foreign builder into
+//     BuildProvenanceRepositoryIDs), demoting every deploy row out of the
+//     anchor tier the supply-chain-impact pin depends on
+//     (supplyChainImageIdentityAnchorTier, #5817) — the winner for the pinned
+//     digest flipped from repository:r_217415d9 (the deploying repository) to
+//     the builder, exactly the semantic flip #5817's merged adjudication says
+//     needs owner sign-off.
+//  2. addCICDArtifactImageReference minted a NEW bare-digest identity row in
+//     EVERY repository scope that ran an identity refresh, multiplying one CI
+//     run's claim across unrelated scopes with no consumer.
+//
+// The corrected expectation: the deploying repository's decision keeps its
+// single-entry SourceRepositoryIDs, gains no foreign build provenance, and no
+// bare-digest row for the foreign builder's digest is written in this scope.
+func TestContainerImageIdentityHandlerForeignCIRunStaysOutOfRepositoryScope(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -148,13 +167,97 @@ func TestContainerImageIdentityHandlerCrossScopeCIRunDoesNotBlankBuildProvenance
 	if !ok {
 		t.Fatalf("no written decision for %q: %#v", imageRef, got)
 	}
-	if !stringSliceContains(decision.BuildProvenanceRepositoryIDs, ciBuildRepoID) {
+	if len(decision.SourceRepositoryIDs) != 1 || decision.SourceRepositoryIDs[0] != deployRepoID {
 		t.Fatalf(
-			"BuildProvenanceRepositoryIDs = %#v, want %q: the cross-scope ci.run "+
-				"join must not leave build provenance empty while ambiguating "+
-				"SourceRepositoryIDs (%#v) -- that shape blanks the downstream "+
-				"supply-chain finding's RepositoryID",
-			decision.BuildProvenanceRepositoryIDs, ciBuildRepoID, decision.SourceRepositoryIDs,
+			"SourceRepositoryIDs = %#v, want exactly [%q]: a foreign builder's "+
+				"cross-scope ci.run must not ambiguate the deploying repository's "+
+				"own identity row (it demotes the row out of the supply-chain "+
+				"anchor tier the #5817 B-12 pin depends on)",
+			decision.SourceRepositoryIDs, deployRepoID,
+		)
+	}
+	if len(decision.BuildProvenanceRepositoryIDs) != 0 {
+		t.Fatalf(
+			"BuildProvenanceRepositoryIDs = %#v, want empty: this scope's owner "+
+				"is not the CI-confirmed builder, and the owner-scoped "+
+				"DERIVED_FROM projection can never consume a foreign builder's "+
+				"provenance here",
+			decision.BuildProvenanceRepositoryIDs,
+		)
+	}
+	// No written decision in this scope — the content ref's, or any row a
+	// foreign ci.artifact could have minted — may carry the foreign builder in
+	// either repository field.
+	for ref, written := range got {
+		if stringSliceContains(written.SourceRepositoryIDs, ciBuildRepoID) ||
+			stringSliceContains(written.BuildProvenanceRepositoryIDs, ciBuildRepoID) {
+			t.Fatalf(
+				"decision %q carries foreign builder %q: %#v — cross-scope CI "+
+					"facts for a different repository must be filtered out of a "+
+					"repository-scoped intent",
+				ref, ciBuildRepoID, written,
+			)
+		}
+	}
+}
+
+// TestContainerImageIdentityHandlerOwnerMatchedCIRunProvenanceReachesRepositoryScope
+// is the positive companion: when the cross-scope ci.run names THIS intent's
+// owning repository as builder (the rc-170 container-ci-lineage shape), the
+// bridge must deliver the pair, and the bare-digest decision it mints must
+// carry the owner in BuildProvenanceRepositoryIDs — that row is what the
+// owner-scoped DERIVED_FROM child gate reads.
+func TestContainerImageIdentityHandlerOwnerMatchedCIRunProvenanceReachesRepositoryScope(t *testing.T) {
+	t.Parallel()
+
+	const (
+		digest      = "sha256:5810c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4"
+		ownerRepoID = "repository:r_owner_5810ci_handler"
+	)
+
+	loader := &stubContainerImageIdentityFactLoader{
+		active: []facts.Envelope{ociManifestFact("oci-manifest-5810ci-owner", digest)},
+		ciActive: []facts.Envelope{
+			ciRunFact("run-5810ci-owner", "github_actions", ownerRepoID, "commit-5810"),
+			ciArtifactFact("artifact-5810ci-owner", "run-5810ci-owner", digest),
+		},
+	}
+	writer := &recordingContainerImageIdentityWriter{}
+	handler := ContainerImageIdentityHandler{FactLoader: loader, Writer: writer}
+
+	_, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-5810ci-owner",
+		ScopeID:      ownerRepoID,
+		GenerationID: "generation-repo",
+		SourceSystem: "git",
+		Domain:       DomainContainerImageIdentity,
+		Cause:        "repository refresh",
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+
+	// The ci.artifact's bare-digest ref resolves against the registry manifest,
+	// so the written decision is keyed by the resolved image ref — find it by
+	// digest rather than assuming the raw "digest:" ref key survives.
+	var decision ContainerImageIdentityDecision
+	found := false
+	for _, written := range writer.write.Decisions {
+		if written.Digest == digest {
+			decision = written
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("no written decision resolving digest %q: %#v", digest, writer.write.Decisions)
+	}
+	if !stringSliceContains(decision.BuildProvenanceRepositoryIDs, ownerRepoID) {
+		t.Fatalf(
+			"BuildProvenanceRepositoryIDs = %#v, want %q: an owner-matched "+
+				"cross-scope ci.run is exactly what the #5810 bridge exists to "+
+				"deliver (the DERIVED_FROM child gate reads it)",
+			decision.BuildProvenanceRepositoryIDs, ownerRepoID,
 		)
 	}
 }

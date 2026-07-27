@@ -12,10 +12,13 @@ import (
 )
 
 // TestSupplyChainImpactHandlerEndToEndCrossScopeCIRunDoesNotBlankRepositoryID
-// is the full #5810 reproduction of the live B-7 golden-corpus gate failure:
+// is the full #5810 reproduction of the live B-7 golden-corpus gate failures
+// (both of them, in the order they appeared):
 //
 //	[FAIL] mcp:list_supply_chain_impact_findings: result item missing
 //	required field "repository_id"
+//	[FAIL] mcp:list_supply_chain_impact_findings: required JSON value
+//	"findings[].repository_id" did not equal repository:r_217415d9
 //
 // Unlike every other test in this file (and #5817's own regression suite),
 // this one does NOT hand-author the reducer_container_image_identity fact
@@ -26,23 +29,33 @@ import (
 // bridge) -- captures the decision it durably writes, reshapes it through the
 // production containerImageIdentityPayload function (container_image_identity_writer.go,
 // the exact shape the reducer persists), and feeds THAT into the real
-// SupplyChainImpactHandler. A single-call construction of either handler
-// cannot exercise this: the bug is specifically that TWO decisions
-// (deploy-only vs. deploy+CI-build) collapse into ONE ambiguous
-// SourceRepositoryIDs field with an empty BuildProvenanceRepositoryIDs field
-// only when scope separation is real and the cross-scope CI loader is the one
-// bridging them -- exactly the false-green shape #5810 itself warns about.
+// SupplyChainImpactHandler.
 //
-// Before the applyCIRunDigestRevision fix (container_image_identity_registry.go),
-// finding.RepositoryID is "" here: SourceRepositoryIDs carries both the deploy
-// repository and the CI-build repository (ambiguous), and
-// BuildProvenanceRepositoryIDs is empty, so singleSupplyChainImageSourceRepositoryID
-// (supply_chain_impact_anchor_tier.go) resolves neither field and blanks the
-// finding -- workload/service/environment context is lost with it. After the
-// fix, BuildProvenanceRepositoryIDs carries the CI-confirmed builder
-// unambiguously, so the finding resolves to it (the strongest available
-// evidence for this digest, matching the #5801 precedent that build evidence
-// outranks a mere deploy/scope reference) and its workload joins.
+// The corrected expectation is the deploying repository, per #5817's merged
+// adjudication of this exact corpus digest: a supply-chain-impact finding's
+// RepositoryID is the runtime-joinable impact anchor
+// (matchingSupplyChainWorkloads/Services/DeploymentLanes join it by exact
+// equality), and the cross-row anchor tier
+// (supplyChainImageIdentityAnchorTier) must not let one row's build
+// provenance displace rows that resolve unambiguously by source -- flipping
+// the anchor to the builder is a semantic redefinition that needs owner
+// sign-off, not a side effect a loader change may impose. The builder's truth
+// is not lost: it stays on the identity surface
+// (list_container_image_identities source/build-provenance fields) and the
+// BUILT_FROM/DERIVED_FROM lineage edges.
+//
+// Both historical failure modes stay pinned:
+//
+//  1. Unfiltered cross-scope CI facts + the pre-symmetrize
+//     applyCIRunDigestRevision blanked RepositoryID entirely (ambiguous
+//     source, empty provenance -- the first gate failure above).
+//  2. Unfiltered cross-scope CI facts + the symmetrize fix alone flipped the
+//     anchor to the CI builder (the second gate failure above).
+//
+// With the owner filter (loadActiveContainerImageCIFacts), the foreign
+// builder's facts never enter the deploying repository's intent, so its
+// decision keeps a clean single-entry SourceRepositoryIDs and the finding
+// anchors to the deploying repository, whose workload joins.
 func TestSupplyChainImpactHandlerEndToEndCrossScopeCIRunDoesNotBlankRepositoryID(t *testing.T) {
 	t.Parallel()
 
@@ -146,9 +159,11 @@ func TestSupplyChainImpactHandlerEndToEndCrossScopeCIRunDoesNotBlankRepositoryID
 					"3.0.11-1~deb12u2",
 					"3.0.11-1~deb12u3",
 				),
-				// Tied to the CI-confirmed builder, so a correct resolution (not a
-				// blank RepositoryID) is the only way this workload is reachable.
-				workloadIdentityImpactFact("workload-5810ci-e2e-1", ciBuildRepoID, workloadID),
+				// Tied to the DEPLOYING repository -- the runtime-joinable anchor
+				// #5817 adjudicated for this shape -- so a correct resolution (not
+				// a blank RepositoryID, and not the builder) is the only way this
+				// workload is reachable.
+				workloadIdentityImpactFact("workload-5810ci-e2e-1", deployRepoID, workloadID),
 			},
 			scanScopedFactLoaderKey(scanScopeID, scanGenerationID): {scannerAnalysis},
 		},
@@ -195,8 +210,13 @@ func TestSupplyChainImpactHandlerEndToEndCrossScopeCIRunDoesNotBlankRepositoryID
 			got, identityFact.Payload,
 		)
 	}
-	if got.RepositoryID != ciBuildRepoID {
-		t.Fatalf("RepositoryID = %q, want the CI-confirmed builder %q", got.RepositoryID, ciBuildRepoID)
+	if got.RepositoryID != deployRepoID {
+		t.Fatalf(
+			"RepositoryID = %q, want the deploying repository %q (the runtime-joinable "+
+				"impact anchor per #5817; the CI builder %q must stay on the identity/"+
+				"lineage surfaces, not displace this anchor)",
+			got.RepositoryID, deployRepoID, ciBuildRepoID,
+		)
 	}
 	assertContainsString(t, got.WorkloadIDs, workloadID)
 }

@@ -197,6 +197,45 @@ rc-165, rc-167 PASS
 fact_work_items_residual: residual=0 (dead_letter=0)
 ```
 
+## Owner gate: cross-scope CI facts are admitted per owning repository
+
+Adjudication follow-up on this branch (after the rc-170 proof run above): the
+unfiltered loader regressed the B-12 `mcp:list_supply_chain_impact_findings`
+pin `findings[].repository_id = repository:r_217415d9` to the CI builder
+(`repository:r_69256c06`) — first as a blank (pre-symmetrize), then as a
+flipped value. Root cause: every identity intent in every scope admitted every
+active `ci.run`/`ci.artifact`, so `applyCIRunDigestRevision` folded the
+foreign builder into all ten of the deploying repository's rows for
+`sha256:abcdef…` (demoting them out of anchor tier A,
+`supplyChainImageIdentityAnchorTier`), and `addCICDArtifactImageReference`
+minted bare-digest rows for the builder's digest in unrelated scopes.
+
+The verdict (per #5817's merged adjudication of this exact digest, which this
+situation was predicted by): the finding's `repository_id` is the
+runtime-joinable impact anchor — the deploying repository — and flipping it to
+the builder is a semantic redefinition needing owner sign-off, not a loader
+side effect. The fix is `loadActiveContainerImageCIFacts`'
+owner gate + `filterContainerImageCIFactsForOwner`
+(`container_image_identity_ci_loader.go`): a repository-scoped intent admits
+only CI facts whose run names its OWN repository (exactly what the
+owner-scoped DERIVED_FROM child gate can consume — rc-170's
+container-ci-lineage shape, where run repository == owning repository, is
+unaffected), and a non-repository scope admits none cross-scope (its own CI
+facts arrive scope-local).
+
+No-Regression Evidence: the gate is strictly narrowing — non-repository
+scopes now skip the loader's Postgres query entirely (the highest-churn fact
+family stops being loaded on every CI/OCI-scope refresh), and repository
+scopes admit a subset of the previously admitted rows, so the measured 079
+index path above is exercised no more than before. Correctness is pinned by
+failing-then-green reducer tests
+(`TestContainerImageIdentityHandlerForeignCIRunStaysOutOfRepositoryScope`,
+`TestSupplyChainImpactHandlerEndToEndCrossScopeCIRunDoesNotBlankRepositoryID`
+— both reproduce the live gate failure shapes and now assert the corrected
+deploying-repository anchor — plus
+`TestContainerImageIdentityHandlerOwnerMatchedCIRunProvenanceReachesRepositoryScope`
+and the pre-existing rc-170 DERIVED_FROM Handle test for the kept path).
+
 ## No-Observability-Change
 
 No-Observability-Change: `ListActiveContainerImageCIFacts` issues a plain

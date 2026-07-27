@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"context"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
@@ -34,18 +35,114 @@ type activeContainerImageCIFactLoader interface {
 	ListActiveContainerImageCIFacts(ctx context.Context) ([]facts.Envelope, error)
 }
 
+// loadActiveContainerImageCIFacts returns the cross-scope ci.run/ci.artifact
+// envelopes admissible for the intent owning scopeID, or nil when the loader
+// seam is absent.
+//
+// The load is owner-gated (#5810 follow-up, adjudicated against the #5817 B-12
+// pin): the bridge exists for exactly one consumer, the owner-scoped
+// DERIVED_FROM projection, whose child gate (containerImageDerivedFromRows)
+// only ever reads BuildProvenanceRepositoryIDs entries EQUAL to the owning
+// repository. Cross-scope CI evidence naming any OTHER repository has no
+// consumer in this intent, and admitting it anyway is not neutral:
+//
+//   - applyCIRunDigestRevision folds the foreign builder into every competing
+//     decision for the digest, turning a deploying repository's clean
+//     single-entry SourceRepositoryIDs into an ambiguous two-entry set (and,
+//     symmetrically, stamping foreign build provenance). On the live 20-repo
+//     corpus that demoted all ten of the deploying repository's rows for
+//     sha256:abcdef… out of anchor tier A and flipped the
+//     list_supply_chain_impact_findings repository_id pin from
+//     repository:r_217415d9 (the deploying repository, the runtime-joinable
+//     impact anchor #5817 deliberately kept) to the builder — a semantic
+//     redefinition of the finding that needs owner sign-off, not a loader
+//     side effect.
+//   - addCICDArtifactImageReference mints a bare-digest identity row for the
+//     foreign builder's digest in EVERY scope that refreshes, multiplying one
+//     CI run's claim across unrelated scopes with no consumer.
+//
+// A non-repository scope (owner == "") admits nothing from this loader: a
+// CI-run scope's own ci.run/ci.artifact facts already arrive scope-local via
+// loadFactsForKinds, which also keeps quarantine accounting for a malformed
+// CI fact in the one scope that owns it instead of repeating it per intent.
+// Skipping the query outright for those scopes also keeps the highest-churn
+// fact family in the system off every non-repository refresh.
 func (h ContainerImageIdentityHandler) loadActiveContainerImageCIFacts(
 	ctx context.Context,
+	scopeID string,
 ) ([]facts.Envelope, error) {
 	loader, ok := h.FactLoader.(activeContainerImageCIFactLoader)
 	if !ok {
+		return nil, nil
+	}
+	ownerRepositoryID := repositoryIDFromReducerScope(scopeID)
+	if ownerRepositoryID == "" {
 		return nil, nil
 	}
 	envelopes, err := loader.ListActiveContainerImageCIFacts(ctx)
 	if err != nil {
 		return nil, classifyFactLoadError(err)
 	}
-	return envelopes, nil
+	return filterContainerImageCIFactsForOwner(envelopes, ownerRepositoryID), nil
+}
+
+// filterContainerImageCIFactsForOwner keeps only the ci.run envelopes whose
+// decoded repository is ownerRepositoryID, plus the ci.artifact envelopes
+// joined (by the shared provider/run_id/run_attempt key) to one of those kept
+// runs. Everything else — foreign runs, artifacts of foreign or absent runs,
+// runs with no repository anchor, and envelopes that fail typed decode — is
+// dropped: a fact that cannot be attributed to the owning repository cannot
+// contribute owner build provenance, and its quarantine (for the malformed
+// case) belongs to its own scope's intent, not to every repository refresh
+// that happens to load it cross-scope.
+func filterContainerImageCIFactsForOwner(
+	envelopes []facts.Envelope,
+	ownerRepositoryID string,
+) []facts.Envelope {
+	ownedRunKeys := make(map[string]struct{})
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.CICDRunFactKind {
+			continue
+		}
+		run, err := decodeCICDRun(envelope)
+		if err != nil {
+			continue
+		}
+		if strings.TrimSpace(run.Provider) == "" || strings.TrimSpace(run.RunID) == "" {
+			continue
+		}
+		if trimmedCICDPtr(run.RepositoryID) != ownerRepositoryID {
+			continue
+		}
+		if key := cicdRunKeyFromParts(run.Provider, run.RunID, run.RunAttempt); key != "" {
+			ownedRunKeys[key] = struct{}{}
+		}
+	}
+	if len(ownedRunKeys) == 0 {
+		return nil
+	}
+	kept := make([]facts.Envelope, 0, len(envelopes))
+	for _, envelope := range envelopes {
+		switch envelope.FactKind {
+		case facts.CICDRunFactKind:
+			run, err := decodeCICDRun(envelope)
+			if err != nil {
+				continue
+			}
+			if _, owned := ownedRunKeys[cicdRunKeyFromParts(run.Provider, run.RunID, run.RunAttempt)]; owned {
+				kept = append(kept, envelope)
+			}
+		case facts.CICDArtifactFactKind:
+			artifact, err := decodeCICDArtifact(envelope)
+			if err != nil {
+				continue
+			}
+			if _, owned := ownedRunKeys[cicdRunKeyFromParts(artifact.Provider, artifact.RunID, artifact.RunAttempt)]; owned {
+				kept = append(kept, envelope)
+			}
+		}
+	}
+	return kept
 }
 
 // dedupeEnvelopesByFactID collapses envelopes sharing the same FactID down to
