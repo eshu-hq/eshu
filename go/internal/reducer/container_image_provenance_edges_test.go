@@ -6,6 +6,8 @@ package reducer
 import (
 	"context"
 	"errors"
+	"fmt"
+	"maps"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -258,5 +260,128 @@ func TestContainerImageBuiltFromRowsFromCICDRunBuildProvenanceEndToEnd(t *testin
 	rows := containerImageBuiltFromRows(decisions)
 	if len(rows) != 1 || rows[0]["repository_id"] != "repo-api" {
 		t.Fatalf("containerImageBuiltFromRows = %#v, want one row for repo-api", rows)
+	}
+}
+
+// TestContainerImageBuiltFromRowsPinCICompetingRefDigestToOneRepositoryPair is
+// the graph-truth half of the #5829 fix (the decision-level half lives in
+// container_image_ci_run_digest_provenance_test.go).
+//
+// applyCIRunDigestRevision now confers BuildProvenanceRepositoryIDs, and that
+// field is the sole gate on this edge (#5796) and on the DERIVED_FROM child
+// side (#5460). Conferring it could therefore change what the graph gets, so the
+// emitted ROW SET is what has to be asserted -- not just the decision field.
+//
+// Two properties are pinned, and they are pinned separately on purpose:
+//
+//   - PER DECISION: every decision that resolves this digest emits exactly the
+//     (digest, repository:r_69256c06) pair. This is the failing-then-green
+//     assertion. Without the fix the explicit-image-reference decision -- the
+//     one that wins the shared stable fact key and is therefore the row
+//     Postgres keeps -- emits ZERO rows, so the edge would exist only by
+//     accident of the sibling decision that never gets persisted.
+//   - ACROSS DECISIONS: the distinct (digest, repository) set is exactly ONE
+//     pair naming exactly ONE repository. This is the #5827 guard. BUILT_FROM
+//     MERGEs on (start, end, type) while
+//     projectContainerImageBuiltFromEdges retracts per
+//     (scope_id, generation_id, evidence_source), so if a later change let the
+//     ci.run anchor reach a SECOND scope's decision, both scopes would emit
+//     this same pair and one scope's retract would delete an edge the other
+//     still supports -- silently, with no gate going red. Today the anchor
+//     cannot: ci.run/ci.artifact are loaded scope-locally
+//     (containerImageIdentityFactKinds via loadFactsForKinds in
+//     container_image_identity.go) and are absent from
+//     listActiveContainerImageIdentityFactsQuery's cross-scope filter
+//     (internal/storage/postgres/facts_active_container_image_identity.go), so
+//     the widening is INTRA-scope. This assertion is what keeps it that way.
+func TestContainerImageBuiltFromRowsPinCICompetingRefDigestToOneRepositoryPair(t *testing.T) {
+	t.Parallel()
+
+	decisions := BuildContainerImageIdentityDecisions(ciDigestProvenanceEnvelopes())
+
+	want := map[string]any{
+		"digest":        ciDigestProvenanceDigest,
+		"repository_id": ciDigestProvenanceBuildRepo,
+	}
+	resolved := 0
+	for _, decision := range decisions {
+		if decision.Digest != ciDigestProvenanceDigest {
+			continue
+		}
+		resolved++
+		rows := containerImageBuiltFromRows([]ContainerImageIdentityDecision{decision})
+		if len(rows) != 1 || !maps.Equal(rows[0], want) {
+			t.Fatalf(
+				"decision %q (%s) emitted BUILT_FROM rows %#v, want exactly one %#v",
+				decision.ImageRef, decision.Reason, rows, want,
+			)
+		}
+	}
+	if resolved == 0 {
+		t.Fatalf("no decision resolved digest %q; the fixture no longer reproduces the corpus shape", ciDigestProvenanceDigest)
+	}
+
+	pairs := map[string]struct{}{}
+	rows := containerImageBuiltFromRows(decisions)
+	for _, row := range rows {
+		if !maps.Equal(row, want) {
+			t.Fatalf("BUILT_FROM row %#v, want %#v: no other (digest, repository) pair may be emitted here", row, want)
+		}
+		pairs[fmt.Sprintf("%v\x00%v", row["digest"], row["repository_id"])] = struct{}{}
+	}
+	if len(pairs) != 1 {
+		t.Fatalf("distinct BUILT_FROM pairs = %d, want exactly 1 (#5827: a second pair means a second retract owner)", len(pairs))
+	}
+	// Cross-decision dedup: both decisions above now carry the same
+	// build-provenance repository, so the batch must carry the pair ONCE.
+	if len(rows) != 1 {
+		t.Fatalf("len(rows) = %d, want 1: %d decisions resolving one pair must UNWIND it once, not %d times", len(rows), resolved, len(rows))
+	}
+}
+
+// TestContainerImageBuiltFromRowsEmitNothingForDeployOnlyScope is the negative
+// half of the pin above, and the property that keeps this digest's BUILT_FROM
+// edge to a single retract owner.
+//
+// The deploying repository sees the same image by explicit reference and the
+// same registry manifest, but no ci.run/ci.artifact -- exactly what the
+// scope-local load gives a git-repository scope. Its decisions resolve
+// exact_digest and carry the deploying repository in SourceRepositoryIDs, and
+// they must still emit NO row: SourceRepositoryIDs is not build evidence
+// (#5796), so only the CI scope can ever own this digest's BUILT_FROM edge.
+func TestContainerImageBuiltFromRowsEmitNothingForDeployOnlyScope(t *testing.T) {
+	t.Parallel()
+
+	decisions := BuildContainerImageIdentityDecisions([]facts.Envelope{
+		{
+			FactID:   "content-entity-deploy-only",
+			FactKind: factKindContentEntity,
+			Payload: map[string]any{
+				"repository_id": ciDigestProvenanceRunRepo,
+				"entity_metadata": map[string]any{
+					"container_images": []any{ciDigestProvenanceImageRef},
+				},
+			},
+		},
+		ociManifestFactForRepository(
+			"oci-manifest-deploy-only",
+			ciDigestProvenanceRegistry,
+			ciDigestProvenanceImageRepo,
+			ciDigestProvenanceDigest,
+		),
+	})
+
+	resolved := 0
+	for _, decision := range decisions {
+		if decision.Digest == ciDigestProvenanceDigest {
+			resolved++
+		}
+	}
+	if resolved == 0 {
+		t.Fatalf("no deploy-only decision resolved digest %q; the fixture no longer reproduces the corpus shape", ciDigestProvenanceDigest)
+	}
+
+	if rows := containerImageBuiltFromRows(decisions); len(rows) != 0 {
+		t.Fatalf("containerImageBuiltFromRows = %#v, want none: a deploy-only scope owns no build evidence for this digest", rows)
 	}
 }

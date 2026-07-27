@@ -55,11 +55,23 @@ func (d CrossScopeDependency) Validate() error {
 // its image; container_image_identity is projected in the OCI/cloud scope while
 // the correlation runs in the CI scope, so the correlation cannot resolve until
 // the identity generation is active. supply_chain_impact reads the correlation
-// output for its deployment context, one hop further along the same chain.
+// output for its deployment context, one hop further along the same chain: its
+// intent is triggered by its own vulnerability scope's facts
+// (projector/supply_chain_impact_intents.go), and matchingSupplyChainDeployments
+// rejects a correlation that has not yet resolved its artifact identity, so a
+// finding classified before the CI scope's correlation generation is active
+// keeps an empty environments list until something replays it. Until the #5709
+// readiness/re-enqueue slices land, that replay is the bootstrap maintenance
+// reopen (cmd/bootstrap-index/bootstrap_pipeline.go), which reopens all three
+// links of this chain -- convergence there comes from maintenance running more
+// than once, not from the reopen slice's order.
 func crossScopeDependencyCatalog() map[Domain]CrossScopeDependency {
 	return map[Domain]CrossScopeDependency{
 		DomainCICDRunCorrelation: {
 			ProducerDomains: []Domain{DomainContainerImageIdentity},
+		},
+		DomainSupplyChainImpact: {
+			ProducerDomains: []Domain{DomainCICDRunCorrelation},
 		},
 	}
 }

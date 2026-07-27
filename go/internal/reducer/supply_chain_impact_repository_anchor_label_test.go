@@ -151,7 +151,7 @@ func TestSupplyChainImpactHandlerPrefersLabelDerivedRepositoryOverConflictingSco
 // preferSupplyChainImageIdentity's cross-row selection never runs), this test
 // returns THREE identity rows for the SAME digest from the loader's
 // digest-seeded call -- reproducing the live 20-repo corpus shape for digest
-// sha256:abcdef...ab: ten rows agree on the deploying repository via
+// sha256:abcdef...ab: fifteen rows agree on the deploying repository via
 // source_repository_ids alone, and one row names both the deploying and its
 // own building repository (ambiguous by source_repository_ids) but resolves
 // unambiguously via build_provenance_repository_ids. The B-12 golden snapshot
@@ -179,7 +179,7 @@ func TestSupplyChainImpactHandlerSourceConsensusBeatsSingleBuildProvenanceRow(t 
 	scannerAnalysis := scannerWorkerAnalysisFact(scanScopeID, scanGenerationID, testScannerAnalysisImageDigest, imageRef)
 
 	// Two rows genuinely agree on the deploying repository via
-	// source_repository_ids alone (mirroring the corpus's ten agreeing rows).
+	// source_repository_ids alone (mirroring the corpus's fifteen agreeing rows).
 	agreeingRowOne := containerImageIdentityImpactFactWithSourceRepositoryIDs(
 		"identity-5813-consensus-agree-1", testScannerAnalysisImageDigest, decoyRepositoryID, deployRepositoryID,
 	)

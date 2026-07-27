@@ -278,12 +278,32 @@ func runPipelined(
 	// evidence-complete "ambiguous" one once more container_image_identity rows
 	// have committed — and it upserts on a scope-keyed stable fact key, so
 	// replay is idempotent.
+	// supply_chain_impact (#5426) is the third link in that same chain, and the
+	// dependency is already stated in crossScopeDependencyCatalog's own doc
+	// ("supply_chain_impact reads the correlation output for its deployment
+	// context, one hop further along the same chain") -- it was simply never
+	// replayed. matchingSupplyChainDeployments rejects a provenance-only
+	// correlation, so a finding classified while the correlation had not yet
+	// resolved its artifact identity keeps an empty environments list, an empty
+	// environment_evidence map, and a standing "deployment evidence
+	// provenance-only" in missing_evidence FOREVER: the impact intent is
+	// triggered by its own vulnerability scope's facts
+	// (projector/supply_chain_impact_intents.go), and nothing re-triggers it
+	// when a correlation in a different scope later improves. Measured on the
+	// live B-7 corpus: the correlation reached outcome=exact with
+	// provenance_only=false and environment=prod, while the finding anchored to
+	// that same artifact digest still reported an empty environments list.
+	// Replay is idempotent (the writer upserts each finding on a stable fact
+	// key), and it carries the same ordering caveat as the two domains above --
+	// convergence comes from maintenance running more than once, not from this
+	// slice's order.
 	correlationReopenStart := time.Now()
 	if err := cd.committer.ReopenSucceededReducerWorkItems(ctx, tracer, instruments, []string{
 		"deployable_unit_correlation",            // reducer.DomainDeployableUnitCorrelation
 		"kubernetes_correlation_materialization", // reducer.DomainKubernetesCorrelationMaterialization
 		"container_image_identity",               // reducer.DomainContainerImageIdentity
 		"ci_cd_run_correlation",                  // reducer.DomainCICDRunCorrelation
+		"supply_chain_impact",                    // reducer.DomainSupplyChainImpact
 	}); err != nil {
 		recordPhase("correlation_reopen", correlationReopenStart)
 		if logger != nil {

@@ -154,38 +154,57 @@ explicitly empty one decode identically to an empty set and are treated the same
 — but it keeps the published payload self-describing for a reader inspecting a
 fact directly.
 
-**Producer asymmetry deliberately NOT closed here.** `applySLSADigestRevision`
-appends its digest anchor's repositories to `BuildProvenanceRepositoryIDs`;
-`applyCIRunDigestRevision` appends them only to `SourceRepositoryIDs`. A
-competing decision that wins the upsert therefore carries its genuine builder in
-the broad field alone — the same gap class #5808 fixed one path over, and a real
-defect.
+**Producer asymmetry not closed here — closed later, in #5426.**
+`applySLSADigestRevision` appends its digest anchor's repositories to
+`BuildProvenanceRepositoryIDs`; `applyCIRunDigestRevision` appended them only to
+`SourceRepositoryIDs`. A competing decision that wins the upsert therefore
+carried its genuine builder in the broad field alone — the same gap class #5808
+fixed one path over, and a real defect.
 
-It was implemented on this branch and then reverted, because closing it here
-contradicts the reason the projection above was withdrawn.
-`BuildProvenanceRepositoryIDs` is the sole gate for two live graph writers:
-`containerImageBuiltFromRows` and `containerImageDerivedFromRows`. Widening it
-makes more scopes emit the same `(digest, repository)` pair — and
-`recordCIRunDigestAnchor` exists precisely to handle "a competing decision raised
-by a deploy repo's content_entity for the same image". Since
-`projectContainerImageBuiltFromEdges` retracts per
-`(scope_id, evidence_source)` while the writer's `MERGE` matches
-on `(start, end, type)` alone, two scopes emitting the same pair means one
-scope's retract deletes an edge the other still supports. That is #5827,
-amplified inside the one domain that survived this branch — the B-12 snapshot already records
-this digest carrying 11 rows across scopes — in the `list_supply_chain_impact_findings`
-MCP query-shape description, which notes that
-`reducer_container_image_identity` "has no per-digest canonicalization -- the
-producer writes one row per triggering scope/ref, and this digest carries 11 rows
-in the live corpus that disagree on `source_repository_ids`".
+It was implemented on this branch and then reverted. The reasoning at the time:
+`BuildProvenanceRepositoryIDs` is the sole gate for two live graph writers
+(`containerImageBuiltFromRows`, `containerImageDerivedFromRows`), so widening it
+was expected to make MORE SCOPES emit the same `(digest, repository)` pair — and
+since `projectContainerImageBuiltFromEdges` retracts per
+`(scope_id, generation_id, evidence_source)` while the writer's `MERGE` matches
+on `(start, end, type)` alone, two scopes emitting one pair means one scope's
+retract deletes an edge the other still supports. That is #5827, and the
+conclusion drawn was that landing the fix would make the graph worse today to
+make a correlation sharper. It was filed as **#5829, blocked on #5827**.
 
-Landing it would make the graph worse today to make a correlation sharper. It is
-tracked as **#5829**, blocked on #5827.
+That conclusion was reached by reasoning about the projection, not by measuring
+it, and the measurement contradicts it. **#5426 landed the fix.** Two things were
+checked before it did, and both are recorded in
+[#5426 — what the golden corpus asserts about environment_evidence](5426-golden-corpus-coverage.md#why-5829s-stated-blocker-does-not-apply):
 
-The consequence of leaving it open is bounded and conservative: a
-competing-decision row whose builder reaches only `source_repository_ids`
-narrows to nothing, so the caller keeps the unfiltered set and the correlation
-lands `ambiguous`. It never lands a false `exact`.
+- The widening is INTRA-scope, not cross-scope. `ci.run`/`ci.artifact` are
+  loaded scope-locally by `container_image_identity.go` and are absent from
+  every arm of `identityFactFilterSQL`, the cross-scope active-fact filter
+  (`go/internal/storage/postgres/facts_active_container_image_identity.go`).
+  Only the CI scope can confer this provenance, so no second scope gains a
+  competing claim on the pair.
+- The emitted row SET is unchanged. On the corpus-shaped fixture the projection
+  went from 1 row to 2 IDENTICAL rows, both
+  `(sha256:abcdef...ab, repository:r_69256c06)` — no new `(start, end, type)`
+  pair, so #5827's collapse is not reachable from this change. The duplicate is
+  now deduped away inside `containerImageBuiltFromRows`.
+
+#5827 remains open on its own merits; it was simply never a blocker for this
+particular widening. The B-12 snapshot's `list_supply_chain_impact_findings`
+query-shape description still records the multi-row shape that motivated the
+concern — as of #5426 it reads "this digest carries 16 rows in the live corpus
+that disagree on `source_repository_ids`". It read 11 when this section was
+first written; 16 is what a `--keep` gate run measured for #5426. The count
+moved, the shape did not.
+
+Until #5426 landed, the consequence of leaving the asymmetry open was bounded
+and conservative in the graph — a competing-decision row whose builder reached
+only `source_repository_ids` narrowed to nothing, so the caller kept the
+unfiltered set and the correlation landed `ambiguous`, never a false `exact`.
+What that framing missed is that `ambiguous` is not free downstream:
+`matchingSupplyChainDeployments` rejects a `provenance_only` correlation
+outright, so the deployment's environment never reached a supply-chain impact
+finding at all. That is the defect #5426 was chasing when it re-opened this.
 
 ## Verification
 

@@ -118,11 +118,11 @@ func singleSupplyChainRepositoryID(repositoryIDs []string) string {
 // reducer_container_image_identity rows observed for the SAME digest (issue
 // #5464 layer 2). The producer writes one canonical decision fact per
 // triggering scope/ref with no per-digest canonicalization, so one digest can
-// carry many rows -- this corpus alone has 11 for one digest -- and unlike
+// carry many rows -- this corpus alone has 16 for one digest -- and unlike
 // the scannerAnalyses last-write-wins case in supply_chain_impact_index_build.go
 // (safe because a content-addressed digest is identical across every writer,
 // so any winner is equally correct), these rows can DISAGREE on
-// source_repository_ids: ten rows here carry exactly one repository, one
+// source_repository_ids: fifteen rows here carry exactly one repository, one
 // carries two (ambiguous). An unconditional last-write-wins assignment would
 // make the winning RepositoryID/workload/service/environment join outcome
 // depend on envelope iteration order -- an accident, not a proof -- so a
@@ -190,8 +190,8 @@ func preferSupplyChainImageIdentity(existing, candidate supplyChainImageIdentity
 // preferring it row-locally promoted a row that is ambiguous by
 // sourceRepositoryIDs (naming both the true deploying repository and its own
 // building repository) into the same "unambiguous" class as rows that
-// genuinely agree, where it could then beat ten agreeing rows purely because
-// its factID happened to sort smaller. Tier B must still beat tier C,
+// genuinely agree, where it could then beat the fifteen agreeing rows purely
+// because its factID happened to sort smaller. Tier B must still beat tier C,
 // though, so an all-ambiguous digest whose one build-provenance-bearing row
 // has a larger factID than an otherwise-unresolvable row does not blank the
 // anchor entirely.
@@ -207,7 +207,7 @@ func preferSupplyChainImageIdentity(existing, candidate supplyChainImageIdentity
 // `len(sourceRepositoryIDs) == 1` as its sole "unambiguous" criterion, which
 // produces the identical outcome for that shape. The tier fix deliberately
 // preserves it, because tier B must never displace tier A: the B-12 golden
-// pin (ten independently agreeing deploy rows beating one row that is
+// pin (fifteen independently agreeing deploy rows beating one row that is
 // ambiguous by sourceRepositoryIDs but resolvable via its own build
 // provenance) depends on tier A's priority holding even when tier A's own
 // evidence is thin. See

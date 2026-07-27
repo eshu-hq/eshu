@@ -59,8 +59,20 @@ type ContainerImageProvenanceEdgeWriter interface {
 // broader SourceRepositoryIDs has no other legitimate BUILT_FROM consumer:
 // nothing else reads it off this decision type for this edge, so narrowing
 // loses no intended coverage.
+//
+// Rows are de-duplicated across decisions, not only within one. One intent
+// routinely holds several decisions for the SAME digest -- a ci.artifact's
+// bare-digest ref and a deploying repository's explicit image reference both
+// resolve to one image, and since #5426 both carry the same build-provenance
+// repository -- which would otherwise UNWIND the identical (digest, repository)
+// pair once per decision. The graph outcome is unchanged either way because the
+// canonical writer MERGEs on (start, end, type), so this is a payload and
+// counter fix, not a correctness one: it keeps the write batch proportional to
+// distinct edges and keeps the "materialized" ProvenanceEdges sample counting
+// edges rather than decisions.
 func containerImageBuiltFromRows(decisions []ContainerImageIdentityDecision) []map[string]any {
 	rows := make([]map[string]any, 0, len(decisions))
+	seen := make(map[string]struct{}, len(decisions))
 	for _, decision := range decisions {
 		if decision.Outcome != ContainerImageIdentityExactDigest {
 			continue
@@ -73,6 +85,11 @@ func containerImageBuiltFromRows(decisions []ContainerImageIdentityDecision) []m
 			if repositoryID == "" {
 				continue
 			}
+			key := digest + "\x00" + repositoryID
+			if _, duplicate := seen[key]; duplicate {
+				continue
+			}
+			seen[key] = struct{}{}
 			rows = append(rows, map[string]any{
 				"digest":        digest,
 				"repository_id": repositoryID,

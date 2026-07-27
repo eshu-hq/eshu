@@ -252,6 +252,12 @@ func supplyChainImpactDomainDefinition() DomainDefinition {
 				truth.LayerObservedResource,
 			},
 		},
+		// #5709: the finding reads ci_cd_run_correlation output across scopes
+		// for its deployment context and environment evidence (#5426). The
+		// readiness/re-enqueue slices read the declaration off the registered
+		// definition, not the standalone catalog, so leaving it unwired here
+		// would let the early empty-join execution stand.
+		CrossScopeDependencies: crossScopeDependenciesForRegistration(DomainSupplyChainImpact),
 	}
 }
 

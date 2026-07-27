@@ -13,8 +13,8 @@ import (
 // is the determinism regression guard for #5464 layer 2: the producer writes
 // one reducer_container_image_identity row per triggering scope/ref with no
 // per-digest canonicalization, so a single digest can carry many rows that
-// disagree on source_repository_ids (this repo's own live corpus has 11 rows
-// for one digest, ten naming one repository and one naming two). Both
+// disagree on source_repository_ids (this repo's own live corpus has 16 rows
+// for one digest, fifteen naming one repository and one naming two). Both
 // bestSupplyChainImageIdentitiesByDigest (the batch form) and the incremental
 // addSupplyChainImpactIndexEntry case buildSupplyChainImpactIndexWithQuarantine
 // drives one envelope at a time MUST reach the SAME winner regardless of
@@ -35,7 +35,7 @@ func TestSupplyChainImpactIndexContainerImageIdentityDeterministicAcrossEnvelope
 	)
 
 	// unambiguousA and unambiguousB both name exactly one (the SAME) source
-	// repository -- mirroring the corpus's ten agreeing rows -- and
+	// repository -- mirroring the corpus's fifteen agreeing rows -- and
 	// wantWinningFactID ("identity-deterministic-a") is the lexicographically
 	// smaller of the two, so the tie-break is exercised, not just the
 	// ambiguous-vs-unambiguous preference.
@@ -200,7 +200,7 @@ func TestPreferSupplyChainImageIdentityUnambiguousBeatsAmbiguous(t *testing.T) {
 
 // TestPreferSupplyChainImageIdentitySourceConsensusBeatsBuildProvenanceRow is
 // the #5813 golden-corpus regression guard: it reproduces the exact 20-repo
-// corpus shape for digest sha256:abcdef...ab -- ten rows agreeing on the
+// corpus shape for digest sha256:abcdef...ab -- fifteen rows agreeing on the
 // DEPLOYING repository via sourceRepositoryIDs alone, and one row that names
 // BOTH the deploying repository and its own building repository in
 // sourceRepositoryIDs (making sourceRepositoryIDs ambiguous for that row) but
@@ -210,7 +210,7 @@ func TestPreferSupplyChainImageIdentityUnambiguousBeatsAmbiguous(t *testing.T) {
 // boolean treated singleSupplyChainImageSourceRepositoryID's row-level
 // provenance-first result as the ENTIRE preference signal, so the
 // two-repository row (rendered "unambiguous" only via its own build
-// evidence) competed on equal footing with -- and won over -- the ten
+// evidence) competed on equal footing with -- and won over -- the fifteen
 // genuinely-agreeing rows whenever its factID happened to sort smaller. That
 // is wrong: a row resolvable only via its own build provenance must never
 // outrank rows where the broader source-repository set itself already
@@ -345,7 +345,7 @@ func TestPreferSupplyChainImageIdentityBuildProvenanceBeatsFullyUnresolved(t *te
 // shape, before either #5801 or #5813 touched this code. The tier fix
 // deliberately preserves that outcome: tier B must never displace tier A,
 // because the B-12 golden pin depends on tier A's priority holding even
-// when tier A's own evidence is thin (ten independently agreeing deploy
+// when tier A's own evidence is thin (fifteen independently agreeing deploy
 // rows must keep beating one row that is ambiguous by sourceRepositoryIDs
 // but resolvable via its own build provenance).
 //

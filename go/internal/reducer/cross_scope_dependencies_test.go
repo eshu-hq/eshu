@@ -96,3 +96,28 @@ func TestCICDRunCorrelationDefinitionCarriesCatalogDependency(t *testing.T) {
 		t.Fatalf("ci_cd_run_correlation cross-scope producer = %v, want [%s]", producers, DomainContainerImageIdentity)
 	}
 }
+
+// TestSupplyChainImpactDefinitionCarriesCatalogDependency pins the third link of
+// the same chain. supply_chain_impact reads ci_cd_run_correlation output across
+// scopes for its deployment context and #5426 environment evidence, and
+// matchingSupplyChainDeployments rejects a correlation that has not yet resolved
+// its artifact identity -- so a finding classified before that correlation's
+// generation is active keeps an empty environments list until something replays
+// it. The catalog is the stated single source of truth for #5709, and the
+// readiness/re-enqueue slices read the declaration off the REGISTERED
+// definition, so both halves are asserted here.
+func TestSupplyChainImpactDefinitionCarriesCatalogDependency(t *testing.T) {
+	t.Parallel()
+
+	def := supplyChainImpactDomainDefinition()
+	if err := def.Validate(); err != nil {
+		t.Fatalf("supply_chain_impact definition is invalid: %v", err)
+	}
+	if len(def.CrossScopeDependencies) != 1 {
+		t.Fatalf("supply_chain_impact must declare exactly one cross-scope dependency, got %d", len(def.CrossScopeDependencies))
+	}
+	producers := def.CrossScopeDependencies[0].ProducerDomains
+	if len(producers) != 1 || producers[0] != DomainCICDRunCorrelation {
+		t.Fatalf("supply_chain_impact cross-scope producer = %v, want [%s]", producers, DomainCICDRunCorrelation)
+	}
+}
