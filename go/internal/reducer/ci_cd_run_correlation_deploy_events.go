@@ -43,7 +43,14 @@ func attachDeploymentEventsToRuns(runs map[string]*cicdRunEvidence, events []*de
 	if len(events) == 0 {
 		return 0
 	}
-	skipped := 0
+	// Track which events were rejected for a repository mismatch and which
+	// found a home, so the counter can report events actually LOST rather than
+	// rejected (run, event) pairs. An event fans out to every run sharing its
+	// sha by design, so a pair count multiplies by the fan-out and overstates
+	// the loss; an event rejected by run A but attached to run B was never
+	// lost at all.
+	rejected := map[*decodedCICDDeploymentEvent]struct{}{}
+	attached := map[*decodedCICDDeploymentEvent]struct{}{}
 	for _, ev := range runs {
 		runCommit := trimmedCICDPtr(ev.runDecoded.CommitSHA)
 		if runCommit == "" {
@@ -67,14 +74,21 @@ func attachDeploymentEventsToRuns(runs map[string]*cicdRunEvidence, events []*de
 			// keeps the sha-only behaviour rather than losing its events.
 			eventRepository := trimmedCICDPtr(event.evidence.RepositoryID)
 			if runRepository != "" && eventRepository != "" && runRepository != eventRepository {
-				skipped++
+				rejected[event] = struct{}{}
 				continue
 			}
+			attached[event] = struct{}{}
 			matched = append(matched, event)
 		}
 		ev.deploymentEvents = matched
 	}
-	return skipped
+	lost := 0
+	for event := range rejected {
+		if _, ok := attached[event]; !ok {
+			lost++
+		}
+	}
+	return lost
 }
 
 // cicdDeploymentEventStateRank orders a deployment event's provider-reported

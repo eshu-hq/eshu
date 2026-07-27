@@ -162,8 +162,9 @@ the number.
 
 Observability Evidence: one new counter,
 `eshu_dp_cicd_deployment_events_skipped_total`, labelled by domain and
-`skip_reason=repository_mismatch`, reporting deployment events dropped by the
-repository guard — the only available signal for a failure that is total,
+`skip_reason=repository_mismatch`, reporting deployment events LOST by the repository guard — rejected by every
+candidate run and attached to none, rather than rejected (run, event) pairs,
+which would multiply by the sha fan-out the design depends on — the only available signal for a failure that is total,
 silent, and unreachable by both the collector's sha-keyed warning and by startup
 validation. Otherwise no new metric names: The truncation path reuses the
 existing partial-generation counter with a new reason label, and the unanchored
