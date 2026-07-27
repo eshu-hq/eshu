@@ -69,10 +69,18 @@ require_lock "payload carries a start-id fingerprint" \
 # runner does not happen to use.
 require_lock "start-id fingerprint is locale/TZ-normalized" \
 	'LC_ALL=C TZ=UTC ps -o lstart= -p "$1" 2>/dev/null | tr -cd '\''0-9'\'''
+# Both liveness checks treat an empty start-id as "cannot confirm" on BOTH
+# sides of the comparison -- the payload's and the live re-read's. Comparing a
+# non-empty payload fingerprint against an empty live read would reclaim a live
+# lock, which is the fail-open class this whole file exists to prevent.
 require_lock "holder liveness re-validates the start-id" \
-	'{ [[ -z "${holder_startid}" ]] || [[ "$(start_id_for_pid "${holder_pid}")" == "${holder_startid}" ]]; }; then'
+	'[[ -z "${holder_startid}" || -z "${holder_live_startid}" ]] ||'
+require_lock "holder liveness compares the captured live start-id" \
+	'[[ "${holder_live_startid}" == "${holder_startid}" ]]'
 require_lock "reclaim re-validates the start-id" \
-	'{ [[ -z "${current_startid}" ]] || [[ "$(start_id_for_pid "${current_pid}")" == "${current_startid}" ]]; }; }; then'
+	'[[ -z "${current_startid}" || -z "${current_live_startid}" ]] ||'
+require_lock "reclaim compares the captured live start-id" \
+	'[[ "${current_live_startid}" == "${current_startid}" ]]'
 require_lock "CI bypass" 'ESHU_SKIP_LIVE_GATE_LOCK'
 require_lock "test lock relocation" 'ESHU_LIVE_GATE_LOCK_DIR'
 # `ln -s` into a DIRECTORY links inside it and reports success, so the claim
@@ -112,6 +120,12 @@ require_lock "re-read before destroying" \
 # it because it pins the reader, not the writer.
 require_lock "a free name is never destroyed" 'current_is_debris=0'
 require_lock "non-symlink guard is reapable" '[[ "${guard_status}" -eq 2 ]]'
+# The guard-side arity check is the only invariant this file introduces with no
+# behavioural case: reverting it alone leaves the whole suite green, because the
+# holder-side check catches a bare-pid payload first and acquire fails CLOSED.
+# The reclaim only happens when BOTH sites are gone, so this pin is what stops a
+# future edit deleting half the fix silently.
+require_lock "guard parse rejects a colon-less payload" 'case "${current}" in'
 # NOT a bare 'retain_live_gate_lock' grep: that matches the definition itself and
 # can never fail. Pin the part that makes it do something, and its fail-loud.
 require_lock "keep marker write" 'lock_path}.keep"'

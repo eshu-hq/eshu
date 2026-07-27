@@ -82,8 +82,12 @@ process_is_alive() {
 # one being wrongly refused. Pinning both LC_ALL and TZ inside the helper
 # makes the fingerprint a function of the pid alone, never of the caller's
 # environment.
+# The `|| true` is load-bearing under `set -e`: `ps -p` exits non-zero for a
+# dead, empty, or unreadable pid, and callers that capture this into a variable
+# BEFORE the liveness check would otherwise abort the whole script instead of
+# receiving the documented empty "cannot confirm" result.
 start_id_for_pid() {
-	LC_ALL=C TZ=UTC ps -o lstart= -p "$1" 2>/dev/null | tr -cd '0-9'
+	LC_ALL=C TZ=UTC ps -o lstart= -p "$1" 2>/dev/null | tr -cd '0-9' || true
 }
 
 # `ln -s` is create-or-fail only when the name does not exist. If a DIRECTORY
@@ -176,7 +180,15 @@ acquire_live_gate_lock() {
 				# digit-only check below as if it were a genuine start-id, and gets
 				# compared against the pid's ACTUAL start-id fingerprint - which it
 				# will essentially never equal. A genuinely live pid then reads as
-				# an unconfirmed mismatch and its lock gets reclaimed.
+				# an unconfirmed mismatch.
+				#
+				# Reverting THIS check alone fails closed, not open: the guard-side
+				# arity check below catches the same payload and acquire wedges
+				# ("could not acquire live gate lock after N attempts"). The
+				# reclaim of a live lock needs BOTH sites gone, which is why the
+				# guard side carries its own require_lock pin -- deleting half the
+				# fix is the reachable mistake, and it is the half with no
+				# behavioural case.
 				case "${holder}" in
 					*:*)
 						holder_pid="${holder%%:*}"
@@ -210,9 +222,17 @@ acquire_live_gate_lock() {
 		# original holder crashed, this would read a stale lock as live forever.
 		# An empty holder_startid (payload predates the fingerprint, or the
 		# original process could not be read at claim time) degrades to the
-		# pid-only check rather than being treated as stale.
+		# pid-only check rather than being treated as stale. An empty LIVE
+		# re-read degrades the same way: start_id_for_pid documents empty as
+		# "cannot confirm", and comparing "" against a real fingerprint would
+		# turn an unreadable-but-alive holder into a reclaim -- fail-open, the
+		# exact class this lock exists to prevent. Not currently reachable on
+		# macOS or Linux, where ps -p fails first, but a missing ps binary
+		# reaches it.
+		holder_live_startid="$(start_id_for_pid "${holder_pid}")"
 		if [[ "${holder_pid}" =~ ^[0-9]+$ ]] && process_is_alive "${holder_pid}" &&
-			{ [[ -z "${holder_startid}" ]] || [[ "$(start_id_for_pid "${holder_pid}")" == "${holder_startid}" ]]; }; then
+			{ [[ -z "${holder_startid}" || -z "${holder_live_startid}" ]] ||
+				[[ "${holder_live_startid}" == "${holder_startid}" ]]; }; then
 			die "another live gate is already running (pid ${holder_pid}, ${holder_where}).
   This gate binds fixed host ports and must be serialized: a second concurrent run
   does not fail cleanly, it starves the first into a spurious drain failure.
@@ -263,8 +283,10 @@ acquire_live_gate_lock() {
 			if [[ -z "${current}" && -e "${candidate}" ]]; then
 				current_is_debris=1
 			fi
+			current_live_startid="$(start_id_for_pid "${current_pid}")"
 			if ! { [[ "${current_pid}" =~ ^[0-9]+$ ]] && process_is_alive "${current_pid}" &&
-				{ [[ -z "${current_startid}" ]] || [[ "$(start_id_for_pid "${current_pid}")" == "${current_startid}" ]]; }; }; then
+				{ [[ -z "${current_startid}" || -z "${current_live_startid}" ]] ||
+					[[ "${current_live_startid}" == "${current_startid}" ]]; }; }; then
 				# Re-check under the guard: a --keep holder may have retained the
 				# stack after our pre-loop check, and its pid is dead by design. The
 				# marker is written BEFORE that holder exits, so at the instant the
