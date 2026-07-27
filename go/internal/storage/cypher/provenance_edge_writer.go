@@ -48,12 +48,18 @@ const (
 // relationship count to edges whose evidence_kinds list contains a given
 // token -- evaluated in Go, not Cypher, because a NornicDB WHERE clause over
 // an arbitrary relationship property does not filter (see that function's
-// comment). BUILT_FROM is a shared edge type with the #5428
-// reducer/ci-cd-run-correlation domain, so its evidence_kinds token is what
-// lets a required-correlation assertion prove it is counting THIS domain's
-// edges and not that one's. PUBLISHES has no cross-domain sharing risk today,
-// but the token still distinguishes ownership-sourced from
-// publication-sourced edges for the same reason.
+// comment). BUILT_FROM is single-owner today: only container_image_identity
+// writes it. A #5428 reducer/ci-cd-run-correlation writer was implemented and
+// then rescinded before shipping
+// (docs/internal/evidence/5428-built-from-projection-rescinded.md) because the
+// canonical MERGE identity below omits evidence_source and scope_id, so a
+// second domain writing the same (digest, repository) pair would collapse
+// onto the first domain's edge instead of isolating from it (#5827). The
+// evidence_kinds token is stamped regardless, so a future second writer has
+// this isolation available once #5827 lands, but it provides no isolation on
+// its own while the MERGE identity ignores it. PUBLISHES has no cross-domain
+// sharing risk today, but the token still distinguishes ownership-sourced
+// from publication-sourced edges for the same reason.
 var provenanceEdgeKindForSource = map[string]string{
 	"reducer/package-ownership":          "PACKAGE_OWNERSHIP_CORRELATION",
 	"reducer/package-publication":        "PACKAGE_PUBLICATION_CORRELATION",
@@ -64,11 +70,12 @@ var provenanceEdgeKindForSource = map[string]string{
 // provenanceEdgeSourceToolForSource maps a writer evidence_source to the
 // canonical source_tool token (docs/public/reference/edge-source-tool-provenance.md,
 // #3997/#3999), stamped only where a real ecosystem/tool classification
-// exists. container-image-identity edges are OCI-registry-sourced regardless
-// of which reducer domain wrote them (this one, or the shared-edge-type
-// #5428 reducer/ci-cd-run-correlation), so both would carry "oci" -- the
-// evidence_kinds property, not source_tool, is what distinguishes the two
-// domains. PUBLISHES has no ecosystem-detection wired yet (the decision
+// exists. container-image-identity edges are OCI-registry-sourced, and
+// container_image_identity is BUILT_FROM's only writer today (#5428's
+// reducer/ci-cd-run-correlation writer was rescinded before shipping, see
+// docs/internal/evidence/5428-built-from-projection-rescinded.md), so no
+// second BUILT_FROM source_tool value exists to disambiguate yet. PUBLISHES
+// has no ecosystem-detection wired yet (the decision
 // carries no package ecosystem field), so it is intentionally absent from
 // this map and its rows never get a source_tool stamp -- an absent value,
 // never a guess.
@@ -141,9 +148,14 @@ DELETE rel`
 
 // retractProvenanceBuiltFromEdgesCypher removes this writer's BUILT_FROM
 // edges for one scope+evidence_source before a fresh generation reprojects
-// them. BUILT_FROM is a shared edge type with the #5428
-// reducer/ci-cd-run-correlation domain; the evidence_source predicate is what
-// keeps this retract from ever touching that domain's edges.
+// them. Only container_image_identity writes BUILT_FROM today, so this
+// retract has no other domain's edges to avoid. It still filters on
+// evidence_source rather than matching every BUILT_FROM edge, but that filter
+// is not a proven cross-domain isolation guarantee: the canonical MERGE above
+// matches on (start, end, type) alone and ignores evidence_source, so a
+// second writer sharing this edge type would collapse onto the same edge and
+// this retract could delete an assertion the other writer still supports
+// (#5827). A second BUILT_FROM writer MUST NOT land until #5827 is fixed.
 const retractProvenanceBuiltFromEdgesCypher = `MATCH (:ContainerImage)-[rel:BUILT_FROM]->(:Repository)
 WHERE rel.scope_id = $scope_id
   AND rel.evidence_source = $evidence_source

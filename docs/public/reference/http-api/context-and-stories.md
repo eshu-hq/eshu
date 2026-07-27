@@ -378,9 +378,11 @@ story never emits `evidence_boundaries` today: its `ci_cd_evidence` field
 already serves ci_cd_run_correlation, and `code_to_runtime_trace`'s
 `image_package` segment already serves container_image_identity, so both
 candidate domains are fully covered and `evidence_boundaries` is absent from
-every service story response. `evidence_graph` alone omits ci_cd/supply-chain
-graph edges (no BUILT_FROM edge is projected yet for either domain), but that
-narrower sub-surface gap is not disclosed as a whole-route boundary.
+every service story response. `evidence_graph` alone still omits ci_cd/supply-chain
+graph edges — it is built from the workload context rather than a BUILT_FROM
+graph read, so container_image_identity's BUILT_FROM edges (projected since
+issue #5457) are not wired into it — but that narrower sub-surface gap is not
+disclosed as a whole-route boundary.
 
 Service story `evidence_graph.nodes[]` assigns source-backed roles for the
 workload anchor, source repository, deployment configuration, runtime instance,
