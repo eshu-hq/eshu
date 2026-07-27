@@ -11,7 +11,7 @@ a same-scope unit test that bypasses real scope separation. This branch adds:
   cross-scope bridge, mirroring the existing `activeContainerImageSLSAFactLoader`
   pattern (#5456 PR #5707 P1-b).
 - `go/internal/storage/postgres/facts_active_container_image_ci.go` +
-  `migrations/079_fact_records_active_container_image_ci_idx.sql` — the
+  `migrations/081_fact_records_active_container_image_ci_idx.sql` — the
   dedicated Postgres query and partial index the loader runs, deliberately
   NOT folded into `identityFactFilterSQL`/`fact_records_identity_epoch_idx`
   because `ci.run`/`ci.artifact` is the highest-churn fact family in the
@@ -27,7 +27,7 @@ a same-scope unit test that bypasses real scope separation. This branch adds:
   carry no independent metric.
 
 This is a **Mandatory Prove-The-Theory-First** change: it adds both a hot-path
-cross-scope Postgres query and a new partial index (migration 079). The
+cross-scope Postgres query and a new partial index (migration 081). The
 theory — that the index lets the planner switch from a full/near-full
 `fact_records` scan to a targeted bitmap scan once the table is large and a
 meaningful fraction of scopes are CI-run scopes — was proven with `EXPLAIN
@@ -115,7 +115,7 @@ against `ingestion_scopes`/`scope_generations`:
 - Execution time: **1292.650 ms**
 - Buffers: **~2,270,000** (shared hit+read; essentially the full table)
 
-### With `fact_records_active_container_image_ci_idx` (migration 079)
+### With `fact_records_active_container_image_ci_idx` (migration 081)
 
 Planner switched to a **Bitmap Index Scan** on
 `fact_records_active_container_image_ci_idx`:
@@ -155,7 +155,7 @@ an unused index is a no-op at read time.
   `fact_records_active_container_image_slsa_idx` (migration 075) shape
   exactly: a plain `(observed_at, fact_id)` partial index with a
   `fact_kind`/`source_system` predicate, not a novel index design.
-- `CREATE INDEX CONCURRENTLY IF NOT EXISTS` (migration 079) is the same
+- `CREATE INDEX CONCURRENTLY IF NOT EXISTS` (migration 081) is the same
   non-blocking, idempotent-on-reapply DDL pattern every other partial index
   in this codebase uses (see `069`/`075`/`076`/`077` for identical
   first-application/reapplication/rollback proof shape).
@@ -181,7 +181,7 @@ PASS
 
 `TestFactRecordsActiveContainerImageCIIndexPredicateMatchesFilterSQL` reads
 the actual migration file
-(`migrations/079_fact_records_active_container_image_ci_idx.sql`) and asserts
+(`migrations/081_fact_records_active_container_image_ci_idx.sql`) and asserts
 its `WHERE` clause is identical to `listActiveContainerImageCIFactsFilterSQL`,
 so the index-to-query lockstep this evidence note relies on is enforced by
 the build, not only documented here.
@@ -334,7 +334,7 @@ directly.
 
 ## Owner predicate pushed into SQL (#5810 P1 follow-up)
 
-Codex review flagged that even with the owner gate above and migration 079's
+Codex review flagged that even with the owner gate above and migration 081's
 (now 081's) index, `ListActiveContainerImageCIFacts` still paginated through
 **every** active `ci.run`/`ci.artifact` fact platform-wide before
 `filterContainerImageCIFactsForOwner` threw nearly all of it away in Go: the
@@ -468,7 +468,7 @@ No-Observability-Change note already covers.
 
 | candidate | stage seconds (before) | expected saving | cheapest proof | old | new | accuracy | concurrency | disposition |
 | --- | ---: | --- | --- | ---: | ---: | --- | --- | --- |
-| `fact_records_active_container_image_ci_idx` (migration 079), worst case (500K active CI scopes, ~2.12M facts) | 1292.650 ms | large at worst-case scale | `EXPLAIN (ANALYZE, BUFFERS)`, prior session (cited, not re-run here) | 1292.650 ms, ~2.27M buffers | 199.588 ms, ~805K buffers (~6.5x) | exact-equivalence via `count(*)` + ordered `md5(string_agg(fact_id))` over 100,000 rows, 0 diff | read-only query, no lock/claim/lease path; `CREATE INDEX CONCURRENTLY IF NOT EXISTS` is the standard non-blocking DDL this codebase already uses for identical-shape indexes | **proven, landed** — cited prior measurement; loader correctness independently re-proven this session (unit tests + live B-7 gate) |
+| `fact_records_active_container_image_ci_idx` (migration 081), worst case (500K active CI scopes, ~2.12M facts) | 1292.650 ms | large at worst-case scale | `EXPLAIN (ANALYZE, BUFFERS)`, prior session (cited, not re-run here) | 1292.650 ms, ~2.27M buffers | 199.588 ms, ~805K buffers (~6.5x) | exact-equivalence via `count(*)` + ordered `md5(string_agg(fact_id))` over 100,000 rows, 0 diff | read-only query, no lock/claim/lease path; `CREATE INDEX CONCURRENTLY IF NOT EXISTS` is the standard non-blocking DDL this codebase already uses for identical-shape indexes | **proven, landed** — cited prior measurement; loader correctness independently re-proven this session (unit tests + live B-7 gate) |
 | same index, low cardinality (2K–50K active CI scopes) | n/a (small platform) | none expected | same shim, prior session | — | planner correctly ignores the new index; no measurable regression | n/a (index unused) | n/a | **no-harm, confirmed** |
 | flat WHERE + owner AND-clause, no repository_id index (Theory 1) | 1055.371 ms (OLD baseline) | none — expected large win | `EXPLAIN (ANALYZE, BUFFERS)`, this session, seeded 100K-scope/1M-fact partition | 1055.371 ms | 5261.360 ms (worse) | n/a — rejected before equivalence check | correlated subplan re-executed 200,000 times, no lock/lease concern but pathological CPU/buffer cost | **disproven, rejected** — saved implementation, not built on |
 | same shape + `MATERIALIZED` CTE, no index (Theory 2) | 1055.371 ms | some win expected | same shim | 1055.371 ms | 955.698 ms (~10%, not the fix) | n/a — rejected, no real bound | read-only, no concurrency concern | **disproven, rejected** |
