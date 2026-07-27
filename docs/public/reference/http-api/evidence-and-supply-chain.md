@@ -956,9 +956,18 @@ through repository plus environment plus an operational anchor (no digest or
 image-ref agreement with the finding's own artifact identity) can promote the
 finding to `deployed_image` only when that environment's evidence is
 `deploy_event` — a declared-only environment link is not by itself proof that
-the vulnerable artifact was deployed. Deployments that match by exact digest
-or image-ref equality are artifact-identity-anchored and are unaffected by
-this distinction.
+the vulnerable artifact was deployed.
+
+A contradicting digest overrides all of this. `environment_evidence`
+corroborates the *environment*, not the *artifact*, and a correlation row
+reports its own `artifact_digest` alongside it. When that digest is present and
+differs from the finding's `subject_digest`, the deployment reports that a
+different image shipped, and it cannot promote the finding to `deployed_image` —
+not on a matching image reference, and not on `deploy_event` corroboration. An
+image reference is a mutable tag that can be repointed from one digest to
+another, so the digest is the identity that decides. A deployment that matches
+the finding's digest exactly is unaffected, since there is nothing to
+contradict.
 
 A declared-only deployment is still linked to the finding: it contributes its
 environment (labelled `declared`), its `cicd_run_correlation` evidence hop, and

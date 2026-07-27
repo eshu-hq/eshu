@@ -144,23 +144,25 @@ Behavior change, so the proof is the intended delta.
 
 ```
 $ cd go && go test ./internal/reducer -count=1 -v \
-    -run 'EnvironmentEvidence|Branch3'
+    -run 'EnvironmentEvidence|Branch3|ContradictingDigest|RegardlessOf'
+--- PASS: TestCICDRunCorrelationPayloadIncludesEnvironmentEvidence
+--- PASS: TestRecordSupplyChainEnvironmentEvidenceDeployEventWinsOverDeclared
 --- PASS: TestSupplyChainDeploymentContextFromEnvelopeDecodesEnvironmentEvidence
+--- PASS: TestExtractEC2InstanceNodeRowsDeterministicOrderRegardlessOfInput
+--- PASS: TestBuildSupplyChainImpactFindingsImageRefBranchPromotesRegardlessOfEnvironmentEvidence
+--- PASS: TestBuildSupplyChainImpactFindingsDigestBranchPromotesRegardlessOfEnvironmentEvidence
+--- PASS: TestBuildSupplyChainImpactFindingsImageRefMatchWithContradictingDigestDoesNotPromote
 --- PASS: TestBuildSupplyChainImpactFindingsBranch3DeclaredOnlyDoesNotPromoteRuntimeReachability
 --- PASS: TestBuildSupplyChainImpactFindingsBranch3DeployEventPromotesRuntimeReachability
---- PASS: TestBuildSupplyChainImpactFindingsBranch3DeployEventWithContradictingDigestDoesNotPromote
---- PASS: TestBuildSupplyChainImpactFindingsDigestBranchPromotesRegardlessOfEnvironmentEvidence
---- PASS: TestBuildSupplyChainImpactFindingsImageRefBranchPromotesRegardlessOfEnvironmentEvidence
 --- PASS: TestSupplyChainImpactTypedPayloadPersistsEnvironmentEvidence
---- PASS: TestSupplyChainImpactTypedPayloadPersistsEmptyEnvironmentEvidence
---- PASS: TestRecordSupplyChainEnvironmentEvidenceDeployEventWinsOverDeclared
-ok  	github.com/eshu-hq/eshu/go/internal/reducer
+--- PASS: TestBuildSupplyChainImpactFindingsBranch3DeployEventWithContradictingDigestDoesNotPromote
+ok  	github.com/eshu-hq/eshu/go/internal/reducer	0.920s
 
-$ cd go && go test ./internal/query -count=1 -v \
-    -run 'EnvironmentEvidence'
---- PASS: TestSupplyChainImpactFindingsExposeEnvironmentEvidenceInResponseBody
+$ cd go && go test ./internal/query -count=1 -v -run 'EnvironmentEvidence'
+--- PASS: TestCICDListRunCorrelationsExposesEnvironmentEvidence
 --- PASS: TestSupplyChainImpactFindingsOmitEnvironmentEvidenceWhenAbsent
-ok  	github.com/eshu-hq/eshu/go/internal/query
+--- PASS: TestSupplyChainImpactFindingsExposeEnvironmentEvidenceInResponseBody
+ok  	github.com/eshu-hq/eshu/go/internal/query	0.958s
 ```
 
 The two `...PromotesRegardlessOfEnvironmentEvidence` tests are the load-bearing
@@ -175,6 +177,36 @@ environment. Its sibling `...Branch3DeployEventPromotesRuntimeReachability` uses
 a deployment with no digest at all, which is the case corroboration is actually
 meant to rescue — the two together pin both sides of that boundary.
 
+### The declared-only guard was silently defanged once
+
+Worth recording, because the failure mode is invisible in a green test run.
+
+`...Branch3DeclaredOnlyDoesNotPromoteRuntimeReachability` was originally written
+with a fixture carrying a non-matching digest. That was harmless until the
+contradicting-digest rule landed and moved a digest check to the *front* of the
+promotion predicate. From then on the test short-circuited on the digest and
+never reached the declared-vs-`deploy_event` rule it exists to prove — while
+still passing.
+
+Review caught it by mutation: deleting #5426's entire corroboration rule left
+the whole `internal/reducer` package green. The fixture now carries no artifact
+identity at all, so branches 1 and 2 are unsatisfiable and the contradiction
+check cannot fire, leaving the corroboration rule as the only thing that can
+decide the outcome. Re-running the same mutation now fails exactly where it
+should:
+
+```
+$ go test ./internal/reducer -overlay=<promotion rule replaced with `return true`> \
+    -run 'Branch3|RegardlessOfEnvironmentEvidence|ContradictingDigest'
+--- FAIL: TestBuildSupplyChainImpactFindingsBranch3DeclaredOnlyDoesNotPromoteRuntimeReachability
+    RuntimeReachability = "deployed_image", want declared-only branch-3 evidence
+    to withhold deployed_image
+```
+
+The general lesson: when a predicate gains an early-exit branch, every existing
+test whose fixture can trigger that branch stops testing whatever came after it,
+and nothing goes red to say so.
+
 `...Branch3DeclaredOnlyDoesNotPromoteRuntimeReachability` asserts both halves of
 the corrected design: the finding is not promoted, *and* it still carries the
 environment (labelled `declared`) and the `cicd_run_correlation` evidence hop.
@@ -184,10 +216,7 @@ match again.
 **No pre-existing behavior test needed editing.** The first attempt required two
 edits in `supply_chain_impact_operational_anchor_test.go` to keep those tests
 reaching their own subject; both are reverted, and they now pass unmodified
-against `main`'s versions. (One unrelated test file does change:
-`sdk/go/factschema/decode_gcp_test.go` gains an `intentionalRequiredCollections`
-entry, which is a contract declaration for the new required map field, not an
-assertion being relaxed.) That is the cleanest available proof that the collateral
+against `main`'s versions.  That is the cleanest available proof that the collateral
 damage is gone: the tests that had to be bent to accommodate the wrong design
 need no accommodation from the right one.
 
@@ -223,10 +252,8 @@ change.)
 Every asserted snapshot value is expected to be unchanged from `main` here, and
 is: this change gates only the promotion, so every deployment that matched
 before still matches, and the corpus's one impact finding matches no branch-3
-deployment either way. (The persisted finding payload does gain an
-`environment_evidence` key, so the payload is not byte-identical — but it is an
-optional field, absent whenever a finding has no environment evidence, and no
-snapshot assertion reads it.)
+deployment either way. The persisted payload is byte-identical too: the field is optional and the
+corpus finding's evidence map is empty, so `omitempty` drops the key entirely.
 
 I tried to add a real floor for this change rather than settle for a green run
 that asserts nothing about it:

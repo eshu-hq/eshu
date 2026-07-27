@@ -101,6 +101,17 @@ func TestSupplyChainImpactFindingsOmitEnvironmentEvidenceWhenAbsent(t *testing.T
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
+	// Positive control: without this, the assertion below would also pass on a
+	// response that returned no findings at all.
+	var resp struct {
+		Findings []map[string]any `json:"findings"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v; body = %s", err, w.Body.String())
+	}
+	if len(resp.Findings) != 1 {
+		t.Fatalf("Findings length = %d, want 1; body = %s", len(resp.Findings), w.Body.String())
+	}
 	if strings.Contains(w.Body.String(), "environment_evidence") {
 		t.Fatalf("body contains environment_evidence for a finding with none; body = %s", w.Body.String())
 	}

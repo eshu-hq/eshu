@@ -124,10 +124,15 @@ func TestSupplyChainDeploymentContextFromEnvelopeDecodesEnvironmentEvidence(t *t
 func TestBuildSupplyChainImpactFindingsBranch3DeclaredOnlyDoesNotPromoteRuntimeReachability(t *testing.T) {
 	t.Parallel()
 
+	// No artifact identity at all: branches 1 and 2 are unsatisfiable and the
+	// contradicting-digest check cannot fire, so the ONLY thing that can decide
+	// promotion here is the declared-vs-deploy_event rule this test exists for.
+	// A fixture with a contradicting digest would still pass while proving
+	// nothing, because the digest check short-circuits ahead of it.
 	deployment := cicdRunCorrelationImpactFactWithEvidence(
 		"deploy-1",
-		testImpactOtherDigest,
-		testImpactOtherImageRef,
+		"",
+		"",
 		testImpactRepositoryID,
 		testImpactEnv,
 		string(CICDRunCorrelationExact),
@@ -342,28 +347,6 @@ func TestSupplyChainImpactTypedPayloadPersistsEnvironmentEvidence(t *testing.T) 
 	}
 	if got, want := payload.EnvironmentEvidence[testImpactEnv], supplyChainEnvironmentEvidenceDeclared; got != want {
 		t.Fatalf("payload.EnvironmentEvidence[%q] = %q, want %q for a deployment fact predating #5425", testImpactEnv, got, want)
-	}
-}
-
-// Test 6b: a finding with NO environment evidence at all still persists an
-// empty map rather than a nil one. This is the case the writer's
-// nonNilStringMap exists for: the field is optional in the schema and carries
-// omitempty, so the wire shape is the same either way, but a consumer decoding
-// the typed payload struct gets a rangeable map instead of a nil map. Test 6
-// above cannot cover this: its finding has an environment, so its map is never
-// empty.
-func TestSupplyChainImpactTypedPayloadPersistsEmptyEnvironmentEvidence(t *testing.T) {
-	t.Parallel()
-
-	payload := supplyChainImpactTypedPayload(SupplyChainImpactWrite{
-		ScopeID:      "scope-1",
-		GenerationID: "generation-1",
-	}, SupplyChainImpactFinding{CVEID: "CVE-2026-5431"})
-	if payload.EnvironmentEvidence == nil {
-		t.Fatal("EnvironmentEvidence = nil, want an explicit empty map for a finding with no environment evidence")
-	}
-	if len(payload.EnvironmentEvidence) != 0 {
-		t.Fatalf("EnvironmentEvidence = %#v, want empty", payload.EnvironmentEvidence)
 	}
 }
 

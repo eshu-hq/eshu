@@ -189,7 +189,7 @@ func supplyChainImpactTypedPayload(
 		DeploymentIDs:         nonNilStrings(uniqueSortedStrings(finding.DeploymentIDs)),
 		ServiceIDs:            nonNilStrings(uniqueSortedStrings(finding.ServiceIDs)),
 		Environments:          nonNilStrings(uniqueSortedStrings(finding.Environments)),
-		EnvironmentEvidence:   nonNilStringMap(finding.EnvironmentEvidence),
+		EnvironmentEvidence:   finding.EnvironmentEvidence,
 		CatalogEntityRefs:     nonNilStrings(uniqueSortedStrings(finding.CatalogEntityRefs)),
 		CatalogOwnerRefs:      nonNilStrings(uniqueSortedStrings(finding.CatalogOwnerRefs)),
 		DetectionProfile:      string(finding.DetectionProfile),

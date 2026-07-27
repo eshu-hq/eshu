@@ -22,15 +22,3 @@ func nonNilMapSlice(values []map[string]any) []map[string]any {
 	}
 	return values
 }
-
-// nonNilStringMap is the map-shaped counterpart used by environment_evidence
-// (issue #5426). That field is optional in the payload schema and carries
-// omitempty, so an empty map is omitted from the wire either way — this
-// normalizes the Go-side value so a consumer decoding the typed payload struct
-// gets a rangeable map rather than a nil one.
-func nonNilStringMap(values map[string]string) map[string]string {
-	if values == nil {
-		return map[string]string{}
-	}
-	return values
-}
