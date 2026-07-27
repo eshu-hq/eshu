@@ -521,8 +521,12 @@ log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # alongside #5457); rc-165's ContainerImage->Repository edge is driven by the
 # cicdrun+ociregistry cassette pair's matching artifact_digest/repository_id.
 # rc-165 isolates on evidence_kinds=[CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST] plus
-# a pinned source_tool=oci because BUILT_FROM is a shared edge type with the
-# #5428 reducer/ci-cd-run-correlation domain.
+# a pinned source_tool=oci. container_image_identity is BUILT_FROM's sole
+# writer today; a #5428 reducer/ci-cd-run-correlation writer that would have
+# shared this edge type was implemented and then rescinded before shipping
+# (docs/internal/evidence/5428-built-from-projection-rescinded.md), because
+# the isolation this rc's pin assumes is not something the canonical MERGE
+# actually provides across writers (#5827).
 # rc-167 (DERIVED_FROM) is issue #5460's base-image lineage projection. Unlike
 # rc-164/rc-165 it is driven by a STATIC-PARSE fixture rather than a cassette
 # join: the container-base-lineage fixture's Dockerfile pins its final stage to

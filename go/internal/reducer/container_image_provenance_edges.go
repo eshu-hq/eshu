@@ -14,11 +14,15 @@ import (
 )
 
 // containerImageBuiltFromProvenanceEvidenceSource tags BUILT_FROM edges
-// projected from container_image_identity decisions. BUILT_FROM is a shared
-// edge type with the #5428 ci_cd_run_correlation domain
-// (reducer/ci-cd-run-correlation); the distinct evidence_source is what keeps
-// this domain's retract-first pass from ever touching that domain's edges
-// (docs/internal/design/5472-graph-projection-policy.md).
+// projected from container_image_identity decisions. container_image_identity
+// is the sole writer of BUILT_FROM today. A #5428 ci_cd_run_correlation writer
+// sharing this edge type was implemented and then rescinded before shipping
+// (docs/internal/evidence/5428-built-from-projection-rescinded.md): the
+// canonical MERGE identity matches on (start, end, type) only, ignoring
+// evidence_source, so a second writer on the same (digest, repository) pair
+// would collapse onto this domain's edge instead of being isolated from it
+// by evidence_source (#5827). A second BUILT_FROM writer MUST NOT land until
+// #5827 is fixed (docs/internal/design/5472-graph-projection-policy.md).
 const containerImageBuiltFromProvenanceEvidenceSource = "reducer/container-image-identity"
 
 // ContainerImageProvenanceEdgeWriter persists and retracts canonical

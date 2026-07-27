@@ -37,12 +37,18 @@ const (
 	// DEPENDS_ON traversals.
 	AtlantisDependsOn EdgeType = "ATLANTIS_DEPENDS_ON"
 	// BuiltFrom is the "BUILT_FROM" graph relationship type (a ContainerImage
-	// to the Repository its container_image_identity or ci_cd_run_correlation
-	// decision resolved as build source, issue #5457/#5428). It is a shared
-	// edge type across those two reducer domains; each MERGEs and retracts its
-	// own edges scoped by a distinct rel.evidence_source
-	// (reducer/container-image-identity vs reducer/ci-cd-run-correlation), per
-	// docs/internal/design/5472-graph-projection-policy.md.
+	// to the Repository its container_image_identity decision resolved as
+	// build source, issue #5457). It is single-owner today:
+	// container_image_identity is the only reducer domain that writes it,
+	// with rel.evidence_source=reducer/container-image-identity. The
+	// ci_cd_run_correlation BUILT_FROM projection (issue #5428) was
+	// implemented and then rescinded before shipping
+	// (docs/internal/evidence/5428-built-from-projection-rescinded.md)
+	// because the writer's MERGE identity omits evidence_source and scope_id,
+	// so a second domain writing the same (digest, repository) pair would
+	// collapse onto the first domain's edge rather than create its own
+	// (issue #5827). Any future second writer sharing this edge type is
+	// contingent on #5827 landing first.
 	BuiltFrom EdgeType = "BUILT_FROM"
 	// Calls is the "CALLS" graph relationship type.
 	Calls EdgeType = "CALLS"
