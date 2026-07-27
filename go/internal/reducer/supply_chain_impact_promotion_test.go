@@ -331,3 +331,57 @@ func TestBuildSupplyChainImpactFindingsWithoutSubjectDigestDoesNotPromote(t *tes
 		t.Fatalf("RuntimeReachability = %q, want a finding with no artifact identity to stay unpromoted", got.RuntimeReachability)
 	}
 }
+
+// sbomOnlyFindingFacts builds the image_sbom class: an SBOM component path
+// supplies the finding, there is no exact-version consumption fact, the digest
+// is present, and a branch-3 declared-only deployment is in scope.
+func sbomOnlyFindingFacts(cveID string, cvss float64, deployment facts.Envelope) []facts.Envelope {
+	return []facts.Envelope{
+		vulnerabilityCVEFact("cve-1", cveID, cvss),
+		vulnerabilityAffectedPackageFact("affected-1", cveID, testImpactPackageID, "npm", "example", "1.2.3", "1.3.0"),
+		sbomComponentImpactFact("component-1", "doc-1", testImpactPURL),
+		sbomAttachmentImpactFact("attachment-1", "doc-1", testImpactSubjectDigest),
+		containerImageIdentityImpactFactWithOutcome(
+			"image-1", testImpactSubjectDigest, testImpactRepositoryID,
+			"registry.example/api@"+testImpactSubjectDigest,
+			string(ContainerImageIdentityExactDigest),
+		),
+		workloadIdentityImpactFact("workload-1", testImpactRepositoryID, testImpactWorkloadID),
+		deployment,
+	}
+}
+
+// Withholding the promotion also moves priority, and that second delta is
+// deliberate rather than incidental.
+//
+// supplyChainImpactPriorityContributions gates sbom_image_evidence (+15) and
+// runtime_reachable (+25) on RuntimeReachability == "image_sbom" EXACTLY. So on
+// main, promoting an SBOM-derived finding to deployed_image silently erased 40
+// points -- a stronger reachability tier cost the finding its priority. Holding
+// it at image_sbom restores them.
+//
+// Measured on this fixture: 95/critical here versus 55/medium under main's
+// len(deployments) > 0 gate. The CVSS is deliberately low; at 9.1 both saturate
+// at 100/critical and the delta is invisible.
+func TestBuildSupplyChainImpactFindingsDeclaredOnlyKeepsImageSBOMPriority(t *testing.T) {
+	t.Parallel()
+
+	deployment := cicdRunCorrelationImpactFactWithEvidence(
+		"deploy-1", "", "", testImpactRepositoryID, testImpactEnv,
+		string(CICDRunCorrelationExact), supplyChainEnvironmentEvidenceDeclared,
+	)
+	findings := BuildSupplyChainImpactFindings(sbomOnlyFindingFacts("CVE-2026-5437", 4.0, deployment))
+	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-5437"]
+
+	if got.RuntimeReachability != "image_sbom" {
+		t.Fatalf("RuntimeReachability = %q, want image_sbom to survive a declared-only deployment", got.RuntimeReachability)
+	}
+	assertContainsString(t, got.PriorityReasonCodes, "sbom_image_evidence")
+	assertContainsString(t, got.PriorityReasonCodes, "runtime_reachable")
+	if got.PriorityBucket != "critical" {
+		t.Fatalf("PriorityBucket = %q (score %d), want critical -- the image_sbom contributions must survive", got.PriorityBucket, got.PriorityScore)
+	}
+	if got.PriorityScore != 95 {
+		t.Fatalf("PriorityScore = %d, want 95; main's gate scored this finding 55 by promoting it away from image_sbom", got.PriorityScore)
+	}
+}

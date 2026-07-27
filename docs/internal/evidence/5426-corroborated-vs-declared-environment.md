@@ -110,6 +110,39 @@ artifact reachability (`image_sbom`, `image_os_package`, `deployed_image`,
 `known_fixed`), while corroboration is per-environment. It is also not
 `truth.TierDeclaredRef`, which #5393 owns for DEPLOYS_REF evidence.
 
+## Withholding the promotion also moves priority
+
+There is a second, deliberate delta, and it is worth stating because it is not
+obvious from the change itself.
+
+`supplyChainImpactPriorityContributions` gates two contributions —
+`sbom_image_evidence` (+15) and `runtime_reachable` (+25) — on
+`RuntimeReachability == "image_sbom"`, an **exact** string match. So on `main`,
+promoting an SBOM-derived finding to `deployed_image` silently erased 40 points:
+a *stronger* reachability tier cost the finding its priority. Holding it at
+`image_sbom` gives them back.
+
+Measured on the same fixture, HEAD's gate versus `main`'s `len(deployments) > 0`
+gate (applied via `go test -overlay`):
+
+```
+HEAD gate:  runtime_reachability="image_sbom"      priority_score=95  bucket="critical"
+main gate:  runtime_reachability="deployed_image"  priority_score=55  bucket="medium"
+```
+
+The fixture's CVSS is deliberately low. At 9.1 both sides saturate at
+100/critical and the delta is invisible — which is why it went unnoticed until
+the final review round.
+
+`priority_score`, `priority_bucket`, and `priority_reason_codes` are persisted
+and wire-visible, so this is a real contract change on a triage field, not an
+internal detail. The direction is defensible: a declared-only deployment is
+weaker evidence than the SBOM image anchor it was displacing, and the finding
+now keeps the anchor it actually has. But it is a second delta, so it is
+declared here and pinned by
+`TestBuildSupplyChainImpactFindingsDeclaredOnlyKeepsImageSBOMPriority`, which
+fails under `main`'s gate.
+
 ## The payload field is additive-optional, not required
 
 `environment_evidence` carries `omitempty` on
@@ -144,7 +177,7 @@ Behavior change, so the proof is the intended delta.
 
 ```
 $ cd go && go test ./internal/reducer -count=1 -v \
-    -run 'EnvironmentEvidence|Branch3|ContradictingDigest|RegardlessOf|DeployEventWins|WithoutSubjectDigest'
+    -run 'EnvironmentEvidence|Branch3|ContradictingDigest|RegardlessOf|DeployEventWins|WithoutSubjectDigest|ImageSBOMPriority'
 --- PASS: TestRecordSupplyChainEnvironmentEvidenceSkipsBlankEnvironment
 --- PASS: TestNormalizeSupplyChainEnvironmentEvidenceTrimsPadding
 --- PASS: TestCICDRunCorrelationPayloadIncludesEnvironmentEvidence
@@ -160,6 +193,7 @@ $ cd go && go test ./internal/reducer -count=1 -v \
 --- PASS: TestBuildSupplyChainImpactFindingsDeployEventWinsAcrossDeploymentsInEitherOrder
 --- PASS: TestSupplyChainImpactTypedPayloadPersistsEnvironmentEvidence
 --- PASS: TestSupplyChainDeploymentContextFromEnvelopeDecodesEnvironmentEvidence
+--- PASS: TestBuildSupplyChainImpactFindingsDeclaredOnlyKeepsImageSBOMPriority
 ok  	github.com/eshu-hq/eshu/go/internal/reducer	0.910s
 
 $ cd go && go test ./internal/query -count=1 -v -run 'EnvironmentEvidence'
@@ -214,6 +248,7 @@ claim that the technique is exhaustive.
 | blank-environment skip in the recorder | guard deleted | `TestRecordSupplyChainEnvironmentEvidenceSkipsBlankEnvironment` |
 | `normalize` trims before comparing | `TrimSpace` removed | `TestNormalizeSupplyChainEnvironmentEvidenceTrimsPadding` |
 | caller requires a non-empty `SubjectDigest` | guard deleted | `...WithoutSubjectDigestDoesNotPromote` |
+| image_sbom priority survives a declared-only deployment | gate reverted to `main`'s | `...DeclaredOnlyKeepsImageSBOMPriority` |
 
 Six of these rows exist only because the audit found them uncovered; the rest
 confirmed guards that were already in place.

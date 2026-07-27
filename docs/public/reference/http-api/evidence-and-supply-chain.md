@@ -974,6 +974,14 @@ environment (labelled `declared`), its `cicd_run_correlation` evidence hop, and
 its correlation fact ID, so `deployment_truth_tier` stays
 `provenance_ci_declared`. Only the promotion to `deployed_image` is withheld.
 
+Withholding the promotion also affects `priority_score`, `priority_bucket`, and
+`priority_reason_codes` for SBOM-derived findings. The `sbom_image_evidence` and
+`runtime_reachable` priority contributions require
+`runtime_reachability=image_sbom` exactly, so a finding held at `image_sbom`
+keeps both, where one promoted to `deployed_image` loses them. An SBOM-derived
+finding with only a declared-only deployment therefore scores higher than it did
+before, reflecting the image anchor it actually has.
+
 ### Remediation (Safe Upgrade)
 
 Each finding row and the explain payload also carry a `remediation` block
