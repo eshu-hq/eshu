@@ -66,6 +66,7 @@ func decodeSupplyChainImpactFindingRow(
 		DeploymentIDs:       StringSliceVal(payload, "deployment_ids"),
 		ServiceIDs:          StringSliceVal(payload, "service_ids"),
 		Environments:        StringSliceVal(payload, "environments"),
+		EnvironmentEvidence: stringMapVal(payload, "environment_evidence"),
 		CatalogEntityRefs:   StringSliceVal(payload, "catalog_entity_refs"),
 		CatalogOwnerRefs:    StringSliceVal(payload, "catalog_owner_refs"),
 		DependencyPath:      StringSliceVal(payload, "dependency_path"),

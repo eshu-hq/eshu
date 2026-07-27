@@ -952,6 +952,60 @@ correlation lacks explicit `service_id` or `workload_id` anchors, the row
 reports `service/workload catalog anchor missing` instead of saying
 service-catalog correlation evidence is absent.
 
+`environment_evidence` (issue #5426) is an object keyed by each name in
+`environments[]`, valued `deploy_event` or `declared`: `deploy_event` means a
+`ci.deployment_event` observed at the deploying run's commit corroborated that
+environment; `declared` means only the CI-declared workflow job gate did, with
+no deployment-event corroboration. When two deployments report the same
+environment name with different evidence states, `deploy_event` always wins.
+The field is omitted entirely when a finding has no recorded environment
+evidence — including rows written before #5426 landed — rather than reporting a
+fabricated value. This field also tightens `runtime_reachability`/deployment
+promotion: a `cicd_run_correlation` deployment that only links to a finding
+through repository plus environment plus an operational anchor (no digest or
+image-ref agreement with the finding's own artifact identity) can promote the
+finding to `deployed_image` only when that environment's evidence is
+`deploy_event` — a declared-only environment link is not by itself proof that
+the vulnerable artifact was deployed.
+
+A contradicting digest overrides all of this. `environment_evidence`
+corroborates the *environment*, not the *artifact*, and a correlation row
+reports its own `artifact_digest` alongside it. When that digest is present and
+differs from the finding's `subject_digest`, the deployment reports that a
+different image shipped, and it cannot promote the finding to `deployed_image` —
+not on a matching image reference, and not on `deploy_event` corroboration. An
+image reference is a mutable tag that can be repointed from one digest to
+another, so the digest is the identity that decides. A deployment that matches
+the finding's digest exactly is unaffected, since there is nothing to
+contradict.
+
+A declared-only deployment is still linked to the finding: it contributes its
+environment (labelled `declared`), its `cicd_run_correlation` evidence hop, and
+its correlation fact ID, so `deployment_truth_tier` stays
+`provenance_ci_declared`. Only the promotion to `deployed_image` is withheld.
+
+Withholding the promotion also changes the derived `reachability` block. That
+object is computed from `runtime_reachability`, and `deployed_image` maps onto
+`state=reachable` with `source=runtime_or_sbom`. A finding whose only deployment
+evidence is a declared-only environment therefore no longer reports
+`reachability.state=reachable` — it reports the state its own package and parser
+evidence supports. This also reaches the SARIF export as
+`eshu.reachabilityState`.
+
+Withholding the promotion also affects `priority_score`, `priority_bucket`, and
+`priority_reason_codes`. SBOM-derived findings keep the `sbom_image_evidence`
+and `runtime_reachable` contributions, which require
+`runtime_reachability=image_sbom` exactly, so they score higher than before.
+Findings anchored by a code-reachability source (govulncheck, the JS/TS parser,
+or SCIP) move in either direction instead, because their reachability state is
+no longer overwritten by the deployment claim: a `not_called` finding takes its
+penalty again, and a symbol-reachable one takes its bonus.
+
+Because `priority_bucket` and `min_priority_score` are filters and
+`priority_score` drives sorting, keyset paging, and canonical de-duplication, a
+filtered or sorted query over affected findings can return a different page than
+it did before.
+
 ### Remediation (Safe Upgrade)
 
 Each finding row and the explain payload also carry a `remediation` block

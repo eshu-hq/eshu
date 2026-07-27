@@ -290,12 +290,12 @@ func classifyCICDRunEvidence(ev *cicdRunEvidence, imageIndex map[string][]cicdIm
 	// job/step configuration and can drift from what really happened.
 	if env, factID, ok := classifyCICDDeploymentEventEnvironment(ev.deploymentEvents); ok {
 		decision.Environment = env
-		decision.EnvironmentEvidence = "deploy_event"
+		decision.EnvironmentEvidence = supplyChainEnvironmentEvidenceDeployEvent
 		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, factID)
 	} else if len(ev.environmentsDecoded) > 0 {
 		decision.Environment = environment.Canonical(trimmedCICDPtr(ev.environmentsDecoded[0].Environment))
 		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, ev.environments[0].FactID)
-		decision.EnvironmentEvidence = "declared"
+		decision.EnvironmentEvidence = supplyChainEnvironmentEvidenceDeclared
 	}
 	for _, trigger := range ev.triggers {
 		decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, trigger.FactID)

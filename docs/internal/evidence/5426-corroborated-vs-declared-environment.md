@@ -1,0 +1,522 @@
+# #5426 — corroborated versus declared-only deployment environments
+
+The issue asked to stop promoting `RuntimeReachability="deployed_image"` from a
+CI-declared free-text environment alone, corroborating instead against
+kubernetes-live, terraform state, or cloud tag evidence.
+
+It could not be implemented as written. This records why, and what shipped
+instead.
+
+## Two of the three named sources cannot work
+
+**terraform state.** `terraform_state_tag_observation.v1.schema.json` carries
+`resource_address`, `tag_key_hash`, and `tag_source`. There is no tag *value*
+anywhere in the payload, so it cannot supply an environment name at any layer,
+in any design.
+
+**cloud tags.** A reducer-side cloud-fact join was already attempted and
+reverted. #5452 (PR #5790, merged `83e09aaf8`) records it in its own commit
+message: the reducer-side join was *"silently inert: cloud facts never reach the
+supply-chain reducer's scope"*. The surviving mechanism is the bounded
+query-time probe in `go/internal/query/supply_chain_impact_cloud_runtime_probe.go`.
+
+**kubernetes-live.** Reachable only at query time for the same reason.
+`supplyChainImpactFactKinds()` documents cross-scope additions as "the
+tempting-but-wrong fix" in its own comment, which is exactly what #5452 proved
+empirically.
+
+An environment-*name* join is also weak evidence independent of reachability:
+"this repository deploys to prod, and a prod Environment node exists" does not
+place *this artifact* in prod. The honest kubernetes corroboration is a
+digest-anchored `RUNS_IMAGE` probe mirroring #5452, filed as **#5834**.
+
+## The premise was also partly wrong
+
+On `main`, `deployed_image` was not promoted from a declared environment
+directly. `supply_chain_impact_runtime.go` gated it on
+`RuntimeReachability != "known_fixed"`, a non-empty `SubjectDigest`, and at least
+one surviving deployment; the environment was only *appended* to
+`finding.Environments`.
+
+The over-promotion was therefore indirect, and it reached `deployed_image`
+through which deployments counted as "surviving". Environment carries the
+deployment link in exactly one place: the third branch of
+`supplyChainDeploymentMatchesFinding`, which joins on `repositoryID` plus an
+operational anchor and a non-empty environment, with no artifact identity at all.
+A finding with a genuine digest could reach `deployed_image` through a deployment
+that never referenced that digest — not because the environment promoted it, but
+because that deployment counted toward the `len(deployments) > 0` gate.
+
+Implementing the issue's literal text would have tightened all three branches,
+breaking two legitimate artifact-identity-anchored paths.
+
+## What shipped
+
+The gate went on the **promotion**, not on the match.
+
+My first attempt tightened the third branch of `supplyChainDeploymentMatchesFinding`
+itself, so a declared-only deployment simply stopped matching. Separate-context
+review caught that as an accuracy regression, and it was right. A match carries
+four things, and only one of them was the problem:
+
+1. the environment, appended to `finding.Environments`;
+2. the `cicd_run_correlation` hop on `finding.EvidencePath`;
+3. the correlation's fact ID on `finding.EvidenceFactIDs`;
+4. `RuntimeReachability` promotion to `deployed_image`.
+
+Refusing the match discarded all four. Item 2 is the load-bearing one:
+`rowHasCIDeclaredDeploymentEvidence` (`internal/query/supply_chain_impact_result.go`)
+reads exactly that hop to hold a row at
+`deployment_truth_tier=provenance_ci_declared`, so dropping the match silently
+downgraded it to `config_only` — for findings that never had the over-promotion
+problem in the first place. It also made the issue's own goal unreachable: an
+environment can only be *reported* as `declared` if it is recorded at all.
+
+So `supplyChainDeploymentMatchesFinding` branch 3 is unchanged from `main`, and a
+new `supplyChainDeploymentPromotesRuntimeReachability` decides promotion: a
+matched deployment promotes when it is artifact-anchored (digest or image-ref
+agreement with the finding) or when its environment carries `deploy_event`
+corroboration. A declared-only branch-3 deployment keeps its environment, its
+evidence hop, its fact ID, and its truth tier — it just no longer carries the
+finding to `deployed_image` on its own.
+
+One more correction came out of the second review round. `deploy_event`
+corroborates the *environment*, not the *artifact*, and a correlation row
+carries `artifact_digest` and `environment_evidence` together — so a
+`deploy_event` row can name a digest that contradicts the finding's own subject.
+Treating that as corroboration would let `deploy_event` act as a blanket
+override, promoting a finding about image X through a deployment that explicitly
+says image Y shipped. A contradicting digest is positive evidence of absence,
+which outranks the environment signal, so it disqualifies the deployment
+outright. Only the digest is decisive here: image references are mutable and
+registry-prefixed, so two differing refs do not reliably denote two different
+artifacts.
+
+The `environment_evidence` value both rules read is published by #5425 on the
+`reducer_ci_cd_run_correlation` payload, and that fact kind is already in this
+reducer's load set — so reading it is not a
+cross-domain join and cannot go inert the way #5452's attempt did. No fact kind
+was added to `supplyChainImpactFactKinds()`, no graph port was added to the
+handler.
+
+Findings now carry per-environment evidence state alongside the unchanged
+`Environments` list, so a consumer can distinguish a corroborated environment
+from a declared one instead of seeing them blended. `deploy_event` wins a
+collision with `declared`, and a correlation row written before #5425 maps to
+`declared` rather than inventing corroboration it cannot support.
+
+This is deliberately **not** a new `RuntimeReachability` value — that axis is
+artifact reachability (`image_sbom`, `image_os_package`, `deployed_image`,
+`known_fixed`), while corroboration is per-environment. It is also not
+`truth.TierDeclaredRef`, which #5393 owns for DEPLOYS_REF evidence.
+
+## What else moves when the promotion is withheld
+
+`RuntimeReachability` is read by more than the field itself, so withholding the
+promotion cascades. Four consequences, all deliberate: three on persisted
+wire-visible fields, and one on query behavior, because one of those fields is
+itself a query input.
+
+### The reachability envelope stops saying "reachable"
+
+`withSupplyChainReachability` derives `finding.Reachability` from
+`RuntimeReachability`, and maps `image_sbom` / `image_os_package` /
+`deployed_image` onto `state=reachable, source=runtime_or_sbom`. Measured on the
+primary branch-3 fixture, HEAD versus `main`'s gate:
+
+```
+main gate:  runtime_reachability="deployed_image"
+            reachability={state:"reachable", confidence:"partial", source:"runtime_or_sbom"}
+HEAD gate:  runtime_reachability="package_api_missing_evidence"
+            reachability={state:"missing_evidence", confidence:"unknown", source:"parser_js_ts"}
+```
+
+This is the deepest expression of what the issue asks for. On `main`, a
+declared-only workflow environment was enough to label a finding
+runtime-**reachable** — a truth field, not a triage score, and one that reaches
+the SARIF export as `eshu.reachabilityState`. `state` is now driven by the
+evidence the finding actually has. Pinned in
+`...Branch3DeclaredOnlyDoesNotPromoteRuntimeReachability`, which asserts both
+that the state is no longer `reachable` and that the source is no longer
+`runtime_or_sbom`, and fails under `main`'s gate.
+
+### Priority moves, on two different populations
+
+There is a second, deliberate delta, and it is worth stating because it is not
+obvious from the change itself.
+
+`supplyChainImpactPriorityContributions` gates two contributions —
+`sbom_image_evidence` (+15) and `runtime_reachable` (+25) — on
+`RuntimeReachability == "image_sbom"`, an **exact** string match. So on `main`,
+promoting an SBOM-derived finding to `deployed_image` silently erased 40 points:
+a *stronger* reachability tier cost the finding its priority. Holding it at
+`image_sbom` gives them back.
+
+Measured on the SBOM-only fixture — `sbomOnlyFindingFacts`, the one
+`TestBuildSupplyChainImpactFindingsDeclaredOnlyKeepsImageSBOMPriority` uses, not
+the branch-3 fixture measured in the section above — HEAD's gate versus `main`'s
+`len(deployments) > 0` gate (applied via `go test -overlay`):
+
+```
+HEAD gate:  runtime_reachability="image_sbom"      priority_score=95  bucket="critical"
+main gate:  runtime_reachability="deployed_image"  priority_score=55  bucket="medium"
+```
+
+The fixture's CVSS is deliberately low. At 9.1 both sides saturate at
+100/critical and the delta is invisible — which is why it went unnoticed until
+the final review round.
+
+There is a second priority channel, and it applies to a **different**
+population. `supplyChainImpactPriorityContributions` also switches on
+`Reachability.State`/`.Source`, but none of those cases match
+`source=runtime_or_sbom` — the value both `image_sbom` and `deployed_image` map
+to. So for SBOM-derived findings this channel contributes zero on both sides,
+and the 40-point delta above is entirely channel one. (15 + 25 = 40 = 95 - 55,
+which is the arithmetic check that the second channel is not involved.)
+
+Where the second channel does move is findings anchored by a code-reachability
+source — govulncheck, the JS/TS parser, or SCIP — because for those the state
+genuinely differs between the two gates. It is signed, not uniformly positive:
+
+- a `not_called` govulncheck finding now takes the `reachability_not_called`
+  penalty (**-20**) that `main`'s promotion to `deployed_image` had erased;
+- a symbol-reachable govulncheck or JS/TS finding now takes
+  `reachable_code_evidence` (**+20**), which the promotion had likewise erased.
+
+Both directions are the same correction: `main` overwrote a finding's real
+code-reachability state with a deployment claim, and the priority followed the
+overwrite rather than the evidence.
+
+`priority_score`, `priority_bucket`, and `priority_reason_codes` are persisted
+and wire-visible, so this is a real contract change on a triage field, not an
+internal detail. The direction is defensible: a declared-only deployment is
+weaker evidence than the SBOM image anchor it was displacing, and the finding
+now keeps the anchor it actually has. But it is a second delta, so it is
+declared here and pinned by
+`TestBuildSupplyChainImpactFindingsDeclaredOnlyKeepsImageSBOMPriority`, which
+fails under `main`'s gate.
+
+### Priority is a query input, so page membership moves too
+
+`priority_score` and `priority_bucket` are not only reported, they are read back
+by the findings route, so shifting them shifts what a query returns:
+
+- `priority_bucket` and `min_priority_score` are documented filters, and either
+  can be the sole anchor of a request. The fixture above moves `55/medium` to
+  `95/critical`, so `?priority_bucket=medium` stops returning that row and
+  `?priority_bucket=critical` starts returning it. That is page membership, not
+  ordering.
+- `sort=priority_score_desc|asc` pages with a keyset cursor on `priority_score`,
+  so both the order and the page boundary move.
+- Canonical de-duplication picks the winner with
+  `ROW_NUMBER() OVER (PARTITION BY canonical_key ORDER BY priority_score DESC, ...)`,
+  mirrored in the materialized winners store, so a large enough shift can change
+  which duplicate fact is served as the canonical row.
+- The aggregates route's `by_priority_bucket` counts move with the buckets.
+
+No code change is involved — this is the existing read model doing what it
+already does with a value this change moves. It is recorded because a reader
+checking whether a filtered query still returns the same rows deserves to know
+the answer is no.
+
+## The payload field is additive-optional, not required
+
+`environment_evidence` carries `omitempty` on
+`sdk/go/factschema/reducerderived/v1`'s finding struct, so it is an
+additive-*optional* field: a minor change under Contract System v1, needing no
+conversion shim.
+
+It was briefly required. The schema generator derives `required` from
+reflection, so a tag without `omitempty` lands the field in the required set,
+and `scripts/verify-factschema-diff.sh` correctly rejected that as
+`added_required_field` — a compatibility break without a major bump.
+
+Worth recording for the next person: **`make pre-pr` does not run
+`verify-factschema-diff.sh`.** The full local promotion gate passed green with
+the break in place; only CI's `factschema-diff` workflow would have caught it,
+and merging would have turned that gate red on `main`. If a change touches
+`sdk/go/factschema/schema/**`, run that verifier by hand — a green `make pre-pr`
+says nothing about payload-contract compatibility.
+
+## The alias-contract dependency was already satisfied
+
+The issue says to coordinate with the spine epic's environment-alias contract.
+That contract is landed (`docs/public/reference/environment-alias-contract.md`),
+`canonicalEnvironmentName` is now a one-line delegate to `environment.Canonical`
+with no second alias table, and the CI correlation path already canonicalizes
+both declared and deploy-event environments. Coordination here meant conforming
+to it, not waiting on it.
+
+## Verification
+
+Behavior change, so the proof is the intended delta.
+
+```
+$ cd go && go test ./internal/reducer -count=1 -v \
+    -run 'EnvironmentEvidence|Branch3|ContradictingDigest|RegardlessOf|DeployEventWins|WithoutSubjectDigest|ImageSBOMPriority'
+--- PASS: TestRecordSupplyChainEnvironmentEvidenceSkipsBlankEnvironment
+--- PASS: TestNormalizeSupplyChainEnvironmentEvidenceTrimsPadding
+--- PASS: TestCICDRunCorrelationPayloadIncludesEnvironmentEvidence
+--- PASS: TestExtractEC2InstanceNodeRowsDeterministicOrderRegardlessOfInput
+--- PASS: TestBuildSupplyChainImpactFindingsWithoutSubjectDigestDoesNotPromote
+--- PASS: TestBuildSupplyChainImpactFindingsImageRefBranchPromotesRegardlessOfEnvironmentEvidence
+--- PASS: TestRecordSupplyChainEnvironmentEvidenceDeployEventWinsOverDeclared
+--- PASS: TestBuildSupplyChainImpactFindingsBranch3DeployEventPromotesRuntimeReachability
+--- PASS: TestBuildSupplyChainImpactFindingsDigestBranchPromotesRegardlessOfEnvironmentEvidence
+--- PASS: TestBuildSupplyChainImpactFindingsBranch3DeployEventWithContradictingDigestDoesNotPromote
+--- PASS: TestBuildSupplyChainImpactFindingsImageRefMatchWithContradictingDigestDoesNotPromote
+--- PASS: TestBuildSupplyChainImpactFindingsBranch3DeclaredOnlyDoesNotPromoteRuntimeReachability
+--- PASS: TestBuildSupplyChainImpactFindingsDeployEventWinsAcrossDeploymentsInEitherOrder
+--- PASS: TestSupplyChainImpactTypedPayloadPersistsEnvironmentEvidence
+--- PASS: TestSupplyChainDeploymentContextFromEnvelopeDecodesEnvironmentEvidence
+--- PASS: TestBuildSupplyChainImpactFindingsDeclaredOnlyKeepsImageSBOMPriority
+ok  	github.com/eshu-hq/eshu/go/internal/reducer	0.910s
+
+$ cd go && go test ./internal/query -count=1 -v -run 'EnvironmentEvidence'
+--- PASS: TestDecodeSupplyChainImpactFindingRowDecodesEnvironmentEvidence
+--- PASS: TestDecodeSupplyChainImpactFindingRowToleratesAbsentEnvironmentEvidence
+--- PASS: TestCICDListRunCorrelationsExposesEnvironmentEvidence
+--- PASS: TestSupplyChainImpactFindingsOmitEnvironmentEvidenceWhenAbsent
+--- PASS: TestSupplyChainImpactFindingsExposeEnvironmentEvidenceInResponseBody
+ok  	github.com/eshu-hq/eshu/go/internal/query	0.949s
+```
+
+(`RegardlessOf` also matches an unrelated EC2-ordering test, and the reducer
+filter deliberately keeps it rather than narrowing the regex to flatter the
+output.)
+
+The two `...PromotesRegardlessOfEnvironmentEvidence` tests are the load-bearing
+ones. They assert the digest and image-ref branches still promote under
+declared-only evidence, so the premise correction cannot be quietly undone by a
+later change that "tightens" all three branches uniformly.
+
+`...Branch3DeployEventWithContradictingDigestDoesNotPromote` is the guard for the
+second-round correction: it proves `deploy_event` cannot override a deployment
+that names a different digest, so the corroboration signal stays scoped to the
+environment. Its sibling `...Branch3DeployEventPromotesRuntimeReachability` uses
+a deployment with no digest at all, which is the case corroboration is actually
+meant to rescue — the two together pin both sides of that boundary.
+
+### Every rule is mutation-audited
+
+After the defanging below, each rule this change introduces was audited by
+deleting or weakening exactly that rule via `go test -overlay` and confirming a
+test goes red. A rule no mutant can kill is not guarded, however many tests
+mention it.
+
+The audit was run three times, and each pass found rules the previous pass had
+missed — including two, the ANY-of quantifier and the blank-environment skip,
+that no test touched even after the table below was first written. Both were
+reachable with ordinary production data. The table is the current state, not a
+claim that the technique is exhaustive.
+
+| Rule | Mutant | Caught by |
+|---|---|---|
+| `environmentEvidence == deploy_event` return | `return false` | `...Branch3DeployEventPromotesRuntimeReachability` |
+| contradicting-digest early return | block deleted | `...Branch3DeployEventWithContradictingDigest...`, `...ImageRefMatchWithContradictingDigest...` |
+| digest-equality check | block deleted | `...DigestBranchPromotesRegardlessOfEnvironmentEvidence` |
+| image-ref check | block deleted | `...ImageRefBranchPromotesRegardlessOfEnvironmentEvidence` |
+| branch 3 of `supplyChainDeploymentMatchesFinding` | round-1 condition restored | `...Branch3DeclaredOnlyDoesNotPromote...` + the two pre-existing operational-anchor tests |
+| `recordSupplyChainEnvironmentEvidence` collision rule | call replaced with last-write-wins | `...DeployEventWinsAcrossDeploymentsInEitherOrder` |
+| `normalizeSupplyChainEnvironmentEvidence` exact match | any non-empty maps to `deploy_event` | `...DecodesEnvironmentEvidence` + 3 promotion tests |
+| payload decode of `environment_evidence` | key typo | `TestDecodeSupplyChainImpactFindingRowDecodesEnvironmentEvidence` |
+| promotion is ANY-of, not ALL-of | `ANY` inverted to `ALL` | `...DeployEventWinsAcrossDeploymentsInEitherOrder` |
+| blank-environment skip in the recorder | guard deleted | `TestRecordSupplyChainEnvironmentEvidenceSkipsBlankEnvironment` |
+| `normalize` trims before comparing | `TrimSpace` removed | `TestNormalizeSupplyChainEnvironmentEvidenceTrimsPadding` |
+| caller requires a non-empty `SubjectDigest` | guard deleted | `...WithoutSubjectDigestDoesNotPromote` |
+| image_sbom priority survives a declared-only deployment | gate reverted to `main`'s | `...DeclaredOnlyKeepsImageSBOMPriority` |
+| declared-only stops labelling a finding reachable | gate reverted to `main`'s | `...Branch3DeclaredOnlyDoesNotPromote...` (documents the consequence; the promotion assertion in the same test is what the mutant hits first) |
+
+Six of these rows exist only because the audit found them uncovered; the rest
+confirmed guards that were already in place.
+
+The collision rule had only a direct helper test, which does not prove the
+production path calls the helper — swapping the call in
+`applySupplyChainRuntimeContext` for naive last-write-wins passed every package.
+Nothing exercised the persisted-payload decode at all, so a typo in the payload
+key would have left the reducer writing evidence no caller could ever read: the
+silent-inertness shape, which the corpus cannot catch here either (#5836).
+Inverting promotion from ANY-of to ALL-of also passed everything, which would
+have silently dropped `deployed_image` from any finding with one corroborated
+and one declared-only deployment — the exact multi-run shape the collision test
+already models. And deleting the blank-environment skip passed too, which would
+put a `""` key in `environment_evidence` while `uniqueSortedStrings` drops it
+from `environments[]`, leaving the two collections disagreeing about their own
+keys — contradicting the API reference this same change adds.
+
+The last two rows came from the eighth review round, and one of them is a
+cautionary case. A padded-value subtest had been added to pin `normalize`'s
+`TrimSpace`, and the audit table credited it — but that subtest enters through
+`supplyChainDeploymentContextFromEnvelope`, and `payloadStr` already trims
+before `normalize` ever sees the value. The subtest therefore could not
+distinguish a trimming `normalize` from a non-trimming one, and the mutant
+survived while the table claimed it died. The rule is now pinned by a direct
+call that bypasses `payloadStr`. Adding a test is not the same as covering a
+rule; only the mutant settles it.
+
+The `SubjectDigest` precondition is a pre-existing rule rather than a new one —
+`main`'s `len(deployments) > 0` gate leaned on the same caller guard — but this
+change is what writes the precondition down, so it pins it too. Without the
+guard a finding with no artifact identity at all reaches `deployed_image`.
+
+### The declared-only guard was silently defanged once
+
+Worth recording, because the failure mode is invisible in a green test run.
+
+`...Branch3DeclaredOnlyDoesNotPromoteRuntimeReachability` was originally written
+with a fixture carrying a non-matching digest. That was harmless until the
+contradicting-digest rule landed and moved a digest check to the *front* of the
+promotion predicate. From then on the test short-circuited on the digest and
+never reached the declared-vs-`deploy_event` rule it exists to prove — while
+still passing.
+
+Review caught it by mutation: deleting #5426's entire corroboration rule left
+the whole `internal/reducer` package green. The fixture now carries no artifact
+identity at all, so branches 1 and 2 are unsatisfiable and the contradiction
+check cannot fire, leaving the corroboration rule as the only thing that can
+decide the outcome. Re-running the same mutation now fails exactly where it
+should:
+
+```
+$ go test ./internal/reducer -overlay=<promotion rule replaced with `return true`> \
+    -run 'Branch3|RegardlessOfEnvironmentEvidence|ContradictingDigest'
+--- FAIL: TestBuildSupplyChainImpactFindingsBranch3DeclaredOnlyDoesNotPromoteRuntimeReachability
+    RuntimeReachability = "deployed_image", want declared-only branch-3 evidence
+    to withhold deployed_image
+```
+
+The general lesson: when a predicate gains an early-exit branch, every existing
+test whose fixture can trigger that branch stops testing whatever came after it,
+and nothing goes red to say so.
+
+`...Branch3DeclaredOnlyDoesNotPromoteRuntimeReachability` asserts both halves of
+the corrected design: the finding is not promoted, *and* it still carries the
+environment (labelled `declared`) and the `cicd_run_correlation` evidence hop.
+That second assertion is what fails if anyone re-implements this by gating the
+match again.
+
+**No pre-existing behavior test needed editing.** The first attempt required two
+edits in `supply_chain_impact_operational_anchor_test.go` to keep those tests
+reaching their own subject; both are reverted, and they now pass unmodified
+against `main`'s versions.  That is the cleanest available proof that the collateral
+damage is gone: the tests that had to be bent to accommodate the wrong design
+need no accommodation from the right one.
+
+Cross-package and contract gates:
+
+```
+$ cd go && go test ./internal/reducer ./internal/query ./internal/mcp ./cmd/reducer -count=1
+ok — all packages
+
+$ bash scripts/verify-factschema-diff.sh                  no breaking changes
+$ bash scripts/verify-payload-usage-manifest.sh          ok
+$ bash scripts/verify-openapi.sh                          252 routes, 252 OpenAPI entries
+$ cd go && go run ./cmd/fact-kind-registry -check         generated artifacts are current
+$ cd sdk/go/factschema && go test ./... -count=1          ok
+```
+
+### Golden corpus, and why it cannot assert this
+
+The gate is green on this branch at `23009695e`:
+
+```
+$ COMPOSE_PROJECT_NAME=env5426gate8 bash scripts/verify-golden-corpus-gate.sh
+summary: 507 pass, 0 required-fail, 1 advisory-warn
+=== PASS: B-7 golden corpus gate green (elapsed 154s, budget ceiling 1800s) ===
+```
+
+The advisory warn is phase timing under a deliberately raised
+`GATE_COLLECTOR_SETTLE_SECONDS=75`, not an assertion failure. Earlier runs on
+this branch reported `506 pass / 2 advisory-warn`: the same 508 assertions, with
+the machine-load-sensitive `phase_maintenance_drains` timing check landing on
+the other side of its advisory ceiling. Nothing was added or removed. (Without that
+override the run trips a known collector-settle flake — `only 17 credentialed
+collector source(s) landed facts; want >= 18` — which is #5831, not this
+change.)
+
+Every asserted snapshot value is expected to be unchanged from `main` here, and
+is: this change gates only the promotion, so every deployment that matched
+before still matches, and the corpus's one impact finding matches no branch-3
+deployment either way. The persisted payload is byte-identical too: the field is optional and the
+corpus finding's evidence map is empty, so `omitempty` drops the key entirely.
+
+I tried to add a real floor for this change rather than settle for a green run
+that asserts nothing about it:
+
+```json
+"findings[].environment_evidence.prod": "deploy_event"
+```
+
+**It failed, and the failure is the useful result:**
+
+```
+[FAIL] mcp:list_supply_chain_impact_findings: required JSON value
+  "findings[].environment_evidence.prod" failed:
+  path segment "environment_evidence" resolved no values
+```
+
+The assertion was reverted, because the cause is a pre-existing corpus
+limitation rather than a defect in this change. The corpus's only impact
+finding is an OS-package finding, and `SupplyChainImpactResult.RuntimeContext`
+already documents that for those, the baked `workload_ids` / `service_ids` /
+`environments` fields "stay empty ... until #5747 makes the filters agree".
+Every runtime value the snapshot asserts sits under `runtime_context`, which
+#5746 resolves at read time from `repository_id` — a path that never calls
+`matchingSupplyChainDeployments`.
+
+That empty map is provably the cause and not a dropped field. The decode maps
+it (`supply_chain_impact_findings_decode.go:69`),
+`normalizeSupplyChainEnvironmentEvidence` never returns empty (an absent key
+maps to `declared`), and `recordSupplyChainEnvironmentEvidence` skips only when
+the *environment* is empty. So an empty evidence map implies an empty baked
+`Environments` list: there is no matched deployment on this finding, and
+therefore nothing to corroborate.
+
+The producer half is already pinned in the snapshot by #5425 and passes here:
+
+```
+[PASS] GET /api/v0/ci-cd/run-correlations?environment=prod&...:
+  values [correlations[].environment correlations[].environment_evidence]
+```
+
+So the corpus proves the correlation carries the evidence; the unit tests prove
+the reducer consumes it. Nothing in the committed corpus exercises the join
+between them, and I would rather say that plainly than leave a green gate
+implying coverage this change does not have.
+
+Two follow-ups came out of this, and they are separate surfaces:
+
+- **#5835** — environment corroboration rides only on the baked fields, so it
+  never reaches the read-time-resolved `runtime_context` that OS-package
+  findings actually serve.
+- **#5836** — the corpus grows a branch-3 fixture so the promotion gate is
+  actually asserted end to end. Until that lands, the gate would stay green if
+  someone re-tightened all three match branches uniformly; only the unit tests
+  catch that today.
+
+No-Regression Evidence: the touched hot path is
+`applySupplyChainRuntimeContext` in `go/internal/reducer/supply_chain_impact_runtime.go`,
+which gains one `map[string]string` per finding that records an environment and
+one O(matched deployments) pass over a slice the same function already iterates
+twice. No query, index, Cypher, or SQL shape changes, and no new I/O. Covered by
+`cd go && go test ./internal/reducer ./internal/query ./internal/mcp ./cmd/reducer -count=1`
+and the B-7 golden-corpus run cited above, whose phase timings stayed inside
+their baselines apart from the two advisory warns explained there.
+
+No-Observability-Change: no metrics, spans, or status fields are added or
+altered, and no new failure path is introduced. The gate withholds a promotion
+rather than rejecting a deployment: the deployment still matches, so it keeps
+contributing its environment, evidence hop, and fact ID, and no rejection
+reason or dead-letter is involved. An operator reading a finding sees the
+environment present and labelled `declared` — which is a strictly clearer
+signal than the previous behavior, where a declared-only environment was
+indistinguishable from a corroborated one.
+
+## Known limitation
+
+Corroboration here means "a provider Deployments API event was observed at this
+run's commit", not "this artifact was observed running in that environment". The
+stronger claim requires the runtime probe in #5834. A finding whose only
+deployment evidence is a declared workflow environment now reports that
+environment as `declared` rather than being silently blended with corroborated
+ones — which is the accuracy improvement this issue can honestly deliver.

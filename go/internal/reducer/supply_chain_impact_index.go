@@ -140,8 +140,11 @@ type supplyChainDeploymentContext struct {
 	imageRef       string
 	repositoryID   string
 	environment    string
-	outcome        string
-	provenanceOnly bool
+	// environmentEvidence is the #5425 corroboration state normalized by
+	// normalizeSupplyChainEnvironmentEvidence: "deploy_event" or "declared".
+	environmentEvidence string
+	outcome             string
+	provenanceOnly      bool
 }
 
 type supplyChainDeploymentLaneContext struct {

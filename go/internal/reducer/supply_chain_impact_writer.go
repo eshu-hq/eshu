@@ -189,6 +189,7 @@ func supplyChainImpactTypedPayload(
 		DeploymentIDs:         nonNilStrings(uniqueSortedStrings(finding.DeploymentIDs)),
 		ServiceIDs:            nonNilStrings(uniqueSortedStrings(finding.ServiceIDs)),
 		Environments:          nonNilStrings(uniqueSortedStrings(finding.Environments)),
+		EnvironmentEvidence:   finding.EnvironmentEvidence,
 		CatalogEntityRefs:     nonNilStrings(uniqueSortedStrings(finding.CatalogEntityRefs)),
 		CatalogOwnerRefs:      nonNilStrings(uniqueSortedStrings(finding.CatalogOwnerRefs)),
 		DetectionProfile:      string(finding.DetectionProfile),
@@ -227,20 +228,6 @@ func supplyChainImpactTypedPayload(
 		payload.Remediation = remediation
 	}
 	return payload
-}
-
-func nonNilStrings(values []string) []string {
-	if values == nil {
-		return []string{}
-	}
-	return values
-}
-
-func nonNilMapSlice(values []map[string]any) []map[string]any {
-	if values == nil {
-		return []map[string]any{}
-	}
-	return values
 }
 
 // supplyChainImpactRemediationPayload serializes the advisory-only safe

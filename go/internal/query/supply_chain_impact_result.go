@@ -57,6 +57,10 @@ type SupplyChainImpactFindingResult struct {
 	DeploymentIDs         []string                                `json:"deployment_ids,omitempty"`
 	ServiceIDs            []string                                `json:"service_ids,omitempty"`
 	Environments          []string                                `json:"environments,omitempty"`
+	// EnvironmentEvidence records, per environment name in Environments,
+	// whether the strongest deployment evidence for that environment was
+	// "deploy_event" or "declared" (issue #5426). Omitted when empty.
+	EnvironmentEvidence map[string]string `json:"environment_evidence,omitempty"`
 	// CloudRuntimeResourceRefs names the observed cloud compute resources
 	// (running ECS task / image-package Lambda ARNs) whose running image digest
 	// matches this finding's subject digest — runtime-observed deployment
@@ -139,9 +143,13 @@ func buildSupplyChainImpactFindingResult(row SupplyChainImpactFindingRow) Supply
 //   - runtime_confirmed: a live cloud resource (running ECS task /
 //     image-package Lambda) actually runs the finding's subject digest —
 //     surfaced by the reducer as CloudRuntimeResourceRefs.
-//   - provenance_ci_declared: a cicd_run_correlation matched the finding's
-//     digest/image (CI declared the deployment). Before #5452 this collapsed
-//     into config_only because no runtime tier existed on this surface.
+//   - provenance_ci_declared: a cicd_run_correlation matched the finding (CI
+//     declared the deployment). The match may be on the finding's digest or
+//     image reference, or on repository plus environment plus an operational
+//     anchor — the weaker branch still counts as CI-declared evidence here even
+//     though it does not on its own raise runtime_reachability to
+//     deployed_image (#5426). Before #5452 this collapsed into config_only
+//     because no runtime tier existed on this surface.
 //   - config_only: only config-materialized deployment anchors or config
 //     environments exist, with no runtime or CI-declared evidence.
 func supplyChainDeploymentTruthTier(row SupplyChainImpactFindingRow) truth.DeploymentTruthTier {
@@ -166,8 +174,15 @@ func supplyChainDeploymentTruthTier(row SupplyChainImpactFindingRow) truth.Deplo
 
 // rowHasCIDeclaredDeploymentEvidence reports whether the finding row carries a
 // cicd_run_correlation deployment hop — the reducer appends this evidence-path
-// entry only when a CI/CD run correlation matched the finding's digest or image
-// reference, so it is the row-level signal that a deployment was CI-declared.
+// entry whenever a CI/CD run correlation matched the finding, so it is the
+// row-level signal that a deployment was CI-declared.
+//
+// A match on the finding's digest or image reference is not required: a
+// correlation that links only through repository plus environment plus an
+// operational anchor also appends this hop, and deliberately so (#5426). Such a
+// deployment does not on its own raise runtime_reachability to deployed_image,
+// but it is still CI-declared deployment evidence and holds the row at
+// deployment_truth_tier=provenance_ci_declared rather than config_only.
 func rowHasCIDeclaredDeploymentEvidence(row SupplyChainImpactFindingRow) bool {
 	for _, hop := range row.EvidencePath {
 		if hop == cicdRunCorrelationFactKind {

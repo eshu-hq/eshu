@@ -16,6 +16,9 @@ func supplyChainDeploymentContextFromEnvelope(envelope facts.Envelope) supplyCha
 		imageRef:       payloadStr(envelope.Payload, "image_ref"),
 		repositoryID:   payloadStr(envelope.Payload, "repository_id"),
 		environment:    payloadStr(envelope.Payload, "environment"),
+		environmentEvidence: normalizeSupplyChainEnvironmentEvidence(
+			payloadStr(envelope.Payload, "environment_evidence"),
+		),
 		outcome:        payloadStr(envelope.Payload, "outcome"),
 		provenanceOnly: payloadBool(envelope.Payload, "provenance_only"),
 	}

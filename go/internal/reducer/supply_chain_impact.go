@@ -108,15 +108,23 @@ type SupplyChainImpactFinding struct {
 	DeploymentIDs         []string
 	ServiceIDs            []string
 	Environments          []string
-	CatalogEntityRefs     []string
-	CatalogOwnerRefs      []string
-	DependencyPath        []string
-	DependencyDepth       int
-	DirectDependency      *bool
-	MissingEvidence       []string
-	EvidencePath          []string
-	EvidenceFactIDs       []string
-	CanonicalWrites       int
+	// EnvironmentEvidence records, per environment name in Environments,
+	// whether the strongest deployment evidence observed for that
+	// environment was "deploy_event" (a ci.deployment_event observed at the
+	// deploying run's commit, #5425) or "declared" (the CI-declared
+	// workflow job gate alone, with no deployment-event corroboration).
+	// deploy_event always wins a collision. Environments itself is
+	// unchanged for wire compatibility; this is a sibling structure.
+	EnvironmentEvidence map[string]string
+	CatalogEntityRefs   []string
+	CatalogOwnerRefs    []string
+	DependencyPath      []string
+	DependencyDepth     int
+	DirectDependency    *bool
+	MissingEvidence     []string
+	EvidencePath        []string
+	EvidenceFactIDs     []string
+	CanonicalWrites     int
 	// DetectionProfile records which tier this finding meets: precise for
 	// exact installed-version anchors, comprehensive for range-only,
 	// SBOM-derived, product-derived, malformed, or missing-version evidence.

@@ -75,6 +75,15 @@
     "ecosystem": {
       "type": "string"
     },
+    "environment_evidence": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
     "environments": {
       "items": {
         "type": "string"

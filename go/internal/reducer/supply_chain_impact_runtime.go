@@ -53,6 +53,9 @@ func applySupplyChainRuntimeContext(
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, deployment.factID)
 		finding.EvidencePath = append(finding.EvidencePath, cicdRunCorrelationFactKind)
 		finding.Environments = append(finding.Environments, deployment.environment)
+		finding.EnvironmentEvidence = recordSupplyChainEnvironmentEvidence(
+			finding.EnvironmentEvidence, deployment.environment, deployment.environmentEvidence,
+		)
 		if finding.RepositoryID == "" {
 			finding.RepositoryID = deployment.repositoryID
 		}
@@ -66,7 +69,8 @@ func applySupplyChainRuntimeContext(
 	finding.CatalogEntityRefs = uniqueSortedStrings(finding.CatalogEntityRefs)
 	finding.CatalogOwnerRefs = uniqueSortedStrings(finding.CatalogOwnerRefs)
 	if finding.RuntimeReachability != "known_fixed" &&
-		finding.SubjectDigest != "" && len(deployments) > 0 {
+		finding.SubjectDigest != "" &&
+		supplyChainDeploymentsPromoteRuntimeReachability(*finding, deployments) {
 		finding.RuntimeReachability = "deployed_image"
 	}
 	return uniqueSortedStrings(missing)
@@ -116,9 +120,88 @@ func supplyChainDeploymentMatchesFinding(
 	if finding.ImageRef != "" && deployment.imageRef == finding.ImageRef {
 		return true
 	}
+	// The free-text-environment branch is the only one where the deployment
+	// link is not anchored to an artifact identity (digest or image
+	// reference) -- it joins purely on repository plus an operational
+	// anchor. That weakness is corrected at the promotion gate
+	// (supplyChainDeploymentPromotesRuntimeReachability), NOT here: the match
+	// itself still carries the environment, the cicd_run_correlation evidence
+	// hop, and the correlation fact ID, all of which a declared-only
+	// deployment legitimately contributes.
 	if finding.RepositoryID != "" && deployment.repositoryID == finding.RepositoryID &&
-		deployment.environment != "" && supplyChainFindingHasOperationalAnchor(finding) {
+		deployment.environment != "" &&
+		supplyChainFindingHasOperationalAnchor(finding) {
 		return true
+	}
+	return false
+}
+
+// supplyChainDeploymentPromotesRuntimeReachability reports whether one matched
+// deployment is strong enough to raise a finding to
+// RuntimeReachability="deployed_image".
+//
+// A deployment qualifies when it is anchored to the finding's artifact
+// identity (digest or image reference), or when its environment carries
+// ci.deployment_event corroboration published by #5425. It does NOT qualify on
+// the free-text-environment branch alone: that branch joins on repository plus
+// an operational anchor with no artifact identity, so without corroboration a
+// finding with a real digest could otherwise reach deployed_image through a
+// deployment that never referenced that digest (#5426).
+//
+// deploy_event corroborates the ENVIRONMENT, not the ARTIFACT. A correlation
+// row carries artifact_digest and environment_evidence together, so a
+// deploy_event row can name a digest that contradicts the finding's own
+// subject. That is positive evidence the vulnerable artifact was NOT what
+// shipped -- categorically stronger than merely missing evidence -- so a
+// contradicting digest disqualifies the deployment outright rather than being
+// rescued by its environment corroboration.
+//
+// Only the digest is treated as decisive. Image references are mutable and
+// registry-prefixed, so two differing refs do not reliably denote two different
+// artifacts the way two differing digests do. That mutability cuts both ways:
+// the contradicting-digest check runs FIRST, ahead of the image-ref branch,
+// because a tag can be retagged from one digest to another. A deployment whose
+// ref matches but whose digest explicitly names a different image is reporting
+// that the tag has moved, and the digest is the identity worth believing.
+// PRECONDITION: the caller must already have established that the finding has
+// a non-empty SubjectDigest. With an empty one this falls through to the
+// deploy_event check, which would promote a finding that has no artifact
+// identity to compare against. applySupplyChainRuntimeContext enforces this.
+func supplyChainDeploymentPromotesRuntimeReachability(
+	finding SupplyChainImpactFinding,
+	deployment supplyChainDeploymentContext,
+) bool {
+	if finding.SubjectDigest != "" && deployment.artifactDigest != "" &&
+		deployment.artifactDigest != finding.SubjectDigest {
+		return false
+	}
+	if finding.SubjectDigest != "" && deployment.artifactDigest == finding.SubjectDigest {
+		return true
+	}
+	if finding.ImageRef != "" && deployment.imageRef == finding.ImageRef {
+		return true
+	}
+	return deployment.environmentEvidence == supplyChainEnvironmentEvidenceDeployEvent
+}
+
+// supplyChainDeploymentsPromoteRuntimeReachability reports whether ANY matched
+// deployment justifies deployed_image. Matches that do not qualify still keep
+// their environment and evidence contributions; they simply do not, on their
+// own, carry the finding to deployed_image.
+//
+// PRECONDITION: deployments MUST already have passed
+// matchingSupplyChainDeployments. This function decides promotion strength, not
+// linkage, so passing unmatched rows (for example the raw index) would promote
+// on any deploy_event correlation anywhere in scope. There is one caller today
+// and it satisfies this; keep it that way.
+func supplyChainDeploymentsPromoteRuntimeReachability(
+	finding SupplyChainImpactFinding,
+	deployments []supplyChainDeploymentContext,
+) bool {
+	for _, deployment := range deployments {
+		if supplyChainDeploymentPromotesRuntimeReachability(finding, deployment) {
+			return true
+		}
 	}
 	return false
 }
