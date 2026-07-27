@@ -199,18 +199,18 @@ $ bash scripts/verify-openapi.sh
 OpenAPI surface clean: 252 HandleFunc routes, 252 OpenAPI path entries
 ```
 
-B-7 golden corpus gate against `47d561c60`:
+B-7 golden corpus gate against `d619892c5`:
 
 ```
-summary: 506 pass, 0 required-fail, 2 advisory-warn
-=== PASS: B-7 golden corpus gate green (elapsed 158s, budget ceiling 1800s) ===
+summary: 507 pass, 0 required-fail, 1 advisory-warn
+=== PASS: B-7 golden corpus gate green (elapsed 155s, budget ceiling 1800s) ===
 
 [PASS] GET /api/v0/ci-cd/run-correlations?environment=prod&limit=10&repository_id=repository:r_69256c06:
        "correlations" has 1 results; item fields [environment environment_evidence] present;
        values [correlations[].environment correlations[].environment_evidence]
 ```
 
-Both advisory warnings are phase timing only; `phase_collect` reflects the
+The single advisory warning is phase timing only; `phase_collect` reflects the
 `GATE_COLLECTOR_SETTLE_SECONDS=75` override this run set, not a pipeline change.
 
 The floor is non-vacuous by construction: before this change no cassette in the
