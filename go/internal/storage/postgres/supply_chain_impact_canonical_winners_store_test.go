@@ -42,6 +42,12 @@ func TestSupplyChainImpactWinnerSelectMirrorsReadDedup(t *testing.T) {
 		// severity bucket + suppression default, same thresholds/strings as read.
 		"THEN 'critical'",
 		"COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active')",
+		// Only operator decisions carry a parsed read-time expiry. Invalid
+		// non-empty values fail closed as already expired.
+		"WHEN fact.scope_id <> 'operator:vulnerability_suppressions'",
+		"pg_input_is_valid",
+		"ELSE '-infinity'::timestamptz",
+		"END AS suppression_expires_at",
 	} {
 		if !strings.Contains(supplyChainImpactWinnerSelectSQL, want) {
 			t.Fatalf("winner select SQL missing read-parity marker %q:\n%s", want, supplyChainImpactWinnerSelectSQL)
@@ -61,7 +67,9 @@ func TestRebuildSupplyChainImpactWinnersSQLIsAtomicReconcile(t *testing.T) {
 	for _, want := range []string{
 		"WITH winners_now AS (",
 		"INSERT INTO supply_chain_impact_canonical_winners",
+		"suppression_state, suppression_expires_at",
 		"ON CONFLICT (canonical_key) DO UPDATE SET",
+		"suppression_expires_at = EXCLUDED.suppression_expires_at",
 		"deleted AS (\n    DELETE FROM supply_chain_impact_canonical_winners w\n    WHERE NOT EXISTS (SELECT 1 FROM winners_now n WHERE n.canonical_key = w.canonical_key)\n)",
 		// Unconditional watermark upsert is the final statement so it stamps even
 		// a zero-winner resweep.

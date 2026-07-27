@@ -5,7 +5,9 @@ package query
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -66,9 +68,9 @@ func (h *SupplyChainHandler) createVulnerabilitySuppression(w http.ResponseWrite
 		"POST /api/v0/supply-chain/impact/suppressions",
 		vulnerabilitySuppressionMutationCapability,
 	)
-	outcome := "rejected"
+	outcome := telemetry.VulnerabilitySuppressionMutationOutcomeRejected
 	defer func() {
-		span.SetAttributes(attribute.String("eshu.mutation.outcome", outcome))
+		span.SetAttributes(attribute.String(telemetry.SpanAttrVulnerabilitySuppressionMutationOutcome, outcome))
 		span.End()
 	}()
 
@@ -85,7 +87,7 @@ func (h *SupplyChainHandler) createVulnerabilitySuppression(w http.ResponseWrite
 
 	r.Body = http.MaxBytesReader(w, r.Body, vulnerabilitySuppressionRequestMaxBytes)
 	var request VulnerabilitySuppressionMutationRequest
-	if err := ReadJSON(r, &request); err != nil {
+	if err := readVulnerabilitySuppressionMutationJSON(r, &request); err != nil {
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -96,17 +98,17 @@ func (h *SupplyChainHandler) createVulnerabilitySuppression(w http.ResponseWrite
 	}
 	result, err := h.SuppressionMutations.UpsertVulnerabilitySuppression(r.Context(), value)
 	if err != nil {
-		outcome = "store_error"
+		outcome = telemetry.VulnerabilitySuppressionMutationOutcomeStoreError
 		span.RecordError(err)
 		WriteError(w, http.StatusInternalServerError, "persist vulnerability suppression")
 		return
 	}
 
 	status := http.StatusCreated
-	state := "created"
+	state := telemetry.VulnerabilitySuppressionMutationOutcomeCreated
 	if !result.Changed {
 		status = http.StatusOK
-		state = "unchanged"
+		state = telemetry.VulnerabilitySuppressionMutationOutcomeUnchanged
 	}
 	outcome = state
 	WriteJSON(w, status, VulnerabilitySuppressionMutationResponse{
@@ -114,6 +116,31 @@ func (h *SupplyChainHandler) createVulnerabilitySuppression(w http.ResponseWrite
 		GenerationID:  result.GenerationID,
 		Status:        state,
 	})
+}
+
+func readVulnerabilitySuppressionMutationJSON(
+	r *http.Request,
+	request *VulnerabilitySuppressionMutationRequest,
+) error {
+	if r.Body == nil {
+		return fmt.Errorf("request body is required")
+	}
+	defer func() { _ = r.Body.Close() }()
+
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(request); err != nil {
+		return fmt.Errorf("invalid JSON: %w", err)
+	}
+
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			return fmt.Errorf("invalid JSON: request body must contain one JSON value")
+		}
+		return fmt.Errorf("invalid JSON: %w", err)
+	}
+	return nil
 }
 
 func buildOperatorVulnerabilitySuppression(
@@ -147,8 +174,10 @@ func buildOperatorVulnerabilitySuppression(
 	if request.Reason == "" {
 		return vulnerabilitysuppressionv1.Suppression{}, fmt.Errorf("reason is required")
 	}
-	if vulnerabilitySuppressionScopeEmpty(request.Scope) {
-		return vulnerabilitysuppressionv1.Suppression{}, fmt.Errorf("scope must include at least one vulnerability or deployment anchor")
+	if !vulnerabilitySuppressionScopeDiscoverable(request.Scope) {
+		return vulnerabilitysuppressionv1.Suppression{}, fmt.Errorf(
+			"scope must include cve_id, advisory_id, package_id, purl, repository_id, or subject_digest; evidence_path can only narrow a discoverable identity",
+		)
 	}
 
 	var expiresAt *string
@@ -156,6 +185,9 @@ func buildOperatorVulnerabilitySuppression(
 		parsed, err := time.Parse(time.RFC3339, request.ExpiresAt)
 		if err != nil {
 			return vulnerabilitysuppressionv1.Suppression{}, fmt.Errorf("expires_at must be an RFC3339 timestamp")
+		}
+		if !parsed.After(authoredAt) {
+			return vulnerabilitysuppressionv1.Suppression{}, fmt.Errorf("expires_at must be after authored_at")
 		}
 		normalized := parsed.UTC().Format(time.RFC3339)
 		expiresAt = &normalized
@@ -235,12 +267,11 @@ func trimmedStringPointer(value *string) *string {
 	return &trimmed
 }
 
-func vulnerabilitySuppressionScopeEmpty(value vulnerabilitysuppressionv1.Scope) bool {
-	return value.CVEID == nil &&
-		value.AdvisoryID == nil &&
-		value.PackageID == nil &&
-		value.PURL == nil &&
-		value.RepositoryID == nil &&
-		value.SubjectDigest == nil &&
-		len(value.EvidencePath) == 0
+func vulnerabilitySuppressionScopeDiscoverable(value vulnerabilitysuppressionv1.Scope) bool {
+	return value.CVEID != nil ||
+		value.AdvisoryID != nil ||
+		value.PackageID != nil ||
+		value.PURL != nil ||
+		value.RepositoryID != nil ||
+		value.SubjectDigest != nil
 }

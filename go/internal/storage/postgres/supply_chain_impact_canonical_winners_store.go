@@ -106,6 +106,7 @@ SELECT
     observed_version,
     match_reason,
     suppression_state,
+    suppression_expires_at,
     service_ids,
     workload_ids,
     environments
@@ -179,6 +180,17 @@ FROM (
         COALESCE(fact.payload->>'observed_version', '') AS observed_version,
         COALESCE(fact.payload->>'match_reason', '') AS match_reason,
         COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') AS suppression_state,
+        CASE
+            WHEN fact.scope_id <> 'operator:vulnerability_suppressions'
+              OR NULLIF(fact.payload #>> '{suppression,expires_at}', '') IS NULL
+            THEN NULL
+            WHEN pg_input_is_valid(
+                fact.payload #>> '{suppression,expires_at}',
+                'timestamp with time zone'
+            )
+            THEN (fact.payload #>> '{suppression,expires_at}')::timestamptz
+            ELSE '-infinity'::timestamptz
+        END AS suppression_expires_at,
         COALESCE(fact.payload->'service_ids', '[]'::jsonb) AS service_ids,
         COALESCE(fact.payload->'workload_ids', '[]'::jsonb) AS workload_ids,
         COALESCE(fact.payload->'environments', '[]'::jsonb) AS environments,
@@ -224,14 +236,14 @@ upserted AS (
         canonical_key, winner_fact_id, winner_scope_id, finding_id, priority_score,
         source_count, impact_status, ecosystem, severity_bucket, repository_id,
         cve_id, advisory_id, package_id, subject_digest, image_ref, priority_bucket,
-        detection_profile, observed_version, match_reason, suppression_state,
+        detection_profile, observed_version, match_reason, suppression_state, suppression_expires_at,
         service_ids, workload_ids, environments, materialized_at
     )
     SELECT
         canonical_key, winner_fact_id, winner_scope_id, finding_id, priority_score,
         source_count, impact_status, ecosystem, severity_bucket, repository_id,
         cve_id, advisory_id, package_id, subject_digest, image_ref, priority_bucket,
-        detection_profile, observed_version, match_reason, suppression_state,
+        detection_profile, observed_version, match_reason, suppression_state, suppression_expires_at,
         service_ids, workload_ids, environments, $1
     FROM winners_now
     ON CONFLICT (canonical_key) DO UPDATE SET
@@ -254,6 +266,7 @@ upserted AS (
         observed_version = EXCLUDED.observed_version,
         match_reason = EXCLUDED.match_reason,
         suppression_state = EXCLUDED.suppression_state,
+        suppression_expires_at = EXCLUDED.suppression_expires_at,
         service_ids = EXCLUDED.service_ids,
         workload_ids = EXCLUDED.workload_ids,
         environments = EXCLUDED.environments,

@@ -270,9 +270,13 @@ See `doc.go` for the full godoc contract.
 
 ## Gotchas / invariants
 
-- Data-plane reads only. This binary does not write facts, enqueue projection
-  work, or touch the reducer queue. Auth/session writes are limited to
-  hash-only browser-session, SAML AuthnRequest, and SAML replay ledgers.
+- Data-plane routes are read-only except for the authenticated
+  `POST /api/v0/supply-chain/impact/suppressions` admin mutation. That route
+  requires an all-scopes subject and atomically writes one immutable
+  operator-policy fact generation plus projector work; it never writes graph
+  truth directly. Auth/session writes remain limited to hash-only
+  browser-session, SAML AuthnRequest, and SAML replay ledgers. Any additional
+  fact or queue write requires a runtime-boundary review.
 
 - Version probes are pre-startup checks. Keep `printAPIVersionFlag` at the top
   of `main` so `eshu-api --version` works without database credentials.

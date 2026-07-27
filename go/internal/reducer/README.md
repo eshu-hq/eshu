@@ -1908,6 +1908,10 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   authorship time, or scope fields are quarantined as `input_invalid` instead
   of reaching the evaluator. A malformed expiry remains fail-closed evidence
   and can never turn into an active hidden decision.
+  Temporary operator decisions are evaluated again at query time against one
+  request-bound UTC clock. When that clock reaches `expires_at`, direct,
+  materialized, aggregate, and explain reads expose the same immutable operator
+  row as `expired` without waiting for unrelated evidence or a reducer replay.
 - **Safe-upgrade remediation is advisory-only** —
   `SupplyChainImpactHandler` attaches a `Remediation` block to every finding
   via `BuildSupplyChainImpactRemediation` (issue #595). The block records the

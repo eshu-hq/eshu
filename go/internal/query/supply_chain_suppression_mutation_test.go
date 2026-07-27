@@ -147,6 +147,42 @@ func TestCreateVulnerabilitySuppressionFailsClosedForInvalidOrScopedRequests(t *
 			wantStatus: http.StatusBadRequest,
 		},
 		{
+			name:       "expiry equals authored time",
+			body:       `{"suppression_id":"suppression-1","justification":"ignored","authored_at":"2026-07-27T12:00:00Z","expires_at":"2026-07-27T12:00:00Z","reason":"temporary","scope":{"cve_id":"CVE-2026-00001"}}`,
+			auth:       AuthContext{Mode: AuthModeShared, SubjectClass: "shared_token", AllScopes: true},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "expiry predates authored time",
+			body:       `{"suppression_id":"suppression-1","justification":"ignored","authored_at":"2026-07-27T12:00:00Z","expires_at":"2026-07-27T11:59:59Z","reason":"temporary","scope":{"cve_id":"CVE-2026-00001"}}`,
+			auth:       AuthContext{Mode: AuthModeShared, SubjectClass: "shared_token", AllScopes: true},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "evidence path without discoverable identity anchor",
+			body:       `{"suppression_id":"suppression-1","justification":"accepted_risk","authored_at":"2026-07-27T12:00:00Z","reason":"verified","scope":{"evidence_path":["vulnerability.cve"]}}`,
+			auth:       AuthContext{Mode: AuthModeShared, SubjectClass: "shared_token", AllScopes: true},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "unknown top-level field",
+			body:       `{"suppression_id":"suppression-1","justification":"accepted_risk","authored_at":"2026-07-27T12:00:00Z","reason":"verified","source":"caller-controlled","scope":{"cve_id":"CVE-2026-00001"}}`,
+			auth:       AuthContext{Mode: AuthModeShared, SubjectClass: "shared_token", AllScopes: true},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "unknown scope field",
+			body:       `{"suppression_id":"suppression-1","justification":"accepted_risk","authored_at":"2026-07-27T12:00:00Z","reason":"verified","scope":{"cve_id":"CVE-2026-00001","source":"caller-controlled"}}`,
+			auth:       AuthContext{Mode: AuthModeShared, SubjectClass: "shared_token", AllScopes: true},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "trailing JSON value",
+			body:       `{"suppression_id":"suppression-1","justification":"accepted_risk","authored_at":"2026-07-27T12:00:00Z","reason":"verified","scope":{"cve_id":"CVE-2026-00001"}} {}`,
+			auth:       AuthContext{Mode: AuthModeShared, SubjectClass: "shared_token", AllScopes: true},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
 			name:       "scoped caller",
 			body:       `{"suppression_id":"suppression-1","justification":"accepted_risk","authored_at":"2026-07-27T12:00:00Z","reason":"verified","scope":{"cve_id":"CVE-2026-00001"}}`,
 			auth:       AuthContext{Mode: AuthModeScoped, SubjectClass: "api_token", AllScopes: false},

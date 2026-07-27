@@ -22,6 +22,21 @@ const (
 	// SpanQueryVulnerabilitySuppressionMutation wraps authenticated operator
 	// writes that create immutable suppression fact generations.
 	SpanQueryVulnerabilitySuppressionMutation = "query.vulnerability_suppression_mutation"
+	// SpanAttrVulnerabilitySuppressionMutationOutcome records the closed result
+	// of an authenticated suppression mutation.
+	SpanAttrVulnerabilitySuppressionMutationOutcome = "eshu.mutation.outcome"
+	// VulnerabilitySuppressionMutationOutcomeCreated means a new immutable
+	// generation and projection intent committed.
+	VulnerabilitySuppressionMutationOutcomeCreated = "created"
+	// VulnerabilitySuppressionMutationOutcomeUnchanged means an identical retry
+	// reused the current generation without another enqueue.
+	VulnerabilitySuppressionMutationOutcomeUnchanged = "unchanged"
+	// VulnerabilitySuppressionMutationOutcomeRejected means authorization or
+	// request validation failed before storage.
+	VulnerabilitySuppressionMutationOutcomeRejected = "rejected"
+	// VulnerabilitySuppressionMutationOutcomeStoreError means the transactional
+	// generation write or enqueue failed.
+	VulnerabilitySuppressionMutationOutcomeStoreError = "store_error"
 	// SpanQuerySupplyChainImpactExplanation wraps one bounded vulnerability
 	// impact explanation over reducer-owned facts and referenced evidence ids.
 	SpanQuerySupplyChainImpactExplanation = "query.supply_chain_impact_explanation"
@@ -52,6 +67,19 @@ const (
 	// unverified?".
 	SpanQuerySBOMAttestationAttachmentAggregate = "query.sbom_attestation_attachment_aggregate"
 )
+
+var vulnerabilitySuppressionMutationOutcomes = []string{
+	VulnerabilitySuppressionMutationOutcomeCreated,
+	VulnerabilitySuppressionMutationOutcomeUnchanged,
+	VulnerabilitySuppressionMutationOutcomeRejected,
+	VulnerabilitySuppressionMutationOutcomeStoreError,
+}
+
+// VulnerabilitySuppressionMutationOutcomes returns the closed, low-cardinality
+// outcome vocabulary for the suppression mutation span.
+func VulnerabilitySuppressionMutationOutcomes() []string {
+	return append([]string(nil), vulnerabilitySuppressionMutationOutcomes...)
+}
 
 func init() {
 	for idx, name := range spanNames {

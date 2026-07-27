@@ -19,7 +19,10 @@ Eshu is facts-first:
 2. Durable queues make projection work claimable, retryable, and recoverable.
 3. The resolution engine materializes graph and read-model truth.
 4. HTTP API and MCP surfaces read canonical graph/content state; normal CLI
-   reads call the HTTP API instead of opening storage directly.
+   reads call the HTTP API instead of opening storage directly. The API's one
+   data-plane mutation is the all-scopes vulnerability-suppression policy
+   endpoint, which writes immutable facts and queued projection work rather
+   than canonical graph truth.
 
 The main correctness boundary is simple: collectors and webhooks observe source
 truth; the resolution engine decides graph truth. Intake services do not write
@@ -74,6 +77,7 @@ flowchart LR
   Reducer -->|"content and read models"| Postgres
   API -->|"bounded graph reads"| Graph
   API -->|"content, status, read models"| Postgres
+  API -->|"all-scopes suppression fact + projection intent"| Postgres
   MCP -->|"tool-backed graph reads"| Graph
   MCP -->|"content, status, read models"| Postgres
   CLI -->|"normal read commands"| API
@@ -88,7 +92,9 @@ Runtime ownership has three rules:
 - The resolution engine owns canonical graph projection, shared
   materialization, retry, replay, and repair.
 - API and MCP serve bounded reads from graph, content, status, and read-model
-  stores. Normal CLI read commands call the API surface.
+  stores. The API additionally owns one bounded, all-scopes suppression-policy
+  mutation that commits an immutable fact generation and projector intent in
+  one Postgres transaction. Normal CLI read commands call the API surface.
 
 Runtime commands, Compose services, Helm templates, ports, and scrape targets
 live in [Service Runtimes](deployment/service-runtimes.md).

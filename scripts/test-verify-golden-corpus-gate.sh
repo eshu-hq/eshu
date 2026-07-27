@@ -20,6 +20,8 @@ fail() { printf 'test-verify-golden-corpus-gate: %s\n' "$*" >&2; exit 1; }
 
 [[ -f "${script}" ]] || fail "missing ${script}"
 [[ -x "${script}" ]] || fail "verify-golden-corpus-gate.sh must be executable"
+[[ "$(wc -l <"${script}" | tr -d '[:space:]')" -lt 500 ]] \
+	|| fail "verify-golden-corpus-gate.sh must stay under 500 lines"
 [[ -f "${fixture_lib}" ]] || fail "missing ${fixture_lib}"
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 [[ -f "${snapshot}" ]] || fail "missing ${snapshot}"
@@ -138,6 +140,38 @@ pg() {
 golden_suppression_counts >/dev/null
 rg --fixed-strings --quiet -- "stage='projector'" <<<"${captured_suppression_count_query}" \
 	|| fail "suppression mutation count must isolate projector work from reducer fanout"
+rg --fixed-strings --quiet -- "golden_suppression_verify_producer_truth()" "${suppression_lib}" \
+	|| fail "suppression proof must keep its orchestration in the sourced helper"
+rg --fixed-strings --quiet -- "golden_suppression_wait_for_expiry" "${suppression_lib}" \
+	|| fail "suppression proof must wait for the authored future expiry"
+rg --fixed-strings --quiet -- "suppression_perf drain_state=" "${suppression_lib}" \
+	|| fail "suppression proof must report reducer/projector drain wall time and terminal queue counts"
+if rg --fixed-strings --quiet -- "golden_suppression_expired_body" "${suppression_lib}"; then
+	fail "suppression proof must not create a second already-expired mutation"
+fi
+runtime_snapshot_test_dir="$(mktemp -d -t golden-suppression-snapshot.XXXXXX)"
+log_dir="${runtime_snapshot_test_dir}"
+golden_suppression_active_body="${runtime_snapshot_test_dir}/active.json"
+jq -n '{
+	suppression_id: "golden-CVE-2026-00010",
+	justification: "ignored",
+	authored_at: "2026-07-27T12:00:00Z",
+	expires_at: "2099-07-27T12:00:00Z",
+	scope: {cve_id: "CVE-2026-00010"}
+}' >"${golden_suppression_active_body}"
+golden_suppression_prepare_runtime_snapshot
+runtime_snapshot_body="$(
+	jq -c '.query_shapes.http["POST /api/v0/supply-chain/impact/suppressions"].request_body' \
+		"${golden_suppression_runtime_snapshot}"
+)"
+expected_runtime_snapshot_body="$(jq -c . "${golden_suppression_active_body}")"
+[[ "${runtime_snapshot_body}" == "${expected_runtime_snapshot_body}" ]] ||
+	fail "runtime snapshot must replay the exact dynamically authored suppression body"
+rm -rf "${runtime_snapshot_test_dir}"
+rg --fixed-strings --quiet -- "golden_suppression_verify_producer_truth" "${script}" \
+	|| fail "golden gate must execute the suppression producer proof helper"
+rg --fixed-strings --quiet -- '${golden_suppression_runtime_snapshot}' "${script}" \
+	|| fail "final query gate must use the runtime snapshot with the exact suppression body"
 
 # Skipping comment lines is load-bearing, not cosmetic: the orchestrator and its
 # lib chunks name their own helpers, sourced libs and gate flags in the prose

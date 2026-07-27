@@ -19,13 +19,25 @@ func ScopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	return scopedHTTPRouteSupportsTenantFilter(r)
 }
 
-// SharedKeyOnlyRouteSurfaces returns every "METHOD /path" surface name in the
-// sharedKeyOnlyRoutes ledger (auth_scoped_routes_shared_key_only.go), for the
-// mcp package's exhaustiveness gate to staleness-check against the routes it
-// actually dispatches to.
+// httpOnlySharedKeyOnlyRoutes records shared-key/all-scope routes that are
+// deliberately absent from the read-only MCP tool surface. Keeping this
+// classification separate means a new shared-key-only route still fails the
+// MCP staleness gate until its transport ownership is explicit.
+var httpOnlySharedKeyOnlyRoutes = map[string]struct{}{
+	"POST /api/v0/supply-chain/impact/suppressions": {},
+}
+
+// SharedKeyOnlyRouteSurfaces returns the MCP-reachable "METHOD /path" entries
+// in sharedKeyOnlyRoutes (auth_scoped_routes_shared_key_only.go), for the mcp
+// package's exhaustiveness gate to staleness-check against the routes it
+// actually dispatches to. HTTP-only entries remain in the authorization ledger
+// but are omitted here through the explicit classification above.
 func SharedKeyOnlyRouteSurfaces() []string {
 	surfaces := make([]string, 0, len(sharedKeyOnlyRoutes))
 	for surface := range sharedKeyOnlyRoutes {
+		if _, httpOnly := httpOnlySharedKeyOnlyRoutes[surface]; httpOnly {
+			continue
+		}
 		surfaces = append(surfaces, surface)
 	}
 	return surfaces

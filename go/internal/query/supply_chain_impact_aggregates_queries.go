@@ -84,6 +84,18 @@ raw_facts AS (
 	        OR fact.scope_id = ANY($19::text[])
 	      )
 ),
+operator_facts AS NOT MATERIALIZED (
+	SELECT fact.*,
+	       ` + supplyChainImpactEffectiveSuppressionStateSQL(
+	"fact.scope_id",
+	"fact.suppression_state",
+	"fact.payload #>> '{suppression,expires_at}'",
+	"$20::timestamptz",
+) + ` AS effective_suppression_state
+	FROM raw_facts AS fact
+	WHERE fact.scope_id = '` + supplyChainImpactOperatorSuppressionScopeID + `'
+	  AND fact.suppression_state <> 'active'
+),
 eligible_facts AS (
 	SELECT *
 	FROM raw_facts AS fact
@@ -94,10 +106,17 @@ eligible_facts AS (
 	        WHERE authority.canonical_key = fact.canonical_key
 	      )
 	UNION ALL
-	SELECT *
-	FROM raw_facts AS fact
-	WHERE fact.scope_id = '` + supplyChainImpactOperatorSuppressionScopeID + `'
-	  AND fact.suppression_state <> 'active'
+	SELECT fact_id,
+	       scope_id,
+	       ` + supplyChainImpactPayloadWithEffectiveSuppressionSQL(
+	"payload",
+	"effective_suppression_state",
+) + ` AS payload,
+	       effective_suppression_state AS suppression_state,
+	       priority_score,
+	       has_payload_finding_id,
+	       canonical_key
+	FROM operator_facts
 ),
 scoped_facts AS (
 	SELECT *
@@ -160,5 +179,5 @@ SELECT ` + supplyChainImpactInventoryGroupExpressionPlaceholder + ` AS bucket, C
 FROM canonical_facts AS fact
 GROUP BY bucket
 ORDER BY bucket_count DESC, bucket
-LIMIT $20 OFFSET $21;
+LIMIT $21 OFFSET $22;
 `

@@ -61,8 +61,9 @@ coverage:
   - {surface: "fact_kind:aws_warning", scenario: odu, scenario_type: baseline, ref: "odu:aws-pack", proof_gate: ifa-contract-layer}
   - {surface: "fact_kind:aws_tag_observation", scenario: odu, scenario_type: baseline, ref: "odu:aws-pack", proof_gate: ifa-contract-layer}
   # vulnerability_intelligence family (epic #5462; #5474 coverage-backfill plan
-  # ownership carve-out assigns these 11 kinds to #5462). odu:vuln-pack carries
-  # one fixturepack-valid payload per schema-backed kind plus the schema-less
+  # ownership carve-out assigns these 12 kinds to #5462). odu:vuln-pack carries
+  # one fixturepack-valid payload per schema-backed provider kind, the
+  # operator-owned vulnerability.suppression shape, and the schema-less
   # vulnerability.warning registry-only kind.
   - {surface: "fact_kind:vulnerability.os_package", scenario: odu, scenario_type: baseline, ref: "odu:vuln-pack", proof_gate: ifa-contract-layer}
   - {surface: "fact_kind:vulnerability.cve", scenario: odu, scenario_type: baseline, ref: "odu:vuln-pack", proof_gate: ifa-contract-layer}
@@ -74,6 +75,7 @@ coverage:
   - {surface: "fact_kind:vulnerability.go_call_reachability", scenario: odu, scenario_type: baseline, ref: "odu:vuln-pack", proof_gate: ifa-contract-layer}
   - {surface: "fact_kind:vulnerability.reference", scenario: odu, scenario_type: baseline, ref: "odu:vuln-pack", proof_gate: ifa-contract-layer}
   - {surface: "fact_kind:vulnerability.source_snapshot", scenario: odu, scenario_type: baseline, ref: "odu:vuln-pack", proof_gate: ifa-contract-layer}
+  - {surface: "fact_kind:vulnerability.suppression", scenario: odu, scenario_type: baseline, ref: "odu:vuln-pack", proof_gate: ifa-contract-layer}
   - {surface: "fact_kind:vulnerability.warning", scenario: odu, scenario_type: baseline, ref: "odu:vuln-pack", proof_gate: ifa-contract-layer}
   - {surface: "narrowed_correlation:rc-29", scenario: odu, scenario_type: baseline, ref: "odu:kustomize-deploys-from", proof_gate: ifa-contract-layer}
   - {surface: "fact_kind:gcp_cloud_resource", scenario: odu, scenario_type: baseline, ref: "odu:demo-org-roundtrip", proof_gate: ifa-contract-layer}

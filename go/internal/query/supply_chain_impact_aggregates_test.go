@@ -262,9 +262,9 @@ func TestSupplyChainImpactAggregateQueriesUseListProfileAndSuppressionPredicates
 			}
 		}
 	}
-	// Scoped-token grant arrays occupy $18/$19 in the shared canonical-facts
-	// CTE, so the inventory page's limit/offset shift to $20/$21.
-	if !strings.Contains(supplyChainImpactInventoryQueryTemplate, "LIMIT $20 OFFSET $21") {
+	// Scoped-token grant arrays occupy $18/$19 and the bound suppression
+	// evaluation clock occupies $20, so inventory limit/offset use $21/$22.
+	if !strings.Contains(supplyChainImpactInventoryQueryTemplate, "LIMIT $21 OFFSET $22") {
 		t.Fatalf("inventory query must keep limit/offset after filter parameters:\n%s", supplyChainImpactInventoryQueryTemplate)
 	}
 }

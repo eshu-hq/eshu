@@ -73,6 +73,7 @@ func TestKnownAdminWriteRoutesArePlannerExcluded(t *testing.T) {
 		"POST /api/v0/admin/reindex",
 		"POST /api/v0/admin/replay",
 		"POST /api/v0/admin/skip",
+		"POST /api/v0/supply-chain/impact/suppressions",
 	}
 	for _, name := range want {
 		if !isPlannerExcludedSurface(name) {

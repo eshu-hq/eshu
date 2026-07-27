@@ -40,6 +40,7 @@ func TestBootstrapDefinitionsIncludeSupplyChainImpactCanonicalWinners(t *testing
 		"impact_status TEXT NOT NULL",
 		"severity_bucket TEXT NOT NULL",
 		"repository_id TEXT NOT NULL",
+		"suppression_expires_at TIMESTAMPTZ NULL",
 		"service_ids JSONB NOT NULL",
 		"workload_ids JSONB NOT NULL",
 		"environments JSONB NOT NULL",
@@ -52,6 +53,25 @@ func TestBootstrapDefinitionsIncludeSupplyChainImpactCanonicalWinners(t *testing
 	} {
 		if !strings.Contains(def.SQL, want) {
 			t.Fatalf("winners schema SQL missing %q:\n%s", want, def.SQL)
+		}
+	}
+}
+
+func TestSupplyChainSuppressionExpiryMigrationBackfillsOperatorWinners(t *testing.T) {
+	t.Parallel()
+
+	migration := MigrationSQL("supply_chain_suppression_expiry")
+	for _, want := range []string{
+		"ADD COLUMN IF NOT EXISTS suppression_expires_at TIMESTAMPTZ NULL",
+		"winner.winner_scope_id = 'operator:vulnerability_suppressions'",
+		"winner.suppression_state IN",
+		"pg_input_is_valid",
+		"'-infinity'::timestamptz",
+		"winner.winner_fact_id = fact.fact_id",
+		"NULLIF(fact.payload #>> '{suppression,expires_at}', '') IS NOT NULL",
+	} {
+		if !strings.Contains(migration, want) {
+			t.Fatalf("suppression expiry migration missing %q:\n%s", want, migration)
 		}
 	}
 }

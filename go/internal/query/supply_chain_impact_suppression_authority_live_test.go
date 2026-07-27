@@ -48,39 +48,108 @@ func TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive(t *testi
 	defer func() { _ = tx.Rollback() }()
 
 	seedSupplyChainSuppressionAuthorityLiveFacts(t, ctx, tx)
+	readAt := time.Date(2026, 7, 27, 12, 0, 10, 0, time.UTC)
+	now := func() time.Time { return readAt }
 	direct := NewPostgresSupplyChainImpactFindingStore(tx)
+	direct.Now = now
 	materialized := NewPostgresSupplyChainImpactFindingStoreWithReadModel(tx, true)
+	materialized.Now = now
 	aggregates := NewPostgresSupplyChainImpactAggregateStore(tx)
+	aggregates.Now = now
 
 	assertSuppressionAuthorityState(t, ctx, direct, aggregates, false, 0, "")
-	assertSuppressionAuthorityState(t, ctx, direct, aggregates, true, 1, "accepted_risk")
+	assertSuppressionAuthorityState(t, ctx, direct, aggregates, true, 1, "ignored")
+	assertSuppressionAuthorityFilter(t, ctx, direct, aggregates, "ignored", true, 1)
+	assertSuppressionAuthorityFilter(t, ctx, direct, aggregates, "expired", true, 0)
 	explanation, err := direct.ExplainSupplyChainImpact(ctx, SupplyChainImpactExplanationFilter{
 		FindingID: suppressionAuthorityLiveFinding,
 	})
 	if err != nil {
-		t.Fatalf("explain accepted-risk finding: %v", err)
+		t.Fatalf("explain ignored finding: %v", err)
 	}
-	if got := explanation.Finding.Suppression.State; got != "accepted_risk" {
-		t.Fatalf("explain suppression state = %q, want accepted_risk", got)
+	if got := explanation.Finding.Suppression.State; got != "ignored" {
+		t.Fatalf("explain suppression state = %q, want ignored", got)
 	}
 
 	rebuildSuppressionAuthorityWinners(t, ctx, tx)
 	assertSuppressionAuthorityState(t, ctx, materialized, aggregates, false, 0, "")
-	assertSuppressionAuthorityState(t, ctx, materialized, aggregates, true, 1, "accepted_risk")
+	assertSuppressionAuthorityState(t, ctx, materialized, aggregates, true, 1, "ignored")
+	assertSuppressionAuthorityFilter(t, ctx, materialized, aggregates, "ignored", true, 1)
 
-	if _, err := tx.ExecContext(ctx, `
-UPDATE fact_records
-SET payload = jsonb_set(
-      jsonb_set(payload, '{suppression_state}', '"expired"'::jsonb),
-      '{suppression,state}', '"expired"'::jsonb
-    )
-WHERE fact_id = $1`, suppressionAuthorityLiveOperatorFact); err != nil {
-		t.Fatalf("expire operator finding: %v", err)
+	// Advance only the read clock to expires_at. No suppression mutation,
+	// reducer replay, winners rebuild, or fact update is allowed: query-time
+	// expiry is the production mechanism under test, and equality must expire.
+	readAt = time.Date(2026, 7, 27, 12, 0, 30, 0, time.UTC)
+	assertSuppressionAuthorityState(t, ctx, direct, aggregates, false, 1, "expired")
+	assertSuppressionAuthorityState(t, ctx, materialized, aggregates, false, 1, "expired")
+	assertSuppressionAuthorityFilter(t, ctx, direct, aggregates, "expired", false, 1)
+	assertSuppressionAuthorityFilter(t, ctx, direct, aggregates, "ignored", true, 0)
+	assertSuppressionAuthorityFilter(t, ctx, materialized, aggregates, "expired", false, 1)
+	assertSuppressionAuthorityFilter(t, ctx, materialized, aggregates, "ignored", true, 0)
+	explanation, err = direct.ExplainSupplyChainImpact(ctx, SupplyChainImpactExplanationFilter{
+		FindingID: suppressionAuthorityLiveFinding,
+	})
+	if err != nil {
+		t.Fatalf("explain expired finding: %v", err)
+	}
+	if got := explanation.Finding.Suppression.State; got != "expired" {
+		t.Fatalf("explain suppression state = %q, want expired", got)
 	}
 
-	assertSuppressionAuthorityState(t, ctx, direct, aggregates, false, 1, "expired")
-	rebuildSuppressionAuthorityWinners(t, ctx, tx)
-	assertSuppressionAuthorityState(t, ctx, materialized, aggregates, false, 1, "expired")
+	var persistedState string
+	if err := tx.QueryRowContext(
+		ctx,
+		`SELECT payload #>> '{suppression,state}' FROM fact_records WHERE fact_id = $1`,
+		suppressionAuthorityLiveOperatorFact,
+	).Scan(&persistedState); err != nil {
+		t.Fatalf("read immutable operator fact: %v", err)
+	}
+	if persistedState != "ignored" {
+		t.Fatalf("persisted suppression state = %q, want ignored (read path must not mutate facts)", persistedState)
+	}
+}
+
+func assertSuppressionAuthorityFilter(
+	t *testing.T,
+	ctx context.Context,
+	store PostgresSupplyChainImpactFindingStore,
+	aggregates PostgresSupplyChainImpactAggregateStore,
+	suppressionState string,
+	includeSuppressed bool,
+	wantCount int,
+) {
+	t.Helper()
+	rows, err := store.ListSupplyChainImpactFindings(ctx, SupplyChainImpactFindingFilter{
+		CVEID:             suppressionAuthorityLiveCVE,
+		DetectionProfile:  "comprehensive",
+		SuppressionState:  suppressionState,
+		IncludeSuppressed: includeSuppressed,
+		Limit:             10,
+	})
+	if err != nil {
+		t.Fatalf("list suppression_state=%q: %v", suppressionState, err)
+	}
+	if len(rows) != wantCount {
+		t.Fatalf("list suppression_state=%q count = %d, want %d", suppressionState, len(rows), wantCount)
+	}
+
+	count, err := aggregates.CountSupplyChainImpactFindings(ctx, SupplyChainImpactAggregateFilter{
+		CVEID:             suppressionAuthorityLiveCVE,
+		DetectionProfile:  "comprehensive",
+		SuppressionState:  suppressionState,
+		IncludeSuppressed: includeSuppressed,
+	})
+	if err != nil {
+		t.Fatalf("count suppression_state=%q: %v", suppressionState, err)
+	}
+	if count.TotalFindings != wantCount {
+		t.Fatalf(
+			"aggregate suppression_state=%q count = %d, want %d",
+			suppressionState,
+			count.TotalFindings,
+			wantCount,
+		)
+	}
 }
 
 func assertSuppressionAuthorityState(
@@ -214,15 +283,16 @@ INSERT INTO scope_generations (
 	for key, value := range basePayload {
 		operatorPayload[key] = value
 	}
-	operatorPayload["suppression_state"] = "accepted_risk"
+	operatorPayload["suppression_state"] = "ignored"
 	operatorPayload["suppression"] = map[string]any{
-		"state":          "accepted_risk",
+		"state":          "ignored",
 		"suppression_id": "suppression-5465-live",
 		"source":         "eshu_policy",
-		"justification":  "accepted_risk",
+		"justification":  "ignored",
 		"author":         "shared_token",
 		"authored_at":    "2026-07-27T12:00:00Z",
-		"reason":         "synthetic compensating control",
+		"expires_at":     "2026-07-27T12:00:30Z",
+		"reason":         "synthetic temporary exception",
 	}
 	insertSupplyChainRuntimeFilterFact(
 		t,

@@ -372,11 +372,9 @@ func scannerWorkerAnalysisWorkItem(env facts.Envelope) (WorkItem, error) {
 // vulnerabilitySuppressionWorkItem maps a vulnerability.suppression fact (hook:
 // vulnerability_suppression_admission) to its Suppression node plus the
 // cross-hook SUPPRESSES edge to the Finding the supply_chain_impact hook owns.
-// vulnerability.suppression carries no committed JSON Schema; its payload keys
-// (suppression_id, source, justification, author, authored_at, reason,
-// evidence_ref, scope{cve_id, advisory_id, package_id, purl, repository_id})
-// come from the reducer decode seam instead
-// (go/internal/reducer/supply_chain_suppression_decode.go). This fixture
+// vulnerability.suppression carries the committed
+// vulnerability.suppression.v1 schema and the same operator-owned
+// source/author shape the API producer persists. This fixture
 // repurposes evidence_ref (a generic "reference to the evidence this
 // suppression concerns") to carry the target_locator_hash of the finding it
 // suppresses, matching decodeVulnerabilitySuppression's own suppression_id ->

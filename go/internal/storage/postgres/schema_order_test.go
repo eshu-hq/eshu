@@ -133,4 +133,6 @@ var orderedBootstrapDefinitionNames = []string{
 	// calling intent's owning repository into Postgres instead of loading
 	// every active CI fact platform-wide and filtering in Go.
 	"fact_records_active_container_image_ci_run_repository_idx",
+	// migration 083 (#5465 operator suppression expiry read parity).
+	"supply_chain_suppression_expiry",
 }

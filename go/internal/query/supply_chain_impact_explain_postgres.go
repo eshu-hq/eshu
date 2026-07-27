@@ -81,6 +81,7 @@ func (s PostgresSupplyChainImpactFindingStore) ExplainSupplyChainImpact(
 		filter.ImageRef,
 		pq.Array(filter.AllowedRepositoryIDs),
 		pq.Array(filter.AllowedScopeIDs),
+		supplyChainImpactSuppressionReadAt(s.Now),
 	)
 	if err != nil {
 		return SupplyChainImpactExplanationRow{}, fmt.Errorf("explain supply chain impact finding: %w", err)
@@ -222,6 +223,18 @@ WHERE fact.fact_kind = $1
     OR fact.scope_id = ANY($12::text[])
   )
 ),
+operator_facts AS NOT MATERIALIZED (
+SELECT fact.*,
+       ` + supplyChainImpactEffectiveSuppressionStateSQL(
+	"fact.scope_id",
+	"fact.suppression_state",
+	"fact.payload #>> '{suppression,expires_at}'",
+	"$13::timestamptz",
+) + ` AS effective_suppression_state
+FROM raw_facts AS fact
+WHERE fact.scope_id = '` + supplyChainImpactOperatorSuppressionScopeID + `'
+  AND fact.suppression_state <> 'active'
+),
 eligible_facts AS (
 SELECT *
 FROM raw_facts AS fact
@@ -232,10 +245,19 @@ WHERE fact.scope_id <> '` + supplyChainImpactOperatorSuppressionScopeID + `'
         WHERE authority.canonical_key = fact.canonical_key
       )
 UNION ALL
-SELECT *
-FROM raw_facts AS fact
-WHERE fact.scope_id = '` + supplyChainImpactOperatorSuppressionScopeID + `'
-  AND fact.suppression_state <> 'active'
+SELECT fact_id,
+       scope_id,
+       finding_id,
+       source_confidence,
+       ` + supplyChainImpactPayloadWithEffectiveSuppressionSQL(
+	"payload",
+	"effective_suppression_state",
+) + ` AS payload,
+       effective_suppression_state AS suppression_state,
+       priority_score,
+       has_payload_finding_id,
+       canonical_key
+FROM operator_facts
 ),
 scoped_facts AS (
 SELECT *

@@ -17,10 +17,13 @@
 
 ## Invariants this package enforces
 
-- **Read-only runtime** — `cmd/api` opens no write paths. All wiring flows into
-  read adapters (`query.Neo4jReader`, `query.ContentReader`). The binary never
-  calls any graph write method or Postgres write method. Enforced structurally:
-  handler structs hold read-port interfaces.
+- **Read-mostly runtime with one bounded policy mutation** — normal data routes
+  use read adapters (`query.Neo4jReader`, `query.ContentReader`) and the binary
+  never calls graph write methods. The authenticated, all-scopes-only
+  vulnerability-suppression route is the deliberate exception: it writes one
+  immutable operator fact generation and projector intent transactionally
+  through `VulnerabilitySuppressionMutationStore`. Do not add another fact or
+  queue write here without an owner-approved runtime-boundary review.
 - **Required Postgres DSN** — `wireAPI` returns an error after `ResolveAPIKey`
   succeeds if both `ESHU_POSTGRES_DSN` and `ESHU_CONTENT_STORE_DSN` are empty;
   the binary exits at startup (`wiring.go:42`).
@@ -124,6 +127,9 @@
   see `docs/public/reference/backend-conformance.md`.
 - The `AuthMiddleware` placement relative to `mountRuntimeSurface` — moving this
   changes which routes require auth; that is a security-boundary change.
+- Any API fact or queue write beyond the bounded, all-scopes vulnerability
+  suppression mutation — data-plane write ownership belongs to intake and
+  resolution runtimes unless an owner-approved boundary change says otherwise.
 
 ## Evidence (W-1: ESHU_API_SHUTDOWN_TIMEOUT)
 

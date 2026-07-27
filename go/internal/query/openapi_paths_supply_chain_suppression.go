@@ -34,7 +34,7 @@ const openAPIPathsSupplyChainSuppressionMutation = `
                   "expires_at": {
                     "type": "string",
                     "format": "date-time",
-                    "description": "Required when justification is ignored."
+                    "description": "Required when justification is ignored and must be strictly later than authored_at."
                   },
                   "reason": {
                     "type": "string"
@@ -45,7 +45,7 @@ const openAPIPathsSupplyChainSuppressionMutation = `
                   "scope": {
                     "type": "object",
                     "additionalProperties": false,
-                    "description": "At least one vulnerability or deployment anchor is required.",
+                    "description": "At least one discoverable identity anchor is required: cve_id, advisory_id, package_id, purl, repository_id, or subject_digest. evidence_path may narrow an anchored suppression but cannot stand alone.",
                     "properties": {
                       "cve_id": {"type": "string"},
                       "advisory_id": {"type": "string"},
@@ -55,7 +55,8 @@ const openAPIPathsSupplyChainSuppressionMutation = `
                       "subject_digest": {"type": "string"},
                       "evidence_path": {
                         "type": "array",
-                        "items": {"type": "string"}
+                        "items": {"type": "string"},
+                        "description": "Optional conjunct that narrows a suppression with another discoverable identity anchor; not valid by itself."
                       }
                     }
                   }

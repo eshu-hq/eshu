@@ -39,6 +39,44 @@ const supplyChainImpactSeverityBucketFactSQL = `CASE
     ELSE 'none'
   END`
 
+const supplyChainImpactHiddenSuppressionStatesSQL = "'not_affected','accepted_risk','false_positive','ignored'"
+
+func supplyChainImpactEffectiveSuppressionStateSQL(
+	scopeExpr string,
+	stateExpr string,
+	expiresAtExpr string,
+	readAtExpr string,
+) string {
+	return `CASE
+    WHEN ` + scopeExpr + ` <> '` + supplyChainImpactOperatorSuppressionScopeID + `'
+      OR ` + stateExpr + ` NOT IN (` + supplyChainImpactHiddenSuppressionStatesSQL + `)
+      OR NULLIF(` + expiresAtExpr + `, '') IS NULL
+    THEN ` + stateExpr + `
+    WHEN NOT pg_input_is_valid(` + expiresAtExpr + `, 'timestamp with time zone')
+    THEN 'expired'
+    WHEN (` + expiresAtExpr + `)::timestamptz <= ` + readAtExpr + `
+    THEN 'expired'
+    ELSE ` + stateExpr + `
+  END`
+}
+
+func supplyChainImpactPayloadWithEffectiveSuppressionSQL(
+	payloadExpr string,
+	effectiveStateExpr string,
+) string {
+	return `(` + payloadExpr + ` || jsonb_build_object(
+    'suppression_state', ` + effectiveStateExpr + `,
+    'suppression',
+      COALESCE(
+        CASE
+          WHEN jsonb_typeof(` + payloadExpr + `->'suppression') = 'object'
+          THEN ` + payloadExpr + `->'suppression'
+        END,
+        '{}'::jsonb
+      ) || jsonb_build_object('state', ` + effectiveStateExpr + `)
+  ))`
+}
+
 // supplyChainImpactOperatorSuppressionKeysCTE selects the canonical keys whose
 // current operator-owned projection carries a non-active suppression decision.
 // Reads use this small authoritative set to remove stale source-scope fallbacks
@@ -138,6 +176,18 @@ WHERE fact.fact_kind = $1
           OR fact.scope_id = ANY($23::text[])
         )
 ),
+operator_facts AS NOT MATERIALIZED (
+SELECT fact.*,
+       ` + supplyChainImpactEffectiveSuppressionStateSQL(
+	"fact.scope_id",
+	"fact.suppression_state",
+	"fact.payload #>> '{suppression,expires_at}'",
+	"$24::timestamptz",
+) + ` AS effective_suppression_state
+FROM raw_facts AS fact
+WHERE fact.scope_id = '` + supplyChainImpactOperatorSuppressionScopeID + `'
+  AND fact.suppression_state <> 'active'
+),
 eligible_facts AS (
 SELECT *
 FROM raw_facts AS fact
@@ -148,10 +198,19 @@ WHERE fact.scope_id <> '` + supplyChainImpactOperatorSuppressionScopeID + `'
         WHERE authority.canonical_key = fact.canonical_key
       )
 UNION ALL
-SELECT *
-FROM raw_facts AS fact
-WHERE fact.scope_id = '` + supplyChainImpactOperatorSuppressionScopeID + `'
-  AND fact.suppression_state <> 'active'
+SELECT fact_id,
+       scope_id,
+       finding_id,
+       source_confidence,
+       ` + supplyChainImpactPayloadWithEffectiveSuppressionSQL(
+	"payload",
+	"effective_suppression_state",
+) + ` AS payload,
+       effective_suppression_state AS suppression_state,
+       priority_score,
+       has_payload_finding_id,
+       canonical_key
+FROM operator_facts
 ),
 scoped_facts AS (
 SELECT *
@@ -212,7 +271,7 @@ LIMIT $19
 // window, no sort spill) and joins fact_records by winner_fact_id only for the
 // page payloads.
 //
-// It takes the SAME 23-parameter slice as listSupplyChainImpactFindingsQuery so
+// It takes the SAME 24-parameter slice as listSupplyChainImpactFindingsQuery so
 // the store can swap queries without rebuilding args; $1 (fact_kind) is not a
 // filter here because the winners table is impact-only, but it is referenced in a
 // trivially-true guard so every bound parameter is used.
@@ -225,7 +284,15 @@ LIMIT $19
 var listSupplyChainImpactFindingsFromWinnersQuery = `
 WITH ` + supplyChainImpactRuntimeFilterCTE("$9", "$10", "$11", "$22", "$23") + `,
 filtered AS NOT MATERIALIZED (
-    SELECT w.finding_id, w.winner_fact_id, w.priority_score
+    SELECT w.finding_id,
+           w.winner_fact_id,
+           w.priority_score,
+           ` + supplyChainImpactEffectiveSuppressionStateSQL(
+	"w.winner_scope_id",
+	"w.suppression_state",
+	"COALESCE(w.suppression_expires_at::text, '')",
+	"$24::timestamptz",
+) + ` AS effective_suppression_state
     FROM supply_chain_impact_canonical_winners AS w
     WHERE ($1 = $1)
       AND ($2 = '' OR w.cve_id = $2)
@@ -264,15 +331,36 @@ filtered AS NOT MATERIALIZED (
       AND ($14 = '' OR w.priority_bucket = $14)
       AND ($15 = 0 OR w.priority_score >= $15)
       AND ($16 = '' OR w.image_ref = $16)
-      AND ($20 = '' OR w.suppression_state = $20)
-      AND ($21::boolean OR w.suppression_state NOT IN ('not_affected', 'accepted_risk', 'false_positive', 'ignored'))
+      AND (
+            $20 = ''
+            OR ` + supplyChainImpactEffectiveSuppressionStateSQL(
+	"w.winner_scope_id",
+	"w.suppression_state",
+	"COALESCE(w.suppression_expires_at::text, '')",
+	"$24::timestamptz",
+) + ` = $20
+          )
+      AND (
+            $21::boolean
+            OR ` + supplyChainImpactEffectiveSuppressionStateSQL(
+	"w.winner_scope_id",
+	"w.suppression_state",
+	"COALESCE(w.suppression_expires_at::text, '')",
+	"$24::timestamptz",
+) + ` NOT IN (` + supplyChainImpactHiddenSuppressionStatesSQL + `)
+          )
       AND (
             (COALESCE(cardinality($22::text[]), 0) = 0 AND COALESCE(cardinality($23::text[]), 0) = 0)
             OR w.repository_id = ANY($22::text[])
             OR w.winner_scope_id = ANY($23::text[])
           )
 )
-SELECT f.finding_id, refetch.source_confidence, refetch.payload
+SELECT f.finding_id,
+       refetch.source_confidence,
+       ` + supplyChainImpactPayloadWithEffectiveSuppressionSQL(
+	"refetch.payload",
+	"f.effective_suppression_state",
+) + ` AS payload
 FROM filtered AS f
 JOIN fact_records AS refetch
   ON refetch.fact_id = f.winner_fact_id

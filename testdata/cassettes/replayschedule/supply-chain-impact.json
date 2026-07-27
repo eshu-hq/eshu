@@ -17,14 +17,14 @@
       "facts": [
         {
           "fact_kind": "vulnerability.cve",
-          "stable_fact_key": "replay:schedule:supply-chain-impact:cve:CVE-2024-11001",
+          "stable_fact_key": "replay:schedule:supply-chain-impact:cve:CVE-2026-11001",
           "schema_version": "1.0.0",
           "collector_kind": "vulnerability_intelligence",
           "fencing_token": 1,
           "source_confidence": "observed",
           "payload": {
             "advisory_id": "GHSA-demo-1111-2222",
-            "cve_id": "CVE-2024-11001",
+            "cve_id": "CVE-2026-11001",
             "source": "osv",
             "severity_label": "high",
             "cvss_score": 8.1,
@@ -40,7 +40,7 @@
           "source_confidence": "observed",
           "payload": {
             "advisory_id": "GHSA-demo-1111-2222",
-            "cve_id": "CVE-2024-11001",
+            "cve_id": "CVE-2026-11001",
             "ecosystem": "npm",
             "package_id": "npm:left-pad",
             "package_name": "left-pad",
@@ -58,7 +58,7 @@
           "source_confidence": "observed",
           "payload": {
             "advisory_id": "GHSA-demo-1111-2222",
-            "cve_id": "CVE-2024-11001",
+            "cve_id": "CVE-2026-11001",
             "ecosystem": "npm",
             "package_id": "npm:is-really-old",
             "package_name": "is-really-old",
@@ -89,27 +89,42 @@
             "distro": "alpine",
             "distro_version": "3.19",
             "package_manager": "npm",
-            "linked_cve_id": "CVE-2024-11001",
+            "linked_cve_id": "CVE-2026-11001",
             "linked_purl": "pkg:npm/left-pad@1.3.0"
           }
-        },
+        }
+      ]
+    },
+    {
+      "scope_id": "operator:vulnerability_suppressions",
+      "source_system": "eshu_policy",
+      "scope_kind": "vulnerability_intelligence",
+      "collector_kind": "vulnerability_intelligence",
+      "partition_key": "operator:vulnerability_suppressions",
+      "metadata": {
+        "purpose": "Operator-owned suppression producer shape for the supply-chain-impact ordering proof"
+      },
+      "generation_id": "cassette-operator-vulnerability-suppressions-gen1",
+      "observed_at": "2026-07-01T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
         {
           "fact_kind": "vulnerability.suppression",
-          "stable_fact_key": "replay:schedule:supply-chain-impact:suppression:SUP-9001",
+          "stable_fact_key": "operator:CVE-2026-11001:checkout-service",
           "schema_version": "1.0.0",
           "collector_kind": "vulnerability_intelligence",
           "fencing_token": 1,
-          "source_confidence": "observed",
+          "source_confidence": "reported",
           "payload": {
-            "suppression_id": "SUP-9001",
-            "source": "security-team",
+            "suppression_id": "operator:CVE-2026-11001:checkout-service",
+            "source": "eshu_policy",
             "justification": "false_positive",
-            "author": "security-bot",
+            "author": "shared_token:sha256:example-operator",
             "authored_at": "2026-06-20T00:00:00Z",
             "reason": "not_reachable_at_runtime",
             "evidence_ref": "sha256:demofinding0000000000000000000000000000000000000000000000001",
             "scope": {
-              "cve_id": "CVE-2024-11001",
+              "cve_id": "CVE-2026-11001",
               "advisory_id": "GHSA-demo-1111-2222",
               "package_id": "npm:left-pad",
               "purl": "pkg:npm/left-pad@1.3.0",

@@ -31,17 +31,18 @@ func TestListActiveSupplyChainImpactFactsQueryIsPackageBoundedAndPaged(t *testin
 		"fact.payload->>'package_id' = ANY($1::text[])",
 		"fact.payload->>'purl' = ANY($2::text[])",
 		"fact.payload->>'cve_id' = ANY($3::text[])",
-		"fact.payload->>'subject_digest' = ANY($4::text[])",
-		"fact.payload->>'artifact_digest' = ANY($4::text[])",
-		"fact.payload->>'referrer_digest' = ANY($4::text[])",
-		"fact.payload->>'resolved_digest' = ANY($4::text[])",
-		"fact.payload->>'cpe' = ANY($5::text[])",
-		"fact.payload->>'criteria' = ANY($5::text[])",
-		"fact.payload->>'document_id' = ANY($6::text[])",
-		"fact.payload->>'repository_id' = ANY($7::text[])",
-		"fact.payload->>'image_ref' = ANY($8::text[])",
-		"fact.fact_id > $10",
-		"LIMIT $11",
+		"fact.payload->>'advisory_id' = ANY($4::text[])",
+		"fact.payload->>'subject_digest' = ANY($5::text[])",
+		"fact.payload->>'artifact_digest' = ANY($5::text[])",
+		"fact.payload->>'referrer_digest' = ANY($5::text[])",
+		"fact.payload->>'resolved_digest' = ANY($5::text[])",
+		"fact.payload->>'cpe' = ANY($6::text[])",
+		"fact.payload->>'criteria' = ANY($6::text[])",
+		"fact.payload->>'document_id' = ANY($7::text[])",
+		"fact.payload->>'repository_id' = ANY($8::text[])",
+		"fact.payload->>'image_ref' = ANY($9::text[])",
+		"fact.fact_id > $11",
+		"LIMIT $12",
 	} {
 		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
@@ -62,7 +63,8 @@ func TestListActiveSupplyChainImpactFactsQueryIncludesVulnerabilitySuppression(t
 		"fact.payload->'scope'->>'package_id' = ANY($1::text[])",
 		"fact.payload->'scope'->>'purl' = ANY($2::text[])",
 		"fact.payload->'scope'->>'cve_id' = ANY($3::text[])",
-		"fact.payload->'scope'->>'subject_digest' = ANY($4::text[])",
+		"fact.payload->'scope'->>'advisory_id' = ANY($4::text[])",
+		"fact.payload->'scope'->>'subject_digest' = ANY($5::text[])",
 	} {
 		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
@@ -81,20 +83,20 @@ func TestListActiveSupplyChainImpactFactsQueryBoundsRepositoryFollowUp(t *testin
 		"'reducer_platform_materialization'",
 		"'reducer_service_catalog_correlation'",
 		"'reducer_workload_identity'",
-		"fact.payload->>'repository_id' = ANY($7::text[])",
-		"fact.payload->>'repo_id' = ANY($7::text[])",
-		"fact.payload->'scope'->>'repository_id' = ANY($7::text[])",
-		"fact.scope_id = ANY($7::text[])",
-		"fact.payload->>'scope_id' = ANY($7::text[])",
-		"scope.source_key = ANY($7::text[])",
-		"scope.payload->>'repo_id' = ANY($7::text[])",
-		"scope.payload->>'id' = ANY($7::text[])",
+		"fact.payload->>'repository_id' = ANY($8::text[])",
+		"fact.payload->>'repo_id' = ANY($8::text[])",
+		"fact.payload->'scope'->>'repository_id' = ANY($8::text[])",
+		"fact.scope_id = ANY($8::text[])",
+		"fact.payload->>'scope_id' = ANY($8::text[])",
+		"scope.source_key = ANY($8::text[])",
+		"scope.payload->>'repo_id' = ANY($8::text[])",
+		"scope.payload->>'id' = ANY($8::text[])",
 	} {
 		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
 		}
 	}
-	if strings.Contains(listActiveSupplyChainImpactFactsQuery, "OR fact.payload->>'repository_id' = ANY($7::text[])") {
+	if strings.Contains(listActiveSupplyChainImpactFactsQuery, "OR fact.payload->>'repository_id' = ANY($8::text[])") {
 		t.Fatalf("repository_id follow-up must be fact-kind gated:\n%s", listActiveSupplyChainImpactFactsQuery)
 	}
 }
@@ -139,11 +141,11 @@ func TestListActiveSupplyChainImpactFactsQuerySeparatesParserFileFollowUp(t *tes
 
 	for _, want := range []string{
 		"fact.fact_kind = 'file'",
-		"ANY($9::text[])",
+		"ANY($10::text[])",
 		"fact.payload->'parsed_file_data'->>'language'",
 		"'javascript', 'jsx', 'typescript', 'tsx'",
-		"fact.fact_id > $10",
-		"LIMIT $11",
+		"fact.fact_id > $11",
+		"LIMIT $12",
 	} {
 		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)

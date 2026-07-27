@@ -49,6 +49,7 @@ func plannerExcludedSurfaces() map[string]struct{} {
 		"POST /api/v0/admin/reindex":                                                    {}, // RequestReindex enqueues ingester reindex work
 		"POST /api/v0/admin/replay":                                                     {}, // ReplayFailed re-processes failed work items
 		"POST /api/v0/admin/skip":                                                       {}, // skips queued work items
+		"POST /api/v0/supply-chain/impact/suppressions":                                 {}, // creates operator-wide suppression policy evidence
 		"POST /api/v0/auth/admin/idp-group-mappings":                                    {}, // creates an IdP group->role mapping (admin mutation)
 		"POST /api/v0/auth/admin/provider-configs":                                      {}, // creates a DB-backed identity provider config (admin mutation)
 		"POST /api/v0/auth/admin/provider-configs/{provider_config_id}":                 {}, // creates a new active revision for a provider config (admin mutation)

@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/lib/pq"
 )
@@ -105,6 +106,9 @@ type SupplyChainImpactInventoryRow struct {
 // from reducer-owned impact findings facts.
 type PostgresSupplyChainImpactAggregateStore struct {
 	DB supplyChainImpactAggregateQueryer
+	// Now supplies the single UTC clock value shared by every SQL statement
+	// in one aggregate call. It defaults to time.Now.
+	Now func() time.Time
 }
 
 type supplyChainImpactAggregateQueryer interface {
@@ -130,6 +134,7 @@ func (s PostgresSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
 		return SupplyChainImpactAggregateCount{}, fmt.Errorf("supply chain impact aggregate database is required")
 	}
 
+	readAt := supplyChainImpactSuppressionReadAt(s.Now)
 	row := s.DB.QueryRowContext(
 		ctx,
 		supplyChainImpactAggregateCountQuery,
@@ -152,6 +157,7 @@ func (s PostgresSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
 		filter.ImageRef,
 		pq.Array(filter.AllowedRepositoryIDs),
 		pq.Array(filter.AllowedScopeIDs),
+		readAt,
 	)
 	var total, affected, affectedExact, affectedDerived, possiblyAffected, notAffected sql.NullInt64
 	if err := row.Scan(&total, &affected, &affectedExact, &affectedDerived, &possiblyAffected, &notAffected); err != nil {
@@ -169,10 +175,10 @@ func (s PostgresSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
 		BySeverity:       map[string]int{},
 	}
 
-	if err := s.fillPriorityBuckets(ctx, filter, &count); err != nil {
+	if err := s.fillPriorityBuckets(ctx, filter, readAt, &count); err != nil {
 		return SupplyChainImpactAggregateCount{}, err
 	}
-	if err := s.fillSeverityBuckets(ctx, filter, &count); err != nil {
+	if err := s.fillSeverityBuckets(ctx, filter, readAt, &count); err != nil {
 		return SupplyChainImpactAggregateCount{}, err
 	}
 	return count, nil
@@ -181,6 +187,7 @@ func (s PostgresSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
 func (s PostgresSupplyChainImpactAggregateStore) fillPriorityBuckets(
 	ctx context.Context,
 	filter SupplyChainImpactAggregateFilter,
+	readAt time.Time,
 	count *SupplyChainImpactAggregateCount,
 ) error {
 	rows, err := s.DB.QueryContext(
@@ -205,6 +212,7 @@ func (s PostgresSupplyChainImpactAggregateStore) fillPriorityBuckets(
 		filter.ImageRef,
 		pq.Array(filter.AllowedRepositoryIDs),
 		pq.Array(filter.AllowedScopeIDs),
+		readAt,
 	)
 	if err != nil {
 		return fmt.Errorf("count supply chain impact priority buckets: %w", err)
@@ -224,6 +232,7 @@ func (s PostgresSupplyChainImpactAggregateStore) fillPriorityBuckets(
 func (s PostgresSupplyChainImpactAggregateStore) fillSeverityBuckets(
 	ctx context.Context,
 	filter SupplyChainImpactAggregateFilter,
+	readAt time.Time,
 	count *SupplyChainImpactAggregateCount,
 ) error {
 	rows, err := s.DB.QueryContext(
@@ -248,6 +257,7 @@ func (s PostgresSupplyChainImpactAggregateStore) fillSeverityBuckets(
 		filter.ImageRef,
 		pq.Array(filter.AllowedRepositoryIDs),
 		pq.Array(filter.AllowedScopeIDs),
+		readAt,
 	)
 	if err != nil {
 		return fmt.Errorf("count supply chain impact severity buckets: %w", err)
@@ -291,6 +301,7 @@ func (s PostgresSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 		offset = 0
 	}
 	q := supplyChainImpactInventoryQuery(groupExpr)
+	readAt := supplyChainImpactSuppressionReadAt(s.Now)
 	rows, err := s.DB.QueryContext(
 		ctx,
 		q,
@@ -313,6 +324,7 @@ func (s PostgresSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 		filter.ImageRef,
 		pq.Array(filter.AllowedRepositoryIDs),
 		pq.Array(filter.AllowedScopeIDs),
+		readAt,
 		limit,
 		offset,
 	)

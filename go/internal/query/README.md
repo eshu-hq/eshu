@@ -309,9 +309,53 @@ The administrative `POST /api/v0/supply-chain/impact/suppressions` route is
 deliberately outside the scoped-token allowlist. It requires an all-scopes
 authenticated subject, derives source and author server-side, validates a
 non-empty bounded suppression scope, and delegates to the Postgres immutable
-generation store. Its `query.vulnerability_suppression_mutation` span records
+generation store. Its endpoint-specific decoder rejects unknown top-level or
+scope keys and rejects a second JSON value, keeping the runtime request
+contract aligned with OpenAPI's `additionalProperties: false`. Its
+`query.vulnerability_suppression_mutation` span records
 only the closed `created`, `unchanged`, `rejected`, or `store_error` outcome;
 operator reason text and suppression anchors never become telemetry labels.
+`evidence_path` can only narrow a suppression that also carries a discoverable
+CVE, advisory, package, PURL, repository, or digest anchor. Query stores bind
+one UTC expiry clock per call; list, aggregate facets, and explain patch an
+expired operator row to `state=expired` without changing its immutable fact.
+The materialized winners path uses the same clock and denormalized expiry so it
+stays byte-equivalent to the direct read.
+
+Performance Evidence: on Postgres 18 with 100,000 synthetic source rows,
+50,000 canonical keys, and 500 operator suppressions (250 expired, 250 future),
+ten warm executions of the current persisted-state canonical query had a
+20.784 ms median; the operator-only bound-clock overlay had a 20.556 ms median
+(1.1% faster). The rejected all-row overlay measured 40.950 ms versus a
+27.959 ms baseline and was not implemented. The accepted shape added exactly
+250 expired visible rows, removed zero rows, and left 49,500 visible keys
+unchanged.
+
+The same-machine built-binary golden gate on fresh volumes held the production
+pipeline at the same resolution: `origin/main` `85bb75812b` completed the timed
+pipeline in 99 seconds (bootstrap/collect/first-drain/maintenance
+`3/20/66/10` seconds). The first post-fix run matched those four phases and the
+99-second total exactly; a repeat after regenerating the fact-kind registry
+measured 100 seconds with phases `3/20/66/11`, a one-second maintenance-timing
+variance. Its graph/query phase was 24 seconds versus the baseline's 3 seconds
+because the test deliberately waits 20 seconds for one future suppression to
+expire; that test clock is not production pipeline work. The repeat reported
+the exact advisory warnings
+`phase_graph_query: observed=24.0s, baseline=3.0s, ceiling=8.0s` and
+`phase_maintenance_drains: observed=11.0s, baseline=5.0s, ceiling=10.0s`;
+required failures remained zero. Within that repeat, the created mutation took
+0.004722 seconds, the suppression projector/reducer drain took 2.099322 seconds
+with zero residuals and dead letters, seven identical retries had a
+0.002682-second handler median without adding a generation or work item, and
+the active/hidden/audit/expired finding reads had medians of
+0.018725/0.006590/0.010489/0.011079 seconds.
+
+Observability Evidence: `query.vulnerability_suppression_mutation` records
+`eshu.mutation.outcome` from the closed `created`, `unchanged`, `rejected`, and
+`store_error` vocabulary. At 3 AM, operators correlate that result with
+projector/reducer queue depth, work-item status, and
+`eshu_dp_supply_chain_suppression_decisions_total`; request anchors, reasons,
+and author values are never labels.
 Container image identity list, count, and inventory reads
 (`GET /api/v0/supply-chain/container-images/identities`, `/identities/count`,
 and `/identities/inventory`, plus the matching `list_container_image_identities`,

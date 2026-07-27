@@ -345,25 +345,7 @@ done
 [[ "${api_ready}" == "true" ]] || { tail -30 "${log_dir}/api.log" >&2 || true; die "eshu-api /readyz never returned on port ${GATE_API_PORT}"; }
 
 log "B-7 suppression producer truth: active -> hidden -> expired"
-golden_suppression_prepare_payloads
-golden_suppression_assert_active_baseline
-read -r suppression_generations_before suppression_work_before < <(golden_suppression_counts)
-golden_suppression_create "accepted_risk" "${golden_suppression_active_body}"
-read -r suppression_generations_active suppression_work_active < <(golden_suppression_counts)
-[[ "${suppression_generations_active}" -eq $((suppression_generations_before + 1)) &&
-	"${suppression_work_active}" -eq $((suppression_work_before + 1)) ]] ||
-	die "accepted-risk mutation did not add exactly one generation/work item"
-golden_suppression_drain "accepted-risk"
-golden_suppression_assert_hidden
-
-golden_suppression_create "expired" "${golden_suppression_expired_body}"
-read -r suppression_generations_expired suppression_work_expired < <(golden_suppression_counts)
-[[ "${suppression_generations_expired}" -eq $((suppression_generations_active + 1)) &&
-	"${suppression_work_expired}" -eq $((suppression_work_active + 1)) ]] ||
-	die "expired mutation did not add exactly one generation/work item"
-golden_suppression_drain "expired"
-golden_suppression_assert_expired
-golden_suppression_assert_retry_noop
+golden_suppression_verify_producer_truth
 
 log "start eshu-mcp-server (http) for MCP query truth"
 ESHU_MCP_TRANSPORT=http ESHU_MCP_ADDR=":${GATE_MCP_PORT}" \
@@ -379,57 +361,20 @@ done
 [[ "${mcp_ready}" == "true" ]] || { tail -30 "${log_dir}/mcp-server.log" >&2 || true; die "eshu-mcp-server /health never returned on port ${GATE_MCP_PORT}"; }
 
 log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
-# Minimal-corpus posture: the required graph assertions are "the pipeline
-# projected the corpus" (Repository present) and the cross-repo DEPENDS_ON
-# correlation (rc-3), which the lib-common/orders-api fixture pair plus the
-# package-registry cassette deterministically produce. The deployable-unit (rc-1),
-# the cassette-dependent correlations, and the 20-repo node/edge tolerances:
-# rc-1 (deployable-unit) is required — the deployable-source + deployable-config
-# (ArgoCD) pair plus the correlation reopen produce CORRELATES_DEPLOYABLE_UNIT.
-# rc-2 (RUNS_IN) is now required too — the api-svc fixture (Flask @app.route
-# handlers + an in-repo k8s/deployment.yaml) produces the code->runtime bridge:
-# the handler Functions bind via HANDLES_ROUTE to their Endpoints and via runs_in
-# to the api-svc Workload the repository DEFINES. rc-4 (RUNS_IMAGE) is now required
-# too — the kuberneteslive + ociregistry cassettes produce a live workload whose
-# digest-pinned image resolves (exact decision) to the OCI manifest node, and the
-# kubernetes_correlation_materialization domain (reopened in maintenance once the
-# OCI generation is active) promotes that decision into the RUNS_IMAGE edge.
-# rc-5 (MANAGES) and rc-6 (DEPENDS_ON between AtlantisProjects) are now required
-# too — the terraform_comprehensive fixture carries a depth-1 atlantis.yaml with
-# network + staging projects; the structural-edge phase emits both edges after the
-# AtlantisProject and Directory nodes are written for that repo.
-# rc-27 (DEFINES_JOB) and rc-28 (NEEDS between GitlabJobs) are now required too —
-# the terraform_comprehensive fixture carries a depth-0 .gitlab-ci.yml with
-# terraform-validate + terraform-plan jobs; the structural-edge phase emits the
-# pipeline->job DEFINES_JOB edges and the plan->validate NEEDS edge after the
-# GitlabPipeline and GitlabJob nodes are written for that repo. Static parse, no
-# cassette, mirroring the Atlantis rc-5/rc-6 pattern.
-# rc-8 (HANDLES_ROUTE) is now required too — the same api-svc fixture that drives
-# rc-2 (RUNS_IN) binds its Flask @app.route handler Functions to their Endpoint
-# nodes via Function-[:HANDLES_ROUTE]->Endpoint. The php_comprehensive fixture
-# additionally drives the positive trace_route_callers Laravel query shape,
-# proving its Class@method token survives exact reducer resolution (#5513).
-# rc-11..rc-23 promote edges that already materialize in this corpus from the
-# same proven machinery as rc-1..rc-8 (code structure: CALLS/INHERITS/REFERENCES/
-# DEFINES/INSTANTIATES/USES_METACLASS; workload materialization: INSTANCE_OF/
-# EXPOSES_ENDPOINT/RUNS_ON/DEPLOYMENT_SOURCE; deployable correlation: DEPLOYS_FROM/
-# DEFINES; evidence: HAS_DEPLOYMENT_EVIDENCE/EVIDENCES_REPOSITORY_RELATIONSHIP).
-# Confirmed materializing via a graph sweep; promoted to lock them against
-# regression. (rc-9 DEPENDS_ON_PACKAGE / rc-10 INVOKES_CLOUD_ACTION reserved —
-# those need fixture/projection work before promotion.)
-# rc-164 (PUBLISHES) and rc-165 (BUILT_FROM) are now required too — issue
-# #5457's graph-provenance-edges projection. rc-164's Repository->PackageVersion
-# edge is driven by the package_registry supply-chain-demo cassette's
-# github.com/acme/lib-common source_hint (canonical version_id fix landed
-# alongside #5457); rc-165's ContainerImage->Repository edge is driven by the
-# cicdrun+ociregistry cassette pair's matching artifact_digest/repository_id.
-# rc-165 isolates on evidence_kinds=[CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST] plus
-# a pinned source_tool=oci. container_image_identity is BUILT_FROM's sole
-# writer today; a #5428 reducer/ci-cd-run-correlation writer that would have
-# shared this edge type was implemented and then rescinded before shipping
-# (docs/internal/evidence/5428-built-from-projection-rescinded.md), because
-# the isolation this rc's pin assumes is not something the canonical MERGE
-# actually provides across writers (#5827).
+# Minimal-corpus graph assertions prove projection plus deterministic
+# correlations from static fixtures and credential-free cassettes.
+# rc-1 uses the deployable-source/deployable-config pair; rc-2 and rc-8 use the
+# api-svc Flask/Kubernetes bridge, with php_comprehensive covering Laravel route
+# resolution. rc-4 uses matching kuberneteslive/ociregistry digest evidence.
+# rc-5/rc-6 and rc-27/rc-28 use terraform_comprehensive Atlantis and GitLab
+# fixtures. rc-11..rc-23 cover the already-materialized code, workload,
+# deployable, and evidence edge families. rc-9/rc-10 remain reserved until
+# their fixture/projection work is complete.
+# rc-164/rc-165 require #5457 PUBLISHES/BUILT_FROM provenance. rc-164 uses the
+# package_registry source_hint; rc-165 uses matching cicdrun/ociregistry
+# digests and pins exact-digest OCI evidence. container_image_identity remains
+# BUILT_FROM's sole writer after #5428 was rescinded; see #5827 and
+# docs/internal/evidence/5428-built-from-projection-rescinded.md.
 # rc-167 (DERIVED_FROM) is issue #5460's base-image lineage projection. Unlike
 # rc-164/rc-165 it is driven by a STATIC-PARSE fixture rather than a cassette
 # join: the container-base-lineage fixture's Dockerfile pins its final stage to
@@ -438,11 +383,8 @@ log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # exact_digest decisions anchored to the same repository. It pins
 # attribution_basis=repository_single_base so a future, more precise CI/SLSA
 # attribution cannot silently satisfy the Dockerfile-only assertion.
-# rc-168 (HAS_ARTIFACT) is issue #5458's package_registry.package_artifact
-# consumer promotion: the package_registry supply-chain-demo cassette's
-# github.com/acme/lib-common@1.0.0 package_artifact fact (hashes sha256/sha512)
-# projects a PackageArtifact node and the deferred PackageVersion->PackageArtifact
-# edge, the same NornicDB deferred-edge-group fix rc-24/rc-25 rely on.
+# rc-168 (HAS_ARTIFACT) uses #5458's package_artifact fixture and the same
+# deferred-edge-group path as rc-24/rc-25.
 # -required-correlations="all" (below) single-sources the blocking set from
 # the snapshot's own required_correlations ids (#4596): promoting an rc-N to
 # blocking is now a one-file edit (add/confirm it in
@@ -450,10 +392,8 @@ log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # second, duplicated comma-separated id list here. To stage a newly-added rc
 # as advisory-only before it is proven, pass an explicit comma-separated
 # subset instead of "all".
-# B-11 (#3804): emit the observed per-phase wall-clock and decide the per-phase
-# regression flags. Extracted to scripts/lib/golden-corpus-phase-timings.sh to
-# keep this orchestrator under the 500-line cap; it sets phase_timings_file and
-# the phase_flags array from the phase_* epochs captured inline above.
+# B-11 (#3804): the sourced phase-timing helper emits wall-clock evidence and
+# sets phase_timings_file plus phase_flags from the epochs captured above.
 emit_phase_timings_and_flags
 
 gate_status=0
@@ -464,7 +404,7 @@ gate_status=0
 # own pinned arguments so a demo answer cannot silently regress to empty.
 "${bin_dir}/eshu-golden-corpus-gate" \
 	-phase=graph,query,timing,demo-answers \
-	-snapshot=testdata/golden/e2e-20repo-snapshot.json \
+	-snapshot="${golden_suppression_runtime_snapshot}" \
 	-demo-manifest=specs/demo-first-answers.v1.yaml \
 	-api-base-url="http://localhost:${GATE_API_PORT}" \
 	-mcp-base-url="http://localhost:${GATE_MCP_PORT}" \

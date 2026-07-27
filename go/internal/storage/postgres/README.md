@@ -91,6 +91,11 @@ High-signal invariants for this package:
   payload commits as a no-op. Generation ordering uses lock-acquisition-time
   ingestion timestamps rather than operator-authored evidence time, so an
   older authored assertion submitted later cannot hide a newer committed set.
+- Canonical impact winners denormalize `suppression_expires_at` for
+  operator-owned rows. Migration `083_supply_chain_suppression_expiry.sql`
+  backfills only hidden operator winners, preserves `NULL` for timeless rows,
+  and maps malformed non-empty legacy timestamps to `-infinity` so reads fail
+  open as expired without scanning or rewriting all winners.
 - Projector claims preserve one active source-local generation per `scope_id`,
   reclaim expired leases before fresh work, coalesce stale same-scope work, and
   atomically ack by superseding stale active generation, superseding older

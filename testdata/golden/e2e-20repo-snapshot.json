@@ -5999,12 +5999,12 @@
         }
       },
       "POST /api/v0/supply-chain/impact/suppressions": {
-        "description": "#5465 authenticated suppression-producer coverage. The gate has already created this exact expired assertion through the route, drained projector/reducer, and proven both the active hidden state and expired fail-closed visibility. This snapshot request is therefore an idempotent retry: it must return the durable generation without creating another generation or queue item.",
+        "description": "#5465 authenticated suppression-producer coverage. The committed body is a valid synthetic contract example. During the live gate, the helper replaces it in a temporary runtime snapshot with the exact short-lived body already created and drained, so this shape executes as an idempotent retry without creating another generation or queue item.",
         "request_body": {
           "suppression_id": "golden-CVE-2026-00010",
           "justification": "ignored",
-          "authored_at": "2026-07-27T12:01:00Z",
-          "expires_at": "2026-07-27T12:00:30Z",
+          "authored_at": "2026-07-27T12:00:00Z",
+          "expires_at": "2099-07-27T12:00:00Z",
           "reason": "Synthetic golden-corpus expiry proof.",
           "evidence_ref": "https://registry.example.com/evidence/CVE-2026-00010",
           "scope": {

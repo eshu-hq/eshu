@@ -44,6 +44,7 @@ type SupplyChainImpactFactFilter struct {
 	PackageIDs        []string
 	PURLs             []string
 	CVEIDs            []string
+	AdvisoryIDs       []string
 	SubjectDigests    []string
 	DocumentIDs       []string
 	ProductCriteria   []string

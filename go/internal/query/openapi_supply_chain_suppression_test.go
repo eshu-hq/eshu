@@ -5,6 +5,7 @@ package query
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -48,6 +49,17 @@ func TestOpenAPISpecIncludesVulnerabilitySuppressionMutation(t *testing.T) {
 	for _, want := range []string{"not_affected", "accepted_risk", "false_positive", "ignored"} {
 		if !containsOpenAPIEnumString(justificationEnum, want) {
 			t.Fatalf("justification enum = %#v, want %q", justificationEnum, want)
+		}
+	}
+	expiresAt := mustMapField(t, properties, "expires_at")
+	if description, _ := expiresAt["description"].(string); !strings.Contains(description, "strictly later than authored_at") {
+		t.Fatalf("expires_at description = %q, want strict authored_at ordering contract", description)
+	}
+	scope := mustMapField(t, properties, "scope")
+	scopeDescription, _ := scope["description"].(string)
+	for _, want := range []string{"discoverable identity anchor", "evidence_path", "cannot stand alone"} {
+		if !strings.Contains(scopeDescription, want) {
+			t.Fatalf("scope description = %q, want %q", scopeDescription, want)
 		}
 	}
 
