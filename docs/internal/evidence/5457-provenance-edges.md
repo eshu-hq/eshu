@@ -90,7 +90,7 @@ follow-up):
 | Missing endpoint -> no-op, never fabricate | `TestProvenanceEdgeWriterWritePublishesPackageMatchMatchMerge` / `TestProvenanceEdgeWriterWriteBuiltFromMatchesByDigest` assert two MATCHes precede every MERGE and no endpoint label is ever MERGEd | green |
 | Retraction (retract-first per generation, idempotent re-run) | `TestProjectPackageProvenanceEdgesRetractsFirstThenWritesBothEvidenceSources`, `TestProjectPackageProvenanceEdgesRetractsEvenWhenNoRowsToWrite`, `TestProjectContainerImageBuiltFromEdgesRetractsFirstThenWrites`, `TestProjectContainerImageBuiltFromEdgesRetractsEvenWhenNoRowsToWrite` | green |
 | Retract dispatch never uses ExecuteGroup | `TestProvenanceEdgeWriterRetractPublishesUsesSequentialExecuteNeverGroup`, `TestProvenanceEdgeWriterRetractBuiltFromUsesSequentialExecuteNeverGroup` | green |
-| Concurrency/isolation (scope_id+evidence_source is the conflict domain) | `TestProvenanceEdgeWriterRetractPublishesUsesSequentialExecuteNeverGroup` asserts the retract predicate is scoped by both `scope_id` and `evidence_source`; ownership and publication use distinct evidence sources so their retracts never collide even within the same scope; at the time this evidence was recorded, BUILT_FROM's evidence_source (`reducer/container-image-identity`) was believed to never collide with the then-planned `#5428` `reducer/ci-cd-run-correlation` domain -- that belief is disproven by `#5827` (the canonical MERGE matches on start/end/type only and ignores evidence_source), and #5428's writer was implemented and then rescinded before shipping, `docs/internal/evidence/5428-built-from-projection-rescinded.md`; BUILT_FROM is single-owner today | green (unit-level; no global lock introduced -- writes partition naturally by scope_id+evidence_source, never globally serialized) |
+| Concurrency/isolation (scope_id+evidence_source is the conflict domain) | `TestProvenanceEdgeWriterRetractPublishesUsesSequentialExecuteNeverGroup` asserts the retract predicate is scoped by both `scope_id` and `evidence_source`; ownership and publication use distinct evidence sources so their retracts never collide even within the same scope; BUILT_FROM's evidence_source (`reducer/container-image-identity`) never collides with the shared-edge-type `#5428` domain (`reducer/ci-cd-run-correlation`) | green (unit-level; no global lock introduced -- writes partition naturally by scope_id+evidence_source, never globally serialized) |
 
 ## Observability
 
@@ -150,9 +150,8 @@ a NornicDB `WHERE` clause over an arbitrary relationship property does not
 filter (see that function's own comment). `PUBLISHES` is written by no other
 reducer domain, so it needs no narrowing (Tier-1 self-labeling by edge type,
 the same class as rc-24 `HAS_VERSION`/rc-9 `DEPENDS_ON_PACKAGE`, per
-`docs/public/reference/edge-source-tool-provenance.md`). `BUILT_FROM` was
-planned to be shared with the #5428 `reducer/ci-cd-run-correlation` domain at
-the time this was written, so rc-165 narrows regardless --
+`docs/public/reference/edge-source-tool-provenance.md`). `BUILT_FROM` IS shared
+with the #5428 `reducer/ci-cd-run-correlation` domain, so rc-165 must narrow --
 and `go/cmd/golden-corpus-gate/snapshot_test.go`'s
 `TestEvidenceNarrowedCorrelationsRequireSourceTool` additionally requires any
 `evidence_kinds`-narrowed rc to also pin `source_tool`. `provenance_edge_writer.go`
