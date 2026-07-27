@@ -383,6 +383,32 @@ func TestRecordSupplyChainEnvironmentEvidenceDeployEventWinsOverDeclared(t *test
 	})
 }
 
+// Test 7b: a blank or whitespace-only environment records nothing.
+//
+// Reachable in production: a run correlation carries Environment == "" when it
+// has no environment evidence, and the digest and image-ref match branches
+// impose no environment condition -- so an environment-less correlation reaches
+// the recorder. Without the skip the map gains a "" key, while
+// uniqueSortedStrings drops blanks from Environments, leaving the two
+// structures disagreeing about their own keys.
+func TestRecordSupplyChainEnvironmentEvidenceSkipsBlankEnvironment(t *testing.T) {
+	t.Parallel()
+
+	for _, environment := range []string{"", "   ", "\t"} {
+		state := recordSupplyChainEnvironmentEvidence(
+			nil, environment, supplyChainEnvironmentEvidenceDeployEvent,
+		)
+		if len(state) != 0 {
+			t.Fatalf("recordSupplyChainEnvironmentEvidence(%q) = %#v, want no entry recorded", environment, state)
+		}
+	}
+
+	existing := map[string]string{testImpactEnv: supplyChainEnvironmentEvidenceDeclared}
+	if got := recordSupplyChainEnvironmentEvidence(existing, " ", supplyChainEnvironmentEvidenceDeployEvent); len(got) != 1 {
+		t.Fatalf("recordSupplyChainEnvironmentEvidence(blank) = %#v, want the existing state untouched", got)
+	}
+}
+
 // Test 12: when two matched deployments report the SAME environment with
 // different evidence, deploy_event wins regardless of fact arrival order.
 //
@@ -433,6 +459,16 @@ func TestBuildSupplyChainImpactFindingsDeployEventWinsAcrossDeploymentsInEitherO
 			)
 			got := supplyChainImpactFindingsByCVE(findings)[tc.cveID]
 			assertContainsString(t, got.Environments, testImpactEnv)
+			// Promotion is ANY-of, not ALL-of: one qualifying deployment
+			// carries the finding even though its sibling is declared-only.
+			// Without this assertion an ANY->ALL inversion passes silently and
+			// findings quietly lose deployed_image.
+			if got.RuntimeReachability != "deployed_image" {
+				t.Fatalf(
+					"RuntimeReachability = %q, want deployed_image -- one qualifying deployment is enough, even alongside a declared-only sibling",
+					got.RuntimeReachability,
+				)
+			}
 			if got.EnvironmentEvidence[testImpactEnv] != supplyChainEnvironmentEvidenceDeployEvent {
 				t.Fatalf(
 					"EnvironmentEvidence[%q] = %q, want %q -- deploy_event must not be downgraded by a sibling declared-only deployment",

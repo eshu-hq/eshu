@@ -163,6 +163,10 @@ func supplyChainDeploymentMatchesFinding(
 // because a tag can be retagged from one digest to another. A deployment whose
 // ref matches but whose digest explicitly names a different image is reporting
 // that the tag has moved, and the digest is the identity worth believing.
+// PRECONDITION: the caller must already have established that the finding has
+// a non-empty SubjectDigest. With an empty one this falls through to the
+// deploy_event check, which would promote a finding that has no artifact
+// identity to compare against. applySupplyChainRuntimeContext enforces this.
 func supplyChainDeploymentPromotesRuntimeReachability(
 	finding SupplyChainImpactFinding,
 	deployment supplyChainDeploymentContext,

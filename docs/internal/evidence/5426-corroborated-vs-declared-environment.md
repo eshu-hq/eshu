@@ -184,6 +184,12 @@ deleting or weakening exactly that rule via `go test -overlay` and confirming a
 test goes red. A rule no mutant can kill is not guarded, however many tests
 mention it.
 
+The audit was run three times, and each pass found rules the previous pass had
+missed — including two, the ANY-of quantifier and the blank-environment skip,
+that no test touched even after the table below was first written. Both were
+reachable with ordinary production data. The table is the current state, not a
+claim that the technique is exhaustive.
+
 | Rule | Mutant | Caught by |
 |---|---|---|
 | `environmentEvidence == deploy_event` return | `return false` | `...Branch3DeployEventPromotesRuntimeReachability` |
@@ -194,14 +200,24 @@ mention it.
 | `recordSupplyChainEnvironmentEvidence` collision rule | call replaced with last-write-wins | `...DeployEventWinsAcrossDeploymentsInEitherOrder` |
 | `normalizeSupplyChainEnvironmentEvidence` exact match | any non-empty maps to `deploy_event` | `...DecodesEnvironmentEvidence` + 3 promotion tests |
 | payload decode of `environment_evidence` | key typo | `TestDecodeSupplyChainImpactFindingRowDecodesEnvironmentEvidence` |
+| promotion is ANY-of, not ALL-of | `ANY` inverted to `ALL` | `...DeployEventWinsAcrossDeploymentsInEitherOrder` |
+| blank-environment skip in the recorder | guard deleted | `TestRecordSupplyChainEnvironmentEvidenceSkipsBlankEnvironment` |
 
-The last two rows exist because the audit found them uncovered. The collision
-rule had only a direct helper test, which does not prove the production path
-calls the helper — swapping the call in `applySupplyChainRuntimeContext` for
-naive last-write-wins passed every package. And nothing exercised the persisted-
-payload decode at all, so a typo in the payload key would have left the reducer
-writing evidence that no caller could ever read: the silent-inertness shape,
-which the corpus cannot catch here either (#5836).
+The last four rows exist because the audit found them uncovered.
+
+The collision rule had only a direct helper test, which does not prove the
+production path calls the helper — swapping the call in
+`applySupplyChainRuntimeContext` for naive last-write-wins passed every package.
+Nothing exercised the persisted-payload decode at all, so a typo in the payload
+key would have left the reducer writing evidence no caller could ever read: the
+silent-inertness shape, which the corpus cannot catch here either (#5836).
+Inverting promotion from ANY-of to ALL-of also passed everything, which would
+have silently dropped `deployed_image` from any finding with one corroborated
+and one declared-only deployment — the exact multi-run shape the collision test
+already models. And deleting the blank-environment skip passed too, which would
+put a `""` key in `environment_evidence` while `uniqueSortedStrings` drops it
+from `environments[]`, leaving the two collections disagreeing about their own
+keys — contradicting the API reference this same change adds.
 
 ### The declared-only guard was silently defanged once
 
