@@ -286,16 +286,19 @@ $ cd sdk/go/factschema && go test ./... -count=1          ok
 
 ### Golden corpus, and why it cannot assert this
 
-The gate is green on this branch at `e3eab3d6f`:
+The gate is green on this branch at `23009695e`:
 
 ```
-$ COMPOSE_PROJECT_NAME=env5426gate7 bash scripts/verify-golden-corpus-gate.sh
-summary: 506 pass, 0 required-fail, 2 advisory-warn
-=== PASS: B-7 golden corpus gate green (elapsed 156s, budget ceiling 1800s) ===
+$ COMPOSE_PROJECT_NAME=env5426gate8 bash scripts/verify-golden-corpus-gate.sh
+summary: 507 pass, 0 required-fail, 1 advisory-warn
+=== PASS: B-7 golden corpus gate green (elapsed 154s, budget ceiling 1800s) ===
 ```
 
-Both advisory warns are phase timing under a deliberately raised
-`GATE_COLLECTOR_SETTLE_SECONDS=75`, not assertion failures. (Without that
+The advisory warn is phase timing under a deliberately raised
+`GATE_COLLECTOR_SETTLE_SECONDS=75`, not an assertion failure. Earlier runs on
+this branch reported `506 pass / 2 advisory-warn`: the same 508 assertions, with
+the machine-load-sensitive `phase_maintenance_drains` timing check landing on
+the other side of its advisory ceiling. Nothing was added or removed. (Without that
 override the run trips a known collector-settle flake — `only 17 credentialed
 collector source(s) landed facts; want >= 18` — which is #5831, not this
 change.)
