@@ -262,7 +262,7 @@ from the maintenance loop running more than once. Pinned by
 
 ## Gate runs
 
-At the reviewed head:
+On the two-pass gate, at the head reviewed then:
 
 ```
 $ COMPOSE_PROJECT_NAME=env5426final ESHU_POSTGRES_PORT=15485 NEO4J_BOLT_PORT=7795 \

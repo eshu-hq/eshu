@@ -72,11 +72,19 @@ type ContainerImageProvenanceEdgeWriter interface {
 // edges rather than decisions.
 func containerImageBuiltFromRows(decisions []ContainerImageIdentityDecision) []map[string]any {
 	rows := make([]map[string]any, 0, len(decisions))
-	// A comparable two-string struct rather than a concatenated key: the
-	// concatenation allocated a fresh string per candidate row, which measured
-	// +5,017 allocs and ~52% wall time on the N=5000 cost-budget benchmark. At
-	// 32 bytes this stays far under the 128-byte limit above which Go boxes a
-	// map key and reintroduces the per-insert allocation.
+	// A comparable two-string struct rather than a concatenated key. At 32 bytes
+	// it stays far under the 128-byte limit above which Go boxes a map key, and
+	// it removed the concatenation's +5,017 allocs/op on the N=5000 cost-budget
+	// benchmark.
+	//
+	// Be precise about what that bought: the concatenation cost ~6.6% of wall
+	// time, not the whole regression. Deduping at all costs ~28.9% over the
+	// no-dedup baseline (970k -> 1,250k ns/op median), and roughly three
+	// quarters of that is this map, which is the shipped state. That is a
+	// deliberate trade -- a duplicate row still costs a MERGE round in the
+	// graph writer -- and it is recorded as a measured regression in
+	// docs/internal/evidence/5426-corroborated-vs-declared-environment.md
+	// rather than left implied.
 	type builtFromKey struct{ digest, repositoryID string }
 	seen := make(map[builtFromKey]struct{}, len(decisions))
 	for _, decision := range decisions {

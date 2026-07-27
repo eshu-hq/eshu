@@ -339,8 +339,8 @@ phase_maintenance_start="${phase_first_drain_end}"
 # -- while two passes go green. A required B-7 assertion sitting exactly on the
 # convergence boundary reds main the first time drain ordering shifts, so the
 # third cycle buys the margin the chain's depth calls for. Cost is small: the
-# maintenance_drains phase measured 4s at one pass and 11s at two, against a
-# ~158s gate.
+# maintenance_drains phase measured 4s at one pass, 11s at two, and 14s at the
+# three this ships, against a ~158s gate.
 for maintenance_pass in 1 2 3; do
 	log "deferred maintenance pass ${maintenance_pass}: re-run bootstrap-index maintenance"
 	"${bin_dir}/eshu-bootstrap-index" >"${log_dir}/bootstrap-index-maint-${maintenance_pass}.log" 2>&1 \

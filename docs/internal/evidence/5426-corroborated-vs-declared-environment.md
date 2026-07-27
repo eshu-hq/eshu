@@ -347,8 +347,36 @@ and the B-7 golden-corpus runs recorded in the companion above, whose phase
 timings stayed inside their baselines apart from the advisory warns explained
 there.
 
-No-Observability-Change: no metrics, spans, or status fields are added or
-altered, and no new failure path is introduced. The gate withholds a promotion
+No-Regression Evidence (`containerImageBuiltFromRows`): conferring build
+provenance on the CI-run decision makes two decisions resolve the same
+`(digest, repository)` pair, so the row builder now dedupes them. Measured on
+`BenchmarkContainerImageBuiltFromRows` (N=5000 distinct decisions, the
+dedup's worst case since there is nothing to remove), median of 6:
+
+| variant | ns/op | allocs/op |
+| --- | --- | --- |
+| no dedup (`main`) | 970,245 | 25,001 |
+| concatenated key | 1,338,353 | 30,018 |
+| struct key (shipped) | 1,250,194 | 25,018 |
+
+**+28.9% over `main`**, allocations flat. The struct key recovered only 6.6% —
+the rest is the map itself, and it ships. `testdata/benchmarks/reducer-handler-budgets.txt`
+carries an absolute ceiling for this benchmark with 1.50x headroom over its
+baseline; projecting this ratio leaves roughly 1.16x, so the next
+`refresh-reducer-handler-budgets.sh` run on the enforcement runner should expect
+a tighter margin. The gate is advisory today (`REDUCER_PERF_ENFORCE=false`).
+
+The trade is deliberate rather than free: a duplicate row is idempotent at the
+writer (`MERGE` on `(start, end, type)`) but still costs a MERGE round, so the
+payload reduction is not purely cosmetic. It is recorded here because a
+budgeted handler losing a third of its headroom should not be discovered by
+whoever flips that gate to enforcing.
+
+No-Observability-Change: no metrics, spans, or status fields are added, and no
+new failure path is introduced. One metric's counted unit does shift:
+`eshu_dp_provenance_edges_total{outcome="materialized"}` now samples distinct
+edges rather than decisions, which is the same number in every case except the
+duplicate one the dedup exists to collapse. The gate withholds a promotion
 rather than rejecting a deployment: the deployment still matches, so it keeps
 contributing its environment, evidence hop, and fact ID, and no rejection
 reason or dead-letter is involved. An operator reading a finding sees the
