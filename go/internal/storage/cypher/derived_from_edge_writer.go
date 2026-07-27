@@ -59,7 +59,7 @@ SET rel.scope_id = row.scope_id,
 // bite here today: containerImageDerivedFromRows takes an owning repository and
 // returns nil when it is empty, so a scope that merely observes both endpoints
 // (an OCI or cloud scope) projects nothing, and each edge has one deterministic
-// owning scope. That restriction is the fix for exactly this failure mode and
+// owning scope in the ordinary case. That restriction is the fix for exactly this failure mode and
 // is pinned by TestProjectContainerImageDerivedFromEdgesNonRepoScopeWritesNothing
 // -- do not loosen it. The residual case is narrower: two repository scopes both
 // credited with building the same digest, both resolving to the same base.

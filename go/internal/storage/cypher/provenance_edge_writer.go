@@ -160,8 +160,8 @@ DELETE rel`
 // The same MERGE identity also drops scope_id, so this is not only a
 // future-second-writer hazard. containerImageBuiltFromRows takes no owning
 // scope -- unlike its DERIVED_FROM sibling, which returns nil outside the
-// declaring repository -- so it emits a row for every decision's every
-// BuildProvenanceRepositoryID regardless of the projecting intent's scope.
+// declaring repository -- so it emits a row for every exact_digest decision's
+// every BuildProvenanceRepositoryID regardless of the projecting intent's scope.
 // container_image_identity runs in more than one scope, so two scopes
 // asserting the same (image, repository) pair share one edge today.
 const retractProvenanceBuiltFromEdgesCypher = `MATCH (:ContainerImage)-[rel:BUILT_FROM]->(:Repository)
