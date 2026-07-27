@@ -36,30 +36,28 @@ var supplyChainImpactRuntimeContextFactKinds = []string{
 }
 
 // selectSupplyChainImpactRuntimeContextQuery loads active runtime-context
-// facts whose repository anchor matches any candidate repository id. A fact
-// anchors a repository when ANY of these holds: its payload repository_id or
-// repo_id equals a candidate (accepted verbatim — consumption-derived anchors
-// use non-prefixed forms like github.com/org/repo), its scope_id equals a
-// candidate directly (git-source scopes), its scope_id equals a
-// git-repository-scope:-prefixed candidate (workload_identity and
-// platform_materialization facts, whose scopes carry that prefix — verified
-// against the live corpus), its payload scope_id equals either form, or any
-// entry of its payload related_scope_ids equals either form (the reducer's
-// supplyChainWorkloadRepositoryID scans that array for exactly this anchor —
-// workload/deployment intents scoped to a non-repository scope carry the
-// repository only there). The active-generation joins mirror the findings
-// list query so a retracted or stale-generation fact never resolves current
-// context.
+// facts whose canonical repository anchor matches a candidate repository id.
+// The shared decoder applies the reducer's precedence: payload repository_id
+// or repo_id; one selected scope (payload scope_id, falling back to envelope
+// scope); the first repository-like related_scope_ids entry; then the raw
+// selected scope. Authorizing only that decoded value prevents a
+// lower-precedence granted anchor from admitting a fact that folds under an
+// unauthorized repository. The active-generation joins mirror the findings
+// list query so retracted or stale-generation facts never resolve current
+// context. Scoped callers additionally require either the decoded repository
+// or the fact's direct ingestion scope to be granted, matching #5747's
+// filter-membership authorization boundary.
 //
 // Bounded by len(candidates) (page-sized, at most the enforced findings page
 // limit of supplyChainImpactFindingMaxLimit = 200) and 4 kinds — this is the
 // exact join shape #5747's filter rework reuses, so it MUST hold the
 // performance contract at corpus scale (proven with EXPLAIN ANALYZE on the
 // worst-case 200-candidate partition).
-const selectSupplyChainImpactRuntimeContextQuery = `
+const selectSupplyChainImpactRuntimeContextQueryTemplate = `
 SELECT fact.fact_kind,
        fact.scope_id,
-       fact.payload
+       fact.payload,
+       runtime_repository.repository_id
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = fact.scope_id
@@ -67,18 +65,28 @@ JOIN ingestion_scopes AS scope
 JOIN scope_generations AS generation
   ON generation.scope_id = fact.scope_id
  AND generation.generation_id = fact.generation_id
+%s
 WHERE fact.fact_kind = ANY($1::text[])
   AND fact.is_tombstone = FALSE
   AND generation.status = 'active'
   AND (
-        COALESCE(fact.payload->>'repository_id', fact.payload->>'repo_id', '') = ANY($2::text[])
-        OR fact.scope_id = ANY($2::text[])
-        OR fact.scope_id IN (SELECT 'git-repository-scope:' || candidate FROM unnest($2::text[]) AS candidate)
-        OR COALESCE(fact.payload->>'scope_id', '') = ANY($2::text[])
-        OR COALESCE(fact.payload->>'scope_id', '') IN (SELECT 'git-repository-scope:' || candidate FROM unnest($2::text[]) AS candidate)
-        OR fact.payload->'related_scope_ids' ?| $2::text[]
-        OR fact.payload->'related_scope_ids' ?| (SELECT array_agg('git-repository-scope:' || candidate) FROM unnest($2::text[]) AS candidate)
-      )`
+        (
+          COALESCE(cardinality($3::text[]), 0) = 0
+          AND COALESCE(cardinality($4::text[]), 0) = 0
+        )
+        OR runtime_repository.repository_id = ANY($3::text[])
+        OR fact.scope_id = ANY($4::text[])
+      )
+  AND runtime_repository.repository_id = ANY($2::text[])`
+
+var selectSupplyChainImpactRuntimeContextQuery = fmt.Sprintf(
+	selectSupplyChainImpactRuntimeContextQueryTemplate,
+	supplyChainRuntimeRepositoryDecoderJoin(
+		"fact.payload",
+		"fact.scope_id",
+		"runtime_repository",
+	),
+)
 
 // ListSupplyChainImpactRuntimeContext resolves the CURRENT runtime context
 // (workloads, services, deployments, environments, catalog refs) for each
@@ -91,10 +99,14 @@ WHERE fact.fact_kind = ANY($1::text[])
 // Outcome gates mirror the reducer's reduce-time rules: exact/derived
 // correlations (or an empty outcome) resolve context; ambiguous, rejected,
 // unresolved, stale, or provenance-only evidence is skipped so a contested
-// or superseded fact never surfaces as current truth.
+// or superseded fact never surfaces as current truth. When either grant slice
+// is non-empty, only facts authorized by that repository-or-scope union are
+// folded into the response; both empty retains unrestricted behavior.
 func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactRuntimeContext(
 	ctx context.Context,
 	repositoryIDs []string,
+	allowedRepositoryIDs []string,
+	allowedScopeIDs []string,
 ) (map[string]SupplyChainRuntimeContext, error) {
 	out := make(map[string]SupplyChainRuntimeContext)
 	if len(repositoryIDs) == 0 {
@@ -111,22 +123,24 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactRuntimeConte
 		selectSupplyChainImpactRuntimeContextQuery,
 		pq.Array(supplyChainImpactRuntimeContextFactKinds),
 		pq.Array(repositoryIDs),
+		pq.Array(allowedRepositoryIDs),
+		pq.Array(allowedScopeIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list supply chain impact runtime context: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	for rows.Next() {
-		var kind, scopeID string
+		var kind, scopeID, repositoryID string
 		var payloadBytes []byte
-		if err := rows.Scan(&kind, &scopeID, &payloadBytes); err != nil {
+		if err := rows.Scan(&kind, &scopeID, &payloadBytes, &repositoryID); err != nil {
 			return nil, fmt.Errorf("scan supply chain impact runtime context: %w", err)
 		}
 		var payload map[string]any
 		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 			return nil, fmt.Errorf("decode supply chain impact runtime context payload: %w", err)
 		}
-		addSupplyChainRuntimeContextFact(out, kind, scopeID, payload)
+		addSupplyChainRuntimeContextFactForRepository(out, kind, repositoryID, payload)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("read supply chain impact runtime context: %w", err)
@@ -145,22 +159,35 @@ func addSupplyChainRuntimeContextFact(
 	scopeID string,
 	payload map[string]any,
 ) {
+	addSupplyChainRuntimeContextFactForRepository(
+		out,
+		kind,
+		supplyChainRuntimeContextRepositoryID(payload, scopeID),
+		payload,
+	)
+}
+
+func addSupplyChainRuntimeContextFactForRepository(
+	out map[string]SupplyChainRuntimeContext,
+	kind string,
+	repositoryID string,
+	payload map[string]any,
+) {
+	if repositoryID == "" {
+		return
+	}
 	switch kind {
 	case workloadIdentityFactKindQuery:
-		repositoryID := supplyChainRuntimeContextRepositoryID(payload, scopeID)
-		if repositoryID == "" {
-			return
-		}
 		ctx := out[repositoryID]
-		// Mirror the reducer's workload-id extraction exactly
+		// Mirror the reducer's valid workload-id extraction
 		// (supplyChainWorkloadIDsFromPayload): payload workload_id first, then
 		// entity_keys filtered to workload:-prefixed keys — a non-workload
 		// entity key must never become runtime context (or #5747 filter
-		// membership).
-		if workloadID := strings.TrimSpace(StringVal(payload, "workload_id")); workloadID != "" {
+		// membership). Malformed non-string direct IDs fail closed.
+		if workloadID := supplyChainRuntimeContextString(payload, "workload_id"); workloadID != "" {
 			ctx.WorkloadIDs = append(ctx.WorkloadIDs, workloadID)
 		}
-		for _, key := range StringSliceVal(payload, "entity_keys") {
+		for _, key := range supplyChainRuntimeContextOrderedStrings(payload, "entity_keys") {
 			if workloadID := strings.TrimSpace(key); workloadID != "" && strings.HasPrefix(workloadID, "workload:") {
 				ctx.WorkloadIDs = append(ctx.WorkloadIDs, workloadID)
 			}
@@ -170,29 +197,21 @@ func addSupplyChainRuntimeContextFact(
 		if !supplyChainRuntimeContextOutcomeAccepted(payload) {
 			return
 		}
-		repositoryID := supplyChainRuntimeContextRepositoryID(payload, scopeID)
-		if repositoryID == "" {
-			return
-		}
 		ctx := out[repositoryID]
-		if serviceID := strings.TrimSpace(StringVal(payload, "service_id")); serviceID != "" {
+		if serviceID := supplyChainRuntimeContextString(payload, "service_id"); serviceID != "" {
 			ctx.ServiceIDs = append(ctx.ServiceIDs, serviceID)
 		}
-		if workloadID := strings.TrimSpace(StringVal(payload, "workload_id")); workloadID != "" {
+		if workloadID := supplyChainRuntimeContextString(payload, "workload_id"); workloadID != "" {
 			ctx.WorkloadIDs = append(ctx.WorkloadIDs, workloadID)
 		}
-		if entityRef := strings.TrimSpace(StringVal(payload, "entity_ref")); entityRef != "" {
+		if entityRef := supplyChainRuntimeContextString(payload, "entity_ref"); entityRef != "" {
 			ctx.CatalogEntityRefs = append(ctx.CatalogEntityRefs, entityRef)
 		}
-		if ownerRef := strings.TrimSpace(StringVal(payload, "owner_ref")); ownerRef != "" {
+		if ownerRef := supplyChainRuntimeContextString(payload, "owner_ref"); ownerRef != "" {
 			ctx.CatalogOwnerRefs = append(ctx.CatalogOwnerRefs, ownerRef)
 		}
 		out[repositoryID] = ctx
 	case platformMaterializationFactKindQuery:
-		repositoryID := supplyChainRuntimeContextRepositoryID(payload, scopeID)
-		if repositoryID == "" {
-			return
-		}
 		ctx := out[repositoryID]
 		// Mirror the reducer's deployment-id extraction exactly
 		// (supplyChainDeploymentIDsFromPayload): singular deployment_id first,
@@ -200,10 +219,10 @@ func addSupplyChainRuntimeContextFact(
 		// entity_keys can carry repo:, platform:, aws:, tfstate:, cloud:, or
 		// raw canonical fact-id strings from replay/fallback intent paths —
 		// those must never surface as deployment anchors.
-		if deploymentID := strings.TrimSpace(StringVal(payload, "deployment_id")); deploymentID != "" {
+		if deploymentID := supplyChainRuntimeContextString(payload, "deployment_id"); deploymentID != "" {
 			ctx.DeploymentIDs = append(ctx.DeploymentIDs, deploymentID)
 		}
-		for _, key := range StringSliceVal(payload, "entity_keys") {
+		for _, key := range supplyChainRuntimeContextOrderedStrings(payload, "entity_keys") {
 			if deploymentID := strings.TrimSpace(key); deploymentID != "" && strings.HasPrefix(deploymentID, "deployment:") {
 				ctx.DeploymentIDs = append(ctx.DeploymentIDs, deploymentID)
 			}
@@ -213,11 +232,7 @@ func addSupplyChainRuntimeContextFact(
 		if !supplyChainRuntimeContextOutcomeAccepted(payload) {
 			return
 		}
-		repositoryID := supplyChainRuntimeContextRepositoryID(payload, scopeID)
-		if repositoryID == "" {
-			return
-		}
-		if environment := strings.TrimSpace(StringVal(payload, "environment")); environment != "" {
+		if environment := supplyChainRuntimeContextString(payload, "environment"); environment != "" {
 			ctx := out[repositoryID]
 			ctx.Environments = append(ctx.Environments, environment)
 			out[repositoryID] = ctx
@@ -230,8 +245,14 @@ func addSupplyChainRuntimeContextFact(
 // exact/derived/empty outcome resolves context; ambiguous, rejected,
 // unresolved, stale, or provenance-only evidence is skipped.
 func supplyChainRuntimeContextOutcomeAccepted(payload map[string]any) bool {
-	if BoolVal(payload, "provenance_only") {
+	if supplyChainRuntimeContextBool(payload, "provenance_only") {
 		return false
+	}
+	rawOutcome, exists := payload["outcome"]
+	if exists && rawOutcome != nil {
+		if _, ok := rawOutcome.(string); !ok {
+			return false
+		}
 	}
 	switch strings.TrimSpace(StringVal(payload, "outcome")) {
 	case "", "exact", "derived":
@@ -241,29 +262,97 @@ func supplyChainRuntimeContextOutcomeAccepted(payload map[string]any) bool {
 	}
 }
 
+// supplyChainRuntimeContextBool mirrors the reducer's
+// payloadBoolPointerValue truth semantics: booleans and trimmed,
+// case-insensitive string "true" are true; every other shape is false.
+func supplyChainRuntimeContextBool(payload map[string]any, key string) bool {
+	switch value := payload[key].(type) {
+	case bool:
+		return value
+	case string:
+		return strings.EqualFold(strings.TrimSpace(value), "true")
+	default:
+		return false
+	}
+}
+
 // supplyChainRuntimeContextRepositoryID resolves a fact's repository anchor
-// mirroring the reducer's supplyChainWorkloadRepositoryID exactly: a direct
-// payload repository_id or repo_id is accepted verbatim (consumption-derived
-// anchors use non-prefixed forms like github.com/org/repo or repo://acme/api);
-// then a repository:- or git-repository-scope:-prefixed payload scope_id or
-// envelope scope; then related_scope_ids scanned for either prefixed form.
+// mirroring the reducer's supplyChainWorkloadRepositoryID precedence for valid
+// string anchors. Malformed non-string direct anchors fail closed instead of
+// becoming Go-formatted identities. A direct payload repository_id or repo_id
+// is accepted verbatim (consumption-derived anchors use non-prefixed forms like
+// github.com/org/repo or repo://acme/api). Otherwise it selects exactly one
+// scope with payload scope_id taking precedence over the envelope scope,
+// decodes that scope when prefixed, scans related_scope_ids for a prefixed
+// repository, then returns the raw selected scope.
 func supplyChainRuntimeContextRepositoryID(payload map[string]any, scopeID string) string {
 	for _, key := range []string{"repository_id", "repo_id"} {
-		if value := strings.TrimSpace(StringVal(payload, key)); value != "" {
+		if value := supplyChainRuntimeContextString(payload, key); value != "" {
 			return value
 		}
 	}
-	for _, candidate := range []string{strings.TrimSpace(StringVal(payload, "scope_id")), strings.TrimSpace(scopeID)} {
-		if repositoryID := repositoryIDFromRuntimeContextScope(candidate); repositoryID != "" {
-			return repositoryID
-		}
+	scoped := supplyChainRuntimeContextString(payload, "scope_id")
+	if scoped == "" {
+		scoped = strings.TrimSpace(scopeID)
 	}
-	for _, relatedScopeID := range StringSliceVal(payload, "related_scope_ids") {
+	if repositoryID := repositoryIDFromRuntimeContextScope(scoped); repositoryID != "" {
+		return repositoryID
+	}
+	for _, relatedScopeID := range supplyChainRuntimeContextOrderedStrings(
+		payload,
+		"related_scope_ids",
+	) {
 		if repositoryID := repositoryIDFromRuntimeContextScope(relatedScopeID); repositoryID != "" {
 			return repositoryID
 		}
 	}
-	return ""
+	return scoped
+}
+
+// supplyChainRuntimeContextString returns a trimmed JSON string value.
+// Identity-like direct fields reject arrays, objects, numbers, and booleans so
+// Go hydration and Postgres filter membership cannot stringify them differently.
+func supplyChainRuntimeContextString(payload map[string]any, key string) string {
+	value, ok := payload[key].(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(value)
+}
+
+// supplyChainRuntimeContextOrderedStrings mirrors the reducer's
+// payloadOrderedStrings normalization for repository precedence. In
+// particular, it preserves order while trimming arrays, accepts the scalar
+// string shape, and skips blank values.
+func supplyChainRuntimeContextOrderedStrings(payload map[string]any, key string) []string {
+	raw, ok := payload[key]
+	if !ok {
+		return nil
+	}
+	switch typed := raw.(type) {
+	case []string:
+		out := make([]string, 0, len(typed))
+		for _, value := range typed {
+			if value = strings.TrimSpace(value); value != "" {
+				out = append(out, value)
+			}
+		}
+		return out
+	case []any:
+		out := make([]string, 0, len(typed))
+		for _, value := range typed {
+			text := strings.TrimSpace(StringVal(map[string]any{"value": value}, "value"))
+			if text != "" {
+				out = append(out, text)
+			}
+		}
+		return out
+	case string:
+		if trimmed := strings.TrimSpace(typed); trimmed != "" {
+			return []string{trimmed}
+		}
+	}
+	return nil
 }
 
 // repositoryIDFromRuntimeContextScope decodes one scope into a repository id,

@@ -208,12 +208,28 @@ func TestSupplyChainExplainImpactQueryFiltersWorkloadAndServiceAnchors(t *testin
 	t.Parallel()
 
 	for _, want := range []string{
-		"$8 = '' OR fact.payload->'workload_ids' ? $8",
-		"$9 = '' OR fact.payload->'service_ids' ? $9",
+		"$8 = ''",
+		"runtime_filter.filter_kind = 'workload'",
+		"$9 = ''",
+		"runtime_filter.filter_kind = 'service'",
+		"runtime_filter.repository_id = fact.payload->>'repository_id'",
 		"$10 = '' OR fact.payload->>'image_ref' = $10",
 	} {
 		if !strings.Contains(explainSupplyChainImpactFindingQuery, want) {
 			t.Fatalf("explainSupplyChainImpactFindingQuery missing %q:\n%s", want, explainSupplyChainImpactFindingQuery)
+		}
+	}
+
+	for _, staleMembership := range []string{
+		"fact.payload->'workload_ids' ? $8",
+		"fact.payload->'service_ids' ? $9",
+	} {
+		if strings.Contains(explainSupplyChainImpactFindingQuery, staleMembership) {
+			t.Fatalf(
+				"explainSupplyChainImpactFindingQuery contains stale baked membership %q:\n%s",
+				staleMembership,
+				explainSupplyChainImpactFindingQuery,
+			)
 		}
 	}
 }

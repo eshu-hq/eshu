@@ -697,7 +697,7 @@ model query runs.
 | `package_id` | exact | Active reducer impact facts and provider reconciliation facts. |
 | `cve_id`, `advisory_id`, `ghsa_id`, `osv_id` | exact, provider-only | Payload advisory identifiers on reducer and provider reconciliation facts. |
 | `subject_digest`, `digest`, `image_ref` | exact, missing-evidence driven | Impact, SBOM, and container-image read models. |
-| `workload_id`, `service_id`, `environment` | derived, missing-evidence driven | Reducer impact arrays populated only from admitted runtime/service evidence. |
+| `workload_id`, `service_id`, `environment` | derived, missing-evidence driven | Current active workload-identity, service-catalog, and CI/CD repository mappings resolved at read time; stale reducer impact arrays do not satisfy these filters. |
 | `ecosystem` | exact, unsupported | Impact payload ecosystem predicate; unsupported ecosystems stay in readiness gaps. |
 | `language` | unsupported | No scanner read model maps source language to vulnerability impact truth. |
 | `severity` | derived | CVSS-derived impact severity buckets: `critical`, `high`, `medium`, `low`, `none`. |
@@ -929,18 +929,28 @@ facts and package-registry facts without owned repository, image,
 package-manifest, lockfile, or SBOM evidence remain source intelligence and do
 not appear as impact findings.
 
-Runtime context is evidence-only. Findings may include `repository_id`,
-`subject_digest`, `image_ref`, `workload_ids[]`, `service_ids[]`,
-`environments[]`, `catalog_entity_refs[]`, and `catalog_owner_refs[]` only when
-reducer-owned package/SBOM/image evidence joins to explicit deployment or
-service-catalog facts. Ambiguous images, stale deployment evidence, missing
-workload links, or missing service/environment links stay in
-`missing_evidence[]` instead of being inferred from repository, tag, workload,
-or service names. Exact repository-scoped service-catalog correlation evidence
-is still attached to the finding path and can preserve catalog entity and owner
-anchors. When that correlation lacks explicit `service_id` or `workload_id`
-anchors, the row reports `service/workload catalog anchor missing` instead of
-saying service-catalog correlation evidence is absent.
+Runtime context is evidence-only. Findings preserve reducer-owned
+`repository_id`, `subject_digest`, `image_ref`, `workload_ids[]`,
+`service_ids[]`, `environments[]`, `catalog_entity_refs[]`, and
+`catalog_owner_refs[]` when package/SBOM/image evidence joins to explicit
+deployment or service-catalog facts. The findings list also returns a labeled
+`runtime_context` block resolved from the repository's current active workload,
+service-catalog, platform, and CI/CD facts at read time. The `workload_id`,
+`service_id`, and `environment` filters use those same current repository
+mappings exclusively; reducer-baked arrays remain historical evidence but
+cannot satisfy a current-runtime filter after a redeploy, retraction, or
+promotion. For a scoped caller, runtime mappings must also fall inside the
+caller's repository or ingestion-scope grant before they can affect filter
+membership or appear in `runtime_context`. The filters do not infer aliases
+from repository, tag, workload, service, or environment names.
+
+Ambiguous images, stale deployment evidence, missing workload links, or missing
+service/environment links stay in `missing_evidence[]`. Exact
+repository-scoped service-catalog correlation evidence remains attached to the
+finding path and can preserve catalog entity and owner anchors. When that
+correlation lacks explicit `service_id` or `workload_id` anchors, the row
+reports `service/workload catalog anchor missing` instead of saying
+service-catalog correlation evidence is absent.
 
 ### Remediation (Safe Upgrade)
 

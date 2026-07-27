@@ -9,8 +9,9 @@ package query
 // grants ($18/$19) — before any count, grouping, ordering, limit, or offset so
 // aggregate totals and inventory buckets never include unauthorized rows.
 
-const supplyChainImpactAggregateCanonicalFactsCTE = `
-WITH scoped_facts AS (
+var supplyChainImpactAggregateCanonicalFactsCTE = `
+WITH ` + supplyChainImpactRuntimeFilterCTE("$8", "$9", "$10", "$18", "$19") + `,
+scoped_facts AS (
 	SELECT fact.fact_id,
 	       fact.payload,
 	       COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) AS priority_score,
@@ -33,9 +34,12 @@ WITH scoped_facts AS (
 	  AND ($5 = '' OR fact.payload->>'impact_status' = $5)
 	  AND ($6 = '' OR fact.payload->>'advisory_id' = $6)
 	  AND ($7 = '' OR LOWER(fact.payload->>'ecosystem') = LOWER($7))
-	  AND ($8 = '' OR fact.payload->'service_ids' ? $8)
-	  AND ($9 = '' OR fact.payload->'workload_ids' ? $9)
-	  AND ($10 = '' OR fact.payload->'environments' ? $10)
+` + supplyChainImpactRuntimeFilterPredicate(
+	"fact.payload->>'repository_id'",
+	"$8",
+	"$9",
+	"$10",
+) + `
 	  AND ($11 = '' OR ` + supplyChainImpactSeverityBucketFactSQL + ` = $11)
 	  AND (
 	        $12 = ''
@@ -94,7 +98,7 @@ canonical_facts AS (
 )
 `
 
-const supplyChainImpactAggregateCountQuery = supplyChainImpactAggregateCanonicalFactsCTE + `
+var supplyChainImpactAggregateCountQuery = supplyChainImpactAggregateCanonicalFactsCTE + `
 SELECT
 	COUNT(*) AS total,
 	SUM(CASE WHEN payload->>'impact_status' IN ('affected_exact', 'affected_derived', 'possibly_affected') THEN 1 ELSE 0 END) AS affected,
@@ -105,7 +109,7 @@ SELECT
 FROM canonical_facts;
 `
 
-const supplyChainImpactAggregatePriorityCountQuery = supplyChainImpactAggregateCanonicalFactsCTE + `
+var supplyChainImpactAggregatePriorityCountQuery = supplyChainImpactAggregateCanonicalFactsCTE + `
 SELECT
 	COALESCE(NULLIF(fact.payload->>'priority_bucket', ''), 'unknown') AS bucket,
 	COUNT(*) AS bucket_count
@@ -113,7 +117,7 @@ FROM canonical_facts AS fact
 GROUP BY bucket;
 `
 
-const supplyChainImpactAggregateSeverityCountQuery = supplyChainImpactAggregateCanonicalFactsCTE + `
+var supplyChainImpactAggregateSeverityCountQuery = supplyChainImpactAggregateCanonicalFactsCTE + `
 SELECT
 	CASE
 		WHEN COALESCE(NULLIF(fact.payload->>'cvss_score', '')::numeric, 0) >= 9.0 THEN 'critical'
@@ -127,8 +131,10 @@ FROM canonical_facts AS fact
 GROUP BY bucket;
 `
 
-const supplyChainImpactInventoryQueryTemplate = supplyChainImpactAggregateCanonicalFactsCTE + `
-SELECT %s AS bucket, COUNT(*) AS bucket_count
+const supplyChainImpactInventoryGroupExpressionPlaceholder = "__SUPPLY_CHAIN_IMPACT_GROUP_EXPRESSION__"
+
+var supplyChainImpactInventoryQueryTemplate = supplyChainImpactAggregateCanonicalFactsCTE + `
+SELECT ` + supplyChainImpactInventoryGroupExpressionPlaceholder + ` AS bucket, COUNT(*) AS bucket_count
 FROM canonical_facts AS fact
 GROUP BY bucket
 ORDER BY bucket_count DESC, bucket

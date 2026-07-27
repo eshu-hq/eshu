@@ -121,4 +121,7 @@ var orderedBootstrapDefinitionNames = []string{
 	"fact_records_identity_epoch_idx_dockerfile",
 	// migration 078 (#5429 CI/CD run cross-cycle watermark gap detection).
 	"cicd_run_watermarks",
+	// migrations 079/080 (#5747 current-runtime workload filtering).
+	"supply_chain_runtime_filter_workload_index",
+	"supply_chain_runtime_filter_entity_keys_index",
 }

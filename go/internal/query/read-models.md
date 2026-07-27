@@ -281,8 +281,30 @@ that replaces the page-and-iterate caller workflow for ecosystem-level totals
 questions exposed by `list_supply_chain_impact_findings`. It re-uses the
 existing partial indexes on `fact_records` for
 `reducer_supply_chain_impact_finding` (status, priority bucket, CVE,
-package + repository + subject digest); no new schema or graph migration is
-needed.
+package + repository + subject digest).
+
+Workload, service, and environment filters accept only a current active
+repository mapping resolved at read time. Reducer-baked arrays remain evidence
+on the finding payload but never satisfy these selectors because they become
+stale after a redeploy, retraction, or promotion. The shared SQL CTE narrows
+runtime facts by the requested dimension before it
+decodes repository anchors: `reducer_workload_identity` and accepted
+`reducer_service_catalog_correlation` facts supply workload/service mappings,
+and accepted `reducer_ci_cd_run_correlation` facts supply environments.
+Tombstoned, stale-generation, ambiguous, rejected, unresolved, and
+provenance-only correlations do not match. Two partial workload-identity
+indexes cover scalar `workload_id` and `entity_keys` membership so the read
+does not probe every active ingestion scope. Before a decoded runtime mapping
+can affect membership, it is intersected with the same allowed-repository or
+allowed-scope grant used by the finding query; selectors cannot act as a
+cross-scope correlation oracle. Response-side `runtime_context` hydration
+applies that identical per-fact grant before folding workloads, services,
+deployments, environments, or catalog refs, so a scoped response never
+advertises context that its corresponding filter must reject.
+Direct identity fields are accepted only when their JSON value is a string.
+Objects, arrays, numbers, and booleans fail closed in both SQL membership and
+Go hydration; malformed direct repository and scope anchors fall through to
+the next valid canonical anchor instead of becoming formatted identities.
 
 No-Regression Evidence: `go test ./internal/query -run
 'TestSupplyChainImpactAggregate|TestSupplyChainImpactInventoryGroupExpression|TestSupplyChainImpactAggregateRoutesResolveRepositorySelectors'
@@ -298,6 +320,62 @@ Observability Evidence: the aggregate routes add the
 attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
 histogram and add no new graph query, queue, reducer lane, worker, or metric
 instrument.
+
+Performance Evidence: on 100,000 synthetic workload-identity rows, the
+dimension lookup returned the same single repository before and after indexing;
+`EXPLAIN (ANALYZE, BUFFERS)` improved from a 9.293 ms sequential scan that
+discarded 99,999 rows to a 0.023 ms bitmap lookup. The exact live
+golden-corpus 200-candidate repository join, including related-scope decoding,
+executed in 0.237 ms. On the 300,000-fact partition, the same 200-candidate
+hydration query executed in 72.347 ms before canonical authorization and
+57.991 ms after filter and hydration began sharing one reducer-equivalent
+decoder. A 100,000-row decoder shim showed the selected-scope/related-scope/raw
+fallback shape at 109.091 ms versus 132.598 ms for the incorrect independent
+payload/envelope-scope shape; the corrected decoder returned all three intended
+precedence deltas. Conflicting anchors changed only the intended authorization
+result, while 100,000 non-conflicting mixed anchors had an exact `0/0` set
+difference. A second 100,000-row shim isolated related-scope normalization:
+accepting a scalar string, trimming array entries, and skipping a malformed
+git-repository scope before a later valid repository returned all three
+expected deltas and improved execution from 111.529 ms to 87.185 ms on the
+same mixed input. A third shim isolated reducer-tolerated runtime dimensions:
+padded workload, service, and environment scalars, padded/scalar workload
+`entity_keys`, and boolean/string `provenance_only`. The normalized predicates
+returned every intended delta and rejected both boolean and string true
+provenance. A normalization-only workload predicate scanned 100,000 rows in
+91.456 ms; the selected two-arm shape retained the exact scalar/GIN index arm
+and added a duplicate-safe normalization fallback, completing in 88.448 ms.
+The equivalent service and environment shapes retained their exact indexes and
+completed in 17.385 ms and 17.536 ms, respectively.
+A full-query proof loaded 100,000 facts for each runtime dimension (300,000
+total) and exposed a planner reorder: the first workload query entered through
+the scope/generation index and took 13.947 ms.
+Materializing each dimension-selected match set before the active-generation
+join made every production query enter through its dimension index. On the
+final reducer-equivalent current-only filter shape, the selective proof
+executed in 237.776 ms for scalar workload, 195.322 ms for workload
+`entity_keys`, 17.982 ms for service, 18.545 ms for environment, 248.811 ms
+for the combined legacy list, 256.124 ms for the combined winners list,
+256.528 ms for the combined aggregate, 0.334 ms for the no-runtime-filter
+aggregate, and 234.246 ms for explain. Workload and service identifiers are
+identity-like selectors, so the shared-dimension worst case uses 100,000 facts
+with the same environment. That exact production shape executed in 179.915 ms
+for the legacy list, 179.200 ms for the winners list, 180.834 ms for aggregate
+count, and 182.271 ms for inventory. Each environment plan read 100,000 index
+matches and returned or counted one finding, with 426,569–426,582 shared-buffer
+hits and zero shared reads. Explain does not accept an environment
+selector; its selective workload/service proof remains the representative
+supported shape. Every measured query remains below the enforced 500 ms
+execution ceiling while the exact arms retain their dimension indexes.
+Inserting all 300,000 rows while maintaining the runtime indexes took
+7.038 seconds; hydrating 200 candidate repositories took 87.039 ms.
+`TestSupplyChainImpactRuntimeFilterPlansLive` runs these exact
+`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` shapes and asserts the selected index
+names as well as a bounded execution ceiling. Each concurrent migration also
+completed from an absent index in 0.22 seconds on the retained golden database,
+repeated idempotently in 0.21 seconds, and left `indisvalid=true` and
+`indisready=true`; the shared live migration proof separately exercised lock
+timeout/reset and cleanup/rebuild of an invalid concurrent index.
 
 No-Regression Evidence: `go test ./internal/query -run 'TestSupplyChainImpactCanonicalFindingKeySupportsRollingUpgrades|TestSupplyChainImpactFindingQueryUsesCanonicalFindingRows|TestSupplyChainImpactAggregateQueriesCountCanonicalFindings|TestSupplyChainExplainImpactQueryKeepsRollingUpgradeFindingIDStable|TestSupplyChainExplainImpactQueryUsesCanonicalFindingRows|TestSupplyChainImpactAggregatePriorityQueryQualifiesPayload' -count=1` proves list, count, inventory, and explain reads collapse active reducer rows to canonical logical findings before paging, grouping, or ambiguity checks. The canonical partition key is always derived from stable payload identity fields so legacy rows without reducer `finding_id` and newer rows with reducer `finding_id` collapse together during rolling upgrades. Public read IDs prefer reducer `finding_id` when present and fall back to the same stable payload key for older rows, so source-scope and generation-specific fact IDs do not inflate user-facing vulnerability counts or cursors.
 

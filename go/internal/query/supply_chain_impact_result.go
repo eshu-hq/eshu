@@ -67,9 +67,9 @@ type SupplyChainImpactFindingResult struct {
 	// (workloads, services, deployments, environments, catalog refs) resolved
 	// from this finding's repository_id at query time (issue #5746). It is
 	// labeled with truth_basis "read_time_resolved" so callers cannot mistake
-	// it for the baked workload_ids/service_ids/environments fields the
-	// filters read — those stay empty for OS-package findings until #5747
-	// makes the filters agree.
+	// it for baked workload_ids/service_ids/environments. The matching filters
+	// resolve the same current repository mappings independently (#5747)
+	// without mutating this reducer-owned payload.
 	RuntimeContext    *SupplyChainRuntimeContextResult `json:"runtime_context,omitempty"`
 	CatalogEntityRefs []string                         `json:"catalog_entity_refs,omitempty"`
 	CatalogOwnerRefs  []string                         `json:"catalog_owner_refs,omitempty"`

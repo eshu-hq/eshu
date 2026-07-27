@@ -37,8 +37,9 @@ const supplyChainImpactSeverityBucketFactSQL = `CASE
     ELSE 'none'
   END`
 
-const listSupplyChainImpactFindingsQuery = `
-WITH scoped_facts AS (
+var listSupplyChainImpactFindingsQuery = `
+WITH ` + supplyChainImpactRuntimeFilterCTE("$9", "$10", "$11", "$22", "$23") + `,
+scoped_facts AS (
 SELECT fact.fact_id,
        ` + supplyChainImpactPublicFindingIDSQL + ` AS finding_id,
        fact.source_confidence,
@@ -63,9 +64,12 @@ WHERE fact.fact_kind = $1
   AND ($6 = '' OR fact.payload->>'impact_status' = $6)
   AND ($7 = '' OR fact.payload->>'advisory_id' = $7)
   AND ($8 = '' OR LOWER(fact.payload->>'ecosystem') = LOWER($8))
-  AND ($9 = '' OR fact.payload->'service_ids' ? $9)
-  AND ($10 = '' OR fact.payload->'workload_ids' ? $10)
-  AND ($11 = '' OR fact.payload->'environments' ? $11)
+` + supplyChainImpactRuntimeFilterPredicate(
+	"fact.payload->>'repository_id'",
+	"$9",
+	"$10",
+	"$11",
+) + `
   AND ($12 = '' OR ` + supplyChainImpactSeverityBucketFactSQL + ` = $12)
   AND (
         $13 = ''
@@ -172,8 +176,9 @@ LIMIT $19
 // NOT re-join the active-generation tables — that join defeats O(page) (measured)
 // and the maintainer already excludes inactive winners. Output is byte-identical
 // to the read-time-dedup query (verified across the filter/sort/cursor matrix).
-const listSupplyChainImpactFindingsFromWinnersQuery = `
-WITH filtered AS NOT MATERIALIZED (
+var listSupplyChainImpactFindingsFromWinnersQuery = `
+WITH ` + supplyChainImpactRuntimeFilterCTE("$9", "$10", "$11", "$22", "$23") + `,
+filtered AS NOT MATERIALIZED (
     SELECT w.finding_id, w.winner_fact_id, w.priority_score
     FROM supply_chain_impact_canonical_winners AS w
     WHERE ($1 = $1)
@@ -184,9 +189,12 @@ WITH filtered AS NOT MATERIALIZED (
       AND ($6 = '' OR w.impact_status = $6)
       AND ($7 = '' OR w.advisory_id = $7)
       AND ($8 = '' OR LOWER(w.ecosystem) = LOWER($8))
-      AND ($9 = '' OR w.service_ids ? $9)
-      AND ($10 = '' OR w.workload_ids ? $10)
-      AND ($11 = '' OR w.environments ? $11)
+` + supplyChainImpactRuntimeFilterPredicate(
+	"w.repository_id",
+	"$9",
+	"$10",
+	"$11",
+) + `
       AND ($12 = '' OR w.severity_bucket = $12)
       AND (
             $13 = ''

@@ -181,8 +181,9 @@ func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactEvidenceFact
 	return out, nil
 }
 
-const explainSupplyChainImpactFindingQuery = `
-WITH raw_facts AS (
+var explainSupplyChainImpactFindingQuery = `
+WITH ` + supplyChainImpactRuntimeFilterCTE("$9", "$8", "''", "$11", "$12") + `,
+raw_facts AS (
 SELECT fact.fact_id,
        ` + supplyChainImpactPublicFindingIDSQL + ` AS finding_id,
        fact.source_confidence,
@@ -205,8 +206,12 @@ WHERE fact.fact_kind = $1
   AND ($5 = '' OR fact.payload->>'package_id' = $5)
   AND ($6 = '' OR fact.payload->>'repository_id' = $6)
   AND ($7 = '' OR fact.payload->>'subject_digest' = $7)
-  AND ($8 = '' OR fact.payload->'workload_ids' ? $8)
-  AND ($9 = '' OR fact.payload->'service_ids' ? $9)
+` + supplyChainImpactRuntimeFilterPredicate(
+	"fact.payload->>'repository_id'",
+	"$9",
+	"$8",
+	"''",
+) + `
   AND ($10 = '' OR fact.payload->>'image_ref' = $10)
   AND (
     (COALESCE(cardinality($11::text[]), 0) = 0 AND COALESCE(cardinality($12::text[]), 0) = 0)

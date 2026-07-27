@@ -24,6 +24,75 @@ func TestAddSupplyChainRuntimeContextFactWorkloadIdentity(t *testing.T) {
 	}
 }
 
+func TestAddSupplyChainRuntimeContextFactWorkloadIdentityNormalizesReducerShapes(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		payload    map[string]any
+		workloadID string
+	}{
+		{
+			name: "padded scalar workload",
+			payload: map[string]any{
+				"workload_id": "  workload:padded-scalar  ",
+			},
+			workloadID: "workload:padded-scalar",
+		},
+		{
+			name: "padded entity-key array",
+			payload: map[string]any{
+				"entity_keys": []any{"  workload:padded-array  "},
+			},
+			workloadID: "workload:padded-array",
+		},
+		{
+			name: "scalar entity key",
+			payload: map[string]any{
+				"entity_keys": "  workload:scalar-entity-key  ",
+			},
+			workloadID: "workload:scalar-entity-key",
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.payload["repository_id"] = "repository:r_normalized"
+			out := map[string]SupplyChainRuntimeContext{}
+			addSupplyChainRuntimeContextFact(
+				out,
+				workloadIdentityFactKindQuery,
+				"scope",
+				tc.payload,
+			)
+			got := out["repository:r_normalized"].WorkloadIDs
+			if len(got) != 1 || got[0] != tc.workloadID {
+				t.Fatalf("WorkloadIDs = %v, want [%s]", got, tc.workloadID)
+			}
+		})
+	}
+}
+
+func TestAddSupplyChainRuntimeContextFactWorkloadIdentityRejectsObjectEntityKeys(t *testing.T) {
+	t.Parallel()
+
+	out := map[string]SupplyChainRuntimeContext{}
+	addSupplyChainRuntimeContextFact(
+		out,
+		workloadIdentityFactKindQuery,
+		"scope",
+		map[string]any{
+			"repository_id": "repository:r_object",
+			"entity_keys": map[string]any{
+				"workload:object-key": true,
+			},
+		},
+	)
+	if workloads := out["repository:r_object"].WorkloadIDs; len(workloads) != 0 {
+		t.Fatalf("WorkloadIDs = %v, want object-shaped entity_keys ignored", workloads)
+	}
+}
+
 func TestAddSupplyChainRuntimeContextFactServiceSkipsRejectedOutcome(t *testing.T) {
 	t.Parallel()
 
@@ -47,14 +116,41 @@ func TestAddSupplyChainRuntimeContextFactServiceSkipsRejectedOutcome(t *testing.
 func TestAddSupplyChainRuntimeContextFactServiceSkipsProvenanceOnly(t *testing.T) {
 	t.Parallel()
 
-	out := map[string]SupplyChainRuntimeContext{}
-	addSupplyChainRuntimeContextFact(out, serviceCatalogCorrelationFactKind, "scope", map[string]any{
-		"repository_id":   "repository:r_217415d9",
-		"service_id":      "service:demo-db",
-		"provenance_only": true,
-	})
-	if _, ok := out["repository:r_217415d9"]; ok {
-		t.Error("provenance-only service evidence should not resolve context")
+	for _, provenanceOnly := range []any{true, " TRUE "} {
+		out := map[string]SupplyChainRuntimeContext{}
+		addSupplyChainRuntimeContextFact(out, serviceCatalogCorrelationFactKind, "scope", map[string]any{
+			"repository_id":   "repository:r_217415d9",
+			"service_id":      "service:demo-db",
+			"provenance_only": provenanceOnly,
+		})
+		if _, ok := out["repository:r_217415d9"]; ok {
+			t.Errorf("provenance_only=%#v should not resolve context", provenanceOnly)
+		}
+	}
+}
+
+func TestAddSupplyChainRuntimeContextFactServiceAcceptsFalseOrBlankProvenance(t *testing.T) {
+	t.Parallel()
+
+	for _, provenanceOnly := range []any{false, " false ", " ", nil} {
+		out := map[string]SupplyChainRuntimeContext{}
+		payload := map[string]any{
+			"repository_id": "repository:r_217415d9",
+			"service_id":    "service:demo-db",
+			"outcome":       "exact",
+		}
+		if provenanceOnly != nil {
+			payload["provenance_only"] = provenanceOnly
+		}
+		addSupplyChainRuntimeContextFact(
+			out,
+			serviceCatalogCorrelationFactKind,
+			"scope",
+			payload,
+		)
+		if _, ok := out["repository:r_217415d9"]; !ok {
+			t.Errorf("provenance_only=%#v should resolve context", provenanceOnly)
+		}
 	}
 }
 
@@ -166,14 +262,22 @@ func TestSupplyChainRuntimeContextRepositoryIDAcceptsNonPrefixedDirectID(t *test
 	// use non-prefixed forms like github.com/org/repo or repo://acme/api, and
 	// rejecting them leaves an honest-empty runtime_context for facts the SQL
 	// already matched.
-	for _, id := range []string{"github.com/org/repo", "repo://acme/api", "repository:r_217415d9"} {
-		id := id
-		t.Run(id, func(t *testing.T) {
-			t.Parallel()
-			if got := supplyChainRuntimeContextRepositoryID(map[string]any{"repository_id": id}, ""); got != id {
-				t.Errorf("repositoryID = %q, want %q", got, id)
-			}
-		})
+	for _, key := range []string{"repository_id", "repo_id"} {
+		key := key
+		for _, id := range []string{"github.com/org/repo", "repo://acme/api", "repository:r_217415d9"} {
+			id := id
+			t.Run(key+"/"+id, func(t *testing.T) {
+				t.Parallel()
+				payload := map[string]any{
+					key:                 id,
+					"scope_id":          "repository:r_decoy",
+					"related_scope_ids": []any{"repository:r_related"},
+				}
+				if got := supplyChainRuntimeContextRepositoryID(payload, "repository:r_envelope"); got != id {
+					t.Errorf("repositoryID = %q, want direct %s %q", got, key, id)
+				}
+			})
+		}
 	}
 }
 
@@ -190,15 +294,101 @@ func TestSupplyChainRuntimeContextRepositoryIDFromRelatedScopeIDs(t *testing.T) 
 	}
 }
 
-func TestAddSupplyChainRuntimeContextFactIgnoresUnanchoredFact(t *testing.T) {
+func TestSupplyChainRuntimeContextRepositoryIDMatchesReducerScopePrecedence(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		payload  map[string]any
+		scopeID  string
+		expected string
+	}{
+		{
+			name: "raw payload scope shadows prefixed envelope scope",
+			payload: map[string]any{
+				"scope_id": "github.com/example/repo-a",
+			},
+			scopeID:  "repository:r_decoy",
+			expected: "github.com/example/repo-a",
+		},
+		{
+			name: "related repository beats raw selected scope fallback",
+			payload: map[string]any{
+				"scope_id":          "github.com/example/repo-a",
+				"related_scope_ids": []any{"repository:r_related"},
+			},
+			scopeID:  "repository:r_decoy",
+			expected: "repository:r_related",
+		},
+		{
+			name:     "raw envelope scope is the final fallback",
+			payload:  map[string]any{"scope_id": "  "},
+			scopeID:  "github.com/example/repo-envelope",
+			expected: "github.com/example/repo-envelope",
+		},
+		{
+			name: "related array entries are trimmed",
+			payload: map[string]any{
+				"scope_id":          "github.com/example/repo-a",
+				"related_scope_ids": []any{"  repository:r_whitespace  "},
+			},
+			scopeID:  "repository:r_decoy",
+			expected: "repository:r_whitespace",
+		},
+		{
+			name: "scalar related scope is accepted",
+			payload: map[string]any{
+				"scope_id":          "github.com/example/repo-a",
+				"related_scope_ids": "  repository:r_scalar  ",
+			},
+			scopeID:  "repository:r_decoy",
+			expected: "repository:r_scalar",
+		},
+		{
+			name: "malformed related scope does not mask later valid scope",
+			payload: map[string]any{
+				"scope_id": "github.com/example/repo-a",
+				"related_scope_ids": []any{
+					"git-repository-scope:   ",
+					"  repository:r_later  ",
+				},
+			},
+			scopeID:  "repository:r_decoy",
+			expected: "repository:r_later",
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := supplyChainRuntimeContextRepositoryID(tc.payload, tc.scopeID); got != tc.expected {
+				t.Fatalf("repositoryID = %q, want reducer-equivalent %q", got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestAddSupplyChainRuntimeContextFactFallsBackToRawScope(t *testing.T) {
 	t.Parallel()
 
 	out := map[string]SupplyChainRuntimeContext{}
 	addSupplyChainRuntimeContextFact(out, workloadIdentityFactKindQuery, "scan-target-xyz", map[string]any{
 		"entity_keys": []any{"workload:x"},
 	})
+	ctx, ok := out["scan-target-xyz"]
+	if !ok || len(ctx.WorkloadIDs) != 1 || ctx.WorkloadIDs[0] != "workload:x" {
+		t.Errorf("out = %v, want workload context under reducer raw-scope fallback", out)
+	}
+}
+
+func TestAddSupplyChainRuntimeContextFactIgnoresBlankScope(t *testing.T) {
+	t.Parallel()
+
+	out := map[string]SupplyChainRuntimeContext{}
+	addSupplyChainRuntimeContextFact(out, workloadIdentityFactKindQuery, "", map[string]any{
+		"entity_keys": []any{"workload:x"},
+	})
 	if len(out) != 0 {
-		t.Errorf("out = %v, want no context for fact with no repository anchor", out)
+		t.Errorf("out = %v, want no context without any repository or scope anchor", out)
 	}
 }
 
@@ -233,6 +423,8 @@ func TestListSupplyChainImpactRuntimeContextNilDBFailsLoud(t *testing.T) {
 	_, err := store.ListSupplyChainImpactRuntimeContext(
 		context.Background(),
 		[]string{"repository:r_217415d9"},
+		nil,
+		nil,
 	)
 	if err == nil {
 		t.Fatal("ListSupplyChainImpactRuntimeContext() error = nil, want nil-DB error")
