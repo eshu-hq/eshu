@@ -182,16 +182,24 @@ $ cd sdk/go/factschema && go test ./... -count=1          ok
 
 ### Golden corpus, and why it cannot assert this
 
-The gate is green on this branch at `bdaa24977`:
+The gate is green on this branch at `63905e242`:
 
 ```
-$ COMPOSE_PROJECT_NAME=env5426gate2 bash scripts/verify-golden-corpus-gate.sh
+$ COMPOSE_PROJECT_NAME=env5426gate4 bash scripts/verify-golden-corpus-gate.sh
 summary: 506 pass, 0 required-fail, 2 advisory-warn
-=== PASS: B-7 golden corpus gate green (elapsed 158s, budget ceiling 1800s) ===
+=== PASS: B-7 golden corpus gate green (elapsed 157s, budget ceiling 1800s) ===
 ```
 
 Both advisory warns are phase timing under a deliberately raised
-`GATE_COLLECTOR_SETTLE_SECONDS=75`, not assertion failures.
+`GATE_COLLECTOR_SETTLE_SECONDS=75`, not assertion failures. (Without that
+override the run trips a known collector-settle flake — `only 17 credentialed
+collector source(s) landed facts; want >= 18` — which is #5831, not this
+change.)
+
+The corpus output is expected to be identical to `main` here, and is: this
+change gates only the promotion, so every deployment that matched before still
+matches, and the corpus's one impact finding matches no branch-3 deployment
+either way.
 
 I tried to add a real floor for this change rather than settle for a green run
 that asserts nothing about it:
