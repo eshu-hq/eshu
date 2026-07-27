@@ -261,12 +261,12 @@ $ cd sdk/go/factschema && go test ./... -count=1          ok
 
 ### Golden corpus, and why it cannot assert this
 
-The gate is green on this branch at `63905e242`:
+The gate is green on this branch at `e3eab3d6f`:
 
 ```
-$ COMPOSE_PROJECT_NAME=env5426gate4 bash scripts/verify-golden-corpus-gate.sh
+$ COMPOSE_PROJECT_NAME=env5426gate7 bash scripts/verify-golden-corpus-gate.sh
 summary: 506 pass, 0 required-fail, 2 advisory-warn
-=== PASS: B-7 golden corpus gate green (elapsed 157s, budget ceiling 1800s) ===
+=== PASS: B-7 golden corpus gate green (elapsed 156s, budget ceiling 1800s) ===
 ```
 
 Both advisory warns are phase timing under a deliberately raised
