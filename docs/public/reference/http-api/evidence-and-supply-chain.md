@@ -948,7 +948,8 @@ saying service-catalog correlation evidence is absent.
 environment; `declared` means only the CI-declared workflow job gate did, with
 no deployment-event corroboration. When two deployments report the same
 environment name with different evidence states, `deploy_event` always wins.
-Rows written before #5426 landed report an empty object rather than a
+The field is omitted entirely when a finding has no recorded environment
+evidence — including rows written before #5426 landed — rather than reporting a
 fabricated value. This field also tightens `runtime_reachability`/deployment
 promotion: a `cicd_run_correlation` deployment that only links to a finding
 through repository plus environment plus an operational anchor (no digest or
@@ -958,6 +959,11 @@ finding to `deployed_image` only when that environment's evidence is
 the vulnerable artifact was deployed. Deployments that match by exact digest
 or image-ref equality are artifact-identity-anchored and are unaffected by
 this distinction.
+
+A declared-only deployment is still linked to the finding: it contributes its
+environment (labelled `declared`), its `cicd_run_correlation` evidence hop, and
+its correlation fact ID, so `deployment_truth_tier` stays
+`provenance_ci_declared`. Only the promotion to `deployed_image` is withheld.
 
 ### Remediation (Safe Upgrade)
 

@@ -26,19 +26,13 @@ func TestBuildSupplyChainImpactFindingsAttachesRepositoryScopedOperationalAnchor
 			"matches",
 			false,
 		),
-		cicdRunCorrelationImpactFactWithEvidence(
+		cicdRunCorrelationImpactFact(
 			"deploy-1",
 			"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			"registry.example/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			testImpactRepositoryID,
 			testImpactEnv,
 			string(CICDRunCorrelationExact),
-			// Repository+environment+operational-anchor matches (branch 3) now
-			// require deploy_event corroboration (#5426); this test exercises
-			// workload/service/environment attachment, not the corroboration
-			// gate itself, so it supplies deploy_event to keep reaching that
-			// attachment behavior.
-			supplyChainEnvironmentEvidenceDeployEvent,
 		),
 	})
 
@@ -101,12 +95,6 @@ func TestBuildSupplyChainImpactFindingsKeepsProvenanceOnlyDeploymentEnvironmentM
 		string(CICDRunCorrelationDerived),
 	)
 	deployment.Payload["provenance_only"] = true
-	// Repository+environment+operational-anchor matches (branch 3) now
-	// require deploy_event corroboration (#5426); this test exercises the
-	// provenance-only rejection reached after a match, not the corroboration
-	// gate itself, so it supplies deploy_event to keep reaching that
-	// rejection.
-	deployment.Payload["environment_evidence"] = supplyChainEnvironmentEvidenceDeployEvent
 	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
 		vulnerabilityCVEFact("cve-1", "CVE-2026-1670", 8.9),
 		vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-1670", testImpactPackageID, "npm", "example", "1.2.3", "1.3.0"),

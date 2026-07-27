@@ -230,20 +230,6 @@ func supplyChainImpactTypedPayload(
 	return payload
 }
 
-func nonNilStrings(values []string) []string {
-	if values == nil {
-		return []string{}
-	}
-	return values
-}
-
-func nonNilMapSlice(values []map[string]any) []map[string]any {
-	if values == nil {
-		return []map[string]any{}
-	}
-	return values
-}
-
 // supplyChainImpactRemediationPayload serializes the advisory-only safe
 // upgrade explanation onto the canonical finding payload. Reason and
 // confidence are always present so the Postgres read model can filter on

@@ -59,14 +59,3 @@ func recordSupplyChainEnvironmentEvidence(
 	state[environment] = evidence
 	return state
 }
-
-// nonNilStringMap mirrors nonNilStrings (supply_chain_impact_writer.go) for
-// map-shaped payload fields: the writer always persists an explicit
-// (possibly empty) JSON object rather than a null, so API/MCP callers can
-// range over environment_evidence without a nil guard.
-func nonNilStringMap(values map[string]string) map[string]string {
-	if values == nil {
-		return map[string]string{}
-	}
-	return values
-}

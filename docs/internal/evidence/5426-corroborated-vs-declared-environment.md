@@ -48,7 +48,33 @@ breaking two legitimate artifact-identity-anchored paths.
 
 ## What shipped
 
-The third branch additionally requires `environment_evidence == "deploy_event"`.
+The gate went on the **promotion**, not on the match.
+
+My first attempt tightened the third branch of `supplyChainDeploymentMatchesFinding`
+itself, so a declared-only deployment simply stopped matching. Separate-context
+review caught that as an accuracy regression, and it was right. A match carries
+four things, and only one of them was the problem:
+
+1. the environment, appended to `finding.Environments`;
+2. the `cicd_run_correlation` hop on `finding.EvidencePath`;
+3. the correlation's fact ID on `finding.EvidenceFactIDs`;
+4. `RuntimeReachability` promotion to `deployed_image`.
+
+Refusing the match discarded all four. Item 2 is the load-bearing one:
+`rowHasCIDeclaredDeploymentEvidence` (`internal/query/supply_chain_impact_result.go`)
+reads exactly that hop to hold a row at
+`deployment_truth_tier=provenance_ci_declared`, so dropping the match silently
+downgraded it to `config_only` — for findings that never had the over-promotion
+problem in the first place. It also made the issue's own goal unreachable: an
+environment can only be *reported* as `declared` if it is recorded at all.
+
+So `supplyChainDeploymentMatchesFinding` branch 3 is unchanged from `main`, and a
+new `supplyChainDeploymentPromotesRuntimeReachability` decides promotion: a
+matched deployment promotes when it is artifact-anchored (digest or image-ref
+agreement with the finding) or when its environment carries `deploy_event`
+corroboration. A declared-only branch-3 deployment keeps its environment, its
+evidence hop, its fact ID, and its truth tier — it just no longer carries the
+finding to `deployed_image` on its own.
 
 That value is published by #5425 on the `reducer_ci_cd_run_correlation` payload,
 and that fact kind is already in this reducer's load set — so reading it is not a
@@ -98,11 +124,18 @@ ones. They assert the digest and image-ref branches still promote under
 declared-only evidence, so the premise correction cannot be quietly undone by a
 later change that "tightens" all three branches uniformly.
 
-Two pre-existing tests in `supply_chain_impact_operational_anchor_test.go` now
-supply `deploy_event`. They exercise operational-anchor attachment and
-provenance-only rejection — behaviour *downstream* of the branch-3 match — so
-without it they would have stopped testing their own subject and started testing
-the new gate.
+`...Branch3DeclaredOnlyDoesNotPromoteRuntimeReachability` asserts both halves of
+the corrected design: the finding is not promoted, *and* it still carries the
+environment (labelled `declared`) and the `cicd_run_correlation` evidence hop.
+That second assertion is what fails if anyone re-implements this by gating the
+match again.
+
+**No pre-existing test needed editing.** The first attempt required two edits in
+`supply_chain_impact_operational_anchor_test.go` to keep those tests reaching
+their own subject; both are reverted, and they now pass unmodified against
+`main`'s versions. That is the cleanest available proof that the collateral
+damage is gone: the tests that had to be bent to accommodate the wrong design
+need no accommodation from the right one.
 
 Cross-package and contract gates:
 
@@ -173,14 +206,24 @@ the reducer consumes it. Nothing in the committed corpus exercises the join
 between them, and I would rather say that plainly than leave a green gate
 implying coverage this change does not have.
 
-This surfaced a real gap worth tracking on its own: environment corroboration
-rides only on the baked fields, so it never reaches the read-time-resolved
-`runtime_context` that OS-package findings actually serve. Filed as **#5835**.
+Two follow-ups came out of this, and they are separate surfaces:
+
+- **#5835** — environment corroboration rides only on the baked fields, so it
+  never reaches the read-time-resolved `runtime_context` that OS-package
+  findings actually serve.
+- **#5836** — the corpus grows a branch-3 fixture so the promotion gate is
+  actually asserted end to end. Until that lands, the gate would stay green if
+  someone re-tightened all three match branches uniformly; only the unit tests
+  catch that today.
 
 No-Observability-Change: no metrics, spans, or status fields are added or
-altered. The branch-3 tightening removes a match rather than adding a failure
-path, and a rejected deployment is already reflected in the finding's existing
-missing-evidence reporting.
+altered, and no new failure path is introduced. The gate withholds a promotion
+rather than rejecting a deployment: the deployment still matches, so it keeps
+contributing its environment, evidence hop, and fact ID, and no rejection
+reason or dead-letter is involved. An operator reading a finding sees the
+environment present and labelled `declared` — which is a strictly clearer
+signal than the previous behavior, where a declared-only environment was
+indistinguishable from a corroborated one.
 
 ## Known limitation
 

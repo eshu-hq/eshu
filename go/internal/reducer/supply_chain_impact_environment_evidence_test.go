@@ -108,10 +108,19 @@ func TestSupplyChainDeploymentContextFromEnvelopeDecodesEnvironmentEvidence(t *t
 
 // Test 2: a branch-3-only deployment (repository + environment match, no
 // digest/image-ref agreement) whose environment_evidence is declared-only must
-// no longer promote RuntimeReachability to deployed_image -- this is the
+// not promote RuntimeReachability to deployed_image -- this is the
 // over-promotion #5426 exists to close: a finding with a digest can otherwise
 // reach deployed_image through a deployment that never references that
 // digest.
+//
+// It must nonetheless still MATCH. The gate belongs on the promotion, not on
+// the join: a match also carries the environment, the cicd_run_correlation
+// evidence hop, and the correlation fact ID, and dropping the join would
+// discard all three. The evidence hop in particular is what
+// rowHasCIDeclaredDeploymentEvidence reads to hold the row at
+// deployment_truth_tier=provenance_ci_declared, so refusing the match would
+// silently downgrade it to config_only -- a regression for findings that never
+// had the over-promotion problem at all.
 func TestBuildSupplyChainImpactFindingsBranch3DeclaredOnlyDoesNotPromoteRuntimeReachability(t *testing.T) {
 	t.Parallel()
 
@@ -130,9 +139,18 @@ func TestBuildSupplyChainImpactFindingsBranch3DeclaredOnlyDoesNotPromoteRuntimeR
 	if got.RuntimeReachability == "deployed_image" {
 		t.Fatalf("RuntimeReachability = %q, want declared-only branch-3 evidence to withhold deployed_image", got.RuntimeReachability)
 	}
-	if len(got.Environments) != 0 {
-		t.Fatalf("Environments = %#v, want no environment recorded from a declared-only branch-3-only deployment", got.Environments)
+	// The environment survives, labelled declared rather than dropped, so a
+	// consumer can tell "declared-only" from "no deployment evidence at all".
+	assertContainsString(t, got.Environments, testImpactEnv)
+	if got.EnvironmentEvidence[testImpactEnv] != supplyChainEnvironmentEvidenceDeclared {
+		t.Fatalf(
+			"EnvironmentEvidence[%q] = %q, want %q",
+			testImpactEnv, got.EnvironmentEvidence[testImpactEnv], supplyChainEnvironmentEvidenceDeclared,
+		)
 	}
+	// The evidence hop survives, so deployment_truth_tier stays
+	// provenance_ci_declared instead of silently falling to config_only.
+	assertContainsString(t, got.EvidencePath, cicdRunCorrelationFactKind)
 }
 
 // Test 3: the same branch-3-only deployment, now stamped
