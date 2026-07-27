@@ -353,13 +353,14 @@ provenance on the CI-run decision makes two decisions resolve the same
 `BenchmarkContainerImageBuiltFromRows` (N=5000 distinct decisions, the
 dedup's worst case since there is nothing to remove), median of 6:
 
-| variant | ns/op | allocs/op |
-| --- | --- | --- |
-| no dedup (`main`) | 970,245 | 25,001 |
-| concatenated key | 1,338,353 | 30,018 |
-| struct key (shipped) | 1,250,194 | 25,018 |
+| variant | ns/op | allocs/op | B/op |
+| --- | --- | --- | --- |
+| no dedup (`main`) | 970,245 | 25,001 | 1,960,963 |
+| concatenated key | 1,338,353 | 30,018 | 2,643,396 |
+| struct key (shipped) | 1,250,194 | 25,018 | 2,354,498 |
 
-**+28.9% over `main`**, allocations flat. The struct key recovered only 6.6% —
+**+28.9% over `main`**, allocation *count* flat but bytes **+20.1%** — the map's
+own storage. Quoting only allocs/op would have understated the trade by 393 KB/op. The struct key recovered only 6.6% —
 the rest is the map itself, and it ships. `testdata/benchmarks/reducer-handler-budgets.txt`
 carries an absolute ceiling for this benchmark with 1.50x headroom over its
 baseline; projecting this ratio leaves roughly 1.16x, so the next
@@ -375,8 +376,12 @@ whoever flips that gate to enforcing.
 No-Observability-Change: no metrics, spans, or status fields are added, and no
 new failure path is introduced. One metric's counted unit does shift:
 `eshu_dp_provenance_edges_total{outcome="materialized"}` now samples distinct
-edges rather than decisions, which is the same number in every case except the
-duplicate one the dedup exists to collapse. The gate withholds a promotion
+submitted rows rather than one row per (decision x build-provenance repository)
+pair. Same number in every case except the duplicate one the dedup exists to
+collapse. Deliberately not "edges": the counter is fed by `len(rows)` before the
+write, and a row whose endpoint node is absent is a writer no-op that still
+counts -- which is #5828, filed from this branch, so calling these edges would
+assert the thing that issue reports. The gate withholds a promotion
 rather than rejecting a deployment: the deployment still matches, so it keeps
 contributing its environment, evidence hop, and fact ID, and no rejection
 reason or dead-letter is involved. An operator reading a finding sees the
