@@ -64,6 +64,28 @@ func TestBuildSupplyChainImpactFindingsBranch3DeclaredOnlyDoesNotPromoteRuntimeR
 	// The evidence hop survives, so deployment_truth_tier stays
 	// provenance_ci_declared instead of silently falling to config_only.
 	assertContainsString(t, got.EvidencePath, cicdRunCorrelationFactKind)
+
+	// The reachability envelope is derived from RuntimeReachability
+	// (withSupplyChainReachability maps image_sbom/image_os_package/
+	// deployed_image onto state=reachable, source=runtime_or_sbom). So
+	// withholding the promotion also stops this finding being labelled
+	// reachable on the wire -- which is the deepest expression of what #5426
+	// fixes: a declared-only deployment was previously enough to call a
+	// finding runtime-reachable. Pinned here because reachability.state is a
+	// truth field, not a triage score, and it also feeds a second priority
+	// channel in supplyChainImpactPriorityContributions.
+	if got.Reachability == nil {
+		t.Fatal("Reachability = nil, want the derived envelope")
+	}
+	if got.Reachability.State == SupplyChainReachabilityReachable {
+		t.Fatalf(
+			"Reachability.State = %q, want a declared-only deployment to stop labelling the finding reachable",
+			got.Reachability.State,
+		)
+	}
+	if got.Reachability.Source == "runtime_or_sbom" {
+		t.Fatalf("Reachability.Source = %q, want the runtime/SBOM source to be withheld too", got.Reachability.Source)
+	}
 }
 
 // Test 3: the same branch-3-only deployment, now stamped

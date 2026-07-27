@@ -110,6 +110,37 @@ artifact reachability (`image_sbom`, `image_os_package`, `deployed_image`,
 `known_fixed`), while corroboration is per-environment. It is also not
 `truth.TierDeclaredRef`, which #5393 owns for DEPLOYS_REF evidence.
 
+## What else moves when the promotion is withheld
+
+`RuntimeReachability` is read by more than the field itself, so withholding the
+promotion cascades. Three consequences, all deliberate, all on persisted
+wire-visible fields.
+
+### The reachability envelope stops saying "reachable"
+
+`withSupplyChainReachability` derives `finding.Reachability` from
+`RuntimeReachability`, and maps `image_sbom` / `image_os_package` /
+`deployed_image` onto `state=reachable, source=runtime_or_sbom`. Measured on the
+primary branch-3 fixture, HEAD versus `main`'s gate:
+
+```
+main gate:  runtime_reachability="deployed_image"
+            reachability={state:"reachable", confidence:"partial", source:"runtime_or_sbom"}
+HEAD gate:  runtime_reachability="package_api_missing_evidence"
+            reachability={state:"missing_evidence", confidence:"unknown", source:"parser_js_ts"}
+```
+
+This is the deepest expression of what the issue asks for. On `main`, a
+declared-only workflow environment was enough to label a finding
+runtime-**reachable** — a truth field, not a triage score, and one that reaches
+the SARIF export as `eshu.reachabilityState`. `state` is now driven by the
+evidence the finding actually has. Pinned in
+`...Branch3DeclaredOnlyDoesNotPromoteRuntimeReachability`, which asserts both
+that the state is no longer `reachable` and that the source is no longer
+`runtime_or_sbom`, and fails under `main`'s gate.
+
+### Priority moves through two channels, not one
+
 ## Withholding the promotion also moves priority
 
 There is a second, deliberate delta, and it is worth stating because it is not
@@ -133,6 +164,12 @@ main gate:  runtime_reachability="deployed_image"  priority_score=55  bucket="me
 The fixture's CVSS is deliberately low. At 9.1 both sides saturate at
 100/critical and the delta is invisible — which is why it went unnoticed until
 the final review round.
+
+There is a second priority channel, because
+`supplyChainImpactPriorityContributions` also switches on
+`Reachability.State`/`.Source`, which the section above shows this change moves.
+So priority shifts both directly (the `image_sbom` contributions) and
+indirectly (through the derived reachability state).
 
 `priority_score`, `priority_bucket`, and `priority_reason_codes` are persisted
 and wire-visible, so this is a real contract change on a triage field, not an
@@ -249,6 +286,7 @@ claim that the technique is exhaustive.
 | `normalize` trims before comparing | `TrimSpace` removed | `TestNormalizeSupplyChainEnvironmentEvidenceTrimsPadding` |
 | caller requires a non-empty `SubjectDigest` | guard deleted | `...WithoutSubjectDigestDoesNotPromote` |
 | image_sbom priority survives a declared-only deployment | gate reverted to `main`'s | `...DeclaredOnlyKeepsImageSBOMPriority` |
+| declared-only stops labelling a finding reachable | gate reverted to `main`'s | `...Branch3DeclaredOnlyDoesNotPromote...` |
 
 Six of these rows exist only because the audit found them uncovered; the rest
 confirmed guards that were already in place.

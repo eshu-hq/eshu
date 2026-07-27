@@ -974,8 +974,18 @@ environment (labelled `declared`), its `cicd_run_correlation` evidence hop, and
 its correlation fact ID, so `deployment_truth_tier` stays
 `provenance_ci_declared`. Only the promotion to `deployed_image` is withheld.
 
+Withholding the promotion also changes the derived `reachability` block. That
+object is computed from `runtime_reachability`, and `deployed_image` maps onto
+`state=reachable` with `source=runtime_or_sbom`. A finding whose only deployment
+evidence is a declared-only environment therefore no longer reports
+`reachability.state=reachable` — it reports the state its own package and parser
+evidence supports. This also reaches the SARIF export as
+`eshu.reachabilityState`.
+
 Withholding the promotion also affects `priority_score`, `priority_bucket`, and
-`priority_reason_codes` for SBOM-derived findings. The `sbom_image_evidence` and
+`priority_reason_codes` for SBOM-derived findings, through two channels: the
+`sbom_image_evidence` and `runtime_reachable` contributions described below, and
+the reachability-state contributions that shift with the block above. The `sbom_image_evidence` and
 `runtime_reachable` priority contributions require
 `runtime_reachability=image_sbom` exactly, so a finding held at `image_sbom`
 keeps both, where one promoted to `deployed_image` loses them. An SBOM-derived
