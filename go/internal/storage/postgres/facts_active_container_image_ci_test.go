@@ -49,7 +49,7 @@ func TestFactStoreListActiveContainerImageCIFactsUsesActiveGenerations(t *testin
 	}
 	store := NewFactStore(db)
 
-	loaded, err := store.ListActiveContainerImageCIFacts(context.Background())
+	loaded, err := store.ListActiveContainerImageCIFacts(context.Background(), "repository:team-api")
 	if err != nil {
 		t.Fatalf("ListActiveContainerImageCIFacts() error = %v, want nil", err)
 	}
@@ -63,16 +63,20 @@ func TestFactStoreListActiveContainerImageCIFactsUsesActiveGenerations(t *testin
 	for _, want := range []string{
 		"scope.active_generation_id = fact.generation_id",
 		"generation.status = 'active'",
-		"fact.fact_kind = 'ci.run'",
+		"fact_kind = 'ci.run'",
 		"fact.fact_kind = 'ci.artifact'",
-		"fact.source_system = 'ci_cd_run'",
+		"source_system = 'ci_cd_run'",
 		"payload->>'artifact_type' = 'container_image'",
-		"ORDER BY fact.observed_at ASC, fact.fact_id ASC",
-		"LIMIT $3",
+		"payload->>'repository_id' = $1",
+		"ORDER BY observed_at ASC, fact_id ASC",
+		"LIMIT $4",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("query missing %q:\n%s", want, query)
 		}
+	}
+	if got, want := db.queries[0].args[0], "repository:team-api"; got != want {
+		t.Fatalf("query $1 arg = %#v, want %q (the owner repository)", got, want)
 	}
 }
 
@@ -89,14 +93,14 @@ func TestFactStoreListActiveContainerImageCIFactsExcludesTombstones(t *testing.T
 	}
 	store := NewFactStore(db)
 
-	if _, err := store.ListActiveContainerImageCIFacts(context.Background()); err != nil {
+	if _, err := store.ListActiveContainerImageCIFacts(context.Background(), "repository:r_owner"); err != nil {
 		t.Fatalf("ListActiveContainerImageCIFacts() error = %v, want nil", err)
 	}
 
 	query := db.queries[0].query
-	if !strings.Contains(query, "fact.is_tombstone = FALSE") {
+	if !strings.Contains(query, "is_tombstone = FALSE") {
 		t.Fatalf("query must exclude tombstoned CI facts via %q:\n%s",
-			"fact.is_tombstone = FALSE", query)
+			"is_tombstone = FALSE", query)
 	}
 }
 
@@ -116,7 +120,7 @@ func TestFactStoreListActiveContainerImageCIFactsNarrowsArtifactType(t *testing.
 	}
 	store := NewFactStore(db)
 
-	if _, err := store.ListActiveContainerImageCIFacts(context.Background()); err != nil {
+	if _, err := store.ListActiveContainerImageCIFacts(context.Background(), "repository:r_owner"); err != nil {
 		t.Fatalf("ListActiveContainerImageCIFacts() error = %v, want nil", err)
 	}
 
@@ -124,6 +128,34 @@ func TestFactStoreListActiveContainerImageCIFactsNarrowsArtifactType(t *testing.
 	if !strings.Contains(query, "fact.fact_kind = 'ci.artifact' AND fact.source_system = 'ci_cd_run'") ||
 		!strings.Contains(query, "AND fact.payload->>'artifact_type' = 'container_image'") {
 		t.Fatalf("query must narrow ci.artifact to artifact_type = container_image:\n%s", query)
+	}
+}
+
+// TestFactStoreListActiveContainerImageCIFactsRequiresOwnerRepository is the
+// #5810 P1 follow-up regression: an empty ownerRepositoryID must short-circuit
+// with no query at all rather than fall back to an unbounded, unowned load.
+// The reducer's Handle path (loadActiveContainerImageCIFacts,
+// container_image_identity_ci_loader.go) already skips calling this loader
+// for a non-repository scope, so a blank owner reaching here can only be a
+// caller bug -- returning empty is the safe failure mode, not silently
+// reverting to the platform-wide scan this change exists to remove.
+func TestFactStoreListActiveContainerImageCIFactsRequiresOwnerRepository(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{}},
+	}
+	store := NewFactStore(db)
+
+	loaded, err := store.ListActiveContainerImageCIFacts(context.Background(), "")
+	if err != nil {
+		t.Fatalf("ListActiveContainerImageCIFacts(\"\") error = %v, want nil", err)
+	}
+	if len(loaded) != 0 {
+		t.Fatalf("ListActiveContainerImageCIFacts(\"\") len = %d, want 0", len(loaded))
+	}
+	if got := len(db.queries); got != 0 {
+		t.Fatalf("query count = %d, want 0 (an empty owner must not issue the unbounded query)", got)
 	}
 }
 
@@ -186,7 +218,7 @@ func TestFactStoreListActiveContainerImageCIFactsPaginates(t *testing.T) {
 	}
 	store := NewFactStore(db)
 
-	loaded, err := store.ListActiveContainerImageCIFacts(context.Background())
+	loaded, err := store.ListActiveContainerImageCIFacts(context.Background(), "repository:r_owner")
 	if err != nil {
 		t.Fatalf("ListActiveContainerImageCIFacts() error = %v, want nil", err)
 	}
@@ -196,6 +228,9 @@ func TestFactStoreListActiveContainerImageCIFactsPaginates(t *testing.T) {
 	if got := len(db.queries); got != 2 {
 		t.Fatalf("query count = %d, want 2 (a full first page must request a second)", got)
 	}
+	if got, want := db.queries[1].args[0], "repository:r_owner"; got != want {
+		t.Fatalf("second page $1 arg = %#v, want %q (the owner must be re-sent on every page)", got, want)
+	}
 }
 
 // TestFactRecordsActiveContainerImageCIIndexPredicateMatchesFilterSQL locks
@@ -204,12 +239,14 @@ func TestFactStoreListActiveContainerImageCIFactsPaginates(t *testing.T) {
 // listActiveContainerImageCIFactsFilterSQL const
 // (facts_active_container_image_ci.go), in the spirit of
 // TestIdentityEpochIndexPredicateMatchesIdentityFactFilter
-// (identity_epoch_cache_contract_test.go). These two filter predicates MUST
-// stay identical: the index only covers ListActiveContainerImageCIFacts with
-// an index scan when its predicate is a subset match of the query's WHERE
-// clause. If the two drift, the partial index silently stops covering the
-// load query and the CI bridge falls back to a full table scan -- a perf
-// regression with no functional test failure to catch it.
+// (identity_epoch_cache_contract_test.go). listActiveContainerImageCIFactsQuery
+// no longer issues this combined two-arm predicate as a single scan (#5810 P1
+// follow-up splits it into two independently-optimized UNION ALL branches --
+// see that constant's doc comment), so this test compares the migration's
+// predicate directly against the Go constant text instead of extracting it
+// out of the live query: migration 081's index stays valid and shipped even
+// though this one consumer no longer drives its access path, and the
+// predicate pairing must still not silently drift.
 func TestFactRecordsActiveContainerImageCIIndexPredicateMatchesFilterSQL(t *testing.T) {
 	t.Parallel()
 
@@ -219,7 +256,7 @@ func TestFactRecordsActiveContainerImageCIIndexPredicateMatchesFilterSQL(t *test
 	}
 
 	migrationFilter := normalizeIdentityFilterPredicate(extractIdentityFilter(string(migrationSQL)))
-	goFilter := normalizeIdentityFilterPredicate(extractIdentityFilter(listActiveContainerImageCIFactsQuery))
+	goFilter := normalizeIdentityFilterPredicate(listActiveContainerImageCIFactsFilterSQL)
 
 	if migrationFilter != goFilter {
 		t.Fatalf(
@@ -241,4 +278,62 @@ func TestFactRecordsActiveContainerImageCIIndexPredicateMatchesFilterSQL(t *test
 			t.Fatalf("listActiveContainerImageCIFactsFilterSQL missing %q", want)
 		}
 	}
+}
+
+// TestFactRecordsActiveContainerImageCIRunRepositoryIndexPredicateMatchesFilterSQL
+// is the #5810 P1 follow-up sibling of
+// TestFactRecordsActiveContainerImageCIIndexPredicateMatchesFilterSQL: it
+// locks migration 082's WHERE predicate
+// (fact_records_active_container_image_ci_run_repository_idx) to the Go
+// listActiveContainerImageCIRunRepositoryFilterSQL const, the predicate that
+// actually drives the owner-scoped query's ci.run branch today. If these two
+// drift, migration 082 silently stops covering the load query and the
+// owner-scoped lookup falls back to an unindexed scan -- the exact
+// perf-regression-with-no-functional-failure risk
+// TestFactRecordsActiveContainerImageCIIndexPredicateMatchesFilterSQL guards
+// for migration 081.
+func TestFactRecordsActiveContainerImageCIRunRepositoryIndexPredicateMatchesFilterSQL(t *testing.T) {
+	t.Parallel()
+
+	migrationSQL, err := os.ReadFile("migrations/082_fact_records_active_container_image_ci_run_repository_idx.sql")
+	if err != nil {
+		t.Fatalf("read migration 082: %v", err)
+	}
+
+	migrationFilter := normalizeIdentityFilterPredicate(extractWhereClause(string(migrationSQL)))
+	goFilter := normalizeIdentityFilterPredicate(listActiveContainerImageCIRunRepositoryFilterSQL)
+
+	if migrationFilter != goFilter {
+		t.Fatalf(
+			"live container-image-CI-run-repository index predicate drifted from listActiveContainerImageCIRunRepositoryFilterSQL:\nmigration: %s\ngo:        %s",
+			migrationFilter, goFilter,
+		)
+	}
+
+	for _, want := range []string{
+		"fact_kind = 'ci.run'",
+		"source_system = 'ci_cd_run'",
+		"is_tombstone = FALSE",
+	} {
+		if !strings.Contains(migrationFilter, want) {
+			t.Fatalf("live container-image-CI-run-repository index predicate missing %q", want)
+		}
+		if !strings.Contains(goFilter, want) {
+			t.Fatalf("listActiveContainerImageCIRunRepositoryFilterSQL missing %q", want)
+		}
+	}
+}
+
+// extractWhereClause returns the plain (non-parenthesized) WHERE predicate
+// trailing a CREATE INDEX statement, for migration 082's un-parenthesized
+// AND-chain shape -- extractIdentityFilter (identity_epoch_cache_fingerprint_test.go)
+// requires the predicate to open with '(' immediately, which migration 082's
+// simple three-clause AND chain does not.
+func extractWhereClause(sql string) string {
+	whereIdx := strings.Index(sql, "WHERE")
+	if whereIdx < 0 {
+		panic("cannot find WHERE in migration SQL: " + sql)
+	}
+	rest := strings.TrimSpace(sql[whereIdx+5:])
+	return strings.TrimSuffix(strings.TrimSpace(rest), ";")
 }

@@ -128,4 +128,9 @@ var orderedBootstrapDefinitionNames = []string{
 	// lineage): a dedicated partial index mirroring 075's SLSA precedent
 	// rather than widening the drift-locked identity-epoch index.
 	"fact_records_active_container_image_ci_idx",
+	// migration 082 (#5810 P1 follow-up): the owner-scoped repository_id
+	// lookup index that lets ListActiveContainerImageCIFacts push the
+	// calling intent's owning repository into Postgres instead of loading
+	// every active CI fact platform-wide and filtering in Go.
+	"fact_records_active_container_image_ci_run_repository_idx",
 }
