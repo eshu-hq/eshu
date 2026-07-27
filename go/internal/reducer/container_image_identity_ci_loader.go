@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	cicdrunv1 "github.com/eshu-hq/eshu/sdk/go/factschema/cicdrun/v1"
 )
 
 // activeContainerImageCIFactLoader is the #5810 cross-scope bridge for ci.run
@@ -32,7 +33,7 @@ import (
 // from for the same reason -- coupling CI-run churn into that cache's probe
 // query would move its fingerprint on every CI run.
 type activeContainerImageCIFactLoader interface {
-	ListActiveContainerImageCIFacts(ctx context.Context) ([]facts.Envelope, error)
+	ListActiveContainerImageCIFacts(ctx context.Context, ownerRepositoryID string) ([]facts.Envelope, error)
 }
 
 // loadActiveContainerImageCIFacts returns the cross-scope ci.run/ci.artifact
@@ -67,6 +68,14 @@ type activeContainerImageCIFactLoader interface {
 // CI fact in the one scope that owns it instead of repeating it per intent.
 // Skipping the query outright for those scopes also keeps the highest-churn
 // fact family in the system off every non-repository refresh.
+//
+// The owner is now passed to the loader itself (#5810 P1 follow-up): the
+// real Postgres implementation (ListActiveContainerImageCIFacts,
+// go/internal/storage/postgres/facts_active_container_image_ci.go) pushes
+// ownerRepositoryID into the query so Postgres returns only the owner's
+// evidence instead of every active CI fact platform-wide.
+// filterContainerImageCIFactsForOwner below still runs on the result as a
+// defense-in-depth correctness net, not the primary performance bound.
 func (h ContainerImageIdentityHandler) loadActiveContainerImageCIFacts(
 	ctx context.Context,
 	scopeID string,
@@ -79,7 +88,7 @@ func (h ContainerImageIdentityHandler) loadActiveContainerImageCIFacts(
 	if ownerRepositoryID == "" {
 		return nil, nil
 	}
-	envelopes, err := loader.ListActiveContainerImageCIFacts(ctx)
+	envelopes, err := loader.ListActiveContainerImageCIFacts(ctx, ownerRepositoryID)
 	if err != nil {
 		return nil, classifyFactLoadError(err)
 	}
@@ -88,18 +97,44 @@ func (h ContainerImageIdentityHandler) loadActiveContainerImageCIFacts(
 
 // filterContainerImageCIFactsForOwner keeps only the ci.run envelopes whose
 // decoded repository is ownerRepositoryID, plus the ci.artifact envelopes
-// joined (by the shared provider/run_id/run_attempt key) to one of those kept
-// runs. Everything else — foreign runs, artifacts of foreign or absent runs,
-// runs with no repository anchor, and envelopes that fail typed decode — is
-// dropped: a fact that cannot be attributed to the owning repository cannot
-// contribute owner build provenance, and its quarantine (for the malformed
-// case) belongs to its own scope's intent, not to every repository refresh
-// that happens to load it cross-scope.
+// joined (by the shared scope+provider/run_id/run_attempt key,
+// cicdRunScopeKey) to one of those kept runs. Everything else — foreign
+// runs, artifacts of foreign or absent runs, runs with no repository anchor,
+// and envelopes that fail typed decode — is dropped: a fact that cannot be
+// attributed to the owning repository cannot contribute owner build
+// provenance, and its quarantine (for the malformed case) belongs to its own
+// scope's intent, not to every repository refresh that happens to load it
+// cross-scope.
+//
+// This runs regardless of whether the loader already applied the owner
+// predicate in SQL (#5810 P1 follow-up): it is cheap on an
+// already-owner-scoped result and stays the correctness backstop for any
+// FactLoader implementation (a stub, a future adapter) that does not itself
+// filter perfectly.
+//
+// The join key folds in each envelope's OWN scope_id (#5810 P1 follow-up):
+// two independent CI installations (github.com vs a self-hosted GHES
+// instance, or two separate self-hosted runners) mint their own
+// provider/run_id/run_attempt numbering independently, so the bare tuple
+// alone can legitimately name two UNRELATED runs living in two different
+// scopes. Keying on the tuple alone let a foreign scope's run and artifact
+// join the owner's set purely by numeric coincidence — and downstream,
+// containerImageCIRuns indexes runs by that same bare tuple in a plain map,
+// so the foreign run could even overwrite the owner's own run anchor,
+// attaching a completely unrelated image to the owner's repository.
 func filterContainerImageCIFactsForOwner(
 	envelopes []facts.Envelope,
 	ownerRepositoryID string,
 ) []facts.Envelope {
 	ownedRunKeys := make(map[string]struct{})
+	// decodedRuns caches the first pass's successful ci.run decode by FactID
+	// (owner review P2): the second pass below re-checks EVERY ci.run
+	// envelope's ownedRunKeys membership (an envelope can appear once but is
+	// still worth looking up again since the decode itself is the expensive,
+	// redundant part), and decodeCICDRun is a pure function of the immutable
+	// envelope, so decoding it twice for the same envelope always produced
+	// the identical cicdrunv1.Run and bought nothing.
+	decodedRuns := make(map[string]cicdrunv1.Run, len(envelopes))
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.CICDRunFactKind {
 			continue
@@ -108,13 +143,14 @@ func filterContainerImageCIFactsForOwner(
 		if err != nil {
 			continue
 		}
+		decodedRuns[envelope.FactID] = run
 		if strings.TrimSpace(run.Provider) == "" || strings.TrimSpace(run.RunID) == "" {
 			continue
 		}
 		if trimmedCICDPtr(run.RepositoryID) != ownerRepositoryID {
 			continue
 		}
-		if key := cicdRunKeyFromParts(run.Provider, run.RunID, run.RunAttempt); key != "" {
+		if key := cicdRunScopeKey(envelope.ScopeID, run.Provider, run.RunID, run.RunAttempt); key != "" {
 			ownedRunKeys[key] = struct{}{}
 		}
 	}
@@ -125,11 +161,12 @@ func filterContainerImageCIFactsForOwner(
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
 		case facts.CICDRunFactKind:
-			run, err := decodeCICDRun(envelope)
-			if err != nil {
+			run, ok := decodedRuns[envelope.FactID]
+			if !ok {
 				continue
 			}
-			if _, owned := ownedRunKeys[cicdRunKeyFromParts(run.Provider, run.RunID, run.RunAttempt)]; owned {
+			key := cicdRunScopeKey(envelope.ScopeID, run.Provider, run.RunID, run.RunAttempt)
+			if _, owned := ownedRunKeys[key]; owned {
 				kept = append(kept, envelope)
 			}
 		case facts.CICDArtifactFactKind:
@@ -137,12 +174,31 @@ func filterContainerImageCIFactsForOwner(
 			if err != nil {
 				continue
 			}
-			if _, owned := ownedRunKeys[cicdRunKeyFromParts(artifact.Provider, artifact.RunID, artifact.RunAttempt)]; owned {
+			key := cicdRunScopeKey(envelope.ScopeID, artifact.Provider, artifact.RunID, artifact.RunAttempt)
+			if _, owned := ownedRunKeys[key]; owned {
 				kept = append(kept, envelope)
 			}
 		}
 	}
 	return kept
+}
+
+// cicdRunScopeKey extends cicdRunKeyFromParts with the fact's own scope_id
+// (#5810 P1 follow-up). filterContainerImageCIFactsForOwner is the only
+// caller that needs this: it is the one place a run and an artifact from
+// DIFFERENT scopes could otherwise collide on the shared, scope-oblivious
+// cicdRunKeyFromParts key. Every other cicdRunKeyFromParts caller
+// (ci_cd_run_correlation_decode.go, container_image_identity_typed_evidence.go)
+// only ever processes ONE scope's own envelopes at a time (scope-local
+// loadFactsForKinds, or this function's already-filtered output), so the
+// cross-scope tuple collision this guards against cannot occur there and the
+// shared key stays untouched.
+func cicdRunScopeKey(scopeID, provider, runID string, runAttempt *string) string {
+	key := cicdRunKeyFromParts(provider, runID, runAttempt)
+	if key == "" {
+		return ""
+	}
+	return strings.TrimSpace(scopeID) + "\x00" + key
 }
 
 // dedupeEnvelopesByFactID collapses envelopes sharing the same FactID down to

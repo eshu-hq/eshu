@@ -3,7 +3,10 @@
 
 package reducer
 
-import "sort"
+import (
+	"slices"
+	"sort"
+)
 
 // addSLSADigestRefs ensures every verified SLSA provenance anchor (issue
 // #5810 Part B) reaches at least one containerImageRefEvidence entry, so a
@@ -28,7 +31,31 @@ import "sort"
 // addCICDArtifactImageReference) is synthesized only when no existing ref
 // names that exact digest, so a genuinely ref-less digest still gets one.
 // Iterating sorted digest keys keeps evidence fact ID ordering deterministic.
-func addSLSADigestRefs(byRef map[string]containerImageRefEvidence, slsaDigest map[string]slsaDigestAnchor) {
+//
+// SYNTHESIS is owner-gated (#5810 P1 follow-up, mirroring
+// loadActiveContainerImageCIFacts' owner gate,
+// container_image_identity_ci_loader.go): ownerRepositoryID is the
+// repository the CURRENTLY refreshing intent owns (empty for a non-repository
+// scope, or for a caller with no scope context at all -- see
+// BuildContainerImageIdentityDecisions). An anchor that names a repository
+// (a non-empty sourceRepositoryIDs) is only allowed to MINT a brand-new
+// bare-digest row when that repository IS the owner; otherwise the intent has
+// no consumer for the claim (containerImageDerivedFromRows only ever reads
+// BuildProvenanceRepositoryIDs entries equal to its own owning repository)
+// and admitting it anyway would durably write a foreign repository's build
+// claim into every unrelated scope that happens to refresh, exactly the
+// anchor-flip class the CI loader fix closed. An anchor with NO repository
+// attribution (empty sourceRepositoryIDs) carries no cross-scope claim at all,
+// so it is always safe to synthesize regardless of owner -- attachment to an
+// EXISTING ref (attachSLSADigestAnchorToExistingRefs, above) is deliberately
+// NOT gated: it only ever enriches a decision the intent's OWN evidence
+// already raised, which is the legitimate cross-scope enrichment #5456 PR
+// #5707 P1-b introduced this bridge for.
+func addSLSADigestRefs(
+	byRef map[string]containerImageRefEvidence,
+	slsaDigest map[string]slsaDigestAnchor,
+	ownerRepositoryID string,
+) {
 	digests := make([]string, 0, len(slsaDigest))
 	for digest := range slsaDigest {
 		digests = append(digests, digest)
@@ -37,6 +64,9 @@ func addSLSADigestRefs(byRef map[string]containerImageRefEvidence, slsaDigest ma
 	for _, digest := range digests {
 		anchor := slsaDigest[digest]
 		if attachSLSADigestAnchorToExistingRefs(byRef, digest, anchor) {
+			continue
+		}
+		if len(anchor.sourceRepositoryIDs) > 0 && !slices.Contains(anchor.sourceRepositoryIDs, ownerRepositoryID) {
 			continue
 		}
 		addContainerImageDigestRef(

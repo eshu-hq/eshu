@@ -101,6 +101,7 @@ type parsedContainerImageRef struct {
 func extractContainerImageRefsWithQuarantine(
 	envelopes []facts.Envelope,
 	slsaDigest map[string]slsaDigestAnchor,
+	ownerRepositoryID string,
 ) ([]containerImageRefEvidence, map[string]ciRunDigestAnchor, []quarantinedFact, error) {
 	byRef := make(map[string]containerImageRefEvidence)
 	ciRunDigest := make(map[string]ciRunDigestAnchor)
@@ -194,7 +195,7 @@ func extractContainerImageRefsWithQuarantine(
 	// A bare-digest ref is synthesized only when NO existing ref already
 	// carries that exact digest, so the strongest evidence tier still stands
 	// on its own for a genuinely ref-less digest.
-	addSLSADigestRefs(byRef, slsaDigest)
+	addSLSADigestRefs(byRef, slsaDigest, ownerRepositoryID)
 	refs := make([]containerImageRefEvidence, 0, len(byRef))
 	for _, ref := range byRef {
 		refs = append(refs, ref)

@@ -65,7 +65,7 @@ func TestExtractContainerImageRefsDockerfileBase(t *testing.T) {
 		),
 	}
 
-	refs, _, _, err := extractContainerImageRefsWithQuarantine(envelopes, nil)
+	refs, _, _, err := extractContainerImageRefsWithQuarantine(envelopes, nil, "")
 	if err != nil {
 		t.Fatalf("extractContainerImageRefsWithQuarantine: %v", err)
 	}
@@ -156,7 +156,7 @@ func TestExtractContainerImageRefsDockerfileBaseUnresolved(t *testing.T) {
 		),
 	}
 
-	refs, _, _, err := extractContainerImageRefsWithQuarantine(envelopes, nil)
+	refs, _, _, err := extractContainerImageRefsWithQuarantine(envelopes, nil, "")
 	if err != nil {
 		t.Fatalf("extractContainerImageRefsWithQuarantine: %v", err)
 	}
