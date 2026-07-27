@@ -69,6 +69,19 @@ jobs:
         id: filter
         uses: dorny/paths-filter@v3
         with:
+          # `code` is true when ANY changed file is outside the docs set. The
+          # bare `*.md` negation is ROOT-ANCHORED (no `/` in the pattern), so it
+          # only strips root-level markdown (README.md, CLAUDE.md, AGENTS.md,
+          # etc.) — nested markdown under go/**/*.md, sdk/**/*.md,
+          # tests/**/*.md, and skill-fragments/**/*.md still counts as code
+          # (deliberate: those trees are code-adjacent and tied to the Go
+          # build/test/security surface these three workflows gate). The one
+          # exception is `.agents/**`, negated explicitly: it holds
+          # agent-instruction skills/SKILL.md/reference markdown with no
+          # Go/build/lint/security consumer in this workflow — it is verified
+          # only by verify-agent-canon.sh (verify-agent-hygiene.yml) and
+          # verify-skill-roundtrip.sh (static-contract-gates.yml), neither of
+          # which this filter gates. See #5818.
           filters: |
             code:
               - '**'
@@ -76,6 +89,7 @@ jobs:
               - '!*.md'
               - '!mkdocs.yml'
               - '!.github/**/*.md'
+              - '!.agents/**'
 
   # ── Gate 1: Tool count ──
   mcp-tool-count:

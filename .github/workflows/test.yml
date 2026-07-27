@@ -40,9 +40,18 @@ jobs:
         uses: dorny/paths-filter@v3
         with:
           # `code` is true when ANY changed file is outside the docs set. The
-          # negations only strip the docs tree, root-level markdown, mkdocs
-          # config, and workflow markdown — so a package doc under go/**/*.md
-          # still counts as code (it lives with the code and is tied to it).
+          # bare `*.md` negation is ROOT-ANCHORED (no `/` in the pattern), so it
+          # only strips root-level markdown (README.md, CLAUDE.md, AGENTS.md,
+          # etc.) — nested markdown under go/**/*.md, sdk/**/*.md,
+          # tests/**/*.md, and skill-fragments/**/*.md still counts as code
+          # (deliberate: those trees are code-adjacent and tied to the Go
+          # build/test/security surface these three workflows gate). The one
+          # exception is `.agents/**`, negated explicitly: it holds
+          # agent-instruction skills/SKILL.md/reference markdown with no
+          # Go/build/lint/security consumer in this workflow — it is verified
+          # only by verify-agent-canon.sh (verify-agent-hygiene.yml) and
+          # verify-skill-roundtrip.sh (static-contract-gates.yml), neither of
+          # which this filter gates. See #5818.
           filters: |
             code:
               - '**'
@@ -50,6 +59,7 @@ jobs:
               - '!*.md'
               - '!mkdocs.yml'
               - '!.github/**/*.md'
+              - '!.agents/**'
 
   verify-contracts:
     needs: changes
@@ -348,7 +358,9 @@ jobs:
         run: scripts/ci/install-apt-packages.sh ripgrep
 
       - name: Verify docs-only CI carve-out wiring
-        run: scripts/verify-docs-only-ci-skip.sh
+        run: |
+          scripts/test-verify-docs-only-ci-skip.sh
+          scripts/verify-docs-only-ci-skip.sh
 
       - name: Set up Helm
         uses: azure/setup-helm@v5.0.0
