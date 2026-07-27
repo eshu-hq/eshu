@@ -28,13 +28,20 @@ lock_lib="${repo_root}/scripts/lib/live-gate-lock.sh"
 bash -n "${lock_lib}" || fail "live-gate-lock.sh has a syntax error"
 
 require "live gate mutex" 'acquire_live_gate_lock'
-require "lock released on exit" 'release_live_gate_lock'
-# --keep leaves the stack up on the fixed ports, so the ORCHESTRATOR must retain
-# the mutex on that path rather than release it. Asserted against the gate, not
-# the lib: the lib merely defines the function.
+# cleanup() (and its release/retain calls) is extracted to
+# scripts/lib/golden-corpus-cleanup.sh to keep the orchestrator under the
+# 500-line cap, so these are asserted against that lib chunk, not the gate
+# script itself.
+cleanup_lib="${cleanup_lib:-${repo_root}/scripts/lib/golden-corpus-cleanup.sh}"
+[[ -f "${cleanup_lib}" ]] || fail "missing cleanup lib: ${cleanup_lib}"
+rg --fixed-strings --quiet -- 'release_live_gate_lock' "${cleanup_lib}" ||
+	fail "missing lock released on exit in ${cleanup_lib}: release_live_gate_lock"
+# --keep leaves the stack up on the fixed ports, so the cleanup trap must retain
+# the mutex on that path rather than release it. Asserted against the cleanup
+# lib, not the lock lib itself: the lock lib merely defines the function.
 rg --pcre2 --multiline --quiet \
 	'if \[\[ "\$\{keep\}" -eq 1 \]\]; then\n\t\tretain_live_gate_lock\n\telse\n\t\trelease_live_gate_lock' \
-	"${script}" ||
+	"${cleanup_lib}" ||
 	fail "the --keep cleanup branch must RETAIN the mutex and the else branch release it"
 
 require_lock() {
@@ -43,9 +50,20 @@ require_lock() {
 		|| fail "missing ${label} in live-gate-lock.sh: ${needle}"
 }
 require_lock "atomic symlink claim" 'ln -s "${payload}" "${candidate}"'
-require_lock "exclusive stale-reclaim guard" 'claim_lock_link "$$" "${guard}"'
+require_lock "exclusive stale-reclaim guard" 'claim_lock_link "$$:$(date +%s)" "${guard}"'
 require_lock "reclaim re-validates the holder" \
-	'if ! { [[ "${current_pid}" =~ ^[0-9]+$ ]] && process_is_alive "${current_pid}"; }; then'
+	'if ! { [[ "${current_pid}" =~ ^[0-9]+$ ]] && process_is_alive "${current_pid}" &&'
+# PID-reuse defense (#5826 review): a live pid alone is not enough evidence the
+# recorded holder is still the SAME process, since the kernel can hand a dead
+# holder's pid to an unrelated long-lived process. The payload and every
+# liveness check must also carry/validate a start-id fingerprint.
+require_lock "start-id fingerprint helper" 'start_id_for_pid() {'
+require_lock "payload carries a start-id fingerprint" \
+	'local payload="$$:$(start_id_for_pid "$$"):$(pwd -P)"'
+require_lock "holder liveness re-validates the start-id" \
+	'{ [[ -z "${holder_startid}" ]] || [[ "$(start_id_for_pid "${holder_pid}")" == "${holder_startid}" ]]; }; then'
+require_lock "reclaim re-validates the start-id" \
+	'{ [[ -z "${current_startid}" ]] || [[ "$(start_id_for_pid "${current_pid}")" == "${current_startid}" ]]; }; }; then'
 require_lock "CI bypass" 'ESHU_SKIP_LIVE_GATE_LOCK'
 require_lock "test lock relocation" 'ESHU_LIVE_GATE_LOCK_DIR'
 # `ln -s` into a DIRECTORY links inside it and reports success, so the claim
@@ -59,10 +77,16 @@ if rg -v '^[[:space:]]*#' "${lock_lib}" | rg --fixed-strings --quiet -- 'kill -0
 	fail "liveness reverted to kill -0 (misreads another user's live process as dead)"
 fi
 # The orphan-guard reap must be age-gated; an unconditional reap can delete a
-# guard a racer created microseconds ago.
-# Pin the POLARITY, not the flag: inverting this to reap guards YOUNGER than the
-# budget reinstates the bug while keeping the "-mmin +1" substring.
-require_lock "age-gate polarity" '[[ -n "$(find "${guard}" -prune -mmin +1 2>/dev/null)" ]]'
+# guard a racer created microseconds ago. Age comes from the guard's own
+# embedded birth epoch (pid:epoch payload), never a filesystem mtime: `find`
+# is a banned discovery primitive repo-wide, and a directory's mtime resets on
+# every claim_lock_link probe anyway (see the guard_status==2 branch).
+# Pin the POLARITY, not the flag: inverting this to reap guards YOUNGER than
+# the budget reinstates the bug while keeping the "> 60" substring.
+require_lock "age-gate polarity" '(( $(date +%s) - guard_born > 60 ))'
+if rg -v '^[[:space:]]*#' "${lock_lib}" | rg --quiet -- 'find '; then
+	fail "live-gate-lock.sh reverted to using find - it is a banned discovery primitive repo-wide"
+fi
 # The reclaim guard excludes other RECLAIMERS, not an ordinary claimer - and an
 # ordinary claimer competes precisely when the name is FREE. So the replace must
 # be conditional on the value validated under the guard; removing "nothing"
@@ -92,15 +116,35 @@ trap drop_lock_home EXIT
 # Acquire against the throwaway lock dir, then hold it for `hold` seconds so a
 # racing acquirer observes a genuinely LIVE holder rather than a pid that has
 # already exited.
+#
+# An optional third arg is a shared critical-section token path. When given,
+# entry is claimed with `set -o noclobber` (create-or-fail) immediately after
+# acquiring the lock: a second racer that is ALSO inside the critical section
+# at the same instant reports OVERLAP instead of ACQUIRED. This is the mutual-
+# exclusion invariant a mutex actually promises. "exactly N winners across the
+# whole run" is NOT that invariant when `hold` is short relative to the retry
+# budget: the winner holds for `hold` seconds, then exits and its pid goes
+# dead, so a racer still spinning in its own retry loop legitimately reclaims
+# the now-free lock and becomes a SECOND winner later in the same run. #5826
+# review reproduced this: 8 racers, hold=2s, "exactly one winner" failed with
+# "got 8" under scheduler load - not a mutex bug, an test invariant that
+# was already provably violated by the code as designed. Overlap (never two
+# holders AT ONCE) is what must be asserted; sequential winners are correct.
 try_acquire() {
-	local hold="${1:-0}"
+	local hold="${1:-0}" token="${2:-}"
 	ESHU_LIVE_GATE_LOCK_DIR="${lock_home}" bash -c '
 		set -euo pipefail
 		. "$1"
 		acquire_live_gate_lock
-		printf "ACQUIRED=%s\n" "${lock_path}"
+		token="$3"
+		if [[ -n "${token}" ]] && ! ( set -o noclobber; : >"${token}" ) 2>/dev/null; then
+			printf "OVERLAP token=%s\n" "${token}"
+		else
+			printf "ACQUIRED=%s\n" "${lock_path}"
+		fi
 		[[ "$2" == "0" ]] || sleep "$2"
-	' _ "${lock_lib}" "${hold}" 2>&1
+		[[ -z "${token}" ]] || rm -f "${token}"
+	' _ "${lock_lib}" "${hold}" "${token}" 2>&1
 }
 
 # A free lock is acquired.
@@ -134,6 +178,33 @@ rg --quiet 'another live gate is already running' <<<"${blocked_out}" \
 rg --quiet 'serialized' <<<"${blocked_out}" \
 	|| fail "blocked run must explain the serialization requirement"
 
+# PID-reuse defense (#5826 review, P2): a live pid is not enough on its own -
+# the kernel can hand a dead holder's pid to an unrelated long-lived process,
+# which would otherwise read as a live holder forever and refuse every later
+# run. A recorded start-id that does NOT match this pid's actual start-id
+# must be treated as unconfirmed and reclaimed, not trusted as live.
+rm -f "${lock_file}"
+ln -s "$$:0:/nonexistent/reused-pid-worktree" "${lock_file}"
+reuse_out="$(try_acquire)" \
+	|| fail "a live pid with a mismatched start-id must be reclaimed as stale, not treated as live: ${reuse_out}"
+rg --quiet 'reclaimed stale lock' <<<"${reuse_out}" \
+	|| fail "pid-reuse reclaim must be announced, not silent; got: ${reuse_out}"
+
+# ...and the inverse: a live pid whose start-id genuinely MATCHES must still
+# block. Otherwise the fingerprint would defeat live exclusion entirely rather
+# than narrow it.
+this_startid="$(ps -o lstart= -p "$$" | tr -cd '0-9')"
+rm -f "${lock_file}"
+ln -s "$$:${this_startid}:/nonexistent/same-worktree" "${lock_file}"
+set +e
+samestart_out="$(try_acquire)"
+samestart_status=$?
+set -e
+[[ "${samestart_status}" -ne 0 ]] \
+	|| fail "a live pid with a MATCHING start-id must still block, got exit 0: ${samestart_out}"
+rg --quiet 'another live gate is already running' <<<"${samestart_out}" \
+	|| fail "matching start-id holder must be reported as running; got: ${samestart_out}"
+
 # A STALE holder (dead pid) must be reclaimed, or one crashed run wedges the
 # gate for every later run.
 # ps -p, not kill -0: kill -0 reports EPERM as "dead", which is the exact
@@ -158,33 +229,44 @@ else
 	rg --quiet 'reclaimed stale lock' <<<"${reclaim_out}" \
 		|| fail "stale reclaim must be announced, not silent; got: ${reclaim_out}"
 
-	# #P1-2 regression: N racers against ONE stale lock must produce exactly one
-	# winner. The winner holds the lock while the losers evaluate it, so a
-	# correct implementation refuses every loser. A remove-then-create reclaim
-	# lets several racers each believe they won.
+	# #P1-2 regression: N racers against ONE stale lock must never observe TWO
+	# holders inside the critical section AT ONCE. A remove-then-create reclaim
+	# lets several racers each believe they hold it simultaneously; that is what
+	# must never happen. "exactly one winner across the whole run" is NOT the
+	# invariant - see the try_acquire comment for why that assertion itself was
+	# wrong (#5826 review: reproduced "got 8" under load with no mutex bug).
 	rm -f "${lock_file}"
 	ln -s "${dead_pid}:/nonexistent/dead-worktree" "${lock_file}"
 	race_dir="$(mktemp -d)"
+	race_token="${race_dir}/critical-section.token"
 	for racer in 1 2 3 4 5 6 7 8; do
-		try_acquire 2 >"${race_dir}/out.${racer}" 2>&1 &
+		try_acquire 2 "${race_token}" >"${race_dir}/out.${racer}" 2>&1 &
 	done
 	wait
 	winners=0
+	overlaps=0
 	for out_file in "${race_dir}"/out.*; do
 		if rg --quiet 'ACQUIRED=' "${out_file}"; then
 			winners=$(( winners + 1 ))
 		fi
+		if rg --quiet 'OVERLAP' "${out_file}"; then
+			overlaps=$(( overlaps + 1 ))
+		fi
 	done
 	rm -rf "${race_dir}"
-	[[ "${winners}" -eq 1 ]] \
-		|| fail "exactly one racer may reclaim a stale lock, got ${winners}"
+	[[ "${overlaps}" -eq 0 ]] \
+		|| fail "mutual exclusion violated: ${overlaps} racer(s) found the critical section already occupied"
+	[[ "${winners}" -ge 1 ]] \
+		|| fail "at least one racer must reclaim the stale lock, got ${winners}"
 
 	# A guard left behind by a dead reclaimer must NOT be reaped while it is
 	# fresh - an unconditional reap deletes a guard a racer created microseconds
-	# ago, which is the race the guard exists to prevent, one level up.
+	# ago, which is the race the guard exists to prevent, one level up. Age
+	# comes from the guard's own embedded birth epoch (pid:epoch), never a
+	# filesystem mtime - see live-gate-lock.sh for why `find -mmin` was dropped.
 	rm -f "${lock_file}"
 	ln -s "${dead_pid}:/nonexistent/dead-worktree" "${lock_file}"
-	ln -s "${dead_pid}" "${lock_file}.reclaim"
+	ln -s "${dead_pid}:$(date +%s)" "${lock_file}.reclaim"
 	set +e
 	fresh_guard_out="$(try_acquire)"
 	fresh_guard_status=$?
@@ -195,8 +277,10 @@ else
 		|| fail "a fresh orphan guard must be kept, not reaped"
 
 	# Aged past the retry budget it must be reclaimable, or a reclaimer killed
-	# mid-guard would wedge every later run permanently.
-	touch -h -t 202001010000 "${lock_file}.reclaim"
+	# mid-guard would wedge every later run permanently. Backdate the guard's
+	# OWN embedded birth epoch (not a filesystem mtime, which the age gate no
+	# longer reads at all).
+	ln -sfn "${dead_pid}:$(( $(date +%s) - 120 ))" "${lock_file}.reclaim"
 	aged_out="$(try_acquire)" \
 		|| fail "an aged orphan guard must be reclaimable: ${aged_out}"
 	rg --quiet 'ACQUIRED=' <<<"${aged_out}" \
@@ -276,23 +360,33 @@ rg --quiet 'SKIPPED lock_path=\[\]' <<<"${skip_out}" \
 
 # A DIRECTORY at the lock path (what the superseded mkdir lock left behind) must
 # not let every caller "acquire": `ln -s` links INTO a directory and reports
-# success. Exactly one racer may come out of this holding the lock.
+# success. No two racers may hold the critical section AT ONCE - same
+# mutual-exclusion invariant as the stale-lock race above, and the same
+# "exactly one winner across the whole run" assertion would be equally wrong
+# here (hold=2s vs a 5s retry budget legitimately allows sequential winners).
 rm -rf "${lock_file}"
 mkdir -p "${lock_file}"
 debris_dir="$(mktemp -d)"
+debris_token="${debris_dir}/critical-section.token"
 for racer in 1 2 3 4; do
-	try_acquire 2 >"${debris_dir}/out.${racer}" 2>&1 &
+	try_acquire 2 "${debris_token}" >"${debris_dir}/out.${racer}" 2>&1 &
 done
 wait
 debris_winners=0
+debris_overlaps=0
 for out_file in "${debris_dir}"/out.*; do
 	if rg --quiet 'ACQUIRED=' "${out_file}"; then
 		debris_winners=$(( debris_winners + 1 ))
 	fi
+	if rg --quiet 'OVERLAP' "${out_file}"; then
+		debris_overlaps=$(( debris_overlaps + 1 ))
+	fi
 done
 rm -rf "${debris_dir}"
-[[ "${debris_winners}" -eq 1 ]] \
-	|| fail "a directory at the lock path must not admit ${debris_winners} holders (want 1)"
+[[ "${debris_overlaps}" -eq 0 ]] \
+	|| fail "mutual exclusion violated: ${debris_overlaps} racer(s) found the critical section already occupied via directory debris"
+[[ "${debris_winners}" -ge 1 ]] \
+	|| fail "at least one racer must reclaim the lock past the directory debris, got ${debris_winners}"
 [[ -L "${lock_file}" ]] \
 	|| fail "debris reclaim must leave a real symlink at the lock path"
 

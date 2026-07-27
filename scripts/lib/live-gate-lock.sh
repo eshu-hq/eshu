@@ -63,6 +63,17 @@ process_is_alive() {
 	ps -p "$1" >/dev/null 2>&1
 }
 
+# A pid alone is unique only among CURRENTLY-alive processes. If a gate is
+# killed without cleanup and the kernel later hands its pid to an unrelated
+# long-lived process, a pid-only liveness check reads the stale lock as live
+# forever and refuses every later run. `ps -o lstart=` gives that pid's actual
+# start time; reduced to digits (tr -cd) it is a colon-free fingerprint safe to
+# embed in the payload. Returns empty when the pid is not currently running,
+# which callers treat as "cannot confirm" rather than "stale."
+start_id_for_pid() {
+	ps -o lstart= -p "$1" 2>/dev/null | tr -cd '0-9'
+}
+
 # `ln -s` is create-or-fail only when the name does not exist. If a DIRECTORY
 # sits at the lock path - e.g. left behind by an older mkdir-based lock - `ln`
 # links INTO it and reports success, so every caller would "acquire" and the
@@ -104,9 +115,12 @@ acquire_live_gate_lock() {
 		return 0
 	fi
 	local candidate="${lock_home}/eshu-live-gate.lock"
-	# pid first, then the worktree, split on the FIRST colon: a path may contain
-	# a colon, a pid never does.
-	local payload="$$:$(pwd -P)"
+	# pid first, then the start-id fingerprint, then the worktree - split on the
+	# first TWO colons: a path may contain a colon, a pid and a start-id
+	# fingerprint never do. The start-id defends against PID reuse (see
+	# start_id_for_pid); an empty fingerprint (this pid is somehow already gone
+	# by the time we read it back) degrades gracefully at the read side, not here.
+	local payload="$$:$(start_id_for_pid "$$"):$(pwd -P)"
 	if [[ -e "${candidate}.keep" ]]; then
 		die "a --keep run retained the compose stack on the fixed host ports.
   Releasing the lock would hand those ports to this run, which would then tear
@@ -114,11 +128,11 @@ acquire_live_gate_lock() {
     ${candidate}.keep
     ${candidate}
   Set ESHU_SKIP_LIVE_GATE_LOCK=1 only where runners are isolated (CI)."
-		exit 1
 	fi
 	local max_attempts=50
-	local attempt holder holder_pid holder_where claim_status
-	local guard guard_pid guard_status current current_pid current_is_debris
+	local attempt holder holder_pid holder_startid holder_rest holder_where claim_status
+	local guard guard_payload guard_pid guard_born guard_status
+	local current current_pid current_startid current_rest current_is_debris
 
 	for (( attempt = 1; attempt <= max_attempts; attempt++ )); do
 		# Must not be a bare call: under the caller's `set -e` a non-zero return
@@ -136,14 +150,22 @@ acquire_live_gate_lock() {
 			# A directory or plain file is squatting the lock path. It carries no
 			# holder identity, so clear it through the same guarded reclaim.
 			holder_pid=""
+			holder_startid=""
 			holder_where="non-symlink debris at ${candidate}"
 		else
 			holder="$(readlink "${candidate}" 2>/dev/null || true)"
 			if [[ -n "${holder}" ]]; then
 				holder_pid="${holder%%:*}"
-				holder_where="${holder#*:}"
+				holder_rest="${holder#*:}"
+				holder_startid="${holder_rest%%:*}"
+				# Not a digit string: either an old-format two-field payload (the whole
+				# worktree path landed here) or corruption. Degrade to pid-only rather
+				# than trust a non-numeric value as a start-id fingerprint.
+				[[ "${holder_startid}" =~ ^[0-9]+$ ]] || holder_startid=""
+				holder_where="${holder_rest#*:}"
 			elif [[ -e "${candidate}" ]]; then
 				holder_pid=""
+				holder_startid=""
 				holder_where="non-symlink debris at ${candidate}"
 			else
 				# Released between our claim and our readlink; claim it again.
@@ -152,16 +174,19 @@ acquire_live_gate_lock() {
 			fi
 		fi
 
-		if [[ "${holder_pid}" =~ ^[0-9]+$ ]] && process_is_alive "${holder_pid}"; then
+		# A live pid alone is not enough: if the kernel reused it after the
+		# original holder crashed, this would read a stale lock as live forever.
+		# An empty holder_startid (payload predates the fingerprint, or the
+		# original process could not be read at claim time) degrades to the
+		# pid-only check rather than being treated as stale.
+		if [[ "${holder_pid}" =~ ^[0-9]+$ ]] && process_is_alive "${holder_pid}" &&
+			{ [[ -z "${holder_startid}" ]] || [[ "$(start_id_for_pid "${holder_pid}")" == "${holder_startid}" ]]; }; then
 			die "another live gate is already running (pid ${holder_pid}, ${holder_where}).
   This gate binds fixed host ports and must be serialized: a second concurrent run
   does not fail cleanly, it starves the first into a spurious drain failure.
   Wait for that run to finish, or stop it, then retry.
   Lock: ${candidate}
   Set ESHU_SKIP_LIVE_GATE_LOCK=1 only where runners are isolated (CI)."
-			# Belt and braces: if a caller's die() ever returns, falling through
-			# here would reclaim a LIVE lock.
-			exit 1
 		fi
 
 		# Stale holder. Reclaiming is a read-then-replace, and the read can go
@@ -175,11 +200,16 @@ acquire_live_gate_lock() {
 		# Verified like the lock claim itself: a bare `ln -s` reports success
 		# when a DIRECTORY occupies the path (it links inside), which would make
 		# every reclaimer believe it holds the guard.
+		# Payload carries a birth epoch (pid:epoch) so the orphan-reap age check
+		# below never has to stat a filesystem mtime - see that check for why.
 		guard_status=0
-		claim_lock_link "$$" "${guard}" || guard_status=$?
+		claim_lock_link "$$:$(date +%s)" "${guard}" || guard_status=$?
 		if [[ "${guard_status}" -eq 0 ]]; then
 			current="$(readlink "${candidate}" 2>/dev/null || true)"
 			current_pid="${current%%:*}"
+			current_rest="${current#*:}"
+			current_startid="${current_rest%%:*}"
+			[[ "${current_startid}" =~ ^[0-9]+$ ]] || current_startid=""
 			# Distinguish "a dead holder's link" from "nothing is here": they are
 			# both reclaimable, but only one of them is safe to remove. These are
 			# two separate stats, and that is race-free ONLY because a live lock is
@@ -191,7 +221,8 @@ acquire_live_gate_lock() {
 			if [[ -z "${current}" && -e "${candidate}" ]]; then
 				current_is_debris=1
 			fi
-			if ! { [[ "${current_pid}" =~ ^[0-9]+$ ]] && process_is_alive "${current_pid}"; }; then
+			if ! { [[ "${current_pid}" =~ ^[0-9]+$ ]] && process_is_alive "${current_pid}" &&
+				{ [[ -z "${current_startid}" ]] || [[ "$(start_id_for_pid "${current_pid}")" == "${current_startid}" ]]; }; }; then
 				# Re-check under the guard: a --keep holder may have retained the
 				# stack after our pre-loop check, and its pid is dead by design. The
 				# marker is written BEFORE that holder exits, so at the instant the
@@ -203,7 +234,6 @@ acquire_live_gate_lock() {
   that stack down on exit. Stop the retained stack, then remove:
     ${candidate}.keep
     ${candidate}"
-					exit 1
 				fi
 				# Replace ONLY the exact thing that was validated under the
 				# guard. A dead holder's link cannot change underneath us - its
@@ -272,15 +302,21 @@ acquire_live_gate_lock() {
 					rm -rf "${guard}"
 				fi
 			else
-				guard_pid="$(readlink "${guard}" 2>/dev/null || true)"
+				# The guard payload is pid:epoch (see the claim above): age comes from
+				# that embedded birth epoch, never a filesystem mtime. Reading the
+				# claimed birth time instead of stat/-mmin also drops the last `find`
+				# call from this file - `find` is a banned discovery primitive repo-wide.
+				guard_payload="$(readlink "${guard}" 2>/dev/null || true)"
+				guard_pid="${guard_payload%%:*}"
+				guard_born="${guard_payload#*:}"
 				if [[ "${guard_pid}" =~ ^[0-9]+$ ]] && ! process_is_alive "${guard_pid}" &&
-					[[ -n "$(find "${guard}" -prune -mmin +1 2>/dev/null)" ]]; then
+					[[ "${guard_born}" =~ ^[0-9]+$ ]] && (( $(date +%s) - guard_born > 60 )); then
 					# The age and liveness decisions were both taken before this
 					# point, and neither can see a guard recreated since. Destroy
 					# only the value that was actually judged - the guard must be
 					# exclusive or the lock destroy at the top of this block loses
 					# its only guarantee.
-					if [[ "$(readlink "${guard}" 2>/dev/null || true)" == "${guard_pid}" ]]; then
+					if [[ "$(readlink "${guard}" 2>/dev/null || true)" == "${guard_payload}" ]]; then
 						rm -f "${guard}"
 					fi
 				fi

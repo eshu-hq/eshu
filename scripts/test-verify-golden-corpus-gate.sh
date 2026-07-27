@@ -113,11 +113,31 @@ require() {
 # Strict mode and self-cleanup.
 require "strict mode" "set -euo pipefail"
 require "exit trap" "trap cleanup EXIT"
+# cleanup() and the host-binary helpers (build_bin/start_bg/pg) are extracted to
+# sourced lib chunks to keep this orchestrator under the 500-line cap; the
+# orchestrator must still source both.
+require "cleanup lib source" "golden-corpus-cleanup.sh"
+require "host helpers lib source" "golden-corpus-host-helpers.sh"
+require "corpus staging lib source" "golden-corpus-stage.sh"
+require "corpus staging invocation" "stage_minimal_corpus"
+cleanup_lib="${repo_root}/scripts/lib/golden-corpus-cleanup.sh"
+[[ -f "${cleanup_lib}" ]] || fail "missing cleanup lib: ${cleanup_lib}"
+bash -n "${cleanup_lib}" || fail "cleanup lib has a syntax error"
+host_helpers_lib="${repo_root}/scripts/lib/golden-corpus-host-helpers.sh"
+[[ -f "${host_helpers_lib}" ]] || fail "missing host helpers lib: ${host_helpers_lib}"
+bash -n "${host_helpers_lib}" || fail "host helpers lib has a syntax error"
+stage_lib="${repo_root}/scripts/lib/golden-corpus-stage.sh"
+[[ -f "${stage_lib}" ]] || fail "missing corpus staging lib: ${stage_lib}"
+bash -n "${stage_lib}" || fail "corpus staging lib has a syntax error"
 # Background pids must be recorded in the PARENT shell (printf -v), or the cleanup
-# trap reaps nothing on a failure path and leaks host processes.
-require "parent-shell pid capture" "printf -v"
-# Failure must surface the host-binary logs before the work dir is removed.
-require "failure log dump" "host binary logs (failure)"
+# trap reaps nothing on a failure path and leaks host processes. The helper lives
+# in the extracted lib chunk now, not the orchestrator body.
+rg --fixed-strings --quiet -- "printf -v" "${host_helpers_lib}" ||
+	fail "parent-shell pid capture (printf -v) missing from ${host_helpers_lib}"
+# Failure must surface the host-binary logs before the work dir is removed. That
+# logic lives in the extracted cleanup lib chunk now, not the orchestrator body.
+rg --fixed-strings --quiet -- "host binary logs (failure)" "${cleanup_lib}" ||
+	fail "failure log dump missing from ${cleanup_lib}"
 # A collector that no-ops must not let the gate pass: liveness + facts-landed.
 require "collector liveness check" "exited during settle"
 require "cassette facts landed check" "credentialed collector source"
@@ -286,13 +306,17 @@ fi
 require "populated-then-drained guard" 'require-populated-domains="repo_dependency"'
 
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
-# The 12-digit arm excludes `touch -t <stamp>`, which the lock cases use to age
-# a guard past its budget; it still catches a bare cloud account id.
-private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(?<!touch -h -t )(?<![0-9])[0-9]{12}(?![0-9])|/Users/|/home/[a-z]'
+# The 12-digit arm catches a bare cloud account id. The lock cases used to age
+# a guard past its budget with `touch -h -t <stamp>`; age now comes from a
+# birth epoch embedded in the guard's own payload (pid:epoch), computed at
+# runtime via `date +%s`, so no `touch -h -t` stamp (and no exclusion for one)
+# remains in the scanned files.
+private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(?<![0-9])[0-9]{12}(?![0-9])|/Users/|/home/[a-z]'
 for scanned in "${script}" \
 	"${repo_root}/scripts/lib/live-gate-lock.sh" \
 	"${repo_root}/scripts/lib/golden-corpus-lock-cases.sh" \
-	"${repo_root}/scripts/lib/golden-corpus-lock-race-cases.sh"; do
+	"${repo_root}/scripts/lib/golden-corpus-lock-race-cases.sh" \
+	"${cleanup_lib}" "${host_helpers_lib}" "${stage_lib}"; do
 	if rg --pcre2 --quiet -- "${private_pattern}" "${scanned}"; then
 		fail "$(basename "${scanned}") looks like it contains private data"
 	fi

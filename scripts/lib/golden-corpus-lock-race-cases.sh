@@ -166,9 +166,11 @@ rm -rf "${freename_home}"
 # holder and both claim. Both reap arms therefore re-validate before deleting.
 guardpin_live="$(mktemp -d)"
 sleep 30 & guardpin_pid=$!
+guardpin_payload="${guardpin_pid}:$(( $(date +%s) - 120 ))"
 ln -s "${freename_dead:-1}:/dead-worktree" "${guardpin_live}/eshu-live-gate.lock"
-ln -s "${guardpin_pid}" "${guardpin_live}/eshu-live-gate.lock.reclaim"
-touch -h -t 202001010000 "${guardpin_live}/eshu-live-gate.lock.reclaim" 2>/dev/null || true
+# Backdated birth epoch (120s old, past the 60s budget) so this case actually
+# exercises the age-eligible path; liveness alone must still refuse the reap.
+ln -s "${guardpin_payload}" "${guardpin_live}/eshu-live-gate.lock.reclaim"
 ESHU_LIVE_GATE_LOCK_DIR="${guardpin_live}" bash -c '
 	set -uo pipefail
 	. "$1"
@@ -178,10 +180,10 @@ guardpin_now="$(readlink "${guardpin_live}/eshu-live-gate.lock.reclaim" 2>/dev/n
 kill "${guardpin_pid}" 2>/dev/null || true
 wait "${guardpin_pid}" 2>/dev/null || true
 rm -rf "${guardpin_live}"
-[[ "${guardpin_now}" == "${guardpin_pid}" ]] \
+[[ "${guardpin_now}" == "${guardpin_payload}" ]] \
 	|| fail "an aged guard held by a LIVE reclaimer was reaped (now: ${guardpin_now})"
 require_lock "guard reap re-validates" \
-	'if [[ "$(readlink "${guard}" 2>/dev/null || true)" == "${guard_pid}" ]]; then'
+	'if [[ "$(readlink "${guard}" 2>/dev/null || true)" == "${guard_payload}" ]]; then'
 # The OTHER reap arm. Deleting this leaves an unconditional `rm -rf "${guard}"`,
 # preserves every other pinned literal, and steals a live guard 5/5.
 require_lock "debris guard reap re-validates" '[[ ! -L "${guard}" && -e "${guard}" ]]'
@@ -225,8 +227,10 @@ fi
 sleep 30 &
 reval_live=$!
 ln -s "${reval_dead_lock}:/dead-holder" "${reval_lock}"
-ln -s "${reval_dead_guard}" "${reval_guard}"
-touch -h -t 202001010000 "${reval_guard}" 2>/dev/null || true
+# Backdated birth epoch (120s old, past the 60s budget) so the age gate is
+# actually eligible to fire - age comes from this embedded epoch, never a
+# filesystem mtime.
+ln -s "${reval_dead_guard}:$(( $(date +%s) - 120 ))" "${reval_guard}"
 ESHU_LIVE_GATE_LOCK_DIR="${reval_home}" DG="${reval_dead_guard}" \
 	LIVE="${reval_live}" G="${reval_guard}" bash -c '
 	set -uo pipefail
@@ -236,7 +240,6 @@ ESHU_LIVE_GATE_LOCK_DIR="${reval_home}" DG="${reval_dead_guard}" \
 	process_is_alive() {
 		if [[ "$1" == "${DG}" ]]; then
 			ln -sfn "${LIVE}" "${G}"
-			touch -h -t 202001010000 "${G}" 2>/dev/null || true
 			return 1
 		fi
 		ps -p "$1" >/dev/null 2>&1
