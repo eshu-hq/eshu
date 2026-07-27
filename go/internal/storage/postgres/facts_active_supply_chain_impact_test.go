@@ -31,6 +31,7 @@ func TestListActiveSupplyChainImpactFactsQueryIsPackageBoundedAndPaged(t *testin
 		"fact.payload->>'package_id' = ANY($1::text[])",
 		"fact.payload->>'purl' = ANY($2::text[])",
 		"fact.payload->>'cve_id' = ANY($3::text[])",
+		"cardinality($4::text[]) > 0",
 		"fact.payload->>'advisory_id' = ANY($4::text[])",
 		"fact.payload->>'subject_digest' = ANY($5::text[])",
 		"fact.payload->>'artifact_digest' = ANY($5::text[])",

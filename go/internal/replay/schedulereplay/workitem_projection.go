@@ -373,16 +373,18 @@ func scannerWorkerAnalysisWorkItem(env facts.Envelope) (WorkItem, error) {
 // vulnerability_suppression_admission) to its Suppression node plus the
 // cross-hook SUPPRESSES edge to the Finding the supply_chain_impact hook owns.
 // vulnerability.suppression carries the committed
-// vulnerability.suppression.v1 schema and the same operator-owned
-// source/author shape the API producer persists. This fixture
-// repurposes evidence_ref (a generic "reference to the evidence this
+// vulnerability.suppression.v1 schema and the same operator-owned source,
+// author, and required suppression_id shape the API producer persists. This
+// fixture repurposes evidence_ref (a generic "reference to the evidence this
 // suppression concerns") to carry the target_locator_hash of the finding it
-// suppresses, matching decodeVulnerabilitySuppression's own suppression_id ->
-// StableFactKey fallback for a blank id.
+// suppresses.
 func vulnerabilitySuppressionWorkItem(env facts.Envelope) (WorkItem, error) {
 	suppressionID := payloadString(env.Payload, "suppression_id")
 	if suppressionID == "" {
-		suppressionID = env.StableFactKey
+		return WorkItem{}, fmt.Errorf(
+			"vulnerability.suppression %s: missing required suppression_id",
+			env.StableFactKey,
+		)
 	}
 	node := Node{
 		Label: nodeLabelSuppression,

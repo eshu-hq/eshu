@@ -183,17 +183,16 @@ func TestSupplyChainImpactAggregateQueriesCountCanonicalFindings(t *testing.T) {
 		if !strings.Contains(query, "has_payload_finding_id") {
 			t.Fatalf("%s aggregate query missing payload finding-id row preference:\n%s", name, query)
 		}
-		if !strings.Contains(query, "operator_suppression_keys AS MATERIALIZED") {
-			t.Fatalf("%s aggregate query missing suppression authority key set:\n%s", name, query)
+		if !strings.Contains(query, "canonical_winners AS") ||
+			!strings.Contains(query, "expires_at") {
+			t.Fatalf("%s aggregate query missing post-rank expiry overlay:\n%s", name, query)
 		}
-		if !strings.Contains(query, "fact.scope_id <> 'operator:vulnerability_suppressions'") ||
-			!strings.Contains(query, "fact.scope_id = 'operator:vulnerability_suppressions'") ||
-			!strings.Contains(query, "fact.suppression_state <> 'active'") ||
-			!strings.Contains(query, "NOT EXISTS") ||
-			!strings.Contains(query, "UNION ALL") {
-			t.Fatalf("%s aggregate query missing suppression authority anti-fallback shape:\n%s", name, query)
+		if !strings.Contains(query, "scope_id = 'operator:vulnerability_suppressions'") ||
+			!strings.Contains(query, "suppression_state <> 'active'") ||
+			!strings.Contains(query, "suppression_state = 'active'") {
+			t.Fatalf("%s aggregate query missing ranked suppression authority shape:\n%s", name, query)
 		}
-		if !strings.Contains(query, "ORDER BY priority_score DESC, has_payload_finding_id DESC, fact_id ASC") {
+		if !strings.Contains(query, "priority_score DESC, has_payload_finding_id DESC, fact_id ASC") {
 			t.Fatalf("%s aggregate query missing deterministic canonical row ranking:\n%s", name, query)
 		}
 	}
@@ -253,8 +252,12 @@ func TestSupplyChainImpactAggregateQueriesUseListProfileAndSuppressionPredicates
 			"swift_semver_known_fixed",
 			"fact.payload->>'priority_bucket' = $13",
 			"COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) >= $14",
-			"fact.suppression_state = $15",
-			"$16::boolean OR fact.suppression_state NOT IN ('not_affected','accepted_risk','false_positive','ignored')",
+			"$15 = ''",
+			"fact.payload #>> '{suppression,expires_at}'",
+			"'expired'",
+			"= $15",
+			"$16::boolean",
+			"NOT IN ('not_affected','accepted_risk','false_positive','ignored')",
 			"fact.payload->>'image_ref' = $17",
 		} {
 			if !strings.Contains(query, want) {

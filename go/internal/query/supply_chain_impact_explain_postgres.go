@@ -184,8 +184,7 @@ func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactEvidenceFact
 
 var explainSupplyChainImpactFindingQuery = `
 WITH ` + supplyChainImpactRuntimeFilterCTE("$9", "$8", "''", "$11", "$12") + `,
-` + supplyChainImpactOperatorSuppressionKeysCTE + `,
-raw_facts AS (
+raw_facts AS NOT MATERIALIZED (
 SELECT fact.fact_id,
        fact.scope_id,
        ` + supplyChainImpactPublicFindingIDSQL + ` AS finding_id,
@@ -223,62 +222,62 @@ WHERE fact.fact_kind = $1
     OR fact.scope_id = ANY($12::text[])
   )
 ),
-operator_facts AS NOT MATERIALIZED (
-SELECT fact.*,
-       ` + supplyChainImpactEffectiveSuppressionStateSQL(
-	"fact.scope_id",
-	"fact.suppression_state",
-	"fact.payload #>> '{suppression,expires_at}'",
-	"$13::timestamptz",
-) + ` AS effective_suppression_state
-FROM raw_facts AS fact
-WHERE fact.scope_id = '` + supplyChainImpactOperatorSuppressionScopeID + `'
-  AND fact.suppression_state <> 'active'
-),
-eligible_facts AS (
-SELECT *
-FROM raw_facts AS fact
-WHERE fact.scope_id <> '` + supplyChainImpactOperatorSuppressionScopeID + `'
-  AND NOT EXISTS (
-        SELECT 1
-        FROM operator_suppression_keys AS authority
-        WHERE authority.canonical_key = fact.canonical_key
-      )
-UNION ALL
-SELECT fact_id,
-       scope_id,
-       finding_id,
-       source_confidence,
-       ` + supplyChainImpactPayloadWithEffectiveSuppressionSQL(
-	"payload",
-	"effective_suppression_state",
-) + ` AS payload,
-       effective_suppression_state AS suppression_state,
-       priority_score,
-       has_payload_finding_id,
-       canonical_key
-FROM operator_facts
-),
 scoped_facts AS (
 SELECT *
-FROM eligible_facts
+FROM raw_facts
 WHERE $2 = ''
    OR fact_id = $2
    OR finding_id = $2
    OR canonical_key = $2
+   OR canonical_key IN (
+        SELECT candidate.canonical_key
+        FROM raw_facts AS candidate
+        WHERE candidate.fact_id = $2
+      )
 ),
 ranked_facts AS (
 SELECT *,
        ROW_NUMBER() OVER (
          PARTITION BY canonical_key
-         ORDER BY priority_score DESC, has_payload_finding_id DESC, fact_id ASC
+         ORDER BY
+           CASE
+             WHEN scope_id = '` + supplyChainImpactOperatorSuppressionScopeID + `'
+               AND suppression_state <> 'active'
+             THEN 0
+             ELSE 1
+           END ASC,
+           priority_score DESC, has_payload_finding_id DESC, fact_id ASC
        ) AS canonical_rank
 FROM scoped_facts
+WHERE NOT (
+  scope_id = '` + supplyChainImpactOperatorSuppressionScopeID + `'
+  AND suppression_state = 'active'
+)
 ),
-canonical_facts AS (
-SELECT finding_id, source_confidence, payload
+canonical_winners AS (
+SELECT scope_id, finding_id, source_confidence, payload, suppression_state
 FROM ranked_facts
 WHERE canonical_rank = 1
+),
+canonical_facts AS (
+SELECT finding_id,
+       source_confidence,
+       ` + supplyChainImpactPayloadWithOperatorEffectiveSuppressionSQL(
+	"scope_id",
+	"suppression_state",
+	"payload",
+	"effective_suppression_state",
+) + ` AS payload
+FROM (
+  SELECT winner.*,
+         ` + supplyChainImpactEffectiveSuppressionStateSQL(
+	"winner.scope_id",
+	"winner.suppression_state",
+	"winner.payload #>> '{suppression,expires_at}'",
+	"$13::timestamptz",
+) + ` AS effective_suppression_state
+  FROM canonical_winners AS winner
+) AS effective
 )
 SELECT finding_id, source_confidence, payload
 FROM canonical_facts

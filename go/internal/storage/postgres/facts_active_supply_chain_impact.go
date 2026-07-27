@@ -69,8 +69,13 @@ WHERE fact.fact_kind IN (
       OR fact.payload->'scope'->>'purl' = ANY($2::text[])
       OR fact.payload->>'cve_id' = ANY($3::text[])
       OR fact.payload->'scope'->>'cve_id' = ANY($3::text[])
-      OR fact.payload->>'advisory_id' = ANY($4::text[])
-      OR fact.payload->'scope'->>'advisory_id' = ANY($4::text[])
+      OR (
+          cardinality($4::text[]) > 0
+          AND (
+              fact.payload->>'advisory_id' = ANY($4::text[])
+              OR fact.payload->'scope'->>'advisory_id' = ANY($4::text[])
+          )
+      )
       OR fact.payload->>'subject_digest' = ANY($5::text[])
       OR fact.payload->'scope'->>'subject_digest' = ANY($5::text[])
       OR fact.payload->>'digest' = ANY($5::text[])

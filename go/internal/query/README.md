@@ -323,32 +323,47 @@ The materialized winners path uses the same clock and denormalized expiry so it
 stays byte-equivalent to the direct read.
 
 Performance Evidence: on Postgres 18 with 100,000 synthetic source rows,
-50,000 canonical keys, and 500 operator suppressions (250 expired, 250 future),
-ten warm executions of the current persisted-state canonical query had a
-20.784 ms median; the operator-only bound-clock overlay had a 20.556 ms median
-(1.1% faster). The rejected all-row overlay measured 40.950 ms versus a
-27.959 ms baseline and was not implemented. The accepted shape added exactly
-250 expired visible rows, removed zero rows, and left 49,500 visible keys
-unchanged.
+50,000 canonical keys, and 500 operator suppressions, 20 warm executions on
+the same machine kept every production path inside the 10% no-regression
+contract. Fresh `origin/main` median/p95 measurements were direct list
+177.170/184.338 ms, materialized list 60.163/61.190 ms, aggregate count plus
+facets 465.099/468.035 ms, explain 63.906/65.402 ms, and winner rebuild
+912.147/943.861 ms. The accepted branch measured 182.660/188.309,
+60.546/62.013, 453.131/465.260, 65.543/70.256, and 967.163/987.841 ms,
+respectively. The direct-list old/new measurements alternated in one process
+against the same seeded schema; its output differential was zero. Direct and
+materialized branch output also had a zero differential; totals, priority
+facets, and severity facets matched all 50,000 canonical keys. A rejected eager
+expiry overlay measured 40.950 ms versus 27.959 ms. A rejected composite
+authority sort measured 187.286/193.673 ms. The explain
+compatibility anchor initially regressed to 116.815/122.970 ms; a proven
+`NOT MATERIALIZED` shape preserved the exact explanation and recovered
+64.621/69.648 ms before it was applied. The 100,000-winner expiry migration
+measured 11.254 ms on first apply and 6.337 ms on repeat, changed only the two
+intended operator rows, and performed 2,331 shared-buffer hits with zero reads.
+Warm `EXPLAIN (ANALYZE, BUFFERS)` plans for direct list, materialized list,
+aggregate count, aggregate priority facet, and explain performed zero shared
+reads; the materialized and explain paths used no temporary blocks.
+The advisory-filter compatibility path preserved its exact legacy row set at
+16.114/17.041 ms versus 16.849/18.142 ms before the guard; the new
+advisory-only path returned exactly 250 intended rows at 18.452/23.607 ms.
 
 The same-machine built-binary golden gate on fresh volumes held the production
-pipeline at the same resolution: `origin/main` `85bb75812b` completed the timed
-pipeline in 99 seconds (bootstrap/collect/first-drain/maintenance
-`3/20/66/10` seconds). The first post-fix run matched those four phases and the
-99-second total exactly; a repeat after regenerating the fact-kind registry
-measured 100 seconds with phases `3/20/66/11`, a one-second maintenance-timing
-variance. Its graph/query phase was 24 seconds versus the baseline's 3 seconds
-because the test deliberately waits 20 seconds for one future suppression to
-expire; that test clock is not production pipeline work. The repeat reported
-the exact advisory warnings
-`phase_graph_query: observed=24.0s, baseline=3.0s, ceiling=8.0s` and
-`phase_maintenance_drains: observed=11.0s, baseline=5.0s, ceiling=10.0s`;
-required failures remained zero. Within that repeat, the created mutation took
-0.004722 seconds, the suppression projector/reducer drain took 2.099322 seconds
-with zero residuals and dead letters, seven identical retries had a
-0.002682-second handler median without adding a generation or work item, and
-the active/hidden/audit/expired finding reads had medians of
-0.018725/0.006590/0.010489/0.011079 seconds.
+pipeline at the same resolution. `origin/main` `76931f4d89` completed in
+106 seconds with 511 required passes, zero required failures, and phases
+`3/20/66/17/3` for bootstrap/collect/first-drain/maintenance/graph-query. The
+accepted branch completed in 104 seconds with the same 511 required passes,
+zero required failures, and phases `3/20/66/15/23`. Its graph/query phase was
+20 seconds longer because the test deliberately waits for one future
+suppression to expire; that clock wait is accuracy proof, not production
+pipeline work. The exact advisory was
+`phase_graph_query: observed=23.0s, baseline=3.0s, ceiling=8.0s`. Despite that
+additional wait, branch wall time did not regress. The created mutation took
+0.004313 seconds, the suppression projector/reducer drain took 2.069007
+seconds with zero residuals and dead letters, and seven identical retries had
+a 0.003254-second handler median without adding a generation or work item.
+Active, hidden, audit, and expired finding reads had medians of 0.018258,
+0.004275, 0.009164, and 0.011811 seconds.
 
 Observability Evidence: `query.vulnerability_suppression_mutation` records
 `eshu.mutation.outcome` from the closed `created`, `unchanged`, `rejected`, and

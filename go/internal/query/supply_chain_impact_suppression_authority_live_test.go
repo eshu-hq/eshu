@@ -25,6 +25,10 @@ const (
 	suppressionAuthorityLiveFinding      = "finding:5465:suppression-authority"
 	suppressionAuthorityLiveSourceFact   = "fact:5465:source"
 	suppressionAuthorityLiveOperatorFact = "fact:5465:operator"
+	suppressionAuthorityTimelessCVE      = "CVE-2026-54651"
+	suppressionAuthorityTimelessFinding  = "finding:5465:suppression-timeless"
+	suppressionAuthorityMalformedCVE     = "CVE-2026-54652"
+	suppressionAuthorityMalformedFinding = "finding:5465:suppression-malformed"
 )
 
 func TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive(t *testing.T) {
@@ -41,6 +45,9 @@ func TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive(t *testi
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	if err := storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db}); err != nil {
+		t.Fatalf("apply Postgres bootstrap schema: %v", err)
+	}
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatalf("begin transaction: %v", err)
@@ -61,6 +68,7 @@ func TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive(t *testi
 	assertSuppressionAuthorityState(t, ctx, direct, aggregates, true, 1, "ignored")
 	assertSuppressionAuthorityFilter(t, ctx, direct, aggregates, "ignored", true, 1)
 	assertSuppressionAuthorityFilter(t, ctx, direct, aggregates, "expired", true, 0)
+	assertSuppressionExpiryEdgeCases(t, ctx, direct)
 	explanation, err := direct.ExplainSupplyChainImpact(ctx, SupplyChainImpactExplanationFilter{
 		FindingID: suppressionAuthorityLiveFinding,
 	})
@@ -75,6 +83,7 @@ func TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive(t *testi
 	assertSuppressionAuthorityState(t, ctx, materialized, aggregates, false, 0, "")
 	assertSuppressionAuthorityState(t, ctx, materialized, aggregates, true, 1, "ignored")
 	assertSuppressionAuthorityFilter(t, ctx, materialized, aggregates, "ignored", true, 1)
+	assertSuppressionExpiryEdgeCases(t, ctx, materialized)
 
 	// Advance only the read clock to expires_at. No suppression mutation,
 	// reducer replay, winners rebuild, or fact update is allowed: query-time
@@ -86,6 +95,10 @@ func TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive(t *testi
 	assertSuppressionAuthorityFilter(t, ctx, direct, aggregates, "ignored", true, 0)
 	assertSuppressionAuthorityFilter(t, ctx, materialized, aggregates, "expired", false, 1)
 	assertSuppressionAuthorityFilter(t, ctx, materialized, aggregates, "ignored", true, 0)
+	assertSuppressionAuthorityCursor(t, ctx, direct)
+	assertSuppressionAuthorityCursor(t, ctx, materialized)
+	assertSuppressionExpiryEdgeCases(t, ctx, direct)
+	assertSuppressionExpiryEdgeCases(t, ctx, materialized)
 	explanation, err = direct.ExplainSupplyChainImpact(ctx, SupplyChainImpactExplanationFilter{
 		FindingID: suppressionAuthorityLiveFinding,
 	})
@@ -106,94 +119,6 @@ func TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive(t *testi
 	}
 	if persistedState != "ignored" {
 		t.Fatalf("persisted suppression state = %q, want ignored (read path must not mutate facts)", persistedState)
-	}
-}
-
-func assertSuppressionAuthorityFilter(
-	t *testing.T,
-	ctx context.Context,
-	store PostgresSupplyChainImpactFindingStore,
-	aggregates PostgresSupplyChainImpactAggregateStore,
-	suppressionState string,
-	includeSuppressed bool,
-	wantCount int,
-) {
-	t.Helper()
-	rows, err := store.ListSupplyChainImpactFindings(ctx, SupplyChainImpactFindingFilter{
-		CVEID:             suppressionAuthorityLiveCVE,
-		DetectionProfile:  "comprehensive",
-		SuppressionState:  suppressionState,
-		IncludeSuppressed: includeSuppressed,
-		Limit:             10,
-	})
-	if err != nil {
-		t.Fatalf("list suppression_state=%q: %v", suppressionState, err)
-	}
-	if len(rows) != wantCount {
-		t.Fatalf("list suppression_state=%q count = %d, want %d", suppressionState, len(rows), wantCount)
-	}
-
-	count, err := aggregates.CountSupplyChainImpactFindings(ctx, SupplyChainImpactAggregateFilter{
-		CVEID:             suppressionAuthorityLiveCVE,
-		DetectionProfile:  "comprehensive",
-		SuppressionState:  suppressionState,
-		IncludeSuppressed: includeSuppressed,
-	})
-	if err != nil {
-		t.Fatalf("count suppression_state=%q: %v", suppressionState, err)
-	}
-	if count.TotalFindings != wantCount {
-		t.Fatalf(
-			"aggregate suppression_state=%q count = %d, want %d",
-			suppressionState,
-			count.TotalFindings,
-			wantCount,
-		)
-	}
-}
-
-func assertSuppressionAuthorityState(
-	t *testing.T,
-	ctx context.Context,
-	store PostgresSupplyChainImpactFindingStore,
-	aggregates PostgresSupplyChainImpactAggregateStore,
-	includeSuppressed bool,
-	wantCount int,
-	wantState string,
-) {
-	t.Helper()
-	filter := SupplyChainImpactFindingFilter{
-		CVEID:             suppressionAuthorityLiveCVE,
-		DetectionProfile:  "comprehensive",
-		IncludeSuppressed: includeSuppressed,
-		Limit:             10,
-	}
-	rows, err := store.ListSupplyChainImpactFindings(ctx, filter)
-	if err != nil {
-		t.Fatalf("list include_suppressed=%t: %v", includeSuppressed, err)
-	}
-	if len(rows) != wantCount {
-		t.Fatalf("list include_suppressed=%t count = %d, want %d", includeSuppressed, len(rows), wantCount)
-	}
-	if wantCount == 1 {
-		if rows[0].Suppression == nil {
-			t.Fatal("list suppression = nil")
-		}
-		if got := rows[0].Suppression.State; got != wantState {
-			t.Fatalf("list suppression state = %q, want %q", got, wantState)
-		}
-	}
-
-	count, err := aggregates.CountSupplyChainImpactFindings(ctx, SupplyChainImpactAggregateFilter{
-		CVEID:             suppressionAuthorityLiveCVE,
-		DetectionProfile:  "comprehensive",
-		IncludeSuppressed: includeSuppressed,
-	})
-	if err != nil {
-		t.Fatalf("count include_suppressed=%t: %v", includeSuppressed, err)
-	}
-	if count.TotalFindings != wantCount {
-		t.Fatalf("aggregate include_suppressed=%t count = %d, want %d", includeSuppressed, count.TotalFindings, wantCount)
 	}
 }
 
@@ -258,8 +183,10 @@ INSERT INTO scope_generations (
 		"repository_id":     suppressionAuthorityLiveRepository,
 		"impact_status":     "affected_exact",
 		"detection_profile": "comprehensive",
+		"cvss_score":        8.0,
 		"priority_score":    "50",
 		"priority_bucket":   "high",
+		"severity_bucket":   "high",
 		"suppression_state": "active",
 		"suppression":       map[string]any{"state": "active"},
 		"service_ids":       []string{},
@@ -305,4 +232,53 @@ INSERT INTO scope_generations (
 		false,
 		operatorPayload,
 	)
+
+	for _, edge := range []struct {
+		factID, findingID, cveID string
+		expiresAt                string
+	}{
+		{
+			factID:    "fact:5465:operator:timeless",
+			findingID: suppressionAuthorityTimelessFinding,
+			cveID:     suppressionAuthorityTimelessCVE,
+		},
+		{
+			factID:    "fact:5465:operator:malformed",
+			findingID: suppressionAuthorityMalformedFinding,
+			cveID:     suppressionAuthorityMalformedCVE,
+			expiresAt: "not-a-time",
+		},
+	} {
+		payload := make(map[string]any, len(basePayload))
+		for key, value := range basePayload {
+			payload[key] = value
+		}
+		payload["finding_id"] = edge.findingID
+		payload["cve_id"] = edge.cveID
+		payload["suppression_state"] = "ignored"
+		suppression := map[string]any{
+			"state":          "ignored",
+			"suppression_id": "suppression-" + edge.factID,
+			"source":         "eshu_policy",
+			"justification":  "ignored",
+			"author":         "shared_token",
+			"authored_at":    "2026-07-27T12:00:00Z",
+			"reason":         "synthetic edge-case exception",
+		}
+		if edge.expiresAt != "" {
+			suppression["expires_at"] = edge.expiresAt
+		}
+		payload["suppression"] = suppression
+		insertSupplyChainRuntimeFilterFact(
+			t,
+			ctx,
+			tx,
+			edge.factID,
+			suppressionAuthorityLiveOperator,
+			suppressionAuthorityLiveOperatorGen,
+			supplyChainImpactFindingFactKind,
+			false,
+			payload,
+		)
+	}
 }
