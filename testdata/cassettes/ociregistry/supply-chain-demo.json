@@ -419,6 +419,164 @@
           }
         }
       ]
+    },
+    {
+      "scope_id": "oci_registry:ghcr.io:acme:ci-lineage-base",
+      "source_system": "oci_registry",
+      "scope_kind": "container_registry_repository",
+      "collector_kind": "oci_registry",
+      "partition_key": "oci_registry:ghcr.io:acme:ci-lineage-base",
+      "metadata": {
+        "registry": "ghcr.io",
+        "repository": "acme/ci-lineage-base"
+      },
+      "generation_id": "cassette-oci-cilineage-base-gen1",
+      "observed_at": "2026-06-25T00:10:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "oci_registry.repository",
+          "stable_fact_key": "oci_registry:ghcr.io:acme:ci-lineage-base",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "collector_instance_id": "oci-collector-cilineage",
+            "provider": "ghcr",
+            "registry": "ghcr.io",
+            "repository": "acme/ci-lineage-base",
+            "repository_id": "oci-registry://ghcr.io/acme/ci-lineage-base",
+            "visibility": "public",
+            "auth_mode": "anonymous",
+            "correlation_anchors": [
+              "oci-registry://ghcr.io/acme/ci-lineage-base"
+            ]
+          }
+        },
+        {
+          "fact_kind": "oci_registry.image_manifest",
+          "stable_fact_key": "oci_registry:ghcr.io:acme:ci-lineage-base:sha256:c10000000000000000000000000000000000000000000000000000000010ba5e",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "collector_instance_id": "oci-collector-cilineage",
+            "provider": "ghcr",
+            "registry": "ghcr.io",
+            "repository": "acme/ci-lineage-base",
+            "repository_id": "oci-registry://ghcr.io/acme/ci-lineage-base",
+            "descriptor_id": "oci-descriptor://ghcr.io/acme/ci-lineage-base@sha256:c10000000000000000000000000000000000000000000000000000000010ba5e",
+            "digest": "sha256:c10000000000000000000000000000000000000000000000000000000010ba5e",
+            "media_type": "application/vnd.oci.image.manifest.v1+json",
+            "artifact_type": "",
+            "source_tag": "1.0.0",
+            "config": {
+              "digest": "sha256:c0f60000000000000000000000000000000000000000000000000000000000c1",
+              "media_type": "application/vnd.oci.image.config.v1+json",
+              "size_bytes": 4096,
+              "artifact_type": "",
+              "annotations": null,
+              "platform": null
+            },
+            "layers": [
+              {
+                "digest": "sha256:1a1e00000000000000000000000000000000000000000000000000000000001c",
+                "media_type": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "size_bytes": 20971520,
+                "artifact_type": "",
+                "annotations": null,
+                "platform": null
+              }
+            ],
+            "size_bytes": 20975616,
+            "correlation_anchors": [
+              "oci-registry://ghcr.io/acme/ci-lineage-base",
+              "sha256:c10000000000000000000000000000000000000000000000000000000010ba5e"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "oci_registry:ghcr.io:acme:container-ci-lineage",
+      "source_system": "oci_registry",
+      "scope_kind": "container_registry_repository",
+      "collector_kind": "oci_registry",
+      "partition_key": "oci_registry:ghcr.io:acme:container-ci-lineage",
+      "metadata": {
+        "registry": "ghcr.io",
+        "repository": "acme/container-ci-lineage"
+      },
+      "generation_id": "cassette-oci-cilineage-child-gen1",
+      "observed_at": "2026-06-25T00:10:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "oci_registry.repository",
+          "stable_fact_key": "oci_registry:ghcr.io:acme:container-ci-lineage",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "collector_instance_id": "oci-collector-cilineage",
+            "provider": "ghcr",
+            "registry": "ghcr.io",
+            "repository": "acme/container-ci-lineage",
+            "repository_id": "oci-registry://ghcr.io/acme/container-ci-lineage",
+            "visibility": "public",
+            "auth_mode": "anonymous",
+            "correlation_anchors": [
+              "oci-registry://ghcr.io/acme/container-ci-lineage"
+            ]
+          }
+        },
+        {
+          "fact_kind": "oci_registry.image_manifest",
+          "stable_fact_key": "oci_registry:ghcr.io:acme:container-ci-lineage:sha256:c10000000000000000000000000000000000000000000000000000000010c1c1",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "collector_instance_id": "oci-collector-cilineage",
+            "provider": "ghcr",
+            "registry": "ghcr.io",
+            "repository": "acme/container-ci-lineage",
+            "repository_id": "oci-registry://ghcr.io/acme/container-ci-lineage",
+            "descriptor_id": "oci-descriptor://ghcr.io/acme/container-ci-lineage@sha256:c10000000000000000000000000000000000000000000000000000000010c1c1",
+            "digest": "sha256:c10000000000000000000000000000000000000000000000000000000010c1c1",
+            "media_type": "application/vnd.oci.image.manifest.v1+json",
+            "artifact_type": "",
+            "source_tag": "1.0.0",
+            "config": {
+              "digest": "sha256:c0f60000000000000000000000000000000000000000000000000000000000c2",
+              "media_type": "application/vnd.oci.image.config.v1+json",
+              "size_bytes": 4096,
+              "artifact_type": "",
+              "annotations": null,
+              "platform": null
+            },
+            "layers": [
+              {
+                "digest": "sha256:1a1e00000000000000000000000000000000000000000000000000000000001d",
+                "media_type": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "size_bytes": 20971520,
+                "artifact_type": "",
+                "annotations": null,
+                "platform": null
+              }
+            ],
+            "size_bytes": 20975616,
+            "correlation_anchors": [
+              "oci-registry://ghcr.io/acme/container-ci-lineage",
+              "sha256:c10000000000000000000000000000000000000000000000000000000010c1c1"
+            ]
+          }
+        }
+      ]
     }
   ]
 }

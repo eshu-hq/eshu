@@ -313,6 +313,32 @@ func resolveContainerImageSourceRevision(ref containerImageRefEvidence) (revisio
 // repo's content_entity decision that shares the same durable stable fact key.
 // Two runs claiming one digest with different commits (a rebuild) yield no
 // revision rather than an invented one (#5423).
+//
+// anchor.sourceRepositoryIDs is added to BOTH decision.SourceRepositoryIDs AND
+// decision.BuildProvenanceRepositoryIDs (#5810), mirroring
+// applySLSADigestRevision's own symmetric append below and
+// addCICDArtifactImageReference's direct append for the ci.artifact's OWN ref
+// (container_image_identity_typed_evidence.go) -- a ci.run that reported
+// building this digest is build evidence for whichever OTHER decision resolves
+// the digest too, not only for its own ref's decision. An asymmetric append
+// (SourceRepositoryIDs only, the pre-#5810 shape) left a competing decision
+// ambiguous by source with empty provenance -- a shape
+// supplyChainImageIdentityAnchorTier/singleSupplyChainImageSourceRepositoryID
+// (supply_chain_impact_anchor_tier.go) resolve to nothing, blanking the
+// supply-chain finding's RepositoryID (the live B-7 golden-corpus gate
+// failure "mcp:list_supply_chain_impact_findings: result item missing
+// required field \"repository_id\"").
+//
+// NOTE the reach of this append is bounded by the Handle()-level owner filter
+// (loadActiveContainerImageCIFacts, container_image_identity_ci_loader.go): a
+// repository-scoped intent only ever admits cross-scope CI facts whose run
+// names its OWN repository, so this anchor map carries either a CI scope's
+// own runs or the owning repository's runs. It never folds a FOREIGN
+// builder's repository into a deploying repository's rows -- cross-row anchor
+// selection (preferSupplyChainImageIdentity, #5813/#5817) deliberately keeps
+// a source-unambiguous deploying row ranked above build-provenance
+// resolvability, and letting a loader change flip that winner is a semantic
+// redefinition of the supply-chain impact anchor that needs owner sign-off.
 func applyCIRunDigestRevision(
 	decision *ContainerImageIdentityDecision,
 	byDigest map[string]ciRunDigestAnchor,
@@ -329,25 +355,6 @@ func applyCIRunDigestRevision(
 		decision.SourceRepositoryIDs = uniqueSortedStrings(
 			append(decision.SourceRepositoryIDs, anchor.sourceRepositoryIDs...),
 		)
-		// recordCIRunDigestAnchor only ever files a repository here from a
-		// ci.artifact whose artifact_type is container_image and whose run
-		// reported PRODUCING this digest, so the attribution is build
-		// evidence by construction -- the same evidence
-		// addContainerImageDigestRef already treats as build provenance
-		// (#5808) and the same tier applySLSADigestRevision confers below.
-		// Omitting it here left the two paths asymmetric in the one case
-		// that matters: when a deploying repository also names the digest by
-		// explicit image reference, both refs classify to the same
-		// (image_ref, outcome) pair, share one stable fact key, and the
-		// explicit-reference decision wins the upsert. #5808 fixed only the
-		// bare-digest decision, which is the one Postgres discards, so the
-		// persisted row named the building repository in
-		// source_repository_ids and carried NOTHING in
-		// build_provenance_repository_ids -- leaving
-		// cicdImageMatchesForRepository (ci_cd_run_correlation.go) with no
-		// key to narrow on, the correlation ambiguous and provenance-only,
-		// and its environment unable to reach a supply-chain impact finding
-		// (#5426).
 		decision.BuildProvenanceRepositoryIDs = uniqueSortedStrings(
 			append(decision.BuildProvenanceRepositoryIDs, anchor.sourceRepositoryIDs...),
 		)

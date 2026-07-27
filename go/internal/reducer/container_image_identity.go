@@ -191,13 +191,36 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 		return Result{}, fmt.Errorf("load active container image SLSA facts: %w", err)
 	}
 	envelopes = append(envelopes, slsaActive...)
+	ciActive, err := h.loadActiveContainerImageCIFacts(ctx, intent.ScopeID)
+	if err != nil {
+		return Result{}, fmt.Errorf("load active container image CI facts: %w", err)
+	}
+	envelopes = append(envelopes, ciActive...)
 	repositories, err := h.loadActiveRepositoryFacts(ctx)
 	if err != nil {
 		return Result{}, fmt.Errorf("load active repository facts: %w", err)
 	}
 	envelopes = append(envelopes, repositories...)
 
-	decisions, quarantined, err := BuildContainerImageIdentityDecisionsWithQuarantine(envelopes)
+	// Dedupe by FactID (#5810): the cross-scope loads above (identity, SLSA,
+	// CI) have no way to exclude the triggering intent's own scope, so an
+	// intent whose own scope-local facts are also served by one of those
+	// loaders sees the SAME envelope twice (the CI overlap specifically is
+	// closed today by loadActiveContainerImageCIFacts' owner gate, which
+	// admits nothing into a non-repository scope -- this dedupe stays as the
+	// guard for the remaining loaders and any future one). Ref merging
+	// (extractContainerImageRefsWithQuarantine) is idempotent for a
+	// well-formed duplicate, but a MALFORMED fact decodes to a quarantine
+	// entry on every occurrence, so an undeduplicated list would quarantine
+	// and count the same bad fact twice for one intent.
+	envelopes = dedupeEnvelopesByFactID(envelopes)
+
+	// ownerRepositoryID gates bare-digest SLSA-ref synthesis (#5810 P1
+	// follow-up, addSLSADigestRefs) to the repository this intent actually
+	// owns -- empty for a non-repository scope, matching
+	// loadActiveContainerImageCIFacts' own owner gate above.
+	ownerRepositoryID := repositoryIDFromReducerScope(intent.ScopeID)
+	decisions, quarantined, err := BuildContainerImageIdentityDecisionsWithQuarantine(envelopes, ownerRepositoryID)
 	if err != nil {
 		return Result{}, fmt.Errorf("build container image identity decisions: %w", err)
 	}
@@ -316,8 +339,17 @@ func (h ContainerImageIdentityHandler) emitCounters(
 // established (go/internal/reducer/AGENTS.md, Wave 4b/4d). Handle calls the
 // quarantine-aware variant directly so the reducer intent path reports
 // quarantines.
+//
+// It passes an empty ownerRepositoryID: this entry point is deliberately
+// scope-free (issue #5810's own "no scope separation" false-green shape), so
+// bare-digest SLSA-ref synthesis (addSLSADigestRefs, #5810 P1 follow-up)
+// stays unrestricted here exactly as before that fix -- every existing
+// table-test caller exercises anchor ATTACHMENT to a ref the fixture already
+// raises, never bare-digest synthesis from an owner-mismatched anchor, so
+// this is behavior-preserving. Handle is the only production caller and
+// always supplies the real owning repository.
 func BuildContainerImageIdentityDecisions(envelopes []facts.Envelope) []ContainerImageIdentityDecision {
-	decisions, _, err := BuildContainerImageIdentityDecisionsWithQuarantine(envelopes)
+	decisions, _, err := BuildContainerImageIdentityDecisionsWithQuarantine(envelopes, "")
 	if err != nil {
 		// A fatal (non-input_invalid) decode error can only occur for an
 		// unsupported schema-version major on the real reducer path, which
@@ -339,14 +371,27 @@ func BuildContainerImageIdentityDecisions(envelopes []facts.Envelope) []Containe
 // (an unsupported schema major). Handle calls this directly so the reducer
 // intent path can record and count quarantines; BuildContainerImageIdentityDecisions
 // is the pure error-free wrapper existing callers keep using.
+//
+// ownerRepositoryID is the repository the calling intent owns (empty for a
+// non-repository scope, or for BuildContainerImageIdentityDecisions' scope-free
+// callers); it gates bare-digest SLSA-ref synthesis to the owning repository
+// (#5810 P1 follow-up, addSLSADigestRefs) without touching enrichment of a ref
+// the intent's own evidence already raised.
 func BuildContainerImageIdentityDecisionsWithQuarantine(
 	envelopes []facts.Envelope,
+	ownerRepositoryID string,
 ) ([]ContainerImageIdentityDecision, []quarantinedFact, error) {
-	refs, ciRunDigest, quarantined, err := extractContainerImageRefsWithQuarantine(envelopes)
+	// SLSA anchors are computed FIRST (#5810 Part B): extractContainerImageRefsWithQuarantine
+	// needs the digest->anchor map up front so it can synthesize a bare-digest
+	// ref for a digest attested ONLY by a verified SLSA attestation (see
+	// addSLSADigestRefs, container_image_identity_evidence.go). Before this
+	// reorder, ref extraction ran first and SLSA anchors could only enrich an
+	// ALREADY-existing decision, never create one.
+	slsaDigest, slsaQuarantined, err := extractSLSADigestAnchorsWithQuarantine(envelopes)
 	if err != nil {
 		return nil, nil, err
 	}
-	slsaDigest, slsaQuarantined, err := extractSLSADigestAnchorsWithQuarantine(envelopes)
+	refs, ciRunDigest, quarantined, err := extractContainerImageRefsWithQuarantine(envelopes, slsaDigest, ownerRepositoryID)
 	if err != nil {
 		return nil, nil, err
 	}
