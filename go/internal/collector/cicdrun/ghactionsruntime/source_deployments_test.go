@@ -5,9 +5,11 @@ package ghactionsruntime
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -332,4 +334,65 @@ func TestClaimedSourceWarnsOnDeploymentMissingRequiredField(t *testing.T) {
 		}
 	}
 	t.Fatalf("no ci.warning with reason=deployment_missing_required_field among %d warnings: %#v", len(warnings), warnings)
+}
+
+// Deployments read is a SEPARATE GitHub permission from Actions read. An
+// existing App or fine-grained token scoped to Actions only gets 403 or 404 on
+// the deployments call, and aborting the claim there would drop every ci.run,
+// ci.job and ci.artifact fact already gathered -- this feature would silently
+// disable collection for every such installation.
+func TestClaimedSourceKeepsRunFactsWhenDeploymentsPermissionDenied(t *testing.T) {
+	t.Parallel()
+
+	for name, status := range map[string]int{
+		"forbidden": http.StatusForbidden,
+		"not found": http.StatusNotFound,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			client := fakeDeploymentClient{
+				fakeClient: fakeClient{page: RunPage{Snapshots: []RunSnapshot{{
+					Run: map[string]any{
+						"id":       1001,
+						"head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+						"repository": map[string]any{
+							"full_name": "example/repo",
+							"html_url":  "https://github.com/example/repo",
+						},
+					},
+				}}}},
+				deploymentErr: sdk.HTTPError{
+					Provider:   "github_actions",
+					StatusCode: status,
+					Message:    http.StatusText(status),
+				},
+			}
+			source := newDeploymentClaimedSource(t, client)
+
+			collected, ok, err := source.NextClaimed(context.Background(), claimDeploymentWorkItem())
+			if err != nil {
+				t.Fatalf("NextClaimed() error = %v, want nil: a missing deployments permission "+
+					"must not abort the whole claim", err)
+			}
+			if !ok {
+				t.Fatal("NextClaimed() ok = false, want true")
+			}
+
+			envelopes := drainFacts(t, collected.Facts)
+			requireFactKind(t, envelopes, facts.CICDRunFactKind)
+
+			warnings := filterFactKind(envelopes, facts.CICDWarningFactKind)
+			found := false
+			for _, warning := range warnings {
+				if warning.Payload["reason"] == "deployment_permission_denied" {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Fatalf("no ci.warning with reason=deployment_permission_denied among %d warnings", len(warnings))
+			}
+		})
+	}
 }

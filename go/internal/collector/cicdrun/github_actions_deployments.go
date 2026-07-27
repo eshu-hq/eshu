@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/url"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
@@ -113,8 +114,19 @@ func deploymentEventEnvelope(ctx FixtureContext, deployment githubDeployment, de
 		if trim(status.UpdatedAt) != "" {
 			updatedAt = trim(status.UpdatedAt)
 		}
-		environmentURL = trim(status.EnvironmentURL)
-		logURL = trim(status.LogURL)
+		if trim(status.Environment) != "" {
+			// A status may retarget the deployment; its own environment is the
+			// more specific truth for this transition than the parent's, which
+			// is why GitHub keeps the parent's first value in
+			// original_environment.
+			environment = trim(status.Environment)
+		}
+		// These URLs are provider-controlled and can carry a signed query
+		// string, an embedded credential, or a fragment. They land in a durable
+		// fact, so strip query and fragment the same way artifact URLs already
+		// are rather than persisting token-bearing material.
+		environmentURL = sanitizeDeploymentURL(status.EnvironmentURL)
+		logURL = sanitizeDeploymentURL(status.LogURL)
 	}
 	repositoryID := deploymentRepositoryID(ctx)
 	payload := map[string]any{
@@ -239,4 +251,26 @@ func GitHubActionsDeploymentWarningEnvelope(ctx FixtureContext, warningKey, reas
 		"provider": deploymentProvider,
 	})
 	return newEnvelope(ctx, facts.CICDWarningFactKind, stableKey, warningKey, payload), nil
+}
+
+// sanitizeDeploymentURL strips the query string and fragment from a
+// provider-supplied deployment URL before it is persisted.
+//
+// environment_url and log_url are set by whatever created the deployment, so
+// they can carry a signed URL, an access token, or private path metadata. The
+// artifact path already applies the same treatment; an unparseable value yields
+// an empty string rather than being passed through unchecked.
+func sanitizeDeploymentURL(raw string) string {
+	trimmed := trim(raw)
+	if trimmed == "" {
+		return ""
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return ""
+	}
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	parsed.User = nil
+	return parsed.String()
 }

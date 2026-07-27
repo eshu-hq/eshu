@@ -47,13 +47,17 @@ type githubDeployment struct {
 
 // githubDeploymentStatus decodes the fields of a GitHub Deployment Status
 // object (https://docs.github.com/en/rest/deployments/statuses) that
-// deploymentEventEnvelope emits or needs for identity. The status object's
-// own "environment" field is intentionally not decoded here:
-// deploymentEventEnvelope always denormalizes Environment from the parent
-// githubDeployment onto every status row, per #5425 STEP 3's task contract,
-// rather than letting a status-level override diverge from its deployment.
+// deploymentEventEnvelope emits or needs for identity.
+//
+// The status carries its own Environment, and GitHub allows it to differ from
+// the parent deployment's -- a redeploy can retarget, and the parent's
+// original_environment field exists precisely to record that it moved. The
+// status value is therefore the more specific truth for that transition and
+// wins when present, with the parent's value as the fallback. Dropping it would
+// publish the stale parent environment as deploy_event truth.
 type githubDeploymentStatus struct {
 	ID             any    `json:"id"`
+	Environment    string `json:"environment"`
 	State          string `json:"state"`
 	Description    string `json:"description"`
 	CreatedAt      string `json:"created_at"`

@@ -139,7 +139,14 @@ type DeploymentEvent struct {
 	// (repository:r_<hex>) the collector derives for the deployment's
 	// owning repository, matching the join contract the git collector and
 	// repositoryidentity.CanonicalRepositoryID enforce elsewhere in this
-	// family (see Run.RepositoryID). Optional: modeled for future
-	// correlation even though no reducer path reads it yet.
+	// family (see Run.RepositoryID).
+	//
+	// Optional, but read by the reducer when present:
+	// attachDeploymentEventsToRuns compares it against the run's own
+	// RepositoryID and refuses to attach an event whose repository disagrees,
+	// because a commit sha is only unique within a repository. When either
+	// side omits it the join falls back to sha alone, so a producer that does
+	// not populate it keeps the previous behaviour rather than losing its
+	// events.
 	RepositoryID *string `json:"repository_id,omitempty"`
 }

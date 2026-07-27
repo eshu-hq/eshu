@@ -6,13 +6,16 @@ package ghactionsruntime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cicdrun"
+	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -91,17 +94,6 @@ func (s ClaimedSource) appendDeploymentEnvelopes(
 	if !ok {
 		return envelopes, false, nil
 	}
-	startedAt := time.Now()
-	page, err := fetcher.FetchDeployments(ctx, target)
-	if err != nil {
-		statusClass := classifyProviderStatus(err)
-		s.recordFetch(ctx, statusClass, startedAt)
-		s.recordRateLimit(ctx, statusClass)
-		recordSpanError(observeSpan, err)
-		return nil, false, err
-	}
-	s.recordFetch(ctx, "success", startedAt)
-
 	deploymentCtx := cicdrun.FixtureContext{
 		ScopeID:             item.ScopeID,
 		GenerationID:        item.GenerationID,
@@ -111,6 +103,40 @@ func (s ClaimedSource) appendDeploymentEnvelopes(
 		SourceURI:           target.SourceURI,
 		Repository:          target.Repository,
 	}
+	startedAt := time.Now()
+	page, err := fetcher.FetchDeployments(ctx, target)
+	if err != nil {
+		statusClass := classifyProviderStatus(err)
+		s.recordFetch(ctx, statusClass, startedAt)
+		s.recordRateLimit(ctx, statusClass)
+		// Deployments read is a SEPARATE GitHub permission from Actions read.
+		// An existing App or fine-grained token scoped to Actions only gets 403
+		// or 404 here, and aborting the claim on that would drop every ci.run,
+		// ci.job, and ci.artifact fact the collector already gathered -- this
+		// feature would silently disable collection for every such installation.
+		// Degrade to explicit partial coverage instead: keep the run facts,
+		// emit a ci.warning naming the missing permission, and let the
+		// generation commit.
+		if deploymentPermissionDenied(err) {
+			warning, warningErr := cicdrun.GitHubActionsDeploymentWarningEnvelope(
+				deploymentCtx,
+				"deployments:permission_denied",
+				"deployment_permission_denied",
+				"deployments read returned "+providerStatusText(err)+
+					"; run, job and artifact facts were still collected. Grant the "+
+					"Deployments read permission to this token to collect deploy-time events.",
+			)
+			if warningErr != nil {
+				return nil, false, warningErr
+			}
+			recordSpanError(observeSpan, err)
+			return append(envelopes, warning), false, nil
+		}
+		recordSpanError(observeSpan, err)
+		return nil, false, err
+	}
+	s.recordFetch(ctx, "success", startedAt)
+
 	raw, err := json.Marshal(map[string]any{"deployments": deploymentFixtureRows(page.Snapshots)})
 	if err != nil {
 		recordSpanError(observeSpan, err)
@@ -232,4 +258,31 @@ func unanchoredDeploymentWarnings(
 		warnings = append(warnings, warning)
 	}
 	return warnings, nil
+}
+
+// deploymentPermissionDenied reports whether err is the provider refusing the
+// deployments read specifically, rather than a transport failure or a rate
+// limit.
+//
+// GitHub gates Deployments behind a permission separate from Actions, and
+// returns 403 for a token that lacks it or 404 when the resource is hidden from
+// that token entirely. Both mean "this installation cannot read deployments",
+// which is a coverage gap to disclose, not a reason to discard the run facts
+// already collected in the same claim.
+func deploymentPermissionDenied(err error) bool {
+	var httpErr sdk.HTTPError
+	if !errors.As(err, &httpErr) {
+		return false
+	}
+	return httpErr.StatusCode == http.StatusForbidden || httpErr.StatusCode == http.StatusNotFound
+}
+
+// providerStatusText renders the provider status for a warning message without
+// leaking the response body, which can echo the token or repository path.
+func providerStatusText(err error) string {
+	var httpErr sdk.HTTPError
+	if errors.As(err, &httpErr) {
+		return http.StatusText(httpErr.StatusCode)
+	}
+	return "an error"
 }

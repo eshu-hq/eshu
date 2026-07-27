@@ -109,6 +109,30 @@ func cicdDeploymentEventStateRank(event *decodedCICDDeploymentEvent) int {
 	}
 }
 
+// cicdDeploymentEventPromotable reports whether a deployment event's provider
+// state is evidence that something was actually deployed to the environment.
+//
+// Only "success" and "in_progress" qualify. A deployment with no status yet, or
+// whose latest status is pending, queued, failure, error, or inactive, did not
+// put anything in that environment: "failure" and "error" mean the deployment
+// did not land, "inactive" means it was superseded or rolled back, and
+// "pending"/"queued" mean it has not started. Publishing any of those as
+// environment_evidence=deploy_event would tell #5426 -- and the API contract --
+// that a failed or reverted deploy is deployment truth.
+//
+// An absent state is treated as not promotable rather than assumed good. The
+// field is optional on the contract, so a producer that omits it has told us
+// nothing about whether the deploy succeeded, and the declared path remains a
+// better answer than an unverified claim.
+func cicdDeploymentEventPromotable(event *decodedCICDDeploymentEvent) bool {
+	switch strings.ToLower(trimmedCICDPtr(event.evidence.State)) {
+	case "success", "in_progress":
+		return true
+	default:
+		return false
+	}
+}
+
 // deploymentEventOutranks reports whether candidate must be preferred over
 // current under the deterministic selection order selectDeploymentEvent
 // applies: state rank first (see cicdDeploymentEventStateRank), then the
@@ -153,7 +177,19 @@ func selectDeploymentEvent(events []*decodedCICDDeploymentEvent) *decodedCICDDep
 // run has no attached deployment events, signaling classifyCICDRunEvidence to
 // fall back to the declared path.
 func classifyCICDDeploymentEventEnvironment(events []*decodedCICDDeploymentEvent) (env string, factID string, ok bool) {
-	winner := selectDeploymentEvent(events)
+	// Consider only events whose state is evidence of an actual deployment.
+	// Filtering BEFORE selection rather than rejecting after it matters: a run
+	// carrying both an old success and a newer inactive must not have the
+	// success win and report the environment as still deployed, and a run whose
+	// only events are failures must fall back to the declared path rather than
+	// resolve to nothing.
+	promotable := make([]*decodedCICDDeploymentEvent, 0, len(events))
+	for _, event := range events {
+		if cicdDeploymentEventPromotable(event) {
+			promotable = append(promotable, event)
+		}
+	}
+	winner := selectDeploymentEvent(promotable)
 	if winner == nil {
 		return "", "", false
 	}
