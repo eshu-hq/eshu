@@ -53,7 +53,7 @@ type SupplyChainImpactFinding struct {
 	// EnvironmentEvidence records, per environment name in Environments,
 	// whether the strongest deployment evidence observed for that
 	// environment was "deploy_event" or "declared" (issue #5426).
-	EnvironmentEvidence map[string]string `json:"environment_evidence"`
+	EnvironmentEvidence map[string]string `json:"environment_evidence,omitempty"`
 	CatalogEntityRefs   []string          `json:"catalog_entity_refs"`
 	CatalogOwnerRefs    []string          `json:"catalog_owner_refs"`
 	DetectionProfile    string            `json:"detection_profile"`

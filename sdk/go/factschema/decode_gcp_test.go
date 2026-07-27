@@ -136,7 +136,6 @@ var intentionalRequiredCollections = map[requiredCollectionKey]struct{}{
 	{FactKindReducerSupplyChainImpactFinding, "deployment_ids"}:         {},
 	{FactKindReducerSupplyChainImpactFinding, "service_ids"}:            {},
 	{FactKindReducerSupplyChainImpactFinding, "environments"}:           {},
-	{FactKindReducerSupplyChainImpactFinding, "environment_evidence"}:   {},
 	{FactKindReducerSupplyChainImpactFinding, "catalog_entity_refs"}:    {},
 	{FactKindReducerSupplyChainImpactFinding, "catalog_owner_refs"}:     {},
 	{FactKindReducerSupplyChainImpactFinding, "missing_evidence"}:       {},

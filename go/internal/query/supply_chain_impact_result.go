@@ -143,9 +143,13 @@ func buildSupplyChainImpactFindingResult(row SupplyChainImpactFindingRow) Supply
 //   - runtime_confirmed: a live cloud resource (running ECS task /
 //     image-package Lambda) actually runs the finding's subject digest —
 //     surfaced by the reducer as CloudRuntimeResourceRefs.
-//   - provenance_ci_declared: a cicd_run_correlation matched the finding's
-//     digest/image (CI declared the deployment). Before #5452 this collapsed
-//     into config_only because no runtime tier existed on this surface.
+//   - provenance_ci_declared: a cicd_run_correlation matched the finding (CI
+//     declared the deployment). The match may be on the finding's digest or
+//     image reference, or on repository plus environment plus an operational
+//     anchor — the weaker branch still counts as CI-declared evidence here even
+//     though it does not on its own raise runtime_reachability to
+//     deployed_image (#5426). Before #5452 this collapsed into config_only
+//     because no runtime tier existed on this surface.
 //   - config_only: only config-materialized deployment anchors or config
 //     environments exist, with no runtime or CI-declared evidence.
 func supplyChainDeploymentTruthTier(row SupplyChainImpactFindingRow) truth.DeploymentTruthTier {

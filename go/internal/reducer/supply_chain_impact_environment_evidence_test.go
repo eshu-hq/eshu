@@ -210,9 +210,9 @@ func TestBuildSupplyChainImpactFindingsBranch3DeployEventWithContradictingDigest
 		string(CICDRunCorrelationExact),
 		supplyChainEnvironmentEvidenceDeployEvent,
 	)
-	findings := BuildSupplyChainImpactFindings(branch3TestFindingFacts("CVE-2026-5428", deployment))
+	findings := BuildSupplyChainImpactFindings(branch3TestFindingFacts("CVE-2026-5432", deployment))
 
-	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-5428"]
+	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-5432"]
 	if got.RuntimeReachability == "deployed_image" {
 		t.Fatalf(
 			"RuntimeReachability = %q, want deploy_event corroboration to be overridden by a deployment naming a different digest",
@@ -253,14 +253,16 @@ func TestBuildSupplyChainImpactFindingsDigestBranchPromotesRegardlessOfEnvironme
 }
 
 // Test 5 (regression guard): same as test 4 but for the image-ref identity
-// branch.
+// branch. The deployment carries no artifact digest, so the image-ref branch is
+// the only thing that can promote it -- test 5b covers what happens when the
+// row also names a digest that contradicts the finding.
 func TestBuildSupplyChainImpactFindingsImageRefBranchPromotesRegardlessOfEnvironmentEvidence(t *testing.T) {
 	t.Parallel()
 
 	imageRef := "registry.example/api@" + testImpactSubjectDigest
 	deployment := cicdRunCorrelationImpactFactWithEvidence(
 		"deploy-1",
-		testImpactOtherDigest,
+		"",
 		imageRef,
 		testImpactRepositoryID,
 		testImpactEnv,
@@ -276,6 +278,39 @@ func TestBuildSupplyChainImpactFindingsImageRefBranchPromotesRegardlessOfEnviron
 	if got.EnvironmentEvidence[testImpactEnv] != supplyChainEnvironmentEvidenceDeclared {
 		t.Fatalf("EnvironmentEvidence[%q] = %q, want %q recorded even though the match came from the image-ref branch", testImpactEnv, got.EnvironmentEvidence[testImpactEnv], supplyChainEnvironmentEvidenceDeclared)
 	}
+}
+
+// Test 5b: a matching image reference does NOT rescue a deployment whose digest
+// contradicts the finding.
+//
+// An image reference is a mutable, registry-prefixed tag: the same
+// registry/app:v1 can be retagged from digest A to digest B. So a row whose ref
+// matches while its digest names a different image is reporting that the tag has
+// moved, and the digest is the identity worth believing. The contradicting-digest
+// check therefore runs ahead of the image-ref branch, not after it.
+func TestBuildSupplyChainImpactFindingsImageRefMatchWithContradictingDigestDoesNotPromote(t *testing.T) {
+	t.Parallel()
+
+	imageRef := "registry.example/api@" + testImpactSubjectDigest
+	deployment := cicdRunCorrelationImpactFactWithEvidence(
+		"deploy-1",
+		testImpactOtherDigest,
+		imageRef,
+		testImpactRepositoryID,
+		testImpactEnv,
+		string(CICDRunCorrelationExact),
+		supplyChainEnvironmentEvidenceDeployEvent,
+	)
+	findings := BuildSupplyChainImpactFindings(branch3TestFindingFacts("CVE-2026-5433", deployment))
+
+	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-5433"]
+	if got.RuntimeReachability == "deployed_image" {
+		t.Fatalf(
+			"RuntimeReachability = %q, want a contradicting digest to outrank a matching mutable image ref",
+			got.RuntimeReachability,
+		)
+	}
+	assertContainsString(t, got.EvidencePath, cicdRunCorrelationFactKind)
 }
 
 // Test 6: the persisted typed payload carries per-environment evidence state,
@@ -311,11 +346,12 @@ func TestSupplyChainImpactTypedPayloadPersistsEnvironmentEvidence(t *testing.T) 
 }
 
 // Test 6b: a finding with NO environment evidence at all still persists an
-// explicit empty object rather than a JSON null. This is the case the writer's
-// nonNilStringMap exists for, and the one the generated schema requires -- the
-// field is in the payload contract's required set, so a null would break the
-// shape for any consumer decoding it typed. Test 6 above cannot cover this: its
-// finding has an environment, so its map is never empty.
+// empty map rather than a nil one. This is the case the writer's
+// nonNilStringMap exists for: the field is optional in the schema and carries
+// omitempty, so the wire shape is the same either way, but a consumer decoding
+// the typed payload struct gets a rangeable map instead of a nil map. Test 6
+// above cannot cover this: its finding has an environment, so its map is never
+// empty.
 func TestSupplyChainImpactTypedPayloadPersistsEmptyEnvironmentEvidence(t *testing.T) {
 	t.Parallel()
 

@@ -79,7 +79,10 @@
       "additionalProperties": {
         "type": "string"
       },
-      "type": "object"
+      "type": [
+        "object",
+        "null"
+      ]
     },
     "environments": {
       "items": {
@@ -290,7 +293,6 @@
     "deployment_ids",
     "service_ids",
     "environments",
-    "environment_evidence",
     "catalog_entity_refs",
     "catalog_owner_refs",
     "detection_profile",

@@ -158,20 +158,24 @@ func supplyChainDeploymentMatchesFinding(
 //
 // Only the digest is treated as decisive. Image references are mutable and
 // registry-prefixed, so two differing refs do not reliably denote two different
-// artifacts the way two differing digests do.
+// artifacts the way two differing digests do. That mutability cuts both ways:
+// the contradicting-digest check runs FIRST, ahead of the image-ref branch,
+// because a tag can be retagged from one digest to another. A deployment whose
+// ref matches but whose digest explicitly names a different image is reporting
+// that the tag has moved, and the digest is the identity worth believing.
 func supplyChainDeploymentPromotesRuntimeReachability(
 	finding SupplyChainImpactFinding,
 	deployment supplyChainDeploymentContext,
 ) bool {
+	if finding.SubjectDigest != "" && deployment.artifactDigest != "" &&
+		deployment.artifactDigest != finding.SubjectDigest {
+		return false
+	}
 	if finding.SubjectDigest != "" && deployment.artifactDigest == finding.SubjectDigest {
 		return true
 	}
 	if finding.ImageRef != "" && deployment.imageRef == finding.ImageRef {
 		return true
-	}
-	if finding.SubjectDigest != "" && deployment.artifactDigest != "" &&
-		deployment.artifactDigest != finding.SubjectDigest {
-		return false
 	}
 	return deployment.environmentEvidence == supplyChainEnvironmentEvidenceDeployEvent
 }

@@ -32,16 +32,20 @@ digest-anchored `RUNS_IMAGE` probe mirroring #5452, filed as **#5834**.
 
 ## The premise was also partly wrong
 
-`deployed_image` is not promoted from a declared environment.
-`supply_chain_impact_runtime.go` gates it on `RuntimeReachability != "known_fixed"`,
-a non-empty `SubjectDigest`, and at least one surviving deployment. The
-environment is only *appended* to `finding.Environments`.
+On `main`, `deployed_image` was not promoted from a declared environment
+directly. `supply_chain_impact_runtime.go` gated it on
+`RuntimeReachability != "known_fixed"`, a non-empty `SubjectDigest`, and at least
+one surviving deployment; the environment was only *appended* to
+`finding.Environments`.
 
-Environment carries the deployment link in exactly one place: the third branch of
+The over-promotion was therefore indirect, and it reached `deployed_image`
+through which deployments counted as "surviving". Environment carries the
+deployment link in exactly one place: the third branch of
 `supplyChainDeploymentMatchesFinding`, which joins on `repositoryID` plus an
 operational anchor and a non-empty environment, with no artifact identity at all.
-That branch is the real over-promotion — a finding with a genuine digest can
-reach `deployed_image` through a deployment that never referenced that digest.
+A finding with a genuine digest could reach `deployed_image` through a deployment
+that never referenced that digest — not because the environment promoted it, but
+because that deployment counted toward the `len(deployments) > 0` gate.
 
 Implementing the issue's literal text would have tightened all three branches,
 breaking two legitimate artifact-identity-anchored paths.
@@ -105,6 +109,25 @@ This is deliberately **not** a new `RuntimeReachability` value — that axis is
 artifact reachability (`image_sbom`, `image_os_package`, `deployed_image`,
 `known_fixed`), while corroboration is per-environment. It is also not
 `truth.TierDeclaredRef`, which #5393 owns for DEPLOYS_REF evidence.
+
+## The payload field is additive-optional, not required
+
+`environment_evidence` carries `omitempty` on
+`sdk/go/factschema/reducerderived/v1`'s finding struct, so it is an
+additive-*optional* field: a minor change under Contract System v1, needing no
+conversion shim.
+
+It was briefly required. The schema generator derives `required` from
+reflection, so a tag without `omitempty` lands the field in the required set,
+and `scripts/verify-factschema-diff.sh` correctly rejected that as
+`added_required_field` — a compatibility break without a major bump.
+
+Worth recording for the next person: **`make pre-pr` does not run
+`verify-factschema-diff.sh`.** The full local promotion gate passed green with
+the break in place; only CI's `factschema-diff` workflow would have caught it,
+and merging would have turned that gate red on `main`. If a change touches
+`sdk/go/factschema/schema/**`, run that verifier by hand — a green `make pre-pr`
+says nothing about payload-contract compatibility.
 
 ## The alias-contract dependency was already satisfied
 
@@ -174,6 +197,7 @@ Cross-package and contract gates:
 $ cd go && go test ./internal/reducer ./internal/query ./internal/mcp ./cmd/reducer -count=1
 ok — all packages
 
+$ bash scripts/verify-factschema-diff.sh                  no breaking changes
 $ bash scripts/verify-payload-usage-manifest.sh          ok
 $ bash scripts/verify-openapi.sh                          252 routes, 252 OpenAPI entries
 $ cd go && go run ./cmd/fact-kind-registry -check         generated artifacts are current
@@ -196,10 +220,13 @@ override the run trips a known collector-settle flake — `only 17 credentialed
 collector source(s) landed facts; want >= 18` — which is #5831, not this
 change.)
 
-The corpus output is expected to be identical to `main` here, and is: this
-change gates only the promotion, so every deployment that matched before still
-matches, and the corpus's one impact finding matches no branch-3 deployment
-either way.
+Every asserted snapshot value is expected to be unchanged from `main` here, and
+is: this change gates only the promotion, so every deployment that matched
+before still matches, and the corpus's one impact finding matches no branch-3
+deployment either way. (The persisted finding payload does gain an
+`environment_evidence` key, so the payload is not byte-identical — but it is an
+optional field, absent whenever a finding has no environment evidence, and no
+snapshot assertion reads it.)
 
 I tried to add a real floor for this change rather than settle for a green run
 that asserts nothing about it:
