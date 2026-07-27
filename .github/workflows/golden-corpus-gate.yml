@@ -33,7 +33,10 @@ on:
       - 'specs/demo-first-answers.v1.yaml'
       - 'scripts/verify-golden-corpus-gate.sh'
       - 'scripts/test-verify-golden-corpus-gate.sh'
+      # The orchestrator sources these; an edit to one changes what the gate
+      # does, so they must trigger it too (the live-gate mutex included).
       - 'scripts/lib/golden-corpus-*.sh'
+      - 'scripts/lib/live-gate-lock.sh'
       - 'scripts/ci/install-apt-packages.sh'
       - '.github/workflows/golden-corpus-gate.yml'
 

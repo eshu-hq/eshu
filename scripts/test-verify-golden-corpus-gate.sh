@@ -50,6 +50,31 @@ require_workflow_path "ingester fact emission"         "go/cmd/ingester/**"
 require_workflow_path "projector runtime"              "go/cmd/projector/**"
 require_workflow_path "reducer runtime"                "go/cmd/reducer/**"
 require_workflow_path "api query surface"              "go/cmd/api/**"
+# The orchestrator sources these; an edit to the mutex or a fixture/timing lib
+# changes what the gate does, so each must trigger it. Without this the lock
+# itself was in no trigger list at all - its only test would never have run.
+require_workflow_path "golden-corpus libs"             "scripts/lib/golden-corpus-*.sh"
+require_workflow_path "live gate mutex"                "scripts/lib/live-gate-lock.sh"
+# The workflow is only one of THREE lists that must carry these paths. Assert the
+# other two as well, or "the gap cannot reopen" is true for a third of the gap.
+# Scoped to each gate's OWN trigger block: a file-wide grep passes while the path
+# is present in either gate, so deleting it from one silently un-selects that
+# gate and the local half of the gap reopens.
+for gate_id in golden-corpus-mirror golden-corpus-gate; do
+	gate_block="$(sed -n "/^  - id: ${gate_id}\$/,/^    local:/p" "${repo_root}/specs/ci-gates.v1.yaml")"
+	[[ -n "${gate_block}" ]] || fail "ci-gates registry has no gate ${gate_id}"
+	for lib_path in 'scripts/lib/golden-corpus-*.sh' 'scripts/lib/live-gate-lock.sh'; do
+		printf '%s\n' "${gate_block}" |
+			rg --fixed-strings --quiet -- "- \"${lib_path}\"" ||
+			fail "ci-gates gate ${gate_id} triggers omit ${lib_path}"
+	done
+done
+# Anchored to the golden-corpus selector line, not the whole file: the fragment
+# could otherwise be moved onto an unrelated selector and still pass.
+rg --pcre2 --quiet --multiline \
+	"run_or_defer golden-corpus \\\\\n[^\n]*scripts/lib/\(golden-corpus-\.\+\|live-gate-lock\)" \
+	"${repo_root}/scripts/dev/pre-pr.sh" ||
+	fail "the pre-pr golden-corpus selector no longer matches the golden-corpus libs or the mutex"
 
 # #5817 P2 review: verify-golden-corpus-gate.sh sources FOUR
 # scripts/lib/golden-corpus-*.sh helper libs (fixtures, phase-timings,
@@ -69,6 +94,16 @@ shopt -u nullglob
 
 # Parses under bash -n.
 bash -n "${script}" || fail "verify-golden-corpus-gate.sh has a syntax error"
+# The lock cases live in sourced chunks. A syntax error in a sourced file does
+# NOT reliably abort the caller, so without this the whole mutex suite can be
+# silently skipped and the run still reports pass.
+for sourced_case_lib in \
+	"${repo_root}/scripts/lib/golden-corpus-lock-cases.sh" \
+	"${repo_root}/scripts/lib/golden-corpus-lock-parse-cases.sh" \
+	"${repo_root}/scripts/lib/golden-corpus-lock-race-cases.sh"; do
+	[[ -f "${sourced_case_lib}" ]] || fail "missing lock case lib: ${sourced_case_lib}"
+	bash -n "${sourced_case_lib}" || fail "$(basename "${sourced_case_lib}") has a syntax error"
+done
 bash -n "${fixture_lib}" || fail "golden-corpus-fixtures.sh has a syntax error"
 
 require() {
@@ -79,11 +114,31 @@ require() {
 # Strict mode and self-cleanup.
 require "strict mode" "set -euo pipefail"
 require "exit trap" "trap cleanup EXIT"
+# cleanup() and the host-binary helpers (build_bin/start_bg/pg) are extracted to
+# sourced lib chunks to keep this orchestrator under the 500-line cap; the
+# orchestrator must still source both.
+require "cleanup lib source" "golden-corpus-cleanup.sh"
+require "host helpers lib source" "golden-corpus-host-helpers.sh"
+require "corpus staging lib source" "golden-corpus-stage.sh"
+require "corpus staging invocation" "stage_minimal_corpus"
+cleanup_lib="${repo_root}/scripts/lib/golden-corpus-cleanup.sh"
+[[ -f "${cleanup_lib}" ]] || fail "missing cleanup lib: ${cleanup_lib}"
+bash -n "${cleanup_lib}" || fail "cleanup lib has a syntax error"
+host_helpers_lib="${repo_root}/scripts/lib/golden-corpus-host-helpers.sh"
+[[ -f "${host_helpers_lib}" ]] || fail "missing host helpers lib: ${host_helpers_lib}"
+bash -n "${host_helpers_lib}" || fail "host helpers lib has a syntax error"
+stage_lib="${repo_root}/scripts/lib/golden-corpus-stage.sh"
+[[ -f "${stage_lib}" ]] || fail "missing corpus staging lib: ${stage_lib}"
+bash -n "${stage_lib}" || fail "corpus staging lib has a syntax error"
 # Background pids must be recorded in the PARENT shell (printf -v), or the cleanup
-# trap reaps nothing on a failure path and leaks host processes.
-require "parent-shell pid capture" "printf -v"
-# Failure must surface the host-binary logs before the work dir is removed.
-require "failure log dump" "host binary logs (failure)"
+# trap reaps nothing on a failure path and leaks host processes. The helper lives
+# in the extracted lib chunk now, not the orchestrator body.
+rg --fixed-strings --quiet -- "printf -v" "${host_helpers_lib}" ||
+	fail "parent-shell pid capture (printf -v) missing from ${host_helpers_lib}"
+# Failure must surface the host-binary logs before the work dir is removed. That
+# logic lives in the extracted cleanup lib chunk now, not the orchestrator body.
+rg --fixed-strings --quiet -- "host binary logs (failure)" "${cleanup_lib}" ||
+	fail "failure log dump missing from ${cleanup_lib}"
 # A collector that no-ops must not let the gate pass: liveness + facts-landed.
 require "collector liveness check" "exited during settle"
 require "cassette facts landed check" "credentialed collector source"
@@ -215,6 +270,16 @@ require_lib "per-phase advisory default" "-phase-regression-advisory"
 # shared_projection_intents domain (incl. code_calls, #3865) must drain — no
 # domain is quarantined as advisory.
 require "graph-populated smoke" "-required-node-labels"
+# The backend wait must be a real signal, not a socket-only probe. #5813
+# (above, lines ~194-211) already pins the specific fix for this: pg_isready
+# ANDed with a host_tcp_port_open TCP connect, because pg_isready alone races
+# initdb's temporary socket-only server. An earlier iteration of this gate
+# replaced pg_isready outright with an in-container `psql -c 'select 1'`, but
+# that never exercised the HOST-side TCP path real consumers (bootstrap-index,
+# collectors, reducer/projector) actually use, so it did not close the same
+# gap; #5813's host-TCP probe is the evidenced fix and pg_isready staying
+# present is required, not banned - see the "wait loop keeps in-container
+# pg_isready" pin above.
 if rg --quiet --fixed-strings -- 'drain-advisory-domains="code_calls"' "${script}"; then
 	fail "code_calls must no longer be quarantined as an advisory drain domain (#3865 fixed)"
 fi
@@ -240,9 +305,29 @@ fi
 require "populated-then-drained guard" 'require-populated-domains="repo_dependency"'
 
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
-private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/Users/|/home/[a-z]'
-if rg --pcre2 --quiet -- "${private_pattern}" "${script}"; then
-	fail "verify-golden-corpus-gate.sh looks like it contains private data"
-fi
+# The 12-digit arm catches a bare cloud account id. The lock cases used to age
+# a guard past its budget with `touch -h -t <stamp>`; age now comes from a
+# birth epoch embedded in the guard's own payload (pid:epoch), computed at
+# runtime via `date +%s`, so no `touch -h -t` stamp (and no exclusion for one)
+# remains in the scanned files.
+private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(?<![0-9])[0-9]{12}(?![0-9])|/Users/|/home/[a-z]'
+for scanned in "${script}" \
+	"${repo_root}/scripts/lib/live-gate-lock.sh" \
+	"${repo_root}/scripts/lib/golden-corpus-lock-cases.sh" \
+	"${repo_root}/scripts/lib/golden-corpus-lock-parse-cases.sh" \
+	"${repo_root}/scripts/lib/golden-corpus-lock-race-cases.sh" \
+	"${cleanup_lib}" "${host_helpers_lib}" "${stage_lib}"; do
+	if rg --pcre2 --quiet -- "${private_pattern}" "${scanned}"; then
+		fail "$(basename "${scanned}") looks like it contains private data"
+	fi
+done
+
+. "${repo_root}/scripts/lib/golden-corpus-lock-cases.sh"
+[[ "${lock_cases_completed:-0}" -eq 1 ]] ||
+	fail "golden-corpus-lock-cases.sh did not run to completion (gutted, or returned early)"
+[[ "${lock_parse_cases_completed:-0}" -eq 1 ]] ||
+	fail "golden-corpus-lock-parse-cases.sh did not run to completion (gutted, or returned early)"
+[[ "${lock_race_cases_completed:-0}" -eq 1 ]] ||
+	fail "golden-corpus-lock-race-cases.sh did not run to completion (gutted, or returned early)"
 
 printf 'test-verify-golden-corpus-gate: pass\n'

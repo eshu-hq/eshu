@@ -108,6 +108,17 @@ for arg in "$@"; do
 	esac
 done
 
+bg_pids=()
+
+log() { printf '\n=== %s ===\n' "$*"; }
+die() { printf 'verify-golden-corpus-gate: %s\n' "$*" >&2; exit 1; }
+
+. "${repo_root}/scripts/lib/live-gate-lock.sh"
+acquire_live_gate_lock
+
+# After the mutex, so a refused run leaves no temp dir. The EXIT trap stays
+# further down on purpose: cleanup runs `docker compose down -v`, and arming it
+# before the lock is held would let a blocked run kill the live holder's stack.
 work_dir="$(mktemp -d -t golden-corpus-gate.XXXXXX)"
 bin_dir="${work_dir}/bin"
 corpus_dir="${work_dir}/corpus"
@@ -115,38 +126,10 @@ home_dir="${work_dir}/home"
 log_dir="${work_dir}/logs"
 mkdir -p "${bin_dir}" "${corpus_dir}" "${home_dir}" "${log_dir}"
 
-bg_pids=()
-
-log() { printf '\n=== %s ===\n' "$*"; }
-die() { printf 'verify-golden-corpus-gate: %s\n' "$*" >&2; exit 1; }
-
-cleanup() {
-	local status=$?
-	# On failure, dump every host-binary log to stdout BEFORE the work dir is
-	# removed, so a CI failure (which captures this script's stdout) preserves the
-	# api/collector/projector/reducer logs that explain the break — not just the
-	# Docker logs the workflow dumps separately.
-	if [[ "${status}" -ne 0 && -d "${log_dir}" ]]; then
-		printf '\n=== host binary logs (failure) ===\n' >&2
-		for logf in "${log_dir}"/*.log; do
-			[[ -f "${logf}" ]] || continue
-			printf '\n--- %s ---\n' "$(basename "${logf}")" >&2
-			tail -40 "${logf}" >&2 || true
-		done
-	fi
-	for pid in "${bg_pids[@]:-}"; do
-		[[ -n "${pid}" ]] && kill "${pid}" >/dev/null 2>&1 || true
-	done
-	if [[ "${keep}" -eq 1 ]]; then
-		printf '\n[--keep] work dir retained: %s\n' "${work_dir}" >&2
-	else
-		if [[ "${use_compose}" -eq 1 ]]; then
-			docker compose -f "${compose_file}" down -v >/dev/null 2>&1 || true
-		fi
-		rm -rf "${work_dir}"
-	fi
-	exit "${status}"
-}
+# Extracted to scripts/lib/golden-corpus-cleanup.sh (defines cleanup()) to keep
+# this orchestrator under the 500-line cap.
+# shellcheck source=scripts/lib/golden-corpus-cleanup.sh
+. "${repo_root}/scripts/lib/golden-corpus-cleanup.sh"
 trap cleanup EXIT
 
 # ----------------------------------------------------------------------------
@@ -193,82 +176,18 @@ export ESHU_METRICS_ADDR="127.0.0.1:0"
 unset ESHU_PPROF_ADDR || true
 mkdir -p "${ESHU_REPOS_DIR}"
 
-build_bin() {
-	local cmd="$1"
-	CGO_ENABLED=1 go -C go build -o "${bin_dir}/eshu-${cmd}" "./cmd/${cmd}" \
-		|| die "build ${cmd} failed"
-}
-
-# start_bg <name> <pidvar> <cmd...> launches cmd in the background, records its
-# pid in bg_pids (so the cleanup trap can reap it on EVERY exit path), and writes
-# the pid into the caller-named variable pidvar. The pid is assigned via
-# printf -v in the PARENT shell — a previous version returned it through command
-# substitution, whose subshell discarded the bg_pids append, leaving the trap a
-# no-op that leaked processes on failure.
-start_bg() {
-	local name="$1" pidvar="$2"; shift 2
-	"$@" >"${log_dir}/${name}.log" 2>&1 &
-	local pid=$!
-	bg_pids+=("${pid}")
-	printf -v "${pidvar}" '%s' "${pid}"
-}
-
-# pg runs a single-value SQL query against the gate's Postgres, working in both
-# compose mode (via the postgres container) and --no-compose mode (via a local
-# psql client). Used to assert the cassette collectors actually committed.
-pg() {
-	local sql="$1"
-	if [[ "${use_compose}" -eq 1 ]]; then
-		docker compose -f "${compose_file}" exec -T postgres \
-			psql -U eshu -d eshu -tA -c "${sql}" 2>/dev/null
-	else
-		command -v psql >/dev/null 2>&1 || die "psql client required in --no-compose mode"
-		psql "${ESHU_POSTGRES_DSN}" -tA -c "${sql}" 2>/dev/null
-	fi
-}
+# Extracted to scripts/lib/golden-corpus-host-helpers.sh (defines build_bin,
+# start_bg, pg) to keep this orchestrator under the 500-line cap.
+# shellcheck source=scripts/lib/golden-corpus-host-helpers.sh
+. "${repo_root}/scripts/lib/golden-corpus-host-helpers.sh"
 
 # ----------------------------------------------------------------------------
 log "stage minimal corpus (${#corpus_fixtures[@]} repos)"
-# Copy (not symlink) each fixture: the filesystem discovery walker treats each
-# immediate child of ESHU_FILESYSTEM_ROOT as a repo and does not follow symlinks,
-# so symlinked fixtures collapse to a single scope and break cross-repo edges.
-for fixture in "${corpus_fixtures[@]}"; do
-	src="${repo_root}/tests/fixtures/ecosystems/${fixture}"
-	[[ -d "${src}" ]] || die "corpus fixture not found: ${src}"
-	cp -R "${src}" "${corpus_dir}/${fixture}"
-	# deployable-config needs a git repo so localGitRefs can discover tags
-	# for the B-12 query_shape.http branches endpoint assertion.
-		if [[ "${fixture}" = "deployable-config" ]]; then
-		git -C "${corpus_dir}/${fixture}" -c init.defaultBranch=main init >/dev/null 2>&1
-		git -C "${corpus_dir}/${fixture}" config user.email "gate@eshu.local" >/dev/null 2>&1
-		git -C "${corpus_dir}/${fixture}" config user.name "Golden Gate" >/dev/null 2>&1
-		# submodule PINS_SUBMODULE non-vacuous coverage (issue #5420 Phase 5): a
-		# pinned submodule SHA is a git gitlink (tree mode 160000), which only
-		# exists in a real git tree -- unlike CODEOWNERS, a plain file copy is not
-		# enough. Declare the submodule in .gitmodules pointing at the in-corpus
-		# deployable-source repository (its URL normalizes, via
-		# repositoryidentity with ESHU_GITHUB_ORG=acme below, to the exact same
-		# repo_id the filesystem-synthesized "https://github.com/acme/deployable-source.git"
-		# remote produces for that fixture's own Repository node -- see
-		# go/internal/collector/submodule/resolve.go), then register the gitlink
-		# via `git update-index --cacheinfo` rather than a real nested checkout:
-		# gitSubmoduleGitlinkSHA (go/internal/collector/git_submodule_pinned_sha.go)
-		# reads the pin from the committed tree via `git ls-tree HEAD --
-		# <path>`, never the working directory, so no submodule checkout is
-		# needed for the pin to resolve.
-		printf '[submodule "vendor/deployable-source"]\n\tpath = vendor/deployable-source\n\turl = https://github.com/acme/deployable-source.git\n' \
-			>"${corpus_dir}/${fixture}/.gitmodules"
-		git -C "${corpus_dir}/${fixture}" add -A >/dev/null 2>&1
-		git -C "${corpus_dir}/${fixture}" update-index --add --cacheinfo \
-			160000,5420542054205420542054205420542054205420,vendor/deployable-source >/dev/null 2>&1
-		git -C "${corpus_dir}/${fixture}" commit -m "initial" >/dev/null 2>&1
-		# Annotated tag for peeled-SHA coverage.
-		git -C "${corpus_dir}/${fixture}" tag -a v1.0.0-annotated -m "annotated tag" HEAD >/dev/null 2>&1
-		# Lightweight tag.
-		git -C "${corpus_dir}/${fixture}" tag lightweight HEAD >/dev/null 2>&1
-	fi
-done
-printf 'staged: %s\n' "${corpus_fixtures[*]}"
+# Extracted to scripts/lib/golden-corpus-stage.sh (defines
+# stage_minimal_corpus) to keep this orchestrator under the 500-line cap.
+# shellcheck source=scripts/lib/golden-corpus-stage.sh
+. "${repo_root}/scripts/lib/golden-corpus-stage.sh"
+stage_minimal_corpus
 
 log "build host binaries"
 build_bin bootstrap-index

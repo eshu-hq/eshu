@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 88 gates. A row with no local command is
+The registry currently defines 89 gates. A row with no local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
 a laptop does not have); a row marked as an alias shares its check with the
 gate its reason names, under a different git hook stage.
@@ -74,7 +74,8 @@ gate its reason names, under a different git hook stage.
 | `govulncheck` | govulncheck (Go vulnerability database) | security | pre-push | true | `bash scripts/dev/precommit-go.sh govulncheck` | security-scan.yml / govulncheck (Go vulnerability database) | 3 path(s): go/go.mod, go/go.sum, go/**/*.go |
 | `nancy` | nancy (Sonatype dep CVE + license scan) | security | pre-push | false | `bash scripts/dev/precommit-go.sh nancy` | security-scan.yml / nancy (Sonatype dep CVE + license scan) | 2 path(s): go/go.mod, go/go.sum |
 | `trivy-fs` | Trivy filesystem scan (vuln + secret + config) | security | pre-push | false | `bash scripts/dev/trivy-fs-local.sh` | security-scan.yml / Trivy filesystem scan (vuln + secret + config) | 5 path(s): Dockerfile, deploy/**, go/go.mod, … |
-| `golden-corpus-gate` | Golden Corpus Gate (Docker) | exactness | ci-heavy | true | `bash scripts/verify-golden-corpus-gate.sh` | golden-corpus-gate.yml / corpus-gate | 10 path(s): go/internal/collector/**, go/internal/parser/**, go/internal/projector/**, … |
+| `golden-corpus-mirror` | Golden corpus gate mirror (static) | hygiene | pre-pr | true | `bash scripts/test-verify-golden-corpus-gate.sh` | golden-corpus-gate.yml / static mirror | 4 path(s): scripts/verify-golden-corpus-gate.sh, scripts/test-verify-golden-corpus-gate.sh, scripts/lib/golden-corpus-*.sh, … |
+| `golden-corpus-gate` | Golden Corpus Gate (Docker) | exactness | ci-heavy | true | `bash scripts/verify-golden-corpus-gate.sh` | golden-corpus-gate.yml / corpus-gate | 14 path(s): go/internal/collector/**, go/internal/parser/**, go/internal/projector/**, … |
 | `replay-coverage-gate` | C-1/C-8/C-9/C-10/C-13 Replay Coverage Gate | exactness | pre-pr | true | `bash scripts/verify-replay-coverage-gate.sh --blocking` | replay-coverage-gate.yml / coverage-gate (blocking) | 32 path(s): go/cmd/replay-coverage-gate/**, go/cmd/eshu/**, go/internal/replaycoverage/**, … |
 | `ifa-contract-layer` | Ifa contract-layer Odù skeleton | exactness | pre-pr | true | `cd go && go test ./internal/ifa ./cmd/ifa -count=1` | static-contract-gates.yml / Verify Ifa contract-layer gate | 9 path(s): go/internal/ifa/**, go/cmd/ifa/**, go/internal/synth/gcp/**, … |
 | `ifa-materialized-edge-coverage` | Ifa materialized-edge exhaustiveness gate (#5351) | exactness | pre-pr | true | `cd go && go test ./internal/ifa -run 'TestMaterializedEdge\|TestSQLRelationship\|TestSQLFamily' -count=1 && go test ./internal/reducer -run TestMaterializedEdgeFamilies -count=1` | static-contract-gates.yml / Verify Ifa contract-layer gate | 12 path(s): go/internal/ifa/materialized_edges*.go, go/internal/ifa/sql_relationship_odu*.go, go/internal/reducer/materialized_edge_families.go, … |

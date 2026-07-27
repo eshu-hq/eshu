@@ -180,6 +180,98 @@ for the failure class the discipline prevents, the historical incidents
 "Unreleased" summarizes the four artifacts and the cross-link to the
 historical incidents.
 
+### Prove The Theory First
+
+The root `AGENTS.md`/`CLAUDE.md` mandates proving a performance or behavior
+theory with the cheapest possible shim, against representative data, BEFORE
+writing the real change or dispatching an executor to build it — see that
+gate's text for scope (hot-path Cypher/graph writes, Postgres SQL, schema
+DDL/indexes, reducer projection/materialization, queue/lease behavior, or any
+repo-scale performance contract) and the executor-dispatch/PR-opening bar it
+sets. This is the proof shape that gate requires:
+
+A valid proof isolates the theory against representative data — ideally the
+worst-case partition or dataset, not the average — and always shows the win:
+OLD shape versus NEW shape measured on the same data (for example
+`EXPLAIN ANALYZE` timings, `PROFILE` db-hits, or benchmark ns/op). The result
+proof then depends on whether the change is meant to alter behavior:
+
+- Output-preserving change (an optimization or rewrite whose results are meant
+  to stay identical): also show exact-equivalence — the NEW shape returns
+  identical results to the OLD shape (a symmetric set-difference of `0/0`,
+  matching row counts, or identical output), so the speedup is not bought by
+  changing the answer.
+- Behavior change (a correctness or accuracy fix where the old path returned
+  wrong graph/query/deployment truth): prove the intended delta instead — the
+  NEW output matches the corrected expectation via a failing-then-green
+  regression test or an explicit expected-diff, never identity with the old
+  wrong output.
+
+A theory that is disproven is a saved implementation, not a failure: record the
+result and pick the next candidate. A change of this kind MUST NOT be created,
+accepted, pushed, or merged unless the theory proof — the shim/`EXPLAIN`/`PROFILE`/
+benchmark commands actually run, their before/after numbers, and the
+equivalence or expected-delta check — is recorded alongside the finished
+change's local proof. PRs MUST NOT be accepted on the expectation that a
+rewrite is faster; the number and the equivalence MUST be shown.
+
+### Evidence Capture Pitfalls
+
+Two rules about how proof is captured, both learned from real false greens:
+
+- **Capture exit codes directly.** `cmd; echo $?` — NEVER `$?` after a pipe.
+  `cmd | tail; echo $?` reports **tail's** status, not `cmd`'s, so a failing gate
+  reads as exit 0. This shipped a security-gate "exit 0" claim into a commit
+  message when `npm audit` had actually exited 1. When output must be trimmed,
+  redirect first (`cmd >out.txt 2>&1; echo $?`) and read the file afterward.
+- **Cited verification MUST postdate the final edit.** Re-run the full selected
+  set after the LAST change, not the subset judged relevant to it. A config value
+  changed late in a review cycle broke the test asserting that value; only the
+  package touched most recently was re-run, and the commit message reported the
+  untouched suite green. If a claim was measured before the last edit, it is not
+  evidence — it is a memory.
+
+### Live-Gate Serialization And Contention
+
+`verify-golden-corpus-gate.sh` binds fixed host ports (Postgres, api, mcp) and a
+compose project derived from the worktree name. Two runs from different
+worktrees do not fail cleanly on a port bind — they contend for CPU and Docker
+I/O, and the loser surfaces as a drain that never reaches terminal
+(`fact_work_items_residual: residual=1 (dead_letter=1)`), which reads exactly
+like a real reducer defect and costs a long investigation in the wrong place.
+The script now holds a cross-worktree mutex (`scripts/lib/live-gate-lock.sh`)
+and refuses to start alongside a live run. That mutex covers THAT script,
+within one clone: port disjointness is NOT safety, since the contention is CPU
+and Docker I/O and another Docker-heavy gate starves it even on different
+ports, and a second clone of the repo has its own lock. When dispatching a
+fleet, serialize the live gates and hand the machine over explicitly rather
+than letting agents self-schedule — this is why subagents/teams MUST NOT each
+run `make pre-pr`.
+
+Before declaring an intermittent gate failure a flake, MUST rule out resource
+contention first: check the load average and what else is running
+(`pgrep -f 'make pre-pr|verify-golden'`). Contention shows up as false
+FAILURES, not as false passes — so a gate that failed under load has proven
+nothing, while one that passed under load is usually trustworthy (the
+exception being an assertion whose own timing budget the load inflated).
+Re-running without changing the conditions is not evidence.
+
+### Duplicate-Work And Formatter-Drift Guards
+
+Before starting work on a newly filed issue, MUST check whether it is already
+being fixed: search open PRs and recently merged commits for the same root
+cause. An entire dependency migration was rebuilt in this repo while an
+equivalent fix was already in flight.
+
+When a change touches files carrying **pre-existing formatter drift**, isolate
+the reformat in its own commit. The staged-file format hooks only inspect what
+is staged, so old drift stays invisible until an unrelated change touches those
+files — and then a one-line-per-file edit arrives as thousands of reformatted
+lines. Do NOT run the formatter across the whole changed set and commit it as
+one blob; commit the pure reformat first (stating that it is formatting-only
+and verifiable with `--list-different`), then the real change on top. That
+keeps the reviewable diff reviewable. Never `--no-verify` past a format hook.
+
 ## API, MCP, And Query Reads
 
 Potentially expensive reads must be scoped, cancellable, observable, and cheap

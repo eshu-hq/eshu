@@ -167,6 +167,38 @@ Every change must be labeled honestly:
 Do not present handler-only wins as throughput wins unless wall-clock evidence
 supports it.
 
+### "Flake" is a diagnosis, not a shrug
+
+Before labeling an intermittent gate or test failure a flake, rule out **resource
+contention** — it is the most common cause and the easiest to miss, because the
+symptom points somewhere else entirely.
+
+```bash
+uptime                                   # load average
+pgrep -fl 'make pre-pr|verify-golden'    # concurrent gates (they bind fixed ports)
+df -h /System/Volumes/Data               # build-cache exhaustion
+```
+
+The asymmetry that makes this tractable: **contention shows up as false FAILURES,
+not as false passes.** So a gate that failed under load has proven nothing, while
+one that passed under load is usually trustworthy — the exception being an
+assertion whose own timing budget the load inflated, which is why a timing gate
+still deserves a quiet re-run on an idle machine. Re-running a contended failure
+without changing the conditions produces no new information, however many times
+it is repeated.
+
+Worked example. A live golden-corpus run failed twice with
+`fact_work_items_residual: residual=1 (dead_letter=1)` after the drain timeout —
+a signature that reads as a reducer or queue defect and invites a deep,
+expensive, wrong investigation. It passed on the third run. The variable was not
+the code, which was byte-identical throughout: three full-module gates were
+running concurrently at load ~30. Serializing them made it pass every time.
+
+A dead-lettered item is a real failure of *something*. Ask what changed between
+the passing and failing runs, and include the machine in "what changed". If the
+only difference is load, the finding is contention — record that, fix the
+scheduling, and do not file a phantom reducer bug.
+
 ## ADR Evidence
 
 Update the active ADR with:

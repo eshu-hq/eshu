@@ -109,31 +109,11 @@ executor, land production code, or open a PR on a theory that has not been
 proven, and MUST stop any executor already dispatched on an unproven theory
 until the proof lands.
 
-A valid proof isolates the theory against representative data — ideally the
-worst-case partition or dataset, not the average — and always shows the win:
-OLD shape versus NEW shape measured on the same data (for example
-`EXPLAIN ANALYZE` timings, `PROFILE` db-hits, or benchmark ns/op). The result
-proof then depends on whether the change is meant to alter behavior:
-
-- Output-preserving change (an optimization or rewrite whose results are meant
-  to stay identical): also show exact-equivalence — the NEW shape returns
-  identical results to the OLD shape (a symmetric set-difference of `0/0`,
-  matching row counts, or identical output), so the speedup is not bought by
-  changing the answer.
-- Behavior change (a correctness or accuracy fix where the old path returned
-  wrong graph/query/deployment truth): prove the intended delta instead — the
-  NEW output matches the corrected expectation via a failing-then-green
-  regression test or an explicit expected-diff, never identity with the old
-  wrong output.
-
-A theory that is disproven is a saved implementation, not a failure: record the
-result and pick the next candidate. A change of this kind MUST NOT be created,
-accepted, pushed, or merged unless the theory proof — the shim/`EXPLAIN`/`PROFILE`/
-benchmark commands actually run, their before/after numbers, and the
-equivalence or expected-delta check — is recorded alongside the finished
-change's local proof. PRs MUST NOT be
-accepted on the expectation that a rewrite is faster; the number and the
-equivalence MUST be shown. This complements [Evidence Rules](#evidence-rules) and
+The required proof shape — OLD-vs-NEW on representative data, the
+output-preserving-vs-behavior-change equivalence split, and the
+disproven-theory/PR-acceptance rules — is in
+[Agent Engineering Guide](docs/internal/agent-guide.md#prove-the-theory-first);
+it complements [Evidence Rules](#evidence-rules) and
 [Serialization Is Not A Fix](#serialization-is-not-a-fix).
 
 ## Runtime Shape
@@ -345,6 +325,11 @@ skills are active.
 Agents MUST NOT say work is ready without listing the commands or runtime proof
 actually run.
 
+MUST capture exit codes directly (`cmd; echo $?`, never `$?` after a pipe) and
+MUST cite verification that postdates the final edit, not an earlier run — see
+[Agent Engineering Guide](docs/internal/agent-guide.md#evidence-capture-pitfalls)
+for the false-green incidents both rules were learned from.
+
 PRs MUST NOT be accepted on explanation alone. Code changes MUST prove the code
 works with focused tests or an integration gate, and runtime-affecting changes
 MUST include performance proof or a no-regression measurement for the touched
@@ -473,7 +458,18 @@ These make the marathon multi-PR workflow reliable without re-prompting:
 - Only the **orchestrator** runs `make pre-pr`, exactly once, immediately before
   the intended push. Subagents/teams MUST NOT each run `make pre-pr` — the full
   gate is expensive, and running it per-agent is wasted CPU. Subagents run only
-  the focused verification for their surface and paste it in the handoff.
+  the focused verification for their surface and paste it in the handoff. This
+  is not only about cost: `verify-golden-corpus-gate.sh` binds fixed host ports
+  and now holds a cross-worktree mutex for that reason — see
+  [Agent Engineering Guide](docs/internal/agent-guide.md#live-gate-serialization-and-contention)
+  for the failure signature and the serialization/contention rules that follow
+  from it, including checking load before calling an intermittent failure a
+  flake.
+- MUST check open PRs and recent commits for the same root cause before
+  starting work on a newly filed issue, and MUST isolate a pure formatter-drift
+  reformat into its own commit rather than blending it with a real change — see
+  [Agent Engineering Guide](docs/internal/agent-guide.md#duplicate-work-and-formatter-drift-guards)
+  for the incidents both rules were learned from.
 - Before claiming a PR merge-ready: the PR **title AND description** must both be
   current for the final diff (a reworked approach needs a reworked title, not
   just a body), and the description MUST include the before/after evidence the

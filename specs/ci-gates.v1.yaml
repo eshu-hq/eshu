@@ -1373,6 +1373,28 @@ gates:
 
   # ─── CI-ONLY (local==null) ─────────────────────────────────────────────────
 
+  # The gate itself is ci-heavy, so its mirror test was never selected in the
+  # local lane: an edit to the mutex ran no local gate at all. This pre-pr
+  # hygiene gate runs the mirror (no Docker, no ports) so the local half of that
+  # gap is closed too, not just CI.
+  - id: golden-corpus-mirror
+    name: Golden corpus gate mirror (static)
+    category: hygiene
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/verify-golden-corpus-gate.sh"
+      - "scripts/test-verify-golden-corpus-gate.sh"
+      - "scripts/lib/golden-corpus-*.sh"
+      - "scripts/lib/live-gate-lock.sh"
+    local:
+      command: "bash scripts/test-verify-golden-corpus-gate.sh"
+      test_command: ""
+    ci:
+      workflow: "golden-corpus-gate.yml"
+      job: "static mirror"
+    requirements: []
+    ci_only_reason: ""
   - id: golden-corpus-gate
     name: Golden Corpus Gate (Docker)
     category: exactness
@@ -1389,6 +1411,12 @@ gates:
       - "sdk/go/factschema/**"
       - "testdata/golden/**"
       - "testdata/cassettes/**"
+      # The orchestrator and the libs it sources, including the live-gate mutex:
+      # an edit to any of them changes what this gate does.
+      - "scripts/verify-golden-corpus-gate.sh"
+      - "scripts/test-verify-golden-corpus-gate.sh"
+      - "scripts/lib/golden-corpus-*.sh"
+      - "scripts/lib/live-gate-lock.sh"
     local:
       command: "bash scripts/verify-golden-corpus-gate.sh"
       test_command: "bash scripts/test-verify-golden-corpus-gate.sh"
