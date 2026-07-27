@@ -113,8 +113,9 @@ artifact reachability (`image_sbom`, `image_os_package`, `deployed_image`,
 ## What else moves when the promotion is withheld
 
 `RuntimeReachability` is read by more than the field itself, so withholding the
-promotion cascades. Three consequences, all deliberate, all on persisted
-wire-visible fields.
+promotion cascades. Four consequences, all deliberate: three on persisted
+wire-visible fields, and one on query behavior, because one of those fields is
+itself a query input.
 
 ### The reachability envelope stops saying "reachable"
 
@@ -139,9 +140,7 @@ evidence the finding actually has. Pinned in
 that the state is no longer `reachable` and that the source is no longer
 `runtime_or_sbom`, and fails under `main`'s gate.
 
-### Priority moves through two channels, not one
-
-## Withholding the promotion also moves priority
+### Priority moves, on two different populations
 
 There is a second, deliberate delta, and it is worth stating because it is not
 obvious from the change itself.
@@ -165,11 +164,26 @@ The fixture's CVSS is deliberately low. At 9.1 both sides saturate at
 100/critical and the delta is invisible — which is why it went unnoticed until
 the final review round.
 
-There is a second priority channel, because
-`supplyChainImpactPriorityContributions` also switches on
-`Reachability.State`/`.Source`, which the section above shows this change moves.
-So priority shifts both directly (the `image_sbom` contributions) and
-indirectly (through the derived reachability state).
+There is a second priority channel, and it applies to a **different**
+population. `supplyChainImpactPriorityContributions` also switches on
+`Reachability.State`/`.Source`, but none of those cases match
+`source=runtime_or_sbom` — the value both `image_sbom` and `deployed_image` map
+to. So for SBOM-derived findings this channel contributes zero on both sides,
+and the 40-point delta above is entirely channel one. (15 + 25 = 40 = 95 - 55,
+which is the arithmetic check that the second channel is not involved.)
+
+Where the second channel does move is findings anchored by a code-reachability
+source — govulncheck, the JS/TS parser, or SCIP — because for those the state
+genuinely differs between the two gates. It is signed, not uniformly positive:
+
+- a `not_called` govulncheck finding now takes the `reachability_not_called`
+  penalty (**-20**) that `main`'s promotion to `deployed_image` had erased;
+- a symbol-reachable govulncheck or JS/TS finding now takes
+  `reachable_code_evidence` (**+20**), which the promotion had likewise erased.
+
+Both directions are the same correction: `main` overwrote a finding's real
+code-reachability state with a deployment claim, and the priority followed the
+overwrite rather than the evidence.
 
 `priority_score`, `priority_bucket`, and `priority_reason_codes` are persisted
 and wire-visible, so this is a real contract change on a triage field, not an
@@ -179,6 +193,29 @@ now keeps the anchor it actually has. But it is a second delta, so it is
 declared here and pinned by
 `TestBuildSupplyChainImpactFindingsDeclaredOnlyKeepsImageSBOMPriority`, which
 fails under `main`'s gate.
+
+### Priority is a query input, so page membership moves too
+
+`priority_score` and `priority_bucket` are not only reported, they are read back
+by the findings route, so shifting them shifts what a query returns:
+
+- `priority_bucket` and `min_priority_score` are documented filters, and either
+  can be the sole anchor of a request. The fixture above moves `55/medium` to
+  `95/critical`, so `?priority_bucket=medium` stops returning that row and
+  `?priority_bucket=critical` starts returning it. That is page membership, not
+  ordering.
+- `sort=priority_score_desc|asc` pages with a keyset cursor on `priority_score`,
+  so both the order and the page boundary move.
+- Canonical de-duplication picks the winner with
+  `ROW_NUMBER() OVER (PARTITION BY canonical_key ORDER BY priority_score DESC, ...)`,
+  mirrored in the materialized winners store, so a large enough shift can change
+  which duplicate fact is served as the canonical row.
+- The aggregates route's `by_priority_bucket` counts move with the buckets.
+
+No code change is involved — this is the existing read model doing what it
+already does with a value this change moves. It is recorded because a reader
+checking whether a filtered query still returns the same rows deserves to know
+the answer is no.
 
 ## The payload field is additive-optional, not required
 
@@ -286,7 +323,7 @@ claim that the technique is exhaustive.
 | `normalize` trims before comparing | `TrimSpace` removed | `TestNormalizeSupplyChainEnvironmentEvidenceTrimsPadding` |
 | caller requires a non-empty `SubjectDigest` | guard deleted | `...WithoutSubjectDigestDoesNotPromote` |
 | image_sbom priority survives a declared-only deployment | gate reverted to `main`'s | `...DeclaredOnlyKeepsImageSBOMPriority` |
-| declared-only stops labelling a finding reachable | gate reverted to `main`'s | `...Branch3DeclaredOnlyDoesNotPromote...` |
+| declared-only stops labelling a finding reachable | gate reverted to `main`'s | `...Branch3DeclaredOnlyDoesNotPromote...` (documents the consequence; the promotion assertion in the same test is what the mutant hits first) |
 
 Six of these rows exist only because the audit found them uncovered; the rest
 confirmed guards that were already in place.

@@ -983,9 +983,18 @@ evidence supports. This also reaches the SARIF export as
 `eshu.reachabilityState`.
 
 Withholding the promotion also affects `priority_score`, `priority_bucket`, and
-`priority_reason_codes` for SBOM-derived findings, through two channels: the
-`sbom_image_evidence` and `runtime_reachable` contributions described below, and
-the reachability-state contributions that shift with the block above. The `sbom_image_evidence` and
+`priority_reason_codes`. SBOM-derived findings keep the `sbom_image_evidence`
+and `runtime_reachable` contributions, which require
+`runtime_reachability=image_sbom` exactly, so they score higher than before.
+Findings anchored by a code-reachability source (govulncheck, the JS/TS parser,
+or SCIP) move in either direction instead, because their reachability state is
+no longer overwritten by the deployment claim: a `not_called` finding takes its
+penalty again, and a symbol-reachable one takes its bonus.
+
+Because `priority_bucket` and `min_priority_score` are filters and
+`priority_score` drives sorting, keyset paging, and canonical de-duplication, a
+filtered or sorted query over affected findings can return a different page than
+it did before. The `sbom_image_evidence` and
 `runtime_reachable` priority contributions require
 `runtime_reachability=image_sbom` exactly, so a finding held at `image_sbom`
 keeps both, where one promoted to `deployed_image` loses them. An SBOM-derived
