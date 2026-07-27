@@ -117,5 +117,50 @@ else
 	no "guard 2 should pass again once the mutated registry is restored"
 fi
 
+# --- guard 2 non-vacuity proof (#5841 P1): a NEW negation the filter does NOT
+# carry today — not one of the five hard-coded shapes a prior version of this
+# checker enumerated by name (docs/*, mkdocs.yml, .agents/*, .github/*.md,
+# *.md) — added IDENTICALLY to all three code: filter copies (byte-identity
+# stays intact, so guard 1 stays green) that happens to swallow an EXISTING
+# code-gated gate's trigger whole: '!go/internal/query/**' fully covers
+# query-plan-regression's "go/internal/query/**" trigger (ci.job
+# "verify-contracts", code-gated in test.yml). A matcher hard-coded to
+# today's five negation cases cannot see this — "go/internal/query/**"
+# matches none of them and falls through to "not swallowed", the exact false
+# "ok" the review flagged. The registry-driven matcher instead parses
+# whatever negations the filter actually carries, so it catches this without
+# needing a code change for the new negation shape. ---
+for target_wf in test.yml security-scan.yml mcp-schema-drift.yml; do
+	python3 - "${tmp}/.github/workflows/${target_wf}" <<'PY'
+import sys
+path = sys.argv[1]
+with open(path) as f:
+	content = f.read()
+needle = "              - '!.agents/**'\n"
+assert content.count(needle) == 1, "expected exactly one !.agents/** negation line"
+mutated = needle + "              - '!go/internal/query/**'\n"
+with open(path, "w") as f:
+	f.write(content.replace(needle, mutated, 1))
+PY
+done
+if out="$(run_scratch 2>&1)"; then
+	no "guard 2 should fail when a NEW negation, added identically to all three filters, swallows an existing code-gated trigger whole"
+else
+	if rg -qF "trigger 'go/internal/query/**' is swallowed by the code filter's own negations" <<<"${out}"; then
+		ok "guard 2 fails and names the swallowed trigger for a NEW negation not in the old hard-coded case list"
+	else
+		no "guard 2 failed for the wrong reason; got:"
+		printf '%s\n' "${out}" >&2
+	fi
+fi
+for target_wf in test.yml security-scan.yml mcp-schema-drift.yml; do
+	cp "${repo_root}/.github/workflows/${target_wf}" "${tmp}/.github/workflows/${target_wf}"
+done
+if run_scratch >/dev/null 2>&1; then
+	ok "guard 2 passes again after restoring all three filters"
+else
+	no "guard 2 should pass again once all three filters are restored"
+fi
+
 printf '\n%d passed, %d failed\n' "${pass}" "${fail}"
 [[ "${fail}" -eq 0 ]]

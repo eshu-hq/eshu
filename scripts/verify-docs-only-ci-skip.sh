@@ -107,32 +107,112 @@ registry_gated_triggers() {
 	' "${registry}"
 }
 
-# trigger_is_swallowed_by_negations <trigger> — true if EVERY path matching
-# <trigger> would be excluded by the code filter's current negations (docs/**,
-# a root-only *.md, mkdocs.yml, .github/**/*.md, .agents/**), meaning a gate
-# relying on that trigger would never see `code == 'true'`. This mirrors the
-# filter's own negation list, not a general glob-intersection solver — it is
-# exactly precise enough to catch the filter drifting out of sync with what the
-# registry's gated triggers assume.
-trigger_is_swallowed_by_negations() {
+# code_filter_negations <file> — the negation glob strings (leading '!'
+# stripped) in <file>'s code: filter block, in the order they appear, skipping
+# the base '**' positive entry. Parsed from the actual filter text rather than
+# a fixed list, so a negation ADDED to the filter later (e.g. a future
+# '!go/internal/query/**') is picked up automatically — a hard-coded case
+# statement here is exactly the shape of bug this script exists to catch: it
+# would silently stop checking new negations the day one is added, which is
+# worse than not checking at all because it still prints "ok".
+code_filter_negations() {
+	code_filter_block "$1" | awk '
+		/^[[:space:]]*- /{
+			line = $0
+			sub(/^[[:space:]]*- /, "", line)
+			gsub(/^'"'"'|'"'"'$/, "", line)
+			if (line == "**") next
+			if (substr(line, 1, 1) == "!") print substr(line, 2)
+		}
+	'
+}
+
+# trigger_root <trigger> — the longest literal path prefix of a trigger glob,
+# with any trailing "/**" or "/**/*.ext" wildcard tail stripped. Empty when the
+# trigger itself starts with a wildcard (e.g. a bare "*.md"), since such a
+# trigger has no fixed directory to compare against a directory-recursive
+# negation.
+trigger_root() {
 	local t="$1"
 	case "${t}" in
-	docs/*) return 0 ;;
-	mkdocs.yml) return 0 ;;
-	.agents/*) return 0 ;;
-	.github/*.md) return 0 ;;
-	*/*) return 1 ;;
-	*.md) return 0 ;;
+	*/\*\*) printf '%s' "${t%/\*\*}" ;;
+	*/\*\*/\**) printf '%s' "${t%%/\*\*/*}" ;;
+	*[*?]*) printf '' ;;
+	*) printf '%s' "${t}" ;;
 	esac
+}
+
+# negation_swallows_trigger <negation> <trigger> — true if EVERY path matching
+# <trigger> is excluded by the single <negation> glob (leading '!' already
+# stripped). Handles the three negation shapes the code: filter actually uses
+# (see the in-file filter comment): a directory-recursive "<dir>/**", a bare
+# root-anchored extension pattern like "*.md" (dorny/paths-filter treats a
+# slash-free pattern as top-level-only — the #5818 root cause), and an exact
+# literal path. This is not a general glob-intersection solver — it is exactly
+# precise enough to catch a registry trigger the filter's real negations would
+# swallow, including a negation the filter does not carry today.
+negation_swallows_trigger() {
+	local n="$1" t="$2"
+
+	# Exact literal match: neither side carries a glob metacharacter.
+	if [[ "${n}" != *[*?]* && "${t}" == "${n}" ]]; then
+		return 0
+	fi
+
+	# Directory-recursive negation "<dir>/**" swallows any trigger rooted at
+	# or under <dir>.
+	case "${n}" in
+	*/\*\*)
+		local ndir troot
+		ndir="${n%/\*\*}"
+		troot="$(trigger_root "${t}")"
+		if [[ -n "${troot}" ]] && { [[ "${troot}" == "${ndir}" ]] || [[ "${troot}" == "${ndir}/"* ]]; }; then
+			return 0
+		fi
+		;;
+	esac
+
+	# Bare root-anchored extension negation (no "/", e.g. "*.md") swallows the
+	# bare pattern itself, or a literal top-level trigger sharing the suffix.
+	if [[ "${n}" != */* && "${n}" == \**.* ]]; then
+		local suffix="${n#\*}"
+		if [[ "${t}" == "${n}" ]]; then
+			return 0
+		fi
+		if [[ "${t}" != */* && "${t}" != *[*?]* && "${t}" == *"${suffix}" ]]; then
+			return 0
+		fi
+	fi
+
 	return 1
 }
 
-# --- build.yml: pure binary build, no docs-relevant job — skip the whole run. ---
+# trigger_is_swallowed_by_negations <trigger> <negation...> — true if EVERY
+# path matching <trigger> would be excluded by at least one of the given
+# negation globs, meaning a gate relying on that trigger would never see
+# `code == 'true'`.
+trigger_is_swallowed_by_negations() {
+	local t="$1"
+	shift
+	local n
+	for n in "$@"; do
+		if negation_swallows_trigger "${n}" "${t}"; then
+			return 0
+		fi
+	done
+	return 1
+}
+
+# --- build.yml: pure binary build, no docs-relevant job — skip the whole run.
+# .agents/** is asserted explicitly (not just docs/**, *.md): before this gate
+# ratcheted it in, docs/public/reference/local-testing.md claimed build.yml
+# skipped an .agents/**-only PR while its paths-ignore never listed the
+# pattern — nothing here checked that claim, so it silently drifted false. ---
 b="${wf}/build.yml"
-if has "${b}" 'paths-ignore:' && has "${b}" "- 'docs/**'" && has "${b}" "- '*.md'"; then
-	ok "build.yml skips docs-only PRs (paths-ignore: docs/**, *.md)"
+if has "${b}" 'paths-ignore:' && has "${b}" "- 'docs/**'" && has "${b}" "- '*.md'" && has "${b}" "- '.agents/**'"; then
+	ok "build.yml skips docs-only PRs (paths-ignore: docs/**, *.md, .agents/**)"
 else
-	bad "build.yml has a pull_request paths-ignore covering docs/** and *.md"
+	bad "build.yml has a pull_request paths-ignore covering docs/**, *.md, and .agents/**"
 fi
 
 # --- security-scan.yml: keep the secret scan on, gate the Go scanners. ---
@@ -278,12 +358,21 @@ gated_jobs_for() {
 	mcp-schema-drift.yml) printf '%s\n' "Verify ReadOnlyTools count|Full MCP test suite" ;;
 	esac
 }
+# Negations are parsed from test.yml's own code: filter (this check runs
+# regardless of whether guard 1 above passed, so it evaluates against ONE
+# concrete filter and lets a genuine drift between the three copies surface
+# only as guard 1's failure, not a double report here).
+code_negations=()
+while IFS= read -r neg; do
+	[[ -z "${neg}" ]] && continue
+	code_negations+=("${neg}")
+done < <(code_filter_negations "${t}")
 trigger_fail=0
 for workflow_name in test.yml security-scan.yml mcp-schema-drift.yml; do
 	IFS='|' read -r -a job_names <<<"$(gated_jobs_for "${workflow_name}")"
 	while IFS= read -r trig; do
 		[[ -z "${trig}" ]] && continue
-		if trigger_is_swallowed_by_negations "${trig}"; then
+		if trigger_is_swallowed_by_negations "${trig}" "${code_negations[@]}"; then
 			bad "${workflow_name}: a code-gated job's registry trigger '${trig}' is swallowed by the code filter's own negations — that gate can never fire from a PR touching only that path"
 			trigger_fail=1
 		fi

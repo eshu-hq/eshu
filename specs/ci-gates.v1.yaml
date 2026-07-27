@@ -1079,6 +1079,38 @@ gates:
     ci_only_reason: ""
     hook_id: docs-build-changed
 
+  - id: docs-only-ci-skip
+    name: Docs-only CI skip wiring (#5818 regression guard)
+    category: hygiene
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - ".github/workflows/build.yml"
+      - ".github/workflows/test.yml"
+      - ".github/workflows/security-scan.yml"
+      - ".github/workflows/mcp-schema-drift.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "scripts/verify-docs-only-ci-skip.sh"
+      - "scripts/test-verify-docs-only-ci-skip.sh"
+    local:
+      command: "bash scripts/verify-docs-only-ci-skip.sh"
+      test_command: "bash scripts/test-verify-docs-only-ci-skip.sh"
+    ci:
+      workflow: test.yml
+      job: "docs-helm-hygiene"
+    requirements: []
+    ci_only_reason: ""
+    # #5841 follow-up: verify-docs-only-ci-skip.sh existed and already ran in
+    # CI (docs-helm-hygiene), but neither it nor its test mirror
+    # (scripts/test-verify-docs-only-ci-skip.sh) had a registry entry, so the
+    # mutation-proven regression guards it added were only exercised when a
+    # human ran the mirror by hand. Registering the gate here does two things
+    # at once: it gives the verifier the same registry citizenship every other
+    # CI-wired script has, AND it gives its test_command a place to be picked
+    # up by the local gate selector — the actual CI wiring for the mirror is
+    # the docs-helm-hygiene step in test.yml running both scripts in sequence
+    # (the parser-relationship-kit pattern: test mirror, then the real check).
+
   # ─── FRONTEND ──────────────────────────────────────────────────────────────
 
   - id: frontend-format-changed

@@ -358,7 +358,9 @@ jobs:
         run: scripts/ci/install-apt-packages.sh ripgrep
 
       - name: Verify docs-only CI carve-out wiring
-        run: scripts/verify-docs-only-ci-skip.sh
+        run: |
+          scripts/test-verify-docs-only-ci-skip.sh
+          scripts/verify-docs-only-ci-skip.sh
 
       - name: Set up Helm
         uses: azure/setup-helm@v5.0.0
