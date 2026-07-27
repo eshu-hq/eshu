@@ -942,6 +942,23 @@ anchors. When that correlation lacks explicit `service_id` or `workload_id`
 anchors, the row reports `service/workload catalog anchor missing` instead of
 saying service-catalog correlation evidence is absent.
 
+`environment_evidence` (issue #5426) is an object keyed by each name in
+`environments[]`, valued `deploy_event` or `declared`: `deploy_event` means a
+`ci.deployment_event` observed at the deploying run's commit corroborated that
+environment; `declared` means only the CI-declared workflow job gate did, with
+no deployment-event corroboration. When two deployments report the same
+environment name with different evidence states, `deploy_event` always wins.
+Rows written before #5426 landed report an empty object rather than a
+fabricated value. This field also tightens `runtime_reachability`/deployment
+promotion: a `cicd_run_correlation` deployment that only links to a finding
+through repository plus environment plus an operational anchor (no digest or
+image-ref agreement with the finding's own artifact identity) can promote the
+finding to `deployed_image` only when that environment's evidence is
+`deploy_event` — a declared-only environment link is not by itself proof that
+the vulnerable artifact was deployed. Deployments that match by exact digest
+or image-ref equality are artifact-identity-anchored and are unaffected by
+this distinction.
+
 ### Remediation (Safe Upgrade)
 
 Each finding row and the explain payload also carry a `remediation` block

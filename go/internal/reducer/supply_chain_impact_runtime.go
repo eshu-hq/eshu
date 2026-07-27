@@ -53,6 +53,9 @@ func applySupplyChainRuntimeContext(
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, deployment.factID)
 		finding.EvidencePath = append(finding.EvidencePath, cicdRunCorrelationFactKind)
 		finding.Environments = append(finding.Environments, deployment.environment)
+		finding.EnvironmentEvidence = recordSupplyChainEnvironmentEvidence(
+			finding.EnvironmentEvidence, deployment.environment, deployment.environmentEvidence,
+		)
 		if finding.RepositoryID == "" {
 			finding.RepositoryID = deployment.repositoryID
 		}
@@ -116,8 +119,20 @@ func supplyChainDeploymentMatchesFinding(
 	if finding.ImageRef != "" && deployment.imageRef == finding.ImageRef {
 		return true
 	}
+	// The free-text-environment branch is the only one where the deployment
+	// link is not anchored to an artifact identity (digest or image
+	// reference) -- it joins purely on repository plus an operational
+	// anchor, so a declared-only environment (the CI-declared workflow job
+	// gate alone, with no ci.deployment_event corroboration) must not carry
+	// the same weight as the digest/image-ref branches above. Requiring
+	// environmentEvidence == deploy_event here closes the over-promotion
+	// #5426 exists to fix: without it, a finding with a real digest could
+	// reach RuntimeReachability=deployed_image through a deployment that
+	// never referenced that digest at all.
 	if finding.RepositoryID != "" && deployment.repositoryID == finding.RepositoryID &&
-		deployment.environment != "" && supplyChainFindingHasOperationalAnchor(finding) {
+		deployment.environment != "" &&
+		deployment.environmentEvidence == supplyChainEnvironmentEvidenceDeployEvent &&
+		supplyChainFindingHasOperationalAnchor(finding) {
 		return true
 	}
 	return false

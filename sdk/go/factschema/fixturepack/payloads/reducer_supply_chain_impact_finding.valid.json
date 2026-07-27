@@ -13,6 +13,7 @@
   "deployment_ids": [],
   "detection_profile": "precise",
   "ecosystem": "npm",
+  "environment_evidence": {},
   "environments": [],
   "epss_percentile": "0.98",
   "epss_probability": "0.71",

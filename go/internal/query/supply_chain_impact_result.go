@@ -57,6 +57,10 @@ type SupplyChainImpactFindingResult struct {
 	DeploymentIDs         []string                                `json:"deployment_ids,omitempty"`
 	ServiceIDs            []string                                `json:"service_ids,omitempty"`
 	Environments          []string                                `json:"environments,omitempty"`
+	// EnvironmentEvidence records, per environment name in Environments,
+	// whether the strongest deployment evidence for that environment was
+	// "deploy_event" or "declared" (issue #5426). Omitted when empty.
+	EnvironmentEvidence map[string]string `json:"environment_evidence,omitempty"`
 	// CloudRuntimeResourceRefs names the observed cloud compute resources
 	// (running ECS task / image-package Lambda ARNs) whose running image digest
 	// matches this finding's subject digest — runtime-observed deployment

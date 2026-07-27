@@ -50,22 +50,26 @@ type SupplyChainImpactFinding struct {
 	DeploymentIDs         []string         `json:"deployment_ids"`
 	ServiceIDs            []string         `json:"service_ids"`
 	Environments          []string         `json:"environments"`
-	CatalogEntityRefs     []string         `json:"catalog_entity_refs"`
-	CatalogOwnerRefs      []string         `json:"catalog_owner_refs"`
-	DetectionProfile      string           `json:"detection_profile"`
-	MissingEvidence       []string         `json:"missing_evidence"`
-	EvidencePath          []string         `json:"evidence_path"`
-	EvidenceFactIDs       []string         `json:"evidence_fact_ids"`
-	CanonicalWrites       int              `json:"canonical_writes"`
-	SourceLayers          []string         `json:"source_layers"`
-	DependencyPath        []string         `json:"dependency_path,omitempty"`
-	DependencyDepth       *int             `json:"dependency_depth,omitempty"`
-	DirectDependency      *bool            `json:"direct_dependency,omitempty"`
-	Reachability          map[string]any   `json:"reachability,omitempty"`
-	Provenance            map[string]any   `json:"provenance,omitempty"`
-	Suppression           map[string]any   `json:"suppression,omitempty"`
-	SuppressionState      *string          `json:"suppression_state,omitempty"`
-	Remediation           map[string]any   `json:"remediation,omitempty"`
+	// EnvironmentEvidence records, per environment name in Environments,
+	// whether the strongest deployment evidence observed for that
+	// environment was "deploy_event" or "declared" (issue #5426).
+	EnvironmentEvidence map[string]string `json:"environment_evidence"`
+	CatalogEntityRefs   []string          `json:"catalog_entity_refs"`
+	CatalogOwnerRefs    []string          `json:"catalog_owner_refs"`
+	DetectionProfile    string            `json:"detection_profile"`
+	MissingEvidence     []string          `json:"missing_evidence"`
+	EvidencePath        []string          `json:"evidence_path"`
+	EvidenceFactIDs     []string          `json:"evidence_fact_ids"`
+	CanonicalWrites     int               `json:"canonical_writes"`
+	SourceLayers        []string          `json:"source_layers"`
+	DependencyPath      []string          `json:"dependency_path,omitempty"`
+	DependencyDepth     *int              `json:"dependency_depth,omitempty"`
+	DirectDependency    *bool             `json:"direct_dependency,omitempty"`
+	Reachability        map[string]any    `json:"reachability,omitempty"`
+	Provenance          map[string]any    `json:"provenance,omitempty"`
+	Suppression         map[string]any    `json:"suppression,omitempty"`
+	SuppressionState    *string           `json:"suppression_state,omitempty"`
+	Remediation         map[string]any    `json:"remediation,omitempty"`
 }
 
 // AWSCloudRuntimeDriftFinding is the schema-version-1 payload for

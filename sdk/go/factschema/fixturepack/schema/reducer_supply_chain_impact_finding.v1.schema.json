@@ -75,6 +75,12 @@
     "ecosystem": {
       "type": "string"
     },
+    "environment_evidence": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    },
     "environments": {
       "items": {
         "type": "string"
@@ -284,6 +290,7 @@
     "deployment_ids",
     "service_ids",
     "environments",
+    "environment_evidence",
     "catalog_entity_refs",
     "catalog_owner_refs",
     "detection_profile",
