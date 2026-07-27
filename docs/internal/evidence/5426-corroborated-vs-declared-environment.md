@@ -152,8 +152,10 @@ promoting an SBOM-derived finding to `deployed_image` silently erased 40 points:
 a *stronger* reachability tier cost the finding its priority. Holding it at
 `image_sbom` gives them back.
 
-Measured on the same fixture, HEAD's gate versus `main`'s `len(deployments) > 0`
-gate (applied via `go test -overlay`):
+Measured on the SBOM-only fixture — `sbomOnlyFindingFacts`, the one
+`TestBuildSupplyChainImpactFindingsDeclaredOnlyKeepsImageSBOMPriority` uses, not
+the branch-3 fixture measured in the section above — HEAD's gate versus `main`'s
+`len(deployments) > 0` gate (applied via `go test -overlay`):
 
 ```
 HEAD gate:  runtime_reachability="image_sbom"      priority_score=95  bucket="critical"
