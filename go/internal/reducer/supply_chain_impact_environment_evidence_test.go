@@ -154,15 +154,20 @@ func TestBuildSupplyChainImpactFindingsBranch3DeclaredOnlyDoesNotPromoteRuntimeR
 }
 
 // Test 3: the same branch-3-only deployment, now stamped
-// environment_evidence=deploy_event, still yields deployed_image and still
-// records the environment plus its evidence state.
+// environment_evidence=deploy_event, yields deployed_image and records the
+// environment plus its evidence state.
+//
+// The correlation row carries NO artifact digest here, which is the case
+// deploy_event is meant to rescue: the deployment asserts an environment
+// without asserting a contradicting artifact identity. Test 3b covers the case
+// where it does assert one.
 func TestBuildSupplyChainImpactFindingsBranch3DeployEventPromotesRuntimeReachability(t *testing.T) {
 	t.Parallel()
 
 	deployment := cicdRunCorrelationImpactFactWithEvidence(
 		"deploy-1",
-		testImpactOtherDigest,
-		testImpactOtherImageRef,
+		"",
+		"",
 		testImpactRepositoryID,
 		testImpactEnv,
 		string(CICDRunCorrelationExact),
@@ -178,6 +183,44 @@ func TestBuildSupplyChainImpactFindingsBranch3DeployEventPromotesRuntimeReachabi
 	if got.EnvironmentEvidence[testImpactEnv] != supplyChainEnvironmentEvidenceDeployEvent {
 		t.Fatalf("EnvironmentEvidence[%q] = %q, want %q", testImpactEnv, got.EnvironmentEvidence[testImpactEnv], supplyChainEnvironmentEvidenceDeployEvent)
 	}
+}
+
+// Test 3b: a deploy_event branch-3 deployment that names a digest CONTRADICTING
+// the finding's own subject must not promote.
+//
+// environment_evidence corroborates the environment, not the artifact. A
+// correlation row carries artifact_digest and environment_evidence together, so
+// "a deployment to prod happened" and "the thing deployed was a different
+// image" can both be true on one row. That is positive evidence the vulnerable
+// artifact did not ship, which must outrank the environment corroboration --
+// otherwise deploy_event becomes a blanket override that promotes findings
+// about images the deployment explicitly says were not deployed.
+//
+// The environment is still recorded: the deployment matched, so it keeps
+// contributing its environment and evidence hop. Only promotion is withheld.
+func TestBuildSupplyChainImpactFindingsBranch3DeployEventWithContradictingDigestDoesNotPromote(t *testing.T) {
+	t.Parallel()
+
+	deployment := cicdRunCorrelationImpactFactWithEvidence(
+		"deploy-1",
+		testImpactOtherDigest,
+		testImpactOtherImageRef,
+		testImpactRepositoryID,
+		testImpactEnv,
+		string(CICDRunCorrelationExact),
+		supplyChainEnvironmentEvidenceDeployEvent,
+	)
+	findings := BuildSupplyChainImpactFindings(branch3TestFindingFacts("CVE-2026-5428", deployment))
+
+	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-5428"]
+	if got.RuntimeReachability == "deployed_image" {
+		t.Fatalf(
+			"RuntimeReachability = %q, want deploy_event corroboration to be overridden by a deployment naming a different digest",
+			got.RuntimeReachability,
+		)
+	}
+	assertContainsString(t, got.Environments, testImpactEnv)
+	assertContainsString(t, got.EvidencePath, cicdRunCorrelationFactKind)
 }
 
 // Test 4 (regression guard): a digest-branch match must keep promoting
@@ -260,10 +303,31 @@ func TestSupplyChainImpactTypedPayloadPersistsEnvironmentEvidence(t *testing.T) 
 		GenerationID: "generation-1",
 	}, got)
 	if payload.EnvironmentEvidence == nil {
-		t.Fatal("EnvironmentEvidence = nil, want a non-nil map even when built from an empty finding")
+		t.Fatal("EnvironmentEvidence = nil, want the recorded evidence map")
 	}
 	if got, want := payload.EnvironmentEvidence[testImpactEnv], supplyChainEnvironmentEvidenceDeclared; got != want {
 		t.Fatalf("payload.EnvironmentEvidence[%q] = %q, want %q for a deployment fact predating #5425", testImpactEnv, got, want)
+	}
+}
+
+// Test 6b: a finding with NO environment evidence at all still persists an
+// explicit empty object rather than a JSON null. This is the case the writer's
+// nonNilStringMap exists for, and the one the generated schema requires -- the
+// field is in the payload contract's required set, so a null would break the
+// shape for any consumer decoding it typed. Test 6 above cannot cover this: its
+// finding has an environment, so its map is never empty.
+func TestSupplyChainImpactTypedPayloadPersistsEmptyEnvironmentEvidence(t *testing.T) {
+	t.Parallel()
+
+	payload := supplyChainImpactTypedPayload(SupplyChainImpactWrite{
+		ScopeID:      "scope-1",
+		GenerationID: "generation-1",
+	}, SupplyChainImpactFinding{CVEID: "CVE-2026-5431"})
+	if payload.EnvironmentEvidence == nil {
+		t.Fatal("EnvironmentEvidence = nil, want an explicit empty map for a finding with no environment evidence")
+	}
+	if len(payload.EnvironmentEvidence) != 0 {
+		t.Fatalf("EnvironmentEvidence = %#v, want empty", payload.EnvironmentEvidence)
 	}
 }
 

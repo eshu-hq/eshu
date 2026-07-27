@@ -76,8 +76,21 @@ corroboration. A declared-only branch-3 deployment keeps its environment, its
 evidence hop, its fact ID, and its truth tier — it just no longer carries the
 finding to `deployed_image` on its own.
 
-That value is published by #5425 on the `reducer_ci_cd_run_correlation` payload,
-and that fact kind is already in this reducer's load set — so reading it is not a
+One more correction came out of the second review round. `deploy_event`
+corroborates the *environment*, not the *artifact*, and a correlation row
+carries `artifact_digest` and `environment_evidence` together — so a
+`deploy_event` row can name a digest that contradicts the finding's own subject.
+Treating that as corroboration would let `deploy_event` act as a blanket
+override, promoting a finding about image X through a deployment that explicitly
+says image Y shipped. A contradicting digest is positive evidence of absence,
+which outranks the environment signal, so it disqualifies the deployment
+outright. Only the digest is decisive here: image references are mutable and
+registry-prefixed, so two differing refs do not reliably denote two different
+artifacts.
+
+The `environment_evidence` value both rules read is published by #5425 on the
+`reducer_ci_cd_run_correlation` payload, and that fact kind is already in this
+reducer's load set — so reading it is not a
 cross-domain join and cannot go inert the way #5452's attempt did. No fact kind
 was added to `supplyChainImpactFactKinds()`, no graph port was added to the
 handler.
@@ -112,11 +125,19 @@ $ cd go && go test ./internal/reducer -count=1 -v \
 --- PASS: TestSupplyChainDeploymentContextFromEnvelopeDecodesEnvironmentEvidence
 --- PASS: TestBuildSupplyChainImpactFindingsBranch3DeclaredOnlyDoesNotPromoteRuntimeReachability
 --- PASS: TestBuildSupplyChainImpactFindingsBranch3DeployEventPromotesRuntimeReachability
+--- PASS: TestBuildSupplyChainImpactFindingsBranch3DeployEventWithContradictingDigestDoesNotPromote
 --- PASS: TestBuildSupplyChainImpactFindingsDigestBranchPromotesRegardlessOfEnvironmentEvidence
 --- PASS: TestBuildSupplyChainImpactFindingsImageRefBranchPromotesRegardlessOfEnvironmentEvidence
 --- PASS: TestSupplyChainImpactTypedPayloadPersistsEnvironmentEvidence
+--- PASS: TestSupplyChainImpactTypedPayloadPersistsEmptyEnvironmentEvidence
 --- PASS: TestRecordSupplyChainEnvironmentEvidenceDeployEventWinsOverDeclared
 ok  	github.com/eshu-hq/eshu/go/internal/reducer
+
+$ cd go && go test ./internal/query -count=1 -v \
+    -run 'EnvironmentEvidence'
+--- PASS: TestSupplyChainImpactFindingsExposeEnvironmentEvidenceInResponseBody
+--- PASS: TestSupplyChainImpactFindingsOmitEnvironmentEvidenceWhenAbsent
+ok  	github.com/eshu-hq/eshu/go/internal/query
 ```
 
 The two `...PromotesRegardlessOfEnvironmentEvidence` tests are the load-bearing
@@ -124,16 +145,26 @@ ones. They assert the digest and image-ref branches still promote under
 declared-only evidence, so the premise correction cannot be quietly undone by a
 later change that "tightens" all three branches uniformly.
 
+`...Branch3DeployEventWithContradictingDigestDoesNotPromote` is the guard for the
+second-round correction: it proves `deploy_event` cannot override a deployment
+that names a different digest, so the corroboration signal stays scoped to the
+environment. Its sibling `...Branch3DeployEventPromotesRuntimeReachability` uses
+a deployment with no digest at all, which is the case corroboration is actually
+meant to rescue — the two together pin both sides of that boundary.
+
 `...Branch3DeclaredOnlyDoesNotPromoteRuntimeReachability` asserts both halves of
 the corrected design: the finding is not promoted, *and* it still carries the
 environment (labelled `declared`) and the `cicd_run_correlation` evidence hop.
 That second assertion is what fails if anyone re-implements this by gating the
 match again.
 
-**No pre-existing test needed editing.** The first attempt required two edits in
-`supply_chain_impact_operational_anchor_test.go` to keep those tests reaching
-their own subject; both are reverted, and they now pass unmodified against
-`main`'s versions. That is the cleanest available proof that the collateral
+**No pre-existing behavior test needed editing.** The first attempt required two
+edits in `supply_chain_impact_operational_anchor_test.go` to keep those tests
+reaching their own subject; both are reverted, and they now pass unmodified
+against `main`'s versions. (One unrelated test file does change:
+`sdk/go/factschema/decode_gcp_test.go` gains an `intentionalRequiredCollections`
+entry, which is a contract declaration for the new required map field, not an
+assertion being relaxed.) That is the cleanest available proof that the collateral
 damage is gone: the tests that had to be bent to accommodate the wrong design
 need no accommodation from the right one.
 
@@ -215,6 +246,15 @@ Two follow-ups came out of this, and they are separate surfaces:
   actually asserted end to end. Until that lands, the gate would stay green if
   someone re-tightened all three match branches uniformly; only the unit tests
   catch that today.
+
+No-Regression Evidence: the touched hot path is
+`applySupplyChainRuntimeContext` in `go/internal/reducer/supply_chain_impact_runtime.go`,
+which gains one `map[string]string` per finding that records an environment and
+one O(matched deployments) pass over a slice the same function already iterates
+twice. No query, index, Cypher, or SQL shape changes, and no new I/O. Covered by
+`cd go && go test ./internal/reducer ./internal/query ./internal/mcp ./cmd/reducer -count=1`
+and the B-7 golden-corpus run cited above, whose phase timings stayed inside
+their baselines apart from the two advisory warns explained there.
 
 No-Observability-Change: no metrics, spans, or status fields are added or
 altered, and no new failure path is introduced. The gate withholds a promotion

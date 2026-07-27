@@ -170,8 +170,15 @@ func supplyChainDeploymentTruthTier(row SupplyChainImpactFindingRow) truth.Deplo
 
 // rowHasCIDeclaredDeploymentEvidence reports whether the finding row carries a
 // cicd_run_correlation deployment hop — the reducer appends this evidence-path
-// entry only when a CI/CD run correlation matched the finding's digest or image
-// reference, so it is the row-level signal that a deployment was CI-declared.
+// entry whenever a CI/CD run correlation matched the finding, so it is the
+// row-level signal that a deployment was CI-declared.
+//
+// A match on the finding's digest or image reference is not required: a
+// correlation that links only through repository plus environment plus an
+// operational anchor also appends this hop, and deliberately so (#5426). Such a
+// deployment does not on its own raise runtime_reachability to deployed_image,
+// but it is still CI-declared deployment evidence and holds the row at
+// deployment_truth_tier=provenance_ci_declared rather than config_only.
 func rowHasCIDeclaredDeploymentEvidence(row SupplyChainImpactFindingRow) bool {
 	for _, hop := range row.EvidencePath {
 		if hop == cicdRunCorrelationFactKind {

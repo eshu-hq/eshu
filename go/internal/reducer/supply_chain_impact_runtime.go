@@ -147,6 +147,18 @@ func supplyChainDeploymentMatchesFinding(
 // an operational anchor with no artifact identity, so without corroboration a
 // finding with a real digest could otherwise reach deployed_image through a
 // deployment that never referenced that digest (#5426).
+//
+// deploy_event corroborates the ENVIRONMENT, not the ARTIFACT. A correlation
+// row carries artifact_digest and environment_evidence together, so a
+// deploy_event row can name a digest that contradicts the finding's own
+// subject. That is positive evidence the vulnerable artifact was NOT what
+// shipped -- categorically stronger than merely missing evidence -- so a
+// contradicting digest disqualifies the deployment outright rather than being
+// rescued by its environment corroboration.
+//
+// Only the digest is treated as decisive. Image references are mutable and
+// registry-prefixed, so two differing refs do not reliably denote two different
+// artifacts the way two differing digests do.
 func supplyChainDeploymentPromotesRuntimeReachability(
 	finding SupplyChainImpactFinding,
 	deployment supplyChainDeploymentContext,
@@ -157,6 +169,10 @@ func supplyChainDeploymentPromotesRuntimeReachability(
 	if finding.ImageRef != "" && deployment.imageRef == finding.ImageRef {
 		return true
 	}
+	if finding.SubjectDigest != "" && deployment.artifactDigest != "" &&
+		deployment.artifactDigest != finding.SubjectDigest {
+		return false
+	}
 	return deployment.environmentEvidence == supplyChainEnvironmentEvidenceDeployEvent
 }
 
@@ -164,6 +180,12 @@ func supplyChainDeploymentPromotesRuntimeReachability(
 // deployment justifies deployed_image. Matches that do not qualify still keep
 // their environment and evidence contributions; they simply do not, on their
 // own, carry the finding to deployed_image.
+//
+// PRECONDITION: deployments MUST already have passed
+// matchingSupplyChainDeployments. This function decides promotion strength, not
+// linkage, so passing unmatched rows (for example the raw index) would promote
+// on any deploy_event correlation anywhere in scope. There is one caller today
+// and it satisfies this; keep it that way.
 func supplyChainDeploymentsPromoteRuntimeReachability(
 	finding SupplyChainImpactFinding,
 	deployments []supplyChainDeploymentContext,
