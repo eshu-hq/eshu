@@ -269,18 +269,16 @@ require_lib "per-phase advisory default" "-phase-regression-advisory"
 # shared_projection_intents domain (incl. code_calls, #3865) must drain — no
 # domain is quarantined as advisory.
 require "graph-populated smoke" "-required-node-labels"
-# The backend wait must be a real query. pg_isready answers ~30s before the
-# server will serve under load, and the gate then dies with
-# `ping postgres: tls error: EOF` - which reads as a broken backend, not as a
-# gate that asked too early. Reverting this is a plausible "simplification".
-# Comment-aware, like the bans below: `require` would otherwise be satisfied by
-# the literal sitting in a comment while the predicate itself was neutered.
-rg -v '^[[:space:]]*#' "${script}" |
-	rg --fixed-strings --quiet -- "psql -U eshu -d eshu -c 'select 1'" ||
-	fail "backend wait is not a real query (psql -c 'select 1')"
-if rg -v '^[[:space:]]*#' "${script}" | rg --fixed-strings --quiet -- 'pg_isready'; then
-	fail "backend wait reverted to pg_isready: it reports ready ~30s before the server serves"
-fi
+# The backend wait must be a real signal, not a socket-only probe. #5813
+# (above, lines ~194-211) already pins the specific fix for this: pg_isready
+# ANDed with a host_tcp_port_open TCP connect, because pg_isready alone races
+# initdb's temporary socket-only server. An earlier iteration of this gate
+# replaced pg_isready outright with an in-container `psql -c 'select 1'`, but
+# that never exercised the HOST-side TCP path real consumers (bootstrap-index,
+# collectors, reducer/projector) actually use, so it did not close the same
+# gap; #5813's host-TCP probe is the evidenced fix and pg_isready staying
+# present is required, not banned - see the "wait loop keeps in-container
+# pg_isready" pin above.
 if rg --quiet --fixed-strings -- 'drain-advisory-domains="code_calls"' "${script}"; then
 	fail "code_calls must no longer be quarantined as an advisory drain domain (#3865 fixed)"
 fi
