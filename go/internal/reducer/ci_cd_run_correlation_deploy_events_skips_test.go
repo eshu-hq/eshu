@@ -118,3 +118,62 @@ func TestAttachDeploymentEventsToRunsReportsNoSkipsOnTheOrdinaryPath(t *testing.
 		t.Fatalf("skipped = %d, want 0 on a same-repository attach", skipped)
 	}
 }
+
+// An event whose sha matches no run at all is unanchored, not a repository
+// mismatch, and must not be counted here.
+//
+// This guards a specific future refactor. If the rejected-set insert ever moves
+// above the sha check, the counter silently begins labelling unanchored events
+// as skip_reason=repository_mismatch, and an operator reading that metric at
+// 3 AM investigates a repository misconfiguration that does not exist. The
+// collector already reports the unanchored case separately, as a
+// deployment_unanchored ci.warning.
+func TestAttachDeploymentEventsToRunsDoesNotCountUnanchoredEvents(t *testing.T) {
+	t.Parallel()
+
+	run := cicdRunEvidenceWithCommit("0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c")
+	run.runDecoded.RepositoryID = strPtr("repository:r_ours")
+
+	// Different sha entirely: this event belongs to no run in the window.
+	stray := deploymentEventEvidence("stray", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "production")
+	stray.evidence.RepositoryID = strPtr("repository:r_theirs")
+
+	if skipped := attachDeploymentEventsToRuns(
+		map[string]*cicdRunEvidence{"run": run},
+		[]*decodedCICDDeploymentEvent{stray},
+	); skipped != 0 {
+		t.Fatalf("skipped = %d, want 0: an event matching no run is unanchored, not a "+
+			"repository mismatch, and counting it here would send an operator after a "+
+			"misconfiguration that does not exist", skipped)
+	}
+}
+
+// A run with no commit sha cannot rescue an event, so an event rejected by
+// every commit-bearing run is still lost even when such a run is present.
+func TestAttachDeploymentEventsToRunsEmptyCommitRunCannotRescue(t *testing.T) {
+	t.Parallel()
+
+	const sharedSHA = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c"
+
+	ours := cicdRunEvidenceWithCommit(sharedSHA)
+	ours.runDecoded.RepositoryID = strPtr("repository:r_ours")
+	// A run with no commit anchor: attach skips it before evaluating events, so
+	// it can neither receive the event nor mask its loss.
+	anchorless := cicdRunEvidenceWithCommit("")
+	anchorless.runDecoded.RepositoryID = strPtr("repository:r_theirs")
+
+	event := deploymentEventEvidence("theirs", sharedSHA, "staging")
+	event.evidence.RepositoryID = strPtr("repository:r_theirs")
+
+	skipped := attachDeploymentEventsToRuns(
+		map[string]*cicdRunEvidence{"ours": ours, "anchorless": anchorless},
+		[]*decodedCICDDeploymentEvent{event},
+	)
+	if skipped != 1 {
+		t.Fatalf("skipped = %d, want 1: a run with no commit sha is skipped before events "+
+			"are evaluated, so it cannot rescue an event rejected elsewhere", skipped)
+	}
+	if len(anchorless.deploymentEvents) != 0 {
+		t.Fatalf("the anchorless run received %d events, want 0", len(anchorless.deploymentEvents))
+	}
+}
