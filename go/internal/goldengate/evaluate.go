@@ -325,6 +325,18 @@ func EvaluateQueryShape(name string, shape QueryShape, body []byte) Finding {
 		}
 	}
 
+	// The ceiling is what makes a duplicate visible; the floor above cannot see
+	// one. See QueryShape.MaximumResults.
+	if shape.MaximumResults > 0 {
+		if arrayField == "" {
+			return mk(false, fmt.Sprintf("no array-valued result field among %v but maximum_results=%d",
+				shape.RequiredResponseFields, shape.MaximumResults))
+		}
+		if len(items) > shape.MaximumResults {
+			return mk(false, fmt.Sprintf("%q has %d results, want <= %d", arrayField, len(items), shape.MaximumResults))
+		}
+	}
+
 	for _, itemField := range shape.ResultItemRequiredFields {
 		if len(items) == 0 {
 			return mk(false, fmt.Sprintf("no items to validate result_item_required_fields %v", shape.ResultItemRequiredFields))

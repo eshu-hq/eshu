@@ -4,6 +4,7 @@
 package goldengate
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -229,6 +230,45 @@ func TestEvaluateQueryShape(t *testing.T) {
 		f := EvaluateQueryShape("operator-control-plane", shape, []byte(`{"version":"1","health":"ok"}`))
 		if !f.OK {
 			t.Errorf("object-shaped response with all fields must pass: %s", f.Detail)
+		}
+	})
+
+	// A floor alone cannot see a DUPLICATE. A shape asserting "at least one
+	// identity for this repository" passes identically whether the reducer
+	// serves one correct row or that row plus a superseded, contradictory one —
+	// which is the whole class eshu-hq/eshu#5847 is about. MaximumResults is the
+	// ceiling that makes the duplicate visible to the committed gate.
+	t.Run("maximum results ceiling", func(t *testing.T) {
+		shape := QueryShape{
+			RequiredResponseFields: []string{"identities"},
+			MinimumResults:         1,
+			MaximumResults:         1,
+		}
+		if f := EvaluateQueryShape("list_container_image_identities", shape,
+			[]byte(`{"identities":[{"digest":"sha256:a"}]}`)); !f.OK {
+			t.Errorf("exactly one result must pass a 1..1 shape: %s", f.Detail)
+		}
+		f := EvaluateQueryShape("list_container_image_identities", shape,
+			[]byte(`{"identities":[{"digest":"sha256:a"},{"digest":"sha256:a"}]}`))
+		if f.OK {
+			t.Error("two results must FAIL a 1..1 shape; a floor-only assertion cannot see a duplicate row")
+		}
+		if !f.Required {
+			t.Error("query findings must be required")
+		}
+		if !strings.Contains(f.Detail, "want <= 1") {
+			t.Errorf("detail = %q, want it to name the ceiling", f.Detail)
+		}
+	})
+
+	t.Run("maximum results without an array result field", func(t *testing.T) {
+		shape := QueryShape{
+			RequiredResponseFields: []string{"version"},
+			MaximumResults:         1,
+		}
+		if f := EvaluateQueryShape("operator-control-plane", shape,
+			[]byte(`{"version":"1"}`)); f.OK {
+			t.Error("a ceiling with no array-valued required field must fail rather than pass vacuously")
 		}
 	})
 

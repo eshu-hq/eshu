@@ -1661,6 +1661,96 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   the digest's repository. Digest-only artifacts with multiple registry
   repositories stay ambiguous and produce no canonical write.
 
+  The writer is **generation-authoritative**: after the batched insert it runs
+  `containerImageIdentityRetireQuery`, deleting every
+  `reducer_container_image_identity` row for the write's `(scope_id,
+  generation_id)` that is not in the freshly written keep-set. The upsert alone
+  is not enough, because the fact identity embeds `outcome` and `image_ref`, so
+  a replay that re-classifies an image writes a NEW `fact_id` beside the old
+  one, and a replay that demotes an image out of the two canonical outcomes
+  (`exact_digest`, `tag_resolved`) writes no row to overwrite it with. The read
+  path serves whatever is live — `ListContainerImageIdentities` has no
+  `DISTINCT ON`, `GROUP BY`, or per-digest latest-wins — so a stale decision
+  would be returned alongside the corrected one and counted twice in the
+  aggregate rollups. The domain is in the bootstrap maintenance reopen slice
+  precisely so replays happen once the cross-scope OCI generation activates, so
+  this is the ordinary path. The retire runs AFTER the insert, so a failed
+  insert leaves prior decisions intact and no reader sees the generation with
+  ZERO decisions. It does NOT make the pair atomic: insert and retire are
+  separate autocommit statements, so a reader landing between them sees BOTH the
+  superseded decision and the corrected one — briefly, instead of permanently,
+  which is the trade the ordering buys. An empty keep-set retires the whole
+  generation, which is the correct clearing behavior for a fully demoted image
+  set.
+
+  The retire is **fenced**. Generation authority bounds which rows the statement
+  may touch, not who may touch them, and the reducer queue does not close that
+  gap: its in-flight exclusion requires a LIVE lease, while an expired lease is
+  re-admitted — and an expired lease is exactly the stalled-worker case, because
+  heartbeat loss is quarantined only after `Handle` returns. So the statement
+  stamps `fact_records.fencing_token` with the write's evidence-read watermark
+  (`ContainerImageIdentityWrite.EvidenceAsOf`, captured before the first fact
+  load) and deletes only rows at or below it. Evidence-read time, not write
+  time: write time ranks the stalled worker highest, which is the inversion the
+  fence exists to stop. A zero watermark is a hard error, never a defaulted
+  unfenced write, because `fencing_token <= 0` would match every row.
+
+  The token is carried on the **insert**, not only by the retire's stamping CTE.
+  A row left at the column default `0` between the two statements is durable and
+  visible at `0`, and `0` is at or below every other worker's token, so a
+  concurrent stalled worker's fenced retire would delete the fresher row anyway —
+  and both writers can lose their row that way. `reducerFactBatchInsertQuery`
+  therefore writes `fencing_token` and raises it with `GREATEST` on conflict, so
+  a stale re-upsert cannot downgrade a fresher row.
+
+  What the fence does not close: a stale pass can still INSERT its own row (that
+  needs the #4233 `ProjectionState.BeginBuilding` pattern), and it cannot help a
+  pass that read EMPTY evidence — that pass read last, so it ranks highest, and
+  its empty keep-set clears the partition. `classifyContainerImageRef` answers
+  `unresolved` both when an image genuinely has no digest identity and when the
+  cross-scope registry observations were not visible, and the writer cannot tell
+  those apart. It flags the shape instead:
+  `ContainerImageIdentityWriteResult.RetiredWithoutCanonicalWrites` and a
+  `slog.Warn` fire whenever a pass with zero canonical decisions retires a
+  non-empty prior set.
+
+  No-Regression Evidence: `go test ./internal/reducer
+  ./internal/replay/costcounting ./cmd/bootstrap-index -count=1` covers the
+  retire: `TestContainerImageIdentityWriterRetiresSupersededDecisionForSameImageRef`
+  (re-classified replay keeps only the corrected fact id),
+  `TestContainerImageIdentityWriterRetiresEverythingWhenNothingIsCanonical`
+  (demoted generation clears), `TestContainerImageIdentityWriterRetiresAfterInsert`
+  (ordering), `TestContainerImageIdentityWriterDoesNotRetireWhenInsertFails`
+  (a failed insert issues no retire at all),
+  `TestContainerImageIdentityWriterStampsTheFencingTokenOnTheInsert`
+  (born stamped, never durable at `0`), the
+  `container_image_identity_writer_retire_fence_test.go` fence set (token
+  direction, bind position, hard error on a missing watermark, watermark taken
+  before the load), and
+  `TestContainerImageIdentityRetireQueryIsBoundedToItsOwnPartition`
+  (full-text equality against the frozen statement, so a widened `DELETE` fails
+  rather than passing a substring check). The real-Postgres proofs live in
+  `go/internal/storage/postgres/container_image_identity_retire_live_test.go`
+  and run on `ESHU_POSTGRES_DSN` alone; they cover partition bounding, the
+  empty-keep-set clear, the stalled-worker fence, and the insert/stamp window.
+  The write path gains exactly one bounded statement per intent execution, O(1)
+  in decision count; the `container-image-identity` cost budget moves from 1
+  statement to 2 and its N+1 negative control still costs 4.
+
+  Observability Evidence: the retire reports what it destroyed. `Retired` on
+  `ContainerImageIdentityWriteResult` carries the DELETE's `RowsAffected`, the
+  handler's evidence summary renders `retired=<n>` and
+  `retired_without_canonical_writes=<bool>` alongside the decision counts, and a
+  zero-canonical pass that cleared a non-empty prior set emits a `slog.Warn`
+  naming the intent, scope, generation, retired count, and evidence watermark.
+  The statement itself also runs inside the already-instrumented
+  `InstrumentedDB.ExecContext` wrapper that records
+  `eshu_dp_postgres_query_duration_seconds`, but that only records that a write
+  happened — it never says what was removed, which is why the row count is
+  surfaced. The existing
+  `eshu_dp_container_image_identity_decisions_total` counter and reducer run
+  spans are unchanged.
+
   No-Regression Evidence: `go test ./internal/reducer -run
   'TestBuildContainerImageIdentityDecisions(ConsumesCICDArtifactDigestWithRepositoryAnchor|PrefersCICDArtifactDigestOverMutableTag|IgnoresNonContainerCICDArtifacts|RejectsDigestOnlyCICDArtifactWhenRegistryDigestIsAmbiguous)|Test(BuildContainerImageIdentity|ContainerImageIdentity|PostgresContainerImageIdentity)'
   -count=1` proves CI/CD artifact evidence joins through a repository-anchored

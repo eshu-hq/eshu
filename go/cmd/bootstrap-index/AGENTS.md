@@ -75,6 +75,47 @@ re-trigger mechanism after Phase 4. Add it to `ReopenDeploymentMappingWorkItems`
 or create a new method on `bootstrapCommitter` and wire it after
 `ReopenDeploymentMappingWorkItems`.
 
+### Before adding a domain to the correlation reopen slice
+
+`ReopenSucceededReducerWorkItems` marks a domain's succeeded work items pending
+so its intent runs again. That is only safe when the domain's writer is
+**generation-authoritative** — after the write, the durable facts for that
+`(scope, generation)` are exactly the set the execution just produced.
+
+An `ON CONFLICT (fact_id) DO UPDATE` upsert alone does NOT give you that. Check
+what the fact identity is built from before adding a domain here:
+
+- If the identity embeds any **decision-derived** field (an outcome, a finding
+  kind, a resolved reference the replay may rewrite), a replay that reaches a
+  DIFFERENT answer mints a new `fact_id` and the superseded row stays live for
+  the same active generation.
+- If the domain can decide "nothing qualifies" on the replay, no row is written
+  at all and an upsert overwrites nothing.
+
+Both leave stale rows that the read surfaces serve, since the fact read paths
+filter on `is_tombstone` plus the active-generation join and do not pick a
+latest row per key. The fix is a retire pass after the insert, deleting the
+domain's own `fact_kind` for `(scope_id, generation_id)` minus the fact ids just
+written — see `containerImageIdentityRetireQuery` and
+`eshuSearchDocumentRetireQuery`. A retire is only correct when one intent covers
+the whole scope generation; if any path evaluates a subset, it would delete rows
+that are still valid.
+
+A generation-authoritative retire also has to be **fenced**, and the reducer
+queue does not fence it for you. The claim batch's in-flight exclusion requires a
+LIVE lease, while the base predicate re-admits an item whose lease has already
+expired — and lease expiry is exactly the stalled-worker case, since heartbeat
+loss is quarantined only after `Handle` returns. So a worker that stalled past
+its lease still writes, and an unfenced retire lets it DELETE the rows of the
+worker that overtook it: strictly worse than the stale row it was added to
+remove. Rank writers by when their evidence was READ (never by write time, which
+ranks the stalled worker highest), stamp `fact_records.fencing_token` with that
+watermark, and delete only rows at or below it. Two further traps: a zero
+watermark must be a hard error, because `fencing_token <= 0` matches everything;
+and the token must be carried on the INSERT, not only stamped by the retire — a
+row left at the column default `0` between the two statements is durable,
+visible, and deletable by any concurrent stalled worker.
+
 ### Change NornicDB batch sizes or phase-group tuning
 
 All NornicDB knobs are in `nornicdb_wiring.go`. Add or change a constant in the

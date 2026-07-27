@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"time"
 
 	"go.opentelemetry.io/otel/metric"
 
@@ -105,12 +106,35 @@ type ContainerImageIdentityWrite struct {
 	GenerationID string
 	SourceSystem string
 	Cause        string
+	// EvidenceAsOf is the moment this write's evidence was read, captured
+	// immediately before the handler's first fact load. It is the fencing token
+	// the generation-authoritative retire ranks writers by, so a worker that
+	// stalled past its lease cannot delete the rows of the worker that overtook
+	// it with fresher evidence. It is required: a zero value is a hard error,
+	// never a defaulted or unfenced write. See containerImageIdentityRetireQuery.
+	EvidenceAsOf time.Time
 	Decisions    []ContainerImageIdentityDecision
 }
 
 // ContainerImageIdentityWriteResult summarizes durable publication.
 type ContainerImageIdentityWriteResult struct {
+	// CanonicalWrites counts the decisions this execution inserted or upserted.
 	CanonicalWrites int
+	// Retired counts the durable decisions the generation-authoritative retire
+	// DELETED for this write's (scope, generation). It is reported because the
+	// retire destroys durable rows and the instrumented ExecContext wrapper
+	// records only that a statement ran, never what it removed.
+	Retired int
+	// RetiredWithoutCanonicalWrites marks a pass that deleted a non-empty prior
+	// decision set while producing no canonical decision of its own. That is
+	// legitimate for a genuine demotion, but it is also exactly what an
+	// evidence-visibility gap looks like from the writer: classifyContainerImageRef
+	// answers `unresolved` when the cross-scope registry observations are absent,
+	// which is indistinguishable here from "this image really has no digest
+	// identity any more". It is surfaced so the shape is findable rather than
+	// silent. See containerImageIdentityRetireQuery.
+	RetiredWithoutCanonicalWrites bool
+	// EvidenceSummary is a short operator-facing description of the write.
 	EvidenceSummary string
 }
 
@@ -157,6 +181,10 @@ type ContainerImageIdentityHandler struct {
 	// When nil the projection is skipped so the container-image-identity
 	// profile stays Postgres-only.
 	DerivedFromEdgeWriter ContainerImageDerivedFromEdgeWriter
+	// Now supplies the evidence-read watermark that fences the durable retire.
+	// Left nil it falls back to the process clock; tests inject a deterministic
+	// one. See ContainerImageIdentityWrite.EvidenceAsOf.
+	Now func() time.Time
 }
 
 // Handle executes one container image identity reducer intent.
@@ -170,6 +198,13 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 	if h.Writer == nil {
 		return Result{}, fmt.Errorf("container image identity writer is required")
 	}
+
+	// Read the fencing watermark BEFORE the first load, not after the last one.
+	// It has to express "how fresh is the world this pass looked at", so it must
+	// exclude however long the loads, classification, and admission then took — a
+	// worker that stalled inside a slow cross-scope load must not outrank the
+	// worker that read the database after it.
+	evidenceAsOf := containerImageIdentityEvidenceAsOf(h.Now)
 
 	envelopes, err := loadFactsForKinds(
 		ctx,
@@ -232,6 +267,7 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 		GenerationID: intent.GenerationID,
 		SourceSystem: intent.SourceSystem,
 		Cause:        intent.Cause,
+		EvidenceAsOf: evidenceAsOf,
 		Decisions:    decisions,
 	})
 	if err != nil {
@@ -256,7 +292,7 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 		EvidenceSummary: containerImageIdentitySummary(
 			len(decisions),
 			counts,
-			writeResult.CanonicalWrites,
+			writeResult,
 		),
 		CanonicalWrites: writeResult.CanonicalWrites,
 		SubSignals:      inputInvalidSubSignals(quarantinedCount),
@@ -456,20 +492,27 @@ func containerImageIdentityCounts(
 	return counts
 }
 
+// containerImageIdentitySummary renders the operator-facing evidence line for
+// one handled intent. It carries the writer's retire accounting as well as its
+// decision counts, because the retire DELETES durable decisions and a summary
+// that reported only what was written would say nothing about what was removed.
 func containerImageIdentitySummary(
 	evaluated int,
 	counts map[ContainerImageIdentityOutcome]int,
-	canonicalWrites int,
+	writeResult ContainerImageIdentityWriteResult,
 ) string {
 	return fmt.Sprintf(
-		"container image identity evaluated=%d exact_digest=%d tag_resolved=%d ambiguous_tag=%d unresolved=%d stale_tag=%d canonical_writes=%d",
+		"container image identity evaluated=%d exact_digest=%d tag_resolved=%d ambiguous_tag=%d "+
+			"unresolved=%d stale_tag=%d canonical_writes=%d retired=%d retired_without_canonical_writes=%t",
 		evaluated,
 		counts[ContainerImageIdentityExactDigest],
 		counts[ContainerImageIdentityTagResolved],
 		counts[ContainerImageIdentityAmbiguousTag],
 		counts[ContainerImageIdentityUnresolved],
 		counts[ContainerImageIdentityStaleTag],
-		canonicalWrites,
+		writeResult.CanonicalWrites,
+		writeResult.Retired,
+		writeResult.RetiredWithoutCanonicalWrites,
 	)
 }
 

@@ -33,6 +33,7 @@ func TestPostgresContainerImageIdentityWriterPersistsCanonicalDecisions(t *testi
 		ScopeID:      "repo:team-api",
 		GenerationID: "generation-git",
 		SourceSystem: "git",
+		EvidenceAsOf: time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC),
 		Cause:        "container image references observed",
 		Decisions: []ContainerImageIdentityDecision{
 			{
@@ -59,10 +60,12 @@ func TestPostgresContainerImageIdentityWriterPersistsCanonicalDecisions(t *testi
 	if got, want := result.CanonicalWrites, 1; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	if got, want := len(db.execs), 1; got != want {
-		t.Fatalf("ExecContext calls = %d, want %d", got, want)
+	// Insert statements only; the trailing generation-authoritative retire is
+	// counted by TestContainerImageIdentityWriterRetiresAfterInsert.
+	if got, want := len(containerImageIdentityInsertCalls(db.execs)), 1; got != want {
+		t.Fatalf("insert ExecContext calls = %d, want %d", got, want)
 	}
-	rows := decodeBatchedFactCalls(t, db.execs)
+	rows := decodeBatchedFactCalls(t, containerImageIdentityInsertCalls(db.execs))
 	if got, want := len(rows), 1; got != want {
 		t.Fatalf("decoded rows = %d, want %d", got, want)
 	}
@@ -94,6 +97,7 @@ func TestPostgresContainerImageIdentityWriterUsesStableTagReferenceIdentity(t *t
 		ScopeID:      "repo:team-api",
 		GenerationID: "generation-git",
 		SourceSystem: "git",
+		EvidenceAsOf: time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC),
 		Cause:        "container image references observed",
 		Decisions: []ContainerImageIdentityDecision{
 			{
@@ -116,11 +120,12 @@ func TestPostgresContainerImageIdentityWriterUsesStableTagReferenceIdentity(t *t
 	if err != nil {
 		t.Fatalf("second WriteContainerImageIdentityDecisions() error = %v, want nil", err)
 	}
-	// Each write batches its single decision into one ExecContext call.
-	if got, want := len(db.execs), 2; got != want {
-		t.Fatalf("ExecContext calls = %d, want %d", got, want)
+	// Each write batches its single decision into one insert ExecContext call
+	// (plus a retire, excluded here).
+	if got, want := len(containerImageIdentityInsertCalls(db.execs)), 2; got != want {
+		t.Fatalf("insert ExecContext calls = %d, want %d", got, want)
 	}
-	rows := decodeBatchedFactCalls(t, db.execs)
+	rows := decodeBatchedFactCalls(t, containerImageIdentityInsertCalls(db.execs))
 	if got, want := len(rows), 2; got != want {
 		t.Fatalf("decoded rows = %d, want %d", got, want)
 	}
@@ -152,6 +157,7 @@ func TestPostgresContainerImageIdentityWriterPublishesKnownTruthLayers(t *testin
 		ScopeID:      "repo:team-api",
 		GenerationID: "generation-git",
 		SourceSystem: "git",
+		EvidenceAsOf: time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC),
 		Cause:        "container image references observed",
 		Decisions: []ContainerImageIdentityDecision{
 			{
@@ -168,7 +174,7 @@ func TestPostgresContainerImageIdentityWriterPublishesKnownTruthLayers(t *testin
 	if err != nil {
 		t.Fatalf("WriteContainerImageIdentityDecisions() error = %v, want nil", err)
 	}
-	rows := decodeBatchedFactCalls(t, db.execs)
+	rows := decodeBatchedFactCalls(t, containerImageIdentityInsertCalls(db.execs))
 	if len(rows) == 0 {
 		t.Fatal("decoded rows is empty, want one batched fact row")
 	}

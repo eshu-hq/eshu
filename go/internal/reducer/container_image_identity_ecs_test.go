@@ -188,6 +188,7 @@ func TestPostgresContainerImageIdentityWriterDedupSurvivorForConvergedECSAndCICD
 		ScopeID:      "aws:123456789012:us-east-1:ecs",
 		GenerationID: "generation-ecs",
 		SourceSystem: "aws",
+		EvidenceAsOf: time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC),
 		Cause:        "container image references observed",
 		Decisions:    decisions,
 	}); err != nil {
@@ -195,7 +196,7 @@ func TestPostgresContainerImageIdentityWriterDedupSurvivorForConvergedECSAndCICD
 	}
 
 	var persisted []decodedBatchedFactRow
-	for _, row := range decodeBatchedFactCalls(t, db.execs) {
+	for _, row := range decodeBatchedFactCalls(t, containerImageIdentityInsertCalls(db.execs)) {
 		var payload map[string]any
 		if err := json.Unmarshal(row.Payload, &payload); err != nil {
 			t.Fatalf("unmarshal payload: %v", err)
@@ -285,6 +286,7 @@ func TestPostgresContainerImageIdentityWriterPersistsExplicitDigestForFixedECSGo
 		ScopeID:      "aws:123456789012:us-east-1:ecs",
 		GenerationID: "generation-ecs",
 		SourceSystem: "aws",
+		EvidenceAsOf: time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC),
 		Cause:        "container image references observed",
 		Decisions:    decisions,
 	}); err != nil {
@@ -292,7 +294,7 @@ func TestPostgresContainerImageIdentityWriterPersistsExplicitDigestForFixedECSGo
 	}
 
 	var persisted []decodedBatchedFactRow
-	for _, row := range decodeBatchedFactCalls(t, db.execs) {
+	for _, row := range decodeBatchedFactCalls(t, containerImageIdentityInsertCalls(db.execs)) {
 		var payload map[string]any
 		if err := json.Unmarshal(row.Payload, &payload); err != nil {
 			t.Fatalf("unmarshal payload: %v", err)

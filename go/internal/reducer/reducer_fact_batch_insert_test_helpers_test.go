@@ -27,6 +27,7 @@ type decodedBatchedFactRow struct {
 	IngestedAt       time.Time
 	IsTombstone      bool
 	Payload          []byte
+	FencingToken     int64
 }
 
 // decodeBatchedFactCalls flattens every batched ExecContext call recorded by a
@@ -49,8 +50,8 @@ func decodeBatchedFactCalls(t *testing.T, calls []fakeWorkloadIdentityExecCall) 
 // insert call back into per-row records.
 func decodeBatchedFactCall(t *testing.T, call fakeWorkloadIdentityExecCall) []decodedBatchedFactRow {
 	t.Helper()
-	if len(call.args) != 15 {
-		t.Fatalf("batched insert args = %d, want 15", len(call.args))
+	if len(call.args) != 16 {
+		t.Fatalf("batched insert args = %d, want 16", len(call.args))
 	}
 	factIDs := stringArg(t, call.args[0], "fact_id")
 	scopeIDs := stringArg(t, call.args[1], "scope_id")
@@ -67,6 +68,7 @@ func decodeBatchedFactCall(t *testing.T, call fakeWorkloadIdentityExecCall) []de
 	ingestedAts := timeArg(t, call.args[12], "ingested_at")
 	isTombstones := boolArg(t, call.args[13], "is_tombstone")
 	payloads := stringArg(t, call.args[14], "payload")
+	fencingTokens := int64Arg(t, call.args[15], "fencing_token")
 
 	n := len(factIDs)
 	rows := make([]decodedBatchedFactRow, n)
@@ -87,6 +89,7 @@ func decodeBatchedFactCall(t *testing.T, call fakeWorkloadIdentityExecCall) []de
 			IngestedAt:       ingestedAts[i],
 			IsTombstone:      isTombstones[i],
 			Payload:          []byte(payloads[i]),
+			FencingToken:     fencingTokens[i],
 		}
 	}
 	return rows
@@ -211,6 +214,15 @@ func timeArg(t *testing.T, arg any, name string) []time.Time {
 	values, ok := arg.([]time.Time)
 	if !ok {
 		t.Fatalf("%s arg type = %T, want []time.Time", name, arg)
+	}
+	return values
+}
+
+func int64Arg(t *testing.T, arg any, name string) []int64 {
+	t.Helper()
+	values, ok := arg.([]int64)
+	if !ok {
+		t.Fatalf("%s arg type = %T, want []int64", name, arg)
 	}
 	return values
 }
