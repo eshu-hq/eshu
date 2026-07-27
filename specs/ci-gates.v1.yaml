@@ -1706,6 +1706,7 @@ gates:
       - "go/**"
       - "docker-compose*.yaml"
       - "docker-compose*.yml"
+      - "scripts/verify_backend_conformance_live.sh"
     ci:
       workflow: e2e-tests.yml
       job: "test"

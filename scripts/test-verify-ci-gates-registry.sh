@@ -16,6 +16,7 @@ registry="${repo_root}/specs/ci-gates.v1.yaml"
 static_contract_workflow="${repo_root}/.github/workflows/static-contract-gates.yml"
 build_test_workflow="${repo_root}/.github/workflows/test.yml"
 frontend_workflow="${repo_root}/.github/workflows/frontend.yml"
+e2e_workflow="${repo_root}/.github/workflows/e2e-tests.yml"
 registry_workflow="${repo_root}/.github/workflows/verify-ci-gate-registry.yml"
 
 fail() {
@@ -103,6 +104,22 @@ require_path_line() {
 frontend_pull_request_paths="$(
 	sed -n '/^  pull_request:/,/^  workflow_dispatch:/p' "${frontend_workflow}"
 )"
+
+# A change to the live backend-conformance driver must schedule the E2E
+# workflow that executes it and select the same registered CI-heavy gate.
+[[ -f "${e2e_workflow}" ]] || fail "missing ${e2e_workflow}"
+e2e_pull_request_paths="$(
+	sed -n '/^  pull_request:/,/^  concurrency:/p' "${e2e_workflow}"
+)"
+e2e_gate="$(
+	sed -n '/^  - id: e2e-tests$/,/^  - id:/p' "${registry}"
+)"
+backend_conformance_script='scripts/verify_backend_conformance_live.sh'
+require_path_line "${e2e_pull_request_paths}" "${backend_conformance_script}" \
+	"e2e-tests pull_request paths omit the live backend-conformance driver"
+require_path_line "${e2e_gate}" "${backend_conformance_script}" \
+	"e2e-tests registry triggers omit the live backend-conformance driver"
+
 for sql_fixture in \
 	'scripts/lib/console-retained-create-proof-schema.sql' \
 	'scripts/lib/console-retained-verify-public-identity.sql'; do

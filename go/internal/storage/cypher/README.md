@@ -695,8 +695,9 @@ wraps a concrete driver executor with `TimeoutExecutor` â†’ `RetryingExecutor` â
 `InstrumentedExecutor`.
 
 `RetryingExecutor` detects transient Neo4j errors (deadlock, lock timeout,
-retryable driver `ConnectivityError`) and NornicDB MERGE unique conflicts and
-retries with exponential backoff and jitter. A driver `ConnectivityError`
+retryable driver `ConnectivityError`), NornicDB MERGE unique conflicts, and
+typed NornicDB relationship snapshot conflicts and retries with exponential
+backoff and jitter. A driver `ConnectivityError`
 wrapping `CommitFailedDeadError` is not retried in place because its commit
 outcome is unknown. Durable callers may later replay still-pending idempotent
 work after backoff. The same loop covers `Execute` and `ExecuteGroup`; group retries stay
@@ -1462,7 +1463,8 @@ committed zero nodes.
   `PhaseGroupExecutor` phase lets NornicDB validate the unique `path` after the
   delete commits and before the new id owns that path.
 - `RetryingExecutor.ExecuteGroup` retries on commit-time UNIQUE conflicts
-  when every statement in the group is MERGE-shaped, sharing the same
+  and typed NornicDB relationship-update snapshot conflicts when every
+  statement in the group is MERGE-shaped, sharing the same
   `runWithRetry` loop as `Execute` (`retrying_executor.go:52`). Driver-
   level `session.ExecuteWrite` continues to handle Neo.TransientError.*
   codes for the group path; the Eshu retry layer adds coverage for
