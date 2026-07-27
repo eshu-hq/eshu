@@ -173,26 +173,13 @@ fi
 # already-committed '!.github/**/*.md' negation swallows whole, so this proves
 # today's filter — not a hypothetical one — was silently unchecked. ---
 python3 - "${tmp}/specs/ci-gates.v1.yaml" <<'PY'
-import sys
-path = sys.argv[1]
-with open(path) as f:
-	content = f.read()
-needle = (
-	"  - id: go-fmt\n"
-	"    name: Go gofumpt formatting\n"
-	"    category: hygiene\n"
-	"    tier: pre-commit\n"
-	"    blocking: true\n"
-	"    triggers:\n"
-	'      - "go/**"\n'
-)
-assert needle in content, "go-fmt gate anchor not found — registry shape changed?"
-mutated = needle.replace(
-	'      - "go/**"\n',
-	'      - "go/**"\n      - ".github/workflows/generated-notes.md"\n',
-)
-with open(path, "w") as f:
-	f.write(content.replace(needle, mutated, 1))
+import io,sys
+p=sys.argv[1]
+s=io.open(p).read()
+i=s.index("  - id: go-fmt\n")
+t='      - "go/**"\n'
+j=s.index(t,i)+len(t)
+io.open(p,"w").write(s[:j]+'      - ".github/workflows/generated-notes.md"\n'+s[j:])
 PY
 if out="$(run_scratch 2>&1)"; then
 	no "guard 2 should fail when a code-gated gate's trigger is swallowed by the LIVE '!.github/**/*.md' negation"
