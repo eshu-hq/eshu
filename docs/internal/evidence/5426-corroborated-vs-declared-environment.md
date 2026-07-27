@@ -299,108 +299,12 @@ meant to rescue — the two together pin both sides of that boundary.
 
 ### Every rule is mutation-audited
 
-After the defanging below, each rule this change introduces was audited by
-deleting or weakening exactly that rule via `go test -overlay` and confirming a
-test goes red. A rule no mutant can kill is not guarded, however many tests
-mention it.
-
-The audit was run three times, and each pass found rules the previous pass had
-missed — including two, the ANY-of quantifier and the blank-environment skip,
-that no test touched even after the table below was first written. Both were
-reachable with ordinary production data. The table is the current state, not a
-claim that the technique is exhaustive.
-
-| Rule | Mutant | Caught by |
-|---|---|---|
-| `environmentEvidence == deploy_event` return | `return false` | `...Branch3DeployEventPromotesRuntimeReachability` |
-| contradicting-digest early return | block deleted | `...Branch3DeployEventWithContradictingDigest...`, `...ImageRefMatchWithContradictingDigest...` |
-| digest-equality check | block deleted | `...DigestBranchPromotesRegardlessOfEnvironmentEvidence` |
-| image-ref check | block deleted | `...ImageRefBranchPromotesRegardlessOfEnvironmentEvidence` |
-| branch 3 of `supplyChainDeploymentMatchesFinding` | round-1 condition restored | `...Branch3DeclaredOnlyDoesNotPromote...` + the two pre-existing operational-anchor tests |
-| `recordSupplyChainEnvironmentEvidence` collision rule | call replaced with last-write-wins | `...DeployEventWinsAcrossDeploymentsInEitherOrder` |
-| `normalizeSupplyChainEnvironmentEvidence` exact match | any non-empty maps to `deploy_event` | `...DecodesEnvironmentEvidence` + 3 promotion tests |
-| payload decode of `environment_evidence` | key typo | `TestDecodeSupplyChainImpactFindingRowDecodesEnvironmentEvidence` |
-| promotion is ANY-of, not ALL-of | `ANY` inverted to `ALL` | `...DeployEventWinsAcrossDeploymentsInEitherOrder` |
-| blank-environment skip in the recorder | guard deleted | `TestRecordSupplyChainEnvironmentEvidenceSkipsBlankEnvironment` |
-| `normalize` trims before comparing | `TrimSpace` removed | `TestNormalizeSupplyChainEnvironmentEvidenceTrimsPadding` |
-| caller requires a non-empty `SubjectDigest` | guard deleted | `...WithoutSubjectDigestDoesNotPromote` |
-| image_sbom priority survives a declared-only deployment | gate reverted to `main`'s | `...DeclaredOnlyKeepsImageSBOMPriority` |
-| declared-only stops labelling a finding reachable | gate reverted to `main`'s | `...Branch3DeclaredOnlyDoesNotPromote...` (documents the consequence; the promotion assertion in the same test is what the mutant hits first) |
-
-Six of these rows exist only because the audit found them uncovered; the rest
-confirmed guards that were already in place.
-
-The collision rule had only a direct helper test, which does not prove the
-production path calls the helper — swapping the call in
-`applySupplyChainRuntimeContext` for naive last-write-wins passed every package.
-Nothing exercised the persisted-payload decode at all, so a typo in the payload
-key would have left the reducer writing evidence no caller could ever read: the
-silent-inertness shape, which the corpus cannot catch here either (#5836).
-Inverting promotion from ANY-of to ALL-of also passed everything, which would
-have silently dropped `deployed_image` from any finding with one corroborated
-and one declared-only deployment — the exact multi-run shape the collision test
-already models. And deleting the blank-environment skip passed too, which would
-put a `""` key in `environment_evidence` while `uniqueSortedStrings` drops it
-from `environments[]`, leaving the two collections disagreeing about their own
-keys — contradicting the API reference this same change adds.
-
-The last two rows came from the eighth review round, and one of them is a
-cautionary case. A padded-value subtest had been added to pin `normalize`'s
-`TrimSpace`, and the audit table credited it — but that subtest enters through
-`supplyChainDeploymentContextFromEnvelope`, and `payloadStr` already trims
-before `normalize` ever sees the value. The subtest therefore could not
-distinguish a trimming `normalize` from a non-trimming one, and the mutant
-survived while the table claimed it died. The rule is now pinned by a direct
-call that bypasses `payloadStr`. Adding a test is not the same as covering a
-rule; only the mutant settles it.
-
-The `SubjectDigest` precondition is a pre-existing rule rather than a new one —
-`main`'s `len(deployments) > 0` gate leaned on the same caller guard — but this
-change is what writes the precondition down, so it pins it too. Without the
-guard a finding with no artifact identity at all reaches `deployed_image`.
-
-### The declared-only guard was silently defanged once
-
-Worth recording, because the failure mode is invisible in a green test run.
-
-`...Branch3DeclaredOnlyDoesNotPromoteRuntimeReachability` was originally written
-with a fixture carrying a non-matching digest. That was harmless until the
-contradicting-digest rule landed and moved a digest check to the *front* of the
-promotion predicate. From then on the test short-circuited on the digest and
-never reached the declared-vs-`deploy_event` rule it exists to prove — while
-still passing.
-
-Review caught it by mutation: deleting #5426's entire corroboration rule left
-the whole `internal/reducer` package green. The fixture now carries no artifact
-identity at all, so branches 1 and 2 are unsatisfiable and the contradiction
-check cannot fire, leaving the corroboration rule as the only thing that can
-decide the outcome. Re-running the same mutation now fails exactly where it
-should:
-
-```
-$ go test ./internal/reducer -overlay=<promotion rule replaced with `return true`> \
-    -run 'Branch3|RegardlessOfEnvironmentEvidence|ContradictingDigest'
---- FAIL: TestBuildSupplyChainImpactFindingsBranch3DeclaredOnlyDoesNotPromoteRuntimeReachability
-    RuntimeReachability = "deployed_image", want declared-only branch-3 evidence
-    to withhold deployed_image
-```
-
-The general lesson: when a predicate gains an early-exit branch, every existing
-test whose fixture can trigger that branch stops testing whatever came after it,
-and nothing goes red to say so.
-
-`...Branch3DeclaredOnlyDoesNotPromoteRuntimeReachability` asserts both halves of
-the corrected design: the finding is not promoted, *and* it still carries the
-environment (labelled `declared`) and the `cicd_run_correlation` evidence hop.
-That second assertion is what fails if anyone re-implements this by gating the
-match again.
-
-**No pre-existing behavior test needed editing.** The first attempt required two
-edits in `supply_chain_impact_operational_anchor_test.go` to keep those tests
-reaching their own subject; both are reverted, and they now pass unmodified
-against `main`'s versions.  That is the cleanest available proof that the collateral
-damage is gone: the tests that had to be bent to accommodate the wrong design
-need no accommodation from the right one.
+Each rule this change introduces was audited by deleting or weakening exactly
+that rule via `go test -overlay` and confirming a test goes red. The full
+mutant/test table, the six rows that exist only because the audit found them
+uncovered, and the case where the guard was silently defanged are in the
+companion document
+[#5426 — mutation audit of the corroborated-vs-declared rules](5426-mutation-audit.md).
 
 Cross-package and contract gates:
 
@@ -415,84 +319,23 @@ $ cd go && go run ./cmd/fact-kind-registry -check         generated artifacts ar
 $ cd sdk/go/factschema && go test ./... -count=1          ok
 ```
 
-### Golden corpus, and why it cannot assert this
+### Golden corpus
 
-The gate is green on this branch at `23009695e`:
+The B-7 gate is green on this branch and now asserts this change end to end. The
+`list_supply_chain_impact_findings` MCP shape pins
+`findings[].environments[] = prod` and
+`findings[].environment_evidence.prod = deploy_event` on the CVE-2026-00010
+finding, with both fields required on the result item — and both are `omitempty`,
+so an empty evidence map reds the gate.
 
-```
-$ COMPOSE_PROJECT_NAME=env5426gate8 bash scripts/verify-golden-corpus-gate.sh
-summary: 507 pass, 0 required-fail, 1 advisory-warn
-=== PASS: B-7 golden corpus gate green (elapsed 154s, budget ceiling 1800s) ===
-```
-
-The advisory warn is phase timing under a deliberately raised
-`GATE_COLLECTOR_SETTLE_SECONDS=75`, not an assertion failure. Earlier runs on
-this branch reported `506 pass / 2 advisory-warn`: the same 508 assertions, with
-the machine-load-sensitive `phase_maintenance_drains` timing check landing on
-the other side of its advisory ceiling. Nothing was added or removed. (Without that
-override the run trips a known collector-settle flake — `only 17 credentialed
-collector source(s) landed facts; want >= 18` — which is #5831, not this
-change.)
-
-Every asserted snapshot value is expected to be unchanged from `main` here, and
-is: this change gates only the promotion, so every deployment that matched
-before still matches, and the corpus's one impact finding matches no branch-3
-deployment either way. The persisted payload is byte-identical too: the field is optional and the
-corpus finding's evidence map is empty, so `omitempty` drops the key entirely.
-
-I tried to add a real floor for this change rather than settle for a green run
-that asserts nothing about it:
-
-```json
-"findings[].environment_evidence.prod": "deploy_event"
-```
-
-**It failed, and the failure is the useful result:**
-
-```
-[FAIL] mcp:list_supply_chain_impact_findings: required JSON value
-  "findings[].environment_evidence.prod" failed:
-  path segment "environment_evidence" resolved no values
-```
-
-The assertion was reverted, because the cause is a pre-existing corpus
-limitation rather than a defect in this change. The corpus's only impact
-finding is an OS-package finding, and `SupplyChainImpactResult.RuntimeContext`
-already documents that for those, the baked `workload_ids` / `service_ids` /
-`environments` fields "stay empty ... until #5747 makes the filters agree".
-Every runtime value the snapshot asserts sits under `runtime_context`, which
-#5746 resolves at read time from `repository_id` — a path that never calls
-`matchingSupplyChainDeployments`.
-
-That empty map is provably the cause and not a dropped field. The decode maps
-it (`supply_chain_impact_findings_decode.go:69`),
-`normalizeSupplyChainEnvironmentEvidence` never returns empty (an absent key
-maps to `declared`), and `recordSupplyChainEnvironmentEvidence` skips only when
-the *environment* is empty. So an empty evidence map implies an empty baked
-`Environments` list: there is no matched deployment on this finding, and
-therefore nothing to corroborate.
-
-The producer half is already pinned in the snapshot by #5425 and passes here:
-
-```
-[PASS] GET /api/v0/ci-cd/run-correlations?environment=prod&...:
-  values [correlations[].environment correlations[].environment_evidence]
-```
-
-So the corpus proves the correlation carries the evidence; the unit tests prove
-the reducer consumes it. Nothing in the committed corpus exercises the join
-between them, and I would rather say that plainly than leave a green gate
-implying coverage this change does not have.
-
-Two follow-ups came out of this, and they are separate surfaces:
-
-- **#5835** — environment corroboration rides only on the baked fields, so it
-  never reaches the read-time-resolved `runtime_context` that OS-package
-  findings actually serve.
-- **#5836** — the corpus grows a branch-3 fixture so the promotion gate is
-  actually asserted end to end. Until that lands, the gate would stay green if
-  someone re-tightened all three match branches uniformly; only the unit tests
-  catch that today.
+Getting there took two production fixes, not a cassette change. The corpus's
+correlation was being rejected as provenance-only because the persisted
+`reducer_container_image_identity` row for its digest had lost the CI run's
+build provenance, and the impact finding was never replayed after the
+correlation later resolved. Both were measured against a live gate database.
+The gate output, the before/after rows, the failing-then-green tests, and what
+the corpus still does not assert are in the companion document
+[#5426 — what the golden corpus asserts about environment_evidence](5426-golden-corpus-coverage.md).
 
 No-Regression Evidence: the touched hot path is
 `applySupplyChainRuntimeContext` in `go/internal/reducer/supply_chain_impact_runtime.go`,
@@ -500,11 +343,45 @@ which gains one `map[string]string` per finding that records an environment and
 one O(matched deployments) pass over a slice the same function already iterates
 twice. No query, index, Cypher, or SQL shape changes, and no new I/O. Covered by
 `cd go && go test ./internal/reducer ./internal/query ./internal/mcp ./cmd/reducer -count=1`
-and the B-7 golden-corpus run cited above, whose phase timings stayed inside
-their baselines apart from the two advisory warns explained there.
+and the B-7 golden-corpus runs recorded in the companion above, whose phase
+timings stayed inside their baselines apart from the advisory warns explained
+there.
 
-No-Observability-Change: no metrics, spans, or status fields are added or
-altered, and no new failure path is introduced. The gate withholds a promotion
+No-Regression Evidence (`containerImageBuiltFromRows`): conferring build
+provenance on the CI-run decision makes two decisions resolve the same
+`(digest, repository)` pair, so the row builder now dedupes them. Measured on
+`BenchmarkContainerImageBuiltFromRows` (N=5000 distinct decisions, the
+dedup's worst case since there is nothing to remove), median of 6:
+
+| variant | ns/op | allocs/op | B/op |
+| --- | --- | --- | --- |
+| no dedup (`main`) | 970,245 | 25,001 | 1,960,963 |
+| concatenated key | 1,338,353 | 30,018 | 2,643,396 |
+| struct key (shipped) | 1,250,194 | 25,018 | 2,354,498 |
+
+**+28.9% over `main`**, allocation *count* flat but bytes **+20.1%** — the map's
+own storage. Quoting only allocs/op would have understated the trade by 393 KB/op. The struct key recovered only 6.6% —
+the rest is the map itself, and it ships. `testdata/benchmarks/reducer-handler-budgets.txt`
+carries an absolute ceiling for this benchmark with 1.50x headroom over its
+baseline; projecting this ratio leaves roughly 1.16x, so the next
+`refresh-reducer-handler-budgets.sh` run on the enforcement runner should expect
+a tighter margin. The gate is advisory today (`REDUCER_PERF_ENFORCE=false`).
+
+The trade is deliberate rather than free: a duplicate row is idempotent at the
+writer (`MERGE` on `(start, end, type)`) but still costs a MERGE round, so the
+payload reduction is not purely cosmetic. It is recorded here because a
+budgeted handler losing a third of its headroom should not be discovered by
+whoever flips that gate to enforcing.
+
+No-Observability-Change: no metrics, spans, or status fields are added, and no
+new failure path is introduced. One metric's counted unit does shift:
+`eshu_dp_provenance_edges_total{outcome="materialized"}` now samples distinct
+submitted rows rather than one row per (decision x build-provenance repository)
+pair. Same number in every case except the duplicate one the dedup exists to
+collapse. Deliberately not "edges": the counter is fed by `len(rows)` before the
+write, and a row whose endpoint node is absent is a writer no-op that still
+counts -- which is #5828, filed from this branch, so calling these edges would
+assert the thing that issue reports. The gate withholds a promotion
 rather than rejecting a deployment: the deployment still matches, so it keeps
 contributing its environment, evidence hop, and fact ID, and no rejection
 reason or dead-letter is involved. An operator reading a finding sees the

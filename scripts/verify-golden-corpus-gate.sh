@@ -326,7 +326,22 @@ phase_maintenance_start="${phase_first_drain_end}"
 # CORRELATES_DEPLOYABLE_UNIT. Collection/projection re-runs are idempotent (facts
 # dedupe by stable key; schema is IF NOT EXISTS). The final cycle is the asserted
 # B-7(a) drain.
-for maintenance_pass in 1 2; do
+#
+# Three cycles, not two (#5426). supply_chain_impact reads ci_cd_run_correlation,
+# which reads container_image_identity -- a three-link chain, all reopened
+# concurrently in one slice, so the reopen order sequences nothing. Two cycles
+# happened to suffice, but with ZERO margin: measured by running this loop with
+# a single pass, the now-required assertion fails outright --
+#
+#   [FAIL] mcp:list_supply_chain_impact_findings:
+#          result item missing required field "environment_evidence"
+#
+# -- while two passes go green. A required B-7 assertion sitting exactly on the
+# convergence boundary reds main the first time drain ordering shifts, so the
+# third cycle buys the margin the chain's depth calls for. Cost is small: the
+# maintenance_drains phase measured 4s at one pass, 11s at two, and 14s at the
+# three this ships, against a ~158s gate.
+for maintenance_pass in 1 2 3; do
 	log "deferred maintenance pass ${maintenance_pass}: re-run bootstrap-index maintenance"
 	"${bin_dir}/eshu-bootstrap-index" >"${log_dir}/bootstrap-index-maint-${maintenance_pass}.log" 2>&1 \
 		|| { tail -40 "${log_dir}/bootstrap-index-maint-${maintenance_pass}.log"; die "deferred maintenance pass ${maintenance_pass} failed"; }

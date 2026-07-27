@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -403,5 +404,47 @@ func TestProjectContainerImageDerivedFromEdgesPropagatesWriterErrors(t *testing.
 	if err := (ContainerImageIdentityHandler{DerivedFromEdgeWriter: retractFail}).
 		projectContainerImageDerivedFromEdges(context.Background(), intent, decisions); err == nil {
 		t.Fatal("expected an error when the retract fails")
+	}
+}
+
+// TestContainerImageDerivedFromRowsStayEmptyForCIRunScope is the DERIVED_FROM
+// half of the #5829 graph-truth pin (the BUILT_FROM half is in
+// container_image_provenance_edges_test.go).
+//
+// BuildProvenanceRepositoryIDs gates BOTH provenance edges, so widening it in
+// applyCIRunDigestRevision widens this edge's child gate too
+// (containerImageDerivedFromRows' slices.Contains check). It cannot reach a row
+// here, for a reason worth pinning rather than re-deriving: the widened
+// provenance only ever lands in the CI-run scope, because ci.run/ci.artifact
+// are loaded scope-locally, and a ci_cd_run scope resolves to an EMPTY
+// owningRepositoryID -- it owns no Dockerfile, so it has no base to attribute
+// from and returns nil before any gate is consulted.
+//
+// The consequence is the property this asserts: CI-run build provenance can
+// never make a DERIVED_FROM edge appear, so the intra-scope widening stays
+// confined to BUILT_FROM.
+func TestContainerImageDerivedFromRowsStayEmptyForCIRunScope(t *testing.T) {
+	t.Parallel()
+
+	const ciScopeID = "ci_cd_run:github_actions:eshu-hq:supply-chain-demo"
+	owningRepositoryID := repositoryIDFromReducerScope(ciScopeID)
+	if owningRepositoryID != "" {
+		t.Fatalf("repositoryIDFromReducerScope(%q) = %q, want empty: a CI-run scope owns no repository", ciScopeID, owningRepositoryID)
+	}
+
+	decisions := BuildContainerImageIdentityDecisions(ciDigestProvenanceEnvelopes())
+	carriesProvenance := false
+	for _, decision := range decisions {
+		if slices.Contains(decision.BuildProvenanceRepositoryIDs, ciDigestProvenanceBuildRepo) {
+			carriesProvenance = true
+			break
+		}
+	}
+	if !carriesProvenance {
+		t.Fatalf("no decision carries %q in BuildProvenanceRepositoryIDs; the fixture no longer exercises the widened gate", ciDigestProvenanceBuildRepo)
+	}
+
+	if rows := containerImageDerivedFromRows(decisions, owningRepositoryID); rows != nil {
+		t.Fatalf("containerImageDerivedFromRows = %#v, want nil for a CI-run scope", rows)
 	}
 }

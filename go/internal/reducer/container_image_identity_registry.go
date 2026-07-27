@@ -329,6 +329,28 @@ func applyCIRunDigestRevision(
 		decision.SourceRepositoryIDs = uniqueSortedStrings(
 			append(decision.SourceRepositoryIDs, anchor.sourceRepositoryIDs...),
 		)
+		// recordCIRunDigestAnchor only ever files a repository here from a
+		// ci.artifact whose artifact_type is container_image and whose run
+		// reported PRODUCING this digest, so the attribution is build
+		// evidence by construction -- the same evidence
+		// addContainerImageDigestRef already treats as build provenance
+		// (#5808) and the same tier applySLSADigestRevision confers below.
+		// Omitting it here left the two paths asymmetric in the one case
+		// that matters: when a deploying repository also names the digest by
+		// explicit image reference, both refs classify to the same
+		// (image_ref, outcome) pair, share one stable fact key, and the
+		// explicit-reference decision wins the upsert. #5808 fixed only the
+		// bare-digest decision, which is the one Postgres discards, so the
+		// persisted row named the building repository in
+		// source_repository_ids and carried NOTHING in
+		// build_provenance_repository_ids -- leaving
+		// cicdImageMatchesForRepository (ci_cd_run_correlation.go) with no
+		// key to narrow on, the correlation ambiguous and provenance-only,
+		// and its environment unable to reach a supply-chain impact finding
+		// (#5426).
+		decision.BuildProvenanceRepositoryIDs = uniqueSortedStrings(
+			append(decision.BuildProvenanceRepositoryIDs, anchor.sourceRepositoryIDs...),
+		)
 	}
 	if len(anchor.factIDs) > 0 {
 		decision.EvidenceFactIDs = uniqueSortedStrings(

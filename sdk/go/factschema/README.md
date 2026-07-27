@@ -26,6 +26,12 @@ The migration is incremental, family by family (Contract System v1 §7,
   `reducer_aws_cloud_runtime_drift_finding`, and
   `reducer_multi_cloud_runtime_drift_finding`. These are emitted by reducer
   writers after source facts have already been admitted.
+  `reducer_supply_chain_impact_finding` carries `environment_evidence`, an
+  optional `map[string]string` keyed by the same environment names as
+  `environments`, whose values are the closed pair `deploy_event` (a provider
+  deployment event was observed at the deploying run's commit) and `declared`
+  (the CI-declared workflow job gate alone). The two collections are siblings,
+  not a replacement: a reader that only knows `environments` keeps working.
 
 ## Compatibility
 
@@ -190,6 +196,17 @@ payload contract — so adding a fact kind cannot skip these checks.
 `parseJSONTag`) that both the decode seam and those locks depend on.
 
 `schema_gen_test.go` is the drift gate described above.
+
+The locks in `decode_test.go` are reflective, so they cover a new payload field
+without being edited — which also means they cannot say what a specific field's
+contract is meant to be. A field whose optionality or value vocabulary is
+load-bearing gets a named regression test alongside them;
+`decode_reducerderived_test.go` is the current example, pinning
+`reducer_supply_chain_impact_finding.environment_evidence` as an
+additive-optional string-valued map that round-trips, stays out of the schema's
+`required` set, and stays off the wire when empty. Add such a test in its own
+file rather than growing `decode_test.go`, which is already at its
+`//nolint:filelength` ceiling.
 
 No-Observability-Change: this module has no runtime, network, queue, graph,
 or telemetry emission path, the same as `sdk/go/collector`. Runtime

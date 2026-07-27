@@ -59,8 +59,37 @@ type ContainerImageProvenanceEdgeWriter interface {
 // broader SourceRepositoryIDs has no other legitimate BUILT_FROM consumer:
 // nothing else reads it off this decision type for this edge, so narrowing
 // loses no intended coverage.
+//
+// Rows are de-duplicated across decisions, not only within one. One intent
+// routinely holds several decisions for the SAME digest -- a ci.artifact's
+// bare-digest ref and a deploying repository's explicit image reference both
+// resolve to one image, and since #5426 both carry the same build-provenance
+// repository -- which would otherwise UNWIND the identical (digest, repository)
+// pair once per decision. The graph outcome is unchanged either way because the
+// canonical writer MERGEs on (start, end, type), so this is a payload and
+// counter fix, not a correctness one: it keeps the write batch proportional to
+// distinct (digest, repository) pairs and keeps the "materialized" ProvenanceEdges sample
+// counting those rather than one per (decision x build-provenance repository)
+// pair. Not "edges" -- the sample is len(rows) before the write, and a row whose
+// endpoint node is absent still counts (#5828).
 func containerImageBuiltFromRows(decisions []ContainerImageIdentityDecision) []map[string]any {
 	rows := make([]map[string]any, 0, len(decisions))
+	// A comparable two-string struct rather than a concatenated key. At 32 bytes
+	// it stays far under the 128-byte limit above which Go boxes a map key, and
+	// it removed the concatenation's +5,017 allocs/op on the N=5000 cost-budget
+	// benchmark.
+	//
+	// Be precise about what that bought: the concatenation cost ~7% of wall
+	// time, not the whole regression. Deduping at all costs ~29% over the
+	// no-dedup baseline (970k -> 1,250k ns/op median), and ALL of that ships --
+	// the map is roughly three quarters of the concatenated variant's larger
+	// ~38% regression, and removing the concatenation left the map behind. That is a
+	// deliberate trade -- a duplicate row still costs a MERGE round in the
+	// graph writer -- and it is recorded as a measured regression in
+	// docs/internal/evidence/5426-corroborated-vs-declared-environment.md
+	// rather than left implied.
+	type builtFromKey struct{ digest, repositoryID string }
+	seen := make(map[builtFromKey]struct{}, len(decisions))
 	for _, decision := range decisions {
 		if decision.Outcome != ContainerImageIdentityExactDigest {
 			continue
@@ -73,6 +102,11 @@ func containerImageBuiltFromRows(decisions []ContainerImageIdentityDecision) []m
 			if repositoryID == "" {
 				continue
 			}
+			key := builtFromKey{digest: digest, repositoryID: repositoryID}
+			if _, duplicate := seen[key]; duplicate {
+				continue
+			}
+			seen[key] = struct{}{}
 			rows = append(rows, map[string]any{
 				"digest":        digest,
 				"repository_id": repositoryID,

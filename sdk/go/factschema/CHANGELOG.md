@@ -47,6 +47,12 @@ entry — until a maintainer actually cuts the tag, per the convention below.
 - `DecodeError` classified error type (`ClassificationInputInvalid`) so a
   missing required field on decode dead-letters visibly instead of silently
   zeroing out.
+- `reducer_supply_chain_impact_finding` gains the optional
+  `environment_evidence` field (`map[string]string`, `omitempty`), labelling
+  each name in `environments` as `deploy_event` or `declared` (issue #5426).
+  Additive-optional: it is absent from the schema's `required` set, so a
+  payload written before it existed still decodes, and a finding with no
+  corroboration keeps its previous byte-identical payload.
 
 ### Changed
 

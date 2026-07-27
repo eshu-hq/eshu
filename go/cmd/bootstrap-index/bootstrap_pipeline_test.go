@@ -206,11 +206,18 @@ func TestPipelinedBootstrapRunsDeferredBackfillWorkflow(t *testing.T) {
 	// deterministic ordering. list_ci_cd_run_correlations' minimum_results:1 does
 	// not depend on the ordering because the domain writes a decision fact for
 	// every outcome; the outcome itself is intentionally unpinned (#5766).
+	// supply_chain_impact (#5426) is the third link in that same chain: it reads
+	// the correlation's durable decision for its deployment context, so a
+	// finding computed while the correlation was still ambiguous keeps an empty
+	// environments list forever unless the impact intent is replayed. It shares
+	// the ordering caveat above -- convergence comes from the maintenance loop
+	// running more than once, not from this slice's order.
 	if got, want := committer.reopenedDomains, []string{
 		"deployable_unit_correlation",
 		"kubernetes_correlation_materialization",
 		"container_image_identity",
 		"ci_cd_run_correlation",
+		"supply_chain_impact",
 	}; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("reopened domains = %v, want %v", got, want)
 	}

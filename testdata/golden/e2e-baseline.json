@@ -26,9 +26,9 @@
       "note": "first projector+reducer drain to terminal. Recaptured for #4637: the 6s seed was stale (main's real first_drain had been ~65-68s for some time, tripping the advisory every run). Measured 75s on the golden gate at commit 62147d83e (all three #3624 cold-ingest fixes merged: #4728 graph-write budget, #4732 Helm retract skip, #4734 ingester gate). The +~9s vs the pre-fix ~66s is the #4728 in-flight budget pacing writes on the small 20-repo cassette, which does not saturate the throughput knee — a bounded tradeoff (operator-tunable via ESHU_GRAPH_WRITE_MAX_IN_FLIGHT) that prevents the concurrency-saturation failure cascade at full-corpus scale. Not a masked regression: this is the current legitimate steady-state. The 0.15 band + 5s slack absorb run-to-run laptop jitter."
     },
     "maintenance_drains": {
-      "baseline_seconds": 5,
+      "baseline_seconds": 14,
       "gated": true,
-      "note": "two deferred maintenance + drain cycles (the additive-correlation convergence long pole at full corpus scale)"
+      "note": "three deferred maintenance + drain cycles (#5426). The chain container_image_identity -> ci_cd_run_correlation -> supply_chain_impact is three links reopened concurrently, and two cycles converged with zero margin: measured, at one pass the required environment_evidence assertion fails and at two it passes. Re-baselined 5 -> 14s: measured 4s at one pass, 11s at two, 14s at three, so the third cycle is only ~3s of that -- the rest is cost the 5s seed no longer reflected, and the two-cycle phase was already breaching its own 10s ceiling before this change. refresh-e2e-baseline.sh preserves this note, so update it by hand when the cycle count changes. The additive-correlation convergence long pole at full corpus scale."
     },
     "graph_query": {
       "baseline_seconds": 3,
