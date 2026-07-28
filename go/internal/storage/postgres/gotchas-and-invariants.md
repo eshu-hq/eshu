@@ -201,9 +201,13 @@ operational lessons that future storage changes still need to respect.
   was measured, and why re-measuring was not required): `EXPLAIN (ANALYZE,
   BUFFERS)` on a 300,000-row seeded `vulnerability.suppression` table with
   environment values drawn from a realistic ~7-token closed domain (`prod`,
-  `production`, `qa`, `stage`, `staging`, `dev`, `uat` -- matching
-  `environment.Aliases()`'s token set, not a single low-cardinality
-  synthetic value) shows the then-current
+  `production`, `qa`, `stage`, `staging`, `dev`, `uat` -- a 7-token sample
+  of `environment.knownTokens` (`go/internal/environment/environment.go`,
+  the 12-token union used for artifact-path detection); `uat` has no
+  `Aliases()` entry, so it passes through `expandEnvironmentAliasFilterValues`
+  as its own canonical form rather than expanding to any alias. This is a
+  realistic multi-token domain rather than a single synthetic value) shows
+  the then-current
   `lower(payload->'scope'->>'environment') = ANY('{prod,production}')`
   predicate, the pre-fix exact-match `= ANY('{prod}')` predicate, and the
   pre-existing sibling `payload->'scope'->>'cve_id'` predicate all produce

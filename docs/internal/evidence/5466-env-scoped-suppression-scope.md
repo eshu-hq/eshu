@@ -220,9 +220,9 @@ predicate.
 ```
 -- 300,000-row vulnerability.suppression table, darwin/arm64, postgres:16 in
 -- Docker. Environment values drawn from a realistic ~7-token closed domain
--- (prod, production, qa, stage, staging, dev, uat -- environment.Aliases()'s
--- token set), round-robin distributed, NOT a single low-cardinality
--- synthetic value.
+-- (prod, production, qa, stage, staging, dev, uat -- a sample of
+-- environment.knownTokens, the 12-token union), round-robin distributed,
+-- NOT a single low-cardinality synthetic value.
 
 -- PRE-BTRIM predicate (P1-1 shape): lower(payload->'scope'->>'environment') = ANY(alias-expanded ['prod','production'])
 Gather (actual time=0.375..25.202 rows=85715 loops=1)
