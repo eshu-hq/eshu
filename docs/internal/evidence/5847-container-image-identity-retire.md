@@ -583,7 +583,7 @@ shrink outweighs the pass's own surviving write count. Swept against the
 production writer with the retire's `RowsAffected` driven directly:
 
 ```
-canonical=6 retired=4  | blind=false moreThanWritten=false   <- 4 images lost, no warn, clean summary
+canonical=6 retired=4  | blind=false moreThanWritten=false   <- 4 images lost, no warn, un-flagged
 canonical=9 retired=1  | blind=false moreThanWritten=false
 canonical=5 retired=5  | blind=false moreThanWritten=false
 canonical=4 retired=6  | blind=false moreThanWritten=true
@@ -593,7 +593,17 @@ canonical=0 retired=10 | blind=true  moreThanWritten=true
 
 The first row is a real four-image evidence-visibility gap that leaves both flags
 false and `EvidenceSummary` reading `retired_without_canonical_writes=false
-retired_more_than_written=false`. The sweep also confirms the warn exclusivity:
+retired_more_than_written=false`. It is un-flagged rather than un-counted — the
+same summary string also carries `canonical_writes=6 retired=4` — but the raw
+pair reaches no operator on a succeeding pass, because
+`Service.recordReducerResult` logs `SubDurations` and `SubSignals` and not
+`EvidenceSummary`, and `ReducerQueue.Ack` takes the `Result` as `_`. A suspected
+sub-threshold shrink is therefore cross-checked outside this writer, on
+`eshu_dp_container_image_identity_decisions_total` (exact_digest falling,
+unresolved rising) or on the OCI collector's `oci_registry.warning` facts and
+`eshu_dp_oci_registry_api_calls_total{result="error"}`.
+
+The sweep also confirms the warn exclusivity:
 `canonical=0 retired=10` sets BOTH struct fields but emits only the blind warn,
 because `partialRetire` is gated on `!blindRetire`.
 

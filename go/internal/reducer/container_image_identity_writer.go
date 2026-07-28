@@ -134,9 +134,17 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 		// were not visible to this pass, and from here those two are identical.
 		// The fencing token cannot separate them either — the blind pass read its
 		// (empty) evidence LAST, so it ranks highest. Before the retire existed
-		// such a pass was a harmless no-op; now it clears the partition, and
-		// nothing re-triggers the domain afterwards. This is the operator's
-		// handle on it.
+		// such a pass was a harmless no-op; now it clears the partition, and what
+		// re-triggers the domain afterwards is narrow. Today only a bootstrap run
+		// replays it, through eshu-bootstrap-index's reducer reopen slice
+		// (go/cmd/bootstrap-index/bootstrap_pipeline.go), so a long-running
+		// deployment that never bootstraps again gets no second pass. #5850 widens
+		// that: it moves the cross-scope correlation reopen, this domain included
+		// via CrossScopeCorrelationReopenDomains, onto the live ingester, replayed
+		// on every commit-to-idle shard drain. Once it lands, "only at bootstrap"
+		// is false and this sentence must be updated to say so — whichever of the
+		// two lands second owns reconciling it. Either way the warn below is the
+		// operator's handle on the pass itself.
 		slog.Warn(
 			"container image identity retired prior decisions with no canonical write",
 			"domain", string(DomainContainerImageIdentity),

@@ -1757,12 +1757,21 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   the comparison is against the pass's own write count, so it only fires once the
   shrink outweighs the surviving set. Measured against the production writer,
   `canonical=1 retired=4` fires and `canonical=6 retired=4` does not — the second
-  is a genuine four-image evidence gap that leaves both flags false and
-  `EvidenceSummary` reading clean. Reaching it needs the partition's row count
-  from BEFORE the write, which neither of the two committed statements reports;
-  supplying it would take a third statement or a readback on the shared batched
-  insert, each of which needs its own live and concurrency proof. Until then,
-  treat a clean summary as "no shrink larger than this pass", not as "no gap".
+  is a genuine four-image evidence gap that leaves both flags false. That gap is
+  un-flagged rather than un-counted: `CanonicalWrites` and `Retired` hold the raw
+  pair and both summary strings render it, but on a SUCCEEDING pass nothing
+  carries the summary out of the process (`Service.recordReducerResult` logs
+  `SubDurations` and `SubSignals`, not `EvidenceSummary`, and `ReducerQueue.Ack`
+  discards the `Result`), so only the failure path forwards one. Reaching it in
+  the writer needs the partition's row count from BEFORE the write, which neither
+  of the two committed statements reports; supplying it would take a third
+  statement or a readback on the shared batched insert, each of which needs its
+  own live and concurrency proof. Until then, treat a clean pair of flags as "no
+  shrink larger than this pass", not as "no gap", and cross-check a suspected
+  sub-threshold shrink on `eshu_dp_container_image_identity_decisions_total`
+  (exact_digest falling, unresolved rising) or on the OCI collector's
+  `oci_registry.warning` facts and
+  `eshu_dp_oci_registry_api_calls_total{result="error"}`.
 
   No-Regression Evidence: `go test ./internal/reducer
   ./internal/replay/costcounting ./cmd/bootstrap-index -count=1` covers the

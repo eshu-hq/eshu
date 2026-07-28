@@ -151,10 +151,10 @@ type ContainerImageIdentityWriteResult struct {
 	//
 	// It is `retired > CanonicalWrites`, so it fires only when the shrink exceeds
 	// this pass's OWN write count — in effect only when more than half the
-	// partition was lost. A partial gap smaller than the surviving set is
-	// invisible. Measured against the production writer:
+	// partition was lost. A partial gap smaller than the surviving set leaves both
+	// flags false. Measured against the production writer:
 	//
-	//	canonical=6 retired=4  | blind=false moreThanWritten=false  <- 4 lost, silent
+	//	canonical=6 retired=4  | blind=false moreThanWritten=false  <- 4 lost, un-flagged
 	//	canonical=9 retired=1  | blind=false moreThanWritten=false
 	//	canonical=5 retired=5  | blind=false moreThanWritten=false
 	//	canonical=4 retired=6  | blind=false moreThanWritten=true
@@ -162,11 +162,26 @@ type ContainerImageIdentityWriteResult struct {
 	//	canonical=0 retired=10 | blind=true  moreThanWritten=true
 	//
 	// A ten-image partition that writes six and retires four is a real four-image
-	// evidence gap, and both flags read false while EvidenceSummary reads clean.
-	// Reaching it needs a baseline this writer does not have — the partition's
-	// count BEFORE the write — which the two committed statements cannot supply
-	// without a third statement or a readback on the shared batched insert. The
-	// coarse signal is what is claimed here; the gap below it is not covered.
+	// evidence gap that trips neither flag. It is un-FLAGGED rather than
+	// un-counted, and the distinction matters when deciding where to look:
+	// CanonicalWrites and Retired carry the raw pair, and both summary strings
+	// render it (containerImageIdentitySummary emits `canonical_writes=6
+	// retired=4`). What is missing is a CONSUMER. On a SUCCEEDING pass nothing
+	// carries either string out of the process — Service.recordReducerResult logs
+	// SubDurations and SubSignals but not EvidenceSummary, and ReducerQueue.Ack
+	// takes the Result as `_` — so only the failure path forwards a summary at
+	// all. The boolean is therefore what an operator has HERE, and a sub-threshold
+	// shrink has to be found on either side of this writer: downstream on
+	// eshu_dp_container_image_identity_decisions_total, where the loss shows up as
+	// exact_digest falling and unresolved rising for the same domain, and upstream
+	// on the OCI collector's oci_registry.warning facts and
+	// eshu_dp_oci_registry_api_calls_total{result="error"}.
+	//
+	// Reaching it in this struct needs a baseline this writer does not have — the
+	// partition's count BEFORE the write — which the two committed statements
+	// cannot supply without a third statement or a readback on the shared batched
+	// insert. The coarse signal is what is claimed here; the gap below it is not
+	// covered.
 	//
 	// The shrink is the discriminator for the part that IS reached. An ordinary
 	// re-classification retires at most one superseded row per image it rewrites,

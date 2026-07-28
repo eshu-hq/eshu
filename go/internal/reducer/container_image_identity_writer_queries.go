@@ -63,6 +63,51 @@ import (
 // change that made the handler write a second fact kind here, or evaluate only
 // part of a generation, would break that invariant and must revisit this retire.
 //
+// # Why a shrunken view is evidence rather than a gap
+//
+// This statement deletes on the strength of ABSENCE: a row the current pass did
+// not write is removed. That is sound only if a pass can never see LESS than the
+// registry currently holds, and it is the OCI collector's error model, not
+// anything in this writer, that supplies the guarantee.
+//
+// ociruntime.Source.scanTarget aborts on every collection failure instead of
+// committing what it had. Client construction, ping, and tag listing each return
+// a hard error (go/internal/collector/ociregistry/ociruntime/source.go, the
+// ClientFactory, Ping, and listReferences legs), and buildEnvelopes returns one
+// for a failed manifest fetch or an unparseable manifest. Every one of those
+// returns BEFORE collector.FactsFromSlice, so no generation is produced, none
+// activates, the previous generation stays active, and the next reducer pass
+// re-reads the OLD evidence. A rate limit, an expired token, or an unreachable
+// registry therefore cannot demote anything: they yield no write at all, not a
+// smaller one. The seven provider packages (ecr, acr, gar, ghcr, harbor, jfrog,
+// dockerhub) are URL, identity, and credential builders over a single
+// distribution.Client, whose ListTags and GetManifest error on transport failure
+// and on any non-2xx status, so no per-provider listing path can swallow a
+// failure differently.
+//
+// What survives that is the case this retire is FOR: a generation activates with
+// fewer observations only where the registry SUCCESSFULLY asserted fewer — a
+// deleted tag, a removed repository, or a token that filters results while still
+// answering 200. From every vantage point Eshu has, that is the current
+// evidence, and keeping exact_digest rows built from facts that are no longer
+// active would be stale graph truth.
+//
+// Two softer paths exist upstream and neither weakens this. A list_referrers
+// failure is downgraded to an oci_registry.warning envelope, but referrers never
+// feed the canonical outcomes: classifyContainerImageRef reads only the digest
+// and tag observation index (container_image_identity_registry.go). A manifest
+// carrying neither a digest header nor a body skips that one reference, but that
+// is a registry-asserted 2xx response rather than a transient failure, and it
+// emits a durable oci_registry.warning fact rather than vanishing.
+//
+// INVARIANT, and the reason this section is here: the OCI collector must never
+// commit partial results on error. If a later change lets ociruntime.Source emit
+// a generation from a failed or half-finished scan — swallowing a listing error,
+// or returning the references it managed to read — then a transient failure
+// starts activating an impoverished generation and this retire quietly becomes a
+// deleter of valid rows. Such a change has to revisit THIS statement, not only
+// the collector.
+//
 // # Why the retire is fenced ($5)
 //
 // The generation scope above bounds WHICH rows this statement may touch. It does
