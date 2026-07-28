@@ -51,10 +51,10 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 	}
 
 	now := reducerWriterNow(w.Now)
-	// Stamped on the INSERT, not only by the retire's CTE. A row left at the
-	// table default 0 between those two statements is durable, visible, and
-	// deletable by any concurrent stalled worker's fenced retire, because 0 is at
-	// or below every token. See reducerFactBatchInsertQuery.
+	// Stamped on the INSERT, which is the only statement that stamps it. A row
+	// left at the table default 0 between the insert and the retire is durable,
+	// visible, and deletable by any concurrent stalled worker's fenced retire,
+	// because 0 is at or below every token. See reducerFactBatchInsertQuery.
 	fencingToken := containerImageIdentityFencingToken(write)
 	decisions := containerImageIdentityCanonicalDecisions(write.Decisions)
 	collectorKind := reducerFactCollectorKind(write.SourceSystem)

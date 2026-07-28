@@ -102,10 +102,10 @@ import (
 // $5 ... WHERE fact_id = ANY($4) AND fencing_token <= $5)` CTE, on the reasoning
 // that the partition should carry a durable record of how fresh each row's
 // evidence was. It does — but the INSERT already supplies it. reducerFactRow
-// carries FencingToken and reducerFactBatchInsertQuery binds it, raising it with
-// GREATEST on conflict, so both properties the CTE was there for come from the
-// insert: the row is stamped, and a stale pass cannot downgrade a fresher row's
-// token.
+// carries FencingToken and reducerFactBatchInsertQuery binds it under a conflict
+// guard that rejects any upsert from a lower token, so both properties the CTE
+// was there for come from the insert: the row is stamped, and a stale pass
+// cannot downgrade a fresher row's token.
 //
 // That left the CTE a proven no-op that still cost a write. keepFactIDs is built
 // from the exact rows just handed to reducerBatchInsertFacts, so by retire time
