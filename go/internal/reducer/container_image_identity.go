@@ -58,9 +58,9 @@ type ContainerImageIdentityHandler struct {
 	// When nil the projection is skipped so the container-image-identity
 	// profile stays Postgres-only.
 	DerivedFromEdgeWriter ContainerImageDerivedFromEdgeWriter
-	// Now supplies the evidence-read watermark that fences the durable retire.
-	// Left nil it falls back to the process clock; tests inject a deterministic
-	// one. See ContainerImageIdentityWrite.EvidenceAsOf.
+	// Now supplies the evidence-read watermark stamped on the durable row. Left
+	// nil it falls back to the process clock; tests inject a deterministic one.
+	// See ContainerImageIdentityWrite.EvidenceAsOf.
 	Now func() time.Time
 }
 
@@ -80,7 +80,8 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 	// It has to express "how fresh is the world this pass looked at", so it must
 	// exclude however long the loads, classification, and admission then took — a
 	// worker that stalled inside a slow cross-scope load must not outrank the
-	// worker that read the database after it.
+	// worker that read the database after it when the two collide on the durable
+	// insert's conflict guard.
 	evidenceAsOf := containerImageIdentityEvidenceAsOf(h.Now)
 
 	envelopes, err := loadFactsForKinds(
@@ -169,7 +170,7 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 		EvidenceSummary: containerImageIdentitySummary(
 			len(decisions),
 			counts,
-			writeResult,
+			writeResult.CanonicalWrites,
 		),
 		CanonicalWrites: writeResult.CanonicalWrites,
 		SubSignals:      inputInvalidSubSignals(quarantinedCount),
@@ -370,28 +371,22 @@ func containerImageIdentityCounts(
 }
 
 // containerImageIdentitySummary renders the operator-facing evidence line for
-// one handled intent. It carries the writer's retire accounting as well as its
-// decision counts, because the retire DELETES durable decisions and a summary
-// that reported only what was written would say nothing about what was removed.
+// one handled intent: the decision counts this pass evaluated, and how many of
+// them the writer published durably.
 func containerImageIdentitySummary(
 	evaluated int,
 	counts map[ContainerImageIdentityOutcome]int,
-	writeResult ContainerImageIdentityWriteResult,
+	canonicalWrites int,
 ) string {
 	return fmt.Sprintf(
-		"container image identity evaluated=%d exact_digest=%d tag_resolved=%d ambiguous_tag=%d "+
-			"unresolved=%d stale_tag=%d canonical_writes=%d retired=%d retired_without_canonical_writes=%t "+
-			"retired_more_than_written=%t",
+		"container image identity evaluated=%d exact_digest=%d tag_resolved=%d ambiguous_tag=%d unresolved=%d stale_tag=%d canonical_writes=%d",
 		evaluated,
 		counts[ContainerImageIdentityExactDigest],
 		counts[ContainerImageIdentityTagResolved],
 		counts[ContainerImageIdentityAmbiguousTag],
 		counts[ContainerImageIdentityUnresolved],
 		counts[ContainerImageIdentityStaleTag],
-		writeResult.CanonicalWrites,
-		writeResult.Retired,
-		writeResult.RetiredWithoutCanonicalWrites,
-		writeResult.RetiredMoreThanWritten,
+		canonicalWrites,
 	)
 }
 

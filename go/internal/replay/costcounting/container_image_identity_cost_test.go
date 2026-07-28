@@ -62,9 +62,7 @@ func containerImageIdentityFixtureDecisions() []reducer.ContainerImageIdentityDe
 // bounded chunked bulk insert container_image_identity, ci_cd_run_correlation,
 // and sbom_attestation_attachment all share
 // (go/internal/reducer/reducer_fact_batch_insert.go) — so two canonical rows
-// fit in one 1000-row chunk and cost exactly one ExecContext round-trip. The
-// writer then issues one generation-authoritative retire DELETE, which is
-// O(1) in decision count, for two statements total.
+// fit in one 1000-row chunk and cost exactly one ExecContext round-trip.
 func newInstrumentedContainerImageIdentityWriter(t *testing.T) (
 	writer reducer.PostgresContainerImageIdentityWriter,
 	fake *countingExecQueryer,
@@ -94,10 +92,8 @@ func newInstrumentedContainerImageIdentityWriter(t *testing.T) (
 // postgres.InstrumentedDB.ExecContext (go/internal/storage/postgres/
 // instrumented.go) records this once per ExecContext round-trip. The writer's
 // reducerBatchInsertFacts call issues one ExecContext per ceil(N/1000) chunk;
-// two rows fit one chunk, and the trailing retire adds one more set-based
-// statement that does not scale with N, so this scenario asserts exactly two
-// write observations. An N+1 write-per-decision regression would scale the
-// insert half with N and exceed the budget.
+// two rows fit one chunk, so this scenario asserts exactly one write
+// observation. An N+1 write-per-decision regression would double this count.
 func TestCostBudget_ContainerImageIdentity(t *testing.T) {
 	t.Parallel()
 

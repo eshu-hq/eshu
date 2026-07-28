@@ -196,7 +196,7 @@ func TestPostgresContainerImageIdentityWriterDedupSurvivorForConvergedECSAndCICD
 	}
 
 	var persisted []decodedBatchedFactRow
-	for _, row := range decodeBatchedFactCalls(t, containerImageIdentityInsertCalls(db.execs)) {
+	for _, row := range decodeBatchedFactCalls(t, db.execs) {
 		var payload map[string]any
 		if err := json.Unmarshal(row.Payload, &payload); err != nil {
 			t.Fatalf("unmarshal payload: %v", err)
@@ -294,7 +294,7 @@ func TestPostgresContainerImageIdentityWriterPersistsExplicitDigestForFixedECSGo
 	}
 
 	var persisted []decodedBatchedFactRow
-	for _, row := range decodeBatchedFactCalls(t, containerImageIdentityInsertCalls(db.execs)) {
+	for _, row := range decodeBatchedFactCalls(t, db.execs) {
 		var payload map[string]any
 		if err := json.Unmarshal(row.Payload, &payload); err != nil {
 			t.Fatalf("unmarshal payload: %v", err)

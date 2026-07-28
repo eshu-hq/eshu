@@ -12,16 +12,17 @@ import (
 // reducerFactBatchInsertVersionedQuery is the schema_version-carrying sibling
 // of reducerFactBatchInsertQuery.
 //
-// It does NOT carry fencing_token: no governed writer on this path has a fenced
-// generation-authoritative retire yet. A governed domain that grows one must add
-// the column here the same way reducerFactBatchInsertQuery carries it — the bind
-// AND the `fact_records.fencing_token <= EXCLUDED.fencing_token` conflict guard,
-// which are two separate defects if only one is copied. Without the bind, freshly
-// inserted rows sit at the table default 0 until something else stamps them and a
-// stalled worker deletes them; without the guard, a stalled worker's upsert
-// overwrites a fresher row's content and leaves the fresher token vouching for
-// it. See the "Why fencing_token is written here" and "Why the conflict clause is
-// guarded rather than merged" sections on reducerFactBatchInsertQuery.
+// It does NOT carry fencing_token: no governed writer on this path ranks its
+// replays yet. A governed domain that grows that need must add the column here
+// the same way reducerFactBatchInsertQuery carries it — the bind AND the
+// `fact_records.fencing_token <= EXCLUDED.fencing_token` conflict guard, which
+// are two separate defects if only one is copied. Without the bind every row
+// rests at the table default 0, so the guard admits every pass unconditionally
+// and the domain looks fenced while behaving unfenced; without the guard, a
+// stalled worker's upsert overwrites a fresher row's content and leaves the
+// fresher token vouching for it. See the "Why fencing_token is written here" and
+// "Why the conflict clause is guarded rather than merged" sections on
+// reducerFactBatchInsertQuery.
 //
 // Otherwise it is byte-equivalent, column-for-column and
 // conflict-for-conflict, to the versioned single-row upsert every governed

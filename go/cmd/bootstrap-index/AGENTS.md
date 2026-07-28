@@ -94,44 +94,65 @@ what the fact identity is built from before adding a domain here:
 
 Both leave stale rows that the read surfaces serve, since the fact read paths
 filter on `is_tombstone` plus the active-generation join and do not pick a
-latest row per key. The fix is a retire pass after the insert, deleting the
-domain's own `fact_kind` for `(scope_id, generation_id)` minus the fact ids just
-written — see `containerImageIdentityRetireQuery` and
-`eshuSearchDocumentRetireQuery`. A retire is only correct when one intent covers
-the whole scope generation; if any path evaluates a subset, it would delete rows
-that are still valid.
+latest row per key. `container_image_identity` has exactly this shape and it is
+an open bug (#5847); the fix is tracked as #5854.
 
-A generation-authoritative retire also has to be **fenced**, and the reducer
-queue does not fence it for you. The claim batch's in-flight exclusion requires a
-LIVE lease, while the base predicate re-admits an item whose lease has already
-expired — and lease expiry is exactly the stalled-worker case, since heartbeat
-loss is quarantined only after `Handle` returns. So a worker that stalled past
-its lease still writes, and an unfenced retire lets it DELETE the rows of the
-worker that overtook it: strictly worse than the stale row it was added to
-remove. Rank writers by when their evidence was READ (never by write time, which
-ranks the stalled worker highest), stamp `fact_records.fencing_token` with that
-watermark, and delete only rows at or below it. Three further traps:
+The obvious remedy — a retire pass after the insert, deleting the domain's own
+`fact_kind` for `(scope_id, generation_id)` minus the fact ids just written, as
+`eshuSearchDocumentRetireQuery` does — has a precondition that is easy to miss
+and expensive to get wrong. **A retire deletes on the strength of ABSENCE, so it
+is only correct when a pass can never see LESS than the source currently holds.**
+Before adding one, audit the collector's error model for paths that produce a
+SMALLER generation without any upstream failure being asserted:
 
-- A zero watermark must be a hard error, because `fencing_token <= 0` matches
-  everything and the retire runs completely unfenced with nothing saying so.
-- The token must be stamped by the INSERT. A row left at the column default `0`
-  between the insert and the retire is durable, visible, and deletable by any
-  concurrent stalled worker, because `0` is at or below every token.
+- a soft-failed sub-fetch downgraded to a warning envelope, where the caller
+  emits the parent fact anyway with the missing field simply omitted — if that
+  field creates references, every reference that existed only through it
+  disappears;
+- an unpaginated or truncated listing, where a new entry evicts the tail and the
+  evicted entry's observation silently vanishes.
+
+`container_image_identity` has both (`ociruntime/config_provenance.go` returns
+nil labels with a nil error on a `GetBlob` failure; `source.go` truncates the tag
+list to `TagLimit`). Under additive semantics those cost only under-reporting,
+which is benign; a retire converts them into destruction of valid rows. Fix the
+collector first, or scope the retire so it cannot act on evidence a degraded scan
+could have dropped.
+
+The retire must also be **fenced**, and the reducer queue does not fence it for
+you. The claim batch's in-flight exclusion requires a LIVE lease, while the base
+predicate re-admits an item whose lease has already expired — and lease expiry is
+exactly the stalled-worker case, since heartbeat loss is quarantined only after
+`Handle` returns. So a worker that stalled past its lease still writes, and an
+unfenced retire lets it DELETE the rows of the worker that overtook it: strictly
+worse than the stale row it was added to remove. Rank writers by when their
+evidence was READ (never by write time, which ranks the stalled worker highest),
+stamp `fact_records.fencing_token` with that watermark, and delete only rows at
+or below it.
+
+Two of those pieces already ship, because the same watermark orders the ordinary
+upsert collision: `container_image_identity` stamps `fencing_token` on the
+INSERT and the shared batched insert's conflict clause is guarded on it
+(`reducer_fact_batch_insert.go`). Three traps are recorded from building the
+retire on top of them, in `docs/internal/evidence/5847-container-image-identity-retire.md`:
+
+- A zero watermark must be a hard error. It is what rows carry by table default,
+  so a domain that forgets it looks fenced and behaves unfenced.
+- The token must be stamped by the INSERT, not by a later statement. A row left
+  at `0` in between is durable, visible, and — to a retire — deletable by any
+  concurrent stalled worker.
 - Stamp it on the INSERT and NOWHERE ELSE. Re-stamping the keep-set from the
-  retire — the `WITH stamped AS (UPDATE ...)` shape — is redundant once the
-  insert carries the token, and redundant is not free: Postgres has no in-place
-  UPDATE, so a no-op stamp still writes a second row version per row per
-  execution (measured on this branch: keep-set `xmin` 879 → 880 with the token
-  unchanged), and a statement-counting cost budget sees none of it. It is also an
-  ABBA deadlock: the CTE locks the keep-set while the DELETE locks the
-  complement, `WITH` specifies no ordering between them, and two concurrent
-  same-scope retires with crossed keep/delete sets are exactly the stalled-worker
-  shape the fence exists to handle. That deadlock was measured on the
-  `5837-drift-reopen` sibling branch, not here — one harness run twice on
-  Postgres 16.14, `SQLSTATE 40P01` with a `ShareLock` cycle both ways. It is a
-  race, so quote the asymmetry and not a rate: the CTE variant deadlocked in most
-  trials of every run, the plain fenced `DELETE` in none of twenty. Ship the
-  fenced `DELETE` alone.
+  retire (the `WITH stamped AS (UPDATE ...)` shape) is redundant once the insert
+  carries the token, and redundant is not free: Postgres has no in-place UPDATE,
+  so a no-op stamp still writes a second row version per row per execution
+  (measured: keep-set `xmin` 879 → 880 with the token unchanged), and a
+  statement-counting cost budget sees none of it. It is also an ABBA deadlock —
+  the CTE locks the keep-set while the DELETE locks the complement, `WITH`
+  specifies no ordering between them, and two concurrent same-scope retires with
+  crossed keep/delete sets are exactly the stalled-worker shape. Measured on the
+  `5837-drift-reopen` branch, one harness run twice on Postgres 16.14,
+  `SQLSTATE 40P01` with a `ShareLock` cycle both ways: the CTE variant deadlocked
+  in most trials of every run, the plain fenced `DELETE` in none of twenty.
 
 ### Change NornicDB batch sizes or phase-group tuning
 

@@ -251,6 +251,21 @@ func runPipelined(
 	// queue between domains, so concurrent workers claim them in no guaranteed
 	// order. Convergence along the chain comes from maintenance running more
 	// than once, not from this order.
+	//
+	// One caveat the shared list does not carry: container_image_identity's
+	// replay is not fully idempotent, and #5847 is the open bug. Its stable
+	// fact key embeds `outcome` and `image_ref`, and the durable write is
+	// ON CONFLICT (fact_id) DO UPDATE, so a replay that re-classifies an image
+	// mints a NEW fact_id, and one that DEMOTES it out of the canonical
+	// outcomes (exact_digest, tag_resolved) writes no row at all. Either way
+	// the superseded decision stays live for the same active generation, and
+	// ListContainerImageIdentities has no DISTINCT ON, GROUP BY, or per-digest
+	// latest-wins to hide it. What the replay does get right is the colliding
+	// case: two passes that agree on the outcome share one fact_id, and the
+	// batched insert's fencing guard keeps the pass that read stale evidence
+	// from overwriting the fresher pass's payload. Removing the superseded row
+	// needs a generation-authoritative retire that is safe against the OCI
+	// collector's bounded degradation; that is #5854.
 	correlationReopenStart := time.Now()
 	if err := cd.committer.ReopenSucceededReducerWorkItems(
 		ctx, tracer, instruments, postgres.CrossScopeCorrelationReopenDomains(),

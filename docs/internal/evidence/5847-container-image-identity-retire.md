@@ -1,13 +1,40 @@
 # #5847 — a reopened `container_image_identity` replay leaves the superseded decision live
 
 `container_image_identity` sits in the bootstrap maintenance reopen slice, its
-fact identity embeds `outcome`, and the writer had no retire. A replay that
-reaches a different answer than the first execution therefore did not correct
-anything: it added a second row and left the first one live for the same active
+fact identity embeds `outcome`, and the writer has no retire. A replay that
+reaches a different answer than the first execution therefore does not correct
+anything: it adds a second row and leaves the first one live for the same active
 generation.
 
-This is the same defect #5837 fixes for `aws_cloud_runtime_drift`, on a
-different domain.
+**#5847 is still open after this branch.** The branch was built as the retire
+that closes it, the retire was withdrawn under review, and what ships is the
+half that is safe on its own: the durable write now carries an evidence-read
+watermark and the shared batched insert's conflict clause is guarded on it, so
+two passes that COLLIDE on one `fact_id` resolve in favour of the fresher
+evidence. The duplicate-row half — deleting the superseded row a re-classified
+or demoted replay leaves behind — is tracked as **#5854**, and
+[Why the retire is not in this branch](#why-the-retire-is-not-in-this-branch)
+is the reason it cannot land until the OCI collector's bounded-degradation paths
+are fixed.
+
+This file keeps its original name because it is the #5847 record. Sections
+marked *(withdrawn retire)* describe measurements taken against the retire this
+branch no longer ships; they are retained because #5854 has to re-derive every
+one of them and should not pay for them twice.
+
+**On this file's length.** This record is 866 lines, over the
+general 500-line cap in `CLAUDE.md`. It grew from 790 lines at the PR head to
+825 when the retire was withdrawn, and to its current length with the
+scope corrections above. The enforced gate, `precommit-go.sh filecap-all`,
+applies that cap to Go sources only and passes here; the rule text is general,
+so the overage is real and is recorded rather than argued away. Four of the 83
+evidence records on `origin/main` already exceed 500 lines, the longest at 1011.
+The file is not split, because #5854 has to re-derive the measurements kept here
+and will EXTEND this record rather than replace it, so a split now would only
+have to be undone.
+
+The duplicate-row defect is the same one #5837 fixes for
+`aws_cloud_runtime_drift`, on a different domain.
 
 ## What the identity is built from
 
@@ -90,7 +117,7 @@ inflates the counts.
 Severity is therefore not reduced by the read path. The duplicate rows are wrong
 at rest AND wrong on the wire.
 
-## Verification of the assumptions the retire rests on
+## Verification of the assumptions a retire would rest on
 
 Re-confirmed against `c23e30001`, the `origin/main` tip when these checks were
 run — not the branch's merge-base, which has since advanced to `76931f4d8`
@@ -148,60 +175,84 @@ Two further checks the retire needed on its own:
    `container_image_identity` has no `ProjectionState` at all, so it needs a
    fence of its own.
 
-## Fix
+## Why the retire is not in this branch
 
-`containerImageIdentityRetireQuery`
-(`go/internal/reducer/container_image_identity_writer_queries.go`), patterned on
-`eshuSearchDocumentRetireQuery` and its `aws_cloud_runtime_drift` sibling:
+The retire deletes on the strength of ABSENCE: a row the current pass did not
+write is removed. That is sound only if a pass can never see LESS than the
+registry currently holds. An earlier revision of this document argued it could
+not, on the grounds that `ociruntime.Source.scanTarget` aborts on every
+collection failure instead of committing what it had. Three rounds of analysis
+accepted that argument. A later review refuted it with a reproduction, and an
+architectural re-verdict confirmed the refutation: the collector has TWO paths
+that shrink a generation with nothing upstream asserting a failure.
 
-```sql
-DELETE FROM fact_records
-WHERE fact_kind = $1
-  AND scope_id = $2
-  AND generation_id = $3
-  AND fact_id <> ALL($4::text[])
-  AND fencing_token <= $5
-```
+1. **Config-blob soft-fail.**
+   `go/internal/collector/ociregistry/ociruntime/config_provenance.go:56-67`
+   downgrades a `GetBlob` failure to a warning envelope and returns nil labels
+   with a **nil error**; `source.go:243-246` then emits the manifest fact anyway,
+   with `config_labels` simply omitted. `config_labels` is ref-CREATING —
+   `container_image_identity_evidence.go:109-115` seeds `byRef` from it — so a
+   transient 429, 5xx, or timeout demotes every digest whose reference existed
+   only through that label. A retire deletes the corresponding row.
+2. **Tag-list truncation.** `distribution/client.go:155-172` is unpaginated, and
+   `source.go:161-165` truncates the result lexicographically to `TagLimit`
+   (default 20). A new low-sorting tag evicts the tail; the evicted tag's
+   observation vanishes and the prior `tag_resolved` row is retired. No failure
+   occurs anywhere in that sequence.
 
-It runs AFTER the insert. That buys two things and it is worth being precise
-about which, because it does NOT buy atomicity: a failed insert leaves prior
-decisions intact rather than clearing them and writing nothing, and no reader
-sees this scope generation with ZERO decisions, which retire-first would expose
-for the width of the insert. The window that IS open is the opposite one — the
-insert and the retire are separate autocommit statements on the same connection,
-so a reader landing between them sees BOTH the superseded decision and the
-corrected one. That is the same shape the retire exists to remove, just briefly
-instead of permanently; closing it needs the two statements to share a
-transaction, which this writer cannot do while it holds a bare execer.
+The collector is deliberately designed for bounded degradation, so an activated
+generation is known-incomplete BY DESIGN. Under additive semantics both
+mechanisms cost only under-reporting, which is benign. A generation-authoritative
+retire converts them into destruction of valid rows — the exact P1 the review
+raised, and the reason the DELETE is out of this branch rather than shipped with
+a caveat.
 
-The keep-set is built from the same rows handed to the insert, never re-derived
-from `write.Decisions`, so it cannot disagree with what was persisted. An empty
-keep-set retires everything for the generation at or below this write's token,
-which is exactly right for the demotion case.
+Two consequences for #5854. The collector fixes belong to it, not here (this
+branch deliberately does not touch
+`go/internal/collector/ociregistry/**`). And the writer-side signals this branch
+built to make a suspicious retire findable —
+`RetiredWithoutCanonicalWrites`, `RetiredMoreThanWritten`, and their two
+`slog.Warn` lines — went with the DELETE rather than staying as flags that can
+never fire.
 
-### The fence
+## What ships instead: the fenced upsert
 
-`$5` is the write's evidence-read watermark
-(`ContainerImageIdentityWrite.EvidenceAsOf`), captured by the handler
-immediately BEFORE its first fact load and rendered as microseconds. Evidence
-read time, not write time: write time ranks the stalled worker highest, which is
-the inversion the fence exists to stop. `Intent.AttemptCount` does not work
-either, because the reopen-succeeded statement resets it to 0, so a reopened
-replay would rank below the run it exists to repair. A zero `EvidenceAsOf` is a
-hard error, never a defaulted unfenced write: rows carry `fencing_token` 0 by
-table default, so `fencing_token <= 0` would still match everything and the
-retire would run completely unfenced with nothing saying so.
+Nothing here removes a row. What ships orders the case where two passes write the
+SAME `fact_id`.
+
+The fact identity embeds only `(scope_id, generation_id, image_ref, outcome)`,
+while `source_revision`, `source_revision_provenance`,
+`build_provenance_repository_ids` and `evidence_fact_ids` are payload-only and
+are filled in by cross-scope enrichment
+(`applyCIRunDigestRevision`/`applySLSADigestRevision`) whose visibility depends
+on which generations are active at load time. So two passes that agree on the
+outcome collide on one row with DIFFERENT payloads, and the pass that read before
+the CI/SLSA generation activated carries the poorer one. Before this branch the
+last writer won, whichever it was.
+
+### The watermark
+
+`ContainerImageIdentityWrite.EvidenceAsOf` is captured by the handler
+immediately BEFORE its first fact load and rendered as microseconds into
+`fact_records.fencing_token`. Evidence-read time, not write time: write time
+ranks the stalled worker highest, which is the inversion the watermark exists to
+stop. The reducer queue does not order the two for you — its claim-batch
+in-flight exclusion requires a LIVE lease while the base predicate re-admits an
+item whose lease has expired, and lease expiry IS the stalled-worker case (see
+check 6 above). `Intent.AttemptCount` does not work either, because the
+reopen-succeeded statement resets it to 0, so a reopened replay would rank below
+the run it exists to repair.
+
+A zero `EvidenceAsOf` is a hard error, never a defaulted unfenced write: rows
+carry `fencing_token` 0 by table default, so a row left there is
+indistinguishable from one written by a domain that never opted in, and
+`0 <= EXCLUDED.fencing_token` admits every later pass unconditionally. The
+domain would look fenced and behave unfenced with nothing saying so.
 
 The token is stamped by the **insert** (`reducerFactBatchInsertQuery` now writes
-`fencing_token`). Stamping it from the retire instead is not sufficient: the
-retire runs in a separate autocommit after the insert, so a freshly inserted row
-is committed and visible at the default `0` until the stamp lands, and `0` is at
-or below every other worker's token. A stalled worker's fenced retire arriving in
-that window deletes the fresher row anyway, and in the worst case BOTH rows
-vanish — A's retire takes B's unstamped row, then B's retire takes A's stamped
-one. That is strictly worse than main. Stamping at birth closes it.
-`reducerFactBatchInsertVersionedQuery` does NOT carry the column, and its doc
-comment now says a governed domain that grows a fenced retire must add it.
+`fencing_token`), which is what gives the conflict guard something to compare
+against. `reducerFactBatchInsertVersionedQuery` does NOT carry the column, and
+its doc comment says so.
 
 ### The conflict clause is guarded, not merged
 
@@ -236,22 +287,27 @@ fresher token on it, so the row advertised a freshness its payload did not have 
 and the retire's fence, reading that token, then protected the wrong row from
 correction.
 
-The shipped guarded form, same three live proofs, against a throwaway
-`postgres:16-alpine` (16.14) on 127.0.0.1:55901:
+The shipped guarded form, same three live proofs, re-run after the retire was
+removed against a throwaway `postgres:16-alpine` on 127.0.0.1:55849
+(`eshu-cii-noretire-pg`, removed afterwards):
 
 ```
-$ ESHU_POSTGRES_DSN=postgres://eshu:eshu@127.0.0.1:55901/eshu?sslmode=disable \
-    go test ./internal/storage/postgres -run 'ReducerFactBatchInsert.*Live' -count=1 -v
---- PASS: TestReducerFactBatchInsertRejectsStaleContentUpsertLive (3.04s)
---- PASS: TestReducerFactBatchInsertAppliesEqualTokenRetryLive (0.24s)
---- PASS: TestReducerFactBatchInsertStaysInertForUnfencedWritersLive (0.23s)
-ok  github.com/eshu-hq/eshu/go/internal/storage/postgres  7.227s
+$ ESHU_POSTGRES_DSN=postgres://eshu:eshu@127.0.0.1:55849/eshu?sslmode=disable \
+    go test ./internal/storage/postgres \
+      -run 'ReducerFactBatchInsert.*Live|ContainerImageIdentity.*Live' -count=1 -v
+--- PASS: TestReducerFactBatchInsertRejectsStaleContentUpsertLive (2.61s)
+--- PASS: TestReducerFactBatchInsertAppliesEqualTokenRetryLive (0.20s)
+--- PASS: TestReducerFactBatchInsertStaysInertForUnfencedWritersLive (0.16s)
+ok  github.com/eshu-hq/eshu/go/internal/storage/postgres  18.282s
 ```
 
-That is the before/after pair for this section: the same first test that FAILs
-under the `GREATEST` form PASSes under the guarded one. Those are cold-schema
-times — the first test absorbs `ApplyBootstrap`, so a re-run against the warm
-container returns 0.32s/0.22s/0.18s.
+The `-run` pattern deliberately still admits `ContainerImageIdentity.*Live`: it
+matches nothing now, which is the check that the five retire proofs are gone
+rather than silently skipping. Those are cold-schema times — the first test
+absorbs `ApplyBootstrap`.
+
+That is the before/after pair for this section: the same first test FAILs under
+the `GREATEST` form (transcribed above) and PASSes under the guarded one.
 
 Two properties of the guard are pinned separately because both are easy to get
 wrong:
@@ -273,74 +329,219 @@ matches `upsertFactBatchSuffix`
 (`go/internal/storage/postgres/facts_streaming.go`, #4444), which already fences
 the collector ingest path into this same table the same way.
 
-### What the fence does not close
+### What the guard does not close
 
-A stale pass can still INSERT its own row: if A's insert lands after B's retire
-has run, A's row is added under its own fact_id and no later pass in that
-generation removes it, leaving the two-contradictory-rows shape that exists on
-main today. Closing that needs the #4233 `ProjectionState.BeginBuilding`
-begin-before-mutate fence, which is a larger change than this repair. The
-statement here is what stops the retire from making that case WORSE by deleting
-the correct row.
+It orders a COLLISION; it does not remove a duplicate. A replay that
+re-classifies an image mints a different `fact_id` and never collides at all, and
+a replay that demotes an image out of the canonical outcomes writes no row to
+collide with. Those are the two shapes #5847 is about, and they stay open for
+#5854.
 
-The fence also cannot help a pass that read EMPTY evidence, because that pass
-read LAST and so ranks highest. `classifyContainerImageRef` returns `unresolved`
-when `index.observationsForDigest` yields ZERO observations, which is the same
-answer it gives an image that genuinely has no digest identity. A pass running
-while the cross-scope OCI facts are not visible therefore lands every decision
-non-canonical, hands the writer an empty keep-set, and clears the partition —
-where before the retire existed the same pass was a harmless no-op, and nothing
-re-triggers the domain afterwards. The writer cannot distinguish the two from
-where it sits, so it is loud instead:
-`ContainerImageIdentityWriteResult.RetiredWithoutCanonicalWrites` is set and a
-`slog.Warn` names the intent, scope, generation, retired count, and watermark
-whenever a zero-canonical pass retires a non-empty prior set.
+Nor does it tell an operator when it fires. A pass fenced out in WHOLE still
+reports `CanonicalWrites=N`, which is byte-identical to a pass that landed
+normally against an unchanged partition. The rows are right either way; the
+summary cannot distinguish them. Reading back the accepted `fact_id`s — the
+`upsertFactBatchReturningAccepted` shape #4444 had to prove live on the collector
+path — would close that, and needs its own live proof and concurrency argument.
+Stated, not implemented.
 
 The reopen-slice comment in `go/cmd/bootstrap-index/bootstrap_pipeline.go`
 claiming the decision "upserts on a scope-keyed stable fact key, so replay is
-idempotent" was false and is corrected. `go/cmd/bootstrap-index/AGENTS.md` gains
-the general rule — including the fencing traps — so the next domain added to that
-slice is checked for the same shape first.
-
+idempotent" was false and is corrected — it now names #5847 as the open bug and
+#5854 as the fix. `go/cmd/bootstrap-index/AGENTS.md` gains the general rule for
+the next domain added to that slice: what to check about the fact identity
+BEFORE reopening it, and the bounded-degradation audit a retire needs before it
+can be the answer.
 
 ## Proof
 
-Every number below was produced on this branch after the final edit, against a
-throwaway Postgres 16 container (`eshu-cii-retire-pg`, host port 55847) created
-for this work.
+Every number below was produced against a throwaway Postgres 16 container
+(`eshu-cii-retire-pg`, host port 55847) created for this work. Measurements taken
+against the withdrawn retire are labelled as such and are kept for #5854.
 
 ### Failing before, passing after
 
-The three retire regressions failed on the pre-change writer:
+The shipped change is the guarded upsert, and its regression is the live one: the
+same test FAILs against the token-only `GREATEST` form and PASSes against the
+guarded one, transcribed under
+[The conflict clause is guarded, not merged](#the-conflict-clause-is-guarded-not-merged).
+
+The credential-free half is `TestReducerFactBatchInsertFreezesItsConflictGuard`,
+which freezes the whole `ON CONFLICT` clause, plus the four
+`ContainerImageIdentity*` fence unit tests (token direction, stamped on the
+insert, hard error on a missing watermark, watermark taken before the load).
+Cutting the `WHERE` guard from the production statement reddens the first; the
+three live proofs are DSN-gated and skip without one, which is why the frozen
+clause exists.
+
+### Live proofs
+
+Three live proofs ship, all gated on `ESHU_POSTGRES_DSN` alone, all covering the
+shared insert's conflict guard. They are run and transcribed under
+[The conflict clause is guarded, not merged](#the-conflict-clause-is-guarded-not-merged).
+
+The branch previously carried five more, covering the retire's partition
+bounding, the empty-keep-set clear, the stalled-worker fence, the insert/stamp
+window, and the keep-set row-version count. Those were removed with the DELETE;
+their findings are the two subsections above.
+
+They live in `go/internal/storage/postgres`, not `go/internal/reducer`. An
+earlier revision put them in package `reducer` behind an extra
+`ESHU_CONTAINER_IMAGE_IDENTITY_RETIRE_LIVE=1` flag that appears nowhere in
+`scripts/` or `.github/`, over a hand-rolled four-column `fact_records` with no
+`fencing_token`, no `is_tombstone`, and no indexes — so it could never run in CI
+and could not have exercised the guard at all. `internal/storage/postgres`
+importing `internal/reducer` is the reason the test belongs on this side: it is
+the direction that compiles, and it is where `ApplyBootstrap` gives the real
+table with its real foreign keys.
+
+### Mutants
+
+Applied to the final code, run against the throwaway Postgres, and reverted.
 
 ```
-$ go test ./internal/reducer -run 'TestContainerImageIdentityWriterRetire' -count=1
---- FAIL: TestContainerImageIdentityWriterRetiresEverythingWhenNothingIsCanonical
-    retire statements issued = 0, want exactly 1
---- FAIL: TestContainerImageIdentityWriterRetiresAfterInsert
-    exec calls = 1, want 2 (one batched insert, one retire)
---- FAIL: TestContainerImageIdentityWriterRetiresSupersededDecisionForSameImageRef
-    retire statements issued = 0, want exactly 1
-FAIL
+WHERE fact_records.fencing_token <= EXCLUDED.fencing_token cut from the insert
+  FAIL TestReducerFactBatchInsertFreezesItsConflictGuard
+  FAIL TestReducerFactBatchInsertRejectsStaleContentUpsertLive
+
+guard rewritten as fencing_token = GREATEST(existing, excluded), content unguarded
+  FAIL TestReducerFactBatchInsertFreezesItsConflictGuard
+  FAIL TestReducerFactBatchInsertRejectsStaleContentUpsertLive
+       stored source_revision/provenance = ""/"", want "commit-fresh"/"ci_run_commit"
+
+insert no longer stamps at birth (fencingToken forced to 0)
+  FAIL TestContainerImageIdentityWriterStampsTheFencingTokenOnTheInsert
+       inserted fencing_token = 0, want 1785146400000000
 ```
 
-After the change the whole set is green:
+The first two mutants live in the SQL and the third in the writer's argument
+build, which is why the frozen-clause test and the stamp test are separate: no
+amount of auditing the statement text would catch a writer that stopped binding
+the column. Note also that the GREATEST mutant is the one the frozen-clause test
+earns its keep on — it leaves `fencing_token` in the statement, so a substring
+probe for the column name would pass it.
+
+Three further mutants were run against the withdrawn retire (`OR TRUE` appended
+to the DELETE, the fence predicate cut from the DELETE, and the born-unstamped
+insert proven against a real interleaving). #5854 has to re-run them.
+
+### Gate
 
 ```
-$ go build ./...                                        # exit 0
-$ go test ./internal/reducer ./internal/query ./internal/storage/postgres \
-    ./cmd/bootstrap-index ./internal/replay/costcounting \
-    ./internal/goldengate ./cmd/golden-corpus-gate -count=1
-ok  github.com/eshu-hq/eshu/go/internal/reducer               3.180s
-ok  github.com/eshu-hq/eshu/go/internal/query                 2.793s
-ok  github.com/eshu-hq/eshu/go/internal/storage/postgres      6.248s
-ok  github.com/eshu-hq/eshu/go/cmd/bootstrap-index            5.579s
-ok  github.com/eshu-hq/eshu/go/internal/replay/costcounting   0.718s
-ok  github.com/eshu-hq/eshu/go/internal/goldengate            0.830s
-ok  github.com/eshu-hq/eshu/go/cmd/golden-corpus-gate         2.346s
+$ bash scripts/test-verify-golden-corpus-gate.sh
+test-verify-golden-corpus-gate: pass
 ```
 
-### The born-unstamped hole, reproduced and closed
+The `list_container_image_identities` MCP shape pins `maximum_results: 1`
+alongside its existing `minimum_results: 1`, and the ceiling is KEPT even though
+the retire it was added for is not. Its job changes rather than disappearing.
+`QueryShape.MaximumResults` is a generally-available ceiling in
+`go/internal/goldengate` (the query-shape counterpart to `RequiredNode`'s
+`MaximumNodePropertyCount`), covered by `TestEvaluateQueryShape`'s
+`maximum results ceiling` and `maximum results without an array result field`
+subtests.
+
+#### What the ceiling covers, and what it does not
+
+#5847 has two shapes, and the ceiling sees one of them.
+
+- **Duplicate (covered).** A replay that RE-CLASSIFIES an image mints a second
+  `fact_id` beside the first, and both stay live. The floor alone cannot see
+  that — an ANY-match "at least one identity for this repository" assertion
+  passes identically on one correct row and on that row plus its superseded
+  contradiction. The ceiling is what makes this shape visible to a committed
+  gate if the corpus ever starts producing it.
+- **Demotion (NOT covered).** A replay that demotes an image out of the two
+  canonical outcomes (`exact_digest`, `tag_resolved`) writes no row at all. The
+  stale row stays live, the count stays 1, and the ceiling passes. The demoting
+  fixture that would close this gap is **#5853**; nothing in this branch covers
+  it.
+
+So the ceiling makes the DUPLICATE shape of #5847 visible to a committed gate.
+It is not a detector for #5847 as a whole.
+
+#### Why the value is 1 — an inference, not a measurement
+
+The value 1 is an INFERENCE from a main-era measurement, not a measurement of
+this narrowing.
+
+The measurement is real. The sibling `list_supply_chain_impact_findings`
+description — committed on `origin/main`, measured on the live corpus post-#5810
+— records that this digest carries 16 `reducer_container_image_identity` rows and
+that "only ONE ... names the BUILDING repository
+(github.com/eshu-hq/supply-chain-demo, repository:r_69256c06)", which is the
+`source_repository_ids` value this assertion narrows on. The other fifteen name
+only the deploying repository. Nothing in this branch adds or removes a row from
+that set.
+
+What makes it an inference is scope. That measurement is DIGEST-scoped, while
+the pinned MCP query filters on `source_repository_id` across all digests and
+scopes. It therefore bounds a subset of the set the ceiling bounds, and the
+ceiling has never been run through the LIVE golden-corpus gate — only through
+`scripts/test-verify-golden-corpus-gate.sh`, which exercises the gate script
+rather than the corpus. Nothing has yet counted the rows this narrowing actually
+returns.
+
+**Falsifier:** a live-gate count above 1 on
+`list_container_image_identities?source_repository_id=r_69256c06` disproves the
+inference and the ceiling has to move.
+
+That same scope mismatch is why
+`docs/internal/evidence/5428-built-from-projection-rescinded.md`'s "narrowing
+selects the same single row" is not the evidence either. The 5428 sentence is
+about the reducer-internal `cicdImageMatchesForRepository` narrowing, which is
+likewise scoped to a single digest.
+
+Keeping the ceiling is still the right call — it is the only committed detector
+for the duplicate shape — but its stated basis is an inference with a named
+falsifier, not a measurement of the set it bounds. The ceiling was in the same
+position before the retire was withdrawn; the value was argued from the same
+main-era measurement then too.
+
+## Cost
+
+The `container-image-identity` cost budget is UNCHANGED at 1 statement and 1
+`eshu_dp_postgres_query_duration_seconds` write observation per intent execution.
+It moved to 2 while the retire was in the branch and moves back with it. The N+1
+negative control costs 2 and still exceeds the budget.
+
+Note what that budget does NOT bound. It counts statements, so it was blind to
+the withdrawn retire's dropped stamping CTE — a second `fact_records` row version
+per canonical decision, on every intent execution, inside a statement count that
+never moved. #5854 needs a row-version assertion, not only a statement one; the
+`xmin` shape is recorded above.
+
+The batched insert gains one bind array (`fencing_token`, 16 columns instead of
+15) and one comparison in its `ON CONFLICT` clause. No extra statement, no extra
+round-trip. `reducerFactBatchSize` is unchanged at 1000, and 1000 rows x 16
+columns is still well under Postgres' 65535 bind-parameter ceiling. Callers that
+leave `reducerFactRow.FencingToken` at zero write `0`, which is the column
+default they already had, and `0 <= 0` admits their update unchanged — pinned by
+`decodeCloudInventoryBatchedRows` on the bind side and by
+`TestReducerFactBatchInsertStaysInertForUnfencedWritersLive` on the SQL side.
+
+Performance: the write path gains no statement. No hot-path Cypher, graph write,
+or query handler changed.
+
+No-Observability-Change: nothing here destroys a row, so there is nothing for a
+new counter to report. The insert runs inside the already-instrumented
+`InstrumentedDB.ExecContext` wrapper that records
+`eshu_dp_postgres_query_duration_seconds`; a write rejected by
+`validateContainerImageIdentityFence` before any statement is issued surfaces as
+a non-success `status` on `eshu_dp_reducer_executions_total` (labeled
+`domain`=`container_image_identity`); and the existing
+`eshu_dp_container_image_identity_decisions_total` counter and reducer run spans
+are unchanged. The one gap is named under
+[What the guard does not close](#what-the-guard-does-not-close): a pass fenced
+out in whole is indistinguishable in the summary from a pass that landed.
+
+## Records carried forward for #5854 *(withdrawn retire)*
+
+The four subsections below measured the retire this branch no longer ships. They
+are kept because each cost real machine time and #5854 would otherwise repeat
+them. The tests they name were deleted with the DELETE.
+
+### The born-unstamped hole, reproduced and closed *(withdrawn retire)*
 
 `TestContainerImageIdentityFreshlyInsertedRowIsFencedBeforeItIsVisibleLive`
 drives the interleaving deterministically instead of racing for it: worker B's
@@ -365,7 +566,7 @@ A's retire deleted B's row because it was still sitting at the column default
 below B's. That is strictly worse than main, which merely left a stale row
 beside a correct one. Carrying `fencing_token` on the insert closes it.
 
-### The keep-set stamp was a no-op that still rewrote every kept row
+### The keep-set stamp was a no-op that still rewrote every kept row *(withdrawn retire)*
 
 The retire originally led with a `WITH stamped AS (UPDATE fact_records SET
 fencing_token = $5 ... WHERE fact_id = ANY($4) AND fencing_token <= $5)` CTE, on
@@ -433,150 +634,12 @@ this section is the one that holds.
 
 A single `DELETE` scanning one index order cannot deadlock this way.
 
-The retire is now a bare fenced `DELETE`.
-`TestContainerImageIdentityRetireQueryIsASingleDeleteAndNothingElse` rejects any
-reintroduced `WITH`, `UPDATE`, or `INSERT`, and the frozen-statement test carries
-the new text.
+The retire this branch withdrew had been reduced to a bare fenced `DELETE`
+because of this. #5854 must ship it that way, and must keep a guard that rejects
+a reintroduced `WITH`, `UPDATE`, or `INSERT` — the shape of that guard, and the
+two ways it was evadable, are the subsection after next.
 
-### Live proofs (the five retire proofs)
-
-The branch adds eight live tests in all. The five below cover the retire; the
-three `ReducerFactBatchInsert*Live` proofs cover the shared insert's conflict
-guard and are run and transcribed under
-[The conflict clause is guarded, not merged](#the-conflict-clause-is-guarded-not-merged).
-
-```
-$ ESHU_POSTGRES_DSN=postgresql://eshu:change-me@localhost:55847/eshu \
-    go test ./internal/storage/postgres -run 'ContainerImageIdentity.*Live' -count=1 -v
---- PASS: TestContainerImageIdentityRetireCannotDeleteFresherEvidenceRowsLive (0.44s)
---- PASS: TestContainerImageIdentityFreshlyInsertedRowIsFencedBeforeItIsVisibleLive (0.16s)
---- PASS: TestContainerImageIdentityRetireBoundedToOwnPartitionLive (0.22s)
---- PASS: TestContainerImageIdentityRetireEmptyKeepSetClearsDemotedGenerationLive (0.16s)
---- PASS: TestContainerImageIdentityRetireDoesNotRewriteKeepSetRowsLive (0.14s)
-ok  github.com/eshu-hq/eshu/go/internal/storage/postgres  4.895s
-```
-
-They live in `go/internal/storage/postgres`, not `go/internal/reducer`, and are
-gated on `ESHU_POSTGRES_DSN` alone. An earlier revision put them in package
-`reducer` behind an extra `ESHU_CONTAINER_IMAGE_IDENTITY_RETIRE_LIVE=1` flag
-that appears nowhere in `scripts/` or `.github/`, over a hand-rolled
-four-column `fact_records` with no `fencing_token`, no `is_tombstone`, and no
-indexes — so it could never run in CI and could not have exercised the fence at
-all. `internal/storage/postgres` importing `internal/reducer` is the reason the
-test belongs on this side: it is the direction that compiles, and it is where
-`ApplyBootstrap` gives the real table with its real foreign keys, which is what
-the sibling `aws_cloud_runtime_drift_retire_live_test.go` also does.
-
-### Mutants
-
-All three were applied to the final code, run, and reverted.
-
-```
-OR TRUE appended to the DELETE
-  FAIL TestContainerImageIdentityRetireQueryIsBoundedToItsOwnPartition
-       (normalized full-text mismatch)
-  FAIL TestContainerImageIdentityWriterRetiresAfterInsert
-  FAIL ...RetireBoundedToOwnPartitionLive   Retired = 5, want exactly 1
-  FAIL ...RetireEmptyKeepSetClearsDemotedGenerationLive  Retired = 3, want 2
-  FAIL ...RetireCannotDeleteFresherEvidenceRowsLive
-
-fence predicate cut from the DELETE
-  FAIL TestContainerImageIdentityRetireQueryIsBoundedToItsOwnPartition
-  FAIL ...RetireCannotDeleteFresherEvidenceRowsLive
-       the stalled worker's retire deleted 1 row(s) written from FRESHER
-       evidence, want 0
-  FAIL ...FreshlyInsertedRowIsFencedBeforeItIsVisibleLive  surviving rows = []
-
-insert no longer stamps at birth (FencingToken left 0)
-  FAIL TestContainerImageIdentityWriterStampsTheFencingTokenOnTheInsert
-       inserted fencing_token = 0, want 1785146400000000
-  FAIL ...FreshlyInsertedRowIsFencedBeforeItIsVisibleLive  surviving rows = []
-```
-
-The fenced run is the `DELETE 0` side of the same pair: with the fence intact
-the stalled worker reports `Retired = 0` and the fresher row survives carrying
-its own watermark; with the fence cut it reports one deleted row.
-
-Note what the second and third mutants prove separately. The fence-cut mutant
-lives in the retire predicate; the born-unstamped mutant lives in the INSERT
-path, and no amount of auditing the `DELETE` would have found it. That is why
-the third mutant exists.
-
-### Gate
-
-```
-$ bash scripts/test-verify-golden-corpus-gate.sh
-test-verify-golden-corpus-gate: pass
-```
-
-The `list_container_image_identities` MCP shape now pins `maximum_results: 1`
-alongside its existing `minimum_results: 1`. The floor alone could not detect
-this fix regressing: an ANY-match "at least one identity for this repository"
-assertion passes identically on one correct row and on that row plus its
-superseded contradiction, which is exactly what a regressed retire produces.
-`QueryShape.MaximumResults` is a new, generally-available ceiling in
-`go/internal/goldengate` (the query-shape counterpart to `RequiredNode`'s
-`MaximumNodePropertyCount`), covered by `TestEvaluateQueryShape`'s
-`maximum results ceiling` and `maximum results without an array result field`
-subtests.
-
-Exactly one row matches that narrowing today, and the on-point measurement is in
-the same snapshot file: the sibling `list_supply_chain_impact_findings`
-description records, from the live corpus and post-#5810, that this digest
-carries 16 `reducer_container_image_identity` rows and that "only ONE ... names
-the BUILDING repository (github.com/eshu-hq/supply-chain-demo,
-repository:r_69256c06)" — which is exactly the `source_repository_ids` value this
-assertion narrows on. The other fifteen name only the deploying repository and
-cannot match.
-
-That is the statement to cite, not
-`docs/internal/evidence/5428-built-from-projection-rescinded.md`'s "narrowing
-selects the same single row". The 5428 sentence is about the reducer-internal
-`cicdImageMatchesForRepository` narrowing, which is scoped to a single digest;
-the pinned MCP query filters on `source_repository_id` across all digests and
-scopes, so 5428 does not measure the set this ceiling bounds.
-
-## Cost
-
-The `container-image-identity` cost budget moves from 1 statement to 2, and
-stays at 2 after the fence: the retire is a single set-based `DELETE` regardless
-of decision count, so the per-decision bound the budget actually guards is
-unchanged in shape. The N+1 negative control costs 4 and still exceeds the
-budget.
-
-Note what that budget does NOT bound. It counts statements, so it was blind to
-the dropped stamping CTE's per-row cost — a second `fact_records` row version per
-canonical decision, on every intent execution, inside a statement count that
-never moved. Row-version cost is now pinned separately by
-`TestContainerImageIdentityRetireDoesNotRewriteKeepSetRowsLive`.
-
-The batched insert gains one bind array (`fencing_token`, 16 columns instead of
-15) and one comparison in its `ON CONFLICT` clause. No extra statement, no extra
-round-trip. `reducerFactBatchSize` is unchanged at 1000, and 1000 rows x 16
-columns is still well under Postgres' 65535 bind-parameter ceiling. Callers that
-leave `reducerFactRow.FencingToken` at zero write `0`, which is the column
-default they already had, and `0 <= 0` admits their update unchanged — pinned by
-`decodeCloudInventoryBatchedRows` on the bind side and by
-`TestReducerFactBatchInsertStaysInertForUnfencedWritersLive` on the SQL side.
-
-Performance: the write path gains exactly one bounded statement per intent
-execution, O(1) in decision count. No hot-path Cypher, graph write, or query
-handler changed.
-
-Observability Evidence: the retire now reports what it destroyed.
-`ContainerImageIdentityWriteResult.Retired` carries the DELETE's `RowsAffected`,
-the handler's evidence summary renders `retired=<n>` and
-`retired_without_canonical_writes=<bool>` beside the decision counts, and a
-zero-canonical pass that cleared a non-empty prior set emits a `slog.Warn`
-naming intent, scope, generation, retired count, and evidence watermark. The
-earlier `No-Observability-Change:` marker on this change was an overclaim: the
-statement did run inside the instrumented `InstrumentedDB.ExecContext` wrapper
-that records `eshu_dp_postgres_query_duration_seconds`, which is true and beside
-the point — that records that A write happened, never what was destroyed. The
-existing `eshu_dp_container_image_identity_decisions_total` counter and reducer
-run spans are unchanged.
-
-### What `RetiredMoreThanWritten` does not reach
+### What `RetiredMoreThanWritten` did not reach *(withdrawn retire)*
 
 The partial-gap signal is `retired > CanonicalWrites`, so it only fires once the
 shrink outweighs the pass's own surviving write count. Swept against the
@@ -620,7 +683,7 @@ collector path. Either would need its own live proof, its own concurrency
 argument, and its own cost-budget revision, none of which belong in a
 comment-accuracy pass. Not implemented; stated.
 
-### The single-DELETE guard was evadable on its own
+### The single-DELETE guard was evadable on its own *(withdrawn retire)*
 
 `TestContainerImageIdentityRetireQueryIsASingleDeleteAndNothingElse` ran its
 keyword scan against the raw statement text, which made every check in it
@@ -659,44 +722,47 @@ DELETE, such as a volatile function in the `WHERE` clause. Only the byte-exact
 frozen-text comparison catches that. The test comment now says so instead of
 implying the keyword scan is sufficient.
 
+## Review findings that still apply
+
 ### The frozen-text guard normalized away a byte PostgreSQL rejects
 
-The guard the section above defers to — the byte-exact comparison — was itself
-normalizing through `strings.Fields`, which splits on `unicode.IsSpace`. That
-counts U+00A0 NO-BREAK SPACE as whitespace. PostgreSQL does not, and rejects a
-statement containing one. Injecting `0xC2 0xA0` after `DELETE FROM` in the
-production constant, in a throwaway worktree:
+A frozen-statement guard is only as good as the normalizer it compares through,
+and this one was normalizing via `strings.Fields`, which splits on
+`unicode.IsSpace`. That counts U+00A0 NO-BREAK SPACE as whitespace. PostgreSQL
+does not, and rejects a statement containing one. Injecting `0xC2 0xA0` into the
+production constant, in a throwaway worktree — measured on the retire statement
+this branch then carried:
 
 ```
 payload: DELETE FROM<U+00A0>fact_records ...
   before: ok    (frozen-text comparison AND the keyword scan both passed)
-  after:  FAIL  "retire statement changed" — the U+00A0 survives normalization
+  after:  FAIL  the U+00A0 survives normalization
 ```
 
 This is not a silent-correctness hole: the statement fails loudly at the
-database. It is a hole in the guard everything else in that file leans on, and a
+database. It is a hole in the guard the frozen comparison leans on, and a
 frozen-text comparison that erases a byte the database refuses is not comparing
-the text that ships. `normalizeReducerSQL` now splits on the six ASCII
-whitespace characters only, so any other Unicode space stays inside a field and
-reaches the comparison.
+the text that ships. `normalizeReducerSQL` splits on the six ASCII whitespace
+characters only, so any other Unicode space stays inside a field and reaches the
+comparison.
 
-The accepted cost is stated in the helper's comment:
-`isContainerImageIdentityRetireStatement` shares the normalizer, so the same
-injected statement now vanishes from the exec-call list rather than failing in
-place — the weaker failure mode that recognizer otherwise exists to avoid. It is
-accepted because the frozen-text comparison reddens the package on that input
-regardless. `TestContainerImageIdentityRetireNormalizerKeepsNonASCIIWhitespace`
-pins the property so the next `strings.Fields` reintroduction fails in the
-package that owns it.
+The normalizer outlived the statement it was written for. It now backs
+`TestReducerFactBatchInsertFreezesItsConflictGuard`, which freezes the shared
+batched insert's whole `ON CONFLICT` clause — including the
+`fencing_token <= EXCLUDED.fencing_token` guard, which is the thing this branch
+must not let a later change weaken. `TestReducerSQLNormalizerKeeps
+NonASCIIWhitespace` pins the U+00A0 property against that statement, so the next
+`strings.Fields` reintroduction fails in the package that owns it.
 
 ### The live proofs' 90s budget was shared with one-time schema DDL
 
-`containerImageIdentityRetireLiveDB` created ONE 90-second context and used it
+The live-test helper (`containerImageIdentityFenceLiveDB`, then named for the
+retire) created ONE 90-second context and used it
 for both `ApplyBootstrap` and the proof. On a cold database, with this host
 saturated, the DDL consumed the budget and the first run reddened:
 
 ```
---- FAIL: TestContainerImageIdentityRetireCannotDeleteFresherEvidenceRowsLive (90.00s)
+--- FAIL: <a live proof in this family> (90.00s)
     apply bootstrap schema: ... context deadline exceeded
 ```
 

@@ -85,9 +85,9 @@ func containerImageIdentityStoredPayload(
 // re-upserting a fact_id that a fresher worker already wrote overwrites the
 // payload with its own poorer view, and GREATEST then leaves the FRESHER token
 // on it. The row ends up carrying stale content while advertising a fresh
-// watermark — and the retire's fence, reading that watermark, actively protects
-// the wrong row from correction. That is worse than an unfenced row, because the
-// token now vouches for content it did not come from.
+// watermark. That is worse than an unfenced row, because the token now vouches
+// for content it did not come from, and any consumer that ranks rows by it —
+// the #5854 retire included — would trust the wrong one.
 //
 // The two writes here agree on the outcome, so they collide rather than
 // producing two rows, and differ only in payload fields the cross-scope
@@ -98,7 +98,7 @@ func containerImageIdentityStoredPayload(
 // The guard on the conflict clause rejects the whole update — content included —
 // rather than merging the two passes.
 func TestReducerFactBatchInsertRejectsStaleContentUpsertLive(t *testing.T) {
-	sqlDB, ctx := containerImageIdentityRetireLiveDB(t)
+	sqlDB, ctx := containerImageIdentityFenceLiveDB(t)
 
 	suffix := fmt.Sprintf("5847-stale-content-%d", time.Now().UnixNano())
 	scopeID := "scope-" + suffix
@@ -135,8 +135,8 @@ func TestReducerFactBatchInsertRejectsStaleContentUpsertLive(t *testing.T) {
 		t.Fatalf(
 			"stored source_revision/provenance = %q/%q, want \"commit-fresh\"/\"ci_run_commit\": "+
 				"a stalled worker overwrote a fresher row's CONTENT while the conflict guard kept the "+
-				"fresher TOKEN on it, so the row now advertises a freshness its payload does not have "+
-				"and the retire fence protects it from correction",
+				"fresher TOKEN on it, so the row advertises a freshness its payload does not have and "+
+				"any consumer that ranks rows by that token trusts the wrong one",
 			revision, provenance,
 		)
 	}
@@ -152,7 +152,7 @@ func TestReducerFactBatchInsertRejectsStaleContentUpsertLive(t *testing.T) {
 // the silent-failure shape this repository forbids. Under `<=` the retry
 // applies.
 func TestReducerFactBatchInsertAppliesEqualTokenRetryLive(t *testing.T) {
-	sqlDB, ctx := containerImageIdentityRetireLiveDB(t)
+	sqlDB, ctx := containerImageIdentityFenceLiveDB(t)
 
 	suffix := fmt.Sprintf("5847-equal-token-%d", time.Now().UnixNano())
 	scopeID := "scope-" + suffix
@@ -202,7 +202,7 @@ func TestReducerFactBatchInsertAppliesEqualTokenRetryLive(t *testing.T) {
 // (scope, generation, provider, entity_ref), so changing only `reason` between
 // two writes collides on the same fact_id with a different payload.
 func TestReducerFactBatchInsertStaysInertForUnfencedWritersLive(t *testing.T) {
-	sqlDB, ctx := containerImageIdentityRetireLiveDB(t)
+	sqlDB, ctx := containerImageIdentityFenceLiveDB(t)
 
 	suffix := fmt.Sprintf("5847-unfenced-%d", time.Now().UnixNano())
 	scopeID := "scope-" + suffix

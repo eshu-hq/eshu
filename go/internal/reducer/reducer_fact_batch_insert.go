@@ -18,25 +18,29 @@ import (
 //
 // # Why fencing_token is written here (#5847)
 //
+// The column exists so that two passes colliding on one fact_id can be RANKED.
 // It is written at BIRTH, as the last column ($16), rather than being left to
-// the table's DEFAULT 0 and stamped later. A writer whose retire is
-// generation-authoritative and fenced (containerImageIdentityRetireQuery) must
-// never have a row of its own visible at token 0, because 0 is at or below every
-// other worker's token: a concurrent stalled worker's fenced retire, landing
-// between this INSERT and the fresher writer's own stamp, would evaluate
-// `0 <= its own token` as true and DELETE the fresher row. Both writers can lose
-// their row that way — A's retire takes B's unstamped row, then B's retire takes
-// A's stamped one — which is strictly worse than the stale-row-beside-the-correct
-// -row shape the fence exists to prevent. Stamping from the retire alone did not
-// close that window — the retire is a separate autocommit statement that runs
-// after the insert, so the row is durable and visible at 0 for the whole gap —
-// which is why the token is carried on the insert instead. (The retire briefly
-// carried a `WITH stamped AS (UPDATE ...)` CTE for that job; it was dropped once
-// the insert stamped, see containerImageIdentityRetireQuery.)
+// the table's DEFAULT 0: a row resting at 0 makes the conflict guard below inert
+// for its own domain, because `0 <= EXCLUDED.fencing_token` holds for every
+// incoming pass, so the guard would admit stale content unconditionally while
+// the domain looked fenced. Stamping on the insert is what gives the guard
+// something to compare against.
+//
+// Only container_image_identity opts in today. It needs the ranking because it
+// sits in the bootstrap correlation reopen slice
+// (go/cmd/bootstrap-index/bootstrap_pipeline.go), so its intent is deliberately
+// replayed once the cross-scope OCI generation activates — and the reducer queue
+// does not order those replays for it. The queue's in-flight exclusion requires
+// a LIVE lease (go/internal/storage/postgres/reducer_queue_batch_query.go) while
+// the base predicate re-admits an item whose claim_until has already passed, and
+// lease expiry IS the stalled-worker case, since heartbeat loss is quarantined
+// only after Handle returns (reducer/service.go). So a worker that loaded
+// evidence, stalled past its lease, and landed after the worker that overtook it
+// is a reachable shape, and without the guard its poorer payload wins.
 //
 // The column is appended last rather than interleaved at its table position so
-// the existing $1..$15 bind mapping — which IS the column contract this statement
-// is reviewed on — is untouched by the addition.
+// the existing $1..$15 bind mapping — which IS the column contract this
+// statement is reviewed on — is untouched by the addition.
 //
 // # Why the conflict clause is guarded rather than merged
 //
@@ -55,10 +59,9 @@ import (
 // on the outcome collide on the same fact_id with DIFFERENT payloads — a pass
 // that read before the CI/SLSA generation activated carries a poorer one. Let the
 // stalled pass overwrite the content while GREATEST keeps the fresher token, and
-// the row advertises a freshness its payload does not have; the retire's fence
-// then reads that token and actively protects the wrong row from correction.
-// Measured on Postgres 16 by TestReducerFactBatchInsertRejectsStaleContentUpsertLive,
-// which is red on the GREATEST form.
+// the row advertises a freshness its payload does not have. Measured on Postgres
+// 16 by TestReducerFactBatchInsertRejectsStaleContentUpsertLive, which is red on
+// the GREATEST form.
 //
 // `<=`, not `<`. A retry, a redelivery, or a second chunk of the same pass
 // carries the SAME watermark, because the watermark is the evidence-read time
@@ -80,15 +83,13 @@ import (
 // through upsertFactBatchReturningAccepted, whose RETURNING reads back the
 // fact_ids the guard actually accepted, because that path derives downstream
 // work from the write and a fenced-out row must not feed it (#4444, codex P1).
-// Here the guard is taken WITHOUT that readback: the only thing derived from
-// this insert is keepFactIDs, and a fenced-out row is one the guard rejected
-// precisely because a FRESHER row already occupies that fact_id — keeping it out
-// of the retire's delete set is the correct outcome, not a leak.
+// Here the guard is taken WITHOUT that readback: nothing downstream is derived
+// from which rows this insert accepted, and a fenced-out row is one the guard
+// rejected precisely because a FRESHER row already occupies that fact_id.
 //
 // What the missing readback does cost is legibility. A pass fenced out in WHOLE
-// still reports CanonicalWrites=N with Retired=0 and both writer flags false,
-// which is byte-identical to a pass that landed normally against an unchanged
-// partition. The rows are right either way; the summary cannot tell an operator
+// still reports CanonicalWrites=N, which is byte-identical to a pass that landed
+// normally. The rows are right either way; the summary cannot tell an operator
 // which of the two happened. Adding the readback here would need its own live
 // proof and its own concurrency argument, so it is stated rather than assumed
 // away.
@@ -209,10 +210,10 @@ type reducerFactRow struct {
 	IsTombstone      bool
 	Payload          string
 	// FencingToken is the row's write-ordering watermark, carried on the INSERT
-	// so a row is never durable at the table default 0. Leave it zero unless the
-	// domain has a fenced, generation-authoritative retire; see
-	// reducerFactBatchInsertQuery for why 0 is not a safe resting state for one
-	// that does.
+	// so the conflict guard has something to rank a colliding pass against.
+	// Leave it zero unless the domain's intent can be replayed by two workers
+	// holding different views of the evidence; see reducerFactBatchInsertQuery
+	// for why 0 is not a safe resting state for one that can.
 	FencingToken int64
 }
 

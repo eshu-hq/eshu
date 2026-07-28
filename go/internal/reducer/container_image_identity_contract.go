@@ -8,8 +8,8 @@ import "time"
 // The container_image_identity DATA CONTRACT: the outcome vocabulary and the
 // decision/write/result records the handler, the writer, and every consumer of
 // this domain exchange. The handler, its evidence loaders, and the counters
-// live in container_image_identity.go; the durable statements live in
-// container_image_identity_writer_queries.go.
+// live in container_image_identity.go; the durable write and the fencing-token
+// helpers live in container_image_identity_writer.go.
 //
 // They are split because container_image_identity.go passed the repository's
 // 500-line file cap. The contract is the half that changes for a different
@@ -109,11 +109,13 @@ type ContainerImageIdentityWrite struct {
 	SourceSystem string
 	Cause        string
 	// EvidenceAsOf is the moment this write's evidence was read, captured
-	// immediately before the handler's first fact load. It is the fencing token
-	// the generation-authoritative retire ranks writers by, so a worker that
-	// stalled past its lease cannot delete the rows of the worker that overtook
-	// it with fresher evidence. It is required: a zero value is a hard error,
-	// never a defaulted or unfenced write. See containerImageIdentityRetireQuery.
+	// immediately before the handler's first fact load. It becomes the row's
+	// fact_records.fencing_token, which the shared batched insert's conflict
+	// guard ranks colliding passes by: a worker that stalled past its lease
+	// cannot overwrite the payload of the worker that overtook it with fresher
+	// evidence. Read time, not write time — write time ranks the stalled worker
+	// highest, which is backwards. It is required: a zero value is a hard error,
+	// never a defaulted or unfenced write. See reducerFactBatchInsertQuery.
 	EvidenceAsOf time.Time
 	Decisions    []ContainerImageIdentityDecision
 }
@@ -122,74 +124,6 @@ type ContainerImageIdentityWrite struct {
 type ContainerImageIdentityWriteResult struct {
 	// CanonicalWrites counts the decisions this execution inserted or upserted.
 	CanonicalWrites int
-	// Retired counts the durable decisions the generation-authoritative retire
-	// DELETED for this write's (scope, generation). It is reported because the
-	// retire destroys durable rows and the instrumented ExecContext wrapper
-	// records only that a statement ran, never what it removed.
-	Retired int
-	// RetiredWithoutCanonicalWrites marks a pass that deleted a non-empty prior
-	// decision set while producing no canonical decision of its own. That is
-	// legitimate for a genuine demotion, but it is also exactly what an
-	// evidence-visibility gap looks like from the writer: classifyContainerImageRef
-	// answers `unresolved` when the cross-scope registry observations are absent,
-	// which is indistinguishable here from "this image really has no digest
-	// identity any more". It is surfaced so the shape is findable rather than
-	// silent. See containerImageIdentityRetireQuery.
-	RetiredWithoutCanonicalWrites bool
-	// RetiredMoreThanWritten marks a pass whose retire DELETED more durable
-	// decisions than the pass itself wrote — the partition shrank by more than
-	// this pass's own write count.
-	//
-	// RetiredWithoutCanonicalWrites is the total case; this reaches PART of the
-	// partial one it cannot see. An evidence-visibility gap need not be total: a
-	// pass can see the cross-scope OCI observations for SOME images in a
-	// generation and not others, and retire the rest while still writing the ones
-	// it did see. Five canonical decisions before and one after is that shape, and
-	// it does fire here (retired=4 against canonical_writes=1).
-	//
-	// # What this signal does NOT reach
-	//
-	// It is `retired > CanonicalWrites`, so it fires only when the shrink exceeds
-	// this pass's OWN write count — in effect only when more than half the
-	// partition was lost. A partial gap smaller than the surviving set leaves both
-	// flags false. Measured against the production writer:
-	//
-	//	canonical=6 retired=4  | blind=false moreThanWritten=false  <- 4 lost, un-flagged
-	//	canonical=9 retired=1  | blind=false moreThanWritten=false
-	//	canonical=5 retired=5  | blind=false moreThanWritten=false
-	//	canonical=4 retired=6  | blind=false moreThanWritten=true
-	//	canonical=1 retired=4  | blind=false moreThanWritten=true
-	//	canonical=0 retired=10 | blind=true  moreThanWritten=true
-	//
-	// A ten-image partition that writes six and retires four is a real four-image
-	// evidence gap that trips neither flag. It is un-FLAGGED rather than
-	// un-counted, and the distinction matters when deciding where to look:
-	// CanonicalWrites and Retired carry the raw pair, and both summary strings
-	// render it (containerImageIdentitySummary emits `canonical_writes=6
-	// retired=4`). What is missing is a CONSUMER. On a SUCCEEDING pass nothing
-	// carries either string out of the process — Service.recordReducerResult logs
-	// SubDurations and SubSignals but not EvidenceSummary, and ReducerQueue.Ack
-	// takes the Result as `_` — so only the failure path forwards a summary at
-	// all. The boolean is therefore what an operator has HERE, and a sub-threshold
-	// shrink has to be found on either side of this writer: downstream on
-	// eshu_dp_container_image_identity_decisions_total, where the loss shows up as
-	// exact_digest falling and unresolved rising for the same domain, and upstream
-	// on the OCI collector's oci_registry.warning facts and
-	// eshu_dp_oci_registry_api_calls_total{result="error"}.
-	//
-	// Reaching it in this struct needs a baseline this writer does not have — the
-	// partition's count BEFORE the write — which the two committed statements
-	// cannot supply without a third statement or a readback on the shared batched
-	// insert. The coarse signal is what is claimed here; the gap below it is not
-	// covered.
-	//
-	// The shrink is the discriminator for the part that IS reached. An ordinary
-	// re-classification retires at most one superseded row per image it rewrites,
-	// so it can never retire more rows than it wrote; retiring more means rows left
-	// the partition with no replacement. That is legitimate for a genuine demotion
-	// and is what a gap-induced one looks like too — indistinguishable from here,
-	// which is exactly why it is reported rather than judged.
-	RetiredMoreThanWritten bool
 	// EvidenceSummary is a short operator-facing description of the write.
 	EvidenceSummary string
 }

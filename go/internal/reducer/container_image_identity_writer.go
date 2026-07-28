@@ -6,8 +6,8 @@ package reducer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -25,18 +25,24 @@ type PostgresContainerImageIdentityWriter struct {
 }
 
 // WriteContainerImageIdentityDecisions stores only canonical image identity
-// decisions, then retires every other decision this domain holds for the same
-// (scope, generation). Weak, missing, ambiguous, or stale tag outcomes stay
-// diagnostic reducer output until a stronger source can prove digest identity.
+// decisions. Weak, missing, ambiguous, or stale tag outcomes stay diagnostic
+// reducer output until a stronger source can prove digest identity.
 //
 // The fact id is stable by decision identity, so a retry that reaches the same
-// classification upserts the same rows. That alone is NOT enough for a replay
-// whose classification CHANGED — the identity embeds `outcome` and `image_ref`,
-// so a re-classified decision lands under a new fact id, and a decision demoted
-// out of the canonical set produces no row to upsert at all. The retire pass is
-// what makes the write generation-authoritative: after it, the durable
-// decisions for this scope generation are exactly the canonical set, no more.
-// See containerImageIdentityRetireQuery for the two replay cases this closes.
+// classification upserts the same rows, and the insert's fencing guard keeps a
+// pass that read STALE evidence from overwriting a fresher pass's payload on
+// that shared fact id (reducerFactBatchInsertQuery).
+//
+// What this write is NOT is generation-authoritative. The identity embeds
+// `outcome` and `image_ref`, so a replay that RE-CLASSIFIES an image lands under
+// a new fact id beside the old one, and a replay that demotes an image out of
+// the canonical outcomes produces no row to upsert over the stale one at all.
+// Both leave a superseded decision live for the same active generation, which
+// PostgresContainerImageIdentityStore.ListContainerImageIdentities serves — it
+// has no DISTINCT ON, GROUP BY, or per-digest latest-wins. Closing that needs a
+// retire pass whose deletes are safe against the OCI collector's bounded
+// degradation (a soft-failed config blob and a truncated tag list both shrink a
+// generation with no registry-side assertion), which is tracked as #5854.
 func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisions(
 	ctx context.Context,
 	write ContainerImageIdentityWrite,
@@ -44,17 +50,16 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 	if w.DB == nil {
 		return ContainerImageIdentityWriteResult{}, fmt.Errorf("container image identity database is required")
 	}
-	// Checked before any statement is issued: an unfenced retire must never
-	// reach the database, not even after a successful insert.
+	// Checked before any statement is issued: an unfenced row must never reach
+	// the database, because a row resting at the fact_records default of 0 makes
+	// the insert's conflict guard inert for every later pass.
 	if err := validateContainerImageIdentityFence(write); err != nil {
 		return ContainerImageIdentityWriteResult{}, err
 	}
 
 	now := reducerWriterNow(w.Now)
-	// Stamped on the INSERT, which is the only statement that stamps it. A row
-	// left at the table default 0 between the insert and the retire is durable,
-	// visible, and deletable by any concurrent stalled worker's fenced retire,
-	// because 0 is at or below every token. See reducerFactBatchInsertQuery.
+	// Stamped on the INSERT, which is the only statement that stamps it. See
+	// reducerFactBatchInsertQuery for why a row at 0 defeats its own guard.
 	fencingToken := containerImageIdentityFencingToken(write)
 	decisions := containerImageIdentityCanonicalDecisions(write.Decisions)
 	collectorKind := reducerFactCollectorKind(write.SourceSystem)
@@ -86,153 +91,62 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 	if err := reducerBatchInsertFacts(ctx, w.DB, rows); err != nil {
 		return ContainerImageIdentityWriteResult{}, fmt.Errorf("write container image identity fact: %w", err)
 	}
-	// Retire AFTER the insert, never before. This ordering buys two things, and
-	// it is worth being precise about which, because it does NOT buy atomicity:
-	//
-	//   - a failed insert leaves the previous generation's decisions in place
-	//     rather than clearing them and then writing nothing;
-	//   - no reader ever sees this scope generation with ZERO decisions, which
-	//     retire-first would expose for the width of the insert.
-	//
-	// What it does not close: the insert and the retire are two separate
-	// autocommit statements on the same connection, with no enclosing
-	// transaction. Between them the corrected decision and the superseded one are
-	// BOTH durable and both active, so a reader landing in that window sees two
-	// contradictory decisions for one image — the same shape the retire exists to
-	// remove, just briefly instead of permanently. Closing that needs the insert
-	// and the retire to share a transaction, which this writer cannot do today:
-	// it holds a bare execer, not a transaction handle, and the batched insert
-	// may itself span several statements. The window is bounded by one round-trip
-	// and it resolves without intervention, so it is a documented read-skew
-	// window, not a lost update.
-	retired, err := w.retireSupersededDecisions(ctx, write, rows)
-	if err != nil {
-		return ContainerImageIdentityWriteResult{}, err
-	}
-
-	blindRetire := len(decisions) == 0 && retired > 0
-	// The partition shrank by more than this pass wrote: rows left it with no
-	// replacement. An ordinary re-classification retires at most one superseded
-	// row per image it rewrites, so it can never exceed its own write count;
-	// exceeding it is the demotion shape — and a demotion is exactly what an
-	// evidence-visibility gap counterfeits. blindRetire is the TOTAL case of that;
-	// this reaches part of the partial one, where a pass reads the cross-scope OCI
-	// facts for some images in the generation and not others.
-	//
-	// Only part. The comparison is against len(decisions), this pass's OWN write
-	// count, so it fires only once the shrink outweighs the surviving set —
-	// measured, canonical=1 retired=4 fires, and canonical=6 retired=4 does not,
-	// even though the second is a real four-image gap. Detecting that one needs
-	// the partition's count BEFORE the write, which neither the batched insert nor
-	// the retire reports today. See ContainerImageIdentityWriteResult.
-	// RetiredMoreThanWritten for the full measured matrix.
-	partialRetire := retired > len(decisions) && !blindRetire
-	if blindRetire {
-		// Loud on purpose. An empty canonical set is the correct answer for a
-		// genuine demotion, but classifyContainerImageRef returns the same
-		// `unresolved` outcome when the cross-scope registry observations simply
-		// were not visible to this pass, and from here those two are identical.
-		// The fencing token cannot separate them either — the blind pass read its
-		// (empty) evidence LAST, so it ranks highest. Before the retire existed
-		// such a pass was a harmless no-op; now it clears the partition, and what
-		// re-triggers the domain afterwards is narrow. Today only a bootstrap run
-		// replays it, through eshu-bootstrap-index's reducer reopen slice
-		// (go/cmd/bootstrap-index/bootstrap_pipeline.go), so a long-running
-		// deployment that never bootstraps again gets no second pass. #5850 widens
-		// that: it moves the cross-scope correlation reopen, this domain included
-		// via CrossScopeCorrelationReopenDomains, onto the live ingester, replayed
-		// on every commit-to-idle shard drain. Once it lands, "only at bootstrap"
-		// is false and this sentence must be updated to say so — whichever of the
-		// two lands second owns reconciling it. Either way the warn below is the
-		// operator's handle on the pass itself.
-		slog.Warn(
-			"container image identity retired prior decisions with no canonical write",
-			"domain", string(DomainContainerImageIdentity),
-			"intent_id", write.IntentID,
-			"scope_id", write.ScopeID,
-			"generation_id", write.GenerationID,
-			"retired", retired,
-			"evidence_as_of", write.EvidenceAsOf.UTC(),
-		)
-	}
-	if partialRetire {
-		// One line per pass, and never both: blindRetire already covers the total
-		// case, so an operator sees exactly one signal for one partition shrink.
-		// canonical_writes is logged beside retired because the shrink is the
-		// RELATION between them — retired= alone has no baseline to be read
-		// against, which is why the count on its own was not a signal.
-		slog.Warn(
-			"container image identity retired more decisions than it wrote",
-			"domain", string(DomainContainerImageIdentity),
-			"intent_id", write.IntentID,
-			"scope_id", write.ScopeID,
-			"generation_id", write.GenerationID,
-			"retired", retired,
-			"canonical_writes", len(decisions),
-			"evidence_as_of", write.EvidenceAsOf.UTC(),
-		)
-	}
-
 	return ContainerImageIdentityWriteResult{
-		CanonicalWrites:               len(decisions),
-		Retired:                       retired,
-		RetiredWithoutCanonicalWrites: blindRetire,
-		RetiredMoreThanWritten:        retired > len(decisions),
-		EvidenceSummary: fmt.Sprintf(
-			"wrote container image identity decisions %d retired=%d retired_without_canonical_writes=%t "+
-				"retired_more_than_written=%t",
-			len(decisions), retired, blindRetire, retired > len(decisions),
-		),
+		CanonicalWrites: len(decisions),
+		EvidenceSummary: fmt.Sprintf("wrote container image identity decisions %d", len(decisions)),
 	}, nil
 }
 
-// retireSupersededDecisions deletes every container image identity decision for
-// this write's (scope, generation) that the current execution did not just
-// write — but only rows whose evidence was no fresher than this write's — and
-// returns how many rows it deleted.
+// errContainerImageIdentityMissingEvidenceAsOf is returned when a write reaches
+// the writer without the evidence-read watermark the durable row is stamped
+// with.
+var errContainerImageIdentityMissingEvidenceAsOf = errors.New(
+	"container image identity write requires evidence_as_of: the durable row has no watermark to be stamped with",
+)
+
+// containerImageIdentityFencingToken renders the write's evidence-read watermark
+// as the BIGINT fact_records.fencing_token carries.
 //
-// The returned count is not incidental. The retire destroys durable decisions,
-// and the instrumented ExecContext wrapper records only that a statement ran,
-// never what it removed; without this number nothing reports how many decisions
-// a pass destroyed, and the blind-retire case (see
-// WriteContainerImageIdentityDecisions) could not be detected at all.
+// Microsecond resolution matches Postgres' own timestamp resolution and leaves
+// int64 headroom for ~294,000 years, so no saturation handling is needed.
 //
-// keepFactIDs is built from the same rows handed to the insert rather than
-// re-derived from write.Decisions, so the keep-set can never disagree with what
-// was persisted. Repeated fact ids are harmless — the insert collapses them
-// last-write-wins, and neither `= ANY` nor `<> ALL` is affected by duplicates in
-// the array. An empty decision set yields an empty keep-set, which retires every
-// prior decision for the generation at or below this write's token: the intended
-// behavior for a generation whose images have all been demoted out of the
-// canonical outcomes (see containerImageIdentityRetireQuery).
-func (w PostgresContainerImageIdentityWriter) retireSupersededDecisions(
-	ctx context.Context,
-	write ContainerImageIdentityWrite,
-	rows []reducerFactRow,
-) (int, error) {
-	keepFactIDs := make([]string, 0, len(rows))
-	for _, row := range rows {
-		keepFactIDs = append(keepFactIDs, row.FactID)
+// The token is a wall-clock microsecond reading, so it is monotonic across
+// reopens and retries without needing a durable counter — unlike the queue's
+// attempt_count, which the reopen-succeeded statement deliberately resets to 0
+// and which therefore cannot rank a reopened replay against the run it is
+// repairing. Two reducer processes read their own clocks, so the ordering is
+// only as good as NTP between them; the hazard window is a whole lease duration,
+// which is orders of magnitude larger than realistic host clock skew.
+func containerImageIdentityFencingToken(write ContainerImageIdentityWrite) int64 {
+	return write.EvidenceAsOf.UTC().UnixMicro()
+}
+
+// validateContainerImageIdentityFence rejects a write with no evidence-read
+// watermark.
+//
+// This is deliberately a hard error rather than a defaulted value. A zero
+// EvidenceAsOf does not yield token 0; containerImageIdentityFencingToken runs
+// time.Time{} through UnixMicro, and year 1 is -62135596800000000 microseconds
+// from the Unix epoch. Every row the domain wrote would then carry that same
+// floor value, so the insert's
+// `fact_records.fencing_token <= EXCLUDED.fencing_token` guard would compare the
+// floor against itself and admit every later pass unconditionally: the domain
+// would look fenced while behaving like the six writers that never opted in.
+// Defaulting the watermark to the writer's own clock would be worse, because
+// write time ranks a stalled worker highest — the exact inversion the watermark
+// exists to prevent.
+func validateContainerImageIdentityFence(write ContainerImageIdentityWrite) error {
+	if write.EvidenceAsOf.IsZero() {
+		return errContainerImageIdentityMissingEvidenceAsOf
 	}
-	result, err := w.DB.ExecContext(
-		ctx,
-		containerImageIdentityRetireQuery,
-		containerImageIdentityFactKind,
-		write.ScopeID,
-		write.GenerationID,
-		keepFactIDs,
-		containerImageIdentityFencingToken(write),
-	)
-	if err != nil {
-		return 0, fmt.Errorf("retire superseded container image identity decisions: %w", err)
-	}
-	retired := 0
-	if result != nil {
-		if affected, affErr := result.RowsAffected(); affErr == nil && affected > 0 {
-			retired = int(affected)
-		}
-	}
-	return retired, nil
+	return nil
+}
+
+// containerImageIdentityEvidenceAsOf reads the handler's clock for the
+// evidence-read watermark, falling back to the process clock when the handler
+// left Now unset.
+func containerImageIdentityEvidenceAsOf(now func() time.Time) time.Time {
+	return reducerWriterNow(now)
 }
 
 func containerImageIdentityFactID(

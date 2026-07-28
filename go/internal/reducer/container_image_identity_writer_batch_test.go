@@ -47,15 +47,11 @@ func TestWriteContainerImageIdentityDecisionsBoundedExecCount(t *testing.T) {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
 
-	// Insert statements only. The trailing generation-authoritative retire is a
-	// single set-based DELETE regardless of decision count, so excluding it here
-	// keeps this assertion measuring insert batching — the N+1 regression it
-	// guards — rather than total statement count.
 	wantExecs := expectedBatchedExecCount(decisionCount)
-	if got := len(containerImageIdentityInsertCalls(db.execs)); got != wantExecs {
-		t.Fatalf("insert ExecContext calls = %d for %d decisions, want %d (bounded batched inserts)", got, decisionCount, wantExecs)
+	if got := len(db.execs); got != wantExecs {
+		t.Fatalf("ExecContext calls = %d for %d decisions, want %d (bounded batched inserts)", got, decisionCount, wantExecs)
 	}
-	if rows := decodeBatchedFactCalls(t, containerImageIdentityInsertCalls(db.execs)); len(rows) != decisionCount {
+	if rows := decodeBatchedFactCalls(t, db.execs); len(rows) != decisionCount {
 		t.Fatalf("decoded rows = %d, want %d", len(rows), decisionCount)
 	}
 }
