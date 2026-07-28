@@ -48,10 +48,11 @@ func containerImageIdentityFenceWrite(
 // locked the complement with no specified ordering inside a `WITH`, it deadlocks
 // ABBA between two concurrent same-scope retires with crossed keep/delete sets,
 // the exact stalled-worker shape the fence exists for. The deadlock was
-// reproduced on the `5837-drift-reopen` sibling branch rather than here, by two
-// independent harnesses, and it is a race: the CTE variant deadlocked in most
-// trials of every run while the plain fenced DELETE deadlocked in none of twenty.
-// The asymmetry is what reproduces; there is no fixed rate to quote.
+// reproduced on the `5837-drift-reopen` sibling branch rather than here, by one
+// harness run twice, as `SQLSTATE 40P01` with a `ShareLock` cycle in both
+// directions, and it is a race: the CTE variant deadlocked in most trials of
+// every run while the plain fenced DELETE deadlocked in none of twenty. The
+// asymmetry is what reproduces; there is no fixed rate to quote.
 //
 // This assertion is what stops a second write phase — a CTE, a chained UPDATE,
 // an INSERT — from being reintroduced. The frozen-text test would also catch it,

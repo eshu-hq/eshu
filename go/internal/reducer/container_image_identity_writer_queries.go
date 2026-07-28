@@ -126,7 +126,7 @@ import (
 // retires with crossed keep/delete sets — r1 in keepA and deleteB, r2 in keepB
 // and deleteA, which is exactly the stalled-worker shape this fence exists for —
 // therefore deadlock ABBA. That was measured on the `5837-drift-reopen` sibling
-// branch rather than here, by two independent harnesses on Postgres 16.14
+// branch rather than here, by one harness run twice on Postgres 16.14
 // (`SQLSTATE 40P01`, `ShareLock` cycle both ways). It is a race, so the honest
 // summary is the asymmetry and not a rate: the CTE variant deadlocked in most
 // trials of every run, the plain fenced DELETE in none of twenty. A single

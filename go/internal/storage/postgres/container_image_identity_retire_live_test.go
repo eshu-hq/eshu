@@ -88,6 +88,21 @@ func (e *containerImageIdentityInterleavingExecer) ExecContext(
 // The gate is ESHU_POSTGRES_DSN alone, the same one every other live test in
 // this package uses, so a developer or CI lane that already exports a DSN runs
 // this proof without knowing a bespoke per-test flag exists.
+//
+// Schema setup and the proof itself get SEPARATE deadlines, and the returned
+// context's 90s budget starts AFTER ApplyBootstrap returns. They were one budget
+// before, which made the first run on a cold database spend the proof's time on
+// one-time DDL: TestContainerImageIdentityRetireCannotDeleteFresherEvidenceRows
+// Live failed at ~90.0s on a fresh schema, at a different bootstrap step each
+// time (webhook_refresh_triggers, then service_evidence_snapshots), while warm
+// re-runs against the same database passed. That is a spurious red for every
+// first-time local or CI runner, and it says nothing about the retire.
+//
+// The fix resets the clock rather than raising it: 90s remains the budget for
+// what this test actually measures, so a genuine hang in the retire path still
+// trips it. ApplyBootstrap gets its own, larger allowance because full-schema
+// DDL on a cold database is legitimately slower than any single proof, and
+// because it is amortized across every test in this file.
 func containerImageIdentityRetireLiveDB(t *testing.T) (*sql.DB, context.Context) {
 	t.Helper()
 
@@ -102,12 +117,15 @@ func containerImageIdentityRetireLiveDB(t *testing.T) (*sql.DB, context.Context)
 	}
 	t.Cleanup(func() { _ = sqlDB.Close() })
 
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-	t.Cleanup(cancel)
-
-	if err := ApplyBootstrap(ctx, SQLDB{DB: sqlDB}); err != nil {
+	schemaCtx, cancelSchema := context.WithTimeout(context.Background(), 5*time.Minute)
+	err = ApplyBootstrap(schemaCtx, SQLDB{DB: sqlDB})
+	cancelSchema()
+	if err != nil {
 		t.Fatalf("apply bootstrap schema: %v", err)
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	t.Cleanup(cancel)
 	return sqlDB, ctx
 }
 

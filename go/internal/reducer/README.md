@@ -1727,8 +1727,8 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   while the DELETE locked the complement, with no ordering specified inside a
   `WITH`, so two concurrent same-scope retires with crossed keep/delete sets (the
   stalled-worker shape) deadlock. This branch did not measure that; the same
-  statement shape was reproduced on the `5837-drift-reopen` sibling branch by two
-  independent harnesses, on Postgres 16.14, as `SQLSTATE 40P01` with a `ShareLock`
+  statement shape was reproduced on the `5837-drift-reopen` sibling branch by one
+  harness run twice, on Postgres 16.14, as `SQLSTATE 40P01` with a `ShareLock`
   cycle in both directions. It is a race, so the honest form is the asymmetry
   rather than a rate: the CTE variant deadlocked in most trials of every run,
   while the plain fenced `DELETE` deadlocked in none of twenty. The retire is now

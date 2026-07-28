@@ -37,11 +37,40 @@ const containerImageIdentityRetireStatement = "DELETE FROM fact_records " +
 	"AND fact_id <> ALL($4::text[]) " +
 	"AND fencing_token <= $5"
 
-// normalizeReducerSQL collapses all runs of whitespace to single spaces and
-// trims the ends, so the frozen statement above can stay readable while still
-// comparing byte-for-byte against the indented production constant.
+// normalizeReducerSQL collapses all runs of ASCII whitespace to single spaces
+// and trims the ends, so the frozen statement above can stay readable while
+// still comparing byte-for-byte against the indented production constant.
+//
+// ASCII whitespace ONLY, deliberately. strings.Fields splits on unicode.IsSpace,
+// which counts U+00A0 NO-BREAK SPACE and the rest of the Unicode space class as
+// whitespace — but PostgreSQL does not, and rejects a statement containing one.
+// Normalizing those away would let a byte Postgres refuses pass the byte-exact
+// comparison that every other guard in this file leans on: measured on the
+// production constant with `0xC2 0xA0` injected after `DELETE FROM`, both the
+// frozen-text comparison and the keyword scan passed. Splitting on ASCII space
+// alone leaves the NO-BREAK SPACE inside a field, so it survives into the joined
+// output and the comparison reddens.
+//
+// The cost is that isContainerImageIdentityRetireStatement no longer recognizes
+// such a statement either — a NO-BREAK SPACE inside `DELETE FROM fact_records`
+// makes the retire vanish from the call list rather than fail in place. That is
+// the weaker failure mode this file otherwise avoids, and it is accepted here
+// because the frozen-text comparison still reddens the package on the same
+// input, and because Postgres would reject the statement at runtime regardless.
 func normalizeReducerSQL(query string) string {
-	return strings.Join(strings.Fields(query), " ")
+	return strings.Join(strings.FieldsFunc(query, isASCIISQLWhitespace), " ")
+}
+
+// isASCIISQLWhitespace reports whether r is one of the six ASCII characters
+// PostgreSQL itself treats as whitespace between tokens. Every other rune,
+// including U+00A0 and the rest of the Unicode space class, is content.
+func isASCIISQLWhitespace(r rune) bool {
+	switch r {
+	case ' ', '\t', '\n', '\v', '\f', '\r':
+		return true
+	default:
+		return false
+	}
 }
 
 // isContainerImageIdentityRetireStatement recognizes the retire by its DELETE
@@ -268,12 +297,55 @@ func TestContainerImageIdentityWriterRetiresEverythingWhenNothingIsCanonical(t *
 func TestContainerImageIdentityRetireQueryIsBoundedToItsOwnPartition(t *testing.T) {
 	t.Parallel()
 
+	// %q, not %s: now that normalizeReducerSQL preserves non-ASCII whitespace, a
+	// statement can differ from the frozen text by a byte that renders as an
+	// ordinary space. Printed with %s the two lines look identical and the
+	// failure reads as a bug in the test. %q renders such a byte as a visible
+	// escape, so the reader can see WHICH character differs.
 	if got := normalizeReducerSQL(containerImageIdentityRetireQuery); got != containerImageIdentityRetireStatement {
 		t.Fatalf(
-			"retire statement changed.\n got: %s\nwant: %s\n"+
+			"retire statement changed.\n got: %q\nwant: %q\n"+
 				"Any edit to this DELETE must be re-proven bounded before the frozen text is updated.",
 			got, containerImageIdentityRetireStatement,
 		)
+	}
+}
+
+// TestContainerImageIdentityRetireNormalizerKeepsNonASCIIWhitespace closes the
+// hole that made the frozen-text guard above defeatable. normalizeReducerSQL
+// used strings.Fields, which splits on unicode.IsSpace: a U+00A0 NO-BREAK SPACE
+// injected into the production statement was normalized to an ordinary space and
+// the byte-exact comparison passed, even though PostgreSQL rejects that byte.
+//
+// The statement would have failed loudly at runtime rather than corrupting
+// anything, so this was never a silent-correctness hole in the writer. It was a
+// hole in the guard the rest of this file delegates to, which is worth closing
+// on its own: a frozen-text comparison that normalizes away a byte the database
+// refuses is not comparing the text that actually ships.
+func TestContainerImageIdentityRetireNormalizerKeepsNonASCIIWhitespace(t *testing.T) {
+	t.Parallel()
+
+	const noBreakSpace = "\u00a0"
+	injected := strings.Replace(
+		containerImageIdentityRetireQuery,
+		"DELETE FROM fact_records",
+		"DELETE FROM"+noBreakSpace+"fact_records",
+		1,
+	)
+	if injected == containerImageIdentityRetireQuery {
+		t.Fatalf("injection rewrote nothing; the probe no longer probes the shipped statement")
+	}
+
+	got := normalizeReducerSQL(injected)
+	if got == containerImageIdentityRetireStatement {
+		t.Fatalf(
+			"normalizeReducerSQL erased a U+00A0, making a statement PostgreSQL rejects "+
+				"compare equal to the frozen text: %q",
+			got,
+		)
+	}
+	if !strings.Contains(got, noBreakSpace) {
+		t.Fatalf("normalizeReducerSQL dropped the U+00A0 instead of preserving it: %q", got)
 	}
 }
 

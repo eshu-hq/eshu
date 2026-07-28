@@ -385,13 +385,12 @@ sub-statement ordering within a `WITH`, so two concurrent same-scope retires wit
 crossed keep/delete sets — `r1` in keepA ∩ deleteB, `r2` in keepB ∩ deleteA,
 which is precisely the stalled-worker shape this fence exists for — deadlocks
 ABBA. This branch did not measure that. The same statement shape was reproduced
-on the `5837-drift-reopen` sibling branch by two independent harnesses, on
+on the `5837-drift-reopen` sibling branch by one harness run twice, on
 Postgres 16.14: `SQLSTATE 40P01 deadlock detected`, with a `ShareLock` cycle in
-both directions. The stricter of the two gave both passes a shared 2,000-row
-stale set so the plain `DELETE`s genuinely contend — verified by the survivors
-being exactly the 1,000 common keeps and by the second `DELETE` measurably
-waiting — with no lock primer, no enclosing transaction, and one autocommit
-`ExecContext` per pass, which is the writer's real shape.
+both directions. That harness models the writer's real shape: two concurrent
+autocommit retires over a 6,000-row crossed keep-set, each a single
+`ExecContext` with no enclosing transaction and no external lock primer, so the
+only lock phases are the ones the statement itself contains.
 
 It is a race, so there is no fixed rate to quote and this doc does not quote one.
 What reproduces is the asymmetry: the CTE variant deadlocked in most trials of
@@ -613,6 +612,60 @@ What the hardened guard still cannot see is a side effect smuggled inside the on
 DELETE, such as a volatile function in the `WHERE` clause. Only the byte-exact
 frozen-text comparison catches that. The test comment now says so instead of
 implying the keyword scan is sufficient.
+
+### The frozen-text guard normalized away a byte PostgreSQL rejects
+
+The guard the section above defers to — the byte-exact comparison — was itself
+normalizing through `strings.Fields`, which splits on `unicode.IsSpace`. That
+counts U+00A0 NO-BREAK SPACE as whitespace. PostgreSQL does not, and rejects a
+statement containing one. Injecting `0xC2 0xA0` after `DELETE FROM` in the
+production constant, in a throwaway worktree:
+
+```
+payload: DELETE FROM<U+00A0>fact_records ...
+  before: ok    (frozen-text comparison AND the keyword scan both passed)
+  after:  FAIL  "retire statement changed" — the U+00A0 survives normalization
+```
+
+This is not a silent-correctness hole: the statement fails loudly at the
+database. It is a hole in the guard everything else in that file leans on, and a
+frozen-text comparison that erases a byte the database refuses is not comparing
+the text that ships. `normalizeReducerSQL` now splits on the six ASCII
+whitespace characters only, so any other Unicode space stays inside a field and
+reaches the comparison.
+
+The accepted cost is stated in the helper's comment:
+`isContainerImageIdentityRetireStatement` shares the normalizer, so the same
+injected statement now vanishes from the exec-call list rather than failing in
+place — the weaker failure mode that recognizer otherwise exists to avoid. It is
+accepted because the frozen-text comparison reddens the package on that input
+regardless. `TestContainerImageIdentityRetireNormalizerKeepsNonASCIIWhitespace`
+pins the property so the next `strings.Fields` reintroduction fails in the
+package that owns it.
+
+### The live proofs' 90s budget was being spent on one-time schema DDL
+
+`containerImageIdentityRetireLiveDB` created ONE 90-second context and used it
+for both `ApplyBootstrap` and the proof. On a cold database the full-schema DDL
+consumed the budget, so the first run reddened:
+
+```
+--- FAIL: TestContainerImageIdentityRetireCannotDeleteFresherEvidenceRowsLive (90.00s)
+    apply bootstrap schema: ... context deadline exceeded
+```
+
+Reproduced twice against a fresh schema, failing at a different bootstrap step
+each time (`webhook_refresh_triggers`, then `service_evidence_snapshots`) —
+which is the signature of a budget running out mid-DDL rather than of any one
+step being broken. Warm re-runs against the same database passed 8/8. Every
+first-time local or CI runner would have seen that red, and it says nothing
+about the retire.
+
+The fix resets the clock instead of raising it: `ApplyBootstrap` runs under its
+own separate allowance, and the returned context's 90 seconds starts after the
+schema is in place. The proof keeps exactly the budget it had, so a genuine hang
+in the retire path still trips it; only the one-time setup stops competing for
+it.
 
 ### The transient no-DSN `internal/storage/postgres` failure
 

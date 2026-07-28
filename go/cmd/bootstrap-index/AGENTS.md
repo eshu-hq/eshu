@@ -127,7 +127,7 @@ watermark, and delete only rows at or below it. Three further traps:
   complement, `WITH` specifies no ordering between them, and two concurrent
   same-scope retires with crossed keep/delete sets are exactly the stalled-worker
   shape the fence exists to handle. That deadlock was measured on the
-  `5837-drift-reopen` sibling branch, not here — two independent harnesses on
+  `5837-drift-reopen` sibling branch, not here — one harness run twice on
   Postgres 16.14, `SQLSTATE 40P01` with a `ShareLock` cycle both ways. It is a
   race, so quote the asymmetry and not a rate: the CTE variant deadlocked in most
   trials of every run, the plain fenced `DELETE` in none of twenty. Ship the
