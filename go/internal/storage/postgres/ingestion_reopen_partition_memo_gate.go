@@ -41,7 +41,7 @@ type reopenPartitionMemoGateResult struct {
 // (applyDeferredPartitionMemoGate) itself skipped at the START of THIS SAME
 // pass (see loadDeferredAnchorScopedRelationshipFacts's doc comment). When the
 // caller supplies it — RunDeferredRelationshipMaintenance is the only such
-// caller, via reopenDeploymentMappingWorkItemsInTransaction — the gate keys
+// caller, via reopenMaintenanceWorkItemsInTransaction — the gate keys
 // SOLELY on membership in that set and never touches the memo table: a work
 // item is skipped only when its partition is a member of skippedThisPass.
 //

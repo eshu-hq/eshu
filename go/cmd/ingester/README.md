@@ -100,14 +100,45 @@ After each full collector batch drain, `AfterBatchDrained` records the shard's
 arrival in `deferred_maintenance_barriers` /
 `deferred_maintenance_barrier_arrivals`. Multi-shard ingesters wait until every
 `ESHU_REPO_SHARD_INDEX` for the current epoch has arrived; the completing shard
-becomes the maintenance leader. The leader transaction takes an exclusive
-Postgres advisory lock before running `BackfillAllRelationshipEvidence` and
-`ReopenDeploymentMappingWorkItems`; normal source fact commits take the matching
-shared transaction-level lock. This preserves the Phase 1 → Phase 3 bootstrap
-ordering described in `CLAUDE.md`, waits for all shards to drain their source
-batch, and blocks next-cycle commits until relationship evidence is backfilled
-and `deployment_mapping` work is reopened. A failure exits the ingester to
-prevent partial maintenance state.
+becomes the maintenance leader.
+
+Barrier arrivals are recorded under an exclusive advisory lock on a single
+barrier-state key, but the leader **commits that transaction, releasing the
+lock, before it runs any maintenance** (`deferred_maintenance_barrier.go`).
+Maintenance itself is not fleet-serialized. `BackfillAllRelationshipEvidence`
+commits in bounded per-repository-batch transactions, each taking only its own
+repositories' exclusive advisory locks — namespaced under
+`deferred_relationship_maintenance` and acquired in sorted repository order to
+stay deadlock-free — and normal source fact commits take the matching *shared*
+lock for their own repository partition only (`deferred_maintenance_lock.go`).
+The reopen pass that follows runs in one transaction of its own and takes no
+advisory lock at all: it only flips `fact_work_items` rows in status
+`succeeded`, which the reducer claim path never selects — it claims `status IN
+('pending', 'retrying', 'claimed', 'running')` (`reducer_queue_claim_query.go`,
+`reducer_queue_batch_query.go`).
+
+So the barrier is what orders the phases — no shard runs maintenance until every
+shard has drained its source batch, and the epoch is marked complete only after
+maintenance succeeds — while a concurrent source commit waits at most for the
+in-flight batch holding its own repository, never for the whole pass. This is
+the ingester's form of the collection → backfill → reopen ordering
+`go/cmd/bootstrap-index/README.md` describes as Phase 1 → Phase 3. A failure
+exits the ingester to prevent partial maintenance state.
+
+The reopen pass replays `deployment_mapping`, `code_import_repo_edge`, and the
+cross-scope correlation domains in `CrossScopeCorrelationReopenDomains`, all in
+one transaction. Before #5846 the correlation domains were replayed only by
+`eshu-bootstrap-index`, so under normal ingestion a `container_image_identity`,
+`ci_cd_run_correlation`, or `supply_chain_impact` decision that lost the
+cross-scope activation race kept its empty-join output indefinitely. Because
+this runs on every drain rather than once, the correlation listing is bounded by
+a per-scope replay floor: only work items on the scope's active generation or
+newer, falling back to its latest generation when there is no usable active one.
+That keeps the pass O(active scopes) rather than O(active scopes x generations),
+and it is not free — the correlation half had no pre-change baseline at all. See
+the cross-scope correlation reopen section in
+`go/internal/storage/postgres/README.md` for the bound, its measured per-drain
+cost, and what that measurement does not cover.
 For `ESHU_REPO_SHARD_COUNT > 1`, empty selected batches also participate in the
 barrier so shards that own no repositories in a cycle cannot block the fleet.
 Changing shard count while an epoch is open fails closed; operators should let

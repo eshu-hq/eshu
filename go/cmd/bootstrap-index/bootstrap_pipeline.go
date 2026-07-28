@@ -19,6 +19,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -235,76 +236,25 @@ func runPipelined(
 	}
 	recordPhase("code_import_repo_edge_reopen", codeImportReopenStart)
 
-	// Replay additive correlation domains that consume resolved relationships
-	// produced by the deployment_mapping reopen above. deployable_unit_correlation
-	// reads resolved DEPLOYS_FROM and has no readiness retry, so on the first
-	// maintenance pass (before resolution commits) it correlates nothing; a later
-	// maintenance pass — the ingester loops; the gate runs maintenance twice —
-	// replays it once resolution exists. Idempotent.
-	// kubernetes_correlation_materialization writes RUNS_IMAGE edges by joining a
-	// live workload's image digest to the cross-scope active OCI manifest facts.
-	// On the first pass the OCI registry scope's generation may not be active yet,
-	// so the digest resolves nothing and the edge succeeds with zero edges; a later
-	// maintenance pass replays it once the OCI generation is active. Idempotent.
-	// The kubernetes_workload_materialization node domain is intentionally NOT
-	// reopened here: it consumes only in-scope pod-template facts and commits on
-	// the normal drain, so it has no cross-scope readiness dependency to replay.
-	// container_image_identity has the same cross-scope readiness dependency as
-	// kubernetes_correlation_materialization: a ci.artifact's container-image
-	// digest resolves only against the cross-scope active OCI manifest facts,
-	// which may not be active when the CI scope's intent first drains, so a later
-	// maintenance pass replays it once the OCI generation is active (#5423). The
-	// decision upserts on a scope-keyed stable fact key, so replay is idempotent.
-	// ci_cd_run_correlation (#5710) has the same cross-scope dependency one hop
-	// further along the same chain: it joins a CI scope's ci.run/ci.artifact
-	// evidence against the cross-scope active reducer_container_image_identity
-	// rows container_image_identity materializes. Listing it after
-	// container_image_identity in THIS slice is documentation ordering only —
-	// ReopenSucceededReducerWorkItems just marks each domain's succeeded rows
-	// pending in list order and returns; nothing here drains the reducer queue
-	// between domains, so the two domains' reopened work items are claimed by
-	// concurrent workers with no guaranteed ordering. This reopen is a
-	// best-effort, idempotent re-attempt, not a readiness gate: on a given
-	// maintenance pass ci_cd_run_correlation's reopened intent may run before
-	// or after container_image_identity's, and its outcome (derived vs.
-	// ambiguous — see docs/internal/evidence/5710-cicd-run-correlation-keystone.md
-	// for why "exact" is not reachable for this digest) is not deterministic.
-	// list_ci_cd_run_correlations' minimum_results:1 does not depend on this
-	// ordering: the domain writes a durable decision fact for every outcome
-	// (exact/derived/ambiguous/unresolved/rejected), so a row exists from the
-	// correlation's very first, non-reopened execution regardless. Reopening it
-	// here still has value beyond that floor — a later pass can upgrade a
-	// "derived" decision (no identity evidence considered yet) to a more
-	// evidence-complete "ambiguous" one once more container_image_identity rows
-	// have committed — and it upserts on a scope-keyed stable fact key, so
-	// replay is idempotent.
-	// supply_chain_impact (#5426) is the third link in that same chain, and the
-	// dependency is already stated in crossScopeDependencyCatalog's own doc
-	// ("supply_chain_impact reads the correlation output for its deployment
-	// context, one hop further along the same chain") -- it was simply never
-	// replayed. matchingSupplyChainDeployments rejects a provenance-only
-	// correlation, so a finding classified while the correlation had not yet
-	// resolved its artifact identity keeps an empty environments list, an empty
-	// environment_evidence map, and a standing "deployment evidence
-	// provenance-only" in missing_evidence FOREVER: the impact intent is
-	// triggered by its own vulnerability scope's facts
-	// (projector/supply_chain_impact_intents.go), and nothing re-triggers it
-	// when a correlation in a different scope later improves. Measured on the
-	// live B-7 corpus: the correlation reached outcome=exact with
-	// provenance_only=false and environment=prod, while the finding anchored to
-	// that same artifact digest still reported an empty environments list.
-	// Replay is idempotent (the writer upserts each finding on a stable fact
-	// key), and it carries the same ordering caveat as the two domains above --
-	// convergence comes from maintenance running more than once, not from this
-	// slice's order.
+	// Replay the cross-scope correlation chain. The domain list, the per-domain
+	// rationale, and the generation-supersession bound all live in
+	// postgres.CrossScopeCorrelationReopenDomains, which the ingester's own
+	// deferred-maintenance pass (RunDeferredRelationshipMaintenance) consumes
+	// too. Sharing one list is deliberate: PR #5846's codex P1 was that these
+	// domains were replayed here and nowhere else, so a decision that lost the
+	// cross-scope activation race never recovered under normal ingestion while
+	// the golden-corpus gate -- which drives this binary for its maintenance
+	// passes -- stayed green over the gap.
+	//
+	// Slice order is documentation only. This single call marks every listed
+	// domain's succeeded rows pending and returns; nothing drains the reducer
+	// queue between domains, so concurrent workers claim them in no guaranteed
+	// order. Convergence along the chain comes from maintenance running more
+	// than once, not from this order.
 	correlationReopenStart := time.Now()
-	if err := cd.committer.ReopenSucceededReducerWorkItems(ctx, tracer, instruments, []string{
-		"deployable_unit_correlation",            // reducer.DomainDeployableUnitCorrelation
-		"kubernetes_correlation_materialization", // reducer.DomainKubernetesCorrelationMaterialization
-		"container_image_identity",               // reducer.DomainContainerImageIdentity
-		"ci_cd_run_correlation",                  // reducer.DomainCICDRunCorrelation
-		"supply_chain_impact",                    // reducer.DomainSupplyChainImpact
-	}); err != nil {
+	if err := cd.committer.ReopenSucceededReducerWorkItems(
+		ctx, tracer, instruments, postgres.CrossScopeCorrelationReopenDomains(),
+	); err != nil {
 		recordPhase("correlation_reopen", correlationReopenStart)
 		if logger != nil {
 			logger.ErrorContext(
@@ -321,7 +271,8 @@ func runPipelined(
 	// scope that has an active generation. The drift handler consumes both
 	// config-side parser facts and state-side collector facts, so its work
 	// items must land after Phase 3 reopens deployment_mapping (the same
-	// facts-first ordering rationale documented in CLAUDE.md). Idempotent.
+	// facts-first ordering rationale documented in go/internal/reducer/README.md
+	// under "Facts-First Bootstrap Ordering"). Idempotent.
 	driftStart := time.Now()
 	if err := cd.committer.EnqueueConfigStateDriftIntents(ctx, tracer, instruments); err != nil {
 		recordPhase(telemetry.BootstrapPhaseConfigStateDrift, driftStart)

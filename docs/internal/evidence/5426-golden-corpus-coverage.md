@@ -253,12 +253,162 @@ one hop further along the same chain") — it was simply never replayed, so a
 finding classified against a provenance-only correlation kept that verdict for
 good.
 
-**Fix:** `supply_chain_impact` joins the maintenance reopen list in
-`go/cmd/bootstrap-index/bootstrap_pipeline.go`. Replay is idempotent (the writer
-upserts each finding on a stable fact key), and it carries the same caveat as
-its two neighbours in that slice: the order sequences nothing, convergence comes
-from the maintenance loop running more than once. Pinned by
-`TestPipelinedBootstrapRunsDeferredBackfillWorkflow`.
+**Fix (first attempt, too narrow):** `supply_chain_impact` joined the reopen
+list in `go/cmd/bootstrap-index/bootstrap_pipeline.go`. That made the gate go
+green and was still wrong, for the reason the next section records.
+
+### 3. The reopen the gate proves is not the reopen production runs
+
+Codex raised this as a P1 on PR #5846, and it holds.
+
+`ReopenSucceededReducerWorkItems` had exactly one production caller:
+`go/cmd/bootstrap-index/bootstrap_pipeline.go`. The live ingester does not run
+that binary. It calls
+`RunDeferredRelationshipMaintenanceAfterShardDrain` →
+`RunDeferredRelationshipMaintenance`, which replayed only `deployment_mapping`
+and `code_import_repo_edge`
+(`go/internal/storage/postgres/ingestion_reopen_deployment_mapping.go`).
+
+So `container_image_identity`, `ci_cd_run_correlation`, and the
+`supply_chain_impact` added above were reopened **only** under
+`eshu-bootstrap-index`. Under normal ingestion a finding that lost the
+cross-scope activation race kept its empty environment fields indefinitely —
+the exact defect section 2 describes, unfixed on the path that actually runs in
+production. And because the gate drives `eshu-bootstrap-index` for its three
+maintenance passes, it went green over that gap: a false green, not evidence
+about the ingester.
+
+Saying `supply_chain_impact` "was never replayed" was therefore too narrow. It
+was never replayed *by the ingester*, along with the two domains ahead of it in
+the chain that had carried the same gap since #5423 and #5710.
+
+**Fix:** the reopen domain list moved to
+`postgres.CrossScopeCorrelationReopenDomains`, typed off the `reducer.Domain`
+constants, and both runtimes consume it: `bootstrap-index`'s
+`correlation_reopen` phase and, new here, the ingester's own
+`reopenMaintenanceWorkItemsInTransaction`, in the same transaction as the two
+relationship-domain reopens. One list plus one SQL shape is what makes the
+gate's `eshu-bootstrap-index` passes evidence about the ingester: only the call
+site differs.
+
+The pass's backfill skip-set is deliberately **not** applied to the correlation
+reopen. That set records which partitions committed no new backward evidence
+this pass; the correlation domains wait on a different signal — another scope's
+generation activating — so gating them on it would skip exactly the replay the
+activation race needs.
+
+**Per-drain bound.** `RunDeferredRelationshipMaintenance` runs on every shard
+drain, not once, and succeeded reducer rows are never terminalized
+(`supersedeInactiveReducerGenerationsCTE` sweeps only
+pending/retrying/failed/dead_letter), so one row accumulates per (scope,
+generation, domain) for the life of the store. An unbounded replay would
+resurrect the whole ingestion history into `pending` on every drain. The listing
+query carries a per-scope **replay floor**: keep only the work items on the
+scope's active generation or newer, falling back to the scope's **latest**
+generation when there is no usable active generation.
+
+The fallback covers three shapes, only one of which is the activation race. A
+scope that never activated keeps reopening, as it must. A scope whose ACTIVE
+generation FAILED has `active_generation_id = NULL`
+(`failProjectorWorkQuery`), and a bare `IS NOT NULL` guard reads that as "never
+activated" and reopens every one of its generations on every drain forever —
+`supersedeInactiveReducerGenerationsCTE` carries the same guard, so nothing
+terminalizes them either. A dangling `active_generation_id` (no foreign key
+constrains it) behaves identically.
+
+Measured on a 900-scope × 25-generation backlog, Postgres 16, against the
+**production** index `(stage, domain, status, visible_at, updated_at DESC)`,
+median of three runs:
+
+| shape | listing `EXPLAIN ANALYZE` | rows listed per domain |
+| --- | --- | --- |
+| unbounded | 29.8 ms | 22 551 |
+| superseded exclusion (`IS NOT NULL` guard) | 114.2 ms | 951 |
+| replay floor, `MATERIALIZED` | 20.3 ms | 903 |
+| replay floor, inlined | 166.0 ms | 903 |
+
+An earlier version of this measurement created a four-column index production
+does not have, which is what made the bounded listing look like a regression.
+
+The failed 25-generation scope contributes 25 rows per drain under the guard and
+1 under the floor; the never-activated scope contributes 1 under both.
+
+Expected delta versus unbounded, same dataset: `floor ∖ unbounded = 0` (the
+bound only removes), `unbounded ∖ floor = 21 648`, no kept row on a superseded
+generation, the never-activated scope's row kept (`1`). This is a behavior
+change, not an output-preserving rewrite. For the three fact-backed domains the
+dropped work is provably unreadable: `facts_active_container_image_identity.go`,
+`facts_active_cicd_run_correlation.go`, and
+`facts_active_supply_chain_impact.go` all join
+`scope.active_generation_id = fact.generation_id`. That argument does **not**
+cover `deployable_unit_correlation` or
+`kubernetes_correlation_materialization`, which write **graph edges** rather
+than those fact rows; for them the floor is justified the other way round —
+re-projecting a stale generation spends graph writes anchoring edges to a
+generation the read surfaces no longer resolve.
+
+**Real per-drain cost.** The listing is not where this pass spends its time, and
+the pre-change ingester baseline was zero: it ran no correlation reopen at all.
+Production issues one client round-trip per reopened row. On a corpus of the
+same shape and size as the listing proof — 900 scopes x 25 generations, but
+without its three extra hole-shape scopes, so 900 and 22 500 rows per domain
+here rather than 903 and 22 551 — the
+whole five-domain call takes 5.5 s wall — 74 ms of listings, the rest 4500
+single-row `UPDATE` round-trips (900 x 5 domains) — against 2 m 17 s and
+112 500 round-trips (22 500 x 5)
+unbounded. Not measured: the reducer re-executing every reopened item, one per
+active scope per domain on every drain indefinitely, two of the five domains
+writing graph edges when they run.
+
+Proof scripts, run against a throwaway `postgres:16` container:
+`docs/internal/evidence/5426-reopen-bound-proof.sql` (plans, row counts, the
+per-scope hole breakdown, and the expected-delta check) and
+`TestCorrelationReopenPerDrainCostProof` (`ESHU_CORRELATION_REOPEN_COST_PROOF_DSN`)
+for the round-trip cost. `docs/internal/evidence/5426-reopen-update-cost.sql` is
+retained for history only; its server-side loop excludes the round-trips.
+
+**Pinned by** (failing-then-green on a live Postgres, `internal/storage/postgres`):
+
+- `TestRunDeferredRelationshipMaintenanceReopensCrossScopeCorrelationDomains` —
+  red before the wiring with
+  `domain deployable_unit_correlation work item status after ingester maintenance
+  = "succeeded", want "pending"`.
+- `TestRunDeferredRelationshipMaintenanceSkipsSupersededCorrelationWorkItems` —
+  the bound, including the never-activated case.
+- `TestRunDeferredRelationshipMaintenanceBoundsScopesWithNoUsableActiveGeneration`
+  — the failed-and-nulled and dangling-pointer cases the `IS NOT NULL` guard
+  left generation-count-linear.
+- `TestCrossScopeCorrelationReopenDomainsCoversDeclaredChain` and
+  `TestListSucceededReducerWorkItemsByDomainQueryCarriesReplayFloor`.
+- `TestPipelinedBootstrapRunsDeferredBackfillWorkflow` now asserts the bootstrap
+  call passes the shared list rather than a hand-copied literal, so the two
+  runtimes cannot drift apart again.
+
+**Not done here.** The gate still drives `eshu-bootstrap-index` for its
+maintenance passes; it never starts `eshu-ingester`, so it does not exercise
+`RunDeferredRelationshipMaintenanceAfterShardDrain` end to end. Adding an
+ingester run to `scripts/verify-golden-corpus-gate.sh` needs a collector source
+and shard/barrier configuration the gate does not currently have, which is
+larger than this follow-up. Sharing the list and the SQL narrows the exposure to
+the call site, and
+`TestRunDeferredRelationshipMaintenanceIssuesCorrelationListingPerDomain` /
+`TestRunDeferredRelationshipMaintenanceCorrelationListingCarriesReplayBound`
+now cover that call site hermetically — they drive the real
+`RunDeferredRelationshipMaintenance` against the package fakes with no Postgres,
+so deleting the `ReopenSucceededReducerWorkItems` call or dropping the replay
+floor fails in ordinary CI rather than skipping. Closing the end-to-end gap
+still needs the gate change. The durable fix for the
+underlying dependency remains #5709's readiness-defer and activation-driven
+re-enqueue, which replaces blanket replay with a real dependency gate;
+`crossScopeDependencyCatalog` already declares the chain for it.
+
+Replay stays idempotent (each domain upserts its decision on a stable fact key),
+and slice order still sequences nothing — convergence comes from maintenance
+running more than once.
+
+**No-Observability-Change:** `eshu_dp_correlation_reopened_total` keeps its
+name, type, and `domain` attribute; only its emitting call sites widen to
+include the ingester.
 
 ## Gate runs
 

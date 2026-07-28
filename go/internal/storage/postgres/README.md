@@ -249,9 +249,16 @@ spans and `eshu_dp_postgres_query_duration_seconds`, with `db.operation` set to
   active generations under the lock, writes their evidence and readiness, and
   commits to release the locks before the next batch. Normal source generation
   commits take the matching shared lock for only their own repository partition
-  (see `deferred_maintenance_lock.go`). The deployment-mapping reopen runs in its
-  own transaction and the barrier-completion marker in another, so no step holds
-  a fleet-wide lock. A commit therefore waits only for the in-flight batch that
+  (see `deferred_maintenance_lock.go`). Every reopen this pass owes —
+  `deployment_mapping`, `code_import_repo_edge`, and the cross-scope correlation
+  domains — runs in ONE transaction of its own
+  (`reopenMaintenanceWorkItemsInTransaction`), and the barrier-completion marker
+  in another, so no step holds a fleet-wide lock. That reopen transaction takes
+  no advisory lock at all: it only flips `fact_work_items` rows in status
+  `succeeded`, which the reducer claim path never selects — it claims `status IN
+  ('pending', 'retrying', 'claimed', 'running')`
+  (`reducer_queue_claim_query.go`, `reducer_queue_batch_query.go`), and
+  `succeeded` is in neither set. A commit therefore waits only for the in-flight batch that
   holds its repository, and a stall on one batch blocks at most that batch's
   repositories. If a shard arrives with a different shard count while an epoch is
   open, storage fails closed instead of creating competing epochs.
@@ -1338,6 +1345,113 @@ Observability Evidence: `eshu_dp_deferred_backfill_partitions_skipped_total`
 candidate/skipped/loaded counts. A high skip ratio against a stable catalog is
 the operator-visible signal the memo is effective; a skip ratio that collapses to
 zero signals a catalog churn or a memo-write regression.
+
+### Cross-scope correlation reopen (#5423 / #5710 / #5426)
+
+`CrossScopeCorrelationReopenDomains` (`ingestion_reopen_correlation.go`) is the
+single source of truth for the reducer domains replayed after a maintenance
+pass: `deployable_unit_correlation`,
+`kubernetes_correlation_materialization`, `container_image_identity`,
+`ci_cd_run_correlation`, `supply_chain_impact`. Both runtimes consume it — the
+ingester on every shard drain through `reopenMaintenanceWorkItemsInTransaction`,
+and `eshu-bootstrap-index` once through its `correlation_reopen` phase.
+
+Sharing the list is the point, not tidiness. Until #5846 the correlation reopen
+had exactly one caller, `bootstrap-index`, so these domains were never replayed
+under normal ingestion: a decision that lost the cross-scope activation race
+kept its empty-join output indefinitely, while the golden-corpus gate — which
+drives `eshu-bootstrap-index` for its maintenance passes — stayed green over the
+gap. One list plus one SQL shape means the gate's bootstrap passes are evidence
+about the ingester; only the call site differs. (The gate still does not start
+`eshu-ingester`, so the call site itself is not gate-covered.)
+
+These domains are deliberately NOT gated by the same-pass backfill skip-set
+described below. That set records which partitions committed no new BACKWARD
+EVIDENCE this pass; the correlation domains wait on a different signal —
+another scope's generation activating — so gating them on it would skip exactly
+the replay the activation race needs. The durable fix is #5709's readiness-defer
+and activation-driven re-enqueue (`crossScopeDependencyCatalog` already declares
+the chain); until then this replay is the recovery path.
+
+The bound is a per-scope REPLAY FLOOR instead.
+`listSucceededReducerWorkItemsByDomainQuery` keeps only the work items on a
+scope's ACTIVE generation or newer, falling back to the scope's LATEST
+generation when there is no usable active generation. Without a bound the
+per-drain replay grows linearly with generation count, because succeeded rows
+are never terminalized (`supersedeInactiveReducerGenerationsCTE` sweeps only
+pending/retrying/failed/dead_letter).
+
+The fallback is not a nicety. `active_generation_id` is nullable and carries no
+foreign key, so three distinct shapes reach this listing with no usable active
+generation, and only the first of them is the activation race:
+
+- **Never activated** — the race this replay exists for. Its latest generation
+  is the live one, so the floor keeps it, and it must keep reopening.
+- **Active generation failed and was nulled** — `failProjectorWorkQuery` sets
+  `active_generation_id = NULL` when the ACTIVE generation fails. A bare
+  `active_generation.generation_id IS NOT NULL` exclusion reads that as "never
+  activated" and reopens EVERY generation of that scope on EVERY drain, forever;
+  `supersedeInactiveReducerGenerationsCTE` carries the same guard, so nothing
+  terminalizes them either. Measured: 25 rows per drain for one failed
+  25-generation scope under the guard, 1 under the floor.
+- **Dangling pointer** — with no foreign key, `active_generation_id` can name a
+  generation row retention removed. Same effect, same fix.
+
+Replaying below the floor cannot change query truth for the three fact-backed
+domains, which join `scope.active_generation_id = fact.generation_id`
+(`facts_active_container_image_identity.go`,
+`facts_active_cicd_run_correlation.go`, `facts_active_supply_chain_impact.go`).
+That argument does NOT carry `deployable_unit_correlation` or
+`kubernetes_correlation_materialization`: those write GRAPH EDGES, not those
+fact rows. For them the floor matters more, not less — a stale generation's
+re-projection spends graph writes anchoring edges to a generation the read
+surfaces no longer resolve.
+
+Performance Evidence: 900 scopes x 25 generations, Postgres 16, against the
+PRODUCTION index `(stage, domain, status, visible_at, updated_at DESC)`.
+Listing `EXPLAIN ANALYZE`, median of three runs: 29.8 ms unbounded, 114.2 ms for
+the superseded-exclusion shape this replaced, 20.3 ms for the replay floor
+(166.0 ms without the `MATERIALIZED` hint). Rows listed per domain: 22 551
+unbounded, 951 superseded-exclusion, 903 floor. Expected delta versus unbounded:
+`floor \ unbounded = 0`, `unbounded \ floor = 21 648`, no kept row on a
+superseded generation, and the never-activated scope's row kept. Script:
+`docs/internal/evidence/5426-reopen-bound-proof.sql`.
+
+Performance Evidence (real per-drain cost; same corpus shape and size as the
+listing proof above, 900 scopes x 25 generations, but WITHOUT its three extra
+hole-shape scopes — so the per-domain row counts are 900 and 22 500 here rather
+than 903 and 22 551): the listing is not
+where this pass spends its time, and the pre-change ingester baseline was ZERO —
+it ran no correlation reopen at all. Production issues one client round-trip per
+reopened row, so the whole five-domain call takes 5.5 s wall (74 ms of it the
+five listings, the rest 4500 single-row `UPDATE` round-trips — 900 x 5 domains)
+versus 2 m 17 s and 112 500 round-trips unbounded (22 500 x 5). Measured by
+`TestCorrelationReopenPerDrainCostProof`
+(`ESHU_CORRELATION_REOPEN_COST_PROOF_DSN`-gated), over a loopback connection —
+a networked Postgres pays more per round-trip.
+
+**Not measured**: the downstream cost of the reducer RE-EXECUTING each reopened
+item. The steady state is one work item per active scope per domain handed back
+to the reducer on every drain, indefinitely — 4500 at this corpus size — and two
+of the five domains write graph edges when they run. The floor bounds that count
+at O(active scopes); it does not remove it. The durable fix is #5709's
+activation-driven re-enqueue, which replaces the replay rather than bounding it.
+`docs/internal/evidence/5426-reopen-update-cost.sql` remains for history; its
+server-side `UPDATE` loop excludes exactly the round-trips that dominate here.
+
+Live proofs (`ESHU_DEFERRED_PARTITION_PROOF_DSN`-gated):
+`TestRunDeferredRelationshipMaintenanceReopensCrossScopeCorrelationDomains`,
+`TestRunDeferredRelationshipMaintenanceSkipsSupersededCorrelationWorkItems`,
+`TestRunDeferredRelationshipMaintenanceBoundsScopesWithNoUsableActiveGeneration`.
+CI-visible proofs, needing no Postgres:
+`TestRunDeferredRelationshipMaintenanceIssuesCorrelationListingPerDomain` and
+`TestRunDeferredRelationshipMaintenanceCorrelationListingCarriesReplayBound`
+drive the real maintenance pass against the package fakes, so deleting the
+`ReopenSucceededReducerWorkItems` call or dropping the replay floor fails
+hermetically instead of silently skipping.
+
+No-Observability-Change: `eshu_dp_correlation_reopened_total` keeps its name,
+type, and `domain` attribute; only its emitting call sites widen.
 
 ### Reopen partition memoization (#4770 / #3624 Track 2)
 

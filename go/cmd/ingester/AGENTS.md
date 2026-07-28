@@ -25,7 +25,9 @@
   batch drain before global maintenance runs. Only the shard that completes the
   fleet barrier may run `BackfillAllRelationshipEvidence`, and it must run
   before `ReopenDeploymentMappingWorkItems`. Both must succeed; a failure exits
-  the ingester. This implements CLAUDE.md Phase 1 / Phase 3 bootstrap ordering.
+  the ingester. This implements the Phase 1 / Phase 3 bootstrap ordering
+  `go/cmd/bootstrap-index/README.md` documents (root `CLAUDE.md` does not name
+  the phases).
   Enforced in `wiring_deferred_relationship.go` and
   `internal/storage/postgres/deferred_maintenance_barrier.go`.
 - **SkipRelationshipBackfill = true** on `IngestionStore` — per-commit backfill
@@ -138,7 +140,9 @@
 
 - `AfterBatchDrained` barrier and call order (fleet drain barrier before
   `BackfillAllRelationshipEvidence`, then `ReopenDeploymentMappingWorkItems`) —
-  changing this order breaks the bootstrap phase contract in `CLAUDE.md`.
+  changing this order breaks the collection → backfill → reopen phase ordering
+  documented in `go/cmd/bootstrap-index/README.md` ("Internal flow — the
+  pipeline phases").
 - `compositeRunner` error propagation and the retry-vs-fatal boundary —
   silencing either service error, returning only the first-arriving result, or
   promoting a retryable per-unit fault into a fatal teardown all break the

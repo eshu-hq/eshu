@@ -6,6 +6,7 @@ package reducer
 import (
 	"errors"
 	"fmt"
+	"slices"
 )
 
 // CrossScopeDependency declares that a consumer reducer domain reads canonical
@@ -74,6 +75,35 @@ func crossScopeDependencyCatalog() map[Domain]CrossScopeDependency {
 			ProducerDomains: []Domain{DomainCICDRunCorrelation},
 		},
 	}
+}
+
+// CrossScopeConsumerDomains returns every reducer domain that crossScopeDependencyCatalog
+// declares as a CONSUMER of another domain's canonical output, sorted so the
+// result does not depend on map iteration order.
+//
+// It exists so a package outside reducer can assert its own coverage of the
+// catalog against the catalog itself. A consumer declared here resolves only
+// once the producer scope's generation is active, and until the #5709
+// readiness-defer and activation re-enqueue slices land, the ONLY thing that
+// re-runs a consumer that lost that race is the deferred-maintenance reopen in
+// go/internal/storage/postgres. That reopen list is maintained by hand, so
+// without a derived assertion a consumer added here could be left out of it and
+// keep its empty-join decision forever, silently.
+//
+// DefaultDomainDefinitions is deliberately not the source for this: the additive
+// domains that carry the dependency are wired only by
+// implementedDefaultDomainDefinitions with real handlers, so the default
+// definitions expose zero CrossScopeDependencies and would report an empty
+// consumer set.
+func CrossScopeConsumerDomains() []Domain {
+	catalog := crossScopeDependencyCatalog()
+	consumers := make([]Domain, 0, len(catalog))
+	for consumer := range catalog {
+		consumers = append(consumers, consumer)
+	}
+	slices.Sort(consumers)
+
+	return consumers
 }
 
 // crossScopeDependenciesForRegistration returns the DomainDefinition
