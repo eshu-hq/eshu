@@ -27,8 +27,12 @@ general 500-line cap in `CLAUDE.md`. It grew from 790 lines at the PR head to
 825 when the retire was withdrawn, and to its current length with the
 scope corrections above. The enforced gate, `precommit-go.sh filecap-all`,
 applies that cap to Go sources only and passes here; the rule text is general,
-so the overage is real and is recorded rather than argued away. Four of the 83
+so the overage is real and is recorded rather than argued away. Five of the 80
 evidence records on `origin/main` already exceed 500 lines, the longest at 1011.
+That was four of 80 when this branch opened; #5850 took
+`5426-golden-corpus-coverage.md` to 612 lines, which is a reminder that a count
+of other people's files goes stale under you and has to be re-derived at the
+base you actually merge onto.
 The file is not split, because #5854 has to re-derive the measurements kept here
 and will EXTEND this record rather than replace it, so a split now would only
 have to be undone.
