@@ -1439,12 +1439,12 @@ superseded generation, and the never-activated scope's row kept. Script:
 Performance Evidence (failed-generation exclusion, PR #5850 P2): same script,
 same run, so each run yields a PAIRED gap. Over six consecutive runs on
 Postgres 16.14, floor-only spans 19.2-20.3 ms and floor plus
-`work_generation.status <> 'failed'` spans 19.7-21.0 ms. Two same-machine pairs
-cannot establish a constant, so the original "+0.3 ms constant" wording claimed
-more than it had. What the accumulated pairs do establish is a small,
-reproducible cost of about +0.3 ms — roughly 2% of the listing, under 0.05% of
-the pass's 5.5 s once the five listings are counted. Immaterial, but a cost, not
-noise.
+`work_generation.status <> 'failed'` spans 19.7-21.0 ms. The two pairs the
+original claim rested on cannot establish a constant, so its "+0.3 ms constant"
+wording claimed more than it had. What the accumulated pairs do establish is a
+small, reproducible cost of about +0.3 ms — roughly 2% of the listing, under
+0.05% of the pass's 5.5 s once the five listings are counted. Immaterial, but a
+cost, not noise.
 
 Judge it on the paired gap's sign, not on either arm's spread across runs: the
 arms share a machine, a script, and a run, so pairing cancels the between-run
@@ -1453,18 +1453,25 @@ why the gap's sign holds while the times wander, and why the overlapping ranges
 prove nothing either way. Across 28 pairs — the six above, six on an
 independent reviewer's own Postgres 16.14 (mean +0.303 ms), and sixteen
 re-measured for this claim (mean +0.53 ms) — 27 put the predicate arm slower.
-Two same-machine pairs flip the sign, 20.053 ms with the predicate against
-20.262 ms floor-only and 22.031 against 22.836 ms; against 27 same-sign pairs
-they read as outliers.
+The one that does not is run 4 of the re-measured committed-order block, at
+−0.852 ms, the largest counterexample on record. Two further pairs measured
+earlier and outside that set of 28 also flipped: 20.053 ms with the predicate
+against 20.262 ms floor-only on the same machine, and 22.031 against 22.836 ms
+from a separately sourced run. Counting those, 27 of 30 paired runs on record
+put the predicate arm slower, and all three flippers read as outliers against
+it.
 
 The mechanism is CPU, not I/O, which is why the buffer counts miss it: both arms
 report `Buffers: shared hit=3396` at the top, identical in every run, and that
 proves no extra I/O rather than no cost. The predicate is evaluated on the seq
 scan that builds the `work_generation` hash side, so it runs across all 22 551
 `scope_generations` rows to remove one, and the inner hash join emits 22 550
-rows against 22 551. That scan's own node time goes 1.29-1.41 ms to
-1.70-2.13 ms, predicate arm slower in all sixteen re-measured runs, which is
-where the end-to-end gap lives.
+rows against 22 551. Node timings were collected only for the eight
+committed-order re-measured runs; across those eight that scan's own node time
+goes 1.29-1.41 ms floor-only to 1.70-2.13 ms shipped, predicate arm slower in
+all eight, which is where the end-to-end gap lives. (A naive first-match parse
+of the plan grabs the wrong node: a second `Seq Scan on scope_generations`
+sits inside the CTE and shows no effect.)
 Rows listed per domain drop 903 -> 902, all of the difference being the failed
 scope's one perpetually-churning row. Same-run controls: `shipped \ unbounded
 = 0`, no kept row on a superseded generation, no kept row on a failed

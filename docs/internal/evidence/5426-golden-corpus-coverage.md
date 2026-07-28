@@ -362,10 +362,10 @@ comparable. Six consecutive runs on Postgres 16.14, listing `EXPLAIN ANALYZE`:
 | replay floor only | 19.186 | 19.695 | 20.267 | 20.213 | 19.422 | 19.207 | 903 | 1 (churns forever) |
 | replay floor + failed exclusion (shipped) | 19.653 | 20.058 | 20.994 | 20.569 | 19.997 | 19.689 | 902 | 0 |
 
-All times in ms. Two same-machine pairs cannot establish a constant, so the
-original "a constant +0.3 ms" wording claimed more than it had. But the reading
-that replaced it — run-to-run noise rather than a cost — was wrong in the other
-direction, and wrong for a specific reason worth keeping on the record: it
+All times in ms. The two pairs the original claim rested on cannot establish a
+constant, so its "a constant +0.3 ms" wording claimed more than it had. But the
+reading that replaced it — run-to-run noise rather than a cost — was wrong in
+the other direction, and wrong for a specific reason worth keeping on record: it
 compared the **paired** per-run gap against each arm's **unpaired** spread across
 runs, in the same paragraph that establishes the arms share a script and a run.
 Pairing cancels the between-run common-mode variance, which is exactly why the
@@ -391,10 +391,14 @@ slower), which rules that confound out rather than assuming it away.
 Totalled with the six pairs above and six on an independent reviewer's own
 Postgres 16.14 (gaps +0.466, +0.296, +0.124, +0.212, +0.377, +0.344; mean
 +0.303 ms), that is **27 of 28 paired runs with the predicate arm slower**. The
-two sign-flipping runs previously cited — 20.262 ms floor-only against
-20.053 ms shipped on the same machine, and 22.836 against 22.031 ms — are
-outliers against that record, not a counterweight to it. So is run 4 of the
-committed-order block above.
+one that is not is run 4 of the committed-order block above, at −0.852 ms — the
+largest counterexample anywhere on this record, and larger in magnitude than
+the mean effect it contradicts. Two further pairs measured earlier, outside
+that set of 28, also flipped the sign: 20.262 ms floor-only against 20.053 ms
+shipped on the same machine, and 22.836 against 22.031 ms from a separately
+sourced run. Counting those, **27 of 30 paired runs on record put the predicate
+arm slower**. All three flippers are outliers against that record, not a
+counterweight to it.
 
 The exclusion costs about +0.3 ms on a ~20 ms listing: roughly 2% of the
 listing, and under 0.05% of the pass's 5.5 s wall time once the five listings
@@ -406,12 +410,16 @@ not no cost. The predicate is not applied to the join output. It lands as a
 `Filter` on the seq scan that builds the `work_generation` hash side, so it is
 evaluated across all 22 551 `scope_generations` rows and reports
 `Rows Removed by Filter: 1`; the inner hash join then emits 22 550 rows against
-22 551. Roughly 22.5k extra text comparisons is the right order of magnitude for
-+0.3 ms, and the node-level timings locate the gap there directly — that seq
-scan runs 1.287-1.412 ms floor-only against 1.702-2.129 ms shipped, the
-predicate arm slower in all eight committed-order runs, including run 4, where
-the end-to-end gap came out negative. Same-run controls, identical in all six
-original runs: `shipped ∖ unbounded = 0`, no kept row on a superseded
+22 551. (Read that node carefully: the plan holds a SECOND
+`Seq Scan on scope_generations active_generation` inside the CTE, so a naive
+first-match parse of the `EXPLAIN ANALYZE` output grabs the wrong node and
+shows no effect at all.) Roughly 22.5k extra text comparisons is the right
+order of magnitude for +0.3 ms, and the node-level timings locate the gap there
+directly. Node timings were collected only for the eight committed-order runs,
+and across those eight that seq scan runs 1.287-1.412 ms floor-only against
+1.702-2.129 ms shipped — the predicate arm slower in all eight, including run
+4, where the end-to-end gap came out negative. Same-run controls, identical in
+all six original runs: `shipped ∖ unbounded = 0`, no kept row on a superseded
 generation, no kept row on a failed generation, and the never-activated scope's
 row still kept (`1`). Regression proof:
 `TestRunDeferredRelationshipMaintenanceExcludesFailedGenerationsFromCorrelationReplay`,

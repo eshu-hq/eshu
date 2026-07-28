@@ -197,10 +197,13 @@ func CrossScopeCorrelationReopenDomains() []string {
 // makes the absolute times wander by more than 1 ms, which is why the gap's sign
 // stays put while the times do not. Across 28 paired runs — six in the evidence
 // doc, six on an independent reviewer's Postgres 16.14, sixteen re-measured on
-// this machine — 27 put the predicate arm slower. Two same-machine pairs did
-// flip the sign (20.053 ms with the predicate against 20.262 ms floor-only, and
-// 22.031 against 22.836 ms); they are outliers against that record, not a
-// counterweight to it.
+// this machine — 27 put the predicate arm slower. The one that does not is run
+// 4 of the re-measured committed-order block, at -0.852 ms. Two further pairs
+// measured earlier and outside that set of 28 also flipped: 20.053 ms with the
+// predicate against 20.262 ms floor-only on the same machine, and 22.031
+// against 22.836 ms from a separately sourced run. Counting those, 27 of 30
+// paired runs on record put the predicate arm slower, and all three flippers
+// are outliers against that record, not a counterweight to it.
 //
 // The cost is CPU, not I/O, which is why the buffer counts do not show it: both
 // arms read exactly the same pages (Buffers: shared hit=3396 at the top of both
@@ -208,10 +211,14 @@ func CrossScopeCorrelationReopenDomains() []string {
 // cost. work_generation.status <> 'failed' is evaluated on the seq scan that
 // builds the join's hash side, so it runs across all 22 551 scope_generations
 // rows to remove one; the inner hash join then emits 22 550 rows against 22 551.
-// That scan's own time goes 1.29-1.41 ms to 1.70-2.13 ms, the predicate arm
-// slower in every run measured, which is where the end-to-end gap lives. Rows
-// listed per domain go 903 -> 902, the whole difference being the failed scope's
-// one perpetually-churning row.
+// Node timings were collected only for the eight committed-order re-measured
+// runs; across those eight that scan's own time goes 1.29-1.41 ms floor-only to
+// 1.70-2.13 ms shipped, the predicate arm slower in all eight, which is where
+// the end-to-end gap lives. Read that node carefully: a second seq scan on
+// scope_generations sits inside the CTE, so a first-match parse of the plan
+// picks the wrong one and shows no effect. Rows listed per domain go 903 ->
+// 902, the whole difference being the failed scope's one perpetually-churning
+// row.
 //
 // A pass runs five of these listings, so the exclusion is under 0.05% of its
 // 5.5 s wall time — cheap against the churn it removes.
