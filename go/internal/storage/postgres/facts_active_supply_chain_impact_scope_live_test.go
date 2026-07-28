@@ -224,6 +224,12 @@ func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedOnlyByDeploymentC
 // suppression was silently inert in production even though it decodes and
 // matches correctly once loaded. This test must fail against the
 // pre-#5466-P1-1 SQL and pass after the lower()+alias-expansion fix.
+//
+// It also covers the round-2 review F-1 finding: environment.Canonical is
+// TrimSpace + ToLower + alias, so a payload of {"environment":" Production "}
+// (leading/trailing whitespace AND alias casing) must decode to "prod" and
+// be selected too -- the SUP-ALIAS-WHITESPACE fact below pins that the SQL
+// predicate uses lower(trim(...)), not just lower(...).
 func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByEnvironmentAliasLive(t *testing.T) {
 	db := newSupplyChainImpactScopeLiveTestDB(t, "eshu_5466_suppression_scope_alias_live")
 
@@ -232,6 +238,12 @@ func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByEnvironmentAlia
 	// TestBuildVulnerabilitySuppressionsDecodesEnvironmentWorkloadServiceScope.
 	seedSupplyChainImpactScopeLiveFact(t, db, "vuln-suppression:alias-prod", "alias-prod",
 		`{"suppression_id":"SUP-ALIAS-PROD","source":"eshu_policy","justification":"not_affected","author":"security-bot","authored_at":"2026-06-20T00:00:00Z","scope":{"environment":"production"}}`)
+	// SUP-ALIAS-WHITESPACE: payload names the alias form WITH leading and
+	// trailing whitespace, " Production " -- environment.Canonical trims and
+	// lowercases before alias lookup, so this must decode and match
+	// identically to SUP-ALIAS-PROD above (#5466 round-2 review F-1).
+	seedSupplyChainImpactScopeLiveFact(t, db, "vuln-suppression:alias-whitespace", "alias-whitespace",
+		`{"suppression_id":"SUP-ALIAS-WHITESPACE","source":"eshu_policy","justification":"not_affected","author":"security-bot","authored_at":"2026-06-20T00:00:00Z","scope":{"environment":" Production "}}`)
 	// SUP-ALIAS-NOISE: a different environment entirely, must never match a
 	// ["prod"] filter regardless of alias expansion.
 	seedSupplyChainImpactScopeLiveFact(t, db, "vuln-suppression:alias-noise", "alias-noise",
@@ -241,19 +253,26 @@ func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByEnvironmentAlia
 
 	// The reducer derives Environments:["prod"] (canonical form) from
 	// already-loaded deployment evidence, per environment.Canonical
-	// (go/internal/environment). The literal "production" payload above must
-	// still be selected.
+	// (go/internal/environment). Both the literal "production" payload and
+	// the whitespace-padded " Production " payload above must still be
+	// selected; SUP-ALIAS-NOISE must not.
 	loaded, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
 		Environments: []string{"prod"},
 	})
 	if err != nil {
 		t.Fatalf("ListActiveSupplyChainImpactFacts: %v", err)
 	}
-	if got, want := len(loaded), 1; got != want {
-		t.Fatalf("len = %d, want %d (the alias-\"production\"-scoped suppression, and only it): %#v", got, want, loaded)
+	if got, want := len(loaded), 2; got != want {
+		t.Fatalf("len = %d, want %d (the alias-\"production\" and whitespace-padded-alias-scoped suppressions, and only those): %#v", got, want, loaded)
 	}
-	if loaded[0].FactID != "vuln-suppression:alias-prod" {
-		t.Fatalf("FactID = %q, want vuln-suppression:alias-prod: %#v", loaded[0].FactID, loaded[0])
+	gotIDs := map[string]bool{}
+	for _, envelope := range loaded {
+		gotIDs[envelope.FactID] = true
+	}
+	for _, wantID := range []string{"vuln-suppression:alias-prod", "vuln-suppression:alias-whitespace"} {
+		if !gotIDs[wantID] {
+			t.Fatalf("FactID %q missing from loaded set: %#v", wantID, loaded)
+		}
 	}
 }
 

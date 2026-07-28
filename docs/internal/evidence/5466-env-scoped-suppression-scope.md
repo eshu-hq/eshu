@@ -212,6 +212,15 @@ fully empty and the load short-circuited to `nil, nil` with no query issued;
 after #5466 it issues a full paginated Seq Scan. **This new-invocation class
 is unmeasured** — no benchmark or production metric isolates it yet — but it
 is bounded the same way every other invocation is, by the same 8-round cap.
+Round-2 review narrowing (conservative in the safe direction): every fact
+kind that contributes to `Environments`/`WorkloadIDs`/`ServiceIDs` in
+`supplyChainImpactFilter` (`cicdRunCorrelationFactKind`,
+`workloadIdentityFactKind`, `serviceCatalogCorrelationFactKind`) also
+contributes a `RepositoryIDs` value for that same envelope, so this new
+class requires the repository-ID extractor to independently return empty
+for the same fact too — a materially rarer trigger than "any
+deployment-evidence-only intent," not the broader class the wording above
+could be read to imply.
 
 The no-index CONCLUSION still stands regardless of this correction: the
 predicate is OR-ed into a query that already performs a `Parallel Seq Scan`

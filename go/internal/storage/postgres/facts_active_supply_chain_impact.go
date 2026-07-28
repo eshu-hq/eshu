@@ -139,13 +139,17 @@ WHERE fact.fact_kind IN (
               -- from the filter's already-normalized anchors (#5466 P1-1).
               lower(trim(fact.payload->'scope'->>'workload_id')) = ANY($13::text[])
               OR lower(trim(fact.payload->'scope'->>'service_id')) = ANY($14::text[])
-              -- lower(...) plus alias expansion of $15 (see
+              -- lower(trim(...)) plus alias expansion of $15 (see
               -- expandEnvironmentAliasFilterValues) matches
-              -- environment.Canonical's alias contract: a suppression
-              -- payload authored as "production" must still be selected by
-              -- a canonical "prod" filter, not just an exact-canonical
-              -- payload (#5466 P1-1).
-              OR lower(fact.payload->'scope'->>'environment') = ANY($15::text[])
+              -- environment.Canonical's contract exactly:
+              -- environment.Canonical is TrimSpace + ToLower + alias, so a
+              -- payload authored as " production " (leading/trailing
+              -- whitespace, alias spelling) must still be selected by a
+              -- canonical "prod" filter, not just an exact-canonical,
+              -- untrimmed payload (#5466 P1-1, tightened by round-2 review
+              -- F-1: the two sibling lines above already needed trim() for
+              -- the same reason).
+              OR lower(trim(fact.payload->'scope'->>'environment')) = ANY($15::text[])
           )
       )
   )
@@ -269,16 +273,21 @@ func lowerCleanedStringFilterValues(values []string) []string {
 	return cleanStringFilterValues(lowered)
 }
 
-// expandEnvironmentAliasFilterValues expands each already-canonical
-// environment value in values (see environment.Canonical) into every alias
-// spelling from the shared environment.Aliases() table, plus the canonical
-// value itself. The suppression-scope environment predicate ($14) compares
-// against lower(payload), so a suppression payload authored with an alias
-// form ("production") still matches a filter built from the canonical form
-// ("prod") -- otherwise the filter and the payload could each independently
-// be "correct" under environment.Canonical and still never match in SQL
-// (#5466 P1-1). A value with no known alias entry (environment.Canonical
-// never rejects unknown tokens) passes through unexpanded.
+// expandEnvironmentAliasFilterValues canonicalizes each environment value in
+// values through environment.Canonical, then expands it into every alias
+// spelling from the shared environment.Aliases() table (which always
+// includes the canonical spelling itself -- see the table in
+// environment.Aliases()). The suppression-scope environment predicate
+// ($14) compares against lower(trim(payload)), so a suppression payload
+// authored with an alias form ("production") or different case/whitespace
+// ("Prod") still matches a filter built from the canonical form ("prod")
+// -- otherwise the filter and the payload could each independently be
+// "correct" under environment.Canonical and still never match in SQL
+// (#5466 P1-1). Canonicalizing here rather than trusting the caller already
+// did so keeps this function correct regardless of caller input, matching
+// lowerCleanedStringFilterValues's defensive normalization of its own
+// input. A canonical value with no known alias entry (environment.Canonical
+// never rejects unknown tokens) passes through as its canonicalized form.
 func expandEnvironmentAliasFilterValues(values []string) []string {
 	if len(values) == 0 {
 		return values
@@ -289,11 +298,12 @@ func expandEnvironmentAliasFilterValues(values []string) []string {
 	}
 	expanded := make([]string, 0, len(values))
 	for _, value := range values {
-		if aliases, ok := aliasesByCanonical[value]; ok {
+		canonical := environment.Canonical(value)
+		if aliases, ok := aliasesByCanonical[canonical]; ok {
 			expanded = append(expanded, aliases...)
 			continue
 		}
-		expanded = append(expanded, value)
+		expanded = append(expanded, canonical)
 	}
 	return cleanStringFilterValues(expanded)
 }

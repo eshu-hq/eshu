@@ -91,7 +91,7 @@ func TestListActiveSupplyChainImpactFactsQueryMatchesSuppressionByEnvironmentWor
 		"fact.fact_kind = 'vulnerability.suppression'",
 		"lower(trim(fact.payload->'scope'->>'workload_id')) = ANY($12::text[])",
 		"lower(trim(fact.payload->'scope'->>'service_id')) = ANY($13::text[])",
-		"lower(fact.payload->'scope'->>'environment') = ANY($14::text[])",
+		"lower(trim(fact.payload->'scope'->>'environment')) = ANY($14::text[])",
 	} {
 		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
@@ -149,6 +149,30 @@ func TestExpandEnvironmentAliasFilterValues(t *testing.T) {
 	want := []string{"prod", "production", "qa", "unknown-env"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("expandEnvironmentAliasFilterValues() = %v, want %v", got, want)
+	}
+}
+
+// TestExpandEnvironmentAliasFilterValuesCanonicalizesNonCanonicalInput is
+// the #5466 round-2 review F-2 fix proof: the function must not assume its
+// input already went through environment.Canonical. A mixed-case value
+// ("Prod") or an alias spelling passed in directly ("production", not the
+// canonical "prod") must both canonicalize before the aliasesByCanonical
+// lookup and expand to the identical alias set -- otherwise either input
+// would miss the lookup, pass through unexpanded, and could then never
+// equal the lower(trim(payload)) side of the SQL predicate.
+func TestExpandEnvironmentAliasFilterValuesCanonicalizesNonCanonicalInput(t *testing.T) {
+	t.Parallel()
+
+	want := []string{"prod", "production"}
+	for _, in := range [][]string{
+		{"Prod"},
+		{"production"},
+		{" PRODUCTION "},
+	} {
+		got := expandEnvironmentAliasFilterValues(in)
+		if !slices.Equal(got, want) {
+			t.Fatalf("expandEnvironmentAliasFilterValues(%v) = %v, want %v", in, got, want)
+		}
 	}
 }
 
