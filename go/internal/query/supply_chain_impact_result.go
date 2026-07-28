@@ -103,6 +103,21 @@ type SupplyChainImpactFindingResult struct {
 	// shared truth.DeploymentTruthTier vocabulary (#5471). Omitted when the
 	// finding has no deployment anchor at all.
 	DeploymentTruthTier string `json:"deployment_truth_tier,omitempty"`
+	// VersionResolutionTier discloses which deployment-truth tier the
+	// judged version/digest for this finding was resolved from (#5469),
+	// reusing the shared truth.DeploymentTruthTier vocabulary verbatim. It
+	// can differ from DeploymentTruthTier: DeploymentTruthTier reports the
+	// strongest tier with ANY deployment evidence, while
+	// VersionResolutionTier requires that tier's evidence to also carry a
+	// concrete version/digest claim. Omitted when the finding has no
+	// version/digest evidence at all.
+	VersionResolutionTier string `json:"version_resolution_tier,omitempty"`
+	// VersionResolutionCorroboration lists every weaker deployment-truth
+	// tier that also makes a version/digest claim for this finding,
+	// including a tier whose claim disagrees with VersionResolutionTier's
+	// judged value (flagged agrees:false rather than silently dropped).
+	// Omitted when no weaker tier makes a claim.
+	VersionResolutionCorroboration []SupplyChainVersionResolutionCorroboration `json:"version_resolution_corroboration,omitempty"`
 }
 
 // SupplyChainImpactPriorityContribution explains one reducer priority input.
@@ -130,6 +145,7 @@ func buildSupplyChainImpactFindingResult(row SupplyChainImpactFindingRow) Supply
 	result := SupplyChainImpactFindingResult(row)
 	result.MissingEvidence = normalizedSupplyChainImpactMissingEvidence(row)
 	result.DeploymentTruthTier = string(supplyChainDeploymentTruthTier(row))
+	result.VersionResolutionTier, result.VersionResolutionCorroboration = supplyChainVersionResolution(row)
 	return result
 }
 

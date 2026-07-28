@@ -174,6 +174,15 @@ type SupplyChainImpactFindingRow struct {
 	// DeploymentTruthTier classifies the strongest deployment evidence
 	// available for this finding's repository or workload context (#5471).
 	DeploymentTruthTier string
+	// VersionResolutionTier and VersionResolutionCorroboration are NOT
+	// decoded from the persisted finding payload. They are computed at read
+	// time by supplyChainVersionResolution (#5469) from this row's own
+	// fields, mirroring how DeploymentTruthTier is derived rather than
+	// stored. Kept in the same field position as
+	// SupplyChainImpactFindingResult so the
+	// SupplyChainImpactFindingResult(row) conversion stays valid.
+	VersionResolutionTier          string
+	VersionResolutionCorroboration []SupplyChainVersionResolutionCorroboration
 }
 
 // SupplyChainSuppressionDecisionRow is the API-shaped suppression decision
