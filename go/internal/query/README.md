@@ -322,48 +322,100 @@ expired operator row to `state=expired` without changing its immutable fact.
 The materialized winners path uses the same clock and denormalized expiry so it
 stays byte-equivalent to the direct read.
 
-Performance Evidence: on Postgres 18 with 100,000 synthetic source rows,
-50,000 canonical keys, and 500 operator suppressions, 20 warm executions on
-the same machine kept every production path inside the 10% no-regression
-contract. Fresh `origin/main` median/p95 measurements were direct list
-177.170/184.338 ms, materialized list 60.163/61.190 ms, aggregate count plus
-facets 465.099/468.035 ms, explain 63.906/65.402 ms, and winner rebuild
-912.147/943.861 ms. The accepted branch measured 182.660/188.309,
-60.546/62.013, 453.131/465.260, 65.543/70.256, and 967.163/987.841 ms,
-respectively. The direct-list old/new measurements alternated in one process
-against the same seeded schema; its output differential was zero. Direct and
-materialized branch output also had a zero differential; totals, priority
-facets, and severity facets matched all 50,000 canonical keys. A rejected eager
-expiry overlay measured 40.950 ms versus 27.959 ms. A rejected composite
-authority sort measured 187.286/193.673 ms. The explain
-compatibility anchor initially regressed to 116.815/122.970 ms; a proven
-`NOT MATERIALIZED` shape preserved the exact explanation and recovered
-64.621/69.648 ms before it was applied. The 100,000-winner expiry migration
-measured 11.254 ms on first apply and 6.337 ms on repeat, changed only the two
-intended operator rows, and performed 2,331 shared-buffer hits with zero reads.
-Warm `EXPLAIN (ANALYZE, BUFFERS)` plans for direct list, materialized list,
-aggregate count, aggregate priority facet, and explain performed zero shared
-reads; the materialized and explain paths used no temporary blocks.
+Performance Evidence: the accepted baseline was measured at `origin/main`
+`76931f4d89`. The final review base is
+`a2a5340a9e4bd975a8d4ccd97be547bb5b9e84b3`. This exact check produced no
+diff, so the current base and measured baseline use byte-identical
+implementations for all five paths:
+
+```bash
+git diff --exit-code \
+  76931f4d89 a2a5340a9e4bd975a8d4ccd97be547bb5b9e84b3 -- \
+  go/internal/query/supply_chain_impact_findings.go \
+  go/internal/query/supply_chain_impact_findings_queries.go \
+  go/internal/query/supply_chain_impact_findings_split_queries.go \
+  go/internal/query/supply_chain_impact_aggregates.go \
+  go/internal/query/supply_chain_impact_aggregates_queries.go \
+  go/internal/query/supply_chain_impact_explain_postgres.go \
+  go/internal/storage/postgres/supply_chain_impact_winners_store.go \
+  go/internal/storage/postgres/schema_fact_records.go
+```
+
+On Postgres 18 with 100,000 synthetic source rows, 50,000 canonical keys, and
+500 operator suppressions, 20 warm executions on the same machine measured the
+baseline median/p95 at direct list 177.170/184.338 ms, materialized list
+60.163/61.190 ms, aggregate count plus facets 465.099/468.035 ms, explain
+63.906/65.402 ms, and winner rebuild 912.147/943.861 ms.
+
+The final runtime implementation commit
+`63d06f6cc0d06ca9bc97a7ffa24b9eb4a8eb5d88` was measured with:
+
+```bash
+cd go
+GOCACHE=$PWD/../.gocache \
+  ESHU_POSTGRES_TEST_DSN='postgresql://eshu:change-me@127.0.0.1:25432/eshu?sslmode=disable' \
+  go test ./internal/query \
+  -run '^TestSupplyChainSuppressionPathsPerformanceLive$' -count=1 -v
+```
+
+The final branch median/p95 measurements were direct list 136.923/138.221 ms,
+materialized list 14.636/15.762 ms, aggregate count plus facets
+342.687/349.311 ms, public finding-ID explain 2.909/3.074 ms, and winner rebuild
+873.095/918.479 ms. The post-documentation verification rerun on the same
+runtime code measured 141.541/151.742, 15.822/17.058, 352.147/382.474,
+2.895/3.193, and 919.997/1018.404 ms, respectively. All five paths stayed
+within the 10% stop threshold on both runs. Direct, materialized, aggregate,
+and explain improved on both samples. Winner rebuild improved on the first and
+was 0.9% slower at median and 7.9% slower at p95 on the verification sample,
+which remains within the declared no-regression band.
+
+The test applies migration 084 concurrently after seeding the populated fact
+table, proving the upgrade DDL before timing the production query. A
+pre-implementation query shim compared the broad explain shape with the indexed
+public-ID shape on the same data: the exact row differential was zero, while
+median/p95 improved from 68.502/77.519 ms to 15.950/18.338 ms. The permanent
+test asserts direct/materialized output equality and exact total, priority, and
+severity facets across all 50,000 canonical keys. Focused dispatch tests prove
+that public finding IDs use the indexed query, raw fact IDs and canonical keys
+fall back to the compatibility query only after an indexed miss, and ambiguity
+remains fail-closed.
+
+A rejected eager expiry overlay measured 40.950 ms versus 27.959 ms. A rejected
+composite authority sort measured 187.286/193.673 ms. The explain compatibility
+anchor initially regressed to 116.815/122.970 ms; a proven `NOT MATERIALIZED`
+shape preserved the exact explanation and recovered 64.621/69.648 ms before it
+was applied. The 100,000-winner expiry migration measured 11.254 ms on first
+apply and 6.337 ms on repeat, changed only the two intended operator rows, and
+performed 2,331 shared-buffer hits with zero reads. The final warm
+`EXPLAIN (ANALYZE, BUFFERS)` public-ID explain plan executed in 0.549 ms with
+78 shared-buffer hits, zero reads, and zero temporary blocks.
 The advisory-filter compatibility path preserved its exact legacy row set at
 16.114/17.041 ms versus 16.849/18.142 ms before the guard; the new
 advisory-only path returned exactly 250 intended rows at 18.452/23.607 ms.
 
-The same-machine built-binary golden gate on fresh volumes held the production
-pipeline at the same resolution. `origin/main` `76931f4d89` completed in
-106 seconds with 511 required passes, zero required failures, and phases
-`3/20/66/17/3` for bootstrap/collect/first-drain/maintenance/graph-query. The
-accepted branch completed in 104 seconds with the same 511 required passes,
-zero required failures, and phases `3/20/66/15/23`. Its graph/query phase was
-20 seconds longer because the test deliberately waits for one future
-suppression to expire; that clock wait is accuracy proof, not production
-pipeline work. The exact advisory was
-`phase_graph_query: observed=23.0s, baseline=3.0s, ceiling=8.0s`. Despite that
-additional wait, branch wall time did not regress. The created mutation took
-0.004313 seconds, the suppression projector/reducer drain took 2.069007
-seconds with zero residuals and dead letters, and seven identical retries had
-a 0.003254-second handler median without adding a generation or work item.
-Active, hidden, audit, and expired finding reads had medians of 0.018258,
-0.004275, 0.009164, and 0.011811 seconds.
+The same-machine built-binary golden gate ran on fresh volumes at exact runtime
+head `63d06f6cc0d06ca9bc97a7ffa24b9eb4a8eb5d88`, based on
+`a2a5340a9e4bd975a8d4ccd97be547bb5b9e84b3`, with:
+
+```bash
+docker compose -f docker-compose.yaml down -v
+GOCACHE=$PWD/.gocache ESHU_POSTGRES_PORT=25432 \
+  NEO4J_HTTP_PORT=27474 NEO4J_BOLT_PORT=27687 \
+  bash scripts/verify-golden-corpus-gate.sh
+```
+
+It completed in 109 seconds with 511 passes, zero required failures, and one
+advisory timing warning. Bootstrap/collect/first-drain/maintenance/graph-query
+phases were `5/21/66/17/24` seconds. The graph/query advisory is expected
+because the accuracy proof deliberately waits for a future suppression to
+expire; it is not production pipeline work. The exact advisory was
+`phase_graph_query: observed=24.0s, baseline=3.0s, ceiling=8.0s`.
+First-drain and every maintenance/suppression drain ended with zero residual
+and dead-letter work. Scope setup took 0.007944 seconds, the ignored mutation
+took 0.004450 seconds, the ignored drain took 2.095769 seconds, and seven
+identical retries had a 0.003336-second handler median without adding a
+generation or work item. Active, hidden, audit, and expired finding reads had
+medians of 0.021644, 0.004942, 0.010544, and 0.014689 seconds.
 
 Observability Evidence: `query.vulnerability_suppression_mutation` records
 `eshu.mutation.outcome` from the closed `created`, `unchanged`, `rejected`, and
