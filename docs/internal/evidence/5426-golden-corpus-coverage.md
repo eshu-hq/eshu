@@ -333,6 +333,41 @@ does not have, which is what made the bounded listing look like a regression.
 The failed 25-generation scope contributes 25 rows per drain under the guard and
 1 under the floor; the never-activated scope contributes 1 under both.
 
+**The floor alone still churns the failed shape** (PR #5850 review, P2). That
+remaining 1 row is the failed generation itself: `failProjectorWorkQuery` sets
+`status = 'failed'` and nulls `active_generation_id` in the same statement, so
+the failed generation is the scope's latest, the fallback picks it, and its
+succeeded rows sit exactly AT the floor — reopened on every drain, re-succeeded
+by the reducer, reopened again, forever, for a generation whose re-decision no
+query can read. The listing therefore also carries
+`work_generation.status <> 'failed'`.
+
+The exclusion is on the WORK ITEM's own generation rather than on the fallback's
+candidate set. Excluding failed generations from the fallback instead LOWERS the
+floor to the newest non-failed generation, which leaves the failed generation's
+rows (still at or above the lowered floor) churning AND starts the older
+generation's rows churning too — strictly worse, and equally unreadable while
+`active_generation_id` is `NULL`. The correct replay count for such a scope is
+zero. A failed generation is never the active one, so this cannot under-replay a
+query-visible generation.
+
+Measured in the same script and the same run, so the arms are directly
+comparable:
+
+| shape | listing `EXPLAIN ANALYZE` | rows listed per domain | failed scope's rows per drain |
+| --- | --- | --- | --- |
+| replay floor only | 20.5 ms | 903 | 1 (churns forever) |
+| replay floor + failed exclusion (shipped) | 20.8 ms | 902 | 0 |
+
+A repeat run of the same script gave 21.1 ms and 21.4 ms for the same two arms —
+a constant +0.3 ms, i.e. no measurable cost: the predicate filters a row the
+`work_generation` join has already fetched. Same-run controls: `shipped ∖ unbounded = 0`, no kept row on a
+superseded generation, no kept row on a failed generation, and the
+never-activated scope's row still kept (`1`). Regression proof:
+`TestRunDeferredRelationshipMaintenanceExcludesFailedGenerationsFromCorrelationReplay`,
+which also asserts a SECOND maintenance pass leaves the failed rows alone —
+the churn claim is about every drain, not the first.
+
 Expected delta versus unbounded, same dataset: `floor ∖ unbounded = 0` (the
 bound only removes), `unbounded ∖ floor = 21 648`, no kept row on a superseded
 generation, the never-activated scope's row kept (`1`). This is a behavior

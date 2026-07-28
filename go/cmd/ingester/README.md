@@ -133,7 +133,10 @@ one transaction. Before #5846 the correlation domains were replayed only by
 cross-scope activation race kept its empty-join output indefinitely. Because
 this runs on every drain rather than once, the correlation listing is bounded by
 a per-scope replay floor: only work items on the scope's active generation or
-newer, falling back to its latest generation when there is no usable active one.
+newer, falling back to its latest generation when there is no usable active one,
+and never a work item whose own generation terminally failed — that generation is
+the scope's latest, so the fallback picks it, yet nothing it re-decides can be
+read while the scope's active pointer is `NULL`.
 That keeps the pass O(active scopes) rather than O(active scopes x generations),
 and it is not free — the correlation half had no pre-change baseline at all. See
 the cross-scope correlation reopen section in

@@ -135,11 +135,38 @@ func CrossScopeCorrelationReopenDomains() []string {
 //     supersession because supersedeInactiveReducerGenerationsCTE carries the
 //     same guard and never terminalizes those rows. Measured in the proof
 //     script: one failed 25-generation scope contributes 25 rows per drain under
-//     the guard, 1 under the floor.
+//     the guard, 1 under the floor alone, 0 once the failed-generation exclusion
+//     below also applies.
 //   - Dangling pointer. No FK constrains active_generation_id, so it can name a
 //     generation row that is gone. The COALESCE falls back to the latest
 //     generation rather than either reopening everything or, worse, silently
 //     listing nothing for that scope.
+//
+// The floor alone still leaves the failed shape churning, which is why the WHERE
+// clause carries work_generation.status <> 'failed' as well. The failed
+// generation is the scope's LATEST, so the fallback picks it and its succeeded
+// rows sit exactly AT the floor: one row per domain reopened on every drain,
+// re-succeeded by the reducer, and reopened again forever. Nothing that
+// generation re-decides can ever be read — failProjectorWorkQuery nulls the
+// scope's active pointer in the same statement that fails the generation, and
+// every fact-backed correlation read surface joins
+// scope.active_generation_id = fact.generation_id — so the correct replay count
+// for it is zero, not one.
+//
+// The exclusion is on the WORK ITEM's own generation rather than on the
+// fallback's candidate set on purpose. Excluding failed generations from the
+// fallback instead would LOWER the floor to the newest non-failed generation,
+// which leaves the failed generation's rows (still at or above the lowered
+// floor) churning AND starts the older generation's rows churning too — strictly
+// worse, and equally unreadable while active_generation_id is NULL.
+//
+// A failed generation is never the active one, so this cannot under-replay a
+// query-visible generation: failProjectorWorkQuery marks status = 'failed' only
+// for generations in status 'pending' or 'active', and nulls active_generation_id
+// in the same statement whenever the failed generation is the one it names. The
+// mixed shape — a NEWER generation failing while an OLDER one stays active — is
+// covered by the same predicate: the scope keeps its active floor and replays it,
+// while the failed newer generation drops out.
 //
 // Replaying below the floor cannot change query truth for the fact-backed
 // domains: facts_active_container_image_identity.go,
@@ -161,6 +188,14 @@ func CrossScopeCorrelationReopenDomains() []string {
 // scopes x 25 generations against the PRODUCTION index
 // (stage, domain, status, visible_at, updated_at DESC): 166.0 ms inlined versus
 // 20.3 ms materialized, against 29.8 ms for the unbounded listing it replaces.
+//
+// The failed-generation exclusion costs nothing measurable. Both arms run in the
+// same script and the same run, so they are directly comparable: 20.5 ms for the
+// floor alone versus 20.8 ms with the predicate, and 21.1 versus 21.4 ms on a
+// repeat run — a constant +0.3 ms, because the predicate filters a row the
+// work_generation join has already fetched. Rows listed per domain go 903 -> 902
+// on that corpus, the whole difference being the failed scope's one
+// perpetually-churning row.
 //
 // The work_generation join is inner, which is safe only because both of its
 // legs hold for every row.
@@ -226,6 +261,7 @@ JOIN scope_replay_floor AS floor
 WHERE work.stage = 'reducer'
   AND work.domain = $1
   AND work.status = 'succeeded'
+  AND work_generation.status <> 'failed'
   AND (work_generation.ingested_at, work_generation.generation_id)
       >= (floor.floor_ingested_at, floor.floor_generation_id)
 ORDER BY work.updated_at ASC, work.work_item_id ASC

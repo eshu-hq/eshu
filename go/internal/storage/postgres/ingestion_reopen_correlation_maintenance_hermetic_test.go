@@ -86,6 +86,7 @@ func TestRunDeferredRelationshipMaintenanceCorrelationListingCarriesReplayBound(
 	for _, fragment := range []string{
 		"scope_replay_floor",
 		"COALESCE(active_generation.ingested_at, latest_generation.ingested_at)",
+		"work_generation.status <> 'failed'",
 		">= (floor.floor_ingested_at, floor.floor_generation_id)",
 	} {
 		if !strings.Contains(listing, fragment) {

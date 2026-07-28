@@ -31,7 +31,12 @@ CREATE TABLE ingestion_scopes (
 CREATE TABLE scope_generations (
     generation_id TEXT PRIMARY KEY,
     scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
-    ingested_at TIMESTAMPTZ NOT NULL
+    ingested_at TIMESTAMPTZ NOT NULL,
+    -- Mirrors schema/data-plane/postgres/002_scope_generations.sql, whose status
+    -- column is NOT NULL. The default keeps every existing seed helper's
+    -- three-column INSERT valid while letting the replay-floor tests model the
+    -- 'failed' lifecycle state failProjectorWorkQuery writes.
+    status TEXT NOT NULL DEFAULT 'pending'
 );
 
 CREATE INDEX scope_generations_scope_latest_lookup_idx

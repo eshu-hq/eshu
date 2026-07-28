@@ -39,11 +39,16 @@
 # ----------------------------------------------------------------------------
 comment_prefix=""
 comment_block=0
+comment_anywhere=0
 set_comment_prefix() {
 	comment_block=0
+	comment_anywhere=0
 	case "$1" in
 		*.sh|*.bash|*.yml|*.yaml) comment_prefix='#' ;;
-		*.sql) comment_prefix='--'; comment_block=1 ;;
+		# SQL's `--` opens a comment wherever it appears on the line, including
+		# mid-word (`1--`); unlike shell's `#`, it has no predecessor
+		# requirement, so comment_anywhere drops that constraint for it.
+		*.sql) comment_prefix='--'; comment_block=1; comment_anywhere=1 ;;
 		# RFC 8259 JSON has no comment syntax, so every line is a real home.
 		*.json) comment_prefix='' ;;
 		*) fail "no comment syntax registered for $(basename "$1"); teach set_comment_prefix before asserting against it" ;;
@@ -79,20 +84,32 @@ strip_block_comments() {
 # What the comment rule DOES handle: a marker that opens the line, a marker
 # after leading whitespace, a TRAILING marker on an otherwise-code line, a
 # marker inside a quoted run that opens AND closes before the needle, a marker
-# that is not word-initial (`${#arr}`, `$#`, `a--b`), and — for `.sql` — block
+# that is not word-initial for languages where that matters (`${#arr}`, `$#`,
+# `a--b` in shell), `.sql`'s rule that `--` opens a comment WHEREVER it
+# appears including mid-word (no predecessor requirement — SQL has no
+# `${#arr}`-style construct that needs one), and — for `.sql` — block
 # comments spanning any number of lines.
 #
 # What it does NOT handle: a marker inside a quoted run that is still OPEN where
 # the needle sits (scored as a comment, so the assertion fails "missing" — the
-# safe direction), heredoc bodies and other multi-line quoting, and SQL's rule
-# that `--` opens a comment even mid-word. It is a word-boundary heuristic over
-# single lines, not a lexer.
+# safe direction), and heredoc bodies and other multi-line quoting. It is a
+# word-boundary (or, for `.sql`, anywhere-on-line) heuristic over single lines,
+# not a lexer.
 count_homes() {
 	local needle="$1" open pattern
 	[[ "${needle}" != *'\E'* ]] ||
 		fail "needle carries a literal \\E, which would close its \\Q..\\E quote and let the remainder act as a regex: ${needle}"
 	if [[ -n "${comment_prefix}" ]]; then
-		open="(?<![^\s;|&(])\Q${comment_prefix}\E"
+		if (( comment_anywhere )); then
+			# SQL: `--` always opens a comment, even mid-word (`1--`), so no
+			# predecessor constraint applies. Reproduced without this branch:
+			# `SELECT 1-- DROP TABLE ...` scored the DROP as a live
+			# (non-comment) home, so an assertion requiring that DDL passed
+			# while the statement was entirely inside a real SQL comment.
+			open="\Q${comment_prefix}\E"
+		else
+			open="(?<![^\s;|&(])\Q${comment_prefix}\E"
+		fi
 		pattern="^(?!${open})(?:'[^']*'|\"[^\"]*\"|(?!${open}).)*?\Q${needle}\E"
 	else
 		pattern="\Q${needle}\E"

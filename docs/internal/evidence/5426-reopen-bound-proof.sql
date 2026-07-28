@@ -40,7 +40,10 @@ CREATE UNIQUE INDEX ingestion_scopes_active_generation_idx
 CREATE TABLE scope_generations (
     generation_id TEXT PRIMARY KEY,
     scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
-    ingested_at TIMESTAMPTZ NOT NULL
+    ingested_at TIMESTAMPTZ NOT NULL,
+    -- NOT NULL in schema/data-plane/postgres/002_scope_generations.sql. The
+    -- default only keeps the bulk seeds below three-column.
+    status TEXT NOT NULL DEFAULT 'pending'
 );
 
 -- Verbatim from schema/data-plane/postgres/002_scope_generations.sql.
@@ -104,14 +107,18 @@ INSERT INTO fact_work_items
 VALUES ('wi-unactivated', 'scope-unactivated', 'gen-unactivated-1',
         'reducer', 'supply_chain_impact', 'succeeded', NULL, TIMESTAMPTZ '2026-01-01 00:00:00+00');
 
--- Scope shape B: the ACTIVE generation failed, so failProjectorWorkQuery nulled
--- active_generation_id. 25 generations, all with a succeeded correlation row.
--- Under the IS NOT NULL guard all 25 reopen on every drain; under the floor, 1.
+-- Scope shape B: the ACTIVE generation failed, so failProjectorWorkQuery set its
+-- status to 'failed' and nulled active_generation_id in the same statement. 25
+-- generations, all with a succeeded correlation row. Under the IS NOT NULL guard
+-- all 25 reopen on every drain; under the floor alone, 1 — the failed generation
+-- itself, which no query can read and which therefore re-succeeds and reopens
+-- forever. Under the shipped shape (floor + failed exclusion), 0.
 INSERT INTO ingestion_scopes (scope_id, active_generation_id) VALUES ('scope-failed', NULL);
 INSERT INTO scope_generations (generation_id, scope_id, ingested_at)
 SELECT 'gen-failed-' || g, 'scope-failed',
        TIMESTAMPTZ '2026-01-01 00:00:00+00' + (g || ' hours')::interval
 FROM generate_series(1, 25) AS g;
+UPDATE scope_generations SET status = 'failed' WHERE generation_id = 'gen-failed-25';
 INSERT INTO fact_work_items
   (work_item_id, scope_id, generation_id, stage, domain, status, visible_at, updated_at)
 SELECT 'wi-failed-' || g, 'scope-failed', 'gen-failed-' || g,
@@ -173,7 +180,7 @@ WHERE work.stage = 'reducer'
   )
 ORDER BY work.updated_at ASC, work.work_item_id ASC;
 
-\echo '=== Shape 3 NEW (per-scope replay floor, MATERIALIZED) ==='
+\echo '=== Shape 3 FLOOR-ONLY (per-scope replay floor, MATERIALIZED) ==='
 EXPLAIN (ANALYZE, BUFFERS, TIMING)
 WITH scope_replay_floor AS MATERIALIZED (
   SELECT scope.scope_id,
@@ -205,7 +212,40 @@ WHERE work.stage = 'reducer'
       >= (floor.floor_ingested_at, floor.floor_generation_id)
 ORDER BY work.updated_at ASC, work.work_item_id ASC;
 
-\echo '=== Shape 3b NEW without the MATERIALIZED hint (why the hint is there) ==='
+\echo '=== Shape 4 SHIPPED (replay floor + failed-generation exclusion) ==='
+EXPLAIN (ANALYZE, BUFFERS, TIMING)
+WITH scope_replay_floor AS MATERIALIZED (
+  SELECT scope.scope_id,
+         COALESCE(active_generation.ingested_at, latest_generation.ingested_at) AS floor_ingested_at,
+         COALESCE(active_generation.generation_id, latest_generation.generation_id) AS floor_generation_id
+  FROM ingestion_scopes AS scope
+  LEFT JOIN scope_generations AS active_generation
+    ON active_generation.scope_id = scope.scope_id
+   AND active_generation.generation_id = scope.active_generation_id
+  LEFT JOIN LATERAL (
+      SELECT candidate.ingested_at, candidate.generation_id
+      FROM scope_generations AS candidate
+      WHERE candidate.scope_id = scope.scope_id
+      ORDER BY candidate.ingested_at DESC, candidate.generation_id DESC
+      LIMIT 1
+  ) AS latest_generation ON true
+)
+SELECT work.work_item_id
+FROM fact_work_items AS work
+JOIN scope_generations AS work_generation
+  ON work_generation.scope_id = work.scope_id
+ AND work_generation.generation_id = work.generation_id
+JOIN scope_replay_floor AS floor
+  ON floor.scope_id = work.scope_id
+WHERE work.stage = 'reducer'
+  AND work.domain = 'supply_chain_impact'
+  AND work.status = 'succeeded'
+  AND work_generation.status <> 'failed'
+  AND (work_generation.ingested_at, work_generation.generation_id)
+      >= (floor.floor_ingested_at, floor.floor_generation_id)
+ORDER BY work.updated_at ASC, work.work_item_id ASC;
+
+\echo '=== Shape 3b FLOOR-ONLY without the MATERIALIZED hint (why the hint is there) ==='
 EXPLAIN (ANALYZE, BUFFERS, TIMING)
 WITH scope_replay_floor AS NOT MATERIALIZED (
   SELECT scope.scope_id,
@@ -237,7 +277,7 @@ WHERE work.stage = 'reducer'
       >= (floor.floor_ingested_at, floor.floor_generation_id)
 ORDER BY work.updated_at ASC, work.work_item_id ASC;
 
-\echo '=== Rows reopened per drain: OLD vs GUARD-ONLY vs FLOOR ==='
+\echo '=== Rows reopened per drain: OLD vs GUARD-ONLY vs FLOOR vs SHIPPED ==='
 CREATE VIEW shape_old AS
   SELECT work_item_id, scope_id, generation_id
   FROM fact_work_items
@@ -292,33 +332,50 @@ CREATE VIEW shape_floor AS
     AND (work_generation.ingested_at, work_generation.generation_id)
         >= (floor.floor_ingested_at, floor.floor_generation_id);
 
-SELECT (SELECT count(*) FROM shape_old)   AS old_rows,
-       (SELECT count(*) FROM shape_guard) AS guard_rows,
-       (SELECT count(*) FROM shape_floor) AS floor_rows;
+-- The shipped shape: the floor, plus the exclusion of work items whose OWN
+-- generation is terminally failed. The exclusion is on the work item's
+-- generation rather than on the floor's fallback candidate set because lowering
+-- the floor to the newest non-failed generation would keep the failed
+-- generation's rows (still at or above the lowered floor) churning and start the
+-- older generation's rows churning too — see the per-scope table below.
+CREATE VIEW shape_shipped AS
+  SELECT work_item_id, scope_id, generation_id
+  FROM shape_floor
+  WHERE generation_id NOT IN (SELECT generation_id FROM scope_generations WHERE status = 'failed');
 
-\echo '=== The generation-count-linear hole the guard leaves open (P1-2) ==='
+SELECT (SELECT count(*) FROM shape_old)     AS old_rows,
+       (SELECT count(*) FROM shape_guard)   AS guard_rows,
+       (SELECT count(*) FROM shape_floor)   AS floor_rows,
+       (SELECT count(*) FROM shape_shipped) AS shipped_rows;
+
+\echo '=== The per-drain hole each bound leaves open (P1-2, then PR #5850 P2) ==='
 SELECT scope_id,
-       (SELECT count(*) FROM shape_guard g WHERE g.scope_id = s.scope_id) AS guard_rows_per_drain,
-       (SELECT count(*) FROM shape_floor f WHERE f.scope_id = s.scope_id) AS floor_rows_per_drain
+       (SELECT count(*) FROM shape_guard g WHERE g.scope_id = s.scope_id)   AS guard_rows_per_drain,
+       (SELECT count(*) FROM shape_floor f WHERE f.scope_id = s.scope_id)   AS floor_rows_per_drain,
+       (SELECT count(*) FROM shape_shipped h WHERE h.scope_id = s.scope_id) AS shipped_rows_per_drain
 FROM (VALUES ('scope-failed'), ('scope-dangling'), ('scope-unactivated'), ('scope-1')) AS s(scope_id)
 ORDER BY scope_id;
 
-\echo '=== Expected delta: FLOOR adds nothing, drops only unreadable generations, keeps the race ==='
+\echo '=== Expected delta: SHIPPED adds nothing, drops only unreadable generations, keeps the race ==='
 SELECT
-  (SELECT count(*) FROM (SELECT work_item_id FROM shape_floor
+  (SELECT count(*) FROM (SELECT work_item_id FROM shape_shipped
                          EXCEPT SELECT work_item_id FROM shape_old) AS x)
-    AS floor_not_in_old_must_be_0,
+    AS shipped_not_in_old_must_be_0,
   (SELECT count(*) FROM (SELECT work_item_id FROM shape_old
-                         EXCEPT SELECT work_item_id FROM shape_floor) AS y)
-    AS dropped_by_floor,
-  (SELECT count(*) FROM shape_floor f
+                         EXCEPT SELECT work_item_id FROM shape_shipped) AS y)
+    AS dropped_by_shipped,
+  (SELECT count(*) FROM shape_shipped f
      JOIN ingestion_scopes s ON s.scope_id = f.scope_id
     WHERE s.active_generation_id IS NOT NULL
       AND EXISTS (SELECT 1 FROM scope_generations a
                    WHERE a.generation_id = s.active_generation_id)
       AND f.generation_id <> s.active_generation_id)
     AS kept_but_superseded_must_be_0,
-  (SELECT count(*) FROM shape_floor WHERE work_item_id = 'wi-unactivated')
+  (SELECT count(*) FROM shape_shipped s
+     JOIN scope_generations g ON g.generation_id = s.generation_id
+    WHERE g.status = 'failed')
+    AS kept_but_failed_must_be_0,
+  (SELECT count(*) FROM shape_shipped WHERE work_item_id = 'wi-unactivated')
     AS unactivated_kept_must_be_1;
 
 DROP SCHEMA reopen_bound_proof CASCADE;

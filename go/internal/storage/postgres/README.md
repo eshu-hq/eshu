@@ -1388,14 +1388,30 @@ generation, and only the first of them is the activation race:
 - **Never activated** — the race this replay exists for. Its latest generation
   is the live one, so the floor keeps it, and it must keep reopening.
 - **Active generation failed and was nulled** — `failProjectorWorkQuery` sets
-  `active_generation_id = NULL` when the ACTIVE generation fails. A bare
+  the generation's `status` to `'failed'` AND `active_generation_id = NULL` in
+  the same statement when the ACTIVE generation fails. A bare
   `active_generation.generation_id IS NOT NULL` exclusion reads that as "never
   activated" and reopens EVERY generation of that scope on EVERY drain, forever;
   `supersedeInactiveReducerGenerationsCTE` carries the same guard, so nothing
   terminalizes them either. Measured: 25 rows per drain for one failed
-  25-generation scope under the guard, 1 under the floor.
+  25-generation scope under the guard, 1 under the floor alone, 0 under the
+  shipped shape.
 - **Dangling pointer** — with no foreign key, `active_generation_id` can name a
   generation row retention removed. Same effect, same fix.
+
+The floor alone still leaves the failed shape churning, so the listing also
+carries `work_generation.status <> 'failed'`. The failed generation is the
+scope's LATEST, so the fallback picks it and its succeeded rows sit exactly AT
+the floor: one row per domain reopened on every drain, re-succeeded by the
+reducer, reopened again, forever, for a generation whose re-decision no query can
+read. The exclusion is on the WORK ITEM's own generation, not on the fallback's
+candidate set — excluding failed generations from the fallback instead LOWERS the
+floor to the newest non-failed generation, which leaves the failed generation's
+rows churning and starts the older generation's rows churning too. Correct replay
+count for such a scope is zero. A failed generation is never the active one
+(`failProjectorWorkQuery` fails only `'pending'`/`'active'` generations and nulls
+the pointer in the same statement), so this cannot under-replay a query-visible
+generation.
 
 Replaying below the floor cannot change query truth for the three fact-backed
 domains, which join `scope.active_generation_id = fact.generation_id`
@@ -1416,6 +1432,16 @@ unbounded, 951 superseded-exclusion, 903 floor. Expected delta versus unbounded:
 `floor \ unbounded = 0`, `unbounded \ floor = 21 648`, no kept row on a
 superseded generation, and the never-activated scope's row kept. Script:
 `docs/internal/evidence/5426-reopen-bound-proof.sql`.
+
+Performance Evidence (failed-generation exclusion, PR #5850 P2): same script,
+same run, so the two arms are directly comparable — 20.5 ms floor-only versus
+20.8 ms with `work_generation.status <> 'failed'`, and 21.1 versus 21.4 ms on a
+repeat run. A constant +0.3 ms, i.e. no measurable cost, because the predicate
+filters a row the `work_generation` join already fetched.
+Rows listed per domain drop 903 -> 902, all of the difference being the failed
+scope's one perpetually-churning row. Same-run controls: `shipped \ unbounded
+= 0`, no kept row on a superseded generation, no kept row on a failed
+generation, and the never-activated scope's row still kept.
 
 Performance Evidence (real per-drain cost; same corpus shape and size as the
 listing proof above, 900 scopes x 25 generations, but WITHOUT its three extra

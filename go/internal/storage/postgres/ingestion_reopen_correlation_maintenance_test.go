@@ -218,8 +218,9 @@ func TestCrossScopeCorrelationReopenDomainsPinsListAndReturnsFreshSlice(t *testi
 // TestRunDeferredRelationshipMaintenanceSkipsSupersededCorrelationWorkItems and
 // TestRunDeferredRelationshipMaintenanceBoundsScopesWithNoUsableActiveGeneration,
 // so a future edit cannot quietly drop the floor (unbounded per-drain replay),
-// its no-active fallback (the failed-scope and dangling-pointer churn holes), or
-// the MATERIALIZED hint the listing's measured cost depends on.
+// its no-active fallback (the never-activated and dangling-pointer churn holes),
+// its failed-generation exclusion (the perpetual-churn hole the floor alone
+// leaves open), or the MATERIALIZED hint the listing's measured cost depends on.
 func TestListSucceededReducerWorkItemsByDomainQueryCarriesReplayFloor(t *testing.T) {
 	t.Parallel()
 
@@ -228,6 +229,7 @@ func TestListSucceededReducerWorkItemsByDomainQueryCarriesReplayFloor(t *testing
 		"COALESCE(active_generation.ingested_at, latest_generation.ingested_at)",
 		"COALESCE(active_generation.generation_id, latest_generation.generation_id)",
 		"ORDER BY candidate.ingested_at DESC, candidate.generation_id DESC",
+		"work_generation.status <> 'failed'",
 		">= (floor.floor_ingested_at, floor.floor_generation_id)",
 	} {
 		if !strings.Contains(listSucceededReducerWorkItemsByDomainQuery, fragment) {
@@ -242,13 +244,13 @@ func TestListSucceededReducerWorkItemsByDomainQueryCarriesReplayFloor(t *testing
 // "active_generation_id IS NOT NULL" guard leaves open (PR #5846 follow-up
 // review, P1-2).
 //
-// Two production shapes reach this listing with no usable active generation and
-// are NOT the activation race:
+// Two production shapes reach this listing with no usable active generation.
+// Neither may reopen the scope's whole history:
 //
-//   - failProjectorWorkQuery (projector_queue_sql.go) sets
-//     active_generation_id = NULL when the ACTIVE generation fails. Under a
-//     NULL-guarded exclusion every succeeded correlation row across ALL of that
-//     scope's generations reopens on EVERY drain, forever — and
+//   - A scope re-ingested several times that has never activated any generation:
+//     the projector has not acknowledged one yet. Under a NULL-guarded exclusion
+//     every succeeded correlation row across ALL of that scope's generations
+//     reopens on EVERY drain, forever — and
 //     supersedeInactiveReducerGenerationsCTE carries the same guard, so nothing
 //     ever terminalizes them.
 //   - ingestion_scopes.active_generation_id has no foreign key
@@ -257,6 +259,12 @@ func TestListSucceededReducerWorkItemsByDomainQueryCarriesReplayFloor(t *testing
 //
 // Both must collapse to the scope's LATEST generation: flat in generation count,
 // and still replaying the one generation whose re-decision a query can read.
+//
+// The third no-active shape — active_generation_id nulled by
+// failProjectorWorkQuery because the ACTIVE generation terminally failed — is
+// NOT here, because its correct replay count is zero rather than one. It is
+// proven by
+// TestRunDeferredRelationshipMaintenanceExcludesFailedGenerationsFromCorrelationReplay.
 func TestRunDeferredRelationshipMaintenanceBoundsScopesWithNoUsableActiveGeneration(t *testing.T) {
 	dsn := dsnForDeferredPartitionMemoProof(t)
 	ctx := context.Background()
@@ -272,13 +280,13 @@ func TestRunDeferredRelationshipMaintenanceBoundsScopesWithNoUsableActiveGenerat
 
 	domain := string(reducer.DomainSupplyChainImpact)
 
-	// A scope whose active generation failed: three generations, active nulled.
-	seedScopeGeneration(t, ctx, db, "git:scope-failed", "gen-failed-1", base, false)
-	seedScopeGeneration(t, ctx, db, "git:scope-failed", "gen-failed-2", base.Add(time.Hour), false)
-	seedScopeGeneration(t, ctx, db, "git:scope-failed", "gen-failed-3", base.Add(2*time.Hour), false)
+	// A scope re-ingested three times that has never activated a generation.
+	seedScopeGeneration(t, ctx, db, "git:scope-unactivated", "gen-unactivated-1", base, false)
+	seedScopeGeneration(t, ctx, db, "git:scope-unactivated", "gen-unactivated-2", base.Add(time.Hour), false)
+	seedScopeGeneration(t, ctx, db, "git:scope-unactivated", "gen-unactivated-3", base.Add(2*time.Hour), false)
 	for _, id := range []string{"1", "2", "3"} {
 		seedSucceededReopenWorkItem(
-			t, ctx, db, "work-failed-"+id, "git:scope-failed", "gen-failed-"+id, domain, base,
+			t, ctx, db, "work-unactivated-"+id, "git:scope-unactivated", "gen-unactivated-"+id, domain, base,
 		)
 	}
 
@@ -308,9 +316,9 @@ func TestRunDeferredRelationshipMaintenanceBoundsScopesWithNoUsableActiveGenerat
 		want       string
 		why        string
 	}{
-		{"work-failed-1", "succeeded", "a failed scope's older generations must not reopen on every drain"},
-		{"work-failed-2", "succeeded", "a failed scope's older generations must not reopen on every drain"},
-		{"work-failed-3", "pending", "the failed scope's LATEST generation is still worth replaying"},
+		{"work-unactivated-1", "succeeded", "a never-activated scope's older generations must not reopen on every drain"},
+		{"work-unactivated-2", "succeeded", "a never-activated scope's older generations must not reopen on every drain"},
+		{"work-unactivated-3", "pending", "the never-activated scope's LATEST generation is still worth replaying"},
 		{"work-dangling-1", "succeeded", "a dangling active pointer must not reopen every generation"},
 		{"work-dangling-2", "pending", "the dangling scope's LATEST generation must still replay"},
 	} {
