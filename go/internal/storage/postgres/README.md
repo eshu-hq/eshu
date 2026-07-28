@@ -1465,6 +1465,24 @@ activation-driven re-enqueue, which replaces the replay rather than bounding it.
 `docs/internal/evidence/5426-reopen-update-cost.sql` remains for history; its
 server-side `UPDATE` loop excludes exactly the round-trips that dominate here.
 
+On the ingester those drains are paced by ingestion, not by a timer.
+`collector.Service` runs `AfterBatchDrained` only when the source batch
+exhausts after at least one committed generation, and only a further commit
+re-arms the latch (`committedSinceDrain || (AfterEmptyBatchDrained &&
+!emptyDrainObserved)` at `go/internal/collector/service.go:217`, cleared at
+`:222`-`:223`, set again at `:264`-`:265`); the `AfterEmptyBatchDrained` escape
+the ingester enables for `RepoShardCount > 1` (`go/cmd/ingester/wiring.go:220`)
+adds one drain per process, not a recurring one. All five domains reopen in one
+unordered transaction, so a `container_image_identity` ->
+`ci_cd_run_correlation` -> `supply_chain_impact` chain advances by at most one
+link per drain — measured on the gate corpus, one maintenance pass leaves the
+tail without `environment_evidence` and two converge
+(`docs/internal/evidence/5426-golden-corpus-coverage.md`). A corpus that goes
+quiet right after the head decision commits therefore keeps the tail's
+empty-join output until the next committed generation or an
+`eshu-bootstrap-index` run; those are the two levers an operator has. #5709's
+activation-driven re-enqueue ends the dependence on drain count.
+
 Live proofs (`ESHU_DEFERRED_PARTITION_PROOF_DSN`-gated):
 `TestRunDeferredRelationshipMaintenanceReopensCrossScopeCorrelationDomains`,
 `TestRunDeferredRelationshipMaintenanceSkipsSupersededCorrelationWorkItems`,

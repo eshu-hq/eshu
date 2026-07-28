@@ -142,6 +142,21 @@ and it is not free — the correlation half had no pre-change baseline at all. S
 the cross-scope correlation reopen section in
 `go/internal/storage/postgres/README.md` for the bound, its measured per-drain
 cost, and what that measurement does not cover.
+
+Those drains are paced by ingestion, not by a timer. `collector.Service` runs
+`AfterBatchDrained` only when the source batch exhausts after at least one
+committed generation, and only a further commit re-arms the latch
+(`go/internal/collector/service.go:217`, cleared at `:222`-`:223`, set again at
+`:264`-`:265`); the `AfterEmptyBatchDrained` escape set here from
+`ESHU_REPO_SHARD_COUNT > 1` (`wiring.go:220`) adds one drain per process, not a
+recurring one. The reopen replays every domain in a single unordered
+transaction, so a `container_image_identity` -> `ci_cd_run_correlation` ->
+`supply_chain_impact` chain advances by at most one link per drain: a corpus
+that goes quiet right after the head decision commits keeps the tail's
+empty-join output until the next committed generation or an
+`eshu-bootstrap-index` run. Those are the two levers; #5709 ends the dependence
+on drain count.
+
 For `ESHU_REPO_SHARD_COUNT > 1`, empty selected batches also participate in the
 barrier so shards that own no repositories in a cycle cannot block the fleet.
 Changing shard count while an epoch is open fails closed; operators should let
