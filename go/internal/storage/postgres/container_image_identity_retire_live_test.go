@@ -91,18 +91,29 @@ func (e *containerImageIdentityInterleavingExecer) ExecContext(
 //
 // Schema setup and the proof itself get SEPARATE deadlines, and the returned
 // context's 90s budget starts AFTER ApplyBootstrap returns. They were one budget
-// before, which made the first run on a cold database spend the proof's time on
-// one-time DDL: TestContainerImageIdentityRetireCannotDeleteFresherEvidenceRows
-// Live failed at ~90.0s on a fresh schema, at a different bootstrap step each
+// before, which let one-time DDL spend the proof's time. On a fresh schema with
+// this host saturated — a load average near 200, from CPU load generators an
+// earlier session leaked and never reaped —
+// TestContainerImageIdentityRetireCannotDeleteFresherEvidenceRowsLive
+// failed at ~90.0s inside ApplyBootstrap, at a different bootstrap step each
 // time (webhook_refresh_triggers, then service_evidence_snapshots), while warm
-// re-runs against the same database passed. That is a spurious red for every
-// first-time local or CI runner, and it says nothing about the retire.
+// re-runs against the same database passed.
 //
-// The fix resets the clock rather than raising it: 90s remains the budget for
-// what this test actually measures, so a genuine hang in the retire path still
-// trips it. ApplyBootstrap gets its own, larger allowance because full-schema
-// DDL on a cold database is legitimately slower than any single proof, and
-// because it is amortized across every test in this file.
+// Cold DDL is not itself expensive, so the split is not about reclaiming time:
+// against fresh containers holding 0 tables on that same host once the leaked
+// load was reaped, ApplyBootstrap builds all 178 tables in ~0.85-1.0s, and the
+// whole test under the old single budget passes cold in ~0.87s. The budget was
+// never close to short — a first-time runner on an idle machine passes, and
+// only a first-time runner on a heavily loaded one sees that red.
+//
+// The split is about attribution. One shared deadline reports a slow SETUP as a
+// timeout in the PROOF, so the red above named the retire test while nothing in
+// the retire was slow. Separate deadlines make each failure name its own phase,
+// which is worth having at any DDL cost — and that cost only grows as migrations
+// are added. 90s remains the budget for what this test actually measures, so a
+// genuine hang in the retire path still trips it. ApplyBootstrap gets its own,
+// larger allowance sized for the loaded-host case that produced the red, and it
+// is amortized across every test in this file.
 func containerImageIdentityRetireLiveDB(t *testing.T) (*sql.DB, context.Context) {
 	t.Helper()
 

@@ -400,6 +400,16 @@ discarded and its numbers retracted by its own author — it deadlocked the SHIP
 statement too, because the primer manufactured the crossing instead of measuring
 it. Any figure traceable to that harness is not evidence for this change.
 
+One such figure is committed. The message body of commit `0cc4427b3` on this
+branch states that an independent reproduction measured a deadlock in every
+trial with the CTE and none without it. That is retracted, not merely stale: the
+discarded harness deadlocked the SHIPPED statement too, so the clean half of
+that comparison never happened. Commit messages cannot be corrected without
+rewriting the branch, so it is named here instead. This branch is squash-merged
+and GitHub's default squash body concatenates every commit message, so that
+paragraph must be dropped when the squash body is written. The ABBA account in
+this section is the one that holds.
+
 A single `DELETE` scanning one index order cannot deadlock this way.
 
 The retire is now a bare fenced `DELETE`.
@@ -643,11 +653,11 @@ regardless. `TestContainerImageIdentityRetireNormalizerKeepsNonASCIIWhitespace`
 pins the property so the next `strings.Fields` reintroduction fails in the
 package that owns it.
 
-### The live proofs' 90s budget was being spent on one-time schema DDL
+### The live proofs' 90s budget was shared with one-time schema DDL
 
 `containerImageIdentityRetireLiveDB` created ONE 90-second context and used it
-for both `ApplyBootstrap` and the proof. On a cold database the full-schema DDL
-consumed the budget, so the first run reddened:
+for both `ApplyBootstrap` and the proof. On a cold database, with this host
+saturated, the DDL consumed the budget and the first run reddened:
 
 ```
 --- FAIL: TestContainerImageIdentityRetireCannotDeleteFresherEvidenceRowsLive (90.00s)
@@ -657,15 +667,48 @@ consumed the budget, so the first run reddened:
 Reproduced twice against a fresh schema, failing at a different bootstrap step
 each time (`webhook_refresh_triggers`, then `service_evidence_snapshots`) —
 which is the signature of a budget running out mid-DDL rather than of any one
-step being broken. Warm re-runs against the same database passed 8/8. Every
-first-time local or CI runner would have seen that red, and it says nothing
-about the retire.
+step being broken. Warm re-runs against the same database passed 8/8.
 
-The fix resets the clock instead of raising it: `ApplyBootstrap` runs under its
-own separate allowance, and the returned context's 90 seconds starts after the
-schema is in place. The proof keeps exactly the budget it had, so a genuine hang
-in the retire path still trips it; only the one-time setup stops competing for
-it.
+Cold schema alone does not cost that, and an earlier revision of this section
+said it did. Measured after the fact against fresh `postgres:18-alpine`
+containers holding 0 tables, on this same host once the leaked load was reaped
+(1-minute load average 3.6 to 13), `ApplyBootstrap` builds all 178 tables in
+**849.9 ms** and **1.00 s** across two separate containers, and the whole test
+under the old single shared budget — the unfixed helper at `1be62b58a` — passes
+cold in **0.87 s**:
+
+```
+# Isolated ApplyBootstrap cost, via an uncommitted timing shim in a throwaway
+# worktree at 1be62b58a, against a fresh container holding 0 tables:
+$ docker run -d --name cold5847-pg-a -p 127.0.0.1:54871:5432 postgres:18-alpine
+COLD_DDL_TABLES_BEFORE=0 COLD_DDL_TABLES_AFTER=178 COLD_DDL_ELAPSED=849.903625ms
+# repeated on a second fresh container (port 54873): COLD_DDL_ELAPSED=1.00118825s
+
+# The unfixed helper itself, another fresh container (port 54872), 0 tables:
+$ ESHU_POSTGRES_DSN=postgres://eshu:eshu@127.0.0.1:54872/eshu?sslmode=disable \
+    go test ./internal/storage/postgres \
+      -run '^TestContainerImageIdentityRetireCannotDeleteFresherEvidenceRowsLive$' \
+      -count=1 -v
+--- PASS: TestContainerImageIdentityRetireCannotDeleteFresherEvidenceRowsLive (0.87s)
+```
+
+The budget was roughly 90x the cold-DDL cost, not short of it. What the first
+account left out is the machine: those reds were produced while this host sat at
+a load average near 200, from CPU load generators an earlier session leaked and
+never reaped; killing them dropped the load to 65 within seconds. The trigger is
+cold schema AND a saturated host, not cold schema alone. A first-time runner on
+an idle machine passes; a first-time runner on a heavily loaded one is the one
+who sees that red.
+
+The fix stands, but for attribution rather than for cost. One shared deadline
+reports a slow SETUP as a timeout in the PROOF: the red above names the retire
+test while nothing about the retire was slow, which is exactly the misreading a
+future reader would carry into a real retire hang. Splitting the deadlines makes
+each failure name its own phase, and that is worth having at any DDL cost —
+a cost that only grows as migrations are added. `ApplyBootstrap` runs under its
+own 5-minute allowance, sized for the loaded-host case that actually produced
+the red rather than for the sub-second idle one. The proof keeps exactly the 90
+seconds it had, so a genuine hang in the retire path still trips it.
 
 ### The transient no-DSN `internal/storage/postgres` failure
 
