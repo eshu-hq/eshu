@@ -122,11 +122,16 @@ type SupplyChainImpactFindingResult struct {
 	// concrete version/digest claim. Omitted when the finding has no
 	// version/digest evidence at all.
 	VersionResolutionTier string `json:"version_resolution_tier,omitempty"`
-	// VersionResolutionCorroboration lists every weaker deployment-truth
-	// tier that also makes a version/digest claim for this finding,
-	// including a tier whose claim disagrees with VersionResolutionTier's
-	// judged value (flagged agrees:false rather than silently dropped).
-	// Omitted when no weaker tier makes a claim.
+	// VersionResolutionCorroboration lists every other deployment-truth tier
+	// that also makes a version/digest claim for this finding -- including a
+	// tier whose claim was ineligible to win (for example a CI-declared
+	// digest that contradicts the finding's own subject_digest, review
+	// finding R1) or whose claim disagrees with VersionResolutionTier's
+	// judged value. Each entry's agreement field is a closed three-state
+	// vocabulary (agrees/disagrees/not_comparable): a cross-axis comparison,
+	// such as a config-materialized version against a digest-based winner,
+	// is reported not_comparable rather than a misleading "disagrees"
+	// (review finding R6). Omitted when no other tier makes a claim.
 	VersionResolutionCorroboration []SupplyChainVersionResolutionCorroboration `json:"version_resolution_corroboration,omitempty"`
 }
 

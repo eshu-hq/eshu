@@ -1000,17 +1000,26 @@ The `provenance_ci_declared` claim is never borrowed from the finding's own
 matched deployment's OWN declared identity — but only when that deployment
 matched through a strong branch (digest or image-ref equality), never the
 weak one. `version_resolution_tier` reads exclusively from those baked
-fields. That means a strong image-ref match whose own declared digest
-contradicts the finding's subject digest (its tag moved to a different
-build) is real, disclosable evidence: it bakes the contradicting digest, and
-`version_resolution_corroboration[]` — a list of `{tier, digest_or_version,
-evidence_kind, agrees}` for every weaker tier that also makes a claim — shows
-it against a stronger `runtime_confirmed` winner with `agrees: false`. That
-is a genuine same-axis digest-vs-digest disagreement between runtime-observed
+fields. A strong image-ref match whose own declared digest contradicts the
+finding's subject digest (its tag moved to a different build) is real,
+disclosable evidence, but it is **never eligible to win**: crediting a
+foreign artifact's digest as the judged `version_resolution_tier` would
+directly conflict with `config_only`/`runtime_confirmed`, which still report
+the finding's own identity (review finding R1). Resolution instead falls
+through to the next tier with an eligible claim about the finding's own
+identity (typically `config_only`'s own `subject_digest`), and the
+contradicting claim appears in `version_resolution_corroboration[]` — a list
+of `{tier, digest_or_version, evidence_kind, agreement}` for every other tier
+that also makes a claim — with `agreement: disagrees`. That is a genuine
+same-axis digest-vs-digest disagreement between runtime-observed/config-owned
 and CI-declared evidence, distinct from the digest-vs-version mismatch a
 `config_only` corroboration entry shows when only a static `observed_version`
-disagrees with a digest-based winner. `declared_ref` never appears in either
-field: #5393 has no evidence producer wired yet.
+disagrees with a digest-based winner: that cross-axis case reports
+`agreement: not_comparable` rather than a misleading `disagrees`, since a
+dpkg version string can never meaningfully equal a sha256 digest (`agreement`
+is a closed three-state vocabulary, not a boolean; review finding R6).
+`declared_ref` never appears in either field: #5393 has no evidence producer
+wired yet.
 
 Withholding the promotion also changes the derived `reachability` block. That
 object is computed from `runtime_reachability`, and `deployed_image` maps onto

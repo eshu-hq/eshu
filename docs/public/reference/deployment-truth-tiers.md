@@ -191,14 +191,21 @@ deployment matched through a strong branch (its own `artifact_digest` equals
 the finding's `subject_digest`, or its own `image_ref` equals the finding's
 `image_ref`) — never the weak branch. `version_resolution_tier`'s
 `provenance_ci_declared` claim reads exclusively from those baked fields, not
-from the finding's own `subject_digest`/`image_ref`. That distinction makes a
-real disagreement expressible: a strong image-ref match whose own declared
-digest contradicts the finding's subject digest (a tag that moved to a
-different build) bakes that contradicting digest, and
-`version_resolution_corroboration` discloses it against a stronger
-`runtime_confirmed` winner with `agrees: false` — a genuine same-axis
-digest-vs-digest disagreement, not only the digest-vs-version mismatch
-`config_only` corroboration can show.
+from the finding's own `subject_digest`/`image_ref`. A strong image-ref match
+whose own declared digest contradicts the finding's subject digest (a tag
+that moved to a different build) bakes that contradicting digest as real
+evidence — but a contradicting `provenance_ci_declared` claim is **never
+eligible to win** (review finding R1): crediting a foreign artifact's digest
+as the judged `version_resolution_tier` would put it in direct conflict with
+`config_only`/`runtime_confirmed`, which still report the finding's own
+identity. Resolution falls through to the next eligible tier (typically
+`config_only`'s own `subject_digest`), and the contradicting CI claim appears
+in `version_resolution_corroboration` with `agreement: disagrees` — a genuine
+same-axis digest-vs-digest disagreement, distinguished from the cross-axis
+digest-vs-version mismatch a `config_only` `observed_version` corroboration
+shows, which is reported `agreement: not_comparable` rather than a misleading
+`disagrees` (review finding R6; `agreement` is a closed three-state
+vocabulary — `agrees`, `disagrees`, `not_comparable` — not a plain boolean).
 
 `version_resolution_tier` can also be **present** when `deployment_truth_tier`
 is **absent**: `deployment_truth_tier`'s `config_only` branch requires a

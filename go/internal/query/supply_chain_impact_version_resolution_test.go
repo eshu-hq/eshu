@@ -11,10 +11,11 @@ import (
 
 // TestSupplyChainVersionResolutionTier proves the #5469 tiered version
 // resolution: the judged version/digest for a finding comes from the
-// strongest available deployment-truth-tier evidence, weaker present tiers
-// are preserved as corroboration (including disagreement), declared_ref
-// never fires absent an evidence producer, and a finding with no deployment
-// evidence at all reports no tier.
+// strongest available deployment-truth-tier evidence that is ELIGIBLE to
+// win, weaker (or ineligible) present tiers are preserved as corroboration
+// classified agrees/disagrees/not_comparable, declared_ref never fires
+// absent an evidence producer, and a finding with no deployment evidence at
+// all reports no tier.
 //
 // The provenance_ci_declared claim is sourced from CIDeclaredArtifactDigest/
 // CIDeclaredImageRef (issue #5469 review finding F1) -- the row fields the
@@ -25,6 +26,15 @@ import (
 // digest it never actually asserted, and it made a real CI-vs-runtime digest
 // disagreement architecturally impossible to express, since both would read
 // the same field.
+//
+// A CI-declared digest that CONTRADICTS the finding's own SubjectDigest is
+// real evidence, but it is INELIGIBLE to win (review finding R1): crediting
+// a foreign artifact's digest as the judged version/digest would put
+// version_resolution_tier in direct conflict with config_only/
+// runtime_confirmed, which still report the finding's own identity. And
+// agreement is tri-state (review finding R6): a cross-axis comparison (a
+// config-materialized version against a digest-based winner) is
+// not_comparable, never a guaranteed-false "disagrees".
 func TestSupplyChainVersionResolutionTier(t *testing.T) {
 	t.Parallel()
 
@@ -56,18 +66,18 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 					Tier:            string(truth.TierProvenanceCIDeclared),
 					DigestOrVersion: digest,
 					EvidenceKind:    "cicd_run_correlation",
-					Agrees:          true,
+					Agreement:       supplyChainVersionResolutionAgrees,
 				},
 				{
 					Tier:            string(truth.TierConfigOnly),
 					DigestOrVersion: digest,
 					EvidenceKind:    "config_materialization",
-					Agrees:          true,
+					Agreement:       supplyChainVersionResolutionAgrees,
 				},
 			},
 		},
 		{
-			name: "runtime-observed digest disagrees with a strong-branch CI-declared digest (real same-axis disagreement)",
+			name: "runtime-observed digest disagrees with a contradicting CI-declared digest; runtime still wins since it never needed CI eligibility",
 			row: SupplyChainImpactFindingRow{
 				SubjectDigest:            digest,
 				CloudRuntimeResourceRefs: []string{ecsARN},
@@ -77,7 +87,10 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 				// contradicted the finding's SubjectDigest
 				// (bakeSupplyChainCIDeclaredArtifactIdentity), so this is a
 				// real disagreement the evidence actually asserts, not a
-				// fabricated one.
+				// fabricated one. CI is ineligible to win here (review
+				// finding R1), but runtime_confirmed was always going to win
+				// regardless -- see the next case for a row where
+				// ineligibility actually changes the winner.
 				CIDeclaredArtifactDigest: otherDigest,
 			},
 			wantTier: truth.TierRuntimeConfirmed,
@@ -86,18 +99,34 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 					Tier:            string(truth.TierProvenanceCIDeclared),
 					DigestOrVersion: otherDigest,
 					EvidenceKind:    "cicd_run_correlation",
-					Agrees:          false,
+					Agreement:       supplyChainVersionResolutionDisagrees,
 				},
 				{
 					Tier:            string(truth.TierConfigOnly),
 					DigestOrVersion: digest,
 					EvidenceKind:    "config_materialization",
-					Agrees:          true,
+					Agreement:       supplyChainVersionResolutionAgrees,
 				},
 			},
 		},
 		{
-			name: "CI-declared wins over a disagreeing config-only version",
+			name: "a contradicting CI-declared digest with no runtime evidence is ineligible to win; config_only's own SubjectDigest wins instead (review finding R1's required case)",
+			row: SupplyChainImpactFindingRow{
+				SubjectDigest:            digest,
+				CIDeclaredArtifactDigest: otherDigest,
+			},
+			wantTier: truth.TierConfigOnly,
+			wantCorroboration: []SupplyChainVersionResolutionCorroboration{
+				{
+					Tier:            string(truth.TierProvenanceCIDeclared),
+					DigestOrVersion: otherDigest,
+					EvidenceKind:    "cicd_run_correlation",
+					Agreement:       supplyChainVersionResolutionDisagrees,
+				},
+			},
+		},
+		{
+			name: "CI-declared wins over a config-only version it cannot be compared against (cross-axis, not_comparable)",
 			row: SupplyChainImpactFindingRow{
 				SubjectDigest:            digest,
 				CIDeclaredArtifactDigest: digest,
@@ -111,7 +140,7 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 					Tier:            string(truth.TierConfigOnly),
 					DigestOrVersion: "1.2.3",
 					EvidenceKind:    "config_materialization",
-					Agrees:          false,
+					Agreement:       supplyChainVersionResolutionNotComparable,
 				},
 			},
 		},
@@ -177,14 +206,16 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 
 // TestSupplyChainVersionResolutionDeclaredRefNeverEmitted proves the #5393
 // fail-closed rule: declared_ref has no evidence producer today, so no row
-// shape -- however many other tiers' evidence it carries -- may cause the
-// resolver to report declared_ref as the winning tier or as a corroboration
-// entry. Ownership of wiring real DEPLOYS_REF evidence belongs to #5393; this
-// resolver must never invent it in the meantime.
+// shape -- however many other tiers' evidence it carries, including a
+// contradicting CI-declared digest -- may cause the resolver to report
+// declared_ref as the winning tier or as a corroboration entry. Ownership of
+// wiring real DEPLOYS_REF evidence belongs to #5393; this resolver must
+// never invent it in the meantime.
 func TestSupplyChainVersionResolutionDeclaredRefNeverEmitted(t *testing.T) {
 	t.Parallel()
 
 	digest := "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+	otherDigest := "sha256:88888888888888888888888888888888888888888888888888888888888888"
 	ecsARN := "arn:aws:ecs:us-east-1:123456789012:task/demo/cccccccc"
 
 	rows := []SupplyChainImpactFindingRow{
@@ -199,6 +230,8 @@ func TestSupplyChainVersionResolutionDeclaredRefNeverEmitted(t *testing.T) {
 			WorkloadIDs:              []string{"workload:example-api"},
 			Environments:             []string{"prod"},
 		},
+		// A contradicting (ineligible) CI-declared digest, review finding R1.
+		{SubjectDigest: digest, CIDeclaredArtifactDigest: otherDigest},
 	}
 
 	for i, row := range rows {
@@ -236,9 +269,10 @@ func TestBuildSupplyChainImpactFindingResultSetsVersionResolution(t *testing.T) 
 // per row for the #5469 performance proof: the resolver classifies fields the
 // row already carries with no new graph or Postgres query, so per-row cost
 // should stay a small, roughly constant addition over the pre-#5469 baseline
-// (see the same benchmark run against the parent commit for the before
-// number). The row exercises every field the resolver reads, including
-// enough tiers present at once to walk the full candidate/corroboration loop.
+// (see the same benchmark run against the origin/main parent commit for the
+// before number). The row exercises every field the resolver reads,
+// including enough tiers present at once to walk the full
+// candidate/corroboration loop.
 func BenchmarkBuildSupplyChainImpactFindingResult(b *testing.B) {
 	digest := "sha256:1111111111111111111111111111111111111111111111111111111111111111"
 	row := SupplyChainImpactFindingRow{
