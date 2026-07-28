@@ -7,112 +7,13 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"time"
 
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
-
-// ContainerImageIdentityOutcome names the reducer decision for one image
-// reference seen in Git or runtime evidence.
-type ContainerImageIdentityOutcome string
-
-const (
-	// ContainerImageIdentityExactDigest means the source reference already
-	// named a digest also observed in registry facts.
-	ContainerImageIdentityExactDigest ContainerImageIdentityOutcome = "exact_digest"
-	// ContainerImageIdentityTagResolved means one registry tag observation
-	// resolved the source tag to exactly one digest.
-	ContainerImageIdentityTagResolved ContainerImageIdentityOutcome = "tag_resolved"
-	// ContainerImageIdentityAmbiguousTag means tag observations for the same
-	// image reference point at multiple digests.
-	ContainerImageIdentityAmbiguousTag ContainerImageIdentityOutcome = "ambiguous_tag"
-	// ContainerImageIdentityUnresolved means no registry digest observation
-	// matched the source image reference.
-	ContainerImageIdentityUnresolved ContainerImageIdentityOutcome = "unresolved"
-	// ContainerImageIdentityStaleTag means runtime evidence resolved a tag to
-	// a digest that registry facts report as the previous digest.
-	ContainerImageIdentityStaleTag ContainerImageIdentityOutcome = "stale_tag"
-)
-
-const (
-	// containerImageSourceRevisionOCIConfigLabel marks a SourceRevision drawn
-	// from an OCI config image.revision/vcs-ref label matched to an active
-	// repository remote — the strongest revision provenance because the label
-	// travels inside the image content itself.
-	containerImageSourceRevisionOCIConfigLabel = "oci_config_source_label"
-	// containerImageSourceRevisionCIRunCommit marks a SourceRevision drawn from
-	// the commit SHA of a ci.run whose artifact digest matched the image, used
-	// only as a fallback when no OCI config revision label is present (#5423).
-	// It is a weaker tier than an in-image label because the binding is the CI
-	// provider's run→artifact→digest join rather than the image's own metadata.
-	containerImageSourceRevisionCIRunCommit = "ci_run_commit"
-	// containerImageSourceRevisionSLSAProvenanceCommit marks a SourceRevision
-	// drawn from a signed SLSA provenance predicate's build definition config
-	// source commit, matched to the image by digest (#5456). It OUTRANKS both
-	// containerImageSourceRevisionOCIConfigLabel and
-	// containerImageSourceRevisionCIRunCommit: a signed, third-party-attested
-	// digest-to-commit binding is stronger evidence than an in-image label an
-	// attacker with build access could forge, and stronger than the CI
-	// provider's own run→artifact→digest join.
-	containerImageSourceRevisionSLSAProvenanceCommit = "slsa_provenance_commit"
-)
-
-// ContainerImageIdentityDecision records one bounded image identity decision.
-type ContainerImageIdentityDecision struct {
-	ImageRef            string
-	Digest              string
-	RepositoryID        string
-	SourceRepositoryIDs []string
-	SourceRevision      string
-	// SourceRevisionProvenance names where SourceRevision came from
-	// (containerImageSourceRevisionOCIConfigLabel or
-	// containerImageSourceRevisionCIRunCommit), empty when no revision was
-	// resolved. It keeps the in-image-label tier distinguishable from the
-	// weaker CI-run-commit fallback (#5423).
-	SourceRevisionProvenance string
-	// BaseImageForRepositoryIDs names the repositories whose Dockerfile FROM
-	// declared this image as their runtime base (#5460). It is what separates a
-	// base image from a built image: a base reference is extracted from the
-	// declaring repository's own Dockerfile `file` fact, so it inherits the
-	// same repository anchor its built images carry, and the repository anchor
-	// alone cannot tell the two apart. Empty for every image that is not some
-	// repository's declared base.
-	BaseImageForRepositoryIDs []string
-	// BuildProvenanceRepositoryIDs names the repositories that genuinely BUILT
-	// this image, established only by build evidence: an OCI config source label
-	// the image itself carries, or a CI run that reported producing this digest.
-	// SourceRepositoryIDs is deliberately broader -- it also collects the
-	// repository whose Kubernetes manifest merely REFERENCES a third-party
-	// digest -- so base-image lineage (#5460) gates its child side on this field
-	// instead. Attributing a referenced image to the referencing repository's
-	// Dockerfile base would fabricate CVE-inheritance truth.
-	BuildProvenanceRepositoryIDs []string
-	WorkloadIDs                  []string
-	ServiceIDs                   []string
-	Outcome                      ContainerImageIdentityOutcome
-	Reason                       string
-	CanonicalWrites              int
-	EvidenceFactIDs              []string
-	IdentityStrength             string
-}
-
-// ContainerImageIdentityWrite carries decisions for durable publication.
-type ContainerImageIdentityWrite struct {
-	IntentID     string
-	ScopeID      string
-	GenerationID string
-	SourceSystem string
-	Cause        string
-	Decisions    []ContainerImageIdentityDecision
-}
-
-// ContainerImageIdentityWriteResult summarizes durable publication.
-type ContainerImageIdentityWriteResult struct {
-	CanonicalWrites int
-	EvidenceSummary string
-}
 
 // ContainerImageIdentityWriter persists reducer-owned image identity truth.
 type ContainerImageIdentityWriter interface {
@@ -157,6 +58,10 @@ type ContainerImageIdentityHandler struct {
 	// When nil the projection is skipped so the container-image-identity
 	// profile stays Postgres-only.
 	DerivedFromEdgeWriter ContainerImageDerivedFromEdgeWriter
+	// Now supplies the evidence-read watermark stamped on the durable row. Left
+	// nil it falls back to the process clock; tests inject a deterministic one.
+	// See ContainerImageIdentityWrite.EvidenceAsOf.
+	Now func() time.Time
 }
 
 // Handle executes one container image identity reducer intent.
@@ -170,6 +75,14 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 	if h.Writer == nil {
 		return Result{}, fmt.Errorf("container image identity writer is required")
 	}
+
+	// Read the fencing watermark BEFORE the first load, not after the last one.
+	// It has to express "how fresh is the world this pass looked at", so it must
+	// exclude however long the loads, classification, and admission then took — a
+	// worker that stalled inside a slow cross-scope load must not outrank the
+	// worker that read the database after it when the two collide on the durable
+	// insert's conflict guard.
+	evidenceAsOf := containerImageIdentityEvidenceAsOf(h.Now)
 
 	envelopes, err := loadFactsForKinds(
 		ctx,
@@ -232,6 +145,7 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 		GenerationID: intent.GenerationID,
 		SourceSystem: intent.SourceSystem,
 		Cause:        intent.Cause,
+		EvidenceAsOf: evidenceAsOf,
 		Decisions:    decisions,
 	})
 	if err != nil {
@@ -456,6 +370,9 @@ func containerImageIdentityCounts(
 	return counts
 }
 
+// containerImageIdentitySummary renders the operator-facing evidence line for
+// one handled intent: the decision counts this pass evaluated, and how many of
+// them the writer published durably.
 func containerImageIdentitySummary(
 	evaluated int,
 	counts map[ContainerImageIdentityOutcome]int,

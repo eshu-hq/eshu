@@ -273,8 +273,11 @@ func decodeCloudInventoryBatchedRows(t *testing.T, execs []fakeExecCall) []cloud
 	t.Helper()
 	var rows []cloudInventoryBatchedRow
 	for _, exec := range execs {
-		if len(exec.args) != 15 {
-			t.Fatalf("batched insert args = %d, want 15", len(exec.args))
+		// 16 columns: the 15 the batched insert has always carried plus the
+		// trailing fencing_token (#5847), which every writer binds even when it
+		// leaves the value at 0.
+		if len(exec.args) != 16 {
+			t.Fatalf("batched insert args = %d, want 16", len(exec.args))
 		}
 		factIDs, ok := exec.args[0].([]string)
 		if !ok {
@@ -287,6 +290,23 @@ func decodeCloudInventoryBatchedRows(t *testing.T, execs []fakeExecCall) []cloud
 		payloads, ok := exec.args[14].([]string)
 		if !ok {
 			t.Fatalf("payload arg type = %T, want []string (batched insert)", exec.args[14])
+		}
+		// cloud_inventory_admission has no fenced retire, so it must keep
+		// inserting the column default. This is the BIND half of the #5847 claim
+		// that adding fencing_token to the shared batched insert is a no-op for
+		// writers that did not opt in. The SQL half — that the conflict clause's
+		// `fact_records.fencing_token <= EXCLUDED.fencing_token` guard still
+		// admits the update when both sides are 0 — cannot be asserted against a
+		// fake execer and is proven against real Postgres by
+		// TestReducerFactBatchInsertStaysInertForUnfencedWritersLive.
+		fencingTokens, ok := exec.args[15].([]int64)
+		if !ok {
+			t.Fatalf("fencing_token arg type = %T, want []int64 (batched insert)", exec.args[15])
+		}
+		for i, token := range fencingTokens {
+			if token != 0 {
+				t.Fatalf("fencing_token[%d] = %d, want 0 for a domain with no fenced retire", i, token)
+			}
 		}
 		for i := range factIDs {
 			rows = append(rows, cloudInventoryBatchedRow{

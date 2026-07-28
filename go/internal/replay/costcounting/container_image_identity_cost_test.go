@@ -105,6 +105,7 @@ func TestCostBudget_ContainerImageIdentity(t *testing.T) {
 		ScopeID:      "repo:team-api",
 		GenerationID: "generation-container-image-identity-cost",
 		SourceSystem: "git",
+		EvidenceAsOf: time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC),
 		Cause:        "reducer/container_image_identity",
 		Decisions:    containerImageIdentityFixtureDecisions(),
 	})
@@ -184,6 +185,7 @@ func TestCostBudget_ContainerImageIdentity_N1_ExceedsBudget(t *testing.T) {
 			ScopeID:      "repo:team-api",
 			GenerationID: "generation-container-image-identity-cost",
 			SourceSystem: "git",
+			EvidenceAsOf: time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC),
 			Cause:        "reducer/container_image_identity",
 			Decisions:    []reducer.ContainerImageIdentityDecision{decision},
 		}); err != nil {

@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 )
 
 // TestWriteContainerImageIdentityDecisionsBoundedExecCount guards issue #3435:
@@ -36,6 +37,7 @@ func TestWriteContainerImageIdentityDecisionsBoundedExecCount(t *testing.T) {
 		ScopeID:      "repo:team-api",
 		GenerationID: "gen-batch",
 		SourceSystem: "git",
+		EvidenceAsOf: time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC),
 		Decisions:    decisions,
 	})
 	if err != nil {

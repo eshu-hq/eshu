@@ -206,6 +206,26 @@ type QueryShape struct {
 	RequiredResponseFields   []string `json:"required_response_fields"`
 	MinimumResults           int      `json:"minimum_results"`
 	ResultItemRequiredFields []string `json:"result_item_required_fields"`
+	// MaximumResults, when positive, CEILS the same result array MinimumResults
+	// floors, so a shape can pin an exact count (min == max) instead of only a
+	// floor. Zero/absent means unbounded, which is what every historical entry
+	// keeps.
+	//
+	// A floor cannot see a DUPLICATE, and duplicates are a real reducer defect
+	// class rather than a hypothetical one: when a fact identity embeds a
+	// decision-derived field, a replay that reaches a different answer writes a
+	// SECOND row under a new fact_id beside the first, and read paths that filter
+	// on is_tombstone plus the active-generation join serve both
+	// (eshu-hq/eshu#5847, open). An "at least one identity for this repository"
+	// assertion passes identically on one correct row and on that row plus its
+	// superseded contradiction. Pinning the ceiling is what lets the committed
+	// gate see that shape at all — either as the open defect surfacing in the
+	// corpus, or, once eshu-hq/eshu#5854 lands the retire that removes the
+	// duplicate, as that fix regressing.
+	//
+	// This is the query-shape counterpart to RequiredNode's
+	// MaximumNodePropertyCount, and it is set for the same reason.
+	MaximumResults int `json:"maximum_results,omitempty"`
 	// Envelope keeps a query response wrapped in Eshu's {data,truth,error}
 	// envelope for assertion. The default false preserves the historical
 	// behaviour where MCP envelopes are unwrapped before shape checks.
