@@ -189,17 +189,32 @@ func CrossScopeCorrelationReopenDomains() []string {
 // (stage, domain, status, visible_at, updated_at DESC): 166.0 ms inlined versus
 // 20.3 ms materialized, against 29.8 ms for the unbounded listing it replaces.
 //
-// The failed-generation exclusion costs nothing measurable. Both arms run in the
-// same script and the same run, so they are directly comparable: across six
-// consecutive runs the floor alone spans 19.2-20.3 ms and the floor plus the
-// predicate spans 19.7-21.0 ms. That difference is run-to-run noise rather than a
-// cost. The gap on any single run (0.4-0.7 ms) is smaller than either arm's own
-// spread across runs, the two ranges overlap, and further runs measured the
-// predicate arm FASTER. The mechanism agrees: both arms read exactly
-// the same pages — Buffers: shared hit=3396 at the top of both plans, identical in
-// every run — because the predicate filters a row the work_generation join has
-// already fetched. Rows listed per domain go 903 -> 902 on that corpus, the whole
-// difference being the failed scope's one perpetually-churning row.
+// The failed-generation exclusion costs roughly +0.3 ms on a ~20 ms listing:
+// immaterial, but a cost, not noise. Both arms run in the same script and the
+// same run, so the per-run gap is PAIRED, and its sign is the statistic that
+// carries. Comparing that gap against either arm's spread ACROSS runs is the
+// wrong test — pairing is what cancels the between-run common-mode variance that
+// makes the absolute times wander by more than 1 ms, which is why the gap's sign
+// stays put while the times do not. Across 28 paired runs — six in the evidence
+// doc, six on an independent reviewer's Postgres 16.14, sixteen re-measured on
+// this machine — 27 put the predicate arm slower. Two same-machine pairs did
+// flip the sign (20.053 ms with the predicate against 20.262 ms floor-only, and
+// 22.031 against 22.836 ms); they are outliers against that record, not a
+// counterweight to it.
+//
+// The cost is CPU, not I/O, which is why the buffer counts do not show it: both
+// arms read exactly the same pages (Buffers: shared hit=3396 at the top of both
+// plans, identical in every run), and that proves no extra I/O rather than no
+// cost. work_generation.status <> 'failed' is evaluated on the seq scan that
+// builds the join's hash side, so it runs across all 22 551 scope_generations
+// rows to remove one; the inner hash join then emits 22 550 rows against 22 551.
+// That scan's own time goes 1.29-1.41 ms to 1.70-2.13 ms, the predicate arm
+// slower in every run measured, which is where the end-to-end gap lives. Rows
+// listed per domain go 903 -> 902, the whole difference being the failed scope's
+// one perpetually-churning row.
+//
+// A pass runs five of these listings, so the exclusion is under 0.05% of its
+// 5.5 s wall time — cheap against the churn it removes.
 //
 // The work_generation join is inner, which is safe only because both of its
 // legs hold for every row.

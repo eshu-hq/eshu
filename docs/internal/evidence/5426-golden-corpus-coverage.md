@@ -362,21 +362,58 @@ comparable. Six consecutive runs on Postgres 16.14, listing `EXPLAIN ANALYZE`:
 | replay floor only | 19.186 | 19.695 | 20.267 | 20.213 | 19.422 | 19.207 | 903 | 1 (churns forever) |
 | replay floor + failed exclusion (shipped) | 19.653 | 20.058 | 20.994 | 20.569 | 19.997 | 19.689 | 902 | 0 |
 
-All times in ms. The exclusion costs nothing measurable, and the earlier reading
-of these arms as "a constant +0.3 ms" overstated what two same-machine pairs can
-establish. The per-run gap (0.356-0.727 ms) is smaller than either arm's own
-spread across runs (1.081 ms floor-only, 1.341 ms shipped), the two ranges
-overlap — floor-only's slowest run, 20.267 ms, is slower than four of the six
-shipped runs — and the sign flips outright on further runs: a seventh run of the
-same script on the same machine put floor-only at 20.262 ms against 20.053 ms
-shipped, and an independent run measured 22.836 ms floor-only against 22.031 ms
-shipped. The predicate arm is faster in both. The plans explain why there is
-nothing to measure: both arms report `Buffers: shared hit=3396` at the top,
-identical in all six runs, because the predicate filters a row the
-`work_generation` join has already fetched. Same-run controls, identical in all
-six runs: `shipped ∖ unbounded = 0`, no kept row on a
-superseded generation, no kept row on a failed generation, and the
-never-activated scope's row still kept (`1`). Regression proof:
+All times in ms. Two same-machine pairs cannot establish a constant, so the
+original "a constant +0.3 ms" wording claimed more than it had. But the reading
+that replaced it — run-to-run noise rather than a cost — was wrong in the other
+direction, and wrong for a specific reason worth keeping on the record: it
+compared the **paired** per-run gap against each arm's **unpaired** spread across
+runs, in the same paragraph that establishes the arms share a script and a run.
+Pairing cancels the between-run common-mode variance, which is exactly why the
+gap's sign stays put while the absolute times wander by more than 1 ms. The
+overlapping ranges are what pairing predicts; they are not evidence of no
+effect. The paired gap's sign is the statistic that carries here.
+
+**Re-measured for PR #5850 P2-1**, throwaway Postgres 16.14 container
+(`postgres:16.14`, aarch64, loopback, machine load average 1.5-3.6), sixteen
+paired runs, `Execution Time` from `EXPLAIN (ANALYZE, BUFFERS, TIMING)`:
+
+| variant | run 1 | run 2 | run 3 | run 4 | run 5 | run 6 | run 7 | run 8 | mean gap |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| committed script order (floor 3rd, shipped 4th) | +0.268 | +0.388 | +0.859 | −0.852 | +0.911 | +0.212 | +0.356 | +1.956 | +0.512 |
+| position-controlled swap (shipped 3rd, floor 4th) | +1.680 | +0.451 | +0.368 | +0.242 | +0.492 | +0.409 | +0.748 | +0.042 | +0.554 |
+
+Gaps in ms, positive meaning the shipped arm is slower. The second variant
+exists because the committed script always runs the floor arm first, so a
+position effect could manufacture the sign; swapping the two arms while holding
+their slot in the session fixed makes the effect slightly LARGER (8/8 shipped
+slower), which rules that confound out rather than assuming it away.
+
+Totalled with the six pairs above and six on an independent reviewer's own
+Postgres 16.14 (gaps +0.466, +0.296, +0.124, +0.212, +0.377, +0.344; mean
++0.303 ms), that is **27 of 28 paired runs with the predicate arm slower**. The
+two sign-flipping runs previously cited — 20.262 ms floor-only against
+20.053 ms shipped on the same machine, and 22.836 against 22.031 ms — are
+outliers against that record, not a counterweight to it. So is run 4 of the
+committed-order block above.
+
+The exclusion costs about +0.3 ms on a ~20 ms listing: roughly 2% of the
+listing, and under 0.05% of the pass's 5.5 s wall time once the five listings
+are counted. Immaterial, but a cost, not noise.
+
+**The mechanism is CPU, not I/O.** Both arms report `Buffers: shared hit=3396`
+at the top, identical in every run of every block — which proves no extra I/O,
+not no cost. The predicate is not applied to the join output. It lands as a
+`Filter` on the seq scan that builds the `work_generation` hash side, so it is
+evaluated across all 22 551 `scope_generations` rows and reports
+`Rows Removed by Filter: 1`; the inner hash join then emits 22 550 rows against
+22 551. Roughly 22.5k extra text comparisons is the right order of magnitude for
++0.3 ms, and the node-level timings locate the gap there directly — that seq
+scan runs 1.287-1.412 ms floor-only against 1.702-2.129 ms shipped, the
+predicate arm slower in all eight committed-order runs, including run 4, where
+the end-to-end gap came out negative. Same-run controls, identical in all six
+original runs: `shipped ∖ unbounded = 0`, no kept row on a superseded
+generation, no kept row on a failed generation, and the never-activated scope's
+row still kept (`1`). Regression proof:
 `TestRunDeferredRelationshipMaintenanceExcludesFailedGenerationsFromCorrelationReplay`,
 which also asserts a SECOND maintenance pass leaves the failed rows alone —
 the churn claim is about every drain, not the first.

@@ -1437,16 +1437,34 @@ superseded generation, and the never-activated scope's row kept. Script:
 `docs/internal/evidence/5426-reopen-bound-proof.sql`.
 
 Performance Evidence (failed-generation exclusion, PR #5850 P2): same script,
-same run, so the two arms are directly comparable. Over six consecutive runs on
+same run, so each run yields a PAIRED gap. Over six consecutive runs on
 Postgres 16.14, floor-only spans 19.2-20.3 ms and floor plus
-`work_generation.status <> 'failed'` spans 19.7-21.0 ms. Read that as run-to-run
-noise, not a cost: the gap on any single run (0.4-0.7 ms) is smaller than either
-arm's own spread across runs, the two ranges overlap, and further runs flip the
-sign — a seventh run on the same machine gave 20.053 ms with the predicate
-against 20.262 ms floor-only, and an independent run gave 22.031 against
-22.836 ms. The plans agree — both arms report `Buffers: shared hit=3396` at the
-top, identical in every run — because the predicate filters a row the
-`work_generation` join already fetched.
+`work_generation.status <> 'failed'` spans 19.7-21.0 ms. Two same-machine pairs
+cannot establish a constant, so the original "+0.3 ms constant" wording claimed
+more than it had. What the accumulated pairs do establish is a small,
+reproducible cost of about +0.3 ms — roughly 2% of the listing, under 0.05% of
+the pass's 5.5 s once the five listings are counted. Immaterial, but a cost, not
+noise.
+
+Judge it on the paired gap's sign, not on either arm's spread across runs: the
+arms share a machine, a script, and a run, so pairing cancels the between-run
+common-mode variance that swings the absolute times by more than 1 ms. That is
+why the gap's sign holds while the times wander, and why the overlapping ranges
+prove nothing either way. Across 28 pairs — the six above, six on an
+independent reviewer's own Postgres 16.14 (mean +0.303 ms), and sixteen
+re-measured for this claim (mean +0.53 ms) — 27 put the predicate arm slower.
+Two same-machine pairs flip the sign, 20.053 ms with the predicate against
+20.262 ms floor-only and 22.031 against 22.836 ms; against 27 same-sign pairs
+they read as outliers.
+
+The mechanism is CPU, not I/O, which is why the buffer counts miss it: both arms
+report `Buffers: shared hit=3396` at the top, identical in every run, and that
+proves no extra I/O rather than no cost. The predicate is evaluated on the seq
+scan that builds the `work_generation` hash side, so it runs across all 22 551
+`scope_generations` rows to remove one, and the inner hash join emits 22 550
+rows against 22 551. That scan's own node time goes 1.29-1.41 ms to
+1.70-2.13 ms, predicate arm slower in all sixteen re-measured runs, which is
+where the end-to-end gap lives.
 Rows listed per domain drop 903 -> 902, all of the difference being the failed
 scope's one perpetually-churning row. Same-run controls: `shipped \ unbounded
 = 0`, no kept row on a superseded generation, no kept row on a failed
@@ -1481,7 +1499,9 @@ re-arms the latch (`committedSinceDrain || (AfterEmptyBatchDrained &&
 !emptyDrainObserved)` at `go/internal/collector/service.go:217`, cleared at
 `:222`-`:223`, set again at `:264`-`:265`); the `AfterEmptyBatchDrained` escape
 the ingester enables for `RepoShardCount > 1` (`go/cmd/ingester/wiring.go:220`)
-adds one drain per process, not a recurring one.
+adds at most one drain per process, not a recurring one — zero if the process
+commits before its first exhausted batch, since that commit makes the
+`committedSinceDrain` leg decisive instead.
 
 Drains themselves do recur, once per commit-to-idle cycle, but that recurrence is
 `committedSinceDrain`'s and happens with the escape disabled. The escape's own

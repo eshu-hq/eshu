@@ -151,8 +151,9 @@ Those drains are paced by ingestion, not by a timer. `collector.Service` runs
 committed generation, and only a further commit re-arms the latch
 (`go/internal/collector/service.go:217`, cleared at `:222`-`:223`, set again at
 `:264`-`:265`); the `AfterEmptyBatchDrained` escape set here from
-`ESHU_REPO_SHARD_COUNT > 1` (`wiring.go:220`) adds one drain per process, not a
-recurring one.
+`ESHU_REPO_SHARD_COUNT > 1` (`wiring.go:220`) adds at most one drain per process,
+not a recurring one — zero if the process commits before its first exhausted
+batch, because that commit makes the `committedSinceDrain` leg decisive instead.
 
 Drains do recur, once per commit-to-idle cycle, but that recurrence belongs to
 `committedSinceDrain` and is present with the escape disabled. The escape's own
@@ -172,8 +173,14 @@ empty-join output until the next committed generation or an
 `eshu-bootstrap-index` run. Those are the two levers; #5709 ends the dependence
 on drain count.
 
-For `ESHU_REPO_SHARD_COUNT > 1`, empty selected batches also participate in the
-barrier so shards that own no repositories in a cycle cannot block the fleet.
+For `ESHU_REPO_SHARD_COUNT > 1`, an empty selected batch still drains, so a shard
+that owns no repositories arrives at the barrier for its FIRST idle period
+instead of leaving the fleet waiting on a shard with nothing to do. That covers
+the first idle period, not every one. Per the paragraph above the escape leg is
+decisive at most once per process, and re-arming it takes a commit — which a
+shard owning no repositories never makes. From the second epoch on, such a shard
+records no arrival, and `waitDeferredMaintenanceBarrierCompletion` has no arrival
+deadline. #5852 tracks that multi-epoch behavior; it predates this change.
 Changing shard count while an epoch is open fails closed; operators should let
 the current epoch complete before scaling charted ingester replicas.
 
