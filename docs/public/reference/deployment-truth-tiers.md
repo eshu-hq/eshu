@@ -161,6 +161,27 @@ The `runtime_confirmed` tier is calibrated at **0.95** — higher than the
 direct observation, not a config-derived inference. This calibration point
 is recorded in the [confidence calibration reference](confidence-calibration.md).
 
+## Version resolution reuse (#5469)
+
+`supply_chain_impact` findings also disclose `version_resolution_tier` and
+`version_resolution_corroboration[]` (`go/internal/query/supply_chain_impact_version_resolution.go`).
+These fields reuse the exact same closed `DeploymentTruthTier` vocabulary
+above — no new tier enum. They answer a narrower question than
+`deployment_truth_tier`: not "what is the strongest evidence that this
+workload was deployed at all", but "which tier's evidence backs the judged
+`subject_digest`/`image_ref`/`observed_version` on this finding, and which
+weaker tiers also made a version/digest claim (agreeing or not)".
+
+A finding's `version_resolution_tier` can be weaker than its
+`deployment_truth_tier` when the strongest tier's evidence exists but carries
+no concrete artifact identity — for example a `provenance_ci_declared` hop
+that matched only through repository+environment+operational anchor (the
+weak match branch behind #5426) holds `deployment_truth_tier` at
+`provenance_ci_declared` but makes no version/digest claim, so
+`version_resolution_tier` falls through to `config_only` instead of
+inventing one. `declared_ref` is fail-closed here too: #5393 has no evidence
+producer, so it is never emitted by either field.
+
 ## Cross-references
 
 - [Truth label protocol](truth-label-protocol.md) — the truth-envelope

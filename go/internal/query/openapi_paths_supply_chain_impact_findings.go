@@ -204,6 +204,21 @@ const openAPIPathsSupplyChainImpactFindings = `
                                 }
                               }
                             }
+                          },
+                          "version_resolution_tier": {"type": "string", "enum": ["runtime_confirmed", "provenance_ci_declared", "declared_ref", "config_only"], "description": "Which deployment-truth tier the judged version/digest for this finding (subject_digest/image_ref/observed_version) was resolved from (issue #5469), reusing the truth.DeploymentTruthTier vocabulary verbatim -- the same tier strings as deployment_truth_tier. Can differ from deployment_truth_tier: deployment_truth_tier reports the strongest tier with ANY deployment evidence, while version_resolution_tier requires that tier's evidence to also carry a concrete version/digest claim, so a CI-declared hop that matched only via repository+environment+operational anchor (no artifact identity, #5426's weak branch) drops through to config_only here even though it still holds deployment_truth_tier at provenance_ci_declared. declared_ref never appears: #5393 (DEPLOYS_REF) has no evidence producer yet. Omitted when the finding has no version/digest evidence at all."},
+                          "version_resolution_corroboration": {
+                            "type": "array",
+                            "description": "Every deployment-truth tier weaker than version_resolution_tier that ALSO makes a version/digest claim for this finding (issue #5469), including a tier whose claim disagrees with the winner -- disagreement is flagged agrees:false rather than the entry being dropped, so an operator can see two evidence sources disagree instead of only ever seeing confirmation. Omitted when no weaker tier makes a claim.",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "tier": {"type": "string", "enum": ["runtime_confirmed", "provenance_ci_declared", "declared_ref", "config_only"]},
+                                "digest_or_version": {"type": "string", "description": "The digest or version this tier's own evidence asserts."},
+                                "evidence_kind": {"type": "string", "enum": ["cloud_runtime_probe", "cicd_run_correlation", "config_materialization"], "description": "The evidence source backing this tier's claim."},
+                                "agrees": {"type": "boolean", "description": "Whether digest_or_version textually equals version_resolution_tier's judged value."}
+                              },
+                              "required": ["tier", "agrees"]
+                            }
                           }
                         }
                       }

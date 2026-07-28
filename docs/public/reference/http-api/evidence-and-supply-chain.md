@@ -984,6 +984,21 @@ environment (labelled `declared`), its `cicd_run_correlation` evidence hop, and
 its correlation fact ID, so `deployment_truth_tier` stays
 `provenance_ci_declared`. Only the promotion to `deployed_image` is withheld.
 
+Each finding also discloses `version_resolution_tier` (issue #5469): which
+deployment-truth tier the judged `subject_digest`/`image_ref`/`observed_version`
+was actually resolved from, using the same tier vocabulary as
+`deployment_truth_tier` (see [Deployment Truth Tiers](../deployment-truth-tiers.md)).
+The two fields can diverge — a CI-declared hop with no confirmed artifact
+identity (the repository+environment+operational-anchor branch above) keeps
+`deployment_truth_tier=provenance_ci_declared` but drops
+`version_resolution_tier` to `config_only`, since that hop makes no
+version/digest claim to disclose. Every weaker tier that also makes a claim is
+listed in `version_resolution_corroboration[]` as `{tier, digest_or_version,
+evidence_kind, agrees}`; a weaker tier whose claim textually differs from the
+winner still appears, flagged `agrees: false`, instead of being silently
+dropped. `declared_ref` never appears in either field: #5393 has no evidence
+producer wired yet.
+
 Withholding the promotion also changes the derived `reachability` block. That
 object is computed from `runtime_reachability`, and `deployed_image` maps onto
 `state=reachable` with `source=runtime_or_sbom`. A finding whose only deployment
