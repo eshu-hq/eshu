@@ -100,7 +100,9 @@ High-signal invariants for this package:
   median/p95 per lookup and the indexed failed-aware lookup at 3.443/3.687
   microseconds. The new lookup returned the intended failed successor instead
   of the stale active row while improving median latency by 9.6 percent; the
-  candidate index occupied 16 kB.
+  candidate index occupied 16 kB. With PostgreSQL forced to a generic prepared
+  plan, the production fixed-scope query still used the covering index and
+  completed in 0.013 ms with two shared-buffer hits.
 - Canonical impact winners denormalize `suppression_expires_at` for
   operator-owned rows. Migration `083_supply_chain_suppression_expiry.sql`
   backfills only hidden operator winners, preserves `NULL` for timeless rows,
