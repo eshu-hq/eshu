@@ -135,4 +135,6 @@ var orderedBootstrapDefinitionNames = []string{
 	"fact_records_active_container_image_ci_run_repository_idx",
 	// migration 083 (#5465 operator suppression expiry read parity).
 	"supply_chain_suppression_expiry",
+	// migration 084 (#5465 bounded public finding-ID explanation lookup).
+	"supply_chain_impact_finding_id_index",
 }

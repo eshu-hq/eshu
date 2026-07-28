@@ -84,6 +84,15 @@ func TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive(t *testi
 	if got := explanation.Finding.Suppression.State; got != "ignored" {
 		t.Fatalf("explain suppression state = %q, want ignored", got)
 	}
+	explanation, err = direct.ExplainSupplyChainImpact(ctx, SupplyChainImpactExplanationFilter{
+		FindingID: suppressionAuthorityLiveSourceFact,
+	})
+	if err != nil {
+		t.Fatalf("explain finding by legacy fact ID: %v", err)
+	}
+	if got := explanation.Finding.FindingID; got != suppressionAuthorityLiveFinding {
+		t.Fatalf("legacy fact-ID explanation finding = %q, want %q", got, suppressionAuthorityLiveFinding)
+	}
 
 	rebuildSuppressionAuthorityWinners(t, ctx, tx)
 	assertScopedSuppressionAuthority(t, ctx, direct, materialized, aggregates)

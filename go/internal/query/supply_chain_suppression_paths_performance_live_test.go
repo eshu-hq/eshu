@@ -41,13 +41,20 @@ func TestSupplyChainSuppressionPathsPerformanceLive(t *testing.T) {
 		"supply_chain_impact_winners_materialization": true,
 	}
 	var definitions []storagepostgres.Definition
+	var findingIDIndex storagepostgres.Definition
 	for _, definition := range storagepostgres.BootstrapDefinitions() {
 		if requiredDefinitions[definition.Name] {
 			definitions = append(definitions, definition)
 		}
+		if definition.Name == "supply_chain_impact_finding_id_index" {
+			findingIDIndex = definition
+		}
 	}
 	if len(definitions) != len(requiredDefinitions) {
 		t.Fatalf("proof definitions = %d, want %d", len(definitions), len(requiredDefinitions))
+	}
+	if findingIDIndex.Name == "" {
+		t.Fatal("supply-chain impact finding-ID index definition missing")
 	}
 	if err := storagepostgres.ApplyDefinitions(
 		ctx,
@@ -62,6 +69,13 @@ ALTER TABLE supply_chain_impact_canonical_winners
 		t.Fatalf("ensure suppression expiry column: %v", err)
 	}
 	seedSuppressionPathsFacts(t, ctx, db)
+	if err := storagepostgres.ApplyDefinitions(
+		ctx,
+		storagepostgres.SQLDB{DB: db},
+		[]storagepostgres.Definition{findingIDIndex},
+	); err != nil {
+		t.Fatalf("apply populated finding-ID index migration: %v", err)
+	}
 
 	winners := storagepostgres.NewSupplyChainImpactWinnersStore(db)
 	if err := winners.RebuildAllWinners(ctx, time.Now().UTC()); err != nil {
@@ -236,7 +250,7 @@ ALTER TABLE supply_chain_impact_canonical_winners
 			t, ctx, db, supplyChainImpactAggregatePriorityCountQuery, aggregateArgs...,
 		),
 		"explain": explainSuppressionQueryPlan(
-			t, ctx, db, explainSupplyChainImpactFindingQuery,
+			t, ctx, db, explainSupplyChainImpactFindingByPublicIDQuery,
 			suppressionExplainPlanArgs(readAt)...,
 		),
 	}
