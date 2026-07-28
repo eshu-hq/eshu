@@ -78,7 +78,7 @@ func TestSupplyChainImpactWinnersReadQueryShape(t *testing.T) {
 	for _, want := range []string{
 		"FROM supply_chain_impact_canonical_winners AS w",
 		"JOIN fact_records AS refetch",
-		"ON refetch.fact_id = f.winner_fact_id",
+		"ON refetch.fact_id = page.winner_fact_id",
 		"w.severity_bucket = $12",
 		"w.match_reason IN (", // the precise-detection branch parity
 		"w.winner_scope_id = ANY($23::text[])",
@@ -88,6 +88,7 @@ func TestSupplyChainImpactWinnersReadQueryShape(t *testing.T) {
 		// canonical_facts cursor semantics.
 		"filtered AS NOT MATERIALIZED (",
 		"SELECT c.priority_score FROM filtered c WHERE c.finding_id = $17",
+		"paged AS MATERIALIZED (",
 		"ORDER BY",
 		"LIMIT $19",
 	} {

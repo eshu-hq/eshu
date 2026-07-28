@@ -154,14 +154,14 @@ func TestSupplyChainImpactAggregateCountReturnsTotals(t *testing.T) {
 	}
 }
 
-func TestSupplyChainImpactAggregatePriorityQueryQualifiesPayload(t *testing.T) {
+func TestSupplyChainImpactAggregatePriorityQueryQualifiesBucket(t *testing.T) {
 	t.Parallel()
 
-	if strings.Contains(supplyChainImpactAggregatePriorityCountQuery, "NULLIF(payload->>'priority_bucket'") {
-		t.Fatalf("priority aggregate query must qualify payload references:\n%s", supplyChainImpactAggregatePriorityCountQuery)
+	if strings.Contains(supplyChainImpactAggregatePriorityCountQuery, "NULLIF(priority_bucket") {
+		t.Fatalf("priority aggregate query must qualify bucket references:\n%s", supplyChainImpactAggregatePriorityCountQuery)
 	}
-	if !strings.Contains(supplyChainImpactAggregatePriorityCountQuery, "NULLIF(fact.payload->>'priority_bucket'") {
-		t.Fatalf("priority aggregate query missing qualified priority payload reference:\n%s", supplyChainImpactAggregatePriorityCountQuery)
+	if !strings.Contains(supplyChainImpactAggregatePriorityCountQuery, "NULLIF(fact.priority_bucket") {
+		t.Fatalf("priority aggregate query missing qualified priority bucket reference:\n%s", supplyChainImpactAggregatePriorityCountQuery)
 	}
 }
 
@@ -183,33 +183,29 @@ func TestSupplyChainImpactAggregateQueriesCountCanonicalFindings(t *testing.T) {
 		if !strings.Contains(query, "has_payload_finding_id") {
 			t.Fatalf("%s aggregate query missing payload finding-id row preference:\n%s", name, query)
 		}
-		if !strings.Contains(query, "canonical_winners AS") ||
+		if !strings.Contains(query, "source_winners AS") ||
+			!strings.Contains(query, "joined_winners AS") ||
 			!strings.Contains(query, "expires_at") {
 			t.Fatalf("%s aggregate query missing post-rank expiry overlay:\n%s", name, query)
 		}
 		if !strings.Contains(query, "scope_id = 'operator:vulnerability_suppressions'") ||
-			!strings.Contains(query, "suppression_state <> 'active'") ||
-			!strings.Contains(query, "suppression_state = 'active'") {
-			t.Fatalf("%s aggregate query missing ranked suppression authority shape:\n%s", name, query)
+			!strings.Contains(query, "<> 'active'") ||
+			!strings.Contains(query, "LEFT JOIN operator_overrides AS override") ||
+			!strings.Contains(query, "override.canonical_key = source.canonical_key") {
+			t.Fatalf("%s aggregate query missing split suppression authority shape:\n%s", name, query)
 		}
-		if !strings.Contains(query, "priority_score DESC, has_payload_finding_id DESC, fact_id ASC") {
+		if !strings.Contains(query, "priority_score DESC") ||
+			!strings.Contains(query, "has_payload_finding_id DESC") ||
+			!strings.Contains(query, "fact_id ASC") {
 			t.Fatalf("%s aggregate query missing deterministic canonical row ranking:\n%s", name, query)
 		}
 	}
 }
 
 // TestSupplyChainImpactAggregateQueriesKeepActiveScanAnchor pins the bounded
-// scan shape that #3389 relies on. The shared scoped_facts CTE enumerates one
-// fact_kind's active tuples and, in the common "count everything" case, applies
-// no payload anchor before ROW_NUMBER() OVER (PARTITION BY canonical_key). It
-// must keep its single-fact_kind predicate, `is_tombstone = FALSE`, and the
-// active-generation join so the window sorts over a small set. Those are exactly
-// the columns the partial index fact_records_supply_chain_impact_active_scan_idx
-// is built on (index presence pinned in
-// go/internal/storage/postgres/facts_active_supply_chain_impact_test.go). If a
-// later edit drops the active filter or broadens the fact_kind, the planner can
-// no longer bound the scan to one kind's active rows and the whole-table scan
-// regression from #3389 returns. Every aggregate embeds the same CTE.
+// source/operator scans that #3389 relies on. Each query must keep its single
+// fact kind, tombstone predicate, and active-generation join so the canonical
+// sort stays index-bounded. If those drift, the whole-table scan returns.
 func TestSupplyChainImpactAggregateQueriesKeepActiveScanAnchor(t *testing.T) {
 	t.Parallel()
 
@@ -222,7 +218,7 @@ func TestSupplyChainImpactAggregateQueriesKeepActiveScanAnchor(t *testing.T) {
 		for _, want := range []string{
 			"WHERE fact.fact_kind = 'reducer_supply_chain_impact_finding'",
 			"AND fact.is_tombstone = FALSE",
-			"ON scope.scope_id = fact.scope_id\n\t AND scope.active_generation_id = fact.generation_id",
+			"scope.active_generation_id = fact.generation_id",
 			"AND generation.status = 'active'",
 		} {
 			if !strings.Contains(query, want) {
@@ -253,9 +249,9 @@ func TestSupplyChainImpactAggregateQueriesUseListProfileAndSuppressionPredicates
 			"fact.payload->>'priority_bucket' = $13",
 			"COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) >= $14",
 			"$15 = ''",
-			"fact.payload #>> '{suppression,expires_at}'",
+			"fact.payload #>> '{suppression,expires_at}' AS expires_at",
 			"'expired'",
-			"= $15",
+			"fact.suppression_state = $15",
 			"$16::boolean",
 			"NOT IN ('not_affected','accepted_risk','false_positive','ignored')",
 			"fact.payload->>'image_ref' = $17",

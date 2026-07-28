@@ -75,6 +75,10 @@ func decodeVulnerabilitySuppression(envelope facts.Envelope) (vulnerabilitySuppr
 	}
 	expiresRaw := optionalSuppressionString(value.ExpiresAt)
 	expiresAt, expiresPresent, expiresValid := parseSuppressionTime(expiresRaw)
+	if strings.TrimSpace(value.Justification) == facts.VulnerabilitySuppressionJustificationIgnored &&
+		!expiresPresent {
+		return vulnerabilitySuppression{}, invalidVulnerabilitySuppressionField("expires_at")
+	}
 	return vulnerabilitySuppression{
 		SuppressionID:        strings.TrimSpace(value.SuppressionID),
 		Source:               strings.TrimSpace(value.Source),
@@ -168,7 +172,7 @@ func vulnerabilitySuppressionTypedScopeEmpty(value vulnerabilitysuppressionv1.Sc
 		optionalSuppressionString(value.SubjectDigest) != "" {
 		return false
 	}
-	return len(cleanSuppressionStrings(value.EvidencePath)) == 0
+	return true
 }
 
 // parseSuppressionTime parses an RFC3339 timestamp from a fact payload and

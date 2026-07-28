@@ -99,3 +99,57 @@ func TestBuildVulnerabilitySuppressionsQuarantinesUnknownSourceAsSource(t *testi
 		t.Fatalf("quarantined = %#v, want unknown source field", quarantined)
 	}
 }
+
+func TestBuildVulnerabilitySuppressionsQuarantinesIgnoredWithoutExpiry(t *testing.T) {
+	t.Parallel()
+
+	malformed := vulnerabilitySuppressionFactEnvelope(
+		"suppression-ignored-without-expiry",
+		facts.VulnerabilitySuppressionSourcePolicy,
+		facts.VulnerabilitySuppressionJustificationIgnored,
+		"shared_token",
+		"2026-07-27T12:00:00Z",
+		"",
+		map[string]any{"cve_id": "CVE-2026-00001"},
+	)
+
+	suppressions, quarantined, err := BuildVulnerabilitySuppressions([]facts.Envelope{malformed})
+	if err != nil {
+		t.Fatalf("BuildVulnerabilitySuppressions() error = %v, want nil", err)
+	}
+	if len(suppressions) != 0 {
+		t.Fatalf("suppressions = %#v, want none", suppressions)
+	}
+	if len(quarantined) != 1 ||
+		quarantined[0].factID != "suppression-ignored-without-expiry" ||
+		quarantined[0].field != "expires_at" {
+		t.Fatalf("quarantined = %#v, want missing expires_at", quarantined)
+	}
+}
+
+func TestBuildVulnerabilitySuppressionsQuarantinesEvidencePathWithoutIdentityAnchor(t *testing.T) {
+	t.Parallel()
+
+	malformed := vulnerabilitySuppressionFactEnvelope(
+		"suppression-evidence-path-only",
+		facts.VulnerabilitySuppressionSourcePolicy,
+		facts.VulnerabilitySuppressionJustificationAcceptedRisk,
+		"shared_token",
+		"2026-07-27T12:00:00Z",
+		"",
+		map[string]any{"evidence_path": []any{"vulnerability.cve"}},
+	)
+
+	suppressions, quarantined, err := BuildVulnerabilitySuppressions([]facts.Envelope{malformed})
+	if err != nil {
+		t.Fatalf("BuildVulnerabilitySuppressions() error = %v, want nil", err)
+	}
+	if len(suppressions) != 0 {
+		t.Fatalf("suppressions = %#v, want none", suppressions)
+	}
+	if len(quarantined) != 1 ||
+		quarantined[0].factID != "suppression-evidence-path-only" ||
+		quarantined[0].field != "scope" {
+		t.Fatalf("quarantined = %#v, want invalid scope", quarantined)
+	}
+}

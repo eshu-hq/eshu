@@ -361,7 +361,9 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 	}
 
 	query := listSupplyChainImpactFindingsQuery
-	if s.ReadFromWinners {
+	if s.ReadFromWinners &&
+		len(filter.AllowedRepositoryIDs) == 0 &&
+		len(filter.AllowedScopeIDs) == 0 {
 		query = listSupplyChainImpactFindingsFromWinnersQuery
 	}
 	rows, err := s.DB.QueryContext(

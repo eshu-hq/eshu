@@ -158,9 +158,9 @@ func TestListSupplyChainImpactFindingsQueryHandlesSuppressionPredicates(t *testi
 
 	for _, want := range []string{
 		"$20 = ''",
-		"fact.payload #>> '{suppression,expires_at}'",
+		"fact.payload #>> '{suppression,expires_at}' AS expires_at",
 		"'expired'",
-		"= $20",
+		"effective_suppression_state = $20",
 		"$21::boolean",
 		"NOT IN ('not_affected','accepted_risk','false_positive','ignored')",
 	} {

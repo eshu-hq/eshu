@@ -66,11 +66,12 @@ func TestSupplyChainExplainImpactQueryUsesCanonicalFindingRows(t *testing.T) {
 		"canonical_key",
 		"canonical_facts AS",
 		"canonical_winners AS",
-		"PARTITION BY canonical_key",
+		"DISTINCT ON (canonical_key)",
 		"payload->>'finding_id'",
 		"scope_id = 'operator:vulnerability_suppressions'",
-		"suppression_state <> 'active'",
-		"suppression_state = 'active'",
+		"<> 'active'",
+		"LEFT JOIN operator_overrides AS override",
+		"override.canonical_key = source.canonical_key",
 		"effective_suppression_state",
 		"has_payload_finding_id",
 	} {
@@ -89,7 +90,9 @@ func TestSupplyChainExplainImpactQueryKeepsRollingUpgradeFindingIDStable(t *test
 	for _, want := range []string{
 		"NULLIF(fact.payload->>'finding_id', '')",
 		") AS finding_id",
-		"priority_score DESC, has_payload_finding_id DESC, fact_id ASC",
+		"priority_score DESC",
+		"has_payload_finding_id DESC",
+		"fact_id ASC",
 	} {
 		if !strings.Contains(explainSupplyChainImpactFindingQuery, want) {
 			t.Fatalf("explain query missing rolling-upgrade canonical finding marker %q:\n%s", want, explainSupplyChainImpactFindingQuery)

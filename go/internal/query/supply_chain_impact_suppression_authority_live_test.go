@@ -19,8 +19,10 @@ const (
 	suppressionAuthorityLivePackage      = "pkg:deb/example/suppression-authority"
 	suppressionAuthorityLiveRepository   = "repository:r_5465_suppression_authority"
 	suppressionAuthorityLiveSource       = "scope:5465:source"
+	suppressionAuthorityLiveSecondSource = "scope:5465:source:second"
 	suppressionAuthorityLiveOperator     = "operator:vulnerability_suppressions"
 	suppressionAuthorityLiveSourceGen    = "generation:5465:source:active"
+	suppressionAuthorityLiveSecondGen    = "generation:5465:source:second:active"
 	suppressionAuthorityLiveOperatorGen  = "generation:5465:operator:active"
 	suppressionAuthorityLiveFinding      = "finding:5465:suppression-authority"
 	suppressionAuthorityLiveSourceFact   = "fact:5465:source"
@@ -29,6 +31,10 @@ const (
 	suppressionAuthorityTimelessFinding  = "finding:5465:suppression-timeless"
 	suppressionAuthorityMalformedCVE     = "CVE-2026-54652"
 	suppressionAuthorityMalformedFinding = "finding:5465:suppression-malformed"
+	suppressionAuthorityOrphanCVE        = "CVE-2026-54653"
+	suppressionAuthorityOrphanFinding    = "finding:5465:suppression-orphan"
+	suppressionAuthorityOriginalImage    = "registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	suppressionAuthoritySecondImage      = "registry.example.com/team/api@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 )
 
 func TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive(t *testing.T) {
@@ -80,6 +86,8 @@ func TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive(t *testi
 	}
 
 	rebuildSuppressionAuthorityWinners(t, ctx, tx)
+	assertScopedSuppressionAuthority(t, ctx, direct, materialized, aggregates)
+	assertSuppressionAuthorityCloneDriftAndOrphan(t, ctx, direct, materialized)
 	assertSuppressionAuthorityState(t, ctx, materialized, aggregates, false, 0, "")
 	assertSuppressionAuthorityState(t, ctx, materialized, aggregates, true, 1, "ignored")
 	assertSuppressionAuthorityFilter(t, ctx, materialized, aggregates, "ignored", true, 1)
@@ -145,6 +153,7 @@ func seedSupplyChainSuppressionAuthorityLiveFacts(
 		generationID string
 	}{
 		{suppressionAuthorityLiveSource, suppressionAuthorityLiveSourceGen},
+		{suppressionAuthorityLiveSecondSource, suppressionAuthorityLiveSecondGen},
 		{suppressionAuthorityLiveOperator, suppressionAuthorityLiveOperatorGen},
 	} {
 		if _, err := tx.ExecContext(ctx, `
@@ -186,6 +195,7 @@ INSERT INTO scope_generations (
 		"cvss_score":        8.0,
 		"priority_score":    "50",
 		"priority_bucket":   "high",
+		"image_ref":         suppressionAuthorityOriginalImage,
 		"severity_bucket":   "high",
 		"suppression_state": "active",
 		"suppression":       map[string]any{"state": "active"},
@@ -206,11 +216,32 @@ INSERT INTO scope_generations (
 		basePayload,
 	)
 
+	secondSourcePayload := make(map[string]any, len(basePayload))
+	for key, value := range basePayload {
+		secondSourcePayload[key] = value
+	}
+	secondSourcePayload["image_ref"] = suppressionAuthoritySecondImage
+	secondSourcePayload["priority_score"] = "90"
+	insertSupplyChainRuntimeFilterFact(
+		t,
+		ctx,
+		tx,
+		"fact:5465:source:second",
+		suppressionAuthorityLiveSecondSource,
+		suppressionAuthorityLiveSecondGen,
+		supplyChainImpactFindingFactKind,
+		false,
+		secondSourcePayload,
+	)
+
 	operatorPayload := make(map[string]any, len(basePayload))
 	for key, value := range basePayload {
 		operatorPayload[key] = value
 	}
 	operatorPayload["suppression_state"] = "ignored"
+	operatorPayload["cvss_score"] = 9.9
+	operatorPayload["priority_bucket"] = "critical"
+	operatorPayload["severity_bucket"] = "critical"
 	operatorPayload["suppression"] = map[string]any{
 		"state":          "ignored",
 		"suppression_id": "suppression-5465-live",
@@ -233,6 +264,34 @@ INSERT INTO scope_generations (
 		operatorPayload,
 	)
 
+	orphanPayload := make(map[string]any, len(operatorPayload))
+	for key, value := range operatorPayload {
+		orphanPayload[key] = value
+	}
+	orphanPayload["finding_id"] = suppressionAuthorityOrphanFinding
+	orphanPayload["cve_id"] = suppressionAuthorityOrphanCVE
+	orphanPayload["suppression"] = map[string]any{
+		"state":          "ignored",
+		"suppression_id": "suppression-5465-orphan",
+		"source":         "eshu_policy",
+		"justification":  "ignored",
+		"author":         "shared_token",
+		"authored_at":    "2026-07-27T12:00:00Z",
+		"expires_at":     "2026-07-27T12:00:30Z",
+		"reason":         "synthetic orphaned decision",
+	}
+	insertSupplyChainRuntimeFilterFact(
+		t,
+		ctx,
+		tx,
+		"fact:5465:operator:orphan",
+		suppressionAuthorityLiveOperator,
+		suppressionAuthorityLiveOperatorGen,
+		supplyChainImpactFindingFactKind,
+		false,
+		orphanPayload,
+	)
+
 	for _, edge := range []struct {
 		factID, findingID, cveID string
 		expiresAt                string
@@ -249,13 +308,29 @@ INSERT INTO scope_generations (
 			expiresAt: "not-a-time",
 		},
 	} {
-		payload := make(map[string]any, len(basePayload))
+		sourcePayload := make(map[string]any, len(basePayload))
 		for key, value := range basePayload {
-			payload[key] = value
+			sourcePayload[key] = value
 		}
-		payload["finding_id"] = edge.findingID
-		payload["cve_id"] = edge.cveID
-		payload["suppression_state"] = "ignored"
+		sourcePayload["finding_id"] = edge.findingID
+		sourcePayload["cve_id"] = edge.cveID
+		insertSupplyChainRuntimeFilterFact(
+			t,
+			ctx,
+			tx,
+			edge.factID+":source",
+			suppressionAuthorityLiveSource,
+			suppressionAuthorityLiveSourceGen,
+			supplyChainImpactFindingFactKind,
+			false,
+			sourcePayload,
+		)
+
+		operatorPayload := make(map[string]any, len(sourcePayload))
+		for key, value := range sourcePayload {
+			operatorPayload[key] = value
+		}
+		operatorPayload["suppression_state"] = "ignored"
 		suppression := map[string]any{
 			"state":          "ignored",
 			"suppression_id": "suppression-" + edge.factID,
@@ -268,7 +343,7 @@ INSERT INTO scope_generations (
 		if edge.expiresAt != "" {
 			suppression["expires_at"] = edge.expiresAt
 		}
-		payload["suppression"] = suppression
+		operatorPayload["suppression"] = suppression
 		insertSupplyChainRuntimeFilterFact(
 			t,
 			ctx,
@@ -278,7 +353,7 @@ INSERT INTO scope_generations (
 			suppressionAuthorityLiveOperatorGen,
 			supplyChainImpactFindingFactKind,
 			false,
-			payload,
+			operatorPayload,
 		)
 	}
 }

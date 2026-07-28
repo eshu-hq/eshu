@@ -370,21 +370,15 @@ func supplyChainImpactInventoryQuery(groupExpr string) string {
 func supplyChainImpactInventoryGroupExpression(dimension SupplyChainImpactInventoryDimension) (string, error) {
 	switch dimension {
 	case SupplyChainImpactInventoryByImpactStatus:
-		return "COALESCE(NULLIF(fact.payload->>'impact_status', ''), 'unknown')", nil
+		return "COALESCE(NULLIF(fact.impact_status, ''), 'unknown')", nil
 	case SupplyChainImpactInventoryByPriorityBucket:
-		return "COALESCE(NULLIF(fact.payload->>'priority_bucket', ''), 'unknown')", nil
+		return "COALESCE(NULLIF(fact.priority_bucket, ''), 'unknown')", nil
 	case SupplyChainImpactInventoryBySeverity:
-		return `CASE
-			WHEN COALESCE(NULLIF(fact.payload->>'cvss_score', '')::numeric, 0) >= 9.0 THEN 'critical'
-			WHEN COALESCE(NULLIF(fact.payload->>'cvss_score', '')::numeric, 0) >= 7.0 THEN 'high'
-			WHEN COALESCE(NULLIF(fact.payload->>'cvss_score', '')::numeric, 0) >= 4.0 THEN 'medium'
-			WHEN COALESCE(NULLIF(fact.payload->>'cvss_score', '')::numeric, 0) > 0.0  THEN 'low'
-			ELSE 'none'
-		END`, nil
+		return "COALESCE(NULLIF(fact.severity_bucket, ''), 'none')", nil
 	case SupplyChainImpactInventoryByRepository:
-		return "COALESCE(NULLIF(fact.payload->>'repository_id', ''), 'unknown')", nil
+		return "COALESCE(NULLIF(fact.repository_id, ''), 'unknown')", nil
 	case SupplyChainImpactInventoryByEcosystem:
-		return "COALESCE(NULLIF(LOWER(fact.payload->>'ecosystem'), ''), 'unknown')", nil
+		return "COALESCE(NULLIF(fact.ecosystem, ''), 'unknown')", nil
 	default:
 		return "", fmt.Errorf("unsupported supply chain impact inventory dimension: %q", dimension)
 	}

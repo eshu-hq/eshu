@@ -303,12 +303,16 @@ func TestSupplyChainImpactFindingQueryUsesCanonicalFindingRows(t *testing.T) {
 	for _, want := range []string{
 		"canonical_key",
 		"canonical_facts AS",
-		"canonical_winners AS",
-		"PARTITION BY canonical_key",
+		"source_winners AS",
+		"paged_facts AS",
+		"DISTINCT ON (canonical_key)",
 		"payload->>'finding_id'",
 		"scope_id = 'operator:vulnerability_suppressions'",
-		"suppression_state <> 'active'",
-		"suppression_state = 'active'",
+		"<> 'active'",
+		"LEFT JOIN operator_overrides AS override",
+		"override.canonical_key = source.canonical_key",
+		"JOIN fact_records AS source",
+		"LEFT JOIN fact_records AS override",
 		"pg_input_is_valid",
 		"THEN 'expired'",
 		"has_payload_finding_id",
@@ -331,7 +335,9 @@ func TestSupplyChainImpactCanonicalFindingKeySupportsRollingUpgrades(t *testing.
 	for _, want := range []string{
 		"NULLIF(fact.payload->>'finding_id', '')",
 		") AS finding_id",
-		"priority_score DESC, has_payload_finding_id DESC, fact_id ASC",
+		"priority_score DESC",
+		"has_payload_finding_id DESC",
+		"fact_id ASC",
 	} {
 		if !strings.Contains(listSupplyChainImpactFindingsQuery, want) {
 			t.Fatalf("list query missing rolling-upgrade canonical finding marker %q:\n%s", want, listSupplyChainImpactFindingsQuery)
