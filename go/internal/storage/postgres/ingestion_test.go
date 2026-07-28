@@ -418,6 +418,19 @@ func (f *fakeTx) QueryContext(_ context.Context, query string, args ...any) (Row
 		// reopen no-ops in tests that do not stage explicit responses for it.
 		return &queueFakeRows{}, nil
 	}
+	if query == listSucceededReducerWorkItemsByDomainQuery {
+		// Cross-scope correlation reopen listing (one call per domain in
+		// CrossScopeCorrelationReopenDomains, now issued on the ingester's
+		// maintenance pass as well as bootstrap-index's): default to no succeeded
+		// items so the reopen no-ops in tests that do not stage explicit responses.
+		//
+		// Matched by identity with the production constant, not by a fragment of
+		// its text. A legitimate rewrite of the listing (renaming the `work` alias,
+		// reshaping the floor CTE) then keeps hitting this default instead of
+		// falling through to "unexpected query in transaction", so such a rewrite
+		// fails on whatever assertion it actually broke.
+		return &queueFakeRows{}, nil
+	}
 	if strings.Contains(query, "FROM deferred_backfill_partition_memo") {
 		// Reopen partition-memo gate lookup: default to no memo rows (every
 		// candidate partition is a memo miss and reopens), matching the legacy

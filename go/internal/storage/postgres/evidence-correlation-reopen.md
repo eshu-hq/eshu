@@ -7,6 +7,18 @@ deferred maintenance so they re-run once the resolved `DEPLOYS_FROM`
 relationships they consume exist. This generalizes the proven
 `ReopenDeploymentMappingWorkItems` / `ReopenCodeImportRepoEdgeWorkItems` reopens.
 
+Superseded by the cross-scope correlation reopen section in `README.md` (#5846).
+The bootstrap-index phase described here was, until that change, the ONLY caller:
+the ingester's `RunDeferredRelationshipMaintenance` replayed just the two
+relationship domains, so under normal ingestion these correlation domains were
+never replayed at all. The domain list now lives in
+`CrossScopeCorrelationReopenDomains` and both runtimes consume it, and the
+listing query is bounded by a per-scope replay floor because the ingester runs
+it on every shard drain rather than once. Read the README section for the
+current contract, the per-drain bound, its measured cost, and what that
+measurement does not cover; the numbers below are the original single-domain
+bootstrap-only baseline.
+
 ## Performance Evidence
 
 - No-Regression Evidence: this adds no hot-path query. The reopen reuses the

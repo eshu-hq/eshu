@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 // --- pipelined bootstrap tests ---
@@ -195,31 +196,19 @@ func TestPipelinedBootstrapRunsDeferredBackfillWorkflow(t *testing.T) {
 	if got, want := committer.snapshotCalls(), []string{"backfill", "iac_reachability", "reopen", "reopen_code_import", "reopen_correlation", "enqueue_drift"}; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("workflow calls = %v, want %v", got, want)
 	}
-	// container_image_identity is replayed so a cross-scope ci.artifact -> OCI
-	// manifest join (and the #5423 ci_run_commit provenance) can resolve once the
-	// OCI generation is active on a later maintenance pass. ci_cd_run_correlation
-	// (#5710) is also in this reopen list, but listing it after
-	// container_image_identity does NOT sequence execution: this single
-	// ReopenSucceededReducerWorkItems call marks all domains pending together and
-	// concurrent reducer workers may claim either first (no drain between them),
-	// so the correlation's cross-scope read is a best-effort re-attempt, not a
-	// deterministic ordering. list_ci_cd_run_correlations' minimum_results:1 does
-	// not depend on the ordering because the domain writes a decision fact for
-	// every outcome; the outcome itself is intentionally unpinned (#5766).
-	// supply_chain_impact (#5426) is the third link in that same chain: it reads
-	// the correlation's durable decision for its deployment context, so a
-	// finding computed while the correlation was still ambiguous keeps an empty
-	// environments list forever unless the impact intent is replayed. It shares
-	// the ordering caveat above -- convergence comes from the maintenance loop
-	// running more than once, not from this slice's order.
-	if got, want := committer.reopenedDomains, []string{
-		"deployable_unit_correlation",
-		"kubernetes_correlation_materialization",
-		"container_image_identity",
-		"ci_cd_run_correlation",
-		"supply_chain_impact",
-	}; fmt.Sprint(got) != fmt.Sprint(want) {
-		t.Fatalf("reopened domains = %v, want %v", got, want)
+	// The reopened list is asserted against the shared source rather than a
+	// hand-copied literal, because the shared source is the fix: PR #5846's codex
+	// P1 was that these domains were replayed by this binary and by nothing else,
+	// so a decision that lost the cross-scope activation race never recovered
+	// under normal ingestion while the golden-corpus gate — which drives only
+	// this binary for its maintenance passes — stayed green over the gap.
+	// postgres.CrossScopeCorrelationReopenDomains now feeds both this call and
+	// the ingester's RunDeferredRelationshipMaintenance, and carries the
+	// per-domain rationale and the ordering caveat (slice order documents the
+	// chain; it does not sequence execution, because nothing drains the reducer
+	// queue between domains).
+	if got, want := committer.reopenedDomains, postgres.CrossScopeCorrelationReopenDomains(); fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("reopened domains = %v, want %v (must equal the shared ingester/bootstrap list)", got, want)
 	}
 	if got := sink.acked.Load(); got != 0 {
 		t.Fatalf("runPipelined() acked = %d, want 0", got)

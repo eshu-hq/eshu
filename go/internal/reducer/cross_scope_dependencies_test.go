@@ -3,7 +3,10 @@
 
 package reducer
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestCrossScopeDependencyValidate(t *testing.T) {
 	t.Parallel()
@@ -50,6 +53,31 @@ func TestCrossScopeDependencyCatalogIsValid(t *testing.T) {
 		if err := dependency.Validate(); err != nil {
 			t.Errorf("catalog entry for consumer %q is invalid: %v", consumer, err)
 		}
+	}
+}
+
+// TestCrossScopeConsumerDomainsExposesEveryCatalogConsumer proves the exported
+// accessor reports exactly the catalog's consumer keys, in a stable order. The
+// accessor exists so a consumer of this package -- the storage layer's
+// cross-scope correlation reopen list -- can assert its own coverage against
+// the catalog instead of restating the same constants and comparing them to
+// themselves. If the accessor silently dropped or reordered a key, that
+// downstream coverage assertion would go quietly false-green again.
+func TestCrossScopeConsumerDomainsExposesEveryCatalogConsumer(t *testing.T) {
+	t.Parallel()
+
+	catalog := crossScopeDependencyCatalog()
+	got := CrossScopeConsumerDomains()
+	if len(got) != len(catalog) {
+		t.Fatalf("CrossScopeConsumerDomains() = %v (%d domains), want the %d catalog consumers", got, len(got), len(catalog))
+	}
+	for consumer := range catalog {
+		if !slices.Contains(got, consumer) {
+			t.Errorf("CrossScopeConsumerDomains() = %v, missing catalog consumer %q", got, consumer)
+		}
+	}
+	if !slices.IsSorted(got) {
+		t.Errorf("CrossScopeConsumerDomains() = %v, want a sorted (map-iteration-independent) order", got)
 	}
 }
 
