@@ -186,3 +186,34 @@ func TestBuildSupplyChainImpactFindingResultSetsVersionResolution(t *testing.T) 
 		t.Fatalf("VersionResolutionTier = %q, want %q", result.VersionResolutionTier, truth.TierProvenanceCIDeclared)
 	}
 }
+
+// BenchmarkBuildSupplyChainImpactFindingResult measures result-assembly cost
+// per row for the #5469 performance proof: the resolver classifies fields the
+// row already carries with no new graph or Postgres query, so per-row cost
+// should stay a small, roughly constant addition over the pre-#5469 baseline
+// (see the same benchmark run against the parent commit for the before
+// number). The row exercises every field the resolver reads, including
+// enough tiers present at once to walk the full candidate/corroboration loop.
+func BenchmarkBuildSupplyChainImpactFindingResult(b *testing.B) {
+	digest := "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+	row := SupplyChainImpactFindingRow{
+		FindingID:                "finding-bench",
+		CVEID:                    "CVE-2026-00099",
+		SubjectDigest:            digest,
+		ImageRef:                 "registry.example.com/demo/app:v1",
+		ObservedVersion:          "1.2.3",
+		CloudRuntimeResourceRefs: []string{"arn:aws:ecs:us-east-1:123456789012:task/demo/bench"},
+		WorkloadIDs:              []string{"workload:example-api"},
+		DeploymentIDs:            []string{"deployment:example-api"},
+		ServiceIDs:               []string{"service:example-api"},
+		Environments:             []string{"prod"},
+		EvidencePath:             []string{cicdRunCorrelationFactKind, "reducer_platform_materialization"},
+		MissingEvidence:          []string{serviceCatalogCorrelationMissingReason},
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = buildSupplyChainImpactFindingResult(row)
+	}
+}
