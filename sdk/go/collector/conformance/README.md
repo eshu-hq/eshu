@@ -24,8 +24,9 @@ collector-sdk/v1alpha1 result fixtures:
 - **Payload shape** — when `Request.PayloadSchemas` maps a fact kind to its JSON
   Schema, every fixture fact of that kind is validated against it and fails
   closed (`payload_schema_invalid`) on a missing required field, a wrong-typed
-  field, or a schema construct the validator cannot interpret (it never passes a
-  payload it could not actually validate). A manifest fact that declares
+  field, a string/null value outside its declared enum, or a schema construct the
+  validator cannot interpret (it never passes a payload it could not actually
+  validate). A manifest fact that declares
   `payloadSchemaRef` must have a `PayloadSchemas` entry keyed by that emitted
   kind, so callers cannot claim payload-shape proof without supplying the schema
   bytes. A kind with no supplied schema and no declared `payloadSchemaRef` is not

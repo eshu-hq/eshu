@@ -37,9 +37,9 @@ pg() {
 	local sql="$1"
 	if [[ "${use_compose}" -eq 1 ]]; then
 		docker compose -f "${compose_file}" exec -T postgres \
-			psql -U eshu -d eshu -tA -c "${sql}" 2>/dev/null
+			psql -v ON_ERROR_STOP=1 -U eshu -d eshu -tA -c "${sql}"
 	else
 		command -v psql >/dev/null 2>&1 || die "psql client required in --no-compose mode"
-		psql "${ESHU_POSTGRES_DSN}" -tA -c "${sql}" 2>/dev/null
+		psql "${ESHU_POSTGRES_DSN}" -v ON_ERROR_STOP=1 -tA -c "${sql}"
 	fi
 }

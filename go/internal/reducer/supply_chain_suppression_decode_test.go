@@ -41,3 +41,61 @@ func TestBuildVulnerabilitySuppressionsQuarantinesMissingIdentity(t *testing.T) 
 		t.Fatalf("quarantined = %#v, want malformed suppression_id", quarantined)
 	}
 }
+
+func TestBuildVulnerabilitySuppressionsQuarantinesInvalidSourceJustificationPair(t *testing.T) {
+	t.Parallel()
+
+	malformed := vulnerabilitySuppressionFactEnvelope(
+		"suppression-malformed-pair",
+		facts.VulnerabilitySuppressionSourceProviderDismissal,
+		facts.VulnerabilitySuppressionJustificationAcceptedRisk,
+		"provider:operator",
+		"2026-07-27T12:00:00Z",
+		"",
+		map[string]any{"cve_id": "CVE-2026-00001"},
+	)
+	malformed.SchemaVersion = facts.VulnerabilitySuppressionSchemaVersionV1
+
+	suppressions, quarantined, err := BuildVulnerabilitySuppressions(
+		[]facts.Envelope{malformed},
+	)
+	if err != nil {
+		t.Fatalf("BuildVulnerabilitySuppressions() error = %v, want nil", err)
+	}
+	if len(suppressions) != 0 {
+		t.Fatalf("suppressions = %#v, want none", suppressions)
+	}
+	if len(quarantined) != 1 ||
+		quarantined[0].factID != "suppression-malformed-pair" ||
+		quarantined[0].field != "justification" {
+		t.Fatalf("quarantined = %#v, want invalid source/justification pair", quarantined)
+	}
+}
+
+func TestBuildVulnerabilitySuppressionsQuarantinesUnknownSourceAsSource(t *testing.T) {
+	t.Parallel()
+
+	malformed := vulnerabilitySuppressionFactEnvelope(
+		"suppression-unknown-source",
+		"external_unknown",
+		facts.VulnerabilitySuppressionJustificationAcceptedRisk,
+		"provider:operator",
+		"2026-07-27T12:00:00Z",
+		"",
+		map[string]any{"cve_id": "CVE-2026-00001"},
+	)
+	malformed.SchemaVersion = facts.VulnerabilitySuppressionSchemaVersionV1
+
+	suppressions, quarantined, err := BuildVulnerabilitySuppressions([]facts.Envelope{malformed})
+	if err != nil {
+		t.Fatalf("BuildVulnerabilitySuppressions() error = %v, want nil", err)
+	}
+	if len(suppressions) != 0 {
+		t.Fatalf("suppressions = %#v, want none", suppressions)
+	}
+	if len(quarantined) != 1 ||
+		quarantined[0].factID != "suppression-unknown-source" ||
+		quarantined[0].field != "source" {
+		t.Fatalf("quarantined = %#v, want unknown source field", quarantined)
+	}
+}

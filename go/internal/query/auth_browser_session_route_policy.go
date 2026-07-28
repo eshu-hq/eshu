@@ -63,6 +63,9 @@ func browserSessionRouteAllowed(
 	auth AuthContext,
 	policy BrowserSessionRoutePolicy,
 ) bool {
+	if IsSharedKeyOnlyRoute(r) {
+		return false
+	}
 	if scopedHTTPRouteSupportsTenantFilter(r) {
 		return true
 	}

@@ -264,6 +264,7 @@ func (s Service) executeAndReport(ctx context.Context, intent Intent, workerID i
 		_ = stopHeartbeat()
 	}()
 
+	execCtx = WithQuarantineWriter(execCtx, s.QuarantineWriter)
 	result, err := s.Executor.Execute(execCtx, intent)
 	duration := time.Since(start).Seconds()
 	status := "succeeded"

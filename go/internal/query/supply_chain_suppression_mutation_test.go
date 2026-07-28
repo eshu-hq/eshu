@@ -188,6 +188,12 @@ func TestCreateVulnerabilitySuppressionFailsClosedForInvalidOrScopedRequests(t *
 			auth:       AuthContext{Mode: AuthModeScoped, SubjectClass: "api_token", AllScopes: false},
 			wantStatus: http.StatusForbidden,
 		},
+		{
+			name:       "all-scopes browser session",
+			body:       `{"suppression_id":"suppression-1","justification":"accepted_risk","authored_at":"2026-07-27T12:00:00Z","reason":"verified","scope":{"cve_id":"CVE-2026-00001"}}`,
+			auth:       AuthContext{Mode: AuthModeBrowserSession, SubjectClass: "browser_session", AllScopes: true},
+			wantStatus: http.StatusForbidden,
+		},
 	}
 
 	for _, tc := range cases {

@@ -76,7 +76,7 @@ func (h *SupplyChainHandler) createVulnerabilitySuppression(w http.ResponseWrite
 
 	auth, ok := AuthContextFromContext(r.Context())
 	auth = normalizeAuthContext(auth)
-	if !ok || !auth.AllScopes {
+	if !ok || !auth.AllScopes || auth.Mode == AuthModeBrowserSession {
 		WriteError(w, http.StatusForbidden, "all-scopes operator authorization is required")
 		return
 	}

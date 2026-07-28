@@ -4819,7 +4819,7 @@
         }
       },
       "list_reducer_input_invalid_facts": {
-        "description": "MCP tool coverage shape for list_reducer_input_invalid_facts; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage for the durable fail-closed suppression admission path. The live helper first creates a harmless CVE-2026-99999 suppression through the authenticated producer so the operator scope and its active generation exist, then injects one eshu_policy suppression with an unknown justification directly at the fact-storage/reducer seam for CVE-2026-00010 and reopens that producer-created generation's real reducer work item. This deliberately bypasses producer JSON-Schema conformance to exercise the hostile external-fact boundary without adding a duplicate work item that queue supersession could skip. The reducer must quarantine it as input_invalid/justification while the live HTTP finding remains active; the helper removes only the malformed source fact before exercising the authenticated generation-rewrite API, leaving durable quarantine evidence bound to the runtime generation for MCP readback.",
         "required_response_fields": [
           "count",
           "items",
@@ -4827,10 +4827,28 @@
           "schema_version",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "result_item_required_fields": [
+          "fact_id",
+          "fact_kind",
+          "missing_field",
+          "failure_class",
+          "domain",
+          "scope_id",
+          "generation_id",
+          "decided_at"
+        ],
+        "required_json_values": {
+          "items[].fact_kind": "vulnerability.suppression",
+          "items[].missing_field": "justification",
+          "items[].failure_class": "input_invalid",
+          "items[].domain": "supply_chain_impact",
+          "items[].scope_id": "operator:vulnerability_suppressions",
+          "items[].generation_id": "__runtime_operator_generation__"
+        },
         "arguments": {
-          "scope_id": "supply-chain-demo",
-          "generation_id": "golden-corpus",
+          "scope_id": "operator:vulnerability_suppressions",
+          "generation_id": "__runtime_operator_generation__",
           "limit": 10,
           "timeout_ms": 5000
         }

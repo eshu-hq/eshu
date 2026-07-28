@@ -63,6 +63,9 @@ func decodeVulnerabilitySuppression(envelope facts.Envelope) (vulnerabilitySuppr
 			return vulnerabilitySuppression{}, invalidVulnerabilitySuppressionField(field)
 		}
 	}
+	if field := vulnerabilitySuppressionSourceJustificationInvalidField(value.Source, value.Justification); field != "" {
+		return vulnerabilitySuppression{}, invalidVulnerabilitySuppressionField(field)
+	}
 	if vulnerabilitySuppressionTypedScopeEmpty(value.Scope) {
 		return vulnerabilitySuppression{}, invalidVulnerabilitySuppressionField("scope")
 	}
@@ -88,6 +91,30 @@ func decodeVulnerabilitySuppression(envelope facts.Envelope) (vulnerabilitySuppr
 		VEXDocumentID:        optionalSuppressionString(value.VEXDocumentID),
 		VEXStatementID:       optionalSuppressionString(value.VEXStatementID),
 	}, nil
+}
+
+func vulnerabilitySuppressionSourceJustificationInvalidField(source string, justification string) string {
+	switch strings.TrimSpace(source) {
+	case facts.VulnerabilitySuppressionSourceVEX:
+		if strings.TrimSpace(justification) == facts.VulnerabilitySuppressionJustificationNotAffected {
+			return ""
+		}
+	case facts.VulnerabilitySuppressionSourcePolicy:
+		switch strings.TrimSpace(justification) {
+		case facts.VulnerabilitySuppressionJustificationNotAffected,
+			facts.VulnerabilitySuppressionJustificationAcceptedRisk,
+			facts.VulnerabilitySuppressionJustificationFalsePositive,
+			facts.VulnerabilitySuppressionJustificationIgnored:
+			return ""
+		}
+	case facts.VulnerabilitySuppressionSourceProviderDismissal:
+		if strings.TrimSpace(justification) == facts.VulnerabilitySuppressionJustificationProviderDismissed {
+			return ""
+		}
+	default:
+		return "source"
+	}
+	return "justification"
 }
 
 func decodeVulnerabilitySuppressionScope(
