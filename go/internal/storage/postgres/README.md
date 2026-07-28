@@ -86,11 +86,21 @@ High-signal invariants for this package:
   generations by `FreshnessHint`.
 - `VulnerabilitySuppressionStore` owns one operator scope and serializes
   concurrent mutations with a row lock. Each changed request clones the latest
-  pending-or-active full set into a new immutable generation, writes its facts,
-  and enqueues projector work in the same transaction; an identical canonical
-  payload commits as a no-op. Generation ordering uses lock-acquisition-time
-  ingestion timestamps rather than operator-authored evidence time, so an
-  older authored assertion submitted later cannot hide a newer committed set.
+  pending, active, or failed full set into a new immutable generation, writes
+  its facts, and enqueues projector work in the same transaction. An identical
+  canonical payload commits as a no-op unless the lineage head failed, in which
+  case concurrent retries converge on one pending recovery successor while the
+  active predecessor remains available. Generation ordering uses
+  lock-acquisition-time ingestion timestamps with a one-microsecond monotonic
+  floor rather than operator-authored evidence time, so clock ties and older
+  authored assertions submitted later cannot hide a newer committed set. A
+  fixed-scope partial covering index adds no entries for unrelated ingestion
+  scopes. On PostgreSQL 18 with 100,000 generations, ten alternating 50,000-read
+  runs measured the old pending/active lookup at 3.809/4.238 microseconds
+  median/p95 per lookup and the indexed failed-aware lookup at 3.443/3.687
+  microseconds. The new lookup returned the intended failed successor instead
+  of the stale active row while improving median latency by 9.6 percent; the
+  candidate index occupied 16 kB.
 - Canonical impact winners denormalize `suppression_expires_at` for
   operator-owned rows. Migration `083_supply_chain_suppression_expiry.sql`
   backfills only hidden operator winners, preserves `NULL` for timeless rows,

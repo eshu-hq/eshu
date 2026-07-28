@@ -137,4 +137,6 @@ var orderedBootstrapDefinitionNames = []string{
 	"supply_chain_suppression_expiry",
 	// migration 084 (#5465 bounded public finding-ID explanation lookup).
 	"supply_chain_impact_finding_id_index",
+	// migration 085 (#5465 failed suppression lineage retry lookup).
+	"vulnerability_suppression_lineage_index",
 }

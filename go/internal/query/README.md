@@ -337,7 +337,7 @@ git diff --exit-code \
   go/internal/query/supply_chain_impact_aggregates.go \
   go/internal/query/supply_chain_impact_aggregates_queries.go \
   go/internal/query/supply_chain_impact_explain_postgres.go \
-  go/internal/storage/postgres/supply_chain_impact_winners_store.go \
+  go/internal/storage/postgres/supply_chain_impact_canonical_winners_store.go \
   go/internal/storage/postgres/schema_fact_records.go
 ```
 
