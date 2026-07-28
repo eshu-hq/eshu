@@ -124,15 +124,56 @@ matcher compares all three with case-insensitive `strings.EqualFold`. A
 payload authored as `{"environment":"production"}` could therefore decode
 and match correctly once loaded, but could never be SELECTED by an
 exact-match `= ANY('{prod}')` predicate against a canonical `"prod"` filter
-— silently inert in production. The fix: `lower(payload->'scope'->>
-'environment') = ANY($14::text[])` with `$14` expanded through
-`environment.Aliases()` so a canonical filter value also binds every alias
-spelling, and `lower(trim(...))` for `workload_id`/`service_id` with the
-bind values lowercased the same way. Failing-test-first proof:
+— silently inert in production. The fix (first cut, later widened by the
+F-4 follow-up below): `lower(payload->'scope'->>'environment') =
+ANY($14::text[])` with `$14` expanded through `environment.Aliases()` so a
+canonical filter value also binds every alias spelling, and `lower(trim(...))`
+for `workload_id`/`service_id` with the bind values lowercased the same
+way. Failing-test-first proof:
 `TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByEnvironmentAliasLive`
 (seeds the literal `"production"` payload, filters by `Environments:
 ["prod"]`) failed against the pre-fix predicate (`len = 0, want 1`) and
 passes after the fix.
+
+### F-4 follow-up: `trim()` strips ASCII space only, not Go's Unicode whitespace class
+
+The P1-1 fix above used plain `trim(...)` (Postgres's `btrim(x, ' ')`,
+ASCII space only). Go's `strings.TrimSpace` — used by `payloadStr` when
+reading `workload_id`/`service_id`, and again inside `environment.Canonical`
+for `environment` (`payloadStr`'s trim runs first, so environment is
+trimmed twice) — strips the full Unicode `White_Space` property: tab,
+newline, vertical tab, form feed, carriage return, NBSP (U+00A0), the
+U+2000–200A run, U+2028/2029, U+202F, U+205F, U+3000, and more. Proven live
+on Postgres 16.14:
+
+```
+lower(trim(' Production '))     -> 'production'          matches ANY['prod','production'] -> t
+lower(trim(E'\tProduction\n'))  -> E'\tproduction\n'      matches ANY['prod','production'] -> f
+```
+
+So a payload of `{"environment":"\tProduction\n"}` decoded to `"prod"` and
+the matcher accepted it, while the prefilter silently never loaded it. This
+applied identically to all three predicates ($12/$13/$14), not just
+environment — the live test up to this point only seeded space-padding, so
+no existing test caught it. Fix: widen every `trim(...)` in this branch to
+`btrim(..., E' \t\n\v\f\r')`, an explicit ASCII whitespace character class
+(space, tab, newline, vertical tab, form feed, carriage return).
+`TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByEnvironmentAliasLive`
+gained a third seed, `SUP-ALIAS-TAB`, whose payload is padded with a real
+tab and newline (via JSON `\t`/`\n` escapes, which the jsonb parser resolves
+to actual control-character bytes); against the pre-`btrim` `trim(...)`
+predicate the test failed at `len = 2, want 3` (the plain-ASCII-space-padded
+`SUP-ALIAS-WHITESPACE` fact still matched plain `trim()`; only the
+tab/newline-padded `SUP-ALIAS-TAB` fact was isolated as unselected), and
+passes at `len = 3` after the `btrim` fix.
+
+This closes the gap for realistic operator-authored payloads (tab/newline
+padding) but does **not** close it for exotic non-ASCII Unicode whitespace
+(NBSP, the U+2000–200A run, U+2028/2029, U+202F, U+205F, U+3000, ...) —
+Postgres has no built-in primitive to trim the full Unicode whitespace
+class, so a payload padded with one of those codepoints would still
+decode/match in Go and not be selected by this SQL. This residual gap is
+accepted and documented here, not silently assumed away.
 
 ### P2-1 follow-up: $12/$13 load-path coverage and bind-order
 
@@ -148,6 +189,9 @@ asserts the bound argument values at their exact placeholder positions
 
 ### Index/sargability evidence (re-run with a realistic environment distribution)
 
+Measured against the `lower(payload->'scope'->>'environment')` predicate as
+it stood immediately after P1-1 (before the F-4 `btrim` widening below).
+
 ```
 -- 300,000-row vulnerability.suppression table, darwin/arm64, postgres:16 in
 -- Docker. Environment values drawn from a realistic ~7-token closed domain
@@ -155,7 +199,7 @@ asserts the bound argument values at their exact placeholder positions
 -- token set), round-robin distributed, NOT a single low-cardinality
 -- synthetic value.
 
--- FIXED predicate: lower(payload->'scope'->>'environment') = ANY(alias-expanded ['prod','production'])
+-- PRE-BTRIM predicate (P1-1 shape): lower(payload->'scope'->>'environment') = ANY(alias-expanded ['prod','production'])
 Gather (actual time=0.375..25.202 rows=85715 loops=1)
   Workers Launched: 2
   -> Parallel Seq Scan on fact_records (actual time=0.019..20.091 rows=28572 loops=3)
@@ -190,6 +234,42 @@ prior version of this evidence, which used a single low-cardinality
 synthetic environment value (`env-1`, 60/300k rows) — real environment
 values are a small closed domain, so the realistic-distribution re-run above
 is the accurate selectivity picture, not the original strawman.
+
+### F-4 EXPLAIN re-run: `btrim` vs `trim` plan shape
+
+Re-ran `EXPLAIN (ANALYZE, BUFFERS)` on the identical 300,000-row
+realistic-distribution seed above, comparing the shipped
+`lower(btrim(payload->'scope'->>'environment', E' \t\n\v\f\r'))` predicate
+against the pre-F-4 `lower(trim(payload->'scope'->>'environment'))`
+predicate (both with the same alias-expanded `ANY('{prod,production}')`
+array):
+
+```
+-- SHIPPED: lower(btrim(payload->'scope'->>'environment', E' \t\n\v\f\r')) = ANY('{prod,production}')
+Gather (actual time=0.369..29.020 rows=85715 loops=1)
+  Workers Launched: 2
+  -> Parallel Seq Scan on fact_records (actual time=0.010..25.514 rows=28572 loops=3)
+     Filter: (... AND (lower(btrim((payload->'scope')->>'environment', '  \t\n\x0Bv\x0C\r')) = ANY ('{prod,production}'::text[])))
+     Rows Removed by Filter: 71428
+Execution Time: 30.477 ms
+
+-- PRE-F-4: lower(trim(payload->'scope'->>'environment')) = ANY('{prod,production}')
+Gather (actual time=0.071..24.342 rows=85715 loops=1)
+  Workers Launched: 2
+  -> Parallel Seq Scan on fact_records (actual time=0.006..21.224 rows=28572 loops=3)
+     Filter: (... AND (lower(TRIM(BOTH FROM (payload->'scope')->>'environment')) = ANY ('{prod,production}'::text[])))
+     Rows Removed by Filter: 71428
+Execution Time: 25.706 ms
+```
+
+Identical plan shape (`Parallel Seq Scan`, identical cost estimate
+`1000.00..11077.00`, identical `rows=28572`/`Rows Removed by Filter: 71428`
+per worker) — `btrim` with a literal character-class argument is exactly as
+unindexable as `trim`, so the pre-`btrim` EXPLAIN evidence above (the
+"FIXED predicate" block, now relabeled pre-`btrim`) stands without needing
+a fresh 300k-row re-run for every subsequent whitespace-class change. This
+independently reproduces the round-3 review's own re-run (which reported
+the same `28572`/`71428` per-worker figures).
 
 ### Frequency correction (P2-3)
 

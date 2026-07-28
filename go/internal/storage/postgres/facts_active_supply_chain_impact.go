@@ -66,11 +66,26 @@ WHERE fact.fact_kind IN (
   AND generation.status = 'active'
   AND (
       fact.payload->>'package_id' = ANY($1::text[])
-      OR fact.payload->'scope'->>'package_id' = ANY($1::text[])
+      -- $16-$20 (below and at L~repository_id) are lower(btrim(...))
+      -- normalized siblings of the exact-match ->'scope'->> comparisons
+      -- above/below, added for #5466 round-3 review F-6: scopeAnchorMatches
+      -- (go/internal/reducer/supply_chain_suppression_scope_match.go)
+      -- compares every vulnerability.suppression scope anchor with
+      -- strings.TrimSpace + strings.EqualFold, so a payload of
+      -- {"cve_id":"cve-2026-1234"} (lowercase) or a whitespace-padded purl
+      -- decodes and matches in Go but was never SELECTED by the prior
+      -- exact-match SQL -- the same defect class P1-1/F-4 fixed for
+      -- environment/workload_id/service_id, now closed here too. These use
+      -- NEW placeholders rather than reusing $1-$3/$5/$8 because those
+      -- placeholders are also bound to the top-level (non-"scope") sibling
+      -- predicates immediately below, which serve OTHER fact kinds
+      -- (vulnerability.affected_package, sbom.component, ...) whose
+      -- existing exact-match behavior must not change.
+      OR lower(btrim(fact.payload->'scope'->>'package_id', E' \t\n\v\f\r')) = ANY($16::text[])
       OR fact.payload->>'purl' = ANY($2::text[])
-      OR fact.payload->'scope'->>'purl' = ANY($2::text[])
+      OR lower(btrim(fact.payload->'scope'->>'purl', E' \t\n\v\f\r')) = ANY($17::text[])
       OR fact.payload->>'cve_id' = ANY($3::text[])
-      OR fact.payload->'scope'->>'cve_id' = ANY($3::text[])
+      OR lower(btrim(fact.payload->'scope'->>'cve_id', E' \t\n\v\f\r')) = ANY($18::text[])
       OR (
           cardinality($4::text[]) > 0
           AND (
@@ -79,7 +94,7 @@ WHERE fact.fact_kind IN (
           )
       )
       OR fact.payload->>'subject_digest' = ANY($5::text[])
-      OR fact.payload->'scope'->>'subject_digest' = ANY($5::text[])
+      OR lower(btrim(fact.payload->'scope'->>'subject_digest', E' \t\n\v\f\r')) = ANY($19::text[])
       OR fact.payload->>'digest' = ANY($5::text[])
       OR fact.payload->>'artifact_digest' = ANY($5::text[])
       OR fact.payload->>'referrer_digest' = ANY($5::text[])
@@ -100,7 +115,12 @@ WHERE fact.fact_kind IN (
           AND (
               fact.payload->>'repository_id' = ANY($8::text[])
               OR fact.payload->>'repo_id' = ANY($8::text[])
-              OR fact.payload->'scope'->>'repository_id' = ANY($8::text[])
+              -- $20 is the lower(btrim(...)) normalized replacement for
+              -- what was an exact-match ->'scope'->>'repository_id' =
+              -- ANY($8) predicate here. It binds the same repository filter
+              -- values after normalization, so it strictly supersedes the
+              -- old exact-match comparison (#5466 round-3 review F-6).
+              OR lower(btrim(fact.payload->'scope'->>'repository_id', E' \t\n\v\f\r')) = ANY($20::text[])
               OR fact.scope_id = ANY($8::text[])
               OR fact.payload->>'scope_id' = ANY($8::text[])
               OR scope.source_key = ANY($8::text[])
@@ -130,26 +150,38 @@ WHERE fact.fact_kind IN (
       OR (
           fact.fact_kind = 'vulnerability.suppression'
           AND (
-              -- lower(trim(...)) matches the decode/matcher contract:
-              -- decodeVulnerabilitySuppressionScope only TrimSpaces
-              -- workload_id/service_id, and suppressionScopeMatchesFinding
-              -- compares them with strings.EqualFold (case-insensitive).
-              -- Exact-match SQL against a raw payload value would silently
-              -- drop a suppression whose payload casing/whitespace differs
-              -- from the filter's already-normalized anchors (#5466 P1-1).
-              lower(trim(fact.payload->'scope'->>'workload_id')) = ANY($13::text[])
-              OR lower(trim(fact.payload->'scope'->>'service_id')) = ANY($14::text[])
-              -- lower(trim(...)) plus alias expansion of $15 (see
-              -- expandEnvironmentAliasFilterValues) matches
-              -- environment.Canonical's contract exactly:
-              -- environment.Canonical is TrimSpace + ToLower + alias, so a
-              -- payload authored as " production " (leading/trailing
-              -- whitespace, alias spelling) must still be selected by a
-              -- canonical "prod" filter, not just an exact-canonical,
-              -- untrimmed payload (#5466 P1-1, tightened by round-2 review
-              -- F-1: the two sibling lines above already needed trim() for
-              -- the same reason).
-              OR lower(trim(fact.payload->'scope'->>'environment')) = ANY($15::text[])
+              -- lower(btrim(x, E' \t\n\v\f\r')) approximates -- it does NOT
+              -- exactly match -- the decode/matcher contract:
+              -- decodeVulnerabilitySuppressionScope reads workload_id/
+              -- service_id through payloadStr, which TrimSpaces, and
+              -- environment through environment.Canonical, which
+              -- TrimSpace+ToLower+alias-resolves (payloadStr's TrimSpace
+              -- runs first, so environment is TrimSpace'd twice); the
+              -- matcher then compares all three with strings.EqualFold
+              -- (case-insensitive). Go's strings.TrimSpace strips the full
+              -- Unicode White_Space property (tab, newline, NBSP U+00A0,
+              -- the U+2000-200A run, U+2028/2029, U+202F, U+205F, U+3000,
+              -- ...); Postgres's trim()/btrim() only strips a literal
+              -- character set, with no built-in "trim Unicode whitespace"
+              -- primitive, so the explicit E' \t\n\v\f\r' class below only
+              -- covers the ASCII control-whitespace set (space, tab,
+              -- newline, vertical tab, form feed, carriage return) --
+              -- covers realistic operator-authored payloads (including
+              -- tab/newline padding, #5466 round-2 review F-4) but a
+              -- payload padded with an exotic non-ASCII Unicode space
+              -- character would still decode/match in Go and not be
+              -- selected here. This residual gap is accepted, not silently
+              -- assumed away.
+              lower(btrim(fact.payload->'scope'->>'workload_id', E' \t\n\v\f\r')) = ANY($13::text[])
+              OR lower(btrim(fact.payload->'scope'->>'service_id', E' \t\n\v\f\r')) = ANY($14::text[])
+              -- Same lower(btrim(...)) treatment plus alias expansion of
+              -- $15 (see expandEnvironmentAliasFilterValues): a payload
+              -- authored as " production " (ASCII whitespace padding,
+              -- alias spelling) must still be selected by a canonical
+              -- "prod" filter (#5466 P1-1, tightened by round-2 review
+              -- F-1/F-4 -- see the whitespace-class caveat above, which
+              -- applies here identically).
+              OR lower(btrim(fact.payload->'scope'->>'environment', E' \t\n\v\f\r')) = ANY($15::text[])
           )
       )
   )
@@ -224,18 +256,35 @@ func (s FactStore) listActiveSupplyChainImpactFactsPage(
 		filter.FileRepositoryIDs,
 		cursorFactID,
 		listFactsByKindPageSize,
-		// $12/$13 are compared against lower(trim(payload)) in SQL, so the
-		// bind values must be lowercased/trimmed the same way -- otherwise a
-		// filter anchor with different case than the payload (both valid
-		// under the matcher's EqualFold contract) would never match.
+		// $13/$14 are compared against lower(btrim(payload, ASCII
+		// whitespace)) in SQL (see the query text above for the exact
+		// character class and its residual-gap caveat), so the bind values
+		// -- already Unicode-TrimSpace'd on the Go side by
+		// lowerCleanedStringFilterValues -- must be lowercased the same way
+		// -- otherwise a filter anchor with different case than the payload
+		// (both valid under the matcher's EqualFold contract) would never
+		// match.
 		lowerCleanedStringFilterValues(filter.WorkloadIDs),
 		lowerCleanedStringFilterValues(filter.ServiceIDs),
-		// $14 is compared against lower(payload) plus every known alias of
-		// each canonical filter environment (see
+		// $15 is compared against lower(btrim(payload, ASCII whitespace))
+		// plus every known alias of each canonical filter environment (see
 		// expandEnvironmentAliasFilterValues), so a suppression payload
 		// authored with an alias form ("production") still matches a
 		// canonical "prod" filter.
 		expandEnvironmentAliasFilterValues(filter.Environments),
+		// $16-$20 are lower(btrim(...)) normalized siblings of the
+		// exact-match ->'scope'->>'package_id'/'purl'/'cve_id'/
+		// 'subject_digest'/'repository_id' predicates bound to $1-$4/$7
+		// (#5466 round-3 review F-6). They reuse the SAME filter values as
+		// $1/$2/$3/$4/$7 -- normalized here, not by mutating filter.* --
+		// because $1-$4/$7 are also bound to the top-level (non-"scope")
+		// sibling predicates serving other fact kinds, whose exact-match
+		// behavior must not change.
+		lowerCleanedStringFilterValues(filter.PackageIDs),
+		lowerCleanedStringFilterValues(filter.PURLs),
+		lowerCleanedStringFilterValues(filter.CVEIDs),
+		lowerCleanedStringFilterValues(filter.SubjectDigests),
+		lowerCleanedStringFilterValues(filter.RepositoryIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list active supply chain impact facts: %w", err)
@@ -261,10 +310,12 @@ func (s FactStore) listActiveSupplyChainImpactFactsPage(
 // lowerCleanedStringFilterValues lowercases every value and re-runs
 // cleanStringFilterValues (trim, drop-empty, dedupe, sort) so the result is a
 // stable bind-ready set. Used for the workload_id/service_id suppression
-// scope anchors ($12/$13), which the SQL predicate compares against
-// lower(trim(payload)) to match decodeVulnerabilitySuppressionScope's
-// TrimSpace-only decode and the matcher's case-insensitive
-// (strings.EqualFold) comparison (#5466 P1-1).
+// scope anchors ($13/$14), which the SQL predicate compares against
+// lower(btrim(payload, ASCII whitespace)) to approximate
+// decodeVulnerabilitySuppressionScope's TrimSpace-only decode and the
+// matcher's case-insensitive (strings.EqualFold) comparison (#5466 P1-1) --
+// see the query text's whitespace-class comment for the residual
+// non-ASCII-whitespace gap this does not close.
 func lowerCleanedStringFilterValues(values []string) []string {
 	lowered := make([]string, 0, len(values))
 	for _, value := range values {
@@ -278,16 +329,19 @@ func lowerCleanedStringFilterValues(values []string) []string {
 // spelling from the shared environment.Aliases() table (which always
 // includes the canonical spelling itself -- see the table in
 // environment.Aliases()). The suppression-scope environment predicate
-// ($14) compares against lower(trim(payload)), so a suppression payload
-// authored with an alias form ("production") or different case/whitespace
-// ("Prod") still matches a filter built from the canonical form ("prod")
-// -- otherwise the filter and the payload could each independently be
-// "correct" under environment.Canonical and still never match in SQL
-// (#5466 P1-1). Canonicalizing here rather than trusting the caller already
-// did so keeps this function correct regardless of caller input, matching
-// lowerCleanedStringFilterValues's defensive normalization of its own
-// input. A canonical value with no known alias entry (environment.Canonical
-// never rejects unknown tokens) passes through as its canonicalized form.
+// ($15) compares against lower(btrim(payload, ASCII whitespace)), so a
+// suppression payload authored with an alias form ("production") or
+// different case/ASCII-whitespace ("Prod", " production ") still matches a
+// filter built from the canonical form ("prod") -- otherwise the filter and
+// the payload could each independently be "correct" under
+// environment.Canonical and still never match in SQL (#5466 P1-1;
+// non-ASCII Unicode whitespace padding is a documented residual gap, see
+// the query text's whitespace-class comment). Canonicalizing here rather
+// than trusting the caller already did so keeps this function correct
+// regardless of caller input, matching lowerCleanedStringFilterValues's
+// defensive normalization of its own input. A canonical value with no known
+// alias entry (environment.Canonical never rejects unknown tokens) passes
+// through as its canonicalized form.
 func expandEnvironmentAliasFilterValues(values []string) []string {
 	if len(values) == 0 {
 		return values

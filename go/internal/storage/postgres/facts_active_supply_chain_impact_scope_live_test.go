@@ -229,7 +229,17 @@ func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedOnlyByDeploymentC
 // TrimSpace + ToLower + alias, so a payload of {"environment":" Production "}
 // (leading/trailing whitespace AND alias casing) must decode to "prod" and
 // be selected too -- the SUP-ALIAS-WHITESPACE fact below pins that the SQL
-// predicate uses lower(trim(...)), not just lower(...).
+// predicate trims.
+//
+// It also covers the round-2 review F-4 finding: Postgres trim()/btrim()
+// with a literal character class only strips the characters named in that
+// class, not the full Unicode White_Space property Go's strings.TrimSpace
+// strips. SUP-ALIAS-TAB below is padded with an actual tab and newline
+// (via the JSON \t/\n escapes, which the Postgres jsonb parser resolves to
+// real control characters, not the two-character "\t" text) -- proven live
+// on Postgres 16 that lower(trim('...')) (space-only trim) fails to select
+// this payload while lower(btrim('...', E' \t\n\v\f\r')) (the shipped
+// ASCII-whitespace-class fix) succeeds.
 func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByEnvironmentAliasLive(t *testing.T) {
 	db := newSupplyChainImpactScopeLiveTestDB(t, "eshu_5466_suppression_scope_alias_live")
 
@@ -244,6 +254,12 @@ func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByEnvironmentAlia
 	// identically to SUP-ALIAS-PROD above (#5466 round-2 review F-1).
 	seedSupplyChainImpactScopeLiveFact(t, db, "vuln-suppression:alias-whitespace", "alias-whitespace",
 		`{"suppression_id":"SUP-ALIAS-WHITESPACE","source":"eshu_policy","justification":"not_affected","author":"security-bot","authored_at":"2026-06-20T00:00:00Z","scope":{"environment":" Production "}}`)
+	// SUP-ALIAS-TAB: payload names the alias form padded with a tab and a
+	// newline instead of plain ASCII spaces (#5466 round-2 review F-4) --
+	// the JSON \t/\n escapes decode to real tab/newline bytes once the
+	// jsonb column parses this literal.
+	seedSupplyChainImpactScopeLiveFact(t, db, "vuln-suppression:alias-tab", "alias-tab",
+		"{\"suppression_id\":\"SUP-ALIAS-TAB\",\"source\":\"eshu_policy\",\"justification\":\"not_affected\",\"author\":\"security-bot\",\"authored_at\":\"2026-06-20T00:00:00Z\",\"scope\":{\"environment\":\"\\tProduction\\n\"}}")
 	// SUP-ALIAS-NOISE: a different environment entirely, must never match a
 	// ["prod"] filter regardless of alias expansion.
 	seedSupplyChainImpactScopeLiveFact(t, db, "vuln-suppression:alias-noise", "alias-noise",
@@ -253,23 +269,23 @@ func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByEnvironmentAlia
 
 	// The reducer derives Environments:["prod"] (canonical form) from
 	// already-loaded deployment evidence, per environment.Canonical
-	// (go/internal/environment). Both the literal "production" payload and
-	// the whitespace-padded " Production " payload above must still be
-	// selected; SUP-ALIAS-NOISE must not.
+	// (go/internal/environment). The literal "production" payload, the
+	// space-padded " Production " payload, and the tab/newline-padded
+	// payload above must all still be selected; SUP-ALIAS-NOISE must not.
 	loaded, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
 		Environments: []string{"prod"},
 	})
 	if err != nil {
 		t.Fatalf("ListActiveSupplyChainImpactFacts: %v", err)
 	}
-	if got, want := len(loaded), 2; got != want {
-		t.Fatalf("len = %d, want %d (the alias-\"production\" and whitespace-padded-alias-scoped suppressions, and only those): %#v", got, want, loaded)
+	if got, want := len(loaded), 3; got != want {
+		t.Fatalf("len = %d, want %d (the alias-\"production\", space-padded, and tab/newline-padded suppressions, and only those): %#v", got, want, loaded)
 	}
 	gotIDs := map[string]bool{}
 	for _, envelope := range loaded {
 		gotIDs[envelope.FactID] = true
 	}
-	for _, wantID := range []string{"vuln-suppression:alias-prod", "vuln-suppression:alias-whitespace"} {
+	for _, wantID := range []string{"vuln-suppression:alias-prod", "vuln-suppression:alias-whitespace", "vuln-suppression:alias-tab"} {
 		if !gotIDs[wantID] {
 			t.Fatalf("FactID %q missing from loaded set: %#v", wantID, loaded)
 		}

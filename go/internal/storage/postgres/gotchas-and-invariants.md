@@ -164,18 +164,21 @@ operational lessons that future storage changes still need to respect.
   proves decodes correctly -- could never be SELECTED by an exact-match
   `= ANY('{prod}')` predicate, so it was silently inert in production even
   though decode and the matcher both accept it. The fix changed the
-  predicate to `lower(fact.payload->'scope'->>'environment') =
-  ANY($14::text[])` with `$14` expanded through `environment.Aliases()`
-  (`expandEnvironmentAliasFilterValues`,
+  predicate to `lower(btrim(fact.payload->'scope'->>'environment', E'
+  \t\n\v\f\r')) = ANY($14::text[])` with `$14` expanded through
+  `environment.Aliases()` (`expandEnvironmentAliasFilterValues`,
   `facts_active_supply_chain_impact.go`) so a canonical `"prod"` filter also
-  binds every alias spelling, and `lower(trim(...))` for `workload_id`/
-  `service_id` (`$12`/`$13`) with the bind values passed through
-  `lowerCleanedStringFilterValues` to match. Failing-test-first proof:
-  `TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByEnvironmentAliasLive`
+  binds every alias spelling, and the identical `lower(btrim(..., E'
+  \t\n\v\f\r'))` treatment for `workload_id`/`service_id` (`$12`/`$13`)
+  with the bind values passed through `lowerCleanedStringFilterValues` to
+  match. All three predicates now share one whitespace/case treatment; see
+  the round-2 review F-4 entry below for why `btrim` with an explicit
+  character class, not plain `trim`, was required. Failing-test-first
+  proof: `TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByEnvironmentAliasLive`
   seeds a suppression payload with the literal alias `"production"` and a
   filter of `Environments: ["prod"]`; run against the pre-fix predicate it
   failed (`len = 0, want 1`), and passes after the `lower()`+alias-expansion
-  fix.
+  fix (later widened to `lower(btrim(...))` by the F-4 follow-up below).
   P2-1 follow-up ($12/$13 coverage and bind-order): the live test above only
   ever exercised `$14` (Environments). `$12` (WorkloadIDs) and `$13`
   (ServiceIDs) had no load-path proof, and a query-text `strings.Contains`
@@ -193,11 +196,14 @@ operational lessons that future storage changes still need to respect.
   `db.queries[0].args[11]`/`args[12]` using distinct workload/service
   values, so a bind-order regression fails even when no live Postgres is
   configured.
-  Index/sargability evidence: `EXPLAIN (ANALYZE, BUFFERS)` on a 300,000-row
-  seeded `vulnerability.suppression` table with environment values drawn
-  from a realistic ~7-token closed domain (`prod`, `production`, `qa`,
-  `stage`, `staging`, `dev`, `uat` -- matching `environment.Aliases()`'s
-  token set, not a single low-cardinality synthetic value) shows the fixed
+  Index/sargability evidence (pre-`btrim` measurement -- see the F-4 entry
+  immediately below for why the shipped predicate gained `btrim` after this
+  was measured, and why re-measuring was not required): `EXPLAIN (ANALYZE,
+  BUFFERS)` on a 300,000-row seeded `vulnerability.suppression` table with
+  environment values drawn from a realistic ~7-token closed domain (`prod`,
+  `production`, `qa`, `stage`, `staging`, `dev`, `uat` -- matching
+  `environment.Aliases()`'s token set, not a single low-cardinality
+  synthetic value) shows the then-current
   `lower(payload->'scope'->>'environment') = ANY('{prod,production}')`
   predicate, the pre-fix exact-match `= ANY('{prod}')` predicate, and the
   pre-existing sibling `payload->'scope'->>'cve_id'` predicate all produce
@@ -211,6 +217,32 @@ operational lessons that future storage changes still need to respect.
   Doctrine, adding one requires evidence the query is hot enough for the
   predicate shape to benefit, and this call has no such evidence (see the
   corrected frequency note below).
+  Round-2 review F-4 (whitespace-class mismatch, fixed): Postgres `trim(x)`
+  is `btrim(x, ' ')` -- it strips ASCII space only. Go's
+  `strings.TrimSpace` (used by `payloadStr` and, again, inside
+  `environment.Canonical`) strips the full Unicode `White_Space` property.
+  Proven live on Postgres 16.14: `lower(trim(' Production '))` ->
+  `'production'` matches `ANY['prod','production']` (true), but
+  `lower(trim(E'\tProduction\n'))` -> `E'\tproduction\n'` does NOT match
+  (false) -- so `{"environment":"\tProduction\n"}` decoded to `"prod"` and
+  matched the in-memory matcher while the prefilter silently never loaded
+  it. This applied to all three of `$12`/`$13`/`$14` identically, not just
+  environment. Fixed by widening every `trim(...)` in this branch to
+  `btrim(..., E' \t\n\v\f\r')`, an explicit ASCII whitespace class (space,
+  tab, newline, vertical tab, form feed, carriage return) -- this closes
+  the gap for realistic operator-authored payloads (tab/newline padding)
+  but does NOT close it for exotic non-ASCII Unicode whitespace (NBSP
+  U+00A0, the U+2000-200A run, U+2028/2029, U+202F, U+205F, U+3000, ...),
+  which Postgres has no built-in primitive to trim; that residual gap is a
+  documented, accepted limitation, not an unstated assumption. Re-running
+  `EXPLAIN (ANALYZE, BUFFERS)` with `btrim(..., E' \t\n\v\f\r')` in place
+  of `trim(...)` on the same 300,000-row realistic-distribution seed
+  produces the IDENTICAL plan shape as the pre-`btrim` measurement above
+  (`Parallel Seq Scan` on `fact_records`, 28,572 rows per worker / 71,428
+  rows removed by filter per worker, no index used) -- `btrim` with a
+  literal character-class argument is exactly as unindexable as `trim`, so
+  the pre-`btrim` EXPLAIN evidence above stands without needing a fresh
+  300k-row re-run.
   P2-3 follow-up (frequency correction): the original evidence here
   described this as a "once-per-generation" call. That was wrong.
   `ListActiveSupplyChainImpactFacts` is reached per supply-chain-impact

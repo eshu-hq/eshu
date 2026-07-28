@@ -63,13 +63,26 @@ func TestListActiveSupplyChainImpactFactsQueryIncludesVulnerabilitySuppression(t
 	// kinds; otherwise suppressions outside the initially loaded
 	// scope/generation never reach the reducer and operator-authored
 	// suppressions silently miss findings.
+	//
+	// The scope-nested predicates below are the round-3 review F-6
+	// lower(btrim(...)) normalized shape ($16-$19), which SUPERSEDES (not
+	// supplements) the original exact-match ->'scope'->>'X' = ANY($1-$5)
+	// shape: $16-$19 bind lower(btrim(...)) of the SAME filter values
+	// bound to $1/$2/$3/$5, so every row the old exact-match predicate
+	// could select, the normalized predicate also selects, plus payloads
+	// whose case/whitespace differs from the filter (see
+	// TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeSiblings,
+	// facts_active_supply_chain_impact_scope_normalize_test.go, for the
+	// full F-6 predicate-shape and unchanged-sibling assertions). $4
+	// (AdvisoryIDs, #5465) stays exact-match -- round-3 predates
+	// advisory_id support on this branch.
 	for _, want := range []string{
 		"'vulnerability.suppression'",
-		"fact.payload->'scope'->>'package_id' = ANY($1::text[])",
-		"fact.payload->'scope'->>'purl' = ANY($2::text[])",
-		"fact.payload->'scope'->>'cve_id' = ANY($3::text[])",
 		"fact.payload->'scope'->>'advisory_id' = ANY($4::text[])",
-		"fact.payload->'scope'->>'subject_digest' = ANY($5::text[])",
+		"lower(btrim(fact.payload->'scope'->>'package_id', E' \\t\\n\\v\\f\\r')) = ANY($16::text[])",
+		"lower(btrim(fact.payload->'scope'->>'purl', E' \\t\\n\\v\\f\\r')) = ANY($17::text[])",
+		"lower(btrim(fact.payload->'scope'->>'cve_id', E' \\t\\n\\v\\f\\r')) = ANY($18::text[])",
+		"lower(btrim(fact.payload->'scope'->>'subject_digest', E' \\t\\n\\v\\f\\r')) = ANY($19::text[])",
 	} {
 		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
@@ -89,9 +102,9 @@ func TestListActiveSupplyChainImpactFactsQueryMatchesSuppressionByEnvironmentWor
 	// nothing in this WHERE clause could ever match it.
 	for _, want := range []string{
 		"fact.fact_kind = 'vulnerability.suppression'",
-		"lower(trim(fact.payload->'scope'->>'workload_id')) = ANY($12::text[])",
-		"lower(trim(fact.payload->'scope'->>'service_id')) = ANY($13::text[])",
-		"lower(trim(fact.payload->'scope'->>'environment')) = ANY($14::text[])",
+		"lower(btrim(fact.payload->'scope'->>'workload_id', E' \\t\\n\\v\\f\\r')) = ANY($13::text[])",
+		"lower(btrim(fact.payload->'scope'->>'service_id', E' \\t\\n\\v\\f\\r')) = ANY($14::text[])",
+		"lower(btrim(fact.payload->'scope'->>'environment', E' \\t\\n\\v\\f\\r')) = ANY($15::text[])",
 	} {
 		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
@@ -199,7 +212,11 @@ func TestListActiveSupplyChainImpactFactsQueryBoundsRepositoryFollowUp(t *testin
 		"'reducer_workload_identity'",
 		"fact.payload->>'repository_id' = ANY($8::text[])",
 		"fact.payload->>'repo_id' = ANY($8::text[])",
-		"fact.payload->'scope'->>'repository_id' = ANY($8::text[])",
+		// Round-3 review F-6: this was ->'scope'->>'repository_id' = ANY($8)
+		// (exact match); $20 supersedes it with lower(btrim(...)) -- see
+		// TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeSiblings
+		// (facts_active_supply_chain_impact_scope_normalize_test.go).
+		"lower(btrim(fact.payload->'scope'->>'repository_id', E' \\t\\n\\v\\f\\r')) = ANY($20::text[])",
 		"fact.scope_id = ANY($8::text[])",
 		"fact.payload->>'scope_id' = ANY($8::text[])",
 		"scope.source_key = ANY($8::text[])",
