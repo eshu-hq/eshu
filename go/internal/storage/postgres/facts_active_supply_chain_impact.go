@@ -67,8 +67,11 @@ WHERE fact.fact_kind IN (
   AND (
       fact.payload->>'package_id' = ANY($1::text[])
       -- $16-$20 (below and at L~repository_id) are lower(btrim(...))
-      -- normalized siblings of the exact-match ->'scope'->> comparisons
-      -- above/below, added for #5466 round-3 review F-6: scopeAnchorMatches
+      -- normalized REPLACEMENTS for what used to be exact-match
+      -- ->'scope'->>'X' = ANY($N) predicates here (there is no exact-match
+      -- fallback left for package_id/purl/cve_id/subject_digest/
+      -- repository_id under "scope" -- $16-$20 fully supersede them, added
+      -- for #5466 round-3 review F-6: scopeAnchorMatches
       -- (go/internal/reducer/supply_chain_suppression_scope_match.go)
       -- compares every vulnerability.suppression scope anchor with
       -- strings.TrimSpace + strings.EqualFold, so a payload of
@@ -77,10 +80,11 @@ WHERE fact.fact_kind IN (
       -- exact-match SQL -- the same defect class P1-1/F-4 fixed for
       -- environment/workload_id/service_id, now closed here too. These use
       -- NEW placeholders rather than reusing $1-$3/$5/$8 because those
-      -- placeholders are also bound to the top-level (non-"scope") sibling
+      -- placeholders are ALSO bound to the top-level (non-"scope") sibling
       -- predicates immediately below, which serve OTHER fact kinds
       -- (vulnerability.affected_package, sbom.component, ...) whose
-      -- existing exact-match behavior must not change.
+      -- existing exact-match behavior must not change -- only the
+      -- "scope"-nested comparisons were replaced.
       OR lower(btrim(fact.payload->'scope'->>'package_id', E' \t\n\v\f\r')) = ANY($16::text[])
       OR fact.payload->>'purl' = ANY($2::text[])
       OR lower(btrim(fact.payload->'scope'->>'purl', E' \t\n\v\f\r')) = ANY($17::text[])
@@ -90,7 +94,6 @@ WHERE fact.fact_kind IN (
           cardinality($4::text[]) > 0
           AND (
               fact.payload->>'advisory_id' = ANY($4::text[])
-              OR fact.payload->'scope'->>'advisory_id' = ANY($4::text[])
           )
       )
       OR fact.payload->>'subject_digest' = ANY($5::text[])
@@ -182,6 +185,19 @@ WHERE fact.fact_kind IN (
               -- F-1/F-4 -- see the whitespace-class caveat above, which
               -- applies here identically).
               OR lower(btrim(fact.payload->'scope'->>'environment', E' \t\n\v\f\r')) = ANY($15::text[])
+              -- $21 is the lower(btrim(...)) normalized REPLACEMENT for
+              -- what was a dead scope key: advisory_id had NO load-path
+              -- predicate at all before #5466 round-4 review F-10.
+              -- vulnerability.cve/affected_package/affected_product carry
+              -- a raw top-level advisory_id (indexed by
+              -- fact_records_vulnerability_active_advisory_lookup_v2_idx),
+              -- but supplyChainCVEID prefers cve_id over advisory_id
+              -- (firstNonBlank), so a suppression scoped ONLY by
+              -- advisory_id (e.g. a GHSA ID distinct from any cve_id) was
+              -- unreachable by this query even though scopeAnchorMatches
+              -- accepts it and suppressionScopeIsEmpty/the reasons string
+              -- both advertise advisory_id as a sufficient sole anchor.
+              OR lower(btrim(fact.payload->'scope'->>'advisory_id', E' \t\n\v\f\r')) = ANY($21::text[])
           )
       )
   )
@@ -274,17 +290,22 @@ func (s FactStore) listActiveSupplyChainImpactFactsPage(
 		expandEnvironmentAliasFilterValues(filter.Environments),
 		// $16-$20 are lower(btrim(...)) normalized siblings of the
 		// exact-match ->'scope'->>'package_id'/'purl'/'cve_id'/
-		// 'subject_digest'/'repository_id' predicates bound to $1-$4/$7
-		// (#5466 round-3 review F-6). They reuse the SAME filter values as
-		// $1/$2/$3/$4/$7 -- normalized here, not by mutating filter.* --
-		// because $1-$4/$7 are also bound to the top-level (non-"scope")
-		// sibling predicates serving other fact kinds, whose exact-match
+		// 'subject_digest'/'repository_id' predicates bound to $1-$3/$5/$8
+		// (#5466 round-3 review F-6; no exact-match fallback remains for
+		// these "scope"-nested comparisons). They reuse the SAME filter
+		// values as $1/$2/$3/$5/$8 -- normalized here, not by mutating
+		// filter.* -- because $1-$3/$5/$8 are ALSO bound to the top-level
+		// (non-"scope") sibling predicates serving other fact kinds, whose exact-match
 		// behavior must not change.
 		lowerCleanedStringFilterValues(filter.PackageIDs),
 		lowerCleanedStringFilterValues(filter.PURLs),
 		lowerCleanedStringFilterValues(filter.CVEIDs),
 		lowerCleanedStringFilterValues(filter.SubjectDigests),
 		lowerCleanedStringFilterValues(filter.RepositoryIDs),
+		// $21 is the lower(btrim(...)) normalized replacement for what was
+		// a dead scope key -- advisory_id had no load-path predicate at all
+		// before #5466 round-4 review F-10 (see the query text above).
+		lowerCleanedStringFilterValues(filter.AdvisoryIDs),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list active supply chain impact facts: %w", err)

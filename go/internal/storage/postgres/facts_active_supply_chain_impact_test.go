@@ -115,11 +115,11 @@ func TestListActiveSupplyChainImpactFactsQueryMatchesSuppressionByEnvironmentWor
 func TestListActiveSupplyChainImpactFactsBindsWorkloadAndServiceIDsToDistinctPlaceholders(t *testing.T) {
 	t.Parallel()
 
-	// #5466 P2-1: $12 (WorkloadIDs) and $13 (ServiceIDs) have no other
+	// #5466 P2-1: $13 (WorkloadIDs) and $14 (ServiceIDs) have no other
 	// coverage that can catch a bind-order swap in
 	// listActiveSupplyChainImpactFactsPage --
 	// TestListActiveSupplyChainImpactFactsQueryMatchesSuppressionByEnvironmentWorkloadService
-	// only proves the SQL string mentions $12/$13, not that Go binds the
+	// only proves the SQL string mentions $13/$14, not that Go binds the
 	// right filter field to each placeholder. Swapping
 	// filter.WorkloadIDs/filter.ServiceIDs in that call would pass every
 	// other test in the repo and silently make both anchors inert.
@@ -137,21 +137,21 @@ func TestListActiveSupplyChainImpactFactsBindsWorkloadAndServiceIDsToDistinctPla
 		t.Fatalf("query count = %d, want %d", got, want)
 	}
 
-	// args are 0-indexed; $12 is args[11] and $13 is args[12].
-	workloadArg, ok := db.queries[0].args[11].([]string)
-	if !ok {
-		t.Fatalf("$12 (index 11) arg type = %T, want []string", db.queries[0].args[11])
-	}
-	if got, want := workloadArg, []string{"workload:x"}; !slices.Equal(got, want) {
-		t.Fatalf("$12 (WorkloadIDs) arg = %v, want %v", got, want)
-	}
-
-	serviceArg, ok := db.queries[0].args[12].([]string)
+	// args are 0-indexed; $13 is args[12] and $14 is args[13].
+	workloadArg, ok := db.queries[0].args[12].([]string)
 	if !ok {
 		t.Fatalf("$13 (index 12) arg type = %T, want []string", db.queries[0].args[12])
 	}
+	if got, want := workloadArg, []string{"workload:x"}; !slices.Equal(got, want) {
+		t.Fatalf("$13 (WorkloadIDs) arg = %v, want %v", got, want)
+	}
+
+	serviceArg, ok := db.queries[0].args[13].([]string)
+	if !ok {
+		t.Fatalf("$14 (index 13) arg type = %T, want []string", db.queries[0].args[13])
+	}
 	if got, want := serviceArg, []string{"service:y"}; !slices.Equal(got, want) {
-		t.Fatalf("$13 (ServiceIDs) arg = %v, want %v", got, want)
+		t.Fatalf("$14 (ServiceIDs) arg = %v, want %v", got, want)
 	}
 }
 

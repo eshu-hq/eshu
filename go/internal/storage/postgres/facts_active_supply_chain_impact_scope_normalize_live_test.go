@@ -68,3 +68,56 @@ func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByLowercaseCVEIDA
 		}
 	}
 }
+
+// TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByAdvisoryIDOnlyLive
+// is the #5466 round-4 review F-10 fix proof: advisory_id had NO load-path
+// predicate at all before this fix -- not even a stale exact-match one, the
+// way package_id/purl/cve_id/subject_digest/repository_id did before F-6.
+// vulnerability.cve/affected_package/affected_product carry a raw top-level
+// advisory_id field (indexed by
+// fact_records_vulnerability_active_advisory_lookup_v2_idx), but
+// supplyChainCVEID prefers cve_id over advisory_id
+// (firstNonBlank(cve_id, advisory_id)), so a suppression scoped ONLY by an
+// advisory_id distinct from any cve_id (e.g. a GHSA ID) was unreachable by
+// this query even though scopeAnchorMatches, suppressionScopeIsEmpty, and
+// the reasons string in supply_chain_suppression_reasons.go all accept/
+// advertise advisory_id as a sufficient sole anchor. This test covers ONLY
+// the raw advisory_id payload field on the vulnerability.suppression
+// fact's own scope; it does NOT cover deriving AdvisoryIDs from any other
+// fact kind's payload beyond vulnerability.cve/affected_package/
+// affected_product (see supplyChainImpactFilter), and it does NOT change
+// how AdvisoryID is derived on a SupplyChainImpactFinding at classification
+// time (that remains firstNonBlank(cve.advisoryID, cve.cveID) elsewhere).
+func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByAdvisoryIDOnlyLive(t *testing.T) {
+	db := newSupplyChainImpactScopeLiveTestDB(t, "eshu_5466_suppression_scope_advisory_live")
+
+	// SUP-ADVISORY-ONLY: scoped PURELY by advisory_id -- no cve_id,
+	// package_id, purl, subject_digest, or repository_id at all. The exact
+	// shape scopeAnchorMatches/suppressionScopeIsEmpty already accept but
+	// this query's WHERE clause had no predicate that could ever match.
+	seedSupplyChainImpactScopeLiveFact(t, db, "vuln-suppression:advisory-only", "advisory-only",
+		`{"suppression_id":"SUP-ADVISORY-ONLY","source":"eshu_policy","justification":"not_affected","author":"security-bot","authored_at":"2026-06-20T00:00:00Z","scope":{"advisory_id":"GHSA-demo-1111-2222"}}`)
+	// SUP-ADVISORY-NOISE: a different advisory ID entirely, must never
+	// match the filter below.
+	seedSupplyChainImpactScopeLiveFact(t, db, "vuln-suppression:advisory-noise", "advisory-noise",
+		`{"suppression_id":"SUP-ADVISORY-NOISE","source":"eshu_policy","justification":"not_affected","author":"security-bot","authored_at":"2026-06-20T00:00:00Z","scope":{"advisory_id":"GHSA-other-9999-8888"}}`)
+
+	store := NewFactStore(SQLDB{DB: db})
+
+	// The reducer derives AdvisoryIDs from an already-loaded
+	// vulnerability.cve fact's raw top-level advisory_id field (see
+	// supplyChainImpactFilter), independent of that same fact's cve_id
+	// (which is collected separately into CVEIDs).
+	loaded, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
+		AdvisoryIDs: []string{"GHSA-demo-1111-2222"},
+	})
+	if err != nil {
+		t.Fatalf("ListActiveSupplyChainImpactFacts: %v", err)
+	}
+	if got, want := len(loaded), 1; got != want {
+		t.Fatalf("len = %d, want %d (the advisory-only-scoped suppression, and only it): %#v", got, want, loaded)
+	}
+	if loaded[0].FactID != "vuln-suppression:advisory-only" {
+		t.Fatalf("FactID = %q, want vuln-suppression:advisory-only: %#v", loaded[0].FactID, loaded[0])
+	}
+}

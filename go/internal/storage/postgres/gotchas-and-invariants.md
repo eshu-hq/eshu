@@ -243,6 +243,97 @@ operational lessons that future storage changes still need to respect.
   literal character-class argument is exactly as unindexable as `trim`, so
   the pre-`btrim` EXPLAIN evidence above stands without needing a fresh
   300k-row re-run.
+  Round-3 review F-6 (sibling suppression-scope predicates had the
+  identical exact-match defect, fixed): the five OTHER suppression-scope
+  predicates -- `package_id`, `purl`, `cve_id` (the "pre-existing sibling"
+  measured in the Index/sargability evidence above, from BEFORE this
+  follow-up -- that measurement is a historical snapshot, not the shape
+  this predicate ships as today), `subject_digest`, `repository_id` -- were
+  still exact-match `->'scope'->>'X' = ANY($1/$2/$3/$4/$7)`, the identical
+  defect class F-4 fixed for environment/workload_id/service_id:
+  `scopeAnchorMatches` compares all five with `strings.TrimSpace` +
+  `strings.EqualFold`, so a payload of `{"cve_id":"cve-2026-1234"}`
+  (lowercase) decoded and matched in Go but was never selected here. Fixed
+  by REPLACING (not supplementing) those five `->'scope'->>'X'` exact-match
+  predicates with `lower(btrim(fact.payload->'scope'->>'X', E'
+  \t\n\v\f\r')) = ANY($N::text[])` on five NEW placeholders (`$15`
+  package_id, `$16` purl, `$17` cve_id, `$18` subject_digest, `$19`
+  repository_id), bound to `lowerCleanedStringFilterValues` of the SAME
+  filter values already bound to `$1`/`$2`/`$3`/`$4`/`$7`. New placeholders
+  were required rather than reusing `$1`-`$4`/`$7` because those are ALSO
+  bound to the top-level (non-`"scope"`) sibling predicates on the same
+  lines, which serve other fact kinds (`vulnerability.affected_package`,
+  `sbom.component`, ...) whose exact-match behavior must not change --
+  only the `"scope"`-nested comparisons were rewritten, with no exact-match
+  fallback left for them.
+  No-Regression Evidence:
+  `TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeSiblings`
+  and
+  `TestListActiveSupplyChainImpactFactsBindsNormalizedSuppressionScopeSiblings`
+  (`facts_active_supply_chain_impact_scope_normalize_test.go`) prove the
+  predicate shape and `$15`-`$19` bind positions hermetically. The real
+  load-path proof is
+  `TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByLowercaseCVEIDAndPaddedPURLLive`
+  (`facts_active_supply_chain_impact_scope_normalize_live_test.go`, build
+  tag `integration`): seeds a suppression scoped only by a lowercase CVE ID
+  and another scoped only by a whitespace-padded PURL, both selected when
+  the reducer's derived filter carries the conventional
+  uppercase/unpadded form. Index/sargability: `$15`-`$19` are additional
+  `OR`-ed string comparisons of the identical predicate shape already
+  measured for `$14` above (`lower(btrim(...)) = ANY(...)`, no index used,
+  `Parallel Seq Scan`); only the JSON key name and bind values differ, so
+  no separate EXPLAIN re-run was performed for `$15`-`$19` specifically.
+  Round-4 review F-10 (`advisory_id` had NO load-path predicate at all,
+  fixed): unlike the F-6 keys above, which at least had a stale exact-match
+  predicate before normalization, `advisory_id` was a dead scope key from
+  the start -- `scopeAnchorMatches`, `suppressionScopeIsEmpty`, and the
+  reasons string in `supply_chain_suppression_reasons.go` all accept/
+  advertise it as a sufficient sole anchor, but this query's `WHERE` clause
+  had no predicate for it at all. Corrected source-of-truth (an earlier
+  investigation wrongly named `security_alert.repository_alert`'s
+  `ghsa_id` as the only distinct raw source -- that was wrong):
+  `vulnerability.cve`/`affected_package`/`affected_product` each carry a
+  raw, top-level `advisory_id` field, separately indexed by
+  `fact_records_vulnerability_active_advisory_lookup_v2_idx`
+  (`schema_fact_records_vulnerability_indexes.go`). `supplyChainCVEID` is
+  `firstNonBlank(cve_id, advisory_id)`
+  (`go/internal/reducer/supply_chain_impact_summary.go`), so whenever a
+  fact already has a populated `cve_id` (the common case), its DISTINCT
+  `advisory_id` (e.g. a GHSA ID alongside an NVD CVE ID) never reached
+  `CVEIDs` and had nowhere else to go -- a cross-scope suppression scoped
+  ONLY by `advisory_id` was unreachable. Fix: a new `AdvisoryIDs []string`
+  field on `SupplyChainImpactFactFilter`, collected in
+  `supplyChainImpactFilter` SEPARATELY from `CVEIDs` for
+  `vulnerability.cve`/`affected_package`/`affected_product` and from
+  `vulnerability.suppression`'s own `scope.advisory_id`, threaded through
+  `empty()`/`supplyChainImpactFollowUpFilter`/`mergeSupplyChainImpactFactFilters`
+  the same way `Environments`/`WorkloadIDs`/`ServiceIDs` were in P1-1. New
+  SQL placeholder `$20`: `lower(btrim(fact.payload->'scope'->>'advisory_id',
+  E' \t\n\v\f\r')) = ANY($20::text[])`, same normalization shape as
+  `$15`-`$19`. What this does NOT cover:
+  `security_alert.repository_alert`'s `ghsa_id`/`ghsa_ids` are not
+  collected; `SupplyChainImpactFinding.AdvisoryID` (the classification-time
+  provenance-selected value used elsewhere) is unrelated and unchanged --
+  this fix only affects which facts the active-evidence prefilter can
+  select.
+  No-Regression Evidence:
+  `TestSupplyChainImpactFilterCollectsAdvisoryIDsSeparatelyFromCVEIDs`,
+  `TestSupplyChainImpactFilterAdvisoryIDOnlyIsNotEmpty`, and
+  `TestSupplyChainImpactFollowUpFilterTracksAdvisoryIDs`
+  (`go/internal/reducer/supply_chain_impact_active_filter_test.go`) prove
+  the collection/empty/follow-up behavior.
+  `TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeAdvisoryID`
+  and
+  `TestListActiveSupplyChainImpactFactsBindsNormalizedSuppressionScopeAdvisoryID`
+  (`facts_active_supply_chain_impact_scope_normalize_test.go`) prove the
+  predicate shape and `$20` bind position hermetically. The real load-path
+  proof is
+  `TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByAdvisoryIDOnlyLive`
+  (`facts_active_supply_chain_impact_scope_normalize_live_test.go`, build
+  tag `integration`): seeds a suppression scoped only by `advisory_id` and
+  proves it is selected. Index/sargability: `$20` is the identical
+  predicate shape already measured for `$14`-`$19`; no separate EXPLAIN
+  re-run was performed.
   P2-3 follow-up (frequency correction): the original evidence here
   described this as a "once-per-generation" call. That was wrong.
   `ListActiveSupplyChainImpactFacts` is reached per supply-chain-impact

@@ -99,3 +99,48 @@ func TestListActiveSupplyChainImpactFactsBindsNormalizedSuppressionScopeSiblings
 		}
 	}
 }
+
+func TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeAdvisoryID(t *testing.T) {
+	t.Parallel()
+
+	// #5466 round-4 review F-10: advisory_id had NO load-path predicate at
+	// all -- unlike package_id/purl/cve_id/subject_digest/repository_id
+	// (F-6), which at least had a stale exact-match predicate before being
+	// normalized, advisory_id was a dead scope key from the start. New
+	// placeholder $20 closes it with the same lower(btrim(...)) treatment.
+	for _, want := range []string{
+		"lower(btrim(fact.payload->'scope'->>'advisory_id', E' \\t\\n\\v\\f\\r')) = ANY($20::text[])",
+	} {
+		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
+			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
+		}
+	}
+}
+
+func TestListActiveSupplyChainImpactFactsBindsNormalizedSuppressionScopeAdvisoryID(t *testing.T) {
+	t.Parallel()
+
+	// Hermetic (no DSN required) bind-position proof for F-10's $20
+	// placeholder, mirroring the $15-$19 bind-position test above.
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: nil}}}
+	store := NewFactStore(db)
+
+	_, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
+		AdvisoryIDs: []string{" GHSA-Demo-1111-2222 "},
+	})
+	if err != nil {
+		t.Fatalf("ListActiveSupplyChainImpactFacts() error = %v, want nil", err)
+	}
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
+	}
+
+	// args are 0-indexed; $20 is args[19].
+	got, ok := db.queries[0].args[19].([]string)
+	if !ok {
+		t.Fatalf("$20 (index 19) arg type = %T, want []string", db.queries[0].args[19])
+	}
+	if want := []string{"ghsa-demo-1111-2222"}; !slices.Equal(got, want) {
+		t.Fatalf("$20 (AdvisoryIDs) arg = %v, want %v", got, want)
+	}
+}

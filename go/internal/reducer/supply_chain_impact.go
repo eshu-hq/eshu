@@ -65,6 +65,17 @@ type SupplyChainImpactFactFilter struct {
 	Environments []string
 	WorkloadIDs  []string
 	ServiceIDs   []string
+	// AdvisoryIDs (#5466 round-4 review F-10) lets the active-evidence query
+	// select a vulnerability.suppression fact scoped ONLY by advisory_id.
+	// vulnerability.cve/affected_package/affected_product facts carry a raw
+	// top-level advisory_id field (indexed by
+	// fact_records_vulnerability_active_advisory_lookup_v2_idx), but
+	// supplyChainCVEID prefers cve_id over advisory_id
+	// (firstNonBlank(cve_id, advisory_id)), so a distinct advisory_id
+	// (e.g. a GHSA ID alongside a populated cve_id) never reached CVEIDs.
+	// Populated in supplyChainImpactFilter alongside CVEIDs, not instead of
+	// it.
+	AdvisoryIDs []string
 }
 
 // SupplyChainImpactFinding is one reducer-owned vulnerability impact finding.

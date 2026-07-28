@@ -191,6 +191,12 @@ asserts the bound argument values at their exact placeholder positions
 
 Measured against the `lower(payload->'scope'->>'environment')` predicate as
 it stood immediately after P1-1 (before the F-4 `btrim` widening below).
+The `payload->'scope'->>'cve_id'` sibling predicate in this measurement is
+labelled "already shipped, unchanged" because that was true AT THE TIME
+this measurement was taken (before F-6, further below, rewrote it) -- it is
+a historical snapshot, not a description of the predicate as it ships
+today. See the F-6 follow-up section below for the current shape of that
+predicate.
 
 ```
 -- 300,000-row vulnerability.suppression table, darwin/arm64, postgres:16 in
@@ -234,6 +240,142 @@ prior version of this evidence, which used a single low-cardinality
 synthetic environment value (`env-1`, 60/300k rows) — real environment
 values are a small closed domain, so the realistic-distribution re-run above
 is the accurate selectivity picture, not the original strawman.
+
+### F-6 follow-up: the five sibling suppression-scope predicates had the identical exact-match defect
+
+`scopeAnchorMatches`
+(`go/internal/reducer/supply_chain_suppression_scope_match.go`) compares
+`scope.CVEID`, `scope.PackageID`, `scope.PURL`, `scope.RepositoryID`, and
+`scope.SubjectDigest` with `strings.TrimSpace` + `strings.EqualFold` --
+the identical case-insensitive, whitespace-tolerant contract P1-1/F-4
+already fixed for `environment`/`workload_id`/`service_id`. Before this
+follow-up, the five `->'scope'->>'X'` predicates for these keys (including
+the `cve_id` predicate labelled "unchanged" in the historical measurement
+above) were still exact-match `= ANY(...)`, so a payload of
+`{"cve_id":"cve-2026-1234"}` (lowercase) or a whitespace-padded `purl`
+decoded and matched in Go but was never SELECTED by this query.
+
+Fix: new placeholders `$15` (package_id), `$16` (purl), `$17` (cve_id),
+`$18` (subject_digest), and `$19` (repository_id) carry
+`lower(btrim(fact.payload->'scope'->>'X', E' \t\n\v\f\r'))` REPLACEMENTS
+for what were exact-match `->'scope'->>'X' = ANY($1/$2/$3/$4/$7)`
+predicates -- there is no exact-match fallback left for these five
+`"scope"`-nested comparisons. `$15`-`$19` bind `lowerCleanedStringFilterValues`
+of the SAME filter values already bound to `$1`/`$2`/`$3`/`$4`/`$7`, so
+every row the old exact-match predicate could select, the normalized one
+also selects, plus payloads whose case/whitespace differs from the filter.
+New placeholders were required (not reusing `$1`-`$4`/`$7` with lowered
+values) because those placeholders are ALSO bound to the top-level
+(non-`"scope"`) sibling predicates on the same lines, which serve OTHER
+fact kinds (`vulnerability.affected_package`, `sbom.component`, ...) whose
+existing exact-match behavior must not change.
+
+Test coverage:
+`TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeSiblings`
+and `TestListActiveSupplyChainImpactFactsBindsNormalizedSuppressionScopeSiblings`
+(`facts_active_supply_chain_impact_scope_normalize_test.go`) prove the
+predicate shape and the `$15`-`$19` bind positions hermetically (no DSN
+required). The real load-path proof is
+`TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByLowercaseCVEIDAndPaddedPURLLive`
+(`facts_active_supply_chain_impact_scope_normalize_live_test.go`, build tag
+`integration`): seeds a suppression scoped ONLY by a lowercase CVE ID and
+another scoped ONLY by a whitespace-padded PURL, and proves both are
+selected when the reducer's derived filter carries the conventional
+uppercase/unpadded form.
+
+Index/sargability: `$15`-`$19` are additional `OR`-ed string comparisons in
+the same already-`Parallel Seq Scan`ning `WHERE` clause the Index/sargability
+evidence above already covers for the shape class (`lower(btrim(jsonb
+text extraction)) = ANY(text[])`); no separate EXPLAIN re-run was performed
+for `$15`-`$19` specifically, since they are the identical predicate shape
+already measured for `$14` (`lower(btrim(...)) = ANY(...)`, no index used,
+`Parallel Seq Scan`) -- only the JSON key name and bind values differ.
+
+### F-10 follow-up: `advisory_id` had NO load-path predicate at all
+
+Unlike the five F-6 keys above (which at least had a stale exact-match
+predicate before being normalized), `advisory_id` was a dead scope key from
+the start: `scopeAnchorMatches`
+(`go/internal/reducer/supply_chain_suppression_scope_match.go`) accepts
+`scope.AdvisoryID`, `suppressionScopeIsEmpty` treats it as a valid sole
+anchor, and the reasons string in
+`go/internal/reducer/supply_chain_suppression_reasons.go` advertises it as
+sufficient -- but `ListActiveSupplyChainImpactFacts`'s `WHERE` clause had no
+predicate that could ever match a suppression scoped ONLY by `advisory_id`.
+
+**Corrected source-of-truth note** (an earlier draft of this investigation
+wrongly stated the only distinct raw source was `security_alert.repository_alert`'s
+`ghsa_id`/`ghsa_ids` -- that is WRONG and is corrected here):
+`vulnerability.cve`, `vulnerability.affected_package`, and
+`vulnerability.affected_product` each carry a raw, top-level `advisory_id`
+field, separately indexed by
+`fact_records_vulnerability_active_advisory_lookup_v2_idx ON fact_records
+((payload->>'advisory_id'), scope_id, generation_id, fact_kind, fact_id
+ASC) WHERE fact_kind IN ('vulnerability.cve', 'vulnerability.affected_package',
+'vulnerability.affected_product', 'vulnerability.epss_score',
+'vulnerability.known_exploited', 'vulnerability.reference')`
+(`go/internal/storage/postgres/schema_fact_records_vulnerability_indexes.go`).
+`supplyChainCVEID` is `firstNonBlank(payload["cve_id"], payload["advisory_id"])`
+(`go/internal/reducer/supply_chain_impact_summary.go`), so whenever a fact
+already has a populated `cve_id` -- the common case -- its DISTINCT
+`advisory_id` (e.g. a GHSA ID alongside an NVD CVE ID, the exact shape in
+the golden-corpus cassette:
+`testdata/cassettes/replayschedule/supply-chain-impact.json`, `cve_id:
+"CVE-2024-11001"` / `advisory_id: "GHSA-demo-1111-2222"`) never reached
+`CVEIDs` and had nowhere else to go. `security_alert.repository_alert`'s
+`ghsa_id`/`ghsa_ids` fields exist and are a REAL advisory-shaped field, but
+they are not the primary source this fix closes and are NOT collected by
+this fix -- only the raw `advisory_id` field on
+`vulnerability.cve`/`vulnerability.affected_package`/
+`vulnerability.affected_product` facts, plus `vulnerability.suppression`'s
+own `scope.advisory_id` (for suppression-to-suppression follow-up
+expansion, matching how the other five anchors already work).
+
+Fix: a new `AdvisoryIDs []string` field on `SupplyChainImpactFactFilter`,
+collected in `supplyChainImpactFilter`
+(`go/internal/reducer/supply_chain_impact_active_filter.go`) SEPARATELY
+from `CVEIDs` for `vulnerability.cve`/`affected_package`/`affected_product`
+(so a distinct `advisory_id` is never dropped by `supplyChainCVEID`'s
+`firstNonBlank` preference for `cve_id`) and from `vulnerability.suppression`'s
+own `scope.advisory_id`; threaded through `SupplyChainImpactFactFilter.empty()`,
+`supplyChainImpactFollowUpFilter`, and `mergeSupplyChainImpactFactFilters`
+the same way `Environments`/`WorkloadIDs`/`ServiceIDs` were in P1-1. New SQL
+placeholder `$20`: `lower(btrim(fact.payload->'scope'->>'advisory_id', E'
+\t\n\v\f\r')) = ANY($20::text[])`, bound via `lowerCleanedStringFilterValues`,
+the same normalization shape as `$15`-`$19`.
+
+**What this does NOT cover** (be precise, not exhaustive-sounding):
+`security_alert.repository_alert`'s `ghsa_id`/`ghsa_ids` are not collected
+into `AdvisoryIDs`; `vulnerability.epss_score`/`vulnerability.known_exploited`'s
+`advisory_id` field (also covered by the same index) is not collected
+either; and `SupplyChainImpactFinding.AdvisoryID` (the CLASSIFICATION-time,
+provenance-selected value used elsewhere, e.g.
+`firstNonBlank(cve.advisoryID, cve.cveID)` in
+`go/internal/reducer/supply_chain_impact_product.go`) is unrelated to and
+unchanged by this fix -- this fix only affects which facts the
+active-evidence PREFILTER can select, not how a finding's own AdvisoryID is
+derived at classification time.
+
+Test coverage:
+`TestSupplyChainImpactFilterCollectsAdvisoryIDsSeparatelyFromCVEIDs`,
+`TestSupplyChainImpactFilterAdvisoryIDOnlyIsNotEmpty`, and
+`TestSupplyChainImpactFollowUpFilterTracksAdvisoryIDs`
+(`go/internal/reducer/supply_chain_impact_active_filter_test.go`) prove the
+collection/empty/follow-up behavior at the reducer layer.
+`TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeAdvisoryID`
+and `TestListActiveSupplyChainImpactFactsBindsNormalizedSuppressionScopeAdvisoryID`
+(`facts_active_supply_chain_impact_scope_normalize_test.go`) prove the
+predicate shape and `$20` bind position hermetically. The real load-path
+proof is
+`TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByAdvisoryIDOnlyLive`
+(`facts_active_supply_chain_impact_scope_normalize_live_test.go`, build tag
+`integration`): seeds a suppression scoped ONLY by `advisory_id` and proves
+it is selected when the reducer's derived filter carries that same
+advisory ID.
+
+Index/sargability: `$20` is the identical predicate shape already measured
+for `$14`-`$19` (`lower(btrim(...)) = ANY(...)`, no index used, `Parallel
+Seq Scan`); no separate EXPLAIN re-run was performed for `$20` specifically.
 
 ### F-4 EXPLAIN re-run: `btrim` vs `trim` plan shape
 

@@ -52,6 +52,7 @@ func supplyChainImpactFollowUpFilter(
 		Environments:      missingStringValues(current.Environments, requested.Environments),
 		WorkloadIDs:       missingStringValues(current.WorkloadIDs, requested.WorkloadIDs),
 		ServiceIDs:        missingStringValues(current.ServiceIDs, requested.ServiceIDs),
+		AdvisoryIDs:       missingStringValues(current.AdvisoryIDs, requested.AdvisoryIDs),
 	}
 }
 
@@ -71,6 +72,7 @@ func mergeSupplyChainImpactFactFilters(filters ...SupplyChainImpactFactFilter) S
 		merged.Environments = append(merged.Environments, filter.Environments...)
 		merged.WorkloadIDs = append(merged.WorkloadIDs, filter.WorkloadIDs...)
 		merged.ServiceIDs = append(merged.ServiceIDs, filter.ServiceIDs...)
+		merged.AdvisoryIDs = append(merged.AdvisoryIDs, filter.AdvisoryIDs...)
 	}
 	return SupplyChainImpactFactFilter{
 		PackageIDs:        uniqueSortedStrings(merged.PackageIDs),
@@ -86,6 +88,7 @@ func mergeSupplyChainImpactFactFilters(filters ...SupplyChainImpactFactFilter) S
 		Environments:      uniqueSortedStrings(merged.Environments),
 		WorkloadIDs:       uniqueSortedStrings(merged.WorkloadIDs),
 		ServiceIDs:        uniqueSortedStrings(merged.ServiceIDs),
+		AdvisoryIDs:       uniqueSortedStrings(merged.AdvisoryIDs),
 	}
 }
 
@@ -114,6 +117,12 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 	// select a vulnerability.suppression fact scoped ONLY by
 	// environment/workload_id/service_id.
 	var environments, workloadIDs, serviceIDs []string
+	// advisoryIDs (#5466 round-4 review F-10) is collected SEPARATELY from
+	// cveIDs: supplyChainCVEID prefers cve_id over advisory_id
+	// (firstNonBlank), so a fact's distinct advisory_id (e.g. a GHSA ID
+	// alongside a populated cve_id) would otherwise never reach any filter
+	// list, leaving a suppression scoped ONLY by advisory_id unreachable.
+	var advisoryIDs []string
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
 		case facts.VulnerabilityCVEFactKind:
@@ -127,6 +136,7 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			advisoryIDs = append(advisoryIDs, payloadStr(envelope.Payload, "advisory_id"))
 		case facts.VulnerabilityAffectedProductFactKind:
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
+			advisoryIDs = append(advisoryIDs, payloadStr(envelope.Payload, "advisory_id"))
 			if payloadBool(envelope.Payload, "vulnerable") {
 				productCriteria = append(productCriteria, payloadStr(envelope.Payload, "criteria"))
 			}
@@ -247,6 +257,7 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 		Environments:      uniqueSortedStrings(environments),
 		WorkloadIDs:       uniqueSortedStrings(workloadIDs),
 		ServiceIDs:        uniqueSortedStrings(serviceIDs),
+		AdvisoryIDs:       uniqueSortedStrings(advisoryIDs),
 	}
 }
 
@@ -266,7 +277,8 @@ func (f SupplyChainImpactFactFilter) empty() bool {
 	return len(f.PackageIDs) == 0 && len(f.PURLs) == 0 && len(f.CVEIDs) == 0 && len(f.AdvisoryIDs) == 0 &&
 		len(f.SubjectDigests) == 0 && len(f.DocumentIDs) == 0 && len(f.ProductCriteria) == 0 &&
 		len(f.RepositoryIDs) == 0 && len(f.FileRepositoryIDs) == 0 && len(f.ImageRefs) == 0 &&
-		len(f.Environments) == 0 && len(f.WorkloadIDs) == 0 && len(f.ServiceIDs) == 0
+		len(f.Environments) == 0 && len(f.WorkloadIDs) == 0 && len(f.ServiceIDs) == 0 &&
+		len(f.AdvisoryIDs) == 0
 }
 
 func supplyChainImpactParserFileRepositoryIDs(envelopes []facts.Envelope) []string {
